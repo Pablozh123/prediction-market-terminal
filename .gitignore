@@ -1,0 +1,66 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+
+# Virtuelle Umgebung
+.venv/
+venv/
+env/
+
+# Generierte Daten (werden zur Laufzeit erzeugt)
+data/
+
+# Jupyter
+.ipynb_checkpoints/
+notebooks/.ipynb_checkpoints/
+
+# Generierte Bilder
+notebooks/*.png
+
+# IDE
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# Claude Code Konfiguration (persönlich, nicht committen)
+.claude/
+
+# Kursabgaben / PDFs
+*.pdf
+!reports/FINAL_REPORT.pdf
+
+# --- Ergänzt: vor versehentlichem Commit grosser/fremder Artefakte schützen ---
+.venv_tracking/
+*.zip
+intendant/
+cv_analysis/
+cv_materials_extracted/
+tracking_bewegung_abgabe/
+segmentierung_metriken_abgabe/
+outputs/
+reports/compvis_*/
+reports/.pdf_render_deps/
+.git_kaputt_backup*/
+*.tmp
+
+# Legacy analysis/report files from the original workspace, not part of the terminal baseline
+app.py
+run_analysis.py
+run_bulk.py
+docs/
+notebooks/
+reports/
+scripts/add_stance_scores.py
+scripts/audit_reddit_quality.py
+scripts/compare_sentiment_models.py
+scripts/generate_report_assets.py
+scripts/render_final_report.py
+scripts/validate_outputs.py
+src/reddit.py
+src/sentiment.py
+CONTRIBUTING.md
+DEVELOPMENT.md
