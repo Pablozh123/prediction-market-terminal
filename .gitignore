@@ -51,7 +51,8 @@ reports/.pdf_render_deps/
 app.py
 run_analysis.py
 run_bulk.py
-docs/
+docs/DATA_DICTIONARY.md
+docs/PROJEKTBERICHT.md
 notebooks/
 reports/
 scripts/add_stance_scores.py
