@@ -23,6 +23,8 @@ DEFAULT_ROUTES = [
     "/monitor",
     "/portfolio",
     "/copy-trade",
+    "/traders/p/@swisstony",
+    "/wallets/0x204f72f35326db932158cba6adff0b9a1da95e14",
 ]
 
 

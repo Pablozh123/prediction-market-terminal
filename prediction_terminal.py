@@ -11,7 +11,6 @@ import html
 import re
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
 
 import pandas as pd
 import plotly.express as px
@@ -1447,10 +1446,15 @@ def path_page_value() -> str:
         current_url = str(st.context.url or "")
     except Exception:
         return ""
-    path = urlparse(current_url).path.strip("/").lower()
-    if not path:
+    return md.local_route_target(current_url).get("page_slug", "")
+
+
+def path_profile_value() -> str:
+    try:
+        current_url = str(st.context.url or "")
+    except Exception:
         return ""
-    return path.split("/", 1)[0]
+    return md.local_route_target(current_url).get("profile", "")
 
 
 def routed_page_value() -> str:
@@ -1898,6 +1902,20 @@ def apply_query_navigation() -> None:
         st.session_state.selected_page = route_page
 
 
+def apply_profile_route() -> None:
+    if query_page_value():
+        return
+    profile = path_profile_value()
+    if not profile or st.session_state.get("wallets_route_profile_value") == profile:
+        return
+    st.session_state["wallets_route_profile_value"] = profile
+    st.session_state["wallets_wallet_input"] = profile
+    if re.fullmatch(r"0x[a-fA-F0-9]{40}", profile):
+        st.session_state["wallets_inspect_wallet"] = profile
+    else:
+        st.session_state["wallets_route_pending_resolve"] = profile
+
+
 def open_palette_search(query: str) -> None:
     clean_query = query.strip()
     queue_navigation("Search", clean_query)
@@ -2285,6 +2303,7 @@ def render_command_palette_dialog() -> None:
 
 
 apply_query_navigation()
+apply_profile_route()
 apply_pending_navigation()
 
 
@@ -6502,6 +6521,16 @@ def page_wallets() -> None:
             return resolved
         profiles = safe_load("Wallet profile volume lookup", load_leaderboard, 250, "ALL", "VOL", default=pd.DataFrame())
         return md.resolve_profile_query_to_wallet(value, profiles)
+
+    pending_route_profile = st.session_state.pop("wallets_route_pending_resolve", "")
+    if pending_route_profile:
+        resolved_wallet = resolve_wallet_entry(str(pending_route_profile))
+        if resolved_wallet:
+            st.session_state["wallets_inspect_wallet"] = resolved_wallet
+            st.session_state["wallets_wallet_input"] = str(pending_route_profile)
+            st.info(f"Loaded profile route for {short_addr(resolved_wallet)}.")
+        else:
+            st.warning("Profile route could not be resolved from the current public trader samples.")
 
     input_cols = st.columns([3.4, 0.8, 0.8])
     wallet_entry = input_cols[0].text_input(

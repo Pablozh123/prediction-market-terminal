@@ -6,6 +6,27 @@ import pandas as pd
 from src import prediction_markets as md
 
 
+class LocalRouteTargetTests(unittest.TestCase):
+    def test_trader_profile_route_maps_to_wallet_workspace(self) -> None:
+        target = md.local_route_target("https://predictparity.local/traders/p/@swisstony")
+
+        self.assertEqual(target, {"page_slug": "wallets", "profile": "swisstony"})
+
+    def test_wallet_route_keeps_wallet_target(self) -> None:
+        target = md.local_route_target("/wallets/0x204f72f35326db932158cba6adff0b9a1da95e14")
+
+        self.assertEqual(
+            target,
+            {
+                "page_slug": "wallets",
+                "profile": "0x204f72f35326db932158cba6adff0b9a1da95e14",
+            },
+        )
+
+    def test_plain_workspace_route_returns_slug_only(self) -> None:
+        self.assertEqual(md.local_route_target("/live-trades"), {"page_slug": "live-trades", "profile": ""})
+
+
 class CrossVenueCandidateTests(unittest.TestCase):
     def test_candidates_include_trackable_market_ids(self) -> None:
         polymarket = pd.DataFrame(
