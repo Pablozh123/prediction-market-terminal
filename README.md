@@ -51,6 +51,7 @@ Phase 2 is Multi-Trader-Copytrading as a separate layer. Do not start it before 
 | Trader / wallet profile | Wallet page with profile resolver, PnL chart/calendar, positions, activity, counterparties, tracking actions |
 | Track | Local tracked markets and wallets hub with import, filters, live feed, action buttons |
 | Live Trades | Public trade tape with filters, wallet/market aggregation, flow chart, track actions |
+| Live Trades URL filters | Supports tape links such as `/live-trades?q=swisstony&platform=polymarket&side=buy&minNotional=2500&whale=true` |
 | Monitor | Signal monitor for fast movers, whale prints, spreads, holder risk, endings, saved alert rules |
 | Alerts | Alert hits, signal feed, rule builder, saved rules, coverage |
 | Portfolio | Research portfolio, wallet import, copy portfolio, exposure, cash events, paper history, watchlist |

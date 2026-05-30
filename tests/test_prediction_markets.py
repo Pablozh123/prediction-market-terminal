@@ -115,6 +115,27 @@ class PredictParityQueryFilterTests(unittest.TestCase):
 
         self.assertEqual(view, {})
 
+    def test_live_trade_filter_view_parses_tape_params(self) -> None:
+        view = md.predictparity_live_trade_filter_view(
+            {
+                "q": "swisstony",
+                "platform": "polymarket",
+                "side": "buy,no",
+                "minNotional": "2500",
+                "whale": "true",
+                "trackedWallets": "yes",
+                "limit": "150",
+            }
+        )
+
+        self.assertEqual(view["query"], "swisstony")
+        self.assertEqual(view["platforms"], ["Polymarket"])
+        self.assertEqual(view["sides"], ["BUY", "no"])
+        self.assertEqual(view["min_notional"], 2500.0)
+        self.assertTrue(view["large_only"])
+        self.assertTrue(view["tracked_wallets_only"])
+        self.assertEqual(view["rows"], 150)
+
 
 class CrossVenueCandidateTests(unittest.TestCase):
     def test_candidates_include_trackable_market_ids(self) -> None:
