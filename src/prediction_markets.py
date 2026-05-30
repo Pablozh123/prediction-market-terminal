@@ -902,6 +902,41 @@ def predictparity_trader_filter_view(params: Mapping[str, Any]) -> dict[str, Any
     return view
 
 
+def predictparity_live_trade_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
+    """Translate PredictParity-style live-trade query params into local filter state."""
+
+    view: dict[str, Any] = {}
+    query = _query_param_value(params, "q", "query", "search", "wallet", "market")
+    if query:
+        view["query"] = query
+
+    platforms = [item.capitalize() for item in _query_list(params, "platform", "platforms", "venue", "venues")]
+    platforms = [item for item in platforms if item in {"Polymarket", "Kalshi"}]
+    if platforms:
+        view["platforms"] = platforms
+
+    side_values = [item.upper() for item in _query_list(params, "side", "sides", "outcome", "outcomes")]
+    sides = [item for item in side_values if item in {"BUY", "SELL", "YES", "NO"}]
+    if sides:
+        view["sides"] = ["yes" if item == "YES" else "no" if item == "NO" else item for item in sides]
+
+    min_notional = _query_float(params, "minNotional", "notionalMin", "min", "amountMin")
+    if min_notional is not None:
+        view["min_notional"] = float(min_notional)
+
+    rows = _query_float(params, "rows", "limit")
+    if rows is not None and rows > 0:
+        view["rows"] = int(rows)
+
+    if _query_bool(params, "large", "whale", "whales", "largeOnly"):
+        view["large_only"] = True
+    if _query_bool(params, "trackedMarkets", "tracked_markets", "marketsTracked"):
+        view["tracked_markets_only"] = True
+    if _query_bool(params, "trackedWallets", "tracked_wallets", "walletsTracked"):
+        view["tracked_wallets_only"] = True
+    return view
+
+
 def resolve_profile_query_to_wallet(value: Any, profiles: pd.DataFrame) -> str:
     """Resolve a wallet address or exact public trader handle to a Polymarket wallet."""
     text = str(value or "").strip()

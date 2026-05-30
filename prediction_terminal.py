@@ -7270,6 +7270,45 @@ def page_live_trades() -> None:
     if isinstance(pending_live_clear, dict):
         for key, value in pending_live_clear.items():
             st.session_state[key] = value
+    route_filter_params = query_param_snapshot(
+        [
+            "q",
+            "query",
+            "search",
+            "wallet",
+            "market",
+            "platform",
+            "platforms",
+            "venue",
+            "venues",
+            "side",
+            "sides",
+            "outcome",
+            "outcomes",
+            "minNotional",
+            "notionalMin",
+            "min",
+            "amountMin",
+            "rows",
+            "limit",
+            "large",
+            "whale",
+            "whales",
+            "largeOnly",
+            "trackedMarkets",
+            "tracked_markets",
+            "marketsTracked",
+            "trackedWallets",
+            "tracked_wallets",
+            "walletsTracked",
+        ]
+    )
+    route_filter_signature = json.dumps(route_filter_params, sort_keys=True)
+    route_filter_view = md.predictparity_live_trade_filter_view(route_filter_params)
+    if route_filter_view and st.session_state.get("live_route_filter_signature") != route_filter_signature:
+        apply_live_trade_filter_view_widgets(route_filter_view)
+        st.session_state["live_route_filter_signature"] = route_filter_signature
+        st.session_state["live_view_loaded_message"] = "Loaded live trade filters from URL."
 
     controls = st.columns([2, 1, 1, 1, 1])
     query = controls[0].text_input("Search live trades", placeholder="market, wallet, trader, outcome", key="live_search")

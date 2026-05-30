@@ -22,6 +22,7 @@ DEFAULT_ROUTES = [
     "/traders",
     "/track",
     "/live-trades",
+    "/live-trades?q=swisstony&platform=polymarket&side=buy&minNotional=2500&whale=true",
     "/monitor",
     "/portfolio",
     "/copy-trade",
