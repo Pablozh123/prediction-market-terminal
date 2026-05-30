@@ -20,4 +20,3 @@ http://127.0.0.1:8503/
 - Phase 2: Multi-Trader-Copytrading starts only after the `v1-clone` milestone.
 
 See [docs/COLLAB.md](docs/COLLAB.md) for the collaboration rules and phase boundary.
-
