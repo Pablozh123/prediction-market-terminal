@@ -12,6 +12,7 @@ Live surface comparison notes are tracked in `docs/PHASE1_LIVE_SURFACE_COMPARE.m
 |---|---|---|
 | Top navigation | Implemented | `Markets`, `Traders`, `Track`, `Live Trades`, `Monitor`, `Portfolio` top nav with path links |
 | Path routes | Implemented | `/markets`, `/traders`, `/track`, `/live-trades`, `/monitor`, `/portfolio` route into Streamlit state |
+| Market deep links | Implemented | `/markets/<slug>` routes into market search/detail prefill |
 | Trader profile deep links | Implemented | `/traders/p/@handle` and `/wallets/0x...` route into the local wallet/profile workspace |
 | Search Parity | Implemented | Command palette plus Search workspace for markets, traders, trades, news, alerts, tracked items |
 | Home / featured market | Implemented | Overview workspace with featured market, price chart, news, trending and ending sections |
@@ -33,9 +34,9 @@ Live surface comparison notes are tracked in `docs/PHASE1_LIVE_SURFACE_COMPARE.m
 | Check | Result |
 |---|---|
 | `python -m py_compile prediction_terminal.py src\prediction_markets.py src\copy_trading.py` | Pass |
-| `python -m unittest discover -s tests -p test_*.py` | Pass, 92 tests |
+| `python -m unittest discover -s tests -p test_*.py` | Pass, 93 tests |
 | `git diff --check main..codex/website` | Pass |
-| HTTP route smoke for `/`, `/markets`, `/traders`, `/track`, `/live-trades`, `/monitor`, `/portfolio`, `/copy-trade`, `/traders/p/@swisstony`, `/traders?bot=true&apMin=101`, `/wallets/0x204f72f35326db932158cba6adff0b9a1da95e14` | Pass, 200 responses |
+| HTTP route smoke for `/`, `/markets`, `/markets/will-bitcoin-hit-100k`, `/traders`, `/track`, `/live-trades`, `/monitor`, `/portfolio`, `/copy-trade`, `/traders/p/@swisstony`, `/traders?bot=true&apMin=101`, `/wallets/0x204f72f35326db932158cba6adff0b9a1da95e14` | Pass, 200 responses |
 | Query route browser smoke for `?page=traders` and nav to markets | Pass in prior Playwright run |
 
 ## Open Gates Before `v1-clone`

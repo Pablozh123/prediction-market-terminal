@@ -1472,6 +1472,14 @@ def path_profile_value() -> str:
     return md.local_route_target(current_url).get("profile", "")
 
 
+def path_market_value() -> str:
+    try:
+        current_url = str(st.context.url or "")
+    except Exception:
+        return ""
+    return md.local_route_target(current_url).get("market", "")
+
+
 def routed_page_value() -> str:
     query_slug = query_page_value()
     if query_slug:
@@ -1929,6 +1937,26 @@ def apply_profile_route() -> None:
         st.session_state["wallets_inspect_wallet"] = profile
     else:
         st.session_state["wallets_route_pending_resolve"] = profile
+
+
+def apply_market_route(combined: pd.DataFrame) -> None:
+    if query_page_value():
+        return
+    market_value = path_market_value()
+    if not market_value or st.session_state.get("markets_route_market_value") == market_value:
+        return
+    st.session_state["markets_route_market_value"] = market_value
+    search_value = re.sub(r"[-_]+", " ", market_value).strip()
+    if search_value:
+        st.session_state["markets_search"] = search_value
+    if not combined.empty:
+        for column in ["market_key", "ticker", "slug"]:
+            if column in combined:
+                matches = combined[combined[column].astype(str).str.lower().eq(market_value.lower())]
+                if not matches.empty:
+                    st.session_state["markets_inspect_market_key"] = str(matches.iloc[0].get("market_key", "") or "")
+                    break
+    st.session_state["markets_route_message"] = "Loaded market filters from URL."
 
 
 def open_palette_search(query: str) -> None:
@@ -4907,6 +4935,10 @@ def page_markets() -> None:
     if isinstance(pending_market_clear, dict):
         for key, value in pending_market_clear.items():
             st.session_state[key] = value
+    apply_market_route(combined)
+    loaded_market_route_message = st.session_state.pop("markets_route_message", "")
+    if loaded_market_route_message:
+        st.info(loaded_market_route_message)
 
     search_cols = st.columns([2.4, 1.2, 1.2, 1, 1])
     local_query = search_cols[0].text_input("Search markets", placeholder="Search markets", key="markets_search")

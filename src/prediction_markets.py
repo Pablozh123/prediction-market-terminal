@@ -712,19 +712,21 @@ def local_route_target(value: Any) -> dict[str, str]:
 
     raw_value = str(value or "").strip()
     if not raw_value:
-        return {"page_slug": "", "profile": ""}
+        return {"page_slug": "", "profile": "", "market": ""}
     parsed = urlparse(raw_value)
     path = parsed.path if parsed.scheme or parsed.netloc else raw_value
     parts = [unquote(part.strip()) for part in path.strip("/").split("/") if part.strip()]
     if not parts:
-        return {"page_slug": "", "profile": ""}
+        return {"page_slug": "", "profile": "", "market": ""}
 
     first = parts[0].lower()
     if first == "traders" and len(parts) >= 3 and parts[1].lower() == "p":
-        return {"page_slug": "wallets", "profile": normalize_profile_query(parts[2])}
+        return {"page_slug": "wallets", "profile": normalize_profile_query(parts[2]), "market": ""}
     if first in {"wallets", "profile"} and len(parts) >= 2:
-        return {"page_slug": "wallets", "profile": normalize_profile_query(parts[1])}
-    return {"page_slug": first, "profile": ""}
+        return {"page_slug": "wallets", "profile": normalize_profile_query(parts[1]), "market": ""}
+    if first == "markets" and len(parts) >= 2:
+        return {"page_slug": "markets", "profile": "", "market": parts[1].strip()}
+    return {"page_slug": first, "profile": "", "market": ""}
 
 
 def _query_param_value(params: Mapping[str, Any], *names: str) -> str:
