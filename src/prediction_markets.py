@@ -755,6 +755,110 @@ def _query_float(params: Mapping[str, Any], *names: str) -> float | None:
         return None
 
 
+def _query_list(params: Mapping[str, Any], *names: str) -> list[str]:
+    value = _query_param_value(params, *names)
+    if not value:
+        return []
+    return [item.strip() for item in re.split(r"[,|]", value) if item.strip()]
+
+
+def _percent_param(value: float | None) -> int | None:
+    if value is None:
+        return None
+    if 0 <= value <= 1:
+        value *= 100
+    return int(max(0, min(100, round(value))))
+
+
+def predictparity_market_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
+    """Translate PredictParity-style market query params into local filter state."""
+
+    view: dict[str, Any] = {}
+    query = _query_param_value(params, "q", "query", "search")
+    if query:
+        view["query"] = query
+
+    view_mode = _query_param_value(params, "view", "mode").lower()
+    view_map = {"table": "Table", "cards": "Card", "card": "Card", "calendar": "Calendar"}
+    if view_mode in view_map:
+        view["view"] = view_map[view_mode]
+
+    quick = _query_param_value(params, "quick", "filter").lower().replace("-", " ")
+    quick_map = {
+        "trending": "Trending",
+        "saved": "Saved",
+        "my positions": "My Positions",
+        "positions": "My Positions",
+        "ending soon": "Ending Soon",
+        "ending": "Ending Soon",
+        "new": "New",
+    }
+    if quick in quick_map:
+        view["quick"] = quick_map[quick]
+
+    platforms = [item.capitalize() for item in _query_list(params, "platform", "platforms", "venue", "venues")]
+    platforms = [item for item in platforms if item in {"Polymarket", "Kalshi"}]
+    if platforms:
+        view["platform_filter"] = platforms
+
+    status = _query_param_value(params, "status").lower()
+    status_map = {"active": "Active", "all": "All", "closed": "Closed", "resolved": "Closed"}
+    if status in status_map:
+        view["status_filter"] = status_map[status]
+
+    include_categories = _query_list(params, "category", "categories", "includeCategory", "include")
+    if include_categories:
+        view["include_categories"] = include_categories
+    exclude_categories = _query_list(params, "excludeCategory", "excludeCategories", "exclude")
+    if exclude_categories:
+        view["exclude_categories"] = exclude_categories
+
+    prob_min = _percent_param(_query_float(params, "probMin", "priceMin", "minProbability"))
+    prob_max = _percent_param(_query_float(params, "probMax", "priceMax", "maxProbability"))
+    if prob_min is not None or prob_max is not None:
+        view["prob_preset"] = "Custom"
+        view["custom_prob"] = [prob_min if prob_min is not None else 0, prob_max if prob_max is not None else 100]
+
+    volume_min = _query_float(params, "volumeMin", "volMin", "minVolume")
+    if volume_min is not None:
+        view["volume_preset"] = "Custom"
+        view["custom_volume"] = float(volume_min)
+
+    volume_1h_min = _query_float(params, "volume1hMin", "vol1hMin", "minVolume1h")
+    if volume_1h_min is not None:
+        view["volume_1h_preset"] = "Custom"
+        view["custom_volume_1h"] = float(volume_1h_min)
+
+    liquidity_min = _query_float(params, "liquidityMin", "liqMin", "minLiquidity")
+    if liquidity_min is not None:
+        view["liquidity_preset"] = "Custom"
+        view["custom_liquidity"] = float(liquidity_min)
+
+    spread_max = _query_float(params, "spreadMax", "maxSpread")
+    if spread_max is not None:
+        view["spread_preset"] = "Custom"
+        view["custom_spread"] = round(float(spread_max * 100 if 0 < spread_max <= 1 else spread_max), 4)
+
+    end_days = _query_float(params, "endDays", "endingDays", "maxDaysToEnd")
+    if end_days is not None and end_days > 0:
+        view["end_preset"] = "Custom"
+        view["custom_days"] = int(end_days)
+
+    age_days = _query_float(params, "ageDays", "maxAgeDays")
+    if age_days is not None and age_days > 0:
+        view["age_preset"] = "Custom"
+        view["custom_age_days"] = int(age_days)
+
+    sort = _query_param_value(params, "sort", "sortBy", "orderBy")
+    if sort:
+        view["sort_by"] = sort
+
+    rows = _query_float(params, "rows", "limit")
+    if rows is not None and rows > 0:
+        view["limit_rows"] = int(rows)
+    return view
+
+
 def predictparity_trader_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
     """Translate PredictParity-style trader query params into local filter state."""
 

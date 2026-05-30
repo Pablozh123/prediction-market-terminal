@@ -4935,6 +4935,62 @@ def page_markets() -> None:
     if isinstance(pending_market_clear, dict):
         for key, value in pending_market_clear.items():
             st.session_state[key] = value
+    route_filter_params = query_param_snapshot(
+        [
+            "q",
+            "query",
+            "search",
+            "view",
+            "mode",
+            "quick",
+            "filter",
+            "platform",
+            "platforms",
+            "venue",
+            "venues",
+            "status",
+            "category",
+            "categories",
+            "includeCategory",
+            "include",
+            "excludeCategory",
+            "excludeCategories",
+            "exclude",
+            "probMin",
+            "priceMin",
+            "minProbability",
+            "probMax",
+            "priceMax",
+            "maxProbability",
+            "volumeMin",
+            "volMin",
+            "minVolume",
+            "volume1hMin",
+            "vol1hMin",
+            "minVolume1h",
+            "liquidityMin",
+            "liqMin",
+            "minLiquidity",
+            "spreadMax",
+            "maxSpread",
+            "endDays",
+            "endingDays",
+            "maxDaysToEnd",
+            "ageDays",
+            "maxAgeDays",
+            "sort",
+            "sortBy",
+            "orderBy",
+            "rows",
+            "limit",
+        ]
+    )
+    route_filter_signature = json.dumps(route_filter_params, sort_keys=True)
+    route_filter_view = md.predictparity_market_filter_view(route_filter_params)
+    if route_filter_view and st.session_state.get("markets_route_filter_signature") != route_filter_signature:
+        apply_market_filter_view_widgets(route_filter_view, categories)
+        st.session_state["markets_route_filter_signature"] = route_filter_signature
+        st.session_state["markets_route_message"] = "Loaded market filters from URL."
     apply_market_route(combined)
     loaded_market_route_message = st.session_state.pop("markets_route_message", "")
     if loaded_market_route_message:

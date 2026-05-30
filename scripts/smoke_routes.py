@@ -18,6 +18,7 @@ DEFAULT_ROUTES = [
     "/",
     "/markets",
     "/markets/will-bitcoin-hit-100k",
+    "/markets?q=bitcoin&platform=polymarket&status=active&probMin=0.05&probMax=0.95&volumeMin=10000",
     "/traders",
     "/track",
     "/live-trades",
