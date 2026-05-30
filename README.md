@@ -68,6 +68,7 @@ Phase 2 is Multi-Trader-Copytrading as a separate layer. Do not start it before 
 | Portfolio | Research portfolio, wallet import, copy portfolio, exposure, cash events, paper history, watchlist |
 | Portfolio URL filters | Supports dashboard links such as `/portfolio?q=tony&source=research,copy&copyStatus=copied,settled&minValue=100` |
 | Sign In / Sign Up shell | Local research-mode auth facade mirroring PredictParity UI; no credential transmission |
+| Auth routes | `/sign-in`, `/sign-up`, and `/auth/...` open the local research-mode auth shell without live account actions |
 
 ## Data Boundaries
 

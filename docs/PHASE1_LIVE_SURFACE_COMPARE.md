@@ -21,7 +21,7 @@ Primary public reference used: [PolyMart Predict Parity listing](https://polymar
 | Top traders for any Polymarket | Covered | Market detail includes holders/top traders/recent tape leaders |
 | Counterparty visibility | Best-effort covered | Public APIs do not expose exact counterparties; local app estimates counterparty hints from public tape proximity |
 | Bot filtering via `/traders?bot=true&apMin=101` | Covered | Local trader URL filters now parse bot and active-position minimum params |
-| Wallet connection / direct trading | Shell only | Live order placement is intentionally disabled; local app provides research-mode auth/wallet shell and paper trade tickets |
+| Wallet connection / direct trading | Shell only | Live order placement is intentionally disabled; local app provides research-mode auth/wallet shell, auth deep links, and paper trade tickets |
 
 ## Remaining Evidence Needed Before `v1-clone`
 
