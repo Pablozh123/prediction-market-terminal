@@ -9,6 +9,7 @@ Primary public reference used: [PolyMart Predict Parity listing](https://polymar
 | Public PredictParity signal | Local Phase 1 coverage | Notes |
 |---|---|---|
 | Consolidated prediction-market dashboard | Covered | Markets, Overview, Cross-Venue, market drilldowns for Polymarket and Kalshi public data |
+| Dashboard deep links | Covered | Root `/?...` links can prefill overview query, platforms, categories, volume/liquidity, flow thresholds, featured source, active-only, and news visibility |
 | Wallet performance tracking | Covered | Traders page, Wallets page, PnL, win rate, open/closed positions, profile links |
 | Watchlist / tracking hub links | Covered | `/track?...` links can prefill market/wallet tracking filters, signal filter, watch volume, and wallet open-value thresholds |
 | Portfolio dashboard links | Covered | `/portfolio?...` links can prefill research/copy/watchlist/history sources, PnL/value thresholds, outcomes, and copy statuses |

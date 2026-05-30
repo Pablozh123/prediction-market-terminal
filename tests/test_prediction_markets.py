@@ -102,6 +102,35 @@ class PredictParityQueryFilterTests(unittest.TestCase):
         self.assertEqual(view["age_preset"], "Custom")
         self.assertEqual(view["custom_age_days"], 30)
 
+    def test_overview_filter_view_parses_dashboard_params(self) -> None:
+        view = md.predictparity_overview_filter_view(
+            {
+                "q": "bitcoin",
+                "platform": "polymarket",
+                "featured": "any",
+                "marketRows": "9",
+                "category": "Politics,Crypto",
+                "excludeCategory": "Sports",
+                "minVolume": "10000",
+                "minLiquidity": "5000",
+                "minFlow": "2500",
+                "active": "false",
+                "showNews": "false",
+            }
+        )
+
+        self.assertEqual(view["query"], "bitcoin")
+        self.assertEqual(view["platforms"], ["Polymarket"])
+        self.assertEqual(view["featured_source"], "Any")
+        self.assertEqual(view["market_rows"], 9)
+        self.assertEqual(view["include_categories"], ["Politics", "Crypto"])
+        self.assertEqual(view["exclude_categories"], ["Sports"])
+        self.assertEqual(view["min_volume"], 10000.0)
+        self.assertEqual(view["min_liquidity"], 5000.0)
+        self.assertEqual(view["min_flow_notional"], 2500.0)
+        self.assertFalse(view["active_only"])
+        self.assertFalse(view["show_news"])
+
     def test_trader_filter_view_parses_bot_and_active_position_params(self) -> None:
         view = md.predictparity_trader_filter_view({"bot": "true", "apMin": "101"})
 
