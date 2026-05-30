@@ -1480,6 +1480,14 @@ def path_market_value() -> str:
     return md.local_route_target(current_url).get("market", "")
 
 
+def path_auth_mode() -> str:
+    try:
+        current_url = str(st.context.url or "")
+    except Exception:
+        return ""
+    return md.local_auth_route_mode(current_url)
+
+
 def routed_page_value() -> str:
     query_slug = query_page_value()
     if query_slug:
@@ -1925,6 +1933,17 @@ def apply_query_navigation() -> None:
         st.session_state.selected_page = route_page
 
 
+def apply_auth_route() -> None:
+    mode = path_auth_mode()
+    if not mode:
+        return
+    signature = f"{mode}:{path_page_value()}"
+    if st.session_state.get("auth_route_signature") == signature:
+        return
+    st.session_state["auth_route_signature"] = signature
+    st.session_state.auth_dialog_mode = mode
+
+
 def apply_profile_route() -> None:
     if query_page_value():
         return
@@ -2346,6 +2365,7 @@ def render_command_palette_dialog() -> None:
 
 
 apply_query_navigation()
+apply_auth_route()
 apply_profile_route()
 apply_pending_navigation()
 
