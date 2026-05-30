@@ -1,224 +1,125 @@
-# Polymarket Reddit Sentiment
+# Prediction Market Terminal
 
-**Kurs:** Data Wrangling & Engineering (FHNW)
-**Thema:** Stimmungsanalyse von Reddit-Posts korreliert mit Polymarket-Vorhersagemärkten
+Streamlit research terminal for Polymarket and Kalshi, built as a Phase 1 clone of the public PredictParity experience. The app focuses on market discovery, trader/wallet research, live-style public flow, alerts, tracking, portfolio research, and paper-only Swisstony copy-trading.
 
----
+Live trading is disabled. The copy-trading module is paper-only and must not be expanded into Multi-Trader work until Phase 2.
 
-## Was macht dieses Projekt?
+## Run
 
-- Lädt Polymarket-Märkte (z. B. „Will Bitcoin hit $150k?") via öffentlicher API
-- Sucht passende Reddit-Posts (+ Kommentare) per Keyword-Extraktion
-- Optional: filtert Posts semantisch nach Relevanz zur Markt-Frage (sentence-transformers)
-- Analysiert Sentiment (VADER / FinBERT / Twitter-RoBERTa) und optional Stance Detection
-- Korreliert Reddit-Stimmung mit Polymarket-Wahrscheinlichkeiten nach Kategorie
-- Beantwortet F1, F1b, F2, F3 und F4 in Bericht und Analyse-Notebook
-- Streamlit-Dashboard zur interaktiven Exploration
-
-**Kein API-Key erforderlich** – Reddit wird über die öffentliche JSON-API oder optional PRAW abgefragt.
-
----
-
-## Voraussetzungen
-
-| Tool | Version |
-|------|---------|
-| Python | 3.10 oder neuer |
-| pip | aktuell |
-
----
-
-## Setup (Schritt für Schritt)
-
-### 1. Projekt herunterladen / klonen
-
-```bash
-git clone https://github.com/Pablozh123/polymarket-reddit-sentiment.git
-cd polymarket-reddit-sentiment
+```powershell
+python -m streamlit run prediction_terminal.py --server.address=127.0.0.1 --server.port=8503
 ```
 
-### 2. Virtuelle Umgebung erstellen und aktivieren
+Open:
 
-```bash
-# Erstellen
-python -m venv .venv
-
-# Aktivieren – Windows (CMD)
-.venv\Scripts\activate.bat
-
-# Aktivieren – Windows (PowerShell)
-.venv\Scripts\Activate.ps1
-
-# Aktivieren – macOS / Linux
-source .venv/bin/activate
+```text
+http://127.0.0.1:8503/
 ```
 
-### 3. Pakete installieren
+Optional fast paper-copy daemon:
 
-```bash
-pip install -r requirements.txt
+```powershell
+python scripts/run_copy_trader.py --interval 1 --api-interval 30 --settlement-interval 180
 ```
 
-> **Hinweis:** `requirements.txt` enthält bereits `transformers`, `torch` und
-> `sentence-transformers`. Der erste Aufruf der Transformer-Modelle lädt ca. 500–600 MB
-> (einmalig, werden gecacht).
+## Phase Plan
 
-### 4. Jupyter-Kernel registrieren
+Phase 1 is the PredictParity clone layer. It covers PredictParity-like navigation, search, markets, traders, tracking, live trades, monitor, portfolio, filters, saved views, market detail tools, wallet analytics, and the existing paper Swisstony copy-trader.
 
-Damit VS Code / Jupyter das richtige Python (aus der .venv) findet:
+Phase 2 is Multi-Trader-Copytrading as a separate layer. Do not start it before the Phase 1 `v1-clone` tag. See [docs/COLLAB.md](docs/COLLAB.md) and `docs/spec_multitrader_copytrading.md` on the Claude branch.
 
-```bash
-python -m ipykernel install --user --name polymarket --display-name "Python (polymarket)"
+## PredictParity Clone Map
+
+| PredictParity surface | Local implementation |
+|---|---|
+| Top nav: Markets, Traders, Track, Live Trades, Monitor, Portfolio | Top navigation plus sidebar workspaces in `prediction_terminal.py` |
+| Search Parity `/` | Command palette with global markets, traders, trades, alerts, news, tracked items |
+| Home / featured market | Overview page with featured carousel, Yes/No buttons, chart windows, line/candlestick, news, trending markets |
+| Markets | Table/Card/Calendar views, quick filters, category chips, saved filters, market drilldown |
+| Market detail | Header metrics, charts, order book, holders, top traders, recent trades, paper ticket, news, comments |
+| Traders | PredictParity public GraphQL leaderboard, table/list/card views, filters, saved views, profile links |
+| Trader / wallet profile | Wallet page with profile resolver, PnL chart/calendar, positions, activity, counterparties, tracking actions |
+| Track | Local tracked markets and wallets hub with import, filters, live feed, action buttons |
+| Live Trades | Public trade tape with filters, wallet/market aggregation, flow chart, track actions |
+| Monitor | Signal monitor for fast movers, whale prints, spreads, holder risk, endings, saved alert rules |
+| Alerts | Alert hits, signal feed, rule builder, saved rules, coverage |
+| Portfolio | Research portfolio, wallet import, copy portfolio, exposure, cash events, paper history, watchlist |
+| Sign In / Sign Up shell | Local research-mode auth facade mirroring PredictParity UI; no credential transmission |
+
+## Data Boundaries
+
+- Polymarket exposes public proxy-wallet, position, activity, trade, holder, and leaderboard data.
+- PredictParity public GraphQL is used for public trader leaderboard/profile/chart data where available.
+- Kalshi public feeds expose market and trade data, but not public trader wallet identities.
+- Wallet labels, bot-like labels, whale labels, and flow traits are heuristics from public data.
+- The app is research-only. It does not place real Polymarket or Kalshi orders.
+
+## Paper Copy-Trading
+
+The existing Copy Trade page follows Swisstony:
+
+```text
+0x204f72f35326db932158cba6adff0b9a1da95e14
 ```
 
----
+Current behavior:
 
-## Notebooks ausführen (Reihenfolge!)
+- Local SQLite persistence in `data/copy_trading.sqlite`
+- Paper-only portfolio accounting
+- Baseline seeding from the target wallet
+- New observed BUY/SELL copies after baseline
+- Settlement/redeem recycling from unrealized to realized PnL
+- Manual paper cash top-ups
+- CSV exports and skipped/baseline visibility
 
-Öffne VS Code → wähle Kernel `Python (polymarket)` → **Kernel → Restart & Run All**
+Do not replace or remove this during Phase 1.
 
-| Notebook | Inhalt |
-|----------|--------|
-| `notebooks/01_EDA.ipynb` | Explorative Datenanalyse – Verteilungen, Sentiment, Zeitverlauf |
-| `notebooks/02_Datenbereinigung.ipynb` | Missing Values (MCAR/MAR/MNAR), Duplikate, Winsorisierung → speichert `data/reddit_clean.csv` |
-| `notebooks/03_Pipeline.ipynb` | `SentimentPipeline`-Klasse, Multi-Topic-Vergleich (2-Panel-Chart) |
-| `notebooks/04_Analyse.ipynb` | F1-F4: Korrelation, Kategorie-Analyse, Subreddit-Test, Zeitmuster, Stance |
+## Main Files
 
-> **Tipp:** Notebook 02 muss vor 04 laufen, damit `data/reddit_clean.csv` existiert.
+| File | Purpose |
+|---|---|
+| `prediction_terminal.py` | Streamlit website and PredictParity-style UI |
+| `src/prediction_markets.py` | Public API clients and analytics helpers |
+| `src/copy_trading.py` | SQLite-backed paper copy-trading engine |
+| `scripts/run_copy_trader.py` | Background paper-copy sync runner |
+| `tests/test_prediction_markets.py` | Prediction-market helper tests |
+| `tests/test_copy_trading.py` | Paper copy-trading tests |
+| `docs/COLLAB.md` | Codex/Claude collaboration rules and phase boundary |
 
----
+## Verification
 
-## Standalone-Scripts
-
-Für Datenerhebung ohne Jupyter gibt es zwei direkt ausführbare Scripts:
-
-### `run_bulk.py` — Schnelle Bulk-Analyse (empfohlen als Einstieg)
-
-Analysiert bis zu 30 Märkte mit Twitter-RoBERTa, ohne Kommentare (ca. 5–10 Min.).
-Schreibt `data/correlation_pairs_bulk.csv` und `data/posts_per_market.csv`.
-
-```bash
-.venv/Scripts/python.exe run_bulk.py        # Windows
-python run_bulk.py                          # macOS / Linux
+```powershell
+python -m py_compile prediction_terminal.py src\prediction_markets.py src\copy_trading.py
+python -m unittest discover -s tests -p test_*.py
 ```
 
-### `run_analysis.py` — Detailanalyse mit semantischer Filterung
+Before tagging `v1-clone`, also run a browser smoke against `http://127.0.0.1:8503/`:
 
-Analysiert 20 Märkte mit Kommentaren und semantischem Post-Filter (ca. 15–30 Min.).
-Schreibt `data/correlation_pairs.csv`.
+- App loads without Traceback
+- Top PredictParity navigation works
+- Search Parity opens
+- Markets page loads Table/Card/Calendar controls
+- Traders page loads leaderboard controls
+- Track, Live Trades, Monitor, Portfolio load without login blockers
+- Copy Trade page still shows paper-only Swisstony state
 
-```bash
-.venv/Scripts/python.exe run_analysis.py   # Windows
-python run_analysis.py                     # macOS / Linux
+## Git Workflow
+
+Active Phase 1 branch:
+
+```text
+codex/website
 ```
 
----
+Phase 1 completion requires:
 
-## Abgabe-Workflow für eine gute Note
+1. Merge `codex/website` into `main`
+2. Verify tests and browser smoke on `main`
+3. Tag the stable clone milestone:
 
-Die benotete Abgabe soll im Bericht ohne Code verständlich sein. Deshalb gibt es zusätzlich zu
-den Notebooks eine kompakte Berichtsschiene:
-
-| Datei | Zweck |
-|-------|-------|
-| `docs/PROJEKTBERICHT.md` | Berichtsvorlage entlang der Bewertungskriterien A-G |
-| `docs/DATA_DICTIONARY.md` | Erklärung der finalen CSV-Spalten |
-| `docs/BEWERTUNGSCHECK.md` | Checkliste gegen das Bewertungsraster |
-| `scripts/add_stance_scores.py` | Ergänzt `stance_score` fuer F4 auf Markt- und Post-Ebene |
-| `scripts/generate_report_assets.py` | Erstellt druckreife Plots aus den CSV-Outputs |
-| `scripts/render_final_report.py` | Rendert `reports/FINAL_REPORT.md` als HTML/PDF |
-
-Empfohlene Reihenfolge für den finalen Run:
-
-```bash
-python run_bulk.py
-python scripts/add_stance_scores.py
-python scripts/compare_sentiment_models.py
-python scripts/generate_report_assets.py
-python scripts/audit_reddit_quality.py
-python scripts/validate_outputs.py
-python scripts/render_final_report.py
+```powershell
+git tag v1-clone
+git push origin main
+git push origin v1-clone
 ```
 
-Der finale Abgabebericht liegt danach in `reports/FINAL_REPORT.pdf`. Demo-Daten sind nur ein
-technischer Fallback; im finalen Hauptergebnis sollte `is_demo_market` überall `False` sein.
-
----
-
-## Streamlit-App starten
-
-```bash
-python -m streamlit run app.py --server.headless=true
-```
-
-Öffne dann: [http://localhost:8501](http://localhost:8501)
-
----
-
-## Projektstruktur
-
-```
-polymarket-reddit-sentiment/
-├── app.py                    # Streamlit-Dashboard
-├── run_bulk.py               # Bulk-Script: bis 30 Märkte, RoBERTa, schnell
-├── run_analysis.py           # Detail-Script: 20 Märkte, Kommentare, Semantic Filter
-├── requirements.txt          # Abhängigkeiten
-├── src/
-│   ├── reddit.py             # Reddit-Fetch (JSON-API + PRAW), Kommentare, Semantic Filter
-│   ├── polymarket.py         # Polymarket API mit robustem Fallback
-│   ├── market_metadata.py    # Taxonomie, Keywords, Polarity, stabile Felder
-│   └── sentiment.py          # VADER / FinBERT / RoBERTa + semantic_filter() + Stance
-├── notebooks/
-│   ├── 01_EDA.ipynb          # EDA mit annotierten Histogrammen
-│   ├── 02_Datenbereinigung.ipynb
-│   ├── 03_Pipeline.ipynb     # 2-Panel-Themenvergleich
-│   └── 04_Analyse.ipynb      # Kategorie-Korrelation, Zeitreihe nach Kategorie
-└── data/                     # Wird zur Laufzeit erstellt (in .gitignore)
-    ├── reddit_raw.csv
-    ├── reddit_clean.csv
-    ├── polymarket_clean.csv
-    ├── correlation_pairs.csv         # run_analysis.py Output
-    ├── correlation_pairs_bulk.csv    # run_bulk.py Output (Hauptlauf, RoBERTa)
-    └── posts_per_market.csv          # run_bulk.py Output (Einzelposts, Stance nach Add-on)
-```
-
----
-
-## Sentiment-Modell wechseln
-
-In `notebooks/04_Analyse.ipynb` → Cell 6 oder direkt in den Scripts:
-
-```python
-# Schnell (kein Download, VADER):
-SENTIMENT_MODEL = sentiment.MODEL_VADER
-
-# Finanztexte (~440 MB, einmalig):
-SENTIMENT_MODEL = sentiment.MODEL_FINBERT
-
-# Social Media / Reddit (~500 MB, einmalig) — Standard:
-SENTIMENT_MODEL = sentiment.MODEL_ROBERTA
-```
-
----
-
-## Bekannte Einschränkungen
-
-- **Polymarket API** ist von manchen Netzen nicht erreichbar → Demo-Datensatz wird automatisch als technischer Fallback markiert
-- **Reddit Rate Limit:** Bei bis zu 30 Märkten × 25 Posts ca. 5–10 Min. Laufzeit (RoBERTa)
-- **sentence-transformers** (`all-MiniLM-L6-v2`, ~80 MB) wird beim ersten `semantic_filter()`-Aufruf heruntergeladen
-- **Plotly** rendert in VS Code Jupyter ohne Interactive-Widgets-Extension nicht → Notebooks nutzen Matplotlib
-- **Kategorie-Daten:** Die Live-Polymarket-API liefert keine Kategorien zurück – Kategorien werden per Keyword-Matching aus dem Fragentext abgeleitet
-
-## Aktueller finaler Run
-
-Der zuletzt erzeugte Abgabe-Run basiert auf Live-Daten:
-
-- 29 auswertbare Polymarket-Märkte aus 30 ausgewählten Live-Märkten
-- 725 Reddit-Posts, 7 Subreddits, keine Demo-Märkte
-- F1: Pearson r=+0.0791, Spearman rho=+0.1508
-- F4: Stance Pearson r=-0.0855, Spearman rho=-0.1123
-- Richtungsübereinstimmung: 44.8% (13 von 29 Märkten)
-- Modellvergleich: VADER erreicht 27.6% Richtungstrefferquote, Twitter-RoBERTa 44.8%
-
-Massgeblich fuer die Abgabe ist `reports/FINAL_REPORT.pdf`; die Notebooks sind reproduzierbare
-Analyse- und Explorationsartefakte.
