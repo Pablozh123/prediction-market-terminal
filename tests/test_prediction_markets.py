@@ -159,6 +159,56 @@ class PredictParityQueryFilterTests(unittest.TestCase):
         self.assertTrue(view["tracked_wallets_only"])
         self.assertEqual(view["rows"], 150)
 
+    def test_whale_filter_view_parses_flow_thresholds(self) -> None:
+        view = md.predictparity_whale_filter_view(
+            {
+                "q": "iran",
+                "platform": "polymarket",
+                "side": "buy,yes",
+                "minPrint": "5000",
+                "minWalletNotional": "25000",
+                "minWalletTrades": "3",
+                "bias": "yes",
+                "trackedWallets": "true",
+                "rows": "200",
+            }
+        )
+
+        self.assertEqual(view["query"], "iran")
+        self.assertEqual(view["platforms"], ["Polymarket"])
+        self.assertEqual(view["sides"], ["BUY", "yes"])
+        self.assertEqual(view["min_notional"], 5000.0)
+        self.assertEqual(view["min_wallet_notional"], 25000.0)
+        self.assertEqual(view["min_wallet_trades"], 3)
+        self.assertEqual(view["bias_filter"], "YES")
+        self.assertTrue(view["tracked_wallets_only"])
+        self.assertEqual(view["rows"], 200)
+
+    def test_cross_venue_filter_view_parses_gap_and_price_params(self) -> None:
+        view = md.predictparity_cross_venue_filter_view(
+            {
+                "q": "bitcoin",
+                "minSimilarity": "0.35",
+                "maxPairs": "120",
+                "minGap": "0.08",
+                "pmVolumeMin": "10000",
+                "ksVolumeMin": "5000",
+                "lower": "kalshi",
+                "priceMin": "0.05",
+                "priceMax": "0.95",
+            }
+        )
+
+        self.assertEqual(view["query"], "bitcoin")
+        self.assertEqual(view["min_similarity"], 0.35)
+        self.assertEqual(view["max_pairs"], 120)
+        self.assertEqual(view["min_gap_cents"], 8.0)
+        self.assertEqual(view["min_pm_volume"], 10000.0)
+        self.assertEqual(view["min_ks_volume"], 5000.0)
+        self.assertEqual(view["lower_filter"], "Kalshi")
+        self.assertEqual(view["min_price_pct"], 5)
+        self.assertEqual(view["max_price_pct"], 95)
+
     def test_monitor_filter_view_parses_signal_thresholds_and_scope(self) -> None:
         view = md.predictparity_monitor_filter_view(
             {

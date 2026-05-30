@@ -7755,6 +7755,49 @@ def page_whale_flow() -> None:
     if isinstance(pending_whale_clear, dict):
         for key, value in pending_whale_clear.items():
             st.session_state[key] = value
+    route_filter_params = query_param_snapshot(
+        [
+            "q",
+            "query",
+            "search",
+            "wallet",
+            "market",
+            "platform",
+            "platforms",
+            "venue",
+            "venues",
+            "side",
+            "sides",
+            "outcome",
+            "outcomes",
+            "rows",
+            "limit",
+            "minNotional",
+            "notionalMin",
+            "minPrint",
+            "printMin",
+            "whaleMin",
+            "minWalletNotional",
+            "walletNotionalMin",
+            "walletMin",
+            "minWalletTrades",
+            "walletTradesMin",
+            "tradesMin",
+            "bias",
+            "outcomeBias",
+            "biasFilter",
+            "trackedWallets",
+            "tracked_wallets",
+            "walletsTracked",
+            "watchedWallets",
+        ]
+    )
+    route_filter_signature = json.dumps(route_filter_params, sort_keys=True)
+    route_filter_view = md.predictparity_whale_filter_view(route_filter_params)
+    if route_filter_view and st.session_state.get("whale_route_filter_signature") != route_filter_signature:
+        apply_whale_flow_filter_view_widgets(route_filter_view)
+        st.session_state["whale_route_filter_signature"] = route_filter_signature
+        st.session_state["whale_view_loaded_message"] = "Loaded whale-flow filters from URL."
 
     controls = st.columns([1.5, 1, 1, 1])
     whale_query = controls[0].text_input("Whale search", placeholder="market, wallet, trader, outcome", key="whale_query")
@@ -8047,6 +8090,48 @@ def page_cross_venue() -> None:
     if isinstance(pending_cross_clear, dict):
         for key, value in pending_cross_clear.items():
             st.session_state[key] = value
+    route_filter_params = query_param_snapshot(
+        [
+            "q",
+            "query",
+            "search",
+            "market",
+            "event",
+            "minSimilarity",
+            "similarityMin",
+            "minSim",
+            "maxPairs",
+            "pairs",
+            "rows",
+            "limit",
+            "minGapCents",
+            "gapCentsMin",
+            "minGap",
+            "gapMin",
+            "minPolymarketVolume",
+            "pmVolumeMin",
+            "polyVolumeMin",
+            "minKalshiVolume",
+            "ksVolumeMin",
+            "kalshiVolumeMin",
+            "lower",
+            "lowerYes",
+            "cheaper",
+            "cheaperVenue",
+            "minPrice",
+            "maxPrice",
+            "priceMin",
+            "priceMax",
+            "probMin",
+            "probMax",
+        ]
+    )
+    route_filter_signature = json.dumps(route_filter_params, sort_keys=True)
+    route_filter_view = md.predictparity_cross_venue_filter_view(route_filter_params)
+    if route_filter_view and st.session_state.get("cross_route_filter_signature") != route_filter_signature:
+        apply_cross_venue_filter_view_widgets(route_filter_view)
+        st.session_state["cross_route_filter_signature"] = route_filter_signature
+        st.session_state["cross_view_loaded_message"] = "Loaded cross-venue filters from URL."
 
     col1, col2, col3 = st.columns([2, 1, 1])
     query = col1.text_input("Pairing query", placeholder="bitcoin, fed, iran, election", key="cross_query")

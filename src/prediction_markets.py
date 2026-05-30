@@ -989,6 +989,82 @@ def predictparity_live_trade_filter_view(params: Mapping[str, Any]) -> dict[str,
     return view
 
 
+def predictparity_whale_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
+    """Translate PredictParity-style whale-flow query params into local filter state."""
+
+    view = predictparity_live_trade_filter_view(params)
+
+    min_notional = _query_float(params, "minNotional", "notionalMin", "minPrint", "printMin", "whaleMin")
+    if min_notional is not None:
+        view["min_notional"] = float(min_notional)
+
+    min_wallet_notional = _query_float(params, "minWalletNotional", "walletNotionalMin", "walletMin")
+    if min_wallet_notional is not None:
+        view["min_wallet_notional"] = float(min_wallet_notional)
+
+    min_wallet_trades = _query_float(params, "minWalletTrades", "walletTradesMin", "tradesMin")
+    if min_wallet_trades is not None and min_wallet_trades > 0:
+        view["min_wallet_trades"] = int(min_wallet_trades)
+
+    bias_value = _query_param_value(params, "bias", "outcomeBias", "biasFilter").lower()
+    bias_lookup = {"yes": "YES", "y": "YES", "no": "NO", "n": "NO", "mixed": "Mixed", "any": "Any"}
+    if bias_value in bias_lookup:
+        view["bias_filter"] = bias_lookup[bias_value]
+
+    if _query_bool(params, "trackedWallets", "tracked_wallets", "walletsTracked", "watchedWallets"):
+        view["tracked_wallets_only"] = True
+    return view
+
+
+def predictparity_cross_venue_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
+    """Translate PredictParity-style cross-venue query params into local filter state."""
+
+    view: dict[str, Any] = {}
+    query = _query_param_value(params, "q", "query", "search", "market", "event")
+    if query:
+        view["query"] = query
+
+    min_similarity = _query_float(params, "minSimilarity", "similarityMin", "minSim")
+    if min_similarity is not None:
+        view["min_similarity"] = float(min_similarity)
+
+    max_pairs = _query_float(params, "maxPairs", "pairs", "rows", "limit")
+    if max_pairs is not None and max_pairs > 0:
+        view["max_pairs"] = int(max_pairs)
+
+    gap_cents = _query_float(params, "minGapCents", "gapCentsMin", "minGap", "gapMin")
+    if gap_cents is not None:
+        view["min_gap_cents"] = round(float(gap_cents * 100 if 0 < gap_cents <= 1 else gap_cents), 4)
+
+    pm_volume = _query_float(params, "minPolymarketVolume", "pmVolumeMin", "polyVolumeMin")
+    if pm_volume is not None:
+        view["min_pm_volume"] = float(pm_volume)
+
+    ks_volume = _query_float(params, "minKalshiVolume", "ksVolumeMin", "kalshiVolumeMin")
+    if ks_volume is not None:
+        view["min_ks_volume"] = float(ks_volume)
+
+    lower_value = _query_param_value(params, "lower", "lowerYes", "cheaper", "cheaperVenue").lower()
+    lower_lookup = {
+        "polymarket": "Polymarket",
+        "poly": "Polymarket",
+        "pm": "Polymarket",
+        "kalshi": "Kalshi",
+        "ks": "Kalshi",
+        "any": "Any",
+    }
+    if lower_value in lower_lookup:
+        view["lower_filter"] = lower_lookup[lower_value]
+
+    price_min = _percent_param(_query_float(params, "minPrice", "priceMin", "probMin"))
+    price_max = _percent_param(_query_float(params, "maxPrice", "priceMax", "probMax"))
+    if price_min is not None:
+        view["min_price_pct"] = price_min
+    if price_max is not None:
+        view["max_price_pct"] = price_max
+    return view
+
+
 def predictparity_monitor_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
     """Translate PredictParity-style monitor query params into local filter state."""
 

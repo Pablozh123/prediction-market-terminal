@@ -24,6 +24,8 @@ DEFAULT_ROUTES = [
     "/track",
     "/live-trades",
     "/live-trades?q=swisstony&platform=polymarket&side=buy&minNotional=2500&whale=true",
+    "/whale-flow?q=iran&platform=polymarket&minPrint=5000&bias=yes&trackedWallets=false",
+    "/cross-venue?q=bitcoin&minSimilarity=0.35&minGap=0.08&lower=kalshi&priceMin=0.05&priceMax=0.95",
     "/monitor",
     "/monitor?q=bitcoin&platform=polymarket&signal=whale-print,tight-spread&minWhale=2500&maxSpread=0.07",
     "/alerts?q=iran&signal=fast-mover&hitsOnly=true&minWhale=5000",

@@ -53,6 +53,10 @@ Phase 2 is Multi-Trader-Copytrading as a separate layer. Do not start it before 
 | Track | Local tracked markets and wallets hub with import, filters, live feed, action buttons |
 | Live Trades | Public trade tape with filters, wallet/market aggregation, flow chart, track actions |
 | Live Trades URL filters | Supports tape links such as `/live-trades?q=swisstony&platform=polymarket&side=buy&minNotional=2500&whale=true` |
+| Whale Flow | Large-print scanner with wallet aggregation, market flow, outcome-bias panels, and track actions |
+| Whale Flow URL filters | Supports smart-money links such as `/whale-flow?q=iran&platform=polymarket&minPrint=5000&bias=yes` |
+| Cross-Venue | Similar Polymarket/Kalshi pair finder with yes-price gaps, lower-venue filters, watchlist actions |
+| Cross-Venue URL filters | Supports venue-gap links such as `/cross-venue?q=bitcoin&minGap=0.08&lower=kalshi` |
 | Monitor | Signal monitor for fast movers, whale prints, spreads, holder risk, endings, saved alert rules |
 | Monitor URL filters | Supports signal links such as `/monitor?q=bitcoin&platform=polymarket&signal=whale-print,tight-spread&minWhale=2500` |
 | Alerts | Alert hits, signal feed, rule builder, saved rules, coverage |
