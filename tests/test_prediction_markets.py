@@ -10,7 +10,7 @@ class LocalRouteTargetTests(unittest.TestCase):
     def test_trader_profile_route_maps_to_wallet_workspace(self) -> None:
         target = md.local_route_target("https://predictparity.local/traders/p/@swisstony")
 
-        self.assertEqual(target, {"page_slug": "wallets", "profile": "swisstony"})
+        self.assertEqual(target, {"page_slug": "wallets", "profile": "swisstony", "market": ""})
 
     def test_wallet_route_keeps_wallet_target(self) -> None:
         target = md.local_route_target("/wallets/0x204f72f35326db932158cba6adff0b9a1da95e14")
@@ -20,11 +20,18 @@ class LocalRouteTargetTests(unittest.TestCase):
             {
                 "page_slug": "wallets",
                 "profile": "0x204f72f35326db932158cba6adff0b9a1da95e14",
+                "market": "",
             },
         )
 
     def test_plain_workspace_route_returns_slug_only(self) -> None:
-        self.assertEqual(md.local_route_target("/live-trades"), {"page_slug": "live-trades", "profile": ""})
+        self.assertEqual(md.local_route_target("/live-trades"), {"page_slug": "live-trades", "profile": "", "market": ""})
+
+    def test_market_route_captures_market_slug(self) -> None:
+        self.assertEqual(
+            md.local_route_target("/markets/will-bitcoin-hit-100k"),
+            {"page_slug": "markets", "profile": "", "market": "will-bitcoin-hit-100k"},
+        )
 
 
 class PredictParityQueryFilterTests(unittest.TestCase):

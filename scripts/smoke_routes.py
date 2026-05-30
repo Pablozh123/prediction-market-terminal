@@ -17,6 +17,7 @@ DEFAULT_BASE_URL = "http://127.0.0.1:8503"
 DEFAULT_ROUTES = [
     "/",
     "/markets",
+    "/markets/will-bitcoin-hit-100k",
     "/traders",
     "/track",
     "/live-trades",
