@@ -31,6 +31,7 @@ This audit tracks the clone layer only. Multi-trader copy-trading is out of scop
 |---|---|
 | `python -m py_compile prediction_terminal.py src\prediction_markets.py src\copy_trading.py` | Pass |
 | `python -m unittest discover -s tests -p test_*.py` | Pass, 89 tests |
+| `git diff --check main..codex/website` | Pass |
 | HTTP route smoke for `/`, `/markets`, `/traders`, `/track`, `/live-trades`, `/monitor`, `/portfolio`, `/copy-trade`, `/traders/p/@swisstony`, `/wallets/0x204f72f35326db932158cba6adff0b9a1da95e14` | Pass, 200 responses |
 | Query route browser smoke for `?page=traders` and nav to markets | Pass in prior Playwright run |
 
