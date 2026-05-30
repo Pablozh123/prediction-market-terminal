@@ -11,6 +11,7 @@ import html
 import re
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import pandas as pd
 import plotly.express as px
@@ -1441,6 +1442,24 @@ def query_page_value() -> str:
     return str(value or "").strip().lower()
 
 
+def path_page_value() -> str:
+    try:
+        current_url = str(st.context.url or "")
+    except Exception:
+        return ""
+    path = urlparse(current_url).path.strip("/").lower()
+    if not path:
+        return ""
+    return path.split("/", 1)[0]
+
+
+def routed_page_value() -> str:
+    query_slug = query_page_value()
+    if query_slug:
+        return query_slug
+    return path_page_value()
+
+
 def set_query_page(page: str) -> None:
     slug = PAGE_QUERY_SLUGS.get(page, "")
     if not slug:
@@ -1454,7 +1473,7 @@ def set_query_page(page: str) -> None:
 
 def init_state() -> None:
     if "selected_page" not in st.session_state:
-        st.session_state.selected_page = PAGE_BY_QUERY_SLUG.get(query_page_value(), "Overview")
+        st.session_state.selected_page = PAGE_BY_QUERY_SLUG.get(routed_page_value(), "Overview")
     if "global_search_query" not in st.session_state:
         st.session_state.global_search_query = ""
     if "command_palette_open" not in st.session_state:
@@ -1874,7 +1893,7 @@ def apply_pending_navigation() -> None:
 
 
 def apply_query_navigation() -> None:
-    route_page = PAGE_BY_QUERY_SLUG.get(query_page_value())
+    route_page = PAGE_BY_QUERY_SLUG.get(routed_page_value())
     if route_page in WORKSPACES and route_page != st.session_state.get("selected_page"):
         st.session_state.selected_page = route_page
 
@@ -1949,9 +1968,12 @@ def render_command_bar() -> None:
     for idx, nav_page in enumerate(PREDICTPARITY_NAV):
         is_current = st.session_state.get("selected_page") == nav_page
         label = nav_page.upper()
-        if nav_cols[idx].button(label, key=f"top_nav_{nav_page}", width="stretch", type="primary" if is_current else "secondary"):
-            queue_navigation(nav_page, st.session_state.get("global_search_query", ""))
-            st.rerun()
+        nav_cols[idx].link_button(
+            label,
+            f"/{PAGE_QUERY_SLUGS[nav_page]}",
+            width="stretch",
+            type="primary" if is_current else "secondary",
+        )
     left, middle, right = st.columns([1.2, 4.6, 1.8])
     with middle:
         if st.button("Search Parity...                                      /", key="open_command_palette_main", width="stretch"):
