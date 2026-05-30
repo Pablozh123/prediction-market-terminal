@@ -10159,6 +10159,47 @@ def page_portfolio() -> None:
     if isinstance(pending_portfolio_clear, dict):
         for key, value in pending_portfolio_clear.items():
             st.session_state[key] = value
+    route_filter_params = query_param_snapshot(
+        [
+            "q",
+            "query",
+            "search",
+            "wallet",
+            "market",
+            "platform",
+            "platforms",
+            "venue",
+            "venues",
+            "outcome",
+            "outcomes",
+            "side",
+            "sides",
+            "rows",
+            "limit",
+            "minValue",
+            "valueMin",
+            "minPositionValue",
+            "positionValueMin",
+            "minPnl",
+            "pnlMin",
+            "profitMin",
+            "source",
+            "sources",
+            "copyStatus",
+            "copyStatuses",
+            "status",
+            "statuses",
+            "losersOnly",
+            "losingOnly",
+            "lossesOnly",
+        ]
+    )
+    route_filter_signature = json.dumps(route_filter_params, sort_keys=True)
+    route_filter_view = md.predictparity_portfolio_filter_view(route_filter_params)
+    if route_filter_view and st.session_state.get("portfolio_route_filter_signature") != route_filter_signature:
+        apply_portfolio_filter_view_widgets(route_filter_view)
+        st.session_state["portfolio_route_filter_signature"] = route_filter_signature
+        st.session_state["portfolio_view_loaded_message"] = "Loaded portfolio filters from URL."
 
     enriched, metrics = md.portfolio_metrics(st.session_state.portfolio)
     try:

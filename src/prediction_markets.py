@@ -1261,6 +1261,60 @@ def predictparity_resolved_filter_view(params: Mapping[str, Any]) -> dict[str, A
     return view
 
 
+def predictparity_portfolio_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
+    """Translate PredictParity-style portfolio query params into local filter state."""
+
+    view: dict[str, Any] = {}
+    query = _query_param_value(params, "q", "query", "search", "wallet", "market")
+    if query:
+        view["query"] = query
+
+    platforms = [item.capitalize() for item in _query_list(params, "platform", "platforms", "venue", "venues")]
+    platforms = [item for item in platforms if item in {"Polymarket", "Kalshi"}]
+    if platforms:
+        view["platforms"] = platforms
+
+    outcome_lookup = {"yes": "Yes", "y": "Yes", "no": "No", "n": "No"}
+    outcomes: list[str] = []
+    for item in _query_list(params, "outcome", "outcomes", "side", "sides"):
+        key = item.lower()
+        if key in outcome_lookup:
+            outcomes.append(outcome_lookup[key])
+    if outcomes:
+        view["outcomes"] = list(dict.fromkeys(outcomes))
+
+    rows = _query_float(params, "rows", "limit")
+    if rows is not None and rows > 0:
+        view["rows"] = int(rows)
+
+    min_value = _query_float(params, "minValue", "valueMin", "minPositionValue", "positionValueMin")
+    if min_value is not None:
+        view["min_value"] = float(min_value)
+
+    min_pnl = _query_float(params, "minPnl", "pnlMin", "profitMin")
+    if min_pnl is not None:
+        view["min_pnl"] = float(min_pnl)
+
+    source_lookup = {"research": "Research", "copy": "Copy", "copytrade": "Copy", "copy trading": "Copy", "watchlist": "Watchlist", "history": "History"}
+    sources: list[str] = []
+    for item in _query_list(params, "source", "sources"):
+        key = item.lower().replace("_", " ").replace("-", " ")
+        if key in source_lookup:
+            sources.append(source_lookup[key])
+    if sources:
+        view["sources"] = list(dict.fromkeys(sources))
+
+    status_values = [item.lower().replace("_", " ").replace("-", " ") for item in _query_list(params, "copyStatus", "copyStatuses", "status", "statuses")]
+    copy_statuses = [item for item in status_values if item in {"copied", "settled", "skipped", "baseline", "duplicate"}]
+    if copy_statuses:
+        view["copy_statuses"] = list(dict.fromkeys(copy_statuses))
+
+    losers_only = _query_param_value(params, "losersOnly", "losingOnly", "lossesOnly").lower()
+    if losers_only:
+        view["losers_only"] = losers_only in {"1", "true", "yes", "y", "on"}
+    return view
+
+
 def resolve_profile_query_to_wallet(value: Any, profiles: pd.DataFrame) -> str:
     """Resolve a wallet address or exact public trader handle to a Polymarket wallet."""
     text = str(value or "").strip()
