@@ -192,6 +192,23 @@ class PredictParityQueryFilterTests(unittest.TestCase):
         self.assertEqual(view["holder_threshold"], 0.25)
         self.assertEqual(view["rows"], 75)
 
+    def test_alert_filter_view_parses_hits_only_and_monitor_thresholds(self) -> None:
+        view = md.predictparity_alert_filter_view(
+            {
+                "q": "iran",
+                "signal": "fast-mover",
+                "hitsOnly": "true",
+                "minWhale": "5000",
+                "maxSpread": "7",
+            }
+        )
+
+        self.assertEqual(view["query"], "iran")
+        self.assertEqual(view["signal_types"], ["Fast mover"])
+        self.assertTrue(view["hits_only"])
+        self.assertEqual(view["min_whale"], 5000.0)
+        self.assertEqual(view["max_spread"], 7.0)
+
 
 class CrossVenueCandidateTests(unittest.TestCase):
     def test_candidates_include_trackable_market_ids(self) -> None:

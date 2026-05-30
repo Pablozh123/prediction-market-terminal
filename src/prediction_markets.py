@@ -1052,6 +1052,16 @@ def predictparity_monitor_filter_view(params: Mapping[str, Any]) -> dict[str, An
     return view
 
 
+def predictparity_alert_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
+    """Translate PredictParity-style alert query params into local filter state."""
+
+    view = predictparity_monitor_filter_view(params)
+    hits_only = _query_param_value(params, "hitsOnly", "hits", "rulesOnly").lower()
+    if hits_only:
+        view["hits_only"] = hits_only in {"1", "true", "yes", "y", "on"}
+    return view
+
+
 def resolve_profile_query_to_wallet(value: Any, profiles: pd.DataFrame) -> str:
     """Resolve a wallet address or exact public trader handle to a Polymarket wallet."""
     text = str(value or "").strip()
