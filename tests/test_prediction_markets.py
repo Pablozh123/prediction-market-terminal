@@ -209,6 +209,33 @@ class PredictParityQueryFilterTests(unittest.TestCase):
         self.assertEqual(view["min_whale"], 5000.0)
         self.assertEqual(view["max_spread"], 7.0)
 
+    def test_resolved_filter_view_parses_accuracy_archive_params(self) -> None:
+        view = md.predictparity_resolved_filter_view(
+            {
+                "q": "iran",
+                "outcome": "yes,no",
+                "decisiveOnly": "true",
+                "minVolume": "10000",
+                "minLiquidity": "5000",
+                "category": "Politics,Crypto",
+                "closedWindow": "30d",
+                "finalYesMin": "0.95",
+                "sort": "final-yes",
+                "limit": "300",
+            }
+        )
+
+        self.assertEqual(view["query"], "iran")
+        self.assertEqual(view["outcomes"], ["Yes", "No"])
+        self.assertTrue(view["decisive_only"])
+        self.assertEqual(view["min_volume"], 10000.0)
+        self.assertEqual(view["min_liquidity"], 5000.0)
+        self.assertEqual(view["category_filter"], ["Politics", "Crypto"])
+        self.assertEqual(view["closed_window"], "<30d")
+        self.assertEqual(view["final_yes_range"], [95, 100])
+        self.assertEqual(view["sort_by"], "final_yes_price")
+        self.assertEqual(view["rows"], 300)
+
 
 class CrossVenueCandidateTests(unittest.TestCase):
     def test_candidates_include_trackable_market_ids(self) -> None:

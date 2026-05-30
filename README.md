@@ -30,7 +30,7 @@ python scripts/smoke_routes.py
 
 ## Phase Plan
 
-Phase 1 is the PredictParity clone layer. It covers PredictParity-like navigation, search, markets, traders, tracking, live trades, monitor, portfolio, filters, saved views, market detail tools, wallet analytics, and the existing paper Swisstony copy-trader.
+Phase 1 is the PredictParity clone layer. It covers PredictParity-like navigation, search, markets, traders, tracking, live trades, monitor, alerts, resolved-market accuracy, portfolio, filters, saved views, market detail tools, wallet analytics, and the existing paper Swisstony copy-trader.
 
 Phase 2 is Multi-Trader-Copytrading as a separate layer. Do not start it before the Phase 1 `v1-clone` tag. See [docs/COLLAB.md](docs/COLLAB.md) and `docs/spec_multitrader_copytrading.md` on the Claude branch.
 
@@ -57,6 +57,8 @@ Phase 2 is Multi-Trader-Copytrading as a separate layer. Do not start it before 
 | Monitor URL filters | Supports signal links such as `/monitor?q=bitcoin&platform=polymarket&signal=whale-print,tight-spread&minWhale=2500` |
 | Alerts | Alert hits, signal feed, rule builder, saved rules, coverage |
 | Alerts URL filters | Supports alert-center links such as `/alerts?q=iran&signal=fast-mover&hitsOnly=true&minWhale=5000` |
+| Historical accuracy / Resolved | Closed-market archive with final Yes price, resolved outcome mix, category history, decisive-close stats, CSV export |
+| Resolved URL filters | Supports accuracy archive links such as `/resolved?q=iran&outcome=yes,no&decisiveOnly=true&minVolume=10000&closedWindow=30d` |
 | Portfolio | Research portfolio, wallet import, copy portfolio, exposure, cash events, paper history, watchlist |
 | Sign In / Sign Up shell | Local research-mode auth facade mirroring PredictParity UI; no credential transmission |
 

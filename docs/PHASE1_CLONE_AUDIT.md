@@ -11,7 +11,7 @@ Live surface comparison notes are tracked in `docs/PHASE1_LIVE_SURFACE_COMPARE.m
 | PredictParity surface | Local status | Evidence |
 |---|---|---|
 | Top navigation | Implemented | `Markets`, `Traders`, `Track`, `Live Trades`, `Monitor`, `Portfolio` top nav with path links |
-| Path routes | Implemented | `/markets`, `/traders`, `/track`, `/live-trades`, `/monitor`, `/portfolio` route into Streamlit state |
+| Path routes | Implemented | `/markets`, `/traders`, `/track`, `/live-trades`, `/monitor`, `/alerts`, `/resolved`, `/portfolio` route into Streamlit state |
 | Market deep links | Implemented | `/markets/<slug>` routes into market search/detail prefill |
 | Market URL filters | Implemented | PredictParity-style scanner filters including query, platform, status, probability, volume, liquidity, spread, ending, age, sort, and rows |
 | Trader profile deep links | Implemented | `/traders/p/@handle` and `/wallets/0x...` route into the local wallet/profile workspace |
@@ -30,6 +30,8 @@ Live surface comparison notes are tracked in `docs/PHASE1_LIVE_SURFACE_COMPARE.m
 | Monitor URL filters | Implemented | PredictParity-style signal filters including query, platform, signal types, watched-only, volume, liquidity, move, spread, whale notional, ending, and holder-risk controls |
 | Alerts | Implemented | Signal feed, alert hits, rule builder, saved rules, coverage |
 | Alerts URL filters | Implemented | PredictParity-style alert-center filters including query, signal types, hits-only, thresholds, ending, and holder-risk controls |
+| Historical accuracy / Resolved | Implemented | Closed-market archive with final Yes price, inferred resolved outcome, category history, resolution mix, decisive-close stats, and CSV export |
+| Resolved URL filters | Implemented | PredictParity-style accuracy archive filters including query, outcomes, decisive-only, volume/liquidity, category, closed window, final Yes range, sort, and rows |
 | Portfolio | Implemented | Research portfolio, wallet import, copy portfolio, exposure, cash events, history, watchlist |
 | Sign In / Sign Up shell | Implemented | Research-mode auth facade only, no credentials or live orders |
 | Existing Swisstony paper copy-trading | Preserved | SQLite paper engine, skipped/baseline visibility, settlements/redeems, cash top-ups |
@@ -39,9 +41,9 @@ Live surface comparison notes are tracked in `docs/PHASE1_LIVE_SURFACE_COMPARE.m
 | Check | Result |
 |---|---|
 | `python -m py_compile prediction_terminal.py src\prediction_markets.py src\copy_trading.py scripts\smoke_routes.py` | Pass |
-| `python -m unittest discover -s tests -p test_*.py` | Pass, 99 tests |
+| `python -m unittest discover -s tests -p test_*.py` | Pass, 100 tests |
 | `git diff --check main..codex/website` | Pass |
-| HTTP route smoke for `/`, `/search?q=bitcoin&platform=polymarket&type=markets,traders,cross-venue&minValue=10000`, `/markets`, `/markets/will-bitcoin-hit-100k`, `/markets?q=bitcoin&platform=polymarket&status=active&probMin=0.05&probMax=0.95&volumeMin=10000`, `/traders`, `/track`, `/live-trades`, `/live-trades?q=swisstony&platform=polymarket&side=buy&minNotional=2500&whale=true`, `/monitor`, `/monitor?q=bitcoin&platform=polymarket&signal=whale-print,tight-spread&minWhale=2500&maxSpread=0.07`, `/alerts?q=iran&signal=fast-mover&hitsOnly=true&minWhale=5000`, `/portfolio`, `/copy-trade`, `/traders/p/@swisstony`, `/traders?bot=true&apMin=101`, `/wallets/0x204f72f35326db932158cba6adff0b9a1da95e14` | Pass, 200 responses |
+| HTTP route smoke for `/`, `/search?q=bitcoin&platform=polymarket&type=markets,traders,cross-venue&minValue=10000`, `/markets`, `/markets/will-bitcoin-hit-100k`, `/markets?q=bitcoin&platform=polymarket&status=active&probMin=0.05&probMax=0.95&volumeMin=10000`, `/traders`, `/track`, `/live-trades`, `/live-trades?q=swisstony&platform=polymarket&side=buy&minNotional=2500&whale=true`, `/monitor`, `/monitor?q=bitcoin&platform=polymarket&signal=whale-print,tight-spread&minWhale=2500&maxSpread=0.07`, `/alerts?q=iran&signal=fast-mover&hitsOnly=true&minWhale=5000`, `/resolved?q=iran&outcome=yes,no&decisiveOnly=true&minVolume=10000&closedWindow=30d&finalYesMin=0.95`, `/portfolio`, `/copy-trade`, `/traders/p/@swisstony`, `/traders?bot=true&apMin=101`, `/wallets/0x204f72f35326db932158cba6adff0b9a1da95e14` | Pass, 200 responses |
 | Query route browser smoke for `?page=traders` and nav to markets | Pass in prior Playwright run |
 
 ## Open Gates Before `v1-clone`

@@ -27,6 +27,7 @@ DEFAULT_ROUTES = [
     "/monitor",
     "/monitor?q=bitcoin&platform=polymarket&signal=whale-print,tight-spread&minWhale=2500&maxSpread=0.07",
     "/alerts?q=iran&signal=fast-mover&hitsOnly=true&minWhale=5000",
+    "/resolved?q=iran&outcome=yes,no&decisiveOnly=true&minVolume=10000&closedWindow=30d&finalYesMin=0.95",
     "/portfolio",
     "/copy-trade",
     "/traders/p/@swisstony",
