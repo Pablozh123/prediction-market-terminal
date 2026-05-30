@@ -16,6 +16,7 @@ from dataclasses import dataclass
 DEFAULT_BASE_URL = "http://127.0.0.1:8503"
 DEFAULT_ROUTES = [
     "/",
+    "/search?q=bitcoin&platform=polymarket&type=markets,traders,cross-venue&minValue=10000",
     "/markets",
     "/markets/will-bitcoin-hit-100k",
     "/markets?q=bitcoin&platform=polymarket&status=active&probMin=0.05&probMax=0.95&volumeMin=10000",

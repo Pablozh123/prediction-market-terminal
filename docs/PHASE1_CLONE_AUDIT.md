@@ -16,6 +16,7 @@ Live surface comparison notes are tracked in `docs/PHASE1_LIVE_SURFACE_COMPARE.m
 | Market URL filters | Implemented | PredictParity-style scanner filters including query, platform, status, probability, volume, liquidity, spread, ending, age, sort, and rows |
 | Trader profile deep links | Implemented | `/traders/p/@handle` and `/wallets/0x...` route into the local wallet/profile workspace |
 | Search Parity | Implemented | Command palette plus Search workspace for markets, traders, trades, news, alerts, tracked items |
+| Search URL filters | Implemented | PredictParity-style global search filters including query, platform, result types, min value, active/tracked flags, broad-pair fallback, and rows |
 | Home / featured market | Implemented | Overview workspace with featured market, price chart, news, trending and ending sections |
 | Markets | Implemented | Table/card/calendar views, filters, categories, saved filter presets, market drilldown |
 | Market detail | Implemented | Header metrics, charts, order book, holders, traders, recent trades, paper ticket, news, comments |
@@ -37,9 +38,9 @@ Live surface comparison notes are tracked in `docs/PHASE1_LIVE_SURFACE_COMPARE.m
 | Check | Result |
 |---|---|
 | `python -m py_compile prediction_terminal.py src\prediction_markets.py src\copy_trading.py` | Pass |
-| `python -m unittest discover -s tests -p test_*.py` | Pass, 97 tests |
+| `python -m unittest discover -s tests -p test_*.py` | Pass, 98 tests |
 | `git diff --check main..codex/website` | Pass |
-| HTTP route smoke for `/`, `/markets`, `/markets/will-bitcoin-hit-100k`, `/markets?q=bitcoin&platform=polymarket&status=active&probMin=0.05&probMax=0.95&volumeMin=10000`, `/traders`, `/track`, `/live-trades`, `/live-trades?q=swisstony&platform=polymarket&side=buy&minNotional=2500&whale=true`, `/monitor`, `/monitor?q=bitcoin&platform=polymarket&signal=whale-print,tight-spread&minWhale=2500&maxSpread=0.07`, `/portfolio`, `/copy-trade`, `/traders/p/@swisstony`, `/traders?bot=true&apMin=101`, `/wallets/0x204f72f35326db932158cba6adff0b9a1da95e14` | Pass, 200 responses |
+| HTTP route smoke for `/`, `/search?q=bitcoin&platform=polymarket&type=markets,traders,cross-venue&minValue=10000`, `/markets`, `/markets/will-bitcoin-hit-100k`, `/markets?q=bitcoin&platform=polymarket&status=active&probMin=0.05&probMax=0.95&volumeMin=10000`, `/traders`, `/track`, `/live-trades`, `/live-trades?q=swisstony&platform=polymarket&side=buy&minNotional=2500&whale=true`, `/monitor`, `/monitor?q=bitcoin&platform=polymarket&signal=whale-print,tight-spread&minWhale=2500&maxSpread=0.07`, `/portfolio`, `/copy-trade`, `/traders/p/@swisstony`, `/traders?bot=true&apMin=101`, `/wallets/0x204f72f35326db932158cba6adff0b9a1da95e14` | Pass, 200 responses |
 | Query route browser smoke for `?page=traders` and nav to markets | Pass in prior Playwright run |
 
 ## Open Gates Before `v1-clone`
