@@ -6828,6 +6828,38 @@ def page_track() -> None:
     if isinstance(pending_track_clear, dict):
         for key, value in pending_track_clear.items():
             st.session_state[key] = value
+    route_filter_params = query_param_snapshot(
+        [
+            "q",
+            "query",
+            "search",
+            "wallet",
+            "market",
+            "platform",
+            "platforms",
+            "venue",
+            "venues",
+            "minWatchVolume",
+            "watchVolumeMin",
+            "minVolume",
+            "volumeMin",
+            "rows",
+            "limit",
+            "signal",
+            "marketSignal",
+            "signalFilter",
+            "minWalletValue",
+            "walletValueMin",
+            "minOpenValue",
+            "openValueMin",
+        ]
+    )
+    route_filter_signature = json.dumps(route_filter_params, sort_keys=True)
+    route_filter_view = md.predictparity_track_filter_view(route_filter_params)
+    if route_filter_view and st.session_state.get("track_route_filter_signature") != route_filter_signature:
+        apply_track_filter_view_widgets(route_filter_view)
+        st.session_state["track_route_filter_signature"] = route_filter_signature
+        st.session_state["track_view_loaded_message"] = "Loaded track filters from URL."
 
     pm, ks, combined = load_market_universe()
     track_cols = st.columns([2, 1, 1, 1])

@@ -51,6 +51,7 @@ Phase 2 is Multi-Trader-Copytrading as a separate layer. Do not start it before 
 | Trader URL filters | Supports PredictParity-style trader query filters such as `/traders?bot=true&apMin=101` |
 | Trader / wallet profile | Wallet page with profile resolver, PnL chart/calendar, positions, activity, counterparties, tracking actions |
 | Track | Local tracked markets and wallets hub with import, filters, live feed, action buttons |
+| Track URL filters | Supports tracking hub links such as `/track?q=tony&platform=polymarket&signal=tight-spread&minWalletValue=2500` |
 | Live Trades | Public trade tape with filters, wallet/market aggregation, flow chart, track actions |
 | Live Trades URL filters | Supports tape links such as `/live-trades?q=swisstony&platform=polymarket&side=buy&minNotional=2500&whale=true` |
 | Whale Flow | Large-print scanner with wallet aggregation, market flow, outcome-bias panels, and track actions |
