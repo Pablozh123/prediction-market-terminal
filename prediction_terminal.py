@@ -58,6 +58,8 @@ SEARCH_RESULT_TYPES = ["Markets", "Traders", "Trades", "News", "Cross-Venue", "A
 COPY_SIDE_FILTERS = ["BUY", "SELL"]
 COPY_ORDER_STATUS_FILTERS = ["copied", "settled", "skipped", "baseline", "duplicate"]
 PREDICTPARITY_NAV = ["Markets", "Traders", "Track", "Live Trades", "Monitor", "Portfolio"]
+PAGE_QUERY_SLUGS = {page: page.lower().replace(" ", "-") for page in WORKSPACES}
+PAGE_BY_QUERY_SLUG = {slug: page for page, slug in PAGE_QUERY_SLUGS.items()}
 
 
 def inject_css() -> None:
@@ -1429,9 +1431,30 @@ def default_research_portfolio() -> pd.DataFrame:
     )
 
 
+def query_page_value() -> str:
+    try:
+        value = st.query_params.get("page", "")
+    except Exception:
+        return ""
+    if isinstance(value, list):
+        value = value[0] if value else ""
+    return str(value or "").strip().lower()
+
+
+def set_query_page(page: str) -> None:
+    slug = PAGE_QUERY_SLUGS.get(page, "")
+    if not slug:
+        return
+    try:
+        if query_page_value() != slug:
+            st.query_params["page"] = slug
+    except Exception:
+        return
+
+
 def init_state() -> None:
     if "selected_page" not in st.session_state:
-        st.session_state.selected_page = "Overview"
+        st.session_state.selected_page = PAGE_BY_QUERY_SLUG.get(query_page_value(), "Overview")
     if "global_search_query" not in st.session_state:
         st.session_state.global_search_query = ""
     if "command_palette_open" not in st.session_state:
@@ -1845,8 +1868,15 @@ def apply_pending_navigation() -> None:
     target_page = st.session_state.pop("pending_selected_page", None)
     if target_page in WORKSPACES:
         st.session_state.selected_page = target_page
+        set_query_page(target_page)
     if "pending_global_search_query" in st.session_state:
         st.session_state.global_search_query = st.session_state.pop("pending_global_search_query")
+
+
+def apply_query_navigation() -> None:
+    route_page = PAGE_BY_QUERY_SLUG.get(query_page_value())
+    if route_page in WORKSPACES and route_page != st.session_state.get("selected_page"):
+        st.session_state.selected_page = route_page
 
 
 def open_palette_search(query: str) -> None:
@@ -2232,6 +2262,7 @@ def render_command_palette_dialog() -> None:
                     st.rerun()
 
 
+apply_query_navigation()
 apply_pending_navigation()
 
 
@@ -2251,6 +2282,7 @@ with st.sidebar:
         key="selected_page",
         label_visibility="collapsed",
     )
+    set_query_page(page)
     st.divider()
     global_query = st.text_input("Global search", placeholder="bitcoin, fed, iran, election", key="global_search_query")
     market_limit = st.slider("Market sample", 50, 500, 250, 50)
