@@ -502,6 +502,7 @@ def trader_filter_defaults(query: str = "") -> dict[str, Any]:
         "trader_custom_volume": 0,
         "trader_position_preset": ">$100",
         "trader_custom_position": 100,
+        "trader_active_positions_min": 0,
         "trader_trait_filter": [],
         "trader_enrich_positions": True,
         "trader_win_rate_preset": "All",
@@ -1083,6 +1084,7 @@ def apply_trader_filter_view_widgets(view: dict[str, Any]) -> None:
         "trader_custom_volume": int(float(view.get("custom_volume", defaults["trader_custom_volume"]) or 0)),
         "trader_position_preset": _choice(view.get("position_preset", defaults["trader_position_preset"]), ["All", ">$100", ">$10k", ">$100k", "Custom"], ">$100"),
         "trader_custom_position": int(float(view.get("custom_position", defaults["trader_custom_position"]) or 100)),
+        "trader_active_positions_min": _bounded_int(view.get("active_positions_min", defaults["trader_active_positions_min"]), 0, 0, 100000),
         "trader_trait_filter": [item for item in list(view.get("trait_filter", defaults["trader_trait_filter"]) or []) if item in {"Whales", "Bot-like", "Verified"}],
         "trader_enrich_positions": bool(view.get("enrich_positions", defaults["trader_enrich_positions"])),
         "trader_win_rate_preset": _choice(view.get("win_rate", defaults["trader_win_rate_preset"]), ["All", ">50%", ">70%", "Custom"], "All"),
@@ -1439,6 +1441,19 @@ def query_page_value() -> str:
     if isinstance(value, list):
         value = value[0] if value else ""
     return str(value or "").strip().lower()
+
+
+def query_param_snapshot(names: list[str]) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for name in names:
+        try:
+            value = st.query_params.get(name, "")
+        except Exception:
+            value = ""
+        if isinstance(value, list):
+            value = value[0] if value else ""
+        values[name] = str(value or "").strip()
+    return values
 
 
 def path_page_value() -> str:
@@ -5933,6 +5948,40 @@ def page_traders() -> None:
         reset_trader_filter_widgets(global_query)
     if st.session_state.pop("trader_filters_reset_pending", False):
         reset_trader_filter_widgets(global_query)
+    route_filter_params = query_param_snapshot(
+        [
+            "bot",
+            "bots",
+            "botLike",
+            "botScoreMin",
+            "botMin",
+            "apMin",
+            "activePositionsMin",
+            "active_positions_min",
+            "pnlMin",
+            "profitMin",
+            "minPnl",
+            "volMin",
+            "volumeMin",
+            "minVolume",
+            "q",
+            "query",
+            "search",
+            "period",
+            "timePeriod",
+            "orderBy",
+            "sort",
+            "rankBy",
+            "rows",
+            "limit",
+        ]
+    )
+    route_filter_signature = json.dumps(route_filter_params, sort_keys=True)
+    route_filter_view = md.predictparity_trader_filter_view(route_filter_params)
+    if route_filter_view and st.session_state.get("traders_route_filter_signature") != route_filter_signature:
+        apply_trader_filter_view_widgets(route_filter_view)
+        st.session_state["traders_route_filter_signature"] = route_filter_signature
+        st.session_state["trader_view_loaded_message"] = "Loaded trader filters from URL."
     pending_trader_view = st.session_state.pop("pending_trader_filter_view", None)
     if isinstance(pending_trader_view, dict):
         apply_trader_filter_view_widgets(pending_trader_view)
@@ -5959,6 +6008,7 @@ def page_traders() -> None:
         custom_volume = f2.number_input("Custom min volume", min_value=0, step=10_000, disabled=volume_preset != "Custom", key="trader_custom_volume")
         position_preset = f3.radio("Positions", ["All", ">$100", ">$10k", ">$100k", "Custom"], horizontal=True, key="trader_position_preset")
         custom_position = f3.number_input("Custom min open value", min_value=0, step=1_000, disabled=position_preset != "Custom", key="trader_custom_position")
+        active_positions_min = f3.number_input("Min active positions", min_value=0, max_value=100000, step=1, key="trader_active_positions_min")
         trait_filter = f4.multiselect("Traits", ["Whales", "Bot-like", "Verified"], key="trader_trait_filter")
         bot_score_min = f4.slider("Bot score min", min_value=0, max_value=100, step=5, disabled=not (bots_only or "Bot-like" in trait_filter), key="trader_bot_score_min")
         enrich_positions = f4.checkbox("Fetch open positions", key="trader_enrich_positions")
@@ -6022,6 +6072,7 @@ def page_traders() -> None:
                 "custom_volume": float(custom_volume),
                 "position_preset": position_preset,
                 "custom_position": float(custom_position),
+                "active_positions_min": int(active_positions_min),
                 "trait_filter": trait_filter,
                 "enrich_positions": bool(enrich_positions),
                 "win_rate": win_rate_preset,
@@ -6098,6 +6149,8 @@ def page_traders() -> None:
         leaderboard[["positions_value", "open_positions", "open_markets"]] = leaderboard[["positions_value", "open_positions", "open_markets"]].fillna(0)
         if active_only:
             leaderboard = leaderboard[(leaderboard["positions_value"] > 0) | (leaderboard["recent_trades"].fillna(0) > 0)]
+        if int(active_positions_min) > 0:
+            leaderboard = leaderboard[pd.to_numeric(leaderboard["open_positions"], errors="coerce").fillna(0).astype(int) >= int(active_positions_min)]
         leaderboard = option_metric_filter(leaderboard, "positions_value", position_preset, float(custom_position))
     account_stats_needed = enrich_accounts or assets_preset != "All" or balance_preset != "All" or account_age_preset != "All"
     if not leaderboard.empty and account_stats_needed and not has_native_account_stats:
@@ -6168,6 +6221,8 @@ def page_traders() -> None:
         trader_chips.append(f"Volume: {volume_preset if volume_preset != 'Custom' else '>$' + f'{custom_volume:,.0f}'}")
     if position_preset != "All":
         trader_chips.append(f"Positions: {position_preset if position_preset != 'Custom' else '>$' + f'{custom_position:,.0f}'}")
+    if int(active_positions_min) > 0:
+        trader_chips.append(f"Active positions >= {int(active_positions_min)}")
     if assets_preset != "All":
         trader_chips.append(f"Assets: {assets_preset if assets_preset != 'Custom' else '>$' + f'{custom_assets:,.0f}'}")
     if balance_preset != "All":
@@ -6211,6 +6266,8 @@ def page_traders() -> None:
         trader_clear_actions.append(("volume", {"trader_volume_preset": "All"}))
     if position_preset != "All":
         trader_clear_actions.append(("positions", {"trader_position_preset": "All"}))
+    if int(active_positions_min) > 0:
+        trader_clear_actions.append(("active positions", {"trader_active_positions_min": 0}))
     if assets_preset != "All":
         trader_clear_actions.append(("assets", {"trader_assets_preset": "All"}))
     if balance_preset != "All":

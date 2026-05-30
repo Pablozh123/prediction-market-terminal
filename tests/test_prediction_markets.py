@@ -27,6 +27,44 @@ class LocalRouteTargetTests(unittest.TestCase):
         self.assertEqual(md.local_route_target("/live-trades"), {"page_slug": "live-trades", "profile": ""})
 
 
+class PredictParityQueryFilterTests(unittest.TestCase):
+    def test_trader_filter_view_parses_bot_and_active_position_params(self) -> None:
+        view = md.predictparity_trader_filter_view({"bot": "true", "apMin": "101"})
+
+        self.assertTrue(view["bots_only"])
+        self.assertEqual(view["trait_filter"], ["Bot-like"])
+        self.assertEqual(view["bot_score_min"], 65)
+        self.assertTrue(view["active_only"])
+        self.assertTrue(view["enrich_positions"])
+        self.assertEqual(view["active_positions_min"], 101)
+
+    def test_trader_filter_view_parses_search_sort_and_metric_params(self) -> None:
+        view = md.predictparity_trader_filter_view(
+            {
+                "q": "swisstony",
+                "period": "month",
+                "orderBy": "vol",
+                "pnlMin": "500000",
+                "volMin": "1000000",
+                "limit": "50",
+            }
+        )
+
+        self.assertEqual(view["query"], "swisstony")
+        self.assertEqual(view["period"], "MONTH")
+        self.assertEqual(view["rank_by"], "VOL")
+        self.assertEqual(view["pnl_preset"], "Custom")
+        self.assertEqual(view["custom_pnl"], 500000.0)
+        self.assertEqual(view["volume_preset"], "Custom")
+        self.assertEqual(view["custom_volume"], 1000000.0)
+        self.assertEqual(view["rows"], 50)
+
+    def test_trader_filter_view_ignores_invalid_values(self) -> None:
+        view = md.predictparity_trader_filter_view({"bot": "false", "apMin": "bad", "period": "year"})
+
+        self.assertEqual(view, {})
+
+
 class CrossVenueCandidateTests(unittest.TestCase):
     def test_candidates_include_trackable_market_ids(self) -> None:
         polymarket = pd.DataFrame(

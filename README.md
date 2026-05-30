@@ -45,6 +45,7 @@ Phase 2 is Multi-Trader-Copytrading as a separate layer. Do not start it before 
 | Markets | Table/Card/Calendar views, quick filters, category chips, saved filters, market drilldown |
 | Market detail | Header metrics, charts, order book, holders, top traders, recent trades, paper ticket, news, comments |
 | Traders | PredictParity public GraphQL leaderboard, table/list/card views, filters, saved views, profile links |
+| Trader URL filters | Supports PredictParity-style trader query filters such as `/traders?bot=true&apMin=101` |
 | Trader / wallet profile | Wallet page with profile resolver, PnL chart/calendar, positions, activity, counterparties, tracking actions |
 | Track | Local tracked markets and wallets hub with import, filters, live feed, action buttons |
 | Live Trades | Public trade tape with filters, wallet/market aggregation, flow chart, track actions |
