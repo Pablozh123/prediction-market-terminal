@@ -95,6 +95,7 @@ Current behavior:
 - Settlement/redeem recycling from unrealized to realized PnL
 - Manual paper cash top-ups
 - CSV exports and skipped/baseline visibility
+- URL filters such as `/copy-trade?q=tony&status=copied,baseline&minTonyNotional=1000`
 
 Do not replace or remove this during Phase 1.
 
