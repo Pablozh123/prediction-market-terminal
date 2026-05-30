@@ -40,6 +40,7 @@ Phase 2 is Multi-Trader-Copytrading as a separate layer. Do not start it before 
 |---|---|
 | Top nav: Markets, Traders, Track, Live Trades, Monitor, Portfolio | Top navigation plus sidebar workspaces in `prediction_terminal.py` |
 | Search Parity `/` | Command palette with global markets, traders, trades, alerts, news, tracked items |
+| Trader profile routes `/traders/p/@handle` | Local route into the wallet/profile workspace with profile-handle resolution |
 | Home / featured market | Overview page with featured carousel, Yes/No buttons, chart windows, line/candlestick, news, trending markets |
 | Markets | Table/Card/Calendar views, quick filters, category chips, saved filters, market drilldown |
 | Market detail | Header metrics, charts, order book, holders, top traders, recent trades, paper ticket, news, comments |
@@ -106,6 +107,7 @@ Before tagging `v1-clone`, also run a browser smoke against `http://127.0.0.1:85
 
 - App loads without Traceback
 - Top PredictParity navigation works
+- Trader profile deep links route into the local profile view
 - Search Parity opens
 - Markets page loads Table/Card/Calendar controls
 - Traders page loads leaderboard controls

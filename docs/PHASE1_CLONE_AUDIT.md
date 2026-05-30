@@ -10,6 +10,7 @@ This audit tracks the clone layer only. Multi-trader copy-trading is out of scop
 |---|---|---|
 | Top navigation | Implemented | `Markets`, `Traders`, `Track`, `Live Trades`, `Monitor`, `Portfolio` top nav with path links |
 | Path routes | Implemented | `/markets`, `/traders`, `/track`, `/live-trades`, `/monitor`, `/portfolio` route into Streamlit state |
+| Trader profile deep links | Implemented | `/traders/p/@handle` and `/wallets/0x...` route into the local wallet/profile workspace |
 | Search Parity | Implemented | Command palette plus Search workspace for markets, traders, trades, news, alerts, tracked items |
 | Home / featured market | Implemented | Overview workspace with featured market, price chart, news, trending and ending sections |
 | Markets | Implemented | Table/card/calendar views, filters, categories, saved filter presets, market drilldown |
@@ -29,8 +30,8 @@ This audit tracks the clone layer only. Multi-trader copy-trading is out of scop
 | Check | Result |
 |---|---|
 | `python -m py_compile prediction_terminal.py src\prediction_markets.py src\copy_trading.py` | Pass |
-| `python -m unittest discover -s tests -p test_*.py` | Pass, 86 tests |
-| HTTP route smoke for `/`, `/markets`, `/traders`, `/track`, `/live-trades`, `/monitor`, `/portfolio`, `/copy-trade` | Pass, 200 responses |
+| `python -m unittest discover -s tests -p test_*.py` | Pass, 89 tests |
+| HTTP route smoke for `/`, `/markets`, `/traders`, `/track`, `/live-trades`, `/monitor`, `/portfolio`, `/copy-trade`, `/traders/p/@swisstony`, `/wallets/0x204f72f35326db932158cba6adff0b9a1da95e14` | Pass, 200 responses |
 | Query route browser smoke for `?page=traders` and nav to markets | Pass in prior Playwright run |
 
 ## Open Gates Before `v1-clone`

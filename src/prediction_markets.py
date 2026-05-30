@@ -12,7 +12,7 @@ import math
 import re
 import time
 import calendar as calendar_lib
-from urllib.parse import quote_plus, urlparse
+from urllib.parse import quote_plus, unquote, urlparse
 from xml.etree import ElementTree as ET
 from datetime import datetime, timezone
 from difflib import SequenceMatcher
@@ -705,6 +705,26 @@ def normalize_profile_query(value: Any) -> str:
     if url_match:
         text = url_match.group(1)
     return text.strip().strip("/").lstrip("@").lower()
+
+
+def local_route_target(value: Any) -> dict[str, str]:
+    """Parse local app routes into a workspace slug and optional profile target."""
+
+    raw_value = str(value or "").strip()
+    if not raw_value:
+        return {"page_slug": "", "profile": ""}
+    parsed = urlparse(raw_value)
+    path = parsed.path if parsed.scheme or parsed.netloc else raw_value
+    parts = [unquote(part.strip()) for part in path.strip("/").split("/") if part.strip()]
+    if not parts:
+        return {"page_slug": "", "profile": ""}
+
+    first = parts[0].lower()
+    if first == "traders" and len(parts) >= 3 and parts[1].lower() == "p":
+        return {"page_slug": "wallets", "profile": normalize_profile_query(parts[2])}
+    if first in {"wallets", "profile"} and len(parts) >= 2:
+        return {"page_slug": "wallets", "profile": normalize_profile_query(parts[1])}
+    return {"page_slug": first, "profile": ""}
 
 
 def resolve_profile_query_to_wallet(value: Any, profiles: pd.DataFrame) -> str:
