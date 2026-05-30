@@ -868,6 +868,59 @@ def predictparity_market_filter_view(params: Mapping[str, Any]) -> dict[str, Any
     return view
 
 
+def predictparity_overview_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
+    """Translate PredictParity-style dashboard query params into local filter state."""
+
+    view: dict[str, Any] = {}
+    query = _query_param_value(params, "q", "query", "search", "market", "event")
+    if query:
+        view["query"] = query
+
+    platforms = [item.capitalize() for item in _query_list(params, "platform", "platforms", "venue", "venues")]
+    platforms = [item for item in platforms if item in {"Polymarket", "Kalshi"}]
+    if platforms:
+        view["platforms"] = platforms
+
+    featured = _query_param_value(params, "featured", "featuredSource", "source").lower()
+    if featured in {"polymarket", "poly", "pm"}:
+        view["featured_source"] = "Polymarket"
+    elif featured in {"any", "all"}:
+        view["featured_source"] = "Any"
+
+    rows = _query_float(params, "marketRows", "cards", "rows", "limit")
+    if rows is not None and rows > 0:
+        view["market_rows"] = int(rows)
+
+    include_categories = _query_list(params, "category", "categories", "includeCategory", "include")
+    if include_categories:
+        view["include_categories"] = include_categories
+
+    exclude_categories = _query_list(params, "excludeCategory", "excludeCategories", "exclude")
+    if exclude_categories:
+        view["exclude_categories"] = exclude_categories
+
+    min_volume = _query_float(params, "minVolume", "volumeMin", "volMin")
+    if min_volume is not None:
+        view["min_volume"] = float(min_volume)
+
+    min_liquidity = _query_float(params, "minLiquidity", "liquidityMin", "liqMin")
+    if min_liquidity is not None:
+        view["min_liquidity"] = float(min_liquidity)
+
+    min_flow = _query_float(params, "minFlow", "flowMin", "minNotional", "notionalMin")
+    if min_flow is not None:
+        view["min_flow_notional"] = float(min_flow)
+
+    active = _query_param_value(params, "active", "activeOnly", "activeMarkets").lower()
+    if active:
+        view["active_only"] = active in {"1", "true", "yes", "y", "on"}
+
+    show_news = _query_param_value(params, "showNews", "news", "newsfeed").lower()
+    if show_news:
+        view["show_news"] = show_news in {"1", "true", "yes", "y", "on"}
+    return view
+
+
 def predictparity_search_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
     """Translate PredictParity-style search query params into local filter state."""
 

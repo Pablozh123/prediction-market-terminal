@@ -3380,6 +3380,55 @@ def page_overview() -> None:
     if isinstance(pending_overview_clear, dict):
         for key, value in pending_overview_clear.items():
             st.session_state[key] = value
+    route_filter_params = query_param_snapshot(
+        [
+            "q",
+            "query",
+            "search",
+            "market",
+            "event",
+            "platform",
+            "platforms",
+            "venue",
+            "venues",
+            "featured",
+            "featuredSource",
+            "source",
+            "marketRows",
+            "cards",
+            "rows",
+            "limit",
+            "category",
+            "categories",
+            "includeCategory",
+            "include",
+            "excludeCategory",
+            "excludeCategories",
+            "exclude",
+            "minVolume",
+            "volumeMin",
+            "volMin",
+            "minLiquidity",
+            "liquidityMin",
+            "liqMin",
+            "minFlow",
+            "flowMin",
+            "minNotional",
+            "notionalMin",
+            "active",
+            "activeOnly",
+            "activeMarkets",
+            "showNews",
+            "news",
+            "newsfeed",
+        ]
+    )
+    route_filter_signature = json.dumps(route_filter_params, sort_keys=True)
+    route_filter_view = md.predictparity_overview_filter_view(route_filter_params)
+    if route_filter_view and st.session_state.get("overview_route_filter_signature") != route_filter_signature:
+        apply_overview_filter_view_widgets(route_filter_view, categories)
+        st.session_state["overview_route_filter_signature"] = route_filter_signature
+        st.session_state["overview_view_loaded_message"] = "Loaded overview filters from URL."
 
     leaderboard = safe_load("Polymarket leaderboard", load_leaderboard, 50, "ALL", "PNL")
     controls = st.columns([1.5, 1, 1, 1])
