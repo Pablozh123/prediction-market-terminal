@@ -136,6 +136,39 @@ class PredictParityQueryFilterTests(unittest.TestCase):
         self.assertTrue(view["tracked_wallets_only"])
         self.assertEqual(view["rows"], 150)
 
+    def test_monitor_filter_view_parses_signal_thresholds_and_scope(self) -> None:
+        view = md.predictparity_monitor_filter_view(
+            {
+                "q": "bitcoin",
+                "platform": "polymarket",
+                "signal": "whale-print,tight-spread",
+                "watched": "true",
+                "minVolume": "10000",
+                "minLiquidity": "5000",
+                "minMove": "0.03",
+                "maxSpread": "0.07",
+                "minWhale": "2500",
+                "endingDays": "5",
+                "holderChecks": "3",
+                "holderThreshold": "25",
+                "limit": "75",
+            }
+        )
+
+        self.assertEqual(view["query"], "bitcoin")
+        self.assertEqual(view["platforms"], ["Polymarket"])
+        self.assertEqual(view["signal_types"], ["Whale print", "Tight spread"])
+        self.assertTrue(view["watched_only"])
+        self.assertEqual(view["min_volume"], 10000.0)
+        self.assertEqual(view["min_liquidity"], 5000.0)
+        self.assertEqual(view["min_move"], 3.0)
+        self.assertEqual(view["max_spread"], 7.0)
+        self.assertEqual(view["min_whale"], 2500.0)
+        self.assertEqual(view["ending_days"], 5)
+        self.assertEqual(view["holder_checks"], 3)
+        self.assertEqual(view["holder_threshold"], 0.25)
+        self.assertEqual(view["rows"], 75)
+
 
 class CrossVenueCandidateTests(unittest.TestCase):
     def test_candidates_include_trackable_market_ids(self) -> None:

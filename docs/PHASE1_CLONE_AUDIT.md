@@ -26,6 +26,7 @@ Live surface comparison notes are tracked in `docs/PHASE1_LIVE_SURFACE_COMPARE.m
 | Live Trades | Implemented | Public trade tape, filters, wallet/market aggregation, flow chart, tracking actions |
 | Live Trades URL filters | Implemented | PredictParity-style tape filters including query, platform, side/outcome, min notional, whale-only, tracked markets/wallets, and rows |
 | Monitor | Implemented | Movers, whale prints, spreads, holder risk, ending markets, signal rules |
+| Monitor URL filters | Implemented | PredictParity-style signal filters including query, platform, signal types, watched-only, volume, liquidity, move, spread, whale notional, ending, and holder-risk controls |
 | Alerts | Implemented | Signal feed, alert hits, rule builder, saved rules, coverage |
 | Portfolio | Implemented | Research portfolio, wallet import, copy portfolio, exposure, cash events, history, watchlist |
 | Sign In / Sign Up shell | Implemented | Research-mode auth facade only, no credentials or live orders |
@@ -36,9 +37,9 @@ Live surface comparison notes are tracked in `docs/PHASE1_LIVE_SURFACE_COMPARE.m
 | Check | Result |
 |---|---|
 | `python -m py_compile prediction_terminal.py src\prediction_markets.py src\copy_trading.py` | Pass |
-| `python -m unittest discover -s tests -p test_*.py` | Pass, 96 tests |
+| `python -m unittest discover -s tests -p test_*.py` | Pass, 97 tests |
 | `git diff --check main..codex/website` | Pass |
-| HTTP route smoke for `/`, `/markets`, `/markets/will-bitcoin-hit-100k`, `/markets?q=bitcoin&platform=polymarket&status=active&probMin=0.05&probMax=0.95&volumeMin=10000`, `/traders`, `/track`, `/live-trades`, `/live-trades?q=swisstony&platform=polymarket&side=buy&minNotional=2500&whale=true`, `/monitor`, `/portfolio`, `/copy-trade`, `/traders/p/@swisstony`, `/traders?bot=true&apMin=101`, `/wallets/0x204f72f35326db932158cba6adff0b9a1da95e14` | Pass, 200 responses |
+| HTTP route smoke for `/`, `/markets`, `/markets/will-bitcoin-hit-100k`, `/markets?q=bitcoin&platform=polymarket&status=active&probMin=0.05&probMax=0.95&volumeMin=10000`, `/traders`, `/track`, `/live-trades`, `/live-trades?q=swisstony&platform=polymarket&side=buy&minNotional=2500&whale=true`, `/monitor`, `/monitor?q=bitcoin&platform=polymarket&signal=whale-print,tight-spread&minWhale=2500&maxSpread=0.07`, `/portfolio`, `/copy-trade`, `/traders/p/@swisstony`, `/traders?bot=true&apMin=101`, `/wallets/0x204f72f35326db932158cba6adff0b9a1da95e14` | Pass, 200 responses |
 | Query route browser smoke for `?page=traders` and nav to markets | Pass in prior Playwright run |
 
 ## Open Gates Before `v1-clone`
