@@ -205,6 +205,16 @@ def inject_css() -> None:
             color: {MUTED};
             font-size: 0.78rem;
         }}
+        .auth-note {{
+            border: 1px solid #27364a;
+            background: #0e151d;
+            border-radius: 8px;
+            padding: 0.7rem 0.8rem;
+            color: #dce6ef;
+            font-size: 0.86rem;
+            line-height: 1.35;
+            margin: 0.35rem 0 0.75rem;
+        }}
         </style>
         """,
         unsafe_allow_html=True,
@@ -1421,6 +1431,8 @@ def init_state() -> None:
         st.session_state.command_palette_open = False
     if "command_palette_query" not in st.session_state:
         st.session_state.command_palette_query = ""
+    if "auth_dialog_mode" not in st.session_state:
+        st.session_state.auth_dialog_mode = ""
     if "followed_wallets" not in st.session_state:
         st.session_state.followed_wallets = load_local_list("followed_wallets.json")
     if "watchlist" not in st.session_state:
@@ -1895,12 +1907,41 @@ def command_end_label(row: pd.Series) -> str:
 
 
 def render_command_bar() -> None:
-    left, middle, right = st.columns([1.2, 5, 1.2])
+    left, middle, right = st.columns([1.2, 4.6, 1.8])
     with middle:
         if st.button("Search Parity...                                      /", key="open_command_palette_main", width="stretch"):
             open_command_palette()
     with right:
-        st.markdown("<div class='command-hint'>Markets, traders, trades, alerts</div>", unsafe_allow_html=True)
+        auth_cols = st.columns(2)
+        if auth_cols[0].button("Sign In", key="open_sign_in_main", width="stretch"):
+            st.session_state.auth_dialog_mode = "Sign In"
+        if auth_cols[1].button("Sign Up", key="open_sign_up_main", width="stretch"):
+            st.session_state.auth_dialog_mode = "Sign Up"
+
+
+@st.dialog("Account access", width="small")
+def render_auth_dialog() -> None:
+    mode = st.session_state.get("auth_dialog_mode", "Sign In")
+    st.markdown(f"### {mode}")
+    st.markdown(
+        "<div class='auth-note'>Local research mode: account providers are shown to mirror PredictParity's public app shell. "
+        "This terminal does not send credentials or place live orders.</div>",
+        unsafe_allow_html=True,
+    )
+    st.text_input("Email", placeholder="you@example.com", key="auth_email")
+    primary = "Continue with email" if mode == "Sign In" else "Create research account"
+    if st.button(primary, type="primary", width="stretch", key="auth_email_continue"):
+        st.session_state.auth_dialog_mode = ""
+        st.toast("Local research session only. Live account login is not connected.")
+        st.rerun()
+    provider_cols = st.columns(2)
+    provider_cols[0].button("Google", width="stretch", key="auth_google", disabled=True)
+    provider_cols[1].button("X / Twitter", width="stretch", key="auth_x", disabled=True)
+    if st.button("Connect wallet", width="stretch", key="auth_wallet", disabled=True):
+        pass
+    if st.button("Close", width="stretch", key="auth_close"):
+        st.session_state.auth_dialog_mode = ""
+        st.rerun()
 
 
 def render_global_hotkeys() -> None:
@@ -2184,6 +2225,11 @@ with st.sidebar:
     st.caption("Polymarket wallets, Kalshi markets, whale flow, and cross-venue research.")
     if st.button("Search Parity... /", key="open_command_palette_sidebar", width="stretch"):
         open_command_palette()
+    auth_sidebar_cols = st.columns(2)
+    if auth_sidebar_cols[0].button("Sign In", key="open_sign_in_sidebar", width="stretch"):
+        st.session_state.auth_dialog_mode = "Sign In"
+    if auth_sidebar_cols[1].button("Sign Up", key="open_sign_up_sidebar", width="stretch"):
+        st.session_state.auth_dialog_mode = "Sign Up"
     page = st.radio(
         "Workspace",
         WORKSPACES,
@@ -10083,6 +10129,8 @@ render_global_hotkeys()
 render_command_bar()
 if st.session_state.command_palette_open:
     render_command_palette_dialog()
+if st.session_state.auth_dialog_mode:
+    render_auth_dialog()
 
 
 PAGES[page]()
