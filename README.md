@@ -65,6 +65,7 @@ Phase 2 is Multi-Trader-Copytrading as a separate layer. Do not start it before 
 | Historical accuracy / Resolved | Closed-market archive with final Yes price, resolved outcome mix, category history, decisive-close stats, CSV export |
 | Resolved URL filters | Supports accuracy archive links such as `/resolved?q=iran&outcome=yes,no&decisiveOnly=true&minVolume=10000&closedWindow=30d` |
 | Portfolio | Research portfolio, wallet import, copy portfolio, exposure, cash events, paper history, watchlist |
+| Portfolio URL filters | Supports dashboard links such as `/portfolio?q=tony&source=research,copy&copyStatus=copied,settled&minValue=100` |
 | Sign In / Sign Up shell | Local research-mode auth facade mirroring PredictParity UI; no credential transmission |
 
 ## Data Boundaries

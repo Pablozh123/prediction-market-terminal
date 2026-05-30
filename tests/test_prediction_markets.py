@@ -305,6 +305,31 @@ class PredictParityQueryFilterTests(unittest.TestCase):
         self.assertEqual(view["sort_by"], "final_yes_price")
         self.assertEqual(view["rows"], 300)
 
+    def test_portfolio_filter_view_parses_dashboard_params(self) -> None:
+        view = md.predictparity_portfolio_filter_view(
+            {
+                "q": "tony",
+                "platform": "polymarket",
+                "outcome": "yes",
+                "minValue": "100",
+                "minPnl": "-50",
+                "source": "research,copy,history",
+                "copyStatus": "copied,settled",
+                "losersOnly": "true",
+                "limit": "75",
+            }
+        )
+
+        self.assertEqual(view["query"], "tony")
+        self.assertEqual(view["platforms"], ["Polymarket"])
+        self.assertEqual(view["outcomes"], ["Yes"])
+        self.assertEqual(view["min_value"], 100.0)
+        self.assertEqual(view["min_pnl"], -50.0)
+        self.assertEqual(view["sources"], ["Research", "Copy", "History"])
+        self.assertEqual(view["copy_statuses"], ["copied", "settled"])
+        self.assertTrue(view["losers_only"])
+        self.assertEqual(view["rows"], 75)
+
 
 class CrossVenueCandidateTests(unittest.TestCase):
     def test_candidates_include_trackable_market_ids(self) -> None:

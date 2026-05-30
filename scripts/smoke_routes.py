@@ -32,6 +32,7 @@ DEFAULT_ROUTES = [
     "/alerts?q=iran&signal=fast-mover&hitsOnly=true&minWhale=5000",
     "/resolved?q=iran&outcome=yes,no&decisiveOnly=true&minVolume=10000&closedWindow=30d&finalYesMin=0.95",
     "/portfolio",
+    "/portfolio?q=tony&platform=polymarket&source=research,copy&copyStatus=copied,settled&minValue=100&losersOnly=false",
     "/copy-trade",
     "/traders/p/@swisstony",
     "/traders?bot=true&apMin=101",
