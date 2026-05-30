@@ -35,6 +35,29 @@ class LocalRouteTargetTests(unittest.TestCase):
 
 
 class PredictParityQueryFilterTests(unittest.TestCase):
+    def test_search_filter_view_parses_global_search_params(self) -> None:
+        view = md.predictparity_search_filter_view(
+            {
+                "q": "bitcoin",
+                "platform": "polymarket",
+                "type": "markets,traders,cross-venue",
+                "minValue": "10000",
+                "tracked": "true",
+                "active": "false",
+                "broadPairs": "false",
+                "limit": "40",
+            }
+        )
+
+        self.assertEqual(view["query"], "bitcoin")
+        self.assertEqual(view["platforms"], ["Polymarket"])
+        self.assertEqual(view["result_types"], ["Markets", "Traders", "Cross-Venue"])
+        self.assertEqual(view["min_value"], 10000.0)
+        self.assertTrue(view["tracked_only"])
+        self.assertFalse(view["active_markets_only"])
+        self.assertFalse(view["broad_pairs"])
+        self.assertEqual(view["rows"], 40)
+
     def test_market_filter_view_parses_search_platform_status_and_ranges(self) -> None:
         view = md.predictparity_market_filter_view(
             {

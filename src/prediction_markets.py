@@ -43,6 +43,7 @@ PREDICTPARITY_MONITOR_SIGNAL_TYPES = [
     "Ending soon",
     "Watched market",
 ]
+PREDICTPARITY_SEARCH_RESULT_TYPES = ["Markets", "Traders", "Trades", "News", "Cross-Venue", "Alerts", "Tracked"]
 
 
 class MarketDataError(RuntimeError):
@@ -864,6 +865,49 @@ def predictparity_market_filter_view(params: Mapping[str, Any]) -> dict[str, Any
     rows = _query_float(params, "rows", "limit")
     if rows is not None and rows > 0:
         view["limit_rows"] = int(rows)
+    return view
+
+
+def predictparity_search_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
+    """Translate PredictParity-style search query params into local filter state."""
+
+    view: dict[str, Any] = {}
+    query = _query_param_value(params, "q", "query", "search")
+    if query:
+        view["query"] = query
+
+    platforms = [item.capitalize() for item in _query_list(params, "platform", "platforms", "venue", "venues")]
+    platforms = [item for item in platforms if item in {"Polymarket", "Kalshi"}]
+    if platforms:
+        view["platforms"] = platforms
+
+    result_lookup = {item.lower().replace("_", " ").replace("-", " "): item for item in PREDICTPARITY_SEARCH_RESULT_TYPES}
+    result_types: list[str] = []
+    for item in _query_list(params, "type", "types", "result", "results"):
+        key = item.lower().replace("_", " ").replace("-", " ")
+        if key in result_lookup:
+            result_types.append(result_lookup[key])
+    if result_types:
+        view["result_types"] = result_types
+
+    min_value = _query_float(params, "minValue", "valueMin", "min", "minNotional")
+    if min_value is not None:
+        view["min_value"] = float(min_value)
+
+    rows = _query_float(params, "rows", "limit")
+    if rows is not None and rows > 0:
+        view["rows"] = int(rows)
+
+    active = _query_param_value(params, "active", "activeMarkets", "activeOnly").lower()
+    if active:
+        view["active_markets_only"] = active in {"1", "true", "yes", "y", "on"}
+
+    if _query_bool(params, "tracked", "trackedOnly"):
+        view["tracked_only"] = True
+
+    broad_pairs = _query_param_value(params, "broadPairs", "fallbackPairs").lower()
+    if broad_pairs:
+        view["broad_pairs"] = broad_pairs in {"1", "true", "yes", "y", "on"}
     return view
 
 

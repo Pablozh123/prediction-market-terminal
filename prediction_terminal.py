@@ -3681,6 +3681,40 @@ def page_search() -> None:
     if isinstance(pending_search_clear, dict):
         for key, value in pending_search_clear.items():
             st.session_state[key] = value
+    route_filter_params = query_param_snapshot(
+        [
+            "q",
+            "query",
+            "search",
+            "platform",
+            "platforms",
+            "venue",
+            "venues",
+            "type",
+            "types",
+            "result",
+            "results",
+            "minValue",
+            "valueMin",
+            "min",
+            "minNotional",
+            "rows",
+            "limit",
+            "active",
+            "activeMarkets",
+            "activeOnly",
+            "tracked",
+            "trackedOnly",
+            "broadPairs",
+            "fallbackPairs",
+        ]
+    )
+    route_filter_signature = json.dumps(route_filter_params, sort_keys=True)
+    route_filter_view = md.predictparity_search_filter_view(route_filter_params)
+    if route_filter_view and st.session_state.get("search_route_filter_signature") != route_filter_signature:
+        apply_search_filter_view_widgets(route_filter_view)
+        st.session_state["search_route_filter_signature"] = route_filter_signature
+        st.session_state["search_view_loaded_message"] = "Loaded search filters from URL."
     previous_search_types = set(st.session_state.get("search_result_types", []))
     if previous_search_types == {"Markets", "Traders", "Trades", "News", "Cross-Venue", "Tracked"}:
         st.session_state["search_result_types"] = list(SEARCH_RESULT_TYPES)

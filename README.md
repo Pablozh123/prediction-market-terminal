@@ -40,6 +40,7 @@ Phase 2 is Multi-Trader-Copytrading as a separate layer. Do not start it before 
 |---|---|
 | Top nav: Markets, Traders, Track, Live Trades, Monitor, Portfolio | Top navigation plus sidebar workspaces in `prediction_terminal.py` |
 | Search Parity `/` | Command palette with global markets, traders, trades, alerts, news, tracked items |
+| Search URL filters | Supports links such as `/search?q=bitcoin&platform=polymarket&type=markets,traders,cross-venue&minValue=10000` |
 | Market routes `/markets/<slug>` | Local route into the Markets workspace with market search/detail prefill |
 | Market URL filters | Supports scanner links such as `/markets?q=bitcoin&platform=polymarket&probMin=0.05&probMax=0.95` |
 | Trader profile routes `/traders/p/@handle` | Local route into the wallet/profile workspace with profile-handle resolution |
