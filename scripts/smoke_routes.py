@@ -26,6 +26,7 @@ DEFAULT_ROUTES = [
     "/live-trades?q=swisstony&platform=polymarket&side=buy&minNotional=2500&whale=true",
     "/monitor",
     "/monitor?q=bitcoin&platform=polymarket&signal=whale-print,tight-spread&minWhale=2500&maxSpread=0.07",
+    "/alerts?q=iran&signal=fast-mover&hitsOnly=true&minWhale=5000",
     "/portfolio",
     "/copy-trade",
     "/traders/p/@swisstony",

@@ -56,6 +56,7 @@ Phase 2 is Multi-Trader-Copytrading as a separate layer. Do not start it before 
 | Monitor | Signal monitor for fast movers, whale prints, spreads, holder risk, endings, saved alert rules |
 | Monitor URL filters | Supports signal links such as `/monitor?q=bitcoin&platform=polymarket&signal=whale-print,tight-spread&minWhale=2500` |
 | Alerts | Alert hits, signal feed, rule builder, saved rules, coverage |
+| Alerts URL filters | Supports alert-center links such as `/alerts?q=iran&signal=fast-mover&hitsOnly=true&minWhale=5000` |
 | Portfolio | Research portfolio, wallet import, copy portfolio, exposure, cash events, paper history, watchlist |
 | Sign In / Sign Up shell | Local research-mode auth facade mirroring PredictParity UI; no credential transmission |
 

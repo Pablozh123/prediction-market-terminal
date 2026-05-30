@@ -8897,6 +8897,60 @@ def page_alerts() -> None:
     if isinstance(pending_alert_clear, dict):
         for key, value in pending_alert_clear.items():
             st.session_state[key] = value
+    route_filter_params = query_param_snapshot(
+        [
+            "q",
+            "query",
+            "search",
+            "wallet",
+            "market",
+            "platform",
+            "platforms",
+            "venue",
+            "venues",
+            "signal",
+            "signals",
+            "type",
+            "types",
+            "rows",
+            "limit",
+            "watched",
+            "watchedOnly",
+            "tracked",
+            "trackedMarkets",
+            "minVolume",
+            "volumeMin",
+            "volMin",
+            "minLiquidity",
+            "liquidityMin",
+            "liqMin",
+            "minMove",
+            "moveMin",
+            "changeMin",
+            "maxSpread",
+            "spreadMax",
+            "minWhale",
+            "whaleMin",
+            "minNotional",
+            "notionalMin",
+            "endingDays",
+            "endDays",
+            "maxDaysToEnd",
+            "holderChecks",
+            "holders",
+            "holderThreshold",
+            "topHolder",
+            "hitsOnly",
+            "hits",
+            "rulesOnly",
+        ]
+    )
+    route_filter_signature = json.dumps(route_filter_params, sort_keys=True)
+    route_filter_view = md.predictparity_alert_filter_view(route_filter_params)
+    if route_filter_view and st.session_state.get("alert_route_filter_signature") != route_filter_signature:
+        apply_alert_filter_view_widgets(route_filter_view)
+        st.session_state["alert_route_filter_signature"] = route_filter_signature
+        st.session_state["alert_view_loaded_message"] = "Loaded alert filters from URL."
 
     pm, ks, combined_markets = load_market_universe()
     poly_trades = safe_load("Polymarket trades", load_polymarket_trades, trade_limit, 0.0, None, None)
