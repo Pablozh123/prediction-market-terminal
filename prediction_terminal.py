@@ -57,6 +57,7 @@ WORKSPACES = [
 SEARCH_RESULT_TYPES = ["Markets", "Traders", "Trades", "News", "Cross-Venue", "Alerts", "Tracked"]
 COPY_SIDE_FILTERS = ["BUY", "SELL"]
 COPY_ORDER_STATUS_FILTERS = ["copied", "settled", "skipped", "baseline", "duplicate"]
+PREDICTPARITY_NAV = ["Markets", "Traders", "Track", "Live Trades", "Monitor", "Portfolio"]
 
 
 def inject_css() -> None:
@@ -204,6 +205,12 @@ def inject_css() -> None:
         .command-hint {{
             color: {MUTED};
             font-size: 0.78rem;
+        }}
+        .parity-nav-caption {{
+            color: {MUTED};
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            margin: 0 0 0.15rem;
         }}
         .auth-note {{
             border: 1px solid #27364a;
@@ -1907,6 +1914,14 @@ def command_end_label(row: pd.Series) -> str:
 
 
 def render_command_bar() -> None:
+    st.markdown("<div class='parity-nav-caption'>PredictParity navigation</div>", unsafe_allow_html=True)
+    nav_cols = st.columns(len(PREDICTPARITY_NAV))
+    for idx, nav_page in enumerate(PREDICTPARITY_NAV):
+        is_current = st.session_state.get("selected_page") == nav_page
+        label = nav_page.upper()
+        if nav_cols[idx].button(label, key=f"top_nav_{nav_page}", width="stretch", type="primary" if is_current else "secondary"):
+            queue_navigation(nav_page, st.session_state.get("global_search_query", ""))
+            st.rerun()
     left, middle, right = st.columns([1.2, 4.6, 1.8])
     with middle:
         if st.button("Search Parity...                                      /", key="open_command_palette_main", width="stretch"):
