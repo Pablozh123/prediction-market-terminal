@@ -35,6 +35,14 @@ HTTP_HEADERS = {
 
 TITLE_TOKEN_RE = re.compile(r"[a-z0-9]+")
 POLY_WALLET_RE = re.compile(r"^0x[a-fA-F0-9]{40}$")
+PREDICTPARITY_MONITOR_SIGNAL_TYPES = [
+    "Fast mover",
+    "Whale print",
+    "Tight spread",
+    "Holder concentration",
+    "Ending soon",
+    "Watched market",
+]
 
 
 class MarketDataError(RuntimeError):
@@ -934,6 +942,69 @@ def predictparity_live_trade_filter_view(params: Mapping[str, Any]) -> dict[str,
         view["tracked_markets_only"] = True
     if _query_bool(params, "trackedWallets", "tracked_wallets", "walletsTracked"):
         view["tracked_wallets_only"] = True
+    return view
+
+
+def predictparity_monitor_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
+    """Translate PredictParity-style monitor query params into local filter state."""
+
+    view: dict[str, Any] = {}
+    query = _query_param_value(params, "q", "query", "search", "wallet", "market")
+    if query:
+        view["query"] = query
+
+    platforms = [item.capitalize() for item in _query_list(params, "platform", "platforms", "venue", "venues")]
+    platforms = [item for item in platforms if item in {"Polymarket", "Kalshi"}]
+    if platforms:
+        view["platforms"] = platforms
+
+    signal_lookup = {item.lower().replace("_", " ").replace("-", " "): item for item in PREDICTPARITY_MONITOR_SIGNAL_TYPES}
+    signal_types: list[str] = []
+    for item in _query_list(params, "signal", "signals", "type", "types"):
+        key = item.lower().replace("_", " ").replace("-", " ")
+        if key in signal_lookup:
+            signal_types.append(signal_lookup[key])
+    if signal_types:
+        view["signal_types"] = signal_types
+
+    rows = _query_float(params, "rows", "limit")
+    if rows is not None and rows > 0:
+        view["rows"] = int(rows)
+
+    if _query_bool(params, "watched", "watchedOnly", "tracked", "trackedMarkets"):
+        view["watched_only"] = True
+
+    min_volume = _query_float(params, "minVolume", "volumeMin", "volMin")
+    if min_volume is not None:
+        view["min_volume"] = float(min_volume)
+
+    min_liquidity = _query_float(params, "minLiquidity", "liquidityMin", "liqMin")
+    if min_liquidity is not None:
+        view["min_liquidity"] = float(min_liquidity)
+
+    min_move = _query_float(params, "minMove", "moveMin", "changeMin")
+    if min_move is not None:
+        view["min_move"] = round(float(min_move * 100 if 0 < min_move <= 1 else min_move), 4)
+
+    max_spread = _query_float(params, "maxSpread", "spreadMax")
+    if max_spread is not None:
+        view["max_spread"] = round(float(max_spread * 100 if 0 < max_spread <= 1 else max_spread), 4)
+
+    min_whale = _query_float(params, "minWhale", "whaleMin", "minNotional", "notionalMin")
+    if min_whale is not None:
+        view["min_whale"] = float(min_whale)
+
+    ending_days = _query_float(params, "endingDays", "endDays", "maxDaysToEnd")
+    if ending_days is not None and ending_days > 0:
+        view["ending_days"] = int(ending_days)
+
+    holder_checks = _query_float(params, "holderChecks", "holders")
+    if holder_checks is not None:
+        view["holder_checks"] = int(holder_checks)
+
+    holder_threshold = _query_float(params, "holderThreshold", "topHolder")
+    if holder_threshold is not None:
+        view["holder_threshold"] = float(holder_threshold / 100 if holder_threshold > 1 else holder_threshold)
     return view
 
 
