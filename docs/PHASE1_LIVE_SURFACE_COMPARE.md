@@ -13,6 +13,7 @@ Primary public reference used: [PolyMart Predict Parity listing](https://polymar
 | Market data visualizations | Covered | Price charts, order book, volume charts, holder split, flow charts, portfolio/exposure charts |
 | Smart-money alerts and monitoring | Covered | Monitor, Alerts, whale flow, tracked wallets, signal rules |
 | Historical accuracy statistics / finished events | Covered | Resolved page, closed market archive, resolution mix, category history |
+| Historical accuracy deep links | Covered | `/resolved?...` links can prefill query, outcome, decisive-only, volume/liquidity, closed-window, final-price, sort, and row filters |
 | Top traders for any Polymarket | Covered | Market detail includes holders/top traders/recent tape leaders |
 | Counterparty visibility | Best-effort covered | Public APIs do not expose exact counterparties; local app estimates counterparty hints from public tape proximity |
 | Bot filtering via `/traders?bot=true&apMin=101` | Covered | Local trader URL filters now parse bot and active-position minimum params |

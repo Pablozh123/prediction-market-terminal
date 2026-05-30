@@ -9291,6 +9291,54 @@ def page_resolved() -> None:
     if isinstance(pending_resolved_clear, dict):
         for key, value in pending_resolved_clear.items():
             st.session_state[key] = value
+    route_filter_params = query_param_snapshot(
+        [
+            "q",
+            "query",
+            "search",
+            "market",
+            "event",
+            "rows",
+            "limit",
+            "sample",
+            "outcome",
+            "outcomes",
+            "resolution",
+            "resolutions",
+            "decisiveOnly",
+            "decisive",
+            "decisiveResolution",
+            "minVolume",
+            "volumeMin",
+            "volMin",
+            "minLiquidity",
+            "liquidityMin",
+            "liqMin",
+            "category",
+            "categories",
+            "closedWindow",
+            "window",
+            "period",
+            "days",
+            "finalYesMin",
+            "finalYesMax",
+            "finalPriceMin",
+            "finalPriceMax",
+            "probMin",
+            "probMax",
+            "priceMin",
+            "priceMax",
+            "sort",
+            "sortBy",
+            "orderBy",
+        ]
+    )
+    route_filter_signature = json.dumps(route_filter_params, sort_keys=True)
+    route_filter_view = md.predictparity_resolved_filter_view(route_filter_params)
+    if route_filter_view and st.session_state.get("resolved_route_filter_signature") != route_filter_signature:
+        apply_resolved_filter_view_widgets(route_filter_view)
+        st.session_state["resolved_route_filter_signature"] = route_filter_signature
+        st.session_state["resolved_view_loaded_message"] = "Loaded resolved filters from URL."
 
     controls = st.columns([1.5, 1, 1, 1])
     query = controls[0].text_input("Resolved search", placeholder="market, category, outcome", key="resolved_search")

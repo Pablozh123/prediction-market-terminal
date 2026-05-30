@@ -1062,6 +1062,97 @@ def predictparity_alert_filter_view(params: Mapping[str, Any]) -> dict[str, Any]
     return view
 
 
+def predictparity_resolved_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
+    """Translate PredictParity-style resolved-market query params into local filter state."""
+
+    view: dict[str, Any] = {}
+    query = _query_param_value(params, "q", "query", "search", "market", "event")
+    if query:
+        view["query"] = query
+
+    rows = _query_float(params, "rows", "limit", "sample")
+    if rows is not None and rows > 0:
+        view["rows"] = int(rows)
+
+    outcome_lookup = {
+        "yes": "Yes",
+        "y": "Yes",
+        "true": "Yes",
+        "no": "No",
+        "n": "No",
+        "false": "No",
+        "multi": "Multi",
+        "multiple": "Multi",
+        "unknown": "Unknown",
+    }
+    outcomes: list[str] = []
+    for item in _query_list(params, "outcome", "outcomes", "resolution", "resolutions"):
+        key = item.lower().replace("_", " ").replace("-", " ")
+        if key in outcome_lookup:
+            outcomes.append(outcome_lookup[key])
+    if outcomes:
+        view["outcomes"] = list(dict.fromkeys(outcomes))
+
+    decisive = _query_param_value(params, "decisiveOnly", "decisive", "decisiveResolution").lower()
+    if decisive:
+        view["decisive_only"] = decisive in {"1", "true", "yes", "y", "on"}
+
+    min_volume = _query_float(params, "minVolume", "volumeMin", "volMin")
+    if min_volume is not None:
+        view["min_volume"] = float(min_volume)
+
+    min_liquidity = _query_float(params, "minLiquidity", "liquidityMin", "liqMin")
+    if min_liquidity is not None:
+        view["min_liquidity"] = float(min_liquidity)
+
+    categories = _query_list(params, "category", "categories")
+    if categories:
+        view["category_filter"] = categories
+
+    window_value = _query_param_value(params, "closedWindow", "window", "period", "days").lower().replace(" ", "")
+    window_map = {
+        "7": "<7d",
+        "7d": "<7d",
+        "<7d": "<7d",
+        "30": "<30d",
+        "30d": "<30d",
+        "<30d": "<30d",
+        "90": "<90d",
+        "90d": "<90d",
+        "<90d": "<90d",
+        "365": "<365d",
+        "365d": "<365d",
+        "1y": "<365d",
+        "<365d": "<365d",
+        "all": "All",
+    }
+    if window_value in window_map:
+        view["closed_window"] = window_map[window_value]
+
+    final_min = _percent_param(_query_float(params, "finalYesMin", "finalPriceMin", "probMin", "priceMin"))
+    final_max = _percent_param(_query_float(params, "finalYesMax", "finalPriceMax", "probMax", "priceMax"))
+    if final_min is not None or final_max is not None:
+        view["final_yes_range"] = [final_min if final_min is not None else 0, final_max if final_max is not None else 100]
+
+    sort = _query_param_value(params, "sort", "sortBy", "orderBy")
+    sort_lookup = {
+        "closed": "closed_time",
+        "closedtime": "closed_time",
+        "closed_time": "closed_time",
+        "volume": "volume",
+        "liquidity": "liquidity",
+        "final": "final_yes_price",
+        "finalyes": "final_yes_price",
+        "final_yes": "final_yes_price",
+        "final_yes_price": "final_yes_price",
+        "category": "category",
+    }
+    sort_key = sort.lower().replace("-", "_").replace(" ", "_")
+    if sort_key in sort_lookup:
+        view["sort_by"] = sort_lookup[sort_key]
+    return view
+
+
 def resolve_profile_query_to_wallet(value: Any, profiles: pd.DataFrame) -> str:
     """Resolve a wallet address or exact public trader handle to a Polymarket wallet."""
     text = str(value or "").strip()
