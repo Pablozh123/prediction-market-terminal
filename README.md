@@ -95,6 +95,7 @@ Do not replace or remove this during Phase 1.
 | `tests/test_copy_trading.py` | Paper copy-trading tests |
 | `docs/COLLAB.md` | Codex/Claude collaboration rules and phase boundary |
 | `docs/PHASE1_CLONE_AUDIT.md` | Phase 1 clone completion checklist and remaining gates |
+| `docs/PHASE1_LIVE_SURFACE_COMPARE.md` | Public PredictParity surface comparison notes |
 
 ## Verification
 

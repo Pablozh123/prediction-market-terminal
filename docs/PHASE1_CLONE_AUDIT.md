@@ -4,6 +4,8 @@ Status: in progress on `codex/website`.
 
 This audit tracks the clone layer only. Multi-trader copy-trading is out of scope until the `v1-clone` tag exists on `main`.
 
+Live surface comparison notes are tracked in `docs/PHASE1_LIVE_SURFACE_COMPARE.md`.
+
 ## Implemented Surfaces
 
 | PredictParity surface | Local status | Evidence |
