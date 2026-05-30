@@ -159,6 +159,25 @@ class PredictParityQueryFilterTests(unittest.TestCase):
         self.assertTrue(view["tracked_wallets_only"])
         self.assertEqual(view["rows"], 150)
 
+    def test_track_filter_view_parses_tracking_hub_params(self) -> None:
+        view = md.predictparity_track_filter_view(
+            {
+                "q": "tony",
+                "platform": "polymarket,kalshi",
+                "minWatchVolume": "10000",
+                "signal": "tight-spread",
+                "minWalletValue": "2500",
+                "limit": "120",
+            }
+        )
+
+        self.assertEqual(view["query"], "tony")
+        self.assertEqual(view["platforms"], ["Polymarket", "Kalshi"])
+        self.assertEqual(view["min_watch_volume"], 10000.0)
+        self.assertEqual(view["signal_filter"], "Tight spread")
+        self.assertEqual(view["min_wallet_value"], 2500.0)
+        self.assertEqual(view["rows"], 120)
+
     def test_whale_filter_view_parses_flow_thresholds(self) -> None:
         view = md.predictparity_whale_filter_view(
             {

@@ -22,6 +22,7 @@ DEFAULT_ROUTES = [
     "/markets?q=bitcoin&platform=polymarket&status=active&probMin=0.05&probMax=0.95&volumeMin=10000",
     "/traders",
     "/track",
+    "/track?q=tony&platform=polymarket&signal=tight-spread&minWatchVolume=10000&minWalletValue=2500",
     "/live-trades",
     "/live-trades?q=swisstony&platform=polymarket&side=buy&minNotional=2500&whale=true",
     "/whale-flow?q=iran&platform=polymarket&minPrint=5000&bias=yes&trackedWallets=false",

@@ -989,6 +989,38 @@ def predictparity_live_trade_filter_view(params: Mapping[str, Any]) -> dict[str,
     return view
 
 
+def predictparity_track_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
+    """Translate PredictParity-style tracking hub query params into local filter state."""
+
+    view: dict[str, Any] = {}
+    query = _query_param_value(params, "q", "query", "search", "wallet", "market")
+    if query:
+        view["query"] = query
+
+    platforms = [item.capitalize() for item in _query_list(params, "platform", "platforms", "venue", "venues")]
+    platforms = [item for item in platforms if item in {"Polymarket", "Kalshi"}]
+    if platforms:
+        view["platforms"] = platforms
+
+    min_watch_volume = _query_float(params, "minWatchVolume", "watchVolumeMin", "minVolume", "volumeMin")
+    if min_watch_volume is not None:
+        view["min_watch_volume"] = float(min_watch_volume)
+
+    rows = _query_float(params, "rows", "limit")
+    if rows is not None and rows > 0:
+        view["rows"] = int(rows)
+
+    signal_value = _query_param_value(params, "signal", "marketSignal", "signalFilter").lower().replace("_", " ").replace("-", " ")
+    signal_lookup = {"fast move": "Fast move", "fast": "Fast move", "mover": "Fast move", "tight spread": "Tight spread", "spread": "Tight spread", "none": "None", "any": "Any"}
+    if signal_value in signal_lookup:
+        view["signal_filter"] = signal_lookup[signal_value]
+
+    min_wallet_value = _query_float(params, "minWalletValue", "walletValueMin", "minOpenValue", "openValueMin")
+    if min_wallet_value is not None:
+        view["min_wallet_value"] = float(min_wallet_value)
+    return view
+
+
 def predictparity_whale_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
     """Translate PredictParity-style whale-flow query params into local filter state."""
 
