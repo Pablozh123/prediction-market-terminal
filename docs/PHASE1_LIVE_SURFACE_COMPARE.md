@@ -12,6 +12,7 @@ Primary public reference used: [PolyMart Predict Parity listing](https://polymar
 | Wallet performance tracking | Covered | Traders page, Wallets page, PnL, win rate, open/closed positions, profile links |
 | Market data visualizations | Covered | Price charts, order book, volume charts, holder split, flow charts, portfolio/exposure charts |
 | Smart-money alerts and monitoring | Covered | Monitor, Alerts, whale flow, tracked wallets, signal rules |
+| Smart-money and venue-gap deep links | Covered | `/whale-flow?...` and `/cross-venue?...` links can prefill smart-money and cross-market gap scanners |
 | Historical accuracy statistics / finished events | Covered | Resolved page, closed market archive, resolution mix, category history |
 | Historical accuracy deep links | Covered | `/resolved?...` links can prefill query, outcome, decisive-only, volume/liquidity, closed-window, final-price, sort, and row filters |
 | Top traders for any Polymarket | Covered | Market detail includes holders/top traders/recent tape leaders |
