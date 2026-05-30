@@ -35,6 +35,50 @@ class LocalRouteTargetTests(unittest.TestCase):
 
 
 class PredictParityQueryFilterTests(unittest.TestCase):
+    def test_market_filter_view_parses_search_platform_status_and_ranges(self) -> None:
+        view = md.predictparity_market_filter_view(
+            {
+                "q": "bitcoin",
+                "platform": "polymarket,kalshi",
+                "status": "active",
+                "category": "Crypto,Politics",
+                "probMin": "0.05",
+                "probMax": "0.95",
+                "volumeMin": "10000",
+                "liquidityMin": "5000",
+                "spreadMax": "0.07",
+                "sort": "volume_24h",
+                "limit": "50",
+            }
+        )
+
+        self.assertEqual(view["query"], "bitcoin")
+        self.assertEqual(view["platform_filter"], ["Polymarket", "Kalshi"])
+        self.assertEqual(view["status_filter"], "Active")
+        self.assertEqual(view["include_categories"], ["Crypto", "Politics"])
+        self.assertEqual(view["prob_preset"], "Custom")
+        self.assertEqual(view["custom_prob"], [5, 95])
+        self.assertEqual(view["volume_preset"], "Custom")
+        self.assertEqual(view["custom_volume"], 10000.0)
+        self.assertEqual(view["liquidity_preset"], "Custom")
+        self.assertEqual(view["custom_liquidity"], 5000.0)
+        self.assertEqual(view["spread_preset"], "Custom")
+        self.assertEqual(view["custom_spread"], 7.0)
+        self.assertEqual(view["sort_by"], "volume_24h")
+        self.assertEqual(view["limit_rows"], 50)
+
+    def test_market_filter_view_parses_view_quick_and_calendar_params(self) -> None:
+        view = md.predictparity_market_filter_view(
+            {"view": "calendar", "quick": "ending-soon", "endDays": "7", "ageDays": "30"}
+        )
+
+        self.assertEqual(view["view"], "Calendar")
+        self.assertEqual(view["quick"], "Ending Soon")
+        self.assertEqual(view["end_preset"], "Custom")
+        self.assertEqual(view["custom_days"], 7)
+        self.assertEqual(view["age_preset"], "Custom")
+        self.assertEqual(view["custom_age_days"], 30)
+
     def test_trader_filter_view_parses_bot_and_active_position_params(self) -> None:
         view = md.predictparity_trader_filter_view({"bot": "true", "apMin": "101"})
 
