@@ -16,6 +16,7 @@ This audit tracks the clone layer only. Multi-trader copy-trading is out of scop
 | Markets | Implemented | Table/card/calendar views, filters, categories, saved filter presets, market drilldown |
 | Market detail | Implemented | Header metrics, charts, order book, holders, traders, recent trades, paper ticket, news, comments |
 | Traders | Implemented | PredictParity public trader source with fallback, filters, saved views, profile links |
+| Trader URL filters | Implemented | PredictParity-style query filters including `/traders?bot=true&apMin=101` |
 | Trader / wallet profile | Implemented | Wallet analytics with positions, activity, counterparties, PnL chart/calendar, tracking actions |
 | Track | Implemented | Tracked markets and wallets hub with imports, filters, feed, action buttons |
 | Live Trades | Implemented | Public trade tape, filters, wallet/market aggregation, flow chart, tracking actions |
@@ -30,9 +31,9 @@ This audit tracks the clone layer only. Multi-trader copy-trading is out of scop
 | Check | Result |
 |---|---|
 | `python -m py_compile prediction_terminal.py src\prediction_markets.py src\copy_trading.py` | Pass |
-| `python -m unittest discover -s tests -p test_*.py` | Pass, 89 tests |
+| `python -m unittest discover -s tests -p test_*.py` | Pass, 92 tests |
 | `git diff --check main..codex/website` | Pass |
-| HTTP route smoke for `/`, `/markets`, `/traders`, `/track`, `/live-trades`, `/monitor`, `/portfolio`, `/copy-trade`, `/traders/p/@swisstony`, `/wallets/0x204f72f35326db932158cba6adff0b9a1da95e14` | Pass, 200 responses |
+| HTTP route smoke for `/`, `/markets`, `/traders`, `/track`, `/live-trades`, `/monitor`, `/portfolio`, `/copy-trade`, `/traders/p/@swisstony`, `/traders?bot=true&apMin=101`, `/wallets/0x204f72f35326db932158cba6adff0b9a1da95e14` | Pass, 200 responses |
 | Query route browser smoke for `?page=traders` and nav to markets | Pass in prior Playwright run |
 
 ## Open Gates Before `v1-clone`

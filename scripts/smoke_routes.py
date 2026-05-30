@@ -24,6 +24,7 @@ DEFAULT_ROUTES = [
     "/portfolio",
     "/copy-trade",
     "/traders/p/@swisstony",
+    "/traders?bot=true&apMin=101",
     "/wallets/0x204f72f35326db932158cba6adff0b9a1da95e14",
 ]
 

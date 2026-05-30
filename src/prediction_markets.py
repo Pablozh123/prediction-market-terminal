@@ -727,6 +727,75 @@ def local_route_target(value: Any) -> dict[str, str]:
     return {"page_slug": first, "profile": ""}
 
 
+def _query_param_value(params: Mapping[str, Any], *names: str) -> str:
+    lowered = {str(key).lower(): value for key, value in params.items()}
+    for name in names:
+        value = lowered.get(str(name).lower())
+        if isinstance(value, list):
+            value = value[0] if value else ""
+        if value is not None and str(value).strip() != "":
+            return str(value).strip()
+    return ""
+
+
+def _query_bool(params: Mapping[str, Any], *names: str) -> bool:
+    value = _query_param_value(params, *names).lower()
+    return value in {"1", "true", "yes", "y", "on"}
+
+
+def _query_float(params: Mapping[str, Any], *names: str) -> float | None:
+    value = _query_param_value(params, *names).replace(",", "")
+    if not value:
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
+def predictparity_trader_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
+    """Translate PredictParity-style trader query params into local filter state."""
+
+    view: dict[str, Any] = {}
+    if _query_bool(params, "bot", "bots", "botLike"):
+        view["bots_only"] = True
+        view["trait_filter"] = ["Bot-like"]
+        view["bot_score_min"] = int(_query_float(params, "botScoreMin", "botMin") or 65)
+
+    active_positions_min = _query_float(params, "apMin", "activePositionsMin", "active_positions_min")
+    if active_positions_min is not None and active_positions_min > 0:
+        view["active_only"] = True
+        view["enrich_positions"] = True
+        view["active_positions_min"] = int(active_positions_min)
+
+    pnl_min = _query_float(params, "pnlMin", "profitMin", "minPnl")
+    if pnl_min is not None:
+        view["pnl_preset"] = "Custom"
+        view["custom_pnl"] = float(pnl_min)
+
+    volume_min = _query_float(params, "volMin", "volumeMin", "minVolume")
+    if volume_min is not None:
+        view["volume_preset"] = "Custom"
+        view["custom_volume"] = float(volume_min)
+
+    query = _query_param_value(params, "q", "query", "search")
+    if query:
+        view["query"] = query
+
+    period = _query_param_value(params, "period", "timePeriod").upper()
+    if period in {"ALL", "MONTH", "WEEK", "DAY"}:
+        view["period"] = period
+
+    order_by = _query_param_value(params, "orderBy", "sort", "rankBy").upper()
+    if order_by in {"PNL", "VOL"}:
+        view["rank_by"] = order_by
+
+    rows = _query_float(params, "rows", "limit")
+    if rows is not None and rows > 0:
+        view["rows"] = int(rows)
+    return view
+
+
 def resolve_profile_query_to_wallet(value: Any, profiles: pd.DataFrame) -> str:
     """Resolve a wallet address or exact public trader handle to a Polymarket wallet."""
     text = str(value or "").strip()
