@@ -85,6 +85,7 @@ Do not replace or remove this during Phase 1.
 | `tests/test_prediction_markets.py` | Prediction-market helper tests |
 | `tests/test_copy_trading.py` | Paper copy-trading tests |
 | `docs/COLLAB.md` | Codex/Claude collaboration rules and phase boundary |
+| `docs/PHASE1_CLONE_AUDIT.md` | Phase 1 clone completion checklist and remaining gates |
 
 ## Verification
 
@@ -122,4 +123,3 @@ git tag v1-clone
 git push origin main
 git push origin v1-clone
 ```
-
