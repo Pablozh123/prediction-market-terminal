@@ -1389,6 +1389,54 @@ def predictparity_portfolio_filter_view(params: Mapping[str, Any]) -> dict[str, 
     return view
 
 
+def copy_trade_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
+    """Translate paper-copy-trade query params into local filter state."""
+
+    view: dict[str, Any] = {}
+    query = _query_param_value(params, "q", "query", "search", "market", "tx", "reason")
+    if query:
+        view["query"] = query
+
+    sides = [item.upper() for item in _query_list(params, "side", "sides")]
+    sides = [item for item in sides if item in {"BUY", "SELL"}]
+    if sides:
+        view["sides"] = list(dict.fromkeys(sides))
+
+    statuses = [item.lower().replace("_", " ").replace("-", " ") for item in _query_list(params, "status", "statuses", "copyStatus", "copyStatuses")]
+    statuses = [item for item in statuses if item in {"copied", "settled", "skipped", "baseline", "duplicate"}]
+    if statuses:
+        view["statuses"] = list(dict.fromkeys(statuses))
+
+    rows = _query_float(params, "rows", "limit")
+    if rows is not None and rows > 0:
+        view["rows"] = int(rows)
+
+    min_tony = _query_float(params, "minTonyNotional", "tonyNotionalMin", "minSourceNotional", "sourceNotionalMin")
+    if min_tony is not None:
+        view["min_tony_notional"] = float(min_tony)
+
+    min_copy = _query_float(params, "minCopyNotional", "copyNotionalMin", "minPaperNotional", "paperNotionalMin")
+    if min_copy is not None:
+        view["min_copy_notional"] = float(min_copy)
+
+    min_position = _query_float(params, "minPositionValue", "positionValueMin", "minValue", "valueMin")
+    if min_position is not None:
+        view["min_position_value"] = float(min_position)
+
+    min_pnl = _query_float(params, "minPnl", "pnlMin")
+    if min_pnl is not None:
+        view["min_pnl"] = float(min_pnl)
+
+    reason = _query_param_value(params, "reason", "reasonQuery", "contains")
+    if reason:
+        view["reason_query"] = reason
+
+    latency_only = _query_param_value(params, "latencyOnly", "latency", "measuredLatency").lower()
+    if latency_only:
+        view["latency_only"] = latency_only in {"1", "true", "yes", "y", "on"}
+    return view
+
+
 def resolve_profile_query_to_wallet(value: Any, profiles: pd.DataFrame) -> str:
     """Resolve a wallet address or exact public trader handle to a Polymarket wallet."""
     text = str(value or "").strip()

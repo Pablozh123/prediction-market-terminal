@@ -9771,6 +9771,49 @@ def page_copy_trade() -> None:
     if isinstance(pending_copy_trade_clear, dict):
         for key, value in pending_copy_trade_clear.items():
             st.session_state[key] = value
+    route_filter_params = query_param_snapshot(
+        [
+            "q",
+            "query",
+            "search",
+            "market",
+            "tx",
+            "reason",
+            "side",
+            "sides",
+            "status",
+            "statuses",
+            "copyStatus",
+            "copyStatuses",
+            "rows",
+            "limit",
+            "minTonyNotional",
+            "tonyNotionalMin",
+            "minSourceNotional",
+            "sourceNotionalMin",
+            "minCopyNotional",
+            "copyNotionalMin",
+            "minPaperNotional",
+            "paperNotionalMin",
+            "minPositionValue",
+            "positionValueMin",
+            "minValue",
+            "valueMin",
+            "minPnl",
+            "pnlMin",
+            "reasonQuery",
+            "contains",
+            "latencyOnly",
+            "latency",
+            "measuredLatency",
+        ]
+    )
+    route_filter_signature = json.dumps(route_filter_params, sort_keys=True)
+    route_filter_view = md.copy_trade_filter_view(route_filter_params)
+    if route_filter_view and st.session_state.get("copy_trade_route_filter_signature") != route_filter_signature:
+        apply_copy_trade_filter_view_widgets(route_filter_view)
+        st.session_state["copy_trade_route_filter_signature"] = route_filter_signature
+        st.session_state["copy_trade_view_loaded_message"] = "Loaded copy-trade filters from URL."
 
     section_header(
         "Copy Trade",

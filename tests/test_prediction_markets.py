@@ -364,6 +364,33 @@ class PredictParityQueryFilterTests(unittest.TestCase):
         self.assertTrue(view["losers_only"])
         self.assertEqual(view["rows"], 75)
 
+    def test_copy_trade_filter_view_parses_paper_copy_params(self) -> None:
+        view = md.copy_trade_filter_view(
+            {
+                "q": "tony",
+                "side": "buy,sell",
+                "status": "copied,baseline",
+                "minTonyNotional": "1000",
+                "minCopyNotional": "10",
+                "minPositionValue": "25",
+                "minPnl": "-5",
+                "reason": "redeem",
+                "latencyOnly": "true",
+                "limit": "50",
+            }
+        )
+
+        self.assertEqual(view["query"], "tony")
+        self.assertEqual(view["sides"], ["BUY", "SELL"])
+        self.assertEqual(view["statuses"], ["copied", "baseline"])
+        self.assertEqual(view["min_tony_notional"], 1000.0)
+        self.assertEqual(view["min_copy_notional"], 10.0)
+        self.assertEqual(view["min_position_value"], 25.0)
+        self.assertEqual(view["min_pnl"], -5.0)
+        self.assertEqual(view["reason_query"], "redeem")
+        self.assertTrue(view["latency_only"])
+        self.assertEqual(view["rows"], 50)
+
 
 class CrossVenueCandidateTests(unittest.TestCase):
     def test_candidates_include_trackable_market_ids(self) -> None:

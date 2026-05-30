@@ -35,6 +35,7 @@ DEFAULT_ROUTES = [
     "/portfolio",
     "/portfolio?q=tony&platform=polymarket&source=research,copy&copyStatus=copied,settled&minValue=100&losersOnly=false",
     "/copy-trade",
+    "/copy-trade?q=tony&side=buy&status=copied,baseline&minTonyNotional=1000&minCopyNotional=10&reason=redeem&latencyOnly=true",
     "/sign-in",
     "/sign-up",
     "/traders/p/@swisstony",
