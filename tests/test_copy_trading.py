@@ -620,5 +620,71 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertEqual(int(source_count), 1)
 
 
+class MultiTraderPlumbingTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.db_path = Path(self.tmp.name) / "copy.sqlite"
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def test_active_trader_wallets_lists_active_in_follow_order(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            conn.execute("DELETE FROM traders")
+            conn.execute(
+                "INSERT INTO traders (wallet, label, active, start_cash, cash, rank_score, added_at, updated_at)"
+                " VALUES ('0xaaa', 'First', 1, 1000, 1000, 0, '2026-05-31T00:00:01+00:00', '2026-05-31T00:00:01+00:00')"
+            )
+            conn.execute(
+                "INSERT INTO traders (wallet, label, active, start_cash, cash, rank_score, added_at, updated_at)"
+                " VALUES ('0xbbb', 'Paused', 0, 1000, 1000, 0, '2026-05-31T00:00:02+00:00', '2026-05-31T00:00:02+00:00')"
+            )
+            conn.execute(
+                "INSERT INTO traders (wallet, label, active, start_cash, cash, rank_score, added_at, updated_at)"
+                " VALUES ('0xccc', 'Third', 1, 1000, 1000, 0, '2026-05-31T00:00:03+00:00', '2026-05-31T00:00:03+00:00')"
+            )
+            conn.commit()
+            wallets = ct.active_trader_wallets(conn=conn)
+        finally:
+            conn.close()
+
+        self.assertEqual(wallets, ["0xaaa", "0xccc"])
+        self.assertNotIn("0xbbb", wallets)
+
+    def test_active_trader_wallets_falls_back_to_default(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            conn.execute("DELETE FROM traders")
+            conn.commit()
+            wallets = ct.active_trader_wallets(conn=conn)
+        finally:
+            conn.close()
+
+        self.assertEqual(wallets, [ct.COPY_TARGET_WALLET])
+
+    def test_seed_source_positions_is_wallet_scoped_and_upserts(self) -> None:
+        positions = pd.DataFrame(
+            [{"asset": "asset-1", "size": 1000.0, "market_key": "market-1", "title": "Example", "outcome": "Yes", "avg_price": 0.5, "current_price": 0.6}]
+        )
+        updated = pd.DataFrame(
+            [{"asset": "asset-1", "size": 1500.0, "market_key": "market-1", "title": "Example", "outcome": "Yes", "avg_price": 0.5, "current_price": 0.7}]
+        )
+        conn = ct.connect(self.db_path)
+        try:
+            first = ct.seed_source_positions(conn, "0xwhale", positions)
+            second = ct.seed_source_positions(conn, "0xwhale", updated)
+            conn.commit()
+            rows = conn.execute("SELECT * FROM source_positions WHERE wallet = '0xwhale'").fetchall()
+        finally:
+            conn.close()
+
+        self.assertEqual(first, 1)
+        self.assertEqual(second, 1)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(str(rows[0]["asset"]), "asset-1")
+        self.assertAlmostEqual(float(rows[0]["shares"]), 1500.0)
+
+
 if __name__ == "__main__":
     unittest.main()

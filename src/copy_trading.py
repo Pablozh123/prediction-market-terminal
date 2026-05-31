@@ -582,6 +582,7 @@ def sync_copy_trades(
         if not seeded:
             seed_positions = md.get_polymarket_positions(wallet, limit=500)
             seed_tony_positions(conn, seed_positions)
+            seed_source_positions(conn, wallet, seed_positions)
             seed_count = _mark_existing_trades_as_seed(conn, trades, wallet)
             baseline_cutoff = int(_sort_source_trades(trades)["timestamp"].max()) if not trades.empty else 0
             _set_meta(conn, "target_wallet", wallet)
@@ -923,6 +924,51 @@ def seed_tony_positions(conn: sqlite3.Connection, positions: pd.DataFrame) -> in
     return seeded
 
 
+def seed_source_positions(conn: sqlite3.Connection, wallet: str, positions: pd.DataFrame) -> int:
+    """Seed a source wallet's real open positions into ``source_positions``.
+
+    Wallet-scoped generalisation of :func:`seed_tony_positions`; keyed on
+    ``(wallet, asset)`` so every followed trader keeps its own mirror.
+    """
+    if not wallet or positions.empty:
+        return 0
+    now = utc_now()
+    seeded = 0
+    for _, row in positions.iterrows():
+        asset = str(row.get("asset", "") or "")
+        shares = _to_float(row.get("size"), 0.0)
+        if not asset or shares <= 0:
+            continue
+        conn.execute(
+            """
+            INSERT INTO source_positions (wallet, asset, market_key, title, outcome, shares, avg_price, last_price, seeded_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(wallet, asset) DO UPDATE SET
+                market_key = excluded.market_key,
+                title = excluded.title,
+                outcome = excluded.outcome,
+                shares = excluded.shares,
+                avg_price = excluded.avg_price,
+                last_price = excluded.last_price,
+                updated_at = excluded.updated_at
+            """,
+            (
+                wallet,
+                asset,
+                str(row.get("market_key", "") or ""),
+                str(row.get("title", "") or ""),
+                str(row.get("outcome", "") or ""),
+                shares,
+                _to_float(row.get("avg_price"), 0.0),
+                _to_float(row.get("current_price"), 0.0),
+                now,
+                now,
+            ),
+        )
+        seeded += 1
+    return seeded
+
+
 def get_paper_orders(db_path: str | Path = DEFAULT_DB_PATH, conn: sqlite3.Connection | None = None) -> pd.DataFrame:
     owns_conn = conn is None
     conn = connect(db_path) if conn is None else conn
@@ -968,6 +1014,23 @@ def get_source_positions(db_path: str | Path = DEFAULT_DB_PATH, conn: sqlite3.Co
     conn = connect(db_path) if conn is None else conn
     try:
         return pd.read_sql_query("SELECT * FROM source_positions ORDER BY updated_at DESC", conn)
+    finally:
+        if owns_conn:
+            conn.close()
+
+
+def active_trader_wallets(db_path: str | Path = DEFAULT_DB_PATH, conn: sqlite3.Connection | None = None) -> list[str]:
+    """Return the wallets the engine should copy, in follow order.
+
+    Falls back to the legacy single target wallet if the ``traders`` table is
+    empty (e.g. a database created before the multi-trader migration).
+    """
+    owns_conn = conn is None
+    conn = connect(db_path) if conn is None else conn
+    try:
+        rows = conn.execute("SELECT wallet FROM traders WHERE active = 1 ORDER BY added_at ASC, wallet ASC").fetchall()
+        wallets = [str(row["wallet"]) for row in rows if str(row["wallet"] or "")]
+        return wallets or [COPY_TARGET_WALLET]
     finally:
         if owns_conn:
             conn.close()
