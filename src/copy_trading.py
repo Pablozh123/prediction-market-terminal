@@ -340,6 +340,10 @@ def reset_paper_portfolio(start_cash: float = 1000.0, db_path: str | Path = DEFA
     try:
         _set_meta(conn, "cash", f"{float(start_cash):.10f}")
         _set_meta(conn, "paper_start_cash", f"{float(start_cash):.10f}")
+        conn.execute(
+            "UPDATE traders SET cash = ?, start_cash = ?, updated_at = ?",
+            (float(start_cash), float(start_cash), utc_now()),
+        )
         conn.commit()
     finally:
         conn.close()
@@ -350,22 +354,25 @@ def add_paper_cash(
     db_path: str | Path = DEFAULT_DB_PATH,
     reason: str = "manual_top_up",
     note: str = "",
+    wallet: str = COPY_TARGET_WALLET,
 ) -> float:
+    """Top up a trader's sub-account cash and record the movement."""
     amount = float(amount)
     if amount <= 0:
         raise ValueError("cash top-up amount must be positive")
     conn = connect(db_path)
     try:
-        cash_before = _get_float_meta(conn, "cash", 1000.0)
+        _ensure_trader(conn, wallet, _get_float_meta(conn, "paper_start_cash", 1000.0))
+        cash_before = _get_trader_cash(conn, wallet, 1000.0)
         cash_after = cash_before + amount
         now = utc_now()
-        _set_meta(conn, "cash", f"{cash_after:.10f}")
+        _set_trader_cash(conn, wallet, cash_after)
         conn.execute(
             """
-            INSERT INTO cash_events (event_time, amount, cash_before, cash_after, reason, note)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO cash_events (event_time, amount, cash_before, cash_after, reason, trader_wallet, note)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (now, amount, cash_before, cash_after, reason, note),
+            (now, amount, cash_before, cash_after, reason, wallet, note),
         )
         conn.commit()
         return cash_after
@@ -914,39 +921,67 @@ def apply_paper_trade(
     return order
 
 
+def _snapshot_from_positions(
+    cash: float,
+    positions: pd.DataFrame,
+    realized: float,
+    price_lookup: Callable[[str], float | None] | None,
+) -> PortfolioSnapshot:
+    if positions.empty:
+        return PortfolioSnapshot(cash=cash, position_value=0.0, equity=cash, realized_pnl=realized, unrealized_pnl=0.0, positions=positions)
+
+    valued = positions.copy()
+    current_prices: list[float] = []
+    for _, row in valued.iterrows():
+        looked_up = price_lookup(str(row["asset"])) if price_lookup else None
+        price = float(looked_up) if looked_up is not None else float(row.get("last_price") or row.get("avg_price") or 0.0)
+        current_prices.append(price)
+    valued["current_price"] = current_prices
+    valued["value"] = valued["shares"] * valued["current_price"]
+    valued["unrealized_pnl"] = valued["value"] - valued["cost_basis"]
+    valued["pnl_pct"] = valued["unrealized_pnl"] / valued["cost_basis"].replace({0: pd.NA})
+    position_value = float(valued["value"].sum())
+    unrealized = float(valued["unrealized_pnl"].sum())
+    return PortfolioSnapshot(
+        cash=cash,
+        position_value=position_value,
+        equity=cash + position_value,
+        realized_pnl=realized,
+        unrealized_pnl=unrealized,
+        positions=valued.sort_values("value", ascending=False).reset_index(drop=True),
+    )
+
+
 def value_paper_portfolio(
     db_path: str | Path = DEFAULT_DB_PATH,
     price_lookup: Callable[[str], float | None] | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> PortfolioSnapshot:
+    """Aggregate snapshot across every sub-account (total cash + all positions)."""
     owns_conn = conn is None
     conn = connect(db_path) if conn is None else conn
     try:
-        cash = _get_float_meta(conn, "cash", 1000.0)
-        positions = get_positions(conn=conn)
-        if positions.empty:
-            return PortfolioSnapshot(cash=cash, position_value=0.0, equity=cash, realized_pnl=_realized_pnl(conn), unrealized_pnl=0.0, positions=positions)
+        return _snapshot_from_positions(_total_cash(conn), get_positions(conn=conn), _realized_pnl(conn), price_lookup)
+    finally:
+        if owns_conn:
+            conn.close()
 
-        valued = positions.copy()
-        current_prices: list[float] = []
-        for _, row in valued.iterrows():
-            looked_up = price_lookup(str(row["asset"])) if price_lookup else None
-            price = float(looked_up) if looked_up is not None else float(row.get("last_price") or row.get("avg_price") or 0.0)
-            current_prices.append(price)
-        valued["current_price"] = current_prices
-        valued["value"] = valued["shares"] * valued["current_price"]
-        valued["unrealized_pnl"] = valued["value"] - valued["cost_basis"]
-        valued["pnl_pct"] = valued["unrealized_pnl"] / valued["cost_basis"].replace({0: pd.NA})
-        position_value = float(valued["value"].sum())
-        unrealized = float(valued["unrealized_pnl"].sum())
-        return PortfolioSnapshot(
-            cash=cash,
-            position_value=position_value,
-            equity=cash + position_value,
-            realized_pnl=_realized_pnl(conn),
-            unrealized_pnl=unrealized,
-            positions=valued.sort_values("value", ascending=False).reset_index(drop=True),
+
+def value_sub_account(
+    wallet: str,
+    db_path: str | Path = DEFAULT_DB_PATH,
+    price_lookup: Callable[[str], float | None] | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> PortfolioSnapshot:
+    """Snapshot for a single trader's sub-account (its own cash + positions)."""
+    owns_conn = conn is None
+    conn = connect(db_path) if conn is None else conn
+    try:
+        cash = _get_trader_cash(conn, wallet, _get_float_meta(conn, "paper_start_cash", 1000.0))
+        positions = pd.read_sql_query(
+            "SELECT * FROM positions WHERE trader_wallet = ? ORDER BY updated_at DESC", conn, params=(wallet,)
         )
+        return _snapshot_from_positions(cash, positions, _realized_pnl(conn, wallet), price_lookup)
     finally:
         if owns_conn:
             conn.close()
@@ -1266,8 +1301,8 @@ def _apply_redeem(
     if settled_shares <= 0:
         return PaperOrder(parsed["dedup_key"], "skipped", "redeem_no_paper_position", parsed["side"], parsed["source_notional"]), ""
     if cash_added > 0:
-        cash = _get_float_meta(conn, "cash", 1000.0)
-        _set_meta(conn, "cash", f"{cash + cash_added:.10f}")
+        cash = _get_trader_cash(conn, wallet, 1000.0)
+        _set_trader_cash(conn, wallet, cash + cash_added)
     return (
         PaperOrder(parsed["dedup_key"], "settled", "redeem_resolution", parsed["side"], parsed["source_notional"], cash_added, settled_shares, realized_pnl),
         ",".join(settled_assets),
@@ -1304,8 +1339,8 @@ def _apply_merge(conn: sqlite3.Connection, parsed: dict[str, Any]) -> tuple[Pape
         assets.append(asset)
     cash_added = paper_merge
     realized_pnl += cash_added
-    cash = _get_float_meta(conn, "cash", 1000.0)
-    _set_meta(conn, "cash", f"{cash + cash_added:.10f}")
+    cash = _get_trader_cash(conn, wallet, 1000.0)
+    _set_trader_cash(conn, wallet, cash + cash_added)
     return (
         PaperOrder(parsed["dedup_key"], "settled", "merge_complete_set", parsed["side"], parsed["source_notional"], cash_added, paper_merge, realized_pnl),
         ",".join(assets),
@@ -1415,8 +1450,8 @@ def _reconcile_resolved_winner_positions(
             source_position = _get_source_position(conn, wallet, asset)
             if source_position:
                 _decrease_source_position(conn, wallet, asset, float(source_position["shares"]), 1.0)
-            cash = _get_float_meta(conn, "cash", 1000.0)
-            _set_meta(conn, "cash", f"{cash + cash_added:.10f}")
+            cash = _get_trader_cash(conn, wallet, 1000.0)
+            _set_trader_cash(conn, wallet, cash + cash_added)
             _insert_order(conn, parsed, order, parsed)
             settled += 1
     return settled
@@ -1424,9 +1459,10 @@ def _reconcile_resolved_winner_positions(
 
 def _apply_buy(conn: sqlite3.Connection, parsed: dict[str, Any], settings: CopySettings) -> PaperOrder:
     wallet = parsed["source_wallet"]
+    _ensure_trader(conn, wallet, settings.paper_start_cash)
     _increase_source_position(conn, wallet, parsed)
-    snapshot = value_paper_portfolio(conn=conn)
-    cash = _get_float_meta(conn, "cash", settings.paper_start_cash)
+    snapshot = value_sub_account(wallet, conn=conn)
+    cash = _get_trader_cash(conn, wallet, settings.paper_start_cash)
     effective_scale = _effective_copy_scale(conn, snapshot, settings)
     effective_cap_pct = _effective_max_order_equity_pct(conn, settings)
     desired = parsed["source_notional"] * effective_scale
@@ -1476,7 +1512,7 @@ def _apply_buy(conn: sqlite3.Connection, parsed: dict[str, Any], settings: CopyS
             now,
         ),
     )
-    _set_meta(conn, "cash", f"{cash - copy_notional:.10f}")
+    _set_trader_cash(conn, wallet, cash - copy_notional)
     return PaperOrder(parsed["dedup_key"], "copied", "buy_scaled", parsed["side"], parsed["source_notional"], copy_notional, copy_size)
 
 
@@ -1504,8 +1540,8 @@ def _apply_sell(conn: sqlite3.Connection, parsed: dict[str, Any]) -> PaperOrder:
     realized_pnl = (parsed["price"] - avg_price) * sell_shares
     remaining_shares = paper_before - sell_shares
     remaining_cost = max(0.0, float(position["cost_basis"]) - (avg_price * sell_shares))
-    cash = _get_float_meta(conn, "cash", 1000.0)
-    _set_meta(conn, "cash", f"{cash + copy_notional:.10f}")
+    cash = _get_trader_cash(conn, wallet, 1000.0)
+    _set_trader_cash(conn, wallet, cash + copy_notional)
 
     if remaining_shares <= 1e-9:
         conn.execute("DELETE FROM positions WHERE trader_wallet = ? AND asset = ?", (wallet, parsed["asset"]))
@@ -1940,9 +1976,49 @@ def _get_position(conn: sqlite3.Connection, wallet: str, asset: str) -> sqlite3.
     return conn.execute("SELECT * FROM positions WHERE trader_wallet = ? AND asset = ?", (wallet, asset)).fetchone()
 
 
-def _realized_pnl(conn: sqlite3.Connection) -> float:
-    row = conn.execute("SELECT COALESCE(SUM(realized_pnl), 0) AS value FROM paper_orders WHERE status IN ('copied', 'settled')").fetchone()
+def _realized_pnl(conn: sqlite3.Connection, wallet: str | None = None) -> float:
+    if wallet is None:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(realized_pnl), 0) AS value FROM paper_orders WHERE status IN ('copied', 'settled')"
+        ).fetchone()
+    else:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(realized_pnl), 0) AS value FROM paper_orders WHERE status IN ('copied', 'settled') AND source_wallet = ?",
+            (wallet,),
+        ).fetchone()
     return float(row["value"] if row else 0.0)
+
+
+def _ensure_trader(conn: sqlite3.Connection, wallet: str, start_cash: float) -> None:
+    """Create a sub-account for ``wallet`` if one does not exist yet."""
+    if conn.execute("SELECT 1 FROM traders WHERE wallet = ?", (wallet,)).fetchone():
+        return
+    now = utc_now()
+    seed = float(start_cash)
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO traders
+            (wallet, label, active, start_cash, cash, copy_scale_override, rank_score, added_at, updated_at)
+        VALUES (?, ?, 1, ?, ?, NULL, 0, ?, ?)
+        """,
+        (wallet, wallet, seed, seed, now, now),
+    )
+
+
+def _get_trader_cash(conn: sqlite3.Connection, wallet: str, default: float) -> float:
+    row = conn.execute("SELECT cash FROM traders WHERE wallet = ?", (wallet,)).fetchone()
+    return float(row["cash"]) if row is not None else float(default)
+
+
+def _set_trader_cash(conn: sqlite3.Connection, wallet: str, cash: float) -> None:
+    conn.execute("UPDATE traders SET cash = ?, updated_at = ? WHERE wallet = ?", (float(cash), utc_now(), wallet))
+
+
+def _total_cash(conn: sqlite3.Connection) -> float:
+    row = conn.execute("SELECT COALESCE(SUM(cash), 0) AS total, COUNT(*) AS n FROM traders").fetchone()
+    if row is None or int(row["n"]) == 0:
+        return _get_float_meta(conn, "cash", 1000.0)
+    return float(row["total"] or 0.0)
 
 
 def _get_meta(conn: sqlite3.Connection, key: str) -> str | None:
