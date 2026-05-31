@@ -42,6 +42,7 @@ cv_materials_extracted/
 tracking_bewegung_abgabe/
 segmentierung_metriken_abgabe/
 outputs/
+artifacts/
 reports/compvis_*/
 reports/.pdf_render_deps/
 .git_kaputt_backup*/

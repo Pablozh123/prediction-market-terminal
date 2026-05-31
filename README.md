@@ -28,6 +28,12 @@ Optional local route smoke while the app is running:
 python scripts/smoke_routes.py
 ```
 
+Optional browser visual smoke while the app is running:
+
+```powershell
+python -m scripts.visual_smoke --base-url http://127.0.0.1:8503 --output-dir artifacts\visual_smoke --timeout-ms 45000
+```
+
 ## Phase Plan
 
 Phase 1 is the PredictParity clone layer. It covers PredictParity-like navigation, search, markets, traders, tracking, live trades, monitor, alerts, resolved-market accuracy, portfolio, filters, saved views, market detail tools, wallet analytics, and the existing paper Swisstony copy-trader.
@@ -108,6 +114,7 @@ Do not replace or remove this during Phase 1.
 | `src/copy_trading.py` | SQLite-backed paper copy-trading engine |
 | `scripts/run_copy_trader.py` | Background paper-copy sync runner |
 | `scripts/smoke_routes.py` | Lightweight local HTTP route smoke |
+| `scripts/visual_smoke.py` | Browser screenshot smoke for Phase 1 route checks |
 | `tests/test_prediction_markets.py` | Prediction-market helper tests |
 | `tests/test_copy_trading.py` | Paper copy-trading tests |
 | `docs/COLLAB.md` | Codex/Claude collaboration rules and phase boundary |
@@ -120,6 +127,7 @@ Do not replace or remove this during Phase 1.
 python -m py_compile prediction_terminal.py src\prediction_markets.py src\copy_trading.py
 python -m unittest discover -s tests -p test_*.py
 python scripts/smoke_routes.py
+python -m scripts.visual_smoke --base-url http://127.0.0.1:8503 --output-dir artifacts\visual_smoke --timeout-ms 45000
 ```
 
 Before tagging `v1-clone`, also run a browser smoke against `http://127.0.0.1:8503/`:
