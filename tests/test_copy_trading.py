@@ -785,5 +785,72 @@ class MultiTraderEngineTests(unittest.TestCase):
         self.assertIn(("0xwhale", "0xwhale"), calls)
 
 
+def _leaderboard_df() -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {"wallet": "0xskill", "pnl": 5000.0, "volume": 10000.0, "win_rate": 0.70, "is_bot": False, "open_positions": 60},
+            {"wallet": "0xwhale", "pnl": 9000.0, "volume": 90000.0, "win_rate": 0.55, "is_bot": False, "open_positions": 120},
+            {"wallet": "0xloser", "pnl": -2000.0, "volume": 8000.0, "win_rate": 0.30, "is_bot": False, "open_positions": 20},
+            {"wallet": "0xtiny", "pnl": 100.0, "volume": 500.0, "win_rate": 0.90, "is_bot": False, "open_positions": 5},
+            {"wallet": "0xbot", "pnl": 8000.0, "volume": 20000.0, "win_rate": 0.80, "is_bot": True, "open_positions": 200},
+        ]
+    )
+
+
+class TraderDiscoveryTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.db_path = Path(self.tmp.name) / "copy.sqlite"
+        ct.reset_paper_portfolio(db_path=self.db_path)
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def test_compute_roi(self) -> None:
+        self.assertAlmostEqual(ct.compute_roi(5000.0, 10000.0), 0.5)
+        self.assertAlmostEqual(ct.compute_roi(100.0, 0.0), 0.0)
+
+    def test_rank_traders_by_roi_applies_thresholds_and_orders(self) -> None:
+        ranked = ct.rank_traders_by_roi(_leaderboard_df())
+
+        self.assertEqual(ranked["wallet"].tolist(), ["0xskill", "0xwhale"])
+        self.assertAlmostEqual(float(ranked.iloc[0]["roi"]), 0.5)
+        self.assertAlmostEqual(float(ranked.iloc[0]["rank_score"]), 0.5)
+        self.assertAlmostEqual(float(ranked.iloc[1]["roi"]), 0.1)
+
+    def test_follow_and_unfollow_trader(self) -> None:
+        added = ct.follow_trader("0xnew", label="New", db_path=self.db_path)
+        re_followed = ct.follow_trader("0xnew", db_path=self.db_path)
+        active_after_follow = ct.active_trader_wallets(db_path=self.db_path)
+        changed = ct.unfollow_trader("0xnew", db_path=self.db_path)
+        active_after_unfollow = ct.active_trader_wallets(db_path=self.db_path)
+        no_change = ct.unfollow_trader("0xnew", db_path=self.db_path)
+
+        self.assertTrue(added)
+        self.assertFalse(re_followed)
+        self.assertIn("0xnew", active_after_follow)
+        self.assertTrue(changed)
+        self.assertNotIn("0xnew", active_after_unfollow)
+        self.assertFalse(no_change)
+
+    def test_refresh_trader_stats_persists_and_mirrors_rank_score(self) -> None:
+        ranked = ct.rank_traders_by_roi(_leaderboard_df())
+        conn = ct.connect(self.db_path)
+        try:
+            ct.follow_trader("0xskill", conn=conn)
+            count = ct.refresh_trader_stats(conn, ranked)
+            conn.commit()
+            stats = ct.get_trader_stats(conn=conn)
+            skill = conn.execute("SELECT rank_score FROM traders WHERE wallet = '0xskill'").fetchone()
+        finally:
+            conn.close()
+
+        self.assertEqual(count, 2)
+        self.assertEqual(set(stats["wallet"]), {"0xskill", "0xwhale"})
+        self.assertEqual(str(stats.iloc[0]["wallet"]), "0xskill")
+        self.assertAlmostEqual(float(stats.iloc[0]["roi"]), 0.5)
+        self.assertAlmostEqual(float(skill["rank_score"]), 0.5)
+
+
 if __name__ == "__main__":
     unittest.main()
