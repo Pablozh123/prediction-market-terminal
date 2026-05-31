@@ -763,6 +763,20 @@ class MultiTraderEngineTests(unittest.TestCase):
         self.assertAlmostEqual(total_cash, 1970.0)
         self.assertAlmostEqual(tony_equity, 1000.0)
 
+    def test_aggregate_sync_results_sums_fields(self) -> None:
+        combined = ct.aggregate_sync_results(
+            {
+                "0xa": ct.SyncResult(processed=2, copied=1, skipped=1, duplicates=0, errors=("e1",)),
+                "0xb": ct.SyncResult(processed=3, copied=2, skipped=1, duplicates=1, errors=("e2",)),
+            }
+        )
+        self.assertEqual(combined.processed, 5)
+        self.assertEqual(combined.copied, 3)
+        self.assertEqual(combined.skipped, 2)
+        self.assertEqual(combined.duplicates, 1)
+        self.assertEqual(set(combined.errors), {"e1", "e2"})
+        self.assertEqual(ct.aggregate_sync_results({}).processed, 0)
+
     def test_sync_active_copy_trades_iterates_active_traders(self) -> None:
         conn = ct.connect(self.db_path)
         try:

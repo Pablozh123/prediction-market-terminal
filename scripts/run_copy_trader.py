@@ -1,6 +1,9 @@
-"""Continuously sync Swisstony paper-copy trades.
+"""Continuously sync paper-copy trades for every active trader.
 
-This runner is paper-only. It never places real Polymarket orders.
+This runner is paper-only. It never places real Polymarket orders. It copies
+every wallet marked active in the ``traders`` table, each into its own
+sub-account; with no followed traders it falls back to the legacy Swisstony
+wallet.
 """
 
 from __future__ import annotations
@@ -120,14 +123,15 @@ def main() -> int:
 
         try:
             if not args.disable_fast:
-                fast_result = ct.sync_onchain_copy_trades(
-                    settings.target_wallet,
-                    settings=settings,
-                    db_path=db_path,
-                    rpc_url=args.rpc_url,
-                    lookback_blocks=int(args.lookback_blocks),
-                    max_block_span=int(args.max_block_span),
-                    confirmations=int(args.confirmations),
+                fast_result = ct.aggregate_sync_results(
+                    ct.sync_active_onchain_copy_trades(
+                        settings=settings,
+                        db_path=db_path,
+                        rpc_url=args.rpc_url,
+                        lookback_blocks=int(args.lookback_blocks),
+                        max_block_span=int(args.max_block_span),
+                        confirmations=int(args.confirmations),
+                    )
                 )
                 last_fast_sync_at = ct.utc_now()
                 if fast_result.errors:
@@ -137,17 +141,18 @@ def main() -> int:
 
             due_api = args.once or time.monotonic() >= next_api_sync or args.disable_fast
             if due_api:
-                api_result = ct.sync_copy_trades(settings.target_wallet, settings=settings, db_path=db_path)
+                api_result = ct.aggregate_sync_results(ct.sync_active_copy_trades(settings=settings, db_path=db_path))
                 last_api_sync_at = ct.utc_now()
                 next_api_sync = time.monotonic() + api_interval
-                settlement_result = ct.sync_settlement_activity(
-                    settings.target_wallet,
-                    settings=settings,
-                    db_path=db_path,
-                    limit=500,
-                    pages=1,
-                    closed_pages=2,
-                    metadata_pages=2,
+                settlement_result = ct.aggregate_sync_results(
+                    ct.sync_active_settlement_activity(
+                        settings=settings,
+                        db_path=db_path,
+                        limit=500,
+                        pages=1,
+                        closed_pages=2,
+                        metadata_pages=2,
+                    )
                 ) if args.once else None
                 if settlement_result is not None:
                     last_settlement_sync_at = ct.utc_now()
@@ -158,14 +163,15 @@ def main() -> int:
 
             due_settlement = (not args.once) and time.monotonic() >= next_settlement_sync
             if due_settlement:
-                settlement_result = ct.sync_settlement_activity(
-                    settings.target_wallet,
-                    settings=settings,
-                    db_path=db_path,
-                    limit=500,
-                    pages=1,
-                    closed_pages=2,
-                    metadata_pages=2,
+                settlement_result = ct.aggregate_sync_results(
+                    ct.sync_active_settlement_activity(
+                        settings=settings,
+                        db_path=db_path,
+                        limit=500,
+                        pages=1,
+                        closed_pages=2,
+                        metadata_pages=2,
+                    )
                 )
                 last_settlement_sync_at = ct.utc_now()
                 if settlement_result.errors:
@@ -190,6 +196,7 @@ def main() -> int:
                     "pid": pid,
                     "mode": "paper_fast_chain" if not args.disable_fast else "paper_api",
                     "target_wallet": settings.target_wallet,
+                    "trader_wallets": ct.active_trader_wallets(db_path=db_path),
                     "interval_seconds": interval,
                     "api_interval_seconds": api_interval,
                     "settlement_interval_seconds": settlement_interval,
