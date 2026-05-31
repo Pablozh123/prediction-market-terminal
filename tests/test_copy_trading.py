@@ -161,7 +161,7 @@ class CopyTradingTests(unittest.TestCase):
     def test_buy_is_skipped_when_no_cash_is_available(self) -> None:
         conn = ct.connect(self.db_path)
         try:
-            conn.execute("UPDATE meta SET value = '0' WHERE key = 'cash'")
+            conn.execute("UPDATE traders SET cash = 0 WHERE wallet = ?", (ct.COPY_TARGET_WALLET,))
             order = ct.apply_paper_trade(conn, source_trade(), self.settings)
             snapshot = ct.value_paper_portfolio(conn=conn)
         finally:
@@ -741,6 +741,27 @@ class MultiTraderEngineTests(unittest.TestCase):
 
         self.assertAlmostEqual(float(tony_pos["shares"]), 10.0)
         self.assertAlmostEqual(float(whale_pos["shares"]), 5.0)
+
+    def test_sub_account_cash_is_isolated(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            self._add_trader(conn, "0xwhale")
+            tony_settings = ct.CopySettings(trade_limit=20)
+            whale_settings = ct.CopySettings(trade_limit=20, target_wallet="0xwhale")
+            ct.apply_paper_trade(conn, source_trade(tx="0xt", asset="a1", price=0.5, size=2000.0), tony_settings)
+            ct.apply_paper_trade(conn, source_trade(tx="0xw", asset="a2", price=0.5, size=4000.0), whale_settings)
+            conn.commit()
+            tony_cash = ct._get_trader_cash(conn, ct.COPY_TARGET_WALLET, 0.0)
+            whale_cash = ct._get_trader_cash(conn, "0xwhale", 0.0)
+            total_cash = ct.value_paper_portfolio(conn=conn).cash
+            tony_equity = ct.value_sub_account(ct.COPY_TARGET_WALLET, conn=conn).equity
+        finally:
+            conn.close()
+
+        self.assertAlmostEqual(tony_cash, 990.0)
+        self.assertAlmostEqual(whale_cash, 980.0)
+        self.assertAlmostEqual(total_cash, 1970.0)
+        self.assertAlmostEqual(tony_equity, 1000.0)
 
     def test_sync_active_copy_trades_iterates_active_traders(self) -> None:
         conn = ct.connect(self.db_path)
