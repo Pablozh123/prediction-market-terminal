@@ -785,6 +785,26 @@ class MultiTraderEngineTests(unittest.TestCase):
         self.assertAlmostEqual(total_cash, 1970.0)
         self.assertAlmostEqual(tony_equity, 1000.0)
 
+    def test_dynamic_sizing_uses_per_wallet_source_stats(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            self._add_trader(conn, "0xwhale")
+            # Swisstony is sized off the legacy global stat; whale off its own.
+            ct._set_meta(conn, "tony_visible_equity", "200000")
+            ct._set_meta(conn, "wallet_stat:0xwhale:visible_equity", "100000")
+            tony_settings = ct.CopySettings(trade_limit=20)
+            whale_settings = ct.CopySettings(trade_limit=20, target_wallet="0xwhale")
+            tony_order = ct.apply_paper_trade(conn, source_trade(tx="0xt", asset="a1", price=0.5, size=2000.0), tony_settings)
+            whale_order = ct.apply_paper_trade(conn, source_trade(tx="0xw", asset="a2", price=0.5, size=2000.0), whale_settings)
+            conn.commit()
+        finally:
+            conn.close()
+
+        self.assertEqual(tony_order.status, "copied")
+        self.assertEqual(whale_order.status, "copied")
+        self.assertAlmostEqual(tony_order.copy_notional, 5.0)
+        self.assertAlmostEqual(whale_order.copy_notional, 10.0)
+
     def test_same_trade_for_different_wallets_is_not_cross_deduped(self) -> None:
         conn = ct.connect(self.db_path)
         try:
