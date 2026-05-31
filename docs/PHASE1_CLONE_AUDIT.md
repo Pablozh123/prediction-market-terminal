@@ -54,15 +54,14 @@ Live surface comparison notes are tracked in `docs/PHASE1_LIVE_SURFACE_COMPARE.m
 | `git diff --check main..codex/website` | Pass |
 | HTTP route smoke for `/`, `/?q=bitcoin&platform=polymarket&featured=any&marketRows=9&minVolume=10000&showNews=false`, `/search?q=bitcoin&platform=polymarket&type=markets,traders,cross-venue&minValue=10000`, `/markets`, `/markets/will-bitcoin-hit-100k`, `/markets?q=bitcoin&platform=polymarket&status=active&probMin=0.05&probMax=0.95&volumeMin=10000`, `/traders`, `/track`, `/track?q=tony&platform=polymarket&signal=tight-spread&minWatchVolume=10000&minWalletValue=2500`, `/live-trades`, `/live-trades?q=swisstony&platform=polymarket&side=buy&minNotional=2500&whale=true`, `/whale-flow?q=iran&platform=polymarket&minPrint=5000&bias=yes&trackedWallets=false`, `/cross-venue?q=bitcoin&minSimilarity=0.35&minGap=0.08&lower=kalshi&priceMin=0.05&priceMax=0.95`, `/monitor`, `/monitor?q=bitcoin&platform=polymarket&signal=whale-print,tight-spread&minWhale=2500&maxSpread=0.07`, `/alerts?q=iran&signal=fast-mover&hitsOnly=true&minWhale=5000`, `/resolved?q=iran&outcome=yes,no&decisiveOnly=true&minVolume=10000&closedWindow=30d&finalYesMin=0.95`, `/portfolio`, `/portfolio?q=tony&platform=polymarket&source=research,copy&copyStatus=copied,settled&minValue=100&losersOnly=false`, `/copy-trade`, `/copy-trade?q=tony&side=buy&status=copied,baseline&minTonyNotional=1000&minCopyNotional=10&reason=redeem&latencyOnly=true`, `/sign-in`, `/sign-up`, `/traders/p/@swisstony`, `/traders?bot=true&apMin=101`, `/wallets/0x204f72f35326db932158cba6adff0b9a1da95e14` | Pass, 200 responses |
 | Query route browser smoke for `?page=traders` and nav to markets | Pass in prior Playwright run |
+| `python -m scripts.visual_smoke --base-url http://127.0.0.1:8503 --output-dir artifacts\visual_smoke --timeout-ms 45000 --route / --route /markets --route /traders --route /track --route /live-trades --route /monitor --route /portfolio --route /copy-trade --route /sign-in --route /sign-up` | Pass, 10 route screenshots captured under `artifacts\visual_smoke` |
+| Live PredictParity browser probe | Pass, public `/`, `/markets`, and `/traders` inspected; `/track`, `/live-trades`, `/monitor`, and `/portfolio` confirmed login-gated in the public app |
 
 ## Open Gates Before `v1-clone`
 
-1. Browser smoke on true path routes, especially `/traders`, `/markets`, `/track`, `/live-trades`, `/monitor`, `/portfolio`.
-2. Visual sanity check in the in-app browser: no Traceback, no broken top nav, no obvious layout overlap.
-3. Final comparison pass against the live PredictParity public surface if network/browser access is available.
-4. Merge `codex/website` into `main`.
-5. Re-run compile, unit tests, and browser smoke on `main`.
-6. Tag and push `v1-clone`.
+1. Merge `codex/website` into `main`.
+2. Re-run compile, unit tests, HTTP route smoke, and browser visual smoke on `main`.
+3. Tag and push `v1-clone`.
 
 ## Non-Goals In Phase 1
 
