@@ -887,6 +887,37 @@ def sync_active_onchain_copy_trades(
     return results
 
 
+def sync_active_settlement_activity(
+    settings: CopySettings | None = None,
+    db_path: str | Path = DEFAULT_DB_PATH,
+    **kwargs: Any,
+) -> dict[str, SyncResult]:
+    """Run the settlement/redeem recycling sync once per active trader."""
+    results: dict[str, SyncResult] = {}
+    for wallet in active_trader_wallets(db_path=db_path):
+        wallet_settings = replace(settings, target_wallet=wallet) if settings is not None else CopySettings(target_wallet=wallet)
+        results[wallet] = sync_settlement_activity(wallet, settings=wallet_settings, db_path=db_path, **kwargs)
+    return results
+
+
+def aggregate_sync_results(results: Mapping[str, SyncResult] | list[SyncResult]) -> SyncResult:
+    """Combine per-trader sync results into one summary for status reporting."""
+    items = list(results.values()) if isinstance(results, Mapping) else list(results)
+    if not items:
+        return SyncResult()
+    return SyncResult(
+        processed=sum(r.processed for r in items),
+        copied=sum(r.copied for r in items),
+        skipped=sum(r.skipped for r in items),
+        duplicates=sum(r.duplicates for r in items),
+        seeded=any(r.seeded for r in items),
+        source=items[0].source,
+        logs_seen=sum(r.logs_seen for r in items),
+        latest_block=max((r.latest_block for r in items), default=0),
+        errors=tuple(err for r in items for err in r.errors),
+    )
+
+
 def apply_paper_trade(
     conn: sqlite3.Connection,
     source_trade: Mapping[str, Any],
