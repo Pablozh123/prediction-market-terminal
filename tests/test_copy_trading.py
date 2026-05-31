@@ -686,5 +686,83 @@ class MultiTraderPlumbingTests(unittest.TestCase):
         self.assertAlmostEqual(float(rows[0]["shares"]), 1500.0)
 
 
+class MultiTraderEngineTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.db_path = Path(self.tmp.name) / "copy.sqlite"
+        ct.reset_paper_portfolio(db_path=self.db_path)
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def _add_trader(self, conn: sqlite3.Connection, wallet: str) -> None:
+        conn.execute(
+            "INSERT OR IGNORE INTO traders (wallet, label, active, start_cash, cash, rank_score, added_at, updated_at)"
+            " VALUES (?, ?, 1, 1000, 1000, 0, '2026-05-31T00:00:05+00:00', '2026-05-31T00:00:05+00:00')",
+            (wallet, "Whale"),
+        )
+
+    def test_buys_are_booked_into_separate_sub_accounts(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            self._add_trader(conn, "0xwhale")
+            tony_settings = ct.CopySettings(trade_limit=20)
+            whale_settings = ct.CopySettings(trade_limit=20, target_wallet="0xwhale")
+            ct.apply_paper_trade(conn, source_trade(tx="0xtony", asset="asset-1", price=0.5, size=2000.0), tony_settings)
+            ct.apply_paper_trade(conn, source_trade(tx="0xwhale", asset="asset-1", price=0.5, size=2000.0), whale_settings)
+            conn.commit()
+            rows = conn.execute("SELECT trader_wallet, asset FROM positions WHERE asset = 'asset-1'").fetchall()
+            tony_pos = ct._get_position(conn, ct.COPY_TARGET_WALLET, "asset-1")
+            whale_pos = ct._get_position(conn, "0xwhale", "asset-1")
+        finally:
+            conn.close()
+
+        self.assertEqual(len(rows), 2)
+        self.assertIsNotNone(tony_pos)
+        self.assertIsNotNone(whale_pos)
+        self.assertAlmostEqual(float(tony_pos["shares"]), 20.0)
+        self.assertAlmostEqual(float(whale_pos["shares"]), 20.0)
+
+    def test_sub_account_sell_only_touches_its_own_position(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            self._add_trader(conn, "0xwhale")
+            tony_settings = ct.CopySettings(trade_limit=20)
+            whale_settings = ct.CopySettings(trade_limit=20, target_wallet="0xwhale")
+            ct.apply_paper_trade(conn, source_trade(tx="0xtony", asset="asset-1", price=0.4, size=1000.0), tony_settings)
+            ct.apply_paper_trade(conn, source_trade(tx="0xwhale", asset="asset-1", price=0.4, size=1000.0), whale_settings)
+            # Whale sells half of its source position; Tony's sub-account must be untouched.
+            ct.apply_paper_trade(conn, source_trade(tx="0xwhalesell", asset="asset-1", side="SELL", price=0.6, size=500.0), whale_settings)
+            conn.commit()
+            tony_pos = ct._get_position(conn, ct.COPY_TARGET_WALLET, "asset-1")
+            whale_pos = ct._get_position(conn, "0xwhale", "asset-1")
+        finally:
+            conn.close()
+
+        self.assertAlmostEqual(float(tony_pos["shares"]), 10.0)
+        self.assertAlmostEqual(float(whale_pos["shares"]), 5.0)
+
+    def test_sync_active_copy_trades_iterates_active_traders(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            self._add_trader(conn, "0xwhale")
+            conn.commit()
+        finally:
+            conn.close()
+
+        calls: list[tuple[str, str]] = []
+
+        def fake_sync(wallet, settings=None, db_path=None):
+            calls.append((wallet, settings.target_wallet))
+            return ct.SyncResult(processed=1)
+
+        with patch("src.copy_trading.sync_copy_trades", side_effect=fake_sync):
+            results = ct.sync_active_copy_trades(db_path=self.db_path)
+
+        self.assertEqual(set(results.keys()), {ct.COPY_TARGET_WALLET, "0xwhale"})
+        self.assertIn((ct.COPY_TARGET_WALLET, ct.COPY_TARGET_WALLET), calls)
+        self.assertIn(("0xwhale", "0xwhale"), calls)
+
+
 if __name__ == "__main__":
     unittest.main()
