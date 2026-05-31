@@ -621,7 +621,7 @@ def refresh_tony_wallet_stats(
     if not settings.dynamic_sizing_enabled:
         return None
     now_ts = datetime.now(timezone.utc).timestamp()
-    last_ts = _get_float_meta(conn, "tony_wallet_stats_ts", 0.0)
+    last_ts = _get_float_meta(conn, f"wallet_stat:{wallet}:ts", _get_float_meta(conn, "tony_wallet_stats_ts", 0.0))
     refresh_seconds = max(0, int(settings.dynamic_stats_refresh_seconds))
     if not force and last_ts > 0 and now_ts - last_ts < refresh_seconds:
         return _read_tony_wallet_stats(conn)
@@ -630,7 +630,7 @@ def refresh_tony_wallet_stats(
     except Exception as exc:
         _set_meta(conn, "tony_wallet_stats_error", str(exc)[:500])
         return _read_tony_wallet_stats(conn)
-    _store_tony_wallet_stats(conn, stats, now_ts)
+    _store_tony_wallet_stats(conn, stats, now_ts, wallet)
     return stats
 
 
@@ -2035,12 +2035,20 @@ def get_dynamic_sizing_snapshot(db_path: str | Path = DEFAULT_DB_PATH, conn: sql
             conn.close()
 
 
+def _get_wallet_float_stat(conn: sqlite3.Connection, wallet: str, name: str, default: float) -> float:
+    """Per-source-wallet sizing stat, falling back to the legacy global value."""
+    value = _get_meta(conn, f"wallet_stat:{wallet}:{name}")
+    if value is not None:
+        return _to_float(value, default)
+    return _get_float_meta(conn, f"tony_{name}", default)
+
+
 def _effective_copy_scale(conn: sqlite3.Connection, snapshot: PortfolioSnapshot, settings: CopySettings) -> float:
     if not settings.dynamic_sizing_enabled:
         scale = max(0.0, settings.copy_scale)
         _set_meta(conn, "copy_scale_mode", "fixed")
     else:
-        tony_equity = _get_float_meta(conn, "tony_visible_equity", 0.0)
+        tony_equity = _get_wallet_float_stat(conn, settings.target_wallet, "visible_equity", 0.0)
         if tony_equity <= 0 or snapshot.equity <= 0:
             scale = max(0.0, settings.copy_scale)
             _set_meta(conn, "copy_scale_mode", "fixed_fallback_no_tony_equity")
@@ -2060,7 +2068,7 @@ def _effective_copy_scale(conn: sqlite3.Connection, snapshot: PortfolioSnapshot,
 def _effective_max_order_equity_pct(conn: sqlite3.Connection, settings: CopySettings) -> float:
     cap = max(0.0, settings.max_order_equity_pct)
     if settings.dynamic_sizing_enabled and settings.dynamic_order_cap_from_tony:
-        tony_max_pct = _get_float_meta(conn, "tony_max_market_position_pct", 0.0)
+        tony_max_pct = _get_wallet_float_stat(conn, settings.target_wallet, "max_market_position_pct", 0.0)
         if tony_max_pct > 0:
             cap = max(cap, tony_max_pct)
     cap = min(cap, 1.0)
@@ -2095,7 +2103,15 @@ def _read_tony_wallet_stats(conn: sqlite3.Connection) -> TonyWalletStats | None:
     )
 
 
-def _store_tony_wallet_stats(conn: sqlite3.Connection, stats: TonyWalletStats, timestamp: float) -> None:
+def _store_tony_wallet_stats(
+    conn: sqlite3.Connection, stats: TonyWalletStats, timestamp: float, wallet: str | None = None
+) -> None:
+    if wallet:
+        # Per-source-wallet copies of the values the sizing reads, so each
+        # followed trader is sized against its own source wallet (spec §4.3).
+        _set_meta(conn, f"wallet_stat:{wallet}:ts", f"{timestamp:.6f}")
+        _set_meta(conn, f"wallet_stat:{wallet}:visible_equity", f"{stats.visible_equity:.10f}")
+        _set_meta(conn, f"wallet_stat:{wallet}:max_market_position_pct", f"{stats.max_market_position_pct:.10f}")
     _set_meta(conn, "tony_wallet_stats_ts", f"{timestamp:.6f}")
     _set_meta(conn, "tony_wallet_stats_json", json.dumps(asdict(stats), sort_keys=True))
     _set_meta(conn, "tony_wallet_stats_updated_at", stats.updated_at)
