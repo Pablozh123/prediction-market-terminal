@@ -1,3 +1,4 @@
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -498,6 +499,125 @@ class CopyTradingTests(unittest.TestCase):
         self.assertTrue(snapshot.positions.empty)
         self.assertAlmostEqual(snapshot.cash, 1000.0)
         self.assertAlmostEqual(snapshot.realized_pnl, 0.0)
+
+
+def _make_legacy_db(path: Path, cash: float = 987.5, start_cash: float = 1000.0) -> None:
+    """Create a pre-multi-trader database (no ``trader_wallet`` columns)."""
+    conn = sqlite3.connect(path)
+    try:
+        conn.executescript(
+            """
+            CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            CREATE TABLE positions (
+                asset TEXT PRIMARY KEY, market_key TEXT, title TEXT, outcome TEXT,
+                shares REAL NOT NULL, avg_price REAL NOT NULL, cost_basis REAL NOT NULL,
+                last_price REAL NOT NULL, updated_at TEXT NOT NULL
+            );
+            CREATE TABLE tony_positions (
+                asset TEXT PRIMARY KEY, market_key TEXT, title TEXT, outcome TEXT,
+                shares REAL NOT NULL, avg_price REAL, last_price REAL,
+                seeded_at TEXT NOT NULL, updated_at TEXT NOT NULL
+            );
+            CREATE TABLE cash_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, event_time TEXT NOT NULL,
+                amount REAL NOT NULL, cash_before REAL NOT NULL, cash_after REAL NOT NULL,
+                reason TEXT NOT NULL, note TEXT
+            );
+            """
+        )
+        conn.execute("INSERT INTO meta (key, value) VALUES ('cash', ?)", (f"{cash:.10f}",))
+        conn.execute("INSERT INTO meta (key, value) VALUES ('paper_start_cash', ?)", (f"{start_cash:.10f}",))
+        conn.execute(
+            "INSERT INTO positions (asset, market_key, title, outcome, shares, avg_price, cost_basis, last_price, updated_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("asset-1", "market-1", "Example market", "Yes", 10.0, 0.5, 5.0, 0.5, "2026-05-30T00:00:00+00:00"),
+        )
+        conn.execute(
+            "INSERT INTO tony_positions (asset, market_key, title, outcome, shares, avg_price, last_price, seeded_at, updated_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("asset-1", "market-1", "Example market", "Yes", 1000.0, 0.5, 0.5, "2026-05-30T00:00:00+00:00", "2026-05-30T00:00:00+00:00"),
+        )
+        conn.execute(
+            "INSERT INTO cash_events (event_time, amount, cash_before, cash_after, reason, note) VALUES (?, ?, ?, ?, ?, ?)",
+            ("2026-05-30T00:00:00+00:00", -12.5, 1000.0, 987.5, "buy", ""),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+class SchemaMigrationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.db_path = Path(self.tmp.name) / "copy.sqlite"
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def test_fresh_db_creates_multitrader_schema(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            tables = {row["name"] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()}
+            position_cols = ct._table_columns(conn, "positions")
+            cash_cols = ct._table_columns(conn, "cash_events")
+            source_pk = [row["name"] for row in conn.execute("PRAGMA table_info(source_positions)").fetchall() if row["pk"]]
+        finally:
+            conn.close()
+
+        self.assertTrue({"traders", "source_positions", "trader_stats"} <= tables)
+        self.assertIn("trader_wallet", position_cols)
+        self.assertIn("trader_wallet", cash_cols)
+        self.assertEqual(set(source_pk), {"wallet", "asset"})
+
+    def test_fresh_db_seeds_swisstony_as_first_trader(self) -> None:
+        traders = ct.get_traders(db_path=self.db_path)
+
+        self.assertEqual(len(traders), 1)
+        row = traders.iloc[0]
+        self.assertEqual(str(row["wallet"]), ct.COPY_TARGET_WALLET)
+        self.assertEqual(str(row["label"]), ct.SWISSTONY_LABEL)
+        self.assertEqual(int(row["active"]), 1)
+        self.assertAlmostEqual(float(row["cash"]), 1000.0)
+        self.assertAlmostEqual(float(row["start_cash"]), 1000.0)
+
+    def test_legacy_db_is_migrated_to_sub_portfolios(self) -> None:
+        _make_legacy_db(self.db_path)
+
+        conn = ct.connect(self.db_path)
+        try:
+            position_cols = ct._table_columns(conn, "positions")
+            cash_cols = ct._table_columns(conn, "cash_events")
+            pos_wallet = conn.execute("SELECT trader_wallet FROM positions WHERE asset = 'asset-1'").fetchone()["trader_wallet"]
+            cash_wallet = conn.execute("SELECT trader_wallet FROM cash_events LIMIT 1").fetchone()["trader_wallet"]
+            source = conn.execute("SELECT * FROM source_positions WHERE asset = 'asset-1'").fetchone()
+            trader = conn.execute("SELECT * FROM traders WHERE wallet = ?", (ct.COPY_TARGET_WALLET,)).fetchone()
+        finally:
+            conn.close()
+
+        self.assertIn("trader_wallet", position_cols)
+        self.assertIn("trader_wallet", cash_cols)
+        self.assertEqual(str(pos_wallet), ct.COPY_TARGET_WALLET)
+        self.assertEqual(str(cash_wallet), ct.COPY_TARGET_WALLET)
+        self.assertIsNotNone(source)
+        self.assertEqual(str(source["wallet"]), ct.COPY_TARGET_WALLET)
+        self.assertAlmostEqual(float(source["shares"]), 1000.0)
+        self.assertIsNotNone(trader)
+        self.assertAlmostEqual(float(trader["cash"]), 987.5)
+        self.assertAlmostEqual(float(trader["start_cash"]), 1000.0)
+
+    def test_migration_is_idempotent(self) -> None:
+        _make_legacy_db(self.db_path)
+        ct.connect(self.db_path).close()
+
+        conn = ct.connect(self.db_path)
+        try:
+            trader_count = conn.execute("SELECT COUNT(*) AS n FROM traders").fetchone()["n"]
+            source_count = conn.execute("SELECT COUNT(*) AS n FROM source_positions").fetchone()["n"]
+        finally:
+            conn.close()
+
+        self.assertEqual(int(trader_count), 1)
+        self.assertEqual(int(source_count), 1)
 
 
 if __name__ == "__main__":

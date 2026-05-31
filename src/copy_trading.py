@@ -21,6 +21,7 @@ from src import prediction_markets as md
 
 
 COPY_TARGET_WALLET = "0x204f72f35326db932158cba6adff0b9a1da95e14"
+SWISSTONY_LABEL = "Swisstony"
 DEFAULT_DB_PATH = Path("data/copy_trading.sqlite")
 DEFAULT_STATUS_PATH = Path("data/copy_trader_status.json")
 DEFAULT_STOP_PATH = Path("data/copy_trader.stop")
@@ -131,7 +132,7 @@ def connect(db_path: str | Path = DEFAULT_DB_PATH) -> sqlite3.Connection:
 
 def init_db(conn: sqlite3.Connection, start_cash: float = 1000.0) -> None:
     conn.executescript(
-        """
+        f"""
         CREATE TABLE IF NOT EXISTS meta (
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
@@ -171,6 +172,7 @@ def init_db(conn: sqlite3.Connection, start_cash: float = 1000.0) -> None:
             avg_price REAL NOT NULL,
             cost_basis REAL NOT NULL,
             last_price REAL NOT NULL,
+            trader_wallet TEXT NOT NULL DEFAULT '{COPY_TARGET_WALLET}',
             updated_at TEXT NOT NULL
         );
 
@@ -193,7 +195,44 @@ def init_db(conn: sqlite3.Connection, start_cash: float = 1000.0) -> None:
             cash_before REAL NOT NULL,
             cash_after REAL NOT NULL,
             reason TEXT NOT NULL,
+            trader_wallet TEXT NOT NULL DEFAULT '{COPY_TARGET_WALLET}',
             note TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS traders (
+            wallet TEXT PRIMARY KEY,
+            label TEXT,
+            active INTEGER NOT NULL DEFAULT 1,
+            start_cash REAL NOT NULL DEFAULT 0,
+            cash REAL NOT NULL DEFAULT 0,
+            copy_scale_override REAL,
+            rank_score REAL NOT NULL DEFAULT 0,
+            added_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS source_positions (
+            wallet TEXT NOT NULL,
+            asset TEXT NOT NULL,
+            market_key TEXT,
+            title TEXT,
+            outcome TEXT,
+            shares REAL NOT NULL,
+            avg_price REAL,
+            last_price REAL,
+            seeded_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (wallet, asset)
+        );
+
+        CREATE TABLE IF NOT EXISTS trader_stats (
+            wallet TEXT PRIMARY KEY,
+            roi REAL,
+            pnl REAL,
+            win_rate REAL,
+            trades INTEGER,
+            volume REAL,
+            last_refresh TEXT
         );
         """
     )
@@ -203,7 +242,57 @@ def init_db(conn: sqlite3.Connection, start_cash: float = 1000.0) -> None:
         _set_meta(conn, "paper_start_cash", f"{float(start_cash):.10f}")
     if _get_meta(conn, "live_trading_enabled") is None:
         _set_meta(conn, "live_trading_enabled", "false")
+    _migrate_to_multitrader(conn, start_cash)
     conn.commit()
+
+
+def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
+    return {str(row["name"]) for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+
+
+def _migrate_to_multitrader(conn: sqlite3.Connection, start_cash: float = 1000.0) -> None:
+    """Bring single-wallet databases up to the multi-trader schema.
+
+    Idempotent and safe to run on every ``init_db``:
+    - adds the ``trader_wallet`` column to legacy ``positions`` / ``cash_events``
+      tables (backfilling existing rows to Swisstony via the column default),
+    - seeds Swisstony as the first trader (decision #4 in the spec), carrying the
+      current global cash/start-cash so the prior history is preserved,
+    - mirrors the existing ``tony_positions`` into ``source_positions`` once.
+
+    The engine still runs on the single-wallet code paths; this only lays down
+    the sub-portfolio scaffolding so later steps can generalise onto it.
+    """
+    for table in ("positions", "cash_events"):
+        if "trader_wallet" not in _table_columns(conn, table):
+            conn.execute(
+                f"ALTER TABLE {table} ADD COLUMN trader_wallet TEXT NOT NULL DEFAULT '{COPY_TARGET_WALLET}'"
+            )
+
+    if conn.execute("SELECT 1 FROM traders LIMIT 1").fetchone() is None:
+        now = utc_now()
+        seed_start_cash = _get_float_meta(conn, "paper_start_cash", float(start_cash))
+        seed_cash = _get_float_meta(conn, "cash", seed_start_cash)
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO traders
+                (wallet, label, active, start_cash, cash, copy_scale_override, rank_score, added_at, updated_at)
+            VALUES (?, ?, 1, ?, ?, NULL, 0, ?, ?)
+            """,
+            (COPY_TARGET_WALLET, SWISSTONY_LABEL, seed_start_cash, seed_cash, now, now),
+        )
+
+    if _get_meta(conn, "source_positions_migrated_at") is None:
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO source_positions
+                (wallet, asset, market_key, title, outcome, shares, avg_price, last_price, seeded_at, updated_at)
+            SELECT ?, asset, market_key, title, outcome, shares, avg_price, last_price, seeded_at, updated_at
+            FROM tony_positions
+            """,
+            (COPY_TARGET_WALLET,),
+        )
+        _set_meta(conn, "source_positions_migrated_at", utc_now())
 
 
 def reset_paper_portfolio(start_cash: float = 1000.0, db_path: str | Path = DEFAULT_DB_PATH) -> None:
@@ -859,6 +948,26 @@ def get_tony_positions(db_path: str | Path = DEFAULT_DB_PATH, conn: sqlite3.Conn
     conn = connect(db_path) if conn is None else conn
     try:
         return pd.read_sql_query("SELECT * FROM tony_positions ORDER BY updated_at DESC", conn)
+    finally:
+        if owns_conn:
+            conn.close()
+
+
+def get_traders(db_path: str | Path = DEFAULT_DB_PATH, conn: sqlite3.Connection | None = None) -> pd.DataFrame:
+    owns_conn = conn is None
+    conn = connect(db_path) if conn is None else conn
+    try:
+        return pd.read_sql_query("SELECT * FROM traders ORDER BY added_at ASC", conn)
+    finally:
+        if owns_conn:
+            conn.close()
+
+
+def get_source_positions(db_path: str | Path = DEFAULT_DB_PATH, conn: sqlite3.Connection | None = None) -> pd.DataFrame:
+    owns_conn = conn is None
+    conn = connect(db_path) if conn is None else conn
+    try:
+        return pd.read_sql_query("SELECT * FROM source_positions ORDER BY updated_at DESC", conn)
     finally:
         if owns_conn:
             conn.close()
