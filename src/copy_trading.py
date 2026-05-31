@@ -23,6 +23,12 @@ from src import prediction_markets as md
 COPY_TARGET_WALLET = "0x204f72f35326db932158cba6adff0b9a1da95e14"
 SWISSTONY_LABEL = "Swisstony"
 DEFAULT_DB_PATH = Path("data/copy_trading.sqlite")
+PER_TRADER_START_CASH = 1000.0
+# ROI-ranking thresholds for the discovery list (spec §4.2). Total completed
+# trades are not exposed by the public leaderboard feed, so traded volume is
+# used as the activity proxy alongside a positive-ROI floor.
+ROI_MIN_VOLUME = 1000.0
+ROI_MIN_WIN_RATE = 0.0
 DEFAULT_STATUS_PATH = Path("data/copy_trader_status.json")
 DEFAULT_STOP_PATH = Path("data/copy_trader.stop")
 MIN_COPY_NOTIONAL = 0.01
@@ -1133,6 +1139,170 @@ def active_trader_wallets(db_path: str | Path = DEFAULT_DB_PATH, conn: sqlite3.C
         rows = conn.execute("SELECT wallet FROM traders WHERE active = 1 ORDER BY added_at ASC, wallet ASC").fetchall()
         wallets = [str(row["wallet"]) for row in rows if str(row["wallet"] or "")]
         return wallets or [COPY_TARGET_WALLET]
+    finally:
+        if owns_conn:
+            conn.close()
+
+
+def follow_trader(
+    wallet: str,
+    label: str = "",
+    start_cash: float = PER_TRADER_START_CASH,
+    copy_scale_override: float | None = None,
+    db_path: str | Path = DEFAULT_DB_PATH,
+    conn: sqlite3.Connection | None = None,
+) -> bool:
+    """Open (or re-activate) a sub-account for ``wallet``.
+
+    Returns True when a new trader row is created, False when an existing one is
+    re-activated. Each new sub-account starts with the same ``start_cash`` so
+    traders share a fair starting line (spec §4.3).
+    """
+    wallet = str(wallet or "").strip()
+    if not wallet:
+        raise ValueError("wallet is required to follow a trader")
+    owns_conn = conn is None
+    conn = connect(db_path) if conn is None else conn
+    try:
+        now = utc_now()
+        existing = conn.execute("SELECT wallet FROM traders WHERE wallet = ?", (wallet,)).fetchone()
+        if existing is None:
+            conn.execute(
+                """
+                INSERT INTO traders
+                    (wallet, label, active, start_cash, cash, copy_scale_override, rank_score, added_at, updated_at)
+                VALUES (?, ?, 1, ?, ?, ?, 0, ?, ?)
+                """,
+                (wallet, label or wallet, float(start_cash), float(start_cash), copy_scale_override, now, now),
+            )
+            conn.commit()
+            return True
+        conn.execute(
+            "UPDATE traders SET active = 1, label = CASE WHEN ? <> '' THEN ? ELSE label END, updated_at = ? WHERE wallet = ?",
+            (label, label, now, wallet),
+        )
+        conn.commit()
+        return False
+    finally:
+        if owns_conn:
+            conn.close()
+
+
+def unfollow_trader(wallet: str, db_path: str | Path = DEFAULT_DB_PATH, conn: sqlite3.Connection | None = None) -> bool:
+    """Deactivate a trader's sub-account, keeping its history. True if a row changed."""
+    owns_conn = conn is None
+    conn = connect(db_path) if conn is None else conn
+    try:
+        cursor = conn.execute(
+            "UPDATE traders SET active = 0, updated_at = ? WHERE wallet = ? AND active = 1",
+            (utc_now(), str(wallet or "").strip()),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        if owns_conn:
+            conn.close()
+
+
+def compute_roi(pnl: Any, volume: Any) -> float:
+    """Return on traded volume — a capital-size-independent skill proxy (spec §4.2)."""
+    pnl_value = _to_float(pnl, 0.0)
+    volume_value = _to_float(volume, 0.0)
+    return pnl_value / volume_value if volume_value > 0 else 0.0
+
+
+def rank_traders_by_roi(
+    traders: pd.DataFrame,
+    min_volume: float = ROI_MIN_VOLUME,
+    require_positive_roi: bool = True,
+    min_win_rate: float = ROI_MIN_WIN_RATE,
+    exclude_bots: bool = True,
+) -> pd.DataFrame:
+    """Rank leaderboard rows by ROI, applying the discovery thresholds.
+
+    Expects ``pnl`` and ``volume`` columns (as produced by
+    ``prediction_markets.get_predictparity_traders`` / ``get_polymarket_leaderboard``);
+    ``win_rate`` and ``is_bot`` are honoured when present.
+    """
+    if traders is None or traders.empty:
+        return pd.DataFrame()
+    df = traders.copy()
+    pnl = pd.to_numeric(df.get("pnl"), errors="coerce").fillna(0.0)
+    volume = pd.to_numeric(df.get("volume"), errors="coerce").fillna(0.0)
+    win_rate = pd.to_numeric(df.get("win_rate"), errors="coerce").fillna(0.0)
+    df["roi"] = [compute_roi(p, v) for p, v in zip(pnl, volume)]
+    mask = volume >= float(min_volume)
+    if require_positive_roi:
+        mask = mask & (df["roi"] > 0)
+    if min_win_rate > 0:
+        mask = mask & (win_rate >= float(min_win_rate))
+    if exclude_bots and "is_bot" in df.columns:
+        mask = mask & (~df["is_bot"].fillna(False).astype(bool))
+    ranked = df[mask].copy()
+    if ranked.empty:
+        return ranked
+    ranked = ranked.sort_values("roi", ascending=False).reset_index(drop=True)
+    ranked["rank_score"] = ranked["roi"]
+    return ranked
+
+
+def suggest_traders(
+    limit: int = 50,
+    min_volume: float = ROI_MIN_VOLUME,
+    require_positive_roi: bool = True,
+    min_win_rate: float = ROI_MIN_WIN_RATE,
+    exclude_bots: bool = True,
+) -> pd.DataFrame:
+    """Fetch the public leaderboard and rank it by ROI for the discovery list."""
+    traders = md.get_predictparity_traders(limit=limit)
+    return rank_traders_by_roi(
+        traders,
+        min_volume=min_volume,
+        require_positive_roi=require_positive_roi,
+        min_win_rate=min_win_rate,
+        exclude_bots=exclude_bots,
+    )
+
+
+def refresh_trader_stats(conn: sqlite3.Connection, traders: pd.DataFrame) -> int:
+    """Upsert ranked leaderboard rows into ``trader_stats`` and mirror the score."""
+    if traders is None or traders.empty:
+        return 0
+    now = utc_now()
+    updated = 0
+    for _, row in traders.iterrows():
+        wallet = str(row.get("wallet", "") or "")
+        if not wallet:
+            continue
+        roi = _to_float(row.get("roi"), compute_roi(row.get("pnl"), row.get("volume")))
+        pnl = _to_float(row.get("pnl"), 0.0)
+        win_rate = _to_float(row.get("win_rate"), 0.0)
+        volume = _to_float(row.get("volume"), 0.0)
+        trades = int(_to_float(row.get("trades"), _to_float(row.get("open_positions"), 0.0)))
+        conn.execute(
+            """
+            INSERT INTO trader_stats (wallet, roi, pnl, win_rate, trades, volume, last_refresh)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(wallet) DO UPDATE SET
+                roi = excluded.roi,
+                pnl = excluded.pnl,
+                win_rate = excluded.win_rate,
+                trades = excluded.trades,
+                volume = excluded.volume,
+                last_refresh = excluded.last_refresh
+            """,
+            (wallet, roi, pnl, win_rate, trades, volume, now),
+        )
+        conn.execute("UPDATE traders SET rank_score = ?, updated_at = ? WHERE wallet = ?", (roi, now, wallet))
+        updated += 1
+    return updated
+
+
+def get_trader_stats(db_path: str | Path = DEFAULT_DB_PATH, conn: sqlite3.Connection | None = None) -> pd.DataFrame:
+    owns_conn = conn is None
+    conn = connect(db_path) if conn is None else conn
+    try:
+        return pd.read_sql_query("SELECT * FROM trader_stats ORDER BY roi DESC", conn)
     finally:
         if owns_conn:
             conn.close()
