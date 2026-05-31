@@ -605,6 +605,28 @@ class SchemaMigrationTests(unittest.TestCase):
         self.assertAlmostEqual(float(trader["cash"]), 987.5)
         self.assertAlmostEqual(float(trader["start_cash"]), 1000.0)
 
+    def test_legacy_trade_dedup_keys_get_wallet_prefixed(self) -> None:
+        legacy_key = "0xtx|asset-1|BUY|10.00000000|0.50000000|1779900000"
+        conn = ct.connect(self.db_path)
+        try:
+            conn.execute(
+                "INSERT INTO paper_orders (dedup_key, source_wallet, status, reason, source_side, created_at)"
+                " VALUES (?, ?, 'copied', 'buy_scaled', 'BUY', ?)",
+                (legacy_key, ct.COPY_TARGET_WALLET, ct.utc_now()),
+            )
+            conn.execute("DELETE FROM meta WHERE key = 'trade_dedup_wallet_prefixed_at'")
+            conn.commit()
+        finally:
+            conn.close()
+
+        conn = ct.connect(self.db_path)
+        try:
+            migrated = conn.execute("SELECT dedup_key FROM paper_orders").fetchone()["dedup_key"]
+        finally:
+            conn.close()
+
+        self.assertEqual(str(migrated), f"{ct.COPY_TARGET_WALLET}|{legacy_key}")
+
     def test_migration_is_idempotent(self) -> None:
         _make_legacy_db(self.db_path)
         ct.connect(self.db_path).close()
@@ -762,6 +784,24 @@ class MultiTraderEngineTests(unittest.TestCase):
         self.assertAlmostEqual(whale_cash, 980.0)
         self.assertAlmostEqual(total_cash, 1970.0)
         self.assertAlmostEqual(tony_equity, 1000.0)
+
+    def test_same_trade_for_different_wallets_is_not_cross_deduped(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            self._add_trader(conn, "0xwhale")
+            tony_settings = ct.CopySettings(trade_limit=20)
+            whale_settings = ct.CopySettings(trade_limit=20, target_wallet="0xwhale")
+            # Identical trade fields including an empty tx hash; only the wallet differs.
+            trade = source_trade(tx="", asset="asset-1", price=0.5, size=2000.0)
+            tony_order = ct.apply_paper_trade(conn, dict(trade), tony_settings)
+            whale_order = ct.apply_paper_trade(conn, dict(trade), whale_settings)
+            conn.commit()
+        finally:
+            conn.close()
+
+        self.assertEqual(tony_order.status, "copied")
+        self.assertEqual(whale_order.status, "copied")
+        self.assertNotEqual(tony_order.dedup_key, whale_order.dedup_key)
 
     def test_aggregate_sync_results_sums_fields(self) -> None:
         combined = ct.aggregate_sync_results(

@@ -337,6 +337,22 @@ def _migrate_to_multitrader(conn: sqlite3.Connection, start_cash: float = 1000.0
         )
         _set_meta(conn, "source_positions_migrated_at", utc_now())
 
+    if _get_meta(conn, "trade_dedup_wallet_prefixed_at") is None:
+        # Trade dedup keys now lead with the source wallet so two wallets with an
+        # empty/shared tx hash can't false-collide. Prefix the pre-existing
+        # 6-field BUY/SELL keys (settlement REDEEM/MERGE and resolution_* keys
+        # keep their own formats) so they still match the new derivation.
+        conn.execute(
+            """
+            UPDATE paper_orders
+            SET dedup_key = source_wallet || '|' || dedup_key
+            WHERE source_wallet <> ''
+              AND (LENGTH(dedup_key) - LENGTH(REPLACE(dedup_key, '|', ''))) = 5
+              AND (dedup_key LIKE '%|BUY|%' OR dedup_key LIKE '%|SELL|%')
+            """
+        )
+        _set_meta(conn, "trade_dedup_wallet_prefixed_at", utc_now())
+
 
 def reset_paper_portfolio(start_cash: float = 1000.0, db_path: str | Path = DEFAULT_DB_PATH) -> None:
     path = Path(db_path)
@@ -925,7 +941,7 @@ def apply_paper_trade(
 ) -> PaperOrder:
     settings = settings or CopySettings()
     init_db(conn, settings.paper_start_cash)
-    dedup_key = trade_dedup_key(source_trade)
+    dedup_key = trade_dedup_key(source_trade, settings.target_wallet)
     existing = conn.execute("SELECT status FROM paper_orders WHERE dedup_key = ?", (dedup_key,)).fetchone()
     if existing:
         return PaperOrder(dedup_key=dedup_key, status="duplicate", reason="duplicate", side="", source_notional=0.0)
@@ -1389,14 +1405,15 @@ def backfill_position_metadata(
     return updated
 
 
-def trade_dedup_key(source_trade: Mapping[str, Any]) -> str:
+def trade_dedup_key(source_trade: Mapping[str, Any], wallet: str = "") -> str:
+    wallet_key = str(wallet or source_trade.get("source_wallet", "") or source_trade.get("wallet", "") or "")
     tx = str(_first(source_trade, "transaction_hash", "transactionHash") or "")
     asset = str(source_trade.get("asset", "") or "")
     side = str(source_trade.get("side", "") or "").upper()
     size = _to_float(source_trade.get("size"), 0.0)
     price = _to_float(source_trade.get("price"), 0.0)
     timestamp = _timestamp_value(source_trade)
-    return f"{tx}|{asset}|{side}|{size:.8f}|{price:.8f}|{timestamp}"
+    return f"{wallet_key}|{tx}|{asset}|{side}|{size:.8f}|{price:.8f}|{timestamp}"
 
 
 def settlement_dedup_key(source_activity: Mapping[str, Any]) -> str:
@@ -1415,7 +1432,7 @@ def parse_source_trade(source_trade: Mapping[str, Any], wallet: str) -> dict[str
     timestamp = _timestamp_value(source_trade)
     source_time = _source_time(source_trade, timestamp)
     return {
-        "dedup_key": trade_dedup_key(source_trade),
+        "dedup_key": trade_dedup_key(source_trade, wallet),
         "source_wallet": wallet,
         "source_tx": str(_first(source_trade, "transaction_hash", "transactionHash") or ""),
         "source_time": source_time,
