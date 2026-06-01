@@ -9388,6 +9388,112 @@ def load_copy_daemon_status() -> dict[str, Any]:
         return {}
 
 
+def render_followed_traders_panel() -> None:
+    """Multi-trader sub-account management: list, follow/unfollow, ROI discovery."""
+    settings = ct.CopySettings()
+    with st.expander("Followed traders & discovery (multi-trader sub-accounts)", expanded=False):
+        traders = safe_load("Followed traders", ct.get_traders, default=pd.DataFrame())
+        stats = safe_load("Trader stats", ct.get_trader_stats, default=pd.DataFrame())
+        roi_by_wallet: dict[str, Any] = {}
+        if stats is not None and not stats.empty and "wallet" in stats:
+            roi_by_wallet = {str(w): r for w, r in zip(stats["wallet"], stats["roi"])}
+
+        if traders is None or traders.empty:
+            draw_empty("No traders followed yet. Follow a wallet below to open its sub-account.")
+        else:
+            rows = []
+            for _, trader in traders.iterrows():
+                wallet = str(trader.get("wallet", "") or "")
+                if not wallet:
+                    continue
+                sub = safe_load(f"Sub-account {wallet[:10]}", ct.value_sub_account, wallet, default=None)
+                roi = roi_by_wallet.get(wallet, trader.get("rank_score"))
+                rows.append(
+                    {
+                        "Trader": str(trader.get("label", "") or short_addr(wallet)),
+                        "Wallet": short_addr(wallet),
+                        "Active": "Yes" if int(trader.get("active", 0) or 0) == 1 else "No",
+                        "Start $": money(trader.get("start_cash")),
+                        "Cash": money(sub.cash if sub is not None else trader.get("cash")),
+                        "Equity": money(sub.equity if sub is not None else trader.get("cash")),
+                        "Realized PnL": money(sub.realized_pnl if sub is not None else 0.0),
+                        "ROI": pct(roi) if roi not in (None, "") else "-",
+                    }
+                )
+            st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+
+        if st.button("Sync all active traders", key="ct_sync_all_traders", width="stretch"):
+            with st.spinner("Syncing all active trader sub-accounts..."):
+                try:
+                    api = ct.sync_active_copy_trades(settings=settings)
+                    settle = ct.sync_active_settlement_activity(
+                        settings=settings, limit=500, pages=1, closed_pages=2, metadata_pages=2
+                    )
+                    applied = sum(r.copied for r in api.values()) + sum(r.copied for r in settle.values())
+                    st.success(f"Synced {len(api)} sub-account(s); {applied} copies/settlements applied.")
+                except Exception as exc:
+                    st.error(f"Multi-trader sync failed: {exc}")
+            st.rerun()
+
+        st.markdown("**Follow a wallet**")
+        with st.form("ct_follow_trader_form", clear_on_submit=True):
+            follow_cols = st.columns([2, 1.5, 1])
+            new_wallet = follow_cols[0].text_input("Polymarket proxy wallet (0x…)", key="ct_follow_wallet")
+            new_label = follow_cols[1].text_input("Label (optional)", key="ct_follow_label")
+            new_cash = follow_cols[2].number_input(
+                "Start cash $", min_value=0.0, value=float(ct.PER_TRADER_START_CASH), step=100.0, key="ct_follow_cash"
+            )
+            if st.form_submit_button("Follow wallet", type="primary"):
+                wallet = str(new_wallet or "").strip()
+                if not md.is_polymarket_wallet(wallet):
+                    st.error("Enter a valid Polymarket proxy wallet (0x + 40 hex characters).")
+                else:
+                    try:
+                        added = ct.follow_trader(wallet, label=str(new_label or "").strip(), start_cash=float(new_cash))
+                        st.success(f"{'Now following' if added else 'Re-activated'} {short_addr(wallet)} with {money(new_cash)} start cash.")
+                        st.rerun()
+                    except Exception as exc:
+                        st.error(f"Follow failed: {exc}")
+
+        active_wallets = [wallet for wallet in (ct.active_trader_wallets() or []) if wallet]
+        if active_wallets:
+            unfollow_cols = st.columns([3, 1])
+            unfollow_target = unfollow_cols[0].selectbox(
+                "Deactivate a trader", active_wallets, format_func=short_addr, key="ct_unfollow_target"
+            )
+            if unfollow_cols[1].button("Unfollow", key="ct_unfollow_btn", width="stretch"):
+                if str(unfollow_target) == ct.COPY_TARGET_WALLET:
+                    st.warning("Swisstony is the seed trader and stays followed.")
+                else:
+                    ct.unfollow_trader(str(unfollow_target))
+                    st.success(f"Deactivated {short_addr(str(unfollow_target))} (history kept).")
+                    st.rerun()
+
+        st.markdown("**Discover top wallets by ROI**")
+        if st.button("Load ROI suggestions", key="ct_load_suggestions"):
+            st.session_state["ct_suggestions_loaded"] = True
+        if st.session_state.get("ct_suggestions_loaded"):
+            suggestions = safe_load("ROI suggestions", ct.suggest_traders, 50, default=pd.DataFrame())
+            if suggestions is None or suggestions.empty:
+                draw_empty("No qualifying wallets returned (below the ROI / volume thresholds).")
+            else:
+                followed = set(ct.active_trader_wallets() or [])
+                for _, suggestion in suggestions.head(10).iterrows():
+                    wallet = str(suggestion.get("wallet", "") or "")
+                    if not wallet:
+                        continue
+                    suggestion_cols = st.columns([2.4, 1, 1, 1])
+                    suggestion_cols[0].markdown(f"**{str(suggestion.get('trader', '') or short_addr(wallet))}** · `{short_addr(wallet)}`")
+                    suggestion_cols[1].markdown(f"ROI {pct(suggestion.get('roi'))}")
+                    suggestion_cols[2].markdown(f"PnL {money(suggestion.get('pnl'))}")
+                    if wallet in followed:
+                        suggestion_cols[3].button("Following", key=f"ct_following_{wallet}", disabled=True, width="stretch")
+                    elif suggestion_cols[3].button("Follow", key=f"ct_follow_suggestion_{wallet}", width="stretch"):
+                        ct.follow_trader(wallet, label=str(suggestion.get("trader", "") or ""))
+                        st.success(f"Now following {short_addr(wallet)}.")
+                        st.rerun()
+
+
 def page_copy_trade() -> None:
     settings = ct.CopySettings()
     if "copy_trade_search" not in st.session_state:
@@ -9450,6 +9556,8 @@ def page_copy_trade() -> None:
         "Paper-only Swisstony copier with dynamic wallet-relative sizing and settlement recycling.",
     )
     st.info("Paper mode only. This page observes public Polymarket wallet activity and does not place real orders.")
+
+    render_followed_traders_panel()
 
     controls = st.columns([1, 1, 1, 1, 1])
     if controls[0].button("Sync now", type="primary", width="stretch"):
