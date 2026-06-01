@@ -9864,7 +9864,7 @@ def page_copy_trade() -> None:
     controls[4].metric("Base cap", f"{settings.max_order_equity_pct * 100:.1f}% equity")
     if settings.auto_top_up_enabled:
         st.caption(
-            f"Auto top-up is active: when a trader sub-account has <= USD {settings.auto_top_up_threshold:,.0f} cash, "
+            f"Auto top-up is active: when a trader sub-account has at or below USD {settings.auto_top_up_threshold:,.0f} cash, "
             f"the copier adds USD {settings.auto_top_up_amount:,.0f} paper cash and continues copying."
         )
     use_live_midpoints = st.toggle(
