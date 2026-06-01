@@ -1,3 +1,4 @@
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -160,7 +161,7 @@ class CopyTradingTests(unittest.TestCase):
     def test_buy_is_skipped_when_no_cash_is_available(self) -> None:
         conn = ct.connect(self.db_path)
         try:
-            conn.execute("UPDATE meta SET value = '0' WHERE key = 'cash'")
+            conn.execute("UPDATE traders SET cash = 0 WHERE wallet = ?", (ct.COPY_TARGET_WALLET,))
             order = ct.apply_paper_trade(conn, source_trade(), self.settings)
             snapshot = ct.value_paper_portfolio(conn=conn)
         finally:
@@ -498,6 +499,431 @@ class CopyTradingTests(unittest.TestCase):
         self.assertTrue(snapshot.positions.empty)
         self.assertAlmostEqual(snapshot.cash, 1000.0)
         self.assertAlmostEqual(snapshot.realized_pnl, 0.0)
+
+
+def _make_legacy_db(path: Path, cash: float = 987.5, start_cash: float = 1000.0) -> None:
+    """Create a pre-multi-trader database (no ``trader_wallet`` columns)."""
+    conn = sqlite3.connect(path)
+    try:
+        conn.executescript(
+            """
+            CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            CREATE TABLE positions (
+                asset TEXT PRIMARY KEY, market_key TEXT, title TEXT, outcome TEXT,
+                shares REAL NOT NULL, avg_price REAL NOT NULL, cost_basis REAL NOT NULL,
+                last_price REAL NOT NULL, updated_at TEXT NOT NULL
+            );
+            CREATE TABLE tony_positions (
+                asset TEXT PRIMARY KEY, market_key TEXT, title TEXT, outcome TEXT,
+                shares REAL NOT NULL, avg_price REAL, last_price REAL,
+                seeded_at TEXT NOT NULL, updated_at TEXT NOT NULL
+            );
+            CREATE TABLE cash_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, event_time TEXT NOT NULL,
+                amount REAL NOT NULL, cash_before REAL NOT NULL, cash_after REAL NOT NULL,
+                reason TEXT NOT NULL, note TEXT
+            );
+            """
+        )
+        conn.execute("INSERT INTO meta (key, value) VALUES ('cash', ?)", (f"{cash:.10f}",))
+        conn.execute("INSERT INTO meta (key, value) VALUES ('paper_start_cash', ?)", (f"{start_cash:.10f}",))
+        conn.execute(
+            "INSERT INTO positions (asset, market_key, title, outcome, shares, avg_price, cost_basis, last_price, updated_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("asset-1", "market-1", "Example market", "Yes", 10.0, 0.5, 5.0, 0.5, "2026-05-30T00:00:00+00:00"),
+        )
+        conn.execute(
+            "INSERT INTO tony_positions (asset, market_key, title, outcome, shares, avg_price, last_price, seeded_at, updated_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("asset-1", "market-1", "Example market", "Yes", 1000.0, 0.5, 0.5, "2026-05-30T00:00:00+00:00", "2026-05-30T00:00:00+00:00"),
+        )
+        conn.execute(
+            "INSERT INTO cash_events (event_time, amount, cash_before, cash_after, reason, note) VALUES (?, ?, ?, ?, ?, ?)",
+            ("2026-05-30T00:00:00+00:00", -12.5, 1000.0, 987.5, "buy", ""),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+class SchemaMigrationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.db_path = Path(self.tmp.name) / "copy.sqlite"
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def test_fresh_db_creates_multitrader_schema(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            tables = {row["name"] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()}
+            position_cols = ct._table_columns(conn, "positions")
+            cash_cols = ct._table_columns(conn, "cash_events")
+            source_pk = [row["name"] for row in conn.execute("PRAGMA table_info(source_positions)").fetchall() if row["pk"]]
+        finally:
+            conn.close()
+
+        self.assertTrue({"traders", "source_positions", "trader_stats"} <= tables)
+        self.assertIn("trader_wallet", position_cols)
+        self.assertIn("trader_wallet", cash_cols)
+        self.assertEqual(set(source_pk), {"wallet", "asset"})
+
+    def test_fresh_db_seeds_swisstony_as_first_trader(self) -> None:
+        traders = ct.get_traders(db_path=self.db_path)
+
+        self.assertEqual(len(traders), 1)
+        row = traders.iloc[0]
+        self.assertEqual(str(row["wallet"]), ct.COPY_TARGET_WALLET)
+        self.assertEqual(str(row["label"]), ct.SWISSTONY_LABEL)
+        self.assertEqual(int(row["active"]), 1)
+        self.assertAlmostEqual(float(row["cash"]), 1000.0)
+        self.assertAlmostEqual(float(row["start_cash"]), 1000.0)
+
+    def test_legacy_db_is_migrated_to_sub_portfolios(self) -> None:
+        _make_legacy_db(self.db_path)
+
+        conn = ct.connect(self.db_path)
+        try:
+            position_cols = ct._table_columns(conn, "positions")
+            cash_cols = ct._table_columns(conn, "cash_events")
+            pos_wallet = conn.execute("SELECT trader_wallet FROM positions WHERE asset = 'asset-1'").fetchone()["trader_wallet"]
+            cash_wallet = conn.execute("SELECT trader_wallet FROM cash_events LIMIT 1").fetchone()["trader_wallet"]
+            source = conn.execute("SELECT * FROM source_positions WHERE asset = 'asset-1'").fetchone()
+            trader = conn.execute("SELECT * FROM traders WHERE wallet = ?", (ct.COPY_TARGET_WALLET,)).fetchone()
+        finally:
+            conn.close()
+
+        self.assertIn("trader_wallet", position_cols)
+        self.assertIn("trader_wallet", cash_cols)
+        self.assertEqual(str(pos_wallet), ct.COPY_TARGET_WALLET)
+        self.assertEqual(str(cash_wallet), ct.COPY_TARGET_WALLET)
+        self.assertIsNotNone(source)
+        self.assertEqual(str(source["wallet"]), ct.COPY_TARGET_WALLET)
+        self.assertAlmostEqual(float(source["shares"]), 1000.0)
+        self.assertIsNotNone(trader)
+        self.assertAlmostEqual(float(trader["cash"]), 987.5)
+        self.assertAlmostEqual(float(trader["start_cash"]), 1000.0)
+
+    def test_legacy_trade_dedup_keys_get_wallet_prefixed(self) -> None:
+        legacy_key = "0xtx|asset-1|BUY|10.00000000|0.50000000|1779900000"
+        conn = ct.connect(self.db_path)
+        try:
+            conn.execute(
+                "INSERT INTO paper_orders (dedup_key, source_wallet, status, reason, source_side, created_at)"
+                " VALUES (?, ?, 'copied', 'buy_scaled', 'BUY', ?)",
+                (legacy_key, ct.COPY_TARGET_WALLET, ct.utc_now()),
+            )
+            conn.execute("DELETE FROM meta WHERE key = 'trade_dedup_wallet_prefixed_at'")
+            conn.commit()
+        finally:
+            conn.close()
+
+        conn = ct.connect(self.db_path)
+        try:
+            migrated = conn.execute("SELECT dedup_key FROM paper_orders").fetchone()["dedup_key"]
+        finally:
+            conn.close()
+
+        self.assertEqual(str(migrated), f"{ct.COPY_TARGET_WALLET}|{legacy_key}")
+
+    def test_migration_is_idempotent(self) -> None:
+        _make_legacy_db(self.db_path)
+        ct.connect(self.db_path).close()
+
+        conn = ct.connect(self.db_path)
+        try:
+            trader_count = conn.execute("SELECT COUNT(*) AS n FROM traders").fetchone()["n"]
+            source_count = conn.execute("SELECT COUNT(*) AS n FROM source_positions").fetchone()["n"]
+        finally:
+            conn.close()
+
+        self.assertEqual(int(trader_count), 1)
+        self.assertEqual(int(source_count), 1)
+
+
+class MultiTraderPlumbingTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.db_path = Path(self.tmp.name) / "copy.sqlite"
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def test_active_trader_wallets_lists_active_in_follow_order(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            conn.execute("DELETE FROM traders")
+            conn.execute(
+                "INSERT INTO traders (wallet, label, active, start_cash, cash, rank_score, added_at, updated_at)"
+                " VALUES ('0xaaa', 'First', 1, 1000, 1000, 0, '2026-05-31T00:00:01+00:00', '2026-05-31T00:00:01+00:00')"
+            )
+            conn.execute(
+                "INSERT INTO traders (wallet, label, active, start_cash, cash, rank_score, added_at, updated_at)"
+                " VALUES ('0xbbb', 'Paused', 0, 1000, 1000, 0, '2026-05-31T00:00:02+00:00', '2026-05-31T00:00:02+00:00')"
+            )
+            conn.execute(
+                "INSERT INTO traders (wallet, label, active, start_cash, cash, rank_score, added_at, updated_at)"
+                " VALUES ('0xccc', 'Third', 1, 1000, 1000, 0, '2026-05-31T00:00:03+00:00', '2026-05-31T00:00:03+00:00')"
+            )
+            conn.commit()
+            wallets = ct.active_trader_wallets(conn=conn)
+        finally:
+            conn.close()
+
+        self.assertEqual(wallets, ["0xaaa", "0xccc"])
+        self.assertNotIn("0xbbb", wallets)
+
+    def test_active_trader_wallets_falls_back_to_default(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            conn.execute("DELETE FROM traders")
+            conn.commit()
+            wallets = ct.active_trader_wallets(conn=conn)
+        finally:
+            conn.close()
+
+        self.assertEqual(wallets, [ct.COPY_TARGET_WALLET])
+
+    def test_seed_source_positions_is_wallet_scoped_and_upserts(self) -> None:
+        positions = pd.DataFrame(
+            [{"asset": "asset-1", "size": 1000.0, "market_key": "market-1", "title": "Example", "outcome": "Yes", "avg_price": 0.5, "current_price": 0.6}]
+        )
+        updated = pd.DataFrame(
+            [{"asset": "asset-1", "size": 1500.0, "market_key": "market-1", "title": "Example", "outcome": "Yes", "avg_price": 0.5, "current_price": 0.7}]
+        )
+        conn = ct.connect(self.db_path)
+        try:
+            first = ct.seed_source_positions(conn, "0xwhale", positions)
+            second = ct.seed_source_positions(conn, "0xwhale", updated)
+            conn.commit()
+            rows = conn.execute("SELECT * FROM source_positions WHERE wallet = '0xwhale'").fetchall()
+        finally:
+            conn.close()
+
+        self.assertEqual(first, 1)
+        self.assertEqual(second, 1)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(str(rows[0]["asset"]), "asset-1")
+        self.assertAlmostEqual(float(rows[0]["shares"]), 1500.0)
+
+
+class MultiTraderEngineTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.db_path = Path(self.tmp.name) / "copy.sqlite"
+        ct.reset_paper_portfolio(db_path=self.db_path)
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def _add_trader(self, conn: sqlite3.Connection, wallet: str) -> None:
+        conn.execute(
+            "INSERT OR IGNORE INTO traders (wallet, label, active, start_cash, cash, rank_score, added_at, updated_at)"
+            " VALUES (?, ?, 1, 1000, 1000, 0, '2026-05-31T00:00:05+00:00', '2026-05-31T00:00:05+00:00')",
+            (wallet, "Whale"),
+        )
+
+    def test_buys_are_booked_into_separate_sub_accounts(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            self._add_trader(conn, "0xwhale")
+            tony_settings = ct.CopySettings(trade_limit=20)
+            whale_settings = ct.CopySettings(trade_limit=20, target_wallet="0xwhale")
+            ct.apply_paper_trade(conn, source_trade(tx="0xtony", asset="asset-1", price=0.5, size=2000.0), tony_settings)
+            ct.apply_paper_trade(conn, source_trade(tx="0xwhale", asset="asset-1", price=0.5, size=2000.0), whale_settings)
+            conn.commit()
+            rows = conn.execute("SELECT trader_wallet, asset FROM positions WHERE asset = 'asset-1'").fetchall()
+            tony_pos = ct._get_position(conn, ct.COPY_TARGET_WALLET, "asset-1")
+            whale_pos = ct._get_position(conn, "0xwhale", "asset-1")
+        finally:
+            conn.close()
+
+        self.assertEqual(len(rows), 2)
+        self.assertIsNotNone(tony_pos)
+        self.assertIsNotNone(whale_pos)
+        self.assertAlmostEqual(float(tony_pos["shares"]), 20.0)
+        self.assertAlmostEqual(float(whale_pos["shares"]), 20.0)
+
+    def test_sub_account_sell_only_touches_its_own_position(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            self._add_trader(conn, "0xwhale")
+            tony_settings = ct.CopySettings(trade_limit=20)
+            whale_settings = ct.CopySettings(trade_limit=20, target_wallet="0xwhale")
+            ct.apply_paper_trade(conn, source_trade(tx="0xtony", asset="asset-1", price=0.4, size=1000.0), tony_settings)
+            ct.apply_paper_trade(conn, source_trade(tx="0xwhale", asset="asset-1", price=0.4, size=1000.0), whale_settings)
+            # Whale sells half of its source position; Tony's sub-account must be untouched.
+            ct.apply_paper_trade(conn, source_trade(tx="0xwhalesell", asset="asset-1", side="SELL", price=0.6, size=500.0), whale_settings)
+            conn.commit()
+            tony_pos = ct._get_position(conn, ct.COPY_TARGET_WALLET, "asset-1")
+            whale_pos = ct._get_position(conn, "0xwhale", "asset-1")
+        finally:
+            conn.close()
+
+        self.assertAlmostEqual(float(tony_pos["shares"]), 10.0)
+        self.assertAlmostEqual(float(whale_pos["shares"]), 5.0)
+
+    def test_sub_account_cash_is_isolated(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            self._add_trader(conn, "0xwhale")
+            tony_settings = ct.CopySettings(trade_limit=20)
+            whale_settings = ct.CopySettings(trade_limit=20, target_wallet="0xwhale")
+            ct.apply_paper_trade(conn, source_trade(tx="0xt", asset="a1", price=0.5, size=2000.0), tony_settings)
+            ct.apply_paper_trade(conn, source_trade(tx="0xw", asset="a2", price=0.5, size=4000.0), whale_settings)
+            conn.commit()
+            tony_cash = ct._get_trader_cash(conn, ct.COPY_TARGET_WALLET, 0.0)
+            whale_cash = ct._get_trader_cash(conn, "0xwhale", 0.0)
+            total_cash = ct.value_paper_portfolio(conn=conn).cash
+            tony_equity = ct.value_sub_account(ct.COPY_TARGET_WALLET, conn=conn).equity
+        finally:
+            conn.close()
+
+        self.assertAlmostEqual(tony_cash, 990.0)
+        self.assertAlmostEqual(whale_cash, 980.0)
+        self.assertAlmostEqual(total_cash, 1970.0)
+        self.assertAlmostEqual(tony_equity, 1000.0)
+
+    def test_dynamic_sizing_uses_per_wallet_source_stats(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            self._add_trader(conn, "0xwhale")
+            # Swisstony is sized off the legacy global stat; whale off its own.
+            ct._set_meta(conn, "tony_visible_equity", "200000")
+            ct._set_meta(conn, "wallet_stat:0xwhale:visible_equity", "100000")
+            tony_settings = ct.CopySettings(trade_limit=20)
+            whale_settings = ct.CopySettings(trade_limit=20, target_wallet="0xwhale")
+            tony_order = ct.apply_paper_trade(conn, source_trade(tx="0xt", asset="a1", price=0.5, size=2000.0), tony_settings)
+            whale_order = ct.apply_paper_trade(conn, source_trade(tx="0xw", asset="a2", price=0.5, size=2000.0), whale_settings)
+            conn.commit()
+        finally:
+            conn.close()
+
+        self.assertEqual(tony_order.status, "copied")
+        self.assertEqual(whale_order.status, "copied")
+        self.assertAlmostEqual(tony_order.copy_notional, 5.0)
+        self.assertAlmostEqual(whale_order.copy_notional, 10.0)
+
+    def test_same_trade_for_different_wallets_is_not_cross_deduped(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            self._add_trader(conn, "0xwhale")
+            tony_settings = ct.CopySettings(trade_limit=20)
+            whale_settings = ct.CopySettings(trade_limit=20, target_wallet="0xwhale")
+            # Identical trade fields including an empty tx hash; only the wallet differs.
+            trade = source_trade(tx="", asset="asset-1", price=0.5, size=2000.0)
+            tony_order = ct.apply_paper_trade(conn, dict(trade), tony_settings)
+            whale_order = ct.apply_paper_trade(conn, dict(trade), whale_settings)
+            conn.commit()
+        finally:
+            conn.close()
+
+        self.assertEqual(tony_order.status, "copied")
+        self.assertEqual(whale_order.status, "copied")
+        self.assertNotEqual(tony_order.dedup_key, whale_order.dedup_key)
+
+    def test_aggregate_sync_results_sums_fields(self) -> None:
+        combined = ct.aggregate_sync_results(
+            {
+                "0xa": ct.SyncResult(processed=2, copied=1, skipped=1, duplicates=0, errors=("e1",)),
+                "0xb": ct.SyncResult(processed=3, copied=2, skipped=1, duplicates=1, errors=("e2",)),
+            }
+        )
+        self.assertEqual(combined.processed, 5)
+        self.assertEqual(combined.copied, 3)
+        self.assertEqual(combined.skipped, 2)
+        self.assertEqual(combined.duplicates, 1)
+        self.assertEqual(set(combined.errors), {"e1", "e2"})
+        self.assertEqual(ct.aggregate_sync_results({}).processed, 0)
+
+    def test_sync_active_copy_trades_iterates_active_traders(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            self._add_trader(conn, "0xwhale")
+            conn.commit()
+        finally:
+            conn.close()
+
+        calls: list[tuple[str, str]] = []
+
+        def fake_sync(wallet, settings=None, db_path=None):
+            calls.append((wallet, settings.target_wallet))
+            return ct.SyncResult(processed=1)
+
+        with patch("src.copy_trading.sync_copy_trades", side_effect=fake_sync):
+            results = ct.sync_active_copy_trades(db_path=self.db_path)
+
+        self.assertEqual(set(results.keys()), {ct.COPY_TARGET_WALLET, "0xwhale"})
+        self.assertIn((ct.COPY_TARGET_WALLET, ct.COPY_TARGET_WALLET), calls)
+        self.assertIn(("0xwhale", "0xwhale"), calls)
+
+
+def _leaderboard_df() -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {"wallet": "0xskill", "pnl": 5000.0, "volume": 10000.0, "win_rate": 0.70, "is_bot": False, "open_positions": 60},
+            {"wallet": "0xwhale", "pnl": 9000.0, "volume": 90000.0, "win_rate": 0.55, "is_bot": False, "open_positions": 120},
+            {"wallet": "0xloser", "pnl": -2000.0, "volume": 8000.0, "win_rate": 0.30, "is_bot": False, "open_positions": 20},
+            {"wallet": "0xtiny", "pnl": 100.0, "volume": 500.0, "win_rate": 0.90, "is_bot": False, "open_positions": 5},
+            {"wallet": "0xbot", "pnl": 8000.0, "volume": 20000.0, "win_rate": 0.80, "is_bot": True, "open_positions": 200},
+        ]
+    )
+
+
+class TraderDiscoveryTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.db_path = Path(self.tmp.name) / "copy.sqlite"
+        ct.reset_paper_portfolio(db_path=self.db_path)
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def test_compute_roi(self) -> None:
+        self.assertAlmostEqual(ct.compute_roi(5000.0, 10000.0), 0.5)
+        self.assertAlmostEqual(ct.compute_roi(100.0, 0.0), 0.0)
+
+    def test_rank_traders_by_roi_applies_thresholds_and_orders(self) -> None:
+        ranked = ct.rank_traders_by_roi(_leaderboard_df())
+
+        self.assertEqual(ranked["wallet"].tolist(), ["0xskill", "0xwhale"])
+        self.assertAlmostEqual(float(ranked.iloc[0]["roi"]), 0.5)
+        self.assertAlmostEqual(float(ranked.iloc[0]["rank_score"]), 0.5)
+        self.assertAlmostEqual(float(ranked.iloc[1]["roi"]), 0.1)
+
+    def test_follow_and_unfollow_trader(self) -> None:
+        added = ct.follow_trader("0xnew", label="New", db_path=self.db_path)
+        re_followed = ct.follow_trader("0xnew", db_path=self.db_path)
+        active_after_follow = ct.active_trader_wallets(db_path=self.db_path)
+        changed = ct.unfollow_trader("0xnew", db_path=self.db_path)
+        active_after_unfollow = ct.active_trader_wallets(db_path=self.db_path)
+        no_change = ct.unfollow_trader("0xnew", db_path=self.db_path)
+
+        self.assertTrue(added)
+        self.assertFalse(re_followed)
+        self.assertIn("0xnew", active_after_follow)
+        self.assertTrue(changed)
+        self.assertNotIn("0xnew", active_after_unfollow)
+        self.assertFalse(no_change)
+
+    def test_refresh_trader_stats_persists_and_mirrors_rank_score(self) -> None:
+        ranked = ct.rank_traders_by_roi(_leaderboard_df())
+        conn = ct.connect(self.db_path)
+        try:
+            ct.follow_trader("0xskill", conn=conn)
+            count = ct.refresh_trader_stats(conn, ranked)
+            conn.commit()
+            stats = ct.get_trader_stats(conn=conn)
+            skill = conn.execute("SELECT rank_score FROM traders WHERE wallet = '0xskill'").fetchone()
+        finally:
+            conn.close()
+
+        self.assertEqual(count, 2)
+        self.assertEqual(set(stats["wallet"]), {"0xskill", "0xwhale"})
+        self.assertEqual(str(stats.iloc[0]["wallet"]), "0xskill")
+        self.assertAlmostEqual(float(stats.iloc[0]["roi"]), 0.5)
+        self.assertAlmostEqual(float(skill["rank_score"]), 0.5)
 
 
 if __name__ == "__main__":

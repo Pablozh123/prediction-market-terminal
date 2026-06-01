@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -21,7 +21,14 @@ from src import prediction_markets as md
 
 
 COPY_TARGET_WALLET = "0x204f72f35326db932158cba6adff0b9a1da95e14"
+SWISSTONY_LABEL = "Swisstony"
 DEFAULT_DB_PATH = Path("data/copy_trading.sqlite")
+PER_TRADER_START_CASH = 1000.0
+# ROI-ranking thresholds for the discovery list (spec §4.2). Total completed
+# trades are not exposed by the public leaderboard feed, so traded volume is
+# used as the activity proxy alongside a positive-ROI floor.
+ROI_MIN_VOLUME = 1000.0
+ROI_MIN_WIN_RATE = 0.0
 DEFAULT_STATUS_PATH = Path("data/copy_trader_status.json")
 DEFAULT_STOP_PATH = Path("data/copy_trader.stop")
 MIN_COPY_NOTIONAL = 0.01
@@ -131,7 +138,7 @@ def connect(db_path: str | Path = DEFAULT_DB_PATH) -> sqlite3.Connection:
 
 def init_db(conn: sqlite3.Connection, start_cash: float = 1000.0) -> None:
     conn.executescript(
-        """
+        f"""
         CREATE TABLE IF NOT EXISTS meta (
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
@@ -163,7 +170,8 @@ def init_db(conn: sqlite3.Connection, start_cash: float = 1000.0) -> None:
         );
 
         CREATE TABLE IF NOT EXISTS positions (
-            asset TEXT PRIMARY KEY,
+            trader_wallet TEXT NOT NULL DEFAULT '{COPY_TARGET_WALLET}',
+            asset TEXT NOT NULL,
             market_key TEXT,
             title TEXT,
             outcome TEXT,
@@ -171,7 +179,8 @@ def init_db(conn: sqlite3.Connection, start_cash: float = 1000.0) -> None:
             avg_price REAL NOT NULL,
             cost_basis REAL NOT NULL,
             last_price REAL NOT NULL,
-            updated_at TEXT NOT NULL
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (trader_wallet, asset)
         );
 
         CREATE TABLE IF NOT EXISTS tony_positions (
@@ -193,7 +202,44 @@ def init_db(conn: sqlite3.Connection, start_cash: float = 1000.0) -> None:
             cash_before REAL NOT NULL,
             cash_after REAL NOT NULL,
             reason TEXT NOT NULL,
+            trader_wallet TEXT NOT NULL DEFAULT '{COPY_TARGET_WALLET}',
             note TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS traders (
+            wallet TEXT PRIMARY KEY,
+            label TEXT,
+            active INTEGER NOT NULL DEFAULT 1,
+            start_cash REAL NOT NULL DEFAULT 0,
+            cash REAL NOT NULL DEFAULT 0,
+            copy_scale_override REAL,
+            rank_score REAL NOT NULL DEFAULT 0,
+            added_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS source_positions (
+            wallet TEXT NOT NULL,
+            asset TEXT NOT NULL,
+            market_key TEXT,
+            title TEXT,
+            outcome TEXT,
+            shares REAL NOT NULL,
+            avg_price REAL,
+            last_price REAL,
+            seeded_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (wallet, asset)
+        );
+
+        CREATE TABLE IF NOT EXISTS trader_stats (
+            wallet TEXT PRIMARY KEY,
+            roi REAL,
+            pnl REAL,
+            win_rate REAL,
+            trades INTEGER,
+            volume REAL,
+            last_refresh TEXT
         );
         """
     )
@@ -203,7 +249,109 @@ def init_db(conn: sqlite3.Connection, start_cash: float = 1000.0) -> None:
         _set_meta(conn, "paper_start_cash", f"{float(start_cash):.10f}")
     if _get_meta(conn, "live_trading_enabled") is None:
         _set_meta(conn, "live_trading_enabled", "false")
+    _migrate_to_multitrader(conn, start_cash)
     conn.commit()
+
+
+def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
+    return {str(row["name"]) for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+
+
+def _migrate_positions_to_sub_accounts(conn: sqlite3.Connection) -> None:
+    """Rebuild ``positions`` with the composite ``(trader_wallet, asset)`` key.
+
+    SQLite cannot ALTER a primary key, so single-wallet databases (``asset`` PK)
+    are rebuilt once. Idempotent: a no-op once the key is already composite.
+    """
+    info = conn.execute("PRAGMA table_info(positions)").fetchall()
+    pk_cols = {str(row["name"]) for row in info if row["pk"]}
+    if pk_cols == {"trader_wallet", "asset"}:
+        return
+    conn.executescript(
+        f"""
+        CREATE TABLE positions_migrated (
+            trader_wallet TEXT NOT NULL DEFAULT '{COPY_TARGET_WALLET}',
+            asset TEXT NOT NULL,
+            market_key TEXT,
+            title TEXT,
+            outcome TEXT,
+            shares REAL NOT NULL,
+            avg_price REAL NOT NULL,
+            cost_basis REAL NOT NULL,
+            last_price REAL NOT NULL,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (trader_wallet, asset)
+        );
+        INSERT OR IGNORE INTO positions_migrated
+            (trader_wallet, asset, market_key, title, outcome, shares, avg_price, cost_basis, last_price, updated_at)
+        SELECT trader_wallet, asset, market_key, title, outcome, shares, avg_price, cost_basis, last_price, updated_at
+        FROM positions;
+        DROP TABLE positions;
+        ALTER TABLE positions_migrated RENAME TO positions;
+        """
+    )
+
+
+def _migrate_to_multitrader(conn: sqlite3.Connection, start_cash: float = 1000.0) -> None:
+    """Bring single-wallet databases up to the multi-trader schema.
+
+    Idempotent and safe to run on every ``init_db``:
+    - adds the ``trader_wallet`` column to legacy ``positions`` / ``cash_events``
+      tables (backfilling existing rows to Swisstony via the column default),
+    - seeds Swisstony as the first trader (decision #4 in the spec), carrying the
+      current global cash/start-cash so the prior history is preserved,
+    - mirrors the existing ``tony_positions`` into ``source_positions`` once.
+
+    The engine still runs on the single-wallet code paths; this only lays down
+    the sub-portfolio scaffolding so later steps can generalise onto it.
+    """
+    for table in ("positions", "cash_events"):
+        if "trader_wallet" not in _table_columns(conn, table):
+            conn.execute(
+                f"ALTER TABLE {table} ADD COLUMN trader_wallet TEXT NOT NULL DEFAULT '{COPY_TARGET_WALLET}'"
+            )
+    _migrate_positions_to_sub_accounts(conn)
+
+    if conn.execute("SELECT 1 FROM traders LIMIT 1").fetchone() is None:
+        now = utc_now()
+        seed_start_cash = _get_float_meta(conn, "paper_start_cash", float(start_cash))
+        seed_cash = _get_float_meta(conn, "cash", seed_start_cash)
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO traders
+                (wallet, label, active, start_cash, cash, copy_scale_override, rank_score, added_at, updated_at)
+            VALUES (?, ?, 1, ?, ?, NULL, 0, ?, ?)
+            """,
+            (COPY_TARGET_WALLET, SWISSTONY_LABEL, seed_start_cash, seed_cash, now, now),
+        )
+
+    if _get_meta(conn, "source_positions_migrated_at") is None:
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO source_positions
+                (wallet, asset, market_key, title, outcome, shares, avg_price, last_price, seeded_at, updated_at)
+            SELECT ?, asset, market_key, title, outcome, shares, avg_price, last_price, seeded_at, updated_at
+            FROM tony_positions
+            """,
+            (COPY_TARGET_WALLET,),
+        )
+        _set_meta(conn, "source_positions_migrated_at", utc_now())
+
+    if _get_meta(conn, "trade_dedup_wallet_prefixed_at") is None:
+        # Trade dedup keys now lead with the source wallet so two wallets with an
+        # empty/shared tx hash can't false-collide. Prefix the pre-existing
+        # 6-field BUY/SELL keys (settlement REDEEM/MERGE and resolution_* keys
+        # keep their own formats) so they still match the new derivation.
+        conn.execute(
+            """
+            UPDATE paper_orders
+            SET dedup_key = source_wallet || '|' || dedup_key
+            WHERE source_wallet <> ''
+              AND (LENGTH(dedup_key) - LENGTH(REPLACE(dedup_key, '|', ''))) = 5
+              AND (dedup_key LIKE '%|BUY|%' OR dedup_key LIKE '%|SELL|%')
+            """
+        )
+        _set_meta(conn, "trade_dedup_wallet_prefixed_at", utc_now())
 
 
 def reset_paper_portfolio(start_cash: float = 1000.0, db_path: str | Path = DEFAULT_DB_PATH) -> None:
@@ -214,6 +362,10 @@ def reset_paper_portfolio(start_cash: float = 1000.0, db_path: str | Path = DEFA
     try:
         _set_meta(conn, "cash", f"{float(start_cash):.10f}")
         _set_meta(conn, "paper_start_cash", f"{float(start_cash):.10f}")
+        conn.execute(
+            "UPDATE traders SET cash = ?, start_cash = ?, updated_at = ?",
+            (float(start_cash), float(start_cash), utc_now()),
+        )
         conn.commit()
     finally:
         conn.close()
@@ -224,22 +376,25 @@ def add_paper_cash(
     db_path: str | Path = DEFAULT_DB_PATH,
     reason: str = "manual_top_up",
     note: str = "",
+    wallet: str = COPY_TARGET_WALLET,
 ) -> float:
+    """Top up a trader's sub-account cash and record the movement."""
     amount = float(amount)
     if amount <= 0:
         raise ValueError("cash top-up amount must be positive")
     conn = connect(db_path)
     try:
-        cash_before = _get_float_meta(conn, "cash", 1000.0)
+        _ensure_trader(conn, wallet, _get_float_meta(conn, "paper_start_cash", 1000.0))
+        cash_before = _get_trader_cash(conn, wallet, 1000.0)
         cash_after = cash_before + amount
         now = utc_now()
-        _set_meta(conn, "cash", f"{cash_after:.10f}")
+        _set_trader_cash(conn, wallet, cash_after)
         conn.execute(
             """
-            INSERT INTO cash_events (event_time, amount, cash_before, cash_after, reason, note)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO cash_events (event_time, amount, cash_before, cash_after, reason, trader_wallet, note)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (now, amount, cash_before, cash_after, reason, note),
+            (now, amount, cash_before, cash_after, reason, wallet, note),
         )
         conn.commit()
         return cash_after
@@ -466,7 +621,7 @@ def refresh_tony_wallet_stats(
     if not settings.dynamic_sizing_enabled:
         return None
     now_ts = datetime.now(timezone.utc).timestamp()
-    last_ts = _get_float_meta(conn, "tony_wallet_stats_ts", 0.0)
+    last_ts = _get_float_meta(conn, f"wallet_stat:{wallet}:ts", _get_float_meta(conn, "tony_wallet_stats_ts", 0.0))
     refresh_seconds = max(0, int(settings.dynamic_stats_refresh_seconds))
     if not force and last_ts > 0 and now_ts - last_ts < refresh_seconds:
         return _read_tony_wallet_stats(conn)
@@ -475,7 +630,7 @@ def refresh_tony_wallet_stats(
     except Exception as exc:
         _set_meta(conn, "tony_wallet_stats_error", str(exc)[:500])
         return _read_tony_wallet_stats(conn)
-    _store_tony_wallet_stats(conn, stats, now_ts)
+    _store_tony_wallet_stats(conn, stats, now_ts, wallet)
     return stats
 
 
@@ -493,6 +648,7 @@ def sync_copy_trades(
         if not seeded:
             seed_positions = md.get_polymarket_positions(wallet, limit=500)
             seed_tony_positions(conn, seed_positions)
+            seed_source_positions(conn, wallet, seed_positions)
             seed_count = _mark_existing_trades_as_seed(conn, trades, wallet)
             baseline_cutoff = int(_sort_source_trades(trades)["timestamp"].max()) if not trades.empty else 0
             _set_meta(conn, "target_wallet", wallet)
@@ -559,7 +715,7 @@ def sync_settlement_activity(
     try:
         backfill_position_metadata(conn, wallet, pages=metadata_pages, closed_pages=closed_pages)
         winners_by_condition = fetch_closed_position_assets(wallet, pages=closed_pages)
-        open_conditions = _open_paper_conditions(conn)
+        open_conditions = _open_paper_conditions(conn, wallet)
         missing_open_conditions = open_conditions.difference(winners_by_condition)
         if missing_open_conditions:
             _merge_winner_assets(winners_by_condition, fetch_closed_market_winner_assets(missing_open_conditions))
@@ -717,6 +873,67 @@ def sync_onchain_copy_trades(
             pass
 
 
+def sync_active_copy_trades(
+    settings: CopySettings | None = None,
+    db_path: str | Path = DEFAULT_DB_PATH,
+) -> dict[str, SyncResult]:
+    """Run the public-API copy sync once per active trader.
+
+    Generalises the single ``target_wallet`` entry point onto the active
+    ``traders`` list; each trader is synced against its own wallet so trades
+    land in that trader's sub-account.
+    """
+    results: dict[str, SyncResult] = {}
+    for wallet in active_trader_wallets(db_path=db_path):
+        wallet_settings = replace(settings, target_wallet=wallet) if settings is not None else CopySettings(target_wallet=wallet)
+        results[wallet] = sync_copy_trades(wallet, settings=wallet_settings, db_path=db_path)
+    return results
+
+
+def sync_active_onchain_copy_trades(
+    settings: CopySettings | None = None,
+    db_path: str | Path = DEFAULT_DB_PATH,
+    **kwargs: Any,
+) -> dict[str, SyncResult]:
+    """Run the low-latency on-chain copy sync once per active trader."""
+    results: dict[str, SyncResult] = {}
+    for wallet in active_trader_wallets(db_path=db_path):
+        wallet_settings = replace(settings, target_wallet=wallet) if settings is not None else CopySettings(target_wallet=wallet)
+        results[wallet] = sync_onchain_copy_trades(wallet, settings=wallet_settings, db_path=db_path, **kwargs)
+    return results
+
+
+def sync_active_settlement_activity(
+    settings: CopySettings | None = None,
+    db_path: str | Path = DEFAULT_DB_PATH,
+    **kwargs: Any,
+) -> dict[str, SyncResult]:
+    """Run the settlement/redeem recycling sync once per active trader."""
+    results: dict[str, SyncResult] = {}
+    for wallet in active_trader_wallets(db_path=db_path):
+        wallet_settings = replace(settings, target_wallet=wallet) if settings is not None else CopySettings(target_wallet=wallet)
+        results[wallet] = sync_settlement_activity(wallet, settings=wallet_settings, db_path=db_path, **kwargs)
+    return results
+
+
+def aggregate_sync_results(results: Mapping[str, SyncResult] | list[SyncResult]) -> SyncResult:
+    """Combine per-trader sync results into one summary for status reporting."""
+    items = list(results.values()) if isinstance(results, Mapping) else list(results)
+    if not items:
+        return SyncResult()
+    return SyncResult(
+        processed=sum(r.processed for r in items),
+        copied=sum(r.copied for r in items),
+        skipped=sum(r.skipped for r in items),
+        duplicates=sum(r.duplicates for r in items),
+        seeded=any(r.seeded for r in items),
+        source=items[0].source,
+        logs_seen=sum(r.logs_seen for r in items),
+        latest_block=max((r.latest_block for r in items), default=0),
+        errors=tuple(err for r in items for err in r.errors),
+    )
+
+
 def apply_paper_trade(
     conn: sqlite3.Connection,
     source_trade: Mapping[str, Any],
@@ -724,7 +941,7 @@ def apply_paper_trade(
 ) -> PaperOrder:
     settings = settings or CopySettings()
     init_db(conn, settings.paper_start_cash)
-    dedup_key = trade_dedup_key(source_trade)
+    dedup_key = trade_dedup_key(source_trade, settings.target_wallet)
     existing = conn.execute("SELECT status FROM paper_orders WHERE dedup_key = ?", (dedup_key,)).fetchone()
     if existing:
         return PaperOrder(dedup_key=dedup_key, status="duplicate", reason="duplicate", side="", source_notional=0.0)
@@ -757,39 +974,67 @@ def apply_paper_trade(
     return order
 
 
+def _snapshot_from_positions(
+    cash: float,
+    positions: pd.DataFrame,
+    realized: float,
+    price_lookup: Callable[[str], float | None] | None,
+) -> PortfolioSnapshot:
+    if positions.empty:
+        return PortfolioSnapshot(cash=cash, position_value=0.0, equity=cash, realized_pnl=realized, unrealized_pnl=0.0, positions=positions)
+
+    valued = positions.copy()
+    current_prices: list[float] = []
+    for _, row in valued.iterrows():
+        looked_up = price_lookup(str(row["asset"])) if price_lookup else None
+        price = float(looked_up) if looked_up is not None else float(row.get("last_price") or row.get("avg_price") or 0.0)
+        current_prices.append(price)
+    valued["current_price"] = current_prices
+    valued["value"] = valued["shares"] * valued["current_price"]
+    valued["unrealized_pnl"] = valued["value"] - valued["cost_basis"]
+    valued["pnl_pct"] = valued["unrealized_pnl"] / valued["cost_basis"].replace({0: pd.NA})
+    position_value = float(valued["value"].sum())
+    unrealized = float(valued["unrealized_pnl"].sum())
+    return PortfolioSnapshot(
+        cash=cash,
+        position_value=position_value,
+        equity=cash + position_value,
+        realized_pnl=realized,
+        unrealized_pnl=unrealized,
+        positions=valued.sort_values("value", ascending=False).reset_index(drop=True),
+    )
+
+
 def value_paper_portfolio(
     db_path: str | Path = DEFAULT_DB_PATH,
     price_lookup: Callable[[str], float | None] | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> PortfolioSnapshot:
+    """Aggregate snapshot across every sub-account (total cash + all positions)."""
     owns_conn = conn is None
     conn = connect(db_path) if conn is None else conn
     try:
-        cash = _get_float_meta(conn, "cash", 1000.0)
-        positions = get_positions(conn=conn)
-        if positions.empty:
-            return PortfolioSnapshot(cash=cash, position_value=0.0, equity=cash, realized_pnl=_realized_pnl(conn), unrealized_pnl=0.0, positions=positions)
+        return _snapshot_from_positions(_total_cash(conn), get_positions(conn=conn), _realized_pnl(conn), price_lookup)
+    finally:
+        if owns_conn:
+            conn.close()
 
-        valued = positions.copy()
-        current_prices: list[float] = []
-        for _, row in valued.iterrows():
-            looked_up = price_lookup(str(row["asset"])) if price_lookup else None
-            price = float(looked_up) if looked_up is not None else float(row.get("last_price") or row.get("avg_price") or 0.0)
-            current_prices.append(price)
-        valued["current_price"] = current_prices
-        valued["value"] = valued["shares"] * valued["current_price"]
-        valued["unrealized_pnl"] = valued["value"] - valued["cost_basis"]
-        valued["pnl_pct"] = valued["unrealized_pnl"] / valued["cost_basis"].replace({0: pd.NA})
-        position_value = float(valued["value"].sum())
-        unrealized = float(valued["unrealized_pnl"].sum())
-        return PortfolioSnapshot(
-            cash=cash,
-            position_value=position_value,
-            equity=cash + position_value,
-            realized_pnl=_realized_pnl(conn),
-            unrealized_pnl=unrealized,
-            positions=valued.sort_values("value", ascending=False).reset_index(drop=True),
+
+def value_sub_account(
+    wallet: str,
+    db_path: str | Path = DEFAULT_DB_PATH,
+    price_lookup: Callable[[str], float | None] | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> PortfolioSnapshot:
+    """Snapshot for a single trader's sub-account (its own cash + positions)."""
+    owns_conn = conn is None
+    conn = connect(db_path) if conn is None else conn
+    try:
+        cash = _get_trader_cash(conn, wallet, _get_float_meta(conn, "paper_start_cash", 1000.0))
+        positions = pd.read_sql_query(
+            "SELECT * FROM positions WHERE trader_wallet = ? ORDER BY updated_at DESC", conn, params=(wallet,)
         )
+        return _snapshot_from_positions(cash, positions, _realized_pnl(conn, wallet), price_lookup)
     finally:
         if owns_conn:
             conn.close()
@@ -819,6 +1064,51 @@ def seed_tony_positions(conn: sqlite3.Connection, positions: pd.DataFrame) -> in
                 updated_at = excluded.updated_at
             """,
             (
+                asset,
+                str(row.get("market_key", "") or ""),
+                str(row.get("title", "") or ""),
+                str(row.get("outcome", "") or ""),
+                shares,
+                _to_float(row.get("avg_price"), 0.0),
+                _to_float(row.get("current_price"), 0.0),
+                now,
+                now,
+            ),
+        )
+        seeded += 1
+    return seeded
+
+
+def seed_source_positions(conn: sqlite3.Connection, wallet: str, positions: pd.DataFrame) -> int:
+    """Seed a source wallet's real open positions into ``source_positions``.
+
+    Wallet-scoped generalisation of :func:`seed_tony_positions`; keyed on
+    ``(wallet, asset)`` so every followed trader keeps its own mirror.
+    """
+    if not wallet or positions.empty:
+        return 0
+    now = utc_now()
+    seeded = 0
+    for _, row in positions.iterrows():
+        asset = str(row.get("asset", "") or "")
+        shares = _to_float(row.get("size"), 0.0)
+        if not asset or shares <= 0:
+            continue
+        conn.execute(
+            """
+            INSERT INTO source_positions (wallet, asset, market_key, title, outcome, shares, avg_price, last_price, seeded_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(wallet, asset) DO UPDATE SET
+                market_key = excluded.market_key,
+                title = excluded.title,
+                outcome = excluded.outcome,
+                shares = excluded.shares,
+                avg_price = excluded.avg_price,
+                last_price = excluded.last_price,
+                updated_at = excluded.updated_at
+            """,
+            (
+                wallet,
                 asset,
                 str(row.get("market_key", "") or ""),
                 str(row.get("title", "") or ""),
@@ -864,6 +1154,207 @@ def get_tony_positions(db_path: str | Path = DEFAULT_DB_PATH, conn: sqlite3.Conn
             conn.close()
 
 
+def get_traders(db_path: str | Path = DEFAULT_DB_PATH, conn: sqlite3.Connection | None = None) -> pd.DataFrame:
+    owns_conn = conn is None
+    conn = connect(db_path) if conn is None else conn
+    try:
+        return pd.read_sql_query("SELECT * FROM traders ORDER BY added_at ASC", conn)
+    finally:
+        if owns_conn:
+            conn.close()
+
+
+def get_source_positions(db_path: str | Path = DEFAULT_DB_PATH, conn: sqlite3.Connection | None = None) -> pd.DataFrame:
+    owns_conn = conn is None
+    conn = connect(db_path) if conn is None else conn
+    try:
+        return pd.read_sql_query("SELECT * FROM source_positions ORDER BY updated_at DESC", conn)
+    finally:
+        if owns_conn:
+            conn.close()
+
+
+def active_trader_wallets(db_path: str | Path = DEFAULT_DB_PATH, conn: sqlite3.Connection | None = None) -> list[str]:
+    """Return the wallets the engine should copy, in follow order.
+
+    Falls back to the legacy single target wallet if the ``traders`` table is
+    empty (e.g. a database created before the multi-trader migration).
+    """
+    owns_conn = conn is None
+    conn = connect(db_path) if conn is None else conn
+    try:
+        rows = conn.execute("SELECT wallet FROM traders WHERE active = 1 ORDER BY added_at ASC, wallet ASC").fetchall()
+        wallets = [str(row["wallet"]) for row in rows if str(row["wallet"] or "")]
+        return wallets or [COPY_TARGET_WALLET]
+    finally:
+        if owns_conn:
+            conn.close()
+
+
+def follow_trader(
+    wallet: str,
+    label: str = "",
+    start_cash: float = PER_TRADER_START_CASH,
+    copy_scale_override: float | None = None,
+    db_path: str | Path = DEFAULT_DB_PATH,
+    conn: sqlite3.Connection | None = None,
+) -> bool:
+    """Open (or re-activate) a sub-account for ``wallet``.
+
+    Returns True when a new trader row is created, False when an existing one is
+    re-activated. Each new sub-account starts with the same ``start_cash`` so
+    traders share a fair starting line (spec §4.3).
+    """
+    wallet = str(wallet or "").strip()
+    if not wallet:
+        raise ValueError("wallet is required to follow a trader")
+    owns_conn = conn is None
+    conn = connect(db_path) if conn is None else conn
+    try:
+        now = utc_now()
+        existing = conn.execute("SELECT wallet FROM traders WHERE wallet = ?", (wallet,)).fetchone()
+        if existing is None:
+            conn.execute(
+                """
+                INSERT INTO traders
+                    (wallet, label, active, start_cash, cash, copy_scale_override, rank_score, added_at, updated_at)
+                VALUES (?, ?, 1, ?, ?, ?, 0, ?, ?)
+                """,
+                (wallet, label or wallet, float(start_cash), float(start_cash), copy_scale_override, now, now),
+            )
+            conn.commit()
+            return True
+        conn.execute(
+            "UPDATE traders SET active = 1, label = CASE WHEN ? <> '' THEN ? ELSE label END, updated_at = ? WHERE wallet = ?",
+            (label, label, now, wallet),
+        )
+        conn.commit()
+        return False
+    finally:
+        if owns_conn:
+            conn.close()
+
+
+def unfollow_trader(wallet: str, db_path: str | Path = DEFAULT_DB_PATH, conn: sqlite3.Connection | None = None) -> bool:
+    """Deactivate a trader's sub-account, keeping its history. True if a row changed."""
+    owns_conn = conn is None
+    conn = connect(db_path) if conn is None else conn
+    try:
+        cursor = conn.execute(
+            "UPDATE traders SET active = 0, updated_at = ? WHERE wallet = ? AND active = 1",
+            (utc_now(), str(wallet or "").strip()),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        if owns_conn:
+            conn.close()
+
+
+def compute_roi(pnl: Any, volume: Any) -> float:
+    """Return on traded volume — a capital-size-independent skill proxy (spec §4.2)."""
+    pnl_value = _to_float(pnl, 0.0)
+    volume_value = _to_float(volume, 0.0)
+    return pnl_value / volume_value if volume_value > 0 else 0.0
+
+
+def rank_traders_by_roi(
+    traders: pd.DataFrame,
+    min_volume: float = ROI_MIN_VOLUME,
+    require_positive_roi: bool = True,
+    min_win_rate: float = ROI_MIN_WIN_RATE,
+    exclude_bots: bool = True,
+) -> pd.DataFrame:
+    """Rank leaderboard rows by ROI, applying the discovery thresholds.
+
+    Expects ``pnl`` and ``volume`` columns (as produced by
+    ``prediction_markets.get_predictparity_traders`` / ``get_polymarket_leaderboard``);
+    ``win_rate`` and ``is_bot`` are honoured when present.
+    """
+    if traders is None or traders.empty:
+        return pd.DataFrame()
+    df = traders.copy()
+    pnl = pd.to_numeric(df.get("pnl"), errors="coerce").fillna(0.0)
+    volume = pd.to_numeric(df.get("volume"), errors="coerce").fillna(0.0)
+    win_rate = pd.to_numeric(df.get("win_rate"), errors="coerce").fillna(0.0)
+    df["roi"] = [compute_roi(p, v) for p, v in zip(pnl, volume)]
+    mask = volume >= float(min_volume)
+    if require_positive_roi:
+        mask = mask & (df["roi"] > 0)
+    if min_win_rate > 0:
+        mask = mask & (win_rate >= float(min_win_rate))
+    if exclude_bots and "is_bot" in df.columns:
+        mask = mask & (~df["is_bot"].fillna(False).astype(bool))
+    ranked = df[mask].copy()
+    if ranked.empty:
+        return ranked
+    ranked = ranked.sort_values("roi", ascending=False).reset_index(drop=True)
+    ranked["rank_score"] = ranked["roi"]
+    return ranked
+
+
+def suggest_traders(
+    limit: int = 50,
+    min_volume: float = ROI_MIN_VOLUME,
+    require_positive_roi: bool = True,
+    min_win_rate: float = ROI_MIN_WIN_RATE,
+    exclude_bots: bool = True,
+) -> pd.DataFrame:
+    """Fetch the public leaderboard and rank it by ROI for the discovery list."""
+    traders = md.get_predictparity_traders(limit=limit)
+    return rank_traders_by_roi(
+        traders,
+        min_volume=min_volume,
+        require_positive_roi=require_positive_roi,
+        min_win_rate=min_win_rate,
+        exclude_bots=exclude_bots,
+    )
+
+
+def refresh_trader_stats(conn: sqlite3.Connection, traders: pd.DataFrame) -> int:
+    """Upsert ranked leaderboard rows into ``trader_stats`` and mirror the score."""
+    if traders is None or traders.empty:
+        return 0
+    now = utc_now()
+    updated = 0
+    for _, row in traders.iterrows():
+        wallet = str(row.get("wallet", "") or "")
+        if not wallet:
+            continue
+        roi = _to_float(row.get("roi"), compute_roi(row.get("pnl"), row.get("volume")))
+        pnl = _to_float(row.get("pnl"), 0.0)
+        win_rate = _to_float(row.get("win_rate"), 0.0)
+        volume = _to_float(row.get("volume"), 0.0)
+        trades = int(_to_float(row.get("trades"), _to_float(row.get("open_positions"), 0.0)))
+        conn.execute(
+            """
+            INSERT INTO trader_stats (wallet, roi, pnl, win_rate, trades, volume, last_refresh)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(wallet) DO UPDATE SET
+                roi = excluded.roi,
+                pnl = excluded.pnl,
+                win_rate = excluded.win_rate,
+                trades = excluded.trades,
+                volume = excluded.volume,
+                last_refresh = excluded.last_refresh
+            """,
+            (wallet, roi, pnl, win_rate, trades, volume, now),
+        )
+        conn.execute("UPDATE traders SET rank_score = ?, updated_at = ? WHERE wallet = ?", (roi, now, wallet))
+        updated += 1
+    return updated
+
+
+def get_trader_stats(db_path: str | Path = DEFAULT_DB_PATH, conn: sqlite3.Connection | None = None) -> pd.DataFrame:
+    owns_conn = conn is None
+    conn = connect(db_path) if conn is None else conn
+    try:
+        return pd.read_sql_query("SELECT * FROM trader_stats ORDER BY roi DESC", conn)
+    finally:
+        if owns_conn:
+            conn.close()
+
+
 def get_meta_snapshot(db_path: str | Path = DEFAULT_DB_PATH) -> dict[str, str]:
     conn = connect(db_path)
     try:
@@ -886,7 +1377,7 @@ def backfill_position_metadata(
         title = str(values.get("title", "") or "")
         outcome = str(values.get("outcome", "") or "")
         last_price = _to_float(values.get("last_price"), 0.0)
-        for table in ("positions", "tony_positions"):
+        for table in ("positions", "tony_positions", "source_positions"):
             conn.execute(
                 f"""
                 UPDATE {table}
@@ -914,14 +1405,15 @@ def backfill_position_metadata(
     return updated
 
 
-def trade_dedup_key(source_trade: Mapping[str, Any]) -> str:
+def trade_dedup_key(source_trade: Mapping[str, Any], wallet: str = "") -> str:
+    wallet_key = str(wallet or source_trade.get("source_wallet", "") or source_trade.get("wallet", "") or "")
     tx = str(_first(source_trade, "transaction_hash", "transactionHash") or "")
     asset = str(source_trade.get("asset", "") or "")
     side = str(source_trade.get("side", "") or "").upper()
     size = _to_float(source_trade.get("size"), 0.0)
     price = _to_float(source_trade.get("price"), 0.0)
     timestamp = _timestamp_value(source_trade)
-    return f"{tx}|{asset}|{side}|{size:.8f}|{price:.8f}|{timestamp}"
+    return f"{wallet_key}|{tx}|{asset}|{side}|{size:.8f}|{price:.8f}|{timestamp}"
 
 
 def settlement_dedup_key(source_activity: Mapping[str, Any]) -> str:
@@ -940,7 +1432,7 @@ def parse_source_trade(source_trade: Mapping[str, Any], wallet: str) -> dict[str
     timestamp = _timestamp_value(source_trade)
     source_time = _source_time(source_trade, timestamp)
     return {
-        "dedup_key": trade_dedup_key(source_trade),
+        "dedup_key": trade_dedup_key(source_trade, wallet),
         "source_wallet": wallet,
         "source_tx": str(_first(source_trade, "transaction_hash", "transactionHash") or ""),
         "source_time": source_time,
@@ -981,9 +1473,10 @@ def _apply_redeem(
     parsed: dict[str, Any],
     winners_by_condition: Mapping[str, set[str]],
 ) -> tuple[PaperOrder, str]:
+    wallet = parsed["source_wallet"]
     condition = parsed["market_key"]
     winner_assets = set(winners_by_condition.get(condition, set()))
-    candidates = _paper_positions_for_resolution(conn, condition, winner_assets)
+    candidates = _paper_positions_for_resolution(conn, wallet, condition, winner_assets)
     if not candidates:
         return PaperOrder(parsed["dedup_key"], "skipped", "redeem_no_paper_position", parsed["side"], parsed["source_notional"]), ""
     if len(candidates) > 1 and not winner_assets:
@@ -1001,11 +1494,11 @@ def _apply_redeem(
             continue
         is_known_loser = bool(winner_assets) and asset not in winner_assets
         payout_price = 0.0 if is_known_loser else winning_payout_price
-        tony_position = _get_tony_position(conn, asset)
+        source_position = _get_source_position(conn, wallet, asset)
         if is_known_loser:
             redeem_ratio = 1.0
-        elif tony_position and float(tony_position["shares"]) > 0:
-            redeem_ratio = min(parsed["size"] / float(tony_position["shares"]), 1.0) if parsed["size"] > 0 else 1.0
+        elif source_position and float(source_position["shares"]) > 0:
+            redeem_ratio = min(parsed["size"] / float(source_position["shares"]), 1.0) if parsed["size"] > 0 else 1.0
         else:
             redeem_ratio = 1.0
         paper_settle = min(paper_before * redeem_ratio, paper_before)
@@ -1014,10 +1507,10 @@ def _apply_redeem(
         cash_value = paper_settle * payout_price
         avg_price = float(position["avg_price"])
         cost_settled = avg_price * paper_settle
-        _reduce_position(conn, asset, paper_settle, payout_price)
-        if tony_position:
-            tony_reduce = float(tony_position["shares"]) if is_known_loser else parsed["size"]
-            _decrease_tony_position(conn, asset, tony_reduce, payout_price)
+        _reduce_position(conn, wallet, asset, paper_settle, payout_price)
+        if source_position:
+            source_reduce = float(source_position["shares"]) if is_known_loser else parsed["size"]
+            _decrease_source_position(conn, wallet, asset, source_reduce, payout_price)
         cash_added += cash_value
         realized_pnl += cash_value - cost_settled
         settled_shares += paper_settle
@@ -1026,8 +1519,8 @@ def _apply_redeem(
     if settled_shares <= 0:
         return PaperOrder(parsed["dedup_key"], "skipped", "redeem_no_paper_position", parsed["side"], parsed["source_notional"]), ""
     if cash_added > 0:
-        cash = _get_float_meta(conn, "cash", 1000.0)
-        _set_meta(conn, "cash", f"{cash + cash_added:.10f}")
+        cash = _get_trader_cash(conn, wallet, 1000.0)
+        _set_trader_cash(conn, wallet, cash + cash_added)
     return (
         PaperOrder(parsed["dedup_key"], "settled", "redeem_resolution", parsed["side"], parsed["source_notional"], cash_added, settled_shares, realized_pnl),
         ",".join(settled_assets),
@@ -1035,15 +1528,16 @@ def _apply_redeem(
 
 
 def _apply_merge(conn: sqlite3.Connection, parsed: dict[str, Any]) -> tuple[PaperOrder, str]:
+    wallet = parsed["source_wallet"]
     condition = parsed["market_key"]
-    positions = _paper_positions_for_market(conn, condition)
+    positions = _paper_positions_for_market(conn, wallet, condition)
     if len(positions) < 2:
         return PaperOrder(parsed["dedup_key"], "skipped", "merge_no_complete_set", parsed["side"], parsed["source_notional"]), ""
 
-    tony_positions = _tony_positions_for_market(conn, condition)
-    if len(tony_positions) >= 2:
-        tony_complete_sets = min(float(row["shares"]) for row in tony_positions)
-        merge_ratio = min(parsed["size"] / tony_complete_sets, 1.0) if tony_complete_sets > 0 and parsed["size"] > 0 else 1.0
+    source_positions = _source_positions_for_market(conn, wallet, condition)
+    if len(source_positions) >= 2:
+        source_complete_sets = min(float(row["shares"]) for row in source_positions)
+        merge_ratio = min(parsed["size"] / source_complete_sets, 1.0) if source_complete_sets > 0 and parsed["size"] > 0 else 1.0
     else:
         merge_ratio = 1.0
 
@@ -1057,14 +1551,14 @@ def _apply_merge(conn: sqlite3.Connection, parsed: dict[str, Any]) -> tuple[Pape
     for position in positions:
         asset = str(position["asset"])
         avg_price = float(position["avg_price"])
-        _reduce_position(conn, asset, paper_merge, 0.0)
-        _decrease_tony_position(conn, asset, parsed["size"], 0.0)
+        _reduce_position(conn, wallet, asset, paper_merge, 0.0)
+        _decrease_source_position(conn, wallet, asset, parsed["size"], 0.0)
         realized_pnl -= avg_price * paper_merge
         assets.append(asset)
     cash_added = paper_merge
     realized_pnl += cash_added
-    cash = _get_float_meta(conn, "cash", 1000.0)
-    _set_meta(conn, "cash", f"{cash + cash_added:.10f}")
+    cash = _get_trader_cash(conn, wallet, 1000.0)
+    _set_trader_cash(conn, wallet, cash + cash_added)
     return (
         PaperOrder(parsed["dedup_key"], "settled", "merge_complete_set", parsed["side"], parsed["source_notional"], cash_added, paper_merge, realized_pnl),
         ",".join(assets),
@@ -1080,7 +1574,7 @@ def _reconcile_resolved_loser_positions(
     for condition, winner_assets in winners_by_condition.items():
         if not condition or not winner_assets:
             continue
-        for position in _paper_positions_for_market(conn, condition):
+        for position in _paper_positions_for_market(conn, wallet, condition):
             asset = str(position["asset"])
             if asset in winner_assets:
                 continue
@@ -1115,10 +1609,10 @@ def _reconcile_resolved_loser_positions(
                 shares,
                 -cost_basis,
             )
-            _reduce_position(conn, asset, shares, 0.0)
-            tony_position = _get_tony_position(conn, asset)
-            if tony_position:
-                _decrease_tony_position(conn, asset, float(tony_position["shares"]), 0.0)
+            _reduce_position(conn, wallet, asset, shares, 0.0)
+            source_position = _get_source_position(conn, wallet, asset)
+            if source_position:
+                _decrease_source_position(conn, wallet, asset, float(source_position["shares"]), 0.0)
             _insert_order(conn, parsed, order, parsed)
             settled += 1
     return settled
@@ -1133,7 +1627,7 @@ def _reconcile_resolved_winner_positions(
     for condition, winner_assets in winners_by_condition.items():
         if not condition or not winner_assets:
             continue
-        for position in _paper_positions_for_market(conn, condition):
+        for position in _paper_positions_for_market(conn, wallet, condition):
             asset = str(position["asset"])
             if asset not in winner_assets:
                 continue
@@ -1170,21 +1664,23 @@ def _reconcile_resolved_winner_positions(
                 shares,
                 realized_pnl,
             )
-            _reduce_position(conn, asset, shares, 1.0)
-            tony_position = _get_tony_position(conn, asset)
-            if tony_position:
-                _decrease_tony_position(conn, asset, float(tony_position["shares"]), 1.0)
-            cash = _get_float_meta(conn, "cash", 1000.0)
-            _set_meta(conn, "cash", f"{cash + cash_added:.10f}")
+            _reduce_position(conn, wallet, asset, shares, 1.0)
+            source_position = _get_source_position(conn, wallet, asset)
+            if source_position:
+                _decrease_source_position(conn, wallet, asset, float(source_position["shares"]), 1.0)
+            cash = _get_trader_cash(conn, wallet, 1000.0)
+            _set_trader_cash(conn, wallet, cash + cash_added)
             _insert_order(conn, parsed, order, parsed)
             settled += 1
     return settled
 
 
 def _apply_buy(conn: sqlite3.Connection, parsed: dict[str, Any], settings: CopySettings) -> PaperOrder:
-    _increase_tony_position(conn, parsed)
-    snapshot = value_paper_portfolio(conn=conn)
-    cash = _get_float_meta(conn, "cash", settings.paper_start_cash)
+    wallet = parsed["source_wallet"]
+    _ensure_trader(conn, wallet, settings.paper_start_cash)
+    _increase_source_position(conn, wallet, parsed)
+    snapshot = value_sub_account(wallet, conn=conn)
+    cash = _get_trader_cash(conn, wallet, settings.paper_start_cash)
     effective_scale = _effective_copy_scale(conn, snapshot, settings)
     effective_cap_pct = _effective_max_order_equity_pct(conn, settings)
     desired = parsed["source_notional"] * effective_scale
@@ -1195,7 +1691,7 @@ def _apply_buy(conn: sqlite3.Connection, parsed: dict[str, Any], settings: CopyS
         return PaperOrder(parsed["dedup_key"], "skipped", reason, parsed["side"], parsed["source_notional"])
 
     copy_size = copy_notional / parsed["price"]
-    position = _get_position(conn, parsed["asset"])
+    position = _get_position(conn, wallet, parsed["asset"])
     now = utc_now()
     if position:
         old_shares = float(position["shares"])
@@ -1209,9 +1705,9 @@ def _apply_buy(conn: sqlite3.Connection, parsed: dict[str, Any], settings: CopyS
         avg_price = parsed["price"]
     conn.execute(
         """
-        INSERT INTO positions (asset, market_key, title, outcome, shares, avg_price, cost_basis, last_price, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(asset) DO UPDATE SET
+        INSERT INTO positions (trader_wallet, asset, market_key, title, outcome, shares, avg_price, cost_basis, last_price, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(trader_wallet, asset) DO UPDATE SET
             market_key = excluded.market_key,
             title = excluded.title,
             outcome = excluded.outcome,
@@ -1222,6 +1718,7 @@ def _apply_buy(conn: sqlite3.Connection, parsed: dict[str, Any], settings: CopyS
             updated_at = excluded.updated_at
         """,
         (
+            wallet,
             parsed["asset"],
             parsed["market_key"],
             parsed["title"],
@@ -1233,20 +1730,21 @@ def _apply_buy(conn: sqlite3.Connection, parsed: dict[str, Any], settings: CopyS
             now,
         ),
     )
-    _set_meta(conn, "cash", f"{cash - copy_notional:.10f}")
+    _set_trader_cash(conn, wallet, cash - copy_notional)
     return PaperOrder(parsed["dedup_key"], "copied", "buy_scaled", parsed["side"], parsed["source_notional"], copy_notional, copy_size)
 
 
 def _apply_sell(conn: sqlite3.Connection, parsed: dict[str, Any]) -> PaperOrder:
-    tony_position = _get_tony_position(conn, parsed["asset"])
-    if not tony_position or float(tony_position["shares"]) <= 0:
+    wallet = parsed["source_wallet"]
+    source_position = _get_source_position(conn, wallet, parsed["asset"])
+    if not source_position or float(source_position["shares"]) <= 0:
         return PaperOrder(parsed["dedup_key"], "skipped", "skipped_unmatched_sell", parsed["side"], parsed["source_notional"])
 
-    tony_before = float(tony_position["shares"])
-    sell_ratio = min(parsed["size"] / tony_before, 1.0)
-    _decrease_tony_position(conn, parsed["asset"], parsed["size"], parsed["price"])
+    source_before = float(source_position["shares"])
+    sell_ratio = min(parsed["size"] / source_before, 1.0)
+    _decrease_source_position(conn, wallet, parsed["asset"], parsed["size"], parsed["price"])
 
-    position = _get_position(conn, parsed["asset"])
+    position = _get_position(conn, wallet, parsed["asset"])
     if not position or float(position["shares"]) <= 0:
         return PaperOrder(parsed["dedup_key"], "skipped", "skipped_no_paper_position", parsed["side"], parsed["source_notional"])
 
@@ -1260,19 +1758,19 @@ def _apply_sell(conn: sqlite3.Connection, parsed: dict[str, Any]) -> PaperOrder:
     realized_pnl = (parsed["price"] - avg_price) * sell_shares
     remaining_shares = paper_before - sell_shares
     remaining_cost = max(0.0, float(position["cost_basis"]) - (avg_price * sell_shares))
-    cash = _get_float_meta(conn, "cash", 1000.0)
-    _set_meta(conn, "cash", f"{cash + copy_notional:.10f}")
+    cash = _get_trader_cash(conn, wallet, 1000.0)
+    _set_trader_cash(conn, wallet, cash + copy_notional)
 
     if remaining_shares <= 1e-9:
-        conn.execute("DELETE FROM positions WHERE asset = ?", (parsed["asset"],))
+        conn.execute("DELETE FROM positions WHERE trader_wallet = ? AND asset = ?", (wallet, parsed["asset"]))
     else:
         conn.execute(
             """
             UPDATE positions
             SET shares = ?, cost_basis = ?, avg_price = ?, last_price = ?, updated_at = ?
-            WHERE asset = ?
+            WHERE trader_wallet = ? AND asset = ?
             """,
-            (remaining_shares, remaining_cost, avg_price, parsed["price"], utc_now(), parsed["asset"]),
+            (remaining_shares, remaining_cost, avg_price, parsed["price"], utc_now(), wallet, parsed["asset"]),
         )
     return PaperOrder(
         parsed["dedup_key"],
@@ -1334,15 +1832,30 @@ def _mark_existing_trades_as_seed(conn: sqlite3.Connection, trades: pd.DataFrame
     return count
 
 
-def _increase_tony_position(conn: sqlite3.Connection, parsed: dict[str, Any]) -> None:
+def _get_source_position(conn: sqlite3.Connection, wallet: str, asset: str) -> sqlite3.Row | None:
+    return conn.execute("SELECT * FROM source_positions WHERE wallet = ? AND asset = ?", (wallet, asset)).fetchone()
+
+
+def _source_positions_for_market(conn: sqlite3.Connection, wallet: str, condition: str) -> list[sqlite3.Row]:
+    if not condition:
+        return []
+    return list(
+        conn.execute(
+            "SELECT * FROM source_positions WHERE wallet = ? AND market_key = ? AND shares > 0 ORDER BY asset",
+            (wallet, condition),
+        ).fetchall()
+    )
+
+
+def _increase_source_position(conn: sqlite3.Connection, wallet: str, parsed: dict[str, Any]) -> None:
     now = utc_now()
-    existing = _get_tony_position(conn, parsed["asset"])
+    existing = _get_source_position(conn, wallet, parsed["asset"])
     shares = parsed["size"] + (float(existing["shares"]) if existing else 0.0)
     conn.execute(
         """
-        INSERT INTO tony_positions (asset, market_key, title, outcome, shares, avg_price, last_price, seeded_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(asset) DO UPDATE SET
+        INSERT INTO source_positions (wallet, asset, market_key, title, outcome, shares, avg_price, last_price, seeded_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(wallet, asset) DO UPDATE SET
             market_key = excluded.market_key,
             title = excluded.title,
             outcome = excluded.outcome,
@@ -1350,23 +1863,26 @@ def _increase_tony_position(conn: sqlite3.Connection, parsed: dict[str, Any]) ->
             last_price = excluded.last_price,
             updated_at = excluded.updated_at
         """,
-        (parsed["asset"], parsed["market_key"], parsed["title"], parsed["outcome"], shares, parsed["price"], parsed["price"], now, now),
+        (wallet, parsed["asset"], parsed["market_key"], parsed["title"], parsed["outcome"], shares, parsed["price"], parsed["price"], now, now),
     )
 
 
-def _decrease_tony_position(conn: sqlite3.Connection, asset: str, source_size: float, last_price: float) -> None:
-    existing = _get_tony_position(conn, asset)
+def _decrease_source_position(conn: sqlite3.Connection, wallet: str, asset: str, source_size: float, last_price: float) -> None:
+    existing = _get_source_position(conn, wallet, asset)
     if not existing:
         return
     shares = max(0.0, float(existing["shares"]) - source_size)
     if shares <= 1e-9:
-        conn.execute("DELETE FROM tony_positions WHERE asset = ?", (asset,))
+        conn.execute("DELETE FROM source_positions WHERE wallet = ? AND asset = ?", (wallet, asset))
     else:
-        conn.execute("UPDATE tony_positions SET shares = ?, last_price = ?, updated_at = ? WHERE asset = ?", (shares, last_price, utc_now(), asset))
+        conn.execute(
+            "UPDATE source_positions SET shares = ?, last_price = ?, updated_at = ? WHERE wallet = ? AND asset = ?",
+            (shares, last_price, utc_now(), wallet, asset),
+        )
 
 
-def _reduce_position(conn: sqlite3.Connection, asset: str, shares_to_remove: float, last_price: float) -> None:
-    existing = _get_position(conn, asset)
+def _reduce_position(conn: sqlite3.Connection, wallet: str, asset: str, shares_to_remove: float, last_price: float) -> None:
+    existing = _get_position(conn, wallet, asset)
     if not existing:
         return
     shares_before = float(existing["shares"])
@@ -1375,55 +1891,57 @@ def _reduce_position(conn: sqlite3.Connection, asset: str, shares_to_remove: flo
     avg_price = float(existing["avg_price"])
     remaining_cost = max(0.0, float(existing["cost_basis"]) - avg_price * remove)
     if remaining <= 1e-9:
-        conn.execute("DELETE FROM positions WHERE asset = ?", (asset,))
+        conn.execute("DELETE FROM positions WHERE trader_wallet = ? AND asset = ?", (wallet, asset))
     else:
         conn.execute(
             """
             UPDATE positions
             SET shares = ?, cost_basis = ?, avg_price = ?, last_price = ?, updated_at = ?
-            WHERE asset = ?
+            WHERE trader_wallet = ? AND asset = ?
             """,
-            (remaining, remaining_cost, avg_price, last_price, utc_now(), asset),
+            (remaining, remaining_cost, avg_price, last_price, utc_now(), wallet, asset),
         )
 
 
-def _paper_positions_for_market(conn: sqlite3.Connection, condition: str) -> list[sqlite3.Row]:
+def _paper_positions_for_market(conn: sqlite3.Connection, wallet: str, condition: str) -> list[sqlite3.Row]:
     if not condition:
         return []
-    return list(conn.execute("SELECT * FROM positions WHERE market_key = ? AND shares > 0 ORDER BY asset", (condition,)).fetchall())
+    return list(
+        conn.execute(
+            "SELECT * FROM positions WHERE trader_wallet = ? AND market_key = ? AND shares > 0 ORDER BY asset",
+            (wallet, condition),
+        ).fetchall()
+    )
 
 
-def _tony_positions_for_market(conn: sqlite3.Connection, condition: str) -> list[sqlite3.Row]:
-    if not condition:
-        return []
-    return list(conn.execute("SELECT * FROM tony_positions WHERE market_key = ? AND shares > 0 ORDER BY asset", (condition,)).fetchall())
-
-
-def _open_paper_conditions(conn: sqlite3.Connection) -> set[str]:
-    rows = conn.execute("SELECT DISTINCT market_key FROM positions WHERE shares > 0 AND market_key IS NOT NULL AND market_key <> ''").fetchall()
+def _open_paper_conditions(conn: sqlite3.Connection, wallet: str) -> set[str]:
+    rows = conn.execute(
+        "SELECT DISTINCT market_key FROM positions WHERE trader_wallet = ? AND shares > 0 AND market_key IS NOT NULL AND market_key <> ''",
+        (wallet,),
+    ).fetchall()
     return {str(row["market_key"]) for row in rows if str(row["market_key"] or "")}
 
 
-def _paper_positions_for_settlement(conn: sqlite3.Connection, condition: str, winner_assets: set[str]) -> list[sqlite3.Row]:
+def _paper_positions_for_settlement(conn: sqlite3.Connection, wallet: str, condition: str, winner_assets: set[str]) -> list[sqlite3.Row]:
     rows: list[sqlite3.Row] = []
     if winner_assets:
         for asset in sorted(winner_assets):
-            row = _get_position(conn, asset)
+            row = _get_position(conn, wallet, asset)
             if row and float(row["shares"]) > 0:
                 rows.append(row)
         if rows:
             return rows
-    market_rows = _paper_positions_for_market(conn, condition)
+    market_rows = _paper_positions_for_market(conn, wallet, condition)
     if winner_assets:
         return [row for row in market_rows if str(row["asset"]) in winner_assets]
     return market_rows
 
 
-def _paper_positions_for_resolution(conn: sqlite3.Connection, condition: str, winner_assets: set[str]) -> list[sqlite3.Row]:
-    market_rows = _paper_positions_for_market(conn, condition)
+def _paper_positions_for_resolution(conn: sqlite3.Connection, wallet: str, condition: str, winner_assets: set[str]) -> list[sqlite3.Row]:
+    market_rows = _paper_positions_for_market(conn, wallet, condition)
     if winner_assets and market_rows:
         return market_rows
-    return _paper_positions_for_settlement(conn, condition, winner_assets)
+    return _paper_positions_for_settlement(conn, wallet, condition, winner_assets)
 
 
 def _merge_trade_metadata(conn: sqlite3.Connection, source_trade: Mapping[str, Any], wallet: str) -> None:
@@ -1456,16 +1974,17 @@ def _merge_trade_metadata(conn: sqlite3.Connection, source_trade: Mapping[str, A
             """,
             (updates["market_key"], updates["title"], updates["outcome"], parsed["asset"]),
         )
-        conn.execute(
-            """
-            UPDATE tony_positions
-            SET market_key = CASE WHEN market_key = '' OR market_key IS NULL THEN ? ELSE market_key END,
-                title = CASE WHEN title = '' OR title LIKE 'On-chain Polymarket token %' THEN ? ELSE title END,
-                outcome = CASE WHEN outcome = '' OR outcome IS NULL THEN ? ELSE outcome END
-            WHERE asset = ?
-            """,
-            (updates["market_key"], updates["title"], updates["outcome"], parsed["asset"]),
-        )
+        for table in ("tony_positions", "source_positions"):
+            conn.execute(
+                f"""
+                UPDATE {table}
+                SET market_key = CASE WHEN market_key = '' OR market_key IS NULL THEN ? ELSE market_key END,
+                    title = CASE WHEN title = '' OR title LIKE 'On-chain Polymarket token %' THEN ? ELSE title END,
+                    outcome = CASE WHEN outcome = '' OR outcome IS NULL THEN ? ELSE outcome END
+                WHERE asset = ?
+                """,
+                (updates["market_key"], updates["title"], updates["outcome"], parsed["asset"]),
+            )
 
 
 def get_dynamic_sizing_snapshot(db_path: str | Path = DEFAULT_DB_PATH, conn: sqlite3.Connection | None = None) -> dict[str, float | int | str | bool]:
@@ -1516,12 +2035,20 @@ def get_dynamic_sizing_snapshot(db_path: str | Path = DEFAULT_DB_PATH, conn: sql
             conn.close()
 
 
+def _get_wallet_float_stat(conn: sqlite3.Connection, wallet: str, name: str, default: float) -> float:
+    """Per-source-wallet sizing stat, falling back to the legacy global value."""
+    value = _get_meta(conn, f"wallet_stat:{wallet}:{name}")
+    if value is not None:
+        return _to_float(value, default)
+    return _get_float_meta(conn, f"tony_{name}", default)
+
+
 def _effective_copy_scale(conn: sqlite3.Connection, snapshot: PortfolioSnapshot, settings: CopySettings) -> float:
     if not settings.dynamic_sizing_enabled:
         scale = max(0.0, settings.copy_scale)
         _set_meta(conn, "copy_scale_mode", "fixed")
     else:
-        tony_equity = _get_float_meta(conn, "tony_visible_equity", 0.0)
+        tony_equity = _get_wallet_float_stat(conn, settings.target_wallet, "visible_equity", 0.0)
         if tony_equity <= 0 or snapshot.equity <= 0:
             scale = max(0.0, settings.copy_scale)
             _set_meta(conn, "copy_scale_mode", "fixed_fallback_no_tony_equity")
@@ -1541,7 +2068,7 @@ def _effective_copy_scale(conn: sqlite3.Connection, snapshot: PortfolioSnapshot,
 def _effective_max_order_equity_pct(conn: sqlite3.Connection, settings: CopySettings) -> float:
     cap = max(0.0, settings.max_order_equity_pct)
     if settings.dynamic_sizing_enabled and settings.dynamic_order_cap_from_tony:
-        tony_max_pct = _get_float_meta(conn, "tony_max_market_position_pct", 0.0)
+        tony_max_pct = _get_wallet_float_stat(conn, settings.target_wallet, "max_market_position_pct", 0.0)
         if tony_max_pct > 0:
             cap = max(cap, tony_max_pct)
     cap = min(cap, 1.0)
@@ -1576,7 +2103,15 @@ def _read_tony_wallet_stats(conn: sqlite3.Connection) -> TonyWalletStats | None:
     )
 
 
-def _store_tony_wallet_stats(conn: sqlite3.Connection, stats: TonyWalletStats, timestamp: float) -> None:
+def _store_tony_wallet_stats(
+    conn: sqlite3.Connection, stats: TonyWalletStats, timestamp: float, wallet: str | None = None
+) -> None:
+    if wallet:
+        # Per-source-wallet copies of the values the sizing reads, so each
+        # followed trader is sized against its own source wallet (spec §4.3).
+        _set_meta(conn, f"wallet_stat:{wallet}:ts", f"{timestamp:.6f}")
+        _set_meta(conn, f"wallet_stat:{wallet}:visible_equity", f"{stats.visible_equity:.10f}")
+        _set_meta(conn, f"wallet_stat:{wallet}:max_market_position_pct", f"{stats.max_market_position_pct:.10f}")
     _set_meta(conn, "tony_wallet_stats_ts", f"{timestamp:.6f}")
     _set_meta(conn, "tony_wallet_stats_json", json.dumps(asdict(stats), sort_keys=True))
     _set_meta(conn, "tony_wallet_stats_updated_at", stats.updated_at)
@@ -1671,17 +2206,53 @@ def _erc20_balance_of(rpc_url: str, contract: str, wallet: str, decimals: int = 
     return int(str(result or "0x0"), 16) / (10**decimals)
 
 
-def _get_position(conn: sqlite3.Connection, asset: str) -> sqlite3.Row | None:
-    return conn.execute("SELECT * FROM positions WHERE asset = ?", (asset,)).fetchone()
+def _get_position(conn: sqlite3.Connection, wallet: str, asset: str) -> sqlite3.Row | None:
+    return conn.execute("SELECT * FROM positions WHERE trader_wallet = ? AND asset = ?", (wallet, asset)).fetchone()
 
 
-def _get_tony_position(conn: sqlite3.Connection, asset: str) -> sqlite3.Row | None:
-    return conn.execute("SELECT * FROM tony_positions WHERE asset = ?", (asset,)).fetchone()
-
-
-def _realized_pnl(conn: sqlite3.Connection) -> float:
-    row = conn.execute("SELECT COALESCE(SUM(realized_pnl), 0) AS value FROM paper_orders WHERE status IN ('copied', 'settled')").fetchone()
+def _realized_pnl(conn: sqlite3.Connection, wallet: str | None = None) -> float:
+    if wallet is None:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(realized_pnl), 0) AS value FROM paper_orders WHERE status IN ('copied', 'settled')"
+        ).fetchone()
+    else:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(realized_pnl), 0) AS value FROM paper_orders WHERE status IN ('copied', 'settled') AND source_wallet = ?",
+            (wallet,),
+        ).fetchone()
     return float(row["value"] if row else 0.0)
+
+
+def _ensure_trader(conn: sqlite3.Connection, wallet: str, start_cash: float) -> None:
+    """Create a sub-account for ``wallet`` if one does not exist yet."""
+    if conn.execute("SELECT 1 FROM traders WHERE wallet = ?", (wallet,)).fetchone():
+        return
+    now = utc_now()
+    seed = float(start_cash)
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO traders
+            (wallet, label, active, start_cash, cash, copy_scale_override, rank_score, added_at, updated_at)
+        VALUES (?, ?, 1, ?, ?, NULL, 0, ?, ?)
+        """,
+        (wallet, wallet, seed, seed, now, now),
+    )
+
+
+def _get_trader_cash(conn: sqlite3.Connection, wallet: str, default: float) -> float:
+    row = conn.execute("SELECT cash FROM traders WHERE wallet = ?", (wallet,)).fetchone()
+    return float(row["cash"]) if row is not None else float(default)
+
+
+def _set_trader_cash(conn: sqlite3.Connection, wallet: str, cash: float) -> None:
+    conn.execute("UPDATE traders SET cash = ?, updated_at = ? WHERE wallet = ?", (float(cash), utc_now(), wallet))
+
+
+def _total_cash(conn: sqlite3.Connection) -> float:
+    row = conn.execute("SELECT COALESCE(SUM(cash), 0) AS total, COUNT(*) AS n FROM traders").fetchone()
+    if row is None or int(row["n"]) == 0:
+        return _get_float_meta(conn, "cash", 1000.0)
+    return float(row["total"] or 0.0)
 
 
 def _get_meta(conn: sqlite3.Connection, key: str) -> str | None:
