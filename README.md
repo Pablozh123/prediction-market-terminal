@@ -100,6 +100,7 @@ Current behavior:
 - New observed BUY/SELL copies after baseline
 - Settlement/redeem recycling from unrealized to realized PnL
 - Manual paper cash top-ups
+- Automatic $1,000 paper cash top-ups when a trader sub-account is nearly depleted
 - CSV exports and skipped/baseline visibility
 - URL filters such as `/copy-trade?q=tony&status=copied,baseline&minTonyNotional=1000`
 

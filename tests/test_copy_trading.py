@@ -159,10 +159,11 @@ class CopyTradingTests(unittest.TestCase):
         self.assertEqual(order.reason, "skipped_unmatched_sell")
 
     def test_buy_is_skipped_when_no_cash_is_available(self) -> None:
+        settings = ct.CopySettings(trade_limit=20, auto_top_up_enabled=False)
         conn = ct.connect(self.db_path)
         try:
             conn.execute("UPDATE traders SET cash = 0 WHERE wallet = ?", (ct.COPY_TARGET_WALLET,))
-            order = ct.apply_paper_trade(conn, source_trade(), self.settings)
+            order = ct.apply_paper_trade(conn, source_trade(), settings)
             snapshot = ct.value_paper_portfolio(conn=conn)
         finally:
             conn.close()
@@ -170,6 +171,43 @@ class CopyTradingTests(unittest.TestCase):
         self.assertEqual(order.status, "skipped")
         self.assertEqual(order.reason, "insufficient_cash")
         self.assertAlmostEqual(snapshot.cash, 0.0)
+
+    def test_auto_top_up_when_cash_is_empty_then_copies_buy(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            conn.execute("UPDATE traders SET cash = 0 WHERE wallet = ?", (ct.COPY_TARGET_WALLET,))
+            order = ct.apply_paper_trade(conn, source_trade(), self.settings)
+            snapshot = ct.value_paper_portfolio(conn=conn)
+            cash_events = ct.get_cash_events(conn=conn)
+        finally:
+            conn.close()
+
+        self.assertEqual(order.status, "copied")
+        self.assertEqual(order.reason, "buy_scaled")
+        self.assertAlmostEqual(order.copy_notional, 10.0)
+        self.assertAlmostEqual(snapshot.cash, 990.0)
+        self.assertEqual(len(cash_events), 1)
+        self.assertEqual(str(cash_events.iloc[0]["reason"]), "auto_copy_cash_top_up")
+        self.assertEqual(str(cash_events.iloc[0]["trader_wallet"]), ct.COPY_TARGET_WALLET)
+        self.assertAlmostEqual(float(cash_events.iloc[0]["amount"]), 1000.0)
+
+    def test_auto_top_up_after_buy_drains_cash(self) -> None:
+        settings = ct.CopySettings(trade_limit=20, max_order_equity_pct=1.0)
+        conn = ct.connect(self.db_path)
+        try:
+            conn.execute("UPDATE traders SET cash = 10 WHERE wallet = ?", (ct.COPY_TARGET_WALLET,))
+            order = ct.apply_paper_trade(conn, source_trade(), settings)
+            snapshot = ct.value_paper_portfolio(conn=conn)
+            cash_events = ct.get_cash_events(conn=conn)
+        finally:
+            conn.close()
+
+        self.assertEqual(order.status, "copied")
+        self.assertAlmostEqual(order.copy_notional, 10.0)
+        self.assertAlmostEqual(snapshot.cash, 1000.0)
+        self.assertEqual(len(cash_events), 1)
+        self.assertEqual(str(cash_events.iloc[0]["reason"]), "auto_copy_cash_top_up")
+        self.assertEqual(str(cash_events.iloc[0]["trader_wallet"]), ct.COPY_TARGET_WALLET)
 
     def test_invalid_trade_is_skipped(self) -> None:
         conn = ct.connect(self.db_path)
