@@ -60,6 +60,9 @@ class CopySettings:
     dynamic_scale_max: float = 0.01
     dynamic_scale_min: float = 0.0
     dynamic_order_cap_from_tony: bool = True
+    auto_top_up_enabled: bool = True
+    auto_top_up_amount: float = 1000.0
+    auto_top_up_threshold: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -379,27 +382,52 @@ def add_paper_cash(
     wallet: str = COPY_TARGET_WALLET,
 ) -> float:
     """Top up a trader's sub-account cash and record the movement."""
-    amount = float(amount)
-    if amount <= 0:
-        raise ValueError("cash top-up amount must be positive")
     conn = connect(db_path)
     try:
         _ensure_trader(conn, wallet, _get_float_meta(conn, "paper_start_cash", 1000.0))
-        cash_before = _get_trader_cash(conn, wallet, 1000.0)
-        cash_after = cash_before + amount
-        now = utc_now()
-        _set_trader_cash(conn, wallet, cash_after)
-        conn.execute(
-            """
-            INSERT INTO cash_events (event_time, amount, cash_before, cash_after, reason, trader_wallet, note)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            (now, amount, cash_before, cash_after, reason, wallet, note),
-        )
+        cash_after = _record_trader_cash_event(conn, wallet, amount, reason, note)
         conn.commit()
         return cash_after
     finally:
         conn.close()
+
+
+def _record_trader_cash_event(conn: sqlite3.Connection, wallet: str, amount: float, reason: str, note: str = "") -> float:
+    amount = float(amount)
+    if amount <= 0:
+        raise ValueError("cash top-up amount must be positive")
+    cash_before = _get_trader_cash(conn, wallet, 1000.0)
+    cash_after = cash_before + amount
+    _set_trader_cash(conn, wallet, cash_after)
+    conn.execute(
+        """
+        INSERT INTO cash_events (event_time, amount, cash_before, cash_after, reason, trader_wallet, note)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (utc_now(), amount, cash_before, cash_after, reason, wallet, note),
+    )
+    return cash_after
+
+
+def _auto_top_up_if_needed(
+    conn: sqlite3.Connection,
+    wallet: str,
+    cash: float,
+    settings: CopySettings,
+    phase: str,
+    parsed: Mapping[str, Any],
+) -> float:
+    if not settings.auto_top_up_enabled:
+        return cash
+    threshold = max(0.0, float(settings.auto_top_up_threshold))
+    if cash > threshold:
+        return cash
+    note = (
+        f"{phase}: cash {cash:.4f} <= threshold {threshold:.4f}; "
+        f"source {parsed.get('side', '')} {float(parsed.get('source_notional', 0.0) or 0.0):.2f}; "
+        f"tx {parsed.get('source_tx', '')}"
+    )
+    return _record_trader_cash_event(conn, wallet, settings.auto_top_up_amount, "auto_copy_cash_top_up", note)
 
 
 def get_cash_events(db_path: str | Path = DEFAULT_DB_PATH, conn: sqlite3.Connection | None = None) -> pd.DataFrame:
@@ -1679,8 +1707,9 @@ def _apply_buy(conn: sqlite3.Connection, parsed: dict[str, Any], settings: CopyS
     wallet = parsed["source_wallet"]
     _ensure_trader(conn, wallet, settings.paper_start_cash)
     _increase_source_position(conn, wallet, parsed)
-    snapshot = value_sub_account(wallet, conn=conn)
     cash = _get_trader_cash(conn, wallet, settings.paper_start_cash)
+    cash = _auto_top_up_if_needed(conn, wallet, cash, settings, "before_buy", parsed)
+    snapshot = value_sub_account(wallet, conn=conn)
     effective_scale = _effective_copy_scale(conn, snapshot, settings)
     effective_cap_pct = _effective_max_order_equity_pct(conn, settings)
     desired = parsed["source_notional"] * effective_scale
@@ -1730,7 +1759,9 @@ def _apply_buy(conn: sqlite3.Connection, parsed: dict[str, Any], settings: CopyS
             now,
         ),
     )
-    _set_trader_cash(conn, wallet, cash - copy_notional)
+    cash_after_trade = cash - copy_notional
+    _set_trader_cash(conn, wallet, cash_after_trade)
+    _auto_top_up_if_needed(conn, wallet, cash_after_trade, settings, "after_buy", parsed)
     return PaperOrder(parsed["dedup_key"], "copied", "buy_scaled", parsed["side"], parsed["source_notional"], copy_notional, copy_size)
 
 

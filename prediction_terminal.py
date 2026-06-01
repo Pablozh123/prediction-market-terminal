@@ -9862,6 +9862,11 @@ def page_copy_trade() -> None:
             st.error(f"Cash top-up failed: {exc}")
     controls[3].metric("Max scale", f"{settings.dynamic_scale_max * 100:.2f}% of Tony")
     controls[4].metric("Base cap", f"{settings.max_order_equity_pct * 100:.1f}% equity")
+    if settings.auto_top_up_enabled:
+        st.caption(
+            f"Auto top-up is active: when a trader sub-account has <= {money(settings.auto_top_up_threshold)} cash, "
+            f"the copier adds {money(settings.auto_top_up_amount)} paper cash and continues copying."
+        )
     use_live_midpoints = st.toggle(
         "Value open copy positions with live orderbook midpoints",
         value=False,
