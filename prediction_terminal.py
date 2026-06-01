@@ -1031,15 +1031,15 @@ def apply_trader_filter_view_widgets(view: dict[str, Any]) -> None:
 
 
 def section_header(title: str, subtitle: str = "") -> None:
-    st.markdown(f"<div class='terminal-kicker'>Live public market data</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='terminal-title'>{title}</div>", unsafe_allow_html=True)
+    st.markdown("<div class='terminal-kicker'>Live public market data</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='terminal-title'>{html.escape(str(title))}</div>", unsafe_allow_html=True)
     if subtitle:
-        st.markdown(f"<div class='terminal-subtitle'>{subtitle}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='terminal-subtitle'>{html.escape(str(subtitle))}</div>", unsafe_allow_html=True)
 
 
 def draw_empty(message: str) -> None:
     with st.container(border=True):
-        st.markdown(f"<div class='small-note'>{message}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='small-note'>{html.escape(str(message))}</div>", unsafe_allow_html=True)
 
 
 def plot_config() -> dict[str, Any]:
