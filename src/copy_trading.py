@@ -1233,7 +1233,7 @@ def follow_trader(
     re-activated. Each new sub-account starts with the same ``start_cash`` so
     traders share a fair starting line (spec §4.3).
     """
-    wallet = str(wallet or "").strip()
+    wallet = str(wallet or "").strip().lower()
     if not wallet:
         raise ValueError("wallet is required to follow a trader")
     owns_conn = conn is None
@@ -1270,7 +1270,7 @@ def unfollow_trader(wallet: str, db_path: str | Path = DEFAULT_DB_PATH, conn: sq
     try:
         cursor = conn.execute(
             "UPDATE traders SET active = 0, updated_at = ? WHERE wallet = ? AND active = 1",
-            (utc_now(), str(wallet or "").strip()),
+            (utc_now(), str(wallet or "").strip().lower()),
         )
         conn.commit()
         return cursor.rowcount > 0
