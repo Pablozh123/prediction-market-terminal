@@ -21,6 +21,34 @@ import streamlit.components.v1 as components
 from src import copy_trading as ct
 from src import prediction_markets as md
 
+from app.format import (
+    cents,
+    markdown_money,
+    market_title_family_key,
+    money,
+    pct,
+    resolution_yield_summary,
+    signed_cents,
+)
+from app.filters import (
+    COPY_ORDER_STATUS_FILTERS,
+    add_market_filter_metrics,
+    apply_account_age_filter,
+    apply_copy_trade_order_filters,
+    apply_copy_trade_position_filters,
+    apply_end_date_filter,
+    apply_market_age_filter,
+    apply_percent_delta_filter,
+    apply_price_delta_filter,
+    apply_probability_filter,
+    apply_spread_filter,
+    copy_order_status_bucket,
+    filter_text,
+    market_filter_category,
+    numeric_col,
+    option_metric_filter,
+)
+
 
 st.set_page_config(
     page_title="Market Intel Terminal",
@@ -56,7 +84,6 @@ WORKSPACES = [
 ]
 SEARCH_RESULT_TYPES = ["Markets", "Traders", "Trades", "News", "Cross-Venue", "Alerts", "Tracked"]
 COPY_SIDE_FILTERS = ["BUY", "SELL"]
-COPY_ORDER_STATUS_FILTERS = ["copied", "settled", "skipped", "baseline", "duplicate"]
 PREDICTPARITY_NAV = ["Markets", "Traders", "Track", "Live Trades", "Monitor", "Portfolio"]
 PAGE_QUERY_SLUGS = {page: page.lower().replace(" ", "-") for page in WORKSPACES}
 PAGE_BY_QUERY_SLUG = {slug: page for page, slug in PAGE_QUERY_SLUGS.items()}
@@ -231,107 +258,6 @@ def inject_css() -> None:
 
 
 inject_css()
-
-
-def money(value: Any) -> str:
-    value = float(value or 0)
-    sign = "-" if value < 0 else ""
-    value = abs(value)
-    if value >= 1_000_000_000:
-        return f"{sign}${value / 1_000_000_000:.2f}b"
-    if value >= 1_000_000:
-        return f"{sign}${value / 1_000_000:.2f}m"
-    if value >= 1_000:
-        return f"{sign}${value / 1_000:.1f}k"
-    return f"{sign}${value:,.0f}"
-
-
-def markdown_money(value: Any) -> str:
-    return money(value).replace("$", "\\$")
-
-
-def pct(value: Any) -> str:
-    if value is None or pd.isna(value):
-        return "-"
-    return f"{float(value) * 100:.1f}%"
-
-
-def cents(value: Any) -> str:
-    if value is None or pd.isna(value):
-        return "-"
-    return f"{float(value) * 100:.1f}c"
-
-
-def signed_cents(value: Any) -> str:
-    if value is None or pd.isna(value):
-        return "-"
-    return f"{float(value) * 100:+.1f}c"
-
-
-def resolution_yield_summary(yes_price: Any, end_time: Any, now: pd.Timestamp | None = None) -> dict[str, Any]:
-    try:
-        yes = max(0.0, min(float(yes_price), 1.0))
-    except (TypeError, ValueError):
-        return {"side": "-", "price": None, "apy": None, "days_to_end": None}
-    no = 1 - yes
-    side = "Yes" if yes >= no else "No"
-    price = yes if side == "Yes" else no
-    if price <= 0 or price >= 1:
-        return {"side": side, "price": price, "apy": None, "days_to_end": None}
-    end = pd.to_datetime(end_time, utc=True, errors="coerce")
-    if pd.isna(end):
-        return {"side": side, "price": price, "apy": None, "days_to_end": None}
-    now_ts = pd.to_datetime(now if now is not None else pd.Timestamp.now(tz="UTC"), utc=True)
-    days_to_end = max((end - now_ts).total_seconds() / 86_400, 0.0)
-    if days_to_end <= 0:
-        return {"side": side, "price": price, "apy": None, "days_to_end": days_to_end}
-    return {
-        "side": side,
-        "price": price,
-        "apy": ((1 / price) - 1) * (365 / days_to_end),
-        "days_to_end": days_to_end,
-    }
-
-
-def market_title_family_key(title: Any) -> str:
-    tokens = re.findall(r"[a-z0-9]+", str(title or "").lower())
-    stopwords = {
-        "will",
-        "the",
-        "a",
-        "an",
-        "by",
-        "before",
-        "after",
-        "in",
-        "on",
-        "of",
-        "to",
-        "and",
-        "or",
-        "yes",
-        "no",
-        "may",
-        "june",
-        "july",
-        "august",
-        "september",
-        "october",
-        "november",
-        "december",
-        "jan",
-        "feb",
-        "mar",
-        "apr",
-        "jun",
-        "jul",
-        "aug",
-        "sep",
-        "oct",
-        "nov",
-        "dec",
-    }
-    return " ".join([token for token in tokens if token not in stopwords and not token.isdigit()][:8])
 
 
 def related_market_group(markets: pd.DataFrame, current: pd.Series, include_current: bool = True, limit: int = 20) -> pd.DataFrame:
@@ -1104,312 +1030,16 @@ def apply_trader_filter_view_widgets(view: dict[str, Any]) -> None:
         st.session_state[key] = value
 
 
-def filter_text(df: pd.DataFrame, query: str) -> pd.DataFrame:
-    if df.empty or not query:
-        return df
-    query = query.strip().lower()
-    if not query:
-        return df
-    fields = [
-        c
-        for c in [
-            "title",
-            "category",
-            "ticker",
-            "trader",
-            "wallet",
-            "outcome",
-            "status",
-            "reason",
-            "source_side",
-            "side",
-            "source_tx",
-            "transaction_hash",
-            "asset",
-            "condition_id",
-            "note",
-            "event_time",
-        ]
-        if c in df.columns
-    ]
-    if not fields:
-        return df
-    mask = pd.Series(False, index=df.index)
-    for field in fields:
-        mask = mask | df[field].astype(str).str.lower().str.contains(re.escape(query), na=False)
-    return df[mask]
-
-
-def copy_order_status_bucket(status: Any, reason: Any = "") -> str:
-    status_text = str(status or "").strip().lower()
-    reason_text = str(reason or "").strip().lower()
-    if status_text in {"seed_observed", "baseline"} or reason_text == "initial_baseline":
-        return "baseline"
-    if status_text in COPY_ORDER_STATUS_FILTERS:
-        return status_text
-    return status_text or "-"
-
-
-def apply_copy_trade_order_filters(
-    orders: pd.DataFrame,
-    *,
-    query: str,
-    sides: list[str],
-    statuses: list[str],
-    min_tony_notional: float,
-    min_copy_notional: float,
-    min_pnl: float,
-    reason_query: str,
-    latency_only: bool,
-    rows: int,
-) -> pd.DataFrame:
-    filtered = orders.copy()
-    if filtered.empty:
-        return filtered
-    filtered = filter_text(filtered, query)
-    if reason_query.strip() and "reason" in filtered:
-        needle = reason_query.strip().lower()
-        filtered = filtered[filtered["reason"].astype(str).str.lower().str.contains(re.escape(needle), na=False)]
-    if "source_side" in filtered:
-        side_text = filtered["source_side"].astype(str).str.upper()
-        if sides:
-            filtered = filtered[side_text.isin([item.upper() for item in sides])]
-        else:
-            filtered = filtered.iloc[0:0]
-    if "status" in filtered:
-        buckets = [
-            copy_order_status_bucket(status, reason)
-            for status, reason in zip(
-                filtered["status"].tolist(),
-                filtered["reason"].tolist() if "reason" in filtered else [""] * len(filtered),
-            )
-        ]
-        filtered = filtered.assign(status_bucket=buckets)
-        if statuses:
-            filtered = filtered[filtered["status_bucket"].isin([item.lower() for item in statuses])]
-        else:
-            filtered = filtered.iloc[0:0]
-    if "source_notional" in filtered:
-        filtered = filtered[numeric_col(filtered, "source_notional") >= float(min_tony_notional)]
-    if "copy_notional" in filtered:
-        filtered = filtered[numeric_col(filtered, "copy_notional") >= float(min_copy_notional)]
-    if "realized_pnl" in filtered:
-        filtered = filtered[numeric_col(filtered, "realized_pnl") >= float(min_pnl)]
-    if latency_only and {"created_at", "source_time"}.issubset(filtered.columns):
-        latency = (
-            pd.to_datetime(filtered["created_at"], utc=True, errors="coerce")
-            - pd.to_datetime(filtered["source_time"], utc=True, errors="coerce")
-        ).dt.total_seconds()
-        filtered = filtered[latency.notna()]
-    return filtered.head(int(rows)).reset_index(drop=True)
-
-
-def apply_copy_trade_position_filters(
-    positions: pd.DataFrame,
-    *,
-    query: str,
-    min_value: float,
-    min_pnl: float,
-    rows: int,
-) -> pd.DataFrame:
-    filtered = positions.copy()
-    if filtered.empty:
-        return filtered
-    filtered = filter_text(filtered, query)
-    if "value" in filtered:
-        filtered = filtered[numeric_col(filtered, "value") >= float(min_value)]
-    if "unrealized_pnl" in filtered:
-        filtered = filtered[numeric_col(filtered, "unrealized_pnl") >= float(min_pnl)]
-    return filtered.head(int(rows)).reset_index(drop=True)
-
-
-def numeric_col(df: pd.DataFrame, column: str, default: float = 0.0) -> pd.Series:
-    if column not in df:
-        return pd.Series(default, index=df.index, dtype="float64")
-    return pd.to_numeric(df[column], errors="coerce").fillna(default)
-
-
-def option_metric_filter(df: pd.DataFrame, column: str, preset: str, custom_min: float | None = None) -> pd.DataFrame:
-    if df.empty or column not in df or preset == "All":
-        return df
-    values = numeric_col(df, column)
-    thresholds = {
-        ">$100": 100.0,
-        ">$1k": 1_000.0,
-        ">$10k": 10_000.0,
-        ">$100k": 100_000.0,
-        ">$500k": 500_000.0,
-        ">$1m": 1_000_000.0,
-        ">$2m": 2_000_000.0,
-        "> -$10k": -10_000.0,
-        "> -$100k": -100_000.0,
-        "> -$500k": -500_000.0,
-    }
-    threshold = float(custom_min or 0.0) if preset == "Custom" else thresholds.get(preset)
-    if threshold is None:
-        return df
-    return df[values >= threshold]
-
-
-def apply_probability_filter(df: pd.DataFrame, preset: str, custom_range: tuple[float, float]) -> pd.DataFrame:
-    if df.empty or "yes_price" not in df or preset == "All":
-        return df
-    price = numeric_col(df, "yes_price")
-    ranges = {
-        "5-95%": (0.05, 0.95),
-        "20-80%": (0.20, 0.80),
-        ">80%": (0.80, 1.0),
-        ">95%": (0.95, 1.0),
-        ">99%": (0.99, 1.0),
-    }
-    low, high = (custom_range[0] / 100, custom_range[1] / 100) if preset == "Custom" else ranges.get(preset, (0.0, 1.0))
-    return df[(price >= low) & (price <= high)]
-
-
-def apply_spread_filter(df: pd.DataFrame, preset: str, custom_cents: float) -> pd.DataFrame:
-    if df.empty or "spread" not in df or preset == "All":
-        return df
-    thresholds = {"<3c": 0.03, "<7c": 0.07, "<10c": 0.10}
-    threshold = float(custom_cents) / 100 if preset == "Custom" else thresholds.get(preset)
-    if threshold is None:
-        return df
-    return df[numeric_col(df, "spread", 999.0) <= threshold]
-
-
-def apply_end_date_filter(df: pd.DataFrame, preset: str, custom_days: int) -> pd.DataFrame:
-    if df.empty or "end_time" not in df or preset == "All":
-        return df
-    end_time = pd.to_datetime(df["end_time"], utc=True, errors="coerce")
-    now = pd.Timestamp.utcnow()
-    if preset == "Open":
-        return df[end_time.isna() | (end_time >= now)]
-    if preset == "Past due":
-        return df[end_time.notna() & (end_time < now)]
-    days = {"<1d": 1, "<7d": 7, "<30d": 30}.get(preset, int(custom_days))
-    return df[end_time.notna() & (end_time >= now) & (end_time <= now + pd.Timedelta(days=days))]
-
-
-def apply_market_age_filter(df: pd.DataFrame, preset: str, custom_days: int) -> pd.DataFrame:
-    if df.empty or "market_age_days" not in df or preset == "All":
-        return df
-    age = numeric_col(df, "market_age_days", 999_999.0)
-    if preset == "Custom":
-        return df[age <= int(custom_days)]
-    days = {"<1d": 1, "<7d": 7, "<30d": 30}.get(preset)
-    if days is not None:
-        return df[age <= days]
-    if preset == ">365d":
-        return df[age >= 365]
-    return df
-
-
-def apply_percent_delta_filter(df: pd.DataFrame, column: str, preset: str, custom_pct: float) -> pd.DataFrame:
-    if df.empty or column not in df or preset == "All":
-        return df
-    values = numeric_col(df, column)
-    thresholds = {">25%": 0.25, ">50%": 0.50, ">75%": 0.75, ">100%": 1.0}
-    threshold = (float(custom_pct) / 100) if preset == "Custom" else thresholds.get(preset)
-    if threshold is None:
-        return df
-    return df[values >= threshold]
-
-
-def apply_price_delta_filter(df: pd.DataFrame, column: str, preset: str, custom_cents: float) -> pd.DataFrame:
-    if df.empty or column not in df or preset == "All":
-        return df
-    values = numeric_col(df, column).abs()
-    thresholds = {">1c": 0.01, ">3c": 0.03, ">5c": 0.05, ">10c": 0.10}
-    threshold = (float(custom_cents) / 100) if preset == "Custom" else thresholds.get(preset)
-    if threshold is None:
-        return df
-    return df[values >= threshold]
-
-
-def apply_account_age_filter(df: pd.DataFrame, preset: str, custom_days: int) -> pd.DataFrame:
-    if df.empty or "account_age_days" not in df or preset == "All":
-        return df
-    age = numeric_col(df, "account_age_days", -1.0)
-    if preset == "<14d":
-        return df[(age >= 0) & (age <= 14)]
-    if preset == ">365d":
-        return df[age >= 365]
-    if preset == "Custom":
-        return df[age >= int(custom_days)]
-    return df
-
-
-def market_filter_category(category: Any, title: Any = "") -> str:
-    if hasattr(md, "market_filter_category"):
-        return md.market_filter_category(category, title)
-    label = md.market_category_label(category)
-    text = f"{category or ''} {title or ''}".upper()
-    keyword_labels = (
-        (("SPORT", "NBA", "NFL", "MLB", "NHL", "FIFA", "WORLD CUP", "SOCCER", "TENNIS", "GOLF", "UFC", "MMA", "FORMULA 1", " F1 ", "CRICKET"), "Sports"),
-        (("CRYPTO", "BITCOIN", "BTC", "ETHEREUM", " ETH ", "SOLANA", "DOGE", "XRP"), "Crypto"),
-        (("ELECTION", "POLITIC", "TRUMP", "BIDEN", "CONGRESS", "SENATE", "PRESIDENT", "MAYORAL", "GOVERNOR"), "Politics"),
-        (("WEATHER", "TEMP", "HURRICANE", "RAIN", "SNOW"), "Weather"),
-        (("STOCK", "NASDAQ", "SPY", "S&P", "DOW", "FED", "INFLATION", "RATE", "WTI", "CRUDE OIL", "IPO"), "Finance"),
-    )
-    for keywords, inferred in keyword_labels:
-        if any(keyword in text for keyword in keywords):
-            return inferred
-    return label
-
-
-def add_market_filter_metrics(markets: pd.DataFrame, now: pd.Timestamp | None = None) -> pd.DataFrame:
-    if markets.empty:
-        return markets
-    enriched = markets.copy()
-    categories = (
-        enriched["category"].fillna("").astype(str)
-        if "category" in enriched
-        else pd.Series("", index=enriched.index, dtype="string")
-    )
-    titles = (
-        enriched["title"].fillna("").astype(str)
-        if "title" in enriched
-        else pd.Series("", index=enriched.index, dtype="string")
-    )
-    enriched["filter_category"] = [
-        market_filter_category(category, title)
-        for category, title in zip(categories.tolist(), titles.tolist())
-    ]
-    now_ts = pd.to_datetime(now if now is not None else pd.Timestamp.now(tz="UTC"), utc=True)
-    created = (
-        pd.to_datetime(enriched["created_at"], utc=True, errors="coerce")
-        if "created_at" in enriched
-        else pd.Series(pd.NaT, index=enriched.index, dtype="datetime64[ns, UTC]")
-    )
-    enriched["market_age_days"] = (now_ts - created).dt.total_seconds() / 86_400
-    volume_1h = numeric_col(enriched, "volume_1h")
-    volume_24h = numeric_col(enriched, "volume_24h")
-    volume_1w = numeric_col(enriched, "volume_1w")
-    volume_1mo = numeric_col(enriched, "volume_1mo")
-
-    one_hour_baseline = volume_24h / 24
-    enriched["volume_delta_1h"] = 0.0
-    valid_1h = one_hour_baseline > 0
-    enriched.loc[valid_1h, "volume_delta_1h"] = (volume_1h.loc[valid_1h] / one_hour_baseline.loc[valid_1h]) - 1
-
-    daily_baseline = (volume_1w / 7).where(volume_1w > 0, volume_1mo / 30)
-    enriched["volume_delta_24h"] = 0.0
-    valid_24h = daily_baseline > 0
-    enriched.loc[valid_24h, "volume_delta_24h"] = (volume_24h.loc[valid_24h] / daily_baseline.loc[valid_24h]) - 1
-    enriched["price_delta_1h"] = numeric_col(enriched, "change_1h")
-    enriched["price_delta_24h"] = numeric_col(enriched, "change_1d")
-    return enriched
-
-
 def section_header(title: str, subtitle: str = "") -> None:
-    st.markdown(f"<div class='terminal-kicker'>Live public market data</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='terminal-title'>{title}</div>", unsafe_allow_html=True)
+    st.markdown("<div class='terminal-kicker'>Live public market data</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='terminal-title'>{html.escape(str(title))}</div>", unsafe_allow_html=True)
     if subtitle:
-        st.markdown(f"<div class='terminal-subtitle'>{subtitle}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='terminal-subtitle'>{html.escape(str(subtitle))}</div>", unsafe_allow_html=True)
 
 
 def draw_empty(message: str) -> None:
     with st.container(border=True):
-        st.markdown(f"<div class='small-note'>{message}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='small-note'>{html.escape(str(message))}</div>", unsafe_allow_html=True)
 
 
 def plot_config() -> dict[str, Any]:
@@ -9758,6 +9388,120 @@ def load_copy_daemon_status() -> dict[str, Any]:
         return {}
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def load_trader_suggestions(limit: int = 50) -> pd.DataFrame:
+    return ct.suggest_traders(limit)
+
+
+def render_followed_traders_panel() -> None:
+    """Multi-trader sub-account management: list, follow/unfollow, ROI discovery."""
+    settings = ct.CopySettings()
+    with st.expander("Followed traders & discovery (multi-trader sub-accounts)", expanded=False):
+        traders = safe_load("Followed traders", ct.get_traders, default=pd.DataFrame())
+        stats = safe_load("Trader stats", ct.get_trader_stats, default=pd.DataFrame())
+        roi_by_wallet: dict[str, Any] = {}
+        if stats is not None and not stats.empty and "wallet" in stats:
+            roi_by_wallet = {str(w): r for w, r in zip(stats["wallet"], stats["roi"])}
+
+        if traders is None or traders.empty:
+            draw_empty("No traders followed yet. Follow a wallet below to open its sub-account.")
+        else:
+            rows = []
+            for _, trader in traders.iterrows():
+                wallet = str(trader.get("wallet", "") or "")
+                if not wallet:
+                    continue
+                sub = safe_load(f"Sub-account {wallet[:10]}", ct.value_sub_account, wallet, default=None)
+                roi = roi_by_wallet.get(wallet, trader.get("rank_score"))
+                rows.append(
+                    {
+                        "Trader": str(trader.get("label", "") or short_addr(wallet)),
+                        "Wallet": short_addr(wallet),
+                        "Active": "Yes" if int(trader.get("active", 0) or 0) == 1 else "No",
+                        "Start $": money(trader.get("start_cash")),
+                        "Cash": money(sub.cash if sub is not None else trader.get("cash")),
+                        "Equity": money(sub.equity if sub is not None else trader.get("cash")),
+                        "Realized PnL": money(sub.realized_pnl if sub is not None else 0.0),
+                        "ROI": pct(roi) if roi not in (None, "") else "-",
+                    }
+                )
+            st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+
+        if st.button("Sync all active traders", key="ct_sync_all_traders", width="stretch"):
+            synced = False
+            with st.spinner("Syncing all active trader sub-accounts..."):
+                try:
+                    api = ct.sync_active_copy_trades(settings=settings)
+                    settle = ct.sync_active_settlement_activity(
+                        settings=settings, limit=500, pages=1, closed_pages=2, metadata_pages=2
+                    )
+                    applied = sum(r.copied for r in api.values()) + sum(r.copied for r in settle.values())
+                    st.success(f"Synced {len(api)} sub-account(s); {applied} copies/settlements applied.")
+                    synced = True
+                except Exception as exc:
+                    st.error(f"Multi-trader sync failed: {exc}")
+            if synced:
+                st.rerun()
+
+        st.markdown("**Follow a wallet**")
+        with st.form("ct_follow_trader_form", clear_on_submit=True):
+            follow_cols = st.columns([2, 1.5, 1])
+            new_wallet = follow_cols[0].text_input("Polymarket proxy wallet (0x…)", key="ct_follow_wallet")
+            new_label = follow_cols[1].text_input("Label (optional)", key="ct_follow_label")
+            new_cash = follow_cols[2].number_input(
+                "Start cash $", min_value=0.0, value=float(ct.PER_TRADER_START_CASH), step=100.0, key="ct_follow_cash"
+            )
+            if st.form_submit_button("Follow wallet", type="primary"):
+                wallet = str(new_wallet or "").strip()
+                if not md.is_polymarket_wallet(wallet):
+                    st.error("Enter a valid Polymarket proxy wallet (0x + 40 hex characters).")
+                else:
+                    try:
+                        added = ct.follow_trader(wallet, label=str(new_label or "").strip(), start_cash=float(new_cash))
+                        st.success(f"{'Now following' if added else 'Re-activated'} {short_addr(wallet)} with {money(new_cash)} start cash.")
+                        st.rerun()
+                    except Exception as exc:
+                        st.error(f"Follow failed: {exc}")
+
+        active_wallets = [wallet for wallet in (ct.active_trader_wallets() or []) if wallet]
+        if active_wallets:
+            unfollow_cols = st.columns([3, 1])
+            unfollow_target = unfollow_cols[0].selectbox(
+                "Deactivate a trader", active_wallets, format_func=short_addr, key="ct_unfollow_target"
+            )
+            if unfollow_cols[1].button("Unfollow", key="ct_unfollow_btn", width="stretch"):
+                if str(unfollow_target) == ct.COPY_TARGET_WALLET:
+                    st.warning("Swisstony is the seed trader and stays followed.")
+                else:
+                    ct.unfollow_trader(str(unfollow_target))
+                    st.success(f"Deactivated {short_addr(str(unfollow_target))} (history kept).")
+                    st.rerun()
+
+        st.markdown("**Discover top wallets by ROI**")
+        if st.button("Load ROI suggestions", key="ct_load_suggestions"):
+            st.session_state["ct_suggestions_loaded"] = True
+        if st.session_state.get("ct_suggestions_loaded"):
+            suggestions = safe_load("ROI suggestions", load_trader_suggestions, 50, default=pd.DataFrame())
+            if suggestions is None or suggestions.empty:
+                draw_empty("No qualifying wallets returned (below the ROI / volume thresholds).")
+            else:
+                followed = set(ct.active_trader_wallets() or [])
+                for _, suggestion in suggestions.head(10).iterrows():
+                    wallet = str(suggestion.get("wallet", "") or "")
+                    if not wallet:
+                        continue
+                    suggestion_cols = st.columns([2.4, 1, 1, 1])
+                    suggestion_cols[0].markdown(f"**{str(suggestion.get('trader', '') or short_addr(wallet))}** · `{short_addr(wallet)}`")
+                    suggestion_cols[1].markdown(f"ROI {pct(suggestion.get('roi'))}")
+                    suggestion_cols[2].markdown(f"PnL {money(suggestion.get('pnl'))}")
+                    if wallet in followed:
+                        suggestion_cols[3].button("Following", key=f"ct_following_{wallet}", disabled=True, width="stretch")
+                    elif suggestion_cols[3].button("Follow", key=f"ct_follow_suggestion_{wallet}", width="stretch"):
+                        ct.follow_trader(wallet, label=str(suggestion.get("trader", "") or ""))
+                        st.success(f"Now following {short_addr(wallet)}.")
+                        st.rerun()
+
+
 def page_copy_trade() -> None:
     settings = ct.CopySettings()
     if "copy_trade_search" not in st.session_state:
@@ -9820,6 +9564,8 @@ def page_copy_trade() -> None:
         "Paper-only Swisstony copier with dynamic wallet-relative sizing and settlement recycling.",
     )
     st.info("Paper mode only. This page observes public Polymarket wallet activity and does not place real orders.")
+
+    render_followed_traders_panel()
 
     controls = st.columns([1, 1, 1, 1, 1])
     if controls[0].button("Sync now", type="primary", width="stretch"):
