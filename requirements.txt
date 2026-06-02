@@ -1,6 +1,8 @@
 # Streamlit app runtime
-streamlit>=1.58.0
-requests>=2.31.0
-pandas>=2.2.0
-plotly>=5.20.0
-dnspython>=2.6.1
+# Upper bounds pin the next major so `pip install -U` can't pull a breaking
+# release (Streamlit in particular changes widget APIs across minors).
+streamlit>=1.58.0,<2.0
+requests>=2.31.0,<3.0
+pandas>=2.2.0,<3.0
+plotly>=5.20.0,<7.0
+dnspython>=2.6.1,<3.0
