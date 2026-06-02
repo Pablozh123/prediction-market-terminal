@@ -9388,6 +9388,11 @@ def load_copy_daemon_status() -> dict[str, Any]:
         return {}
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def load_trader_suggestions(limit: int = 50) -> pd.DataFrame:
+    return ct.suggest_traders(limit)
+
+
 def render_followed_traders_panel() -> None:
     """Multi-trader sub-account management: list, follow/unfollow, ROI discovery."""
     settings = ct.CopySettings()
@@ -9423,6 +9428,7 @@ def render_followed_traders_panel() -> None:
             st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
 
         if st.button("Sync all active traders", key="ct_sync_all_traders", width="stretch"):
+            synced = False
             with st.spinner("Syncing all active trader sub-accounts..."):
                 try:
                     api = ct.sync_active_copy_trades(settings=settings)
@@ -9431,9 +9437,11 @@ def render_followed_traders_panel() -> None:
                     )
                     applied = sum(r.copied for r in api.values()) + sum(r.copied for r in settle.values())
                     st.success(f"Synced {len(api)} sub-account(s); {applied} copies/settlements applied.")
+                    synced = True
                 except Exception as exc:
                     st.error(f"Multi-trader sync failed: {exc}")
-            st.rerun()
+            if synced:
+                st.rerun()
 
         st.markdown("**Follow a wallet**")
         with st.form("ct_follow_trader_form", clear_on_submit=True):
@@ -9473,7 +9481,7 @@ def render_followed_traders_panel() -> None:
         if st.button("Load ROI suggestions", key="ct_load_suggestions"):
             st.session_state["ct_suggestions_loaded"] = True
         if st.session_state.get("ct_suggestions_loaded"):
-            suggestions = safe_load("ROI suggestions", ct.suggest_traders, 50, default=pd.DataFrame())
+            suggestions = safe_load("ROI suggestions", load_trader_suggestions, 50, default=pd.DataFrame())
             if suggestions is None or suggestions.empty:
                 draw_empty("No qualifying wallets returned (below the ROI / volume thresholds).")
             else:

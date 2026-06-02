@@ -945,6 +945,19 @@ class TraderDiscoveryTests(unittest.TestCase):
         self.assertNotIn("0xnew", active_after_unfollow)
         self.assertFalse(no_change)
 
+    def test_follow_trader_normalizes_wallet_case(self) -> None:
+        mixed = "0xAbCdEf0000000000000000000000000000001234"
+        lower = mixed.lower()
+        added = ct.follow_trader(mixed, db_path=self.db_path)
+        active = ct.active_trader_wallets(db_path=self.db_path)
+
+        self.assertTrue(added)
+        self.assertIn(lower, active)
+        self.assertNotIn(mixed, active)
+        # unfollow with the mixed-case form still matches the stored lowercase row
+        self.assertTrue(ct.unfollow_trader(mixed, db_path=self.db_path))
+        self.assertNotIn(lower, ct.active_trader_wallets(db_path=self.db_path))
+
     def test_refresh_trader_stats_persists_and_mirrors_rank_score(self) -> None:
         ranked = ct.rank_traders_by_roi(_leaderboard_df())
         conn = ct.connect(self.db_path)
