@@ -2,6 +2,7 @@ import unittest
 
 import pandas as pd
 
+from app import copy_follow as ctf
 from app import filters as flt
 from app import format as fmt
 
@@ -128,6 +129,29 @@ class FilterTests(unittest.TestCase):
         )
         self.assertEqual(len(out), 1)
         self.assertEqual(str(out.iloc[0]["source_side"]), "BUY")
+
+
+class CopyFollowTests(unittest.TestCase):
+    def test_active_wallet_set_filters_active_valid_wallets(self) -> None:
+        active_wallet = "0x" + "1" * 40
+        inactive_wallet = "0x" + "2" * 40
+        df = pd.DataFrame(
+            [
+                {"wallet": active_wallet.upper(), "active": 1},
+                {"wallet": inactive_wallet, "active": 0},
+                {"wallet": "not-a-wallet", "active": 1},
+            ]
+        )
+        self.assertEqual(ctf.active_wallet_set(df), {active_wallet})
+        self.assertEqual(ctf.status_label(active_wallet, {active_wallet}), "Following")
+        self.assertEqual(ctf.status_label(inactive_wallet, {active_wallet}), "")
+
+    def test_stats_by_wallet_and_safe_key(self) -> None:
+        wallet = "0x" + "a" * 40
+        stats = ctf.stats_by_wallet(pd.DataFrame([{"wallet": wallet.upper(), "roi": 0.12}]))
+        self.assertIn(wallet, stats)
+        self.assertAlmostEqual(float(stats[wallet]["roi"]), 0.12)
+        self.assertEqual(ctf.safe_key("prefix", wallet, "x/y", limit=12), "prefix_0xaaa")
 
 
 if __name__ == "__main__":
