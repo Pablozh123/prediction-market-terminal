@@ -18,6 +18,7 @@ import plotly.graph_objects as go
 import streamlit as st
 import streamlit.components.v1 as components
 
+from app import copy_follow as ctf
 from src import copy_trading as ct
 from src import prediction_markets as md
 
@@ -5327,8 +5328,8 @@ def render_wallet(wallet: str) -> None:
     )
     copy_traders = safe_load("Copy followed traders", ct.get_traders, default=pd.DataFrame())
     copy_stats = safe_load("Copy trader stats", ct.get_trader_stats, default=pd.DataFrame())
-    copy_active_wallets = copy_active_wallet_set(copy_traders)
-    copy_stats_map = copy_stats_by_wallet(copy_stats)
+    copy_active_wallets = ctf.active_wallet_set(copy_traders)
+    copy_stats_map = ctf.stats_by_wallet(copy_stats)
 
     show_copy_follow_notice()
     st.markdown(f"### {trader_name}")
@@ -6142,12 +6143,12 @@ def page_traders() -> None:
 
     copy_traders = safe_load("Copy followed traders", ct.get_traders, default=pd.DataFrame())
     copy_stats = safe_load("Copy trader stats", ct.get_trader_stats, default=pd.DataFrame())
-    copy_active_wallets = copy_active_wallet_set(copy_traders)
-    copy_stats_map = copy_stats_by_wallet(copy_stats)
+    copy_active_wallets = ctf.active_wallet_set(copy_traders)
+    copy_stats_map = ctf.stats_by_wallet(copy_stats)
 
     display = leaderboard.copy()
     display["wallet_short"] = display["wallet"].astype(str).map(short_addr)
-    display["copy_status"] = display["wallet"].astype(str).str.lower().map(lambda value: "Following" if value in copy_active_wallets else "")
+    display["copy_status"] = display["wallet"].map(lambda value: ctf.status_label(value, copy_active_wallets))
     display["profile_url"] = display["wallet"].astype(str).map(md.polymarket_profile_url)
     display["x_url"] = display.get("x_username", pd.Series("", index=display.index)).astype(str).map(x_profile_url)
     parity_handles = display.get("username", display.get("trader", pd.Series("", index=display.index))).astype(str)
@@ -9441,19 +9442,6 @@ def load_trader_suggestions(limit: int = 50) -> pd.DataFrame:
     return ct.suggest_traders(limit)
 
 
-def copy_active_wallet_set(traders: pd.DataFrame | None) -> set[str]:
-    if traders is None or traders.empty or "wallet" not in traders:
-        return set()
-    active = bool_mask(traders.get("active", pd.Series(False, index=traders.index)), False)
-    return {str(wallet).strip().lower() for wallet in traders.loc[active, "wallet"].tolist() if md.is_polymarket_wallet(str(wallet))}
-
-
-def copy_stats_by_wallet(stats: pd.DataFrame | None) -> dict[str, pd.Series]:
-    if stats is None or stats.empty or "wallet" not in stats:
-        return {}
-    return {str(row.get("wallet", "") or "").strip().lower(): row for _, row in stats.iterrows()}
-
-
 def show_copy_follow_notice() -> None:
     notice = st.session_state.pop("copy_follow_notice", None)
     if not isinstance(notice, tuple) or len(notice) != 2:
@@ -9529,7 +9517,7 @@ def render_copy_suggestions_panel(prefix: str, active_wallets: set[str], limit: 
         wallet = str(suggestion.get("wallet", "") or "").strip().lower()
         if not wallet:
             continue
-        safe_key = re.sub(r"[^a-zA-Z0-9_]", "_", f"{prefix}_{wallet}_{idx}")[:90]
+        safe_key = ctf.safe_key(prefix, wallet, idx)
         suggestion_cols = st.columns([2.4, 0.8, 0.8, 1])
         suggestion_cols[0].markdown(f"**{str(suggestion.get('trader', '') or short_addr(wallet))}**  \n`{short_addr(wallet)}`")
         suggestion_cols[1].markdown(f"ROI **{pct(suggestion.get('roi'))}**")
@@ -9549,7 +9537,7 @@ def render_followed_traders_panel() -> None:
     with st.expander("Followed traders & discovery (multi-trader sub-accounts)", expanded=False):
         traders = safe_load("Followed traders", ct.get_traders, default=pd.DataFrame())
         stats = safe_load("Trader stats", ct.get_trader_stats, default=pd.DataFrame())
-        active_wallet_set = copy_active_wallet_set(traders)
+        active_wallet_set = ctf.active_wallet_set(traders)
         roi_by_wallet: dict[str, Any] = {}
         if stats is not None and not stats.empty and "wallet" in stats:
             roi_by_wallet = {str(w): r for w, r in zip(stats["wallet"], stats["roi"])}
