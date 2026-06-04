@@ -140,6 +140,16 @@ def numeric_col(df: pd.DataFrame, column: str, default: float = 0.0) -> pd.Serie
     return pd.to_numeric(df[column], errors="coerce").fillna(default)
 
 
+def bool_mask(values: Any, default: bool = False, index: pd.Index | None = None) -> pd.Series:
+    """Return a warning-free boolean mask from a Series or scalar value."""
+    if isinstance(values, pd.Series):
+        series = values
+    else:
+        series = pd.Series(values, index=index)
+    values = series.to_numpy(dtype=object, na_value=default)
+    return pd.Series(values, index=series.index, name=series.name).astype(bool)
+
+
 def option_metric_filter(df: pd.DataFrame, column: str, preset: str, custom_min: float | None = None) -> pd.DataFrame:
     if df.empty or column not in df or preset == "All":
         return df

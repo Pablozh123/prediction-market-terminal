@@ -42,6 +42,7 @@ from app.filters import (
     apply_price_delta_filter,
     apply_probability_filter,
     apply_spread_filter,
+    bool_mask,
     copy_order_status_bucket,
     filter_text,
     market_filter_category,
@@ -1643,12 +1644,12 @@ def market_status_masks(markets: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
         empty = pd.Series(dtype=bool)
         return empty, empty
     closed = (
-        markets["closed"].astype("boolean").fillna(False).astype(bool)
+        bool_mask(markets["closed"], False)
         if "closed" in markets
         else pd.Series(False, index=markets.index, dtype=bool)
     )
     active = (
-        markets["active"].astype("boolean").fillna(True).astype(bool)
+        bool_mask(markets["active"], True)
         if "active" in markets
         else pd.Series(True, index=markets.index, dtype=bool)
     )
@@ -3263,9 +3264,9 @@ def page_overview() -> None:
         filtered = filtered[~filtered[overview_category_col].astype(str).isin(exclude_categories)]
     if active_only and not filtered.empty:
         if "active" in filtered:
-            filtered = filtered[filtered["active"].fillna(True).astype(bool)]
+            filtered = filtered[bool_mask(filtered["active"], True)]
         if "closed" in filtered:
-            filtered = filtered[~filtered["closed"].fillna(False).astype(bool)]
+            filtered = filtered[~bool_mask(filtered["closed"], False)]
     if not filtered.empty:
         volume_filter_col = _monitor_volume_col(filtered)
         filtered = filtered[numeric_col(filtered, volume_filter_col) >= float(overview_min_volume)]
@@ -3495,9 +3496,9 @@ def page_search() -> None:
     markets = combined[combined["platform"].isin(platforms)].copy() if not combined.empty else pd.DataFrame()
     if active_markets_only and not markets.empty:
         if "active" in markets:
-            markets = markets[markets["active"].fillna(True).astype(bool)]
+            markets = markets[bool_mask(markets["active"], True)]
         if "closed" in markets:
-            markets = markets[~markets["closed"].fillna(False).astype(bool)]
+            markets = markets[~bool_mask(markets["closed"], False)]
     markets = filter_text(markets, query)
     if tracked_only and not markets.empty:
         tracked_market_keys = {str(item.get("market_key", "")) for item in st.session_state.watchlist}
@@ -3983,7 +3984,7 @@ def render_related_markets(row: pd.Series, market_universe: pd.DataFrame | None 
 
     st.markdown("#### Related markets")
     r1, r2, r3 = st.columns(3)
-    active_count = int((~related.get("closed", pd.Series(False, index=related.index)).fillna(False).astype(bool)).sum())
+    active_count = int((~bool_mask(related.get("closed", pd.Series(False, index=related.index)), False)).sum())
     r1.metric("Related active", f"{active_count:,}")
     r2.metric("Resolved siblings", f"{len(closed_related):,}")
     r3.metric("Group volume", money(numeric_col(related, "activity_volume").sum()))
@@ -4909,11 +4910,11 @@ def page_markets() -> None:
     filtered = filtered[filtered["platform"].isin(platform_filter)]
     if status_filter == "Active":
         if "active" in filtered:
-            filtered = filtered[filtered["active"].fillna(False).astype(bool)]
+            filtered = filtered[bool_mask(filtered["active"], False)]
         if "closed" in filtered:
-            filtered = filtered[~filtered["closed"].fillna(False).astype(bool)]
+            filtered = filtered[~bool_mask(filtered["closed"], False)]
     elif status_filter == "Closed" and "closed" in filtered:
-        filtered = filtered[filtered["closed"].fillna(False).astype(bool)]
+        filtered = filtered[bool_mask(filtered["closed"], False)]
     if include_categories and market_category_col in filtered:
         filtered = filtered[filtered[market_category_col].astype(str).isin(include_categories)]
     if exclude_categories and market_category_col in filtered:

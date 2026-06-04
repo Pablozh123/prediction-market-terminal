@@ -63,6 +63,12 @@ class FilterTests(unittest.TestCase):
         self.assertTrue((flt.numeric_col(df, "missing", 5.0) == 5.0).all())
         self.assertEqual(list(flt.numeric_col(df, "a")), [1.0, 0.0, 0.0])
 
+    def test_bool_mask_handles_missing_and_scalar(self) -> None:
+        mask = flt.bool_mask(pd.Series([True, None, 0, 1]), default=False)
+        self.assertEqual(list(mask), [True, False, False, True])
+        scalar_mask = flt.bool_mask(None, default=True, index=pd.Index([10, 11]))
+        self.assertEqual(list(scalar_mask), [True, True])
+
     def test_copy_order_status_bucket(self) -> None:
         self.assertEqual(flt.copy_order_status_bucket("seed_observed"), "baseline")
         self.assertEqual(flt.copy_order_status_bucket("copied", "initial_baseline"), "baseline")
