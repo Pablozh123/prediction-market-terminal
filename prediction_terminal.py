@@ -5325,10 +5325,15 @@ def render_wallet(wallet: str) -> None:
         or (parity_profile.get("display_name") if parity_profile else "")
         or trader_name
     )
+    copy_traders = safe_load("Copy followed traders", ct.get_traders, default=pd.DataFrame())
+    copy_stats = safe_load("Copy trader stats", ct.get_trader_stats, default=pd.DataFrame())
+    copy_active_wallets = copy_active_wallet_set(copy_traders)
+    copy_stats_map = copy_stats_by_wallet(copy_stats)
 
+    show_copy_follow_notice()
     st.markdown(f"### {trader_name}")
     st.caption(f"Polymarket proxy wallet {wallet}")
-    action_cols = st.columns([1, 1, 1, 1, 1, 1, 1.2, 1.4])
+    action_cols = st.columns([1, 1, 1.2, 1, 1, 1, 1, 1.2, 1.4])
     if action_cols[0].button("Back", key=f"wallet_back_to_traders_{wallet_key}", width="stretch"):
         st.session_state["traders_inspect_wallet"] = wallet
         queue_navigation("Traders")
@@ -5342,15 +5347,22 @@ def render_wallet(wallet: str) -> None:
             save_local_list("followed_wallets.json", st.session_state.followed_wallets)
             st.success("Wallet added to tracked wallets.")
         st.rerun()
+    render_copy_follow_button(
+        action_cols[2],
+        wallet,
+        label=trader_name,
+        key=f"wallet_profile_copy_follow_{wallet_key}",
+        active_wallets=copy_active_wallets,
+    )
     if wallet_parity_url:
-        action_cols[2].link_button("Parity", wallet_parity_url, width="stretch")
+        action_cols[3].link_button("Parity", wallet_parity_url, width="stretch")
     else:
-        action_cols[2].button("Parity", key=f"wallet_profile_parity_disabled_{wallet_key}", width="stretch", disabled=True)
-    action_cols[3].link_button("Polymarket", f"https://polymarket.com/profile/{wallet}", width="stretch")
-    action_cols[4].link_button("Polygonscan", f"https://polygonscan.com/address/{wallet}", width="stretch")
-    action_cols[5].link_button("Arkham", f"https://intel.arkm.com/explorer/address/{wallet}", width="stretch")
-    action_cols[6].link_button("Relay", f"https://relay.link/transactions?address={wallet}", width="stretch")
-    action_cols[7].download_button(
+        action_cols[3].button("Parity", key=f"wallet_profile_parity_disabled_{wallet_key}", width="stretch", disabled=True)
+    action_cols[4].link_button("Polymarket", f"https://polymarket.com/profile/{wallet}", width="stretch")
+    action_cols[5].link_button("Polygonscan", f"https://polygonscan.com/address/{wallet}", width="stretch")
+    action_cols[6].link_button("Arkham", f"https://intel.arkm.com/explorer/address/{wallet}", width="stretch")
+    action_cols[7].link_button("Relay", f"https://relay.link/transactions?address={wallet}", width="stretch")
+    action_cols[8].download_button(
         "Share PnL",
         wallet_share_payload(wallet, trader_name, summary, open_positions).encode("utf-8"),
         file_name=f"{short_addr(wallet, width=4).replace('...', '_')}_pnl_snapshot.txt",
@@ -5373,6 +5385,9 @@ def render_wallet(wallet: str) -> None:
         info_cols[0].link_button("Open first tx", f"https://polygonscan.com/tx/{first_activity_tx}", width="stretch")
     info_cols[1].metric("Account Created", account_created)
     info_cols[2].metric("Activity observations", f"{activity_observations:,}")
+    if wallet.lower() in copy_active_wallets:
+        with st.expander("Paper-Copytrading sub-account", expanded=False):
+            render_copy_sub_account_metrics(wallet, copy_stats_map)
 
     chart_controls = st.columns([1.2, 1.4, 2.4])
     pnl_window = chart_controls[0].radio("PnL window", ["1d", "1w", "1mo", "All"], index=1, horizontal=True, key=f"wallet_pnl_window_{wallet_key}")
@@ -5766,6 +5781,7 @@ def render_wallet(wallet: str) -> None:
 
 def page_traders() -> None:
     section_header("Traders", "Parity-style trader leaderboard with search, view modes, PnL/volume/position filters, and wallet drilldown.")
+    show_copy_follow_notice()
     if "trader_search" not in st.session_state:
         reset_trader_filter_widgets(global_query)
     if st.session_state.pop("trader_filters_reset_pending", False):
@@ -6124,8 +6140,14 @@ def page_traders() -> None:
     elif account_stats_needed:
         st.caption("Assets are open-position value plus fetched Polygon USDC balance. Account age is the oldest public activity observed in the loaded activity pages.")
 
+    copy_traders = safe_load("Copy followed traders", ct.get_traders, default=pd.DataFrame())
+    copy_stats = safe_load("Copy trader stats", ct.get_trader_stats, default=pd.DataFrame())
+    copy_active_wallets = copy_active_wallet_set(copy_traders)
+    copy_stats_map = copy_stats_by_wallet(copy_stats)
+
     display = leaderboard.copy()
     display["wallet_short"] = display["wallet"].astype(str).map(short_addr)
+    display["copy_status"] = display["wallet"].astype(str).str.lower().map(lambda value: "Following" if value in copy_active_wallets else "")
     display["profile_url"] = display["wallet"].astype(str).map(md.polymarket_profile_url)
     display["x_url"] = display.get("x_username", pd.Series("", index=display.index)).astype(str).map(x_profile_url)
     parity_handles = display.get("username", display.get("trader", pd.Series("", index=display.index))).astype(str)
@@ -6144,6 +6166,7 @@ def page_traders() -> None:
     display["account_age_display"] = pd.to_numeric(display.get("account_age_days", pd.Series(dtype="float64")), errors="coerce")
     trader_columns = [
         "trader_identity",
+        "copy_status",
         "parity_url",
         "profile_url",
         "x_url",
@@ -6171,6 +6194,7 @@ def page_traders() -> None:
     ]
     parity_trader_columns = [
         "trader_identity",
+        "copy_status",
         "pnl",
         "volume",
         "win_rate_pct",
@@ -6178,6 +6202,7 @@ def page_traders() -> None:
     ]
     flow_trader_columns = [
         "trader_identity",
+        "copy_status",
         "pnl",
         "volume",
         "positions_value",
@@ -6196,6 +6221,7 @@ def page_traders() -> None:
     }.get(column_preset, parity_trader_columns)
     trader_config = {
         "trader_identity": st.column_config.TextColumn("Trader", width="large"),
+        "copy_status": st.column_config.TextColumn("Copy", width="small"),
         "parity_url": st.column_config.LinkColumn("Parity", display_text="Open Parity"),
         "profile_url": st.column_config.LinkColumn("Profile", display_text="Open profile"),
         "x_url": st.column_config.LinkColumn("X", display_text="X"),
@@ -6232,6 +6258,8 @@ def page_traders() -> None:
         else:
             st.info("Visible trader wallets are already tracked.")
     trader_action_cols[2].caption(f"Actions apply to the {len(display):,} traders currently shown after filters and row limit.")
+    with st.expander("Copy-Trading Vorschläge", expanded=False):
+        render_copy_suggestions_panel("traders", copy_active_wallets, limit=8)
     selected_wallet_from_table = ""
     selected_trader_action_row: pd.Series | None = None
     if view_mode == "Table":
@@ -6285,7 +6313,7 @@ def page_traders() -> None:
                             f"Win rate: **{pct(row.get('win_rate'))}**  \n"
                             f"Positions: **{money(row.get('positions_value', 0.0))}**"
                         )
-                        action_cols = st.columns([1, 1, 1, 1, 1])
+                        action_cols = st.columns([1, 1, 1, 1, 1, 1])
                         if action_cols[0].button("Open wallet", key=f"trader_card_open_{safe_wallet_key}", width="stretch", disabled=not bool(wallet_value)):
                             st.session_state["traders_inspect_wallet"] = wallet_value
                             st.rerun()
@@ -6298,20 +6326,28 @@ def page_traders() -> None:
                                 if changed:
                                     save_local_list("followed_wallets.json", st.session_state.followed_wallets)
                                 st.rerun()
+                        render_copy_follow_button(
+                            action_cols[2],
+                            wallet_value,
+                            label=str(row.get("trader", "") or ""),
+                            key=f"trader_card_copy_follow_{safe_wallet_key}",
+                            active_wallets=copy_active_wallets,
+                            disabled=not bool(wallet_value),
+                        )
                         parity_url = predictparity_trader_url(row.get("username", "") or row.get("trader", ""))
                         if parity_url:
-                            action_cols[2].link_button("Parity", parity_url, width="stretch")
+                            action_cols[3].link_button("Parity", parity_url, width="stretch")
                         else:
-                            action_cols[2].button("Parity", key=f"trader_card_parity_disabled_{safe_wallet_key}", width="stretch", disabled=True)
+                            action_cols[3].button("Parity", key=f"trader_card_parity_disabled_{safe_wallet_key}", width="stretch", disabled=True)
                         if re.fullmatch(r"0x[a-fA-F0-9]{40}", wallet_value):
-                            action_cols[3].link_button("Polymarket", f"https://polymarket.com/profile/{wallet_value}", width="stretch")
+                            action_cols[4].link_button("Polymarket", f"https://polymarket.com/profile/{wallet_value}", width="stretch")
                         else:
-                            action_cols[3].button("Polymarket", key=f"trader_card_polymarket_disabled_{safe_wallet_key}", width="stretch", disabled=True)
+                            action_cols[4].button("Polymarket", key=f"trader_card_polymarket_disabled_{safe_wallet_key}", width="stretch", disabled=True)
                         x_url = x_profile_url(row.get("x_username", ""))
                         if x_url:
-                            action_cols[4].link_button("X", x_url, width="stretch")
+                            action_cols[5].link_button("X", x_url, width="stretch")
                         else:
-                            action_cols[4].button("X", key=f"trader_card_x_disabled_{safe_wallet_key}", width="stretch", disabled=True)
+                            action_cols[5].button("X", key=f"trader_card_x_disabled_{safe_wallet_key}", width="stretch", disabled=True)
     st.caption("Bot-like and whale scores are heuristics from the current recent-trade sample, not identity labels.")
     if selected_trader_action_row is not None:
         selected_wallet = str(selected_trader_action_row.get("wallet", "") or "")
@@ -6322,7 +6358,7 @@ def page_traders() -> None:
             f"{money(selected_trader_action_row.get('pnl', 0.0))} PnL | "
             f"{money(selected_trader_action_row.get('positions_value', 0.0))} open"
         )
-        action_cols = st.columns([1, 1, 1, 1, 1, 2])
+        action_cols = st.columns([1, 1, 1, 1, 1, 1, 2])
         if action_cols[0].button("Open in Wallets", key="traders_selected_open_wallets", width="stretch", disabled=not bool(selected_wallet)):
             st.session_state["wallets_inspect_wallet"] = selected_wallet
             queue_navigation("Wallets", "")
@@ -6337,21 +6373,32 @@ def page_traders() -> None:
                 st.success("Selected trader wallet added to tracked wallets.")
             else:
                 st.info("Selected trader wallet is already tracked or invalid.")
+        render_copy_follow_button(
+            action_cols[2],
+            selected_wallet,
+            label=selected_name,
+            key=f"traders_selected_copy_follow_{short_addr(selected_wallet, width=4).replace('...', '_')}",
+            active_wallets=copy_active_wallets,
+            disabled=not bool(selected_wallet),
+        )
+        if selected_wallet.lower() in copy_active_wallets:
+            with st.expander("Selected trader paper sub-account", expanded=False):
+                render_copy_sub_account_metrics(selected_wallet, copy_stats_map)
         selected_parity_url = predictparity_trader_url(selected_trader_action_row.get("username", "") or selected_trader_action_row.get("trader", ""))
         if selected_parity_url:
-            action_cols[2].link_button("Parity", selected_parity_url, width="stretch")
+            action_cols[3].link_button("Parity", selected_parity_url, width="stretch")
         else:
-            action_cols[2].button("Parity", key="traders_selected_parity_disabled", width="stretch", disabled=True)
+            action_cols[3].button("Parity", key="traders_selected_parity_disabled", width="stretch", disabled=True)
         if re.fullmatch(r"0x[a-fA-F0-9]{40}", selected_wallet):
-            action_cols[3].link_button("Polymarket", f"https://polymarket.com/profile/{selected_wallet}", width="stretch")
+            action_cols[4].link_button("Polymarket", f"https://polymarket.com/profile/{selected_wallet}", width="stretch")
         else:
-            action_cols[3].button("Polymarket", key="traders_selected_polymarket_disabled", width="stretch", disabled=True)
+            action_cols[4].button("Polymarket", key="traders_selected_polymarket_disabled", width="stretch", disabled=True)
         selected_x_url = x_profile_url(selected_trader_action_row.get("x_username", ""))
         if selected_x_url:
-            action_cols[4].link_button("X", selected_x_url, width="stretch")
+            action_cols[5].link_button("X", selected_x_url, width="stretch")
         else:
-            action_cols[4].button("X", key="traders_selected_x_disabled", width="stretch", disabled=True)
-        action_cols[5].caption("Use row selection in Table/List mode to inspect, track, or open a leaderboard wallet.")
+            action_cols[5].button("X", key="traders_selected_x_disabled", width="stretch", disabled=True)
+        action_cols[6].caption("Use row selection in Table/List mode to inspect, track, copy-follow, or open a leaderboard wallet.")
     if selected_wallet_from_table:
         st.session_state["traders_inspect_wallet"] = selected_wallet_from_table
         st.caption("Selected table row is ready for wallet detail.")
@@ -9394,12 +9441,115 @@ def load_trader_suggestions(limit: int = 50) -> pd.DataFrame:
     return ct.suggest_traders(limit)
 
 
+def copy_active_wallet_set(traders: pd.DataFrame | None) -> set[str]:
+    if traders is None or traders.empty or "wallet" not in traders:
+        return set()
+    active = bool_mask(traders.get("active", pd.Series(False, index=traders.index)), False)
+    return {str(wallet).strip().lower() for wallet in traders.loc[active, "wallet"].tolist() if md.is_polymarket_wallet(str(wallet))}
+
+
+def copy_stats_by_wallet(stats: pd.DataFrame | None) -> dict[str, pd.Series]:
+    if stats is None or stats.empty or "wallet" not in stats:
+        return {}
+    return {str(row.get("wallet", "") or "").strip().lower(): row for _, row in stats.iterrows()}
+
+
+def show_copy_follow_notice() -> None:
+    notice = st.session_state.pop("copy_follow_notice", None)
+    if not isinstance(notice, tuple) or len(notice) != 2:
+        return
+    level, message = notice
+    if level == "success":
+        st.success(str(message))
+    elif level == "warning":
+        st.warning(str(message))
+    else:
+        st.info(str(message))
+
+
+def render_copy_follow_button(
+    target: Any,
+    wallet: str,
+    *,
+    label: str,
+    key: str,
+    active_wallets: set[str],
+    disabled: bool = False,
+) -> None:
+    wallet = str(wallet or "").strip().lower()
+    if not md.is_polymarket_wallet(wallet):
+        target.button("Wallet folgen", key=f"{key}_invalid", width="stretch", disabled=True)
+        return
+    if wallet in active_wallets:
+        if wallet == str(ct.COPY_TARGET_WALLET).lower():
+            target.button("Folgt", key=f"{key}_seed", width="stretch", disabled=True)
+            return
+        if target.button("Entfolgen", key=f"{key}_unfollow", width="stretch", disabled=disabled):
+            changed = ct.unfollow_trader(wallet)
+            st.session_state["copy_follow_notice"] = (
+                "success" if changed else "info",
+                f"{short_addr(wallet)} wurde aus dem Paper-Copytrading deaktiviert." if changed else f"{short_addr(wallet)} war bereits deaktiviert.",
+            )
+            st.rerun()
+        return
+    if target.button("Wallet folgen", key=f"{key}_follow", width="stretch", disabled=disabled):
+        added = ct.follow_trader(wallet, label=str(label or "").strip())
+        st.session_state["copy_follow_notice"] = (
+            "success",
+            f"{short_addr(wallet)} wird jetzt paper-kopiert." if added else f"{short_addr(wallet)} wurde wieder aktiviert.",
+        )
+        st.rerun()
+
+
+def render_copy_sub_account_metrics(wallet: str, stats_by_wallet: dict[str, pd.Series] | None = None) -> None:
+    wallet = str(wallet or "").strip().lower()
+    if not md.is_polymarket_wallet(wallet):
+        return
+    snapshot = safe_load(f"Copy sub-account {wallet[:10]}", ct.value_sub_account, wallet, default=None)
+    stats_row = (stats_by_wallet or {}).get(wallet, pd.Series(dtype=object))
+    metric_cols = st.columns(5)
+    metric_cols[0].metric("Copy Cash", money(snapshot.cash if snapshot is not None else 0.0))
+    metric_cols[1].metric("Copy Equity", money(snapshot.equity if snapshot is not None else 0.0))
+    metric_cols[2].metric("Copy Positions", money(snapshot.position_value if snapshot is not None else 0.0))
+    metric_cols[3].metric("Copy Realized", money(snapshot.realized_pnl if snapshot is not None else 0.0))
+    metric_cols[4].metric("Copy ROI", pct(stats_row.get("roi")) if not stats_row.empty else "-")
+
+
+def render_copy_suggestions_panel(prefix: str, active_wallets: set[str], limit: int = 10) -> None:
+    if st.button("Vorschläge laden", key=f"{prefix}_load_copy_suggestions"):
+        st.session_state[f"{prefix}_copy_suggestions_loaded"] = True
+    if not st.session_state.get(f"{prefix}_copy_suggestions_loaded"):
+        st.caption("Vorschläge kommen aus ct.suggest_traders() und filtern öffentliche Leaderboard-Wallets nach ROI/Volumen.")
+        return
+    suggestions = safe_load("ROI suggestions", load_trader_suggestions, 50, default=pd.DataFrame())
+    if suggestions is None or suggestions.empty:
+        draw_empty("No qualifying wallets returned (below the ROI / volume thresholds).")
+        return
+    for idx, suggestion in suggestions.head(limit).iterrows():
+        wallet = str(suggestion.get("wallet", "") or "").strip().lower()
+        if not wallet:
+            continue
+        safe_key = re.sub(r"[^a-zA-Z0-9_]", "_", f"{prefix}_{wallet}_{idx}")[:90]
+        suggestion_cols = st.columns([2.4, 0.8, 0.8, 1])
+        suggestion_cols[0].markdown(f"**{str(suggestion.get('trader', '') or short_addr(wallet))}**  \n`{short_addr(wallet)}`")
+        suggestion_cols[1].markdown(f"ROI **{pct(suggestion.get('roi'))}**")
+        suggestion_cols[2].markdown(f"PnL **{money(suggestion.get('pnl'))}**")
+        render_copy_follow_button(
+            suggestion_cols[3],
+            wallet,
+            label=str(suggestion.get("trader", "") or ""),
+            key=f"{safe_key}_copy_follow",
+            active_wallets=active_wallets,
+        )
+
+
 def render_followed_traders_panel() -> None:
     """Multi-trader sub-account management: list, follow/unfollow, ROI discovery."""
     settings = ct.CopySettings()
     with st.expander("Followed traders & discovery (multi-trader sub-accounts)", expanded=False):
         traders = safe_load("Followed traders", ct.get_traders, default=pd.DataFrame())
         stats = safe_load("Trader stats", ct.get_trader_stats, default=pd.DataFrame())
+        active_wallet_set = copy_active_wallet_set(traders)
         roi_by_wallet: dict[str, Any] = {}
         if stats is not None and not stats.empty and "wallet" in stats:
             roi_by_wallet = {str(w): r for w, r in zip(stats["wallet"], stats["roi"])}
@@ -9479,28 +9629,7 @@ def render_followed_traders_panel() -> None:
                     st.rerun()
 
         st.markdown("**Discover top wallets by ROI**")
-        if st.button("Load ROI suggestions", key="ct_load_suggestions"):
-            st.session_state["ct_suggestions_loaded"] = True
-        if st.session_state.get("ct_suggestions_loaded"):
-            suggestions = safe_load("ROI suggestions", load_trader_suggestions, 50, default=pd.DataFrame())
-            if suggestions is None or suggestions.empty:
-                draw_empty("No qualifying wallets returned (below the ROI / volume thresholds).")
-            else:
-                followed = set(ct.active_trader_wallets() or [])
-                for _, suggestion in suggestions.head(10).iterrows():
-                    wallet = str(suggestion.get("wallet", "") or "")
-                    if not wallet:
-                        continue
-                    suggestion_cols = st.columns([2.4, 1, 1, 1])
-                    suggestion_cols[0].markdown(f"**{str(suggestion.get('trader', '') or short_addr(wallet))}** · `{short_addr(wallet)}`")
-                    suggestion_cols[1].markdown(f"ROI {pct(suggestion.get('roi'))}")
-                    suggestion_cols[2].markdown(f"PnL {money(suggestion.get('pnl'))}")
-                    if wallet in followed:
-                        suggestion_cols[3].button("Following", key=f"ct_following_{wallet}", disabled=True, width="stretch")
-                    elif suggestion_cols[3].button("Follow", key=f"ct_follow_suggestion_{wallet}", width="stretch"):
-                        ct.follow_trader(wallet, label=str(suggestion.get("trader", "") or ""))
-                        st.success(f"Now following {short_addr(wallet)}.")
-                        st.rerun()
+        render_copy_suggestions_panel("ct_panel", active_wallet_set, limit=10)
 
 
 def page_copy_trade() -> None:
