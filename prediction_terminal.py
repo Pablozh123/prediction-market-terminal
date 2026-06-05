@@ -3994,7 +3994,7 @@ def render_related_markets(row: pd.Series, market_universe: pd.DataFrame | None 
     preview["selected"] = preview["market_key"].astype(str).eq(current_key)
     preview["price"] = numeric_col(preview, "yes_price")
     preview["end"] = pd.to_datetime(preview.get("end_time"), utc=True, errors="coerce").dt.strftime("%Y-%m-%d").fillna("-")
-    preview["status"] = preview.get("closed", pd.Series(False, index=preview.index)).fillna(False).map(lambda value: "Resolved" if bool(value) else "Active")
+    preview["status"] = bool_mask(preview.get("closed", pd.Series(False, index=preview.index)), False).map(lambda value: "Resolved" if bool(value) else "Active")
     for chunk_start in range(0, len(preview.head(12)), 4):
         cols = st.columns(4)
         for col, (_, item) in zip(cols, preview.head(12).iloc[chunk_start : chunk_start + 4].iterrows()):
