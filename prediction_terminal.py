@@ -7124,63 +7124,19 @@ def page_live_trades() -> None:
         st.session_state["live_route_filter_signature"] = route_filter_signature
         st.session_state["live_view_loaded_message"] = "Loaded live trade filters from URL."
 
-    controls = st.columns([2, 1, 1, 1, 1])
-    query = controls[0].text_input("Search live trades", placeholder="market, wallet, trader, outcome", key="live_search")
+    controls = st.columns([2.4, 1.15, 1.15, 1.0, 1.0, 0.95, 0.95, 0.75])
+    query = controls[0].text_input("Search", placeholder="market, wallet, trader, outcome", key="live_search")
     platforms = controls[1].multiselect("Platform", ["Polymarket", "Kalshi"], key="live_platforms")
     sides = controls[2].multiselect("Side", ["BUY", "SELL", "yes", "no"], key="live_sides")
     min_notional = controls[3].number_input("Min notional", min_value=0, step=100, key="live_min_notional")
     rows = controls[4].slider("Rows", min_value=50, max_value=500, step=50, key="live_rows")
-    with st.expander("Live trade filters", expanded=False):
-        f1, f2, f3, f4 = st.columns(4)
-        tracked_markets_only = f1.checkbox("Tracked markets only", key="live_tracked_markets_only")
-        tracked_wallets_only = f2.checkbox("Tracked wallets only", key="live_tracked_wallets_only")
-        large_only = f3.checkbox("Whale prints only", key="live_large_only")
-        if f4.button("Reset Filters", width="stretch", key="reset_live_filters_button"):
-            st.session_state["live_filters_reset_pending"] = True
-            st.rerun()
+    tracked_markets_only = controls[5].toggle("Tracked markets", key="live_tracked_markets_only")
+    tracked_wallets_only = controls[6].toggle("Tracked wallets", key="live_tracked_wallets_only")
+    large_only = controls[7].toggle("Whales", key="live_large_only")
 
-    save_cols = st.columns([2, 1, 1])
-    saved_live_name = save_cols[0].text_input("Saved live view name", value=f"Live Trades {md.now_utc_label()}", key="saved_live_view_name")
-    save_live_clicked = save_cols[1].button("Save Filter", width="stretch", key="save_live_filter_button")
-    if save_cols[2].button("Reset Live View", width="stretch", key="reset_live_view_button"):
-        st.session_state["live_filters_reset_pending"] = True
-        st.rerun()
     loaded_live_message = st.session_state.pop("live_view_loaded_message", "")
     if loaded_live_message:
         st.info(loaded_live_message)
-    if st.session_state.saved_live_filters:
-        load_cols = st.columns([2, 1, 1])
-        saved_labels = [
-            f"{i + 1}. {view.get('name') or view.get('query') or 'Live view'}"
-            for i, view in enumerate(st.session_state.saved_live_filters)
-        ]
-        selected_saved_live = load_cols[0].selectbox("Load saved live view", saved_labels, key="load_saved_live_view")
-        selected_live_view = st.session_state.saved_live_filters[saved_labels.index(selected_saved_live)]
-        if load_cols[1].button("Load live view", key="load_live_view_button"):
-            st.session_state["pending_live_filter_view"] = selected_live_view
-            st.session_state["live_view_loaded_message"] = f"Loaded saved live view: {selected_live_view.get('name', selected_saved_live)}"
-            st.rerun()
-        if load_cols[2].button("Delete live view", key="delete_live_view_button"):
-            st.session_state.saved_live_filters.pop(saved_labels.index(selected_saved_live))
-            save_local_list("saved_live_filters.json", st.session_state.saved_live_filters)
-            st.rerun()
-    if save_live_clicked:
-        st.session_state.saved_live_filters.append(
-            {
-                "name": saved_live_name.strip() or f"Live Trades {md.now_utc_label()}",
-                "created_at": md.now_utc_label(),
-                "query": query,
-                "platforms": platforms,
-                "sides": sides,
-                "min_notional": float(min_notional),
-                "rows": int(rows),
-                "tracked_markets_only": bool(tracked_markets_only),
-                "tracked_wallets_only": bool(tracked_wallets_only),
-                "large_only": bool(large_only),
-            }
-        )
-        save_local_list("saved_live_filters.json", st.session_state.saved_live_filters)
-        st.success("Saved live trade view.")
 
     poly_trades = safe_load("Polymarket trades", load_polymarket_trades, rows, 0.0, None, None)
     kalshi_trades = safe_load("Kalshi trades", load_kalshi_trades, rows, None)
@@ -7228,58 +7184,6 @@ def page_live_trades() -> None:
     if tracked_wallets_only:
         live_chips.append("Tracked wallets only")
     render_filter_chips(live_chips)
-    live_defaults = live_trade_filter_defaults(rows=int(trade_limit))
-    live_clear_actions: list[tuple[str, dict[str, Any]]] = []
-    if query.strip():
-        live_clear_actions.append(("search", {"live_search": ""}))
-    if set(platforms) != set(live_defaults["live_platforms"]):
-        live_clear_actions.append(("platform", {"live_platforms": live_defaults["live_platforms"]}))
-    if sides:
-        live_clear_actions.append(("side/outcome", {"live_sides": []}))
-    if int(min_notional) > 0:
-        live_clear_actions.append(("min notional", {"live_min_notional": 0}))
-    if int(rows) != int(live_defaults["live_rows"]):
-        live_clear_actions.append(("rows", {"live_rows": live_defaults["live_rows"]}))
-    if large_only:
-        live_clear_actions.append(("whale only", {"live_large_only": False}))
-    if tracked_markets_only:
-        live_clear_actions.append(("tracked markets", {"live_tracked_markets_only": False}))
-    if tracked_wallets_only:
-        live_clear_actions.append(("tracked wallets", {"live_tracked_wallets_only": False}))
-    render_filter_clear_buttons(live_clear_actions, "live")
-    if st.session_state.saved_live_filters:
-        st.caption(f"Saved live views: {len(st.session_state.saved_live_filters)}")
-        with st.expander("Saved live trade filters", expanded=False):
-            st.dataframe(pd.DataFrame(st.session_state.saved_live_filters), width="stretch", height=160)
-            if st.button("Clear saved live filters"):
-                st.session_state.saved_live_filters = []
-                save_local_list("saved_live_filters.json", st.session_state.saved_live_filters)
-                st.rerun()
-    if not trades.empty:
-        live_action_cols = st.columns([1.1, 1.1, 1.1, 2.7])
-        live_action_cols[0].download_button(
-            "Export live trades CSV",
-            trades.to_csv(index=False).encode("utf-8"),
-            file_name="live_trades.csv",
-            mime="text/csv",
-            width="stretch",
-        )
-        if live_action_cols[1].button("Track tape wallets", key="live_track_tape_wallets", width="stretch"):
-            st.session_state.followed_wallets, changed_wallets = md.upsert_followed_wallets(st.session_state.followed_wallets, trades)
-            if changed_wallets:
-                save_local_list("followed_wallets.json", st.session_state.followed_wallets)
-                st.success(f"Tracked {changed_wallets} visible trade wallets.")
-            else:
-                st.info("Visible trade wallets are already tracked or unavailable.")
-        if live_action_cols[2].button("Track tape markets", key="live_track_tape_markets", width="stretch"):
-            st.session_state.watchlist, changed_markets = md.upsert_watchlist_markets(st.session_state.watchlist, trades)
-            if changed_markets:
-                save_local_list("watchlist.json", st.session_state.watchlist)
-                st.success(f"Tracked {changed_markets} visible trade markets.")
-            else:
-                st.info("Visible trade markets are already tracked.")
-        live_action_cols[3].caption(f"Actions apply to the {len(trades):,} trades currently shown after filters and row limit.")
-
     tab_tape, tab_inspect, tab_chart, tab_wallets, tab_markets, tab_bias, tab_track = st.tabs(["Trade tape", "Inspect Trade", "Flow chart", "Top wallets", "Market Flow", "Outcome Bias", "Track Actions"])
     with tab_tape:
         display_source = trades.copy()
