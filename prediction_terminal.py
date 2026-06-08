@@ -635,6 +635,39 @@ def whale_flow_filter_defaults(query: str = "", rows: int = 200, min_notional: i
         "whale_query": query,
         "whale_platforms": ["Polymarket", "Kalshi"],
         "whale_sides": [],
+        "whale_trade_side": "All",
+        "whale_maker_taker": "All",
+        "whale_price_preset": "All",
+        "whale_custom_price_min": 0,
+        "whale_custom_price_max": 100,
+        "whale_size_preset": "All",
+        "whale_custom_size": 0,
+        "whale_value_preset": "All",
+        "whale_custom_value": 0,
+        "whale_verified_only": False,
+        "whale_bot_mode": "Include bots",
+        "whale_account_age_preset": "All",
+        "whale_custom_account_age": 365,
+        "whale_pnl_preset": "All",
+        "whale_custom_pnl": 0,
+        "whale_volume_preset": "All",
+        "whale_custom_volume": 0,
+        "whale_win_rate_preset": "All",
+        "whale_custom_win_rate": 50,
+        "whale_balance_preset": "All",
+        "whale_custom_balance": 0,
+        "whale_contrarian_preset": "All",
+        "whale_custom_contrarian": 25,
+        "whale_trend_preset": "All",
+        "whale_custom_trend": 25,
+        "whale_lottery_preset": "All",
+        "whale_custom_lottery": 25,
+        "whale_splash_preset": "All",
+        "whale_custom_splash": 25,
+        "whale_concentration_preset": "All",
+        "whale_custom_concentration": 50,
+        "whale_unrealized_pnl_preset": "All",
+        "whale_custom_unrealized_pnl": 0,
         "whale_rows": _bounded_int(rows, 200, 50, 500),
         "whale_min_notional": max(0, int(min_notional)),
         "whale_min_wallet_notional": 0,
@@ -777,6 +810,39 @@ def apply_whale_flow_filter_view_widgets(view: dict[str, Any]) -> None:
         "whale_query": str(view.get("query", defaults["whale_query"])),
         "whale_platforms": _choice_list(view.get("platforms", defaults["whale_platforms"]), ["Polymarket", "Kalshi"], defaults["whale_platforms"]),
         "whale_sides": _optional_choice_list(view.get("sides", defaults["whale_sides"]), ["BUY", "SELL", "yes", "no"]),
+        "whale_trade_side": _choice(view.get("trade_side", view.get("side", defaults["whale_trade_side"])), ["All", "BUY", "SELL"], "All"),
+        "whale_maker_taker": _choice(view.get("maker_taker", defaults["whale_maker_taker"]), ["All", "Maker", "Taker"], "All"),
+        "whale_price_preset": _choice(view.get("price_preset", defaults["whale_price_preset"]), ["All", "<5c", "5-95c", ">95c", "Custom"], "All"),
+        "whale_custom_price_min": _bounded_int(view.get("custom_price_min", defaults["whale_custom_price_min"]), 0, 0, 100),
+        "whale_custom_price_max": _bounded_int(view.get("custom_price_max", defaults["whale_custom_price_max"]), 100, 0, 100),
+        "whale_size_preset": _choice(view.get("size_preset", defaults["whale_size_preset"]), ["All", ">100", ">1k", ">10k", "Custom"], "All"),
+        "whale_custom_size": int(_bounded_float(view.get("custom_size", defaults["whale_custom_size"]), 0.0, 0.0, 1_000_000_000.0)),
+        "whale_value_preset": _choice(view.get("value_preset", defaults["whale_value_preset"]), ["All", ">$100", ">$1k", ">$10k", "Custom"], "All"),
+        "whale_custom_value": int(_bounded_float(view.get("custom_value", defaults["whale_custom_value"]), 0.0, 0.0, 1_000_000_000.0)),
+        "whale_verified_only": bool(view.get("verified_only", defaults["whale_verified_only"])),
+        "whale_bot_mode": _choice(view.get("bot_mode", defaults["whale_bot_mode"]), ["Include bots", "Only bots", "Exclude bots"], "Include bots"),
+        "whale_account_age_preset": _choice(view.get("account_age_preset", defaults["whale_account_age_preset"]), ["All", "<14d", ">365d", "Custom"], "All"),
+        "whale_custom_account_age": _bounded_int(view.get("custom_account_age", defaults["whale_custom_account_age"]), 365, 0, 10_000),
+        "whale_pnl_preset": _choice(view.get("pnl_preset", defaults["whale_pnl_preset"]), ["All", ">$500k", ">$1m", ">$2m", "Custom"], "All"),
+        "whale_custom_pnl": int(_bounded_float(view.get("custom_pnl", defaults["whale_custom_pnl"]), 0.0, -1_000_000_000.0, 1_000_000_000.0)),
+        "whale_volume_preset": _choice(view.get("volume_preset", defaults["whale_volume_preset"]), ["All", ">$10k", ">$100k", ">$1m", "Custom"], "All"),
+        "whale_custom_volume": int(_bounded_float(view.get("custom_volume", defaults["whale_custom_volume"]), 0.0, 0.0, 1_000_000_000.0)),
+        "whale_win_rate_preset": _choice(view.get("win_rate_preset", defaults["whale_win_rate_preset"]), ["All", ">50%", ">70%", "Custom"], "All"),
+        "whale_custom_win_rate": _bounded_int(view.get("custom_win_rate", defaults["whale_custom_win_rate"]), 50, 0, 100),
+        "whale_balance_preset": _choice(view.get("balance_preset", defaults["whale_balance_preset"]), ["All", ">$1k", ">$10k", ">$100k", "Custom"], "All"),
+        "whale_custom_balance": int(_bounded_float(view.get("custom_balance", defaults["whale_custom_balance"]), 0.0, 0.0, 1_000_000_000.0)),
+        "whale_contrarian_preset": _choice(view.get("contrarian_preset", defaults["whale_contrarian_preset"]), ["All", ">25%", ">50%", "Custom"], "All"),
+        "whale_custom_contrarian": _bounded_int(view.get("custom_contrarian", defaults["whale_custom_contrarian"]), 25, 0, 100),
+        "whale_trend_preset": _choice(view.get("trend_preset", defaults["whale_trend_preset"]), ["All", ">25%", ">50%", "Custom"], "All"),
+        "whale_custom_trend": _bounded_int(view.get("custom_trend", defaults["whale_custom_trend"]), 25, 0, 100),
+        "whale_lottery_preset": _choice(view.get("lottery_preset", defaults["whale_lottery_preset"]), ["All", ">25%", ">50%", "Custom"], "All"),
+        "whale_custom_lottery": _bounded_int(view.get("custom_lottery", defaults["whale_custom_lottery"]), 25, 0, 100),
+        "whale_splash_preset": _choice(view.get("splash_preset", defaults["whale_splash_preset"]), ["All", ">25%", ">50%", "Custom"], "All"),
+        "whale_custom_splash": _bounded_int(view.get("custom_splash", defaults["whale_custom_splash"]), 25, 0, 100),
+        "whale_concentration_preset": _choice(view.get("concentration_preset", defaults["whale_concentration_preset"]), ["All", ">50%", ">70%", "Custom"], "All"),
+        "whale_custom_concentration": _bounded_int(view.get("custom_concentration", defaults["whale_custom_concentration"]), 50, 0, 100),
+        "whale_unrealized_pnl_preset": _choice(view.get("unrealized_pnl_preset", defaults["whale_unrealized_pnl_preset"]), ["All", ">$0", "<$0", "Custom"], "All"),
+        "whale_custom_unrealized_pnl": int(_bounded_float(view.get("custom_unrealized_pnl", defaults["whale_custom_unrealized_pnl"]), 0.0, -1_000_000_000.0, 1_000_000_000.0)),
         "whale_rows": _bounded_int(view.get("rows", defaults["whale_rows"]), 200, 50, 500),
         "whale_min_notional": int(_bounded_float(view.get("min_notional", defaults["whale_min_notional"]), 0.0, 0.0, 1_000_000_000.0)),
         "whale_min_wallet_notional": int(_bounded_float(view.get("min_wallet_notional", defaults["whale_min_wallet_notional"]), 0.0, 0.0, 1_000_000_000.0)),
@@ -1395,6 +1461,25 @@ def load_leaderboard(limit: int, time_period: str, order_by: str) -> pd.DataFram
         except Exception:
             pass
     return md.get_polymarket_leaderboard(limit=limit, time_period=time_period, order_by=order_by)
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def load_whale_trader_stats(limit: int = 500) -> pd.DataFrame:
+    frames: list[pd.DataFrame] = []
+    for sort_by in ("pnl", "volume"):
+        try:
+            frame = md.get_predictparity_traders(limit=limit, sort_by=sort_by, platform="polymarket")
+        except Exception:
+            frame = pd.DataFrame()
+        if not frame.empty:
+            frames.append(frame)
+    if not frames:
+        return pd.DataFrame()
+    stats = pd.concat([frame.dropna(axis=1, how="all") for frame in frames], ignore_index=True, sort=False)
+    if "wallet" not in stats:
+        return pd.DataFrame()
+    stats["wallet_key"] = stats["wallet"].astype(str).str.lower()
+    return stats.drop_duplicates("wallet_key", keep="first").drop(columns=["wallet_key"]).reset_index(drop=True)
 
 
 @st.cache_data(ttl=120, show_spinner=False)
@@ -7383,6 +7468,220 @@ def live_market_flow(trades: pd.DataFrame) -> pd.DataFrame:
     return grouped.sort_values(["notional", "latest_trade"], ascending=[False, False]).reset_index(drop=True)
 
 
+def whale_filter_row(label: str, options: list[str], key: str, help_text: str | None = None) -> str:
+    label_col, control_col = st.columns([1, 4])
+    label_col.markdown(f"**{label}**")
+    return control_col.radio(label, options, horizontal=True, key=key, label_visibility="collapsed", help=help_text)
+
+
+def whale_custom_number(label: str, key: str, value: float = 0.0, step: float = 1.0) -> float:
+    return st.number_input(label, min_value=0.0, value=float(value), step=float(step), key=key)
+
+
+def whale_pct_threshold(preset: str, custom_pct: float, defaults: dict[str, float] | None = None) -> float | None:
+    if preset == "All":
+        return None
+    if preset == "Custom":
+        return max(float(custom_pct or 0.0), 0.0) / 100.0
+    mapping = defaults or {">25%": 0.25, ">50%": 0.50, ">70%": 0.70}
+    return mapping.get(str(preset))
+
+
+def whale_money_threshold(preset: str, custom_value: float, mapping: dict[str, float]) -> float | None:
+    if preset == "All":
+        return None
+    if preset == "Custom":
+        return float(custom_value or 0.0)
+    return mapping.get(str(preset))
+
+
+def add_whale_liquidity_role(trades: pd.DataFrame) -> pd.DataFrame:
+    if trades.empty:
+        return trades.copy()
+    frame = trades.copy()
+    role = pd.Series("", index=frame.index, dtype="object")
+    for column in ["liquidity_role", "maker_taker", "role", "trade_type"]:
+        if column in frame:
+            role = frame[column].fillna("").astype(str)
+            break
+    kalshi_mask = frame.get("platform", pd.Series("", index=frame.index)).astype(str).eq("Kalshi")
+    role = role.where(role.str.strip().ne(""), "")
+    role.loc[kalshi_mask & role.str.strip().eq("")] = "Taker"
+    role = role.str.lower().map(lambda value: "Maker" if "maker" in value else ("Taker" if "taker" in value else ""))
+    frame["liquidity_role"] = role
+    return frame
+
+
+def merge_whale_stats(frame: pd.DataFrame, trader_stats: pd.DataFrame, behavior: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty:
+        return frame.copy()
+    enriched = frame.copy()
+    if "wallet" in enriched:
+        enriched["wallet_key"] = enriched["wallet"].astype(str).str.lower()
+    else:
+        enriched["wallet_key"] = ""
+    if not behavior.empty and "wallet" in behavior:
+        behavior_merge = behavior.copy()
+        behavior_merge["wallet_key"] = behavior_merge["wallet"].astype(str).str.lower()
+        behavior_cols = [
+            "wallet_key",
+            "contrarian_share",
+            "trend_follower_share",
+            "lottery_ticket_share",
+            "whale_splash_share",
+            "concentration_share",
+            "behavior_notional",
+            "behavior_trades",
+            "behavior_top_market",
+        ]
+        enriched = enriched.merge(behavior_merge[[col for col in behavior_cols if col in behavior_merge]], on="wallet_key", how="left")
+    if not trader_stats.empty and "wallet" in trader_stats:
+        stats = trader_stats.copy()
+        stats["wallet_key"] = stats["wallet"].astype(str).str.lower()
+        stats_cols = [
+            "wallet_key",
+            "pnl",
+            "volume",
+            "win_rate",
+            "cash_balance",
+            "account_age_days",
+            "is_bot",
+            "verified",
+            "positions_value",
+        ]
+        enriched = enriched.merge(stats[[col for col in stats_cols if col in stats]], on="wallet_key", how="left", suffixes=("", "_stat"))
+    for column in [
+        "contrarian_share",
+        "trend_follower_share",
+        "lottery_ticket_share",
+        "whale_splash_share",
+        "concentration_share",
+        "behavior_notional",
+        "behavior_trades",
+        "pnl",
+        "volume",
+        "win_rate",
+        "cash_balance",
+        "positions_value",
+        "unrealized_pnl",
+    ]:
+        if column not in enriched:
+            enriched[column] = 0.0
+        enriched[column] = pd.to_numeric(enriched[column], errors="coerce").fillna(0.0)
+    if "account_age_days" not in enriched:
+        enriched["account_age_days"] = -1.0
+    enriched["account_age_days"] = pd.to_numeric(enriched["account_age_days"], errors="coerce").fillna(-1.0)
+    for column in ["is_bot", "verified"]:
+        if column not in enriched:
+            enriched[column] = False
+        enriched[column] = bool_mask(enriched[column], False)
+    return enriched.drop(columns=["wallet_key"], errors="ignore")
+
+
+def apply_whale_trade_presets(
+    trades: pd.DataFrame,
+    *,
+    side: str,
+    maker_taker: str,
+    price_preset: str,
+    custom_price_min: float,
+    custom_price_max: float,
+    size_preset: str,
+    custom_size: float,
+    value_preset: str,
+    custom_value: float,
+) -> pd.DataFrame:
+    filtered = add_whale_liquidity_role(trades)
+    if filtered.empty:
+        return filtered
+    if side != "All" and "side" in filtered:
+        filtered = filtered[filtered["side"].astype(str).str.upper().eq(side)]
+    if maker_taker != "All":
+        filtered = filtered[filtered["liquidity_role"].astype(str).eq(maker_taker)]
+    price = numeric_col(filtered, "price")
+    if price_preset == "<5c":
+        filtered = filtered[price < 0.05]
+    elif price_preset == "5-95c":
+        filtered = filtered[(price >= 0.05) & (price <= 0.95)]
+    elif price_preset == ">95c":
+        filtered = filtered[price > 0.95]
+    elif price_preset == "Custom":
+        low = min(float(custom_price_min or 0.0), float(custom_price_max or 100.0)) / 100.0
+        high = max(float(custom_price_min or 0.0), float(custom_price_max or 100.0)) / 100.0
+        filtered = filtered[(price >= low) & (price <= high)]
+
+    size_threshold = whale_money_threshold(size_preset, custom_size, {">100": 100.0, ">1k": 1_000.0, ">10k": 10_000.0})
+    if size_threshold is not None:
+        filtered = filtered[numeric_col(filtered, "size") > float(size_threshold)]
+    value_threshold = whale_money_threshold(value_preset, custom_value, {">$100": 100.0, ">$1k": 1_000.0, ">$10k": 10_000.0})
+    if value_threshold is not None:
+        filtered = filtered[numeric_col(filtered, "notional") > float(value_threshold)]
+    return filtered
+
+
+def apply_whale_enriched_filters(
+    frame: pd.DataFrame,
+    *,
+    verified_only: bool,
+    bot_mode: str,
+    account_age_preset: str,
+    custom_account_age: int,
+    pnl_preset: str,
+    custom_pnl: float,
+    volume_preset: str,
+    custom_volume: float,
+    win_rate_preset: str,
+    custom_win_rate: float,
+    balance_preset: str,
+    custom_balance: float,
+    contrarian_preset: str,
+    custom_contrarian: float,
+    trend_preset: str,
+    custom_trend: float,
+    lottery_preset: str,
+    custom_lottery: float,
+    splash_preset: str,
+    custom_splash: float,
+    concentration_preset: str,
+    custom_concentration: float,
+    unrealized_pnl_preset: str,
+    custom_unrealized_pnl: float,
+) -> pd.DataFrame:
+    filtered = frame.copy()
+    if filtered.empty:
+        return filtered
+    if verified_only:
+        filtered = filtered[bool_mask(filtered.get("verified", pd.Series(False, index=filtered.index)), False)]
+    if bot_mode == "Only bots":
+        filtered = filtered[bool_mask(filtered.get("is_bot", pd.Series(False, index=filtered.index)), False)]
+    elif bot_mode == "Exclude bots":
+        filtered = filtered[~bool_mask(filtered.get("is_bot", pd.Series(False, index=filtered.index)), False)]
+    filtered = apply_account_age_filter(filtered, account_age_preset, int(custom_account_age))
+    filtered = option_metric_filter(filtered, "pnl", pnl_preset, float(custom_pnl))
+    filtered = option_metric_filter(filtered, "volume", volume_preset, float(custom_volume))
+    filtered = option_metric_filter(filtered, "cash_balance", balance_preset, float(custom_balance))
+    if win_rate_preset != "All":
+        threshold = (float(custom_win_rate or 0.0) if win_rate_preset == "Custom" else (70.0 if win_rate_preset == ">70%" else 50.0)) / 100.0
+        filtered = filtered[numeric_col(filtered, "win_rate", -1.0) > threshold]
+    for column, preset, custom_pct in [
+        ("contrarian_share", contrarian_preset, custom_contrarian),
+        ("trend_follower_share", trend_preset, custom_trend),
+        ("lottery_ticket_share", lottery_preset, custom_lottery),
+        ("whale_splash_share", splash_preset, custom_splash),
+        ("concentration_share", concentration_preset, custom_concentration),
+    ]:
+        threshold = whale_pct_threshold(preset, custom_pct, {">25%": 0.25, ">50%": 0.50, ">70%": 0.70})
+        if threshold is not None:
+            filtered = filtered[numeric_col(filtered, column) > float(threshold)]
+    if unrealized_pnl_preset == ">$0":
+        filtered = filtered[numeric_col(filtered, "unrealized_pnl") > 0.0]
+    elif unrealized_pnl_preset == "<$0":
+        filtered = filtered[numeric_col(filtered, "unrealized_pnl") < 0.0]
+    elif unrealized_pnl_preset == "Custom":
+        filtered = filtered[numeric_col(filtered, "unrealized_pnl") > float(custom_unrealized_pnl or 0.0)]
+    return filtered
+
+
 def page_live_trades() -> None:
     section_header("Live Trades", "Public real-time-style trade tape with Parity-style search, side, venue, notional, and whale filters.")
     if "live_search" not in st.session_state:
@@ -7795,18 +8094,107 @@ def page_whale_flow() -> None:
         st.session_state["whale_route_filter_signature"] = route_filter_signature
         st.session_state["whale_view_loaded_message"] = "Loaded whale-flow filters from URL."
 
-    controls = st.columns([1.5, 1, 1, 1])
+    controls = st.columns([1.7, 1.1, 0.9])
     whale_query = controls[0].text_input("Whale search", placeholder="market, wallet, trader, outcome", key="whale_query")
     whale_platforms = controls[1].multiselect("Platform", ["Polymarket", "Kalshi"], key="whale_platforms")
-    whale_sides = controls[2].multiselect("Side / outcome", ["BUY", "SELL", "yes", "no"], key="whale_sides")
-    whale_rows = controls[3].slider("Rows", min_value=50, max_value=500, step=50, key="whale_rows")
+    whale_rows = controls[2].slider("Rows", min_value=50, max_value=500, step=50, key="whale_rows")
     with st.expander("Whale flow filters", expanded=True):
-        f1, f2, f3, f4, f5 = st.columns(5)
-        whale_min_notional = f1.number_input("Min print notional", min_value=0, step=500, key="whale_min_notional")
+        st.caption("TRADE")
+        whale_trade_side = whale_filter_row("Side", ["All", "BUY", "SELL"], "whale_trade_side")
+        whale_maker_taker = whale_filter_row("Maker/Taker", ["All", "Maker", "Taker"], "whale_maker_taker")
+        whale_price_preset = whale_filter_row("Price", ["All", "<5c", "5-95c", ">95c", "Custom"], "whale_price_preset")
+        if whale_price_preset == "Custom":
+            cp1, cp2 = st.columns([1, 4])
+            cp1.empty()
+            with cp2:
+                pmin, pmax = st.columns(2)
+                pmin.number_input("Min price cents", min_value=0, max_value=100, step=1, key="whale_custom_price_min")
+                pmax.number_input("Max price cents", min_value=0, max_value=100, step=1, key="whale_custom_price_max")
+        whale_size_preset = whale_filter_row("Size", ["All", ">100", ">1k", ">10k", "Custom"], "whale_size_preset")
+        if whale_size_preset == "Custom":
+            cs1, cs2 = st.columns([1, 4])
+            cs1.empty()
+            cs2.number_input("Custom size", min_value=0, step=100, key="whale_custom_size")
+        whale_value_preset = whale_filter_row("Total value", ["All", ">$100", ">$1k", ">$10k", "Custom"], "whale_value_preset")
+        if whale_value_preset == "Custom":
+            cv1, cv2 = st.columns([1, 4])
+            cv1.empty()
+            cv2.number_input("Custom total value", min_value=0, step=500, key="whale_custom_value")
+
+        st.caption("TRADER")
+        b1, b2 = st.columns([1, 4])
+        b1.markdown("**Badges**")
+        whale_verified_only = b2.checkbox("Verified", key="whale_verified_only")
+        whale_bot_mode = whale_filter_row("Bots", ["Include bots", "Only bots", "Exclude bots"], "whale_bot_mode")
+        whale_account_age_preset = whale_filter_row("Account age", ["All", "<14d", ">365d", "Custom"], "whale_account_age_preset")
+        if whale_account_age_preset == "Custom":
+            ca1, ca2 = st.columns([1, 4])
+            ca1.empty()
+            ca2.number_input("Custom account age days", min_value=0, step=30, key="whale_custom_account_age")
+
+        st.caption("TRADER STATS")
+        whale_pnl_preset = whale_filter_row("PnL", ["All", ">$500k", ">$1m", ">$2m", "Custom"], "whale_pnl_preset")
+        if whale_pnl_preset == "Custom":
+            pn1, pn2 = st.columns([1, 4])
+            pn1.empty()
+            pn2.number_input("Custom PnL", min_value=0, step=10_000, key="whale_custom_pnl")
+        whale_volume_preset = whale_filter_row("Volume", ["All", ">$10k", ">$100k", ">$1m", "Custom"], "whale_volume_preset")
+        if whale_volume_preset == "Custom":
+            vo1, vo2 = st.columns([1, 4])
+            vo1.empty()
+            vo2.number_input("Custom volume", min_value=0, step=10_000, key="whale_custom_volume")
+        whale_win_rate_preset = whale_filter_row("Win rate", ["All", ">50%", ">70%", "Custom"], "whale_win_rate_preset")
+        if whale_win_rate_preset == "Custom":
+            wr1, wr2 = st.columns([1, 4])
+            wr1.empty()
+            wr2.number_input("Custom win rate %", min_value=0, max_value=100, step=1, key="whale_custom_win_rate")
+        whale_balance_preset = whale_filter_row("Balance", ["All", ">$1k", ">$10k", ">$100k", "Custom"], "whale_balance_preset")
+        if whale_balance_preset == "Custom":
+            ba1, ba2 = st.columns([1, 4])
+            ba1.empty()
+            ba2.number_input("Custom balance", min_value=0, step=1_000, key="whale_custom_balance")
+
+        st.caption("BEHAVIOR")
+        whale_contrarian_preset = whale_filter_row("Contrarian", ["All", ">25%", ">50%", "Custom"], "whale_contrarian_preset", "Betting against the crowd: price below 40c.")
+        if whale_contrarian_preset == "Custom":
+            c1, c2 = st.columns([1, 4])
+            c1.empty()
+            c2.number_input("Custom contrarian %", min_value=0, max_value=100, step=1, key="whale_custom_contrarian")
+        whale_trend_preset = whale_filter_row("Trend follower", ["All", ">25%", ">50%", "Custom"], "whale_trend_preset", "Following market consensus: price above 80c.")
+        if whale_trend_preset == "Custom":
+            tf1, tf2 = st.columns([1, 4])
+            tf1.empty()
+            tf2.number_input("Custom trend follower %", min_value=0, max_value=100, step=1, key="whale_custom_trend")
+        whale_lottery_preset = whale_filter_row("Lottery ticket", ["All", ">25%", ">50%", "Custom"], "whale_lottery_preset", "High risk, high reward: price below 20c.")
+        if whale_lottery_preset == "Custom":
+            lt1, lt2 = st.columns([1, 4])
+            lt1.empty()
+            lt2.number_input("Custom lottery ticket %", min_value=0, max_value=100, step=1, key="whale_custom_lottery")
+        whale_splash_preset = whale_filter_row("Whale splash", ["All", ">25%", ">50%", "Custom"], "whale_splash_preset", "Positions with cost basis above $10K.")
+        if whale_splash_preset == "Custom":
+            ws1, ws2 = st.columns([1, 4])
+            ws1.empty()
+            ws2.number_input("Custom whale splash %", min_value=0, max_value=100, step=1, key="whale_custom_splash")
+
+        st.caption("POSITION")
+        whale_concentration_preset = whale_filter_row("Concentration", ["All", ">50%", ">70%", "Custom"], "whale_concentration_preset")
+        if whale_concentration_preset == "Custom":
+            co1, co2 = st.columns([1, 4])
+            co1.empty()
+            co2.number_input("Custom concentration %", min_value=0, max_value=100, step=1, key="whale_custom_concentration")
+        whale_unrealized_pnl_preset = whale_filter_row("Unrealized PnL", ["All", ">$0", "<$0", "Custom"], "whale_unrealized_pnl_preset")
+        if whale_unrealized_pnl_preset == "Custom":
+            up1, up2 = st.columns([1, 4])
+            up1.empty()
+            up2.number_input("Custom unrealized PnL", min_value=0, step=100, key="whale_custom_unrealized_pnl")
+
+        st.caption("FLOW SCOPE")
+        f1, f2, f3, f4 = st.columns(4)
+        whale_min_notional = f1.number_input("Legacy min print notional", min_value=0, step=500, key="whale_min_notional")
         whale_min_wallet_notional = f2.number_input("Min wallet notional", min_value=0, step=1000, key="whale_min_wallet_notional")
         whale_min_wallet_trades = f3.number_input("Min wallet trades", min_value=1, step=1, key="whale_min_wallet_trades")
         whale_bias_filter = f4.radio("Outcome bias", ["Any", "YES", "NO", "Mixed"], horizontal=True, key="whale_bias_filter")
-        tracked_wallets_only = f5.checkbox("Tracked wallets only", key="whale_tracked_wallets_only")
+        tracked_wallets_only = st.checkbox("Tracked wallets only", key="whale_tracked_wallets_only")
         if st.button("Reset Filters", width="stretch", key="reset_whale_filters_button"):
             st.session_state["whale_filters_reset_pending"] = True
             st.rerun()
@@ -7843,7 +8231,39 @@ def page_whale_flow() -> None:
                 "created_at": md.now_utc_label(),
                 "query": whale_query,
                 "platforms": whale_platforms,
-                "sides": whale_sides,
+                "trade_side": whale_trade_side,
+                "maker_taker": whale_maker_taker,
+                "price_preset": whale_price_preset,
+                "custom_price_min": int(st.session_state.get("whale_custom_price_min", 0)),
+                "custom_price_max": int(st.session_state.get("whale_custom_price_max", 100)),
+                "size_preset": whale_size_preset,
+                "custom_size": int(st.session_state.get("whale_custom_size", 0)),
+                "value_preset": whale_value_preset,
+                "custom_value": int(st.session_state.get("whale_custom_value", 0)),
+                "verified_only": bool(whale_verified_only),
+                "bot_mode": whale_bot_mode,
+                "account_age_preset": whale_account_age_preset,
+                "custom_account_age": int(st.session_state.get("whale_custom_account_age", 365)),
+                "pnl_preset": whale_pnl_preset,
+                "custom_pnl": int(st.session_state.get("whale_custom_pnl", 0)),
+                "volume_preset": whale_volume_preset,
+                "custom_volume": int(st.session_state.get("whale_custom_volume", 0)),
+                "win_rate_preset": whale_win_rate_preset,
+                "custom_win_rate": int(st.session_state.get("whale_custom_win_rate", 50)),
+                "balance_preset": whale_balance_preset,
+                "custom_balance": int(st.session_state.get("whale_custom_balance", 0)),
+                "contrarian_preset": whale_contrarian_preset,
+                "custom_contrarian": int(st.session_state.get("whale_custom_contrarian", 25)),
+                "trend_preset": whale_trend_preset,
+                "custom_trend": int(st.session_state.get("whale_custom_trend", 25)),
+                "lottery_preset": whale_lottery_preset,
+                "custom_lottery": int(st.session_state.get("whale_custom_lottery", 25)),
+                "splash_preset": whale_splash_preset,
+                "custom_splash": int(st.session_state.get("whale_custom_splash", 25)),
+                "concentration_preset": whale_concentration_preset,
+                "custom_concentration": int(st.session_state.get("whale_custom_concentration", 50)),
+                "unrealized_pnl_preset": whale_unrealized_pnl_preset,
+                "custom_unrealized_pnl": int(st.session_state.get("whale_custom_unrealized_pnl", 0)),
                 "rows": int(whale_rows),
                 "min_notional": int(whale_min_notional),
                 "min_wallet_notional": int(whale_min_wallet_notional),
@@ -7864,14 +8284,76 @@ def page_whale_flow() -> None:
             trades = trades[trades["platform"].isin(whale_platforms)]
         else:
             trades = trades.iloc[0:0]
-        if whale_sides:
-            side_mask = trades["side"].astype(str).str.upper().isin([item.upper() for item in whale_sides])
-            outcome_mask = trades.get("outcome", pd.Series("", index=trades.index)).astype(str).str.upper().isin([item.upper() for item in whale_sides])
-            trades = trades[side_mask | outcome_mask]
+        trades = apply_whale_trade_presets(
+            trades,
+            side=whale_trade_side,
+            maker_taker=whale_maker_taker,
+            price_preset=whale_price_preset,
+            custom_price_min=float(st.session_state.get("whale_custom_price_min", 0)),
+            custom_price_max=float(st.session_state.get("whale_custom_price_max", 100)),
+            size_preset=whale_size_preset,
+            custom_size=float(st.session_state.get("whale_custom_size", 0)),
+            value_preset=whale_value_preset,
+            custom_value=float(st.session_state.get("whale_custom_value", 0)),
+        )
         trades = trades[numeric_col(trades, "notional") >= float(whale_min_notional)]
         if tracked_wallets_only:
             tracked_wallets = {item.lower() for item in st.session_state.followed_wallets}
             trades = trades[trades.get("wallet", pd.Series("", index=trades.index)).astype(str).str.lower().isin(tracked_wallets)] if tracked_wallets else trades.iloc[0:0]
+        behavior = md.whale_behavior_metrics(trades, whale_threshold=10_000.0)
+        stats_filters_active = any(
+            [
+                bool(whale_verified_only),
+                whale_bot_mode != "Include bots",
+                whale_account_age_preset != "All",
+                whale_pnl_preset != "All",
+                whale_volume_preset != "All",
+                whale_win_rate_preset != "All",
+                whale_balance_preset != "All",
+                whale_contrarian_preset != "All",
+                whale_trend_preset != "All",
+                whale_lottery_preset != "All",
+                whale_splash_preset != "All",
+                whale_concentration_preset != "All",
+                whale_unrealized_pnl_preset != "All",
+            ]
+        )
+        trader_stats = safe_load("Whale trader stats", load_whale_trader_stats, 500, default=pd.DataFrame()) if stats_filters_active else pd.DataFrame()
+        enriched_trades = merge_whale_stats(trades, trader_stats, behavior)
+        enriched_trades = apply_whale_enriched_filters(
+            enriched_trades,
+            verified_only=bool(whale_verified_only),
+            bot_mode=whale_bot_mode,
+            account_age_preset=whale_account_age_preset,
+            custom_account_age=int(st.session_state.get("whale_custom_account_age", 365)),
+            pnl_preset=whale_pnl_preset,
+            custom_pnl=float(st.session_state.get("whale_custom_pnl", 0)),
+            volume_preset=whale_volume_preset,
+            custom_volume=float(st.session_state.get("whale_custom_volume", 0)),
+            win_rate_preset=whale_win_rate_preset,
+            custom_win_rate=float(st.session_state.get("whale_custom_win_rate", 50)),
+            balance_preset=whale_balance_preset,
+            custom_balance=float(st.session_state.get("whale_custom_balance", 0)),
+            contrarian_preset=whale_contrarian_preset,
+            custom_contrarian=float(st.session_state.get("whale_custom_contrarian", 25)),
+            trend_preset=whale_trend_preset,
+            custom_trend=float(st.session_state.get("whale_custom_trend", 25)),
+            lottery_preset=whale_lottery_preset,
+            custom_lottery=float(st.session_state.get("whale_custom_lottery", 25)),
+            splash_preset=whale_splash_preset,
+            custom_splash=float(st.session_state.get("whale_custom_splash", 25)),
+            concentration_preset=whale_concentration_preset,
+            custom_concentration=float(st.session_state.get("whale_custom_concentration", 50)),
+            unrealized_pnl_preset=whale_unrealized_pnl_preset,
+            custom_unrealized_pnl=float(st.session_state.get("whale_custom_unrealized_pnl", 0)),
+        )
+        if not enriched_trades.empty:
+            trades = enriched_trades
+        else:
+            trades = trades.iloc[0:0]
+    else:
+        behavior = pd.DataFrame()
+        trader_stats = pd.DataFrame()
     flow = live_market_flow(trades)
     if whale_bias_filter != "Any" and not flow.empty:
         flow = flow[flow["flow_bias"].eq(whale_bias_filter)]
@@ -7886,6 +8368,8 @@ def page_whale_flow() -> None:
     event_risk = md.whale_event_risk_scores(trades, whale_threshold=risk_base)
     poly_whale_trades = trades[trades["platform"].eq("Polymarket")] if "platform" in trades else pd.DataFrame()
     wallet_risk = md.whale_wallet_risk_scores(poly_whale_trades, whale_threshold=risk_base)
+    if not wallet_risk.empty:
+        wallet_risk = merge_whale_stats(wallet_risk, trader_stats, behavior)
     if not flow.empty and not event_risk.empty:
         risk_cols = [
             "platform",
@@ -7912,8 +8396,29 @@ def page_whale_flow() -> None:
         chips.append(f"Search: {whale_query.strip()}")
     if set(whale_platforms) != set(whale_defaults["whale_platforms"]):
         chips.append("Platform: " + (", ".join(whale_platforms) if whale_platforms else "none"))
-    if whale_sides:
-        chips.append("Side/outcome: " + ", ".join(whale_sides))
+    for label, key, value in [
+        ("Side", "whale_trade_side", whale_trade_side),
+        ("Maker/Taker", "whale_maker_taker", whale_maker_taker),
+        ("Price", "whale_price_preset", whale_price_preset),
+        ("Size", "whale_size_preset", whale_size_preset),
+        ("Total value", "whale_value_preset", whale_value_preset),
+        ("Bots", "whale_bot_mode", whale_bot_mode),
+        ("Account age", "whale_account_age_preset", whale_account_age_preset),
+        ("PnL", "whale_pnl_preset", whale_pnl_preset),
+        ("Volume", "whale_volume_preset", whale_volume_preset),
+        ("Win rate", "whale_win_rate_preset", whale_win_rate_preset),
+        ("Balance", "whale_balance_preset", whale_balance_preset),
+        ("Contrarian", "whale_contrarian_preset", whale_contrarian_preset),
+        ("Trend", "whale_trend_preset", whale_trend_preset),
+        ("Lottery", "whale_lottery_preset", whale_lottery_preset),
+        ("Whale splash", "whale_splash_preset", whale_splash_preset),
+        ("Concentration", "whale_concentration_preset", whale_concentration_preset),
+        ("Unrealized PnL", "whale_unrealized_pnl_preset", whale_unrealized_pnl_preset),
+    ]:
+        if value != whale_defaults.get(key):
+            chips.append(f"{label}: {value}")
+    if whale_verified_only:
+        chips.append("Badge: Verified")
     if int(whale_rows) != int(whale_defaults["whale_rows"]):
         chips.append(f"Rows: {int(whale_rows)}")
     if int(whale_min_notional) > 0:
@@ -7933,8 +8438,29 @@ def page_whale_flow() -> None:
         clear_actions.append(("search", {"whale_query": ""}))
     if set(whale_platforms) != set(whale_defaults["whale_platforms"]):
         clear_actions.append(("platform", {"whale_platforms": whale_defaults["whale_platforms"]}))
-    if whale_sides:
-        clear_actions.append(("side/outcome", {"whale_sides": []}))
+    for label, key, value in [
+        ("side", "whale_trade_side", whale_trade_side),
+        ("maker/taker", "whale_maker_taker", whale_maker_taker),
+        ("price", "whale_price_preset", whale_price_preset),
+        ("size", "whale_size_preset", whale_size_preset),
+        ("total value", "whale_value_preset", whale_value_preset),
+        ("bots", "whale_bot_mode", whale_bot_mode),
+        ("account age", "whale_account_age_preset", whale_account_age_preset),
+        ("PnL", "whale_pnl_preset", whale_pnl_preset),
+        ("volume", "whale_volume_preset", whale_volume_preset),
+        ("win rate", "whale_win_rate_preset", whale_win_rate_preset),
+        ("balance", "whale_balance_preset", whale_balance_preset),
+        ("contrarian", "whale_contrarian_preset", whale_contrarian_preset),
+        ("trend", "whale_trend_preset", whale_trend_preset),
+        ("lottery", "whale_lottery_preset", whale_lottery_preset),
+        ("whale splash", "whale_splash_preset", whale_splash_preset),
+        ("concentration", "whale_concentration_preset", whale_concentration_preset),
+        ("unrealized PnL", "whale_unrealized_pnl_preset", whale_unrealized_pnl_preset),
+    ]:
+        if value != whale_defaults.get(key):
+            clear_actions.append((label, {key: whale_defaults[key]}))
+    if whale_verified_only:
+        clear_actions.append(("verified", {"whale_verified_only": False}))
     if int(whale_rows) != int(whale_defaults["whale_rows"]):
         clear_actions.append(("rows", {"whale_rows": whale_defaults["whale_rows"]}))
     if int(whale_min_notional) > 0:
@@ -7996,6 +8522,10 @@ def page_whale_flow() -> None:
             display["wallet"] = display["wallet"].astype(str).map(short_addr)
             display["directional_share_pct"] = numeric_col(display, "directional_share") * 100
             display["top_market_share_pct"] = numeric_col(display, "top_market_share") * 100
+            display["contrarian_pct"] = numeric_col(display, "contrarian_share") * 100
+            display["trend_pct"] = numeric_col(display, "trend_follower_share") * 100
+            display["lottery_pct"] = numeric_col(display, "lottery_ticket_share") * 100
+            display["splash_pct"] = numeric_col(display, "whale_splash_share") * 100
             st.download_button("Export whale wallets CSV", wallets.to_csv(index=False).encode("utf-8"), file_name="whale_wallets.csv", mime="text/csv")
             st.dataframe(
                 clean_table(
@@ -8012,6 +8542,10 @@ def page_whale_flow() -> None:
                         "directional_label",
                         "directional_share_pct",
                         "top_market_share_pct",
+                        "contrarian_pct",
+                        "trend_pct",
+                        "lottery_pct",
+                        "splash_pct",
                         "wallet_insider_flags",
                     ],
                 ),
@@ -8023,6 +8557,10 @@ def page_whale_flow() -> None:
                     "largest_trade": st.column_config.NumberColumn(format="$%.0f"),
                     "directional_share_pct": st.column_config.NumberColumn("Direction", format="%.0f%%"),
                     "top_market_share_pct": st.column_config.NumberColumn("Top Market", format="%.0f%%"),
+                    "contrarian_pct": st.column_config.NumberColumn("Contrarian", format="%.0f%%"),
+                    "trend_pct": st.column_config.NumberColumn("Trend", format="%.0f%%"),
+                    "lottery_pct": st.column_config.NumberColumn("Lottery", format="%.0f%%"),
+                    "splash_pct": st.column_config.NumberColumn("Splash", format="%.0f%%"),
                 },
             )
 
@@ -8091,6 +8629,10 @@ def page_whale_flow() -> None:
                 wallet_display["late_share_pct"] = numeric_col(wallet_display, "late_share") * 100
                 wallet_display["long_odds_share_pct"] = numeric_col(wallet_display, "long_odds_share") * 100
                 wallet_display["price_move_cents"] = numeric_col(wallet_display, "price_move") * 100
+                wallet_display["contrarian_pct"] = numeric_col(wallet_display, "contrarian_share") * 100
+                wallet_display["trend_pct"] = numeric_col(wallet_display, "trend_follower_share") * 100
+                wallet_display["lottery_pct"] = numeric_col(wallet_display, "lottery_ticket_share") * 100
+                wallet_display["splash_pct"] = numeric_col(wallet_display, "whale_splash_share") * 100
                 st.download_button("Export wallet insider CSV", wallet_risk.to_csv(index=False).encode("utf-8"), file_name="whale_wallet_insider_risk.csv", mime="text/csv")
                 st.dataframe(
                     clean_table(
@@ -8110,6 +8652,10 @@ def page_whale_flow() -> None:
                             "late_share_pct",
                             "long_odds_share_pct",
                             "price_move_cents",
+                            "contrarian_pct",
+                            "trend_pct",
+                            "lottery_pct",
+                            "splash_pct",
                             "wallet_insider_flags",
                         ],
                     ),
@@ -8124,6 +8670,10 @@ def page_whale_flow() -> None:
                         "late_share_pct": st.column_config.NumberColumn("Late Flow", format="%.0f%%"),
                         "long_odds_share_pct": st.column_config.NumberColumn("Long Odds", format="%.0f%%"),
                         "price_move_cents": st.column_config.NumberColumn("Price Move", format="%.1f c"),
+                        "contrarian_pct": st.column_config.NumberColumn("Contrarian", format="%.0f%%"),
+                        "trend_pct": st.column_config.NumberColumn("Trend", format="%.0f%%"),
+                        "lottery_pct": st.column_config.NumberColumn("Lottery", format="%.0f%%"),
+                        "splash_pct": st.column_config.NumberColumn("Splash", format="%.0f%%"),
                     },
                 )
     with tab_tape:

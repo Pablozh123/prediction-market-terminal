@@ -2939,6 +2939,65 @@ def whale_wallets(trades: pd.DataFrame) -> pd.DataFrame:
     return grouped
 
 
+def whale_behavior_metrics(trades: pd.DataFrame, whale_threshold: float = 10_000.0) -> pd.DataFrame:
+    """Return wallet-level behavior shares for whale-flow filters."""
+
+    if trades.empty:
+        return pd.DataFrame()
+    df = trades.copy()
+    df["platform"] = _df_col(df, "platform", "").fillna("").astype(str)
+    df["wallet"] = _df_col(df, "wallet", "").fillna("").astype(str)
+    df["trader"] = _df_col(df, "trader", "").fillna("").astype(str)
+    df["title"] = _df_col(df, "title", "").fillna("").astype(str)
+    df["price"] = pd.to_numeric(_df_col(df, "price", 0.0), errors="coerce").fillna(0.0).clip(lower=0.0)
+    df["size"] = pd.to_numeric(_df_col(df, "size", 0.0), errors="coerce").fillna(0.0).clip(lower=0.0)
+    df["notional"] = pd.to_numeric(_df_col(df, "notional", 0.0), errors="coerce").fillna(0.0).clip(lower=0.0)
+    df = df[df["wallet"].str.strip().ne("")]
+    if df.empty:
+        return pd.DataFrame()
+
+    group_cols = ["platform", "wallet", "trader"]
+    market_notional = df.groupby(group_cols + ["title"], dropna=False)["notional"].transform("sum")
+    df["contrarian_notional"] = df["notional"].where(df["price"] < 0.40, 0.0)
+    df["trend_notional"] = df["notional"].where(df["price"] > 0.80, 0.0)
+    df["lottery_notional"] = df["notional"].where(df["price"] < 0.20, 0.0)
+    df["whale_splash_notional"] = df["notional"].where(market_notional > max(float(whale_threshold or 0.0), 10_000.0), 0.0)
+    grouped = (
+        df.groupby(group_cols, dropna=False)
+        .agg(
+            behavior_trades=("wallet", "size"),
+            behavior_notional=("notional", "sum"),
+            behavior_avg_trade=("notional", "mean"),
+            behavior_largest_trade=("notional", "max"),
+            behavior_markets=("title", pd.Series.nunique),
+            contrarian_notional=("contrarian_notional", "sum"),
+            trend_notional=("trend_notional", "sum"),
+            lottery_notional=("lottery_notional", "sum"),
+            whale_splash_notional=("whale_splash_notional", "sum"),
+        )
+        .reset_index()
+    )
+    top_market = _dominant_bucket(
+        df,
+        group_cols,
+        "title",
+        bucket_name="behavior_top_market",
+        share_name="concentration_share",
+        notional_name="behavior_top_market_notional",
+    )
+    grouped = grouped.merge(top_market, on=group_cols, how="left")
+    denominator = grouped["behavior_notional"].replace({0: pd.NA})
+    for source, target in [
+        ("contrarian_notional", "contrarian_share"),
+        ("trend_notional", "trend_follower_share"),
+        ("lottery_notional", "lottery_ticket_share"),
+        ("whale_splash_notional", "whale_splash_share"),
+    ]:
+        grouped[target] = (grouped[source] / denominator).fillna(0.0)
+    grouped["concentration_share"] = pd.to_numeric(grouped.get("concentration_share"), errors="coerce").fillna(0.0)
+    return grouped.sort_values(["behavior_notional", "behavior_largest_trade"], ascending=False).reset_index(drop=True)
+
+
 def _df_col(df: pd.DataFrame, column: str, default: Any = "") -> pd.Series:
     if column in df:
         return df[column]
