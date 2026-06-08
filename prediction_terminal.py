@@ -9540,6 +9540,220 @@ def render_followed_traders_panel() -> None:
         render_copy_suggestions_panel("ct_panel", active_wallet_set, limit=10)
 
 
+def _copy_target_start_cash(settings: ct.CopySettings) -> float:
+    traders = safe_load("Copy traders", ct.get_traders, default=pd.DataFrame())
+    if isinstance(traders, pd.DataFrame) and not traders.empty and "wallet" in traders and "start_cash" in traders:
+        target = str(settings.target_wallet).lower()
+        rows = traders[traders["wallet"].astype(str).str.lower().eq(target)]
+        if not rows.empty:
+            value = pd.to_numeric(pd.Series([rows.iloc[0].get("start_cash")]), errors="coerce").dropna()
+            if not value.empty:
+                return float(value.iloc[0])
+    return float(settings.paper_start_cash)
+
+
+def _duration_label(seconds: Any) -> str:
+    try:
+        value = float(seconds)
+    except (TypeError, ValueError):
+        return "-"
+    if value < 0:
+        return "-"
+    if value < 90:
+        return f"{value:.0f}s"
+    minutes = value / 60
+    if minutes < 90:
+        return f"{minutes:.1f}m"
+    hours = minutes / 60
+    return f"{hours:.2f}h"
+
+
+def _age_label(value: Any) -> str:
+    ts = pd.to_datetime(value, utc=True, errors="coerce")
+    if pd.isna(ts):
+        return "-"
+    return _duration_label((pd.Timestamp.now(tz="UTC") - ts).total_seconds())
+
+
+def copy_order_latency_stats(orders: pd.DataFrame) -> dict[str, Any]:
+    if orders.empty or not {"source_time", "created_at", "status"}.issubset(orders.columns):
+        return {"count": 0}
+    source_time = pd.to_datetime(orders["source_time"], utc=True, errors="coerce")
+    created_at = pd.to_datetime(orders["created_at"], utc=True, errors="coerce")
+    measured = source_time.notna() & created_at.notna() & orders["status"].isin(["copied", "settled"])
+    latency = (created_at[measured] - source_time[measured]).dt.total_seconds()
+    latency = latency[latency >= 0].dropna()
+    if latency.empty:
+        return {"count": 0}
+    return {
+        "count": int(len(latency)),
+        "median": float(latency.median()),
+        "p90": float(latency.quantile(0.90)),
+        "last": float(latency.iloc[0]),
+    }
+
+
+def paper_copy_pnl_curve(orders: pd.DataFrame, snapshot: ct.PortfolioSnapshot) -> pd.DataFrame:
+    columns = ["time", "pnl", "series"]
+    if orders.empty or "created_at" not in orders or "realized_pnl" not in orders:
+        return pd.DataFrame(columns=columns)
+    frame = orders[orders["status"].isin(["copied", "settled"])].copy()
+    frame["time"] = pd.to_datetime(frame["created_at"], utc=True, errors="coerce")
+    frame["realized_pnl"] = pd.to_numeric(frame["realized_pnl"], errors="coerce").fillna(0.0)
+    frame = frame.dropna(subset=["time"]).sort_values("time")
+    if frame.empty:
+        return pd.DataFrame(columns=columns)
+    curve = frame.groupby("time", as_index=False)["realized_pnl"].sum()
+    curve["pnl"] = curve["realized_pnl"].cumsum()
+    curve["series"] = "Paper realized PnL"
+    result = curve[columns].copy()
+    if not result.empty:
+        current_pnl = float(snapshot.realized_pnl) + float(snapshot.unrealized_pnl)
+        result = pd.concat(
+            [
+                result,
+                pd.DataFrame(
+                    [
+                        {
+                            "time": pd.Timestamp.now(tz="UTC"),
+                            "pnl": current_pnl,
+                            "series": "Paper realized + open PnL",
+                        }
+                    ]
+                ),
+            ],
+            ignore_index=True,
+        )
+    return result
+
+
+def render_copy_command_center(
+    *,
+    settings: ct.CopySettings,
+    snapshot: ct.PortfolioSnapshot,
+    orders: pd.DataFrame,
+    positions: pd.DataFrame,
+    cash_events: pd.DataFrame,
+    meta: dict[str, Any],
+    dynamic_sizing: dict[str, Any],
+    daemon_status: dict[str, Any],
+) -> None:
+    start_cash = _copy_target_start_cash(settings)
+    total_pnl = float(snapshot.realized_pnl) + float(snapshot.unrealized_pnl)
+    roi_value = total_pnl / start_cash if start_cash else 0.0
+    copied_count = int((orders["status"] == "copied").sum()) if not orders.empty and "status" in orders else 0
+    settled_count = int((orders["status"] == "settled").sum()) if not orders.empty and "status" in orders else 0
+    skipped_count = int((orders["status"] == "skipped").sum()) if not orders.empty and "status" in orders else 0
+    baseline_count = int((orders["status"] == "seed_observed").sum()) if not orders.empty and "status" in orders else 0
+    below_min_count = int((orders["reason"] == "below_min_copy_notional").sum()) if not orders.empty and "reason" in orders else 0
+    actionable = copied_count + settled_count + skipped_count
+    coverage = (copied_count + settled_count) / actionable if actionable else 0.0
+    latency = copy_order_latency_stats(orders)
+    last_sync = daemon_status.get("last_sync_at") or meta.get("tony_seeded_at")
+
+    tony_profile = safe_load("PredictParity Swisstony profile", load_predictparity_trader_profile, settings.target_wallet, default={})
+    if not isinstance(tony_profile, dict):
+        tony_profile = {}
+    tony_name = str(tony_profile.get("display_name") or "swisstony")
+    tony_pnl = tony_profile.get("all_time_pnl", 0.0)
+    tony_volume = tony_profile.get("all_time_volume", 0.0)
+    tony_cash = tony_profile.get("usdc_balance", dynamic_sizing.get("tony_cash_estimate", 0.0))
+    tony_active = tony_profile.get("active_positions_value", dynamic_sizing.get("tony_position_value", 0.0))
+    tony_win_rate = tony_profile.get("win_rate")
+    tony_first_funding = tony_profile.get("first_funding_amount", 0.0)
+    created_at = pd.to_datetime(tony_profile.get("account_created_at"), utc=True, errors="coerce")
+    created_label = created_at.strftime("%b %d, %Y") if pd.notna(created_at) else "-"
+
+    st.markdown("### Copy-Trading Command Center")
+    hero_left, hero_right = st.columns([1.05, 1.0])
+    with hero_left:
+        with st.container(border=True):
+            st.markdown(f"### {tony_name}")
+            st.caption(f"`{settings.target_wallet}`")
+            profile_cols = st.columns(3)
+            profile_cols[0].metric("Tony Total PnL", money(tony_pnl))
+            profile_cols[1].metric("Volume", money(tony_volume))
+            profile_cols[2].metric("Win Rate", pct(tony_win_rate) if tony_win_rate is not None else "-")
+            profile_cols = st.columns(3)
+            profile_cols[0].metric("USDC Balance", money(tony_cash))
+            profile_cols[1].metric("Active Positions", money(tony_active), f"{int(dynamic_sizing.get('tony_open_positions', 0) or 0):,} outcomes")
+            profile_cols[2].metric("First Funding", money(tony_first_funding) if tony_first_funding else "-")
+            profile_cols = st.columns(3)
+            profile_cols[0].metric("Account Created", created_label)
+            profile_cols[1].metric("Tony Equity Est.", money(dynamic_sizing.get("tony_visible_equity", 0.0)))
+            profile_cols[2].metric("P95 Position", money(dynamic_sizing.get("tony_p95_market_position", 0.0)), pct(dynamic_sizing.get("tony_p95_market_position_pct")))
+    with hero_right:
+        with st.container(border=True):
+            chart_head, chart_window = st.columns([1.2, 1])
+            chart_head.markdown("### Tony PnL")
+            pnl_window = chart_window.radio("Window", ["1d", "1w", "1mo", "All"], index=1, horizontal=True, label_visibility="collapsed", key="copy_trade_tony_pnl_window")
+            parity_curve = pd.DataFrame()
+            trader_id = str(tony_profile.get("id", "") or "")
+            if trader_id:
+                parity_curve = safe_load("PredictParity Swisstony PnL chart", load_predictparity_pnl_chart, trader_id, pnl_window, default=pd.DataFrame())
+            if isinstance(parity_curve, pd.DataFrame) and not parity_curve.empty:
+                fig = px.line(parity_curve, x="time", y="pnl", color="series", template="plotly_dark")
+                fig.update_traces(line_width=2.4)
+                fig.update_layout(height=295, margin=dict(l=10, r=10, t=10, b=10), paper_bgcolor=BG, plot_bgcolor=BG, yaxis_title="PnL", xaxis_title="")
+                st.plotly_chart(fig, width="stretch", config=plot_config())
+                st.caption("Sourced from PredictParity public trader profile.")
+            else:
+                draw_empty("No PredictParity PnL curve returned for Swisstony.")
+
+    paper_cols = st.columns(7)
+    paper_cols[0].metric("Paper Equity", money(snapshot.equity), pct(roi_value))
+    paper_cols[1].metric("Paper PnL", money(total_pnl), f"Realized {money(snapshot.realized_pnl)}")
+    paper_cols[2].metric("Cash", money(snapshot.cash))
+    paper_cols[3].metric("Open Value", money(snapshot.position_value), f"{len(positions):,} positions")
+    paper_cols[4].metric("Copied", f"{copied_count:,}", f"{settled_count:,} settled")
+    paper_cols[5].metric("Coverage", pct(coverage), f"{skipped_count:,} skips")
+    paper_cols[6].metric("Latency", _duration_label(latency.get("median")), f"P90 {_duration_label(latency.get('p90'))}")
+
+    status_cols = st.columns([1.1, 1.1, 1.2, 1.1, 1.2])
+    status_cols[0].metric("Runner", "Active" if daemon_status.get("running") else "Stopped")
+    status_cols[1].metric("Mode", "Fast chain" if daemon_status.get("fast_enabled") else "API")
+    status_cols[2].metric("Last Sync Age", _age_label(last_sync))
+    status_cols[3].metric("Below-Min Skips", f"{below_min_count:,}")
+    status_cols[4].metric("Baseline", f"{baseline_count:,}", f"Top-ups {len(cash_events):,}")
+
+    curve_col, issue_col = st.columns([1.35, 1])
+    with curve_col:
+        with st.container(border=True):
+            st.markdown("### Paper PnL Curve")
+            paper_curve = paper_copy_pnl_curve(orders, snapshot)
+            if paper_curve.empty:
+                draw_empty("Paper PnL curve appears after copied or settled orders.")
+            else:
+                fig = px.line(paper_curve, x="time", y="pnl", color="series", markers=True, template="plotly_dark")
+                fig.update_traces(line_width=2.2)
+                fig.update_layout(height=280, margin=dict(l=10, r=10, t=10, b=10), paper_bgcolor=BG, plot_bgcolor=BG, yaxis_title="PnL", xaxis_title="")
+                st.plotly_chart(fig, width="stretch", config=plot_config())
+    with issue_col:
+        with st.container(border=True):
+            st.markdown("### Copy Health")
+            if daemon_status.get("last_error"):
+                st.error(str(daemon_status["last_error"]))
+            else:
+                st.success("Runner healthy; no last_error in status file.")
+            st.caption(
+                f"Last sync {last_sync or '-'} | API interval {daemon_status.get('api_interval_seconds', '-')}s | "
+                f"settlements every {daemon_status.get('settlement_interval_seconds', '-')}s"
+            )
+            if orders.empty or "reason" not in orders:
+                draw_empty("No copy reasons available yet.")
+            else:
+                reasons = (
+                    orders["reason"]
+                    .fillna("")
+                    .replace("", "unknown")
+                    .value_counts()
+                    .head(8)
+                    .rename_axis("reason")
+                    .reset_index(name="count")
+                )
+                st.dataframe(reasons, width="stretch", height=260, hide_index=True)
+
+
 def page_copy_trade() -> None:
     settings = ct.CopySettings()
     if "copy_trade_search" not in st.session_state:
@@ -9603,8 +9817,6 @@ def page_copy_trade() -> None:
     )
     st.info("Paper mode only. This page observes public Polymarket wallet activity and does not place real orders.")
 
-    render_followed_traders_panel()
-
     controls = st.columns([1, 1, 1, 1, 1])
     if controls[0].button("Sync now", type="primary", width="stretch"):
         with st.spinner("Syncing Swisstony public trades, settlements, and redeems..."):
@@ -9666,6 +9878,19 @@ def page_copy_trade() -> None:
     base_copy_rows = int(st.session_state.get("copy_trade_rows", 150) or 150)
     recent = safe_load("Swisstony trades", load_polymarket_trades, max(100, base_copy_rows), 0.0, settings.target_wallet, None)
     daemon_status = load_copy_daemon_status()
+
+    render_copy_command_center(
+        settings=settings,
+        snapshot=snapshot,
+        orders=orders,
+        positions=positions,
+        cash_events=cash_events,
+        meta=meta,
+        dynamic_sizing=dynamic_sizing,
+        daemon_status=daemon_status,
+    )
+
+    render_followed_traders_panel()
 
     filter_cols = st.columns([1.6, 1, 1, 1, 1])
     copy_trade_query = filter_cols[0].text_input("Copy search", placeholder="market, outcome, tx, reason", key="copy_trade_search")
@@ -9814,72 +10039,19 @@ def page_copy_trade() -> None:
                 save_local_list("saved_copy_trade_filters.json", st.session_state.saved_copy_trade_filters)
                 st.rerun()
 
-    st.markdown(f"Target wallet: [`{settings.target_wallet}`](https://polygonscan.com/address/{settings.target_wallet})")
-    if meta.get("tony_seeded_at"):
-        st.caption(f"Baseline seeded at {meta['tony_seeded_at']}. Live trading enabled: {meta.get('live_trading_enabled', 'false')}.")
-    else:
-        st.caption("No baseline yet. Click Sync now once before paper-copying new Swisstony trades.")
-
-    m1, m2, m3, m4, m5 = st.columns(5)
-    m1.metric("Cash", money(snapshot.cash))
-    m2.metric("Equity", money(snapshot.equity))
-    m3.metric("Positions", money(snapshot.position_value))
-    m4.metric("Realized PnL", money(snapshot.realized_pnl))
-    m5.metric("Unrealized PnL", money(snapshot.unrealized_pnl))
-
-    st.markdown("### Dynamic sizing")
-    s1, s2, s3, s4, s5 = st.columns(5)
-    s1.metric("Effective scale", pct(dynamic_sizing.get("effective_copy_scale", settings.copy_scale)))
-    s2.metric("Tony equity", money(dynamic_sizing.get("tony_visible_equity", 0.0)))
-    s3.metric("Tony avg position", money(dynamic_sizing.get("tony_mean_market_position", 0.0)), pct(dynamic_sizing.get("tony_mean_market_position_pct", 0.0)))
-    s4.metric("Tony p95 position", money(dynamic_sizing.get("tony_p95_market_position", 0.0)), pct(dynamic_sizing.get("tony_p95_market_position_pct", 0.0)))
-    s5.metric("Effective cap", pct(dynamic_sizing.get("effective_max_order_equity_pct", settings.max_order_equity_pct)))
-    if dynamic_sizing.get("tony_wallet_stats_updated_at"):
-        st.caption(
-            f"Tony wallet stats: {dynamic_sizing.get('tony_open_markets', '-')} markets, "
-            f"{dynamic_sizing.get('tony_open_positions', '-')} outcome positions, "
-            f"updated {dynamic_sizing.get('tony_wallet_stats_updated_at')}."
+    with st.expander("Technical copy diagnostics", expanded=False):
+        st.markdown(f"Target wallet: [`{settings.target_wallet}`](https://polygonscan.com/address/{settings.target_wallet})")
+        if meta.get("tony_seeded_at"):
+            st.caption(f"Baseline seeded at {meta['tony_seeded_at']}. Live trading enabled: {meta.get('live_trading_enabled', 'false')}.")
+        else:
+            st.caption("No baseline yet. Click Sync now once before paper-copying new Swisstony trades.")
+        st.json(
+            {
+                "dynamic_sizing": dynamic_sizing,
+                "daemon_status": daemon_status,
+            },
+            expanded=False,
         )
-    if dynamic_sizing.get("tony_wallet_stats_error"):
-        st.warning(f"Tony wallet stats error: {dynamic_sizing['tony_wallet_stats_error']}")
-
-    st.markdown("### Auto-sync runner")
-    if daemon_status:
-        fast_result = daemon_status.get("last_fast_result") or {}
-        api_result = daemon_status.get("last_api_result") or {}
-        settlement_result = daemon_status.get("last_settlement_result") or {}
-        active_result = daemon_status.get("last_result") or {}
-        d1, d2, d3, d4, d5, d6 = st.columns(6)
-        d1.metric("Runner", "Active" if daemon_status.get("running") else "Stopped")
-        d2.metric("Mode", "Fast chain" if daemon_status.get("fast_enabled") else "API")
-        d3.metric("Chain poll", f"{float(daemon_status.get('interval_seconds', 0)):.1f}s")
-        d4.metric("Fast copied", str(fast_result.get("copied", active_result.get("copied", "-"))))
-        d5.metric("API copied", str(api_result.get("copied", "-")))
-        d6.metric("Recycled", str(settlement_result.get("copied", "-")))
-        daemon_sizing = daemon_status.get("dynamic_sizing") or {}
-        if daemon_sizing:
-            st.caption(
-                f"Dynamic copy scale: {pct(daemon_sizing.get('effective_copy_scale'))} | "
-                f"Tony visible equity: {money(daemon_sizing.get('tony_visible_equity', 0.0))} | "
-                f"mode: {daemon_sizing.get('copy_scale_mode', '-')}"
-            )
-        if daemon_status.get("last_sync_at"):
-            st.caption(f"Last auto-sync: {daemon_status['last_sync_at']} | PID: {daemon_status.get('pid', '-')}")
-        if fast_result:
-            st.caption(
-                f"Fast path scanned blocks {fast_result.get('from_block', '-')}-{fast_result.get('to_block', '-')} "
-                f"of {fast_result.get('latest_block', '-')}; logs seen: {fast_result.get('logs_seen', '-')}; "
-                f"duplicates: {fast_result.get('duplicates', '-')}; skipped: {fast_result.get('skipped', '-')}."
-            )
-        if settlement_result:
-            st.caption(
-                f"Settlement sync: {settlement_result.get('copied', '-')} recycled, "
-                f"{settlement_result.get('skipped', '-')} skipped, {settlement_result.get('duplicates', '-')} duplicates."
-            )
-        if daemon_status.get("last_error"):
-            st.warning(f"Auto-sync error: {daemon_status['last_error']}")
-    else:
-        draw_empty("Auto-sync runner has not written a status file yet. Manual Sync now still works.")
 
     if not filtered_orders.empty:
         csv = filtered_orders.to_csv(index=False).encode("utf-8")
