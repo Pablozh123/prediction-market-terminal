@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import html
 import re
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -10048,8 +10049,114 @@ def render_copy_command_center(
                 st.dataframe(reasons, width="stretch", height=260, hide_index=True)
 
 
+def render_copy_sizing_settings(
+    settings: ct.CopySettings,
+    snapshot: ct.PortfolioSnapshot,
+    dynamic_sizing: dict[str, Any],
+    daemon_status: dict[str, Any],
+) -> None:
+    tony_equity = float(dynamic_sizing.get("tony_visible_equity", 0.0) or 0.0)
+    effective_scale = float(dynamic_sizing.get("effective_copy_scale", 0.0) or 0.0)
+    example_tony_pct = 0.01
+    example_copy_notional = snapshot.equity * example_tony_pct * float(settings.dynamic_sizing_multiplier)
+    example_copy_notional = min(example_copy_notional, snapshot.equity * float(settings.max_order_equity_pct))
+    if settings.dynamic_scale_max > 0 and tony_equity > 0:
+        example_copy_notional = min(example_copy_notional, (tony_equity * example_tony_pct) * float(settings.dynamic_scale_max))
+
+    with st.expander("Dynamic Position Sizing", expanded=True):
+        st.markdown(
+            "**Portfolio-percent mode:** `Tony trade notional / Tony visible equity * Paper equity * multiplier`. "
+            "Example: if Tony risks 1% of his visible wallet and multiplier is 1.0, paper also risks 1% before caps."
+        )
+        metric_cols = st.columns(5)
+        metric_cols[0].metric("Sizing mode", "Portfolio %" if settings.dynamic_sizing_enabled else "Fixed scale")
+        metric_cols[1].metric("Multiplier", f"{float(settings.dynamic_sizing_multiplier):.2f}x")
+        metric_cols[2].metric("Effective scale", f"{effective_scale * 100:.4f}%")
+        metric_cols[3].metric("Tony equity est.", money(tony_equity))
+        metric_cols[4].metric("1% Tony example", money(example_copy_notional))
+
+        with st.form("copy_sizing_settings_form"):
+            mode_options = ["Portfolio-percent", "Fixed Tony-notional scale"]
+            mode = st.radio(
+                "Sizing mode",
+                mode_options,
+                index=0 if settings.dynamic_sizing_enabled else 1,
+                horizontal=True,
+                help="Portfolio-percent mirrors Tony's portfolio usage. Fixed scale copies a fixed percent of Tony's trade notional.",
+            )
+            s1, s2, s3 = st.columns(3)
+            multiplier = s1.number_input(
+                "Portfolio multiplier",
+                min_value=0.0,
+                max_value=10.0,
+                value=float(settings.dynamic_sizing_multiplier),
+                step=0.1,
+                format="%.2f",
+                help="1.0 = same portfolio percent as Tony; 0.5 = half; 2.0 = double.",
+            )
+            fixed_scale_pct = s2.number_input(
+                "Fixed copy % of Tony trade",
+                min_value=0.0,
+                max_value=100.0,
+                value=float(settings.copy_scale) * 100.0,
+                step=0.05,
+                format="%.4f",
+                help="Used only when Sizing mode is Fixed.",
+            )
+            max_source_scale_pct = s3.number_input(
+                "Max copy % of Tony trade",
+                min_value=0.0,
+                max_value=100.0,
+                value=float(settings.dynamic_scale_max) * 100.0,
+                step=0.1,
+                format="%.2f",
+                help="Hard cap on the source-notional copy scale. Set higher if multiplier is capped too early.",
+            )
+            c1, c2, c3 = st.columns(3)
+            max_order_pct = c1.number_input(
+                "Max per order % of paper equity",
+                min_value=0.0,
+                max_value=100.0,
+                value=float(settings.max_order_equity_pct) * 100.0,
+                step=0.5,
+                format="%.2f",
+            )
+            min_copy_notional = c2.number_input(
+                "Min paper order $",
+                min_value=0.0,
+                max_value=1000.0,
+                value=float(settings.min_copy_notional),
+                step=0.01,
+                format="%.2f",
+            )
+            dynamic_cap = c3.toggle(
+                "Let cap follow Tony max position",
+                value=bool(settings.dynamic_order_cap_from_tony),
+                help="If Tony's largest observed position exceeds the base cap, allow the cap to rise to that percentage.",
+            )
+            submitted = st.form_submit_button("Save sizing settings", type="primary")
+            if submitted:
+                updated = replace(
+                    settings,
+                    dynamic_sizing_enabled=mode == "Portfolio-percent",
+                    dynamic_sizing_multiplier=float(multiplier),
+                    copy_scale=float(fixed_scale_pct) / 100.0,
+                    dynamic_scale_max=float(max_source_scale_pct) / 100.0,
+                    max_order_equity_pct=float(max_order_pct) / 100.0,
+                    min_copy_notional=float(min_copy_notional),
+                    dynamic_order_cap_from_tony=bool(dynamic_cap),
+                )
+                ct.save_copy_settings(updated)
+                st.success("Copy sizing settings saved. Sync now and the background runner will use these settings.")
+                st.rerun()
+        if daemon_status.get("running"):
+            st.caption("Background runner is active. New runner processes read these settings; current status will show them after the next sync loop on the updated code.")
+        else:
+            st.caption("Runner is currently stopped; Sync now uses these settings immediately.")
+
+
 def page_copy_trade() -> None:
-    settings = ct.CopySettings()
+    settings = safe_load("Copy settings", ct.load_copy_settings, default=ct.CopySettings())
     if "copy_trade_search" not in st.session_state:
         reset_copy_trade_filter_widgets(global_query)
     if st.session_state.pop("copy_trade_filters_reset_pending", False):
@@ -10150,8 +10257,8 @@ def page_copy_trade() -> None:
             st.success(f"Paper cash topped up to {money(new_cash)} without closing open positions.")
         except Exception as exc:
             st.error(f"Cash top-up failed: {exc}")
-    controls[3].metric("Max scale", f"{settings.dynamic_scale_max * 100:.2f}% of Tony")
-    controls[4].metric("Base cap", f"{settings.max_order_equity_pct * 100:.1f}% equity")
+    controls[3].metric("Sizing", "Portfolio %" if settings.dynamic_sizing_enabled else "Fixed", f"{settings.dynamic_sizing_multiplier:.2f}x")
+    controls[4].metric("Order cap", f"{settings.max_order_equity_pct * 100:.1f}% equity")
     if settings.auto_top_up_enabled:
         st.caption(
             f"Auto top-up is active: when a trader sub-account has at or below USD {settings.auto_top_up_threshold:,.0f} cash, "
@@ -10172,6 +10279,8 @@ def page_copy_trade() -> None:
     base_copy_rows = int(st.session_state.get("copy_trade_rows", 150) or 150)
     recent = safe_load("Swisstony trades", load_polymarket_trades, max(100, base_copy_rows), 0.0, settings.target_wallet, None)
     daemon_status = load_copy_daemon_status()
+
+    render_copy_sizing_settings(settings, snapshot, dynamic_sizing, daemon_status)
 
     render_copy_command_center(
         settings=settings,
@@ -10341,6 +10450,15 @@ def page_copy_trade() -> None:
             st.caption("No baseline yet. Click Sync now once before paper-copying new Swisstony trades.")
         st.json(
             {
+                "copy_settings": {
+                    "dynamic_sizing_enabled": settings.dynamic_sizing_enabled,
+                    "dynamic_sizing_multiplier": settings.dynamic_sizing_multiplier,
+                    "copy_scale": settings.copy_scale,
+                    "dynamic_scale_max": settings.dynamic_scale_max,
+                    "max_order_equity_pct": settings.max_order_equity_pct,
+                    "dynamic_order_cap_from_tony": settings.dynamic_order_cap_from_tony,
+                    "min_copy_notional": settings.min_copy_notional,
+                },
                 "dynamic_sizing": dynamic_sizing,
                 "daemon_status": daemon_status,
             },
