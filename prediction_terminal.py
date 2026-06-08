@@ -2092,10 +2092,11 @@ def market_tile(row: pd.Series) -> None:
         )
         saved_keys = {str(saved.get("market_key", "")).strip() for saved in st.session_state.watchlist}
         action_cols = st.columns([1, 1, 1])
-        if action_cols[0].button("Trade Now", type="primary", key=f"tile_inspect_{safe_key}", width="stretch", disabled=not bool(market_key)):
-            st.session_state["markets_inspect_market_key"] = market_key
-            queue_navigation("Markets", "")
-            st.rerun()
+        if market_key:
+            if action_cols[0].button("Inspect", type="primary", key=f"tile_inspect_{safe_key}", width="stretch"):
+                st.session_state["markets_inspect_market_key"] = market_key
+                queue_navigation("Markets", "")
+                st.rerun()
         if market_key and market_key in saved_keys:
             if action_cols[1].button("Unsave", key=f"tile_unsave_{safe_key}", width="stretch"):
                 st.session_state.watchlist, changed = md.remove_watchlist_market(st.session_state.watchlist, market_key)
@@ -2103,12 +2104,14 @@ def market_tile(row: pd.Series) -> None:
                     save_local_list("watchlist.json", st.session_state.watchlist)
                 st.rerun()
         else:
-            if action_cols[1].button("Save", key=f"tile_save_{safe_key}", width="stretch", disabled=not bool(market_key)):
+            if market_key and action_cols[1].button("Save", key=f"tile_save_{safe_key}", width="stretch"):
                 st.session_state.watchlist, changed = md.upsert_watchlist_market(st.session_state.watchlist, row.to_dict())
                 if changed:
                     save_local_list("watchlist.json", st.session_state.watchlist)
                 st.rerun()
-        action_cols[2].link_button("Open venue", row.get("url", "https://polymarket.com"), width="stretch")
+        venue_url = str(row.get("url", "") or "")
+        if venue_url:
+            action_cols[2].link_button("Open venue", venue_url, width="stretch")
 
 
 def combined_trade_table(poly_trades: pd.DataFrame, kalshi_trades: pd.DataFrame) -> pd.DataFrame:
@@ -4021,7 +4024,7 @@ def render_related_markets(row: pd.Series, market_universe: pd.DataFrame | None 
                     st.metric("Yes", cents(item.get("price")), signed_cents(item.get("change_1d", 0.0)))
                     st.caption(f"End {item.get('end', '-')} | Vol {money(item.get('activity_volume', 0.0))}")
                     if bool(item.get("selected", False)):
-                        st.button("Current", key=f"related_current_{item.get('market_key')}", disabled=True, width="stretch")
+                        st.caption("Current market")
                     elif st.button("Inspect", key=f"related_inspect_{item.get('market_key')}", width="stretch"):
                         st.session_state["markets_inspect_market_key"] = str(item.get("market_key", ""))
                         st.rerun()
@@ -4094,7 +4097,8 @@ def render_market_series_strip(row: pd.Series, market_universe: pd.DataFrame | N
         price_label = cents(item.get("yes_price"))
         button_label = f"{label} {price_label}"
         if item_key == current_key:
-            cols[idx].button(f"[ {button_label} ]", key=f"series_current_{strip_key}_{idx}", disabled=True, width="stretch")
+            cols[idx].markdown(f"**{button_label}**")
+            cols[idx].caption("Current")
         elif cols[idx].button(button_label, key=f"series_open_{strip_key}_{idx}", width="stretch"):
             st.session_state["markets_inspect_market_key"] = item_key
             st.rerun()
@@ -4145,7 +4149,7 @@ def render_market_detail(row: pd.Series, market_universe: pd.DataFrame | None = 
     if row.get("description"):
         st.caption(str(row.get("description"))[:420])
     saved_keys = {str(item.get("market_key", "")).strip() for item in st.session_state.watchlist}
-    action_cols = st.columns([1, 1, 1, 3])
+    action_cols = st.columns([1, 1, 2])
     if market_key and market_key in saved_keys:
         if action_cols[0].button("Remove saved market", key=f"detail_unsave_{market_key}", width="stretch"):
             st.session_state.watchlist, removed = md.remove_watchlist_market(st.session_state.watchlist, market_key)
@@ -4154,13 +4158,15 @@ def render_market_detail(row: pd.Series, market_universe: pd.DataFrame | None = 
                 st.toast("Market removed from Saved.")
             st.rerun()
     else:
-        if action_cols[0].button("Save market", key=f"detail_save_{market_key}", width="stretch", disabled=not bool(market_key)):
+        if market_key and action_cols[0].button("Save market", key=f"detail_save_{market_key}", width="stretch"):
             st.session_state.watchlist, changed = md.upsert_watchlist_market(st.session_state.watchlist, row.to_dict())
             if changed:
                 save_local_list("watchlist.json", st.session_state.watchlist)
                 st.toast("Market added to Saved.")
             st.rerun()
-    action_cols[1].link_button("Open venue market", row.get("url", "https://polymarket.com"), width="stretch")
+    venue_url = str(row.get("url", "") or "")
+    if venue_url:
+        action_cols[1].link_button("Open venue market", venue_url, width="stretch")
     render_market_series_strip(row, market_universe)
     render_related_markets(row, market_universe)
     with st.expander("Market rules", expanded=False):
@@ -5228,9 +5234,12 @@ def page_markets() -> None:
                                 title = str(item.get("title", "") or "Market")
                                 platform = str(item.get("platform", "") or "-")
                                 label = f"{platform} {title[:34]} {cents(item.get('yes_price'))}"
-                                if st.button(label, key=f"calendar_market_{safe_key}", width="stretch", disabled=not bool(market_key)):
-                                    st.session_state["markets_inspect_market_key"] = market_key
-                                    st.rerun()
+                                if market_key:
+                                    if st.button(label, key=f"calendar_market_{safe_key}", width="stretch"):
+                                        st.session_state["markets_inspect_market_key"] = market_key
+                                        st.rerun()
+                                else:
+                                    st.caption(label)
                             more_count = int(day_row.get("more_count", 0) or 0)
                             if more_count:
                                 st.caption(f"+{more_count:,} more")
@@ -5357,7 +5366,7 @@ def render_wallet(wallet: str) -> None:
         st.rerun()
     tracked_wallets = {str(item).lower() for item in st.session_state.followed_wallets}
     if wallet.lower() in tracked_wallets:
-        action_cols[1].button("Tracked", key=f"wallet_profile_tracked_{wallet_key}", width="stretch", disabled=True)
+        action_cols[1].caption("Tracked")
     elif action_cols[1].button("Track wallet", key=f"wallet_profile_track_{wallet_key}", width="stretch"):
         st.session_state.followed_wallets, changed = md.upsert_followed_wallet(st.session_state.followed_wallets, wallet)
         if changed:
@@ -5373,8 +5382,6 @@ def render_wallet(wallet: str) -> None:
     )
     if wallet_parity_url:
         action_cols[3].link_button("Parity", wallet_parity_url, width="stretch")
-    else:
-        action_cols[3].button("Parity", key=f"wallet_profile_parity_disabled_{wallet_key}", width="stretch", disabled=True)
     action_cols[4].link_button("Polymarket", f"https://polymarket.com/profile/{wallet}", width="stretch")
     action_cols[5].link_button("Polygonscan", f"https://polygonscan.com/address/{wallet}", width="stretch")
     action_cols[6].link_button("Arkham", f"https://intel.arkm.com/explorer/address/{wallet}", width="stretch")
@@ -6330,19 +6337,24 @@ def page_traders() -> None:
                             f"Win rate: **{pct(row.get('win_rate'))}**  \n"
                             f"Positions: **{money(row.get('positions_value', 0.0))}**"
                         )
-                        action_cols = st.columns([1, 1, 1, 1, 1, 1])
-                        if action_cols[0].button("Open wallet", key=f"trader_card_open_{safe_wallet_key}", width="stretch", disabled=not bool(wallet_value)):
-                            st.session_state["traders_inspect_wallet"] = wallet_value
-                            st.rerun()
+                        action_cols = st.columns([1, 1, 1])
+                        if wallet_value:
+                            if action_cols[0].button("Open wallet", key=f"trader_card_open_{safe_wallet_key}", width="stretch"):
+                                st.session_state["traders_inspect_wallet"] = wallet_value
+                                st.rerun()
+                        else:
+                            action_cols[0].caption("No wallet")
                         tracked_wallets = {str(item).lower() for item in st.session_state.followed_wallets}
                         if wallet_value.lower() in tracked_wallets:
-                            action_cols[1].button("Tracked", key=f"trader_card_tracked_{safe_wallet_key}", width="stretch", disabled=True)
+                            action_cols[1].caption("Tracked")
                         else:
-                            if action_cols[1].button("Track", key=f"trader_card_track_{safe_wallet_key}", width="stretch", disabled=not bool(wallet_value)):
+                            if wallet_value and action_cols[1].button("Track", key=f"trader_card_track_{safe_wallet_key}", width="stretch"):
                                 st.session_state.followed_wallets, changed = md.upsert_followed_wallet(st.session_state.followed_wallets, wallet_value)
                                 if changed:
                                     save_local_list("followed_wallets.json", st.session_state.followed_wallets)
                                 st.rerun()
+                            elif not wallet_value:
+                                action_cols[1].caption("Not trackable")
                         render_copy_follow_button(
                             action_cols[2],
                             wallet_value,
@@ -6351,20 +6363,6 @@ def page_traders() -> None:
                             active_wallets=copy_active_wallets,
                             disabled=not bool(wallet_value),
                         )
-                        parity_url = predictparity_trader_url(row.get("username", "") or row.get("trader", ""))
-                        if parity_url:
-                            action_cols[3].link_button("Parity", parity_url, width="stretch")
-                        else:
-                            action_cols[3].button("Parity", key=f"trader_card_parity_disabled_{safe_wallet_key}", width="stretch", disabled=True)
-                        if re.fullmatch(r"0x[a-fA-F0-9]{40}", wallet_value):
-                            action_cols[4].link_button("Polymarket", f"https://polymarket.com/profile/{wallet_value}", width="stretch")
-                        else:
-                            action_cols[4].button("Polymarket", key=f"trader_card_polymarket_disabled_{safe_wallet_key}", width="stretch", disabled=True)
-                        x_url = x_profile_url(row.get("x_username", ""))
-                        if x_url:
-                            action_cols[5].link_button("X", x_url, width="stretch")
-                        else:
-                            action_cols[5].button("X", key=f"trader_card_x_disabled_{safe_wallet_key}", width="stretch", disabled=True)
     st.caption("Bot-like and whale scores are heuristics from the current recent-trade sample, not identity labels.")
     if selected_trader_action_row is not None:
         selected_wallet = str(selected_trader_action_row.get("wallet", "") or "")
@@ -6375,15 +6373,15 @@ def page_traders() -> None:
             f"{money(selected_trader_action_row.get('pnl', 0.0))} PnL | "
             f"{money(selected_trader_action_row.get('positions_value', 0.0))} open"
         )
-        action_cols = st.columns([1, 1, 1, 1, 1, 1, 2])
-        if action_cols[0].button("Open in Wallets", key="traders_selected_open_wallets", width="stretch", disabled=not bool(selected_wallet)):
+        action_cols = st.columns([1, 1, 1, 2])
+        if selected_wallet and action_cols[0].button("Open in Wallets", key="traders_selected_open_wallets", width="stretch"):
             st.session_state["wallets_inspect_wallet"] = selected_wallet
             queue_navigation("Wallets", "")
             st.rerun()
         tracked_wallets = {str(item).lower() for item in st.session_state.followed_wallets}
         if selected_wallet.lower() in tracked_wallets:
-            action_cols[1].button("Tracked", key="traders_selected_tracked", width="stretch", disabled=True)
-        elif action_cols[1].button("Track selected", key="traders_selected_track", width="stretch", disabled=not bool(selected_wallet)):
+            action_cols[1].caption("Tracked")
+        elif selected_wallet and action_cols[1].button("Track selected", key="traders_selected_track", width="stretch"):
             st.session_state.followed_wallets, changed = md.upsert_followed_wallet(st.session_state.followed_wallets, selected_wallet)
             if changed:
                 save_local_list("followed_wallets.json", st.session_state.followed_wallets)
@@ -6401,21 +6399,20 @@ def page_traders() -> None:
         if selected_wallet.lower() in copy_active_wallets:
             with st.expander("Selected trader paper sub-account", expanded=False):
                 render_copy_sub_account_metrics(selected_wallet, copy_stats_map)
+        action_cols[3].caption("Select a row, then inspect, track, or copy-follow the wallet.")
         selected_parity_url = predictparity_trader_url(selected_trader_action_row.get("username", "") or selected_trader_action_row.get("trader", ""))
-        if selected_parity_url:
-            action_cols[3].link_button("Parity", selected_parity_url, width="stretch")
-        else:
-            action_cols[3].button("Parity", key="traders_selected_parity_disabled", width="stretch", disabled=True)
-        if re.fullmatch(r"0x[a-fA-F0-9]{40}", selected_wallet):
-            action_cols[4].link_button("Polymarket", f"https://polymarket.com/profile/{selected_wallet}", width="stretch")
-        else:
-            action_cols[4].button("Polymarket", key="traders_selected_polymarket_disabled", width="stretch", disabled=True)
         selected_x_url = x_profile_url(selected_trader_action_row.get("x_username", ""))
+        external_links: list[tuple[str, str]] = []
+        if selected_parity_url:
+            external_links.append(("Parity", selected_parity_url))
+        if re.fullmatch(r"0x[a-fA-F0-9]{40}", selected_wallet):
+            external_links.append(("Polymarket", f"https://polymarket.com/profile/{selected_wallet}"))
         if selected_x_url:
-            action_cols[5].link_button("X", selected_x_url, width="stretch")
-        else:
-            action_cols[5].button("X", key="traders_selected_x_disabled", width="stretch", disabled=True)
-        action_cols[6].caption("Use row selection in Table/List mode to inspect, track, copy-follow, or open a leaderboard wallet.")
+            external_links.append(("X", selected_x_url))
+        if external_links:
+            link_cols = st.columns(len(external_links))
+            for link_col, (label, url) in zip(link_cols, external_links):
+                link_col.link_button(label, url, width="stretch")
     if selected_wallet_from_table:
         st.session_state["traders_inspect_wallet"] = selected_wallet_from_table
         st.caption("Selected table row is ready for wallet detail.")
@@ -6435,13 +6432,9 @@ def page_traders() -> None:
     parity_url = predictparity_trader_url(row.get("username", "") or row.get("trader", ""))
     if parity_url:
         detail_cols[2].link_button("Parity", parity_url, width="stretch")
-    else:
-        detail_cols[2].button("Parity", key="traders_open_parity_disabled", width="stretch", disabled=True)
     profile_url = md.polymarket_profile_url(detail_wallet)
     if profile_url:
         detail_cols[3].link_button("Polymarket", profile_url, width="stretch")
-    else:
-        detail_cols[3].button("Polymarket", key="traders_open_profile_disabled", width="stretch", disabled=True)
     detail_cols[4].caption("Select a trader, then load the wallet detail only when needed. This keeps the leaderboard fast and scan-first.")
     st.session_state["traders_inspect_wallet"] = detail_wallet
     if load_detail:
@@ -9386,11 +9379,11 @@ def render_copy_follow_button(
 ) -> None:
     wallet = str(wallet or "").strip().lower()
     if not md.is_polymarket_wallet(wallet):
-        target.button("Wallet folgen", key=f"{key}_invalid", width="stretch", disabled=True)
+        target.caption("No copy wallet")
         return
     if wallet in active_wallets:
         if wallet == str(ct.COPY_TARGET_WALLET).lower():
-            target.button("Folgt", key=f"{key}_seed", width="stretch", disabled=True)
+            target.caption("Folgt")
             return
         if target.button("Entfolgen", key=f"{key}_unfollow", width="stretch", disabled=disabled):
             changed = ct.unfollow_trader(wallet)
