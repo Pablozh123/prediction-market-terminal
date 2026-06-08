@@ -2985,7 +2985,36 @@ def _dominant_bucket(
 
 def _risk_reasons(row: pd.Series, rules: list[tuple[bool, str]]) -> str:
     reasons = [label for condition, label in rules if bool(condition)]
-    return "; ".join(reasons[:4]) if reasons else "watch only"
+    return "; ".join(reasons) if reasons else "watch only"
+
+
+def _price_move_features(df: pd.DataFrame, group_cols: list[str]) -> pd.DataFrame:
+    columns = group_cols + ["price_move", "price_move_score"]
+    if df.empty or "price" not in df or "time" not in df:
+        return pd.DataFrame(columns=columns)
+    work = df[group_cols + ["time", "price", "notional", "side_upper"]].copy()
+    work["time"] = pd.to_datetime(work["time"], utc=True, errors="coerce")
+    work["price"] = pd.to_numeric(work["price"], errors="coerce")
+    work["notional"] = pd.to_numeric(work["notional"], errors="coerce").fillna(0.0)
+    work["side_upper"] = work["side_upper"].fillna("").astype(str)
+    work = work.dropna(subset=["time", "price"])
+    work = work[(work["price"] > 0) & (work["price"] <= 1)]
+    if work.empty:
+        return pd.DataFrame(columns=columns)
+
+    rows: list[dict[str, Any]] = []
+    for keys, group in work.sort_values("time").groupby(group_cols, dropna=False):
+        key_values = keys if isinstance(keys, tuple) else (keys,)
+        first_price = float(group.iloc[0]["price"])
+        last_price = float(group.iloc[-1]["price"])
+        side_notional = group.groupby("side_upper", dropna=False)["notional"].sum()
+        dominant_side = str(side_notional.sort_values(ascending=False).index[0] or "BUY") if not side_notional.empty else "BUY"
+        price_move = first_price - last_price if dominant_side == "SELL" else last_price - first_price
+        row = {column: value for column, value in zip(group_cols, key_values)}
+        row["price_move"] = float(price_move)
+        row["price_move_score"] = min(max(float(price_move), 0.0) / 0.15, 1.0) * 10
+        rows.append(row)
+    return pd.DataFrame(rows, columns=columns)
 
 
 def _prepare_whale_risk_trades(trades: pd.DataFrame, now: Any | None = None) -> tuple[pd.DataFrame, pd.Timestamp]:
@@ -2997,6 +3026,7 @@ def _prepare_whale_risk_trades(trades: pd.DataFrame, now: Any | None = None) -> 
     df = trades.copy()
     df["time"] = pd.to_datetime(_df_col(df, "time", pd.NaT), utc=True, errors="coerce")
     df["end_time"] = pd.to_datetime(_df_col(df, "end_time", pd.NaT), utc=True, errors="coerce")
+    df["price"] = pd.to_numeric(_df_col(df, "price", 0.0), errors="coerce").fillna(0.0).clip(lower=0.0)
     df["notional"] = pd.to_numeric(_df_col(df, "notional", 0.0), errors="coerce").fillna(0.0).clip(lower=0.0)
     df["size"] = pd.to_numeric(_df_col(df, "size", 0.0), errors="coerce").fillna(0.0).clip(lower=0.0)
     df["platform"] = _df_col(df, "platform", "").fillna("").astype(str)
@@ -3008,13 +3038,14 @@ def _prepare_whale_risk_trades(trades: pd.DataFrame, now: Any | None = None) -> 
     df["outcome_upper"] = _df_col(df, "outcome", "").fillna("").astype(str).str.upper()
     df["hours_to_end"] = (df["end_time"] - current_time).dt.total_seconds() / 3600
     df["late_notional"] = df["notional"].where(df["hours_to_end"].between(0, 48, inclusive="both"), 0.0)
+    df["long_odds_notional"] = df["notional"].where(df["price"].between(0.0001, 0.20, inclusive="both"), 0.0)
     return df, current_time
 
 
 def whale_wallet_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_000.0, now: Any | None = None) -> pd.DataFrame:
-    """Score wallet-level whale-flow risk signals from the current public trade tape.
+    """Score wallet-level insider-like flow signals from the current public trade tape.
 
-    The score is a heuristic signal, not proof of manipulation or inside information.
+    The score is a best-effort public-data screen, not proof of illegal insider trading.
     """
 
     df, _current_time = _prepare_whale_risk_trades(trades, now)
@@ -3037,6 +3068,7 @@ def whale_wallet_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_0
             first_seen=("time", "min"),
             latest_trade=("time", "max"),
             late_notional=("late_notional", "sum"),
+            long_odds_notional=("long_odds_notional", "sum"),
         )
         .reset_index()
     )
@@ -3069,41 +3101,67 @@ def whale_wallet_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_0
     )
 
     grouped = grouped.merge(top_market, on="wallet", how="left").merge(top_outcome, on="wallet", how="left").merge(top_side, on="wallet", how="left")
-    for column in ["top_market_share", "outcome_share", "side_share", "late_notional"]:
+    price_moves = _price_move_features(df, ["wallet"])
+    if not price_moves.empty:
+        grouped = grouped.merge(price_moves, on="wallet", how="left")
+    else:
+        grouped["price_move"] = 0.0
+        grouped["price_move_score"] = 0.0
+    for column in ["top_market_share", "outcome_share", "side_share", "late_notional", "long_odds_notional", "price_move", "price_move_score"]:
         if column in grouped:
             grouped[column] = pd.to_numeric(grouped[column], errors="coerce").fillna(0.0)
     grouped["directional_share"] = grouped[["outcome_share", "side_share"]].max(axis=1)
     grouped["directional_label"] = grouped["dominant_outcome"].where(grouped["outcome_share"] >= grouped["side_share"], grouped["dominant_side"]).fillna("")
     grouped["late_share"] = grouped["late_notional"] / grouped["notional"].replace({0: pd.NA})
     grouped["late_share"] = grouped["late_share"].fillna(0.0)
+    grouped["long_odds_share"] = grouped["long_odds_notional"] / grouped["notional"].replace({0: pd.NA})
+    grouped["long_odds_share"] = grouped["long_odds_share"].fillna(0.0)
 
     whale_base = max(float(whale_threshold or 0.0), 1_000.0)
-    notional_score = (grouped["notional"] / (whale_base * 20)).clip(upper=1.0) * 25
-    largest_score = (grouped["largest_trade"] / (whale_base * 5)).clip(upper=1.0) * 25
-    concentration_score = grouped["top_market_share"].fillna(0.0).clip(upper=1.0) * 20
-    direction_score = ((grouped["directional_share"].fillna(0.0) - 0.55) / 0.45).clip(lower=0.0, upper=1.0) * 15
+    scale_score = (grouped["notional"] / (whale_base * 20)).clip(upper=1.0) * 15
+    largest_score = (grouped["largest_trade"] / (whale_base * 5)).clip(upper=1.0) * 10
+    long_odds_score = ((grouped["long_odds_share"].fillna(0.0) * 0.55) + (grouped["long_odds_notional"] / (whale_base * 5)).clip(upper=1.0) * 0.45) * 15
+    concentration_score = grouped["top_market_share"].fillna(0.0).clip(upper=1.0) * 15
+    direction_score = ((grouped["directional_share"].fillna(0.0) - 0.55) / 0.45).clip(lower=0.0, upper=1.0) * 10
     burst_score = (grouped["trades_per_hour"] / 30).clip(upper=1.0) * 10
-    late_score = grouped["late_share"].fillna(0.0).clip(upper=1.0) * 5
-    grouped["wallet_risk_score"] = (notional_score + largest_score + concentration_score + direction_score + burst_score + late_score).round(0).clip(0, 100)
-    grouped["wallet_risk_level"] = grouped["wallet_risk_score"].map(_risk_level)
-    grouped["wallet_risk_reasons"] = grouped.apply(
+    late_score = grouped["late_share"].fillna(0.0).clip(upper=1.0) * 15
+    fresh_score = (((grouped["trade_count"] <= 2) & (grouped["largest_trade"] >= whale_base)).astype(float)) * 10
+    grouped["wallet_insider_score"] = (
+        scale_score
+        + largest_score
+        + long_odds_score
+        + concentration_score
+        + direction_score
+        + burst_score
+        + late_score
+        + grouped["price_move_score"].fillna(0.0)
+        + fresh_score
+    ).round(0).clip(0, 100)
+    grouped["wallet_insider_level"] = grouped["wallet_insider_score"].map(_risk_level)
+    grouped["wallet_insider_flags"] = grouped.apply(
         lambda row: _risk_reasons(
             row,
             [
-                (float(row.get("largest_trade", 0.0) or 0.0) >= whale_base * 5, "large print"),
+                (float(row.get("long_odds_notional", 0.0) or 0.0) >= whale_base, "long-odds big bet"),
+                (float(row.get("late_share", 0.0) or 0.0) >= 0.5, "late-market flow"),
                 (float(row.get("top_market_share", 0.0) or 0.0) >= 0.6 and int(row.get("trade_count", 0) or 0) >= 2, "single-market concentration"),
                 (float(row.get("directional_share", 0.0) or 0.0) >= 0.8, "one-sided flow"),
                 (float(row.get("trades_per_hour", 0.0) or 0.0) >= 20, "fast burst"),
-                (float(row.get("late_share", 0.0) or 0.0) >= 0.5, "late-market flow"),
+                (float(row.get("price_move", 0.0) or 0.0) >= 0.05, "favorable price move"),
+                (int(row.get("trade_count", 0) or 0) <= 2 and float(row.get("largest_trade", 0.0) or 0.0) >= whale_base, "sample-fresh large wallet"),
+                (float(row.get("largest_trade", 0.0) or 0.0) >= whale_base * 5, "large print"),
             ],
         ),
         axis=1,
     )
-    return grouped.sort_values(["wallet_risk_score", "notional", "latest_trade"], ascending=[False, False, False]).reset_index(drop=True)
+    grouped["wallet_risk_score"] = grouped["wallet_insider_score"]
+    grouped["wallet_risk_level"] = grouped["wallet_insider_level"]
+    grouped["wallet_risk_reasons"] = grouped["wallet_insider_flags"]
+    return grouped.sort_values(["wallet_insider_score", "notional", "latest_trade"], ascending=[False, False, False]).reset_index(drop=True)
 
 
 def whale_event_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_000.0, now: Any | None = None) -> pd.DataFrame:
-    """Score market/event-level whale-flow risk signals from recent public trades."""
+    """Score market/event-level insider-like flow signals from recent public trades."""
 
     df, _current_time = _prepare_whale_risk_trades(trades, now)
     if df.empty or "title" not in df:
@@ -3123,6 +3181,7 @@ def whale_event_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_00
             latest_trade=("time", "max"),
             unique_wallets=("wallet", lambda s: int(s.astype(str).str.strip().replace("", pd.NA).dropna().nunique())),
             late_notional=("late_notional", "sum"),
+            long_odds_notional=("long_odds_notional", "sum"),
             market_key=("market_key", "first"),
             url=("url", "first") if "url" in df else ("title", "first"),
         )
@@ -3157,38 +3216,63 @@ def whale_event_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_00
     )
 
     grouped = grouped.merge(top_wallet, on=["platform", "title"], how="left").merge(top_outcome, on=["platform", "title"], how="left").merge(top_side, on=["platform", "title"], how="left")
-    for column in ["top_wallet_share", "outcome_share", "side_share", "late_notional"]:
+    price_moves = _price_move_features(df, ["platform", "title"])
+    if not price_moves.empty:
+        grouped = grouped.merge(price_moves, on=["platform", "title"], how="left")
+    else:
+        grouped["price_move"] = 0.0
+        grouped["price_move_score"] = 0.0
+    for column in ["top_wallet_share", "outcome_share", "side_share", "late_notional", "long_odds_notional", "price_move", "price_move_score"]:
         if column in grouped:
             grouped[column] = pd.to_numeric(grouped[column], errors="coerce").fillna(0.0)
     grouped["event_directional_share"] = grouped[["outcome_share", "side_share"]].max(axis=1)
     grouped["event_directional_label"] = grouped["dominant_outcome"].where(grouped["outcome_share"] >= grouped["side_share"], grouped["dominant_side"]).fillna("")
     grouped["late_share"] = grouped["late_notional"] / grouped["notional"].replace({0: pd.NA})
     grouped["late_share"] = grouped["late_share"].fillna(0.0)
+    grouped["long_odds_share"] = grouped["long_odds_notional"] / grouped["notional"].replace({0: pd.NA})
+    grouped["long_odds_share"] = grouped["long_odds_share"].fillna(0.0)
 
     whale_base = max(float(whale_threshold or 0.0), 1_000.0)
-    notional_score = (grouped["notional"] / (whale_base * 40)).clip(upper=1.0) * 25
-    largest_score = (grouped["largest_trade"] / (whale_base * 5)).clip(upper=1.0) * 15
-    wallet_concentration_score = grouped["top_wallet_share"].fillna(0.0).clip(upper=1.0) * 20
-    direction_score = ((grouped["event_directional_share"].fillna(0.0) - 0.55) / 0.45).clip(lower=0.0, upper=1.0) * 15
+    notional_score = (grouped["notional"] / (whale_base * 40)).clip(upper=1.0) * 15
+    largest_score = (grouped["largest_trade"] / (whale_base * 5)).clip(upper=1.0) * 10
+    long_odds_score = ((grouped["long_odds_share"].fillna(0.0) * 0.55) + (grouped["long_odds_notional"] / (whale_base * 5)).clip(upper=1.0) * 0.45) * 10
+    wallet_concentration_score = grouped["top_wallet_share"].fillna(0.0).clip(upper=1.0) * 15
+    direction_score = ((grouped["event_directional_share"].fillna(0.0) - 0.55) / 0.45).clip(lower=0.0, upper=1.0) * 10
     burst_score = (grouped["trades_per_hour"] / 30).clip(upper=1.0) * 15
-    late_score = grouped["late_share"].fillna(0.0).clip(upper=1.0) * 10
-    grouped["event_risk_score"] = (notional_score + largest_score + wallet_concentration_score + direction_score + burst_score + late_score).round(0).clip(0, 100)
-    grouped["event_risk_level"] = grouped["event_risk_score"].map(_risk_level)
-    grouped["event_risk_reasons"] = grouped.apply(
+    late_score = grouped["late_share"].fillna(0.0).clip(upper=1.0) * 15
+    cluster_score = (((grouped["unique_wallets"] >= 3) & (grouped["trades_per_hour"] >= 10)).astype(float)) * 10
+    grouped["event_insider_score"] = (
+        notional_score
+        + largest_score
+        + long_odds_score
+        + wallet_concentration_score
+        + direction_score
+        + burst_score
+        + late_score
+        + grouped["price_move_score"].fillna(0.0)
+        + cluster_score
+    ).round(0).clip(0, 100)
+    grouped["event_insider_level"] = grouped["event_insider_score"].map(_risk_level)
+    grouped["event_insider_flags"] = grouped.apply(
         lambda row: _risk_reasons(
             row,
             [
-                (float(row.get("largest_trade", 0.0) or 0.0) >= whale_base * 5, "large print"),
+                (float(row.get("long_odds_notional", 0.0) or 0.0) >= whale_base, "long-odds big bet"),
+                (float(row.get("late_share", 0.0) or 0.0) >= 0.5, "late-market flow"),
                 (float(row.get("top_wallet_share", 0.0) or 0.0) >= 0.5, "wallet concentration"),
                 (float(row.get("event_directional_share", 0.0) or 0.0) >= 0.8, "one-sided flow"),
                 (float(row.get("trades_per_hour", 0.0) or 0.0) >= 20, "fast burst"),
-                (float(row.get("late_share", 0.0) or 0.0) >= 0.5, "late-market flow"),
-                (int(row.get("unique_wallets", 0) or 0) >= 5 and float(row.get("trades_per_hour", 0.0) or 0.0) >= 10, "multi-wallet burst"),
+                (float(row.get("price_move", 0.0) or 0.0) >= 0.05, "favorable price move"),
+                (int(row.get("unique_wallets", 0) or 0) >= 3 and float(row.get("trades_per_hour", 0.0) or 0.0) >= 10, "multi-wallet burst"),
+                (float(row.get("largest_trade", 0.0) or 0.0) >= whale_base * 5, "large print"),
             ],
         ),
         axis=1,
     )
-    return grouped.sort_values(["event_risk_score", "notional", "latest_trade"], ascending=[False, False, False]).reset_index(drop=True)
+    grouped["event_risk_score"] = grouped["event_insider_score"]
+    grouped["event_risk_level"] = grouped["event_insider_level"]
+    grouped["event_risk_reasons"] = grouped["event_insider_flags"]
+    return grouped.sort_values(["event_insider_score", "notional", "latest_trade"], ascending=[False, False, False]).reset_index(drop=True)
 
 
 def trader_flow_scores(trades: pd.DataFrame, whale_threshold: float = 2500) -> pd.DataFrame:
