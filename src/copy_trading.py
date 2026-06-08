@@ -63,6 +63,7 @@ class CopySettings:
     auto_top_up_enabled: bool = True
     auto_top_up_amount: float = 1000.0
     auto_top_up_threshold: float = 1.0
+    min_copy_notional: float = MIN_COPY_NOTIONAL
 
 
 @dataclass(frozen=True)
@@ -1715,8 +1716,9 @@ def _apply_buy(conn: sqlite3.Connection, parsed: dict[str, Any], settings: CopyS
     desired = parsed["source_notional"] * effective_scale
     cap = max(snapshot.equity, 0.0) * effective_cap_pct
     copy_notional = min(desired, cap, cash)
-    if copy_notional < MIN_COPY_NOTIONAL:
-        reason = "insufficient_cash" if cash < MIN_COPY_NOTIONAL else "below_min_copy_notional"
+    min_copy_notional = max(0.0, float(settings.min_copy_notional))
+    if copy_notional < min_copy_notional:
+        reason = "insufficient_cash" if cash < min_copy_notional else "below_min_copy_notional"
         return PaperOrder(parsed["dedup_key"], "skipped", reason, parsed["side"], parsed["source_notional"])
 
     copy_size = copy_notional / parsed["price"]
