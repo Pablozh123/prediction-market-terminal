@@ -104,6 +104,42 @@ class CopyTradingTests(unittest.TestCase):
         self.assertAlmostEqual(float(sizing["effective_copy_scale"]), 0.005)
         self.assertEqual(sizing["copy_scale_mode"], "dynamic_wallet_equity")
 
+    def test_dynamic_wallet_sizing_multiplier_scales_portfolio_percent(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            ct._set_meta(conn, "tony_visible_equity", "200000")
+            settings = ct.CopySettings(trade_limit=20, dynamic_sizing_multiplier=2.0, dynamic_scale_max=0.05)
+            order = ct.apply_paper_trade(conn, source_trade(price=0.5, size=2000.0), settings)
+            sizing = ct.get_dynamic_sizing_snapshot(conn=conn)
+        finally:
+            conn.close()
+
+        self.assertEqual(order.status, "copied")
+        self.assertAlmostEqual(order.copy_notional, 10.0)
+        self.assertAlmostEqual(float(sizing["effective_copy_scale"]), 0.01)
+        self.assertAlmostEqual(float(sizing["dynamic_sizing_multiplier"]), 2.0)
+
+    def test_copy_settings_round_trip_persists_dynamic_sizing_options(self) -> None:
+        path = Path(self.tmp.name) / "copy_settings.json"
+        settings = ct.CopySettings(
+            dynamic_sizing_enabled=True,
+            dynamic_sizing_multiplier=1.75,
+            copy_scale=0.02,
+            dynamic_scale_max=0.08,
+            max_order_equity_pct=0.12,
+            min_copy_notional=0.0,
+        )
+
+        ct.save_copy_settings(settings, path=path)
+        loaded = ct.load_copy_settings(path=path)
+
+        self.assertTrue(loaded.dynamic_sizing_enabled)
+        self.assertAlmostEqual(loaded.dynamic_sizing_multiplier, 1.75)
+        self.assertAlmostEqual(loaded.copy_scale, 0.02)
+        self.assertAlmostEqual(loaded.dynamic_scale_max, 0.08)
+        self.assertAlmostEqual(loaded.max_order_equity_pct, 0.12)
+        self.assertAlmostEqual(loaded.min_copy_notional, 0.0)
+
     def test_dynamic_cap_can_follow_tony_largest_position_pct(self) -> None:
         conn = ct.connect(self.db_path)
         try:

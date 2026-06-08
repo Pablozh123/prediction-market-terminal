@@ -23,6 +23,7 @@ from src import prediction_markets as md
 COPY_TARGET_WALLET = "0x204f72f35326db932158cba6adff0b9a1da95e14"
 SWISSTONY_LABEL = "Swisstony"
 DEFAULT_DB_PATH = Path("data/copy_trading.sqlite")
+DEFAULT_SETTINGS_PATH = Path("data/copy_settings.json")
 PER_TRADER_START_CASH = 1000.0
 # ROI-ranking thresholds for the discovery list (spec §4.2). Total completed
 # trades are not exposed by the public leaderboard feed, so traded volume is
@@ -56,6 +57,7 @@ class CopySettings:
     live_trading_enabled: bool = False
     trade_limit: int = 250
     dynamic_sizing_enabled: bool = True
+    dynamic_sizing_multiplier: float = 1.0
     dynamic_stats_refresh_seconds: int = 300
     dynamic_scale_max: float = 0.01
     dynamic_scale_min: float = 0.0
@@ -127,6 +129,55 @@ class TonyWalletStats:
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def load_copy_settings(
+    path: str | Path = DEFAULT_SETTINGS_PATH,
+    default: CopySettings | None = None,
+) -> CopySettings:
+    base = asdict(default or CopySettings())
+    settings_path = Path(path)
+    if settings_path.exists():
+        try:
+            payload = json.loads(settings_path.read_text(encoding="utf-8"))
+            if isinstance(payload, Mapping):
+                for key in base:
+                    if key in payload:
+                        base[key] = payload[key]
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+            pass
+    bool_fields = {"live_trading_enabled", "dynamic_sizing_enabled", "dynamic_order_cap_from_tony", "auto_top_up_enabled"}
+    int_fields = {"trade_limit", "dynamic_stats_refresh_seconds"}
+    cleaned: dict[str, Any] = {}
+    for key, value in base.items():
+        if key in bool_fields:
+            if isinstance(value, str):
+                cleaned[key] = value.strip().lower() in {"1", "true", "yes", "on"}
+            else:
+                cleaned[key] = bool(value)
+        elif key in int_fields:
+            try:
+                cleaned[key] = max(0, int(float(value)))
+            except (TypeError, ValueError):
+                cleaned[key] = int(getattr(CopySettings(), key))
+        elif key == "target_wallet":
+            cleaned[key] = str(value or COPY_TARGET_WALLET).strip().lower()
+        else:
+            try:
+                cleaned[key] = max(0.0, float(value))
+            except (TypeError, ValueError):
+                cleaned[key] = float(getattr(CopySettings(), key))
+    cleaned["dynamic_sizing_multiplier"] = max(0.0, float(cleaned.get("dynamic_sizing_multiplier", 1.0)))
+    cleaned["max_order_equity_pct"] = min(float(cleaned.get("max_order_equity_pct", 0.0)), 1.0)
+    cleaned["dynamic_scale_max"] = min(float(cleaned.get("dynamic_scale_max", 0.0)), 1.0)
+    cleaned["dynamic_scale_min"] = min(float(cleaned.get("dynamic_scale_min", 0.0)), 1.0)
+    return CopySettings(**cleaned)
+
+
+def save_copy_settings(settings: CopySettings, path: str | Path = DEFAULT_SETTINGS_PATH) -> None:
+    settings_path = Path(path)
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    settings_path.write_text(json.dumps(asdict(settings), indent=2, sort_keys=True), encoding="utf-8")
 
 
 def connect(db_path: str | Path = DEFAULT_DB_PATH) -> sqlite3.Connection:
@@ -2026,6 +2077,7 @@ def get_dynamic_sizing_snapshot(db_path: str | Path = DEFAULT_DB_PATH, conn: sql
     try:
         keys = (
             "dynamic_sizing_enabled",
+            "dynamic_sizing_multiplier",
             "effective_copy_scale",
             "effective_max_order_equity_pct",
             "tony_visible_equity",
@@ -2086,13 +2138,14 @@ def _effective_copy_scale(conn: sqlite3.Connection, snapshot: PortfolioSnapshot,
             scale = max(0.0, settings.copy_scale)
             _set_meta(conn, "copy_scale_mode", "fixed_fallback_no_tony_equity")
         else:
-            scale = snapshot.equity / tony_equity
+            scale = (snapshot.equity / tony_equity) * max(0.0, float(settings.dynamic_sizing_multiplier))
             if settings.dynamic_scale_max > 0:
                 scale = min(scale, settings.dynamic_scale_max)
             if settings.dynamic_scale_min > 0:
                 scale = max(scale, settings.dynamic_scale_min)
             _set_meta(conn, "copy_scale_mode", "dynamic_wallet_equity")
     _set_meta(conn, "dynamic_sizing_enabled", "true" if settings.dynamic_sizing_enabled else "false")
+    _set_meta(conn, "dynamic_sizing_multiplier", f"{max(0.0, float(settings.dynamic_sizing_multiplier)):.10f}")
     _set_meta(conn, "effective_copy_scale", f"{scale:.10f}")
     _set_meta(conn, "effective_copy_scale_updated_at", utc_now())
     return scale

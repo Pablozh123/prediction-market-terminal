@@ -58,7 +58,8 @@ def main() -> int:
     db_path = Path(args.db)
     status_path = Path(args.status_file)
     stop_path = Path(args.stop_file)
-    settings = ct.CopySettings(trade_limit=int(args.limit), min_copy_notional=max(0.0, float(args.min_copy_notional)))
+    base_settings = ct.CopySettings(trade_limit=int(args.limit), min_copy_notional=max(0.0, float(args.min_copy_notional)))
+    settings = ct.load_copy_settings(default=base_settings)
     pid = os.getpid()
     next_api_sync = 0.0
     next_settlement_sync = time.monotonic() + min(30.0, settlement_interval)
@@ -95,6 +96,7 @@ def main() -> int:
     )
 
     while True:
+        settings = ct.load_copy_settings(default=base_settings)
         fast_result = None
         api_result = None
         settlement_result = None
@@ -218,6 +220,7 @@ def main() -> int:
                     "unrealized_pnl": snapshot.unrealized_pnl,
                     "open_positions": len(snapshot.positions),
                     "dynamic_sizing": dynamic_sizing,
+                    "copy_settings": asdict(settings),
                     "completed_once": args.once,
                     "last_error": "; ".join(errors[:5]) if errors else None,
                 },
