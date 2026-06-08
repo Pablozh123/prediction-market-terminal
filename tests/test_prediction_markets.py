@@ -538,6 +538,25 @@ class RecentTradeActionTests(unittest.TestCase):
 
 
 class TraderTraitFilterTests(unittest.TestCase):
+    def test_whale_behavior_metrics_computes_filter_shares(self) -> None:
+        wallet = "0x" + "a" * 40
+        trades = pd.DataFrame(
+            [
+                {"platform": "Polymarket", "wallet": wallet, "trader": "alice", "title": "Market A", "price": 0.10, "notional": 12_000.0, "size": 120_000.0},
+                {"platform": "Polymarket", "wallet": wallet, "trader": "alice", "title": "Market A", "price": 0.85, "notional": 8_000.0, "size": 9_411.8},
+                {"platform": "Polymarket", "wallet": wallet, "trader": "alice", "title": "Market B", "price": 0.50, "notional": 5_000.0, "size": 10_000.0},
+            ]
+        )
+
+        metrics = md.whale_behavior_metrics(trades, whale_threshold=10_000.0)
+
+        row = metrics.iloc[0]
+        self.assertAlmostEqual(float(row["contrarian_share"]), 12_000.0 / 25_000.0)
+        self.assertAlmostEqual(float(row["trend_follower_share"]), 8_000.0 / 25_000.0)
+        self.assertAlmostEqual(float(row["lottery_ticket_share"]), 12_000.0 / 25_000.0)
+        self.assertAlmostEqual(float(row["whale_splash_share"]), 20_000.0 / 25_000.0)
+        self.assertAlmostEqual(float(row["concentration_share"]), 20_000.0 / 25_000.0)
+
     def test_whale_wallet_risk_scores_flags_concentrated_late_flow(self) -> None:
         wallet = "0x" + "c" * 40
         trades = pd.DataFrame(
