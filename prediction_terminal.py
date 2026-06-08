@@ -7890,6 +7890,9 @@ def page_whale_flow() -> None:
         risk_cols = [
             "platform",
             "title",
+            "event_insider_score",
+            "event_insider_level",
+            "event_insider_flags",
             "event_risk_score",
             "event_risk_level",
             "event_risk_reasons",
@@ -7898,6 +7901,8 @@ def page_whale_flow() -> None:
             "event_directional_label",
             "event_directional_share",
             "late_share",
+            "long_odds_share",
+            "price_move",
         ]
         flow = flow.merge(event_risk[[col for col in risk_cols if col in event_risk]], on=["platform", "title"], how="left")
 
@@ -7960,8 +7965,8 @@ def page_whale_flow() -> None:
     cols[1].metric("Combined notional", money(trades["notional"].sum()))
     cols[2].metric("Largest print", money(trades["notional"].max()))
     cols[3].metric("Markets touched", f"{trades['title'].nunique():,}")
-    cols[4].metric("High-risk events", f"{int((numeric_col(event_risk, 'event_risk_score') >= 70).sum()) if not event_risk.empty else 0:,}")
-    cols[5].metric("High-risk wallets", f"{int((numeric_col(wallet_risk, 'wallet_risk_score') >= 70).sum()) if not wallet_risk.empty else 0:,}")
+    cols[4].metric("High insider events", f"{int((numeric_col(event_risk, 'event_insider_score') >= 70).sum()) if not event_risk.empty else 0:,}")
+    cols[5].metric("High insider wallets", f"{int((numeric_col(wallet_risk, 'wallet_insider_score') >= 70).sum()) if not wallet_risk.empty else 0:,}")
     left, right = st.columns([1.3, 1])
     with left:
         fig = px.scatter(
@@ -7996,8 +8001,8 @@ def page_whale_flow() -> None:
                 clean_table(
                     display,
                     [
-                        "wallet_risk_level",
-                        "wallet_risk_score",
+                        "wallet_insider_level",
+                        "wallet_insider_score",
                         "wallet",
                         "trader",
                         "notional",
@@ -8007,13 +8012,13 @@ def page_whale_flow() -> None:
                         "directional_label",
                         "directional_share_pct",
                         "top_market_share_pct",
-                        "wallet_risk_reasons",
+                        "wallet_insider_flags",
                     ],
                 ),
                 width="stretch",
                 height=390,
                 column_config={
-                    "wallet_risk_score": st.column_config.ProgressColumn("Risk", min_value=0, max_value=100),
+                    "wallet_insider_score": st.column_config.ProgressColumn("Insider", min_value=0, max_value=100),
                     "notional": st.column_config.NumberColumn(format="$%.0f"),
                     "largest_trade": st.column_config.NumberColumn(format="$%.0f"),
                     "directional_share_pct": st.column_config.NumberColumn("Direction", format="%.0f%%"),
@@ -8021,27 +8026,29 @@ def page_whale_flow() -> None:
                 },
             )
 
-    tab_risk, tab_tape, tab_markets, tab_bias, tab_track = st.tabs(["Risk Scores", "Trade Tape", "Market Flow", "Outcome Bias", "Track Actions"])
+    tab_risk, tab_tape, tab_markets, tab_bias, tab_track = st.tabs(["Insider Risk", "Trade Tape", "Market Flow", "Outcome Bias", "Track Actions"])
     with tab_risk:
-        st.caption("Risk scores are heuristic signals from public trade flow, not proof of insider trading or manipulation.")
+        st.caption("Insider Risk is a best-effort public-data screen: long-odds big bets, late timing, concentration, bursts, sample-fresh wallets, and favorable price moves. It is not a legal finding.")
         risk_left, risk_right = st.columns([1.1, 1])
         with risk_left:
-            st.markdown("### Event risk")
+            st.markdown("### Event insider risk")
             if event_risk.empty:
-                draw_empty("No event risk signals in the filtered whale tape.")
+                draw_empty("No event insider signals in the filtered whale tape.")
             else:
                 event_display = event_risk.head(50).copy()
                 event_display["top_wallet"] = event_display["top_wallet"].astype(str).map(short_addr) if "top_wallet" in event_display else ""
                 event_display["top_wallet_share_pct"] = numeric_col(event_display, "top_wallet_share") * 100
                 event_display["event_directional_share_pct"] = numeric_col(event_display, "event_directional_share") * 100
                 event_display["late_share_pct"] = numeric_col(event_display, "late_share") * 100
-                st.download_button("Export event risk CSV", event_risk.to_csv(index=False).encode("utf-8"), file_name="whale_event_risk.csv", mime="text/csv")
+                event_display["long_odds_share_pct"] = numeric_col(event_display, "long_odds_share") * 100
+                event_display["price_move_cents"] = numeric_col(event_display, "price_move") * 100
+                st.download_button("Export event insider CSV", event_risk.to_csv(index=False).encode("utf-8"), file_name="whale_event_insider_risk.csv", mime="text/csv")
                 st.dataframe(
                     clean_table(
                         event_display,
                         [
-                            "event_risk_level",
-                            "event_risk_score",
+                            "event_insider_level",
+                            "event_insider_score",
                             "platform",
                             "title",
                             "notional",
@@ -8052,39 +8059,45 @@ def page_whale_flow() -> None:
                             "event_directional_label",
                             "event_directional_share_pct",
                             "late_share_pct",
-                            "event_risk_reasons",
+                            "long_odds_share_pct",
+                            "price_move_cents",
+                            "event_insider_flags",
                             "url",
                         ],
                     ),
                     width="stretch",
                     height=430,
                     column_config={
-                        "event_risk_score": st.column_config.ProgressColumn("Risk", min_value=0, max_value=100),
+                        "event_insider_score": st.column_config.ProgressColumn("Insider", min_value=0, max_value=100),
                         "notional": st.column_config.NumberColumn(format="$%.0f"),
                         "largest_trade": st.column_config.NumberColumn(format="$%.0f"),
                         "top_wallet_share_pct": st.column_config.NumberColumn("Top Wallet", format="%.0f%%"),
                         "event_directional_share_pct": st.column_config.NumberColumn("Direction", format="%.0f%%"),
                         "late_share_pct": st.column_config.NumberColumn("Late Flow", format="%.0f%%"),
+                        "long_odds_share_pct": st.column_config.NumberColumn("Long Odds", format="%.0f%%"),
+                        "price_move_cents": st.column_config.NumberColumn("Price Move", format="%.1f c"),
                         "url": st.column_config.LinkColumn("URL"),
                     },
                 )
         with risk_right:
-            st.markdown("### Wallet risk")
+            st.markdown("### Wallet insider risk")
             if wallet_risk.empty:
-                draw_empty("No wallet risk signals in the filtered whale tape.")
+                draw_empty("No wallet insider signals in the filtered whale tape.")
             else:
                 wallet_display = wallet_risk.head(50).copy()
                 wallet_display["wallet"] = wallet_display["wallet"].astype(str).map(short_addr)
                 wallet_display["top_market_share_pct"] = numeric_col(wallet_display, "top_market_share") * 100
                 wallet_display["directional_share_pct"] = numeric_col(wallet_display, "directional_share") * 100
                 wallet_display["late_share_pct"] = numeric_col(wallet_display, "late_share") * 100
-                st.download_button("Export wallet risk CSV", wallet_risk.to_csv(index=False).encode("utf-8"), file_name="whale_wallet_risk.csv", mime="text/csv")
+                wallet_display["long_odds_share_pct"] = numeric_col(wallet_display, "long_odds_share") * 100
+                wallet_display["price_move_cents"] = numeric_col(wallet_display, "price_move") * 100
+                st.download_button("Export wallet insider CSV", wallet_risk.to_csv(index=False).encode("utf-8"), file_name="whale_wallet_insider_risk.csv", mime="text/csv")
                 st.dataframe(
                     clean_table(
                         wallet_display,
                         [
-                            "wallet_risk_level",
-                            "wallet_risk_score",
+                            "wallet_insider_level",
+                            "wallet_insider_score",
                             "wallet",
                             "trader",
                             "notional",
@@ -8095,18 +8108,22 @@ def page_whale_flow() -> None:
                             "directional_share_pct",
                             "top_market_share_pct",
                             "late_share_pct",
-                            "wallet_risk_reasons",
+                            "long_odds_share_pct",
+                            "price_move_cents",
+                            "wallet_insider_flags",
                         ],
                     ),
                     width="stretch",
                     height=430,
                     column_config={
-                        "wallet_risk_score": st.column_config.ProgressColumn("Risk", min_value=0, max_value=100),
+                        "wallet_insider_score": st.column_config.ProgressColumn("Insider", min_value=0, max_value=100),
                         "notional": st.column_config.NumberColumn(format="$%.0f"),
                         "largest_trade": st.column_config.NumberColumn(format="$%.0f"),
                         "directional_share_pct": st.column_config.NumberColumn("Direction", format="%.0f%%"),
                         "top_market_share_pct": st.column_config.NumberColumn("Top Market", format="%.0f%%"),
                         "late_share_pct": st.column_config.NumberColumn("Late Flow", format="%.0f%%"),
+                        "long_odds_share_pct": st.column_config.NumberColumn("Long Odds", format="%.0f%%"),
+                        "price_move_cents": st.column_config.NumberColumn("Price Move", format="%.1f c"),
                     },
                 )
     with tab_tape:
@@ -8137,12 +8154,14 @@ def page_whale_flow() -> None:
             flow_display["top_wallet_share_pct"] = numeric_col(flow_display, "top_wallet_share") * 100
             flow_display["event_directional_share_pct"] = numeric_col(flow_display, "event_directional_share") * 100
             flow_display["late_share_pct"] = numeric_col(flow_display, "late_share") * 100
+            flow_display["long_odds_share_pct"] = numeric_col(flow_display, "long_odds_share") * 100
+            flow_display["price_move_cents"] = numeric_col(flow_display, "price_move") * 100
             st.dataframe(
                 clean_table(
                     flow_display,
                     [
-                        "event_risk_level",
-                        "event_risk_score",
+                        "event_insider_level",
+                        "event_insider_score",
                         "platform",
                         "title",
                         "trades",
@@ -8155,7 +8174,9 @@ def page_whale_flow() -> None:
                         "event_directional_label",
                         "event_directional_share_pct",
                         "late_share_pct",
-                        "event_risk_reasons",
+                        "long_odds_share_pct",
+                        "price_move_cents",
+                        "event_insider_flags",
                         "buy_notional",
                         "sell_notional",
                         "net_buy_notional",
@@ -8166,13 +8187,15 @@ def page_whale_flow() -> None:
                 width="stretch",
                 height=460,
                 column_config={
-                    "event_risk_score": st.column_config.ProgressColumn("Risk", min_value=0, max_value=100),
+                    "event_insider_score": st.column_config.ProgressColumn("Insider", min_value=0, max_value=100),
                     "notional": st.column_config.NumberColumn(format="$%.0f"),
                     "avg_trade": st.column_config.NumberColumn(format="$%.0f"),
                     "largest_trade": st.column_config.NumberColumn(format="$%.0f"),
                     "top_wallet_share_pct": st.column_config.NumberColumn("Top Wallet", format="%.0f%%"),
                     "event_directional_share_pct": st.column_config.NumberColumn("Direction", format="%.0f%%"),
                     "late_share_pct": st.column_config.NumberColumn("Late Flow", format="%.0f%%"),
+                    "long_odds_share_pct": st.column_config.NumberColumn("Long Odds", format="%.0f%%"),
+                    "price_move_cents": st.column_config.NumberColumn("Price Move", format="%.1f c"),
                     "buy_notional": st.column_config.NumberColumn(format="$%.0f"),
                     "sell_notional": st.column_config.NumberColumn(format="$%.0f"),
                     "net_buy_notional": st.column_config.NumberColumn(format="$%.0f"),
@@ -11362,7 +11385,8 @@ def page_portfolio() -> None:
             draw_empty("No watched markets yet.")
         else:
             watch = pd.DataFrame(st.session_state.watchlist)
-            live = pd.concat([pm, ks], ignore_index=True) if not pm.empty or not ks.empty else pd.DataFrame()
+            live_frames = [frame.dropna(axis=1, how="all") for frame in (pm, ks) if not frame.empty]
+            live = pd.concat(live_frames, ignore_index=True, sort=False) if live_frames else pd.DataFrame()
             if not live.empty:
                 watch = watch.merge(clean_table(live, ["market_key", "yes_price", "change_1h", "activity_volume", "volume_24h", "liquidity"]), on="market_key", how="left")
             watch = _filter_position_rows(watch, value_col="activity_volume", pnl_col="change_1h")
