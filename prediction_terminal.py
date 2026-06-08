@@ -1550,6 +1550,13 @@ def queue_navigation(page: str, query: str | None = None) -> None:
         st.session_state.pending_global_search_query = query.strip()
 
 
+def navigate_workspace(page: str) -> None:
+    if page not in WORKSPACES:
+        return
+    st.session_state.selected_page = page
+    set_query_page(page)
+
+
 def apply_pending_navigation() -> None:
     target_page = st.session_state.pop("pending_selected_page", None)
     if target_page in WORKSPACES:
@@ -1680,11 +1687,13 @@ def render_command_bar() -> None:
     for idx, nav_page in enumerate(PREDICTPARITY_NAV):
         is_current = st.session_state.get("selected_page") == nav_page
         label = nav_page.upper()
-        nav_cols[idx].link_button(
+        nav_cols[idx].button(
             label,
-            f"/{PAGE_QUERY_SLUGS[nav_page]}",
             width="stretch",
             type="primary" if is_current else "secondary",
+            key=f"top_nav_{PAGE_QUERY_SLUGS[nav_page]}",
+            on_click=navigate_workspace,
+            args=(nav_page,),
         )
     left, middle, right = st.columns([1.2, 4.6, 1.8])
     with middle:
@@ -2012,13 +2021,20 @@ with st.sidebar:
         st.session_state.auth_dialog_mode = "Sign In"
     if auth_sidebar_cols[1].button("Sign Up", key="open_sign_up_sidebar", width="stretch"):
         st.session_state.auth_dialog_mode = "Sign Up"
-    page = st.radio(
-        "Workspace",
-        WORKSPACES,
-        key="selected_page",
-        label_visibility="collapsed",
-    )
-    set_query_page(page)
+    st.markdown("#### Workspace")
+    page = st.session_state.get("selected_page", "Overview")
+    if page not in WORKSPACES:
+        page = "Overview"
+        st.session_state.selected_page = page
+    for workspace in WORKSPACES:
+        st.button(
+            workspace,
+            width="stretch",
+            type="primary" if workspace == page else "secondary",
+            key=f"sidebar_nav_{PAGE_QUERY_SLUGS[workspace]}",
+            on_click=navigate_workspace,
+            args=(workspace,),
+        )
     st.divider()
     global_query = st.text_input("Global search", placeholder="bitcoin, fed, iran, election", key="global_search_query")
     market_limit = st.slider("Market sample", 50, 500, 250, 50)
