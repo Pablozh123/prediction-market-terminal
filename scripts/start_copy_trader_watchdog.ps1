@@ -26,6 +26,8 @@ $args = @(
     "30",
     "--settlement-interval",
     "180",
+    "--min-copy-notional",
+    "0",
     "--db",
     (Join-Path $ProjectRoot "data\copy_trading.sqlite"),
     "--status-file",

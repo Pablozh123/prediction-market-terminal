@@ -45,6 +45,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--db", default=str(ct.DEFAULT_DB_PATH), help="SQLite path for paper portfolio state.")
     parser.add_argument("--status-file", default=str(ct.DEFAULT_STATUS_PATH), help="JSON status file path.")
     parser.add_argument("--stop-file", default=str(ct.DEFAULT_STOP_PATH), help="Create this file to request shutdown.")
+    parser.add_argument("--min-copy-notional", type=float, default=ct.MIN_COPY_NOTIONAL, help="Minimum paper order notional before a BUY is skipped.")
     parser.add_argument("--once", action="store_true", help="Run one sync and exit.")
     return parser.parse_args()
 
@@ -57,7 +58,7 @@ def main() -> int:
     db_path = Path(args.db)
     status_path = Path(args.status_file)
     stop_path = Path(args.stop_file)
-    settings = ct.CopySettings(trade_limit=int(args.limit))
+    settings = ct.CopySettings(trade_limit=int(args.limit), min_copy_notional=max(0.0, float(args.min_copy_notional)))
     pid = os.getpid()
     next_api_sync = 0.0
     next_settlement_sync = time.monotonic() + min(30.0, settlement_interval)

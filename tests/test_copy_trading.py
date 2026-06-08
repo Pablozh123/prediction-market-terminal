@@ -60,6 +60,25 @@ class CopyTradingTests(unittest.TestCase):
         self.assertAlmostEqual(order.copy_size, 20.0)
         self.assertAlmostEqual(snapshot.cash, 990.0)
 
+    def test_min_copy_notional_can_be_disabled_for_tiny_paper_buys(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            default_order = ct.apply_paper_trade(conn, source_trade(tx="0xtiny1", price=0.5, size=1.0), self.settings)
+            zero_min_order = ct.apply_paper_trade(
+                conn,
+                source_trade(tx="0xtiny2", price=0.5, size=1.0),
+                ct.CopySettings(trade_limit=20, min_copy_notional=0.0),
+            )
+        finally:
+            conn.close()
+
+        self.assertEqual(default_order.status, "skipped")
+        self.assertEqual(default_order.reason, "below_min_copy_notional")
+        self.assertEqual(zero_min_order.status, "copied")
+        self.assertEqual(zero_min_order.reason, "buy_scaled")
+        self.assertAlmostEqual(zero_min_order.copy_notional, 0.005)
+        self.assertAlmostEqual(zero_min_order.copy_size, 0.01)
+
     def test_large_buy_is_capped_at_five_percent_equity(self) -> None:
         conn = ct.connect(self.db_path)
         try:
