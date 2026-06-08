@@ -618,7 +618,7 @@ def track_filter_defaults(query: str = "", rows: int = 80) -> dict[str, Any]:
         "track_search": query,
         "track_platforms": ["Polymarket", "Kalshi"],
         "track_min_watch_volume": 0,
-        "track_rows": _bounded_int(rows, 80, 10, 250),
+        "track_rows": _bounded_int(rows, 80, 25, 500),
         "track_signal_filter": "Any",
         "track_min_wallet_value": 0,
     }
@@ -762,7 +762,7 @@ def apply_track_filter_view_widgets(view: dict[str, Any]) -> None:
         "track_search": str(view.get("query", defaults["track_search"])),
         "track_platforms": _choice_list(view.get("platforms", defaults["track_platforms"]), ["Polymarket", "Kalshi"], defaults["track_platforms"]),
         "track_min_watch_volume": int(_bounded_float(view.get("min_watch_volume", defaults["track_min_watch_volume"]), 0.0, 0.0, 1_000_000_000.0)),
-        "track_rows": _bounded_int(view.get("rows", defaults["track_rows"]), 80, 10, 250),
+        "track_rows": _bounded_int(view.get("rows", defaults["track_rows"]), 80, 25, 500),
         "track_signal_filter": _choice(view.get("signal_filter", defaults["track_signal_filter"]), ["Any", "Fast move", "Tight spread", "None"], "Any"),
         "track_min_wallet_value": int(_bounded_float(view.get("min_wallet_value", defaults["track_min_wallet_value"]), 0.0, 0.0, 1_000_000_000.0)),
     }
@@ -1403,6 +1403,11 @@ def load_wallet_bundle(wallet: str, limit: int) -> tuple[pd.DataFrame, pd.DataFr
     trades = md.get_polymarket_trades(limit=min(limit, 500), user=wallet)
     activity = md.get_polymarket_activity(wallet, limit=limit)
     return open_positions, closed_positions, trades, activity
+
+
+@st.cache_data(ttl=30, show_spinner=False)
+def load_polymarket_activity(wallet: str, limit: int) -> pd.DataFrame:
+    return md.get_polymarket_activity(wallet, limit=limit)
 
 
 @st.cache_data(ttl=180, show_spinner=False)
@@ -6572,7 +6577,303 @@ def page_wallets() -> None:
     st.info("Kalshi wallet analytics are not shown because Kalshi public market data does not expose trader wallets.")
 
 
+def track_time_ago(value: Any) -> str:
+    timestamp = pd.to_datetime(value, utc=True, errors="coerce")
+    if pd.isna(timestamp):
+        return "-"
+    seconds = max(0, int((pd.Timestamp.now(tz="UTC") - timestamp).total_seconds()))
+    if seconds < 60:
+        return f"{seconds}s"
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"{minutes}m"
+    hours = minutes // 60
+    if hours < 24:
+        return f"{hours}h"
+    days = hours // 24
+    return f"{days}d"
+
+
+def track_wallet_options() -> list[str]:
+    seen: set[str] = set()
+    wallets: list[str] = []
+    for item in st.session_state.followed_wallets:
+        wallet = str(item or "").strip().lower()
+        if re.fullmatch(r"0x[a-fA-F0-9]{40}", wallet) and wallet not in seen:
+            seen.add(wallet)
+            wallets.append(wallet)
+    return wallets
+
+
+def load_tracked_wallet_trade_tape(wallets: tuple[str, ...], rows_per_wallet: int) -> pd.DataFrame:
+    frames: list[pd.DataFrame] = []
+    per_wallet_limit = max(25, min(int(rows_per_wallet), 500))
+    for wallet in wallets:
+        activity = safe_load(
+            f"Tracked wallet activity {short_addr(wallet, 4)}",
+            load_polymarket_activity,
+            wallet,
+            per_wallet_limit,
+            default=pd.DataFrame(),
+        )
+        frame = pd.DataFrame()
+        if isinstance(activity, pd.DataFrame) and not activity.empty:
+            frame = activity.copy()
+            side_series = frame.get("side", pd.Series("", index=frame.index)).astype(str).str.strip()
+            if "type" in frame:
+                trade_mask = frame["type"].astype(str).str.upper().eq("TRADE") | side_series.astype(bool)
+                frame = frame[trade_mask].copy()
+            if "transactionHash" in frame and "transaction_hash" not in frame:
+                frame["transaction_hash"] = frame["transactionHash"]
+        if frame.empty:
+            frame = safe_load(
+                f"Tracked wallet trades {short_addr(wallet, 4)}",
+                load_polymarket_trades,
+                per_wallet_limit,
+                0.0,
+                wallet,
+                None,
+                default=pd.DataFrame(),
+            )
+        if not isinstance(frame, pd.DataFrame) or frame.empty:
+            continue
+        frame = frame.copy()
+        frame["wallet"] = frame.get("wallet", pd.Series(wallet, index=frame.index)).astype(str).replace("", wallet)
+        if "transactionHash" in frame and "transaction_hash" not in frame:
+            frame["transaction_hash"] = frame["transactionHash"]
+        if "platform" not in frame:
+            frame["platform"] = "Polymarket"
+        frames.append(frame)
+    if not frames:
+        return pd.DataFrame()
+    tape = pd.concat(frames, ignore_index=True, sort=False)
+    tape["time"] = pd.to_datetime(tape.get("time"), utc=True, errors="coerce")
+    for col in ["price", "size", "notional"]:
+        tape[col] = pd.to_numeric(tape.get(col, 0.0), errors="coerce").fillna(0.0)
+    if "market_key" not in tape:
+        tape["market_key"] = tape.get("ticker", tape.get("title", ""))
+    if "url" not in tape:
+        tape["url"] = ""
+    return tape.sort_values("time", ascending=False, na_position="last").reset_index(drop=True)
+
+
+def track_counterparty_label(row: pd.Series) -> str:
+    for key in ["counterparty_wallet", "counterparty"]:
+        value = str(row.get(key, "") or "").strip()
+        if re.fullmatch(r"0x[a-fA-F0-9]{40}", value):
+            return short_addr(value, 4)
+        if value:
+            return value[:18]
+    tx_hash = str(row.get("transaction_hash", "") or row.get("transactionHash", "") or "").strip()
+    if tx_hash:
+        return f"tx {short_addr(tx_hash, 4)}"
+    return "-"
+
+
+def prepare_track_trade_table(tape: pd.DataFrame) -> pd.DataFrame:
+    if tape.empty:
+        return pd.DataFrame()
+    display = tape.copy()
+    display["Trader"] = display.apply(
+        lambda row: str(row.get("trader") or short_addr(str(row.get("wallet", "")), 4))[:28],
+        axis=1,
+    )
+    display["Market"] = display.get("title", pd.Series("", index=display.index)).astype(str).map(lambda value: value[:92])
+    display["Side"] = display.get("side", pd.Series("", index=display.index)).astype(str).str.upper().map(
+        lambda value: "Buy" if value == "BUY" else ("Sell" if value == "SELL" else value.title())
+    )
+    display["Outcome"] = display.get("outcome", pd.Series("", index=display.index)).astype(str).replace("", "-")
+    display["Price"] = display["price"].map(cents)
+    display["Amount"] = display["notional"].map(money)
+    display["Shares"] = display["size"].map(lambda value: f"{float(value):,.1f}")
+    display["Counterparty"] = display.apply(track_counterparty_label, axis=1)
+    display["Time"] = display["time"].map(track_time_ago)
+    return display[["Trader", "Market", "Side", "Outcome", "Price", "Amount", "Shares", "Counterparty", "Time"]]
+
+
 def page_track() -> None:
+    section_header("Track", "Focused tracked-wallet trade tape: add wallets, choose traders, and watch their recent Polymarket trades.")
+    if "track_search" not in st.session_state:
+        reset_track_filter_widgets(global_query)
+    if st.session_state.pop("track_filters_reset_pending", False):
+        reset_track_filter_widgets(global_query)
+    pending_track_view = st.session_state.pop("pending_track_filter_view", None)
+    if isinstance(pending_track_view, dict):
+        apply_track_filter_view_widgets(pending_track_view)
+    route_filter_params = query_param_snapshot(["q", "query", "search", "wallet", "limit", "rows"])
+    route_filter_signature = json.dumps(route_filter_params, sort_keys=True)
+    route_filter_view = md.predictparity_track_filter_view(route_filter_params)
+    if route_filter_view and st.session_state.get("track_route_filter_signature") != route_filter_signature:
+        apply_track_filter_view_widgets(route_filter_view)
+        route_wallet = str(route_filter_params.get("wallet", "") or "").strip()
+        if re.fullmatch(r"0x[a-fA-F0-9]{40}", route_wallet):
+            st.session_state["track_wallet_input"] = route_wallet
+        st.session_state["track_route_filter_signature"] = route_filter_signature
+
+    controls = st.columns([2.4, 2.2, 0.9, 0.9])
+    track_query = controls[0].text_input("Search Trader or Market", placeholder="Search Trader or Market", key="track_search")
+    wallet_entry = controls[1].text_input("Wallet to track", placeholder="0x...", key="track_wallet_input")
+    if controls[2].button("Track wallet", type="primary", width="stretch", key="track_wallet_add_primary"):
+        wallet_value = str(wallet_entry or "").strip().lower()
+        if re.fullmatch(r"0x[a-fA-F0-9]{40}", wallet_value):
+            st.session_state.followed_wallets, changed = md.upsert_followed_wallet(st.session_state.followed_wallets, wallet_value)
+            if changed:
+                save_local_list("followed_wallets.json", st.session_state.followed_wallets)
+            selected = [str(item).lower() for item in st.session_state.get("track_selected_wallets", [])]
+            if wallet_value not in selected:
+                selected.append(wallet_value)
+                st.session_state["track_selected_wallets"] = selected
+            st.toast("Wallet is tracked.")
+            st.rerun()
+        else:
+            st.warning("Enter a valid Polymarket wallet address, e.g. 0x...")
+    if controls[3].button("Refresh", width="stretch", key="track_refresh_tape"):
+        load_polymarket_activity.clear()
+        load_polymarket_trades.clear()
+        st.rerun()
+
+    row_cols = st.columns([1.1, 1.1, 3])
+    watch_rows = row_cols[0].slider("Rows", min_value=25, max_value=500, step=25, key="track_rows")
+    min_trade_notional = row_cols[1].number_input("Min amount", min_value=0, step=10, key="track_min_watch_volume")
+
+    wallet_options = track_wallet_options()
+    selection_key = "track_selected_wallets"
+    if selection_key not in st.session_state:
+        st.session_state[selection_key] = wallet_options[:]
+    else:
+        allowed = {wallet.lower() for wallet in wallet_options}
+        st.session_state[selection_key] = [
+            str(wallet).lower()
+            for wallet in st.session_state.get(selection_key, [])
+            if str(wallet).lower() in allowed
+        ]
+    current_selection = list(st.session_state.get(selection_key, []))
+    picker_label = f"Traders ({len(current_selection)}/{len(wallet_options)})"
+    picker_context = st.popover(picker_label) if hasattr(st, "popover") else st.expander(picker_label, expanded=False)
+    with picker_context:
+        picker_cols = st.columns([1, 1, 2])
+        if picker_cols[0].button("Select all", key="track_select_all_wallets", width="stretch"):
+            st.session_state[selection_key] = wallet_options[:]
+            st.rerun()
+        if picker_cols[1].button("Clear", key="track_clear_selected_wallets", width="stretch"):
+            st.session_state[selection_key] = []
+            st.rerun()
+        picker_cols[2].caption("Choose which tracked wallets feed the table.")
+        selected_wallets = st.multiselect(
+            "Tracked wallets",
+            wallet_options,
+            key=selection_key,
+            format_func=lambda wallet: short_addr(str(wallet), 4),
+        )
+        remove_wallet = st.selectbox("Remove tracked wallet", [""] + wallet_options, format_func=lambda wallet: "Select wallet" if not wallet else short_addr(str(wallet), 4))
+        if remove_wallet and st.button("Remove selected wallet", key="track_remove_wallet_from_picker", width="stretch"):
+            st.session_state.followed_wallets = [wallet for wallet in st.session_state.followed_wallets if str(wallet).lower() != str(remove_wallet).lower()]
+            save_local_list("followed_wallets.json", st.session_state.followed_wallets)
+            st.rerun()
+    selected_wallets = [str(wallet).lower() for wallet in st.session_state.get(selection_key, [])]
+    if len(selected_wallets) > 12:
+        st.info("Showing the first 12 selected wallets to keep this local view responsive.")
+        selected_wallets = selected_wallets[:12]
+
+    if not wallet_options:
+        draw_empty("No wallets tracked yet. Enter a Polymarket wallet above to start this trade tape.")
+        return
+    if not selected_wallets:
+        draw_empty("No traders selected. Open the Traders selector and choose at least one tracked wallet.")
+        return
+
+    tape = load_tracked_wallet_trade_tape(tuple(selected_wallets), max(int(watch_rows), 100))
+    if not tape.empty:
+        tape = tape[numeric_col(tape, "notional") >= float(min_trade_notional)].copy()
+        tape = filter_text(tape, track_query)
+        tape = tape.head(int(watch_rows)).reset_index(drop=True)
+
+    metrics = st.columns(6)
+    metrics[0].metric("Tracked wallets", f"{len(wallet_options):,}")
+    metrics[1].metric("Selected", f"{len(selected_wallets):,}")
+    metrics[2].metric("Trades", f"{len(tape):,}")
+    metrics[3].metric("Amount", money(tape["notional"].sum() if not tape.empty and "notional" in tape else 0.0))
+    metrics[4].metric("Avg trade", money(tape["notional"].mean() if not tape.empty and "notional" in tape else 0.0))
+    metrics[5].metric("Whale prints", f"{int((numeric_col(tape, 'notional') >= float(min_whale)).sum()) if not tape.empty else 0:,}")
+    render_filter_chips(
+        [
+            f"Selected wallets: {len(selected_wallets)}",
+            f"Rows: {int(watch_rows)}",
+            f"Min amount: {money(min_trade_notional)}",
+            f"Last synced: {md.now_utc_label()}",
+        ]
+        + ([f"Search: {track_query.strip()}"] if track_query.strip() else [])
+    )
+    st.caption("Polymarket's public wallet trade feed does not expose a guaranteed direct counterparty. The Counterparty column uses a public counterparty field when available, otherwise the transaction hash.")
+
+    if tape.empty:
+        draw_empty("No recent public Polymarket trades from the selected tracked wallets match the current filters.")
+        return
+
+    display = prepare_track_trade_table(tape)
+    st.download_button(
+        "Export tracked wallet trades CSV",
+        tape.to_csv(index=False).encode("utf-8"),
+        file_name="tracked_wallet_trades.csv",
+        mime="text/csv",
+    )
+    table_event = st.dataframe(
+        display,
+        width="stretch",
+        height=620,
+        key="track_wallet_trade_tape_table",
+        on_select="rerun",
+        selection_mode="single-row",
+        column_config={
+            "Trader": st.column_config.TextColumn("Trader", width="medium"),
+            "Market": st.column_config.TextColumn("Market", width="large"),
+            "Side": st.column_config.TextColumn("Side", width="small"),
+            "Outcome": st.column_config.TextColumn("Outcome", width="medium"),
+            "Price": st.column_config.TextColumn("Price", width="small"),
+            "Amount": st.column_config.TextColumn("Amount", width="small"),
+            "Shares": st.column_config.TextColumn("Shares", width="small"),
+            "Counterparty": st.column_config.TextColumn("Counterparty", width="medium"),
+            "Time": st.column_config.TextColumn("Time", width="small"),
+        },
+    )
+    selected_trade_row = dataframe_selected_row_index(table_event)
+    if selected_trade_row is not None and selected_trade_row < len(tape):
+        trade_row = tape.iloc[selected_trade_row]
+        selected_wallet = str(trade_row.get("wallet", "") or "")
+        market_key = str(trade_row.get("market_key", "") or trade_row.get("ticker", "") or trade_row.get("title", ""))
+        tx_hash = str(trade_row.get("transaction_hash", "") or trade_row.get("transactionHash", "") or "")
+        st.markdown("#### Selected trade")
+        st.caption(
+            f"{short_addr(selected_wallet, 4)} | {trade_row.get('side', '-')} {trade_row.get('outcome', '-')} | "
+            f"{money(trade_row.get('notional', 0.0))} | {str(trade_row.get('title', ''))[:110]}"
+        )
+        action_cols = st.columns([1, 1, 1, 1, 2])
+        if selected_wallet and action_cols[0].button("Open wallet", key="track_tape_open_wallet", width="stretch"):
+            st.session_state["wallets_inspect_wallet"] = selected_wallet
+            queue_navigation("Wallets", track_query)
+            st.rerun()
+        if market_key and action_cols[1].button("Track market", key="track_tape_track_market", width="stretch"):
+            item = {
+                "platform": str(trade_row.get("platform", "Polymarket")),
+                "market_key": market_key,
+                "title": str(trade_row.get("title", "")),
+                "url": str(trade_row.get("url", "")),
+            }
+            st.session_state.watchlist, changed = md.upsert_watchlist_market(st.session_state.watchlist, item)
+            if changed:
+                save_local_list("watchlist.json", st.session_state.watchlist)
+                st.toast("Market added to tracked markets.")
+            else:
+                st.info("Market is already tracked.")
+        venue_url = str(trade_row.get("url", "") or "")
+        if venue_url:
+            action_cols[2].link_button("Open market", venue_url, width="stretch")
+        if tx_hash:
+            action_cols[3].link_button("Open tx", f"https://polygonscan.com/tx/{tx_hash}", width="stretch")
+        action_cols[4].caption("Select any row in the tape to inspect wallet, market, or tx.")
+
+
+def page_track_legacy() -> None:
     section_header("Track", "Watch markets and wallets from one workspace, mirroring Parity's tracking hub with public data.")
     if "track_search" not in st.session_state:
         reset_track_filter_widgets(global_query)
