@@ -1019,7 +1019,7 @@ def predictparity_trader_filter_view(params: Mapping[str, Any]) -> dict[str, Any
         view["period"] = period
 
     order_by = _query_param_value(params, "orderBy", "sort", "rankBy").upper()
-    if order_by in {"PNL", "VOL"}:
+    if order_by in {"SMART", "PNL", "VOL", "ROI", "WIN"}:
         view["rank_by"] = order_by
 
     rows = _query_float(params, "rows", "limit")
