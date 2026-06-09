@@ -7,6 +7,7 @@ trades, scales them into a local simulated portfolio, and never places orders.
 from __future__ import annotations
 
 import json
+import math
 import sqlite3
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, replace
@@ -1338,6 +1339,157 @@ def compute_roi(pnl: Any, volume: Any) -> float:
     return pnl_value / volume_value if volume_value > 0 else 0.0
 
 
+def _numeric_series(frame: pd.DataFrame, column: str, default: float = 0.0) -> pd.Series:
+    if column not in frame:
+        return pd.Series(default, index=frame.index, dtype="float64")
+    return pd.to_numeric(frame[column], errors="coerce").fillna(default)
+
+
+def _bool_series(frame: pd.DataFrame, column: str, default: bool = False) -> pd.Series:
+    if column not in frame:
+        return pd.Series(default, index=frame.index, dtype="bool")
+    values = frame[column].fillna(default).to_numpy(dtype=object)
+    return pd.Series(values, index=frame.index).astype(bool)
+
+
+def _log_score(values: pd.Series, floor: float, cap: float | None = None) -> pd.Series:
+    """Map a positive numeric series to 0..100 on a log scale."""
+    numeric = pd.to_numeric(values, errors="coerce").fillna(0.0).clip(lower=0.0)
+    clean_floor = max(float(floor), 1.0)
+    observed_cap = float(numeric.quantile(0.95)) if len(numeric) else clean_floor
+    clean_cap = max(float(cap) if cap is not None else observed_cap, clean_floor * 1.01)
+    lower = math.log10(clean_floor + 1.0)
+    upper = math.log10(clean_cap + 1.0)
+    if upper <= lower:
+        return pd.Series(0.0, index=values.index, dtype="float64")
+    return (((numeric + 1.0).map(math.log10) - lower) / (upper - lower) * 100.0).clip(lower=0.0, upper=100.0)
+
+
+def rank_traders_by_smart_score(
+    traders: pd.DataFrame,
+    min_volume: float = ROI_MIN_VOLUME,
+    require_positive_roi: bool = True,
+    min_win_rate: float = ROI_MIN_WIN_RATE,
+    exclude_bots: bool = True,
+) -> pd.DataFrame:
+    """Rank wallets with a transparent PolyHuntr-style smart score.
+
+    PolyHuntr publicly describes a six-factor score built from returns, Sharpe,
+    drawdown, win rate, recency, and volume. Public leaderboard rows do not
+    expose full 90-day equity curves for every wallet, so this implementation
+    keeps the same factor structure and uses explicit proxy columns where the
+    exact metric is unavailable.
+    """
+    if traders is None or traders.empty:
+        return pd.DataFrame()
+    df = traders.copy()
+    pnl = _numeric_series(df, "pnl")
+    volume = _numeric_series(df, "volume")
+    df["roi"] = [compute_roi(p, v) for p, v in zip(pnl, volume)]
+    win_rate_raw = _numeric_series(df, "win_rate", 0.0)
+    closed_positions = _numeric_series(df, "closed_positions", 0.0)
+    open_positions = _numeric_series(df, "open_positions", 0.0)
+    recent_trades = _numeric_series(df, "recent_trades", 0.0)
+    recent_notional = _numeric_series(df, "recent_notional", 0.0)
+    trades_per_hour = _numeric_series(df, "trades_per_hour", 0.0)
+    positions_value = _numeric_series(df, "positions_value", 0.0)
+    cash_balance = _numeric_series(df, "cash_balance", 0.0)
+    assets_value = _numeric_series(df, "assets_value", 0.0)
+    bot_score = _numeric_series(df, "bot_score", 0.0)
+    if "assets_value" not in df:
+        assets_value = positions_value + cash_balance
+
+    known_win_rate = (win_rate_raw > 0) | (closed_positions > 0)
+    win_rate = win_rate_raw.where(known_win_rate, 0.50).clip(lower=0.0, upper=1.0)
+
+    mask = volume >= float(min_volume)
+    if require_positive_roi:
+        mask = mask & (df["roi"] > 0)
+    if min_win_rate > 0:
+        mask = mask & (win_rate >= float(min_win_rate))
+    if exclude_bots:
+        mask = mask & (~_bool_series(df, "is_bot", False))
+    ranked = df[mask].copy()
+    if ranked.empty:
+        return ranked
+
+    pnl = pnl.loc[ranked.index]
+    volume = volume.loc[ranked.index]
+    roi = pd.to_numeric(ranked["roi"], errors="coerce").fillna(0.0)
+    win_rate = win_rate.loc[ranked.index]
+    win_rate_raw = win_rate_raw.loc[ranked.index]
+    closed_positions = closed_positions.loc[ranked.index]
+    open_positions = open_positions.loc[ranked.index]
+    recent_trades = recent_trades.loc[ranked.index]
+    recent_notional = recent_notional.loc[ranked.index]
+    trades_per_hour = trades_per_hour.loc[ranked.index]
+    positions_value = positions_value.loc[ranked.index]
+    assets_value = assets_value.loc[ranked.index]
+    bot_score = bot_score.loc[ranked.index]
+
+    ranked["copy_return_score"] = ((roi.clip(lower=0.0) / 0.30).clip(upper=1.0) * 100.0).round(1)
+    sample_factor = ((closed_positions + open_positions + recent_trades) / 50.0).clip(lower=0.25, upper=1.0)
+    ranked["copy_sharpe_proxy"] = (
+        (((roi.clip(lower=0.0) / 0.20).clip(upper=1.0) * 70.0) + (win_rate * 30.0)) * sample_factor
+    ).clip(lower=0.0, upper=100.0).round(1)
+    assets_denominator = assets_value.mask(assets_value.eq(0), pd.NA)
+    concentration = (positions_value / assets_denominator).fillna(0.0).clip(lower=0.0, upper=2.0)
+    drawdown_penalty = (
+        (pnl < 0).astype(float) * 45.0
+        + (win_rate.lt(0.45) & ((closed_positions > 0) | (win_rate_raw > 0))).astype(float) * 20.0
+        + (concentration > 0.85).astype(float) * 20.0
+        + (bot_score > 75).astype(float) * 15.0
+    )
+    ranked["copy_drawdown_proxy"] = (100.0 - drawdown_penalty).clip(lower=0.0, upper=100.0).round(1)
+    ranked["copy_win_score"] = (win_rate * 100.0).clip(lower=0.0, upper=100.0).round(1)
+    if recent_trades.gt(0).any() or recent_notional.gt(0).any() or trades_per_hour.gt(0).any():
+        ranked["copy_recency_score"] = (
+            (recent_trades / 25.0).clip(upper=1.0) * 35.0
+            + (trades_per_hour / 6.0).clip(upper=1.0) * 35.0
+            + _log_score(recent_notional, floor=100.0) * 0.30
+        ).clip(lower=0.0, upper=100.0).round(1)
+    else:
+        ranked["copy_recency_score"] = 50.0
+    ranked["copy_volume_score"] = _log_score(volume, floor=max(float(min_volume), 1.0)).round(1)
+    ranked["copy_smart_score"] = (
+        ranked["copy_return_score"] * 0.35
+        + ranked["copy_sharpe_proxy"] * 0.20
+        + ranked["copy_drawdown_proxy"] * 0.15
+        + ranked["copy_win_score"] * 0.10
+        + ranked["copy_recency_score"] * 0.10
+        + ranked["copy_volume_score"] * 0.10
+    ).clip(lower=0.0, upper=100.0).round(0)
+    ranked["rank_score"] = ranked["copy_smart_score"]
+
+    def _grade(score: Any) -> str:
+        value = _to_float(score, 0.0)
+        if value >= 85:
+            return "A"
+        if value >= 70:
+            return "B"
+        if value >= 55:
+            return "C"
+        if value >= 40:
+            return "Watch"
+        return "Avoid"
+
+    ranked["copy_grade"] = ranked["copy_smart_score"].map(_grade)
+    ranked["copy_rank_reason"] = ranked.apply(
+        lambda row: (
+            f"return {float(row.get('copy_return_score', 0.0)):.0f}, "
+            f"sharpe-proxy {float(row.get('copy_sharpe_proxy', 0.0)):.0f}, "
+            f"drawdown-proxy {float(row.get('copy_drawdown_proxy', 0.0)):.0f}, "
+            f"win {float(row.get('copy_win_score', 0.0)):.0f}, "
+            f"recency {float(row.get('copy_recency_score', 0.0)):.0f}, "
+            f"volume {float(row.get('copy_volume_score', 0.0)):.0f}"
+        ),
+        axis=1,
+    )
+    ranked = ranked.sort_values(["copy_smart_score", "roi", "volume"], ascending=[False, False, False]).reset_index(drop=True)
+    ranked["copy_rank"] = range(1, len(ranked) + 1)
+    return ranked
+
+
 def rank_traders_by_roi(
     traders: pd.DataFrame,
     min_volume: float = ROI_MIN_VOLUME,
@@ -1380,9 +1532,9 @@ def suggest_traders(
     min_win_rate: float = ROI_MIN_WIN_RATE,
     exclude_bots: bool = True,
 ) -> pd.DataFrame:
-    """Fetch the public leaderboard and rank it by ROI for the discovery list."""
+    """Fetch the public leaderboard and rank it by smart score for discovery."""
     traders = md.get_predictparity_traders(limit=limit)
-    return rank_traders_by_roi(
+    return rank_traders_by_smart_score(
         traders,
         min_volume=min_volume,
         require_positive_roi=require_positive_roi,
@@ -1402,6 +1554,7 @@ def refresh_trader_stats(conn: sqlite3.Connection, traders: pd.DataFrame) -> int
         if not wallet:
             continue
         roi = _to_float(row.get("roi"), compute_roi(row.get("pnl"), row.get("volume")))
+        rank_score = _to_float(row.get("copy_smart_score"), _to_float(row.get("rank_score"), roi))
         pnl = _to_float(row.get("pnl"), 0.0)
         win_rate = _to_float(row.get("win_rate"), 0.0)
         volume = _to_float(row.get("volume"), 0.0)
@@ -1420,7 +1573,7 @@ def refresh_trader_stats(conn: sqlite3.Connection, traders: pd.DataFrame) -> int
             """,
             (wallet, roi, pnl, win_rate, trades, volume, now),
         )
-        conn.execute("UPDATE traders SET rank_score = ?, updated_at = ? WHERE wallet = ?", (roi, now, wallet))
+        conn.execute("UPDATE traders SET rank_score = ?, updated_at = ? WHERE wallet = ?", (rank_score, now, wallet))
         updated += 1
     return updated
 

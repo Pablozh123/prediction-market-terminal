@@ -420,7 +420,7 @@ def trader_filter_defaults(query: str = "") -> dict[str, Any]:
         "trader_view_mode": "Table",
         "trader_column_preset": "Parity",
         "trader_time_period": "ALL",
-        "trader_order_by": "PNL",
+        "trader_order_by": "SMART",
         "trader_rows": 100,
         "trader_active_only": True,
         "trader_bots_only": False,
@@ -1068,7 +1068,7 @@ def apply_trader_filter_view_widgets(view: dict[str, Any]) -> None:
         "trader_view_mode": _choice(view.get("view_mode", defaults["trader_view_mode"]), ["Table", "List", "Card"], "Table"),
         "trader_column_preset": _choice(view.get("column_preset", defaults["trader_column_preset"]), ["Parity", "Research", "Flow"], "Parity"),
         "trader_time_period": _choice(view.get("period", defaults["trader_time_period"]), ["ALL", "MONTH", "WEEK", "DAY"], "ALL"),
-        "trader_order_by": _choice(view.get("rank_by", defaults["trader_order_by"]), ["PNL", "VOL"], "PNL"),
+        "trader_order_by": _choice(view.get("rank_by", defaults["trader_order_by"]), ["SMART", "PNL", "VOL", "ROI", "WIN"], "SMART"),
         "trader_rows": _bounded_int(view.get("rows", defaults["trader_rows"]), 100, 25, 250),
         "trader_active_only": bool(view.get("active_only", defaults["trader_active_only"])),
         "trader_bots_only": bool(view.get("bots_only", defaults["trader_bots_only"])),
@@ -5951,7 +5951,7 @@ def page_traders() -> None:
     active_only = top[3].toggle("Active", key="trader_active_only")
     bots_only = top[4].toggle("Bots", key="trader_bots_only", help="Show only bot-like wallets by the current recent-flow bot score.")
     time_period = top[5].selectbox("Period", ["ALL", "MONTH", "WEEK", "DAY"], key="trader_time_period")
-    order_by = top[6].selectbox("Rank by", ["PNL", "VOL"], key="trader_order_by")
+    order_by = top[6].selectbox("Rank by", ["SMART", "PNL", "VOL", "ROI", "WIN"], key="trader_order_by")
     rows = top[7].slider("Rows", min_value=25, max_value=250, step=25, key="trader_rows")
 
     with st.expander("Filter", expanded=True):
@@ -6046,7 +6046,21 @@ def page_traders() -> None:
         save_local_list("saved_trader_filters.json", st.session_state.saved_trader_filters)
         st.success("Saved trader view.")
 
-    leaderboard = safe_load("Polymarket leaderboard", load_leaderboard, rows, time_period, order_by)
+    if order_by in {"SMART", "ROI", "WIN"}:
+        pnl_leaderboard = safe_load("Polymarket leaderboard by PnL", load_leaderboard, rows, time_period, "PNL", default=pd.DataFrame())
+        vol_leaderboard = safe_load("Polymarket leaderboard by volume", load_leaderboard, rows, time_period, "VOL", default=pd.DataFrame())
+        leaderboard_frames = [
+            frame.dropna(axis=1, how="all")
+            for frame in [pnl_leaderboard, vol_leaderboard]
+            if isinstance(frame, pd.DataFrame) and not frame.empty
+        ]
+        leaderboard = (
+            pd.concat(leaderboard_frames, ignore_index=True, sort=False).drop_duplicates(subset=["wallet"], keep="first").reset_index(drop=True)
+            if leaderboard_frames
+            else pd.DataFrame()
+        )
+    else:
+        leaderboard = safe_load("Polymarket leaderboard", load_leaderboard, rows, time_period, order_by)
     recent_flow = safe_load("Recent Polymarket trader flow", load_polymarket_trades, 500, 0.0, None, None)
     flow_scores = md.trader_flow_scores(recent_flow, whale_threshold=float(min_whale))
     if not leaderboard.empty and not flow_scores.empty:
@@ -6147,6 +6161,16 @@ def page_traders() -> None:
                 (numeric_col(leaderboard, "win_rate", -1.0) >= threshold)
                 & (numeric_col(leaderboard, "closed_positions") >= float(min_closed_positions))
             ]
+    if not leaderboard.empty:
+        leaderboard = ct.rank_traders_by_smart_score(leaderboard, min_volume=0.0, require_positive_roi=False, exclude_bots=False)
+        if order_by == "ROI":
+            leaderboard = leaderboard.sort_values(["roi", "volume"], ascending=[False, False]).reset_index(drop=True)
+        elif order_by == "WIN":
+            leaderboard = leaderboard.sort_values(["win_rate", "closed_positions", "volume"], ascending=[False, False, False]).reset_index(drop=True)
+        elif order_by == "PNL":
+            leaderboard = leaderboard.sort_values(["pnl", "volume"], ascending=[False, False]).reset_index(drop=True)
+        elif order_by == "VOL":
+            leaderboard = leaderboard.sort_values(["volume", "pnl"], ascending=[False, False]).reset_index(drop=True)
     leaderboard = filter_text(leaderboard, trader_query)
     if leaderboard.empty:
         draw_empty("No leaderboard data returned.")
@@ -6255,6 +6279,17 @@ def page_traders() -> None:
         st.caption("Balances and account age are sourced from PredictParity's public trader leaderboard.")
     elif account_stats_needed:
         st.caption("Assets are open-position value plus fetched Polygon USDC balance. Account age is the oldest public activity observed in the loaded activity pages.")
+    st.caption(
+        "Smart Score follows the PolyHuntr-style structure: returns weighted highest, plus Sharpe proxy, drawdown proxy, win rate, recency, and volume."
+    )
+    with st.expander("Smart Score method", expanded=False):
+        st.markdown(
+            "- Return score: positive PnL / volume, capped for outliers.\n"
+            "- Sharpe proxy: ROI adjusted by sample size and win rate, because full 90-day trade equity curves are not available for every leaderboard row.\n"
+            "- Drawdown proxy: penalties for negative PnL, weak known win rate, very high position concentration, or high bot score.\n"
+            "- Recency: recent trade count, notional, and trades/hour from the live-flow sample.\n"
+            "- Volume: log-scaled traded volume so a tiny lucky wallet does not dominate."
+        )
 
     copy_traders = safe_load("Copy followed traders", ct.get_traders, default=pd.DataFrame())
     copy_stats = safe_load("Copy trader stats", ct.get_trader_stats, default=pd.DataFrame())
@@ -6283,6 +6318,10 @@ def page_traders() -> None:
     trader_columns = [
         "trader_identity",
         "copy_status",
+        "copy_rank",
+        "copy_smart_score",
+        "copy_grade",
+        "copy_rank_reason",
         "parity_url",
         "profile_url",
         "x_url",
@@ -6294,6 +6333,12 @@ def page_traders() -> None:
         "win_rate_pct",
         "positions_value",
         "pnl_per_volume",
+        "roi",
+        "copy_return_score",
+        "copy_sharpe_proxy",
+        "copy_drawdown_proxy",
+        "copy_recency_score",
+        "copy_volume_score",
         "closed_positions",
         "open_positions",
         "open_markets",
@@ -6311,6 +6356,8 @@ def page_traders() -> None:
     parity_trader_columns = [
         "trader_identity",
         "copy_status",
+        "copy_smart_score",
+        "copy_grade",
         "pnl",
         "volume",
         "win_rate_pct",
@@ -6319,6 +6366,8 @@ def page_traders() -> None:
     flow_trader_columns = [
         "trader_identity",
         "copy_status",
+        "copy_smart_score",
+        "copy_grade",
         "pnl",
         "volume",
         "positions_value",
@@ -6338,6 +6387,10 @@ def page_traders() -> None:
     trader_config = {
         "trader_identity": st.column_config.TextColumn("Trader", width="large"),
         "copy_status": st.column_config.TextColumn("Copy", width="small"),
+        "copy_rank": st.column_config.NumberColumn("Smart Rank", format="%d", width="small"),
+        "copy_smart_score": st.column_config.ProgressColumn("Smart Score", min_value=0, max_value=100),
+        "copy_grade": st.column_config.TextColumn("Grade", width="small"),
+        "copy_rank_reason": st.column_config.TextColumn("Score Factors", width="large"),
         "parity_url": st.column_config.LinkColumn("Parity", display_text="Open Parity"),
         "profile_url": st.column_config.LinkColumn("Profile", display_text="Open profile"),
         "x_url": st.column_config.LinkColumn("X", display_text="X"),
@@ -6347,6 +6400,12 @@ def page_traders() -> None:
         "cash_balance": st.column_config.NumberColumn("Balance", format="$%.0f"),
         "account_age_display": st.column_config.NumberColumn("Account Age", format="%.0f d"),
         "pnl_per_volume": st.column_config.NumberColumn("PnL / Vol", format="%.2f"),
+        "roi": st.column_config.NumberColumn("ROI", format="%.2f"),
+        "copy_return_score": st.column_config.ProgressColumn("Return", min_value=0, max_value=100),
+        "copy_sharpe_proxy": st.column_config.ProgressColumn("Sharpe Proxy", min_value=0, max_value=100),
+        "copy_drawdown_proxy": st.column_config.ProgressColumn("Drawdown Proxy", min_value=0, max_value=100),
+        "copy_recency_score": st.column_config.ProgressColumn("Recency", min_value=0, max_value=100),
+        "copy_volume_score": st.column_config.ProgressColumn("Volume Score", min_value=0, max_value=100),
         "win_rate_pct": st.column_config.NumberColumn("Win Rate", format="%.1f%%"),
         "closed_positions": st.column_config.NumberColumn("Closed", format="%.0f"),
         "positions_value": st.column_config.NumberColumn("Positions", format="$%.0f"),
@@ -10460,9 +10519,9 @@ def render_copy_suggestions_panel(prefix: str, active_wallets: set[str], limit: 
     if st.button("Vorschläge laden", key=f"{prefix}_load_copy_suggestions"):
         st.session_state[f"{prefix}_copy_suggestions_loaded"] = True
     if not st.session_state.get(f"{prefix}_copy_suggestions_loaded"):
-        st.caption("Vorschläge kommen aus ct.suggest_traders() und filtern öffentliche Leaderboard-Wallets nach ROI/Volumen.")
+        st.caption("Vorschlaege kommen aus ct.suggest_traders() und ranken oeffentliche Leaderboard-Wallets nach Smart Score, ROI und Volumen.")
         return
-    suggestions = safe_load("ROI suggestions", load_trader_suggestions, 50, default=pd.DataFrame())
+    suggestions = safe_load("Smart-score suggestions", load_trader_suggestions, 50, default=pd.DataFrame())
     if suggestions is None or suggestions.empty:
         draw_empty("No qualifying wallets returned (below the ROI / volume thresholds).")
         return
@@ -10471,12 +10530,13 @@ def render_copy_suggestions_panel(prefix: str, active_wallets: set[str], limit: 
         if not wallet:
             continue
         safe_key = ctf.safe_key(prefix, wallet, idx)
-        suggestion_cols = st.columns([2.4, 0.8, 0.8, 1])
+        suggestion_cols = st.columns([2.4, 0.7, 0.7, 0.8, 1])
         suggestion_cols[0].markdown(f"**{str(suggestion.get('trader', '') or short_addr(wallet))}**  \n`{short_addr(wallet)}`")
-        suggestion_cols[1].markdown(f"ROI **{pct(suggestion.get('roi'))}**")
-        suggestion_cols[2].markdown(f"PnL **{money(suggestion.get('pnl'))}**")
+        suggestion_cols[1].markdown(f"Score **{float(suggestion.get('copy_smart_score', suggestion.get('rank_score', 0)) or 0):.0f}**")
+        suggestion_cols[2].markdown(f"ROI **{pct(suggestion.get('roi'))}**")
+        suggestion_cols[3].markdown(f"PnL **{money(suggestion.get('pnl'))}**")
         render_copy_follow_button(
-            suggestion_cols[3],
+            suggestion_cols[4],
             wallet,
             label=str(suggestion.get("trader", "") or ""),
             key=f"{safe_key}_copy_follow",

@@ -167,6 +167,11 @@ class PredictParityQueryFilterTests(unittest.TestCase):
         self.assertEqual(view["custom_volume"], 1000000.0)
         self.assertEqual(view["rows"], 50)
 
+    def test_trader_filter_view_accepts_smart_ranking_params(self) -> None:
+        view = md.predictparity_trader_filter_view({"rankBy": "smart"})
+
+        self.assertEqual(view["rank_by"], "SMART")
+
     def test_trader_filter_view_ignores_invalid_values(self) -> None:
         view = md.predictparity_trader_filter_view({"bot": "false", "apMin": "bad", "period": "year"})
 

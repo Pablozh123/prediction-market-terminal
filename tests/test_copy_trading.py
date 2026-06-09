@@ -985,6 +985,44 @@ class TraderDiscoveryTests(unittest.TestCase):
         self.assertAlmostEqual(float(ranked.iloc[0]["rank_score"]), 0.5)
         self.assertAlmostEqual(float(ranked.iloc[1]["roi"]), 0.1)
 
+    def test_rank_traders_by_smart_score_exposes_polyhuntr_style_factors(self) -> None:
+        leaderboard = _leaderboard_df().assign(
+            recent_trades=[12, 3, 20, 1, 50],
+            recent_notional=[5000.0, 2000.0, 4000.0, 100.0, 10000.0],
+            trades_per_hour=[1.5, 0.2, 2.0, 0.1, 8.0],
+            positions_value=[2500.0, 80000.0, 0.0, 50.0, 5000.0],
+            cash_balance=[2500.0, 10000.0, 0.0, 50.0, 5000.0],
+            closed_positions=[40, 30, 20, 5, 100],
+            bot_score=[10, 20, 5, 0, 95],
+        )
+
+        ranked = ct.rank_traders_by_smart_score(leaderboard)
+
+        self.assertEqual(ranked.iloc[0]["wallet"], "0xskill")
+        self.assertEqual(ranked["wallet"].tolist(), ["0xskill", "0xwhale"])
+        for column in [
+            "copy_smart_score",
+            "copy_return_score",
+            "copy_sharpe_proxy",
+            "copy_drawdown_proxy",
+            "copy_win_score",
+            "copy_recency_score",
+            "copy_volume_score",
+            "copy_rank_reason",
+            "copy_grade",
+        ]:
+            self.assertIn(column, ranked.columns)
+        self.assertGreaterEqual(float(ranked.iloc[0]["copy_smart_score"]), float(ranked.iloc[1]["copy_smart_score"]))
+        self.assertIn("return", str(ranked.iloc[0]["copy_rank_reason"]))
+
+    def test_rank_traders_by_smart_score_pushes_negative_returns_down_when_allowed(self) -> None:
+        ranked = ct.rank_traders_by_smart_score(_leaderboard_df(), require_positive_roi=False, min_volume=1000.0)
+
+        self.assertIn("0xloser", ranked["wallet"].tolist())
+        loser_score = float(ranked.loc[ranked["wallet"].eq("0xloser"), "copy_smart_score"].iloc[0])
+        skill_score = float(ranked.loc[ranked["wallet"].eq("0xskill"), "copy_smart_score"].iloc[0])
+        self.assertLess(loser_score, skill_score)
+
     def test_follow_and_unfollow_trader(self) -> None:
         added = ct.follow_trader("0xnew", label="New", db_path=self.db_path)
         re_followed = ct.follow_trader("0xnew", db_path=self.db_path)
