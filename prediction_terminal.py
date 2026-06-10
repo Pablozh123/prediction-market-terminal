@@ -285,22 +285,31 @@ def inject_css() -> None:
             border-radius: 2px;
             box-shadow: none;
         }}
-        .stButton button[kind="primary"], .stFormSubmitButton button[kind="primary"] {{
+        .stButton button[kind="primary"], .stFormSubmitButton button[kind="primary"],
+        .stButton button[kind="primaryFormSubmit"], .stFormSubmitButton button[kind="primaryFormSubmit"] {{
             background: #ffffff;
             color: #000000;
             border: 1px solid #ffffff;
         }}
-        .stButton button[kind="primary"]:hover, .stFormSubmitButton button[kind="primary"]:hover {{
+        .stButton button[kind="primary"]:hover, .stFormSubmitButton button[kind="primary"]:hover,
+        .stButton button[kind="primaryFormSubmit"]:hover, .stFormSubmitButton button[kind="primaryFormSubmit"]:hover {{
             background: rgba(255, 255, 255, 0.75);
             border-color: rgba(255, 255, 255, 0.75);
             color: #000000;
         }}
-        .stButton button[kind="secondary"], .stFormSubmitButton button[kind="secondary"], .stDownloadButton button {{
+        .stButton button[kind="primary"] p, .stFormSubmitButton button[kind="primaryFormSubmit"] p {{
+            color: #000000;
+        }}
+        .stButton button[kind="secondary"], .stFormSubmitButton button[kind="secondary"],
+        .stButton button[kind="secondaryFormSubmit"], .stFormSubmitButton button[kind="secondaryFormSubmit"],
+        .stDownloadButton button {{
             background: transparent;
             color: {TEXT_SECONDARY};
             border: 1px solid {BORDER_STRONG};
         }}
-        .stButton button[kind="secondary"]:hover, .stFormSubmitButton button[kind="secondary"]:hover, .stDownloadButton button:hover {{
+        .stButton button[kind="secondary"]:hover, .stFormSubmitButton button[kind="secondary"]:hover,
+        .stButton button[kind="secondaryFormSubmit"]:hover, .stFormSubmitButton button[kind="secondaryFormSubmit"]:hover,
+        .stDownloadButton button:hover {{
             color: #ffffff;
             border-color: rgba(255, 255, 255, 0.4);
             background: {HOVER_BG};
