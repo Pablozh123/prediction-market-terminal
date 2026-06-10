@@ -12227,6 +12227,12 @@ def page_suspicious() -> None:
     wallet_risk = md.whale_wallet_risk_scores(trades, whale_threshold=whale_floor)
     clusters = susp.fresh_wallet_clusters(trades, whale_threshold=whale_floor)
     event_risk = susp.apply_fresh_wallet_bonus(event_risk, clusters)
+    market_universe = safe_load("Polymarket markets", load_polymarket_markets, market_limit, default=pd.DataFrame())
+    market_categories = (
+        clean_table(market_universe, ["market_key", "category"]) if market_universe is not None and not market_universe.empty else pd.DataFrame()
+    )
+    event_risk = susp.apply_category_context(event_risk, market_categories)
+    wallet_risk = susp.apply_wallet_category_context(wallet_risk, trades, market_categories)
     if st.toggle("Check real account ages for the top wallets (slower)", value=False, key="susp_age_toggle") and not wallet_risk.empty:
         top_wallets = tuple(wallet_risk.head(10)["wallet"].astype(str))
         account_stats = safe_load("Wallet account stats", load_wallet_account_stats, top_wallets, default=pd.DataFrame())
@@ -12241,6 +12247,32 @@ def page_suspicious() -> None:
     stat_cols[3].metric("Whale volume", money(numeric_col(trades, "notional").sum()))
     stat_cols[4].metric("Whale threshold", money(whale_floor))
 
+    if not event_risk.empty and "insider_context" in event_risk:
+        st.markdown("<div class='step-label'>Where the suspicious flow sits</div>", unsafe_allow_html=True)
+        context_mix = (
+            event_risk.groupby("insider_context", dropna=False)
+            .agg(whale_notional=("notional", "sum"), events=("insider_context", "size"))
+            .reset_index()
+            .sort_values("whale_notional", ascending=True)
+        )
+        fig = px.bar(
+            context_mix,
+            x="whale_notional",
+            y="insider_context",
+            orientation="h",
+            text="events",
+            template="plotly_dark",
+            labels={"whale_notional": "whale volume ($)", "insider_context": "", "events": "events"},
+        )
+        fig.update_traces(marker_color=ACCENT, texttemplate="%{text} events", textposition="outside", cliponaxis=False)
+        fig.update_layout(height=220, margin=dict(l=10, r=40, t=10, b=10), paper_bgcolor=BG, plot_bgcolor=BG, showlegend=False)
+        st.plotly_chart(fig, width="stretch", config=plot_config())
+        st.markdown(
+            "<div class='field-hint'>Sports odds, crypto/market prices and weather are damped in the score — big flow there is "
+            "usually high-roller action, not insider knowledge. Awards/entertainment and corporate/legal outcomes carry full weight.</div>",
+            unsafe_allow_html=True,
+        )
+
     st.markdown("<div class='step-label'>Suspicious events</div>", unsafe_allow_html=True)
     if event_risk.empty:
         draw_empty("No event-level signals in the current tape.")
@@ -12252,21 +12284,29 @@ def page_suspicious() -> None:
                 level = str(event.get("event_insider_level", "Low") or "Low")
                 color = RISK_LEVEL_COLORS.get(level, MUTED)
                 score = float(event.get("event_insider_score", 0.0) or 0.0)
+                raw_score = float(event.get("event_score_raw", score) or score)
+                context_group = str(event.get("insider_context", "") or "")
+                context_note = str(event.get("context_note", "") or "")
                 title = str(event.get("title", "") or "")
+                raw_hint = f" <span class='field-hint' style='display:inline'>(raw {raw_score:.0f})</span>" if abs(raw_score - score) >= 1 else ""
                 with col:
                     with st.container(border=True):
                         st.markdown(
                             f"<span class='risk-badge' style='color:{color};border-color:{color}'>{score:.0f} · {level.upper()}</span> "
-                            f"<strong>{html.escape(title[:90])}</strong>",
+                            f"<strong>{html.escape(title[:90])}</strong>{raw_hint}",
                             unsafe_allow_html=True,
                         )
                         st.markdown(f"<div class='small-note'>{html.escape(susp.event_story(event))}</div>", unsafe_allow_html=True)
-                        flags = [flag.strip() for flag in str(event.get("event_insider_flags", "") or "").split(";") if flag.strip()]
-                        if flags:
+                        chips = ([f"◆ {context_group}"] if context_group else []) + [
+                            flag.strip() for flag in str(event.get("event_insider_flags", "") or "").split(";") if flag.strip()
+                        ]
+                        if chips:
                             st.markdown(
-                                "<div class='filter-strip'>" + "".join(f"<span class='filter-chip'>{html.escape(flag)}</span>" for flag in flags[:5]) + "</div>",
+                                "<div class='filter-strip'>" + "".join(f"<span class='filter-chip'>{html.escape(chip)}</span>" for chip in chips[:6]) + "</div>",
                                 unsafe_allow_html=True,
                             )
+                        if context_note:
+                            st.markdown(f"<div class='field-hint'>{html.escape(context_note)}</div>", unsafe_allow_html=True)
                         m1, m2, m3 = st.columns(3)
                         m1.metric("Whale $", money(event.get("notional", 0.0)))
                         m2.metric("Top wallet", pct(event.get("top_wallet_share")))
@@ -12313,7 +12353,7 @@ def page_suspicious() -> None:
         return
     top_wallets_frame = wallet_risk.head(25)
     st.dataframe(
-        clean_table(top_wallets_frame, ["wallet", "trader", "wallet_insider_level", "wallet_insider_score", "wallet_insider_flags", "notional", "largest_trade", "markets", "trade_count", "account_age_days"]),
+        clean_table(top_wallets_frame, ["wallet", "trader", "wallet_insider_level", "wallet_insider_score", "insider_context", "wallet_insider_flags", "notional", "largest_trade", "markets", "trade_count", "account_age_days"]),
         width="stretch",
         height=420,
         column_config={
@@ -12321,6 +12361,7 @@ def page_suspicious() -> None:
             "trader": st.column_config.TextColumn("Trader"),
             "wallet_insider_level": st.column_config.TextColumn("Level"),
             "wallet_insider_score": st.column_config.ProgressColumn("Risk", min_value=0, max_value=100, format="%.0f"),
+            "insider_context": st.column_config.TextColumn("Context"),
             "wallet_insider_flags": st.column_config.TextColumn("Why", width="large"),
             "notional": st.column_config.NumberColumn("Whale $", format="$%.0f"),
             "largest_trade": st.column_config.NumberColumn("Largest", format="$%.0f"),
