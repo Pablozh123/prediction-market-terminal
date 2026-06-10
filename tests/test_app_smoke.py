@@ -29,6 +29,7 @@ PAGE_SLUGS = [
     "backtester",
     "copy-trade",
     "whale-flow",
+    "suspicious",
     "cross-venue",
     "monitor",
     "alerts",
