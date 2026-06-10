@@ -2,6 +2,7 @@ import unittest
 
 import pandas as pd
 
+from app import copy_follow as ctf
 from app import filters as flt
 from app import format as fmt
 
@@ -63,6 +64,12 @@ class FilterTests(unittest.TestCase):
         self.assertTrue((flt.numeric_col(df, "missing", 5.0) == 5.0).all())
         self.assertEqual(list(flt.numeric_col(df, "a")), [1.0, 0.0, 0.0])
 
+    def test_bool_mask_handles_missing_and_scalar(self) -> None:
+        mask = flt.bool_mask(pd.Series([True, None, 0, 1]), default=False)
+        self.assertEqual(list(mask), [True, False, False, True])
+        scalar_mask = flt.bool_mask(None, default=True, index=pd.Index([10, 11]))
+        self.assertEqual(list(scalar_mask), [True, True])
+
     def test_copy_order_status_bucket(self) -> None:
         self.assertEqual(flt.copy_order_status_bucket("seed_observed"), "baseline")
         self.assertEqual(flt.copy_order_status_bucket("copied", "initial_baseline"), "baseline")
@@ -122,6 +129,29 @@ class FilterTests(unittest.TestCase):
         )
         self.assertEqual(len(out), 1)
         self.assertEqual(str(out.iloc[0]["source_side"]), "BUY")
+
+
+class CopyFollowTests(unittest.TestCase):
+    def test_active_wallet_set_filters_active_valid_wallets(self) -> None:
+        active_wallet = "0x" + "1" * 40
+        inactive_wallet = "0x" + "2" * 40
+        df = pd.DataFrame(
+            [
+                {"wallet": active_wallet.upper(), "active": 1},
+                {"wallet": inactive_wallet, "active": 0},
+                {"wallet": "not-a-wallet", "active": 1},
+            ]
+        )
+        self.assertEqual(ctf.active_wallet_set(df), {active_wallet})
+        self.assertEqual(ctf.status_label(active_wallet, {active_wallet}), "Following")
+        self.assertEqual(ctf.status_label(inactive_wallet, {active_wallet}), "")
+
+    def test_stats_by_wallet_and_safe_key(self) -> None:
+        wallet = "0x" + "a" * 40
+        stats = ctf.stats_by_wallet(pd.DataFrame([{"wallet": wallet.upper(), "roi": 0.12}]))
+        self.assertIn(wallet, stats)
+        self.assertAlmostEqual(float(stats[wallet]["roi"]), 0.12)
+        self.assertEqual(ctf.safe_key("prefix", wallet, "x/y", limit=12), "prefix_0xaaa")
 
 
 if __name__ == "__main__":

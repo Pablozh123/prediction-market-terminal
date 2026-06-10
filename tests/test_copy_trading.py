@@ -60,6 +60,25 @@ class CopyTradingTests(unittest.TestCase):
         self.assertAlmostEqual(order.copy_size, 20.0)
         self.assertAlmostEqual(snapshot.cash, 990.0)
 
+    def test_min_copy_notional_can_be_disabled_for_tiny_paper_buys(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            default_order = ct.apply_paper_trade(conn, source_trade(tx="0xtiny1", price=0.5, size=1.0), self.settings)
+            zero_min_order = ct.apply_paper_trade(
+                conn,
+                source_trade(tx="0xtiny2", price=0.5, size=1.0),
+                ct.CopySettings(trade_limit=20, min_copy_notional=0.0),
+            )
+        finally:
+            conn.close()
+
+        self.assertEqual(default_order.status, "skipped")
+        self.assertEqual(default_order.reason, "below_min_copy_notional")
+        self.assertEqual(zero_min_order.status, "copied")
+        self.assertEqual(zero_min_order.reason, "buy_scaled")
+        self.assertAlmostEqual(zero_min_order.copy_notional, 0.005)
+        self.assertAlmostEqual(zero_min_order.copy_size, 0.01)
+
     def test_large_buy_is_capped_at_five_percent_equity(self) -> None:
         conn = ct.connect(self.db_path)
         try:
@@ -84,6 +103,42 @@ class CopyTradingTests(unittest.TestCase):
         self.assertAlmostEqual(order.copy_notional, 5.0)
         self.assertAlmostEqual(float(sizing["effective_copy_scale"]), 0.005)
         self.assertEqual(sizing["copy_scale_mode"], "dynamic_wallet_equity")
+
+    def test_dynamic_wallet_sizing_multiplier_scales_portfolio_percent(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            ct._set_meta(conn, "tony_visible_equity", "200000")
+            settings = ct.CopySettings(trade_limit=20, dynamic_sizing_multiplier=2.0, dynamic_scale_max=0.05)
+            order = ct.apply_paper_trade(conn, source_trade(price=0.5, size=2000.0), settings)
+            sizing = ct.get_dynamic_sizing_snapshot(conn=conn)
+        finally:
+            conn.close()
+
+        self.assertEqual(order.status, "copied")
+        self.assertAlmostEqual(order.copy_notional, 10.0)
+        self.assertAlmostEqual(float(sizing["effective_copy_scale"]), 0.01)
+        self.assertAlmostEqual(float(sizing["dynamic_sizing_multiplier"]), 2.0)
+
+    def test_copy_settings_round_trip_persists_dynamic_sizing_options(self) -> None:
+        path = Path(self.tmp.name) / "copy_settings.json"
+        settings = ct.CopySettings(
+            dynamic_sizing_enabled=True,
+            dynamic_sizing_multiplier=1.75,
+            copy_scale=0.02,
+            dynamic_scale_max=0.08,
+            max_order_equity_pct=0.12,
+            min_copy_notional=0.0,
+        )
+
+        ct.save_copy_settings(settings, path=path)
+        loaded = ct.load_copy_settings(path=path)
+
+        self.assertTrue(loaded.dynamic_sizing_enabled)
+        self.assertAlmostEqual(loaded.dynamic_sizing_multiplier, 1.75)
+        self.assertAlmostEqual(loaded.copy_scale, 0.02)
+        self.assertAlmostEqual(loaded.dynamic_scale_max, 0.08)
+        self.assertAlmostEqual(loaded.max_order_equity_pct, 0.12)
+        self.assertAlmostEqual(loaded.min_copy_notional, 0.0)
 
     def test_dynamic_cap_can_follow_tony_largest_position_pct(self) -> None:
         conn = ct.connect(self.db_path)
@@ -929,6 +984,44 @@ class TraderDiscoveryTests(unittest.TestCase):
         self.assertAlmostEqual(float(ranked.iloc[0]["roi"]), 0.5)
         self.assertAlmostEqual(float(ranked.iloc[0]["rank_score"]), 0.5)
         self.assertAlmostEqual(float(ranked.iloc[1]["roi"]), 0.1)
+
+    def test_rank_traders_by_smart_score_exposes_polyhuntr_style_factors(self) -> None:
+        leaderboard = _leaderboard_df().assign(
+            recent_trades=[12, 3, 20, 1, 50],
+            recent_notional=[5000.0, 2000.0, 4000.0, 100.0, 10000.0],
+            trades_per_hour=[1.5, 0.2, 2.0, 0.1, 8.0],
+            positions_value=[2500.0, 80000.0, 0.0, 50.0, 5000.0],
+            cash_balance=[2500.0, 10000.0, 0.0, 50.0, 5000.0],
+            closed_positions=[40, 30, 20, 5, 100],
+            bot_score=[10, 20, 5, 0, 95],
+        )
+
+        ranked = ct.rank_traders_by_smart_score(leaderboard)
+
+        self.assertEqual(ranked.iloc[0]["wallet"], "0xskill")
+        self.assertEqual(ranked["wallet"].tolist(), ["0xskill", "0xwhale"])
+        for column in [
+            "copy_smart_score",
+            "copy_return_score",
+            "copy_sharpe_proxy",
+            "copy_drawdown_proxy",
+            "copy_win_score",
+            "copy_recency_score",
+            "copy_volume_score",
+            "copy_rank_reason",
+            "copy_grade",
+        ]:
+            self.assertIn(column, ranked.columns)
+        self.assertGreaterEqual(float(ranked.iloc[0]["copy_smart_score"]), float(ranked.iloc[1]["copy_smart_score"]))
+        self.assertIn("return", str(ranked.iloc[0]["copy_rank_reason"]))
+
+    def test_rank_traders_by_smart_score_pushes_negative_returns_down_when_allowed(self) -> None:
+        ranked = ct.rank_traders_by_smart_score(_leaderboard_df(), require_positive_roi=False, min_volume=1000.0)
+
+        self.assertIn("0xloser", ranked["wallet"].tolist())
+        loser_score = float(ranked.loc[ranked["wallet"].eq("0xloser"), "copy_smart_score"].iloc[0])
+        skill_score = float(ranked.loc[ranked["wallet"].eq("0xskill"), "copy_smart_score"].iloc[0])
+        self.assertLess(loser_score, skill_score)
 
     def test_follow_and_unfollow_trader(self) -> None:
         added = ct.follow_trader("0xnew", label="New", db_path=self.db_path)

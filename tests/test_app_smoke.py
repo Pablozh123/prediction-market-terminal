@@ -22,9 +22,11 @@ PAGE_SLUGS = [
     "search",
     "markets",
     "traders",
+    "picks",
     "track",
     "live-trades",
     "wallets",
+    "backtester",
     "copy-trade",
     "whale-flow",
     "cross-venue",
@@ -32,6 +34,7 @@ PAGE_SLUGS = [
     "alerts",
     "resolved",
     "portfolio",
+    "settings",
 ]
 
 

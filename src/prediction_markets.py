@@ -266,6 +266,54 @@ def get_polymarket_markets(limit: int = 250, offset: int = 0, active_only: bool 
     return _finalize_polymarket_markets([_normalize_polymarket_market(market) for market in rows])
 
 
+def get_polymarket_markets_by_condition_ids(condition_ids: list[str]) -> list[dict[str, Any]]:
+    """Fetch raw Gamma market payloads for specific conditionIds (batched).
+
+    Returns raw dicts (not normalized) because callers such as the backtester
+    need ``clobTokenIds``/``outcomePrices`` index alignment to value a token.
+    """
+
+    seen: set[str] = set()
+    ids: list[str] = []
+    for value in condition_ids:
+        text = str(value or "").strip()
+        if text and text not in seen:
+            seen.add(text)
+            ids.append(text)
+    rows: list[dict[str, Any]] = []
+    batch_size = 20
+    for start in range(0, len(ids), batch_size):
+        batch = ids[start : start + batch_size]
+        try:
+            data = _get_json(f"{POLY_GAMMA}/markets", params={"condition_ids": batch, "limit": len(batch)})
+        except MarketDataError:
+            continue
+        rows.extend(item for item in (data if isinstance(data, list) else data.get("data", [])) if isinstance(item, dict))
+    return rows
+
+
+def polymarket_token_value_map(markets: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Map CLOB token id -> {price, closed, end_time} from raw Gamma market dicts."""
+
+    lookup: dict[str, dict[str, Any]] = {}
+    for market in markets:
+        tokens = _as_list(market.get("clobTokenIds"))
+        prices = _as_list(market.get("outcomePrices"))
+        closed = bool(market.get("closed"))
+        end_time = _safe_ts(_first_nonempty(market.get("closedTime"), market.get("endDateIso"), market.get("endDate")))
+        for index, token in enumerate(tokens):
+            token_id = str(token or "").strip()
+            if not token_id:
+                continue
+            price = cents(prices[index]) if len(prices) > index else _outcome_price(market, index)
+            lookup[token_id] = {
+                "price": price,
+                "closed": closed,
+                "end_time": end_time,
+            }
+    return lookup
+
+
 def polymarket_event_slug_from_url(value: str) -> str:
     """Extract a Polymarket event slug from an event URL or return the given slug."""
 
@@ -1019,7 +1067,7 @@ def predictparity_trader_filter_view(params: Mapping[str, Any]) -> dict[str, Any
         view["period"] = period
 
     order_by = _query_param_value(params, "orderBy", "sort", "rankBy").upper()
-    if order_by in {"PNL", "VOL"}:
+    if order_by in {"SMART", "PNL", "VOL", "ROI", "WIN"}:
         view["rank_by"] = order_by
 
     rows = _query_float(params, "rows", "limit")
@@ -2937,6 +2985,401 @@ def whale_wallets(trades: pd.DataFrame) -> pd.DataFrame:
         .sort_values("notional", ascending=False)
     )
     return grouped
+
+
+def whale_behavior_metrics(trades: pd.DataFrame, whale_threshold: float = 10_000.0) -> pd.DataFrame:
+    """Return wallet-level behavior shares for whale-flow filters."""
+
+    if trades.empty:
+        return pd.DataFrame()
+    df = trades.copy()
+    df["platform"] = _df_col(df, "platform", "").fillna("").astype(str)
+    df["wallet"] = _df_col(df, "wallet", "").fillna("").astype(str)
+    df["trader"] = _df_col(df, "trader", "").fillna("").astype(str)
+    df["title"] = _df_col(df, "title", "").fillna("").astype(str)
+    df["price"] = pd.to_numeric(_df_col(df, "price", 0.0), errors="coerce").fillna(0.0).clip(lower=0.0)
+    df["size"] = pd.to_numeric(_df_col(df, "size", 0.0), errors="coerce").fillna(0.0).clip(lower=0.0)
+    df["notional"] = pd.to_numeric(_df_col(df, "notional", 0.0), errors="coerce").fillna(0.0).clip(lower=0.0)
+    df = df[df["wallet"].str.strip().ne("")]
+    if df.empty:
+        return pd.DataFrame()
+
+    group_cols = ["platform", "wallet", "trader"]
+    market_notional = df.groupby(group_cols + ["title"], dropna=False)["notional"].transform("sum")
+    df["contrarian_notional"] = df["notional"].where(df["price"] < 0.40, 0.0)
+    df["trend_notional"] = df["notional"].where(df["price"] > 0.80, 0.0)
+    df["lottery_notional"] = df["notional"].where(df["price"] < 0.20, 0.0)
+    df["whale_splash_notional"] = df["notional"].where(market_notional > max(float(whale_threshold or 0.0), 10_000.0), 0.0)
+    grouped = (
+        df.groupby(group_cols, dropna=False)
+        .agg(
+            behavior_trades=("wallet", "size"),
+            behavior_notional=("notional", "sum"),
+            behavior_avg_trade=("notional", "mean"),
+            behavior_largest_trade=("notional", "max"),
+            behavior_markets=("title", pd.Series.nunique),
+            contrarian_notional=("contrarian_notional", "sum"),
+            trend_notional=("trend_notional", "sum"),
+            lottery_notional=("lottery_notional", "sum"),
+            whale_splash_notional=("whale_splash_notional", "sum"),
+        )
+        .reset_index()
+    )
+    top_market = _dominant_bucket(
+        df,
+        group_cols,
+        "title",
+        bucket_name="behavior_top_market",
+        share_name="concentration_share",
+        notional_name="behavior_top_market_notional",
+    )
+    grouped = grouped.merge(top_market, on=group_cols, how="left")
+    denominator = grouped["behavior_notional"].replace({0: pd.NA})
+    for source, target in [
+        ("contrarian_notional", "contrarian_share"),
+        ("trend_notional", "trend_follower_share"),
+        ("lottery_notional", "lottery_ticket_share"),
+        ("whale_splash_notional", "whale_splash_share"),
+    ]:
+        grouped[target] = (grouped[source] / denominator).fillna(0.0)
+    grouped["concentration_share"] = pd.to_numeric(grouped.get("concentration_share"), errors="coerce").fillna(0.0)
+    return grouped.sort_values(["behavior_notional", "behavior_largest_trade"], ascending=False).reset_index(drop=True)
+
+
+def _df_col(df: pd.DataFrame, column: str, default: Any = "") -> pd.Series:
+    if column in df:
+        return df[column]
+    return pd.Series(default, index=df.index)
+
+
+def _risk_level(score: Any) -> str:
+    value = float(_num(score, 0.0) or 0.0)
+    if value >= 70:
+        return "High"
+    if value >= 55:
+        return "Medium"
+    if value >= 40:
+        return "Elevated"
+    return "Low"
+
+
+def _dominant_bucket(
+    df: pd.DataFrame,
+    group_cols: list[str],
+    bucket_col: str,
+    *,
+    bucket_name: str,
+    share_name: str,
+    notional_name: str,
+) -> pd.DataFrame:
+    if df.empty or bucket_col not in df or "notional" not in df:
+        return pd.DataFrame(columns=group_cols + [bucket_name, share_name, notional_name])
+    work = df[group_cols + [bucket_col, "notional"]].copy()
+    work[bucket_col] = work[bucket_col].fillna("").astype(str)
+    work = work[work[bucket_col].str.strip().ne("")]
+    if work.empty:
+        return pd.DataFrame(columns=group_cols + [bucket_name, share_name, notional_name])
+    bucketed = work.groupby(group_cols + [bucket_col], dropna=False)["notional"].sum().reset_index()
+    totals = work.groupby(group_cols, dropna=False)["notional"].sum().reset_index(name="_total_notional")
+    bucketed = bucketed.merge(totals, on=group_cols, how="left")
+    bucketed[share_name] = bucketed["notional"] / bucketed["_total_notional"].replace({0: pd.NA})
+    bucketed = bucketed.sort_values(group_cols + [share_name, "notional"], ascending=[True] * len(group_cols) + [False, False])
+    bucketed = bucketed.drop_duplicates(group_cols, keep="first")
+    return bucketed.rename(columns={bucket_col: bucket_name, "notional": notional_name})[
+        group_cols + [bucket_name, share_name, notional_name]
+    ]
+
+
+def _risk_reasons(row: pd.Series, rules: list[tuple[bool, str]]) -> str:
+    reasons = [label for condition, label in rules if bool(condition)]
+    return "; ".join(reasons) if reasons else "watch only"
+
+
+def _price_move_features(df: pd.DataFrame, group_cols: list[str]) -> pd.DataFrame:
+    columns = group_cols + ["price_move", "price_move_score"]
+    if df.empty or "price" not in df or "time" not in df:
+        return pd.DataFrame(columns=columns)
+    work = df[group_cols + ["time", "price", "notional", "side_upper"]].copy()
+    work["time"] = pd.to_datetime(work["time"], utc=True, errors="coerce")
+    work["price"] = pd.to_numeric(work["price"], errors="coerce")
+    work["notional"] = pd.to_numeric(work["notional"], errors="coerce").fillna(0.0)
+    work["side_upper"] = work["side_upper"].fillna("").astype(str)
+    work = work.dropna(subset=["time", "price"])
+    work = work[(work["price"] > 0) & (work["price"] <= 1)]
+    if work.empty:
+        return pd.DataFrame(columns=columns)
+
+    rows: list[dict[str, Any]] = []
+    for keys, group in work.sort_values("time").groupby(group_cols, dropna=False):
+        key_values = keys if isinstance(keys, tuple) else (keys,)
+        first_price = float(group.iloc[0]["price"])
+        last_price = float(group.iloc[-1]["price"])
+        side_notional = group.groupby("side_upper", dropna=False)["notional"].sum()
+        dominant_side = str(side_notional.sort_values(ascending=False).index[0] or "BUY") if not side_notional.empty else "BUY"
+        price_move = first_price - last_price if dominant_side == "SELL" else last_price - first_price
+        row = {column: value for column, value in zip(group_cols, key_values)}
+        row["price_move"] = float(price_move)
+        row["price_move_score"] = min(max(float(price_move), 0.0) / 0.15, 1.0) * 10
+        rows.append(row)
+    return pd.DataFrame(rows, columns=columns)
+
+
+def _prepare_whale_risk_trades(trades: pd.DataFrame, now: Any | None = None) -> tuple[pd.DataFrame, pd.Timestamp]:
+    current_time = pd.to_datetime(now, utc=True, errors="coerce") if now is not None else pd.Timestamp.now(tz="UTC")
+    if pd.isna(current_time):
+        current_time = pd.Timestamp.now(tz="UTC")
+    if trades.empty:
+        return trades.copy(), current_time
+    df = trades.copy()
+    df["time"] = pd.to_datetime(_df_col(df, "time", pd.NaT), utc=True, errors="coerce")
+    df["end_time"] = pd.to_datetime(_df_col(df, "end_time", pd.NaT), utc=True, errors="coerce")
+    df["price"] = pd.to_numeric(_df_col(df, "price", 0.0), errors="coerce").fillna(0.0).clip(lower=0.0)
+    df["notional"] = pd.to_numeric(_df_col(df, "notional", 0.0), errors="coerce").fillna(0.0).clip(lower=0.0)
+    df["size"] = pd.to_numeric(_df_col(df, "size", 0.0), errors="coerce").fillna(0.0).clip(lower=0.0)
+    df["platform"] = _df_col(df, "platform", "").fillna("").astype(str)
+    df["title"] = _df_col(df, "title", "").fillna("").astype(str)
+    df["market_key"] = _df_col(df, "market_key", "").fillna("").astype(str)
+    df["wallet"] = _df_col(df, "wallet", "").fillna("").astype(str)
+    df["trader"] = _df_col(df, "trader", "").fillna("").astype(str)
+    df["side_upper"] = _df_col(df, "side", "").fillna("").astype(str).str.upper()
+    df["outcome_upper"] = _df_col(df, "outcome", "").fillna("").astype(str).str.upper()
+    df["hours_to_end"] = (df["end_time"] - current_time).dt.total_seconds() / 3600
+    df["late_notional"] = df["notional"].where(df["hours_to_end"].between(0, 48, inclusive="both"), 0.0)
+    df["long_odds_notional"] = df["notional"].where(df["price"].between(0.0001, 0.20, inclusive="both"), 0.0)
+    return df, current_time
+
+
+def whale_wallet_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_000.0, now: Any | None = None) -> pd.DataFrame:
+    """Score wallet-level insider-like flow signals from the current public trade tape.
+
+    The score is a best-effort public-data screen, not proof of illegal insider trading.
+    """
+
+    df, _current_time = _prepare_whale_risk_trades(trades, now)
+    if df.empty or "wallet" not in df:
+        return pd.DataFrame()
+    df = df[df["wallet"].str.strip().ne("")]
+    df = df[df["wallet"].str.lower().ne("nan")]
+    if df.empty:
+        return pd.DataFrame()
+
+    grouped = (
+        df.groupby("wallet", dropna=False)
+        .agg(
+            trader=("trader", lambda s: str(_first_nonempty(*s.tolist()) or "")),
+            trade_count=("wallet", "size"),
+            notional=("notional", "sum"),
+            avg_trade=("notional", "mean"),
+            largest_trade=("notional", "max"),
+            markets=("title", pd.Series.nunique),
+            first_seen=("time", "min"),
+            latest_trade=("time", "max"),
+            late_notional=("late_notional", "sum"),
+            long_odds_notional=("long_odds_notional", "sum"),
+        )
+        .reset_index()
+    )
+    span_minutes = (grouped["latest_trade"] - grouped["first_seen"]).dt.total_seconds().fillna(0.0) / 60
+    grouped["trades_per_hour"] = grouped["trade_count"] / (span_minutes.clip(lower=5) / 60)
+
+    top_market = _dominant_bucket(
+        df,
+        ["wallet"],
+        "title",
+        bucket_name="top_market",
+        share_name="top_market_share",
+        notional_name="top_market_notional",
+    )
+    top_outcome = _dominant_bucket(
+        df[df["outcome_upper"].isin(["YES", "NO"])],
+        ["wallet"],
+        "outcome_upper",
+        bucket_name="dominant_outcome",
+        share_name="outcome_share",
+        notional_name="dominant_outcome_notional",
+    )
+    top_side = _dominant_bucket(
+        df[df["side_upper"].isin(["BUY", "SELL"])],
+        ["wallet"],
+        "side_upper",
+        bucket_name="dominant_side",
+        share_name="side_share",
+        notional_name="dominant_side_notional",
+    )
+
+    grouped = grouped.merge(top_market, on="wallet", how="left").merge(top_outcome, on="wallet", how="left").merge(top_side, on="wallet", how="left")
+    price_moves = _price_move_features(df, ["wallet"])
+    if not price_moves.empty:
+        grouped = grouped.merge(price_moves, on="wallet", how="left")
+    else:
+        grouped["price_move"] = 0.0
+        grouped["price_move_score"] = 0.0
+    for column in ["top_market_share", "outcome_share", "side_share", "late_notional", "long_odds_notional", "price_move", "price_move_score"]:
+        if column in grouped:
+            grouped[column] = pd.to_numeric(grouped[column], errors="coerce").fillna(0.0)
+    grouped["directional_share"] = grouped[["outcome_share", "side_share"]].max(axis=1)
+    grouped["directional_label"] = grouped["dominant_outcome"].where(grouped["outcome_share"] >= grouped["side_share"], grouped["dominant_side"]).fillna("")
+    grouped["late_share"] = grouped["late_notional"] / grouped["notional"].replace({0: pd.NA})
+    grouped["late_share"] = grouped["late_share"].fillna(0.0)
+    grouped["long_odds_share"] = grouped["long_odds_notional"] / grouped["notional"].replace({0: pd.NA})
+    grouped["long_odds_share"] = grouped["long_odds_share"].fillna(0.0)
+
+    whale_base = max(float(whale_threshold or 0.0), 1_000.0)
+    scale_score = (grouped["notional"] / (whale_base * 20)).clip(upper=1.0) * 15
+    largest_score = (grouped["largest_trade"] / (whale_base * 5)).clip(upper=1.0) * 10
+    long_odds_score = ((grouped["long_odds_share"].fillna(0.0) * 0.55) + (grouped["long_odds_notional"] / (whale_base * 5)).clip(upper=1.0) * 0.45) * 15
+    concentration_score = grouped["top_market_share"].fillna(0.0).clip(upper=1.0) * 15
+    direction_score = ((grouped["directional_share"].fillna(0.0) - 0.55) / 0.45).clip(lower=0.0, upper=1.0) * 10
+    burst_score = (grouped["trades_per_hour"] / 30).clip(upper=1.0) * 10
+    late_score = grouped["late_share"].fillna(0.0).clip(upper=1.0) * 15
+    fresh_score = (((grouped["trade_count"] <= 2) & (grouped["largest_trade"] >= whale_base)).astype(float)) * 10
+    grouped["wallet_insider_score"] = (
+        scale_score
+        + largest_score
+        + long_odds_score
+        + concentration_score
+        + direction_score
+        + burst_score
+        + late_score
+        + grouped["price_move_score"].fillna(0.0)
+        + fresh_score
+    ).round(0).clip(0, 100)
+    grouped["wallet_insider_level"] = grouped["wallet_insider_score"].map(_risk_level)
+    grouped["wallet_insider_flags"] = grouped.apply(
+        lambda row: _risk_reasons(
+            row,
+            [
+                (float(row.get("long_odds_notional", 0.0) or 0.0) >= whale_base, "long-odds big bet"),
+                (float(row.get("late_share", 0.0) or 0.0) >= 0.5, "late-market flow"),
+                (float(row.get("top_market_share", 0.0) or 0.0) >= 0.6 and int(row.get("trade_count", 0) or 0) >= 2, "single-market concentration"),
+                (float(row.get("directional_share", 0.0) or 0.0) >= 0.8, "one-sided flow"),
+                (float(row.get("trades_per_hour", 0.0) or 0.0) >= 20, "fast burst"),
+                (float(row.get("price_move", 0.0) or 0.0) >= 0.05, "favorable price move"),
+                (int(row.get("trade_count", 0) or 0) <= 2 and float(row.get("largest_trade", 0.0) or 0.0) >= whale_base, "sample-fresh large wallet"),
+                (float(row.get("largest_trade", 0.0) or 0.0) >= whale_base * 5, "large print"),
+            ],
+        ),
+        axis=1,
+    )
+    grouped["wallet_risk_score"] = grouped["wallet_insider_score"]
+    grouped["wallet_risk_level"] = grouped["wallet_insider_level"]
+    grouped["wallet_risk_reasons"] = grouped["wallet_insider_flags"]
+    return grouped.sort_values(["wallet_insider_score", "notional", "latest_trade"], ascending=[False, False, False]).reset_index(drop=True)
+
+
+def whale_event_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_000.0, now: Any | None = None) -> pd.DataFrame:
+    """Score market/event-level insider-like flow signals from recent public trades."""
+
+    df, _current_time = _prepare_whale_risk_trades(trades, now)
+    if df.empty or "title" not in df:
+        return pd.DataFrame()
+    df = df[df["title"].str.strip().ne("")]
+    if df.empty:
+        return pd.DataFrame()
+
+    grouped = (
+        df.groupby(["platform", "title"], dropna=False)
+        .agg(
+            trades=("title", "size"),
+            notional=("notional", "sum"),
+            avg_trade=("notional", "mean"),
+            largest_trade=("notional", "max"),
+            first_seen=("time", "min"),
+            latest_trade=("time", "max"),
+            unique_wallets=("wallet", lambda s: int(s.astype(str).str.strip().replace("", pd.NA).dropna().nunique())),
+            late_notional=("late_notional", "sum"),
+            long_odds_notional=("long_odds_notional", "sum"),
+            market_key=("market_key", "first"),
+            url=("url", "first") if "url" in df else ("title", "first"),
+        )
+        .reset_index()
+    )
+    span_minutes = (grouped["latest_trade"] - grouped["first_seen"]).dt.total_seconds().fillna(0.0) / 60
+    grouped["trades_per_hour"] = grouped["trades"] / (span_minutes.clip(lower=5) / 60)
+
+    top_wallet = _dominant_bucket(
+        df[df["wallet"].str.strip().ne("")],
+        ["platform", "title"],
+        "wallet",
+        bucket_name="top_wallet",
+        share_name="top_wallet_share",
+        notional_name="top_wallet_notional",
+    )
+    top_outcome = _dominant_bucket(
+        df[df["outcome_upper"].isin(["YES", "NO"])],
+        ["platform", "title"],
+        "outcome_upper",
+        bucket_name="dominant_outcome",
+        share_name="outcome_share",
+        notional_name="dominant_outcome_notional",
+    )
+    top_side = _dominant_bucket(
+        df[df["side_upper"].isin(["BUY", "SELL"])],
+        ["platform", "title"],
+        "side_upper",
+        bucket_name="dominant_side",
+        share_name="side_share",
+        notional_name="dominant_side_notional",
+    )
+
+    grouped = grouped.merge(top_wallet, on=["platform", "title"], how="left").merge(top_outcome, on=["platform", "title"], how="left").merge(top_side, on=["platform", "title"], how="left")
+    price_moves = _price_move_features(df, ["platform", "title"])
+    if not price_moves.empty:
+        grouped = grouped.merge(price_moves, on=["platform", "title"], how="left")
+    else:
+        grouped["price_move"] = 0.0
+        grouped["price_move_score"] = 0.0
+    for column in ["top_wallet_share", "outcome_share", "side_share", "late_notional", "long_odds_notional", "price_move", "price_move_score"]:
+        if column in grouped:
+            grouped[column] = pd.to_numeric(grouped[column], errors="coerce").fillna(0.0)
+    grouped["event_directional_share"] = grouped[["outcome_share", "side_share"]].max(axis=1)
+    grouped["event_directional_label"] = grouped["dominant_outcome"].where(grouped["outcome_share"] >= grouped["side_share"], grouped["dominant_side"]).fillna("")
+    grouped["late_share"] = grouped["late_notional"] / grouped["notional"].replace({0: pd.NA})
+    grouped["late_share"] = grouped["late_share"].fillna(0.0)
+    grouped["long_odds_share"] = grouped["long_odds_notional"] / grouped["notional"].replace({0: pd.NA})
+    grouped["long_odds_share"] = grouped["long_odds_share"].fillna(0.0)
+
+    whale_base = max(float(whale_threshold or 0.0), 1_000.0)
+    notional_score = (grouped["notional"] / (whale_base * 40)).clip(upper=1.0) * 15
+    largest_score = (grouped["largest_trade"] / (whale_base * 5)).clip(upper=1.0) * 10
+    long_odds_score = ((grouped["long_odds_share"].fillna(0.0) * 0.55) + (grouped["long_odds_notional"] / (whale_base * 5)).clip(upper=1.0) * 0.45) * 10
+    wallet_concentration_score = grouped["top_wallet_share"].fillna(0.0).clip(upper=1.0) * 15
+    direction_score = ((grouped["event_directional_share"].fillna(0.0) - 0.55) / 0.45).clip(lower=0.0, upper=1.0) * 10
+    burst_score = (grouped["trades_per_hour"] / 30).clip(upper=1.0) * 15
+    late_score = grouped["late_share"].fillna(0.0).clip(upper=1.0) * 15
+    cluster_score = (((grouped["unique_wallets"] >= 3) & (grouped["trades_per_hour"] >= 10)).astype(float)) * 10
+    grouped["event_insider_score"] = (
+        notional_score
+        + largest_score
+        + long_odds_score
+        + wallet_concentration_score
+        + direction_score
+        + burst_score
+        + late_score
+        + grouped["price_move_score"].fillna(0.0)
+        + cluster_score
+    ).round(0).clip(0, 100)
+    grouped["event_insider_level"] = grouped["event_insider_score"].map(_risk_level)
+    grouped["event_insider_flags"] = grouped.apply(
+        lambda row: _risk_reasons(
+            row,
+            [
+                (float(row.get("long_odds_notional", 0.0) or 0.0) >= whale_base, "long-odds big bet"),
+                (float(row.get("late_share", 0.0) or 0.0) >= 0.5, "late-market flow"),
+                (float(row.get("top_wallet_share", 0.0) or 0.0) >= 0.5, "wallet concentration"),
+                (float(row.get("event_directional_share", 0.0) or 0.0) >= 0.8, "one-sided flow"),
+                (float(row.get("trades_per_hour", 0.0) or 0.0) >= 20, "fast burst"),
+                (float(row.get("price_move", 0.0) or 0.0) >= 0.05, "favorable price move"),
+                (int(row.get("unique_wallets", 0) or 0) >= 3 and float(row.get("trades_per_hour", 0.0) or 0.0) >= 10, "multi-wallet burst"),
+                (float(row.get("largest_trade", 0.0) or 0.0) >= whale_base * 5, "large print"),
+            ],
+        ),
+        axis=1,
+    )
+    grouped["event_risk_score"] = grouped["event_insider_score"]
+    grouped["event_risk_level"] = grouped["event_insider_level"]
+    grouped["event_risk_reasons"] = grouped["event_insider_flags"]
+    return grouped.sort_values(["event_insider_score", "notional", "latest_trade"], ascending=[False, False, False]).reset_index(drop=True)
 
 
 def trader_flow_scores(trades: pd.DataFrame, whale_threshold: float = 2500) -> pd.DataFrame:
