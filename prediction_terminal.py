@@ -62,22 +62,26 @@ st.set_page_config(
 )
 
 
-ACCENT = "#00D97E"
+ACCENT = "#C8F542"
 BLUE = "#4F8EF7"
 AMBER = "#F5A623"
 RED = "#FF4545"
-MUTED = "#808080"
-PANEL = "#0D0D0D"
-BG = "#000000"
-ELEVATED = "#111111"
-HOVER_BG = "#1A1A1A"
-BORDER = "rgba(255, 255, 255, 0.07)"
-BORDER_STRONG = "rgba(255, 255, 255, 0.15)"
+MUTED = "#8A9099"
+PANEL = "#10151A"
+BG = "#0A0D0F"
+ELEVATED = "#161C22"
+HOVER_BG = "#1C232B"
+BORDER = "rgba(255, 255, 255, 0.06)"
+BORDER_STRONG = "rgba(255, 255, 255, 0.14)"
 TEXT_LABEL = "rgba(255, 255, 255, 0.40)"
-TEXT_SECONDARY = "rgba(255, 255, 255, 0.50)"
-DIAMOND = "rgba(255, 255, 255, 0.35)"
+TEXT_SECONDARY = "rgba(255, 255, 255, 0.55)"
+DIAMOND = ACCENT
+ACCENT_DIM = "rgba(200, 245, 66, 0.45)"
+ACCENT_HOVER = "#B7E33B"
+INK = "#0A0D0F"
 FONT_MONO = '"JetBrains Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace'
 FONT_SANS = '"Inter", -apple-system, "Segoe UI", sans-serif'
+FONT_SERIF = '"Instrument Serif", Georgia, serif'
 RESEARCH_START_CASH = 1000.0
 WORKSPACES = [
     "Overview",
@@ -107,7 +111,7 @@ def inject_css() -> None:
     st.markdown(
         f"""
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Instrument+Serif:ital@0;1&display=swap');
         .stApp {{
             background: {BG};
             color: #ffffff;
@@ -123,10 +127,10 @@ def inject_css() -> None:
             border-right: 1px solid {BORDER};
         }}
         [data-testid="stSidebar"] h2 {{
-            font-family: {FONT_MONO};
-            font-size: 0.95rem;
-            letter-spacing: 0.22em;
-            text-transform: uppercase;
+            font-family: {FONT_SERIF};
+            font-size: 1.35rem;
+            font-weight: 400;
+            letter-spacing: 0.01em;
         }}
         [data-testid="stSidebar"] h4 {{
             font-family: {FONT_MONO};
@@ -138,7 +142,7 @@ def inject_css() -> None:
         [data-testid="stMetric"] {{
             background: {PANEL};
             border: 1px solid {BORDER};
-            border-radius: 2px;
+            border-radius: 12px;
             padding: 0.85rem 0.95rem;
         }}
         [data-testid="stMetric"]:hover {{
@@ -161,7 +165,7 @@ def inject_css() -> None:
         }}
         div[data-testid="stVerticalBlockBorderWrapper"] {{
             border-color: {BORDER};
-            border-radius: 2px;
+            border-radius: 12px;
             background: {PANEL};
         }}
         .terminal-kicker {{
@@ -176,12 +180,16 @@ def inject_css() -> None:
             color: {DIAMOND};
         }}
         .terminal-title {{
-            font-family: {FONT_SANS};
-            font-size: 1.75rem;
-            font-weight: 700;
-            line-height: 1.1;
-            margin-bottom: 0.2rem;
+            font-family: {FONT_SERIF};
+            font-size: 2.1rem;
+            font-weight: 400;
+            line-height: 1.08;
+            margin-bottom: 0.25rem;
             color: #ffffff;
+        }}
+        .terminal-title em {{
+            font-style: italic;
+            color: {ACCENT};
         }}
         .terminal-subtitle {{
             color: {TEXT_SECONDARY};
@@ -202,8 +210,8 @@ def inject_css() -> None:
             text-transform: uppercase;
             letter-spacing: 0.08em;
             color: {ACCENT};
-            border: 1px solid rgba(0, 217, 126, 0.35);
-            border-radius: 2px;
+            border: 1px solid {ACCENT_DIM};
+            border-radius: 6px;
             padding: 0.2rem 0.45rem;
             display: inline-block;
             margin-right: 0.35rem;
@@ -223,7 +231,7 @@ def inject_css() -> None:
             color: {TEXT_SECONDARY};
             border: 1px solid {BORDER};
             background: {ELEVATED};
-            border-radius: 2px;
+            border-radius: 6px;
             padding: 0.22rem 0.55rem;
             font-size: 0.74rem;
             line-height: 1.2;
@@ -238,7 +246,7 @@ def inject_css() -> None:
             min-width: 0;
             border: 1px solid {BORDER};
             background: {PANEL};
-            border-radius: 2px;
+            border-radius: 10px;
             padding: 0.62rem 0.55rem;
         }}
         .market-stat span {{
@@ -268,37 +276,37 @@ def inject_css() -> None:
             text-transform: uppercase;
             letter-spacing: 0.08em;
             font-size: 0.78rem;
-            border-radius: 2px;
+            border-radius: 8px;
             border: 1px solid {BORDER};
             background: {PANEL};
             padding: 0.35rem 0.75rem;
         }}
         .stTabs [aria-selected="true"] {{
-            background: {HOVER_BG};
-            border-color: {BORDER_STRONG};
+            background: transparent;
+            border-color: {ACCENT_DIM};
+            color: {ACCENT};
         }}
         .stButton button, .stFormSubmitButton button, .stDownloadButton button, .stLinkButton a {{
-            font-family: {FONT_MONO};
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            font-size: 0.78rem;
-            border-radius: 2px;
+            font-family: {FONT_SANS};
+            font-weight: 600;
+            font-size: 0.85rem;
+            border-radius: 10px;
             box-shadow: none;
         }}
         .stButton button[kind="primary"], .stFormSubmitButton button[kind="primary"],
         .stButton button[kind="primaryFormSubmit"], .stFormSubmitButton button[kind="primaryFormSubmit"] {{
-            background: #ffffff;
-            color: #000000;
-            border: 1px solid #ffffff;
+            background: {ACCENT};
+            color: {INK};
+            border: 1px solid {ACCENT};
         }}
         .stButton button[kind="primary"]:hover, .stFormSubmitButton button[kind="primary"]:hover,
         .stButton button[kind="primaryFormSubmit"]:hover, .stFormSubmitButton button[kind="primaryFormSubmit"]:hover {{
-            background: rgba(255, 255, 255, 0.75);
-            border-color: rgba(255, 255, 255, 0.75);
-            color: #000000;
+            background: {ACCENT_HOVER};
+            border-color: {ACCENT_HOVER};
+            color: {INK};
         }}
         .stButton button[kind="primary"] p, .stFormSubmitButton button[kind="primaryFormSubmit"] p {{
-            color: #000000;
+            color: {INK};
         }}
         .stButton button[kind="secondary"], .stFormSubmitButton button[kind="secondary"],
         .stButton button[kind="secondaryFormSubmit"], .stFormSubmitButton button[kind="secondaryFormSubmit"],
@@ -311,13 +319,172 @@ def inject_css() -> None:
         .stButton button[kind="secondaryFormSubmit"]:hover, .stFormSubmitButton button[kind="secondaryFormSubmit"]:hover,
         .stDownloadButton button:hover {{
             color: #ffffff;
-            border-color: rgba(255, 255, 255, 0.4);
+            border-color: rgba(255, 255, 255, 0.35);
             background: {HOVER_BG};
         }}
-        div[data-baseweb="input"], div[data-baseweb="base-input"], div[data-baseweb="textarea"] {{
+        [data-testid="stSidebar"] .stButton button {{
+            justify-content: flex-start;
+            text-align: left;
+            font-weight: 500;
+            border-radius: 8px;
+        }}
+        [data-testid="stSidebar"] .stButton button p {{
+            text-align: left;
+            width: 100%;
+        }}
+        [data-testid="stSidebar"] .stButton button[kind="primary"] {{
+            background: {ELEVATED};
+            color: #ffffff;
+            border: 1px solid {BORDER_STRONG};
+            border-left: 2px solid {ACCENT};
+        }}
+        [data-testid="stSidebar"] .stButton button[kind="primary"] p {{
+            color: #ffffff;
+        }}
+        [data-testid="stSidebar"] .stButton button[kind="primary"]:hover {{
+            background: {HOVER_BG};
+            border-color: {BORDER_STRONG};
+            border-left-color: {ACCENT};
+            color: #ffffff;
+        }}
+        [data-testid="stSidebar"] .stButton button[kind="secondary"] {{
+            border-color: transparent;
+        }}
+        button[data-testid="stBaseButton-segmented_control"],
+        button[data-testid="stBaseButton-segmented_controlActive"] {{
+            font-family: {FONT_MONO};
+            font-size: 0.74rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            border-radius: 8px;
             background: {PANEL};
-            border-color: {BORDER};
-            border-radius: 2px;
+            border: 1px solid {BORDER_STRONG};
+            color: {TEXT_SECONDARY};
+        }}
+        button[data-testid="stBaseButton-segmented_controlActive"],
+        [data-testid="stSegmentedControl"] button[aria-checked="true"] {{
+            color: {ACCENT};
+            border-color: {ACCENT_DIM};
+            background: transparent;
+        }}
+        button[data-testid="stBaseButton-segmented_controlActive"] p,
+        [data-testid="stSegmentedControl"] button[aria-checked="true"] p {{
+            color: {ACCENT};
+        }}
+        [data-testid="stForm"] {{
+            background: {PANEL};
+            border: 1px solid {BORDER};
+            border-radius: 12px;
+            padding: 1.1rem 1.1rem 1.2rem;
+        }}
+        .step-label {{
+            font-family: {FONT_MONO};
+            font-size: 0.66rem;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: {TEXT_LABEL};
+            margin: 0.9rem 0 0.35rem;
+        }}
+        .field-hint {{
+            font-family: {FONT_MONO};
+            font-size: 0.7rem;
+            color: rgba(255, 255, 255, 0.30);
+            line-height: 1.45;
+            margin: 0.25rem 0 0.2rem;
+        }}
+        .chip-row {{
+            display: flex;
+            gap: 0.5rem;
+            margin: 0.2rem 0 1rem;
+        }}
+        .chip {{
+            font-family: {FONT_MONO};
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            padding: 0.35rem 0.8rem;
+            border-radius: 8px;
+            border: 1px solid {BORDER};
+            color: {TEXT_SECONDARY};
+            background: {PANEL};
+        }}
+        .chip-active {{
+            background: {ACCENT};
+            color: {INK};
+            border-color: {ACCENT};
+            font-weight: 700;
+        }}
+        .chip-disabled {{
+            opacity: 0.45;
+        }}
+        .empty-hero {{
+            padding: 3.2rem 2rem 1.6rem;
+            text-align: center;
+        }}
+        .empty-hero-title {{
+            font-family: {FONT_SERIF};
+            font-style: italic;
+            font-size: 1.7rem;
+            color: #ffffff;
+            margin-bottom: 0.8rem;
+        }}
+        .empty-hero-sub {{
+            font-family: {FONT_MONO};
+            font-size: 0.78rem;
+            color: {TEXT_SECONDARY};
+            line-height: 1.7;
+            max-width: 560px;
+            margin: 0 auto 1.2rem;
+        }}
+        .equity-panel {{
+            border: 1px solid {BORDER};
+            border-radius: 12px;
+            background: {PANEL};
+            padding: 0.8rem 0.9rem;
+            margin-top: 0.6rem;
+        }}
+        .equity-label {{
+            font-family: {FONT_MONO};
+            font-size: 0.62rem;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: {TEXT_LABEL};
+            display: flex;
+            gap: 0.45rem;
+            align-items: center;
+        }}
+        .chip-demo {{
+            background: {AMBER};
+            color: {INK};
+            border-radius: 6px;
+            font-size: 0.6rem;
+            padding: 0.05rem 0.45rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+        }}
+        .chip-paper {{
+            border: 1px solid {BORDER_STRONG};
+            border-radius: 6px;
+            color: {TEXT_SECONDARY};
+            font-size: 0.62rem;
+            padding: 0.1rem 0.5rem;
+            letter-spacing: 0.12em;
+        }}
+        .equity-value {{
+            font-family: {FONT_MONO};
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: #ffffff;
+            margin: 0.25rem 0 0.05rem;
+        }}
+        .equity-delta {{
+            font-family: {FONT_MONO};
+            font-size: 0.74rem;
+        }}
+        div[data-baseweb="input"], div[data-baseweb="base-input"], div[data-baseweb="textarea"] {{
+            background: {BG};
+            border-color: {BORDER_STRONG};
+            border-radius: 8px;
         }}
         div[data-baseweb="input"] input, div[data-baseweb="base-input"] input, div[data-baseweb="textarea"] textarea {{
             font-family: {FONT_MONO};
@@ -325,9 +492,9 @@ def inject_css() -> None:
             color: #ffffff;
         }}
         div[data-baseweb="select"] > div {{
-            background: {PANEL};
-            border-color: {BORDER};
-            border-radius: 2px;
+            background: {BG};
+            border-color: {BORDER_STRONG};
+            border-radius: 8px;
             font-family: {FONT_MONO};
             font-size: 0.85rem;
         }}
@@ -337,17 +504,17 @@ def inject_css() -> None:
         }}
         [data-testid="stDataFrame"] {{
             border: 1px solid {BORDER};
-            border-radius: 2px;
+            border-radius: 10px;
         }}
         [data-testid="stExpander"] details {{
             border: 1px solid {BORDER};
-            border-radius: 2px;
+            border-radius: 10px;
             background: {PANEL};
         }}
         .command-shell {{
             border: 1px solid {BORDER};
             background: {PANEL};
-            border-radius: 2px;
+            border-radius: 10px;
             padding: 0.5rem 0.65rem;
             color: {TEXT_SECONDARY};
             font-family: {FONT_MONO};
@@ -368,7 +535,7 @@ def inject_css() -> None:
         .auth-note {{
             border: 1px solid {BORDER};
             background: {PANEL};
-            border-radius: 2px;
+            border-radius: 10px;
             padding: 0.7rem 0.8rem;
             color: {TEXT_SECONDARY};
             font-size: 0.86rem;
@@ -2229,6 +2396,20 @@ apply_profile_route()
 apply_pending_navigation()
 
 
+@st.cache_data(ttl=60, show_spinner=False)
+def load_paper_equity_snapshot() -> dict[str, float]:
+    """Lightweight paper-portfolio snapshot for the sidebar (last known prices, no network)."""
+
+    try:
+        snap = ct.value_paper_portfolio()
+        return {
+            "equity": float(snap.equity),
+            "pnl": float(snap.realized_pnl + snap.unrealized_pnl),
+        }
+    except Exception:
+        return {"equity": 0.0, "pnl": 0.0}
+
+
 with st.sidebar:
     st.markdown("## ◆ Market Intel")
     st.caption("Polymarket wallets, Kalshi markets, whale flow, and cross-venue research.")
@@ -2264,6 +2445,20 @@ with st.sidebar:
     st.divider()
     st.caption("Research mode only. This app does not place orders. Kalshi public feeds do not expose wallet identities.")
     st.caption(f"Last render: {md.now_utc_label()}")
+    equity_snap = load_paper_equity_snapshot()
+    equity_delta_color = ACCENT if equity_snap["pnl"] >= 0 else RED
+    equity_delta_sign = "+" if equity_snap["pnl"] >= 0 else "-"
+    st.markdown(
+        f"""
+        <div class='equity-panel'>
+            <div class='equity-label'><span class='chip-paper'>PAPER</span></div>
+            <div class='equity-label' style='margin-top:0.55rem'>Equity <span class='chip-demo'>DEMO</span></div>
+            <div class='equity-value'>${equity_snap['equity']:,.2f}</div>
+            <div class='equity-delta' style='color:{equity_delta_color}'>{equity_delta_sign}${abs(equity_snap['pnl']):,.2f}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def load_market_universe() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
@@ -12150,7 +12345,8 @@ BACKTEST_SIZING_OPTIONS = {
     "Percent of bankroll": btr.SIZING_PERCENT,
     "Mirror trader size": btr.SIZING_MIRROR,
 }
-BACKTEST_WINDOWS = [30, 60, 90]
+BACKTEST_WINDOW_OPTIONS = {"7d": 7, "30d": 30, "90d": 90}
+BACKTEST_STRATEGY_OPTIONS = {"Copy": btr.STRATEGY_COPY, "Fade": btr.STRATEGY_FADE}
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -12164,6 +12360,7 @@ def run_backtest_cached(
     fee_bps: float,
     slippage_bps: float,
     flat_stake: float,
+    strategy: str,
 ) -> btr.BacktestResult:
     return btr.run_backtest(
         btr.BacktestConfig(
@@ -12176,19 +12373,21 @@ def run_backtest_cached(
             fee_bps=fee_bps,
             slippage_bps=slippage_bps,
             flat_stake=flat_stake,
+            strategy=strategy,
         )
     )
 
 
 def _backtest_stat_cards(stats: dict[str, Any], benchmark: dict[str, Any]) -> None:
-    cols = st.columns(6)
-    cols[0].metric("Final equity", money(stats["final_equity"]), f"{stats['roi'] * 100:+.1f}% ROI")
+    top = st.columns(3)
+    top[0].metric("Final equity", money(stats["final_equity"]), f"{stats['roi'] * 100:+.1f}% ROI")
     bench_delta = stats["total_pnl"] - float(benchmark.get("total_pnl", 0.0) or 0.0)
-    cols[1].metric("Total P&L", money(stats["total_pnl"]), f"{money(bench_delta)} vs flat-bet")
-    cols[2].metric("Win rate", pct(stats["win_rate"]), f"{stats['wins']}W / {stats['losses']}L", delta_color="off")
-    cols[3].metric("Max drawdown", pct(stats["max_drawdown"]))
-    cols[4].metric("Trades copied", f"{stats['copied_trades']}", f"{stats['skipped_trades']} skipped", delta_color="off")
-    cols[5].metric("Fees paid", money(stats["fees_paid"]), f"{money(stats['open_value'])} open", delta_color="off")
+    top[1].metric("Total P&L", money(stats["total_pnl"]), f"{money(bench_delta)} vs flat-bet")
+    top[2].metric("Win rate", pct(stats["win_rate"]), f"{stats['wins']}W / {stats['losses']}L", delta_color="off")
+    bottom = st.columns(3)
+    bottom[0].metric("Max drawdown", pct(stats["max_drawdown"]))
+    bottom[1].metric("Trades copied", f"{stats['copied_trades']}", f"{stats['skipped_trades']} skipped", delta_color="off")
+    bottom[2].metric("Fees paid", money(stats["fees_paid"]), f"{money(stats['open_value'])} open", delta_color="off")
 
 
 def _backtest_equity_chart(result: btr.BacktestResult, compare: btr.BacktestResult | None = None) -> go.Figure:
@@ -12341,69 +12540,87 @@ def _backtest_comparison_table(result: btr.BacktestResult, compare: btr.Backtest
 def page_backtester() -> None:
     section_header(
         "Backtester",
-        "Run any wallet against up to 90 days of market history. Fees and slippage are priced into every simulated fill.",
+        "Run the numbers before you risk the bankroll — every simulated fill is priced with fees and slippage.",
+        kicker="Backtester · Paper sim",
     )
-    with st.form("backtester_form"):
-        r1c1, r1c2, r1c3 = st.columns([2, 2, 1])
-        wallet_input = r1c1.text_input("Wallet address", placeholder="0x…", key="bt_wallet")
-        compare_input = r1c2.text_input("Compare wallet (optional)", placeholder="0x…", key="bt_compare")
-        days = r1c3.selectbox("Window", BACKTEST_WINDOWS, index=2, format_func=lambda value: f"{value} days", key="bt_days")
-        r2c1, r2c2, r2c3, r2c4 = st.columns(4)
-        bankroll = r2c1.number_input("Bankroll ($)", min_value=10.0, max_value=1_000_000.0, value=1000.0, step=100.0, key="bt_bankroll")
-        sizing_label = r2c2.selectbox("Bet sizing", list(BACKTEST_SIZING_OPTIONS), key="bt_sizing", help="Fixed: same $ stake per copy. Percent: % of current bankroll. Mirror: % of the trader's notional.")
-        stake_value = r2c3.number_input("Stake ($ or %)", min_value=0.1, max_value=100_000.0, value=25.0, step=1.0, key="bt_stake")
-        max_stake = r2c4.number_input("Max stake ($)", min_value=1.0, max_value=100_000.0, value=250.0, step=10.0, key="bt_max_stake")
-        r3c1, r3c2, r3c3 = st.columns(3)
-        fee_bps = r3c1.number_input("Fee (bps)", min_value=0.0, max_value=500.0, value=20.0, step=5.0, key="bt_fee")
-        slippage_bps = r3c2.number_input("Slippage (bps)", min_value=0.0, max_value=500.0, value=50.0, step=5.0, key="bt_slippage")
-        flat_stake = r3c3.number_input("Benchmark flat stake ($)", min_value=1.0, max_value=100_000.0, value=25.0, step=5.0, key="bt_flat")
-        submitted = st.form_submit_button("RUN BACKTEST →", type="primary")
+    st.markdown(
+        "<div class='chip-row'><span class='chip chip-active'>Polymarket</span>"
+        "<span class='chip chip-disabled' title='Polymarket data only for now'>Hyperliquid</span></div>",
+        unsafe_allow_html=True,
+    )
+    form_col, results_col = st.columns([2, 3], gap="medium")
 
-    if submitted:
-        wallet = str(wallet_input or "").strip().lower()
-        compare_wallet = str(compare_input or "").strip().lower()
-        if not md.is_polymarket_wallet(wallet):
-            st.warning("Enter a valid Polymarket wallet address (0x + 40 hex characters).")
-            st.session_state.pop("backtest_request", None)
-        elif compare_wallet and not md.is_polymarket_wallet(compare_wallet):
-            st.warning("The compare wallet is not a valid Polymarket address.")
-            st.session_state.pop("backtest_request", None)
-        else:
-            st.session_state["backtest_request"] = {
-                "wallet": wallet,
-                "compare": compare_wallet,
-                "days": int(days),
-                "bankroll": float(bankroll),
-                "sizing_mode": BACKTEST_SIZING_OPTIONS[sizing_label],
-                "stake_value": float(stake_value),
-                "max_stake": float(max_stake),
-                "fee_bps": float(fee_bps),
-                "slippage_bps": float(slippage_bps),
-                "flat_stake": float(flat_stake),
-            }
+    with form_col:
+        with st.form("backtester_form"):
+            st.markdown("<div class='step-label' style='margin-top:0'>01 · Wallet to copy</div>", unsafe_allow_html=True)
+            wallet_input = st.text_input("Wallet to copy", placeholder="0x…", key="bt_wallet", label_visibility="collapsed")
+            st.markdown("<div class='field-hint'>Paste any Polymarket address — for example from the Traders leaderboard.</div>", unsafe_allow_html=True)
+            st.markdown("<div class='step-label'>02 · Max bet per trade</div>", unsafe_allow_html=True)
+            max_bet = st.number_input("Max bet per trade ($)", min_value=1.0, max_value=100_000.0, value=25.0, step=5.0, key="bt_stake", label_visibility="collapsed")
+            bankroll_hint = float(st.session_state.get("bt_bankroll", 10_000.0))
+            st.markdown(f"<div class='field-hint'>Bankroll pinned to ${bankroll_hint:,.0f} — change it under Advanced.</div>", unsafe_allow_html=True)
+            st.markdown("<div class='step-label'>03 · Time window</div>", unsafe_allow_html=True)
+            window_label = st.segmented_control("Time window", list(BACKTEST_WINDOW_OPTIONS), default="30d", key="bt_window", label_visibility="collapsed")
+            st.markdown("<div class='step-label'>04 · Strategy</div>", unsafe_allow_html=True)
+            strategy_label = st.segmented_control("Strategy", list(BACKTEST_STRATEGY_OPTIONS), default="Copy", key="bt_strategy", label_visibility="collapsed")
+            st.markdown("<div class='field-hint'>Fade takes the opposite side of every trade the wallet makes.</div>", unsafe_allow_html=True)
+            with st.expander("Advanced settings"):
+                bankroll = st.number_input("Bankroll ($)", min_value=10.0, max_value=1_000_000.0, value=10_000.0, step=500.0, key="bt_bankroll")
+                sizing_label = st.selectbox("Bet sizing", list(BACKTEST_SIZING_OPTIONS), key="bt_sizing", help="Fixed: the max bet is the stake per copy. Percent: % of current bankroll. Mirror: % of the trader's notional.")
+                sizing_value = st.number_input("Sizing value (% for percent/mirror)", min_value=0.1, max_value=100_000.0, value=2.0, step=0.5, key="bt_sizing_value")
+                fee_bps = st.number_input("Fee (bps)", min_value=0.0, max_value=500.0, value=20.0, step=5.0, key="bt_fee")
+                slippage_bps = st.number_input("Slippage (bps)", min_value=0.0, max_value=500.0, value=50.0, step=5.0, key="bt_slippage")
+                flat_stake = st.number_input("Benchmark flat stake ($)", min_value=1.0, max_value=100_000.0, value=25.0, step=5.0, key="bt_flat")
+                compare_input = st.text_input("Compare wallet (optional)", placeholder="0x…", key="bt_compare")
+            submitted = st.form_submit_button("Run backtest →", type="primary", width="stretch")
 
-    request = st.session_state.get("backtest_request")
-    if not request:
-        draw_empty("Enter a wallet, choose your sizing and costs, then run the backtest to see how copying it would have performed.")
-        return
+        if submitted:
+            wallet = str(wallet_input or "").strip().lower()
+            compare_wallet = str(compare_input or "").strip().lower()
+            sizing_mode = BACKTEST_SIZING_OPTIONS[sizing_label]
+            stake_value = float(max_bet) if sizing_mode == btr.SIZING_FIXED else float(sizing_value)
+            if not md.is_polymarket_wallet(wallet):
+                st.warning("Enter a valid Polymarket wallet address (0x + 40 hex characters).")
+                st.session_state.pop("backtest_request", None)
+            elif compare_wallet and not md.is_polymarket_wallet(compare_wallet):
+                st.warning("The compare wallet is not a valid Polymarket address.")
+                st.session_state.pop("backtest_request", None)
+            else:
+                st.session_state["backtest_request"] = {
+                    "wallet": wallet,
+                    "compare": compare_wallet,
+                    "days": BACKTEST_WINDOW_OPTIONS.get(str(window_label or "30d"), 30),
+                    "bankroll": float(bankroll),
+                    "sizing_mode": sizing_mode,
+                    "stake_value": stake_value,
+                    "max_stake": float(max_bet),
+                    "fee_bps": float(fee_bps),
+                    "slippage_bps": float(slippage_bps),
+                    "flat_stake": float(flat_stake),
+                    "strategy": BACKTEST_STRATEGY_OPTIONS.get(str(strategy_label or "Copy"), btr.STRATEGY_COPY),
+                }
 
-    try:
-        with st.spinner("Replaying trades against market history…"):
-            result = run_backtest_cached(
-                request["wallet"],
-                request["days"],
-                request["bankroll"],
-                request["sizing_mode"],
-                request["stake_value"],
-                request["max_stake"],
-                request["fee_bps"],
-                request["slippage_bps"],
-                request["flat_stake"],
-            )
-            compare_result = None
-            if request["compare"]:
-                compare_result = run_backtest_cached(
-                    request["compare"],
+    with results_col:
+        request = st.session_state.get("backtest_request")
+        if not request:
+            with st.container(border=True):
+                st.markdown(
+                    "<div class='empty-hero'>"
+                    "<div class='empty-hero-title'>Pick a wallet, set your size, run the replay.</div>"
+                    "<div class='empty-hero-sub'>Replays every recorded trade with fees and slippage priced in — "
+                    "equity curve vs flat-bet benchmark, win rate, drawdown and the full trade log, up to 90 days back.</div>"
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+                pad_l, cta_a, cta_b, pad_r = st.columns([1, 2, 2, 1])
+                cta_a.button("Browse top traders", key="bt_goto_traders", width="stretch", on_click=navigate_workspace, args=("Traders",))
+                cta_b.button("Open whale flow →", key="bt_goto_whales", width="stretch", on_click=navigate_workspace, args=("Whale Flow",))
+            return
+
+        try:
+            with st.spinner("Replaying trades against market history…"):
+                result = run_backtest_cached(
+                    request["wallet"],
                     request["days"],
                     request["bankroll"],
                     request["sizing_mode"],
@@ -12412,39 +12629,55 @@ def page_backtester() -> None:
                     request["fee_bps"],
                     request["slippage_bps"],
                     request["flat_stake"],
+                    request.get("strategy", btr.STRATEGY_COPY),
                 )
-    except md.MarketDataError as exc:
-        st.error(f"Market data request failed: {exc}")
-        return
+                compare_result = None
+                if request["compare"]:
+                    compare_result = run_backtest_cached(
+                        request["compare"],
+                        request["days"],
+                        request["bankroll"],
+                        request["sizing_mode"],
+                        request["stake_value"],
+                        request["max_stake"],
+                        request["fee_bps"],
+                        request["slippage_bps"],
+                        request["flat_stake"],
+                        request.get("strategy", btr.STRATEGY_COPY),
+                    )
+        except md.MarketDataError as exc:
+            st.error(f"Market data request failed: {exc}")
+            return
 
-    if result.ledger.empty:
-        draw_empty("No trades found for this wallet inside the selected window.")
-        return
+        if result.ledger.empty:
+            draw_empty("No trades found for this wallet inside the selected window.")
+            return
 
-    st.markdown(
-        f"<div class='small-note'>Window {result.window_start.strftime('%Y-%m-%d')} → {result.window_end.strftime('%Y-%m-%d')} · wallet <span class='mono'>{html.escape(short_addr(result.wallet))}</span></div>",
-        unsafe_allow_html=True,
-    )
-    _backtest_stat_cards(result.stats, result.benchmark_stats)
-    st.plotly_chart(_backtest_equity_chart(result, compare_result), width="stretch", config=plot_config())
+        strategy_name = "Fade" if request.get("strategy") == btr.STRATEGY_FADE else "Copy"
+        st.markdown(
+            f"<div class='small-note'>{strategy_name} · {result.window_start.strftime('%Y-%m-%d')} → {result.window_end.strftime('%Y-%m-%d')} · wallet <span class='mono'>{html.escape(short_addr(result.wallet))}</span></div>",
+            unsafe_allow_html=True,
+        )
+        _backtest_stat_cards(result.stats, result.benchmark_stats)
+        st.plotly_chart(_backtest_equity_chart(result, compare_result), width="stretch", config=plot_config())
 
-    tab_labels = ["Trade log", "Open positions", "Drawdown"]
-    if compare_result is not None:
-        tab_labels.append("Comparison")
-    tabs = st.tabs(tab_labels)
-    with tabs[0]:
-        _backtest_trade_log(result)
-    with tabs[1]:
-        _backtest_open_positions(result)
-    with tabs[2]:
-        st.plotly_chart(_backtest_drawdown_chart(result), width="stretch", config=plot_config())
-    if compare_result is not None:
-        with tabs[3]:
-            if compare_result.ledger.empty:
-                draw_empty("No trades found for the compare wallet inside the selected window.")
-            else:
-                _backtest_stat_cards(compare_result.stats, compare_result.benchmark_stats)
-                _backtest_comparison_table(result, compare_result)
+        tab_labels = ["Trade log", "Open positions", "Drawdown"]
+        if compare_result is not None:
+            tab_labels.append("Comparison")
+        tabs = st.tabs(tab_labels)
+        with tabs[0]:
+            _backtest_trade_log(result)
+        with tabs[1]:
+            _backtest_open_positions(result)
+        with tabs[2]:
+            st.plotly_chart(_backtest_drawdown_chart(result), width="stretch", config=plot_config())
+        if compare_result is not None:
+            with tabs[3]:
+                if compare_result.ledger.empty:
+                    draw_empty("No trades found for the compare wallet inside the selected window.")
+                else:
+                    _backtest_stat_cards(compare_result.stats, compare_result.benchmark_stats)
+                    _backtest_comparison_table(result, compare_result)
 
 
 PAGES = {
