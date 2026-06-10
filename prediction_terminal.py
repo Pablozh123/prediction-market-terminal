@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import html
+import math
 import re
 from dataclasses import replace
 from pathlib import Path
@@ -12201,6 +12202,7 @@ def page_settings() -> None:
 
 
 RISK_LEVEL_COLORS = {"High": RED, "Medium": AMBER, "Elevated": BLUE, "Low": MUTED}
+CLUSTER_COLORS = [ACCENT, BLUE, AMBER, "#E879F9", "#34D399", "#F87171", "#60A5FA", "#FBBF24", "#A78BFA", "#F472B6"]
 
 
 def _suspicious_select_event(title: str) -> None:
@@ -12244,8 +12246,11 @@ def page_suspicious() -> None:
     event_risk = susp.apply_fresh_wallet_bonus(event_risk, clusters)
     timing_clusters = susp.coordinated_clusters(trades)
     event_risk = susp.apply_coordination_bonus(event_risk, timing_clusters)
-    co_clusters = susp.wallet_co_trading_clusters(trades)
-    wallet_risk = susp.apply_cluster_bonus(wallet_risk, co_clusters)
+    network_nodes, network_edges = susp.co_trading_network(trades, window_minutes=5.0, min_shared=2)
+    cluster_assignments = (
+        network_nodes[["wallet", "cluster_id", "cluster_size", "shared_markets"]] if not network_nodes.empty else pd.DataFrame()
+    )
+    wallet_risk = susp.apply_cluster_bonus(wallet_risk, cluster_assignments)
     market_universe = safe_load("Polymarket markets", load_polymarket_markets, market_limit, default=pd.DataFrame())
     universe_categories = (
         clean_table(market_universe, ["market_key", "category"]) if market_universe is not None and not market_universe.empty else pd.DataFrame()
@@ -12438,43 +12443,120 @@ def page_suspicious() -> None:
     quick_cols[1].button("Backtest →", key="susp_backtest", width="stretch", type="primary", on_click=_pick_backtest, args=(str(selected_wallet).lower(),))
     quick_cols[2].button("Track", key="susp_track", width="stretch", on_click=_pick_track, args=(str(selected_wallet).lower(),))
 
-    if not co_clusters.empty:
-        st.markdown("<div class='step-label'>Possible linked wallets (co-trading clusters)</div>", unsafe_allow_html=True)
-        st.markdown(
-            "<div class='field-hint'>Wallets that repeatedly took the same side of the same markets in this sample. "
-            "Confirming real linkage would need on-chain funding tracing — treat these as leads.</div>",
-            unsafe_allow_html=True,
+    st.markdown("<div class='step-label'>Wallet clusters (co-trading network)</div>", unsafe_allow_html=True)
+    if network_nodes.empty:
+        draw_empty("No co-trading clusters in the current tape — no wallets hit the same side of multiple markets within minutes of each other.")
+        return
+    st.markdown(
+        "<div class='field-hint'>Each island is one community of wallets that bought the same side of ≥2 shared markets "
+        "within 5 minutes of each other (Louvain communities over the co-trading graph). Node size follows whale volume in the sample. "
+        "Confirming real linkage would need on-chain funding tracing — treat these as leads.</div>",
+        unsafe_allow_html=True,
+    )
+    placed = susp.cluster_layout(network_nodes)
+    risk_lookup = wallet_risk.copy()
+    risk_lookup["_wallet_key"] = risk_lookup["wallet"].astype(str).str.lower().str.strip()
+    risk_map = dict(zip(risk_lookup["_wallet_key"], pd.to_numeric(risk_lookup["wallet_insider_score"], errors="coerce").fillna(0.0)))
+    flags_map = dict(zip(risk_lookup["_wallet_key"], risk_lookup.get("wallet_insider_flags", pd.Series(dtype=str)).astype(str)))
+    placed["risk"] = placed["wallet"].map(risk_map).fillna(0.0)
+
+    trades_wallets = trades.copy()
+    trades_wallets["_wallet_key"] = trades_wallets["wallet"].astype(str).str.lower().str.strip()
+    cluster_summary = (
+        placed.groupby("cluster_id")
+        .agg(size=("wallet", "size"), whale_notional=("volume", "sum"), top_risk=("risk", "max"), max_shared=("shared_markets", "max"))
+        .reset_index()
+        .sort_values("whale_notional", ascending=False)
+    )
+    markets_touched = {
+        int(cluster_id): int(
+            trades_wallets[trades_wallets["_wallet_key"].isin(set(placed.loc[placed["cluster_id"] == cluster_id, "wallet"]))]["title"].nunique()
         )
-        risk_lookup = wallet_risk.copy()
-        risk_lookup["_wallet_key"] = risk_lookup["wallet"].astype(str).str.lower().str.strip()
-        cluster_view = co_clusters.merge(
-            risk_lookup[["_wallet_key", "wallet_insider_score", "notional"]].rename(columns={"_wallet_key": "wallet"}),
-            on="wallet",
-            how="left",
+        for cluster_id in cluster_summary["cluster_id"]
+    }
+    cluster_summary["markets_touched"] = cluster_summary["cluster_id"].map(markets_touched)
+
+    cluster_labels = {0: "All clusters"}
+    for _, row in cluster_summary.iterrows():
+        cluster_labels[int(row["cluster_id"])] = f"Cluster {int(row['cluster_id'])} · {int(row['size'])} wallets · {money(row['whale_notional'])}"
+    selected_cluster = st.selectbox(
+        "Isolate a cluster",
+        [0] + [int(cid) for cid in cluster_summary["cluster_id"]],
+        format_func=lambda value: cluster_labels.get(int(value), str(value)),
+        key="susp_cluster_select",
+        help="Pick a cluster to zoom into its members; the table below lists them sorted by whale volume.",
+    )
+    plot_nodes = placed if not selected_cluster else placed[placed["cluster_id"] == int(selected_cluster)]
+    keep_wallets = set(plot_nodes["wallet"])
+    plot_edges = network_edges[network_edges["wallet_a"].isin(keep_wallets) & network_edges["wallet_b"].isin(keep_wallets)]
+
+    positions = {row["wallet"]: (row["x"], row["y"]) for _, row in plot_nodes.iterrows()}
+    edge_x: list[float | None] = []
+    edge_y: list[float | None] = []
+    for _, edge in plot_edges.iterrows():
+        ax, ay = positions[edge["wallet_a"]]
+        bx, by = positions[edge["wallet_b"]]
+        edge_x.extend([ax, bx, None])
+        edge_y.extend([ay, by, None])
+    fig = go.Figure()
+    if edge_x:
+        fig.add_trace(go.Scatter(x=edge_x, y=edge_y, mode="lines", line=dict(color="rgba(255,255,255,0.18)", width=1), hoverinfo="skip"))
+    node_sizes = (9 + (plot_nodes["volume"].clip(lower=0.0) + 1).map(math.log1p) * 2.4).clip(upper=34)
+    node_colors = [CLUSTER_COLORS[int(cid) % len(CLUSTER_COLORS)] for cid in plot_nodes["cluster_id"]]
+    fig.add_trace(
+        go.Scatter(
+            x=plot_nodes["x"],
+            y=plot_nodes["y"],
+            mode="markers",
+            marker=dict(size=node_sizes, color=node_colors, line=dict(color="rgba(255,255,255,0.35)", width=1)),
+            customdata=[
+                [short_addr(row["wallet"]), int(row["cluster_id"]), money(row["volume"]), int(row["markets"]), f"{row['risk']:.0f}"]
+                for _, row in plot_nodes.iterrows()
+            ],
+            hovertemplate="<b>%{customdata[0]}</b><br>Cluster %{customdata[1]}<br>Whale volume %{customdata[2]}<br>%{customdata[3]} markets · risk %{customdata[4]}<extra></extra>",
         )
-        cluster_summary = (
-            cluster_view.groupby("cluster_id")
-            .agg(
-                wallets=("wallet", lambda s: " · ".join(short_addr(w) for w in s)),
-                size=("wallet", "size"),
-                shared_markets=("shared_markets", "max"),
-                whale_notional=("notional", "sum"),
-                top_risk=("wallet_insider_score", "max"),
-            )
-            .reset_index()
-            .sort_values(["top_risk", "whale_notional"], ascending=False)
-        )
+    )
+    fig.update_layout(
+        height=420,
+        margin=dict(l=10, r=10, t=10, b=10),
+        paper_bgcolor=BG,
+        plot_bgcolor=BG,
+        showlegend=False,
+        xaxis=dict(visible=False),
+        yaxis=dict(visible=False),
+    )
+    st.plotly_chart(fig, width="stretch", config=plot_config())
+
+    if selected_cluster:
+        member_view = plot_nodes.sort_values("volume", ascending=False).copy()
+        member_view["why"] = member_view["wallet"].map(flags_map).fillna("")
         st.dataframe(
-            cluster_summary,
+            clean_table(member_view, ["wallet", "risk", "volume", "markets", "trades", "shared_markets", "why"]),
+            width="stretch",
+            height=260,
+            hide_index=True,
+            column_config={
+                "wallet": st.column_config.TextColumn("Wallet"),
+                "risk": st.column_config.ProgressColumn("Risk", min_value=0, max_value=100, format="%.0f"),
+                "volume": st.column_config.NumberColumn("Whale $", format="$%.0f", help="This wallet's whale volume in the current sample."),
+                "markets": st.column_config.NumberColumn("Markets"),
+                "trades": st.column_config.NumberColumn("Trades"),
+                "shared_markets": st.column_config.NumberColumn("Shared", help="Most markets this wallet co-traded with one cluster peer."),
+                "why": st.column_config.TextColumn("Why flagged", width="large"),
+            },
+        )
+    else:
+        st.dataframe(
+            clean_table(cluster_summary, ["cluster_id", "size", "whale_notional", "markets_touched", "max_shared", "top_risk"]),
             width="stretch",
             height=220,
             hide_index=True,
             column_config={
                 "cluster_id": st.column_config.NumberColumn("#"),
-                "wallets": st.column_config.TextColumn("Wallets", width="large"),
-                "size": st.column_config.NumberColumn("Size"),
-                "shared_markets": st.column_config.NumberColumn("Shared markets", help="Most (market, side) positions this cluster's wallets have in common."),
-                "whale_notional": st.column_config.NumberColumn("Whale $", format="$%.0f"),
+                "size": st.column_config.NumberColumn("Wallets"),
+                "whale_notional": st.column_config.NumberColumn("Whale $", format="$%.0f", help="Combined whale volume of the cluster in the sample."),
+                "markets_touched": st.column_config.NumberColumn("Markets touched", help="Distinct markets the cluster's wallets traded."),
+                "max_shared": st.column_config.NumberColumn("Shared", help="Most markets two cluster members co-traded."),
                 "top_risk": st.column_config.ProgressColumn("Top risk", min_value=0, max_value=100, format="%.0f"),
             },
         )
