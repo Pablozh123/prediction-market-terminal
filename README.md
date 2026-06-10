@@ -119,6 +119,7 @@ Do not replace or remove this during Phase 1.
 | `tests/test_prediction_markets.py` | Prediction-market helper tests |
 | `tests/test_copy_trading.py` | Paper copy-trading tests |
 | `docs/COLLAB.md` | Codex/Claude collaboration rules and phase boundary |
+| `docs/CLAUDE_HANDOFF.md` | Current handoff instructions for continuing in Claude Desktop |
 | `docs/PHASE1_CLONE_AUDIT.md` | Phase 1 clone completion checklist and remaining gates |
 | `docs/PHASE1_LIVE_SURFACE_COMPARE.md` | Public PredictParity surface comparison notes |
 
@@ -144,10 +145,10 @@ Before tagging `v1-clone`, also run a browser smoke against `http://127.0.0.1:85
 
 ## Git Workflow
 
-Active Phase 1 branch:
+Current handoff/development branch:
 
 ```text
-codex/website
+codex/follow-traders-ui-split-fixes
 ```
 
 Phase 1 completion requires:

@@ -37,13 +37,16 @@ class RouteCheck:
 
 
 ROUTES = [
-    RouteCheck("/", ("Market intelligence terminal", "PredictParity navigation"), "overview.png"),
+    RouteCheck("/", ("Market intelligence terminal", "Workspace"), "overview.png"),
     RouteCheck("/markets", ("Markets", "Search markets"), "markets.png"),
     RouteCheck("/traders", ("Traders", "Leaderboard"), "traders.png"),
-    RouteCheck("/track", ("Track", "Watched markets"), "track.png"),
-    RouteCheck("/live-trades", ("Live Trades", "Search live trades"), "live_trades.png"),
+    RouteCheck("/track", ("Track", "Wallet to track"), "track.png"),
+    RouteCheck("/live-trades", ("Live Trades", "Trade tape"), "live_trades.png"),
     RouteCheck("/monitor", ("Monitor", "Signal"), "monitor.png"),
     RouteCheck("/portfolio", ("Portfolio", "Marked value"), "portfolio.png"),
+    RouteCheck("/backtester", ("Backtester", "RUN BACKTEST"), "backtester.png"),
+    RouteCheck("/picks", ("Picks", "Backtest before you copy"), "picks.png"),
+    RouteCheck("/settings", ("Settings", "Backtester defaults"), "settings.png"),
     RouteCheck("/copy-trade", ("Copy Trade", "Paper mode only"), "copy_trade.png"),
     RouteCheck("/sign-in", ("Account access", "Sign In", "Local research mode"), "sign_in.png"),
     RouteCheck("/sign-up", ("Account access", "Sign Up", "Local research mode"), "sign_up.png"),

@@ -167,6 +167,11 @@ class PredictParityQueryFilterTests(unittest.TestCase):
         self.assertEqual(view["custom_volume"], 1000000.0)
         self.assertEqual(view["rows"], 50)
 
+    def test_trader_filter_view_accepts_smart_ranking_params(self) -> None:
+        view = md.predictparity_trader_filter_view({"rankBy": "smart"})
+
+        self.assertEqual(view["rank_by"], "SMART")
+
     def test_trader_filter_view_ignores_invalid_values(self) -> None:
         view = md.predictparity_trader_filter_view({"bot": "false", "apMin": "bad", "period": "year"})
 
@@ -538,6 +543,134 @@ class RecentTradeActionTests(unittest.TestCase):
 
 
 class TraderTraitFilterTests(unittest.TestCase):
+    def test_whale_behavior_metrics_computes_filter_shares(self) -> None:
+        wallet = "0x" + "a" * 40
+        trades = pd.DataFrame(
+            [
+                {"platform": "Polymarket", "wallet": wallet, "trader": "alice", "title": "Market A", "price": 0.10, "notional": 12_000.0, "size": 120_000.0},
+                {"platform": "Polymarket", "wallet": wallet, "trader": "alice", "title": "Market A", "price": 0.85, "notional": 8_000.0, "size": 9_411.8},
+                {"platform": "Polymarket", "wallet": wallet, "trader": "alice", "title": "Market B", "price": 0.50, "notional": 5_000.0, "size": 10_000.0},
+            ]
+        )
+
+        metrics = md.whale_behavior_metrics(trades, whale_threshold=10_000.0)
+
+        row = metrics.iloc[0]
+        self.assertAlmostEqual(float(row["contrarian_share"]), 12_000.0 / 25_000.0)
+        self.assertAlmostEqual(float(row["trend_follower_share"]), 8_000.0 / 25_000.0)
+        self.assertAlmostEqual(float(row["lottery_ticket_share"]), 12_000.0 / 25_000.0)
+        self.assertAlmostEqual(float(row["whale_splash_share"]), 20_000.0 / 25_000.0)
+        self.assertAlmostEqual(float(row["concentration_share"]), 20_000.0 / 25_000.0)
+
+    def test_whale_wallet_risk_scores_flags_concentrated_late_flow(self) -> None:
+        wallet = "0x" + "c" * 40
+        trades = pd.DataFrame(
+            [
+                {
+                    "platform": "Polymarket",
+                    "title": "Will Team A win?",
+                    "time": "2026-06-08T10:00:00Z",
+                    "end_time": "2026-06-09T10:00:00Z",
+                    "wallet": wallet,
+                    "trader": "SignalWallet",
+                    "side": "BUY",
+                    "outcome": "Yes",
+                    "price": 0.08,
+                    "notional": 50_000.0,
+                    "size": 50_000.0,
+                },
+                {
+                    "platform": "Polymarket",
+                    "title": "Will Team A win?",
+                    "time": "2026-06-08T10:01:00Z",
+                    "end_time": "2026-06-09T10:00:00Z",
+                    "wallet": wallet,
+                    "trader": "SignalWallet",
+                    "side": "BUY",
+                    "outcome": "Yes",
+                    "price": 0.12,
+                    "notional": 20_000.0,
+                    "size": 20_000.0,
+                },
+                {
+                    "platform": "Polymarket",
+                    "title": "Will Team A win?",
+                    "time": "2026-06-08T10:02:00Z",
+                    "end_time": "2026-06-09T10:00:00Z",
+                    "wallet": wallet,
+                    "trader": "SignalWallet",
+                    "side": "BUY",
+                    "outcome": "Yes",
+                    "price": 0.18,
+                    "notional": 10_000.0,
+                    "size": 10_000.0,
+                },
+            ]
+        )
+
+        scores = md.whale_wallet_risk_scores(trades, whale_threshold=10_000, now="2026-06-08T09:30:00Z")
+
+        self.assertEqual(scores.iloc[0]["wallet"], wallet)
+        self.assertEqual(scores.iloc[0]["wallet_insider_level"], "High")
+        self.assertGreaterEqual(float(scores.iloc[0]["wallet_insider_score"]), 70.0)
+        self.assertIn("long-odds big bet", scores.iloc[0]["wallet_insider_flags"])
+        self.assertIn("favorable price move", scores.iloc[0]["wallet_insider_flags"])
+        self.assertIn("one-sided flow", scores.iloc[0]["wallet_insider_flags"])
+
+    def test_whale_event_risk_scores_flags_wallet_concentration_and_burst(self) -> None:
+        main_wallet = "0x" + "d" * 40
+        other_wallet = "0x" + "e" * 40
+        trades = pd.DataFrame(
+            [
+                {
+                    "platform": "Polymarket",
+                    "title": "Will candidate win?",
+                    "time": "2026-06-08T10:00:00Z",
+                    "end_time": "2026-06-08T20:00:00Z",
+                    "wallet": main_wallet,
+                    "side": "BUY",
+                    "outcome": "No",
+                    "price": 0.07,
+                    "notional": 60_000.0,
+                    "size": 60_000.0,
+                },
+                {
+                    "platform": "Polymarket",
+                    "title": "Will candidate win?",
+                    "time": "2026-06-08T10:01:00Z",
+                    "end_time": "2026-06-08T20:00:00Z",
+                    "wallet": main_wallet,
+                    "side": "BUY",
+                    "outcome": "No",
+                    "price": 0.13,
+                    "notional": 20_000.0,
+                    "size": 20_000.0,
+                },
+                {
+                    "platform": "Polymarket",
+                    "title": "Will candidate win?",
+                    "time": "2026-06-08T10:02:00Z",
+                    "end_time": "2026-06-08T20:00:00Z",
+                    "wallet": other_wallet,
+                    "side": "BUY",
+                    "outcome": "No",
+                    "price": 0.18,
+                    "notional": 10_000.0,
+                    "size": 10_000.0,
+                },
+            ]
+        )
+
+        scores = md.whale_event_risk_scores(trades, whale_threshold=10_000, now="2026-06-08T09:30:00Z")
+
+        self.assertEqual(scores.iloc[0]["title"], "Will candidate win?")
+        self.assertEqual(scores.iloc[0]["event_insider_level"], "High")
+        self.assertGreaterEqual(float(scores.iloc[0]["event_insider_score"]), 70.0)
+        self.assertEqual(scores.iloc[0]["top_wallet"], main_wallet)
+        self.assertIn("wallet concentration", scores.iloc[0]["event_insider_flags"])
+        self.assertIn("long-odds big bet", scores.iloc[0]["event_insider_flags"])
+        self.assertIn("one-sided flow", scores.iloc[0]["event_insider_flags"])
+
     def test_bots_only_uses_configurable_bot_score_threshold(self) -> None:
         leaderboard = pd.DataFrame(
             [
