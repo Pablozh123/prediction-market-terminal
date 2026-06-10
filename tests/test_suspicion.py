@@ -248,6 +248,49 @@ class CoTradingClusterTests(unittest.TestCase):
         self.assertAlmostEqual(unlinked["wallet_insider_score"], 60.0)
 
 
+class CoTradingNetworkTests(unittest.TestCase):
+    def _syndicate_rows(self):
+        rows = []
+        for market in ("Market A", "Market B", "Market C"):
+            for wallet in ("0xaaa", "0xbbb", "0xccc"):
+                rows.append(trade(wallet, market, "Yes", 5000.0, "2026-06-10T12:00:00Z"))
+        for market in ("Market X", "Market Y"):
+            for wallet in ("0xddd", "0xeee"):
+                rows.append(trade(wallet, market, "No", 4000.0, "2026-06-10T13:00:00Z"))
+        return rows
+
+    def test_two_separate_syndicates_become_two_clusters(self):
+        nodes, edges = susp.co_trading_network(tape(self._syndicate_rows()), window_minutes=5.0, min_shared=2)
+        self.assertEqual(set(nodes["wallet"]), {"0xaaa", "0xbbb", "0xccc", "0xddd", "0xeee"})
+        self.assertEqual(nodes["cluster_id"].nunique(), 2)
+        big = nodes[nodes["wallet"] == "0xaaa"].iloc[0]
+        self.assertEqual(big["cluster_size"], 3)
+        self.assertEqual(big["cluster_id"], 1)
+        self.assertGreaterEqual(big["shared_markets"], 2)
+        self.assertFalse(edges.empty)
+
+    def test_time_window_excludes_slow_co_movers(self):
+        rows = [
+            trade("0xaaa", "Market A", "Yes", 5000.0, "2026-06-10T12:00:00Z"),
+            trade("0xbbb", "Market A", "Yes", 5000.0, "2026-06-10T15:00:00Z"),
+            trade("0xaaa", "Market B", "Yes", 5000.0, "2026-06-10T12:00:00Z"),
+            trade("0xbbb", "Market B", "Yes", 5000.0, "2026-06-10T15:00:00Z"),
+        ]
+        nodes, _ = susp.co_trading_network(tape(rows), window_minutes=5.0, min_shared=2)
+        self.assertTrue(nodes.empty)
+        nodes_loose, _ = susp.co_trading_network(tape(rows), window_minutes=None, min_shared=2)
+        self.assertEqual(set(nodes_loose["wallet"]), {"0xaaa", "0xbbb"})
+
+    def test_cluster_layout_separates_islands(self):
+        nodes, _ = susp.co_trading_network(tape(self._syndicate_rows()), window_minutes=5.0, min_shared=2)
+        placed = susp.cluster_layout(nodes)
+        self.assertTrue({"x", "y"}.issubset(placed.columns))
+        centers = placed.groupby("cluster_id")[["x", "y"]].mean()
+        self.assertEqual(len(centers), 2)
+        distance = ((centers.iloc[0] - centers.iloc[1]) ** 2).sum() ** 0.5
+        self.assertGreater(distance, 5.0)
+
+
 class StoryAndDrilldownTests(unittest.TestCase):
     def test_event_story_mentions_key_patterns(self):
         row = pd.Series(

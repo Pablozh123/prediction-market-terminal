@@ -14,6 +14,7 @@ Everything here is a best-effort public-data screen, not a legal finding.
 
 from __future__ import annotations
 
+import math
 import re
 from typing import Any
 
@@ -21,6 +22,11 @@ import pandas as pd
 
 from app.filters import numeric_col
 from app.format import money, pct
+
+try:
+    import networkx as nx
+except ImportError:  # pragma: no cover - networkx ships with the environment
+    nx = None
 
 RISK_BANDS = ((70, "High"), (55, "Medium"), (40, "Elevated"))
 WATCH_ONLY = "watch only"
@@ -267,60 +273,177 @@ def apply_coordination_bonus(event_risk: pd.DataFrame, clusters: pd.DataFrame, m
     return enriched
 
 
-def wallet_co_trading_clusters(trades: pd.DataFrame, *, min_shared: int = 2, max_wallets: int = 200) -> pd.DataFrame:
-    """Group wallets that repeatedly take the same side of the same markets.
+def co_trading_network(
+    trades: pd.DataFrame,
+    *,
+    window_minutes: float | None = None,
+    min_shared: int = 2,
+    max_wallets: int = 200,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Build the co-trading graph and its communities from the whale tape.
 
-    Funding-source tracing needs on-chain data; co-trading overlap is the
-    public-tape proxy: wallets sharing >= min_shared (market, side) positions
-    land in one cluster. Returns wallet -> cluster_id, cluster_size,
-    shared_markets (max overlap with any cluster peer).
+    Edge rule (the pattern public cluster trackers describe): two wallets are
+    connected when they took the same side of at least ``min_shared`` markets —
+    optionally only counting hits that landed within ``window_minutes`` of each
+    other. Communities come from Louvain (weight = shared markets), which
+    separates tight syndicates from incidental co-movers better than plain
+    connected components; if networkx is unavailable, components are the
+    fallback.
+
+    Returns (nodes, edges):
+    - nodes: wallet, cluster_id, cluster_size, shared_markets, volume, markets, trades
+    - edges: wallet_a, wallet_b, shared_markets, pair_notional
     """
 
-    columns = ["wallet", "cluster_id", "cluster_size", "shared_markets"]
+    node_columns = ["wallet", "cluster_id", "cluster_size", "shared_markets", "volume", "markets", "trades"]
+    edge_columns = ["wallet_a", "wallet_b", "shared_markets", "pair_notional"]
+    empty = (pd.DataFrame(columns=node_columns), pd.DataFrame(columns=edge_columns))
     if trades is None or trades.empty or not {"wallet", "title"}.issubset(trades.columns):
-        return pd.DataFrame(columns=columns)
+        return empty
     df = trades.copy()
     df["wallet"] = df["wallet"].astype(str).str.lower().str.strip()
     df = df[df["wallet"].ne("") & df["wallet"].ne("nan")]
     if df.empty:
-        return pd.DataFrame(columns=columns)
+        return empty
     df["outcome_label"] = df.get("outcome", pd.Series("", index=df.index)).astype(str).str.upper().str.strip()
     df["notional"] = numeric_col(df, "notional")
     by_size = df.groupby("wallet")["notional"].sum().sort_values(ascending=False)
     keep = set(by_size.head(int(max_wallets)).index)
     df = df[df["wallet"].isin(keep)]
-    positions: dict[str, set[tuple[str, str]]] = {}
-    for wallet, group in df.groupby("wallet"):
-        positions[wallet] = set(zip(group["title"].astype(str), group["outcome_label"]))
-    wallets = sorted(positions)
-    parent: dict[str, str] = {wallet: wallet for wallet in wallets}
+    if df.empty:
+        return empty
 
-    def find(node: str) -> str:
-        while parent[node] != node:
-            parent[node] = parent[parent[node]]
-            node = parent[node]
-        return node
+    use_window = window_minutes is not None and "time" in df.columns
+    if use_window:
+        df["time"] = pd.to_datetime(df["time"], utc=True, errors="coerce")
+        df = df.dropna(subset=["time"])
+        window = pd.Timedelta(minutes=float(window_minutes))
 
-    overlap: dict[str, int] = {wallet: 0 for wallet in wallets}
-    for i, left in enumerate(wallets):
-        for right in wallets[i + 1 :]:
-            shared = len(positions[left] & positions[right])
-            if shared >= int(min_shared):
-                parent[find(left)] = find(right)
-                overlap[left] = max(overlap[left], shared)
-                overlap[right] = max(overlap[right], shared)
-    members: dict[str, list[str]] = {}
-    for wallet in wallets:
-        members.setdefault(find(wallet), []).append(wallet)
-    rows = []
-    cluster_no = 0
-    for root, group in sorted(members.items(), key=lambda item: -len(item[1])):
-        if len(group) < 2:
-            continue
-        cluster_no += 1
-        for wallet in group:
-            rows.append({"wallet": wallet, "cluster_id": cluster_no, "cluster_size": len(group), "shared_markets": overlap[wallet]})
-    return pd.DataFrame(rows, columns=columns) if rows else pd.DataFrame(columns=columns)
+    pair_markets: dict[tuple[str, str], set[str]] = {}
+    pair_notional: dict[tuple[str, str], float] = {}
+    for (title, _outcome), group in df.groupby(["title", "outcome_label"], dropna=False):
+        if use_window:
+            records = group.sort_values("time")[["time", "wallet", "notional"]].to_records(index=False)
+            left = 0
+            for right in range(len(records)):
+                while records[right][0] - records[left][0] > window:
+                    left += 1
+                for mid in range(left, right):
+                    a, b = records[mid][1], records[right][1]
+                    if a == b:
+                        continue
+                    key = (a, b) if a < b else (b, a)
+                    pair_markets.setdefault(key, set()).add(str(title))
+                    pair_notional[key] = pair_notional.get(key, 0.0) + float(records[mid][2]) + float(records[right][2])
+        else:
+            wallets_here = sorted(group.groupby("wallet")["notional"].sum().items())
+            for i in range(len(wallets_here)):
+                for j in range(i + 1, len(wallets_here)):
+                    key = (wallets_here[i][0], wallets_here[j][0])
+                    pair_markets.setdefault(key, set()).add(str(title))
+                    pair_notional[key] = pair_notional.get(key, 0.0) + float(wallets_here[i][1]) + float(wallets_here[j][1])
+
+    edge_rows = [
+        {"wallet_a": a, "wallet_b": b, "shared_markets": len(markets), "pair_notional": pair_notional.get((a, b), 0.0)}
+        for (a, b), markets in pair_markets.items()
+        if len(markets) >= int(min_shared)
+    ]
+    if not edge_rows:
+        return empty
+    edges = pd.DataFrame(edge_rows, columns=edge_columns)
+
+    members: list[set[str]]
+    if nx is not None:
+        graph = nx.Graph()
+        for row in edge_rows:
+            graph.add_edge(row["wallet_a"], row["wallet_b"], weight=row["shared_markets"])
+        try:
+            members = [set(community) for community in nx.community.louvain_communities(graph, weight="weight", seed=42)]
+        except Exception:
+            members = [set(component) for component in nx.connected_components(graph)]
+    else:
+        parent: dict[str, str] = {}
+
+        def find(node: str) -> str:
+            parent.setdefault(node, node)
+            while parent[node] != node:
+                parent[node] = parent[parent[node]]
+                node = parent[node]
+            return node
+
+        for row in edge_rows:
+            parent[find(row["wallet_a"])] = find(row["wallet_b"])
+        grouped: dict[str, set[str]] = {}
+        for node in parent:
+            grouped.setdefault(find(node), set()).add(node)
+        members = list(grouped.values())
+
+    wallet_stats = df.groupby("wallet").agg(volume=("notional", "sum"), markets=("title", pd.Series.nunique), trades=("wallet", "size"))
+    overlap: dict[str, int] = {}
+    for row in edge_rows:
+        overlap[row["wallet_a"]] = max(overlap.get(row["wallet_a"], 0), row["shared_markets"])
+        overlap[row["wallet_b"]] = max(overlap.get(row["wallet_b"], 0), row["shared_markets"])
+
+    communities = [community for community in members if len(community) >= 2]
+    communities.sort(key=lambda community: -float(wallet_stats.loc[wallet_stats.index.isin(community), "volume"].sum()))
+    node_rows = []
+    for cluster_no, community in enumerate(communities, start=1):
+        for wallet in sorted(community):
+            stats = wallet_stats.loc[wallet] if wallet in wallet_stats.index else None
+            node_rows.append(
+                {
+                    "wallet": wallet,
+                    "cluster_id": cluster_no,
+                    "cluster_size": len(community),
+                    "shared_markets": overlap.get(wallet, 0),
+                    "volume": float(stats["volume"]) if stats is not None else 0.0,
+                    "markets": int(stats["markets"]) if stats is not None else 0,
+                    "trades": int(stats["trades"]) if stats is not None else 0,
+                }
+            )
+    if not node_rows:
+        return empty
+    nodes = pd.DataFrame(node_rows, columns=node_columns)
+    keep_wallets = set(nodes["wallet"])
+    edges = edges[edges["wallet_a"].isin(keep_wallets) & edges["wallet_b"].isin(keep_wallets)].reset_index(drop=True)
+    return nodes, edges
+
+
+def cluster_layout(nodes: pd.DataFrame) -> pd.DataFrame:
+    """Island layout: clusters on a grid, members on a circle around each center."""
+
+    if nodes is None or nodes.empty:
+        return nodes
+    placed = nodes.copy()
+    placed["x"] = 0.0
+    placed["y"] = 0.0
+    cluster_ids = list(placed["cluster_id"].drop_duplicates())
+    grid_cols = max(1, math.ceil(math.sqrt(len(cluster_ids))))
+    spacing = 10.0
+    for index, cluster_id in enumerate(cluster_ids):
+        center_x = (index % grid_cols) * spacing
+        center_y = -(index // grid_cols) * spacing
+        member_index = placed.index[placed["cluster_id"] == cluster_id]
+        count = len(member_index)
+        radius = 1.2 + 0.45 * math.sqrt(count)
+        for position, node_idx in enumerate(member_index):
+            angle = (2 * math.pi * position) / max(count, 1)
+            placed.at[node_idx, "x"] = center_x + radius * math.cos(angle)
+            placed.at[node_idx, "y"] = center_y + radius * math.sin(angle)
+    return placed
+
+
+def wallet_co_trading_clusters(trades: pd.DataFrame, *, min_shared: int = 2, max_wallets: int = 200) -> pd.DataFrame:
+    """Legacy simple view of the co-trading communities (no timing constraint).
+
+    Returns wallet -> cluster_id, cluster_size, shared_markets; kept as the
+    stable surface for the wallet-score bonus.
+    """
+
+    nodes, _edges = co_trading_network(trades, window_minutes=None, min_shared=min_shared, max_wallets=max_wallets)
+    if nodes.empty:
+        return pd.DataFrame(columns=["wallet", "cluster_id", "cluster_size", "shared_markets"])
+    return nodes[["wallet", "cluster_id", "cluster_size", "shared_markets"]].copy()
 
 
 def apply_cluster_bonus(wallet_risk: pd.DataFrame, clusters: pd.DataFrame, bonus: float = 5.0) -> pd.DataFrame:
