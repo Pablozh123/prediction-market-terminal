@@ -62,13 +62,22 @@ st.set_page_config(
 )
 
 
-ACCENT = "#35d07f"
-BLUE = "#49a5ff"
-AMBER = "#f5b84b"
-RED = "#ff5a68"
-MUTED = "#8892a0"
-PANEL = "#121922"
-BG = "#080c11"
+ACCENT = "#00D97E"
+BLUE = "#4F8EF7"
+AMBER = "#F5A623"
+RED = "#FF4545"
+MUTED = "#808080"
+PANEL = "#0D0D0D"
+BG = "#000000"
+ELEVATED = "#111111"
+HOVER_BG = "#1A1A1A"
+BORDER = "rgba(255, 255, 255, 0.07)"
+BORDER_STRONG = "rgba(255, 255, 255, 0.15)"
+TEXT_LABEL = "rgba(255, 255, 255, 0.40)"
+TEXT_SECONDARY = "rgba(255, 255, 255, 0.50)"
+DIAMOND = "rgba(255, 255, 255, 0.35)"
+FONT_MONO = '"JetBrains Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace'
+FONT_SANS = '"Inter", -apple-system, "Segoe UI", sans-serif'
 RESEARCH_START_CASH = 1000.0
 WORKSPACES = [
     "Overview",
@@ -98,9 +107,11 @@ def inject_css() -> None:
     st.markdown(
         f"""
         <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
         .stApp {{
             background: {BG};
-            color: #edf2f7;
+            color: #ffffff;
+            font-family: {FONT_SANS};
         }}
         .block-container {{
             padding-top: 1.2rem;
@@ -108,67 +119,98 @@ def inject_css() -> None:
             max-width: 1560px;
         }}
         [data-testid="stSidebar"] {{
-            background: #0b1017;
-            border-right: 1px solid #1c2633;
+            background: {BG};
+            border-right: 1px solid {BORDER};
+        }}
+        [data-testid="stSidebar"] h2 {{
+            font-family: {FONT_MONO};
+            font-size: 0.95rem;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+        }}
+        [data-testid="stSidebar"] h4 {{
+            font-family: {FONT_MONO};
+            font-size: 0.72rem;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: {TEXT_LABEL};
         }}
         [data-testid="stMetric"] {{
             background: {PANEL};
-            border: 1px solid #202b39;
-            border-radius: 8px;
+            border: 1px solid {BORDER};
+            border-radius: 2px;
             padding: 0.85rem 0.95rem;
         }}
+        [data-testid="stMetric"]:hover {{
+            border-color: {BORDER_STRONG};
+        }}
         [data-testid="stMetricLabel"] p {{
-            color: {MUTED};
-            font-size: 0.74rem;
+            color: {TEXT_LABEL};
+            font-family: {FONT_MONO};
+            font-size: 0.68rem;
             text-transform: uppercase;
-            letter-spacing: 0;
+            letter-spacing: 0.14em;
         }}
         [data-testid="stMetricValue"] {{
-            font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-family: {FONT_MONO};
             font-size: 1.15rem;
         }}
+        [data-testid="stMetricDelta"] {{
+            font-family: {FONT_MONO};
+            font-size: 0.78rem;
+        }}
         div[data-testid="stVerticalBlockBorderWrapper"] {{
-            border-color: #202b39;
-            border-radius: 8px;
-            background: #101821;
+            border-color: {BORDER};
+            border-radius: 2px;
+            background: {PANEL};
         }}
         .terminal-kicker {{
-            color: {MUTED};
-            font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+            color: {TEXT_LABEL};
+            font-family: {FONT_MONO};
             text-transform: uppercase;
-            font-size: 0.78rem;
-            letter-spacing: 0;
+            font-size: 0.72rem;
+            letter-spacing: 0.18em;
             margin-bottom: 0.15rem;
         }}
+        .kicker-diamond {{
+            color: {DIAMOND};
+        }}
         .terminal-title {{
+            font-family: {FONT_SANS};
             font-size: 1.75rem;
             font-weight: 700;
             line-height: 1.1;
             margin-bottom: 0.2rem;
+            color: #ffffff;
         }}
         .terminal-subtitle {{
-            color: {MUTED};
+            color: {TEXT_SECONDARY};
             font-size: 0.95rem;
             margin-bottom: 1rem;
         }}
         .small-note {{
-            color: {MUTED};
+            color: {TEXT_SECONDARY};
             font-size: 0.82rem;
             line-height: 1.4;
         }}
+        .mono {{
+            font-family: {FONT_MONO};
+        }}
         .signal {{
-            font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-            font-size: 0.78rem;
+            font-family: {FONT_MONO};
+            font-size: 0.74rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
             color: {ACCENT};
-            border: 1px solid #1f6d45;
-            border-radius: 999px;
+            border: 1px solid rgba(0, 217, 126, 0.35);
+            border-radius: 2px;
             padding: 0.2rem 0.45rem;
             display: inline-block;
             margin-right: 0.35rem;
         }}
         .warning-chip {{
             color: {AMBER};
-            border-color: #71561f;
+            border-color: rgba(245, 166, 35, 0.35);
         }}
         .filter-strip {{
             display: flex;
@@ -177,12 +219,13 @@ def inject_css() -> None:
             margin: 0.45rem 0 0.75rem;
         }}
         .filter-chip {{
-            color: #dce6ef;
-            border: 1px solid #27364a;
-            background: #0e151d;
-            border-radius: 999px;
+            font-family: {FONT_MONO};
+            color: {TEXT_SECONDARY};
+            border: 1px solid {BORDER};
+            background: {ELEVATED};
+            border-radius: 2px;
             padding: 0.22rem 0.55rem;
-            font-size: 0.78rem;
+            font-size: 0.74rem;
             line-height: 1.2;
         }}
         .market-stats {{
@@ -193,22 +236,24 @@ def inject_css() -> None:
         }}
         .market-stat {{
             min-width: 0;
-            border: 1px solid #202b39;
-            background: #121922;
-            border-radius: 7px;
+            border: 1px solid {BORDER};
+            background: {PANEL};
+            border-radius: 2px;
             padding: 0.62rem 0.55rem;
         }}
         .market-stat span {{
             display: block;
-            color: {MUTED};
-            font-size: 0.66rem;
+            color: {TEXT_LABEL};
+            font-family: {FONT_MONO};
+            font-size: 0.62rem;
+            letter-spacing: 0.12em;
             text-transform: uppercase;
             margin-bottom: 0.3rem;
         }}
         .market-stat strong {{
             display: block;
-            color: #edf2f7;
-            font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+            color: #ffffff;
+            font-family: {FONT_MONO};
             font-size: 0.92rem;
             line-height: 1.15;
             white-space: nowrap;
@@ -219,42 +264,110 @@ def inject_css() -> None:
             gap: 0.5rem;
         }}
         .stTabs [data-baseweb="tab"] {{
-            border-radius: 7px;
-            border: 1px solid #202b39;
-            background: #0e151d;
+            font-family: {FONT_MONO};
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-size: 0.78rem;
+            border-radius: 2px;
+            border: 1px solid {BORDER};
+            background: {PANEL};
             padding: 0.35rem 0.75rem;
         }}
         .stTabs [aria-selected="true"] {{
-            background: #182536;
-            border-color: #304158;
+            background: {HOVER_BG};
+            border-color: {BORDER_STRONG};
+        }}
+        .stButton button, .stFormSubmitButton button, .stDownloadButton button, .stLinkButton a {{
+            font-family: {FONT_MONO};
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-size: 0.78rem;
+            border-radius: 2px;
+            box-shadow: none;
+        }}
+        .stButton button[kind="primary"], .stFormSubmitButton button[kind="primary"] {{
+            background: #ffffff;
+            color: #000000;
+            border: 1px solid #ffffff;
+        }}
+        .stButton button[kind="primary"]:hover, .stFormSubmitButton button[kind="primary"]:hover {{
+            background: rgba(255, 255, 255, 0.75);
+            border-color: rgba(255, 255, 255, 0.75);
+            color: #000000;
+        }}
+        .stButton button[kind="secondary"], .stFormSubmitButton button[kind="secondary"], .stDownloadButton button {{
+            background: transparent;
+            color: {TEXT_SECONDARY};
+            border: 1px solid {BORDER_STRONG};
+        }}
+        .stButton button[kind="secondary"]:hover, .stFormSubmitButton button[kind="secondary"]:hover, .stDownloadButton button:hover {{
+            color: #ffffff;
+            border-color: rgba(255, 255, 255, 0.4);
+            background: {HOVER_BG};
+        }}
+        div[data-baseweb="input"], div[data-baseweb="base-input"], div[data-baseweb="textarea"] {{
+            background: {PANEL};
+            border-color: {BORDER};
+            border-radius: 2px;
+        }}
+        div[data-baseweb="input"] input, div[data-baseweb="base-input"] input, div[data-baseweb="textarea"] textarea {{
+            font-family: {FONT_MONO};
+            font-size: 0.85rem;
+            color: #ffffff;
+        }}
+        div[data-baseweb="select"] > div {{
+            background: {PANEL};
+            border-color: {BORDER};
+            border-radius: 2px;
+            font-family: {FONT_MONO};
+            font-size: 0.85rem;
+        }}
+        ul[data-testid="stSelectboxVirtualDropdown"] li {{
+            font-family: {FONT_MONO};
+            font-size: 0.82rem;
+        }}
+        [data-testid="stDataFrame"] {{
+            border: 1px solid {BORDER};
+            border-radius: 2px;
+        }}
+        [data-testid="stExpander"] details {{
+            border: 1px solid {BORDER};
+            border-radius: 2px;
+            background: {PANEL};
         }}
         .command-shell {{
-            border: 1px solid #243044;
-            background: #0d141d;
-            border-radius: 8px;
+            border: 1px solid {BORDER};
+            background: {PANEL};
+            border-radius: 2px;
             padding: 0.5rem 0.65rem;
-            color: #dce6ef;
+            color: {TEXT_SECONDARY};
+            font-family: {FONT_MONO};
             margin-bottom: 0.85rem;
         }}
         .command-hint {{
-            color: {MUTED};
+            color: {TEXT_LABEL};
             font-size: 0.78rem;
         }}
         .parity-nav-caption {{
-            color: {MUTED};
-            font-size: 0.68rem;
+            color: {TEXT_LABEL};
+            font-family: {FONT_MONO};
+            font-size: 0.64rem;
+            letter-spacing: 0.16em;
             text-transform: uppercase;
             margin: 0 0 0.15rem;
         }}
         .auth-note {{
-            border: 1px solid #27364a;
-            background: #0e151d;
-            border-radius: 8px;
+            border: 1px solid {BORDER};
+            background: {PANEL};
+            border-radius: 2px;
             padding: 0.7rem 0.8rem;
-            color: #dce6ef;
+            color: {TEXT_SECONDARY};
             font-size: 0.86rem;
             line-height: 1.35;
             margin: 0.35rem 0 0.75rem;
+        }}
+        hr {{
+            border-color: {BORDER};
         }}
         </style>
         """,
@@ -1101,8 +1214,11 @@ def apply_trader_filter_view_widgets(view: dict[str, Any]) -> None:
         st.session_state[key] = value
 
 
-def section_header(title: str, subtitle: str = "") -> None:
-    st.markdown("<div class='terminal-kicker'>Live public market data</div>", unsafe_allow_html=True)
+def section_header(title: str, subtitle: str = "", kicker: str = "Live public market data") -> None:
+    st.markdown(
+        f"<div class='terminal-kicker'><span class='kicker-diamond'>◆</span> {html.escape(str(kicker))}</div>",
+        unsafe_allow_html=True,
+    )
     st.markdown(f"<div class='terminal-title'>{html.escape(str(title))}</div>", unsafe_allow_html=True)
     if subtitle:
         st.markdown(f"<div class='terminal-subtitle'>{html.escape(str(subtitle))}</div>", unsafe_allow_html=True)
@@ -2105,7 +2221,7 @@ apply_pending_navigation()
 
 
 with st.sidebar:
-    st.markdown("## Market Intel")
+    st.markdown("## ◆ Market Intel")
     st.caption("Polymarket wallets, Kalshi markets, whale flow, and cross-venue research.")
     if st.button("Search Parity... /", key="open_command_palette_sidebar", width="stretch"):
         open_command_palette()
@@ -10393,7 +10509,7 @@ def page_resolved() -> None:
                 y="markets",
                 color="yes_rate",
                 template="plotly_dark",
-                color_continuous_scale=["#ff5a68", "#f5b84b", "#35d07f"],
+                color_continuous_scale=[RED, AMBER, ACCENT],
                 labels={"markets": "resolved markets", "yes_rate": "yes rate"},
             )
             fig.update_layout(height=360, margin=dict(l=10, r=10, t=20, b=80), paper_bgcolor=BG, plot_bgcolor=BG)
