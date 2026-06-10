@@ -25,6 +25,7 @@ PAGE_SLUGS = [
     "track",
     "live-trades",
     "wallets",
+    "backtester",
     "copy-trade",
     "whale-flow",
     "cross-venue",
