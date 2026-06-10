@@ -434,24 +434,32 @@ def fetch_window_trades(
 
     frames: list[pd.DataFrame] = []
     offset = 0
+    truncated = False
+    window_covered = False
     while offset < max_rows:
         try:
             page = fetch_activity(wallet, limit=page_size, offset=offset)
         except Exception:
             if frames:
+                truncated = True
                 break
             raise
         if page is None or page.empty:
+            window_covered = True
             break
         frames.append(page)
         oldest = pd.to_datetime(page["time"], utc=True, errors="coerce").min()
         if pd.isna(oldest) or oldest < window_start:
+            window_covered = True
             break
         if len(page) < page_size:
+            window_covered = True
             break
         offset += page_size
+    if frames and not window_covered and not truncated:
+        truncated = True
     if not frames:
-        return pd.DataFrame()
+        return pd.DataFrame(), False
     activity = pd.concat(frames, ignore_index=True)
     activity["time"] = pd.to_datetime(activity["time"], utc=True, errors="coerce")
     mask = activity["time"].notna() & (activity["time"] >= window_start)
@@ -460,7 +468,7 @@ def fetch_window_trades(
     trades = activity[mask].copy()
     if "transactionHash" in trades.columns:
         trades = trades.drop_duplicates(subset=["transactionHash", "asset", "side", "size"], keep="first")
-    return trades.sort_values("time", ascending=True).reset_index(drop=True)
+    return trades.sort_values("time", ascending=True).reset_index(drop=True), truncated
 
 
 def run_backtest(
@@ -486,7 +494,7 @@ def run_backtest(
 
     window_end = now if now is not None else pd.Timestamp.now(tz="UTC")
     window_start = window_end - pd.Timedelta(days=int(config.days))
-    trades = fetch_window_trades(config.wallet, window_start, fetch_activity)
+    trades, window_truncated = fetch_window_trades(config.wallet, window_start, fetch_activity)
 
     ledger, positions = replay(trades, config)
     flat_config = BacktestConfig(
@@ -523,6 +531,9 @@ def run_backtest(
 
     stats = compute_stats(full_ledger, open_positions, curve, config.bankroll)
     flat_stats = compute_stats(flat_full, flat_open, flat_curve, config.bankroll)
+    stats["window_truncated"] = bool(window_truncated)
+    effective_start = trades["time"].min() if trades is not None and not trades.empty else window_start
+    stats["effective_start"] = effective_start if pd.notna(effective_start) else window_start
 
     if not full_ledger.empty:
         full_ledger = full_ledger.sort_values("time", ascending=False).reset_index(drop=True)

@@ -19,8 +19,11 @@ import plotly.graph_objects as go
 import streamlit as st
 import streamlit.components.v1 as components
 
+from app import app_settings as cfg
 from app import backtester as btr
 from app import copy_follow as ctf
+from app import notify
+from app import signals as sig
 from src import copy_trading as ct
 from src import prediction_markets as md
 
@@ -88,6 +91,7 @@ WORKSPACES = [
     "Search",
     "Markets",
     "Traders",
+    "Picks",
     "Track",
     "Live Trades",
     "Wallets",
@@ -99,6 +103,7 @@ WORKSPACES = [
     "Alerts",
     "Resolved",
     "Portfolio",
+    "Settings",
 ]
 SEARCH_RESULT_TYPES = ["Markets", "Traders", "Trades", "News", "Cross-Venue", "Alerts", "Tracked"]
 COPY_SIDE_FILTERS = ["BUY", "SELL"]
@@ -700,7 +705,7 @@ def trader_filter_defaults(query: str = "") -> dict[str, Any]:
     return {
         "trader_search": query,
         "trader_view_mode": "Table",
-        "trader_column_preset": "Parity",
+        "trader_column_preset": "Default",
         "trader_time_period": "ALL",
         "trader_order_by": "SMART",
         "trader_rows": 100,
@@ -1348,7 +1353,7 @@ def apply_trader_filter_view_widgets(view: dict[str, Any]) -> None:
     values = {
         "trader_search": str(view.get("query", defaults["trader_search"])),
         "trader_view_mode": _choice(view.get("view_mode", defaults["trader_view_mode"]), ["Table", "List", "Card"], "Table"),
-        "trader_column_preset": _choice(view.get("column_preset", defaults["trader_column_preset"]), ["Parity", "Research", "Flow"], "Parity"),
+        "trader_column_preset": _choice(view.get("column_preset", defaults["trader_column_preset"]), ["Default", "Research", "Flow"], "Default"),
         "trader_time_period": _choice(view.get("period", defaults["trader_time_period"]), ["ALL", "MONTH", "WEEK", "DAY"], "ALL"),
         "trader_order_by": _choice(view.get("rank_by", defaults["trader_order_by"]), ["SMART", "PNL", "VOL", "ROI", "WIN"], "SMART"),
         "trader_rows": _bounded_int(view.get("rows", defaults["trader_rows"]), 100, 25, 250),
@@ -2092,7 +2097,7 @@ def render_global_hotkeys() -> None:
             if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
             if (isTypingTarget(event.target)) return;
             const buttons = Array.from(window.parent.document.querySelectorAll("button"));
-            const target = buttons.find((button) => (button.innerText || "").includes("Search Parity") && (button.innerText || "").includes("/"));
+            const target = buttons.find((button) => (button.innerText || "").includes("Search...") && (button.innerText || "").includes("/"));
             if (!target) return;
             event.preventDefault();
             target.click();
@@ -2105,7 +2110,7 @@ def render_global_hotkeys() -> None:
     )
 
 
-@st.dialog("Search Parity", width="large")
+@st.dialog("Search", width="large")
 def render_command_palette_dialog() -> None:
     query = st.text_input("Search markets, traders, trades, alerts, or news", key="command_palette_query", placeholder="market, topic, wallet, trader")
 
@@ -2355,6 +2360,13 @@ apply_profile_route()
 apply_pending_navigation()
 
 
+app_config = cfg.load_settings()
+global_query = ""
+market_limit = int(app_config["market_sample"])
+trade_limit = int(app_config["trade_sample"])
+min_whale = int(app_config["whale_threshold"])
+
+
 @st.cache_data(ttl=60, show_spinner=False)
 def load_paper_equity_snapshot() -> dict[str, float]:
     """Lightweight paper-portfolio snapshot for the sidebar (last known prices, no network)."""
@@ -2372,7 +2384,7 @@ def load_paper_equity_snapshot() -> dict[str, float]:
 with st.sidebar:
     st.markdown("## ◆ Market Intel")
     st.caption("Polymarket wallets, Kalshi markets, whale flow, and cross-venue research.")
-    if st.button("Search Parity... /", key="open_command_palette_sidebar", width="stretch"):
+    if st.button("Search... /", key="open_command_palette_sidebar", width="stretch"):
         open_command_palette()
     auth_sidebar_cols = st.columns(2)
     if auth_sidebar_cols[0].button("Sign In", key="open_sign_in_sidebar", width="stretch"):
@@ -2393,14 +2405,6 @@ with st.sidebar:
             on_click=navigate_workspace,
             args=(workspace,),
         )
-    st.divider()
-    global_query = st.text_input("Global search", placeholder="bitcoin, fed, iran, election", key="global_search_query")
-    market_limit = st.slider("Market sample", 50, 500, 250, 50)
-    trade_limit = st.slider("Trade sample", 50, 500, 250, 50)
-    min_whale = st.number_input("Whale threshold", min_value=0, max_value=1_000_000, value=2_500, step=500)
-    if st.button("Refresh data", width="stretch"):
-        st.cache_data.clear()
-        st.rerun()
     st.divider()
     st.caption("Research mode only. This app does not place orders. Kalshi public feeds do not expose wallet identities.")
     st.caption(f"Last render: {md.now_utc_label()}")
@@ -3761,7 +3765,7 @@ def page_overview() -> None:
 
 
 def page_search() -> None:
-    section_header("Search", "Global Parity-style search across markets, traders, trades, news, cross-venue pairs, alerts, and tracked items.")
+    section_header("Search", "Global search across markets, traders, trades, news, cross-venue pairs, alerts, and tracked items.")
     query_default = global_query or (str(st.session_state.recent_searches[0]) if st.session_state.recent_searches else "")
     if "search_query" not in st.session_state:
         reset_search_filter_widgets(query_default)
@@ -3813,7 +3817,7 @@ def page_search() -> None:
         st.session_state["search_result_types"] = list(SEARCH_RESULT_TYPES)
 
     top = st.columns([2.4, 1, 1, 1])
-    query = top[0].text_input("Search Parity", placeholder="bitcoin, iran, election, wallet, trader", key="search_query")
+    query = top[0].text_input("Search", placeholder="bitcoin, iran, election, wallet, trader", key="search_query")
     platforms = top[1].multiselect("Platform", ["Polymarket", "Kalshi"], key="search_platforms")
     rows = top[2].slider("Rows", min_value=10, max_value=250, step=10, key="search_rows")
     min_value = top[3].number_input("Min value", min_value=0, step=1000, key="search_min_value")
@@ -4589,8 +4593,8 @@ def render_market_detail(row: pd.Series, market_universe: pd.DataFrame | None = 
             b5.metric("Bid depth", money(summary["bid_depth"] or 0.0))
             b6.metric("Ask depth", money(summary["ask_depth"] or 0.0))
             ladder = orderbook_ladder(bids, asks, depth=40)
-            ladder_view = st.radio("Orderbook view", ["Parity ladder", "Raw bid/ask"], horizontal=True, key=f"book_view_{row.get('market_key')}")
-            if ladder_view == "Parity ladder":
+            ladder_view = st.radio("Orderbook view", ["Ladder", "Raw bid/ask"], horizontal=True, key=f"book_view_{row.get('market_key')}")
+            if ladder_view == "Ladder":
                 if ladder.empty:
                     draw_empty("No public CLOB orderbook levels returned for this outcome.")
                 else:
@@ -5030,7 +5034,7 @@ def render_market_detail(row: pd.Series, market_universe: pd.DataFrame | None = 
 
 
 def page_markets() -> None:
-    section_header("Markets", "Parity-style market scanner with saved views, quick filters, table/card/calendar modes, and full market drilldown.")
+    section_header("Markets", "Market scanner with saved views, quick filters, table/card/calendar modes, and full market drilldown.")
     pm, ks, combined = load_market_universe()
     if combined.empty:
         draw_empty("No market data returned.")
@@ -5674,7 +5678,7 @@ def render_wallet(wallet: str) -> None:
     total_pnl = float(summary["realized_pnl"]) + float(summary["unrealized_pnl"])
     wallet_key = re.sub(r"[^a-zA-Z0-9_]", "_", wallet.lower())
     account_stats = safe_load("Wallet account stats", load_wallet_account_stats, (wallet,), 3, True, default=pd.DataFrame())
-    parity_profile = safe_load("PredictParity public trader profile", load_predictparity_trader_profile, wallet, default={})
+    parity_profile = safe_load("Public trader profile", load_predictparity_trader_profile, wallet, default={})
     if not isinstance(parity_profile, dict):
         parity_profile = {}
     account_row = account_stats.iloc[0] if not account_stats.empty else pd.Series(dtype=object)
@@ -5754,7 +5758,7 @@ def render_wallet(wallet: str) -> None:
         active_wallets=copy_active_wallets,
     )
     if wallet_parity_url:
-        action_cols[3].link_button("Parity", wallet_parity_url, width="stretch")
+        action_cols[3].link_button("Profile", wallet_parity_url, width="stretch")
     action_cols[4].link_button("Polymarket", f"https://polymarket.com/profile/{wallet}", width="stretch")
     action_cols[5].link_button("Polygonscan", f"https://polygonscan.com/address/{wallet}", width="stretch")
     action_cols[6].link_button("Arkham", f"https://intel.arkm.com/explorer/address/{wallet}", width="stretch")
@@ -5796,7 +5800,7 @@ def render_wallet(wallet: str) -> None:
         parity_curve = pd.DataFrame()
         parity_trader_id = str(parity_profile.get("id", "") or "") if parity_profile else ""
         if parity_trader_id:
-            parity_curve = safe_load("PredictParity PnL chart", load_predictparity_pnl_chart, parity_trader_id, pnl_window, default=pd.DataFrame())
+            parity_curve = safe_load("Trader PnL chart", load_predictparity_pnl_chart, parity_trader_id, pnl_window, default=pd.DataFrame())
         curve = parity_curve if isinstance(parity_curve, pd.DataFrame) and not parity_curve.empty else filter_pnl_curve_window(wallet_pnl_curve(open_positions, closed_positions), pnl_window)
         if curve.empty:
             draw_empty("No PnL history returned for this wallet and selected window.")
@@ -5806,7 +5810,7 @@ def render_wallet(wallet: str) -> None:
             fig.update_layout(height=320, margin=dict(l=10, r=10, t=20, b=10), paper_bgcolor=BG, plot_bgcolor=BG, yaxis_title="PnL", xaxis_title="")
             st.plotly_chart(fig, width="stretch", config=plot_config())
             if isinstance(curve, pd.DataFrame) and "source" in curve and curve["source"].astype(str).eq("PredictParity").any():
-                st.caption("PNL chart sourced from PredictParity public trader data.")
+                st.caption("PNL chart sourced from public trader profile data.")
     else:
         calendar = wallet_pnl_calendar(closed_positions, pnl_window)
         if calendar.empty:
@@ -6177,7 +6181,7 @@ def render_wallet(wallet: str) -> None:
 
 
 def page_traders() -> None:
-    section_header("Traders", "Parity-style trader leaderboard with search, view modes, PnL/volume/position filters, and wallet drilldown.")
+    section_header("Traders", "Trader leaderboard with search, view modes, PnL/volume/position filters, and wallet drilldown.")
     show_copy_follow_notice()
     if "trader_search" not in st.session_state:
         reset_trader_filter_widgets(global_query)
@@ -6228,7 +6232,7 @@ def page_traders() -> None:
     top = st.columns([2.2, 1.1, 1, 0.8, 0.8, 1.05, 1.05, 1])
     trader_query = top[0].text_input("Search Name or Wallet", placeholder="Search Name or Wallet", key="trader_search")
     view_mode = top[1].radio("View", ["Table", "List", "Card"], horizontal=True, label_visibility="collapsed", key="trader_view_mode")
-    column_preset = top[2].selectbox("Columns", ["Parity", "Research", "Flow"], key="trader_column_preset")
+    column_preset = top[2].selectbox("Columns", ["Default", "Research", "Flow"], key="trader_column_preset")
     active_only = top[3].toggle("Active", key="trader_active_only")
     bots_only = top[4].toggle("Bots", key="trader_bots_only", help="Show only bot-like wallets by the current recent-flow bot score.")
     time_period = top[5].selectbox("Period", ["ALL", "MONTH", "WEEK", "DAY"], key="trader_time_period")
@@ -6465,7 +6469,7 @@ def page_traders() -> None:
     metric_cols[4].metric("Median win rate", pct(known_win_rates.median()) if not known_win_rates.empty else "-")
     metric_cols[5].metric("Verified", f"{int(leaderboard['verified'].astype(bool).sum()) if 'verified' in leaderboard else 0:,}")
     if "source" in leaderboard and leaderboard["source"].astype(str).eq("PredictParity").any():
-        st.caption("Trader leaderboard sourced from PredictParity public trader data with Polymarket fallback for unavailable periods.")
+        st.caption("Trader leaderboard sourced from public trader data with Polymarket fallback for unavailable periods.")
     trader_chips: list[str] = []
     if trader_query.strip():
         trader_chips.append(f"Search: {trader_query.strip()}")
@@ -6549,15 +6553,15 @@ def page_traders() -> None:
                 save_local_list("saved_trader_filters.json", st.session_state.saved_trader_filters)
                 st.rerun()
     if enrich_positions and has_native_positions:
-        st.caption("Open-position values are sourced from PredictParity's public trader leaderboard.")
+        st.caption("Open-position values are sourced from the public trader leaderboard.")
     elif enrich_positions:
         st.caption("Open-position values are fetched from public Polymarket wallet positions for the first 30 displayed leaderboard wallets.")
     if enrich_win_rates and has_native_win_rates:
-        st.caption("Win rates are sourced from PredictParity's public trader leaderboard.")
+        st.caption("Win rates are sourced from the public trader leaderboard.")
     elif enrich_win_rates:
         st.caption("Win rates are estimated from public closed positions for the first 30 displayed leaderboard wallets.")
     if account_stats_needed and has_native_account_stats:
-        st.caption("Balances and account age are sourced from PredictParity's public trader leaderboard.")
+        st.caption("Balances and account age are sourced from the public trader leaderboard.")
     elif account_stats_needed:
         st.caption("Assets are open-position value plus fetched Polygon USDC balance. Account age is the oldest public activity observed in the loaded activity pages.")
     st.caption(
@@ -6661,7 +6665,7 @@ def page_traders() -> None:
         "bot_score",
     ]
     selected_trader_columns = {
-        "Parity": parity_trader_columns,
+        "Default": parity_trader_columns,
         "Flow": flow_trader_columns,
         "Research": trader_columns,
     }.get(column_preset, parity_trader_columns)
@@ -6672,7 +6676,7 @@ def page_traders() -> None:
         "copy_smart_score": st.column_config.ProgressColumn("Smart Score", min_value=0, max_value=100),
         "copy_grade": st.column_config.TextColumn("Grade", width="small"),
         "copy_rank_reason": st.column_config.TextColumn("Score Factors", width="large"),
-        "parity_url": st.column_config.LinkColumn("Parity", display_text="Open Parity"),
+        "parity_url": st.column_config.LinkColumn("Profile", display_text="Open profile"),
         "profile_url": st.column_config.LinkColumn("Profile", display_text="Open profile"),
         "x_url": st.column_config.LinkColumn("X", display_text="X"),
         "pnl": st.column_config.NumberColumn("Total PnL", format="$%.0f"),
@@ -6836,7 +6840,7 @@ def page_traders() -> None:
         selected_x_url = x_profile_url(selected_trader_action_row.get("x_username", ""))
         external_links: list[tuple[str, str]] = []
         if selected_parity_url:
-            external_links.append(("Parity", selected_parity_url))
+            external_links.append(("Profile", selected_parity_url))
         if re.fullmatch(r"0x[a-fA-F0-9]{40}", selected_wallet):
             external_links.append(("Polymarket", f"https://polymarket.com/profile/{selected_wallet}"))
         if selected_x_url:
@@ -6863,7 +6867,7 @@ def page_traders() -> None:
     load_detail = detail_cols[1].toggle("Load detail", value=bool(st.session_state.get("traders_load_wallet_detail", False)), key="traders_load_wallet_detail")
     parity_url = predictparity_trader_url(row.get("username", "") or row.get("trader", ""))
     if parity_url:
-        detail_cols[2].link_button("Parity", parity_url, width="stretch")
+        detail_cols[2].link_button("Profile", parity_url, width="stretch")
     profile_url = md.polymarket_profile_url(detail_wallet)
     if profile_url:
         detail_cols[3].link_button("Polymarket", profile_url, width="stretch")
@@ -7551,7 +7555,7 @@ def apply_whale_enriched_filters(
 
 
 def page_live_trades() -> None:
-    section_header("Live Trades", "Public real-time-style trade tape with Parity-style search, side, venue, notional, and whale filters.")
+    section_header("Live Trades", "Public real-time-style trade tape with search, side, venue, notional, and whale filters.")
     if "live_search" not in st.session_state:
         reset_live_trade_filter_widgets(global_query, int(trade_limit))
     if st.session_state.pop("live_filters_reset_pending", False):
@@ -8959,40 +8963,6 @@ def page_cross_venue() -> None:
 MONITOR_SIGNAL_TYPES = ["Fast mover", "Whale print", "Tight spread", "Holder concentration", "Ending soon", "Watched market"]
 
 
-def _monitor_volume_col(df: pd.DataFrame) -> str:
-    if "activity_volume" in df:
-        return "activity_volume"
-    if "volume_24h" in df:
-        return "volume_24h"
-    return "volume"
-
-
-def _append_market_signal(rows: list[dict[str, Any]], row: pd.Series, signal_type: str, value: float, reason: str, severity: str = "info") -> None:
-    rows.append(
-        {
-            "signal_type": signal_type,
-            "severity": severity,
-            "time": row.get("updated_at") or row.get("created_at") or row.get("end_time"),
-            "platform": row.get("platform", ""),
-            "title": row.get("title", ""),
-            "category": row.get("category", ""),
-            "outcome": "Yes",
-            "price": row.get("yes_price"),
-            "value": value,
-            "reason": reason,
-            "volume": row.get("activity_volume", row.get("volume_24h", row.get("volume", 0.0))),
-            "liquidity": row.get("liquidity", 0.0),
-            "spread": row.get("spread"),
-            "change_1h": row.get("change_1h", 0.0),
-            "market_key": row.get("market_key", ""),
-            "wallet": "",
-            "trader": "",
-            "notional": 0.0,
-            "url": row.get("url", ""),
-        }
-    )
-
-
 def build_monitor_signals(
     markets: pd.DataFrame,
     trades: pd.DataFrame,
@@ -9007,146 +8977,30 @@ def build_monitor_signals(
     holder_checks: int,
     tracked_keys: set[str],
 ) -> pd.DataFrame:
-    rows: list[dict[str, Any]] = []
-    market_frame = markets.copy()
-    if not market_frame.empty:
-        volume_col = _monitor_volume_col(market_frame)
-        market_frame = market_frame[
-            (numeric_col(market_frame, volume_col) >= float(min_volume))
-            & (numeric_col(market_frame, "liquidity") >= float(min_liquidity))
-        ].copy()
-        if "change_1h" in market_frame:
-            movers = market_frame[numeric_col(market_frame, "change_1h").abs() >= float(min_move)]
-            movers = movers.sort_values("change_1h", key=lambda series: series.abs(), ascending=False)
-            for _, row in movers.head(120).iterrows():
-                value = float(row.get("change_1h") or 0.0)
-                _append_market_signal(rows, row, "Fast mover", value, f"1h move {signed_cents(value)}", "warning")
-        if "spread" in market_frame:
-            tight = market_frame[numeric_col(market_frame, "spread", 999.0) <= float(max_spread)]
-            tight = tight.sort_values(["spread", volume_col], ascending=[True, False])
-            for _, row in tight.head(120).iterrows():
-                value = float(row.get("spread") or 0.0)
-                _append_market_signal(rows, row, "Tight spread", value, f"spread {cents(value)}")
-        if "end_time" in market_frame:
-            end_time = pd.to_datetime(market_frame["end_time"], utc=True, errors="coerce")
-            now = pd.Timestamp.utcnow()
-            soon = market_frame[end_time.notna() & (end_time >= now) & (end_time <= now + pd.Timedelta(days=int(ending_days)))]
-            soon = soon.assign(_end_time=end_time.loc[soon.index]).sort_values("_end_time")
-            for _, row in soon.head(120).iterrows():
-                _append_market_signal(rows, row, "Ending soon", float(row.get("yes_price") or 0.0), f"ends {row.get('end_time')}", "warning")
-        if tracked_keys:
-            watched = market_frame[market_frame["market_key"].astype(str).isin(tracked_keys)]
-            for _, row in watched.head(120).iterrows():
-                _append_market_signal(rows, row, "Watched market", float(row.get("yes_price") or 0.0), "on local watchlist")
-        if holder_checks > 0:
-            holder_candidates = market_frame[market_frame["platform"].eq("Polymarket")].sort_values(volume_col, ascending=False).head(int(holder_checks))
-            for _, row in holder_candidates.iterrows():
-                holders = safe_load("Polymarket holders", load_holders, str(row.get("market_key", "")), default=pd.DataFrame())
-                if holders.empty or "amount" not in holders:
-                    continue
-                total = float(pd.to_numeric(holders["amount"], errors="coerce").fillna(0.0).sum())
-                if total <= 0:
-                    continue
-                top_share = float(pd.to_numeric(holders["amount"], errors="coerce").fillna(0.0).max() / total)
-                top10_share = float(pd.to_numeric(holders.head(10)["amount"], errors="coerce").fillna(0.0).sum() / total)
-                if top_share >= float(holder_threshold):
-                    _append_market_signal(
-                        rows,
-                        row,
-                        "Holder concentration",
-                        top_share,
-                        f"top holder {pct(top_share)}; top 10 {pct(top10_share)}",
-                        "warning",
-                    )
-    if not trades.empty:
-        whale_trades = trades[numeric_col(trades, "notional") >= float(min_whale_notional)].sort_values("time", ascending=False)
-        for _, row in whale_trades.head(180).iterrows():
-            rows.append(
-                {
-                    "signal_type": "Whale print",
-                    "severity": "warning",
-                    "time": row.get("time"),
-                    "platform": row.get("platform", ""),
-                    "title": row.get("title", ""),
-                    "category": "",
-                    "outcome": row.get("outcome", ""),
-                    "price": row.get("price"),
-                    "value": row.get("notional", 0.0),
-                    "reason": f"{row.get('side', '')} {money(row.get('notional', 0.0))}",
-                    "volume": 0.0,
-                    "liquidity": 0.0,
-                    "spread": None,
-                    "change_1h": None,
-                    "market_key": row.get("market_key", row.get("ticker", "")),
-                    "wallet": row.get("wallet", ""),
-                    "trader": row.get("trader", ""),
-                    "notional": row.get("notional", 0.0),
-                    "url": row.get("url", ""),
-                }
-            )
-    if not rows:
-        return pd.DataFrame()
-    signals = pd.DataFrame(rows)
-    signals["time"] = pd.to_datetime(signals["time"], utc=True, errors="coerce")
-    return signals.sort_values(["severity", "time", "value"], ascending=[False, False, False]).reset_index(drop=True)
+    return sig.build_monitor_signals(
+        markets,
+        trades,
+        min_volume=min_volume,
+        min_liquidity=min_liquidity,
+        min_move=min_move,
+        max_spread=max_spread,
+        min_whale_notional=min_whale_notional,
+        ending_days=ending_days,
+        holder_threshold=holder_threshold,
+        holder_checks=holder_checks,
+        tracked_keys=tracked_keys,
+        fetch_holders=lambda key: safe_load("Polymarket holders", load_holders, key, default=pd.DataFrame()),
+    )
 
 
-def monitor_rule_matches(signals: pd.DataFrame, rule: dict[str, Any]) -> pd.DataFrame:
-    if signals.empty:
-        return pd.DataFrame()
-    filtered = signals.copy()
-    signal_type = str(rule.get("signal_type", "Any"))
-    if signal_type != "Any":
-        filtered = filtered[filtered["signal_type"].eq(signal_type)]
-    platforms = rule.get("platforms") or []
-    if platforms:
-        filtered = filtered[filtered["platform"].isin(platforms)]
-    query = str(rule.get("query", "") or "").strip().lower()
-    if query:
-        searchable = filtered.get("title", pd.Series("", index=filtered.index)).astype(str).str.lower()
-        searchable = searchable + " " + filtered.get("wallet", pd.Series("", index=filtered.index)).astype(str).str.lower()
-        searchable = searchable + " " + filtered.get("trader", pd.Series("", index=filtered.index)).astype(str).str.lower()
-        searchable = searchable + " " + filtered.get("reason", pd.Series("", index=filtered.index)).astype(str).str.lower()
-        filtered = filtered[searchable.str.contains(re.escape(query), na=False)]
-    min_notional = float(rule.get("min_notional", 0.0) or 0.0)
-    if min_notional:
-        filtered = filtered[numeric_col(filtered, "notional") >= min_notional]
-    min_move = float(rule.get("min_move", 0.0) or 0.0)
-    if min_move:
-        filtered = filtered[(filtered["signal_type"].ne("Fast mover")) | (numeric_col(filtered, "value").abs() >= min_move)]
-    max_spread = float(rule.get("max_spread", 0.0) or 0.0)
-    if max_spread:
-        filtered = filtered[(filtered["signal_type"].ne("Tight spread")) | (numeric_col(filtered, "spread", 999.0) <= max_spread)]
-    min_liquidity = float(rule.get("min_liquidity", 0.0) or 0.0)
-    if min_liquidity:
-        filtered = filtered[numeric_col(filtered, "liquidity") >= min_liquidity]
-    return filtered.reset_index(drop=True)
-
-
-def monitor_rule_match_count(signals: pd.DataFrame, rule: dict[str, Any]) -> int:
-    return int(len(monitor_rule_matches(signals, rule)))
-
-
-def build_monitor_alert_hits(signals: pd.DataFrame, rules: list[dict[str, Any]]) -> pd.DataFrame:
-    rows: list[pd.DataFrame] = []
-    for idx, rule in enumerate(rules):
-        if not bool(rule.get("active", True)):
-            continue
-        matches = monitor_rule_matches(signals, rule)
-        if matches.empty:
-            continue
-        matches = matches.copy()
-        matches["rule_name"] = str(rule.get("name") or f"Rule {idx + 1}")
-        matches["rule_type"] = str(rule.get("signal_type", "Any"))
-        rows.append(matches)
-    if not rows:
-        return pd.DataFrame()
-    hits = pd.concat(rows, ignore_index=True, sort=False)
-    return hits.sort_values(["time", "value"], ascending=[False, False], na_position="last").reset_index(drop=True)
+_monitor_volume_col = sig.monitor_volume_col
+monitor_rule_matches = sig.monitor_rule_matches
+monitor_rule_match_count = sig.monitor_rule_match_count
+build_monitor_alert_hits = sig.build_monitor_alert_hits
 
 
 def page_monitor() -> None:
-    section_header("Monitor", "Parity-style signal monitor for fast movers, whale prints, spreads, holder risk, endings, and saved alert rules.")
+    section_header("Monitor", "Signal monitor for fast movers, whale prints, spreads, holder risk, endings, and saved alert rules.")
     if "monitor_search" not in st.session_state:
         reset_monitor_filter_widgets(global_query, 100, int(min_whale))
     if st.session_state.pop("monitor_filters_reset_pending", False):
@@ -10553,7 +10407,7 @@ def render_copy_command_center(
     latency = copy_order_latency_stats(orders)
     last_sync = daemon_status.get("last_sync_at") or meta.get("tony_seeded_at")
 
-    tony_profile = safe_load("PredictParity Swisstony profile", load_predictparity_trader_profile, settings.target_wallet, default={})
+    tony_profile = safe_load("Swisstony trader profile", load_predictparity_trader_profile, settings.target_wallet, default={})
     if not isinstance(tony_profile, dict):
         tony_profile = {}
     tony_name = str(tony_profile.get("display_name") or "swisstony")
@@ -10592,15 +10446,15 @@ def render_copy_command_center(
             parity_curve = pd.DataFrame()
             trader_id = str(tony_profile.get("id", "") or "")
             if trader_id:
-                parity_curve = safe_load("PredictParity Swisstony PnL chart", load_predictparity_pnl_chart, trader_id, pnl_window, default=pd.DataFrame())
+                parity_curve = safe_load("Swisstony PnL chart", load_predictparity_pnl_chart, trader_id, pnl_window, default=pd.DataFrame())
             if isinstance(parity_curve, pd.DataFrame) and not parity_curve.empty:
                 fig = px.line(parity_curve, x="time", y="pnl", color="series", template="plotly_dark")
                 fig.update_traces(line_width=2.4)
                 fig.update_layout(height=295, margin=dict(l=10, r=10, t=10, b=10), paper_bgcolor=BG, plot_bgcolor=BG, yaxis_title="PnL", xaxis_title="")
                 st.plotly_chart(fig, width="stretch", config=plot_config())
-                st.caption("Sourced from PredictParity public trader profile.")
+                st.caption("Sourced from public trader profile data.")
             else:
-                draw_empty("No PredictParity PnL curve returned for Swisstony.")
+                draw_empty("No public PnL curve returned for Swisstony.")
 
     paper_cols = st.columns(7)
     paper_cols[0].metric("Paper Equity", money(snapshot.equity), pct(roi_value))
@@ -11239,7 +11093,7 @@ def page_copy_trade() -> None:
 
 
 def page_portfolio() -> None:
-    section_header("Portfolio", "Parity-style portfolio dashboard for research positions, copy-trading equity, exposure, history, and watchlist.")
+    section_header("Portfolio", "Portfolio dashboard for research positions, copy-trading equity, exposure, history, and watchlist.")
     if "portfolio_search" not in st.session_state:
         reset_portfolio_filter_widgets(global_query)
     if st.session_state.pop("portfolio_filters_reset_pending", False):
@@ -12031,8 +11885,7 @@ def page_backtester() -> None:
         kicker="Backtester · Paper sim",
     )
     st.markdown(
-        "<div class='chip-row'><span class='chip chip-active'>Polymarket</span>"
-        "<span class='chip chip-disabled' title='Polymarket data only for now'>Hyperliquid</span></div>",
+        "<div class='chip-row'><span class='chip chip-active'>Polymarket</span></div>",
         unsafe_allow_html=True,
     )
     form_col, results_col = st.columns([2, 3], gap="medium")
@@ -12043,8 +11896,8 @@ def page_backtester() -> None:
             wallet_input = st.text_input("Wallet to copy", placeholder="0x…", key="bt_wallet", label_visibility="collapsed")
             st.markdown("<div class='field-hint'>Paste any Polymarket address — for example from the Traders leaderboard.</div>", unsafe_allow_html=True)
             st.markdown("<div class='step-label'>02 · Max bet per trade</div>", unsafe_allow_html=True)
-            max_bet = st.number_input("Max bet per trade ($)", min_value=1.0, max_value=100_000.0, value=25.0, step=5.0, key="bt_stake", label_visibility="collapsed")
-            bankroll_hint = float(st.session_state.get("bt_bankroll", 10_000.0))
+            max_bet = st.number_input("Max bet per trade ($)", min_value=1.0, max_value=100_000.0, value=float(app_config["backtest_max_bet"]), step=5.0, key="bt_stake", label_visibility="collapsed")
+            bankroll_hint = float(st.session_state.get("bt_bankroll", float(app_config["backtest_bankroll"])))
             st.markdown(f"<div class='field-hint'>Bankroll pinned to ${bankroll_hint:,.0f} — change it under Advanced.</div>", unsafe_allow_html=True)
             st.markdown("<div class='step-label'>03 · Time window</div>", unsafe_allow_html=True)
             window_label = st.segmented_control("Time window", list(BACKTEST_WINDOW_OPTIONS), default="30d", key="bt_window", label_visibility="collapsed")
@@ -12052,12 +11905,12 @@ def page_backtester() -> None:
             strategy_label = st.segmented_control("Strategy", list(BACKTEST_STRATEGY_OPTIONS), default="Copy", key="bt_strategy", label_visibility="collapsed")
             st.markdown("<div class='field-hint'>Fade takes the opposite side of every trade the wallet makes.</div>", unsafe_allow_html=True)
             with st.expander("Advanced settings"):
-                bankroll = st.number_input("Bankroll ($)", min_value=10.0, max_value=1_000_000.0, value=10_000.0, step=500.0, key="bt_bankroll")
+                bankroll = st.number_input("Bankroll ($)", min_value=10.0, max_value=1_000_000.0, value=float(app_config["backtest_bankroll"]), step=500.0, key="bt_bankroll")
                 sizing_label = st.selectbox("Bet sizing", list(BACKTEST_SIZING_OPTIONS), key="bt_sizing", help="Fixed: the max bet is the stake per copy. Percent: % of current bankroll. Mirror: % of the trader's notional.")
                 sizing_value = st.number_input("Sizing value (% for percent/mirror)", min_value=0.1, max_value=100_000.0, value=2.0, step=0.5, key="bt_sizing_value")
-                fee_bps = st.number_input("Fee (bps)", min_value=0.0, max_value=500.0, value=20.0, step=5.0, key="bt_fee")
-                slippage_bps = st.number_input("Slippage (bps)", min_value=0.0, max_value=500.0, value=50.0, step=5.0, key="bt_slippage")
-                flat_stake = st.number_input("Benchmark flat stake ($)", min_value=1.0, max_value=100_000.0, value=25.0, step=5.0, key="bt_flat")
+                fee_bps = st.number_input("Fee (bps)", min_value=0.0, max_value=500.0, value=float(app_config["backtest_fee_bps"]), step=5.0, key="bt_fee")
+                slippage_bps = st.number_input("Slippage (bps)", min_value=0.0, max_value=500.0, value=float(app_config["backtest_slippage_bps"]), step=5.0, key="bt_slippage")
+                flat_stake = st.number_input("Benchmark flat stake ($)", min_value=1.0, max_value=100_000.0, value=float(app_config["backtest_flat_stake"]), step=5.0, key="bt_flat")
                 compare_input = st.text_input("Compare wallet (optional)", placeholder="0x…", key="bt_compare")
             submitted = st.form_submit_button("Run backtest →", type="primary", width="stretch")
 
@@ -12145,6 +11998,13 @@ def page_backtester() -> None:
             f"<div class='small-note'>{strategy_name} · {result.window_start.strftime('%Y-%m-%d')} → {result.window_end.strftime('%Y-%m-%d')} · wallet <span class='mono'>{html.escape(short_addr(result.wallet))}</span></div>",
             unsafe_allow_html=True,
         )
+        if result.stats.get("window_truncated"):
+            effective_start = result.stats.get("effective_start")
+            effective_label = effective_start.strftime("%Y-%m-%d") if isinstance(effective_start, pd.Timestamp) else str(effective_start)
+            st.markdown(
+                f"<div class='field-hint' style='color:{AMBER}'>Activity feed capped by the public API — the effective window starts {effective_label}, not {result.window_start.strftime('%Y-%m-%d')}. Very active wallets only replay their most recent ~3,000 activity rows.</div>",
+                unsafe_allow_html=True,
+            )
         _backtest_stat_cards(result.stats, result.benchmark_stats)
         st.plotly_chart(_backtest_equity_chart(result, compare_result), width="stretch", config=plot_config())
 
@@ -12167,11 +12027,172 @@ def page_backtester() -> None:
                     _backtest_comparison_table(result, compare_result)
 
 
+def _pick_backtest(wallet: str) -> None:
+    st.session_state["bt_wallet"] = wallet
+    st.session_state.pop("backtest_request", None)
+    navigate_workspace("Backtester")
+
+
+def _pick_track(wallet: str) -> None:
+    st.session_state.followed_wallets, changed = md.upsert_followed_wallet(st.session_state.followed_wallets, wallet)
+    if changed:
+        save_local_list("followed_wallets.json", st.session_state.followed_wallets)
+
+
+def page_picks() -> None:
+    section_header(
+        "Picks",
+        "Model-ranked wallets worth a look — scored on returns, consistency, win rate, recency, and volume. Backtest before you copy.",
+        kicker="Picks · Model-ranked",
+    )
+    leaderboard = safe_load("Trader leaderboard", load_leaderboard, 120, "MONTH", "PNL", default=pd.DataFrame())
+    if leaderboard is None or leaderboard.empty:
+        draw_empty("No leaderboard data available right now — try again in a minute.")
+        return
+    ranked = ct.rank_traders_by_smart_score(leaderboard, min_volume=0.0, require_positive_roi=False, exclude_bots=False)
+    if ranked is None or ranked.empty:
+        draw_empty("Scoring returned no candidates for the current leaderboard sample.")
+        return
+    st.markdown("<div class='step-label' style='margin-top:0'>Trader picks</div>", unsafe_allow_html=True)
+    top_rows = list(ranked.head(9).iterrows())
+    for start in range(0, len(top_rows), 3):
+        cols = st.columns(3)
+        for col, (_, row) in zip(cols, top_rows[start : start + 3]):
+            wallet = str(row.get("wallet", "") or "")
+            score = float(row.get("copy_smart_score", row.get("rank_score", 0.0)) or 0.0)
+            grade = str(row.get("copy_grade", "") or "–")
+            name = str(row.get("trader", "") or "") or short_addr(wallet)
+            with col:
+                with st.container(border=True):
+                    st.markdown(
+                        f"**{html.escape(name[:28])}** <span class='signal'>{html.escape(grade)} · {score:.0f}</span>",
+                        unsafe_allow_html=True,
+                    )
+                    st.markdown(f"<div class='field-hint mono'>{html.escape(short_addr(wallet))}</div>", unsafe_allow_html=True)
+                    m1, m2, m3 = st.columns(3)
+                    m1.metric("P&L", money(row.get("pnl", 0.0)))
+                    m2.metric("ROI", pct(row.get("roi")))
+                    m3.metric("Win", pct(row.get("win_rate")))
+                    b1, b2 = st.columns(2)
+                    b1.button("Backtest →", key=f"pick_bt_{start}_{wallet[:10]}", width="stretch", type="primary", on_click=_pick_backtest, args=(wallet,))
+                    b2.button("Track", key=f"pick_tr_{start}_{wallet[:10]}", width="stretch", on_click=_pick_track, args=(wallet,))
+    st.markdown("<div class='step-label'>Momentum markets</div>", unsafe_allow_html=True)
+    markets = safe_load("Polymarket markets", load_polymarket_markets, market_limit, default=pd.DataFrame())
+    if markets is None or markets.empty:
+        draw_empty("No market data available right now.")
+        return
+    frame = markets.copy()
+    frame["_momentum"] = numeric_col(frame, "change_1d").abs() * numeric_col(frame, "volume_24h").clip(lower=0.0).pow(0.5)
+    mover_rows = list(frame.sort_values("_momentum", ascending=False).head(6).iterrows())
+    for start in range(0, len(mover_rows), 3):
+        cols = st.columns(3)
+        for col, (_, row) in zip(cols, mover_rows[start : start + 3]):
+            with col:
+                market_tile(row)
+
+
+def _start_copy_daemon() -> None:
+    import subprocess
+    import sys as _sys
+
+    ct.DEFAULT_STOP_PATH.unlink(missing_ok=True)
+    log_path = Path("data/copy_trader_daemon.log")
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(log_path, "ab") as log:
+        subprocess.Popen(
+            [_sys.executable, str(Path("scripts") / "run_copy_trader.py")],
+            stdout=log,
+            stderr=log,
+            creationflags=getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
+        )
+
+
+def page_settings() -> None:
+    section_header(
+        "Settings",
+        "Central configuration: data loading, backtester defaults, alert delivery, and the copy daemon.",
+        kicker="Settings",
+    )
+    config = cfg.load_settings()
+    left, right = st.columns(2, gap="medium")
+    with left:
+        with st.container(border=True):
+            st.markdown("<div class='step-label' style='margin-top:0'>01 · Data loading</div>", unsafe_allow_html=True)
+            market_sample = st.slider("Market sample", 50, 500, int(config["market_sample"]), 50, key="set_market_sample")
+            trade_sample = st.slider("Trade sample", 50, 500, int(config["trade_sample"]), 50, key="set_trade_sample")
+            whale_threshold = st.number_input("Whale threshold ($)", min_value=0, max_value=1_000_000, value=int(config["whale_threshold"]), step=500, key="set_whale_threshold")
+            if st.button("Clear data cache", width="stretch", key="set_clear_cache"):
+                st.cache_data.clear()
+                st.toast("Data cache cleared.")
+                st.rerun()
+        with st.container(border=True):
+            st.markdown("<div class='step-label' style='margin-top:0'>02 · Backtester defaults</div>", unsafe_allow_html=True)
+            bt_bankroll = st.number_input("Bankroll ($)", min_value=10.0, max_value=1_000_000.0, value=float(config["backtest_bankroll"]), step=500.0, key="set_bt_bankroll")
+            bt_max_bet = st.number_input("Max bet per trade ($)", min_value=1.0, max_value=100_000.0, value=float(config["backtest_max_bet"]), step=5.0, key="set_bt_max_bet")
+            bt_fee = st.number_input("Fee (bps)", min_value=0.0, max_value=500.0, value=float(config["backtest_fee_bps"]), step=5.0, key="set_bt_fee")
+            bt_slip = st.number_input("Slippage (bps)", min_value=0.0, max_value=500.0, value=float(config["backtest_slippage_bps"]), step=5.0, key="set_bt_slip")
+            bt_flat = st.number_input("Benchmark flat stake ($)", min_value=1.0, max_value=100_000.0, value=float(config["backtest_flat_stake"]), step=5.0, key="set_bt_flat")
+    with right:
+        with st.container(border=True):
+            st.markdown("<div class='step-label' style='margin-top:0'>03 · Alerts via Telegram</div>", unsafe_allow_html=True)
+            alerts_enabled = st.toggle("Background alerts enabled", value=bool(config["alerts_enabled"]), key="set_alerts_enabled", help="Evaluated by the background scanner each cycle (scripts/run_alert_scanner.py).")
+            alert_interval = st.number_input("Scan interval (minutes)", min_value=1, max_value=120, value=int(config["alert_interval_minutes"]), step=1, key="set_alert_interval")
+            alert_min_move = st.number_input("Fast-mover threshold (cents)", min_value=0.5, max_value=50.0, value=float(config["alert_min_move_cents"]), step=0.5, key="set_alert_min_move")
+            telegram_token = st.text_input("Telegram bot token", value=str(config["telegram_bot_token"]), type="password", key="set_tg_token")
+            telegram_chat = st.text_input("Telegram chat id", value=str(config["telegram_chat_id"]), key="set_tg_chat")
+            st.markdown("<div class='field-hint'>Delivery uses the saved alert rules from the Monitor page.</div>", unsafe_allow_html=True)
+            if st.button("Send test message", width="stretch", key="set_tg_test"):
+                ok, detail = notify.send_telegram(telegram_token, telegram_chat, "Test message from Market Intel Terminal.")
+                if ok:
+                    st.success("Test message sent.")
+                else:
+                    st.error(f"Telegram error: {detail}")
+        with st.container(border=True):
+            st.markdown("<div class='step-label' style='margin-top:0'>04 · Copy daemon</div>", unsafe_allow_html=True)
+            daemon = load_copy_daemon_status()
+            d1, d2, d3 = st.columns(3)
+            d1.metric("Runner", "Active" if daemon.get("running") else "Stopped")
+            d2.metric("Mode", "Fast chain" if daemon.get("fast_enabled") else "API")
+            d3.metric("Cash", money(daemon.get("cash", 0.0)))
+            st.markdown(f"<div class='field-hint'>Last sync {daemon.get('last_sync_at') or '-'}</div>", unsafe_allow_html=True)
+            dc1, dc2 = st.columns(2)
+            if dc1.button("Start daemon", width="stretch", type="primary", key="set_daemon_start"):
+                _start_copy_daemon()
+                st.toast("Copy daemon started.")
+                st.rerun()
+            if dc2.button("Stop daemon", width="stretch", key="set_daemon_stop"):
+                ct.DEFAULT_STOP_PATH.parent.mkdir(parents=True, exist_ok=True)
+                ct.DEFAULT_STOP_PATH.write_text("stop", encoding="utf-8")
+                st.toast("Stop requested — the daemon exits on its next cycle.")
+    if st.button("Save settings", type="primary", width="stretch", key="set_save"):
+        cfg.save_settings(
+            {
+                "market_sample": int(market_sample),
+                "trade_sample": int(trade_sample),
+                "whale_threshold": int(whale_threshold),
+                "backtest_bankroll": float(bt_bankroll),
+                "backtest_max_bet": float(bt_max_bet),
+                "backtest_fee_bps": float(bt_fee),
+                "backtest_slippage_bps": float(bt_slip),
+                "backtest_flat_stake": float(bt_flat),
+                "alerts_enabled": bool(alerts_enabled),
+                "alert_interval_minutes": int(alert_interval),
+                "alert_min_move_cents": float(alert_min_move),
+                "alert_holder_checks": int(config["alert_holder_checks"]),
+                "telegram_bot_token": str(telegram_token),
+                "telegram_chat_id": str(telegram_chat),
+            }
+        )
+        st.toast("Settings saved.")
+        st.rerun()
+
+
 PAGES = {
     "Overview": page_overview,
     "Search": page_search,
     "Markets": page_markets,
     "Traders": page_traders,
+    "Picks": page_picks,
     "Track": page_track,
     "Live Trades": page_live_trades,
     "Wallets": page_wallets,
@@ -12183,6 +12204,7 @@ PAGES = {
     "Alerts": page_alerts,
     "Resolved": page_resolved,
     "Portfolio": page_portfolio,
+    "Settings": page_settings,
 }
 
 

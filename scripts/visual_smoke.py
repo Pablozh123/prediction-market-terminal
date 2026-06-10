@@ -45,6 +45,8 @@ ROUTES = [
     RouteCheck("/monitor", ("Monitor", "Signal"), "monitor.png"),
     RouteCheck("/portfolio", ("Portfolio", "Marked value"), "portfolio.png"),
     RouteCheck("/backtester", ("Backtester", "RUN BACKTEST"), "backtester.png"),
+    RouteCheck("/picks", ("Picks", "Backtest before you copy"), "picks.png"),
+    RouteCheck("/settings", ("Settings", "Backtester defaults"), "settings.png"),
     RouteCheck("/copy-trade", ("Copy Trade", "Paper mode only"), "copy_trade.png"),
     RouteCheck("/sign-in", ("Account access", "Sign In", "Local research mode"), "sign_in.png"),
     RouteCheck("/sign-up", ("Account access", "Sign Up", "Local research mode"), "sign_up.png"),
