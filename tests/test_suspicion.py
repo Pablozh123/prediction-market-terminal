@@ -107,6 +107,73 @@ class BonusTests(unittest.TestCase):
         self.assertAlmostEqual(enriched.iloc[0]["wallet_insider_score"], 50.0)
 
 
+class CategoryContextTests(unittest.TestCase):
+    def test_classifier_groups(self):
+        cases = [
+            ("Lakers vs Celtics: who wins?", "", susp.CONTEXT_SPORTS),
+            ("Will Bitcoin hit $200k in 2026?", "", susp.CONTEXT_MARKET_PRICES),
+            ("Highest temperature in NYC this week?", "", susp.CONTEXT_WEATHER),
+            ("Will the film win Best Picture at the Oscars?", "", susp.CONTEXT_AWARDS),
+            ("Will the CEO resign before July?", "", susp.CONTEXT_CORPORATE),
+            ("Who wins the 2026 election?", "Politics", susp.CONTEXT_GENERAL),
+            ("Some niche market", "Sports", susp.CONTEXT_SPORTS),
+        ]
+        for title, category, expected in cases:
+            group, multiplier, _note = susp.classify_insider_context(title, category)
+            self.assertEqual(group, expected, title)
+            self.assertEqual(multiplier, susp.CONTEXT_MULTIPLIERS[expected])
+
+    def test_title_keywords_beat_category(self):
+        group, _, _ = susp.classify_insider_context("Will the CEO resign before July?", "Politics")
+        self.assertEqual(group, susp.CONTEXT_CORPORATE)
+
+    def test_event_scores_damped_for_sports_and_boosted_for_awards(self):
+        events = pd.DataFrame(
+            [
+                {"title": "Lakers vs Celtics: who wins?", "market_key": "c1", "event_insider_score": 80.0, "event_insider_flags": "", "notional": 50000.0},
+                {"title": "Will the film win Best Picture at the Oscars?", "market_key": "c2", "event_insider_score": 80.0, "event_insider_flags": "", "notional": 20000.0},
+            ]
+        )
+        adjusted = susp.apply_category_context(events)
+        awards = adjusted[adjusted["market_key"] == "c2"].iloc[0]
+        sports = adjusted[adjusted["market_key"] == "c1"].iloc[0]
+        self.assertAlmostEqual(sports["event_insider_score"], 48.0)
+        self.assertEqual(sports["insider_context"], susp.CONTEXT_SPORTS)
+        self.assertAlmostEqual(sports["event_score_raw"], 80.0)
+        self.assertAlmostEqual(awards["event_insider_score"], 92.0)
+        self.assertEqual(adjusted.iloc[0]["market_key"], "c2")
+
+    def test_category_map_used_when_title_is_neutral(self):
+        events = pd.DataFrame([{"title": "Will team Alpha prevail?", "market_key": "c9", "event_insider_score": 60.0, "event_insider_flags": "", "notional": 1000.0}])
+        categories = pd.DataFrame([{"market_key": "c9", "category": "Sports"}])
+        adjusted = susp.apply_category_context(events, categories)
+        self.assertEqual(adjusted.iloc[0]["insider_context"], susp.CONTEXT_SPORTS)
+        self.assertAlmostEqual(adjusted.iloc[0]["event_insider_score"], 36.0)
+
+    def test_wallet_context_weights_by_notional(self):
+        trades = tape(
+            [
+                trade("0xaaa", "Lakers vs Celtics: who wins?", "Yes", 9000.0),
+                trade("0xaaa", "Lakers vs Celtics: who wins?", "Yes", 9000.0),
+                trade("0xbbb", "Will the CEO resign before July?", "Yes", 9000.0),
+            ]
+        )
+        wallet_risk = pd.DataFrame(
+            [
+                {"wallet": "0xaaa", "wallet_insider_score": 70.0, "wallet_insider_flags": "watch only", "notional": 18000.0},
+                {"wallet": "0xbbb", "wallet_insider_score": 70.0, "wallet_insider_flags": "watch only", "notional": 9000.0},
+            ]
+        )
+        adjusted = susp.apply_wallet_category_context(wallet_risk, trades)
+        sports_wallet = adjusted[adjusted["wallet"] == "0xaaa"].iloc[0]
+        corp_wallet = adjusted[adjusted["wallet"] == "0xbbb"].iloc[0]
+        self.assertAlmostEqual(sports_wallet["wallet_insider_score"], 42.0)
+        self.assertIn("flow mostly in sports odds", sports_wallet["wallet_insider_flags"])
+        self.assertEqual(corp_wallet["insider_context"], susp.CONTEXT_CORPORATE)
+        self.assertAlmostEqual(corp_wallet["wallet_insider_score"], 80.0)
+        self.assertIn("insider-prone categories", corp_wallet["wallet_insider_flags"])
+
+
 class StoryAndDrilldownTests(unittest.TestCase):
     def test_event_story_mentions_key_patterns(self):
         row = pd.Series(

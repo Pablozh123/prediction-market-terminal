@@ -14,6 +14,7 @@ Everything here is a best-effort public-data screen, not a legal finding.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import pandas as pd
@@ -23,6 +24,72 @@ from app.format import money, pct
 
 RISK_BANDS = ((70, "High"), (55, "Medium"), (40, "Elevated"))
 WATCH_ONLY = "watch only"
+
+# Insider-plausibility context: in some market categories there is nothing to
+# "know" early (game results, weather models, public asset prices) — big flow
+# there is high-roller action, not insider trading. In others the outcome is
+# literally known to a small group before the public (award juries, boards,
+# courts), which is where documented prediction-market insider cases happened.
+CONTEXT_SPORTS = "Sports odds"
+CONTEXT_MARKET_PRICES = "Crypto & market prices"
+CONTEXT_WEATHER = "Weather & climate"
+CONTEXT_AWARDS = "Awards & entertainment"
+CONTEXT_CORPORATE = "Corporate & legal"
+CONTEXT_GENERAL = "General"
+
+CONTEXT_MULTIPLIERS = {
+    CONTEXT_SPORTS: 0.6,
+    CONTEXT_MARKET_PRICES: 0.6,
+    CONTEXT_WEATHER: 0.5,
+    CONTEXT_AWARDS: 1.15,
+    CONTEXT_CORPORATE: 1.15,
+    CONTEXT_GENERAL: 1.0,
+}
+
+CONTEXT_NOTES = {
+    CONTEXT_SPORTS: "public-odds arena — big flow here is usually high rollers, not insiders",
+    CONTEXT_MARKET_PRICES: "asset prices are public — whales here are traders, not insiders",
+    CONTEXT_WEATHER: "model-driven outcome — insider knowledge is implausible",
+    CONTEXT_AWARDS: "results are known to juries and production staff early — documented insider territory",
+    CONTEXT_CORPORATE: "decisions are known internally before announcement",
+    CONTEXT_GENERAL: "",
+}
+
+_CATEGORY_GROUPS = (
+    (("sport", "sports", "nba", "nfl", "mlb", "soccer", "football", "esports"), CONTEXT_SPORTS),
+    (("crypto", "cryptocurrency", "finance", "stocks"), CONTEXT_MARKET_PRICES),
+    (("weather", "climate", "science"), CONTEXT_WEATHER),
+    (("entertainment", "awards", "pop culture", "culture", "music", "movies", "tv"), CONTEXT_AWARDS),
+    (("business", "companies", "tech", "earnings"), CONTEXT_CORPORATE),
+)
+
+_TITLE_PATTERNS = (
+    (re.compile(r"\bvs\.?\b|\bnba\b|\bnfl\b|\bmlb\b|\bnhl\b|\bufc\b|\bgrand prix\b|\bpremier league\b|\bchampions league\b|\bbundesliga\b|\bserie a\b|\bla liga\b|\bsuper bowl\b|\bworld series\b|\bplayoffs?\b|\bopen:\s|\bwimbledon\b|\bolympic", re.I), CONTEXT_SPORTS),
+    (re.compile(r"\bbitcoin\b|\bbtc\b|\bethereum\b|\beth\b|\bsolana\b|\bxrp\b|\bdogecoin\b|\bcrypto\b|\btoken\b|\bs&p\b|\bnasdaq\b|\bstock price\b|\bshare price\b|\bgold price\b|\boil price\b|\bhit \$|\breach \$", re.I), CONTEXT_MARKET_PRICES),
+    (re.compile(r"\btemperature\b|\brainfall\b|\bsnowfall\b|\bhurricane\b|\bstorm\b|\bheat wave\b|\bweather\b|\bdegrees\b|°[cf]\b", re.I), CONTEXT_WEATHER),
+    (re.compile(r"\boscars?\b|\bgrammys?\b|\bemmys?\b|\bgolden globe\b|\baward\b|\balbum\b|\bbox office\b|\btrailer\b|\bseason finale\b|\brenewed\b|\beurovision\b|\bperson of the year\b|\bbillboard\b", re.I), CONTEXT_AWARDS),
+    (re.compile(r"\bceo\b|\bacquisition\b|\bmerger\b|\bipo\b|\bearnings\b|\blawsuit\b|\bcourt\b|\bruling\b|\bverdict\b|\bindicted?\b|\bconvicted\b|\bpardon\b|\bresigns?\b|\bappoints?\b|\bnominee\b|\bnomination\b|\bcabinet\b|\bsteps? down\b|\bfired\b|\brelease date\b", re.I), CONTEXT_CORPORATE),
+)
+
+
+def classify_insider_context(title: Any, category: Any = "") -> tuple[str, float, str]:
+    """Map a market to an insider-plausibility group: (group, multiplier, note).
+
+    Title keywords win over the coarse category field so that e.g. a "CEO
+    resigns" market filed under Business stays insider-prone while a generic
+    sports matchup is damped even when the category is missing.
+    """
+
+    title_text = str(title or "")
+    for pattern, group in _TITLE_PATTERNS:
+        if pattern.search(title_text):
+            return group, CONTEXT_MULTIPLIERS[group], CONTEXT_NOTES[group]
+    category_text = str(category or "").strip().lower()
+    if category_text:
+        for keys, group in _CATEGORY_GROUPS:
+            if any(key in category_text for key in keys):
+                return group, CONTEXT_MULTIPLIERS[group], CONTEXT_NOTES[group]
+    return CONTEXT_GENERAL, CONTEXT_MULTIPLIERS[CONTEXT_GENERAL], CONTEXT_NOTES[CONTEXT_GENERAL]
 
 
 def risk_level(score: Any) -> str:
@@ -108,6 +175,99 @@ def apply_fresh_wallet_bonus(event_risk: pd.DataFrame, clusters: pd.DataFrame, m
             label = f"{count} fresh wallets on {outcome}" if outcome else f"{count} fresh wallets same side"
             enriched.at[idx, "event_insider_flags"] = _append_flag(enriched.at[idx, "event_insider_flags"], label)
     return enriched
+
+
+def apply_category_context(event_risk: pd.DataFrame, market_categories: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Scale event scores by insider plausibility of the market category.
+
+    Adds columns: insider_context, context_multiplier, context_note,
+    event_score_raw (pre-context score). Re-sorts by the adjusted score.
+    """
+
+    if event_risk is None or event_risk.empty:
+        return event_risk
+    enriched = event_risk.copy()
+    category_map: dict[str, str] = {}
+    if market_categories is not None and not market_categories.empty and {"market_key", "category"}.issubset(market_categories.columns):
+        keys = market_categories["market_key"].astype(str)
+        category_map = dict(zip(keys, market_categories["category"].astype(str)))
+    contexts = [
+        classify_insider_context(row.get("title", ""), category_map.get(str(row.get("market_key", "")), ""))
+        for _, row in enriched.iterrows()
+    ]
+    enriched["insider_context"] = [group for group, _, _ in contexts]
+    enriched["context_multiplier"] = [multiplier for _, multiplier, _ in contexts]
+    enriched["context_note"] = [note for _, _, note in contexts]
+    enriched["event_score_raw"] = numeric_col(enriched, "event_insider_score")
+    enriched["event_insider_score"] = (enriched["event_score_raw"] * enriched["context_multiplier"]).clip(0, 100).round(0)
+    enriched["event_insider_level"] = enriched["event_insider_score"].map(risk_level)
+    return enriched.sort_values(["event_insider_score", "notional"], ascending=False).reset_index(drop=True)
+
+
+def apply_wallet_category_context(
+    wallet_risk: pd.DataFrame,
+    trades: pd.DataFrame,
+    market_categories: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Scale wallet scores by the notional-weighted insider plausibility of their flow.
+
+    A wallet whose whale flow sits mostly in sports/crypto/weather markets is
+    damped (high roller, not insider); flow concentrated in insider-prone
+    categories keeps or gains weight. Adds insider_context (dominant group),
+    context_multiplier (weighted) and wallet_score_raw.
+    """
+
+    if wallet_risk is None or wallet_risk.empty or trades is None or trades.empty:
+        return wallet_risk
+    df = trades.copy()
+    df["wallet"] = df["wallet"].astype(str).str.lower().str.strip()
+    df = df[df["wallet"].ne("") & df["wallet"].ne("nan")]
+    if df.empty:
+        return wallet_risk
+    category_map: dict[str, str] = {}
+    if market_categories is not None and not market_categories.empty and {"market_key", "category"}.issubset(market_categories.columns):
+        keys = market_categories["market_key"].astype(str)
+        category_map = dict(zip(keys, market_categories["category"].astype(str)))
+    contexts = [
+        classify_insider_context(row.get("title", ""), category_map.get(str(row.get("market_key", "")), ""))
+        for _, row in df.iterrows()
+    ]
+    df["_group"] = [group for group, _, _ in contexts]
+    df["_multiplier"] = [multiplier for _, multiplier, _ in contexts]
+    df["_notional"] = numeric_col(df, "notional").clip(lower=0.0)
+    df["_weighted"] = df["_multiplier"] * df["_notional"]
+    per_wallet = df.groupby("wallet").agg(_weighted=("_weighted", "sum"), _notional=("_notional", "sum"))
+    per_wallet["context_multiplier"] = (per_wallet["_weighted"] / per_wallet["_notional"].replace({0: pd.NA})).fillna(1.0)
+    dominant = (
+        df.groupby(["wallet", "_group"])["_notional"].sum().reset_index().sort_values("_notional", ascending=False).drop_duplicates(subset=["wallet"], keep="first")
+    )
+    per_wallet = per_wallet.merge(dominant.rename(columns={"_group": "insider_context"})[["wallet", "insider_context"]], on="wallet", how="left")
+
+    enriched = wallet_risk.copy()
+    enriched["_wallet_key"] = enriched["wallet"].astype(str).str.lower().str.strip()
+    enriched = enriched.merge(
+        per_wallet.rename(columns={"wallet": "_wallet_key"})[["_wallet_key", "context_multiplier", "insider_context"]],
+        on="_wallet_key",
+        how="left",
+    )
+    enriched["context_multiplier"] = pd.to_numeric(enriched["context_multiplier"], errors="coerce").fillna(1.0)
+    enriched["insider_context"] = enriched["insider_context"].fillna(CONTEXT_GENERAL)
+    enriched["wallet_score_raw"] = numeric_col(enriched, "wallet_insider_score")
+    enriched["wallet_insider_score"] = (enriched["wallet_score_raw"] * enriched["context_multiplier"]).clip(0, 100).round(0)
+    enriched["wallet_insider_level"] = enriched["wallet_insider_score"].map(risk_level)
+    if "wallet_insider_flags" in enriched:
+        damped = enriched["context_multiplier"] <= 0.8
+        boosted = enriched["context_multiplier"] >= 1.1
+        for idx in enriched.index[damped]:
+            group = str(enriched.at[idx, "insider_context"])
+            enriched.at[idx, "wallet_insider_flags"] = _append_flag(enriched.at[idx, "wallet_insider_flags"], f"flow mostly in {group.lower()}")
+        for idx in enriched.index[boosted]:
+            enriched.at[idx, "wallet_insider_flags"] = _append_flag(enriched.at[idx, "wallet_insider_flags"], "insider-prone categories")
+    return (
+        enriched.drop(columns=["_wallet_key"], errors="ignore")
+        .sort_values(["wallet_insider_score", "notional"], ascending=False)
+        .reset_index(drop=True)
+    )
 
 
 def apply_account_age_bonus(
