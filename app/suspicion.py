@@ -33,6 +33,7 @@ WATCH_ONLY = "watch only"
 CONTEXT_SPORTS = "Sports odds"
 CONTEXT_MARKET_PRICES = "Crypto & market prices"
 CONTEXT_WEATHER = "Weather & climate"
+CONTEXT_POLITICS = "Politics & geopolitics"
 CONTEXT_AWARDS = "Awards & entertainment"
 CONTEXT_CORPORATE = "Corporate & legal"
 CONTEXT_GENERAL = "General"
@@ -41,6 +42,7 @@ CONTEXT_MULTIPLIERS = {
     CONTEXT_SPORTS: 0.6,
     CONTEXT_MARKET_PRICES: 0.6,
     CONTEXT_WEATHER: 0.5,
+    CONTEXT_POLITICS: 1.1,
     CONTEXT_AWARDS: 1.15,
     CONTEXT_CORPORATE: 1.15,
     CONTEXT_GENERAL: 1.0,
@@ -50,25 +52,31 @@ CONTEXT_NOTES = {
     CONTEXT_SPORTS: "public-odds arena — big flow here is usually high rollers, not insiders",
     CONTEXT_MARKET_PRICES: "asset prices are public — whales here are traders, not insiders",
     CONTEXT_WEATHER: "model-driven outcome — insider knowledge is implausible",
+    CONTEXT_POLITICS: "decisions, talks and announcements are known to officials before the public",
     CONTEXT_AWARDS: "results are known to juries and production staff early — documented insider territory",
     CONTEXT_CORPORATE: "decisions are known internally before announcement",
     CONTEXT_GENERAL: "",
 }
 
+# Groups where insider knowledge is plausible — the page focuses on these by default.
+INSIDER_PRONE_GROUPS = (CONTEXT_POLITICS, CONTEXT_AWARDS, CONTEXT_CORPORATE, CONTEXT_GENERAL)
+
 _CATEGORY_GROUPS = (
     (("sport", "sports", "nba", "nfl", "mlb", "soccer", "football", "esports"), CONTEXT_SPORTS),
     (("crypto", "cryptocurrency", "finance", "stocks"), CONTEXT_MARKET_PRICES),
     (("weather", "climate", "science"), CONTEXT_WEATHER),
+    (("politic", "geopolitic", "election", "world", "global affairs"), CONTEXT_POLITICS),
     (("entertainment", "awards", "pop culture", "culture", "music", "movies", "tv"), CONTEXT_AWARDS),
     (("business", "companies", "tech", "earnings"), CONTEXT_CORPORATE),
 )
 
 _TITLE_PATTERNS = (
-    (re.compile(r"\bvs\.?\b|\bnba\b|\bnfl\b|\bmlb\b|\bnhl\b|\bufc\b|\bgrand prix\b|\bpremier league\b|\bchampions league\b|\bbundesliga\b|\bserie a\b|\bla liga\b|\bsuper bowl\b|\bworld series\b|\bplayoffs?\b|\bopen:\s|\bwimbledon\b|\bolympic", re.I), CONTEXT_SPORTS),
+    (re.compile(r"\bvs\.?\b|\bnba\b|\bnfl\b|\bmlb\b|\bnhl\b|\bufc\b|\bgrand prix\b|\bpremier league\b|\bchampions league\b|\bbundesliga\b|\bserie a\b|\bla liga\b|\bsuper bowl\b|\bworld series\b|\bplayoffs?\b|\bopen:\s|\bwimbledon\b|\bolympic|\bspread:?\b|\bmoneyline\b|\bover/under\b|\bo/u\b|\([+-]?\d+(?:\.5)\)", re.I), CONTEXT_SPORTS),
     (re.compile(r"\bbitcoin\b|\bbtc\b|\bethereum\b|\beth\b|\bsolana\b|\bxrp\b|\bdogecoin\b|\bcrypto\b|\btoken\b|\bs&p\b|\bnasdaq\b|\bstock price\b|\bshare price\b|\bgold price\b|\boil price\b|\bhit \$|\breach \$", re.I), CONTEXT_MARKET_PRICES),
     (re.compile(r"\btemperature\b|\brainfall\b|\bsnowfall\b|\bhurricane\b|\bstorm\b|\bheat wave\b|\bweather\b|\bdegrees\b|°[cf]\b", re.I), CONTEXT_WEATHER),
     (re.compile(r"\boscars?\b|\bgrammys?\b|\bemmys?\b|\bgolden globe\b|\baward\b|\balbum\b|\bbox office\b|\btrailer\b|\bseason finale\b|\brenewed\b|\beurovision\b|\bperson of the year\b|\bbillboard\b", re.I), CONTEXT_AWARDS),
     (re.compile(r"\bceo\b|\bacquisition\b|\bmerger\b|\bipo\b|\bearnings\b|\blawsuit\b|\bcourt\b|\bruling\b|\bverdict\b|\bindicted?\b|\bconvicted\b|\bpardon\b|\bresigns?\b|\bappoints?\b|\bnominee\b|\bnomination\b|\bcabinet\b|\bsteps? down\b|\bfired\b|\brelease date\b", re.I), CONTEXT_CORPORATE),
+    (re.compile(r"\bceasefire\b|\bsanctions?\b|\btariffs?\b|\btreaty\b|\bagreement\b|\bexecutive order\b|\bmilitary\b|\bstrikes?\b|\binvasion\b|\bnato\b|\bsummit\b|\belections?\b|\bpresident\b|\bminister\b|\bparliament\b|\bcongress\b|\bsenate\b|\bimpeach", re.I), CONTEXT_POLITICS),
 )
 
 
@@ -175,6 +183,166 @@ def apply_fresh_wallet_bonus(event_risk: pd.DataFrame, clusters: pd.DataFrame, m
             label = f"{count} fresh wallets on {outcome}" if outcome else f"{count} fresh wallets same side"
             enriched.at[idx, "event_insider_flags"] = _append_flag(enriched.at[idx, "event_insider_flags"], label)
     return enriched
+
+
+def coordinated_clusters(
+    trades: pd.DataFrame,
+    *,
+    window_minutes: float = 30.0,
+    min_wallets: int = 3,
+) -> pd.DataFrame:
+    """Per market: most distinct wallets hitting the same side within a tight time window.
+
+    Public cluster exposés describe wallets that trade within minutes of each
+    other on the same side — this is the tape-level approximation of that
+    pattern. Returns: title, coordinated_wallets, coordinated_outcome,
+    coordinated_span_minutes, coordinated_notional.
+    """
+
+    columns = ["title", "coordinated_wallets", "coordinated_outcome", "coordinated_span_minutes", "coordinated_notional"]
+    if trades is None or trades.empty or not {"wallet", "title", "time"}.issubset(trades.columns):
+        return pd.DataFrame(columns=columns)
+    df = trades.copy()
+    df["wallet"] = df["wallet"].astype(str).str.lower().str.strip()
+    df = df[df["wallet"].ne("") & df["wallet"].ne("nan")]
+    df["time"] = pd.to_datetime(df["time"], utc=True, errors="coerce")
+    df = df.dropna(subset=["time"])
+    if df.empty:
+        return pd.DataFrame(columns=columns)
+    df["outcome_label"] = df.get("outcome", pd.Series("", index=df.index)).astype(str).str.upper().str.strip()
+    df["notional"] = numeric_col(df, "notional")
+    window = pd.Timedelta(minutes=float(window_minutes))
+    rows: list[dict[str, Any]] = []
+    for (title, outcome), group in df.groupby(["title", "outcome_label"], dropna=False):
+        events = group.sort_values("time")[["time", "wallet", "notional"]].to_records(index=False)
+        if len(events) < min_wallets:
+            continue
+        best_count = 0
+        best_span = 0.0
+        best_notional = 0.0
+        left = 0
+        for right in range(len(events)):
+            while events[right][0] - events[left][0] > window:
+                left += 1
+            in_window = events[left : right + 1]
+            wallets = {record[1] for record in in_window}
+            if len(wallets) > best_count:
+                best_count = len(wallets)
+                best_span = (events[right][0] - events[left][0]).total_seconds() / 60
+                best_notional = float(sum(record[2] for record in in_window))
+        if best_count >= min_wallets:
+            rows.append(
+                {
+                    "title": str(title),
+                    "coordinated_wallets": int(best_count),
+                    "coordinated_outcome": str(outcome),
+                    "coordinated_span_minutes": round(best_span, 1),
+                    "coordinated_notional": best_notional,
+                }
+            )
+    if not rows:
+        return pd.DataFrame(columns=columns)
+    result = pd.DataFrame(rows).sort_values(["coordinated_wallets", "coordinated_notional"], ascending=False)
+    return result.drop_duplicates(subset=["title"], keep="first").reset_index(drop=True)
+
+
+def apply_coordination_bonus(event_risk: pd.DataFrame, clusters: pd.DataFrame, max_bonus: float = 10.0) -> pd.DataFrame:
+    """Bump event scores where several wallets hit the same side within minutes."""
+
+    if event_risk is None or event_risk.empty or clusters is None or clusters.empty:
+        return event_risk
+    enriched = event_risk.merge(clusters, on="title", how="left")
+    enriched["coordinated_wallets"] = pd.to_numeric(enriched.get("coordinated_wallets"), errors="coerce").fillna(0).astype(int)
+    has_cluster = enriched["coordinated_wallets"] >= 3
+    bonus = (enriched["coordinated_wallets"].clip(upper=5) * (max_bonus / 5.0)).where(has_cluster, 0.0)
+    enriched["event_insider_score"] = (numeric_col(enriched, "event_insider_score") + bonus).clip(0, 100).round(0)
+    enriched["event_insider_level"] = enriched["event_insider_score"].map(risk_level)
+    if "event_insider_flags" in enriched:
+        for idx in enriched.index[has_cluster]:
+            count = int(enriched.at[idx, "coordinated_wallets"])
+            span = float(enriched.at[idx, "coordinated_span_minutes"] or 0.0)
+            outcome = str(enriched.at[idx, "coordinated_outcome"] or "").strip()
+            label = f"{count} wallets within {span:.0f}min on {outcome}" if outcome else f"{count} wallets within {span:.0f}min"
+            enriched.at[idx, "event_insider_flags"] = _append_flag(enriched.at[idx, "event_insider_flags"], label)
+    return enriched
+
+
+def wallet_co_trading_clusters(trades: pd.DataFrame, *, min_shared: int = 2, max_wallets: int = 200) -> pd.DataFrame:
+    """Group wallets that repeatedly take the same side of the same markets.
+
+    Funding-source tracing needs on-chain data; co-trading overlap is the
+    public-tape proxy: wallets sharing >= min_shared (market, side) positions
+    land in one cluster. Returns wallet -> cluster_id, cluster_size,
+    shared_markets (max overlap with any cluster peer).
+    """
+
+    columns = ["wallet", "cluster_id", "cluster_size", "shared_markets"]
+    if trades is None or trades.empty or not {"wallet", "title"}.issubset(trades.columns):
+        return pd.DataFrame(columns=columns)
+    df = trades.copy()
+    df["wallet"] = df["wallet"].astype(str).str.lower().str.strip()
+    df = df[df["wallet"].ne("") & df["wallet"].ne("nan")]
+    if df.empty:
+        return pd.DataFrame(columns=columns)
+    df["outcome_label"] = df.get("outcome", pd.Series("", index=df.index)).astype(str).str.upper().str.strip()
+    df["notional"] = numeric_col(df, "notional")
+    by_size = df.groupby("wallet")["notional"].sum().sort_values(ascending=False)
+    keep = set(by_size.head(int(max_wallets)).index)
+    df = df[df["wallet"].isin(keep)]
+    positions: dict[str, set[tuple[str, str]]] = {}
+    for wallet, group in df.groupby("wallet"):
+        positions[wallet] = set(zip(group["title"].astype(str), group["outcome_label"]))
+    wallets = sorted(positions)
+    parent: dict[str, str] = {wallet: wallet for wallet in wallets}
+
+    def find(node: str) -> str:
+        while parent[node] != node:
+            parent[node] = parent[parent[node]]
+            node = parent[node]
+        return node
+
+    overlap: dict[str, int] = {wallet: 0 for wallet in wallets}
+    for i, left in enumerate(wallets):
+        for right in wallets[i + 1 :]:
+            shared = len(positions[left] & positions[right])
+            if shared >= int(min_shared):
+                parent[find(left)] = find(right)
+                overlap[left] = max(overlap[left], shared)
+                overlap[right] = max(overlap[right], shared)
+    members: dict[str, list[str]] = {}
+    for wallet in wallets:
+        members.setdefault(find(wallet), []).append(wallet)
+    rows = []
+    cluster_no = 0
+    for root, group in sorted(members.items(), key=lambda item: -len(item[1])):
+        if len(group) < 2:
+            continue
+        cluster_no += 1
+        for wallet in group:
+            rows.append({"wallet": wallet, "cluster_id": cluster_no, "cluster_size": len(group), "shared_markets": overlap[wallet]})
+    return pd.DataFrame(rows, columns=columns) if rows else pd.DataFrame(columns=columns)
+
+
+def apply_cluster_bonus(wallet_risk: pd.DataFrame, clusters: pd.DataFrame, bonus: float = 5.0) -> pd.DataFrame:
+    """Bump wallet scores for cluster members and flag them as possibly linked."""
+
+    if wallet_risk is None or wallet_risk.empty or clusters is None or clusters.empty:
+        return wallet_risk
+    enriched = wallet_risk.copy()
+    enriched["_wallet_key"] = enriched["wallet"].astype(str).str.lower().str.strip()
+    enriched = enriched.merge(clusters.rename(columns={"wallet": "_wallet_key"}), on="_wallet_key", how="left")
+    member = enriched["cluster_id"].notna()
+    enriched.loc[member, "wallet_insider_score"] = (
+        numeric_col(enriched.loc[member], "wallet_insider_score") + float(bonus)
+    ).clip(0, 100).round(0)
+    enriched["wallet_insider_level"] = enriched["wallet_insider_score"].map(risk_level)
+    if "wallet_insider_flags" in enriched:
+        for idx in enriched.index[member]:
+            size = int(enriched.at[idx, "cluster_size"])
+            enriched.at[idx, "wallet_insider_flags"] = _append_flag(
+                enriched.at[idx, "wallet_insider_flags"], f"moves with {size - 1} other wallet{'s' if size > 2 else ''}"
+            )
+    return enriched.drop(columns=["_wallet_key"], errors="ignore")
 
 
 def apply_category_context(event_risk: pd.DataFrame, market_categories: pd.DataFrame | None = None) -> pd.DataFrame:
