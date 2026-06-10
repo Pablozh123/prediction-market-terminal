@@ -115,8 +115,12 @@ class CategoryContextTests(unittest.TestCase):
             ("Highest temperature in NYC this week?", "", susp.CONTEXT_WEATHER),
             ("Will the film win Best Picture at the Oscars?", "", susp.CONTEXT_AWARDS),
             ("Will the CEO resign before July?", "", susp.CONTEXT_CORPORATE),
-            ("Who wins the 2026 election?", "Politics", susp.CONTEXT_GENERAL),
+            ("Who wins the 2026 election?", "Politics", susp.CONTEXT_POLITICS),
+            ("Will there be a ceasefire by July?", "", susp.CONTEXT_POLITICS),
             ("Some niche market", "Sports", susp.CONTEXT_SPORTS),
+            ("Spread: Knicks (-1.5)", "", susp.CONTEXT_SPORTS),
+            ("Lakers moneyline tonight", "", susp.CONTEXT_SPORTS),
+            ("Some niche question", "", susp.CONTEXT_GENERAL),
         ]
         for title, category, expected in cases:
             group, multiplier, _note = susp.classify_insider_context(title, category)
@@ -172,6 +176,76 @@ class CategoryContextTests(unittest.TestCase):
         self.assertEqual(corp_wallet["insider_context"], susp.CONTEXT_CORPORATE)
         self.assertAlmostEqual(corp_wallet["wallet_insider_score"], 80.0)
         self.assertIn("insider-prone categories", corp_wallet["wallet_insider_flags"])
+
+
+class CoordinationTests(unittest.TestCase):
+    def test_tight_window_cluster_detected(self):
+        rows = [
+            trade("0xaaa", "Ceasefire by July?", "Yes", 5000.0, "2026-06-10T12:00:00Z"),
+            trade("0xbbb", "Ceasefire by July?", "Yes", 6000.0, "2026-06-10T12:10:00Z"),
+            trade("0xccc", "Ceasefire by July?", "Yes", 7000.0, "2026-06-10T12:20:00Z"),
+            trade("0xddd", "Ceasefire by July?", "Yes", 8000.0, "2026-06-10T18:00:00Z"),
+        ]
+        clusters = susp.coordinated_clusters(tape(rows), window_minutes=30.0, min_wallets=3)
+        self.assertEqual(len(clusters), 1)
+        row = clusters.iloc[0]
+        self.assertEqual(row["coordinated_wallets"], 3)
+        self.assertEqual(row["coordinated_outcome"], "YES")
+        self.assertLessEqual(row["coordinated_span_minutes"], 30.0)
+
+    def test_spread_out_trades_are_not_a_cluster(self):
+        rows = [
+            trade("0xaaa", "Slow market", "Yes", 5000.0, "2026-06-10T01:00:00Z"),
+            trade("0xbbb", "Slow market", "Yes", 5000.0, "2026-06-10T05:00:00Z"),
+            trade("0xccc", "Slow market", "Yes", 5000.0, "2026-06-10T09:00:00Z"),
+        ]
+        clusters = susp.coordinated_clusters(tape(rows), window_minutes=30.0, min_wallets=3)
+        self.assertTrue(clusters.empty)
+
+    def test_coordination_bonus_applied(self):
+        events = pd.DataFrame([{"title": "Ceasefire by July?", "event_insider_score": 50.0, "event_insider_flags": "", "notional": 10000.0}])
+        clusters = pd.DataFrame([{"title": "Ceasefire by July?", "coordinated_wallets": 4, "coordinated_outcome": "YES", "coordinated_span_minutes": 12.0, "coordinated_notional": 20000.0}])
+        enriched = susp.apply_coordination_bonus(events, clusters)
+        self.assertAlmostEqual(enriched.iloc[0]["event_insider_score"], 58.0)
+        self.assertIn("4 wallets within 12min on YES", enriched.iloc[0]["event_insider_flags"])
+
+
+class CoTradingClusterTests(unittest.TestCase):
+    def test_wallets_sharing_two_markets_cluster_together(self):
+        rows = [
+            trade("0xaaa", "Market A", "Yes", 5000.0),
+            trade("0xaaa", "Market B", "No", 5000.0),
+            trade("0xbbb", "Market A", "Yes", 5000.0),
+            trade("0xbbb", "Market B", "No", 5000.0),
+            trade("0xccc", "Market A", "Yes", 5000.0),
+        ]
+        clusters = susp.wallet_co_trading_clusters(tape(rows), min_shared=2)
+        self.assertEqual(set(clusters["wallet"]), {"0xaaa", "0xbbb"})
+        self.assertTrue((clusters["cluster_size"] == 2).all())
+        self.assertTrue((clusters["shared_markets"] >= 2).all())
+
+    def test_opposite_sides_do_not_cluster(self):
+        rows = [
+            trade("0xaaa", "Market A", "Yes", 5000.0),
+            trade("0xaaa", "Market B", "Yes", 5000.0),
+            trade("0xbbb", "Market A", "No", 5000.0),
+            trade("0xbbb", "Market B", "No", 5000.0),
+        ]
+        clusters = susp.wallet_co_trading_clusters(tape(rows), min_shared=2)
+        self.assertTrue(clusters.empty)
+
+    def test_cluster_bonus_and_flag(self):
+        wallet_risk = pd.DataFrame([
+            {"wallet": "0xAAA", "wallet_insider_score": 60.0, "wallet_insider_flags": "watch only"},
+            {"wallet": "0xzzz", "wallet_insider_score": 60.0, "wallet_insider_flags": "watch only"},
+        ])
+        clusters = pd.DataFrame([{"wallet": "0xaaa", "cluster_id": 1, "cluster_size": 3, "shared_markets": 2}])
+        enriched = susp.apply_cluster_bonus(wallet_risk, clusters)
+        linked = enriched[enriched["wallet"].str.lower() == "0xaaa"].iloc[0]
+        unlinked = enriched[enriched["wallet"].str.lower() == "0xzzz"].iloc[0]
+        self.assertAlmostEqual(linked["wallet_insider_score"], 65.0)
+        self.assertIn("moves with 2 other wallets", linked["wallet_insider_flags"])
+        self.assertAlmostEqual(unlinked["wallet_insider_score"], 60.0)
 
 
 class StoryAndDrilldownTests(unittest.TestCase):

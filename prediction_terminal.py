@@ -12207,6 +12207,21 @@ def _suspicious_select_event(title: str) -> None:
     st.session_state["susp_selected"] = title
 
 
+@st.cache_data(ttl=600, show_spinner=False)
+def load_market_categories_by_ids(market_keys: tuple[str, ...]) -> pd.DataFrame:
+    """Precise category lookup for the tape's markets via Gamma condition ids."""
+
+    raw = md.get_polymarket_markets_by_condition_ids(list(market_keys))
+    rows: list[dict[str, str]] = []
+    for market in raw:
+        events = market.get("events") if isinstance(market.get("events"), list) else []
+        category = market.get("category") or (events[0].get("category") if events and isinstance(events[0], dict) else "") or ""
+        key = market.get("conditionId") or str(market.get("id", ""))
+        if key:
+            rows.append({"market_key": str(key), "category": str(category)})
+    return pd.DataFrame(rows, columns=["market_key", "category"])
+
+
 def page_suspicious() -> None:
     section_header(
         "Suspicious",
@@ -12227,9 +12242,19 @@ def page_suspicious() -> None:
     wallet_risk = md.whale_wallet_risk_scores(trades, whale_threshold=whale_floor)
     clusters = susp.fresh_wallet_clusters(trades, whale_threshold=whale_floor)
     event_risk = susp.apply_fresh_wallet_bonus(event_risk, clusters)
+    timing_clusters = susp.coordinated_clusters(trades)
+    event_risk = susp.apply_coordination_bonus(event_risk, timing_clusters)
+    co_clusters = susp.wallet_co_trading_clusters(trades)
+    wallet_risk = susp.apply_cluster_bonus(wallet_risk, co_clusters)
     market_universe = safe_load("Polymarket markets", load_polymarket_markets, market_limit, default=pd.DataFrame())
-    market_categories = (
+    universe_categories = (
         clean_table(market_universe, ["market_key", "category"]) if market_universe is not None and not market_universe.empty else pd.DataFrame()
+    )
+    tape_keys = tuple(sorted({str(key) for key in event_risk.get("market_key", pd.Series(dtype=str)).dropna().astype(str) if key}))
+    precise_categories = safe_load("Market categories", load_market_categories_by_ids, tape_keys, default=pd.DataFrame()) if tape_keys else pd.DataFrame()
+    frames = [frame for frame in (precise_categories, universe_categories) if frame is not None and not frame.empty]
+    market_categories = (
+        pd.concat(frames, ignore_index=True).drop_duplicates(subset=["market_key"], keep="first") if frames else pd.DataFrame()
     )
     event_risk = susp.apply_category_context(event_risk, market_categories)
     wallet_risk = susp.apply_wallet_category_context(wallet_risk, trades, market_categories)
@@ -12241,11 +12266,23 @@ def page_suspicious() -> None:
     high_events = int((numeric_col(event_risk, "event_insider_score") >= 70).sum()) if not event_risk.empty else 0
     high_wallets = int((numeric_col(wallet_risk, "wallet_insider_score") >= 70).sum()) if not wallet_risk.empty else 0
     stat_cols = st.columns(5)
-    stat_cols[0].metric("Events screened", f"{len(event_risk):,}")
-    stat_cols[1].metric("High-risk events", f"{high_events:,}")
-    stat_cols[2].metric("High-risk wallets", f"{high_wallets:,}")
-    stat_cols[3].metric("Whale volume", money(numeric_col(trades, "notional").sum()))
-    stat_cols[4].metric("Whale threshold", money(whale_floor))
+    stat_cols[0].metric("Events screened", f"{len(event_risk):,}", help="Markets with whale-sized prints in the current trade sample.")
+    stat_cols[1].metric("High-risk events", f"{high_events:,}", help="Events with a suspicion score of 70 or higher.")
+    stat_cols[2].metric("High-risk wallets", f"{high_wallets:,}", help="Wallets with a risk score of 70 or higher.")
+    stat_cols[3].metric("Whale volume", money(numeric_col(trades, "notional").sum()), help="Total whale-sized volume in the sample.")
+    stat_cols[4].metric("Whale threshold", money(whale_floor), help="Minimum trade size counted as a whale print — change it on the Settings page.")
+
+    with st.expander("How to read this page"):
+        st.markdown(
+            "- **Score (0–100):** built from unusual size, big bets on long odds, flow close to resolution, one-sided pressure, "
+            "trade bursts, fresh wallets, coordinated timing and favorable price moves. Bands: <40 low · 40–54 elevated · 55–69 medium · ≥70 high.\n"
+            "- **Category context:** in sports odds, public asset prices and weather there is nothing to know early — scores there are damped "
+            "and hidden by default (toggle below). Politics/geopolitics, awards and corporate/legal outcomes are where insider knowledge plausibly flows.\n"
+            "- **One-wallet share:** how much of a market's whale volume comes from its single biggest wallet. 100% means one address is the whole flow.\n"
+            "- **Clusters:** wallets that repeatedly take the same side of the same markets, or hit the same market within minutes, are flagged as possibly linked. "
+            "True linkage would need on-chain funding tracing, which this screen does not do.\n"
+            "- **Limits:** public trade tape only, sampled — a research lead, never a legal finding."
+        )
 
     if not event_risk.empty and "insider_context" in event_risk:
         st.markdown("<div class='step-label'>Where the suspicious flow sits</div>", unsafe_allow_html=True)
@@ -12274,10 +12311,19 @@ def page_suspicious() -> None:
         )
 
     st.markdown("<div class='step-label'>Suspicious events</div>", unsafe_allow_html=True)
-    if event_risk.empty:
-        draw_empty("No event-level signals in the current tape.")
+    show_all_arenas = st.toggle(
+        "Include high-roller arenas (sports odds, crypto/market prices, weather)",
+        value=False,
+        key="susp_show_all",
+        help="Big flow in these categories is usually high-roller action, not insider knowledge — hidden by default.",
+    )
+    focused_events = event_risk
+    if not show_all_arenas and not event_risk.empty and "insider_context" in event_risk:
+        focused_events = event_risk[event_risk["insider_context"].isin(susp.INSIDER_PRONE_GROUPS)].reset_index(drop=True)
+    if focused_events.empty:
+        draw_empty("No insider-prone events in the current tape — enable the toggle above to see the high-roller arenas too.")
     else:
-        event_rows = list(event_risk.head(6).iterrows())
+        event_rows = list(focused_events.head(6).iterrows())
         for start in range(0, len(event_rows), 2):
             cols = st.columns(2)
             for offset, (col, (_, event)) in enumerate(zip(cols, event_rows[start : start + 2])):
@@ -12308,9 +12354,9 @@ def page_suspicious() -> None:
                         if context_note:
                             st.markdown(f"<div class='field-hint'>{html.escape(context_note)}</div>", unsafe_allow_html=True)
                         m1, m2, m3 = st.columns(3)
-                        m1.metric("Whale $", money(event.get("notional", 0.0)))
-                        m2.metric("Top wallet", pct(event.get("top_wallet_share")))
-                        m3.metric("Wallets", f"{int(event.get('unique_wallets', 0) or 0)}")
+                        m1.metric("Whale $", money(event.get("notional", 0.0)), help="Whale-sized volume in this market within the sample.")
+                        m2.metric("One-wallet share", pct(event.get("top_wallet_share")), help="Share of this market's whale volume from its single largest wallet. 100% = one address is the whole flow.")
+                        m3.metric("Wallets", f"{int(event.get('unique_wallets', 0) or 0)}", help="Distinct wallets behind the whale flow.")
                         action_cols = st.columns(2)
                         url = str(event.get("url", "") or "")
                         if url.startswith("http"):
@@ -12351,7 +12397,12 @@ def page_suspicious() -> None:
     if wallet_risk.empty:
         draw_empty("No wallet-level signals in the current tape.")
         return
-    top_wallets_frame = wallet_risk.head(25)
+    focused_wallets = wallet_risk
+    if not show_all_arenas and "insider_context" in wallet_risk:
+        focused_wallets = wallet_risk[wallet_risk["insider_context"].isin(susp.INSIDER_PRONE_GROUPS)].reset_index(drop=True)
+    if focused_wallets.empty:
+        focused_wallets = wallet_risk
+    top_wallets_frame = focused_wallets.head(25)
     st.dataframe(
         clean_table(top_wallets_frame, ["wallet", "trader", "wallet_insider_level", "wallet_insider_score", "insider_context", "wallet_insider_flags", "notional", "largest_trade", "markets", "trade_count", "account_age_days"]),
         width="stretch",
@@ -12386,6 +12437,47 @@ def page_suspicious() -> None:
     )
     quick_cols[1].button("Backtest →", key="susp_backtest", width="stretch", type="primary", on_click=_pick_backtest, args=(str(selected_wallet).lower(),))
     quick_cols[2].button("Track", key="susp_track", width="stretch", on_click=_pick_track, args=(str(selected_wallet).lower(),))
+
+    if not co_clusters.empty:
+        st.markdown("<div class='step-label'>Possible linked wallets (co-trading clusters)</div>", unsafe_allow_html=True)
+        st.markdown(
+            "<div class='field-hint'>Wallets that repeatedly took the same side of the same markets in this sample. "
+            "Confirming real linkage would need on-chain funding tracing — treat these as leads.</div>",
+            unsafe_allow_html=True,
+        )
+        risk_lookup = wallet_risk.copy()
+        risk_lookup["_wallet_key"] = risk_lookup["wallet"].astype(str).str.lower().str.strip()
+        cluster_view = co_clusters.merge(
+            risk_lookup[["_wallet_key", "wallet_insider_score", "notional"]].rename(columns={"_wallet_key": "wallet"}),
+            on="wallet",
+            how="left",
+        )
+        cluster_summary = (
+            cluster_view.groupby("cluster_id")
+            .agg(
+                wallets=("wallet", lambda s: " · ".join(short_addr(w) for w in s)),
+                size=("wallet", "size"),
+                shared_markets=("shared_markets", "max"),
+                whale_notional=("notional", "sum"),
+                top_risk=("wallet_insider_score", "max"),
+            )
+            .reset_index()
+            .sort_values(["top_risk", "whale_notional"], ascending=False)
+        )
+        st.dataframe(
+            cluster_summary,
+            width="stretch",
+            height=220,
+            hide_index=True,
+            column_config={
+                "cluster_id": st.column_config.NumberColumn("#"),
+                "wallets": st.column_config.TextColumn("Wallets", width="large"),
+                "size": st.column_config.NumberColumn("Size"),
+                "shared_markets": st.column_config.NumberColumn("Shared markets", help="Most (market, side) positions this cluster's wallets have in common."),
+                "whale_notional": st.column_config.NumberColumn("Whale $", format="$%.0f"),
+                "top_risk": st.column_config.ProgressColumn("Top risk", min_value=0, max_value=100, format="%.0f"),
+            },
+        )
 
 
 PAGES = {
