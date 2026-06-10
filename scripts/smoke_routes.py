@@ -34,6 +34,7 @@ DEFAULT_ROUTES = [
     "/resolved?q=iran&outcome=yes,no&decisiveOnly=true&minVolume=10000&closedWindow=30d&finalYesMin=0.95",
     "/portfolio",
     "/portfolio?q=tony&platform=polymarket&source=research,copy&copyStatus=copied,settled&minValue=100&losersOnly=false",
+    "/backtester",
     "/copy-trade",
     "/copy-trade?q=tony&side=buy&status=copied,baseline&minTonyNotional=1000&minCopyNotional=10&reason=redeem&latencyOnly=true",
     "/sign-in",

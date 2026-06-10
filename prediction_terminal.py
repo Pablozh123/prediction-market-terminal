@@ -19,6 +19,7 @@ import plotly.graph_objects as go
 import streamlit as st
 import streamlit.components.v1 as components
 
+from app import backtester as btr
 from app import copy_follow as ctf
 from src import copy_trading as ct
 from src import prediction_markets as md
@@ -77,6 +78,7 @@ WORKSPACES = [
     "Track",
     "Live Trades",
     "Wallets",
+    "Backtester",
     "Copy Trade",
     "Whale Flow",
     "Cross-Venue",
@@ -12018,6 +12020,308 @@ def page_portfolio() -> None:
                     st.rerun()
 
 
+BACKTEST_SIZING_OPTIONS = {
+    "Fixed stake": btr.SIZING_FIXED,
+    "Percent of bankroll": btr.SIZING_PERCENT,
+    "Mirror trader size": btr.SIZING_MIRROR,
+}
+BACKTEST_WINDOWS = [30, 60, 90]
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def run_backtest_cached(
+    wallet: str,
+    days: int,
+    bankroll: float,
+    sizing_mode: str,
+    stake_value: float,
+    max_stake: float,
+    fee_bps: float,
+    slippage_bps: float,
+    flat_stake: float,
+) -> btr.BacktestResult:
+    return btr.run_backtest(
+        btr.BacktestConfig(
+            wallet=wallet,
+            days=days,
+            bankroll=bankroll,
+            sizing_mode=sizing_mode,
+            stake_value=stake_value,
+            max_stake=max_stake,
+            fee_bps=fee_bps,
+            slippage_bps=slippage_bps,
+            flat_stake=flat_stake,
+        )
+    )
+
+
+def _backtest_stat_cards(stats: dict[str, Any], benchmark: dict[str, Any]) -> None:
+    cols = st.columns(6)
+    cols[0].metric("Final equity", money(stats["final_equity"]), f"{stats['roi'] * 100:+.1f}% ROI")
+    bench_delta = stats["total_pnl"] - float(benchmark.get("total_pnl", 0.0) or 0.0)
+    cols[1].metric("Total P&L", money(stats["total_pnl"]), f"{money(bench_delta)} vs flat-bet")
+    cols[2].metric("Win rate", pct(stats["win_rate"]), f"{stats['wins']}W / {stats['losses']}L", delta_color="off")
+    cols[3].metric("Max drawdown", pct(stats["max_drawdown"]))
+    cols[4].metric("Trades copied", f"{stats['copied_trades']}", f"{stats['skipped_trades']} skipped", delta_color="off")
+    cols[5].metric("Fees paid", money(stats["fees_paid"]), f"{money(stats['open_value'])} open", delta_color="off")
+
+
+def _backtest_equity_chart(result: btr.BacktestResult, compare: btr.BacktestResult | None = None) -> go.Figure:
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=result.equity["time"],
+            y=result.equity["equity"],
+            name=short_addr(result.wallet),
+            line=dict(color=ACCENT, width=2),
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=result.equity["time"],
+            y=result.equity["benchmark"],
+            name="Flat-bet benchmark",
+            line=dict(color=MUTED, width=1.4, dash="dash"),
+        )
+    )
+    if compare is not None and not compare.equity.empty:
+        fig.add_trace(
+            go.Scatter(
+                x=compare.equity["time"],
+                y=compare.equity["equity"],
+                name=short_addr(compare.wallet),
+                line=dict(color=BLUE, width=2),
+            )
+        )
+    fig.update_layout(
+        height=360,
+        margin=dict(l=10, r=10, t=24, b=10),
+        paper_bgcolor=BG,
+        plot_bgcolor=BG,
+        template="plotly_dark",
+        yaxis_title="Equity ($)",
+        xaxis_title="",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+    )
+    return fig
+
+
+def _backtest_drawdown_chart(result: btr.BacktestResult) -> go.Figure:
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=result.equity["time"],
+            y=result.equity["drawdown"] * 100.0,
+            name="Drawdown",
+            fill="tozeroy",
+            line=dict(color=RED, width=1.6),
+        )
+    )
+    fig.update_layout(
+        height=240,
+        margin=dict(l=10, r=10, t=24, b=10),
+        paper_bgcolor=BG,
+        plot_bgcolor=BG,
+        template="plotly_dark",
+        yaxis_title="Drawdown (%)",
+        xaxis_title="",
+        showlegend=False,
+    )
+    return fig
+
+
+def _backtest_trade_log(result: btr.BacktestResult) -> None:
+    ledger = result.ledger
+    if ledger.empty:
+        draw_empty("No simulated fills inside the selected window.")
+        return
+    view = clean_table(
+        ledger,
+        ["time", "action", "status", "title", "outcome", "source_notional", "stake", "exec_price", "shares", "fee", "realized_pnl", "equity_after", "note"],
+    )
+    st.dataframe(
+        view,
+        width="stretch",
+        height=380,
+        column_config={
+            "time": st.column_config.DatetimeColumn("Time", format="YYYY-MM-DD HH:mm"),
+            "action": st.column_config.TextColumn("Action"),
+            "status": st.column_config.TextColumn("Status"),
+            "title": st.column_config.TextColumn("Market", width="large"),
+            "outcome": st.column_config.TextColumn("Side"),
+            "source_notional": st.column_config.NumberColumn("Trader $", format="$%.0f"),
+            "stake": st.column_config.NumberColumn("Stake", format="$%.2f"),
+            "exec_price": st.column_config.NumberColumn("Fill", format="%.3f"),
+            "shares": st.column_config.NumberColumn("Shares", format="%.1f"),
+            "fee": st.column_config.NumberColumn("Fee", format="$%.2f"),
+            "realized_pnl": st.column_config.NumberColumn("Realized P&L", format="$%.2f"),
+            "equity_after": st.column_config.NumberColumn("Equity", format="$%.2f"),
+            "note": st.column_config.TextColumn("Note"),
+        },
+    )
+    st.download_button(
+        "Export trade log CSV",
+        view.to_csv(index=False).encode("utf-8"),
+        file_name=f"backtest_{result.wallet[:10]}.csv",
+        mime="text/csv",
+    )
+
+
+def _backtest_open_positions(result: btr.BacktestResult) -> None:
+    positions = result.open_positions
+    if positions.empty:
+        draw_empty("No open positions at the end of the window — everything resolved or was sold.")
+        return
+    st.dataframe(
+        clean_table(positions, ["title", "outcome", "shares", "avg_price", "current_price", "cost_basis", "value", "unrealized_pnl", "market_status"]),
+        width="stretch",
+        height=320,
+        column_config={
+            "title": st.column_config.TextColumn("Market", width="large"),
+            "outcome": st.column_config.TextColumn("Side"),
+            "shares": st.column_config.NumberColumn("Shares", format="%.1f"),
+            "avg_price": st.column_config.NumberColumn("Avg fill", format="%.3f"),
+            "current_price": st.column_config.NumberColumn("Mark", format="%.3f"),
+            "cost_basis": st.column_config.NumberColumn("Cost", format="$%.2f"),
+            "value": st.column_config.NumberColumn("Value", format="$%.2f"),
+            "unrealized_pnl": st.column_config.NumberColumn("Unrealized P&L", format="$%.2f"),
+            "market_status": st.column_config.TextColumn("Status"),
+        },
+    )
+
+
+def _backtest_comparison_table(result: btr.BacktestResult, compare: btr.BacktestResult) -> None:
+    def row(label: str, key: str, formatter) -> dict[str, Any]:
+        return {
+            "Metric": label,
+            short_addr(result.wallet): formatter(result.stats.get(key)),
+            short_addr(compare.wallet): formatter(compare.stats.get(key)),
+        }
+
+    frame = pd.DataFrame(
+        [
+            row("Final equity", "final_equity", money),
+            row("Total P&L", "total_pnl", money),
+            row("ROI", "roi", pct),
+            row("Win rate", "win_rate", pct),
+            row("Max drawdown", "max_drawdown", pct),
+            row("Trades copied", "copied_trades", lambda v: f"{int(v or 0)}"),
+            row("Fees paid", "fees_paid", money),
+            row("Open value", "open_value", money),
+        ]
+    )
+    st.dataframe(frame, width="stretch", height=320, hide_index=True)
+
+
+def page_backtester() -> None:
+    section_header(
+        "Backtester",
+        "Run any wallet against up to 90 days of market history. Fees and slippage are priced into every simulated fill.",
+    )
+    with st.form("backtester_form"):
+        r1c1, r1c2, r1c3 = st.columns([2, 2, 1])
+        wallet_input = r1c1.text_input("Wallet address", placeholder="0x…", key="bt_wallet")
+        compare_input = r1c2.text_input("Compare wallet (optional)", placeholder="0x…", key="bt_compare")
+        days = r1c3.selectbox("Window", BACKTEST_WINDOWS, index=2, format_func=lambda value: f"{value} days", key="bt_days")
+        r2c1, r2c2, r2c3, r2c4 = st.columns(4)
+        bankroll = r2c1.number_input("Bankroll ($)", min_value=10.0, max_value=1_000_000.0, value=1000.0, step=100.0, key="bt_bankroll")
+        sizing_label = r2c2.selectbox("Bet sizing", list(BACKTEST_SIZING_OPTIONS), key="bt_sizing", help="Fixed: same $ stake per copy. Percent: % of current bankroll. Mirror: % of the trader's notional.")
+        stake_value = r2c3.number_input("Stake ($ or %)", min_value=0.1, max_value=100_000.0, value=25.0, step=1.0, key="bt_stake")
+        max_stake = r2c4.number_input("Max stake ($)", min_value=1.0, max_value=100_000.0, value=250.0, step=10.0, key="bt_max_stake")
+        r3c1, r3c2, r3c3 = st.columns(3)
+        fee_bps = r3c1.number_input("Fee (bps)", min_value=0.0, max_value=500.0, value=20.0, step=5.0, key="bt_fee")
+        slippage_bps = r3c2.number_input("Slippage (bps)", min_value=0.0, max_value=500.0, value=50.0, step=5.0, key="bt_slippage")
+        flat_stake = r3c3.number_input("Benchmark flat stake ($)", min_value=1.0, max_value=100_000.0, value=25.0, step=5.0, key="bt_flat")
+        submitted = st.form_submit_button("RUN BACKTEST →", type="primary")
+
+    if submitted:
+        wallet = str(wallet_input or "").strip().lower()
+        compare_wallet = str(compare_input or "").strip().lower()
+        if not md.is_polymarket_wallet(wallet):
+            st.warning("Enter a valid Polymarket wallet address (0x + 40 hex characters).")
+            st.session_state.pop("backtest_request", None)
+        elif compare_wallet and not md.is_polymarket_wallet(compare_wallet):
+            st.warning("The compare wallet is not a valid Polymarket address.")
+            st.session_state.pop("backtest_request", None)
+        else:
+            st.session_state["backtest_request"] = {
+                "wallet": wallet,
+                "compare": compare_wallet,
+                "days": int(days),
+                "bankroll": float(bankroll),
+                "sizing_mode": BACKTEST_SIZING_OPTIONS[sizing_label],
+                "stake_value": float(stake_value),
+                "max_stake": float(max_stake),
+                "fee_bps": float(fee_bps),
+                "slippage_bps": float(slippage_bps),
+                "flat_stake": float(flat_stake),
+            }
+
+    request = st.session_state.get("backtest_request")
+    if not request:
+        draw_empty("Enter a wallet, choose your sizing and costs, then run the backtest to see how copying it would have performed.")
+        return
+
+    try:
+        with st.spinner("Replaying trades against market history…"):
+            result = run_backtest_cached(
+                request["wallet"],
+                request["days"],
+                request["bankroll"],
+                request["sizing_mode"],
+                request["stake_value"],
+                request["max_stake"],
+                request["fee_bps"],
+                request["slippage_bps"],
+                request["flat_stake"],
+            )
+            compare_result = None
+            if request["compare"]:
+                compare_result = run_backtest_cached(
+                    request["compare"],
+                    request["days"],
+                    request["bankroll"],
+                    request["sizing_mode"],
+                    request["stake_value"],
+                    request["max_stake"],
+                    request["fee_bps"],
+                    request["slippage_bps"],
+                    request["flat_stake"],
+                )
+    except md.MarketDataError as exc:
+        st.error(f"Market data request failed: {exc}")
+        return
+
+    if result.ledger.empty:
+        draw_empty("No trades found for this wallet inside the selected window.")
+        return
+
+    st.markdown(
+        f"<div class='small-note'>Window {result.window_start.strftime('%Y-%m-%d')} → {result.window_end.strftime('%Y-%m-%d')} · wallet <span class='mono'>{html.escape(short_addr(result.wallet))}</span></div>",
+        unsafe_allow_html=True,
+    )
+    _backtest_stat_cards(result.stats, result.benchmark_stats)
+    st.plotly_chart(_backtest_equity_chart(result, compare_result), width="stretch", config=plot_config())
+
+    tab_labels = ["Trade log", "Open positions", "Drawdown"]
+    if compare_result is not None:
+        tab_labels.append("Comparison")
+    tabs = st.tabs(tab_labels)
+    with tabs[0]:
+        _backtest_trade_log(result)
+    with tabs[1]:
+        _backtest_open_positions(result)
+    with tabs[2]:
+        st.plotly_chart(_backtest_drawdown_chart(result), width="stretch", config=plot_config())
+    if compare_result is not None:
+        with tabs[3]:
+            if compare_result.ledger.empty:
+                draw_empty("No trades found for the compare wallet inside the selected window.")
+            else:
+                _backtest_stat_cards(compare_result.stats, compare_result.benchmark_stats)
+                _backtest_comparison_table(result, compare_result)
+
+
 PAGES = {
     "Overview": page_overview,
     "Search": page_search,
@@ -12026,6 +12330,7 @@ PAGES = {
     "Track": page_track,
     "Live Trades": page_live_trades,
     "Wallets": page_wallets,
+    "Backtester": page_backtester,
     "Copy Trade": page_copy_trade,
     "Whale Flow": page_whale_flow,
     "Cross-Venue": page_cross_venue,
