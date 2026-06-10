@@ -22,6 +22,7 @@ PAGE_SLUGS = [
     "search",
     "markets",
     "traders",
+    "picks",
     "track",
     "live-trades",
     "wallets",
@@ -33,6 +34,7 @@ PAGE_SLUGS = [
     "alerts",
     "resolved",
     "portfolio",
+    "settings",
 ]
 
 

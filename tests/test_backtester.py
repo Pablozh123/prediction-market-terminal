@@ -330,6 +330,40 @@ class RunBacktestTests(unittest.TestCase):
         self.assertAlmostEqual(result.stats["volume_copied"], 200.0, places=6)
         self.assertAlmostEqual(result.benchmark_stats["volume_copied"], 50.0, places=6)
 
+    def test_window_truncation_is_flagged_for_hyperactive_wallets(self):
+        now = pd.Timestamp("2026-06-10", tz="UTC")
+
+        def fetch_activity(wallet, limit=500, offset=0):
+            rows = [
+                trade("2026-06-01", "BUY", 0.5, 10.0, asset=f"tok-{offset}-{i}", market_key=f"c-{offset}-{i}")
+                for i in range(limit)
+            ]
+            return pd.DataFrame(rows)
+
+        result = bt.run_backtest(
+            config(),
+            fetch_activity=fetch_activity,
+            fetch_markets_by_ids=lambda ids: [],
+            now=now,
+        )
+        self.assertTrue(result.stats["window_truncated"])
+        self.assertIn("effective_start", result.stats)
+
+    def test_window_fully_covered_is_not_flagged(self):
+        now = pd.Timestamp("2026-06-10", tz="UTC")
+        activity = pd.DataFrame([trade("2026-05-01", "BUY", 0.5, 10.0)])
+
+        def fetch_activity(wallet, limit=500, offset=0):
+            return activity if offset == 0 else pd.DataFrame()
+
+        result = bt.run_backtest(
+            config(),
+            fetch_activity=fetch_activity,
+            fetch_markets_by_ids=lambda ids: [],
+            now=now,
+        )
+        self.assertFalse(result.stats["window_truncated"])
+
     def test_empty_activity_yields_flat_result(self):
         result = bt.run_backtest(
             config(),
