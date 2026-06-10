@@ -22,7 +22,7 @@ Dieses Dokument ist das gemeinsame Arbeitsteilungs-Board. **Vor jedem Arbeitsbeg
 
 | Feature / Thema | Owner | Branch | Status | Notiz |
 |---|---|---|---|---|
-| Website-Features (laufend) | Codex | `codex/website` | in Arbeit | bearbeitet `prediction_terminal.py` |
+| Website-Features + Handoff | Codex | `codex/follow-traders-ui-split-fixes` | bereit fuer Claude-Review | aktueller Branch liegt 16 Commits vor `main`; siehe `docs/CLAUDE_HANDOFF.md` |
 | Multi-Trader-Copytrading — Spec | Claude | `claude/multitrader-spec` | geplant | Design-Dokument für Codex |
 | Multi-Trader-Copytrading — Umsetzung | Codex | `codex/multitrader` | wartet auf Spec | erst nach Spec-Merge starten |
 | Code-Review: copy_trading + API-Layer | Claude | `claude/review` | geplant | Findings-Report in `docs/` |
@@ -55,3 +55,7 @@ Regel: Während der Klon-Phase wird die Copytrading-Erweiterung **nicht** angefa
 
 - **Phase 1 (laufend, Codex):** getreuer predictparity-Klon bis zu einem stabilen, nach `main` gemergten Meilenstein. Abschluss mit Tag `v1-clone`. In dieser Phase **keine** Multi-Trader-Arbeit.
 - **Phase 2 (danach):** Multi-Trader-Copytrading laut Spec, als isolierte Schicht. Start **erst nach** `v1-clone`.
+
+## Aktueller Handoff
+
+Claude Desktop soll vor neuer Arbeit `docs/CLAUDE_HANDOFF.md` lesen. Der aktuelle Branch kann vor `main` liegen; immer `git status --short --branch` und `git log --oneline main..HEAD` pruefen.
