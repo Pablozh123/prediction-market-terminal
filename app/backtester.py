@@ -404,14 +404,25 @@ def fetch_window_trades(
     window_start: pd.Timestamp,
     fetch_activity: Callable[..., pd.DataFrame],
     page_size: int = 500,
-    max_rows: int = 4000,
+    max_rows: int = 3000,
 ) -> pd.DataFrame:
-    """Page the wallet's activity feed back until the window start (TRADE rows only)."""
+    """Page the wallet's activity feed back until the window start (TRADE rows only).
+
+    The public data API rejects deep pagination (offset+limit beyond ~3500), so the
+    scan is capped; for hyper-active wallets the window covers the most recent
+    ``max_rows`` activity rows. Errors on follow-up pages keep the rows already
+    fetched instead of failing the whole backtest.
+    """
 
     frames: list[pd.DataFrame] = []
     offset = 0
     while offset < max_rows:
-        page = fetch_activity(wallet, limit=page_size, offset=offset)
+        try:
+            page = fetch_activity(wallet, limit=page_size, offset=offset)
+        except Exception:
+            if frames:
+                break
+            raise
         if page is None or page.empty:
             break
         frames.append(page)
