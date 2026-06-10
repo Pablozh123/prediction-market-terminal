@@ -129,6 +129,54 @@ class ReplayTests(unittest.TestCase):
         self.assertEqual(positions, {})
 
 
+class FadeStrategyTests(unittest.TestCase):
+    def test_fade_buy_opens_opposite_side(self):
+        trades = frame([trade("2026-05-01", "BUY", 0.60, 100.0)])
+        ledger, positions = bt.replay(trades, config(strategy=bt.STRATEGY_FADE))
+        buy = ledger.iloc[0]
+        self.assertAlmostEqual(buy["exec_price"], 0.40, places=6)
+        self.assertAlmostEqual(buy["shares"], 25.0 / 0.40, places=6)
+        self.assertIn("fade:tok-yes", positions)
+        self.assertTrue(positions["fade:tok-yes"]["fade"])
+
+    def test_fade_loses_when_source_side_wins(self):
+        trades = frame([trade("2026-05-01", "BUY", 0.60, 100.0)])
+        _, positions = bt.replay(trades, config(strategy=bt.STRATEGY_FADE))
+        token_values = {"tok-yes": {"price": 1.0, "closed": True, "end_time": pd.Timestamp("2026-05-20", tz="UTC")}}
+        settlement, _ = bt.settle(positions, token_values, asof=pd.Timestamp("2026-06-01", tz="UTC"))
+        self.assertAlmostEqual(settlement.iloc[0]["realized_pnl"], -25.0, places=6)
+
+    def test_fade_wins_when_source_side_loses(self):
+        trades = frame([trade("2026-05-01", "BUY", 0.60, 100.0)])
+        _, positions = bt.replay(trades, config(strategy=bt.STRATEGY_FADE))
+        token_values = {"tok-yes": {"price": 0.0, "closed": True, "end_time": pd.Timestamp("2026-05-20", tz="UTC")}}
+        settlement, _ = bt.settle(positions, token_values, asof=pd.Timestamp("2026-06-01", tz="UTC"))
+        self.assertAlmostEqual(settlement.iloc[0]["realized_pnl"], (25.0 / 0.40) * 1.0 - 25.0, places=6)
+
+    def test_fade_mirrored_sell_exits_at_inverse_price(self):
+        trades = frame(
+            [
+                trade("2026-05-01", "BUY", 0.60, 100.0),
+                trade("2026-05-05", "SELL", 0.80, 100.0),
+            ]
+        )
+        ledger, positions = bt.replay(trades, config(strategy=bt.STRATEGY_FADE))
+        sell = ledger.iloc[1]
+        self.assertAlmostEqual(sell["exec_price"], 0.20, places=6)
+        expected = (25.0 / 0.40) * 0.20 - 25.0
+        self.assertAlmostEqual(sell["realized_pnl"], expected, places=6)
+        self.assertEqual(positions, {})
+
+    def test_fade_open_position_marks_to_inverse_market(self):
+        trades = frame([trade("2026-05-01", "BUY", 0.60, 100.0)])
+        _, positions = bt.replay(trades, config(strategy=bt.STRATEGY_FADE))
+        token_values = {"tok-yes": {"price": 0.7, "closed": False, "end_time": None}}
+        settlement, open_positions = bt.settle(positions, token_values, asof=pd.Timestamp("2026-06-01", tz="UTC"))
+        self.assertTrue(settlement.empty)
+        self.assertAlmostEqual(open_positions.iloc[0]["current_price"], 0.3, places=6)
+        self.assertAlmostEqual(open_positions.iloc[0]["unrealized_pnl"], (25.0 / 0.40) * 0.3 - 25.0, places=6)
+
+
 class SettleTests(unittest.TestCase):
     def _positions(self):
         trades = frame([trade("2026-05-01", "BUY", 0.50, 100.0)])

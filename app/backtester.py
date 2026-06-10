@@ -27,6 +27,10 @@ SIZING_PERCENT = "percent"
 SIZING_MIRROR = "mirror"
 SIZING_MODES = (SIZING_FIXED, SIZING_PERCENT, SIZING_MIRROR)
 
+STRATEGY_COPY = "copy"
+STRATEGY_FADE = "fade"
+STRATEGIES = (STRATEGY_COPY, STRATEGY_FADE)
+
 MIN_STAKE = 1.0
 
 LEDGER_COLUMNS = [
@@ -73,6 +77,7 @@ class BacktestConfig:
     fee_bps: float = 20.0
     slippage_bps: float = 50.0
     flat_stake: float = 25.0
+    strategy: str = STRATEGY_COPY
 
 
 @dataclass(frozen=True)
@@ -112,6 +117,7 @@ def replay(trades: pd.DataFrame, config: BacktestConfig) -> tuple[pd.DataFrame, 
     realized_net = 0.0
     fee_rate = max(0.0, config.fee_bps) / 10_000.0
     slip_rate = max(0.0, config.slippage_bps) / 10_000.0
+    fade = config.strategy == STRATEGY_FADE
     positions: dict[str, dict[str, Any]] = {}
     source_shares: dict[str, float] = {}
     rows: list[dict[str, Any]] = []
@@ -154,6 +160,9 @@ def replay(trades: pd.DataFrame, config: BacktestConfig) -> tuple[pd.DataFrame, 
             log(trade.get("time"), side or "?", "skipped", record, note="bad trade data")
             continue
 
+        position_key = f"fade:{asset}" if fade else asset
+        display_outcome = f"FADE {record.get('outcome', '')}".strip() if fade else record.get("outcome", "")
+        record["outcome"] = display_outcome
         if side == "BUY":
             source_shares[asset] = source_shares.get(asset, 0.0) + size
             stake = _stake_for(config, equity_now(), float(trade.get("notional", 0.0) or 0.0))
@@ -164,16 +173,19 @@ def replay(trades: pd.DataFrame, config: BacktestConfig) -> tuple[pd.DataFrame, 
             if stake < MIN_STAKE:
                 log(trade.get("time"), "BUY", "skipped", record, note="stake below minimum / out of cash")
                 continue
-            exec_price = min(0.999, price * (1.0 + slip_rate))
+            base_price = (1.0 - price) if fade else price
+            exec_price = min(0.999, base_price * (1.0 + slip_rate))
             shares = stake / exec_price
             position = positions.setdefault(
-                asset,
+                position_key,
                 {
                     "shares": 0.0,
                     "cost_basis": 0.0,
                     "title": record.get("title", ""),
-                    "outcome": record.get("outcome", ""),
+                    "outcome": display_outcome,
                     "market_key": str(record.get("market_key", "") or ""),
+                    "lookup_asset": asset,
+                    "fade": fade,
                 },
             )
             position["shares"] += shares
@@ -189,10 +201,10 @@ def replay(trades: pd.DataFrame, config: BacktestConfig) -> tuple[pd.DataFrame, 
                 exec_price=exec_price,
                 shares=shares,
                 fee=fee,
-                note="",
+                note="took the opposite side" if fade else "",
             )
         elif side == "SELL":
-            held = positions.get(asset)
+            held = positions.get(position_key)
             src_before = source_shares.get(asset, 0.0)
             source_shares[asset] = max(0.0, src_before - size)
             if not held or held["shares"] <= 0.0:
@@ -200,7 +212,8 @@ def replay(trades: pd.DataFrame, config: BacktestConfig) -> tuple[pd.DataFrame, 
                 continue
             fraction = 1.0 if src_before <= 0.0 else min(1.0, size / src_before)
             sell_shares = held["shares"] * fraction
-            exec_price = max(0.001, price * (1.0 - slip_rate))
+            base_price = (1.0 - price) if fade else price
+            exec_price = max(0.001, base_price * (1.0 - slip_rate))
             proceeds = sell_shares * exec_price
             fee = proceeds * fee_rate
             cost_released = held["cost_basis"] * (sell_shares / held["shares"])
@@ -210,7 +223,7 @@ def replay(trades: pd.DataFrame, config: BacktestConfig) -> tuple[pd.DataFrame, 
             cash += proceeds - fee
             realized_net += realized
             if held["shares"] <= 1e-9:
-                positions.pop(asset, None)
+                positions.pop(position_key, None)
             log(
                 trade.get("time"),
                 "SELL",
@@ -247,8 +260,13 @@ def settle(
         cost = float(position.get("cost_basis", 0.0) or 0.0)
         if shares <= 0.0:
             continue
-        info = token_values.get(asset, {})
-        price = info.get("price")
+        lookup_asset = str(position.get("lookup_asset", asset) or asset)
+        info = token_values.get(lookup_asset, {})
+        raw_price = info.get("price")
+        if raw_price is None:
+            price = None
+        else:
+            price = (1.0 - float(raw_price)) if position.get("fade") else float(raw_price)
         closed = bool(info.get("closed"))
         end_time = info.get("end_time")
         base = {
@@ -481,6 +499,7 @@ def run_backtest(
         fee_bps=config.fee_bps,
         slippage_bps=config.slippage_bps,
         flat_stake=config.flat_stake,
+        strategy=config.strategy,
     )
     flat_ledger, flat_positions = replay(trades, flat_config)
 
