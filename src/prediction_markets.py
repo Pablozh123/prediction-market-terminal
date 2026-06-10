@@ -266,6 +266,54 @@ def get_polymarket_markets(limit: int = 250, offset: int = 0, active_only: bool 
     return _finalize_polymarket_markets([_normalize_polymarket_market(market) for market in rows])
 
 
+def get_polymarket_markets_by_condition_ids(condition_ids: list[str]) -> list[dict[str, Any]]:
+    """Fetch raw Gamma market payloads for specific conditionIds (batched).
+
+    Returns raw dicts (not normalized) because callers such as the backtester
+    need ``clobTokenIds``/``outcomePrices`` index alignment to value a token.
+    """
+
+    seen: set[str] = set()
+    ids: list[str] = []
+    for value in condition_ids:
+        text = str(value or "").strip()
+        if text and text not in seen:
+            seen.add(text)
+            ids.append(text)
+    rows: list[dict[str, Any]] = []
+    batch_size = 20
+    for start in range(0, len(ids), batch_size):
+        batch = ids[start : start + batch_size]
+        try:
+            data = _get_json(f"{POLY_GAMMA}/markets", params={"condition_ids": batch, "limit": len(batch)})
+        except MarketDataError:
+            continue
+        rows.extend(item for item in (data if isinstance(data, list) else data.get("data", [])) if isinstance(item, dict))
+    return rows
+
+
+def polymarket_token_value_map(markets: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Map CLOB token id -> {price, closed, end_time} from raw Gamma market dicts."""
+
+    lookup: dict[str, dict[str, Any]] = {}
+    for market in markets:
+        tokens = _as_list(market.get("clobTokenIds"))
+        prices = _as_list(market.get("outcomePrices"))
+        closed = bool(market.get("closed"))
+        end_time = _safe_ts(_first_nonempty(market.get("closedTime"), market.get("endDateIso"), market.get("endDate")))
+        for index, token in enumerate(tokens):
+            token_id = str(token or "").strip()
+            if not token_id:
+                continue
+            price = cents(prices[index]) if len(prices) > index else _outcome_price(market, index)
+            lookup[token_id] = {
+                "price": price,
+                "closed": closed,
+                "end_time": end_time,
+            }
+    return lookup
+
+
 def polymarket_event_slug_from_url(value: str) -> str:
     """Extract a Polymarket event slug from an event URL or return the given slug."""
 
