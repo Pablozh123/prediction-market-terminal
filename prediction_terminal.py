@@ -24,6 +24,7 @@ from app import backtester as btr
 from app import copy_follow as ctf
 from app import notify
 from app import signals as sig
+from app import suspicion as susp
 from src import copy_trading as ct
 from src import prediction_markets as md
 
@@ -98,6 +99,7 @@ WORKSPACES = [
     "Backtester",
     "Copy Trade",
     "Whale Flow",
+    "Suspicious",
     "Cross-Venue",
     "Monitor",
     "Alerts",
@@ -484,6 +486,17 @@ def inject_css() -> None:
         .equity-delta {{
             font-family: {FONT_MONO};
             font-size: 0.74rem;
+        }}
+        .risk-badge {{
+            font-family: {FONT_MONO};
+            font-size: 0.74rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            border: 1px solid;
+            border-radius: 6px;
+            padding: 0.12rem 0.5rem;
+            margin-right: 0.4rem;
+            white-space: nowrap;
         }}
         div[data-baseweb="input"], div[data-baseweb="base-input"], div[data-baseweb="textarea"] {{
             background: {BG};
@@ -12187,6 +12200,153 @@ def page_settings() -> None:
         st.rerun()
 
 
+RISK_LEVEL_COLORS = {"High": RED, "Medium": AMBER, "Elevated": BLUE, "Low": MUTED}
+
+
+def _suspicious_select_event(title: str) -> None:
+    st.session_state["susp_selected"] = title
+
+
+def page_suspicious() -> None:
+    section_header(
+        "Suspicious",
+        "Markets and wallets with insider-like flow — long-odds size, late timing, fresh-wallet clusters, one-sided pressure.",
+        kicker="Suspicious · Risk screen",
+    )
+    st.markdown(
+        "<div class='field-hint'>Best-effort screen on public trade data — research leads, not legal findings. "
+        "Score bands: &lt;40 low · 40–54 elevated · 55–69 medium · ≥70 high.</div>",
+        unsafe_allow_html=True,
+    )
+    whale_floor = max(float(min_whale), 1_000.0)
+    trades = safe_load("Polymarket whale tape", load_polymarket_trades, trade_limit, whale_floor, default=pd.DataFrame())
+    if trades is None or trades.empty:
+        draw_empty("No whale-sized trades in the current sample — lower the whale threshold in Settings or try again later.")
+        return
+    event_risk = md.whale_event_risk_scores(trades, whale_threshold=whale_floor)
+    wallet_risk = md.whale_wallet_risk_scores(trades, whale_threshold=whale_floor)
+    clusters = susp.fresh_wallet_clusters(trades, whale_threshold=whale_floor)
+    event_risk = susp.apply_fresh_wallet_bonus(event_risk, clusters)
+    if st.toggle("Check real account ages for the top wallets (slower)", value=False, key="susp_age_toggle") and not wallet_risk.empty:
+        top_wallets = tuple(wallet_risk.head(10)["wallet"].astype(str))
+        account_stats = safe_load("Wallet account stats", load_wallet_account_stats, top_wallets, default=pd.DataFrame())
+        wallet_risk = susp.apply_account_age_bonus(wallet_risk, account_stats)
+
+    high_events = int((numeric_col(event_risk, "event_insider_score") >= 70).sum()) if not event_risk.empty else 0
+    high_wallets = int((numeric_col(wallet_risk, "wallet_insider_score") >= 70).sum()) if not wallet_risk.empty else 0
+    stat_cols = st.columns(5)
+    stat_cols[0].metric("Events screened", f"{len(event_risk):,}")
+    stat_cols[1].metric("High-risk events", f"{high_events:,}")
+    stat_cols[2].metric("High-risk wallets", f"{high_wallets:,}")
+    stat_cols[3].metric("Whale volume", money(numeric_col(trades, "notional").sum()))
+    stat_cols[4].metric("Whale threshold", money(whale_floor))
+
+    st.markdown("<div class='step-label'>Suspicious events</div>", unsafe_allow_html=True)
+    if event_risk.empty:
+        draw_empty("No event-level signals in the current tape.")
+    else:
+        event_rows = list(event_risk.head(6).iterrows())
+        for start in range(0, len(event_rows), 2):
+            cols = st.columns(2)
+            for offset, (col, (_, event)) in enumerate(zip(cols, event_rows[start : start + 2])):
+                level = str(event.get("event_insider_level", "Low") or "Low")
+                color = RISK_LEVEL_COLORS.get(level, MUTED)
+                score = float(event.get("event_insider_score", 0.0) or 0.0)
+                title = str(event.get("title", "") or "")
+                with col:
+                    with st.container(border=True):
+                        st.markdown(
+                            f"<span class='risk-badge' style='color:{color};border-color:{color}'>{score:.0f} · {level.upper()}</span> "
+                            f"<strong>{html.escape(title[:90])}</strong>",
+                            unsafe_allow_html=True,
+                        )
+                        st.markdown(f"<div class='small-note'>{html.escape(susp.event_story(event))}</div>", unsafe_allow_html=True)
+                        flags = [flag.strip() for flag in str(event.get("event_insider_flags", "") or "").split(";") if flag.strip()]
+                        if flags:
+                            st.markdown(
+                                "<div class='filter-strip'>" + "".join(f"<span class='filter-chip'>{html.escape(flag)}</span>" for flag in flags[:5]) + "</div>",
+                                unsafe_allow_html=True,
+                            )
+                        m1, m2, m3 = st.columns(3)
+                        m1.metric("Whale $", money(event.get("notional", 0.0)))
+                        m2.metric("Top wallet", pct(event.get("top_wallet_share")))
+                        m3.metric("Wallets", f"{int(event.get('unique_wallets', 0) or 0)}")
+                        action_cols = st.columns(2)
+                        url = str(event.get("url", "") or "")
+                        if url.startswith("http"):
+                            action_cols[0].link_button("Open market", url, width="stretch")
+                        action_cols[1].button(
+                            "Inspect wallets",
+                            key=f"susp_inspect_{start + offset}",
+                            width="stretch",
+                            on_click=_suspicious_select_event,
+                            args=(title,),
+                        )
+
+    selected = str(st.session_state.get("susp_selected", "") or "")
+    if selected:
+        st.markdown(f"<div class='step-label'>Wallets in: {html.escape(selected[:80])}</div>", unsafe_allow_html=True)
+        involved = susp.wallets_for_event(trades, wallet_risk, selected)
+        if involved.empty:
+            draw_empty("No scored wallets found for this market in the current tape.")
+        else:
+            st.dataframe(
+                clean_table(involved, ["wallet", "trader", "wallet_insider_score", "wallet_insider_flags", "notional", "largest_trade", "markets", "trade_count", "account_age_days"]),
+                width="stretch",
+                height=260,
+                column_config={
+                    "wallet": st.column_config.TextColumn("Wallet"),
+                    "trader": st.column_config.TextColumn("Trader"),
+                    "wallet_insider_score": st.column_config.ProgressColumn("Risk", min_value=0, max_value=100, format="%.0f"),
+                    "wallet_insider_flags": st.column_config.TextColumn("Why", width="large"),
+                    "notional": st.column_config.NumberColumn("Whale $", format="$%.0f"),
+                    "largest_trade": st.column_config.NumberColumn("Largest", format="$%.0f"),
+                    "markets": st.column_config.NumberColumn("Markets"),
+                    "trade_count": st.column_config.NumberColumn("Trades"),
+                    "account_age_days": st.column_config.NumberColumn("Age (d)", format="%.0f"),
+                },
+            )
+
+    st.markdown("<div class='step-label'>Suspicious traders</div>", unsafe_allow_html=True)
+    if wallet_risk.empty:
+        draw_empty("No wallet-level signals in the current tape.")
+        return
+    top_wallets_frame = wallet_risk.head(25)
+    st.dataframe(
+        clean_table(top_wallets_frame, ["wallet", "trader", "wallet_insider_level", "wallet_insider_score", "wallet_insider_flags", "notional", "largest_trade", "markets", "trade_count", "account_age_days"]),
+        width="stretch",
+        height=420,
+        column_config={
+            "wallet": st.column_config.TextColumn("Wallet"),
+            "trader": st.column_config.TextColumn("Trader"),
+            "wallet_insider_level": st.column_config.TextColumn("Level"),
+            "wallet_insider_score": st.column_config.ProgressColumn("Risk", min_value=0, max_value=100, format="%.0f"),
+            "wallet_insider_flags": st.column_config.TextColumn("Why", width="large"),
+            "notional": st.column_config.NumberColumn("Whale $", format="$%.0f"),
+            "largest_trade": st.column_config.NumberColumn("Largest", format="$%.0f"),
+            "markets": st.column_config.NumberColumn("Markets"),
+            "trade_count": st.column_config.NumberColumn("Trades"),
+            "account_age_days": st.column_config.NumberColumn("Age (d)", format="%.0f"),
+        },
+    )
+    st.download_button(
+        "Export suspicious traders CSV",
+        top_wallets_frame.to_csv(index=False).encode("utf-8"),
+        file_name="suspicious_traders.csv",
+        mime="text/csv",
+    )
+    quick_cols = st.columns([3, 1, 1])
+    wallet_options = [str(w) for w in top_wallets_frame["wallet"].astype(str).tolist()]
+    selected_wallet = quick_cols[0].selectbox(
+        "Quick actions for wallet",
+        wallet_options,
+        format_func=lambda w: f"{short_addr(w)} · risk {float(wallet_risk.loc[wallet_risk['wallet'].astype(str).eq(w), 'wallet_insider_score'].iloc[0]):.0f}",
+        key="susp_wallet_action",
+    )
+    quick_cols[1].button("Backtest →", key="susp_backtest", width="stretch", type="primary", on_click=_pick_backtest, args=(str(selected_wallet).lower(),))
+    quick_cols[2].button("Track", key="susp_track", width="stretch", on_click=_pick_track, args=(str(selected_wallet).lower(),))
+
+
 PAGES = {
     "Overview": page_overview,
     "Search": page_search,
@@ -12199,6 +12359,7 @@ PAGES = {
     "Backtester": page_backtester,
     "Copy Trade": page_copy_trade,
     "Whale Flow": page_whale_flow,
+    "Suspicious": page_suspicious,
     "Cross-Venue": page_cross_venue,
     "Monitor": page_monitor,
     "Alerts": page_alerts,
