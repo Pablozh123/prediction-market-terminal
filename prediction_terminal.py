@@ -5144,16 +5144,15 @@ def page_markets() -> None:
     if loaded_market_route_message:
         st.info(loaded_market_route_message)
 
-    search_cols = st.columns([2.4, 1.2, 1.2, 1, 1])
+    search_cols = st.columns([2.8, 1.3, 1.4, 1])
     local_query = search_cols[0].text_input("Search markets", placeholder="Search markets", key="markets_search")
     view_mode = search_cols[1].radio("View", ["Table", "Card", "Calendar"], horizontal=True, label_visibility="collapsed", key="markets_view_mode")
     quick_filter = search_cols[2].radio("Quick filter", ["Trending", "Saved", "My Positions", "Ending Soon", "New"], horizontal=True, label_visibility="collapsed", key="markets_quick_filter")
-    save_market_clicked = search_cols[3].button("Save Filter", width="stretch")
-    if search_cols[4].button("Reset Filters", width="stretch", help="Restore the default market scanner filters and rerun."):
+    if search_cols[3].button("Reset Filters", width="stretch", help="Restore the default market scanner filters and rerun."):
         st.session_state["markets_reset_pending"] = True
         st.rerun()
 
-    with st.expander("Filter", expanded=True):
+    with st.expander("Filter", expanded=False):
         f1, f2 = st.columns(2)
         platform_filter = f1.multiselect("Platform", ["Polymarket", "Kalshi"], key="markets_platform_filter")
         status_filter = f2.radio("Status", ["Active", "All", "Closed"], horizontal=True, key="markets_status_filter")
@@ -5259,66 +5258,52 @@ def page_markets() -> None:
         change_24h_preset = f16.radio("Price delta 24h", ["All", ">1c", ">3c", ">5c", ">10c", "Custom"], horizontal=True, key="markets_change_24h_preset")
         custom_change_24h = f16.number_input("Custom min 24h price move (cents)", min_value=0.0, step=0.5, disabled=change_24h_preset != "Custom", key="markets_custom_change_24h")
 
-    saved_market_name = st.text_input("Saved view name", value=f"Markets {md.now_utc_label()}", key="saved_market_view_name")
-    loaded_market_message = st.session_state.pop("market_view_loaded_message", "")
-    if loaded_market_message:
-        st.info(loaded_market_message)
-    if st.session_state.saved_market_filters:
-        load_cols = st.columns([2, 1, 1])
-        saved_labels = [
-            f"{i + 1}. {view.get('name') or view.get('query') or 'Market view'}"
-            for i, view in enumerate(st.session_state.saved_market_filters)
-        ]
-        selected_saved_market = load_cols[0].selectbox("Load saved market view", saved_labels, key="load_saved_market_view")
-        selected_market_view = st.session_state.saved_market_filters[saved_labels.index(selected_saved_market)]
-        if load_cols[1].button("Load saved view", key="load_market_view_button"):
-            st.session_state["pending_market_filter_view"] = selected_market_view
-            st.session_state["market_view_loaded_message"] = f"Loaded saved market view: {selected_market_view.get('name', selected_saved_market)}"
-            st.rerun()
-        if load_cols[2].button("Delete saved view", key="delete_market_view_button"):
-            st.session_state.saved_market_filters.pop(saved_labels.index(selected_saved_market))
-            save_local_list("saved_market_filters.json", st.session_state.saved_market_filters)
-            st.rerun()
-    if save_market_clicked:
-        st.session_state.saved_market_filters.append(
-            {
-                "name": saved_market_name.strip() or f"Markets {md.now_utc_label()}",
-                "created_at": md.now_utc_label(),
-                "query": local_query,
-                "view": view_mode,
-                "quick": quick_filter,
-                "platform_filter": platform_filter,
-                "status_filter": status_filter,
-                "include_categories": include_categories,
-                "exclude_categories": exclude_categories,
-                "prob_preset": prob_preset,
-                "custom_prob": list(custom_prob),
-                "spread_preset": spread_preset,
-                "custom_spread": float(custom_spread),
-                "liquidity_preset": liquidity_preset,
-                "custom_liquidity": float(custom_liquidity),
-                "end_preset": end_preset,
-                "custom_days": int(custom_days),
-                "volume_1h_preset": volume_1h_preset,
-                "custom_volume_1h": float(custom_volume_1h),
-                "volume_preset": volume_preset,
-                "custom_volume": float(custom_volume),
-                "age_preset": age_preset,
-                "custom_age_days": int(custom_age_days),
-                "volume_delta_1h_preset": volume_delta_1h_preset,
-                "custom_volume_delta_1h": float(custom_volume_delta_1h),
-                "volume_delta_24h_preset": volume_delta_24h_preset,
-                "custom_volume_delta_24h": float(custom_volume_delta_24h),
-                "change_preset": change_preset,
-                "custom_change": float(custom_change),
-                "change_24h_preset": change_24h_preset,
-                "custom_change_24h": float(custom_change_24h),
-                "sort_by": sort_by,
-                "limit_rows": int(limit_rows),
-            }
-        )
-        save_local_list("saved_market_filters.json", st.session_state.saved_market_filters)
-        st.success("Saved market view.")
+    highlight_source = combined.copy()
+    if not highlight_source.empty:
+        st.markdown("<div class='step-label' style='margin-top:0.4rem'>Market highlights</div>", unsafe_allow_html=True)
+        highlight_vol = numeric_col(highlight_source, "volume_24h")
+        busy_markets = highlight_source[highlight_vol >= 10_000].copy()
+
+        def _highlight_rows(frame: pd.DataFrame, formatter, empty_text: str) -> None:
+            if frame.empty:
+                st.markdown(f"<div class='field-hint'>{html.escape(empty_text)}</div>", unsafe_allow_html=True)
+                return
+            for _, row in frame.iterrows():
+                title = html.escape(str(row.get("title", ""))[:52])
+                url = str(row.get("url", "") or "")
+                link = f"<a href='{html.escape(url)}' target='_blank'>{title}</a>" if url.startswith("http") else title
+                st.markdown(
+                    "<div style='display:flex;justify-content:space-between;gap:0.6rem;padding:0.18rem 0'>"
+                    f"<span class='small-note'>{link}</span>"
+                    f"<span class='mono' style='white-space:nowrap'>{formatter(row)}</span></div>",
+                    unsafe_allow_html=True,
+                )
+
+        spike_col, mover_col, ending_col = st.columns(3)
+        with spike_col:
+            with st.container(border=True):
+                st.markdown("<div class='step-label' style='margin-top:0'>Unusual volume</div>", unsafe_allow_html=True)
+                st.markdown("<div class='field-hint'>Biggest 24h volume jump vs the day before.</div>", unsafe_allow_html=True)
+                spikes = busy_markets.assign(_delta=numeric_col(busy_markets, "volume_delta_24h"))
+                spikes = spikes[spikes["_delta"] > 0].sort_values("_delta", ascending=False).head(4)
+                _highlight_rows(spikes, lambda r: f"+{float(r.get('_delta', 0.0)) * 100:.0f}% · {money(r.get('volume_24h', 0.0))}", "No unusual volume right now.")
+        with mover_col:
+            with st.container(border=True):
+                st.markdown("<div class='step-label' style='margin-top:0'>Big movers (24h)</div>", unsafe_allow_html=True)
+                st.markdown("<div class='field-hint'>Largest price swings in busy markets.</div>", unsafe_allow_html=True)
+                movers = busy_markets.assign(_move=numeric_col(busy_markets, "change_1d"))
+                movers = movers.loc[movers["_move"].abs().sort_values(ascending=False).index].head(4)
+                movers = movers[movers["_move"].abs() > 0]
+                _highlight_rows(movers, lambda r: f"{signed_cents(r.get('_move'))} · now {cents(r.get('yes_price'))}", "No big moves right now.")
+        with ending_col:
+            with st.container(border=True):
+                st.markdown("<div class='step-label' style='margin-top:0'>Ending soon & busy</div>", unsafe_allow_html=True)
+                st.markdown("<div class='field-hint'>High-volume markets resolving within 72 hours.</div>", unsafe_allow_html=True)
+                end_times_hl = pd.to_datetime(busy_markets.get("end_time"), utc=True, errors="coerce")
+                now_hl = pd.Timestamp.now(tz="UTC")
+                ending = busy_markets[end_times_hl.notna() & (end_times_hl >= now_hl) & (end_times_hl <= now_hl + pd.Timedelta(hours=72))]
+                ending = ending.sort_values("volume_24h", ascending=False).head(4)
+                _highlight_rows(ending, lambda r: f"{money(r.get('volume_24h', 0.0))} · ends {md.relative_time_label(pd.to_datetime(r.get('end_time'), utc=True, errors='coerce'))}", "Nothing busy ends in the next 72h.")
 
     filtered = filter_text(combined, local_query)
     filtered = filtered[filtered["platform"].isin(platform_filter)]
@@ -5409,56 +5394,6 @@ def page_markets() -> None:
         chip_labels.append(f"Price delta 24h: {change_24h_preset if change_24h_preset != 'Custom' else f'>{custom_change_24h:.1f}c'}")
     chip_labels.append(f"Sort: {sort_by}")
     render_filter_chips(chip_labels)
-    market_defaults = market_filter_defaults(categories)
-    clear_actions: list[tuple[str, dict[str, Any]]] = []
-    if local_query.strip():
-        clear_actions.append(("search", {"markets_search": ""}))
-    if view_mode != market_defaults["markets_view_mode"]:
-        clear_actions.append(("view", {"markets_view_mode": market_defaults["markets_view_mode"]}))
-    if quick_filter != market_defaults["markets_quick_filter"]:
-        clear_actions.append(("quick", {"markets_quick_filter": market_defaults["markets_quick_filter"]}))
-    if set(platform_filter) != set(market_defaults["markets_platform_filter"]):
-        clear_actions.append(("platform", {"markets_platform_filter": market_defaults["markets_platform_filter"]}))
-    if status_filter != market_defaults["markets_status_filter"]:
-        clear_actions.append(("status", {"markets_status_filter": market_defaults["markets_status_filter"]}))
-    if include_categories:
-        clear_actions.append(("include", {"markets_include_categories": []}))
-    if exclude_categories:
-        clear_actions.append(("exclude", {"markets_exclude_categories": []}))
-    if prob_preset != "All":
-        clear_actions.append(("probability", {"markets_prob_preset": "All"}))
-    if spread_preset != "All":
-        clear_actions.append(("spread", {"markets_spread_preset": "All"}))
-    if liquidity_preset != "All":
-        clear_actions.append(("liquidity", {"markets_liquidity_preset": "All"}))
-    if end_preset != "All":
-        clear_actions.append(("end date", {"markets_end_preset": "All"}))
-    if age_preset != "All":
-        clear_actions.append(("market age", {"markets_age_preset": "All"}))
-    if volume_1h_preset != "All":
-        clear_actions.append(("1h volume", {"markets_volume_1h_preset": "All"}))
-    if volume_preset != "All":
-        clear_actions.append(("24h volume", {"markets_volume_preset": "All"}))
-    if volume_delta_1h_preset != "All":
-        clear_actions.append(("1h volume delta", {"markets_volume_delta_1h_preset": "All"}))
-    if volume_delta_24h_preset != "All":
-        clear_actions.append(("24h volume delta", {"markets_volume_delta_24h_preset": "All"}))
-    if change_preset != "All":
-        clear_actions.append(("1h price delta", {"markets_change_preset": "All"}))
-    if change_24h_preset != "All":
-        clear_actions.append(("24h price delta", {"markets_change_24h_preset": "All"}))
-    if sort_by != market_defaults["markets_sort_by"]:
-        clear_actions.append(("sort", {"markets_sort_by": market_defaults["markets_sort_by"]}))
-    render_filter_clear_buttons(clear_actions, "markets")
-    if st.session_state.saved_market_filters:
-        st.caption(f"Saved market views: {len(st.session_state.saved_market_filters)}")
-        with st.expander("Saved market filters", expanded=False):
-            st.dataframe(pd.DataFrame(st.session_state.saved_market_filters), width="stretch", height=160)
-            if st.button("Clear saved market filters"):
-                st.session_state.saved_market_filters = []
-                save_local_list("saved_market_filters.json", st.session_state.saved_market_filters)
-                st.rerun()
-
     display_source = filtered.copy()
     display_source["market"] = display_source["platform"].astype(str) + " - " + display_source["title"].astype(str)
     display_source["prob"] = numeric_col(display_source, "yes_price") * 100
