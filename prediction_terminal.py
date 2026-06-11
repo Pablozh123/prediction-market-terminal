@@ -8242,49 +8242,6 @@ def page_cross_venue() -> None:
         if f6.button("Reset Filters", width="stretch", key="reset_cross_filters_button"):
             st.session_state["cross_filters_reset_pending"] = True
             st.rerun()
-    save_cols = st.columns([2, 1, 1])
-    saved_cross_name = save_cols[0].text_input("Saved cross-venue view name", value=f"Cross-Venue {md.now_utc_label()}", key="saved_cross_view_name")
-    save_cross_clicked = save_cols[1].button("Save Filter", width="stretch", key="save_cross_filter_button")
-    if save_cols[2].button("Reset Cross View", width="stretch", key="reset_cross_view_button"):
-        st.session_state["cross_filters_reset_pending"] = True
-        st.rerun()
-    loaded_cross_message = st.session_state.pop("cross_view_loaded_message", "")
-    if loaded_cross_message:
-        st.info(loaded_cross_message)
-    if st.session_state.saved_cross_filters:
-        load_cols = st.columns([2, 1, 1])
-        saved_labels = [
-            f"{i + 1}. {view.get('name') or view.get('query') or 'Cross-venue view'}"
-            for i, view in enumerate(st.session_state.saved_cross_filters)
-        ]
-        selected_saved_cross = load_cols[0].selectbox("Load saved cross-venue view", saved_labels, key="load_saved_cross_view")
-        selected_cross_view = st.session_state.saved_cross_filters[saved_labels.index(selected_saved_cross)]
-        if load_cols[1].button("Load cross view", key="load_cross_view_button"):
-            st.session_state["pending_cross_filter_view"] = selected_cross_view
-            st.session_state["cross_view_loaded_message"] = f"Loaded saved cross-venue view: {selected_cross_view.get('name', selected_saved_cross)}"
-            st.rerun()
-        if load_cols[2].button("Delete cross view", key="delete_cross_view_button"):
-            st.session_state.saved_cross_filters.pop(saved_labels.index(selected_saved_cross))
-            save_local_list("saved_cross_filters.json", st.session_state.saved_cross_filters)
-            st.rerun()
-    if save_cross_clicked:
-        st.session_state.saved_cross_filters.append(
-            {
-                "name": saved_cross_name.strip() or f"Cross-Venue {md.now_utc_label()}",
-                "created_at": md.now_utc_label(),
-                "query": query,
-                "min_similarity": float(min_similarity),
-                "max_pairs": int(max_pairs),
-                "min_gap_cents": float(min_gap_cents),
-                "min_pm_volume": int(min_pm_volume),
-                "min_ks_volume": int(min_ks_volume),
-                "lower_filter": lower_filter,
-                "min_price_pct": int(min_price_pct),
-                "max_price_pct": int(max_price_pct),
-            }
-        )
-        save_local_list("saved_cross_filters.json", st.session_state.saved_cross_filters)
-        st.success("Saved cross-venue view.")
     min_price = min(float(min_price_pct), float(max_price_pct)) / 100
     max_price = max(float(min_price_pct), float(max_price_pct)) / 100
     candidates = md.cross_venue_candidates(pm, ks, query=query, min_similarity=min_similarity, max_pairs=max_pairs)
@@ -8324,40 +8281,6 @@ def page_cross_venue() -> None:
     if int(min_price_pct) != int(cross_defaults["cross_min_price_pct"]) or int(max_price_pct) != int(cross_defaults["cross_max_price_pct"]):
         cross_chips.append(f"Yes price: {int(min_price_pct)}%-{int(max_price_pct)}%")
     render_filter_chips(cross_chips)
-    cross_clear_actions: list[tuple[str, dict[str, Any]]] = []
-    if query.strip():
-        cross_clear_actions.append(("search", {"cross_query": ""}))
-    if abs(float(min_similarity) - float(cross_defaults["cross_min_similarity"])) > 1e-9:
-        cross_clear_actions.append(("similarity", {"cross_min_similarity": cross_defaults["cross_min_similarity"]}))
-    if int(max_pairs) != int(cross_defaults["cross_max_pairs"]):
-        cross_clear_actions.append(("max pairs", {"cross_max_pairs": cross_defaults["cross_max_pairs"]}))
-    if float(min_gap_cents) > 0:
-        cross_clear_actions.append(("gap", {"cross_min_gap_cents": 0.0}))
-    if int(min_pm_volume) > 0:
-        cross_clear_actions.append(("Polymarket volume", {"cross_min_pm_volume": 0}))
-    if int(min_ks_volume) > 0:
-        cross_clear_actions.append(("Kalshi volume", {"cross_min_ks_volume": 0}))
-    if lower_filter != "Any":
-        cross_clear_actions.append(("lower yes", {"cross_lower_filter": "Any"}))
-    if int(min_price_pct) != int(cross_defaults["cross_min_price_pct"]) or int(max_price_pct) != int(cross_defaults["cross_max_price_pct"]):
-        cross_clear_actions.append(
-            (
-                "yes price",
-                {
-                    "cross_min_price_pct": cross_defaults["cross_min_price_pct"],
-                    "cross_max_price_pct": cross_defaults["cross_max_price_pct"],
-                },
-            )
-        )
-    render_filter_clear_buttons(cross_clear_actions, "cross")
-    if st.session_state.saved_cross_filters:
-        st.caption(f"Saved cross-venue views: {len(st.session_state.saved_cross_filters)}")
-        with st.expander("Saved cross-venue filters", expanded=False):
-            st.dataframe(pd.DataFrame(st.session_state.saved_cross_filters), width="stretch", height=160)
-            if st.button("Clear saved cross-venue filters"):
-                st.session_state.saved_cross_filters = []
-                save_local_list("saved_cross_filters.json", st.session_state.saved_cross_filters)
-                st.rerun()
     if candidates.empty:
         draw_empty("No cross-venue candidates matched. Try a broader query or lower the similarity threshold.")
         return
