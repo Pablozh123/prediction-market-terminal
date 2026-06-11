@@ -46,14 +46,14 @@ Claudes Datei-Cache kann in einer laufenden Session bei sehr grossen Dateien ver
 
 Es gibt zwei getrennte Schichten, die sich nicht widersprechen dürfen:
 
-- **predictparity-Klon (Codex):** bildet predictparity.com getreu nach — Features, Filter, Tools.
+- **Referenz-Klon (Codex, abgeschlossen):** bildete die damalige Referenzseite nach — Features, Filter, Tools. Externe Referenz-Datenquellen wurden inzwischen vollständig durch Polymarket/Kalshi-Public-APIs ersetzt.
 - **Multi-Trader-Copytrading (Erweiterung):** bewusst *über* den Klon hinaus (Spec: `docs/spec_multitrader_copytrading.md`), als eigene Seite/Modul, möglichst getrennt von den Klon-Teilen in `prediction_terminal.py`.
 
 Regel: Während der Klon-Phase wird die Copytrading-Erweiterung **nicht** angefasst, und der Klon baut bestehendes Copytrading **nicht zurück**.
 
 ## Phasen
 
-- **Phase 1 (laufend, Codex):** getreuer predictparity-Klon bis zu einem stabilen, nach `main` gemergten Meilenstein. Abschluss mit Tag `v1-clone`. In dieser Phase **keine** Multi-Trader-Arbeit.
+- **Phase 1 (abgeschlossen, Codex):** Referenz-Klon bis zu einem stabilen, nach `main` gemergten Meilenstein. Abschluss mit Tag `v1-clone`. In dieser Phase **keine** Multi-Trader-Arbeit.
 - **Phase 2 (danach):** Multi-Trader-Copytrading laut Spec, als isolierte Schicht. Start **erst nach** `v1-clone`.
 
 ## Aktueller Handoff

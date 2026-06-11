@@ -115,9 +115,9 @@ Swisstony wird als **erster Trader** angelegt: Zeile in `traders` mit eigenem `s
 
 Nach jedem Schritt: `python -m py_compile`, Tests, committen.
 
-## 8. Scope-Grenze gegenüber dem predictparity-Klon
+## 8. Scope-Grenze gegenüber dem Phase-1-Terminal
 
-Codex' Dauerauftrag ist der exakte Nachbau von predictparity.com. Multi-Trader-Copytrading ist eine **bewusste Erweiterung darüber hinaus**, kein Teil des Klons. Damit beide Ziele sich nicht widersprechen: die Copytrading-Funktion als eigene Schicht/Seite halten, möglichst getrennt von den Klon-Teilen in `prediction_terminal.py`, und die Umsetzung an einem stabilen Klon-Meilenstein oder im isolierten Modul einplanen. Codex' Ziel sollte diese Grenze explizit kennen, damit es das Copytrading nicht als „nicht in predictparity" zurückbaut.
+Codex' Dauerauftrag ist der exakte Nachbau von Phase-1-Terminal.com. Multi-Trader-Copytrading ist eine **bewusste Erweiterung darüber hinaus**, kein Teil des Klons. Damit beide Ziele sich nicht widersprechen: die Copytrading-Funktion als eigene Schicht/Seite halten, möglichst getrennt von den Klon-Teilen in `prediction_terminal.py`, und die Umsetzung an einem stabilen Klon-Meilenstein oder im isolierten Modul einplanen. Codex' Ziel sollte diese Grenze explizit kennen, damit es das Copytrading nicht als „nicht in Phase-1-Terminal" zurückbaut.
 
 ## 9. Anknüpfung an die Bachelorarbeit
 
