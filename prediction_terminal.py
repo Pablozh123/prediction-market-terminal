@@ -2529,7 +2529,11 @@ with st.sidebar:
             args=(workspace,),
         )
     st.divider()
-    st.caption("Research mode only. This app does not place orders. Kalshi public feeds do not expose wallet identities.")
+    st.caption(
+        "Research tool only — no investment advice, no order placement, no affiliation with any venue. "
+        "Market data from public Polymarket and Kalshi APIs, provided as-is. "
+        "Kalshi public feeds do not expose wallet identities."
+    )
     st.caption(f"Last render: {md.now_utc_label()}")
     equity_snap = load_paper_equity_snapshot()
     equity_delta_color = ACCENT if equity_snap["pnl"] >= 0 else RED
