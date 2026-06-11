@@ -5822,71 +5822,10 @@ def page_traders() -> None:
         custom_account_age = a3.number_input("Custom min account age days", min_value=1, step=30, disabled=account_age_preset != "Custom", key="trader_custom_account_age")
         enrich_accounts = a4.checkbox("Fetch balances + account age", key="trader_enrich_accounts")
         account_enrich_rows = a4.slider("Account stat wallets", min_value=5, max_value=30, step=5, help="Limits slower balance and activity-age calls.", key="trader_account_enrich_rows")
-        action_cols = st.columns([1, 1, 4])
-        save_trader_clicked = action_cols[0].button("Save Filter", width="stretch", key="save_trader_filter_button")
-        if action_cols[1].button("Reset Filters", width="stretch", key="reset_trader_filters_button"):
+        action_cols = st.columns([1, 5])
+        if action_cols[0].button("Reset Filters", width="stretch", key="reset_trader_filters_button"):
             st.session_state["trader_filters_reset_pending"] = True
             st.rerun()
-
-    saved_trader_name = st.text_input("Saved trader view name", value=f"Traders {md.now_utc_label()}", key="saved_trader_view_name")
-    loaded_trader_message = st.session_state.pop("trader_view_loaded_message", "")
-    if loaded_trader_message:
-        st.info(loaded_trader_message)
-    if st.session_state.saved_trader_filters:
-        load_cols = st.columns([2, 1, 1])
-        saved_labels = [
-            f"{i + 1}. {view.get('name') or view.get('query') or 'Trader view'}"
-            for i, view in enumerate(st.session_state.saved_trader_filters)
-        ]
-        selected_saved_trader = load_cols[0].selectbox("Load saved trader view", saved_labels, key="load_saved_trader_view")
-        selected_trader_view = st.session_state.saved_trader_filters[saved_labels.index(selected_saved_trader)]
-        if load_cols[1].button("Load trader view", key="load_trader_view_button"):
-            st.session_state["pending_trader_filter_view"] = selected_trader_view
-            st.session_state["trader_view_loaded_message"] = f"Loaded saved trader view: {selected_trader_view.get('name', selected_saved_trader)}"
-            st.rerun()
-        if load_cols[2].button("Delete trader view", key="delete_trader_view_button"):
-            st.session_state.saved_trader_filters.pop(saved_labels.index(selected_saved_trader))
-            save_local_list("saved_trader_filters.json", st.session_state.saved_trader_filters)
-            st.rerun()
-    if save_trader_clicked:
-        st.session_state.saved_trader_filters.append(
-            {
-                "name": saved_trader_name.strip() or f"Traders {md.now_utc_label()}",
-                "created_at": md.now_utc_label(),
-                "query": trader_query,
-                "view_mode": view_mode,
-                "column_preset": column_preset,
-                "period": time_period,
-                "rank_by": order_by,
-                "rows": int(rows),
-                "active_only": bool(active_only),
-                "bots_only": bool(bots_only),
-                "bot_score_min": int(bot_score_min),
-                "pnl_preset": pnl_preset,
-                "custom_pnl": float(custom_pnl),
-                "volume_preset": volume_preset,
-                "custom_volume": float(custom_volume),
-                "position_preset": position_preset,
-                "custom_position": float(custom_position),
-                "active_positions_min": int(active_positions_min),
-                "trait_filter": trait_filter,
-                "enrich_positions": bool(enrich_positions),
-                "win_rate": win_rate_preset,
-                "custom_win_rate": float(custom_win_rate),
-                "enrich_win_rates": bool(enrich_win_rates),
-                "min_closed_positions": int(min_closed_positions),
-                "assets_preset": assets_preset,
-                "custom_assets": float(custom_assets),
-                "balance_preset": balance_preset,
-                "custom_balance": float(custom_balance),
-                "account_age_preset": account_age_preset,
-                "custom_account_age": int(custom_account_age),
-                "enrich_accounts": bool(enrich_accounts),
-                "account_enrich_rows": int(account_enrich_rows),
-            }
-        )
-        save_local_list("saved_trader_filters.json", st.session_state.saved_trader_filters)
-        st.success("Saved trader view.")
 
     if order_by in {"SMART", "ROI", "WIN"}:
         pnl_leaderboard = safe_load("Polymarket leaderboard by PnL", load_leaderboard, rows, time_period, "PNL", default=pd.DataFrame())
@@ -6060,55 +5999,6 @@ def page_traders() -> None:
     if account_stats_needed:
         trader_chips.append(f"Balance/account age enriched: {account_enrich_rows} wallets")
     render_filter_chips(trader_chips)
-    trader_defaults = trader_filter_defaults()
-    trader_clear_actions: list[tuple[str, dict[str, Any]]] = []
-    if trader_query.strip():
-        trader_clear_actions.append(("search", {"trader_search": ""}))
-    if view_mode != trader_defaults["trader_view_mode"]:
-        trader_clear_actions.append(("view", {"trader_view_mode": trader_defaults["trader_view_mode"]}))
-    if column_preset != trader_defaults["trader_column_preset"]:
-        trader_clear_actions.append(("columns", {"trader_column_preset": trader_defaults["trader_column_preset"]}))
-    if time_period != trader_defaults["trader_time_period"]:
-        trader_clear_actions.append(("period", {"trader_time_period": trader_defaults["trader_time_period"]}))
-    if order_by != trader_defaults["trader_order_by"]:
-        trader_clear_actions.append(("rank", {"trader_order_by": trader_defaults["trader_order_by"]}))
-    if int(rows) != int(trader_defaults["trader_rows"]):
-        trader_clear_actions.append(("rows", {"trader_rows": trader_defaults["trader_rows"]}))
-    if active_only:
-        trader_clear_actions.append(("active", {"trader_active_only": False}))
-    if bots_only:
-        trader_clear_actions.append(("bots", {"trader_bots_only": False}))
-    if int(bot_score_min) != int(trader_defaults["trader_bot_score_min"]):
-        trader_clear_actions.append(("bot score", {"trader_bot_score_min": trader_defaults["trader_bot_score_min"]}))
-    if pnl_preset != "All":
-        trader_clear_actions.append(("pnl", {"trader_pnl_preset": "All"}))
-    if volume_preset != "All":
-        trader_clear_actions.append(("volume", {"trader_volume_preset": "All"}))
-    if position_preset != "All":
-        trader_clear_actions.append(("positions", {"trader_position_preset": "All"}))
-    if int(active_positions_min) > 0:
-        trader_clear_actions.append(("active positions", {"trader_active_positions_min": 0}))
-    if assets_preset != "All":
-        trader_clear_actions.append(("assets", {"trader_assets_preset": "All"}))
-    if balance_preset != "All":
-        trader_clear_actions.append(("balance", {"trader_balance_preset": "All"}))
-    if account_age_preset != "All":
-        trader_clear_actions.append(("account age", {"trader_account_age_preset": "All"}))
-    if win_rate_preset != "All":
-        trader_clear_actions.append(("win rate", {"trader_win_rate_preset": "All"}))
-    if trait_filter:
-        trader_clear_actions.append(("traits", {"trader_trait_filter": []}))
-    if enrich_accounts:
-        trader_clear_actions.append(("account enrichment", {"trader_enrich_accounts": False}))
-    render_filter_clear_buttons(trader_clear_actions, "traders")
-    if st.session_state.saved_trader_filters:
-        st.caption(f"Saved trader views: {len(st.session_state.saved_trader_filters)}")
-        with st.expander("Saved trader filters", expanded=False):
-            st.dataframe(pd.DataFrame(st.session_state.saved_trader_filters), width="stretch", height=160)
-            if st.button("Clear saved trader filters"):
-                st.session_state.saved_trader_filters = []
-                save_local_list("saved_trader_filters.json", st.session_state.saved_trader_filters)
-                st.rerun()
     if enrich_positions and has_native_positions:
         st.caption("Open-position values are sourced from the public trader leaderboard.")
     elif enrich_positions:
