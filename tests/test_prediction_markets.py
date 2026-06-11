@@ -8,7 +8,7 @@ from src import prediction_markets as md
 
 class LocalRouteTargetTests(unittest.TestCase):
     def test_trader_profile_route_maps_to_wallet_workspace(self) -> None:
-        target = md.local_route_target("https://predictparity.local/traders/p/@swisstony")
+        target = md.local_route_target("https://terminal.local/traders/p/@swisstony")
 
         self.assertEqual(target, {"page_slug": "wallets", "profile": "swisstony", "market": ""})
 
@@ -35,13 +35,13 @@ class LocalRouteTargetTests(unittest.TestCase):
 
     def test_auth_routes_map_to_local_shell_modes(self) -> None:
         self.assertEqual(md.local_auth_route_mode("/sign-in"), "Sign In")
-        self.assertEqual(md.local_auth_route_mode("https://predictparity.local/auth/signup"), "Sign Up")
+        self.assertEqual(md.local_auth_route_mode("https://terminal.local/auth/signup"), "Sign Up")
         self.assertEqual(md.local_auth_route_mode("/markets"), "")
 
 
-class PredictParityQueryFilterTests(unittest.TestCase):
+class QueryFilterTests(unittest.TestCase):
     def test_search_filter_view_parses_global_search_params(self) -> None:
-        view = md.predictparity_search_filter_view(
+        view = md.search_filter_view(
             {
                 "q": "bitcoin",
                 "platform": "polymarket",
@@ -64,7 +64,7 @@ class PredictParityQueryFilterTests(unittest.TestCase):
         self.assertEqual(view["rows"], 40)
 
     def test_market_filter_view_parses_search_platform_status_and_ranges(self) -> None:
-        view = md.predictparity_market_filter_view(
+        view = md.market_filter_view(
             {
                 "q": "bitcoin",
                 "platform": "polymarket,kalshi",
@@ -96,7 +96,7 @@ class PredictParityQueryFilterTests(unittest.TestCase):
         self.assertEqual(view["limit_rows"], 50)
 
     def test_market_filter_view_parses_view_quick_and_calendar_params(self) -> None:
-        view = md.predictparity_market_filter_view(
+        view = md.market_filter_view(
             {"view": "calendar", "quick": "ending-soon", "endDays": "7", "ageDays": "30"}
         )
 
@@ -108,7 +108,7 @@ class PredictParityQueryFilterTests(unittest.TestCase):
         self.assertEqual(view["custom_age_days"], 30)
 
     def test_overview_filter_view_parses_dashboard_params(self) -> None:
-        view = md.predictparity_overview_filter_view(
+        view = md.overview_filter_view(
             {
                 "q": "bitcoin",
                 "platform": "polymarket",
@@ -137,7 +137,7 @@ class PredictParityQueryFilterTests(unittest.TestCase):
         self.assertFalse(view["show_news"])
 
     def test_trader_filter_view_parses_bot_and_active_position_params(self) -> None:
-        view = md.predictparity_trader_filter_view({"bot": "true", "apMin": "101"})
+        view = md.trader_filter_view({"bot": "true", "apMin": "101"})
 
         self.assertTrue(view["bots_only"])
         self.assertEqual(view["trait_filter"], ["Bot-like"])
@@ -147,7 +147,7 @@ class PredictParityQueryFilterTests(unittest.TestCase):
         self.assertEqual(view["active_positions_min"], 101)
 
     def test_trader_filter_view_parses_search_sort_and_metric_params(self) -> None:
-        view = md.predictparity_trader_filter_view(
+        view = md.trader_filter_view(
             {
                 "q": "swisstony",
                 "period": "month",
@@ -168,17 +168,17 @@ class PredictParityQueryFilterTests(unittest.TestCase):
         self.assertEqual(view["rows"], 50)
 
     def test_trader_filter_view_accepts_smart_ranking_params(self) -> None:
-        view = md.predictparity_trader_filter_view({"rankBy": "smart"})
+        view = md.trader_filter_view({"rankBy": "smart"})
 
         self.assertEqual(view["rank_by"], "SMART")
 
     def test_trader_filter_view_ignores_invalid_values(self) -> None:
-        view = md.predictparity_trader_filter_view({"bot": "false", "apMin": "bad", "period": "year"})
+        view = md.trader_filter_view({"bot": "false", "apMin": "bad", "period": "year"})
 
         self.assertEqual(view, {})
 
     def test_live_trade_filter_view_parses_tape_params(self) -> None:
-        view = md.predictparity_live_trade_filter_view(
+        view = md.live_trade_filter_view(
             {
                 "q": "swisstony",
                 "platform": "polymarket",
@@ -199,7 +199,7 @@ class PredictParityQueryFilterTests(unittest.TestCase):
         self.assertEqual(view["rows"], 150)
 
     def test_track_filter_view_parses_tracking_hub_params(self) -> None:
-        view = md.predictparity_track_filter_view(
+        view = md.track_filter_view(
             {
                 "q": "tony",
                 "platform": "polymarket,kalshi",
@@ -218,7 +218,7 @@ class PredictParityQueryFilterTests(unittest.TestCase):
         self.assertEqual(view["rows"], 120)
 
     def test_whale_filter_view_parses_flow_thresholds(self) -> None:
-        view = md.predictparity_whale_filter_view(
+        view = md.whale_filter_view(
             {
                 "q": "iran",
                 "platform": "polymarket",
@@ -243,7 +243,7 @@ class PredictParityQueryFilterTests(unittest.TestCase):
         self.assertEqual(view["rows"], 200)
 
     def test_cross_venue_filter_view_parses_gap_and_price_params(self) -> None:
-        view = md.predictparity_cross_venue_filter_view(
+        view = md.cross_venue_filter_view(
             {
                 "q": "bitcoin",
                 "minSimilarity": "0.35",
@@ -268,7 +268,7 @@ class PredictParityQueryFilterTests(unittest.TestCase):
         self.assertEqual(view["max_price_pct"], 95)
 
     def test_monitor_filter_view_parses_signal_thresholds_and_scope(self) -> None:
-        view = md.predictparity_monitor_filter_view(
+        view = md.monitor_filter_view(
             {
                 "q": "bitcoin",
                 "platform": "polymarket",
@@ -301,7 +301,7 @@ class PredictParityQueryFilterTests(unittest.TestCase):
         self.assertEqual(view["rows"], 75)
 
     def test_alert_filter_view_parses_hits_only_and_monitor_thresholds(self) -> None:
-        view = md.predictparity_alert_filter_view(
+        view = md.alert_filter_view(
             {
                 "q": "iran",
                 "signal": "fast-mover",
@@ -318,7 +318,7 @@ class PredictParityQueryFilterTests(unittest.TestCase):
         self.assertEqual(view["max_spread"], 7.0)
 
     def test_resolved_filter_view_parses_accuracy_archive_params(self) -> None:
-        view = md.predictparity_resolved_filter_view(
+        view = md.resolved_filter_view(
             {
                 "q": "iran",
                 "outcome": "yes,no",
@@ -345,7 +345,7 @@ class PredictParityQueryFilterTests(unittest.TestCase):
         self.assertEqual(view["rows"], 300)
 
     def test_portfolio_filter_view_parses_dashboard_params(self) -> None:
-        view = md.predictparity_portfolio_filter_view(
+        view = md.portfolio_filter_view(
             {
                 "q": "tony",
                 "platform": "polymarket",
@@ -840,7 +840,7 @@ class MarketFilterMetricTests(unittest.TestCase):
         self.assertAlmostEqual(float(summary["days_to_end"]), 2.0)
         self.assertAlmostEqual(float(summary["apy"]), ((1 / 0.88) - 1) * (365 / 2))
 
-    def test_market_detail_header_metrics_include_predictparity_fields(self) -> None:
+    def test_market_detail_header_metrics_include_expected_fields(self) -> None:
         metrics = md.market_detail_header_metrics(
             {
                 "platform": "Polymarket",
@@ -940,20 +940,13 @@ class ProfileSearchTests(unittest.TestCase):
         self.assertEqual(md.x_profile_url("https://x.com/SwissTonyPM/status/1"), "https://x.com/SwissTonyPM")
         self.assertEqual(md.x_profile_url("bad handle"), "")
 
-    def test_predictparity_trader_url_normalizes_handles_and_urls(self) -> None:
-        self.assertEqual(md.predictparity_trader_url("swisstony"), "https://predictparity.com/traders/p/@swisstony")
-        self.assertEqual(md.predictparity_trader_url("@swisstony"), "https://predictparity.com/traders/p/@swisstony")
-        self.assertEqual(md.predictparity_trader_url("https://predictparity.com/traders/p/@swisstony"), "https://predictparity.com/traders/p/@swisstony")
-        self.assertEqual(md.predictparity_trader_url("bad handle"), "")
-        self.assertEqual(md.predictparity_trader_url("0x" + "a" * 40), "")
-
     def test_resolve_profile_query_to_wallet_accepts_handles_urls_and_wallets(self) -> None:
         wallet = "0x" + "a" * 40
         profiles = pd.DataFrame([{"wallet": wallet, "trader": "swisstony", "x_username": "SwissTonyPM"}])
 
         self.assertEqual(md.resolve_profile_query_to_wallet(wallet, profiles), wallet)
         self.assertEqual(md.resolve_profile_query_to_wallet("@swisstony", profiles), wallet)
-        self.assertEqual(md.resolve_profile_query_to_wallet("https://predictparity.com/traders/p/@swisstony", profiles), wallet)
+        self.assertEqual(md.resolve_profile_query_to_wallet("/traders/p/@swisstony", profiles), wallet)
         self.assertEqual(md.resolve_profile_query_to_wallet("https://polymarket.com/profile/swisstony", profiles), wallet)
         self.assertEqual(md.resolve_profile_query_to_wallet("@missing", profiles), "")
 
@@ -1006,7 +999,7 @@ class ProfileSearchTests(unittest.TestCase):
         self.assertEqual(labels[4], "Trades (12)")
         self.assertEqual(labels[5], "ACTIVITY (100+)")
 
-    def test_filter_wallet_positions_by_parity_status(self) -> None:
+    def test_filter_wallet_positions_by_status(self) -> None:
         positions = pd.DataFrame(
             [
                 {"title": "Open one", "status": "Open", "value": 5.0},
@@ -1022,141 +1015,6 @@ class ProfileSearchTests(unittest.TestCase):
         self.assertEqual(closed["title"].tolist(), ["Closed one"])
         self.assertEqual(all_rows["title"].tolist(), ["Open one", "Closed one"])
         self.assertEqual(md.wallet_position_status_value("Open"), "Open")
-
-    def test_predictparity_trader_profile_parses_public_graphql_fields(self) -> None:
-        responses = [
-            {"data": {"resolveTrader": {"id": "trader-1", "platform": "polymarket"}}},
-            {
-                "data": {
-                    "trader": {
-                        "id": "trader-1",
-                        "platform": "polymarket",
-                        "platformId": "0xabc",
-                        "username": "handle",
-                        "displayName": "Display",
-                        "platformAccountCreatedAt": "2025-07-29T14:46:06Z",
-                        "lastSyncedAt": "2026-05-29T15:48:00Z",
-                        "analytics": {"allTimeVolume": 1000.5, "allTimePnl": 42.25, "rank": 7},
-                        "onchain": {
-                            "usdcBalance": 12.5,
-                            "firstTransactionDate": "2025-08-07T11:13:51Z",
-                            "firstFundingAmount": 4999,
-                            "firstFundingSource": "0xfunder",
-                            "firstFundingTxHash": "0xtx",
-                            "accountAgeDays": 295,
-                        },
-                        "traits": {
-                            "winRate": {"percentage": 52.91},
-                            "activePositions": {"microdollars": 244_773_051_500},
-                            "usdcBalanceMicrodollars": 12_500_000,
-                        },
-                    }
-                }
-            },
-        ]
-
-        with patch("src.prediction_markets._post_json", side_effect=responses):
-            profile = md.get_predictparity_trader_profile("@handle")
-
-        self.assertEqual(profile["id"], "trader-1")
-        self.assertEqual(profile["display_name"], "Display")
-        self.assertAlmostEqual(profile["all_time_pnl"], 42.25)
-        self.assertAlmostEqual(profile["first_funding_amount"], 4999.0)
-        self.assertEqual(profile["first_funding_tx_hash"], "0xtx")
-        self.assertAlmostEqual(profile["win_rate"], 0.5291)
-        self.assertAlmostEqual(profile["active_positions_value"], 244_773.0515)
-
-    def test_predictparity_trader_profile_returns_empty_when_unresolved(self) -> None:
-        with patch("src.prediction_markets._post_json", return_value={"data": {"resolveTrader": None}}):
-            self.assertEqual(md.get_predictparity_trader_profile("@missing"), {})
-
-    def test_predictparity_traders_parse_public_leaderboard(self) -> None:
-        response = {
-            "data": {
-                "traders": {
-                    "data": [
-                        {
-                            "id": "trader-1",
-                            "platform": "polymarket",
-                            "platformId": "0x204f72f35326db932158cba6adff0b9a1da95e14",
-                            "username": "swisstony",
-                            "displayName": "swisstony",
-                            "customDisplayName": None,
-                            "profileImageUrl": "https://example.com/avatar.png",
-                            "isVerified": True,
-                            "socialTwitter": "tony",
-                            "badges": {"isBot": False, "activePositionsCount": 14},
-                            "analytics": {"allTimeVolume": 827_840_000, "allTimePnl": 9_030_000, "rank": 3},
-                            "onchain": {"usdcBalance": 2_010_000, "accountAgeDays": 304},
-                            "traits": {
-                                "winRate": {"percentage": 52.91},
-                                "activePositions": {"microdollars": 244_095_180_000},
-                                "usdcBalanceMicrodollars": 2_010_000_000_000,
-                            },
-                        }
-                    ],
-                    "hasMore": True,
-                }
-            }
-        }
-
-        with patch("src.prediction_markets._post_json", return_value=response) as post_json:
-            leaderboard = md.get_predictparity_traders(limit=100, sort_by="volume", search="tony", min_active_positions=100)
-
-        self.assertEqual(len(leaderboard), 1)
-        row = leaderboard.iloc[0]
-        self.assertEqual(row["source"], "PredictParity")
-        self.assertEqual(row["username"], "swisstony")
-        self.assertEqual(row["trader"], "swisstony")
-        self.assertAlmostEqual(row["pnl"], 9_030_000)
-        self.assertAlmostEqual(row["volume"], 827_840_000)
-        self.assertAlmostEqual(row["win_rate"], 0.5291)
-        self.assertAlmostEqual(row["positions_value"], 244_095.18)
-        self.assertAlmostEqual(row["cash_balance"], 2_010_000)
-        self.assertEqual(row["open_positions"], 14)
-        self.assertEqual(post_json.call_args.kwargs["params"]["op"], "GetTraders")
-        variables = post_json.call_args.args[1]["variables"]
-        self.assertEqual(variables["sortBy"], "volume")
-        self.assertEqual(variables["search"], "tony")
-        self.assertEqual(variables["filtersInput"]["minActivePositions"], 100)
-
-    def test_predictparity_trader_pnl_chart_parses_points(self) -> None:
-        response = {
-            "data": {
-                "traderPnlChart": {
-                    "range": "1w",
-                    "dataPoints": [
-                        {"timestamp": 1780056000000, "totalPnl": 10.5},
-                        {"timestamp": 1780142400000, "totalPnl": 12.25},
-                    ],
-                }
-            }
-        }
-
-        with patch("src.prediction_markets._post_json", return_value=response) as post_json:
-            chart = md.get_predictparity_trader_pnl_chart("trader-1", "1w")
-
-        self.assertEqual(len(chart), 2)
-        self.assertEqual(chart["series"].tolist(), ["Total PnL", "Total PnL"])
-        self.assertEqual(chart["source"].tolist(), ["PredictParity", "PredictParity"])
-        self.assertAlmostEqual(float(chart.iloc[-1]["pnl"]), 12.25)
-        self.assertEqual(str(chart.iloc[0]["time"]), "2026-05-29 12:00:00+00:00")
-        self.assertEqual(post_json.call_args.kwargs["params"]["op"], "GetTraderPnlChart")
-
-    def test_predictparity_trader_pnl_chart_maps_all_window(self) -> None:
-        response = {"data": {"traderPnlChart": {"range": "all", "dataPoints": []}}}
-
-        with patch("src.prediction_markets._post_json", return_value=response) as post_json:
-            md.get_predictparity_trader_pnl_chart("trader-1", "All")
-
-        self.assertEqual(post_json.call_args.args[1]["variables"]["range"], "all")
-
-    def test_predictparity_trader_pnl_chart_handles_missing_id(self) -> None:
-        chart = md.get_predictparity_trader_pnl_chart("", "1w")
-
-        self.assertTrue(chart.empty)
-        self.assertEqual(chart.columns.tolist(), ["time", "pnl", "series", "source"])
-
 
 class PortfolioImportTests(unittest.TestCase):
     def test_market_quick_trade_ticket_prefills_no_outcome(self) -> None:

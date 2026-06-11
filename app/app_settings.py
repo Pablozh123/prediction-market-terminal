@@ -7,10 +7,18 @@ Streamlit-free: used by the terminal's Settings page and by background scripts
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
 SETTINGS_PATH = Path("data/app_settings.json")
+
+# Secrets can be supplied via environment variables (production: .env / orchestrator
+# secrets) — an env value always wins over the JSON file and is never written back.
+ENV_OVERRIDES: dict[str, str] = {
+    "telegram_bot_token": "TELEGRAM_BOT_TOKEN",
+    "telegram_chat_id": "TELEGRAM_CHAT_ID",
+}
 
 DEFAULTS: dict[str, Any] = {
     # Data loading
@@ -71,6 +79,10 @@ def load_settings(path: str | Path = SETTINGS_PATH) -> dict[str, Any]:
             for key in DEFAULTS:
                 if key in raw:
                     settings[key] = _coerce(key, raw[key])
+    for key, env_name in ENV_OVERRIDES.items():
+        env_value = os.environ.get(env_name, "").strip()
+        if env_value:
+            settings[key] = _coerce(key, env_value)
     return settings
 
 

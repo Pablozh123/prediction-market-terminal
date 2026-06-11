@@ -1,0 +1,39 @@
+# Production stack: Caddy (TLS + security headers) -> Streamlit terminal + alert scanner.
+# 1. Copy .env.example to .env and fill in your values.
+# 2. Set your domain in deploy/Caddyfile.
+# 3. docker compose up -d
+services:
+  terminal:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+    expose:
+      - "8501"
+    # Never publish 8501 directly — Caddy is the only public entry point.
+
+  alert-scanner:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    command: ["python", "scripts/run_alert_scanner.py"]
+    volumes:
+      - ./data:/app/data
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - terminal
+
+volumes:
+  caddy_data:
+  caddy_config:
