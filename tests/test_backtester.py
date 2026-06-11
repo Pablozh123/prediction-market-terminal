@@ -139,6 +139,29 @@ class ReplayTests(unittest.TestCase):
         self.assertIn("exposure cap", ledger.iloc[2]["note"])
         self.assertAlmostEqual(ledger.iloc[4]["stake"], 300.0, places=6)
 
+    def test_mid_window_resolution_frees_capital_and_exposure(self):
+        trades = frame(
+            [
+                trade("2026-05-01", "BUY", 0.50, 100.0, asset="tok-1", market_key="c1"),
+                trade("2026-05-10", "BUY", 0.50, 100.0, asset="tok-2", market_key="c2"),
+            ]
+        )
+        token_values = {
+            "tok-1": {"price": 1.0, "closed": True, "end_time": pd.Timestamp("2026-05-05", tz="UTC")},
+        }
+        # Exposure cap 50% of $1,000 bankroll = $500; each copy wants $400.
+        cfg = config(stake_value=400.0, max_stake=400.0, max_exposure_pct=50.0)
+        ledger_blocked, _ = bt.replay(trades, cfg)
+        self.assertEqual(list(ledger_blocked["status"]), ["copied", "copied"])
+        self.assertAlmostEqual(ledger_blocked.iloc[1]["stake"], 100.0, places=6)  # clamped without recycling
+        ledger_free, _ = bt.replay(trades, cfg, token_values)
+        actions = list(ledger_free["action"])
+        self.assertEqual(actions, ["BUY", "RESOLVE", "BUY"])
+        resolve_row = ledger_free.iloc[1]
+        self.assertEqual(str(resolve_row["time"]), str(pd.Timestamp("2026-05-05", tz="UTC")))
+        self.assertAlmostEqual(resolve_row["realized_pnl"], 800.0 - 400.0, places=6)
+        self.assertAlmostEqual(ledger_free.iloc[2]["stake"], 400.0, places=6)  # full stake after recycling
+
     def test_max_stake_caps_sizing(self):
         trades = frame([trade("2026-05-01", "BUY", 0.50, 1000.0)])
         ledger, _ = bt.replay(trades, config(sizing_mode=bt.SIZING_PERCENT, stake_value=50.0, max_stake=100.0))
