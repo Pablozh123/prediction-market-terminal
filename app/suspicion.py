@@ -307,6 +307,7 @@ def co_trading_network(
     window_minutes: float | None = None,
     min_shared: int = 2,
     max_wallets: int = 200,
+    min_pair_notional: float = 0.0,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Build the co-trading graph and its communities from the whale tape.
 
@@ -374,7 +375,7 @@ def co_trading_network(
     edge_rows = [
         {"wallet_a": a, "wallet_b": b, "shared_markets": len(markets), "pair_notional": pair_notional.get((a, b), 0.0)}
         for (a, b), markets in pair_markets.items()
-        if len(markets) >= int(min_shared)
+        if len(markets) >= int(min_shared) and pair_notional.get((a, b), 0.0) >= float(min_pair_notional)
     ]
     if not edge_rows:
         return empty
@@ -384,7 +385,9 @@ def co_trading_network(
     if nx is not None:
         graph = nx.Graph()
         for row in edge_rows:
-            graph.add_edge(row["wallet_a"], row["wallet_b"], weight=row["shared_markets"])
+            # Dollar-weighted edges: strong-money pairs bind communities tighter
+            # than weak-money pairs (falls back to shared-market count if $0).
+            graph.add_edge(row["wallet_a"], row["wallet_b"], weight=float(row["pair_notional"]) or float(row["shared_markets"]))
         try:
             members = [set(community) for community in nx.community.louvain_communities(graph, weight="weight", seed=42)]
         except Exception:
@@ -437,6 +440,27 @@ def co_trading_network(
     return nodes, edges
 
 
+def network_modularity(nodes: pd.DataFrame, edges: pd.DataFrame) -> float | None:
+    """Weighted modularity of the detected partition (>0.3 ≈ meaningful structure)."""
+
+    if nx is None or nodes is None or nodes.empty or edges is None or edges.empty:
+        return None
+    graph = nx.Graph()
+    for _, edge in edges.iterrows():
+        graph.add_edge(edge["wallet_a"], edge["wallet_b"], weight=float(edge["pair_notional"]) or float(edge["shared_markets"]))
+    communities: dict[Any, set[str]] = {}
+    for _, node in nodes.iterrows():
+        communities.setdefault(node["cluster_id"], set()).add(node["wallet"])
+    partition = [members for members in communities.values() if members]
+    covered = set().union(*partition) if partition else set()
+    for orphan in set(graph.nodes) - covered:
+        partition.append({orphan})
+    try:
+        return float(nx.community.modularity(graph, partition, weight="weight"))
+    except Exception:
+        return None
+
+
 def cluster_layout(nodes: pd.DataFrame) -> pd.DataFrame:
     """Organic island layout: cluster centers on a golden-angle spiral, members on
     a ring around each center with deterministic radial jitter.
@@ -485,6 +509,7 @@ def cluster_story(
     trades: pd.DataFrame,
     *,
     window_minutes: float | None = 5.0,
+    min_shared: int = 2,
 ) -> dict[str, Any]:
     """Plain-language explanation of one cluster: what it is, why it clusters, how to read it.
 
@@ -516,7 +541,7 @@ def cluster_story(
 
     window_text = f"within {window_minutes:.0f} minutes of each other" if window_minutes else "in the sampled tape"
     reasons = [
-        f"Every line connects two wallets that bought the same side of at least 2 shared markets {window_text} — "
+        f"Every line connects two wallets that bought the same side of at least {int(min_shared)} shared markets {window_text} — "
         f"on average {shared_avg:.1f} shared markets per linked pair (max {shared_max:.0f}).",
     ]
     if density >= 0.5:
