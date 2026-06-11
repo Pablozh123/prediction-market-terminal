@@ -10913,7 +10913,12 @@ def _backtest_stat_cards(stats: dict[str, Any], benchmark: dict[str, Any]) -> No
     bottom[2].metric("Fees paid", money(stats["fees_paid"]), f"{money(stats['open_value'])} open", delta_color="off")
 
 
-def _backtest_equity_chart(result: btr.BacktestResult, compare: btr.BacktestResult | None = None) -> go.Figure:
+def _backtest_equity_chart(
+    result: btr.BacktestResult,
+    compare: btr.BacktestResult | None = None,
+    best_result: btr.BacktestResult | None = None,
+    best_label: str = "",
+) -> go.Figure:
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(
@@ -10939,6 +10944,27 @@ def _backtest_equity_chart(result: btr.BacktestResult, compare: btr.BacktestResu
                 name=short_addr(compare.wallet),
                 line=dict(color=BLUE, width=2),
             )
+        )
+    if best_result is not None and not best_result.equity.empty:
+        label = f"Best sizing: {best_label}" if best_label else "Best sizing"
+        fig.add_trace(
+            go.Scatter(
+                x=best_result.equity["time"],
+                y=best_result.equity["equity"],
+                name=label,
+                line=dict(color=AMBER, width=2, dash="dot"),
+            )
+        )
+        fig.add_annotation(
+            x=best_result.equity["time"].iloc[-1],
+            y=float(best_result.equity["equity"].iloc[-1]),
+            text=label,
+            showarrow=True,
+            arrowhead=0,
+            arrowcolor=AMBER,
+            ax=-70,
+            ay=-28,
+            font=dict(family="JetBrains Mono, monospace", size=11, color=AMBER),
         )
     fig.update_layout(
         height=360,
@@ -11140,6 +11166,8 @@ def page_backtester() -> None:
                     st.session_state.pop("backtest_request", None)
                     valid = False
             if valid:
+                st.session_state.pop("bt_compare_requested", None)
+                st.session_state.pop("bt_best_sizing", None)
                 st.session_state["backtest_request"] = {
                     "wallet": wallet,
                     "compare": compare_wallet,
@@ -11226,7 +11254,55 @@ def page_backtester() -> None:
                 unsafe_allow_html=True,
             )
         _backtest_stat_cards(result.stats, result.benchmark_stats)
-        st.plotly_chart(_backtest_equity_chart(result, compare_result), width="stretch", config=plot_config())
+        skipped_total = int(result.stats.get("skipped_trades", 0) or 0)
+        copied_total = int(result.stats.get("copied_trades", 0) or 0)
+        if skipped_total > max(20, copied_total):
+            skip_notes = result.ledger[result.ledger["status"].eq("skipped")]["note"].astype(str)
+            cap_skips = int(skip_notes.str.contains("exposure cap", na=False).sum())
+            cash_skips = int(skip_notes.str.contains("out of cash|below minimum", na=False, regex=True).sum())
+            unheld_skips = int(skip_notes.str.contains("no copied position", na=False).sum())
+            reason_bits = []
+            if cap_skips:
+                reason_bits.append(f"{cap_skips:,} hit the exposure cap ({request.get('max_exposure_pct', 100):.0f}%)")
+            if cash_skips:
+                reason_bits.append(f"{cash_skips:,} ran out of cash")
+            if unheld_skips:
+                reason_bits.append(f"{unheld_skips:,} were sells of positions you never copied")
+            recycle_note = ""
+            if int(result.stats.get("closed_trades", 0) or 0) == 0 and int(result.stats.get("open_positions", 0) or 0) > 0:
+                recycle_note = " No market resolved inside the effective window, so no capital came back to free up room — the equity curve stays flat until the final mark-to-market."
+            st.markdown(
+                f"<div class='field-hint' style='color:{AMBER}'>Why so many skips: {'; '.join(reason_bits) or 'see the trade log'}.{recycle_note} "
+                "Raise the exposure cap or lower the stake to copy more of the flow.</div>",
+                unsafe_allow_html=True,
+            )
+        best_result = None
+        best_label = ""
+        best_sizing = st.session_state.get("bt_best_sizing") or {}
+        if best_sizing.get("signature") == (request["wallet"], request["days"]):
+            best_label = str(best_sizing.get("label", ""))
+            same_as_current = (
+                best_sizing.get("sizing_mode") == request["sizing_mode"]
+                and float(best_sizing.get("stake_value", -1.0)) == float(request["stake_value"])
+            )
+            if not same_as_current:
+                best_result = run_backtest_cached(
+                    request["wallet"],
+                    request["days"],
+                    request["bankroll"],
+                    str(best_sizing.get("sizing_mode", btr.SIZING_FIXED)),
+                    float(best_sizing.get("stake_value", 25.0)),
+                    request["max_stake"],
+                    request["fee_bps"],
+                    request["slippage_bps"],
+                    request["flat_stake"],
+                    request.get("strategy", btr.STRATEGY_COPY),
+                    request.get("max_exposure_pct", 100.0),
+                    request.get("trader_portfolio_value", 0.0),
+                )
+            else:
+                best_label = f"{best_label} (= your setting)"
+        st.plotly_chart(_backtest_equity_chart(result, compare_result, best_result, best_label), width="stretch", config=plot_config())
 
         tab_labels = ["Trade log", "Open positions", "Drawdown"]
         if compare_result is not None:
@@ -11269,6 +11345,16 @@ def page_backtester() -> None:
                     draw_empty("No trades to simulate in this window.")
                 else:
                     best = comparison.iloc[0]
+                    st.session_state["bt_best_sizing"] = {
+                        "signature": (request["wallet"], request["days"]),
+                        "label": str(best["strategy"]),
+                        "sizing_mode": str(best.get("sizing_mode", btr.SIZING_FIXED)),
+                        "stake_value": float(best.get("stake_value", 25.0)),
+                    }
+                    st.markdown(
+                        "<div class='field-hint'>The best variant is drawn into the equity chart above as the dotted amber line.</div>",
+                        unsafe_allow_html=True,
+                    )
                     st.markdown(
                         f"<div class='small-note'>Best for this wallet & window: <strong>{html.escape(str(best['strategy']))}</strong> → "
                         f"{money(best['final_equity'])} final equity ({float(best['roi']) * 100:+.1f}% ROI)</div>",
