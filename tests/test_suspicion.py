@@ -120,6 +120,12 @@ class CategoryContextTests(unittest.TestCase):
             ("Some niche market", "Sports", susp.CONTEXT_SPORTS),
             ("Spread: Knicks (-1.5)", "", susp.CONTEXT_SPORTS),
             ("Lakers moneyline tonight", "", susp.CONTEXT_SPORTS),
+            ("Exact Score: Mexico 3 - 3 South Africa?", "", susp.CONTEXT_SPORTS),
+            ("Mexico leading at halftime?", "", susp.CONTEXT_SPORTS),
+            ("Mexico wins by over 1.5 goals?", "", susp.CONTEXT_SPORTS),
+            ("Will Mexico score over 1.5 goals?", "", susp.CONTEXT_SPORTS),
+            ("Who lifts the World Cup?", "", susp.CONTEXT_SPORTS),
+            ("Will the UN reach its climate goals?", "", susp.CONTEXT_GENERAL),
             ("Some niche question", "", susp.CONTEXT_GENERAL),
         ]
         for title, category, expected in cases:
@@ -130,6 +136,24 @@ class CategoryContextTests(unittest.TestCase):
     def test_title_keywords_beat_category(self):
         group, _, _ = susp.classify_insider_context("Will the CEO resign before July?", "Politics")
         self.assertEqual(group, susp.CONTEXT_CORPORATE)
+
+    def test_event_title_context_classifies_neutral_submarket_titles(self):
+        # Polymarket sub-markets ("Will Mexico win on 2026-06-11?") carry no sports
+        # keyword — the parent event title ("Mexico vs. South Africa") must decide.
+        group, _, _ = susp.classify_insider_context("Will Mexico win on 2026-06-11?", "", "Mexico vs. South Africa")
+        self.assertEqual(group, susp.CONTEXT_SPORTS)
+        # ...but an election-day market must stay politics, not sports.
+        group, _, _ = susp.classify_insider_context("Will Newsom win on 2026-11-03?", "", "California Governor Election 2026")
+        self.assertEqual(group, susp.CONTEXT_POLITICS)
+
+    def test_apply_category_context_uses_context_text_column(self):
+        events = pd.DataFrame(
+            [{"title": "Will Mexico win on 2026-06-11?", "market_key": "0xc1", "event_insider_score": 80.0, "event_insider_flags": "", "notional": 50000.0}]
+        )
+        categories = pd.DataFrame([{"market_key": "0xc1", "category": "", "context_text": "Mexico vs. South Africa"}])
+        adjusted = susp.apply_category_context(events, categories)
+        self.assertEqual(adjusted.iloc[0]["insider_context"], susp.CONTEXT_SPORTS)
+        self.assertAlmostEqual(adjusted.iloc[0]["event_insider_score"], 48.0)
 
     def test_event_scores_damped_for_sports_and_boosted_for_awards(self):
         events = pd.DataFrame(
@@ -391,6 +415,50 @@ class StoryAndDrilldownTests(unittest.TestCase):
         )
         subset = susp.wallets_for_event(trades, wallet_risk, "Will X happen?")
         self.assertEqual(list(subset["wallet"]), ["0xbbb", "0xaaa"])
+
+
+class WalletlessVenueTests(unittest.TestCase):
+    """Kalshi publishes no wallet identities — blank-wallet rows must feed event-level
+    signals while every wallet-level helper skips them."""
+
+    def _mixed_tape(self):
+        rows = [
+            trade("0xaaa", "Will X happen?", "Yes", 6000.0, "2026-06-10T12:00:00Z"),
+            trade("0xbbb", "Will X happen?", "Yes", 7000.0, "2026-06-10T12:01:00Z"),
+        ]
+        rows += [
+            trade("", "Fed decision in June?", "Yes", 15000.0, "2026-06-10T12:02:00Z"),
+            trade("", "Fed decision in June?", "Yes", 18000.0, "2026-06-10T12:03:00Z"),
+            trade("", "Fed decision in June?", "Yes", 22000.0, "2026-06-10T12:04:00Z"),
+        ]
+        return tape(rows)
+
+    def test_event_story_for_walletless_event(self):
+        story = susp.event_story(pd.Series({"notional": 55000.0, "unique_wallets": 0}))
+        self.assertIn("wallet identities not public", story)
+        self.assertNotIn("0 wallet", story)
+
+    def test_fresh_wallet_clusters_ignore_blank_wallets(self):
+        clusters = susp.fresh_wallet_clusters(self._mixed_tape(), whale_threshold=2500.0)
+        self.assertNotIn("Fed decision in June?", set(clusters.get("title", pd.Series(dtype=str))))
+
+    def test_coordinated_clusters_ignore_blank_wallets(self):
+        clusters = susp.coordinated_clusters(self._mixed_tape(), window_minutes=30.0, min_wallets=2)
+        self.assertNotIn("Fed decision in June?", set(clusters.get("title", pd.Series(dtype=str))))
+
+    def test_co_trading_network_ignores_blank_wallets(self):
+        rows = []
+        for market in ("Fed decision in June?", "Rate cut by July?", "CPI above 3%?"):
+            rows.append(trade("", market, "Yes", 15000.0, "2026-06-10T12:00:00Z"))
+            rows.append(trade("", market, "Yes", 18000.0, "2026-06-10T12:01:00Z"))
+        nodes, edges = susp.co_trading_network(tape(rows), window_minutes=5.0, min_shared=2)
+        self.assertTrue(nodes.empty)
+        self.assertTrue(edges.empty)
+
+    def test_wallets_for_event_returns_empty_for_walletless_event(self):
+        wallet_risk = pd.DataFrame([{"wallet": "0xaaa", "wallet_insider_score": 40.0}])
+        subset = susp.wallets_for_event(self._mixed_tape(), wallet_risk, "Fed decision in June?")
+        self.assertTrue(subset.empty)
 
 
 if __name__ == "__main__":
