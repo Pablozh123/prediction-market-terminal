@@ -7560,81 +7560,6 @@ def page_whale_flow() -> None:
             st.session_state["whale_filters_reset_pending"] = True
             st.rerun()
 
-    save_cols = st.columns([2, 1, 1])
-    saved_whale_name = save_cols[0].text_input("Saved whale view name", value=f"Whale Flow {md.now_utc_label()}", key="saved_whale_view_name")
-    save_whale_clicked = save_cols[1].button("Save Filter", width="stretch", key="save_whale_filter_button")
-    if save_cols[2].button("Reset Whale View", width="stretch", key="reset_whale_view_button"):
-        st.session_state["whale_filters_reset_pending"] = True
-        st.rerun()
-    loaded_whale_message = st.session_state.pop("whale_view_loaded_message", "")
-    if loaded_whale_message:
-        st.info(loaded_whale_message)
-    if st.session_state.saved_whale_filters:
-        load_cols = st.columns([2, 1, 1])
-        saved_labels = [
-            f"{i + 1}. {view.get('name') or view.get('query') or 'Whale flow view'}"
-            for i, view in enumerate(st.session_state.saved_whale_filters)
-        ]
-        selected_saved_whale = load_cols[0].selectbox("Load saved whale view", saved_labels, key="load_saved_whale_view")
-        selected_whale_view = st.session_state.saved_whale_filters[saved_labels.index(selected_saved_whale)]
-        if load_cols[1].button("Load whale view", key="load_whale_view_button"):
-            st.session_state["pending_whale_filter_view"] = selected_whale_view
-            st.session_state["whale_view_loaded_message"] = f"Loaded saved whale view: {selected_whale_view.get('name', selected_saved_whale)}"
-            st.rerun()
-        if load_cols[2].button("Delete whale view", key="delete_whale_view_button"):
-            st.session_state.saved_whale_filters.pop(saved_labels.index(selected_saved_whale))
-            save_local_list("saved_whale_filters.json", st.session_state.saved_whale_filters)
-            st.rerun()
-    if save_whale_clicked:
-        st.session_state.saved_whale_filters.append(
-            {
-                "name": saved_whale_name.strip() or f"Whale Flow {md.now_utc_label()}",
-                "created_at": md.now_utc_label(),
-                "query": whale_query,
-                "platforms": whale_platforms,
-                "trade_side": whale_trade_side,
-                "maker_taker": whale_maker_taker,
-                "price_preset": whale_price_preset,
-                "custom_price_min": int(st.session_state.get("whale_custom_price_min", 0)),
-                "custom_price_max": int(st.session_state.get("whale_custom_price_max", 100)),
-                "size_preset": whale_size_preset,
-                "custom_size": int(st.session_state.get("whale_custom_size", 0)),
-                "value_preset": whale_value_preset,
-                "custom_value": int(st.session_state.get("whale_custom_value", 0)),
-                "verified_only": bool(whale_verified_only),
-                "bot_mode": whale_bot_mode,
-                "account_age_preset": whale_account_age_preset,
-                "custom_account_age": int(st.session_state.get("whale_custom_account_age", 365)),
-                "pnl_preset": whale_pnl_preset,
-                "custom_pnl": int(st.session_state.get("whale_custom_pnl", 0)),
-                "volume_preset": whale_volume_preset,
-                "custom_volume": int(st.session_state.get("whale_custom_volume", 0)),
-                "win_rate_preset": whale_win_rate_preset,
-                "custom_win_rate": int(st.session_state.get("whale_custom_win_rate", 50)),
-                "balance_preset": whale_balance_preset,
-                "custom_balance": int(st.session_state.get("whale_custom_balance", 0)),
-                "contrarian_preset": whale_contrarian_preset,
-                "custom_contrarian": int(st.session_state.get("whale_custom_contrarian", 25)),
-                "trend_preset": whale_trend_preset,
-                "custom_trend": int(st.session_state.get("whale_custom_trend", 25)),
-                "lottery_preset": whale_lottery_preset,
-                "custom_lottery": int(st.session_state.get("whale_custom_lottery", 25)),
-                "splash_preset": whale_splash_preset,
-                "custom_splash": int(st.session_state.get("whale_custom_splash", 25)),
-                "concentration_preset": whale_concentration_preset,
-                "custom_concentration": int(st.session_state.get("whale_custom_concentration", 50)),
-                "unrealized_pnl_preset": whale_unrealized_pnl_preset,
-                "custom_unrealized_pnl": int(st.session_state.get("whale_custom_unrealized_pnl", 0)),
-                "rows": int(whale_rows),
-                "min_notional": int(whale_min_notional),
-                "min_wallet_notional": int(whale_min_wallet_notional),
-                "min_wallet_trades": int(whale_min_wallet_trades),
-                "bias_filter": whale_bias_filter,
-                "tracked_wallets_only": bool(tracked_wallets_only),
-            }
-        )
-        save_local_list("saved_whale_filters.json", st.session_state.saved_whale_filters)
-        st.success("Saved whale flow view.")
 
     poly_trades = safe_load("Polymarket trades", load_polymarket_trades, trade_limit, 0.0, None, None)
     kalshi_trades = safe_load("Kalshi trades", load_kalshi_trades, trade_limit, None)
@@ -7794,55 +7719,6 @@ def page_whale_flow() -> None:
         chips.append("Tracked wallets only")
     render_filter_chips(chips)
 
-    clear_actions: list[tuple[str, dict[str, Any]]] = []
-    if whale_query.strip():
-        clear_actions.append(("search", {"whale_query": ""}))
-    if set(whale_platforms) != set(whale_defaults["whale_platforms"]):
-        clear_actions.append(("platform", {"whale_platforms": whale_defaults["whale_platforms"]}))
-    for label, key, value in [
-        ("side", "whale_trade_side", whale_trade_side),
-        ("maker/taker", "whale_maker_taker", whale_maker_taker),
-        ("price", "whale_price_preset", whale_price_preset),
-        ("size", "whale_size_preset", whale_size_preset),
-        ("total value", "whale_value_preset", whale_value_preset),
-        ("bots", "whale_bot_mode", whale_bot_mode),
-        ("account age", "whale_account_age_preset", whale_account_age_preset),
-        ("PnL", "whale_pnl_preset", whale_pnl_preset),
-        ("volume", "whale_volume_preset", whale_volume_preset),
-        ("win rate", "whale_win_rate_preset", whale_win_rate_preset),
-        ("balance", "whale_balance_preset", whale_balance_preset),
-        ("contrarian", "whale_contrarian_preset", whale_contrarian_preset),
-        ("trend", "whale_trend_preset", whale_trend_preset),
-        ("lottery", "whale_lottery_preset", whale_lottery_preset),
-        ("whale splash", "whale_splash_preset", whale_splash_preset),
-        ("concentration", "whale_concentration_preset", whale_concentration_preset),
-        ("unrealized PnL", "whale_unrealized_pnl_preset", whale_unrealized_pnl_preset),
-    ]:
-        if value != whale_defaults.get(key):
-            clear_actions.append((label, {key: whale_defaults[key]}))
-    if whale_verified_only:
-        clear_actions.append(("verified", {"whale_verified_only": False}))
-    if int(whale_rows) != int(whale_defaults["whale_rows"]):
-        clear_actions.append(("rows", {"whale_rows": whale_defaults["whale_rows"]}))
-    if int(whale_min_notional) > 0:
-        clear_actions.append(("print notional", {"whale_min_notional": 0}))
-    if int(whale_min_wallet_notional) > 0:
-        clear_actions.append(("wallet notional", {"whale_min_wallet_notional": 0}))
-    if int(whale_min_wallet_trades) > 1:
-        clear_actions.append(("wallet trades", {"whale_min_wallet_trades": 1}))
-    if whale_bias_filter != "Any":
-        clear_actions.append(("bias", {"whale_bias_filter": "Any"}))
-    if tracked_wallets_only:
-        clear_actions.append(("tracked wallets", {"whale_tracked_wallets_only": False}))
-    render_filter_clear_buttons(clear_actions, "whale")
-    if st.session_state.saved_whale_filters:
-        st.caption(f"Saved whale views: {len(st.session_state.saved_whale_filters)}")
-        with st.expander("Saved whale filters", expanded=False):
-            st.dataframe(pd.DataFrame(st.session_state.saved_whale_filters), width="stretch", height=160)
-            if st.button("Clear saved whale filters"):
-                st.session_state.saved_whale_filters = []
-                save_local_list("saved_whale_filters.json", st.session_state.saved_whale_filters)
-                st.rerun()
 
     if trades.empty:
         draw_empty("No large trades match the current threshold.")
