@@ -191,6 +191,34 @@ def apply_fresh_wallet_bonus(event_risk: pd.DataFrame, clusters: pd.DataFrame, m
     return enriched
 
 
+def dominant_context_map(trades: pd.DataFrame, market_categories: pd.DataFrame | None = None) -> dict[str, str]:
+    """Map wallet (lowercase) -> dominant insider-context group of its flow, weighted by notional."""
+
+    if trades is None or trades.empty or not {"wallet", "title"}.issubset(trades.columns):
+        return {}
+    df = trades.copy()
+    df["wallet"] = df["wallet"].astype(str).str.lower().str.strip()
+    df = df[df["wallet"].ne("") & df["wallet"].ne("nan")]
+    if df.empty:
+        return {}
+    category_map: dict[str, str] = {}
+    if market_categories is not None and not market_categories.empty and {"market_key", "category"}.issubset(market_categories.columns):
+        category_map = dict(zip(market_categories["market_key"].astype(str), market_categories["category"].astype(str)))
+    title_groups: dict[tuple[str, str], str] = {}
+    keys = df.get("market_key", pd.Series("", index=df.index)).astype(str)
+    df["_group"] = [
+        title_groups.setdefault(
+            (title, category_map.get(key, "")),
+            classify_insider_context(title, category_map.get(key, ""))[0],
+        )
+        for title, key in zip(df["title"].astype(str), keys)
+    ]
+    df["_notional"] = numeric_col(df, "notional").clip(lower=0.0)
+    weighted = df.groupby(["wallet", "_group"])["_notional"].sum().reset_index()
+    dominant = weighted.sort_values("_notional", ascending=False).drop_duplicates(subset=["wallet"], keep="first")
+    return dict(zip(dominant["wallet"], dominant["_group"]))
+
+
 def coordinated_clusters(
     trades: pd.DataFrame,
     *,
