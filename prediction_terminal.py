@@ -10829,10 +10829,10 @@ def page_portfolio() -> None:
                     st.rerun()
 
 
-BACKTEST_SIZING_OPTIONS = {
-    "Fixed stake": btr.SIZING_FIXED,
-    "Percent of bankroll": btr.SIZING_PERCENT,
-    "Mirror trader size": btr.SIZING_MIRROR,
+BACKTEST_SIZING_CHOICES = {
+    "Fixed $": btr.SIZING_FIXED,
+    "% of bankroll": btr.SIZING_PERCENT,
+    "Match trader %": btr.SIZING_PORTFOLIO,
 }
 BACKTEST_WINDOW_OPTIONS = {"7d": 7, "30d": 30, "90d": 90}
 BACKTEST_STRATEGY_OPTIONS = {"Copy": btr.STRATEGY_COPY, "Fade": btr.STRATEGY_FADE}
@@ -10850,6 +10850,8 @@ def run_backtest_cached(
     slippage_bps: float,
     flat_stake: float,
     strategy: str,
+    max_exposure_pct: float = 100.0,
+    trader_portfolio_value: float = 0.0,
 ) -> btr.BacktestResult:
     return btr.run_backtest(
         btr.BacktestConfig(
@@ -10863,6 +10865,38 @@ def run_backtest_cached(
             slippage_bps=slippage_bps,
             flat_stake=flat_stake,
             strategy=strategy,
+            max_exposure_pct=max_exposure_pct,
+            trader_portfolio_value=trader_portfolio_value,
+        )
+    )
+
+
+@st.cache_data(ttl=300, show_spinner="Simulating sizing strategies…")
+def run_strategy_comparison_cached(
+    wallet: str,
+    days: int,
+    bankroll: float,
+    max_stake: float,
+    fee_bps: float,
+    slippage_bps: float,
+    strategy: str,
+    max_exposure_pct: float,
+    trader_portfolio_value: float,
+) -> pd.DataFrame:
+    return btr.strategy_comparison(
+        btr.BacktestConfig(
+            wallet=wallet,
+            days=days,
+            bankroll=bankroll,
+            sizing_mode=btr.SIZING_FIXED,
+            stake_value=25.0,
+            max_stake=max_stake,
+            fee_bps=fee_bps,
+            slippage_bps=slippage_bps,
+            flat_stake=bankroll * 0.02,
+            strategy=strategy,
+            max_exposure_pct=max_exposure_pct,
+            trader_portfolio_value=trader_portfolio_value,
         )
     )
 
@@ -11043,10 +11077,29 @@ def page_backtester() -> None:
             st.markdown("<div class='step-label' style='margin-top:0'>01 · Wallet to copy</div>", unsafe_allow_html=True)
             wallet_input = st.text_input("Wallet to copy", placeholder="0x…", key="bt_wallet", label_visibility="collapsed")
             st.markdown("<div class='field-hint'>Paste any Polymarket address — for example from the Traders leaderboard.</div>", unsafe_allow_html=True)
-            st.markdown("<div class='step-label'>02 · Max bet per trade</div>", unsafe_allow_html=True)
-            max_bet = st.number_input("Max bet per trade ($)", min_value=1.0, max_value=100_000.0, value=float(app_config["backtest_max_bet"]), step=5.0, key="bt_stake", label_visibility="collapsed")
+            st.markdown("<div class='step-label'>02 · Stake per copy</div>", unsafe_allow_html=True)
+            sizing_choice = st.segmented_control("Stake mode", list(BACKTEST_SIZING_CHOICES), default="Fixed $", key="bt_sizing_mode", label_visibility="collapsed")
+            sizing_choice = str(sizing_choice or "Fixed $")
             bankroll_hint = float(st.session_state.get("bt_bankroll", float(app_config["backtest_bankroll"])))
-            st.markdown(f"<div class='field-hint'>Bankroll pinned to ${bankroll_hint:,.0f} — change it under Advanced.</div>", unsafe_allow_html=True)
+            if sizing_choice == "% of bankroll":
+                stake_input = st.number_input("Stake (% of bankroll)", min_value=0.1, max_value=100.0, value=2.0, step=0.5, key="bt_stake_pct")
+                st.markdown(
+                    f"<div class='field-hint'>Each copy bets {stake_input:.1f}% of your bankroll → about {money(bankroll_hint * stake_input / 100.0)} right now.</div>",
+                    unsafe_allow_html=True,
+                )
+            elif sizing_choice == "Match trader %":
+                stake_input = st.number_input("Multiplier (× trader's share)", min_value=0.1, max_value=10.0, value=1.0, step=0.5, key="bt_stake_mult")
+                st.markdown(
+                    "<div class='field-hint'>If the trader puts 2% of their portfolio into a bet, you put 2% × multiplier of yours. "
+                    "Their portfolio size is read from their public profile.</div>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                stake_input = st.number_input("Stake per copy ($)", min_value=1.0, max_value=100_000.0, value=float(app_config["backtest_max_bet"]), step=5.0, key="bt_stake_fixed")
+                st.markdown("<div class='field-hint'>Every copied trade bets exactly this amount.</div>", unsafe_allow_html=True)
+            cap_cols = st.columns(2)
+            max_bet = cap_cols[0].number_input("Cap per trade ($)", min_value=1.0, max_value=100_000.0, value=max(float(app_config["backtest_max_bet"]) * 10, 250.0), step=10.0, key="bt_max_stake", help="Hard ceiling for a single copy, whatever the sizing mode says.")
+            max_exposure_pct = cap_cols[1].number_input("Max % of bankroll in open copies", min_value=5.0, max_value=100.0, value=50.0, step=5.0, key="bt_exposure", help="New copies are skipped while your open copied positions already tie up this share of the bankroll. Sells free the room up again.")
             st.markdown("<div class='step-label'>03 · Time window</div>", unsafe_allow_html=True)
             window_label = st.segmented_control("Time window", list(BACKTEST_WINDOW_OPTIONS), default="30d", key="bt_window", label_visibility="collapsed")
             st.markdown("<div class='step-label'>04 · Strategy</div>", unsafe_allow_html=True)
@@ -11054,38 +11107,53 @@ def page_backtester() -> None:
             st.markdown("<div class='field-hint'>Fade takes the opposite side of every trade the wallet makes.</div>", unsafe_allow_html=True)
             with st.expander("Advanced settings"):
                 bankroll = st.number_input("Bankroll ($)", min_value=10.0, max_value=1_000_000.0, value=float(app_config["backtest_bankroll"]), step=500.0, key="bt_bankroll")
-                sizing_label = st.selectbox("Bet sizing", list(BACKTEST_SIZING_OPTIONS), key="bt_sizing", help="Fixed: the max bet is the stake per copy. Percent: % of current bankroll. Mirror: % of the trader's notional.")
-                sizing_value = st.number_input("Sizing value (% for percent/mirror)", min_value=0.1, max_value=100_000.0, value=2.0, step=0.5, key="bt_sizing_value")
                 fee_bps = st.number_input("Fee (bps)", min_value=0.0, max_value=500.0, value=float(app_config["backtest_fee_bps"]), step=5.0, key="bt_fee")
                 slippage_bps = st.number_input("Slippage (bps)", min_value=0.0, max_value=500.0, value=float(app_config["backtest_slippage_bps"]), step=5.0, key="bt_slippage")
-                flat_stake = st.number_input("Benchmark flat stake ($)", min_value=1.0, max_value=100_000.0, value=float(app_config["backtest_flat_stake"]), step=5.0, key="bt_flat")
                 compare_input = st.text_input("Compare wallet (optional)", placeholder="0x…", key="bt_compare")
+                st.markdown(
+                    "<div class='field-hint'>Benchmark in the results = the same trades with a constant 2% of the starting bankroll per copy.</div>",
+                    unsafe_allow_html=True,
+                )
             submitted = st.form_submit_button("Run backtest →", type="primary", width="stretch")
 
         if submitted:
             wallet = str(wallet_input or "").strip().lower()
             compare_wallet = str(compare_input or "").strip().lower()
-            sizing_mode = BACKTEST_SIZING_OPTIONS[sizing_label]
-            stake_value = float(max_bet) if sizing_mode == btr.SIZING_FIXED else float(sizing_value)
+            sizing_mode = BACKTEST_SIZING_CHOICES.get(sizing_choice, btr.SIZING_FIXED)
+            trader_portfolio_value = 0.0
+            valid = True
             if not md.is_polymarket_wallet(wallet):
                 st.warning("Enter a valid Polymarket wallet address (0x + 40 hex characters).")
                 st.session_state.pop("backtest_request", None)
+                valid = False
             elif compare_wallet and not md.is_polymarket_wallet(compare_wallet):
                 st.warning("The compare wallet is not a valid Polymarket address.")
                 st.session_state.pop("backtest_request", None)
-            else:
+                valid = False
+            if valid and sizing_mode == btr.SIZING_PORTFOLIO:
+                profile = safe_load("Trader profile", load_predictparity_trader_profile, wallet, default={}) or {}
+                positions_value = float(pd.to_numeric(pd.Series([profile.get("active_positions_value")]), errors="coerce").fillna(0.0).iloc[0])
+                cash_value = float(pd.to_numeric(pd.Series([profile.get("usdc_balance")]), errors="coerce").fillna(0.0).iloc[0])
+                trader_portfolio_value = positions_value + cash_value
+                if trader_portfolio_value <= 0:
+                    st.warning("Could not determine this trader's portfolio size — pick Fixed $ or % of bankroll instead.")
+                    st.session_state.pop("backtest_request", None)
+                    valid = False
+            if valid:
                 st.session_state["backtest_request"] = {
                     "wallet": wallet,
                     "compare": compare_wallet,
                     "days": BACKTEST_WINDOW_OPTIONS.get(str(window_label or "30d"), 30),
                     "bankroll": float(bankroll),
                     "sizing_mode": sizing_mode,
-                    "stake_value": stake_value,
+                    "stake_value": float(stake_input),
                     "max_stake": float(max_bet),
                     "fee_bps": float(fee_bps),
                     "slippage_bps": float(slippage_bps),
-                    "flat_stake": float(flat_stake),
+                    "flat_stake": float(bankroll) * 0.02,
                     "strategy": BACKTEST_STRATEGY_OPTIONS.get(str(strategy_label or "Copy"), btr.STRATEGY_COPY),
+                    "max_exposure_pct": float(max_exposure_pct),
+                    "trader_portfolio_value": float(trader_portfolio_value),
                 }
 
     with results_col:
@@ -11118,6 +11186,8 @@ def page_backtester() -> None:
                     request["slippage_bps"],
                     request["flat_stake"],
                     request.get("strategy", btr.STRATEGY_COPY),
+                    request.get("max_exposure_pct", 100.0),
+                    request.get("trader_portfolio_value", 0.0),
                 )
                 compare_result = None
                 if request["compare"]:
@@ -11132,6 +11202,8 @@ def page_backtester() -> None:
                         request["slippage_bps"],
                         request["flat_stake"],
                         request.get("strategy", btr.STRATEGY_COPY),
+                        request.get("max_exposure_pct", 100.0),
+                        0.0,
                     )
         except md.MarketDataError as exc:
             st.error(f"Market data request failed: {exc}")
@@ -11173,6 +11245,61 @@ def page_backtester() -> None:
                 else:
                     _backtest_stat_cards(compare_result.stats, compare_result.benchmark_stats)
                     _backtest_comparison_table(result, compare_result)
+
+        with st.expander("Which sizing would have been best for this wallet?"):
+            st.markdown(
+                "<div class='field-hint'>Replays the same window once per sizing strategy — identical fees, slippage, cap and exposure limit; only the stake rule changes.</div>",
+                unsafe_allow_html=True,
+            )
+            if st.button("Run sizing simulation", key="bt_run_comparison", width="stretch"):
+                st.session_state["bt_compare_requested"] = True
+            if st.session_state.get("bt_compare_requested"):
+                comparison = run_strategy_comparison_cached(
+                    request["wallet"],
+                    request["days"],
+                    request["bankroll"],
+                    request["max_stake"],
+                    request["fee_bps"],
+                    request["slippage_bps"],
+                    request.get("strategy", btr.STRATEGY_COPY),
+                    request.get("max_exposure_pct", 100.0),
+                    request.get("trader_portfolio_value", 0.0),
+                )
+                if comparison.empty:
+                    draw_empty("No trades to simulate in this window.")
+                else:
+                    best = comparison.iloc[0]
+                    st.markdown(
+                        f"<div class='small-note'>Best for this wallet & window: <strong>{html.escape(str(best['strategy']))}</strong> → "
+                        f"{money(best['final_equity'])} final equity ({float(best['roi']) * 100:+.1f}% ROI)</div>",
+                        unsafe_allow_html=True,
+                    )
+                    comparison_view = comparison.assign(
+                        roi_pct=comparison["roi"] * 100,
+                        dd_pct=comparison["max_drawdown"] * 100,
+                        wr_pct=pd.to_numeric(comparison["win_rate"], errors="coerce") * 100,
+                    )
+                    st.dataframe(
+                        clean_table(comparison_view, ["strategy", "final_equity", "roi_pct", "dd_pct", "wr_pct", "copied_trades", "skipped_trades", "volume_copied"]),
+                        width="stretch",
+                        height=320,
+                        hide_index=True,
+                        column_config={
+                            "strategy": st.column_config.TextColumn("Strategy"),
+                            "final_equity": st.column_config.NumberColumn("Final equity", format="$%.0f"),
+                            "roi_pct": st.column_config.NumberColumn("ROI", format="%+.1f%%"),
+                            "dd_pct": st.column_config.NumberColumn("Max DD", format="%.1f%%"),
+                            "wr_pct": st.column_config.NumberColumn("Win rate", format="%.0f%%"),
+                            "copied_trades": st.column_config.NumberColumn("Copied"),
+                            "skipped_trades": st.column_config.NumberColumn("Skipped"),
+                            "volume_copied": st.column_config.NumberColumn("Deployed", format="$%.0f"),
+                        },
+                    )
+                    if request.get("trader_portfolio_value", 0.0) <= 0:
+                        st.markdown(
+                            "<div class='field-hint'>Match-trader-share variants need the trader's portfolio size — run the backtest once with the Match trader % mode to include them.</div>",
+                            unsafe_allow_html=True,
+                        )
 
 
 def _pick_backtest(wallet: str) -> None:

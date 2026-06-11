@@ -104,6 +104,41 @@ class ReplayTests(unittest.TestCase):
         ledger, _ = bt.replay(trades, config(sizing_mode=bt.SIZING_MIRROR, stake_value=2.0))
         self.assertAlmostEqual(ledger.iloc[0]["stake"], 10.0, places=6)
 
+    def test_portfolio_share_sizing_matches_traders_share(self):
+        trades = frame([trade("2026-05-01", "BUY", 0.50, 4000.0)])  # notional $2,000
+        ledger, _ = bt.replay(
+            trades,
+            config(sizing_mode=bt.SIZING_PORTFOLIO, stake_value=1.0, trader_portfolio_value=100_000.0),
+        )
+        self.assertAlmostEqual(ledger.iloc[0]["stake"], 1000.0 * (2000.0 / 100_000.0), places=6)
+        ledger2, _ = bt.replay(
+            trades,
+            config(sizing_mode=bt.SIZING_PORTFOLIO, stake_value=2.0, trader_portfolio_value=100_000.0),
+        )
+        self.assertAlmostEqual(ledger2.iloc[0]["stake"], 40.0, places=6)
+
+    def test_portfolio_share_without_value_skips(self):
+        trades = frame([trade("2026-05-01", "BUY", 0.50, 4000.0)])
+        ledger, _ = bt.replay(trades, config(sizing_mode=bt.SIZING_PORTFOLIO, stake_value=1.0))
+        self.assertEqual(ledger.iloc[0]["status"], "skipped")
+
+    def test_exposure_cap_limits_open_copies(self):
+        trades = frame(
+            [
+                trade("2026-05-01", "BUY", 0.50, 100.0, asset="tok-1", market_key="c1"),
+                trade("2026-05-02", "BUY", 0.50, 100.0, asset="tok-2", market_key="c2"),
+                trade("2026-05-03", "BUY", 0.50, 100.0, asset="tok-3", market_key="c3"),
+                trade("2026-05-04", "SELL", 0.50, 100.0, asset="tok-1", market_key="c1"),
+                trade("2026-05-05", "BUY", 0.50, 100.0, asset="tok-4", market_key="c4"),
+            ]
+        )
+        ledger, _ = bt.replay(trades, config(stake_value=300.0, max_stake=300.0, max_exposure_pct=50.0))
+        self.assertEqual(list(ledger["status"]), ["copied", "copied", "skipped", "copied", "copied"])
+        self.assertAlmostEqual(ledger.iloc[0]["stake"], 300.0, places=6)
+        self.assertAlmostEqual(ledger.iloc[1]["stake"], 200.0, places=6)
+        self.assertIn("exposure cap", ledger.iloc[2]["note"])
+        self.assertAlmostEqual(ledger.iloc[4]["stake"], 300.0, places=6)
+
     def test_max_stake_caps_sizing(self):
         trades = frame([trade("2026-05-01", "BUY", 0.50, 1000.0)])
         ledger, _ = bt.replay(trades, config(sizing_mode=bt.SIZING_PERCENT, stake_value=50.0, max_stake=100.0))
@@ -363,6 +398,34 @@ class RunBacktestTests(unittest.TestCase):
             now=now,
         )
         self.assertFalse(result.stats["window_truncated"])
+
+    def test_strategy_comparison_ranks_variants(self):
+        now = pd.Timestamp("2026-06-10", tz="UTC")
+        rows = [
+            trade("2026-05-01", "BUY", 0.50, 100.0),
+            trade("2026-05-05", "SELL", 0.80, 100.0),
+        ]
+        activity = pd.DataFrame(rows)
+
+        def fetch_activity(wallet, limit=500, offset=0):
+            return activity if offset == 0 else pd.DataFrame()
+
+        comparison = bt.strategy_comparison(
+            config(),
+            fetch_activity=fetch_activity,
+            fetch_markets_by_ids=lambda ids: [],
+            now=now,
+        )
+        self.assertEqual(len(comparison), 6)
+        self.assertTrue(comparison["final_equity"].is_monotonic_decreasing)
+        self.assertEqual(comparison.iloc[0]["strategy"], "5% of bankroll")
+        with_portfolio = bt.strategy_comparison(
+            config(trader_portfolio_value=10_000.0),
+            fetch_activity=fetch_activity,
+            fetch_markets_by_ids=lambda ids: [],
+            now=now,
+        )
+        self.assertEqual(len(with_portfolio), 8)
 
     def test_empty_activity_yields_flat_result(self):
         result = bt.run_backtest(
