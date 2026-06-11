@@ -6705,7 +6705,7 @@ def page_traders() -> None:
         "copy_drawdown_proxy": st.column_config.ProgressColumn("Drawdown Proxy", min_value=0, max_value=100),
         "copy_recency_score": st.column_config.ProgressColumn("Recency", min_value=0, max_value=100),
         "copy_volume_score": st.column_config.ProgressColumn("Volume Score", min_value=0, max_value=100),
-        "win_rate_pct": st.column_config.NumberColumn("Win Rate", format="%.1f%%"),
+        "win_rate_pct": st.column_config.ProgressColumn("Win Rate", min_value=0, max_value=100, format="%.1f%%"),
         "closed_positions": st.column_config.NumberColumn("Closed", format="%.0f"),
         "positions_value": st.column_config.NumberColumn("Positions", format="$%.0f"),
         "open_positions": st.column_config.NumberColumn("Open", format="%.0f"),
@@ -6716,6 +6716,63 @@ def page_traders() -> None:
         "whale_score": st.column_config.ProgressColumn(min_value=0, max_value=100),
         "bot_score": st.column_config.ProgressColumn(min_value=0, max_value=100),
     }
+    leaderboard_tape = safe_load("Deep whale tape", load_deep_whale_tape, 1000.0, default=pd.DataFrame())
+    trader_context_map: dict[str, str] = (
+        susp.dominant_context_map(leaderboard_tape) if leaderboard_tape is not None and not leaderboard_tape.empty else {}
+    )
+    display["_context"] = display.get("wallet", pd.Series("", index=display.index)).astype(str).str.lower().str.strip().map(trader_context_map).fillna("")
+    context_order = [susp.CONTEXT_POLITICS, susp.CONTEXT_SPORTS, susp.CONTEXT_MARKET_PRICES, susp.CONTEXT_AWARDS, susp.CONTEXT_CORPORATE, susp.CONTEXT_GENERAL]
+    context_options = ["All"] + [group for group in context_order if (display["_context"] == group).any()]
+    context_choice = "All"
+    if len(context_options) > 1:
+        context_choice = (
+            st.segmented_control(
+                "Category focus",
+                context_options,
+                default="All",
+                key="traders_context_focus",
+                label_visibility="collapsed",
+                help="Category = dominant context of the trader's recent whale flow. Traders without recent whale prints only appear under All.",
+            )
+            or "All"
+        )
+    if context_choice != "All":
+        display = display[display["_context"] == context_choice].reset_index(drop=True)
+        st.markdown(
+            "<div class='field-hint'>Filtered by the dominant category of each trader's recent whale flow (sampled tape) — not their full history.</div>",
+            unsafe_allow_html=True,
+        )
+    podium = display.head(3)
+    if not podium.empty:
+        podium_colors = [ACCENT, BLUE, AMBER]
+        podium_cols = st.columns(3)
+        for rank_index, (col, (_, row)) in enumerate(zip(podium_cols, podium.iterrows())):
+            wallet_value = str(row.get("wallet", "") or "")
+            name = str(row.get("trader", "") or "") or short_addr(wallet_value)
+            color = podium_colors[rank_index]
+            context_group = str(row.get("_context", "") or "")
+            with col:
+                with st.container(border=True):
+                    st.markdown(
+                        f"<span class='risk-badge' style='color:{color};border-color:{color}'>#{rank_index + 1}</span> "
+                        f"<strong>{html.escape(name[:24])}</strong><br>"
+                        f"<span class='field-hint'>{html.escape(short_addr(wallet_value))}"
+                        + (f" · {html.escape(context_group)}" if context_group else "")
+                        + "</span>",
+                        unsafe_allow_html=True,
+                    )
+                    p1, p2 = st.columns(2)
+                    p1.metric("Win rate", pct(row.get("win_rate")), help="Share of closed positions that resolved in this trader's favor.")
+                    p2.metric("P&L", money(row.get("pnl", 0.0)))
+                    p3, p4 = st.columns(2)
+                    p3.metric("Volume", money(row.get("volume", 0.0)))
+                    closed_value = row.get("closed_positions")
+                    p4.metric(
+                        "Closed",
+                        f"{int(closed_value)}" if pd.notna(closed_value) else "–",
+                        help="Resolved positions — a win rate only means something with enough closed bets behind it.",
+                    )
+
     trader_action_cols = st.columns([1.1, 1.1, 3])
     trader_action_cols[0].download_button(
         "Export traders CSV",

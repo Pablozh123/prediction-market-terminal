@@ -154,6 +154,21 @@ class CategoryContextTests(unittest.TestCase):
         self.assertEqual(adjusted.iloc[0]["insider_context"], susp.CONTEXT_SPORTS)
         self.assertAlmostEqual(adjusted.iloc[0]["event_insider_score"], 36.0)
 
+    def test_dominant_context_map_weights_by_notional(self):
+        trades = tape(
+            [
+                trade("0xAAA", "Lakers vs Celtics: who wins?", "Yes", 9000.0),
+                trade("0xaaa", "Will there be a ceasefire by July?", "Yes", 1000.0),
+                trade("0xbbb", "Will there be a ceasefire by July?", "Yes", 5000.0),
+            ]
+        )
+        mapping = susp.dominant_context_map(trades)
+        self.assertEqual(mapping["0xaaa"], susp.CONTEXT_SPORTS)
+        self.assertEqual(mapping["0xbbb"], susp.CONTEXT_POLITICS)
+
+    def test_dominant_context_map_empty_tape(self):
+        self.assertEqual(susp.dominant_context_map(pd.DataFrame()), {})
+
     def test_wallet_context_weights_by_notional(self):
         trades = tape(
             [
