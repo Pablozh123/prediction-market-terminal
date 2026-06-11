@@ -10467,49 +10467,6 @@ def page_portfolio() -> None:
             st.session_state["portfolio_filters_reset_pending"] = True
             st.rerun()
 
-    save_cols = st.columns([2, 1, 1])
-    saved_portfolio_name = save_cols[0].text_input("Saved portfolio view name", value=f"Portfolio {md.now_utc_label()}", key="saved_portfolio_view_name")
-    save_portfolio_clicked = save_cols[1].button("Save Filter", width="stretch", key="save_portfolio_filter_button")
-    if save_cols[2].button("Reset Portfolio View", width="stretch", key="reset_portfolio_view_button"):
-        st.session_state["portfolio_filters_reset_pending"] = True
-        st.rerun()
-    loaded_portfolio_message = st.session_state.pop("portfolio_view_loaded_message", "")
-    if loaded_portfolio_message:
-        st.info(loaded_portfolio_message)
-    if st.session_state.saved_portfolio_filters:
-        load_cols = st.columns([2, 1, 1])
-        saved_labels = [
-            f"{i + 1}. {view.get('name') or view.get('query') or 'Portfolio view'}"
-            for i, view in enumerate(st.session_state.saved_portfolio_filters)
-        ]
-        selected_saved_portfolio = load_cols[0].selectbox("Load saved portfolio view", saved_labels, key="load_saved_portfolio_view")
-        selected_portfolio_view = st.session_state.saved_portfolio_filters[saved_labels.index(selected_saved_portfolio)]
-        if load_cols[1].button("Load portfolio view", key="load_portfolio_view_button"):
-            st.session_state["pending_portfolio_filter_view"] = selected_portfolio_view
-            st.session_state["portfolio_view_loaded_message"] = f"Loaded saved portfolio view: {selected_portfolio_view.get('name', selected_saved_portfolio)}"
-            st.rerun()
-        if load_cols[2].button("Delete portfolio view", key="delete_portfolio_view_button"):
-            st.session_state.saved_portfolio_filters.pop(saved_labels.index(selected_saved_portfolio))
-            save_local_list("saved_portfolio_filters.json", st.session_state.saved_portfolio_filters)
-            st.rerun()
-    if save_portfolio_clicked:
-        st.session_state.saved_portfolio_filters.append(
-            {
-                "name": saved_portfolio_name.strip() or f"Portfolio {md.now_utc_label()}",
-                "created_at": md.now_utc_label(),
-                "query": portfolio_query,
-                "platforms": portfolio_platforms,
-                "outcomes": portfolio_outcomes,
-                "rows": int(portfolio_rows),
-                "min_value": int(portfolio_min_value),
-                "min_pnl": float(portfolio_min_pnl),
-                "sources": portfolio_sources,
-                "copy_statuses": portfolio_copy_statuses,
-                "losers_only": bool(portfolio_losers_only),
-            }
-        )
-        save_local_list("saved_portfolio_filters.json", st.session_state.saved_portfolio_filters)
-        st.success("Saved portfolio view.")
 
     def _filter_position_rows(
         frame: pd.DataFrame,
@@ -10583,34 +10540,6 @@ def page_portfolio() -> None:
         portfolio_chips.append("Losing rows only")
     render_filter_chips(portfolio_chips)
 
-    portfolio_clear_actions: list[tuple[str, dict[str, Any]]] = []
-    if portfolio_query.strip():
-        portfolio_clear_actions.append(("search", {"portfolio_search": ""}))
-    if set(portfolio_platforms) != set(portfolio_defaults["portfolio_platforms"]):
-        portfolio_clear_actions.append(("platform", {"portfolio_platforms": portfolio_defaults["portfolio_platforms"]}))
-    if set(portfolio_outcomes) != set(portfolio_defaults["portfolio_outcomes"]):
-        portfolio_clear_actions.append(("outcome", {"portfolio_outcomes": portfolio_defaults["portfolio_outcomes"]}))
-    if int(portfolio_rows) != int(portfolio_defaults["portfolio_rows"]):
-        portfolio_clear_actions.append(("rows", {"portfolio_rows": portfolio_defaults["portfolio_rows"]}))
-    if int(portfolio_min_value) > 0:
-        portfolio_clear_actions.append(("value", {"portfolio_min_value": 0}))
-    if set(portfolio_sources) != set(portfolio_defaults["portfolio_sources"]):
-        portfolio_clear_actions.append(("sources", {"portfolio_sources": portfolio_defaults["portfolio_sources"]}))
-    if float(portfolio_min_pnl) != float(portfolio_defaults["portfolio_min_pnl"]):
-        portfolio_clear_actions.append(("PnL", {"portfolio_min_pnl": portfolio_defaults["portfolio_min_pnl"]}))
-    if set(portfolio_copy_statuses) != set(portfolio_defaults["portfolio_copy_statuses"]):
-        portfolio_clear_actions.append(("copy status", {"portfolio_copy_statuses": portfolio_defaults["portfolio_copy_statuses"]}))
-    if portfolio_losers_only:
-        portfolio_clear_actions.append(("losing only", {"portfolio_losers_only": False}))
-    render_filter_clear_buttons(portfolio_clear_actions, "portfolio")
-    if st.session_state.saved_portfolio_filters:
-        st.caption(f"Saved portfolio views: {len(st.session_state.saved_portfolio_filters)}")
-        with st.expander("Saved portfolio filters", expanded=False):
-            st.dataframe(pd.DataFrame(st.session_state.saved_portfolio_filters), width="stretch", height=160)
-            if st.button("Clear saved portfolio filters"):
-                st.session_state.saved_portfolio_filters = []
-                save_local_list("saved_portfolio_filters.json", st.session_state.saved_portfolio_filters)
-                st.rerun()
 
     p1, p2, p3, p4, p5, p6 = st.columns(6)
     p1.metric("Marked value", money(total_marked_value))
