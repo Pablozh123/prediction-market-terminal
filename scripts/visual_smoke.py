@@ -37,7 +37,7 @@ class RouteCheck:
 
 
 ROUTES = [
-    RouteCheck("/", ("Market intelligence terminal", "Workspace"), "overview.png"),
+    RouteCheck("/", ("Read the market", "Workspace"), "overview.png"),
     RouteCheck("/markets", ("Markets", "Search markets"), "markets.png"),
     RouteCheck("/traders", ("Traders", "Leaderboard"), "traders.png"),
     RouteCheck("/track", ("Track", "Wallet to track"), "track.png"),
