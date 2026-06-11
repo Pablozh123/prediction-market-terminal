@@ -3565,13 +3565,15 @@ def page_overview() -> None:
                 f"<span>TOP MOVER <b>{html.escape(str(mover_row.get('title', ''))[:42])}</b> "
                 f"<b class='{move_class}'>{signed_cents(move_value)}</b></span>"
             )
-        ticker_spikes = numeric_col(combined, "volume_delta_24h")
-        if float(ticker_spikes.max() or 0.0) > 0:
-            spike_idx = ticker_spikes.idxmax()
+        ticker_baseline = (numeric_col(combined, "volume_24h") / 24.0).clip(lower=1.0)
+        ticker_ratio = numeric_col(combined, "volume_1h") / ticker_baseline
+        ticker_ratio = ticker_ratio.where(numeric_col(combined, "volume_24h") >= 10_000, 0.0)
+        if float(ticker_ratio.max() or 0.0) >= 3.0:
+            spike_idx = ticker_ratio.idxmax()
             spike_row = combined.loc[spike_idx]
             ticker_items.append(
-                f"<span>VOLUME SPIKE <b>{html.escape(str(spike_row.get('title', ''))[:42])}</b> "
-                f"<b class='tick-up'>+{float(ticker_spikes.loc[spike_idx]) * 100:.0f}%</b></span>"
+                f"<span>VOLUME ANOMALY <b>{html.escape(str(spike_row.get('title', ''))[:42])}</b> "
+                f"<b class='tick-up'>×{float(ticker_ratio.loc[spike_idx]):.1f}</b></span>"
             )
         ending_ticker = pd.to_datetime(combined.get("end_time"), utc=True, errors="coerce")
         ending_soon_count = int(((ending_ticker >= pd.Timestamp.now(tz="UTC")) & (ending_ticker <= pd.Timestamp.now(tz="UTC") + pd.Timedelta(hours=72))).sum())
@@ -4901,11 +4903,12 @@ def page_markets() -> None:
         spike_col, mover_col, ending_col = st.columns(3)
         with spike_col:
             with st.container(border=True):
-                st.markdown("<div class='step-label' style='margin-top:0'>Unusual volume</div>", unsafe_allow_html=True)
-                st.markdown("<div class='field-hint'>Biggest 24h volume jump vs the day before.</div>", unsafe_allow_html=True)
-                spikes = busy_markets.assign(_delta=numeric_col(busy_markets, "volume_delta_24h"))
-                spikes = spikes[spikes["_delta"] > 0].sort_values("_delta", ascending=False).head(4)
-                _highlight_rows(spikes, lambda r: f"+{float(r.get('_delta', 0.0)) * 100:.0f}% · {money(r.get('volume_24h', 0.0))}", "No unusual volume right now.")
+                st.markdown("<div class='step-label' style='margin-top:0'>Volume anomaly</div>", unsafe_allow_html=True)
+                st.markdown("<div class='field-hint'>Last hour traded ≥3× this market's own 24h baseline — the earliest repricing tell.</div>", unsafe_allow_html=True)
+                anomaly_baseline = (numeric_col(busy_markets, "volume_24h") / 24.0).clip(lower=1.0)
+                spikes = busy_markets.assign(_ratio=numeric_col(busy_markets, "volume_1h") / anomaly_baseline)
+                spikes = spikes[spikes["_ratio"] >= 3.0].sort_values("_ratio", ascending=False).head(4)
+                _highlight_rows(spikes, lambda r: f"×{float(r.get('_ratio', 0.0)):.1f} baseline · {money(r.get('volume_1h', 0.0))}/h", "No volume anomalies right now.")
         with mover_col:
             with st.container(border=True):
                 st.markdown("<div class='step-label' style='margin-top:0'>Big movers (24h)</div>", unsafe_allow_html=True)

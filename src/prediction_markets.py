@@ -37,6 +37,7 @@ TITLE_TOKEN_RE = re.compile(r"[a-z0-9]+")
 POLY_WALLET_RE = re.compile(r"^0x[a-fA-F0-9]{40}$")
 PREDICTPARITY_MONITOR_SIGNAL_TYPES = [
     "Fast mover",
+    "Volume anomaly",
     "Whale print",
     "Tight spread",
     "Holder concentration",
