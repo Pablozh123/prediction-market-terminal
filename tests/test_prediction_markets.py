@@ -710,6 +710,89 @@ class TraderTraitFilterTests(unittest.TestCase):
         self.assertEqual(filtered["wallet"].tolist(), ["0xmatch"])
 
 
+class WalletlessVenueScoringTests(unittest.TestCase):
+    """Kalshi rows carry no wallet identities — event scores must keep them while
+    wallet scores skip them."""
+
+    def _mixed_tape(self) -> pd.DataFrame:
+        wallet = "0x" + "a" * 40
+        return pd.DataFrame(
+            [
+                {
+                    "platform": "Polymarket",
+                    "title": "Will candidate win?",
+                    "time": "2026-06-08T10:00:00Z",
+                    "end_time": "2026-06-08T20:00:00Z",
+                    "wallet": wallet,
+                    "trader": "PolyWhale",
+                    "side": "BUY",
+                    "outcome": "No",
+                    "price": 0.12,
+                    "notional": 25_000.0,
+                    "size": 25_000.0,
+                },
+                {
+                    "platform": "Kalshi",
+                    "title": "Fed decision in June?",
+                    "market_key": "KXFED-26JUN",
+                    "time": "2026-06-08T10:01:00Z",
+                    "wallet": "",
+                    "trader": "",
+                    "side": "yes",
+                    "outcome": "yes",
+                    "price": 0.15,
+                    "notional": 40_000.0,
+                    "size": 40_000.0,
+                },
+                {
+                    "platform": "Kalshi",
+                    "title": "Fed decision in June?",
+                    "market_key": "KXFED-26JUN",
+                    "time": "2026-06-08T10:02:00Z",
+                    "wallet": "",
+                    "trader": "",
+                    "side": "yes",
+                    "outcome": "yes",
+                    "price": 0.16,
+                    "notional": 30_000.0,
+                    "size": 30_000.0,
+                },
+            ]
+        )
+
+    def test_event_scores_keep_walletless_kalshi_rows(self) -> None:
+        scores = md.whale_event_risk_scores(self._mixed_tape(), whale_threshold=10_000, now="2026-06-08T09:30:00Z")
+
+        titles = set(scores["title"])
+        self.assertIn("Fed decision in June?", titles)
+        self.assertIn("Will candidate win?", titles)
+        kalshi_row = scores[scores["title"] == "Fed decision in June?"].iloc[0]
+        self.assertEqual(int(kalshi_row["unique_wallets"]), 0)
+        self.assertEqual(float(kalshi_row.get("top_wallet_share", 0.0) or 0.0), 0.0)
+        self.assertGreater(float(kalshi_row["event_insider_score"]), 0.0)
+
+    def test_wallet_scores_skip_walletless_kalshi_rows(self) -> None:
+        scores = md.whale_wallet_risk_scores(self._mixed_tape(), whale_threshold=10_000, now="2026-06-08T09:30:00Z")
+
+        self.assertEqual(len(scores), 1)
+        self.assertEqual(scores.iloc[0]["wallet"], "0x" + "a" * 40)
+
+    def test_get_kalshi_markets_ticker_lookup_drops_status_filter(self) -> None:
+        with patch("src.prediction_markets._get_json", return_value={"markets": []}) as fetch:
+            md.get_kalshi_markets(limit=250, tickers=["KXFED-26JUN", "KXCPI-26JUL", "KXFED-26JUN", " "])
+
+        params = fetch.call_args.kwargs.get("params") or fetch.call_args.args[1]
+        self.assertEqual(params.get("tickers"), "KXCPI-26JUL,KXFED-26JUN")
+        self.assertNotIn("status", params)
+
+    def test_get_kalshi_markets_empty_ticker_list_skips_request(self) -> None:
+        with patch("src.prediction_markets._get_json") as fetch:
+            result = md.get_kalshi_markets(tickers=[" ", ""])
+
+        fetch.assert_not_called()
+        self.assertTrue(result.empty)
+
+
 class FeaturedCarouselTests(unittest.TestCase):
     def test_cycle_featured_index_wraps_forward_and_backward(self) -> None:
         self.assertEqual(md.cycle_featured_index(0, 3, 1), 1)

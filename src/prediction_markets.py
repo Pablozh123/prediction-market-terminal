@@ -2532,8 +2532,16 @@ def get_market_news(query: str, limit: int = 20) -> pd.DataFrame:
     return df
 
 
-def get_kalshi_markets(limit: int = 250, status: str = "open", cursor: str | None = None) -> pd.DataFrame:
+def get_kalshi_markets(
+    limit: int = 250, status: str = "open", cursor: str | None = None, tickers: Iterable[str] | None = None
+) -> pd.DataFrame:
     params: dict[str, Any] = {"limit": limit, "status": status}
+    if tickers is not None:
+        wanted = sorted({str(ticker).strip() for ticker in tickers if str(ticker).strip()})[:300]
+        if not wanted:
+            return pd.DataFrame()
+        # Ticker lookups must not be status-filtered — trades often reference closed markets.
+        params = {"limit": min(1000, max(int(limit), len(wanted))), "tickers": ",".join(wanted)}
     if cursor:
         params["cursor"] = cursor
     data = _get_json(f"{KALSHI_API}/markets", params=params)
