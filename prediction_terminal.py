@@ -499,6 +499,118 @@ def inject_css() -> None:
             margin-right: 0.4rem;
             white-space: nowrap;
         }}
+        @keyframes heroFadeUp {{
+            from {{ opacity: 0; transform: translateY(14px); }}
+            to {{ opacity: 1; transform: translateY(0); }}
+        }}
+        @keyframes tickerScroll {{
+            0% {{ transform: translateX(0); }}
+            100% {{ transform: translateX(-50%); }}
+        }}
+        @keyframes livePulse {{
+            0%, 100% {{ opacity: 1; }}
+            50% {{ opacity: 0.35; }}
+        }}
+        .hero {{
+            padding: 1.4rem 0 0.4rem;
+            animation: heroFadeUp 0.7s ease-out both;
+        }}
+        .hero-badge {{
+            font-family: {FONT_MONO};
+            font-size: 0.7rem;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: {TEXT_SECONDARY};
+            border: 1px solid {BORDER_STRONG};
+            border-radius: 999px;
+            padding: 0.28rem 0.75rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }}
+        .live-dot {{
+            width: 7px;
+            height: 7px;
+            border-radius: 9999px;
+            background: {ACCENT};
+            display: inline-block;
+            animation: livePulse 1.6s ease-in-out infinite;
+        }}
+        .hero-title {{
+            font-family: {FONT_SERIF};
+            font-size: 3.2rem;
+            font-weight: 400;
+            line-height: 1.05;
+            color: #ffffff;
+            margin: 0.85rem 0 0.55rem;
+        }}
+        .hero-title em {{
+            color: {ACCENT};
+            font-style: italic;
+        }}
+        .hero-sub {{
+            color: {TEXT_SECONDARY};
+            font-size: 1.04rem;
+            line-height: 1.55;
+            max-width: 760px;
+            animation: heroFadeUp 0.7s ease-out 0.15s both;
+        }}
+        .ticker-wrap {{
+            border-top: 1px solid {BORDER};
+            border-bottom: 1px solid {BORDER};
+            padding: 0.55rem 0;
+            overflow: hidden;
+            margin: 1.1rem 0 0.5rem;
+        }}
+        .ticker {{
+            display: flex;
+            gap: 3rem;
+            white-space: nowrap;
+            width: max-content;
+            animation: tickerScroll 38s linear infinite;
+        }}
+        .ticker:hover {{
+            animation-play-state: paused;
+        }}
+        .ticker span {{
+            font-family: {FONT_MONO};
+            font-size: 0.72rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: {TEXT_LABEL};
+        }}
+        .ticker b {{
+            color: #ffffff;
+            font-weight: 600;
+        }}
+        .ticker .tick-up {{
+            color: {ACCENT};
+        }}
+        .ticker .tick-down {{
+            color: {RED};
+        }}
+        div[data-testid="stVerticalBlockBorderWrapper"] {{
+            transition: transform 0.18s ease, border-color 0.18s ease;
+        }}
+        div[data-testid="stVerticalBlockBorderWrapper"]:hover {{
+            transform: translateY(-2px);
+            border-color: {ACCENT_DIM};
+        }}
+        [data-testid="stMetric"] {{
+            transition: transform 0.18s ease, border-color 0.18s ease;
+        }}
+        [data-testid="stMetric"]:hover {{
+            transform: translateY(-2px);
+        }}
+        .stButton button, .stFormSubmitButton button, .stDownloadButton button {{
+            transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, color 0.15s ease, outline 0.15s ease;
+        }}
+        .stButton button:hover, .stFormSubmitButton button:hover {{
+            transform: translateY(-1px);
+        }}
+        .stButton button[kind="primary"]:hover, .stFormSubmitButton button[kind="primaryFormSubmit"]:hover {{
+            outline: 3px solid {ACCENT_DIM};
+        }}
         div[data-baseweb="input"], div[data-baseweb="base-input"], div[data-baseweb="textarea"] {{
             background: {BG};
             border-color: {BORDER_STRONG};
@@ -3418,13 +3530,54 @@ def trader_insight_metrics(
 
 
 def page_overview() -> None:
-    section_header(
-        "Market intelligence terminal",
-        "Live public data for prediction-market flow, top Polymarket wallets, and cross-venue price gaps.",
+    st.markdown(
+        """
+        <div class='hero'>
+            <span class='hero-badge'><span class='live-dot'></span>Live · public on-chain data</span>
+            <div class='hero-title'>Read the market <em>like the whales do.</em></div>
+            <div class='hero-sub'>Whale prints, insider-risk screens, coordinated wallet clusters and copy-trade backtests —
+            one terminal for Polymarket and Kalshi. No signup, no orders placed, pure research.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
+    hero_cta = st.columns([1.4, 1.2, 1.3, 2.6])
+    hero_cta[0].button("Open the whale feed →", type="primary", width="stretch", key="hero_cta_feed", on_click=navigate_workspace, args=("Live Trades",))
+    hero_cta[1].button("Run a backtest", width="stretch", key="hero_cta_backtest", on_click=navigate_workspace, args=("Backtester",))
+    hero_cta[2].button("Suspicious events", width="stretch", key="hero_cta_suspicious", on_click=navigate_workspace, args=("Suspicious",))
     pm, ks, combined = load_market_universe()
     if not combined.empty:
         combined = add_market_filter_metrics(combined)
+    if not combined.empty:
+        ticker_vol = numeric_col(combined, "volume_24h")
+        ticker_items = [
+            f"<span>MARKETS TRACKED <b>{len(combined):,}</b></span>",
+            f"<span>24H VOLUME <b>{money(float(ticker_vol.sum()))}</b></span>",
+            f"<span>WHALE THRESHOLD <b>{money(float(min_whale))}</b></span>",
+        ]
+        ticker_moves = numeric_col(combined, "change_1d")
+        if float(ticker_moves.abs().max() or 0.0) > 0:
+            mover_idx = ticker_moves.abs().idxmax()
+            mover_row = combined.loc[mover_idx]
+            move_value = float(ticker_moves.loc[mover_idx])
+            move_class = "tick-up" if move_value >= 0 else "tick-down"
+            ticker_items.append(
+                f"<span>TOP MOVER <b>{html.escape(str(mover_row.get('title', ''))[:42])}</b> "
+                f"<b class='{move_class}'>{signed_cents(move_value)}</b></span>"
+            )
+        ticker_spikes = numeric_col(combined, "volume_delta_24h")
+        if float(ticker_spikes.max() or 0.0) > 0:
+            spike_idx = ticker_spikes.idxmax()
+            spike_row = combined.loc[spike_idx]
+            ticker_items.append(
+                f"<span>VOLUME SPIKE <b>{html.escape(str(spike_row.get('title', ''))[:42])}</b> "
+                f"<b class='tick-up'>+{float(ticker_spikes.loc[spike_idx]) * 100:.0f}%</b></span>"
+            )
+        ending_ticker = pd.to_datetime(combined.get("end_time"), utc=True, errors="coerce")
+        ending_soon_count = int(((ending_ticker >= pd.Timestamp.now(tz="UTC")) & (ending_ticker <= pd.Timestamp.now(tz="UTC") + pd.Timedelta(hours=72))).sum())
+        ticker_items.append(f"<span>RESOLVING ≤72H <b>{ending_soon_count:,}</b></span>")
+        ticker_loop = "".join(ticker_items)
+        st.markdown(f"<div class='ticker-wrap'><div class='ticker'>{ticker_loop}{ticker_loop}</div></div>", unsafe_allow_html=True)
     overview_category_col = "filter_category" if "filter_category" in combined else "category"
     categories = sorted(
         [str(item) for item in combined.get(overview_category_col, pd.Series(dtype=str)).dropna().unique() if str(item)],
