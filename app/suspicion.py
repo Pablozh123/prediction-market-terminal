@@ -410,27 +410,112 @@ def co_trading_network(
 
 
 def cluster_layout(nodes: pd.DataFrame) -> pd.DataFrame:
-    """Island layout: clusters on a grid, members on a circle around each center."""
+    """Organic island layout: cluster centers on a golden-angle spiral, members on
+    a ring around each center with deterministic radial jitter.
+
+    Bigger clusters get bigger rings; the spiral keeps islands from overlapping
+    without needing a force simulation, and everything is reproducible (no RNG).
+    """
 
     if nodes is None or nodes.empty:
         return nodes
     placed = nodes.copy()
     placed["x"] = 0.0
     placed["y"] = 0.0
-    cluster_ids = list(placed["cluster_id"].drop_duplicates())
-    grid_cols = max(1, math.ceil(math.sqrt(len(cluster_ids))))
-    spacing = 10.0
+    sizes = placed.groupby("cluster_id")["wallet"].size().sort_values(ascending=False)
+    cluster_ids = list(sizes.index)
+    golden_angle = math.pi * (3.0 - math.sqrt(5.0))
+    ring_radius = {cid: 1.4 + 0.55 * math.sqrt(int(sizes[cid])) for cid in cluster_ids}
+    centers: dict[Any, tuple[float, float]] = {}
+    spread = 0.0
     for index, cluster_id in enumerate(cluster_ids):
-        center_x = (index % grid_cols) * spacing
-        center_y = -(index // grid_cols) * spacing
+        if index == 0:
+            centers[cluster_id] = (0.0, 0.0)
+            spread = ring_radius[cluster_id]
+            continue
+        angle = index * golden_angle
+        distance = spread + ring_radius[cluster_id] + 2.5 + 1.1 * math.sqrt(index)
+        centers[cluster_id] = (distance * math.cos(angle), distance * math.sin(angle))
+        spread = max(spread, 0.55 * distance)
+    for cluster_id in cluster_ids:
+        center_x, center_y = centers[cluster_id]
         member_index = placed.index[placed["cluster_id"] == cluster_id]
         count = len(member_index)
-        radius = 1.2 + 0.45 * math.sqrt(count)
+        radius = ring_radius[cluster_id]
         for position, node_idx in enumerate(member_index):
             angle = (2 * math.pi * position) / max(count, 1)
-            placed.at[node_idx, "x"] = center_x + radius * math.cos(angle)
-            placed.at[node_idx, "y"] = center_y + radius * math.sin(angle)
+            wallet = str(placed.at[node_idx, "wallet"])
+            jitter = 0.82 + 0.36 * ((hash(wallet) % 1000) / 1000.0)
+            placed.at[node_idx, "x"] = center_x + radius * jitter * math.cos(angle)
+            placed.at[node_idx, "y"] = center_y + radius * jitter * math.sin(angle)
     return placed
+
+
+def cluster_story(
+    cluster_nodes: pd.DataFrame,
+    cluster_edges: pd.DataFrame,
+    trades: pd.DataFrame,
+    *,
+    window_minutes: float | None = 5.0,
+) -> dict[str, Any]:
+    """Plain-language explanation of one cluster: what it is, why it clusters, how to read it.
+
+    Returns {headline, pattern, reasons (list[str]), top_markets (list[str]), density}.
+    """
+
+    if cluster_nodes is None or cluster_nodes.empty:
+        return {"headline": "", "pattern": "", "reasons": [], "top_markets": [], "density": 0.0}
+    count = int(len(cluster_nodes))
+    volume = float(numeric_col(cluster_nodes, "volume").sum())
+    edge_count = int(len(cluster_edges)) if cluster_edges is not None else 0
+    possible_edges = count * (count - 1) / 2 or 1
+    density = edge_count / possible_edges
+    shared_avg = float(numeric_col(cluster_edges, "shared_markets").mean()) if cluster_edges is not None and not cluster_edges.empty else 0.0
+    shared_max = float(numeric_col(cluster_edges, "shared_markets").max()) if cluster_edges is not None and not cluster_edges.empty else 0.0
+
+    members = set(cluster_nodes["wallet"].astype(str))
+    top_markets: list[str] = []
+    distinct_markets = 0
+    if trades is not None and not trades.empty and {"wallet", "title"}.issubset(trades.columns):
+        flow = trades.copy()
+        flow["_wallet_key"] = flow["wallet"].astype(str).str.lower().str.strip()
+        flow = flow[flow["_wallet_key"].isin(members)]
+        if not flow.empty:
+            flow["notional"] = numeric_col(flow, "notional")
+            distinct_markets = int(flow["title"].nunique())
+            top = flow.groupby("title")["notional"].sum().sort_values(ascending=False).head(3)
+            top_markets = [f"{str(title)[:70]} ({money(value)})" for title, value in top.items()]
+
+    window_text = f"within {window_minutes:.0f} minutes of each other" if window_minutes else "in the sampled tape"
+    reasons = [
+        f"Every line connects two wallets that bought the same side of at least 2 shared markets {window_text} — "
+        f"on average {shared_avg:.1f} shared markets per linked pair (max {shared_max:.0f}).",
+    ]
+    if density >= 0.5:
+        pattern = "Tight clique"
+        reasons.append(
+            f"{edge_count} of {possible_edges:.0f} possible pairs are linked ({density:.0%} density): the same wallets move together "
+            "again and again — the strongest coordination pattern (syndicate-like or one operator splitting orders)."
+        )
+    elif density >= 0.15:
+        pattern = "Connected group"
+        reasons.append(
+            f"{edge_count} links across {count} wallets ({density:.0%} density): a core of wallets co-moves repeatedly while others "
+            "attach loosely — consistent with a coordinated core plus followers."
+        )
+    else:
+        pattern = "Loose chain"
+        reasons.append(
+            f"Only {edge_count} links across {count} wallets ({density:.0%} density): wallets are chained through a few common trades — "
+            "this can be herd behavior around hot markets rather than real coordination. Weakest evidence tier."
+        )
+    if distinct_markets:
+        reasons.append(
+            f"The flow concentrates in {distinct_markets} distinct markets; the heaviest shared bets are listed below — "
+            "the narrower and more obscure these markets, the harder the pattern is to explain as coincidence."
+        )
+    headline = f"{count} wallets · {money(volume)} combined whale volume · {pattern.lower()}"
+    return {"headline": headline, "pattern": pattern, "reasons": reasons, "top_markets": top_markets, "density": density}
 
 
 def wallet_co_trading_clusters(trades: pd.DataFrame, *, min_shared: int = 2, max_wallets: int = 200) -> pd.DataFrame:

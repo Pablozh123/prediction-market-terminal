@@ -669,8 +669,11 @@ def get_polymarket_trades(
     min_cash: float = 0,
     user: str | None = None,
     market: str | None = None,
+    offset: int = 0,
 ) -> pd.DataFrame:
     params: dict[str, Any] = {"limit": limit}
+    if offset > 0:
+        params["offset"] = offset
     if min_cash > 0:
         params["filterType"] = "CASH"
         params["filterAmount"] = min_cash
