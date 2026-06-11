@@ -93,7 +93,6 @@ WORKSPACES = [
     "Search",
     "Markets",
     "Traders",
-    "Picks",
     "Track",
     "Live Trades",
     "Wallets",
@@ -103,7 +102,6 @@ WORKSPACES = [
     "Suspicious",
     "Cross-Venue",
     "Monitor",
-    "Alerts",
     "Resolved",
     "Portfolio",
     "Settings",
@@ -112,6 +110,7 @@ SEARCH_RESULT_TYPES = ["Markets", "Traders", "Trades", "News", "Cross-Venue", "A
 COPY_SIDE_FILTERS = ["BUY", "SELL"]
 PAGE_QUERY_SLUGS = {page: page.lower().replace(" ", "-") for page in WORKSPACES}
 PAGE_BY_QUERY_SLUG = {slug: page for page, slug in PAGE_QUERY_SLUGS.items()}
+PAGE_BY_QUERY_SLUG.update({"picks": "Traders", "alerts": "Monitor"})
 
 
 def inject_css() -> None:
@@ -6166,6 +6165,40 @@ def page_traders() -> None:
                     },
                 )
 
+    if "win_rate" in display.columns and leaderboard_tape is not None and not leaderboard_tape.empty:
+        insider_candidates = display[numeric_col(display, "win_rate") >= 0.75]
+        if "closed_positions" in display.columns:
+            insider_candidates = insider_candidates[numeric_col(insider_candidates, "closed_positions") >= 10]
+        insider_set = set(insider_candidates.get("wallet", pd.Series(dtype=str)).astype(str).str.lower())
+        if insider_set:
+            insider_feed = leaderboard_tape.copy()
+            insider_feed["_wallet_key"] = insider_feed["wallet"].astype(str).str.lower().str.strip()
+            insider_feed = insider_feed[insider_feed["_wallet_key"].isin(insider_set)]
+            insider_feed = insider_feed[
+                insider_feed.get("side", pd.Series("", index=insider_feed.index)).astype(str).str.upper().eq("BUY")
+                & (numeric_col(insider_feed, "price") < 0.60)
+            ]
+            if not insider_feed.empty:
+                st.markdown("<div class='step-label'>Insider picks — high win-rate wallets buying now</div>", unsafe_allow_html=True)
+                st.markdown(
+                    "<div class='field-hint'>Whale-sized buys below 60c by leaderboard wallets with a ≥75% win rate (≥10 resolved positions) — fresh from the sampled tape.</div>",
+                    unsafe_allow_html=True,
+                )
+                st.dataframe(
+                    clean_table(insider_feed.sort_values("time", ascending=False).head(8), ["time", "trader", "title", "outcome", "price", "notional"]),
+                    width="stretch",
+                    height=260,
+                    hide_index=True,
+                    column_config={
+                        "time": st.column_config.DatetimeColumn("Time", format="MM-DD HH:mm"),
+                        "trader": st.column_config.TextColumn("Trader"),
+                        "title": st.column_config.TextColumn("Market", width="large"),
+                        "outcome": st.column_config.TextColumn("Side"),
+                        "price": st.column_config.NumberColumn("Entry", format="%.2f"),
+                        "notional": st.column_config.NumberColumn("Size", format="$%.0f"),
+                    },
+                )
+
     trader_action_cols = st.columns([1.1, 1.1, 3])
     trader_action_cols[0].download_button(
         "Export traders CSV",
@@ -7732,118 +7765,8 @@ def page_whale_flow() -> None:
                 },
             )
 
-    tab_risk, tab_tape, tab_markets, tab_bias, tab_track = st.tabs(["Insider Risk", "Trade Tape", "Market Flow", "Outcome Bias", "Track Actions"])
-    with tab_risk:
-        st.caption("Insider Risk is a best-effort public-data screen: long-odds big bets, late timing, concentration, bursts, sample-fresh wallets, and favorable price moves. It is not a legal finding.")
-        risk_left, risk_right = st.columns([1.1, 1])
-        with risk_left:
-            st.markdown("### Event insider risk")
-            if event_risk.empty:
-                draw_empty("No event insider signals in the filtered whale tape.")
-            else:
-                event_display = event_risk.head(50).copy()
-                event_display["top_wallet"] = event_display["top_wallet"].astype(str).map(short_addr) if "top_wallet" in event_display else ""
-                event_display["top_wallet_share_pct"] = numeric_col(event_display, "top_wallet_share") * 100
-                event_display["event_directional_share_pct"] = numeric_col(event_display, "event_directional_share") * 100
-                event_display["late_share_pct"] = numeric_col(event_display, "late_share") * 100
-                event_display["long_odds_share_pct"] = numeric_col(event_display, "long_odds_share") * 100
-                event_display["price_move_cents"] = numeric_col(event_display, "price_move") * 100
-                st.download_button("Export event insider CSV", event_risk.to_csv(index=False).encode("utf-8"), file_name="whale_event_insider_risk.csv", mime="text/csv")
-                st.dataframe(
-                    clean_table(
-                        event_display,
-                        [
-                            "event_insider_level",
-                            "event_insider_score",
-                            "platform",
-                            "title",
-                            "notional",
-                            "largest_trade",
-                            "unique_wallets",
-                            "top_wallet",
-                            "top_wallet_share_pct",
-                            "event_directional_label",
-                            "event_directional_share_pct",
-                            "late_share_pct",
-                            "long_odds_share_pct",
-                            "price_move_cents",
-                            "event_insider_flags",
-                            "url",
-                        ],
-                    ),
-                    width="stretch",
-                    height=430,
-                    column_config={
-                        "event_insider_score": st.column_config.ProgressColumn("Insider", min_value=0, max_value=100),
-                        "notional": st.column_config.NumberColumn(format="$%.0f"),
-                        "largest_trade": st.column_config.NumberColumn(format="$%.0f"),
-                        "top_wallet_share_pct": st.column_config.NumberColumn("Top Wallet", format="%.0f%%"),
-                        "event_directional_share_pct": st.column_config.NumberColumn("Direction", format="%.0f%%"),
-                        "late_share_pct": st.column_config.NumberColumn("Late Flow", format="%.0f%%"),
-                        "long_odds_share_pct": st.column_config.NumberColumn("Long Odds", format="%.0f%%"),
-                        "price_move_cents": st.column_config.NumberColumn("Price Move", format="%.1f c"),
-                        "url": st.column_config.LinkColumn("URL"),
-                    },
-                )
-        with risk_right:
-            st.markdown("### Wallet insider risk")
-            if wallet_risk.empty:
-                draw_empty("No wallet insider signals in the filtered whale tape.")
-            else:
-                wallet_display = wallet_risk.head(50).copy()
-                wallet_display["wallet"] = wallet_display["wallet"].astype(str).map(short_addr)
-                wallet_display["top_market_share_pct"] = numeric_col(wallet_display, "top_market_share") * 100
-                wallet_display["directional_share_pct"] = numeric_col(wallet_display, "directional_share") * 100
-                wallet_display["late_share_pct"] = numeric_col(wallet_display, "late_share") * 100
-                wallet_display["long_odds_share_pct"] = numeric_col(wallet_display, "long_odds_share") * 100
-                wallet_display["price_move_cents"] = numeric_col(wallet_display, "price_move") * 100
-                wallet_display["contrarian_pct"] = numeric_col(wallet_display, "contrarian_share") * 100
-                wallet_display["trend_pct"] = numeric_col(wallet_display, "trend_follower_share") * 100
-                wallet_display["lottery_pct"] = numeric_col(wallet_display, "lottery_ticket_share") * 100
-                wallet_display["splash_pct"] = numeric_col(wallet_display, "whale_splash_share") * 100
-                st.download_button("Export wallet insider CSV", wallet_risk.to_csv(index=False).encode("utf-8"), file_name="whale_wallet_insider_risk.csv", mime="text/csv")
-                st.dataframe(
-                    clean_table(
-                        wallet_display,
-                        [
-                            "wallet_insider_level",
-                            "wallet_insider_score",
-                            "wallet",
-                            "trader",
-                            "notional",
-                            "largest_trade",
-                            "trade_count",
-                            "markets",
-                            "directional_label",
-                            "directional_share_pct",
-                            "top_market_share_pct",
-                            "late_share_pct",
-                            "long_odds_share_pct",
-                            "price_move_cents",
-                            "contrarian_pct",
-                            "trend_pct",
-                            "lottery_pct",
-                            "splash_pct",
-                            "wallet_insider_flags",
-                        ],
-                    ),
-                    width="stretch",
-                    height=430,
-                    column_config={
-                        "wallet_insider_score": st.column_config.ProgressColumn("Insider", min_value=0, max_value=100),
-                        "notional": st.column_config.NumberColumn(format="$%.0f"),
-                        "largest_trade": st.column_config.NumberColumn(format="$%.0f"),
-                        "directional_share_pct": st.column_config.NumberColumn("Direction", format="%.0f%%"),
-                        "top_market_share_pct": st.column_config.NumberColumn("Top Market", format="%.0f%%"),
-                        "late_share_pct": st.column_config.NumberColumn("Late Flow", format="%.0f%%"),
-                        "long_odds_share_pct": st.column_config.NumberColumn("Long Odds", format="%.0f%%"),
-                        "price_move_cents": st.column_config.NumberColumn("Price Move", format="%.1f c"),
-                        "contrarian_pct": st.column_config.NumberColumn("Contrarian", format="%.0f%%"),
-                        "trend_pct": st.column_config.NumberColumn("Trend", format="%.0f%%"),
-                        "lottery_pct": st.column_config.NumberColumn("Lottery", format="%.0f%%"),
-                        "splash_pct": st.column_config.NumberColumn("Splash", format="%.0f%%"),
-                    },
-                )
+    st.markdown("<div class='field-hint'>Insider-risk scoring lives on the dedicated Suspicious screen now.</div>", unsafe_allow_html=True)
+    tab_tape, tab_markets, tab_bias, tab_track = st.tabs(["Trade Tape", "Market Flow", "Outcome Bias", "Track Actions"])
     with tab_tape:
         st.markdown("### Trade tape")
         tape = clean_table(trades, ["platform", "time", "trader", "wallet", "side", "outcome", "title", "price", "size", "notional", "url"])
@@ -8641,400 +8564,6 @@ def page_monitor() -> None:
                 st.session_state.monitor_rules.pop(idx)
                 save_local_monitor_rules(st.session_state.monitor_rules)
                 st.rerun()
-
-
-def page_alerts() -> None:
-    section_header("Alerts", "Dedicated alert center for saved rules, current hits, signal feed triage, and tracking actions.")
-    if "alert_search" not in st.session_state:
-        reset_alert_filter_widgets(global_query, 100, int(min_whale))
-    if st.session_state.pop("alert_filters_reset_pending", False):
-        reset_alert_filter_widgets(global_query, 100, int(min_whale))
-    pending_alert_view = st.session_state.pop("pending_alert_filter_view", None)
-    if isinstance(pending_alert_view, dict):
-        apply_alert_filter_view_widgets(pending_alert_view)
-    pending_alert_clear = st.session_state.pop("alert_clear_pending", None)
-    if isinstance(pending_alert_clear, dict):
-        for key, value in pending_alert_clear.items():
-            st.session_state[key] = value
-    route_filter_params = query_param_snapshot(
-        [
-            "q",
-            "query",
-            "search",
-            "wallet",
-            "market",
-            "platform",
-            "platforms",
-            "venue",
-            "venues",
-            "signal",
-            "signals",
-            "type",
-            "types",
-            "rows",
-            "limit",
-            "watched",
-            "watchedOnly",
-            "tracked",
-            "trackedMarkets",
-            "minVolume",
-            "volumeMin",
-            "volMin",
-            "minLiquidity",
-            "liquidityMin",
-            "liqMin",
-            "minMove",
-            "moveMin",
-            "changeMin",
-            "maxSpread",
-            "spreadMax",
-            "minWhale",
-            "whaleMin",
-            "minNotional",
-            "notionalMin",
-            "endingDays",
-            "endDays",
-            "maxDaysToEnd",
-            "holderChecks",
-            "holders",
-            "holderThreshold",
-            "topHolder",
-            "hitsOnly",
-            "hits",
-            "rulesOnly",
-        ]
-    )
-    route_filter_signature = json.dumps(route_filter_params, sort_keys=True)
-    route_filter_view = md.predictparity_alert_filter_view(route_filter_params)
-    if route_filter_view and st.session_state.get("alert_route_filter_signature") != route_filter_signature:
-        apply_alert_filter_view_widgets(route_filter_view)
-        st.session_state["alert_route_filter_signature"] = route_filter_signature
-        st.session_state["alert_view_loaded_message"] = "Loaded alert filters from URL."
-
-    pm, ks, combined_markets = load_market_universe()
-    poly_trades = safe_load("Polymarket trades", load_polymarket_trades, trade_limit, 0.0, None, None)
-    kalshi_trades = safe_load("Kalshi trades", load_kalshi_trades, trade_limit, None)
-    trades = combined_trade_table(poly_trades, kalshi_trades)
-
-    controls = st.columns([1.7, 1, 1, 1, 1])
-    query = controls[0].text_input("Alert search", placeholder="market, wallet, trader, rule", key="alert_search")
-    platforms = controls[1].multiselect("Platform", ["Polymarket", "Kalshi"], key="alert_platforms")
-    signal_types = controls[2].multiselect("Signals", MONITOR_SIGNAL_TYPES, key="alert_signal_types")
-    rows = controls[3].slider("Rows", min_value=25, max_value=250, step=25, key="alert_rows")
-    hits_only = controls[4].toggle("Hits only", key="alert_hits_only")
-
-    with st.expander("Alert scan filters", expanded=True):
-        f1, f2, f3, f4, f5, f6 = st.columns(6)
-        min_volume = f1.number_input("Min 24h volume", min_value=0, step=1000, key="alert_min_volume")
-        min_liquidity = f2.number_input("Min liquidity", min_value=0, step=1000, key="alert_min_liquidity")
-        min_move_cents = f3.number_input("Min 1h move (c)", min_value=0.0, step=0.5, key="alert_min_move")
-        max_spread_cents = f4.number_input("Max spread (c)", min_value=0.1, step=0.5, key="alert_max_spread")
-        min_whale_notional = f5.number_input("Whale notional", min_value=0, step=500, key="alert_min_whale")
-        ending_days = f6.number_input("Ending within days", min_value=1, step=1, key="alert_ending_days")
-        h1, h2, h3 = st.columns([1, 1, 2])
-        holder_checks = h1.slider("Holder checks", min_value=0, max_value=20, step=1, key="alert_holder_checks")
-        holder_threshold = h2.slider("Top holder threshold", min_value=0.05, max_value=0.80, step=0.05, key="alert_holder_threshold")
-        if h3.button("Reset Filters", width="stretch", key="reset_alert_filters_button"):
-            st.session_state["alert_filters_reset_pending"] = True
-            st.rerun()
-
-    save_cols = st.columns([2, 1, 1])
-    saved_alert_name = save_cols[0].text_input("Saved alert view name", value=f"Alerts {md.now_utc_label()}", key="saved_alert_view_name")
-    save_alert_clicked = save_cols[1].button("Save Filter", width="stretch", key="save_alert_filter_button")
-    if save_cols[2].button("Reset Alert View", width="stretch", key="reset_alert_view_button"):
-        st.session_state["alert_filters_reset_pending"] = True
-        st.rerun()
-    loaded_alert_message = st.session_state.pop("alert_view_loaded_message", "")
-    if loaded_alert_message:
-        st.info(loaded_alert_message)
-    if st.session_state.saved_alert_filters:
-        load_cols = st.columns([2, 1, 1])
-        saved_labels = [
-            f"{i + 1}. {view.get('name') or view.get('query') or 'Alert view'}"
-            for i, view in enumerate(st.session_state.saved_alert_filters)
-        ]
-        selected_saved_alert = load_cols[0].selectbox("Load saved alert view", saved_labels, key="load_saved_alert_view")
-        selected_alert_view = st.session_state.saved_alert_filters[saved_labels.index(selected_saved_alert)]
-        if load_cols[1].button("Load alert view", key="load_alert_view_button"):
-            st.session_state["pending_alert_filter_view"] = selected_alert_view
-            st.session_state["alert_view_loaded_message"] = f"Loaded saved alert view: {selected_alert_view.get('name', selected_saved_alert)}"
-            st.rerun()
-        if load_cols[2].button("Delete alert view", key="delete_alert_view_button"):
-            st.session_state.saved_alert_filters.pop(saved_labels.index(selected_saved_alert))
-            save_local_list("saved_alert_filters.json", st.session_state.saved_alert_filters)
-            st.rerun()
-    if save_alert_clicked:
-        st.session_state.saved_alert_filters.append(
-            {
-                "name": saved_alert_name.strip() or f"Alerts {md.now_utc_label()}",
-                "created_at": md.now_utc_label(),
-                "query": query,
-                "platforms": platforms,
-                "signal_types": signal_types,
-                "rows": int(rows),
-                "hits_only": bool(hits_only),
-                "min_volume": float(min_volume),
-                "min_liquidity": float(min_liquidity),
-                "min_move": float(min_move_cents),
-                "max_spread": float(max_spread_cents),
-                "min_whale": float(min_whale_notional),
-                "ending_days": int(ending_days),
-                "holder_checks": int(holder_checks),
-                "holder_threshold": float(holder_threshold),
-            }
-        )
-        save_local_list("saved_alert_filters.json", st.session_state.saved_alert_filters)
-        st.success("Saved alert view.")
-
-    markets = combined_markets.copy()
-    if not markets.empty:
-        markets = markets[markets["platform"].isin(platforms)] if platforms else markets.iloc[0:0]
-        markets = filter_text(markets, query)
-    if not trades.empty:
-        trades = trades[trades["platform"].isin(platforms)] if platforms else trades.iloc[0:0]
-        trades = filter_text(trades, query)
-    tracked_keys = {str(item.get("market_key")) for item in st.session_state.watchlist if item.get("market_key")}
-
-    all_signals = build_monitor_signals(
-        markets,
-        trades,
-        min_volume=float(min_volume),
-        min_liquidity=float(min_liquidity),
-        min_move=float(min_move_cents) / 100.0,
-        max_spread=float(max_spread_cents) / 100.0,
-        min_whale_notional=float(min_whale_notional),
-        ending_days=int(ending_days),
-        holder_threshold=float(holder_threshold),
-        holder_checks=int(holder_checks),
-        tracked_keys=tracked_keys,
-    )
-    alert_hits = build_monitor_alert_hits(all_signals, st.session_state.monitor_rules)
-    signals = all_signals.copy()
-    if not signals.empty:
-        signals = signals[signals["signal_type"].isin(signal_types)] if signal_types else signals.iloc[0:0]
-        signals = signals.head(int(rows)).reset_index(drop=True)
-    if not alert_hits.empty:
-        alert_hits = alert_hits[alert_hits["signal_type"].isin(signal_types)] if signal_types else alert_hits.iloc[0:0]
-        alert_hits = alert_hits.head(int(rows)).reset_index(drop=True)
-
-    defaults = alert_filter_defaults(rows=100, min_whale_notional=int(min_whale))
-    chips: list[str] = []
-    if query.strip():
-        chips.append(f"Search: {query.strip()}")
-    if platforms and set(platforms) != set(defaults["alert_platforms"]):
-        chips.append("Platform: " + ", ".join(platforms))
-    if not platforms:
-        chips.append("Platform: none")
-    if signal_types and set(signal_types) != set(MONITOR_SIGNAL_TYPES):
-        chips.append("Signals: " + ", ".join(signal_types))
-    if not signal_types:
-        chips.append("Signals: none")
-    if int(rows) != int(defaults["alert_rows"]):
-        chips.append(f"Rows: {int(rows)}")
-    if hits_only:
-        chips.append("Hits only")
-    if int(min_volume) > 0:
-        chips.append(f"Volume >= {money(min_volume)}")
-    if int(min_liquidity) > 0:
-        chips.append(f"Liquidity >= {money(min_liquidity)}")
-    if float(min_move_cents) > 0:
-        chips.append(f"1h move >= {float(min_move_cents):.1f}c")
-    if float(max_spread_cents) < 100.0:
-        chips.append(f"Spread <= {float(max_spread_cents):.1f}c")
-    if int(min_whale_notional) > 0:
-        chips.append(f"Whale >= {money(min_whale_notional)}")
-    if int(ending_days) < 3650:
-        chips.append(f"Ending <= {int(ending_days)}d")
-    if int(holder_checks) > 0:
-        chips.append(f"Holder checks: {int(holder_checks)}")
-    render_filter_chips(chips)
-
-    clear_actions: list[tuple[str, dict[str, Any]]] = []
-    if query.strip():
-        clear_actions.append(("search", {"alert_search": ""}))
-    if set(platforms) != set(defaults["alert_platforms"]):
-        clear_actions.append(("platform", {"alert_platforms": defaults["alert_platforms"]}))
-    if set(signal_types) != set(MONITOR_SIGNAL_TYPES):
-        clear_actions.append(("signals", {"alert_signal_types": list(MONITOR_SIGNAL_TYPES)}))
-    if int(rows) != int(defaults["alert_rows"]):
-        clear_actions.append(("rows", {"alert_rows": defaults["alert_rows"]}))
-    if hits_only:
-        clear_actions.append(("hits only", {"alert_hits_only": False}))
-    if int(min_volume) > 0:
-        clear_actions.append(("volume", {"alert_min_volume": 0}))
-    if int(min_liquidity) > 0:
-        clear_actions.append(("liquidity", {"alert_min_liquidity": 0}))
-    if float(min_move_cents) > 0:
-        clear_actions.append(("1h move", {"alert_min_move": 0.0}))
-    if float(max_spread_cents) < 100.0:
-        clear_actions.append(("spread", {"alert_max_spread": 100.0}))
-    if int(min_whale_notional) > 0:
-        clear_actions.append(("whale", {"alert_min_whale": 0}))
-    if int(ending_days) < 3650:
-        clear_actions.append(("ending", {"alert_ending_days": 3650}))
-    if int(holder_checks) > 0:
-        clear_actions.append(("holder checks", {"alert_holder_checks": 0, "alert_holder_threshold": defaults["alert_holder_threshold"]}))
-    render_filter_clear_buttons(clear_actions, "alert")
-    if st.session_state.saved_alert_filters:
-        st.caption(f"Saved alert views: {len(st.session_state.saved_alert_filters)}")
-        with st.expander("Saved alert filters", expanded=False):
-            st.dataframe(pd.DataFrame(st.session_state.saved_alert_filters), width="stretch", height=160)
-            if st.button("Clear saved alert filters"):
-                st.session_state.saved_alert_filters = []
-                save_local_list("saved_alert_filters.json", st.session_state.saved_alert_filters)
-                st.rerun()
-
-    active_rules = [rule for rule in st.session_state.monitor_rules if bool(rule.get("active", True))]
-    m1, m2, m3, m4, m5, m6 = st.columns(6)
-    m1.metric("Active rules", f"{len(active_rules):,}")
-    m2.metric("Alert hits", f"{len(alert_hits):,}")
-    m3.metric("Signals", f"{len(signals):,}")
-    m4.metric("Whales", f"{int(signals['signal_type'].eq('Whale print').sum()) if not signals.empty else 0:,}")
-    m5.metric("Fast movers", f"{int(signals['signal_type'].eq('Fast mover').sum()) if not signals.empty else 0:,}")
-    m6.metric("Watched hits", f"{int(alert_hits['signal_type'].eq('Watched market').sum()) if not alert_hits.empty else 0:,}")
-
-    signal_columns = ["time", "signal_type", "platform", "reason", "title", "price", "value", "notional", "volume", "liquidity", "spread", "change_1h", "wallet", "url"]
-    signal_config = {
-        "time": st.column_config.DatetimeColumn(format="YYYY-MM-DD HH:mm"),
-        "price": st.column_config.NumberColumn(format="%.4f"),
-        "value": st.column_config.NumberColumn(format="%.4f"),
-        "notional": st.column_config.NumberColumn(format="$%.0f"),
-        "volume": st.column_config.NumberColumn(format="$%.0f"),
-        "liquidity": st.column_config.NumberColumn(format="$%.0f"),
-        "spread": st.column_config.NumberColumn(format="%.4f"),
-        "change_1h": st.column_config.NumberColumn(format="%+.4f"),
-        "url": st.column_config.LinkColumn("URL"),
-    }
-    tab_hits, tab_feed, tab_builder, tab_rules, tab_coverage = st.tabs(["Alert Hits", "Signal Feed", "Create Rule", "Saved Rules", "Coverage"])
-    with tab_hits:
-        if alert_hits.empty:
-            draw_empty("No saved alert rule matches the current signal set.")
-        else:
-            st.download_button("Export alert hits CSV", alert_hits.to_csv(index=False).encode("utf-8"), file_name="alert_hits.csv", mime="text/csv")
-            display = clean_table(alert_hits, ["rule_name", *signal_columns])
-            if "wallet" in display:
-                display["wallet"] = display["wallet"].astype(str).map(short_addr)
-            st.dataframe(display, width="stretch", height=460, column_config=signal_config)
-            action_cols = st.columns([2.4, 1, 1, 1])
-            options = [
-                f"{i + 1}. {row.get('rule_name', '-')}: {row.get('signal_type', '-')} | {str(row.get('title', ''))[:90]}"
-                for i, row in alert_hits.head(100).iterrows()
-            ]
-            selected_hit = action_cols[0].selectbox("Hit action target", options, key="alerts_hit_action_target")
-            hit_row = alert_hits.iloc[options.index(selected_hit)]
-            if action_cols[1].button("Track market", key="alerts_track_hit_market"):
-                item = {
-                    "platform": str(hit_row.get("platform", "")),
-                    "market_key": str(hit_row.get("market_key", "") or hit_row.get("title", "")),
-                    "title": str(hit_row.get("title", "")),
-                    "url": str(hit_row.get("url", "")),
-                }
-                st.session_state.watchlist, changed = md.upsert_watchlist_market(st.session_state.watchlist, item)
-                if changed:
-                    save_local_list("watchlist.json", st.session_state.watchlist)
-                    st.success("Alert market added to watchlist.")
-                else:
-                    st.info("Alert market is already tracked.")
-            if action_cols[2].button("Track wallet", key="alerts_track_hit_wallet"):
-                wallet_value = str(hit_row.get("wallet", ""))
-                st.session_state.followed_wallets, changed = md.upsert_followed_wallet(st.session_state.followed_wallets, wallet_value)
-                if changed:
-                    save_local_list("followed_wallets.json", st.session_state.followed_wallets)
-                    st.success("Alert wallet added to tracked wallets.")
-                else:
-                    st.info("Alert wallet is already tracked or unavailable.")
-            if str(hit_row.get("url", "")):
-                action_cols[3].link_button("Open market", str(hit_row.get("url", "")), width="stretch")
-    with tab_feed:
-        source = alert_hits if hits_only else signals
-        if source.empty:
-            draw_empty("No alert feed rows match the current filters.")
-        else:
-            file_name = "alert_hits_feed.csv" if hits_only else "alert_signal_feed.csv"
-            st.download_button("Export feed CSV", source.to_csv(index=False).encode("utf-8"), file_name=file_name, mime="text/csv")
-            display = clean_table(source, ["rule_name", *signal_columns])
-            if "wallet" in display:
-                display["wallet"] = display["wallet"].astype(str).map(short_addr)
-            st.dataframe(display, width="stretch", height=520, column_config=signal_config)
-    with tab_builder:
-        st.markdown("### Create alert rule")
-        with st.form("alerts_rule_form"):
-            r1, r2, r3 = st.columns([1.3, 1, 1])
-            name = r1.text_input("Rule name", placeholder="Iran whale print or fast mover")
-            rule_type = r2.selectbox("Signal type", ["Any"] + MONITOR_SIGNAL_TYPES)
-            rule_platforms = r3.multiselect("Platforms", ["Polymarket", "Kalshi"], default=platforms or ["Polymarket", "Kalshi"])
-            r4, r5, r6, r7 = st.columns(4)
-            rule_query = r4.text_input("Query", value=query)
-            rule_min_notional = r5.number_input("Min notional", min_value=0, value=int(min_whale_notional), step=500)
-            rule_min_move = r6.number_input("Min move (c)", min_value=0.0, value=float(min_move_cents), step=0.5)
-            rule_max_spread = r7.number_input("Max spread (c)", min_value=0.0, value=float(max_spread_cents), step=0.5)
-            r8, r9 = st.columns([1, 3])
-            rule_min_liquidity = r8.number_input("Min liquidity", min_value=0, value=int(min_liquidity), step=1000)
-            active = r9.checkbox("Active", value=True)
-            submitted = st.form_submit_button("Save alert rule")
-            if submitted and name.strip():
-                st.session_state.monitor_rules.append(
-                    {
-                        "name": name.strip(),
-                        "signal_type": rule_type,
-                        "platforms": rule_platforms,
-                        "query": rule_query.strip(),
-                        "min_notional": float(rule_min_notional),
-                        "min_move": float(rule_min_move) / 100.0,
-                        "max_spread": float(rule_max_spread) / 100.0,
-                        "min_liquidity": float(rule_min_liquidity),
-                        "active": bool(active),
-                        "created_at": md.now_utc_label(),
-                    }
-                )
-                save_local_monitor_rules(st.session_state.monitor_rules)
-                st.success("Alert rule saved.")
-                st.rerun()
-        st.caption("Rules are evaluated against the current public signal set and persist locally in data/monitor_rules.json.")
-    with tab_rules:
-        if not st.session_state.monitor_rules:
-            draw_empty("No saved alert rules yet.")
-        else:
-            rules = pd.DataFrame(st.session_state.monitor_rules)
-            rules["matched_now"] = [monitor_rule_match_count(all_signals, rule) for rule in st.session_state.monitor_rules]
-            st.download_button("Export rules CSV", rules.to_csv(index=False).encode("utf-8"), file_name="alert_rules.csv", mime="text/csv")
-            st.dataframe(rules, width="stretch", height=330)
-            options = [f"{i + 1}. {rule.get('name', 'Unnamed')}" for i, rule in enumerate(st.session_state.monitor_rules)]
-            c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
-            selected_rule = c1.selectbox("Rule action", options, key="alerts_rule_action")
-            idx = options.index(selected_rule)
-            selected_rule_data = st.session_state.monitor_rules[idx]
-            if c2.button("Pause" if bool(selected_rule_data.get("active", True)) else "Resume", key="alerts_toggle_rule"):
-                st.session_state.monitor_rules[idx]["active"] = not bool(selected_rule_data.get("active", True))
-                save_local_monitor_rules(st.session_state.monitor_rules)
-                st.rerun()
-            if c3.button("Duplicate", key="alerts_duplicate_rule"):
-                clone = dict(selected_rule_data)
-                clone["name"] = f"{clone.get('name', 'Rule')} copy"
-                clone["created_at"] = md.now_utc_label()
-                st.session_state.monitor_rules.append(clone)
-                save_local_monitor_rules(st.session_state.monitor_rules)
-                st.rerun()
-            if c4.button("Delete", key="alerts_delete_rule"):
-                st.session_state.monitor_rules.pop(idx)
-                save_local_monitor_rules(st.session_state.monitor_rules)
-                st.rerun()
-    with tab_coverage:
-        if alert_hits.empty:
-            draw_empty("No alert-hit coverage to chart.")
-        else:
-            by_rule = alert_hits.groupby(["rule_name", "signal_type"], as_index=False).size().rename(columns={"size": "hits"})
-            fig = px.bar(
-                by_rule,
-                x="rule_name",
-                y="hits",
-                color="signal_type",
-                template="plotly_dark",
-                labels={"rule_name": "rule", "hits": "hits"},
-            )
-            fig.update_layout(height=380, margin=dict(l=10, r=10, t=20, b=120), paper_bgcolor=BG, plot_bgcolor=BG)
-            st.plotly_chart(fig, width="stretch", config=plot_config())
-            st.dataframe(by_rule, width="stretch", height=260)
 
 
 def page_resolved() -> None:
@@ -11400,92 +10929,6 @@ def _pick_track(wallet: str) -> None:
         save_local_list("followed_wallets.json", st.session_state.followed_wallets)
 
 
-def page_picks() -> None:
-    section_header(
-        "Picks",
-        "Model-ranked wallets worth a look — scored on returns, consistency, win rate, recency, and volume. Backtest before you copy.",
-        kicker="Picks · Model-ranked",
-    )
-    leaderboard = safe_load("Trader leaderboard", load_leaderboard, 120, "MONTH", "PNL", default=pd.DataFrame())
-    if leaderboard is None or leaderboard.empty:
-        draw_empty("No leaderboard data available right now — try again in a minute.")
-        return
-    ranked = ct.rank_traders_by_smart_score(leaderboard, min_volume=0.0, require_positive_roi=False, exclude_bots=False)
-    if ranked is None or ranked.empty:
-        draw_empty("Scoring returned no candidates for the current leaderboard sample.")
-        return
-    st.markdown("<div class='step-label' style='margin-top:0'>Trader picks</div>", unsafe_allow_html=True)
-    top_rows = list(ranked.head(9).iterrows())
-    for start in range(0, len(top_rows), 3):
-        cols = st.columns(3)
-        for col, (_, row) in zip(cols, top_rows[start : start + 3]):
-            wallet = str(row.get("wallet", "") or "")
-            score = float(row.get("copy_smart_score", row.get("rank_score", 0.0)) or 0.0)
-            grade = str(row.get("copy_grade", "") or "–")
-            name = str(row.get("trader", "") or "") or short_addr(wallet)
-            with col:
-                with st.container(border=True):
-                    st.markdown(
-                        f"**{html.escape(name[:28])}** <span class='signal'>{html.escape(grade)} · {score:.0f}</span>",
-                        unsafe_allow_html=True,
-                    )
-                    st.markdown(f"<div class='field-hint mono'>{html.escape(short_addr(wallet))}</div>", unsafe_allow_html=True)
-                    m1, m2, m3 = st.columns(3)
-                    m1.metric("P&L", money(row.get("pnl", 0.0)))
-                    m2.metric("ROI", pct(row.get("roi")))
-                    m3.metric("Win", pct(row.get("win_rate")))
-                    b1, b2 = st.columns(2)
-                    b1.button("Backtest →", key=f"pick_bt_{start}_{wallet[:10]}", width="stretch", type="primary", on_click=_pick_backtest, args=(wallet,))
-                    b2.button("Track", key=f"pick_tr_{start}_{wallet[:10]}", width="stretch", on_click=_pick_track, args=(wallet,))
-    insider_candidates = ranked[numeric_col(ranked, "win_rate") >= 0.75]
-    if "closed_positions" in ranked.columns:
-        insider_candidates = insider_candidates[numeric_col(insider_candidates, "closed_positions") >= 10]
-    insider_set = set(insider_candidates.get("wallet", pd.Series(dtype=str)).astype(str).str.lower())
-    picks_tape = safe_load("Deep whale tape", load_deep_whale_tape, 1000.0, default=pd.DataFrame())
-    if insider_set and picks_tape is not None and not picks_tape.empty:
-        insider_feed = picks_tape.copy()
-        insider_feed["_wallet_key"] = insider_feed["wallet"].astype(str).str.lower().str.strip()
-        insider_feed = insider_feed[insider_feed["_wallet_key"].isin(insider_set)]
-        insider_feed = insider_feed[
-            insider_feed.get("side", pd.Series("", index=insider_feed.index)).astype(str).str.upper().eq("BUY")
-            & (numeric_col(insider_feed, "price") < 0.60)
-        ]
-        if not insider_feed.empty:
-            st.markdown("<div class='step-label'>Insider picks — high win-rate wallets buying now</div>", unsafe_allow_html=True)
-            st.markdown(
-                "<div class='field-hint'>Whale-sized buys below 60c by wallets with a ≥75% historical win rate (≥10 resolved positions) — fresh from the sampled tape.</div>",
-                unsafe_allow_html=True,
-            )
-            st.dataframe(
-                clean_table(insider_feed.sort_values("time", ascending=False).head(8), ["time", "trader", "title", "outcome", "price", "notional"]),
-                width="stretch",
-                height=260,
-                hide_index=True,
-                column_config={
-                    "time": st.column_config.DatetimeColumn("Time", format="MM-DD HH:mm"),
-                    "trader": st.column_config.TextColumn("Trader"),
-                    "title": st.column_config.TextColumn("Market", width="large"),
-                    "outcome": st.column_config.TextColumn("Side"),
-                    "price": st.column_config.NumberColumn("Entry", format="%.2f"),
-                    "notional": st.column_config.NumberColumn("Size", format="$%.0f"),
-                },
-            )
-
-    st.markdown("<div class='step-label'>Momentum markets</div>", unsafe_allow_html=True)
-    markets = safe_load("Polymarket markets", load_polymarket_markets, market_limit, default=pd.DataFrame())
-    if markets is None or markets.empty:
-        draw_empty("No market data available right now.")
-        return
-    frame = markets.copy()
-    frame["_momentum"] = numeric_col(frame, "change_1d").abs() * numeric_col(frame, "volume_24h").clip(lower=0.0).pow(0.5)
-    mover_rows = list(frame.sort_values("_momentum", ascending=False).head(6).iterrows())
-    for start in range(0, len(mover_rows), 3):
-        cols = st.columns(3)
-        for col, (_, row) in zip(cols, mover_rows[start : start + 3]):
-            with col:
-                market_tile(row)
-
-
 def _start_copy_daemon() -> None:
     import subprocess
     import sys as _sys
@@ -12089,7 +11532,6 @@ PAGES = {
     "Search": page_search,
     "Markets": page_markets,
     "Traders": page_traders,
-    "Picks": page_picks,
     "Track": page_track,
     "Live Trades": page_live_trades,
     "Wallets": page_wallets,
@@ -12099,7 +11541,6 @@ PAGES = {
     "Suspicious": page_suspicious,
     "Cross-Venue": page_cross_venue,
     "Monitor": page_monitor,
-    "Alerts": page_alerts,
     "Resolved": page_resolved,
     "Portfolio": page_portfolio,
     "Settings": page_settings,
