@@ -3703,51 +3703,6 @@ def page_overview() -> None:
             st.session_state["overview_filters_reset_pending"] = True
             st.rerun()
 
-    save_cols = st.columns([2, 1, 1])
-    saved_overview_name = save_cols[0].text_input("Saved overview view name", value=f"Overview {md.now_utc_label()}", key="saved_overview_view_name")
-    save_overview_clicked = save_cols[1].button("Save Filter", width="stretch", key="save_overview_filter_button")
-    if save_cols[2].button("Reset Overview View", width="stretch", key="reset_overview_view_button"):
-        st.session_state["overview_filters_reset_pending"] = True
-        st.rerun()
-    loaded_overview_message = st.session_state.pop("overview_view_loaded_message", "")
-    if loaded_overview_message:
-        st.info(loaded_overview_message)
-    if st.session_state.saved_overview_filters:
-        load_cols = st.columns([2, 1, 1])
-        saved_labels = [
-            f"{i + 1}. {view.get('name') or view.get('query') or 'Overview view'}"
-            for i, view in enumerate(st.session_state.saved_overview_filters)
-        ]
-        selected_saved_overview = load_cols[0].selectbox("Load saved overview view", saved_labels, key="load_saved_overview_view")
-        selected_overview_view = st.session_state.saved_overview_filters[saved_labels.index(selected_saved_overview)]
-        if load_cols[1].button("Load overview view", key="load_overview_view_button"):
-            st.session_state["pending_overview_filter_view"] = selected_overview_view
-            st.session_state["overview_view_loaded_message"] = f"Loaded saved overview view: {selected_overview_view.get('name', selected_saved_overview)}"
-            st.rerun()
-        if load_cols[2].button("Delete overview view", key="delete_overview_view_button"):
-            st.session_state.saved_overview_filters.pop(saved_labels.index(selected_saved_overview))
-            save_local_list("saved_overview_filters.json", st.session_state.saved_overview_filters)
-            st.rerun()
-    if save_overview_clicked:
-        st.session_state.saved_overview_filters.append(
-            {
-                "name": saved_overview_name.strip() or f"Overview {md.now_utc_label()}",
-                "created_at": md.now_utc_label(),
-                "query": overview_query,
-                "platforms": overview_platforms,
-                "featured_source": featured_source,
-                "market_rows": int(overview_market_rows),
-                "include_categories": include_categories,
-                "exclude_categories": exclude_categories,
-                "min_volume": int(overview_min_volume),
-                "min_liquidity": int(overview_min_liquidity),
-                "min_flow_notional": int(overview_min_flow),
-                "active_only": bool(active_only),
-                "show_news": bool(show_news),
-            }
-        )
-        save_local_list("saved_overview_filters.json", st.session_state.saved_overview_filters)
-        st.success("Saved overview view.")
 
     overview_defaults = overview_filter_defaults(min_flow=int(min_whale), categories=categories)
     chips: list[str] = []
@@ -3775,30 +3730,6 @@ def page_overview() -> None:
         chips.append("News hidden")
     render_filter_chips(chips)
 
-    clear_actions: list[tuple[str, dict[str, Any]]] = []
-    if overview_query.strip():
-        clear_actions.append(("search", {"overview_search": ""}))
-    if set(overview_platforms) != set(overview_defaults["overview_platforms"]):
-        clear_actions.append(("platform", {"overview_platforms": overview_defaults["overview_platforms"]}))
-    if featured_source != overview_defaults["overview_featured_source"]:
-        clear_actions.append(("featured", {"overview_featured_source": overview_defaults["overview_featured_source"]}))
-    if int(overview_market_rows) != int(overview_defaults["overview_market_rows"]):
-        clear_actions.append(("cards", {"overview_market_rows": overview_defaults["overview_market_rows"]}))
-    if include_categories:
-        clear_actions.append(("include", {"overview_include_categories": []}))
-    if set(exclude_categories) != set(overview_defaults["overview_exclude_categories"]):
-        clear_actions.append(("exclude", {"overview_exclude_categories": overview_defaults["overview_exclude_categories"]}))
-    if int(overview_min_volume) > 0:
-        clear_actions.append(("volume", {"overview_min_volume": 0}))
-    if int(overview_min_liquidity) > 0:
-        clear_actions.append(("liquidity", {"overview_min_liquidity": 0}))
-    if int(overview_min_flow) > 0:
-        clear_actions.append(("flow", {"overview_min_flow_notional": 0}))
-    if active_only:
-        clear_actions.append(("active markets", {"overview_active_only": False}))
-    if not show_news:
-        clear_actions.append(("news", {"overview_show_news": True}))
-    render_filter_clear_buttons(clear_actions, "overview")
     if st.session_state.saved_overview_filters:
         st.caption(f"Saved overview views: {len(st.session_state.saved_overview_filters)}")
         with st.expander("Saved overview filters", expanded=False):
@@ -4001,7 +3932,7 @@ def page_search() -> None:
         tracked_only = f3.checkbox("Tracked only", key="search_tracked_only")
         broad_pairs = f4.checkbox("Fallback broad pairs", key="search_broad_pairs")
 
-    actions = st.columns([1, 1, 1, 1, 2])
+    actions = st.columns([1, 1, 1, 3])
     if actions[0].button("Run search", type="primary"):
         clean_query = query.strip()
         if clean_query:
@@ -4009,52 +3940,14 @@ def page_search() -> None:
             st.session_state.recent_searches = st.session_state.recent_searches[:12]
             save_local_list("recent_searches.json", st.session_state.recent_searches)
             st.rerun()
-    save_search_clicked = actions[1].button("Save Filter", width="stretch", key="save_search_filter_button")
-    if actions[2].button("Reset Filters", width="stretch", key="reset_search_filters_button"):
+    if actions[1].button("Reset Filters", width="stretch", key="reset_search_filters_button"):
         st.session_state["search_filters_reset_pending"] = True
         st.rerun()
-    if actions[3].button("Clear recents"):
+    if actions[2].button("Clear recents"):
         st.session_state.recent_searches = []
         save_local_list("recent_searches.json", st.session_state.recent_searches)
         st.rerun()
 
-    saved_search_name = st.text_input("Saved search view name", value=f"Search {md.now_utc_label()}", key="saved_search_view_name")
-    loaded_search_message = st.session_state.pop("search_view_loaded_message", "")
-    if loaded_search_message:
-        st.info(loaded_search_message)
-    if st.session_state.saved_search_filters:
-        load_cols = st.columns([2, 1, 1])
-        saved_labels = [
-            f"{i + 1}. {view.get('name') or view.get('query') or 'Search view'}"
-            for i, view in enumerate(st.session_state.saved_search_filters)
-        ]
-        selected_saved_search = load_cols[0].selectbox("Load saved search view", saved_labels, key="load_saved_search_view")
-        selected_search_view = st.session_state.saved_search_filters[saved_labels.index(selected_saved_search)]
-        if load_cols[1].button("Load search view", key="load_search_view_button"):
-            st.session_state["pending_search_filter_view"] = selected_search_view
-            st.session_state["search_view_loaded_message"] = f"Loaded saved search view: {selected_search_view.get('name', selected_saved_search)}"
-            st.rerun()
-        if load_cols[2].button("Delete search view", key="delete_search_view_button"):
-            st.session_state.saved_search_filters.pop(saved_labels.index(selected_saved_search))
-            save_local_list("saved_search_filters.json", st.session_state.saved_search_filters)
-            st.rerun()
-    if save_search_clicked:
-        st.session_state.saved_search_filters.append(
-            {
-                "name": saved_search_name.strip() or f"Search {md.now_utc_label()}",
-                "created_at": md.now_utc_label(),
-                "query": query,
-                "platforms": platforms,
-                "rows": int(rows),
-                "min_value": float(min_value),
-                "result_types": result_types,
-                "active_markets_only": bool(active_markets_only),
-                "tracked_only": bool(tracked_only),
-                "broad_pairs": bool(broad_pairs),
-            }
-        )
-        save_local_list("saved_search_filters.json", st.session_state.saved_search_filters)
-        st.success("Saved search view.")
     if st.session_state.recent_searches:
         st.caption("Recent searches: " + " | ".join(str(item) for item in st.session_state.recent_searches[:8]))
 
@@ -4185,35 +4078,6 @@ def page_search() -> None:
         search_chips.append("Broad pair fallback")
     search_chips.append(f"Rows: {rows}")
     render_filter_chips(search_chips)
-    search_defaults = search_filter_defaults(query_default)
-    all_search_types = set(search_defaults["search_result_types"])
-    search_clear_actions: list[tuple[str, dict[str, Any]]] = []
-    if query.strip():
-        search_clear_actions.append(("search", {"search_query": ""}))
-    if set(platforms) != set(search_defaults["search_platforms"]):
-        search_clear_actions.append(("platform", {"search_platforms": search_defaults["search_platforms"]}))
-    if set(result_types) != all_search_types:
-        search_clear_actions.append(("result types", {"search_result_types": search_defaults["search_result_types"]}))
-    if int(min_value) > 0:
-        search_clear_actions.append(("min value", {"search_min_value": 0}))
-    if active_markets_only:
-        search_clear_actions.append(("active markets", {"search_active_markets_only": False}))
-    if tracked_only:
-        search_clear_actions.append(("tracked only", {"search_tracked_only": False}))
-    if broad_pairs and query.strip():
-        search_clear_actions.append(("broad pairs", {"search_broad_pairs": False}))
-    if int(rows) != int(search_defaults["search_rows"]):
-        search_clear_actions.append(("rows", {"search_rows": search_defaults["search_rows"]}))
-    render_filter_clear_buttons(search_clear_actions, "search")
-    if st.session_state.saved_search_filters:
-        st.caption(f"Saved search views: {len(st.session_state.saved_search_filters)}")
-        with st.expander("Saved search filters", expanded=False):
-            st.dataframe(pd.DataFrame(st.session_state.saved_search_filters), width="stretch", height=160)
-            if st.button("Clear saved search filters"):
-                st.session_state.saved_search_filters = []
-                save_local_list("saved_search_filters.json", st.session_state.saved_search_filters)
-                st.rerun()
-
     tab_all, tab_markets, tab_traders, tab_trades, tab_news, tab_pairs, tab_alerts, tab_tracked = st.tabs(
         ["All", "Markets", "Traders", "Trades", "News", "Cross-Venue", "Alerts", "Tracked"]
     )
@@ -5889,71 +5753,10 @@ def page_traders() -> None:
         custom_account_age = a3.number_input("Custom min account age days", min_value=1, step=30, disabled=account_age_preset != "Custom", key="trader_custom_account_age")
         enrich_accounts = a4.checkbox("Fetch balances + account age", key="trader_enrich_accounts")
         account_enrich_rows = a4.slider("Account stat wallets", min_value=5, max_value=30, step=5, help="Limits slower balance and activity-age calls.", key="trader_account_enrich_rows")
-        action_cols = st.columns([1, 1, 4])
-        save_trader_clicked = action_cols[0].button("Save Filter", width="stretch", key="save_trader_filter_button")
-        if action_cols[1].button("Reset Filters", width="stretch", key="reset_trader_filters_button"):
+        action_cols = st.columns([1, 5])
+        if action_cols[0].button("Reset Filters", width="stretch", key="reset_trader_filters_button"):
             st.session_state["trader_filters_reset_pending"] = True
             st.rerun()
-
-    saved_trader_name = st.text_input("Saved trader view name", value=f"Traders {md.now_utc_label()}", key="saved_trader_view_name")
-    loaded_trader_message = st.session_state.pop("trader_view_loaded_message", "")
-    if loaded_trader_message:
-        st.info(loaded_trader_message)
-    if st.session_state.saved_trader_filters:
-        load_cols = st.columns([2, 1, 1])
-        saved_labels = [
-            f"{i + 1}. {view.get('name') or view.get('query') or 'Trader view'}"
-            for i, view in enumerate(st.session_state.saved_trader_filters)
-        ]
-        selected_saved_trader = load_cols[0].selectbox("Load saved trader view", saved_labels, key="load_saved_trader_view")
-        selected_trader_view = st.session_state.saved_trader_filters[saved_labels.index(selected_saved_trader)]
-        if load_cols[1].button("Load trader view", key="load_trader_view_button"):
-            st.session_state["pending_trader_filter_view"] = selected_trader_view
-            st.session_state["trader_view_loaded_message"] = f"Loaded saved trader view: {selected_trader_view.get('name', selected_saved_trader)}"
-            st.rerun()
-        if load_cols[2].button("Delete trader view", key="delete_trader_view_button"):
-            st.session_state.saved_trader_filters.pop(saved_labels.index(selected_saved_trader))
-            save_local_list("saved_trader_filters.json", st.session_state.saved_trader_filters)
-            st.rerun()
-    if save_trader_clicked:
-        st.session_state.saved_trader_filters.append(
-            {
-                "name": saved_trader_name.strip() or f"Traders {md.now_utc_label()}",
-                "created_at": md.now_utc_label(),
-                "query": trader_query,
-                "view_mode": view_mode,
-                "column_preset": column_preset,
-                "period": time_period,
-                "rank_by": order_by,
-                "rows": int(rows),
-                "active_only": bool(active_only),
-                "bots_only": bool(bots_only),
-                "bot_score_min": int(bot_score_min),
-                "pnl_preset": pnl_preset,
-                "custom_pnl": float(custom_pnl),
-                "volume_preset": volume_preset,
-                "custom_volume": float(custom_volume),
-                "position_preset": position_preset,
-                "custom_position": float(custom_position),
-                "active_positions_min": int(active_positions_min),
-                "trait_filter": trait_filter,
-                "enrich_positions": bool(enrich_positions),
-                "win_rate": win_rate_preset,
-                "custom_win_rate": float(custom_win_rate),
-                "enrich_win_rates": bool(enrich_win_rates),
-                "min_closed_positions": int(min_closed_positions),
-                "assets_preset": assets_preset,
-                "custom_assets": float(custom_assets),
-                "balance_preset": balance_preset,
-                "custom_balance": float(custom_balance),
-                "account_age_preset": account_age_preset,
-                "custom_account_age": int(custom_account_age),
-                "enrich_accounts": bool(enrich_accounts),
-                "account_enrich_rows": int(account_enrich_rows),
-            }
-        )
-        save_local_list("saved_trader_filters.json", st.session_state.saved_trader_filters)
-        st.success("Saved trader view.")
 
     if order_by in {"SMART", "ROI", "WIN"}:
         pnl_leaderboard = safe_load("Polymarket leaderboard by PnL", load_leaderboard, rows, time_period, "PNL", default=pd.DataFrame())
@@ -6127,55 +5930,6 @@ def page_traders() -> None:
     if account_stats_needed:
         trader_chips.append(f"Balance/account age enriched: {account_enrich_rows} wallets")
     render_filter_chips(trader_chips)
-    trader_defaults = trader_filter_defaults()
-    trader_clear_actions: list[tuple[str, dict[str, Any]]] = []
-    if trader_query.strip():
-        trader_clear_actions.append(("search", {"trader_search": ""}))
-    if view_mode != trader_defaults["trader_view_mode"]:
-        trader_clear_actions.append(("view", {"trader_view_mode": trader_defaults["trader_view_mode"]}))
-    if column_preset != trader_defaults["trader_column_preset"]:
-        trader_clear_actions.append(("columns", {"trader_column_preset": trader_defaults["trader_column_preset"]}))
-    if time_period != trader_defaults["trader_time_period"]:
-        trader_clear_actions.append(("period", {"trader_time_period": trader_defaults["trader_time_period"]}))
-    if order_by != trader_defaults["trader_order_by"]:
-        trader_clear_actions.append(("rank", {"trader_order_by": trader_defaults["trader_order_by"]}))
-    if int(rows) != int(trader_defaults["trader_rows"]):
-        trader_clear_actions.append(("rows", {"trader_rows": trader_defaults["trader_rows"]}))
-    if active_only:
-        trader_clear_actions.append(("active", {"trader_active_only": False}))
-    if bots_only:
-        trader_clear_actions.append(("bots", {"trader_bots_only": False}))
-    if int(bot_score_min) != int(trader_defaults["trader_bot_score_min"]):
-        trader_clear_actions.append(("bot score", {"trader_bot_score_min": trader_defaults["trader_bot_score_min"]}))
-    if pnl_preset != "All":
-        trader_clear_actions.append(("pnl", {"trader_pnl_preset": "All"}))
-    if volume_preset != "All":
-        trader_clear_actions.append(("volume", {"trader_volume_preset": "All"}))
-    if position_preset != "All":
-        trader_clear_actions.append(("positions", {"trader_position_preset": "All"}))
-    if int(active_positions_min) > 0:
-        trader_clear_actions.append(("active positions", {"trader_active_positions_min": 0}))
-    if assets_preset != "All":
-        trader_clear_actions.append(("assets", {"trader_assets_preset": "All"}))
-    if balance_preset != "All":
-        trader_clear_actions.append(("balance", {"trader_balance_preset": "All"}))
-    if account_age_preset != "All":
-        trader_clear_actions.append(("account age", {"trader_account_age_preset": "All"}))
-    if win_rate_preset != "All":
-        trader_clear_actions.append(("win rate", {"trader_win_rate_preset": "All"}))
-    if trait_filter:
-        trader_clear_actions.append(("traits", {"trader_trait_filter": []}))
-    if enrich_accounts:
-        trader_clear_actions.append(("account enrichment", {"trader_enrich_accounts": False}))
-    render_filter_clear_buttons(trader_clear_actions, "traders")
-    if st.session_state.saved_trader_filters:
-        st.caption(f"Saved trader views: {len(st.session_state.saved_trader_filters)}")
-        with st.expander("Saved trader filters", expanded=False):
-            st.dataframe(pd.DataFrame(st.session_state.saved_trader_filters), width="stretch", height=160)
-            if st.button("Clear saved trader filters"):
-                st.session_state.saved_trader_filters = []
-                save_local_list("saved_trader_filters.json", st.session_state.saved_trader_filters)
-                st.rerun()
     if enrich_positions and has_native_positions:
         st.caption("Open-position values are sourced from the public trader leaderboard.")
     elif enrich_positions:
@@ -6648,54 +6402,10 @@ def page_wallets() -> None:
     if not wallet and st.session_state.followed_wallets:
         wallet = st.session_state.followed_wallets[0]
 
-    save_cols = st.columns([2, 1, 1])
-    saved_wallet_name = save_cols[0].text_input("Saved wallet view name", value=f"Wallet {short_addr(wallet) if wallet else md.now_utc_label()}", key="saved_wallet_view_name")
-    save_wallet_clicked = save_cols[1].button("Save Filter", width="stretch", key="save_wallet_filter_button")
-    if save_cols[2].button("Reset Wallet View", width="stretch", key="reset_wallet_view_button"):
+    if st.button("Reset Wallet View", key="reset_wallet_view_button"):
         st.session_state["wallets_wallet_input"] = default_wallet
         st.session_state["wallets_inspect_wallet"] = default_wallet
         st.rerun()
-    loaded_wallet_message = st.session_state.pop("wallet_view_loaded_message", "")
-    if loaded_wallet_message:
-        st.info(loaded_wallet_message)
-    if st.session_state.saved_wallet_filters:
-        load_cols = st.columns([2, 1, 1])
-        saved_labels = [
-            f"{i + 1}. {view.get('name') or short_addr(str(view.get('wallet', ''))) or 'Wallet view'}"
-            for i, view in enumerate(st.session_state.saved_wallet_filters)
-        ]
-        selected_saved_wallet = load_cols[0].selectbox("Load saved wallet view", saved_labels, key="load_saved_wallet_view")
-        selected_wallet_view = st.session_state.saved_wallet_filters[saved_labels.index(selected_saved_wallet)]
-        if load_cols[1].button("Load wallet view", key="load_wallet_view_button"):
-            st.session_state["pending_wallet_view"] = selected_wallet_view
-            st.session_state["wallet_view_loaded_message"] = f"Loaded saved wallet view: {selected_wallet_view.get('name', selected_saved_wallet)}"
-            st.rerun()
-        if load_cols[2].button("Delete wallet view", key="delete_wallet_view_button"):
-            st.session_state.saved_wallet_filters.pop(saved_labels.index(selected_saved_wallet))
-            save_local_list("saved_wallet_filters.json", st.session_state.saved_wallet_filters)
-            st.rerun()
-    if save_wallet_clicked:
-        st.session_state.saved_wallet_filters.append(
-            {
-                "name": saved_wallet_name.strip() or f"Wallet {short_addr(wallet)}",
-                "created_at": md.now_utc_label(),
-                "entry": str(wallet_entry or ""),
-                "wallet": str(wallet or ""),
-            }
-        )
-        save_local_list("saved_wallet_filters.json", st.session_state.saved_wallet_filters)
-        st.success("Saved wallet view.")
-    if st.session_state.saved_wallet_filters:
-        st.caption(f"Saved wallet views: {len(st.session_state.saved_wallet_filters)}")
-        with st.expander("Saved wallet filters", expanded=False):
-            display = pd.DataFrame(st.session_state.saved_wallet_filters)
-            if not display.empty and "wallet" in display:
-                display["wallet_short"] = display["wallet"].astype(str).map(short_addr)
-            st.dataframe(display, width="stretch", height=160)
-            if st.button("Clear saved wallet filters"):
-                st.session_state.saved_wallet_filters = []
-                save_local_list("saved_wallet_filters.json", st.session_state.saved_wallet_filters)
-                st.rerun()
 
     if st.session_state.followed_wallets:
         selected_index = 0
@@ -7781,81 +7491,6 @@ def page_whale_flow() -> None:
             st.session_state["whale_filters_reset_pending"] = True
             st.rerun()
 
-    save_cols = st.columns([2, 1, 1])
-    saved_whale_name = save_cols[0].text_input("Saved whale view name", value=f"Whale Flow {md.now_utc_label()}", key="saved_whale_view_name")
-    save_whale_clicked = save_cols[1].button("Save Filter", width="stretch", key="save_whale_filter_button")
-    if save_cols[2].button("Reset Whale View", width="stretch", key="reset_whale_view_button"):
-        st.session_state["whale_filters_reset_pending"] = True
-        st.rerun()
-    loaded_whale_message = st.session_state.pop("whale_view_loaded_message", "")
-    if loaded_whale_message:
-        st.info(loaded_whale_message)
-    if st.session_state.saved_whale_filters:
-        load_cols = st.columns([2, 1, 1])
-        saved_labels = [
-            f"{i + 1}. {view.get('name') or view.get('query') or 'Whale flow view'}"
-            for i, view in enumerate(st.session_state.saved_whale_filters)
-        ]
-        selected_saved_whale = load_cols[0].selectbox("Load saved whale view", saved_labels, key="load_saved_whale_view")
-        selected_whale_view = st.session_state.saved_whale_filters[saved_labels.index(selected_saved_whale)]
-        if load_cols[1].button("Load whale view", key="load_whale_view_button"):
-            st.session_state["pending_whale_filter_view"] = selected_whale_view
-            st.session_state["whale_view_loaded_message"] = f"Loaded saved whale view: {selected_whale_view.get('name', selected_saved_whale)}"
-            st.rerun()
-        if load_cols[2].button("Delete whale view", key="delete_whale_view_button"):
-            st.session_state.saved_whale_filters.pop(saved_labels.index(selected_saved_whale))
-            save_local_list("saved_whale_filters.json", st.session_state.saved_whale_filters)
-            st.rerun()
-    if save_whale_clicked:
-        st.session_state.saved_whale_filters.append(
-            {
-                "name": saved_whale_name.strip() or f"Whale Flow {md.now_utc_label()}",
-                "created_at": md.now_utc_label(),
-                "query": whale_query,
-                "platforms": whale_platforms,
-                "trade_side": whale_trade_side,
-                "maker_taker": whale_maker_taker,
-                "price_preset": whale_price_preset,
-                "custom_price_min": int(st.session_state.get("whale_custom_price_min", 0)),
-                "custom_price_max": int(st.session_state.get("whale_custom_price_max", 100)),
-                "size_preset": whale_size_preset,
-                "custom_size": int(st.session_state.get("whale_custom_size", 0)),
-                "value_preset": whale_value_preset,
-                "custom_value": int(st.session_state.get("whale_custom_value", 0)),
-                "verified_only": bool(whale_verified_only),
-                "bot_mode": whale_bot_mode,
-                "account_age_preset": whale_account_age_preset,
-                "custom_account_age": int(st.session_state.get("whale_custom_account_age", 365)),
-                "pnl_preset": whale_pnl_preset,
-                "custom_pnl": int(st.session_state.get("whale_custom_pnl", 0)),
-                "volume_preset": whale_volume_preset,
-                "custom_volume": int(st.session_state.get("whale_custom_volume", 0)),
-                "win_rate_preset": whale_win_rate_preset,
-                "custom_win_rate": int(st.session_state.get("whale_custom_win_rate", 50)),
-                "balance_preset": whale_balance_preset,
-                "custom_balance": int(st.session_state.get("whale_custom_balance", 0)),
-                "contrarian_preset": whale_contrarian_preset,
-                "custom_contrarian": int(st.session_state.get("whale_custom_contrarian", 25)),
-                "trend_preset": whale_trend_preset,
-                "custom_trend": int(st.session_state.get("whale_custom_trend", 25)),
-                "lottery_preset": whale_lottery_preset,
-                "custom_lottery": int(st.session_state.get("whale_custom_lottery", 25)),
-                "splash_preset": whale_splash_preset,
-                "custom_splash": int(st.session_state.get("whale_custom_splash", 25)),
-                "concentration_preset": whale_concentration_preset,
-                "custom_concentration": int(st.session_state.get("whale_custom_concentration", 50)),
-                "unrealized_pnl_preset": whale_unrealized_pnl_preset,
-                "custom_unrealized_pnl": int(st.session_state.get("whale_custom_unrealized_pnl", 0)),
-                "rows": int(whale_rows),
-                "min_notional": int(whale_min_notional),
-                "min_wallet_notional": int(whale_min_wallet_notional),
-                "min_wallet_trades": int(whale_min_wallet_trades),
-                "bias_filter": whale_bias_filter,
-                "tracked_wallets_only": bool(tracked_wallets_only),
-            }
-        )
-        save_local_list("saved_whale_filters.json", st.session_state.saved_whale_filters)
-        st.success("Saved whale flow view.")
 
     poly_trades = safe_load("Polymarket trades", load_polymarket_trades, trade_limit, 0.0, None, None)
     kalshi_trades = safe_load("Kalshi trades", load_kalshi_trades, trade_limit, None)
@@ -8015,55 +7650,6 @@ def page_whale_flow() -> None:
         chips.append("Tracked wallets only")
     render_filter_chips(chips)
 
-    clear_actions: list[tuple[str, dict[str, Any]]] = []
-    if whale_query.strip():
-        clear_actions.append(("search", {"whale_query": ""}))
-    if set(whale_platforms) != set(whale_defaults["whale_platforms"]):
-        clear_actions.append(("platform", {"whale_platforms": whale_defaults["whale_platforms"]}))
-    for label, key, value in [
-        ("side", "whale_trade_side", whale_trade_side),
-        ("maker/taker", "whale_maker_taker", whale_maker_taker),
-        ("price", "whale_price_preset", whale_price_preset),
-        ("size", "whale_size_preset", whale_size_preset),
-        ("total value", "whale_value_preset", whale_value_preset),
-        ("bots", "whale_bot_mode", whale_bot_mode),
-        ("account age", "whale_account_age_preset", whale_account_age_preset),
-        ("PnL", "whale_pnl_preset", whale_pnl_preset),
-        ("volume", "whale_volume_preset", whale_volume_preset),
-        ("win rate", "whale_win_rate_preset", whale_win_rate_preset),
-        ("balance", "whale_balance_preset", whale_balance_preset),
-        ("contrarian", "whale_contrarian_preset", whale_contrarian_preset),
-        ("trend", "whale_trend_preset", whale_trend_preset),
-        ("lottery", "whale_lottery_preset", whale_lottery_preset),
-        ("whale splash", "whale_splash_preset", whale_splash_preset),
-        ("concentration", "whale_concentration_preset", whale_concentration_preset),
-        ("unrealized PnL", "whale_unrealized_pnl_preset", whale_unrealized_pnl_preset),
-    ]:
-        if value != whale_defaults.get(key):
-            clear_actions.append((label, {key: whale_defaults[key]}))
-    if whale_verified_only:
-        clear_actions.append(("verified", {"whale_verified_only": False}))
-    if int(whale_rows) != int(whale_defaults["whale_rows"]):
-        clear_actions.append(("rows", {"whale_rows": whale_defaults["whale_rows"]}))
-    if int(whale_min_notional) > 0:
-        clear_actions.append(("print notional", {"whale_min_notional": 0}))
-    if int(whale_min_wallet_notional) > 0:
-        clear_actions.append(("wallet notional", {"whale_min_wallet_notional": 0}))
-    if int(whale_min_wallet_trades) > 1:
-        clear_actions.append(("wallet trades", {"whale_min_wallet_trades": 1}))
-    if whale_bias_filter != "Any":
-        clear_actions.append(("bias", {"whale_bias_filter": "Any"}))
-    if tracked_wallets_only:
-        clear_actions.append(("tracked wallets", {"whale_tracked_wallets_only": False}))
-    render_filter_clear_buttons(clear_actions, "whale")
-    if st.session_state.saved_whale_filters:
-        st.caption(f"Saved whale views: {len(st.session_state.saved_whale_filters)}")
-        with st.expander("Saved whale filters", expanded=False):
-            st.dataframe(pd.DataFrame(st.session_state.saved_whale_filters), width="stretch", height=160)
-            if st.button("Clear saved whale filters"):
-                st.session_state.saved_whale_filters = []
-                save_local_list("saved_whale_filters.json", st.session_state.saved_whale_filters)
-                st.rerun()
 
     if trades.empty:
         draw_empty("No large trades match the current threshold.")
@@ -8463,49 +8049,6 @@ def page_cross_venue() -> None:
         if f6.button("Reset Filters", width="stretch", key="reset_cross_filters_button"):
             st.session_state["cross_filters_reset_pending"] = True
             st.rerun()
-    save_cols = st.columns([2, 1, 1])
-    saved_cross_name = save_cols[0].text_input("Saved cross-venue view name", value=f"Cross-Venue {md.now_utc_label()}", key="saved_cross_view_name")
-    save_cross_clicked = save_cols[1].button("Save Filter", width="stretch", key="save_cross_filter_button")
-    if save_cols[2].button("Reset Cross View", width="stretch", key="reset_cross_view_button"):
-        st.session_state["cross_filters_reset_pending"] = True
-        st.rerun()
-    loaded_cross_message = st.session_state.pop("cross_view_loaded_message", "")
-    if loaded_cross_message:
-        st.info(loaded_cross_message)
-    if st.session_state.saved_cross_filters:
-        load_cols = st.columns([2, 1, 1])
-        saved_labels = [
-            f"{i + 1}. {view.get('name') or view.get('query') or 'Cross-venue view'}"
-            for i, view in enumerate(st.session_state.saved_cross_filters)
-        ]
-        selected_saved_cross = load_cols[0].selectbox("Load saved cross-venue view", saved_labels, key="load_saved_cross_view")
-        selected_cross_view = st.session_state.saved_cross_filters[saved_labels.index(selected_saved_cross)]
-        if load_cols[1].button("Load cross view", key="load_cross_view_button"):
-            st.session_state["pending_cross_filter_view"] = selected_cross_view
-            st.session_state["cross_view_loaded_message"] = f"Loaded saved cross-venue view: {selected_cross_view.get('name', selected_saved_cross)}"
-            st.rerun()
-        if load_cols[2].button("Delete cross view", key="delete_cross_view_button"):
-            st.session_state.saved_cross_filters.pop(saved_labels.index(selected_saved_cross))
-            save_local_list("saved_cross_filters.json", st.session_state.saved_cross_filters)
-            st.rerun()
-    if save_cross_clicked:
-        st.session_state.saved_cross_filters.append(
-            {
-                "name": saved_cross_name.strip() or f"Cross-Venue {md.now_utc_label()}",
-                "created_at": md.now_utc_label(),
-                "query": query,
-                "min_similarity": float(min_similarity),
-                "max_pairs": int(max_pairs),
-                "min_gap_cents": float(min_gap_cents),
-                "min_pm_volume": int(min_pm_volume),
-                "min_ks_volume": int(min_ks_volume),
-                "lower_filter": lower_filter,
-                "min_price_pct": int(min_price_pct),
-                "max_price_pct": int(max_price_pct),
-            }
-        )
-        save_local_list("saved_cross_filters.json", st.session_state.saved_cross_filters)
-        st.success("Saved cross-venue view.")
     min_price = min(float(min_price_pct), float(max_price_pct)) / 100
     max_price = max(float(min_price_pct), float(max_price_pct)) / 100
     candidates = md.cross_venue_candidates(pm, ks, query=query, min_similarity=min_similarity, max_pairs=max_pairs)
@@ -8545,40 +8088,6 @@ def page_cross_venue() -> None:
     if int(min_price_pct) != int(cross_defaults["cross_min_price_pct"]) or int(max_price_pct) != int(cross_defaults["cross_max_price_pct"]):
         cross_chips.append(f"Yes price: {int(min_price_pct)}%-{int(max_price_pct)}%")
     render_filter_chips(cross_chips)
-    cross_clear_actions: list[tuple[str, dict[str, Any]]] = []
-    if query.strip():
-        cross_clear_actions.append(("search", {"cross_query": ""}))
-    if abs(float(min_similarity) - float(cross_defaults["cross_min_similarity"])) > 1e-9:
-        cross_clear_actions.append(("similarity", {"cross_min_similarity": cross_defaults["cross_min_similarity"]}))
-    if int(max_pairs) != int(cross_defaults["cross_max_pairs"]):
-        cross_clear_actions.append(("max pairs", {"cross_max_pairs": cross_defaults["cross_max_pairs"]}))
-    if float(min_gap_cents) > 0:
-        cross_clear_actions.append(("gap", {"cross_min_gap_cents": 0.0}))
-    if int(min_pm_volume) > 0:
-        cross_clear_actions.append(("Polymarket volume", {"cross_min_pm_volume": 0}))
-    if int(min_ks_volume) > 0:
-        cross_clear_actions.append(("Kalshi volume", {"cross_min_ks_volume": 0}))
-    if lower_filter != "Any":
-        cross_clear_actions.append(("lower yes", {"cross_lower_filter": "Any"}))
-    if int(min_price_pct) != int(cross_defaults["cross_min_price_pct"]) or int(max_price_pct) != int(cross_defaults["cross_max_price_pct"]):
-        cross_clear_actions.append(
-            (
-                "yes price",
-                {
-                    "cross_min_price_pct": cross_defaults["cross_min_price_pct"],
-                    "cross_max_price_pct": cross_defaults["cross_max_price_pct"],
-                },
-            )
-        )
-    render_filter_clear_buttons(cross_clear_actions, "cross")
-    if st.session_state.saved_cross_filters:
-        st.caption(f"Saved cross-venue views: {len(st.session_state.saved_cross_filters)}")
-        with st.expander("Saved cross-venue filters", expanded=False):
-            st.dataframe(pd.DataFrame(st.session_state.saved_cross_filters), width="stretch", height=160)
-            if st.button("Clear saved cross-venue filters"):
-                st.session_state.saved_cross_filters = []
-                save_local_list("saved_cross_filters.json", st.session_state.saved_cross_filters)
-                st.rerun()
     if candidates.empty:
         draw_empty("No cross-venue candidates matched. Try a broader query or lower the similarity threshold.")
         return
@@ -10889,49 +10398,6 @@ def page_portfolio() -> None:
             st.session_state["portfolio_filters_reset_pending"] = True
             st.rerun()
 
-    save_cols = st.columns([2, 1, 1])
-    saved_portfolio_name = save_cols[0].text_input("Saved portfolio view name", value=f"Portfolio {md.now_utc_label()}", key="saved_portfolio_view_name")
-    save_portfolio_clicked = save_cols[1].button("Save Filter", width="stretch", key="save_portfolio_filter_button")
-    if save_cols[2].button("Reset Portfolio View", width="stretch", key="reset_portfolio_view_button"):
-        st.session_state["portfolio_filters_reset_pending"] = True
-        st.rerun()
-    loaded_portfolio_message = st.session_state.pop("portfolio_view_loaded_message", "")
-    if loaded_portfolio_message:
-        st.info(loaded_portfolio_message)
-    if st.session_state.saved_portfolio_filters:
-        load_cols = st.columns([2, 1, 1])
-        saved_labels = [
-            f"{i + 1}. {view.get('name') or view.get('query') or 'Portfolio view'}"
-            for i, view in enumerate(st.session_state.saved_portfolio_filters)
-        ]
-        selected_saved_portfolio = load_cols[0].selectbox("Load saved portfolio view", saved_labels, key="load_saved_portfolio_view")
-        selected_portfolio_view = st.session_state.saved_portfolio_filters[saved_labels.index(selected_saved_portfolio)]
-        if load_cols[1].button("Load portfolio view", key="load_portfolio_view_button"):
-            st.session_state["pending_portfolio_filter_view"] = selected_portfolio_view
-            st.session_state["portfolio_view_loaded_message"] = f"Loaded saved portfolio view: {selected_portfolio_view.get('name', selected_saved_portfolio)}"
-            st.rerun()
-        if load_cols[2].button("Delete portfolio view", key="delete_portfolio_view_button"):
-            st.session_state.saved_portfolio_filters.pop(saved_labels.index(selected_saved_portfolio))
-            save_local_list("saved_portfolio_filters.json", st.session_state.saved_portfolio_filters)
-            st.rerun()
-    if save_portfolio_clicked:
-        st.session_state.saved_portfolio_filters.append(
-            {
-                "name": saved_portfolio_name.strip() or f"Portfolio {md.now_utc_label()}",
-                "created_at": md.now_utc_label(),
-                "query": portfolio_query,
-                "platforms": portfolio_platforms,
-                "outcomes": portfolio_outcomes,
-                "rows": int(portfolio_rows),
-                "min_value": int(portfolio_min_value),
-                "min_pnl": float(portfolio_min_pnl),
-                "sources": portfolio_sources,
-                "copy_statuses": portfolio_copy_statuses,
-                "losers_only": bool(portfolio_losers_only),
-            }
-        )
-        save_local_list("saved_portfolio_filters.json", st.session_state.saved_portfolio_filters)
-        st.success("Saved portfolio view.")
 
     def _filter_position_rows(
         frame: pd.DataFrame,
@@ -11005,34 +10471,6 @@ def page_portfolio() -> None:
         portfolio_chips.append("Losing rows only")
     render_filter_chips(portfolio_chips)
 
-    portfolio_clear_actions: list[tuple[str, dict[str, Any]]] = []
-    if portfolio_query.strip():
-        portfolio_clear_actions.append(("search", {"portfolio_search": ""}))
-    if set(portfolio_platforms) != set(portfolio_defaults["portfolio_platforms"]):
-        portfolio_clear_actions.append(("platform", {"portfolio_platforms": portfolio_defaults["portfolio_platforms"]}))
-    if set(portfolio_outcomes) != set(portfolio_defaults["portfolio_outcomes"]):
-        portfolio_clear_actions.append(("outcome", {"portfolio_outcomes": portfolio_defaults["portfolio_outcomes"]}))
-    if int(portfolio_rows) != int(portfolio_defaults["portfolio_rows"]):
-        portfolio_clear_actions.append(("rows", {"portfolio_rows": portfolio_defaults["portfolio_rows"]}))
-    if int(portfolio_min_value) > 0:
-        portfolio_clear_actions.append(("value", {"portfolio_min_value": 0}))
-    if set(portfolio_sources) != set(portfolio_defaults["portfolio_sources"]):
-        portfolio_clear_actions.append(("sources", {"portfolio_sources": portfolio_defaults["portfolio_sources"]}))
-    if float(portfolio_min_pnl) != float(portfolio_defaults["portfolio_min_pnl"]):
-        portfolio_clear_actions.append(("PnL", {"portfolio_min_pnl": portfolio_defaults["portfolio_min_pnl"]}))
-    if set(portfolio_copy_statuses) != set(portfolio_defaults["portfolio_copy_statuses"]):
-        portfolio_clear_actions.append(("copy status", {"portfolio_copy_statuses": portfolio_defaults["portfolio_copy_statuses"]}))
-    if portfolio_losers_only:
-        portfolio_clear_actions.append(("losing only", {"portfolio_losers_only": False}))
-    render_filter_clear_buttons(portfolio_clear_actions, "portfolio")
-    if st.session_state.saved_portfolio_filters:
-        st.caption(f"Saved portfolio views: {len(st.session_state.saved_portfolio_filters)}")
-        with st.expander("Saved portfolio filters", expanded=False):
-            st.dataframe(pd.DataFrame(st.session_state.saved_portfolio_filters), width="stretch", height=160)
-            if st.button("Clear saved portfolio filters"):
-                st.session_state.saved_portfolio_filters = []
-                save_local_list("saved_portfolio_filters.json", st.session_state.saved_portfolio_filters)
-                st.rerun()
 
     p1, p2, p3, p4, p5, p6 = st.columns(6)
     p1.metric("Marked value", money(total_marked_value))
