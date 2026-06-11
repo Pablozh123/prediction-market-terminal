@@ -6471,54 +6471,10 @@ def page_wallets() -> None:
     if not wallet and st.session_state.followed_wallets:
         wallet = st.session_state.followed_wallets[0]
 
-    save_cols = st.columns([2, 1, 1])
-    saved_wallet_name = save_cols[0].text_input("Saved wallet view name", value=f"Wallet {short_addr(wallet) if wallet else md.now_utc_label()}", key="saved_wallet_view_name")
-    save_wallet_clicked = save_cols[1].button("Save Filter", width="stretch", key="save_wallet_filter_button")
-    if save_cols[2].button("Reset Wallet View", width="stretch", key="reset_wallet_view_button"):
+    if st.button("Reset Wallet View", key="reset_wallet_view_button"):
         st.session_state["wallets_wallet_input"] = default_wallet
         st.session_state["wallets_inspect_wallet"] = default_wallet
         st.rerun()
-    loaded_wallet_message = st.session_state.pop("wallet_view_loaded_message", "")
-    if loaded_wallet_message:
-        st.info(loaded_wallet_message)
-    if st.session_state.saved_wallet_filters:
-        load_cols = st.columns([2, 1, 1])
-        saved_labels = [
-            f"{i + 1}. {view.get('name') or short_addr(str(view.get('wallet', ''))) or 'Wallet view'}"
-            for i, view in enumerate(st.session_state.saved_wallet_filters)
-        ]
-        selected_saved_wallet = load_cols[0].selectbox("Load saved wallet view", saved_labels, key="load_saved_wallet_view")
-        selected_wallet_view = st.session_state.saved_wallet_filters[saved_labels.index(selected_saved_wallet)]
-        if load_cols[1].button("Load wallet view", key="load_wallet_view_button"):
-            st.session_state["pending_wallet_view"] = selected_wallet_view
-            st.session_state["wallet_view_loaded_message"] = f"Loaded saved wallet view: {selected_wallet_view.get('name', selected_saved_wallet)}"
-            st.rerun()
-        if load_cols[2].button("Delete wallet view", key="delete_wallet_view_button"):
-            st.session_state.saved_wallet_filters.pop(saved_labels.index(selected_saved_wallet))
-            save_local_list("saved_wallet_filters.json", st.session_state.saved_wallet_filters)
-            st.rerun()
-    if save_wallet_clicked:
-        st.session_state.saved_wallet_filters.append(
-            {
-                "name": saved_wallet_name.strip() or f"Wallet {short_addr(wallet)}",
-                "created_at": md.now_utc_label(),
-                "entry": str(wallet_entry or ""),
-                "wallet": str(wallet or ""),
-            }
-        )
-        save_local_list("saved_wallet_filters.json", st.session_state.saved_wallet_filters)
-        st.success("Saved wallet view.")
-    if st.session_state.saved_wallet_filters:
-        st.caption(f"Saved wallet views: {len(st.session_state.saved_wallet_filters)}")
-        with st.expander("Saved wallet filters", expanded=False):
-            display = pd.DataFrame(st.session_state.saved_wallet_filters)
-            if not display.empty and "wallet" in display:
-                display["wallet_short"] = display["wallet"].astype(str).map(short_addr)
-            st.dataframe(display, width="stretch", height=160)
-            if st.button("Clear saved wallet filters"):
-                st.session_state.saved_wallet_filters = []
-                save_local_list("saved_wallet_filters.json", st.session_state.saved_wallet_filters)
-                st.rerun()
 
     if st.session_state.followed_wallets:
         selected_index = 0
