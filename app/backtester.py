@@ -121,8 +121,18 @@ def _stake_for(config: BacktestConfig, equity_now: float, source_notional: float
     return max(0.0, min(stake, config.max_stake))
 
 
-def replay(trades: pd.DataFrame, config: BacktestConfig) -> tuple[pd.DataFrame, dict[str, dict[str, Any]]]:
-    """Replay source trades chronologically. Returns (ledger, open positions by asset)."""
+def replay(
+    trades: pd.DataFrame,
+    config: BacktestConfig,
+    token_values: dict[str, dict[str, Any]] | None = None,
+) -> tuple[pd.DataFrame, dict[str, dict[str, Any]]]:
+    """Replay source trades chronologically. Returns (ledger, open positions by asset).
+
+    When ``token_values`` is provided, positions in markets that resolved DURING
+    the window are settled at their resolution time inside the replay — the
+    payout flows back into cash and frees exposure-cap room, exactly like in
+    reality. Without it (legacy behavior), everything settles at the end.
+    """
 
     cash = float(config.bankroll)
     realized_net = 0.0
@@ -162,8 +172,71 @@ def replay(trades: pd.DataFrame, config: BacktestConfig) -> tuple[pd.DataFrame, 
     if trades is None or trades.empty:
         return _empty_ledger(), positions
 
+    pending_resolutions: list[tuple[pd.Timestamp, str]] = []
+
+    def schedule_resolution(position_key: str, opened_at: Any) -> None:
+        if not token_values or any(key == position_key for _, key in pending_resolutions):
+            return
+        position = positions.get(position_key)
+        if not position:
+            return
+        info = token_values.get(str(position.get("lookup_asset", "") or ""), {})
+        if not info.get("closed") or info.get("price") is None:
+            return
+        end_time = info.get("end_time")
+        if not isinstance(end_time, pd.Timestamp) or pd.isna(end_time):
+            return
+        opened_ts = pd.to_datetime(opened_at, utc=True, errors="coerce")
+        resolve_time = end_time if pd.isna(opened_ts) or end_time >= opened_ts else opened_ts
+        pending_resolutions.append((resolve_time, position_key))
+        pending_resolutions.sort(key=lambda item: item[0])
+
+    def settle_due(now_value: Any) -> None:
+        nonlocal cash, realized_net, open_cost
+        now_ts = pd.to_datetime(now_value, utc=True, errors="coerce")
+        if pd.isna(now_ts):
+            return
+        while pending_resolutions and pending_resolutions[0][0] <= now_ts:
+            resolve_time, key = pending_resolutions.pop(0)
+            position = positions.pop(key, None)
+            if not position or float(position.get("shares", 0.0) or 0.0) <= 0.0:
+                continue
+            info = token_values.get(str(position.get("lookup_asset", "") or ""), {}) if token_values else {}
+            raw_price = info.get("price")
+            if raw_price is None:
+                positions[key] = position
+                continue
+            payout_price = (1.0 - float(raw_price)) if position.get("fade") else float(raw_price)
+            shares = float(position["shares"])
+            cost = float(position["cost_basis"])
+            payout = shares * payout_price
+            realized = payout - cost
+            cash += payout
+            open_cost = max(0.0, open_cost - cost)
+            realized_net += realized
+            rows.append(
+                {
+                    "time": resolve_time,
+                    "action": "RESOLVE",
+                    "status": "settled",
+                    "title": position.get("title", ""),
+                    "outcome": position.get("outcome", ""),
+                    "source_notional": 0.0,
+                    "stake": cost,
+                    "exec_price": payout_price,
+                    "shares": shares,
+                    "fee": 0.0,
+                    "realized_pnl": realized,
+                    "equity_after": float(config.bankroll) + realized_net,
+                    "note": "market resolved",
+                    "asset": str(position.get("lookup_asset", "") or ""),
+                    "market_key": str(position.get("market_key", "") or ""),
+                }
+            )
+
     frame = trades.sort_values("time", ascending=True)
     for _, trade in frame.iterrows():
+        settle_due(trade.get("time"))
         side = str(trade.get("side", "") or "").upper()
         asset = str(trade.get("asset", "") or "")
         price = float(trade.get("price", 0.0) or 0.0)
@@ -212,6 +285,7 @@ def replay(trades: pd.DataFrame, config: BacktestConfig) -> tuple[pd.DataFrame, 
             open_cost += stake
             cash -= stake + fee
             realized_net -= fee
+            schedule_resolution(position_key, trade.get("time"))
             log(
                 trade.get("time"),
                 "BUY",
@@ -517,7 +591,16 @@ def run_backtest(
     window_start = window_end - pd.Timedelta(days=int(config.days))
     trades, window_truncated = fetch_window_trades(config.wallet, window_start, fetch_activity)
 
-    ledger, positions = replay(trades, config)
+    if token_values is None:
+        trade_keys = (
+            sorted({str(key) for key in trades.get("market_key", pd.Series(dtype=str)).dropna().astype(str) if key})
+            if trades is not None and not trades.empty
+            else []
+        )
+        markets = fetch_markets_by_ids(trade_keys) if trade_keys else []
+        token_values = token_value_builder(markets)
+
+    ledger, positions = replay(trades, config, token_values)
     flat_config = BacktestConfig(
         wallet=config.wallet,
         days=config.days,
@@ -530,13 +613,7 @@ def run_backtest(
         flat_stake=config.flat_stake,
         strategy=config.strategy,
     )
-    flat_ledger, flat_positions = replay(trades, flat_config)
-
-    if token_values is None:
-        open_keys = {pos.get("market_key", "") for pos in positions.values()}
-        open_keys |= {pos.get("market_key", "") for pos in flat_positions.values()}
-        markets = fetch_markets_by_ids([key for key in open_keys if key])
-        token_values = token_value_builder(markets)
+    flat_ledger, flat_positions = replay(trades, flat_config, token_values)
 
     settlement, open_positions = settle(positions, token_values, asof=window_end)
     flat_settlement, flat_open = settle(flat_positions, token_values, asof=window_end)
@@ -615,6 +692,14 @@ def strategy_comparison(
         variants = default_strategy_variants(config)
     rows: list[dict[str, Any]] = []
     resolved_token_values = token_values
+    if resolved_token_values is None:
+        trade_keys = (
+            sorted({str(key) for key in trades.get("market_key", pd.Series(dtype=str)).dropna().astype(str) if key})
+            if trades is not None and not trades.empty
+            else []
+        )
+        markets = fetch_markets_by_ids(trade_keys) if trade_keys else []
+        resolved_token_values = md.polymarket_token_value_map(markets)
     for label, sizing_mode, stake_value in variants:
         variant_config = BacktestConfig(
             wallet=config.wallet,
@@ -630,11 +715,7 @@ def strategy_comparison(
             max_exposure_pct=config.max_exposure_pct,
             trader_portfolio_value=config.trader_portfolio_value,
         )
-        ledger, positions = replay(trades, variant_config)
-        if resolved_token_values is None:
-            open_keys = [str(pos.get("market_key", "") or "") for pos in positions.values() if pos.get("market_key")]
-            markets = fetch_markets_by_ids(open_keys) if open_keys else []
-            resolved_token_values = md.polymarket_token_value_map(markets)
+        ledger, positions = replay(trades, variant_config, resolved_token_values)
         settlement, open_positions = settle(positions, resolved_token_values, asof=window_end)
         full_ledger = pd.concat([ledger, settlement], ignore_index=True) if not settlement.empty else ledger
         unrealized = float(open_positions["unrealized_pnl"].sum()) if not open_positions.empty else 0.0
@@ -643,6 +724,8 @@ def strategy_comparison(
         rows.append(
             {
                 "strategy": label,
+                "sizing_mode": sizing_mode,
+                "stake_value": stake_value,
                 "final_equity": stats["final_equity"],
                 "roi": stats["roi"],
                 "total_pnl": stats["total_pnl"],
