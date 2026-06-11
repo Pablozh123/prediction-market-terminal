@@ -6383,6 +6383,35 @@ def page_traders() -> None:
                         help="Resolved positions — a win rate only means something with enough closed bets behind it.",
                     )
 
+    if leaderboard_tape is not None and not leaderboard_tape.empty:
+        speed_scores = md.whale_wallet_risk_scores(leaderboard_tape, whale_threshold=max(float(min_whale), 1_000.0))
+        if not speed_scores.empty and "price_move" in speed_scores:
+            speed_movers = speed_scores[
+                (numeric_col(speed_scores, "trade_count") >= 2) & (numeric_col(speed_scores, "price_move") > 0)
+            ].copy()
+            if not speed_movers.empty:
+                speed_movers["move_c"] = numeric_col(speed_movers, "price_move") * 100
+                speed_movers = speed_movers.sort_values("move_c", ascending=False).head(5)
+                st.markdown("<div class='step-label'>Speed traders — price follows their entries</div>", unsafe_allow_html=True)
+                st.markdown(
+                    "<div class='field-hint'>Wallets whose entries were followed by the largest favorable price moves in the sampled whale tape — the clearest latency / news-speed signal in public data.</div>",
+                    unsafe_allow_html=True,
+                )
+                st.dataframe(
+                    clean_table(speed_movers, ["trader", "wallet", "move_c", "notional", "trade_count", "markets"]),
+                    width="stretch",
+                    height=220,
+                    hide_index=True,
+                    column_config={
+                        "trader": st.column_config.TextColumn("Trader"),
+                        "wallet": st.column_config.TextColumn("Wallet"),
+                        "move_c": st.column_config.NumberColumn("Move after entry", format="%+.1fc", help="Average favorable price move following this wallet's entries in the sample."),
+                        "notional": st.column_config.NumberColumn("Whale $", format="$%.0f"),
+                        "trade_count": st.column_config.NumberColumn("Trades"),
+                        "markets": st.column_config.NumberColumn("Markets"),
+                    },
+                )
+
     trader_action_cols = st.columns([1.1, 1.1, 3])
     trader_action_cols[0].download_button(
         "Export traders CSV",
@@ -11757,6 +11786,40 @@ def page_picks() -> None:
                     b1, b2 = st.columns(2)
                     b1.button("Backtest →", key=f"pick_bt_{start}_{wallet[:10]}", width="stretch", type="primary", on_click=_pick_backtest, args=(wallet,))
                     b2.button("Track", key=f"pick_tr_{start}_{wallet[:10]}", width="stretch", on_click=_pick_track, args=(wallet,))
+    insider_candidates = ranked[numeric_col(ranked, "win_rate") >= 0.75]
+    if "closed_positions" in ranked.columns:
+        insider_candidates = insider_candidates[numeric_col(insider_candidates, "closed_positions") >= 10]
+    insider_set = set(insider_candidates.get("wallet", pd.Series(dtype=str)).astype(str).str.lower())
+    picks_tape = safe_load("Deep whale tape", load_deep_whale_tape, 1000.0, default=pd.DataFrame())
+    if insider_set and picks_tape is not None and not picks_tape.empty:
+        insider_feed = picks_tape.copy()
+        insider_feed["_wallet_key"] = insider_feed["wallet"].astype(str).str.lower().str.strip()
+        insider_feed = insider_feed[insider_feed["_wallet_key"].isin(insider_set)]
+        insider_feed = insider_feed[
+            insider_feed.get("side", pd.Series("", index=insider_feed.index)).astype(str).str.upper().eq("BUY")
+            & (numeric_col(insider_feed, "price") < 0.60)
+        ]
+        if not insider_feed.empty:
+            st.markdown("<div class='step-label'>Insider picks — high win-rate wallets buying now</div>", unsafe_allow_html=True)
+            st.markdown(
+                "<div class='field-hint'>Whale-sized buys below 60c by wallets with a ≥75% historical win rate (≥10 resolved positions) — fresh from the sampled tape.</div>",
+                unsafe_allow_html=True,
+            )
+            st.dataframe(
+                clean_table(insider_feed.sort_values("time", ascending=False).head(8), ["time", "trader", "title", "outcome", "price", "notional"]),
+                width="stretch",
+                height=260,
+                hide_index=True,
+                column_config={
+                    "time": st.column_config.DatetimeColumn("Time", format="MM-DD HH:mm"),
+                    "trader": st.column_config.TextColumn("Trader"),
+                    "title": st.column_config.TextColumn("Market", width="large"),
+                    "outcome": st.column_config.TextColumn("Side"),
+                    "price": st.column_config.NumberColumn("Entry", format="%.2f"),
+                    "notional": st.column_config.NumberColumn("Size", format="$%.0f"),
+                },
+            )
+
     st.markdown("<div class='step-label'>Momentum markets</div>", unsafe_allow_html=True)
     markets = safe_load("Polymarket markets", load_polymarket_markets, market_limit, default=pd.DataFrame())
     if markets is None or markets.empty:
