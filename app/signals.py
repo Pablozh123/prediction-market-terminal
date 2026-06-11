@@ -74,6 +74,24 @@ def build_monitor_signals(
             (numeric_col(market_frame, volume_col) >= float(min_volume))
             & (numeric_col(market_frame, "liquidity") >= float(min_liquidity))
         ].copy()
+        if "volume_1h" in market_frame and "volume_24h" in market_frame:
+            anomaly_vol_1h = numeric_col(market_frame, "volume_1h")
+            anomaly_vol_24h = numeric_col(market_frame, "volume_24h")
+            anomaly_baseline = (anomaly_vol_24h / 24.0).clip(lower=1.0)
+            anomaly_ratio = anomaly_vol_1h / anomaly_baseline
+            anomalies = market_frame[(anomaly_vol_24h >= 10_000) & (anomaly_ratio >= 3.0)].copy()
+            if not anomalies.empty:
+                anomalies["_ratio"] = anomaly_ratio.loc[anomalies.index]
+                anomalies = anomalies.sort_values("_ratio", ascending=False)
+                for _, row in anomalies.head(60).iterrows():
+                    _append_market_signal(
+                        rows,
+                        row,
+                        "Volume anomaly",
+                        float(row["_ratio"]),
+                        f"1h volume {float(row['_ratio']):.1f}x the 24h baseline",
+                        "warning",
+                    )
         if "change_1h" in market_frame:
             movers = market_frame[numeric_col(market_frame, "change_1h").abs() >= float(min_move)]
             movers = movers.sort_values("change_1h", key=lambda series: series.abs(), ascending=False)
