@@ -281,6 +281,27 @@ class CoTradingNetworkTests(unittest.TestCase):
         nodes_loose, _ = susp.co_trading_network(tape(rows), window_minutes=None, min_shared=2)
         self.assertEqual(set(nodes_loose["wallet"]), {"0xaaa", "0xbbb"})
 
+    def test_cluster_story_explains_tight_clique(self):
+        rows = self._syndicate_rows()
+        nodes, edges = susp.co_trading_network(tape(rows), window_minutes=5.0, min_shared=2)
+        big = nodes[nodes["cluster_id"] == 1]
+        big_edges = edges[edges["wallet_a"].isin(set(big["wallet"])) & edges["wallet_b"].isin(set(big["wallet"]))]
+        story = susp.cluster_story(big, big_edges, tape(rows))
+        self.assertIn("3 wallets", story["headline"])
+        self.assertEqual(story["pattern"], "Tight clique")
+        self.assertTrue(any("same side" in reason for reason in story["reasons"]))
+        self.assertTrue(story["top_markets"])
+        self.assertGreaterEqual(story["density"], 0.99)
+
+    def test_cluster_story_labels_loose_chain(self):
+        nodes = pd.DataFrame(
+            [{"wallet": f"0x{i}", "cluster_id": 1, "cluster_size": 6, "shared_markets": 2, "volume": 1000.0, "markets": 2, "trades": 2} for i in range(6)]
+        )
+        edges = pd.DataFrame([{"wallet_a": "0x0", "wallet_b": "0x1", "shared_markets": 2, "pair_notional": 2000.0}])
+        story = susp.cluster_story(nodes, edges, pd.DataFrame())
+        self.assertEqual(story["pattern"], "Loose chain")
+        self.assertTrue(any("herd behavior" in reason for reason in story["reasons"]))
+
     def test_cluster_layout_separates_islands(self):
         nodes, _ = susp.co_trading_network(tape(self._syndicate_rows()), window_minutes=5.0, min_shared=2)
         placed = susp.cluster_layout(nodes)
