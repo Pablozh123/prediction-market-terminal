@@ -11784,7 +11784,13 @@ def page_suspicious() -> None:
     network_tape = safe_load("Deep whale tape", load_deep_whale_tape, 1000.0, default=pd.DataFrame())
     if network_tape is None or network_tape.empty:
         network_tape = trades
-    network_nodes, network_edges = susp.co_trading_network(network_tape, window_minutes=5.0, min_shared=2, max_wallets=300)
+    network_min_shared = 3
+    network_nodes, network_edges = susp.co_trading_network(
+        network_tape, window_minutes=5.0, min_shared=3, min_pair_notional=10_000.0, max_wallets=300
+    )
+    if network_nodes.empty:
+        network_min_shared = 2
+        network_nodes, network_edges = susp.co_trading_network(network_tape, window_minutes=5.0, min_shared=2, max_wallets=300)
     cluster_assignments = (
         network_nodes[["wallet", "cluster_id", "cluster_size", "shared_markets"]] if not network_nodes.empty else pd.DataFrame()
     )
@@ -11985,11 +11991,19 @@ def page_suspicious() -> None:
     if network_nodes.empty:
         draw_empty("No co-trading clusters in the current tape — no wallets hit the same side of multiple markets within minutes of each other.")
         return
+    network_mod = susp.network_modularity(network_nodes, network_edges)
+    modularity_label = f" · modularity {network_mod:.2f}" if network_mod is not None else ""
     st.markdown(
         f"<div class='small-note'>Louvain community detection over the sampled tape (trades ≥ \\$1k, {len(network_tape):,} prints) · "
-        f"{len(network_nodes):,} wallets · {network_nodes['cluster_id'].nunique():,} clusters · {len(network_edges):,} edges</div>",
+        f"{len(network_nodes):,} wallets · {network_nodes['cluster_id'].nunique():,} clusters · {len(network_edges):,} edges{modularity_label}</div>",
         unsafe_allow_html=True,
     )
+    if network_min_shared < 3:
+        st.markdown(
+            "<div class='field-hint'>Strict syndicate rule (≥3 shared markets, ≥\\$10k pair value) found no clusters in this sample — "
+            "showing looser communities (≥2 shared markets) instead.</div>",
+            unsafe_allow_html=True,
+        )
 
     placed = susp.cluster_layout(network_nodes)
     risk_lookup = wallet_risk.copy()
@@ -12132,7 +12146,7 @@ def page_suspicious() -> None:
                 member_edges = network_edges[
                     network_edges["wallet_a"].isin(set(members["wallet"])) & network_edges["wallet_b"].isin(set(members["wallet"]))
                 ]
-                story = susp.cluster_story(members, member_edges, network_tape)
+                story = susp.cluster_story(members, member_edges, network_tape, min_shared=network_min_shared)
                 st.markdown(
                     f"<div class='step-label' style='margin-top:0'><span style='color:{color}'>●</span> Cluster {int(selected_cluster)}</div>"
                     f"<div class='terminal-title' style='font-size:1.4rem'>{int(len(members))} wallets</div>"
@@ -12190,7 +12204,7 @@ def page_suspicious() -> None:
             member_edges = network_edges[
                 network_edges["wallet_a"].isin(set(members["wallet"])) & network_edges["wallet_b"].isin(set(members["wallet"]))
             ]
-            story = susp.cluster_story(members, member_edges, network_tape)
+            story = susp.cluster_story(members, member_edges, network_tape, min_shared=network_min_shared)
             with st.expander(f"Cluster {cluster_id} — {story['headline']}"):
                 for reason in story["reasons"]:
                     st.markdown(f"- {reason}")
