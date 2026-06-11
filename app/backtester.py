@@ -25,7 +25,8 @@ import pandas as pd
 SIZING_FIXED = "fixed"
 SIZING_PERCENT = "percent"
 SIZING_MIRROR = "mirror"
-SIZING_MODES = (SIZING_FIXED, SIZING_PERCENT, SIZING_MIRROR)
+SIZING_PORTFOLIO = "portfolio_share"
+SIZING_MODES = (SIZING_FIXED, SIZING_PERCENT, SIZING_MIRROR, SIZING_PORTFOLIO)
 
 STRATEGY_COPY = "copy"
 STRATEGY_FADE = "fade"
@@ -78,6 +79,8 @@ class BacktestConfig:
     slippage_bps: float = 50.0
     flat_stake: float = 25.0
     strategy: str = STRATEGY_COPY
+    max_exposure_pct: float = 100.0
+    trader_portfolio_value: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -105,6 +108,14 @@ def _stake_for(config: BacktestConfig, equity_now: float, source_notional: float
         stake = equity_now * (config.stake_value / 100.0)
     elif config.sizing_mode == SIZING_MIRROR:
         stake = source_notional * (config.stake_value / 100.0)
+    elif config.sizing_mode == SIZING_PORTFOLIO:
+        # Bet the same share of MY bankroll as the trader bet of THEIR portfolio
+        # (stake_value acts as a multiplier: 1.0 = same share, 2.0 = double).
+        if config.trader_portfolio_value > 0:
+            share = source_notional / config.trader_portfolio_value
+            stake = equity_now * share * (config.stake_value or 1.0)
+        else:
+            stake = 0.0
     else:
         stake = config.stake_value
     return max(0.0, min(stake, config.max_stake))
@@ -118,6 +129,8 @@ def replay(trades: pd.DataFrame, config: BacktestConfig) -> tuple[pd.DataFrame, 
     fee_rate = max(0.0, config.fee_bps) / 10_000.0
     slip_rate = max(0.0, config.slippage_bps) / 10_000.0
     fade = config.strategy == STRATEGY_FADE
+    open_cost = 0.0
+    max_open = float(config.bankroll) * max(0.0, min(float(config.max_exposure_pct), 100.0)) / 100.0
     positions: dict[str, dict[str, Any]] = {}
     source_shares: dict[str, float] = {}
     rows: list[dict[str, Any]] = []
@@ -166,6 +179,12 @@ def replay(trades: pd.DataFrame, config: BacktestConfig) -> tuple[pd.DataFrame, 
         if side == "BUY":
             source_shares[asset] = source_shares.get(asset, 0.0) + size
             stake = _stake_for(config, equity_now(), float(trade.get("notional", 0.0) or 0.0))
+            exposure_room = max_open - open_cost
+            if stake > exposure_room:
+                stake = max(0.0, exposure_room)
+                if stake < MIN_STAKE:
+                    log(trade.get("time"), "BUY", "skipped", record, note=f"exposure cap reached ({config.max_exposure_pct:.0f}% of bankroll in open copies)")
+                    continue
             fee = stake * fee_rate
             if stake + fee > cash:
                 stake = max(0.0, cash / (1.0 + fee_rate))
@@ -190,6 +209,7 @@ def replay(trades: pd.DataFrame, config: BacktestConfig) -> tuple[pd.DataFrame, 
             )
             position["shares"] += shares
             position["cost_basis"] += stake
+            open_cost += stake
             cash -= stake + fee
             realized_net -= fee
             log(
@@ -220,6 +240,7 @@ def replay(trades: pd.DataFrame, config: BacktestConfig) -> tuple[pd.DataFrame, 
             realized = proceeds - fee - cost_released
             held["shares"] -= sell_shares
             held["cost_basis"] -= cost_released
+            open_cost = max(0.0, open_cost - cost_released)
             cash += proceeds - fee
             realized_net += realized
             if held["shares"] <= 1e-9:
@@ -547,3 +568,92 @@ def run_backtest(
         stats=stats,
         benchmark_stats=flat_stats,
     )
+
+
+def default_strategy_variants(config: BacktestConfig) -> list[tuple[str, str, float]]:
+    """(label, sizing_mode, stake_value) grid for the what-would-have-been-best simulation."""
+
+    variants: list[tuple[str, str, float]] = [
+        ("Fixed $10", SIZING_FIXED, 10.0),
+        ("Fixed $25", SIZING_FIXED, 25.0),
+        ("Fixed $50", SIZING_FIXED, 50.0),
+        ("1% of bankroll", SIZING_PERCENT, 1.0),
+        ("2% of bankroll", SIZING_PERCENT, 2.0),
+        ("5% of bankroll", SIZING_PERCENT, 5.0),
+    ]
+    if config.trader_portfolio_value > 0:
+        variants.append(("Match trader share ×1", SIZING_PORTFOLIO, 1.0))
+        variants.append(("Match trader share ×2", SIZING_PORTFOLIO, 2.0))
+    return variants
+
+
+def strategy_comparison(
+    config: BacktestConfig,
+    variants: list[tuple[str, str, float]] | None = None,
+    *,
+    fetch_activity: Callable[..., pd.DataFrame] | None = None,
+    fetch_markets_by_ids: Callable[[list[str]], list[dict[str, Any]]] | None = None,
+    token_values: dict[str, dict[str, Any]] | None = None,
+    now: pd.Timestamp | None = None,
+) -> pd.DataFrame:
+    """Replay the same window once per sizing variant and rank the outcomes.
+
+    Fetches the wallet's trades and market resolutions a single time, then runs
+    the full replay/settle/score pipeline for every variant. Fee, slippage,
+    exposure cap, strategy (copy/fade) and trader portfolio value come from
+    ``config``; only the sizing changes per row. Sorted by final equity.
+    """
+
+    from src import prediction_markets as md
+
+    fetch_activity = fetch_activity or md.get_polymarket_activity
+    fetch_markets_by_ids = fetch_markets_by_ids or md.get_polymarket_markets_by_condition_ids
+    window_end = now if now is not None else pd.Timestamp.now(tz="UTC")
+    window_start = window_end - pd.Timedelta(days=int(config.days))
+    trades, _truncated = fetch_window_trades(config.wallet, window_start, fetch_activity)
+    if variants is None:
+        variants = default_strategy_variants(config)
+    rows: list[dict[str, Any]] = []
+    resolved_token_values = token_values
+    for label, sizing_mode, stake_value in variants:
+        variant_config = BacktestConfig(
+            wallet=config.wallet,
+            days=config.days,
+            bankroll=config.bankroll,
+            sizing_mode=sizing_mode,
+            stake_value=stake_value,
+            max_stake=config.max_stake,
+            fee_bps=config.fee_bps,
+            slippage_bps=config.slippage_bps,
+            flat_stake=config.flat_stake,
+            strategy=config.strategy,
+            max_exposure_pct=config.max_exposure_pct,
+            trader_portfolio_value=config.trader_portfolio_value,
+        )
+        ledger, positions = replay(trades, variant_config)
+        if resolved_token_values is None:
+            open_keys = [str(pos.get("market_key", "") or "") for pos in positions.values() if pos.get("market_key")]
+            markets = fetch_markets_by_ids(open_keys) if open_keys else []
+            resolved_token_values = md.polymarket_token_value_map(markets)
+        settlement, open_positions = settle(positions, resolved_token_values, asof=window_end)
+        full_ledger = pd.concat([ledger, settlement], ignore_index=True) if not settlement.empty else ledger
+        unrealized = float(open_positions["unrealized_pnl"].sum()) if not open_positions.empty else 0.0
+        curve = equity_curve(full_ledger, window_start, window_end, config.bankroll, unrealized)
+        stats = compute_stats(full_ledger, open_positions, curve, config.bankroll)
+        rows.append(
+            {
+                "strategy": label,
+                "final_equity": stats["final_equity"],
+                "roi": stats["roi"],
+                "total_pnl": stats["total_pnl"],
+                "max_drawdown": stats["max_drawdown"],
+                "win_rate": stats["win_rate"],
+                "copied_trades": stats["copied_trades"],
+                "skipped_trades": stats["skipped_trades"],
+                "volume_copied": stats["volume_copied"],
+            }
+        )
+    comparison = pd.DataFrame(rows)
+    if comparison.empty:
+        return comparison
+    return comparison.sort_values("final_equity", ascending=False).reset_index(drop=True)
