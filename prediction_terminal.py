@@ -4513,540 +4513,6 @@ def render_market_series_strip(row: pd.Series, market_universe: pd.DataFrame | N
         )
 
 
-def render_market_detail(row: pd.Series, market_universe: pd.DataFrame | None = None) -> None:
-    st.markdown("### Market detail")
-    market_key = str(row.get("market_key") or row.get("ticker") or row.get("title") or "")
-    header_metrics = md.market_detail_header_metrics(row)
-    top_cols = st.columns(4)
-    top_cols[0].metric("Venue", header_metrics["venue"])
-    top_cols[1].metric("Yes price", cents(header_metrics["yes_price"]))
-    top_cols[2].metric("No price", cents(header_metrics["no_price"]))
-    top_cols[3].metric("End", header_metrics["end_label"])
-    flow_cols = st.columns(4)
-    flow_cols[0].metric("1h volume", money(header_metrics["volume_1h"]))
-    flow_cols[1].metric("24h volume", money(header_metrics["volume_24h"]))
-    flow_cols[2].metric("Liquidity / OI", money(header_metrics["liquidity_or_oi"]))
-    apy_value = header_metrics.get("apy")
-    flow_cols[3].metric(header_metrics["apy_label"], pct(apy_value) if apy_value is not None else "-")
-    st.markdown(f"**{row.get('title', '-')}**")
-    yes_strength = max(0.0, min(float(row.get("yes_price") or 0.0), 1.0))
-    no_strength = max(0.0, min(float(row.get("no_price") if row.get("no_price") is not None else 1 - yes_strength), 1.0))
-    st.markdown("#### Market Strength")
-    strength_cols = st.columns([1, 4, 1, 4])
-    strength_cols[0].metric("Yes", pct(yes_strength))
-    strength_cols[1].progress(yes_strength)
-    strength_cols[2].metric("No", pct(no_strength))
-    strength_cols[3].progress(no_strength)
-    if row.get("description"):
-        st.caption(str(row.get("description"))[:420])
-    saved_keys = {str(item.get("market_key", "")).strip() for item in st.session_state.watchlist}
-    action_cols = st.columns([1, 1, 2])
-    if market_key and market_key in saved_keys:
-        if action_cols[0].button("Remove saved market", key=f"detail_unsave_{market_key}", width="stretch"):
-            st.session_state.watchlist, removed = md.remove_watchlist_market(st.session_state.watchlist, market_key)
-            if removed:
-                save_local_list("watchlist.json", st.session_state.watchlist)
-                st.toast("Market removed from Saved.")
-            st.rerun()
-    else:
-        if market_key and action_cols[0].button("Save market", key=f"detail_save_{market_key}", width="stretch"):
-            st.session_state.watchlist, changed = md.upsert_watchlist_market(st.session_state.watchlist, row.to_dict())
-            if changed:
-                save_local_list("watchlist.json", st.session_state.watchlist)
-                st.toast("Market added to Saved.")
-            st.rerun()
-    venue_url = str(row.get("url", "") or "")
-    if venue_url:
-        action_cols[1].link_button("Open venue market", venue_url, width="stretch")
-    render_market_series_strip(row, market_universe)
-    render_related_markets(row, market_universe)
-    with st.expander("Market rules", expanded=False):
-        st.write(str(row.get("description") or "No market rules returned by the public API."))
-
-    if row.get("platform") == "Polymarket":
-        yes_asset = str(row.get("yes_token_id") or "")
-        no_asset = str(row.get("no_token_id") or "")
-        selected_outcome = st.radio("Outcome", ["Yes", "No"], horizontal=True, key=f"detail_outcome_{row.get('market_key')}")
-        token = yes_asset if selected_outcome == "Yes" else no_asset
-        selected_price = row.get("yes_price") if selected_outcome == "Yes" else row.get("no_price")
-        d1, d2, d3 = st.columns(3)
-        d1.metric("Selected outcome", selected_outcome)
-        d2.metric("Outcome price", cents(selected_price))
-        d3.metric("Token", short_addr(token, width=7))
-        render_market_quick_trade_bar(row, market_key, selected_outcome)
-        tab_history, tab_book, tab_holders, tab_top, tab_recent, tab_trade, tab_news, tab_comments = st.tabs(
-            ["Price", "Orderbook", "Holders", "Top Traders", "Recent Trades", "Trade", "News", "Comments"]
-        )
-        recent = safe_load("Polymarket market trades", load_polymarket_trades, 250, 0.0, None, row.get("market_key"))
-        with tab_history:
-            h1, h2 = st.columns([1, 1.6])
-            chart_type = h1.radio("Chart", ["Line", "Candlestick"], horizontal=True, key=f"detail_chart_{row.get('market_key')}_{selected_outcome}")
-            window = h2.radio("Window", ["1hr", "6hr", "1d", "1w", "1mo", "All"], horizontal=True, key=f"detail_window_{row.get('market_key')}_{selected_outcome}")
-            days, since_delta, interval, candle_rule = _history_window_config(window)
-            hist = safe_load("Polymarket price history", load_price_history, token, days, interval)
-            if not hist.empty and since_delta is not None:
-                hist = hist[pd.to_datetime(hist["time"], utc=True, errors="coerce") >= pd.Timestamp.utcnow() - since_delta]
-            render_price_history_chart(hist, chart_type, candle_rule, label=f"{selected_outcome} price")
-        with tab_book:
-            book_outcome = st.radio(
-                "Orderbook outcome",
-                ["Yes", "No"],
-                index=0 if selected_outcome == "Yes" else 1,
-                horizontal=True,
-                key=f"book_outcome_{row.get('market_key')}",
-            )
-            book_token = yes_asset if book_outcome == "Yes" else no_asset
-            bids, asks = safe_load("Polymarket order book", load_polymarket_book, book_token, default=(pd.DataFrame(), pd.DataFrame()))
-            summary = orderbook_summary(bids, asks)
-            st.caption(f"{book_outcome} token orderbook")
-            b1, b2, b3, b4, b5, b6 = st.columns(6)
-            b1.metric("Best bid", cents(summary["best_bid"]) if summary["best_bid"] is not None else "-")
-            b2.metric("Best ask", cents(summary["best_ask"]) if summary["best_ask"] is not None else "-")
-            b3.metric("Spread", cents(summary["spread"]) if summary["spread"] is not None else "-")
-            b4.metric("Mid", cents(summary["midpoint"]) if summary["midpoint"] is not None else "-")
-            b5.metric("Bid depth", money(summary["bid_depth"] or 0.0))
-            b6.metric("Ask depth", money(summary["ask_depth"] or 0.0))
-            ladder = orderbook_ladder(bids, asks, depth=40)
-            ladder_view = st.radio("Orderbook view", ["Ladder", "Raw bid/ask"], horizontal=True, key=f"book_view_{row.get('market_key')}")
-            if ladder_view == "Ladder":
-                if ladder.empty:
-                    draw_empty("No public CLOB orderbook levels returned for this outcome.")
-                else:
-                    st.dataframe(
-                        clean_table(ladder, ["side", "price", "shares", "total_shares", "total"]),
-                        width="stretch",
-                        height=430,
-                        column_config={
-                            "side": st.column_config.TextColumn("Side"),
-                            "price": st.column_config.NumberColumn("Price", format="%.4f"),
-                            "shares": st.column_config.NumberColumn("Shares", format="%.2f"),
-                            "total_shares": st.column_config.NumberColumn("Cum shares", format="%.2f"),
-                            "total": st.column_config.NumberColumn("Total", format="$%.2f"),
-                        },
-                    )
-            else:
-                book_cols = st.columns(2)
-                with book_cols[0]:
-                    st.markdown("**Bids**")
-                    st.dataframe(bids.head(30), width="stretch", height=330)
-                with book_cols[1]:
-                    st.markdown("**Asks**")
-                    st.dataframe(asks.head(30), width="stretch", height=330)
-        with tab_holders:
-            holders = safe_load("Polymarket holders", load_holders, row.get("market_key"))
-            if holders.empty:
-                draw_empty("No holder data returned for this market.")
-            else:
-                holders = holders.copy()
-                holders["outcome"] = holders.apply(lambda item: _holder_outcome_label(item, yes_asset, no_asset), axis=1)
-                holders = enrich_market_holders(holders, recent, row.get("yes_price"), row.get("no_price"))
-                outcome_filter = st.radio("Holder side", ["Selected", "Yes", "No", "All"], horizontal=True, key=f"holders_side_{row.get('market_key')}")
-                filtered_holders = holders
-                if outcome_filter == "Selected":
-                    filtered_holders = holders[holders["outcome"].eq(selected_outcome)]
-                elif outcome_filter in {"Yes", "No"}:
-                    filtered_holders = holders[holders["outcome"].eq(outcome_filter)]
-                total_all = numeric_col(holders, "value").sum()
-                total = numeric_col(filtered_holders, "value").sum()
-                top_10 = numeric_col(filtered_holders.head(10), "value").sum()
-                by_side = holders.groupby("outcome", as_index=False)["value"].sum().sort_values("value", ascending=False)
-                strength = holder_strength_summary(holders)
-                m1, m2, m3, m4 = st.columns(4)
-                m1.metric("Displayed holders", f"{len(filtered_holders):,}")
-                m2.metric("Displayed value", money(total))
-                m3.metric("Top 10 share", pct(top_10 / total if total else 0))
-                m4.metric("Selected side share", pct(total / total_all if total_all else 0))
-                st.markdown("### Market Strength")
-                strength_cols = st.columns(4)
-                strength_cols[0].metric("Dominant side", str(strength["dominant_side"]), pct(strength["dominant_share"]))
-                strength_cols[1].metric("Yes holder value", money(strength["yes_value"]), pct(strength["yes_share"]))
-                strength_cols[2].metric("No holder value", money(strength["no_value"]), pct(strength["no_share"]))
-                strength_cols[3].metric("Holder skew", pct(strength["skew"]))
-                st.progress(min(max(float(strength["dominant_share"]), 0.0), 1.0), text=f"{strength['dominant_side']} holder value share")
-                if not by_side.empty:
-                    fig = px.bar(
-                        by_side,
-                        x="outcome",
-                        y="value",
-                        color="outcome",
-                        template="plotly_dark",
-                        color_discrete_map={"Yes": ACCENT, "No": RED, "Unknown": MUTED},
-                    )
-                    fig.update_layout(height=220, margin=dict(l=10, r=10, t=15, b=10), paper_bgcolor=BG, plot_bgcolor=BG, showlegend=False)
-                    st.plotly_chart(fig, width="stretch", config=plot_config())
-                st.markdown("### Holder split")
-                holder_panels = md.holder_side_panels(holders, top_n=25)
-                split_cols = st.columns(2)
-                for split_col, side_name in zip(split_cols, ["Yes", "No"]):
-                    side_frame = holder_panels.get(side_name, pd.DataFrame()).copy()
-                    with split_col:
-                        st.markdown(f"**{side_name}**")
-                        if side_frame.empty:
-                            draw_empty(f"No {side_name} holders returned.")
-                        else:
-                            side_shares = float(numeric_col(side_frame, "shares").sum())
-                            side_value = float(numeric_col(side_frame, "value").sum())
-                            sm1, sm2, sm3 = st.columns(3)
-                            sm1.metric("Holders", f"{len(side_frame):,}")
-                            sm2.metric("Shares", f"{side_shares:,.1f}")
-                            sm3.metric("Value", money(side_value))
-                            side_display = side_frame.copy()
-                            side_display["wallet"] = side_display["wallet"].astype(str).map(short_addr)
-                            st.dataframe(
-                                clean_table(side_display, ["trader", "shares", "activity", "value", "wallet", "verified"]).head(25),
-                                width="stretch",
-                                height=300,
-                                column_config={
-                                    "trader": st.column_config.TextColumn("Holder", width="medium"),
-                                    "shares": st.column_config.NumberColumn("Shares", format="%.1f"),
-                                    "activity": st.column_config.TextColumn("Activity"),
-                                    "value": st.column_config.NumberColumn("Value", format="$%.2f"),
-                                },
-                            )
-                bubble_cols = st.columns([1, 1, 3])
-                show_bubble = bubble_cols[0].toggle("Bubble chart", value=False, key=f"holder_bubble_{row.get('market_key')}")
-                if bubble_cols[1].button("Open bubble chart", key=f"open_holder_bubble_{row.get('market_key')}", width="stretch"):
-                    render_holder_bubble_dialog(filtered_holders, str(row.get("title", "")))
-                display = filtered_holders.copy()
-                if show_bubble and not display.empty:
-                    render_holder_bubble_chart(display, height=330)
-                if not filtered_holders.empty:
-                    st.download_button("Export holders CSV", filtered_holders.to_csv(index=False).encode("utf-8"), file_name="market_holders.csv", mime="text/csv")
-                    holder_wallets = filtered_holders[filtered_holders["wallet"].astype(str).str.match(r"^0x[a-fA-F0-9]{40}$", na=False)] if "wallet" in filtered_holders else pd.DataFrame()
-                    if not holder_wallets.empty:
-                        holder_options = [
-                            f"{i + 1}. {row.get('trader', '') or short_addr(str(row.get('wallet', '')))} | {row.get('outcome', '-')} | {money(row.get('value', 0.0))}"
-                            for i, row in holder_wallets.head(80).iterrows()
-                        ]
-                        selected_holder = st.selectbox("Holder wallet action", holder_options, key=f"holder_action_{row.get('market_key')}")
-                        holder_row = holder_wallets.iloc[holder_options.index(selected_holder)]
-                        holder_cols = st.columns([1, 1, 3])
-                        holder_wallet = str(holder_row.get("wallet", ""))
-                        if holder_cols[0].button("Track holder wallet", key=f"track_holder_wallet_{row.get('market_key')}", width="stretch"):
-                            if holder_wallet.lower() not in [w.lower() for w in st.session_state.followed_wallets]:
-                                st.session_state.followed_wallets.append(holder_wallet)
-                                save_local_list("followed_wallets.json", st.session_state.followed_wallets)
-                                st.success("Holder wallet added to tracked wallets.")
-                        holder_cols[1].link_button("Open holder", f"https://polymarket.com/profile/{holder_wallet}", width="stretch")
-                        show_holder_wallet = st.toggle("Load holder wallet detail", value=False, key=f"load_holder_wallet_{row.get('market_key')}")
-                        if show_holder_wallet:
-                            render_wallet(holder_wallet)
-                display["wallet"] = display["wallet"].astype(str).map(short_addr)
-                st.dataframe(
-                    clean_table(
-                        display,
-                        ["trader", "outcome", "avg_price_est", "shares", "current_price", "value", "unrealized_pnl_est", "pnl_pct_est", "activity", "activity_time", "wallet", "verified"],
-                    ).head(80),
-                    width="stretch",
-                    height=430,
-                    column_config={
-                        "avg_price_est": st.column_config.NumberColumn("Avg", format="%.4f"),
-                        "shares": st.column_config.NumberColumn("Shares", format="%.2f"),
-                        "current_price": st.column_config.NumberColumn("Price", format="%.4f"),
-                        "value": st.column_config.NumberColumn("Value", format="$%.2f"),
-                        "unrealized_pnl_est": st.column_config.NumberColumn("U PnL", format="$%.2f"),
-                        "pnl_pct_est": st.column_config.NumberColumn("U PnL %", format="%.2%"),
-                    },
-                )
-        with tab_top:
-            status_label = st.radio("Top trader status", ["All", "Active", "Closed"], horizontal=True, key=f"top_trader_status_{row.get('market_key')}")
-            sort_label = st.selectbox(
-                "Sort top traders",
-                ["Total PnL", "Unrealized PnL", "Realized PnL", "Shares"],
-                key=f"top_trader_sort_{row.get('market_key')}",
-            )
-            status_map = {"All": "ALL", "Active": "OPEN", "Closed": "CLOSED"}
-            sort_map = {"Total PnL": "TOTAL_PNL", "Unrealized PnL": "CASH_PNL", "Realized PnL": "REALIZED_PNL", "Shares": "TOKENS"}
-            market_positions = safe_load(
-                "Market top-trader positions",
-                load_market_positions,
-                str(row.get("market_key", "")),
-                status_map[status_label],
-                sort_map[sort_label],
-                100,
-                default=pd.DataFrame(),
-            )
-            if market_positions.empty:
-                draw_empty("No Polymarket market-position leaderboard returned for this market.")
-            else:
-                pnl = numeric_col(market_positions, "total_pnl")
-                current_value = numeric_col(market_positions, "current_value")
-                active_rows = int(market_positions["status"].eq("Active").sum()) if "status" in market_positions else 0
-                p1, p2, p3, p4 = st.columns(4)
-                p1.metric("Displayed traders", f"{len(market_positions):,}")
-                p2.metric("Positive PnL", f"{int((pnl > 0).sum()):,}")
-                p3.metric("Displayed PnL", money(float(pnl.sum())))
-                p4.metric("Active value", money(float(current_value.sum())), f"{active_rows:,} active")
-                st.download_button(
-                    "Export market position leaderboard CSV",
-                    market_positions.to_csv(index=False).encode("utf-8"),
-                    file_name="market_position_leaderboard.csv",
-                    mime="text/csv",
-                )
-                side_cols = st.columns(2)
-                for side_name, side_col in zip(["Yes", "No"], side_cols):
-                    side_positions = market_positions[market_positions["outcome"].astype(str).str.casefold().eq(side_name.casefold())].copy()
-                    with side_col:
-                        st.markdown(f"**{side_name}**")
-                        if side_positions.empty:
-                            draw_empty(f"No {side_name} trader positions returned.")
-                        else:
-                            side_display = side_positions.copy()
-                            side_display["wallet"] = side_display["wallet"].astype(str).map(short_addr)
-                            st.dataframe(
-                                clean_table(
-                                    side_display,
-                                    ["trader", "avg_price", "size", "total_pnl", "cash_pnl", "realized_pnl", "current_value", "status", "wallet", "verified"],
-                                ).head(50),
-                                width="stretch",
-                                height=360,
-                                column_config={
-                                    "avg_price": st.column_config.NumberColumn("Avg", format="%.4f"),
-                                    "size": st.column_config.NumberColumn("Shares", format="%.0f"),
-                                    "total_pnl": st.column_config.NumberColumn("PnL", format="$%.0f"),
-                                    "cash_pnl": st.column_config.NumberColumn("U PnL", format="$%.0f"),
-                                    "realized_pnl": st.column_config.NumberColumn("R PnL", format="$%.0f"),
-                                    "current_value": st.column_config.NumberColumn("Value", format="$%.0f"),
-                                },
-                            )
-                position_wallets = (
-                    market_positions[market_positions["wallet"].astype(str).str.match(r"^0x[a-fA-F0-9]{40}$", na=False)]
-                    if "wallet" in market_positions
-                    else pd.DataFrame()
-                )
-                if not position_wallets.empty:
-                    position_options = [
-                        f"{idx + 1}. {pos.get('trader', '') or short_addr(str(pos.get('wallet', '')))} | {pos.get('outcome', '-')} | {money(pos.get('total_pnl', 0.0))} PnL"
-                        for idx, pos in position_wallets.head(80).iterrows()
-                    ]
-                    selected_position = st.selectbox("Market-position wallet action", position_options, key=f"position_trader_action_{row.get('market_key')}")
-                    position_row = position_wallets.iloc[position_options.index(selected_position)]
-                    position_wallet = str(position_row.get("wallet", ""))
-                    position_cols = st.columns([1, 1, 3])
-                    if position_cols[0].button("Track position wallet", key=f"track_position_trader_{row.get('market_key')}", width="stretch"):
-                        if position_wallet.lower() not in [w.lower() for w in st.session_state.followed_wallets]:
-                            st.session_state.followed_wallets.append(position_wallet)
-                            save_local_list("followed_wallets.json", st.session_state.followed_wallets)
-                            st.success("Market-position wallet added to tracked wallets.")
-                    position_cols[1].link_button("Open position trader", f"https://polymarket.com/profile/{position_wallet}", width="stretch")
-                    show_position_wallet = st.toggle("Load position wallet detail", value=False, key=f"load_position_wallet_{row.get('market_key')}")
-                    if show_position_wallet:
-                        render_wallet(position_wallet)
-
-            st.markdown("### Recent tape leaders")
-            top_traders = market_top_traders(recent)
-            if top_traders.empty:
-                draw_empty("No market-specific trader tape returned.")
-            else:
-                st.download_button("Export market top traders CSV", top_traders.to_csv(index=False).encode("utf-8"), file_name="market_top_traders.csv", mime="text/csv")
-                display = top_traders.copy()
-                display["wallet"] = display["wallet"].astype(str).map(short_addr)
-                st.dataframe(
-                    clean_table(display, ["trader", "wallet", "trades", "notional", "avg_trade", "largest_trade", "buy_notional", "sell_notional", "outcomes", "latest_trade"]),
-                    width="stretch",
-                    height=430,
-                    column_config={
-                        "notional": st.column_config.NumberColumn(format="$%.0f"),
-                        "avg_trade": st.column_config.NumberColumn(format="$%.0f"),
-                        "largest_trade": st.column_config.NumberColumn(format="$%.0f"),
-                        "buy_notional": st.column_config.NumberColumn(format="$%.0f"),
-                        "sell_notional": st.column_config.NumberColumn(format="$%.0f"),
-                    },
-                )
-                top_wallets = top_traders[top_traders["wallet"].astype(str).str.match(r"^0x[a-fA-F0-9]{40}$", na=False)] if "wallet" in top_traders else pd.DataFrame()
-                if not top_wallets.empty:
-                    top_options = [
-                        f"{i + 1}. {row.get('trader', '') or short_addr(str(row.get('wallet', '')))} | {money(row.get('notional', 0.0))} | {int(row.get('trades', 0))} trades"
-                        for i, row in top_wallets.head(80).iterrows()
-                    ]
-                    selected_top = st.selectbox("Top trader wallet action", top_options, key=f"top_trader_action_{row.get('market_key')}")
-                    top_row = top_wallets.iloc[top_options.index(selected_top)]
-                    top_wallet = str(top_row.get("wallet", ""))
-                    top_cols = st.columns([1, 1, 3])
-                    if top_cols[0].button("Track top trader wallet", key=f"track_top_trader_{row.get('market_key')}", width="stretch"):
-                        if top_wallet.lower() not in [w.lower() for w in st.session_state.followed_wallets]:
-                            st.session_state.followed_wallets.append(top_wallet)
-                            save_local_list("followed_wallets.json", st.session_state.followed_wallets)
-                            st.success("Top trader wallet added to tracked wallets.")
-                    top_cols[1].link_button("Open trader", f"https://polymarket.com/profile/{top_wallet}", width="stretch")
-                    show_top_wallet = st.toggle("Load top trader wallet detail", value=False, key=f"load_top_wallet_{row.get('market_key')}")
-                    if show_top_wallet:
-                        render_wallet(top_wallet)
-        with tab_recent:
-            if recent.empty:
-                draw_empty("No recent market trades returned.")
-            else:
-                recent_actions = md.prepare_recent_trade_actions(recent, limit=120)
-                st.download_button("Export market recent trades CSV", recent.to_csv(index=False).encode("utf-8"), file_name="market_recent_trades.csv", mime="text/csv")
-                show_exact_time = st.toggle("Show exact timestamps", value=False, key=f"recent_exact_time_{row.get('market_key')}")
-                time_col = "time_utc" if show_exact_time else "time"
-                display = clean_table(
-                    recent_actions,
-                    [
-                        time_col,
-                        "age_min",
-                        "trader_badge",
-                        "wallet",
-                        "side",
-                        "outcome",
-                        "direction",
-                        "directional_share",
-                        "price",
-                        "size",
-                        "notional",
-                        "wallet_market_trades",
-                        "wallet_market_notional",
-                        "transaction_hash",
-                        "tx_url",
-                        "url",
-                    ],
-                )
-                if "wallet" in display:
-                    display["wallet"] = display["wallet"].astype(str).map(short_addr)
-                if "transaction_hash" in display:
-                    display["transaction_hash"] = display["transaction_hash"].astype(str).map(short_addr)
-                st.dataframe(
-                    display,
-                    width="stretch",
-                    height=430,
-                    column_config={
-                        "price": st.column_config.NumberColumn(format="%.4f"),
-                        "size": st.column_config.NumberColumn(format="%.2f"),
-                        "notional": st.column_config.NumberColumn(format="$%.2f"),
-                        "age_min": st.column_config.NumberColumn("Age min", format="%.1f"),
-                        "trader_badge": st.column_config.TextColumn("Trader"),
-                        "directional_share": st.column_config.NumberColumn("Dir share", format="%.0%"),
-                        "wallet_market_trades": st.column_config.NumberColumn("Wallet trades", format="%d"),
-                        "wallet_market_notional": st.column_config.NumberColumn("Wallet flow", format="$%.0f"),
-                        "tx_url": st.column_config.LinkColumn("TX"),
-                        "url": st.column_config.LinkColumn("URL"),
-                    },
-                )
-                actionable_trades = recent_actions[recent_actions["action_label"].astype(str).str.len() > 0].copy()
-                if not actionable_trades.empty:
-                    st.markdown("### Recent trade inspector")
-                    trade_options = actionable_trades["action_label"].tolist()
-                    selected_trade = st.selectbox("Recent trade action", trade_options, key=f"recent_trade_action_{row.get('market_key')}")
-                    recent_row = actionable_trades.iloc[trade_options.index(selected_trade)]
-                    r1, r2, r3, r4, r5 = st.columns(5)
-                    r1.metric("Trader", str(recent_row.get("trader_display", "-"))[:24])
-                    r2.metric("Direction", str(recent_row.get("direction", "-")), pct(recent_row.get("directional_share", 0.0)))
-                    r3.metric("Price", cents(recent_row.get("price")))
-                    r4.metric("Shares", f"{float(recent_row.get('size', 0.0) or 0.0):,.2f}")
-                    r5.metric("Wallet flow", money(recent_row.get("wallet_market_notional", recent_row.get("notional", 0.0))), f"{int(recent_row.get('wallet_market_trades', 0) or 0)} trades")
-                    wallet_value = str(recent_row.get("wallet", ""))
-                    tx_value = str(recent_row.get("transaction_hash", ""))
-                    recent_cols = st.columns([1, 1, 1, 1, 2])
-                    if recent_cols[0].button(
-                        "Track trader",
-                        key=f"track_recent_trade_wallet_{row.get('market_key')}",
-                        width="stretch",
-                        disabled=not bool(recent_row.get("valid_wallet")),
-                    ):
-                        if wallet_value.lower() not in [w.lower() for w in st.session_state.followed_wallets]:
-                            st.session_state.followed_wallets.append(wallet_value)
-                            save_local_list("followed_wallets.json", st.session_state.followed_wallets)
-                            st.success("Recent-trade wallet added to tracked wallets.")
-                        else:
-                            st.info("Recent-trade wallet is already tracked.")
-                    wallet_url = str(recent_row.get("wallet_url", ""))
-                    tx_url = str(recent_row.get("tx_url", ""))
-                    market_url = str(recent_row.get("url", ""))
-                    if wallet_url:
-                        recent_cols[1].link_button("Open trader", wallet_url, width="stretch")
-                    if tx_url:
-                        recent_cols[2].link_button("Open tx", tx_url, width="stretch")
-                    if market_url:
-                        recent_cols[3].link_button("Open market", market_url, width="stretch")
-                    if recent_cols[4].button("Paper trade this outcome", key=f"paper_recent_trade_{row.get('market_key')}", width="stretch"):
-                        trade_outcome = str(recent_row.get("outcome", ""))
-                        trade_price = float(recent_row.get("price", 0.0) or 0.0)
-                        st.session_state[f"recent_trade_ticket_{market_key}"] = {
-                            "platform": str(row.get("platform", "")),
-                            "market_key": market_key,
-                            "title": str(row.get("title", "")),
-                            "url": str(row.get("url", "")),
-                            "yes_price": trade_price if trade_outcome.lower() == "yes" else float(row.get("yes_price", 0.0) or 0.0),
-                            "no_price": trade_price if trade_outcome.lower() == "no" else float(row.get("no_price", 0.0) or 0.0),
-                        }
-                        st.info("Paper ticket staged below. Adjust outcome and amount before submitting.")
-                    ticket_key = f"recent_trade_ticket_{market_key}"
-                    if ticket_key in st.session_state:
-                        render_research_trade_ticket(pd.Series(st.session_state[ticket_key]), key_prefix="recent_trade_ticket")
-                    show_recent_wallet = st.toggle(
-                        "Load recent trader wallet detail",
-                        value=False,
-                        key=f"load_recent_trade_wallet_{row.get('market_key')}",
-                        disabled=not bool(recent_row.get("valid_wallet")),
-                    )
-                    if show_recent_wallet and re.fullmatch(r"0x[a-fA-F0-9]{40}", wallet_value):
-                        render_wallet(wallet_value)
-        with tab_trade:
-            render_research_trade_ticket(row)
-        with tab_news:
-            render_market_news(str(row.get("title", "")), str(row.get("market_key", "")))
-        with tab_comments:
-            render_market_comments(str(row.get("market_key", "")), str(row.get("title", "")))
-    else:
-        ticker = row.get("ticker")
-        render_market_quick_trade_bar(row, market_key, "Yes")
-        tab_history, tab_book, tab_recent, tab_trade, tab_news, tab_comments = st.tabs(["Price", "Orderbook", "Recent Trades", "Trade", "News", "Comments"])
-        recent = safe_load("Kalshi market trades", load_kalshi_trades, 150, ticker)
-        with tab_history:
-            days = st.slider("History window", 7, 180, 30, key=f"kalshi_history_{row.get('market_key')}")
-            period = 1440 if days > 60 else 60
-            candles = safe_load("Kalshi candlesticks", load_kalshi_candles, ticker, days, period)
-            if candles.empty:
-                draw_empty("No Kalshi candlesticks returned for this market.")
-            else:
-                fig = go.Figure(
-                    data=[
-                        go.Candlestick(
-                            x=candles["time"],
-                            open=candles["open"],
-                            high=candles["high"],
-                            low=candles["low"],
-                            close=candles["close"],
-                            increasing_line_color=ACCENT,
-                            decreasing_line_color=RED,
-                            name="Kalshi yes price",
-                        )
-                    ]
-                )
-                fig.update_layout(height=360, margin=dict(l=10, r=10, t=20, b=10), paper_bgcolor=BG, plot_bgcolor=BG, template="plotly_dark")
-                st.plotly_chart(fig, width="stretch", config=plot_config())
-        with tab_book:
-            bids, asks = safe_load("Kalshi order book", load_kalshi_book, ticker, default=(pd.DataFrame(), pd.DataFrame()))
-            book_cols = st.columns(2)
-            with book_cols[0]:
-                st.markdown("**Yes-side levels**")
-                st.dataframe(bids.head(20), width="stretch", height=280)
-            with book_cols[1]:
-                st.markdown("**Yes asks derived from No bids**")
-                st.dataframe(asks.head(20), width="stretch", height=280)
-        with tab_recent:
-            if recent.empty:
-                draw_empty("No Kalshi recent trades returned.")
-            else:
-                st.dataframe(
-                    clean_table(recent, ["time", "ticker", "side", "outcome", "price", "size", "notional", "url"]).head(120),
-                    width="stretch",
-                    height=430,
-                    column_config={
-                        "price": st.column_config.NumberColumn(format="%.4f"),
-                        "size": st.column_config.NumberColumn(format="%.2f"),
-                        "notional": st.column_config.NumberColumn(format="$%.2f"),
-                        "url": st.column_config.LinkColumn("URL"),
-                    },
-                )
-        with tab_trade:
-            render_research_trade_ticket(row)
-        with tab_news:
-            render_market_news(str(row.get("title", "")), str(row.get("market_key", "")))
-        with tab_comments:
-            render_market_comments(str(row.get("market_key", "")), str(row.get("title", "")))
-
-
 def page_markets() -> None:
     section_header("Markets", "Market scanner with saved views, quick filters, table/card/calendar modes, and full market drilldown.")
     pm, ks, combined = load_market_universe()
@@ -5500,7 +4966,7 @@ def page_markets() -> None:
             selected_key = str(filtered.iloc[selected_table_row].get("market_key", ""))
             if selected_key:
                 st.session_state["markets_inspect_market_key"] = selected_key
-                st.caption("Selected table row is opened in the market detail below.")
+                st.caption("Selected row opens the who's-trading panel below.")
     elif view_mode == "Card":
         for chunk_start in range(0, len(filtered.head(24)), 3):
             cols = st.columns(3)
@@ -5582,28 +5048,81 @@ def page_markets() -> None:
             )
             st.dataframe(display, width="stretch", height=330, column_config=table_config)
     requested_key = str(st.session_state.get("markets_inspect_market_key", "") or "")
-    inspect_frame = filtered.copy()
-    if requested_key and "market_key" in combined and (inspect_frame.empty or requested_key not in set(inspect_frame["market_key"].astype(str))):
-        override = combined[combined["market_key"].astype(str).eq(requested_key)].head(1)
-        if not override.empty:
-            inspect_frame = pd.concat([override, inspect_frame], ignore_index=True, sort=False)
-            st.info("Inspecting a related market outside the current table filters.")
-    if inspect_frame.empty:
+    if not requested_key:
+        st.markdown("<div class='field-hint'>Click a table row to see who is trading that market.</div>", unsafe_allow_html=True)
         return
-    inspect_frame = inspect_frame.reset_index(drop=True)
-    options = [f"{i + 1}. {row.platform}: {str(row.title)[:95]}" for i, row in inspect_frame.iterrows()]
-    default_index = 0
-    if requested_key and "market_key" in inspect_frame:
-        matches = inspect_frame.index[inspect_frame["market_key"].astype(str).eq(requested_key)].tolist()
-        if matches:
-            default_index = int(inspect_frame.index.get_loc(matches[0]))
-            st.session_state["markets_inspect_market"] = options[default_index]
-    if st.session_state.get("markets_inspect_market") not in options:
-        st.session_state["markets_inspect_market"] = options[default_index]
-    selected = st.selectbox("Inspect market", options, index=default_index, key="markets_inspect_market")
-    index = options.index(selected)
-    st.session_state["markets_inspect_market_key"] = str(inspect_frame.iloc[index].get("market_key", ""))
-    render_market_detail(inspect_frame.iloc[index], combined)
+    match = combined[combined["market_key"].astype(str).eq(requested_key)].head(1) if "market_key" in combined else pd.DataFrame()
+    if match.empty:
+        st.session_state.pop("markets_inspect_market_key", None)
+        return
+    quick_row = match.iloc[0]
+    st.markdown("<div class='step-label'>Who's trading this market</div>", unsafe_allow_html=True)
+    with st.container(border=True):
+        end_label = md.relative_time_label(pd.to_datetime(quick_row.get("end_time"), utc=True, errors="coerce"))
+        head_cols = st.columns([3.2, 1, 0.8])
+        head_cols[0].markdown(
+            f"<strong>{html.escape(str(quick_row.get('title', ''))[:90])}</strong><br>"
+            f"<span class='field-hint'>yes {cents(quick_row.get('yes_price'))} · {money(quick_row.get('volume_24h', 0.0))} 24h vol · ends {html.escape(str(end_label))}</span>",
+            unsafe_allow_html=True,
+        )
+        quick_url = str(quick_row.get("url", "") or "")
+        if quick_url.startswith("http"):
+            head_cols[1].link_button("Open market", quick_url, width="stretch")
+        if head_cols[2].button("Clear", key="markets_quickview_clear", width="stretch"):
+            st.session_state.pop("markets_inspect_market_key", None)
+            st.rerun()
+        quick_tape = safe_load("Deep whale tape", load_deep_whale_tape, 1000.0, default=pd.DataFrame())
+        market_trades = (
+            quick_tape[quick_tape["market_key"].astype(str).eq(requested_key)]
+            if quick_tape is not None and not quick_tape.empty and "market_key" in quick_tape
+            else pd.DataFrame()
+        )
+        if market_trades.empty:
+            draw_empty("No whale-sized prints (≥ $1k) in this market within the recent tape sample.")
+        else:
+            q1, q2, q3 = st.columns(3)
+            q1.metric("Whale $ (tape)", money(numeric_col(market_trades, "notional").sum()), help="Whale-sized volume in this market within the sampled tape.")
+            q2.metric("Wallets", f"{market_trades['wallet'].astype(str).str.lower().nunique()}", help="Distinct wallets behind that flow.")
+            q3.metric("Biggest print", money(numeric_col(market_trades, "notional").max()))
+            prints_col, wallets_col = st.columns([1.6, 1.4], gap="medium")
+            with prints_col:
+                st.markdown("<div class='step-label'>Recent whale prints</div>", unsafe_allow_html=True)
+                prints_view = clean_table(
+                    market_trades.sort_values("time", ascending=False).head(8),
+                    ["time", "trader", "side", "outcome", "price", "notional"],
+                )
+                st.dataframe(
+                    prints_view,
+                    width="stretch",
+                    height=240,
+                    hide_index=True,
+                    column_config={
+                        "time": st.column_config.DatetimeColumn("Time", format="MM-DD HH:mm"),
+                        "trader": st.column_config.TextColumn("Trader"),
+                        "side": st.column_config.TextColumn("Side"),
+                        "outcome": st.column_config.TextColumn("Outcome"),
+                        "price": st.column_config.NumberColumn("Price", format="%.2f"),
+                        "notional": st.column_config.NumberColumn("Size", format="$%.0f"),
+                    },
+                )
+            with wallets_col:
+                st.markdown("<div class='step-label'>Top wallets here</div>", unsafe_allow_html=True)
+                market_wallet_risk = md.whale_wallet_risk_scores(market_trades, whale_threshold=max(float(min_whale), 1_000.0))
+                if market_wallet_risk.empty:
+                    draw_empty("No scoreable wallets in this market's tape.")
+                else:
+                    for quick_idx, wallet_row in market_wallet_risk.head(5).iterrows():
+                        wallet_value = str(wallet_row.get("wallet", "") or "").lower()
+                        wallet_name = str(wallet_row.get("trader", "") or "") or short_addr(wallet_value)
+                        risk_value = float(wallet_row.get("wallet_insider_score", 0.0) or 0.0)
+                        wcols = st.columns([2.6, 1, 0.9])
+                        wcols[0].markdown(
+                            f"<span class='small-note'>{html.escape(wallet_name[:20])}</span><br>"
+                            f"<span class='mono field-hint'>{money(wallet_row.get('notional', 0.0))} · risk {risk_value:.0f}</span>",
+                            unsafe_allow_html=True,
+                        )
+                        wcols[1].button("Backtest", key=f"mq_bt_{quick_idx}", width="stretch", on_click=_pick_backtest, args=(wallet_value,))
+                        wcols[2].button("Track", key=f"mq_tr_{quick_idx}", width="stretch", on_click=_pick_track, args=(wallet_value,))
 
 
 def render_wallet(wallet: str) -> None:
