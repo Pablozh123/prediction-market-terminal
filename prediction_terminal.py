@@ -5099,16 +5099,23 @@ def page_markets() -> None:
         if market_trades.empty:
             draw_empty("No whale-sized prints (≥ $1k) in this market within the recent tape sample.")
         else:
+            known_wallets = market_trades["wallet"].astype(str).str.strip().str.lower()
+            known_wallet_count = int(known_wallets[known_wallets.ne("") & known_wallets.ne("nan")].nunique())
+            wallets_not_public = known_wallet_count == 0
             q1, q2, q3 = st.columns(3)
             q1.metric("Whale $ (tape)", money(numeric_col(market_trades, "notional").sum()), help="Whale-sized volume in this market within the sampled tape.")
-            q2.metric("Wallets", f"{market_trades['wallet'].astype(str).str.lower().nunique()}", help="Distinct wallets behind that flow.")
+            if wallets_not_public:
+                q2.metric("Wallets", "—", help="Kalshi publishes aggregate prints only — trader identities are not public.")
+            else:
+                q2.metric("Wallets", f"{known_wallet_count}", help="Distinct wallets behind that flow.")
             q3.metric("Biggest print", money(numeric_col(market_trades, "notional").max()))
             prints_col, wallets_col = st.columns([1.6, 1.4], gap="medium")
             with prints_col:
                 st.markdown("<div class='step-label'>Recent whale prints</div>", unsafe_allow_html=True)
+                prints_columns = ["time", "side", "outcome", "price", "notional"] if wallets_not_public else ["time", "trader", "side", "outcome", "price", "notional"]
                 prints_view = clean_table(
                     market_trades.sort_values("time", ascending=False).head(8),
-                    ["time", "trader", "side", "outcome", "price", "notional"],
+                    prints_columns,
                 )
                 st.dataframe(
                     prints_view,
@@ -5127,7 +5134,9 @@ def page_markets() -> None:
             with wallets_col:
                 st.markdown("<div class='step-label'>Top wallets here</div>", unsafe_allow_html=True)
                 market_wallet_risk = md.whale_wallet_risk_scores(market_trades, whale_threshold=max(float(min_whale), 1_000.0))
-                if market_wallet_risk.empty:
+                if wallets_not_public:
+                    draw_empty("Kalshi publishes aggregate prints only — wallet identities are not public on this venue.")
+                elif market_wallet_risk.empty:
                     draw_empty("No scoreable wallets in this market's tape.")
                 else:
                     for quick_idx, wallet_row in market_wallet_risk.head(5).iterrows():
@@ -11034,6 +11043,44 @@ def _suspicious_select_event(title: str) -> None:
 
 
 @st.cache_data(ttl=600, show_spinner=False)
+def load_kalshi_whale_tape(min_cash: float, limit: int = 500) -> pd.DataFrame:
+    """Kalshi whale prints (>= min_cash) enriched with market titles, categories and end times.
+
+    Kalshi publishes no wallet identities — wallet/trader are blanked so wallet-level
+    scoring and clustering skip these rows while event-level signals (size, late flow,
+    long odds, one-sided pressure) keep them.
+    """
+
+    try:
+        tape = md.get_kalshi_trades(limit=int(limit))
+    except md.MarketDataError:
+        return pd.DataFrame()
+    if tape is None or tape.empty:
+        return pd.DataFrame()
+    tape = tape[numeric_col(tape, "notional") >= float(min_cash)].copy()
+    if tape.empty:
+        return pd.DataFrame()
+    tape["wallet"] = ""
+    tape["trader"] = ""
+    tape["market_key"] = tape.get("ticker", pd.Series("", index=tape.index)).astype(str)
+    try:
+        meta = md.get_kalshi_markets(tickers=tape["market_key"].tolist())
+    except md.MarketDataError:
+        meta = pd.DataFrame()
+    if meta is not None and not meta.empty and "ticker" in meta.columns:
+        meta = meta.drop_duplicates(subset=["ticker"]).set_index("ticker")
+        tickers = tape["market_key"]
+        if "title" in meta.columns:
+            titles = tickers.map(meta["title"]).fillna("").astype(str)
+            tape["title"] = titles.where(titles.str.strip().ne(""), tape["title"])
+        if "category" in meta.columns:
+            tape["category"] = tickers.map(meta["category"]).fillna("").astype(str)
+        if "end_time" in meta.columns:
+            tape["end_time"] = pd.to_datetime(tickers.map(meta["end_time"]), utc=True, errors="coerce")
+    return tape.reset_index(drop=True)
+
+
+@st.cache_data(ttl=600, show_spinner=False)
 def load_deep_whale_tape(min_cash: float, pages: int = 4, page_size: int = 500) -> pd.DataFrame:
     """Paginated whale tape (trades >= min_cash) for the co-trading network — deeper than one page."""
 
@@ -11048,9 +11095,12 @@ def load_deep_whale_tape(min_cash: float, pages: int = 4, page_size: int = 500) 
         frames.append(chunk)
         if len(chunk) < page_size:
             break
+    kalshi = load_kalshi_whale_tape(min_cash)
+    if kalshi is not None and not kalshi.empty:
+        frames.append(kalshi)
     if not frames:
         return pd.DataFrame()
-    tape = pd.concat(frames, ignore_index=True)
+    tape = pd.concat(frames, ignore_index=True, sort=False)
     dedup_cols = [col for col in ("transaction_hash", "asset", "side", "size", "wallet") if col in tape.columns]
     if dedup_cols:
         tape = tape.drop_duplicates(subset=dedup_cols, keep="first")
@@ -11065,11 +11115,15 @@ def load_market_categories_by_ids(market_keys: tuple[str, ...]) -> pd.DataFrame:
     rows: list[dict[str, str]] = []
     for market in raw:
         events = market.get("events") if isinstance(market.get("events"), list) else []
-        category = market.get("category") or (events[0].get("category") if events and isinstance(events[0], dict) else "") or ""
+        first_event = events[0] if events and isinstance(events[0], dict) else {}
+        category = market.get("category") or first_event.get("category") or ""
+        # Parent event title ("Mexico vs. South Africa") — sub-market titles like
+        # "Will Mexico win on 2026-06-11?" carry no classifiable keyword themselves.
+        context_text = str(first_event.get("title") or "")
         key = market.get("conditionId") or str(market.get("id", ""))
         if key:
-            rows.append({"market_key": str(key), "category": str(category)})
-    return pd.DataFrame(rows, columns=["market_key", "category"])
+            rows.append({"market_key": str(key), "category": str(category), "context_text": context_text})
+    return pd.DataFrame(rows, columns=["market_key", "category", "context_text"])
 
 
 def page_suspicious() -> None:
@@ -11085,6 +11139,14 @@ def page_suspicious() -> None:
     )
     whale_floor = max(float(min_whale), 1_000.0)
     trades = safe_load("Polymarket whale tape", load_polymarket_trades, trade_limit, whale_floor, default=pd.DataFrame())
+    kalshi_tape = safe_load("Kalshi whale tape", load_kalshi_whale_tape, whale_floor, default=pd.DataFrame())
+    kalshi_categories = (
+        clean_table(kalshi_tape, ["market_key", "category"]).drop_duplicates(subset=["market_key"])
+        if kalshi_tape is not None and not kalshi_tape.empty and "category" in kalshi_tape.columns
+        else pd.DataFrame()
+    )
+    tape_frames = [frame for frame in (trades, kalshi_tape) if frame is not None and not frame.empty]
+    trades = pd.concat(tape_frames, ignore_index=True, sort=False) if tape_frames else pd.DataFrame()
     if trades is None or trades.empty:
         draw_empty("No whale-sized trades in the current sample — lower the whale threshold in Settings or try again later.")
         return
@@ -11112,9 +11174,11 @@ def page_suspicious() -> None:
     universe_categories = (
         clean_table(market_universe, ["market_key", "category"]) if market_universe is not None and not market_universe.empty else pd.DataFrame()
     )
-    tape_keys = tuple(sorted({str(key) for key in event_risk.get("market_key", pd.Series(dtype=str)).dropna().astype(str) if key}))
+    tape_keys = tuple(
+        sorted({str(key) for key in event_risk.get("market_key", pd.Series(dtype=str)).dropna().astype(str) if key and str(key).startswith("0x")})
+    )
     precise_categories = safe_load("Market categories", load_market_categories_by_ids, tape_keys, default=pd.DataFrame()) if tape_keys else pd.DataFrame()
-    frames = [frame for frame in (precise_categories, universe_categories) if frame is not None and not frame.empty]
+    frames = [frame for frame in (precise_categories, kalshi_categories, universe_categories) if frame is not None and not frame.empty]
     market_categories = (
         pd.concat(frames, ignore_index=True).drop_duplicates(subset=["market_key"], keep="first") if frames else pd.DataFrame()
     )
@@ -11196,6 +11260,8 @@ def page_suspicious() -> None:
                 context_group = str(event.get("insider_context", "") or "")
                 context_note = str(event.get("context_note", "") or "")
                 title = str(event.get("title", "") or "")
+                venue = str(event.get("platform", "") or "")
+                venue_is_kalshi = venue.casefold() == "kalshi"
                 raw_hint = f" <span class='field-hint' style='display:inline'>(raw {raw_score:.0f})</span>" if abs(raw_score - score) >= 1 else ""
                 with col:
                     with st.container(border=True):
@@ -11205,7 +11271,7 @@ def page_suspicious() -> None:
                             unsafe_allow_html=True,
                         )
                         st.markdown(f"<div class='small-note'>{html.escape(susp.event_story(event))}</div>", unsafe_allow_html=True)
-                        chips = ([f"◆ {context_group}"] if context_group else []) + [
+                        chips = ([f"▦ {venue}"] if venue_is_kalshi else []) + ([f"◆ {context_group}"] if context_group else []) + [
                             flag.strip() for flag in str(event.get("event_insider_flags", "") or "").split(";") if flag.strip()
                         ]
                         if chips:
@@ -11218,18 +11284,30 @@ def page_suspicious() -> None:
                         m1, m2, m3 = st.columns(3)
                         m1.metric("Whale $", money(event.get("notional", 0.0)), help="Whale-sized volume in this market within the sample.")
                         m2.metric("One-wallet share", pct(event.get("top_wallet_share")), help="Share of this market's whale volume from its single largest wallet. 100% = one address is the whole flow.")
-                        m3.metric("Wallets", f"{int(event.get('unique_wallets', 0) or 0)}", help="Distinct wallets behind the whale flow.")
+                        if venue_is_kalshi:
+                            m3.metric("Wallets", "—", help="Kalshi publishes aggregate prints only — trader identities are not public.")
+                        else:
+                            m3.metric("Wallets", f"{int(event.get('unique_wallets', 0) or 0)}", help="Distinct wallets behind the whale flow.")
                         action_cols = st.columns(2)
                         url = str(event.get("url", "") or "")
                         if url.startswith("http"):
                             action_cols[0].link_button("Open market", url, width="stretch")
-                        action_cols[1].button(
-                            "Inspect wallets",
-                            key=f"susp_inspect_{start + offset}",
-                            width="stretch",
-                            on_click=_suspicious_select_event,
-                            args=(title,),
-                        )
+                        if venue_is_kalshi:
+                            action_cols[1].button(
+                                "Inspect wallets",
+                                key=f"susp_inspect_{start + offset}",
+                                width="stretch",
+                                disabled=True,
+                                help="Kalshi publishes aggregate prints only — there are no wallet identities to inspect.",
+                            )
+                        else:
+                            action_cols[1].button(
+                                "Inspect wallets",
+                                key=f"susp_inspect_{start + offset}",
+                                width="stretch",
+                                on_click=_suspicious_select_event,
+                                args=(title,),
+                            )
 
     selected = str(st.session_state.get("susp_selected", "") or "")
     if selected:

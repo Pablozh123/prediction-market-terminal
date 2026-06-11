@@ -77,7 +77,7 @@ _CATEGORY_GROUPS = (
 )
 
 _TITLE_PATTERNS = (
-    (re.compile(r"\bvs\.?\b|\bnba\b|\bnfl\b|\bmlb\b|\bnhl\b|\bufc\b|\bgrand prix\b|\bpremier league\b|\bchampions league\b|\bbundesliga\b|\bserie a\b|\bla liga\b|\bsuper bowl\b|\bworld series\b|\bplayoffs?\b|\bopen:\s|\bwimbledon\b|\bolympic|\bspread:?\b|\bmoneyline\b|\bover/under\b|\bo/u\b|\([+-]?\d+(?:\.5)\)", re.I), CONTEXT_SPORTS),
+    (re.compile(r"\bvs\.?\b|\bnba\b|\bnfl\b|\bmlb\b|\bnhl\b|\bufc\b|\bgrand prix\b|\bpremier league\b|\bchampions league\b|\bbundesliga\b|\bserie a\b|\bla liga\b|\bsuper bowl\b|\bworld series\b|\bworld cup\b|\bplayoffs?\b|\bopen:\s|\bwimbledon\b|\bolympic|\bspread:?\b|\bmoneyline\b|\bover/under\b|\bo/u\b|\bexact score\b|\bat halftime\b|\bboth teams to score\b|\bwins? by over\b|\b\d+(?:\.\d+)?\s+goals?\b|\([+-]?\d+(?:\.5)\)", re.I), CONTEXT_SPORTS),
     (re.compile(r"\bbitcoin\b|\bbtc\b|\bethereum\b|\beth\b|\bsolana\b|\bxrp\b|\bdogecoin\b|\bcrypto\b|\btoken\b|\bs&p\b|\bnasdaq\b|\bstock price\b|\bshare price\b|\bgold price\b|\boil price\b|\bhit \$|\breach \$", re.I), CONTEXT_MARKET_PRICES),
     (re.compile(r"\btemperature\b|\brainfall\b|\bsnowfall\b|\bhurricane\b|\bstorm\b|\bheat wave\b|\bweather\b|\bdegrees\b|°[cf]\b", re.I), CONTEXT_WEATHER),
     (re.compile(r"\boscars?\b|\bgrammys?\b|\bemmys?\b|\bgolden globe\b|\baward\b|\balbum\b|\bbox office\b|\btrailer\b|\bseason finale\b|\brenewed\b|\beurovision\b|\bperson of the year\b|\bbillboard\b", re.I), CONTEXT_AWARDS),
@@ -86,15 +86,18 @@ _TITLE_PATTERNS = (
 )
 
 
-def classify_insider_context(title: Any, category: Any = "") -> tuple[str, float, str]:
+def classify_insider_context(title: Any, category: Any = "", context_text: Any = "") -> tuple[str, float, str]:
     """Map a market to an insider-plausibility group: (group, multiplier, note).
 
     Title keywords win over the coarse category field so that e.g. a "CEO
     resigns" market filed under Business stays insider-prone while a generic
     sports matchup is damped even when the category is missing.
+    ``context_text`` (e.g. the parent event title — "Mexico vs. South Africa")
+    is scanned with the same title patterns: sub-market titles like
+    "Will Mexico win on 2026-06-11?" carry no sports keyword themselves.
     """
 
-    title_text = str(title or "")
+    title_text = f"{str(title or '')} {str(context_text or '')}".strip()
     for pattern, group in _TITLE_PATTERNS:
         if pattern.search(title_text):
             return group, CONTEXT_MULTIPLIERS[group], CONTEXT_NOTES[group]
@@ -104,6 +107,19 @@ def classify_insider_context(title: Any, category: Any = "") -> tuple[str, float
             if any(key in category_text for key in keys):
                 return group, CONTEXT_MULTIPLIERS[group], CONTEXT_NOTES[group]
     return CONTEXT_GENERAL, CONTEXT_MULTIPLIERS[CONTEXT_GENERAL], CONTEXT_NOTES[CONTEXT_GENERAL]
+
+
+def _category_context_maps(market_categories: pd.DataFrame | None) -> tuple[dict[str, str], dict[str, str]]:
+    """Build market_key -> category and market_key -> context_text lookups."""
+
+    if market_categories is None or market_categories.empty or not {"market_key", "category"}.issubset(market_categories.columns):
+        return {}, {}
+    keys = market_categories["market_key"].astype(str)
+    category_map = dict(zip(keys, market_categories["category"].fillna("").astype(str)))
+    context_map: dict[str, str] = {}
+    if "context_text" in market_categories.columns:
+        context_map = dict(zip(keys, market_categories["context_text"].fillna("").astype(str)))
+    return category_map, context_map
 
 
 def risk_level(score: Any) -> str:
@@ -201,15 +217,13 @@ def dominant_context_map(trades: pd.DataFrame, market_categories: pd.DataFrame |
     df = df[df["wallet"].ne("") & df["wallet"].ne("nan")]
     if df.empty:
         return {}
-    category_map: dict[str, str] = {}
-    if market_categories is not None and not market_categories.empty and {"market_key", "category"}.issubset(market_categories.columns):
-        category_map = dict(zip(market_categories["market_key"].astype(str), market_categories["category"].astype(str)))
-    title_groups: dict[tuple[str, str], str] = {}
+    category_map, context_map = _category_context_maps(market_categories)
+    title_groups: dict[tuple[str, str, str], str] = {}
     keys = df.get("market_key", pd.Series("", index=df.index)).astype(str)
     df["_group"] = [
         title_groups.setdefault(
-            (title, category_map.get(key, "")),
-            classify_insider_context(title, category_map.get(key, ""))[0],
+            (title, category_map.get(key, ""), context_map.get(key, "")),
+            classify_insider_context(title, category_map.get(key, ""), context_map.get(key, ""))[0],
         )
         for title, key in zip(df["title"].astype(str), keys)
     ]
@@ -616,12 +630,13 @@ def apply_category_context(event_risk: pd.DataFrame, market_categories: pd.DataF
     if event_risk is None or event_risk.empty:
         return event_risk
     enriched = event_risk.copy()
-    category_map: dict[str, str] = {}
-    if market_categories is not None and not market_categories.empty and {"market_key", "category"}.issubset(market_categories.columns):
-        keys = market_categories["market_key"].astype(str)
-        category_map = dict(zip(keys, market_categories["category"].astype(str)))
+    category_map, context_map = _category_context_maps(market_categories)
     contexts = [
-        classify_insider_context(row.get("title", ""), category_map.get(str(row.get("market_key", "")), ""))
+        classify_insider_context(
+            row.get("title", ""),
+            category_map.get(str(row.get("market_key", "")), ""),
+            context_map.get(str(row.get("market_key", "")), ""),
+        )
         for _, row in enriched.iterrows()
     ]
     enriched["insider_context"] = [group for group, _, _ in contexts]
@@ -653,12 +668,13 @@ def apply_wallet_category_context(
     df = df[df["wallet"].ne("") & df["wallet"].ne("nan")]
     if df.empty:
         return wallet_risk
-    category_map: dict[str, str] = {}
-    if market_categories is not None and not market_categories.empty and {"market_key", "category"}.issubset(market_categories.columns):
-        keys = market_categories["market_key"].astype(str)
-        category_map = dict(zip(keys, market_categories["category"].astype(str)))
+    category_map, context_map = _category_context_maps(market_categories)
     contexts = [
-        classify_insider_context(row.get("title", ""), category_map.get(str(row.get("market_key", "")), ""))
+        classify_insider_context(
+            row.get("title", ""),
+            category_map.get(str(row.get("market_key", "")), ""),
+            context_map.get(str(row.get("market_key", "")), ""),
+        )
         for _, row in df.iterrows()
     ]
     df["_group"] = [group for group, _, _ in contexts]
@@ -759,7 +775,10 @@ def event_story(row: pd.Series) -> str:
     price_move = float(row.get("price_move", 0.0) or 0.0)
     if price_move >= 0.03:
         parts.append(f"price moved {price_move * 100:+.0f}c behind the buys")
-    base = f"{money(notional)} whale flow from {wallets} wallet{'s' if wallets != 1 else ''}"
+    if wallets > 0:
+        base = f"{money(notional)} whale flow from {wallets} wallet{'s' if wallets != 1 else ''}"
+    else:
+        base = f"{money(notional)} whale flow (wallet identities not public on this venue)"
     return f"{base} — {'; '.join(parts)}." if parts else f"{base}; no single dominant pattern."
 
 
