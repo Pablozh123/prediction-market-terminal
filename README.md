@@ -1,127 +1,76 @@
 # Prediction Market Terminal
 
-Streamlit research terminal for Polymarket and Kalshi, built as a Phase 1 clone of the public PredictParity experience. The app focuses on market discovery, trader/wallet research, live-style public flow, alerts, tracking, portfolio research, and paper-only Swisstony copy-trading.
+Streamlit research terminal for Polymarket and Kalshi: market discovery, trader/wallet research, live public flow, whale/insider risk screening, backtesting, alerts, tracking, portfolio research, and paper-only copy-trading.
 
-Live trading is disabled. The copy-trading module is paper-only and must not be expanded into Multi-Trader work until Phase 2.
+All market data comes from the public Polymarket (Gamma/Data/CLOB) and Kalshi APIs. Live trading is disabled — the copy-trading module is paper-only. The app is a research tool, not investment advice.
 
-## Run
+## Run locally
 
 ```powershell
 python -m streamlit run prediction_terminal.py --server.address=127.0.0.1 --server.port=8503
 ```
 
-Open:
+Open `http://127.0.0.1:8503/`.
 
-```text
-http://127.0.0.1:8503/
-```
-
-Optional fast paper-copy daemon:
+Optional background runners:
 
 ```powershell
-python scripts/run_copy_trader.py --interval 1 --api-interval 30 --settlement-interval 180
+python scripts/run_copy_trader.py --interval 1 --api-interval 30 --settlement-interval 180   # paper copy daemon
+python scripts/run_alert_scanner.py                                                          # Telegram alert scanner
 ```
 
-Optional local route smoke while the app is running:
+## Deploy publicly
 
-```powershell
-python scripts/smoke_routes.py
+The repo ships production artifacts — see [docs/PRODUCTION_READINESS.md](docs/PRODUCTION_READINESS.md) for the full guide (hosting, security, Swiss legal checklist, API terms, costs).
+
+```bash
+cp .env.example .env       # fill in Telegram secrets (env overrides the settings file)
+# set your domain in deploy/Caddyfile
+docker compose up -d --build
 ```
 
-Optional browser visual smoke while the app is running:
+This starts the terminal, the alert scanner, and Caddy (automatic TLS + security headers) as the only public entry point.
 
-```powershell
-python -m scripts.visual_smoke --base-url http://127.0.0.1:8503 --output-dir artifacts\visual_smoke --timeout-ms 45000
-```
+## Workspaces
 
-## Phase Plan
+Overview, Search, Markets, Traders, Track, Live Trades, Wallets, Backtester, Copy Trade, Whale Flow, Suspicious, Cross-Venue, Monitor, Resolved, Portfolio, Settings.
 
-Phase 1 is the PredictParity clone layer. It covers PredictParity-like navigation, search, markets, traders, tracking, live trades, monitor, alerts, resolved-market accuracy, portfolio, filters, saved views, market detail tools, wallet analytics, and the existing paper Swisstony copy-trader.
+Highlights:
 
-Phase 2 is Multi-Trader-Copytrading as a separate layer. Do not start it before the Phase 1 `v1-clone` tag. See [docs/COLLAB.md](docs/COLLAB.md) and `docs/spec_multitrader_copytrading.md` on the Claude branch.
+- **Backtester** — replay any wallet's trades over 7/30/90 days with Copy or Fade strategy, four sizing modes, exposure cap, mid-window resolution recycling, and a best-sizing simulation drawn into the equity chart.
+- **Suspicious** — event/wallet insider-risk scores from public whale flow with category context (sports odds and weather are excluded — nothing to know early there), fresh-wallet clusters, coordinated-timing clusters, and a Louvain co-trading network with click-to-isolate cluster stories.
+- **Traders** — Polymarket leaderboard with podium, smart-score ranking, speed traders, insider-picks feed, and on-demand enrichment (open positions, win rates, balances) from public wallet data.
+- **Monitor** — signal scanner (fast movers, volume anomaly, whale prints, tight spreads, holder concentration, endings) with saved alert rules and Telegram delivery.
+- **Kalshi integration** — markets, trades (with real market titles), cross-venue gaps, and event-level whale/insider signals; Kalshi publishes no wallet identities, so wallet-level scoring skips those rows and the UI says so.
 
-## PredictParity Clone Map
+Most pages accept URL query filters, e.g. `/markets?q=bitcoin&platform=polymarket&probMin=0.05`, `/live-trades?side=buy&minNotional=2500&whale=true`, `/traders?bot=true&apMin=101`.
 
-| PredictParity surface | Local implementation |
-|---|---|
-| Top nav: Markets, Traders, Track, Live Trades, Monitor, Portfolio | Top navigation plus sidebar workspaces in `prediction_terminal.py` |
-| Search Parity `/` | Command palette with global markets, traders, trades, alerts, news, tracked items |
-| Overview URL filters | Supports dashboard links such as `/?q=bitcoin&platform=polymarket&featured=any&marketRows=9` |
-| Search URL filters | Supports links such as `/search?q=bitcoin&platform=polymarket&type=markets,traders,cross-venue&minValue=10000` |
-| Market routes `/markets/<slug>` | Local route into the Markets workspace with market search/detail prefill |
-| Market URL filters | Supports scanner links such as `/markets?q=bitcoin&platform=polymarket&probMin=0.05&probMax=0.95` |
-| Trader profile routes `/traders/p/@handle` | Local route into the wallet/profile workspace with profile-handle resolution |
-| Home / featured market | Overview page with featured carousel, Yes/No buttons, chart windows, line/candlestick, news, trending markets |
-| Markets | Table/Card/Calendar views, quick filters, category chips, saved filters, market drilldown |
-| Market detail | Header metrics, charts, order book, holders, top traders, recent trades, paper ticket, news, comments |
-| Traders | PredictParity public GraphQL leaderboard, table/list/card views, filters, saved views, profile links |
-| Trader URL filters | Supports PredictParity-style trader query filters such as `/traders?bot=true&apMin=101` |
-| Trader / wallet profile | Wallet page with profile resolver, PnL chart/calendar, positions, activity, counterparties, tracking actions |
-| Track | Local tracked markets and wallets hub with import, filters, live feed, action buttons |
-| Track URL filters | Supports tracking hub links such as `/track?q=tony&platform=polymarket&signal=tight-spread&minWalletValue=2500` |
-| Live Trades | Public trade tape with filters, wallet/market aggregation, flow chart, track actions |
-| Live Trades URL filters | Supports tape links such as `/live-trades?q=swisstony&platform=polymarket&side=buy&minNotional=2500&whale=true` |
-| Whale Flow | Large-print scanner with wallet aggregation, market flow, outcome-bias panels, and track actions |
-| Whale Flow URL filters | Supports smart-money links such as `/whale-flow?q=iran&platform=polymarket&minPrint=5000&bias=yes` |
-| Cross-Venue | Similar Polymarket/Kalshi pair finder with yes-price gaps, lower-venue filters, watchlist actions |
-| Cross-Venue URL filters | Supports venue-gap links such as `/cross-venue?q=bitcoin&minGap=0.08&lower=kalshi` |
-| Monitor | Signal monitor for fast movers, whale prints, spreads, holder risk, endings, saved alert rules |
-| Monitor URL filters | Supports signal links such as `/monitor?q=bitcoin&platform=polymarket&signal=whale-print,tight-spread&minWhale=2500` |
-| Alerts | Alert hits, signal feed, rule builder, saved rules, coverage |
-| Alerts URL filters | Supports alert-center links such as `/alerts?q=iran&signal=fast-mover&hitsOnly=true&minWhale=5000` |
-| Historical accuracy / Resolved | Closed-market archive with final Yes price, resolved outcome mix, category history, decisive-close stats, CSV export |
-| Resolved URL filters | Supports accuracy archive links such as `/resolved?q=iran&outcome=yes,no&decisiveOnly=true&minVolume=10000&closedWindow=30d` |
-| Portfolio | Research portfolio, wallet import, copy portfolio, exposure, cash events, paper history, watchlist |
-| Portfolio URL filters | Supports dashboard links such as `/portfolio?q=tony&source=research,copy&copyStatus=copied,settled&minValue=100` |
-| Sign In / Sign Up shell | Local research-mode auth facade mirroring PredictParity UI; no credential transmission |
-| Auth routes | `/sign-in`, `/sign-up`, and `/auth/...` open the local research-mode auth shell without live account actions |
-
-## Data Boundaries
+## Data boundaries
 
 - Polymarket exposes public proxy-wallet, position, activity, trade, holder, and leaderboard data.
-- PredictParity public GraphQL is used for public trader leaderboard/profile/chart data where available.
-- Kalshi public feeds expose market and trade data, but not public trader wallet identities.
+- Kalshi public feeds expose market and trade data, but no trader identities.
 - Wallet labels, bot-like labels, whale labels, and flow traits are heuristics from public data.
-- The app is research-only. It does not place real Polymarket or Kalshi orders.
+- The app does not place real orders on any venue.
 
-## Paper Copy-Trading
+## Paper copy-trading
 
-The existing Copy Trade page follows Swisstony:
+The Copy Trade page follows a target wallet (default Swisstony, `0x204f72f35326db932158cba6adff0b9a1da95e14`) with local SQLite persistence (`data/copy_trading.sqlite`), paper-only accounting, baseline seeding, settlement recycling, CSV exports, and URL filters such as `/copy-trade?status=copied,baseline`.
 
-```text
-0x204f72f35326db932158cba6adff0b9a1da95e14
-```
-
-Current behavior:
-
-- Local SQLite persistence in `data/copy_trading.sqlite`
-- Paper-only portfolio accounting
-- Baseline seeding from the target wallet
-- New observed BUY/SELL copies after baseline
-- Settlement/redeem recycling from unrealized to realized PnL
-- Manual paper cash top-ups
-- Automatic $1,000 paper cash top-ups when a trader sub-account is nearly depleted
-- CSV exports and skipped/baseline visibility
-- URL filters such as `/copy-trade?q=tony&status=copied,baseline&minTonyNotional=1000`
-
-Do not replace or remove this during Phase 1.
-
-## Main Files
+## Main files
 
 | File | Purpose |
 |---|---|
-| `prediction_terminal.py` | Streamlit website and PredictParity-style UI |
+| `prediction_terminal.py` | Streamlit app (all workspaces + UI) |
 | `src/prediction_markets.py` | Public API clients and analytics helpers |
 | `src/copy_trading.py` | SQLite-backed paper copy-trading engine |
+| `app/backtester.py` | Streamlit-free backtest engine |
+| `app/suspicion.py` | Insider-risk scoring, clusters, co-trading network |
+| `app/signals.py` | Monitor signal/rule logic (shared with the scanner) |
+| `app/app_settings.py` | Persisted settings with env-var secret overrides |
+| `scripts/run_alert_scanner.py` | Background alert scanner with Telegram delivery |
 | `scripts/run_copy_trader.py` | Background paper-copy sync runner |
-| `scripts/smoke_routes.py` | Lightweight local HTTP route smoke |
-| `scripts/visual_smoke.py` | Browser screenshot smoke for Phase 1 route checks |
-| `tests/test_prediction_markets.py` | Prediction-market helper tests |
-| `tests/test_copy_trading.py` | Paper copy-trading tests |
-| `docs/COLLAB.md` | Codex/Claude collaboration rules and phase boundary |
-| `docs/CLAUDE_HANDOFF.md` | Current handoff instructions for continuing in Claude Desktop |
-| `docs/PHASE1_CLONE_AUDIT.md` | Phase 1 clone completion checklist and remaining gates |
-| `docs/PHASE1_LIVE_SURFACE_COMPARE.md` | Public PredictParity surface comparison notes |
+| `Dockerfile` / `docker-compose.yml` / `deploy/Caddyfile` | Production deployment |
+| `docs/PRODUCTION_READINESS.md` | Public-launch guide (hosting, security, legal, costs) |
 
 ## Verification
 
@@ -132,33 +81,4 @@ python scripts/smoke_routes.py
 python -m scripts.visual_smoke --base-url http://127.0.0.1:8503 --output-dir artifacts\visual_smoke --timeout-ms 45000
 ```
 
-Before tagging `v1-clone`, also run a browser smoke against `http://127.0.0.1:8503/`:
-
-- App loads without Traceback
-- Top PredictParity navigation works
-- Trader profile deep links route into the local profile view
-- Search Parity opens
-- Markets page loads Table/Card/Calendar controls
-- Traders page loads leaderboard controls
-- Track, Live Trades, Monitor, Portfolio load without login blockers
-- Copy Trade page still shows paper-only Swisstony state
-
-## Git Workflow
-
-Current handoff/development branch:
-
-```text
-codex/follow-traders-ui-split-fixes
-```
-
-Phase 1 completion requires:
-
-1. Merge `codex/website` into `main`
-2. Verify tests and browser smoke on `main`
-3. Tag the stable clone milestone:
-
-```powershell
-git tag v1-clone
-git push origin main
-git push origin v1-clone
-```
+The full Streamlit page smoke (network-dependent) runs with `RUN_APP_SMOKE=1 python -m unittest tests.test_app_smoke -v`.
