@@ -12210,6 +12210,30 @@ def _suspicious_select_event(title: str) -> None:
 
 
 @st.cache_data(ttl=600, show_spinner=False)
+def load_deep_whale_tape(min_cash: float, pages: int = 4, page_size: int = 500) -> pd.DataFrame:
+    """Paginated whale tape (trades >= min_cash) for the co-trading network — deeper than one page."""
+
+    frames: list[pd.DataFrame] = []
+    for page in range(int(pages)):
+        try:
+            chunk = md.get_polymarket_trades(limit=page_size, min_cash=min_cash, offset=page * page_size)
+        except md.MarketDataError:
+            break
+        if chunk is None or chunk.empty:
+            break
+        frames.append(chunk)
+        if len(chunk) < page_size:
+            break
+    if not frames:
+        return pd.DataFrame()
+    tape = pd.concat(frames, ignore_index=True)
+    dedup_cols = [col for col in ("transaction_hash", "asset", "side", "size", "wallet") if col in tape.columns]
+    if dedup_cols:
+        tape = tape.drop_duplicates(subset=dedup_cols, keep="first")
+    return tape.reset_index(drop=True)
+
+
+@st.cache_data(ttl=600, show_spinner=False)
 def load_market_categories_by_ids(market_keys: tuple[str, ...]) -> pd.DataFrame:
     """Precise category lookup for the tape's markets via Gamma condition ids."""
 
@@ -12246,7 +12270,10 @@ def page_suspicious() -> None:
     event_risk = susp.apply_fresh_wallet_bonus(event_risk, clusters)
     timing_clusters = susp.coordinated_clusters(trades)
     event_risk = susp.apply_coordination_bonus(event_risk, timing_clusters)
-    network_nodes, network_edges = susp.co_trading_network(trades, window_minutes=5.0, min_shared=2)
+    network_tape = safe_load("Deep whale tape", load_deep_whale_tape, 1000.0, default=pd.DataFrame())
+    if network_tape is None or network_tape.empty:
+        network_tape = trades
+    network_nodes, network_edges = susp.co_trading_network(network_tape, window_minutes=5.0, min_shared=2, max_wallets=300)
     cluster_assignments = (
         network_nodes[["wallet", "cluster_id", "cluster_size", "shared_markets"]] if not network_nodes.empty else pd.DataFrame()
     )
@@ -12443,25 +12470,35 @@ def page_suspicious() -> None:
     quick_cols[1].button("Backtest →", key="susp_backtest", width="stretch", type="primary", on_click=_pick_backtest, args=(str(selected_wallet).lower(),))
     quick_cols[2].button("Track", key="susp_track", width="stretch", on_click=_pick_track, args=(str(selected_wallet).lower(),))
 
-    st.markdown("<div class='step-label'>Wallet clusters (co-trading network)</div>", unsafe_allow_html=True)
+    st.markdown("<div class='step-label'>Whale clusters (co-trading network)</div>", unsafe_allow_html=True)
     if network_nodes.empty:
         draw_empty("No co-trading clusters in the current tape — no wallets hit the same side of multiple markets within minutes of each other.")
         return
     st.markdown(
-        "<div class='field-hint'>Each island is one community of wallets that bought the same side of ≥2 shared markets "
-        "within 5 minutes of each other (Louvain communities over the co-trading graph). Node size follows whale volume in the sample. "
-        "Confirming real linkage would need on-chain funding tracing — treat these as leads.</div>",
+        f"<div class='small-note'>Louvain community detection over the sampled tape (trades ≥ \\$1k, {len(network_tape):,} prints) · "
+        f"{len(network_nodes):,} wallets · {network_nodes['cluster_id'].nunique():,} clusters · {len(network_edges):,} edges</div>",
         unsafe_allow_html=True,
     )
+
     placed = susp.cluster_layout(network_nodes)
     risk_lookup = wallet_risk.copy()
     risk_lookup["_wallet_key"] = risk_lookup["wallet"].astype(str).str.lower().str.strip()
     risk_map = dict(zip(risk_lookup["_wallet_key"], pd.to_numeric(risk_lookup["wallet_insider_score"], errors="coerce").fillna(0.0)))
     flags_map = dict(zip(risk_lookup["_wallet_key"], risk_lookup.get("wallet_insider_flags", pd.Series(dtype=str)).astype(str)))
     placed["risk"] = placed["wallet"].map(risk_map).fillna(0.0)
+    tape_names = network_tape.copy()
+    tape_names["_wallet_key"] = tape_names["wallet"].astype(str).str.lower().str.strip()
+    name_map = (
+        tape_names[tape_names.get("trader", "").astype(str).str.strip().ne("")]
+        .groupby("_wallet_key")["trader"]
+        .first()
+        .to_dict()
+        if "trader" in tape_names
+        else {}
+    )
+    placed["name"] = placed["wallet"].map(name_map).fillna("")
+    tape_names_titles = tape_names[["_wallet_key", "title"]] if "title" in tape_names else pd.DataFrame(columns=["_wallet_key", "title"])
 
-    trades_wallets = trades.copy()
-    trades_wallets["_wallet_key"] = trades_wallets["wallet"].astype(str).str.lower().str.strip()
     cluster_summary = (
         placed.groupby("cluster_id")
         .agg(size=("wallet", "size"), whale_notional=("volume", "sum"), top_risk=("risk", "max"), max_shared=("shared_markets", "max"))
@@ -12470,72 +12507,145 @@ def page_suspicious() -> None:
     )
     markets_touched = {
         int(cluster_id): int(
-            trades_wallets[trades_wallets["_wallet_key"].isin(set(placed.loc[placed["cluster_id"] == cluster_id, "wallet"]))]["title"].nunique()
+            tape_names_titles[tape_names_titles["_wallet_key"].isin(set(placed.loc[placed["cluster_id"] == cluster_id, "wallet"]))]["title"].nunique()
         )
         for cluster_id in cluster_summary["cluster_id"]
     }
     cluster_summary["markets_touched"] = cluster_summary["cluster_id"].map(markets_touched)
 
+    chart_state = st.session_state.get("susp_network_chart")
+    clicked_points = []
+    if chart_state is not None:
+        try:
+            clicked_points = list(chart_state.selection.points)
+        except AttributeError:
+            clicked_points = list((chart_state.get("selection", {}) or {}).get("points", []))
+    if clicked_points:
+        clicked_data = clicked_points[0].get("customdata") or []
+        click_signature = json.dumps(clicked_data, default=str)
+        if len(clicked_data) >= 2 and st.session_state.get("_susp_net_click_sig") != click_signature:
+            st.session_state["_susp_net_click_sig"] = click_signature
+            st.session_state["susp_cluster_select"] = int(clicked_data[1])
+
     cluster_labels = {0: "All clusters"}
     for _, row in cluster_summary.iterrows():
-        cluster_labels[int(row["cluster_id"])] = f"Cluster {int(row['cluster_id'])} · {int(row['size'])} wallets · {money(row['whale_notional'])}"
+        cluster_labels[int(row["cluster_id"])] = f"Cluster {int(row['cluster_id'])} · {int(row['size'])}w · {money(row['whale_notional'])}"
+    valid_options = [0] + [int(cid) for cid in cluster_summary["cluster_id"]]
+    if st.session_state.get("susp_cluster_select") not in valid_options:
+        st.session_state.pop("susp_cluster_select", None)
     selected_cluster = st.selectbox(
         "Isolate a cluster",
-        [0] + [int(cid) for cid in cluster_summary["cluster_id"]],
+        valid_options,
         format_func=lambda value: cluster_labels.get(int(value), str(value)),
         key="susp_cluster_select",
-        help="Pick a cluster to zoom into its members; the table below lists them sorted by whale volume.",
+        help="Click any node in the graph or pick a cluster here to isolate it.",
     )
+
     plot_nodes = placed if not selected_cluster else placed[placed["cluster_id"] == int(selected_cluster)]
     keep_wallets = set(plot_nodes["wallet"])
     plot_edges = network_edges[network_edges["wallet_a"].isin(keep_wallets) & network_edges["wallet_b"].isin(keep_wallets)]
-
+    cluster_of = dict(zip(placed["wallet"], placed["cluster_id"]))
     positions = {row["wallet"]: (row["x"], row["y"]) for _, row in plot_nodes.iterrows()}
-    edge_x: list[float | None] = []
-    edge_y: list[float | None] = []
+
+    def _hex_to_rgba(color: str, alpha: float) -> str:
+        color = color.lstrip("#")
+        return f"rgba({int(color[0:2], 16)},{int(color[2:4], 16)},{int(color[4:6], 16)},{alpha})"
+
+    fig = go.Figure()
+    edge_groups: dict[str, tuple[list[float | None], list[float | None]]] = {}
     for _, edge in plot_edges.iterrows():
+        cluster_a = cluster_of.get(edge["wallet_a"])
+        cluster_b = cluster_of.get(edge["wallet_b"])
+        if cluster_a == cluster_b and cluster_a is not None:
+            color = _hex_to_rgba(CLUSTER_COLORS[int(cluster_a) % len(CLUSTER_COLORS)], 0.30)
+        else:
+            color = "rgba(255,255,255,0.12)"
+        xs, ys = edge_groups.setdefault(color, ([], []))
         ax, ay = positions[edge["wallet_a"]]
         bx, by = positions[edge["wallet_b"]]
-        edge_x.extend([ax, bx, None])
-        edge_y.extend([ay, by, None])
-    fig = go.Figure()
-    if edge_x:
-        fig.add_trace(go.Scatter(x=edge_x, y=edge_y, mode="lines", line=dict(color="rgba(255,255,255,0.18)", width=1), hoverinfo="skip"))
-    node_sizes = (9 + (plot_nodes["volume"].clip(lower=0.0) + 1).map(math.log1p) * 2.4).clip(upper=34)
+        xs.extend([ax, bx, None])
+        ys.extend([ay, by, None])
+    for color, (xs, ys) in edge_groups.items():
+        fig.add_trace(go.Scatter(x=xs, y=ys, mode="lines", line=dict(color=color, width=1), hoverinfo="skip"))
+    node_sizes = (8 + (plot_nodes["volume"].clip(lower=0.0) + 1).map(math.log1p) * 2.1).clip(upper=30)
     node_colors = [CLUSTER_COLORS[int(cid) % len(CLUSTER_COLORS)] for cid in plot_nodes["cluster_id"]]
     fig.add_trace(
         go.Scatter(
             x=plot_nodes["x"],
             y=plot_nodes["y"],
             mode="markers",
-            marker=dict(size=node_sizes, color=node_colors, line=dict(color="rgba(255,255,255,0.35)", width=1)),
+            marker=dict(size=node_sizes, color=node_colors, opacity=0.92, line=dict(color="rgba(255,255,255,0.45)", width=1)),
             customdata=[
-                [short_addr(row["wallet"]), int(row["cluster_id"]), money(row["volume"]), int(row["markets"]), f"{row['risk']:.0f}"]
+                [
+                    str(row["name"])[:24] or short_addr(row["wallet"]),
+                    int(row["cluster_id"]),
+                    money(row["volume"]),
+                    int(row["markets"]),
+                    f"{row['risk']:.0f}",
+                ]
                 for _, row in plot_nodes.iterrows()
             ],
             hovertemplate="<b>%{customdata[0]}</b><br>Cluster %{customdata[1]}<br>Whale volume %{customdata[2]}<br>%{customdata[3]} markets · risk %{customdata[4]}<extra></extra>",
         )
     )
+    label_rows = cluster_summary if not selected_cluster else cluster_summary[cluster_summary["cluster_id"] == int(selected_cluster)]
+    for _, row in label_rows.iterrows():
+        members = placed[placed["cluster_id"] == row["cluster_id"]]
+        fig.add_annotation(
+            x=float(members["x"].mean()),
+            y=float(members["y"].max()) + 1.6,
+            text=f"{int(row['size'])}w · {money(row['whale_notional'])}",
+            showarrow=False,
+            font=dict(family="JetBrains Mono, monospace", size=11, color="rgba(255,255,255,0.75)"),
+        )
     fig.update_layout(
-        height=420,
-        margin=dict(l=10, r=10, t=10, b=10),
+        height=560,
+        margin=dict(l=10, r=10, t=24, b=10),
         paper_bgcolor=BG,
         plot_bgcolor=BG,
         showlegend=False,
         xaxis=dict(visible=False),
-        yaxis=dict(visible=False),
+        yaxis=dict(visible=False, scaleanchor="x", scaleratio=1),
+        dragmode="pan",
     )
-    st.plotly_chart(fig, width="stretch", config=plot_config())
 
     if selected_cluster:
+        graph_col, panel_col = st.columns([2.6, 1.4], gap="medium")
+        with graph_col:
+            st.plotly_chart(fig, width="stretch", config=plot_config(), on_select="rerun", selection_mode="points", key="susp_network_chart")
+            st.markdown("<div class='field-hint'>Click a node to isolate its cluster · node size grows with log(whale volume) · colors are communities.</div>", unsafe_allow_html=True)
+        with panel_col:
+            with st.container(border=True):
+                color = CLUSTER_COLORS[int(selected_cluster) % len(CLUSTER_COLORS)]
+                members = placed[placed["cluster_id"] == int(selected_cluster)]
+                member_edges = network_edges[
+                    network_edges["wallet_a"].isin(set(members["wallet"])) & network_edges["wallet_b"].isin(set(members["wallet"]))
+                ]
+                story = susp.cluster_story(members, member_edges, network_tape)
+                st.markdown(
+                    f"<div class='step-label' style='margin-top:0'><span style='color:{color}'>●</span> Cluster {int(selected_cluster)}</div>"
+                    f"<div class='terminal-title' style='font-size:1.4rem'>{int(len(members))} wallets</div>"
+                    f"<div class='small-note'>{html.escape(story['headline'])}</div>",
+                    unsafe_allow_html=True,
+                )
+                st.markdown("<div class='step-label'>Why this is a cluster</div>", unsafe_allow_html=True)
+                for reason in story["reasons"]:
+                    st.markdown(f"<div class='field-hint'>· {html.escape(reason)}</div>", unsafe_allow_html=True)
+                if story["top_markets"]:
+                    st.markdown("<div class='step-label'>Heaviest shared markets</div>", unsafe_allow_html=True)
+                    for market_line in story["top_markets"]:
+                        st.markdown(f"<div class='field-hint'>· {html.escape(market_line)}</div>", unsafe_allow_html=True)
         member_view = plot_nodes.sort_values("volume", ascending=False).copy()
         member_view["why"] = member_view["wallet"].map(flags_map).fillna("")
+        member_view["display"] = member_view.apply(lambda row: str(row["name"]) or short_addr(row["wallet"]), axis=1)
+        st.markdown("<div class='step-label'>Members (by whale volume)</div>", unsafe_allow_html=True)
         st.dataframe(
-            clean_table(member_view, ["wallet", "risk", "volume", "markets", "trades", "shared_markets", "why"]),
+            clean_table(member_view, ["display", "wallet", "risk", "volume", "markets", "trades", "shared_markets", "why"]),
             width="stretch",
-            height=260,
+            height=300,
             hide_index=True,
             column_config={
+                "display": st.column_config.TextColumn("Trader"),
                 "wallet": st.column_config.TextColumn("Wallet"),
                 "risk": st.column_config.ProgressColumn("Risk", min_value=0, max_value=100, format="%.0f"),
                 "volume": st.column_config.NumberColumn("Whale $", format="$%.0f", help="This wallet's whale volume in the current sample."),
@@ -12546,6 +12656,8 @@ def page_suspicious() -> None:
             },
         )
     else:
+        st.plotly_chart(fig, width="stretch", config=plot_config(), on_select="rerun", selection_mode="points", key="susp_network_chart")
+        st.markdown("<div class='field-hint'>Click a node to isolate its cluster · node size grows with log(whale volume) · colors are communities.</div>", unsafe_allow_html=True)
         st.dataframe(
             clean_table(cluster_summary, ["cluster_id", "size", "whale_notional", "markets_touched", "max_shared", "top_risk"]),
             width="stretch",
@@ -12560,6 +12672,21 @@ def page_suspicious() -> None:
                 "top_risk": st.column_config.ProgressColumn("Top risk", min_value=0, max_value=100, format="%.0f"),
             },
         )
+        st.markdown("<div class='step-label'>Why these are clusters</div>", unsafe_allow_html=True)
+        for _, row in cluster_summary.head(3).iterrows():
+            cluster_id = int(row["cluster_id"])
+            members = placed[placed["cluster_id"] == cluster_id]
+            member_edges = network_edges[
+                network_edges["wallet_a"].isin(set(members["wallet"])) & network_edges["wallet_b"].isin(set(members["wallet"]))
+            ]
+            story = susp.cluster_story(members, member_edges, network_tape)
+            with st.expander(f"Cluster {cluster_id} — {story['headline']}"):
+                for reason in story["reasons"]:
+                    st.markdown(f"- {reason}")
+                if story["top_markets"]:
+                    st.markdown("**Heaviest shared markets:**")
+                    for market_line in story["top_markets"]:
+                        st.markdown(f"- {market_line}")
 
 
 PAGES = {
