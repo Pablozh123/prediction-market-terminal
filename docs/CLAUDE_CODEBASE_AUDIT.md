@@ -12,18 +12,17 @@ Hinweis: Die im Sandbox-Mount sichtbaren "modified"-Dateien sind reine CRLF/LF-A
 
 Zwei getrennte Schichten im selben Repo:
 
-1. **Terminal (PredictParity-Clone):** `prediction_terminal.py` (12.047 Zeilen, Streamlit-Monolith) + `src/prediction_markets.py` (API/Analytics) + `src/copy_trading.py` (Paper-Engine, SQLite) + `app/` (extrahierte, Streamlit-freie Helper: `format.py`, `filters.py`, `copy_follow.py`).
+1. **Terminal:** `prediction_terminal.py` (12.047 Zeilen, Streamlit-Monolith) + `src/prediction_markets.py` (API/Analytics) + `src/copy_trading.py` (Paper-Engine, SQLite) + `app/` (extrahierte, Streamlit-freie Helper: `format.py`, `filters.py`, `copy_follow.py`).
 2. **Thesis-Sentiment-Pipeline (separat, ohne Bezug zum Terminal):** `app.py`, `run_analysis.py`, `run_bulk.py` mit `src/sentiment.py`, `src/reddit.py`, `src/polymarket.py`, `src/market_metadata.py`. Deren Dependencies (transformers etc.) fehlen bewusst in `requirements.txt`.
 
 ### Seiten (alle 14 funktional, Routing via Query-Slugs, `PAGES`-Dict ab Z. 12021)
 
-Overview, Search, Markets, Traders, Wallets, Track, Live Trades, Whale Flow, Cross-Venue, Monitor, Alerts, Resolved, Portfolio, Copy Trade. Datenquellen: Polymarket (Gamma/Data/CLOB), Kalshi, PredictParity-GraphQL. Caching durchgehend `@st.cache_data` mit TTLs 30–900s.
+Overview, Search, Markets, Traders, Wallets, Track, Live Trades, Whale Flow, Cross-Venue, Monitor, Alerts, Resolved, Portfolio, Copy Trade. Datenquellen: Polymarket (Gamma/Data/CLOB) und Kalshi. Caching durchgehend `@st.cache_data` mit TTLs 30–900s.
 
 ### API-Endpoints (konsumiert, nicht angeboten)
 
 - Polymarket Gamma (Markets/Events), Data-API (Trades, Positions, Holders, Leaderboard), CLOB (Orderbooks)
 - Kalshi Public API (Markets, Trades)
-- PredictParity GraphQL (Profile-Suche)
 - Polygon RPC (OrderFilled-Events, Fast-Path des Copy-Daemons)
 
 ### DB-Schema (SQLite, `src/copy_trading.py` ab Z. 198)
@@ -47,7 +46,7 @@ Overview, Search, Markets, Traders, Wallets, Track, Live Trades, Whale Flow, Cro
 | Cross-Venue / Monitor / Alerts / Resolved | fertig | `prediction_terminal.py` Z. 8871–10956 |
 | Copy Trade (paper-only, Single-Target) | fertig | `prediction_terminal.py` Z. 10956–11432, `src/copy_trading.py` |
 | Portfolio (Research + Copy-Equity + Watchlist) | fertig | `prediction_terminal.py` Z. 11432–12020 |
-| API-Layer (Polymarket/Kalshi/PredictParity) | fertig | `src/prediction_markets.py` |
+| API-Layer (Polymarket/Kalshi) | fertig | `src/prediction_markets.py` |
 | Copy-Daemon + Watchdog | fertig | `scripts/run_copy_trader.py`, `scripts/start_copy_trader_watchdog.ps1` |
 | Auth (Sign-in/Sign-up) | halb (UI-Shell, alle Buttons `disabled=True`) | `prediction_terminal.py` Z. 1802–1820 |
 | Multi-Trader-Copytrading | halb (DB-Tabellen da, Engine/UI single-target, Spec v2 liegt vor) | `src/copy_trading.py` Z. 265–301, `docs/spec_multitrader_copytrading.md` |

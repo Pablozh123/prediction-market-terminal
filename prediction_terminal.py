@@ -727,19 +727,6 @@ def x_profile_url(username: Any) -> str:
     return f"https://x.com/{handle}" if re.fullmatch(r"[A-Za-z0-9_]{1,15}", handle) else ""
 
 
-def predictparity_trader_url(handle: Any) -> str:
-    if hasattr(md, "predictparity_trader_url"):
-        return md.predictparity_trader_url(handle)
-    text = str(handle or "").strip()
-    url_match = re.search(r"/(?:profile|traders/p)/@?([^/?#]+)", text, flags=re.IGNORECASE)
-    if url_match:
-        text = url_match.group(1)
-    text = text.strip().strip("/").lstrip("@").lower()
-    if not text or re.fullmatch(r"0x[a-fA-F0-9]{40}", text):
-        return ""
-    return f"https://predictparity.com/traders/p/@{text}" if re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", text) else ""
-
-
 def clean_table(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     if df.empty:
         return df
@@ -819,7 +806,7 @@ def market_filter_defaults(categories: list[str], query: str = "") -> dict[str, 
 
 
 def reset_market_filter_widgets(categories: list[str]) -> None:
-    """Reset market scanner controls to the current Parity-style defaults."""
+    """Reset market scanner controls to their defaults."""
 
     defaults = market_filter_defaults(categories)
     for key, value in defaults.items():
@@ -1857,36 +1844,57 @@ def load_polymarket_trades(limit: int, min_cash: float, user: str | None = None,
     return md.get_polymarket_trades(limit=limit, min_cash=min_cash, user=user, market=market)
 
 
+def _enrich_kalshi_tape(tape: pd.DataFrame) -> pd.DataFrame:
+    """Swap ticker placeholders for real market titles (+ category/end time).
+
+    Kalshi's trade feed only carries tickers like KXWCSPREAD-26JUN11MEXRSA-MEX2 —
+    unreadable in any table. One markets lookup per refresh fixes every consumer.
+    """
+
+    if tape is None or tape.empty or "ticker" not in tape.columns:
+        return tape
+    try:
+        meta = md.get_kalshi_markets(tickers=tape["ticker"].astype(str).tolist())
+    except md.MarketDataError:
+        return tape
+    if meta is None or meta.empty or "ticker" not in meta.columns:
+        return tape
+    meta = meta.drop_duplicates(subset=["ticker"]).set_index("ticker")
+    tape = tape.copy()
+    tickers = tape["ticker"].astype(str)
+    if "title" in meta.columns:
+        titles = tickers.map(meta["title"]).fillna("").astype(str)
+        fallback = tape["title"].astype(str) if "title" in tape.columns else tickers
+        tape["title"] = titles.where(titles.str.strip().ne(""), fallback)
+    if "category" in meta.columns:
+        tape["category"] = tickers.map(meta["category"]).fillna("").astype(str)
+    if "end_time" in meta.columns:
+        tape["end_time"] = pd.to_datetime(tickers.map(meta["end_time"]), utc=True, errors="coerce")
+    return tape
+
+
 @st.cache_data(ttl=45, show_spinner=False)
 def load_kalshi_trades(limit: int, ticker: str | None = None) -> pd.DataFrame:
-    return md.get_kalshi_trades(limit=limit, ticker=ticker)
+    return _enrich_kalshi_tape(md.get_kalshi_trades(limit=limit, ticker=ticker))
 
 
 @st.cache_data(ttl=300, show_spinner=False)
 def load_leaderboard(limit: int, time_period: str, order_by: str) -> pd.DataFrame:
-    if str(time_period or "").upper() == "ALL":
-        try:
-            parity = md.get_predictparity_traders(
-                limit=limit,
-                sort_by="volume" if str(order_by or "").upper() == "VOL" else "pnl",
-                min_active_positions=0.0,
-            )
-            if not parity.empty:
-                return parity
-        except Exception:
-            pass
     return md.get_polymarket_leaderboard(limit=limit, time_period=time_period, order_by=order_by)
 
 
 @st.cache_data(ttl=900, show_spinner=False)
 def load_whale_trader_stats(limit: int = 500) -> pd.DataFrame:
+    """Union of the Polymarket PnL and volume leaderboards — the public stats pool
+    for whale-flow trait filters (bot/whale heuristics fall back to flow-derived scores)."""
+
     frames: list[pd.DataFrame] = []
-    for sort_by in ("pnl", "volume"):
+    for order_by in ("PNL", "VOL"):
         try:
-            frame = md.get_predictparity_traders(limit=limit, sort_by=sort_by, platform="polymarket")
+            frame = md.get_polymarket_leaderboard(limit=min(int(limit), 500), time_period="ALL", order_by=order_by)
         except Exception:
             frame = pd.DataFrame()
-        if not frame.empty:
+        if frame is not None and not frame.empty:
             frames.append(frame)
     if not frames:
         return pd.DataFrame()
@@ -1996,16 +2004,6 @@ def load_wallet_account_stats(wallets: tuple[str, ...], activity_pages: int = 3,
             }
         )
     return pd.DataFrame(rows)
-
-
-@st.cache_data(ttl=600, show_spinner=False)
-def load_predictparity_trader_profile(identifier: str) -> dict[str, Any]:
-    return md.get_predictparity_trader_profile(identifier)
-
-
-@st.cache_data(ttl=600, show_spinner=False)
-def load_predictparity_pnl_chart(trader_id: str, window: str) -> pd.DataFrame:
-    return md.get_predictparity_trader_pnl_chart(trader_id, window)
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -3640,7 +3638,7 @@ def page_overview() -> None:
         ]
     )
     route_filter_signature = json.dumps(route_filter_params, sort_keys=True)
-    route_filter_view = md.predictparity_overview_filter_view(route_filter_params)
+    route_filter_view = md.overview_filter_view(route_filter_params)
     if route_filter_view and st.session_state.get("overview_route_filter_signature") != route_filter_signature:
         apply_overview_filter_view_widgets(route_filter_view, categories)
         st.session_state["overview_route_filter_signature"] = route_filter_signature
@@ -3906,7 +3904,7 @@ def page_search() -> None:
         ]
     )
     route_filter_signature = json.dumps(route_filter_params, sort_keys=True)
-    route_filter_view = md.predictparity_search_filter_view(route_filter_params)
+    route_filter_view = md.search_filter_view(route_filter_params)
     if route_filter_view and st.session_state.get("search_route_filter_signature") != route_filter_signature:
         apply_search_filter_view_widgets(route_filter_view)
         st.session_state["search_route_filter_signature"] = route_filter_signature
@@ -4476,7 +4474,7 @@ def render_related_markets(row: pd.Series, market_universe: pd.DataFrame | None 
 
 
 def render_market_series_strip(row: pd.Series, market_universe: pd.DataFrame | None = None) -> None:
-    """Render a PredictParity-style quick selector for sibling contracts."""
+    """Render a quick selector for sibling contracts of the same event."""
 
     if market_universe is None or market_universe.empty:
         return
@@ -4618,7 +4616,7 @@ def page_markets() -> None:
         ]
     )
     route_filter_signature = json.dumps(route_filter_params, sort_keys=True)
-    route_filter_view = md.predictparity_market_filter_view(route_filter_params)
+    route_filter_view = md.market_filter_view(route_filter_params)
     if route_filter_view and st.session_state.get("markets_route_filter_signature") != route_filter_signature:
         apply_market_filter_view_widgets(route_filter_view, categories)
         st.session_state["markets_route_filter_signature"] = route_filter_signature
@@ -5174,9 +5172,6 @@ def render_wallet(wallet: str) -> None:
     total_pnl = float(summary["realized_pnl"]) + float(summary["unrealized_pnl"])
     wallet_key = re.sub(r"[^a-zA-Z0-9_]", "_", wallet.lower())
     account_stats = safe_load("Wallet account stats", load_wallet_account_stats, (wallet,), 3, True, default=pd.DataFrame())
-    parity_profile = safe_load("Public trader profile", load_predictparity_trader_profile, wallet, default={})
-    if not isinstance(parity_profile, dict):
-        parity_profile = {}
     account_row = account_stats.iloc[0] if not account_stats.empty else pd.Series(dtype=object)
     cash_balance = float(pd.to_numeric(pd.Series([account_row.get("cash_balance", 0.0)]), errors="coerce").fillna(0.0).iloc[0])
     activity_observations = int(pd.to_numeric(pd.Series([account_row.get("activity_observations", 0)]), errors="coerce").fillna(0).iloc[0])
@@ -5186,31 +5181,6 @@ def render_wallet(wallet: str) -> None:
     first_activity_row = first_activity.iloc[0] if not first_activity.empty else pd.Series(dtype=object)
     first_activity_tx = str(first_activity_row.get("transactionHash", "") or "")
     first_activity_notional = float(pd.to_numeric(pd.Series([first_activity_row.get("notional", 0.0)]), errors="coerce").fillna(0.0).iloc[0])
-    if parity_profile:
-        trader_name = str(parity_profile.get("display_name") or trader_name)
-        profile_total_pnl = pd.to_numeric(pd.Series([parity_profile.get("all_time_pnl")]), errors="coerce").dropna()
-        profile_volume = pd.to_numeric(pd.Series([parity_profile.get("all_time_volume")]), errors="coerce").dropna()
-        profile_cash = pd.to_numeric(pd.Series([parity_profile.get("usdc_balance")]), errors="coerce").dropna()
-        profile_first_funding = pd.to_numeric(pd.Series([parity_profile.get("first_funding_amount")]), errors="coerce").dropna()
-        profile_active_value = pd.to_numeric(pd.Series([parity_profile.get("active_positions_value")]), errors="coerce").dropna()
-        profile_win_rate = pd.to_numeric(pd.Series([parity_profile.get("win_rate")]), errors="coerce").dropna()
-        if not profile_total_pnl.empty:
-            total_pnl = float(profile_total_pnl.iloc[0])
-        if not profile_cash.empty:
-            cash_balance = float(profile_cash.iloc[0])
-        if not profile_first_funding.empty:
-            first_activity_notional = float(profile_first_funding.iloc[0])
-        if str(parity_profile.get("first_funding_tx_hash") or "").startswith("0x"):
-            first_activity_tx = str(parity_profile["first_funding_tx_hash"])
-        profile_created_at = pd.to_datetime(parity_profile.get("account_created_at"), utc=True, errors="coerce")
-        if pd.notna(profile_created_at):
-            account_created = profile_created_at.strftime("%b %d, %Y")
-        profile_last_synced_at = pd.to_datetime(parity_profile.get("last_synced_at"), utc=True, errors="coerce")
-    else:
-        profile_volume = pd.Series(dtype="float64")
-        profile_active_value = pd.Series(dtype="float64")
-        profile_win_rate = pd.Series(dtype="float64")
-        profile_last_synced_at = pd.NaT
     insights = trader_insight_metrics(
         open_positions,
         closed_positions,
@@ -5218,11 +5188,6 @@ def render_wallet(wallet: str) -> None:
         activity,
         cash_balance=cash_balance,
         whale_threshold=float(min_whale),
-    )
-    wallet_parity_url = predictparity_trader_url(
-        (parity_profile.get("username") if parity_profile else "")
-        or (parity_profile.get("display_name") if parity_profile else "")
-        or trader_name
     )
     copy_traders = safe_load("Copy followed traders", ct.get_traders, default=pd.DataFrame())
     copy_stats = safe_load("Copy trader stats", ct.get_trader_stats, default=pd.DataFrame())
@@ -5232,7 +5197,7 @@ def render_wallet(wallet: str) -> None:
     show_copy_follow_notice()
     st.markdown(f"### {trader_name}")
     st.caption(f"Polymarket proxy wallet {wallet}")
-    action_cols = st.columns([1, 1, 1.2, 1, 1, 1, 1, 1.2, 1.4])
+    action_cols = st.columns([1, 1, 1.2, 1, 1, 1, 1.2, 1.4])
     if action_cols[0].button("Back", key=f"wallet_back_to_traders_{wallet_key}", width="stretch"):
         st.session_state["traders_inspect_wallet"] = wallet
         queue_navigation("Traders")
@@ -5253,13 +5218,11 @@ def render_wallet(wallet: str) -> None:
         key=f"wallet_profile_copy_follow_{wallet_key}",
         active_wallets=copy_active_wallets,
     )
-    if wallet_parity_url:
-        action_cols[3].link_button("Profile", wallet_parity_url, width="stretch")
-    action_cols[4].link_button("Polymarket", f"https://polymarket.com/profile/{wallet}", width="stretch")
-    action_cols[5].link_button("Polygonscan", f"https://polygonscan.com/address/{wallet}", width="stretch")
-    action_cols[6].link_button("Arkham", f"https://intel.arkm.com/explorer/address/{wallet}", width="stretch")
-    action_cols[7].link_button("Relay", f"https://relay.link/transactions?address={wallet}", width="stretch")
-    action_cols[8].download_button(
+    action_cols[3].link_button("Polymarket", f"https://polymarket.com/profile/{wallet}", width="stretch")
+    action_cols[4].link_button("Polygonscan", f"https://polygonscan.com/address/{wallet}", width="stretch")
+    action_cols[5].link_button("Arkham", f"https://intel.arkm.com/explorer/address/{wallet}", width="stretch")
+    action_cols[6].link_button("Relay", f"https://relay.link/transactions?address={wallet}", width="stretch")
+    action_cols[7].download_button(
         "Share PnL",
         wallet_share_payload(wallet, trader_name, summary, open_positions).encode("utf-8"),
         file_name=f"{short_addr(wallet, width=4).replace('...', '_')}_pnl_snapshot.txt",
@@ -5269,11 +5232,11 @@ def render_wallet(wallet: str) -> None:
 
     cols = st.columns(6)
     cols[0].metric("Total PnL", money(total_pnl))
-    cols[1].metric("Volume", money(float(profile_volume.iloc[0]) if not profile_volume.empty else summary["trade_notional"]))
+    cols[1].metric("Volume", money(summary["trade_notional"]))
     cols[2].metric("USDC Balance", money(cash_balance))
-    active_position_value = float(profile_active_value.iloc[0]) if not profile_active_value.empty else float(summary["open_value"])
+    active_position_value = float(summary["open_value"])
     cols[3].metric("Active Positions", money(active_position_value), f"{len(open_positions):,} positions")
-    win_rate_value = float(profile_win_rate.iloc[0]) if not profile_win_rate.empty else summary["win_rate"]
+    win_rate_value = summary["win_rate"]
     cols[4].metric("Win Rate", pct(win_rate_value) if win_rate_value is not None else "-")
     cols[5].metric("Realized / Unrealized", f"{markdown_money(summary['realized_pnl'])} / {markdown_money(summary['unrealized_pnl'])}")
     info_cols = st.columns(3)
@@ -5293,11 +5256,7 @@ def render_wallet(wallet: str) -> None:
     pnl_header.markdown("### PNL")
     pnl_caption.caption(md.pnl_window_label(pnl_window))
     if pnl_view == "Chart view":
-        parity_curve = pd.DataFrame()
-        parity_trader_id = str(parity_profile.get("id", "") or "") if parity_profile else ""
-        if parity_trader_id:
-            parity_curve = safe_load("Trader PnL chart", load_predictparity_pnl_chart, parity_trader_id, pnl_window, default=pd.DataFrame())
-        curve = parity_curve if isinstance(parity_curve, pd.DataFrame) and not parity_curve.empty else filter_pnl_curve_window(wallet_pnl_curve(open_positions, closed_positions), pnl_window)
+        curve = filter_pnl_curve_window(wallet_pnl_curve(open_positions, closed_positions), pnl_window)
         if curve.empty:
             draw_empty("No PnL history returned for this wallet and selected window.")
         else:
@@ -5305,8 +5264,6 @@ def render_wallet(wallet: str) -> None:
             fig.update_traces(line_width=2)
             fig.update_layout(height=320, margin=dict(l=10, r=10, t=20, b=10), paper_bgcolor=BG, plot_bgcolor=BG, yaxis_title="PnL", xaxis_title="")
             st.plotly_chart(fig, width="stretch", config=plot_config())
-            if isinstance(curve, pd.DataFrame) and "source" in curve and curve["source"].astype(str).eq("PredictParity").any():
-                st.caption("PNL chart sourced from public trader profile data.")
     else:
         calendar = wallet_pnl_calendar(closed_positions, pnl_window)
         if calendar.empty:
@@ -5344,7 +5301,7 @@ def render_wallet(wallet: str) -> None:
         if positions.empty:
             draw_empty("No positions returned.")
         else:
-            st.caption(f"Last synced {md.compact_elapsed_label(profile_last_synced_at if pd.notna(profile_last_synced_at) else wallet_loaded_at)}")
+            st.caption(f"Last synced {md.compact_elapsed_label(wallet_loaded_at)}")
             pending_position_clear = st.session_state.pop(f"wallet_pos_{wallet_key}_clear_pending", None)
             if isinstance(pending_position_clear, dict):
                 for key, value in pending_position_clear.items():
@@ -5712,7 +5669,7 @@ def page_traders() -> None:
         ]
     )
     route_filter_signature = json.dumps(route_filter_params, sort_keys=True)
-    route_filter_view = md.predictparity_trader_filter_view(route_filter_params)
+    route_filter_view = md.trader_filter_view(route_filter_params)
     if route_filter_view and st.session_state.get("traders_route_filter_signature") != route_filter_signature:
         apply_trader_filter_view_widgets(route_filter_view)
         st.session_state["traders_route_filter_signature"] = route_filter_signature
@@ -5814,15 +5771,7 @@ def page_traders() -> None:
             bots_only=bool(bots_only),
             bot_score_min=float(bot_score_min),
         )
-    has_native_parity_stats = (
-        not leaderboard.empty
-        and "source" in leaderboard
-        and leaderboard["source"].astype(str).eq("PredictParity").any()
-    )
-    has_native_positions = has_native_parity_stats and "positions_value" in leaderboard
-    has_native_win_rates = has_native_parity_stats and "win_rate" in leaderboard
-    has_native_account_stats = has_native_parity_stats and {"cash_balance", "account_age_days"}.issubset(set(leaderboard.columns))
-    if not leaderboard.empty and enrich_positions and not has_native_positions:
+    if not leaderboard.empty and enrich_positions:
         wallets = tuple(leaderboard["wallet"].astype(str).head(min(30, len(leaderboard))).tolist())
         position_values = safe_load("Leaderboard open positions", load_wallet_position_values, wallets, default=pd.DataFrame())
         if not position_values.empty:
@@ -5841,7 +5790,7 @@ def page_traders() -> None:
             leaderboard = leaderboard[pd.to_numeric(leaderboard["open_positions"], errors="coerce").fillna(0).astype(int) >= int(active_positions_min)]
         leaderboard = option_metric_filter(leaderboard, "positions_value", position_preset, float(custom_position))
     account_stats_needed = enrich_accounts or assets_preset != "All" or balance_preset != "All" or account_age_preset != "All"
-    if not leaderboard.empty and account_stats_needed and not has_native_account_stats:
+    if not leaderboard.empty and account_stats_needed:
         wallets = tuple(leaderboard["wallet"].astype(str).head(min(int(account_enrich_rows), len(leaderboard))).tolist())
         account_stats = safe_load("Leaderboard balances and account ages", load_wallet_account_stats, wallets, 3, True, default=pd.DataFrame())
         if not account_stats.empty:
@@ -5858,7 +5807,7 @@ def page_traders() -> None:
         leaderboard = option_metric_filter(leaderboard, "assets_value", assets_preset, float(custom_assets))
         leaderboard = option_metric_filter(leaderboard, "cash_balance", balance_preset, float(custom_balance))
         leaderboard = apply_account_age_filter(leaderboard, account_age_preset, int(custom_account_age))
-    if not leaderboard.empty and enrich_win_rates and not has_native_win_rates:
+    if not leaderboard.empty and enrich_win_rates:
         wallets = tuple(leaderboard["wallet"].astype(str).head(min(30, len(leaderboard))).tolist())
         win_rates = safe_load("Leaderboard win rates", load_wallet_win_rates, wallets, default=pd.DataFrame())
         if not win_rates.empty:
@@ -5903,8 +5852,6 @@ def page_traders() -> None:
     known_win_rates = pd.to_numeric(leaderboard.get("win_rate", pd.Series(dtype="float64")), errors="coerce").dropna()
     metric_cols[4].metric("Median win rate", pct(known_win_rates.median()) if not known_win_rates.empty else "-")
     metric_cols[5].metric("Verified", f"{int(leaderboard['verified'].astype(bool).sum()) if 'verified' in leaderboard else 0:,}")
-    if "source" in leaderboard and leaderboard["source"].astype(str).eq("PredictParity").any():
-        st.caption("Trader leaderboard sourced from public trader data with Polymarket fallback for unavailable periods.")
     trader_chips: list[str] = []
     if trader_query.strip():
         trader_chips.append(f"Search: {trader_query.strip()}")
@@ -5938,17 +5885,11 @@ def page_traders() -> None:
     if account_stats_needed:
         trader_chips.append(f"Balance/account age enriched: {account_enrich_rows} wallets")
     render_filter_chips(trader_chips)
-    if enrich_positions and has_native_positions:
-        st.caption("Open-position values are sourced from the public trader leaderboard.")
-    elif enrich_positions:
+    if enrich_positions:
         st.caption("Open-position values are fetched from public Polymarket wallet positions for the first 30 displayed leaderboard wallets.")
-    if enrich_win_rates and has_native_win_rates:
-        st.caption("Win rates are sourced from the public trader leaderboard.")
-    elif enrich_win_rates:
+    if enrich_win_rates:
         st.caption("Win rates are estimated from public closed positions for the first 30 displayed leaderboard wallets.")
-    if account_stats_needed and has_native_account_stats:
-        st.caption("Balances and account age are sourced from the public trader leaderboard.")
-    elif account_stats_needed:
+    if account_stats_needed:
         st.caption("Assets are open-position value plus fetched Polygon USDC balance. Account age is the oldest public activity observed in the loaded activity pages.")
     st.caption(
         "Smart Score follows the PolyHuntr-style structure: returns weighted highest, plus Sharpe proxy, drawdown proxy, win rate, recency, and volume."
@@ -5972,11 +5913,6 @@ def page_traders() -> None:
     display["copy_status"] = display["wallet"].map(lambda value: ctf.status_label(value, copy_active_wallets))
     display["profile_url"] = display["wallet"].astype(str).map(md.polymarket_profile_url)
     display["x_url"] = display.get("x_username", pd.Series("", index=display.index)).astype(str).map(x_profile_url)
-    parity_handles = display.get("username", display.get("trader", pd.Series("", index=display.index))).astype(str)
-    display["parity_url"] = parity_handles.map(predictparity_trader_url)
-    missing_parity_url = display["parity_url"].astype(str).eq("")
-    if missing_parity_url.any():
-        display.loc[missing_parity_url, "parity_url"] = display.loc[missing_parity_url, "trader"].astype(str).map(predictparity_trader_url)
     display["trader_identity"] = (
         display["trader"].astype(str)
         + " | "
@@ -5993,7 +5929,6 @@ def page_traders() -> None:
         "copy_smart_score",
         "copy_grade",
         "copy_rank_reason",
-        "parity_url",
         "profile_url",
         "x_url",
         "pnl",
@@ -6024,7 +5959,7 @@ def page_traders() -> None:
         "x_username",
         "verified",
     ]
-    parity_trader_columns = [
+    default_trader_columns = [
         "trader_identity",
         "copy_status",
         "copy_smart_score",
@@ -6051,10 +5986,10 @@ def page_traders() -> None:
         "bot_score",
     ]
     selected_trader_columns = {
-        "Default": parity_trader_columns,
+        "Default": default_trader_columns,
         "Flow": flow_trader_columns,
         "Research": trader_columns,
-    }.get(column_preset, parity_trader_columns)
+    }.get(column_preset, default_trader_columns)
     trader_config = {
         "trader_identity": st.column_config.TextColumn("Trader", width="large"),
         "copy_status": st.column_config.TextColumn("Copy", width="small"),
@@ -6062,7 +5997,6 @@ def page_traders() -> None:
         "copy_smart_score": st.column_config.ProgressColumn("Smart Score", min_value=0, max_value=100),
         "copy_grade": st.column_config.TextColumn("Grade", width="small"),
         "copy_rank_reason": st.column_config.TextColumn("Score Factors", width="large"),
-        "parity_url": st.column_config.LinkColumn("Profile", display_text="Open profile"),
         "profile_url": st.column_config.LinkColumn("Profile", display_text="Open profile"),
         "x_url": st.column_config.LinkColumn("X", display_text="X"),
         "pnl": st.column_config.NumberColumn("Total PnL", format="$%.0f"),
@@ -6342,11 +6276,8 @@ def page_traders() -> None:
             with st.expander("Selected trader paper sub-account", expanded=False):
                 render_copy_sub_account_metrics(selected_wallet, copy_stats_map)
         action_cols[3].caption("Select a row, then inspect, track, or copy-follow the wallet.")
-        selected_parity_url = predictparity_trader_url(selected_trader_action_row.get("username", "") or selected_trader_action_row.get("trader", ""))
         selected_x_url = x_profile_url(selected_trader_action_row.get("x_username", ""))
         external_links: list[tuple[str, str]] = []
-        if selected_parity_url:
-            external_links.append(("Profile", selected_parity_url))
         if re.fullmatch(r"0x[a-fA-F0-9]{40}", selected_wallet):
             external_links.append(("Polymarket", f"https://polymarket.com/profile/{selected_wallet}"))
         if selected_x_url:
@@ -6366,18 +6297,15 @@ def page_traders() -> None:
             if str(item.get("wallet", "")).lower() == default_wallet.lower():
                 default_index = idx
                 break
-    detail_cols = st.columns([2, 1, 1, 1, 2])
+    detail_cols = st.columns([2, 1, 1, 2])
     selected = detail_cols[0].selectbox("Wallet detail selector", options, index=default_index)
     row = leaderboard.iloc[options.index(selected)]
     detail_wallet = str(row["wallet"])
     load_detail = detail_cols[1].toggle("Load detail", value=bool(st.session_state.get("traders_load_wallet_detail", False)), key="traders_load_wallet_detail")
-    parity_url = predictparity_trader_url(row.get("username", "") or row.get("trader", ""))
-    if parity_url:
-        detail_cols[2].link_button("Profile", parity_url, width="stretch")
     profile_url = md.polymarket_profile_url(detail_wallet)
     if profile_url:
-        detail_cols[3].link_button("Polymarket", profile_url, width="stretch")
-    detail_cols[4].caption("Select a trader, then load the wallet detail only when needed. This keeps the leaderboard fast and scan-first.")
+        detail_cols[2].link_button("Polymarket", profile_url, width="stretch")
+    detail_cols[3].caption("Select a trader, then load the wallet detail only when needed. This keeps the leaderboard fast and scan-first.")
     st.session_state["traders_inspect_wallet"] = detail_wallet
     if load_detail:
         render_wallet(detail_wallet)
@@ -6595,7 +6523,7 @@ def page_track() -> None:
         apply_track_filter_view_widgets(pending_track_view)
     route_filter_params = query_param_snapshot(["q", "query", "search", "wallet", "limit", "rows"])
     route_filter_signature = json.dumps(route_filter_params, sort_keys=True)
-    route_filter_view = md.predictparity_track_filter_view(route_filter_params)
+    route_filter_view = md.track_filter_view(route_filter_params)
     if route_filter_view and st.session_state.get("track_route_filter_signature") != route_filter_signature:
         apply_track_filter_view_widgets(route_filter_view)
         route_wallet = str(route_filter_params.get("wallet", "") or "").strip()
@@ -7063,7 +6991,7 @@ def page_live_trades() -> None:
         ]
     )
     route_filter_signature = json.dumps(route_filter_params, sort_keys=True)
-    route_filter_view = md.predictparity_live_trade_filter_view(route_filter_params)
+    route_filter_view = md.live_trade_filter_view(route_filter_params)
     if route_filter_view and st.session_state.get("live_route_filter_signature") != route_filter_signature:
         apply_live_trade_filter_view_widgets(route_filter_view)
         st.session_state["live_route_filter_signature"] = route_filter_signature
@@ -7422,7 +7350,7 @@ def page_whale_flow() -> None:
         ]
     )
     route_filter_signature = json.dumps(route_filter_params, sort_keys=True)
-    route_filter_view = md.predictparity_whale_filter_view(route_filter_params)
+    route_filter_view = md.whale_filter_view(route_filter_params)
     if route_filter_view and st.session_state.get("whale_route_filter_signature") != route_filter_signature:
         apply_whale_flow_filter_view_widgets(route_filter_view)
         st.session_state["whale_route_filter_signature"] = route_filter_signature
@@ -7960,7 +7888,7 @@ def page_cross_venue() -> None:
         ]
     )
     route_filter_signature = json.dumps(route_filter_params, sort_keys=True)
-    route_filter_view = md.predictparity_cross_venue_filter_view(route_filter_params)
+    route_filter_view = md.cross_venue_filter_view(route_filter_params)
     if route_filter_view and st.session_state.get("cross_route_filter_signature") != route_filter_signature:
         apply_cross_venue_filter_view_widgets(route_filter_view)
         st.session_state["cross_route_filter_signature"] = route_filter_signature
@@ -8111,7 +8039,7 @@ def page_cross_venue() -> None:
     st.caption("Price gaps are research leads, not guaranteed arbitrage. Resolution rules, fees, settlement timing, and access restrictions can break apparent parity.")
 
 
-MONITOR_SIGNAL_TYPES = ["Fast mover", "Whale print", "Tight spread", "Holder concentration", "Ending soon", "Watched market"]
+MONITOR_SIGNAL_TYPES = ["Fast mover", "Volume anomaly", "Whale print", "Tight spread", "Holder concentration", "Ending soon", "Watched market"]
 
 
 def build_monitor_signals(
@@ -8209,7 +8137,7 @@ def page_monitor() -> None:
         ]
     )
     route_filter_signature = json.dumps(route_filter_params, sort_keys=True)
-    route_filter_view = md.predictparity_monitor_filter_view(route_filter_params)
+    route_filter_view = md.monitor_filter_view(route_filter_params)
     if route_filter_view and st.session_state.get("monitor_route_filter_signature") != route_filter_signature:
         apply_monitor_filter_view_widgets(route_filter_view)
         st.session_state["monitor_route_filter_signature"] = route_filter_signature
@@ -8631,7 +8559,7 @@ def page_resolved() -> None:
         ]
     )
     route_filter_signature = json.dumps(route_filter_params, sort_keys=True)
-    route_filter_view = md.predictparity_resolved_filter_view(route_filter_params)
+    route_filter_view = md.resolved_filter_view(route_filter_params)
     if route_filter_view and st.session_state.get("resolved_route_filter_signature") != route_filter_signature:
         apply_resolved_filter_view_widgets(route_filter_view)
         st.session_state["resolved_route_filter_signature"] = route_filter_signature
@@ -9164,17 +9092,23 @@ def render_copy_command_center(
     latency = copy_order_latency_stats(orders)
     last_sync = daemon_status.get("last_sync_at") or meta.get("tony_seeded_at")
 
-    tony_profile = safe_load("Swisstony trader profile", load_predictparity_trader_profile, settings.target_wallet, default={})
-    if not isinstance(tony_profile, dict):
-        tony_profile = {}
-    tony_name = str(tony_profile.get("display_name") or "swisstony")
-    tony_pnl = tony_profile.get("all_time_pnl", 0.0)
-    tony_volume = tony_profile.get("all_time_volume", 0.0)
-    tony_cash = tony_profile.get("usdc_balance", dynamic_sizing.get("tony_cash_estimate", 0.0))
-    tony_active = tony_profile.get("active_positions_value", dynamic_sizing.get("tony_position_value", 0.0))
-    tony_win_rate = tony_profile.get("win_rate")
-    tony_first_funding = tony_profile.get("first_funding_amount", 0.0)
-    created_at = pd.to_datetime(tony_profile.get("account_created_at"), utc=True, errors="coerce")
+    tony_open, tony_closed, tony_trades, _tony_activity = safe_load(
+        "Swisstony wallet",
+        load_wallet_bundle,
+        settings.target_wallet,
+        250,
+        default=(pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()),
+    )
+    tony_summary = md.wallet_summary(tony_open, tony_closed, tony_trades)
+    tony_name = wallet_identity(settings.target_wallet, tony_trades) or "swisstony"
+    tony_pnl = float(tony_summary["realized_pnl"]) + float(tony_summary["unrealized_pnl"])
+    tony_volume = tony_summary["trade_notional"]
+    tony_cash = dynamic_sizing.get("tony_cash_estimate", 0.0)
+    tony_active = float(tony_summary["open_value"]) or dynamic_sizing.get("tony_position_value", 0.0)
+    tony_win_rate = tony_summary["win_rate"]
+    tony_stats = safe_load("Swisstony account stats", load_wallet_account_stats, (settings.target_wallet,), 3, True, default=pd.DataFrame())
+    tony_stats_row = tony_stats.iloc[0] if not tony_stats.empty else pd.Series(dtype=object)
+    created_at = pd.to_datetime(tony_stats_row.get("oldest_activity_time"), utc=True, errors="coerce")
     created_label = created_at.strftime("%b %d, %Y") if pd.notna(created_at) else "-"
 
     st.markdown("### Copy-Trading Command Center")
@@ -9188,9 +9122,9 @@ def render_copy_command_center(
             profile_cols[1].metric("Volume", money(tony_volume))
             profile_cols[2].metric("Win Rate", pct(tony_win_rate) if tony_win_rate is not None else "-")
             profile_cols = st.columns(3)
-            profile_cols[0].metric("USDC Balance", money(tony_cash))
+            profile_cols[0].metric("Cash Estimate", money(tony_cash))
             profile_cols[1].metric("Active Positions", money(tony_active), f"{int(dynamic_sizing.get('tony_open_positions', 0) or 0):,} outcomes")
-            profile_cols[2].metric("First Funding", money(tony_first_funding) if tony_first_funding else "-")
+            profile_cols[2].metric("Realized PnL", money(tony_summary["realized_pnl"]))
             profile_cols = st.columns(3)
             profile_cols[0].metric("Account Created", created_label)
             profile_cols[1].metric("Tony Equity Est.", money(dynamic_sizing.get("tony_visible_equity", 0.0)))
@@ -9200,18 +9134,14 @@ def render_copy_command_center(
             chart_head, chart_window = st.columns([1.2, 1])
             chart_head.markdown("### Tony PnL")
             pnl_window = chart_window.radio("Window", ["1d", "1w", "1mo", "All"], index=1, horizontal=True, label_visibility="collapsed", key="copy_trade_tony_pnl_window")
-            parity_curve = pd.DataFrame()
-            trader_id = str(tony_profile.get("id", "") or "")
-            if trader_id:
-                parity_curve = safe_load("Swisstony PnL chart", load_predictparity_pnl_chart, trader_id, pnl_window, default=pd.DataFrame())
-            if isinstance(parity_curve, pd.DataFrame) and not parity_curve.empty:
-                fig = px.line(parity_curve, x="time", y="pnl", color="series", template="plotly_dark")
+            tony_curve = filter_pnl_curve_window(wallet_pnl_curve(tony_open, tony_closed), pnl_window)
+            if isinstance(tony_curve, pd.DataFrame) and not tony_curve.empty:
+                fig = px.line(tony_curve, x="time", y="pnl", color="series", template="plotly_dark")
                 fig.update_traces(line_width=2.4)
                 fig.update_layout(height=295, margin=dict(l=10, r=10, t=10, b=10), paper_bgcolor=BG, plot_bgcolor=BG, yaxis_title="PnL", xaxis_title="")
                 st.plotly_chart(fig, width="stretch", config=plot_config())
-                st.caption("Sourced from public trader profile data.")
             else:
-                draw_empty("No public PnL curve returned for Swisstony.")
+                draw_empty("No PnL history in the sampled positions for this window.")
 
     paper_cols = st.columns(7)
     paper_cols[0].metric("Paper Equity", money(snapshot.equity), pct(roi_value))
@@ -9898,7 +9828,7 @@ def page_portfolio() -> None:
         ]
     )
     route_filter_signature = json.dumps(route_filter_params, sort_keys=True)
-    route_filter_view = md.predictparity_portfolio_filter_view(route_filter_params)
+    route_filter_view = md.portfolio_filter_view(route_filter_params)
     if route_filter_view and st.session_state.get("portfolio_route_filter_signature") != route_filter_signature:
         apply_portfolio_filter_view_widgets(route_filter_view)
         st.session_state["portfolio_route_filter_signature"] = route_filter_signature
@@ -10695,9 +10625,14 @@ def page_backtester() -> None:
                 st.session_state.pop("backtest_request", None)
                 valid = False
             if valid and sizing_mode == btr.SIZING_PORTFOLIO:
-                profile = safe_load("Trader profile", load_predictparity_trader_profile, wallet, default={}) or {}
-                positions_value = float(pd.to_numeric(pd.Series([profile.get("active_positions_value")]), errors="coerce").fillna(0.0).iloc[0])
-                cash_value = float(pd.to_numeric(pd.Series([profile.get("usdc_balance")]), errors="coerce").fillna(0.0).iloc[0])
+                position_values = safe_load("Trader portfolio size", load_wallet_position_values, (wallet,), 250, default=pd.DataFrame())
+                account_stats = safe_load("Trader cash estimate", load_wallet_account_stats, (wallet,), 3, True, default=pd.DataFrame())
+                positions_value = float(numeric_col(position_values, "positions_value").sum()) if position_values is not None and not position_values.empty else 0.0
+                cash_value = (
+                    float(pd.to_numeric(pd.Series([account_stats.iloc[0].get("cash_balance", 0.0)]), errors="coerce").fillna(0.0).iloc[0])
+                    if account_stats is not None and not account_stats.empty
+                    else 0.0
+                )
                 trader_portfolio_value = positions_value + cash_value
                 if trader_portfolio_value <= 0:
                     st.warning("Could not determine this trader's portfolio size — pick Fixed $ or % of bankroll instead.")
@@ -11063,21 +10998,7 @@ def load_kalshi_whale_tape(min_cash: float, limit: int = 500) -> pd.DataFrame:
     tape["wallet"] = ""
     tape["trader"] = ""
     tape["market_key"] = tape.get("ticker", pd.Series("", index=tape.index)).astype(str)
-    try:
-        meta = md.get_kalshi_markets(tickers=tape["market_key"].tolist())
-    except md.MarketDataError:
-        meta = pd.DataFrame()
-    if meta is not None and not meta.empty and "ticker" in meta.columns:
-        meta = meta.drop_duplicates(subset=["ticker"]).set_index("ticker")
-        tickers = tape["market_key"]
-        if "title" in meta.columns:
-            titles = tickers.map(meta["title"]).fillna("").astype(str)
-            tape["title"] = titles.where(titles.str.strip().ne(""), tape["title"])
-        if "category" in meta.columns:
-            tape["category"] = tickers.map(meta["category"]).fillna("").astype(str)
-        if "end_time" in meta.columns:
-            tape["end_time"] = pd.to_datetime(tickers.map(meta["end_time"]), utc=True, errors="coerce")
-    return tape.reset_index(drop=True)
+    return _enrich_kalshi_tape(tape).reset_index(drop=True)
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -11184,6 +11105,13 @@ def page_suspicious() -> None:
     )
     event_risk = susp.apply_category_context(event_risk, market_categories)
     wallet_risk = susp.apply_wallet_category_context(wallet_risk, trades, market_categories)
+    # Sports odds and weather are pure high-roller arenas — game results and weather
+    # models cannot be insider-traded, so they are excluded from this screen entirely.
+    excluded_contexts = (susp.CONTEXT_SPORTS, susp.CONTEXT_WEATHER)
+    if not event_risk.empty and "insider_context" in event_risk:
+        event_risk = event_risk[~event_risk["insider_context"].isin(excluded_contexts)].reset_index(drop=True)
+    if not wallet_risk.empty and "insider_context" in wallet_risk:
+        wallet_risk = wallet_risk[~wallet_risk["insider_context"].isin(excluded_contexts)].reset_index(drop=True)
     if st.toggle("Check real account ages for the top wallets (slower)", value=False, key="susp_age_toggle") and not wallet_risk.empty:
         top_wallets = tuple(wallet_risk.head(10)["wallet"].astype(str))
         account_stats = safe_load("Wallet account stats", load_wallet_account_stats, top_wallets, default=pd.DataFrame())
@@ -11195,15 +11123,19 @@ def page_suspicious() -> None:
     stat_cols[0].metric("Events screened", f"{len(event_risk):,}", help="Markets with whale-sized prints in the current trade sample.")
     stat_cols[1].metric("High-risk events", f"{high_events:,}", help="Events with a suspicion score of 70 or higher.")
     stat_cols[2].metric("High-risk wallets", f"{high_wallets:,}", help="Wallets with a risk score of 70 or higher.")
-    stat_cols[3].metric("Whale volume", money(numeric_col(trades, "notional").sum()), help="Total whale-sized volume in the sample.")
+    stat_cols[3].metric(
+        "Whale volume",
+        money(numeric_col(event_risk, "notional").sum()),
+        help="Whale-sized volume across screened categories — sports odds and weather are excluded from this screen.",
+    )
     stat_cols[4].metric("Whale threshold", money(whale_floor), help="Minimum trade size counted as a whale print — change it on the Settings page.")
 
     with st.expander("How to read this page"):
         st.markdown(
             "- **Score (0–100):** built from unusual size, big bets on long odds, flow close to resolution, one-sided pressure, "
             "trade bursts, fresh wallets, coordinated timing and favorable price moves. Bands: <40 low · 40–54 elevated · 55–69 medium · ≥70 high.\n"
-            "- **Category context:** in sports odds, public asset prices and weather there is nothing to know early — scores there are damped "
-            "and hidden by default (toggle below). Politics/geopolitics, awards and corporate/legal outcomes are where insider knowledge plausibly flows.\n"
+            "- **Category context:** sports odds and weather are excluded entirely — game results and weather models cannot be insider-traded. "
+            "Crypto/market prices are damped and hidden by default (toggle below). Politics/geopolitics, awards and corporate/legal outcomes are where insider knowledge plausibly flows.\n"
             "- **One-wallet share:** how much of a market's whale volume comes from its single biggest wallet. 100% means one address is the whole flow.\n"
             "- **Clusters:** wallets that repeatedly take the same side of the same markets, or hit the same market within minutes, are flagged as possibly linked. "
             "True linkage would need on-chain funding tracing, which this screen does not do.\n"
@@ -11231,23 +11163,23 @@ def page_suspicious() -> None:
         fig.update_layout(height=220, margin=dict(l=10, r=40, t=10, b=10), paper_bgcolor=BG, plot_bgcolor=BG, showlegend=False)
         st.plotly_chart(fig, width="stretch", config=plot_config())
         st.markdown(
-            "<div class='field-hint'>Sports odds, crypto/market prices and weather are damped in the score — big flow there is "
-            "usually high-roller action, not insider knowledge. Awards/entertainment and corporate/legal outcomes carry full weight.</div>",
+            "<div class='field-hint'>Sports odds and weather are excluded from this screen entirely. Crypto/market prices are damped — "
+            "big flow there is usually trading, not insider knowledge. Awards/entertainment and corporate/legal outcomes carry full weight.</div>",
             unsafe_allow_html=True,
         )
 
     st.markdown("<div class='step-label'>Suspicious events</div>", unsafe_allow_html=True)
     show_all_arenas = st.toggle(
-        "Include high-roller arenas (sports odds, crypto/market prices, weather)",
+        "Include crypto & market prices",
         value=False,
         key="susp_show_all",
-        help="Big flow in these categories is usually high-roller action, not insider knowledge — hidden by default.",
+        help="Asset prices are public — big flow there is usually traders, not insiders. Sports odds and weather are excluded from this screen entirely.",
     )
     focused_events = event_risk
     if not show_all_arenas and not event_risk.empty and "insider_context" in event_risk:
         focused_events = event_risk[event_risk["insider_context"].isin(susp.INSIDER_PRONE_GROUPS)].reset_index(drop=True)
     if focused_events.empty:
-        draw_empty("No insider-prone events in the current tape — enable the toggle above to see the high-roller arenas too.")
+        draw_empty("No insider-prone events in the current tape — enable the toggle above to include crypto & market prices.")
     else:
         event_rows = list(focused_events.head(6).iterrows())
         for start in range(0, len(event_rows), 2):

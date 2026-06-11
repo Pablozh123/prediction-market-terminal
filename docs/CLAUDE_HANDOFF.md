@@ -47,7 +47,7 @@ Die folgenden Commits liegen auf dem aktuellen Branch ueber `main`:
 
 ## Current Product Surface
 
-Die App ist ein Streamlit-PredictParity-Clone mit lokalen Forschungsfunktionen:
+Die App ist ein Streamlit-Research-Terminal mit lokalen Forschungsfunktionen:
 
 - Overview, Search, Markets, Traders, Track, Live Trades, Whale Flow, Cross-Venue, Monitor, Alerts, Resolved, Portfolio, Copy Trade.
 - Copy Trade bleibt paper-only. Keine echten Orders, keine Private Keys, keine Secrets.
@@ -67,7 +67,7 @@ Die App ist ein Streamlit-PredictParity-Clone mit lokalen Forschungsfunktionen:
 ## Wichtige Dateien
 
 - `prediction_terminal.py` - Streamlit UI und Seitenrenderer.
-- `src/prediction_markets.py` - Polymarket/Kalshi/PredictParity Public API und Analytics.
+- `src/prediction_markets.py` - Polymarket/Kalshi Public API und Analytics.
 - `src/copy_trading.py` - Paper-Copy-Trading Engine und SQLite-Modell.
 - `app/format.py` - extrahierte Formatter.
 - `app/filters.py` - extrahierte Filter-Helfer.
