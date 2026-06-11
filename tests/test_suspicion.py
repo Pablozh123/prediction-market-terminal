@@ -296,6 +296,26 @@ class CoTradingNetworkTests(unittest.TestCase):
         nodes_loose, _ = susp.co_trading_network(tape(rows), window_minutes=None, min_shared=2)
         self.assertEqual(set(nodes_loose["wallet"]), {"0xaaa", "0xbbb"})
 
+    def test_min_pair_notional_filters_weak_money_pairs(self):
+        rows = [
+            trade("0xaaa", "Market A", "Yes", 500.0),
+            trade("0xbbb", "Market A", "Yes", 500.0),
+            trade("0xaaa", "Market B", "Yes", 500.0),
+            trade("0xbbb", "Market B", "Yes", 500.0),
+        ]
+        strict_nodes, _ = susp.co_trading_network(tape(rows), window_minutes=5.0, min_shared=2, min_pair_notional=10_000.0)
+        self.assertTrue(strict_nodes.empty)
+        loose_nodes, _ = susp.co_trading_network(tape(rows), window_minutes=5.0, min_shared=2)
+        self.assertEqual(set(loose_nodes["wallet"]), {"0xaaa", "0xbbb"})
+
+    def test_network_modularity_reports_meaningful_structure(self):
+        nodes, edges = susp.co_trading_network(tape(self._syndicate_rows()), window_minutes=5.0, min_shared=2)
+        modularity = susp.network_modularity(nodes, edges)
+        self.assertIsNotNone(modularity)
+        # The 0.3 "meaningful structure" bar applies to real tapes; this tiny
+        # 5-node toy graph still has to show clearly positive partition quality.
+        self.assertGreater(modularity, 0.2)
+
     def test_cluster_story_explains_tight_clique(self):
         rows = self._syndicate_rows()
         nodes, edges = susp.co_trading_network(tape(rows), window_minutes=5.0, min_shared=2)
