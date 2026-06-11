@@ -3703,51 +3703,6 @@ def page_overview() -> None:
             st.session_state["overview_filters_reset_pending"] = True
             st.rerun()
 
-    save_cols = st.columns([2, 1, 1])
-    saved_overview_name = save_cols[0].text_input("Saved overview view name", value=f"Overview {md.now_utc_label()}", key="saved_overview_view_name")
-    save_overview_clicked = save_cols[1].button("Save Filter", width="stretch", key="save_overview_filter_button")
-    if save_cols[2].button("Reset Overview View", width="stretch", key="reset_overview_view_button"):
-        st.session_state["overview_filters_reset_pending"] = True
-        st.rerun()
-    loaded_overview_message = st.session_state.pop("overview_view_loaded_message", "")
-    if loaded_overview_message:
-        st.info(loaded_overview_message)
-    if st.session_state.saved_overview_filters:
-        load_cols = st.columns([2, 1, 1])
-        saved_labels = [
-            f"{i + 1}. {view.get('name') or view.get('query') or 'Overview view'}"
-            for i, view in enumerate(st.session_state.saved_overview_filters)
-        ]
-        selected_saved_overview = load_cols[0].selectbox("Load saved overview view", saved_labels, key="load_saved_overview_view")
-        selected_overview_view = st.session_state.saved_overview_filters[saved_labels.index(selected_saved_overview)]
-        if load_cols[1].button("Load overview view", key="load_overview_view_button"):
-            st.session_state["pending_overview_filter_view"] = selected_overview_view
-            st.session_state["overview_view_loaded_message"] = f"Loaded saved overview view: {selected_overview_view.get('name', selected_saved_overview)}"
-            st.rerun()
-        if load_cols[2].button("Delete overview view", key="delete_overview_view_button"):
-            st.session_state.saved_overview_filters.pop(saved_labels.index(selected_saved_overview))
-            save_local_list("saved_overview_filters.json", st.session_state.saved_overview_filters)
-            st.rerun()
-    if save_overview_clicked:
-        st.session_state.saved_overview_filters.append(
-            {
-                "name": saved_overview_name.strip() or f"Overview {md.now_utc_label()}",
-                "created_at": md.now_utc_label(),
-                "query": overview_query,
-                "platforms": overview_platforms,
-                "featured_source": featured_source,
-                "market_rows": int(overview_market_rows),
-                "include_categories": include_categories,
-                "exclude_categories": exclude_categories,
-                "min_volume": int(overview_min_volume),
-                "min_liquidity": int(overview_min_liquidity),
-                "min_flow_notional": int(overview_min_flow),
-                "active_only": bool(active_only),
-                "show_news": bool(show_news),
-            }
-        )
-        save_local_list("saved_overview_filters.json", st.session_state.saved_overview_filters)
-        st.success("Saved overview view.")
 
     overview_defaults = overview_filter_defaults(min_flow=int(min_whale), categories=categories)
     chips: list[str] = []
@@ -3775,30 +3730,6 @@ def page_overview() -> None:
         chips.append("News hidden")
     render_filter_chips(chips)
 
-    clear_actions: list[tuple[str, dict[str, Any]]] = []
-    if overview_query.strip():
-        clear_actions.append(("search", {"overview_search": ""}))
-    if set(overview_platforms) != set(overview_defaults["overview_platforms"]):
-        clear_actions.append(("platform", {"overview_platforms": overview_defaults["overview_platforms"]}))
-    if featured_source != overview_defaults["overview_featured_source"]:
-        clear_actions.append(("featured", {"overview_featured_source": overview_defaults["overview_featured_source"]}))
-    if int(overview_market_rows) != int(overview_defaults["overview_market_rows"]):
-        clear_actions.append(("cards", {"overview_market_rows": overview_defaults["overview_market_rows"]}))
-    if include_categories:
-        clear_actions.append(("include", {"overview_include_categories": []}))
-    if set(exclude_categories) != set(overview_defaults["overview_exclude_categories"]):
-        clear_actions.append(("exclude", {"overview_exclude_categories": overview_defaults["overview_exclude_categories"]}))
-    if int(overview_min_volume) > 0:
-        clear_actions.append(("volume", {"overview_min_volume": 0}))
-    if int(overview_min_liquidity) > 0:
-        clear_actions.append(("liquidity", {"overview_min_liquidity": 0}))
-    if int(overview_min_flow) > 0:
-        clear_actions.append(("flow", {"overview_min_flow_notional": 0}))
-    if active_only:
-        clear_actions.append(("active markets", {"overview_active_only": False}))
-    if not show_news:
-        clear_actions.append(("news", {"overview_show_news": True}))
-    render_filter_clear_buttons(clear_actions, "overview")
     if st.session_state.saved_overview_filters:
         st.caption(f"Saved overview views: {len(st.session_state.saved_overview_filters)}")
         with st.expander("Saved overview filters", expanded=False):
