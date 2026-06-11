@@ -4001,7 +4001,7 @@ def page_search() -> None:
         tracked_only = f3.checkbox("Tracked only", key="search_tracked_only")
         broad_pairs = f4.checkbox("Fallback broad pairs", key="search_broad_pairs")
 
-    actions = st.columns([1, 1, 1, 1, 2])
+    actions = st.columns([1, 1, 1, 3])
     if actions[0].button("Run search", type="primary"):
         clean_query = query.strip()
         if clean_query:
@@ -4009,52 +4009,14 @@ def page_search() -> None:
             st.session_state.recent_searches = st.session_state.recent_searches[:12]
             save_local_list("recent_searches.json", st.session_state.recent_searches)
             st.rerun()
-    save_search_clicked = actions[1].button("Save Filter", width="stretch", key="save_search_filter_button")
-    if actions[2].button("Reset Filters", width="stretch", key="reset_search_filters_button"):
+    if actions[1].button("Reset Filters", width="stretch", key="reset_search_filters_button"):
         st.session_state["search_filters_reset_pending"] = True
         st.rerun()
-    if actions[3].button("Clear recents"):
+    if actions[2].button("Clear recents"):
         st.session_state.recent_searches = []
         save_local_list("recent_searches.json", st.session_state.recent_searches)
         st.rerun()
 
-    saved_search_name = st.text_input("Saved search view name", value=f"Search {md.now_utc_label()}", key="saved_search_view_name")
-    loaded_search_message = st.session_state.pop("search_view_loaded_message", "")
-    if loaded_search_message:
-        st.info(loaded_search_message)
-    if st.session_state.saved_search_filters:
-        load_cols = st.columns([2, 1, 1])
-        saved_labels = [
-            f"{i + 1}. {view.get('name') or view.get('query') or 'Search view'}"
-            for i, view in enumerate(st.session_state.saved_search_filters)
-        ]
-        selected_saved_search = load_cols[0].selectbox("Load saved search view", saved_labels, key="load_saved_search_view")
-        selected_search_view = st.session_state.saved_search_filters[saved_labels.index(selected_saved_search)]
-        if load_cols[1].button("Load search view", key="load_search_view_button"):
-            st.session_state["pending_search_filter_view"] = selected_search_view
-            st.session_state["search_view_loaded_message"] = f"Loaded saved search view: {selected_search_view.get('name', selected_saved_search)}"
-            st.rerun()
-        if load_cols[2].button("Delete search view", key="delete_search_view_button"):
-            st.session_state.saved_search_filters.pop(saved_labels.index(selected_saved_search))
-            save_local_list("saved_search_filters.json", st.session_state.saved_search_filters)
-            st.rerun()
-    if save_search_clicked:
-        st.session_state.saved_search_filters.append(
-            {
-                "name": saved_search_name.strip() or f"Search {md.now_utc_label()}",
-                "created_at": md.now_utc_label(),
-                "query": query,
-                "platforms": platforms,
-                "rows": int(rows),
-                "min_value": float(min_value),
-                "result_types": result_types,
-                "active_markets_only": bool(active_markets_only),
-                "tracked_only": bool(tracked_only),
-                "broad_pairs": bool(broad_pairs),
-            }
-        )
-        save_local_list("saved_search_filters.json", st.session_state.saved_search_filters)
-        st.success("Saved search view.")
     if st.session_state.recent_searches:
         st.caption("Recent searches: " + " | ".join(str(item) for item in st.session_state.recent_searches[:8]))
 
@@ -4185,35 +4147,6 @@ def page_search() -> None:
         search_chips.append("Broad pair fallback")
     search_chips.append(f"Rows: {rows}")
     render_filter_chips(search_chips)
-    search_defaults = search_filter_defaults(query_default)
-    all_search_types = set(search_defaults["search_result_types"])
-    search_clear_actions: list[tuple[str, dict[str, Any]]] = []
-    if query.strip():
-        search_clear_actions.append(("search", {"search_query": ""}))
-    if set(platforms) != set(search_defaults["search_platforms"]):
-        search_clear_actions.append(("platform", {"search_platforms": search_defaults["search_platforms"]}))
-    if set(result_types) != all_search_types:
-        search_clear_actions.append(("result types", {"search_result_types": search_defaults["search_result_types"]}))
-    if int(min_value) > 0:
-        search_clear_actions.append(("min value", {"search_min_value": 0}))
-    if active_markets_only:
-        search_clear_actions.append(("active markets", {"search_active_markets_only": False}))
-    if tracked_only:
-        search_clear_actions.append(("tracked only", {"search_tracked_only": False}))
-    if broad_pairs and query.strip():
-        search_clear_actions.append(("broad pairs", {"search_broad_pairs": False}))
-    if int(rows) != int(search_defaults["search_rows"]):
-        search_clear_actions.append(("rows", {"search_rows": search_defaults["search_rows"]}))
-    render_filter_clear_buttons(search_clear_actions, "search")
-    if st.session_state.saved_search_filters:
-        st.caption(f"Saved search views: {len(st.session_state.saved_search_filters)}")
-        with st.expander("Saved search filters", expanded=False):
-            st.dataframe(pd.DataFrame(st.session_state.saved_search_filters), width="stretch", height=160)
-            if st.button("Clear saved search filters"):
-                st.session_state.saved_search_filters = []
-                save_local_list("saved_search_filters.json", st.session_state.saved_search_filters)
-                st.rerun()
-
     tab_all, tab_markets, tab_traders, tab_trades, tab_news, tab_pairs, tab_alerts, tab_tracked = st.tabs(
         ["All", "Markets", "Traders", "Trades", "News", "Cross-Venue", "Alerts", "Tracked"]
     )
