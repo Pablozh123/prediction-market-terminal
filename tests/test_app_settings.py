@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 from app import app_settings as cfg
@@ -37,6 +38,15 @@ class AppSettingsTests(unittest.TestCase):
             path.write_text("{broken", encoding="utf-8")
             settings = cfg.load_settings(path)
         self.assertEqual(settings, cfg.DEFAULTS)
+
+    def test_env_overrides_beat_file_values(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "settings.json"
+            cfg.save_settings({"telegram_bot_token": "file-token", "telegram_chat_id": "1"}, path)
+            with unittest.mock.patch.dict("os.environ", {"TELEGRAM_BOT_TOKEN": "env-token"}):
+                settings = cfg.load_settings(path)
+        self.assertEqual(settings["telegram_bot_token"], "env-token")
+        self.assertEqual(settings["telegram_chat_id"], "1")
 
 
 class NotifyTests(unittest.TestCase):

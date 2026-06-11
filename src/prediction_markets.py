@@ -25,7 +25,6 @@ import requests
 POLY_GAMMA = "https://gamma-api.polymarket.com"
 POLY_DATA = "https://data-api.polymarket.com"
 POLY_CLOB = "https://clob.polymarket.com"
-PREDICTPARITY_API = "https://api-prod.predictparity.com/graphql"
 KALSHI_API = "https://external-api.kalshi.com/trade-api/v2"
 
 HTTP_HEADERS = {
@@ -35,7 +34,7 @@ HTTP_HEADERS = {
 
 TITLE_TOKEN_RE = re.compile(r"[a-z0-9]+")
 POLY_WALLET_RE = re.compile(r"^0x[a-fA-F0-9]{40}$")
-PREDICTPARITY_MONITOR_SIGNAL_TYPES = [
+MONITOR_SIGNAL_TYPES = [
     "Fast mover",
     "Volume anomaly",
     "Whale print",
@@ -44,7 +43,7 @@ PREDICTPARITY_MONITOR_SIGNAL_TYPES = [
     "Ending soon",
     "Watched market",
 ]
-PREDICTPARITY_SEARCH_RESULT_TYPES = ["Markets", "Traders", "Trades", "News", "Cross-Venue", "Alerts", "Tracked"]
+SEARCH_RESULT_TYPES = ["Markets", "Traders", "Trades", "News", "Cross-Venue", "Alerts", "Tracked"]
 
 
 class MarketDataError(RuntimeError):
@@ -54,17 +53,6 @@ class MarketDataError(RuntimeError):
 def _get_json(url: str, params: dict[str, Any] | None = None, timeout: int = 20) -> Any:
     try:
         response = requests.get(url, params=params, timeout=timeout, headers=HTTP_HEADERS)
-        response.raise_for_status()
-        return response.json()
-    except requests.RequestException as exc:
-        raise MarketDataError(f"{url} failed: {exc}") from exc
-    except ValueError as exc:
-        raise MarketDataError(f"{url} returned non-JSON data") from exc
-
-
-def _post_json(url: str, payload: Mapping[str, Any], params: dict[str, Any] | None = None, timeout: int = 20) -> Any:
-    try:
-        response = requests.post(url, params=params, json=dict(payload), timeout=timeout, headers=HTTP_HEADERS)
         response.raise_for_status()
         return response.json()
     except requests.RequestException as exc:
@@ -112,7 +100,7 @@ def _safe_ts(value: Any) -> pd.Timestamp | None:
         return None
     try:
         if isinstance(value, (int, float)):
-            # Polymarket uses epoch seconds; PredictParity chart points use epoch milliseconds.
+            # Polymarket uses epoch seconds; some feeds use epoch milliseconds.
             unit = "ms" if abs(float(value)) >= 1_000_000_000_000 else "s"
             return pd.to_datetime(value, unit=unit, utc=True)
         return pd.to_datetime(value, utc=True)
@@ -385,7 +373,7 @@ def resolution_stats(closed_markets: pd.DataFrame) -> pd.DataFrame:
 
 
 def add_market_filter_metrics(markets: pd.DataFrame, now: pd.Timestamp | None = None) -> pd.DataFrame:
-    """Add scanner metrics used by PredictParity-style filters."""
+    """Add scanner metrics used by filters."""
 
     if markets.empty:
         return markets
@@ -467,7 +455,7 @@ def resolution_yield_summary(
 
 
 def market_detail_header_metrics(row: Any, now: Any | None = None) -> dict[str, Any]:
-    """Return the PredictParity-style metric set for a market detail header."""
+    """Return the metric set for a market detail header."""
 
     get = row.get if hasattr(row, "get") else lambda key, default=None: default
 
@@ -615,7 +603,7 @@ def get_polymarket_orderbook(token_id: str, depth: int = 25) -> tuple[pd.DataFra
 
 
 def orderbook_ladder(bids: pd.DataFrame, asks: pd.DataFrame, depth: int = 25) -> pd.DataFrame:
-    """Build a Parity-style cumulative Price/Shares/Total orderbook ladder."""
+    """Build a cumulative Price/Shares/Total orderbook ladder."""
 
     frames: list[pd.DataFrame] = []
     for side, source, ascending in (("Bid", bids, False), ("Ask", asks, True)):
@@ -748,15 +736,6 @@ def x_profile_url(username: Any) -> str:
     return f"https://x.com/{handle}" if re.fullmatch(r"[A-Za-z0-9_]{1,15}", handle) else ""
 
 
-def predictparity_trader_url(handle: Any) -> str:
-    text = normalize_profile_query(handle)
-    if not text or is_polymarket_wallet(text):
-        return ""
-    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", text):
-        return ""
-    return f"https://predictparity.com/traders/p/@{quote_plus(text)}"
-
-
 def normalize_profile_query(value: Any) -> str:
     """Normalize profile handles, URLs, and addresses for exact profile lookup."""
     text = str(value or "").strip()
@@ -852,8 +831,8 @@ def _percent_param(value: float | None) -> int | None:
     return int(max(0, min(100, round(value))))
 
 
-def predictparity_market_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
-    """Translate PredictParity-style market query params into local filter state."""
+def market_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
+    """Translate market query params into local filter state."""
 
     view: dict[str, Any] = {}
     query = _query_param_value(params, "q", "query", "search")
@@ -941,8 +920,8 @@ def predictparity_market_filter_view(params: Mapping[str, Any]) -> dict[str, Any
     return view
 
 
-def predictparity_overview_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
-    """Translate PredictParity-style dashboard query params into local filter state."""
+def overview_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
+    """Translate dashboard query params into local filter state."""
 
     view: dict[str, Any] = {}
     query = _query_param_value(params, "q", "query", "search", "market", "event")
@@ -994,8 +973,8 @@ def predictparity_overview_filter_view(params: Mapping[str, Any]) -> dict[str, A
     return view
 
 
-def predictparity_search_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
-    """Translate PredictParity-style search query params into local filter state."""
+def search_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
+    """Translate search query params into local filter state."""
 
     view: dict[str, Any] = {}
     query = _query_param_value(params, "q", "query", "search")
@@ -1007,7 +986,7 @@ def predictparity_search_filter_view(params: Mapping[str, Any]) -> dict[str, Any
     if platforms:
         view["platforms"] = platforms
 
-    result_lookup = {item.lower().replace("_", " ").replace("-", " "): item for item in PREDICTPARITY_SEARCH_RESULT_TYPES}
+    result_lookup = {item.lower().replace("_", " ").replace("-", " "): item for item in SEARCH_RESULT_TYPES}
     result_types: list[str] = []
     for item in _query_list(params, "type", "types", "result", "results"):
         key = item.lower().replace("_", " ").replace("-", " ")
@@ -1037,8 +1016,8 @@ def predictparity_search_filter_view(params: Mapping[str, Any]) -> dict[str, Any
     return view
 
 
-def predictparity_trader_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
-    """Translate PredictParity-style trader query params into local filter state."""
+def trader_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
+    """Translate trader query params into local filter state."""
 
     view: dict[str, Any] = {}
     if _query_bool(params, "bot", "bots", "botLike"):
@@ -1080,8 +1059,8 @@ def predictparity_trader_filter_view(params: Mapping[str, Any]) -> dict[str, Any
     return view
 
 
-def predictparity_live_trade_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
-    """Translate PredictParity-style live-trade query params into local filter state."""
+def live_trade_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
+    """Translate live-trade query params into local filter state."""
 
     view: dict[str, Any] = {}
     query = _query_param_value(params, "q", "query", "search", "wallet", "market")
@@ -1115,8 +1094,8 @@ def predictparity_live_trade_filter_view(params: Mapping[str, Any]) -> dict[str,
     return view
 
 
-def predictparity_track_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
-    """Translate PredictParity-style tracking hub query params into local filter state."""
+def track_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
+    """Translate tracking hub query params into local filter state."""
 
     view: dict[str, Any] = {}
     query = _query_param_value(params, "q", "query", "search", "wallet", "market")
@@ -1147,10 +1126,10 @@ def predictparity_track_filter_view(params: Mapping[str, Any]) -> dict[str, Any]
     return view
 
 
-def predictparity_whale_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
-    """Translate PredictParity-style whale-flow query params into local filter state."""
+def whale_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
+    """Translate whale-flow query params into local filter state."""
 
-    view = predictparity_live_trade_filter_view(params)
+    view = live_trade_filter_view(params)
 
     min_notional = _query_float(params, "minNotional", "notionalMin", "minPrint", "printMin", "whaleMin")
     if min_notional is not None:
@@ -1174,8 +1153,8 @@ def predictparity_whale_filter_view(params: Mapping[str, Any]) -> dict[str, Any]
     return view
 
 
-def predictparity_cross_venue_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
-    """Translate PredictParity-style cross-venue query params into local filter state."""
+def cross_venue_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
+    """Translate cross-venue query params into local filter state."""
 
     view: dict[str, Any] = {}
     query = _query_param_value(params, "q", "query", "search", "market", "event")
@@ -1223,8 +1202,8 @@ def predictparity_cross_venue_filter_view(params: Mapping[str, Any]) -> dict[str
     return view
 
 
-def predictparity_monitor_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
-    """Translate PredictParity-style monitor query params into local filter state."""
+def monitor_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
+    """Translate monitor query params into local filter state."""
 
     view: dict[str, Any] = {}
     query = _query_param_value(params, "q", "query", "search", "wallet", "market")
@@ -1236,7 +1215,7 @@ def predictparity_monitor_filter_view(params: Mapping[str, Any]) -> dict[str, An
     if platforms:
         view["platforms"] = platforms
 
-    signal_lookup = {item.lower().replace("_", " ").replace("-", " "): item for item in PREDICTPARITY_MONITOR_SIGNAL_TYPES}
+    signal_lookup = {item.lower().replace("_", " ").replace("-", " "): item for item in MONITOR_SIGNAL_TYPES}
     signal_types: list[str] = []
     for item in _query_list(params, "signal", "signals", "type", "types"):
         key = item.lower().replace("_", " ").replace("-", " ")
@@ -1286,18 +1265,18 @@ def predictparity_monitor_filter_view(params: Mapping[str, Any]) -> dict[str, An
     return view
 
 
-def predictparity_alert_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
-    """Translate PredictParity-style alert query params into local filter state."""
+def alert_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
+    """Translate alert query params into local filter state."""
 
-    view = predictparity_monitor_filter_view(params)
+    view = monitor_filter_view(params)
     hits_only = _query_param_value(params, "hitsOnly", "hits", "rulesOnly").lower()
     if hits_only:
         view["hits_only"] = hits_only in {"1", "true", "yes", "y", "on"}
     return view
 
 
-def predictparity_resolved_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
-    """Translate PredictParity-style resolved-market query params into local filter state."""
+def resolved_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
+    """Translate resolved-market query params into local filter state."""
 
     view: dict[str, Any] = {}
     query = _query_param_value(params, "q", "query", "search", "market", "event")
@@ -1387,8 +1366,8 @@ def predictparity_resolved_filter_view(params: Mapping[str, Any]) -> dict[str, A
     return view
 
 
-def predictparity_portfolio_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
-    """Translate PredictParity-style portfolio query params into local filter state."""
+def portfolio_filter_view(params: Mapping[str, Any]) -> dict[str, Any]:
+    """Translate portfolio query params into local filter state."""
 
     view: dict[str, Any] = {}
     query = _query_param_value(params, "q", "query", "search", "wallet", "market")
@@ -1675,266 +1654,6 @@ def get_polymarket_leaderboard(
     return df[[c for c in cols if c in df.columns]].sort_values("rank").reset_index(drop=True)
 
 
-def get_predictparity_traders(
-    limit: int = 100,
-    offset: int = 0,
-    sort_by: str = "pnl",
-    sort_order: str = "desc",
-    search: str = "",
-    min_active_positions: float = 0.0,
-    platform: str = "polymarket",
-) -> pd.DataFrame:
-    """Return PredictParity's public trader leaderboard rows."""
-
-    clean_sort = str(sort_by or "pnl").strip().lower()
-    if clean_sort in {"vol", "volume", "alltimevolume"}:
-        clean_sort = "volume"
-    elif clean_sort not in {"pnl", "volume"}:
-        clean_sort = "pnl"
-    clean_order = "asc" if str(sort_order or "").strip().lower() == "asc" else "desc"
-    variables: dict[str, Any] = {
-        "limit": max(1, int(limit)),
-        "offset": max(0, int(offset)),
-        "sortBy": clean_sort,
-        "sortOrder": clean_order,
-        "filtersInput": {
-            "minActivePositions": max(0.0, float(min_active_positions)),
-            "platforms": [str(platform or "polymarket").lower()],
-        },
-    }
-    if str(search or "").strip():
-        variables["search"] = str(search or "").strip()
-    query = """
-    query GetTraders($limit: Int, $offset: Int, $sortBy: String, $sortOrder: String, $search: String, $filtersInput: TraderFiltersInput) {
-      traders(
-        limit: $limit
-        offset: $offset
-        sortBy: $sortBy
-        sortOrder: $sortOrder
-        search: $search
-        filtersInput: $filtersInput
-      ) {
-        data {
-          id
-          platform
-          platformId
-          username
-          displayName
-          customDisplayName
-          profileImageUrl
-          isVerified
-          socialTwitter
-          badges {
-            isBot
-            activePositionsCount
-            assetLevelMicrodollars
-            pnlLevelMicrodollars
-          }
-          analytics {
-            allTimeVolume
-            allTimePnl
-            rank
-          }
-          onchain {
-            usdcBalance
-            accountAgeDays
-          }
-          traits {
-            winRate { percentage }
-            activePositions { microdollars }
-            usdcBalanceMicrodollars
-          }
-        }
-        hasMore
-      }
-    }
-    """
-    response = _post_json(
-        PREDICTPARITY_API,
-        {"operationName": "GetTraders", "variables": variables, "query": query},
-        params={"op": "GetTraders"},
-    )
-    rows = ((((response or {}).get("data") or {}).get("traders") or {}).get("data") or [])
-    normalized: list[dict[str, Any]] = []
-    for item in rows:
-        if not isinstance(item, Mapping):
-            continue
-        analytics = item.get("analytics") or {}
-        onchain = item.get("onchain") or {}
-        traits = item.get("traits") or {}
-        badges = item.get("badges") or {}
-        active = traits.get("activePositions") or {}
-        wallet = str(item.get("platformId") or "")
-        platform_name = str(item.get("platform") or platform or "polymarket")
-        display_name = str(item.get("customDisplayName") or item.get("displayName") or item.get("username") or "")
-        normalized.append(
-            {
-                "parity_id": item.get("id") or "",
-                "rank": int(_num(analytics.get("rank"), len(normalized) + 1) or len(normalized) + 1),
-                "platform": "Polymarket" if platform_name.lower() == "polymarket" else platform_name.title(),
-                "username": str(item.get("username") or ""),
-                "trader": display_name or _short_identity(wallet),
-                "wallet": wallet,
-                "pnl": _num(analytics.get("allTimePnl"), 0.0) or 0.0,
-                "volume": _num(analytics.get("allTimeVolume"), 0.0) or 0.0,
-                "x_username": str(item.get("socialTwitter") or ""),
-                "verified": bool(item.get("isVerified") or badges.get("verified") or False),
-                "profileImage": str(item.get("profileImageUrl") or ""),
-                "win_rate": (_num((traits.get("winRate") or {}).get("percentage")) or 0.0) / 100.0,
-                "positions_value": (_num(active.get("microdollars"), 0.0) or 0.0) / 1_000_000.0,
-                "open_positions": int(_num(badges.get("activePositionsCount"), 0.0) or 0),
-                "open_markets": int(_num(badges.get("activePositionsCount"), 0.0) or 0),
-                "cash_balance": _num(onchain.get("usdcBalance"))
-                if _num(onchain.get("usdcBalance")) is not None
-                else (_num(traits.get("usdcBalanceMicrodollars"), 0.0) or 0.0) / 1_000_000.0,
-                "account_age_days": _num(onchain.get("accountAgeDays")),
-                "is_bot": bool(badges.get("isBot") or False),
-                "source": "PredictParity",
-            }
-        )
-    frame = pd.DataFrame(normalized)
-    if frame.empty:
-        return frame
-    frame["assets_value"] = pd.to_numeric(frame["positions_value"], errors="coerce").fillna(0.0) + pd.to_numeric(
-        frame["cash_balance"], errors="coerce"
-    ).fillna(0.0)
-    sort_column = "volume" if clean_sort == "volume" else "pnl"
-    return frame.sort_values(sort_column, ascending=clean_order == "asc").reset_index(drop=True)
-
-
-def get_predictparity_trader_profile(identifier: str, platform: str = "polymarket") -> dict[str, Any]:
-    """Return public PredictParity trader-profile metrics for parity display."""
-
-    clean_identifier = str(identifier or "").strip()
-    if not clean_identifier:
-        return {}
-    resolve_payload = {
-        "operationName": "ResolveTrader",
-        "variables": {"identifier": clean_identifier, "platform": platform},
-        "query": (
-            "query ResolveTrader($identifier: String!, $platform: Platform) { "
-            "resolveTrader(identifier: $identifier, platform: $platform) { id platform } }"
-        ),
-    }
-    resolved = _post_json(PREDICTPARITY_API, resolve_payload, params={"op": "ResolveTrader"})
-    trader_id = (((resolved or {}).get("data") or {}).get("resolveTrader") or {}).get("id")
-    if not trader_id:
-        return {}
-
-    trader_query = """
-    query GetTrader($id: ID!) {
-      trader(id: $id) {
-        id
-        platform
-        platformId
-        username
-        displayName
-        platformAccountCreatedAt
-        lastSyncedAt
-        analytics { allTimeVolume allTimePnl rank }
-        onchain {
-          usdcBalance
-          firstTransactionDate
-          firstFundingAmount
-          firstFundingSource
-          firstFundingTxHash
-          accountAgeDays
-        }
-        traits {
-          winRate { percentage }
-          activePositions { microdollars }
-          usdcBalanceMicrodollars
-        }
-      }
-    }
-    """
-    profile = _post_json(
-        PREDICTPARITY_API,
-        {"operationName": "GetTrader", "variables": {"id": trader_id}, "query": trader_query},
-        params={"op": "GetTrader"},
-    )
-    trader = ((profile or {}).get("data") or {}).get("trader") or {}
-    if not trader:
-        return {}
-    analytics = trader.get("analytics") or {}
-    onchain = trader.get("onchain") or {}
-    traits = trader.get("traits") or {}
-    active = traits.get("activePositions") or {}
-    return {
-        "id": trader.get("id") or trader_id,
-        "platform": trader.get("platform") or platform,
-        "wallet": trader.get("platformId") or "",
-        "username": trader.get("username") or "",
-        "display_name": trader.get("displayName") or trader.get("username") or "",
-        "account_created_at": _safe_ts(trader.get("platformAccountCreatedAt")),
-        "last_synced_at": _safe_ts(trader.get("lastSyncedAt")),
-        "all_time_volume": _num(analytics.get("allTimeVolume"), 0.0) or 0.0,
-        "all_time_pnl": _num(analytics.get("allTimePnl"), 0.0) or 0.0,
-        "rank": int(_num(analytics.get("rank"), 0.0) or 0),
-        "usdc_balance": _num(onchain.get("usdcBalance")),
-        "first_transaction_date": _safe_ts(onchain.get("firstTransactionDate")),
-        "first_funding_amount": _num(onchain.get("firstFundingAmount")),
-        "first_funding_source": str(onchain.get("firstFundingSource") or ""),
-        "first_funding_tx_hash": str(onchain.get("firstFundingTxHash") or ""),
-        "account_age_days": _num(onchain.get("accountAgeDays")),
-        "win_rate": (_num((traits.get("winRate") or {}).get("percentage")) or 0.0) / 100.0,
-        "active_positions_value": (_num(active.get("microdollars"), 0.0) or 0.0) / 1_000_000.0,
-        "usdc_balance_from_traits": (_num(traits.get("usdcBalanceMicrodollars"), 0.0) or 0.0) / 1_000_000.0,
-    }
-
-
-def get_predictparity_trader_pnl_chart(trader_id: str, window: str = "1w") -> pd.DataFrame:
-    """Return PredictParity's public trader PnL chart points."""
-
-    clean_id = str(trader_id or "").strip()
-    if not clean_id:
-        return pd.DataFrame(columns=["time", "pnl", "series", "source"])
-    range_value = str(window or "1w")
-    if range_value.casefold() == "all":
-        range_value = "all"
-    if range_value not in {"1d", "1w", "1mo", "all"}:
-        range_value = "1w"
-    chart_query = """
-    query GetTraderPnlChart($traderId: ID!, $range: String) {
-      traderPnlChart(traderId: $traderId, range: $range) {
-        range
-        dataPoints {
-          timestamp
-          totalPnl
-        }
-      }
-    }
-    """
-    response = _post_json(
-        PREDICTPARITY_API,
-        {
-            "operationName": "GetTraderPnlChart",
-            "variables": {"traderId": clean_id, "range": range_value},
-            "query": chart_query,
-        },
-        params={"op": "GetTraderPnlChart"},
-    )
-    chart = (((response or {}).get("data") or {}).get("traderPnlChart") or {})
-    points = chart.get("dataPoints") or []
-    rows: list[dict[str, Any]] = []
-    for point in points:
-        if not isinstance(point, Mapping):
-            continue
-        rows.append(
-            {
-                "time": _safe_ts(point.get("timestamp")),
-                "pnl": _num(point.get("totalPnl"), 0.0) or 0.0,
-                "series": "Total PnL",
-                "source": "PredictParity",
-            }
-        )
-    frame = pd.DataFrame(rows, columns=["time", "pnl", "series", "source"])
-    if frame.empty:
-        return frame
-    frame = frame.dropna(subset=["time"]).sort_values("time").reset_index(drop=True)
-    return frame
-
-
 def merge_profile_position_values(profiles: pd.DataFrame, position_values: pd.DataFrame) -> pd.DataFrame:
     """Attach open-position value columns to profile search/leaderboard rows."""
 
@@ -1973,7 +1692,7 @@ def wallet_profile_tab_labels(
     activity: pd.DataFrame,
     cap: int = 100,
 ) -> list[str]:
-    """Return PredictParity-style wallet profile tab labels with compact counts."""
+    """Return wallet profile tab labels with compact counts."""
 
     def label_count(value: int) -> str:
         count = max(0, int(value))
@@ -1991,7 +1710,7 @@ def wallet_profile_tab_labels(
 
 
 def wallet_position_status_value(status: Any) -> str:
-    """Map Parity-facing wallet position statuses onto local row statuses."""
+    """Map wallet position status filter values onto local row statuses."""
 
     text = str(status or "").strip().casefold()
     if text in {"active", "open"}:
@@ -2002,7 +1721,7 @@ def wallet_position_status_value(status: Any) -> str:
 
 
 def filter_wallet_positions_by_status(positions: pd.DataFrame, status: Any) -> pd.DataFrame:
-    """Filter combined wallet positions by a PredictParity-style status label."""
+    """Filter combined wallet positions by a status label."""
 
     if positions.empty or "status" not in positions:
         return positions.copy()
@@ -2251,7 +1970,7 @@ def get_polymarket_market_positions(
     limit: int = 100,
     offset: int = 0,
 ) -> pd.DataFrame:
-    """Fetch PredictParity-style top market positions grouped by outcome.
+    """Fetch top market positions grouped by outcome.
 
     Polymarket's v1 market-positions endpoint returns current and historical
     participants for one condition ID, including realized, unrealized, and total
@@ -2354,7 +2073,7 @@ def enrich_market_holders(
     yes_price: Any,
     no_price: Any,
 ) -> pd.DataFrame:
-    """Add PredictParity-style holder metrics from public holder and trade data."""
+    """Add holder metrics from public holder and trade data."""
 
     if holders.empty:
         return holders
@@ -2422,7 +2141,7 @@ def enrich_market_holders(
 
 
 def holder_side_panels(holders: pd.DataFrame, top_n: int = 25) -> dict[str, pd.DataFrame]:
-    """Split enriched holder rows into PredictParity-style Yes/No panels."""
+    """Split enriched holder rows into Yes/No panels."""
     panel_columns = ["trader", "wallet", "outcome", "shares", "value", "activity", "activity_time", "verified"]
     empty = pd.DataFrame(columns=panel_columns)
     if holders.empty:
@@ -2820,7 +2539,7 @@ def relative_time_label(value: Any, now: Any | None = None) -> str:
 
 
 def compact_elapsed_label(value: Any, now: Any | None = None) -> str:
-    """Format elapsed time for Parity-style labels like "now" or "3m"."""
+    """Format elapsed time as compact labels like "now" or "3m"."""
 
     timestamp = _safe_ts(value)
     if timestamp is None or pd.isna(timestamp):
@@ -2839,7 +2558,7 @@ def compact_elapsed_label(value: Any, now: Any | None = None) -> str:
 
 
 def filter_pnl_curve_window(curve: pd.DataFrame, window: str = "1w", now: Any | None = None) -> pd.DataFrame:
-    """Filter wallet PnL curve rows to a PredictParity-style chart window."""
+    """Filter wallet PnL curve rows to a chart window."""
 
     if curve.empty:
         return curve.copy()
@@ -2855,7 +2574,7 @@ def filter_pnl_curve_window(curve: pd.DataFrame, window: str = "1w", now: Any | 
 
 
 def pnl_window_label(window: Any) -> str:
-    """Return the human label PredictParity shows above profile PnL charts."""
+    """Return the human label shown above profile PnL charts."""
 
     labels = {
         "1d": "Past day",
@@ -3443,7 +3162,7 @@ def apply_trader_trait_filters(
     whale_score_min: float = 65,
     whale_volume_min: float = 1_000_000,
 ) -> pd.DataFrame:
-    """Apply PredictParity-style quick trader trait filters."""
+    """Apply quick trader trait filters."""
 
     if leaderboard.empty:
         return leaderboard.copy()
@@ -3485,7 +3204,7 @@ def apply_trader_trait_filters(
 
 
 def cycle_featured_index(current_index: Any, total_items: int, step: int = 0) -> int:
-    """Return a wrapped carousel index for a PredictParity-style featured strip."""
+    """Return a wrapped carousel index for a featured strip."""
 
     if total_items <= 0:
         return 0
@@ -3817,7 +3536,7 @@ def market_category_chip_options(
     show_all: bool = False,
     column: str = "category",
 ) -> list[dict[str, Any]]:
-    """Build PredictParity-style category chip labels with include/exclude state."""
+    """Build category chip labels with include/exclude state."""
 
     include = {str(item).strip() for item in include_categories if str(item).strip()}
     exclude = {str(item).strip() for item in exclude_categories if str(item).strip()}
@@ -3990,7 +3709,7 @@ def tracked_trader_rows(
     flow_scores: pd.DataFrame | None = None,
     position_values: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
-    """Build a PredictParity-style tracked-trader table from followed wallets."""
+    """Build a tracked-trader table from followed wallets."""
 
     rows: list[dict[str, Any]] = []
     seen: set[str] = set()

@@ -1500,7 +1500,7 @@ def rank_traders_by_roi(
     """Rank leaderboard rows by ROI, applying the discovery thresholds.
 
     Expects ``pnl`` and ``volume`` columns (as produced by
-    ``prediction_markets.get_predictparity_traders`` / ``get_polymarket_leaderboard``);
+    ``prediction_markets.get_polymarket_leaderboard``);
     ``win_rate`` and ``is_bot`` are honoured when present.
     """
     if traders is None or traders.empty:
@@ -1533,7 +1533,7 @@ def suggest_traders(
     exclude_bots: bool = True,
 ) -> pd.DataFrame:
     """Fetch the public leaderboard and rank it by smart score for discovery."""
-    traders = md.get_predictparity_traders(limit=limit)
+    traders = md.get_polymarket_leaderboard(limit=limit, time_period="ALL", order_by="PNL")
     return rank_traders_by_smart_score(
         traders,
         min_volume=min_volume,
