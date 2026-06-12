@@ -1070,5 +1070,170 @@ class TraderDiscoveryTests(unittest.TestCase):
         self.assertAlmostEqual(float(skill["rank_score"]), 0.5)
 
 
+def rtds_message(
+    *,
+    wallet: str = ct.COPY_TARGET_WALLET,
+    tx: str = "0xws1",
+    asset: str = "asset-ws",
+    side: str = "BUY",
+    price: float = 0.4,
+    size: float = 500.0,
+    timestamp: int = 1779900100,
+    as_list: bool = False,
+) -> dict:
+    payload = {
+        "proxyWallet": wallet,
+        "side": side,
+        "asset": asset,
+        "conditionId": "cond-ws",
+        "price": price,
+        "size": size,
+        "timestamp": timestamp,
+        "title": "WS market",
+        "outcome": "Yes",
+        "transactionHash": tx,
+        "eventSlug": "ws-market",
+    }
+    return {"topic": "activity", "type": "trades", "payload": [payload] if as_list else payload}
+
+
+class WsDetectionTests(unittest.TestCase):
+    """RTDS WebSocket detection: decode, listener dedup, apply, cross-path dedup."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.db_path = Path(self.tmp.name) / "copy.sqlite"
+        self.settings = ct.CopySettings(trade_limit=20)
+        ct.reset_paper_portfolio(db_path=self.db_path)
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def _seed(self, baseline_cutoff: int = 0) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            ct._set_meta(conn, "tony_seeded_at", ct.utc_now())
+            ct._set_meta(conn, "baseline_cutoff_ts", str(baseline_cutoff))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def test_subscribe_payload_targets_global_trade_firehose(self) -> None:
+        payload = ct.rtds_subscribe_payload()
+        self.assertEqual(payload["action"], "subscribe")
+        self.assertEqual(payload["subscriptions"], [{"topic": "activity", "type": "trades", "filters": ""}])
+
+    def test_decode_rtds_trade_matches_target_wallet(self) -> None:
+        trade = ct.decode_rtds_trade(rtds_message(), [ct.COPY_TARGET_WALLET])
+        self.assertIsNotNone(trade)
+        self.assertEqual(trade["source"], "rtds_ws")
+        self.assertEqual(trade["side"], "BUY")
+        self.assertEqual(trade["asset"], "asset-ws")
+        self.assertEqual(trade["transaction_hash"], "0xws1")
+        self.assertEqual(trade["market_key"], "cond-ws")
+        self.assertAlmostEqual(trade["price"], 0.4)
+        self.assertAlmostEqual(trade["size"], 500.0)
+        self.assertAlmostEqual(trade["notional"], 200.0)
+        self.assertEqual(trade["timestamp"], 1779900100)
+
+    def test_decode_rtds_trade_ignores_other_wallets_and_junk(self) -> None:
+        self.assertIsNone(ct.decode_rtds_trade(rtds_message(wallet="0x" + "9" * 40), [ct.COPY_TARGET_WALLET]))
+        self.assertIsNone(ct.decode_rtds_trade(rtds_message(side="REDEEM"), [ct.COPY_TARGET_WALLET]))
+        self.assertIsNone(ct.decode_rtds_trade(rtds_message(price=0.0), [ct.COPY_TARGET_WALLET]))
+        self.assertIsNone(ct.decode_rtds_trade({"topic": "crypto_prices", "payload": {}}, [ct.COPY_TARGET_WALLET]))
+        self.assertIsNone(ct.decode_rtds_trade("not-a-mapping", [ct.COPY_TARGET_WALLET]))
+
+    def test_decode_rtds_trade_accepts_flat_messages(self) -> None:
+        flat = rtds_message()["payload"]
+        trade = ct.decode_rtds_trade(flat, [ct.COPY_TARGET_WALLET.upper()])
+        self.assertIsNotNone(trade)
+        self.assertEqual(trade["wallet"], ct.COPY_TARGET_WALLET)
+
+    def test_listener_handle_message_dedups_and_drains(self) -> None:
+        listener = ct.RtdsTradeListener([ct.COPY_TARGET_WALLET])
+        import json as _json
+
+        raw = _json.dumps(rtds_message(as_list=True))
+        self.assertEqual(listener.handle_message(raw), 1)
+        self.assertEqual(listener.handle_message(raw), 0)
+        trades = listener.drain()
+        self.assertEqual(len(trades), 1)
+        self.assertEqual(listener.drain(), [])
+        status = listener.status()
+        self.assertEqual(status["matched"], 1)
+        self.assertEqual(status["messages"], 2)
+
+    def test_apply_ws_trades_copies_after_baseline(self) -> None:
+        self._seed(baseline_cutoff=0)
+        trade = ct.decode_rtds_trade(rtds_message(), [ct.COPY_TARGET_WALLET])
+        results = ct.apply_ws_trades([trade], settings=self.settings, db_path=self.db_path)
+        combined = ct.aggregate_sync_results(results)
+        self.assertEqual(combined.copied, 1)
+        self.assertEqual(combined.source, "ws")
+
+    def test_apply_ws_trades_marks_pre_baseline_as_observed(self) -> None:
+        self._seed(baseline_cutoff=1779900100)
+        trade = ct.decode_rtds_trade(rtds_message(timestamp=1779900100), [ct.COPY_TARGET_WALLET])
+        results = ct.apply_ws_trades([trade], settings=self.settings, db_path=self.db_path)
+        combined = ct.aggregate_sync_results(results)
+        self.assertEqual(combined.copied, 0)
+        self.assertEqual(combined.skipped, 1)
+        conn = ct.connect(self.db_path)
+        try:
+            row = conn.execute("SELECT status FROM paper_orders WHERE source_tx = '0xws1'").fetchone()
+        finally:
+            conn.close()
+        self.assertEqual(row["status"], "seed_observed")
+
+    def test_apply_ws_trades_skips_unseeded_database(self) -> None:
+        trade = ct.decode_rtds_trade(rtds_message(), [ct.COPY_TARGET_WALLET])
+        results = ct.apply_ws_trades([trade], settings=self.settings, db_path=self.db_path)
+        combined = ct.aggregate_sync_results(results)
+        self.assertEqual(combined.copied, 0)
+        self.assertEqual(combined.skipped, 1)
+        conn = ct.connect(self.db_path)
+        try:
+            count = conn.execute("SELECT COUNT(*) AS n FROM paper_orders").fetchone()["n"]
+        finally:
+            conn.close()
+        self.assertEqual(count, 0)
+
+    def test_chain_reconciliation_skips_fill_already_copied_via_ws(self) -> None:
+        self._seed(baseline_cutoff=0)
+        ws_trade = ct.decode_rtds_trade(rtds_message(), [ct.COPY_TARGET_WALLET])
+        ct.apply_ws_trades([ws_trade], settings=self.settings, db_path=self.db_path)
+        # The on-chain log reports the same economic fill ~2s later with block
+        # timestamp and recomputed price — a different dedup_key, same fill.
+        chain_trade = {
+            "transaction_hash": "0xws1",
+            "asset": "asset-ws",
+            "side": "BUY",
+            "price": 0.4000001,
+            "size": 500.0,
+            "timestamp": 1779900102,
+            "source": "polygon_order_filled",
+            "wallet": ct.COPY_TARGET_WALLET,
+        }
+        conn = ct.connect(self.db_path)
+        try:
+            order = ct.apply_paper_trade(conn, chain_trade, ct.CopySettings(target_wallet=ct.COPY_TARGET_WALLET))
+            count = conn.execute(
+                "SELECT COUNT(*) AS n FROM paper_orders WHERE source_tx = '0xws1' AND source_side = 'BUY'"
+            ).fetchone()["n"]
+        finally:
+            conn.close()
+        self.assertEqual(order.status, "duplicate")
+        self.assertEqual(order.reason, "duplicate_fill")
+        self.assertEqual(count, 1)
+
+    def test_distinct_fills_in_same_transaction_are_not_deduped(self) -> None:
+        self._seed(baseline_cutoff=0)
+        first = ct.decode_rtds_trade(rtds_message(asset="asset-a"), [ct.COPY_TARGET_WALLET])
+        second = ct.decode_rtds_trade(rtds_message(asset="asset-b"), [ct.COPY_TARGET_WALLET])
+        results = ct.apply_ws_trades([first, second], settings=self.settings, db_path=self.db_path)
+        combined = ct.aggregate_sync_results(results)
+        self.assertEqual(combined.copied, 2)
+
+
 if __name__ == "__main__":
     unittest.main()
