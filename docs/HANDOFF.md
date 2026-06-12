@@ -1,0 +1,114 @@
+# Handoff — Prediction Market Terminal
+
+Single entry point to continue this project from any machine. Stand: 2026-06-12.
+
+> Hinweis: Dies ist ein **legales Daten-/Analyse-Produkt** für öffentliche Polymarket-/Kalshi-Daten. Alle Rechtsthemen in den Plan-Dokumenten sind reine Compliance-Recherche für ein Memo — keine Umsetzung ohne Anwalt.
+
+---
+
+## 1. Was das Projekt ist
+
+Streamlit-Research-Terminal für Polymarket & Kalshi: Marktentdeckung, Trader-/Wallet-Research, Live-Flow, Whale/Insider-Risk-Screening, Backtesting, Alerts, Tracking, Portfolio und **Paper-only** Copy-Trading. Alle Daten aus öffentlichen APIs. Kein Live-Handel, keine Custody.
+
+- **Sprache/Stack:** Python 3.13/3.14, Streamlit 1.5x (Monolith `prediction_terminal.py`, ~11k Zeilen), pandas, plotly, networkx, websocket-client.
+- **Live lokal:** http://127.0.0.1:8503 (Windows Scheduled Task `MarketIntelTerminal`).
+- **Repo:** GitHub `Pablozh123/prediction-market-terminal`, Default-Branch `main`.
+- **Aktueller Stand:** main @ `274632b`, **241 Unit-Tests grün**, voll gepusht (lokal == origin).
+
+## 2. Schnellstart auf einer neuen Maschine
+
+```bash
+git clone https://github.com/Pablozh123/prediction-market-terminal.git
+cd prediction-market-terminal
+python -m pip install -r requirements.txt          # streamlit, requests, pandas, plotly, dnspython, networkx, websocket-client
+python -m streamlit run prediction_terminal.py --server.address=127.0.0.1 --server.port=8503
+```
+
+Hintergrund-Runner (optional, Paper-only):
+```bash
+python scripts/run_copy_trader.py     # Copy-Daemon: WS-Detection + On-Chain-Reconciliation + API/Settlement
+python scripts/run_alert_scanner.py   # Telegram-Alert-Scanner (Token via Env, siehe .env.example)
+```
+
+Produktion: `docker compose up -d --build` (Terminal + Alert-Scanner + Caddy). Siehe [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md).
+
+Verifikation:
+```bash
+python -m py_compile prediction_terminal.py src/prediction_markets.py src/copy_trading.py
+python -m unittest discover -s tests          # ~241 Tests
+python scripts/visual_smoke.py --base-url http://127.0.0.1:8503   # Playwright via System-Chrome
+```
+
+## 3. Strategie-/Plan-Dokumente (alles recherchiert, mit Quellen)
+
+| Doc | Inhalt |
+|---|---|
+| [LAUNCH_PLAN.md](LAUNCH_PLAN.md) | Kalshi behalten (Builders-Bewerbung), Polymarket-ToS/Limits (Builder-Profil), **Auth-Outsourcing** (st.login + Google → Auth0), CH-Firmenstruktur (Einzelfirma→GmbH, Geoblocking, kein Auslands-Wrapper) |
+| [LIVE_COPYTRADING_PLAN.md](LIVE_COPYTRADING_PLAN.md) | **Speed** (WS statt On-Chain), Wallet-Connect (React-Komponente + SIWE), Live-Copy non-custodial (Builder-Program, maker/signer, **BGS Art. 130 → Anwalt zwingend**), Krypto-Zahlung |
+| [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) | Hosting (Hetzner VPS + Docker + Caddy + Cloudflare ~CHF 6-8/Mo), Security-Checkliste, CH-Recht, API-Limits, Einkaufsliste |
+
+## 4. Roadmap — was fehlt noch
+
+**Sofort baubar, kein Rechtsrisiko:**
+1. ✅ **Speed Schritt 1** — WS-Detection (RTDS `activity/trades`) — ERLEDIGT (PR #26/#27, siehe §6).
+2. ⬜ **Speed Schritt 2** — Execution härten: keep-alive HTTPS zu clob.polymarket.com, gecachte L2-Creds, vorgeladene tick sizes, FOK-Orders via py-clob-client. (Erst relevant bei Live-Execution.)
+3. ⬜ **Speed Schritt 3** — Worker nach Dublin/London co-locaten (AWS eu-west-2). Beim öffentlichen Deploy ohnehin EU-VPS.
+4. ⬜ **Auth** (LAUNCH_PLAN §3) — Fake-Sign-in-Shell ersetzen durch echtes `st.login()` + Google-OIDC; nur Settings/Admin per E-Mail-Allowlist gaten, restliche Seiten öffentlich. `.streamlit/secrets.toml [auth]` dokumentieren, secrets-frei no-op wenn leer. ~2-4 h. **← nächster sinnvoller Schritt.**
+5. ⬜ **Wallet-Connect read-only** (polywhaler-Stil) — eigene React-Komponente (wagmi/WalletConnect iframe) + SIWE. ~2-4 Tage.
+6. ⬜ **Krypto-Zahlung** — erst nach Launch wenn nachgefragt: USDC-on-Polygon 30-Tage-Prepaid oder NOWPayments/CoinGate. Fiat (Stripe/MoR) zuerst.
+7. ⬜ **Production-Deploy** — Domain + Hetzner-VPS kaufen, `docker compose up`, Cloudflare davor, Impressum + DSE.
+
+**Strategische Entscheidung — NICHT ohne Anwalt:**
+8. ⬜ **Live-Geld-Copytrading** — non-custodial Architektur steht im Plan, aber **BGS Art. 130** (Bereitstellung technischer Mittel für GESPA-gesperrte Geldspiele, bis 3-5 J. Gefängnis; als CH-Resident kein Auslands-Schutz). Anwalts-Memo (CHF 5-25k), CH+US-Geoblock, execution-only, benannte Entität zwingend VOR dem ersten Live-Trade. Insider-Screen als Research/Warnung positionieren, nicht als "tail-the-insider"-Copy (Polymarket auditiert solche Apps seit 04/2026).
+
+## 5. Schlüsseldateien
+
+| Datei | Zweck |
+|---|---|
+| `prediction_terminal.py` | Streamlit-App, alle 15 Workspaces + UI |
+| `src/prediction_markets.py` | Öffentliche API-Clients (Polymarket Gamma/Data/CLOB, Kalshi) + Analytics |
+| `src/copy_trading.py` | SQLite Paper-Copy-Engine + **WS-Detection** (RtdsTradeListener, decode_rtds_trade, apply_ws_trades) |
+| `app/backtester.py` | Streamlit-freie Backtest-Engine (copy/fade, 4 Sizing-Modi, Exposure-Cap) |
+| `app/suspicion.py` | Insider-Risk-Scoring, Cluster, Louvain-Co-Trading-Netzwerk |
+| `app/signals.py` | Monitor-Signal-/Regel-Logik (geteilt mit Scanner) |
+| `app/app_settings.py` | Persistente Settings (`data/app_settings.json`) + Env-Override für Secrets |
+| `scripts/run_copy_trader.py` | Copy-Daemon-Loop (WS-Drain → On-Chain-Reconcile → API/Settlement) |
+| `scripts/run_alert_scanner.py` | Alert-Scanner mit Telegram |
+| `scripts/install_autostart.ps1` | Registriert die 3 Windows Scheduled Tasks |
+| `Dockerfile` / `docker-compose.yml` / `deploy/Caddyfile` | Produktions-Deploy |
+
+## 6. WebSocket-Fast-Copy (zuletzt gebaut, PR #26 + #27)
+
+**Warum:** On-Chain `OrderFilled`-Polling war die langsamste Detection (Log erscheint ~2s nach dem off-chain Match). Lösung: RTDS-WebSocket sieht den Match sofort.
+
+- `src/copy_trading.py`: `RTDS_WS_URL`, `rtds_subscribe_payload()` (leerer Filter = globaler Firehose, da Wallet-Filter upstream kaputt), `decode_rtds_trade(message, target_wallets)` (matcht `proxyWallet` clientseitig, normalisiert auf dieselbe source_trade-Form wie der On-Chain-Decoder), `RtdsTradeListener` (Thread + websocket-client, PING, Queue, graceful wenn lib fehlt), `apply_ws_trades(trades, settings, db_path)`.
+- **Cross-Path-Dedup:** `_fill_already_recorded()` in `apply_paper_trade` dedupt auf stabiler Identität (wallet, tx, asset, side) — ohne timestamp/price, die zwischen WS-Match-Zeit und Block-Zeit driften. So kopiert die langsamere On-Chain-Reconciliation einen vom WS bereits kopierten Fill nicht doppelt.
+- `scripts/run_copy_trader.py`: Listener-Lifecycle, drain+apply pro Loop VOR der On-Chain-Reconciliation, `--disable-ws` Flag, ws-Status-Felder, `mode="paper_ws_fast"`. On-Chain bleibt als Fallback/Reconciliation.
+- Tests: `tests/test_copy_trading.py::WsDetectionTests` (7) — decode, wallet-matching, flat/nested messages, baseline, unseeded-skip, Cross-Path-Dedup.
+
+## 7. Dev-Workflow & Konventionen (WICHTIG)
+
+- **Immer Branch VOR Änderungen** (nach jedem Merge): `git checkout -b claude/<slug> main`.
+- **Verifizieren** vor Commit: `py_compile` + `unittest discover` + ggf. AppTest-Smoke (temp Streamlit auf Port **8504**, nie die Produktion 8503).
+- **Commit-Message via Datei** (PowerShell verhackt `-m` mit Quotes/Newlines): in `.git_commit_msg.txt` schreiben → `git commit -F .git_commit_msg.txt` → Datei löschen. Message endet mit `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`.
+- **PR via GitHub REST API** (gh CLI ist nicht authentifiziert): Token in **Bash** holen — `TOKEN=$(printf 'protocol=https\nhost=github.com\n' | git credential fill | grep '^password=' | cut -d= -f2)`; JSON-Payload via python json.dumps in eine Datei **IM Repo-Dir** (nicht /tmp); `curl --data-binary @file .../pulls` dann PUT `.../merge {"merge_method":"merge"}`.
+- **Nach Merge:** `git checkout main && git pull --ff-only`; Live-App neu starten: `Stop-ScheduledTask MarketIntelTerminal; sleep 3; Start-ScheduledTask MarketIntelTerminal; sleep 15`; `http://127.0.0.1:8503/healthz` == 200.
+- **PowerShell-Gotcha:** kein Heredoc (`python - <<'PY'` ist Parser-Fehler) — temp-Datei via Write, dann ausführen.
+
+## 8. Betrieb
+
+- **3 Windows Scheduled Tasks** (User-Logon, via `scripts/install_autostart.ps1`): `MarketIntelTerminal` (8503), `MarketIntelCopyDaemon`, `MarketIntelAlertScanner`. Neustart-Muster: Stop-/Start-ScheduledTask.
+- **Secrets** via Env (`.env`, gitignored): `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` übersteuern `data/app_settings.json`, nie zurückgeschrieben. Copy-Daemon-Env in `.env.example`.
+- **Daten** (`data/`, gitignored): `app_settings.json`, `copy_trading.sqlite`, Watchlists, Scanner-State.
+
+## 9. Offene Punkte / Gotchas
+
+- Polymarket data-api `/activity` lehnt offset+limit > ~3000 ab → `fetch_window_trades` cappt bei 3000.
+- Hyperaktive Wallets (z.B. Swisstony `0x204f72f35326db932158cba6adff0b9a1da95e14`, ~3000 Trades/Tag) → "30d"-Backtest-Fenster schrumpft via API-Cap auf Stunden; das ist ehrlich, im UI erklärt.
+- Kalshi liefert keine Wallet-Identitäten → wallet-level Logik überspringt Kalshi-Zeilen, UI sagt es.
+- `preview_screenshot` MCP timeoutet auf dieser App → Playwright via System-Chrome nutzen (`scripts/visual_smoke.py`).
+- Memory liegt unter `~/.claude/projects/.../memory/` und ist **gitignored** — reist NICHT mit dem Repo. Dieses Handoff-Doc ist die repo-gebundene Wahrheit. Die volle Projekt-Historie (Runde 1-25 + Gotchas) steht dort in `backtester-polyhuntr-ui-milestone.md`.
+
+## 10. Nächster konkreter Schritt
+
+**Auth** (Roadmap #4): `st.login()` + Google-OIDC, Settings/Admin per E-Mail-Allowlist gaten, Fake-Auth-Shell entfernen — rein technisch, kein Rechtsrisiko, ~2-4 h. Details in [LAUNCH_PLAN.md](LAUNCH_PLAN.md) §3.
