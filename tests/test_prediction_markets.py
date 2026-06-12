@@ -1603,5 +1603,31 @@ class HolderEnrichmentTests(unittest.TestCase):
         self.assertIn("activity", panels["Yes"].columns)
 
 
+class UserPnlSeriesTests(unittest.TestCase):
+    def test_parse_user_pnl_points_normalizes_and_sorts(self) -> None:
+        payload = [
+            {"t": 1781283600, "p": 8785185},
+            {"t": 1780682400, "p": 9474891.5},
+            {"t": "bad", "p": 1},
+            "junk",
+            {"t": 1780682500},
+        ]
+        frame = md.parse_user_pnl_points(payload)
+
+        self.assertEqual(list(frame.columns), ["time", "pnl"])
+        self.assertEqual(len(frame), 2)
+        self.assertTrue(frame["time"].is_monotonic_increasing)
+        self.assertAlmostEqual(float(frame["pnl"].iloc[0]), 9474891.5)
+        self.assertEqual(str(frame["time"].dt.tz), "UTC")
+
+    def test_parse_user_pnl_points_handles_non_list(self) -> None:
+        self.assertTrue(md.parse_user_pnl_points({"error": "nope"}).empty)
+        self.assertTrue(md.parse_user_pnl_points(None).empty)
+
+    def test_user_pnl_window_map_covers_chart_windows(self) -> None:
+        for window in ["1d", "1w", "1mo", "All"]:
+            self.assertIn(window, md.USER_PNL_WINDOWS)
+
+
 if __name__ == "__main__":
     unittest.main()

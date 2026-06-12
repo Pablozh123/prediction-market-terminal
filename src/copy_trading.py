@@ -76,7 +76,10 @@ class CopySettings:
     dynamic_scale_max: float = 0.01
     dynamic_scale_min: float = 0.0
     dynamic_order_cap_from_tony: bool = True
-    auto_top_up_enabled: bool = True
+    # Opt-in: silently printing paper cash distorts the experiment (13 unnoticed
+    # top-ups turned a 5k run into an 18k one). Off by default — out-of-cash buys
+    # skip with reason "insufficient_cash" until settlements recycle cash.
+    auto_top_up_enabled: bool = False
     auto_top_up_amount: float = 1000.0
     auto_top_up_threshold: float = 1.0
     min_copy_notional: float = MIN_COPY_NOTIONAL
@@ -273,6 +276,15 @@ def init_db(conn: sqlite3.Connection, start_cash: float = 1000.0) -> None:
             reason TEXT NOT NULL,
             trader_wallet TEXT NOT NULL DEFAULT '{COPY_TARGET_WALLET}',
             note TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS equity_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            snapshot_time TEXT NOT NULL,
+            cash REAL NOT NULL,
+            position_value REAL NOT NULL,
+            equity REAL NOT NULL,
+            contributions REAL NOT NULL
         );
 
         CREATE TABLE IF NOT EXISTS traders (
@@ -501,6 +513,101 @@ def get_cash_events(db_path: str | Path = DEFAULT_DB_PATH, conn: sqlite3.Connect
     conn = conn or connect(db_path)
     try:
         return pd.read_sql_query("SELECT * FROM cash_events ORDER BY id DESC", conn)
+    finally:
+        if should_close:
+            conn.close()
+
+
+def total_contributions(db_path: str | Path = DEFAULT_DB_PATH, conn: sqlite3.Connection | None = None) -> float:
+    """External paper cash put into the experiment: trader start cash + every
+    recorded cash event (auto/manual top-ups). Settlement proceeds recycle cash
+    without a cash event, so they never count as contributions."""
+
+    should_close = conn is None
+    conn = conn or connect(db_path)
+    try:
+        start_row = conn.execute("SELECT COALESCE(SUM(start_cash), 0) FROM traders").fetchone()
+        start_total = float(start_row[0] or 0.0) if start_row else 0.0
+        if start_total <= 0:
+            start_total = _get_float_meta(conn, "paper_start_cash", 0.0)
+        try:
+            event_row = conn.execute("SELECT COALESCE(SUM(amount), 0) FROM cash_events").fetchone()
+            event_total = float(event_row[0] or 0.0) if event_row else 0.0
+        except sqlite3.OperationalError:
+            event_total = 0.0
+        return start_total + event_total
+    finally:
+        if should_close:
+            conn.close()
+
+
+_EQUITY_SNAPSHOT_DDL = """
+    CREATE TABLE IF NOT EXISTS equity_snapshots (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        snapshot_time TEXT NOT NULL,
+        cash REAL NOT NULL,
+        position_value REAL NOT NULL,
+        equity REAL NOT NULL,
+        contributions REAL NOT NULL
+    )
+"""
+
+
+def record_equity_snapshot(
+    db_path: str | Path = DEFAULT_DB_PATH,
+    snapshot: PortfolioSnapshot | None = None,
+    min_interval_seconds: float = 60.0,
+    conn: sqlite3.Connection | None = None,
+) -> bool:
+    """Append a portfolio equity snapshot (throttled) so the UI can draw a real
+    equity-over-time curve instead of inferring it from realized PnL alone."""
+
+    should_close = conn is None
+    conn = conn or connect(db_path)
+    try:
+        conn.execute(_EQUITY_SNAPSHOT_DDL)
+        last = conn.execute("SELECT snapshot_time FROM equity_snapshots ORDER BY id DESC LIMIT 1").fetchone()
+        if last and min_interval_seconds > 0:
+            try:
+                last_time = datetime.fromisoformat(str(last[0]))
+                age = (datetime.now(timezone.utc) - last_time).total_seconds()
+                if age < float(min_interval_seconds):
+                    return False
+            except ValueError:
+                pass
+        snap = snapshot if snapshot is not None else value_paper_portfolio(conn=conn)
+        conn.execute(
+            "INSERT INTO equity_snapshots (snapshot_time, cash, position_value, equity, contributions) VALUES (?, ?, ?, ?, ?)",
+            (
+                utc_now(),
+                float(snap.cash),
+                float(snap.position_value),
+                float(snap.equity),
+                total_contributions(conn=conn),
+            ),
+        )
+        conn.commit()
+        return True
+    finally:
+        if should_close:
+            conn.close()
+
+
+def get_equity_snapshots(
+    db_path: str | Path = DEFAULT_DB_PATH,
+    limit: int = 5000,
+    conn: sqlite3.Connection | None = None,
+) -> pd.DataFrame:
+    should_close = conn is None
+    conn = conn or connect(db_path)
+    try:
+        conn.execute(_EQUITY_SNAPSHOT_DDL)
+        frame = pd.read_sql_query(
+            "SELECT * FROM (SELECT * FROM equity_snapshots ORDER BY id DESC LIMIT ?) ORDER BY id ASC",
+            conn,
+            params=(int(limit),),
+        )
+        return frame
     finally:
         if should_close:
             conn.close()
