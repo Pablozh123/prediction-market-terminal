@@ -6,10 +6,14 @@ trades, scales them into a local simulated portfolio, and never places orders.
 
 from __future__ import annotations
 
+import collections
 import json
 import math
+import queue
 import sqlite3
-from collections.abc import Mapping
+import threading
+import time
+from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,6 +21,11 @@ from typing import Any, Callable
 
 import pandas as pd
 import requests
+
+try:  # websocket-client — optional; the listener degrades gracefully when absent.
+    import websocket as _websocket
+except Exception:  # pragma: no cover - import guard
+    _websocket = None
 
 from src import prediction_markets as md
 
@@ -36,6 +45,10 @@ DEFAULT_STOP_PATH = Path("data/copy_trader.stop")
 MIN_COPY_NOTIONAL = 0.01
 POLYGON_RPC_URL = "https://polygon-pokt.nodies.app"
 POLYGON_BLOCK_SECONDS = 2
+# Polymarket real-time data stream. The off-chain match is broadcast here the
+# instant it happens — earlier than the on-chain OrderFilled log the slow path
+# reads (which only appears ~one Polygon block / ~2s after the match).
+RTDS_WS_URL = "wss://ws-live-data.polymarket.com"
 POLYMARKET_EXCHANGE_ADDRESSES = (
     "0xe111180000d2663c0091e4f400237545b87b996b",
     "0xe2222d279d744050d28e00520010520000310f59",
@@ -984,6 +997,295 @@ def sync_active_onchain_copy_trades(
     return results
 
 
+def rtds_subscribe_payload() -> dict[str, Any]:
+    """Subscribe message for the RTDS global trade firehose.
+
+    The per-wallet/per-market filters are broken upstream (only an empty filter
+    returns data), so we subscribe to every trade and match the target wallets
+    client-side in :func:`decode_rtds_trade`.
+    """
+
+    return {"action": "subscribe", "subscriptions": [{"topic": "activity", "type": "trades", "filters": ""}]}
+
+
+def decode_rtds_trade(message: Any, target_wallets: Iterable[str]) -> dict[str, Any] | None:
+    """Normalize one RTDS ``activity/trades`` message into a source-trade dict.
+
+    Returns the same shape as :func:`decode_order_filled_log` so the existing
+    paper pipeline can consume it unchanged. Returns ``None`` when the message is
+    not a trade for a tracked wallet, or is malformed. Detection happens at the
+    off-chain match instant — earlier than the on-chain log the slow path reads.
+    """
+
+    if not isinstance(message, Mapping):
+        return None
+    topic = str(message.get("topic", "") or "")
+    msg_type = str(message.get("type", "") or "")
+    if topic and topic != "activity":
+        return None
+    if msg_type and msg_type not in {"trades", "trade"}:
+        return None
+    payload = message.get("payload")
+    trade = payload if isinstance(payload, Mapping) else message
+    targets = {_normalize_address(str(wallet)) for wallet in target_wallets if str(wallet).strip()}
+    wallet = _normalize_address(str(trade.get("proxyWallet", "") or trade.get("wallet", "") or ""))
+    if not wallet or wallet not in targets:
+        return None
+    side = str(trade.get("side", "") or "").upper()
+    if side not in {"BUY", "SELL"}:
+        return None
+    asset = str(trade.get("asset", "") or "")
+    price = _to_float(trade.get("price"), 0.0)
+    size = _to_float(trade.get("size"), 0.0)
+    if not asset or price <= 0 or size <= 0:
+        return None
+    timestamp = _timestamp_value(trade)
+    source_time = datetime.fromtimestamp(timestamp, timezone.utc).isoformat() if timestamp else ""
+    title = str(trade.get("title", "") or "")
+    return {
+        "platform": "Polymarket",
+        "source": "rtds_ws",
+        "wallet": wallet,
+        "transaction_hash": str(trade.get("transactionHash", "") or ""),
+        "timestamp": timestamp,
+        "time": source_time,
+        "side": side,
+        "asset": asset,
+        "price": price,
+        "size": size,
+        "notional": price * size,
+        "market_key": str(_first(trade, "market_key", "conditionId") or ""),
+        "title": title or f"Polymarket token {asset[:10]}...",
+        "outcome": str(trade.get("outcome", "") or ""),
+    }
+
+
+class RtdsTradeListener:
+    """Background WebSocket listener for the Polymarket RTDS trade firehose.
+
+    Connects to :data:`RTDS_WS_URL`, subscribes to the global trade feed, matches
+    the tracked wallets client-side and buffers decoded trades for the copy
+    daemon to drain each loop. Degrades to a no-op when ``websocket-client`` is
+    not installed, so importing this module never requires the dependency.
+    """
+
+    def __init__(self, wallets: Iterable[str], *, url: str = RTDS_WS_URL, ping_interval: float = 5.0) -> None:
+        self._url = url
+        self._ping_interval = max(1.0, float(ping_interval))
+        self._lock = threading.Lock()
+        self._wallets = {_normalize_address(str(w)) for w in wallets if str(w).strip()}
+        self._queue: "queue.Queue[dict[str, Any]]" = queue.Queue()
+        self._seen: "collections.deque[str]" = collections.deque(maxlen=8192)
+        self._seen_set: set[str] = set()
+        self._app: Any = None
+        self._thread: threading.Thread | None = None
+        self._running = False
+        self._connected = False
+        self._last_message_at: float | None = None
+        self._last_error: str | None = None
+        self._messages = 0
+        self._matched = 0
+
+    @staticmethod
+    def available() -> bool:
+        return _websocket is not None
+
+    def set_wallets(self, wallets: Iterable[str]) -> None:
+        with self._lock:
+            self._wallets = {_normalize_address(str(w)) for w in wallets if str(w).strip()}
+
+    def _wallets_snapshot(self) -> set[str]:
+        with self._lock:
+            return set(self._wallets)
+
+    def start(self) -> bool:
+        if _websocket is None:
+            self._last_error = "websocket-client not installed"
+            return False
+        if self._running:
+            return True
+        self._running = True
+        self._thread = threading.Thread(target=self._run, name="rtds-trade-listener", daemon=True)
+        self._thread.start()
+        return True
+
+    def stop(self) -> None:
+        self._running = False
+        app = self._app
+        if app is not None:
+            try:
+                app.close()
+            except Exception:
+                pass
+
+    def drain(self) -> list[dict[str, Any]]:
+        trades: list[dict[str, Any]] = []
+        while True:
+            try:
+                trades.append(self._queue.get_nowait())
+            except queue.Empty:
+                break
+        return trades
+
+    def status(self) -> dict[str, Any]:
+        return {
+            "available": _websocket is not None,
+            "running": self._running,
+            "connected": self._connected,
+            "messages": self._messages,
+            "matched": self._matched,
+            "queued": self._queue.qsize(),
+            "last_message_at": self._last_message_at,
+            "last_error": self._last_error,
+        }
+
+    def _run(self) -> None:
+        while self._running:
+            try:
+                self._app = _websocket.WebSocketApp(
+                    self._url,
+                    on_open=self._on_open,
+                    on_message=self._on_message,
+                    on_error=self._on_error,
+                    on_close=self._on_close,
+                )
+                self._app.run_forever(ping_interval=self._ping_interval, ping_timeout=self._ping_interval - 1)
+            except Exception as exc:  # pragma: no cover - network resilience
+                self._last_error = str(exc)
+            self._connected = False
+            if self._running:
+                time.sleep(2.0)
+
+    def _on_open(self, ws: Any) -> None:  # pragma: no cover - network callback
+        self._connected = True
+        self._last_error = None
+        try:
+            ws.send(json.dumps(rtds_subscribe_payload()))
+        except Exception as exc:
+            self._last_error = str(exc)
+
+    def _on_message(self, ws: Any, raw: Any) -> None:  # pragma: no cover - thin wrapper over handle_message
+        self.handle_message(raw)
+
+    def handle_message(self, raw: Any) -> int:
+        """Decode a raw WS frame and enqueue matched trades. Returns count enqueued."""
+
+        self._messages += 1
+        self._last_message_at = time.monotonic()
+        try:
+            data = json.loads(raw) if isinstance(raw, (str, bytes, bytearray)) else raw
+        except (ValueError, TypeError):
+            return 0
+        messages = data if isinstance(data, list) else [data]
+        # Tolerate both envelope shapes: payload as a single trade object or as
+        # a list of trade objects.
+        expanded: list[Any] = []
+        for message in messages:
+            payload = message.get("payload") if isinstance(message, Mapping) else None
+            if isinstance(payload, list):
+                expanded.extend({**message, "payload": item} for item in payload if isinstance(item, Mapping))
+            else:
+                expanded.append(message)
+        wallets = self._wallets_snapshot()
+        enqueued = 0
+        for message in expanded:
+            trade = decode_rtds_trade(message, wallets)
+            if not trade:
+                continue
+            key = trade_dedup_key(trade, trade["wallet"])
+            with self._lock:
+                if key in self._seen_set:
+                    continue
+                if len(self._seen) == self._seen.maxlen:
+                    self._seen_set.discard(self._seen[0])
+                self._seen.append(key)
+                self._seen_set.add(key)
+            self._queue.put(trade)
+            self._matched += 1
+            enqueued += 1
+        return enqueued
+
+    def _on_error(self, ws: Any, error: Any) -> None:  # pragma: no cover - network callback
+        self._last_error = str(error)
+
+    def _on_close(self, ws: Any, *args: Any) -> None:  # pragma: no cover - network callback
+        self._connected = False
+
+
+def apply_ws_trades(
+    trades: list[Mapping[str, Any]],
+    settings: CopySettings | None = None,
+    db_path: str | Path = DEFAULT_DB_PATH,
+) -> dict[str, SyncResult]:
+    """Apply already-decoded WebSocket trades into each tracked wallet's sub-account.
+
+    Mirrors the on-chain fast path's per-fill loop: trades at or before the
+    baseline cutoff are recorded as observed (not copied); a wallet that has not
+    been seeded yet is skipped (the on-chain/API path seeds it, WS copying
+    resumes on the next drain). The cross-detection fill dedup in
+    :func:`apply_paper_trade` keeps the slower on-chain reconciliation from
+    re-copying anything applied here.
+    """
+
+    by_wallet: dict[str, list[Mapping[str, Any]]] = {}
+    for trade in trades:
+        wallet = _normalize_address(str(trade.get("wallet", "") or trade.get("source_wallet", "")))
+        if wallet:
+            by_wallet.setdefault(wallet, []).append(trade)
+    results: dict[str, SyncResult] = {}
+    if not by_wallet:
+        return results
+    conn = connect(db_path)
+    try:
+        active = {_normalize_address(w) for w in active_trader_wallets(db_path=db_path, conn=conn)}
+        seeded = _get_meta(conn, "tony_seeded_at") is not None
+        baseline_cutoff = int(_get_float_meta(conn, "baseline_cutoff_ts", 0.0))
+        for wallet, wallet_trades in by_wallet.items():
+            if active and wallet not in active:
+                continue
+            if not seeded:
+                results[wallet] = SyncResult(source="ws", skipped=len(wallet_trades))
+                continue
+            wallet_settings = replace(settings, target_wallet=wallet) if settings is not None else CopySettings(target_wallet=wallet)
+            copied = skipped = duplicates = processed = 0
+            errors: list[str] = []
+            for trade in sorted(wallet_trades, key=lambda item: _timestamp_value(item)):
+                try:
+                    if int(_timestamp_value(trade)) <= baseline_cutoff:
+                        parsed = parse_source_trade(trade, wallet)
+                        if conn.execute("SELECT 1 FROM paper_orders WHERE dedup_key = ?", (parsed["dedup_key"],)).fetchone():
+                            duplicates += 1
+                        else:
+                            order = PaperOrder(parsed["dedup_key"], "seed_observed", "pre_baseline_cutoff", parsed["side"], parsed["source_notional"])
+                            _insert_order(conn, parsed, order, trade)
+                            processed += 1
+                            skipped += 1
+                        continue
+                    order = apply_paper_trade(conn, trade, wallet_settings)
+                    if order.status == "duplicate":
+                        duplicates += 1
+                    else:
+                        processed += 1
+                        if order.status == "copied":
+                            copied += 1
+                        else:
+                            skipped += 1
+                except Exception as exc:
+                    errors.append(str(exc))
+            results[wallet] = SyncResult(
+                processed=processed,
+                copied=copied,
+                skipped=skipped,
+                duplicates=duplicates,
+                source="ws",
+                errors=tuple(errors),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+    return results
+
+
 def sync_active_settlement_activity(
     settings: CopySettings | None = None,
     db_path: str | Path = DEFAULT_DB_PATH,
@@ -1026,6 +1328,13 @@ def apply_paper_trade(
     existing = conn.execute("SELECT status FROM paper_orders WHERE dedup_key = ?", (dedup_key,)).fetchone()
     if existing:
         return PaperOrder(dedup_key=dedup_key, status="duplicate", reason="duplicate", side="", source_notional=0.0)
+    # Cross-detection dedup: the WebSocket reports a fill at off-chain match time
+    # while the on-chain log reports it at block time, so the timestamp-bearing
+    # dedup_key differs between the two paths for the same economic fill. Match on
+    # the stable fill identity (wallet, tx, asset, side) so the slow on-chain
+    # reconciliation never re-copies a fill the WebSocket already applied.
+    if _fill_already_recorded(conn, source_trade, settings.target_wallet):
+        return PaperOrder(dedup_key=dedup_key, status="duplicate", reason="duplicate_fill", side="", source_notional=0.0)
 
     parsed = parse_source_trade(source_trade, settings.target_wallet)
     if parsed["price"] <= 0 or parsed["size"] <= 0 or parsed["source_notional"] <= 0 or not parsed["asset"]:
@@ -1636,6 +1945,29 @@ def backfill_position_metadata(
         updated += 1
     _set_meta(conn, "metadata_backfilled_at", utc_now())
     return updated
+
+
+def _fill_already_recorded(conn: sqlite3.Connection, source_trade: Mapping[str, Any], wallet: str) -> bool:
+    """True if a fill with the same stable identity (wallet, tx, asset, side) exists.
+
+    Stable across detection paths because it omits the timestamp and price, which
+    drift between the off-chain WebSocket match and the on-chain settlement log.
+    """
+    tx = str(_first(source_trade, "transaction_hash", "transactionHash") or "").strip().lower()
+    if not tx:
+        return False
+    wallet_key = str(wallet or source_trade.get("source_wallet", "") or source_trade.get("wallet", "") or "")
+    asset = str(source_trade.get("asset", "") or "")
+    side = str(source_trade.get("side", "") or "").upper()
+    row = conn.execute(
+        """
+        SELECT 1 FROM paper_orders
+        WHERE LOWER(source_wallet) = LOWER(?) AND LOWER(source_tx) = ? AND asset = ? AND source_side = ?
+        LIMIT 1
+        """,
+        (wallet_key, tx, asset, side),
+    ).fetchone()
+    return row is not None
 
 
 def trade_dedup_key(source_trade: Mapping[str, Any], wallet: str = "") -> str:
