@@ -4,6 +4,8 @@ Streamlit research terminal for Polymarket and Kalshi: market discovery, trader/
 
 All market data comes from the public Polymarket (Gamma/Data/CLOB) and Kalshi APIs. Live trading is disabled — the copy-trading module is paper-only. The app is a research tool, not investment advice.
 
+> **Continuing the project / picking up on another machine?** Start with [docs/HANDOFF.md](docs/HANDOFF.md) — current state, roadmap, conventions, and the next concrete step.
+
 ## Run locally
 
 ```powershell
