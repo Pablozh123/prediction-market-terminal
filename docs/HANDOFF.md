@@ -13,7 +13,7 @@ Streamlit-Research-Terminal für Polymarket & Kalshi: Marktentdeckung, Trader-/W
 - **Sprache/Stack:** Python 3.13/3.14, Streamlit 1.5x (Monolith `prediction_terminal.py`, ~11k Zeilen), pandas, plotly, networkx, websocket-client.
 - **Live lokal:** http://127.0.0.1:8503 (Windows Scheduled Task `MarketIntelTerminal`).
 - **Repo:** GitHub `Pablozh123/prediction-market-terminal`, Default-Branch `main`.
-- **Aktueller Stand:** main @ `274632b`, **241 Unit-Tests grün**, voll gepusht (lokal == origin).
+- **Aktueller Stand:** **259 Unit-Tests grün** (`python -m unittest discover -s tests`), voll gepusht (lokal == origin).
 
 ## 2. Schnellstart auf einer neuen Maschine
 
@@ -53,10 +53,10 @@ python scripts/visual_smoke.py --base-url http://127.0.0.1:8503   # Playwright v
 1. ✅ **Speed Schritt 1** — WS-Detection (RTDS `activity/trades`) — ERLEDIGT (PR #26/#27, siehe §6).
 2. ⬜ **Speed Schritt 2** — Execution härten: keep-alive HTTPS zu clob.polymarket.com, gecachte L2-Creds, vorgeladene tick sizes, FOK-Orders via py-clob-client. (Erst relevant bei Live-Execution.)
 3. ⬜ **Speed Schritt 3** — Worker nach Dublin/London co-locaten (AWS eu-west-2). Beim öffentlichen Deploy ohnehin EU-VPS.
-4. ⬜ **Auth** (LAUNCH_PLAN §3) — Fake-Sign-in-Shell ersetzen durch echtes `st.login()` + Google-OIDC; nur Settings/Admin per E-Mail-Allowlist gaten, restliche Seiten öffentlich. `.streamlit/secrets.toml [auth]` dokumentieren, secrets-frei no-op wenn leer. ~2-4 h. **← nächster sinnvoller Schritt.**
-5. ⬜ **Wallet-Connect read-only** (polywhaler-Stil) — eigene React-Komponente (wagmi/WalletConnect iframe) + SIWE. ~2-4 Tage.
+4. ✅ **Auth** — ERLEDIGT (siehe §7): echtes `st.login()` + Google-OIDC, Settings fail-closed hinter E-Mail-Allowlist, Fake-Auth-Shell entfernt; ohne Secrets komplett no-op. Setup: `.streamlit/secrets.toml.example`.
+5. ⬜ **Wallet-Connect read-only** (polywhaler-Stil) — eigene React-Komponente (wagmi/WalletConnect iframe) + SIWE. ~2-4 Tage. **← nächster autonom baubarer Schritt.**
 6. ⬜ **Krypto-Zahlung** — erst nach Launch wenn nachgefragt: USDC-on-Polygon 30-Tage-Prepaid oder NOWPayments/CoinGate. Fiat (Stripe/MoR) zuerst.
-7. ⬜ **Production-Deploy** — Domain + Hetzner-VPS kaufen, `docker compose up`, Cloudflare davor, Impressum + DSE.
+7. ⬜ **Production-Deploy** — Domain + Hetzner-VPS kaufen (**User-Entscheidung/Kauf nötig**), `docker compose up`, Cloudflare davor, Impressum + DSE, CH-Geoblocking-Regel. Auth-Voraussetzung ist jetzt erfüllt.
 
 **Strategische Entscheidung — NICHT ohne Anwalt:**
 8. ⬜ **Live-Geld-Copytrading** — non-custodial Architektur steht im Plan, aber **BGS Art. 130** (Bereitstellung technischer Mittel für GESPA-gesperrte Geldspiele, bis 3-5 J. Gefängnis; als CH-Resident kein Auslands-Schutz). Anwalts-Memo (CHF 5-25k), CH+US-Geoblock, execution-only, benannte Entität zwingend VOR dem ersten Live-Trade. Insider-Screen als Research/Warnung positionieren, nicht als "tail-the-insider"-Copy (Polymarket auditiert solche Apps seit 04/2026).
@@ -72,12 +72,14 @@ python scripts/visual_smoke.py --base-url http://127.0.0.1:8503   # Playwright v
 | `app/suspicion.py` | Insider-Risk-Scoring, Cluster, Louvain-Co-Trading-Netzwerk |
 | `app/signals.py` | Monitor-Signal-/Regel-Logik (geteilt mit Scanner) |
 | `app/app_settings.py` | Persistente Settings (`data/app_settings.json`) + Env-Override für Secrets |
+| `app/authz.py` | Streamlit-freie Admin-Gating-Logik (Provider-Detection, Allowlist, fail-closed) |
+| `.streamlit/secrets.toml.example` | Google-OIDC + Admin-Allowlist Template für `st.login()` |
 | `scripts/run_copy_trader.py` | Copy-Daemon-Loop (WS-Drain → On-Chain-Reconcile → API/Settlement) |
 | `scripts/run_alert_scanner.py` | Alert-Scanner mit Telegram |
 | `scripts/install_autostart.ps1` | Registriert die 3 Windows Scheduled Tasks |
 | `Dockerfile` / `docker-compose.yml` / `deploy/Caddyfile` | Produktions-Deploy |
 
-## 6. WebSocket-Fast-Copy (zuletzt gebaut, PR #26 + #27)
+## 6. WebSocket-Fast-Copy (PR #26 + #27)
 
 **Warum:** On-Chain `OrderFilled`-Polling war die langsamste Detection (Log erscheint ~2s nach dem off-chain Match). Lösung: RTDS-WebSocket sieht den Match sofort.
 
@@ -86,7 +88,18 @@ python scripts/visual_smoke.py --base-url http://127.0.0.1:8503   # Playwright v
 - `scripts/run_copy_trader.py`: Listener-Lifecycle, drain+apply pro Loop VOR der On-Chain-Reconciliation, `--disable-ws` Flag, ws-Status-Felder, `mode="paper_ws_fast"`. On-Chain bleibt als Fallback/Reconciliation.
 - Tests: `tests/test_copy_trading.py::WsDetectionTests` (7) — decode, wallet-matching, flat/nested messages, baseline, unseeded-skip, Cross-Path-Dedup.
 
-## 7. Dev-Workflow & Konventionen (WICHTIG)
+## 7. Auth & Admin-Gating (zuletzt gebaut)
+
+**Warum:** Vor dem Public-Deploy müssen Settings (Datenknöpfe, Telegram-Secrets, Copy-Daemon-Steuerung) geschützt sein; die alte Sign-in/Sign-up-Shell war reine Attrappe.
+
+- **Ohne `.streamlit/secrets.toml [auth]`** läuft alles wie bisher: kein Login-UI, Settings offen (lokaler Research-Modus). Komplett no-op — Tests und lokale Nutzung unverändert.
+- **Mit `[auth]`-Secrets** (Template: `.streamlit/secrets.toml.example`, Google-Cloud-Anleitung inline): Sidebar zeigt "Sign in with Google"/"Sign out" (`st.login()`/`st.logout()`), und die Settings-Seite **failt closed** — nur eingeloggte Accounts auf der Admin-Allowlist (`ADMIN_EMAILS`-Env hat Vorrang, sonst `[admin].emails` in secrets.toml) sehen die Seite. Alle anderen Workspaces bleiben öffentlich. Eingeloggt-aber-ohne-Allowlist ⇒ ebenfalls gesperrt (reason `no_allowlist`).
+- Logik Streamlit-frei in `app/authz.py` (19 Tests): `auth_provider_from_secrets` (None=aus, `""`=flacher Default-Provider, Name=`[auth.<name>]`-Subsection), `normalize_emails`, `admin_emails` (Env > Secrets), `settings_access` → reasons `open`/`login_required`/`no_allowlist`/`not_allowed`/`ok`.
+- Terminal-Seite: `current_auth_provider`/`current_user_email`/`settings_admin_emails`/`trigger_login` + `render_settings_gate`; Gate-AppTests in `tests/test_app_smoke.py::AuthGateSmokeTests` (Settings offen ohne Secrets, gesperrt mit Secrets + anonym).
+- Entfernt: Fake-Auth-Dialog, `/sign-in`-/`/sign-up`-Routen (`md.local_auth_route_mode` inkl. Test), Sidebar-Fake-Buttons, `.auth-note`-CSS; Smoke-Skripte bereinigt.
+- Deploy: secrets.toml ist git- UND docker-ignored; `docker-compose.yml` hat einen auskommentierten read-only-Mount. `Authlib` in requirements (st.login-Dependency). Cookie fix 30 Tage; requirements pinnen streamlit ≥1.58 (1.57-Cookie-Regression).
+
+## 8. Dev-Workflow & Konventionen (WICHTIG)
 
 - **Immer Branch VOR Änderungen** (nach jedem Merge): `git checkout -b claude/<slug> main`.
 - **Verifizieren** vor Commit: `py_compile` + `unittest discover` + ggf. AppTest-Smoke (temp Streamlit auf Port **8504**, nie die Produktion 8503).
@@ -95,13 +108,13 @@ python scripts/visual_smoke.py --base-url http://127.0.0.1:8503   # Playwright v
 - **Nach Merge:** `git checkout main && git pull --ff-only`; Live-App neu starten: `Stop-ScheduledTask MarketIntelTerminal; sleep 3; Start-ScheduledTask MarketIntelTerminal; sleep 15`; `http://127.0.0.1:8503/healthz` == 200.
 - **PowerShell-Gotcha:** kein Heredoc (`python - <<'PY'` ist Parser-Fehler) — temp-Datei via Write, dann ausführen.
 
-## 8. Betrieb
+## 9. Betrieb
 
 - **3 Windows Scheduled Tasks** (User-Logon, via `scripts/install_autostart.ps1`): `MarketIntelTerminal` (8503), `MarketIntelCopyDaemon`, `MarketIntelAlertScanner`. Neustart-Muster: Stop-/Start-ScheduledTask.
 - **Secrets** via Env (`.env`, gitignored): `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` übersteuern `data/app_settings.json`, nie zurückgeschrieben. Copy-Daemon-Env in `.env.example`.
 - **Daten** (`data/`, gitignored): `app_settings.json`, `copy_trading.sqlite`, Watchlists, Scanner-State.
 
-## 9. Offene Punkte / Gotchas
+## 10. Offene Punkte / Gotchas
 
 - Polymarket data-api `/activity` lehnt offset+limit > ~3000 ab → `fetch_window_trades` cappt bei 3000.
 - Hyperaktive Wallets (z.B. Swisstony `0x204f72f35326db932158cba6adff0b9a1da95e14`, ~3000 Trades/Tag) → "30d"-Backtest-Fenster schrumpft via API-Cap auf Stunden; das ist ehrlich, im UI erklärt.
@@ -109,6 +122,9 @@ python scripts/visual_smoke.py --base-url http://127.0.0.1:8503   # Playwright v
 - `preview_screenshot` MCP timeoutet auf dieser App → Playwright via System-Chrome nutzen (`scripts/visual_smoke.py`).
 - Memory liegt unter `~/.claude/projects/.../memory/` und ist **gitignored** — reist NICHT mit dem Repo. Dieses Handoff-Doc ist die repo-gebundene Wahrheit. Die volle Projekt-Historie (Runde 1-25 + Gotchas) steht dort in `backtester-polyhuntr-ui-milestone.md`.
 
-## 10. Nächster konkreter Schritt
+## 11. Nächster konkreter Schritt
 
-**Auth** (Roadmap #4): `st.login()` + Google-OIDC, Settings/Admin per E-Mail-Allowlist gaten, Fake-Auth-Shell entfernen — rein technisch, kein Rechtsrisiko, ~2-4 h. Details in [LAUNCH_PLAN.md](LAUNCH_PLAN.md) §3.
+Zwei Kandidaten (Roadmap §4):
+
+- **Production-Deploy (#7)** — der eigentliche Launch: Domain + Hetzner-VPS kaufen (**User-Entscheidung, kostet Geld**), `docker compose up`, Cloudflare davor (inkl. CH-Geoblocking-Regel), Impressum + DSE. Auth-Voraussetzung ist erfüllt; Anleitung in [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md).
+- **Wallet-Connect read-only (#5)** — autonom baubar ohne Käufe: eigene React-Komponente (wagmi/WalletConnect) + SIWE, ~2-4 Tage. Details in [LIVE_COPYTRADING_PLAN.md](LIVE_COPYTRADING_PLAN.md) §2.

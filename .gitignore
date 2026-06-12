@@ -4,6 +4,12 @@ __pycache__/
 *.pyo
 .env
 
+# Streamlit auth secrets (OIDC client credentials) — never commit
+.streamlit/secrets.toml
+
+# Temp file for `git commit -F` (PowerShell-safe commit messages, see HANDOFF §8)
+.git_commit_msg.txt
+
 # Virtuelle Umgebung
 .venv/
 venv/
