@@ -1507,6 +1507,65 @@ class WsApplyWorkerTests(unittest.TestCase):
         self.assertTrue(status["running"] is False or status["last_error"])
 
 
+class ClockOffsetTests(unittest.TestCase):
+    def test_measure_clock_offset_parses_epoch_body(self) -> None:
+        from datetime import datetime, timezone
+
+        class _Resp:
+            text = str(datetime.now(timezone.utc).timestamp() - 68.0)
+
+            def raise_for_status(self) -> None:
+                return None
+
+        with patch("src.copy_trading.requests.get", return_value=_Resp()):
+            offset = ct.measure_clock_offset_seconds()
+        self.assertIsNotNone(offset)
+        self.assertAlmostEqual(offset, 68.0, delta=2.0)
+
+    def test_measure_clock_offset_none_on_error(self) -> None:
+        import requests as _requests
+
+        with patch("src.copy_trading.requests.get", side_effect=_requests.RequestException("down")):
+            self.assertIsNone(ct.measure_clock_offset_seconds())
+
+    def test_worker_latency_subtracts_clock_offset(self) -> None:
+        from datetime import datetime, timezone
+
+        tmp = tempfile.TemporaryDirectory()
+        db_path = Path(tmp.name) / "copy.sqlite"
+        ct.reset_paper_portfolio(db_path=db_path)
+        conn = ct.connect(db_path)
+        try:
+            ct._set_meta(conn, "tony_seeded_at", ct.utc_now())
+            ct._set_meta(conn, "baseline_cutoff_ts", "0")
+            conn.commit()
+        finally:
+            conn.close()
+        # trade stamped "now - 68s" on a clock running 68s fast == real latency ~0
+        trade_ts = int(datetime.now(timezone.utc).timestamp() - 68.0)
+        trade = ct.decode_rtds_trade(rtds_message(timestamp=trade_ts), [ct.COPY_TARGET_WALLET])
+        worker = ct.WsApplyWorker(
+            _StubListener([[trade]]),
+            db_path=db_path,
+            settings_loader=lambda: ct.CopySettings(trade_limit=20),
+            interval=0.05,
+            clock_offset_provider=lambda: 68.0,
+        )
+        worker.start()
+        try:
+            import time as _time
+
+            deadline = _time.monotonic() + 5.0
+            while _time.monotonic() < deadline and worker.status()["copied_total"] < 1:
+                _time.sleep(0.05)
+            status = worker.status()
+        finally:
+            worker.stop()
+            tmp.cleanup()
+        self.assertIsNotNone(status["last_latency_seconds"])
+        self.assertLess(abs(status["last_latency_seconds"]), 5.0)
+
+
 class ReconcileBackoffTests(unittest.TestCase):
     def test_no_failures_keeps_base_interval(self) -> None:
         self.assertEqual(ct.reconcile_backoff_seconds(0, 30.0), 30.0)

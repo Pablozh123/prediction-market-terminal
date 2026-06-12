@@ -1416,6 +1416,28 @@ def apply_ws_trades(
     return results
 
 
+CLOB_TIME_URL = "https://clob.polymarket.com/time"
+
+
+def measure_clock_offset_seconds(timeout: float = 5.0) -> float | None:
+    """``local_clock - exchange_clock`` via the CLOB /time endpoint (epoch s).
+
+    Positive = the local clock runs ahead. Latency telemetry compares local
+    booking time against exchange-stamped trade times, so an unsynchronized
+    system clock (observed live: +68s, W32Time "free-running") poisons every
+    latency number unless this offset is subtracted. Returns None when the
+    endpoint is unreachable.
+    """
+
+    try:
+        response = requests.get(CLOB_TIME_URL, timeout=timeout, headers=md.HTTP_HEADERS)
+        response.raise_for_status()
+        server_ts = float(str(response.text).strip())
+    except (requests.RequestException, ValueError):
+        return None
+    return datetime.now(timezone.utc).timestamp() - server_ts
+
+
 class WsApplyWorker:
     """Books WebSocket-detected fills in a dedicated thread.
 
@@ -1435,10 +1457,12 @@ class WsApplyWorker:
         db_path: str | Path = DEFAULT_DB_PATH,
         settings_loader: Callable[[], CopySettings] | None = None,
         interval: float = 0.5,
+        clock_offset_provider: Callable[[], float | None] | None = None,
     ) -> None:
         self._listener = listener
         self._db_path = db_path
         self._settings_loader = settings_loader
+        self._clock_offset_provider = clock_offset_provider
         self._interval = max(0.1, float(interval))
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
@@ -1490,6 +1514,13 @@ class WsApplyWorker:
                             settings = None
                     result = aggregate_sync_results(apply_ws_trades(trades, settings=settings, db_path=self._db_path))
                     now_ts = datetime.now(timezone.utc).timestamp()
+                    if self._clock_offset_provider is not None:
+                        try:
+                            offset = self._clock_offset_provider()
+                            if offset is not None:
+                                now_ts -= float(offset)
+                        except Exception:
+                            pass
                     latencies = sorted(
                         now_ts - _timestamp_value(trade)
                         for trade in trades
