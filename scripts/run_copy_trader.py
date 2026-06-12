@@ -176,16 +176,21 @@ def main() -> int:
             ws_connected = bool(ws_listener is not None and ws_listener.status().get("connected"))
             chain_due = args.once or not ws_connected or time.monotonic() >= next_reconcile
             if not args.disable_fast and chain_due:
-                fast_result = ct.aggregate_sync_results(
-                    ct.sync_active_onchain_copy_trades(
-                        settings=settings,
-                        db_path=db_path,
-                        rpc_url=args.rpc_url,
-                        lookback_blocks=int(args.lookback_blocks),
-                        max_block_span=int(args.max_block_span),
-                        confirmations=int(args.confirmations),
+                # Best-effort reconciliation behind the WebSocket: never let a
+                # flaky/rate-limited RPC abort the loop and starve the WS status write.
+                try:
+                    fast_result = ct.aggregate_sync_results(
+                        ct.sync_active_onchain_copy_trades(
+                            settings=settings,
+                            db_path=db_path,
+                            rpc_url=args.rpc_url,
+                            lookback_blocks=int(args.lookback_blocks),
+                            max_block_span=int(args.max_block_span),
+                            confirmations=int(args.confirmations),
+                        )
                     )
-                )
+                except Exception as exc:
+                    fast_result = ct.SyncResult(source="chain", errors=(f"reconcile failed: {exc}",))
                 next_reconcile = time.monotonic() + reconcile_interval
                 last_fast_sync_at = ct.utc_now()
                 if fast_result.errors:
