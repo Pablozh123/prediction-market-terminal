@@ -1420,5 +1420,105 @@ class EquityHistoryTests(unittest.TestCase):
         self.assertGreater(float(row["position_value"]), 0.0)
 
 
+class _StubListener:
+    """Drains pre-baked trade batches like RtdsTradeListener."""
+
+    def __init__(self, batches: list[list[dict]]) -> None:
+        self._batches = list(batches)
+
+    def drain(self) -> list[dict]:
+        return self._batches.pop(0) if self._batches else []
+
+
+class WsApplyWorkerTests(unittest.TestCase):
+    """The dedicated apply thread that keeps WS booking latency off the main loop."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.db_path = Path(self.tmp.name) / "copy.sqlite"
+        self.settings = ct.CopySettings(trade_limit=20)
+        ct.reset_paper_portfolio(db_path=self.db_path)
+        conn = ct.connect(self.db_path)
+        try:
+            ct._set_meta(conn, "tony_seeded_at", ct.utc_now())
+            ct._set_meta(conn, "baseline_cutoff_ts", "0")
+            conn.commit()
+        finally:
+            conn.close()
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def test_worker_applies_drained_trades_in_background(self) -> None:
+        trade = ct.decode_rtds_trade(rtds_message(), [ct.COPY_TARGET_WALLET])
+        worker = ct.WsApplyWorker(
+            _StubListener([[trade]]),
+            db_path=self.db_path,
+            settings_loader=lambda: self.settings,
+            interval=0.05,
+        )
+        self.assertTrue(worker.start())
+        try:
+            import time as _time
+
+            deadline = _time.monotonic() + 5.0
+            while _time.monotonic() < deadline and worker.status()["copied_total"] < 1:
+                _time.sleep(0.05)
+            status = worker.status()
+        finally:
+            worker.stop()
+
+        self.assertEqual(status["copied_total"], 1)
+        self.assertIsNotNone(status["last_apply_at"])
+        self.assertEqual((status["last_result"] or {}).get("copied"), 1)
+        self.assertEqual((status["last_result"] or {}).get("source"), "ws")
+        conn = ct.connect(self.db_path)
+        try:
+            row = conn.execute("SELECT status FROM paper_orders WHERE source_tx = '0xws1'").fetchone()
+        finally:
+            conn.close()
+        self.assertEqual(row["status"], "copied")
+
+    def test_worker_stop_terminates_thread(self) -> None:
+        worker = ct.WsApplyWorker(_StubListener([]), db_path=self.db_path, interval=0.05)
+        worker.start()
+        self.assertTrue(worker.status()["running"])
+        worker.stop()
+        self.assertFalse(worker.status()["running"])
+
+    def test_worker_survives_bad_batches(self) -> None:
+        worker = ct.WsApplyWorker(
+            _StubListener([["not-a-trade"], []]),
+            db_path=self.db_path,
+            settings_loader=lambda: self.settings,
+            interval=0.05,
+        )
+        worker.start()
+        try:
+            import time as _time
+
+            deadline = _time.monotonic() + 5.0
+            while _time.monotonic() < deadline and worker.status()["errors_total"] < 1:
+                _time.sleep(0.05)
+            status = worker.status()
+        finally:
+            worker.stop()
+        self.assertGreaterEqual(status["errors_total"], 1)
+        self.assertTrue(status["running"] is False or status["last_error"])
+
+
+class ReconcileBackoffTests(unittest.TestCase):
+    def test_no_failures_keeps_base_interval(self) -> None:
+        self.assertEqual(ct.reconcile_backoff_seconds(0, 30.0), 30.0)
+
+    def test_failures_double_the_interval(self) -> None:
+        self.assertEqual(ct.reconcile_backoff_seconds(1, 30.0), 60.0)
+        self.assertEqual(ct.reconcile_backoff_seconds(3, 30.0), 240.0)
+
+    def test_backoff_is_capped(self) -> None:
+        self.assertEqual(ct.reconcile_backoff_seconds(10, 30.0), 600.0)
+        self.assertEqual(ct.reconcile_backoff_seconds(4, 30.0, cap=120.0), 120.0)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -85,8 +85,9 @@ python scripts/visual_smoke.py --base-url http://127.0.0.1:8503   # Playwright v
 
 - `src/copy_trading.py`: `RTDS_WS_URL`, `rtds_subscribe_payload()` (leerer Filter = globaler Firehose, da Wallet-Filter upstream kaputt), `decode_rtds_trade(message, target_wallets)` (matcht `proxyWallet` clientseitig, normalisiert auf dieselbe source_trade-Form wie der On-Chain-Decoder), `RtdsTradeListener` (Thread + websocket-client, PING, Queue, graceful wenn lib fehlt), `apply_ws_trades(trades, settings, db_path)`.
 - **Cross-Path-Dedup:** `_fill_already_recorded()` in `apply_paper_trade` dedupt auf stabiler Identität (wallet, tx, asset, side) — ohne timestamp/price, die zwischen WS-Match-Zeit und Block-Zeit driften. So kopiert die langsamere On-Chain-Reconciliation einen vom WS bereits kopierten Fill nicht doppelt.
-- `scripts/run_copy_trader.py`: Listener-Lifecycle, drain+apply pro Loop VOR der On-Chain-Reconciliation, `--disable-ws` Flag, ws-Status-Felder, `mode="paper_ws_fast"`. On-Chain bleibt als Fallback/Reconciliation.
-- Tests: `tests/test_copy_trading.py::WsDetectionTests` (7) — decode, wallet-matching, flat/nested messages, baseline, unseeded-skip, Cross-Path-Dedup.
+- `scripts/run_copy_trader.py`: Listener-Lifecycle, `--disable-ws` Flag, ws-Status-Felder. On-Chain bleibt als Fallback/Reconciliation.
+- **`WsApplyWorker` (Nachbesserung):** Das ursprüngliche Design drainte den WS im Main-Loop — dessen blockierende Reconciliation-Syncs (On-Chain gegen rate-limitenden RPC, API-Sweeps, Settlements) stauten die Queue, live: **WS-Median 105s, der 30s-API-Fallback überholte den "schnellen" Pfad**. Jetzt bucht ein dedizierter Thread (`ct.WsApplyWorker`, drain alle 0.5s, eigene SQLite-Connection; WAL + busy_timeout 30s machen Cross-Thread-Writes sicher, Dedup-Keys halten die Pfade idempotent). Status-Feld `ws_worker` (last_result/latency/totals). Dazu `reconcile_backoff_seconds`: On-Chain-Sweep backt bei RPC-429-Serien exponentiell aus (30s→…→600s cap) statt alle 30s sinnlos zu blocken (`rpc_fail_streak` im Status).
+- Tests: `tests/test_copy_trading.py::WsDetectionTests` (7) — decode, wallet-matching, flat/nested messages, baseline, unseeded-skip, Cross-Path-Dedup — plus `WsApplyWorkerTests` (3) und `ReconcileBackoffTests` (3).
 
 ## 7. Auth & Admin-Gating (zuletzt gebaut)
 
