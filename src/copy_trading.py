@@ -73,9 +73,17 @@ class CopySettings:
     dynamic_sizing_enabled: bool = True
     dynamic_sizing_multiplier: float = 1.0
     dynamic_stats_refresh_seconds: int = 300
-    dynamic_scale_max: float = 0.01
+    # 0 = uncapped: copy at the neutral portfolio ratio (our equity / source
+    # equity). A positive cap silently under-copies whenever the ratio exceeds
+    # it (the old 1% default cost ~20% fidelity at a 1.27% neutral ratio).
+    dynamic_scale_max: float = 0.0
     dynamic_scale_min: float = 0.0
     dynamic_order_cap_from_tony: bool = True
+    # Soft crunch behavior: one order may spend at most this fraction of the
+    # sub-account's remaining cash. During cash droughts every trade still gets
+    # a (smaller) fill instead of later trades being skipped entirely — uniform
+    # shrinkage tracks the source curve far better than selective gaps. 0 = off.
+    cash_throttle_pct: float = 0.25
     # Opt-in: silently printing paper cash distorts the experiment (13 unnoticed
     # top-ups turned a 5k run into an 18k one). Off by default — out-of-cash buys
     # skip with reason "insufficient_cash" until settlements recycle cash.
@@ -95,6 +103,9 @@ class PaperOrder:
     copy_notional: float = 0.0
     copy_size: float = 0.0
     realized_pnl: float = 0.0
+    # What a faithful copy at the configured scale wanted to spend, before
+    # cash/order caps. actual/desired across orders = execution fidelity.
+    desired_notional: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -235,6 +246,7 @@ def init_db(conn: sqlite3.Connection, start_cash: float = 1000.0) -> None:
             copy_size REAL,
             copy_notional REAL,
             realized_pnl REAL DEFAULT 0,
+            desired_notional REAL NOT NULL DEFAULT 0,
             status TEXT NOT NULL,
             reason TEXT,
             source_json TEXT,
@@ -391,6 +403,8 @@ def _migrate_to_multitrader(conn: sqlite3.Connection, start_cash: float = 1000.0
             conn.execute(
                 f"ALTER TABLE {table} ADD COLUMN trader_wallet TEXT NOT NULL DEFAULT '{COPY_TARGET_WALLET}'"
             )
+    if "desired_notional" not in _table_columns(conn, "paper_orders"):
+        conn.execute("ALTER TABLE paper_orders ADD COLUMN desired_notional REAL NOT NULL DEFAULT 0")
     _migrate_positions_to_sub_accounts(conn)
 
     if conn.execute("SELECT 1 FROM traders LIMIT 1").fetchone() is None:
@@ -2367,11 +2381,16 @@ def _apply_buy(conn: sqlite3.Connection, parsed: dict[str, Any], settings: CopyS
     effective_cap_pct = _effective_max_order_equity_pct(conn, settings)
     desired = parsed["source_notional"] * effective_scale
     cap = max(snapshot.equity, 0.0) * effective_cap_pct
-    copy_notional = min(desired, cap, cash)
+    throttle = max(0.0, float(settings.cash_throttle_pct))
+    per_order_cash = cash * throttle if throttle > 0 else cash
+    copy_notional = min(desired, cap, per_order_cash, cash)
     min_copy_notional = max(0.0, float(settings.min_copy_notional))
     if copy_notional < min_copy_notional:
-        reason = "insufficient_cash" if cash < min_copy_notional else "below_min_copy_notional"
-        return PaperOrder(parsed["dedup_key"], "skipped", reason, parsed["side"], parsed["source_notional"])
+        cash_limited = min(per_order_cash, cash) < min_copy_notional
+        reason = "insufficient_cash" if cash_limited else "below_min_copy_notional"
+        return PaperOrder(
+            parsed["dedup_key"], "skipped", reason, parsed["side"], parsed["source_notional"], desired_notional=desired
+        )
 
     copy_size = copy_notional / parsed["price"]
     position = _get_position(conn, wallet, parsed["asset"])
@@ -2416,7 +2435,16 @@ def _apply_buy(conn: sqlite3.Connection, parsed: dict[str, Any], settings: CopyS
     cash_after_trade = cash - copy_notional
     _set_trader_cash(conn, wallet, cash_after_trade)
     _auto_top_up_if_needed(conn, wallet, cash_after_trade, settings, "after_buy", parsed)
-    return PaperOrder(parsed["dedup_key"], "copied", "buy_scaled", parsed["side"], parsed["source_notional"], copy_notional, copy_size)
+    return PaperOrder(
+        parsed["dedup_key"],
+        "copied",
+        "buy_scaled",
+        parsed["side"],
+        parsed["source_notional"],
+        copy_notional,
+        copy_size,
+        desired_notional=desired,
+    )
 
 
 def _apply_sell(conn: sqlite3.Connection, parsed: dict[str, Any]) -> PaperOrder:
@@ -2466,6 +2494,7 @@ def _apply_sell(conn: sqlite3.Connection, parsed: dict[str, Any]) -> PaperOrder:
         copy_notional,
         sell_shares,
         realized_pnl,
+        desired_notional=copy_notional,
     )
 
 
@@ -2475,9 +2504,9 @@ def _insert_order(conn: sqlite3.Connection, parsed: dict[str, Any], order: Paper
         INSERT INTO paper_orders (
             dedup_key, source_wallet, source_tx, source_time, market_key, asset, title, outcome,
             source_side, source_price, source_size, source_notional, copy_side, copy_price,
-            copy_size, copy_notional, realized_pnl, status, reason, source_json, created_at
+            copy_size, copy_notional, realized_pnl, desired_notional, status, reason, source_json, created_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             parsed["dedup_key"],
@@ -2497,6 +2526,7 @@ def _insert_order(conn: sqlite3.Connection, parsed: dict[str, Any], order: Paper
             order.copy_size,
             order.copy_notional,
             order.realized_pnl,
+            order.desired_notional,
             order.status,
             order.reason,
             _json_source(source_trade),
@@ -2799,6 +2829,13 @@ def _store_tony_wallet_stats(
         _set_meta(conn, f"wallet_stat:{wallet}:ts", f"{timestamp:.6f}")
         _set_meta(conn, f"wallet_stat:{wallet}:visible_equity", f"{stats.visible_equity:.10f}")
         _set_meta(conn, f"wallet_stat:{wallet}:max_market_position_pct", f"{stats.max_market_position_pct:.10f}")
+        # The legacy tony_* keys feed the primary-target UI (hero metrics,
+        # sizing examples). Only the configured target wallet may write them —
+        # otherwise every followed trader's refresh clobbers the display with
+        # its own equity (observed live: edenmoon's 44.7k shown as "Tony").
+        primary = _normalize_address(_get_meta(conn, "target_wallet") or COPY_TARGET_WALLET)
+        if _normalize_address(wallet) != primary:
+            return
     _set_meta(conn, "tony_wallet_stats_ts", f"{timestamp:.6f}")
     _set_meta(conn, "tony_wallet_stats_json", json.dumps(asdict(stats), sort_keys=True))
     _set_meta(conn, "tony_wallet_stats_updated_at", stats.updated_at)
