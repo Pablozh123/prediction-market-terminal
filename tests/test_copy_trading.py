@@ -227,11 +227,28 @@ class CopyTradingTests(unittest.TestCase):
         self.assertEqual(order.reason, "insufficient_cash")
         self.assertAlmostEqual(snapshot.cash, 0.0)
 
-    def test_auto_top_up_when_cash_is_empty_then_copies_buy(self) -> None:
+    def test_auto_top_up_is_opt_in_by_default(self) -> None:
+        self.assertFalse(ct.CopySettings().auto_top_up_enabled)
+
+    def test_cash_drain_without_top_up_skips_and_records_no_cash_event(self) -> None:
         conn = ct.connect(self.db_path)
         try:
             conn.execute("UPDATE traders SET cash = 0 WHERE wallet = ?", (ct.COPY_TARGET_WALLET,))
             order = ct.apply_paper_trade(conn, source_trade(), self.settings)
+            cash_events = ct.get_cash_events(conn=conn)
+        finally:
+            conn.close()
+
+        self.assertEqual(order.status, "skipped")
+        self.assertEqual(order.reason, "insufficient_cash")
+        self.assertEqual(len(cash_events), 0)
+
+    def test_auto_top_up_when_cash_is_empty_then_copies_buy(self) -> None:
+        settings = ct.CopySettings(trade_limit=20, auto_top_up_enabled=True)
+        conn = ct.connect(self.db_path)
+        try:
+            conn.execute("UPDATE traders SET cash = 0 WHERE wallet = ?", (ct.COPY_TARGET_WALLET,))
+            order = ct.apply_paper_trade(conn, source_trade(), settings)
             snapshot = ct.value_paper_portfolio(conn=conn)
             cash_events = ct.get_cash_events(conn=conn)
         finally:
@@ -247,7 +264,7 @@ class CopyTradingTests(unittest.TestCase):
         self.assertAlmostEqual(float(cash_events.iloc[0]["amount"]), 1000.0)
 
     def test_auto_top_up_after_buy_drains_cash(self) -> None:
-        settings = ct.CopySettings(trade_limit=20, max_order_equity_pct=1.0)
+        settings = ct.CopySettings(trade_limit=20, max_order_equity_pct=1.0, auto_top_up_enabled=True)
         conn = ct.connect(self.db_path)
         try:
             conn.execute("UPDATE traders SET cash = 10 WHERE wallet = ?", (ct.COPY_TARGET_WALLET,))
@@ -1245,6 +1262,78 @@ class WsDetectionTests(unittest.TestCase):
         self.assertEqual(result.source, "chain")
         self.assertTrue(result.errors)
         self.assertIn("rpc unavailable", result.errors[0])
+
+
+class EquityHistoryTests(unittest.TestCase):
+    """Contributions ledger + equity snapshots that back the honest equity curve."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.db_path = Path(self.tmp.name) / "copy.sqlite"
+        self.settings = ct.CopySettings(trade_limit=20)
+        conn = ct.connect(self.db_path)
+        try:
+            ct.init_db(conn, start_cash=1000.0)
+            conn.commit()
+        finally:
+            conn.close()
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def test_contributions_are_start_cash_plus_cash_events(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            ct.apply_paper_trade(conn, source_trade(), self.settings)
+            conn.commit()
+        finally:
+            conn.close()
+        self.assertAlmostEqual(ct.total_contributions(db_path=self.db_path), 1000.0)
+
+        ct.add_paper_cash(500.0, db_path=self.db_path)
+        self.assertAlmostEqual(ct.total_contributions(db_path=self.db_path), 1500.0)
+
+    def test_settlement_proceeds_do_not_count_as_contributions(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            ct.apply_paper_trade(conn, source_trade(), self.settings)
+            wallet = ct.COPY_TARGET_WALLET
+            cash = ct._get_trader_cash(conn, wallet, 1000.0)
+            ct._set_trader_cash(conn, wallet, cash + 250.0)  # resolution payout path
+            conn.commit()
+        finally:
+            conn.close()
+        self.assertAlmostEqual(ct.total_contributions(db_path=self.db_path), 1000.0)
+
+    def test_record_equity_snapshot_appends_and_throttles(self) -> None:
+        first = ct.record_equity_snapshot(db_path=self.db_path, min_interval_seconds=3600.0)
+        second = ct.record_equity_snapshot(db_path=self.db_path, min_interval_seconds=3600.0)
+        snaps = ct.get_equity_snapshots(db_path=self.db_path)
+
+        self.assertTrue(first)
+        self.assertFalse(second, "snapshot inside the throttle window must be skipped")
+        self.assertEqual(len(snaps), 1)
+        row = snaps.iloc[0]
+        self.assertAlmostEqual(float(row["equity"]), 1000.0)
+        self.assertAlmostEqual(float(row["contributions"]), 1000.0)
+
+    def test_snapshot_after_buy_keeps_equity_and_contributions_separate(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            ct.apply_paper_trade(conn, source_trade(), self.settings)
+            conn.commit()
+        finally:
+            conn.close()
+        ct.add_paper_cash(500.0, db_path=self.db_path)
+        ct.record_equity_snapshot(db_path=self.db_path, min_interval_seconds=0.0)
+        snaps = ct.get_equity_snapshots(db_path=self.db_path)
+
+        self.assertEqual(len(snaps), 1)
+        row = snaps.iloc[-1]
+        self.assertAlmostEqual(float(row["contributions"]), 1500.0)
+        # equity = cash (990 + 500) + position marked at entry price (10)
+        self.assertAlmostEqual(float(row["equity"]), 1500.0, places=2)
+        self.assertGreater(float(row["position_value"]), 0.0)
 
 
 if __name__ == "__main__":
