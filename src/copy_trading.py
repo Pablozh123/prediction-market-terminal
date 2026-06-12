@@ -1474,6 +1474,9 @@ class WsApplyWorker:
         self._applied_total = 0
         self._copied_total = 0
         self._errors_total = 0
+        self._retry_trades: list[Mapping[str, Any]] = []
+        self._retry_attempts = 0
+        self._dropped_total = 0
 
     def start(self) -> bool:
         if self._thread is not None and self._thread.is_alive():
@@ -1499,12 +1502,22 @@ class WsApplyWorker:
                 "applied_total": self._applied_total,
                 "copied_total": self._copied_total,
                 "errors_total": self._errors_total,
+                "retry_pending": len(self._retry_trades),
+                "dropped_total": self._dropped_total,
             }
+
+    _MAX_BATCH_RETRIES = 5
 
     def _run(self) -> None:
         while not self._stop_event.is_set():
+            trades: list[Mapping[str, Any]] = []
             try:
-                trades = self._listener.drain()
+                # A batch that failed to book (e.g. "database is locked" while a
+                # reconciliation sweep held the write lock past busy_timeout)
+                # must not be lost to the slow paths — retry it first.
+                trades = list(self._retry_trades)
+                self._retry_trades = []
+                trades.extend(self._listener.drain())
                 if trades:
                     settings: CopySettings | None = None
                     if self._settings_loader is not None:
@@ -1513,6 +1526,7 @@ class WsApplyWorker:
                         except Exception:
                             settings = None
                     result = aggregate_sync_results(apply_ws_trades(trades, settings=settings, db_path=self._db_path))
+                    self._retry_attempts = 0
                     now_ts = datetime.now(timezone.utc).timestamp()
                     if self._clock_offset_provider is not None:
                         try:
@@ -1536,6 +1550,14 @@ class WsApplyWorker:
                         if result.errors:
                             self._last_error = result.errors[0]
             except Exception as exc:  # never let one bad batch kill the worker
+                if trades and self._retry_attempts < self._MAX_BATCH_RETRIES:
+                    self._retry_trades = trades
+                    self._retry_attempts += 1
+                else:
+                    dropped = len(trades)
+                    self._retry_attempts = 0
+                    with self._lock:
+                        self._dropped_total += dropped
                 with self._lock:
                     self._errors_total += 1
                     self._last_error = str(exc)
