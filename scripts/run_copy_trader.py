@@ -87,11 +87,22 @@ def main() -> int:
     # copies. Disabled with --disable-ws or when websocket-client is missing.
     ws_enabled = not args.disable_ws and ct.RtdsTradeListener.available()
     ws_listener = None
+    ws_worker = None
     if ws_enabled:
         ws_listener = ct.RtdsTradeListener(ct.active_trader_wallets(db_path=db_path))
         ws_enabled = ws_listener.start()
+    if ws_enabled and not args.once:
+        # Dedicated apply thread: detection-to-booking latency must not wait on
+        # the blocking reconciliation syncs in this loop (live: median 105s).
+        ws_worker = ct.WsApplyWorker(
+            ws_listener,
+            db_path=db_path,
+            settings_loader=lambda: ct.load_copy_settings(default=base_settings),
+        )
+        ws_worker.start()
     reconcile_interval = max(interval, float(args.reconcile_interval))
     next_reconcile = 0.0
+    rpc_fail_streak = 0
 
     def mode_label() -> str:
         if ws_enabled:
@@ -139,6 +150,8 @@ def main() -> int:
         last_ws_sync_at = None
 
         if stop_path.exists():
+            if ws_worker is not None:
+                ws_worker.stop()
             if ws_listener is not None:
                 ws_listener.stop()
             write_status(
@@ -163,14 +176,21 @@ def main() -> int:
         try:
             if ws_listener is not None:
                 ws_listener.set_wallets(ct.active_trader_wallets(db_path=db_path))
-                ws_trades = ws_listener.drain()
-                if ws_trades:
-                    ws_result = ct.aggregate_sync_results(ct.apply_ws_trades(ws_trades, settings=settings, db_path=db_path))
-                    last_ws_sync_at = ct.utc_now()
-                    if ws_result.errors:
-                        errors.extend(ws_result.errors)
-                    last_ws_result_payload = asdict(ws_result)
-                    last_ws_sync_at_value = last_ws_sync_at
+                if ws_worker is not None:
+                    worker_status = ws_worker.status()
+                    if worker_status.get("last_result"):
+                        last_ws_result_payload = worker_status["last_result"]
+                        last_ws_sync_at_value = worker_status.get("last_apply_at")
+                else:
+                    # --once: drain synchronously so the single pass is complete.
+                    ws_trades = ws_listener.drain()
+                    if ws_trades:
+                        ws_result = ct.aggregate_sync_results(ct.apply_ws_trades(ws_trades, settings=settings, db_path=db_path))
+                        last_ws_sync_at = ct.utc_now()
+                        if ws_result.errors:
+                            errors.extend(ws_result.errors)
+                        last_ws_result_payload = asdict(ws_result)
+                        last_ws_sync_at_value = last_ws_sync_at
 
             # With the WebSocket connected, the on-chain scan is demoted from
             # every-tick polling to a slower reconciliation sweep — the WS sees
@@ -193,7 +213,13 @@ def main() -> int:
                     )
                 except Exception as exc:
                     fast_result = ct.SyncResult(source="chain", errors=(f"reconcile failed: {exc}",))
-                next_reconcile = time.monotonic() + reconcile_interval
+                # Back off exponentially while the free RPC rate-limits: a pass
+                # every 30s against a 429ing endpoint blocks the loop for nothing.
+                if fast_result.errors and all("rpc unavailable" in err or "reconcile failed" in err for err in fast_result.errors):
+                    rpc_fail_streak += 1
+                else:
+                    rpc_fail_streak = 0
+                next_reconcile = time.monotonic() + ct.reconcile_backoff_seconds(rpc_fail_streak, reconcile_interval)
                 last_fast_sync_at = ct.utc_now()
                 if fast_result.errors:
                     errors.extend(fast_result.errors)
@@ -273,6 +299,8 @@ def main() -> int:
                     "ws_enabled": ws_enabled,
                     "ws_connected": ws_connected,
                     "ws_status": ws_listener.status() if ws_listener is not None else None,
+                    "ws_worker": ws_worker.status() if ws_worker is not None else None,
+                    "rpc_fail_streak": rpc_fail_streak,
                     "rpc_url": args.rpc_url,
                     "last_sync_at": ct.utc_now(),
                     "last_ws_sync_at": last_ws_sync_at_value,
@@ -317,6 +345,8 @@ def main() -> int:
             )
 
         if args.once:
+            if ws_worker is not None:
+                ws_worker.stop()
             if ws_listener is not None:
                 ws_listener.stop()
             return 0
