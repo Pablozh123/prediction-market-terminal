@@ -6,6 +6,8 @@ __pycache__
 **/__pycache__
 *.pyc
 .env
+# Never bake auth secrets into the image — mount them via docker-compose instead.
+.streamlit/secrets.toml
 data/
 artifacts/
 docs/

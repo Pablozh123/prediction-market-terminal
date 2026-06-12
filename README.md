@@ -33,6 +33,10 @@ docker compose up -d --build
 
 This starts the terminal, the alert scanner, and Caddy (automatic TLS + security headers) as the only public entry point.
 
+### Optional: Google sign-in for the Settings page
+
+Without auth secrets the app runs in open local-research mode — no sign-in surface, Settings unrestricted. To restrict Settings on a public deployment, copy [.streamlit/secrets.toml.example](.streamlit/secrets.toml.example) to `.streamlit/secrets.toml` (gitignored), fill in the Google OIDC credentials, and set the admin allowlist (`[admin] emails` in secrets, or the `ADMIN_EMAILS` env var which takes precedence). With auth configured, Settings fail closed: only signed-in, allowlisted accounts can change configuration, while all research workspaces stay public. For Docker, uncomment the secrets volume in `docker-compose.yml`.
+
 ## Workspaces
 
 Overview, Search, Markets, Traders, Track, Live Trades, Wallets, Backtester, Copy Trade, Whale Flow, Suspicious, Cross-Venue, Monitor, Resolved, Portfolio, Settings.
@@ -69,6 +73,7 @@ The Copy Trade page follows a target wallet (default Swisstony, `0x204f72f35326d
 | `app/suspicion.py` | Insider-risk scoring, clusters, co-trading network |
 | `app/signals.py` | Monitor signal/rule logic (shared with the scanner) |
 | `app/app_settings.py` | Persisted settings with env-var secret overrides |
+| `app/authz.py` | Admin-gate logic for the Settings page (`st.login()` + allowlist, fail closed) |
 | `scripts/run_alert_scanner.py` | Background alert scanner with Telegram delivery |
 | `scripts/run_copy_trader.py` | Background paper-copy sync runner |
 | `Dockerfile` / `docker-compose.yml` / `deploy/Caddyfile` | Production deployment |

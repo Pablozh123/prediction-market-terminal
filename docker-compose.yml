@@ -9,6 +9,10 @@ services:
     env_file: .env
     volumes:
       - ./data:/app/data
+      # Optional Google sign-in for the Settings/admin gate: create
+      # .streamlit/secrets.toml from .streamlit/secrets.toml.example, then
+      # uncomment. Without it the app runs in open local-research mode.
+      # - ./.streamlit/secrets.toml:/app/.streamlit/secrets.toml:ro
     expose:
       - "8501"
     # Never publish 8501 directly — Caddy is the only public entry point.

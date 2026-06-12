@@ -48,8 +48,6 @@ ROUTES = [
     RouteCheck("/suspicious", ("Suspicious", "not legal findings"), "suspicious.png"),
     RouteCheck("/settings", ("Settings", "Backtester defaults"), "settings.png"),
     RouteCheck("/copy-trade", ("Copy Trade", "Paper mode only"), "copy_trade.png"),
-    RouteCheck("/sign-in", ("Account access", "Sign In", "Local research mode"), "sign_in.png"),
-    RouteCheck("/sign-up", ("Account access", "Sign Up", "Local research mode"), "sign_up.png"),
 ]
 
 
