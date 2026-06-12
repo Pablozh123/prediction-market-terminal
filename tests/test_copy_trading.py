@@ -1486,6 +1486,69 @@ class WsApplyWorkerTests(unittest.TestCase):
         worker.stop()
         self.assertFalse(worker.status()["running"])
 
+    def test_worker_retries_batch_after_transient_db_lock(self) -> None:
+        # "database is locked" (reconciliation sweep held the write lock past
+        # busy_timeout) must not lose the drained fills to the slow paths.
+        trade = ct.decode_rtds_trade(rtds_message(), [ct.COPY_TARGET_WALLET])
+        real_apply = ct.apply_ws_trades
+        calls = {"n": 0}
+
+        def flaky_apply(trades, settings=None, db_path=None):
+            calls["n"] += 1
+            if calls["n"] <= 2:
+                raise sqlite3.OperationalError("database is locked")
+            return real_apply(trades, settings=settings, db_path=db_path)
+
+        worker = ct.WsApplyWorker(
+            _StubListener([[trade]]),
+            db_path=self.db_path,
+            settings_loader=lambda: self.settings,
+            interval=0.05,
+        )
+        with patch("src.copy_trading.apply_ws_trades", side_effect=flaky_apply):
+            worker.start()
+            try:
+                import time as _time
+
+                deadline = _time.monotonic() + 5.0
+                while _time.monotonic() < deadline and worker.status()["copied_total"] < 1:
+                    _time.sleep(0.05)
+                status = worker.status()
+            finally:
+                worker.stop()
+
+        self.assertEqual(status["copied_total"], 1, "fill must book once the lock clears")
+        self.assertEqual(status["errors_total"], 2)
+        self.assertEqual(status["dropped_total"], 0)
+        self.assertEqual(status["retry_pending"], 0)
+        conn = ct.connect(self.db_path)
+        try:
+            row = conn.execute("SELECT status FROM paper_orders WHERE source_tx = '0xws1'").fetchone()
+        finally:
+            conn.close()
+        self.assertEqual(row["status"], "copied")
+
+    def test_worker_drops_poisoned_batch_after_max_retries(self) -> None:
+        worker = ct.WsApplyWorker(
+            _StubListener([["not-a-trade"]]),
+            db_path=self.db_path,
+            settings_loader=lambda: self.settings,
+            interval=0.02,
+        )
+        worker.start()
+        try:
+            import time as _time
+
+            deadline = _time.monotonic() + 5.0
+            while _time.monotonic() < deadline and worker.status()["dropped_total"] < 1:
+                _time.sleep(0.05)
+            status = worker.status()
+        finally:
+            worker.stop()
+        self.assertEqual(status["dropped_total"], 1)
+        self.assertGreaterEqual(status["errors_total"], ct.WsApplyWorker._MAX_BATCH_RETRIES + 1)
+        self.assertEqual(status["retry_pending"], 0)
+
     def test_worker_survives_bad_batches(self) -> None:
         worker = ct.WsApplyWorker(
             _StubListener([["not-a-trade"], []]),
