@@ -881,7 +881,13 @@ def sync_onchain_copy_trades(
 
         refresh_tony_wallet_stats(conn, wallet, settings=settings, rpc_url=rpc_url)
 
-        latest_raw = _rpc_call(rpc_url, "eth_blockNumber", [])
+        # The on-chain path is now a best-effort reconciliation layer behind the
+        # WebSocket. A rate-limited or flaky free RPC must degrade to a soft error,
+        # never crash the daemon loop (which would skip the WebSocket status write).
+        try:
+            latest_raw = _rpc_call(rpc_url, "eth_blockNumber", [])
+        except (requests.RequestException, RuntimeError, ValueError) as exc:
+            return SyncResult(source="chain", errors=(f"rpc unavailable: {exc}",))
         latest_block = max(0, int(str(latest_raw), 16) - max(0, confirmations))
         previous = _get_meta(conn, "fast_last_block")
         if previous is None:
@@ -895,16 +901,19 @@ def sync_onchain_copy_trades(
             conn.commit()
             return SyncResult(source="chain", latest_block=latest_block, from_block=from_block, to_block=to_block)
 
-        logs = _fetch_order_filled_logs(rpc_url, wallet, from_block, to_block)
-        logs = sorted(
-            logs,
-            key=lambda log: (
-                _hex_to_int(log.get("blockNumber")),
-                _hex_to_int(log.get("transactionIndex")),
-                _hex_to_int(log.get("logIndex")),
-            ),
-        )
-        block_timestamps = _block_timestamps(rpc_url, {int(log["blockNumber"], 16) for log in logs if log.get("blockNumber")})
+        try:
+            logs = _fetch_order_filled_logs(rpc_url, wallet, from_block, to_block)
+            logs = sorted(
+                logs,
+                key=lambda log: (
+                    _hex_to_int(log.get("blockNumber")),
+                    _hex_to_int(log.get("transactionIndex")),
+                    _hex_to_int(log.get("logIndex")),
+                ),
+            )
+            block_timestamps = _block_timestamps(rpc_url, {int(log["blockNumber"], 16) for log in logs if log.get("blockNumber")})
+        except (requests.RequestException, RuntimeError, ValueError) as exc:
+            return SyncResult(source="chain", latest_block=latest_block, from_block=from_block, to_block=to_block, errors=(f"rpc unavailable: {exc}",))
         baseline_cutoff = int(_get_float_meta(conn, "baseline_cutoff_ts", 0.0))
         copied = skipped = duplicates = processed = 0
         errors: list[str] = []
