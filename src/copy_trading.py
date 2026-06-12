@@ -1416,6 +1416,112 @@ def apply_ws_trades(
     return results
 
 
+class WsApplyWorker:
+    """Books WebSocket-detected fills in a dedicated thread.
+
+    Detection-to-booking latency must not depend on the main daemon loop:
+    its reconciliation syncs (on-chain logs against a rate-limited RPC, API
+    sweeps, settlement passes) block for tens of seconds per pass, which
+    live queued WS fills for minutes (median 105s) — slower than the 30s
+    API fallback they were meant to beat. The worker drains the listener
+    every ``interval`` seconds and applies straight to SQLite; WAL plus the
+    30s busy_timeout make the cross-thread writes safe, and the dedup keys
+    keep the WS/chain/API paths idempotent against each other.
+    """
+
+    def __init__(
+        self,
+        listener: "RtdsTradeListener",
+        db_path: str | Path = DEFAULT_DB_PATH,
+        settings_loader: Callable[[], CopySettings] | None = None,
+        interval: float = 0.5,
+    ) -> None:
+        self._listener = listener
+        self._db_path = db_path
+        self._settings_loader = settings_loader
+        self._interval = max(0.1, float(interval))
+        self._stop_event = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._lock = threading.Lock()
+        self._last_result: dict[str, Any] | None = None
+        self._last_apply_at: str | None = None
+        self._last_error: str | None = None
+        self._last_latency_s: float | None = None
+        self._applied_total = 0
+        self._copied_total = 0
+        self._errors_total = 0
+
+    def start(self) -> bool:
+        if self._thread is not None and self._thread.is_alive():
+            return True
+        self._stop_event.clear()
+        self._thread = threading.Thread(target=self._run, name="ws-apply-worker", daemon=True)
+        self._thread.start()
+        return True
+
+    def stop(self, timeout: float = 5.0) -> None:
+        self._stop_event.set()
+        if self._thread is not None:
+            self._thread.join(timeout=timeout)
+
+    def status(self) -> dict[str, Any]:
+        with self._lock:
+            return {
+                "running": bool(self._thread is not None and self._thread.is_alive()),
+                "last_result": dict(self._last_result) if self._last_result else None,
+                "last_apply_at": self._last_apply_at,
+                "last_error": self._last_error,
+                "last_latency_seconds": self._last_latency_s,
+                "applied_total": self._applied_total,
+                "copied_total": self._copied_total,
+                "errors_total": self._errors_total,
+            }
+
+    def _run(self) -> None:
+        while not self._stop_event.is_set():
+            try:
+                trades = self._listener.drain()
+                if trades:
+                    settings: CopySettings | None = None
+                    if self._settings_loader is not None:
+                        try:
+                            settings = self._settings_loader()
+                        except Exception:
+                            settings = None
+                    result = aggregate_sync_results(apply_ws_trades(trades, settings=settings, db_path=self._db_path))
+                    now_ts = datetime.now(timezone.utc).timestamp()
+                    latencies = sorted(
+                        now_ts - _timestamp_value(trade)
+                        for trade in trades
+                        if _timestamp_value(trade) > 0
+                    )
+                    with self._lock:
+                        self._last_result = asdict(result)
+                        self._last_apply_at = utc_now()
+                        self._applied_total += result.processed
+                        self._copied_total += result.copied
+                        self._errors_total += len(result.errors)
+                        self._last_latency_s = latencies[len(latencies) // 2] if latencies else None
+                        if result.errors:
+                            self._last_error = result.errors[0]
+            except Exception as exc:  # never let one bad batch kill the worker
+                with self._lock:
+                    self._errors_total += 1
+                    self._last_error = str(exc)
+            self._stop_event.wait(self._interval)
+
+
+def reconcile_backoff_seconds(failure_streak: int, base_interval: float, cap: float = 600.0) -> float:
+    """Exponential backoff for the on-chain reconciliation while the RPC
+    rate-limits — burning a pass every 30s against a 429ing endpoint only
+    blocks the loop without ever copying anything."""
+
+    base = max(0.0, float(base_interval))
+    if failure_streak <= 0:
+        return base
+    return float(min(cap, base * (2 ** min(int(failure_streak), 6))))
+
+
 def sync_active_settlement_activity(
     settings: CopySettings | None = None,
     db_path: str | Path = DEFAULT_DB_PATH,
