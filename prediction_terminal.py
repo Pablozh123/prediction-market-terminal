@@ -9158,7 +9158,13 @@ def render_copy_command_center(
 
     status_cols = st.columns([1.1, 1.1, 1.2, 1.1, 1.2])
     status_cols[0].metric("Runner", "Active" if daemon_status.get("running") else "Stopped")
-    status_cols[1].metric("Mode", "Fast chain" if daemon_status.get("fast_enabled") else "API")
+    if daemon_status.get("ws_connected"):
+        daemon_mode = "WebSocket"
+    elif daemon_status.get("fast_enabled"):
+        daemon_mode = "Fast chain"
+    else:
+        daemon_mode = "API"
+    status_cols[1].metric("Mode", daemon_mode, help="WebSocket = instant off-chain match feed; Fast chain = on-chain log polling; API = Data-API fallback.")
     status_cols[2].metric("Last Sync Age", _age_label(last_sync))
     status_cols[3].metric("Below-Min Skips", f"{below_min_count:,}")
     status_cols[4].metric("Baseline", f"{baseline_count:,}", f"Top-ups {len(cash_events):,}")
@@ -10938,7 +10944,7 @@ def page_settings() -> None:
             daemon = load_copy_daemon_status()
             d1, d2, d3 = st.columns(3)
             d1.metric("Runner", "Active" if daemon.get("running") else "Stopped")
-            d2.metric("Mode", "Fast chain" if daemon.get("fast_enabled") else "API")
+            d2.metric("Mode", "WebSocket" if daemon.get("ws_connected") else ("Fast chain" if daemon.get("fast_enabled") else "API"))
             d3.metric("Cash", money(daemon.get("cash", 0.0)))
             st.markdown(f"<div class='field-hint'>Last sync {daemon.get('last_sync_at') or '-'}</div>", unsafe_allow_html=True)
             dc1, dc2 = st.columns(2)
