@@ -24,6 +24,7 @@ import requests
 
 POLY_GAMMA = "https://gamma-api.polymarket.com"
 POLY_DATA = "https://data-api.polymarket.com"
+POLY_USER_PNL = "https://user-pnl-api.polymarket.com"
 POLY_CLOB = "https://clob.polymarket.com"
 KALSHI_API = "https://external-api.kalshi.com/trade-api/v2"
 
@@ -1913,6 +1914,51 @@ def get_polymarket_activity(user: str, limit: int = 250, offset: int = 0) -> pd.
         "transactionHash",
     ]
     return df[[c for c in cols if c in df.columns]].sort_values("time", ascending=False).reset_index(drop=True)
+
+
+USER_PNL_WINDOWS: dict[str, tuple[str, str]] = {
+    # chart window -> (interval, fidelity) accepted by the user-pnl API
+    "1d": ("1d", "1h"),
+    "1w": ("1w", "1h"),
+    "1mo": ("1m", "1d"),
+    "All": ("all", "1d"),
+}
+
+
+def parse_user_pnl_points(payload: Any) -> pd.DataFrame:
+    """Normalize user-pnl API points (``[{"t": epoch, "p": pnl}, ...]``) to a
+    [time, pnl] frame. Tolerates bad rows and non-list payloads."""
+
+    rows: list[dict[str, Any]] = []
+    for point in payload if isinstance(payload, list) else []:
+        if not isinstance(point, Mapping):
+            continue
+        ts = _num(point.get("t"))
+        pnl = _num(point.get("p"))
+        if ts is None or pnl is None:
+            continue
+        rows.append({"time": ts, "pnl": float(pnl)})
+    if not rows:
+        return pd.DataFrame(columns=["time", "pnl"])
+    frame = pd.DataFrame(rows)
+    frame["time"] = pd.to_datetime(frame["time"], unit="s", utc=True, errors="coerce")
+    return frame.dropna(subset=["time"]).sort_values("time").reset_index(drop=True)
+
+
+def get_polymarket_user_pnl(user: str, window: str = "1w") -> pd.DataFrame:
+    """Official profile PnL series for a wallet (the curve polymarket.com shows).
+
+    ``window`` is one of USER_PNL_WINDOWS keys; unknown values fall back to 1w.
+    """
+
+    if not user:
+        return pd.DataFrame(columns=["time", "pnl"])
+    interval, fidelity = USER_PNL_WINDOWS.get(str(window), USER_PNL_WINDOWS["1w"])
+    data = _get_json(
+        f"{POLY_USER_PNL}/user-pnl",
+        params={"user_address": str(user).lower(), "interval": interval, "fidelity": fidelity},
+    )
+    return parse_user_pnl_points(data)
 
 
 def get_polymarket_holders(market: str, limit: int = 100) -> pd.DataFrame:

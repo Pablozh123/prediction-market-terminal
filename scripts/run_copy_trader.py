@@ -246,6 +246,10 @@ def main() -> int:
                 last_api_sync_at_value = last_api_sync_at
 
             snapshot = ct.value_paper_portfolio(db_path=db_path)
+            try:
+                ct.record_equity_snapshot(db_path=db_path, snapshot=snapshot, min_interval_seconds=60.0)
+            except Exception:
+                pass  # history is best-effort; never stall the copy loop for it
             dynamic_sizing = ct.get_dynamic_sizing_snapshot(db_path=db_path)
             latest_result = next(
                 (result for result in (ws_result, fast_result, settlement_result, api_result) if result is not None),

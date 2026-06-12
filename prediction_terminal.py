@@ -9040,6 +9040,54 @@ def copy_order_latency_stats(orders: pd.DataFrame) -> dict[str, Any]:
     }
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def load_wallet_pnl_series(wallet: str, window: str) -> pd.DataFrame:
+    """Official Polymarket profile PnL series (the curve polymarket.com draws)."""
+
+    try:
+        return md.get_polymarket_user_pnl(wallet, window)
+    except Exception:
+        return pd.DataFrame(columns=["time", "pnl"])
+
+
+def paper_equity_curve(equity_snaps: pd.DataFrame, cash_events: pd.DataFrame, start_cash_total: float) -> pd.DataFrame:
+    """Equity-over-time (daemon snapshots) vs cumulative contributions step line.
+
+    The contributions series makes auto/manual top-ups visible: every step up is
+    external paper cash entering the experiment, not trading profit.
+    """
+
+    rows: list[dict[str, Any]] = []
+    if not equity_snaps.empty and "snapshot_time" in equity_snaps and "equity" in equity_snaps:
+        snaps = equity_snaps.copy()
+        snaps["time"] = pd.to_datetime(snaps["snapshot_time"], utc=True, errors="coerce")
+        snaps = snaps.dropna(subset=["time"]).sort_values("time")
+        rows.extend(
+            {"time": row.time, "value": float(row.equity), "series": "Equity"}
+            for row in snaps.itertuples()
+        )
+    contributions = float(start_cash_total)
+    events = pd.DataFrame()
+    if not cash_events.empty and "event_time" in cash_events and "amount" in cash_events:
+        events = cash_events.copy()
+        events["time"] = pd.to_datetime(events["event_time"], utc=True, errors="coerce")
+        events["amount"] = pd.to_numeric(events["amount"], errors="coerce").fillna(0.0)
+        events = events.dropna(subset=["time"]).sort_values("time")
+    if rows or not events.empty:
+        anchor = min((row["time"] for row in rows), default=None)
+        if not events.empty:
+            first_event = events["time"].iloc[0]
+            anchor = first_event if anchor is None else min(anchor, first_event)
+        if anchor is not None:
+            rows.append({"time": anchor, "value": contributions, "series": "Contributions"})
+        for event in events.itertuples():
+            contributions += float(event.amount)
+            rows.append({"time": event.time, "value": contributions, "series": "Contributions"})
+        now = pd.Timestamp.now(tz="UTC")
+        rows.append({"time": now, "value": contributions, "series": "Contributions"})
+    return pd.DataFrame(rows, columns=["time", "value", "series"])
+
+
 def paper_copy_pnl_curve(orders: pd.DataFrame, snapshot: ct.PortfolioSnapshot) -> pd.DataFrame:
     columns = ["time", "pnl", "series"]
     if orders.empty or "created_at" not in orders or "realized_pnl" not in orders:
@@ -9085,9 +9133,14 @@ def render_copy_command_center(
     dynamic_sizing: dict[str, Any],
     daemon_status: dict[str, Any],
 ) -> None:
-    start_cash = _copy_target_start_cash(settings)
     total_pnl = float(snapshot.realized_pnl) + float(snapshot.unrealized_pnl)
-    roi_value = total_pnl / start_cash if start_cash else 0.0
+    # ROI against ALL external cash (start + every top-up), not just start cash —
+    # otherwise 13 silent $1k top-ups read as +260% "profit".
+    contributions = safe_load("Paper contributions", ct.total_contributions, default=0.0)
+    if not contributions:
+        contributions = _copy_target_start_cash(settings)
+    pnl_vs_contributions = float(snapshot.equity) - float(contributions)
+    roi_value = pnl_vs_contributions / contributions if contributions else 0.0
     copied_count = int((orders["status"] == "copied").sum()) if not orders.empty and "status" in orders else 0
     settled_count = int((orders["status"] == "settled").sum()) if not orders.empty and "status" in orders else 0
     skipped_count = int((orders["status"] == "skipped").sum()) if not orders.empty and "status" in orders else 0
@@ -9140,23 +9193,53 @@ def render_copy_command_center(
             chart_head, chart_window = st.columns([1.2, 1])
             chart_head.markdown("### Tony PnL")
             pnl_window = chart_window.radio("Window", ["1d", "1w", "1mo", "All"], index=1, horizontal=True, label_visibility="collapsed", key="copy_trade_tony_pnl_window")
-            tony_curve = filter_pnl_curve_window(wallet_pnl_curve(tony_open, tony_closed), pnl_window)
+            # Official profile PnL series (user-pnl-api). The old reconstruction
+            # from 250 sampled positions broke down for hyperactive wallets.
+            tony_curve = load_wallet_pnl_series(settings.target_wallet, pnl_window)
             if isinstance(tony_curve, pd.DataFrame) and not tony_curve.empty:
-                fig = px.line(tony_curve, x="time", y="pnl", color="series", template="plotly_dark")
-                fig.update_traces(line_width=2.4)
-                fig.update_layout(height=295, margin=dict(l=10, r=10, t=10, b=10), paper_bgcolor=BG, plot_bgcolor=BG, yaxis_title="PnL", xaxis_title="")
+                fig = px.line(tony_curve, x="time", y="pnl", template="plotly_dark")
+                fig.update_traces(line_width=2.4, line_color=ACCENT)
+                fig.update_layout(height=295, margin=dict(l=10, r=10, t=10, b=10), paper_bgcolor=BG, plot_bgcolor=BG, yaxis_title="PnL", xaxis_title="", showlegend=False)
                 st.plotly_chart(fig, width="stretch", config=plot_config())
+                window_change = float(tony_curve["pnl"].iloc[-1]) - float(tony_curve["pnl"].iloc[0])
+                st.caption(f"{pnl_window} change: {money(window_change)} (source: Polymarket profile PnL)")
             else:
-                draw_empty("No PnL history in the sampled positions for this window.")
+                fallback_curve = filter_pnl_curve_window(wallet_pnl_curve(tony_open, tony_closed), pnl_window)
+                if isinstance(fallback_curve, pd.DataFrame) and not fallback_curve.empty:
+                    fig = px.line(fallback_curve, x="time", y="pnl", color="series", markers=True, template="plotly_dark")
+                    fig.update_traces(line_width=2.4)
+                    fig.update_layout(height=295, margin=dict(l=10, r=10, t=10, b=10), paper_bgcolor=BG, plot_bgcolor=BG, yaxis_title="PnL", xaxis_title="")
+                    st.plotly_chart(fig, width="stretch", config=plot_config())
+                else:
+                    draw_empty("PnL series unavailable (API unreachable and no sampled history).")
 
-    paper_cols = st.columns(7)
-    paper_cols[0].metric("Paper Equity", money(snapshot.equity), pct(roi_value))
+    paper_cols = st.columns(8)
+    paper_cols[0].metric(
+        "Paper Equity",
+        money(snapshot.equity),
+        pct(roi_value),
+        help="Cash + marked open positions. Delta = PnL relative to ALL contributed cash (start + top-ups).",
+    )
     paper_cols[1].metric("Paper PnL", money(total_pnl), f"Realized {money(snapshot.realized_pnl)}")
-    paper_cols[2].metric("Cash", money(snapshot.cash))
-    paper_cols[3].metric("Open Value", money(snapshot.position_value), f"{len(positions):,} positions")
-    paper_cols[4].metric("Copied", f"{copied_count:,}", f"{settled_count:,} settled")
-    paper_cols[5].metric("Coverage", pct(coverage), f"{skipped_count:,} skips")
-    paper_cols[6].metric("Latency", _duration_label(latency.get("median")), f"P90 {_duration_label(latency.get('p90'))}")
+    paper_cols[2].metric(
+        "Contributions",
+        money(contributions),
+        f"{len(cash_events):,} top-ups" if len(cash_events) else "start cash only",
+        delta_color="off",
+        help="External paper cash: start cash of all traders plus every auto/manual top-up. Equity above this line is real PnL.",
+    )
+    paper_cols[3].metric("Cash", money(snapshot.cash))
+    paper_cols[4].metric("Open Value", money(snapshot.position_value), f"{len(positions):,} positions")
+    paper_cols[5].metric("Copied", f"{copied_count:,}", f"{settled_count:,} settled")
+    paper_cols[6].metric("Coverage", pct(coverage), f"{skipped_count:,} skips")
+    paper_cols[7].metric("Latency", _duration_label(latency.get("median")), f"P90 {_duration_label(latency.get('p90'))}")
+    if bool(settings.auto_top_up_enabled):
+        st.warning(
+            f"Auto top-up is ON: the engine adds {money(settings.auto_top_up_amount)} paper cash whenever a sub-account "
+            f"runs dry. This inflates equity and open value without trading profit — disable it in Copy Settings for a "
+            f"fixed-bankroll experiment.",
+            icon="⚠",
+        )
 
     status_cols = st.columns([1.1, 1.1, 1.2, 1.1, 1.2])
     status_cols[0].metric("Runner", "Active" if daemon_status.get("running") else "Stopped")
@@ -9174,15 +9257,56 @@ def render_copy_command_center(
     curve_col, issue_col = st.columns([1.35, 1])
     with curve_col:
         with st.container(border=True):
-            st.markdown("### Paper PnL Curve")
-            paper_curve = paper_copy_pnl_curve(orders, snapshot)
-            if paper_curve.empty:
-                draw_empty("Paper PnL curve appears after copied or settled orders.")
-            else:
-                fig = px.line(paper_curve, x="time", y="pnl", color="series", markers=True, template="plotly_dark")
-                fig.update_traces(line_width=2.2)
-                fig.update_layout(height=280, margin=dict(l=10, r=10, t=10, b=10), paper_bgcolor=BG, plot_bgcolor=BG, yaxis_title="PnL", xaxis_title="")
-                st.plotly_chart(fig, width="stretch", config=plot_config())
+            st.markdown("### Paper Performance")
+            try:
+                ct.record_equity_snapshot(min_interval_seconds=300.0)
+            except Exception:
+                pass
+            equity_snaps = safe_load("Equity snapshots", ct.get_equity_snapshots, default=pd.DataFrame())
+            start_cash_total = max(float(contributions) - float(pd.to_numeric(cash_events.get("amount"), errors="coerce").fillna(0.0).sum() if not cash_events.empty else 0.0), 0.0)
+            equity_tab, pnl_tab = st.tabs(["Equity vs contributions", "Realized PnL"])
+            with equity_tab:
+                equity_curve_frame = paper_equity_curve(equity_snaps, cash_events, start_cash_total)
+                if equity_curve_frame.empty:
+                    draw_empty("Equity history starts recording now (daemon writes a snapshot every minute).")
+                else:
+                    fig = px.line(
+                        equity_curve_frame,
+                        x="time",
+                        y="value",
+                        color="series",
+                        template="plotly_dark",
+                        color_discrete_map={"Equity": ACCENT, "Contributions": AMBER},
+                    )
+                    fig.update_traces(line_width=2.2)
+                    fig.update_traces(line_shape="hv", line_dash="dash", selector=dict(name="Contributions"))
+                    fig.update_layout(height=280, margin=dict(l=10, r=10, t=10, b=10), paper_bgcolor=BG, plot_bgcolor=BG, yaxis_title="$", xaxis_title="")
+                    st.plotly_chart(fig, width="stretch", config=plot_config())
+                    st.caption(
+                        "Every step in the dashed line is external paper cash (start or top-up) — "
+                        "only the gap between the lines is trading PnL."
+                    )
+            with pnl_tab:
+                paper_curve = paper_copy_pnl_curve(orders, snapshot)
+                if paper_curve.empty:
+                    draw_empty("Paper PnL curve appears after copied or settled orders.")
+                else:
+                    fig = px.line(paper_curve, x="time", y="pnl", color="series", markers=True, template="plotly_dark")
+                    fig.update_traces(line_width=2.2)
+                    if not cash_events.empty and "event_time" in cash_events:
+                        for event_time in pd.to_datetime(cash_events["event_time"], utc=True, errors="coerce").dropna():
+                            fig.add_vline(x=event_time, line_width=1, line_dash="dot", line_color=AMBER, opacity=0.55)
+                    fig.update_layout(height=280, margin=dict(l=10, r=10, t=10, b=10), paper_bgcolor=BG, plot_bgcolor=BG, yaxis_title="PnL", xaxis_title="")
+                    st.plotly_chart(fig, width="stretch", config=plot_config())
+                    st.caption(
+                        "Solid line = cumulative realized PnL only (resolution losses book before winners pay out); "
+                        "the end marker adds open-position PnL. Dotted verticals = cash top-ups."
+                    )
+            if not cash_events.empty:
+                with st.expander(f"Cash events ({len(cash_events):,})", expanded=False):
+                    event_table = cash_events.copy()
+                    keep_cols = [c for c in ["event_time", "trader_wallet", "amount", "cash_before", "cash_after", "reason"] if c in event_table.columns]
+                    st.dataframe(clean_table(event_table, keep_cols), width="stretch", height=220, hide_index=True)
     with issue_col:
         with st.container(border=True):
             st.markdown("### Copy Health")
@@ -9294,6 +9418,22 @@ def render_copy_sizing_settings(
                 value=bool(settings.dynamic_order_cap_from_tony),
                 help="If Tony's largest observed position exceeds the base cap, allow the cap to rise to that percentage.",
             )
+            t1, t2 = st.columns(2)
+            auto_top_up = t1.toggle(
+                "Auto top-up paper cash",
+                value=bool(settings.auto_top_up_enabled),
+                help="OFF (default): out-of-cash buys are skipped until settlements recycle cash — the bankroll stays what you funded. "
+                "ON: the engine adds the amount below whenever a sub-account runs dry; every injection is logged as a cash event and counts as a contribution, not profit.",
+            )
+            auto_top_up_amount = t2.number_input(
+                "Top-up amount $",
+                min_value=1.0,
+                max_value=100_000.0,
+                value=float(settings.auto_top_up_amount),
+                step=100.0,
+                format="%.0f",
+                help="Paper cash added per auto top-up when enabled.",
+            )
             submitted = st.form_submit_button("Save sizing settings", type="primary")
             if submitted:
                 updated = replace(
@@ -9305,6 +9445,8 @@ def render_copy_sizing_settings(
                     max_order_equity_pct=float(max_order_pct) / 100.0,
                     min_copy_notional=float(min_copy_notional),
                     dynamic_order_cap_from_tony=bool(dynamic_cap),
+                    auto_top_up_enabled=bool(auto_top_up),
+                    auto_top_up_amount=float(auto_top_up_amount),
                 )
                 ct.save_copy_settings(updated)
                 st.success("Copy sizing settings saved. Sync now and the background runner will use these settings.")
