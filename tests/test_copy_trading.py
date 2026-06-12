@@ -1234,6 +1234,18 @@ class WsDetectionTests(unittest.TestCase):
         combined = ct.aggregate_sync_results(results)
         self.assertEqual(combined.copied, 2)
 
+    def test_onchain_reconciliation_soft_fails_on_rate_limited_rpc(self) -> None:
+        # The on-chain layer is best-effort behind the WebSocket — a 429 from the
+        # free RPC must return a soft error, never raise and abort the daemon loop.
+        self._seed(baseline_cutoff=0)
+        import requests as _requests
+
+        with patch("src.copy_trading._rpc_call", side_effect=_requests.RequestException("429 Too Many Requests")):
+            result = ct.sync_onchain_copy_trades(ct.COPY_TARGET_WALLET, settings=self.settings, db_path=self.db_path)
+        self.assertEqual(result.source, "chain")
+        self.assertTrue(result.errors)
+        self.assertIn("rpc unavailable", result.errors[0])
+
 
 if __name__ == "__main__":
     unittest.main()
