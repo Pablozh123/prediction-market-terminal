@@ -769,27 +769,6 @@ def local_route_target(value: Any) -> dict[str, str]:
     return {"page_slug": first, "profile": "", "market": ""}
 
 
-def local_auth_route_mode(value: Any) -> str:
-    """Return the local auth-shell mode requested by a path route."""
-
-    raw_value = str(value or "").strip()
-    if not raw_value:
-        return ""
-    parsed = urlparse(raw_value)
-    path = parsed.path if parsed.scheme or parsed.netloc else raw_value
-    parts = [unquote(part.strip()).lower() for part in path.strip("/").split("/") if part.strip()]
-    if not parts:
-        return ""
-    route = "/".join(parts[:2])
-    sign_in_routes = {"sign-in", "signin", "login", "auth/sign-in", "auth/signin", "auth/login"}
-    sign_up_routes = {"sign-up", "signup", "register", "auth/sign-up", "auth/signup", "auth/register"}
-    if route in sign_in_routes or parts[0] in sign_in_routes:
-        return "Sign In"
-    if route in sign_up_routes or parts[0] in sign_up_routes:
-        return "Sign Up"
-    return ""
-
-
 def _query_param_value(params: Mapping[str, Any], *names: str) -> str:
     lowered = {str(key).lower(): value for key, value in params.items()}
     for name in names:

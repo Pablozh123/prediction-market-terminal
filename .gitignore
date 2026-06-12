@@ -4,6 +4,9 @@ __pycache__/
 *.pyo
 .env
 
+# Streamlit auth secrets (OIDC client credentials) — never commit
+.streamlit/secrets.toml
+
 # Virtuelle Umgebung
 .venv/
 venv/

@@ -40,8 +40,6 @@ DEFAULT_ROUTES = [
     "/settings",
     "/copy-trade",
     "/copy-trade?q=tony&side=buy&status=copied,baseline&minTonyNotional=1000&minCopyNotional=10&reason=redeem&latencyOnly=true",
-    "/sign-in",
-    "/sign-up",
     "/traders/p/@swisstony",
     "/traders?bot=true&apMin=101",
     "/wallets/0x204f72f35326db932158cba6adff0b9a1da95e14",

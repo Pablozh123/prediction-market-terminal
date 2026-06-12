@@ -33,12 +33,6 @@ class LocalRouteTargetTests(unittest.TestCase):
             {"page_slug": "markets", "profile": "", "market": "will-bitcoin-hit-100k"},
         )
 
-    def test_auth_routes_map_to_local_shell_modes(self) -> None:
-        self.assertEqual(md.local_auth_route_mode("/sign-in"), "Sign In")
-        self.assertEqual(md.local_auth_route_mode("https://terminal.local/auth/signup"), "Sign Up")
-        self.assertEqual(md.local_auth_route_mode("/markets"), "")
-
-
 class QueryFilterTests(unittest.TestCase):
     def test_search_filter_view_parses_global_search_params(self) -> None:
         view = md.search_filter_view(
