@@ -85,6 +85,18 @@ def main() -> int:
     # on-chain OrderFilled log. The on-chain poll stays on as a slower
     # reconciliation/fallback layer; cross-detection fill dedup prevents double
     # copies. Disabled with --disable-ws or when websocket-client is missing.
+    # Latency telemetry compares the local clock against exchange-stamped trade
+    # times; measure the offset so an unsynchronized system clock (seen live:
+    # +68s, W32Time free-running) doesn't poison every number.
+    clock_offset_holder: dict[str, Any] = {"value": ct.measure_clock_offset_seconds(), "measured_at": time.monotonic()}
+
+    def refresh_clock_offset() -> None:
+        if time.monotonic() - clock_offset_holder["measured_at"] >= 1800.0:
+            offset = ct.measure_clock_offset_seconds()
+            if offset is not None:
+                clock_offset_holder["value"] = offset
+            clock_offset_holder["measured_at"] = time.monotonic()
+
     ws_enabled = not args.disable_ws and ct.RtdsTradeListener.available()
     ws_listener = None
     ws_worker = None
@@ -98,6 +110,7 @@ def main() -> int:
             ws_listener,
             db_path=db_path,
             settings_loader=lambda: ct.load_copy_settings(default=base_settings),
+            clock_offset_provider=lambda: clock_offset_holder["value"],
         )
         ws_worker.start()
     reconcile_interval = max(interval, float(args.reconcile_interval))
@@ -174,6 +187,7 @@ def main() -> int:
             return 0
 
         try:
+            refresh_clock_offset()
             if ws_listener is not None:
                 ws_listener.set_wallets(ct.active_trader_wallets(db_path=db_path))
                 if ws_worker is not None:
@@ -301,6 +315,7 @@ def main() -> int:
                     "ws_status": ws_listener.status() if ws_listener is not None else None,
                     "ws_worker": ws_worker.status() if ws_worker is not None else None,
                     "rpc_fail_streak": rpc_fail_streak,
+                    "clock_offset_seconds": clock_offset_holder["value"],
                     "rpc_url": args.rpc_url,
                     "last_sync_at": ct.utc_now(),
                     "last_ws_sync_at": last_ws_sync_at_value,
