@@ -24,6 +24,7 @@ import streamlit.components.v1 as components
 from app import app_settings as cfg
 from app import authz as az
 from app import backtester as btr
+from app import copy_fidelity as cfy
 from app import copy_follow as ctf
 from app import notify
 from app import signals as sig
@@ -9040,6 +9041,16 @@ def copy_order_latency_stats(orders: pd.DataFrame) -> dict[str, Any]:
     }
 
 
+@st.cache_data(ttl=60, show_spinner=False)
+def value_sub_account_cached(wallet: str) -> "ct.PortfolioSnapshot":
+    """Sub-account snapshot for fidelity math (the global snapshot mixes all traders)."""
+
+    try:
+        return ct.value_sub_account(wallet)
+    except Exception:
+        return ct.PortfolioSnapshot(0.0, 0.0, 0.0, 0.0, 0.0, pd.DataFrame())
+
+
 @st.cache_data(ttl=300, show_spinner=False)
 def load_wallet_pnl_series(wallet: str, window: str) -> pd.DataFrame:
     """Official Polymarket profile PnL series (the curve polymarket.com draws)."""
@@ -9264,7 +9275,7 @@ def render_copy_command_center(
                 pass
             equity_snaps = safe_load("Equity snapshots", ct.get_equity_snapshots, default=pd.DataFrame())
             start_cash_total = max(float(contributions) - float(pd.to_numeric(cash_events.get("amount"), errors="coerce").fillna(0.0).sum() if not cash_events.empty else 0.0), 0.0)
-            equity_tab, pnl_tab = st.tabs(["Equity vs contributions", "Realized PnL"])
+            equity_tab, pnl_tab, fidelity_tab = st.tabs(["Equity vs contributions", "Realized PnL", "Copy fidelity"])
             with equity_tab:
                 equity_curve_frame = paper_equity_curve(equity_snaps, cash_events, start_cash_total)
                 if equity_curve_frame.empty:
@@ -9301,6 +9312,83 @@ def render_copy_command_center(
                     st.caption(
                         "Solid line = cumulative realized PnL only (resolution losses book before winners pay out); "
                         "the end marker adds open-position PnL. Dotted verticals = cash top-ups."
+                    )
+            with fidelity_tab:
+                source_equity_now = float(dynamic_sizing.get("tony_visible_equity", 0.0) or 0.0)
+                sub_equity_now = float(getattr(value_sub_account_cached(settings.target_wallet), "equity", 0.0))
+                config_report = cfy.config_fidelity(
+                    sub_equity_now,
+                    source_equity_now,
+                    dynamic_enabled=bool(settings.dynamic_sizing_enabled),
+                    multiplier=float(settings.dynamic_sizing_multiplier),
+                    scale_cap=float(settings.dynamic_scale_max),
+                    scale_floor=float(settings.dynamic_scale_min),
+                    fixed_scale=float(settings.copy_scale),
+                )
+                execution_report = cfy.execution_fidelity(orders, window_hours=24.0)
+                fid_cols = st.columns(3)
+                fid_cols[0].metric(
+                    "Config fidelity",
+                    pct(config_report["fidelity"]) if config_report["neutral_scale"] > 0 else "-",
+                    f"neutral scale {config_report['neutral_scale'] * 100:.4f}%",
+                    delta_color="off",
+                    help="What the sizing settings aim for, relative to the neutral 1:1 portfolio ratio. "
+                    "Below 100% = systematic under-copy (e.g., a binding scale cap), above = leveraged copy.",
+                )
+                exec_fidelity = execution_report["fidelity"]
+                fid_cols[1].metric(
+                    "Execution fidelity (24h)",
+                    pct(exec_fidelity) if exec_fidelity is not None else "-",
+                    f"{money(execution_report['filled'])} of {money(execution_report['desired'])} desired",
+                    delta_color="off",
+                    help="Filled vs desired copy notional over the last 24h (orders recorded since the fidelity update). "
+                    "Losses come from cash droughts, the per-order cap, the cash throttle, and below-minimum skips.",
+                )
+                if exec_fidelity is not None and config_report["neutral_scale"] > 0:
+                    net = float(config_report["fidelity"]) * float(exec_fidelity)
+                    fid_cols[2].metric(
+                        "Net mirror",
+                        pct(net),
+                        "config × execution",
+                        delta_color="off",
+                        help="Combined effect: how much of a perfect scaled mirror the copy currently achieves.",
+                    )
+                else:
+                    fid_cols[2].metric("Net mirror", "-", "needs fidelity data", delta_color="off")
+                loss_lines: list[str] = []
+                for reason, amount in sorted(execution_report["lost_to_skips"].items(), key=lambda kv: -kv[1]):
+                    loss_lines.append(f"{money(amount)} skipped ({reason})")
+                if execution_report["lost_to_clamps"] > 0:
+                    loss_lines.append(f"{money(execution_report['lost_to_clamps'])} clamped (cash throttle / order cap)")
+                if loss_lines:
+                    st.caption("Execution losses (24h): " + " · ".join(loss_lines))
+                overlay = cfy.pnl_overlay(equity_snaps, load_wallet_pnl_series(settings.target_wallet, "1w"), source_equity_now)
+                if overlay.empty:
+                    draw_empty("Curve overlay appears once equity snapshots overlap the source PnL series (minutes after the daemon runs).")
+                else:
+                    fig = px.line(
+                        overlay,
+                        x="time",
+                        y="pct",
+                        color="series",
+                        template="plotly_dark",
+                        color_discrete_map={"Paper copy": ACCENT, "Source wallet": BLUE},
+                    )
+                    fig.update_traces(line_width=2.2)
+                    fig.update_layout(
+                        height=240,
+                        margin=dict(l=10, r=10, t=10, b=10),
+                        paper_bgcolor=BG,
+                        plot_bgcolor=BG,
+                        yaxis_title="PnL %",
+                        xaxis_title="",
+                        yaxis_tickformat=".2%",
+                    )
+                    st.plotly_chart(fig, width="stretch", config=plot_config())
+                    st.caption(
+                        "Both curves rebased to 0 at the overlap start: paper PnL in % of paper equity vs the source wallet's "
+                        "official PnL in % of its current equity (approximation — its true cash base is not public). "
+                        "Parallel curves = faithful mirror; gaps quantify fidelity loss."
                     )
             if not cash_events.empty:
                 with st.expander(f"Cash events ({len(cash_events):,})", expanded=False):
@@ -9352,12 +9440,37 @@ def render_copy_sizing_settings(
             "**Portfolio-percent mode:** `Tony trade notional / Tony visible equity * Paper equity * multiplier`. "
             "Example: if Tony risks 1% of his visible wallet and multiplier is 1.0, paper also risks 1% before caps."
         )
-        metric_cols = st.columns(5)
+        metric_cols = st.columns(6)
         metric_cols[0].metric("Sizing mode", "Portfolio %" if settings.dynamic_sizing_enabled else "Fixed scale")
         metric_cols[1].metric("Multiplier", f"{float(settings.dynamic_sizing_multiplier):.2f}x")
         metric_cols[2].metric("Effective scale", f"{effective_scale * 100:.4f}%")
         metric_cols[3].metric("Tony equity est.", money(tony_equity))
         metric_cols[4].metric("1% Tony example", money(example_copy_notional))
+        sub_equity = float(getattr(value_sub_account_cached(settings.target_wallet), "equity", 0.0))
+        config_report = cfy.config_fidelity(
+            sub_equity,
+            tony_equity,
+            dynamic_enabled=bool(settings.dynamic_sizing_enabled),
+            multiplier=float(settings.dynamic_sizing_multiplier),
+            scale_cap=float(settings.dynamic_scale_max),
+            scale_floor=float(settings.dynamic_scale_min),
+            fixed_scale=float(settings.copy_scale),
+        )
+        metric_cols[5].metric(
+            "Config fidelity",
+            pct(config_report["fidelity"]) if config_report["neutral_scale"] > 0 else "-",
+            f"neutral {config_report['neutral_scale'] * 100:.4f}%",
+            delta_color="off",
+            help="Configured copy scale relative to the neutral 1:1 portfolio ratio (your sub-account equity / source equity). "
+            "100% = the settings aim for a faithful scaled mirror of the source curve; the delta shows the neutral scale.",
+        )
+        if config_report["factors"]:
+            st.warning(
+                "These settings move the copy away from a 1:1 mirror: "
+                + "; ".join(f"{label} (×{ratio:.2f})" for label, ratio in config_report["factors"])
+                + ". Expect the paper curve to deviate from the source curve by roughly that factor.",
+                icon="⚠",
+            )
 
         with st.form("copy_sizing_settings_form"):
             mode_options = ["Portfolio-percent", "Fixed Tony-notional scale"]
@@ -9394,7 +9507,8 @@ def render_copy_sizing_settings(
                 value=float(settings.dynamic_scale_max) * 100.0,
                 step=0.1,
                 format="%.2f",
-                help="Hard cap on the source-notional copy scale. Set higher if multiplier is capped too early.",
+                help="Hard cap on the source-notional copy scale. 0 = uncapped (neutral 1:1 mirror — recommended for fidelity). "
+                "A binding cap silently under-copies every trade.",
             )
             c1, c2, c3 = st.columns(3)
             max_order_pct = c1.number_input(
@@ -9418,7 +9532,7 @@ def render_copy_sizing_settings(
                 value=bool(settings.dynamic_order_cap_from_tony),
                 help="If Tony's largest observed position exceeds the base cap, allow the cap to rise to that percentage.",
             )
-            t1, t2 = st.columns(2)
+            t1, t2, t3 = st.columns(3)
             auto_top_up = t1.toggle(
                 "Auto top-up paper cash",
                 value=bool(settings.auto_top_up_enabled),
@@ -9434,6 +9548,17 @@ def render_copy_sizing_settings(
                 format="%.0f",
                 help="Paper cash added per auto top-up when enabled.",
             )
+            cash_throttle = t3.number_input(
+                "Cash throttle % per order",
+                min_value=0.0,
+                max_value=100.0,
+                value=float(settings.cash_throttle_pct) * 100.0,
+                step=5.0,
+                format="%.0f",
+                help="One order may spend at most this share of the sub-account's remaining cash. During cash droughts every "
+                "trade still gets a (smaller) fill instead of later trades being skipped entirely — uniform shrinkage tracks "
+                "the source curve better than selective gaps. 0 = off (hard skips at empty cash).",
+            )
             submitted = st.form_submit_button("Save sizing settings", type="primary")
             if submitted:
                 updated = replace(
@@ -9447,6 +9572,7 @@ def render_copy_sizing_settings(
                     dynamic_order_cap_from_tony=bool(dynamic_cap),
                     auto_top_up_enabled=bool(auto_top_up),
                     auto_top_up_amount=float(auto_top_up_amount),
+                    cash_throttle_pct=float(cash_throttle) / 100.0,
                 )
                 ct.save_copy_settings(updated)
                 st.success("Copy sizing settings saved. Sync now and the background runner will use these settings.")

@@ -263,8 +263,92 @@ class CopyTradingTests(unittest.TestCase):
         self.assertEqual(str(cash_events.iloc[0]["trader_wallet"]), ct.COPY_TARGET_WALLET)
         self.assertAlmostEqual(float(cash_events.iloc[0]["amount"]), 1000.0)
 
+    def test_default_scale_is_uncapped_neutral_ratio(self) -> None:
+        # dynamic_scale_max default 0 = no cap: the old 1% default silently
+        # under-copied whenever the neutral portfolio ratio exceeded it.
+        self.assertEqual(ct.CopySettings().dynamic_scale_max, 0.0)
+        conn = ct.connect(self.db_path)
+        try:
+            ct._set_meta(conn, "tony_visible_equity", "50000")  # neutral ratio 1000/50000 = 2%
+            order = ct.apply_paper_trade(conn, source_trade(price=0.5, size=2000.0), self.settings)
+            sizing = ct.get_dynamic_sizing_snapshot(conn=conn)
+        finally:
+            conn.close()
+
+        self.assertEqual(order.status, "copied")
+        self.assertAlmostEqual(float(sizing["effective_copy_scale"]), 0.02)
+        self.assertAlmostEqual(order.copy_notional, 20.0)
+        self.assertAlmostEqual(order.desired_notional, 20.0)
+
+    def test_cash_throttle_shrinks_orders_instead_of_skipping_later_ones(self) -> None:
+        settings = ct.CopySettings(trade_limit=20, max_order_equity_pct=1.0, cash_throttle_pct=0.25)
+        conn = ct.connect(self.db_path)
+        try:
+            conn.execute("UPDATE traders SET cash = 40 WHERE wallet = ?", (ct.COPY_TARGET_WALLET,))
+            first = ct.apply_paper_trade(conn, source_trade(price=0.5, size=2000.0), settings)
+            second = ct.apply_paper_trade(conn, source_trade(price=0.5, size=2000.0, tx="0xsecond"), settings)
+        finally:
+            conn.close()
+
+        # Desired is $10 each. First: throttle allows 25% of $40 = $10 -> full
+        # fill. Second: 25% of the remaining $30 = $7.50 -> shrunk, NOT skipped.
+        self.assertEqual(first.status, "copied")
+        self.assertAlmostEqual(first.copy_notional, 10.0)
+        self.assertEqual(second.status, "copied")
+        self.assertAlmostEqual(second.copy_notional, 7.5)
+        self.assertAlmostEqual(second.desired_notional, 10.0)
+
+    def test_skip_records_desired_notional_for_fidelity(self) -> None:
+        settings = ct.CopySettings(trade_limit=20, auto_top_up_enabled=False)
+        conn = ct.connect(self.db_path)
+        try:
+            conn.execute("UPDATE traders SET cash = 0 WHERE wallet = ?", (ct.COPY_TARGET_WALLET,))
+            order = ct.apply_paper_trade(conn, source_trade(), settings)
+            row = conn.execute(
+                "SELECT desired_notional, reason FROM paper_orders WHERE dedup_key = ?", (order.dedup_key,)
+            ).fetchone()
+        finally:
+            conn.close()
+
+        self.assertEqual(order.reason, "insufficient_cash")
+        self.assertAlmostEqual(order.desired_notional, 10.0)
+        self.assertAlmostEqual(float(row["desired_notional"]), 10.0)
+
+    def test_legacy_tony_stats_only_written_by_target_wallet(self) -> None:
+        stats_kwargs = dict(
+            mean_market_position=0.0, median_market_position=0.0, p75_market_position=0.0,
+            p90_market_position=0.0, p95_market_position=0.0, max_market_position=0.0,
+            mean_market_position_pct=0.0, median_market_position_pct=0.0, p75_market_position_pct=0.0,
+            p90_market_position_pct=0.0, p95_market_position_pct=0.0, max_market_position_pct=0.0,
+        )
+        conn = ct.connect(self.db_path)
+        try:
+            ct._set_meta(conn, "target_wallet", ct.COPY_TARGET_WALLET)
+            primary = ct.TonyWalletStats(
+                updated_at="t1", position_value=1_500_000.0, cash=0.0, visible_equity=1_500_000.0,
+                open_positions=10, open_markets=5, **stats_kwargs,
+            )
+            other = ct.TonyWalletStats(
+                updated_at="t2", position_value=44_000.0, cash=0.0, visible_equity=44_000.0,
+                open_positions=2, open_markets=1, **stats_kwargs,
+            )
+            ct._store_tony_wallet_stats(conn, primary, 1.0, ct.COPY_TARGET_WALLET)
+            ct._store_tony_wallet_stats(conn, other, 2.0, "0x3d1ecf16942939b3603c2539a406514a40b504d0")
+
+            legacy_equity = ct._get_float_meta(conn, "tony_visible_equity", 0.0)
+            per_wallet = ct._get_float_meta(
+                conn, "wallet_stat:0x3d1ecf16942939b3603c2539a406514a40b504d0:visible_equity", 0.0
+            )
+        finally:
+            conn.close()
+
+        self.assertAlmostEqual(legacy_equity, 1_500_000.0, msg="non-target trader must not clobber tony_* keys")
+        self.assertAlmostEqual(per_wallet, 44_000.0, msg="per-wallet stats must still be written")
+
     def test_auto_top_up_after_buy_drains_cash(self) -> None:
-        settings = ct.CopySettings(trade_limit=20, max_order_equity_pct=1.0, auto_top_up_enabled=True)
+        settings = ct.CopySettings(
+            trade_limit=20, max_order_equity_pct=1.0, auto_top_up_enabled=True, cash_throttle_pct=0.0
+        )
         conn = ct.connect(self.db_path)
         try:
             conn.execute("UPDATE traders SET cash = 10 WHERE wallet = ?", (ct.COPY_TARGET_WALLET,))

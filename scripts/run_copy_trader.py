@@ -35,7 +35,9 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the local Swisstony paper-copy sync loop.")
     parser.add_argument("--interval", type=float, default=1.0, help="Fast on-chain polling interval in seconds.")
     parser.add_argument("--api-interval", type=float, default=30.0, help="Public Data API fallback interval in seconds.")
-    parser.add_argument("--settlement-interval", type=float, default=180.0, help="Settlement/redeem recycling sync interval in seconds.")
+    # 90s: cash recycling is the copy's scarce resource — the source wallet
+    # redeploys settlement proceeds within minutes, so we re-sync at least as fast.
+    parser.add_argument("--settlement-interval", type=float, default=90.0, help="Settlement/redeem recycling sync interval in seconds.")
     parser.add_argument("--limit", type=int, default=500, help="Recent Swisstony trades to inspect per API fallback poll.")
     parser.add_argument("--rpc-url", default=ct.POLYGON_RPC_URL, help="Polygon JSON-RPC endpoint for the fast on-chain path.")
     parser.add_argument("--lookback-blocks", type=int, default=1200, help="Blocks to scan on first fast start.")
