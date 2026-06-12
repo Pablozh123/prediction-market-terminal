@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import html
 import math
+import os
 import re
 from dataclasses import replace
 from pathlib import Path
@@ -21,6 +22,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from app import app_settings as cfg
+from app import authz as az
 from app import backtester as btr
 from app import copy_follow as ctf
 from app import notify
@@ -652,16 +654,6 @@ def inject_css() -> None:
         .command-hint {{
             color: {TEXT_LABEL};
             font-size: 0.78rem;
-        }}
-        .auth-note {{
-            border: 1px solid {BORDER};
-            background: {PANEL};
-            border-radius: 10px;
-            padding: 0.7rem 0.8rem;
-            color: {TEXT_SECONDARY};
-            font-size: 0.86rem;
-            line-height: 1.35;
-            margin: 0.35rem 0 0.75rem;
         }}
         hr {{
             border-color: {BORDER};
@@ -1581,12 +1573,45 @@ def path_market_value() -> str:
     return md.local_route_target(current_url).get("market", "")
 
 
-def path_auth_mode() -> str:
+def current_auth_provider() -> str | None:
+    """None = auth not configured (open local mode); "" = flat default provider;
+    name = [auth.<name>] sub-section provider. See app/authz.py."""
+
     try:
-        current_url = str(st.context.url or "")
+        auth_section = st.secrets["auth"]
     except Exception:
-        return ""
-    return md.local_auth_route_mode(current_url)
+        return None
+    return az.auth_provider_from_secrets(auth_section)
+
+
+def current_user_email() -> str:
+    try:
+        user = st.user
+        if getattr(user, "is_logged_in", False):
+            return str(getattr(user, "email", "") or "").strip().lower()
+    except Exception:
+        pass
+    return ""
+
+
+def settings_admin_emails() -> list[str]:
+    secrets_emails: Any = None
+    try:
+        admin_section = st.secrets["admin"]
+        secrets_emails = admin_section["emails"]
+    except Exception:
+        secrets_emails = None
+    return az.admin_emails(os.environ.get("ADMIN_EMAILS", ""), secrets_emails)
+
+
+def trigger_login() -> None:
+    provider = current_auth_provider()
+    if provider is None:
+        return
+    if provider:
+        st.login(provider)
+    else:
+        st.login()
 
 
 def routed_page_value() -> str:
@@ -1616,8 +1641,6 @@ def init_state() -> None:
         st.session_state.command_palette_open = False
     if "command_palette_query" not in st.session_state:
         st.session_state.command_palette_query = ""
-    if "auth_dialog_mode" not in st.session_state:
-        st.session_state.auth_dialog_mode = ""
     if "followed_wallets" not in st.session_state:
         st.session_state.followed_wallets = load_local_list("followed_wallets.json")
     if "watchlist" not in st.session_state:
@@ -2076,17 +2099,6 @@ def apply_query_navigation() -> None:
         st.session_state.selected_page = route_page
 
 
-def apply_auth_route() -> None:
-    mode = path_auth_mode()
-    if not mode:
-        return
-    signature = f"{mode}:{path_page_value()}"
-    if st.session_state.get("auth_route_signature") == signature:
-        return
-    st.session_state["auth_route_signature"] = signature
-    st.session_state.auth_dialog_mode = mode
-
-
 def apply_profile_route() -> None:
     if query_page_value():
         return
@@ -2183,25 +2195,6 @@ def command_end_label(row: pd.Series) -> str:
     if delta_days < 1:
         return "Ends <1d"
     return f"Ends in {int(delta_days) + 1}d"
-
-
-@st.dialog("Account access", width="small")
-def render_auth_dialog() -> None:
-    mode = st.session_state.get("auth_dialog_mode", "Sign In")
-    st.markdown(f"### {mode}")
-    st.markdown(
-        "<div class='auth-note'>Local research mode: this terminal does not send credentials or place live orders.</div>",
-        unsafe_allow_html=True,
-    )
-    st.text_input("Email", placeholder="you@example.com", key="auth_email")
-    primary = "Continue with email" if mode == "Sign In" else "Create research account"
-    if st.button(primary, type="primary", width="stretch", key="auth_email_continue"):
-        st.session_state.auth_dialog_mode = ""
-        st.toast("Local research session only. Live account login is not connected.")
-        st.rerun()
-    if st.button("Close", width="stretch", key="auth_close"):
-        st.session_state.auth_dialog_mode = ""
-        st.rerun()
 
 
 def render_global_hotkeys() -> None:
@@ -2478,7 +2471,6 @@ def render_command_palette_dialog() -> None:
 
 
 apply_query_navigation()
-apply_auth_route()
 apply_profile_route()
 apply_pending_navigation()
 
@@ -2509,11 +2501,21 @@ with st.sidebar:
     st.caption("Polymarket wallets, Kalshi markets, whale flow, and cross-venue research.")
     if st.button("Search... /", key="open_command_palette_sidebar", width="stretch"):
         open_command_palette()
-    auth_sidebar_cols = st.columns(2)
-    if auth_sidebar_cols[0].button("Sign In", key="open_sign_in_sidebar", width="stretch"):
-        st.session_state.auth_dialog_mode = "Sign In"
-    if auth_sidebar_cols[1].button("Sign Up", key="open_sign_up_sidebar", width="stretch"):
-        st.session_state.auth_dialog_mode = "Sign Up"
+    sidebar_auth_provider = current_auth_provider()
+    if sidebar_auth_provider is not None:
+        signed_in_email = current_user_email()
+        if signed_in_email:
+            st.caption(f"Signed in as {signed_in_email}")
+            if st.button("Sign out", key="sidebar_sign_out", width="stretch"):
+                st.logout()
+        else:
+            sign_in_label = (
+                "Sign in with Google"
+                if sidebar_auth_provider in ("", "google")
+                else "Sign in"
+            )
+            if st.button(sign_in_label, key="sidebar_sign_in", width="stretch"):
+                trigger_login()
     st.markdown("#### Workspace")
     page = st.session_state.get("selected_page", "Overview")
     if page not in WORKSPACES:
@@ -10899,12 +10901,49 @@ def _start_copy_daemon() -> None:
         )
 
 
+def render_settings_gate(reason: str) -> None:
+    """Shown instead of the Settings page when admin access is denied."""
+
+    with st.container(border=True):
+        st.markdown("<div class='step-label' style='margin-top:0'>01 · Admin access required</div>", unsafe_allow_html=True)
+        if reason == az.ACCESS_LOGIN_REQUIRED:
+            st.markdown(
+                "Settings are restricted on this deployment. Sign in with an "
+                "authorized account to manage data loading, alert delivery, and the copy daemon."
+            )
+            provider = current_auth_provider()
+            sign_in_label = "Sign in with Google" if provider in ("", "google") else "Sign in"
+            if st.button(sign_in_label, type="primary", key="settings_sign_in"):
+                trigger_login()
+            return
+        signed_in_email = current_user_email()
+        if reason == az.ACCESS_NO_ALLOWLIST:
+            st.markdown(
+                f"Signed in as `{signed_in_email}`, but no admin allowlist is configured, "
+                "so Settings stay locked (fail closed). The operator must set "
+                "`ADMIN_EMAILS` in the environment or `[admin] emails` in `.streamlit/secrets.toml`."
+            )
+        else:
+            st.markdown(
+                f"Signed in as `{signed_in_email}` — this account is not on the admin allowlist. "
+                "All research workspaces stay available; only Settings are restricted."
+            )
+        if st.button("Sign out", key="settings_sign_out"):
+            st.logout()
+
+
 def page_settings() -> None:
     section_header(
         "Settings",
         "Central configuration: data loading, backtester defaults, alert delivery, and the copy daemon.",
         kicker="Settings",
     )
+    access_allowed, access_reason = az.settings_access(
+        current_auth_provider(), current_user_email(), settings_admin_emails()
+    )
+    if not access_allowed:
+        render_settings_gate(access_reason)
+        return
     config = cfg.load_settings()
     left, right = st.columns(2, gap="medium")
     with left:
@@ -11570,8 +11609,6 @@ PAGES = {
 render_global_hotkeys()
 if st.session_state.command_palette_open:
     render_command_palette_dialog()
-if st.session_state.auth_dialog_mode:
-    render_auth_dialog()
 
 
 PAGES[page]()

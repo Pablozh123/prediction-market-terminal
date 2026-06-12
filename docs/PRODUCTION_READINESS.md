@@ -60,10 +60,7 @@ Browser ──HTTPS──▶ Cloudflare (Free: DDoS, WAF, 1 Rate-Limit-Regel)
 - [x] **Streamlit-Härtung:** `enableXsrfProtection=true`, `enableCORS=false`, `maxUploadSize=1`, Telemetrie aus, App-Port nicht öffentlich (nur Caddy exponiert 80/443).
 - [x] **Secrets:** Telegram-Token per Env (`.env`, gitignored); nie im JSON/Repo. Polymarket/Kalshi-Reads brauchen keinen Key.
 - [ ] **Rate-Limiting/DDoS:** Cloudflare Free davor schalten — unmetered DDoS-Schutz, Bot Fight Mode, 1 Rate-Limit-Regel inklusive ([Plan](https://www.cloudflare.com/plans/free/)). Empfohlene Regel: max. ~30 Requests/10 s pro IP auf `/_stcore/*`.
-- [ ] **Admin-Bereiche schützen (wichtig):** Settings-Seite und Copy-Daemon-Steuerung gehören hinter Auth. Achtung: Streamlit-Seiten laufen über **eine** WebSocket — Pfad-basierte Proxy-Auth auf einzelne Seiten funktioniert nicht zuverlässig. Optionen:
-  1. **Cloudflare Access** (Zero Trust Free, bis 50 Nutzer): E-Mail-OTP vor die ganze Site oder eine separate Admin-Subdomain. Empfohlen, 0 Code.
-  2. `basic_auth` im Caddyfile (Block liegt auskommentiert bereit) — schützt die ganze Site.
-  3. Streamlit-nativ `st.login()` (OIDC, ab 1.42) für Per-Seite-Checks — späterer Ausbau für Nutzer-Accounts.
+- [x] **Admin-Bereiche schützen (wichtig):** ✅ Umgesetzt via Streamlit-nativem `st.login()` + Google-OIDC: sobald `.streamlit/secrets.toml [auth]` existiert (Template: `.streamlit/secrets.toml.example`), failt die Settings-Seite closed — nur eingeloggte Accounts auf der Admin-Allowlist (`ADMIN_EMAILS`-Env oder `[admin].emails` in secrets.toml) kommen durch; alle Research-Seiten bleiben öffentlich. Ohne Secrets: lokaler Research-Modus ohne Login-UI. Für Docker liegt der read-only-Secrets-Mount auskommentiert in `docker-compose.yml`. Zusätzlich möglich (ganze Site): **Cloudflare Access** (Zero Trust Free, bis 50 Nutzer) oder `basic_auth` im Caddyfile (Block auskommentiert bereit).
 - [ ] **Updates:** monatlich `docker compose pull/build` (Patch-Releases), Ubuntu unattended-upgrades aktivieren.
 
 ## 4. Rechtliches (Schweiz) — vor dem Launch erledigen

@@ -55,6 +55,8 @@ Stand: 2026-06-12. Vier Recherchen (Kalshi/Oddpool, Polymarket, Auth-Provider, C
 
 ## 3. Auth: Auslagern — ja, so
 
+> ✅ **Umgesetzt (2026-06-12):** `st.login()` + Google-OIDC im Terminal; Settings failt closed hinter `ADMIN_EMAILS`/`[admin].emails`-Allowlist; Fake-Shell entfernt; ohne `.streamlit/secrets.toml [auth]` komplett no-op (lokaler Research-Modus). Template: `.streamlit/secrets.toml.example`, Logik: `app/authz.py`. Der Auth0-Schritt unten bleibt der spätere Freemium-Ausbau.
+
 **Sofort (Launch, Admin-Schutz, 2–4 h):** Streamlit-natives **`st.login()` + Google-OIDC direkt** — gratis, kein MAU-Limit, kein Anbieter-Lock-in. Settings-/Admin-Seite oben mit `st.user.is_logged_in` + E-Mail-Allowlist gaten, Fake-Sign-in-Shell löschen. Stolperfallen: Cookie fix 30 Tage; Streamlit ≥ gepatchte Version wegen der 1.57-Cookie-Regression pinnen; ggf. `client_kwargs = { "prompt" = "login" }` gegen den Logout-Account-Chooser.
 
 **Später (Freemium mit Accounts + Stripe, 12–24 h gesamt):** **Auth0 Free-Tier** — seit Ende 2024 **25'000 MAU gratis**, EU-Tenant (Frankfurt/Dublin) wählbar, gehostete Login-/Signup-Seite, E-Mail-Verifizierung, Magic Links, Social Logins; eigener Mail-Provider statt Auth0-Dev-Mailer vor Launch. Integration: derselbe `st.login()`-Aufruf, nur secrets.toml ändern — der Gating-Code bleibt identisch. Zahlung: Stripe + [st-paywall](https://github.com/tylerjrichards/st-paywall) oder ~100 Zeilen eigener Entitlement-Check (`st.user.email` → Stripe-Subscription → Session-Cache).
