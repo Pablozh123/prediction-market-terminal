@@ -85,6 +85,54 @@ class TrackRecordTests(unittest.TestCase):
         self.assertIsNone(r["corrected_win_rate"])
         self.assertEqual(r["grade"], "F")
 
+    def test_winner_capped_feed_never_headlines_fake_win_rate(self):
+        # closed-positions returns only winners -> must be flagged, win rate unreliable.
+        cp = closed([pos(f"c{i}", 100, 100, time=f"2026-01-{i+1:02d}") for i in range(8)])
+        r = tr.track_record(cp, min_resolved_markets=1, min_span_days=0)
+        self.assertTrue(r["closed_winner_capped"])
+        self.assertFalse(r["win_rate_reliable"])
+        self.assertTrue(any("only top winners" in f for f in r["flags"]))
+
+
+class ActivityReconstructionTests(unittest.TestCase):
+    def _activity(self, rows):
+        return pd.DataFrame(rows)
+
+    def act(self, market, side, notional, typ="TRADE"):
+        return {"market_key": market, "side": side, "notional": notional, "type": typ}
+
+    def test_reconstructs_loss_from_activity(self):
+        # Market m1: bought 100, redeemed 250 -> win. m2: bought 80, sold 30 -> loss.
+        a = self._activity([
+            self.act("m1", "BUY", 100),
+            self.act("m1", "", 250, typ="REDEEM"),
+            self.act("m2", "BUY", 80),
+            self.act("m2", "SELL", 30),
+        ])
+        rec = tr.settled_from_activity(a)
+        self.assertEqual(len(rec), 2)
+        m1 = rec[rec["market_key"] == "m1"].iloc[0]
+        m2 = rec[rec["market_key"] == "m2"].iloc[0]
+        self.assertAlmostEqual(float(m1["net_pnl"]), 150.0)
+        self.assertTrue(bool(m1["win"]))
+        self.assertAlmostEqual(float(m2["net_pnl"]), -50.0)
+        self.assertFalse(bool(m2["win"]))
+
+    def test_activity_overrides_winner_capped_closed_positions(self):
+        cp = closed([pos("m1", 150, 100), pos("m9", 999, 500)])  # winner-only feed
+        a = self._activity([
+            self.act("m1", "BUY", 100), self.act("m1", "", 250, typ="REDEEM"),
+            self.act("m2", "BUY", 80), self.act("m2", "SELL", 30),  # a real loss
+        ])
+        r = tr.track_record(cp, activity=a, min_resolved_markets=1, min_span_days=0)
+        # settled PnL now includes the -50 loss the closed feed hid.
+        self.assertAlmostEqual(r["settled_pnl"], 100.0)
+        self.assertAlmostEqual(r["exit_win_rate"], 0.5)
+        self.assertFalse(r["win_rate_reliable"])
+
+    def test_empty_activity_safe(self):
+        self.assertTrue(tr.settled_from_activity(pd.DataFrame()).empty)
+
 
 if __name__ == "__main__":
     unittest.main()
