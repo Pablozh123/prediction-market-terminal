@@ -119,6 +119,44 @@ def event_records(closed_positions: pd.DataFrame) -> pd.DataFrame:
     return grouped[columns]
 
 
+def settled_from_activity(activity: pd.DataFrame) -> pd.DataFrame:
+    """Reconstruct per-market realized PnL from the raw activity feed.
+
+    More complete than ``/closed-positions`` (which Polymarket caps at the top
+    ~50 winners): activity is time-ordered and includes markets sold at a loss.
+    Per market: cost = BUY notional; proceeds = SELL + REDEEM + MERGE notional;
+    realized = proceeds - cost. Only markets with a recorded exit (sell/redeem/
+    merge) are returned — a position that expired worthless leaves no exit event,
+    so those losses are invisible in public data (the honest blind spot).
+
+    Columns: market_key, cost, proceeds, net_pnl, win, exited(bool).
+    """
+
+    columns = ["market_key", "cost", "proceeds", "net_pnl", "win", "exited"]
+    if activity is None or activity.empty or "market_key" not in activity:
+        return pd.DataFrame(columns=columns)
+    df = activity.copy()
+    df["_key"] = df["market_key"].astype(str)
+    df["_usd"] = _numeric(df, "notional")
+    df["_side"] = df.get("side", pd.Series("", index=df.index)).astype(str).str.upper()
+    df["_type"] = df.get("type", pd.Series("", index=df.index)).astype(str).str.upper()
+    df["_is_buy"] = df["_side"].eq("BUY")
+    df["_is_exit"] = df["_side"].eq("SELL") | df["_type"].isin(["REDEEM", "MERGE"])
+    grouped = df.groupby("_key", dropna=False).apply(
+        lambda g: pd.Series(
+            {
+                "cost": float(g.loc[g["_is_buy"], "_usd"].sum()),
+                "proceeds": float(g.loc[g["_is_exit"], "_usd"].sum()),
+                "exited": bool(g["_is_exit"].any()),
+            }
+        ),
+        include_groups=False,
+    ).reset_index().rename(columns={"_key": "market_key"})
+    grouped["net_pnl"] = grouped["proceeds"] - grouped["cost"]
+    grouped["win"] = grouped["net_pnl"] > 0
+    return grouped[columns]
+
+
 def _risk_adjusted(returns: pd.Series) -> float:
     """Sharpe-like ratio on per-market returns; rewards consistency over one big hit."""
 
@@ -142,16 +180,21 @@ def _grade(score: float) -> str:
 def track_record(
     closed_positions: pd.DataFrame,
     trades: pd.DataFrame | None = None,
+    activity: pd.DataFrame | None = None,
     *,
     min_resolved_markets: int = MIN_RESOLVED_MARKETS,
     min_span_days: float = MIN_SPAN_DAYS,
 ) -> dict[str, Any]:
     """Corrected scorecard for one wallet.
 
-    ``closed_positions`` is the public ``/closed-positions`` frame (retains
-    redeemed wins); ``trades`` is optional and only used for a naive-volume
-    cross-check. Returns naive AND corrected metrics side by side so the UI can
-    show exactly what the correction changes.
+    ``closed_positions`` is the public ``/closed-positions`` frame — but that
+    endpoint returns only the top ~50 winners (PnL-sorted, capped), so its win
+    rate is structurally ~100% and must NOT be presented as skill. When
+    ``activity`` is given we reconstruct realized PnL per market from it (which
+    includes markets sold at a loss), a more complete picture; we still cannot
+    see positions that expired worthless (no exit event), so ``win_rate_reliable``
+    is False and the coverage caveat is always attached. Honesty about this blind
+    spot is the point — competitors headline the fake 100%.
     """
 
     naive_legs = int(len(closed_positions)) if closed_positions is not None else 0
@@ -173,7 +216,38 @@ def track_record(
     event_wins = int(events["win"].sum()) if resolved_events else 0
     event_win_rate = (event_wins / resolved_events) if resolved_events else None
 
+    # /closed-positions returns only the top ~50 winners (PnL-sorted, capped), so
+    # a win rate from it is structurally ~100%. Detect that so we never headline it.
+    closed_winner_capped = bool(resolved_markets >= 5 and market_wins == resolved_markets)
+
+    # Activity reconstruction: more complete PnL incl. markets exited at a loss.
+    # Require cost > 0 so we only count complete round-trips visible in the window
+    # (a redeem whose buy predates the window would count proceeds with no cost and
+    # wildly overstate PnL/edge).
+    act = settled_from_activity(activity) if activity is not None else pd.DataFrame()
+    act_exited = act[act["exited"] & (act["cost"] > 0)] if not act.empty else act
+    if not act_exited.empty:
+        settled_pnl = float(act_exited["net_pnl"].sum())
+        volume = float(act_exited["cost"].sum())
+        act_markets = int(len(act_exited))
+        act_wins = int(act_exited["win"].sum())
+        exit_win_rate = (act_wins / act_markets) if act_markets else None
+        # Prefer activity view for headline PnL/markets (it shows real losses).
+        resolved_markets_effective = act_markets
+    else:
+        exit_win_rate = None
+        resolved_markets_effective = resolved_markets
+
     pnl_per_volume = (settled_pnl / volume) if volume > 0 else 0.0
+
+    # A true win rate is not derivable from public feeds: worthless-expiry losses
+    # leave no exit event, and closed-positions is winner-capped. Always caveat it.
+    win_rate_reliable = False
+    coverage_note = (
+        "Win rate can't be fully verified from public data: Polymarket's closed-positions feed "
+        "returns only top winners, and positions that expired worthless leave no exit event. "
+        "PnL/markets below are reconstructed from the activity feed (includes losses that were sold)."
+    )
 
     # The strongest leg-inflation fix is event-level (NegRisk outcomes are
     # separate conditionIds). Use it as the headline corrected win rate when it
@@ -209,29 +283,36 @@ def track_record(
         flags.append("wash/farm pattern: heavy volume, ~zero edge")
     if one_hit_flag:
         flags.append(f"one-hit wonder: {top_market_share*100:.0f}% of profit from one market")
+    if closed_winner_capped:
+        flags.append("public closed-positions feed returns only top winners — raw win rate is not real")
     if leg_inflation is not None and abs(leg_inflation - 1.0) >= 0.15:
         flags.append(f"naive win rate misleads ({(naive_win_rate or 0)*100:.0f}% raw vs {(headline_win_rate or 0)*100:.0f}% netted)")
 
-    # Composite score (0-100). Only meaningful once the sample gate passes; a
-    # thin/farmed/one-hit record is capped low no matter the headline PnL.
+    # Composite score (0-100). Win rate is deliberately NOT a big input — it is
+    # unverifiable from public feeds — so the score leans on edge-per-volume and
+    # cross-market consistency, penalising concentration. Thin/farmed records cap low.
     if not sample_ok:
-        score = min(30.0, 15.0 + resolved_markets)
+        score = min(30.0, 15.0 + resolved_markets_effective)
     elif farmer_flag:
         score = 20.0
     else:
-        edge_pts = max(0.0, min(1.0, pnl_per_volume / 0.20)) * 35  # 20% edge on volume -> full
-        consistency_pts = max(0.0, min(1.0, (risk_adjusted + 1.0) / 4.0)) * 35
-        winrate_pts = max(0.0, min(1.0, ((headline_win_rate or 0.0) - 0.5) / 0.35)) * 20
-        concentration_penalty = top_market_share * 10
-        score = max(0.0, min(100.0, edge_pts + consistency_pts + winrate_pts + 10 - concentration_penalty))
+        edge_pts = max(0.0, min(1.0, pnl_per_volume / 0.20)) * 45  # 20% edge on volume -> full
+        consistency_pts = max(0.0, min(1.0, (risk_adjusted + 1.0) / 4.0)) * 45
+        concentration_penalty = top_market_share * 15
+        score = max(0.0, min(100.0, edge_pts + consistency_pts + 10 - concentration_penalty))
 
     return {
-        "resolved_markets": resolved_markets,
+        "resolved_markets": resolved_markets_effective,
+        "closed_positions_markets": resolved_markets,
         "resolved_events": resolved_events,
         "naive_legs": naive_legs,
         "naive_win_rate": naive_win_rate,
         "corrected_win_rate": corrected_win_rate,
         "event_win_rate": event_win_rate,
+        "exit_win_rate": exit_win_rate,
+        "win_rate_reliable": win_rate_reliable,
+        "closed_winner_capped": closed_winner_capped,
+        "coverage_note": coverage_note,
         "leg_inflation": leg_inflation,
         "settled_pnl": settled_pnl,
         "volume": volume,
