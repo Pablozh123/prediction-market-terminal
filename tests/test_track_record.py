@@ -85,13 +85,22 @@ class TrackRecordTests(unittest.TestCase):
         self.assertIsNone(r["corrected_win_rate"])
         self.assertEqual(r["grade"], "F")
 
-    def test_winner_capped_feed_never_headlines_fake_win_rate(self):
-        # closed-positions returns only winners -> must be flagged, win rate unreliable.
-        cp = closed([pos(f"c{i}", 100, 100, time=f"2026-01-{i+1:02d}") for i in range(8)])
-        r = tr.track_record(cp, min_resolved_markets=1, min_span_days=0)
-        self.assertTrue(r["closed_winner_capped"])
+    def test_uncapped_union_gives_real_reliable_win_rate(self):
+        # Full winners+losers set (not capped) -> real, reliable win rate incl. losses.
+        cp = closed(
+            [pos("w1", 500, 100, time="2026-01-01"), pos("w2", 300, 100, time="2026-02-01"),
+             pos("l1", -200, 100, time="2026-03-01")]
+        )
+        r = tr.track_record(cp, resolved_capped=False, min_resolved_markets=1, min_span_days=0)
+        self.assertTrue(r["win_rate_reliable"])
+        self.assertAlmostEqual(r["corrected_win_rate"], 2 / 3)
+        self.assertAlmostEqual(r["settled_pnl"], 600.0)  # 500 + 300 - 200, losers counted
+
+    def test_capped_set_flags_extremes_only(self):
+        cp = closed([pos("w1", 500, 100, time="2026-01-01"), pos("l1", -200, 100, time="2026-03-01")])
+        r = tr.track_record(cp, resolved_capped=True, min_resolved_markets=1, min_span_days=0)
         self.assertFalse(r["win_rate_reliable"])
-        self.assertTrue(any("only top winners" in f for f in r["flags"]))
+        self.assertTrue(any("extremes only" in f for f in r["flags"]))
 
 
 class ActivityReconstructionTests(unittest.TestCase):
@@ -118,17 +127,17 @@ class ActivityReconstructionTests(unittest.TestCase):
         self.assertAlmostEqual(float(m2["net_pnl"]), -50.0)
         self.assertFalse(bool(m2["win"]))
 
-    def test_activity_overrides_winner_capped_closed_positions(self):
-        cp = closed([pos("m1", 150, 100), pos("m9", 999, 500)])  # winner-only feed
+    def test_activity_is_secondary_crosscheck_not_headline(self):
+        # settled PnL/win rate come from the closed union; activity only yields exit_win_rate.
+        cp = closed([pos("m1", 150, 100), pos("l1", -40, 100)])
         a = self._activity([
             self.act("m1", "BUY", 100), self.act("m1", "", 250, typ="REDEEM"),
-            self.act("m2", "BUY", 80), self.act("m2", "SELL", 30),  # a real loss
+            self.act("m2", "BUY", 80), self.act("m2", "SELL", 30),  # a sold loss
         ])
-        r = tr.track_record(cp, activity=a, min_resolved_markets=1, min_span_days=0)
-        # settled PnL now includes the -50 loss the closed feed hid.
-        self.assertAlmostEqual(r["settled_pnl"], 100.0)
-        self.assertAlmostEqual(r["exit_win_rate"], 0.5)
-        self.assertFalse(r["win_rate_reliable"])
+        r = tr.track_record(cp, activity=a, resolved_capped=False, min_resolved_markets=1, min_span_days=0)
+        self.assertAlmostEqual(r["settled_pnl"], 110.0)  # 150 - 40, from closed union
+        self.assertAlmostEqual(r["exit_win_rate"], 0.5)  # activity cross-check: m1 win, m2 loss
+        self.assertTrue(r["win_rate_reliable"])
 
     def test_empty_activity_safe(self):
         self.assertTrue(tr.settled_from_activity(pd.DataFrame()).empty)
