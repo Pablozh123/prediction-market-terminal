@@ -6,6 +6,27 @@ import pandas as pd
 from src import prediction_markets as md
 
 
+class ResolvedPositionsUnionTests(unittest.TestCase):
+    def _row(self, cid, pnl, outcome="Yes"):
+        return {"conditionId": cid, "realizedPnl": pnl, "outcome": outcome, "title": cid, "avgPrice": 0.5, "curPrice": 1, "totalBought": 100, "timestamp": 1700000000, "slug": cid, "eventSlug": cid}
+
+    def test_unions_winner_and_loser_tails_dedups(self) -> None:
+        winners = [self._row("w1", 500), self._row("shared", 200)]
+        losers = [self._row("l1", -300), self._row("shared", 200)]
+        with patch("src.prediction_markets._get_json", side_effect=[winners, losers]):
+            df, capped = md.get_polymarket_resolved_positions("0xabc", per_side=500)
+        self.assertEqual(len(df), 3)  # w1, shared (deduped), l1
+        self.assertFalse(capped)
+        self.assertIn(-300.0, list(df["realized_pnl"]))  # loser present
+
+    def test_capped_when_both_tails_hit_cap(self) -> None:
+        winners = [self._row(f"w{i}", 100 + i) for i in range(md.CLOSED_POSITIONS_PAGE_CAP)]
+        losers = [self._row(f"l{i}", -(100 + i)) for i in range(md.CLOSED_POSITIONS_PAGE_CAP)]
+        with patch("src.prediction_markets._get_json", side_effect=[winners, losers]):
+            df, capped = md.get_polymarket_resolved_positions("0xabc")
+        self.assertTrue(capped)
+
+
 class LocalRouteTargetTests(unittest.TestCase):
     def test_trader_profile_route_maps_to_wallet_workspace(self) -> None:
         target = md.local_route_target("https://terminal.local/traders/p/@swisstony")
