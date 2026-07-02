@@ -5309,8 +5309,11 @@ def render_wallet(wallet: str) -> None:
     cols[2].metric("USDC Balance", money(cash_balance))
     active_position_value = float(summary["open_value"])
     cols[3].metric("Active Positions", money(active_position_value), f"{len(open_positions):,} positions")
-    win_rate_value = summary["win_rate"]
-    cols[4].metric("Win Rate", pct(win_rate_value) if win_rate_value is not None else "-")
+    cols[4].metric(
+        "Win Rate",
+        "↓ see below",
+        help="The raw feed win rate is ~100% for everyone (Polymarket's closed-positions feed is capped to top winners) — misleading. See the honest 'Verified track record' panel below.",
+    )
     cols[5].metric("Realized / Unrealized", f"{markdown_money(summary['realized_pnl'])} / {markdown_money(summary['unrealized_pnl'])}")
     info_cols = st.columns(3)
     info_cols[0].metric("First Funding", money(first_activity_notional) if first_activity_notional else "-", short_addr(first_activity_tx) if first_activity_tx else "")
