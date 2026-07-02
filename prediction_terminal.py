@@ -29,6 +29,7 @@ from app import copy_follow as ctf
 from app import notify
 from app import signals as sig
 from app import suspicion as susp
+from app import track_record as trec
 from src import copy_trading as ct
 from src import prediction_markets as md
 
@@ -5158,6 +5159,58 @@ def page_markets() -> None:
                         wcols[2].button("Track", key=f"mq_tr_{quick_idx}", width="stretch", on_click=_pick_track, args=(wallet_value,))
 
 
+TRACK_RECORD_GRADE_COLORS = {"A": ACCENT, "B": ACCENT, "C": AMBER, "D": AMBER, "F": RED}
+
+
+def render_track_record(closed_positions: pd.DataFrame, trades: pd.DataFrame | None = None) -> None:
+    """Corrected, verifiable track-record scorecard — naive vs corrected side by side.
+
+    Surfaces the four leaderboard corrections (NegRisk/leg netting, settled-only
+    PnL, wash/farm flag, survivorship gate) so the number reflects skill, not
+    variance or gamed metrics. This is the product's core trust differentiator.
+    """
+
+    rec = trec.track_record(closed_positions, trades)
+    if rec["resolved_markets"] == 0:
+        st.caption("No resolved markets yet — a verified track record needs settled positions.")
+        return
+    grade = str(rec["grade"])
+    color = TRACK_RECORD_GRADE_COLORS.get(grade, MUTED)
+    naive = rec["naive_win_rate"]
+    corrected = rec["corrected_win_rate"]
+    st.markdown("<div class='step-label'>Verified track record</div>", unsafe_allow_html=True)
+    with st.container(border=True):
+        head = st.columns([1, 1.2, 1.2, 1.2])
+        head[0].markdown(
+            f"<span class='risk-badge' style='color:{color};border-color:{color};font-size:1.3rem'>{grade}</span>"
+            f"<br><span class='field-hint'>skill score {rec['score']:.0f}/100</span>",
+            unsafe_allow_html=True,
+        )
+        head[1].metric(
+            "Win rate (corrected)",
+            pct(corrected) if corrected is not None else "-",
+            help="Netted per resolved market (and NegRisk event), not per position leg.",
+        )
+        head[2].metric(
+            "Win rate (naive)",
+            pct(naive) if naive is not None else "-",
+            help="What raw leaderboards show — inflated by counting each outcome leg separately.",
+        )
+        head[3].metric(
+            "Settled PnL",
+            money(rec["settled_pnl"]),
+            help="From closed positions incl. auto-redeemed wins — the sign-correct realized result.",
+        )
+        detail = st.columns(4)
+        detail[0].metric("Resolved markets", f"{rec['resolved_markets']:,}", help=f"{rec['resolved_events']:,} distinct events over {rec['span_days']:.0f} days.")
+        detail[1].metric("Edge / volume", pct(rec["pnl_per_volume"]), help="Settled PnL per dollar traded — the real edge, hard to wash-trade.")
+        detail[2].metric("Risk-adjusted", f"{rec['risk_adjusted']:+.2f}", help="Sharpe-like consistency across markets; rewards steady edge over one lucky hit.")
+        detail[3].metric("Top-market share", pct(rec["top_market_share"]), help="Share of gross profit from the single best market. High = one-hit wonder.")
+        for flag in rec["flags"]:
+            st.markdown(f"<div class='field-hint'>⚠ {html.escape(flag)}</div>", unsafe_allow_html=True)
+        st.caption("Corrections applied: NegRisk/leg netting · settled-only PnL (auto-redeem safe) · wash-farm filter · survivorship gate. All from public on-chain data.")
+
+
 def render_wallet(wallet: str) -> None:
     wallet = wallet.strip()
     if not wallet:
@@ -5252,6 +5305,7 @@ def render_wallet(wallet: str) -> None:
         info_cols[0].link_button("Open first tx", f"https://polygonscan.com/tx/{first_activity_tx}", width="stretch")
     info_cols[1].metric("Account Created", account_created)
     info_cols[2].metric("Activity observations", f"{activity_observations:,}")
+    render_track_record(closed_positions, trades)
     if wallet.lower() in copy_active_wallets:
         with st.expander("Paper-Copytrading sub-account", expanded=False):
             render_copy_sub_account_metrics(wallet, copy_stats_map)
