@@ -1835,10 +1835,19 @@ def get_polymarket_positions(user: str, limit: int = 250) -> pd.DataFrame:
     return df[[c for c in cols if c in df.columns]].sort_values("value", ascending=False).reset_index(drop=True)
 
 
-def get_polymarket_closed_positions(user: str, limit: int = 250) -> pd.DataFrame:
+def get_polymarket_closed_positions(
+    user: str, limit: int = 250, sort_by: str = "REALIZEDPNL", sort_direction: str = "DESC"
+) -> pd.DataFrame:
     if not user:
         return pd.DataFrame()
-    data = _get_json(f"{POLY_DATA}/closed-positions", params={"user": user, "limit": limit})
+    params: dict[str, Any] = {"user": user, "limit": limit}
+    # The feed hard-caps at ~50 rows and, by default, returns only the biggest
+    # WINNERS. Sorting ascending surfaces the losers — fetching both directions is
+    # how a complete win/loss picture is reconstructed (see get_polymarket_resolved_positions).
+    if sort_by:
+        params["sortBy"] = sort_by
+        params["sortDirection"] = "ASC" if str(sort_direction or "").upper() == "ASC" else "DESC"
+    data = _get_json(f"{POLY_DATA}/closed-positions", params=params)
     df = pd.DataFrame(data if isinstance(data, list) else data.get("data", []))
     if df.empty:
         return pd.DataFrame()
@@ -1868,6 +1877,34 @@ def get_polymarket_closed_positions(user: str, limit: int = 250) -> pd.DataFrame
         "url",
     ]
     return df[[c for c in cols if c in df.columns]].sort_values("realized_pnl", ascending=False).reset_index(drop=True)
+
+
+CLOSED_POSITIONS_PAGE_CAP = 50  # The public feed returns at most ~50 rows per query.
+
+
+def get_polymarket_resolved_positions(user: str, per_side: int = 500) -> tuple[pd.DataFrame, bool]:
+    """Complete resolved-position set by unioning the winner and loser tails.
+
+    The public ``/closed-positions`` feed caps at ~50 rows and defaults to the
+    biggest winners, so a naive read shows a ~100% win rate for everyone. Fetching
+    both sort directions and unioning by (market_key, outcome) recovers the real
+    win/loss set. Returns (frame, capped): ``capped`` is True when both tails hit
+    the ~50 cap (a hyperactive wallet whose middle results are unreachable), in
+    which case the set is the extremes only, not the full history.
+    """
+
+    if not user:
+        return pd.DataFrame(), False
+    winners = get_polymarket_closed_positions(user, limit=per_side, sort_direction="DESC")
+    losers = get_polymarket_closed_positions(user, limit=per_side, sort_direction="ASC")
+    frames = [f for f in (winners, losers) if f is not None and not f.empty]
+    if not frames:
+        return pd.DataFrame(), False
+    union = pd.concat(frames, ignore_index=True, sort=False)
+    subset = [c for c in ("market_key", "outcome") if c in union.columns] or None
+    union = union.drop_duplicates(subset=subset, keep="first").reset_index(drop=True)
+    capped = len(winners) >= CLOSED_POSITIONS_PAGE_CAP and len(losers) >= CLOSED_POSITIONS_PAGE_CAP
+    return union, capped
 
 
 def get_polymarket_activity(user: str, limit: int = 250, offset: int = 0) -> pd.DataFrame:
