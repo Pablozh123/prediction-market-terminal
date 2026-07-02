@@ -2031,6 +2031,13 @@ def load_wallet_account_stats(wallets: tuple[str, ...], activity_pages: int = 3,
     return pd.DataFrame(rows)
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def load_resolved_positions(wallet: str) -> tuple[pd.DataFrame, bool]:
+    """Complete resolved set (winner tail + loser tail unioned) + capped flag."""
+
+    return md.get_polymarket_resolved_positions(wallet)
+
+
 @st.cache_data(ttl=600, show_spinner=False)
 def load_wallet_win_rates(wallets: tuple[str, ...], limit: int = 120) -> pd.DataFrame:
     rows: list[dict[str, Any]] = []
@@ -5162,66 +5169,61 @@ def page_markets() -> None:
 TRACK_RECORD_GRADE_COLORS = {"A": ACCENT, "B": ACCENT, "C": AMBER, "D": AMBER, "F": RED}
 
 
-def render_track_record(closed_positions: pd.DataFrame, trades: pd.DataFrame | None = None, activity: pd.DataFrame | None = None) -> None:
-    """Honest, verifiable track-record scorecard.
+def render_track_record(wallet: str, trades: pd.DataFrame | None = None, activity: pd.DataFrame | None = None) -> None:
+    """Verifiable track-record scorecard with a REAL win rate.
 
-    The core trust differentiator: instead of the fake ~100% win rate every naive
-    tool shows (Polymarket's closed-positions feed returns only top winners, and
-    worthless-expiry losses leave no exit event), we reconstruct realized PnL from
-    the activity feed, refuse to headline an unverifiable win rate, and state the
-    public-data blind spot outright.
+    Wins and losses come from the unioned resolved-position set (winner tail +
+    loser tail from the public feed), so the win rate is real for normal wallets.
+    Only hyperactive wallets (>50 wins AND >50 losses) hit the feed cap, and that
+    is disclosed as an extremes-only view rather than faked.
     """
 
-    rec = trec.track_record(closed_positions, trades, activity)
-    if rec["resolved_markets"] == 0 and rec["closed_positions_markets"] == 0:
-        st.caption("No resolved markets yet — a track record needs settled positions.")
+    resolved, capped = safe_load("Resolved positions", load_resolved_positions, wallet, default=(pd.DataFrame(), False))
+    rec = trec.track_record(resolved, trades, activity, resolved_capped=bool(capped))
+    if rec["resolved_markets"] == 0:
+        st.caption("No resolved positions in the public feed yet — a track record needs settled markets.")
         return
-    exit_wr = rec.get("exit_win_rate")
-    naive = rec["naive_win_rate"]
+    grade = str(rec["grade"])
+    color = TRACK_RECORD_GRADE_COLORS.get(grade, MUTED)
+    reliable = rec["win_rate_reliable"]
+    wr = rec["headline_win_rate"]
     st.markdown("<div class='step-label'>Verified track record</div>", unsafe_allow_html=True)
     with st.container(border=True):
-        # We deliberately do NOT show a confident A-F "skill grade" or a headline
-        # win rate: public feeds are winner-capped and blind to worthless-expiry
-        # losses, so any such number would overclaim. We show what public data can
-        # actually support, and expose the naive ~100% as the trap it is.
-        st.markdown(
-            "<span class='risk-badge' style='color:#F5A623;border-color:#F5A623'>PARTIAL DATA</span> "
-            "<strong>Track record from public on-chain data — incomplete by construction.</strong>",
-            unsafe_allow_html=True,
+        badge = (
+            f"<span class='risk-badge' style='color:{color};border-color:{color};font-size:1.3rem'>{grade}</span>"
+            f"<br><span class='field-hint'>skill score {rec['score']:.0f}/100</span>"
+            if reliable
+            else "<span class='risk-badge' style='color:#F5A623;border-color:#F5A623'>EXTREMES ONLY</span>"
+            "<br><span class='field-hint'>win rate capped by feed</span>"
         )
-        head = st.columns(3)
-        head[0].metric(
-            "Realized PnL (observed round-trips)",
-            money(rec["settled_pnl"]),
-            help="Reconstructed from the activity feed over complete buy→exit round-trips in the recent window, incl. positions exited at a loss.",
-        )
+        head = st.columns([1, 1.2, 1.2, 1.2])
+        head[0].markdown(badge, unsafe_allow_html=True)
         head[1].metric(
-            "Observed round-trips",
-            f"{rec['resolved_markets']:,}",
-            help=f"Markets with a full buy→exit in the recent activity window, over {rec['span_days']:.0f} days. Not the wallet's lifetime total.",
+            "Win rate (real)" if reliable else "Win rate (extremes)",
+            pct(wr) if wr is not None else "-",
+            help="Netted per resolved market and NegRisk event, over the full winners+losers set." if reliable
+            else "This wallet has >50 wins AND >50 losses; the public feed caps each tail at ~50, so this covers the largest positions only.",
         )
         head[2].metric(
-            "Top-market share",
-            pct(rec["top_market_share"]),
-            help="Share of gross profit from the single best market. High = one-hit wonder.",
+            "Settled PnL",
+            money(rec["settled_pnl"]),
+            help="Realized PnL summed over the resolved winners and losers — the sign-correct result, not the winner-only view.",
         )
-        wr = st.columns(2)
-        wr[0].metric(
-            "Win rate — naive feed",
-            pct(naive) if naive is not None else "-",
-            help="What raw leaderboards headline. Structurally ~100% because Polymarket's closed-positions feed returns only the top ~50 winners. This is the trap, not the truth.",
+        head[3].metric(
+            "Resolved markets",
+            f"{rec['resolved_markets']:,}",
+            help=f"{rec['resolved_events']:,} distinct events over {rec['span_days']:.0f} days (winners + losers unioned).",
         )
-        wr[1].metric(
-            "Win rate — of observed exits",
-            pct(exit_wr) if exit_wr is not None else "n/a",
-            help="Only over markets with a recorded exit. Still upward-biased: positions that expired worthless leave no exit event.",
-        )
+        detail = st.columns(3)
+        detail[0].metric("Edge / volume", pct(rec["pnl_per_volume"]), help="Settled PnL per dollar traded across resolved markets.")
+        detail[1].metric("Risk-adjusted", f"{rec['risk_adjusted']:+.2f}", help="Sharpe-like consistency across markets; rewards steady edge over one lucky hit.")
+        detail[2].metric("Top-market share", pct(rec["top_market_share"]), help="Share of gross profit from the single best market. High = one-hit wonder.")
+        naive = rec["naive_win_rate"]
+        if rec.get("leg_inflation") and abs(rec["leg_inflation"] - 1.0) >= 0.15:
+            detail[2].caption(f"naive per-leg: {pct(naive)}")
         for flag in rec["flags"]:
             st.markdown(f"<div class='field-hint'>⚠ {html.escape(flag)}</div>", unsafe_allow_html=True)
-        st.caption(
-            f"{rec['coverage_note']} A complete, verified win rate needs full paginated history + market-resolution data "
-            "(on the roadmap). We show partial-but-honest over a fake headline — that's the point."
-        )
+        st.caption(f"{rec['coverage_note']} All from public on-chain data.")
 
 
 def render_wallet(wallet: str) -> None:
@@ -5321,7 +5323,7 @@ def render_wallet(wallet: str) -> None:
         info_cols[0].link_button("Open first tx", f"https://polygonscan.com/tx/{first_activity_tx}", width="stretch")
     info_cols[1].metric("Account Created", account_created)
     info_cols[2].metric("Activity observations", f"{activity_observations:,}")
-    render_track_record(closed_positions, trades, activity)
+    render_track_record(wallet, trades, activity)
     if wallet.lower() in copy_active_wallets:
         with st.expander("Paper-Copytrading sub-account", expanded=False):
             render_copy_sub_account_metrics(wallet, copy_stats_map)
