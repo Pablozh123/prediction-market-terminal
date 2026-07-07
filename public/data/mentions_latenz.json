@@ -1,0 +1,127 @@
+{
+ "generated_utc": "2026-07-07T18:22:27+00:00",
+ "faelle": [
+  {
+   "event": "melania_ai_talk",
+   "drop_ts_utc": "2026-01-16T17:00:00Z",
+   "minuten_bis_erste_reaktion": 7.2,
+   "minuten_bis_konvergenz": 376.2,
+   "stunden_im_handelbaren_fenster": 4.58,
+   "endpreis": 0.0005,
+   "status": "ok"
+  },
+  {
+   "event": "baier_interview",
+   "drop_ts_utc": "2026-05-15T22:00:00Z",
+   "minuten_bis_erste_reaktion": 0.1,
+   "minuten_bis_konvergenz": 1315.2,
+   "stunden_im_handelbaren_fenster": 17.32,
+   "endpreis": 0.9995,
+   "status": "ok"
+  },
+  {
+   "event": "netflix_earnings",
+   "drop_ts_utc": "2026-01-20T21:42:36Z",
+   "minuten_bis_erste_reaktion": 0.6,
+   "minuten_bis_konvergenz": 123.6,
+   "stunden_im_handelbaren_fenster": 1.52,
+   "endpreis": 0.9995,
+   "status": "ok"
+  },
+  {
+   "event": "cnbc_kernen",
+   "drop_ts_utc": "2026-01-21T20:00:00Z",
+   "minuten_bis_erste_reaktion": 10.3,
+   "minuten_bis_konvergenz": 221.2,
+   "stunden_im_handelbaren_fenster": 3.62,
+   "endpreis": 0.0005,
+   "status": "ok"
+  },
+  {
+   "event": "panthers_visit",
+   "drop_ts_utc": "2026-01-15T21:21:00Z",
+   "minuten_bis_erste_reaktion": 0.2,
+   "minuten_bis_konvergenz": 300.2,
+   "stunden_im_handelbaren_fenster": 0.63,
+   "endpreis": 0.9995,
+   "status": "ok"
+  },
+  {
+   "event": "pgl_final",
+   "drop_ts_utc": "2026-04-11T14:00:00Z",
+   "minuten_bis_erste_reaktion": 86.7,
+   "minuten_bis_konvergenz": 4911.9,
+   "stunden_im_handelbaren_fenster": 42.05,
+   "endpreis": 0.0005,
+   "status": "ok"
+  },
+  {
+   "event": "inauguration",
+   "drop_ts_utc": "2025-01-20T17:10:00Z",
+   "minuten_bis_erste_reaktion": 0.1,
+   "minuten_bis_konvergenz": 30.1,
+   "stunden_im_handelbaren_fenster": 0.48,
+   "endpreis": 0.001,
+   "status": "ok"
+  },
+  {
+   "event": "powell_june",
+   "drop_ts_utc": "2025-06-18T18:30:00Z",
+   "minuten_bis_erste_reaktion": 0.1,
+   "minuten_bis_konvergenz": 302.1,
+   "stunden_im_handelbaren_fenster": 2.03,
+   "endpreis": 0.0005,
+   "status": "ok"
+  },
+  {
+   "event": "jre_trump_2219",
+   "drop_ts_utc": "2024-10-26T01:50:00Z",
+   "minuten_bis_erste_reaktion": 0.0,
+   "minuten_bis_konvergenz": 20.0,
+   "stunden_im_handelbaren_fenster": 0.32,
+   "endpreis": 0.0045,
+   "status": "ok"
+  },
+  {
+   "event": "jre_vance_2221",
+   "drop_ts_utc": "2024-10-31T17:00:00Z",
+   "minuten_bis_erste_reaktion": 4.0,
+   "minuten_bis_konvergenz": 6.0,
+   "stunden_im_handelbaren_fenster": 0.08,
+   "endpreis": 0.0005,
+   "status": "ok"
+  },
+  {
+   "event": "southpark_s27e5",
+   "drop_ts_utc": "2025-09-25T02:00:00Z",
+   "minuten_bis_erste_reaktion": 0.1,
+   "minuten_bis_konvergenz": 7.0,
+   "stunden_im_handelbaren_fenster": 0.12,
+   "endpreis": 0.9995,
+   "status": "ok"
+  },
+  {
+   "event": "southpark_s27e6",
+   "drop_ts_utc": "2025-10-16T02:00:00Z",
+   "minuten_bis_erste_reaktion": 0.1,
+   "minuten_bis_konvergenz": 961.0,
+   "stunden_im_handelbaren_fenster": 9.17,
+   "endpreis": 0.9995,
+   "status": "ok"
+  }
+ ],
+ "ausschluesse": [
+  {
+   "event": "allin_next_episode",
+   "status": "ausgeschlossen_zuordnungsambiguitaet",
+   "grund": "Seed-Ausschluss: zuordnungsambiguitaet"
+  }
+ ],
+ "limitationen": [
+  "Drop-Zeitpunkte sind kuratierte, quellenbelegte Beginnzeiten der Events bzw. Ausstrahlungen; der tatsaechliche Moment der aufloesungsrelevanten Aussage innerhalb des Events kann spaeter liegen. Die Latenz enthaelt diese Differenz.",
+  "Minutenpunkte der CLOB-API sind bei duennem Handel lueckenhaft; Reaktions- und Konvergenzzeiten sind dann Obergrenzen auf Beobachtungsraster-Ebene.",
+  "Kleine kuratierte Stichprobe, keine Zufallsauswahl; Maerkte ohne punktfoermigen Content-Drop (Mehrtagesfenster) wurden ausgeschlossen.",
+  "Seed-Zeilen mit gesetzter Spalte ausschluss erhalten nur eine Statuszeile ohne Kennzahlen und erscheinen nicht in Abbildung oder Auswertung. Aktuell betrifft das allin_next_episode: Serie auf die naechste Episode ohne Episodennummer, YES stand beim Drop bereits bei 0.911; der spaetere Rueckgang bis 0.399 (16.02.2026 15:23 UTC) war Zuordnungs- und Aufloesungsunsicherheit, keine Verarbeitungslatenz.",
+  "Rein deskriptiv: keine Handels-, Strategie- oder Profitabilitaetsaussagen; keine Kausalaussagen."
+ ]
+}
