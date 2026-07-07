@@ -21,6 +21,7 @@ import plotly.graph_objects as go
 import streamlit as st
 import streamlit.components.v1 as components
 
+from app import analysis_views as av
 from app import app_settings as cfg
 from app import authz as az
 from app import backtester as btr
@@ -112,12 +113,18 @@ WORKSPACES = [
     "Resolved",
     "Portfolio",
     "Settings",
+    "Review-Queue",
+    "Kategorie-Effizienz",
+    "Mentions-Latenz",
+    "Pipeline-Forward",
+    "Methodik",
 ]
 NAV_GROUPS: list[tuple[str, list[str]]] = [
     ("", ["Overview"]),
     ("Markets", ["Markets", "Search", "Live Trades", "Resolved", "Cross-Venue"]),
     ("Traders", ["Traders", "Wallets", "Whale Flow", "Suspicious", "Track"]),
     ("Trading", ["Backtester", "Copy Trade", "Portfolio"]),
+    ("Research", ["Review-Queue", "Kategorie-Effizienz", "Mentions-Latenz", "Pipeline-Forward", "Methodik"]),
     ("System", ["Monitor", "Settings"]),
 ]
 WORKSPACE_HELP = {
@@ -137,6 +144,11 @@ WORKSPACE_HELP = {
     "Portfolio": "Your paper positions, watchlist, and performance.",
     "Monitor": "Signals and alert rules, with Telegram delivery.",
     "Settings": "Data limits, alert config, daemon control, and account.",
+    "Review-Queue": "Priorisierte Pruef-Faelle aus dem taeglichen Analyse-Lauf (statisch, read-only).",
+    "Kategorie-Effizienz": "Brier-Score vs. Einpreisungs-Minuten je Marktkategorie.",
+    "Mentions-Latenz": "Wie schnell Mentions-Maerkte auf den Content-Drop reagieren.",
+    "Pipeline-Forward": "Beobachtender Paper-Forward-Test der Analyse-Pipeline.",
+    "Methodik": "Methodik, Guardrails und Audit (Hashes und Zaehler).",
 }
 SEARCH_RESULT_TYPES = ["Markets", "Traders", "Trades", "News", "Cross-Venue", "Alerts", "Tracked"]
 COPY_SIDE_FILTERS = ["BUY", "SELL"]
@@ -12127,6 +12139,386 @@ def page_suspicious() -> None:
                         st.markdown(f"- {market_line}")
 
 
+PUBLISH_DATA_DIR = Path(__file__).resolve().parent / "public" / "data"
+CHART_SERIES_BLUE = "#4F8EF7"
+CHART_SERIES_GREEN = "#5FA33C"
+ANALYSIS_BAND_COLORS = {"high": RED, "medium": AMBER, "low": MUTED}
+ANALYSIS_EMPFEHLUNG_COLORS = {
+    "eskalation_mensch": RED,
+    "quelle_pruefen": AMBER,
+    "beobachten": BLUE,
+}
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def _load_publish_payload_cached(name: str, mtime: float) -> dict | None:
+    # mtime ist Teil des Cache-Keys: neue Publish-Laeufe invalidieren sofort,
+    # und ein gecachtes None ueberlebt das Eintreffen der Datei nicht.
+    return av.load_publish_payload(PUBLISH_DATA_DIR, name)
+
+
+def load_publish_payload_cached(name: str) -> dict | None:
+    try:
+        mtime = (PUBLISH_DATA_DIR / name).stat().st_mtime
+    except OSError:
+        mtime = 0.0
+    return _load_publish_payload_cached(name, mtime)
+
+
+def _esc(value: Any) -> str:
+    """JSON-Strings vor Interpolation in unsafe_allow_html-Markdown escapen."""
+
+    return html.escape(str(value if value is not None else ""))
+
+
+def render_analysis_footer() -> None:
+    st.divider()
+    st.markdown(
+        "<div class='small-note'>Deskriptive Analyse aus einem taeglichen, read-only "
+        "Datenlauf. Keine Handlungsempfehlung, keine Finanzberatung, keine "
+        "Renditeaussage.</div>",
+        unsafe_allow_html=True,
+    )
+
+
+def render_analysis_banner(meta: dict | None) -> None:
+    stand = _esc((meta or {}).get("laufzeitpunkt_utc", "unbekannt"))
+    backend = _esc((meta or {}).get("backend", "unbekannt"))
+    st.markdown(
+        f"<div class='command-shell'><span class='command-hint'>READ-ONLY · Ergebnis "
+        f"eines taeglichen Analyse-Laufs · Stand {stand} · Backend {backend} · keine "
+        f"Live-Abfrage</span></div>",
+        unsafe_allow_html=True,
+    )
+
+
+def render_publish_missing(name: str) -> None:
+    st.markdown(
+        f"""
+        <div class='empty-hero'>
+            <div class='empty-hero-title'>Noch keine publizierten Daten</div>
+            <div class='empty-hero-sub'>Die Datei <span class='mono'>public/data/{name}</span>
+            fehlt. Sie entsteht durch den taeglichen Review-Lauf
+            (<span class='mono'>daily_review_run --publish-dir &lt;hier&gt;/public/data</span>).</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _analysis_badge(text: str, color: str) -> str:
+    return f"<span class='risk-badge' style='color:{color}; border-color:{color}'>{_esc(text)}</span>"
+
+
+def page_review_queue() -> None:
+    section_header(
+        "Review-Queue",
+        "Priorisierte Pruef-Faelle aus dem taeglichen Agenten-Lauf -- Empfehlungen sind Pruef-Schritte, keine Trades.",
+        kicker="Daily research artifacts",
+    )
+    meta = load_publish_payload_cached("meta.json")
+    queue = load_publish_payload_cached("queue.json")
+    render_analysis_banner(meta)
+    if queue is None:
+        render_publish_missing("queue.json")
+        render_analysis_footer()
+        return
+    cards = list(queue.get("cards", []))
+    band = st.segmented_control(
+        "Score-Band",
+        ["Alle", "high", "medium", "low"],
+        default="Alle",
+        key="rq_band_filter",
+    )
+    filtered = av.filter_queue_cards(cards, str(band))
+    st.caption(
+        f"{len(filtered)} von {len(cards)} Faellen · Skeptiker kann die Prioritaet nur senken "
+        f"(Abschlag zwischen -0.3 und 0)."
+    )
+    if not filtered:
+        st.info("Keine Faelle in diesem Band.")
+    for card in filtered:
+        with st.container(border=True):
+            band_value = str(card.get("score_band", "low"))
+            empfehlung = str(card.get("empfehlung", ""))
+            badges = _analysis_badge(band_value.upper(), ANALYSIS_BAND_COLORS.get(band_value, MUTED))
+            badges += _analysis_badge(
+                av.EMPFEHLUNG_LABELS.get(empfehlung, empfehlung),
+                ANALYSIS_EMPFEHLUNG_COLORS.get(empfehlung, MUTED),
+            )
+            score = card.get("score")
+            st.markdown(
+                f"{badges} <span class='mono' style='color:{TEXT_SECONDARY}'>score {_esc(score)}</span>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(f"**{card.get('markt_slug', '-')}**")
+            st.caption(str(card.get("begruendung", "")))
+            abschlag = card.get("skeptic_abschlag")
+            abschlag_text = "kein Abschlag" if abschlag in (None, 0) else f"Abschlag {_esc(abschlag)}"
+            st.markdown(
+                f"<div class='small-note'>Skeptiker: {_esc(card.get('skeptic_hinweis', '-'))} "
+                f"({abschlag_text})</div>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                f"<div class='field-hint'>Fall {_esc(card.get('id', '-'))} · Zeitfenster "
+                f"{_esc(card.get('zeitfenster') or 'unbekannt')}</div>",
+                unsafe_allow_html=True,
+            )
+    render_analysis_footer()
+
+
+def page_kategorie_effizienz() -> None:
+    section_header(
+        "Kategorie-Effizienz",
+        "Prognosequalitaet (Brier T-7) gegen Einpreisungs-Geschwindigkeit je Marktkategorie.",
+        kicker="Daily research artifacts",
+    )
+    meta = load_publish_payload_cached("meta.json")
+    karte = load_publish_payload_cached("kategorie_karte.json")
+    render_analysis_banner(meta)
+    if karte is None:
+        render_publish_missing("kategorie_karte.json")
+        render_analysis_footer()
+        return
+    points = av.kategorie_points(karte)
+    if points:
+        fig = go.Figure()
+        fig.add_trace(
+            go.Scatter(
+                x=[p["minuten"] for p in points],
+                y=[p["brier_t7"] for p in points],
+                mode="markers+text",
+                text=[p["kategorie"] + (" *" if p["censored"] else "") for p in points],
+                textposition="top center",
+                textfont={"color": "#ffffff", "size": 12},
+                marker={"size": 12, "color": CHART_SERIES_GREEN, "line": {"width": 2, "color": BG}},
+                customdata=[[p["hinweis"], p["n_maerkte"]] for p in points],
+                hovertemplate=(
+                    "%{text}<br>Konvergenz: %{x:.1f} Min<br>Brier T-7: %{y:.3f}"
+                    "<br>N Maerkte: %{customdata[1]}<br>%{customdata[0]}<extra></extra>"
+                ),
+            )
+        )
+        fig.update_xaxes(
+            type="log",
+            range=[math.log10(0.8), math.log10(560)],
+            tickvals=[t[0] for t in av.LOG_TICKS],
+            ticktext=[t[1] for t in av.LOG_TICKS],
+            title_text="Minuten bis Konvergenz (log, 1 Min bis 8 Std)",
+            gridcolor=BORDER,
+        )
+        fig.update_yaxes(title_text="Brier-Score T-7 (niedriger = besser)", gridcolor=BORDER)
+        fig.update_layout(
+            height=420,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font={"family": FONT_SANS, "color": "#ffffff"},
+            margin={"l": 10, "r": 10, "t": 20, "b": 10},
+        )
+        st.plotly_chart(fig, width="stretch", key="kat_eff_chart")
+        st.caption(
+            "* Obergrenze: Konvergenzzeit enthaelt die Spiel- bzw. Zeremoniedauer "
+            "(Sport, Popkultur) -- die echte Einpreisung ist schneller."
+        )
+    else:
+        st.info("Keine kombinierbaren Kennzahlen (Brier T-7 plus Latenz-Beispiel) vorhanden.")
+    zeilen = karte.get("zeilen", [])
+    if zeilen:
+        st.markdown("#### Kennzahlen je Kategorie")
+        frame = pd.DataFrame(zeilen)
+        st.dataframe(clean_table(frame, [
+            "kategorie", "n_maerkte", "n_events", "trefferquote_t1", "brier_t1",
+            "n_t7", "trefferquote_t7", "brier_t7", "median_volumen_usd",
+            "volumen_schwelle_usd", "n_ausgeschlossen_in_auswertung",
+        ]), width="stretch", hide_index=True)
+    beispiele = karte.get("beispiele", [])
+    if beispiele:
+        with st.expander("Latenz-Beispiele mit Praezisions-Hinweisen"):
+            st.dataframe(pd.DataFrame(beispiele), width="stretch", hide_index=True)
+    render_analysis_footer()
+
+
+def page_mentions_latenz() -> None:
+    section_header(
+        "Mentions-Latenz",
+        "Reaktions- und Konvergenzzeit der Mentions-Maerkte nach dem Content-Drop.",
+        kicker="Daily research artifacts",
+    )
+    meta = load_publish_payload_cached("meta.json")
+    payload = load_publish_payload_cached("mentions_latenz.json")
+    render_analysis_banner(meta)
+    if payload is None:
+        render_publish_missing("mentions_latenz.json")
+        render_analysis_footer()
+        return
+    rows = av.mentions_bars(payload)
+    if rows:
+        events = [r["event"] for r in rows]
+        fig = go.Figure()
+        fig.add_trace(
+            go.Bar(
+                y=events,
+                x=[r["reaktion_min"] for r in rows],
+                name="Erste Reaktion",
+                orientation="h",
+                marker_color=CHART_SERIES_BLUE,
+                hovertemplate="%{y}<br>Erste Reaktion: %{x:.1f} Min<extra></extra>",
+            )
+        )
+        fig.add_trace(
+            go.Bar(
+                y=events,
+                x=[r["konvergenz_min"] for r in rows],
+                name="Konvergenz",
+                orientation="h",
+                marker_color=CHART_SERIES_GREEN,
+                hovertemplate="%{y}<br>Konvergenz: %{x:.1f} Min<extra></extra>",
+            )
+        )
+        fig.update_layout(
+            barmode="group",
+            bargap=0.25,
+            bargroupgap=0.15,
+            height=max(320, 34 * len(rows)),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font={"family": FONT_SANS, "color": "#ffffff"},
+            legend={"orientation": "h", "y": 1.08},
+            margin={"l": 10, "r": 10, "t": 20, "b": 10},
+        )
+        fig.update_xaxes(title_text="Minuten nach Drop", gridcolor=BORDER)
+        fig.update_yaxes(autorange="reversed")
+        st.plotly_chart(fig, width="stretch", key="mentions_chart")
+    else:
+        st.info("Keine auswertbaren ok-Faelle vorhanden.")
+    ausschluesse = payload.get("ausschluesse", [])
+    if ausschluesse:
+        st.markdown("#### Ausgeschlossene Faelle")
+        for item in ausschluesse:
+            st.markdown(
+                f"<div class='small-note'><span class='mono'>{_esc(item.get('event', '-'))}</span> · "
+                f"Status <span class='mono'>{_esc(item.get('status', '-'))}</span> · "
+                f"{_esc(item.get('grund', ''))}</div>",
+                unsafe_allow_html=True,
+            )
+    limitationen = payload.get("limitationen", [])
+    if limitationen:
+        with st.expander("Dokumentierte Limitationen"):
+            for note in limitationen:
+                st.markdown(f"- {note}")
+    render_analysis_footer()
+
+
+def page_pipeline_forward() -> None:
+    section_header(
+        "Pipeline-Forward-Test",
+        "Beobachtender Paper-Lauf der Entscheidungs-Pipeline -- keine Orders, keine Renditeaussage.",
+        kicker="Daily research artifacts",
+    )
+    meta = load_publish_payload_cached("meta.json")
+    payload = load_publish_payload_cached("pipeline_forward.json")
+    render_analysis_banner(meta)
+    if payload is None:
+        render_publish_missing("pipeline_forward.json")
+        render_analysis_footer()
+        return
+    st.markdown(
+        _analysis_badge("BEOBACHTEND / PAPER", AMBER)
+        + f" <span class='mono' style='color:{TEXT_SECONDARY}'>Profil {_esc(payload.get('profil', '-'))}</span>",
+        unsafe_allow_html=True,
+    )
+    st.caption(str(payload.get("hinweis", "")))
+    endstaende = payload.get("wortzaehler_endstaende", {}) or {}
+    if endstaende:
+        st.markdown("#### Wortzaehler-Endstaende")
+        cols = st.columns(min(4, len(endstaende)))
+        for i, (slug, count) in enumerate(sorted(endstaende.items())):
+            cols[i % len(cols)].metric(slug, f"{count}")
+    rows = av.pipeline_timeline(payload)
+    if rows:
+        st.markdown("#### Zeitleiste der Entscheidungen")
+        frame = pd.DataFrame(rows)
+        st.dataframe(
+            frame,
+            width="stretch",
+            hide_index=True,
+            column_config={
+                "ts": st.column_config.TextColumn("Zeit (UTC)"),
+                "action": st.column_config.TextColumn("Aktion"),
+                "reason": st.column_config.TextColumn("Grund"),
+                "limit_price": st.column_config.NumberColumn("Limit", format="%.2f"),
+                "size_usd": st.column_config.NumberColumn("Groesse $", format="%.2f"),
+                "best_ask": st.column_config.NumberColumn("Best Ask", format="%.2f"),
+                "best_bid": st.column_config.NumberColumn("Best Bid", format="%.2f"),
+            },
+        )
+    elif payload.get("quelle_vorhanden") is False:
+        st.markdown(
+            """
+            <div class='empty-hero'>
+                <div class='empty-hero-title'>Noch keine Forward-Eintraege publiziert</div>
+                <div class='empty-hero-sub'>Der Paper-Lauf schreibt sein Entscheidungs-Log auf der
+                Analyse-Maschine. Sobald der taegliche Lauf dort publiziert, erscheint hier die
+                Zeitleiste (Aktion, Grund, Limit, Groesse, Buch-Bestpreise).</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    render_analysis_footer()
+
+
+def page_methodik() -> None:
+    section_header(
+        "Methodik und Guardrails",
+        "Wie der taegliche Lauf arbeitet, was er nie behauptet, und der Audit-Nachweis.",
+        kicker="Daily research artifacts",
+    )
+    meta = load_publish_payload_cached("meta.json")
+    audit = load_publish_payload_cached("audit.json")
+    render_analysis_banner(meta)
+    if meta is None:
+        render_publish_missing("meta.json")
+        render_analysis_footer()
+        return
+    st.markdown("#### Grundsaetze")
+    for key, text in (meta.get("disclaimer", {}) or {}).items():
+        with st.container(border=True):
+            st.markdown(f"**{key.replace('_', ' ').title()}**")
+            st.caption(str(text))
+    st.markdown("#### Guardrails des Agenten-Laufs")
+    st.markdown(
+        "- Agenten lesen ausschliesslich ueber die MCP-Lesescheibe: vier Read-only-Tools, "
+        "maximal 50 Zeilen pro Antwort, Wallet-Adressen maskiert.\n"
+        "- Der Skeptiker kann die Prioritaet eines Falls nur SENKEN (Abschlag -0.3 bis 0), nie anheben.\n"
+        "- Empfehlungen kommen aus einer festen Whitelist: beobachten, Quelle pruefen, an Mensch eskalieren.\n"
+        "- Redaktions-Gate vor jedem Publish: Wallet-Adressmuster oder Key-artige Strings brechen den Lauf ab.\n"
+        "- Default-Backend ist ein deterministischer Mock ohne Netzzugriff; produktiver LLM-Betrieb ist ein explizites Flag."
+    )
+    schritte = meta.get("schritte", {}) or {}
+    if schritte:
+        st.markdown("#### Letzter Lauf")
+        st.dataframe(
+            pd.DataFrame([{"schritt": k, "status": v} for k, v in schritte.items()]),
+            width="stretch",
+            hide_index=True,
+        )
+    if audit:
+        st.markdown("#### Audit (nur Hashes und Zaehler)")
+        a1, a2, a3 = st.columns(3)
+        a1.metric("LLM-Calls", f"{audit.get('llm_calls', 0)}")
+        a2.metric("MCP-Tool-Calls", f"{sum((audit.get('mcp_tool_calls') or {}).values())}")
+        a3.metric("Zurueckgegebene Zeilen", f"{audit.get('mcp_rows_returned_total', 0)}")
+        tool_calls = audit.get("mcp_tool_calls") or {}
+        if tool_calls:
+            st.caption(" · ".join(f"{k}: {v}" for k, v in tool_calls.items()))
+        hash_rows = av.audit_hash_rows(audit)
+        if hash_rows:
+            with st.expander(f"Hash-Liste ({len(hash_rows)} Calls)"):
+                st.dataframe(pd.DataFrame(hash_rows), width="stretch", hide_index=True)
+    render_analysis_footer()
+
+
 PAGES = {
     "Overview": page_overview,
     "Search": page_search,
@@ -12144,6 +12536,11 @@ PAGES = {
     "Resolved": page_resolved,
     "Portfolio": page_portfolio,
     "Settings": page_settings,
+    "Review-Queue": page_review_queue,
+    "Kategorie-Effizienz": page_kategorie_effizienz,
+    "Mentions-Latenz": page_mentions_latenz,
+    "Pipeline-Forward": page_pipeline_forward,
+    "Methodik": page_methodik,
 }
 
 

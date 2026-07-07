@@ -1,0 +1,46 @@
+{
+ "generated_utc": "2026-07-07T18:22:27+00:00",
+ "backend": "mock",
+ "queue_kind": "anomaly_review_priority_queue",
+ "allowed_interpretation": "Bounded, ranked human-review queue. Recommendations are review actions only (watch / check_source / escalate_human). No metric is computed by agents; no trade, order, or profitability field exists. Human review remains required.",
+ "blocked_claims": "private_information_proof; misconduct_finding; causality; tradeability; profitability; future_performance; order_instruction",
+ "count": 3,
+ "cards": [
+  {
+   "id": "monitor_candidate_20260523_192500_c6370fa4e8c9",
+   "markt_slug": "will-alexandria-ocasio-cortez-win-the-2028-democratic-presidential-nomination-653",
+   "zeitfenster": "2026-05-23T19:25:00Z",
+   "score_band": "medium",
+   "score": 0.7,
+   "empfehlung": "quelle_pruefen",
+   "begruendung": "Case monitor_candidate_20260523_192500_c6370fa4e8c9 concerns the market 'Will Alexandria Ocasio-Cortez win the 2028 Democratic presidential nomination?' (slug: will-alexandria-ocasio-cortez-win-the-2028-democratic-presidential-nomination-653). It is a bounded human-review cue labelled 'insider_risk_review_candidate' at review priority 'high'. Event context: nearest_event_only; reference overlap: reference_hit; human-review status: source_check_pending. This is a review prompt only, not a finding, a metric, or any claim about private information.",
+   "skeptic_hinweis": "A public attention spike (news/hype) around this market could explain the bucket without any private information. Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
+   "skeptic_abschlag": -0.2,
+   "ts": "2026-07-07T18:22:27+00:00"
+  },
+  {
+   "id": "monitor_candidate_20260523_192500_2bb6f8fa6250",
+   "markt_slug": "will-china-invade-taiwan-before-2027",
+   "zeitfenster": "2026-05-23T19:25:00Z",
+   "score_band": "low",
+   "score": 0.3,
+   "empfehlung": "beobachten",
+   "begruendung": "Case monitor_candidate_20260523_192500_2bb6f8fa6250 concerns the market 'Will China invade Taiwan by end of 2026?' (slug: will-china-invade-taiwan-before-2027). It is a bounded human-review cue labelled 'insider_risk_watch_cue' at review priority 'medium'. Event context: nearest_event_only; reference overlap: partial_reference_overlap; human-review status: source_check_pending. This is a review prompt only, not a finding, a metric, or any claim about private information.",
+   "skeptic_hinweis": "A public attention spike (news/hype) around this market could explain the bucket without any private information. Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
+   "skeptic_abschlag": -0.3,
+   "ts": "2026-07-07T18:22:27+00:00"
+  },
+  {
+   "id": "monitor_candidate_20260523_192500_71cd3b4e784b",
+   "markt_slug": "will-the-us-invade-iran-before-2027",
+   "zeitfenster": "2026-05-23T19:25:00Z",
+   "score_band": "low",
+   "score": 0.3,
+   "empfehlung": "beobachten",
+   "begruendung": "Case monitor_candidate_20260523_192500_71cd3b4e784b concerns the market 'Will the U.S. invade Iran before 2027?' (slug: will-the-us-invade-iran-before-2027). It is a bounded human-review cue labelled 'insider_risk_watch_cue' at review priority 'medium'. Event context: nearest_event_only; reference overlap: no_reference_overlap; human-review status: source_check_pending. This is a review prompt only, not a finding, a metric, or any claim about private information.",
+   "skeptic_hinweis": "A public attention spike (news/hype) around this market could explain the bucket without any private information. Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
+   "skeptic_abschlag": -0.3,
+   "ts": "2026-07-07T18:22:27+00:00"
+  }
+ ]
+}

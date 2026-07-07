@@ -1,0 +1,137 @@
+{
+ "generated_utc": "2026-07-07T18:22:27+00:00",
+ "zeilen": [
+  {
+   "kategorie": "Politik",
+   "tag_slug": "politics",
+   "n_maerkte": 73,
+   "n_events": 17,
+   "trefferquote_t1": 0.9315,
+   "brier_t1": 0.0361,
+   "n_t7": 12,
+   "trefferquote_t7": 0.4167,
+   "brier_t7": 0.3521,
+   "median_volumen_usd": 9883931.33,
+   "volumen_schwelle_usd": 10000.0,
+   "n_t1_aus_clob": 2,
+   "n_ausgeschlossen_in_auswertung": 3,
+   "n_alt": 13,
+   "n_neu": 60
+  },
+  {
+   "kategorie": "Sport",
+   "tag_slug": "sports",
+   "n_maerkte": 60,
+   "n_events": 11,
+   "trefferquote_t1": 0.95,
+   "brier_t1": 0.0412,
+   "n_t7": 26,
+   "trefferquote_t7": 0.9231,
+   "brier_t7": 0.042,
+   "median_volumen_usd": 4750770.96,
+   "volumen_schwelle_usd": 10000.0,
+   "n_t1_aus_clob": 2,
+   "n_ausgeschlossen_in_auswertung": 15,
+   "n_alt": 16,
+   "n_neu": 44
+  },
+  {
+   "kategorie": "Krypto",
+   "tag_slug": "crypto",
+   "n_maerkte": 81,
+   "n_events": 21,
+   "trefferquote_t1": 0.9383,
+   "brier_t1": 0.0614,
+   "n_t7": 55,
+   "trefferquote_t7": 0.8364,
+   "brier_t7": 0.1135,
+   "median_volumen_usd": 1082207.46,
+   "volumen_schwelle_usd": 10000.0,
+   "n_t1_aus_clob": 2,
+   "n_ausgeschlossen_in_auswertung": 3,
+   "n_alt": 16,
+   "n_neu": 65
+  },
+  {
+   "kategorie": "Popkultur",
+   "tag_slug": "pop-culture",
+   "n_maerkte": 65,
+   "n_events": 12,
+   "trefferquote_t1": 1.0,
+   "brier_t1": 0.0135,
+   "n_t7": 41,
+   "trefferquote_t7": 0.9512,
+   "brier_t7": 0.0581,
+   "median_volumen_usd": 1147205.83,
+   "volumen_schwelle_usd": 10000.0,
+   "n_t1_aus_clob": 2,
+   "n_ausgeschlossen_in_auswertung": 6,
+   "n_alt": 14,
+   "n_neu": 51
+  },
+  {
+   "kategorie": "Mentions",
+   "tag_slug": "mentions",
+   "n_maerkte": 68,
+   "n_events": 14,
+   "trefferquote_t1": 0.9559,
+   "brier_t1": 0.0369,
+   "n_t7": 24,
+   "trefferquote_t7": 0.875,
+   "brier_t7": 0.1078,
+   "median_volumen_usd": 49068.46,
+   "volumen_schwelle_usd": 1000.0,
+   "n_t1_aus_clob": 2,
+   "n_ausgeschlossen_in_auswertung": 7,
+   "n_alt": 12,
+   "n_neu": 56
+  }
+ ],
+ "beispiele": [
+  {
+   "kategorie": "Krypto",
+   "ereignis": "Bitcoin ueberschreitet erstmals 100000 USD (05.12.2024)",
+   "markt_frage": "Will Bitcoin hit $100k in 2024?",
+   "t0_utc": "2024-12-05T03:24:00Z",
+   "minuten_bis_erste_reaktion": null,
+   "minuten_bis_konvergenz": -44.0,
+   "praezisions_hinweis": "Quelle belegt das Datum; Uhrzeit ca. 03:24 UTC gemaess Aufgabenstellung. Markt loest ueber Coinbase-1-Min-High auf; Referenzboerse kreuzte ca. 50 Min. vor t0 (siehe Rohdatei-meta). fidelity=10 (10-Minuten-Raster); Baseline 0.9995; Status keine_reaktion_im_fenster;bereits_vor_drop_konvergiert. Konvergenz lag vor t0 (Markt bereits eingepreist); Abbildung nutzt Untergrenze 1 Minute."
+  },
+  {
+   "kategorie": "Sport",
+   "ereignis": "Super Bowl LX, Sieg Seattle Seahawks (08.02.2026, t0 = Kickoff)",
+   "markt_frage": "Will the Seattle Seahawks win Super Bowl 2026?",
+   "t0_utc": "2026-02-08T23:30:00Z",
+   "minuten_bis_erste_reaktion": 20.3,
+   "minuten_bis_konvergenz": 180.4,
+   "praezisions_hinweis": "Nur Kickoff belegbar (3:30 p.m. PST = 23:30 UTC); Konvergenz enthaelt die Spieldauer von ca. 3.5 h. Token-ID deterministisch aus negRiskMarketID abgeleitet und gegen 7 Schwestermaerkte verifiziert (Details in der Rohdatei-meta). fidelity=10 (10-Minuten-Raster); Baseline 0.675; Status ok."
+  },
+  {
+   "kategorie": "Popkultur",
+   "ereignis": "Oscars 2026, Best Picture fuer One Battle After Another (15.03.2026, t0 = Zeremonie-Beginn)",
+   "markt_frage": "Will One Battle After Another win Best Picture at the 98th Academy Awards?",
+   "t0_utc": "2026-03-15T23:00:00Z",
+   "minuten_bis_erste_reaktion": 40.5,
+   "minuten_bis_konvergenz": 220.4,
+   "praezisions_hinweis": "Abgerufene Artikelversion belegt nur das Datum; 19:00 ET ist die uebliche angekuendigte Startzeit (EDT = UTC-4, also 23:00 UTC). Verkuendung Best Picture am Ende der Zeremonie; Konvergenz enthaelt die Zeremoniedauer. fidelity=10 (10-Minuten-Raster); Baseline 0.785; Status ok."
+  },
+  {
+   "kategorie": "Politik",
+   "ereignis": "US-Wahlmarkt 2024, Ereignisfenster (Tabelle A1 der Thesis)",
+   "markt_frage": "diverse Wahlmaerkte (siehe Tabelle A1)",
+   "t0_utc": "",
+   "minuten_bis_erste_reaktion": null,
+   "minuten_bis_konvergenz": 60.0,
+   "praezisions_hinweis": "Vergleichswert OHNE Neuberechnung: erste Reaktion im Minutenbereich, anhaltende Preisniveaus binnen ca. 26 bis 94 Minuten bei den reagierenden Ereignissen; 60 Min. = Spannenmitte (Konvention). Quelle: thesis_tabelle_a1."
+  },
+  {
+   "kategorie": "Mentions",
+   "ereignis": "Median aus 12 kuratierten Mentions-Ereignissen",
+   "markt_frage": "12 Maerkte, siehe data/results/mentions_latency.csv",
+   "t0_utc": "",
+   "minuten_bis_erste_reaktion": 0.2,
+   "minuten_bis_konvergenz": 260.7,
+   "praezisions_hinweis": "Median der Status-ok-Zeilen aus mentions_latency.csv (fidelity=1; Drop = Beginn der Uebertragung, Latenz enthaelt die Zeit bis zur aufloesungsrelevanten Aussage)."
+  }
+ ]
+}
