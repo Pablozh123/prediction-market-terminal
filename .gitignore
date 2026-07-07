@@ -18,6 +18,10 @@ env/
 # Generierte Daten (werden zur Laufzeit erzeugt)
 data/
 
+# Publizierte Analyse-JSONs des taeglichen Review-Laufs (statisches Datenfundament der Research-Seiten)
+!public/data/
+!public/data/**
+
 # Jupyter
 .ipynb_checkpoints/
 notebooks/.ipynb_checkpoints/
