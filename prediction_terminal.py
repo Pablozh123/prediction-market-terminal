@@ -75,15 +75,18 @@ ACCENT = "#C8F542"
 BLUE = "#4F8EF7"
 AMBER = "#F5A623"
 RED = "#FF4545"
-MUTED = "#8A9099"
+MUTED = "#95A0AB"
 PANEL = "#10151A"
 BG = "#0A0D0F"
 ELEVATED = "#161C22"
 HOVER_BG = "#1C232B"
-BORDER = "rgba(255, 255, 255, 0.06)"
-BORDER_STRONG = "rgba(255, 255, 255, 0.14)"
-TEXT_LABEL = "rgba(255, 255, 255, 0.40)"
-TEXT_SECONDARY = "rgba(255, 255, 255, 0.55)"
+BORDER = "rgba(255, 255, 255, 0.09)"
+BORDER_STRONG = "rgba(255, 255, 255, 0.16)"
+TEXT_LABEL = "rgba(255, 255, 255, 0.52)"
+TEXT_SECONDARY = "rgba(255, 255, 255, 0.66)"
+RED_SOFT = "#FF7A7A"
+DANGER_BORDER = "rgba(255, 69, 69, 0.35)"
+DANGER_BG = "rgba(255, 69, 69, 0.10)"
 DIAMOND = ACCENT
 ACCENT_DIM = "rgba(200, 245, 66, 0.45)"
 ACCENT_HOVER = "#B7E33B"
@@ -110,6 +113,31 @@ WORKSPACES = [
     "Portfolio",
     "Settings",
 ]
+NAV_GROUPS: list[tuple[str, list[str]]] = [
+    ("", ["Overview"]),
+    ("Markets", ["Markets", "Search", "Live Trades", "Resolved", "Cross-Venue"]),
+    ("Traders", ["Traders", "Wallets", "Whale Flow", "Suspicious", "Track"]),
+    ("Trading", ["Backtester", "Copy Trade", "Portfolio"]),
+    ("System", ["Monitor", "Settings"]),
+]
+WORKSPACE_HELP = {
+    "Overview": "Start here — live stats, movers, and quick links into every workspace.",
+    "Markets": "Browse and filter all markets, with volume-anomaly and mover highlights.",
+    "Search": "Find markets, traders, trades, and news across both venues.",
+    "Live Trades": "Real-time trade tape from Polymarket and Kalshi.",
+    "Resolved": "Recently resolved markets and their final outcomes.",
+    "Cross-Venue": "The same event priced on Polymarket vs Kalshi — spot the gaps.",
+    "Traders": "Leaderboard with win rates, podium, speed traders, and insider picks.",
+    "Wallets": "Deep-dive one wallet — positions, activity, and PnL.",
+    "Whale Flow": "Large prints: who is moving big money, and where.",
+    "Suspicious": "Insider-risk screen — unusual timing, fresh wallets, clusters.",
+    "Track": "Your tracked wallets and markets, with grades and records.",
+    "Backtester": "Replay any trader's history with your own sizing rules.",
+    "Copy Trade": "Paper copy-trading engine with live WebSocket detection.",
+    "Portfolio": "Your paper positions, watchlist, and performance.",
+    "Monitor": "Signals and alert rules, with Telegram delivery.",
+    "Settings": "Data limits, alert config, daemon control, and account.",
+}
 SEARCH_RESULT_TYPES = ["Markets", "Traders", "Trades", "News", "Cross-Venue", "Alerts", "Tracked"]
 COPY_SIDE_FILTERS = ["BUY", "SELL"]
 PAGE_QUERY_SLUGS = {page: page.lower().replace(" ", "-") for page in WORKSPACES}
@@ -173,10 +201,15 @@ def inject_css() -> None:
             font-family: {FONT_MONO};
             font-size: 0.78rem;
         }}
+        @keyframes cardIn {{
+            from {{ opacity: 0; transform: translateY(6px); }}
+            to {{ opacity: 1; transform: translateY(0); }}
+        }}
         div[data-testid="stVerticalBlockBorderWrapper"] {{
             border-color: {BORDER};
             border-radius: 12px;
             background: {PANEL};
+            animation: cardIn 0.32s ease-out;
         }}
         .terminal-kicker {{
             color: {TEXT_LABEL};
@@ -291,10 +324,18 @@ def inject_css() -> None:
             background: {PANEL};
             padding: 0.35rem 0.75rem;
         }}
+        .stTabs [data-baseweb="tab"]:hover {{
+            border-color: {BORDER_STRONG};
+            color: #ffffff;
+        }}
         .stTabs [aria-selected="true"] {{
-            background: transparent;
+            background: rgba(200, 245, 66, 0.08);
             border-color: {ACCENT_DIM};
             color: {ACCENT};
+            font-weight: 700;
+        }}
+        .stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"] {{
+            background: transparent;
         }}
         .stButton button, .stFormSubmitButton button, .stDownloadButton button, .stLinkButton a {{
             font-family: {FONT_SANS};
@@ -332,14 +373,68 @@ def inject_css() -> None:
             border-color: rgba(255, 255, 255, 0.35);
             background: {HOVER_BG};
         }}
+        .stLinkButton a {{
+            background: transparent;
+            color: {TEXT_SECONDARY};
+            border: 1px solid {BORDER_STRONG};
+            transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+        }}
+        .stLinkButton a:hover {{
+            color: #ffffff;
+            border-color: rgba(255, 255, 255, 0.35);
+            background: {HOVER_BG};
+        }}
+        [data-testid="stSidebar"] div[data-testid="stVerticalBlock"] {{
+            gap: 0.3rem;
+        }}
         [data-testid="stSidebar"] .stButton button {{
             justify-content: flex-start;
             text-align: left;
             font-weight: 500;
             border-radius: 8px;
+            min-height: 2.15rem;
+            padding: 0.2rem 0.7rem;
+            font-size: 0.85rem;
+        }}
+        [data-testid="stSidebar"] .stButton button[kind="secondary"]:hover {{
+            background: {HOVER_BG};
+            color: #ffffff;
+            transform: translateX(2px);
+        }}
+        .nav-group-label {{
+            font-family: {FONT_MONO};
+            font-size: 0.6rem;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+            color: {TEXT_LABEL};
+            margin: 1rem 0 0.15rem 0.75rem;
+        }}
+        .sidebar-footnote {{
+            color: rgba(255, 255, 255, 0.35);
+            font-size: 0.68rem;
+            line-height: 1.5;
+        }}
+        .st-key-open_command_palette_sidebar button {{
+            font-family: {FONT_MONO};
+            font-size: 0.78rem;
+            color: {TEXT_LABEL};
+            background: {BG};
+            border: 1px solid {BORDER_STRONG};
+        }}
+        .st-key-open_command_palette_sidebar button:hover {{
+            border-color: {ACCENT_DIM};
+            color: {TEXT_SECONDARY};
         }}
         [data-testid="stSidebar"] .stButton button p {{
             text-align: left;
+            width: 100%;
+        }}
+        [data-testid="stSidebar"] .stButton button > div {{
+            justify-content: flex-start;
+            width: 100%;
+        }}
+        [data-testid="stSidebar"] [data-testid="stTooltipHoverTarget"],
+        [data-testid="stSidebar"] [data-testid="stTooltipIcon"] {{
             width: 100%;
         }}
         [data-testid="stSidebar"] .stButton button[kind="primary"] {{
@@ -398,7 +493,7 @@ def inject_css() -> None:
         .field-hint {{
             font-family: {FONT_MONO};
             font-size: 0.7rem;
-            color: rgba(255, 255, 255, 0.30);
+            color: rgba(255, 255, 255, 0.42);
             line-height: 1.45;
             margin: 0.25rem 0 0.2rem;
         }}
@@ -659,6 +754,97 @@ def inject_css() -> None:
         }}
         hr {{
             border-color: {BORDER};
+        }}
+        .stButton button:active, .stFormSubmitButton button:active {{
+            transform: translateY(0) scale(0.985);
+        }}
+        button:focus-visible, .stLinkButton a:focus-visible {{
+            outline: 2px solid {ACCENT_DIM} !important;
+            outline-offset: 2px;
+        }}
+        .st-key-clear_paper_history .stButton button,
+        .st-key-clear_watchlist_button .stButton button,
+        .st-key-track_remove_wallet_from_picker .stButton button,
+        .st-key-clear_saved_overview_filters .stButton button,
+        .st-key-clear_saved_monitor_filters .stButton button,
+        .st-key-clear_saved_resolved_filters .stButton button,
+        .st-key-clear_saved_copy_filters .stButton button,
+        .st-key-set_daemon_stop .stButton button {{
+            color: {RED_SOFT};
+            border-color: {DANGER_BORDER};
+            background: transparent;
+        }}
+        .st-key-clear_paper_history .stButton button:hover,
+        .st-key-clear_watchlist_button .stButton button:hover,
+        .st-key-track_remove_wallet_from_picker .stButton button:hover,
+        .st-key-clear_saved_overview_filters .stButton button:hover,
+        .st-key-clear_saved_monitor_filters .stButton button:hover,
+        .st-key-clear_saved_resolved_filters .stButton button:hover,
+        .st-key-clear_saved_copy_filters .stButton button:hover,
+        .st-key-set_daemon_stop .stButton button:hover {{
+            color: #ff9c9c;
+            border-color: rgba(255, 69, 69, 0.65);
+            background: {DANGER_BG};
+        }}
+        div[data-baseweb="input"]:focus-within, div[data-baseweb="base-input"]:focus-within,
+        div[data-baseweb="textarea"]:focus-within {{
+            border-color: {ACCENT_DIM};
+            box-shadow: 0 0 0 1px {ACCENT_DIM};
+        }}
+        div[data-baseweb="select"] > div:focus-within {{
+            border-color: {ACCENT_DIM};
+        }}
+        div[data-testid="stTooltipContent"] {{
+            background: {ELEVATED};
+            border: 1px solid {BORDER_STRONG};
+            border-radius: 8px;
+            font-size: 0.8rem;
+            color: {TEXT_SECONDARY};
+            max-width: 320px;
+        }}
+        ::-webkit-scrollbar {{
+            width: 10px;
+            height: 10px;
+        }}
+        ::-webkit-scrollbar-track {{
+            background: transparent;
+        }}
+        ::-webkit-scrollbar-thumb {{
+            background: {ELEVATED};
+            border-radius: 8px;
+            border: 2px solid {BG};
+        }}
+        ::-webkit-scrollbar-thumb:hover {{
+            background: {HOVER_BG};
+        }}
+        ::selection {{
+            background: {ACCENT_DIM};
+            color: {INK};
+        }}
+        [data-testid="stExpander"] details {{
+            transition: border-color 0.18s ease;
+        }}
+        [data-testid="stExpander"] details:hover {{
+            border-color: {BORDER_STRONG};
+        }}
+        [data-testid="stExpander"] summary:hover {{
+            color: {ACCENT};
+        }}
+        [data-testid="stAlert"] {{
+            border-radius: 10px;
+        }}
+        [data-testid="stSpinner"] i {{
+            border-top-color: {ACCENT} !important;
+        }}
+        .stProgress > div > div > div > div {{
+            background-color: {ACCENT};
+        }}
+        @media (prefers-reduced-motion: reduce) {{
+            *, *::before, *::after {{
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }}
         }}
         </style>
         """,
@@ -2525,27 +2711,35 @@ with st.sidebar:
             )
             if st.button(sign_in_label, key="sidebar_sign_in", width="stretch"):
                 trigger_login()
-    st.markdown("#### Workspace")
     page = st.session_state.get("selected_page", "Overview")
     if page not in WORKSPACES:
         page = "Overview"
         st.session_state.selected_page = page
-    for workspace in WORKSPACES:
+
+    def _nav_button(workspace: str) -> None:
         st.button(
             workspace,
             width="stretch",
             type="primary" if workspace == page else "secondary",
             key=f"sidebar_nav_{PAGE_QUERY_SLUGS[workspace]}",
+            help=WORKSPACE_HELP.get(workspace, ""),
             on_click=navigate_workspace,
             args=(workspace,),
         )
-    st.divider()
-    st.caption(
-        "Research tool only — no investment advice, no order placement, no affiliation with any venue. "
-        "Market data from public Polymarket and Kalshi APIs, provided as-is. "
-        "Kalshi public feeds do not expose wallet identities."
-    )
-    st.caption(f"Last render: {md.now_utc_label()}")
+
+    grouped_workspaces: set[str] = set()
+    for group_label, group_items in NAV_GROUPS:
+        items = [w for w in group_items if w in WORKSPACES]
+        if not items:
+            continue
+        if group_label:
+            st.markdown(f"<div class='nav-group-label'>{group_label}</div>", unsafe_allow_html=True)
+        for workspace in items:
+            _nav_button(workspace)
+            grouped_workspaces.add(workspace)
+    for workspace in WORKSPACES:
+        if workspace not in grouped_workspaces:
+            _nav_button(workspace)
     equity_snap = load_paper_equity_snapshot()
     equity_delta_color = ACCENT if equity_snap["pnl"] >= 0 else RED
     equity_delta_sign = "+" if equity_snap["pnl"] >= 0 else "-"
@@ -2558,6 +2752,13 @@ with st.sidebar:
             <div class='equity-delta' style='color:{equity_delta_color}'>{equity_delta_sign}${abs(equity_snap['pnl']):,.2f}</div>
         </div>
         """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "<div class='sidebar-footnote' style='margin-top:0.9rem'>"
+        "Research tool only — no investment advice, no order placement, no venue affiliation. "
+        "Public Polymarket &amp; Kalshi data, provided as-is."
+        f"<br>Last render: {md.now_utc_label()}</div>",
         unsafe_allow_html=True,
     )
 
@@ -2608,7 +2809,7 @@ def market_tile(row: pd.Series) -> None:
         saved_keys = {str(saved.get("market_key", "")).strip() for saved in st.session_state.watchlist}
         action_cols = st.columns([1, 1, 1])
         if market_key:
-            if action_cols[0].button("Inspect", type="primary", key=f"tile_inspect_{safe_key}", width="stretch"):
+            if action_cols[0].button("Inspect", key=f"tile_inspect_{safe_key}", width="stretch"):
                 st.session_state["markets_inspect_market_key"] = market_key
                 queue_navigation("Markets", "")
                 st.rerun()
@@ -3746,7 +3947,7 @@ def page_overview() -> None:
         st.caption(f"Saved overview views: {len(st.session_state.saved_overview_filters)}")
         with st.expander("Saved overview filters", expanded=False):
             st.dataframe(pd.DataFrame(st.session_state.saved_overview_filters), width="stretch", height=160)
-            if st.button("Clear saved overview filters"):
+            if st.button("Clear saved overview filters", key="clear_saved_overview_filters"):
                 st.session_state.saved_overview_filters = []
                 save_local_list("saved_overview_filters.json", st.session_state.saved_overview_filters)
                 st.rerun()
@@ -8396,7 +8597,7 @@ def page_monitor() -> None:
         st.caption(f"Saved monitor views: {len(st.session_state.saved_monitor_filters)}")
         with st.expander("Saved monitor filters", expanded=False):
             st.dataframe(pd.DataFrame(st.session_state.saved_monitor_filters), width="stretch", height=160)
-            if st.button("Clear saved monitor filters"):
+            if st.button("Clear saved monitor filters", key="clear_saved_monitor_filters"):
                 st.session_state.saved_monitor_filters = []
                 save_local_list("saved_monitor_filters.json", st.session_state.saved_monitor_filters)
                 st.rerun()
@@ -8548,7 +8749,7 @@ def page_monitor() -> None:
             r8, r9 = st.columns([1, 3])
             rule_min_liquidity = r8.number_input("Min liquidity", min_value=0, value=int(min_liquidity), step=1000)
             active = r9.checkbox("Active", value=True)
-            submitted = st.form_submit_button("Save alert rule")
+            submitted = st.form_submit_button("Save alert rule", type="primary")
             if submitted and name.strip():
                 st.session_state.monitor_rules.append(
                     {
@@ -8768,7 +8969,7 @@ def page_resolved() -> None:
         st.caption(f"Saved resolved views: {len(st.session_state.saved_resolved_filters)}")
         with st.expander("Saved resolved filters", expanded=False):
             st.dataframe(pd.DataFrame(st.session_state.saved_resolved_filters), width="stretch", height=160)
-            if st.button("Clear saved resolved filters"):
+            if st.button("Clear saved resolved filters", key="clear_saved_resolved_filters"):
                 st.session_state.saved_resolved_filters = []
                 save_local_list("saved_resolved_filters.json", st.session_state.saved_resolved_filters)
                 st.rerun()
@@ -9937,7 +10138,7 @@ def page_copy_trade() -> None:
         st.caption(f"Saved copy views: {len(st.session_state.saved_copy_trade_filters)}")
         with st.expander("Saved copy filters", expanded=False):
             st.dataframe(pd.DataFrame(st.session_state.saved_copy_trade_filters), width="stretch", height=160)
-            if st.button("Clear saved copy filters"):
+            if st.button("Clear saved copy filters", key="clear_saved_copy_filters"):
                 st.session_state.saved_copy_trade_filters = []
                 save_local_list("saved_copy_trade_filters.json", st.session_state.saved_copy_trade_filters)
                 st.rerun()
@@ -10592,7 +10793,7 @@ def page_portfolio() -> None:
                         "url": st.column_config.LinkColumn("URL"),
                     },
                 )
-            if st.button("Clear paper trade history"):
+            if st.button("Clear paper trade history", key="clear_paper_history"):
                 st.session_state.paper_trade_history = []
                 save_local_list("paper_trade_history.json", st.session_state.paper_trade_history)
                 st.rerun()
@@ -10643,7 +10844,7 @@ def page_portfolio() -> None:
                     st.session_state.watchlist.pop(remove_options.index(selected_remove))
                     save_local_list("watchlist.json", st.session_state.watchlist)
                     st.rerun()
-                if st.button("Clear watchlist"):
+                if st.button("Clear watchlist", key="clear_watchlist_button"):
                     st.session_state.watchlist = []
                     save_local_list("watchlist.json", st.session_state.watchlist)
                     st.rerun()
