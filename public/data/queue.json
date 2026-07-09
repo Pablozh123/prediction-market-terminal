@@ -1,26 +1,359 @@
 {
  "hinweis": "Read-only-Ergebnis eines taeglichen Laufs. Empfehlungen sind Pruef-Schritte (watch, check_source, escalate_human), keine Trades. Backend: mock.",
- "stand_utc": "2026-07-09T20:04:30+00:00",
+ "stand_utc": "2026-07-09T20:24:54+00:00",
  "faelle": [
   {
-   "id": "monitor_candidate_20260523_192500_c6370fa4e8c9",
-   "markt_slug": "will-alexandria-ocasio-cortez-win-the-2028-democratic-presidential-nomination-653",
-   "zeitfenster": "2026-05-23T19:25:00Z",
+   "id": "monitor_candidate_20260522_204500_d24c162f8b73",
+   "markt_slug": "will-china-invade-taiwan-before-2027",
+   "zeitfenster": "2026-05-22T20:45:00Z",
    "score_band": "medium",
-   "empfehlung": "check_source",
-   "begruendung": "Case monitor_candidate_20260523_192500_c6370fa4e8c9 concerns the market 'Will Alexandria Ocasio-Cortez win the 2028 Democratic presidential nomination?' (slug: will-alexandria-ocasio-cortez-win-the-2028-democratic-presidential-nomination-653). It is a bounded human-review cue labelled 'insider_risk_review_candidate' at review priority 'high'. Event context: nearest_event_only; reference overlap: reference_hit; human-review status: source_check_pending. This is a review prompt only, not a finding, a metric, or any claim about private information.",
+   "empfehlung": "watch",
+   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
+   "begruendung": "Markt: 'Will China invade Taiwan by end of 2026?'. Ausloeser: Konzentration. Einstufung: Severity high, 100. Perzentil, 1 Signalfamilie(n). Konzentrations-Muster: market concentration, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 5 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
    "skeptic_abschlag": -0.2,
-   "ts": "2026-07-09T20:04:30+00:00"
+   "signale": {
+    "ausloeser": "Konzentration",
+    "severity": "high",
+    "perzentil": "100.",
+    "konzentration": "vorhanden",
+    "referenz": "teilweise Ueberlappung"
+   },
+   "ts": "2026-07-09T20:24:54+00:00"
   },
   {
-   "id": "monitor_candidate_20260523_192500_2bb6f8fa6250",
+   "id": "monitor_candidate_20260522_204500_e24668f3f71b",
+   "markt_slug": "will-the-us-invade-iran-before-2027",
+   "zeitfenster": "2026-05-22T20:45:00Z",
+   "score_band": "medium",
+   "empfehlung": "watch",
+   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
+   "begruendung": "Markt: 'Will the U.S. invade Iran before 2027?'. Ausloeser: aktive Wallet-Aktivitaet, Wallet-Tier-Aktivitaet. Einstufung: Severity high, 100. Perzentil, 2 Signalfamilie(n). Konzentrations-Muster: large trade flow, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 6 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
+   "skeptic_abschlag": -0.2,
+   "signale": {
+    "ausloeser": "aktive Wallet-Aktivitaet, Wallet-Tier-Aktivitaet",
+    "severity": "high",
+    "perzentil": "100.",
+    "referenz": "teilweise Ueberlappung"
+   },
+   "ts": "2026-07-09T20:24:54+00:00"
+  },
+  {
+   "id": "monitor_candidate_20260522_205000_5dbff64bc3b3",
+   "markt_slug": "will-the-us-invade-iran-before-2027",
+   "zeitfenster": "2026-05-22T20:50:00Z",
+   "score_band": "medium",
+   "empfehlung": "watch",
+   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
+   "begruendung": "Markt: 'Will the U.S. invade Iran before 2027?'. Ausloeser: Wallet-Tier-Aktivitaet. Einstufung: Severity high, 100. Perzentil, 1 Signalfamilie(n). Konzentrations-Muster: large trade flow, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 6 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
+   "skeptic_abschlag": -0.2,
+   "signale": {
+    "ausloeser": "Wallet-Tier-Aktivitaet",
+    "severity": "high",
+    "perzentil": "100.",
+    "referenz": "teilweise Ueberlappung"
+   },
+   "ts": "2026-07-09T20:24:54+00:00"
+  },
+  {
+   "id": "monitor_candidate_20260522_205000_e02af5d15ac8",
    "markt_slug": "will-china-invade-taiwan-before-2027",
-   "zeitfenster": "2026-05-23T19:25:00Z",
+   "zeitfenster": "2026-05-22T20:50:00Z",
+   "score_band": "medium",
+   "empfehlung": "watch",
+   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
+   "begruendung": "Markt: 'Will China invade Taiwan by end of 2026?'. Ausloeser: Konzentration. Einstufung: Severity high, 100. Perzentil, 1 Signalfamilie(n). Konzentrations-Muster: market concentration, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 5 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
+   "skeptic_abschlag": -0.2,
+   "signale": {
+    "ausloeser": "Konzentration",
+    "severity": "high",
+    "perzentil": "100.",
+    "konzentration": "vorhanden",
+    "referenz": "teilweise Ueberlappung"
+   },
+   "ts": "2026-07-09T20:24:54+00:00"
+  },
+  {
+   "id": "monitor_candidate_20260522_210000_b265c77e872d",
+   "markt_slug": "will-the-us-invade-iran-before-2027",
+   "zeitfenster": "2026-05-22T21:00:00Z",
+   "score_band": "medium",
+   "empfehlung": "watch",
+   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
+   "begruendung": "Markt: 'Will the U.S. invade Iran before 2027?'. Ausloeser: Wallet-Tier-Aktivitaet. Einstufung: Severity high, 100. Perzentil, 1 Signalfamilie(n). Konzentrations-Muster: large trade flow, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 6 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
+   "skeptic_abschlag": -0.2,
+   "signale": {
+    "ausloeser": "Wallet-Tier-Aktivitaet",
+    "severity": "high",
+    "perzentil": "100.",
+    "referenz": "teilweise Ueberlappung"
+   },
+   "ts": "2026-07-09T20:24:54+00:00"
+  },
+  {
+   "id": "monitor_candidate_20260522_210500_83136b9f5cbb",
+   "markt_slug": "will-alexandria-ocasio-cortez-win-the-2028-democratic-presidential-nomination-653",
+   "zeitfenster": "2026-05-22T21:05:00Z",
+   "score_band": "medium",
+   "empfehlung": "watch",
+   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
+   "begruendung": "Markt: 'Will Alexandria Ocasio-Cortez win the 2028 Democratic presidential nomination?'. Ausloeser: Wallet-Tier-Aktivitaet. Einstufung: Severity high, 100. Perzentil, 1 Signalfamilie(n). Beobachteter Flow $107 von 1 Wallet(s) (1 Trade(s)), Materialitaet unter 1% der Referenz. Konzentrations-Muster: large trade flow, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 6 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
+   "skeptic_abschlag": -0.2,
+   "signale": {
+    "ausloeser": "Wallet-Tier-Aktivitaet",
+    "severity": "high",
+    "perzentil": "100.",
+    "flow": "$107 / 1 Wallet(s)",
+    "referenz": "teilweise Ueberlappung"
+   },
+   "ts": "2026-07-09T20:24:54+00:00"
+  },
+  {
+   "id": "monitor_candidate_20260522_214500_9a6abaddeae0",
+   "markt_slug": "will-the-us-invade-iran-before-2027",
+   "zeitfenster": "2026-05-22T21:45:00Z",
+   "score_band": "medium",
+   "empfehlung": "watch",
+   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
+   "begruendung": "Markt: 'Will the U.S. invade Iran before 2027?'. Ausloeser: Wallet-Tier-Aktivitaet. Einstufung: Severity high, 100. Perzentil, 1 Signalfamilie(n). Konzentrations-Muster: large trade flow, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 6 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
+   "skeptic_abschlag": -0.2,
+   "signale": {
+    "ausloeser": "Wallet-Tier-Aktivitaet",
+    "severity": "high",
+    "perzentil": "100.",
+    "referenz": "teilweise Ueberlappung"
+   },
+   "ts": "2026-07-09T20:24:54+00:00"
+  },
+  {
+   "id": "monitor_candidate_20260522_215000_ac5932fae4cc",
+   "markt_slug": "will-the-us-invade-iran-before-2027",
+   "zeitfenster": "2026-05-22T21:50:00Z",
+   "score_band": "medium",
+   "empfehlung": "watch",
+   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
+   "begruendung": "Markt: 'Will the U.S. invade Iran before 2027?'. Ausloeser: Wallet-Tier-Aktivitaet. Einstufung: Severity high, 100. Perzentil, 1 Signalfamilie(n). Konzentrations-Muster: large trade flow, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 6 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
+   "skeptic_abschlag": -0.2,
+   "signale": {
+    "ausloeser": "Wallet-Tier-Aktivitaet",
+    "severity": "high",
+    "perzentil": "100.",
+    "referenz": "teilweise Ueberlappung"
+   },
+   "ts": "2026-07-09T20:24:54+00:00"
+  },
+  {
+   "id": "monitor_candidate_20260522_205500_4902be7e4cdb",
+   "markt_slug": "will-the-us-invade-iran-before-2027",
+   "zeitfenster": "2026-05-22T20:55:00Z",
+   "score_band": "medium",
+   "empfehlung": "watch",
+   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
+   "begruendung": "Markt: 'Will the U.S. invade Iran before 2027?'. Ausloeser: Konzentration, Wallet-Tier-Aktivitaet. Einstufung: Severity watch, 100. Perzentil, 2 Signalfamilie(n). Konzentrations-Muster: large trade flow, market concentration, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: Treffer. Status: menschliche Pruefung offen. 6 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
+   "skeptic_abschlag": -0.1,
+   "signale": {
+    "ausloeser": "Konzentration, Wallet-Tier-Aktivitaet",
+    "severity": "watch",
+    "perzentil": "100.",
+    "konzentration": "vorhanden",
+    "referenz": "Treffer"
+   },
+   "ts": "2026-07-09T20:24:54+00:00"
+  },
+  {
+   "id": "monitor_candidate_20260522_204500_759f3661e55c",
+   "markt_slug": "will-the-iranian-regime-fall-by-the-end-of-2026",
+   "zeitfenster": "2026-05-22T20:45:00Z",
    "score_band": "low",
    "empfehlung": "watch",
-   "begruendung": "Case monitor_candidate_20260523_192500_2bb6f8fa6250 concerns the market 'Will China invade Taiwan by end of 2026?' (slug: will-china-invade-taiwan-before-2027). It is a bounded human-review cue labelled 'insider_risk_watch_cue' at review priority 'medium'. Event context: nearest_event_only; reference overlap: partial_reference_overlap; human-review status: source_check_pending. This is a review prompt only, not a finding, a metric, or any claim about private information.",
-   "skeptic_abschlag": -0.3,
-   "ts": "2026-07-09T20:04:30+00:00"
+   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
+   "begruendung": "Markt: 'Will the Iranian regime fall before 2027?'. Ausloeser: aktive Wallet-Aktivitaet. Einstufung: Severity high, 100. Perzentil, 1 Signalfamilie(n). Ereignis-Kontext nicht bewertet. Referenz-Muster: keine Ueberlappung. Status: menschliche Pruefung offen. 5 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
+   "skeptic_abschlag": -0.2,
+   "signale": {
+    "ausloeser": "aktive Wallet-Aktivitaet",
+    "severity": "high",
+    "perzentil": "100.",
+    "referenz": "keine Ueberlappung"
+   },
+   "ts": "2026-07-09T20:24:54+00:00"
+  },
+  {
+   "id": "monitor_candidate_20260522_204500_f183079f2c3f",
+   "markt_slug": "will-alexandria-ocasio-cortez-win-the-2028-democratic-presidential-nomination-653",
+   "zeitfenster": "2026-05-22T20:45:00Z",
+   "score_band": "low",
+   "empfehlung": "watch",
+   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
+   "begruendung": "Markt: 'Will Alexandria Ocasio-Cortez win the 2028 Democratic presidential nomination?'. Ausloeser: Konzentration. Einstufung: Severity info, 100. Perzentil, 1 Signalfamilie(n). Beobachteter Flow $107 von 1 Wallet(s) (1 Trade(s)), Materialitaet unter 1% der Referenz. Konzentrations-Muster: market concentration, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 5 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
+   "skeptic_abschlag": -0.2,
+   "signale": {
+    "ausloeser": "Konzentration",
+    "severity": "info",
+    "perzentil": "100.",
+    "flow": "$107 / 1 Wallet(s)",
+    "konzentration": "vorhanden",
+    "referenz": "teilweise Ueberlappung"
+   },
+   "ts": "2026-07-09T20:24:54+00:00"
+  },
+  {
+   "id": "monitor_candidate_20260522_205500_31bc7f1998f4",
+   "markt_slug": "will-china-invade-taiwan-before-2027",
+   "zeitfenster": "2026-05-22T20:55:00Z",
+   "score_band": "low",
+   "empfehlung": "watch",
+   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
+   "begruendung": "Markt: 'Will China invade Taiwan by end of 2026?'. Ausloeser: Wallet-Tier-Aktivitaet. Einstufung: Severity info, 100. Perzentil, 1 Signalfamilie(n). Konzentrations-Muster: large trade flow, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 6 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
+   "skeptic_abschlag": -0.2,
+   "signale": {
+    "ausloeser": "Wallet-Tier-Aktivitaet",
+    "severity": "info",
+    "perzentil": "100.",
+    "referenz": "teilweise Ueberlappung"
+   },
+   "ts": "2026-07-09T20:24:54+00:00"
+  },
+  {
+   "id": "monitor_candidate_20260522_211000_9c25d1497516",
+   "markt_slug": "will-the-us-invade-iran-before-2027",
+   "zeitfenster": "2026-05-22T21:10:00Z",
+   "score_band": "low",
+   "empfehlung": "watch",
+   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
+   "begruendung": "Markt: 'Will the U.S. invade Iran before 2027?'. Ausloeser: Konzentration. Einstufung: Severity info, 100. Perzentil, 1 Signalfamilie(n). Konzentrations-Muster: market concentration, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 5 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
+   "skeptic_abschlag": -0.2,
+   "signale": {
+    "ausloeser": "Konzentration",
+    "severity": "info",
+    "perzentil": "100.",
+    "konzentration": "vorhanden",
+    "referenz": "teilweise Ueberlappung"
+   },
+   "ts": "2026-07-09T20:24:54+00:00"
+  },
+  {
+   "id": "monitor_candidate_20260522_211500_40799b054be7",
+   "markt_slug": "will-the-us-invade-iran-before-2027",
+   "zeitfenster": "2026-05-22T21:15:00Z",
+   "score_band": "low",
+   "empfehlung": "watch",
+   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
+   "begruendung": "Markt: 'Will the U.S. invade Iran before 2027?'. Ausloeser: Konzentration. Einstufung: Severity info, 100. Perzentil, 1 Signalfamilie(n). Konzentrations-Muster: market concentration, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 5 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
+   "skeptic_abschlag": -0.2,
+   "signale": {
+    "ausloeser": "Konzentration",
+    "severity": "info",
+    "perzentil": "100.",
+    "konzentration": "vorhanden",
+    "referenz": "teilweise Ueberlappung"
+   },
+   "ts": "2026-07-09T20:24:54+00:00"
+  },
+  {
+   "id": "monitor_candidate_20260522_212000_24b874775afe",
+   "markt_slug": "will-the-us-invade-iran-before-2027",
+   "zeitfenster": "2026-05-22T21:20:00Z",
+   "score_band": "low",
+   "empfehlung": "watch",
+   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
+   "begruendung": "Markt: 'Will the U.S. invade Iran before 2027?'. Ausloeser: Wallet-Tier-Aktivitaet. Einstufung: Severity info, 100. Perzentil, 1 Signalfamilie(n). Konzentrations-Muster: large trade flow, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 6 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
+   "skeptic_abschlag": -0.2,
+   "signale": {
+    "ausloeser": "Wallet-Tier-Aktivitaet",
+    "severity": "info",
+    "perzentil": "100.",
+    "referenz": "teilweise Ueberlappung"
+   },
+   "ts": "2026-07-09T20:24:54+00:00"
+  },
+  {
+   "id": "monitor_candidate_20260522_212000_a8030671b168",
+   "markt_slug": "will-china-invade-taiwan-before-2027",
+   "zeitfenster": "2026-05-22T21:20:00Z",
+   "score_band": "low",
+   "empfehlung": "watch",
+   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
+   "begruendung": "Markt: 'Will China invade Taiwan by end of 2026?'. Ausloeser: Konzentration. Einstufung: Severity info, 100. Perzentil, 1 Signalfamilie(n). Konzentrations-Muster: market concentration, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 5 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
+   "skeptic_abschlag": -0.2,
+   "signale": {
+    "ausloeser": "Konzentration",
+    "severity": "info",
+    "perzentil": "100.",
+    "konzentration": "vorhanden",
+    "referenz": "teilweise Ueberlappung"
+   },
+   "ts": "2026-07-09T20:24:54+00:00"
+  },
+  {
+   "id": "monitor_candidate_20260522_220000_997f5287203d",
+   "markt_slug": "will-alexandria-ocasio-cortez-win-the-2028-democratic-presidential-nomination-653",
+   "zeitfenster": "2026-05-22T22:00:00Z",
+   "score_band": "low",
+   "empfehlung": "watch",
+   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
+   "begruendung": "Markt: 'Will Alexandria Ocasio-Cortez win the 2028 Democratic presidential nomination?'. Ausloeser: Konzentration. Einstufung: Severity info, 100. Perzentil, 1 Signalfamilie(n). Beobachteter Flow $107 von 1 Wallet(s) (1 Trade(s)), Materialitaet unter 1% der Referenz. Konzentrations-Muster: market concentration, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 5 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
+   "skeptic_abschlag": -0.2,
+   "signale": {
+    "ausloeser": "Konzentration",
+    "severity": "info",
+    "perzentil": "100.",
+    "flow": "$107 / 1 Wallet(s)",
+    "konzentration": "vorhanden",
+    "referenz": "teilweise Ueberlappung"
+   },
+   "ts": "2026-07-09T20:24:54+00:00"
+  },
+  {
+   "id": "monitor_candidate_20260522_220500_07a19a12b63b",
+   "markt_slug": "will-china-invade-taiwan-before-2027",
+   "zeitfenster": "2026-05-22T22:05:00Z",
+   "score_band": "low",
+   "empfehlung": "watch",
+   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
+   "begruendung": "Markt: 'Will China invade Taiwan by end of 2026?'. Ausloeser: Wallet-Tier-Aktivitaet. Einstufung: Severity info, 100. Perzentil, 1 Signalfamilie(n). Konzentrations-Muster: large trade flow, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 6 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
+   "skeptic_abschlag": -0.2,
+   "signale": {
+    "ausloeser": "Wallet-Tier-Aktivitaet",
+    "severity": "info",
+    "perzentil": "100.",
+    "referenz": "teilweise Ueberlappung"
+   },
+   "ts": "2026-07-09T20:24:54+00:00"
+  },
+  {
+   "id": "monitor_candidate_20260522_221000_f0f7ebf8e213",
+   "markt_slug": "will-china-invade-taiwan-before-2027",
+   "zeitfenster": "2026-05-22T22:10:00Z",
+   "score_band": "low",
+   "empfehlung": "watch",
+   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
+   "begruendung": "Markt: 'Will China invade Taiwan by end of 2026?'. Ausloeser: Wallet-Tier-Aktivitaet. Einstufung: Severity info, 100. Perzentil, 1 Signalfamilie(n). Konzentrations-Muster: large trade flow, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 6 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
+   "skeptic_abschlag": -0.2,
+   "signale": {
+    "ausloeser": "Wallet-Tier-Aktivitaet",
+    "severity": "info",
+    "perzentil": "100.",
+    "referenz": "teilweise Ueberlappung"
+   },
+   "ts": "2026-07-09T20:24:54+00:00"
   },
   {
    "id": "monitor_candidate_20260523_192500_71cd3b4e784b",
@@ -28,9 +361,18 @@
    "zeitfenster": "2026-05-23T19:25:00Z",
    "score_band": "low",
    "empfehlung": "watch",
-   "begruendung": "Case monitor_candidate_20260523_192500_71cd3b4e784b concerns the market 'Will the U.S. invade Iran before 2027?' (slug: will-the-us-invade-iran-before-2027). It is a bounded human-review cue labelled 'insider_risk_watch_cue' at review priority 'medium'. Event context: nearest_event_only; reference overlap: no_reference_overlap; human-review status: source_check_pending. This is a review prompt only, not a finding, a metric, or any claim about private information.",
+   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
+   "begruendung": "Markt: 'Will the U.S. invade Iran before 2027?'. Ausloeser: Konzentration. Einstufung: Severity info, 100. Perzentil, 1 Signalfamilie(n). Konzentrations-Muster: market concentration, same theme repeated positions. nur zeitlich naechstes Ereignis, kein bestaetigter Bezug. Referenz-Muster: teilweise Ueberlappung. Status: Quellen-Pruefung offen. 5 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "skeptic_begruendung": "A public attention spike (news/hype) around this market could explain the bucket without any private information. Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
    "skeptic_abschlag": -0.3,
-   "ts": "2026-07-09T20:04:30+00:00"
+   "signale": {
+    "ausloeser": "Konzentration",
+    "severity": "info",
+    "perzentil": "100.",
+    "konzentration": "vorhanden",
+    "referenz": "teilweise Ueberlappung"
+   },
+   "ts": "2026-07-09T20:24:54+00:00"
   }
  ]
 }
