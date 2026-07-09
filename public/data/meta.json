@@ -1,5 +1,6 @@
 {
- "laufzeitpunkt_utc": "2026-07-07T18:22:27+00:00",
+ "hinweis": "Laufzeitpunkt, Backend-Betriebsart und Grundsaetze des taeglichen Analyse-Laufs.",
+ "stand_utc": "2026-07-09T20:04:30+00:00",
  "backend": "mock",
  "schritte": {
   "monitor_refresh": "ok (queue_rows=3)",
@@ -9,10 +10,10 @@
   "category_latency_examples": "ok",
   "pipeline_forward": "quelle_fehlt (data/live nicht vorhanden)"
  },
- "disclaimer": {
-  "zweck": "Deskriptive Forschungs-Artefakte eines taeglichen, deterministischen Review-Laufs ueber oeffentliche Marktdaten.",
-  "keine_handlungsempfehlung": "Die Empfehlungen sind Pruef-Empfehlungen (beobachten, Quelle pruefen, an einen Menschen eskalieren) und keine Kauf- oder Verkaufssignale.",
-  "keine_finanzberatung": "Keine Finanz- oder Anlageberatung. Keine Renditeaussage. Pipeline-Eintraege sind beobachtend/paper.",
-  "datenschutz": "Keine Wallet-Adressen, keine Schluessel, keine Prompts. Audit nur als Hashes und Zaehler."
- }
+ "disclaimer": [
+  "Deskriptive Forschungs-Artefakte eines taeglichen, deterministischen Review-Laufs ueber oeffentliche Marktdaten.",
+  "Die Empfehlungen sind Pruef-Empfehlungen (beobachten, Quelle pruefen, an einen Menschen eskalieren) und keine Kauf- oder Verkaufssignale.",
+  "Keine Finanz- oder Anlageberatung. Keine Renditeaussage. Pipeline-Eintraege sind beobachtend/paper.",
+  "Keine Wallet-Adressen, keine Schluessel, keine Prompts. Audit nur als Hashes und Zaehler."
+ ]
 }
