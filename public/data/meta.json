@@ -1,10 +1,11 @@
 {
  "hinweis": "Laufzeitpunkt, Backend-Betriebsart und Grundsaetze des taeglichen Analyse-Laufs.",
- "stand_utc": "2026-07-09T20:04:30+00:00",
+ "stand_utc": "2026-07-09T20:24:54+00:00",
  "backend": "mock",
  "schritte": {
-  "monitor_refresh": "ok (queue_rows=3)",
-  "review_queue": "ok (backend=mock, cases=3)",
+  "collector": "uebersprungen (--collect nicht gesetzt)",
+  "monitor_refresh": "ok (queue_rows=20)",
+  "review_queue": "ok (backend=mock, cases=20)",
   "category_efficiency_snapshot": "ok",
   "mentions_latency": "ok",
   "category_latency_examples": "ok",
