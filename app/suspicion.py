@@ -70,19 +70,29 @@ INSIDER_PRONE_GROUPS = (CONTEXT_POLITICS, CONTEXT_AWARDS, CONTEXT_CORPORATE, CON
 _CATEGORY_GROUPS = (
     (("sport", "sports", "nba", "nfl", "mlb", "soccer", "football", "esports"), CONTEXT_SPORTS),
     (("crypto", "cryptocurrency", "finance", "stocks"), CONTEXT_MARKET_PRICES),
-    (("weather", "climate", "science"), CONTEXT_WEATHER),
+    # NOTE: "science" deliberately NOT here — tech/science markets are not
+    # model-driven weather outcomes and must not be damped/excluded.
+    (("weather", "climate"), CONTEXT_WEATHER),
     (("politic", "geopolitic", "election", "world", "global affairs"), CONTEXT_POLITICS),
     (("entertainment", "awards", "pop culture", "culture", "music", "movies", "tv"), CONTEXT_AWARDS),
     (("business", "companies", "tech", "earnings"), CONTEXT_CORPORATE),
 )
 
+# Order matters. STRONG sports markers (leagues, esports titles, betting
+# jargon) win first — a "Counter-Strike: X vs Y" market is sports even though
+# "strike" appears in the politics pattern. Then the insider-prone patterns
+# (corporate/legal, awards, politics) are checked BEFORE the bare "vs" token,
+# so "Epic vs Apple ruling" or "Zelensky vs Putin summit" land in
+# Corporate/Politics instead of being silently dropped as sports. A naked
+# "X vs Y" with no other signal stays a sports matchup.
 _TITLE_PATTERNS = (
-    (re.compile(r"\bvs\.?\b|\bnba\b|\bnfl\b|\bmlb\b|\bnhl\b|\bufc\b|\bgrand prix\b|\bpremier league\b|\bchampions league\b|\bbundesliga\b|\bserie a\b|\bla liga\b|\bsuper bowl\b|\bworld series\b|\bworld cup\b|\bplayoffs?\b|\bopen:\s|\bwimbledon\b|\bolympic|\bspread:?\b|\bmoneyline\b|\bover/under\b|\bo/u\b|\bexact score\b|\bat halftime\b|\bboth teams to score\b|\bwins? by over\b|\b\d+(?:\.\d+)?\s+goals?\b|\([+-]?\d+(?:\.5)\)", re.I), CONTEXT_SPORTS),
-    (re.compile(r"\bbitcoin\b|\bbtc\b|\bethereum\b|\beth\b|\bsolana\b|\bxrp\b|\bdogecoin\b|\bcrypto\b|\btoken\b|\bs&p\b|\bnasdaq\b|\bstock price\b|\bshare price\b|\bgold price\b|\boil price\b|\bhit \$|\breach \$", re.I), CONTEXT_MARKET_PRICES),
-    (re.compile(r"\btemperature\b|\brainfall\b|\bsnowfall\b|\bhurricane\b|\bstorm\b|\bheat wave\b|\bweather\b|\bdegrees\b|°[cf]\b", re.I), CONTEXT_WEATHER),
-    (re.compile(r"\boscars?\b|\bgrammys?\b|\bemmys?\b|\bgolden globe\b|\baward\b|\balbum\b|\bbox office\b|\btrailer\b|\bseason finale\b|\brenewed\b|\beurovision\b|\bperson of the year\b|\bbillboard\b", re.I), CONTEXT_AWARDS),
+    (re.compile(r"\bnba\b|\bnfl\b|\bmlb\b|\bnhl\b|\bufc\b|\bgrand prix\b|\bpremier league\b|\bchampions league\b|\bbundesliga\b|\bserie a\b|\bla liga\b|\bsuper bowl\b|\bworld series\b|\bworld cup\b|\bplayoffs?\b|\bopen:\s|\bwimbledon\b|\bolympic|\bspread:?\b|\bmoneyline\b|\bover/under\b|\bo/u\b|\bexact score\b|\bat halftime\b|\bboth teams to score\b|\bwins? by over\b|\b\d+(?:\.\d+)?\s+goals?\b|\([+-]?\d+(?:\.5)\)|counter[- ]strike|\bcs2\b|\bcsgo\b|\bdota\b|\bvalorant\b|\bleague of legends\b|\besports?\b", re.I), CONTEXT_SPORTS),
     (re.compile(r"\bceo\b|\bacquisition\b|\bmerger\b|\bipo\b|\bearnings\b|\blawsuit\b|\bcourt\b|\bruling\b|\bverdict\b|\bindicted?\b|\bconvicted\b|\bpardon\b|\bresigns?\b|\bappoints?\b|\bnominee\b|\bnomination\b|\bcabinet\b|\bsteps? down\b|\bfired\b|\brelease date\b", re.I), CONTEXT_CORPORATE),
-    (re.compile(r"\bceasefire\b|\bsanctions?\b|\btariffs?\b|\btreaty\b|\bagreement\b|\bexecutive order\b|\bmilitary\b|\bstrikes?\b|\binvasion\b|\bnato\b|\bsummit\b|\belections?\b|\bpresident\b|\bminister\b|\bparliament\b|\bcongress\b|\bsenate\b|\bimpeach", re.I), CONTEXT_POLITICS),
+    (re.compile(r"\boscars?\b|\bgrammys?\b|\bemmys?\b|\bgolden globe\b|\baward\b|\balbum\b|\bbox office\b|\btrailer\b|\bseason finale\b|\brenewed\b|\beurovision\b|\bperson of the year\b|\bbillboard\b", re.I), CONTEXT_AWARDS),
+    (re.compile(r"\btemperature\b|\brainfall\b|\bsnowfall\b|\bhurricane\b|\bstorm\b|\bheat wave\b|\bweather\b|\bdegrees\b|°[cf]\b", re.I), CONTEXT_WEATHER),
+    (re.compile(r"\bbitcoin\b|\bbtc\b|\bethereum\b|\beth\b|\bsolana\b|\bxrp\b|\bdogecoin\b|\bcrypto\b|\btoken\b|\bs&p\b|\bnasdaq\b|\bstock price\b|\bshare price\b|\bgold price\b|\boil price\b|\bhit \$|\breach \$", re.I), CONTEXT_MARKET_PRICES),
+    (re.compile(r"\bceasefire\b|\bsanctions?\b|\btariffs?\b|\btreaty\b|\bagreement\b|\bexecutive order\b|\bmilitary\b|(?<!-)\bstrikes?\b|\binvasion\b|\bnato\b|\bsummit\b|\belections?\b|\bpresident\b|\bminister\b|\bparliament\b|\bcongress\b|\bsenate\b|\bimpeach|\bputin\b|\bzelensky?y?\b|\bnetanyahu\b|\bxi jinping\b|\bkim jong\b", re.I), CONTEXT_POLITICS),
+    (re.compile(r"\bvs\.?\b", re.I), CONTEXT_SPORTS),
 )
 
 
@@ -154,7 +164,7 @@ def fresh_wallet_clusters(
     Returns columns: title, fresh_wallets, fresh_outcome, fresh_notional.
     """
 
-    columns = ["title", "fresh_wallets", "fresh_outcome", "fresh_notional"]
+    columns = ["platform", "title", "fresh_wallets", "fresh_outcome", "fresh_notional"]
     if trades is None or trades.empty or "wallet" not in trades or "title" not in trades:
         return pd.DataFrame(columns=columns)
     df = trades.copy()
@@ -162,6 +172,10 @@ def fresh_wallet_clusters(
     df = df[df["wallet"].ne("") & df["wallet"].ne("nan")]
     if df.empty:
         return pd.DataFrame(columns=columns)
+    # Clusters are wallet evidence — they must stay on the venue that produced
+    # them. event_risk rows are keyed (platform, title); merging on title alone
+    # would let a Polymarket cluster inflate a same-titled Kalshi row.
+    df["platform"] = df.get("platform", pd.Series("", index=df.index)).fillna("").astype(str)
     df["notional"] = numeric_col(df, "notional")
     per_wallet = df.groupby("wallet").agg(trade_count=("wallet", "size"), total_notional=("notional", "sum"))
     fresh_wallets = per_wallet[
@@ -172,12 +186,12 @@ def fresh_wallet_clusters(
         return pd.DataFrame(columns=columns)
     fresh["outcome_label"] = fresh.get("outcome", pd.Series("", index=fresh.index)).astype(str).str.upper().str.strip()
     grouped = (
-        fresh.groupby(["title", "outcome_label"], dropna=False)
+        fresh.groupby(["platform", "title", "outcome_label"], dropna=False)
         .agg(fresh_wallets=("wallet", "nunique"), fresh_notional=("notional", "sum"))
         .reset_index()
     )
     grouped = grouped.sort_values(["fresh_wallets", "fresh_notional"], ascending=False)
-    best = grouped.drop_duplicates(subset=["title"], keep="first").rename(columns={"outcome_label": "fresh_outcome"})
+    best = grouped.drop_duplicates(subset=["platform", "title"], keep="first").rename(columns={"outcome_label": "fresh_outcome"})
     best = best[best["fresh_wallets"] >= int(min_wallets)]
     return best[columns].reset_index(drop=True)
 
@@ -191,7 +205,8 @@ def apply_fresh_wallet_bonus(event_risk: pd.DataFrame, clusters: pd.DataFrame, m
     if clusters is None or clusters.empty:
         enriched["fresh_wallets"] = 0
         return enriched
-    enriched = enriched.merge(clusters, on="title", how="left")
+    merge_keys = ["platform", "title"] if "platform" in enriched.columns and "platform" in clusters.columns else ["title"]
+    enriched = enriched.merge(clusters.drop(columns=[c for c in ("platform",) if c not in merge_keys and c in clusters.columns]), on=merge_keys, how="left")
     enriched["fresh_wallets"] = pd.to_numeric(enriched.get("fresh_wallets"), errors="coerce").fillna(0).astype(int)
     has_cluster = enriched["fresh_wallets"] >= 2
     bonus = (enriched["fresh_wallets"].clip(upper=4) * (max_bonus / 4.0)).where(has_cluster, 0.0)
@@ -205,6 +220,34 @@ def apply_fresh_wallet_bonus(event_risk: pd.DataFrame, clusters: pd.DataFrame, m
             label = f"{count} fresh wallets on {outcome}" if outcome else f"{count} fresh wallets same side"
             enriched.at[idx, "event_insider_flags"] = _append_flag(enriched.at[idx, "event_insider_flags"], label)
     return enriched
+
+
+def filter_insider_prone_trades(
+    trades: pd.DataFrame,
+    market_categories: pd.DataFrame | None = None,
+    excluded: tuple[str, ...] = (CONTEXT_SPORTS, CONTEXT_WEATHER),
+) -> pd.DataFrame:
+    """Drop trades whose market classifies into an excluded context group.
+
+    Used for the co-trading network and cluster bonuses so that routine
+    correlated sports betting (dozens of wallets on the same game) cannot
+    create 'possibly linked' clusters on a screen that excludes sports.
+    """
+
+    if trades is None or trades.empty or "title" not in trades.columns:
+        return trades if trades is not None else pd.DataFrame()
+    category_map, context_map = _category_context_maps(market_categories)
+    keys = trades.get("market_key", pd.Series("", index=trades.index)).astype(str)
+    cache: dict[tuple[str, str, str], str] = {}
+    groups = [
+        cache.setdefault(
+            (title, category_map.get(key, ""), context_map.get(key, "")),
+            classify_insider_context(title, category_map.get(key, ""), context_map.get(key, ""))[0],
+        )
+        for title, key in zip(trades["title"].astype(str), keys)
+    ]
+    mask = [group not in excluded for group in groups]
+    return trades[pd.Series(mask, index=trades.index)].reset_index(drop=True)
 
 
 def dominant_context_map(trades: pd.DataFrame, market_categories: pd.DataFrame | None = None) -> dict[str, str]:
@@ -247,7 +290,7 @@ def coordinated_clusters(
     coordinated_span_minutes, coordinated_notional.
     """
 
-    columns = ["title", "coordinated_wallets", "coordinated_outcome", "coordinated_span_minutes", "coordinated_notional"]
+    columns = ["platform", "title", "coordinated_wallets", "coordinated_outcome", "coordinated_span_minutes", "coordinated_notional"]
     if trades is None or trades.empty or not {"wallet", "title", "time"}.issubset(trades.columns):
         return pd.DataFrame(columns=columns)
     df = trades.copy()
@@ -257,11 +300,12 @@ def coordinated_clusters(
     df = df.dropna(subset=["time"])
     if df.empty:
         return pd.DataFrame(columns=columns)
+    df["platform"] = df.get("platform", pd.Series("", index=df.index)).fillna("").astype(str)
     df["outcome_label"] = df.get("outcome", pd.Series("", index=df.index)).astype(str).str.upper().str.strip()
     df["notional"] = numeric_col(df, "notional")
     window = pd.Timedelta(minutes=float(window_minutes))
     rows: list[dict[str, Any]] = []
-    for (title, outcome), group in df.groupby(["title", "outcome_label"], dropna=False):
+    for (platform, title, outcome), group in df.groupby(["platform", "title", "outcome_label"], dropna=False):
         events = group.sort_values("time")[["time", "wallet", "notional"]].to_records(index=False)
         if len(events) < min_wallets:
             continue
@@ -281,6 +325,7 @@ def coordinated_clusters(
         if best_count >= min_wallets:
             rows.append(
                 {
+                    "platform": str(platform),
                     "title": str(title),
                     "coordinated_wallets": int(best_count),
                     "coordinated_outcome": str(outcome),
@@ -291,7 +336,7 @@ def coordinated_clusters(
     if not rows:
         return pd.DataFrame(columns=columns)
     result = pd.DataFrame(rows).sort_values(["coordinated_wallets", "coordinated_notional"], ascending=False)
-    return result.drop_duplicates(subset=["title"], keep="first").reset_index(drop=True)
+    return result.drop_duplicates(subset=["platform", "title"], keep="first").reset_index(drop=True)
 
 
 def apply_coordination_bonus(event_risk: pd.DataFrame, clusters: pd.DataFrame, max_bonus: float = 10.0) -> pd.DataFrame:
@@ -299,10 +344,17 @@ def apply_coordination_bonus(event_risk: pd.DataFrame, clusters: pd.DataFrame, m
 
     if event_risk is None or event_risk.empty or clusters is None or clusters.empty:
         return event_risk
-    enriched = event_risk.merge(clusters, on="title", how="left")
+    merge_keys = ["platform", "title"] if "platform" in event_risk.columns and "platform" in clusters.columns else ["title"]
+    enriched = event_risk.merge(clusters.drop(columns=[c for c in ("platform",) if c not in merge_keys and c in clusters.columns]), on=merge_keys, how="left")
     enriched["coordinated_wallets"] = pd.to_numeric(enriched.get("coordinated_wallets"), errors="coerce").fillna(0).astype(int)
     has_cluster = enriched["coordinated_wallets"] >= 3
     bonus = (enriched["coordinated_wallets"].clip(upper=5) * (max_bonus / 5.0)).where(has_cluster, 0.0)
+    # The base event score already pays for the same timing artifact via
+    # cluster_score (+10, flag "multi-wallet burst") and burst_score — halve
+    # this bonus where that flag is present to avoid triple-counting one burst.
+    if "event_insider_flags" in enriched.columns:
+        already_bursty = enriched["event_insider_flags"].fillna("").astype(str).str.contains("multi-wallet burst")
+        bonus = bonus.where(~already_bursty, bonus / 2.0)
     enriched["event_insider_score"] = (numeric_col(enriched, "event_insider_score") + bonus).clip(0, 100).round(0)
     enriched["event_insider_level"] = enriched["event_insider_score"].map(risk_level)
     if "event_insider_flags" in enriched:
