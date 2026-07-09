@@ -2432,7 +2432,12 @@ def get_kalshi_trades(limit: int = 250, ticker: str | None = None) -> pd.DataFra
     df["ticker"] = df.get("ticker", "")
     df["side"] = df.get("taker_side", "")
     df["outcome"] = df.get("taker_outcome_side", df["side"])
-    df["price"] = pd.to_numeric(df.get("yes_price_dollars", 0), errors="coerce").fillna(0.0)
+    yes_price = pd.to_numeric(df.get("yes_price_dollars", 0), errors="coerce").fillna(0.0)
+    # Price of the token the taker actually bought: a NO taker pays 1 - yes.
+    # Using the YES price for NO prints understates notional (~6x on favorites)
+    # and books 85c favorites as long-odds bets.
+    is_no = df["outcome"].astype(str).str.strip().str.lower().eq("no")
+    df["price"] = yes_price.where(~is_no, (1.0 - yes_price).clip(lower=0.0))
     df["size"] = pd.to_numeric(df.get("count_fp", 0), errors="coerce").fillna(0.0)
     df["notional"] = df["size"] * df["price"]
     df["title"] = df["ticker"]
@@ -2888,31 +2893,58 @@ def _risk_reasons(row: pd.Series, rules: list[tuple[bool, str]]) -> str:
     return "; ".join(reasons) if reasons else "watch only"
 
 
+def _direction_sign(side_upper: pd.Series, outcome_upper: pd.Series) -> pd.Series:
+    """+1 for YES exposure (BUY YES / SELL NO), -1 for NO exposure."""
+
+    side = side_upper.fillna("").astype(str)
+    outcome = outcome_upper.fillna("").astype(str)
+    yes_leg = (side.eq("BUY") & ~outcome.eq("NO")) | (side.eq("SELL") & outcome.eq("NO"))
+    return yes_leg.map({True: 1.0, False: -1.0})
+
+
 def _price_move_features(df: pd.DataFrame, group_cols: list[str]) -> pd.DataFrame:
+    """Favorable price move per group, measured WITHIN a single market.
+
+    Prices are normalized to the YES scale (NO prints -> 1 - p) so that YES
+    and NO tokens of the same market form one series; the first/last delta is
+    taken per market and signed by the group's net direction in that market.
+    The group's move is the largest-magnitude per-market move — never a
+    spurious delta across unrelated markets.
+    """
+
     columns = group_cols + ["price_move", "price_move_score"]
     if df.empty or "price" not in df or "time" not in df:
         return pd.DataFrame(columns=columns)
-    work = df[group_cols + ["time", "price", "notional", "side_upper"]].copy()
+    market_col = "market_key" if "market_key" in df.columns else "title"
+    work = df[list(dict.fromkeys(group_cols + [market_col, "time", "price", "notional", "side_upper", "outcome_upper"]))].copy()
     work["time"] = pd.to_datetime(work["time"], utc=True, errors="coerce")
     work["price"] = pd.to_numeric(work["price"], errors="coerce")
     work["notional"] = pd.to_numeric(work["notional"], errors="coerce").fillna(0.0)
-    work["side_upper"] = work["side_upper"].fillna("").astype(str)
     work = work.dropna(subset=["time", "price"])
     work = work[(work["price"] > 0) & (work["price"] <= 1)]
     if work.empty:
         return pd.DataFrame(columns=columns)
+    is_no = work["outcome_upper"].fillna("").astype(str).eq("NO")
+    work["yes_price"] = work["price"].where(~is_no, 1.0 - work["price"])
+    work["dir_sign"] = _direction_sign(work["side_upper"], work["outcome_upper"])
 
     rows: list[dict[str, Any]] = []
     for keys, group in work.sort_values("time").groupby(group_cols, dropna=False):
         key_values = keys if isinstance(keys, tuple) else (keys,)
-        first_price = float(group.iloc[0]["price"])
-        last_price = float(group.iloc[-1]["price"])
-        side_notional = group.groupby("side_upper", dropna=False)["notional"].sum()
-        dominant_side = str(side_notional.sort_values(ascending=False).index[0] or "BUY") if not side_notional.empty else "BUY"
-        price_move = first_price - last_price if dominant_side == "SELL" else last_price - first_price
+        best_move = 0.0
+        for _, market_group in group.groupby(market_col, dropna=False):
+            if len(market_group) < 2:
+                continue
+            first_price = float(market_group.iloc[0]["yes_price"])
+            last_price = float(market_group.iloc[-1]["yes_price"])
+            net_dir = float((market_group["dir_sign"] * market_group["notional"]).sum())
+            direction = 1.0 if net_dir >= 0 else -1.0
+            move = (last_price - first_price) * direction
+            if abs(move) > abs(best_move):
+                best_move = move
         row = {column: value for column, value in zip(group_cols, key_values)}
-        row["price_move"] = float(price_move)
-        row["price_move_score"] = min(max(float(price_move), 0.0) / 0.15, 1.0) * 10
+        row["price_move"] = float(best_move)
+        row["price_move_score"] = min(max(float(best_move), 0.0) / 0.15, 1.0) * 10
         rows.append(row)
     return pd.DataFrame(rows, columns=columns)
 
@@ -2955,6 +2987,7 @@ def whale_wallet_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_0
     df = df[df["wallet"].str.lower().ne("nan")]
     if df.empty:
         return pd.DataFrame()
+    df["signed_notional"] = _direction_sign(df["side_upper"], df["outcome_upper"]) * df["notional"]
 
     grouped = (
         df.groupby("wallet", dropna=False)
@@ -2969,6 +3002,7 @@ def whale_wallet_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_0
             latest_trade=("time", "max"),
             late_notional=("late_notional", "sum"),
             long_odds_notional=("long_odds_notional", "sum"),
+            net_directional=("signed_notional", "sum"),
         )
         .reset_index()
     )
@@ -3010,8 +3044,15 @@ def whale_wallet_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_0
     for column in ["top_market_share", "outcome_share", "side_share", "late_notional", "long_odds_notional", "price_move", "price_move_score"]:
         if column in grouped:
             grouped[column] = pd.to_numeric(grouped[column], errors="coerce").fillna(0.0)
-    grouped["directional_share"] = grouped[["outcome_share", "side_share"]].max(axis=1)
-    grouped["directional_label"] = grouped["dominant_outcome"].where(grouped["outcome_share"] >= grouped["side_share"], grouped["dominant_side"]).fillna("")
+    # Net YES-vs-NO exposure: BUY YES and SELL NO push one way, BUY NO and
+    # SELL YES the other. A hedged wallet (BUY YES + BUY NO) nets to ~0 and is
+    # NOT one-sided — the old max(outcome_share, side_share) flagged it.
+    grouped["directional_share"] = (
+        grouped["net_directional"].abs() / grouped["notional"].replace({0: pd.NA})
+    ).fillna(0.0).clip(upper=1.0)
+    grouped["directional_label"] = pd.Series(
+        pd.NA, index=grouped.index, dtype="object"
+    ).where(grouped["net_directional"].eq(0), grouped["net_directional"].map(lambda v: "YES" if v > 0 else "NO")).fillna("")
     grouped["late_share"] = grouped["late_notional"] / grouped["notional"].replace({0: pd.NA})
     grouped["late_share"] = grouped["late_share"].fillna(0.0)
     grouped["long_odds_share"] = grouped["long_odds_notional"] / grouped["notional"].replace({0: pd.NA})
@@ -3025,7 +3066,16 @@ def whale_wallet_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_0
     direction_score = ((grouped["directional_share"].fillna(0.0) - 0.55) / 0.45).clip(lower=0.0, upper=1.0) * 10
     burst_score = (grouped["trades_per_hour"] / 30).clip(upper=1.0) * 10
     late_score = grouped["late_share"].fillna(0.0).clip(upper=1.0) * 15
-    fresh_score = (((grouped["trade_count"] <= 2) & (grouped["largest_trade"] >= whale_base)).astype(float)) * 10
+    # "Sample-fresh": with the tape filtered at whale_base, EVERY print passes
+    # largest_trade >= whale_base, so the old test fired for >80% of wallets.
+    # Require a real size jump (2x threshold) AND a first appearance in the
+    # younger half of the tape window to make the signal selective again.
+    tape_start = df["time"].min()
+    tape_end = df["time"].max()
+    tape_mid = tape_start + (tape_end - tape_start) / 2 if pd.notna(tape_start) and pd.notna(tape_end) else pd.NaT
+    seen_late = grouped["first_seen"] >= tape_mid if pd.notna(tape_mid) else pd.Series(False, index=grouped.index)
+    fresh_mask = (grouped["trade_count"] <= 2) & (grouped["largest_trade"] >= whale_base * 2) & seen_late
+    fresh_score = fresh_mask.astype(float) * 10
     grouped["wallet_insider_score"] = (
         scale_score
         + largest_score
@@ -3048,7 +3098,7 @@ def whale_wallet_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_0
                 (float(row.get("directional_share", 0.0) or 0.0) >= 0.8, "one-sided flow"),
                 (float(row.get("trades_per_hour", 0.0) or 0.0) >= 20, "fast burst"),
                 (float(row.get("price_move", 0.0) or 0.0) >= 0.05, "favorable price move"),
-                (int(row.get("trade_count", 0) or 0) <= 2 and float(row.get("largest_trade", 0.0) or 0.0) >= whale_base, "sample-fresh large wallet"),
+                (int(row.get("trade_count", 0) or 0) <= 2 and float(row.get("largest_trade", 0.0) or 0.0) >= whale_base * 2, "sample-fresh large wallet"),
                 (float(row.get("largest_trade", 0.0) or 0.0) >= whale_base * 5, "large print"),
             ],
         ),
@@ -3069,6 +3119,7 @@ def whale_event_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_00
     df = df[df["title"].str.strip().ne("")]
     if df.empty:
         return pd.DataFrame()
+    df["signed_notional"] = _direction_sign(df["side_upper"], df["outcome_upper"]) * df["notional"]
 
     grouped = (
         df.groupby(["platform", "title"], dropna=False)
@@ -3082,6 +3133,7 @@ def whale_event_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_00
             unique_wallets=("wallet", lambda s: int(s.astype(str).str.strip().replace("", pd.NA).dropna().nunique())),
             late_notional=("late_notional", "sum"),
             long_odds_notional=("long_odds_notional", "sum"),
+            net_directional=("signed_notional", "sum"),
             market_key=("market_key", "first"),
             url=("url", "first") if "url" in df else ("title", "first"),
         )
@@ -3125,8 +3177,14 @@ def whale_event_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_00
     for column in ["top_wallet_share", "outcome_share", "side_share", "late_notional", "long_odds_notional", "price_move", "price_move_score"]:
         if column in grouped:
             grouped[column] = pd.to_numeric(grouped[column], errors="coerce").fillna(0.0)
-    grouped["event_directional_share"] = grouped[["outcome_share", "side_share"]].max(axis=1)
-    grouped["event_directional_label"] = grouped["dominant_outcome"].where(grouped["outcome_share"] >= grouped["side_share"], grouped["dominant_side"]).fillna("")
+    # Net YES-vs-NO pressure per market: an all-BUY tape split 50/50 across
+    # YES and NO nets to ~0 and is not one-sided pressure.
+    grouped["event_directional_share"] = (
+        grouped["net_directional"].abs() / grouped["notional"].replace({0: pd.NA})
+    ).fillna(0.0).clip(upper=1.0)
+    grouped["event_directional_label"] = pd.Series(
+        pd.NA, index=grouped.index, dtype="object"
+    ).where(grouped["net_directional"].eq(0), grouped["net_directional"].map(lambda v: "YES" if v > 0 else "NO")).fillna("")
     grouped["late_share"] = grouped["late_notional"] / grouped["notional"].replace({0: pd.NA})
     grouped["late_share"] = grouped["late_share"].fillna(0.0)
     grouped["long_odds_share"] = grouped["long_odds_notional"] / grouped["notional"].replace({0: pd.NA})

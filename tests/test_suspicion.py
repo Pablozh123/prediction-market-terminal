@@ -461,5 +461,87 @@ class WalletlessVenueTests(unittest.TestCase):
         self.assertTrue(subset.empty)
 
 
+class AuditRegressionTests(unittest.TestCase):
+    """Regressions for the 2026-07 adversarial audit findings."""
+
+    def test_vs_titles_with_corporate_or_politics_markers_not_sports(self):
+        group, _, _ = susp.classify_insider_context("Epic vs Apple ruling upheld?")
+        self.assertEqual(group, susp.CONTEXT_CORPORATE)
+        group, _, _ = susp.classify_insider_context("Zelensky vs Putin meeting in 2025?")
+        self.assertEqual(group, susp.CONTEXT_POLITICS)
+
+    def test_esports_counter_strike_is_sports_not_politics(self):
+        # "strike" inside "Counter-Strike" must not trigger the politics
+        # pattern; strong sports markers win before everything else.
+        group, _, _ = susp.classify_insider_context(
+            "Counter-Strike: LPH Gaming vs TheBoys - Map 2 Winner"
+        )
+        self.assertEqual(group, susp.CONTEXT_SPORTS)
+        group, _, _ = susp.classify_insider_context("Will Russia strike Kyiv in July?")
+        self.assertEqual(group, susp.CONTEXT_POLITICS)
+
+    def test_plain_matchup_still_sports(self):
+        group, _, _ = susp.classify_insider_context("Mexico vs. South Africa")
+        self.assertEqual(group, susp.CONTEXT_SPORTS)
+        group, _, _ = susp.classify_insider_context(
+            "Will Mexico win on 2026-06-11?", context_text="Mexico vs. South Africa"
+        )
+        self.assertEqual(group, susp.CONTEXT_SPORTS)
+
+    def test_science_category_is_not_weather(self):
+        group, _, _ = susp.classify_insider_context("Will the mission launch?", category="Science")
+        self.assertNotEqual(group, susp.CONTEXT_WEATHER)
+
+    def test_fresh_bonus_stays_on_its_platform(self):
+        rows = [
+            trade("0xaaa", "Fed decision in June?", "Yes", 20000.0),
+            trade("0xbbb", "Fed decision in June?", "Yes", 22000.0),
+        ]
+        frame = tape(rows)
+        frame["platform"] = "Polymarket"
+        clusters = susp.fresh_wallet_clusters(frame, whale_threshold=10000.0)
+        self.assertEqual(list(clusters["platform"]), ["Polymarket"])
+        event_risk = pd.DataFrame(
+            [
+                {"platform": "Polymarket", "title": "Fed decision in June?", "event_insider_score": 40.0, "event_insider_level": "Elevated", "event_insider_flags": ""},
+                {"platform": "Kalshi", "title": "Fed decision in June?", "event_insider_score": 40.0, "event_insider_level": "Elevated", "event_insider_flags": ""},
+            ]
+        )
+        boosted = susp.apply_fresh_wallet_bonus(event_risk, clusters)
+        by_platform = dict(zip(boosted["platform"], boosted["event_insider_score"]))
+        self.assertGreater(by_platform["Polymarket"], 40.0)
+        self.assertEqual(by_platform["Kalshi"], 40.0)
+
+    def test_coordination_bonus_halved_when_burst_already_flagged(self):
+        rows = [
+            trade("0xaaa", "Cabinet pick announced?", "Yes", 15000.0, "2026-06-10T12:00:00Z"),
+            trade("0xbbb", "Cabinet pick announced?", "Yes", 15000.0, "2026-06-10T12:05:00Z"),
+            trade("0xccc", "Cabinet pick announced?", "Yes", 15000.0, "2026-06-10T12:10:00Z"),
+        ]
+        clusters = susp.coordinated_clusters(tape(rows))
+        base = pd.DataFrame(
+            [
+                {"title": "Cabinet pick announced?", "event_insider_score": 40.0, "event_insider_level": "Elevated", "event_insider_flags": "multi-wallet burst"},
+                {"title": "Second market?", "event_insider_score": 40.0, "event_insider_level": "Elevated", "event_insider_flags": "watch only"},
+            ]
+        )
+        clusters_second = clusters.copy()
+        clusters_second["title"] = "Second market?"
+        boosted_bursty = susp.apply_coordination_bonus(base.iloc[[0]].copy(), clusters)
+        boosted_clean = susp.apply_coordination_bonus(base.iloc[[1]].copy(), clusters_second)
+        bursty_gain = float(boosted_bursty["event_insider_score"].iloc[0]) - 40.0
+        clean_gain = float(boosted_clean["event_insider_score"].iloc[0]) - 40.0
+        self.assertGreater(clean_gain, 0.0)
+        self.assertAlmostEqual(bursty_gain, clean_gain / 2.0)
+
+    def test_filter_insider_prone_trades_drops_sports(self):
+        rows = [
+            trade("0xaaa", "Lakers vs Celtics", "Yes", 15000.0),
+            trade("0xbbb", "Cabinet pick announced?", "Yes", 15000.0),
+        ]
+        filtered = susp.filter_insider_prone_trades(tape(rows))
+        self.assertEqual(list(filtered["title"]), ["Cabinet pick announced?"])
+
+
 if __name__ == "__main__":
     unittest.main()

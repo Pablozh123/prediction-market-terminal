@@ -1650,5 +1650,95 @@ class UserPnlSeriesTests(unittest.TestCase):
             self.assertIn(window, md.USER_PNL_WINDOWS)
 
 
+class WhaleRiskAuditRegressionTests(unittest.TestCase):
+    """Regressions for the 2026-07 suspicion-scoring audit."""
+
+    @staticmethod
+    def _trade(wallet, market, price, notional, side="BUY", outcome="Yes", time="2026-06-10T12:00:00Z", title=None):
+        return {
+            "platform": "Polymarket",
+            "wallet": wallet,
+            "trader": wallet,
+            "market_key": market,
+            "title": title or market,
+            "price": price,
+            "notional": notional,
+            "size": notional / max(price, 1e-6),
+            "side": side,
+            "outcome": outcome,
+            "time": pd.Timestamp(time),
+        }
+
+    def test_price_move_not_computed_across_markets(self):
+        # First sampled trade YES @0.05 in market A, last YES @0.95 in market B:
+        # a cross-market delta of 0.90 must NOT count as a favorable move.
+        trades = pd.DataFrame([
+            self._trade("0xw1", "mA", 0.05, 12000.0, time="2026-06-10T10:00:00Z"),
+            self._trade("0xw1", "mB", 0.95, 12000.0, time="2026-06-10T12:00:00Z"),
+        ])
+        scored = md.whale_wallet_risk_scores(trades, whale_threshold=1000.0)
+        self.assertAlmostEqual(float(scored.iloc[0]["price_move"]), 0.0)
+        self.assertNotIn("favorable price move", str(scored.iloc[0]["wallet_insider_flags"]))
+
+    def test_price_move_normalizes_no_prints_to_yes_scale(self):
+        # BUY YES @0.10 then BUY NO @0.85 (YES equivalent 0.15): the true move
+        # is +0.05 -- must not be reported as a 0.75 jump.
+        trades = pd.DataFrame([
+            self._trade("0xw1", "mA", 0.10, 5000.0, outcome="Yes", time="2026-06-10T10:00:00Z"),
+            self._trade("0xw1", "mA", 0.85, 5000.0, outcome="No", time="2026-06-10T12:00:00Z"),
+        ])
+        scored = md.whale_wallet_risk_scores(trades, whale_threshold=1000.0)
+        self.assertLessEqual(abs(float(scored.iloc[0]["price_move"])), 0.06)
+
+    def test_hedged_wallet_is_not_one_sided(self):
+        trades = pd.DataFrame([
+            self._trade("0xw1", "mA", 0.50, 50000.0, side="BUY", outcome="Yes"),
+            self._trade("0xw1", "mA", 0.50, 50000.0, side="BUY", outcome="No"),
+        ])
+        scored = md.whale_wallet_risk_scores(trades, whale_threshold=1000.0)
+        self.assertLess(float(scored.iloc[0]["directional_share"]), 0.2)
+        self.assertNotIn("one-sided flow", str(scored.iloc[0]["wallet_insider_flags"]))
+
+    def test_event_all_buys_split_across_outcomes_not_one_sided(self):
+        trades = pd.DataFrame([
+            self._trade("0xw1", "mA", 0.50, 30000.0, side="BUY", outcome="Yes"),
+            self._trade("0xw2", "mA", 0.50, 30000.0, side="BUY", outcome="No"),
+        ])
+        scored = md.whale_event_risk_scores(trades, whale_threshold=1000.0)
+        self.assertLess(float(scored.iloc[0]["event_directional_share"]), 0.2)
+
+    def test_sample_fresh_requires_size_jump_and_late_first_seen(self):
+        # A wallet at exactly the tape floor, first seen at the START of the
+        # window, must no longer count as sample-fresh.
+        rows = [self._trade("0xold", "mA", 0.5, 1000.0, time="2026-06-10T00:00:00Z")]
+        rows += [
+            self._trade("0xbg", "mB", 0.5, 1000.0, time="2026-06-10T00:00:00Z"),
+            self._trade("0xbg", "mB", 0.5, 1000.0, time="2026-06-10T12:00:00Z"),
+            self._trade("0xbg", "mB", 0.5, 1000.0, time="2026-06-10T23:00:00Z"),
+        ]
+        rows += [self._trade("0xnew", "mC", 0.5, 5000.0, time="2026-06-10T22:00:00Z")]
+        scored = md.whale_wallet_risk_scores(pd.DataFrame(rows), whale_threshold=1000.0)
+        flags = dict(zip(scored["wallet"], scored["wallet_insider_flags"].astype(str)))
+        self.assertNotIn("sample-fresh large wallet", flags["0xold"])
+        self.assertIn("sample-fresh large wallet", flags["0xnew"])
+
+
+class KalshiTradePricingTests(unittest.TestCase):
+    def test_no_taker_priced_at_one_minus_yes(self):
+        raw = {
+            "trades": [
+                {"ticker": "FED-DEC", "created_time": "2026-06-10T12:00:00Z", "taker_side": "yes", "taker_outcome_side": "no", "yes_price_dollars": 0.15, "count_fp": 100.0},
+                {"ticker": "FED-DEC", "created_time": "2026-06-10T12:01:00Z", "taker_side": "yes", "taker_outcome_side": "yes", "yes_price_dollars": 0.15, "count_fp": 100.0},
+            ]
+        }
+        with patch("src.prediction_markets._get_json", return_value=raw):
+            trades = md.get_kalshi_trades()
+        by_outcome = {str(row["outcome"]): row for _, row in trades.iterrows()}
+        self.assertAlmostEqual(float(by_outcome["no"]["price"]), 0.85)
+        self.assertAlmostEqual(float(by_outcome["no"]["notional"]), 85.0)
+        self.assertAlmostEqual(float(by_outcome["yes"]["price"]), 0.15)
+        self.assertAlmostEqual(float(by_outcome["yes"]["notional"]), 15.0)
+
+
 if __name__ == "__main__":
     unittest.main()
