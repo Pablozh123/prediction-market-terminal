@@ -38,7 +38,7 @@ class QueueFilterTests(unittest.TestCase):
 class KategoriePointsTests(unittest.TestCase):
     def test_joins_and_marks_censored(self):
         karte = {
-            "zeilen": [
+            "kategorien": [
                 {"kategorie": "Politik", "brier_t7": 0.35, "n_maerkte": 73},
                 {"kategorie": "Sport", "brier_t7": 0.04, "n_maerkte": 60},
                 {"kategorie": "Krypto", "brier_t7": None, "n_maerkte": 81},
@@ -59,7 +59,7 @@ class KategoriePointsTests(unittest.TestCase):
         # Vor dem Ereignis eingepreist (negative Minuten) darf auf der
         # log-Achse nicht still verschwinden -> Untergrenze 1 Minute.
         karte = {
-            "zeilen": [{"kategorie": "Krypto", "brier_t7": 0.11, "n_maerkte": 81}],
+            "kategorien": [{"kategorie": "Krypto", "brier_t7": 0.11, "n_maerkte": 81}],
             "beispiele": [{"kategorie": "Krypto", "minuten_bis_konvergenz": -44.0, "praezisions_hinweis": "Untergrenze 1 Minute"}],
         }
         points = av.kategorie_points(karte)
@@ -72,29 +72,37 @@ class KategoriePointsTests(unittest.TestCase):
 
 
 class MentionsBarsTests(unittest.TestCase):
-    def test_sorted_by_konvergenz(self):
+    def test_sorted_by_tradeable_window_desc(self):
         payload = {
             "faelle": [
-                {"event": "b", "minuten_bis_erste_reaktion": 1.0, "minuten_bis_konvergenz": 30.0},
-                {"event": "a", "minuten_bis_erste_reaktion": 2.0, "minuten_bis_konvergenz": 5.0},
+                {"event": "kurz", "minuten_bis_erste_reaktion": 1.0, "minuten_bis_konvergenz": 30.0, "stunden_im_handelbaren_fenster": 0.5, "korrekt_aufgeloestes_outcome": "YES"},
+                {"event": "lang", "minuten_bis_erste_reaktion": 2.0, "minuten_bis_konvergenz": 5.0, "stunden_im_handelbaren_fenster": 12.0, "korrekt_aufgeloestes_outcome": "NO"},
                 {"event": "leer", "minuten_bis_erste_reaktion": None, "minuten_bis_konvergenz": None},
             ]
         }
         rows = av.mentions_bars(payload)
-        self.assertEqual([r["event"] for r in rows], ["a", "b"])
+        self.assertEqual([r["event"] for r in rows], ["lang", "kurz"])
+        self.assertEqual(rows[0]["outcome"], "NO")
 
 
 class PipelineTimelineTests(unittest.TestCase):
-    def test_sorted_and_whitelisted(self):
+    def test_log_order_and_whitelisted(self):
         payload = {
             "eintraege": [
-                {"ts": "2026-07-03T21:00:00Z", "action": "NO", "reason": "final", "limit_price": None, "size_usd": None, "best_ask": 0.9, "best_bid": 0.8},
-                {"ts": "2026-07-03T20:00:00Z", "action": "YES", "reason": "count", "limit_price": 0.82, "size_usd": 12.3, "best_ask": 0.82, "best_bid": 0.8},
+                {"action": "NONE", "reason": "kein_yes_ask", "limit_price": None, "bestes_angebot": 0.9, "bestes_gebot": 0.8, "size_usd": None},
+                {"action": "YES", "reason": "count", "limit_price": 0.82, "bestes_angebot": 0.82, "bestes_gebot": 0.8, "size_usd": 12.3},
             ]
         }
         rows = av.pipeline_timeline(payload)
-        self.assertEqual([r["action"] for r in rows], ["YES", "NO"])
-        self.assertEqual(set(rows[0].keys()), {"ts", "action", "reason", "limit_price", "size_usd", "best_ask", "best_bid"})
+        self.assertEqual([r["action"] for r in rows], ["NONE", "YES"])
+        self.assertEqual(
+            set(rows[0].keys()),
+            {"action", "reason", "limit_price", "bestes_angebot", "bestes_gebot", "size_usd"},
+        )
+
+    def test_action_counts(self):
+        payload = {"eintraege": [{"action": "NONE"}] * 34 + [{"action": "YES"}]}
+        self.assertEqual(av.pipeline_action_counts(payload), {"NONE": 34, "YES": 1})
 
 
 class AuditHashTests(unittest.TestCase):

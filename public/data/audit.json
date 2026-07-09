@@ -1,7 +1,14 @@
 {
- "generated_utc": "2026-07-07T18:22:27+00:00",
- "backend": "mock",
- "llm_calls": 6,
+ "hinweis": "Transparenz ueber den Agenten-Lauf: nur Zaehler und Hashes, keine Prompts, keine Modell-Details.",
+ "stand_utc": "2026-07-09T20:04:30+00:00",
+ "n_eintraege": 6,
+ "rollen_zaehler": {
+  "CaseNarrative": 3,
+  "SkepticReviewer": 3
+ },
+ "backend_zaehler": {
+  "mock": 6
+ },
  "prompt_hashes": [
   "a4727424f0167df330c2f9770a14ff1a7828f9d744463bd073a830bee2e27f59",
   "0f694db2fe929de2f3001944a971493ae702a6d028c4591b01c2dbfcf52c789b",
@@ -17,10 +24,5 @@
   "842b81870f2b2b98ae554ad022624b36e46a7ad1b17bf52578bebb9779611850",
   "64d39f5ef3b1468ae2e036914f9f76cc73e5785e5895c2f949b62aa28d4e2e9f",
   "90eb8e9250263ec2b8c0be384d3066f68ea17d78a24e42b9ee64a25b5dda0c3b"
- ],
- "mcp_tool_calls": {
-  "get_anomaly_review_summary": 1,
-  "get_anomaly_case": 3
- },
- "mcp_rows_returned_total": 13
+ ]
 }
