@@ -1,9 +1,7 @@
 {
- "generated_utc": "2026-07-07T18:22:27+00:00",
- "kennzeichnung": "beobachtend/paper",
- "profil": "allin_july3",
- "quelle_vorhanden": false,
- "hinweis": "Beobachtender Paper-Lauf. Nur Entscheidungsfelder und Buch-Bestpreise; keine Wallet-Daten, keine Renditeaussage. Quelle decisions_log.jsonl auf dieser Maschine nicht vorhanden -- leeres Artefakt.",
+ "hinweis": "Beobachtender Paper-Lauf: nur Entscheidungsfelder und Buch-Bestpreise, keine Wallet-Daten, keine Renditeaussage. Profil: allin_july3. Quelle decisions_log.jsonl auf dieser Maschine nicht vorhanden -- leeres Artefakt.",
+ "stand_utc": "2026-07-09T20:04:30+00:00",
+ "kennzeichnung": "beobachtet/paper",
  "eintraege": [],
  "wortzaehler_endstaende": {}
 }

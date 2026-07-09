@@ -22,11 +22,11 @@ PUBLISH_FILES = (
 
 SCORE_BANDS = ("high", "medium", "low")
 
-#: Publizierte Empfehlungs-Whitelist -> Anzeige-Label.
+#: Publizierte Empfehlungs-Whitelist -> Anzeige-Label (Badge).
 EMPFEHLUNG_LABELS = {
-    "beobachten": "Beobachten",
-    "quelle_pruefen": "Quelle pruefen",
-    "eskalation_mensch": "An Mensch eskalieren",
+    "watch": "WATCH",
+    "check_source": "CHECK SOURCE",
+    "escalate_human": "ESCALATE HUMAN",
 }
 
 #: Kategorien, deren Konvergenzzeit eine dokumentierte Obergrenze ist
@@ -71,7 +71,7 @@ def kategorie_points(karte: dict[str, Any]) -> list[dict[str, Any]]:
         str(item.get("kategorie", "")): item for item in karte.get("beispiele", [])
     }
     points: list[dict[str, Any]] = []
-    for zeile in karte.get("zeilen", []):
+    for zeile in karte.get("kategorien", karte.get("zeilen", [])):
         kategorie = str(zeile.get("kategorie", ""))
         beispiel = beispiel_by_kategorie.get(kategorie)
         brier = zeile.get("brier_t7")
@@ -96,7 +96,7 @@ def kategorie_points(karte: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def mentions_bars(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    """Balkendaten je ok-Fall (Reaktion vs. Konvergenz), nach Konvergenz sortiert."""
+    """Balkendaten je ok-Fall, absteigend nach handelbarem Fenster sortiert."""
 
     rows: list[dict[str, Any]] = []
     for fall in payload.get("faelle", []):
@@ -104,36 +104,48 @@ def mentions_bars(payload: dict[str, Any]) -> list[dict[str, Any]]:
         konvergenz = fall.get("minuten_bis_konvergenz")
         if reaktion is None and konvergenz is None:
             continue
+        fenster = fall.get("stunden_im_handelbaren_fenster")
         rows.append(
             {
                 "event": str(fall.get("event", "")),
                 "reaktion_min": None if reaktion is None else float(reaktion),
                 "konvergenz_min": None if konvergenz is None else float(konvergenz),
-                "handelbares_fenster_h": fall.get("stunden_im_handelbaren_fenster"),
+                "handelbares_fenster_h": None if fenster is None else float(fenster),
+                "outcome": str(fall.get("korrekt_aufgeloestes_outcome", "")),
             }
         )
-    rows.sort(key=lambda r: (r["konvergenz_min"] is None, r["konvergenz_min"] or 0.0))
+    rows.sort(
+        key=lambda r: (r["handelbares_fenster_h"] is None, -(r["handelbares_fenster_h"] or 0.0))
+    )
     return rows
 
 
 def pipeline_timeline(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    """Zeitleisten-Zeilen des beobachtenden Paper-Laufs (nur Whitelist-Felder)."""
+    """Zeilen des beobachtenden Paper-Laufs in Log-Reihenfolge (Whitelist-Felder)."""
 
     rows: list[dict[str, Any]] = []
     for entry in payload.get("eintraege", []):
         rows.append(
             {
-                "ts": str(entry.get("ts", "")),
                 "action": str(entry.get("action", "")),
                 "reason": str(entry.get("reason", "")),
                 "limit_price": entry.get("limit_price"),
+                "bestes_angebot": entry.get("bestes_angebot"),
+                "bestes_gebot": entry.get("bestes_gebot"),
                 "size_usd": entry.get("size_usd"),
-                "best_ask": entry.get("best_ask"),
-                "best_bid": entry.get("best_bid"),
             }
         )
-    rows.sort(key=lambda r: r["ts"])
     return rows
+
+
+def pipeline_action_counts(payload: dict[str, Any]) -> dict[str, int]:
+    """Zaehler je Entscheidung (z.B. {'NONE': 34, 'YES': 1})."""
+
+    counts: dict[str, int] = {}
+    for entry in payload.get("eintraege", []):
+        action = str(entry.get("action", ""))
+        counts[action] = counts.get(action, 0) + 1
+    return counts
 
 
 def audit_hash_rows(audit: dict[str, Any], limit: int = 50) -> list[dict[str, str]]:
