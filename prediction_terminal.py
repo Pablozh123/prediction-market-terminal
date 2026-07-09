@@ -12226,6 +12226,16 @@ def page_review_queue() -> None:
         render_analysis_footer()
         return
     faelle = list(queue.get("faelle", []))
+    with st.expander("Was bedeuten die Empfehlungen?"):
+        st.markdown(
+            "| Empfehlung | Bedeutung |\n|---|---|\n"
+            "| **WATCH** | Nur weiter beobachten -- Auffaelligkeit schwach oder gut erklaerbar, keine Aktion. |\n"
+            "| **CHECK SOURCE** | Ein Mensch soll die oeffentliche Quelle pruefen: Gab es ein Ereignis, das den Flow erklaert? |\n"
+            "| **ESCALATE HUMAN** | Band high -- der Fall geht komplett an einen Menschen. |\n\n"
+            "Der Skeptiker-Agent sucht aktiv nach harmlosen Erklaerungen (News-Aufmerksamkeit, neue Nutzer, "
+            "beidseitiger Flow) und kann die Prioritaet nur SENKEN (Abschlag bis -0.3), nie anheben. "
+            "Alle Kennzahlen stammen aus dem deterministischen Kern, nicht von einem LLM."
+        )
     band = st.segmented_control(
         "Score-Band",
         ["Alle", "high", "medium", "low"],
@@ -12250,17 +12260,39 @@ def page_review_queue() -> None:
             )
             st.markdown(badges, unsafe_allow_html=True)
             st.markdown(f"**{card.get('markt_slug', '-')}**")
+            signale = card.get("signale") or {}
+            if signale:
+                chips = "".join(
+                    f"<span class='filter-chip'>{_esc(k)}: {_esc(v)}</span>"
+                    for k, v in signale.items()
+                )
+                st.markdown(
+                    f"<div class='filter-strip'>{chips}</div>", unsafe_allow_html=True
+                )
             st.caption(str(card.get("begruendung", "")))
+            grund = str(card.get("empfehlung_grund", "") or "")
+            if grund:
+                st.markdown(
+                    f"<div class='small-note'>Warum diese Empfehlung: {_esc(grund)}</div>",
+                    unsafe_allow_html=True,
+                )
             abschlag = card.get("skeptic_abschlag")
             abschlag_text = (
-                "kein Skeptiker-Abschlag"
+                "kein Abschlag"
                 if abschlag in (None, 0)
-                else f"Skeptiker-Abschlag {_esc(abschlag)}"
+                else f"Abschlag {_esc(abschlag)}"
             )
-            st.markdown(
-                f"<div class='small-note'>{abschlag_text}</div>",
-                unsafe_allow_html=True,
-            )
+            skeptic = str(card.get("skeptic_begruendung", "") or "")
+            if skeptic:
+                st.markdown(
+                    f"<div class='small-note'>Skeptiker ({abschlag_text}): {_esc(skeptic)}</div>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    f"<div class='small-note'>Skeptiker: {abschlag_text}</div>",
+                    unsafe_allow_html=True,
+                )
             st.markdown(
                 f"<div class='field-hint'>Fall {_esc(card.get('id', '-'))} · Zeitfenster "
                 f"{_esc(card.get('zeitfenster') or 'unbekannt')} · erfasst "
