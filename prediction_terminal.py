@@ -11673,27 +11673,31 @@ def page_suspicious() -> None:
     if trades is None or trades.empty:
         draw_empty("No whale-sized trades in the current sample — lower the whale threshold in Settings or try again later.")
         return
+    market_universe = safe_load("Polymarket markets", load_polymarket_markets, market_limit, default=pd.DataFrame())
+    # The Polymarket tape carries no end_time; joined from the market universe
+    # it re-activates the late-timing signal (flow within 48h of resolution).
+    if (
+        market_universe is not None
+        and not market_universe.empty
+        and "end_time" in market_universe.columns
+        and ("end_time" not in trades.columns or trades["end_time"].isna().all())
+    ):
+        end_map = (
+            market_universe.dropna(subset=["end_time"])
+            .drop_duplicates(subset=["market_key"])
+            .set_index("market_key")["end_time"]
+        )
+        joined_end = trades["market_key"].astype(str).map(end_map)
+        if "end_time" in trades.columns:
+            trades["end_time"] = trades["end_time"].fillna(joined_end)
+        else:
+            trades["end_time"] = joined_end
     event_risk = md.whale_event_risk_scores(trades, whale_threshold=whale_floor)
     wallet_risk = md.whale_wallet_risk_scores(trades, whale_threshold=whale_floor)
     clusters = susp.fresh_wallet_clusters(trades, whale_threshold=whale_floor)
     event_risk = susp.apply_fresh_wallet_bonus(event_risk, clusters)
     timing_clusters = susp.coordinated_clusters(trades)
     event_risk = susp.apply_coordination_bonus(event_risk, timing_clusters)
-    network_tape = safe_load("Deep whale tape", load_deep_whale_tape, 1000.0, default=pd.DataFrame())
-    if network_tape is None or network_tape.empty:
-        network_tape = trades
-    network_min_shared = 3
-    network_nodes, network_edges = susp.co_trading_network(
-        network_tape, window_minutes=5.0, min_shared=3, min_pair_notional=10_000.0, max_wallets=300
-    )
-    if network_nodes.empty:
-        network_min_shared = 2
-        network_nodes, network_edges = susp.co_trading_network(network_tape, window_minutes=5.0, min_shared=2, max_wallets=300)
-    cluster_assignments = (
-        network_nodes[["wallet", "cluster_id", "cluster_size", "shared_markets"]] if not network_nodes.empty else pd.DataFrame()
-    )
-    wallet_risk = susp.apply_cluster_bonus(wallet_risk, cluster_assignments)
-    market_universe = safe_load("Polymarket markets", load_polymarket_markets, market_limit, default=pd.DataFrame())
     universe_categories = (
         clean_table(market_universe, ["market_key", "category"]) if market_universe is not None and not market_universe.empty else pd.DataFrame()
     )
@@ -11705,6 +11709,27 @@ def page_suspicious() -> None:
     market_categories = (
         pd.concat(frames, ignore_index=True).drop_duplicates(subset=["market_key"], keep="first") if frames else pd.DataFrame()
     )
+    network_tape = safe_load("Deep whale tape", load_deep_whale_tape, 1000.0, default=pd.DataFrame())
+    if network_tape is None or network_tape.empty:
+        network_tape = trades
+    # The network must respect the same exclusions as the rest of the screen:
+    # correlated sports betting would otherwise dominate the cluster graph.
+    network_tape = susp.filter_insider_prone_trades(network_tape, market_categories)
+    network_min_shared = 3
+    network_nodes, network_edges = susp.co_trading_network(
+        network_tape, window_minutes=5.0, min_shared=3, min_pair_notional=10_000.0, max_wallets=300
+    )
+    if network_nodes.empty:
+        network_min_shared = 2
+        network_nodes, network_edges = susp.co_trading_network(network_tape, window_minutes=5.0, min_shared=2, max_wallets=300)
+    cluster_assignments = (
+        network_nodes[["wallet", "cluster_id", "cluster_size", "shared_markets"]]
+        if not network_nodes.empty and network_min_shared >= 3
+        else pd.DataFrame()
+    )
+    # Cluster bonus only from the STRICT syndicate rule — the loosened
+    # fallback network is display-only evidence, too weak for a score bump.
+    wallet_risk = susp.apply_cluster_bonus(wallet_risk, cluster_assignments)
     event_risk = susp.apply_category_context(event_risk, market_categories)
     wallet_risk = susp.apply_wallet_category_context(wallet_risk, trades, market_categories)
     # Sports odds and weather are pure high-roller arenas — game results and weather
@@ -11712,6 +11737,10 @@ def page_suspicious() -> None:
     excluded_contexts = (susp.CONTEXT_SPORTS, susp.CONTEXT_WEATHER)
     if not event_risk.empty and "insider_context" in event_risk:
         event_risk = event_risk[~event_risk["insider_context"].isin(excluded_contexts)].reset_index(drop=True)
+    # Keep the pre-exclusion wallet frame: the event drill-down must show every
+    # participant of an insider-prone event, even wallets whose OWN dominant
+    # flow is sports/crypto.
+    wallet_risk_all = wallet_risk
     if not wallet_risk.empty and "insider_context" in wallet_risk:
         wallet_risk = wallet_risk[~wallet_risk["insider_context"].isin(excluded_contexts)].reset_index(drop=True)
     if st.toggle("Check real account ages for the top wallets (slower)", value=False, key="susp_age_toggle") and not wallet_risk.empty:
@@ -11780,6 +11809,22 @@ def page_suspicious() -> None:
     focused_events = event_risk
     if not show_all_arenas and not event_risk.empty and "insider_context" in event_risk:
         focused_events = event_risk[event_risk["insider_context"].isin(susp.INSIDER_PRONE_GROUPS)].reset_index(drop=True)
+    # Cross-reference with the daily research pipeline: if a market slug from
+    # queue.json appears in an event URL, surface its Pruef-Empfehlung here.
+    research_queue = load_publish_payload_cached("queue.json") or {}
+    research_by_slug = {
+        str(fall.get("markt_slug", "")): str(fall.get("empfehlung", ""))
+        for fall in research_queue.get("faelle", [])
+        if fall.get("markt_slug")
+    }
+    end_time_map: dict[str, pd.Timestamp] = {}
+    if market_universe is not None and not market_universe.empty and "end_time" in market_universe.columns:
+        end_series = pd.to_datetime(market_universe["end_time"], utc=True, errors="coerce")
+        end_time_map.update({str(k): v for k, v in zip(market_universe["market_key"].astype(str), end_series) if pd.notna(v)})
+    if kalshi_tape is not None and not kalshi_tape.empty and "end_time" in kalshi_tape.columns:
+        end_series = pd.to_datetime(kalshi_tape["end_time"], utc=True, errors="coerce")
+        end_time_map.update({str(k): v for k, v in zip(kalshi_tape["market_key"].astype(str), end_series) if pd.notna(v)})
+    now_ts = pd.Timestamp.now(tz="UTC")
     if focused_events.empty:
         draw_empty("No insider-prone events in the current tape — enable the toggle above to include crypto & market prices.")
     else:
@@ -11805,12 +11850,28 @@ def page_suspicious() -> None:
                             unsafe_allow_html=True,
                         )
                         st.markdown(f"<div class='small-note'>{html.escape(susp.event_story(event))}</div>", unsafe_allow_html=True)
-                        chips = ([f"▦ {venue}"] if venue_is_kalshi else []) + ([f"◆ {context_group}"] if context_group else []) + [
-                            flag.strip() for flag in str(event.get("event_insider_flags", "") or "").split(";") if flag.strip()
+                        event_url = str(event.get("url", "") or "")
+                        research_hits = [
+                            empfehlung.upper().replace("_", " ")
+                            for slug, empfehlung in research_by_slug.items()
+                            if slug and slug in event_url
                         ]
+                        end_ts = end_time_map.get(str(event.get("market_key", "") or ""))
+                        resolve_chip = []
+                        if end_ts is not None and pd.notna(end_ts):
+                            hours_left = (end_ts - now_ts).total_seconds() / 3600
+                            if 0 < hours_left <= 72:
+                                resolve_chip = [f"⏱ resolves in {hours_left:.0f}h"]
+                        chips = (
+                            ([f"▦ {venue}"] if venue_is_kalshi else [])
+                            + ([f"◆ {context_group}"] if context_group else [])
+                            + resolve_chip
+                            + ([f"◎ Research queue: {research_hits[0]}"] if research_hits else [])
+                            + [flag.strip() for flag in str(event.get("event_insider_flags", "") or "").split(";") if flag.strip()]
+                        )
                         if chips:
                             st.markdown(
-                                "<div class='filter-strip'>" + "".join(f"<span class='filter-chip'>{html.escape(chip)}</span>" for chip in chips[:6]) + "</div>",
+                                "<div class='filter-strip'>" + "".join(f"<span class='filter-chip'>{html.escape(chip)}</span>" for chip in chips[:8]) + "</div>",
                                 unsafe_allow_html=True,
                             )
                         if context_note:
@@ -11843,10 +11904,45 @@ def page_suspicious() -> None:
                                 args=(title,),
                             )
 
+    if not focused_events.empty and len(focused_events) > 6:
+        with st.expander(f"All screened events ({len(focused_events)})"):
+            all_events = focused_events.copy()
+            st.dataframe(
+                clean_table(all_events, ["title", "platform", "event_insider_score", "event_insider_level", "insider_context", "notional", "unique_wallets", "top_wallet_share", "event_insider_flags"]),
+                width="stretch",
+                height=380,
+                column_config={
+                    "title": st.column_config.TextColumn("Market", width="large"),
+                    "platform": st.column_config.TextColumn("Venue"),
+                    "event_insider_score": st.column_config.ProgressColumn("Score", min_value=0, max_value=100, format="%.0f"),
+                    "event_insider_level": st.column_config.TextColumn("Level"),
+                    "insider_context": st.column_config.TextColumn("Context"),
+                    "notional": st.column_config.NumberColumn("Whale $", format="$%.0f"),
+                    "unique_wallets": st.column_config.NumberColumn("Wallets"),
+                    "top_wallet_share": st.column_config.NumberColumn("One-wallet share", format="%.0f%%"),
+                    "event_insider_flags": st.column_config.TextColumn("Why", width="large"),
+                },
+            )
+            st.download_button(
+                "Export screened events CSV",
+                all_events.to_csv(index=False).encode("utf-8"),
+                file_name="suspicious_events.csv",
+                mime="text/csv",
+                key="susp_events_csv",
+            )
+
     selected = str(st.session_state.get("susp_selected", "") or "")
+    if selected and "title" in trades.columns and not trades["title"].astype(str).eq(selected).any():
+        # Stale selection from an earlier tape — drop it silently.
+        st.session_state.pop("susp_selected", None)
+        selected = ""
     if selected:
-        st.markdown(f"<div class='step-label'>Wallets in: {html.escape(selected[:80])}</div>", unsafe_allow_html=True)
-        involved = susp.wallets_for_event(trades, wallet_risk, selected)
+        head_cols = st.columns([5, 1])
+        head_cols[0].markdown(f"<div class='step-label'>Wallets in: {html.escape(selected[:80])}</div>", unsafe_allow_html=True)
+        if head_cols[1].button("Clear", key="susp_selected_clear", width="stretch"):
+            st.session_state.pop("susp_selected", None)
+            st.rerun()
+        involved = susp.wallets_for_event(trades, wallet_risk_all, selected)
         if involved.empty:
             draw_empty("No scored wallets found for this market in the current tape.")
         else:
@@ -11875,6 +11971,10 @@ def page_suspicious() -> None:
     if not show_all_arenas and "insider_context" in wallet_risk:
         focused_wallets = wallet_risk[wallet_risk["insider_context"].isin(susp.INSIDER_PRONE_GROUPS)].reset_index(drop=True)
     if focused_wallets.empty:
+        st.caption(
+            "No wallets in the insider-prone groups right now — showing all screened wallets "
+            "(including crypto & market prices) instead."
+        )
         focused_wallets = wallet_risk
     top_wallets_frame = focused_wallets.head(25)
     st.dataframe(
@@ -11976,6 +12076,10 @@ def page_suspicious() -> None:
         if len(clicked_data) >= 2 and st.session_state.get("_susp_net_click_sig") != click_signature:
             st.session_state["_susp_net_click_sig"] = click_signature
             st.session_state["susp_cluster_select"] = int(clicked_data[1])
+    else:
+        # No active selection: forget the last click so re-clicking the same
+        # node works again after the selection was dismissed.
+        st.session_state.pop("_susp_net_click_sig", None)
 
     cluster_labels = {0: "All clusters"}
     for _, row in cluster_summary.iterrows():
