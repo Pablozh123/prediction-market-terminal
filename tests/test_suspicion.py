@@ -480,6 +480,13 @@ class AuditRegressionTests(unittest.TestCase):
         group, _, _ = susp.classify_insider_context("Will Russia strike Kyiv in July?")
         self.assertEqual(group, susp.CONTEXT_POLITICS)
 
+    def test_wnba_and_finals_are_sports(self):
+        group, _, _ = susp.classify_insider_context("Will Atlanta Dream win the 2026 WNBA Finals?")
+        self.assertEqual(group, susp.CONTEXT_SPORTS)
+        # ...but a singular legal "final ruling" must stay corporate/legal.
+        group, _, _ = susp.classify_insider_context("Will the court issue a final ruling by August?")
+        self.assertEqual(group, susp.CONTEXT_CORPORATE)
+
     def test_plain_matchup_still_sports(self):
         group, _, _ = susp.classify_insider_context("Mexico vs. South Africa")
         self.assertEqual(group, susp.CONTEXT_SPORTS)
