@@ -113,5 +113,107 @@ class AuditHashTests(unittest.TestCase):
         self.assertEqual(rows[0], {"call": "1", "prompt_hash": "p1", "output_hash": "o1"})
 
 
+RUNS_PAYLOAD = {
+    "hinweis": "Deskriptive Nachauswertung",
+    "stand_utc": "2026-07-10T12:00:00+00:00",
+    "kennzeichnung": "live/deskriptiv",
+    "aggregat": {
+        "n_runs": 3, "n_wetten": 2, "gewonnen": 1, "verloren": 0, "offen": 1,
+        "einsatz_usd": 108.36, "aufgeloester_einsatz_usd": 5.97,
+        "realisierter_payout_usd": 7.02, "realisierter_pnl_usd": 1.05,
+        "roi_realisiert_pct": 17.6, "offener_einsatz_usd": 102.39,
+    },
+    "runs": [
+        {
+            "profil": "allin_july3", "event_slug": "s", "episode_titel": "Ep 1",
+            "modus": "LIVE", "drop_quelle": "libsyn_rss",
+            "pubdate_utc": "2026-07-03T22:12:00Z",
+            "drop_erkannt_utc": "2026-07-03T23:21:22Z",
+            "erkennungslatenz_s": 4162.0, "erste_entscheidung_s": 70.0,
+            "erster_fill_s": 75.0, "n_maerkte": 20, "n_entscheidungen": 35,
+            "zaehler": {"no_action": 34, "live_partial": 1}, "eingepreist": 19,
+            "einsatz_usd": 5.97, "realisierter_pnl_usd": 1.05,
+            "wetten": [{
+                "frage": "Will Tourism be said?", "seite": "YES",
+                "entscheidungs_preis": 0.13, "avg_fill_preis": 0.8504,
+                "shares": 7.02, "einsatz_usd": 5.97, "sweep_clips": 1,
+                "fill_status": "live_partial",
+                "fill_ts_utc": "2026-07-03T23:22:37Z", "aufgeloest": True,
+                "gewonnen": True, "payout_usd": 7.02, "pnl_usd": 1.05,
+                "roi_pct": 17.6, "aktueller_yes_preis": None,
+            }],
+            "verpasste_chancen": [],
+        },
+        {
+            "profil": "allin_july10", "event_slug": "s2",
+            "episode_titel": "Ep 2", "modus": "LIVE", "drop_quelle": "youtube",
+            "pubdate_utc": "2026-07-10T01:15:25+00:00",
+            "drop_erkannt_utc": "2026-07-10T01:17:27Z",
+            "erkennungslatenz_s": 122.0, "erste_entscheidung_s": 52.0,
+            "erster_fill_s": 64.0, "n_maerkte": 19, "n_entscheidungen": 22,
+            "zaehler": {"no_action": 7, "live_fill": 1, "skipped_budget": 14},
+            "eingepreist": 3, "einsatz_usd": 102.39,
+            "realisierter_pnl_usd": None,
+            "wetten": [{
+                "frage": "Will IPO be said?", "seite": "YES",
+                "entscheidungs_preis": 0.63, "avg_fill_preis": 0.9001,
+                "shares": 113.76, "einsatz_usd": 102.39, "sweep_clips": 5,
+                "fill_status": "live_fill",
+                "fill_ts_utc": "2026-07-10T01:18:31Z", "aufgeloest": False,
+                "gewonnen": None, "payout_usd": None, "pnl_usd": None,
+                "roi_pct": None, "aktueller_yes_preis": 0.67,
+            }],
+            "verpasste_chancen": [{
+                "frage": "Will Musk be said?", "seite": "YES",
+                "limit_preis": 0.83, "grund": "budget_erschoepft",
+            }],
+        },
+    ],
+}
+
+
+class RunDashboardViewTests(unittest.TestCase):
+    def test_format_sekunden(self):
+        self.assertEqual(av.format_sekunden(None), "--")
+        self.assertEqual(av.format_sekunden(64.0), "64 s")
+        self.assertEqual(av.format_sekunden(4162.0), "69 min")
+
+    def test_run_kpis_defaults_and_values(self):
+        kpis = av.run_kpis(RUNS_PAYLOAD)
+        self.assertEqual(kpis["n_runs"], 3)
+        self.assertEqual(kpis["realisierter_pnl_usd"], 1.05)
+        self.assertEqual(kpis["roi_realisiert_pct"], 17.6)
+        leer = av.run_kpis({})
+        self.assertEqual(leer["n_wetten"], 0)
+        self.assertIsNone(leer["roi_realisiert_pct"])
+
+    def test_run_latenz_rows(self):
+        rows = av.run_latenz_rows(RUNS_PAYLOAD)
+        self.assertEqual([r["profil"] for r in rows],
+                         ["allin_july3", "allin_july10"])
+        self.assertEqual(rows[1]["erster_fill_s"], 64.0)
+        self.assertEqual(rows[0]["n_wetten"], 1)
+        self.assertEqual(av.run_latenz_rows({}), [])
+
+    def test_wette_status(self):
+        self.assertEqual(av.wette_status({"aufgeloest": True, "gewonnen": True}),
+                         ("GEWONNEN", "win"))
+        self.assertEqual(av.wette_status({"aufgeloest": True, "gewonnen": False}),
+                         ("VERLOREN", "loss"))
+        self.assertEqual(av.wette_status({"aufgeloest": False}), ("OFFEN", "open"))
+
+    def test_run_wetten_rows(self):
+        rows = av.run_wetten_rows(RUNS_PAYLOAD["runs"][1])
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["status_label"], "OFFEN")
+        self.assertEqual(rows[0]["sweep_clips"], 5)
+        self.assertEqual(rows[0]["aktueller_yes_preis"], 0.67)
+
+    def test_run_verpasste_rows(self):
+        rows = av.run_verpasste_rows(RUNS_PAYLOAD["runs"][1])
+        self.assertEqual(rows[0]["limit_preis"], 0.83)
+        self.assertEqual(av.run_verpasste_rows({}), [])
+
+
 if __name__ == "__main__":
     unittest.main()

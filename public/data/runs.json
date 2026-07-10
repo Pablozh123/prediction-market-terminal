@@ -1,0 +1,210 @@
+{
+ "hinweis": "Deskriptive Nachauswertung eigener Live-Runs des Mentions-Bots (Kleinbetraege). Read-only aus den Run-Logs rekonstruiert; Aufloesungen aus oeffentlichen Gamma-Daten. Keine Handelsempfehlung, keine Renditeprognose.",
+ "stand_utc": "2026-07-10T02:36:15+00:00",
+ "kennzeichnung": "live/deskriptiv",
+ "aggregat": {
+  "n_runs": 3,
+  "n_wetten": 2,
+  "gewonnen": 1,
+  "verloren": 0,
+  "offen": 1,
+  "einsatz_usd": 108.36,
+  "aufgeloester_einsatz_usd": 5.97,
+  "realisierter_payout_usd": 7.02,
+  "realisierter_pnl_usd": 1.05,
+  "roi_realisiert_pct": 17.6,
+  "offener_einsatz_usd": 102.39
+ },
+ "runs": [
+  {
+   "profil": "allin_july3",
+   "event_slug": "what-will-be-said-on-the-next-all-in-podcast-july-3-20260630164419941",
+   "episode_titel": "AI Sovereignty Wars, Palantir-Nvidia Deal, SCOTUS Birthright Ruling, Newsom's CA Budget Lie",
+   "modus": "LIVE",
+   "drop_quelle": "libsyn_rss",
+   "pubdate_utc": "2026-07-03T22:12:00Z",
+   "drop_erkannt_utc": "2026-07-03T23:21:22Z",
+   "erkennungslatenz_s": 4162.0,
+   "erste_entscheidung_s": 70.0,
+   "erster_fill_s": 75.0,
+   "n_maerkte": 20,
+   "n_entscheidungen": 35,
+   "zaehler": {
+    "no_action": 34,
+    "live_partial": 1
+   },
+   "eingepreist": 19,
+   "einsatz_usd": 5.97,
+   "realisierter_pnl_usd": 1.05,
+   "wetten": [
+    {
+     "frage": "Will \"Tourism\" be said during the next episode of the All-In Podcast?",
+     "seite": "YES",
+     "entscheidungs_preis": 0.13,
+     "avg_fill_preis": 0.8504,
+     "shares": 7.02,
+     "einsatz_usd": 5.97,
+     "sweep_clips": 1,
+     "fill_status": "live_partial",
+     "fill_ts_utc": "2026-07-03T23:22:37Z",
+     "aufgeloest": true,
+     "gewonnen": true,
+     "payout_usd": 7.02,
+     "pnl_usd": 1.05,
+     "roi_pct": 17.6,
+     "aktueller_yes_preis": null
+    }
+   ],
+   "verpasste_chancen": []
+  },
+  {
+   "profil": "jre_july6",
+   "event_slug": "what-will-be-said-on-the-first-joe-rogan-experience-episode-of-the-week-july-6-20260702150712902",
+   "episode_titel": "#2523 - Ali Siddiq",
+   "modus": "LIVE",
+   "drop_quelle": "libsyn_rss",
+   "pubdate_utc": "2026-07-07T17:00:00Z",
+   "drop_erkannt_utc": "2026-07-07T17:01:19Z",
+   "erkennungslatenz_s": 79.0,
+   "erste_entscheidung_s": 110.0,
+   "erster_fill_s": null,
+   "n_maerkte": 21,
+   "n_entscheidungen": 35,
+   "zaehler": {
+    "no_action": 35
+   },
+   "eingepreist": 20,
+   "einsatz_usd": 0.0,
+   "realisierter_pnl_usd": null,
+   "wetten": [],
+   "verpasste_chancen": []
+  },
+  {
+   "profil": "allin_july10",
+   "event_slug": "what-will-be-said-on-the-next-all-in-podcast-july-10-20260707174212413",
+   "episode_titel": "Open Source Wins, AGI Is Here, and Scorsese’s AI Toolkit with CEOs of Cerebras & Black Forest Labs",
+   "modus": "LIVE",
+   "drop_quelle": "youtube",
+   "pubdate_utc": "2026-07-10T01:15:25+00:00",
+   "drop_erkannt_utc": "2026-07-10T01:17:27Z",
+   "erkennungslatenz_s": 122.0,
+   "erste_entscheidung_s": 52.0,
+   "erster_fill_s": 64.0,
+   "n_maerkte": 19,
+   "n_entscheidungen": 22,
+   "zaehler": {
+    "no_action": 7,
+    "live_fill": 1,
+    "skipped_budget": 14
+   },
+   "eingepreist": 3,
+   "einsatz_usd": 102.39,
+   "realisierter_pnl_usd": null,
+   "wetten": [
+    {
+     "frage": "Will \"IPO\" be said during the next episode of the All-In Podcast?",
+     "seite": "YES",
+     "entscheidungs_preis": 0.63,
+     "avg_fill_preis": 0.9001,
+     "shares": 113.76,
+     "einsatz_usd": 102.39,
+     "sweep_clips": 5,
+     "fill_status": "live_fill",
+     "fill_ts_utc": "2026-07-10T01:18:31Z",
+     "aufgeloest": false,
+     "gewonnen": null,
+     "payout_usd": null,
+     "pnl_usd": null,
+     "roi_pct": null,
+     "aktueller_yes_preis": 0.67
+    }
+   ],
+   "verpasste_chancen": [
+    {
+     "frage": "Will \"Nvidia\" be said during the next episode of the All-In Podcast?",
+     "seite": "YES",
+     "limit_preis": 0.83,
+     "grund": "budget_erschoepft"
+    },
+    {
+     "frage": "Will \"Red\" be said during the next episode of the All-In Podcast?",
+     "seite": "YES",
+     "limit_preis": 0.62,
+     "grund": "budget_erschoepft"
+    },
+    {
+     "frage": "Will \"Canada\" be said during the next episode of the All-In Podcast?",
+     "seite": "YES",
+     "limit_preis": 0.36,
+     "grund": "budget_erschoepft"
+    },
+    {
+     "frage": "Will \"Innovation\" be said during the next episode of the All-In Podcast?",
+     "seite": "YES",
+     "limit_preis": 0.67,
+     "grund": "budget_erschoepft"
+    },
+    {
+     "frage": "Will \"Cancer\" be said during the next episode of the All-In Podcast?",
+     "seite": "YES",
+     "limit_preis": 0.57,
+     "grund": "budget_erschoepft"
+    },
+    {
+     "frage": "Will \"SpaceX\" be said 3+ times during the next episode of the All-In Podcast?",
+     "seite": "NO",
+     "limit_preis": 0.43,
+     "grund": "budget_erschoepft"
+    },
+    {
+     "frage": "Will \"Blue\" be said during the next episode of the All-In Podcast?",
+     "seite": "NO",
+     "limit_preis": 0.23,
+     "grund": "budget_erschoepft"
+    },
+    {
+     "frage": "Will \"Regulatory\" be said during the next episode of the All-In Podcast?",
+     "seite": "NO",
+     "limit_preis": 0.23,
+     "grund": "budget_erschoepft"
+    },
+    {
+     "frage": "Will \"Alignment\" be said during the next episode of the All-In Podcast?",
+     "seite": "NO",
+     "limit_preis": 0.76,
+     "grund": "budget_erschoepft"
+    },
+    {
+     "frage": "Will \"Stock Market\" be said during the next episode of the All-In Podcast?",
+     "seite": "NO",
+     "limit_preis": 0.46,
+     "grund": "budget_erschoepft"
+    },
+    {
+     "frage": "Will \"Constitution\" be said during the next episode of the All-In Podcast?",
+     "seite": "NO",
+     "limit_preis": 0.63,
+     "grund": "budget_erschoepft"
+    },
+    {
+     "frage": "Will \"Disruptive\" be said during the next episode of the All-In Podcast?",
+     "seite": "NO",
+     "limit_preis": 0.59,
+     "grund": "budget_erschoepft"
+    },
+    {
+     "frage": "Will \"Biology\" be said during the next episode of the All-In Podcast?",
+     "seite": "NO",
+     "limit_preis": 0.65,
+     "grund": "budget_erschoepft"
+    },
+    {
+     "frage": "Will \"Miracle\" be said during the next episode of the All-In Podcast?",
+     "seite": "NO",
+     "limit_preis": 0.7,
+     "grund": "budget_erschoepft"
+    }
+   ]
+  }
+ ]
+}
