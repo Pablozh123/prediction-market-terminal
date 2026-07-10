@@ -197,15 +197,15 @@ class RunDashboardViewTests(unittest.TestCase):
 
     def test_wette_status(self):
         self.assertEqual(av.wette_status({"aufgeloest": True, "gewonnen": True}),
-                         ("GEWONNEN", "win"))
+                         ("WON", "win"))
         self.assertEqual(av.wette_status({"aufgeloest": True, "gewonnen": False}),
-                         ("VERLOREN", "loss"))
-        self.assertEqual(av.wette_status({"aufgeloest": False}), ("OFFEN", "open"))
+                         ("LOST", "loss"))
+        self.assertEqual(av.wette_status({"aufgeloest": False}), ("OPEN", "open"))
 
     def test_run_wetten_rows(self):
         rows = av.run_wetten_rows(RUNS_PAYLOAD["runs"][1])
         self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]["status_label"], "OFFEN")
+        self.assertEqual(rows[0]["status_label"], "OPEN")
         self.assertEqual(rows[0]["sweep_clips"], 5)
         self.assertEqual(rows[0]["aktueller_yes_preis"], 0.67)
 

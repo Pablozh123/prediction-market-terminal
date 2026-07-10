@@ -1,6 +1,6 @@
 {
- "hinweis": "Read-only-Ergebnis eines taeglichen Laufs. Empfehlungen sind Pruef-Schritte (watch, check_source, escalate_human), keine Trades. Backend: mock.",
- "stand_utc": "2026-07-09T20:24:54+00:00",
+ "hinweis": "Read-only result of a daily run. Recommendations are verification steps (watch, check_source, escalate_human), not trades. Backend: mock.",
+ "stand_utc": "2026-07-10T03:27:54+00:00",
  "faelle": [
   {
    "id": "monitor_candidate_20260522_204500_d24c162f8b73",
@@ -8,18 +8,18 @@
    "zeitfenster": "2026-05-22T20:45:00Z",
    "score_band": "medium",
    "empfehlung": "watch",
-   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
-   "begruendung": "Markt: 'Will China invade Taiwan by end of 2026?'. Ausloeser: Konzentration. Einstufung: Severity high, 100. Perzentil, 1 Signalfamilie(n). Konzentrations-Muster: market concentration, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 5 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "empfehlung_grund": "Low band or review completed -- keep watching only, no action needed.",
+   "begruendung": "Market: 'Will China invade Taiwan by end of 2026?'. Trigger: concentration. Classification: severity high, 100th percentile, 1 signal family(ies). Concentration patterns: market concentration, same theme repeated positions. event context not evaluated. Reference pattern: partial overlap. Status: human review pending. 5 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
    "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
    "skeptic_abschlag": -0.2,
    "signale": {
-    "ausloeser": "Konzentration",
+    "trigger": "concentration",
     "severity": "high",
-    "perzentil": "100.",
-    "konzentration": "vorhanden",
-    "referenz": "teilweise Ueberlappung"
+    "percentile": "100th",
+    "concentration": "present",
+    "reference": "partial overlap"
    },
-   "ts": "2026-07-09T20:24:54+00:00"
+   "ts": "2026-07-10T03:27:54+00:00"
   },
   {
    "id": "monitor_candidate_20260522_204500_e24668f3f71b",
@@ -27,17 +27,17 @@
    "zeitfenster": "2026-05-22T20:45:00Z",
    "score_band": "medium",
    "empfehlung": "watch",
-   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
-   "begruendung": "Markt: 'Will the U.S. invade Iran before 2027?'. Ausloeser: aktive Wallet-Aktivitaet, Wallet-Tier-Aktivitaet. Einstufung: Severity high, 100. Perzentil, 2 Signalfamilie(n). Konzentrations-Muster: large trade flow, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 6 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "empfehlung_grund": "Low band or review completed -- keep watching only, no action needed.",
+   "begruendung": "Market: 'Will the U.S. invade Iran before 2027?'. Trigger: active wallet activity, wallet tier activity. Classification: severity high, 100th percentile, 2 signal family(ies). Concentration patterns: large trade flow, same theme repeated positions. event context not evaluated. Reference pattern: partial overlap. Status: human review pending. 6 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
    "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
    "skeptic_abschlag": -0.2,
    "signale": {
-    "ausloeser": "aktive Wallet-Aktivitaet, Wallet-Tier-Aktivitaet",
+    "trigger": "active wallet activity, wallet tier activity",
     "severity": "high",
-    "perzentil": "100.",
-    "referenz": "teilweise Ueberlappung"
+    "percentile": "100th",
+    "reference": "partial overlap"
    },
-   "ts": "2026-07-09T20:24:54+00:00"
+   "ts": "2026-07-10T03:27:54+00:00"
   },
   {
    "id": "monitor_candidate_20260522_205000_5dbff64bc3b3",
@@ -45,17 +45,17 @@
    "zeitfenster": "2026-05-22T20:50:00Z",
    "score_band": "medium",
    "empfehlung": "watch",
-   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
-   "begruendung": "Markt: 'Will the U.S. invade Iran before 2027?'. Ausloeser: Wallet-Tier-Aktivitaet. Einstufung: Severity high, 100. Perzentil, 1 Signalfamilie(n). Konzentrations-Muster: large trade flow, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 6 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "empfehlung_grund": "Low band or review completed -- keep watching only, no action needed.",
+   "begruendung": "Market: 'Will the U.S. invade Iran before 2027?'. Trigger: wallet tier activity. Classification: severity high, 100th percentile, 1 signal family(ies). Concentration patterns: large trade flow, same theme repeated positions. event context not evaluated. Reference pattern: partial overlap. Status: human review pending. 6 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
    "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
    "skeptic_abschlag": -0.2,
    "signale": {
-    "ausloeser": "Wallet-Tier-Aktivitaet",
+    "trigger": "wallet tier activity",
     "severity": "high",
-    "perzentil": "100.",
-    "referenz": "teilweise Ueberlappung"
+    "percentile": "100th",
+    "reference": "partial overlap"
    },
-   "ts": "2026-07-09T20:24:54+00:00"
+   "ts": "2026-07-10T03:27:54+00:00"
   },
   {
    "id": "monitor_candidate_20260522_205000_e02af5d15ac8",
@@ -63,18 +63,18 @@
    "zeitfenster": "2026-05-22T20:50:00Z",
    "score_band": "medium",
    "empfehlung": "watch",
-   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
-   "begruendung": "Markt: 'Will China invade Taiwan by end of 2026?'. Ausloeser: Konzentration. Einstufung: Severity high, 100. Perzentil, 1 Signalfamilie(n). Konzentrations-Muster: market concentration, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 5 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "empfehlung_grund": "Low band or review completed -- keep watching only, no action needed.",
+   "begruendung": "Market: 'Will China invade Taiwan by end of 2026?'. Trigger: concentration. Classification: severity high, 100th percentile, 1 signal family(ies). Concentration patterns: market concentration, same theme repeated positions. event context not evaluated. Reference pattern: partial overlap. Status: human review pending. 5 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
    "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
    "skeptic_abschlag": -0.2,
    "signale": {
-    "ausloeser": "Konzentration",
+    "trigger": "concentration",
     "severity": "high",
-    "perzentil": "100.",
-    "konzentration": "vorhanden",
-    "referenz": "teilweise Ueberlappung"
+    "percentile": "100th",
+    "concentration": "present",
+    "reference": "partial overlap"
    },
-   "ts": "2026-07-09T20:24:54+00:00"
+   "ts": "2026-07-10T03:27:54+00:00"
   },
   {
    "id": "monitor_candidate_20260522_210000_b265c77e872d",
@@ -82,17 +82,17 @@
    "zeitfenster": "2026-05-22T21:00:00Z",
    "score_band": "medium",
    "empfehlung": "watch",
-   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
-   "begruendung": "Markt: 'Will the U.S. invade Iran before 2027?'. Ausloeser: Wallet-Tier-Aktivitaet. Einstufung: Severity high, 100. Perzentil, 1 Signalfamilie(n). Konzentrations-Muster: large trade flow, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 6 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "empfehlung_grund": "Low band or review completed -- keep watching only, no action needed.",
+   "begruendung": "Market: 'Will the U.S. invade Iran before 2027?'. Trigger: wallet tier activity. Classification: severity high, 100th percentile, 1 signal family(ies). Concentration patterns: large trade flow, same theme repeated positions. event context not evaluated. Reference pattern: partial overlap. Status: human review pending. 6 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
    "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
    "skeptic_abschlag": -0.2,
    "signale": {
-    "ausloeser": "Wallet-Tier-Aktivitaet",
+    "trigger": "wallet tier activity",
     "severity": "high",
-    "perzentil": "100.",
-    "referenz": "teilweise Ueberlappung"
+    "percentile": "100th",
+    "reference": "partial overlap"
    },
-   "ts": "2026-07-09T20:24:54+00:00"
+   "ts": "2026-07-10T03:27:54+00:00"
   },
   {
    "id": "monitor_candidate_20260522_210500_83136b9f5cbb",
@@ -100,18 +100,18 @@
    "zeitfenster": "2026-05-22T21:05:00Z",
    "score_band": "medium",
    "empfehlung": "watch",
-   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
-   "begruendung": "Markt: 'Will Alexandria Ocasio-Cortez win the 2028 Democratic presidential nomination?'. Ausloeser: Wallet-Tier-Aktivitaet. Einstufung: Severity high, 100. Perzentil, 1 Signalfamilie(n). Beobachteter Flow $107 von 1 Wallet(s) (1 Trade(s)), Materialitaet unter 1% der Referenz. Konzentrations-Muster: large trade flow, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 6 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "empfehlung_grund": "Low band or review completed -- keep watching only, no action needed.",
+   "begruendung": "Market: 'Will Alexandria Ocasio-Cortez win the 2028 Democratic presidential nomination?'. Trigger: wallet tier activity. Classification: severity high, 100th percentile, 1 signal family(ies). Observed flow $107 from 1 wallet(s) (1 trade(s)), materiality below 1% of the reference. Concentration patterns: large trade flow, same theme repeated positions. event context not evaluated. Reference pattern: partial overlap. Status: human review pending. 6 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
    "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
    "skeptic_abschlag": -0.2,
    "signale": {
-    "ausloeser": "Wallet-Tier-Aktivitaet",
+    "trigger": "wallet tier activity",
     "severity": "high",
-    "perzentil": "100.",
-    "flow": "$107 / 1 Wallet(s)",
-    "referenz": "teilweise Ueberlappung"
+    "percentile": "100th",
+    "flow": "$107 / 1 wallet(s)",
+    "reference": "partial overlap"
    },
-   "ts": "2026-07-09T20:24:54+00:00"
+   "ts": "2026-07-10T03:27:54+00:00"
   },
   {
    "id": "monitor_candidate_20260522_214500_9a6abaddeae0",
@@ -119,17 +119,17 @@
    "zeitfenster": "2026-05-22T21:45:00Z",
    "score_band": "medium",
    "empfehlung": "watch",
-   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
-   "begruendung": "Markt: 'Will the U.S. invade Iran before 2027?'. Ausloeser: Wallet-Tier-Aktivitaet. Einstufung: Severity high, 100. Perzentil, 1 Signalfamilie(n). Konzentrations-Muster: large trade flow, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 6 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "empfehlung_grund": "Low band or review completed -- keep watching only, no action needed.",
+   "begruendung": "Market: 'Will the U.S. invade Iran before 2027?'. Trigger: wallet tier activity. Classification: severity high, 100th percentile, 1 signal family(ies). Concentration patterns: large trade flow, same theme repeated positions. event context not evaluated. Reference pattern: partial overlap. Status: human review pending. 6 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
    "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
    "skeptic_abschlag": -0.2,
    "signale": {
-    "ausloeser": "Wallet-Tier-Aktivitaet",
+    "trigger": "wallet tier activity",
     "severity": "high",
-    "perzentil": "100.",
-    "referenz": "teilweise Ueberlappung"
+    "percentile": "100th",
+    "reference": "partial overlap"
    },
-   "ts": "2026-07-09T20:24:54+00:00"
+   "ts": "2026-07-10T03:27:54+00:00"
   },
   {
    "id": "monitor_candidate_20260522_215000_ac5932fae4cc",
@@ -137,17 +137,17 @@
    "zeitfenster": "2026-05-22T21:50:00Z",
    "score_band": "medium",
    "empfehlung": "watch",
-   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
-   "begruendung": "Markt: 'Will the U.S. invade Iran before 2027?'. Ausloeser: Wallet-Tier-Aktivitaet. Einstufung: Severity high, 100. Perzentil, 1 Signalfamilie(n). Konzentrations-Muster: large trade flow, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 6 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "empfehlung_grund": "Low band or review completed -- keep watching only, no action needed.",
+   "begruendung": "Market: 'Will the U.S. invade Iran before 2027?'. Trigger: wallet tier activity. Classification: severity high, 100th percentile, 1 signal family(ies). Concentration patterns: large trade flow, same theme repeated positions. event context not evaluated. Reference pattern: partial overlap. Status: human review pending. 6 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
    "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
    "skeptic_abschlag": -0.2,
    "signale": {
-    "ausloeser": "Wallet-Tier-Aktivitaet",
+    "trigger": "wallet tier activity",
     "severity": "high",
-    "perzentil": "100.",
-    "referenz": "teilweise Ueberlappung"
+    "percentile": "100th",
+    "reference": "partial overlap"
    },
-   "ts": "2026-07-09T20:24:54+00:00"
+   "ts": "2026-07-10T03:27:54+00:00"
   },
   {
    "id": "monitor_candidate_20260522_205500_4902be7e4cdb",
@@ -155,18 +155,18 @@
    "zeitfenster": "2026-05-22T20:55:00Z",
    "score_band": "medium",
    "empfehlung": "watch",
-   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
-   "begruendung": "Markt: 'Will the U.S. invade Iran before 2027?'. Ausloeser: Konzentration, Wallet-Tier-Aktivitaet. Einstufung: Severity watch, 100. Perzentil, 2 Signalfamilie(n). Konzentrations-Muster: large trade flow, market concentration, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: Treffer. Status: menschliche Pruefung offen. 6 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "empfehlung_grund": "Low band or review completed -- keep watching only, no action needed.",
+   "begruendung": "Market: 'Will the U.S. invade Iran before 2027?'. Trigger: concentration, wallet tier activity. Classification: severity watch, 100th percentile, 2 signal family(ies). Concentration patterns: large trade flow, market concentration, same theme repeated positions. event context not evaluated. Reference pattern: hit. Status: human review pending. 6 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
    "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
    "skeptic_abschlag": -0.1,
    "signale": {
-    "ausloeser": "Konzentration, Wallet-Tier-Aktivitaet",
+    "trigger": "concentration, wallet tier activity",
     "severity": "watch",
-    "perzentil": "100.",
-    "konzentration": "vorhanden",
-    "referenz": "Treffer"
+    "percentile": "100th",
+    "concentration": "present",
+    "reference": "hit"
    },
-   "ts": "2026-07-09T20:24:54+00:00"
+   "ts": "2026-07-10T03:27:54+00:00"
   },
   {
    "id": "monitor_candidate_20260522_204500_759f3661e55c",
@@ -174,17 +174,17 @@
    "zeitfenster": "2026-05-22T20:45:00Z",
    "score_band": "low",
    "empfehlung": "watch",
-   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
-   "begruendung": "Markt: 'Will the Iranian regime fall before 2027?'. Ausloeser: aktive Wallet-Aktivitaet. Einstufung: Severity high, 100. Perzentil, 1 Signalfamilie(n). Ereignis-Kontext nicht bewertet. Referenz-Muster: keine Ueberlappung. Status: menschliche Pruefung offen. 5 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "empfehlung_grund": "Low band or review completed -- keep watching only, no action needed.",
+   "begruendung": "Market: 'Will the Iranian regime fall before 2027?'. Trigger: active wallet activity. Classification: severity high, 100th percentile, 1 signal family(ies). event context not evaluated. Reference pattern: no overlap. Status: human review pending. 5 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
    "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
    "skeptic_abschlag": -0.2,
    "signale": {
-    "ausloeser": "aktive Wallet-Aktivitaet",
+    "trigger": "active wallet activity",
     "severity": "high",
-    "perzentil": "100.",
-    "referenz": "keine Ueberlappung"
+    "percentile": "100th",
+    "reference": "no overlap"
    },
-   "ts": "2026-07-09T20:24:54+00:00"
+   "ts": "2026-07-10T03:27:54+00:00"
   },
   {
    "id": "monitor_candidate_20260522_204500_f183079f2c3f",
@@ -192,19 +192,19 @@
    "zeitfenster": "2026-05-22T20:45:00Z",
    "score_band": "low",
    "empfehlung": "watch",
-   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
-   "begruendung": "Markt: 'Will Alexandria Ocasio-Cortez win the 2028 Democratic presidential nomination?'. Ausloeser: Konzentration. Einstufung: Severity info, 100. Perzentil, 1 Signalfamilie(n). Beobachteter Flow $107 von 1 Wallet(s) (1 Trade(s)), Materialitaet unter 1% der Referenz. Konzentrations-Muster: market concentration, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 5 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "empfehlung_grund": "Low band or review completed -- keep watching only, no action needed.",
+   "begruendung": "Market: 'Will Alexandria Ocasio-Cortez win the 2028 Democratic presidential nomination?'. Trigger: concentration. Classification: severity info, 100th percentile, 1 signal family(ies). Observed flow $107 from 1 wallet(s) (1 trade(s)), materiality below 1% of the reference. Concentration patterns: market concentration, same theme repeated positions. event context not evaluated. Reference pattern: partial overlap. Status: human review pending. 5 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
    "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
    "skeptic_abschlag": -0.2,
    "signale": {
-    "ausloeser": "Konzentration",
+    "trigger": "concentration",
     "severity": "info",
-    "perzentil": "100.",
-    "flow": "$107 / 1 Wallet(s)",
-    "konzentration": "vorhanden",
-    "referenz": "teilweise Ueberlappung"
+    "percentile": "100th",
+    "flow": "$107 / 1 wallet(s)",
+    "concentration": "present",
+    "reference": "partial overlap"
    },
-   "ts": "2026-07-09T20:24:54+00:00"
+   "ts": "2026-07-10T03:27:54+00:00"
   },
   {
    "id": "monitor_candidate_20260522_205500_31bc7f1998f4",
@@ -212,17 +212,17 @@
    "zeitfenster": "2026-05-22T20:55:00Z",
    "score_band": "low",
    "empfehlung": "watch",
-   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
-   "begruendung": "Markt: 'Will China invade Taiwan by end of 2026?'. Ausloeser: Wallet-Tier-Aktivitaet. Einstufung: Severity info, 100. Perzentil, 1 Signalfamilie(n). Konzentrations-Muster: large trade flow, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 6 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "empfehlung_grund": "Low band or review completed -- keep watching only, no action needed.",
+   "begruendung": "Market: 'Will China invade Taiwan by end of 2026?'. Trigger: wallet tier activity. Classification: severity info, 100th percentile, 1 signal family(ies). Concentration patterns: large trade flow, same theme repeated positions. event context not evaluated. Reference pattern: partial overlap. Status: human review pending. 6 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
    "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
    "skeptic_abschlag": -0.2,
    "signale": {
-    "ausloeser": "Wallet-Tier-Aktivitaet",
+    "trigger": "wallet tier activity",
     "severity": "info",
-    "perzentil": "100.",
-    "referenz": "teilweise Ueberlappung"
+    "percentile": "100th",
+    "reference": "partial overlap"
    },
-   "ts": "2026-07-09T20:24:54+00:00"
+   "ts": "2026-07-10T03:27:54+00:00"
   },
   {
    "id": "monitor_candidate_20260522_211000_9c25d1497516",
@@ -230,18 +230,18 @@
    "zeitfenster": "2026-05-22T21:10:00Z",
    "score_band": "low",
    "empfehlung": "watch",
-   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
-   "begruendung": "Markt: 'Will the U.S. invade Iran before 2027?'. Ausloeser: Konzentration. Einstufung: Severity info, 100. Perzentil, 1 Signalfamilie(n). Konzentrations-Muster: market concentration, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 5 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "empfehlung_grund": "Low band or review completed -- keep watching only, no action needed.",
+   "begruendung": "Market: 'Will the U.S. invade Iran before 2027?'. Trigger: concentration. Classification: severity info, 100th percentile, 1 signal family(ies). Concentration patterns: market concentration, same theme repeated positions. event context not evaluated. Reference pattern: partial overlap. Status: human review pending. 5 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
    "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
    "skeptic_abschlag": -0.2,
    "signale": {
-    "ausloeser": "Konzentration",
+    "trigger": "concentration",
     "severity": "info",
-    "perzentil": "100.",
-    "konzentration": "vorhanden",
-    "referenz": "teilweise Ueberlappung"
+    "percentile": "100th",
+    "concentration": "present",
+    "reference": "partial overlap"
    },
-   "ts": "2026-07-09T20:24:54+00:00"
+   "ts": "2026-07-10T03:27:54+00:00"
   },
   {
    "id": "monitor_candidate_20260522_211500_40799b054be7",
@@ -249,18 +249,18 @@
    "zeitfenster": "2026-05-22T21:15:00Z",
    "score_band": "low",
    "empfehlung": "watch",
-   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
-   "begruendung": "Markt: 'Will the U.S. invade Iran before 2027?'. Ausloeser: Konzentration. Einstufung: Severity info, 100. Perzentil, 1 Signalfamilie(n). Konzentrations-Muster: market concentration, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 5 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "empfehlung_grund": "Low band or review completed -- keep watching only, no action needed.",
+   "begruendung": "Market: 'Will the U.S. invade Iran before 2027?'. Trigger: concentration. Classification: severity info, 100th percentile, 1 signal family(ies). Concentration patterns: market concentration, same theme repeated positions. event context not evaluated. Reference pattern: partial overlap. Status: human review pending. 5 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
    "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
    "skeptic_abschlag": -0.2,
    "signale": {
-    "ausloeser": "Konzentration",
+    "trigger": "concentration",
     "severity": "info",
-    "perzentil": "100.",
-    "konzentration": "vorhanden",
-    "referenz": "teilweise Ueberlappung"
+    "percentile": "100th",
+    "concentration": "present",
+    "reference": "partial overlap"
    },
-   "ts": "2026-07-09T20:24:54+00:00"
+   "ts": "2026-07-10T03:27:54+00:00"
   },
   {
    "id": "monitor_candidate_20260522_212000_24b874775afe",
@@ -268,17 +268,17 @@
    "zeitfenster": "2026-05-22T21:20:00Z",
    "score_band": "low",
    "empfehlung": "watch",
-   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
-   "begruendung": "Markt: 'Will the U.S. invade Iran before 2027?'. Ausloeser: Wallet-Tier-Aktivitaet. Einstufung: Severity info, 100. Perzentil, 1 Signalfamilie(n). Konzentrations-Muster: large trade flow, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 6 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "empfehlung_grund": "Low band or review completed -- keep watching only, no action needed.",
+   "begruendung": "Market: 'Will the U.S. invade Iran before 2027?'. Trigger: wallet tier activity. Classification: severity info, 100th percentile, 1 signal family(ies). Concentration patterns: large trade flow, same theme repeated positions. event context not evaluated. Reference pattern: partial overlap. Status: human review pending. 6 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
    "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
    "skeptic_abschlag": -0.2,
    "signale": {
-    "ausloeser": "Wallet-Tier-Aktivitaet",
+    "trigger": "wallet tier activity",
     "severity": "info",
-    "perzentil": "100.",
-    "referenz": "teilweise Ueberlappung"
+    "percentile": "100th",
+    "reference": "partial overlap"
    },
-   "ts": "2026-07-09T20:24:54+00:00"
+   "ts": "2026-07-10T03:27:54+00:00"
   },
   {
    "id": "monitor_candidate_20260522_212000_a8030671b168",
@@ -286,18 +286,18 @@
    "zeitfenster": "2026-05-22T21:20:00Z",
    "score_band": "low",
    "empfehlung": "watch",
-   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
-   "begruendung": "Markt: 'Will China invade Taiwan by end of 2026?'. Ausloeser: Konzentration. Einstufung: Severity info, 100. Perzentil, 1 Signalfamilie(n). Konzentrations-Muster: market concentration, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 5 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "empfehlung_grund": "Low band or review completed -- keep watching only, no action needed.",
+   "begruendung": "Market: 'Will China invade Taiwan by end of 2026?'. Trigger: concentration. Classification: severity info, 100th percentile, 1 signal family(ies). Concentration patterns: market concentration, same theme repeated positions. event context not evaluated. Reference pattern: partial overlap. Status: human review pending. 5 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
    "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
    "skeptic_abschlag": -0.2,
    "signale": {
-    "ausloeser": "Konzentration",
+    "trigger": "concentration",
     "severity": "info",
-    "perzentil": "100.",
-    "konzentration": "vorhanden",
-    "referenz": "teilweise Ueberlappung"
+    "percentile": "100th",
+    "concentration": "present",
+    "reference": "partial overlap"
    },
-   "ts": "2026-07-09T20:24:54+00:00"
+   "ts": "2026-07-10T03:27:54+00:00"
   },
   {
    "id": "monitor_candidate_20260522_220000_997f5287203d",
@@ -305,19 +305,19 @@
    "zeitfenster": "2026-05-22T22:00:00Z",
    "score_band": "low",
    "empfehlung": "watch",
-   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
-   "begruendung": "Markt: 'Will Alexandria Ocasio-Cortez win the 2028 Democratic presidential nomination?'. Ausloeser: Konzentration. Einstufung: Severity info, 100. Perzentil, 1 Signalfamilie(n). Beobachteter Flow $107 von 1 Wallet(s) (1 Trade(s)), Materialitaet unter 1% der Referenz. Konzentrations-Muster: market concentration, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 5 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "empfehlung_grund": "Low band or review completed -- keep watching only, no action needed.",
+   "begruendung": "Market: 'Will Alexandria Ocasio-Cortez win the 2028 Democratic presidential nomination?'. Trigger: concentration. Classification: severity info, 100th percentile, 1 signal family(ies). Observed flow $107 from 1 wallet(s) (1 trade(s)), materiality below 1% of the reference. Concentration patterns: market concentration, same theme repeated positions. event context not evaluated. Reference pattern: partial overlap. Status: human review pending. 5 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
    "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
    "skeptic_abschlag": -0.2,
    "signale": {
-    "ausloeser": "Konzentration",
+    "trigger": "concentration",
     "severity": "info",
-    "perzentil": "100.",
-    "flow": "$107 / 1 Wallet(s)",
-    "konzentration": "vorhanden",
-    "referenz": "teilweise Ueberlappung"
+    "percentile": "100th",
+    "flow": "$107 / 1 wallet(s)",
+    "concentration": "present",
+    "reference": "partial overlap"
    },
-   "ts": "2026-07-09T20:24:54+00:00"
+   "ts": "2026-07-10T03:27:54+00:00"
   },
   {
    "id": "monitor_candidate_20260522_220500_07a19a12b63b",
@@ -325,17 +325,17 @@
    "zeitfenster": "2026-05-22T22:05:00Z",
    "score_band": "low",
    "empfehlung": "watch",
-   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
-   "begruendung": "Markt: 'Will China invade Taiwan by end of 2026?'. Ausloeser: Wallet-Tier-Aktivitaet. Einstufung: Severity info, 100. Perzentil, 1 Signalfamilie(n). Konzentrations-Muster: large trade flow, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 6 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "empfehlung_grund": "Low band or review completed -- keep watching only, no action needed.",
+   "begruendung": "Market: 'Will China invade Taiwan by end of 2026?'. Trigger: wallet tier activity. Classification: severity info, 100th percentile, 1 signal family(ies). Concentration patterns: large trade flow, same theme repeated positions. event context not evaluated. Reference pattern: partial overlap. Status: human review pending. 6 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
    "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
    "skeptic_abschlag": -0.2,
    "signale": {
-    "ausloeser": "Wallet-Tier-Aktivitaet",
+    "trigger": "wallet tier activity",
     "severity": "info",
-    "perzentil": "100.",
-    "referenz": "teilweise Ueberlappung"
+    "percentile": "100th",
+    "reference": "partial overlap"
    },
-   "ts": "2026-07-09T20:24:54+00:00"
+   "ts": "2026-07-10T03:27:54+00:00"
   },
   {
    "id": "monitor_candidate_20260522_221000_f0f7ebf8e213",
@@ -343,17 +343,17 @@
    "zeitfenster": "2026-05-22T22:10:00Z",
    "score_band": "low",
    "empfehlung": "watch",
-   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
-   "begruendung": "Markt: 'Will China invade Taiwan by end of 2026?'. Ausloeser: Wallet-Tier-Aktivitaet. Einstufung: Severity info, 100. Perzentil, 1 Signalfamilie(n). Konzentrations-Muster: large trade flow, same theme repeated positions. Ereignis-Kontext nicht bewertet. Referenz-Muster: teilweise Ueberlappung. Status: menschliche Pruefung offen. 6 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "empfehlung_grund": "Low band or review completed -- keep watching only, no action needed.",
+   "begruendung": "Market: 'Will China invade Taiwan by end of 2026?'. Trigger: wallet tier activity. Classification: severity info, 100th percentile, 1 signal family(ies). Concentration patterns: large trade flow, same theme repeated positions. event context not evaluated. Reference pattern: partial overlap. Status: human review pending. 6 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
    "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
    "skeptic_abschlag": -0.2,
    "signale": {
-    "ausloeser": "Wallet-Tier-Aktivitaet",
+    "trigger": "wallet tier activity",
     "severity": "info",
-    "perzentil": "100.",
-    "referenz": "teilweise Ueberlappung"
+    "percentile": "100th",
+    "reference": "partial overlap"
    },
-   "ts": "2026-07-09T20:24:54+00:00"
+   "ts": "2026-07-10T03:27:54+00:00"
   },
   {
    "id": "monitor_candidate_20260523_192500_71cd3b4e784b",
@@ -361,18 +361,18 @@
    "zeitfenster": "2026-05-23T19:25:00Z",
    "score_band": "low",
    "empfehlung": "watch",
-   "empfehlung_grund": "Niedriges Band oder Pruefung abgeschlossen -- nur weiter beobachten, keine Aktion noetig.",
-   "begruendung": "Markt: 'Will the U.S. invade Iran before 2027?'. Ausloeser: Konzentration. Einstufung: Severity info, 100. Perzentil, 1 Signalfamilie(n). Konzentrations-Muster: market concentration, same theme repeated positions. nur zeitlich naechstes Ereignis, kein bestaetigter Bezug. Referenz-Muster: teilweise Ueberlappung. Status: Quellen-Pruefung offen. 5 Pruefschritte offen. Statistische Auffaelligkeit, kein Befund -- keine Aussage ueber private Informationen.",
+   "empfehlung_grund": "Low band or review completed -- keep watching only, no action needed.",
+   "begruendung": "Market: 'Will the U.S. invade Iran before 2027?'. Trigger: concentration. Classification: severity info, 100th percentile, 1 signal family(ies). Concentration patterns: market concentration, same theme repeated positions. nearest event in time only, no confirmed link. Reference pattern: partial overlap. Status: source check pending. 5 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
    "skeptic_begruendung": "A public attention spike (news/hype) around this market could explain the bucket without any private information. Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
    "skeptic_abschlag": -0.3,
    "signale": {
-    "ausloeser": "Konzentration",
+    "trigger": "concentration",
     "severity": "info",
-    "perzentil": "100.",
-    "konzentration": "vorhanden",
-    "referenz": "teilweise Ueberlappung"
+    "percentile": "100th",
+    "concentration": "present",
+    "reference": "partial overlap"
    },
-   "ts": "2026-07-09T20:24:54+00:00"
+   "ts": "2026-07-10T03:27:54+00:00"
   }
  ]
 }

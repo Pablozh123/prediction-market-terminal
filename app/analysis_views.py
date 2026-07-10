@@ -34,8 +34,8 @@ EMPFEHLUNG_LABELS = {
 #: (enthaelt Spiel- bzw. Zeremoniedauer).
 CENSORED_KATEGORIEN = ("Sport", "Popkultur")
 
-#: Lesbare Ticks fuer die log-Zeitachse (Minuten, 1 Min bis 8 Std).
-LOG_TICKS = ((1, "1 Min"), (5, "5 Min"), (15, "15 Min"), (60, "1 Std"), (240, "4 Std"), (480, "8 Std"))
+#: Lesbare Ticks fuer die log-Zeitachse (Minuten, 1 min bis 8 h).
+LOG_TICKS = ((1, "1 min"), (5, "5 min"), (15, "15 min"), (60, "1 h"), (240, "4 h"), (480, "8 h"))
 
 
 def load_publish_payload(publish_dir: Path, name: str) -> dict[str, Any] | None:
@@ -210,10 +210,10 @@ def wette_status(wette: dict[str, Any]) -> tuple[str, str]:
     """(Anzeige-Label, Statusklasse win/loss/open) fuer eine Wette."""
 
     if not wette.get("aufgeloest"):
-        return "OFFEN", "open"
+        return "OPEN", "open"
     if wette.get("gewonnen"):
-        return "GEWONNEN", "win"
-    return "VERLOREN", "loss"
+        return "WON", "win"
+    return "LOST", "loss"
 
 
 def run_wetten_rows(run: dict[str, Any]) -> list[dict[str, Any]]:
