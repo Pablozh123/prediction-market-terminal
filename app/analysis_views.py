@@ -18,6 +18,7 @@ PUBLISH_FILES = (
     "pipeline_forward.json",
     "audit.json",
     "meta.json",
+    "runs.json",
 )
 
 SCORE_BANDS = ("high", "medium", "low")
@@ -146,6 +147,115 @@ def pipeline_action_counts(payload: dict[str, Any]) -> dict[str, int]:
         action = str(entry.get("action", ""))
         counts[action] = counts.get(action, 0) + 1
     return counts
+
+
+def format_sekunden(value: Any) -> str:
+    """Sekunden menschenlesbar: unter 2 Minuten in s, sonst in Minuten."""
+
+    if value is None:
+        return "--"
+    seconds = float(value)
+    if seconds < 120:
+        return f"{seconds:.0f} s"
+    return f"{seconds / 60.0:.0f} min"
+
+
+def run_kpis(payload: dict[str, Any]) -> dict[str, Any]:
+    """Aggregat-Kennzahlen mit Defaults fuer die Dashboard-Kopfzeile."""
+
+    aggregat = payload.get("aggregat") or {}
+    return {
+        "n_runs": int(aggregat.get("n_runs", 0) or 0),
+        "n_wetten": int(aggregat.get("n_wetten", 0) or 0),
+        "gewonnen": int(aggregat.get("gewonnen", 0) or 0),
+        "verloren": int(aggregat.get("verloren", 0) or 0),
+        "offen": int(aggregat.get("offen", 0) or 0),
+        "einsatz_usd": float(aggregat.get("einsatz_usd", 0.0) or 0.0),
+        "aufgeloester_einsatz_usd": float(
+            aggregat.get("aufgeloester_einsatz_usd", 0.0) or 0.0
+        ),
+        "realisierter_payout_usd": float(
+            aggregat.get("realisierter_payout_usd", 0.0) or 0.0
+        ),
+        "realisierter_pnl_usd": float(
+            aggregat.get("realisierter_pnl_usd", 0.0) or 0.0
+        ),
+        "roi_realisiert_pct": aggregat.get("roi_realisiert_pct"),
+        "offener_einsatz_usd": float(
+            aggregat.get("offener_einsatz_usd", 0.0) or 0.0
+        ),
+    }
+
+
+def run_latenz_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """Latenz-Zeilen je Run fuer die Balken auf der Latenz-Seite."""
+
+    rows: list[dict[str, Any]] = []
+    for run in payload.get("runs", []):
+        rows.append(
+            {
+                "profil": str(run.get("profil", "")),
+                "quelle": str(run.get("drop_quelle", "")),
+                "episode_titel": str(run.get("episode_titel", "")),
+                "erkennungslatenz_s": run.get("erkennungslatenz_s"),
+                "erste_entscheidung_s": run.get("erste_entscheidung_s"),
+                "erster_fill_s": run.get("erster_fill_s"),
+                "n_wetten": len(run.get("wetten", []) or []),
+            }
+        )
+    return rows
+
+
+def wette_status(wette: dict[str, Any]) -> tuple[str, str]:
+    """(Anzeige-Label, Statusklasse win/loss/open) fuer eine Wette."""
+
+    if not wette.get("aufgeloest"):
+        return "OFFEN", "open"
+    if wette.get("gewonnen"):
+        return "GEWONNEN", "win"
+    return "VERLOREN", "loss"
+
+
+def run_wetten_rows(run: dict[str, Any]) -> list[dict[str, Any]]:
+    """Wetten eines Runs als flache Anzeigezeilen (inkl. Statusklasse)."""
+
+    rows: list[dict[str, Any]] = []
+    for wette in run.get("wetten", []) or []:
+        label, klasse = wette_status(wette)
+        rows.append(
+            {
+                "frage": str(wette.get("frage", "")),
+                "seite": str(wette.get("seite", "")),
+                "entscheidungs_preis": wette.get("entscheidungs_preis"),
+                "avg_fill_preis": wette.get("avg_fill_preis"),
+                "shares": wette.get("shares"),
+                "einsatz_usd": wette.get("einsatz_usd"),
+                "sweep_clips": int(wette.get("sweep_clips", 1) or 1),
+                "status_label": label,
+                "status_klasse": klasse,
+                "payout_usd": wette.get("payout_usd"),
+                "pnl_usd": wette.get("pnl_usd"),
+                "roi_pct": wette.get("roi_pct"),
+                "aktueller_yes_preis": wette.get("aktueller_yes_preis"),
+            }
+        )
+    return rows
+
+
+def run_verpasste_rows(run: dict[str, Any]) -> list[dict[str, Any]]:
+    """Verpasste Chancen (Budget-Skips) eines Runs als Tabellenzeilen."""
+
+    rows: list[dict[str, Any]] = []
+    for chance in run.get("verpasste_chancen", []) or []:
+        rows.append(
+            {
+                "frage": str(chance.get("frage", "")),
+                "seite": str(chance.get("seite", "")),
+                "limit_preis": chance.get("limit_preis"),
+                "grund": str(chance.get("grund", "")),
+            }
+        )
+    return rows
 
 
 def audit_hash_rows(audit: dict[str, Any], limit: int = 50) -> list[dict[str, str]]:
