@@ -113,19 +113,19 @@ WORKSPACES = [
     "Resolved",
     "Portfolio",
     "Settings",
-    "Review-Queue",
-    "Kategorie-Effizienz",
-    "Mentions-Latenz",
-    "Live-Runs",
-    "Pipeline-Forward",
-    "Methodik",
+    "Review Queue",
+    "Category Efficiency",
+    "Mentions Latency",
+    "Live Runs",
+    "Pipeline Forward",
+    "Methodology",
 ]
 NAV_GROUPS: list[tuple[str, list[str]]] = [
     ("", ["Overview"]),
     ("Markets", ["Markets", "Search", "Live Trades", "Resolved", "Cross-Venue"]),
     ("Traders", ["Traders", "Wallets", "Whale Flow", "Suspicious", "Track"]),
     ("Trading", ["Backtester", "Copy Trade", "Portfolio"]),
-    ("Research", ["Review-Queue", "Kategorie-Effizienz", "Mentions-Latenz", "Live-Runs", "Pipeline-Forward", "Methodik"]),
+    ("Research", ["Review Queue", "Category Efficiency", "Mentions Latency", "Live Runs", "Pipeline Forward", "Methodology"]),
     ("System", ["Monitor", "Settings"]),
 ]
 WORKSPACE_HELP = {
@@ -145,18 +145,25 @@ WORKSPACE_HELP = {
     "Portfolio": "Your paper positions, watchlist, and performance.",
     "Monitor": "Signals and alert rules, with Telegram delivery.",
     "Settings": "Data limits, alert config, daemon control, and account.",
-    "Review-Queue": "Priorisierte Pruef-Faelle aus dem taeglichen Analyse-Lauf (statisch, read-only).",
-    "Kategorie-Effizienz": "Brier-Score vs. Einpreisungs-Minuten je Marktkategorie.",
-    "Mentions-Latenz": "Wie schnell Mentions-Maerkte auf den Content-Drop reagieren.",
-    "Live-Runs": "Wetten, Latenzen und realisierte Ergebnisse der eigenen Bot-Runs.",
-    "Pipeline-Forward": "Beobachtender Paper-Forward-Test der Analyse-Pipeline.",
-    "Methodik": "Methodik, Guardrails und Audit (Hashes und Zaehler).",
+    "Review Queue": "Prioritized verification cases from the daily analysis run (static, read-only).",
+    "Category Efficiency": "Brier score vs. pricing-in minutes per market category.",
+    "Mentions Latency": "How fast mentions markets react to the content drop.",
+    "Live Runs": "Bets, latencies, and realized results of our own bot runs.",
+    "Pipeline Forward": "Observing paper forward test of the analysis pipeline.",
+    "Methodology": "Methodology, guardrails, and audit (hashes and counters).",
 }
 SEARCH_RESULT_TYPES = ["Markets", "Traders", "Trades", "News", "Cross-Venue", "Alerts", "Tracked"]
 COPY_SIDE_FILTERS = ["BUY", "SELL"]
 PAGE_QUERY_SLUGS = {page: page.lower().replace(" ", "-") for page in WORKSPACES}
 PAGE_BY_QUERY_SLUG = {slug: page for page, slug in PAGE_QUERY_SLUGS.items()}
-PAGE_BY_QUERY_SLUG.update({"picks": "Traders", "alerts": "Monitor"})
+PAGE_BY_QUERY_SLUG.update({
+    "picks": "Traders",
+    "alerts": "Monitor",
+    # Alte deutsche Research-Slugs bleiben als Aliase gueltig.
+    "kategorie-effizienz": "Category Efficiency",
+    "mentions-latenz": "Mentions Latency",
+    "methodik": "Methodology",
+})
 
 
 def inject_css() -> None:
@@ -12280,9 +12287,9 @@ def _esc(value: Any) -> str:
 def render_analysis_footer() -> None:
     st.divider()
     st.markdown(
-        "<div class='small-note'>Deskriptive Analyse aus einem taeglichen, read-only "
-        "Datenlauf. Keine Handlungsempfehlung, keine Finanzberatung, keine "
-        "Renditeaussage.</div>",
+        "<div class='small-note'>Descriptive analysis from a daily, read-only "
+        "data run. No trading advice, no financial advice, no return "
+        "claims.</div>",
         unsafe_allow_html=True,
     )
 
@@ -12292,8 +12299,8 @@ def render_analysis_banner(payload: dict | None) -> None:
 
     stand = _esc((payload or {}).get("stand_utc", "unbekannt"))
     st.markdown(
-        f"<div class='command-shell'><span class='command-hint'>READ-ONLY · Ergebnis "
-        f"eines taeglichen Analyse-Laufs · Stand {stand} · keine Live-Abfrage</span></div>",
+        f"<div class='command-shell'><span class='command-hint'>READ-ONLY · Result "
+        f"of a daily analysis run · as of {stand} · no live query</span></div>",
         unsafe_allow_html=True,
     )
     hinweis = str((payload or {}).get("hinweis", "") or "")
@@ -12305,10 +12312,10 @@ def render_publish_missing(name: str) -> None:
     st.markdown(
         f"""
         <div class='empty-hero'>
-            <div class='empty-hero-title'>Noch keine publizierten Daten</div>
-            <div class='empty-hero-sub'>Die Datei <span class='mono'>public/data/{name}</span>
-            fehlt. Sie entsteht durch den taeglichen Review-Lauf
-            (<span class='mono'>daily_review_run --publish-dir &lt;hier&gt;/public/data</span>).</div>
+            <div class='empty-hero-title'>No published data yet</div>
+            <div class='empty-hero-sub'>The file <span class='mono'>public/data/{name}</span>
+            is missing. It is produced by the daily review run
+            (<span class='mono'>daily_review_run --publish-dir &lt;here&gt;/public/data</span>).</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -12321,8 +12328,8 @@ def _analysis_badge(text: str, color: str) -> str:
 
 def page_review_queue() -> None:
     section_header(
-        "Review-Queue",
-        "Priorisierte Pruef-Faelle aus dem taeglichen Agenten-Lauf -- Empfehlungen sind Pruef-Schritte, keine Trades.",
+        "Review Queue",
+        "Prioritized verification cases from the daily agent run -- recommendations are verification steps, not trades.",
         kicker="Daily research artifacts",
     )
     queue = load_publish_payload_cached("queue.json")
@@ -12332,29 +12339,29 @@ def page_review_queue() -> None:
         render_analysis_footer()
         return
     faelle = list(queue.get("faelle", []))
-    with st.expander("Was bedeuten die Empfehlungen?"):
+    with st.expander("What do the recommendations mean?"):
         st.markdown(
-            "| Empfehlung | Bedeutung |\n|---|---|\n"
-            "| **WATCH** | Nur weiter beobachten -- Auffaelligkeit schwach oder gut erklaerbar, keine Aktion. |\n"
-            "| **CHECK SOURCE** | Ein Mensch soll die oeffentliche Quelle pruefen: Gab es ein Ereignis, das den Flow erklaert? |\n"
-            "| **ESCALATE HUMAN** | Band high -- der Fall geht komplett an einen Menschen. |\n\n"
-            "Der Skeptiker-Agent sucht aktiv nach harmlosen Erklaerungen (News-Aufmerksamkeit, neue Nutzer, "
-            "beidseitiger Flow) und kann die Prioritaet nur SENKEN (Abschlag bis -0.3), nie anheben. "
-            "Alle Kennzahlen stammen aus dem deterministischen Kern, nicht von einem LLM."
+            "| Recommendation | Meaning |\n|---|---|\n"
+            "| **WATCH** | Keep watching only -- the anomaly is weak or well explained, no action. |\n"
+            "| **CHECK SOURCE** | A human should check the public source: was there an event that explains the flow? |\n"
+            "| **ESCALATE HUMAN** | Band high -- the case goes fully to a human. |\n\n"
+            "The skeptic agent actively looks for harmless explanations (news attention, new users, "
+            "two-sided flow) and can only LOWER the priority (deduction down to -0.3), never raise it. "
+            "All figures come from the deterministic core, not from an LLM."
         )
     band = st.segmented_control(
-        "Score-Band",
-        ["Alle", "high", "medium", "low"],
-        default="Alle",
+        "Score band",
+        ["All", "high", "medium", "low"],
+        default="All",
         key="rq_band_filter",
     )
     filtered = av.filter_queue_cards(faelle, str(band))
     st.caption(
-        f"{len(filtered)} von {len(faelle)} Faellen · Skeptiker kann die Prioritaet nur senken "
-        f"(Abschlag zwischen -0.3 und 0)."
+        f"{len(filtered)} of {len(faelle)} cases · the skeptic can only lower the priority "
+        f"(deduction between -0.3 and 0)."
     )
     if not filtered:
-        st.info("Keine Faelle in diesem Band.")
+        st.info("No cases in this band.")
     for card in filtered:
         with st.container(border=True):
             band_value = str(card.get("score_band", "low"))
@@ -12379,29 +12386,29 @@ def page_review_queue() -> None:
             grund = str(card.get("empfehlung_grund", "") or "")
             if grund:
                 st.markdown(
-                    f"<div class='small-note'>Warum diese Empfehlung: {_esc(grund)}</div>",
+                    f"<div class='small-note'>Why this recommendation: {_esc(grund)}</div>",
                     unsafe_allow_html=True,
                 )
             abschlag = card.get("skeptic_abschlag")
             abschlag_text = (
-                "kein Abschlag"
+                "no deduction"
                 if abschlag in (None, 0)
-                else f"Abschlag {_esc(abschlag)}"
+                else f"deduction {_esc(abschlag)}"
             )
             skeptic = str(card.get("skeptic_begruendung", "") or "")
             if skeptic:
                 st.markdown(
-                    f"<div class='small-note'>Skeptiker ({abschlag_text}): {_esc(skeptic)}</div>",
+                    f"<div class='small-note'>Skeptic ({abschlag_text}): {_esc(skeptic)}</div>",
                     unsafe_allow_html=True,
                 )
             else:
                 st.markdown(
-                    f"<div class='small-note'>Skeptiker: {abschlag_text}</div>",
+                    f"<div class='small-note'>Skeptic: {abschlag_text}</div>",
                     unsafe_allow_html=True,
                 )
             st.markdown(
-                f"<div class='field-hint'>Fall {_esc(card.get('id', '-'))} · Zeitfenster "
-                f"{_esc(card.get('zeitfenster') or 'unbekannt')} · erfasst "
+                f"<div class='field-hint'>Case {_esc(card.get('id', '-'))} · time window "
+                f"{_esc(card.get('zeitfenster') or 'unknown')} · recorded "
                 f"{_esc(card.get('ts') or '-')}</div>",
                 unsafe_allow_html=True,
             )
@@ -12410,8 +12417,8 @@ def page_review_queue() -> None:
 
 def page_kategorie_effizienz() -> None:
     section_header(
-        "Kategorie-Effizienz",
-        "Prognosequalitaet (Brier T-7) gegen Einpreisungs-Geschwindigkeit je Marktkategorie.",
+        "Category Efficiency",
+        "Forecast quality (Brier T-7) versus pricing-in speed per market category.",
         kicker="Daily research artifacts",
     )
     karte = load_publish_payload_cached("kategorie_karte.json")
@@ -12422,7 +12429,7 @@ def page_kategorie_effizienz() -> None:
         return
     kategorien = karte.get("kategorien", [])
     if kategorien:
-        st.markdown("#### Kennzahlen je Kategorie")
+        st.markdown("#### Key figures per category")
         frame = pd.DataFrame(kategorien)
         st.dataframe(clean_table(frame, [
             "kategorie", "brier_t7", "trefferquote_t7", "brier_t1",
@@ -12442,18 +12449,18 @@ def page_kategorie_effizienz() -> None:
                 marker={"size": 12, "color": CHART_SERIES_GREEN, "line": {"width": 2, "color": BG}},
                 customdata=[[p["hinweis"], p["n_maerkte"]] for p in points],
                 hovertemplate=(
-                    "%{text}<br>Brier T-7: %{x:.3f}<br>Konvergenz: %{y:.1f} Min"
-                    "<br>N Maerkte: %{customdata[1]}<br>%{customdata[0]}<extra></extra>"
+                    "%{text}<br>Brier T-7: %{x:.3f}<br>Convergence: %{y:.1f} min"
+                    "<br>N markets: %{customdata[1]}<br>%{customdata[0]}<extra></extra>"
                 ),
             )
         )
-        fig.update_xaxes(title_text="Brier-Score T-7 (niedriger = besser)", gridcolor=BORDER)
+        fig.update_xaxes(title_text="Brier score T-7 (lower = better)", gridcolor=BORDER)
         fig.update_yaxes(
             type="log",
             range=[math.log10(0.8), math.log10(560)],
             tickvals=[t[0] for t in av.LOG_TICKS],
             ticktext=[t[1] for t in av.LOG_TICKS],
-            title_text="Minuten bis Konvergenz (log, 1 Min bis 8 Std)",
+            title_text="Minutes to convergence (log, 1 min to 8 h)",
             gridcolor=BORDER,
         )
         fig.update_layout(
@@ -12465,21 +12472,21 @@ def page_kategorie_effizienz() -> None:
         )
         st.plotly_chart(fig, width="stretch", key="kat_eff_chart")
         st.caption(
-            "* Obergrenze: Konvergenzzeit enthaelt die Spiel- bzw. Zeremoniedauer "
-            "(Sport, Popkultur) -- die echte Einpreisung ist schneller. Werte unter "
-            "1 Minute (vor dem Ereignis eingepreist) werden auf 1 Minute geflort."
+            "* Upper bound: the convergence time includes the game or ceremony "
+            "duration (sport, pop culture) -- true pricing-in is faster. Values below "
+            "1 minute (priced in before the event) are floored to 1 minute."
         )
     beispiele = karte.get("beispiele", [])
     if beispiele:
-        st.markdown("#### Speed-Beispiele")
+        st.markdown("#### Speed examples (curated, German source notes)")
         st.dataframe(pd.DataFrame(beispiele), width="stretch", hide_index=True)
     render_analysis_footer()
 
 
 def page_mentions_latenz() -> None:
     section_header(
-        "Mentions-Latenz",
-        "Reaktions- und Konvergenzzeit der Mentions-Maerkte nach dem Content-Drop.",
+        "Mentions Latency",
+        "Reaction and convergence time of mentions markets after the content drop.",
         kicker="Daily research artifacts",
     )
     payload = load_publish_payload_cached("mentions_latenz.json")
@@ -12496,20 +12503,20 @@ def page_mentions_latenz() -> None:
             go.Bar(
                 y=events,
                 x=[r["reaktion_min"] for r in rows],
-                name="Erste Reaktion",
+                name="First reaction",
                 orientation="h",
                 marker_color=CHART_SERIES_BLUE,
-                hovertemplate="%{y}<br>Erste Reaktion: %{x:.1f} Min<extra></extra>",
+                hovertemplate="%{y}<br>First reaction: %{x:.1f} min<extra></extra>",
             )
         )
         fig.add_trace(
             go.Bar(
                 y=events,
                 x=[r["konvergenz_min"] for r in rows],
-                name="Konvergenz",
+                name="Convergence",
                 orientation="h",
                 marker_color=CHART_SERIES_GREEN,
-                hovertemplate="%{y}<br>Konvergenz: %{x:.1f} Min<extra></extra>",
+                hovertemplate="%{y}<br>Convergence: %{x:.1f} min<extra></extra>",
             )
         )
         fig.update_layout(
@@ -12523,29 +12530,29 @@ def page_mentions_latenz() -> None:
             legend={"orientation": "h", "y": 1.08},
             margin={"l": 10, "r": 10, "t": 20, "b": 10},
         )
-        fig.update_xaxes(title_text="Minuten nach Drop", gridcolor=BORDER)
+        fig.update_xaxes(title_text="Minutes after drop", gridcolor=BORDER)
         fig.update_yaxes(autorange="reversed")
         st.plotly_chart(fig, width="stretch", key="mentions_chart")
-        st.caption("Sortiert nach handelbarem Fenster (laengstes zuerst).")
+        st.caption("Sorted by tradeable window (longest first).")
     else:
-        st.info("Keine auswertbaren ok-Faelle vorhanden.")
+        st.info("No evaluable ok cases available.")
     ausschluesse = payload.get("ausschluesse", [])
     if ausschluesse:
-        st.markdown("#### Ausgeschlossene Faelle")
+        st.markdown("#### Excluded cases")
         for item in ausschluesse:
             st.markdown(
                 f"<div class='small-note'><span class='mono'>{_esc(item.get('event', '-'))}</span> · "
-                f"Status <span class='mono'>{_esc(item.get('status', '-'))}</span></div>",
+                f"status <span class='mono'>{_esc(item.get('status', '-'))}</span></div>",
                 unsafe_allow_html=True,
             )
     runs_payload = load_publish_payload_cached("runs.json")
     latenz_rows = av.run_latenz_rows(runs_payload or {})
     if latenz_rows:
-        st.markdown("#### Eigene Live-Runs: Reaktion in Sekunden")
+        st.markdown("#### Our live runs: reaction in seconds")
         st.caption(
-            "Zum Vergleich mit den Markt-Konvergenzzeiten oben (Minuten bis Stunden): "
-            "die eigene Pipeline hoert die Episode mit und reagiert Sekunden nach der "
-            "Drop-Erkennung. Details und Wetten auf der Seite Live-Runs."
+            "For comparison with the market convergence times above (minutes to hours): "
+            "our pipeline listens to the episode and reacts seconds after detecting "
+            "the drop. Details and bets on the Live Runs page."
         )
         fig = go.Figure()
         profile = [r["profil"] for r in latenz_rows]
@@ -12553,20 +12560,28 @@ def page_mentions_latenz() -> None:
             go.Bar(
                 y=profile,
                 x=[r["erste_entscheidung_s"] for r in latenz_rows],
-                name="1. Entscheidung",
+                name="First decision",
                 orientation="h",
                 marker_color=CHART_SERIES_BLUE,
-                hovertemplate="%{y}<br>1. Entscheidung: %{x:.0f} s nach Erkennung<extra></extra>",
+                text=[None if r["erste_entscheidung_s"] is None else f"{r['erste_entscheidung_s']:.0f} s" for r in latenz_rows],
+                textposition="outside",
+                textfont={"color": "#c8d0d9", "size": 12},
+                cliponaxis=False,
+                hovertemplate="%{y}<br>First decision: %{x:.0f} s after detection<extra></extra>",
             )
         )
         fig.add_trace(
             go.Bar(
                 y=profile,
                 x=[r["erster_fill_s"] for r in latenz_rows],
-                name="1. Fill",
+                name="First fill",
                 orientation="h",
                 marker_color=CHART_SERIES_GREEN,
-                hovertemplate="%{y}<br>1. Fill: %{x:.0f} s nach Erkennung<extra></extra>",
+                text=[None if r["erster_fill_s"] is None else f"{r['erster_fill_s']:.0f} s" for r in latenz_rows],
+                textposition="outside",
+                textfont={"color": "#c8d0d9", "size": 12},
+                cliponaxis=False,
+                hovertemplate="%{y}<br>First fill: %{x:.0f} s after detection<extra></extra>",
             )
         )
         fig.update_layout(
@@ -12578,7 +12593,7 @@ def page_mentions_latenz() -> None:
             legend={"orientation": "h", "y": 1.12},
             margin={"l": 10, "r": 10, "t": 20, "b": 10},
         )
-        fig.update_xaxes(title_text="Sekunden nach Drop-Erkennung", gridcolor=BORDER)
+        fig.update_xaxes(title_text="Seconds after drop detection", gridcolor=BORDER)
         fig.update_yaxes(autorange="reversed")
         st.plotly_chart(fig, width="stretch", key="mentions_runs_chart")
         zeilen = []
@@ -12586,9 +12601,9 @@ def page_mentions_latenz() -> None:
             quelle = RUN_QUELLE_LABELS.get(row["quelle"], row["quelle"] or "?")
             zeilen.append(
                 f"<div class='small-note'><span class='mono'>{_esc(row['profil'])}</span> · "
-                f"Quelle {_esc(quelle)} · Publish &rarr; erkannt "
+                f"source {_esc(quelle)} · publish &rarr; detected "
                 f"<span class='mono'>{_esc(av.format_sekunden(row['erkennungslatenz_s']))}</span> · "
-                f"Wetten: <span class='mono'>{int(row['n_wetten'])}</span></div>"
+                f"bets: <span class='mono'>{int(row['n_wetten'])}</span></div>"
             )
         st.markdown("".join(zeilen), unsafe_allow_html=True)
     render_analysis_footer()
@@ -12596,8 +12611,8 @@ def page_mentions_latenz() -> None:
 
 def page_pipeline_forward() -> None:
     section_header(
-        "Pipeline-Forward-Test",
-        "Beobachtender Paper-Lauf der Entscheidungs-Pipeline -- keine Orders, keine Renditeaussage.",
+        "Pipeline Forward Test",
+        "Observing paper run of the decision pipeline -- no orders, no return claims.",
         kicker="Daily research artifacts",
     )
     payload = load_publish_payload_cached("pipeline_forward.json")
@@ -12606,23 +12621,23 @@ def page_pipeline_forward() -> None:
         render_publish_missing("pipeline_forward.json")
         render_analysis_footer()
         return
-    kennzeichnung = str(payload.get("kennzeichnung", "beobachtet/paper"))
+    kennzeichnung = str(payload.get("kennzeichnung", "observed/paper"))
     st.markdown(
         _analysis_badge(kennzeichnung.upper(), AMBER),
         unsafe_allow_html=True,
     )
     endstaende = payload.get("wortzaehler_endstaende", {}) or {}
     if endstaende:
-        st.markdown("#### Wortzaehler-Endstaende")
+        st.markdown("#### Word-counter final counts")
         cols = st.columns(min(4, len(endstaende)))
         for i, (slug, count) in enumerate(sorted(endstaende.items())):
             cols[i % len(cols)].metric(slug, f"{count}")
     rows = av.pipeline_timeline(payload)
     if rows:
         counts = av.pipeline_action_counts(payload)
-        st.markdown("#### Entscheidungen")
+        st.markdown("#### Decisions")
         count_cols = st.columns(max(1, min(4, len(counts) + 1)))
-        count_cols[0].metric("Gesamt", f"{len(rows)}")
+        count_cols[0].metric("Total", f"{len(rows)}")
         for i, (action, n) in enumerate(sorted(counts.items(), key=lambda kv: -kv[1])):
             count_cols[(i + 1) % len(count_cols)].metric(action, f"{n}")
         frame = pd.DataFrame(rows)
@@ -12631,22 +12646,22 @@ def page_pipeline_forward() -> None:
             width="stretch",
             hide_index=True,
             column_config={
-                "action": st.column_config.TextColumn("Aktion"),
-                "reason": st.column_config.TextColumn("Grund"),
+                "action": st.column_config.TextColumn("Action"),
+                "reason": st.column_config.TextColumn("Reason"),
                 "limit_price": st.column_config.NumberColumn("Limit", format="%.2f"),
-                "bestes_angebot": st.column_config.NumberColumn("Bestes Angebot", format="%.2f"),
-                "bestes_gebot": st.column_config.NumberColumn("Bestes Gebot", format="%.2f"),
-                "size_usd": st.column_config.NumberColumn("Groesse $", format="%.2f"),
+                "bestes_angebot": st.column_config.NumberColumn("Best ask", format="%.2f"),
+                "bestes_gebot": st.column_config.NumberColumn("Best bid", format="%.2f"),
+                "size_usd": st.column_config.NumberColumn("Size $", format="%.2f"),
             },
         )
     else:
         st.markdown(
             """
             <div class='empty-hero'>
-                <div class='empty-hero-title'>Noch keine Forward-Eintraege publiziert</div>
-                <div class='empty-hero-sub'>Der Paper-Lauf schreibt sein Entscheidungs-Log auf der
-                Analyse-Maschine. Sobald der taegliche Lauf dort publiziert, erscheint hier die
-                Entscheidungsliste (Aktion, Grund, Limit, Groesse, Buch-Bestpreise).</div>
+                <div class='empty-hero-title'>No forward entries published yet</div>
+                <div class='empty-hero-sub'>The paper run writes its decision log on the
+                analysis machine. Once the daily run publishes there, the decision list
+                appears here (action, reason, limit, size, best book prices).</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -12658,7 +12673,15 @@ RUN_QUELLE_LABELS = {"libsyn_rss": "RSS", "youtube": "YouTube"}
 RUN_STATUS_COLORS = {"win": ACCENT, "loss": RED, "open": AMBER}
 RUN_LATENZ_TICKS = (
     (30, "30 s"), (60, "1 min"), (120, "2 min"), (300, "5 min"),
-    (900, "15 min"), (3600, "1 Std"), (7200, "2 Std"),
+    (900, "15 min"), (3600, "1 h"), (7200, "2 h"),
+)
+#: Feste Kategorie-Farben des Entscheidungs-Stacks (dataviz-validiert,
+#: Reihenfolge = Adjazenz im Stack; "no edge" ist bewusst entsaettigt).
+RUN_DECISION_STACK = (
+    ("bet", "Bet placed", CHART_SERIES_GREEN),
+    ("missed", "Missed (budget)", "#D95926"),
+    ("priced", "Already priced in", CHART_SERIES_BLUE),
+    ("other", "No edge / other", "rgba(255,255,255,0.22)"),
 )
 
 
@@ -12670,6 +12693,18 @@ def _run_usd(value: Any) -> str:
     return f"{sign}${abs(amount):,.2f}"
 
 
+def _run_decision_split(run: dict) -> dict[str, int]:
+    """Entscheidungen eines Runs in die vier Stack-Kategorien zerlegen."""
+
+    zaehler = run.get("zaehler") or {}
+    bet = len(run.get("wetten", []) or [])
+    missed = int(zaehler.get("skipped_budget", 0) or 0)
+    priced = int(run.get("eingepreist", 0) or 0)
+    total = int(run.get("n_entscheidungen", 0) or 0)
+    other = max(0, total - bet - missed - priced)
+    return {"bet": bet, "missed": missed, "priced": priced, "other": other}
+
+
 def _run_wette_html(row: dict) -> str:
     """Eine Wetten-Zeile als gestylte Karte (alle Strings escaped)."""
 
@@ -12677,16 +12712,22 @@ def _run_wette_html(row: dict) -> str:
     ask = "--" if row["entscheidungs_preis"] is None else f"{row['entscheidungs_preis']:.2f}"
     fill = "--" if row["avg_fill_preis"] is None else f"{row['avg_fill_preis']:.2f}"
     preis_teil = (
-        f"Ask bei Entscheidung <span class='mono'>{ask}</span>"
-        f" &rarr; &Oslash; Fill <span class='mono'>{fill}</span>"
+        f"Ask at decision <span class='mono'>{ask}</span>"
+        f" &rarr; avg fill <span class='mono'>{fill}</span>"
     )
     if row["sweep_clips"] > 1:
-        preis_teil += f" · {row['sweep_clips']} Clips"
-    if row["status_klasse"] == "open" and row["aktueller_yes_preis"] is not None:
-        ergebnis = (
-            f"<span style='color:{AMBER}'>unaufgeloest · aktueller YES-Preis "
-            f"<span class='mono'>{row['aktueller_yes_preis']:.2f}</span></span>"
-        )
+        preis_teil += f" · {row['sweep_clips']} clips"
+    if row["status_klasse"] == "open":
+        akt = row.get("aktueller_yes_preis")
+        if akt is not None:
+            mtm = float(akt) * float(row.get("shares") or 0.0)
+            ergebnis = (
+                f"<span style='color:{AMBER}'>unresolved · YES now "
+                f"<span class='mono'>{float(akt):.2f}</span> · marked "
+                f"<span class='mono'>{_esc(_run_usd(mtm))}</span></span>"
+            )
+        else:
+            ergebnis = f"<span style='color:{AMBER}'>unresolved</span>"
     elif row["pnl_usd"] is not None:
         pnl_color = ACCENT if row["pnl_usd"] >= 0 else RED
         roi = f" ({row['roi_pct']:+.1f}%)" if row["roi_pct"] is not None else ""
@@ -12695,7 +12736,7 @@ def _run_wette_html(row: dict) -> str:
             f"<span style='color:{pnl_color}' class='mono'>{_esc(_run_usd(row['pnl_usd']))}{_esc(roi)}</span>"
         )
     else:
-        ergebnis = "Ergebnis offen"
+        ergebnis = "Result pending"
     return (
         f"<div style='display:flex; flex-wrap:wrap; gap:0.6rem; align-items:center; "
         f"justify-content:space-between; padding:0.55rem 0.75rem; margin:0.3rem 0; "
@@ -12707,7 +12748,7 @@ def _run_wette_html(row: dict) -> str:
         f"{_esc(row['frage'])}</div>"
         f"<div style='flex:1.4; color:#c8d0d9; font-size:0.85rem'>{preis_teil}</div>"
         f"<div style='flex:1.2; text-align:right; font-size:0.9rem'>"
-        f"Einsatz <span class='mono'>{_esc(_run_usd(row['einsatz_usd']))}</span><br>{ergebnis}</div>"
+        f"Stake <span class='mono'>{_esc(_run_usd(row['einsatz_usd']))}</span><br>{ergebnis}</div>"
         f"</div>"
     )
 
@@ -12715,28 +12756,62 @@ def _run_wette_html(row: dict) -> str:
 def _run_timing_chips(run: dict) -> str:
     chips: list[str] = []
     quelle = RUN_QUELLE_LABELS.get(str(run.get("drop_quelle", "")), str(run.get("drop_quelle", "") or "?"))
-    chips.append(f"Drop-Quelle: {quelle}")
+    chips.append(f"Drop source: {quelle}")
     if run.get("erkennungslatenz_s") is not None:
-        chips.append(f"Publish &rarr; erkannt: {av.format_sekunden(run['erkennungslatenz_s'])}")
+        chips.append(f"Publish &rarr; detected: {av.format_sekunden(run['erkennungslatenz_s'])}")
     if run.get("erste_entscheidung_s") is not None:
-        chips.append(f"Erkannt &rarr; 1. Entscheidung: {av.format_sekunden(run['erste_entscheidung_s'])}")
+        chips.append(f"Detected &rarr; first decision: {av.format_sekunden(run['erste_entscheidung_s'])}")
     if run.get("erster_fill_s") is not None:
-        chips.append(f"Erkannt &rarr; 1. Fill: {av.format_sekunden(run['erster_fill_s'])}")
-    chips.append(f"{int(run.get('n_maerkte', 0) or 0)} Maerkte")
-    chips.append(f"{int(run.get('n_entscheidungen', 0) or 0)} Entscheidungen")
-    if run.get("eingepreist"):
-        chips.append(f"{int(run['eingepreist'])} bereits eingepreist")
-    skips = int((run.get("zaehler") or {}).get("skipped_budget", 0) or 0)
-    if skips:
-        chips.append(f"{skips} Budget-Skips")
+        chips.append(f"Detected &rarr; first fill: {av.format_sekunden(run['erster_fill_s'])}")
+    chips.append(f"{int(run.get('n_maerkte', 0) or 0)} markets")
+    chips.append(f"{int(run.get('n_entscheidungen', 0) or 0)} decisions")
     inner = "".join(f"<span class='filter-chip'>{chip}</span>" for chip in chips)
     return f"<div class='filter-strip'>{inner}</div>"
 
 
+def _run_decision_stack_chart(latenz_rows: list[dict], runs: list[dict]) -> "go.Figure":
+    """Gestapelter Entscheidungs-Mix je Run (feste Kategorie-Farben)."""
+
+    by_profil = {str(r.get("profil", "")): r for r in runs}
+    profile = [row["profil"] for row in latenz_rows]
+    splits = [_run_decision_split(by_profil.get(name, {})) for name in profile]
+    fig = go.Figure()
+    for key, label, color in RUN_DECISION_STACK:
+        werte = [split[key] for split in splits]
+        fig.add_trace(
+            go.Bar(
+                y=profile,
+                x=werte,
+                name=label,
+                orientation="h",
+                marker={"color": color, "line": {"color": PANEL, "width": 2}},
+                text=[str(v) if v else "" for v in werte],
+                textposition="inside",
+                insidetextanchor="middle",
+                textfont={"color": "#ffffff", "size": 12},
+                hovertemplate="%{y}<br>" + label + ": %{x}<extra></extra>",
+            )
+        )
+    fig.update_layout(
+        barmode="stack",
+        height=max(200, 58 * len(profile) + 60),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font={"family": FONT_SANS, "color": "#ffffff"},
+        # Plotly kehrt die Legende bei barmode=stack um -- Reihenfolge soll
+        # der Stack-Richtung (links nach rechts) entsprechen.
+        legend={"orientation": "h", "y": 1.18, "traceorder": "normal"},
+        margin={"l": 10, "r": 10, "t": 10, "b": 10},
+    )
+    fig.update_xaxes(title_text="Decisions per run", gridcolor=BORDER)
+    fig.update_yaxes(autorange="reversed")
+    return fig
+
+
 def page_live_runs() -> None:
     section_header(
-        "Live-Runs",
-        "Wetten, Reaktionszeiten und realisierte Ergebnisse der eigenen Bot-Runs auf Mentions-Maerkte.",
+        "Live Runs",
+        "Bets, reaction times, and realized results of our own bot runs on mentions markets.",
         kicker="Daily research artifacts",
     )
     payload = load_publish_payload_cached("runs.json")
@@ -12745,102 +12820,139 @@ def page_live_runs() -> None:
         render_publish_missing("runs.json")
         render_analysis_footer()
         return
-    kennzeichnung = str(payload.get("kennzeichnung", "live/deskriptiv"))
+    kennzeichnung = str(payload.get("kennzeichnung", "live/descriptive"))
     st.markdown(_analysis_badge(kennzeichnung.upper(), ACCENT), unsafe_allow_html=True)
 
     kpis = av.run_kpis(payload)
     k1, k2, k3, k4, k5 = st.columns(5)
-    k1.metric("Runs", f"{kpis['n_runs']}", help="Ausgewertete Live-Runs (ein Run = eine Episode/Event).")
-    bilanz = f"{kpis['gewonnen']}W · {kpis['verloren']}L · {kpis['offen']} offen"
-    k2.metric("Wetten", f"{kpis['n_wetten']}", bilanz, delta_color="off",
-              help="Platzierte Wetten ueber alle Runs, mit Bilanz.")
-    k3.metric("Einsatz gesamt", _run_usd(kpis["einsatz_usd"]),
-              help="Summe aller Fill-Einsaetze (inkl. noch offener Positionen).")
+    k1.metric("Runs", f"{kpis['n_runs']}", help="Evaluated live runs (one run = one episode/event).")
+    bilanz = f"{kpis['gewonnen']}W · {kpis['verloren']}L · {kpis['offen']} open"
+    k2.metric("Bets", f"{kpis['n_wetten']}", bilanz, delta_color="off",
+              help="Placed bets across all runs, with the win/loss record.")
+    k3.metric("Total stake", _run_usd(kpis["einsatz_usd"]),
+              help="Sum of all fill stakes (including still-open positions).")
     roi = kpis["roi_realisiert_pct"]
     k4.metric(
-        "Realisierter PnL",
+        "Realized PnL",
         _run_usd(kpis["realisierter_pnl_usd"]),
         f"{roi:+.1f}% ROI" if roi is not None else None,
-        help="Nur aufgeloeste Wetten; ROI bezogen auf den aufgeloesten Einsatz.",
+        help="Resolved bets only; ROI relative to the resolved stake.",
     )
-    k5.metric("Offener Einsatz", _run_usd(kpis["offener_einsatz_usd"]),
-              help="Einsatz in noch nicht aufgeloesten Maerkten.")
+    k5.metric("Open stake", _run_usd(kpis["offener_einsatz_usd"]),
+              help="Stake in markets that have not resolved yet.")
 
     latenz_rows = av.run_latenz_rows(payload)
+    runs_list = list(payload.get("runs", []))
     if latenz_rows:
-        st.markdown("#### Reaktionszeiten je Run")
+        st.markdown("#### Reaction times per run")
         c1, c2 = st.columns(2)
         profile = [r["profil"] for r in latenz_rows]
         with c1:
+            st.markdown(
+                "<div class='small-note'>Source publish &rarr; drop detected "
+                "(RSS entries can appear well after the nominal pubDate)</div>",
+                unsafe_allow_html=True,
+            )
             fig = go.Figure(
                 go.Bar(
                     y=profile,
                     x=[r["erkennungslatenz_s"] for r in latenz_rows],
                     orientation="h",
                     marker_color=CHART_SERIES_BLUE,
-                    hovertemplate="%{y}<br>Publish bis erkannt: %{x:.0f} s<extra></extra>",
+                    text=[av.format_sekunden(r["erkennungslatenz_s"]) for r in latenz_rows],
+                    textposition="outside",
+                    textfont={"color": "#c8d0d9", "size": 12},
+                    cliponaxis=False,
+                    hovertemplate="%{y}<br>Publish to detected: %{x:.0f} s<extra></extra>",
                 )
             )
             fig.update_xaxes(
                 type="log",
                 tickvals=[t[0] for t in RUN_LATENZ_TICKS],
                 ticktext=[t[1] for t in RUN_LATENZ_TICKS],
-                title_text="Publish-Zeitstempel bis Drop erkannt (log)",
+                title_text="Seconds after source publish (log)",
                 gridcolor=BORDER,
             )
             fig.update_yaxes(autorange="reversed")
             fig.update_layout(
                 height=240, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                 font={"family": FONT_SANS, "color": "#ffffff"},
-                margin={"l": 10, "r": 10, "t": 10, "b": 10}, showlegend=False,
+                margin={"l": 10, "r": 46, "t": 10, "b": 10}, showlegend=False,
             )
             st.plotly_chart(fig, width="stretch", key="runs_erkennung_chart")
         with c2:
+            st.markdown(
+                "<div class='small-note'>After detection: first decision and "
+                "first fill, in seconds</div>",
+                unsafe_allow_html=True,
+            )
             fig = go.Figure()
             fig.add_trace(
                 go.Bar(
                     y=profile,
                     x=[r["erste_entscheidung_s"] for r in latenz_rows],
-                    name="1. Entscheidung",
+                    name="First decision",
                     orientation="h",
                     marker_color=CHART_SERIES_BLUE,
-                    hovertemplate="%{y}<br>1. Entscheidung: %{x:.0f} s nach Erkennung<extra></extra>",
+                    text=[None if r["erste_entscheidung_s"] is None else f"{r['erste_entscheidung_s']:.0f} s" for r in latenz_rows],
+                    textposition="outside",
+                    textfont={"color": "#c8d0d9", "size": 12},
+                    cliponaxis=False,
+                    hovertemplate="%{y}<br>First decision: %{x:.0f} s after detection<extra></extra>",
                 )
             )
             fig.add_trace(
                 go.Bar(
                     y=profile,
                     x=[r["erster_fill_s"] for r in latenz_rows],
-                    name="1. Fill",
+                    name="First fill",
                     orientation="h",
                     marker_color=CHART_SERIES_GREEN,
-                    hovertemplate="%{y}<br>1. Fill: %{x:.0f} s nach Erkennung<extra></extra>",
+                    text=[None if r["erster_fill_s"] is None else f"{r['erster_fill_s']:.0f} s" for r in latenz_rows],
+                    textposition="outside",
+                    textfont={"color": "#c8d0d9", "size": 12},
+                    cliponaxis=False,
+                    hovertemplate="%{y}<br>First fill: %{x:.0f} s after detection<extra></extra>",
                 )
             )
-            fig.update_xaxes(title_text="Sekunden nach Drop-Erkennung", gridcolor=BORDER)
+            fig.update_xaxes(title_text="Seconds after drop detection", gridcolor=BORDER)
             fig.update_yaxes(autorange="reversed")
             fig.update_layout(
                 barmode="group", height=240,
                 paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                 font={"family": FONT_SANS, "color": "#ffffff"},
-                legend={"orientation": "h", "y": 1.15},
-                margin={"l": 10, "r": 10, "t": 10, "b": 10},
+                legend={"orientation": "h", "y": 1.18},
+                margin={"l": 10, "r": 46, "t": 10, "b": 10},
             )
             st.plotly_chart(fig, width="stretch", key="runs_reaktion_chart")
+
+        st.markdown("#### What the bot did with its decisions")
+        st.plotly_chart(
+            _run_decision_stack_chart(latenz_rows, runs_list),
+            width="stretch",
+            key="runs_decision_stack",
+        )
         st.caption(
-            "Links: Zeit vom Publish-Zeitstempel der Quelle bis zur Drop-Erkennung "
-            "(RSS-Eintraege erscheinen teils deutlich nach dem nominellen pubDate). "
-            "Rechts: Zeit von der Erkennung bis zur ersten Entscheidung bzw. zum ersten Fill."
+            "Each decision falls into one bucket: a placed bet, a missed chance "
+            "(word counter hit but the budget pool was empty), a market already "
+            "priced beyond the ask cap, or no tradeable edge (e.g. NO rule not met)."
         )
 
     st.markdown("#### Runs")
-    for run in reversed(list(payload.get("runs", []))):
+    for run in reversed(runs_list):
         with st.container(border=True):
             kopf = _analysis_badge(str(run.get("profil", "?")), BLUE)
             kopf += _analysis_badge(str(run.get("modus", "") or "?"), ACCENT)
             st.markdown(kopf, unsafe_allow_html=True)
-            titel = str(run.get("episode_titel", "") or "Episode unbekannt")
-            st.markdown(f"**{_esc(titel)}**")
+            titel = str(run.get("episode_titel", "") or "Episode unknown")
+            slug = str(run.get("event_slug", "") or "")
+            link = ""
+            if slug:
+                link = (
+                    f" <a href='https://polymarket.com/event/{_esc(slug)}' target='_blank' "
+                    f"style='color:{MUTED}; font-size:0.8rem; text-decoration:none'>event &#8599;</a>"
+                )
+            st.markdown(f"**{_esc(titel)}**{link}", unsafe_allow_html=True)
             st.markdown(_run_timing_chips(run), unsafe_allow_html=True)
             wetten = av.run_wetten_rows(run)
             if wetten:
@@ -12848,43 +12960,43 @@ def page_live_runs() -> None:
                     st.markdown(_run_wette_html(row), unsafe_allow_html=True)
             else:
                 st.markdown(
-                    "<div class='small-note'>Keine Wette platziert -- alle pruefbaren "
-                    "Maerkte waren beim Drop bereits ueber dem Preis-Deckel eingepreist. "
-                    "Disziplin statt Einstieg ohne Edge.</div>",
+                    "<div class='small-note'>No bet placed -- every checkable market "
+                    "was already priced beyond the ask cap at drop time. Discipline "
+                    "over entry without edge.</div>",
                     unsafe_allow_html=True,
                 )
             pnl = run.get("realisierter_pnl_usd")
-            zeile = f"Einsatz {_run_usd(run.get('einsatz_usd'))}"
+            zeile = f"Stake {_run_usd(run.get('einsatz_usd'))}"
             if pnl is not None:
                 farbe = ACCENT if float(pnl) >= 0 else RED
-                zeile += f" · realisiert <span style='color:{farbe}' class='mono'>{_esc(_run_usd(pnl))}</span>"
+                zeile += f" · realized <span style='color:{farbe}' class='mono'>{_esc(_run_usd(pnl))}</span>"
             st.markdown(f"<div class='field-hint'>{zeile}</div>", unsafe_allow_html=True)
             verpasst = av.run_verpasste_rows(run)
             if verpasst:
-                with st.expander(f"Verpasste Chancen ({len(verpasst)}) -- Budget war erschoepft"):
+                with st.expander(f"Missed chances ({len(verpasst)}) -- budget was exhausted"):
                     st.dataframe(
                         pd.DataFrame(verpasst),
                         width="stretch",
                         hide_index=True,
                         column_config={
-                            "frage": st.column_config.TextColumn("Markt"),
-                            "seite": st.column_config.TextColumn("Seite"),
+                            "frage": st.column_config.TextColumn("Market"),
+                            "seite": st.column_config.TextColumn("Side"),
                             "limit_preis": st.column_config.NumberColumn("Limit", format="%.2f"),
-                            "grund": st.column_config.TextColumn("Grund"),
+                            "grund": st.column_config.TextColumn("Reason"),
                         },
                     )
                     st.caption(
-                        "Vom Zaehler erkannte, preislich noch offene Maerkte, die wegen "
-                        "des Gesamtbudgets nicht mehr gekauft wurden -- Hinweis fuer die "
-                        "Pool- und Sizing-Planung kuenftiger Runs."
+                        "Markets the word counter had already confirmed and that were "
+                        "still priced below the cap, but the total budget pool was "
+                        "spent -- input for pool and sizing decisions on future runs."
                     )
     render_analysis_footer()
 
 
 def page_methodik() -> None:
     section_header(
-        "Methodik und Guardrails",
-        "Wie der taegliche Lauf arbeitet, was er nie behauptet, und der Audit-Nachweis.",
+        "Methodology & Guardrails",
+        "How the daily run works, what it never claims, and the audit trail.",
         kicker="Daily research artifacts",
     )
     meta = load_publish_payload_cached("meta.json")
@@ -12894,45 +13006,45 @@ def page_methodik() -> None:
         render_publish_missing("meta.json")
         render_analysis_footer()
         return
-    st.markdown("#### Grundsaetze")
+    st.markdown("#### Principles")
     disclaimer = meta.get("disclaimer") or []
     if isinstance(disclaimer, dict):  # aeltere Publish-Version
         disclaimer = list(disclaimer.values())
     for text in disclaimer:
         with st.container(border=True):
             st.caption(str(text))
-    st.markdown("#### Guardrails des Agenten-Laufs")
+    st.markdown("#### Guardrails of the agent run")
     st.markdown(
-        "- Agenten lesen ausschliesslich ueber die MCP-Lesescheibe: vier Read-only-Tools, "
-        "maximal 50 Zeilen pro Antwort, Wallet-Adressen maskiert.\n"
-        "- Der Skeptiker kann die Prioritaet eines Falls nur SENKEN (Abschlag -0.3 bis 0), nie anheben.\n"
-        "- Empfehlungen kommen aus einer festen Whitelist: watch (beobachten), check_source (Quelle pruefen), escalate_human (an Mensch eskalieren).\n"
-        "- Redaktions-Gate vor jedem Publish: Wallet-Adressmuster oder Key-artige Strings brechen den Lauf ab.\n"
-        "- Default-Backend ist ein deterministischer Mock ohne Netzzugriff; produktiver LLM-Betrieb ist ein explizites Flag."
+        "- Agents read exclusively through the MCP read layer: four read-only tools, "
+        "at most 50 rows per response, wallet addresses masked.\n"
+        "- The skeptic can only LOWER a case's priority (deduction -0.3 to 0), never raise it.\n"
+        "- Recommendations come from a fixed whitelist: watch, check_source, escalate_human.\n"
+        "- Redaction gate before every publish: wallet-address patterns or key-like strings abort the run.\n"
+        "- The default backend is a deterministic mock with no network access; productive LLM mode is an explicit flag."
     )
     schritte = meta.get("schritte", {}) or {}
     if schritte:
-        st.markdown("#### Letzter Lauf")
+        st.markdown("#### Latest run")
         st.dataframe(
-            pd.DataFrame([{"schritt": k, "status": v} for k, v in schritte.items()]),
+            pd.DataFrame([{"step": k, "status": v} for k, v in schritte.items()]),
             width="stretch",
             hide_index=True,
         )
     if audit:
-        st.markdown("#### Audit (nur Hashes und Zaehler)")
+        st.markdown("#### Audit (hashes and counters only)")
         a1, a2, a3 = st.columns(3)
-        a1.metric("Audit-Eintraege", f"{audit.get('n_eintraege', 0)}")
+        a1.metric("Audit entries", f"{audit.get('n_eintraege', 0)}")
         rollen = audit.get("rollen_zaehler") or {}
         backends = audit.get("backend_zaehler") or {}
-        a2.metric("Agenten-Rollen", f"{len(rollen)}")
+        a2.metric("Agent roles", f"{len(rollen)}")
         a3.metric("Backends", f"{len(backends)}")
         if rollen:
-            st.caption("Rollen: " + " · ".join(f"{k}: {v}" for k, v in rollen.items()))
+            st.caption("Roles: " + " · ".join(f"{k}: {v}" for k, v in rollen.items()))
         if backends:
             st.caption("Backends: " + " · ".join(f"{k}: {v}" for k, v in backends.items()))
         hash_rows = av.audit_hash_rows(audit)
         if hash_rows:
-            with st.expander(f"Hash-Liste ({len(hash_rows)} Calls)"):
+            with st.expander(f"Hash list ({len(hash_rows)} calls)"):
                 st.dataframe(pd.DataFrame(hash_rows), width="stretch", hide_index=True)
     render_analysis_footer()
 
@@ -12954,12 +13066,12 @@ PAGES = {
     "Resolved": page_resolved,
     "Portfolio": page_portfolio,
     "Settings": page_settings,
-    "Review-Queue": page_review_queue,
-    "Kategorie-Effizienz": page_kategorie_effizienz,
-    "Mentions-Latenz": page_mentions_latenz,
-    "Live-Runs": page_live_runs,
-    "Pipeline-Forward": page_pipeline_forward,
-    "Methodik": page_methodik,
+    "Review Queue": page_review_queue,
+    "Category Efficiency": page_kategorie_effizienz,
+    "Mentions Latency": page_mentions_latenz,
+    "Live Runs": page_live_runs,
+    "Pipeline Forward": page_pipeline_forward,
+    "Methodology": page_methodik,
 }
 
 

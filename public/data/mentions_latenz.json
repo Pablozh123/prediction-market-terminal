@@ -1,6 +1,6 @@
 {
- "hinweis": "Reaktions- und Konvergenzzeiten der Mentions-Maerkte nach dem Content-Drop; Ausschluesse separat gelistet.",
- "stand_utc": "2026-07-09T20:24:54+00:00",
+ "hinweis": "Reaction and convergence times of mentions markets after the content drop; exclusions listed separately.",
+ "stand_utc": "2026-07-10T03:27:54+00:00",
  "faelle": [
   {
    "event": "melania_ai_talk",
