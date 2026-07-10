@@ -1,19 +1,19 @@
 {
- "hinweis": "Deskriptive Nachauswertung eigener Live-Runs des Mentions-Bots (Kleinbetraege). Read-only aus den Run-Logs rekonstruiert; Aufloesungen aus oeffentlichen Gamma-Daten. Keine Handelsempfehlung, keine Renditeprognose.",
- "stand_utc": "2026-07-10T02:36:15+00:00",
- "kennzeichnung": "live/deskriptiv",
+ "hinweis": "Descriptive post-run review of our own small-stake live runs of the mentions bot. Reconstructed read-only from the run logs; resolutions from public Gamma data. No trading recommendation, no return forecast.",
+ "stand_utc": "2026-07-10T03:29:00+00:00",
+ "kennzeichnung": "live/descriptive",
  "aggregat": {
   "n_runs": 3,
-  "n_wetten": 2,
+  "n_wetten": 6,
   "gewonnen": 1,
   "verloren": 0,
-  "offen": 1,
-  "einsatz_usd": 108.36,
+  "offen": 5,
+  "einsatz_usd": 227.83,
   "aufgeloester_einsatz_usd": 5.97,
   "realisierter_payout_usd": 7.02,
   "realisierter_pnl_usd": 1.05,
   "roi_realisiert_pct": 17.6,
-  "offener_einsatz_usd": 102.39
+  "offener_einsatz_usd": 221.86
  },
  "runs": [
   {
@@ -91,14 +91,14 @@
    "erste_entscheidung_s": 52.0,
    "erster_fill_s": 64.0,
    "n_maerkte": 19,
-   "n_entscheidungen": 22,
+   "n_entscheidungen": 44,
    "zaehler": {
-    "no_action": 7,
-    "live_fill": 1,
-    "skipped_budget": 14
+    "no_action": 14,
+    "live_fill": 5,
+    "skipped_budget": 25
    },
-   "eingepreist": 3,
-   "einsatz_usd": 102.39,
+   "eingepreist": 6,
+   "einsatz_usd": 221.86,
    "realisierter_pnl_usd": null,
    "wetten": [
     {
@@ -117,6 +117,74 @@
      "pnl_usd": null,
      "roi_pct": null,
      "aktueller_yes_preis": 0.67
+    },
+    {
+     "frage": "Will \"AI\" be said 35+ times during the next episode of the All-In Podcast?",
+     "seite": "YES",
+     "entscheidungs_preis": 0.87,
+     "avg_fill_preis": 0.9,
+     "shares": 27.31,
+     "einsatz_usd": 24.58,
+     "sweep_clips": 2,
+     "fill_status": "live_fill",
+     "fill_ts_utc": "2026-07-10T03:17:58Z",
+     "aufgeloest": false,
+     "gewonnen": null,
+     "payout_usd": null,
+     "pnl_usd": null,
+     "roi_pct": null,
+     "aktueller_yes_preis": 0.775
+    },
+    {
+     "frage": "Will \"SpaceX\" be said 3+ times during the next episode of the All-In Podcast?",
+     "seite": "YES",
+     "entscheidungs_preis": 0.59,
+     "avg_fill_preis": 0.9,
+     "shares": 76.27,
+     "einsatz_usd": 68.64,
+     "sweep_clips": 3,
+     "fill_status": "live_fill",
+     "fill_ts_utc": "2026-07-10T03:18:06Z",
+     "aufgeloest": false,
+     "gewonnen": null,
+     "payout_usd": null,
+     "pnl_usd": null,
+     "roi_pct": null,
+     "aktueller_yes_preis": 0.58
+    },
+    {
+     "frage": "Will \"IPO\" be said during the next episode of the All-In Podcast?",
+     "seite": "YES",
+     "entscheidungs_preis": 0.64,
+     "avg_fill_preis": 0.8998,
+     "shares": 23.26,
+     "einsatz_usd": 20.93,
+     "sweep_clips": 1,
+     "fill_status": "live_fill",
+     "fill_ts_utc": "2026-07-10T03:18:09Z",
+     "aufgeloest": false,
+     "gewonnen": null,
+     "payout_usd": null,
+     "pnl_usd": null,
+     "roi_pct": null,
+     "aktueller_yes_preis": 0.67
+    },
+    {
+     "frage": "Will \"Nvidia\" be said during the next episode of the All-In Podcast?",
+     "seite": "YES",
+     "entscheidungs_preis": 0.84,
+     "avg_fill_preis": 0.8986,
+     "shares": 5.92,
+     "einsatz_usd": 5.32,
+     "sweep_clips": 1,
+     "fill_status": "live_fill",
+     "fill_ts_utc": "2026-07-10T03:18:12Z",
+     "aufgeloest": false,
+     "gewonnen": null,
+     "payout_usd": null,
+     "pnl_usd": null,
+     "roi_pct": null,
+     "aktueller_yes_preis": 0.825
     }
    ],
    "verpasste_chancen": [
@@ -124,85 +192,151 @@
      "frage": "Will \"Nvidia\" be said during the next episode of the All-In Podcast?",
      "seite": "YES",
      "limit_preis": 0.83,
-     "grund": "budget_erschoepft"
+     "grund": "budget_exhausted"
     },
     {
      "frage": "Will \"Red\" be said during the next episode of the All-In Podcast?",
      "seite": "YES",
      "limit_preis": 0.62,
-     "grund": "budget_erschoepft"
+     "grund": "budget_exhausted"
     },
     {
      "frage": "Will \"Canada\" be said during the next episode of the All-In Podcast?",
      "seite": "YES",
      "limit_preis": 0.36,
-     "grund": "budget_erschoepft"
+     "grund": "budget_exhausted"
     },
     {
      "frage": "Will \"Innovation\" be said during the next episode of the All-In Podcast?",
      "seite": "YES",
      "limit_preis": 0.67,
-     "grund": "budget_erschoepft"
+     "grund": "budget_exhausted"
     },
     {
      "frage": "Will \"Cancer\" be said during the next episode of the All-In Podcast?",
      "seite": "YES",
      "limit_preis": 0.57,
-     "grund": "budget_erschoepft"
+     "grund": "budget_exhausted"
     },
     {
      "frage": "Will \"SpaceX\" be said 3+ times during the next episode of the All-In Podcast?",
      "seite": "NO",
      "limit_preis": 0.43,
-     "grund": "budget_erschoepft"
+     "grund": "budget_exhausted"
     },
     {
      "frage": "Will \"Blue\" be said during the next episode of the All-In Podcast?",
      "seite": "NO",
      "limit_preis": 0.23,
-     "grund": "budget_erschoepft"
+     "grund": "budget_exhausted"
     },
     {
      "frage": "Will \"Regulatory\" be said during the next episode of the All-In Podcast?",
      "seite": "NO",
      "limit_preis": 0.23,
-     "grund": "budget_erschoepft"
+     "grund": "budget_exhausted"
     },
     {
      "frage": "Will \"Alignment\" be said during the next episode of the All-In Podcast?",
      "seite": "NO",
      "limit_preis": 0.76,
-     "grund": "budget_erschoepft"
+     "grund": "budget_exhausted"
     },
     {
      "frage": "Will \"Stock Market\" be said during the next episode of the All-In Podcast?",
      "seite": "NO",
      "limit_preis": 0.46,
-     "grund": "budget_erschoepft"
+     "grund": "budget_exhausted"
     },
     {
      "frage": "Will \"Constitution\" be said during the next episode of the All-In Podcast?",
      "seite": "NO",
      "limit_preis": 0.63,
-     "grund": "budget_erschoepft"
+     "grund": "budget_exhausted"
     },
     {
      "frage": "Will \"Disruptive\" be said during the next episode of the All-In Podcast?",
      "seite": "NO",
      "limit_preis": 0.59,
-     "grund": "budget_erschoepft"
+     "grund": "budget_exhausted"
     },
     {
      "frage": "Will \"Biology\" be said during the next episode of the All-In Podcast?",
      "seite": "NO",
      "limit_preis": 0.65,
-     "grund": "budget_erschoepft"
+     "grund": "budget_exhausted"
     },
     {
      "frage": "Will \"Miracle\" be said during the next episode of the All-In Podcast?",
      "seite": "NO",
      "limit_preis": 0.7,
-     "grund": "budget_erschoepft"
+     "grund": "budget_exhausted"
+    },
+    {
+     "frage": "Will \"Red\" be said during the next episode of the All-In Podcast?",
+     "seite": "YES",
+     "limit_preis": 0.62,
+     "grund": "budget_exhausted"
+    },
+    {
+     "frage": "Will \"Blue\" be said during the next episode of the All-In Podcast?",
+     "seite": "YES",
+     "limit_preis": 0.78,
+     "grund": "budget_exhausted"
+    },
+    {
+     "frage": "Will \"Canada\" be said during the next episode of the All-In Podcast?",
+     "seite": "YES",
+     "limit_preis": 0.36,
+     "grund": "budget_exhausted"
+    },
+    {
+     "frage": "Will \"Constitution\" be said during the next episode of the All-In Podcast?",
+     "seite": "YES",
+     "limit_preis": 0.38,
+     "grund": "budget_exhausted"
+    },
+    {
+     "frage": "Will \"Alignment\" be said during the next episode of the All-In Podcast?",
+     "seite": "NO",
+     "limit_preis": 0.76,
+     "grund": "budget_exhausted"
+    },
+    {
+     "frage": "Will \"Stock Market\" be said during the next episode of the All-In Podcast?",
+     "seite": "NO",
+     "limit_preis": 0.47,
+     "grund": "budget_exhausted"
+    },
+    {
+     "frage": "Will \"Disruptive\" be said during the next episode of the All-In Podcast?",
+     "seite": "NO",
+     "limit_preis": 0.6,
+     "grund": "budget_exhausted"
+    },
+    {
+     "frage": "Will \"Innovation\" be said during the next episode of the All-In Podcast?",
+     "seite": "NO",
+     "limit_preis": 0.35,
+     "grund": "budget_exhausted"
+    },
+    {
+     "frage": "Will \"Cancer\" be said during the next episode of the All-In Podcast?",
+     "seite": "NO",
+     "limit_preis": 0.48,
+     "grund": "budget_exhausted"
+    },
+    {
+     "frage": "Will \"Biology\" be said during the next episode of the All-In Podcast?",
+     "seite": "NO",
+     "limit_preis": 0.66,
+     "grund": "budget_exhausted"
+    },
+    {
+     "frage": "Will \"Miracle\" be said during the next episode of the All-In Podcast?",
+     "seite": "NO",
+     "limit_preis": 0.71,
+     "grund": "budget_exhausted"
     }
    ]
   }

@@ -1,6 +1,6 @@
 {
- "hinweis": "Transparenz ueber den Agenten-Lauf: nur Zaehler und Hashes, keine Prompts, keine Modell-Details.",
- "stand_utc": "2026-07-09T20:24:54+00:00",
+ "hinweis": "Transparency about the agent run: counters and hashes only, no prompts, no vendor or version details.",
+ "stand_utc": "2026-07-10T03:27:54+00:00",
  "n_eintraege": 40,
  "rollen_zaehler": {
   "CaseNarrative": 20,

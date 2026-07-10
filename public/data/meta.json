@@ -1,6 +1,6 @@
 {
- "hinweis": "Laufzeitpunkt, Backend-Betriebsart und Grundsaetze des taeglichen Analyse-Laufs.",
- "stand_utc": "2026-07-09T20:24:54+00:00",
+ "hinweis": "Run timestamp, backend mode, and principles of the daily analysis run.",
+ "stand_utc": "2026-07-10T03:27:54+00:00",
  "backend": "mock",
  "schritte": {
   "collector": "uebersprungen (--collect nicht gesetzt)",
@@ -12,9 +12,9 @@
   "pipeline_forward": "quelle_fehlt (data/live nicht vorhanden)"
  },
  "disclaimer": [
-  "Deskriptive Forschungs-Artefakte eines taeglichen, deterministischen Review-Laufs ueber oeffentliche Marktdaten.",
-  "Die Empfehlungen sind Pruef-Empfehlungen (beobachten, Quelle pruefen, an einen Menschen eskalieren) und keine Kauf- oder Verkaufssignale.",
-  "Keine Finanz- oder Anlageberatung. Keine Renditeaussage. Pipeline-Eintraege sind beobachtend/paper.",
-  "Keine Wallet-Adressen, keine Schluessel, keine Prompts. Audit nur als Hashes und Zaehler."
+  "Descriptive research artifacts from a daily, deterministic review run over public market data.",
+  "Recommendations are verification steps (watch, check the source, escalate to a human), not buy or sell signals.",
+  "No financial or investment advice. No return claim. Pipeline entries are observing/paper.",
+  "No wallet addresses, no keys, no prompts. Audit as hashes and counters only."
  ]
 }
