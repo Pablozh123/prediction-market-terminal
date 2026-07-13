@@ -12730,6 +12730,27 @@ def _run_wette_html(row: dict) -> str:
     )
     if row["sweep_clips"] > 1:
         preis_teil += f" · {row['sweep_clips']} clips"
+    rang = row.get("tape_rang")
+    if rang is not None:
+        if rang == 1:
+            race_teil = "First taker after the drop"
+            if row.get("verfolger_s") is not None:
+                race_teil += (
+                    f" · next trader +{_esc(av.format_sekunden(row['verfolger_s']))}"
+                )
+            preis_teil += (
+                f"<br><span style='color:{ACCENT}; font-size:0.8rem'>&#127937; "
+                f"{race_teil}</span>"
+            )
+        else:
+            vol = row.get("fremdvolumen_davor_usd")
+            vol_teil = f" ({_esc(_run_usd(vol))})" if vol else ""
+            n_davor = int(row.get("fremde_davor") or 0)
+            wort = "trade" if n_davor == 1 else "trades"
+            preis_teil += (
+                f"<br><span style='color:{MUTED}; font-size:0.8rem'>"
+                f"{n_davor} {wort}{vol_teil} ahead of us</span>"
+            )
     if row["status_klasse"] == "open":
         akt = row.get("aktueller_yes_preis")
         if akt is not None:
@@ -12778,6 +12799,17 @@ def _run_timing_chips(run: dict) -> str:
         chips.append(f"Detected &rarr; first fill: {av.format_sekunden(run['erster_fill_s'])}")
     chips.append(f"{int(run.get('n_maerkte', 0) or 0)} markets")
     chips.append(f"{int(run.get('n_entscheidungen', 0) or 0)} decisions")
+    race = run.get("race") or {}
+    if race.get("wetten_mit_tape"):
+        chips.append(
+            f"&#127937; First on {int(race.get('first_on', 0) or 0)}/"
+            f"{int(race['wetten_mit_tape'])} fills"
+        )
+        if race.get("median_verfolger_s") is not None:
+            chips.append(
+                "Median follower +"
+                f"{av.format_sekunden(race['median_verfolger_s'])}"
+            )
     inner = "".join(f"<span class='filter-chip'>{chip}</span>" for chip in chips)
     return f"<div class='filter-strip'>{inner}</div>"
 
@@ -12952,6 +12984,12 @@ def page_live_runs() -> None:
         )
 
     st.markdown("#### Runs")
+    st.caption(
+        "Race chips compare each fill against the public taker-trade tape of "
+        "that market: how many other trades hit between the drop and our fill, "
+        "and how long until the next trader after us. Time anchor is the bot's "
+        "logged fill time; chain timestamps can differ by a few seconds."
+    )
     for run in reversed(runs_list):
         with st.container(border=True):
             kopf = _analysis_badge(str(run.get("profil", "?")), BLUE)
