@@ -237,6 +237,10 @@ def run_wetten_rows(run: dict[str, Any]) -> list[dict[str, Any]]:
                 "pnl_usd": wette.get("pnl_usd"),
                 "roi_pct": wette.get("roi_pct"),
                 "aktueller_yes_preis": wette.get("aktueller_yes_preis"),
+                "tape_rang": wette.get("tape_rang"),
+                "fremde_davor": wette.get("fremde_davor"),
+                "fremdvolumen_davor_usd": wette.get("fremdvolumen_davor_usd"),
+                "verfolger_s": wette.get("verfolger_s"),
             }
         )
     return rows
