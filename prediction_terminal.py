@@ -12853,6 +12853,141 @@ def _run_decision_stack_chart(latenz_rows: list[dict], runs: list[dict]) -> "go.
     return fig
 
 
+def _run_repricing_chart(run: dict) -> "go.Figure":
+    """Fremd-Kaufpreise je gehandeltem Markt ab Drop (log-Zeitachse)."""
+
+    farben = [CHART_SERIES_BLUE, CHART_SERIES_GREEN, AMBER, "#B57EDC"]
+    wetten_by_frage = {str(w.get("frage", "")): w for w in run.get("wetten", [])}
+    fig = go.Figure()
+    for i, kurve in enumerate(run.get("repricing", [])):
+        farbe = farben[i % len(farben)]
+        xs = [max(p[0], 1.0) for p in kurve.get("punkte", [])]
+        ys = [p[1] for p in kurve.get("punkte", [])]
+        name = str(kurve.get("frage", ""))[:44]
+        fig.add_trace(
+            go.Scatter(
+                x=xs, y=ys, mode="lines+markers", name=name,
+                line={"color": farbe, "width": 2, "shape": "hv"},
+                marker={"size": 6},
+                hovertemplate="%{fullData.name}<br>+%{x:.0f} s after drop · foreign buy at %{y:.2f}<extra></extra>",
+            )
+        )
+        wette = wetten_by_frage.get(str(kurve.get("frage", "")))
+        if wette and kurve.get("fill_nach_s") is not None and wette.get("avg_fill_preis") is not None:
+            fig.add_trace(
+                go.Scatter(
+                    x=[max(float(kurve["fill_nach_s"]), 1.0)],
+                    y=[float(wette["avg_fill_preis"])],
+                    mode="markers", name="Our fill", showlegend=(i == 0),
+                    marker={"symbol": "x", "size": 11, "color": "#ffffff",
+                            "line": {"color": farbe, "width": 1}},
+                    hovertemplate="Our fill<br>+%{x:.0f} s after drop · avg %{y:.2f}<extra></extra>",
+                )
+            )
+    fig.add_hline(y=0.90, line_dash="dash", line_color=RED,
+                  annotation_text="bot ask cap 0.90",
+                  annotation_font_color=RED, annotation_position="top left")
+    fig.update_xaxes(
+        type="log",
+        tickvals=[t[0] for t in RUN_LATENZ_TICKS],
+        ticktext=[t[1] for t in RUN_LATENZ_TICKS],
+        title_text="Time after drop (log)",
+        gridcolor=BORDER,
+    )
+    fig.update_yaxes(title_text="Traded price (bet side)", range=[0, 1.05], gridcolor=BORDER)
+    fig.update_layout(
+        height=340, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font={"family": FONT_SANS, "color": "#ffffff"},
+        legend={"orientation": "h", "y": 1.22},
+        margin={"l": 10, "r": 20, "t": 10, "b": 10},
+    )
+    return fig
+
+
+def _render_run_timing_lab(runs_list: list[dict], payload: dict) -> None:
+    """Repricing-Kurven, Warte-Kosten und Slippage-Zerlegung (Timing-Tab)."""
+
+    st.markdown("#### How does the market reprice after the drop?")
+    rep_runs = [r for r in runs_list if r.get("repricing")]
+    if not rep_runs:
+        st.info(
+            "No foreign buys on the traded markets yet — repricing curves "
+            "appear once other traders act on a run's markets."
+        )
+    else:
+        namen = [str(r.get("profil", "?")) for r in rep_runs]
+        auswahl = st.selectbox("Run", namen, index=len(namen) - 1, key="runs_rep_profil")
+        rep_run = next(r for r in rep_runs if str(r.get("profil", "?")) == auswahl)
+        st.plotly_chart(_run_repricing_chart(rep_run), width="stretch", key="runs_repricing_chart")
+        st.caption(
+            "Each point is a FOREIGN taker buy of our bet side (own clips and "
+            "opposite-side trades excluded — those sit on the bid). × marks our "
+            "avg fill. Markets without any foreign buy have no curve: nobody "
+            "else ever paid up."
+        )
+
+    st.markdown("#### What would waiting have cost?")
+    decay = rsim.timing_decay_summary(payload)
+    if decay.empty or int(decay["n_bets"].max() or 0) == 0:
+        st.info(
+            "Needs resolved bets with counterfactual prices — fills in as "
+            "runs resolve (published daily by the pipeline)."
+        )
+    else:
+        anzeige = decay.copy()
+        anzeige["delay"] = anzeige["delay_s"].map(
+            lambda s: "at fill time" if s == 0 else f"+{av.format_sekunden(float(s))}"
+        )
+        anzeige = anzeige[["delay", "n_bets", "n_foreign_ref", "n_priced_out", "sim_pnl_usd", "pnl_delta_usd"]]
+        st.dataframe(
+            anzeige,
+            width="stretch",
+            hide_index=True,
+            column_config={
+                "delay": st.column_config.TextColumn("Entry delay"),
+                "n_bets": st.column_config.NumberColumn("Bets replayed", help="All resolved bets; without a foreign buy since the drop the own avg fill price stands in (book unchanged from the tape's view)."),
+                "n_foreign_ref": st.column_config.NumberColumn("Foreign price refs", help="Bets whose reference price at this delay comes from an actual foreign buy since the drop."),
+                "n_priced_out": st.column_config.NumberColumn("Priced out", help="Reference price above the 0.90 ask cap — the bot would not have entered (PnL 0)."),
+                "sim_pnl_usd": st.column_config.NumberColumn("Sim PnL $", format="%.2f"),
+                "pnl_delta_usd": st.column_config.NumberColumn("Cost of waiting $", format="%.2f", help="Versus the at-fill-time row of the same model — negative means the delay destroys PnL."),
+            },
+        )
+        st.caption(
+            "Same stake, same bets, entry N seconds later at the last foreign "
+            "buy price since the drop (own fill price if nobody else bought "
+            "yet). Thin markets keep the last price for a while — treat the "
+            "reference as a floor, not a firm quote."
+        )
+
+    st.markdown("#### Slippage: decision ask vs. paid fill")
+    slip_rows = [
+        (float(w["avg_fill_preis"]) - float(w["entscheidungs_preis"]),
+         (float(w["avg_fill_preis"]) - float(w["entscheidungs_preis"])) * float(w.get("shares") or 0.0),
+         str(w.get("frage", "")))
+        for r in runs_list
+        for w in r.get("wetten", [])
+        if w.get("avg_fill_preis") is not None and w.get("entscheidungs_preis") is not None
+    ]
+    if not slip_rows:
+        st.info("No fills with both a decision ask and an avg fill price yet.")
+        return
+    gesamt_usd = sum(usd for _, usd, _ in slip_rows)
+    avg_pp = sum(pp for pp, _, _ in slip_rows) / len(slip_rows) * 100.0
+    schlimmste = max(slip_rows, key=lambda item: item[1])
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Avg slippage", f"{avg_pp:+.1f}pt",
+              help="Avg fill price minus the ask the bot saw at decision time, averaged over fills.")
+    m2.metric("Total sweep cost", _run_usd(gesamt_usd),
+              help="Slippage × shares summed over all fills — what sweeping thin books beyond the decision ask cost in total.")
+    m3.metric("Worst single fill", _run_usd(schlimmste[1]), schlimmste[2][:40], delta_color="off")
+    st.caption(
+        "The gap is sweep slippage: the bot lifts several ask levels in thin "
+        "books, so the average fill lands above the first ask it saw. Latency "
+        "between decision and order is seconds — the book move in that gap is "
+        "part of the same number."
+    )
+
+
 def page_live_runs() -> None:
     section_header(
         "Live Runs",
@@ -12888,247 +13023,272 @@ def page_live_runs() -> None:
 
     latenz_rows = av.run_latenz_rows(payload)
     runs_list = list(payload.get("runs", []))
-    if latenz_rows:
-        st.markdown("#### Reaction times per run")
-        c1, c2 = st.columns(2)
-        profile = [r["profil"] for r in latenz_rows]
-        with c1:
-            st.markdown(
-                "<div class='small-note'>Source publish &rarr; drop detected "
-                "(RSS entries can appear well after the nominal pubDate)</div>",
-                unsafe_allow_html=True,
-            )
-            fig = go.Figure(
-                go.Bar(
-                    y=profile,
-                    x=[r["erkennungslatenz_s"] for r in latenz_rows],
-                    orientation="h",
-                    marker_color=CHART_SERIES_BLUE,
-                    text=[av.format_sekunden(r["erkennungslatenz_s"]) for r in latenz_rows],
-                    textposition="outside",
-                    textfont={"color": "#c8d0d9", "size": 12},
-                    cliponaxis=False,
-                    hovertemplate="%{y}<br>Publish to detected: %{x:.0f} s<extra></extra>",
-                )
-            )
-            fig.update_xaxes(
-                type="log",
-                tickvals=[t[0] for t in RUN_LATENZ_TICKS],
-                ticktext=[t[1] for t in RUN_LATENZ_TICKS],
-                title_text="Seconds after source publish (log)",
-                gridcolor=BORDER,
-            )
-            fig.update_yaxes(autorange="reversed")
-            fig.update_layout(
-                height=240, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                font={"family": FONT_SANS, "color": "#ffffff"},
-                margin={"l": 10, "r": 46, "t": 10, "b": 10}, showlegend=False,
-            )
-            st.plotly_chart(fig, width="stretch", key="runs_erkennung_chart")
-        with c2:
-            st.markdown(
-                "<div class='small-note'>After detection: first decision and "
-                "first fill, in seconds</div>",
-                unsafe_allow_html=True,
-            )
-            fig = go.Figure()
-            fig.add_trace(
-                go.Bar(
-                    y=profile,
-                    x=[r["erste_entscheidung_s"] for r in latenz_rows],
-                    name="First decision",
-                    orientation="h",
-                    marker_color=CHART_SERIES_BLUE,
-                    text=[None if r["erste_entscheidung_s"] is None else f"{r['erste_entscheidung_s']:.0f} s" for r in latenz_rows],
-                    textposition="outside",
-                    textfont={"color": "#c8d0d9", "size": 12},
-                    cliponaxis=False,
-                    hovertemplate="%{y}<br>First decision: %{x:.0f} s after detection<extra></extra>",
-                )
-            )
-            fig.add_trace(
-                go.Bar(
-                    y=profile,
-                    x=[r["erster_fill_s"] for r in latenz_rows],
-                    name="First fill",
-                    orientation="h",
-                    marker_color=CHART_SERIES_GREEN,
-                    text=[None if r["erster_fill_s"] is None else f"{r['erster_fill_s']:.0f} s" for r in latenz_rows],
-                    textposition="outside",
-                    textfont={"color": "#c8d0d9", "size": 12},
-                    cliponaxis=False,
-                    hovertemplate="%{y}<br>First fill: %{x:.0f} s after detection<extra></extra>",
-                )
-            )
-            fig.update_xaxes(title_text="Seconds after drop detection", gridcolor=BORDER)
-            fig.update_yaxes(autorange="reversed")
-            fig.update_layout(
-                barmode="group", height=240,
-                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                font={"family": FONT_SANS, "color": "#ffffff"},
-                legend={"orientation": "h", "y": 1.18},
-                margin={"l": 10, "r": 46, "t": 10, "b": 10},
-            )
-            st.plotly_chart(fig, width="stretch", key="runs_reaktion_chart")
-
-        st.markdown("#### What the bot did with its decisions")
-        st.plotly_chart(
-            _run_decision_stack_chart(latenz_rows, runs_list),
-            width="stretch",
-            key="runs_decision_stack",
-        )
-        st.caption(
-            "Each decision falls into one bucket: a placed bet, a missed chance "
-            "(word counter hit but the budget pool was empty), a market already "
-            "priced beyond the ask cap, or no tradeable edge (e.g. NO rule not met)."
-        )
-
-    st.markdown("#### Runs")
-    st.caption(
-        "Race chips compare each fill against the public taker-trade tape of "
-        "that market: how many other trades hit between the drop and our fill, "
-        "and how long until the next trader after us. Time anchor is the bot's "
-        "logged fill time; chain timestamps can differ by a few seconds."
+    bets = rsim.bets_frame(payload)
+    tab_runs, tab_timing, tab_sim, tab_calib = st.tabs(
+        ["Runs", "Timing & repricing", "Sizing simulator", "Calibration"]
     )
-    for run in reversed(runs_list):
-        with st.container(border=True):
-            kopf = _analysis_badge(str(run.get("profil", "?")), BLUE)
-            kopf += _analysis_badge(str(run.get("modus", "") or "?"), ACCENT)
-            st.markdown(kopf, unsafe_allow_html=True)
-            titel = str(run.get("episode_titel", "") or "Episode unknown")
-            slug = str(run.get("event_slug", "") or "")
-            link = ""
-            if slug:
-                link = (
-                    f" <a href='https://polymarket.com/event/{_esc(slug)}' target='_blank' "
-                    f"style='color:{MUTED}; font-size:0.8rem; text-decoration:none'>event &#8599;</a>"
-                )
-            st.markdown(f"**{_esc(titel)}**{link}", unsafe_allow_html=True)
-            st.markdown(_run_timing_chips(run), unsafe_allow_html=True)
-            wetten = av.run_wetten_rows(run)
-            if wetten:
-                for row in wetten:
-                    st.markdown(_run_wette_html(row), unsafe_allow_html=True)
-            else:
+
+    with tab_runs:
+        st.markdown("#### Runs")
+        st.caption(
+            "Race chips compare each fill against the public taker-trade tape of "
+            "that market: how many other trades hit between the drop and our fill, "
+            "and how long until the next trader after us. Time anchor is the bot's "
+            "logged fill time; chain timestamps can differ by a few seconds."
+        )
+        for run in reversed(runs_list):
+            with st.container(border=True):
+                kopf = _analysis_badge(str(run.get("profil", "?")), BLUE)
+                kopf += _analysis_badge(str(run.get("modus", "") or "?"), ACCENT)
+                st.markdown(kopf, unsafe_allow_html=True)
+                titel = str(run.get("episode_titel", "") or "Episode unknown")
+                slug = str(run.get("event_slug", "") or "")
+                link = ""
+                if slug:
+                    link = (
+                        f" <a href='https://polymarket.com/event/{_esc(slug)}' target='_blank' "
+                        f"style='color:{MUTED}; font-size:0.8rem; text-decoration:none'>event &#8599;</a>"
+                    )
+                st.markdown(f"**{_esc(titel)}**{link}", unsafe_allow_html=True)
+                st.markdown(_run_timing_chips(run), unsafe_allow_html=True)
+                wetten = av.run_wetten_rows(run)
+                if wetten:
+                    for row in wetten:
+                        st.markdown(_run_wette_html(row), unsafe_allow_html=True)
+                else:
+                    st.markdown(
+                        "<div class='small-note'>No bet placed -- every checkable market "
+                        "was already priced beyond the ask cap at drop time. Discipline "
+                        "over entry without edge.</div>",
+                        unsafe_allow_html=True,
+                    )
+                pnl = run.get("realisierter_pnl_usd")
+                zeile = f"Stake {_run_usd(run.get('einsatz_usd'))}"
+                if pnl is not None:
+                    farbe = ACCENT if float(pnl) >= 0 else RED
+                    zeile += f" · realized <span style='color:{farbe}' class='mono'>{_esc(_run_usd(pnl))}</span>"
+                st.markdown(f"<div class='field-hint'>{zeile}</div>", unsafe_allow_html=True)
+                verpasst = av.run_verpasste_rows(run)
+                if verpasst:
+                    bewertet = [v for v in verpasst if v.get("waere_gewonnen") is not None]
+                    haette_gewonnen = sum(1 for v in bewertet if v["waere_gewonnen"])
+                    kopfzeile = f"Missed chances ({len(verpasst)}) -- budget was exhausted"
+                    if bewertet:
+                        kopfzeile += f" · {haette_gewonnen}/{len(bewertet)} would have won"
+                    with st.expander(kopfzeile):
+                        st.dataframe(
+                            pd.DataFrame(verpasst),
+                            width="stretch",
+                            hide_index=True,
+                            column_config={
+                                "frage": st.column_config.TextColumn("Market"),
+                                "seite": st.column_config.TextColumn("Side"),
+                                "limit_preis": st.column_config.NumberColumn("Limit", format="%.2f"),
+                                "grund": st.column_config.TextColumn("Reason"),
+                                "waere_gewonnen": st.column_config.CheckboxColumn(
+                                    "Would have won",
+                                    help="Settlement of the skipped side — blank while the market is open.",
+                                ),
+                                "hypo_roi_pct": st.column_config.NumberColumn(
+                                    "Hypo ROI %", format="%+.0f%%",
+                                    help="Per $1 at the skipped limit price: (1-limit)/limit if it won, -100% if it lost. No fill was attempted — book depth at that moment is unknown.",
+                                ),
+                            },
+                        )
+                        st.caption(
+                            "Markets the word counter had already confirmed and that were "
+                            "still priced below the cap, but the total budget pool was "
+                            "spent -- input for pool and sizing decisions on future runs."
+                        )
+
+    with tab_timing:
+        if latenz_rows:
+            st.markdown("#### Reaction times per run")
+            c1, c2 = st.columns(2)
+            profile = [r["profil"] for r in latenz_rows]
+            with c1:
                 st.markdown(
-                    "<div class='small-note'>No bet placed -- every checkable market "
-                    "was already priced beyond the ask cap at drop time. Discipline "
-                    "over entry without edge.</div>",
+                    "<div class='small-note'>Source publish &rarr; drop detected "
+                    "(RSS entries can appear well after the nominal pubDate)</div>",
                     unsafe_allow_html=True,
                 )
-            pnl = run.get("realisierter_pnl_usd")
-            zeile = f"Stake {_run_usd(run.get('einsatz_usd'))}"
-            if pnl is not None:
-                farbe = ACCENT if float(pnl) >= 0 else RED
-                zeile += f" · realized <span style='color:{farbe}' class='mono'>{_esc(_run_usd(pnl))}</span>"
-            st.markdown(f"<div class='field-hint'>{zeile}</div>", unsafe_allow_html=True)
-            verpasst = av.run_verpasste_rows(run)
-            if verpasst:
-                with st.expander(f"Missed chances ({len(verpasst)}) -- budget was exhausted"):
-                    st.dataframe(
-                        pd.DataFrame(verpasst),
-                        width="stretch",
-                        hide_index=True,
-                        column_config={
-                            "frage": st.column_config.TextColumn("Market"),
-                            "seite": st.column_config.TextColumn("Side"),
-                            "limit_preis": st.column_config.NumberColumn("Limit", format="%.2f"),
-                            "grund": st.column_config.TextColumn("Reason"),
-                        },
+                fig = go.Figure(
+                    go.Bar(
+                        y=profile,
+                        x=[r["erkennungslatenz_s"] for r in latenz_rows],
+                        orientation="h",
+                        marker_color=CHART_SERIES_BLUE,
+                        text=[av.format_sekunden(r["erkennungslatenz_s"]) for r in latenz_rows],
+                        textposition="outside",
+                        textfont={"color": "#c8d0d9", "size": 12},
+                        cliponaxis=False,
+                        hovertemplate="%{y}<br>Publish to detected: %{x:.0f} s<extra></extra>",
                     )
-                    st.caption(
-                        "Markets the word counter had already confirmed and that were "
-                        "still priced below the cap, but the total budget pool was "
-                        "spent -- input for pool and sizing decisions on future runs."
+                )
+                fig.update_xaxes(
+                    type="log",
+                    tickvals=[t[0] for t in RUN_LATENZ_TICKS],
+                    ticktext=[t[1] for t in RUN_LATENZ_TICKS],
+                    title_text="Seconds after source publish (log)",
+                    gridcolor=BORDER,
+                )
+                fig.update_yaxes(autorange="reversed")
+                fig.update_layout(
+                    height=240, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                    font={"family": FONT_SANS, "color": "#ffffff"},
+                    margin={"l": 10, "r": 46, "t": 10, "b": 10}, showlegend=False,
+                )
+                st.plotly_chart(fig, width="stretch", key="runs_erkennung_chart")
+            with c2:
+                st.markdown(
+                    "<div class='small-note'>After detection: first decision and "
+                    "first fill, in seconds</div>",
+                    unsafe_allow_html=True,
+                )
+                fig = go.Figure()
+                fig.add_trace(
+                    go.Bar(
+                        y=profile,
+                        x=[r["erste_entscheidung_s"] for r in latenz_rows],
+                        name="First decision",
+                        orientation="h",
+                        marker_color=CHART_SERIES_BLUE,
+                        text=[None if r["erste_entscheidung_s"] is None else f"{r['erste_entscheidung_s']:.0f} s" for r in latenz_rows],
+                        textposition="outside",
+                        textfont={"color": "#c8d0d9", "size": 12},
+                        cliponaxis=False,
+                        hovertemplate="%{y}<br>First decision: %{x:.0f} s after detection<extra></extra>",
                     )
+                )
+                fig.add_trace(
+                    go.Bar(
+                        y=profile,
+                        x=[r["erster_fill_s"] for r in latenz_rows],
+                        name="First fill",
+                        orientation="h",
+                        marker_color=CHART_SERIES_GREEN,
+                        text=[None if r["erster_fill_s"] is None else f"{r['erster_fill_s']:.0f} s" for r in latenz_rows],
+                        textposition="outside",
+                        textfont={"color": "#c8d0d9", "size": 12},
+                        cliponaxis=False,
+                        hovertemplate="%{y}<br>First fill: %{x:.0f} s after detection<extra></extra>",
+                    )
+                )
+                fig.update_xaxes(title_text="Seconds after drop detection", gridcolor=BORDER)
+                fig.update_yaxes(autorange="reversed")
+                fig.update_layout(
+                    barmode="group", height=240,
+                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                    font={"family": FONT_SANS, "color": "#ffffff"},
+                    legend={"orientation": "h", "y": 1.18},
+                    margin={"l": 10, "r": 46, "t": 10, "b": 10},
+                )
+                st.plotly_chart(fig, width="stretch", key="runs_reaktion_chart")
 
-    # --- Sizing simulation on the recorded bets -----------------------------
-    st.markdown("<div class='step-label'>Simulate these runs with different sizing</div>", unsafe_allow_html=True)
-    st.markdown(
-        _analysis_badge("HYPOTHETICAL / PAPER", AMBER)
-        + f" <span class='mono' style='color:{TEXT_SECONDARY}'>resolved bets only · fills at the recorded avg fill price · no compounding</span>",
-        unsafe_allow_html=True,
-    )
-    bets = rsim.bets_frame(payload)
-    sim_mode_label = st.segmented_control(
-        "Stake rule",
-        ["As executed", "Fixed stake", "Kelly fraction"],
-        default="As executed",
-        key="runs_sim_mode",
-    )
-    mode_map = {"As executed": rsim.SIM_AS_EXECUTED, "Fixed stake": rsim.SIM_FIXED, "Kelly fraction": rsim.SIM_KELLY}
-    sim_mode = mode_map.get(str(sim_mode_label), rsim.SIM_AS_EXECUTED)
-    c1, c2, c3, c4 = st.columns(4)
-    fixed_stake = c1.number_input("Fixed stake $", min_value=0.5, max_value=1000.0, value=5.0, step=0.5, key="runs_sim_fixed", disabled=sim_mode != rsim.SIM_FIXED)
-    bankroll = c2.number_input("Bankroll $ (Kelly)", min_value=10.0, max_value=100000.0, value=100.0, step=10.0, key="runs_sim_bankroll", disabled=sim_mode != rsim.SIM_KELLY)
-    edge_pt = c3.number_input(
-        "Assumed edge (pt over fill)", min_value=0.0, max_value=50.0, value=10.0, step=1.0, key="runs_sim_edge",
-        disabled=sim_mode != rsim.SIM_KELLY,
-        help="The word counter confirms before the market reprices — this is your guess of how many probability points the fill price understates.",
-    )
-    kelly_frac = c4.selectbox(
-        "Kelly fraction", [0.25, 0.5, 1.0], index=0, key="runs_sim_frac",
-        format_func=lambda v: {0.25: "Quarter (house default)", 0.5: "Half", 1.0: "Full"}[v],
-        disabled=sim_mode != rsim.SIM_KELLY,
-    )
-    sim_frame, sim_summary = rsim.simulate_sizing(
-        bets, sim_mode, bankroll=float(bankroll), fixed_stake=float(fixed_stake),
-        kelly_edge_pt=float(edge_pt), kelly_fraction=float(kelly_frac),
-    )
-    if sim_summary["n_resolved"] == 0:
-        st.info(
-            f"No resolved bets to simulate yet — {sim_summary['n_open']} bet(s) are still open. "
-            "This section fills in as runs resolve."
-        )
-    else:
-        s1, s2, s3, s4 = st.columns(4)
-        s1.metric("Resolved bets", f"{sim_summary['n_resolved']}", f"{sim_summary['n_open']} open excluded", delta_color="off")
-        s2.metric("Simulated stake", _run_usd(sim_summary["sim_stake"]),
-                  f"real {_run_usd(sim_summary['real_stake'])}", delta_color="off")
-        sim_pnl = sim_summary["sim_pnl"]
-        real_pnl = sim_summary["real_pnl"]
-        s3.metric(
-            "Simulated PnL",
-            _run_usd(sim_pnl),
-            f"real {_run_usd(real_pnl)}" if real_pnl is not None else None,
-            delta_color="off",
-        )
-        roi_txt = f"{sim_summary['sim_roi_pct']:+.1f}%" if sim_summary["sim_roi_pct"] is not None else "-"
-        real_roi = sim_summary["real_roi_pct"]
-        s4.metric("Simulated ROI", roi_txt, f"real {real_roi:+.1f}%" if real_roi is not None else None, delta_color="off")
-        table = sim_frame[["profil", "frage", "seite", "fill_preis", "gewonnen", "einsatz_usd", "pnl_usd", "sim_stake", "sim_pnl"]].copy()
-        st.dataframe(
-            table,
-            width="stretch",
-            hide_index=True,
-            column_config={
-                "profil": st.column_config.TextColumn("Run"),
-                "frage": st.column_config.TextColumn("Market", width="large"),
-                "seite": st.column_config.TextColumn("Side"),
-                "fill_preis": st.column_config.NumberColumn("Fill", format="%.2f"),
-                "gewonnen": st.column_config.CheckboxColumn("Won"),
-                "einsatz_usd": st.column_config.NumberColumn("Real stake $", format="%.2f"),
-                "pnl_usd": st.column_config.NumberColumn("Real PnL $", format="%.2f"),
-                "sim_stake": st.column_config.NumberColumn("Sim stake $", format="%.2f"),
-                "sim_pnl": st.column_config.NumberColumn("Sim PnL $", format="%.2f"),
-            },
-        )
-        st.caption(
-            "Replay of the recorded bets under a different stake rule — a what-if on history, "
-            "not a forecast. Missed chances are listed per run above but cannot be simulated: "
-            "they never filled, so they have no recorded outcome."
-        )
+            st.markdown("#### What the bot did with its decisions")
+            st.plotly_chart(
+                _run_decision_stack_chart(latenz_rows, runs_list),
+                width="stretch",
+                key="runs_decision_stack",
+            )
+            st.caption(
+                "Each decision falls into one bucket: a placed bet, a missed chance "
+                "(word counter hit but the budget pool was empty), a market already "
+                "priced beyond the ask cap, or no tradeable edge (e.g. NO rule not met)."
+            )
 
-    # --- Entry calibration of the bot's own fills ---------------------------
-    st.markdown("<div class='step-label'>Were the bot's entries honest prices?</div>", unsafe_allow_html=True)
-    scored = rsim.bot_resolution_frame(bets)
-    if scored.empty:
-        st.info("Calibration needs resolved bets — this section fills in as runs resolve.")
-    else:
-        _render_run_calibration(calib.calibration_report(scored, capped=False))
+        _render_run_timing_lab(runs_list, payload)
 
-    with st.expander("Kelly & Bayes toolkit — size a live market by hand"):
-        _render_quant_toolkit()
+    with tab_sim:
+        # --- Sizing simulation on the recorded bets -----------------------------
+        st.markdown("<div class='step-label'>Simulate these runs with different sizing</div>", unsafe_allow_html=True)
+        st.markdown(
+            _analysis_badge("HYPOTHETICAL / PAPER", AMBER)
+            + f" <span class='mono' style='color:{TEXT_SECONDARY}'>resolved bets only · fills at the recorded avg fill price · no compounding</span>",
+            unsafe_allow_html=True,
+        )
+        sim_mode_label = st.segmented_control(
+            "Stake rule",
+            ["As executed", "Fixed stake", "Kelly fraction"],
+            default="As executed",
+            key="runs_sim_mode",
+        )
+        mode_map = {"As executed": rsim.SIM_AS_EXECUTED, "Fixed stake": rsim.SIM_FIXED, "Kelly fraction": rsim.SIM_KELLY}
+        sim_mode = mode_map.get(str(sim_mode_label), rsim.SIM_AS_EXECUTED)
+        c1, c2, c3, c4 = st.columns(4)
+        fixed_stake = c1.number_input("Fixed stake $", min_value=0.5, max_value=1000.0, value=5.0, step=0.5, key="runs_sim_fixed", disabled=sim_mode != rsim.SIM_FIXED)
+        bankroll = c2.number_input("Bankroll $ (Kelly)", min_value=10.0, max_value=100000.0, value=100.0, step=10.0, key="runs_sim_bankroll", disabled=sim_mode != rsim.SIM_KELLY)
+        edge_pt = c3.number_input(
+            "Assumed edge (pt over fill)", min_value=0.0, max_value=50.0, value=10.0, step=1.0, key="runs_sim_edge",
+            disabled=sim_mode != rsim.SIM_KELLY,
+            help="The word counter confirms before the market reprices — this is your guess of how many probability points the fill price understates.",
+        )
+        kelly_frac = c4.selectbox(
+            "Kelly fraction", [0.25, 0.5, 1.0], index=0, key="runs_sim_frac",
+            format_func=lambda v: {0.25: "Quarter (house default)", 0.5: "Half", 1.0: "Full"}[v],
+            disabled=sim_mode != rsim.SIM_KELLY,
+        )
+        sim_frame, sim_summary = rsim.simulate_sizing(
+            bets, sim_mode, bankroll=float(bankroll), fixed_stake=float(fixed_stake),
+            kelly_edge_pt=float(edge_pt), kelly_fraction=float(kelly_frac),
+        )
+        if sim_summary["n_resolved"] == 0:
+            st.info(
+                f"No resolved bets to simulate yet — {sim_summary['n_open']} bet(s) are still open. "
+                "This section fills in as runs resolve."
+            )
+        else:
+            s1, s2, s3, s4 = st.columns(4)
+            s1.metric("Resolved bets", f"{sim_summary['n_resolved']}", f"{sim_summary['n_open']} open excluded", delta_color="off")
+            s2.metric("Simulated stake", _run_usd(sim_summary["sim_stake"]),
+                      f"real {_run_usd(sim_summary['real_stake'])}", delta_color="off")
+            sim_pnl = sim_summary["sim_pnl"]
+            real_pnl = sim_summary["real_pnl"]
+            s3.metric(
+                "Simulated PnL",
+                _run_usd(sim_pnl),
+                f"real {_run_usd(real_pnl)}" if real_pnl is not None else None,
+                delta_color="off",
+            )
+            roi_txt = f"{sim_summary['sim_roi_pct']:+.1f}%" if sim_summary["sim_roi_pct"] is not None else "-"
+            real_roi = sim_summary["real_roi_pct"]
+            s4.metric("Simulated ROI", roi_txt, f"real {real_roi:+.1f}%" if real_roi is not None else None, delta_color="off")
+            table = sim_frame[["profil", "frage", "seite", "fill_preis", "gewonnen", "einsatz_usd", "pnl_usd", "sim_stake", "sim_pnl"]].copy()
+            st.dataframe(
+                table,
+                width="stretch",
+                hide_index=True,
+                column_config={
+                    "profil": st.column_config.TextColumn("Run"),
+                    "frage": st.column_config.TextColumn("Market", width="large"),
+                    "seite": st.column_config.TextColumn("Side"),
+                    "fill_preis": st.column_config.NumberColumn("Fill", format="%.2f"),
+                    "gewonnen": st.column_config.CheckboxColumn("Won"),
+                    "einsatz_usd": st.column_config.NumberColumn("Real stake $", format="%.2f"),
+                    "pnl_usd": st.column_config.NumberColumn("Real PnL $", format="%.2f"),
+                    "sim_stake": st.column_config.NumberColumn("Sim stake $", format="%.2f"),
+                    "sim_pnl": st.column_config.NumberColumn("Sim PnL $", format="%.2f"),
+                },
+            )
+            st.caption(
+                "Replay of the recorded bets under a different stake rule — a what-if on history, "
+                "not a forecast. Missed chances are listed per run above but cannot be simulated: "
+                "they never filled, so they have no recorded outcome."
+            )
+
+        with st.expander("Kelly & Bayes toolkit — size a live market by hand"):
+            _render_quant_toolkit()
+
+
+    with tab_calib:
+        # --- Entry calibration of the bot's own fills ---------------------------
+        st.markdown("<div class='step-label'>Were the bot's entries honest prices?</div>", unsafe_allow_html=True)
+        scored = rsim.bot_resolution_frame(bets)
+        if scored.empty:
+            st.info("Calibration needs resolved bets — this section fills in as runs resolve.")
+        else:
+            _render_run_calibration(calib.calibration_report(scored, capped=False))
+
 
     render_analysis_footer()
 

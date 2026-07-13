@@ -157,6 +157,74 @@ def simulate_sizing(
     return resolved, summary
 
 
+#: Verzoegerungen des publizierten Latenz-Counterfactuals (Sekunden nach Fill).
+TIMING_DELTAS_S = (0, 30, 60, 120, 300, 900)
+
+#: Bot-Kaufgrenze -- ein Referenzpreis darueber heisst "kein Entry mehr".
+PRICED_OUT_CAP = 0.90
+
+
+def timing_decay_summary(payload: dict[str, Any] | None) -> pd.DataFrame:
+    """Was haette dieselbe Wette N Sekunden spaeter gekostet und gebracht?
+
+    Referenzpreis je Verzoegerung ist ``preis_nach_fill`` aus runs.json --
+    der letzte FREMDE Kauf der Wett-Seite seit dem Drop. Hat bis dahin
+    niemand sonst gekauft (None), gilt der eigene avg-Fill-Preis: das Buch
+    hat sich aus Tape-Sicht nicht bewegt. Liegt die Referenz ueber der
+    Kaufgrenze 0.90, gilt die Wette als verpasst (PnL 0, ``n_priced_out``).
+    ``pnl_delta_usd`` vergleicht gegen die Delay-0-Zeile desselben Modells,
+    nicht gegen den realen PnL -- gleiches Preismodell, gleiche Wetten.
+    """
+
+    columns = [
+        "delay_s", "n_bets", "n_foreign_ref", "n_priced_out",
+        "sim_pnl_usd", "pnl_delta_usd",
+    ]
+    wetten: list[dict[str, Any]] = [
+        w
+        for run in (payload or {}).get("runs", []) or []
+        for w in run.get("wetten", []) or []
+        if w.get("aufgeloest")
+        and w.get("gewonnen") is not None
+        and (w.get("preis_nach_fill") or {})
+    ]
+    rows: list[dict[str, Any]] = []
+    basis_pnl: float | None = None
+    for delta in TIMING_DELTAS_S:
+        key = str(delta)
+        n_foreign = 0
+        n_priced_out = 0
+        sim_pnl = 0.0
+        for w in wetten:
+            fill = _num(w.get("avg_fill_preis"))
+            preis = _num((w.get("preis_nach_fill") or {}).get(key))
+            if preis is not None and 0.0 < preis < 1.0:
+                n_foreign += 1
+            else:
+                preis = fill
+            if preis is None or not (0.0 < preis < 1.0):
+                continue
+            stake = _num(w.get("einsatz_usd")) or 0.0
+            if preis > PRICED_OUT_CAP:
+                n_priced_out += 1
+                continue  # kein Entry -> PnL 0
+            shares = stake / preis if preis > 0 else 0.0
+            sim_pnl += shares * (1.0 - preis) if bool(w.get("gewonnen")) else -stake
+        if basis_pnl is None:
+            basis_pnl = sim_pnl
+        rows.append(
+            {
+                "delay_s": delta,
+                "n_bets": len(wetten),
+                "n_foreign_ref": n_foreign,
+                "n_priced_out": n_priced_out,
+                "sim_pnl_usd": round(sim_pnl, 2),
+                "pnl_delta_usd": round(sim_pnl - basis_pnl, 2),
+            }
+        )
+    return pd.DataFrame(rows, columns=columns)
+
+
 def bot_resolution_frame(bets: pd.DataFrame) -> pd.DataFrame:
     """Resolved bets in the shape ``app.calibration.calibration_report`` scores.
 

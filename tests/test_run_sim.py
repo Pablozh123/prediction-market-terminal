@@ -112,3 +112,60 @@ class BotResolutionFrameTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TimingDecayTests(unittest.TestCase):
+    def payload_mit_timing(self):
+        return {
+            "runs": [
+                {
+                    "profil": "r1",
+                    "wetten": [
+                        {  # gewonnen, Referenz steigt, ab +120s ueber der Kaufgrenze
+                            "frage": "A", "seite": "YES", "avg_fill_preis": 0.50,
+                            "einsatz_usd": 10.0, "shares": 20.0,
+                            "aufgeloest": True, "gewonnen": True, "pnl_usd": 10.0,
+                            "preis_nach_fill": {"0": 0.50, "30": 0.80, "60": 0.80,
+                                                 "120": 0.95, "300": 0.95, "900": 0.95},
+                        },
+                        {  # offen -> fliegt raus
+                            "frage": "B", "seite": "YES", "avg_fill_preis": 0.40,
+                            "einsatz_usd": 5.0, "shares": 12.5,
+                            "aufgeloest": False, "gewonnen": None, "pnl_usd": None,
+                            "preis_nach_fill": {"0": 0.40},
+                        },
+                        {  # aufgeloest, aber nie ein fremder Kauf -> kein Referenzpreis
+                            "frage": "C", "seite": "YES", "avg_fill_preis": 0.90,
+                            "einsatz_usd": 5.0, "shares": 5.56,
+                            "aufgeloest": True, "gewonnen": True, "pnl_usd": 0.56,
+                            "preis_nach_fill": {"0": None, "30": None, "60": None,
+                                                 "120": None, "300": None, "900": None},
+                        },
+                    ],
+                }
+            ]
+        }
+
+    def test_summary_pro_delay(self):
+        frame = rs.timing_decay_summary(self.payload_mit_timing())
+        self.assertEqual(list(frame["delay_s"]), [0, 30, 60, 120, 300, 900])
+        d0 = frame[frame["delay_s"] == 0].iloc[0]
+        # A: fremde Referenz 0.50 -> +10; C: kein Fremdkauf -> eigener Fill
+        # 0.90 -> 5.56 shares -> +0.56. B ist offen und fliegt raus.
+        self.assertEqual(d0["n_bets"], 2)
+        self.assertEqual(d0["n_foreign_ref"], 1)
+        self.assertAlmostEqual(d0["sim_pnl_usd"], 10.56, places=2)
+        self.assertAlmostEqual(d0["pnl_delta_usd"], 0.0)
+        d30 = frame[frame["delay_s"] == 30].iloc[0]
+        # A: Entry 0.80 -> +2.5 statt +10; C unveraendert
+        self.assertAlmostEqual(d30["sim_pnl_usd"], 3.06, places=2)
+        self.assertAlmostEqual(d30["pnl_delta_usd"], -7.5, places=2)
+        d120 = frame[frame["delay_s"] == 120].iloc[0]
+        # A: 0.95 > cap -> priced out, PnL 0; C bleibt
+        self.assertEqual(d120["n_priced_out"], 1)
+        self.assertAlmostEqual(d120["sim_pnl_usd"], 0.56, places=2)
+        self.assertAlmostEqual(d120["pnl_delta_usd"], -10.0, places=2)
+
+    def test_leer_ohne_referenzen(self):
+        frame = rs.timing_decay_summary({"runs": []})
+        self.assertEqual(int(frame["n_bets"].max()), 0)
