@@ -1,19 +1,19 @@
 {
  "hinweis": "Descriptive post-run review of our own small-stake live runs of the mentions bot. Reconstructed read-only from the run logs; resolutions from public Gamma data. No trading recommendation, no return forecast.",
- "stand_utc": "2026-07-10T03:29:00+00:00",
+ "stand_utc": "2026-07-13T13:03:56+00:00",
  "kennzeichnung": "live/descriptive",
  "aggregat": {
   "n_runs": 3,
-  "n_wetten": 6,
-  "gewonnen": 1,
+  "n_wetten": 8,
+  "gewonnen": 8,
   "verloren": 0,
-  "offen": 5,
-  "einsatz_usd": 227.83,
-  "aufgeloester_einsatz_usd": 5.97,
-  "realisierter_payout_usd": 7.02,
-  "realisierter_pnl_usd": 1.05,
-  "roi_realisiert_pct": 17.6,
-  "offener_einsatz_usd": 221.86
+  "offen": 0,
+  "einsatz_usd": 260.83,
+  "aufgeloester_einsatz_usd": 260.83,
+  "realisierter_payout_usd": 290.21,
+  "realisierter_pnl_usd": 29.38,
+  "roi_realisiert_pct": 11.3,
+  "offener_einsatz_usd": 0.0
  },
  "runs": [
   {
@@ -52,10 +52,67 @@
      "payout_usd": 7.02,
      "pnl_usd": 1.05,
      "roi_pct": 17.6,
-     "aktueller_yes_preis": null
+     "aktueller_yes_preis": null,
+     "tape_rang": 1,
+     "fremde_davor": 0,
+     "fremdvolumen_davor_usd": 0.0,
+     "verfolger_s": 565.0,
+     "preis_nach_fill": {
+      "0": null,
+      "30": null,
+      "60": null,
+      "120": null,
+      "300": null,
+      "900": 0.9653488372
+     }
     }
    ],
-   "verpasste_chancen": []
+   "verpasste_chancen": [],
+   "race": {
+    "quelle": "data-api.polymarket.com/trades (oeffentlich, read-only)",
+    "wetten_mit_tape": 1,
+    "first_on": 1,
+    "fremde_trades_vor_uns": 0,
+    "median_verfolger_s": 565.0
+   },
+   "repricing": [
+    {
+     "frage": "Will \"Tourism\" be said during the next episode of the All-In Podcast?",
+     "seite": "YES",
+     "time_to_priced_s": 640.0,
+     "fill_nach_s": 75.0,
+     "punkte": [
+      [
+       640.0,
+       0.9653488372
+      ],
+      [
+       2514.0,
+       0.99
+      ],
+      [
+       3175.0,
+       0.99
+      ],
+      [
+       3175.0,
+       0.99
+      ],
+      [
+       3175.0,
+       0.99
+      ],
+      [
+       3175.0,
+       0.99
+      ],
+      [
+       3717.0,
+       0.99
+      ]
+     ]
+    }
+   ]
   },
   {
    "profil": "jre_july6",
@@ -77,7 +134,9 @@
    "einsatz_usd": 0.0,
    "realisierter_pnl_usd": null,
    "wetten": [],
-   "verpasste_chancen": []
+   "verpasste_chancen": [],
+   "race": null,
+   "repricing": []
   },
   {
    "profil": "allin_july10",
@@ -91,15 +150,16 @@
    "erste_entscheidung_s": 52.0,
    "erster_fill_s": 64.0,
    "n_maerkte": 19,
-   "n_entscheidungen": 44,
+   "n_entscheidungen": 71,
    "zaehler": {
-    "no_action": 14,
-    "live_fill": 5,
-    "skipped_budget": 25
+    "no_action": 34,
+    "live_fill": 7,
+    "skipped_budget": 25,
+    "error": 5
    },
-   "eingepreist": 6,
-   "einsatz_usd": 221.86,
-   "realisierter_pnl_usd": null,
+   "eingepreist": 18,
+   "einsatz_usd": 254.86,
+   "realisierter_pnl_usd": 28.33,
    "wetten": [
     {
      "frage": "Will \"IPO\" be said during the next episode of the All-In Podcast?",
@@ -111,12 +171,24 @@
      "sweep_clips": 5,
      "fill_status": "live_fill",
      "fill_ts_utc": "2026-07-10T01:18:31Z",
-     "aufgeloest": false,
-     "gewonnen": null,
-     "payout_usd": null,
-     "pnl_usd": null,
-     "roi_pct": null,
-     "aktueller_yes_preis": 0.67
+     "aufgeloest": true,
+     "gewonnen": true,
+     "payout_usd": 113.76,
+     "pnl_usd": 11.37,
+     "roi_pct": 11.1,
+     "aktueller_yes_preis": null,
+     "tape_rang": 1,
+     "fremde_davor": 0,
+     "fremdvolumen_davor_usd": 0.0,
+     "verfolger_s": 69.0,
+     "preis_nach_fill": {
+      "0": null,
+      "30": null,
+      "60": null,
+      "120": null,
+      "300": null,
+      "900": null
+     }
     },
     {
      "frage": "Will \"AI\" be said 35+ times during the next episode of the All-In Podcast?",
@@ -128,12 +200,24 @@
      "sweep_clips": 2,
      "fill_status": "live_fill",
      "fill_ts_utc": "2026-07-10T03:17:58Z",
-     "aufgeloest": false,
-     "gewonnen": null,
-     "payout_usd": null,
-     "pnl_usd": null,
-     "roi_pct": null,
-     "aktueller_yes_preis": 0.775
+     "aufgeloest": true,
+     "gewonnen": true,
+     "payout_usd": 27.31,
+     "pnl_usd": 2.73,
+     "roi_pct": 11.1,
+     "aktueller_yes_preis": null,
+     "tape_rang": 1,
+     "fremde_davor": 0,
+     "fremdvolumen_davor_usd": 0.0,
+     "verfolger_s": 27735.0,
+     "preis_nach_fill": {
+      "0": null,
+      "30": null,
+      "60": null,
+      "120": null,
+      "300": null,
+      "900": null
+     }
     },
     {
      "frage": "Will \"SpaceX\" be said 3+ times during the next episode of the All-In Podcast?",
@@ -145,12 +229,24 @@
      "sweep_clips": 3,
      "fill_status": "live_fill",
      "fill_ts_utc": "2026-07-10T03:18:06Z",
-     "aufgeloest": false,
-     "gewonnen": null,
-     "payout_usd": null,
-     "pnl_usd": null,
-     "roi_pct": null,
-     "aktueller_yes_preis": 0.58
+     "aufgeloest": true,
+     "gewonnen": true,
+     "payout_usd": 76.27,
+     "pnl_usd": 7.63,
+     "roi_pct": 11.1,
+     "aktueller_yes_preis": null,
+     "tape_rang": 1,
+     "fremde_davor": 0,
+     "fremdvolumen_davor_usd": 0.0,
+     "verfolger_s": 27620.0,
+     "preis_nach_fill": {
+      "0": null,
+      "30": null,
+      "60": null,
+      "120": null,
+      "300": null,
+      "900": null
+     }
     },
     {
      "frage": "Will \"IPO\" be said during the next episode of the All-In Podcast?",
@@ -162,12 +258,24 @@
      "sweep_clips": 1,
      "fill_status": "live_fill",
      "fill_ts_utc": "2026-07-10T03:18:09Z",
-     "aufgeloest": false,
-     "gewonnen": null,
-     "payout_usd": null,
-     "pnl_usd": null,
-     "roi_pct": null,
-     "aktueller_yes_preis": 0.67
+     "aufgeloest": true,
+     "gewonnen": true,
+     "payout_usd": 23.26,
+     "pnl_usd": 2.33,
+     "roi_pct": 11.1,
+     "aktueller_yes_preis": null,
+     "tape_rang": 2,
+     "fremde_davor": 1,
+     "fremdvolumen_davor_usd": 5.18,
+     "verfolger_s": 868.0,
+     "preis_nach_fill": {
+      "0": null,
+      "30": null,
+      "60": null,
+      "120": null,
+      "300": null,
+      "900": 0.6768318508
+     }
     },
     {
      "frage": "Will \"Nvidia\" be said during the next episode of the All-In Podcast?",
@@ -179,12 +287,82 @@
      "sweep_clips": 1,
      "fill_status": "live_fill",
      "fill_ts_utc": "2026-07-10T03:18:12Z",
-     "aufgeloest": false,
-     "gewonnen": null,
-     "payout_usd": null,
-     "pnl_usd": null,
-     "roi_pct": null,
-     "aktueller_yes_preis": 0.825
+     "aufgeloest": true,
+     "gewonnen": true,
+     "payout_usd": 5.92,
+     "pnl_usd": 0.6,
+     "roi_pct": 11.3,
+     "aktueller_yes_preis": null,
+     "tape_rang": 1,
+     "fremde_davor": 0,
+     "fremdvolumen_davor_usd": 0.0,
+     "verfolger_s": 334.0,
+     "preis_nach_fill": {
+      "0": null,
+      "30": null,
+      "60": null,
+      "120": null,
+      "300": null,
+      "900": 0.84
+     }
+    },
+    {
+     "frage": "Will \"SpaceX\" be said 3+ times during the next episode of the All-In Podcast?",
+     "seite": "YES",
+     "entscheidungs_preis": 0.59,
+     "avg_fill_preis": 0.9,
+     "shares": 20.0,
+     "einsatz_usd": 18.0,
+     "sweep_clips": 1,
+     "fill_status": "live_fill",
+     "fill_ts_utc": "2026-07-11T02:26:31Z",
+     "aufgeloest": true,
+     "gewonnen": true,
+     "payout_usd": 20.0,
+     "pnl_usd": 2.0,
+     "roi_pct": 11.1,
+     "aktueller_yes_preis": null,
+     "tape_rang": 2,
+     "fremde_davor": 1,
+     "fremdvolumen_davor_usd": 60.0,
+     "verfolger_s": 264.0,
+     "preis_nach_fill": {
+      "0": null,
+      "30": null,
+      "60": null,
+      "120": null,
+      "300": 0.97,
+      "900": 0.9887653393
+     }
+    },
+    {
+     "frage": "Will \"Nvidia\" be said during the next episode of the All-In Podcast?",
+     "seite": "YES",
+     "entscheidungs_preis": 0.9,
+     "avg_fill_preis": 0.8998,
+     "shares": 16.67,
+     "einsatz_usd": 15.0,
+     "sweep_clips": 1,
+     "fill_status": "live_fill",
+     "fill_ts_utc": "2026-07-11T02:26:34Z",
+     "aufgeloest": true,
+     "gewonnen": true,
+     "payout_usd": 16.67,
+     "pnl_usd": 1.67,
+     "roi_pct": 11.1,
+     "aktueller_yes_preis": null,
+     "tape_rang": 10,
+     "fremde_davor": 9,
+     "fremdvolumen_davor_usd": 342.1,
+     "verfolger_s": 258.0,
+     "preis_nach_fill": {
+      "0": 0.94,
+      "30": 0.94,
+      "60": 0.94,
+      "120": 0.94,
+      "300": 0.9094652251,
+      "900": 0.99
+     }
     }
    ],
    "verpasste_chancen": [
@@ -192,151 +370,233 @@
      "frage": "Will \"Nvidia\" be said during the next episode of the All-In Podcast?",
      "seite": "YES",
      "limit_preis": 0.83,
-     "grund": "budget_exhausted"
+     "grund": "budget_exhausted",
+     "waere_gewonnen": true
     },
     {
      "frage": "Will \"Red\" be said during the next episode of the All-In Podcast?",
      "seite": "YES",
      "limit_preis": 0.62,
-     "grund": "budget_exhausted"
+     "grund": "budget_exhausted",
+     "waere_gewonnen": false
     },
     {
      "frage": "Will \"Canada\" be said during the next episode of the All-In Podcast?",
      "seite": "YES",
      "limit_preis": 0.36,
-     "grund": "budget_exhausted"
+     "grund": "budget_exhausted",
+     "waere_gewonnen": false
     },
     {
      "frage": "Will \"Innovation\" be said during the next episode of the All-In Podcast?",
      "seite": "YES",
      "limit_preis": 0.67,
-     "grund": "budget_exhausted"
+     "grund": "budget_exhausted",
+     "waere_gewonnen": true
     },
     {
      "frage": "Will \"Cancer\" be said during the next episode of the All-In Podcast?",
      "seite": "YES",
      "limit_preis": 0.57,
-     "grund": "budget_exhausted"
+     "grund": "budget_exhausted",
+     "waere_gewonnen": false
     },
     {
      "frage": "Will \"SpaceX\" be said 3+ times during the next episode of the All-In Podcast?",
      "seite": "NO",
      "limit_preis": 0.43,
-     "grund": "budget_exhausted"
+     "grund": "budget_exhausted",
+     "waere_gewonnen": false
     },
     {
      "frage": "Will \"Blue\" be said during the next episode of the All-In Podcast?",
      "seite": "NO",
      "limit_preis": 0.23,
-     "grund": "budget_exhausted"
+     "grund": "budget_exhausted",
+     "waere_gewonnen": false
     },
     {
      "frage": "Will \"Regulatory\" be said during the next episode of the All-In Podcast?",
      "seite": "NO",
      "limit_preis": 0.23,
-     "grund": "budget_exhausted"
+     "grund": "budget_exhausted",
+     "waere_gewonnen": false
     },
     {
      "frage": "Will \"Alignment\" be said during the next episode of the All-In Podcast?",
      "seite": "NO",
      "limit_preis": 0.76,
-     "grund": "budget_exhausted"
+     "grund": "budget_exhausted",
+     "waere_gewonnen": true
     },
     {
      "frage": "Will \"Stock Market\" be said during the next episode of the All-In Podcast?",
      "seite": "NO",
      "limit_preis": 0.46,
-     "grund": "budget_exhausted"
+     "grund": "budget_exhausted",
+     "waere_gewonnen": true
     },
     {
      "frage": "Will \"Constitution\" be said during the next episode of the All-In Podcast?",
      "seite": "NO",
      "limit_preis": 0.63,
-     "grund": "budget_exhausted"
+     "grund": "budget_exhausted",
+     "waere_gewonnen": true
     },
     {
      "frage": "Will \"Disruptive\" be said during the next episode of the All-In Podcast?",
      "seite": "NO",
      "limit_preis": 0.59,
-     "grund": "budget_exhausted"
+     "grund": "budget_exhausted",
+     "waere_gewonnen": true
     },
     {
      "frage": "Will \"Biology\" be said during the next episode of the All-In Podcast?",
      "seite": "NO",
      "limit_preis": 0.65,
-     "grund": "budget_exhausted"
+     "grund": "budget_exhausted",
+     "waere_gewonnen": true
     },
     {
      "frage": "Will \"Miracle\" be said during the next episode of the All-In Podcast?",
      "seite": "NO",
      "limit_preis": 0.7,
-     "grund": "budget_exhausted"
+     "grund": "budget_exhausted",
+     "waere_gewonnen": true
     },
     {
      "frage": "Will \"Red\" be said during the next episode of the All-In Podcast?",
      "seite": "YES",
      "limit_preis": 0.62,
-     "grund": "budget_exhausted"
+     "grund": "budget_exhausted",
+     "waere_gewonnen": false
     },
     {
      "frage": "Will \"Blue\" be said during the next episode of the All-In Podcast?",
      "seite": "YES",
      "limit_preis": 0.78,
-     "grund": "budget_exhausted"
+     "grund": "budget_exhausted",
+     "waere_gewonnen": true
     },
     {
      "frage": "Will \"Canada\" be said during the next episode of the All-In Podcast?",
      "seite": "YES",
      "limit_preis": 0.36,
-     "grund": "budget_exhausted"
+     "grund": "budget_exhausted",
+     "waere_gewonnen": false
     },
     {
      "frage": "Will \"Constitution\" be said during the next episode of the All-In Podcast?",
      "seite": "YES",
      "limit_preis": 0.38,
-     "grund": "budget_exhausted"
+     "grund": "budget_exhausted",
+     "waere_gewonnen": false
     },
     {
      "frage": "Will \"Alignment\" be said during the next episode of the All-In Podcast?",
      "seite": "NO",
      "limit_preis": 0.76,
-     "grund": "budget_exhausted"
+     "grund": "budget_exhausted",
+     "waere_gewonnen": true
     },
     {
      "frage": "Will \"Stock Market\" be said during the next episode of the All-In Podcast?",
      "seite": "NO",
      "limit_preis": 0.47,
-     "grund": "budget_exhausted"
+     "grund": "budget_exhausted",
+     "waere_gewonnen": true
     },
     {
      "frage": "Will \"Disruptive\" be said during the next episode of the All-In Podcast?",
      "seite": "NO",
      "limit_preis": 0.6,
-     "grund": "budget_exhausted"
+     "grund": "budget_exhausted",
+     "waere_gewonnen": true
     },
     {
      "frage": "Will \"Innovation\" be said during the next episode of the All-In Podcast?",
      "seite": "NO",
      "limit_preis": 0.35,
-     "grund": "budget_exhausted"
+     "grund": "budget_exhausted",
+     "waere_gewonnen": false
     },
     {
      "frage": "Will \"Cancer\" be said during the next episode of the All-In Podcast?",
      "seite": "NO",
      "limit_preis": 0.48,
-     "grund": "budget_exhausted"
+     "grund": "budget_exhausted",
+     "waere_gewonnen": true
     },
     {
      "frage": "Will \"Biology\" be said during the next episode of the All-In Podcast?",
      "seite": "NO",
      "limit_preis": 0.66,
-     "grund": "budget_exhausted"
+     "grund": "budget_exhausted",
+     "waere_gewonnen": true
     },
     {
      "frage": "Will \"Miracle\" be said during the next episode of the All-In Podcast?",
      "seite": "NO",
      "limit_preis": 0.71,
-     "grund": "budget_exhausted"
+     "grund": "budget_exhausted",
+     "waere_gewonnen": true
+    }
+   ],
+   "race": {
+    "quelle": "data-api.polymarket.com/trades (oeffentlich, read-only)",
+    "wetten_mit_tape": 7,
+    "first_on": 4,
+    "fremde_trades_vor_uns": 11,
+    "median_verfolger_s": 334.0
+   },
+   "repricing": [
+    {
+     "frage": "Will \"IPO\" be said during the next episode of the All-In Podcast?",
+     "seite": "YES",
+     "time_to_priced_s": null,
+     "fill_nach_s": 64.0,
+     "punkte": [
+      [
+       8110.0,
+       0.6768318508
+      ],
+      [
+       8359.0,
+       0.77
+      ]
+     ]
+    },
+    {
+     "frage": "Will \"Nvidia\" be said during the next episode of the All-In Podcast?",
+     "seite": "YES",
+     "time_to_priced_s": 8462.0,
+     "fill_nach_s": 7245.0,
+     "punkte": [
+      [
+       7579.0,
+       0.84
+      ],
+      [
+       8431.0,
+       0.85
+      ],
+      [
+       8441.0,
+       0.86
+      ],
+      [
+       8450.0,
+       0.87
+      ],
+      [
+       8462.0,
+       0.94
+      ],
+      [
+       9080.0,
+       0.94
+      ]
+     ]
     }
    ]
   }
