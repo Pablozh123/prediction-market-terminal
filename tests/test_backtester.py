@@ -122,6 +122,30 @@ class ReplayTests(unittest.TestCase):
         ledger, _ = bt.replay(trades, config(sizing_mode=bt.SIZING_PORTFOLIO, stake_value=1.0))
         self.assertEqual(ledger.iloc[0]["status"], "skipped")
 
+    def test_kelly_sizing_stakes_quarter_kelly_of_equity(self):
+        # Entry 0.50, assumed edge 5pt -> q=0.55, f* = 0.05/0.50 = 10%; quarter-Kelly
+        # of the $1,000 bankroll = $25.
+        trades = frame([trade("2026-05-01", "BUY", 0.50, 100.0)])
+        ledger, _ = bt.replay(trades, config(sizing_mode=bt.SIZING_KELLY, stake_value=5.0))
+        self.assertAlmostEqual(ledger.iloc[0]["stake"], 25.0, places=6)
+
+    def test_kelly_fraction_override_scales_stake(self):
+        trades = frame([trade("2026-05-01", "BUY", 0.50, 100.0)])
+        ledger, _ = bt.replay(trades, config(sizing_mode=bt.SIZING_KELLY, stake_value=5.0, kelly_fraction=1.0))
+        self.assertAlmostEqual(ledger.iloc[0]["stake"], 100.0, places=6)
+
+    def test_kelly_zero_edge_skips(self):
+        trades = frame([trade("2026-05-01", "BUY", 0.50, 100.0)])
+        ledger, _ = bt.replay(trades, config(sizing_mode=bt.SIZING_KELLY, stake_value=0.0))
+        self.assertEqual(ledger.iloc[0]["status"], "skipped")
+
+    def test_kelly_fade_sizes_on_faded_price(self):
+        # Fading a BUY at 0.60 buys the other side at 0.40; edge 5pt -> q=0.45,
+        # f* = 0.05/0.60; quarter-Kelly of $1,000 = $20.8333.
+        trades = frame([trade("2026-05-01", "BUY", 0.60, 100.0)])
+        ledger, _ = bt.replay(trades, config(sizing_mode=bt.SIZING_KELLY, stake_value=5.0, strategy=bt.STRATEGY_FADE))
+        self.assertAlmostEqual(ledger.iloc[0]["stake"], 1000.0 * 0.25 * (0.05 / 0.60), places=4)
+
     def test_exposure_cap_limits_open_copies(self):
         trades = frame(
             [
@@ -439,16 +463,23 @@ class RunBacktestTests(unittest.TestCase):
             fetch_markets_by_ids=lambda ids: [],
             now=now,
         )
-        self.assertEqual(len(comparison), 6)
+        self.assertEqual(len(comparison), 8)
         self.assertTrue(comparison["final_equity"].is_monotonic_decreasing)
-        self.assertEqual(comparison.iloc[0]["strategy"], "5% of bankroll")
+        # Several variants can tie on the top final equity on this fixture, and
+        # the descending sort's tie-break order is not stable — so assert the
+        # winner is one of the top-equity variants, not a hard-coded name.
+        best_equity = comparison["final_equity"].max()
+        top_variants = set(comparison.loc[comparison["final_equity"] == best_equity, "strategy"])
+        self.assertIn(comparison.iloc[0]["strategy"], top_variants)
+        self.assertIn("5% of bankroll", top_variants)
+        self.assertIn("Kelly 1/4 (+5pt edge)", set(comparison["strategy"]))
         with_portfolio = bt.strategy_comparison(
             config(trader_portfolio_value=10_000.0),
             fetch_activity=fetch_activity,
             fetch_markets_by_ids=lambda ids: [],
             now=now,
         )
-        self.assertEqual(len(with_portfolio), 8)
+        self.assertEqual(len(with_portfolio), 10)
 
     def test_empty_activity_yields_flat_result(self):
         result = bt.run_backtest(
