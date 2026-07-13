@@ -251,12 +251,20 @@ def run_verpasste_rows(run: dict[str, Any]) -> list[dict[str, Any]]:
 
     rows: list[dict[str, Any]] = []
     for chance in run.get("verpasste_chancen", []) or []:
+        waere = chance.get("waere_gewonnen")
+        limit = chance.get("limit_preis")
+        # Hypothetischer ROI je $1 zum uebersprungenen Limit-Preis.
+        roi = None
+        if waere is not None and limit and 0.0 < float(limit) < 1.0:
+            roi = (1.0 - float(limit)) / float(limit) * 100.0 if waere else -100.0
         rows.append(
             {
                 "frage": str(chance.get("frage", "")),
                 "seite": str(chance.get("seite", "")),
-                "limit_preis": chance.get("limit_preis"),
+                "limit_preis": limit,
                 "grund": str(chance.get("grund", "")),
+                "waere_gewonnen": waere,
+                "hypo_roi_pct": roi,
             }
         )
     return rows
