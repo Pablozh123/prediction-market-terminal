@@ -25,9 +25,12 @@ from app import analysis_views as av
 from app import app_settings as cfg
 from app import authz as az
 from app import backtester as btr
+from app import calibration as calib
 from app import copy_fidelity as cfy
 from app import copy_follow as ctf
 from app import notify
+from app import quant as qm
+from app import run_sim as rsim
 from app import signals as sig
 from app import suspicion as susp
 from app import track_record as trec
@@ -148,7 +151,7 @@ WORKSPACE_HELP = {
     "Review Queue": "Prioritized verification cases from the daily analysis run (static, read-only).",
     "Category Efficiency": "Brier score vs. pricing-in minutes per market category.",
     "Mentions Latency": "How fast mentions markets react to the content drop.",
-    "Live Runs": "Bets, latencies, and realized results of our own bot runs.",
+    "Live Runs": "Bets, latencies, and results of our own bot runs — plus sizing simulation and entry calibration on those runs.",
     "Pipeline Forward": "Observing paper forward test of the analysis pipeline.",
     "Methodology": "Methodology, guardrails, and audit (hashes and counters).",
 }
@@ -159,6 +162,8 @@ PAGE_BY_QUERY_SLUG = {slug: page for page, slug in PAGE_QUERY_SLUGS.items()}
 PAGE_BY_QUERY_SLUG.update({
     "picks": "Traders",
     "alerts": "Monitor",
+    # Calibration lives inside Live Runs now (sizing sim + entry calibration).
+    "calibration": "Live Runs",
     # Alte deutsche Research-Slugs bleiben als Aliase gueltig.
     "kategorie-effizienz": "Category Efficiency",
     "mentions-latenz": "Mentions Latency",
@@ -10875,6 +10880,7 @@ BACKTEST_SIZING_CHOICES = {
     "Fixed $": btr.SIZING_FIXED,
     "% of bankroll": btr.SIZING_PERCENT,
     "Match trader %": btr.SIZING_PORTFOLIO,
+    "Kelly ¼": btr.SIZING_KELLY,
 }
 BACKTEST_WINDOW_OPTIONS = {"7d": 7, "30d": 30, "90d": 90}
 BACKTEST_STRATEGY_OPTIONS = {"Copy": btr.STRATEGY_COPY, "Fade": btr.STRATEGY_FADE}
@@ -11160,6 +11166,13 @@ def page_backtester() -> None:
                 st.markdown(
                     "<div class='field-hint'>If the trader puts 2% of their portfolio into a bet, you put 2% × multiplier of yours. "
                     "Their portfolio size is read from their public profile.</div>",
+                    unsafe_allow_html=True,
+                )
+            elif sizing_choice == "Kelly ¼":
+                stake_input = st.number_input("Assumed edge (probability points)", min_value=0.5, max_value=30.0, value=5.0, step=0.5, key="bt_stake_kelly")
+                st.markdown(
+                    "<div class='field-hint'>Assumes every copied entry is worth entry price + edge, then stakes quarter-Kelly of equity: "
+                    "f = ¼ × (edge / (1 − price)). Conservative on purpose — the edge is an assumption. Formula lives on the Calibration page.</div>",
                     unsafe_allow_html=True,
                 )
             else:
@@ -12990,6 +13003,95 @@ def page_live_runs() -> None:
                         "still priced below the cap, but the total budget pool was "
                         "spent -- input for pool and sizing decisions on future runs."
                     )
+
+    # --- Sizing simulation on the recorded bets -----------------------------
+    st.markdown("<div class='step-label'>Simulate these runs with different sizing</div>", unsafe_allow_html=True)
+    st.markdown(
+        _analysis_badge("HYPOTHETICAL / PAPER", AMBER)
+        + f" <span class='mono' style='color:{TEXT_SECONDARY}'>resolved bets only · fills at the recorded avg fill price · no compounding</span>",
+        unsafe_allow_html=True,
+    )
+    bets = rsim.bets_frame(payload)
+    sim_mode_label = st.segmented_control(
+        "Stake rule",
+        ["As executed", "Fixed stake", "Kelly fraction"],
+        default="As executed",
+        key="runs_sim_mode",
+    )
+    mode_map = {"As executed": rsim.SIM_AS_EXECUTED, "Fixed stake": rsim.SIM_FIXED, "Kelly fraction": rsim.SIM_KELLY}
+    sim_mode = mode_map.get(str(sim_mode_label), rsim.SIM_AS_EXECUTED)
+    c1, c2, c3, c4 = st.columns(4)
+    fixed_stake = c1.number_input("Fixed stake $", min_value=0.5, max_value=1000.0, value=5.0, step=0.5, key="runs_sim_fixed", disabled=sim_mode != rsim.SIM_FIXED)
+    bankroll = c2.number_input("Bankroll $ (Kelly)", min_value=10.0, max_value=100000.0, value=100.0, step=10.0, key="runs_sim_bankroll", disabled=sim_mode != rsim.SIM_KELLY)
+    edge_pt = c3.number_input(
+        "Assumed edge (pt over fill)", min_value=0.0, max_value=50.0, value=10.0, step=1.0, key="runs_sim_edge",
+        disabled=sim_mode != rsim.SIM_KELLY,
+        help="The word counter confirms before the market reprices — this is your guess of how many probability points the fill price understates.",
+    )
+    kelly_frac = c4.selectbox(
+        "Kelly fraction", [0.25, 0.5, 1.0], index=0, key="runs_sim_frac",
+        format_func=lambda v: {0.25: "Quarter (house default)", 0.5: "Half", 1.0: "Full"}[v],
+        disabled=sim_mode != rsim.SIM_KELLY,
+    )
+    sim_frame, sim_summary = rsim.simulate_sizing(
+        bets, sim_mode, bankroll=float(bankroll), fixed_stake=float(fixed_stake),
+        kelly_edge_pt=float(edge_pt), kelly_fraction=float(kelly_frac),
+    )
+    if sim_summary["n_resolved"] == 0:
+        st.info(
+            f"No resolved bets to simulate yet — {sim_summary['n_open']} bet(s) are still open. "
+            "This section fills in as runs resolve."
+        )
+    else:
+        s1, s2, s3, s4 = st.columns(4)
+        s1.metric("Resolved bets", f"{sim_summary['n_resolved']}", f"{sim_summary['n_open']} open excluded", delta_color="off")
+        s2.metric("Simulated stake", _run_usd(sim_summary["sim_stake"]),
+                  f"real {_run_usd(sim_summary['real_stake'])}", delta_color="off")
+        sim_pnl = sim_summary["sim_pnl"]
+        real_pnl = sim_summary["real_pnl"]
+        s3.metric(
+            "Simulated PnL",
+            _run_usd(sim_pnl),
+            f"real {_run_usd(real_pnl)}" if real_pnl is not None else None,
+            delta_color="off",
+        )
+        roi_txt = f"{sim_summary['sim_roi_pct']:+.1f}%" if sim_summary["sim_roi_pct"] is not None else "-"
+        real_roi = sim_summary["real_roi_pct"]
+        s4.metric("Simulated ROI", roi_txt, f"real {real_roi:+.1f}%" if real_roi is not None else None, delta_color="off")
+        table = sim_frame[["profil", "frage", "seite", "fill_preis", "gewonnen", "einsatz_usd", "pnl_usd", "sim_stake", "sim_pnl"]].copy()
+        st.dataframe(
+            table,
+            width="stretch",
+            hide_index=True,
+            column_config={
+                "profil": st.column_config.TextColumn("Run"),
+                "frage": st.column_config.TextColumn("Market", width="large"),
+                "seite": st.column_config.TextColumn("Side"),
+                "fill_preis": st.column_config.NumberColumn("Fill", format="%.2f"),
+                "gewonnen": st.column_config.CheckboxColumn("Won"),
+                "einsatz_usd": st.column_config.NumberColumn("Real stake $", format="%.2f"),
+                "pnl_usd": st.column_config.NumberColumn("Real PnL $", format="%.2f"),
+                "sim_stake": st.column_config.NumberColumn("Sim stake $", format="%.2f"),
+                "sim_pnl": st.column_config.NumberColumn("Sim PnL $", format="%.2f"),
+            },
+        )
+        st.caption(
+            "Replay of the recorded bets under a different stake rule — a what-if on history, "
+            "not a forecast. Missed chances are listed per run above but cannot be simulated: "
+            "they never filled, so they have no recorded outcome."
+        )
+
+    # --- Entry calibration of the bot's own fills ---------------------------
+    st.markdown("<div class='step-label'>Were the bot's entries honest prices?</div>", unsafe_allow_html=True)
+    scored = rsim.bot_resolution_frame(bets)
+    if scored.empty:
+        st.info("Calibration needs resolved bets — this section fills in as runs resolve.")
+    else:
+        _render_run_calibration(calib.calibration_report(scored, capped=False))
+
+    with st.expander("Kelly & Bayes toolkit — size a live market by hand"):
+        _render_quant_toolkit()
+
     render_analysis_footer()
 
 
@@ -13049,6 +13151,83 @@ def page_methodik() -> None:
     render_analysis_footer()
 
 
+def _render_quant_toolkit() -> None:
+    """Bayes fair-value and fractional-Kelly what-if panels (Live Runs toolkit)."""
+
+    bayes_col, kelly_col = st.columns([1.15, 1], gap="medium")
+    with bayes_col:
+        with st.container(border=True):
+            st.markdown("<div class='step-label' style='margin-top:0'>Bayes fair value — what-if</div>", unsafe_allow_html=True)
+            in_cols = st.columns(2)
+            prior = in_cols[0].number_input("Market price now (prior)", min_value=0.01, max_value=0.99, value=0.30, step=0.01, key="calib_bayes_prior")
+            lr = in_cols[1].number_input(
+                "Likelihood ratio of the news",
+                min_value=0.05,
+                max_value=50.0,
+                value=3.0,
+                step=0.05,
+                key="calib_bayes_lr",
+                help="P(seeing this information | YES) ÷ P(seeing it | NO). 1 = no information, 3 = clearly YES-flavoured, 0.33 = clearly NO-flavoured.",
+            )
+            posterior = qm.bayes_posterior(prior, lr)
+            out_cols = st.columns(2)
+            out_cols[0].metric("Posterior (fair value)", f"{posterior:.1%}")
+            out_cols[1].metric("Edge vs. market", f"{(posterior - prior) * 100:+.1f}pt", help="If the market stays at the prior while your posterior is right, this is the mispricing per share.")
+            rev_cols = st.columns(2)
+            p0 = rev_cols[0].number_input("Price before a move", min_value=0.01, max_value=0.99, value=0.30, step=0.01, key="calib_lr_p0")
+            p1 = rev_cols[1].number_input("Price after the move", min_value=0.01, max_value=0.99, value=0.55, step=0.01, key="calib_lr_p1")
+            implied = qm.implied_likelihood_ratio(p0, p1)
+            st.markdown(
+                f"<div class='field-hint'>The move {p0:.2f} → {p1:.2f} prices the news at LR ≈ {implied:.2f}. "
+                "Same LR moves a 50% market far more than a 5% or 95% one — longshots reacting 'too little' to loud news is correct updating, not lag. "
+                "Disagree with the implied weight and the residual is the trade.</div>",
+                unsafe_allow_html=True,
+            )
+    with kelly_col:
+        with st.container(border=True):
+            st.markdown("<div class='step-label' style='margin-top:0'>Fractional Kelly sizing</div>", unsafe_allow_html=True)
+            k_cols = st.columns(2)
+            k_price = k_cols[0].number_input("Entry price", min_value=0.01, max_value=0.99, value=0.30, step=0.01, key="calib_kelly_price")
+            k_prob = k_cols[1].number_input("Your probability", min_value=0.01, max_value=0.99, value=0.45, step=0.01, key="calib_kelly_prob")
+            full_kelly = qm.kelly_binary(k_price, k_prob)
+            m_cols = st.columns(3)
+            m_cols[0].metric("Full Kelly", f"{full_kelly:.1%}", help="f* = (p − price) / (1 − price) of bankroll — maximises expected log growth.")
+            m_cols[1].metric("Half", f"{full_kelly / 2:.1%}")
+            m_cols[2].metric("Quarter", f"{full_kelly / 4:.1%}")
+            st.markdown(
+                "<div class='field-hint'>Quarter-Kelly is the house default: the probability is an estimate, platform and resolution risk live outside "
+                "the model, and past f* expected growth falls asymmetrically — at 2×f* it is zero. The Backtester has this as a stake mode ('Kelly ¼').</div>",
+                unsafe_allow_html=True,
+            )
+
+def _render_run_calibration(report: dict) -> None:
+    """Compact calibration header for the bot's own resolved bets."""
+
+    head = st.columns(5)
+    head[0].metric("Resolved bets", f"{report['n']:,}")
+    head[1].metric(
+        "Hit rate",
+        f"{report['hit_rate']:.1%}",
+        help=f"95% Wilson interval {report['hit_low']:.1%} – {report['hit_high']:.1%}. Sample size is part of the claim.",
+    )
+    head[2].metric("Avg fill price", f"{report['avg_entry']:.1%}", help="What the market charged the bot at fill — the break-even hit rate.")
+    head[3].metric(
+        "Edge per share",
+        f"{report['edge_per_share'] * 100:+.1f}pt",
+        help=f"Hit rate minus average fill price, before fees. Interval: {report['edge_low'] * 100:+.1f} to {report['edge_high'] * 100:+.1f}pt.",
+    )
+    head[4].metric(
+        "Brier (fills)",
+        f"{report['brier_entry']:.4f}" if report["brier_entry"] is not None else "-",
+        help="Squared error of the fill price as a forecast. 0.25 = coin flip; lower = the bot bought sharp prices.",
+    )
+    st.caption(
+        f"{report['note']} Selection bias is inherent and intended: only markets the bot chose are scored — "
+        "this measures its word-counter edge in its chosen spots, not general forecasting."
+    )
+
+
+# Workspace registry — every entry in WORKSPACES needs a renderer here.
 PAGES = {
     "Overview": page_overview,
     "Search": page_search,
