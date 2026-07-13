@@ -1,19 +1,19 @@
 {
  "hinweis": "Descriptive post-run review of our own small-stake live runs of the mentions bot. Reconstructed read-only from the run logs; resolutions from public Gamma data. No trading recommendation, no return forecast.",
- "stand_utc": "2026-07-10T03:29:00+00:00",
+ "stand_utc": "2026-07-13T12:00:10+00:00",
  "kennzeichnung": "live/descriptive",
  "aggregat": {
   "n_runs": 3,
-  "n_wetten": 6,
-  "gewonnen": 1,
+  "n_wetten": 8,
+  "gewonnen": 8,
   "verloren": 0,
-  "offen": 5,
-  "einsatz_usd": 227.83,
-  "aufgeloester_einsatz_usd": 5.97,
-  "realisierter_payout_usd": 7.02,
-  "realisierter_pnl_usd": 1.05,
-  "roi_realisiert_pct": 17.6,
-  "offener_einsatz_usd": 221.86
+  "offen": 0,
+  "einsatz_usd": 260.83,
+  "aufgeloester_einsatz_usd": 260.83,
+  "realisierter_payout_usd": 290.21,
+  "realisierter_pnl_usd": 29.38,
+  "roi_realisiert_pct": 11.3,
+  "offener_einsatz_usd": 0.0
  },
  "runs": [
   {
@@ -91,15 +91,16 @@
    "erste_entscheidung_s": 52.0,
    "erster_fill_s": 64.0,
    "n_maerkte": 19,
-   "n_entscheidungen": 44,
+   "n_entscheidungen": 71,
    "zaehler": {
-    "no_action": 14,
-    "live_fill": 5,
-    "skipped_budget": 25
+    "no_action": 34,
+    "live_fill": 7,
+    "skipped_budget": 25,
+    "error": 5
    },
-   "eingepreist": 6,
-   "einsatz_usd": 221.86,
-   "realisierter_pnl_usd": null,
+   "eingepreist": 18,
+   "einsatz_usd": 254.86,
+   "realisierter_pnl_usd": 28.33,
    "wetten": [
     {
      "frage": "Will \"IPO\" be said during the next episode of the All-In Podcast?",
@@ -111,12 +112,12 @@
      "sweep_clips": 5,
      "fill_status": "live_fill",
      "fill_ts_utc": "2026-07-10T01:18:31Z",
-     "aufgeloest": false,
-     "gewonnen": null,
-     "payout_usd": null,
-     "pnl_usd": null,
-     "roi_pct": null,
-     "aktueller_yes_preis": 0.67
+     "aufgeloest": true,
+     "gewonnen": true,
+     "payout_usd": 113.76,
+     "pnl_usd": 11.37,
+     "roi_pct": 11.1,
+     "aktueller_yes_preis": null
     },
     {
      "frage": "Will \"AI\" be said 35+ times during the next episode of the All-In Podcast?",
@@ -128,12 +129,12 @@
      "sweep_clips": 2,
      "fill_status": "live_fill",
      "fill_ts_utc": "2026-07-10T03:17:58Z",
-     "aufgeloest": false,
-     "gewonnen": null,
-     "payout_usd": null,
-     "pnl_usd": null,
-     "roi_pct": null,
-     "aktueller_yes_preis": 0.775
+     "aufgeloest": true,
+     "gewonnen": true,
+     "payout_usd": 27.31,
+     "pnl_usd": 2.73,
+     "roi_pct": 11.1,
+     "aktueller_yes_preis": null
     },
     {
      "frage": "Will \"SpaceX\" be said 3+ times during the next episode of the All-In Podcast?",
@@ -145,12 +146,12 @@
      "sweep_clips": 3,
      "fill_status": "live_fill",
      "fill_ts_utc": "2026-07-10T03:18:06Z",
-     "aufgeloest": false,
-     "gewonnen": null,
-     "payout_usd": null,
-     "pnl_usd": null,
-     "roi_pct": null,
-     "aktueller_yes_preis": 0.58
+     "aufgeloest": true,
+     "gewonnen": true,
+     "payout_usd": 76.27,
+     "pnl_usd": 7.63,
+     "roi_pct": 11.1,
+     "aktueller_yes_preis": null
     },
     {
      "frage": "Will \"IPO\" be said during the next episode of the All-In Podcast?",
@@ -162,12 +163,12 @@
      "sweep_clips": 1,
      "fill_status": "live_fill",
      "fill_ts_utc": "2026-07-10T03:18:09Z",
-     "aufgeloest": false,
-     "gewonnen": null,
-     "payout_usd": null,
-     "pnl_usd": null,
-     "roi_pct": null,
-     "aktueller_yes_preis": 0.67
+     "aufgeloest": true,
+     "gewonnen": true,
+     "payout_usd": 23.26,
+     "pnl_usd": 2.33,
+     "roi_pct": 11.1,
+     "aktueller_yes_preis": null
     },
     {
      "frage": "Will \"Nvidia\" be said during the next episode of the All-In Podcast?",
@@ -179,12 +180,46 @@
      "sweep_clips": 1,
      "fill_status": "live_fill",
      "fill_ts_utc": "2026-07-10T03:18:12Z",
-     "aufgeloest": false,
-     "gewonnen": null,
-     "payout_usd": null,
-     "pnl_usd": null,
-     "roi_pct": null,
-     "aktueller_yes_preis": 0.825
+     "aufgeloest": true,
+     "gewonnen": true,
+     "payout_usd": 5.92,
+     "pnl_usd": 0.6,
+     "roi_pct": 11.3,
+     "aktueller_yes_preis": null
+    },
+    {
+     "frage": "Will \"SpaceX\" be said 3+ times during the next episode of the All-In Podcast?",
+     "seite": "YES",
+     "entscheidungs_preis": 0.59,
+     "avg_fill_preis": 0.9,
+     "shares": 20.0,
+     "einsatz_usd": 18.0,
+     "sweep_clips": 1,
+     "fill_status": "live_fill",
+     "fill_ts_utc": "2026-07-11T02:26:31Z",
+     "aufgeloest": true,
+     "gewonnen": true,
+     "payout_usd": 20.0,
+     "pnl_usd": 2.0,
+     "roi_pct": 11.1,
+     "aktueller_yes_preis": null
+    },
+    {
+     "frage": "Will \"Nvidia\" be said during the next episode of the All-In Podcast?",
+     "seite": "YES",
+     "entscheidungs_preis": 0.9,
+     "avg_fill_preis": 0.8998,
+     "shares": 16.67,
+     "einsatz_usd": 15.0,
+     "sweep_clips": 1,
+     "fill_status": "live_fill",
+     "fill_ts_utc": "2026-07-11T02:26:34Z",
+     "aufgeloest": true,
+     "gewonnen": true,
+     "payout_usd": 16.67,
+     "pnl_usd": 1.67,
+     "roi_pct": 11.1,
+     "aktueller_yes_preis": null
     }
    ],
    "verpasste_chancen": [
