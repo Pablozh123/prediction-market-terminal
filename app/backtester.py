@@ -13,6 +13,11 @@ Model:
 - Open positions are valued at entry cost until they close, so the equity curve
   steps on realized events; the final point includes mark-to-market.
 - A flat-stake benchmark replays the same signals with a constant stake.
+- Kelly sizing (``SIZING_KELLY``) reads ``stake_value`` as the assumed edge in
+  probability points over the copied entry price and stakes
+  ``kelly_fraction`` × full Kelly of current equity (quarter-Kelly by default):
+  the estimate is uncertain and platform/resolution risk lives outside the
+  model, and past f* expected log growth falls off a cliff.
 """
 
 from __future__ import annotations
@@ -22,11 +27,14 @@ from typing import Any, Callable
 
 import pandas as pd
 
+from app.quant import kelly_binary
+
 SIZING_FIXED = "fixed"
 SIZING_PERCENT = "percent"
 SIZING_MIRROR = "mirror"
 SIZING_PORTFOLIO = "portfolio_share"
-SIZING_MODES = (SIZING_FIXED, SIZING_PERCENT, SIZING_MIRROR, SIZING_PORTFOLIO)
+SIZING_KELLY = "kelly"
+SIZING_MODES = (SIZING_FIXED, SIZING_PERCENT, SIZING_MIRROR, SIZING_PORTFOLIO, SIZING_KELLY)
 
 STRATEGY_COPY = "copy"
 STRATEGY_FADE = "fade"
@@ -81,6 +89,10 @@ class BacktestConfig:
     strategy: str = STRATEGY_COPY
     max_exposure_pct: float = 100.0
     trader_portfolio_value: float = 0.0
+    # Fraction of full Kelly applied in SIZING_KELLY mode. Quarter-Kelly by
+    # default: the assumed edge is an estimate, and overbetting past the
+    # optimum destroys growth asymmetrically.
+    kelly_fraction: float = 0.25
 
 
 @dataclass(frozen=True)
@@ -103,11 +115,21 @@ def _empty_positions() -> pd.DataFrame:
     return pd.DataFrame(columns=POSITION_COLUMNS)
 
 
-def _stake_for(config: BacktestConfig, equity_now: float, source_notional: float) -> float:
+def _stake_for(config: BacktestConfig, equity_now: float, source_notional: float, entry_price: float | None = None) -> float:
     if config.sizing_mode == SIZING_PERCENT:
         stake = equity_now * (config.stake_value / 100.0)
     elif config.sizing_mode == SIZING_MIRROR:
         stake = source_notional * (config.stake_value / 100.0)
+    elif config.sizing_mode == SIZING_KELLY:
+        # stake_value = assumed edge in probability points over the entry price
+        # (e.g. 5.0 means "the bought side is worth entry + 5pt"). Sized on the
+        # pre-slippage entry price of the side we actually buy (fade-aware).
+        if entry_price is None or not (0.0 < entry_price < 1.0):
+            stake = 0.0
+        else:
+            prob = min(0.999, entry_price + max(0.0, config.stake_value) / 100.0)
+            fraction = kelly_binary(entry_price, prob) * max(0.0, config.kelly_fraction)
+            stake = equity_now * fraction
     elif config.sizing_mode == SIZING_PORTFOLIO:
         # Bet the same share of MY bankroll as the trader bet of THEIR portfolio
         # (stake_value acts as a multiplier: 1.0 = same share, 2.0 = double).
@@ -251,7 +273,8 @@ def replay(
         record["outcome"] = display_outcome
         if side == "BUY":
             source_shares[asset] = source_shares.get(asset, 0.0) + size
-            stake = _stake_for(config, equity_now(), float(trade.get("notional", 0.0) or 0.0))
+            base_price = (1.0 - price) if fade else price
+            stake = _stake_for(config, equity_now(), float(trade.get("notional", 0.0) or 0.0), base_price)
             exposure_room = max_open - open_cost
             if stake > exposure_room:
                 stake = max(0.0, exposure_room)
@@ -265,7 +288,6 @@ def replay(
             if stake < MIN_STAKE:
                 log(trade.get("time"), "BUY", "skipped", record, note="stake below minimum / out of cash")
                 continue
-            base_price = (1.0 - price) if fade else price
             exec_price = min(0.999, base_price * (1.0 + slip_rate))
             shares = stake / exec_price
             position = positions.setdefault(
@@ -657,6 +679,8 @@ def default_strategy_variants(config: BacktestConfig) -> list[tuple[str, str, fl
         ("1% of bankroll", SIZING_PERCENT, 1.0),
         ("2% of bankroll", SIZING_PERCENT, 2.0),
         ("5% of bankroll", SIZING_PERCENT, 5.0),
+        ("Kelly 1/4 (+5pt edge)", SIZING_KELLY, 5.0),
+        ("Kelly 1/4 (+10pt edge)", SIZING_KELLY, 10.0),
     ]
     if config.trader_portfolio_value > 0:
         variants.append(("Match trader share ×1", SIZING_PORTFOLIO, 1.0))
