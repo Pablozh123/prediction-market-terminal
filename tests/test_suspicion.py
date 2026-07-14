@@ -377,6 +377,7 @@ class StoryAndDrilldownTests(unittest.TestCase):
             {
                 "notional": 45000.0,
                 "unique_wallets": 4,
+                "trades": 8,
                 "long_odds_share": 0.6,
                 "late_share": 0.5,
                 "top_wallet_share": 0.7,
@@ -389,10 +390,32 @@ class StoryAndDrilldownTests(unittest.TestCase):
         )
         story = susp.event_story(row)
         self.assertIn("whale flow from 4 wallets", story)
+        self.assertIn("8 sampled prints", story)
         self.assertIn("long odds", story)
         self.assertIn("close to resolution", story)
+        self.assertIn("one wallet drives 70", story)
         self.assertIn("3 fresh wallets on YES", story)
         self.assertIn("+6c", story)
+
+    def test_event_story_single_print_makes_no_distribution_claims(self):
+        row = pd.Series(
+            {
+                "notional": 11100.0,
+                "unique_wallets": 1,
+                "trades": 1,
+                "long_odds_share": 1.0,
+                "top_wallet_share": 1.0,
+                "event_directional_share": 1.0,
+                "event_directional_label": "YES",
+            }
+        )
+        story = susp.event_story(row)
+        self.assertIn("1 sampled print", story)
+        self.assertIn("too few sampled prints", story)
+        self.assertIn("placed at long odds", story)
+        self.assertNotIn("one wallet drives", story)
+        self.assertNotIn("of flow is YES", story)
+        self.assertNotIn("100.0%", story)
 
     def test_event_story_handles_quiet_event(self):
         story = susp.event_story(pd.Series({"notional": 5000.0, "unique_wallets": 1}))

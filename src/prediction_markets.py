@@ -3191,12 +3191,20 @@ def whale_event_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_00
     grouped["long_odds_share"] = grouped["long_odds_share"].fillna(0.0)
 
     whale_base = max(float(whale_threshold or 0.0), 1_000.0)
+    # Verteilungs-Signale (Konzentration, Einseitigkeit, Anteils-Werte) sind
+    # bei einer Handvoll Prints trivial: EIN gesampelter Trade macht jede
+    # Verteilung "100% ein Wallet / 100% YES". Unter 3 Prints tragen sie
+    # nichts, volle Wirkung erst ab 5 -- absolute Signale (Notional, groesster
+    # Print) bleiben ungewichtet, ein einzelner grosser Long-odds-Print ist
+    # weiterhin ein Signal.
+    sample_weight = ((grouped["trades"] - 1.0) / 4.0).clip(lower=0.0, upper=1.0)
+    grouped["distribution_sample_weight"] = sample_weight
     notional_score = (grouped["notional"] / (whale_base * 40)).clip(upper=1.0) * 15
     largest_score = (grouped["largest_trade"] / (whale_base * 5)).clip(upper=1.0) * 10
-    long_odds_score = ((grouped["long_odds_share"].fillna(0.0) * 0.55) + (grouped["long_odds_notional"] / (whale_base * 5)).clip(upper=1.0) * 0.45) * 10
-    wallet_concentration_score = grouped["top_wallet_share"].fillna(0.0).clip(upper=1.0) * 15
-    direction_score = ((grouped["event_directional_share"].fillna(0.0) - 0.55) / 0.45).clip(lower=0.0, upper=1.0) * 10
-    burst_score = (grouped["trades_per_hour"] / 30).clip(upper=1.0) * 15
+    long_odds_score = ((grouped["long_odds_share"].fillna(0.0) * 0.55 * sample_weight) + (grouped["long_odds_notional"] / (whale_base * 5)).clip(upper=1.0) * 0.45) * 10
+    wallet_concentration_score = grouped["top_wallet_share"].fillna(0.0).clip(upper=1.0) * 15 * sample_weight
+    direction_score = ((grouped["event_directional_share"].fillna(0.0) - 0.55) / 0.45).clip(lower=0.0, upper=1.0) * 10 * sample_weight
+    burst_score = (grouped["trades_per_hour"] / 30).clip(upper=1.0) * 15 * sample_weight
     late_score = grouped["late_share"].fillna(0.0).clip(upper=1.0) * 15
     cluster_score = (((grouped["unique_wallets"] >= 3) & (grouped["trades_per_hour"] >= 10)).astype(float)) * 10
     grouped["event_insider_score"] = (
@@ -3217,9 +3225,11 @@ def whale_event_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_00
             [
                 (float(row.get("long_odds_notional", 0.0) or 0.0) >= whale_base, "long-odds big bet"),
                 (float(row.get("late_share", 0.0) or 0.0) >= 0.5, "late-market flow"),
-                (float(row.get("top_wallet_share", 0.0) or 0.0) >= 0.5, "wallet concentration"),
-                (float(row.get("event_directional_share", 0.0) or 0.0) >= 0.8, "one-sided flow"),
-                (float(row.get("trades_per_hour", 0.0) or 0.0) >= 20, "fast burst"),
+                # Verteilungs-Flags erst ab 3 gesampelten Prints -- ein
+                # einzelner Trade ist immer "konzentriert" und "einseitig".
+                (int(row.get("trades", 0) or 0) >= 3 and float(row.get("top_wallet_share", 0.0) or 0.0) >= 0.5, "wallet concentration"),
+                (int(row.get("trades", 0) or 0) >= 3 and float(row.get("event_directional_share", 0.0) or 0.0) >= 0.8, "one-sided flow"),
+                (int(row.get("trades", 0) or 0) >= 3 and float(row.get("trades_per_hour", 0.0) or 0.0) >= 20, "fast burst"),
                 (float(row.get("price_move", 0.0) or 0.0) >= 0.05, "favorable price move"),
                 (int(row.get("unique_wallets", 0) or 0) >= 3 and float(row.get("trades_per_hour", 0.0) or 0.0) >= 10, "multi-wallet burst"),
                 (float(row.get("largest_trade", 0.0) or 0.0) >= whale_base * 5, "large print"),
