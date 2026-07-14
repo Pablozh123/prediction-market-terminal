@@ -11787,11 +11787,17 @@ def page_suspicious() -> None:
         st.markdown(
             "- **Score (0–100):** built from unusual size, big bets on long odds, flow close to resolution, one-sided pressure, "
             "trade bursts, fresh wallets, coordinated timing and favorable price moves. Bands: <40 low · 40–54 elevated · 55–69 medium · ≥70 high.\n"
+            "- **Sample first:** every number describes the *sampled whale prints* (recent trades above the threshold), not the whole market. "
+            "Distribution claims — one-wallet share, one-sided flow, bursts — count toward the score only from 3 sampled prints upward "
+            "and reach full weight at 5; a single print is always \"100% one wallet\" and means nothing.\n"
             "- **Category context:** sports odds and weather are excluded entirely — game results and weather models cannot be insider-traded. "
             "Crypto/market prices are damped and hidden by default (toggle below). Politics/geopolitics, awards and corporate/legal outcomes are where insider knowledge plausibly flows.\n"
-            "- **One-wallet share:** how much of a market's whale volume comes from its single biggest wallet. 100% means one address is the whole flow.\n"
+            "- **One-wallet share:** how much of a market's *sampled whale volume* comes from its single biggest wallet — shown as n/a below 3 prints.\n"
             "- **Clusters:** wallets that repeatedly take the same side of the same markets, or hit the same market within minutes, are flagged as possibly linked. "
             "True linkage would need on-chain funding tracing, which this screen does not do.\n"
+            "- **Versus the Review Queue:** this page is a *live behavioural screen* — it reacts to wallet behaviour in the whale tape of the last hours, instantly and unvetted. "
+            "The Review Queue (Research) is the *daily pipeline*: deterministic volume/price anomalies against a rolling baseline, then agent triage into "
+            "watch / check_source / escalate_human. When a market here also sits in today's queue, its card carries a ◎ Research queue chip.\n"
             "- **Limits:** public trade tape only, sampled — a research lead, never a legal finding."
         )
 
@@ -11822,6 +11828,12 @@ def page_suspicious() -> None:
         )
 
     st.markdown("<div class='step-label'>Suspicious events</div>", unsafe_allow_html=True)
+    st.caption(
+        "Live behavioural screen over the sampled whale tape — instant and unvetted, "
+        "unlike the Review Queue's daily baseline anomalies with agent triage. "
+        "Distribution claims (one-wallet share, one-sided flow) need at least 3 sampled "
+        "prints; cards with fewer say so instead of claiming 100%."
+    )
     show_all_arenas = st.toggle(
         "Include crypto & market prices",
         value=False,
@@ -11884,8 +11896,14 @@ def page_suspicious() -> None:
                             hours_left = (end_ts - now_ts).total_seconds() / 3600
                             if 0 < hours_left <= 72:
                                 resolve_chip = [f"⏱ resolves in {hours_left:.0f}h"]
+                        n_prints = int(event.get("trades", 0) or 0)
+                        n_wallets = int(event.get("unique_wallets", 0) or 0)
+                        sample_chip = f"⌗ {n_prints} print{'s' if n_prints != 1 else ''}"
+                        if not venue_is_kalshi and n_wallets:
+                            sample_chip += f" · {n_wallets} wallet{'s' if n_wallets != 1 else ''}"
                         chips = (
-                            ([f"▦ {venue}"] if venue_is_kalshi else [])
+                            [sample_chip]
+                            + ([f"▦ {venue}"] if venue_is_kalshi else [])
                             + ([f"◆ {context_group}"] if context_group else [])
                             + resolve_chip
                             + ([f"◎ Research queue: {research_hits[0]}"] if research_hits else [])
@@ -11900,7 +11918,16 @@ def page_suspicious() -> None:
                             st.markdown(f"<div class='field-hint'>{html.escape(context_note)}</div>", unsafe_allow_html=True)
                         m1, m2, m3 = st.columns(3)
                         m1.metric("Whale $", money(event.get("notional", 0.0)), help="Whale-sized volume in this market within the sample.")
-                        m2.metric("One-wallet share", pct(event.get("top_wallet_share")), help="Share of this market's whale volume from its single largest wallet. 100% = one address is the whole flow.")
+                        if n_prints < susp.EVENT_MIN_DISTRIBUTION_PRINTS:
+                            m2.metric(
+                                "One-wallet share",
+                                "n/a",
+                                f"only {n_prints} print{'s' if n_prints != 1 else ''}",
+                                delta_color="off",
+                                help="Share of the sampled whale volume from the single largest wallet — meaningless below 3 sampled prints (a single print is always 100%).",
+                            )
+                        else:
+                            m2.metric("One-wallet share", pct(event.get("top_wallet_share")), help="Share of this market's sampled whale volume from its single largest wallet. 100% = one address is the whole sampled flow.")
                         if venue_is_kalshi:
                             m3.metric("Wallets", "—", help="Kalshi publishes aggregate prints only — trader identities are not public.")
                         else:
@@ -11930,7 +11957,7 @@ def page_suspicious() -> None:
         with st.expander(f"All screened events ({len(focused_events)})"):
             all_events = focused_events.copy()
             st.dataframe(
-                clean_table(all_events, ["title", "platform", "event_insider_score", "event_insider_level", "insider_context", "notional", "unique_wallets", "top_wallet_share", "event_insider_flags"]),
+                clean_table(all_events, ["title", "platform", "event_insider_score", "event_insider_level", "insider_context", "notional", "trades", "unique_wallets", "top_wallet_share", "event_insider_flags"]),
                 width="stretch",
                 height=380,
                 column_config={
@@ -11940,8 +11967,9 @@ def page_suspicious() -> None:
                     "event_insider_level": st.column_config.TextColumn("Level"),
                     "insider_context": st.column_config.TextColumn("Context"),
                     "notional": st.column_config.NumberColumn("Whale $", format="$%.0f"),
+                    "trades": st.column_config.NumberColumn("Prints", help="Sampled whale prints — distribution columns mean nothing below 3."),
                     "unique_wallets": st.column_config.NumberColumn("Wallets"),
-                    "top_wallet_share": st.column_config.NumberColumn("One-wallet share", format="%.0f%%"),
+                    "top_wallet_share": st.column_config.NumberColumn("One-wallet share", format="%.0f%%", help="Share of sampled whale volume from the largest wallet — read together with Prints."),
                     "event_insider_flags": st.column_config.TextColumn("Why", width="large"),
                 },
             )
