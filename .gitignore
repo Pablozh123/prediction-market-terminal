@@ -76,3 +76,6 @@ src/reddit.py
 src/sentiment.py
 CONTRIBUTING.md
 DEVELOPMENT.md
+
+# Lokale Uebergabe-Dokumente -- nie committen
+docs/*.docx

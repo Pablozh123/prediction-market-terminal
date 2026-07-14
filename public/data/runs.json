@@ -1,9 +1,9 @@
 {
  "hinweis": "Descriptive post-run review of our own small-stake live runs of the mentions bot. Reconstructed read-only from the run logs; resolutions from public Gamma data. No trading recommendation, no return forecast.",
- "stand_utc": "2026-07-13T13:03:56+00:00",
+ "stand_utc": "2026-07-14T04:31:12+00:00",
  "kennzeichnung": "live/descriptive",
  "aggregat": {
-  "n_runs": 3,
+  "n_runs": 4,
   "n_wetten": 8,
   "gewonnen": 8,
   "verloren": 0,
@@ -16,6 +16,30 @@
   "offener_einsatz_usd": 0.0
  },
  "runs": [
+  {
+   "profil": "elon_july13",
+   "event_slug": "what-will-elon-post-this-week-july-13-july-19-20260710174050678",
+   "episode_titel": "",
+   "modus": "LIVE",
+   "drop_quelle": "",
+   "pubdate_utc": null,
+   "drop_erkannt_utc": null,
+   "erkennungslatenz_s": null,
+   "erste_entscheidung_s": null,
+   "erster_fill_s": null,
+   "n_maerkte": 15,
+   "n_entscheidungen": 1,
+   "zaehler": {
+    "no_action": 1
+   },
+   "eingepreist": 1,
+   "einsatz_usd": 0.0,
+   "realisierter_pnl_usd": null,
+   "wetten": [],
+   "verpasste_chancen": [],
+   "race": null,
+   "repricing": []
+  },
   {
    "profil": "allin_july3",
    "event_slug": "what-will-be-said-on-the-next-all-in-podcast-july-3-20260630164419941",
