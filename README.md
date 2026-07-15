@@ -1,5 +1,7 @@
 # Prediction Market Terminal
 
+[![CI](https://github.com/Pablozh123/prediction-market-terminal/actions/workflows/ci.yml/badge.svg)](https://github.com/Pablozh123/prediction-market-terminal/actions/workflows/ci.yml)
+
 Streamlit research terminal for Polymarket and Kalshi: market discovery, trader/wallet research, live public flow, whale/insider risk screening, backtesting, alerts, tracking, portfolio research, and paper-only copy-trading.
 
 All market data comes from the public Polymarket (Gamma/Data/CLOB) and Kalshi APIs. Live trading is disabled — the copy-trading module is paper-only. The app is a research tool, not investment advice.
