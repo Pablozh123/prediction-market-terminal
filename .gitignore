@@ -42,6 +42,7 @@ notebooks/*.png
 # Kursabgaben / PDFs
 *.pdf
 !reports/FINAL_REPORT.pdf
+*.docx
 
 # --- Ergänzt: vor versehentlichem Commit grosser/fremder Artefakte schützen ---
 .venv_tracking/
