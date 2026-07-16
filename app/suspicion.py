@@ -801,20 +801,31 @@ def apply_account_age_bonus(
     return enriched.drop(columns=["_wallet_key"], errors="ignore")
 
 
+#: Unter so vielen gesampelten Prints sind Verteilungs-Aussagen (Konzentration,
+#: Einseitigkeit, Anteile) trivial -- ein einzelner Trade ist immer "100%".
+EVENT_MIN_DISTRIBUTION_PRINTS = 3
+
+
 def event_story(row: pd.Series) -> str:
     """One-line plain-language summary of why an event looks suspicious."""
 
     notional = float(row.get("notional", 0.0) or 0.0)
     wallets = int(row.get("unique_wallets", 0) or 0)
+    trades = int(row.get("trades", 0) or 0)
+    sample_ok = trades >= EVENT_MIN_DISTRIBUTION_PRINTS
     parts: list[str] = []
     long_odds_share = float(row.get("long_odds_share", 0.0) or 0.0)
     if long_odds_share >= 0.4:
-        parts.append(f"{pct(long_odds_share)} of it at long odds")
+        parts.append(
+            f"{pct(long_odds_share)} of it at long odds" if sample_ok else "placed at long odds"
+        )
     late_share = float(row.get("late_share", 0.0) or 0.0)
     if late_share >= 0.4:
-        parts.append("heavy flow close to resolution")
+        parts.append(
+            "heavy flow close to resolution" if sample_ok else "placed close to resolution"
+        )
     top_wallet_share = float(row.get("top_wallet_share", 0.0) or 0.0)
-    if top_wallet_share >= 0.5:
+    if sample_ok and top_wallet_share >= 0.5:
         parts.append(f"one wallet drives {pct(top_wallet_share)}")
     fresh = int(row.get("fresh_wallets", 0) or 0)
     if fresh >= 2:
@@ -822,15 +833,20 @@ def event_story(row: pd.Series) -> str:
         parts.append(f"{fresh} fresh wallets on {outcome}" if outcome else f"{fresh} fresh wallets on the same side")
     direction_share = float(row.get("event_directional_share", 0.0) or 0.0)
     direction_label = str(row.get("event_directional_label", "") or "").strip()
-    if direction_share >= 0.8 and direction_label:
+    if sample_ok and direction_share >= 0.8 and direction_label:
         parts.append(f"{pct(direction_share)} of flow is {direction_label}")
     price_move = float(row.get("price_move", 0.0) or 0.0)
     if price_move >= 0.03:
         parts.append(f"price moved {price_move * 100:+.0f}c behind the buys")
+    if not sample_ok and trades > 0:
+        parts.append("too few sampled prints to judge the flow pattern")
+    print_teil = (
+        f"{trades} sampled print{'s' if trades != 1 else ''}" if trades > 0 else "sampled prints"
+    )
     if wallets > 0:
-        base = f"{money(notional)} whale flow from {wallets} wallet{'s' if wallets != 1 else ''}"
+        base = f"{money(notional)} whale flow from {wallets} wallet{'s' if wallets != 1 else ''} ({print_teil})"
     else:
-        base = f"{money(notional)} whale flow (wallet identities not public on this venue)"
+        base = f"{money(notional)} whale flow ({print_teil}; wallet identities not public on this venue)"
     return f"{base} — {'; '.join(parts)}." if parts else f"{base}; no single dominant pattern."
 
 
