@@ -32,6 +32,7 @@ from app import copy_follow as ctf
 from app import ledger as ldg
 from app import notify
 from app import quant as qm
+from app import report_card as rcd
 from app import run_sim as rsim
 from app import scorecard as scd
 from app import signals as sig
@@ -5451,6 +5452,151 @@ REALIZED_EDGE_VERDICTS = {
 }
 
 
+@st.cache_data(ttl=600, show_spinner=False)
+def load_report_card_copy_read(wallet: str) -> dict[str, Any]:
+    """Standard 90-day fixed-stake backtest behind the report card's copy box."""
+
+    result = btr.run_backtest(btr.BacktestConfig(wallet=wallet))
+    return rcd.copy_summary(result.stats, days=90, lang="en")
+
+
+def render_report_card(wallet: str) -> None:
+    """Verdict-first wallet report card (Brief 04): status sentence, big score,
+    diagnosis, skill-or-luck box, would-copying-have-paid box, evidence grid.
+    Consumes only the canonical scorecard plus one short backtest."""
+
+    card = safe_load("Wallet scorecard", load_wallet_scorecard, wallet, default={})
+    if not card:
+        return
+    track = card.get("track") or {}
+    edge = card.get("realized_edge") or {}
+    calibration = card.get("calibration") or {}
+    sample = card.get("sample") or {}
+    risk = card.get("risk")
+    state = rcd.verdict_state(card)
+    diagnosis = rcd.diagnosis_sentence(card, lang="en")
+
+    st.markdown("<div class='step-label'>Wallet report card</div>", unsafe_allow_html=True)
+    with st.container(border=True):
+        st.markdown(
+            f"<div style='font-family:{FONT_MONO};font-size:0.95rem;letter-spacing:0.04em;color:{ACCENT}'>"
+            f"{html.escape(state['status'])}</div>",
+            unsafe_allow_html=True,
+        )
+        head = st.columns([1, 2.6])
+        grade = str(track.get("grade", "-"))
+        grade_color = TRACK_RECORD_GRADE_COLORS.get(grade, MUTED)
+        head[0].markdown(
+            f"<div style='font-size:2.6rem;font-family:{FONT_MONO};color:{grade_color}'>{track.get('score', 0.0):.0f}"
+            f"<span style='font-size:1.1rem'>/100</span></div>"
+            f"<span class='risk-badge' style='color:{grade_color};border-color:{grade_color}'>GRADE {html.escape(grade)}</span>",
+            unsafe_allow_html=True,
+        )
+        with head[1]:
+            st.markdown(html.escape(diagnosis))
+            render_scoreline(
+                "Realized edge / share",
+                f"{edge['edge'] * 100:+.1f} pp" if edge.get("edge") is not None else "-",
+                n=edge.get("n_events"),
+                ci=(
+                    f"[{edge['ci_low'] * 100:+.1f}, {edge['ci_high'] * 100:+.1f}] pp"
+                    if edge.get("ci_low") is not None
+                    else None
+                ),
+                quality=sample.get("quality"),
+                snapshot_at=card.get("snapshot_at"),
+                disclaimer_key="diagnostic_not_advice",
+            )
+
+        badge_bits: list[str] = []
+        quality_key = str(sample.get("quality", "") or "").lower()
+        if quality_key:
+            q_color = SCORELINE_QUALITY_COLORS.get(quality_key, MUTED)
+            badge_bits.append(
+                f"<span class='risk-badge' style='color:{q_color};border-color:{q_color}'>{quality_key.upper()} SAMPLE"
+                f" (n={int(sample.get('n_resolved') or 0)})</span>"
+            )
+        if risk and risk.get("risk_level"):
+            r_color = {"high": RED, "medium": "#F5A623", "elevated": "#4F8EF7"}.get(str(risk["risk_level"]).lower(), MUTED)
+            badge_bits.append(
+                f"<span class='risk-badge' style='color:{r_color};border-color:{r_color}'>INSIDER SCREEN "
+                f"{html.escape(str(risk['risk_level']).upper())}</span>"
+            )
+        if track.get("farmer_flag"):
+            badge_bits.append(f"<span class='risk-badge' style='color:{RED};border-color:{RED}'>WASH/FARM PATTERN</span>")
+        if track.get("one_hit_flag"):
+            badge_bits.append(
+                f"<span class='risk-badge' style='color:#F5A623;border-color:#F5A623'>ONE-HIT: "
+                f"{float(track.get('top_market_share') or 0.0) * 100:.0f}% FROM ONE MARKET</span>"
+            )
+        if badge_bits:
+            st.markdown(" ".join(badge_bits), unsafe_allow_html=True)
+
+        box_cols = st.columns(2)
+        with box_cols[0]:
+            with st.container(border=True):
+                st.markdown("<div class='field-hint'>SKILL OR LUCK?</div>", unsafe_allow_html=True)
+                note = clm.scoreline_view(
+                    quality=sample.get("quality"),
+                    verdict=edge.get("headline"),
+                    disclaimer_key="past_not_forecast",
+                    lang="en",
+                )["note"]
+                st.caption(note or "No realized-edge read available for this wallet yet.")
+        with box_cols[1]:
+            with st.container(border=True):
+                st.markdown("<div class='field-hint'>WOULD COPYING HAVE PAID?</div>", unsafe_allow_html=True)
+                copy_read = safe_load("Copy backtest", load_report_card_copy_read, wallet, default=None)
+                if isinstance(copy_read, dict) and copy_read.get("available"):
+                    st.caption(f"{copy_read['text']} {clm.disclaimer('modeled_not_realized', 'en')}")
+                elif isinstance(copy_read, dict):
+                    st.caption(copy_read["text"])
+                else:
+                    st.caption("Copy backtest unavailable right now; no number is shown rather than a made-up one.")
+
+        grid = st.columns(5)
+        with grid[0]:
+            render_scoreline(
+                "Realized edge",
+                f"{edge['edge'] * 100:+.1f} pp" if edge.get("edge") is not None else "-",
+                ci=(
+                    f"[{edge['ci_low'] * 100:+.1f}, {edge['ci_high'] * 100:+.1f}] pp"
+                    if edge.get("ci_low") is not None
+                    else None
+                ),
+            )
+        with grid[1]:
+            brier = calibration.get("brier_entry")
+            baseline = calibration.get("brier_baseline")
+            render_scoreline(
+                "Brier vs baseline",
+                f"{brier:.3f} / {baseline:.3f}" if brier is not None and baseline is not None else "-",
+                help="Squared error of entry prices as forecasts vs always predicting the base rate; lower than baseline = entries carried information.",
+            )
+        with grid[2]:
+            render_scoreline(
+                "Win rate",
+                pct(track.get("headline_win_rate")) if track.get("headline_win_rate") is not None else "-",
+                n=track.get("resolved_events"),
+            )
+        with grid[3]:
+            render_scoreline(
+                "PnL / volume",
+                pct(track.get("pnl_per_volume")) if track.get("pnl_per_volume") is not None else "-",
+                help="Settled PnL per dollar traded across resolved markets.",
+            )
+        with grid[4]:
+            render_scoreline(
+                "Top-market share",
+                pct(track.get("top_market_share")) if track.get("top_market_share") is not None else "-",
+                help="Share of gross profit from the single best market; high = one-hit record.",
+            )
+        if card.get("errors"):
+            unavailable = ", ".join(sorted(card["errors"]))
+            st.caption(f"Partial data: {unavailable} unavailable in this snapshot.")
+        st.caption(f"{clm.disclaimer('score_generic', 'en')} Snapshot {snapshot_label(card.get('snapshot_at'))}.")
+
+
 def render_track_record(wallet: str) -> None:
     """Verifiable track-record scorecard with a REAL win rate.
 
@@ -5745,6 +5891,8 @@ def render_wallet(wallet: str) -> None:
         mime="text/plain",
         width="stretch",
     )
+
+    render_report_card(wallet)
 
     cols = st.columns(6)
     cols[0].metric("Total PnL", money(total_pnl))
