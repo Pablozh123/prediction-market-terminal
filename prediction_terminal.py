@@ -5395,6 +5395,15 @@ def page_markets() -> None:
 
 TRACK_RECORD_GRADE_COLORS = {"A": ACCENT, "B": ACCENT, "C": AMBER, "D": AMBER, "F": RED}
 
+# Verdict → (badge label, color) for the realized-edge skill-or-luck read.
+REALIZED_EDGE_VERDICTS = {
+    "positive": ("EDGE BEYOND CHANCE", ACCENT),
+    "negative": ("NEGATIVE EDGE", RED),
+    "chance": ("NOT SEPARABLE FROM CHANCE", AMBER),
+    "thin": ("TOO FEW RESOLVED", MUTED),
+    "capped": ("EXTREMES ONLY", AMBER),
+}
+
 
 def render_track_record(wallet: str, trades: pd.DataFrame | None = None, activity: pd.DataFrame | None = None) -> None:
     """Verifiable track-record scorecard with a REAL win rate.
@@ -5448,9 +5457,136 @@ def render_track_record(wallet: str, trades: pd.DataFrame | None = None, activit
         naive = rec["naive_win_rate"]
         if rec.get("leg_inflation") and abs(rec["leg_inflation"] - 1.0) >= 0.15:
             detail[2].caption(f"naive per-leg: {pct(naive)}")
+        edge_rep = calib.realized_edge(calib.resolution_frame(resolved), capped=bool(capped))
+        if edge_rep["n_events"]:
+            st.divider()
+            verdict_label, verdict_color = REALIZED_EDGE_VERDICTS.get(edge_rep["verdict"], ("NO VERDICT", MUTED))
+            ecols = st.columns([1, 1.2, 1.2, 1.2])
+            ecols[0].markdown(
+                f"<span class='risk-badge' style='color:{verdict_color};border-color:{verdict_color}'>{verdict_label}</span>"
+                "<br><span class='field-hint'>skill or luck?</span>",
+                unsafe_allow_html=True,
+            )
+            ecols[1].metric(
+                "Realized edge / share",
+                f"{edge_rep['edge'] * 100:+.1f} pp" if edge_rep["edge"] is not None else "-",
+                help="Mean of (settlement − entry price) per resolved event: how much better the calls settled than the market priced them at entry. +5 pp = paid 5¢/share under fair.",
+            )
+            ecols[2].metric(
+                "95% CI",
+                f"[{edge_rep['ci_low'] * 100:+.1f}, {edge_rep['ci_high'] * 100:+.1f}] pp" if edge_rep["ci_low"] is not None else "-",
+                help="Student-t interval over per-event edges (NegRisk legs netted to one observation, so correlated legs can't fake a tight interval). Clears zero → unlikely to be pure variance; straddles zero → luck can't be ruled out.",
+            )
+            ecols[3].metric(
+                "Resolved events",
+                f"{edge_rep['n_events']:,}",
+                help=f"{edge_rep['n_positions']:,} resolved positions netted to {edge_rep['n_events']:,} independent events.",
+            )
+            st.caption(f"{edge_rep['headline']} Past record, not a forecast.")
+        attribution = trec.pnl_attribution(resolved)
+        if attribution["structural_share"] is not None:
+            st.divider()
+            st.markdown("<div class='field-hint'>WHAT'S DRIVING THE PROFIT</div>", unsafe_allow_html=True)
+            acols = st.columns(3)
+            acols[0].metric(
+                "Structural (both sides)",
+                pct(attribution["structural_share"]),
+                help=f"Profit from events where both outcomes of one market were held ({attribution['structural_markets']} markets) — payout structure (making/arb/hedge), not a directional call.",
+            )
+            acols[1].metric(
+                "Single biggest event",
+                pct(attribution["top_event_share"]),
+                help="Share of gross profit from the largest directional event. High = one conviction call carries the record.",
+            )
+            acols[2].metric(
+                "Remaining (breadth)",
+                pct(attribution["remaining_share"]),
+                help="Everything else — the only part that could be repeatable forecasting skill. Not yet proof that it is.",
+            )
+            if attribution["top_event_title"] and attribution["top_event_share"] >= 0.3:
+                st.caption(f"Biggest event: {attribution['top_event_title']} ({pct(attribution['top_event_share'])} of gross profit).")
         for flag in rec["flags"]:
             st.markdown(f"<div class='field-hint'>⚠ {html.escape(flag)}</div>", unsafe_allow_html=True)
         st.caption(f"{rec['coverage_note']} All from public on-chain data.")
+    render_wallet_calibration(resolved, bool(capped))
+
+
+def render_wallet_calibration(resolved: pd.DataFrame, capped: bool) -> None:
+    """Per-wallet calibration: were this wallet's entry prices honest forecasts?
+
+    Scores every resolved position as a forecast (entry price) against its
+    settlement — the "was a 70% entry really 70%?" read, per wallet.
+    """
+
+    frame = calib.resolution_frame(resolved)
+    report = calib.calibration_report(frame, capped=capped)
+    if not report["n"]:
+        return
+    with st.expander(f"Entry calibration — was the price paid a good forecast? ({report['n']} resolved positions)", expanded=False):
+        head = st.columns(5)
+        head[0].metric("Scored positions", f"{report['n']:,}", help="Resolved positions with a usable entry price, scored 0/1 at settlement.")
+        head[1].metric(
+            "Hit rate",
+            pct(report["hit_rate"]),
+            help=f"95% Wilson interval {report['hit_low']:.1%} – {report['hit_high']:.1%}. Sample size is part of the claim.",
+        )
+        head[2].metric("Avg entry price", pct(report["avg_entry"]), help="What the market charged on average — the break-even hit rate.")
+        head[3].metric(
+            "Edge per share",
+            f"{report['edge_per_share'] * 100:+.1f} pp",
+            help=f"Hit rate minus average entry, before fees. Interval: {report['edge_low'] * 100:+.1f} to {report['edge_high'] * 100:+.1f} pp.",
+        )
+        brier = report["brier_entry"]
+        baseline = report["brier_baseline"]
+        head[4].metric(
+            "Brier vs baseline",
+            f"{brier:.3f} / {baseline:.3f}" if brier is not None else "-",
+            help="Squared error of entry prices as forecasts vs always predicting the base rate. Entry Brier below baseline = entries carried real information; 0.25 = coin flip.",
+        )
+        buckets = report["buckets"]
+        if isinstance(buckets, pd.DataFrame) and len(buckets) >= 2:
+            fig = go.Figure()
+            fig.add_trace(
+                go.Scatter(x=[0, 1], y=[0, 1], mode="lines", name="Perfectly priced", line=dict(color=MUTED, dash="dash", width=1))
+            )
+            fig.add_trace(
+                go.Scatter(
+                    x=buckets["avg_forecast"],
+                    y=buckets["hit_rate"],
+                    mode="lines+markers",
+                    name="This wallet",
+                    line=dict(color=ACCENT, width=2),
+                    marker=dict(size=(buckets["n"].clip(upper=60) / 3 + 6).tolist(), color=ACCENT),
+                    error_y=dict(
+                        type="data",
+                        symmetric=False,
+                        array=(buckets["hit_high"] - buckets["hit_rate"]).tolist(),
+                        arrayminus=(buckets["hit_rate"] - buckets["hit_low"]).tolist(),
+                        color=MUTED,
+                    ),
+                    customdata=buckets["n"],
+                    hovertemplate="entered %{x:.0%} → resolved %{y:.0%} (n=%{customdata})<extra></extra>",
+                )
+            )
+            fig.update_layout(
+                height=340,
+                margin=dict(l=10, r=10, t=20, b=10),
+                paper_bgcolor=BG,
+                plot_bgcolor=BG,
+                template="plotly_dark",
+                xaxis=dict(title="Avg entry price (implied probability)", range=[0, 1], tickformat=".0%"),
+                yaxis=dict(title="Resolved YES share", range=[-0.02, 1.02], tickformat=".0%"),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02),
+            )
+            st.plotly_chart(fig, width="stretch", config=plot_config())
+            st.caption(
+                "Points above the dashed line: entries settled true more often than the price implied (bought too cheap). "
+                "Marker size = positions in the bucket; whiskers = 95% Wilson interval."
+            )
+        st.caption(
+            f"{report['note']} Selection bias is inherent and intended: only markets this wallet chose are scored — "
+            "skill in its chosen spots, not general forecasting ability."
+        )
 
 
 def render_wallet(wallet: str) -> None:
@@ -5939,6 +6075,133 @@ def render_wallet(wallet: str) -> None:
                         activity_cols[3].button("Open tx", key=f"wallet_open_activity_tx_disabled_{wallet_key}", width="stretch", disabled=True)
 
 
+def render_pnl_vs_skill(leaderboard: pd.DataFrame) -> None:
+    """Dual ranking: does the PnL order survive the corrected skill read?
+
+    Reranks the loaded top slice by the verified-track-record score (leg-netted,
+    settled-only, concentration-penalised) and attaches each wallet's realized-
+    edge verdict. Explicitly a rerank of the visible top wallets — not a
+    platform-wide skill scan, which would hammer the public API.
+    """
+
+    if leaderboard.empty or "wallet" not in leaderboard or "pnl" not in leaderboard:
+        return
+    top = (
+        leaderboard.dropna(subset=["wallet"])
+        .sort_values("pnl", ascending=False)
+        .drop_duplicates(subset=["wallet"])
+        .head(20)
+        .copy()
+    )
+    if len(top) < 3:
+        return
+    wallets = tuple(top["wallet"].astype(str).tolist())
+    state_key = "traders_pnl_vs_skill"
+    cached = st.session_state.get(state_key)
+    with st.expander("PnL vs skill — top 20 reranked by verified track record", expanded=bool(cached)):
+        st.caption(
+            "Left: the order raw PnL suggests. Right: the same wallets reranked by the corrected skill score, "
+            "with each record's realized-edge verdict (does the 95% CI clear zero?). "
+            "A rerank of the loaded top slice, not a platform-wide skill scan."
+        )
+        if st.button("Run skill read on these 20 wallets (~40 public API calls)", key="pnl_vs_skill_compute"):
+            rows: list[dict[str, Any]] = []
+            progress = st.progress(0.0, text="Scoring track records…")
+            for idx, entry in enumerate(top.itertuples()):
+                wallet = str(entry.wallet)
+                resolved, capped = safe_load("Resolved positions", load_resolved_positions, wallet, default=(pd.DataFrame(), False))
+                rec = trec.track_record(resolved, resolved_capped=bool(capped))
+                edge = calib.realized_edge(calib.resolution_frame(resolved), capped=bool(capped))
+                trader = str(getattr(entry, "trader", "") or "") or short_addr(wallet)
+                rows.append(
+                    {
+                        "wallet": wallet,
+                        "trader": trader,
+                        "pnl": float(getattr(entry, "pnl", 0.0) or 0.0),
+                        "score": float(rec["score"]),
+                        "grade": str(rec["grade"]),
+                        "sample_ok": bool(rec["sample_ok"]),
+                        "verdict": str(edge["verdict"]),
+                        "edge": edge["edge"],
+                        "ci_low": edge["ci_low"],
+                        "ci_high": edge["ci_high"],
+                        "n_events": int(edge["n_events"]),
+                    }
+                )
+                progress.progress((idx + 1) / len(top), text=f"Scoring track records… {idx + 1}/{len(top)}")
+            progress.empty()
+            st.session_state[state_key] = {"wallets": wallets, "frame": pd.DataFrame(rows)}
+            cached = st.session_state[state_key]
+        if not cached:
+            st.caption("Costs one resolved-positions read per wallet (cached 5 min); results stay for this session.")
+            return
+        if cached["wallets"] != wallets:
+            st.info("Filters changed since the last run — showing the previous slice; run again for the current one.")
+        skill = cached["frame"].copy()
+        if skill.empty:
+            draw_empty("No scoreable wallets in this slice.")
+            return
+        skill["pnl_rank"] = skill["pnl"].rank(ascending=False, method="first").astype(int)
+        skill_order = skill.sort_values(["score", "pnl"], ascending=[False, False]).index
+        skill.loc[skill_order, "skill_rank"] = range(1, len(skill) + 1)
+        skill["skill_rank"] = skill["skill_rank"].astype(int)
+        skill = skill.sort_values("pnl_rank").reset_index(drop=True)
+        rho = float(skill["pnl_rank"].corr(skill["skill_rank"], method="spearman")) if len(skill) >= 3 else float("nan")
+        moves = skill["pnl_rank"] - skill["skill_rank"]
+        riser = skill.loc[moves.idxmax()] if not moves.empty else None
+        faller = skill.loc[moves.idxmin()] if not moves.empty else None
+        clears = int((skill["verdict"] == "positive").sum())
+        stat_cols = st.columns(4)
+        stat_cols[0].metric(
+            "Rank agreement (Spearman)",
+            f"{rho:+.2f}" if rho == rho else "-",
+            help="+1 = the PnL order IS the skill order; near 0 = profit rank tells you little about the corrected skill rank in this slice.",
+        )
+        stat_cols[1].metric(
+            "Records clearing chance",
+            f"{clears}/{len(skill)}",
+            help="Wallets whose realized-edge 95% CI is entirely above zero. Everything else is not separable from luck on public data.",
+        )
+        stat_cols[2].metric(
+            "Biggest riser",
+            (riser["trader"][:14] if riser is not None else "-"),
+            f"PnL #{int(riser['pnl_rank'])} → skill #{int(riser['skill_rank'])}" if riser is not None else None,
+            delta_color="off",
+        )
+        stat_cols[3].metric(
+            "Biggest faller",
+            (faller["trader"][:14] if faller is not None else "-"),
+            f"PnL #{int(faller['pnl_rank'])} → skill #{int(faller['skill_rank'])}" if faller is not None else None,
+            delta_color="off",
+        )
+        verdict_labels = {key: label for key, (label, _color) in REALIZED_EDGE_VERDICTS.items()}
+        display = skill.copy()
+        display["Realized edge"] = display.apply(
+            lambda r: f"{r['edge'] * 100:+.1f} pp [{r['ci_low'] * 100:+.1f}, {r['ci_high'] * 100:+.1f}]"
+            if pd.notna(r["edge"]) and pd.notna(r["ci_low"])
+            else "-",
+            axis=1,
+        )
+        display["Verdict"] = display["verdict"].map(verdict_labels).fillna("—")
+        left, right = st.columns(2)
+        left.markdown("<div class='field-hint'>TOP 20 BY REALIZED PNL</div>", unsafe_allow_html=True)
+        left_frame = display.sort_values("pnl_rank")[["pnl_rank", "trader", "pnl", "grade", "skill_rank"]].rename(
+            columns={"pnl_rank": "#", "trader": "Trader", "pnl": "PnL", "grade": "Grade", "skill_rank": "Skill #"}
+        )
+        left_frame["PnL"] = left_frame["PnL"].map(money)
+        left.dataframe(left_frame, hide_index=True, width="stretch", height=740)
+        right.markdown("<div class='field-hint'>SAME WALLETS BY SKILL SCORE</div>", unsafe_allow_html=True)
+        right_frame = display.sort_values("skill_rank")[
+            ["skill_rank", "trader", "score", "grade", "Realized edge", "Verdict", "pnl_rank"]
+        ].rename(columns={"skill_rank": "#", "trader": "Trader", "score": "Score", "grade": "Grade", "pnl_rank": "PnL #"})
+        right.dataframe(right_frame, hide_index=True, width="stretch", height=740)
+        st.caption(
+            "Skill score corrects the four naive-leaderboard errors (leg inflation, winner-only PnL, wash volume, survivorship) "
+            "and penalises one-hit concentration. Verdicts read the realized-edge CI against zero — most records, including "
+            "profitable ones, are not separable from chance on public data. Diagnostics, not advice."
+        )
+
+
 def page_traders() -> None:
     section_header("Traders", "Trader leaderboard with search, view modes, PnL/volume/position filters, and wallet drilldown.")
     show_copy_follow_notice()
@@ -6158,6 +6421,7 @@ def page_traders() -> None:
     known_win_rates = pd.to_numeric(leaderboard.get("win_rate", pd.Series(dtype="float64")), errors="coerce").dropna()
     metric_cols[4].metric("Median win rate", pct(known_win_rates.median()) if not known_win_rates.empty else "-")
     metric_cols[5].metric("Verified", f"{int(leaderboard['verified'].astype(bool).sum()) if 'verified' in leaderboard else 0:,}")
+    render_pnl_vs_skill(leaderboard)
     trader_chips: list[str] = []
     if trader_query.strip():
         trader_chips.append(f"Search: {trader_query.strip()}")

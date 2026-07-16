@@ -9,8 +9,8 @@ def closed(rows):
     return pd.DataFrame(rows)
 
 
-def pos(market, pnl, bought, *, title="M", url="", time="2026-01-01"):
-    return {"market_key": market, "title": title, "realized_pnl": pnl, "total_bought": bought, "time": time, "url": url}
+def pos(market, pnl, bought, *, title="M", url="", time="2026-01-01", outcome="Yes"):
+    return {"market_key": market, "title": title, "realized_pnl": pnl, "total_bought": bought, "time": time, "url": url, "outcome": outcome}
 
 
 class MarketRecordTests(unittest.TestCase):
@@ -32,6 +32,60 @@ class MarketRecordTests(unittest.TestCase):
     def test_empty_frames_safe(self):
         self.assertTrue(tr.market_records(pd.DataFrame()).empty)
         self.assertTrue(tr.event_records(pd.DataFrame()).empty)
+
+
+class PnlAttributionTests(unittest.TestCase):
+    def test_both_sides_market_reads_as_structural(self):
+        cp = closed(
+            [
+                pos("c1", 100, 100, outcome="Yes"),
+                pos("c1", -40, 60, outcome="No"),
+                pos("c2", 40, 50, outcome="Yes"),
+            ]
+        )
+        att = tr.pnl_attribution(cp)
+        self.assertEqual(att["structural_markets"], 1)
+        self.assertAlmostEqual(att["structural_share"], 0.6, places=9)
+        self.assertAlmostEqual(att["top_event_share"], 0.4, places=9)
+        self.assertAlmostEqual(att["remaining_share"], 0.0, places=9)
+
+    def test_one_event_dominates(self):
+        cp = closed(
+            [
+                pos("c1", 800, 500, title="the big one"),
+                pos("c2", 100, 100),
+                pos("c3", 100, 100),
+            ]
+        )
+        att = tr.pnl_attribution(cp)
+        self.assertAlmostEqual(att["structural_share"], 0.0, places=9)
+        self.assertAlmostEqual(att["top_event_share"], 0.8, places=9)
+        self.assertAlmostEqual(att["remaining_share"], 0.2, places=9)
+        self.assertEqual(att["top_event_title"], "the big one")
+
+    def test_negrisk_legs_net_before_attribution(self):
+        ev = "https://polymarket.com/event/one"
+        cp = closed(
+            [
+                pos("c1", 500, 300, url=ev),
+                pos("c2", -100, 100, url=ev),
+                pos("c3", 600, 400),
+            ]
+        )
+        att = tr.pnl_attribution(cp)
+        # Event nets to +400; standalone market +600 → gross 1000.
+        self.assertAlmostEqual(att["top_event_share"], 0.6, places=9)
+        self.assertAlmostEqual(att["remaining_share"], 0.4, places=9)
+
+    def test_no_gross_profit_gives_no_shares(self):
+        att = tr.pnl_attribution(closed([pos("c1", -50, 100), pos("c2", -20, 40)]))
+        self.assertIsNone(att["structural_share"])
+        self.assertEqual(att["gross_profit"], 0.0)
+
+    def test_empty_safe(self):
+        att = tr.pnl_attribution(pd.DataFrame())
+        self.assertIsNone(att["structural_share"])
+        self.assertEqual(att["structural_markets"], 0)
 
 
 class TrackRecordTests(unittest.TestCase):
