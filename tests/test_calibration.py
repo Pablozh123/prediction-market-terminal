@@ -62,6 +62,7 @@ class CalibrationReportTests(unittest.TestCase):
         self.assertAlmostEqual(report["avg_entry"], 0.4875, places=9)
         self.assertAlmostEqual(report["edge_per_share"], 0.2625, places=9)
         self.assertAlmostEqual(report["brier_entry"], 0.343125, places=9)
+        self.assertAlmostEqual(report["brier_baseline"], 0.1875, places=9)  # p̄(1−p̄) at 75% base rate
         self.assertAlmostEqual(report["stake_weighted_edge"], 17.25 / 160.0, places=9)
         self.assertLess(report["edge_low"], report["edge_per_share"])
         self.assertGreater(report["edge_high"], report["edge_per_share"])
@@ -79,6 +80,84 @@ class CalibrationReportTests(unittest.TestCase):
         self.assertEqual(report["n"], 0)
         self.assertIsNone(report["hit_rate"])
         self.assertIn("No resolved positions", report["note"])
+
+
+class RealizedEdgeTests(unittest.TestCase):
+    def _frame(self, wins, losses, price=0.5):
+        rows = [row(f"w{i}", price, 1.0, 50.0, market_key=f"mw{i}") for i in range(wins)]
+        rows += [row(f"l{i}", price, 0.0, -50.0, market_key=f"ml{i}") for i in range(losses)]
+        return calib.resolution_frame(resolved_frame(rows))
+
+    def test_positive_edge_clears_zero(self):
+        # 30W/10L at 0.5 entry: mean edge +0.25, t-CI well above zero.
+        report = calib.realized_edge(self._frame(30, 10))
+        self.assertEqual(report["verdict"], "positive")
+        self.assertEqual(report["n_events"], 40)
+        self.assertAlmostEqual(report["edge"], 0.25, places=9)
+        self.assertGreater(report["ci_low"], 0.0)
+        self.assertLess(report["ci_low"], report["edge"])
+        self.assertIn("Edge beyond chance", report["headline"])
+
+    def test_coinflip_record_reads_as_chance(self):
+        report = calib.realized_edge(self._frame(15, 15))
+        self.assertEqual(report["verdict"], "chance")
+        self.assertAlmostEqual(report["edge"], 0.0, places=9)
+        self.assertLess(report["ci_low"], 0.0)
+        self.assertGreater(report["ci_high"], 0.0)
+
+    def test_negative_edge(self):
+        # 10W/30L at 0.5 entry: mean edge -0.25, CI below zero.
+        report = calib.realized_edge(self._frame(10, 30))
+        self.assertEqual(report["verdict"], "negative")
+        self.assertLess(report["ci_high"], 0.0)
+
+    def test_thin_sample_gets_no_verdict(self):
+        report = calib.realized_edge(self._frame(8, 2))
+        self.assertEqual(report["verdict"], "thin")
+        self.assertEqual(report["n_events"], 10)
+        self.assertIsNotNone(report["ci_low"])  # still reported, just not a verdict
+        self.assertIn("Too few resolved events", report["headline"])
+
+    def test_capped_feed_blocks_verdict(self):
+        report = calib.realized_edge(self._frame(30, 10), capped=True)
+        self.assertEqual(report["verdict"], "capped")
+        self.assertIn("Extremes-only", report["headline"])
+
+    def test_negrisk_legs_net_to_one_event(self):
+        # Three legs of one event + one standalone market → 2 independent events.
+        frame = resolved_frame(
+            [
+                row("leg a", 0.30, 1.0, 70.0, market_key="c1"),
+                row("leg b", 0.40, 0.0, -40.0, market_key="c2"),
+                row("leg c", 0.20, 0.0, -20.0, market_key="c3"),
+                row("solo", 0.50, 1.0, 50.0, market_key="c4"),
+            ]
+        )
+        frame["url"] = [
+            "https://polymarket.com/event/one-event",
+            "https://polymarket.com/event/one-event",
+            "https://polymarket.com/event/one-event",
+            "https://polymarket.com/event/other-event",
+        ]
+        report = calib.realized_edge(calib.resolution_frame(frame))
+        self.assertEqual(report["n_positions"], 4)
+        self.assertEqual(report["n_events"], 2)
+
+    def test_single_event_has_no_interval(self):
+        report = calib.realized_edge(self._frame(1, 0))
+        self.assertEqual(report["verdict"], "thin")
+        self.assertIsNone(report["ci_low"])
+
+    def test_empty_input(self):
+        report = calib.realized_edge(pd.DataFrame())
+        self.assertEqual(report["verdict"], "none")
+        self.assertEqual(report["n_events"], 0)
+
+    def test_t_quantile_asymptote(self):
+        self.assertAlmostEqual(calib._t_quantile_975(1), 12.706, places=3)
+        self.assertAlmostEqual(calib._t_quantile_975(30), 2.042, places=3)
+        self.assertAlmostEqual(calib._t_quantile_975(60), 2.0017, places=3)
+        self.assertGreater(calib._t_quantile_975(1000), 1.96)
 
 
 if __name__ == "__main__":
