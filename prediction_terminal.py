@@ -26,6 +26,7 @@ from app import app_settings as cfg
 from app import authz as az
 from app import backtester as btr
 from app import calibration as calib
+from app import claims as clm
 from app import copy_fidelity as cfy
 from app import copy_follow as ctf
 from app import ledger as ldg
@@ -5485,12 +5486,15 @@ def render_track_record(wallet: str) -> None:
         )
         head = st.columns([1, 1.2, 1.2, 1.2])
         head[0].markdown(badge, unsafe_allow_html=True)
-        head[1].metric(
-            "Win rate (real)" if reliable else "Win rate (extremes)",
-            pct(wr) if wr is not None else "-",
-            help="Netted per resolved market and NegRisk event, over the full winners+losers set." if reliable
-            else "This wallet has >50 wins AND >50 losses; the public feed caps each tail at ~50, so this covers the largest positions only.",
-        )
+        with head[1]:
+            render_scoreline(
+                "Win rate (real)" if reliable else "Win rate (extremes)",
+                pct(wr) if wr is not None else "-",
+                n=rec["resolved_events"],
+                quality=(card or {}).get("sample", {}).get("quality"),
+                help="Netted per resolved market and NegRisk event, over the full winners+losers set." if reliable
+                else "This wallet has >50 wins AND >50 losses; the public feed caps each tail at ~50, so this covers the largest positions only.",
+            )
         head[2].metric(
             "Settled PnL",
             money(rec["settled_pnl"]),
@@ -5512,28 +5516,38 @@ def render_track_record(wallet: str) -> None:
         if edge_rep.get("n_events"):
             st.divider()
             verdict_label, verdict_color = REALIZED_EDGE_VERDICTS.get(edge_rep["verdict"], ("NO VERDICT", MUTED))
-            ecols = st.columns([1, 1.2, 1.2, 1.2])
+            ecols = st.columns([1, 1.6, 1.2])
             ecols[0].markdown(
                 f"<span class='risk-badge' style='color:{verdict_color};border-color:{verdict_color}'>{verdict_label}</span>"
                 "<br><span class='field-hint'>skill or luck?</span>",
                 unsafe_allow_html=True,
             )
-            ecols[1].metric(
-                "Realized edge / share",
-                f"{edge_rep['edge'] * 100:+.1f} pp" if edge_rep["edge"] is not None else "-",
-                help="Mean of (settlement − entry price) per resolved event: how much better the calls settled than the market priced them at entry. +5 pp = paid 5¢/share under fair.",
-            )
+            with ecols[1]:
+                render_scoreline(
+                    "Realized edge / share",
+                    f"{edge_rep['edge'] * 100:+.1f} pp" if edge_rep.get("edge") is not None else "-",
+                    n=edge_rep.get("n_events"),
+                    ci=(
+                        f"[{edge_rep['ci_low'] * 100:+.1f}, {edge_rep['ci_high'] * 100:+.1f}] pp"
+                        if edge_rep.get("ci_low") is not None
+                        else None
+                    ),
+                    quality=(card or {}).get("sample", {}).get("quality"),
+                    help="Mean of (settlement − entry price) per resolved event: how much better the calls settled than the market priced them at entry. +5 pp = paid 5¢/share under fair. The Student-t interval nets NegRisk legs to one observation, so correlated legs can't fake a tight interval.",
+                )
             ecols[2].metric(
-                "95% CI",
-                f"[{edge_rep['ci_low'] * 100:+.1f}, {edge_rep['ci_high'] * 100:+.1f}] pp" if edge_rep["ci_low"] is not None else "-",
-                help="Student-t interval over per-event edges (NegRisk legs netted to one observation, so correlated legs can't fake a tight interval). Clears zero → unlikely to be pure variance; straddles zero → luck can't be ruled out.",
-            )
-            ecols[3].metric(
                 "Resolved events",
                 f"{edge_rep['n_events']:,}",
                 help=f"{edge_rep['n_positions']:,} resolved positions netted to {edge_rep['n_events']:,} independent events.",
             )
-            st.caption(f"{edge_rep['headline']} Past record, not a forecast.")
+            verdict_note = clm.scoreline_view(
+                quality=(card or {}).get("sample", {}).get("quality"),
+                verdict=edge_rep.get("headline"),
+                disclaimer_key="past_not_forecast",
+                lang="en",
+            )["note"]
+            if verdict_note:
+                st.caption(verdict_note)
         attribution = (card or {}).get("attribution") or {}
         if attribution.get("structural_share") is not None:
             st.divider()
@@ -5581,17 +5595,24 @@ def render_wallet_calibration(wallet: str) -> None:
     with st.expander(f"Entry calibration — was the price paid a good forecast? ({report['n']} resolved positions)", expanded=False):
         head = st.columns(5)
         head[0].metric("Scored positions", f"{report['n']:,}", help="Resolved positions with a usable entry price, scored 0/1 at settlement.")
-        head[1].metric(
-            "Hit rate",
-            pct(report["hit_rate"]),
-            help=f"95% Wilson interval {report['hit_low']:.1%} – {report['hit_high']:.1%}. Sample size is part of the claim.",
-        )
+        with head[1]:
+            render_scoreline(
+                "Hit rate",
+                pct(report["hit_rate"]),
+                n=report["n"],
+                ci=f"{report['hit_low']:.1%} – {report['hit_high']:.1%}" if report.get("hit_low") is not None else None,
+                quality=(card or {}).get("sample", {}).get("quality"),
+                help="95% Wilson interval. Sample size is part of the claim.",
+            )
         head[2].metric("Avg entry price", pct(report["avg_entry"]), help="What the market charged on average — the break-even hit rate.")
-        head[3].metric(
-            "Edge per share",
-            f"{report['edge_per_share'] * 100:+.1f} pp",
-            help=f"Hit rate minus average entry, before fees. Interval: {report['edge_low'] * 100:+.1f} to {report['edge_high'] * 100:+.1f} pp.",
-        )
+        with head[3]:
+            render_scoreline(
+                "Edge per share",
+                f"{report['edge_per_share'] * 100:+.1f} pp",
+                ci=f"[{report['edge_low'] * 100:+.1f}, {report['edge_high'] * 100:+.1f}] pp",
+                disclaimer_key="past_not_forecast",
+                help="Hit rate minus average entry, before fees.",
+            )
         brier = report["brier_entry"]
         baseline = report["brier_baseline"]
         head[4].metric(
@@ -8733,6 +8754,48 @@ monitor_rule_match_count = sig.monitor_rule_match_count
 build_monitor_alert_hits = sig.build_monitor_alert_hits
 
 
+SCORELINE_QUALITY_COLORS = {"insufficient": "#F5A623", "developing": "#4F8EF7", "adequate": ACCENT}
+
+
+def render_scoreline(
+    label: str,
+    value: str,
+    *,
+    n: int | None = None,
+    ci: str | None = None,
+    quality: str | None = None,
+    verdict: str | None = None,
+    disclaimer_key: str | None = None,
+    snapshot_at: Any = None,
+    help: str | None = None,
+) -> None:
+    """Uniform score display (Brief 03): big value, small n/CI/snapshot meta
+    line, sample-quality badge, register-gated note. All caveat language comes
+    from data/claims.yaml via app/claims.py; a thin sample never carries
+    verdict language — the number stays visible without judgement."""
+
+    st.metric(label, value, help=help)
+    view = clm.scoreline_view(
+        n=n,
+        ci=ci,
+        quality=quality,
+        verdict=verdict,
+        disclaimer_key=disclaimer_key,
+        snapshot_at=snapshot_at,
+        lang="en",
+    )
+    parts: list[str] = []
+    if view["badge"]:
+        color = SCORELINE_QUALITY_COLORS.get(str(quality or "").strip().lower(), MUTED)
+        parts.append(f"<span class='risk-badge' style='color:{color};border-color:{color}'>{view['badge']}</span>")
+    if view["meta"]:
+        parts.append(f"<span class='field-hint'>{html.escape(view['meta'])}</span>")
+    if parts:
+        st.markdown(" ".join(parts), unsafe_allow_html=True)
+    if view["note"]:
+        st.caption(view["note"])
+
+
 def render_ledger_aggregates() -> None:
     """Compact signal-ledger status row so the ledger is observable from day one."""
 
@@ -8749,7 +8812,14 @@ def render_ledger_aggregates() -> None:
     l1.metric("Ledger emitted", f"{stats['emitted']:,}")
     l2.metric("Ledger resolved", f"{stats['resolved']:,}")
     hit_rate = stats.get("hit_rate")
-    l3.metric("Ledger hit rate", pct(hit_rate) if hit_rate is not None else "n/a")
+    with l3:
+        render_scoreline(
+            "Ledger hit rate",
+            pct(hit_rate) if hit_rate is not None else "n/a",
+            n=int(stats.get("decisive", 0)),
+            quality=scd.sample_quality(int(stats.get("decisive", 0)))["quality"],
+            disclaimer_key="modeled_not_realized",
+        )
     l4.metric("Hash chain", "ok" if stats.get("chain_ok") else "broken")
     window = ""
     if stats.get("first_emit") and stats.get("last_emit"):

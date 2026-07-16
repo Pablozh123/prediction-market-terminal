@@ -1,0 +1,70 @@
+# Central claim and caveat register (Brief 03).
+#
+# This file is the single source for every disclaimer shown next to a score,
+# for the claims the product is allowed to make (each with evidence and a
+# verification date), and for phrases that must never appear in product copy.
+# scripts/lint_claims.py enforces the forbidden list over the code base; the
+# UI reads disclaimers exclusively through app/claims.py.
+#
+# Versioned in the repo on purpose (the one exception to the runtime-generated
+# data/ directory): changing claim language must be a reviewed diff.
+
+version: 1
+updated: 2026-07-16
+
+disclaimers:
+  score_generic:
+    de: "Kennzahl aus oeffentlichen On-Chain-Daten. Information, keine Anlageberatung."
+    en: "Metric from public on-chain data. Information, not investment advice."
+  diagnostic_not_advice:
+    de: "Diagnose des bisherigen Records, keine Handlungsempfehlung."
+    en: "A diagnostic of the past record, not a recommendation to act."
+  past_not_forecast:
+    de: "Beschreibt abgeschlossene Trades, keine Prognose kuenftiger Ergebnisse."
+    en: "Describes settled trades; it does not project future results."
+  thin_sample:
+    de: "Stichprobe zu klein fuer ein Urteil. Die Zahl bleibt sichtbar, ist aber nur ein Hinweis."
+    en: "Sample too small for a verdict. The number stays visible but reads as a hint only."
+  modeled_not_realized:
+    de: "Modellierter Wert, zum Emit-Zeitpunkt eingefroren; kein realisierter Gewinn."
+    en: "Modeled value frozen at emit time; not realized profit."
+
+allowed_claims:
+  - id: corrected-win-rate
+    text: "Win rates are netted per resolved market and NegRisk event over the unioned winners-and-losers set."
+    evidence: "tests/test_track_record.py"
+    last_verified: 2026-07-16
+  - id: realized-edge-ci
+    text: "Realized edge is reported with a 95% Student-t interval over per-event observations, with NegRisk legs netted to one observation."
+    evidence: "tests/test_calibration.py"
+    last_verified: 2026-07-16
+  - id: signal-ledger-chain
+    text: "Emitted monitor signals are persisted append-only with a SHA-256 hash chain and joined against source-confirmed resolutions daily."
+    evidence: "tests/test_ledger.py"
+    last_verified: 2026-07-16
+  - id: scorecard-single-source
+    text: "Every wallet surface reads one canonical, timestamped scorecard; sample-quality gates are evaluated in exactly one place."
+    evidence: "tests/test_scorecard.py"
+    last_verified: 2026-07-16
+
+forbidden_phrases:
+  - phrase: "sagt zukuenftige Performance voraus"
+    reason: "Vorhersage-Versprechen: Scores beschreiben den bisherigen Record, sie prognostizieren nichts."
+  - phrase: "predicts future returns"
+    reason: "Prediction promise: scores describe the past record only."
+  - phrase: "predicts future performance"
+    reason: "Prediction promise: scores describe the past record only."
+  - phrase: "garantiert"
+    reason: "Garantie-Sprache: nichts an oeffentlichen Marktdaten ist garantiert."
+  - phrase: "sicherer Gewinn"
+    reason: "Garantie-Sprache: es gibt keinen sicheren Gewinn in Prediction Markets."
+  - phrase: "risk-free"
+    reason: "Guarantee language: nothing here is risk-free."
+  - phrase: "wir empfehlen zu kaufen"
+    reason: "Beratungs-Sprache: das Produkt liefert Information, keine Kauf- oder Copy-Empfehlung."
+  - phrase: "Kaufempfehlung"
+    reason: "Beratungs-Sprache: das Produkt liefert Information, keine Kauf- oder Copy-Empfehlung."
+  - phrase: "you should buy"
+    reason: "Advice language: the product informs, it does not tell anyone to buy."
+  - phrase: "you should copy"
+    reason: "Advice language: the product informs, it does not tell anyone to copy a wallet."
