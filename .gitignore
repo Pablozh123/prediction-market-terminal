@@ -43,6 +43,8 @@ notebooks/*.png
 # Kursabgaben / PDFs
 *.pdf
 !reports/FINAL_REPORT.pdf
+# Extern zeitgestempelte Preregistration-Belege sind Repo-Substanz
+!docs/research/*.pdf
 *.docx
 
 # --- Ergänzt: vor versehentlichem Commit grosser/fremder Artefakte schützen ---
