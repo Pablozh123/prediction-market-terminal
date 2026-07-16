@@ -32,6 +32,7 @@ from app import ledger as ldg
 from app import notify
 from app import quant as qm
 from app import run_sim as rsim
+from app import scorecard as scd
 from app import signals as sig
 from app import suspicion as susp
 from app import track_record as trec
@@ -46,6 +47,7 @@ from app.format import (
     pct,
     resolution_yield_summary,
     signed_cents,
+    snapshot_label,
 )
 from app.filters import (
     COPY_ORDER_STATUS_FILTERS,
@@ -2249,6 +2251,48 @@ def load_resolved_positions(wallet: str) -> tuple[pd.DataFrame, bool]:
     """Complete resolved set (winner tail + loser tail unioned) + capped flag."""
 
     return md.get_polymarket_resolved_positions(wallet)
+
+
+def _scorecard_smart_row(wallet: str) -> dict[str, Any] | None:
+    """Canonical smart-score slice: all-time PnL leaderboard top 250, ranked once."""
+
+    leaderboard = load_leaderboard(250, "ALL", "PNL")
+    ranked = ct.rank_traders_by_smart_score(leaderboard)
+    if ranked is None or ranked.empty or "wallet" not in ranked:
+        return None
+    match = ranked[ranked["wallet"].astype(str).str.lower() == wallet.lower()]
+    return match.iloc[0].to_dict() if not match.empty else None
+
+
+def _scorecard_risk_row(wallet: str) -> dict[str, Any] | None:
+    """Insider screen over the same deep whale tape the Suspicious page samples."""
+
+    tape = load_deep_whale_tape(1000.0)
+    scores = md.whale_wallet_risk_scores(tape)
+    if scores is None or scores.empty or "wallet" not in scores:
+        return None
+    match = scores[scores["wallet"].astype(str).str.lower() == wallet.lower()]
+    return match.iloc[0].to_dict() if not match.empty else None
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def load_wallet_scorecard(wallet: str) -> dict[str, Any]:
+    """Canonical wallet read for every surface — one snapshot, one dataset (app/scorecard.py).
+
+    st.cache_data is the effective cache here (refresh=True bypasses the
+    module-level TTL cache so the two layers cannot stack staleness)."""
+
+    return scd.wallet_scorecard(
+        wallet,
+        fetchers={
+            "resolved": load_resolved_positions,
+            "trades": lambda w: load_wallet_bundle(w, 250)[2],
+            "activity": lambda w: load_wallet_bundle(w, 250)[3],
+            "smart_row": _scorecard_smart_row,
+            "risk_row": _scorecard_risk_row,
+        },
+        refresh=True,
+    )
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -5406,17 +5450,23 @@ REALIZED_EDGE_VERDICTS = {
 }
 
 
-def render_track_record(wallet: str, trades: pd.DataFrame | None = None, activity: pd.DataFrame | None = None) -> None:
+def render_track_record(wallet: str) -> None:
     """Verifiable track-record scorecard with a REAL win rate.
 
     Wins and losses come from the unioned resolved-position set (winner tail +
     loser tail from the public feed), so the win rate is real for normal wallets.
     Only hyperactive wallets (>50 wins AND >50 losses) hit the feed cap, and that
     is disclosed as an extremes-only view rather than faked.
+
+    All numbers come from the canonical wallet scorecard (app/scorecard.py):
+    one snapshot, one dataset, shown with its timestamp.
     """
 
-    resolved, capped = safe_load("Resolved positions", load_resolved_positions, wallet, default=(pd.DataFrame(), False))
-    rec = trec.track_record(resolved, trades, activity, resolved_capped=bool(capped))
+    card = safe_load("Wallet scorecard", load_wallet_scorecard, wallet, default={})
+    rec = (card or {}).get("track") or {}
+    if not rec:
+        st.caption("Scorecard unavailable — resolved positions could not be loaded for this wallet.")
+        return
     if rec["resolved_markets"] == 0:
         st.caption("No resolved positions in the public feed yet — a track record needs settled markets.")
         return
@@ -5458,8 +5508,8 @@ def render_track_record(wallet: str, trades: pd.DataFrame | None = None, activit
         naive = rec["naive_win_rate"]
         if rec.get("leg_inflation") and abs(rec["leg_inflation"] - 1.0) >= 0.15:
             detail[2].caption(f"naive per-leg: {pct(naive)}")
-        edge_rep = calib.realized_edge(calib.resolution_frame(resolved), capped=bool(capped))
-        if edge_rep["n_events"]:
+        edge_rep = (card or {}).get("realized_edge") or {}
+        if edge_rep.get("n_events"):
             st.divider()
             verdict_label, verdict_color = REALIZED_EDGE_VERDICTS.get(edge_rep["verdict"], ("NO VERDICT", MUTED))
             ecols = st.columns([1, 1.2, 1.2, 1.2])
@@ -5484,8 +5534,8 @@ def render_track_record(wallet: str, trades: pd.DataFrame | None = None, activit
                 help=f"{edge_rep['n_positions']:,} resolved positions netted to {edge_rep['n_events']:,} independent events.",
             )
             st.caption(f"{edge_rep['headline']} Past record, not a forecast.")
-        attribution = trec.pnl_attribution(resolved)
-        if attribution["structural_share"] is not None:
+        attribution = (card or {}).get("attribution") or {}
+        if attribution.get("structural_share") is not None:
             st.divider()
             st.markdown("<div class='field-hint'>WHAT'S DRIVING THE PROFIT</div>", unsafe_allow_html=True)
             acols = st.columns(3)
@@ -5508,20 +5558,25 @@ def render_track_record(wallet: str, trades: pd.DataFrame | None = None, activit
                 st.caption(f"Biggest event: {attribution['top_event_title']} ({pct(attribution['top_event_share'])} of gross profit).")
         for flag in rec["flags"]:
             st.markdown(f"<div class='field-hint'>⚠ {html.escape(flag)}</div>", unsafe_allow_html=True)
-        st.caption(f"{rec['coverage_note']} All from public on-chain data.")
-    render_wallet_calibration(resolved, bool(capped))
+        st.caption(
+            f"{rec['coverage_note']} All from public on-chain data. "
+            f"Scorecard snapshot {snapshot_label((card or {}).get('snapshot_at'))}."
+        )
+    render_wallet_calibration(wallet)
 
 
-def render_wallet_calibration(resolved: pd.DataFrame, capped: bool) -> None:
+def render_wallet_calibration(wallet: str) -> None:
     """Per-wallet calibration: were this wallet's entry prices honest forecasts?
 
     Scores every resolved position as a forecast (entry price) against its
-    settlement — the "was a 70% entry really 70%?" read, per wallet.
+    settlement — the "was a 70% entry really 70%?" read, per wallet. Reads the
+    canonical wallet scorecard so this panel can never disagree with the
+    track-record panel above it.
     """
 
-    frame = calib.resolution_frame(resolved)
-    report = calib.calibration_report(frame, capped=capped)
-    if not report["n"]:
+    card = safe_load("Wallet scorecard", load_wallet_scorecard, wallet, default={})
+    report = (card or {}).get("calibration") or {}
+    if not report.get("n"):
         return
     with st.expander(f"Entry calibration — was the price paid a good forecast? ({report['n']} resolved positions)", expanded=False):
         head = st.columns(5)
@@ -5586,7 +5641,8 @@ def render_wallet_calibration(resolved: pd.DataFrame, capped: bool) -> None:
             )
         st.caption(
             f"{report['note']} Selection bias is inherent and intended: only markets this wallet chose are scored — "
-            "skill in its chosen spots, not general forecasting ability."
+            "skill in its chosen spots, not general forecasting ability. "
+            f"Scorecard snapshot {snapshot_label((card or {}).get('snapshot_at'))}."
         )
 
 
@@ -5687,7 +5743,7 @@ def render_wallet(wallet: str) -> None:
         info_cols[0].link_button("Open first tx", f"https://polygonscan.com/tx/{first_activity_tx}", width="stretch")
     info_cols[1].metric("Account Created", account_created)
     info_cols[2].metric("Activity observations", f"{activity_observations:,}")
-    render_track_record(wallet, trades, activity)
+    render_track_record(wallet)
     if wallet.lower() in copy_active_wallets:
         with st.expander("Paper-Copytrading sub-account", expanded=False):
             render_copy_sub_account_metrics(wallet, copy_stats_map)
@@ -6107,12 +6163,16 @@ def render_pnl_vs_skill(leaderboard: pd.DataFrame) -> None:
         )
         if st.button("Run skill read on these 20 wallets (~40 public API calls)", key="pnl_vs_skill_compute"):
             rows: list[dict[str, Any]] = []
+            snapshots: list[str] = []
             progress = st.progress(0.0, text="Scoring track records…")
             for idx, entry in enumerate(top.itertuples()):
                 wallet = str(entry.wallet)
-                resolved, capped = safe_load("Resolved positions", load_resolved_positions, wallet, default=(pd.DataFrame(), False))
-                rec = trec.track_record(resolved, resolved_capped=bool(capped))
-                edge = calib.realized_edge(calib.resolution_frame(resolved), capped=bool(capped))
+                card = safe_load("Wallet scorecard", load_wallet_scorecard, wallet, default={})
+                rec = (card or {}).get("track") or {}
+                edge = (card or {}).get("realized_edge") or {}
+                if not rec:
+                    continue
+                snapshots.append(str((card or {}).get("snapshot_at", "")))
                 trader = str(getattr(entry, "trader", "") or "") or short_addr(wallet)
                 rows.append(
                     {
@@ -6122,22 +6182,30 @@ def render_pnl_vs_skill(leaderboard: pd.DataFrame) -> None:
                         "score": float(rec["score"]),
                         "grade": str(rec["grade"]),
                         "sample_ok": bool(rec["sample_ok"]),
-                        "verdict": str(edge["verdict"]),
-                        "edge": edge["edge"],
-                        "ci_low": edge["ci_low"],
-                        "ci_high": edge["ci_high"],
-                        "n_events": int(edge["n_events"]),
+                        "verdict": str(edge.get("verdict", "none")),
+                        "edge": edge.get("edge"),
+                        "ci_low": edge.get("ci_low"),
+                        "ci_high": edge.get("ci_high"),
+                        "n_events": int(edge.get("n_events", 0)),
                     }
                 )
                 progress.progress((idx + 1) / len(top), text=f"Scoring track records… {idx + 1}/{len(top)}")
             progress.empty()
-            st.session_state[state_key] = {"wallets": wallets, "frame": pd.DataFrame(rows)}
+            snapshot_note = ""
+            if snapshots:
+                snapshot_note = snapshot_label(min(snapshots))
+                latest = snapshot_label(max(snapshots))
+                if latest != snapshot_note:
+                    snapshot_note += f" – {latest}"
+            st.session_state[state_key] = {"wallets": wallets, "frame": pd.DataFrame(rows), "snapshots": snapshot_note}
             cached = st.session_state[state_key]
         if not cached:
             st.caption("Costs one resolved-positions read per wallet (cached 5 min); results stay for this session.")
             return
         if cached["wallets"] != wallets:
             st.info("Filters changed since the last run — showing the previous slice; run again for the current one.")
+        if cached.get("snapshots"):
+            st.caption(f"Canonical scorecard snapshots: {cached['snapshots']}.")
         skill = cached["frame"].copy()
         if skill.empty:
             draw_empty("No scoreable wallets in this slice.")
@@ -7239,6 +7307,22 @@ def page_track() -> None:
             f"{short_addr(selected_wallet, 4)} | {trade_row.get('side', '-')} {trade_row.get('outcome', '-')} | "
             f"{money(trade_row.get('notional', 0.0))} | {str(trade_row.get('title', ''))[:110]}"
         )
+        if selected_wallet:
+            wallet_card = safe_load("Wallet scorecard", load_wallet_scorecard, selected_wallet, default={})
+            card_track = (wallet_card or {}).get("track") or {}
+            card_edge = (wallet_card or {}).get("realized_edge") or {}
+            if card_track and card_track.get("resolved_markets", 0) > 0:
+                st.caption(
+                    f"Scorecard: skill score {card_track['score']:.0f}/100 ({card_track['grade']}) | "
+                    f"realized-edge verdict {card_edge.get('verdict', 'none')} over {card_edge.get('n_events', 0):,} events | "
+                    f"sample {(wallet_card or {}).get('sample', {}).get('quality', '-')} | "
+                    f"snapshot {snapshot_label((wallet_card or {}).get('snapshot_at'))}"
+                )
+            elif wallet_card:
+                st.caption(
+                    "Scorecard: no resolved positions in the public feed yet | "
+                    f"snapshot {snapshot_label((wallet_card or {}).get('snapshot_at'))}"
+                )
         action_cols = st.columns([1, 1, 1, 1, 2])
         if selected_wallet and action_cols[0].button("Open wallet", key="track_tape_open_wallet", width="stretch"):
             st.session_state["wallets_inspect_wallet"] = selected_wallet
