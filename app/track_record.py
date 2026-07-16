@@ -157,6 +157,78 @@ def settled_from_activity(activity: pd.DataFrame) -> pd.DataFrame:
     return grouped[columns]
 
 
+def pnl_attribution(closed_positions: pd.DataFrame) -> dict[str, Any]:
+    """What is driving the profit: structure, one event, or breadth.
+
+    Decomposes gross profit (positive event-netted PnL only — losses are not
+    "driven" by anything attributable) into three shares that sum to 1:
+
+    - ``structural_share`` — events where the wallet held ≥2 outcomes of one
+      market (``conditionId``). Both sides of a binary book is a payout
+      structure (market-making, arbitrage, hedges), not a directional call.
+    - ``top_event_share`` — the single biggest non-structural event. A record
+      dominated by one event is one conviction call, not repeatable breadth.
+    - ``remaining_share`` — everything else: the part that even *could* be
+      broad forecasting skill (not yet proof that it is).
+
+    Shares are ``None`` when there is no gross profit to attribute.
+    """
+
+    empty: dict[str, Any] = {
+        "gross_profit": 0.0,
+        "structural_share": None,
+        "top_event_share": None,
+        "remaining_share": None,
+        "top_event_title": "",
+        "structural_markets": 0,
+        "positive_events": 0,
+    }
+    if closed_positions is None or closed_positions.empty:
+        return empty
+
+    df = closed_positions.copy()
+    df["_pnl"] = _numeric(df, "realized_pnl")
+    df["_key"] = df.get("market_key", pd.Series("", index=df.index)).astype(str)
+    df.loc[df["_key"].str.strip().eq(""), "_key"] = df.get("title", pd.Series("", index=df.index)).astype(str)
+    df["_outcome"] = df.get("outcome", pd.Series("", index=df.index)).astype(str).str.strip().str.lower()
+    df["_event"] = df.apply(_event_key, axis=1)
+
+    # A market is structural when the wallet held more than one of its outcomes.
+    sides_per_market = df.groupby("_key")["_outcome"].nunique()
+    structural_keys = set(sides_per_market[sides_per_market >= 2].index)
+    structural_events = set(df.loc[df["_key"].isin(structural_keys), "_event"])
+
+    events = df.groupby("_event").agg(net=("_pnl", "sum")).reset_index()
+    positive = events[events["net"] > 0]
+    gross = float(positive["net"].sum())
+    if gross <= 0.0:
+        return {**empty, "structural_markets": len(structural_keys)}
+
+    structural_profit = float(positive.loc[positive["_event"].isin(structural_events), "net"].sum())
+    directional = positive[~positive["_event"].isin(structural_events)]
+    top_event_profit = float(directional["net"].max()) if not directional.empty else 0.0
+
+    top_event_title = ""
+    if not directional.empty:
+        top_key = directional.loc[directional["net"].idxmax(), "_event"]
+        members = df[df["_event"] == top_key]
+        if not members.empty:
+            top_event_title = str(members.loc[members["_pnl"].abs().idxmax()].get("title", "") or "")
+
+    structural_share = structural_profit / gross
+    top_event_share = top_event_profit / gross
+    remaining_share = max(0.0, 1.0 - structural_share - top_event_share)
+    return {
+        "gross_profit": gross,
+        "structural_share": structural_share,
+        "top_event_share": top_event_share,
+        "remaining_share": remaining_share,
+        "top_event_title": top_event_title,
+        "structural_markets": len(structural_keys),
+        "positive_events": int(len(positive)),
+    }
+
+
 def _risk_adjusted(returns: pd.Series) -> float:
     """Sharpe-like ratio on per-market returns; rewards consistency over one big hit."""
 
