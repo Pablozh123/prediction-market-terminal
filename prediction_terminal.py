@@ -28,6 +28,7 @@ from app import backtester as btr
 from app import calibration as calib
 from app import copy_fidelity as cfy
 from app import copy_follow as ctf
+from app import ledger as ldg
 from app import notify
 from app import quant as qm
 from app import run_sim as rsim
@@ -8648,6 +8649,36 @@ monitor_rule_match_count = sig.monitor_rule_match_count
 build_monitor_alert_hits = sig.build_monitor_alert_hits
 
 
+def render_ledger_aggregates() -> None:
+    """Compact signal-ledger status row so the ledger is observable from day one."""
+
+    try:
+        conn = ldg.init_ledger(ldg.DEFAULT_LEDGER_PATH)
+        try:
+            stats = ldg.ledger_aggregates(conn)
+        finally:
+            conn.close()
+    except Exception:
+        st.caption("Signal ledger: unavailable (data/signal_ledger.sqlite could not be read).")
+        return
+    l1, l2, l3, l4 = st.columns(4)
+    l1.metric("Ledger emitted", f"{stats['emitted']:,}")
+    l2.metric("Ledger resolved", f"{stats['resolved']:,}")
+    hit_rate = stats.get("hit_rate")
+    l3.metric("Ledger hit rate", pct(hit_rate) if hit_rate is not None else "n/a")
+    l4.metric("Hash chain", "ok" if stats.get("chain_ok") else "broken")
+    window = ""
+    if stats.get("first_emit") and stats.get("last_emit"):
+        window = f" | window {str(stats['first_emit'])[:10]} to {str(stats['last_emit'])[:10]}"
+    st.caption(
+        "Append-only signal ledger: "
+        f"{stats['pending']:,} pending, {stats['not_resolvable']:,} not resolvable, "
+        f"hit rate over {stats['decisive']:,} decisive resolutions, "
+        f"modeled PnL {money(stats['pnl_modeled_sum'])} per $100 stakes frozen at emit price"
+        f"{window}. Descriptive record of emitted alerts, not a performance promise."
+    )
+
+
 def page_monitor() -> None:
     section_header("Monitor", "Signal monitor for fast movers, whale prints, spreads, holder risk, endings, and saved alert rules.")
     if "monitor_search" not in st.session_state:
@@ -8901,6 +8932,8 @@ def page_monitor() -> None:
     m4.metric("Tight spreads", f"{int(signals['signal_type'].eq('Tight spread').sum()) if not signals.empty else 0:,}")
     m5.metric("Alert rules", f"{len(st.session_state.monitor_rules):,}")
     m6.metric("Alert hits", f"{len(alert_hits):,}")
+
+    render_ledger_aggregates()
 
     tab_feed, tab_alerts, tab_movers, tab_whales, tab_spreads, tab_holders, tab_ending, tab_rules = st.tabs(
         ["Signal Feed", "Alert Hits", "Fast Movers", "Whale Prints", "Tight Spreads", "Holder Risk", "Ending Soon", "Alert Rules"]

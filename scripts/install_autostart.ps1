@@ -1,7 +1,8 @@
 # Registers user-logon Scheduled Tasks so the terminal survives reboots:
-#   MarketIntelTerminal    - Streamlit app on http://127.0.0.1:8503
-#   MarketIntelCopyDaemon  - paper copy-trading daemon (scripts/run_copy_trader.py)
-#   MarketIntelAlertScanner- background alert scanner (scripts/run_alert_scanner.py)
+#   MarketIntelTerminal        - Streamlit app on http://127.0.0.1:8503
+#   MarketIntelCopyDaemon      - paper copy-trading daemon (scripts/run_copy_trader.py)
+#   MarketIntelAlertScanner    - background alert scanner (scripts/run_alert_scanner.py)
+#   MarketIntelLedgerResolution- daily signal-ledger resolution join (scripts/run_ledger_resolution.py)
 # Remove again with scripts/uninstall_autostart.ps1. No admin rights required.
 
 $ErrorActionPreference = "Stop"
@@ -9,9 +10,10 @@ $repo = Split-Path -Parent $PSScriptRoot
 $python = (Get-Command python).Source
 
 $tasks = @(
-    @{ Name = "MarketIntelTerminal";     Args = "-m streamlit run prediction_terminal.py --server.address=127.0.0.1 --server.port=8503" },
-    @{ Name = "MarketIntelCopyDaemon";   Args = "scripts\run_copy_trader.py" },
-    @{ Name = "MarketIntelAlertScanner"; Args = "scripts\run_alert_scanner.py" }
+    @{ Name = "MarketIntelTerminal";         Args = "-m streamlit run prediction_terminal.py --server.address=127.0.0.1 --server.port=8503" },
+    @{ Name = "MarketIntelCopyDaemon";       Args = "scripts\run_copy_trader.py" },
+    @{ Name = "MarketIntelAlertScanner";     Args = "scripts\run_alert_scanner.py" },
+    @{ Name = "MarketIntelLedgerResolution"; Args = "scripts\run_ledger_resolution.py" }
 )
 
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
