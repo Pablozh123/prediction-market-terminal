@@ -1,17 +1,17 @@
 {
  "hinweis": "Descriptive post-run review of our own small-stake live runs of the mentions bot. Reconstructed read-only from the run logs; resolutions from public Gamma data. No trading recommendation, no return forecast.",
- "stand_utc": "2026-07-14T04:31:12+00:00",
+ "stand_utc": "2026-07-16T04:31:32+00:00",
  "kennzeichnung": "live/descriptive",
  "aggregat": {
-  "n_runs": 4,
-  "n_wetten": 8,
-  "gewonnen": 8,
+  "n_runs": 6,
+  "n_wetten": 9,
+  "gewonnen": 9,
   "verloren": 0,
   "offen": 0,
-  "einsatz_usd": 260.83,
-  "aufgeloester_einsatz_usd": 260.83,
-  "realisierter_payout_usd": 290.21,
-  "realisierter_pnl_usd": 29.38,
+  "einsatz_usd": 266.51,
+  "aufgeloester_einsatz_usd": 266.51,
+  "realisierter_payout_usd": 296.52,
+  "realisierter_pnl_usd": 30.01,
   "roi_realisiert_pct": 11.3,
   "offener_einsatz_usd": 0.0
  },
@@ -28,11 +28,11 @@
    "erste_entscheidung_s": null,
    "erster_fill_s": null,
    "n_maerkte": 15,
-   "n_entscheidungen": 1,
+   "n_entscheidungen": 4,
    "zaehler": {
-    "no_action": 1
+    "no_action": 4
    },
-   "eingepreist": 1,
+   "eingepreist": 4,
    "einsatz_usd": 0.0,
    "realisierter_pnl_usd": null,
    "wetten": [],
@@ -619,6 +619,108 @@
       [
        9080.0,
        0.94
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "profil": "jre_july13",
+   "event_slug": "what-will-be-said-on-the-first-joe-rogan-experience-episode-of-the-week-july-13-20260707144311074",
+   "episode_titel": "#2525 - Nick Bostrom",
+   "modus": "LIVE",
+   "drop_quelle": "libsyn_rss",
+   "pubdate_utc": "2026-07-14T17:00:00Z",
+   "drop_erkannt_utc": "2026-07-14T17:00:48Z",
+   "erkennungslatenz_s": 48.0,
+   "erste_entscheidung_s": 104.0,
+   "erster_fill_s": null,
+   "n_maerkte": 25,
+   "n_entscheidungen": 38,
+   "zaehler": {
+    "no_action": 38
+   },
+   "eingepreist": 24,
+   "einsatz_usd": 0.0,
+   "realisierter_pnl_usd": null,
+   "wetten": [],
+   "verpasste_chancen": [],
+   "race": null,
+   "repricing": []
+  },
+  {
+   "profil": "lemonade_july15",
+   "event_slug": "what-will-be-said-on-the-next-lemonade-stand-podcast-july-15-20260709163957166",
+   "episode_titel": "(kanalseite)",
+   "modus": "LIVE",
+   "drop_quelle": "youtube",
+   "pubdate_utc": "",
+   "drop_erkannt_utc": "2026-07-15T19:36:22Z",
+   "erkennungslatenz_s": null,
+   "erste_entscheidung_s": 152.0,
+   "erster_fill_s": 941.0,
+   "n_maerkte": 20,
+   "n_entscheidungen": 39,
+   "zaehler": {
+    "no_action": 38,
+    "live_fill": 1
+   },
+   "eingepreist": 23,
+   "einsatz_usd": 5.68,
+   "realisierter_pnl_usd": 0.63,
+   "wetten": [
+    {
+     "frage": "Will \"Korea\" or \"Korean\" be said during the next episode of the Lemonade Stand Podcast?",
+     "seite": "NO",
+     "entscheidungs_preis": 0.69,
+     "avg_fill_preis": 0.9002,
+     "shares": 6.31,
+     "einsatz_usd": 5.68,
+     "sweep_clips": 1,
+     "fill_status": "live_fill",
+     "fill_ts_utc": "2026-07-15T19:52:03Z",
+     "aufgeloest": true,
+     "gewonnen": true,
+     "payout_usd": 6.31,
+     "pnl_usd": 0.63,
+     "roi_pct": 11.1,
+     "aktueller_yes_preis": null,
+     "tape_rang": 2,
+     "fremde_davor": 1,
+     "fremdvolumen_davor_usd": 5.54,
+     "verfolger_s": 682.0,
+     "preis_nach_fill": {
+      "0": 0.98,
+      "30": 0.98,
+      "60": 0.98,
+      "120": 0.98,
+      "300": 0.98,
+      "900": 0.99
+     }
+    }
+   ],
+   "verpasste_chancen": [],
+   "race": {
+    "quelle": "data-api.polymarket.com/trades (oeffentlich, read-only)",
+    "wetten_mit_tape": 1,
+    "first_on": 0,
+    "fremde_trades_vor_uns": 1,
+    "median_verfolger_s": 682.0
+   },
+   "repricing": [
+    {
+     "frage": "Will \"Korea\" or \"Korean\" be said during the next episode of the Lemonade Stand Podcast?",
+     "seite": "NO",
+     "time_to_priced_s": 97.0,
+     "fill_nach_s": 941.0,
+     "punkte": [
+      [
+       97.0,
+       0.98
+      ],
+      [
+       1623.0,
+       0.99
       ]
      ]
     }
