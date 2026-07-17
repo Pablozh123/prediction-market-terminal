@@ -28,6 +28,21 @@ disclaimers:
   modeled_not_realized:
     de: "Modellierter Wert, zum Emit-Zeitpunkt eingefroren; kein realisierter Gewinn."
     en: "Modeled value frozen at emit time; not realized profit."
+  wallet_reader_caveat:
+    de: "Liest ausschliesslich oeffentliche, aufgeloeste Polymarket-Positionen. Diagnose des bisherigen Records, keine Anlageberatung."
+    en: "Reads public resolved Polymarket positions only. A diagnostic of the past record, not investment advice."
+  leaderboard_caveat:
+    de: "Rohe PnL-Raenge fuehren in die Irre: Legs blaehen Win-Rates auf, Winner-only-Feeds verstecken Verluste. Der Skill-Read unten korrigiert beides."
+    en: "Raw PnL ranks mislead: legs inflate win rates and winner-only feeds hide losses. The skill read below corrects both."
+  screen_not_proof:
+    de: "Verhaltens-Screen ueber oeffentliche Daten. Ein Flag ist ein Pruefsignal, kein Beweis fuer Fehlverhalten."
+    en: "A behavioural screen over public data. A flag is a review signal, not proof of wrongdoing."
+  backtest_modeled:
+    de: "Simulation zu historischen Preisen mit Fee- und Slippage-Annahmen. Modellierte Werte, keine realisierten Ergebnisse."
+    en: "A simulation at historical prices with fee and slippage assumptions. Modeled values, not realized results."
+  signal_ledger_caveat:
+    de: "Deskriptiver Record der emittierten Alerts mit eingefrorenem Modell-PnL. Kein Qualitaetsversprechen fuer kuenftige Signale."
+    en: "A descriptive record of emitted alerts with modeled PnL frozen at emit price. Not a quality promise for future signals."
 
 allowed_claims:
   - id: corrected-win-rate

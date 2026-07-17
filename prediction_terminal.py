@@ -132,9 +132,10 @@ NAV_GROUPS: list[tuple[str, list[str]]] = [
     ("", ["Overview"]),
     ("Markets", ["Markets", "Search", "Live Trades", "Resolved", "Cross-Venue"]),
     ("Traders", ["Traders", "Wallets", "Whale Flow", "Suspicious", "Track"]),
+    ("Signals", ["Monitor"]),
     ("Trading", ["Backtester", "Copy Trade", "Portfolio"]),
     ("Research", ["Review Queue", "Category Efficiency", "Mentions Latency", "Live Runs", "Pipeline Forward", "Methodology"]),
-    ("System", ["Monitor", "Settings"]),
+    ("System", ["Settings"]),
 ]
 WORKSPACE_HELP = {
     "Overview": "Start here — live stats, movers, and quick links into every workspace.",
@@ -527,6 +528,56 @@ def inject_css() -> None:
             color: rgba(255, 255, 255, 0.42);
             line-height: 1.45;
             margin: 0.25rem 0 0.2rem;
+        }}
+        .caveat-banner {{
+            border: 1px solid rgba(245, 166, 35, 0.35);
+            border-radius: 8px;
+            background: rgba(245, 166, 35, 0.05);
+            padding: 0.55rem 0.85rem;
+            margin: 0.3rem 0 0.85rem;
+        }}
+        .caveat-label {{
+            font-family: {FONT_MONO};
+            font-size: 0.66rem;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: #F5A623;
+            margin-right: 0.55rem;
+            white-space: nowrap;
+        }}
+        .caveat-body {{
+            color: {TEXT_SECONDARY};
+            font-size: 0.82rem;
+            line-height: 1.45;
+        }}
+        .chart-note {{
+            font-family: {FONT_MONO};
+            font-size: 0.68rem;
+            color: rgba(255, 255, 255, 0.42);
+            line-height: 1.5;
+            margin: -0.35rem 0 0.85rem;
+        }}
+        .explainer-tile {{
+            border: 1px solid {BORDER};
+            border-radius: 10px;
+            background: {PANEL};
+            padding: 0.7rem 0.85rem 0.75rem;
+            min-height: 6.2rem;
+        }}
+        .terminal-meta {{
+            display: flex;
+            gap: 0.4rem;
+            flex-wrap: wrap;
+            margin: -0.45rem 0 0.95rem;
+        }}
+        .meta-chip {{
+            font-family: {FONT_MONO};
+            font-size: 0.66rem;
+            letter-spacing: 0.08em;
+            color: {TEXT_LABEL};
+            border: 1px solid {BORDER};
+            border-radius: 999px;
+            padding: 0.14rem 0.6rem;
         }}
         .chip-row {{
             display: flex;
@@ -1709,7 +1760,7 @@ def apply_trader_filter_view_widgets(view: dict[str, Any]) -> None:
         st.session_state[key] = value
 
 
-def section_header(title: str, subtitle: str = "", kicker: str = "Live public market data") -> None:
+def section_header(title: str, subtitle: str = "", kicker: str = "Live public market data", meta: list[str] | None = None) -> None:
     st.markdown(
         f"<div class='terminal-kicker'><span class='kicker-diamond'>◆</span> {html.escape(str(kicker))}</div>",
         unsafe_allow_html=True,
@@ -1717,6 +1768,47 @@ def section_header(title: str, subtitle: str = "", kicker: str = "Live public ma
     st.markdown(f"<div class='terminal-title'>{html.escape(str(title))}</div>", unsafe_allow_html=True)
     if subtitle:
         st.markdown(f"<div class='terminal-subtitle'>{html.escape(str(subtitle))}</div>", unsafe_allow_html=True)
+    if meta:
+        chips = "".join(f"<span class='meta-chip'>{html.escape(str(item))}</span>" for item in meta if str(item or "").strip())
+        if chips:
+            st.markdown(f"<div class='terminal-meta'>{chips}</div>", unsafe_allow_html=True)
+
+
+def render_kicker(text: str) -> None:
+    """Section kicker inside a page: monospace caps, dimmed — names the block below."""
+
+    st.markdown(f"<div class='step-label'>{html.escape(str(text))}</div>", unsafe_allow_html=True)
+
+
+def render_caveat(label: str, body: str) -> None:
+    """Labeled caveat banner directly above a tool. Body text comes from the
+    claims register (data/claims.yaml) so caveat language stays central."""
+
+    st.markdown(
+        f"<div class='caveat-banner'><span class='caveat-label'>▲ {html.escape(str(label).upper())} CAVEAT</span>"
+        f"<span class='caveat-body'>{html.escape(str(body))}</span></div>",
+        unsafe_allow_html=True,
+    )
+
+
+def chart_note(text: str) -> None:
+    """Methodological footnote directly under a chart (monospace small print)."""
+
+    st.markdown(f"<div class='chart-note'>{html.escape(str(text))}</div>", unsafe_allow_html=True)
+
+
+def render_explainer_tiles(tiles: list[tuple[str, str]]) -> None:
+    """Row of small labeled tiles (what it is / what it is not / evidence gate)."""
+
+    if not tiles:
+        return
+    cols = st.columns(len(tiles))
+    for col, (label, body) in zip(cols, tiles):
+        col.markdown(
+            f"<div class='explainer-tile'><div class='step-label' style='margin-top:0'>{html.escape(str(label))}</div>"
+            f"<div class='small-note'>{html.escape(str(body))}</div></div>",
+            unsafe_allow_html=True,
+        )
 
 
 def draw_empty(message: str) -> None:
@@ -3371,7 +3463,7 @@ def research_trade_executable_notional(requested_notional: float, available_cash
 
 
 def render_research_trade_ticket(row: pd.Series, key_prefix: str = "ticket") -> None:
-    st.markdown("### Paper trade ticket")
+    render_kicker("Paper trade ticket")
     yes_price = float(row.get("yes_price") or 0.0)
     no_price = float(row.get("no_price") or (1 - yes_price if yes_price else 0.0))
     market_key = str(row.get("market_key", "") or row.get("ticker", "") or row.get("title", ""))
@@ -3422,7 +3514,7 @@ def render_research_trade_ticket(row: pd.Series, key_prefix: str = "ticket") -> 
 
 
 def render_market_quick_trade_bar(row: pd.Series, market_key: str, selected_outcome: str = "Yes") -> None:
-    st.markdown("#### Quick paper trade")
+    render_kicker("Quick paper trade")
     ticket_key = f"market_quick_trade_ticket_{market_key}"
     quick_cols = st.columns([1, 1, 1.15, 1.2])
     if quick_cols[0].button(f"YES {cents(row.get('yes_price'))}", key=f"quick_yes_{market_key}", width="stretch"):
@@ -3951,7 +4043,7 @@ def page_overview() -> None:
             overview_chip_source["category"] = overview_chip_source[overview_category_col]
         category_counts = md.market_category_counts(overview_chip_source)
         if category_counts:
-            st.markdown("##### Category chips")
+            render_kicker("Category chips")
             show_all_categories = bool(st.session_state.get("overview_show_more_categories", False))
             category_chips = md.market_category_chip_options(
                 overview_chip_source,
@@ -4080,7 +4172,7 @@ def page_overview() -> None:
             render_featured_market(featured_row, f"{current_featured_index + 1}/{len(featured)}")
         with right:
             if show_news:
-                st.markdown("### Newsfeed")
+                render_kicker("Newsfeed")
                 news = safe_load("Featured market news", load_market_news, str(featured_row.get("title", "")), 12)
                 if news.empty:
                     draw_empty("No public news results returned for this featured market.")
@@ -4113,7 +4205,7 @@ def page_overview() -> None:
     st.divider()
     left, right = st.columns([1.2, 1])
     with left:
-        st.markdown("### Venue volume")
+        render_kicker("Venue volume")
         if combined.empty:
             draw_empty("Volume chart unavailable.")
         else:
@@ -4131,7 +4223,7 @@ def page_overview() -> None:
             fig.update_layout(height=330, margin=dict(l=10, r=10, t=20, b=10), paper_bgcolor=BG, plot_bgcolor=BG)
             st.plotly_chart(fig, width="stretch", config=plot_config())
     with right:
-        st.markdown("### Recent large flow")
+        render_kicker("Recent large flow")
         if trades.empty:
             draw_empty("No recent trades returned.")
         else:
@@ -4380,13 +4472,13 @@ def page_search() -> None:
     with tab_all:
         c1, c2 = st.columns([1, 1])
         with c1:
-            st.markdown("### Top markets")
+            render_kicker("Top markets")
             if markets.empty:
                 draw_empty("No market results.")
             else:
                 st.dataframe(clean_table(markets, market_cols).head(12), width="stretch", height=320, column_config=market_config)
         with c2:
-            st.markdown("### Recent trades")
+            render_kicker("Recent trades")
             if trades.empty:
                 draw_empty("No trade results.")
             else:
@@ -4394,12 +4486,12 @@ def page_search() -> None:
                 if "wallet" in display:
                     display["wallet"] = display["wallet"].astype(str).map(short_addr)
                 st.dataframe(display.head(12), width="stretch", height=320, column_config={"notional": st.column_config.NumberColumn(format="$%.0f")})
-        st.markdown("### News")
+        render_kicker("News")
         if news.empty:
             draw_empty("No news results.")
         else:
             st.dataframe(clean_table(news, ["time", "source", "title", "url"]).head(10), width="stretch", height=260, column_config={"url": st.column_config.LinkColumn("URL")})
-        st.markdown("### Alerts and signals")
+        render_kicker("Alerts and signals")
         if alert_results.empty:
             draw_empty("No alert signals for this search.")
         else:
@@ -4417,7 +4509,7 @@ def page_search() -> None:
                     "url": st.column_config.LinkColumn("URL"),
                 },
             )
-        st.markdown("### Top traders")
+        render_kicker("Top traders")
         if traders.empty:
             draw_empty("No trader results.")
         else:
@@ -4672,13 +4764,13 @@ def page_search() -> None:
     with tab_tracked:
         t1, t2 = st.columns([1, 1])
         with t1:
-            st.markdown("### Watched markets")
+            render_kicker("Watched markets")
             if tracked_markets.empty:
                 draw_empty("No watched markets match.")
             else:
                 st.dataframe(tracked_markets, width="stretch", height=330, column_config={"url": st.column_config.LinkColumn("URL")})
         with t2:
-            st.markdown("### Watched wallets")
+            render_kicker("Watched wallets")
             if tracked_wallets.empty:
                 draw_empty("No watched wallets match.")
             else:
@@ -4698,7 +4790,7 @@ def render_related_markets(row: pd.Series, market_universe: pd.DataFrame | None 
         if not closed.empty:
             closed_related = related_market_group(closed, row, include_current=False, limit=40)
 
-    st.markdown("#### Related markets")
+    render_kicker("Related markets")
     r1, r2, r3 = st.columns(3)
     active_count = int((~bool_mask(related.get("closed", pd.Series(False, index=related.index)), False)).sum())
     r1.metric("Related active", f"{active_count:,}")
@@ -4780,7 +4872,7 @@ def render_market_series_strip(row: pd.Series, market_universe: pd.DataFrame | N
 
     strip_key = re.sub(r"[^a-zA-Z0-9]+", "_", current_key).strip("_")[:48] or "market"
     show_resolved_key = f"show_resolved_series_{strip_key}"
-    st.markdown("#### Related contracts")
+    render_kicker("Related contracts")
     related_preview = related.head(6).copy()
     cols = st.columns(len(related_preview) + (1 if not closed_related.empty else 0))
     for idx, (_, item) in enumerate(related_preview.iterrows()):
@@ -4933,7 +5025,7 @@ def page_markets() -> None:
             market_chip_source["category"] = market_chip_source[market_category_col]
         category_counts = md.market_category_counts(market_chip_source)
         if category_counts:
-            st.markdown("##### Category chips")
+            render_kicker("Category chips")
             show_all_categories = bool(st.session_state.get("markets_show_more_categories", False))
             category_chips = md.market_category_chip_options(
                 market_chip_source,
@@ -5341,7 +5433,7 @@ def page_markets() -> None:
                             more_count = int(day_row.get("more_count", 0) or 0)
                             if more_count:
                                 st.caption(f"+{more_count:,} more")
-            st.markdown("##### Calendar table")
+            render_kicker("Calendar table")
             calendar_summary = clean_table(calendar_days, ["date", "markets", "volume", "median_prob", "more_count"])
             st.dataframe(
                 calendar_summary[calendar_summary["markets"] > 0],
@@ -5531,6 +5623,18 @@ def render_report_card(wallet: str) -> None:
             )
         if badge_bits:
             st.markdown(" ".join(badge_bits), unsafe_allow_html=True)
+
+        window = card.get("data_window") or {}
+        capped_note = (
+            " Both feed tails are capped, so this read covers the largest wins and losses only, not the full history."
+            if track.get("resolved_capped")
+            else ""
+        )
+        st.markdown(
+            f"<div class='field-hint'>READ COVERAGE: {int(window.get('trades') or 0):,} resolved rows from the public "
+            f"closed-positions feed, winners and losers unioned.{html.escape(capped_note)}</div>",
+            unsafe_allow_html=True,
+        )
 
         box_cols = st.columns(2)
         with box_cols[0]:
@@ -5802,8 +5906,9 @@ def render_wallet_calibration(wallet: str) -> None:
                 legend=dict(orientation="h", yanchor="bottom", y=1.02),
             )
             st.plotly_chart(fig, width="stretch", config=plot_config())
-            st.caption(
-                "Points above the dashed line: entries settled true more often than the price implied (bought too cheap). "
+            chart_note(
+                "X: avg entry price per bucket (implied probability). Y: share of those positions that resolved true. "
+                "Points above the dashed line settled true more often than the price implied (bought too cheap). "
                 "Marker size = positions in the bucket; whiskers = 95% Wilson interval."
             )
         st.caption(
@@ -5921,7 +6026,7 @@ def render_wallet(wallet: str) -> None:
     pnl_window = chart_controls[0].radio("PnL window", ["1d", "1w", "1mo", "All"], index=1, horizontal=True, key=f"wallet_pnl_window_{wallet_key}")
     pnl_view = chart_controls[1].radio("PnL view", ["Chart view", "Calendar view"], horizontal=True, key=f"wallet_pnl_view_{wallet_key}")
     pnl_header, pnl_caption = st.columns([1, 5])
-    pnl_header.markdown("### PNL")
+    pnl_header.markdown("<div class='step-label' style='margin-top:0.5rem'>PNL</div>", unsafe_allow_html=True)
     pnl_caption.caption(md.pnl_window_label(pnl_window))
     if pnl_view == "Chart view":
         curve = filter_pnl_curve_window(wallet_pnl_curve(open_positions, closed_positions), pnl_window)
@@ -5932,6 +6037,10 @@ def render_wallet(wallet: str) -> None:
             fig.update_traces(line_width=2)
             fig.update_layout(height=320, margin=dict(l=10, r=10, t=20, b=10), paper_bgcolor=BG, plot_bgcolor=BG, yaxis_title="PnL", xaxis_title="")
             st.plotly_chart(fig, width="stretch", config=plot_config())
+            chart_note(
+                "X: calendar time in the selected window. Y: cumulative PnL from public positions; "
+                "realized rows keep their settled value, open rows are marked to the last public price."
+            )
     else:
         calendar = wallet_pnl_calendar(closed_positions, pnl_window)
         if calendar.empty:
@@ -6441,7 +6550,13 @@ def render_pnl_vs_skill(leaderboard: pd.DataFrame) -> None:
 
 
 def page_traders() -> None:
-    section_header("Traders", "Trader leaderboard with search, view modes, PnL/volume/position filters, and wallet drilldown.")
+    section_header(
+        "Traders",
+        "Trader leaderboard with search, view modes, PnL/volume/position filters, and wallet drilldown.",
+        kicker="Traders · Leaderboard",
+        meta=[f"snapshot {md.now_utc_label()}", "wallet detail reads the canonical scorecard"],
+    )
+    render_caveat("Leaderboard", clm.disclaimer("leaderboard_caveat", "en"))
     show_copy_follow_notice()
     if "trader_search" not in st.session_state:
         reset_trader_filter_widgets(global_query)
@@ -7051,7 +7166,7 @@ def page_traders() -> None:
     if selected_trader_action_row is not None:
         selected_wallet = str(selected_trader_action_row.get("wallet", "") or "")
         selected_name = str(selected_trader_action_row.get("trader", "") or short_addr(selected_wallet))
-        st.markdown("### Selected trader actions")
+        render_kicker("Selected trader actions")
         st.caption(
             f"{selected_name} | {short_addr(selected_wallet)} | "
             f"{money(selected_trader_action_row.get('pnl', 0.0))} PnL | "
@@ -7120,7 +7235,13 @@ def page_traders() -> None:
 
 
 def page_wallets() -> None:
-    section_header("Wallets", "Track Polymarket proxy wallets, open positions, realized PnL, and recent activity.")
+    section_header(
+        "Wallets",
+        "Track Polymarket proxy wallets, open positions, realized PnL, and recent activity.",
+        kicker="Wallet reader",
+        meta=["public data only", "no signup, no signature", f"snapshot {md.now_utc_label()}"],
+    )
+    render_caveat("Wallet read", clm.disclaimer("wallet_reader_caveat", "en"))
     default_wallet = st.session_state.get("wallets_inspect_wallet") or (st.session_state.followed_wallets[0] if st.session_state.followed_wallets else "")
     if "wallets_wallet_input" not in st.session_state:
         st.session_state["wallets_wallet_input"] = default_wallet
@@ -7471,7 +7592,7 @@ def page_track() -> None:
         selected_wallet = str(trade_row.get("wallet", "") or "")
         market_key = str(trade_row.get("market_key", "") or trade_row.get("ticker", "") or trade_row.get("title", ""))
         tx_hash = str(trade_row.get("transaction_hash", "") or trade_row.get("transactionHash", "") or "")
-        st.markdown("#### Selected trade")
+        render_kicker("Selected trade")
         st.caption(
             f"{short_addr(selected_wallet, 4)} | {trade_row.get('side', '-')} {trade_row.get('outcome', '-')} | "
             f"{money(trade_row.get('notional', 0.0))} | {str(trade_row.get('title', ''))[:110]}"
@@ -8084,7 +8205,7 @@ def page_live_trades() -> None:
     with tab_track:
         left, right = st.columns([1, 1])
         with left:
-            st.markdown("### Track market from flow")
+            render_kicker("Track market from flow")
             if flow.empty:
                 draw_empty("No market flow to track.")
             else:
@@ -8103,7 +8224,7 @@ def page_live_trades() -> None:
                         save_local_list("watchlist.json", st.session_state.watchlist)
                         st.success("Market added to watchlist.")
         with right:
-            st.markdown("### Track wallet from tape")
+            render_kicker("Track wallet from tape")
             wallet_rows = md.whale_wallets(trades[trades["platform"].eq("Polymarket")]) if "platform" in trades else pd.DataFrame()
             if wallet_rows.empty:
                 draw_empty("No public Polymarket wallets in this filtered tape.")
@@ -8476,7 +8597,7 @@ def page_whale_flow() -> None:
                 (numeric_col(wallets, "notional") >= float(whale_min_wallet_notional))
                 & (numeric_col(wallets, "trade_count") >= float(whale_min_wallet_trades))
             ]
-        st.markdown("### Top Polymarket whale wallets")
+        render_kicker("Top Polymarket whale wallets")
         if wallets.empty:
             draw_empty("No wallet-level Polymarket whale data returned.")
         else:
@@ -8529,7 +8650,7 @@ def page_whale_flow() -> None:
     st.markdown("<div class='field-hint'>Insider-risk scoring lives on the dedicated Suspicious screen now.</div>", unsafe_allow_html=True)
     tab_tape, tab_markets, tab_bias, tab_track = st.tabs(["Trade Tape", "Market Flow", "Outcome Bias", "Track Actions"])
     with tab_tape:
-        st.markdown("### Trade tape")
+        render_kicker("Trade tape")
         tape = clean_table(trades, ["platform", "time", "trader", "wallet", "side", "outcome", "title", "price", "size", "notional", "url"])
         if "wallet" in tape:
             tape["wallet"] = tape["wallet"].astype(str).map(short_addr)
@@ -8627,7 +8748,7 @@ def page_whale_flow() -> None:
     with tab_track:
         c1, c2 = st.columns([1, 1])
         with c1:
-            st.markdown("### Track market from whale flow")
+            render_kicker("Track market from whale flow")
             if flow.empty:
                 draw_empty("No market flow to track.")
             else:
@@ -8646,7 +8767,7 @@ def page_whale_flow() -> None:
                         save_local_list("watchlist.json", st.session_state.watchlist)
                         st.success("Market added to watchlist.")
         with c2:
-            st.markdown("### Track wallet from whale flow")
+            render_kicker("Track wallet from whale flow")
             if wallets.empty:
                 draw_empty("No whale wallets to track.")
             else:
@@ -8828,7 +8949,7 @@ def page_cross_venue() -> None:
             "kalshi_url": st.column_config.LinkColumn("Kalshi"),
         },
     )
-    st.markdown("### Pair actions")
+    render_kicker("Pair actions")
     options = [
         f"{i + 1}. {row.lower_yes} lower | {row.gap * 100:+.1f}c | {str(row.polymarket_title)[:70]}"
         for i, row in candidates.head(80).iterrows()
@@ -8945,7 +9066,8 @@ def render_scoreline(
 
 
 def render_ledger_aggregates() -> None:
-    """Compact signal-ledger status row so the ledger is observable from day one."""
+    """Signal-ledger status block: kicker, stat row, explainer tiles. Observable
+    from day one, structured like a snapshot page (what it is / is not / gate)."""
 
     try:
         conn = ldg.init_ledger(ldg.DEFAULT_LEDGER_PATH)
@@ -8956,6 +9078,7 @@ def render_ledger_aggregates() -> None:
     except Exception:
         st.caption("Signal ledger: unavailable (data/signal_ledger.sqlite could not be read).")
         return
+    render_kicker("Signal ledger — append-only, hash-chained")
     l1, l2, l3, l4 = st.columns(4)
     l1.metric("Ledger emitted", f"{stats['emitted']:,}")
     l2.metric("Ledger resolved", f"{stats['resolved']:,}")
@@ -8972,17 +9095,34 @@ def render_ledger_aggregates() -> None:
     window = ""
     if stats.get("first_emit") and stats.get("last_emit"):
         window = f" | window {str(stats['first_emit'])[:10]} to {str(stats['last_emit'])[:10]}"
-    st.caption(
-        "Append-only signal ledger: "
-        f"{stats['pending']:,} pending, {stats['not_resolvable']:,} not resolvable, "
-        f"hit rate over {stats['decisive']:,} decisive resolutions, "
-        f"modeled PnL {money(stats['pnl_modeled_sum'])} per $100 stakes frozen at emit price"
-        f"{window}. Descriptive record of emitted alerts, not a performance promise."
+    st.markdown(
+        f"<div class='field-hint'>{stats['pending']:,} pending, {stats['not_resolvable']:,} not resolvable, "
+        f"modeled PnL {money(stats['pnl_modeled_sum'])} per $100 stakes, {stats['chain_checked']:,} rows verified"
+        f"{html.escape(window)}.</div>",
+        unsafe_allow_html=True,
+    )
+    render_explainer_tiles(
+        [
+            (
+                "WHAT IT IS",
+                "Every emitted alert is hashed into an append-only ledger (SHA-256 chain) and joined daily against source-confirmed resolutions.",
+            ),
+            ("WHAT IT IS NOT", clm.disclaimer("signal_ledger_caveat", "en")),
+            (
+                "EVIDENCE GATE",
+                "Voided and ambiguous outcomes never count as losses; the hit rate carries n and a sample badge, and modeled PnL stays frozen at the emit price.",
+            ),
+        ]
     )
 
 
 def page_monitor() -> None:
-    section_header("Monitor", "Signal monitor for fast movers, whale prints, spreads, holder risk, endings, and saved alert rules.")
+    section_header(
+        "Monitor",
+        "Signal monitor for fast movers, whale prints, spreads, holder risk, endings, and saved alert rules.",
+        kicker="Signals",
+        meta=[f"methodology {ldg.METHODOLOGY_VERSION}", f"snapshot {md.now_utc_label()}", "ledger hash-chained"],
+    )
     if "monitor_search" not in st.session_state:
         reset_monitor_filter_widgets(global_query, 100, int(min_whale))
     if st.session_state.pop("monitor_filters_reset_pending", False):
@@ -9336,7 +9476,7 @@ def page_monitor() -> None:
         else:
             st.dataframe(clean_table(holder_risk, signal_columns).head(60), width="stretch", height=330, column_config=signal_config)
         if not pm.empty:
-            st.markdown("### Manual holder check")
+            render_kicker("Manual holder check")
             options = [f"{i + 1}. {str(row.title)[:95]}" for i, row in pm.head(80).iterrows()]
             selected = st.selectbox("Polymarket market", options, key="monitor_holder_market")
             row = pm.iloc[options.index(selected)]
@@ -9360,7 +9500,7 @@ def page_monitor() -> None:
         else:
             st.dataframe(clean_table(ending, signal_columns).head(100), width="stretch", height=460, column_config=signal_config)
     with tab_rules:
-        st.markdown("### Saved alert rules")
+        render_kicker("Saved alert rules")
         with st.form("monitor_rule_form"):
             r1, r2, r3 = st.columns([1.2, 1, 1])
             name = r1.text_input("Rule name", placeholder="Large Tony-like politics whale")
@@ -9634,7 +9774,7 @@ def page_resolved() -> None:
 
     left, right = st.columns([1.1, 1])
     with left:
-        st.markdown("### Category history")
+        render_kicker("Category history")
         if stats.empty:
             draw_empty("No category stats available.")
         else:
@@ -9650,7 +9790,7 @@ def page_resolved() -> None:
             fig.update_layout(height=360, margin=dict(l=10, r=10, t=20, b=80), paper_bgcolor=BG, plot_bgcolor=BG)
             st.plotly_chart(fig, width="stretch", config=plot_config())
     with right:
-        st.markdown("### Resolution mix")
+        render_kicker("Resolution mix")
         mix = closed.groupby("resolved_outcome", as_index=False)["market_key"].count().rename(columns={"market_key": "markets"})
         fig = px.pie(
             mix,
@@ -9663,7 +9803,7 @@ def page_resolved() -> None:
         fig.update_layout(height=360, margin=dict(l=10, r=10, t=20, b=10), paper_bgcolor=BG)
         st.plotly_chart(fig, width="stretch", config=plot_config())
 
-    st.markdown("### Closed market archive")
+    render_kicker("Closed market archive")
     table = clean_table(
         closed,
         ["closed_time", "platform", "title", "category", "resolved_outcome", "final_yes_price", "volume", "liquidity", "url"],
@@ -10079,7 +10219,7 @@ def render_copy_command_center(
     created_at = pd.to_datetime(tony_stats_row.get("oldest_activity_time"), utc=True, errors="coerce")
     created_label = created_at.strftime("%b %d, %Y") if pd.notna(created_at) else "-"
 
-    st.markdown("### Copy-Trading Command Center")
+    render_kicker("Copy-Trading Command Center")
     hero_left, hero_right = st.columns([1.05, 1.0])
     with hero_left:
         with st.container(border=True):
@@ -10166,7 +10306,7 @@ def render_copy_command_center(
     curve_col, issue_col = st.columns([1.35, 1])
     with curve_col:
         with st.container(border=True):
-            st.markdown("### Paper Performance")
+            render_kicker("Paper Performance")
             try:
                 ct.record_equity_snapshot(min_interval_seconds=300.0)
             except Exception:
@@ -10295,7 +10435,7 @@ def render_copy_command_center(
                     st.dataframe(clean_table(event_table, keep_cols), width="stretch", height=220, hide_index=True)
     with issue_col:
         with st.container(border=True):
-            st.markdown("### Copy Health")
+            render_kicker("Copy Health")
             if daemon_status.get("last_error"):
                 st.error(str(daemon_status["last_error"]))
             else:
@@ -11132,7 +11272,7 @@ def page_portfolio() -> None:
     with tab_summary:
         left, right = st.columns([1, 1])
         with left:
-            st.markdown("### Portfolio mix")
+            render_kicker("Portfolio mix")
             mix_rows = [
                 {"bucket": "Research cash", "value": research_cash},
                 {"bucket": "Research positions", "value": float(metrics["value"])},
@@ -11144,7 +11284,7 @@ def page_portfolio() -> None:
             fig.update_layout(height=320, margin=dict(l=10, r=10, t=20, b=10), paper_bgcolor=BG)
             st.plotly_chart(fig, width="stretch", config=plot_config())
         with right:
-            st.markdown("### PnL split")
+            render_kicker("PnL split")
             pnl_rows = [
                 {"bucket": "Research unrealized", "pnl": float(metrics["pnl"])},
                 {"bucket": "Copy realized", "pnl": float(copy_snapshot.realized_pnl if copy_snapshot is not None else 0.0)},
@@ -11154,7 +11294,7 @@ def page_portfolio() -> None:
             fig = px.bar(pnl_frame, x="bucket", y="pnl", color="bucket", template="plotly_dark", color_discrete_sequence=[ACCENT, BLUE, AMBER])
             fig.update_layout(height=320, margin=dict(l=10, r=10, t=20, b=80), paper_bgcolor=BG, plot_bgcolor=BG, showlegend=False)
             st.plotly_chart(fig, width="stretch", config=plot_config())
-        st.markdown("### Top copy positions")
+        render_kicker("Top copy positions")
         if "Copy" not in portfolio_sources:
             draw_empty("Copy source is hidden by the portfolio filters.")
         elif filtered_copy_positions.empty:
@@ -11176,7 +11316,7 @@ def page_portfolio() -> None:
             )
 
     with tab_research:
-        st.markdown("### Research portfolio")
+        render_kicker("Research portfolio")
         cash_cols = st.columns([1, 1, 1, 3])
         cash_cols[0].metric("Research cash", money(research_cash))
         if cash_cols[1].button("Add $1,000 research cash", key="portfolio_add_research_cash", width="stretch"):
@@ -11222,7 +11362,7 @@ def page_portfolio() -> None:
             draw_empty("No research rows match the current portfolio filters.")
 
     with tab_wallet_import:
-        st.markdown("### Wallet portfolio import")
+        render_kicker("Wallet portfolio import")
         default_wallet = st.session_state.followed_wallets[0] if st.session_state.followed_wallets else ct.COPY_TARGET_WALLET
         import_wallet = st.text_input("Polymarket wallet", value=default_wallet, placeholder="0x...", key="portfolio_import_wallet")
         if not re.fullmatch(r"0x[a-fA-F0-9]{40}", import_wallet.strip()):
@@ -11290,7 +11430,7 @@ def page_portfolio() -> None:
                         st.dataframe(clean_table(activity, ["time", "type", "side", "outcome", "title", "price", "size", "notional", "transactionHash"]).head(150), width="stretch", height=360)
 
     with tab_copy:
-        st.markdown("### Copy portfolio")
+        render_kicker("Copy portfolio")
         if copy_snapshot is None:
             draw_empty("Copy portfolio unavailable.")
         elif "Copy" not in portfolio_sources:
@@ -11332,12 +11472,12 @@ def page_portfolio() -> None:
             else:
                 draw_empty("No copy positions match the current portfolio filters.")
             if not filtered_copy_orders.empty:
-                st.markdown("### Recent copy orders")
+                render_kicker("Recent copy orders")
                 st.download_button("Export copy orders CSV", filtered_copy_orders.to_csv(index=False).encode("utf-8"), file_name="copy_orders.csv", mime="text/csv")
                 st.dataframe(clean_table(filtered_copy_orders, ["source_time", "status", "reason", "source_side", "title", "source_price", "source_notional", "copy_notional", "realized_pnl"]).head(int(portfolio_rows)), width="stretch", height=360)
 
     with tab_exposure:
-        st.markdown("### Exposure")
+        render_kicker("Exposure")
         exposure_rows: list[dict[str, Any]] = []
         if "Research" in portfolio_sources and not filtered_research.empty:
             for _, row in filtered_research.iterrows():
@@ -11380,7 +11520,7 @@ def page_portfolio() -> None:
             st.dataframe(exposure.sort_values("value", ascending=False).head(int(portfolio_rows)), width="stretch", height=430, column_config={"value": st.column_config.NumberColumn(format="$%.2f"), "pnl": st.column_config.NumberColumn(format="$%.2f")})
 
     with tab_cash_events:
-        st.markdown("### Copy cash events")
+        render_kicker("Copy cash events")
         if cash_events.empty:
             draw_empty("No manual copy-cash top-ups have been recorded.")
         else:
@@ -11397,7 +11537,7 @@ def page_portfolio() -> None:
             )
 
     with tab_history:
-        st.markdown("### Paper trade history")
+        render_kicker("Paper trade history")
         if "History" not in portfolio_sources:
             draw_empty("History source is hidden by the portfolio filters.")
         elif st.session_state.paper_trade_history:
@@ -11426,7 +11566,7 @@ def page_portfolio() -> None:
             draw_empty("No local paper trade history yet.")
 
     with tab_watchlist:
-        st.markdown("### Market watchlist")
+        render_kicker("Market watchlist")
         pm, ks, combined = load_market_universe()
         filtered = filter_text(combined, portfolio_query).head(int(portfolio_rows))
         if filtered.empty:
@@ -11739,6 +11879,7 @@ def page_backtester() -> None:
         "Run the numbers before you risk the bankroll — every simulated fill is priced with fees and slippage.",
         kicker="Backtester · Paper sim",
     )
+    render_caveat("Simulation", clm.disclaimer("backtest_modeled", "en"))
     st.markdown(
         "<div class='chip-row'><span class='chip chip-active'>Polymarket</span></div>",
         unsafe_allow_html=True,
@@ -12275,10 +12416,11 @@ def page_suspicious() -> None:
         "Suspicious",
         "Markets and wallets with insider-like flow — long-odds size, late timing, fresh-wallet clusters, one-sided pressure.",
         kicker="Suspicious · Risk screen",
+        meta=[f"snapshot {md.now_utc_label()}", "sampled public whale tape"],
     )
+    render_caveat("Risk screen", clm.disclaimer("screen_not_proof", "en"))
     st.markdown(
-        "<div class='field-hint'>Best-effort screen on public trade data — research leads, not legal findings. "
-        "Score bands: &lt;40 low · 40–54 elevated · 55–69 medium · ≥70 high.</div>",
+        "<div class='field-hint'>Score bands: &lt;40 low · 40–54 elevated · 55–69 medium · ≥70 high.</div>",
         unsafe_allow_html=True,
     )
     whale_floor = max(float(min_whale), 1_000.0)
@@ -13041,7 +13183,7 @@ def page_kategorie_effizienz() -> None:
         return
     kategorien = karte.get("kategorien", [])
     if kategorien:
-        st.markdown("#### Key figures per category")
+        render_kicker("Key figures per category")
         frame = pd.DataFrame(kategorien)
         st.dataframe(clean_table(frame, [
             "kategorie", "brier_t7", "trefferquote_t7", "brier_t1",
@@ -13090,7 +13232,7 @@ def page_kategorie_effizienz() -> None:
         )
     beispiele = karte.get("beispiele", [])
     if beispiele:
-        st.markdown("#### Speed examples (curated, German source notes)")
+        render_kicker("Speed examples (curated, German source notes)")
         st.dataframe(pd.DataFrame(beispiele), width="stretch", hide_index=True)
     render_analysis_footer()
 
@@ -13150,7 +13292,7 @@ def page_mentions_latenz() -> None:
         st.info("No evaluable ok cases available.")
     ausschluesse = payload.get("ausschluesse", [])
     if ausschluesse:
-        st.markdown("#### Excluded cases")
+        render_kicker("Excluded cases")
         for item in ausschluesse:
             st.markdown(
                 f"<div class='small-note'><span class='mono'>{_esc(item.get('event', '-'))}</span> · "
@@ -13160,7 +13302,7 @@ def page_mentions_latenz() -> None:
     runs_payload = load_publish_payload_cached("runs.json")
     latenz_rows = av.run_latenz_rows(runs_payload or {})
     if latenz_rows:
-        st.markdown("#### Our live runs: reaction in seconds")
+        render_kicker("Our live runs: reaction in seconds")
         st.caption(
             "For comparison with the market convergence times above (minutes to hours): "
             "our pipeline listens to the episode and reacts seconds after detecting "
@@ -13240,14 +13382,14 @@ def page_pipeline_forward() -> None:
     )
     endstaende = payload.get("wortzaehler_endstaende", {}) or {}
     if endstaende:
-        st.markdown("#### Word-counter final counts")
+        render_kicker("Word-counter final counts")
         cols = st.columns(min(4, len(endstaende)))
         for i, (slug, count) in enumerate(sorted(endstaende.items())):
             cols[i % len(cols)].metric(slug, f"{count}")
     rows = av.pipeline_timeline(payload)
     if rows:
         counts = av.pipeline_action_counts(payload)
-        st.markdown("#### Decisions")
+        render_kicker("Decisions")
         count_cols = st.columns(max(1, min(4, len(counts) + 1)))
         count_cols[0].metric("Total", f"{len(rows)}")
         for i, (action, n) in enumerate(sorted(counts.items(), key=lambda kv: -kv[1])):
@@ -13506,7 +13648,7 @@ def _run_repricing_chart(run: dict) -> "go.Figure":
 def _render_run_timing_lab(runs_list: list[dict], payload: dict) -> None:
     """Repricing-Kurven, Warte-Kosten und Slippage-Zerlegung (Timing-Tab)."""
 
-    st.markdown("#### How does the market reprice after the drop?")
+    render_kicker("How does the market reprice after the drop?")
     rep_runs = [r for r in runs_list if r.get("repricing")]
     if not rep_runs:
         st.info(
@@ -13525,7 +13667,7 @@ def _render_run_timing_lab(runs_list: list[dict], payload: dict) -> None:
             "else ever paid up."
         )
 
-    st.markdown("#### What would waiting have cost?")
+    render_kicker("What would waiting have cost?")
     decay = rsim.timing_decay_summary(payload)
     if decay.empty or int(decay["n_bets"].max() or 0) == 0:
         st.info(
@@ -13558,7 +13700,7 @@ def _render_run_timing_lab(runs_list: list[dict], payload: dict) -> None:
             "reference as a floor, not a firm quote."
         )
 
-    st.markdown("#### Slippage: decision ask vs. paid fill")
+    render_kicker("Slippage: decision ask vs. paid fill")
     slip_rows = [
         (float(w["avg_fill_preis"]) - float(w["entscheidungs_preis"]),
          (float(w["avg_fill_preis"]) - float(w["entscheidungs_preis"])) * float(w.get("shares") or 0.0),
@@ -13628,7 +13770,7 @@ def page_live_runs() -> None:
     )
 
     with tab_runs:
-        st.markdown("#### Runs")
+        render_kicker("Runs")
         st.caption(
             "Race chips compare each fill against the public taker-trade tape of "
             "that market: how many other trades hit between the drop and our fill, "
@@ -13702,7 +13844,7 @@ def page_live_runs() -> None:
 
     with tab_timing:
         if latenz_rows:
-            st.markdown("#### Reaction times per run")
+            render_kicker("Reaction times per run")
             c1, c2 = st.columns(2)
             profile = [r["profil"] for r in latenz_rows]
             with c1:
@@ -13784,7 +13926,7 @@ def page_live_runs() -> None:
                 )
                 st.plotly_chart(fig, width="stretch", key="runs_reaktion_chart")
 
-            st.markdown("#### What the bot did with its decisions")
+            render_kicker("What the bot did with its decisions")
             st.plotly_chart(
                 _run_decision_stack_chart(latenz_rows, runs_list),
                 width="stretch",
@@ -13905,14 +14047,14 @@ def page_methodik() -> None:
         render_publish_missing("meta.json")
         render_analysis_footer()
         return
-    st.markdown("#### Principles")
+    render_kicker("Principles")
     disclaimer = meta.get("disclaimer") or []
     if isinstance(disclaimer, dict):  # aeltere Publish-Version
         disclaimer = list(disclaimer.values())
     for text in disclaimer:
         with st.container(border=True):
             st.caption(str(text))
-    st.markdown("#### Guardrails of the agent run")
+    render_kicker("Guardrails of the agent run")
     st.markdown(
         "- Agents read exclusively through the MCP read layer: four read-only tools, "
         "at most 50 rows per response, wallet addresses masked.\n"
@@ -13923,14 +14065,14 @@ def page_methodik() -> None:
     )
     schritte = meta.get("schritte", {}) or {}
     if schritte:
-        st.markdown("#### Latest run")
+        render_kicker("Latest run")
         st.dataframe(
             pd.DataFrame([{"step": k, "status": v} for k, v in schritte.items()]),
             width="stretch",
             hide_index=True,
         )
     if audit:
-        st.markdown("#### Audit (hashes and counters only)")
+        render_kicker("Audit (hashes and counters only)")
         a1, a2, a3 = st.columns(3)
         a1.metric("Audit entries", f"{audit.get('n_eintraege', 0)}")
         rollen = audit.get("rollen_zaehler") or {}
