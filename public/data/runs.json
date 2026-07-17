@@ -1,6 +1,6 @@
 {
  "hinweis": "Descriptive post-run review of our own small-stake live runs of the mentions bot. Reconstructed read-only from the run logs; resolutions from public Gamma data. No trading recommendation, no return forecast.",
- "stand_utc": "2026-07-16T04:31:32+00:00",
+ "stand_utc": "2026-07-17T04:31:27+00:00",
  "kennzeichnung": "live/descriptive",
  "aggregat": {
   "n_runs": 6,
@@ -28,11 +28,11 @@
    "erste_entscheidung_s": null,
    "erster_fill_s": null,
    "n_maerkte": 15,
-   "n_entscheidungen": 4,
+   "n_entscheidungen": 24,
    "zaehler": {
-    "no_action": 4
+    "no_action": 24
    },
-   "eingepreist": 4,
+   "eingepreist": 24,
    "einsatz_usd": 0.0,
    "realisierter_pnl_usd": null,
    "wetten": [],

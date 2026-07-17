@@ -34,3 +34,6 @@ jobs:
 
       - name: Unit tests
         run: python -m unittest discover -s tests -p "test_*.py"
+
+      - name: Claims lint
+        run: python scripts/lint_claims.py

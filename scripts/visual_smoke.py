@@ -45,7 +45,7 @@ ROUTES = [
     RouteCheck("/monitor", ("Monitor", "Signal"), "monitor.png"),
     RouteCheck("/portfolio", ("Portfolio", "Marked value"), "portfolio.png"),
     RouteCheck("/backtester", ("Backtester", "RUN BACKTEST"), "backtester.png"),
-    RouteCheck("/suspicious", ("Suspicious", "not legal findings"), "suspicious.png"),
+    RouteCheck("/suspicious", ("Suspicious", "review signal, not proof"), "suspicious.png"),
     RouteCheck("/settings", ("Settings", "Backtester defaults"), "settings.png"),
     RouteCheck("/copy-trade", ("Copy Trade", "Paper mode only"), "copy_trade.png"),
 ]

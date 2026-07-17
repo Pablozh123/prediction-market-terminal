@@ -15,8 +15,9 @@ __pycache__/
 venv/
 env/
 
-# Generierte Daten (werden zur Laufzeit erzeugt)
-data/
+# Generierte Daten (werden zur Laufzeit erzeugt); Ausnahme: das versionierte Claim-Register
+data/*
+!data/claims.yaml
 
 # Publizierte Analyse-JSONs des taeglichen Review-Laufs (statisches Datenfundament der Research-Seiten)
 !public/data/
@@ -42,6 +43,8 @@ notebooks/*.png
 # Kursabgaben / PDFs
 *.pdf
 !reports/FINAL_REPORT.pdf
+# Extern zeitgestempelte Preregistration-Belege sind Repo-Substanz
+!docs/research/*.pdf
 *.docx
 
 # --- Ergänzt: vor versehentlichem Commit grosser/fremder Artefakte schützen ---
