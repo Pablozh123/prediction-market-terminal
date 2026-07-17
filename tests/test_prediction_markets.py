@@ -673,6 +673,31 @@ class TraderTraitFilterTests(unittest.TestCase):
                     "notional": 10_000.0,
                     "size": 10_000.0,
                 },
+                # Distribution signals reach full weight from 5 sampled prints.
+                {
+                    "platform": "Polymarket",
+                    "title": "Will candidate win?",
+                    "time": "2026-06-08T10:03:00Z",
+                    "end_time": "2026-06-08T20:00:00Z",
+                    "wallet": main_wallet,
+                    "side": "BUY",
+                    "outcome": "No",
+                    "price": 0.15,
+                    "notional": 15_000.0,
+                    "size": 15_000.0,
+                },
+                {
+                    "platform": "Polymarket",
+                    "title": "Will candidate win?",
+                    "time": "2026-06-08T10:04:00Z",
+                    "end_time": "2026-06-08T20:00:00Z",
+                    "wallet": main_wallet,
+                    "side": "BUY",
+                    "outcome": "No",
+                    "price": 0.16,
+                    "notional": 12_000.0,
+                    "size": 12_000.0,
+                },
             ]
         )
 
@@ -685,6 +710,38 @@ class TraderTraitFilterTests(unittest.TestCase):
         self.assertIn("wallet concentration", scores.iloc[0]["event_insider_flags"])
         self.assertIn("long-odds big bet", scores.iloc[0]["event_insider_flags"])
         self.assertIn("one-sided flow", scores.iloc[0]["event_insider_flags"])
+
+    def test_whale_event_single_print_carries_no_distribution_signals(self) -> None:
+        """One $11k print is always '100% one wallet' — that must not score."""
+
+        trades = pd.DataFrame(
+            [
+                {
+                    "platform": "Polymarket",
+                    "title": "Will the U.S. invade Iran before 2027?",
+                    "time": "2026-06-08T10:00:00Z",
+                    "end_time": "2026-12-31T00:00:00Z",
+                    "wallet": "0x" + "f" * 40,
+                    "side": "BUY",
+                    "outcome": "Yes",
+                    "price": 0.11,
+                    "notional": 11_100.0,
+                    "size": 11_100.0,
+                }
+            ]
+        )
+
+        scores = md.whale_event_risk_scores(trades, whale_threshold=10_000, now="2026-06-08T09:30:00Z")
+
+        row = scores.iloc[0]
+        flags = str(row["event_insider_flags"])
+        self.assertNotIn("wallet concentration", flags)
+        self.assertNotIn("one-sided flow", flags)
+        self.assertNotIn("fast burst", flags)
+        # a single long-odds print may still flag on its absolute size
+        self.assertIn("long-odds big bet", flags)
+        self.assertEqual(float(row["distribution_sample_weight"]), 0.0)
+        self.assertLess(float(row["event_insider_score"]), 55.0)
 
     def test_bots_only_uses_configurable_bot_score_threshold(self) -> None:
         leaderboard = pd.DataFrame(
