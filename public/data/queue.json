@@ -1,6 +1,6 @@
 {
  "hinweis": "Read-only result of a daily run. Recommendations are verification steps (watch, check_source, escalate_human), not trades. Backend: mock.",
- "stand_utc": "2026-07-10T03:27:54+00:00",
+ "stand_utc": "2026-07-17T04:30:03+00:00",
  "faelle": [
   {
    "id": "monitor_candidate_20260522_204500_d24c162f8b73",
@@ -19,7 +19,7 @@
     "concentration": "present",
     "reference": "partial overlap"
    },
-   "ts": "2026-07-10T03:27:54+00:00"
+   "ts": "2026-07-17T04:30:03+00:00"
   },
   {
    "id": "monitor_candidate_20260522_204500_e24668f3f71b",
@@ -37,7 +37,7 @@
     "percentile": "100th",
     "reference": "partial overlap"
    },
-   "ts": "2026-07-10T03:27:54+00:00"
+   "ts": "2026-07-17T04:30:03+00:00"
   },
   {
    "id": "monitor_candidate_20260522_205000_5dbff64bc3b3",
@@ -55,7 +55,7 @@
     "percentile": "100th",
     "reference": "partial overlap"
    },
-   "ts": "2026-07-10T03:27:54+00:00"
+   "ts": "2026-07-17T04:30:03+00:00"
   },
   {
    "id": "monitor_candidate_20260522_205000_e02af5d15ac8",
@@ -74,7 +74,7 @@
     "concentration": "present",
     "reference": "partial overlap"
    },
-   "ts": "2026-07-10T03:27:54+00:00"
+   "ts": "2026-07-17T04:30:03+00:00"
   },
   {
    "id": "monitor_candidate_20260522_210000_b265c77e872d",
@@ -92,7 +92,7 @@
     "percentile": "100th",
     "reference": "partial overlap"
    },
-   "ts": "2026-07-10T03:27:54+00:00"
+   "ts": "2026-07-17T04:30:03+00:00"
   },
   {
    "id": "monitor_candidate_20260522_210500_83136b9f5cbb",
@@ -101,17 +101,16 @@
    "score_band": "medium",
    "empfehlung": "watch",
    "empfehlung_grund": "Low band or review completed -- keep watching only, no action needed.",
-   "begruendung": "Market: 'Will Alexandria Ocasio-Cortez win the 2028 Democratic presidential nomination?'. Trigger: wallet tier activity. Classification: severity high, 100th percentile, 1 signal family(ies). Observed flow $107 from 1 wallet(s) (1 trade(s)), materiality below 1% of the reference. Concentration patterns: large trade flow, same theme repeated positions. event context not evaluated. Reference pattern: partial overlap. Status: human review pending. 6 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
+   "begruendung": "Market: 'Will Alexandria Ocasio-Cortez win the 2028 Democratic presidential nomination?'. Trigger: wallet tier activity. Classification: severity high, 100th percentile, 1 signal family(ies). Concentration patterns: large trade flow, same theme repeated positions. event context not evaluated. Reference pattern: partial overlap. Status: human review pending. 6 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
    "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
    "skeptic_abschlag": -0.2,
    "signale": {
     "trigger": "wallet tier activity",
     "severity": "high",
     "percentile": "100th",
-    "flow": "$107 / 1 wallet(s)",
     "reference": "partial overlap"
    },
-   "ts": "2026-07-10T03:27:54+00:00"
+   "ts": "2026-07-17T04:30:03+00:00"
   },
   {
    "id": "monitor_candidate_20260522_214500_9a6abaddeae0",
@@ -129,7 +128,7 @@
     "percentile": "100th",
     "reference": "partial overlap"
    },
-   "ts": "2026-07-10T03:27:54+00:00"
+   "ts": "2026-07-17T04:30:03+00:00"
   },
   {
    "id": "monitor_candidate_20260522_215000_ac5932fae4cc",
@@ -147,7 +146,7 @@
     "percentile": "100th",
     "reference": "partial overlap"
    },
-   "ts": "2026-07-10T03:27:54+00:00"
+   "ts": "2026-07-17T04:30:03+00:00"
   },
   {
    "id": "monitor_candidate_20260522_205500_4902be7e4cdb",
@@ -166,7 +165,7 @@
     "concentration": "present",
     "reference": "hit"
    },
-   "ts": "2026-07-10T03:27:54+00:00"
+   "ts": "2026-07-17T04:30:03+00:00"
   },
   {
    "id": "monitor_candidate_20260522_204500_759f3661e55c",
@@ -184,7 +183,7 @@
     "percentile": "100th",
     "reference": "no overlap"
    },
-   "ts": "2026-07-10T03:27:54+00:00"
+   "ts": "2026-07-17T04:30:03+00:00"
   },
   {
    "id": "monitor_candidate_20260522_204500_f183079f2c3f",
@@ -193,18 +192,17 @@
    "score_band": "low",
    "empfehlung": "watch",
    "empfehlung_grund": "Low band or review completed -- keep watching only, no action needed.",
-   "begruendung": "Market: 'Will Alexandria Ocasio-Cortez win the 2028 Democratic presidential nomination?'. Trigger: concentration. Classification: severity info, 100th percentile, 1 signal family(ies). Observed flow $107 from 1 wallet(s) (1 trade(s)), materiality below 1% of the reference. Concentration patterns: market concentration, same theme repeated positions. event context not evaluated. Reference pattern: partial overlap. Status: human review pending. 5 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
+   "begruendung": "Market: 'Will Alexandria Ocasio-Cortez win the 2028 Democratic presidential nomination?'. Trigger: concentration. Classification: severity info, 100th percentile, 1 signal family(ies). Concentration patterns: market concentration, same theme repeated positions. event context not evaluated. Reference pattern: partial overlap. Status: human review pending. 5 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
    "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
    "skeptic_abschlag": -0.2,
    "signale": {
     "trigger": "concentration",
     "severity": "info",
     "percentile": "100th",
-    "flow": "$107 / 1 wallet(s)",
     "concentration": "present",
     "reference": "partial overlap"
    },
-   "ts": "2026-07-10T03:27:54+00:00"
+   "ts": "2026-07-17T04:30:03+00:00"
   },
   {
    "id": "monitor_candidate_20260522_205500_31bc7f1998f4",
@@ -222,7 +220,7 @@
     "percentile": "100th",
     "reference": "partial overlap"
    },
-   "ts": "2026-07-10T03:27:54+00:00"
+   "ts": "2026-07-17T04:30:03+00:00"
   },
   {
    "id": "monitor_candidate_20260522_211000_9c25d1497516",
@@ -241,7 +239,7 @@
     "concentration": "present",
     "reference": "partial overlap"
    },
-   "ts": "2026-07-10T03:27:54+00:00"
+   "ts": "2026-07-17T04:30:03+00:00"
   },
   {
    "id": "monitor_candidate_20260522_211500_40799b054be7",
@@ -260,7 +258,7 @@
     "concentration": "present",
     "reference": "partial overlap"
    },
-   "ts": "2026-07-10T03:27:54+00:00"
+   "ts": "2026-07-17T04:30:03+00:00"
   },
   {
    "id": "monitor_candidate_20260522_212000_24b874775afe",
@@ -278,7 +276,7 @@
     "percentile": "100th",
     "reference": "partial overlap"
    },
-   "ts": "2026-07-10T03:27:54+00:00"
+   "ts": "2026-07-17T04:30:03+00:00"
   },
   {
    "id": "monitor_candidate_20260522_212000_a8030671b168",
@@ -297,7 +295,7 @@
     "concentration": "present",
     "reference": "partial overlap"
    },
-   "ts": "2026-07-10T03:27:54+00:00"
+   "ts": "2026-07-17T04:30:03+00:00"
   },
   {
    "id": "monitor_candidate_20260522_220000_997f5287203d",
@@ -306,18 +304,17 @@
    "score_band": "low",
    "empfehlung": "watch",
    "empfehlung_grund": "Low band or review completed -- keep watching only, no action needed.",
-   "begruendung": "Market: 'Will Alexandria Ocasio-Cortez win the 2028 Democratic presidential nomination?'. Trigger: concentration. Classification: severity info, 100th percentile, 1 signal family(ies). Observed flow $107 from 1 wallet(s) (1 trade(s)), materiality below 1% of the reference. Concentration patterns: market concentration, same theme repeated positions. event context not evaluated. Reference pattern: partial overlap. Status: human review pending. 5 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
+   "begruendung": "Market: 'Will Alexandria Ocasio-Cortez win the 2028 Democratic presidential nomination?'. Trigger: concentration. Classification: severity info, 100th percentile, 1 signal family(ies). Concentration patterns: market concentration, same theme repeated positions. event context not evaluated. Reference pattern: partial overlap. Status: human review pending. 5 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
    "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
    "skeptic_abschlag": -0.2,
    "signale": {
     "trigger": "concentration",
     "severity": "info",
     "percentile": "100th",
-    "flow": "$107 / 1 wallet(s)",
     "concentration": "present",
     "reference": "partial overlap"
    },
-   "ts": "2026-07-10T03:27:54+00:00"
+   "ts": "2026-07-17T04:30:03+00:00"
   },
   {
    "id": "monitor_candidate_20260522_220500_07a19a12b63b",
@@ -335,7 +332,7 @@
     "percentile": "100th",
     "reference": "partial overlap"
    },
-   "ts": "2026-07-10T03:27:54+00:00"
+   "ts": "2026-07-17T04:30:03+00:00"
   },
   {
    "id": "monitor_candidate_20260522_221000_f0f7ebf8e213",
@@ -353,7 +350,97 @@
     "percentile": "100th",
     "reference": "partial overlap"
    },
-   "ts": "2026-07-10T03:27:54+00:00"
+   "ts": "2026-07-17T04:30:03+00:00"
+  },
+  {
+   "id": "monitor_candidate_20260711_043000_c4915e2197ca",
+   "markt_slug": "will-alexandria-ocasio-cortez-win-the-2028-democratic-presidential-nomination-653",
+   "zeitfenster": "2026-07-11T04:30:00Z",
+   "score_band": "low",
+   "empfehlung": "watch",
+   "empfehlung_grund": "Low band or review completed -- keep watching only, no action needed.",
+   "begruendung": "Market: 'Will Alexandria Ocasio-Cortez win the 2028 Democratic presidential nomination?'. Trigger: price move. Classification: severity high, 100th percentile, 1 signal family(ies). Concentration patterns: same theme repeated positions. event context not evaluated. Reference pattern: partial overlap. Status: human review pending. 5 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
+   "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
+   "skeptic_abschlag": -0.2,
+   "signale": {
+    "trigger": "price move",
+    "severity": "high",
+    "percentile": "100th",
+    "reference": "partial overlap"
+   },
+   "ts": "2026-07-17T04:30:03+00:00"
+  },
+  {
+   "id": "monitor_candidate_20260712_043000_99ab9e8ce0da",
+   "markt_slug": "will-josh-shapiro-win-the-2028-democratic-presidential-nomination-977",
+   "zeitfenster": "2026-07-12T04:30:00Z",
+   "score_band": "low",
+   "empfehlung": "watch",
+   "empfehlung_grund": "Low band or review completed -- keep watching only, no action needed.",
+   "begruendung": "Market: 'Will Josh Shapiro win the 2028 Democratic presidential nomination?'. Trigger: price move. Classification: severity high, 100th percentile, 1 signal family(ies). event context not evaluated. Reference pattern: no overlap. Status: human review pending. 5 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
+   "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
+   "skeptic_abschlag": -0.2,
+   "signale": {
+    "trigger": "price move",
+    "severity": "high",
+    "percentile": "100th",
+    "reference": "no overlap"
+   },
+   "ts": "2026-07-17T04:30:03+00:00"
+  },
+  {
+   "id": "monitor_candidate_20260712_043000_ca862e76e221",
+   "markt_slug": "will-alexandria-ocasio-cortez-win-the-2028-democratic-presidential-nomination-653",
+   "zeitfenster": "2026-07-12T04:30:00Z",
+   "score_band": "low",
+   "empfehlung": "watch",
+   "empfehlung_grund": "Low band or review completed -- keep watching only, no action needed.",
+   "begruendung": "Market: 'Will Alexandria Ocasio-Cortez win the 2028 Democratic presidential nomination?'. Trigger: price move. Classification: severity high, 100th percentile, 1 signal family(ies). Concentration patterns: same theme repeated positions. event context not evaluated. Reference pattern: partial overlap. Status: human review pending. 5 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
+   "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
+   "skeptic_abschlag": -0.2,
+   "signale": {
+    "trigger": "price move",
+    "severity": "high",
+    "percentile": "100th",
+    "reference": "partial overlap"
+   },
+   "ts": "2026-07-17T04:30:03+00:00"
+  },
+  {
+   "id": "monitor_candidate_20260713_043000_5b68f4fe078f",
+   "markt_slug": "xi-jinping-out-before-2027",
+   "zeitfenster": "2026-07-13T04:30:00Z",
+   "score_band": "low",
+   "empfehlung": "watch",
+   "empfehlung_grund": "Low band or review completed -- keep watching only, no action needed.",
+   "begruendung": "Market: 'Xi Jinping out before 2027?'. Trigger: price move. Classification: severity high, 67th percentile, 1 signal family(ies). Concentration patterns: same theme repeated positions. event context not evaluated. Reference pattern: partial overlap. Status: human review pending. 5 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
+   "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
+   "skeptic_abschlag": -0.2,
+   "signale": {
+    "trigger": "price move",
+    "severity": "high",
+    "percentile": "67th",
+    "reference": "partial overlap"
+   },
+   "ts": "2026-07-17T04:30:03+00:00"
+  },
+  {
+   "id": "monitor_candidate_20260716_043000_2a51690b697d",
+   "markt_slug": "xi-jinping-out-before-2027",
+   "zeitfenster": "2026-07-16T04:30:00Z",
+   "score_band": "low",
+   "empfehlung": "watch",
+   "empfehlung_grund": "Low band or review completed -- keep watching only, no action needed.",
+   "begruendung": "Market: 'Xi Jinping out before 2027?'. Trigger: price move. Classification: severity info, 100th percentile, 1 signal family(ies). Concentration patterns: same theme repeated positions. event context not evaluated. Reference pattern: partial overlap. Status: human review pending. 5 verification steps open. Statistical anomaly, not a finding -- no claim about private information.",
+   "skeptic_begruendung": "Generic new-user inflow can mimic concentrated activity; new wallets are not evidence of informed trading. If flow is two-sided / bidirectional, it is a market-making or hedging pattern rather than a directional informed bet. The cue may be a BUY-only filter artifact; without exit/position data it is not a directional signal.",
+   "skeptic_abschlag": -0.2,
+   "signale": {
+    "trigger": "price move",
+    "severity": "info",
+    "percentile": "100th",
+    "reference": "partial overlap"
+   },
+   "ts": "2026-07-17T04:30:03+00:00"
   },
   {
    "id": "monitor_candidate_20260523_192500_71cd3b4e784b",
@@ -372,7 +459,7 @@
     "concentration": "present",
     "reference": "partial overlap"
    },
-   "ts": "2026-07-10T03:27:54+00:00"
+   "ts": "2026-07-17T04:30:03+00:00"
   }
  ]
 }
