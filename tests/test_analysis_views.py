@@ -217,3 +217,72 @@ class RunDashboardViewTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ShowcaseViewTests(unittest.TestCase):
+    RUNS = {
+        "aggregat": {"sichtbare_tiefe_usd": 929.87,
+                     "einsatz_zu_sichtbarer_tiefe_pct": 67.4},
+        "runs": [{
+            "profil": "allin_july17", "episode_titel": "E281",
+            "drop_quelle": "mp3_url_prober", "erkennungslatenz_s": None,
+            "erster_fill_s": 70.0, "einsatz_usd": 250.0,
+            "realisierter_pnl_usd": 15.01,
+            "sichtbare_tiefe_usd": 318.35,
+            "einsatz_zu_sichtbarer_tiefe_pct": 113.1,
+            "race": {"first_on": 6, "wetten_mit_tape": 6},
+            "wetten": [
+                {"aufgeloest": True, "gewonnen": True},
+                {"aufgeloest": True, "gewonnen": False},
+                {"aufgeloest": False, "gewonnen": None},
+            ],
+        }],
+    }
+
+    def test_track_record_rows(self):
+        [row] = av.track_record_rows(self.RUNS)
+        self.assertEqual(row["profil"], "allin_july17")
+        self.assertEqual(row["n_wetten"], 3)
+        self.assertEqual(row["gewonnen"], 1)
+        self.assertEqual(row["verloren"], 1)
+        self.assertEqual(row["race_first"], "6/6")
+        self.assertEqual(row["sichtbare_tiefe_usd"], 318.35)
+
+    def test_track_record_ohne_race(self):
+        runs = {"runs": [{"profil": "x", "wetten": [], "race": None}]}
+        [row] = av.track_record_rows(runs)
+        self.assertIsNone(row["race_first"])
+        self.assertEqual(row["n_wetten"], 0)
+
+    def test_postmortem_rows_neueste_zuerst(self):
+        payload = {"eintraege": [
+            {"datum": "2026-07-10", "titel": "alt"},
+            {"datum": "2026-07-18", "titel": "neu"},
+        ]}
+        rows = av.postmortem_rows(payload)
+        self.assertEqual(rows[0]["titel"], "neu")
+
+    def test_pilot_overview_und_signale(self):
+        payload = {
+            "protokoll": {
+                "budget_usdc": 100.0, "einsatz_je_trade_usdc": 10.0,
+                "regel_freeze_datum": "2026-07-18",
+                "handelsfenster_bis": "2026-08-01",
+                "quelle": "docs/x.md", "arm1_kurz": "a1", "arm2_kurz": "a2",
+            },
+            "watcher_lauf_ts_utc": "2026-07-18T10:19:52Z",
+            "signal_zaehler": {"arm2:signal": 92,
+                               "arm1:kandidat_referenz_pruefen": 1},
+            "signale_neueste": [{"ts_utc": "t", "arm": "arm2"}],
+            "trades": [],
+        }
+        ov = av.pilot_overview(payload)
+        self.assertEqual(ov["n_signale"], 93)
+        self.assertEqual(ov["n_trades"], 0)
+        self.assertEqual(ov["budget_usdc"], 100.0)
+        self.assertEqual(len(av.pilot_signal_rows(payload)), 1)
+
+    def test_pilot_overview_leer_faellt_weich(self):
+        ov = av.pilot_overview({})
+        self.assertEqual(ov["n_signale"], 0)
+        self.assertIsNone(ov["budget_usdc"])
