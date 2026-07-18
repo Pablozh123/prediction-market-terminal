@@ -230,6 +230,7 @@ class ShowcaseViewTests(unittest.TestCase):
             "realisierter_pnl_usd": 15.01,
             "sichtbare_tiefe_usd": 318.35,
             "einsatz_zu_sichtbarer_tiefe_pct": 113.1,
+            "wallet_netto_usd": 119.84,
             "race": {"first_on": 6, "wetten_mit_tape": 6},
             "wetten": [
                 {"aufgeloest": True, "gewonnen": True},
@@ -247,6 +248,7 @@ class ShowcaseViewTests(unittest.TestCase):
         self.assertEqual(row["verloren"], 1)
         self.assertEqual(row["race_first"], "6/6")
         self.assertEqual(row["sichtbare_tiefe_usd"], 318.35)
+        self.assertEqual(row["wallet_netto_usd"], 119.84)
 
     def test_track_record_ohne_race(self):
         runs = {"runs": [{"profil": "x", "wetten": [], "race": None}]}
