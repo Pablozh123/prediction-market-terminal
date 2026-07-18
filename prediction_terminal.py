@@ -13090,6 +13090,11 @@ def _run_timing_chips(run: dict) -> str:
     chips.append(f"Drop source: {quelle}")
     if run.get("erkennungslatenz_s") is not None:
         chips.append(f"Publish &rarr; detected: {av.format_sekunden(run['erkennungslatenz_s'])}")
+    elif str(run.get("drop_quelle", "")) == "mp3_url_prober":
+        chips.append(
+            "Publish &rarr; detected: pre-feed (CDN probe fired before "
+            "the RSS feed listed the episode)"
+        )
     if run.get("erste_entscheidung_s") is not None:
         chips.append(f"Detected &rarr; first decision: {av.format_sekunden(run['erste_entscheidung_s'])}")
     if run.get("erster_fill_s") is not None:
@@ -13306,9 +13311,23 @@ def page_live_runs() -> None:
     bilanz = f"{kpis['gewonnen']}W · {kpis['verloren']}L · {kpis['offen']} open"
     k2.metric("Bets", f"{kpis['n_wetten']}", bilanz, delta_color="off",
               help="Placed bets across all runs, with the win/loss record.")
-    k3.metric("Total stake", _run_usd(kpis["einsatz_usd"]),
-              help="Sum of all fill stakes (including still-open positions). "
-                   "Log estimate; see Track record for wallet-reconciled cash.")
+    wallet_kaeufe = kpis.get("wallet_kaeufe_usd")
+    if wallet_kaeufe is not None:
+        k3.metric(
+            "Total stake", _run_usd(wallet_kaeufe),
+            "wallet-reconciled", delta_color="off",
+            help=(
+                "Total buys across all events from the wallet "
+                "reconciliation (incl. manual actions). The log-based "
+                f"estimate was {_run_usd(kpis['einsatz_usd'])}."
+            ),
+        )
+    else:
+        k3.metric(
+            "Total stake", _run_usd(kpis["einsatz_usd"]),
+            help="Sum of all fill stakes (including still-open positions). "
+                 "Log estimate.",
+        )
     wallet_netto = kpis.get("wallet_netto_usd")
     if wallet_netto is not None:
         stand = kpis.get("wallet_abgleich_stand") or "?"
@@ -13759,12 +13778,19 @@ def _render_track_record(payload: dict) -> None:
             "erkennungslatenz_s": "Publish->detect (s)",
             "erster_fill_s": "Detect->first fill (s)", "n_wetten": "Bets",
             "gewonnen": "W", "verloren": "L", "einsatz_usd": "Stake $",
-            "pnl_usd": "PnL $", "race_first": "Tape race (first)",
+            "pnl_usd": "Net PnL $", "race_first": "Tape race (first)",
+            "cash_basis": "Cash basis",
             "sichtbare_tiefe_usd": "Visible depth $",
             "einsatz_zu_sichtbarer_tiefe_pct": "Stake/depth %",
-            "wallet_netto_usd": "Wallet net $",
         })
         st.dataframe(frame, width="stretch", hide_index=True)
+        st.markdown(
+            "<div class='small-note'>Cash basis 'wallet': Stake $ and "
+            "Net PnL $ come from the curated wallet reconciliation "
+            "(buys incl. manual actions; net = redemptions + sells - "
+            "buys). 'log': log estimate.</div>",
+            unsafe_allow_html=True,
+        )
     aggregat = payload.get("aggregat", {}) or {}
     wallet_netto = aggregat.get("wallet_netto_usd")
     if wallet_netto is not None:
