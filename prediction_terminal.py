@@ -13742,9 +13742,22 @@ def _render_track_record(payload: dict) -> None:
             "pnl_usd": "PnL $", "race_first": "Tape race (first)",
             "sichtbare_tiefe_usd": "Visible depth $",
             "einsatz_zu_sichtbarer_tiefe_pct": "Stake/depth %",
+            "wallet_netto_usd": "Wallet net $",
         })
         st.dataframe(frame, width="stretch", hide_index=True)
     aggregat = payload.get("aggregat", {}) or {}
+    wallet_netto = aggregat.get("wallet_netto_usd")
+    if wallet_netto is not None:
+        stand = aggregat.get("wallet_abgleich_stand") or "?"
+        st.markdown(
+            f"<div class='small-note'><b>Wallet-reconciled net across all "
+            f"events: {_esc(f'{wallet_netto:+,.2f}')} USD</b> (as of "
+            f"{_esc(stand)}). Cash truth from the curated wallet "
+            f"reconciliation; per-bet stake/PnL columns are log estimates "
+            f"(price cap assumed where the FAK status returned no fill "
+            f"price).</div>",
+            unsafe_allow_html=True,
+        )
     tiefe = aggregat.get("sichtbare_tiefe_usd")
     quote = aggregat.get("einsatz_zu_sichtbarer_tiefe_pct")
     if tiefe is not None:
