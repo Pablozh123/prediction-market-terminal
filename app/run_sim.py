@@ -220,7 +220,9 @@ def timing_decay_summary(payload: dict[str, Any] | None) -> pd.DataFrame:
                 preis = fill
             if preis is None or not (0.0 < preis < 1.0):
                 continue
-            stake = _num(w.get("einsatz_usd")) or 0.0
+            stake = _num(w.get("wallet_einsatz_usd"))
+            if stake is None:
+                stake = _num(w.get("einsatz_usd")) or 0.0
             if preis > PRICED_OUT_CAP:
                 n_priced_out += 1
                 continue  # kein Entry -> PnL 0
