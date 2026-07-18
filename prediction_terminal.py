@@ -22,6 +22,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from app import analysis_views as av
+from app import microstructure_views as mv
 from app import app_settings as cfg
 from app import authz as az
 from app import backtester as btr
@@ -120,6 +121,8 @@ WORKSPACES = [
     "Category Efficiency",
     "Mentions Latency",
     "Live Runs",
+    "Microstructure",
+    "Pilot",
     "Pipeline Forward",
     "Methodology",
 ]
@@ -128,7 +131,7 @@ NAV_GROUPS: list[tuple[str, list[str]]] = [
     ("Markets", ["Markets", "Search", "Live Trades", "Resolved", "Cross-Venue"]),
     ("Traders", ["Traders", "Wallets", "Whale Flow", "Suspicious", "Track"]),
     ("Trading", ["Backtester", "Copy Trade", "Portfolio"]),
-    ("Research", ["Review Queue", "Category Efficiency", "Mentions Latency", "Live Runs", "Pipeline Forward", "Methodology"]),
+    ("Research", ["Review Queue", "Category Efficiency", "Mentions Latency", "Live Runs", "Microstructure", "Pilot", "Pipeline Forward", "Methodology"]),
     ("System", ["Monitor", "Settings"]),
 ]
 WORKSPACE_HELP = {
@@ -152,6 +155,8 @@ WORKSPACE_HELP = {
     "Category Efficiency": "Brier score vs. pricing-in minutes per market category.",
     "Mentions Latency": "How fast mentions markets react to the content drop.",
     "Live Runs": "Bets, latencies, and results of our own bot runs — plus sizing simulation and entry calibration on those runs.",
+    "Microstructure": "Order-book recorder status, a rolling imbalance read on the collected books, and the frozen May study incl. the paper MM simulator.",
+    "Pilot": "Pre-registered small-stake field test: frozen rules, read-only signals, manual decisions, trades with rule adherence.",
     "Pipeline Forward": "Observing paper forward test of the analysis pipeline.",
     "Methodology": "Methodology, guardrails, and audit (hashes and counters).",
 }
@@ -13316,8 +13321,8 @@ def page_live_runs() -> None:
     latenz_rows = av.run_latenz_rows(payload)
     runs_list = list(payload.get("runs", []))
     bets = rsim.bets_frame(payload)
-    tab_runs, tab_timing, tab_sim, tab_calib = st.tabs(
-        ["Runs", "Timing & repricing", "Sizing simulator", "Calibration"]
+    tab_runs, tab_timing, tab_sim, tab_calib, tab_record = st.tabs(
+        ["Runs", "Timing & repricing", "Sizing simulator", "Calibration", "Track record"]
     )
 
     with tab_runs:
@@ -13581,6 +13586,8 @@ def page_live_runs() -> None:
         else:
             _render_run_calibration(calib.calibration_report(scored, capped=False))
 
+    with tab_record:
+        _render_track_record(payload)
 
     render_analysis_footer()
 
@@ -13718,6 +13725,219 @@ def _render_run_calibration(report: dict) -> None:
 
 
 # Workspace registry — every entry in WORKSPACES needs a renderer here.
+
+
+def _render_track_record(payload: dict) -> None:
+    """Konsolidierter Track-Record + Kapazitaet + kuratierte Post-Mortems."""
+
+    st.markdown("#### One line per run")
+    rows = av.track_record_rows(payload)
+    if rows:
+        frame = pd.DataFrame(rows)
+        frame = frame.rename(columns={
+            "profil": "Run", "episode_titel": "Episode", "quelle": "Source",
+            "erkennungslatenz_s": "Publish->detect (s)",
+            "erster_fill_s": "Detect->first fill (s)", "n_wetten": "Bets",
+            "gewonnen": "W", "verloren": "L", "einsatz_usd": "Stake $",
+            "pnl_usd": "PnL $", "race_first": "Tape race (first)",
+            "sichtbare_tiefe_usd": "Visible depth $",
+            "einsatz_zu_sichtbarer_tiefe_pct": "Stake/depth %",
+        })
+        st.dataframe(frame, width="stretch", hide_index=True)
+    aggregat = payload.get("aggregat", {}) or {}
+    tiefe = aggregat.get("sichtbare_tiefe_usd")
+    quote = aggregat.get("einsatz_zu_sichtbarer_tiefe_pct")
+    if tiefe is not None:
+        st.markdown(
+            f"<div class='small-note'>Capacity read: across all decision "
+            f"snapshots the immediately visible ask depth up to the price cap "
+            f"summed to <span class='mono'>{_esc(f'{tiefe:,.0f}')} USD</span>; "
+            f"our stake was <span class='mono'>{_esc(quote)}%</span> of it. "
+            f"Values above 100% on single runs mean the sweep also consumed "
+            f"liquidity that refilled after the snapshot -- the logged book is "
+            f"a lower bound. Read: the niche is real but small-capacity; naive "
+            f"scaling would move the price before it moves the result.</div>",
+            unsafe_allow_html=True,
+        )
+    st.markdown("#### Post-mortems: what broke, and the verified fix")
+    st.caption(
+        "Curated incident list from the run logs, commits and PRs. Honesty "
+        "as a feature: every false trigger or outage is reported with its "
+        "impact and the shipped fix -- not explained away."
+    )
+    pm_payload = load_publish_payload_cached("postmortems.json")
+    if pm_payload is None:
+        render_publish_missing("postmortems.json")
+        return
+    for eintrag in av.postmortem_rows(pm_payload):
+        titel = (
+            f"{eintrag.get('datum', '?')} · {eintrag.get('achse', '?')} · "
+            f"{eintrag.get('titel', '')}"
+        )
+        with st.expander(titel):
+            st.markdown(
+                f"<div class='small-note'>Run: <span class='mono'>"
+                f"{_esc(eintrag.get('profil'))}</span></div>"
+                f"<p>{_esc(eintrag.get('was_passierte'))}</p>"
+                f"<p><b>Impact:</b> {_esc(eintrag.get('auswirkung'))}</p>"
+                f"<p><b>Fix:</b> {_esc(eintrag.get('fix'))}</p>"
+                f"<div class='small-note'>Reference: <span class='mono'>"
+                f"{_esc(eintrag.get('referenz'))}</span></div>",
+                unsafe_allow_html=True,
+            )
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _rolling_imbalance_cached(cache_key: float) -> dict:
+    # cache_key = mtime der neuesten books-Datei: neue Recorder-Passes
+    # invalidieren den Cache sofort, sonst gilt die 5-Minuten-TTL.
+    return mv.rolling_imbalance()
+
+
+def page_microstructure() -> None:
+    section_header(
+        "Microstructure",
+        "Order-book recorder, rolling imbalance read on the collected books, "
+        "and the frozen May study incl. the paper MM simulator.",
+        kicker="Read-only research",
+    )
+    status = mv.recorder_status()
+    st.markdown("#### Recorder (live, updates as it collects)")
+    if status is None:
+        st.info(
+            "No recorder data yet under data/microstructure. The scheduled "
+            "task MarketIntelBookRecorder writes a pass every ~2 minutes "
+            "once it runs; this page then fills automatically."
+        )
+    else:
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Tracked markets", status.get("tracked_markets", 0))
+        c2.metric("Book rows / pass", status.get("book_rows", 0))
+        c3.metric("Book errors", status.get("book_errors", 0))
+        c4.metric("Tape trades / pass", status.get("trade_rows", 0))
+        st.caption(f"Last pass: {status.get('ts_utc', 'unknown')} (UTC)")
+        files = mv.recorder_files()
+        if files:
+            st.dataframe(pd.DataFrame(files), width="stretch", hide_index=True)
+
+    st.markdown("#### Rolling imbalance read (out-of-sample, on recorder data)")
+    st.caption(
+        "Same definition as the frozen May study: bid share of top-5 depth "
+        "vs. direction of the mid over the next ~5 minutes, conditional on "
+        "the mid actually moving; Wilson lower bound per bucket. This is the "
+        "out-of-sample confirmation running live -- the selection differs "
+        "(most-active markets instead of arb legs) and values refresh as "
+        "the recorder collects."
+    )
+    cache_key = 0.0
+    try:
+        books = sorted(Path(mv.MICRO_DIR_DEFAULT).glob("books_*.csv"))
+        cache_key = books[-1].stat().st_mtime if books else 0.0
+    except OSError:
+        pass
+    roll = _rolling_imbalance_cached(cache_key)
+    if roll["n_pairs"] < mv.MIN_PAIRS_FOR_STATS:
+        st.info(
+            f"Collecting: {roll['n_pairs']} usable 5-minute pairs across "
+            f"{roll['n_tokens']} tokens so far. Bucket statistics appear "
+            f"once at least {mv.MIN_PAIRS_FOR_STATS} pairs are recorded."
+        )
+    else:
+        frame = pd.DataFrame(roll["rows"]).rename(columns={
+            "bucket": "Imbalance bucket", "n": "Pairs", "moved": "Moved",
+            "moved_share": "Moved share", "mean_drift_cents": "Mean drift (c)",
+            "hits": "Hits", "hit_rate": "Hit rate", "wilson_lb95": "Wilson LB95",
+        })
+        st.dataframe(frame, width="stretch", hide_index=True)
+        st.markdown(
+            "<div class='small-note'>Hit rate is conditional on movement; "
+            "the 0.4-0.6 bucket carries no direction by construction.</div>",
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("#### Frozen reports (May capture)")
+    for report in mv.study_reports():
+        with st.expander(report["stem"]):
+            try:
+                st.markdown(Path(report["md_path"]).read_text(encoding="utf-8"))
+            except OSError:
+                st.info("Report file unavailable.")
+            if report["png_path"]:
+                st.image(report["png_path"])
+    render_analysis_footer()
+
+
+def page_pilot() -> None:
+    section_header(
+        "Pilot",
+        "Pre-registered small-stake field test: frozen rules, read-only "
+        "signals, manual decisions by the author.",
+        kicker="Daily research artifacts",
+    )
+    payload = load_publish_payload_cached("pilot.json")
+    render_analysis_banner(payload)
+    if payload is None:
+        render_publish_missing("pilot.json")
+        render_analysis_footer()
+        return
+    ov = av.pilot_overview(payload)
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric(
+        "Budget",
+        f"{ov['budget_usdc']:.0f} USDC" if ov["budget_usdc"] else "-",
+        help="Own funds, total loss accounted for (protocol).",
+    )
+    c2.metric(
+        "Stake / trade",
+        f"{ov['einsatz_je_trade_usdc']:.0f} USDC"
+        if ov["einsatz_je_trade_usdc"] else "-",
+    )
+    c3.metric(
+        "Rule freeze", ov["regel_freeze_datum"] or "-",
+        help="Rules are fixed ex ante; deviations count as protocol violations.",
+    )
+    c4.metric(
+        "Signals", ov["n_signale"],
+        help="Rule matches found by the read-only watcher (not recommendations).",
+    )
+    c5.metric("Trades", ov["n_trades"])
+
+    st.markdown("#### Frozen rules")
+    st.markdown(
+        f"<div class='small-note'><b>Arm 1</b> -- {_esc(ov['arm1_kurz'])}</div>"
+        f"<div class='small-note'><b>Arm 2</b> -- {_esc(ov['arm2_kurz'])}</div>"
+        f"<div class='small-note'>Source: <span class='mono'>{_esc(ov['quelle'])}</span> · "
+        f"trading window until {_esc(ov['handelsfenster_bis'])}</div>",
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("#### Latest watcher signals")
+    zaehler_text = ", ".join(
+        f"{k} = {v}" for k, v in sorted(ov["zaehler"].items())
+    )
+    st.caption(
+        f"Last scan: {ov['watcher_lauf_ts_utc'] or 'unknown'} · "
+        f"counters: {zaehler_text}"
+    )
+    rows = av.pilot_signal_rows(payload)
+    if rows:
+        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+    else:
+        st.info("No signals recorded yet.")
+
+    st.markdown("#### Trades & rule adherence")
+    trades = payload.get("trades", []) or []
+    if trades:
+        st.dataframe(pd.DataFrame(trades), width="stretch", hide_index=True)
+    else:
+        st.info(
+            "No trades yet. Every manual trade will appear here with signal "
+            "vs. execution price (slippage), fees, book depth and exit -- the "
+            "fields the protocol requires."
+        )
+    render_analysis_footer()
+
+
 PAGES = {
     "Overview": page_overview,
     "Search": page_search,
@@ -13739,6 +13959,8 @@ PAGES = {
     "Category Efficiency": page_kategorie_effizienz,
     "Mentions Latency": page_mentions_latenz,
     "Live Runs": page_live_runs,
+    "Microstructure": page_microstructure,
+    "Pilot": page_pilot,
     "Pipeline Forward": page_pipeline_forward,
     "Methodology": page_methodik,
 }
