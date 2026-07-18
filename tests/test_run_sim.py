@@ -12,13 +12,16 @@ def payload():
                 "profil": "allin_july3",
                 "wetten": [
                     {"frage": "Will 'Tourism' be said?", "seite": "YES", "entscheidungs_preis": 0.13,
-                     "avg_fill_preis": 0.50, "shares": 10.0, "einsatz_usd": 5.0,
+                     "avg_fill_preis": 0.50, "wallet_avg_fill_preis": 0.50,
+                     "shares": 10.0, "einsatz_usd": 5.0,
                      "aufgeloest": True, "gewonnen": True, "pnl_usd": 5.0},
                     {"frage": "Will 'Mars' be said?", "seite": "YES", "entscheidungs_preis": 0.20,
-                     "avg_fill_preis": 0.25, "shares": 20.0, "einsatz_usd": 5.0,
+                     "avg_fill_preis": 0.25, "wallet_avg_fill_preis": 0.25,
+                     "shares": 20.0, "einsatz_usd": 5.0,
                      "aufgeloest": True, "gewonnen": False, "pnl_usd": -5.0},
                     {"frage": "Open bet", "seite": "YES", "entscheidungs_preis": 0.10,
-                     "avg_fill_preis": 0.85, "shares": 7.0, "einsatz_usd": 6.0,
+                     "avg_fill_preis": 0.85, "wallet_avg_fill_preis": 0.85,
+                     "shares": 7.0, "einsatz_usd": 6.0,
                      "aufgeloest": False, "gewonnen": None, "pnl_usd": None},
                 ],
             },
@@ -46,6 +49,32 @@ class BetsFrameTests(unittest.TestCase):
     def test_empty_payload_safe(self):
         self.assertTrue(rs.bets_frame(None).empty)
         self.assertTrue(rs.bets_frame({}).empty)
+
+
+class UnverifiedFillTests(unittest.TestCase):
+    def test_unverified_fill_uses_decision_ask_not_log_estimate(self):
+        frame = rs.bets_frame({"runs": [{"profil": "x", "wetten": [
+            {"frage": "f", "seite": "YES", "entscheidungs_preis": 0.68,
+             "avg_fill_preis": 0.90, "shares": 10.0, "einsatz_usd": 9.0,
+             "aufgeloest": True, "gewonnen": True, "pnl_usd": 1.0},
+        ]}]})
+        # Kein wallet_avg -> Deckel-Schaetzung 0.90 wird NICHT als Fill
+        # verwendet; der beobachtete Entscheidungs-Ask ist die Basis.
+        self.assertAlmostEqual(float(frame.iloc[0]["fill_preis"]), 0.68)
+
+    def test_wallet_values_take_precedence(self):
+        frame = rs.bets_frame({"runs": [{"profil": "x", "wetten": [
+            {"frage": "f", "seite": "YES", "entscheidungs_preis": 0.68,
+             "avg_fill_preis": 0.90, "shares": 147.06, "einsatz_usd": 132.36,
+             "wallet_avg_fill_preis": 0.6888, "wallet_shares": 179.8,
+             "wallet_einsatz_usd": 123.84, "wallet_pnl_usd": 55.96,
+             "aufgeloest": True, "gewonnen": True, "pnl_usd": 14.7},
+        ]}]})
+        row = frame.iloc[0]
+        self.assertAlmostEqual(float(row["fill_preis"]), 0.6888)
+        self.assertAlmostEqual(float(row["einsatz_usd"]), 123.84)
+        self.assertAlmostEqual(float(row["shares"]), 179.8)
+        self.assertAlmostEqual(float(row["pnl_usd"]), 55.96)
 
 
 class SimulateSizingTests(unittest.TestCase):

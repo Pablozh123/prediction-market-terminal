@@ -226,20 +226,44 @@ def run_wetten_rows(run: dict[str, Any]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for wette in run.get("wetten", []) or []:
         label, klasse = wette_status(wette)
+        # Verifizierte Fill-Werte (Wallet-Abgleich oder exakte FAK-Antwort)
+        # ersetzen die Log-Schaetzungen; sonst Log-Werte mit Flag False.
+        verifiziert = wette.get("wallet_avg_fill_preis") is not None
+        einsatz = (
+            wette.get("wallet_einsatz_usd")
+            if verifiziert else wette.get("einsatz_usd")
+        )
+        shares = (
+            wette.get("wallet_shares") if verifiziert else wette.get("shares")
+        )
+        pnl = (
+            wette.get("wallet_pnl_usd")
+            if verifiziert and wette.get("wallet_pnl_usd") is not None
+            else wette.get("pnl_usd")
+        )
+        payout = wette.get("payout_usd")
+        roi = wette.get("roi_pct")
+        if verifiziert and pnl is not None and einsatz:
+            payout = round(float(einsatz) + float(pnl), 2)
+            roi = round(float(pnl) / float(einsatz) * 100.0, 1)
         rows.append(
             {
                 "frage": str(wette.get("frage", "")),
                 "seite": str(wette.get("seite", "")),
                 "entscheidungs_preis": wette.get("entscheidungs_preis"),
-                "avg_fill_preis": wette.get("avg_fill_preis"),
-                "shares": wette.get("shares"),
-                "einsatz_usd": wette.get("einsatz_usd"),
+                "avg_fill_preis": (
+                    wette.get("wallet_avg_fill_preis")
+                    if verifiziert else wette.get("avg_fill_preis")
+                ),
+                "fill_verifiziert": verifiziert,
+                "shares": shares,
+                "einsatz_usd": einsatz,
                 "sweep_clips": int(wette.get("sweep_clips", 1) or 1),
                 "status_label": label,
                 "status_klasse": klasse,
-                "payout_usd": wette.get("payout_usd"),
-                "pnl_usd": wette.get("pnl_usd"),
-                "roi_pct": wette.get("roi_pct"),
+                "payout_usd": payout,
+                "pnl_usd": pnl,
+                "roi_pct": roi,
                 "aktueller_yes_preis": wette.get("aktueller_yes_preis"),
                 "tape_rang": wette.get("tape_rang"),
                 "fremde_davor": wette.get("fremde_davor"),
