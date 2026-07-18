@@ -198,3 +198,24 @@ class TimingDecayTests(unittest.TestCase):
     def test_leer_ohne_referenzen(self):
         frame = rs.timing_decay_summary({"runs": []})
         self.assertEqual(int(frame["n_bets"].max()), 0)
+
+
+class TimingDecayWalletStakeTests(unittest.TestCase):
+    def test_decay_uses_wallet_stake_and_fill(self):
+        payload = {"runs": [{"profil": "x", "wetten": [{
+            "frage": "f", "seite": "YES",
+            "entscheidungs_preis": 0.68,
+            "avg_fill_preis": 0.90, "einsatz_usd": 132.36, "shares": 147.06,
+            "wallet_avg_fill_preis": 0.6888, "wallet_einsatz_usd": 123.84,
+            "wallet_shares": 179.8, "wallet_pnl_usd": 55.96,
+            "aufgeloest": True, "gewonnen": True,
+            "preis_nach_fill": {"0": None, "30": None, "60": None,
+                                 "120": None, "300": None, "900": None},
+        }]}]}
+        decay = rs.timing_decay_summary(payload)
+        basis = decay[decay["delay_s"] == 0].iloc[0]
+        # Ohne Fremdkaeufe gilt der verifizierte Fill 0.6888 mit dem
+        # Wallet-Einsatz 123.84: shares = stake/preis, PnL = shares*(1-preis).
+        erwartet = round(123.84 / 0.6888 * (1 - 0.6888), 2)
+        self.assertAlmostEqual(round(float(basis["sim_pnl_usd"]), 2),
+                               erwartet, places=1)
