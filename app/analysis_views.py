@@ -184,6 +184,9 @@ def run_kpis(payload: dict[str, Any]) -> dict[str, Any]:
         "offener_einsatz_usd": float(
             aggregat.get("offener_einsatz_usd", 0.0) or 0.0
         ),
+        # Wallet-Wahrheit (kuratierter Abgleich); None ohne Overlay.
+        "wallet_netto_usd": aggregat.get("wallet_netto_usd"),
+        "wallet_abgleich_stand": aggregat.get("wallet_abgleich_stand"),
     }
 
 

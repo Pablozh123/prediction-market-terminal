@@ -13307,14 +13307,32 @@ def page_live_runs() -> None:
     k2.metric("Bets", f"{kpis['n_wetten']}", bilanz, delta_color="off",
               help="Placed bets across all runs, with the win/loss record.")
     k3.metric("Total stake", _run_usd(kpis["einsatz_usd"]),
-              help="Sum of all fill stakes (including still-open positions).")
-    roi = kpis["roi_realisiert_pct"]
-    k4.metric(
-        "Realized PnL",
-        _run_usd(kpis["realisierter_pnl_usd"]),
-        f"{roi:+.1f}% ROI" if roi is not None else None,
-        help="Resolved bets only; ROI relative to the resolved stake.",
-    )
+              help="Sum of all fill stakes (including still-open positions). "
+                   "Log estimate; see Track record for wallet-reconciled cash.")
+    wallet_netto = kpis.get("wallet_netto_usd")
+    if wallet_netto is not None:
+        stand = kpis.get("wallet_abgleich_stand") or "?"
+        k4.metric(
+            "Realized PnL",
+            _run_usd(wallet_netto),
+            f"wallet-reconciled · {stand}",
+            delta_color="off",
+            help=(
+                "Net cash across all events from the curated wallet "
+                "reconciliation (redemptions + sells - buys). The log-based "
+                f"estimate was {_run_usd(kpis['realisierter_pnl_usd'])}: "
+                "stakes were valued at the price cap where the FAK order "
+                "status lacked a fill price."
+            ),
+        )
+    else:
+        roi = kpis["roi_realisiert_pct"]
+        k4.metric(
+            "Realized PnL",
+            _run_usd(kpis["realisierter_pnl_usd"]),
+            f"{roi:+.1f}% ROI" if roi is not None else None,
+            help="Resolved bets only; ROI relative to the resolved stake.",
+        )
     k5.metric("Open stake", _run_usd(kpis["offener_einsatz_usd"]),
               help="Stake in markets that have not resolved yet.")
 
@@ -13359,11 +13377,13 @@ def page_live_runs() -> None:
                         "over entry without edge.</div>",
                         unsafe_allow_html=True,
                     )
-                pnl = run.get("realisierter_pnl_usd")
-                zeile = f"Stake {_run_usd(run.get('einsatz_usd'))}"
+                wallet_pnl = run.get("wallet_netto_usd")
+                pnl = wallet_pnl if wallet_pnl is not None else run.get("realisierter_pnl_usd")
+                pnl_label = "wallet net" if wallet_pnl is not None else "realized (log est.)"
+                zeile = f"Stake {_run_usd(run.get('einsatz_usd'))} (log est.)"
                 if pnl is not None:
                     farbe = ACCENT if float(pnl) >= 0 else RED
-                    zeile += f" · realized <span style='color:{farbe}' class='mono'>{_esc(_run_usd(pnl))}</span>"
+                    zeile += f" · {pnl_label} <span style='color:{farbe}' class='mono'>{_esc(_run_usd(pnl))}</span>"
                 st.markdown(f"<div class='field-hint'>{zeile}</div>", unsafe_allow_html=True)
                 verpasst = av.run_verpasste_rows(run)
                 if verpasst:
@@ -13831,7 +13851,11 @@ def page_microstructure() -> None:
         st.caption(f"Last pass: {status.get('ts_utc', 'unknown')} (UTC)")
         files = mv.recorder_files()
         if files:
-            st.dataframe(pd.DataFrame(files), width="stretch", hide_index=True)
+            files_frame = pd.DataFrame(files).rename(columns={
+                "datei": "File", "art": "Type", "groesse_kb": "Size (KB)",
+                "geaendert_utc": "Modified (UTC)",
+            })
+            st.dataframe(files_frame, width="stretch", hide_index=True)
 
     st.markdown("#### Rolling imbalance read (out-of-sample, on recorder data)")
     st.caption(
@@ -13934,14 +13958,28 @@ def page_pilot() -> None:
     )
     rows = av.pilot_signal_rows(payload)
     if rows:
-        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+        signals_frame = pd.DataFrame(rows).rename(columns={
+            "ts_utc": "Time (UTC)", "arm": "Arm", "frage": "Question",
+            "seite": "Side", "signal_preis": "Signal price",
+            "buchtiefe_usd": "Book depth $",
+            "restlaufzeit_tage": "Days left", "status": "Status",
+        })
+        st.dataframe(signals_frame, width="stretch", hide_index=True)
     else:
         st.info("No signals recorded yet.")
 
     st.markdown("#### Trades & rule adherence")
     trades = payload.get("trades", []) or []
     if trades:
-        st.dataframe(pd.DataFrame(trades), width="stretch", hide_index=True)
+        trades_frame = pd.DataFrame(trades).rename(columns={
+            "zeitstempel_utc": "Time (UTC)", "markt": "Market", "arm": "Arm",
+            "seite": "Side", "signalpreis": "Signal price",
+            "ausfuehrungspreis": "Execution price", "groesse": "Size",
+            "gebuehren": "Fees", "slippage": "Slippage",
+            "orderbuchtiefe": "Book depth", "exit": "Exit",
+            "bemerkung": "Note",
+        })
+        st.dataframe(trades_frame, width="stretch", hide_index=True)
     else:
         st.info(
             "No trades yet. Every manual trade will appear here with signal "
