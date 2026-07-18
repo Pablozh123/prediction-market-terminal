@@ -313,6 +313,7 @@ def track_record_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
                 "einsatz_zu_sichtbarer_tiefe_pct": run.get(
                     "einsatz_zu_sichtbarer_tiefe_pct"
                 ),
+                "wallet_netto_usd": run.get("wallet_netto_usd"),
             }
         )
     return rows
