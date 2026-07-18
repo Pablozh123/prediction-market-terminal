@@ -186,6 +186,7 @@ def run_kpis(payload: dict[str, Any]) -> dict[str, Any]:
         ),
         # Wallet-Wahrheit (kuratierter Abgleich); None ohne Overlay.
         "wallet_netto_usd": aggregat.get("wallet_netto_usd"),
+        "wallet_kaeufe_usd": aggregat.get("wallet_kaeufe_usd"),
         "wallet_abgleich_stand": aggregat.get("wallet_abgleich_stand"),
     }
 
@@ -309,14 +310,26 @@ def track_record_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
                 "n_wetten": len(wetten),
                 "gewonnen": sum(1 for w in aufgeloest if w.get("gewonnen")),
                 "verloren": sum(1 for w in aufgeloest if not w.get("gewonnen")),
-                "einsatz_usd": run.get("einsatz_usd"),
-                "pnl_usd": run.get("realisierter_pnl_usd"),
+                # Cash wallet-first: Log-Werte nur als Fallback (Basis-Flag).
+                "einsatz_usd": (
+                    run.get("wallet_kaeufe_usd")
+                    if run.get("wallet_kaeufe_usd") is not None
+                    else run.get("einsatz_usd")
+                ),
+                "pnl_usd": (
+                    run.get("wallet_netto_usd")
+                    if run.get("wallet_netto_usd") is not None
+                    else run.get("realisierter_pnl_usd")
+                ),
+                "cash_basis": (
+                    "wallet" if run.get("wallet_netto_usd") is not None
+                    else "log"
+                ),
                 "race_first": race_str,
                 "sichtbare_tiefe_usd": run.get("sichtbare_tiefe_usd"),
                 "einsatz_zu_sichtbarer_tiefe_pct": run.get(
                     "einsatz_zu_sichtbarer_tiefe_pct"
                 ),
-                "wallet_netto_usd": run.get("wallet_netto_usd"),
             }
         )
     return rows
