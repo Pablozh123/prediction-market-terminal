@@ -280,3 +280,72 @@ def audit_hash_rows(audit: dict[str, Any], limit: int = 50) -> list[dict[str, st
         for i, (p, o) in enumerate(zip(prompts, outputs))
     ]
     return rows[:limit]
+
+
+def track_record_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """Konsolidierter Track-Record: eine Zeile je Run fuer die Gesamtsicht."""
+
+    rows: list[dict[str, Any]] = []
+    for run in payload.get("runs", []):
+        wetten = run.get("wetten", []) or []
+        aufgeloest = [
+            w for w in wetten
+            if w.get("aufgeloest") and w.get("gewonnen") is not None
+        ]
+        race = run.get("race") or {}
+        race_str = None
+        if race.get("wetten_mit_tape"):
+            race_str = f"{race.get('first_on', 0)}/{race.get('wetten_mit_tape')}"
+        rows.append(
+            {
+                "profil": str(run.get("profil", "")),
+                "episode_titel": str(run.get("episode_titel", "")),
+                "quelle": str(run.get("drop_quelle", "")),
+                "erkennungslatenz_s": run.get("erkennungslatenz_s"),
+                "erster_fill_s": run.get("erster_fill_s"),
+                "n_wetten": len(wetten),
+                "gewonnen": sum(1 for w in aufgeloest if w.get("gewonnen")),
+                "verloren": sum(1 for w in aufgeloest if not w.get("gewonnen")),
+                "einsatz_usd": run.get("einsatz_usd"),
+                "pnl_usd": run.get("realisierter_pnl_usd"),
+                "race_first": race_str,
+                "sichtbare_tiefe_usd": run.get("sichtbare_tiefe_usd"),
+                "einsatz_zu_sichtbarer_tiefe_pct": run.get(
+                    "einsatz_zu_sichtbarer_tiefe_pct"
+                ),
+            }
+        )
+    return rows
+
+
+def postmortem_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """Kuratierte Vorfaelle, neueste zuerst; Felder unveraendert."""
+
+    eintraege = list(payload.get("eintraege", []) or [])
+    return sorted(eintraege, key=lambda e: str(e.get("datum", "")), reverse=True)
+
+
+def pilot_overview(payload: dict[str, Any]) -> dict[str, Any]:
+    """Kopfzahlen des vorregistrierten Piloten fuer die Pilot-Seite."""
+
+    protokoll = payload.get("protokoll", {}) or {}
+    zaehler = payload.get("signal_zaehler", {}) or {}
+    return {
+        "budget_usdc": protokoll.get("budget_usdc"),
+        "einsatz_je_trade_usdc": protokoll.get("einsatz_je_trade_usdc"),
+        "regel_freeze_datum": str(protokoll.get("regel_freeze_datum", "")),
+        "handelsfenster_bis": str(protokoll.get("handelsfenster_bis", "")),
+        "quelle": str(protokoll.get("quelle", "")),
+        "arm1_kurz": str(protokoll.get("arm1_kurz", "")),
+        "arm2_kurz": str(protokoll.get("arm2_kurz", "")),
+        "watcher_lauf_ts_utc": payload.get("watcher_lauf_ts_utc"),
+        "n_signale": sum(int(v) for v in zaehler.values()),
+        "zaehler": {str(k): int(v) for k, v in zaehler.items()},
+        "n_trades": len(payload.get("trades", []) or []),
+    }
+
+
+def pilot_signal_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """Neueste Watcher-Signale fuer die Pilot-Tabelle (bereits gekappt)."""
+
+    return list(payload.get("signale_neueste", []) or [])
