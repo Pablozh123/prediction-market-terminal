@@ -13163,32 +13163,76 @@ def _run_decision_stack_chart(latenz_rows: list[dict], runs: list[dict]) -> "go.
 def _run_repricing_chart(run: dict) -> "go.Figure":
     """Fremd-Kaufpreise je gehandeltem Markt ab Drop (log-Zeitachse)."""
 
-    farben = [CHART_SERIES_BLUE, CHART_SERIES_GREEN, AMBER, "#B57EDC"]
+    farben = [CHART_SERIES_BLUE, CHART_SERIES_GREEN, AMBER, "#B57EDC",
+              "#E8837B", "#5FB3B3", "#C7A252"]
+    fenster_s = 3600.0
     wetten_by_frage = {str(w.get("frage", "")): w for w in run.get("wetten", [])}
     fig = go.Figure()
     for i, kurve in enumerate(run.get("repricing", [])):
         farbe = farben[i % len(farben)]
-        xs = [max(p[0], 1.0) for p in kurve.get("punkte", [])]
-        ys = [p[1] for p in kurve.get("punkte", [])]
+        punkte = kurve.get("punkte", [])
+        xs = [max(p[0], 1.0) for p in punkte]
+        ys = [p[1] for p in punkte]
         name = str(kurve.get("frage", ""))[:44]
+        wette = wetten_by_frage.get(str(kurve.get("frage", "")))
+        # Anker: unser beobachteter Ask im Entscheidungsmoment. Macht die
+        # Luecke bis zum ersten Fremdkauf lesbar (Linien "starten spaeter",
+        # weil vorher schlicht niemand sonst kaufte).
+        if wette and wette.get("entscheidungs_preis") is not None:
+            fig.add_trace(
+                go.Scatter(
+                    x=[1.0], y=[float(wette["entscheidungs_preis"])],
+                    mode="markers", name="Ask at our decision",
+                    showlegend=(i == 0), legendrank=2,
+                    marker={"symbol": "circle-open", "size": 9,
+                            "color": farbe, "line": {"width": 2}},
+                    hovertemplate=(name + "<br>ask at our decision: "
+                                   "%{y:.2f}<extra></extra>"),
+                )
+            )
         fig.add_trace(
             go.Scatter(
-                x=xs, y=ys, mode="lines+markers", name=name,
+                x=xs, y=ys, mode="lines+markers", name=name, legendrank=10 + i,
                 line={"color": farbe, "width": 2, "shape": "hv"},
                 marker={"size": 6},
                 hovertemplate="%{fullData.name}<br>+%{x:.0f} s after drop · foreign buy at %{y:.2f}<extra></extra>",
             )
         )
-        wette = wetten_by_frage.get(str(kurve.get("frage", "")))
-        if wette and kurve.get("fill_nach_s") is not None and wette.get("avg_fill_preis") is not None:
+        # Letzten Fremdpreis bis zum Fensterende fortschreiben (gepunktet):
+        # die Linie ist nicht "abgeschnitten", es gab nur keine weiteren
+        # Fremdkaeufe -- der letzte Print bleibt der letzte bekannte Preis.
+        if xs and xs[-1] < fenster_s:
+            fig.add_trace(
+                go.Scatter(
+                    x=[xs[-1], fenster_s], y=[ys[-1], ys[-1]],
+                    mode="lines", showlegend=False,
+                    line={"color": farbe, "width": 1.4, "dash": "dot"},
+                    opacity=0.45,
+                    hovertemplate=(name + "<br>last foreign print held "
+                                   "(no further foreign buys)<extra></extra>"),
+                )
+            )
+        fill_preis = None
+        fill_verifiziert = False
+        if wette:
+            if wette.get("wallet_avg_fill_preis") is not None:
+                fill_preis = float(wette["wallet_avg_fill_preis"])
+                fill_verifiziert = True
+            elif wette.get("avg_fill_preis") is not None:
+                fill_preis = float(wette["avg_fill_preis"])
+        if wette and kurve.get("fill_nach_s") is not None and fill_preis is not None:
+            fill_hinweis = "" if fill_verifiziert else " (log est.)"
             fig.add_trace(
                 go.Scatter(
                     x=[max(float(kurve["fill_nach_s"]), 1.0)],
-                    y=[float(wette["avg_fill_preis"])],
-                    mode="markers", name="Our fill", showlegend=(i == 0),
+                    y=[fill_preis],
+                    mode="markers", name="Our fill (verified)",
+                    showlegend=(i == 0), legendrank=1,
                     marker={"symbol": "x", "size": 11, "color": "#ffffff",
                             "line": {"color": farbe, "width": 1}},
-                    hovertemplate="Our fill<br>+%{x:.0f} s after drop · avg %{y:.2f}<extra></extra>",
+                    hovertemplate=("Our fill" + fill_hinweis +
+                                   "<br>+%{x:.0f} s after drop · avg "
+                                   "%{y:.2f}<extra></extra>"),
                 )
             )
     fig.add_hline(y=0.90, line_dash="dash", line_color=RED,
@@ -13227,10 +13271,16 @@ def _render_run_timing_lab(runs_list: list[dict], payload: dict) -> None:
         rep_run = next(r for r in rep_runs if str(r.get("profil", "?")) == auswahl)
         st.plotly_chart(_run_repricing_chart(rep_run), width="stretch", key="runs_repricing_chart")
         st.caption(
-            "Each point is a FOREIGN taker buy of our bet side (own clips and "
-            "opposite-side trades excluded — those sit on the bid). × marks our "
-            "avg fill. Markets without any foreign buy have no curve: nobody "
-            "else ever paid up."
+            "How to read this: each solid step is a FOREIGN taker buy of our "
+            "bet side from the public trade tape (own clips and opposite-side "
+            "trades excluded). ○ = the ask we saw at decision time, × = our "
+            "verified fill. A curve that starts late means nobody else bought "
+            "for that long — that gap is the latency edge. Short curves had "
+            "few foreign prints; the dotted tail holds the last known foreign "
+            "price to the end of the 1-hour window. Curves overlap when "
+            "several markets converge to the same 0.95-1.00 zone. Between "
+            "prints the tape is silent, so each level is a lower bound on "
+            "where the ask stood."
         )
 
     st.markdown("#### What would waiting have cost?")
@@ -13252,7 +13302,7 @@ def _render_run_timing_lab(runs_list: list[dict], payload: dict) -> None:
             hide_index=True,
             column_config={
                 "delay": st.column_config.TextColumn("Entry delay"),
-                "n_bets": st.column_config.NumberColumn("Bets replayed", help="All resolved bets; without a foreign buy since the drop the own avg fill price stands in (book unchanged from the tape's view)."),
+                "n_bets": st.column_config.NumberColumn("Bets replayed", help="All resolved bets; without a foreign buy since the drop the own verified fill price stands in (book unchanged from the tape's view)."),
                 "n_foreign_ref": st.column_config.NumberColumn("Foreign price refs", help="Bets whose reference price at this delay comes from an actual foreign buy since the drop."),
                 "n_priced_out": st.column_config.NumberColumn("Priced out", help="Reference price above the 0.90 ask cap — the bot would not have entered (PnL 0)."),
                 "sim_pnl_usd": st.column_config.NumberColumn("Sim PnL $", format="%.2f"),
