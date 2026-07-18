@@ -52,20 +52,34 @@ def bets_frame(payload: dict[str, Any] | None) -> pd.DataFrame:
     for run in (payload or {}).get("runs", []) or []:
         profil = str(run.get("profil", "") or "")
         for bet in run.get("wetten", []) or []:
-            fill = _num(bet.get("avg_fill_preis"))
+            # Verifizierter Fill zuerst (Wallet/FAK-Antwort). Ohne
+            # Verifikation ist der Entscheidungs-Ask der ehrlichste
+            # beobachtete Preis -- NIE die Deckel-Schaetzung des Logs.
+            fill = _num(bet.get("wallet_avg_fill_preis"))
             if fill is None or not (0.0 < fill < 1.0):
                 fill = _num(bet.get("entscheidungs_preis"))
+            if fill is None or not (0.0 < fill < 1.0):
+                fill = _num(bet.get("avg_fill_preis"))
+            einsatz = _num(bet.get("wallet_einsatz_usd"))
+            if einsatz is None:
+                einsatz = _num(bet.get("einsatz_usd")) or 0.0
+            shares = _num(bet.get("wallet_shares"))
+            if shares is None:
+                shares = _num(bet.get("shares")) or 0.0
+            pnl = _num(bet.get("wallet_pnl_usd"))
+            if pnl is None:
+                pnl = _num(bet.get("pnl_usd"))
             rows.append(
                 {
                     "profil": profil,
                     "frage": str(bet.get("frage", "") or ""),
                     "seite": str(bet.get("seite", "") or ""),
                     "fill_preis": fill,
-                    "einsatz_usd": _num(bet.get("einsatz_usd")) or 0.0,
-                    "shares": _num(bet.get("shares")) or 0.0,
+                    "einsatz_usd": einsatz,
+                    "shares": shares,
                     "aufgeloest": bool(bet.get("aufgeloest")),
                     "gewonnen": bet.get("gewonnen"),
-                    "pnl_usd": _num(bet.get("pnl_usd")),
+                    "pnl_usd": pnl,
                 }
             )
     return pd.DataFrame(rows, columns=BET_COLUMNS)
@@ -196,7 +210,9 @@ def timing_decay_summary(payload: dict[str, Any] | None) -> pd.DataFrame:
         n_priced_out = 0
         sim_pnl = 0.0
         for w in wetten:
-            fill = _num(w.get("avg_fill_preis"))
+            fill = _num(w.get("wallet_avg_fill_preis"))
+            if fill is None:
+                fill = _num(w.get("avg_fill_preis"))
             preis = _num((w.get("preis_nach_fill") or {}).get(key))
             if preis is not None and 0.0 < preis < 1.0:
                 n_foreign += 1

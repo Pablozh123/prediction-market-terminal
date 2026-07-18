@@ -13021,9 +13021,14 @@ def _run_wette_html(row: dict) -> str:
     color = RUN_STATUS_COLORS.get(row["status_klasse"], MUTED)
     ask = "--" if row["entscheidungs_preis"] is None else f"{row['entscheidungs_preis']:.2f}"
     fill = "--" if row["avg_fill_preis"] is None else f"{row['avg_fill_preis']:.2f}"
+    fill_suffix = ""
+    if row["avg_fill_preis"] is not None and not row.get("fill_verifiziert"):
+        fill_suffix = (
+            f" <span style='color:{MUTED}; font-size:0.75rem'>(log est.)</span>"
+        )
     preis_teil = (
         f"Ask at decision <span class='mono'>{ask}</span>"
-        f" &rarr; avg fill <span class='mono'>{fill}</span>"
+        f" &rarr; avg fill <span class='mono'>{fill}</span>{fill_suffix}"
     )
     if row["sweep_clips"] > 1:
         preis_teil += f" · {row['sweep_clips']} clips"
@@ -13262,16 +13267,33 @@ def _render_run_timing_lab(runs_list: list[dict], payload: dict) -> None:
         )
 
     st.markdown("#### Slippage: decision ask vs. paid fill")
-    slip_rows = [
-        (float(w["avg_fill_preis"]) - float(w["entscheidungs_preis"]),
-         (float(w["avg_fill_preis"]) - float(w["entscheidungs_preis"])) * float(w.get("shares") or 0.0),
-         str(w.get("frage", "")))
-        for r in runs_list
-        for w in r.get("wetten", [])
-        if w.get("avg_fill_preis") is not None and w.get("entscheidungs_preis") is not None
-    ]
+    slip_rows = []
+    unverifiziert = 0
+    for r in runs_list:
+        for w in r.get("wetten", []):
+            ask_preis = w.get("entscheidungs_preis")
+            if ask_preis is None:
+                continue
+            avg = w.get("wallet_avg_fill_preis")
+            if avg is None:
+                # Nur Deckel-Schaetzung vorhanden -- ehrlich ausschliessen.
+                if w.get("avg_fill_preis") is not None:
+                    unverifiziert += 1
+                continue
+            menge = float(w.get("wallet_shares") or w.get("shares") or 0.0)
+            diff = float(avg) - float(ask_preis)
+            slip_rows.append((diff, diff * menge, str(w.get("frage", ""))))
+    if unverifiziert:
+        st.caption(
+            f"Based on {len(slip_rows)} verified fills (wallet statement / "
+            f"exact FAK response). {unverifiziert} fill(s) excluded: only a "
+            "log-estimated price exists for them."
+        )
     if not slip_rows:
-        st.info("No fills with both a decision ask and an avg fill price yet.")
+        st.info(
+            "No verified fills yet -- slippage stats appear once fills are "
+            "wallet-verified or logged with exact FAK amounts."
+        )
         return
     gesamt_usd = sum(usd for _, usd, _ in slip_rows)
     avg_pp = sum(pp for pp, _, _ in slip_rows) / len(slip_rows) * 100.0
@@ -13373,7 +13395,17 @@ def page_live_runs() -> None:
         for run in reversed(runs_list):
             with st.container(border=True):
                 kopf = _analysis_badge(str(run.get("profil", "?")), BLUE)
-                kopf += _analysis_badge(str(run.get("modus", "") or "?"), ACCENT)
+                modus = str(run.get("modus", "") or "?")
+                modus_label = {"LIVE": "REAL ORDERS",
+                               "DRY_RUN": "DRY RUN"}.get(modus, modus)
+                kopf += _analysis_badge(modus_label, BLUE)
+                run_wetten = run.get("wetten", []) or []
+                if run_wetten and all(w.get("aufgeloest") for w in run_wetten):
+                    kopf += _analysis_badge("RESOLVED", MUTED)
+                elif run_wetten:
+                    kopf += _analysis_badge("OPEN", AMBER)
+                else:
+                    kopf += _analysis_badge("NO FILLS", MUTED)
                 st.markdown(kopf, unsafe_allow_html=True)
                 titel = str(run.get("episode_titel", "") or "Episode unknown")
                 slug = str(run.get("event_slug", "") or "")
@@ -13617,6 +13649,10 @@ def page_live_runs() -> None:
 
 
     with tab_calib:
+        st.caption(
+            "Price basis: wallet-verified fills where available; unverified "
+            "bets use the observed decision ask, never the log estimate."
+        )
         # --- Entry calibration of the bot's own fills ---------------------------
         st.markdown("<div class='step-label'>Were the bot's entries honest prices?</div>", unsafe_allow_html=True)
         scored = rsim.bot_resolution_frame(bets)
