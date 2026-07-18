@@ -231,6 +231,7 @@ class ShowcaseViewTests(unittest.TestCase):
             "sichtbare_tiefe_usd": 318.35,
             "einsatz_zu_sichtbarer_tiefe_pct": 113.1,
             "wallet_netto_usd": 119.84,
+            "wallet_kaeufe_usd": 288.09,
             "race": {"first_on": 6, "wetten_mit_tape": 6},
             "wetten": [
                 {"aufgeloest": True, "gewonnen": True},
@@ -248,13 +249,22 @@ class ShowcaseViewTests(unittest.TestCase):
         self.assertEqual(row["verloren"], 1)
         self.assertEqual(row["race_first"], "6/6")
         self.assertEqual(row["sichtbare_tiefe_usd"], 318.35)
-        self.assertEqual(row["wallet_netto_usd"], 119.84)
+        # Cash wallet-first: Stake/PnL kommen aus dem Wallet-Abgleich.
+        self.assertEqual(row["einsatz_usd"], 288.09)
+        self.assertEqual(row["pnl_usd"], 119.84)
+        self.assertEqual(row["cash_basis"], "wallet")
 
     def test_track_record_ohne_race(self):
-        runs = {"runs": [{"profil": "x", "wetten": [], "race": None}]}
+        runs = {"runs": [{"profil": "x", "wetten": [], "race": None,
+                          "einsatz_usd": 5.0,
+                          "realisierter_pnl_usd": 1.0}]}
         [row] = av.track_record_rows(runs)
         self.assertIsNone(row["race_first"])
         self.assertEqual(row["n_wetten"], 0)
+        # Ohne Wallet-Overlay: Log-Werte mit Basis-Flag "log".
+        self.assertEqual(row["einsatz_usd"], 5.0)
+        self.assertEqual(row["pnl_usd"], 1.0)
+        self.assertEqual(row["cash_basis"], "log")
 
     def test_postmortem_rows_neueste_zuerst(self):
         payload = {"eintraege": [
