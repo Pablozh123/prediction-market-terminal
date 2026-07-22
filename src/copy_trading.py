@@ -1813,6 +1813,118 @@ def get_paper_orders(db_path: str | Path = DEFAULT_DB_PATH, conn: sqlite3.Connec
             conn.close()
 
 
+RESOLUTION_WINNER_REASON = "resolution_winner_payout"
+RESOLUTION_LOSER_REASON = "resolution_loser_loss"
+RESOLUTION_REDEEM_REASON = "redeem_resolution"
+
+
+def resolved_outcome_labels(
+    db_path: str | Path = DEFAULT_DB_PATH, conn: sqlite3.Connection | None = None
+) -> pd.DataFrame:
+    """Trustworthy win/lose label per settled ``(market_key, asset)``.
+
+    A ``redeem_resolution`` row on its own does NOT mark a winning token. Losing
+    tokens routinely carry a zero-size redeem alongside their loser loss, so
+    treating the redeem reason as a win silently flips losers into winners and
+    inflates every win rate derived from this table. A token counts as won when it
+    booked a winner payout, or when it redeemed a positive share count and never
+    booked a loser loss.
+
+    Columns: market_key, asset, is_winner, is_loser, label (win/lose/unknown).
+    """
+
+    owns_conn = conn is None
+    conn = connect(db_path) if conn is None else conn
+    try:
+        frame = pd.read_sql_query(
+            f"""
+            SELECT market_key, asset,
+                   SUM(reason = '{RESOLUTION_WINNER_REASON}') AS winner_rows,
+                   SUM(reason = '{RESOLUTION_LOSER_REASON}') AS loser_rows,
+                   SUM(CASE WHEN reason = '{RESOLUTION_REDEEM_REASON}'
+                            THEN COALESCE(copy_size, 0) ELSE 0 END) AS redeemed_shares
+            FROM paper_orders
+            WHERE status = 'settled' AND market_key != '' AND asset != ''
+            GROUP BY market_key, asset
+            """,
+            conn,
+        )
+    finally:
+        if owns_conn:
+            conn.close()
+    columns = ["market_key", "asset", "is_winner", "is_loser", "label"]
+    if frame.empty:
+        return pd.DataFrame(columns=columns)
+    frame["asset"] = frame["asset"].astype(str)
+    frame["is_loser"] = _numeric_series(frame, "loser_rows", 0.0) > 0
+    won = (_numeric_series(frame, "winner_rows", 0.0) > 0) | (
+        _numeric_series(frame, "redeemed_shares", 0.0) > 0
+    )
+    frame["is_winner"] = won & ~frame["is_loser"]
+    label = pd.Series("unknown", index=frame.index, dtype="object")
+    label[frame["is_loser"]] = "lose"
+    label[frame["is_winner"]] = "win"
+    frame["label"] = label
+    return frame[columns].reset_index(drop=True)
+
+
+def market_resolutions(
+    db_path: str | Path = DEFAULT_DB_PATH, conn: sqlite3.Connection | None = None
+) -> pd.DataFrame:
+    """Per-market resolution view: which asset won, and can we trust it.
+
+    ``winner_asset`` is only filled when exactly one token of the market was
+    identified as the winner. A resolved market with no identified winner is still
+    usable: we simply never held the winning token, so every asset we did hold lost.
+    Markets with several apparent winners are flagged ambiguous and should be
+    dropped rather than guessed at.
+
+    Columns: market_key, winner_asset, resolved, ambiguous.
+    """
+
+    labels = resolved_outcome_labels(db_path=db_path, conn=conn)
+    columns = ["market_key", "winner_asset", "resolved", "ambiguous"]
+    if labels.empty:
+        return pd.DataFrame(columns=columns)
+    winners = labels[labels["is_winner"]]
+    counts = winners.groupby("market_key").size()
+    first_winner = winners.groupby("market_key")["asset"].first()
+    out = pd.DataFrame({"market_key": labels["market_key"].drop_duplicates().to_numpy()})
+    out["winner_count"] = out["market_key"].map(counts).fillna(0).astype(int)
+    out["winner_asset"] = out["market_key"].map(first_winner).fillna("")
+    out.loc[out["winner_count"] != 1, "winner_asset"] = ""
+    out["ambiguous"] = out["winner_count"] > 1
+    out["resolved"] = True
+    return out[columns].reset_index(drop=True)
+
+
+def label_trade_outcomes(trades: pd.DataFrame, resolutions: pd.DataFrame) -> pd.Series:
+    """Win/lose flag per trade row, as a nullable boolean Series.
+
+    Returns ``pd.NA`` for trades whose market never resolved or resolved
+    ambiguously. Callers must drop those rather than coercing them to False:
+    silently treating an unlabelled market as a loss biases win rates downward,
+    while dropping the market's losing side biases them upward.
+    """
+
+    if trades is None or trades.empty:
+        return pd.Series(dtype="boolean")
+    if resolutions is None or resolutions.empty:
+        return pd.Series(pd.NA, index=trades.index, dtype="boolean")
+    lookup = resolutions.set_index("market_key")
+    keys = trades.get("market_key", pd.Series("", index=trades.index)).astype(str)
+    assets = trades.get("asset", pd.Series("", index=trades.index)).astype(str)
+    winner = keys.map(lookup["winner_asset"]).fillna("").astype(str)
+    resolved = keys.isin(lookup.index[lookup["resolved"].astype(bool)])
+    ambiguous = keys.isin(lookup.index[lookup["ambiguous"].astype(bool)])
+    result = pd.Series(pd.NA, index=trades.index, dtype="boolean")
+    usable = resolved & ~ambiguous
+    # Winner known: the winning token won, every other token of that market lost.
+    # Winner unknown but resolved: we held only losing tokens there.
+    result[usable] = (assets[usable] == winner[usable]) & winner[usable].ne("")
+    return result
+
+
 def get_positions(db_path: str | Path = DEFAULT_DB_PATH, conn: sqlite3.Connection | None = None) -> pd.DataFrame:
     owns_conn = conn is None
     conn = connect(db_path) if conn is None else conn

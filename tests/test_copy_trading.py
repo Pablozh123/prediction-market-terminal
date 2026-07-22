@@ -1642,5 +1642,92 @@ class ReconcileBackoffTests(unittest.TestCase):
         self.assertEqual(ct.reconcile_backoff_seconds(4, 30.0, cap=120.0), 120.0)
 
 
+class ResolvedOutcomeLabelTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.db = Path(self.tmp.name) / "copy.sqlite"
+        conn = ct.connect(self.db)
+        ct.init_db(conn)
+        conn.close()
+        self.addCleanup(self.tmp.cleanup)
+
+    def _settle(self, market: str, asset: str, reason: str, size: float = 0.0) -> None:
+        conn = ct.connect(self.db)
+        conn.execute(
+            """
+            INSERT INTO paper_orders
+                (dedup_key, source_wallet, market_key, asset, status, reason, copy_size,
+                 desired_notional, created_at)
+            VALUES (?, ?, ?, ?, 'settled', ?, ?, 0, ?)
+            """,
+            (f"{reason}|{market}|{asset}|{size}", "0xwallet", market, asset, reason, size, ct.utc_now()),
+        )
+        conn.commit()
+        conn.close()
+
+    def test_winner_payout_marks_a_win(self) -> None:
+        self._settle("m1", "a-win", ct.RESOLUTION_WINNER_REASON, 10.0)
+        self._settle("m1", "a-lose", ct.RESOLUTION_LOSER_REASON, 10.0)
+        labels = ct.resolved_outcome_labels(self.db).set_index("asset")["label"]
+        self.assertEqual(labels["a-win"], "win")
+        self.assertEqual(labels["a-lose"], "lose")
+
+    def test_zero_size_redeem_does_not_flip_a_loser_to_a_winner(self) -> None:
+        """Regression: a losing token also carrying a 0-size redeem row must stay a loss."""
+        self._settle("m1", "a-lose", ct.RESOLUTION_LOSER_REASON, 500.0)
+        self._settle("m1", "a-lose", ct.RESOLUTION_REDEEM_REASON, 0.0)
+        labels = ct.resolved_outcome_labels(self.db).set_index("asset")["label"]
+        self.assertEqual(labels["a-lose"], "lose")
+
+    def test_redeem_with_shares_marks_a_win(self) -> None:
+        self._settle("m1", "a-redeemed", ct.RESOLUTION_REDEEM_REASON, 250.0)
+        labels = ct.resolved_outcome_labels(self.db).set_index("asset")["label"]
+        self.assertEqual(labels["a-redeemed"], "win")
+
+    def test_market_resolutions_flags_ambiguous_markets(self) -> None:
+        self._settle("m1", "a", ct.RESOLUTION_WINNER_REASON, 10.0)
+        self._settle("m1", "b", ct.RESOLUTION_WINNER_REASON, 10.0)
+        row = ct.market_resolutions(self.db).set_index("market_key").loc["m1"]
+        self.assertTrue(row["ambiguous"])
+        self.assertEqual(row["winner_asset"], "")
+
+    def test_resolved_market_without_identified_winner_makes_held_assets_losers(self) -> None:
+        """We only ever held the losing side, so those trades must count as losses."""
+        self._settle("m1", "a-lose", ct.RESOLUTION_LOSER_REASON, 40.0)
+        trades = pd.DataFrame([{"market_key": "m1", "asset": "a-lose"}])
+        flags = ct.label_trade_outcomes(trades, ct.market_resolutions(self.db))
+        self.assertEqual(list(flags), [False])
+
+    def test_label_trade_outcomes_splits_winner_from_the_rest(self) -> None:
+        self._settle("m1", "a-win", ct.RESOLUTION_WINNER_REASON, 10.0)
+        self._settle("m1", "a-lose", ct.RESOLUTION_LOSER_REASON, 10.0)
+        trades = pd.DataFrame(
+            [
+                {"market_key": "m1", "asset": "a-win"},
+                {"market_key": "m1", "asset": "a-lose"},
+                {"market_key": "m1", "asset": "a-never-traded-by-us"},
+            ]
+        )
+        flags = ct.label_trade_outcomes(trades, ct.market_resolutions(self.db))
+        self.assertEqual(list(flags), [True, False, False])
+
+    def test_unresolved_and_ambiguous_markets_stay_unlabelled(self) -> None:
+        self._settle("m1", "a", ct.RESOLUTION_WINNER_REASON, 10.0)
+        self._settle("m1", "b", ct.RESOLUTION_WINNER_REASON, 10.0)
+        trades = pd.DataFrame(
+            [
+                {"market_key": "m1", "asset": "a"},  # ambiguous market
+                {"market_key": "m-unknown", "asset": "x"},  # never settled
+            ]
+        )
+        flags = ct.label_trade_outcomes(trades, ct.market_resolutions(self.db))
+        self.assertTrue(flags.isna().all())
+
+    def test_empty_database_returns_empty_frames(self) -> None:
+        self.assertTrue(ct.resolved_outcome_labels(self.db).empty)
+        self.assertTrue(ct.market_resolutions(self.db).empty)
+        self.assertTrue(ct.label_trade_outcomes(pd.DataFrame(), pd.DataFrame()).empty)
+
+
 if __name__ == "__main__":
     unittest.main()
