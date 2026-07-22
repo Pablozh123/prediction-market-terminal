@@ -1,19 +1,24 @@
 {
- "hinweis": "Descriptive post-run review of our own small-stake live runs of the mentions bot. Reconstructed read-only from the run logs; resolutions from public Gamma data. No trading recommendation, no return forecast.",
- "stand_utc": "2026-07-16T04:31:32+00:00",
+ "hinweis": "Descriptive post-run review of our own small-stake live runs of the mentions bot. Reconstructed read-only from the run logs; resolutions from public Gamma data. Stakes/shares are log estimates: where the FAK order status returned no fill price, the price cap is assumed, which overstates the stake. Cash truth per event is the curated wallet reconciliation (wallet_netto_usd). No trading recommendation, no return forecast.",
+ "stand_utc": "2026-07-22T04:31:50+00:00",
  "kennzeichnung": "live/descriptive",
  "aggregat": {
-  "n_runs": 6,
-  "n_wetten": 9,
-  "gewonnen": 9,
-  "verloren": 0,
+  "n_runs": 8,
+  "n_wetten": 15,
+  "gewonnen": 14,
+  "verloren": 1,
   "offen": 0,
-  "einsatz_usd": 266.51,
-  "aufgeloester_einsatz_usd": 266.51,
-  "realisierter_payout_usd": 296.52,
-  "realisierter_pnl_usd": 30.01,
-  "roi_realisiert_pct": 11.3,
-  "offener_einsatz_usd": 0.0
+  "einsatz_usd": 626.68,
+  "aufgeloester_einsatz_usd": 626.68,
+  "realisierter_payout_usd": 671.7,
+  "realisierter_pnl_usd": 45.02,
+  "roi_realisiert_pct": 7.2,
+  "offener_einsatz_usd": 0.0,
+  "sichtbare_tiefe_usd": 929.87,
+  "einsatz_zu_sichtbarer_tiefe_pct": 67.4,
+  "wallet_netto_usd": 175.09,
+  "wallet_kaeufe_usd": 492.51,
+  "wallet_abgleich_stand": "2026-07-18"
  },
  "runs": [
   {
@@ -28,17 +33,23 @@
    "erste_entscheidung_s": null,
    "erster_fill_s": null,
    "n_maerkte": 15,
-   "n_entscheidungen": 4,
+   "n_entscheidungen": 24,
    "zaehler": {
-    "no_action": 4
+    "no_action": 24
    },
-   "eingepreist": 4,
+   "eingepreist": 24,
    "einsatz_usd": 0.0,
    "realisierter_pnl_usd": null,
    "wetten": [],
    "verpasste_chancen": [],
    "race": null,
-   "repricing": []
+   "repricing": [],
+   "sichtbare_tiefe_usd": null,
+   "einsatz_zu_sichtbarer_tiefe_pct": null,
+   "wallet_netto_usd": 0.0,
+   "wallet_kaeufe_usd": 0.0,
+   "wallet_verkaeufe_usd": 0.0,
+   "wallet_einloesungen_usd": 0.0
   },
   {
    "profil": "allin_july3",
@@ -88,7 +99,14 @@
       "120": null,
       "300": null,
       "900": 0.9653488372
-     }
+     },
+     "tiefe_usd_bis_deckel": 0.91,
+     "fill_quelle": "log_geschaetzt",
+     "fill_verifiziert": false,
+     "wallet_shares": null,
+     "wallet_einsatz_usd": null,
+     "wallet_avg_fill_preis": null,
+     "wallet_pnl_usd": null
     }
    ],
    "verpasste_chancen": [],
@@ -136,7 +154,13 @@
       ]
      ]
     }
-   ]
+   ],
+   "sichtbare_tiefe_usd": 0.91,
+   "einsatz_zu_sichtbarer_tiefe_pct": 656.0,
+   "wallet_netto_usd": 5.11,
+   "wallet_kaeufe_usd": 6.91,
+   "wallet_verkaeufe_usd": 0.0,
+   "wallet_einloesungen_usd": 12.02
   },
   {
    "profil": "jre_july6",
@@ -160,7 +184,13 @@
    "wetten": [],
    "verpasste_chancen": [],
    "race": null,
-   "repricing": []
+   "repricing": [],
+   "sichtbare_tiefe_usd": null,
+   "einsatz_zu_sichtbarer_tiefe_pct": null,
+   "wallet_netto_usd": 0.0,
+   "wallet_kaeufe_usd": 0.0,
+   "wallet_verkaeufe_usd": 0.0,
+   "wallet_einloesungen_usd": 0.0
   },
   {
    "profil": "allin_july10",
@@ -212,7 +242,14 @@
       "120": null,
       "300": null,
       "900": null
-     }
+     },
+     "tiefe_usd_bis_deckel": 86.1,
+     "fill_quelle": "wallet_abgleich",
+     "fill_verifiziert": true,
+     "wallet_shares": 113.7,
+     "wallet_einsatz_usd": 76.02,
+     "wallet_avg_fill_preis": 0.6686,
+     "wallet_pnl_usd": 37.68
     },
     {
      "frage": "Will \"AI\" be said 35+ times during the next episode of the All-In Podcast?",
@@ -241,7 +278,14 @@
       "120": null,
       "300": null,
       "900": null
-     }
+     },
+     "tiefe_usd_bis_deckel": 23.96,
+     "fill_quelle": "wallet_abgleich",
+     "fill_verifiziert": true,
+     "wallet_shares": 27.3,
+     "wallet_einsatz_usd": 24.07,
+     "wallet_avg_fill_preis": 0.8817,
+     "wallet_pnl_usd": 3.23
     },
     {
      "frage": "Will \"SpaceX\" be said 3+ times during the next episode of the All-In Podcast?",
@@ -270,7 +314,14 @@
       "120": null,
       "300": null,
       "900": null
-     }
+     },
+     "tiefe_usd_bis_deckel": 144.72,
+     "fill_quelle": "wallet_abgleich",
+     "fill_verifiziert": true,
+     "wallet_shares": 76.2,
+     "wallet_einsatz_usd": 45.75,
+     "wallet_avg_fill_preis": 0.6004,
+     "wallet_pnl_usd": 30.45
     },
     {
      "frage": "Will \"IPO\" be said during the next episode of the All-In Podcast?",
@@ -299,7 +350,14 @@
       "120": null,
       "300": null,
       "900": 0.6768318508
-     }
+     },
+     "tiefe_usd_bis_deckel": 61.17,
+     "fill_quelle": "wallet_abgleich",
+     "fill_verifiziert": true,
+     "wallet_shares": 23.3,
+     "wallet_einsatz_usd": 15.21,
+     "wallet_avg_fill_preis": 0.6528,
+     "wallet_pnl_usd": 8.09
     },
     {
      "frage": "Will \"Nvidia\" be said during the next episode of the All-In Podcast?",
@@ -328,7 +386,14 @@
       "120": null,
       "300": null,
       "900": 0.84
-     }
+     },
+     "tiefe_usd_bis_deckel": 246.46,
+     "fill_quelle": "wallet_abgleich",
+     "fill_verifiziert": true,
+     "wallet_shares": 5.9,
+     "wallet_einsatz_usd": 5.0,
+     "wallet_avg_fill_preis": 0.8475,
+     "wallet_pnl_usd": 0.9
     },
     {
      "frage": "Will \"SpaceX\" be said 3+ times during the next episode of the All-In Podcast?",
@@ -357,7 +422,14 @@
       "120": null,
       "300": 0.97,
       "900": 0.9887653393
-     }
+     },
+     "tiefe_usd_bis_deckel": 11.8,
+     "fill_quelle": "wallet_abgleich",
+     "fill_verifiziert": true,
+     "wallet_shares": 20.0,
+     "wallet_einsatz_usd": 11.99,
+     "wallet_avg_fill_preis": 0.5995,
+     "wallet_pnl_usd": 8.01
     },
     {
      "frage": "Will \"Nvidia\" be said during the next episode of the All-In Podcast?",
@@ -386,7 +458,14 @@
       "120": 0.94,
       "300": 0.9094652251,
       "900": 0.99
-     }
+     },
+     "tiefe_usd_bis_deckel": 32.05,
+     "fill_quelle": "wallet_abgleich",
+     "fill_verifiziert": true,
+     "wallet_shares": 16.7,
+     "wallet_einsatz_usd": 15.06,
+     "wallet_avg_fill_preis": 0.9018,
+     "wallet_pnl_usd": 1.64
     }
    ],
    "verpasste_chancen": [
@@ -622,7 +701,13 @@
       ]
      ]
     }
-   ]
+   ],
+   "sichtbare_tiefe_usd": 606.26,
+   "einsatz_zu_sichtbarer_tiefe_pct": 42.0,
+   "wallet_netto_usd": 48.24,
+   "wallet_kaeufe_usd": 193.1,
+   "wallet_verkaeufe_usd": 77.82,
+   "wallet_einloesungen_usd": 163.52
   },
   {
    "profil": "jre_july13",
@@ -646,7 +731,13 @@
    "wetten": [],
    "verpasste_chancen": [],
    "race": null,
-   "repricing": []
+   "repricing": [],
+   "sichtbare_tiefe_usd": null,
+   "einsatz_zu_sichtbarer_tiefe_pct": null,
+   "wallet_netto_usd": 0.0,
+   "wallet_kaeufe_usd": 0.0,
+   "wallet_verkaeufe_usd": 0.0,
+   "wallet_einloesungen_usd": 0.0
   },
   {
    "profil": "lemonade_july15",
@@ -696,7 +787,14 @@
       "120": 0.98,
       "300": 0.98,
       "900": 0.99
-     }
+     },
+     "tiefe_usd_bis_deckel": 4.35,
+     "fill_quelle": "wallet_abgleich",
+     "fill_verifiziert": true,
+     "wallet_shares": 6.3,
+     "wallet_einsatz_usd": 4.41,
+     "wallet_avg_fill_preis": 0.7,
+     "wallet_pnl_usd": 1.89
     }
    ],
    "verpasste_chancen": [],
@@ -724,7 +822,442 @@
       ]
      ]
     }
-   ]
+   ],
+   "sichtbare_tiefe_usd": 4.35,
+   "einsatz_zu_sichtbarer_tiefe_pct": 130.6,
+   "wallet_netto_usd": 1.9,
+   "wallet_kaeufe_usd": 4.41,
+   "wallet_verkaeufe_usd": 0.0,
+   "wallet_einloesungen_usd": 6.31
+  },
+  {
+   "profil": "allin_july17",
+   "event_slug": "what-will-be-said-on-the-next-all-in-podcast-july-17-20260713144020193",
+   "episode_titel": "ALLIN-E281 (URL-Prober)",
+   "modus": "LIVE",
+   "drop_quelle": "mp3_url_prober",
+   "pubdate_utc": null,
+   "drop_erkannt_utc": "2026-07-18T00:47:10Z",
+   "erkennungslatenz_s": null,
+   "erste_entscheidung_s": 70.0,
+   "erster_fill_s": 70.0,
+   "n_maerkte": 21,
+   "n_entscheidungen": 31,
+   "zaehler": {
+    "live_fill": 6,
+    "no_action": 25
+   },
+   "eingepreist": 15,
+   "einsatz_usd": 360.17,
+   "realisierter_pnl_usd": 15.01,
+   "wetten": [
+    {
+     "frage": "Will \"Blue\" be said during the next episode of the All-In Podcast?",
+     "seite": "YES",
+     "entscheidungs_preis": 0.68,
+     "avg_fill_preis": 0.9,
+     "shares": 147.06,
+     "einsatz_usd": 132.36,
+     "sweep_clips": 2,
+     "fill_status": "live_fill",
+     "fill_ts_utc": "2026-07-18T00:48:20Z",
+     "aufgeloest": true,
+     "gewonnen": true,
+     "payout_usd": 147.06,
+     "pnl_usd": 14.7,
+     "roi_pct": 11.1,
+     "aktueller_yes_preis": null,
+     "tape_rang": 1,
+     "fremde_davor": 0,
+     "fremdvolumen_davor_usd": 0.0,
+     "verfolger_s": 1459.0,
+     "preis_nach_fill": {
+      "0": null,
+      "30": null,
+      "60": null,
+      "120": null,
+      "300": null,
+      "900": null
+     },
+     "tiefe_usd_bis_deckel": 156.27,
+     "fill_quelle": "wallet_abgleich",
+     "fill_verifiziert": true,
+     "wallet_shares": 179.8,
+     "wallet_einsatz_usd": 123.84,
+     "wallet_avg_fill_preis": 0.6888,
+     "wallet_pnl_usd": 55.96
+    },
+    {
+     "frage": "Will \"Regulator\" or \"Regulatory\" be said during the next episode of the All-In Podcast?",
+     "seite": "YES",
+     "entscheidungs_preis": 0.7,
+     "avg_fill_preis": 0.9,
+     "shares": 10.0,
+     "einsatz_usd": 9.0,
+     "sweep_clips": 1,
+     "fill_status": "live_fill",
+     "fill_ts_utc": "2026-07-18T00:48:23Z",
+     "aufgeloest": true,
+     "gewonnen": true,
+     "payout_usd": 10.0,
+     "pnl_usd": 1.0,
+     "roi_pct": 11.1,
+     "aktueller_yes_preis": null,
+     "tape_rang": 1,
+     "fremde_davor": 0,
+     "fremdvolumen_davor_usd": 0.0,
+     "verfolger_s": 715.0,
+     "preis_nach_fill": {
+      "0": null,
+      "30": null,
+      "60": null,
+      "120": null,
+      "300": null,
+      "900": 0.99
+     },
+     "tiefe_usd_bis_deckel": 7.0,
+     "fill_quelle": "wallet_abgleich",
+     "fill_verifiziert": true,
+     "wallet_shares": 10.0,
+     "wallet_einsatz_usd": 7.08,
+     "wallet_avg_fill_preis": 0.708,
+     "wallet_pnl_usd": 2.92
+    },
+    {
+     "frage": "Will \"Alignment\" be said during the next episode of the All-In Podcast?",
+     "seite": "NO",
+     "entscheidungs_preis": 0.72,
+     "avg_fill_preis": 0.9,
+     "shares": 50.0,
+     "einsatz_usd": 45.0,
+     "sweep_clips": 1,
+     "fill_status": "live_fill",
+     "fill_ts_utc": "2026-07-18T00:48:44Z",
+     "aufgeloest": true,
+     "gewonnen": true,
+     "payout_usd": 50.0,
+     "pnl_usd": 5.0,
+     "roi_pct": 11.1,
+     "aktueller_yes_preis": null,
+     "tape_rang": 1,
+     "fremde_davor": 0,
+     "fremdvolumen_davor_usd": 0.0,
+     "verfolger_s": 2840.0,
+     "preis_nach_fill": {
+      "0": null,
+      "30": null,
+      "60": null,
+      "120": null,
+      "300": null,
+      "900": null
+     },
+     "tiefe_usd_bis_deckel": 36.0,
+     "fill_quelle": "wallet_abgleich",
+     "fill_verifiziert": true,
+     "wallet_shares": 50.0,
+     "wallet_einsatz_usd": 36.4,
+     "wallet_avg_fill_preis": 0.728,
+     "wallet_pnl_usd": 13.6
+    },
+    {
+     "frage": "Will \"Stock Market\" be said during the next episode of the All-In Podcast?",
+     "seite": "NO",
+     "entscheidungs_preis": 0.59,
+     "avg_fill_preis": 0.9,
+     "shares": 124.29,
+     "einsatz_usd": 111.86,
+     "sweep_clips": 2,
+     "fill_status": "live_fill",
+     "fill_ts_utc": "2026-07-18T00:48:50Z",
+     "aufgeloest": true,
+     "gewonnen": true,
+     "payout_usd": 124.29,
+     "pnl_usd": 12.43,
+     "roi_pct": 11.1,
+     "aktueller_yes_preis": null,
+     "tape_rang": 1,
+     "fremde_davor": 0,
+     "fremdvolumen_davor_usd": 0.0,
+     "verfolger_s": 9793.0,
+     "preis_nach_fill": {
+      "0": null,
+      "30": null,
+      "60": null,
+      "120": null,
+      "300": null,
+      "900": null
+     },
+     "tiefe_usd_bis_deckel": 77.79,
+     "fill_quelle": "wallet_abgleich",
+     "fill_verifiziert": true,
+     "wallet_shares": 124.2,
+     "wallet_einsatz_usd": 78.94,
+     "wallet_avg_fill_preis": 0.6356,
+     "wallet_pnl_usd": 45.26
+    },
+    {
+     "frage": "Will \"Tension\" be said during the next episode of the All-In Podcast?",
+     "seite": "NO",
+     "entscheidungs_preis": 0.88,
+     "avg_fill_preis": 0.9,
+     "shares": 25.0,
+     "einsatz_usd": 22.5,
+     "sweep_clips": 1,
+     "fill_status": "live_fill",
+     "fill_ts_utc": "2026-07-18T00:48:54Z",
+     "aufgeloest": true,
+     "gewonnen": false,
+     "payout_usd": 0.0,
+     "pnl_usd": -22.5,
+     "roi_pct": -100.0,
+     "aktueller_yes_preis": null,
+     "tape_rang": 1,
+     "fremde_davor": 0,
+     "fremdvolumen_davor_usd": 0.0,
+     "verfolger_s": 379.0,
+     "preis_nach_fill": {
+      "0": null,
+      "30": null,
+      "60": null,
+      "120": null,
+      "300": null,
+      "900": 0.03
+     },
+     "tiefe_usd_bis_deckel": 22.0,
+     "fill_quelle": "wallet_abgleich",
+     "fill_verifiziert": true,
+     "wallet_shares": 25.0,
+     "wallet_einsatz_usd": 22.11,
+     "wallet_avg_fill_preis": 0.8844,
+     "wallet_pnl_usd": -22.11
+    },
+    {
+     "frage": "Will \"Midterm\" or \"Midterms\" be said during the next episode of the All-In Podcast?",
+     "seite": "NO",
+     "entscheidungs_preis": 0.44,
+     "avg_fill_preis": 0.9001,
+     "shares": 43.83,
+     "einsatz_usd": 39.45,
+     "sweep_clips": 1,
+     "fill_status": "live_fill",
+     "fill_ts_utc": "2026-07-18T00:48:57Z",
+     "aufgeloest": true,
+     "gewonnen": true,
+     "payout_usd": 43.83,
+     "pnl_usd": 4.38,
+     "roi_pct": 11.1,
+     "aktueller_yes_preis": null,
+     "tape_rang": 1,
+     "fremde_davor": 0,
+     "fremdvolumen_davor_usd": 0.0,
+     "verfolger_s": 376.0,
+     "preis_nach_fill": {
+      "0": null,
+      "30": null,
+      "60": null,
+      "120": null,
+      "300": null,
+      "900": 0.95
+     },
+     "tiefe_usd_bis_deckel": 19.29,
+     "fill_quelle": "wallet_abgleich",
+     "fill_verifiziert": true,
+     "wallet_shares": 43.8,
+     "wallet_einsatz_usd": 19.72,
+     "wallet_avg_fill_preis": 0.4502,
+     "wallet_pnl_usd": 24.08
+    }
+   ],
+   "verpasste_chancen": [],
+   "race": {
+    "quelle": "data-api.polymarket.com/trades (oeffentlich, read-only)",
+    "wetten_mit_tape": 6,
+    "first_on": 6,
+    "fremde_trades_vor_uns": 0,
+    "median_verfolger_s": 1087.0
+   },
+   "repricing": [
+    {
+     "frage": "Will \"Blue\" be said during the next episode of the All-In Podcast?",
+     "seite": "YES",
+     "time_to_priced_s": 1529.0,
+     "fill_nach_s": 70.0,
+     "punkte": [
+      [
+       1529.0,
+       0.99
+      ],
+      [
+       4086.0,
+       0.99
+      ],
+      [
+       4086.0,
+       0.99
+      ],
+      [
+       4086.0,
+       0.99
+      ],
+      [
+       4088.0,
+       0.99
+      ],
+      [
+       4088.0,
+       0.99
+      ],
+      [
+       4229.0,
+       0.99
+      ]
+     ]
+    },
+    {
+     "frage": "Will \"Regulator\" or \"Regulatory\" be said during the next episode of the All-In Podcast?",
+     "seite": "YES",
+     "time_to_priced_s": 788.0,
+     "fill_nach_s": 73.0,
+     "punkte": [
+      [
+       788.0,
+       0.99
+      ],
+      [
+       989.0,
+       0.999
+      ],
+      [
+       989.0,
+       0.999
+      ],
+      [
+       989.0,
+       0.999
+      ],
+      [
+       1010.0,
+       0.999
+      ]
+     ]
+    },
+    {
+     "frage": "Will \"Alignment\" be said during the next episode of the All-In Podcast?",
+     "seite": "NO",
+     "time_to_priced_s": 2934.0,
+     "fill_nach_s": 94.0,
+     "punkte": [
+      [
+       2934.0,
+       0.99
+      ],
+      [
+       9738.0,
+       0.99
+      ],
+      [
+       10070.0,
+       0.999
+      ]
+     ]
+    },
+    {
+     "frage": "Will \"Stock Market\" be said during the next episode of the All-In Podcast?",
+     "seite": "NO",
+     "time_to_priced_s": 9893.0,
+     "fill_nach_s": 100.0,
+     "punkte": [
+      [
+       9893.0,
+       0.99
+      ],
+      [
+       10014.0,
+       0.999
+      ],
+      [
+       10019.0,
+       0.999
+      ],
+      [
+       10155.0,
+       0.999
+      ]
+     ]
+    },
+    {
+     "frage": "Will \"Tension\" be said during the next episode of the All-In Podcast?",
+     "seite": "NO",
+     "time_to_priced_s": 3012.0,
+     "fill_nach_s": 104.0,
+     "punkte": [
+      [
+       533.0,
+       0.03
+      ],
+      [
+       3012.0,
+       0.9818181669
+      ]
+     ]
+    },
+    {
+     "frage": "Will \"Midterm\" or \"Midterms\" be said during the next episode of the All-In Podcast?",
+     "seite": "NO",
+     "time_to_priced_s": 483.0,
+     "fill_nach_s": 107.0,
+     "punkte": [
+      [
+       483.0,
+       0.95
+      ],
+      [
+       3074.0,
+       0.9900891089
+      ],
+      [
+       17415.0,
+       0.999
+      ]
+     ]
+    }
+   ],
+   "sichtbare_tiefe_usd": 318.35,
+   "einsatz_zu_sichtbarer_tiefe_pct": 113.1,
+   "wallet_netto_usd": 119.84,
+   "wallet_kaeufe_usd": 288.09,
+   "wallet_verkaeufe_usd": 0.0,
+   "wallet_einloesungen_usd": 407.93
+  },
+  {
+   "profil": "jre_july20",
+   "event_slug": "what-will-be-said-on-the-first-joe-rogan-experience-episode-of-the-week-july-20-20260714183012846",
+   "episode_titel": "(kanalseite)",
+   "modus": "LIVE",
+   "drop_quelle": "youtube",
+   "pubdate_utc": "",
+   "drop_erkannt_utc": "2026-07-21T17:01:22Z",
+   "erkennungslatenz_s": null,
+   "erste_entscheidung_s": 130.0,
+   "erster_fill_s": null,
+   "n_maerkte": 20,
+   "n_entscheidungen": 35,
+   "zaehler": {
+    "no_action": 35
+   },
+   "eingepreist": 24,
+   "einsatz_usd": 0.0,
+   "realisierter_pnl_usd": null,
+   "wetten": [],
+   "verpasste_chancen": [],
+   "race": null,
+   "repricing": [],
+   "sichtbare_tiefe_usd": null,
+   "einsatz_zu_sichtbarer_tiefe_pct": null,
+   "wallet_netto_usd": null,
+   "wallet_kaeufe_usd": null,
+   "wallet_verkaeufe_usd": null,
+   "wallet_einloesungen_usd": null
   }
  ]
 }
