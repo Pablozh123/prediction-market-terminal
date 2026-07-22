@@ -105,6 +105,82 @@ class PipelineTimelineTests(unittest.TestCase):
         self.assertEqual(av.pipeline_action_counts(payload), {"NONE": 34, "YES": 1})
 
 
+class PipelineLaeufeTests(unittest.TestCase):
+    def test_laeufe_in_quellreihenfolge(self):
+        payload = {
+            "eintraege": [{"action": "YES"}],
+            "wortzaehler_endstaende": {"a": 1},
+            "laeufe": [
+                {
+                    "profil": "allin_july17",
+                    "n_eintraege": 31,
+                    "n_kaeufe": 6,
+                    "eintraege": [{"action": "YES"}],
+                    "wortzaehler_endstaende": {"a": 1},
+                },
+                {
+                    "profil": "allin_july3",
+                    "n_eintraege": 35,
+                    "n_kaeufe": 1,
+                    "eintraege": [{"action": "NONE"}],
+                    "wortzaehler_endstaende": {},
+                },
+            ],
+        }
+        laeufe = av.pipeline_laeufe(payload)
+        self.assertEqual([l["profil"] for l in laeufe], ["allin_july17", "allin_july3"])
+        self.assertEqual(laeufe[0]["n_eintraege"], 31)
+        self.assertEqual(laeufe[0]["n_kaeufe"], 6)
+        self.assertEqual(laeufe[0]["wortzaehler_endstaende"], {"a": 1})
+
+    def test_altes_artefakt_ohne_laeufe_ergibt_einen_lauf(self):
+        payload = {
+            "eintraege": [{"action": "NONE"}, {"action": "YES"}],
+            "wortzaehler_endstaende": {"a": 2},
+        }
+        laeufe = av.pipeline_laeufe(payload)
+        self.assertEqual(len(laeufe), 1)
+        self.assertEqual(laeufe[0]["n_eintraege"], 2)
+        self.assertEqual(laeufe[0]["n_kaeufe"], 1)
+        self.assertEqual(laeufe[0]["wortzaehler_endstaende"], {"a": 2})
+
+    def test_leeres_artefakt_ergibt_keine_laeufe(self):
+        self.assertEqual(av.pipeline_laeufe({"eintraege": []}), [])
+        self.assertEqual(av.pipeline_laeufe({}), [])
+
+    def test_default_lauf_ist_juengster_mit_kaeufen(self):
+        laeufe = [
+            {"profil": "jre_july20", "n_kaeufe": 0},
+            {"profil": "allin_july17", "n_kaeufe": 6},
+            {"profil": "allin_july3", "n_kaeufe": 1},
+        ]
+        self.assertEqual(av.pipeline_default_lauf(laeufe), 1)
+
+    def test_default_lauf_ohne_kaeufe_ist_juengster(self):
+        laeufe = [{"profil": "a", "n_kaeufe": 0}, {"profil": "b", "n_kaeufe": 0}]
+        self.assertEqual(av.pipeline_default_lauf(laeufe), 0)
+        self.assertEqual(av.pipeline_default_lauf([]), 0)
+
+    def test_timeline_arbeitet_auf_einem_lauf(self):
+        lauf = av.pipeline_laeufe(
+            {
+                "laeufe": [
+                    {
+                        "profil": "p",
+                        "eintraege": [
+                            {"action": "YES", "reason": "r", "limit_price": 0.5,
+                             "bestes_angebot": 0.6, "bestes_gebot": 0.4, "size_usd": 1.0},
+                        ],
+                        "wortzaehler_endstaende": {},
+                    }
+                ]
+            }
+        )[0]
+        rows = av.pipeline_timeline(lauf)
+        self.assertEqual([r["action"] for r in rows], ["YES"])
+        self.assertEqual(av.pipeline_action_counts(lauf), {"YES": 1})
+
+
 class AuditHashTests(unittest.TestCase):
     def test_pairs_and_caps(self):
         audit = {"prompt_hashes": ["p1", "p2", "p3"], "output_hashes": ["o1", "o2", "o3"]}

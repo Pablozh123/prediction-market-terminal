@@ -121,6 +121,64 @@ def mentions_bars(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return rows
 
 
+def pipeline_laeufe(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """Laeufe des Paper-Artefakts, juengster zuerst (Reihenfolge der Quelle).
+
+    Aeltere Artefakte kennen nur die obersten Felder; daraus wird ein einzelner
+    Lauf gebildet, damit die Seite eine Quelle hat. Gezaehlt wird nicht neu --
+    ``n_eintraege``/``n_kaeufe`` stammen aus dem Artefakt, fehlen sie, werden
+    sie aus den Eintraegen abgeleitet.
+    """
+
+    roh = payload.get("laeufe")
+    if not isinstance(roh, list) or not roh:
+        eintraege = payload.get("eintraege", []) or []
+        if not eintraege:
+            return []
+        roh = [
+            {
+                "profil": "",
+                "eintraege": eintraege,
+                "wortzaehler_endstaende": payload.get("wortzaehler_endstaende", {}) or {},
+            }
+        ]
+
+    laeufe: list[dict[str, Any]] = []
+    for lauf in roh:
+        if not isinstance(lauf, dict):
+            continue
+        eintraege = lauf.get("eintraege", []) or []
+        n_kaeufe = lauf.get("n_kaeufe")
+        if n_kaeufe is None:
+            n_kaeufe = sum(
+                1 for e in eintraege if str(e.get("action", "NONE")) != "NONE"
+            )
+        laeufe.append(
+            {
+                "profil": str(lauf.get("profil", "")),
+                "n_eintraege": int(lauf.get("n_eintraege", len(eintraege))),
+                "n_kaeufe": int(n_kaeufe),
+                "eintraege": eintraege,
+                "wortzaehler_endstaende": lauf.get("wortzaehler_endstaende", {}) or {},
+            }
+        )
+    return laeufe
+
+
+def pipeline_default_lauf(laeufe: list[dict[str, Any]]) -> int:
+    """Index des Laufs, den die obersten Artefakt-Felder spiegeln.
+
+    Gleiche Regel wie im Publish-Schritt: juengster Lauf mit Kaeufen, sonst der
+    juengste ueberhaupt. Damit zeigt die Seite denselben Lauf, den ``hinweis``
+    als Profil nennt.
+    """
+
+    for i, lauf in enumerate(laeufe):
+        if lauf.get("n_kaeufe"):
+            return i
+    return 0
+
+
 def pipeline_timeline(payload: dict[str, Any]) -> list[dict[str, Any]]:
     """Zeilen des beobachtenden Paper-Laufs in Log-Reihenfolge (Whitelist-Felder)."""
 

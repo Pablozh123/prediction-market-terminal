@@ -12936,15 +12936,38 @@ def page_pipeline_forward() -> None:
         _analysis_badge(kennzeichnung.upper(), AMBER),
         unsafe_allow_html=True,
     )
-    endstaende = payload.get("wortzaehler_endstaende", {}) or {}
+    laeufe = av.pipeline_laeufe(payload)
+    quelle = payload
+    if len(laeufe) > 1:
+        # Oberste Felder spiegeln einen Lauf; die Auswahl macht die uebrigen
+        # sichtbar, ohne die Kennzeichnung des Artefakts zu veraendern.
+        labels = [
+            f"{lauf['profil']} -- {lauf['n_eintraege']} decisions, "
+            f"{lauf['n_kaeufe']} {'buy' if lauf['n_kaeufe'] == 1 else 'buys'}"
+            for lauf in laeufe
+        ]
+        gewaehlt = st.selectbox(
+            "Run",
+            labels,
+            index=av.pipeline_default_lauf(laeufe),
+            help=(
+                "Newest run first. Each run is a separate paper session; the "
+                "pre-selected run is the one the artifact header names."
+            ),
+        )
+        quelle = laeufe[labels.index(gewaehlt)]
+    elif laeufe:
+        quelle = laeufe[0]
+
+    endstaende = quelle.get("wortzaehler_endstaende", {}) or {}
     if endstaende:
         st.markdown("#### Word-counter final counts")
         cols = st.columns(min(4, len(endstaende)))
         for i, (slug, count) in enumerate(sorted(endstaende.items())):
             cols[i % len(cols)].metric(slug, f"{count}")
-    rows = av.pipeline_timeline(payload)
+    rows = av.pipeline_timeline(quelle)
     if rows:
-        counts = av.pipeline_action_counts(payload)
+        counts = av.pipeline_action_counts(quelle)
         st.markdown("#### Decisions")
         count_cols = st.columns(max(1, min(4, len(counts) + 1)))
         count_cols[0].metric("Total", f"{len(rows)}")
