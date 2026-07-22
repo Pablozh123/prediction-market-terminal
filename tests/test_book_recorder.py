@@ -38,6 +38,52 @@ def clob_book(best_bid: float, best_ask: float, size: float = 100.0) -> dict:
     }
 
 
+class PriorityMarketTest(unittest.TestCase):
+    def _priority(self, mid: str, volume: float) -> dict:
+        market = gamma_market(mid, volume)
+        market["question"] = f"Exact Score: A {mid} - 0 B?"
+        return market
+
+    def test_priority_markets_survive_the_volume_ranking(self) -> None:
+        """Templated long-tail markets have no volume, so ranking alone drops them."""
+        raw = [gamma_market(f"big{i}", 1000.0 + i) for i in range(10)]
+        raw += [self._priority("es1", 0.5), self._priority("es2", 0.4)]
+        picked = br.select_markets(raw, top_n=5, priority_slots=2)
+        questions = [m["question"] for m in picked]
+        self.assertEqual(len(picked), 5)
+        self.assertEqual(sum(1 for q in questions if q.startswith("Exact Score")), 2)
+
+    def test_unused_priority_slots_fall_back_to_volume(self) -> None:
+        raw = [gamma_market(f"big{i}", 1000.0 + i) for i in range(6)]
+        picked = br.select_markets(raw, top_n=4, priority_slots=3)
+        self.assertEqual(len(picked), 4)
+
+    def test_no_market_is_tracked_twice(self) -> None:
+        raw = [self._priority("es1", 5.0), gamma_market("plain", 900.0)]
+        picked = br.select_markets(raw, top_n=10, priority_slots=5)
+        self.assertEqual(len({m["market_id"] for m in picked}), len(picked))
+
+    def test_priority_condition_ids_come_from_the_trade_tape(self) -> None:
+        tape = [
+            {"title": "Exact Score: A 1 - 0 B?", "conditionId": "0xaa"},
+            {"title": "Exact Score: A 1 - 0 B?", "conditionId": "0xaa"},
+            {"title": "Will A win?", "conditionId": "0xbb"},
+            {"title": "Exact Score: A 2 - 0 B?", "conditionId": ""},
+            "not a dict",
+        ]
+        self.assertEqual(br.priority_condition_ids(tape), ["0xaa"])
+
+    def test_priority_condition_ids_handles_empty_tape(self) -> None:
+        self.assertEqual(br.priority_condition_ids([]), [])
+        self.assertEqual(br.priority_condition_ids(None), [])
+
+    def test_condition_id_fetch_survives_a_failing_batch(self) -> None:
+        def boom(url, params=None, timeout=20):
+            raise RuntimeError("gamma down")
+
+        self.assertEqual(br.fetch_markets_by_condition_ids(["0xaa"], get_json=boom), [])
+
+
 class SelectMarketsTest(unittest.TestCase):
     def test_sorts_by_volume_and_filters_non_binary(self) -> None:
         raw = [
