@@ -1,0 +1,97 @@
+{
+ "hinweis": "Curated post-mortems of the mentions live runs: every incident with its impact and the verified fix. Sources: bot_events/decisions logs of the runs, commits and pull requests of this repo. Honesty principle: false triggers and outages are reported, not explained away.",
+ "stand_utc": "2026-07-22T12:11:04+00:00",
+ "kennzeichnung": "curated/postmortem",
+ "eintraege": [
+  {
+   "datum": "2026-07-10",
+   "profil": "allin_july10",
+   "achse": "Rule understanding",
+   "titel": "False trigger on a special episode (Cerebras/BFL)",
+   "was_passierte": "A non-main-episode upload was accepted as an episode drop and triggered buys, although the market rule only counts playlist episodes.",
+   "auswirkung": "Mistaken buys on a non-qualifying drop; loss bounded by the clip limits.",
+   "fix": "Positive identification instead of a blocklist: a YouTube drop only counts when NEWLY added to the official playlist (baseline diff); RSS only accepts the main-episode file pattern ALLIN-E<n>.",
+   "referenz": "operations/pipeline/bot.py (yt_playlist_id/rss_nur_muster), profile comment allin_july10"
+  },
+  {
+   "datum": "2026-07-10",
+   "profil": "allin_july10",
+   "achse": "Execution",
+   "titel": "Budget estimate blocked five legitimate follow-up trades",
+   "was_passierte": "The cap-price estimate overstated spent budget; the server additionally rejected orders whose amount plus fees exceeded the balance (clip 15.00 on a 15.01 balance).",
+   "auswirkung": "Five rule-conforming NO opportunities went unused.",
+   "fix": "Budget sync against the real wallet balance after every fill plus a 3% fee buffer per clip.",
+   "referenz": "operations/pipeline/execution.py (_budget_sync, fee buffer; E280 finding)"
+  },
+  {
+   "datum": "2026-07-12",
+   "profil": "jre_july13",
+   "achse": "Microstructure",
+   "titel": "Market makers pull their quotes at the drop",
+   "was_passierte": "At the JRE #2523 drop every ask was pulled; the NO round found no offers (0 trades), quotes only returned minutes later.",
+   "auswirkung": "Rule-conforming candidates without a fill; at E280, NOs still traded at 0.50-0.70 after our round.",
+   "fix": "45-minute follow-up window: open YES/NO candidates are re-checked every 90 s and bought as soon as liquidity returns below the cap.",
+   "referenz": "operations/pipeline/bot.py (NACHLAUF_MINUTEN/NACHLAUF_POLL_S)"
+  },
+  {
+   "datum": "2026-07-16",
+   "profil": "elon_july13",
+   "achse": "Risk discipline",
+   "titel": "Silent bot deaths on sleep/session teardown",
+   "was_passierte": "Detached bot processes died without a crash log on system sleep or session end (hours of silent outage on 12, 13 and 16 July).",
+   "auswirkung": "Observation and trading gaps during active market windows.",
+   "fix": "Watchdog as a scheduled task (5-minute cadence): heartbeat check via bot_events.jsonl, PID-based killing of hung instances, restarts only inside the configured time window.",
+   "referenz": "operations/pipeline/watchdog.py (PR #2, reliability hardening)"
+  },
+  {
+   "datum": "2026-07-18",
+   "profil": "allin_july17",
+   "achse": "Risk discipline",
+   "titel": "Watchdog false-kill during the quiet follow-up window",
+   "was_passierte": "The follow-up window wrote no events; after 13 minutes of silence the watchdog killed the running process and restarted it, and the restart set a fresh baseline.",
+   "auswirkung": "The follow-up ran 13 instead of 45 minutes; potential follow-up buys were lost. No double trades (restart protection).",
+   "fix": "Heartbeat events during the follow-up window so the watchdog no longer classifies running follow-ups as dead.",
+   "referenz": "commit 8af07d6 (nachlauf heartbeat)"
+  },
+  {
+   "datum": "2026-07-18",
+   "profil": "mrbeast_gaming",
+   "achse": "Engineering maturity",
+   "titel": "Fortran runtime abort on watchdog start",
+   "was_passierte": "The only bot with speaker verification died after start with 'forrtl error (200) ... window-CLOSE event': the Intel Fortran runtime (via speechbrain) reacted to the closing of the scheduler task's short-lived console window.",
+   "auswirkung": "Bot start failed reproducibly whenever launched by the scheduler instead of interactively.",
+   "fix": "FOR_DISABLE_CONSOLE_CTRL_HANDLER=1 in the environment of all watchdog-started bots; verified through whisper_bereit (cuda/float16, speaker verification active).",
+   "referenz": "PR #8 (fix/watchdog-fortran-console)"
+  },
+  {
+   "datum": "2026-07-18",
+   "profil": "allin_july17",
+   "achse": "Evaluation",
+   "titel": "Log reconstruction diverged from the wallet statement",
+   "was_passierte": "The FAK order status returned no fill price for several clips; the log reconstruction assumed the 0.90 cap price, overstating stakes (E281: 360 instead of the real 288 USD) and understating shares (Blue: 147 instead of 179.8).",
+   "auswirkung": "runs.json reported +15 USD for E281 while the wallet statement showed +119.84 USD; a manual reconciliation surfaced the gap.",
+   "fix": "Curated wallet reconciliation as an overlay (wallet_netto_usd per run and total) plus a documented estimate note in the runs.json header; cash figures are reported wallet-reconciled from now on. Follow-up: fills are now taken from the FAK post response (exact amounts).",
+   "referenz": "data/results/wallet_abgleich_2026-07-18.json; PR #12 (fill accounting)"
+  },
+  {
+   "datum": "2026-07-17",
+   "profil": "elon_july13",
+   "achse": "Evaluation",
+   "titel": "Book log outage caused by a 404 of a resolved market",
+   "was_passierte": "An early-resolved market returned 404 on its order book; the snapshot pass aborted entirely, roughly 30 hours without book data.",
+   "auswirkung": "Gap in the order-book history for post-run analysis; the buying path was unaffected.",
+   "fix": "Book-log resilience (errors isolated per token) plus a process restart so running instances load the merged fix.",
+   "referenz": "PR #5 (buchlog resilience), restart 18 July"
+  },
+  {
+   "datum": "2026-07-16",
+   "profil": "pilot_watcher",
+   "achse": "Detection latency",
+   "titel": "Gamma silently caps limit at 100",
+   "was_passierte": "The first watcher run only saw 100 markets because the Gamma API silently caps the limit parameter and sorted stale markets to the front.",
+   "auswirkung": "Scan universe roughly 15x too small; signals incomplete.",
+   "fix": "Two-window fetch (recently expired + upcoming) with pagination; the second run scanned 1468 markets.",
+   "referenz": "operations/pilot/watcher.py (two-window gamma fetch, commit dd4872f)"
+  }
+ ]
+}

@@ -1,0 +1,193 @@
+{
+ "hinweis": "Read-only candidate scanner of the pre-registered small-stake field test. Signals are rule matches, not recommendations; all trading decisions are made manually by the author.",
+ "stand_utc": "2026-07-22T12:12:48+00:00",
+ "kennzeichnung": "pilot/preregistered",
+ "protokoll": {
+  "quelle": "docs/project/PILOT_PROTOKOLL_ECHTGELD_2026-07-11.md (Version 2)",
+  "budget_usdc": 100.0,
+  "einsatz_je_trade_usdc": 10.0,
+  "regel_freeze_datum": "2026-07-18",
+  "handelsfenster_bis": "2026-08-01",
+  "arm1_kurz": "Reference-decided fade: a side already irreversibly decided by the reference source still trades <= 0.97; candidates are verified manually.",
+  "arm2_kurz": "Favourite side (tail fade): 0.90-0.97 with <= 21 days to resolution, exit only via resolution."
+ },
+ "watcher_lauf_ts_utc": "2026-07-22T12:11:04Z",
+ "watcher_parameter": {
+  "arm1_max_entry_preis": 0.97,
+  "arm2_min_preis": 0.9,
+  "arm2_max_preis": 0.97,
+  "arm2_max_restlaufzeit_tage": 21.0,
+  "arm2_spaeteste_aufloesung": "2026-08-02T23:59:59Z",
+  "min_buchtiefe_usdc": 20.0,
+  "max_trades_pro_markt": 1,
+  "max_signale_pro_lauf": 50
+ },
+ "watcher_statistik": {
+  "maerkte": 1655,
+  "gekappt": 281,
+  "arm2_bereits_abgelaufen": 655,
+  "arm2_aufloesungsregel_unklar": 54,
+  "arm2_gamma_vorfilter": 377,
+  "arm1_bereits_signalisiert": 1,
+  "arm2_preis_ausserhalb_090_097": 191,
+  "arm2_bereits_signalisiert": 45,
+  "arm2_laufender_streit": 1
+ },
+ "signal_zaehler": {
+  "arm1:kandidat_referenz_pruefen": 1,
+  "arm2:signal": 142
+ },
+ "signale_neueste": [
+  {
+   "ts_utc": "2026-07-22T12:11:04Z",
+   "arm": "arm2",
+   "frage": "Will Hong Wang win the 2026 Fields Medal?",
+   "seite": "Yes",
+   "signal_preis": 0.97,
+   "buchtiefe_usd": 281.3,
+   "restlaufzeit_tage": 7.49,
+   "status": "signal"
+  },
+  {
+   "ts_utc": "2026-07-22T12:11:04Z",
+   "arm": "arm2",
+   "frage": "Will Yu Deng win the 2026 Fields Medal?",
+   "seite": "Yes",
+   "signal_preis": 0.958,
+   "buchtiefe_usd": 646.6,
+   "restlaufzeit_tage": 7.49,
+   "status": "signal"
+  },
+  {
+   "ts_utc": "2026-07-22T12:11:04Z",
+   "arm": "arm2",
+   "frage": "Will Jack Thorne win the 2026 Fields Medal?",
+   "seite": "No",
+   "signal_preis": 0.959,
+   "buchtiefe_usd": 290.82,
+   "restlaufzeit_tage": 7.49,
+   "status": "signal"
+  },
+  {
+   "ts_utc": "2026-07-22T12:11:04Z",
+   "arm": "arm2",
+   "frage": "Will South Korea GDP growth in Q2 2026 be between 3.0% and 3.4%?",
+   "seite": "No",
+   "signal_preis": 0.95,
+   "buchtiefe_usd": 2150.4,
+   "restlaufzeit_tage": 0.49,
+   "status": "signal"
+  },
+  {
+   "ts_utc": "2026-07-22T12:11:04Z",
+   "arm": "arm2",
+   "frage": "Will Ariana Grande feature Billie Eilish on Petal?",
+   "seite": "No",
+   "signal_preis": 0.949,
+   "buchtiefe_usd": 115.47,
+   "restlaufzeit_tage": 8.49,
+   "status": "signal"
+  },
+  {
+   "ts_utc": "2026-07-22T12:11:04Z",
+   "arm": "arm2",
+   "frage": "Will Mexico GDP growth in Q2 2026 be at least 2.5%?",
+   "seite": "No",
+   "signal_preis": 0.948,
+   "buchtiefe_usd": 2413.72,
+   "restlaufzeit_tage": 7.74,
+   "status": "signal"
+  },
+  {
+   "ts_utc": "2026-07-22T12:11:04Z",
+   "arm": "arm2",
+   "frage": "Will Eurozone GDP growth in Q2 2026 be less than 0.0%?",
+   "seite": "No",
+   "signal_preis": 0.92,
+   "buchtiefe_usd": 111.7,
+   "restlaufzeit_tage": 7.74,
+   "status": "signal"
+  },
+  {
+   "ts_utc": "2026-07-22T12:11:04Z",
+   "arm": "arm2",
+   "frage": "Will Atlanta Bouncers finish in 1st place at the Major League Pickleball Chicago Event?",
+   "seite": "No",
+   "signal_preis": 0.96,
+   "buchtiefe_usd": 33.74,
+   "restlaufzeit_tage": 1.49,
+   "status": "signal"
+  },
+  {
+   "ts_utc": "2026-07-22T12:11:04Z",
+   "arm": "arm2",
+   "frage": "Will California Black Bears finish in 1st place at the Major League Pickleball Chicago Event?",
+   "seite": "No",
+   "signal_preis": 0.95,
+   "buchtiefe_usd": 78.5,
+   "restlaufzeit_tage": 1.49,
+   "status": "signal"
+  },
+  {
+   "ts_utc": "2026-07-22T12:11:04Z",
+   "arm": "arm2",
+   "frage": "Will Elon Musk post 640-679 tweets in July 2026?",
+   "seite": "No",
+   "signal_preis": 0.935,
+   "buchtiefe_usd": 793.95,
+   "restlaufzeit_tage": 9.66,
+   "status": "signal"
+  },
+  {
+   "ts_utc": "2026-07-22T12:11:04Z",
+   "arm": "arm2",
+   "frage": "Will Russia capture Verkhnia Tersa by July 31?",
+   "seite": "No",
+   "signal_preis": 0.928,
+   "buchtiefe_usd": 925.63,
+   "restlaufzeit_tage": 8.49,
+   "status": "signal"
+  },
+  {
+   "ts_utc": "2026-07-22T12:11:04Z",
+   "arm": "arm2",
+   "frage": "Will Russia enter Serhiivka by July 31?",
+   "seite": "No",
+   "signal_preis": 0.92,
+   "buchtiefe_usd": 11637.41,
+   "restlaufzeit_tage": 8.49,
+   "status": "signal"
+  },
+  {
+   "ts_utc": "2026-07-22T12:11:04Z",
+   "arm": "arm2",
+   "frage": "Will the South African Reserve Bank hold at the July 2026 meeting?",
+   "seite": "No",
+   "signal_preis": 0.92,
+   "buchtiefe_usd": 454.89,
+   "restlaufzeit_tage": 0.49,
+   "status": "signal"
+  },
+  {
+   "ts_utc": "2026-07-22T12:11:04Z",
+   "arm": "arm2",
+   "frage": "Will the South African Reserve Bank hike by 25 bps at the July 2026 meeting?",
+   "seite": "Yes",
+   "signal_preis": 0.93,
+   "buchtiefe_usd": 1594.57,
+   "restlaufzeit_tage": 0.49,
+   "status": "signal"
+  },
+  {
+   "ts_utc": "2026-07-22T12:11:04Z",
+   "arm": "arm2",
+   "frage": "Will the next Google Gemini Pro model be released by July 31, 2026?",
+   "seite": "No",
+   "signal_preis": 0.956,
+   "buchtiefe_usd": 340.37,
+   "restlaufzeit_tage": 9.16,
+   "status": "signal"
+  }
+ ],
+ "trades": []
+}
