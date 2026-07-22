@@ -1,7 +1,2961 @@
 {
- "hinweis": "Observing paper run: decision fields and best book prices only, no wallet data, no return claim. Profil: allin_july3. Source decisions_log.jsonl not present on this machine -- empty artifact.",
- "stand_utc": "2026-07-16T04:30:05+00:00",
+ "hinweis": "Observing paper run: decision fields and best book prices only, no wallet data, no return claim. Profil: allin_july17. Top-level fields mirror this run; all 8 runs are listed under laeufe, newest first.",
+ "stand_utc": "2026-07-22T11:43:55+00:00",
  "kennzeichnung": "observed/paper",
- "eintraege": [],
- "wortzaehler_endstaende": {}
+ "eintraege": [
+  {
+   "action": "YES",
+   "reason": "count 4 >= ziel 1, ask 0.68 <= 0.9",
+   "limit_price": 0.68,
+   "bestes_angebot": 0.68,
+   "bestes_gebot": 0.63,
+   "size_usd": 132.36
+  },
+  {
+   "action": "YES",
+   "reason": "count 25 >= ziel 1, ask 0.7 <= 0.9",
+   "limit_price": 0.7,
+   "bestes_angebot": 0.7,
+   "bestes_gebot": 0.48,
+   "size_usd": 9.0
+  },
+  {
+   "action": "NONE",
+   "reason": "yes_ask 0.94 > 0.9",
+   "limit_price": null,
+   "bestes_angebot": 0.94,
+   "bestes_gebot": 0.2,
+   "size_usd": 0.0
+  },
+  {
+   "action": "NONE",
+   "reason": "yes_ask 0.95 > 0.9",
+   "limit_price": null,
+   "bestes_angebot": 0.95,
+   "bestes_gebot": 0.2,
+   "size_usd": 0.0
+  },
+  {
+   "action": "NONE",
+   "reason": "yes_ask 0.98 > 0.9",
+   "limit_price": null,
+   "bestes_angebot": 0.98,
+   "bestes_gebot": 0.45,
+   "size_usd": 0.0
+  },
+  {
+   "action": "NONE",
+   "reason": "yes_ask 0.94 > 0.9",
+   "limit_price": null,
+   "bestes_angebot": 0.94,
+   "bestes_gebot": 0.55,
+   "size_usd": 0.0
+  },
+  {
+   "action": "NONE",
+   "reason": "yes_ask 0.98 > 0.9",
+   "limit_price": null,
+   "bestes_angebot": 0.98,
+   "bestes_gebot": 0.28,
+   "size_usd": 0.0
+  },
+  {
+   "action": "NONE",
+   "reason": "yes_ask 0.99 > 0.9",
+   "limit_price": null,
+   "bestes_angebot": 0.99,
+   "bestes_gebot": 0.05,
+   "size_usd": 0.0
+  },
+  {
+   "action": "NONE",
+   "reason": "yes_ask 0.98 > 0.9",
+   "limit_price": null,
+   "bestes_angebot": 0.98,
+   "bestes_gebot": 0.03,
+   "size_usd": 0.0
+  },
+  {
+   "action": "NONE",
+   "reason": "yes_ask 0.94 > 0.9",
+   "limit_price": null,
+   "bestes_angebot": 0.94,
+   "bestes_gebot": 0.89,
+   "size_usd": 0.0
+  },
+  {
+   "action": "NONE",
+   "reason": "yes_ask 0.99 > 0.9",
+   "limit_price": null,
+   "bestes_angebot": 0.99,
+   "bestes_gebot": 0.47,
+   "size_usd": 0.0
+  },
+  {
+   "action": "NONE",
+   "reason": "yes_ask 0.99 > 0.9",
+   "limit_price": null,
+   "bestes_angebot": 0.99,
+   "bestes_gebot": 0.05,
+   "size_usd": 0.0
+  },
+  {
+   "action": "NONE",
+   "reason": "endstand 60 > grenze 35.0",
+   "limit_price": null,
+   "bestes_angebot": 0.8,
+   "bestes_gebot": 0.06,
+   "size_usd": 0.0
+  },
+  {
+   "action": "NONE",
+   "reason": "endstand 14 > grenze 7.0",
+   "limit_price": null,
+   "bestes_angebot": 0.8,
+   "bestes_gebot": 0.05,
+   "size_usd": 0.0
+  },
+  {
+   "action": "NONE",
+   "reason": "endstand 14 > grenze 3.5",
+   "limit_price": null,
+   "bestes_angebot": 0.55,
+   "bestes_gebot": 0.02,
+   "size_usd": 0.0
+  },
+  {
+   "action": "NONE",
+   "reason": "endstand 5 > grenze 2.0999999999999996",
+   "limit_price": null,
+   "bestes_angebot": 0.45,
+   "bestes_gebot": 0.06,
+   "size_usd": 0.0
+  },
+  {
+   "action": "NONE",
+   "reason": "endstand 1 > grenze 0.7",
+   "limit_price": null,
+   "bestes_angebot": 0.72,
+   "bestes_gebot": 0.02,
+   "size_usd": 0.0
+  },
+  {
+   "action": "NONE",
+   "reason": "endstand 1 > grenze 0.7",
+   "limit_price": null,
+   "bestes_angebot": 0.95,
+   "bestes_gebot": 0.01,
+   "size_usd": 0.0
+  },
+  {
+   "action": "NONE",
+   "reason": "endstand 4 > grenze 0.7",
+   "limit_price": null,
+   "bestes_angebot": 0.97,
+   "bestes_gebot": 0.02,
+   "size_usd": 0.0
+  },
+  {
+   "action": "NO",
+   "reason": "endstand 0 <= grenze 0.7, ask 0.72 <= 0.9",
+   "limit_price": 0.72,
+   "bestes_angebot": 0.72,
+   "bestes_gebot": 0.68,
+   "size_usd": 45.0
+  },
+  {
+   "action": "NONE",
+   "reason": "no_ask 0.95 > 0.9",
+   "limit_price": null,
+   "bestes_angebot": 0.95,
+   "bestes_gebot": null,
+   "size_usd": 0.0
+  },
+  {
+   "action": "NONE",
+   "reason": "endstand 5 > grenze 0.7",
+   "limit_price": null,
+   "bestes_angebot": 0.11,
+   "bestes_gebot": 0.06,
+   "size_usd": 0.0
+  },
+  {
+   "action": "NO",
+   "reason": "endstand 0 <= grenze 0.7, ask 0.59 <= 0.9",
+   "limit_price": 0.59,
+   "bestes_angebot": 0.59,
+   "bestes_gebot": 0.53,
+   "size_usd": 111.86
+  },
+  {
+   "action": "NONE",
+   "reason": "no_ask 0.99 > 0.9",
+   "limit_price": null,
+   "bestes_angebot": 0.99,
+   "bestes_gebot": 0.74,
+   "size_usd": 0.0
+  },
+  {
+   "action": "NONE",
+   "reason": "no_ask 0.91 > 0.9",
+   "limit_price": null,
+   "bestes_angebot": 0.91,
+   "bestes_gebot": 0.02,
+   "size_usd": 0.0
+  },
+  {
+   "action": "NONE",
+   "reason": "endstand 6 > grenze 0.7",
+   "limit_price": null,
+   "bestes_angebot": 0.53,
+   "bestes_gebot": 0.01,
+   "size_usd": 0.0
+  },
+  {
+   "action": "NONE",
+   "reason": "endstand 1 > grenze 0.7",
+   "limit_price": null,
+   "bestes_angebot": 0.95,
+   "bestes_gebot": 0.01,
+   "size_usd": 0.0
+  },
+  {
+   "action": "NONE",
+   "reason": "no_ask 0.95 > 0.9",
+   "limit_price": null,
+   "bestes_angebot": 0.95,
+   "bestes_gebot": 0.01,
+   "size_usd": 0.0
+  },
+  {
+   "action": "NO",
+   "reason": "endstand 0 <= grenze 0.7, ask 0.88 <= 0.9",
+   "limit_price": 0.88,
+   "bestes_angebot": 0.88,
+   "bestes_gebot": 0.05,
+   "size_usd": 22.5
+  },
+  {
+   "action": "NONE",
+   "reason": "no_ask 0.95 > 0.9",
+   "limit_price": null,
+   "bestes_angebot": 0.95,
+   "bestes_gebot": 0.01,
+   "size_usd": 0.0
+  },
+  {
+   "action": "NO",
+   "reason": "endstand 0 <= grenze 0.7, ask 0.44 <= 0.9",
+   "limit_price": 0.44,
+   "bestes_angebot": 0.44,
+   "bestes_gebot": 0.01,
+   "size_usd": 39.45
+  }
+ ],
+ "wortzaehler_endstaende": {
+  "will-ai-or-artificial-intelligence-be-said-50-times-during-the-next-episode-of-the-all-in-podcast-20260713144020194": 60,
+  "will-hundred-or-thousand-or-million-be-said-10-times-during-the-next-episode-of-the-all-in-podcast-20260713143905575": 14,
+  "will-anthropic-be-said-5-times-during-the-next-episode-of-the-all-in-podcast-20260713144020196": 14,
+  "will-spacex-be-said-3-times-during-the-next-episode-of-the-all-in-podcast-20260713144020197": 5,
+  "will-ipo-be-said-during-the-next-episode-of-the-all-in-podcast-20260713144020198": 1,
+  "will-nvidia-be-said-during-the-next-episode-of-the-all-in-podcast-20260713144020199": 1,
+  "will-red-be-said-during-the-next-episode-of-the-all-in-podcast-20260713144020200": 4,
+  "will-blue-be-said-during-the-next-episode-of-the-all-in-podcast-20260713144020201": 4,
+  "will-regulator-or-regulatory-be-said-during-the-next-episode-of-the-all-in-podcast-20260713144020202": 25,
+  "will-alignment-be-said-during-the-next-episode-of-the-all-in-podcast-20260713143905583": 0,
+  "will-canada-be-said-during-the-next-episode-of-the-all-in-podcast-20260713143905584": 0,
+  "will-software-be-said-during-the-next-episode-of-the-all-in-podcast-20260713143905585": 5,
+  "will-stock-market-be-said-during-the-next-episode-of-the-all-in-podcast-20260713143905586": 0,
+  "will-constitution-be-said-during-the-next-episode-of-the-all-in-podcast-20260713143905587": 0,
+  "will-disruptive-be-said-during-the-next-episode-of-the-all-in-podcast-20260713143905588": 0,
+  "will-innovation-be-said-during-the-next-episode-of-the-all-in-podcast-20260713143905589": 6,
+  "will-cancer-be-said-during-the-next-episode-of-the-all-in-podcast-20260713143905590": 1,
+  "will-white-house-be-said-during-the-next-episode-of-the-all-in-podcast-20260713144020211": 0,
+  "will-tension-be-said-during-the-next-episode-of-the-all-in-podcast-20260713144020212": 0,
+  "will-iran-be-said-during-the-next-episode-of-the-all-in-podcast-20260713144020213": 0,
+  "will-midterm-or-midterms-be-said-during-the-next-episode-of-the-all-in-podcast-20260713144020214": 0
+ },
+ "laeufe": [
+  {
+   "profil": "jre_july20",
+   "n_eintraege": 35,
+   "n_kaeufe": 0,
+   "eintraege": [
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.11,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.81,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.81,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.81,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.11,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.81,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.998 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.998,
+     "bestes_gebot": 0.08,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.81,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.81,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.81,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.999 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.999,
+     "bestes_gebot": 0.08,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.999 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.999,
+     "bestes_gebot": 0.08,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.84,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.86,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.88,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.99 > 0.8",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.29,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 33 > grenze 7.0",
+     "limit_price": null,
+     "bestes_angebot": 0.89,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.98 > 0.8",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.21,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_no_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.19,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 2 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.19,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "basisrate_veto 1.00 (n=6 Wochen)",
+     "limit_price": null,
+     "bestes_angebot": 0.92,
+     "bestes_gebot": 0.002,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "basisrate_veto 1.00 (n=4 Wochen)",
+     "limit_price": null,
+     "bestes_angebot": 0.19,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 2 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.15,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_no_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.4,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 17 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.19,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "basisrate_veto 1.00 (n=11 Wochen)",
+     "limit_price": null,
+     "bestes_angebot": 0.92,
+     "bestes_gebot": 0.001,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_no_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.19,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "basisrate_veto 1.00 (n=4 Wochen)",
+     "limit_price": null,
+     "bestes_angebot": 0.92,
+     "bestes_gebot": 0.001,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.98 > 0.8",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.18,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 27 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.16,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_no_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.99,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 7 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.19,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.98 > 0.8",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.18,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 131 > grenze 70.0",
+     "limit_price": null,
+     "bestes_angebot": 0.12,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.98 > 0.8",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.2,
+     "size_usd": 0.0
+    }
+   ],
+   "wortzaehler_endstaende": {
+    "will-trump-be-said-10-times-during-the-first-joe-rogan-experience-of-the-week-of-july-20-20260714183012850": 0,
+    "will-fuck-or-fucking-be-said-10-times-during-the-first-joe-rogan-experience-of-the-week-of-july-20-20260714183012851": 19,
+    "will-spy-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-20-20260714183012852": 0,
+    "will-world-cup-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-20-20260714183012853": 0,
+    "will-alien-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-20-20260714183012854": 2,
+    "will-right-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-20-20260714183012855": 111,
+    "will-left-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-20-20260714183012856": 19,
+    "will-red-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-20-20260714183012857": 2,
+    "will-blue-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-20-20260714183012858": 0,
+    "will-amazing-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-20-20260714183012859": 17,
+    "will-crazy-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-20-20260714183012860": 55,
+    "will-informative-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-20-20260714183012861": 0,
+    "will-different-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-20-20260714183012862": 73,
+    "will-firearm-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-20-20260714183012863": 0,
+    "will-show-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-20-20260714183012864": 20,
+    "will-obsolete-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-20-20260714183012865": 0,
+    "will-problem-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-20-20260714183012866": 6,
+    "will-people-be-said-200-times-during-the-first-joe-rogan-experience-of-the-week-of-july-20-20260714183012848": 130,
+    "will-people-be-said-100-times-during-the-first-joe-rogan-experience-of-the-week-of-july-20-20260714183012847": 130,
+    "will-dude-be-said-20-times-during-the-first-joe-rogan-experience-of-the-week-of-july-20-20260714183012849": 4
+   }
+  },
+  {
+   "profil": "allin_july17",
+   "n_eintraege": 31,
+   "n_kaeufe": 6,
+   "eintraege": [
+    {
+     "action": "YES",
+     "reason": "count 4 >= ziel 1, ask 0.68 <= 0.9",
+     "limit_price": 0.68,
+     "bestes_angebot": 0.68,
+     "bestes_gebot": 0.63,
+     "size_usd": 132.36
+    },
+    {
+     "action": "YES",
+     "reason": "count 25 >= ziel 1, ask 0.7 <= 0.9",
+     "limit_price": 0.7,
+     "bestes_angebot": 0.7,
+     "bestes_gebot": 0.48,
+     "size_usd": 9.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.94 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.94,
+     "bestes_gebot": 0.2,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.95 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.95,
+     "bestes_gebot": 0.2,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.98 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.45,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.94 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.94,
+     "bestes_gebot": 0.55,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.98 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.28,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.99 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.05,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.98 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.03,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.94 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.94,
+     "bestes_gebot": 0.89,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.99 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.47,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.99 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.05,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 60 > grenze 35.0",
+     "limit_price": null,
+     "bestes_angebot": 0.8,
+     "bestes_gebot": 0.06,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 14 > grenze 7.0",
+     "limit_price": null,
+     "bestes_angebot": 0.8,
+     "bestes_gebot": 0.05,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 14 > grenze 3.5",
+     "limit_price": null,
+     "bestes_angebot": 0.55,
+     "bestes_gebot": 0.02,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 5 > grenze 2.0999999999999996",
+     "limit_price": null,
+     "bestes_angebot": 0.45,
+     "bestes_gebot": 0.06,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 1 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.72,
+     "bestes_gebot": 0.02,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 1 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.95,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 4 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.97,
+     "bestes_gebot": 0.02,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NO",
+     "reason": "endstand 0 <= grenze 0.7, ask 0.72 <= 0.9",
+     "limit_price": 0.72,
+     "bestes_angebot": 0.72,
+     "bestes_gebot": 0.68,
+     "size_usd": 45.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.95 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.95,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 5 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.11,
+     "bestes_gebot": 0.06,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NO",
+     "reason": "endstand 0 <= grenze 0.7, ask 0.59 <= 0.9",
+     "limit_price": 0.59,
+     "bestes_angebot": 0.59,
+     "bestes_gebot": 0.53,
+     "size_usd": 111.86
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.99 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.74,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.91 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.91,
+     "bestes_gebot": 0.02,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 6 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.53,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 1 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.95,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.95 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.95,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NO",
+     "reason": "endstand 0 <= grenze 0.7, ask 0.88 <= 0.9",
+     "limit_price": 0.88,
+     "bestes_angebot": 0.88,
+     "bestes_gebot": 0.05,
+     "size_usd": 22.5
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.95 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.95,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NO",
+     "reason": "endstand 0 <= grenze 0.7, ask 0.44 <= 0.9",
+     "limit_price": 0.44,
+     "bestes_angebot": 0.44,
+     "bestes_gebot": 0.01,
+     "size_usd": 39.45
+    }
+   ],
+   "wortzaehler_endstaende": {
+    "will-ai-or-artificial-intelligence-be-said-50-times-during-the-next-episode-of-the-all-in-podcast-20260713144020194": 60,
+    "will-hundred-or-thousand-or-million-be-said-10-times-during-the-next-episode-of-the-all-in-podcast-20260713143905575": 14,
+    "will-anthropic-be-said-5-times-during-the-next-episode-of-the-all-in-podcast-20260713144020196": 14,
+    "will-spacex-be-said-3-times-during-the-next-episode-of-the-all-in-podcast-20260713144020197": 5,
+    "will-ipo-be-said-during-the-next-episode-of-the-all-in-podcast-20260713144020198": 1,
+    "will-nvidia-be-said-during-the-next-episode-of-the-all-in-podcast-20260713144020199": 1,
+    "will-red-be-said-during-the-next-episode-of-the-all-in-podcast-20260713144020200": 4,
+    "will-blue-be-said-during-the-next-episode-of-the-all-in-podcast-20260713144020201": 4,
+    "will-regulator-or-regulatory-be-said-during-the-next-episode-of-the-all-in-podcast-20260713144020202": 25,
+    "will-alignment-be-said-during-the-next-episode-of-the-all-in-podcast-20260713143905583": 0,
+    "will-canada-be-said-during-the-next-episode-of-the-all-in-podcast-20260713143905584": 0,
+    "will-software-be-said-during-the-next-episode-of-the-all-in-podcast-20260713143905585": 5,
+    "will-stock-market-be-said-during-the-next-episode-of-the-all-in-podcast-20260713143905586": 0,
+    "will-constitution-be-said-during-the-next-episode-of-the-all-in-podcast-20260713143905587": 0,
+    "will-disruptive-be-said-during-the-next-episode-of-the-all-in-podcast-20260713143905588": 0,
+    "will-innovation-be-said-during-the-next-episode-of-the-all-in-podcast-20260713143905589": 6,
+    "will-cancer-be-said-during-the-next-episode-of-the-all-in-podcast-20260713143905590": 1,
+    "will-white-house-be-said-during-the-next-episode-of-the-all-in-podcast-20260713144020211": 0,
+    "will-tension-be-said-during-the-next-episode-of-the-all-in-podcast-20260713144020212": 0,
+    "will-iran-be-said-during-the-next-episode-of-the-all-in-podcast-20260713144020213": 0,
+    "will-midterm-or-midterms-be-said-during-the-next-episode-of-the-all-in-podcast-20260713144020214": 0
+   }
+  },
+  {
+   "profil": "elon_july13",
+   "n_eintraege": 24,
+   "n_kaeufe": 0,
+   "eintraege": [
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.4,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.02,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.02,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.989 > 0.94",
+     "limit_price": null,
+     "bestes_angebot": 0.989,
+     "bestes_gebot": 0.952,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.998 > 0.94",
+     "limit_price": null,
+     "bestes_angebot": 0.998,
+     "bestes_gebot": 0.981,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.998 > 0.94",
+     "limit_price": null,
+     "bestes_angebot": 0.998,
+     "bestes_gebot": 0.988,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.998 > 0.94",
+     "limit_price": null,
+     "bestes_angebot": 0.998,
+     "bestes_gebot": 0.969,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.998 > 0.94",
+     "limit_price": null,
+     "bestes_angebot": 0.998,
+     "bestes_gebot": 0.988,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.998 > 0.94",
+     "limit_price": null,
+     "bestes_angebot": 0.998,
+     "bestes_gebot": 0.969,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.998 > 0.94",
+     "limit_price": null,
+     "bestes_angebot": 0.998,
+     "bestes_gebot": 0.988,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.998 > 0.94",
+     "limit_price": null,
+     "bestes_angebot": 0.998,
+     "bestes_gebot": 0.969,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.998 > 0.94",
+     "limit_price": null,
+     "bestes_angebot": 0.998,
+     "bestes_gebot": 0.988,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.998 > 0.94",
+     "limit_price": null,
+     "bestes_angebot": 0.998,
+     "bestes_gebot": 0.969,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.998 > 0.94",
+     "limit_price": null,
+     "bestes_angebot": 0.998,
+     "bestes_gebot": 0.988,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.998 > 0.94",
+     "limit_price": null,
+     "bestes_angebot": 0.998,
+     "bestes_gebot": 0.969,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.998 > 0.94",
+     "limit_price": null,
+     "bestes_angebot": 0.998,
+     "bestes_gebot": 0.988,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.998 > 0.94",
+     "limit_price": null,
+     "bestes_angebot": 0.998,
+     "bestes_gebot": 0.969,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.998 > 0.94",
+     "limit_price": null,
+     "bestes_angebot": 0.998,
+     "bestes_gebot": 0.988,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.998 > 0.94",
+     "limit_price": null,
+     "bestes_angebot": 0.998,
+     "bestes_gebot": 0.969,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.998 > 0.94",
+     "limit_price": null,
+     "bestes_angebot": 0.998,
+     "bestes_gebot": 0.988,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.999 > 0.94",
+     "limit_price": null,
+     "bestes_angebot": 0.999,
+     "bestes_gebot": 0.969,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.998 > 0.94",
+     "limit_price": null,
+     "bestes_angebot": 0.998,
+     "bestes_gebot": 0.988,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.999 > 0.94",
+     "limit_price": null,
+     "bestes_angebot": 0.999,
+     "bestes_gebot": 0.969,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.99,
+     "size_usd": 0.0
+    }
+   ],
+   "wortzaehler_endstaende": {}
+  },
+  {
+   "profil": "lemonade_july15",
+   "n_eintraege": 39,
+   "n_kaeufe": 1,
+   "eintraege": [
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.99,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.99,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.89,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.99,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.979 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.979,
+     "bestes_gebot": 0.052,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.99 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.4,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.988 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.988,
+     "bestes_gebot": 0.959,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.06,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.987 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.987,
+     "bestes_gebot": 0.932,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.998 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.998,
+     "bestes_gebot": 0.91,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.99,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.999 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.999,
+     "bestes_gebot": 0.921,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.999 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.999,
+     "bestes_gebot": 0.051,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.99 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.72,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.99,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.99,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.89,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.99,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 26 > grenze 10.5",
+     "limit_price": null,
+     "bestes_angebot": 0.948,
+     "bestes_gebot": 0.021,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 71 > grenze 7.0",
+     "limit_price": null,
+     "bestes_angebot": 0.6,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 29 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.041,
+     "bestes_gebot": 0.012,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.98 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.8,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 1 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.94,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 57 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.068,
+     "bestes_gebot": 0.013,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.99 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.74,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 22 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.09,
+     "bestes_gebot": 0.002,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 15 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.01,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 23 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.079,
+     "bestes_gebot": 0.001,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 9 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.949,
+     "bestes_gebot": 0.001,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 2 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.28,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 2 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.01,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 2 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.02,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.99 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.4,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.98 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.74,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 37 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.01,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 6 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.11,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.98 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.02,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 4 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.01,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NO",
+     "reason": "endstand 0 <= grenze 0.7, ask 0.69 <= 0.9",
+     "limit_price": 0.69,
+     "bestes_angebot": 0.69,
+     "bestes_gebot": 0.02,
+     "size_usd": 5.68
+    }
+   ],
+   "wortzaehler_endstaende": {
+    "will-ai-or-artificial-intelligence-be-said-15-times-during-the-next-episode-of-the-lemonade-stand-podcast-20260709163957167": 26,
+    "will-trump-be-said-10-times-during-the-next-episode-of-the-lemonade-stand-podcast-20260709163957168": 71,
+    "will-actually-be-said-during-the-next-episode-of-the-lemonade-stand-podcast-20260709162959369": 29,
+    "will-collateral-be-said-during-the-next-episode-of-the-lemonade-stand-podcast-20260709162959370": 0,
+    "will-honestly-be-said-during-the-next-episode-of-the-lemonade-stand-podcast-20260709162959371": 1,
+    "will-think-be-said-during-the-next-episode-of-the-lemonade-stand-podcast-20260709162959372": 52,
+    "will-legality-be-said-during-the-next-episode-of-the-lemonade-stand-podcast-20260709162959373": 0,
+    "will-money-be-said-during-the-next-episode-of-the-lemonade-stand-podcast-20260709163957174": 22,
+    "will-world-cup-be-said-during-the-next-episode-of-the-lemonade-stand-podcast-20260709163957175": 15,
+    "will-different-be-said-during-the-next-episode-of-the-lemonade-stand-podcast-20260709163957176": 23,
+    "will-problem-be-said-during-the-next-episode-of-the-lemonade-stand-podcast-20260709163957177": 9,
+    "will-red-be-said-during-the-next-episode-of-the-lemonade-stand-podcast-20260709163957178": 2,
+    "will-blue-be-said-during-the-next-episode-of-the-lemonade-stand-podcast-20260709163957179": 2,
+    "will-green-be-said-during-the-next-episode-of-the-lemonade-stand-podcast-20260709163957180": 0,
+    "will-car-or-vehicle-be-said-during-the-next-episode-of-the-lemonade-stand-podcast-20260709163957181": 0,
+    "will-nordic-be-said-during-the-next-episode-of-the-lemonade-stand-podcast-20260709163957182": 0,
+    "will-iran-or-iranian-be-said-during-the-next-episode-of-the-lemonade-stand-podcast-20260709163957183": 35,
+    "will-china-or-chinese-be-said-during-the-next-episode-of-the-lemonade-stand-podcast-20260709163957184": 6,
+    "will-korea-or-korean-be-said-during-the-next-episode-of-the-lemonade-stand-podcast-20260709163957185": 0,
+    "will-ukraine-or-ukrainian-be-said-during-the-next-episode-of-the-lemonade-stand-podcast-20260709163957186": 4
+   }
+  },
+  {
+   "profil": "jre_july13",
+   "n_eintraege": 38,
+   "n_kaeufe": 0,
+   "eintraege": [
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.03,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.998 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.998,
+     "bestes_gebot": 0.604,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.81,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.81,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.03,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.81,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.999 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.999,
+     "bestes_gebot": 0.05,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.03,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.03,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.08,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.03,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.999 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.999,
+     "bestes_gebot": 0.108,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.998 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.998,
+     "bestes_gebot": 0.532,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 168 > grenze 140.0",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.74,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 168 > grenze 70.0",
+     "limit_price": null,
+     "bestes_angebot": 0.394,
+     "bestes_gebot": 0.002,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.98 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.74,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.98 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.74,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 15 > grenze 7.0",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.74,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 79 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.19,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 2 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.19,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 5 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.97,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.98 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.74,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.98 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.74,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.99 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.74,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_no_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.79,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 3 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.19,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 128 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.95,
+     "bestes_gebot": 0.001,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 4 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.2,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.98 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.74,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.98 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.74,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 4 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.97,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 11 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.92,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.98 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.74,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 51 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.97,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.98 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.74,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 4 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.892,
+     "bestes_gebot": 0.001,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.99 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.74,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 16 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.468,
+     "bestes_gebot": 0.002,
+     "size_usd": 0.0
+    }
+   ],
+   "wortzaehler_endstaende": {
+    "will-people-be-said-200-times-during-the-first-joe-rogan-experience-of-the-week-of-july-13-20260707144311076": 168,
+    "will-people-be-said-100-times-during-the-first-joe-rogan-experience-of-the-week-of-july-13-20260707144311075": 168,
+    "will-dude-be-said-20-times-during-the-first-joe-rogan-experience-of-the-week-of-july-13-20260707144311077": 3,
+    "will-trump-be-said-10-times-during-the-first-joe-rogan-experience-of-the-week-of-july-13-20260707144311078": 0,
+    "will-fuck-or-fucking-be-said-10-times-during-the-first-joe-rogan-experience-of-the-week-of-july-13-20260707144311079": 9,
+    "will-ai-or-artificial-intelligence-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-13-20260707144311080": 79,
+    "will-comedy-or-comedian-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-13-20260707144311081": 2,
+    "will-space-or-planet-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-13-20260707144311082": 5,
+    "will-apple-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-13-20260707144311083": 0,
+    "will-microsoft-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-13-20260707144311084": 0,
+    "will-spy-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-13-20260707144311085": 0,
+    "will-world-cup-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-13-20260707144311086": 0,
+    "will-alien-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-13-20260707144311087": 3,
+    "will-right-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-13-20260707144311088": 127,
+    "will-left-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-13-20260707144311089": 4,
+    "will-red-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-13-20260707144311090": 0,
+    "will-blue-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-13-20260707144311091": 0,
+    "will-amazing-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-13-20260707144311092": 4,
+    "will-crazy-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-13-20260707144311093": 11,
+    "will-informative-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-13-20260707144311094": 0,
+    "will-different-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-13-20260707144311095": 51,
+    "will-firearm-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-13-20260707144311096": 0,
+    "will-show-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-13-20260707144311097": 4,
+    "will-obsolete-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-13-20260707144311098": 0,
+    "will-problem-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-13-20260707144311099": 16
+   }
+  },
+  {
+   "profil": "allin_july10",
+   "n_eintraege": 71,
+   "n_kaeufe": 37,
+   "eintraege": [
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.92 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.92,
+     "bestes_gebot": 0.86,
+     "size_usd": 0.0
+    },
+    {
+     "action": "YES",
+     "reason": "count 2 >= ziel 1, ask 0.63 <= 0.9",
+     "limit_price": 0.63,
+     "bestes_angebot": 0.63,
+     "bestes_gebot": 0.6,
+     "size_usd": 102.39
+    },
+    {
+     "action": "YES",
+     "reason": "count 3 >= ziel 1, ask 0.83 <= 0.9",
+     "limit_price": 0.83,
+     "bestes_angebot": 0.83,
+     "bestes_gebot": 0.82,
+     "size_usd": 0.0
+    },
+    {
+     "action": "YES",
+     "reason": "count 2 >= ziel 1, ask 0.62 <= 0.9",
+     "limit_price": 0.62,
+     "bestes_angebot": 0.62,
+     "bestes_gebot": 0.58,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.98 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.17,
+     "size_usd": 0.0
+    },
+    {
+     "action": "YES",
+     "reason": "count 1 >= ziel 1, ask 0.36 <= 0.9",
+     "limit_price": 0.36,
+     "bestes_angebot": 0.36,
+     "bestes_gebot": 0.35,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.95 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.95,
+     "bestes_gebot": 0.2,
+     "size_usd": 0.0
+    },
+    {
+     "action": "YES",
+     "reason": "count 2 >= ziel 1, ask 0.67 <= 0.9",
+     "limit_price": 0.67,
+     "bestes_angebot": 0.67,
+     "bestes_gebot": 0.65,
+     "size_usd": 0.0
+    },
+    {
+     "action": "YES",
+     "reason": "count 2 >= ziel 1, ask 0.57 <= 0.9",
+     "limit_price": 0.57,
+     "bestes_angebot": 0.57,
+     "bestes_gebot": 0.52,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 25 > grenze 24.5",
+     "limit_price": null,
+     "bestes_angebot": 0.32,
+     "bestes_gebot": 0.13,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 21 > grenze 7.0",
+     "limit_price": null,
+     "bestes_angebot": 0.14,
+     "bestes_gebot": 0.08,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NO",
+     "reason": "endstand 2 <= grenze 2.0999999999999996, ask 0.43 <= 0.9",
+     "limit_price": 0.43,
+     "bestes_angebot": 0.43,
+     "bestes_gebot": 0.42,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NO",
+     "reason": "endstand 0 <= grenze 0.7, ask 0.23 <= 0.9",
+     "limit_price": 0.23,
+     "bestes_angebot": 0.23,
+     "bestes_gebot": 0.22,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 3 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.83,
+     "bestes_gebot": 0.02,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NO",
+     "reason": "endstand 0 <= grenze 0.7, ask 0.23 <= 0.9",
+     "limit_price": 0.23,
+     "bestes_angebot": 0.23,
+     "bestes_gebot": 0.04,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NO",
+     "reason": "endstand 0 <= grenze 0.7, ask 0.76 <= 0.9",
+     "limit_price": 0.76,
+     "bestes_angebot": 0.76,
+     "bestes_gebot": 0.75,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 7 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.8,
+     "bestes_gebot": 0.05,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NO",
+     "reason": "endstand 0 <= grenze 0.7, ask 0.46 <= 0.9",
+     "limit_price": 0.46,
+     "bestes_angebot": 0.46,
+     "bestes_gebot": 0.45,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NO",
+     "reason": "endstand 0 <= grenze 0.7, ask 0.63 <= 0.9",
+     "limit_price": 0.63,
+     "bestes_angebot": 0.63,
+     "bestes_gebot": 0.62,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NO",
+     "reason": "endstand 0 <= grenze 0.7, ask 0.59 <= 0.9",
+     "limit_price": 0.59,
+     "bestes_angebot": 0.59,
+     "bestes_gebot": 0.58,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NO",
+     "reason": "endstand 0 <= grenze 0.7, ask 0.65 <= 0.9",
+     "limit_price": 0.65,
+     "bestes_angebot": 0.65,
+     "bestes_gebot": 0.64,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NO",
+     "reason": "endstand 0 <= grenze 0.7, ask 0.7 <= 0.9",
+     "limit_price": 0.7,
+     "bestes_angebot": 0.7,
+     "bestes_gebot": 0.69,
+     "size_usd": 0.0
+    },
+    {
+     "action": "YES",
+     "reason": "count 53 >= ziel 37, ask 0.87 <= 0.9",
+     "limit_price": 0.87,
+     "bestes_angebot": 0.87,
+     "bestes_gebot": 0.68,
+     "size_usd": 24.58
+    },
+    {
+     "action": "YES",
+     "reason": "count 15 >= ziel 5, ask 0.59 <= 0.9",
+     "limit_price": 0.59,
+     "bestes_angebot": 0.59,
+     "bestes_gebot": 0.57,
+     "size_usd": 68.64
+    },
+    {
+     "action": "YES",
+     "reason": "count 12 >= ziel 1, ask 0.64 <= 0.9",
+     "limit_price": 0.64,
+     "bestes_angebot": 0.64,
+     "bestes_gebot": 0.6,
+     "size_usd": 20.93
+    },
+    {
+     "action": "YES",
+     "reason": "count 10 >= ziel 1, ask 0.84 <= 0.9",
+     "limit_price": 0.84,
+     "bestes_angebot": 0.84,
+     "bestes_gebot": 0.82,
+     "size_usd": 5.32
+    },
+    {
+     "action": "YES",
+     "reason": "count 2 >= ziel 1, ask 0.62 <= 0.9",
+     "limit_price": 0.62,
+     "bestes_angebot": 0.62,
+     "bestes_gebot": 0.58,
+     "size_usd": 0.0
+    },
+    {
+     "action": "YES",
+     "reason": "count 3 >= ziel 1, ask 0.78 <= 0.9",
+     "limit_price": 0.78,
+     "bestes_angebot": 0.78,
+     "bestes_gebot": 0.76,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.99 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.1,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.96 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.96,
+     "bestes_gebot": 0.77,
+     "size_usd": 0.0
+    },
+    {
+     "action": "YES",
+     "reason": "count 3 >= ziel 1, ask 0.36 <= 0.9",
+     "limit_price": 0.36,
+     "bestes_angebot": 0.36,
+     "bestes_gebot": 0.34,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.95 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.95,
+     "bestes_gebot": 0.28,
+     "size_usd": 0.0
+    },
+    {
+     "action": "YES",
+     "reason": "count 1 >= ziel 1, ask 0.38 <= 0.9",
+     "limit_price": 0.38,
+     "bestes_angebot": 0.38,
+     "bestes_gebot": 0.37,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 10 > grenze 7.0",
+     "limit_price": null,
+     "bestes_angebot": 0.14,
+     "bestes_gebot": 0.08,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 10 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.9,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 2 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.23,
+     "bestes_gebot": 0.04,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NO",
+     "reason": "endstand 0 <= grenze 0.7, ask 0.76 <= 0.9",
+     "limit_price": 0.76,
+     "bestes_angebot": 0.76,
+     "bestes_gebot": 0.72,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 2 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.72,
+     "bestes_gebot": 0.05,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NO",
+     "reason": "endstand 0 <= grenze 0.7, ask 0.47 <= 0.9",
+     "limit_price": 0.47,
+     "bestes_angebot": 0.47,
+     "bestes_gebot": 0.45,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NO",
+     "reason": "endstand 0 <= grenze 0.7, ask 0.6 <= 0.9",
+     "limit_price": 0.6,
+     "bestes_angebot": 0.6,
+     "bestes_gebot": 0.58,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NO",
+     "reason": "endstand 0 <= grenze 0.7, ask 0.35 <= 0.9",
+     "limit_price": 0.35,
+     "bestes_angebot": 0.35,
+     "bestes_gebot": 0.33,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NO",
+     "reason": "endstand 0 <= grenze 0.7, ask 0.48 <= 0.9",
+     "limit_price": 0.48,
+     "bestes_angebot": 0.48,
+     "bestes_gebot": 0.43,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NO",
+     "reason": "endstand 0 <= grenze 0.7, ask 0.66 <= 0.9",
+     "limit_price": 0.66,
+     "bestes_angebot": 0.66,
+     "bestes_gebot": 0.62,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NO",
+     "reason": "endstand 0 <= grenze 0.7, ask 0.71 <= 0.9",
+     "limit_price": 0.71,
+     "bestes_angebot": 0.71,
+     "bestes_gebot": 0.68,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.99 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.14,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.99 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.84,
+     "size_usd": 0.0
+    },
+    {
+     "action": "YES",
+     "reason": "count 12 >= ziel 5, ask 0.59 <= 0.9",
+     "limit_price": 0.59,
+     "bestes_angebot": 0.59,
+     "bestes_gebot": 0.02,
+     "size_usd": 18.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.98 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.11,
+     "size_usd": 0.0
+    },
+    {
+     "action": "YES",
+     "reason": "count 5 >= ziel 1, ask 0.9 <= 0.9",
+     "limit_price": 0.9,
+     "bestes_angebot": 0.9,
+     "bestes_gebot": 0.83,
+     "size_usd": 15.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.99 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.05,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.99 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.721,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.99 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.8,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.91 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.91,
+     "bestes_gebot": 0.53,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.99 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.47,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 39 > grenze 24.5",
+     "limit_price": null,
+     "bestes_angebot": 0.86,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 45 > grenze 7.0",
+     "limit_price": null,
+     "bestes_angebot": 0.16,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 18 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.89,
+     "bestes_gebot": 0.02,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NO",
+     "reason": "endstand 0 <= grenze 0.7, ask 0.51 <= 0.9",
+     "limit_price": 0.51,
+     "bestes_angebot": 0.51,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 1 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.95,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 15 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.279,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 2 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.2,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.98 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.02,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NO",
+     "reason": "endstand 0 <= grenze 0.7, ask 0.89 <= 0.9",
+     "limit_price": 0.89,
+     "bestes_angebot": 0.89,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 16 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.47,
+     "bestes_gebot": 0.09,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NO",
+     "reason": "endstand 0 <= grenze 0.7, ask 0.72 <= 0.9",
+     "limit_price": 0.72,
+     "bestes_angebot": 0.72,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NO",
+     "reason": "endstand 0 <= grenze 0.7, ask 0.7 <= 0.9",
+     "limit_price": 0.7,
+     "bestes_angebot": 0.7,
+     "bestes_gebot": 0.63,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.91 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.91,
+     "bestes_gebot": 0.02,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 3 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.53,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NO",
+     "reason": "endstand 0 <= grenze 0.7, ask 0.89 <= 0.9",
+     "limit_price": 0.89,
+     "bestes_angebot": 0.89,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.97 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.97,
+     "bestes_gebot": 0.6,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.98 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.6,
+     "size_usd": 0.0
+    }
+   ],
+   "wortzaehler_endstaende": {
+    "will-ai-be-said-35-times-during-the-next-episode-of-the-all-in-podcast-20260707174212414": 39,
+    "will-hundred-or-thousand-or-million-be-said-10-times-during-the-next-episode-of-the-all-in-podcast-20260707174212415": 45,
+    "will-spacex-be-said-3-times-during-the-next-episode-of-the-all-in-podcast-20260707174212416": 12,
+    "will-ipo-be-said-during-the-next-episode-of-the-all-in-podcast-20260707174212417": 18,
+    "will-nvidia-be-said-during-the-next-episode-of-the-all-in-podcast-20260707174212418": 5,
+    "will-red-be-said-during-the-next-episode-of-the-all-in-podcast-20260707174212419": 0,
+    "will-blue-be-said-during-the-next-episode-of-the-all-in-podcast-20260707174212420": 1,
+    "will-anthropic-be-said-during-the-next-episode-of-the-all-in-podcast-20260707174212421": 15,
+    "will-regulatory-be-said-during-the-next-episode-of-the-all-in-podcast-20260707174212422": 2,
+    "will-alignment-be-said-during-the-next-episode-of-the-all-in-podcast-20260707174212423": 0,
+    "will-canada-be-said-during-the-next-episode-of-the-all-in-podcast-20260707174212424": 0,
+    "will-software-be-said-during-the-next-episode-of-the-all-in-podcast-20260707174212425": 16,
+    "will-stock-market-be-said-during-the-next-episode-of-the-all-in-podcast-20260707174212426": 0,
+    "will-constitution-be-said-during-the-next-episode-of-the-all-in-podcast-20260707174212427": 0,
+    "will-disruptive-be-said-during-the-next-episode-of-the-all-in-podcast-20260707174212428": 0,
+    "will-innovation-be-said-during-the-next-episode-of-the-all-in-podcast-20260707174212429": 3,
+    "will-cancer-be-said-during-the-next-episode-of-the-all-in-podcast-20260707174212430": 0,
+    "will-biology-be-said-during-the-next-episode-of-the-all-in-podcast-20260707174212431": 0,
+    "will-miracle-be-said-during-the-next-episode-of-the-all-in-podcast-20260707174212432": 0
+   }
+  },
+  {
+   "profil": "jre_july6",
+   "n_eintraege": 35,
+   "n_kaeufe": 0,
+   "eintraege": [
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.99 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.05,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.999 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.999,
+     "bestes_gebot": 0.971,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.85,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.98 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.2,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.81,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.997 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.997,
+     "bestes_gebot": 0.966,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.99,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.91,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.95,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.99 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.81,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.99 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.82,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.81,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.99,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.999 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.999,
+     "bestes_gebot": 0.1,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.99 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.83,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 12 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.2,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 47 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.029,
+     "bestes_gebot": 0.001,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.98 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.85,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 29 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.15,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 237 > grenze 140.0",
+     "limit_price": null,
+     "bestes_angebot": 0.8,
+     "bestes_gebot": 0.02,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.98 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.73,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 6 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.19,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 58 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.033,
+     "bestes_gebot": 0.002,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 17 > grenze 14.0",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.74,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.98 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.73,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 6 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.01,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.98 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.8,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 86 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.09,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 93 > grenze 14.0",
+     "limit_price": null,
+     "bestes_angebot": 0.05,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 2 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.19,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.98 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.85,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 237 > grenze 70.0",
+     "limit_price": null,
+     "bestes_angebot": 0.18,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 1 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.19,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 2 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.01,
+     "bestes_gebot": null,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 50 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.894,
+     "bestes_gebot": 0.001,
+     "size_usd": 0.0
+    }
+   ],
+   "wortzaehler_endstaende": {
+    "will-spy-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-6-20260702150713298": 0,
+    "will-left-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-6-20260702150713303": 12,
+    "will-crazy-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-6-20260702150713307": 47,
+    "will-firearm-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-6-20260702150713310": 0,
+    "will-problem-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-6-20260702150713313": 29,
+    "will-people-be-said-200-times-during-the-first-joe-rogan-experience-of-the-week-of-july-6-20260702150713294": 237,
+    "will-trump-be-said-10-times-during-the-first-joe-rogan-experience-of-the-week-of-july-6-20260702150713297": 0,
+    "will-china-or-chinese-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-6-20260702150713301": 6,
+    "will-right-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-6-20260702150713302": 58,
+    "will-dude-be-said-20-times-during-the-first-joe-rogan-experience-of-the-week-of-july-6-20260702150713295": 17,
+    "will-red-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-6-20260702150713304": 0,
+    "will-amazing-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-6-20260702150713306": 6,
+    "will-informative-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-6-20260702150713308": 0,
+    "will-show-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-6-20260702150713311": 86,
+    "will-fuck-or-fucking-be-said-20-times-during-the-first-joe-rogan-experience-of-the-week-of-july-6-20260702150713296": 93,
+    "will-alien-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-6-20260702150713300": 2,
+    "will-obsolete-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-6-20260702150713312": 0,
+    "will-people-be-said-100-times-during-the-first-joe-rogan-experience-of-the-week-of-july-6-20260702150713293": 237,
+    "will-world-cup-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-6-20260702150713299": 1,
+    "will-blue-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-6-20260702150713305": 2,
+    "will-different-be-said-during-the-first-joe-rogan-experience-of-the-week-of-july-6-20260702150713309": 50
+   }
+  },
+  {
+   "profil": "allin_july3",
+   "n_eintraege": 35,
+   "n_kaeufe": 1,
+   "eintraege": [
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.98 > 0.85",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.79,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.98 > 0.85",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.05,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.98 > 0.85",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.05,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.98 > 0.85",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.05,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.98 > 0.85",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.05,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.98 > 0.85",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.05,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.99 > 0.85",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.961,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.95 > 0.85",
+     "limit_price": null,
+     "bestes_angebot": 0.95,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.98 > 0.85",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.05,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.98 > 0.85",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.05,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.99 > 0.85",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.84,
+     "size_usd": 0.0
+    },
+    {
+     "action": "YES",
+     "reason": "count 2 >= ziel 1, ask 0.13 <= 0.85",
+     "limit_price": 0.13,
+     "bestes_angebot": 0.13,
+     "bestes_gebot": 0.01,
+     "size_usd": 5.97
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.98 > 0.85",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.05,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.98 > 0.85",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.62,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.99 > 0.85",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.84,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.98 > 0.85",
+     "limit_price": null,
+     "bestes_angebot": 0.98,
+     "bestes_gebot": 0.5,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 18 > grenze 7.0",
+     "limit_price": null,
+     "bestes_angebot": 0.21,
+     "bestes_gebot": 0.02,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.99 > 0.85",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.87,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.99 > 0.85",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.73,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 5 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.95,
+     "bestes_gebot": 0.02,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 7 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.95,
+     "bestes_gebot": 0.02,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 3 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.95,
+     "bestes_gebot": 0.02,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.96 > 0.85",
+     "limit_price": null,
+     "bestes_angebot": 0.96,
+     "bestes_gebot": 0.73,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 12 > grenze 7.0",
+     "limit_price": null,
+     "bestes_angebot": 0.95,
+     "bestes_gebot": 0.02,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 96 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.95,
+     "bestes_gebot": 0.02,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 16 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.039,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 1 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.05,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 1 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.95,
+     "bestes_gebot": 0.02,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 7 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.95,
+     "bestes_gebot": 0.02,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.95 > 0.85",
+     "limit_price": null,
+     "bestes_angebot": 0.95,
+     "bestes_gebot": 0.73,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 12 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.16,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 3 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.95,
+     "bestes_gebot": 0.02,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 48 > grenze 28.0",
+     "limit_price": null,
+     "bestes_angebot": 0.38,
+     "bestes_gebot": 0.02,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 18 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.16,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 4 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.5,
+     "bestes_gebot": 0.02,
+     "size_usd": 0.0
+    }
+   ],
+   "wortzaehler_endstaende": {
+    "will-anthropic-be-said-10-times-during-the-next-episode-of-the-all-in-podcast-20260630164420225": 18,
+    "will-prisoner-be-said-during-the-next-episode-of-the-all-in-podcast-20260630164420229": 0,
+    "will-customize-be-said-during-the-next-episode-of-the-all-in-podcast-20260630164420231": 0,
+    "will-blue-be-said-during-the-next-episode-of-the-all-in-podcast-20260630164420241": 5,
+    "will-trillion-or-trillionaire-be-said-during-the-next-episode-of-the-all-in-podcast-20260630164420235": 7,
+    "will-stock-be-said-during-the-next-episode-of-the-all-in-podcast-20260630164420237": 3,
+    "will-samsung-or-hynix-be-said-during-the-next-episode-of-the-all-in-podcast-20260630164420239": 0,
+    "will-trump-be-said-10-times-during-the-next-episode-of-the-all-in-podcast-20260630164420224": 12,
+    "will-model-be-said-during-the-next-episode-of-the-all-in-podcast-20260630164420228": 96,
+    "will-first-be-said-during-the-next-episode-of-the-all-in-podcast-20260630164420232": 16,
+    "will-performer-be-said-during-the-next-episode-of-the-all-in-podcast-20260630164420233": 1,
+    "will-ipo-or-public-be-said-during-the-next-episode-of-the-all-in-podcast-20260630164420234": 1,
+    "will-elon-or-musk-be-said-during-the-next-episode-of-the-all-in-podcast-20260630164420236": 7,
+    "will-korea-or-korean-be-said-during-the-next-episode-of-the-all-in-podcast-20260630164420238": 0,
+    "will-market-be-said-during-the-next-episode-of-the-all-in-podcast-20260630164420226": 12,
+    "will-tourism-be-said-during-the-next-episode-of-the-all-in-podcast-20260630164420227": 2,
+    "will-green-be-said-during-the-next-episode-of-the-all-in-podcast-20260630164420242": 3,
+    "will-ai-or-artificial-intelligence-be-said-40-times-during-the-next-episode-of-the-all-in-podcast-20260630164420223": 48,
+    "will-company-be-said-during-the-next-episode-of-the-all-in-podcast-20260630164420230": 18,
+    "will-red-be-said-during-the-next-episode-of-the-all-in-podcast-20260630164420240": 4
+   }
+  }
+ ]
 }
