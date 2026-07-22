@@ -1,6 +1,6 @@
 {
  "hinweis": "Descriptive post-run review of our own small-stake live runs of the mentions bot. Reconstructed read-only from the run logs; resolutions from public Gamma data. Stakes/shares are log estimates: where the FAK order status returned no fill price, the price cap is assumed, which overstates the stake. Cash truth per event is the curated wallet reconciliation (wallet_netto_usd). No trading recommendation, no return forecast.",
- "stand_utc": "2026-07-22T04:31:50+00:00",
+ "stand_utc": "2026-07-22T12:11:04+00:00",
  "kennzeichnung": "live/descriptive",
  "aggregat": {
   "n_runs": 8,
