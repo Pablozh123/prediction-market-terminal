@@ -147,15 +147,16 @@ def fetch_page(wallet: str, api_key: str, contract: str, start_block: int) -> li
     return None
 
 
-def scan(wallet: str, api_key: str, pause: float, state_path: Path) -> tuple[Ledger, bool]:
+def scan(wallet: str, api_key: str, pause: float, state_path: Path,
+         contracts: tuple[str, ...] = ocf.USDC_CONTRACTS) -> tuple[Ledger, bool]:
     state = json.loads(state_path.read_text(encoding="utf-8")) if state_path.exists() else {}
     ledger = Ledger.from_state(state.get("ledger", {})) if state else Ledger()
     cursors = state.get("cursors", {})
     seen: set[str] = set(state.get("seen_tail", []))
     complete = True
 
-    for contract in ocf.USDC_CONTRACTS:
-        label = "USDC.e" if contract.startswith("0x2791") else "USDC"
+    for contract in contracts:
+        label = {"0x2791": "USDC.e", "0x3c49": "USDC", "0xc011": "pUSD"}.get(contract[:6], contract[:10])
         block = int(cursors.get(contract, 0))
         if cursors.get(f"{contract}_done"):
             print(f"  {label}: bereits fertig (Resume)", flush=True)
@@ -205,6 +206,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--wallet", required=True)
     parser.add_argument("--pause", type=float, default=0.21)
+    parser.add_argument("--tokens", default="usdc", choices=("usdc", "pusd", "all"),
+                        help="Welche Collateral-Waehrung scannen")
     parser.add_argument("--out-dir", default=str(REPO_ROOT / "data"))
     args = parser.parse_args()
 
@@ -215,20 +218,22 @@ def main() -> int:
     wallet = args.wallet.lower()
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    state_path = out_dir / "ledger_scan_state.json"
+    state_path = out_dir / f"ledger_scan_state_{args.tokens}.json"
 
     print(f"Vollstaendiger Scan (ohne Vorfilter) fuer {wallet}\n")
-    ledger, complete = scan(wallet, api_key, args.pause, state_path)
+    contracts = {"usdc": ocf.USDC_CONTRACTS, "pusd": (ocf.PUSD_CONTRACT,),
+                 "all": ocf.COLLATERAL_CONTRACTS}[args.tokens]
+    ledger, complete = scan(wallet, api_key, args.pause, state_path, contracts)
 
     counterparties = pd.DataFrame([
         {"counterparty": cp, "direction": d, **v} for (cp, d), v in ledger.by_counterparty.items()
     ])
     if not counterparties.empty:
         counterparties = counterparties.sort_values("amount", ascending=False)
-        counterparties.to_csv(out_dir / "ledger_counterparties.csv", index=False)
+        counterparties.to_csv(out_dir / f"ledger_counterparties_{args.tokens}.csv", index=False)
     months = pd.DataFrame([{"month": m, **v} for m, v in sorted(ledger.by_month.items())])
-    months.to_csv(out_dir / "ledger_monthly.csv", index=False)
-    pd.DataFrame(ledger.large).to_csv(out_dir / "ledger_large_transfers.csv", index=False)
+    months.to_csv(out_dir / f"ledger_monthly_{args.tokens}.csv", index=False)
+    pd.DataFrame(ledger.large).to_csv(out_dir / f"ledger_large_transfers_{args.tokens}.csv", index=False)
 
     print(f"\n{'='*80}\nVOLLSTAENDIGE USDC-BILANZ   (vollstaendig: {complete})\n{'='*80}")
     print(f"  Transfers gesamt : {ledger.rows:>16,}")
