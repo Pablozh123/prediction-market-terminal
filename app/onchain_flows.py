@@ -29,6 +29,14 @@ USDC_CONTRACTS: tuple[str, ...] = (
 )
 USDC_DECIMALS = 6
 
+# Polymarket migrated its trading collateral from USDC to pUSD in April 2026.
+# A USDC-only ledger therefore goes silent mid-2026 while trading continues, and
+# the missing volume looks like an unexplained profit gap. Any full accounting of
+# a wallet spanning that date has to read both currencies.
+PUSD_CONTRACT = "0xc011a7e12a19f7b1f670d46f03b03f3342e82dfb"  # CollateralToken
+PUSD_MIGRATION_DATE = "2026-04-28"
+COLLATERAL_CONTRACTS: tuple[str, ...] = USDC_CONTRACTS + (PUSD_CONTRACT,)
+
 # Protocol addresses whose transfers are trading mechanics, not external funding.
 # The CTF exchange and the conditional-token contract settle, split and merge.
 # WrappedCollateral is the single biggest trap: a heavy wallet receives USDC from
@@ -40,6 +48,10 @@ PROTOCOL_ADDRESSES: frozenset[str] = frozenset({
     "0xc5d563a36ae78145c45a50134d48a1215220f80a",  # NegRisk CTF Exchange
     "0x4d97dcd97ec945f40cf65f87097ace5ea0476045",  # Conditional Tokens
     "0x3a3bd7bb9528e159577f7c2e685cc81a765002e2",  # WrappedCollateral (settlement payouts)
+    "0xd91e80cf2e7be2e162c6513ced06f1dd0da35296",  # NegRisk Adapter
+    "0xada2005600dec949baf300f4c6120000bdb6eaab",  # NegRisk CTF Collateral Adapter
+    "0xc417fd8e9661c0d2120b64a04bb3278c17e99db1",  # pUSD reserve (holds the USDC backing)
+    "0xc011a7e12a19f7b1f670d46f03b03f3342e82dfb",  # pUSD CollateralToken (mint/redeem)
     "0x0000000000000000000000000000000000000000",  # mint / burn
 })
 
