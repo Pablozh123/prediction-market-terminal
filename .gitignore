@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 *.pyo
 .env
+# Windows Explorer appends .txt when extensions are hidden, so ".env" becomes
+# ".env.txt" and slips past a bare ".env" rule. Catch the whole family.
+.env.*
+!.env.example
 
 # Streamlit auth secrets (OIDC client credentials) — never commit
 .streamlit/secrets.toml

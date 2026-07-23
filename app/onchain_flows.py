@@ -31,11 +31,24 @@ USDC_DECIMALS = 6
 
 # Protocol addresses whose transfers are trading mechanics, not external funding.
 # The CTF exchange and the conditional-token contract settle, split and merge.
+# WrappedCollateral is the single biggest trap: a heavy wallet receives USDC from
+# it on every winning settlement (tens of thousands of transfers), so leaving it
+# out makes trading proceeds masquerade as deposits and inflates funding by the
+# entire volume. Identified via Etherscan getsourcecode; contract names in comments.
 PROTOCOL_ADDRESSES: frozenset[str] = frozenset({
     "0x4bfb41d5b3570defd03c39a9a4d8de6bd8b8982e",  # CTF Exchange
     "0xc5d563a36ae78145c45a50134d48a1215220f80a",  # NegRisk CTF Exchange
     "0x4d97dcd97ec945f40cf65f87097ace5ea0476045",  # Conditional Tokens
+    "0x3a3bd7bb9528e159577f7c2e685cc81a765002e2",  # WrappedCollateral (settlement payouts)
     "0x0000000000000000000000000000000000000000",  # mint / burn
+})
+
+# Cross-chain bridge / relay contracts. Transfers here ARE external funding
+# movements — this wallet family funds and withdraws over Relay rather than by
+# plain wallet-to-wallet USDC, so these are the closest thing to deposits.
+BRIDGE_ADDRESSES: frozenset[str] = frozenset({
+    "0x4cd00e387622c35bddb9b4c962c136462338bc31",  # RelayDepository (withdrawals out)
+    "0xc417fd8e9661c0d2120b64a04bb3278c17e99db1",  # ERC1967Proxy (deposits in)
 })
 
 
