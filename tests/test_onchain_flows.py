@@ -91,6 +91,37 @@ class ClassifyTests(unittest.TestCase):
         self.assertEqual(ocf.flow_summary(pd.DataFrame())["net_external"], 0.0)
 
 
+class ReconcileTests(unittest.TestCase):
+    def test_a_complete_ledger_reconciles(self) -> None:
+        out = ocf.reconcile_ledger(total_in=1_000_000, total_out=400_000,
+                                   ending_balance=800_000, reported_profit=200_000)
+        self.assertAlmostEqual(out["net_flow"], 600_000)
+        self.assertAlmostEqual(out["residual"], 0.0)
+        self.assertTrue(out["reconciles"])
+
+    def test_missing_outflows_show_up_as_a_negative_residual(self) -> None:
+        """If withdrawals were not captured, the ledger implies too much money left."""
+        out = ocf.reconcile_ledger(total_in=1_000_000, total_out=0,
+                                   ending_balance=200_000, reported_profit=100_000)
+        self.assertLess(out["residual"], 0)
+        self.assertFalse(out["reconciles"])
+
+    def test_residual_is_scaled_against_profit(self) -> None:
+        out = ocf.reconcile_ledger(total_in=100, total_out=0,
+                                   ending_balance=1_100, reported_profit=1_000)
+        self.assertAlmostEqual(out["residual"], 0.0)
+        self.assertTrue(out["reconciles"])
+
+    def test_tolerance_absorbs_rounding(self) -> None:
+        out = ocf.reconcile_ledger(total_in=1_000_000, total_out=0,
+                                   ending_balance=1_100_000 + 5, reported_profit=100_000)
+        self.assertTrue(out["reconciles"])
+
+    def test_zero_profit_leaves_percentage_undefined(self) -> None:
+        out = ocf.reconcile_ledger(1_000, 500, 500, 0)
+        self.assertIsNone(out["residual_pct_of_profit"])
+
+
 class PeakExposureTests(unittest.TestCase):
     def test_high_water_mark_not_total_deposits(self) -> None:
         """Recycled dollars must not be counted twice as committed capital."""

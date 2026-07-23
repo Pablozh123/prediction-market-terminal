@@ -155,6 +155,37 @@ def flow_summary(flows: pd.DataFrame) -> dict[str, float]:
     }
 
 
+def reconcile_ledger(total_in: float, total_out: float, ending_balance: float,
+                     reported_profit: float, tolerance: float = 0.02) -> dict[str, Any]:
+    """Check a wallet's transfer ledger against the accounting identity.
+
+    For any account: ``ending_balance = net_flow + profit``. If a complete USDC
+    ledger disagrees with the platform's reported profit, exactly one of three
+    things is true, and the size and sign of the gap says which:
+
+    - the ledger is incomplete (transfers missed, or a non-USDC funding route),
+    - the reported profit measures something else (mark-to-market on open
+      positions rather than realised cash), or
+    - value is held outside this wallet.
+
+    ``residual`` is what the identity cannot explain. A positive residual means
+    more money arrived than profit plus deposits can account for.
+    """
+
+    net_flow = float(total_in) - float(total_out)
+    implied_balance = net_flow + float(reported_profit)
+    residual = float(ending_balance) - implied_balance
+    scale = max(abs(float(reported_profit)), abs(net_flow), 1.0)
+    return {
+        "net_flow": net_flow,
+        "implied_balance": implied_balance,
+        "actual_balance": float(ending_balance),
+        "residual": residual,
+        "residual_pct_of_profit": residual / float(reported_profit) * 100.0 if reported_profit else None,
+        "reconciles": abs(residual) <= tolerance * scale,
+    }
+
+
 def peak_external_exposure(flows: pd.DataFrame) -> float:
     """Largest cumulative net external funding ever outstanding, in block order.
 
