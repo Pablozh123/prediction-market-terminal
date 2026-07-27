@@ -97,8 +97,28 @@ class PipelineTimelineTests(unittest.TestCase):
         self.assertEqual([r["action"] for r in rows], ["NONE", "YES"])
         self.assertEqual(
             set(rows[0].keys()),
-            {"action", "reason", "limit_price", "bestes_angebot", "bestes_gebot", "size_usd"},
+            {"action", "reason", "limit_price", "bestes_angebot", "bestes_gebot",
+             "size_usd", "verfuegbar_usd", "extraktionsquote"},
         )
+        # Alte Artefakte ohne Extraktions-Felder -> None, kein Fehler.
+        self.assertIsNone(rows[1]["verfuegbar_usd"])
+        self.assertIsNone(rows[1]["extraktionsquote"])
+
+    def test_extraktionsquote_wird_als_prozent_skaliert(self):
+        payload = {
+            "eintraege": [
+                {"action": "YES", "reason": "r", "limit_price": 0.29,
+                 "bestes_angebot": 0.29, "bestes_gebot": 0.2, "size_usd": 17.69,
+                 "verfuegbar_usd": 17.69, "extraktionsquote": 1.0},
+                {"action": "NO", "reason": "r", "limit_price": 0.13,
+                 "bestes_angebot": 0.13, "bestes_gebot": 0.1, "size_usd": 10.0,
+                 "verfuegbar_usd": 20.0, "extraktionsquote": 0.5},
+            ]
+        }
+        rows = av.pipeline_timeline(payload)
+        self.assertEqual(rows[0]["extraktionsquote"], 100.0)
+        self.assertEqual(rows[1]["extraktionsquote"], 50.0)
+        self.assertEqual(rows[1]["verfuegbar_usd"], 20.0)
 
     def test_action_counts(self):
         payload = {"eintraege": [{"action": "NONE"}] * 34 + [{"action": "YES"}]}
@@ -132,6 +152,29 @@ class PipelineLaeufeTests(unittest.TestCase):
         self.assertEqual(laeufe[0]["n_eintraege"], 31)
         self.assertEqual(laeufe[0]["n_kaeufe"], 6)
         self.assertEqual(laeufe[0]["wortzaehler_endstaende"], {"a": 1})
+        # Extraktions-Felder fehlen im alten Artefakt -> None (kein Crash).
+        self.assertIsNone(laeufe[0]["extraktionsquote"])
+        self.assertIsNone(laeufe[0]["extraktion_gekauft_usd"])
+
+    def test_laeufe_reichen_extraktionsfelder_durch(self):
+        payload = {
+            "laeufe": [
+                {
+                    "profil": "allin_july24",
+                    "n_eintraege": 25,
+                    "n_kaeufe": 7,
+                    "eintraege": [{"action": "YES"}],
+                    "wortzaehler_endstaende": {},
+                    "extraktion_gekauft_usd": 360.18,
+                    "extraktion_verfuegbar_usd": 360.19,
+                    "extraktionsquote": 1.0,
+                }
+            ]
+        }
+        lauf = av.pipeline_laeufe(payload)[0]
+        self.assertEqual(lauf["extraktion_gekauft_usd"], 360.18)
+        self.assertEqual(lauf["extraktion_verfuegbar_usd"], 360.19)
+        self.assertEqual(lauf["extraktionsquote"], 1.0)
 
     def test_altes_artefakt_ohne_laeufe_ergibt_einen_lauf(self):
         payload = {
