@@ -558,15 +558,46 @@ def related_markets(markets: pd.DataFrame, current: pd.Series | dict[str, Any], 
     return related.drop(columns=["_end_sort"], errors="ignore").head(limit).reset_index(drop=True)
 
 
-def get_polymarket_price_history(token_id: str, days: int = 30, interval: str = "1d") -> pd.DataFrame:
+# CLOB bucket size in minutes per chart interval. The API takes ``fidelity``, not
+# ``interval``, once an explicit window is given.
+PRICE_HISTORY_FIDELITY_MINUTES: dict[str, int] = {
+    "1m": 10,  # the API rejects a finer fidelity than 10 for the 1m range
+    "5m": 5,
+    "1h": 60,
+    "6h": 360,
+    "1d": 1440,
+    "1w": 10080,
+}
+
+
+def get_polymarket_price_history(
+    token_id: str, days: int = 30, interval: str = "1d", end_time: Any | None = None
+) -> pd.DataFrame:
+    """Price history for one CLOB token over the ``days`` window ending at ``end_time``.
+
+    The CLOB rejects ``interval`` when it is combined with ``startTs``/``endTs``
+    ("invalid filters: 'startTs' and 'endTs' interval is too long"), and the old
+    call sent both. The error was swallowed into an empty frame, so any window
+    wider than the API's default silently returned no data at all. We send the
+    window plus the matching ``fidelity`` (bucket size in minutes) instead.
+
+    ``end_time`` defaults to now; pass a market's resolution time to read the
+    history of an already-closed market.
+    """
+
     if not token_id:
         return pd.DataFrame(columns=["time", "price"])
-    end_ts = int(time.time())
+    if end_time is None:
+        end_ts = int(time.time())
+    else:
+        stamp = pd.to_datetime(end_time, utc=True, errors="coerce")
+        end_ts = int(time.time()) if pd.isna(stamp) else int(stamp.timestamp())
     start_ts = end_ts - int(days) * 86400
+    fidelity = PRICE_HISTORY_FIDELITY_MINUTES.get(str(interval), 60)
     try:
         data = _get_json(
             f"{POLY_CLOB}/prices-history",
-            params={"market": token_id, "startTs": start_ts, "endTs": end_ts, "interval": interval, "fidelity": 100},
+            params={"market": token_id, "startTs": start_ts, "endTs": end_ts, "fidelity": fidelity},
         )
     except MarketDataError:
         return pd.DataFrame(columns=["time", "price"])
