@@ -12944,6 +12944,11 @@ def page_pipeline_forward() -> None:
         labels = [
             f"{lauf['profil']} -- {lauf['n_eintraege']} decisions, "
             f"{lauf['n_kaeufe']} {'buy' if lauf['n_kaeufe'] == 1 else 'buys'}"
+            + (
+                f", {float(lauf['extraktionsquote']) * 100:.0f}% capture"
+                if lauf.get("extraktionsquote") is not None
+                else ""
+            )
             for lauf in laeufe
         ]
         gewaehlt = st.selectbox(
@@ -12958,6 +12963,30 @@ def page_pipeline_forward() -> None:
         quelle = laeufe[labels.index(gewaehlt)]
     elif laeufe:
         quelle = laeufe[0]
+
+    # Value capture: wieviel der im Kaufmoment unter dem Preisdeckel
+    # verfuegbaren Buch-Tiefe der Sweep tatsaechlich extrahiert hat.
+    # Reine Ausfuehrungsguete aus dem publizierten Artefakt — keine
+    # PnL-Aussage. Fehlt bei Laeufen ohne Kaeufe und alten Artefakten.
+    quote = quelle.get("extraktionsquote")
+    if quote is not None:
+        st.markdown("#### Value capture (executed vs. available depth)")
+        cap_cols = st.columns(3)
+        cap_cols[0].metric(
+            "Capture",
+            f"{float(quote) * 100:.1f}%",
+            help=(
+                "Executed sweep volume divided by the ask depth that was "
+                "available below the price cap at decision time. Execution "
+                "quality only -- no profit claim."
+            ),
+        )
+        gekauft = quelle.get("extraktion_gekauft_usd")
+        verfuegbar = quelle.get("extraktion_verfuegbar_usd")
+        if gekauft is not None:
+            cap_cols[1].metric("Executed $", f"{float(gekauft):.2f}")
+        if verfuegbar is not None:
+            cap_cols[2].metric("Available $", f"{float(verfuegbar):.2f}")
 
     endstaende = quelle.get("wortzaehler_endstaende", {}) or {}
     if endstaende:
@@ -12985,6 +13014,14 @@ def page_pipeline_forward() -> None:
                 "bestes_angebot": st.column_config.NumberColumn("Best ask", format="%.2f"),
                 "bestes_gebot": st.column_config.NumberColumn("Best bid", format="%.2f"),
                 "size_usd": st.column_config.NumberColumn("Size $", format="%.2f"),
+                "verfuegbar_usd": st.column_config.NumberColumn(
+                    "Available $", format="%.2f",
+                    help="Ask depth below the price cap at decision time",
+                ),
+                "extraktionsquote": st.column_config.NumberColumn(
+                    "Capture", format="%.1f%%",
+                    help="Executed / available depth (per buy)",
+                ),
             },
         )
     else:

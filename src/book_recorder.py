@@ -36,6 +36,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUT_DIR = REPO_ROOT / "data" / "microstructure"
 
 TOP_N_MARKETS = 60
+# Templated long-tail markets never rank on volume, but they are where the
+# base-rate study needs book data, so they get a reserved share of the slots.
+PRIORITY_QUESTION_PREFIXES = ("exact score",)
+PRIORITY_SLOTS = 20
 BOOK_LEVELS = 5
 INTERVAL_SECONDS = 120
 TRADE_PAGE_SIZE = 500
@@ -78,26 +82,53 @@ def _volume(market: dict) -> float:
     return 0.0
 
 
-def select_markets(raw_markets: list[dict], top_n: int = TOP_N_MARKETS) -> list[dict]:
-    """Pick the most active binary markets that have order-book tokens.
+def _tracking_entry(market: dict) -> dict | None:
+    outcomes = [str(o) for o in _json_list(market.get("outcomes"))]
+    tokens = [str(t) for t in _json_list(market.get("clobTokenIds"))]
+    if len(outcomes) != 2 or len(tokens) != 2 or not all(tokens):
+        return None
+    return {
+        "market_id": str(market.get("id")),
+        "slug": market.get("slug", ""),
+        "question": market.get("question", ""),
+        "tokens": list(zip(outcomes, tokens)),
+    }
 
-    Returns compact tracking dicts: market_id, slug, question, and one
-    entry per outcome token (outcome name + token id).
+
+def is_priority_market(market: dict, patterns: tuple[str, ...] = PRIORITY_QUESTION_PREFIXES) -> bool:
+    question = str(market.get("question", "") or "").strip().lower()
+    return any(question.startswith(prefix) for prefix in patterns)
+
+
+def select_markets(raw_markets: list[dict], top_n: int = TOP_N_MARKETS,
+                   priority_slots: int = PRIORITY_SLOTS) -> list[dict]:
+    """Pick binary markets to snapshot: a reserved priority quota, then by volume.
+
+    Plain volume ranking never reaches templated long-tail markets such as
+    "Exact Score" lines, which is exactly where the base-rate study needs book
+    data. ``priority_slots`` reserves capacity for them; any unused slots fall
+    back to the volume ranking, so a quiet day still fills ``top_n``.
+
+    Returns compact tracking dicts: market_id, slug, question, and one entry per
+    outcome token (outcome name + token id).
     """
+    ordered = sorted(raw_markets, key=_volume, reverse=True)
     tracked: list[dict] = []
-    for market in sorted(raw_markets, key=_volume, reverse=True):
-        outcomes = [str(o) for o in _json_list(market.get("outcomes"))]
-        tokens = [str(t) for t in _json_list(market.get("clobTokenIds"))]
-        if len(outcomes) != 2 or len(tokens) != 2 or not all(tokens):
-            continue
-        tracked.append({
-            "market_id": str(market.get("id")),
-            "slug": market.get("slug", ""),
-            "question": market.get("question", ""),
-            "tokens": list(zip(outcomes, tokens)),
-        })
-        if len(tracked) >= top_n:
-            break
+    seen: set[str] = set()
+
+    def take(markets: list[dict], limit: int) -> None:
+        for market in markets:
+            if len(tracked) >= top_n or len(tracked) >= limit:
+                break
+            entry = _tracking_entry(market)
+            if entry is None or entry["market_id"] in seen:
+                continue
+            seen.add(entry["market_id"])
+            tracked.append(entry)
+
+    quota = max(0, min(int(priority_slots), int(top_n)))
+    take([m for m in ordered if is_priority_market(m)], quota)
+    take(ordered, top_n)
     return tracked
 
 
@@ -212,6 +243,43 @@ def fetch_recent_trades(get_json=_get_json, pages: int = TRADE_PAGES,
     return trades
 
 
+def priority_condition_ids(tape: list[dict]) -> list[str]:
+    """Condition ids of priority-template markets seen in the public trade tape.
+
+    Priority markets are far too small to rank on volume, so neither the volume
+    nor the end-date ordering ever returns them. The tape is the one feed that
+    surfaces them, and it only surfaces the ones actually trading, which is
+    exactly the subset worth snapshotting.
+    """
+    seen: dict[str, None] = {}
+    for trade in tape or []:
+        if not isinstance(trade, dict):
+            continue
+        if not is_priority_market({"question": trade.get("title", "")}):
+            continue
+        condition = str(trade.get("conditionId", "") or "")
+        if condition:
+            seen.setdefault(condition, None)
+    return list(seen)
+
+
+def fetch_markets_by_condition_ids(condition_ids: list[str], get_json=_get_json,
+                                   batch_size: int = 20) -> list[dict]:
+    """Full Gamma market dicts for specific condition ids, so we get both tokens."""
+    markets: list[dict] = []
+    for start in range(0, len(condition_ids), batch_size):
+        batch = condition_ids[start:start + batch_size]
+        try:
+            found = get_json(GAMMA_MARKETS_URL, params={
+                "condition_ids": batch, "limit": len(batch),
+            })
+        except Exception:  # noqa: BLE001 - discovery is best effort
+            continue
+        if found:
+            markets.extend(item for item in found if isinstance(item, dict))
+    return markets
+
+
 def run_once(out_dir: Path | None = None, get_json=_get_json,
              top_n: int = TOP_N_MARKETS, now: datetime | None = None) -> dict:
     """One recording pass: books for tracked markets plus recent tape."""
@@ -220,7 +288,13 @@ def run_once(out_dir: Path | None = None, get_json=_get_json,
     ts = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     day = now.strftime("%Y-%m-%d")
 
-    tracked = select_markets(fetch_active_markets(get_json=get_json), top_n=top_n)
+    # Tape first: it is what makes the priority markets discoverable at all.
+    try:
+        tape = fetch_recent_trades(get_json=get_json)
+    except Exception:  # noqa: BLE001
+        tape = []
+    priority = fetch_markets_by_condition_ids(priority_condition_ids(tape), get_json=get_json)
+    tracked = select_markets(priority + fetch_active_markets(get_json=get_json), top_n=top_n)
     token_map = {
         token_id: {"market_id": t["market_id"], "slug": t["slug"], "outcome": outcome}
         for t in tracked for outcome, token_id in t["tokens"]
@@ -237,10 +311,6 @@ def run_once(out_dir: Path | None = None, get_json=_get_json,
                 continue
             book_rows.append(book_row(ts, t, outcome, token_id, book))
 
-    try:
-        tape = fetch_recent_trades(get_json=get_json)
-    except Exception:  # noqa: BLE001
-        tape = []
     trade_rows = trades_rows(ts, token_map, tape)
 
     append_csv(out_dir / f"books_{day}.csv", BOOK_FIELDS, book_rows)
@@ -248,6 +318,7 @@ def run_once(out_dir: Path | None = None, get_json=_get_json,
 
     summary = {
         "ts_utc": ts, "tracked_markets": len(tracked),
+        "priority_markets": sum(1 for t in tracked if is_priority_market(t)),
         "book_rows": len(book_rows), "book_errors": book_errors,
         "trade_rows": len(trade_rows),
     }
