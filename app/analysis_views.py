@@ -160,6 +160,13 @@ def pipeline_laeufe(payload: dict[str, Any]) -> list[dict[str, Any]]:
                 "n_kaeufe": int(n_kaeufe),
                 "eintraege": eintraege,
                 "wortzaehler_endstaende": lauf.get("wortzaehler_endstaende", {}) or {},
+                # Extraktionsquote (seit 27.07. im Artefakt): Ausfuehrungs-
+                # guete des Sweeps — gekaufte vs. im Kaufmoment unter dem
+                # Preisdeckel verfuegbare Buch-Tiefe. None bei aelteren
+                # Artefakten oder Laeufen ohne Kaeufe. Keine PnL-Aussage.
+                "extraktion_gekauft_usd": lauf.get("extraktion_gekauft_usd"),
+                "extraktion_verfuegbar_usd": lauf.get("extraktion_verfuegbar_usd"),
+                "extraktionsquote": lauf.get("extraktionsquote"),
             }
         )
     return laeufe
@@ -192,6 +199,15 @@ def pipeline_timeline(payload: dict[str, Any]) -> list[dict[str, Any]]:
                 "bestes_angebot": entry.get("bestes_angebot"),
                 "bestes_gebot": entry.get("bestes_gebot"),
                 "size_usd": entry.get("size_usd"),
+                # Je Kauf: verfuegbare Tiefe unterm Deckel + Quote in
+                # PROZENT fuer die Anzeige (None bei Nicht-Kaeufen und
+                # aelteren Artefakten).
+                "verfuegbar_usd": entry.get("verfuegbar_usd"),
+                "extraktionsquote": (
+                    None
+                    if entry.get("extraktionsquote") is None
+                    else round(float(entry["extraktionsquote"]) * 100, 1)
+                ),
             }
         )
     return rows
