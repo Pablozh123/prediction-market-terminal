@@ -155,7 +155,7 @@ WORKSPACE_HELP = {
     "Category Efficiency": "Brier score vs. pricing-in minutes per market category.",
     "Mentions Latency": "How fast mentions markets react to the content drop.",
     "Live Runs": "Bets, latencies, and results of our own bot runs — plus sizing simulation and entry calibration on those runs.",
-    "Microstructure": "Order-book recorder status, a rolling imbalance read on the collected books, and the frozen May study incl. the paper MM simulator.",
+    "Microstructure": "Recorder status (REST and WebSocket), a rolling imbalance read on the collected books, and the frozen studies: imbalance, order flow net of costs, MM PnL decomposition.",
     "Pilot": "Pre-registered small-stake field test: frozen rules, read-only signals, manual decisions, trades with rule adherence.",
     "Pipeline Forward": "Observing paper forward test of the analysis pipeline.",
     "Methodology": "Methodology, guardrails, and audit (hashes and counters).",
@@ -14002,8 +14002,9 @@ def _rolling_imbalance_cached(cache_key: float) -> dict:
 def page_microstructure() -> None:
     section_header(
         "Microstructure",
-        "Order-book recorder, rolling imbalance read on the collected books, "
-        "and the frozen May study incl. the paper MM simulator.",
+        "Two order-book recorders (2-minute REST and event-driven WebSocket), "
+        "a rolling imbalance read on the collected books, and the frozen "
+        "studies: imbalance, order flow net of costs, and MM PnL decomposition.",
         kicker="Read-only research",
     )
     status = mv.recorder_status()
@@ -14028,6 +14029,34 @@ def page_microstructure() -> None:
                 "geaendert_utc": "Modified (UTC)",
             })
             st.dataframe(files_frame, width="stretch", hide_index=True)
+
+    st.markdown("#### Event stream (seconds resolution)")
+    st.caption(
+        "The REST recorder above polls every ~2 minutes. The CLOB WebSocket "
+        "recorder writes a row whenever the top of book actually moves, and "
+        "its trade feed carries the aggressor side per print, which is what "
+        "signed order flow needs. Run it with scripts/run_book_stream.py."
+    )
+    stream = mv.stream_status()
+    if stream is None:
+        st.info(
+            "No stream data yet under data/microstructure. Start "
+            "scripts/run_book_stream.py; this block then fills automatically."
+        )
+    else:
+        coverage = mv.stream_coverage()
+        s1, s2, s3, s4 = st.columns(4)
+        s1.metric("Messages / cycle", stream.get("messages", 0))
+        s2.metric("Book rows collected", f"{coverage['book_rows']:,}")
+        s3.metric("Trades collected", f"{coverage['trade_rows']:,}")
+        s4.metric("Days on disk", coverage["days"])
+        errors = stream.get("errors") or []
+        st.caption(
+            f"Last cycle: {stream.get('ts_utc', 'unknown')} (UTC), "
+            f"{stream.get('tracked_tokens', 0)} tokens, "
+            f"{coverage['size_mb']} MB on disk"
+            + (f" — {len(errors)} error(s): {errors[0]}" if errors else "")
+        )
 
     st.markdown("#### Rolling imbalance read (out-of-sample, on recorder data)")
     st.caption(
@@ -14064,7 +14093,14 @@ def page_microstructure() -> None:
             unsafe_allow_html=True,
         )
 
-    st.markdown("#### Frozen reports (May capture)")
+    st.markdown("#### Frozen study reports")
+    st.caption(
+        "Each report is a snapshot of one question, with its filters and "
+        "limits written into the file: the May imbalance study and paper MM "
+        "simulator, the July order-flow study (edge net of fees, spread and "
+        "reaction delay), and the July MM PnL decomposition (spread earned vs. "
+        "adverse selection)."
+    )
     for report in mv.study_reports():
         with st.expander(report["stem"]):
             try:

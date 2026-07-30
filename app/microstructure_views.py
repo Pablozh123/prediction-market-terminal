@@ -37,6 +37,68 @@ def recorder_status(micro_dir: Path = MICRO_DIR_DEFAULT) -> dict[str, Any] | Non
         return None
 
 
+def stream_status(micro_dir: Path = MICRO_DIR_DEFAULT) -> dict[str, Any] | None:
+    """Letzter Zyklus des WebSocket-Recorders (stream_status.json) oder None."""
+
+    path = Path(micro_dir) / "stream_status.json"
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def stream_coverage(micro_dir: Path = MICRO_DIR_DEFAULT) -> dict[str, Any]:
+    """Wie viel Sekunden-Material bisher liegt, und wie dicht es getaktet ist.
+
+    Die Update-Rate je Token ist die Kennzahl, die den Unterschied zum
+    REST-Recorder sichtbar macht: dort ist sie bauartbedingt ein Snapshot
+    alle 120 Sekunden.
+    """
+
+    directory = Path(micro_dir)
+    leer = {"days": 0, "book_rows": 0, "trade_rows": 0, "size_mb": 0.0}
+    if not directory.exists():
+        return leer
+    book_files = sorted(directory.glob("stream_books_*.csv"))
+    trade_files = sorted(directory.glob("stream_trades_*.csv"))
+    if not book_files:
+        return leer
+
+    def count_rows(paths: list[Path]) -> int:
+        total = 0
+        for path in paths:
+            try:
+                with open(path, encoding="utf-8") as handle:
+                    total += max(0, sum(1 for _ in handle) - 1)
+            except OSError:
+                continue
+        return total
+
+    size = sum(p.stat().st_size for p in book_files + trade_files
+               if p.exists())
+    return {
+        "days": len(book_files),
+        "book_rows": count_rows(book_files),
+        "trade_rows": count_rows(trade_files),
+        "size_mb": round(size / (1024 * 1024), 2),
+        "latest_day": book_files[-1].stem.split("_")[-1],
+    }
+
+
+def _file_kind(name: str) -> str:
+    """Vier Dateiarten liegen im selben Ordner: REST und Stream, je Buch/Tape."""
+
+    for prefix, kind in (("stream_books_", "stream books"),
+                         ("stream_trades_", "stream trades"),
+                         ("books_", "books"),
+                         ("trades_", "trades")):
+        if name.startswith(prefix):
+            return kind
+    return "other"
+
+
 def recorder_files(micro_dir: Path = MICRO_DIR_DEFAULT) -> list[dict[str, Any]]:
     """Tagesdateien des Recorders (Groesse/Alter), neueste zuerst."""
 
@@ -52,7 +114,7 @@ def recorder_files(micro_dir: Path = MICRO_DIR_DEFAULT) -> list[dict[str, Any]]:
         rows.append(
             {
                 "datei": path.name,
-                "art": "books" if path.name.startswith("books_") else "trades",
+                "art": _file_kind(path.name),
                 "groesse_kb": round(stat.st_size / 1024.0, 1),
                 "geaendert_utc": datetime.fromtimestamp(
                     stat.st_mtime, tz=timezone.utc

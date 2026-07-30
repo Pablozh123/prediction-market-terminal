@@ -1,0 +1,2070 @@
+{
+  "source": "data/microstructure",
+  "stream": false,
+  "signal": "imbalance",
+  "threshold": 0.65,
+  "horizon_s": 300.0,
+  "observations": 205835,
+  "days": [
+    "2026-07-18",
+    "2026-07-19",
+    "2026-07-20",
+    "2026-07-21",
+    "2026-07-22",
+    "2026-07-23",
+    "2026-07-24",
+    "2026-07-25",
+    "2026-07-26",
+    "2026-07-27",
+    "2026-07-28"
+  ],
+  "fee_model_version": "2026-07-30",
+  "min_observations": 300,
+  "by_category": {
+    "sports": {
+      "overall": {
+        "n": 205835,
+        "days": 11,
+        "mean_gross_cents": 0.0856,
+        "mean_net_cents": -2.4985,
+        "hit_rate": 0.5553,
+        "wilson_lb95": 0.5517,
+        "net_positive_share": 0.0378,
+        "train_net_cents": -2.4495,
+        "test_net_cents": -2.5625,
+        "net_ci95_cents": [
+          -2.6158,
+          -2.3876
+        ]
+      },
+      "segments": {
+        "spread": [
+          {
+            "n": 62082,
+            "days": 11,
+            "mean_gross_cents": 0.0751,
+            "mean_net_cents": -1.6347,
+            "hit_rate": 0.6018,
+            "wilson_lb95": 0.5954,
+            "net_positive_share": 0.0235,
+            "train_net_cents": -1.7239,
+            "test_net_cents": -1.4682,
+            "net_ci95_cents": [
+              -1.7802,
+              -1.4673
+            ],
+            "segment": "spread",
+            "bucket": "0-0.5c",
+            "category": "sports",
+            "thin": false
+          },
+          {
+            "n": 13601,
+            "days": 11,
+            "mean_gross_cents": 0.1053,
+            "mean_net_cents": -2.1839,
+            "hit_rate": 0.5528,
+            "wilson_lb95": 0.5426,
+            "net_positive_share": 0.0305,
+            "train_net_cents": -2.245,
+            "test_net_cents": -2.0767,
+            "net_ci95_cents": [
+              -2.344,
+              -2.0253
+            ],
+            "segment": "spread",
+            "bucket": "0.5-1c",
+            "category": "sports",
+            "thin": false
+          },
+          {
+            "n": 110067,
+            "days": 11,
+            "mean_gross_cents": 0.0955,
+            "mean_net_cents": -2.6244,
+            "hit_rate": 0.5478,
+            "wilson_lb95": 0.5419,
+            "net_positive_share": 0.0384,
+            "train_net_cents": -2.5824,
+            "test_net_cents": -2.6693,
+            "net_ci95_cents": [
+              -2.7286,
+              -2.5312
+            ],
+            "segment": "spread",
+            "bucket": "1-2c",
+            "category": "sports",
+            "thin": false
+          },
+          {
+            "n": 17443,
+            "days": 11,
+            "mean_gross_cents": 0.1559,
+            "mean_net_cents": -4.0219,
+            "hit_rate": 0.5085,
+            "wilson_lb95": 0.4995,
+            "net_positive_share": 0.0825,
+            "train_net_cents": -4.1233,
+            "test_net_cents": -3.9036,
+            "net_ci95_cents": [
+              -4.2407,
+              -3.8604
+            ],
+            "segment": "spread",
+            "bucket": "2-5c",
+            "category": "sports",
+            "thin": false
+          },
+          {
+            "n": 2642,
+            "days": 11,
+            "mean_gross_cents": -0.6473,
+            "mean_net_cents": -9.1131,
+            "hit_rate": 0.4566,
+            "wilson_lb95": 0.4366,
+            "net_positive_share": 0.0924,
+            "train_net_cents": -8.9589,
+            "test_net_cents": -9.2419,
+            "net_ci95_cents": [
+              -9.7161,
+              -8.5375
+            ],
+            "segment": "spread",
+            "bucket": "5-10.1c",
+            "category": "sports",
+            "thin": false
+          }
+        ],
+        "price": [
+          {
+            "n": 35353,
+            "days": 11,
+            "mean_gross_cents": -0.0121,
+            "mean_net_cents": -1.7151,
+            "hit_rate": 0.5453,
+            "wilson_lb95": 0.5359,
+            "net_positive_share": 0.0273,
+            "train_net_cents": -1.6735,
+            "test_net_cents": -1.7774,
+            "net_ci95_cents": [
+              -1.8601,
+              -1.6003
+            ],
+            "segment": "price",
+            "bucket": "0.05-0.15",
+            "category": "sports",
+            "thin": false
+          },
+          {
+            "n": 41048,
+            "days": 11,
+            "mean_gross_cents": 0.0635,
+            "mean_net_cents": -2.7214,
+            "hit_rate": 0.5646,
+            "wilson_lb95": 0.5567,
+            "net_positive_share": 0.0399,
+            "train_net_cents": -2.7809,
+            "test_net_cents": -2.6455,
+            "net_ci95_cents": [
+              -2.8028,
+              -2.654
+            ],
+            "segment": "price",
+            "bucket": "0.15-0.35",
+            "category": "sports",
+            "thin": false
+          },
+          {
+            "n": 51315,
+            "days": 11,
+            "mean_gross_cents": 0.1518,
+            "mean_net_cents": -3.3453,
+            "hit_rate": 0.5636,
+            "wilson_lb95": 0.5568,
+            "net_positive_share": 0.0506,
+            "train_net_cents": -3.178,
+            "test_net_cents": -3.549,
+            "net_ci95_cents": [
+              -3.4919,
+              -3.1551
+            ],
+            "segment": "price",
+            "bucket": "0.35-0.65",
+            "category": "sports",
+            "thin": false
+          },
+          {
+            "n": 41434,
+            "days": 11,
+            "mean_gross_cents": 0.1043,
+            "mean_net_cents": -2.6758,
+            "hit_rate": 0.5504,
+            "wilson_lb95": 0.5425,
+            "net_positive_share": 0.0369,
+            "train_net_cents": -2.7249,
+            "test_net_cents": -2.6128,
+            "net_ci95_cents": [
+              -2.758,
+              -2.6074
+            ],
+            "segment": "price",
+            "bucket": "0.65-0.85",
+            "category": "sports",
+            "thin": false
+          },
+          {
+            "n": 36685,
+            "days": 11,
+            "mean_gross_cents": 0.0905,
+            "mean_net_cents": -1.6193,
+            "hit_rate": 0.5442,
+            "wilson_lb95": 0.5349,
+            "net_positive_share": 0.0289,
+            "train_net_cents": -1.584,
+            "test_net_cents": -1.6661,
+            "net_ci95_cents": [
+              -1.7126,
+              -1.538
+            ],
+            "segment": "price",
+            "bucket": "0.85-0.95",
+            "category": "sports",
+            "thin": false
+          }
+        ],
+        "strength": [
+          {
+            "n": 66898,
+            "days": 11,
+            "mean_gross_cents": 0.0819,
+            "mean_net_cents": -2.5397,
+            "hit_rate": 0.5354,
+            "wilson_lb95": 0.529,
+            "net_positive_share": 0.0447,
+            "train_net_cents": -2.4611,
+            "test_net_cents": -2.6396,
+            "net_ci95_cents": [
+              -2.6612,
+              -2.4201
+            ],
+            "segment": "strength",
+            "bucket": "0.65-0.75",
+            "category": "sports",
+            "thin": false
+          },
+          {
+            "n": 59388,
+            "days": 11,
+            "mean_gross_cents": 0.0619,
+            "mean_net_cents": -2.4697,
+            "hit_rate": 0.5537,
+            "wilson_lb95": 0.5469,
+            "net_positive_share": 0.0336,
+            "train_net_cents": -2.3871,
+            "test_net_cents": -2.5895,
+            "net_ci95_cents": [
+              -2.6045,
+              -2.3357
+            ],
+            "segment": "strength",
+            "bucket": "0.75-0.85",
+            "category": "sports",
+            "thin": false
+          },
+          {
+            "n": 63696,
+            "days": 11,
+            "mean_gross_cents": 0.0977,
+            "mean_net_cents": -2.4709,
+            "hit_rate": 0.5676,
+            "wilson_lb95": 0.5609,
+            "net_positive_share": 0.0307,
+            "train_net_cents": -2.4842,
+            "test_net_cents": -2.4563,
+            "net_ci95_cents": [
+              -2.5795,
+              -2.3731
+            ],
+            "segment": "strength",
+            "bucket": "0.85-0.95",
+            "category": "sports",
+            "thin": false
+          },
+          {
+            "n": 15853,
+            "days": 11,
+            "mean_gross_cents": 0.1411,
+            "mean_net_cents": -2.5432,
+            "hit_rate": 0.5865,
+            "wilson_lb95": 0.5756,
+            "net_positive_share": 0.0534,
+            "train_net_cents": -2.5057,
+            "test_net_cents": -2.6217,
+            "net_ci95_cents": [
+              -2.8185,
+              -2.2577
+            ],
+            "segment": "strength",
+            "bucket": "0.95-1.01",
+            "category": "sports",
+            "thin": false
+          }
+        ]
+      },
+      "cross": [
+        {
+          "n": 19295,
+          "days": 11,
+          "mean_gross_cents": 0.0298,
+          "mean_net_cents": -1.7707,
+          "hit_rate": 0.5584,
+          "wilson_lb95": 0.5456,
+          "net_positive_share": 0.0173,
+          "train_net_cents": -1.8105,
+          "test_net_cents": -1.692,
+          "net_ci95_cents": [
+            -1.9671,
+            -1.5409
+          ],
+          "spread_bucket": "0-0.5c",
+          "strength_bucket": "0.65-0.75",
+          "category": "sports",
+          "thin": false
+        },
+        {
+          "n": 19099,
+          "days": 11,
+          "mean_gross_cents": 0.0461,
+          "mean_net_cents": -1.6379,
+          "hit_rate": 0.5855,
+          "wilson_lb95": 0.5733,
+          "net_positive_share": 0.017,
+          "train_net_cents": -1.6696,
+          "test_net_cents": -1.5802,
+          "net_ci95_cents": [
+            -1.7883,
+            -1.4842
+          ],
+          "spread_bucket": "0-0.5c",
+          "strength_bucket": "0.75-0.85",
+          "category": "sports",
+          "thin": false
+        },
+        {
+          "n": 17365,
+          "days": 11,
+          "mean_gross_cents": 0.1197,
+          "mean_net_cents": -1.5113,
+          "hit_rate": 0.6223,
+          "wilson_lb95": 0.6109,
+          "net_positive_share": 0.0302,
+          "train_net_cents": -1.6993,
+          "test_net_cents": -1.2382,
+          "net_ci95_cents": [
+            -1.6788,
+            -1.3465
+          ],
+          "spread_bucket": "0-0.5c",
+          "strength_bucket": "0.85-0.95",
+          "category": "sports",
+          "thin": false
+        },
+        {
+          "n": 6323,
+          "days": 11,
+          "mean_gross_cents": 0.1781,
+          "mean_net_cents": -1.549,
+          "hit_rate": 0.6758,
+          "wilson_lb95": 0.6584,
+          "net_positive_share": 0.0433,
+          "train_net_cents": -1.6865,
+          "test_net_cents": -1.0288,
+          "net_ci95_cents": [
+            -1.8698,
+            -1.2233
+          ],
+          "spread_bucket": "0-0.5c",
+          "strength_bucket": "0.95-1.01",
+          "category": "sports",
+          "thin": false
+        },
+        {
+          "n": 3750,
+          "days": 11,
+          "mean_gross_cents": 0.0248,
+          "mean_net_cents": -2.2911,
+          "hit_rate": 0.5198,
+          "wilson_lb95": 0.5002,
+          "net_positive_share": 0.0309,
+          "train_net_cents": -2.298,
+          "test_net_cents": -2.2813,
+          "net_ci95_cents": [
+            -2.5021,
+            -2.078
+          ],
+          "spread_bucket": "0.5-1c",
+          "strength_bucket": "0.65-0.75",
+          "category": "sports",
+          "thin": false
+        },
+        {
+          "n": 3972,
+          "days": 11,
+          "mean_gross_cents": 0.0582,
+          "mean_net_cents": -2.2861,
+          "hit_rate": 0.577,
+          "wilson_lb95": 0.5577,
+          "net_positive_share": 0.0237,
+          "train_net_cents": -2.3516,
+          "test_net_cents": -2.1167,
+          "net_ci95_cents": [
+            -2.4935,
+            -2.0732
+          ],
+          "spread_bucket": "0.5-1c",
+          "strength_bucket": "0.75-0.85",
+          "category": "sports",
+          "thin": false
+        },
+        {
+          "n": 4128,
+          "days": 11,
+          "mean_gross_cents": 0.2132,
+          "mean_net_cents": -2.0212,
+          "hit_rate": 0.5618,
+          "wilson_lb95": 0.5437,
+          "net_positive_share": 0.0315,
+          "train_net_cents": -2.098,
+          "test_net_cents": -1.9072,
+          "net_ci95_cents": [
+            -2.1577,
+            -1.8956
+          ],
+          "spread_bucket": "0.5-1c",
+          "strength_bucket": "0.85-0.95",
+          "category": "sports",
+          "thin": false
+        },
+        {
+          "n": 1751,
+          "days": 11,
+          "mean_gross_cents": 0.1307,
+          "mean_net_cents": -2.1064,
+          "hit_rate": 0.5484,
+          "wilson_lb95": 0.5208,
+          "net_positive_share": 0.0428,
+          "train_net_cents": -2.1938,
+          "test_net_cents": -1.9405,
+          "net_ci95_cents": [
+            -2.3803,
+            -1.8417
+          ],
+          "spread_bucket": "0.5-1c",
+          "strength_bucket": "0.95-1.01",
+          "category": "sports",
+          "thin": false
+        },
+        {
+          "n": 37776,
+          "days": 11,
+          "mean_gross_cents": 0.0976,
+          "mean_net_cents": -2.6677,
+          "hit_rate": 0.5393,
+          "wilson_lb95": 0.5297,
+          "net_positive_share": 0.0502,
+          "train_net_cents": -2.6038,
+          "test_net_cents": -2.7358,
+          "net_ci95_cents": [
+            -2.7963,
+            -2.5385
+          ],
+          "spread_bucket": "1-2c",
+          "strength_bucket": "0.65-0.75",
+          "category": "sports",
+          "thin": false
+        },
+        {
+          "n": 30654,
+          "days": 11,
+          "mean_gross_cents": 0.0887,
+          "mean_net_cents": -2.6017,
+          "hit_rate": 0.552,
+          "wilson_lb95": 0.5411,
+          "net_positive_share": 0.0374,
+          "train_net_cents": -2.5526,
+          "test_net_cents": -2.6642,
+          "net_ci95_cents": [
+            -2.7198,
+            -2.503
+          ],
+          "spread_bucket": "1-2c",
+          "strength_bucket": "0.75-0.85",
+          "category": "sports",
+          "thin": false
+        },
+        {
+          "n": 36395,
+          "days": 11,
+          "mean_gross_cents": 0.0847,
+          "mean_net_cents": -2.6079,
+          "hit_rate": 0.5492,
+          "wilson_lb95": 0.5374,
+          "net_positive_share": 0.0246,
+          "train_net_cents": -2.5786,
+          "test_net_cents": -2.6348,
+          "net_ci95_cents": [
+            -2.7353,
+            -2.4625
+          ],
+          "spread_bucket": "1-2c",
+          "strength_bucket": "0.85-0.95",
+          "category": "sports",
+          "thin": false
+        },
+        {
+          "n": 5242,
+          "days": 11,
+          "mean_gross_cents": 0.194,
+          "mean_net_cents": -2.559,
+          "hit_rate": 0.5716,
+          "wilson_lb95": 0.5496,
+          "net_positive_share": 0.0568,
+          "train_net_cents": -2.6384,
+          "test_net_cents": -2.4634,
+          "net_ci95_cents": [
+            -2.7822,
+            -2.3333
+          ],
+          "spread_bucket": "1-2c",
+          "strength_bucket": "0.95-1.01",
+          "category": "sports",
+          "thin": false
+        },
+        {
+          "n": 5467,
+          "days": 11,
+          "mean_gross_cents": 0.239,
+          "mean_net_cents": -3.8557,
+          "hit_rate": 0.5121,
+          "wilson_lb95": 0.4966,
+          "net_positive_share": 0.1044,
+          "train_net_cents": -4.0269,
+          "test_net_cents": -3.6903,
+          "net_ci95_cents": [
+            -4.0678,
+            -3.711
+          ],
+          "spread_bucket": "2-5c",
+          "strength_bucket": "0.65-0.75",
+          "category": "sports",
+          "thin": false
+        },
+        {
+          "n": 5011,
+          "days": 11,
+          "mean_gross_cents": 0.0563,
+          "mean_net_cents": -4.097,
+          "hit_rate": 0.4973,
+          "wilson_lb95": 0.4806,
+          "net_positive_share": 0.072,
+          "train_net_cents": -4.1669,
+          "test_net_cents": -4.0255,
+          "net_ci95_cents": [
+            -4.3855,
+            -3.8263
+          ],
+          "spread_bucket": "2-5c",
+          "strength_bucket": "0.75-0.85",
+          "category": "sports",
+          "thin": false
+        },
+        {
+          "n": 4968,
+          "days": 11,
+          "mean_gross_cents": 0.1567,
+          "mean_net_cents": -4.0584,
+          "hit_rate": 0.5161,
+          "wilson_lb95": 0.499,
+          "net_positive_share": 0.0696,
+          "train_net_cents": -4.1235,
+          "test_net_cents": -3.9802,
+          "net_ci95_cents": [
+            -4.3643,
+            -3.7868
+          ],
+          "spread_bucket": "2-5c",
+          "strength_bucket": "0.85-0.95",
+          "category": "sports",
+          "thin": false
+        },
+        {
+          "n": 1997,
+          "days": 11,
+          "mean_gross_cents": 0.1763,
+          "mean_net_cents": -4.1978,
+          "hit_rate": 0.5079,
+          "wilson_lb95": 0.4804,
+          "net_positive_share": 0.0806,
+          "train_net_cents": -4.2242,
+          "test_net_cents": -4.1255,
+          "net_ci95_cents": [
+            -4.6846,
+            -3.737
+          ],
+          "spread_bucket": "2-5c",
+          "strength_bucket": "0.95-1.01",
+          "category": "sports",
+          "thin": false
+        },
+        {
+          "n": 610,
+          "days": 11,
+          "mean_gross_cents": -0.3016,
+          "mean_net_cents": -8.6773,
+          "hit_rate": 0.4595,
+          "wilson_lb95": 0.4189,
+          "net_positive_share": 0.123,
+          "train_net_cents": -9.2674,
+          "test_net_cents": -8.2647,
+          "net_ci95_cents": [
+            -9.5451,
+            -7.9616
+          ],
+          "spread_bucket": "5-10.1c",
+          "strength_bucket": "0.65-0.75",
+          "category": "sports",
+          "thin": false
+        },
+        {
+          "n": 652,
+          "days": 11,
+          "mean_gross_cents": -0.6762,
+          "mean_net_cents": -9.2398,
+          "hit_rate": 0.4608,
+          "wilson_lb95": 0.419,
+          "net_positive_share": 0.1043,
+          "train_net_cents": -8.2609,
+          "test_net_cents": -9.945,
+          "net_ci95_cents": [
+            -10.2218,
+            -7.9596
+          ],
+          "spread_bucket": "5-10.1c",
+          "strength_bucket": "0.75-0.85",
+          "category": "sports",
+          "thin": false
+        },
+        {
+          "n": 840,
+          "days": 11,
+          "mean_gross_cents": -0.7116,
+          "mean_net_cents": -9.1939,
+          "hit_rate": 0.4672,
+          "wilson_lb95": 0.4313,
+          "net_positive_share": 0.0738,
+          "train_net_cents": -9.494,
+          "test_net_cents": -8.8953,
+          "net_ci95_cents": [
+            -10.2822,
+            -8.3293
+          ],
+          "spread_bucket": "5-10.1c",
+          "strength_bucket": "0.85-0.95",
+          "category": "sports",
+          "thin": false
+        },
+        {
+          "n": 540,
+          "days": 11,
+          "mean_gross_cents": -0.9028,
+          "mean_net_cents": -9.3267,
+          "hit_rate": 0.4337,
+          "wilson_lb95": 0.3911,
+          "net_positive_share": 0.0722,
+          "train_net_cents": -8.5299,
+          "test_net_cents": -10.0611,
+          "net_ci95_cents": [
+            -10.3514,
+            -8.3298
+          ],
+          "spread_bucket": "5-10.1c",
+          "strength_bucket": "0.95-1.01",
+          "category": "sports",
+          "thin": false
+        }
+      ],
+      "survivors": [],
+      "tested_segments": 34
+    },
+    "politics": {
+      "overall": {
+        "n": 205835,
+        "days": 11,
+        "mean_gross_cents": 0.0856,
+        "mean_net_cents": -2.1693,
+        "hit_rate": 0.5553,
+        "wilson_lb95": 0.5517,
+        "net_positive_share": 0.0424,
+        "train_net_cents": -2.1197,
+        "test_net_cents": -2.2342,
+        "net_ci95_cents": [
+          -2.2744,
+          -2.0658
+        ]
+      },
+      "segments": {
+        "spread": [
+          {
+            "n": 62082,
+            "days": 11,
+            "mean_gross_cents": 0.0751,
+            "mean_net_cents": -1.3272,
+            "hit_rate": 0.6018,
+            "wilson_lb95": 0.5954,
+            "net_positive_share": 0.0289,
+            "train_net_cents": -1.4035,
+            "test_net_cents": -1.1847,
+            "net_ci95_cents": [
+              -1.4555,
+              -1.1821
+            ],
+            "segment": "spread",
+            "bucket": "0-0.5c",
+            "category": "politics",
+            "thin": false
+          },
+          {
+            "n": 13601,
+            "days": 11,
+            "mean_gross_cents": 0.1053,
+            "mean_net_cents": -1.8619,
+            "hit_rate": 0.5528,
+            "wilson_lb95": 0.5426,
+            "net_positive_share": 0.0355,
+            "train_net_cents": -1.9158,
+            "test_net_cents": -1.7674,
+            "net_ci95_cents": [
+              -2.0035,
+              -1.7204
+            ],
+            "segment": "spread",
+            "bucket": "0.5-1c",
+            "category": "politics",
+            "thin": false
+          },
+          {
+            "n": 110067,
+            "days": 11,
+            "mean_gross_cents": 0.0955,
+            "mean_net_cents": -2.2868,
+            "hit_rate": 0.5478,
+            "wilson_lb95": 0.5419,
+            "net_positive_share": 0.0424,
+            "train_net_cents": -2.251,
+            "test_net_cents": -2.3251,
+            "net_ci95_cents": [
+              -2.3797,
+              -2.2059
+            ],
+            "segment": "spread",
+            "bucket": "1-2c",
+            "category": "politics",
+            "thin": false
+          },
+          {
+            "n": 17443,
+            "days": 11,
+            "mean_gross_cents": 0.1559,
+            "mean_net_cents": -3.6688,
+            "hit_rate": 0.5085,
+            "wilson_lb95": 0.4995,
+            "net_positive_share": 0.0867,
+            "train_net_cents": -3.7652,
+            "test_net_cents": -3.5563,
+            "net_ci95_cents": [
+              -3.8803,
+              -3.5123
+            ],
+            "segment": "spread",
+            "bucket": "2-5c",
+            "category": "politics",
+            "thin": false
+          },
+          {
+            "n": 2642,
+            "days": 11,
+            "mean_gross_cents": -0.6473,
+            "mean_net_cents": -8.7474,
+            "hit_rate": 0.4566,
+            "wilson_lb95": 0.4366,
+            "net_positive_share": 0.1014,
+            "train_net_cents": -8.6022,
+            "test_net_cents": -8.8687,
+            "net_ci95_cents": [
+              -9.3611,
+              -8.1637
+            ],
+            "segment": "spread",
+            "bucket": "5-10.1c",
+            "category": "politics",
+            "thin": false
+          }
+        ],
+        "price": [
+          {
+            "n": 35353,
+            "days": 11,
+            "mean_gross_cents": -0.0121,
+            "mean_net_cents": -1.5424,
+            "hit_rate": 0.5453,
+            "wilson_lb95": 0.5359,
+            "net_positive_share": 0.0323,
+            "train_net_cents": -1.5004,
+            "test_net_cents": -1.6053,
+            "net_ci95_cents": [
+              -1.6842,
+              -1.4323
+            ],
+            "segment": "price",
+            "bucket": "0.05-0.15",
+            "category": "politics",
+            "thin": false
+          },
+          {
+            "n": 41048,
+            "days": 11,
+            "mean_gross_cents": 0.0635,
+            "mean_net_cents": -2.3532,
+            "hit_rate": 0.5646,
+            "wilson_lb95": 0.5567,
+            "net_positive_share": 0.0432,
+            "train_net_cents": -2.4041,
+            "test_net_cents": -2.2882,
+            "net_ci95_cents": [
+              -2.4325,
+              -2.286
+            ],
+            "segment": "price",
+            "bucket": "0.15-0.35",
+            "category": "politics",
+            "thin": false
+          },
+          {
+            "n": 51315,
+            "days": 11,
+            "mean_gross_cents": 0.1518,
+            "mean_net_cents": -2.8591,
+            "hit_rate": 0.5636,
+            "wilson_lb95": 0.5568,
+            "net_positive_share": 0.0568,
+            "train_net_cents": -2.6917,
+            "test_net_cents": -3.063,
+            "net_ci95_cents": [
+              -3.0056,
+              -2.6695
+            ],
+            "segment": "price",
+            "bucket": "0.35-0.65",
+            "category": "politics",
+            "thin": false
+          },
+          {
+            "n": 41434,
+            "days": 11,
+            "mean_gross_cents": 0.1043,
+            "mean_net_cents": -2.3074,
+            "hit_rate": 0.5504,
+            "wilson_lb95": 0.5425,
+            "net_positive_share": 0.0401,
+            "train_net_cents": -2.3482,
+            "test_net_cents": -2.255,
+            "net_ci95_cents": [
+              -2.3875,
+              -2.2405
+            ],
+            "segment": "price",
+            "bucket": "0.65-0.85",
+            "category": "politics",
+            "thin": false
+          },
+          {
+            "n": 36685,
+            "days": 11,
+            "mean_gross_cents": 0.0905,
+            "mean_net_cents": -1.447,
+            "hit_rate": 0.5442,
+            "wilson_lb95": 0.5349,
+            "net_positive_share": 0.0335,
+            "train_net_cents": -1.41,
+            "test_net_cents": -1.4962,
+            "net_ci95_cents": [
+              -1.5445,
+              -1.3685
+            ],
+            "segment": "price",
+            "bucket": "0.85-0.95",
+            "category": "politics",
+            "thin": false
+          }
+        ],
+        "strength": [
+          {
+            "n": 66898,
+            "days": 11,
+            "mean_gross_cents": 0.0819,
+            "mean_net_cents": -2.1998,
+            "hit_rate": 0.5354,
+            "wilson_lb95": 0.529,
+            "net_positive_share": 0.0494,
+            "train_net_cents": -2.1224,
+            "test_net_cents": -2.2982,
+            "net_ci95_cents": [
+              -2.3125,
+              -2.0894
+            ],
+            "segment": "strength",
+            "bucket": "0.65-0.75",
+            "category": "politics",
+            "thin": false
+          },
+          {
+            "n": 59388,
+            "days": 11,
+            "mean_gross_cents": 0.0619,
+            "mean_net_cents": -2.1453,
+            "hit_rate": 0.5537,
+            "wilson_lb95": 0.5469,
+            "net_positive_share": 0.0382,
+            "train_net_cents": -2.0697,
+            "test_net_cents": -2.2549,
+            "net_ci95_cents": [
+              -2.2667,
+              -2.0241
+            ],
+            "segment": "strength",
+            "bucket": "0.75-0.85",
+            "category": "politics",
+            "thin": false
+          },
+          {
+            "n": 63696,
+            "days": 11,
+            "mean_gross_cents": 0.0977,
+            "mean_net_cents": -2.1482,
+            "hit_rate": 0.5676,
+            "wilson_lb95": 0.5609,
+            "net_positive_share": 0.0344,
+            "train_net_cents": -2.1541,
+            "test_net_cents": -2.1417,
+            "net_ci95_cents": [
+              -2.2512,
+              -2.0593
+            ],
+            "segment": "strength",
+            "bucket": "0.85-0.95",
+            "category": "politics",
+            "thin": false
+          },
+          {
+            "n": 15853,
+            "days": 11,
+            "mean_gross_cents": 0.1411,
+            "mean_net_cents": -2.2157,
+            "hit_rate": 0.5865,
+            "wilson_lb95": 0.5756,
+            "net_positive_share": 0.0604,
+            "train_net_cents": -2.1673,
+            "test_net_cents": -2.3171,
+            "net_ci95_cents": [
+              -2.4634,
+              -1.9576
+            ],
+            "segment": "strength",
+            "bucket": "0.95-1.01",
+            "category": "politics",
+            "thin": false
+          }
+        ]
+      },
+      "cross": [
+        {
+          "n": 19295,
+          "days": 11,
+          "mean_gross_cents": 0.0298,
+          "mean_net_cents": -1.4465,
+          "hit_rate": 0.5584,
+          "wilson_lb95": 0.5456,
+          "net_positive_share": 0.0205,
+          "train_net_cents": -1.478,
+          "test_net_cents": -1.3844,
+          "net_ci95_cents": [
+            -1.6115,
+            -1.2548
+          ],
+          "spread_bucket": "0-0.5c",
+          "strength_bucket": "0.65-0.75",
+          "category": "politics",
+          "thin": false
+        },
+        {
+          "n": 19099,
+          "days": 11,
+          "mean_gross_cents": 0.0461,
+          "mean_net_cents": -1.3346,
+          "hit_rate": 0.5855,
+          "wilson_lb95": 0.5733,
+          "net_positive_share": 0.0213,
+          "train_net_cents": -1.3624,
+          "test_net_cents": -1.2837,
+          "net_ci95_cents": [
+            -1.4588,
+            -1.2069
+          ],
+          "spread_bucket": "0-0.5c",
+          "strength_bucket": "0.75-0.85",
+          "category": "politics",
+          "thin": false
+        },
+        {
+          "n": 17365,
+          "days": 11,
+          "mean_gross_cents": 0.1197,
+          "mean_net_cents": -1.2191,
+          "hit_rate": 0.6223,
+          "wilson_lb95": 0.6109,
+          "net_positive_share": 0.0377,
+          "train_net_cents": -1.376,
+          "test_net_cents": -0.9912,
+          "net_ci95_cents": [
+            -1.3573,
+            -1.0801
+          ],
+          "spread_bucket": "0-0.5c",
+          "strength_bucket": "0.85-0.95",
+          "category": "politics",
+          "thin": false
+        },
+        {
+          "n": 6323,
+          "days": 11,
+          "mean_gross_cents": 0.1781,
+          "mean_net_cents": -1.2377,
+          "hit_rate": 0.6758,
+          "wilson_lb95": 0.6584,
+          "net_positive_share": 0.0538,
+          "train_net_cents": -1.3704,
+          "test_net_cents": -0.7356,
+          "net_ci95_cents": [
+            -1.5051,
+            -0.9481
+          ],
+          "spread_bucket": "0-0.5c",
+          "strength_bucket": "0.95-1.01",
+          "category": "politics",
+          "thin": false
+        },
+        {
+          "n": 3750,
+          "days": 11,
+          "mean_gross_cents": 0.0248,
+          "mean_net_cents": -1.9619,
+          "hit_rate": 0.5198,
+          "wilson_lb95": 0.5002,
+          "net_positive_share": 0.0357,
+          "train_net_cents": -1.9691,
+          "test_net_cents": -1.9518,
+          "net_ci95_cents": [
+            -2.1635,
+            -1.7635
+          ],
+          "spread_bucket": "0.5-1c",
+          "strength_bucket": "0.65-0.75",
+          "category": "politics",
+          "thin": false
+        },
+        {
+          "n": 3972,
+          "days": 11,
+          "mean_gross_cents": 0.0582,
+          "mean_net_cents": -1.9533,
+          "hit_rate": 0.577,
+          "wilson_lb95": 0.5577,
+          "net_positive_share": 0.0302,
+          "train_net_cents": -2.0117,
+          "test_net_cents": -1.8022,
+          "net_ci95_cents": [
+            -2.1429,
+            -1.7592
+          ],
+          "spread_bucket": "0.5-1c",
+          "strength_bucket": "0.75-0.85",
+          "category": "politics",
+          "thin": false
+        },
+        {
+          "n": 4128,
+          "days": 11,
+          "mean_gross_cents": 0.2132,
+          "mean_net_cents": -1.712,
+          "hit_rate": 0.5618,
+          "wilson_lb95": 0.5437,
+          "net_positive_share": 0.0344,
+          "train_net_cents": -1.7782,
+          "test_net_cents": -1.6136,
+          "net_ci95_cents": [
+            -1.825,
+            -1.6004
+          ],
+          "spread_bucket": "0.5-1c",
+          "strength_bucket": "0.85-0.95",
+          "category": "politics",
+          "thin": false
+        },
+        {
+          "n": 1751,
+          "days": 11,
+          "mean_gross_cents": 0.1307,
+          "mean_net_cents": -1.7942,
+          "hit_rate": 0.5484,
+          "wilson_lb95": 0.5208,
+          "net_positive_share": 0.0497,
+          "train_net_cents": -1.8702,
+          "test_net_cents": -1.6497,
+          "net_ci95_cents": [
+            -2.0528,
+            -1.5406
+          ],
+          "spread_bucket": "0.5-1c",
+          "strength_bucket": "0.95-1.01",
+          "category": "politics",
+          "thin": false
+        },
+        {
+          "n": 37776,
+          "days": 11,
+          "mean_gross_cents": 0.0976,
+          "mean_net_cents": -2.3199,
+          "hit_rate": 0.5393,
+          "wilson_lb95": 0.5297,
+          "net_positive_share": 0.0555,
+          "train_net_cents": -2.2611,
+          "test_net_cents": -2.3825,
+          "net_ci95_cents": [
+            -2.4284,
+            -2.2118
+          ],
+          "spread_bucket": "1-2c",
+          "strength_bucket": "0.65-0.75",
+          "category": "politics",
+          "thin": false
+        },
+        {
+          "n": 30654,
+          "days": 11,
+          "mean_gross_cents": 0.0887,
+          "mean_net_cents": -2.2706,
+          "hit_rate": 0.552,
+          "wilson_lb95": 0.5411,
+          "net_positive_share": 0.0418,
+          "train_net_cents": -2.237,
+          "test_net_cents": -2.3132,
+          "net_ci95_cents": [
+            -2.371,
+            -2.1849
+          ],
+          "spread_bucket": "1-2c",
+          "strength_bucket": "0.75-0.85",
+          "category": "politics",
+          "thin": false
+        },
+        {
+          "n": 36395,
+          "days": 11,
+          "mean_gross_cents": 0.0847,
+          "mean_net_cents": -2.275,
+          "hit_rate": 0.5492,
+          "wilson_lb95": 0.5374,
+          "net_positive_share": 0.0265,
+          "train_net_cents": -2.2492,
+          "test_net_cents": -2.2988,
+          "net_ci95_cents": [
+            -2.3828,
+            -2.1543
+          ],
+          "spread_bucket": "1-2c",
+          "strength_bucket": "0.85-0.95",
+          "category": "politics",
+          "thin": false
+        },
+        {
+          "n": 5242,
+          "days": 11,
+          "mean_gross_cents": 0.194,
+          "mean_net_cents": -2.225,
+          "hit_rate": 0.5716,
+          "wilson_lb95": 0.5496,
+          "net_positive_share": 0.061,
+          "train_net_cents": -2.2776,
+          "test_net_cents": -2.1616,
+          "net_ci95_cents": [
+            -2.4319,
+            -2.0096
+          ],
+          "spread_bucket": "1-2c",
+          "strength_bucket": "0.95-1.01",
+          "category": "politics",
+          "thin": false
+        },
+        {
+          "n": 5467,
+          "days": 11,
+          "mean_gross_cents": 0.239,
+          "mean_net_cents": -3.5102,
+          "hit_rate": 0.5121,
+          "wilson_lb95": 0.4966,
+          "net_positive_share": 0.1087,
+          "train_net_cents": -3.6809,
+          "test_net_cents": -3.3454,
+          "net_ci95_cents": [
+            -3.7296,
+            -3.3594
+          ],
+          "spread_bucket": "2-5c",
+          "strength_bucket": "0.65-0.75",
+          "category": "politics",
+          "thin": false
+        },
+        {
+          "n": 5011,
+          "days": 11,
+          "mean_gross_cents": 0.0563,
+          "mean_net_cents": -3.7476,
+          "hit_rate": 0.4973,
+          "wilson_lb95": 0.4806,
+          "net_positive_share": 0.077,
+          "train_net_cents": -3.8158,
+          "test_net_cents": -3.678,
+          "net_ci95_cents": [
+            -4.0351,
+            -3.4825
+          ],
+          "spread_bucket": "2-5c",
+          "strength_bucket": "0.75-0.85",
+          "category": "politics",
+          "thin": false
+        },
+        {
+          "n": 4968,
+          "days": 11,
+          "mean_gross_cents": 0.1567,
+          "mean_net_cents": -3.7002,
+          "hit_rate": 0.5161,
+          "wilson_lb95": 0.499,
+          "net_positive_share": 0.0729,
+          "train_net_cents": -3.7608,
+          "test_net_cents": -3.6274,
+          "net_ci95_cents": [
+            -3.9921,
+            -3.4383
+          ],
+          "spread_bucket": "2-5c",
+          "strength_bucket": "0.85-0.95",
+          "category": "politics",
+          "thin": false
+        },
+        {
+          "n": 1997,
+          "days": 11,
+          "mean_gross_cents": 0.1763,
+          "mean_net_cents": -3.827,
+          "hit_rate": 0.5079,
+          "wilson_lb95": 0.4804,
+          "net_positive_share": 0.0856,
+          "train_net_cents": -3.8405,
+          "test_net_cents": -3.7902,
+          "net_ci95_cents": [
+            -4.3014,
+            -3.3918
+          ],
+          "spread_bucket": "2-5c",
+          "strength_bucket": "0.95-1.01",
+          "category": "politics",
+          "thin": false
+        },
+        {
+          "n": 610,
+          "days": 11,
+          "mean_gross_cents": -0.3016,
+          "mean_net_cents": -8.312,
+          "hit_rate": 0.4595,
+          "wilson_lb95": 0.4189,
+          "net_positive_share": 0.1377,
+          "train_net_cents": -8.9038,
+          "test_net_cents": -7.8982,
+          "net_ci95_cents": [
+            -9.1924,
+            -7.5744
+          ],
+          "spread_bucket": "5-10.1c",
+          "strength_bucket": "0.65-0.75",
+          "category": "politics",
+          "thin": false
+        },
+        {
+          "n": 652,
+          "days": 11,
+          "mean_gross_cents": -0.6762,
+          "mean_net_cents": -8.8614,
+          "hit_rate": 0.4608,
+          "wilson_lb95": 0.419,
+          "net_positive_share": 0.115,
+          "train_net_cents": -7.9155,
+          "test_net_cents": -9.5428,
+          "net_ci95_cents": [
+            -9.8216,
+            -7.6043
+          ],
+          "spread_bucket": "5-10.1c",
+          "strength_bucket": "0.75-0.85",
+          "category": "politics",
+          "thin": false
+        },
+        {
+          "n": 840,
+          "days": 11,
+          "mean_gross_cents": -0.7116,
+          "mean_net_cents": -8.8222,
+          "hit_rate": 0.4672,
+          "wilson_lb95": 0.4313,
+          "net_positive_share": 0.0821,
+          "train_net_cents": -9.1175,
+          "test_net_cents": -8.5283,
+          "net_ci95_cents": [
+            -9.8905,
+            -7.9676
+          ],
+          "spread_bucket": "5-10.1c",
+          "strength_bucket": "0.85-0.95",
+          "category": "politics",
+          "thin": false
+        },
+        {
+          "n": 540,
+          "days": 11,
+          "mean_gross_cents": -0.9028,
+          "mean_net_cents": -8.9853,
+          "hit_rate": 0.4337,
+          "wilson_lb95": 0.3911,
+          "net_positive_share": 0.0741,
+          "train_net_cents": -8.1999,
+          "test_net_cents": -9.7093,
+          "net_ci95_cents": [
+            -10.0341,
+            -7.966
+          ],
+          "spread_bucket": "5-10.1c",
+          "strength_bucket": "0.95-1.01",
+          "category": "politics",
+          "thin": false
+        }
+      ],
+      "survivors": [],
+      "tested_segments": 34
+    },
+    "geopolitics": {
+      "overall": {
+        "n": 205835,
+        "days": 11,
+        "mean_gross_cents": 0.0856,
+        "mean_net_cents": -0.8527,
+        "hit_rate": 0.5553,
+        "wilson_lb95": 0.5517,
+        "net_positive_share": 0.0842,
+        "train_net_cents": -0.8005,
+        "test_net_cents": -0.921,
+        "net_ci95_cents": [
+          -0.9191,
+          -0.7801
+        ]
+      },
+      "segments": {
+        "spread": [
+          {
+            "n": 62082,
+            "days": 11,
+            "mean_gross_cents": 0.0751,
+            "mean_net_cents": -0.0971,
+            "hit_rate": 0.6018,
+            "wilson_lb95": 0.5954,
+            "net_positive_share": 0.1193,
+            "train_net_cents": -0.1218,
+            "test_net_cents": -0.0509,
+            "net_ci95_cents": [
+              -0.1499,
+              -0.0408
+            ],
+            "segment": "spread",
+            "bucket": "0-0.5c",
+            "category": "geopolitics",
+            "thin": false
+          },
+          {
+            "n": 13601,
+            "days": 11,
+            "mean_gross_cents": 0.1053,
+            "mean_net_cents": -0.5739,
+            "hit_rate": 0.5528,
+            "wilson_lb95": 0.5426,
+            "net_positive_share": 0.0932,
+            "train_net_cents": -0.5989,
+            "test_net_cents": -0.5301,
+            "net_ci95_cents": [
+              -0.6405,
+              -0.5015
+            ],
+            "segment": "spread",
+            "bucket": "0.5-1c",
+            "category": "geopolitics",
+            "thin": false
+          },
+          {
+            "n": 110067,
+            "days": 11,
+            "mean_gross_cents": 0.0955,
+            "mean_net_cents": -0.9365,
+            "hit_rate": 0.5478,
+            "wilson_lb95": 0.5419,
+            "net_positive_share": 0.0581,
+            "train_net_cents": -0.9257,
+            "test_net_cents": -0.9481,
+            "net_ci95_cents": [
+              -0.9797,
+              -0.8902
+            ],
+            "segment": "spread",
+            "bucket": "1-2c",
+            "category": "geopolitics",
+            "thin": false
+          },
+          {
+            "n": 17443,
+            "days": 11,
+            "mean_gross_cents": 0.1559,
+            "mean_net_cents": -2.2564,
+            "hit_rate": 0.5085,
+            "wilson_lb95": 0.4995,
+            "net_positive_share": 0.1115,
+            "train_net_cents": -2.333,
+            "test_net_cents": -2.167,
+            "net_ci95_cents": [
+              -2.4459,
+              -2.1237
+            ],
+            "segment": "spread",
+            "bucket": "2-5c",
+            "category": "geopolitics",
+            "thin": false
+          },
+          {
+            "n": 2642,
+            "days": 11,
+            "mean_gross_cents": -0.6473,
+            "mean_net_cents": -7.2847,
+            "hit_rate": 0.4566,
+            "wilson_lb95": 0.4366,
+            "net_positive_share": 0.12,
+            "train_net_cents": -7.1753,
+            "test_net_cents": -7.3759,
+            "net_ci95_cents": [
+              -7.9073,
+              -6.6446
+            ],
+            "segment": "spread",
+            "bucket": "5-10.1c",
+            "category": "geopolitics",
+            "thin": false
+          }
+        ],
+        "price": [
+          {
+            "n": 35353,
+            "days": 11,
+            "mean_gross_cents": -0.0121,
+            "mean_net_cents": -0.8517,
+            "hit_rate": 0.5453,
+            "wilson_lb95": 0.5359,
+            "net_positive_share": 0.0611,
+            "train_net_cents": -0.8081,
+            "test_net_cents": -0.917,
+            "net_ci95_cents": [
+              -0.9927,
+              -0.7459
+            ],
+            "segment": "price",
+            "bucket": "0.05-0.15",
+            "category": "geopolitics",
+            "thin": false
+          },
+          {
+            "n": 41048,
+            "days": 11,
+            "mean_gross_cents": 0.0635,
+            "mean_net_cents": -0.8803,
+            "hit_rate": 0.5646,
+            "wilson_lb95": 0.5567,
+            "net_positive_share": 0.0937,
+            "train_net_cents": -0.897,
+            "test_net_cents": -0.8591,
+            "net_ci95_cents": [
+              -0.9654,
+              -0.8007
+            ],
+            "segment": "price",
+            "bucket": "0.15-0.35",
+            "category": "geopolitics",
+            "thin": false
+          },
+          {
+            "n": 51315,
+            "days": 11,
+            "mean_gross_cents": 0.1518,
+            "mean_net_cents": -0.9144,
+            "hit_rate": 0.5636,
+            "wilson_lb95": 0.5568,
+            "net_positive_share": 0.1044,
+            "train_net_cents": -0.7463,
+            "test_net_cents": -1.119,
+            "net_ci95_cents": [
+              -1.0606,
+              -0.7291
+            ],
+            "segment": "price",
+            "bucket": "0.35-0.65",
+            "category": "geopolitics",
+            "thin": false
+          },
+          {
+            "n": 41434,
+            "days": 11,
+            "mean_gross_cents": 0.1043,
+            "mean_net_cents": -0.8337,
+            "hit_rate": 0.5504,
+            "wilson_lb95": 0.5425,
+            "net_positive_share": 0.0899,
+            "train_net_cents": -0.8414,
+            "test_net_cents": -0.8238,
+            "net_ci95_cents": [
+              -0.9177,
+              -0.7498
+            ],
+            "segment": "price",
+            "bucket": "0.65-0.85",
+            "category": "geopolitics",
+            "thin": false
+          },
+          {
+            "n": 36685,
+            "days": 11,
+            "mean_gross_cents": 0.0905,
+            "mean_net_cents": -0.758,
+            "hit_rate": 0.5442,
+            "wilson_lb95": 0.5349,
+            "net_positive_share": 0.0612,
+            "train_net_cents": -0.7139,
+            "test_net_cents": -0.8165,
+            "net_ci95_cents": [
+              -0.8655,
+              -0.6793
+            ],
+            "segment": "price",
+            "bucket": "0.85-0.95",
+            "category": "geopolitics",
+            "thin": false
+          }
+        ],
+        "strength": [
+          {
+            "n": 66898,
+            "days": 11,
+            "mean_gross_cents": 0.0819,
+            "mean_net_cents": -0.8402,
+            "hit_rate": 0.5354,
+            "wilson_lb95": 0.529,
+            "net_positive_share": 0.0844,
+            "train_net_cents": -0.7674,
+            "test_net_cents": -0.9327,
+            "net_ci95_cents": [
+              -0.9094,
+              -0.7649
+            ],
+            "segment": "strength",
+            "bucket": "0.65-0.75",
+            "category": "geopolitics",
+            "thin": false
+          },
+          {
+            "n": 59388,
+            "days": 11,
+            "mean_gross_cents": 0.0619,
+            "mean_net_cents": -0.8477,
+            "hit_rate": 0.5537,
+            "wilson_lb95": 0.5469,
+            "net_positive_share": 0.0785,
+            "train_net_cents": -0.8002,
+            "test_net_cents": -0.9166,
+            "net_ci95_cents": [
+              -0.9229,
+              -0.776
+            ],
+            "segment": "strength",
+            "bucket": "0.75-0.85",
+            "category": "geopolitics",
+            "thin": false
+          },
+          {
+            "n": 63696,
+            "days": 11,
+            "mean_gross_cents": 0.0977,
+            "mean_net_cents": -0.8573,
+            "hit_rate": 0.5676,
+            "wilson_lb95": 0.5609,
+            "net_positive_share": 0.0766,
+            "train_net_cents": -0.8337,
+            "test_net_cents": -0.8832,
+            "net_ci95_cents": [
+              -0.9313,
+              -0.7852
+            ],
+            "segment": "strength",
+            "bucket": "0.85-0.95",
+            "category": "geopolitics",
+            "thin": false
+          },
+          {
+            "n": 15853,
+            "days": 11,
+            "mean_gross_cents": 0.1411,
+            "mean_net_cents": -0.9059,
+            "hit_rate": 0.5865,
+            "wilson_lb95": 0.5756,
+            "net_positive_share": 0.1358,
+            "train_net_cents": -0.8138,
+            "test_net_cents": -1.099,
+            "net_ci95_cents": [
+              -1.0848,
+              -0.7201
+            ],
+            "segment": "strength",
+            "bucket": "0.95-1.01",
+            "category": "geopolitics",
+            "thin": false
+          }
+        ]
+      },
+      "cross": [
+        {
+          "n": 19295,
+          "days": 11,
+          "mean_gross_cents": 0.0298,
+          "mean_net_cents": -0.1498,
+          "hit_rate": 0.5584,
+          "wilson_lb95": 0.5456,
+          "net_positive_share": 0.0906,
+          "train_net_cents": -0.1478,
+          "test_net_cents": -0.1538,
+          "net_ci95_cents": [
+            -0.1942,
+            -0.0932
+          ],
+          "spread_bucket": "0-0.5c",
+          "strength_bucket": "0.65-0.75",
+          "category": "geopolitics",
+          "thin": false
+        },
+        {
+          "n": 19099,
+          "days": 11,
+          "mean_gross_cents": 0.0461,
+          "mean_net_cents": -0.1211,
+          "hit_rate": 0.5855,
+          "wilson_lb95": 0.5733,
+          "net_positive_share": 0.1026,
+          "train_net_cents": -0.1338,
+          "test_net_cents": -0.098,
+          "net_ci95_cents": [
+            -0.1577,
+            -0.0746
+          ],
+          "spread_bucket": "0-0.5c",
+          "strength_bucket": "0.75-0.85",
+          "category": "geopolitics",
+          "thin": false
+        },
+        {
+          "n": 17365,
+          "days": 11,
+          "mean_gross_cents": 0.1197,
+          "mean_net_cents": -0.0503,
+          "hit_rate": 0.6223,
+          "wilson_lb95": 0.6109,
+          "net_positive_share": 0.1446,
+          "train_net_cents": -0.0828,
+          "test_net_cents": -0.0031,
+          "net_ci95_cents": [
+            -0.1135,
+            0.0116
+          ],
+          "spread_bucket": "0-0.5c",
+          "strength_bucket": "0.85-0.95",
+          "category": "geopolitics",
+          "thin": false
+        },
+        {
+          "n": 6323,
+          "days": 11,
+          "mean_gross_cents": 0.1781,
+          "mean_net_cents": 0.0077,
+          "hit_rate": 0.6758,
+          "wilson_lb95": 0.6584,
+          "net_positive_share": 0.188,
+          "train_net_cents": -0.1059,
+          "test_net_cents": 0.4376,
+          "net_ci95_cents": [
+            -0.1124,
+            0.2033
+          ],
+          "spread_bucket": "0-0.5c",
+          "strength_bucket": "0.95-1.01",
+          "category": "geopolitics",
+          "thin": false
+        },
+        {
+          "n": 3750,
+          "days": 11,
+          "mean_gross_cents": 0.0248,
+          "mean_net_cents": -0.6452,
+          "hit_rate": 0.5198,
+          "wilson_lb95": 0.5002,
+          "net_positive_share": 0.0872,
+          "train_net_cents": -0.6536,
+          "test_net_cents": -0.6335,
+          "net_ci95_cents": [
+            -0.8073,
+            -0.4875
+          ],
+          "spread_bucket": "0.5-1c",
+          "strength_bucket": "0.65-0.75",
+          "category": "geopolitics",
+          "thin": false
+        },
+        {
+          "n": 3972,
+          "days": 11,
+          "mean_gross_cents": 0.0582,
+          "mean_net_cents": -0.6219,
+          "hit_rate": 0.577,
+          "wilson_lb95": 0.5577,
+          "net_positive_share": 0.0808,
+          "train_net_cents": -0.6521,
+          "test_net_cents": -0.544,
+          "net_ci95_cents": [
+            -0.7445,
+            -0.5034
+          ],
+          "spread_bucket": "0.5-1c",
+          "strength_bucket": "0.75-0.85",
+          "category": "geopolitics",
+          "thin": false
+        },
+        {
+          "n": 4128,
+          "days": 11,
+          "mean_gross_cents": 0.2132,
+          "mean_net_cents": -0.4752,
+          "hit_rate": 0.5618,
+          "wilson_lb95": 0.5437,
+          "net_positive_share": 0.095,
+          "train_net_cents": -0.4992,
+          "test_net_cents": -0.4394,
+          "net_ci95_cents": [
+            -0.5311,
+            -0.4128
+          ],
+          "spread_bucket": "0.5-1c",
+          "strength_bucket": "0.85-0.95",
+          "category": "geopolitics",
+          "thin": false
+        },
+        {
+          "n": 1751,
+          "days": 11,
+          "mean_gross_cents": 0.1307,
+          "mean_net_cents": -0.5452,
+          "hit_rate": 0.5484,
+          "wilson_lb95": 0.5208,
+          "net_positive_share": 0.1302,
+          "train_net_cents": -0.576,
+          "test_net_cents": -0.4868,
+          "net_ci95_cents": [
+            -0.7388,
+            -0.3454
+          ],
+          "spread_bucket": "0.5-1c",
+          "strength_bucket": "0.95-1.01",
+          "category": "geopolitics",
+          "thin": false
+        },
+        {
+          "n": 37776,
+          "days": 11,
+          "mean_gross_cents": 0.0976,
+          "mean_net_cents": -0.9287,
+          "hit_rate": 0.5393,
+          "wilson_lb95": 0.5297,
+          "net_positive_share": 0.0721,
+          "train_net_cents": -0.8906,
+          "test_net_cents": -0.9693,
+          "net_ci95_cents": [
+            -0.984,
+            -0.8624
+          ],
+          "spread_bucket": "1-2c",
+          "strength_bucket": "0.65-0.75",
+          "category": "geopolitics",
+          "thin": false
+        },
+        {
+          "n": 30654,
+          "days": 11,
+          "mean_gross_cents": 0.0887,
+          "mean_net_cents": -0.9458,
+          "hit_rate": 0.552,
+          "wilson_lb95": 0.5411,
+          "net_positive_share": 0.0584,
+          "train_net_cents": -0.9749,
+          "test_net_cents": -0.9088,
+          "net_ci95_cents": [
+            -1.0007,
+            -0.8849
+          ],
+          "spread_bucket": "1-2c",
+          "strength_bucket": "0.75-0.85",
+          "category": "geopolitics",
+          "thin": false
+        },
+        {
+          "n": 36395,
+          "days": 11,
+          "mean_gross_cents": 0.0847,
+          "mean_net_cents": -0.9438,
+          "hit_rate": 0.5492,
+          "wilson_lb95": 0.5374,
+          "net_positive_share": 0.0391,
+          "train_net_cents": -0.9317,
+          "test_net_cents": -0.9549,
+          "net_ci95_cents": [
+            -0.979,
+            -0.8998
+          ],
+          "spread_bucket": "1-2c",
+          "strength_bucket": "0.85-0.95",
+          "category": "geopolitics",
+          "thin": false
+        },
+        {
+          "n": 5242,
+          "days": 11,
+          "mean_gross_cents": 0.194,
+          "mean_net_cents": -0.8888,
+          "hit_rate": 0.5716,
+          "wilson_lb95": 0.5496,
+          "net_positive_share": 0.0874,
+          "train_net_cents": -0.8343,
+          "test_net_cents": -0.9544,
+          "net_ci95_cents": [
+            -1.0708,
+            -0.7046
+          ],
+          "spread_bucket": "1-2c",
+          "strength_bucket": "0.95-1.01",
+          "category": "geopolitics",
+          "thin": false
+        },
+        {
+          "n": 5467,
+          "days": 11,
+          "mean_gross_cents": 0.239,
+          "mean_net_cents": -2.1285,
+          "hit_rate": 0.5121,
+          "wilson_lb95": 0.4966,
+          "net_positive_share": 0.137,
+          "train_net_cents": -2.2973,
+          "test_net_cents": -1.9655,
+          "net_ci95_cents": [
+            -2.369,
+            -1.9495
+          ],
+          "spread_bucket": "2-5c",
+          "strength_bucket": "0.65-0.75",
+          "category": "geopolitics",
+          "thin": false
+        },
+        {
+          "n": 5011,
+          "days": 11,
+          "mean_gross_cents": 0.0563,
+          "mean_net_cents": -2.3502,
+          "hit_rate": 0.4973,
+          "wilson_lb95": 0.4806,
+          "net_positive_share": 0.1004,
+          "train_net_cents": -2.4112,
+          "test_net_cents": -2.2879,
+          "net_ci95_cents": [
+            -2.6086,
+            -2.1135
+          ],
+          "spread_bucket": "2-5c",
+          "strength_bucket": "0.75-0.85",
+          "category": "geopolitics",
+          "thin": false
+        },
+        {
+          "n": 4968,
+          "days": 11,
+          "mean_gross_cents": 0.1567,
+          "mean_net_cents": -2.2673,
+          "hit_rate": 0.5161,
+          "wilson_lb95": 0.499,
+          "net_positive_share": 0.0934,
+          "train_net_cents": -2.31,
+          "test_net_cents": -2.216,
+          "net_ci95_cents": [
+            -2.5248,
+            -2.0416
+          ],
+          "spread_bucket": "2-5c",
+          "strength_bucket": "0.85-0.95",
+          "category": "geopolitics",
+          "thin": false
+        },
+        {
+          "n": 1997,
+          "days": 11,
+          "mean_gross_cents": 0.1763,
+          "mean_net_cents": -2.344,
+          "hit_rate": 0.5079,
+          "wilson_lb95": 0.4804,
+          "net_positive_share": 0.1147,
+          "train_net_cents": -2.3056,
+          "test_net_cents": -2.4493,
+          "net_ci95_cents": [
+            -2.7843,
+            -1.8998
+          ],
+          "spread_bucket": "2-5c",
+          "strength_bucket": "0.95-1.01",
+          "category": "geopolitics",
+          "thin": false
+        },
+        {
+          "n": 610,
+          "days": 11,
+          "mean_gross_cents": -0.3016,
+          "mean_net_cents": -6.8509,
+          "hit_rate": 0.4595,
+          "wilson_lb95": 0.4189,
+          "net_positive_share": 0.1623,
+          "train_net_cents": -7.4494,
+          "test_net_cents": -6.4325,
+          "net_ci95_cents": [
+            -7.788,
+            -6.0405
+          ],
+          "spread_bucket": "5-10.1c",
+          "strength_bucket": "0.65-0.75",
+          "category": "geopolitics",
+          "thin": false
+        },
+        {
+          "n": 652,
+          "days": 11,
+          "mean_gross_cents": -0.6762,
+          "mean_net_cents": -7.3477,
+          "hit_rate": 0.4608,
+          "wilson_lb95": 0.419,
+          "net_positive_share": 0.1288,
+          "train_net_cents": -6.5339,
+          "test_net_cents": -7.9339,
+          "net_ci95_cents": [
+            -8.2908,
+            -6.11
+          ],
+          "spread_bucket": "5-10.1c",
+          "strength_bucket": "0.75-0.85",
+          "category": "geopolitics",
+          "thin": false
+        },
+        {
+          "n": 840,
+          "days": 11,
+          "mean_gross_cents": -0.7116,
+          "mean_net_cents": -7.3353,
+          "hit_rate": 0.4672,
+          "wilson_lb95": 0.4313,
+          "net_positive_share": 0.1012,
+          "train_net_cents": -7.6117,
+          "test_net_cents": -7.0602,
+          "net_ci95_cents": [
+            -8.3587,
+            -6.4836
+          ],
+          "spread_bucket": "5-10.1c",
+          "strength_bucket": "0.85-0.95",
+          "category": "geopolitics",
+          "thin": false
+        },
+        {
+          "n": 540,
+          "days": 11,
+          "mean_gross_cents": -0.9028,
+          "mean_net_cents": -7.6198,
+          "hit_rate": 0.4337,
+          "wilson_lb95": 0.3911,
+          "net_positive_share": 0.0907,
+          "train_net_cents": -6.8799,
+          "test_net_cents": -8.3018,
+          "net_ci95_cents": [
+            -8.7214,
+            -6.6062
+          ],
+          "spread_bucket": "5-10.1c",
+          "strength_bucket": "0.95-1.01",
+          "category": "geopolitics",
+          "thin": false
+        }
+      ],
+      "survivors": [
+        {
+          "n": 6323,
+          "days": 11,
+          "mean_gross_cents": 0.1781,
+          "mean_net_cents": 0.0077,
+          "hit_rate": 0.6758,
+          "wilson_lb95": 0.6584,
+          "net_positive_share": 0.188,
+          "train_net_cents": -0.1059,
+          "test_net_cents": 0.4376,
+          "net_ci95_cents": [
+            -0.1124,
+            0.2033
+          ],
+          "spread_bucket": "0-0.5c",
+          "strength_bucket": "0.95-1.01",
+          "category": "geopolitics",
+          "thin": false
+        }
+      ],
+      "tested_segments": 34
+    }
+  }
+}
