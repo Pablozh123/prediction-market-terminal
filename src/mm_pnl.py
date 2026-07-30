@@ -51,6 +51,7 @@ from bisect import bisect_left
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from app import liquidity_rewards as lr
 from app import venue_fees as vf
 from src import orderflow_study as ofs
 from src.mm_simulator import QuoteParams, compute_quotes
@@ -68,6 +69,11 @@ MIN_SNAPSHOTS_PER_TOKEN = 20
 GAMMA_GRID = (0.0, 0.04, 0.08, 0.16, 0.32)
 #: Quote-Breiten fuer die Break-even-Frage (halber Spread in Preiseinheiten).
 HALF_SPREAD_GRID = (0.005, 0.01, 0.02, 0.04, 0.08)
+#: Schwelle, ab der die Buch-Imbalance als Richtungssignal gilt (wie in der
+#: Order-Flow-Studie).
+SIGNAL_THRESHOLD = 0.65
+#: Quoting-Modi im Vergleich: ohne Signal, Signal zieht die Gegenseite, mild.
+QUOTE_MODES = ("symmetric", "signal", "lean")
 
 # Validierte Referenzpalette (dataviz-Skill), Light-Mode
 COLOR_POS = "#1baf7a"
@@ -174,6 +180,58 @@ class TokenRun:
     token_id: str
     fills: list[MMFill] = field(default_factory=list)
     inventory_path: list[float] = field(default_factory=list)
+    #: (ts, mid, quoted_bid, quoted_ask) je Snapshot, fuer die Reward-Rechnung.
+    quote_path: list[tuple[float, float, float | None, float | None]] = field(
+        default_factory=list)
+
+    def reward_samples(self) -> list[tuple[float, float, float | None, float | None, float]]:
+        """Quotes weighted by how long each one stood, for the reward score."""
+        samples = []
+        for (ts, mid, bid, ask), (next_ts, _, _, _) in zip(self.quote_path,
+                                                           self.quote_path[1:]):
+            duration = next_ts - ts
+            if duration > 0:
+                samples.append((duration, mid, bid, ask, mid))
+        return samples
+
+
+def quote_sides(imbalance: float, threshold: float,
+                mode: str = "symmetric") -> tuple[bool, bool]:
+    """Which sides to show, given what the book is signalling.
+
+    Returns ``(quote_bid, quote_ask)``.
+
+    The order-flow study leaves one usable conclusion: the imbalance signal is
+    directionally real but its gross edge, around a tenth of a cent, is far too
+    small to pay a spread for. A maker does not pay the spread, it earns it, so
+    the signal belongs in the quoting decision rather than in a taker order.
+
+    Adverse selection is asymmetric by nature: a maker gets hurt on the side the
+    market then runs away from. If the book is bid-heavy and the price tends to
+    rise, the dangerous side is our ask, because being sold to means being short
+    into a rise. ``signal`` mode therefore keeps the side the signal favours and
+    pulls the other one. ``lean`` keeps both sides up and only pulls the
+    dangerous one when the signal is extreme, which trades less protection for
+    more fills.
+    """
+    if mode == "symmetric":
+        return True, True
+    bullish = imbalance >= threshold
+    bearish = imbalance <= 1.0 - threshold
+    if mode == "signal":
+        if bullish:
+            return True, False
+        if bearish:
+            return False, True
+        return True, True
+    if mode == "lean":
+        extreme = max(threshold, 1.0 - (1.0 - threshold) / 2.0)
+        if imbalance >= extreme:
+            return True, False
+        if imbalance <= 1.0 - extreme:
+            return False, True
+        return True, True
+    raise ValueError(f"unbekannter Quoting-Modus: {mode}")
 
 
 def touch_fills(bid: float | None, ask: float | None,
@@ -238,8 +296,14 @@ def _mid_at(series: list[ofs.BookPoint], mids: list[float], stamps: list[float],
 def run_token(token_id: str, series: list[ofs.BookPoint],
               trades: list[ofs.TradePoint], params: QuoteParams,
               fill_model: str = "touch",
-              markout_horizon_s: float = MARKOUT_HORIZON_S) -> TokenRun:
-    """Quote both sides across one token's series and record every fill."""
+              markout_horizon_s: float = MARKOUT_HORIZON_S,
+              quote_mode: str = "symmetric",
+              signal_threshold: float = SIGNAL_THRESHOLD) -> TokenRun:
+    """Quote across one token's series and record every fill.
+
+    ``quote_mode`` selects how the book imbalance feeds the quoting decision;
+    see :func:`quote_sides`.
+    """
     run = TokenRun(token_id=token_id)
     stamps = [p.ts for p in series]
     mids = [p.mid for p in series]
@@ -291,10 +355,17 @@ def run_token(token_id: str, series: list[ofs.BookPoint],
         if MID_BOUNDS[0] < point.mid < MID_BOUNDS[1]:
             quoted_bid, quoted_ask = compute_quotes(point.mid, best_bid, best_ask,
                                                     inventory_usd, params)
+            show_bid, show_ask = quote_sides(point.imbalance, signal_threshold,
+                                             quote_mode)
+            if not show_bid:
+                quoted_bid = None
+            if not show_ask:
+                quoted_ask = None
             quote_mid = point.mid
         else:
             quoted_bid = quoted_ask = None
             quote_mid = None
+        run.quote_path.append((point.ts, point.mid, quoted_bid, quoted_ask))
         previous_ts = point.ts
     return run
 
@@ -331,11 +402,69 @@ def decompose(runs: list[TokenRun], category: str = "sports",
 def run_experiment(books: dict[str, list[ofs.BookPoint]],
                    tape: dict[str, list[ofs.TradePoint]],
                    params: QuoteParams, fill_model: str = "touch",
-                   category: str = "sports") -> tuple[Decomposition, list[TokenRun]]:
-    runs = [run_token(token, series, tape.get(token, []), params, fill_model)
+                   category: str = "sports", quote_mode: str = "symmetric"
+                   ) -> tuple[Decomposition, list[TokenRun]]:
+    runs = [run_token(token, series, tape.get(token, []), params, fill_model,
+                      quote_mode=quote_mode)
             for token, series in books.items()
             if len(series) >= MIN_SNAPSHOTS_PER_TOKEN]
     return decompose(runs, category=category), runs
+
+
+def reward_estimate(runs: list[TokenRun], quote_usd: float,
+                    pool_usd: float = lr.POOL_MEDIAN_USD) -> lr.RewardEstimate:
+    """Liquidity-reward score of a whole quoting run, pooled across tokens.
+
+    Each token is one market for the program, so the per-market payout is
+    multiplied by how many markets we quoted rather than shared between them.
+    """
+    samples: list[tuple[float, float, float | None, float | None, float]] = []
+    active = 0
+    for run in runs:
+        token_samples = run.reward_samples()
+        if token_samples:
+            active += 1
+            samples.extend(token_samples)
+    if not samples:
+        return lr.RewardEstimate(0.0, 0.0, 0.0, pool_usd, 0)
+    # Der Score ist ein Zeitmittel; die Dauer darf sich ueber die Tokens nicht
+    # aufsummieren, sonst waere ein Portfolio automatisch laenger am Markt.
+    estimate = lr.estimate_from_quotes(samples, quote_usd=quote_usd,
+                                       pool_usd=pool_usd, markets=active)
+    return lr.RewardEstimate(
+        hours_quoted=estimate.hours_quoted / max(1, active),
+        mean_score=estimate.mean_score,
+        qualifying_share=estimate.qualifying_share,
+        pool_usd_per_day=pool_usd,
+        markets=active,
+    )
+
+
+def quote_mode_comparison(books: dict[str, list[ofs.BookPoint]],
+                          tape: dict[str, list[ofs.TradePoint]],
+                          base: QuoteParams, fill_model: str = "touch",
+                          category: str = "sports",
+                          modes: tuple[str, ...] = QUOTE_MODES) -> list[dict]:
+    """Does letting the signal decide which side to show reduce adverse selection?
+
+    Symmetric quoting is the control. The number to watch is markout per fill,
+    not total PnL: pulling a side also removes fills, so a mode can look better
+    simply by trading less. Markout per fill isolates whether the fills that do
+    happen are less poisoned.
+    """
+    rows = []
+    for mode in modes:
+        decomposition, runs = run_experiment(books, tape, base, fill_model,
+                                             category, quote_mode=mode)
+        daily = per_day_totals(runs, category)
+        data = decomposition.as_dict()
+        rows.append({
+            "quote_mode": mode,
+            **data,
+            "daily_ci95_usd": ofs.block_bootstrap_ci(list(daily.values()),
+                                                     list(daily.keys())),
+        })
+    return rows
 
 
 def gamma_sweep(books: dict[str, list[ofs.BookPoint]],
@@ -471,8 +600,15 @@ def run_study(directory: str | Path, stream: bool = False,
         decomposition, runs = run_experiment(books, tape, base, fill_model, category)
         daily = per_day_totals(runs, category)
         ci = ofs.block_bootstrap_ci(list(daily.values()), list(daily.keys()))
+        rewards = reward_estimate(runs, quote_usd)
         results["fill_models"][fill_model] = {
             "decomposition": decomposition.as_dict(),
+            "liquidity_rewards": rewards.as_dict(),
+            "total_with_rewards_usd": {
+                str(row["competition_multiple"]):
+                    round(decomposition.total_usd + row["reward_usd"], 2)
+                for row in rewards.sensitivity()
+            },
             "daily_total_usd": {day: round(value, 4)
                                 for day, value in sorted(daily.items())},
             "daily_ci95_usd": ci,
@@ -480,6 +616,8 @@ def run_study(directory: str | Path, stream: bool = False,
             "half_spread_sweep": half_spread_sweep(books, tape, base,
                                                    fill_model=fill_model,
                                                    category=category),
+            "quote_modes": quote_mode_comparison(books, tape, base, fill_model,
+                                                 category),
             "walk_forward": walk_forward_gamma(books, tape, base, gammas,
                                                fill_model, category),
         }
@@ -608,6 +746,40 @@ def _markdown(results: dict, tag: str) -> str:
                 f"| {row['gamma']:.2f} | {row['fills']:,} | "
                 f"{_fmt(row['spread_capture_usd'])} | {_fmt(row['markout_usd'])} | "
                 f"{_fmt(row['total_usd'])} | {_fmt(row['inventory_abs_mean_usd'], '{:.2f}')} |")
+        rewards = entry["liquidity_rewards"]
+        lines += [
+            "",
+            f"Liquiditaets-Rewards: im Schnitt "
+            f"{rewards['qualifying_share']:.0%} der Quote-Zeit innerhalb der "
+            f"Reward-Spanne, {rewards['markets']} Maerkte, Pool-Annahme "
+            f"{rewards['pool_usd_per_day']} USD pro Markt und Tag "
+            f"(Median der {lr.MARKETS_WITH_POOL:,} Maerkte mit Pool, "
+            f"Stand {rewards['snapshot_date']}).",
+            "",
+            "| Konkurrenz (Vielfaches des eigenen Scores) | eigener Anteil | "
+            "Reward (USD) | Summe inkl. Reward (USD) |",
+            "|---|---|---|---|",
+        ]
+        for row in rewards["sensitivity"]:
+            total = entry["total_with_rewards_usd"][str(row["competition_multiple"])]
+            lines.append(
+                f"| {row['competition_multiple']:.0f}x | "
+                f"{row['our_share']:.1%} | {_fmt(row['reward_usd'])} | "
+                f"{_fmt(total)} |")
+
+        lines += [
+            "",
+            "| Quoting-Modus | Fills | Spread-Ertrag je Fill (c) | Markout je "
+            "Fill (c) | Summe (USD) | CI95 Tagessumme |",
+            "|---|---|---|---|---|---|",
+        ]
+        for row in entry["quote_modes"]:
+            lines.append(
+                f"| {row['quote_mode']} | {row['fills']:,} | "
+                f"{_fmt(row['spread_capture_cents_per_fill'], '{:+.2f}')} | "
+                f"{_fmt(row['markout_cents_per_fill'], '{:+.2f}')} | "
+                f"{_fmt(row['total_usd'])} | {row['daily_ci95_usd'] or '-'} |")
+
         lines += [
             "",
             "| halber Spread | Fills | Spread-Ertrag | Markout | Ertrag/Markout | Summe |",
@@ -662,22 +834,86 @@ def _markdown(results: dict, tag: str) -> str:
         "Obergrenze dieses Anteils, die tatsaechliche Tagesverteilung kann "
         "niedriger ausfallen.",
         "",
-        "Wichtigste Einschraenkung, und zugleich der eigentliche Befund: das "
-        "120-Sekunden-Raster bedeutet, dass jede Quote zwei Minuten unveraendert "
-        "im Buch steht. Genau diese Standzeit ist die gemessene Adverse "
-        "Selektion - gefuellt wird man bevorzugt dann, wenn der Markt an der "
-        "veralteten Quote vorbeigelaufen ist. Ein echter Market Maker requotet "
-        "im Millisekundenbereich. Diese Zahlen messen deshalb nicht, ob Market "
-        "Making auf Polymarket funktioniert, sondern was passiert, wenn man "
-        "zwei Minuten lang nicht nachzieht. Die Wiederholung auf den "
-        "Sekunden-Daten des Stream-Recorders ist der Test, der die Frage "
-        "wirklich beantwortet.",
+        "Die Liquiditaets-Rewards sind der dritte Ertragsposten und der "
+        "einzige, der nicht davon abhaengt, ob ein Fill zustande kommt: "
+        "bezahlt wird Praesenz nahe am Mid. Der eigene Anteil laesst sich nicht "
+        "berechnen, weil er von allen anderen Makern im selben Markt abhaengt, "
+        "deshalb steht dort eine Spanne statt einer Zahl. Die Pool-Annahme ist "
+        "der Median ueber alle Maerkte mit Pool und damit bewusst "
+        "konservativ: die Verteilung ist stark rechtsschief, der groesste Pool "
+        f"liegt bei {lr.POOL_MAX_USD:.0f} USD pro Tag gegen einen Median von "
+        f"{lr.POOL_MEDIAN_USD:.0f}. Der Hebel bei dieser Ertragsquelle ist "
+        "deshalb die Marktauswahl, nicht das engere Quoten - eine Aussage, die "
+        "diese Rechnung nahelegt und nicht belegt, weil hier nicht nach "
+        "Pool-Groesse ausgewaehlt wurde.",
+        "",
+    ]
+    lines += _limits_section(results)
+    lines += [
         "",
         "Weitere Grenzen: mark-to-mid ohne Aufloesungs-Modellierung, Quotes nur "
         "bei Mid in (0.05, 0.95) und Spread bis 0.10, keine Queue-Position, "
         "keine Teilfills. Paper-only, keine Handelsempfehlung.",
     ]
     return "\n".join(lines)
+
+
+#: Unter diesen Werten ist ein Lauf ein erster Blick, kein Ergebnis.
+MIN_DAYS_FOR_CLAIM = 3
+MIN_FILLS_FOR_CLAIM = 1000
+
+
+def _limits_section(results: dict) -> list[str]:
+    """Limits that depend on the data actually used, not a fixed paragraph.
+
+    A stream run must not carry the REST run's 120-second caveat, and a run
+    over a single hour must not read like a result. Getting this wrong would
+    put a false sentence into a frozen artefact.
+    """
+    if results["stream"]:
+        lines = [
+            "Aufloesung: die Quotes werden bei jeder Bewegung des Top of Book "
+            "neu gestellt, im Median unter einer Sekunde. Das ist der Fall, den "
+            "der REST-Lauf nicht messen kann, und der einzige, in dem die Frage "
+            "nach Market Making ueberhaupt sinnvoll gestellt ist.",
+        ]
+    else:
+        lines = [
+            "Wichtigste Einschraenkung, und zugleich der eigentliche Befund: "
+            "das 120-Sekunden-Raster bedeutet, dass jede Quote zwei Minuten "
+            "unveraendert im Buch steht. Genau diese Standzeit ist die "
+            "gemessene Adverse Selektion - gefuellt wird man bevorzugt dann, "
+            "wenn der Markt an der veralteten Quote vorbeigelaufen ist. Ein "
+            "echter Market Maker requotet im Millisekundenbereich. Diese Zahlen "
+            "messen deshalb nicht, ob Market Making auf Polymarket "
+            "funktioniert, sondern was passiert, wenn man zwei Minuten lang "
+            "nicht nachzieht.",
+        ]
+
+    days = len(results.get("days") or [])
+    fills = max((entry["decomposition"]["fills"]
+                 for entry in results["fill_models"].values()), default=0)
+    signs = {entry["decomposition"]["total_usd"] >= 0
+             for entry in results["fill_models"].values()}
+    if days < MIN_DAYS_FOR_CLAIM or fills < MIN_FILLS_FOR_CLAIM:
+        lines += [
+            "",
+            f"ACHTUNG Stichprobe: {days} Tag(e), hoechstens {fills:,} Fills. "
+            f"Unter {MIN_DAYS_FOR_CLAIM} Tagen laesst sich weder walk-forward "
+            "trennen noch ein Tages-Bootstrap rechnen, und die Auswahl der "
+            "Tokens und Tageszeiten ist nicht repraesentativ. Dieser Lauf ist "
+            "ein erster Blick, aus dem keine Aussage ueber Profitabilitaet "
+            "folgt.",
+        ]
+    if len(signs) > 1:
+        lines += [
+            "",
+            "Die beiden Fill-Modelle sind sich hier nicht einmal im Vorzeichen "
+            "einig. Damit ist das Ergebnis unentschieden: welches Vorzeichen "
+            "man berichtet, waehlt in diesem Lauf die Fill-Annahme und nicht "
+            "die Daten.",
+        ]
+    return lines
 
 
 def write_outputs(results: dict, tag: str,

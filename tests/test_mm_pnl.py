@@ -156,6 +156,81 @@ class TapeFillTests(unittest.TestCase):
         self.assertEqual(mm_pnl.tape_fills(None, None, [(1.0, 0.4, -10.0)]), [])
 
 
+class QuoteSideTests(unittest.TestCase):
+    def test_symmetric_mode_always_shows_both_sides(self):
+        for imbalance in (0.05, 0.5, 0.95):
+            self.assertEqual(mm_pnl.quote_sides(imbalance, 0.65, "symmetric"),
+                             (True, True))
+
+    def test_a_bid_heavy_book_pulls_the_ask(self):
+        # Bid-lastig heisst steigende Tendenz; verkauft zu werden hiesse dann,
+        # short in einen Anstieg zu gehen. Also Gegenseite ziehen.
+        self.assertEqual(mm_pnl.quote_sides(0.90, 0.65, "signal"), (True, False))
+
+    def test_an_ask_heavy_book_pulls_the_bid(self):
+        self.assertEqual(mm_pnl.quote_sides(0.10, 0.65, "signal"), (False, True))
+
+    def test_a_neutral_book_keeps_both_sides(self):
+        self.assertEqual(mm_pnl.quote_sides(0.50, 0.65, "signal"), (True, True))
+
+    def test_lean_mode_only_reacts_to_extremes(self):
+        mild = mm_pnl.quote_sides(0.70, 0.65, "lean")
+        strong = mm_pnl.quote_sides(0.95, 0.65, "lean")
+        self.assertEqual(mild, (True, True))
+        self.assertEqual(strong, (True, False))
+
+    def test_lean_is_never_stricter_than_signal(self):
+        for imbalance in (0.05, 0.3, 0.5, 0.7, 0.95):
+            lean = mm_pnl.quote_sides(imbalance, 0.65, "lean")
+            signal = mm_pnl.quote_sides(imbalance, 0.65, "signal")
+            self.assertGreaterEqual(sum(lean), sum(signal), imbalance)
+
+    def test_unknown_mode_is_a_programming_error(self):
+        with self.assertRaises(ValueError):
+            mm_pnl.quote_sides(0.5, 0.65, "hellsehen")
+
+
+class SignalQuotingTests(unittest.TestCase):
+    def setUp(self):
+        self.params = QuoteParams(half_spread=0.01, gamma=0.08, quote_usd=50.0,
+                                  inventory_cap_usd=250.0)
+
+    def test_signal_mode_fills_only_on_the_favoured_side(self):
+        # Buch dauerhaft bid-lastig -> nur die Bid-Seite steht, also nur Kaeufe.
+        series = book_series(n=20, imbalance=0.95)
+        trades = [ofs.TradePoint(ts=1_000_000 + i * 120 - 1, signed_usd=sign * 100.0,
+                                 usd=100.0, price=price)
+                  for i in range(1, 20)
+                  for sign, price in ((-1.0, 0.40), (1.0, 0.60))]
+        trades.sort(key=lambda t: t.ts)
+        run = mm_pnl.run_token("t", series, trades, self.params, "tape",
+                               quote_mode="signal")
+        self.assertTrue(run.fills)
+        self.assertEqual({f.side for f in run.fills}, {"buy"})
+
+    def test_symmetric_mode_fills_on_both_sides_of_the_same_tape(self):
+        series = book_series(n=20, imbalance=0.95)
+        trades = [ofs.TradePoint(ts=1_000_000 + i * 120 - 1, signed_usd=sign * 100.0,
+                                 usd=100.0, price=price)
+                  for i in range(1, 20)
+                  for sign, price in ((-1.0, 0.40), (1.0, 0.60))]
+        trades.sort(key=lambda t: t.ts)
+        run = mm_pnl.run_token("t", series, trades, self.params, "tape",
+                               quote_mode="symmetric")
+        self.assertEqual({f.side for f in run.fills}, {"buy", "sell"})
+
+    def test_comparison_scores_every_mode(self):
+        books = {"t": book_series(n=40, imbalance=0.9)}
+        trades = {"t": [ofs.TradePoint(ts=1_000_000 + i * 120 - 1,
+                                       signed_usd=-100.0, usd=100.0, price=0.40)
+                        for i in range(1, 40)]}
+        rows = mm_pnl.quote_mode_comparison(books, trades, self.params,
+                                            fill_model="tape",
+                                            modes=("symmetric", "signal"))
+        self.assertEqual([r["quote_mode"] for r in rows], ["symmetric", "signal"])
+        self.assertTrue(all("markout_cents_per_fill" in r for r in rows))
+
+
 class RunTokenTests(unittest.TestCase):
     def setUp(self):
         self.params = QuoteParams(half_spread=0.01, gamma=0.08, quote_usd=50.0,
@@ -331,6 +406,98 @@ class SweepTests(unittest.TestCase):
         result = mm_pnl.walk_forward_gamma(self.books, self.trades, self.params,
                                            gammas=(0.0,), fill_model="tape")
         self.assertIsNone(result["test"])
+
+
+class RewardEstimateTests(unittest.TestCase):
+    def setUp(self):
+        self.params = QuoteParams(half_spread=0.01, gamma=0.08, quote_usd=50.0,
+                                  inventory_cap_usd=250.0)
+
+    def test_a_run_records_its_quote_path(self):
+        run = mm_pnl.run_token("t", book_series(n=10), [], self.params)
+        self.assertEqual(len(run.quote_path), 10)
+
+    def test_reward_samples_weight_quotes_by_standing_time(self):
+        run = mm_pnl.run_token("t", book_series(n=5, step=120.0), [], self.params)
+        samples = run.reward_samples()
+        self.assertEqual(len(samples), 4)
+        self.assertTrue(all(s[0] == 120.0 for s in samples))
+
+    def test_a_tight_quote_earns_a_reward(self):
+        run = mm_pnl.run_token("t", book_series(n=30), [], self.params)
+        estimate = mm_pnl.reward_estimate([run], quote_usd=50.0, pool_usd=100.0)
+        self.assertGreater(estimate.usd(1.0), 0.0)
+
+    def test_quoting_outside_the_reward_spread_earns_nothing(self):
+        wide = QuoteParams(half_spread=0.09, gamma=0.0, quote_usd=50.0,
+                           inventory_cap_usd=250.0)
+        run = mm_pnl.run_token("t", book_series(n=30, spread=0.005), [], wide)
+        estimate = mm_pnl.reward_estimate([run], quote_usd=50.0, pool_usd=100.0)
+        self.assertEqual(estimate.usd(1.0), 0.0)
+
+    def test_more_markets_earn_more_at_the_same_score(self):
+        runs = [mm_pnl.run_token(f"t{i}", book_series(n=30), [], self.params)
+                for i in range(3)]
+        one = mm_pnl.reward_estimate(runs[:1], quote_usd=50.0, pool_usd=100.0)
+        three = mm_pnl.reward_estimate(runs, quote_usd=50.0, pool_usd=100.0)
+        self.assertAlmostEqual(three.usd(1.0), 3 * one.usd(1.0), places=4)
+
+    def test_parallel_markets_do_not_inflate_the_hours_quoted(self):
+        # Zehn Maerkte gleichzeitig zu quoten verlaengert nicht die Zeit am
+        # Markt; sonst waere ein Portfolio automatisch zehnmal so lange da.
+        runs = [mm_pnl.run_token(f"t{i}", book_series(n=31, step=120.0), [],
+                                 self.params) for i in range(10)]
+        estimate = mm_pnl.reward_estimate(runs, quote_usd=50.0)
+        self.assertAlmostEqual(estimate.hours_quoted, 1.0, places=3)
+
+    def test_an_empty_run_earns_no_reward(self):
+        estimate = mm_pnl.reward_estimate([], quote_usd=50.0)
+        self.assertEqual(estimate.usd(1.0), 0.0)
+        self.assertEqual(estimate.markets, 0)
+
+
+class LimitsSectionTests(unittest.TestCase):
+    def _results(self, stream, days, fills, totals):
+        return {
+            "stream": stream,
+            "days": [f"2026-07-{i:02d}" for i in range(1, days + 1)],
+            "fill_models": {
+                name: {"decomposition": {"fills": fills, "total_usd": total}}
+                for name, total in totals.items()
+            },
+        }
+
+    def test_a_rest_run_carries_the_staleness_caveat(self):
+        text = " ".join(mm_pnl._limits_section(
+            self._results(False, 11, 30000, {"touch": -1.0, "tape": -1.0})))
+        self.assertIn("120-Sekunden-Raster", text)
+
+    def test_a_stream_run_must_not_carry_the_rest_caveat(self):
+        # Sonst stuende eine falsche Aussage im eingefrorenen Artefakt.
+        text = " ".join(mm_pnl._limits_section(
+            self._results(True, 11, 30000, {"touch": -1.0, "tape": -1.0})))
+        self.assertNotIn("120-Sekunden-Raster", text)
+        self.assertIn("unter einer Sekunde", text)
+
+    def test_a_thin_sample_is_called_out(self):
+        text = " ".join(mm_pnl._limits_section(
+            self._results(True, 1, 230, {"touch": -1.0, "tape": 1.0})))
+        self.assertIn("ACHTUNG Stichprobe", text)
+
+    def test_a_fat_sample_carries_no_sample_warning(self):
+        text = " ".join(mm_pnl._limits_section(
+            self._results(False, 11, 30000, {"touch": -1.0, "tape": -1.0})))
+        self.assertNotIn("ACHTUNG Stichprobe", text)
+
+    def test_models_disagreeing_in_sign_is_stated(self):
+        text = " ".join(mm_pnl._limits_section(
+            self._results(True, 5, 5000, {"touch": -1.0, "tape": 1.0})))
+        self.assertIn("nicht einmal im Vorzeichen", text)
+
+    def test_models_agreeing_in_sign_say_nothing_about_it(self):
+        text = " ".join(mm_pnl._limits_section(
+            self._results(False, 11, 30000, {"touch": -1.0, "tape": -2.0})))
+        self.assertNotIn("nicht einmal im Vorzeichen", text)
 
 
 class EndToEndTests(unittest.TestCase):
