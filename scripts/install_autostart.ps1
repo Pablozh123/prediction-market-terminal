@@ -17,7 +17,8 @@ $tasks = @(
     @{ Name = "MarketIntelCopyDaemon";    Args = "scripts\run_copy_trader.py" },
     @{ Name = "MarketIntelAlertScanner";  Args = "scripts\run_alert_scanner.py" },
     @{ Name = "MarketIntelBookRecorder";  Args = "scripts\run_book_recorder.py" },
-    @{ Name = "MarketIntelBookStream";    Args = "scripts\run_book_stream.py" }
+    @{ Name = "MarketIntelBookStream";    Args = "scripts\run_book_stream.py" },
+    @{ Name = "MarketIntelKalshi";        Args = "scripts\run_kalshi_recorder.py" }
 )
 
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
