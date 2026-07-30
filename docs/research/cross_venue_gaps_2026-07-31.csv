@@ -1,0 +1,9 @@
+pm_question,kalshi_ticker,score,direction,gross_edge_cents,breakeven_gap_cents,net_edge_cents,shares,tradable
+Will Sofia host Eurovision 2027?,KXEUROVISIONHOST-27-SOF,0.8,kalshi_yes_pm_no,-7.0,2.818,-9.818,100.0,True
+Will Mark Kelly win the 2028 Democratic presidential nomination?,KX2028DRUN-28-MKEL,0.75,pm_yes_kalshi_no,65.9,1.6502,64.2498,100.0,True
+Will Donald Trump win the 2028 US Presidential Election?,KXPRESPERSON-28-DTRU,0.625,pm_yes_kalshi_no,0.2,0.3266,-0.1266,100.0,True
+Will Marco Rubio win the 2028 US Presidential Election?,KXPRESPERSON-28-MRUB,0.625,pm_yes_kalshi_no,4.6,1.5331,3.0669,100.0,True
+Will Marine Le Pen win the 2027 French presidential election?,KXFRENCHPRES-27-MLEP,0.6,pm_yes_kalshi_no,4.0,2.6753,1.3247,11.69,True
+Will J.B. Pritzker win the 2028 Democratic presidential nomination?,KXPRESNOMD-28-JBP,0.5714,pm_yes_kalshi_no,1.4,0.2393,1.1607,100.0,True
+Will Abdul El-Sayed win the 2026 Michigan Democratic Primary?,KXPRIMARYMOV-KXSENATEMID26-AELS-P7,0.5455,kalshi_yes_pm_no,80.0,1.1308,78.8692,44.77,True
+Will Haley Stevens win the 2026 Michigan Democratic Primary?,KXPRIMARYMOV-KXSENATEMID26-HSTE-P1,0.5,kalshi_yes_pm_no,-1.1,0.6498,-1.7498,28.79,True
