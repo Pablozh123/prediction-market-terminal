@@ -4,6 +4,7 @@
 #   MarketIntelAlertScanner - background alert scanner (scripts/run_alert_scanner.py)
 #   MarketIntelBookRecorder - REST order-book recorder, one pass every 2 minutes
 #   MarketIntelBookStream   - CLOB WebSocket recorder, seconds resolution
+#   MarketIntelKalshi       - Kalshi REST recorder, one pass every 2 minutes
 # Re-running is safe: -Force re-registers an existing task in place.
 # Remove again with scripts/uninstall_autostart.ps1. No admin rights required.
 
