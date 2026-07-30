@@ -78,7 +78,10 @@ def rolling_imbalance(
     series = ims.load_recorder(str(directory))
     if not series:
         return leer
-    results = ims.analyse(series)
+    # Nur der angezeigte Horizont wird gerechnet (die Studie kennt drei);
+    # unbekannte Horizonte bleiben wie bisher ohne Tabelle.
+    horizons = (horizon_s,) if horizon_s in ims.HORIZONS_S else ()
+    results = ims.analyse(series, horizons=horizons)
     rows = results.get(horizon_s, [])
     return {
         "horizon_s": horizon_s,
