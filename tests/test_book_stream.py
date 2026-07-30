@@ -353,6 +353,83 @@ class TokenSelectionTests(unittest.TestCase):
                                                  top_n=5), [])
 
 
+class LockTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.out = Path(self.tmp.name)
+        self.addCleanup(self.tmp.cleanup)
+
+    def test_a_fresh_directory_can_be_claimed(self):
+        lock = bs.acquire_lock(self.out)
+        self.assertTrue(lock.exists())
+
+    def test_re_acquiring_our_own_lock_is_allowed(self):
+        bs.acquire_lock(self.out)
+        bs.acquire_lock(self.out)  # darf nicht werfen
+
+    def test_a_live_foreign_owner_blocks_the_start(self):
+        # PID 1 existiert praktisch immer und gehoert uns nicht.
+        (self.out / "stream_recorder.lock").write_text("1", encoding="utf-8")
+        original = bs._pid_alive
+        bs._pid_alive = lambda pid: True
+        self.addCleanup(setattr, bs, "_pid_alive", original)
+        with self.assertRaises(bs.AlreadyRunning):
+            bs.acquire_lock(self.out)
+
+    def test_a_stale_lock_from_a_dead_process_is_taken_over(self):
+        (self.out / "stream_recorder.lock").write_text("999999", encoding="utf-8")
+        original = bs._pid_alive
+        bs._pid_alive = lambda pid: False
+        self.addCleanup(setattr, bs, "_pid_alive", original)
+        bs.acquire_lock(self.out)  # darf nicht werfen
+
+    def test_a_corrupt_lock_does_not_block_forever(self):
+        (self.out / "stream_recorder.lock").write_text("nicht-zahl", encoding="utf-8")
+        bs.acquire_lock(self.out)
+
+    def test_releasing_removes_our_own_lock(self):
+        lock = bs.acquire_lock(self.out)
+        bs.release_lock(lock)
+        self.assertFalse(lock.exists())
+
+    def test_releasing_leaves_a_foreign_lock_alone(self):
+        lock = self.out / "stream_recorder.lock"
+        lock.write_text("424242", encoding="utf-8")
+        bs.release_lock(lock)
+        self.assertTrue(lock.exists())
+
+    def test_pid_zero_is_never_alive(self):
+        self.assertFalse(bs._pid_alive(0))
+        self.assertFalse(bs._pid_alive(-5))
+
+    def test_run_releases_the_lock_even_when_it_fails(self):
+        def boom(url):
+            raise ConnectionError("refused")
+
+        bs.run(out_dir=self.out, duration_s=1, loop=False, ws_factory=boom,
+               get_json=lambda *a, **k: [])
+        self.assertFalse((self.out / "stream_recorder.lock").exists())
+
+    def test_a_second_run_is_refused_while_the_first_holds_the_lock(self):
+        bs.acquire_lock(self.out)
+        (self.out / "stream_recorder.lock").write_text("1", encoding="utf-8")
+        original = bs._pid_alive
+        bs._pid_alive = lambda pid: True
+        self.addCleanup(setattr, bs, "_pid_alive", original)
+        with self.assertRaises(bs.AlreadyRunning):
+            bs.run(out_dir=self.out, duration_s=1, loop=False,
+                   ws_factory=lambda url: FakeSocket([]),
+                   get_json=lambda *a, **k: [])
+
+    def test_the_cli_reports_a_conflict_instead_of_crashing(self):
+        (self.out / "stream_recorder.lock").write_text("1", encoding="utf-8")
+        original = bs._pid_alive
+        bs._pid_alive = lambda pid: True
+        self.addCleanup(setattr, bs, "_pid_alive", original)
+        code = bs.main(["--duration", "1", "--out-dir", str(self.out)])
+        self.assertEqual(code, 1)
+
+
 class StatusTests(unittest.TestCase):
     def test_status_file_is_written_with_a_timestamp(self):
         with tempfile.TemporaryDirectory() as tmp:

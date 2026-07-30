@@ -392,6 +392,73 @@ def stream_once(token_ids: list[str], out_dir: Path, duration_s: float,
     }
 
 
+class AlreadyRunning(RuntimeError):
+    """Another recorder instance owns the output directory."""
+
+
+def _pid_alive(pid: int) -> bool:
+    """Is this PID a live process? Unknown states count as alive.
+
+    Guessing "dead" on a live process is the dangerous direction: it would
+    hand a second writer the same files. Guessing "alive" on a dead one only
+    costs a stale lock the user can delete.
+    """
+    if pid <= 0:
+        return False
+    try:
+        import os
+        import signal
+
+        os.kill(pid, 0)
+        del signal
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return True
+
+
+def acquire_lock(out_dir: Path) -> Path:
+    """Claim the output directory, or refuse to start.
+
+    The recorder appends CSV rows from a buffered handle. Two instances on the
+    same files interleave partial lines, which corrupts the data silently and
+    is only noticed much later during analysis. Once this runs as a scheduled
+    task, a manual second start becomes a realistic accident, so it has to be
+    impossible rather than merely discouraged.
+    """
+    import os
+
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    lock = out_dir / "stream_recorder.lock"
+    if lock.exists():
+        try:
+            owner = int(lock.read_text(encoding="utf-8").strip() or 0)
+        except (OSError, ValueError):
+            owner = 0
+        if owner and owner != os.getpid() and _pid_alive(owner):
+            raise AlreadyRunning(
+                f"stream recorder already running as PID {owner} "
+                f"(lock: {lock}). Stop it first, or delete the lock if stale."
+            )
+    lock.write_text(str(os.getpid()), encoding="utf-8")
+    return lock
+
+
+def release_lock(lock: Path) -> None:
+    """Drop our claim. A lock owned by someone else is left alone."""
+    import os
+
+    try:
+        if Path(lock).read_text(encoding="utf-8").strip() == str(os.getpid()):
+            Path(lock).unlink()
+    except (OSError, ValueError):
+        pass
+
+
 def write_status(out_dir: Path, summary: dict) -> None:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -407,6 +474,17 @@ def run(out_dir: Path | None = None, duration_s: float = 300.0,
         refresh_tokens_each_cycle: bool = True) -> dict:
     """Record for ``duration_s``; with ``loop`` keep reconnecting forever."""
     out_dir = Path(out_dir or DEFAULT_OUT_DIR)
+    lock = acquire_lock(out_dir)
+    try:
+        return _run_locked(out_dir, duration_s, top_n, loop, keep_raw,
+                           ws_factory, get_json, refresh_tokens_each_cycle)
+    finally:
+        release_lock(lock)
+
+
+def _run_locked(out_dir: Path, duration_s: float, top_n: int, loop: bool,
+                keep_raw: bool, ws_factory, get_json,
+                refresh_tokens_each_cycle: bool) -> dict:
     attempt = 0
     tokens: list[dict] = []
     summary: dict = {}
@@ -447,8 +525,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out-dir", default=str(DEFAULT_OUT_DIR))
     args = parser.parse_args(argv)
 
-    summary = run(out_dir=Path(args.out_dir), duration_s=args.duration,
-                  top_n=args.top_n, loop=args.loop, keep_raw=args.raw)
+    try:
+        summary = run(out_dir=Path(args.out_dir), duration_s=args.duration,
+                      top_n=args.top_n, loop=args.loop, keep_raw=args.raw)
+    except AlreadyRunning as exc:
+        print(f"[stream] {exc}", flush=True)
+        return 1
     if not args.loop:
         print(json.dumps(summary, indent=2))
     return 0
