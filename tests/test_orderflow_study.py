@@ -294,6 +294,15 @@ class BootstrapTests(unittest.TestCase):
     def test_a_single_day_gives_no_interval(self):
         self.assertIsNone(ofs.block_bootstrap_ci([1.0, 2.0], ["d1", "d1"]))
 
+    def test_two_days_give_no_interval_either(self):
+        # Mit zwei Gruppen resampelt der Bootstrap nur zwischen zwei Werten.
+        # Das sieht aus wie ein Intervall und traegt keine Streuungsinformation.
+        self.assertIsNone(ofs.block_bootstrap_ci([1.0, 2.0], ["d1", "d2"]))
+
+    def test_three_days_are_enough(self):
+        self.assertIsNotNone(ofs.block_bootstrap_ci(
+            [1.0, 2.0, 3.0], ["d1", "d2", "d3"], iterations=50))
+
     def test_mismatched_inputs_are_rejected(self):
         self.assertIsNone(ofs.block_bootstrap_ci([1.0], ["d1", "d2"]))
 
