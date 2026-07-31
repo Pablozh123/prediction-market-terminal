@@ -196,8 +196,8 @@ class StudyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             paths = br.write_outputs(results, "test", research_dir=Path(tmp))
             body = paths["md"].read_text(encoding="utf-8")
-            self.assertIn("Buch-Abgleich", body)
-            self.assertIn("keine Sequenznummern", body)
+            self.assertIn("reconciled against REST", body)
+            self.assertIn("no sequence numbers", body)
             self.assertNotIn("ß", body)
             json.loads(paths["json"].read_text(encoding="utf-8"))
 

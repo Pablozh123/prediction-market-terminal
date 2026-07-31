@@ -1,15 +1,15 @@
-# Buch-Abgleich Stream gegen REST (lang-2026-07-31)
+# Streamed book reconciled against REST (lang-2026-07-31)
 
-24 Tokens, 8 von 8 Runden verbunden, 150 Sekunden Stream je Runde, Toleranz 1 Tick.
+24 tokens, 8 of 8 rounds connected, 150 seconds of streaming per round, tolerance 1 tick.
 
-Vergleiche 178, davon uebereinstimmend 170, abweichend 8, nicht vergleichbar 0. Uebereinstimmungsquote 95.5%, groesste Abweichung 30.0 Ticks, mittlere 0.62 Ticks.
+Comparisons 178, of which matching 170, diverging 8, not comparable 0. Agreement rate 95.5%, largest divergence 30.0 ticks, mean 0.62 ticks.
 
-## Warum das noetig ist
+## Why this is necessary
 
-Polymarket sendet keine Sequenznummern. Auf Kalshi verraet eine Luecke im Zaehler, dass eine Nachricht verloren ging; auf Polymarket gibt es diesen Zaehler nicht. Ein verlorenes oder falsch angewendetes Update ist damit unsichtbar - das Buch driftet lautlos, und jeder Spread, jeder Mid und jede Imbalance daraus ist falsch, ohne dass ein Test oder ein Log das zeigt. Der Abgleich gegen das REST-Buch ist der einzige Weg, den das Protokoll offen laesst.
+Polymarket sends no sequence numbers. On Kalshi a gap in the counter reveals that a message was lost; on Polymarket there is no such counter. A dropped or misapplied update is therefore invisible: the book drifts silently, and every spread, mid and imbalance derived from it is wrong without any test or log showing it. Reconciling against the REST book is the only route the protocol leaves open.
 
-## Lesehilfe
+## How to read this
 
-Eine einzelne Abweichung beweist nichts: die beiden Beobachtungen liegen Millisekunden auseinander, und ein schnelles Buch bewegt sich in dieser Zeit voellig zu Recht. Aussagekraeftig ist die Form ueber die Zeit - ob Abweichung selten und voruebergehend ist oder haeufig und wachsend. Nur das Zweite ist ein Fehler, und nur eine Zeitreihe kann die beiden auseinanderhalten. Deshalb schreibt dieses Modul eine Reihe und behauptet nichts.
+A single divergence proves nothing. The two observations lie milliseconds apart, and a fast book moves in that time entirely legitimately. What carries meaning is the shape over time: whether divergence is rare and transient or frequent and growing. Only the second is a defect, and only a time series can tell the two apart. That is why this module records a series and asserts nothing.
 
-Read-only-Forschung, keine Handelsempfehlung.
+Read-only research. Not trading advice.

@@ -115,13 +115,13 @@ def match_score(left: str, right: str) -> tuple[float, int]:
 #: "gewinnt die Nominierung" und "ist der Nominierte" dieselbe Frage sind,
 #: "gewinnt die Nominierung" und "tritt an" dagegen nicht.
 INTENT_WORDS = {
-    "ergebnis": {"win", "wins", "won", "winner", "winning", "nominee",
-                 "nomination", "nominated", "host", "hosts", "hosting",
-                 "champion", "elected"},
-    "teilnahme": {"run", "runs", "running", "ran", "candidate", "enter",
-                  "announce", "declare"},
-    "marge": {"margin", "percent", "percentage", "points", "spread"},
-    "ausstieg": {"concede", "withdraw", "resign", "drop", "suspend", "quit"},
+    "outcome": {"win", "wins", "won", "winner", "winning", "nominee",
+                "nomination", "nominated", "host", "hosts", "hosting",
+                "champion", "elected"},
+    "participation": {"run", "runs", "running", "ran", "candidate", "enter",
+                      "announce", "declare"},
+    "margin": {"margin", "percent", "percentage", "points", "spread"},
+    "exit": {"concede", "withdraw", "resign", "drop", "suspend", "quit"},
 }
 
 #: Spannen-Muster ("6-9%") verraten einen Margen-Markt auch ohne das Wort.
@@ -133,7 +133,7 @@ def intents(title: str) -> set[str]:
     tokens = set(normalise(title))
     found = {name for name, words in INTENT_WORDS.items() if tokens & words}
     if RANGE_PATTERN.search(title or ""):
-        found.add("marge")
+        found.add("margin")
     return found
 
 
@@ -156,9 +156,9 @@ def suspect_reasons(left: str, right: str) -> list[str]:
     difference = left_intents ^ right_intents
     if not difference:
         return []
-    return ["verschiedene Fragetypen: " + ", ".join(
-        sorted(left_intents) or ["keiner"]) + " gegen " + ", ".join(
-        sorted(right_intents) or ["keiner"])]
+    return ["different question types: " + ", ".join(
+        sorted(left_intents) or ["none"]) + " against " + ", ".join(
+        sorted(right_intents) or ["none"])]
 
 
 def days_until(value) -> float | None:
@@ -449,27 +449,27 @@ def _fmt(value, spec="{:+.2f}") -> str:
 def _markdown(results: dict, tag: str) -> str:
     s = results["summary"]
     lines = [
-        f"# Cross-Venue-Luecken netto ({tag})",
+        f"# Cross-venue gaps net of fees ({tag})",
         "",
-        f"Stand {results['ts_utc']}. Verglichen wurden "
-        f"{results['pm_markets']:,} offene Polymarket-Maerkte gegen "
-        f"{results['kalshi_markets']:,} Kalshi-Maerkte. Titel-Match ab "
-        f"Aehnlichkeit {results['min_match_score']}, Basket-Groesse "
-        f"{results['shares']:.0f} Shares, Gebuehrenstand "
+        f"As of {results['ts_utc']}. Compared "
+        f"{results['pm_markets']:,} open Polymarket markets against "
+        f"{results['kalshi_markets']:,} Kalshi markets. Title match from "
+        f"similarity {results['min_match_score']}, basket size "
+        f"{results['shares']:.0f} shares, fee schedule "
         f"{results['fee_model_version']}.",
         "",
-        f"Kandidatenpaare: {s['pairs']}, davon als Fehlpaarung verdaechtig "
-        f"{s.get('suspect', 0)} (unten separat), gewertet {s['usable']}. "
-        f"Mit positiver Brutto-Luecke: {s['gross_positive']}. "
-        f"**Nach beiden Gebuehren positiv: {s['net_positive']}.**",
+        f"Candidate pairs: {s['pairs']}, of which suspected mismatches "
+        f"{s.get('suspect', 0)} (listed separately below), counted {s['usable']}. "
+        f"With a positive gross gap: {s['gross_positive']}. "
+        f"**Positive after both fee curves: {s['net_positive']}.**",
         "",
-        f"Median-Bruttoluecke {_fmt(s['median_gross_cents'])} Cents, "
-        f"Median-Nettoluecke {_fmt(s['median_net_cents'])} Cents, "
-        f"mediane Gebuehrenschwelle {_fmt(s['median_band_cents'], '{:.2f}')} "
-        f"Cents. Beste Nettoluecke {_fmt(s.get('max_net_cents'))} Cents.",
+        f"Median gross gap {_fmt(s['median_gross_cents'])} cents, "
+        f"median net gap {_fmt(s['median_net_cents'])} cents, "
+        f"median fee threshold {_fmt(s['median_band_cents'], '{:.2f}')} "
+        f"cents. Best net gap {_fmt(s.get('max_net_cents'))} cents.",
         "",
-        "| Paar | Score | Brutto (c) | Schwelle (c) | Netto (c) | Groesse | "
-        "Tage bis Aufloesung | annualisiert |",
+        "| Pair | Score | Gross (c) | Threshold (c) | Net (c) | Size | "
+        "Days to resolution | annualised |",
         "|---|---|---|---|---|---|---|---|",
     ]
     for row in sorted([r for r in results["rows"]
@@ -489,13 +489,13 @@ def _markdown(results: dict, tag: str) -> str:
     if flagged:
         lines += [
             "",
-            "### Aussortierte Paare (Titel aehnlich, Frage verschieden)",
+            "### Rejected pairs (similar titles, different questions)",
             "",
-            "Diese Paare sind aus allen Zahlen oben ausgeschlossen. Sie stehen "
-            "hier, weil sie zeigen, wie eine Fehlpaarung aussieht: als die "
-            "groesste scheinbare Kante im ganzen Lauf.",
+            "These pairs are excluded from every number above. They are listed "
+            "here because they show what a mismatch looks like: as the largest "
+            "apparent edge in the entire run.",
             "",
-            "| Polymarket | Kalshi | scheinbar netto (c) | Grund |",
+            "| Polymarket | Kalshi | apparent net (c) | Reason |",
             "|---|---|---|---|",
         ]
         for row in sorted(flagged, key=lambda r: r.get("net_edge_cents") or 0,
@@ -507,43 +507,40 @@ def _markdown(results: dict, tag: str) -> str:
 
     lines += [
         "",
-        "## Lesehilfe",
+        "## How to read this",
         "",
-        "Eine Preisdifferenz ist keine Arbitrage. Wer YES auf der einen und NO "
-        "auf der anderen Boerse kauft, bekommt bei Aufloesung genau 1.00 je "
-        "Paar; die Bruttokante ist also 1 minus der Summe beider Kaufpreise. "
-        "Die Spalte Schwelle ist, was beide Gebuehrenkurven zusammen "
-        "verlangen. Netto ist die Differenz. Nur eine positive Netto-Zahl ist "
-        "ueberhaupt eine Kante, und auch dann nur bis zur Tiefe, die in der "
-        "Spalte Groesse steht.",
+        "A price difference is not arbitrage. Buying YES on one venue and NO "
+        "on the other pays exactly 1.00 per pair at resolution, so the gross "
+        "edge is 1 minus the sum of both purchase prices. The threshold column "
+        "is what both fee curves demand together. Net is the difference. Only "
+        "a positive net number is an edge at all, and even then only up to the "
+        "depth shown in the size column.",
         "",
-        "Die letzte Spalte entscheidet meistens. Ein Basket bindet Kapital bis "
-        "zur Aufloesung, und die liegt bei den Paaren, die hier ueberhaupt "
-        "auftauchen, typisch Jahre entfernt. Zwei Cent auf dreissig Cent "
-        "Einsatz ueber zwei Jahre sind keine sieben Prozent, sondern gut drei "
-        "pro Jahr, und dagegen steht der zinslose Verzicht auf das Kapital "
-        "plus Aufloesungs- und Regelrisiko auf beiden Seiten. Was hier "
-        "gefunden wird, sind Carry-Positionen, keine Arbitragen.",
+        "The last column usually decides. A basket locks capital until "
+        "resolution, and for the pairs that show up here at all that is "
+        "typically years away. Two cents on thirty cents of stake over two "
+        "years is not seven percent, it is a little over three per year, and "
+        "against that stands the interest-free surrender of the capital plus "
+        "resolution and rule risk on both sides. What is found here are carry "
+        "positions, not arbitrages.",
         "",
-        "**Die Paare sind nicht verifiziert.** Der Abgleich laeuft ueber "
-        "Titel-Aehnlichkeit und sagt, dass zwei Maerkte nach derselben Frage "
-        "aussehen, nicht dass sie gleich aufgeloest werden. Der Cardi-B-Markt "
-        "zum Super Bowl ist das stehende Gegenbeispiel: Kalshi wertete den "
-        "Ausgang als mehrdeutig und rechnete zum letzten Handelspreis ab, "
-        "Polymarket zahlte YES voll aus, bei identischem Bildmaterial und "
-        "unterschiedlichen Regelwerken. Ueber so ein Paar ist ein Basket nicht "
-        "abgesichert, sondern sind es zwei offene Wetten. Vor jeder weiteren "
-        "Verwendung gehoert zu jedem Paar ein Vergleich der Aufloesungsregeln.",
+        "**The pairs are not verified.** The match runs on title similarity "
+        "and says that two markets look like the same question, not that they "
+        "resolve the same way. The Cardi B market around the Super Bowl is the "
+        "standing counterexample: Kalshi judged the outcome ambiguous and "
+        "settled at the last traded price, Polymarket paid YES in full, on "
+        "identical footage under different rulebooks. Across a pair like that "
+        "a basket is not hedged, it is two open bets. Before any further use, "
+        "every pair needs a comparison of its resolution rules.",
         "",
-        "Weitere Grenzen: Quotes sind ein Schnappschuss, kein Verlauf, die "
-        "Aussage ueber die Lebensdauer einer Luecke braucht die laufenden "
-        "Recorder. Polymarket-Tiefe ist hier nicht abgefragt (sie braucht die "
-        "Token-Id je Outcome), Kalshi-Tiefe schon; wo Tiefe fehlt, ist die "
-        "Groesse eine Annahme und die Zahl eine Obergrenze. Beide Beine "
-        "gleichzeitig zu treffen ist unterstellt, Ausfuehrungsrisiko ist nicht "
-        "modelliert.",
+        "Further limits: quotes are a snapshot, not a history, and any "
+        "statement about how long a gap lives needs the running recorders. "
+        "Polymarket depth is not fetched here (it needs the token id per "
+        "outcome), Kalshi depth is; where depth is missing the size is an "
+        "assumption and the number an upper bound. Hitting both legs "
+        "simultaneously is assumed, execution risk is not modelled.",
         "",
-        "Read-only-Forschung, keine Handelsempfehlung.",
+        "Read-only research. Not trading advice.",
     ]
     return "\n".join(lines)
 

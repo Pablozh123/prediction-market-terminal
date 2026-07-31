@@ -227,21 +227,21 @@ def _fmt(value, spec="{:.2f}") -> str:
 
 def _markdown(results: dict, tag: str) -> str:
     lines = [
-        f"# Reward-Marktauswahl ({tag})",
+        f"# Reward market selection ({tag})",
         "",
-        f"{results['markets_with_pool']:,} Maerkte mit Pool, zusammen "
-        f"{results['total_pool_usd_per_day']:,.0f} USD pro Tag. Median "
-        f"{_fmt(results['median_pool_usd'])}, groesster "
-        f"{_fmt(results['max_pool_usd'])}. Die obersten 100 halten "
-        f"{_fmt(results['top_100_share'], '{:.1%}')} des Topfs.",
+        f"{results['markets_with_pool']:,} markets carry a pool, "
+        f"{results['total_pool_usd_per_day']:,.0f} USD per day in total. Median "
+        f"{_fmt(results['median_pool_usd'])}, largest "
+        f"{_fmt(results['max_pool_usd'])}. The top 100 hold "
+        f"{_fmt(results['top_100_share'], '{:.1%}')} of the pot.",
         "",
-        f"Geprueft wurden die {results['probed']} groessten Pools gegen ihr "
-        f"aktuelles Buch, Quote-Groesse {results['quote_shares']:.0f} Shares. "
-        f"Davon mit leerer Qualifikationsspanne: "
+        f"The {results['probed']} largest pools were probed against their "
+        f"current book, quote size {results['quote_shares']:.0f} shares. "
+        f"Of those, with a completely empty qualifying band: "
         f"{results['empty_band_markets']}.",
         "",
-        "| Markt | Pool/Tag | Spanne (c) | Spread (c) | Konkurrenz (Shares) | "
-        "Orders | Pool je Konkurrenz-Share |",
+        "| Market | Pool/day | Band (c) | Spread (c) | Competition (shares) | "
+        "Orders | Pool per competing share |",
         "|---|---|---|---|---|---|---|",
     ]
     for row in results["rows"][:25]:
@@ -254,45 +254,44 @@ def _markdown(results: dict, tag: str) -> str:
             f"{_fmt(row['pool_per_competing_share'], '{:.5f}')} |")
     lines += [
         "",
-        "## Lesehilfe",
+        "## How to read this",
         "",
-        "Die letzte Spalte ist die Rangzahl: wie viele Reward-Dollar pro Tag "
-        "auf jede Share entfallen, die bereits innerhalb der "
-        "Qualifikationsspanne steht. Sie ist eine Rangfolge und keine "
-        "Auszahlung. Der eigene Anteil haengt an den Scores aller anderen "
-        "Maker im selben Markt, und die veroeffentlicht die Boerse nicht.",
+        "The last column is the ranking number: how many reward dollars per "
+        "day fall on each share already standing inside the qualifying band. "
+        "It is a ranking, not a payout. Your own share depends on the scores "
+        "of every other maker in the same market, and the exchange does not "
+        "publish those.",
         "",
-        "Konkurrenz wird ueber die ruhende Tiefe innerhalb der Spanne "
-        "gemessen. Das ist ein Ersatzmass, aber kein beliebiges: die "
-        "Scoring-Regel gewichtet jede Order nach Groesse und Naehe zum Mid, "
-        "also ist genau diese Tiefe der beobachtbare Teil dessen, wogegen der "
-        "eigene Score normalisiert wird.",
+        "Competition is measured through resting depth inside the band. That "
+        "is a proxy, but not an arbitrary one: the scoring rule weights every "
+        "order by size and closeness to the mid, so exactly that depth is the "
+        "observable part of what your own score is normalised against.",
         "",
-        "Ein grosser Pool in einem vollen Buch ist weniger wert als ein "
-        "mittlerer in einem leeren. Deshalb steht hier eine Rangfolge nach "
-        "Verhaeltnis statt nach Pool-Groesse - nach Pool allein zu sortieren "
-        "waere genau der Fehler, den diese Auswertung sichtbar machen soll.",
+        "A large pool in a crowded book is worth less than a medium one in an "
+        "empty book. That is why the ranking here is by ratio rather than by "
+        "pool size - sorting by pool alone would be precisely the mistake this "
+        "analysis exists to expose.",
         "",
-        "**Ein leeres Band ist keine Einladung, sondern eine Warnung.** Die "
-        "Maerkte mit den groessten Pools und null Konkurrenz sind im Lauf vom "
-        "2026-07-31 durchweg Esports-Maerkte, deren tatsaechlicher Spread bei "
-        "4 bis 64 Cent liegt, waehrend die Qualifikationsspanne 2.5 Cent "
-        "betraegt. Niemand steht dort, weil niemand dort stehen will. Wer die "
-        "Praemie einsammelt, quotet um ein Vielfaches enger als der ganze "
-        "Markt und ist damit fuer jeden Informierten das billigste Ziel im "
-        "Buch. Die Boerse kauft mit dem grossen Topf genau die Liquiditaet, "
-        "die sonst nicht entsteht, und der Preis dafuer ist Adverse "
-        "Selektion. Was die kostet, misst mm_pnl, nicht diese Auswertung - "
-        "und dort war sie bei einer Standzeit von zwei Minuten das Zwei- bis "
-        "Fuenffache des verdienten Spreads.",
+        "**An empty band is not an invitation, it is a warning.** In the run "
+        "of 2026-07-31 the markets with the largest pools and zero competition "
+        "are esports markets throughout, whose actual spread runs 4 to 64 "
+        "cents while the qualifying band is 2.5 cents. Nobody stands there "
+        "because nobody wants to stand there. Whoever collects the premium "
+        "quotes many times tighter than the whole market and is thereby the "
+        "cheapest target in the book for anyone informed. With the large pot "
+        "the exchange is buying exactly the liquidity that does not otherwise "
+        "exist, and the price of that is adverse selection. What it costs is "
+        "measured by mm_pnl, not by this analysis - and there, at a two-minute "
+        "requote interval, it ran two to five times the spread earned.",
         "",
-        "Grenzen: Schnappschuss, kein Verlauf. Wer dauerhaft in einem Markt "
-        "steht, veraendert die Konkurrenz, die er gemessen hat. Die Tiefe "
-        "stammt aus einem Abruf je Markt, ein volatiles Buch kann Sekunden "
-        "spaeter anders aussehen. Und Rewards sind nur ein Ertragsposten: was "
-        "an Adverse Selektion dagegensteht, misst die MM-Studie, nicht diese.",
+        "Limits: a snapshot, not a history. Anyone standing in a market "
+        "permanently changes the competition they measured. Depth comes from a "
+        "single fetch per market, and a volatile book can look different "
+        "seconds later. And rewards are only one revenue line: what stands "
+        "against them in adverse selection is measured by the MM study, not by "
+        "this one.",
         "",
-        "Read-only-Forschung, keine Handelsempfehlung.",
+        "Read-only research. Not trading advice.",
     ]
     return "\n".join(lines)
 
