@@ -81,3 +81,10 @@ src/reddit.py
 src/sentiment.py
 CONTRIBUTING.md
 DEVELOPMENT.md
+
+# Arbeitsdatei fuer den Nachtlauf, kein Repo-Inhalt (Repo ist oeffentlich).
+GOAL.md
+
+# Kuratierte Forschungsentscheidung, kein Laufzeitartefakt: welche
+# Cross-Venue-Paare beide Recorder fest mitschreiben.
+!data/cross_venue_watchlist.json
