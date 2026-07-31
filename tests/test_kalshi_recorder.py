@@ -18,9 +18,9 @@ def event_page(markets, cursor="", category="Politics"):
     }
 
 
-def market(ticker="KXTEST-A", volume=100.0, oi=10.0):
+def market(ticker="KXTEST-A", volume=100.0, oi=10.0, exchange_index=0):
     return {"ticker": ticker, "volume_24h_fp": str(volume),
-            "open_interest_fp": str(oi)}
+            "open_interest_fp": str(oi), "exchange_index": exchange_index}
 
 
 def book(yes=None, no=None):
@@ -197,6 +197,38 @@ class DiscoveryTests(unittest.TestCase):
     def test_an_empty_exchange_yields_no_markets(self):
         self.assertEqual(kr.discover_markets(
             get_json=lambda p, q=None: {"events": [], "cursor": ""}, pages=1), [])
+
+
+class ShardTests(unittest.TestCase):
+    """Kalshi shards trading from 2026-08-06. The field cannot be backfilled."""
+
+    def test_the_exchange_index_is_carried_from_discovery(self):
+        def get_json(path, params=None):
+            return event_page([market("A", exchange_index=1)])
+        self.assertEqual(kr.discover_markets(get_json=get_json, pages=1)[0]
+                         ["exchange_index"], 1)
+
+    def test_it_lands_in_the_book_row(self):
+        row = kr.book_row("t", {"ticker": "A", "event_ticker": "E",
+                                "category": "P", "volume_24h": 1.0,
+                                "exchange_index": 1}, book())
+        self.assertEqual(row["exchange_index"], 1)
+
+    def test_it_lands_in_the_trade_row(self):
+        rows = kr.trade_rows("t", {"ticker": "A", "event_ticker": "E",
+                                   "exchange_index": 1},
+                             [{"taker_side": "yes", "yes_price_dollars": "0.4",
+                               "count_fp": "1"}])
+        self.assertEqual(rows[0]["exchange_index"], 1)
+
+    def test_it_is_a_recorded_column_not_just_an_internal_field(self):
+        self.assertIn("exchange_index", kr.BOOK_FIELDS)
+        self.assertIn("exchange_index", kr.TRADE_FIELDS)
+
+    def test_a_market_without_the_field_still_records(self):
+        row = kr.book_row("t", {"ticker": "A", "event_ticker": "E",
+                                "category": "P", "volume_24h": 1.0}, book())
+        self.assertIsNone(row["exchange_index"])
 
 
 class RunOnceTests(unittest.TestCase):

@@ -66,10 +66,11 @@ BOOK_FIELDS = [
     "ts_utc", "market_id", "slug", "outcome", "token_id", "best_bid",
     "best_ask", "spread", "mid", "bid_usd_top", "ask_usd_top",
     "imbalance_top", "bids_json", "asks_json", "category", "volume_24h",
+    "exchange_index",
 ]
 TRADE_FIELDS = [
     "seen_ts_utc", "trade_ts", "market_id", "slug", "token_id", "outcome",
-    "side", "price", "size", "tx_hash",
+    "side", "price", "size", "tx_hash", "exchange_index",
 ]
 
 
@@ -130,6 +131,12 @@ def discover_markets(get_json=_get_json, pages: int = DISCOVERY_PAGES,
                     # Durchlauf ueber tausende Maerkte.
                     "yes_bid": _num(market.get("yes_bid_dollars")),
                     "yes_ask": _num(market.get("yes_ask_dollars")),
+                    # Kalshi verteilt den Handel ab dem 2026-08-06 auf mehrere
+                    # Matching-Engines. Die Kennung ist heute schon da; wer sie
+                    # jetzt nicht mitschreibt, kann sie spaeter nicht
+                    # nachtragen und keine Frage ueber Shards beantworten.
+                    "exchange_index": market.get("exchange_index",
+                                                 event.get("exchange_index")),
                 })
         cursor = payload.get("cursor") or ""
         if not cursor or not events:
@@ -208,6 +215,7 @@ def book_row(ts_utc: str, market: dict, payload: dict,
         "asks_json": json.dumps(asks),
         "category": market.get("category", ""),
         "volume_24h": market.get("volume_24h", 0.0),
+        "exchange_index": market.get("exchange_index"),
     }
 
 
@@ -234,6 +242,7 @@ def trade_rows(seen_ts_utc: str, market: dict, trades: list[dict]) -> list[dict]
             "price": trade.get("yes_price_dollars"),
             "size": trade.get("count_fp"),
             "tx_hash": trade.get("trade_id"),
+            "exchange_index": market.get("exchange_index"),
         })
     return rows
 
@@ -282,6 +291,8 @@ def run_once(out_dir: Path | None = None, get_json=_get_json,
         "trade_rows": len(prints),
         "trade_errors": trade_errors,
         "two_sided_books": sum(1 for row in books if row["mid"] is not None),
+        "exchange_indexes": sorted({str(row.get("exchange_index"))
+                                    for row in books}),
     }
     out_dir.mkdir(parents=True, exist_ok=True)
     with open(out_dir / "kalshi_recorder_status.json", "w", encoding="utf-8") as handle:
