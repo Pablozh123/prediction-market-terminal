@@ -78,10 +78,13 @@ one venue and NO on the other, so a basket over that pair loses both legs
 instead of hedging. The titles are near identical; the difference lives only in
 the rule text, and that pair had passed my own mismatch screen as clean.
 
-**The streamed book is correct, and that is now tested rather than assumed.**
+**The streamed book holds up, and that is now tested rather than assumed.**
 Polymarket sends no sequence numbers, so a dropped update is invisible and the
-book would drift silently. Reconciling against the authoritative REST book: 30
-comparisons, 30 matches, zero drift, largest divergence 0.0 ticks.
+book would drift silently. Reconciling against the authoritative REST book over
+twenty minutes of streaming: 98.6 percent agreement, mean divergence 0.07 ticks,
+the single exception two ticks. A first short run reported a perfect score and
+a longer one did not, which is the reason this module records a series instead
+of asserting a verdict.
 
 ## What I threw away
 
@@ -111,7 +114,7 @@ them, so a dead socket and a quiet market look identical from this side. The
 second clock would have moved in lockstep with the first and only looked like a
 distinction. One honest clock, documented as a backstop, replaced it.
 
-## Five silent failures, and how they surfaced
+## Six silent failures, and how they surfaced
 
 None of these crashed, raised, or failed a test. Each would have corrupted
 numbers while every log stayed clean.
@@ -131,7 +134,14 @@ numbers while every log stayed clean.
 4. **A watchdog punishing the normal case.** Ninety seconds of silence ended
    the cycle and rebuilt the market selection, on markets where silence is the
    resting state.
-5. **A pair that passed my own screen.** The mismatch detector cleared the 2028
+5. **A tolerance that assumed a constant tick.** The reconciler measured
+   divergence in ticks of 0.001, but Polymarket trades some markets on a cent
+   grid and changes tick size at runtime. Every ordinary one-cent move on those
+   markets was reported as ten ticks of drift. The giveaway was the shape of
+   the numbers: eight flagged divergences, all exact whole-cent multiples, in
+   both directions. Drift accumulates and is directional; a moving market jumps
+   by whole ticks either way. The tick is now read off the observed prices.
+6. **A pair that passed my own screen.** The mismatch detector cleared the 2028
    presidential pair because the titles matched and no keyword tripped. Only
    reading both rulebooks showed that one settles on inauguration and the other
    on winning. A screen that finds nothing has not cleared anything.
