@@ -26,7 +26,9 @@ import csv
 import json
 import math
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import NamedTuple
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 REPORTS_DIR = REPO_ROOT / "reports"
@@ -183,34 +185,89 @@ def load_sqlite(path: str) -> dict[str, list[tuple[float, float, float]]]:
     return series
 
 
-def load_recorder(directory: str) -> dict[str, list[tuple[float, float, float]]]:
-    """Per-token series from book_recorder CSVs (books_*.csv)."""
-    from datetime import datetime, timezone
+class _CachedDay(NamedTuple):
+    """One parsed books_*.csv, valid while size and mtime are unchanged."""
+
+    size: int
+    mtime_ns: int
+    series: dict[str, list[tuple[float, float, float]]]
+
+
+#: Parsed day files, keyed by path. ``src/book_recorder.py`` writes its day
+#: partitions append-only, so a closed day never changes and is parsed once;
+#: only the day currently being written is re-read.
+_RECORDER_CACHE: dict[str, _CachedDay] = {}
+
+
+def _load_recorder_day(path: Path) -> dict[str, list[tuple[float, float, float]]]:
+    """Per-token series of a single books_*.csv, memoised across calls.
+
+    The returned lists belong to the cache, so callers must copy before
+    mutating them; ``load_recorder`` does, by extending fresh lists.
+    """
+    stat = path.stat()
+    key = str(path)
+    cached = _RECORDER_CACHE.get(key)
+    if cached is not None and cached.size == stat.st_size \
+            and cached.mtime_ns == stat.st_mtime_ns:
+        return cached.series
 
     series: dict[str, list[tuple[float, float, float]]] = {}
-    for path in sorted(Path(directory).glob("books_*.csv")):
-        with open(path, newline="", encoding="utf-8") as handle:
-            for row in csv.DictReader(handle):
-                try:
-                    mid = float(row["mid"])
-                    imb = float(row["imbalance_top"])
-                    spread = float(row["spread"])
-                except (TypeError, ValueError, KeyError):
-                    continue
-                if spread > MAX_SPREAD or not (MID_BOUNDS[0] < mid < MID_BOUNDS[1]):
-                    continue
-                ts = datetime.strptime(
-                    row["ts_utc"], "%Y-%m-%dT%H:%M:%SZ"
-                ).replace(tzinfo=timezone.utc).timestamp()
-                series.setdefault(row["token_id"], []).append((ts, mid, imb))
+    with open(path, newline="", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            try:
+                mid = float(row["mid"])
+                imb = float(row["imbalance_top"])
+                spread = float(row["spread"])
+            except (TypeError, ValueError, KeyError):
+                continue
+            if spread > MAX_SPREAD or not (MID_BOUNDS[0] < mid < MID_BOUNDS[1]):
+                continue
+            ts = datetime.strptime(
+                row["ts_utc"], "%Y-%m-%dT%H:%M:%SZ"
+            ).replace(tzinfo=timezone.utc).timestamp()
+            series.setdefault(row["token_id"], []).append((ts, mid, imb))
+    _RECORDER_CACHE[key] = _CachedDay(stat.st_size, stat.st_mtime_ns, series)
+    return series
+
+
+def _forget_missing_days(directory: Path, present: list[Path]) -> None:
+    """Drop cache entries for day files that left ``directory``.
+
+    Snapshots the keys first: the terminal serves sessions on threads, and
+    a concurrent parse must not resize the dict mid-iteration.
+    """
+    current = {str(path) for path in present}
+    stale = [key for key in list(_RECORDER_CACHE)
+             if key not in current and Path(key).parent == directory]
+    for key in stale:
+        _RECORDER_CACHE.pop(key, None)
+
+
+def load_recorder(directory: str) -> dict[str, list[tuple[float, float, float]]]:
+    """Per-token series from book_recorder CSVs (books_*.csv).
+
+    Day files are parsed individually and kept (see ``_load_recorder_day``),
+    so a repeated call only re-reads the day the recorder is still writing.
+    Merging is exact: the per-token series are concatenated and re-sorted
+    before any statistic is derived, so pairs that span midnight survive.
+    """
+    paths = sorted(Path(directory).glob("books_*.csv"))
+    _forget_missing_days(Path(directory), paths)
+
+    series: dict[str, list[tuple[float, float, float]]] = {}
+    for path in paths:
+        for token, values in _load_recorder_day(path).items():
+            series.setdefault(token, []).extend(values)
     for values in series.values():
         values.sort(key=lambda item: item[0])
     return series
 
 
-def analyse(series: dict[str, list[tuple[float, float, float]]]) -> dict[int, list[dict]]:
+def analyse(series: dict[str, list[tuple[float, float, float]]],
+            horizons: tuple[int, ...] = HORIZONS_S) -> dict[int, list[dict]]:
     results: dict[int, list[dict]] = {}
-    for horizon in HORIZONS_S:
+    for horizon in horizons:
         pairs: list[tuple[float, float]] = []
         for token_series in series.values():
             pairs.extend(forward_pairs(token_series, horizon))
