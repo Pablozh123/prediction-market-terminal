@@ -12,14 +12,15 @@ Deltas are changes, not sizes. Polymarket sends the new size at a price level;
 Kalshi sends the amount by which that level changed, positive or negative. The
 same code applied to both feeds would drift within seconds.
 
-Both sides are bids. ``yes`` and ``no`` are both bid ladders, so the YES ask
-side is the reflection of the NO bids: a NO bid at 25 cents is a YES offer at
-75. Reading it as an ask ladder inverts every spread.
+Price scale is pinned. The subscription sends ``use_yes_price: true``, so both
+sides arrive in YES pricing and the no side needs no reflection. Kalshi has
+announced this default will flip; a client that relies on the default has its
+whole book silently re-scaled on that date, with no error and no gap.
 
-Sequence numbers must be checked. Each message carries ``seq``; a gap means the
-local book no longer matches the exchange. On a gap the book is dropped and the
-recorder waits for a fresh snapshot rather than writing rows it cannot vouch
-for.
+Sequence numbers must be checked, and acted on. The counter runs per
+subscription, so a gap invalidates every book at once. Kalshi sends snapshots
+only at subscribe time, so the recorder explicitly asks for fresh ones instead
+of waiting out the connection cycle.
 
 Authentication is read-only by construction: the handshake is signed through
 ``app/kalshi_auth.py``, which refuses anything but GET and blocks every
@@ -43,6 +44,7 @@ from pathlib import Path
 
 from app import kalshi_auth as auth
 from app import proc_lock
+from app import watchlist
 from app.proc_lock import AlreadyRunning
 from src import book_recorder as rec
 from src import kalshi_stream_state as state_mod
@@ -78,12 +80,39 @@ def utc_now_iso(now: datetime | None = None) -> str:
 
 
 def subscribe_message(tickers: list[str], msg_id: int = 1) -> dict:
-    """Subscribe to book deltas and trades for the given markets."""
+    """Subscribe to book deltas and trades for the given markets.
+
+    ``use_yes_price`` is sent explicitly and must stay that way. By default the
+    two sides of a Kalshi book arrive on different price scales, and Kalshi has
+    announced the default will flip to true. A client that relies on the
+    default gets its whole book silently re-scaled on the flip date: every ask,
+    spread and mid inverts, with no error and no sequence gap to notice it by.
+    Pinning the flag makes this code independent of when that happens.
+    """
     return {
         "id": msg_id,
         "cmd": "subscribe",
         "params": {
             "channels": ["orderbook_delta", "trade"],
+            "market_tickers": [str(t) for t in tickers],
+            "use_yes_price": True,
+        },
+    }
+
+
+def resnapshot_message(sid, tickers: list[str], msg_id: int = 2) -> dict:
+    """Ask for fresh snapshots after a sequence gap.
+
+    Kalshi only sends a snapshot at subscribe time, so without this a single
+    dropped message costs every book until the connection cycles - up to ten
+    minutes of recorded silence from one lost frame.
+    """
+    return {
+        "id": msg_id,
+        "cmd": "update_subscription",
+        "params": {
+            "sids": [sid],
+            "action": "get_snapshot",
             "market_tickers": [str(t) for t in tickers],
         },
     }
@@ -137,13 +166,15 @@ def stream_once(tickers: list[str], out_dir: Path, duration_s: float,
     last_message = started
     errors: list[str] = []
     written = {"book_rows": 0, "trade_rows": 0, "messages": 0}
+    resyncs = {"n": 0}
 
     try:
         socket = ws_factory(url, handshake_headers(credentials))
     except Exception as exc:  # noqa: BLE001 - Verbindungsfehler ist ein Ergebnis
         return {"connected": False, "error": f"{type(exc).__name__}: {exc}",
                 "book_rows": 0, "trade_rows": 0, "messages": 0,
-                "markets": len(tickers), "event_counts": {}, "seq_gaps": 0}
+                "markets": len(tickers), "event_counts": {}, "seq_gaps": 0,
+                "resnapshots_requested": 0, "crossed_books": 0}
 
     def flush() -> None:
         nonlocal last_flush
@@ -176,6 +207,19 @@ def stream_once(tickers: list[str], out_dir: Path, duration_s: float,
                 recv_ts = utc_now_iso()
                 for event in parse_payload(raw):
                     state.handle(event, recv_ts)
+                if state.needs_resync:
+                    # Nach einer Sequenzluecke sind alle Buecher ungueltig.
+                    # Kalshi schickt Snapshots nur beim Subscribe, also muss
+                    # man sie ausdruecklich anfordern.
+                    state.needs_resync = False
+                    if state.sid is not None:
+                        try:
+                            socket.send(json.dumps(
+                                resnapshot_message(state.sid, tickers)))
+                            resyncs["n"] += 1
+                        except Exception as exc:  # noqa: BLE001
+                            errors.append(f"resync failed: {type(exc).__name__}: {exc}")
+                            break
             if tick - last_message > STALE_AFTER_S:
                 errors.append("stale: no message within STALE_AFTER_S")
                 break
@@ -197,6 +241,8 @@ def stream_once(tickers: list[str], out_dir: Path, duration_s: float,
         "trade_rows": written["trade_rows"],
         "event_counts": dict(state.counts),
         "seq_gaps": state.seq_gaps,
+        "resnapshots_requested": resyncs["n"],
+        "crossed_books": state.crossed_books,
         "errors": errors,
     }
 
@@ -227,7 +273,11 @@ def run(out_dir: Path | None = None, duration_s: float = 600.0,
         while True:
             if not tickers:
                 markets = kx.discover_markets(get_json=get_json, top_n=top_n)
-                tickers = [m["ticker"] for m in markets]
+                # Cross-Venue-Paare ranken nie nach Volumen; ohne das Pinning
+                # werden sie nie aufgezeichnet.
+                tickers = watchlist.merge_pinned(
+                    watchlist.kalshi_tickers(),
+                    [m["ticker"] for m in markets], top_n)
             summary = stream_once(tickers, out_dir, duration_s, credentials,
                                   ws_factory=ws_factory)
             write_status(out_dir, summary)
