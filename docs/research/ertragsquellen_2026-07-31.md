@@ -1,119 +1,130 @@
-# Woher kommt das Geld? Eigene Messung gegen Literatur (2026-07-31)
+# Where does the money come from? Own measurement against the literature (2026-07-31)
 
-Diese Notiz fuehrt zusammen, was die eigenen Studien in `docs/research/` gemessen
-haben und was die publizierte Forschung dazu sagt. Sie trifft keine Aussage
-darueber, ob eine Strategie handelbar ist, sondern ordnet ein, welche Ertragswege
-die Daten stuetzen und welche sie ausschliessen.
+This note brings together what the studies in `docs/research/` measured and what
+the published research says about the same questions. It makes no claim about
+whether any strategy is tradable; it sorts which revenue paths the data support
+and which they rule out.
 
-## Der Befund in einem Satz
+## The finding in one sentence
 
-Die Richtung vorherzusagen funktioniert messbar, lohnt sich aber nicht: die
-Bruttokante des besten Buchsignals ist rund zwei Groessenordnungen kleiner als
-die Kosten, sie einzusammeln. Was uebrig bleibt, ist die Gegenseite derselben
-Transaktion - den Spread zu stellen statt ihn zu zahlen.
+Predicting direction works measurably and does not pay: the gross edge of the
+best book signal is about two orders of magnitude smaller than the cost of
+collecting it. What remains is the other side of the same transaction, posting
+the spread instead of paying it.
 
-## Was die eigenen Daten zeigen
+## What our own data show
 
-**Das Signal ist echt und zu klein.** Ueber 1,0 Millionen Beobachtungen an elf
-Tagen zeigt die Buch-Imbalance eine Trefferquote von 55,2 Prozent
-(Wilson-Untergrenze 55,0). Die mittlere Bruttokante betraegt 0,07 bis 0,28 Cent
-je Signal. Eine Taker-Runde kostet 2,56 Cent, davon 1,65 Cent Gebuehr und 0,92
-Cent Spread. Quelle: `orderflow_rest-2026-07.md`.
+**The signal is real and too small.** Across 1.0 million observations over
+eleven days, book imbalance shows a hit rate of 55.2 percent (Wilson lower bound
+55.0). The mean gross edge is 0.03 to 0.13 cents per signal for imbalance, and
+up to 0.28 cents for the combined signal. A taker round trip costs 2.58 cents,
+of which 1.65 cents is fee and 0.94 cents is spread. Source:
+`orderflow_rest-2026-07.md`.
 
-**Es gibt kein Segment, in dem das kippt.** 34 ex ante bekannte Schnitte
-(Spread, Preisniveau, Signalstaerke, deren Kreuzung) in drei Gebuehrenkategorien.
-In der gebuehrenfreien Kategorie, wo nur der Spread als Kosten bleibt, ueberlebt
-ein einziges Segment beide Bedingungen - mit einem Konfidenzintervall, das die
-Null einschliesst. Bei 34 Tests ist das genau die erwartete Falsch-Positiv-Rate.
-Quelle: `edge_segments_july-2026.md`.
+**There is no segment where that flips.** 34 cuts knowable before the trade
+(spread, price level, signal strength, their cross) across three fee categories.
+In the fee-free category, where spread is the only remaining cost, exactly one
+segment survives both conditions, with a confidence interval that includes zero.
+At 34 tests that is precisely the expected false-positive rate. Source:
+`edge_segments_july-2026.md`.
 
-**Die Adverse Selektion ist ein Latenzproblem, kein Marktproblem.** Bei einem
-Requote-Intervall von 120 Sekunden verdient das Quoting 1,4 Cent Spread je Fill
-und verliert 3,6 bis 7,0 Cent an informierte Gegenparteien. Auf Sekunden-Daten,
-gleicher Code, gleiche Parameter, faellt der Markout je Fill im Tape-Modell von
-361 auf 4 Cent. Quelle: `mm_pnl_july-2026.md` gegen `mm_pnl_stream-first-hour.md`.
-Der Stream-Lauf umfasst eine Stunde und 273 Fills und ist damit ein erster
-Blick, kein Ergebnis; das steht auch im Report selbst.
+**Adverse selection is a latency problem, not a market problem.** At a
+120-second requote interval the quoting earns 148 cents of spread per fill and
+loses 362 to 698 cents per fill to better-informed counterparties, depending on
+the fill model. Per share at the quoted size that is roughly 1.5 cents earned
+against 3.6 to 7.0 cents lost. On seconds-resolution data, same code and same
+parameters, markout per fill in the tape model falls from 362 to 16 cents while
+spread earned barely moves, 148 against 140. Source: `mm_pnl_july-2026.md`
+against `mm_pnl_stream-2tage.md`.
 
-**Das Signal hilft dem Market Making nicht.** Die Imbalance zu nutzen, um nur
-die beguenstigte Seite zu quoten, senkt den Markout je Fill nicht (minus 361
-gegen minus 365 Cent). Die bessere Gesamtsumme entsteht allein daraus, dass
-weniger gehandelt wird. Weniger verlieren durch weniger handeln ist keine Kante.
+That comparison is a direction, not yet a result. The stream run covers two
+calendar days, which is one short of what the walk-forward split and the daily
+block bootstrap require, and the two fill models do not agree in sign over that
+window. The report states both.
 
-## Was die Literatur dazu sagt
+**The signal does not help the market making.** Using the imbalance to quote
+only the favoured side does not lower markout per fill (minus 361 against minus
+365 cents). The better total comes solely from trading less. Losing less by
+trading less is not an edge.
 
-Drei unabhaengige Arbeiten kommen zum selben Schluss wie die eigene Messung,
-auf beiden Venues und mit ungleich groesseren Stichproben.
+## What the literature says
 
-- Akey, Gregoire, Harvie und Martineau (SSRN 6443103; Datensatz oeffentlich
-  unter CC-BY): 2,47 Millionen Nutzer, 588 Millionen Trades. 68,8 Prozent
-  verlieren Geld. Gewinner stellen Limit-Orders, Verlierer nehmen mit
-  Market-Orders.
-- Bartlett und O'Hara, "Adverse Selection in Prediction Markets: Evidence from
-  Kalshi" (SSRN 6615739): 41,6 Millionen Trades. Market Maker verdienen in
-  Einzelmaerkten doppelt so viel je Kontrakt. Die ausnutzbare Achse ist die
-  YES/NO-Verzerrung, nicht Favorit gegen Aussenseiter.
-- Buergi, Deng und Whelan (CEPR DP20631): Taker verlieren rund 32 Prozent,
-  Maker rund 10 Prozent.
+Three independent studies reach the same conclusion as our own measurement, on
+both venues and with vastly larger samples.
 
-Zwei Anomalien, die naheliegen, sind bereits erklaert und keine Kante:
+- Akey, Gregoire, Harvie and Martineau (SSRN 6443103; dataset public under
+  CC-BY): 2.47 million users, 588 million trades. 68.8 percent lose money.
+  Winners post limit orders, losers take with market orders.
+- Bartlett and O'Hara, "Adverse Selection in Prediction Markets: Evidence from
+  Kalshi" (SSRN 6615739): 41.6 million trades. Market makers earn twice as much
+  per contract in single markets. The exploitable axis is the YES/NO skew, not
+  favourite against longshot.
+- Buergi, Deng and Whelan (CEPR DP20631): takers lose around 32 percent, makers
+  around 10 percent.
 
-- Nahezu sichere Kontrakte sind nicht falsch bepreist. Der Abschlag ist eine
-  Finanzierungspraemie von 3,06 bis 6,89 Prozent jaehrlich, weil das Kapital bis
-  zur Aufloesung gebunden ist (Gebele und Matthes, arXiv 2605.31431). Nach
-  Bereinigung verschwindet die Signifikanz.
-- Ueberteuerte Aussenseiter auf Polymarket existieren, sind aber rund achtmal
-  kleiner als der Spread, den man kreuzen muesste. Der mediane halbe Spread im
-  Bereich unter 10 Cent betraegt 1.818 Basispunkte (Dubach, arXiv 2604.24366,
-  vorregistriert).
+Two obvious-looking anomalies are already explained and are not an edge:
 
-Ein Ergebnis derselben Arbeit erklaert unabhaengig unser eigenes Nullresultat:
-die Richtungsbestimmung von Trades ist auf Polymarket nahezu zufaellig
-(Tick-Regel 49,83 Prozent, Bulk-Volume 50,51 Prozent). Unser Flow-Signal aus dem
-gepollten Tape kam auf 51,3 Prozent Trefferquote. Beides passt zusammen und
-heisst: Analysen, die auf abgeleiteter Handelsrichtung aufbauen, messen kaum
-mehr als Muenzwuerfe.
+- Near-certain contracts are not mispriced. The discount is a funding premium of
+  3.06 to 6.89 percent annually, because the capital is locked until resolution
+  (Gebele and Matthes, arXiv 2605.31431). After adjusting for it the
+  significance disappears.
+- Overpriced longshots on Polymarket do exist, but are about eight times smaller
+  than the spread you would have to cross to reach them. The median half spread
+  below 10 cents is 1,818 basis points (Dubach, arXiv 2604.24366,
+  preregistered).
 
-## Die dritte Ertragsquelle, die in keiner PnL-Rechnung steht
+One result from that same work independently explains our own null result:
+trade-direction inference on Polymarket is near-random (tick rule 49.83 percent,
+bulk volume 50.51 percent). Our flow signal from the polled tape reached a 51.3
+percent hit rate. The two fit together, and the implication is that analyses
+built on inferred trade direction measure little more than coin flips.
 
-Polymarket bezahlt Maker fuer blosse Praesenz nahe am Mid, unabhaengig davon, ob
-ein Fill zustande kommt. Eigene Messung an der CLOB-API am 2026-07-31: 9.562
-Maerkte mit Pool, zusammen 139.138 USD pro Tag. Median 3,00 USD je Markt und
-Tag, Mittelwert 14,55, groesster Pool 1.000. Die modale Konfiguration bezahlt
-Quotes innerhalb von 4,5 Cent um den Mid ab 20 Shares Groesse. Der Scoring-Regel
-nach ist der Score quadratisch in der Naehe zum Mid.
+## The third revenue stream that appears in no PnL calculation
 
-Dazu kommen Maker-Rebates von 15 bis 25 Prozent der eingesammelten
-Taker-Gebuehren, waehrend Maker selbst keine Gebuehr zahlen, sowie auf der
-US-Plattform eine negative Maker-Gebuehr. Die drei Stroeme stapeln sich.
+Polymarket pays makers for mere presence near the mid, whether or not a fill
+happens. Own measurement against the CLOB API on 2026-07-31: 9,900 markets carry
+a pool, 164,661 USD per day in total. Median 4.00 USD per market per day, largest
+pool 1,770. The modal configuration pays quotes within 4.5 cents of the mid from
+20 shares of size upward. Per the scoring rule the score is quadratic in
+closeness to the mid.
 
-In unserer Simulation faellt der Reward-Posten klein aus (2,25 USD auf 34
-Maerkte in einer Stunde), weil die Rechnung mit dem Median-Pool und ohne
-Marktauswahl arbeitet. Genau darin liegt der Hinweis: der Hebel dieser
-Ertragsquelle ist die Auswahl der Maerkte nach Pool-Groesse, nicht engeres
-Quoten. Das legt die Rechnung nahe und belegt es nicht.
+On top of that come maker rebates of 15 to 25 percent of the taker fees
+collected, while makers pay no fee themselves, plus a negative maker fee on the
+US platform. The three streams stack.
 
-## Was daraus folgt
+In our simulation the reward line comes out small, because the calculation uses
+the median pool and applies no market selection at all. That is exactly the
+hint: the lever on this revenue source is selecting markets by pool size, not
+quoting tighter. The calculation suggests that; it does not prove it.
 
-Fuer die Frage, wo positive Erwartung herkommen kann, ordnen die Daten die
-Wege so:
+The follow-up study did apply that selection, and the answer is a warning rather
+than an invitation. Of the 45 largest pools, 14 have a completely empty
+qualifying band, and those books quote 1 to 64 cents wide against a 2.5 cent
+band. Nobody stands there because nobody wants to stand there. The venue is
+buying liquidity that does not otherwise exist, and adverse selection is the
+price. Source: `reward_selection_2026-07-31.md`.
 
-1. **Liquiditaet stellen, schnell genug requotet.** Der einzige Weg, den sowohl
-   die eigene Messung als auch drei unabhaengige Arbeiten stuetzen. Der
-   Engpass ist nachweislich die Standzeit der Quote, nicht die Quote-Breite.
-2. **Programmertraege als eigener Strom.** Rewards, Rebates und
-   Open-Interest-Verguetung haengen nicht an einer Prognose. Sie gehoeren
-   getrennt ausgewiesen, sonst schreibt man Programmgeld einer Handelsidee gut.
-3. **Richtungswetten auf Buchsignale.** Nach dieser Messung nicht. Die Kante
-   ist real und zu klein, und kein ex ante bekanntes Segment aendert das.
+## What follows from this
 
-## Grenzen
+For the question of where positive expectation can come from, the data rank the
+paths like this:
 
-Elf Tage REST-Daten und eine Stunde Sekunden-Daten, ein Venue, ein Ausschnitt
-der aktivsten Maerkte, Papier-Simulation ohne Queue-Position und ohne Teilfills.
-Der Sekunden-Befund ist der wichtigste und zugleich der duennste; er wiederholt
-sich erst dann als Ergebnis, wenn mehrere Tage Stream-Material vorliegen und
-walk-forward getrennt werden kann. Die Gebuehrenraten stammen aus der
-Venue-Dokumentation vom 2026-07-30 und sind ueberschreibbar.
+1. **Providing liquidity, requoted fast enough.** The only path supported by
+   both our own measurement and three independent studies. The bottleneck is
+   demonstrably the staleness of the quote, not its width.
+2. **Programme revenue as its own stream.** Rewards, rebates and open-interest
+   compensation do not depend on a forecast. They belong reported separately,
+   otherwise programme money gets credited to a trading idea.
+3. **Directional bets on book signals.** Not per this measurement. The edge is
+   real and too small, and no cut knowable before the trade changes that.
 
-Read-only-Forschung, keine Handelsempfehlung, keine Renditeaussage.
+## Limits
+
+Eleven days of REST data and two days of seconds data, a slice of the most
+active markets, paper simulation without queue position and without partial
+fills. The seconds finding is the most important and at the same time the
+thinnest; it becomes a result only once enough calendar days allow a
+walk-forward split. Fee rates come from venue documentation dated 2026-07-30 and
+are overridable.
+
+Read-only research. Not trading advice. No claim of returns.
