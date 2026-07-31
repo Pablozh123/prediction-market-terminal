@@ -7,12 +7,17 @@ by someone who has not seen the repo.
 
 ## What was built
 
-Two recorders and five analysis modules. A REST recorder polling both venues
-every two minutes, and an event-driven recorder on Polymarket's CLOB WebSocket
-that writes on every top-of-book change, median gap under one second. On top:
-fee models for both venues, an order-flow study, a segmentation harness, a
-market-making PnL decomposition, and a cross-venue basket calculator. 923 unit
-tests.
+Four recorders and eight analysis modules, all running continuously. REST
+pollers on both venues at two-minute cadence, and event-driven WebSocket
+recorders on both, writing on every top-of-book change at sub-second median
+gaps. The Kalshi socket is authenticated read-only: the signing module refuses
+anything but GET and blocks every order and portfolio path, so a credential
+with trading rights still cannot trade through this code.
+
+On top: fee models for both venues, an order-flow study, a segmentation
+harness, a market-making PnL decomposition, a cross-venue basket calculator, a
+gap-lifetime reconstruction, a reward-market ranker, and a book reconciler.
+1,096 unit tests.
 
 ## What was measured
 
@@ -24,8 +29,8 @@ that sample size.
 signal against a 2.56 cent round trip, of which 1.65 cents is fee and 0.92 is
 spread. 4.2 percent of firings end net positive.
 
-**No segment rescues it.** 34 cuts knowable before the trade - spread, price
-level, signal strength, their cross - across three fee scenarios including the
+**No segment rescues it.** 34 cuts knowable before the trade — spread, price
+level, signal strength, their cross — across three fee scenarios including the
 fee-free category. Exactly one survives both in-sample and out-of-sample, with
 a day-resampled confidence interval containing zero. At 34 tests that is the
 expected false-positive rate.
@@ -42,11 +47,28 @@ parameters, run on seconds-resolution data: markout per fill falls from 361 to
 a result. Widening the quote instead only crosses breakeven near an 8 cent half
 spread, where fills collapse tenfold.
 
-**Cross-venue gaps are carry, not arbitrage.** Live universe, both fee curves
-subtracted, size capped by real depth: five verified pairs, three clear both
-fee curves, best 3.07 cents. All settle in 2027 or 2028, so 0.5 to 1.8 percent
-annualised against capital locked up to 830 days, plus resolution-rule risk on
-both venues.
+**Cross-venue gaps are carry, not arbitrage — and they prove it by staying
+open.** Both fee curves subtracted, size capped by real depth: five verified
+pairs, three clear both fee curves, best 3.07 cents, all settling in 2027 or
+2028, so 0.5 to 1.8 percent annualised against capital locked up to 830 days.
+Reconstructing the gap over time from both recorders, three of the five were
+open at *every moment observed* across eleven hours. The usual account has
+these windows closing in seconds. They do not close because they are not
+mispricings: the gap is the price of locking capital until resolution, plus
+resolution-rule risk on both venues.
+
+**Reward pools are large where nobody wants to stand.** Measured from the
+venue's own API: 9,921 markets carry a pool, 165,578 USD per day, median 4,
+largest 1,770. Of the 46 largest, 17 have a completely empty qualifying band
+and pay 400 to 933 dollars a day. That reads like free money until the spread
+column: those books quote 4 to 64 cents wide against a 2.5 cent qualifying
+band. The venue is buying liquidity that does not otherwise exist, and adverse
+selection is the price.
+
+**The streamed book is correct, and that is now tested rather than assumed.**
+Polymarket sends no sequence numbers, so a dropped update is invisible and the
+book would drift silently. Reconciling against the authoritative REST book: 30
+comparisons, 30 matches, zero drift, largest divergence 0.0 ticks.
 
 ## What I threw away
 
@@ -69,20 +91,52 @@ a hedge, it is two open bets. The matcher now compares question types rather
 than words, and the rejected pairs stay in the report because what a mismatch
 looks like is the lesson.
 
+**A two-clock liveness watchdog.** The protocol review recommended separating
+liveness from data staleness. Building it showed why it cannot work here: the
+client library answers Kalshi's protocol pings internally and never surfaces
+them, so a dead socket and a quiet market look identical from this side. The
+second clock would have moved in lockstep with the first and only looked like a
+distinction. One honest clock, documented as a backstop, replaced it.
+
+## Four silent failures, and how they surfaced
+
+None of these crashed, raised, or failed a test. Each would have corrupted
+numbers while every log stayed clean.
+
+1. **Sequence scope.** Kalshi numbers messages per subscription, not per
+   market. Tracking it per market reported a gap on almost every message.
+   Found by reading raw frames against the live feed.
+2. **A dated time bomb.** The subscription relied on `use_yes_price`
+   defaulting to false. Kalshi has announced that default will flip, at which
+   point every ask, spread and mid would have inverted with no error and no
+   gap. Found by reviewing our client against the venue's own documentation.
+3. **Recorders watching the wrong markets.** Both streams select by volume.
+   The cross-venue pairs are long-dated and thin and never rank, so zero of
+   them had ever been recorded — the question they exist to answer was
+   unanswerable no matter how long the recorders ran. Found by checking
+   coverage before building the analyser.
+4. **A watchdog punishing the normal case.** Ninety seconds of silence ended
+   the cycle and rebuilt the market selection, on markets where silence is the
+   resting state.
+
 ## What the literature says
 
 Three independent studies covering 2.5 million users and 41 million trades reach
 the same split this work measured: makers earn, takers lose. Two anomalies worth
-not chasing are already explained - near-certainty pricing is a 3 to 7 percent
+not chasing are already explained — near-certainty pricing is a 3 to 7 percent
 funding cost rather than mispricing, and longshot overpricing is roughly an
-eighth of the spread needed to reach it.
+eighth of the spread needed to reach it. On Kalshi's FIX access: the published
+dictionary defines 34 messages and none of them are market data, so a FIX engine
+pointed at the venue's own dictionary receives nothing without extending it.
 
 ## Limits
 
-Eleven days of two-minute data, one hour of seconds data, one venue for the
-microstructure work, paper simulation without queue position or partial fills.
-The seconds finding is the most important and the thinnest; it becomes a result
-only once several days allow a walk-forward split. Fee rates are taken from
-venue documentation dated 2026-07-30 and are overridable.
+Eleven days of two-minute data, hours of seconds data, paper simulation without
+queue position or partial fills. The seconds finding is the most important and
+the thinnest; it becomes a result only once several days allow a walk-forward
+split. Cross-venue pairs are matched on titles and their resolution rules have
+not been compared, which is the difference between a hedge and two open bets.
+Fee rates are taken from venue documentation dated 2026-07-30 and are
+overridable.
 
 No profitability claim is made anywhere in this work.
