@@ -13,10 +13,13 @@ Both ladders are bids. ``yes`` and ``no`` both hold bids. The YES ask side is
 the reflection of the NO bids, because a NO bid at 25 cents is an offer to sell
 YES at 75.
 
-Sequence numbers are load bearing. A gap means the local book no longer matches
-the exchange, so the book is dropped and no rows are written for that market
-until a fresh snapshot arrives. Writing rows from a book known to be wrong is
-worse than writing none.
+Sequence numbers are load bearing, and they count per subscription rather than
+per market. A single stream numbers every message across all subscribed
+markets, so a gap does not tell you which book lost an update - it tells you
+the connection did. Every book is therefore marked untrusted at once and no
+rows are written until fresh snapshots arrive. Tracking the counter per market
+instead looks reasonable and reports a gap on almost every message, because
+each market only ever sees a subset of a shared counter.
 
 Prices arrive as integer cents and are stored in dollars, so every downstream
 study sees the same units as the Polymarket recorders.
@@ -25,6 +28,14 @@ study sees the same units as the Polymarket recorders.
 from __future__ import annotations
 
 DEPTH_LEVELS = 5
+
+
+def _first(message: dict, *names: str):
+    """First present field. The socket uses ``*_fp`` names, older docs do not."""
+    for name in names:
+        if name in message and message[name] is not None:
+            return message[name]
+    return None
 
 
 def to_dollars(price) -> float | None:
@@ -86,21 +97,9 @@ class BookState:
         else:
             book.pop(dollars, None)
 
-    def check_seq(self, seq) -> bool:
-        """True if the sequence follows on. A gap marks the book broken."""
-        try:
-            value = int(seq)
-        except (TypeError, ValueError):
-            return True  # ohne seq keine Luecke feststellbar
-        if self.seq is None:
-            self.seq = value
-            return True
-        if value == self.seq + 1 or value == self.seq:
-            self.seq = value
-            return True
-        self.seq = value
+    def mark_broken(self) -> None:
+        """Stop trusting this book until a fresh snapshot arrives."""
         self.broken = True
-        return False
 
     def best_bid(self) -> float | None:
         return max(self.yes_bids) if self.yes_bids else None
@@ -165,7 +164,32 @@ class StreamState:
         self.trade_rows: list[dict] = []
         self.counts: dict[str, int] = {}
         self.seq_gaps = 0
+        self.needs_resync = False
+        #: Der Zaehler laeuft je Subscription, nicht je Markt.
+        self.seq_by_sid: dict[str, int] = {}
         self._last_touch: dict[str, tuple] = {}
+
+    def check_seq(self, sid, seq) -> bool:
+        """True if the stream is still in order. A gap invalidates every book.
+
+        The counter belongs to the subscription, so one missed message means
+        the connection dropped an update for some market we cannot identify.
+        """
+        try:
+            value = int(seq)
+        except (TypeError, ValueError):
+            return True  # ohne seq laesst sich keine Luecke feststellen
+        key = str(sid)
+        previous = self.seq_by_sid.get(key)
+        self.seq_by_sid[key] = value
+        if previous is None or value in (previous, previous + 1):
+            return True
+        self.seq_gaps += 1
+        self.needs_resync = True
+        for book in self.books.values():
+            book.mark_broken()
+        self._last_touch.clear()
+        return False
 
     def _book(self, market: str) -> BookState:
         return self.books.setdefault(market, BookState())
@@ -197,20 +221,21 @@ class StreamState:
             return
 
         if event_type == "orderbook_snapshot":
+            self.check_seq(event.get("sid"), event.get("seq"))
             book = self._book(market)
-            book.apply_snapshot(message.get("yes"), message.get("no"),
+            book.apply_snapshot(_first(message, "yes_dollars_fp", "yes"),
+                                _first(message, "no_dollars_fp", "no"),
                                 event.get("seq"))
             self._emit_if_touch_moved(market, recv_ts, "snapshot")
 
         elif event_type == "orderbook_delta":
+            in_order = self.check_seq(event.get("sid"), event.get("seq"))
             book = self._book(market)
-            if not book.check_seq(event.get("seq")):
-                self.seq_gaps += 1
-                self._last_touch.pop(market, None)
+            if not in_order or book.broken:
                 return
-            if book.broken:
-                return
-            book.apply_delta(message.get("price"), message.get("delta"),
+            book.seq = event.get("seq")
+            book.apply_delta(_first(message, "price_dollars", "price"),
+                             _first(message, "delta_fp", "delta"),
                              message.get("side"))
             self._emit_if_touch_moved(market, recv_ts, "delta")
 
@@ -221,8 +246,9 @@ class StreamState:
                 "exchange_ts": message.get("ts"),
                 "market_id": market,
                 "side": "BUY" if taker.startswith("y") else "SELL",
-                "price": to_dollars(message.get("yes_price")),
-                "size": message.get("count"),
+                "price": to_dollars(_first(message, "yes_price_dollars",
+                                           "yes_price")),
+                "size": _first(message, "count_fp", "count"),
                 "trade_id": message.get("trade_id"),
             })
 

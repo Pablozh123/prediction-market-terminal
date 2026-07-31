@@ -8,17 +8,20 @@ from src import kalshi_stream as ks
 from src import kalshi_stream_state as st
 
 
-def snapshot(market="KXTEST", yes=None, no=None, seq=1):
-    return {"type": "orderbook_snapshot", "seq": seq, "msg": {
+def snapshot(market="KXTEST", yes=None, no=None, seq=1, sid=1):
+    return {"type": "orderbook_snapshot", "seq": seq, "sid": sid, "msg": {
         "market_ticker": market,
-        "yes": yes if yes is not None else [[40, 100], [39, 200]],
-        "no": no if no is not None else [[55, 50], [54, 80]],
+        "yes_dollars_fp": yes if yes is not None
+        else [["0.40", "100"], ["0.39", "200"]],
+        "no_dollars_fp": no if no is not None
+        else [["0.55", "50"], ["0.54", "80"]],
     }}
 
 
-def delta(market="KXTEST", price=41, amount=25, side="yes", seq=2):
-    return {"type": "orderbook_delta", "seq": seq, "msg": {
-        "market_ticker": market, "price": price, "delta": amount, "side": side}}
+def delta(market="KXTEST", price="0.41", amount="25", side="yes", seq=2, sid=1):
+    return {"type": "orderbook_delta", "seq": seq, "sid": sid, "msg": {
+        "market_ticker": market, "price_dollars": price, "delta_fp": amount,
+        "side": side}}
 
 
 def throwaway_credentials(directory: Path):
@@ -139,35 +142,51 @@ class ReflectionTests(unittest.TestCase):
 
 
 class SequenceTests(unittest.TestCase):
-    def test_consecutive_sequences_are_accepted(self):
-        book = st.BookState()
-        book.apply_snapshot([[40, 1]], [[55, 1]], seq=5)
-        self.assertTrue(book.check_seq(6))
-        self.assertFalse(book.broken)
+    """The counter belongs to the subscription, not to a market."""
 
-    def test_a_repeat_of_the_same_sequence_is_tolerated(self):
-        book = st.BookState()
-        book.apply_snapshot([[40, 1]], [[55, 1]], seq=5)
-        self.assertTrue(book.check_seq(5))
+    def setUp(self):
+        self.state = st.StreamState()
 
-    def test_a_gap_marks_the_book_broken(self):
-        book = st.BookState()
-        book.apply_snapshot([[40, 1]], [[55, 1]], seq=5)
-        self.assertFalse(book.check_seq(9))
-        self.assertTrue(book.broken)
+    def test_consecutive_sequences_across_markets_are_fine(self):
+        # Genau der Livefall: vier Maerkte teilen sich einen Zaehler.
+        self.state.handle(snapshot(market="A", seq=1), "r")
+        self.state.handle(snapshot(market="B", seq=2), "r")
+        self.state.handle(delta(market="A", seq=3), "r")
+        self.state.handle(delta(market="B", seq=4), "r")
+        self.assertEqual(self.state.seq_gaps, 0)
+
+    def test_per_market_counting_would_have_flagged_that_as_gaps(self):
+        # Regression: pro Markt gezaehlt saehe 1 -> 3 wie eine Luecke aus.
+        self.state.handle(snapshot(market="A", seq=1), "r")
+        self.state.handle(snapshot(market="B", seq=2), "r")
+        self.state.handle(delta(market="A", seq=3), "r")
+        self.assertFalse(self.state.needs_resync)
+
+    def test_a_real_gap_is_detected(self):
+        self.state.handle(snapshot(seq=1), "r")
+        self.state.handle(delta(seq=9), "r")
+        self.assertEqual(self.state.seq_gaps, 1)
+        self.assertTrue(self.state.needs_resync)
+
+    def test_a_gap_invalidates_every_book_not_just_one(self):
+        self.state.handle(snapshot(market="A", seq=1), "r")
+        self.state.handle(snapshot(market="B", seq=2), "r")
+        self.state.handle(delta(market="A", seq=99), "r")
+        self.assertTrue(all(b.broken for b in self.state.books.values()))
+
+    def test_a_repeated_sequence_is_tolerated(self):
+        self.state.handle(snapshot(seq=1), "r")
+        self.state.handle(delta(seq=1), "r")
+        self.assertEqual(self.state.seq_gaps, 0)
+
+    def test_separate_subscriptions_keep_separate_counters(self):
+        self.state.handle(snapshot(market="A", seq=1, sid=1), "r")
+        self.state.handle(snapshot(market="B", seq=1, sid=2), "r")
+        self.assertEqual(self.state.seq_gaps, 0)
 
     def test_a_missing_sequence_number_cannot_be_checked(self):
-        book = st.BookState()
-        book.apply_snapshot([[40, 1]], [[55, 1]], seq=5)
-        self.assertTrue(book.check_seq(None))
-
-    def test_a_snapshot_repairs_a_broken_book(self):
-        book = st.BookState()
-        book.apply_snapshot([[40, 1]], [[55, 1]], seq=5)
-        book.check_seq(99)
-        self.assertTrue(book.broken)
-        book.apply_snapshot([[40, 1]], [[55, 1]], seq=100)
-        self.assertFalse(book.broken)
+        self.state.handle(snapshot(seq=None), "r")
+        self.assertEqual(self.state.seq_gaps, 0)
 
 
 class StreamStateTests(unittest.TestCase):
@@ -181,13 +200,13 @@ class StreamStateTests(unittest.TestCase):
 
     def test_a_delta_at_the_touch_produces_a_row(self):
         self.state.handle(snapshot(), "r1")
-        self.state.handle(delta(price=41, amount=10), "r2")
+        self.state.handle(delta(price="0.41", amount="10"), "r2")
         self.assertEqual(len(self.state.book_rows), 2)
         self.assertAlmostEqual(self.state.book_rows[-1]["best_bid"], 0.41, places=6)
 
     def test_a_delta_deep_in_the_book_produces_nothing(self):
         self.state.handle(snapshot(), "r1")
-        self.state.handle(delta(price=20, amount=10), "r2")
+        self.state.handle(delta(price="0.20", amount="10"), "r2")
         self.assertEqual(len(self.state.book_rows), 1)
 
     def test_a_sequence_gap_stops_rows_until_a_new_snapshot(self):
@@ -197,28 +216,28 @@ class StreamStateTests(unittest.TestCase):
         self.state.handle(delta(seq=99), "r2")
         self.assertEqual(self.state.seq_gaps, 1)
         before = len(self.state.book_rows)
-        self.state.handle(delta(seq=100, price=42), "r3")
+        self.state.handle(delta(seq=100, price="0.42"), "r3")
         self.assertEqual(len(self.state.book_rows), before)
 
     def test_a_fresh_snapshot_resumes_recording(self):
         self.state.handle(snapshot(seq=1), "r1")
         self.state.handle(delta(seq=99), "r2")
-        self.state.handle(snapshot(seq=200, yes=[[42, 10]]), "r3")
+        self.state.handle(snapshot(seq=200, yes=[["0.42", "10"]]), "r3")
         self.assertAlmostEqual(self.state.book_rows[-1]["best_bid"], 0.42,
                                places=6)
 
     def test_a_trade_records_the_aggressor_side(self):
         self.state.handle({"type": "trade", "msg": {
-            "market_ticker": "KXTEST", "taker_side": "yes", "yes_price": 33,
-            "count": 12, "ts": 1735689600, "trade_id": "abc"}}, "r1")
+            "market_ticker": "KXTEST", "taker_side": "yes", "yes_price_dollars": "0.33",
+            "count_fp": "12", "ts": 1735689600, "trade_id": "abc"}}, "r1")
         row = self.state.trade_rows[0]
         self.assertEqual(row["side"], "BUY")
         self.assertAlmostEqual(row["price"], 0.33, places=6)
 
     def test_a_no_side_taker_is_a_sell_of_yes(self):
         self.state.handle({"type": "trade", "msg": {
-            "market_ticker": "KXTEST", "taker_side": "no", "yes_price": 33,
-            "count": 5}}, "r1")
+            "market_ticker": "KXTEST", "taker_side": "no", "yes_price_dollars": "0.33",
+            "count_fp": "5"}}, "r1")
         self.assertEqual(self.state.trade_rows[0]["side"], "SELL")
 
     def test_messages_without_a_market_are_ignored(self):
@@ -284,7 +303,7 @@ class StreamOnceTests(unittest.TestCase):
 
     def test_a_run_subscribes_and_writes_rows(self):
         socket = FakeSocket([json.dumps(snapshot()),
-                             json.dumps(delta(price=41, amount=5))])
+                             json.dumps(delta(price="0.41", amount="5"))])
         summary = ks.stream_once(["KXTEST"], self.out, 5, self.creds,
                                  ws_factory=lambda url, headers: socket,
                                  now_fn=self._clock())
@@ -296,8 +315,8 @@ class StreamOnceTests(unittest.TestCase):
 
     def test_trades_land_in_their_own_file(self):
         trade = {"type": "trade", "msg": {"market_ticker": "KXTEST",
-                                          "taker_side": "yes", "yes_price": 40,
-                                          "count": 3}}
+                                          "taker_side": "yes", "yes_price_dollars": "0.40",
+                                          "count_fp": "3"}}
         socket = FakeSocket([json.dumps(trade)])
         summary = ks.stream_once(["KXTEST"], self.out, 5, self.creds,
                                  ws_factory=lambda url, headers: socket,
