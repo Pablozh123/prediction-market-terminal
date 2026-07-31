@@ -70,6 +70,9 @@ DEFAULT_THRESHOLD = 0.65
 #: Ein Fill braucht eine as-of-Zuordnung mit begrenzter Staleness.
 STALENESS_FACTOR = 2.0
 
+#: Unter so vielen Tagen ist ein Block-Bootstrap kein Konfidenzintervall.
+MIN_BOOTSTRAP_GROUPS = 3
+
 # Validierte Referenzpalette (dataviz-Skill), Light-Mode
 COLOR_GROSS = "#2a78d6"
 COLOR_NET = "#1baf7a"
@@ -424,7 +427,11 @@ def block_bootstrap_ci(values: list[float], groups: list[str],
     for value, group in zip(values, groups):
         buckets.setdefault(group, []).append(value)
     keys = sorted(buckets)
-    if len(keys) < 2:
+    # Mit zwei Gruppen resampelt der Bootstrap nur zwischen zwei Werten und
+    # liefert im Wesentlichen deren Spanne zurueck. Das sieht aus wie ein
+    # Konfidenzintervall, traegt aber keine Information ueber die Streuung,
+    # und ein solches Intervall zu berichten ueberzeichnet, was gemessen wurde.
+    if len(keys) < MIN_BOOTSTRAP_GROUPS:
         return None
     rng = _Lcg(seed)
     means: list[float] = []
