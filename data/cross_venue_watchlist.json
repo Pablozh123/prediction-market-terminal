@@ -1,0 +1,57 @@
+{
+  "beschreibung": "Cross-Venue-Paare, die beide Stream-Recorder zusaetzlich zur Volumen-Auswahl immer mitschreiben. Ohne diesen Eintrag werden sie nie aufgezeichnet: es sind langlaufende, duenne Maerkte, die nie nach Volumen ranken.",
+  "quelle": "docs/research/cross_venue_gaps_2026-07-31.json, nur Paare ohne Fehlpaarungs-Verdacht",
+  "stand": "2026-07-31",
+  "paare": [
+    {
+      "kalshi_ticker": "KXEUROVISIONHOST-27-SOF",
+      "polymarket_market_id": "2294031",
+      "polymarket_token_ids": [
+        "62474359384438151756967307997575848219189410783384033652191452044688986782350",
+        "49025127194805317388644600697772783650208319856380525504212737608874395465828"
+      ],
+      "question": "Will Sofia host Eurovision 2027?",
+      "match_score": 0.8
+    },
+    {
+      "kalshi_ticker": "KXPRESPERSON-28-DTRU",
+      "polymarket_market_id": "561243",
+      "polymarket_token_ids": [
+        "11807691644868166983390207408868795383945915035851758101409310535538572683733",
+        "72656506786460378316387284276713856836841708169262528054985577978493419440428"
+      ],
+      "question": "Will Donald Trump win the 2028 US Presidential Election?",
+      "match_score": 0.625
+    },
+    {
+      "kalshi_ticker": "KXPRESPERSON-28-MRUB",
+      "polymarket_market_id": "561234",
+      "polymarket_token_ids": [
+        "11171618905857319805355893398009978356002287408842633593535559412449299952250",
+        "65892530750232246342273648992064742042382898919201083513241874070914353628268"
+      ],
+      "question": "Will Marco Rubio win the 2028 US Presidential Election?",
+      "match_score": 0.625
+    },
+    {
+      "kalshi_ticker": "KXFRENCHPRES-27-MLEP",
+      "polymarket_market_id": "679018",
+      "polymarket_token_ids": [
+        "55764212211467781322980371912612507865974994976253196346176314491480419639168",
+        "5649717099758674861276159343380402289083378331461490840325685141994171250523"
+      ],
+      "question": "Will Marine Le Pen win the 2027 French presidential election?",
+      "match_score": 0.6
+    },
+    {
+      "kalshi_ticker": "KXPRESNOMD-28-JBP",
+      "polymarket_market_id": "559663",
+      "polymarket_token_ids": [
+        "103988345069738240821107916249290759786442703283901164377120414690701074137717",
+        "108650988487983371520585351370999192979899647080710024226285750050382033453124"
+      ],
+      "question": "Will J.B. Pritzker win the 2028 Democratic presidential nomination?",
+      "match_score": 0.5714
+    }
+  ]
+}

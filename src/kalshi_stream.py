@@ -44,6 +44,7 @@ from pathlib import Path
 
 from app import kalshi_auth as auth
 from app import proc_lock
+from app import watchlist
 from app.proc_lock import AlreadyRunning
 from src import book_recorder as rec
 from src import kalshi_stream_state as state_mod
@@ -272,7 +273,11 @@ def run(out_dir: Path | None = None, duration_s: float = 600.0,
         while True:
             if not tickers:
                 markets = kx.discover_markets(get_json=get_json, top_n=top_n)
-                tickers = [m["ticker"] for m in markets]
+                # Cross-Venue-Paare ranken nie nach Volumen; ohne das Pinning
+                # werden sie nie aufgezeichnet.
+                tickers = watchlist.merge_pinned(
+                    watchlist.kalshi_tickers(),
+                    [m["ticker"] for m in markets], top_n)
             summary = stream_once(tickers, out_dir, duration_s, credentials,
                                   ws_factory=ws_factory)
             write_status(out_dir, summary)

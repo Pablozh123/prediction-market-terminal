@@ -36,6 +36,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from app import proc_lock
+from app import watchlist
 from app.proc_lock import AlreadyRunning
 from src import book_recorder as rec
 
@@ -447,9 +448,12 @@ def _run_locked(out_dir: Path, duration_s: float, top_n: int, loop: bool,
                 time.sleep(backoff_delay(attempt))
                 attempt += 1
                 continue
-        summary = stream_once([t["token_id"] for t in tokens], out_dir,
-                              duration_s, ws_factory=ws_factory,
-                              keep_raw=keep_raw)
+        # Gepinnte Cross-Venue-Token zuerst, dann die Volumen-Auswahl.
+        subscribed = watchlist.merge_pinned(
+            watchlist.polymarket_token_ids(),
+            [t["token_id"] for t in tokens], max(1, 2 * top_n))
+        summary = stream_once(subscribed, out_dir, duration_s,
+                              ws_factory=ws_factory, keep_raw=keep_raw)
         summary["tracked_tokens"] = len(tokens)
         write_status(out_dir, summary)
         print(f"[stream] {summary}", flush=True)
