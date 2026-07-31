@@ -1,11 +1,8 @@
 # Registers user-logon Scheduled Tasks so the terminal survives reboots:
-#   MarketIntelTerminal     - Streamlit app on http://127.0.0.1:8503
-#   MarketIntelCopyDaemon   - paper copy-trading daemon (scripts/run_copy_trader.py)
-#   MarketIntelAlertScanner - background alert scanner (scripts/run_alert_scanner.py)
-#   MarketIntelBookRecorder - REST order-book recorder, one pass every 2 minutes
-#   MarketIntelBookStream   - CLOB WebSocket recorder, seconds resolution
-#   MarketIntelKalshi       - Kalshi REST recorder, one pass every 2 minutes
-# Re-running is safe: -Force re-registers an existing task in place.
+#   MarketIntelTerminal        - Streamlit app on http://127.0.0.1:8503
+#   MarketIntelCopyDaemon      - paper copy-trading daemon (scripts/run_copy_trader.py)
+#   MarketIntelAlertScanner    - background alert scanner (scripts/run_alert_scanner.py)
+#   MarketIntelLedgerResolution- daily signal-ledger resolution join (scripts/run_ledger_resolution.py)
 # Remove again with scripts/uninstall_autostart.ps1. No admin rights required.
 
 $ErrorActionPreference = "Stop"
@@ -13,15 +10,10 @@ $repo = Split-Path -Parent $PSScriptRoot
 $python = (Get-Command python).Source
 
 $tasks = @(
-    @{ Name = "MarketIntelTerminal";      Args = "-m streamlit run prediction_terminal.py --server.address=127.0.0.1 --server.port=8503" },
-    @{ Name = "MarketIntelCopyDaemon";    Args = "scripts\run_copy_trader.py" },
-    @{ Name = "MarketIntelAlertScanner";  Args = "scripts\run_alert_scanner.py" },
-    @{ Name = "MarketIntelBookRecorder";  Args = "scripts\run_book_recorder.py" },
-    @{ Name = "MarketIntelBookStream";    Args = "scripts\run_book_stream.py" },
-    @{ Name = "MarketIntelKalshi";        Args = "scripts\run_kalshi_recorder.py" },
-    # Braucht KALSHI_KEY_ID und KALSHI_PRIVATE_KEY_PATH. Ohne sie beendet sich
-    # die Task mit einer klaren Meldung, statt Daten zu schreiben.
-    @{ Name = "MarketIntelKalshiStream";  Args = "scripts\run_kalshi_stream.py" }
+    @{ Name = "MarketIntelTerminal";         Args = "-m streamlit run prediction_terminal.py --server.address=127.0.0.1 --server.port=8503" },
+    @{ Name = "MarketIntelCopyDaemon";       Args = "scripts\run_copy_trader.py" },
+    @{ Name = "MarketIntelAlertScanner";     Args = "scripts\run_alert_scanner.py" },
+    @{ Name = "MarketIntelLedgerResolution"; Args = "scripts\run_ledger_resolution.py" }
 )
 
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME

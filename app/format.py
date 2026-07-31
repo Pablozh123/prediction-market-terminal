@@ -46,6 +46,15 @@ def signed_cents(value: Any) -> str:
     return f"{float(value) * 100:+.1f}c"
 
 
+def snapshot_label(value: Any) -> str:
+    """Short UTC label for a scorecard snapshot timestamp, e.g. '2026-07-16 18:50 UTC'."""
+
+    ts = pd.to_datetime(value, utc=True, errors="coerce")
+    if pd.isna(ts):
+        return "-"
+    return ts.strftime("%Y-%m-%d %H:%M UTC")
+
+
 def resolution_yield_summary(yes_price: Any, end_time: Any, now: pd.Timestamp | None = None) -> dict[str, Any]:
     try:
         yes = max(0.0, min(float(yes_price), 1.0))
