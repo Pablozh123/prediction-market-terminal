@@ -186,3 +186,62 @@ def credentials_available() -> bool:
     """Are both environment variables set? Says nothing about validity."""
     return bool(os.environ.get(KEY_ID_ENV, "").strip()
                 and os.environ.get(PRIVATE_KEY_PATH_ENV, "").strip())
+
+
+#: Wo nach den beiden Variablen gesucht wird, in dieser Reihenfolge. Der
+#: Zusatzpfad erlaubt eine gemeinsame Secret-Datei ausserhalb dieses Repos.
+ENV_FILE_OVERRIDE = "KALSHI_ENV_FILE"
+
+
+def read_selected_env(path: str | os.PathLike,
+                      keys: tuple[str, ...] = (KEY_ID_ENV, PRIVATE_KEY_PATH_ENV)
+                      ) -> dict[str, str]:
+    """Read ONLY the named keys out of a dotenv-style file.
+
+    Deliberately selective. A shared secrets file usually holds far more than
+    this process should ever see - wallet private keys, exchange secrets, model
+    API keys. Sourcing the whole file would pull all of that into a read-only
+    research recorder for no reason. Anything not named here is not even parsed
+    into memory.
+    """
+    wanted = set(keys)
+    found: dict[str, str] = {}
+    try:
+        lines = Path(path).read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return {}
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        name, _, value = stripped.partition("=")
+        name = name.strip()
+        if name not in wanted:
+            continue
+        found[name] = value.strip().strip('"').strip("'")
+    return found
+
+
+def env_file_candidates() -> list[Path]:
+    """Files that may carry the two Kalshi variables, most specific first."""
+    candidates: list[Path] = []
+    override = os.environ.get(ENV_FILE_OVERRIDE, "").strip()
+    if override:
+        candidates.append(Path(override).expanduser())
+    candidates.append(REPO_ROOT / ".env")
+    return candidates
+
+
+def load_from_env_files(paths: list[Path] | None = None) -> dict[str, str]:
+    """Fill the two variables from the first file that supplies them.
+
+    Values already present in the environment win, so an explicitly exported
+    variable is never silently overridden by a file.
+    """
+    loaded: dict[str, str] = {}
+    for path in (paths if paths is not None else env_file_candidates()):
+        for name, value in read_selected_env(path).items():
+            if value and not os.environ.get(name, "").strip():
+                os.environ[name] = value
+                loaded[name] = str(path)
+    return loaded

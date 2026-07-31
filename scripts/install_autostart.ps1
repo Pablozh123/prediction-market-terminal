@@ -18,7 +18,10 @@ $tasks = @(
     @{ Name = "MarketIntelAlertScanner";  Args = "scripts\run_alert_scanner.py" },
     @{ Name = "MarketIntelBookRecorder";  Args = "scripts\run_book_recorder.py" },
     @{ Name = "MarketIntelBookStream";    Args = "scripts\run_book_stream.py" },
-    @{ Name = "MarketIntelKalshi";        Args = "scripts\run_kalshi_recorder.py" }
+    @{ Name = "MarketIntelKalshi";        Args = "scripts\run_kalshi_recorder.py" },
+    # Braucht KALSHI_KEY_ID und KALSHI_PRIVATE_KEY_PATH. Ohne sie beendet sich
+    # die Task mit einer klaren Meldung, statt Daten zu schreiben.
+    @{ Name = "MarketIntelKalshiStream";  Args = "scripts\run_kalshi_stream.py" }
 )
 
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME

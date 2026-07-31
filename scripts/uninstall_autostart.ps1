@@ -2,7 +2,7 @@
 
 foreach ($name in "MarketIntelTerminal", "MarketIntelCopyDaemon", "MarketIntelAlertScanner",
                   "MarketIntelBookRecorder", "MarketIntelBookStream",
-                  "MarketIntelKalshi") {
+                  "MarketIntelKalshi", "MarketIntelKalshiStream") {
     try {
         Unregister-ScheduledTask -TaskName $name -Confirm:$false -ErrorAction Stop
         Write-Output "removed $name"
