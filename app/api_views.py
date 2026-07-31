@@ -151,20 +151,26 @@ def _strip_frames(block: Any) -> Any:
     return out
 
 
-def cross_rows(candidates: pd.DataFrame) -> list[dict[str, Any]]:
-    """`md.cross_venue_candidates`-Frame in die Frontend-Paar-Zeilen."""
+def cross_rows(candidates: pd.DataFrame, categories: Mapping[str, str] | None = None) -> list[dict[str, Any]]:
+    """`md.cross_venue_candidates`-Frame in die Frontend-Paar-Zeilen.
+
+    ``categories`` mappt Polymarket ``market_key`` auf eine Kategorie, damit
+    die Zeile die echte Markt-Kategorie statt eines Platzhalters traegt.
+    """
 
     if candidates is None or candidates.empty:
         return []
+    categories = categories or {}
     rows: list[dict[str, Any]] = []
     for _, row in candidates.iterrows():
         pm_yes = _num(row.get("polymarket_yes"))
         ks_yes = _num(row.get("kalshi_yes"))
         if pm_yes is None or ks_yes is None:
             continue
+        pm_key = _text(row.get("polymarket_market_key"))
         rows.append({
             "event": _text(row.get("polymarket_title")) or _text(row.get("kalshi_title")),
-            "cat": "PAIR",
+            "cat": (_text(categories.get(pm_key)) or "PAIR").upper(),
             "pm": round(pm_yes * 100),
             "ks": round(ks_yes * 100),
             "pmVol": _num(row.get("polymarket_volume"), 0.0),
@@ -326,6 +332,20 @@ def copy_payload(
                 ("+" if amount >= 0 else "-") + f"${abs(amount):,.2f}",
                 "",
             ])
+    history_rows: list[list[Any]] = []
+    if orders is not None and not orders.empty:
+        settled = orders[orders.get("status").astype(str) == "settled"] if "status" in orders else orders.iloc[0:0]
+        for _, row in settled.head(30).iterrows():
+            pnl = _num(row.get("realized_pnl"), 0.0) or 0.0
+            entry = _num(row.get("copy_price"), 0.0) or 0.0
+            history_rows.append([
+                _text(row.get("source_time") or row.get("created_at"))[:10],
+                _text(row.get("title")),
+                (_text(row.get("outcome")) or "Yes").upper(),
+                f"{entry * 100:.0f}¢",
+                "—",
+                ("+" if pnl >= 0 else "-") + f"${abs(pnl):,.2f}",
+            ])
     curve: list[float] = []
     if equity_snapshots is not None and not equity_snapshots.empty:
         col = "equity" if "equity" in equity_snapshots else None
@@ -365,6 +385,7 @@ def copy_payload(
         "orders": order_rows,
         "positions": position_rows,
         "cash_events": cash_rows,
+        "history": history_rows,
         "equity_curve": curve,
     }
 
@@ -429,6 +450,25 @@ def backtest_payload(result: Any) -> dict[str, Any]:
     return payload
 
 
+def variants_payload(comparison: pd.DataFrame) -> list[dict[str, Any]]:
+    """`btr.strategy_comparison`-Frame in die Sizing-Simulator-Zeilen."""
+
+    if comparison is None or comparison.empty:
+        return []
+    return [
+        {
+            "name": _text(row.get("strategy")),
+            "final_equity": _num(row.get("final_equity"), 0.0),
+            "roi": _num(row.get("roi"), 0.0),
+            "max_drawdown": _num(row.get("max_drawdown"), 0.0),
+            "win_rate": _num(row.get("win_rate"), 0.0),
+            "copied_trades": int(_num(row.get("copied_trades"), 0.0) or 0),
+            "skipped_trades": int(_num(row.get("skipped_trades"), 0.0) or 0),
+        }
+        for _, row in comparison.iterrows()
+    ]
+
+
 def trim_pipeline_payload(payload: Mapping[str, Any], max_entries: int = 40) -> dict[str, Any]:
     """pipeline_forward.json ist ~800 KB — Eintraege fuers Web kappen."""
 
@@ -444,4 +484,399 @@ def trim_pipeline_payload(payload: Mapping[str, Any], max_entries: int = 40) -> 
             trimmed.append(lauf)
         out["laeufe"] = trimmed
     out.pop("wortzaehler_endstaende", None)
+    return out
+
+
+def resolved_rows(closed: pd.DataFrame, limit: int = 120) -> list[dict[str, Any]]:
+    """`md.get_polymarket_closed_markets`-Frame in die Resolved-Zeilen.
+
+    Nur binaere Maerkte mit bekanntem Ausgang; ``err`` ist der letzte Preis
+    gegen die Antwort — das, was die Menge falsch hatte.
+    """
+
+    if closed is None or closed.empty:
+        return []
+    rows: list[dict[str, Any]] = []
+    now = pd.Timestamp.now(tz="UTC")
+    for _, row in closed.iterrows():
+        outcome = _text(row.get("resolved_outcome"))
+        if outcome not in ("Yes", "No"):
+            continue
+        last = _num(row.get("final_yes_price"))
+        if last is None:
+            continue
+        last_cents = round(last * 100)
+        closed_ts = pd.to_datetime(row.get("closed_time"), utc=True, errors="coerce")
+        hours = float((now - closed_ts).total_seconds() / 3600.0) if closed_ts is not None and not pd.isna(closed_ts) else 9999.0
+        when = "—"
+        if hours < 9999.0:
+            when = f"{hours:.0f} h ago" if hours < 48 else f"{hours / 24:.0f} d ago"
+        volume = _num(row.get("volume"), 0.0) or 0.0
+        rows.append({
+            "title": _text(row.get("title")),
+            "meta": (_text(row.get("platform")) or "Polymarket").upper() + " · " + (_text(row.get("category")) or "—").upper(),
+            "yes": outcome == "Yes",
+            "last": last_cents,
+            "err": (100 - last_cents) if outcome == "Yes" else last_cents,
+            "vol": money_label(volume),
+            "when": when,
+            "hours": round(hours, 1),
+            "decisive": bool(row.get("decisive_resolution")),
+        })
+        if len(rows) >= limit:
+            break
+    return rows
+
+
+def money_label(value: float) -> str:
+    if value >= 1_000_000:
+        return f"${value / 1_000_000:.1f}m"
+    if value >= 1_000:
+        return f"${value / 1_000:.1f}k"
+    return f"${value:.0f}"
+
+
+def track_payload(
+    followed: list[Any],
+    watchlist: list[Any],
+    ranked: pd.DataFrame | None = None,
+    leaderboard: pd.DataFrame | None = None,
+) -> dict[str, Any]:
+    """Lokal persistierte Follows/Watchlist als JSON (read-only)."""
+
+    lb_by_wallet: dict[str, dict[str, Any]] = {}
+    if leaderboard is not None and not leaderboard.empty and "wallet" in leaderboard:
+        for _, row in leaderboard.iterrows():
+            lb_by_wallet[_text(row.get("wallet")).lower()] = {
+                "name": _text(row.get("trader")),
+                "pnl": _num(row.get("pnl")),
+            }
+    grade_by_wallet: dict[str, str] = {}
+    if ranked is not None and not ranked.empty and "wallet" in ranked:
+        for _, row in ranked.iterrows():
+            grade_by_wallet[_text(row.get("wallet")).lower()] = _text(row.get("copy_grade"))
+    wallets = []
+    for item in followed or []:
+        wallet = _text(item).strip()
+        if not wallet:
+            continue
+        lb = lb_by_wallet.get(wallet.lower(), {})
+        wallets.append({
+            "wallet": wallet,
+            "name": lb.get("name") or short_wallet(wallet),
+            "pnl": lb.get("pnl"),
+            "grade": grade_by_wallet.get(wallet.lower()) or None,
+        })
+    markets = []
+    for item in watchlist or []:
+        if not isinstance(item, Mapping):
+            continue
+        markets.append({
+            "platform": _text(item.get("platform")),
+            "market_key": _text(item.get("market_key")),
+            "title": _text(item.get("title")),
+            "url": _text(item.get("url")),
+        })
+    return {"wallets": wallets, "watchlist": markets}
+
+
+def microstructure_payload(studies: Mapping[str, Any]) -> dict[str, Any]:
+    """Die publizierten Studien-Artefakte aus docs/research/ als ein Payload.
+
+    ``studies`` mappt Kurznamen auf die geladenen JSONs (None = fehlt). Es
+    werden ausschliesslich Zahlen aus den Artefakten serviert — die Markdown-
+    Reports weichen teils ab, massgeblich sind die JSONs.
+    """
+
+    stats: list[dict[str, str]] = []
+    table: list[list[str]] = []
+    series: list[float] = []
+
+    of = (studies.get("orderflow") or {}).get("signals", {}).get("imbalance", {}).get("overall", {})
+    if of:
+        n = int(of.get("n", 0))
+        stats.append({"label": "IMBALANCE HIT RATE", "value": f"{of.get('hit_rate', 0) * 100:.1f}%", "note": f"n = {n:,} · Wilson LB {of.get('wilson_lb95', 0) * 100:.1f}%"})
+        stats.append({"label": "TAKER NET / SIGNAL", "value": f"{of.get('mean_net_cents', 0):+.2f}¢", "note": f"gross {of.get('mean_gross_cents', 0):+.2f}¢ vs {of.get('mean_cost_cents', 0):.2f}¢ costs"})
+        table.append([
+            "Book imbalance predicts the next tick",
+            f"{n:,} obs · {of.get('days', '—')}d",
+            f"{of.get('mean_gross_cents', 0):+.2f}¢",
+            f"{of.get('mean_net_cents', 0):+.2f}¢",
+            "real, not tradable as taker",
+        ])
+
+    mm = (studies.get("mm_stream") or {}).get("fill_models", {}).get("touch", {}).get("decomposition", {})
+    if mm:
+        stats.append({"label": "MM MARKOUT · TOUCH", "value": f"{mm.get('markout_cents_per_fill', 0):+.0f}¢/fill", "note": f"spread capture {mm.get('spread_capture_cents_per_fill', 0):+.0f}¢ · {int(mm.get('fills', 0)):,} fills"})
+        table.append([
+            "Market-maker PnL decomposition (seconds data)",
+            f"{int(mm.get('fills', 0)):,} fills · {mm.get('days', '—')}d",
+            f"spread {mm.get('spread_capture_cents_per_fill', 0):+.0f}¢/fill",
+            f"markout {mm.get('markout_cents_per_fill', 0):+.0f}¢/fill",
+            "adverse selection binds",
+        ])
+
+    cv = studies.get("cross_venue") or {}
+    cv_summary = cv.get("summary", {})
+    if cv_summary:
+        stats.append({"label": "CROSS-VENUE NET", "value": f"{int(cv_summary.get('net_positive', 0))} of {int(cv_summary.get('usable', 0))} clear", "note": f"max net {cv_summary.get('max_net_cents', 0):.2f}¢ · carry, not arb"})
+        table.append([
+            "Cross-venue gaps net of both fee curves",
+            f"{int(cv_summary.get('pairs', 0))} pairs · {int(cv_summary.get('usable', 0))} usable",
+            f"median gross {cv_summary.get('median_gross_cents', 0):.1f}¢",
+            f"median net {cv_summary.get('median_net_cents', 0):.2f}¢",
+            "carry, not arbitrage",
+        ])
+        for row in cv.get("rows", []):
+            net = _num(row.get("net_edge_per_share"))
+            if net is not None:
+                series.append(round(net * 100, 2))
+
+    gl = studies.get("gap_lifetime") or {}
+    if gl.get("rows"):
+        always_open = sum(1 for r in gl["rows"] if (_num(r.get("open_share"), 0.0) or 0.0) >= 0.999)
+        max_hours = max((_num(r.get("paired_hours"), 0.0) or 0.0) for r in gl["rows"])
+        table.append([
+            "Gap lifetime on both stream recorders",
+            f"{int(gl.get('pairs', 0))} pairs · {max_hours:.1f}h",
+            "—",
+            f"{always_open} of {int(gl.get('pairs', 0))} open at every observation",
+            "gaps are compensation, not error",
+        ])
+
+    es = studies.get("edge_segments") or {}
+    es_cats = es.get("by_category", {})
+    if es_cats:
+        total_n = sum(int((c.get("overall", {}) or {}).get("n", 0)) for c in es_cats.values())
+        table.append([
+            "Segment cuts trying to rescue the taker signal",
+            f"{total_n:,} firings · {len(es_cats)} categories",
+            "34 ex-ante cuts",
+            "1 survivor · CI contains zero",
+            "expected false-positive count",
+        ])
+
+    rs = studies.get("rewards") or {}
+    if rs:
+        table.append([
+            "Reward pools vs the books that earn them",
+            f"{int(rs.get('markets_with_pool', 0)):,} markets · ${rs.get('total_pool_usd_per_day', 0):,.0f}/day",
+            f"median pool ${rs.get('median_pool_usd', 0):.0f}",
+            f"{int(rs.get('empty_band_markets', 0))} of {int(rs.get('probed', 0))} probed bands empty",
+            "liquidity is being bought",
+        ])
+
+    rr = studies.get("resolution_rules") or {}
+    if rr:
+        table.append([
+            "Resolution rulebooks side by side",
+            f"{int(rr.get('pairs', 0))} verified pairs",
+            "—",
+            f"{int(rr.get('with_one_sided_flags', 0))} with one-sided clauses",
+            "settlement risk is real",
+        ])
+
+    br = (studies.get("book_reconcile") or {}).get("summary", {})
+    if br:
+        stats.append({"label": "STREAM VS REST", "value": f"{br.get('match_rate', 0) * 100:.0f}% match", "note": f"{int(br.get('comparisons', 0))} comparisons · max {br.get('max_diff_ticks', 0):.0f} ticks"})
+        table.append([
+            "Streamed book reconciled against REST",
+            f"{int(br.get('comparisons', 0))} comparisons",
+            "—",
+            f"mean diff {br.get('mean_diff_ticks', 0):.2f} ticks",
+            "a series, not a verdict",
+        ])
+
+    if not stats and not table:
+        return {}
+    return {
+        "stamp": _text(cv.get("ts_utc"))[:10] or _text(rs.get("snapshot_date")) or "rolling",
+        "note": "Numbers come from the published study artifacts in docs/research/ — recorded order books, both venues, every cost split into spread and fee. No profitability claim is made anywhere in this work.",
+        "stats": stats[:4],
+        "table": {
+            "label": "THE RECORDED-BOOK STUDIES",
+            "cols": "1fr 170px 150px 190px 170px",
+            "head": ["STUDY", "SAMPLE", "RAW READ", "NET / RESULT", "VERDICT"],
+            "rows": table,
+        },
+        "series": series,
+        "series_label": "CROSS-VENUE NET EDGE PER VERIFIED PAIR (¢)",
+    }
+
+
+def live_runs_extras(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Sizing-Simulation, Kalibrierung, Timing-Decay und Monatsbilanz aus
+    runs.json — dieselben Module wie die Streamlit-Seite (app/run_sim.py)."""
+
+    from app import calibration as calib
+    from app import run_sim as rsim
+
+    out: dict[str, Any] = {}
+    bets = rsim.bets_frame(dict(payload))
+    if bets is not None and not bets.empty:
+        sims = []
+        for mode, label in ((rsim.SIM_AS_EXECUTED, "As executed"), (rsim.SIM_FIXED, "Flat $5 per bet"), (rsim.SIM_KELLY, "Kelly ¼ on +10pt edge")):
+            try:
+                _, summary = rsim.simulate_sizing(bets, mode, bankroll=100.0, fixed_stake=5.0, kelly_edge_pt=10.0, kelly_fraction=0.25)
+            except Exception:
+                continue
+            sims.append({
+                "name": label,
+                "net": _num(summary.get("sim_pnl"), 0.0),
+                "roi": _num(summary.get("sim_roi_pct"), 0.0),
+                "stake": _num(summary.get("sim_stake"), 0.0),
+                "bets": int(_num(summary.get("n_resolved"), 0.0) or 0),
+            })
+        if sims:
+            out["sims"] = sims
+        try:
+            report = calib.calibration_report(rsim.bot_resolution_frame(bets), capped=False)
+            buckets = report.get("buckets")
+            rows = []
+            if isinstance(buckets, pd.DataFrame) and not buckets.empty:
+                for _, row in buckets.iterrows():
+                    rows.append({
+                        "band": _text(row.get("bucket")) or _text(row.get("band")),
+                        "n": int(_num(row.get("n"), 0.0) or 0),
+                        "paid": round((_num(row.get("avg_forecast"), 0.0) or 0.0) * 100),
+                        "settled": round((_num(row.get("hit_rate"), 0.0) or 0.0) * 100),
+                    })
+            out["calibration"] = {
+                "n": int(_num(report.get("n"), 0.0) or 0),
+                "hit_rate": _num(report.get("hit_rate")),
+                "hit_low": _num(report.get("hit_low")),
+                "hit_high": _num(report.get("hit_high")),
+                "brier_entry": _num(report.get("brier_entry")),
+                "sample_ok": bool(report.get("sample_ok")),
+                "rows": rows,
+            }
+        except Exception:
+            pass
+    try:
+        decay = rsim.timing_decay_summary(dict(payload))
+        if decay is not None and not decay.empty:
+            out["timing_decay"] = decay.where(decay.notna(), None).to_dict(orient="records")
+    except Exception:
+        pass
+    monthly: dict[str, dict[str, Any]] = {}
+    for run in payload.get("runs", []) or []:
+        for bet in run.get("wetten", []) or []:
+            ts = _text(bet.get("fill_ts_utc"))
+            if len(ts) < 7:
+                continue
+            month = ts[:7]
+            slot = monthly.setdefault(month, {"runs": set(), "bets": 0, "stake": 0.0, "net": 0.0})
+            slot["runs"].add(_text(run.get("profil")))
+            slot["bets"] += 1
+            slot["stake"] += _num(bet.get("einsatz_usd"), 0.0) or 0.0
+            if bet.get("aufgeloest"):
+                slot["net"] += _num(bet.get("pnl_usd"), 0.0) or 0.0
+    if monthly:
+        out["monthly"] = [
+            {"month": month, "runs": len(slot["runs"]), "bets": slot["bets"], "stake": round(slot["stake"], 2), "net": round(slot["net"], 2)}
+            for month, slot in sorted(monthly.items(), reverse=True)
+        ]
+    return out
+
+
+def fidelity_block(orders: pd.DataFrame, portfolio: Mapping[str, Any], sizing: Mapping[str, Any]) -> dict[str, Any]:
+    """Config-/Execution-Fidelity und Drift-Kosten via app/copy_fidelity."""
+
+    from app import copy_fidelity as cfy
+
+    out: dict[str, Any] = {}
+    try:
+        execution = cfy.execution_fidelity(orders, window_hours=24.0)
+        if execution.get("fidelity") is not None:
+            out["execution"] = {
+                "fidelity": _num(execution.get("fidelity")),
+                "desired": _num(execution.get("desired"), 0.0),
+                "filled": _num(execution.get("filled"), 0.0),
+                "orders": int(_num(execution.get("orders"), 0.0) or 0),
+                "lost_to_skips": {str(k): _num(v, 0.0) for k, v in (execution.get("lost_to_skips") or {}).items()},
+                "lost_to_clamps": _num(execution.get("lost_to_clamps"), 0.0),
+            }
+    except Exception:
+        pass
+    try:
+        source_equity = _num(sizing.get("tony_visible_equity"))
+        if source_equity:
+            config = cfy.config_fidelity(
+                _num(portfolio.get("equity"), 0.0) or 0.0,
+                source_equity,
+                dynamic_enabled=str(sizing.get("dynamic_sizing_enabled", "")).lower() in ("1", "true", "yes"),
+                multiplier=_num(sizing.get("dynamic_sizing_multiplier"), 1.0) or 1.0,
+                scale_cap=_num(sizing.get("dynamic_scale_max"), 0.0) or 0.0,
+                scale_floor=_num(sizing.get("dynamic_scale_min"), 0.0) or 0.0,
+                fixed_scale=_num(sizing.get("copy_scale"), 0.01) or 0.01,
+            )
+            out["config"] = {
+                "fidelity": _num(config.get("fidelity")),
+                "factors": [[str(label), _num(ratio, 0.0)] for label, ratio in (config.get("factors") or [])],
+            }
+    except Exception:
+        pass
+    return out
+
+
+def cluster_payload(
+    fresh: pd.DataFrame,
+    coord: pd.DataFrame,
+    nodes: pd.DataFrame,
+    edges: pd.DataFrame,
+    story_fn: Any = None,
+) -> dict[str, Any]:
+    """Suspicion-Cluster (fresh/timing/network) in die Risk-Screen-Tabs."""
+
+    out: dict[str, Any] = {}
+    fresh_rows: list[dict[str, Any]] = []
+    if fresh is not None and not fresh.empty:
+        for _, row in fresh.head(8).iterrows():
+            count = int(_num(row.get("fresh_wallets"), 0.0) or 0)
+            notional = _num(row.get("fresh_notional"), 0.0) or 0.0
+            fresh_rows.append({
+                "tag": "FRESH WALLETS · SAME SIDE",
+                "score": count,
+                "market": _text(row.get("title")),
+                "detail": f"{count} wallets with at most two prior trades took {_text(row.get('fresh_outcome')) or 'the same side'} for {money_label(notional)} combined.",
+                "wallets": [],
+            })
+    out["fresh"] = fresh_rows
+    timing_rows: list[dict[str, Any]] = []
+    if coord is not None and not coord.empty:
+        for _, row in coord.head(10).iterrows():
+            span = _num(row.get("coordinated_span_minutes"), 0.0) or 0.0
+            timing_rows.append({
+                "market": _text(row.get("title")),
+                "wallets": int(_num(row.get("coordinated_wallets"), 0.0) or 0),
+                "window": f"{span:.0f} min" if span >= 1 else f"{span * 60:.0f} s",
+                "notional": money_label(_num(row.get("coordinated_notional"), 0.0) or 0.0),
+                "same": bool(_text(row.get("coordinated_outcome"))),
+            })
+    out["timing"] = timing_rows
+    network_rows: list[dict[str, Any]] = []
+    if nodes is not None and not nodes.empty and "cluster_id" in nodes:
+        for cluster_id, group in nodes.groupby("cluster_id"):
+            if len(group) < 2:
+                continue
+            cluster_edges = edges
+            if edges is not None and not edges.empty:
+                members = set(group["wallet"].astype(str))
+                cluster_edges = edges[edges["wallet_a"].astype(str).isin(members) & edges["wallet_b"].astype(str).isin(members)]
+            story = {}
+            if story_fn is not None:
+                try:
+                    story = story_fn(group, cluster_edges) or {}
+                except Exception:
+                    story = {}
+            network_rows.append({
+                "name": f"Cluster C-{int(cluster_id) + 1}" if str(cluster_id).isdigit() else f"Cluster {cluster_id}",
+                "size": int(len(group)),
+                "shared": str(int(_num(group.get("shared_markets", pd.Series(dtype=float)).max(), 0.0) or 0)),
+                "notional": money_label(float(pd.to_numeric(group.get("volume"), errors="coerce").fillna(0.0).sum())),
+                "story": _text(story.get("headline")) or _text(story.get("pattern")) or "Co-trading pattern on shared markets.",
+            })
+    network_rows.sort(key=lambda r: r["size"], reverse=True)
+    out["network"] = network_rows[:6]
+    out["kpis_clusters"] = {"fresh_clusters": len(fresh_rows), "coordinated_clusters": len(timing_rows)}
     return out

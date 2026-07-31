@@ -182,5 +182,108 @@ class PipelineTrimTests(unittest.TestCase):
         self.assertEqual(len(payload["eintraege"]), 200)
 
 
+
+
+class ResolvedRowsTests(unittest.TestCase):
+    def test_maps_closed_markets_and_skips_multi(self) -> None:
+        closed = pd.DataFrame([
+            {"title": "Fed holds in July", "platform": "Polymarket", "category": "Economy",
+             "resolved_outcome": "Yes", "final_yes_price": 0.81, "decisive_resolution": False,
+             "closed_time": pd.Timestamp.now(tz="UTC") - pd.Timedelta(hours=9), "volume": 8400000.0},
+            {"title": "Multi outcome", "platform": "Polymarket", "category": "Politics",
+             "resolved_outcome": "Multi", "final_yes_price": 0.4, "decisive_resolution": False,
+             "closed_time": pd.Timestamp.now(tz="UTC"), "volume": 100.0},
+        ])
+        rows = apv.resolved_rows(closed)
+        self.assertEqual(len(rows), 1, "Multi-Outcome-Maerkte fliegen raus")
+        self.assertEqual(rows[0]["err"], 19)
+        self.assertTrue(rows[0]["yes"])
+        self.assertIn("h ago", rows[0]["when"])
+
+
+class TrackPayloadTests(unittest.TestCase):
+    def test_joins_leaderboard_and_grades(self) -> None:
+        lb = pd.DataFrame([{"wallet": "0xAAA1111111111111111111", "trader": "Theo4", "pnl": 22050000.0}])
+        ranked = pd.DataFrame([{"wallet": "0xaaa1111111111111111111", "copy_grade": "A"}])
+        payload = apv.track_payload(["0xAAA1111111111111111111", "0xBBB2222222222222222222"],
+                                    [{"platform": "Polymarket", "market_key": "0xcond", "title": "Fed cuts", "url": "u"}],
+                                    ranked, lb)
+        self.assertEqual(payload["wallets"][0]["name"], "Theo4")
+        self.assertEqual(payload["wallets"][0]["grade"], "A")
+        self.assertIsNone(payload["wallets"][1]["pnl"])
+        self.assertEqual(payload["watchlist"][0]["market_key"], "0xcond")
+
+
+class MicrostructurePayloadTests(unittest.TestCase):
+    def test_builds_from_artifacts_only(self) -> None:
+        payload = apv.microstructure_payload({
+            "orderflow": {"signals": {"imbalance": {"overall": {"n": 1011556, "hit_rate": 0.552, "wilson_lb95": 0.5505,
+                "mean_gross_cents": 0.0736, "mean_cost_cents": 2.5641, "mean_net_cents": -2.4905, "days": 11}}}},
+            "cross_venue": {"ts_utc": "2026-07-31T12:00:00Z", "summary": {"pairs": 8, "usable": 5, "net_positive": 3,
+                "median_gross_cents": 1.4, "median_net_cents": 1.16, "max_net_cents": 3.0669},
+                "rows": [{"net_edge_per_share": 0.0307}]},
+        })
+        labels = [s["label"] for s in payload["stats"]]
+        self.assertIn("IMBALANCE HIT RATE", labels)
+        self.assertIn("CROSS-VENUE NET", labels)
+        self.assertEqual(payload["series"], [3.07])
+        self.assertEqual(len(payload["table"]["rows"]), 2)
+        self.assertEqual(payload["stamp"], "2026-07-31")
+
+    def test_empty_when_no_artifacts(self) -> None:
+        self.assertEqual(apv.microstructure_payload({}), {})
+
+
+class LiveRunsExtrasTests(unittest.TestCase):
+    def test_sims_calibration_and_monthly(self) -> None:
+        payload = {"runs": [{
+            "profil": "test_run",
+            "wetten": [
+                {"frage": "Says X", "seite": "YES", "entscheidungs_preis": 0.5, "avg_fill_preis": 0.5,
+                 "shares": 50.0, "einsatz_usd": 25.0, "aufgeloest": True, "gewonnen": True,
+                 "pnl_usd": 25.0, "fill_ts_utc": "2026-07-24T12:00:00Z"},
+                {"frage": "Says Y", "seite": "YES", "entscheidungs_preis": 0.4, "avg_fill_preis": 0.4,
+                 "shares": 62.5, "einsatz_usd": 25.0, "aufgeloest": True, "gewonnen": False,
+                 "pnl_usd": -25.0, "fill_ts_utc": "2026-07-25T12:00:00Z"},
+            ],
+        }]}
+        extras = apv.live_runs_extras(payload)
+        self.assertIn("sims", extras)
+        self.assertEqual(extras["sims"][0]["bets"], 2)
+        self.assertIn("monthly", extras)
+        self.assertEqual(extras["monthly"][0]["month"], "2026-07")
+        self.assertEqual(extras["monthly"][0]["bets"], 2)
+        self.assertAlmostEqual(extras["monthly"][0]["net"], 0.0, places=2)
+
+
+class ClusterPayloadTests(unittest.TestCase):
+    def test_maps_suspicion_frames(self) -> None:
+        fresh = pd.DataFrame([{"platform": "Polymarket", "title": "Iraq win", "fresh_wallets": 4,
+                               "fresh_outcome": "Yes", "fresh_notional": 88000.0}])
+        coord = pd.DataFrame([{"platform": "Polymarket", "title": "Iraq win", "coordinated_wallets": 6,
+                               "coordinated_outcome": "Yes", "coordinated_span_minutes": 0.67,
+                               "coordinated_notional": 214000.0}])
+        nodes = pd.DataFrame([
+            {"wallet": "0xa", "cluster_id": 0, "cluster_size": 2, "shared_markets": 3, "volume": 100.0},
+            {"wallet": "0xb", "cluster_id": 0, "cluster_size": 2, "shared_markets": 3, "volume": 50.0},
+        ])
+        edges = pd.DataFrame([{"wallet_a": "0xa", "wallet_b": "0xb", "shared_markets": 3, "pair_notional": 150.0}])
+        payload = apv.cluster_payload(fresh, coord, nodes, edges, lambda cn, ce: {"headline": "Two wallets, three shared markets."})
+        self.assertEqual(payload["fresh"][0]["score"], 4)
+        self.assertEqual(payload["timing"][0]["window"], "40 s")
+        self.assertEqual(payload["network"][0]["size"], 2)
+        self.assertIn("Two wallets", payload["network"][0]["story"])
+        self.assertEqual(payload["kpis_clusters"], {"fresh_clusters": 1, "coordinated_clusters": 1})
+
+
+class VariantsPayloadTests(unittest.TestCase):
+    def test_maps_comparison_frame(self) -> None:
+        frame = pd.DataFrame([{"strategy": "Fixed $25", "final_equity": 1100.0, "roi": 0.1,
+                               "max_drawdown": -0.05, "win_rate": 0.6, "copied_trades": 10, "skipped_trades": 2}])
+        rows = apv.variants_payload(frame)
+        self.assertEqual(rows[0]["name"], "Fixed $25")
+        self.assertEqual(rows[0]["final_equity"], 1100.0)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -252,8 +252,9 @@ export function renderRisk(T) {
       }).join('')
       + '</div>';
   } else if (s.riskView === 'fresh') {
+    const freshRows = live && live.fresh && live.fresh.length ? live.fresh : DEMO_FRESH_CLUSTERS;
     body = '<div style="padding:16px 24px; display:grid; grid-template-columns:repeat(2,1fr); gap:14px">'
-      + DEMO_FRESH_CLUSTERS.map((c) =>
+      + freshRows.map((c) =>
         '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:16px 18px">'
         + '<div style="display:flex; align-items:center; justify-content:space-between">'
         + '<div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:#F5A623">' + esc(c.tag) + '</div>'
@@ -266,10 +267,11 @@ export function renderRisk(T) {
       ).join('')
       + '</div>';
   } else if (s.riskView === 'timing') {
+    const timingRows = live && live.timing && live.timing.length ? live.timing : DEMO_TIMING_CLUSTERS;
     body = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:16px 24px; overflow:hidden">'
       + '<div style="display:grid; grid-template-columns:1fr 100px 110px 120px 120px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
       + '<div>MARKET</div><div style="text-align:right">WALLETS</div><div style="text-align:right">WINDOW</div><div style="text-align:right">NOTIONAL</div><div style="text-align:right">SAME SIDE</div></div>'
-      + DEMO_TIMING_CLUSTERS.map((c) =>
+      + timingRows.map((c) =>
         '<div style="display:grid; grid-template-columns:1fr 100px 110px 120px 120px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:12.5px">'
         + '<div style="font-family:\'Inter\',sans-serif; font-size:13px">' + esc(c.market) + '</div>'
         + '<div style="text-align:right">' + c.wallets + '</div>'
@@ -279,10 +281,11 @@ export function renderRisk(T) {
       ).join('')
       + '</div>';
   } else {
+    const networkRows = live && live.network && live.network.length ? live.network : DEMO_NETWORK_CLUSTERS;
     body = '<div style="padding:16px 24px">'
       + '<div style="font-size:12.5px; color:rgba(255,255,255,.55); line-height:1.5; max-width:820px">Wallets that repeatedly trade the same markets within five minutes of each other. Only groups with at least three shared markets and $10k of paired notional count as a cluster.</div>'
       + '<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-top:14px">'
-      + DEMO_NETWORK_CLUSTERS.map((n) =>
+      + networkRows.map((n) =>
         '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:16px 18px">'
         + '<div style="display:flex; align-items:center; justify-content:space-between">'
         + '<div style="font-size:14.5px; font-weight:600">' + esc(n.name) + '</div>'
@@ -329,29 +332,66 @@ export function renderRisk(T) {
 }
 
 // ---------------------------------------------------------------- tracked
+export function trackWalletCards(T) {
+  const live = T.liveData.track;
+  if (live && live.wallets && live.wallets.length) {
+    return live.wallets.map((w) => ({
+      name: w.name || w.wallet,
+      wallet: w.wallet && w.wallet.length > 12 ? w.wallet.slice(0, 6) + '…' + w.wallet.slice(-4) : w.wallet,
+      grade: w.grade || '—',
+      pnl: w.pnl != null ? (w.pnl >= 0 ? '+' : '-') + money(Math.abs(w.pnl)) : '—',
+      pnlRaw: w.pnl,
+      last: '—',
+      openAs: w.name || w.wallet,
+      pnlLabel: 'ALL-TIME PROFIT'
+    }));
+  }
+  return DEMO_TRACKED_WALLETS.map((w) => ({ name: w.name, wallet: w.wallet, grade: w.grade, pnl: w.pnl, pnlRaw: w.pnl.charAt(0) === '+' ? 1 : -1, last: w.last, openAs: w.name, pnlLabel: '30D PROFIT' }));
+}
+
+export function trackWatchRows(T) {
+  const live = T.liveData.track;
+  if (live && live.watchlist && live.watchlist.length) {
+    return live.watchlist.map((item) => {
+      const m = T.markets.find((x) => x.id === item.market_key || x.title === item.title);
+      if (m) return T.marketView(m);
+      return {
+        title: item.title, meta: (item.platform || '').toUpperCase() + ' · WATCHLIST',
+        sparkPoints: '', color: 'rgba(255,255,255,.3)', priceLabel: '—', changeLabel: '—',
+        changeStyle: M + '; font-size:13px; text-align:right; color:rgba(255,255,255,.4)',
+        volLabel: '—', ends: '—', act: ''
+      };
+    });
+  }
+  return [T.markets[0], T.markets[1], T.markets[7], T.markets[6]].filter(Boolean).map((m) => T.marketView(m));
+}
+
 export function renderTrack(T) {
-  const watch = [T.markets[0], T.markets[1], T.markets[7], T.markets[6]].filter(Boolean).map((m) => T.marketView(m));
+  const watch = trackWatchRows(T);
+  const cards = trackWalletCards(T);
   return '<div>'
     + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="' + M + '; font-size:10px; letter-spacing:.18em; color:#C8F542">TRACKED</div>'
     + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">Your wallets and your watchlist</div></div>'
     + '<div style="padding:18px 24px; border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55); margin-bottom:13px">WALLETS YOU FOLLOW</div>'
-    + '<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:14px">'
-    + DEMO_TRACKED_WALLETS.map((w) => {
-      const gradeStyle = M + '; font-size:12px; border-radius:5px; padding:2px 9px; ' + (w.grade === 'A' ? 'color:#0A0D0F; background:#C8F542' : 'color:#F5A623; border:1px solid rgba(245,166,35,.35)');
-      const pnlStyle = M + '; font-size:14px; margin-top:3px; color:' + (w.pnl.charAt(0) === '+' ? '#C8F542' : '#FF4545');
-      return '<div ' + T.act(() => T.openWallet(w.name)) + ' class="hv-bd20" style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:15px 17px; cursor:pointer">'
+    + (cards.length ? '<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:14px">'
+    + cards.map((w) => {
+      const gradeStyle = M + '; font-size:12px; border-radius:5px; padding:2px 9px; ' + (w.grade === 'A' || w.grade === 'A+' ? 'color:#0A0D0F; background:#C8F542' : w.grade === '—' ? 'color:rgba(255,255,255,.45); border:1px solid rgba(255,255,255,.14)' : 'color:#F5A623; border:1px solid rgba(245,166,35,.35)');
+      const pnlText = typeof w.pnlRaw === 'number' && T.liveData.track ? (w.pnlRaw >= 0 ? '+' : '-') + money(Math.abs(w.pnlRaw)) : w.pnl;
+      const pnlStyle = M + '; font-size:14px; margin-top:3px; color:' + (String(pnlText).charAt(0) === '+' ? '#C8F542' : String(pnlText).charAt(0) === '-' ? '#FF4545' : 'rgba(255,255,255,.5)');
+      return '<div ' + T.act(() => T.openWallet(w.openAs)) + ' class="hv-bd20" style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:15px 17px; cursor:pointer">'
         + '<div style="display:flex; align-items:center; justify-content:space-between">'
         + '<div style="font-size:15px">' + esc(w.name) + '</div>'
-        + '<div style="' + gradeStyle + '">' + w.grade + '</div></div>'
+        + '<div style="' + gradeStyle + '">' + esc(w.grade) + '</div></div>'
         + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:4px">' + esc(w.wallet) + '</div>'
         + '<div style="display:flex; gap:20px; margin-top:14px">'
-        + '<div><div style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:rgba(255,255,255,.4)">30D PROFIT</div><div style="' + pnlStyle + '">' + esc(w.pnl) + '</div></div>'
+        + '<div><div style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:rgba(255,255,255,.4)">' + (w.pnlLabel || '30D PROFIT') + '</div><div style="' + pnlStyle + '">' + esc(String(pnlText)) + '</div></div>'
         + '<div><div style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:rgba(255,255,255,.4)">LAST TRADE</div><div style="' + M + '; font-size:14px; margin-top:3px">' + esc(w.last) + '</div></div>'
         + '</div></div>';
     }).join('')
-    + '</div></div>'
+    + '</div>' : '<div style="' + M + '; font-size:11.5px; color:rgba(255,255,255,.4); padding:14px 0">No followed wallets on this machine yet — follow one from the leaderboard in the Streamlit terminal and it appears here.</div>')
+    + '</div>'
     + '<div style="padding:18px 24px">'
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55); margin-bottom:13px">MARKETS ON YOUR WATCHLIST</div>'
     + watch.map((m) =>
