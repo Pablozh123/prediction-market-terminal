@@ -65,9 +65,11 @@ STREAM_BOOK_FIELDS = [
     "recv_ts", "seq", "market_id", "event_type", "best_bid", "best_ask",
     "spread", "mid", "bid_usd_top", "ask_usd_top", "imbalance_top",
     "bid_size_touch", "ask_size_touch", "bid_levels", "ask_levels",
+    "exchange_index",
 ]
 STREAM_TRADE_FIELDS = [
     "recv_ts", "exchange_ts", "market_id", "side", "price", "size", "trade_id",
+    "exchange_index",
 ]
 
 BookState = state_mod.BookState
