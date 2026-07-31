@@ -57,13 +57,16 @@ def to_dollars(price) -> float | None:
 class BookState:
     """One market's YES book, kept from a snapshot plus additive deltas."""
 
-    __slots__ = ("yes_bids", "asks", "seq", "broken")
+    __slots__ = ("yes_bids", "asks", "seq", "broken", "exchange_index")
 
     def __init__(self) -> None:
         self.yes_bids: dict[float, float] = {}
         self.asks: dict[float, float] = {}
         self.seq: int | None = None
         self.broken = False
+        #: Ab 2026-08-06 verteilt Kalshi den Handel auf mehrere Engines.
+        #: Nicht nachtragbar, deshalb ab sofort mitschreiben.
+        self.exchange_index = None
 
     def apply_snapshot(self, yes: list, no: list, seq: int | None = None) -> None:
         self.yes_bids = self._parse(yes)
@@ -152,6 +155,7 @@ class BookState:
             "ask_size_touch": self.asks.get(ask) if ask is not None else None,
             "bid_levels": len(self.yes_bids),
             "ask_levels": len(self.asks),
+            "exchange_index": self.exchange_index,
         }
 
 
@@ -241,6 +245,7 @@ class StreamState:
         if event_type == "orderbook_snapshot":
             self.check_seq(event.get("sid"), event.get("seq"))
             book = self._book(market)
+            book.exchange_index = _first(message, "exchange_index")                 if _first(message, "exchange_index") is not None else book.exchange_index
             book.apply_snapshot(_first(message, "yes_dollars_fp", "yes"),
                                 _first(message, "no_dollars_fp", "no"),
                                 event.get("seq"))
@@ -268,6 +273,7 @@ class StreamState:
                                            "yes_price")),
                 "size": _first(message, "count_fp", "count"),
                 "trade_id": message.get("trade_id"),
+                "exchange_index": message.get("exchange_index"),
             })
 
     def drain(self) -> tuple[list[dict], list[dict]]:

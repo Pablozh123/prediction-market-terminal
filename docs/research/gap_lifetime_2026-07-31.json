@@ -1,0 +1,77 @@
+{
+  "source": "C:\\Users\\chole\\Projects\\prediction-market-terminal\\data\\microstructure",
+  "shares": 100.0,
+  "max_staleness_s": 60.0,
+  "reachable_s": 5.0,
+  "fee_model_version": "2026-07-30",
+  "pairs": 5,
+  "pairs_with_both_sides": 5,
+  "windows_total": 6,
+  "rows": [
+    {
+      "pair": "KXEUROVISIONHOST-27-SOF",
+      "question": "Will Sofia host Eurovision 2027?",
+      "observations": 109,
+      "paired_hours": 11.56,
+      "windows": 3,
+      "open_seconds_total": 4827.7,
+      "open_share": 0.116,
+      "longest_window_s": 4826.9,
+      "median_window_s": 0.83,
+      "reachable_windows": 1,
+      "peak_net_cents": 4.72
+    },
+    {
+      "pair": "KXPRESPERSON-28-DTRU",
+      "question": "Will Donald Trump win the 2028 US Presidential Election?",
+      "observations": 13,
+      "paired_hours": 11.56,
+      "windows": 0,
+      "open_seconds_total": 0,
+      "open_share": 0.0,
+      "longest_window_s": 0.0,
+      "median_window_s": null,
+      "reachable_windows": 0,
+      "peak_net_cents": 0.0
+    },
+    {
+      "pair": "KXPRESPERSON-28-MRUB",
+      "question": "Will Marco Rubio win the 2028 US Presidential Election?",
+      "observations": 21,
+      "paired_hours": 11.56,
+      "windows": 1,
+      "open_seconds_total": 41625.9,
+      "open_share": 1.0,
+      "longest_window_s": 41625.9,
+      "median_window_s": 41625.85,
+      "reachable_windows": 1,
+      "peak_net_cents": 3.1755
+    },
+    {
+      "pair": "KXFRENCHPRES-27-MLEP",
+      "question": "Will Marine Le Pen win the 2027 French presidential election?",
+      "observations": 27,
+      "paired_hours": 11.56,
+      "windows": 1,
+      "open_seconds_total": 41626.0,
+      "open_share": 1.0,
+      "longest_window_s": 41626.0,
+      "median_window_s": 41626.05,
+      "reachable_windows": 1,
+      "peak_net_cents": 3.2714
+    },
+    {
+      "pair": "KXPRESNOMD-28-JBP",
+      "question": "Will J.B. Pritzker win the 2028 Democratic presidential nomination?",
+      "observations": 26,
+      "paired_hours": 11.56,
+      "windows": 1,
+      "open_seconds_total": 41625.9,
+      "open_share": 1.0,
+      "longest_window_s": 41625.9,
+      "median_window_s": 41625.95,
+      "reachable_windows": 1,
+      "peak_net_cents": 1.1726
+    }
+  ]
+}
