@@ -1,0 +1,40 @@
+/* Market Intel terminal — base styles ported from the design reference.
+   Colors, spacing and type sizes are design tokens; do not tweak casually. */
+
+html, body { margin: 0; background: #0A0D0F; color: #fff; }
+a { color: #C8F542; text-decoration: none; }
+a:hover { color: #E2FF8A; }
+* { box-sizing: content-box; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: #0A0D0F; }
+::-webkit-scrollbar-thumb { background: #232A32; border-radius: 5px; }
+
+@keyframes livePulse { 0%,100% { opacity: 1 } 50% { opacity: .3 } }
+@keyframes rowIn { from { opacity: 0 } to { opacity: 1 } }
+@keyframes panelIn { from { opacity: 0; transform: translateX(16px) } to { opacity: 1; transform: translateX(0) } }
+
+body { font-family: 'Inter', -apple-system, sans-serif; }
+
+.shell { display: flex; height: 100vh; width: 100%; min-width: 1280px; overflow: hidden; background: #0A0D0F; color: #fff; }
+.sidebar { width: 264px; box-sizing: border-box; flex: none; border-right: 1px solid rgba(255,255,255,.09); display: flex; flex-direction: column; padding: 20px 14px 16px; overflow-y: auto; }
+.maincol { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.topbar { display: flex; align-items: center; justify-content: space-between; padding: 13px 24px; border-bottom: 1px solid rgba(255,255,255,.09); flex: none; }
+.content-wrap { flex: 1; min-height: 0; display: flex; position: relative; }
+.content { flex: 1; min-width: 1010px; overflow-y: auto; }
+
+input { font-family: inherit; }
+
+/* Hover utilities — the reference uses per-element hover styles; these classes
+   reproduce every hover pattern it contains. */
+.hv-el:hover { background: #161C22 !important; }
+.hv-panel:hover { background: #10151A !important; }
+.hv-bd22:hover { border-color: rgba(255,255,255,.22) !important; }
+.hv-bd30:hover { border-color: rgba(255,255,255,.3) !important; color: #fff !important; }
+.hv-bd32:hover { border-color: rgba(255,255,255,.32) !important; color: #fff !important; }
+.hv-bd35:hover { border-color: rgba(255,255,255,.35) !important; }
+.hv-bd35w:hover { border-color: rgba(255,255,255,.35) !important; color: #fff !important; }
+.hv-bd20:hover { border-color: rgba(255,255,255,.2) !important; }
+.hv-white:hover { color: #fff !important; }
+.hv-lime:hover { color: #C8F542 !important; }
+.hv-amber:hover { color: #F5A623 !important; }
+.hv-limebg:hover { background: #D7FF63 !important; }

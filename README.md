@@ -16,6 +16,26 @@ python -m streamlit run prediction_terminal.py --server.address=127.0.0.1 --serv
 
 Open `http://127.0.0.1:8503/`.
 
+### Control-room frontend (new)
+
+A standalone dark-terminal frontend lives under `web/`, served together with a
+read-only JSON API by `api/server.py`:
+
+```powershell
+python api/server.py
+```
+
+Open `http://127.0.0.1:8787/`. The page starts on a labelled demo dataset and
+switches to `LIVE · POLYMARKET + KALSHI` as soon as the API answers; the badge
+in the top bar always states which one you are looking at. All fifteen
+workspaces (markets, live tape, cross-venue, leaderboard, whale flow, risk
+screen, backtester, paper copy-trading, alerts, the eight research studies,
+settings) reuse the exact same logic modules in `app/` and `src/` as the
+Streamlit app — the API only orchestrates and maps to JSON (`app/api_views.py`).
+Sample sizes, confidence intervals, `capped`/`window_truncated` flags and
+snapshot timestamps are part of every score-bearing response. The Streamlit
+app is unchanged and keeps working as before.
+
 Optional background runners:
 
 ```powershell
