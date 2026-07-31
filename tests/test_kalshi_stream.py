@@ -376,6 +376,38 @@ class StreamOnceTests(unittest.TestCase):
                                  now_fn=self._clock())
         self.assertEqual(summary["seq_gaps"], 1)
 
+    def test_a_quiet_market_is_not_treated_as_a_dead_socket(self):
+        # Vorher brach der Lauf nach 90 Sekunden ohne Daten ab und baute die
+        # Verbindung samt Marktauswahl neu auf. Bei langlaufenden Maerkten ist
+        # Stille aber der Normalfall, nicht der Fehlerfall.
+        socket = FakeSocket([])
+        summary = ks.stream_once(["KXTEST"], self.out, 300, self.creds,
+                                 ws_factory=lambda url, headers: socket,
+                                 now_fn=self._clock(100.0))
+        self.assertEqual(summary["stop_reason"], "Laufzeit erreicht")
+        self.assertEqual(summary["errors"], [])
+
+    def test_a_long_silence_does_end_the_cycle(self):
+        socket = FakeSocket([])
+        summary = ks.stream_once(["KXTEST"], self.out, 100000, self.creds,
+                                 ws_factory=lambda url, headers: socket,
+                                 now_fn=self._clock(400.0))
+        self.assertIn("still", summary["stop_reason"])
+
+    def test_a_connection_error_names_itself_as_the_stop_reason(self):
+        socket = FakeSocket([ValueError("hart")])
+        summary = ks.stream_once(["KXTEST"], self.out, 50, self.creds,
+                                 ws_factory=lambda url, headers: socket,
+                                 now_fn=self._clock())
+        self.assertIn("Verbindungsfehler", summary["stop_reason"])
+
+    def test_the_quiet_time_is_reported(self):
+        socket = FakeSocket([json.dumps(snapshot())])
+        summary = ks.stream_once(["KXTEST"], self.out, 20, self.creds,
+                                 ws_factory=lambda url, headers: socket,
+                                 now_fn=self._clock())
+        self.assertGreaterEqual(summary["quiet_seconds"], 0.0)
+
     def test_the_socket_is_closed_even_on_failure(self):
         socket = FakeSocket([ValueError("hart")])
         ks.stream_once(["KXTEST"], self.out, 5, self.creds,

@@ -58,7 +58,18 @@ DEFAULT_OUT_DIR = REPO_ROOT / "data" / "microstructure"
 
 TOP_N_MARKETS = 20
 RECV_TIMEOUT_S = 5.0
-STALE_AFTER_S = 90.0
+#: Nur EINE Uhr, und zwar eine lange - weil sich die beiden Faelle hier nicht
+#: unterscheiden lassen. Kalshi pingt alle zehn Sekunden, aber websocket-client
+#: beantwortet diese Protokoll-Pings intern und reicht sie nicht durch. Aus
+#: unserer Sicht sieht eine tote Verbindung deshalb genauso aus wie ein ruhiger
+#: Markt, und bei langlaufenden Maerkten ist Ruhe der Normalfall.
+#:
+#: Die frueheren 90 Sekunden bestraften deshalb genau das falsche: ein stiller
+#: Markt loeste einen Neuaufbau samt kompletter Marktauswahl aus. Eine wirklich
+#: tote Verbindung faellt ohnehin ueber eine recv-Ausnahme auf, die der Loop
+#: bereits behandelt; diese Uhr ist nur der Rueckfall fuer den Fall, dass die
+#: Gegenseite stumm offen bleibt.
+DATA_STALE_AFTER_S = 900.0
 MAX_BACKOFF_S = 60.0
 
 STREAM_BOOK_FIELDS = [
@@ -165,8 +176,9 @@ def stream_once(tickers: list[str], out_dir: Path, duration_s: float,
     started = now_fn()
     deadline = started + float(duration_s)
     last_flush = started
-    last_message = started
+    last_data = started
     errors: list[str] = []
+    stop_reason = "Laufzeit erreicht"
     written = {"book_rows": 0, "trade_rows": 0, "messages": 0}
     resyncs = {"n": 0}
 
@@ -176,7 +188,8 @@ def stream_once(tickers: list[str], out_dir: Path, duration_s: float,
         return {"connected": False, "error": f"{type(exc).__name__}: {exc}",
                 "book_rows": 0, "trade_rows": 0, "messages": 0,
                 "markets": len(tickers), "event_counts": {}, "seq_gaps": 0,
-                "resnapshots_requested": 0, "crossed_books": 0}
+                "resnapshots_requested": 0, "crossed_books": 0,
+                "stop_reason": "Verbindung fehlgeschlagen", "quiet_seconds": 0.0}
 
     def flush() -> None:
         nonlocal last_flush
@@ -200,11 +213,12 @@ def stream_once(tickers: list[str], out_dir: Path, duration_s: float,
                 name = type(exc).__name__
                 if "Timeout" not in name:
                     errors.append(f"{name}: {exc}")
+                    stop_reason = f"Verbindungsfehler: {name}"
                     break
                 raw = ""
             tick = now_fn()
             if raw:
-                last_message = tick
+                last_data = tick
                 written["messages"] += 1
                 recv_ts = utc_now_iso()
                 for event in parse_payload(raw):
@@ -222,8 +236,8 @@ def stream_once(tickers: list[str], out_dir: Path, duration_s: float,
                         except Exception as exc:  # noqa: BLE001
                             errors.append(f"resync failed: {type(exc).__name__}: {exc}")
                             break
-            if tick - last_message > STALE_AFTER_S:
-                errors.append("stale: no message within STALE_AFTER_S")
+            if tick - last_data > DATA_STALE_AFTER_S:
+                stop_reason = "still: keine Daten innerhalb DATA_STALE_AFTER_S"
                 break
             if tick - last_flush >= flush_every_s:
                 flush()
@@ -243,6 +257,8 @@ def stream_once(tickers: list[str], out_dir: Path, duration_s: float,
         "trade_rows": written["trade_rows"],
         "event_counts": dict(state.counts),
         "seq_gaps": state.seq_gaps,
+        "stop_reason": stop_reason,
+        "quiet_seconds": round(now_fn() - last_data, 1),
         "resnapshots_requested": resyncs["n"],
         "crossed_books": state.crossed_books,
         "errors": errors,
