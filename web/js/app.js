@@ -167,7 +167,19 @@ class Terminal {
     };
   }
 
-  openMarket(id) { this.setState({ detail: { kind: 'market', id }, searchOpen: false }); }
+  openMarket(id) {
+    this.setState({ detail: { kind: 'market', id }, searchOpen: false });
+    this.fetchMarketHistory(id);
+  }
+
+  async fetchMarketHistory(id) {
+    if (this.state.live !== 'live' || this.liveData.marketHistory && this.liveData.marketHistory[id]) return;
+    this.liveData.marketHistory = this.liveData.marketHistory || {};
+    try {
+      const h = await apiGet('/api/market/' + encodeURIComponent(id) + '/history?days=1&interval=5m');
+      if (h && h.points && h.points.length > 1) { this.liveData.marketHistory[id] = h.points; this.render(); }
+    } catch (err) { /* Detail behaelt die synthetische Kurve */ }
+  }
   openWallet(name) {
     this.setState({ detail: { kind: 'wallet', id: name }, searchOpen: false });
     this.fetchWalletDetail(name);
@@ -317,16 +329,39 @@ class Terminal {
         if (lb.rows && lb.rows.length) { this.liveData.leaderboard = lb; this.applyLeaderboard(lb.rows); this.render(); }
       } else if (page === 'cross' && !this.liveData.cross) {
         const cr = await apiGet('/api/cross');
-        if (cr.rows && cr.rows.length) { this.liveData.cross = cr; this.crossPairs = cr.rows; this.render(); }
-      } else if (page === 'risk' && !this.liveData.risk) {
+        if (cr.rows && cr.rows.length) {
+          this.liveData.cross = cr;
+          this.crossPairs = cr.rows;
+          // Reale Paare liegen oft unter der Demo-Schwelle 0.30 — Slider einmalig anpassen.
+          if (!cr.rows.some((r) => r.sim >= this.state.crossSim)) {
+            const best = Math.max.apply(null, cr.rows.map((r) => r.sim));
+            this.state.crossSim = Math.max(0.1, Math.floor(best * 50) / 50);
+          }
+          this.render();
+        }
+      } else if ((page === 'risk' || page === 'overview') && !this.liveData.risk) {
         const rk = await apiGet('/api/risk');
-        if (rk && (rk.events || rk.wallets)) { this.liveData.risk = rk; this.render(); }
+        if (rk && (rk.events || rk.wallets)) {
+          this.liveData.risk = rk;
+          if (rk.events && rk.events.length) this.risks = rk.events;
+          this.render();
+        }
       } else if (page === 'alerts' && !this.liveData.alerts) {
         const al = await apiGet('/api/alerts');
         if (al && al.signals) { this.liveData.alerts = al; this.render(); }
       } else if ((page === 'copy' || page === 'portfolio') && !this.liveData.copy) {
         const cp = await apiGet('/api/copy');
         if (cp && cp.orders) { this.liveData.copy = cp; this.render(); }
+        if (page === 'portfolio' && !this.liveData.track) {
+          const tr = await apiGet('/api/track');
+          if (tr && (tr.wallets || tr.watchlist)) { this.liveData.track = tr; this.render(); }
+        }
+      } else if (page === 'resolved' && !this.liveData.resolved) {
+        const rs = await apiGet('/api/resolved');
+        if (rs && rs.rows && rs.rows.length) { this.liveData.resolved = rs; this.render(); }
+      } else if (page === 'track' && !this.liveData.track) {
+        const tr = await apiGet('/api/track');
+        if (tr && (tr.wallets || tr.watchlist)) { this.liveData.track = tr; this.render(); }
       } else if (page === 'research') {
         const key = this.studies[this.state.researchTab].tab;
         if (!this.liveData.research[key]) {
@@ -386,7 +421,8 @@ class Terminal {
           bankroll: s.btBankroll,
           fee_bps: s.btFee,
           slippage_bps: s.btSlip,
-          compare: s.btCompare.trim() || null
+          compare: s.btCompare.trim() || null,
+          variants: !!s.sizingSimOpen
         });
         if (resp && resp.stats) { this.liveData.backtest = resp; this.render(); }
       } catch (err) { this.liveData.backtest = null; }

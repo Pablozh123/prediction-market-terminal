@@ -47,6 +47,7 @@ from fastapi.staticfiles import StaticFiles
 from app import api_views as apv
 from app import app_settings as cfg
 from app import backtester as btr
+from app import cross_pairs
 from app import scorecard as sc
 from app import signals as sig
 from app.analysis_views import load_publish_payload
@@ -306,20 +307,56 @@ def wallet_detail(wallet: str) -> dict[str, Any]:
 @app.get("/api/cross")
 def cross(
     query: str = "",
-    min_similarity: float = 0.3,
-    max_pairs: int = Query(50, le=150),
+    min_similarity: float = 0.2,
+    max_pairs: int = Query(150, le=150),
 ) -> dict[str, Any]:
-    combined = load_universe(250)
-    if combined.empty:
-        return {"rows": [], "total": 0}
-    pm = combined[combined.get("platform") == "Polymarket"]
-    ks = combined[combined.get("platform") == "Kalshi"]
+    # Eigenes, tiefes Universum je Venue: Gamma liefert max. 100 je Seite,
+    # also paginieren; der Matcher in app/cross_pairs.py vergleicht die volle
+    # Breite statt der Top-80.
+    def _pm() -> pd.DataFrame:
+        frames = []
+        for offset in (0, 100, 200, 300, 400):
+            page = md.get_polymarket_markets(limit=100, offset=offset)
+            if page.empty:
+                break
+            frames.append(page)
+        return pd.concat(frames, ignore_index=True, sort=False) if frames else pd.DataFrame()
+
+    def _ks() -> pd.DataFrame:
+        return md.get_kalshi_markets(limit=1000)
+
     try:
-        candidates = md.cross_venue_candidates(pm, ks, query=query, min_similarity=min_similarity, max_pairs=max_pairs)
+        pm = cached("cross_pm", _pm, ttl=300.0)
+        ks = cached("cross_ks", _ks, ttl=300.0)
+    except Exception as exc:
+        print(f"[warn] cross venue universes: {exc}")
+        return {"rows": [], "total": 0}
+    if pm.empty or ks.empty:
+        return {"rows": [], "total": 0}
+    try:
+        candidates = cached(
+            f"cross_cand_{min_similarity}_{max_pairs}",
+            cross_pairs.deep_cross_candidates,
+            pm,
+            ks,
+            min_similarity,
+            max_pairs,
+            ttl=300.0,
+        )
+        if query.strip():
+            mask = candidates["polymarket_title"].str.contains(query.strip(), case=False, na=False) | candidates["kalshi_title"].str.contains(query.strip(), case=False, na=False)
+            candidates = candidates[mask]
     except Exception as exc:
         print(f"[warn] cross venue: {exc}")
         return {"rows": [], "total": 0}
-    rows = apv.cross_rows(candidates)
+    categories = {}
+    if "market_key" in pm.columns and "category" in pm.columns:
+        categories = {
+            str(key): str(cat)
+            for key, cat in zip(pm["market_key"], pm["category"])
+            if key is not None and cat
+        }
+    rows = apv.cross_rows(candidates, categories)
     return {
         "rows": rows,
         "total": len(rows),
@@ -330,6 +367,8 @@ def cross(
 
 @app.get("/api/risk")
 def risk() -> dict[str, Any]:
+    from app import suspicion as susp
+
     settings = cfg.load_settings()
     whale_threshold = float(settings.get("whale_threshold", 2500))
     trades = load_tape(limit=1000, min_cash=0.0)
@@ -337,9 +376,25 @@ def risk() -> dict[str, Any]:
         raise HTTPException(status_code=503, detail="no trade tape available")
 
     def _build() -> dict[str, Any]:
-        wallet_scores = md.whale_wallet_risk_scores(trades, whale_threshold=whale_threshold)
-        event_scores = md.whale_event_risk_scores(trades, whale_threshold=whale_threshold)
-        return apv.risk_payload(wallet_scores, event_scores)
+        screened = susp.filter_insider_prone_trades(trades)
+        base = screened if screened is not None and not screened.empty else trades
+        wallet_scores = md.whale_wallet_risk_scores(base, whale_threshold=whale_threshold)
+        event_scores = md.whale_event_risk_scores(base, whale_threshold=whale_threshold)
+        payload = apv.risk_payload(wallet_scores, event_scores)
+        try:
+            fresh = susp.fresh_wallet_clusters(base, whale_threshold=whale_threshold)
+            coord = susp.coordinated_clusters(base)
+            nodes, edges = susp.co_trading_network(base, window_minutes=5.0, min_shared=3, max_wallets=300, min_pair_notional=10_000.0)
+            if nodes.empty:
+                nodes, edges = susp.co_trading_network(base, window_minutes=5.0, min_shared=2, max_wallets=300)
+            payload.update(apv.cluster_payload(
+                fresh, coord, nodes, edges,
+                lambda cn, ce: susp.cluster_story(cn, ce, base),
+            ))
+            payload["kpis"].update(payload.pop("kpis_clusters", {}))
+        except Exception as exc:
+            print(f"[warn] suspicion clusters: {exc}")
+        return payload
 
     payload = cached("risk_payload", _build, ttl=60.0)
     payload["as_of"] = md.now_utc_label()
@@ -377,7 +432,21 @@ def alerts(
         return apv.alert_rows(signals)
 
     key = f"alerts_{min_move}_{max_spread}_{whale_threshold}_{ending_days}"
-    return {"signals": cached(key, _build, ttl=60.0), "as_of": md.now_utc_label()}
+    state_path = ROOT / "data" / "alert_scanner_state.json"
+    deliveries: dict[str, Any] = {"available": False, "note": "No delivery log on this machine — the alert scanner keeps only a dedupe state, not a send history."}
+    if state_path.exists():
+        try:
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            deliveries = {
+                "available": False,
+                "note": "The scanner keeps no per-message log; last scan shown from its dedupe state.",
+                "last_scan_at": state.get("last_scan_at"),
+                "last_hits": state.get("last_hits"),
+                "last_sent": state.get("last_sent"),
+            }
+        except (OSError, json.JSONDecodeError):
+            pass
+    return {"signals": cached(key, _build, ttl=60.0), "deliveries": deliveries, "as_of": md.now_utc_label()}
 
 
 @app.get("/api/copy")
@@ -410,7 +479,7 @@ def copy_state() -> dict[str, Any]:
                 sizing = {}
         finally:
             conn.close()
-        return apv.copy_payload(
+        payload = apv.copy_payload(
             orders,
             positions,
             cash_events,
@@ -421,6 +490,30 @@ def copy_state() -> dict[str, Any]:
             ct.SWISSTONY_LABEL,
             sizing,
         )
+        try:
+            source_pnl = md.get_polymarket_user_pnl(ct.COPY_TARGET_WALLET, "1mo")
+            if source_pnl is not None and not source_pnl.empty and "pnl" in source_pnl:
+                curve = [float(v) for v in source_pnl["pnl"].tolist() if v == v]
+                if curve:
+                    payload["source_curve"] = curve
+                    # PnL-Kurve ohne Kapitalbasis: Delta in Dollar, kein Prozent.
+                    payload["kpis"]["source_pnl_delta"] = curve[-1] - curve[0]
+        except Exception as exc:
+            print(f"[warn] source pnl curve: {exc}")
+        fidelity = apv.fidelity_block(orders, portfolio, sizing)
+        if fidelity:
+            payload["fidelity_detail"] = fidelity
+            execution = (fidelity.get("execution") or {}).get("fidelity")
+            config = (fidelity.get("config") or {}).get("fidelity")
+            if execution is not None:
+                payload["kpis"]["exec_fidelity"] = round(execution * 100)
+            if config is not None:
+                payload["kpis"]["config_fidelity"] = round(config * 100)
+            if execution is not None and config is not None:
+                payload["kpis"]["fidelity"] = round(execution * config * 100)
+            elif execution is not None:
+                payload["kpis"]["fidelity"] = round(execution * 100)
+        return payload
 
     try:
         payload = cached("copy_payload", _build, ttl=30.0)
@@ -430,9 +523,33 @@ def copy_state() -> dict[str, Any]:
     return payload
 
 
+RESEARCH_DIR = ROOT / "docs" / "research"
+
+MICROSTRUCTURE_FILES = {
+    "orderflow": "orderflow_rest-2026-07",
+    "mm_stream": "mm_pnl_stream-2tage",
+    "cross_venue": "cross_venue_gaps_2026-07-31",
+    "gap_lifetime": "gap_lifetime_2026-07-31",
+    "edge_segments": "edge_segments_july-2026",
+    "rewards": "reward_selection_2026-07-31",
+    "resolution_rules": "resolution_rules_2026-07-31",
+    "book_reconcile": "book_reconcile_2026-07-31",
+}
+
+
 @app.get("/api/research/{name}")
 def research(name: str) -> dict[str, Any]:
-    filename = apv.RESEARCH_FILES.get(name.strip().lower())
+    name = name.strip().lower()
+    if name == "microstructure":
+        def _build() -> dict[str, Any]:
+            studies = {key: load_publish_payload(RESEARCH_DIR, fname + ".json") for key, fname in MICROSTRUCTURE_FILES.items()}
+            return apv.microstructure_payload(studies)
+
+        payload = cached("research_microstructure", _build, ttl=600.0)
+        if not payload:
+            raise HTTPException(status_code=404, detail="no study artifacts under docs/research/")
+        return payload
+    filename = apv.RESEARCH_FILES.get(name)
     if not filename:
         raise HTTPException(status_code=404, detail=f"unknown study '{name}'")
     payload = load_publish_payload(PUBLISH_DIR, filename + ".json")
@@ -440,7 +557,80 @@ def research(name: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=f"no published data for '{name}'")
     if filename == "pipeline_forward":
         payload = apv.trim_pipeline_payload(payload)
+    if filename == "runs":
+        def _extras() -> dict[str, Any]:
+            return apv.live_runs_extras(payload)
+
+        payload = dict(payload)
+        try:
+            payload["extras"] = cached("live_runs_extras", _extras, ttl=300.0)
+        except Exception as exc:
+            print(f"[warn] live runs extras: {exc}")
     return payload
+
+
+@app.get("/api/resolved")
+def resolved(limit: int = Query(250, le=500)) -> dict[str, Any]:
+    def _load() -> list[dict[str, Any]]:
+        closed = md.get_polymarket_closed_markets(limit=limit)
+        return apv.resolved_rows(closed)
+
+    try:
+        rows = cached(f"resolved_{limit}", _load, ttl=300.0)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"closed markets unavailable: {exc}")
+    return {"rows": rows, "total": len(rows), "as_of": md.now_utc_label()}
+
+
+@app.get("/api/track")
+def track() -> dict[str, Any]:
+    def _read_list(name: str) -> list[Any]:
+        path = ROOT / "data" / name
+        if not path.exists():
+            return []
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return []
+        return data if isinstance(data, list) else []
+
+    followed = _read_list("followed_wallets.json")
+    watchlist = _read_list("watchlist.json")
+    try:
+        ranked = load_ranked()
+    except Exception:
+        ranked = pd.DataFrame()
+    try:
+        lb = load_leaderboard(limit=250)
+    except Exception:
+        lb = pd.DataFrame()
+    payload = apv.track_payload(followed, watchlist, ranked, lb)
+    payload["as_of"] = md.now_utc_label()
+    return payload
+
+
+@app.get("/api/market/{market_key}/history")
+def market_history(market_key: str, days: int = Query(1, le=90), interval: str = "5m") -> dict[str, Any]:
+    combined = load_universe(250)
+    token_id = ""
+    if not combined.empty and "market_key" in combined.columns:
+        match = combined[combined["market_key"].astype(str) == market_key]
+        if not match.empty:
+            token_id = str(match.iloc[0].get("yes_token_id") or "")
+    if not token_id:
+        raise HTTPException(status_code=404, detail="market not in the loaded universe or no token id")
+
+    def _load() -> list[float]:
+        history = md.get_polymarket_price_history(token_id, days=days, interval=interval)
+        if history is None or history.empty:
+            return []
+        return [float(v) * 100 for v in history["price"].tolist() if v == v]
+
+    try:
+        points = cached(f"hist_{token_id}_{days}_{interval}", _load, ttl=120.0)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"price history unavailable: {exc}")
+    return {"points": points, "as_of": md.now_utc_label()}
 
 
 SIZING_MAP = {
@@ -482,6 +672,15 @@ def backtest(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
         payload = cached(key, _run, ttl=120.0)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"backtest failed: {exc}")
+    if body.get("variants"):
+        def _variants() -> list[dict[str, Any]]:
+            return apv.variants_payload(btr.strategy_comparison(config))
+
+        try:
+            payload = dict(payload)
+            payload["variants"] = cached(key + "_variants", _variants, ttl=300.0)
+        except Exception as exc:
+            print(f"[warn] strategy comparison: {exc}")
     payload["as_of"] = md.now_utc_label()
     return payload
 

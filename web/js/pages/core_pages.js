@@ -392,7 +392,10 @@ export function renderCross(T) {
 // ---------------------------------------------------------------- resolved
 export function renderResolved(T) {
   const s = T.state;
-  const resAll = DEMO_RESOLVED.map((r) => Object.assign({}, r, { err: r.yes ? 100 - r.last : r.last }));
+  const live = T.liveData.resolved;
+  const resAll = live && live.rows && live.rows.length
+    ? live.rows
+    : DEMO_RESOLVED.map((r) => Object.assign({}, r, { err: r.yes ? 100 - r.last : r.last }));
   let resRows = resAll.filter((r) => {
     if (s.resAnswer !== 'all' && (s.resAnswer === 'yes') !== r.yes) return false;
     if (s.resWindow !== 'all' && r.hours > Number(s.resWindow)) return false;
@@ -400,7 +403,8 @@ export function renderResolved(T) {
     if (s.resQuery.trim() && r.title.toLowerCase().indexOf(s.resQuery.trim().toLowerCase()) < 0) return false;
     return true;
   });
-  resRows = resRows.sort((a, b) => (s.resSort === 'error' ? b.err - a.err : s.resSort === 'volume' ? parseFloat(b.vol.replace(/[$m]/g, '')) - parseFloat(a.vol.replace(/[$m]/g, '')) : a.hours - b.hours));
+  const volValue = (v) => parseFloat(String(v).replace(/[$,]/g, '')) * (String(v).indexOf('m') >= 0 ? 1e6 : String(v).indexOf('k') >= 0 ? 1e3 : 1) || 0;
+  resRows = resRows.sort((a, b) => (s.resSort === 'error' ? b.err - a.err : s.resSort === 'volume' ? volValue(b.vol) - volValue(a.vol) : a.hours - b.hours));
   const avgErr = resRows.length ? Math.round(resRows.reduce((a, r) => a + r.err, 0) / resRows.length) : 0;
   const worst = resRows.reduce((a, r) => (r.err > (a ? a.err : -1) ? r : a), null);
   const kpis = [

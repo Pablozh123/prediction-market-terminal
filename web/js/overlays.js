@@ -13,7 +13,8 @@ export function renderDetail(T) {
   let v;
   if (d.kind === 'market') {
     const m = T.markets.find((x) => x.id === d.id) || T.markets[0];
-    const c = T.curve(m.yes * 977 + 13, 40, 340, 150, m.chg / 40, 1.4);
+    const hist = T.liveData.marketHistory && T.liveData.marketHistory[d.id];
+    const c = hist ? { pts: T.seriesPoints(hist, 340, 150) } : T.curve(m.yes * 977 + 13, 40, 340, 150, m.chg / 40, 1.4);
     v = {
       kicker: 'MARKET',
       accent: m.chg >= 0 ? '#C8F542' : '#FF4545',

@@ -56,6 +56,13 @@ export function renderAlerts(T) {
           + '<div style="' + M + '; font-size:10.5px; margin-top:12px; color:rgba(255,255,255,.4)">' + a.hits + '</div></div>';
       }).join('')
       + '</div>';
+  } else if (live && live.deliveries) {
+    const dv = live.deliveries;
+    body = '<div style="margin:16px 24px; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:22px; background:#10151A">'
+      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55)">DELIVERY LOG</div>'
+      + '<div style="font-size:13px; color:rgba(255,255,255,.6); margin-top:10px; line-height:1.5; max-width:640px">' + esc(dv.note || 'No delivery log available.') + '</div>'
+      + (dv.last_scan_at ? '<div style="' + M + '; font-size:11.5px; color:rgba(255,255,255,.45); margin-top:12px">last scan ' + esc(dv.last_scan_at) + ' · ' + esc(String(dv.last_hits)) + ' hits · ' + esc(String(dv.last_sent)) + ' sent</div>' : '')
+      + '</div>';
   } else {
     body = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:16px 24px; overflow:hidden">'
       + '<div style="display:grid; grid-template-columns:110px 150px 1fr 110px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
@@ -113,11 +120,20 @@ export function renderResearch(T) {
     return '<div>' + header + renderLiveRuns(T, payload) + '</div>';
   }
 
-  const stamp = payload && payload.stand_utc ? String(payload.stand_utc).slice(0, 16).replace('T', ' ') + ' UTC' : study.stamp;
-  const note = payload && payload.hinweis ? payload.hinweis : study.note;
-  const table = buildStudyTable(T, s.researchTab, payload);
-  const stats = buildStudyStats(s.researchTab, payload) || study.stats.map((x) => ({ label: x[0], value: x[1], note: x[2] }));
-  const pts = T.curve(s.researchTab * 977 + 31, 50, 900, 220, 0.4, 3.2).pts;
+  // Microstructure: die publizierten Studien-Artefakte aus docs/research/
+  const micro = s.researchTab === 4 && payload && payload.table ? payload : null;
+  const stamp = micro ? micro.stamp : payload && payload.stand_utc ? String(payload.stand_utc).slice(0, 16).replace('T', ' ') + ' UTC' : study.stamp;
+  const note = micro ? micro.note : payload && payload.hinweis ? payload.hinweis : study.note;
+  const table = micro
+    ? studyTableHtml(T, micro.table.label, micro.table.cols, micro.table.head, micro.table.rows)
+    : buildStudyTable(T, s.researchTab, payload);
+  const stats = micro
+    ? micro.stats
+    : buildStudyStats(s.researchTab, payload) || study.stats.map((x) => ({ label: x[0], value: x[1], note: x[2] }));
+  const chartLabel = micro && micro.series && micro.series.length > 1 ? micro.series_label : study.chart;
+  const pts = micro && micro.series && micro.series.length > 1
+    ? T.seriesPoints(micro.series, 900, 220)
+    : micro ? '' : T.curve(s.researchTab * 977 + 31, 50, 900, 220, 0.4, 3.2).pts;
 
   return '<div>' + header
     + '<div style="padding:22px 24px">'
@@ -134,14 +150,14 @@ export function renderResearch(T) {
       + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.4); margin-top:4px">' + esc(x.note) + '</div></div>'
     ).join('')
     + '</div>'
-    + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; padding:16px 18px">'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55); margin-bottom:12px">' + esc(study.chart) + '</div>'
+    + (pts ? '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; padding:16px 18px">'
+    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55); margin-bottom:12px">' + esc(chartLabel) + '</div>'
     + '<svg width="100%" height="220" viewBox="0 0 900 220" preserveAspectRatio="none">'
     + '<line x1="0" y1="20" x2="900" y2="20" stroke="rgba(255,255,255,.07)" />'
     + '<line x1="0" y1="75" x2="900" y2="75" stroke="rgba(255,255,255,.07)" />'
     + '<line x1="0" y1="130" x2="900" y2="130" stroke="rgba(255,255,255,.07)" />'
     + '<line x1="0" y1="210" x2="900" y2="210" stroke="rgba(255,255,255,.14)" />'
-    + '<polyline points="' + pts + '" fill="none" stroke="#4F8EF7" stroke-width="2" /></svg></div>'
+    + '<polyline points="' + pts + '" fill="none" stroke="#4F8EF7" stroke-width="2" /></svg></div>' : '')
     + table
     + '<div style="display:flex; gap:10px; margin-top:14px">'
     + '<div class="hv-bd35" style="font-size:13px; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:10px 16px; cursor:pointer">Download the data</div>'
@@ -374,35 +390,61 @@ function renderLiveRuns(T, payload) {
       }).join('')
       + '</div>';
   } else if (s.liveTab === 'sim') {
+    const extras = payload && payload.extras;
+    const liveSims = extras && extras.sims && extras.sims.length
+      ? extras.sims.map((v) => ({ name: v.name, net: v.net, roi: v.roi, dd: null, hit: null, bets: v.bets }))
+      : null;
+    const simRows = liveSims || DEMO_RUN_SIM_ROWS;
     body = '<div style="margin-top:14px">'
-      + '<div style="font-size:12.5px; color:rgba(255,255,255,.55); line-height:1.5; max-width:820px">Replays the same runs with a different stake rule each time — same entries, same fills, only the size changes. Caps and the per-run budget stay as they were on the day.</div>'
+      + '<div style="font-size:12.5px; color:rgba(255,255,255,.55); line-height:1.5; max-width:820px">Replays the same runs with a different stake rule each time — same entries, same fills, only the size changes. Caps and the per-run budget stay as they were on the day.' + (liveSims ? ' Only resolved bets with a valid fill price count; bankroll $100, no compounding.' : '') + '</div>'
       + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; overflow:hidden">'
       + '<div style="display:grid; grid-template-columns:1fr 110px 96px 96px 96px 104px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
       + '<div>STAKE RULE</div><div style="text-align:right">NET</div><div style="text-align:right">ROI</div><div style="text-align:right">MAX DD</div><div style="text-align:right">HIT RATE</div><div style="text-align:right">BETS PLACED</div></div>'
-      + DEMO_RUN_SIM_ROWS.slice().sort((a, b) => b.roi - a.roi).map((r, i) =>
+      + simRows.slice().sort((a, b) => b.roi - a.roi).map((r, i) =>
         '<div style="display:grid; grid-template-columns:1fr 110px 96px 96px 96px 104px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06); background:' + (i === 0 ? 'rgba(200,245,66,.06)' : 'transparent') + '">'
-        + '<div style="font-size:12.5px; color:' + (i === 0 ? '#C8F542' : '#ffffff') + '">' + r.name + '</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (r.net >= 0 ? '#C8F542' : '#FF4545') + '">' + (r.net >= 0 ? '+$' : '-$') + num(Math.abs(r.net)) + '</div>'
+        + '<div style="font-size:12.5px; color:' + (i === 0 ? '#C8F542' : '#ffffff') + '">' + esc(r.name) + '</div>'
+        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (r.net >= 0 ? '#C8F542' : '#FF4545') + '">' + (r.net >= 0 ? '+$' : '-$') + num(Math.abs(r.net).toFixed(0)) + '</div>'
         + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (r.roi >= 0 ? '#C8F542' : '#FF4545') + '">' + (r.roi >= 0 ? '+' : '') + r.roi.toFixed(1) + '%</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(255,255,255,.6)">' + r.dd.toFixed(1) + '%</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(255,255,255,.6)">' + r.hit + '%</div>'
+        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(255,255,255,.6)">' + (r.dd != null ? r.dd.toFixed(1) + '%' : '—') + '</div>'
+        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(255,255,255,.6)">' + (r.hit != null ? r.hit + '%' : '—') + '</div>'
         + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(255,255,255,.6)">' + num(r.bets) + '</div></div>'
       ).join('')
       + '</div>'
-      + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; padding:16px 18px">'
-      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55); margin-bottom:12px">FLAT $25 VERSUS THE BEST RULE</div>'
-      + '<svg width="100%" height="200" viewBox="0 0 900 200" preserveAspectRatio="none">'
-      + '<line x1="0" y1="20" x2="900" y2="20" stroke="rgba(255,255,255,.07)" />'
-      + '<line x1="0" y1="70" x2="900" y2="70" stroke="rgba(255,255,255,.07)" />'
-      + '<line x1="0" y1="120" x2="900" y2="120" stroke="rgba(255,255,255,.07)" />'
-      + '<line x1="0" y1="190" x2="900" y2="190" stroke="rgba(255,255,255,.14)" />'
-      + '<polyline points="' + T.curve(8123, 50, 900, 200, 0.5, 2.6).pts + '" fill="none" stroke="#95A0AB" stroke-width="1.5" stroke-dasharray="5 4" />'
-      + '<polyline points="' + T.curve(8124, 50, 900, 200, 0.82, 3.0).pts + '" fill="none" stroke="#C8F542" stroke-width="2" /></svg></div>'
+      + (liveSims && extras.timing_decay && extras.timing_decay.length
+        ? '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; overflow:hidden">'
+          + '<div style="padding:11px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:#4F8EF7">SAME MODEL, DELAYED ENTRY — PNL DECAY BY DELAY</div>'
+          + '<div style="display:grid; grid-template-columns:1fr 110px 130px 120px 130px 130px; gap:10px; padding:9px 16px; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
+          + '<div>DELAY</div><div style="text-align:right">BETS</div><div style="text-align:right">FOREIGN REF</div><div style="text-align:right">PRICED OUT</div><div style="text-align:right">SIM PNL</div><div style="text-align:right">VS INSTANT</div></div>'
+          + extras.timing_decay.map((t) =>
+            '<div style="display:grid; grid-template-columns:1fr 110px 130px 120px 130px 130px; gap:10px; align-items:center; padding:10px 16px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:12px">'
+            + '<div style="font-family:\'Inter\',sans-serif; font-size:12.5px">+' + t.delay_s + ' s</div>'
+            + '<div style="text-align:right; color:rgba(255,255,255,.6)">' + t.n_bets + '</div>'
+            + '<div style="text-align:right; color:rgba(255,255,255,.6)">' + t.n_foreign_ref + '</div>'
+            + '<div style="text-align:right; color:rgba(255,255,255,.6)">' + t.n_priced_out + '</div>'
+            + '<div style="text-align:right; color:' + (t.sim_pnl_usd >= 0 ? '#C8F542' : '#FF4545') + '">' + (t.sim_pnl_usd >= 0 ? '+$' : '-$') + Math.abs(t.sim_pnl_usd).toFixed(2) + '</div>'
+            + '<div style="text-align:right; color:' + (t.pnl_delta_usd >= 0 ? 'rgba(255,255,255,.6)' : '#FF4545') + '">' + (t.pnl_delta_usd >= 0 ? '+$' : '-$') + Math.abs(t.pnl_delta_usd).toFixed(2) + '</div></div>'
+          ).join('')
+          + '</div>'
+        : '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; padding:16px 18px">'
+          + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55); margin-bottom:12px">FLAT $25 VERSUS THE BEST RULE</div>'
+          + '<svg width="100%" height="200" viewBox="0 0 900 200" preserveAspectRatio="none">'
+          + '<line x1="0" y1="20" x2="900" y2="20" stroke="rgba(255,255,255,.07)" />'
+          + '<line x1="0" y1="70" x2="900" y2="70" stroke="rgba(255,255,255,.07)" />'
+          + '<line x1="0" y1="120" x2="900" y2="120" stroke="rgba(255,255,255,.07)" />'
+          + '<line x1="0" y1="190" x2="900" y2="190" stroke="rgba(255,255,255,.14)" />'
+          + '<polyline points="' + T.curve(8123, 50, 900, 200, 0.5, 2.6).pts + '" fill="none" stroke="#95A0AB" stroke-width="1.5" stroke-dasharray="5 4" />'
+          + '<polyline points="' + T.curve(8124, 50, 900, 200, 0.82, 3.0).pts + '" fill="none" stroke="#C8F542" stroke-width="2" /></svg></div>')
       + '</div>';
   } else if (s.liveTab === 'calib') {
-    const calibRows = payload && payload.runs ? buildCalibFromRuns(payload.runs) : DEMO_CALIB_ROWS;
+    const extras = payload && payload.extras;
+    const calibRows = extras && extras.calibration && extras.calibration.rows && extras.calibration.rows.length
+      ? extras.calibration.rows
+      : payload && payload.runs ? buildCalibFromRuns(payload.runs) : DEMO_CALIB_ROWS;
+    const calibNote = extras && extras.calibration
+      ? ' n = ' + extras.calibration.n + (extras.calibration.hit_low != null ? ' · hit rate ' + Math.round(extras.calibration.hit_rate * 100) + '% [' + Math.round(extras.calibration.hit_low * 100) + '–' + Math.round(extras.calibration.hit_high * 100) + '%] Wilson 95%' : '') + (extras.calibration.sample_ok ? '' : ' · sample below the minimum — read with care')
+      : '';
     body = '<div style="margin-top:14px">'
-      + '<div style="font-size:12.5px; color:rgba(255,255,255,.55); line-height:1.5; max-width:820px">Entry price against what actually happened. A perfectly calibrated entry sits on the diagonal — above it means we paid too much.</div>'
+      + '<div style="font-size:12.5px; color:rgba(255,255,255,.55); line-height:1.5; max-width:820px">Entry price against what actually happened. A perfectly calibrated entry sits on the diagonal — above it means we paid too much.' + esc(calibNote) + '</div>'
       + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; overflow:hidden">'
       + '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
       + '<div>ENTRY PRICE BAND</div><div style="text-align:right">BETS</div><div style="text-align:right">PAID</div><div style="text-align:right">SETTLED</div><div style="text-align:right">GAP</div></div>'
@@ -417,11 +459,13 @@ function renderLiveRuns(T, payload) {
       }).join('')
       + '</div></div>';
   } else {
+    const extras = payload && payload.extras;
+    const monthRows = extras && extras.monthly && extras.monthly.length ? extras.monthly : DEMO_TRACK_MONTHS;
     body = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; overflow:hidden">'
       + '<div style="padding:11px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:#4F8EF7">MONTH BY MONTH</div>'
       + '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px 100px; gap:10px; padding:9px 16px; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
       + '<div>MONTH</div><div style="text-align:right">RUNS</div><div style="text-align:right">BETS</div><div style="text-align:right">STAKE</div><div style="text-align:right">NET</div><div style="text-align:right">ROI</div></div>'
-      + DEMO_TRACK_MONTHS.map((t) => {
+      + monthRows.map((t) => {
         const roi = (t.net / t.stake) * 100;
         return '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px 100px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:12.5px">'
           + '<div style="font-family:\'Inter\',sans-serif; font-size:13px">' + t.month + '</div>'

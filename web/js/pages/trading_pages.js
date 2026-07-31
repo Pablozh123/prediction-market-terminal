@@ -4,6 +4,7 @@
 
 import { esc, money, num } from '../util.js';
 import { DEMO_COPY_POSITIONS, DEMO_CASH_ROWS, DEMO_PORT_ROWS, DEMO_HIST_ROWS } from '../demo_data.js';
+import { trackWatchRows } from './trader_pages.js';
 
 const M = "font-family:'JetBrains Mono',monospace";
 const LBL9 = M + '; font-size:9px; letter-spacing:.14em; color:rgba(255,255,255,.42); margin-bottom:6px';
@@ -337,7 +338,7 @@ export function renderBacktester(T) {
     + tabBody
 
     + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:16px; overflow:hidden">'
-    + '<div ' + T.act(() => T.setState({ sizingSimOpen: !s.sizingSimOpen })) + ' class="hv-el" style="display:flex; align-items:center; justify-content:space-between; padding:13px 18px; background:#10151A; cursor:pointer">'
+    + '<div ' + T.act(() => { T.setState({ sizingSimOpen: !s.sizingSimOpen }); if (!s.sizingSimOpen) T.runBacktestLive(); }) + ' class="hv-el" style="display:flex; align-items:center; justify-content:space-between; padding:13px 18px; background:#10151A; cursor:pointer">'
     + '<div style="font-size:14px">Which sizing would have been best for this wallet?</div><div style="' + simChevron + '">›</div></div>'
     + (s.sizingSimOpen ?
       '<div style="padding:16px 18px">'
@@ -376,7 +377,7 @@ export function renderCopy(T) {
   const positions = live && live.positions ? live.positions : DEMO_COPY_POSITIONS;
   const cashRows = live && live.cash_events ? live.cash_events : DEMO_CASH_ROWS;
   const equityPts = live && live.equity_curve && live.equity_curve.length > 1 ? T.seriesPoints(live.equity_curve, 760, 240) : T.curve(4711, 60, 760, 240, 0.9, 3.4).pts;
-  const srcPts = T.curve(4712, 60, 900, 200, 1.05, 3.0).pts;
+  const srcPts = live && live.source_curve && live.source_curve.length > 1 ? T.seriesPoints(live.source_curve, 900, 200) : T.curve(4712, 60, 900, 200, 1.05, 3.0).pts;
   const minePts = live && live.equity_curve && live.equity_curve.length > 1 ? T.seriesPoints(live.equity_curve, 900, 200) : T.curve(4713, 60, 900, 200, 0.92, 3.2).pts;
 
   const copyTabs = [['orders','Orders'],['positions','Positions'],['perf','Performance'],['fidelity','Copy fidelity'],['cash','Cash events']].map((o) => T.tab(o[1], s.copyTab === o[0], { copyTab: o[0] })).join('');
@@ -458,20 +459,33 @@ export function renderCopy(T) {
       + '<polyline points="' + minePts + '" fill="none" stroke="#C8F542" stroke-width="2" /></svg></div>'
       + '</div>';
   } else if (s.copyTab === 'fidelity') {
+    const fid = live && live.fidelity_detail;
+    let gapCosts;
+    if (fid && fid.execution) {
+      const skips = Object.entries(fid.execution.lost_to_skips || {}).sort((a, b) => b[1] - a[1]);
+      const clamps = +fid.execution.lost_to_clamps || 0;
+      const total = skips.reduce((a, kv) => a + (+kv[1] || 0), 0) + clamps;
+      gapCosts = skips.map(([reason, value]) =>
+        '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Skipped: ' + esc(reason) + '</span><span style="' + M + '; color:#FF4545">-$' + (+value).toFixed(2) + '</span></div>'
+      ).join('')
+        + '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Clamped (cash throttle / order cap)</span><span style="' + M + '; color:rgba(255,255,255,.6)">-$' + clamps.toFixed(2) + '</span></div>'
+        + '<div style="display:flex; justify-content:space-between; font-size:13px; border-top:1px solid rgba(255,255,255,.09); padding-top:11px"><span>Total drag (24h)</span><span style="' + M + '; color:#FF4545">-$' + total.toFixed(2) + '</span></div>';
+    } else {
+      gapCosts = '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Skipped for lack of cash</span><span style="' + M + '; color:#FF4545">-$11.40</span></div>'
+        + '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Filled at a worse price</span><span style="' + M + '; color:#FF4545">-$4.20</span></div>'
+        + '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Rounded position sizes</span><span style="' + M + '; color:rgba(255,255,255,.6)">-$0.90</span></div>'
+        + '<div style="display:flex; justify-content:space-between; font-size:13px; border-top:1px solid rgba(255,255,255,.09); padding-top:11px"><span>Total drag</span><span style="' + M + '; color:#FF4545">-$16.50</span></div>';
+    }
+    const throttleShare = fid && fid.execution && kp.total ? Math.round((kp.skipped / Math.max(1, kp.total)) * 100) : 7;
     body = '<div style="padding:16px 24px; display:grid; grid-template-columns:1fr 1fr; gap:16px">'
       + '<div><div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55); margin-bottom:14px">WHERE THE COPY DRIFTS</div>'
       + '<div style="display:flex; flex-direction:column; gap:14px">'
-      + fidelityBar('Settings vs a neutral mirror', kp.config_fidelity + '%', kp.config_fidelity, '#C8F542')
-      + fidelityBar('Filled vs what you wanted', kp.exec_fidelity + '%', kp.exec_fidelity, '#C8F542')
-      + fidelityBar('Cash throttle active', '7% of orders', 7, '#F5A623', '#F5A623')
+      + fidelityBar('Settings vs a neutral mirror', kp.config_fidelity + '%', Math.min(100, kp.config_fidelity), '#C8F542')
+      + fidelityBar('Filled vs what you wanted', kp.exec_fidelity + '%', Math.min(100, kp.exec_fidelity), '#C8F542')
+      + fidelityBar('Orders skipped', throttleShare + '% of orders', Math.min(100, throttleShare), '#F5A623', '#F5A623')
       + '</div></div>'
       + '<div><div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55); margin-bottom:14px">WHAT THE GAP COSTS</div>'
-      + '<div style="display:flex; flex-direction:column; gap:11px">'
-      + '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Skipped for lack of cash</span><span style="' + M + '; color:#FF4545">-$11.40</span></div>'
-      + '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Filled at a worse price</span><span style="' + M + '; color:#FF4545">-$4.20</span></div>'
-      + '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Rounded position sizes</span><span style="' + M + '; color:rgba(255,255,255,.6)">-$0.90</span></div>'
-      + '<div style="display:flex; justify-content:space-between; font-size:13px; border-top:1px solid rgba(255,255,255,.09); padding-top:11px"><span>Total drag</span><span style="' + M + '; color:#FF4545">-$16.50</span></div>'
-      + '</div></div></div>';
+      + '<div style="display:flex; flex-direction:column; gap:11px">' + gapCosts + '</div></div></div>';
   } else {
     body = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:14px 24px; overflow:hidden">'
       + '<div style="display:grid; grid-template-columns:110px 1fr 120px 120px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
@@ -506,7 +520,7 @@ export function renderCopy(T) {
 
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="padding:16px 20px; border-right:1px solid rgba(255,255,255,.09)"><div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">SUB-ACCOUNT EQUITY</div><div style="' + M + '; font-size:26px; margin-top:8px">$' + num((+kp.equity).toFixed(2)) + '</div><div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); margin-top:4px">$' + num((+kp.contributions).toFixed(2)) + ' put in</div></div>'
-    + '<div style="padding:16px 20px; border-right:1px solid rgba(255,255,255,.09)"><div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">PROFIT ON PAPER</div><div style="' + M + '; font-size:26px; margin-top:8px; color:' + (kp.pnl >= 0 ? '#C8F542' : '#FF4545') + '">' + (kp.pnl >= 0 ? '+' : '-') + '$' + Math.abs(kp.pnl).toFixed(2) + '</div><div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); margin-top:4px">source wallet +' + (+kp.source_return_pct).toFixed(1) + '% same window</div></div>'
+    + '<div style="padding:16px 20px; border-right:1px solid rgba(255,255,255,.09)"><div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">PROFIT ON PAPER</div><div style="' + M + '; font-size:26px; margin-top:8px; color:' + (kp.pnl >= 0 ? '#C8F542' : '#FF4545') + '">' + (kp.pnl >= 0 ? '+' : '-') + '$' + Math.abs(kp.pnl).toFixed(2) + '</div><div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); margin-top:4px">' + (kp.source_pnl_delta != null ? 'source wallet ' + (kp.source_pnl_delta >= 0 ? '+' : '-') + '$' + num(Math.abs(kp.source_pnl_delta).toFixed(0)) + ' same window' : 'source wallet +' + (+kp.source_return_pct).toFixed(1) + '% same window') + '</div></div>'
     + '<div style="padding:16px 20px; border-right:1px solid rgba(255,255,255,.09)"><div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">ORDERS MIRRORED</div><div style="' + M + '; font-size:26px; margin-top:8px">' + kp.mirrored + ' <span style="font-size:15px; color:rgba(255,255,255,.45)">/ ' + kp.total + '</span></div><div style="' + M + '; font-size:11px; color:#F5A623; margin-top:4px">' + kp.skipped + ' skipped — no cash</div></div>'
     + '<div style="padding:16px 20px"><div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">HOW CLOSE TO THE SOURCE</div><div style="' + M + '; font-size:26px; margin-top:8px">' + kp.fidelity + '%</div><div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); margin-top:4px">config ' + kp.config_fidelity + '% · execution ' + kp.exec_fidelity + '%</div></div>'
     + '</div>'
@@ -536,13 +550,21 @@ export function renderPortfolio(T) {
   const live = T.liveData.copy;
   const kp = live && live.kpis ? live.kpis : { equity: 1043.18, cash: 312.40, unrealized: 28.60, open_positions: 14 };
   const equityPts = live && live.equity_curve && live.equity_curve.length > 1 ? T.seriesPoints(live.equity_curve, 900, 220) : T.curve(4711, 60, 900, 220, 0.9, 3.4).pts;
-  const watch = [T.markets[0], T.markets[1], T.markets[7], T.markets[6]].filter(Boolean).map((m) => T.marketView(m));
+  const watch = trackWatchRows(T);
+  // Live-Positionen des Copy-Traders in die Portfolio-Zeilen [Markt, Seite, Entry, Now, Profit, Quelle]
+  const livePortRows = live && live.positions && live.positions.length ? live.positions.map((r) => [
+    r[0], String(r[1] || 'Yes').toUpperCase(),
+    Math.round(parseFloat(r[3]) * 100) + '¢', Math.round(parseFloat(r[4]) * 100) + '¢',
+    r[6], 'copy'
+  ]) : null;
+  const liveHistRows = live && live.history && live.history.length ? live.history : null;
 
   const portTabs = [['positions','Positions'],['copy','Copy equity'],['exposure','Exposure'],['history','History'],['watchlist','Watchlist']].map((o) => T.tab(o[1], s.portTab === o[0], { portTab: o[0] })).join('');
 
   let body = '';
   if (s.portTab === 'positions') {
-    const rows = DEMO_PORT_ROWS.filter((r) => (s.portSource === 'all' || r[5] === s.portSource) && (s.portSide === 'all' || r[1] === s.portSide) && (!s.portLosers || r[4].charAt(0) === '-') && (!s.portQuery.trim() || r[0].toLowerCase().indexOf(s.portQuery.trim().toLowerCase()) >= 0));
+    const baseRows = livePortRows || DEMO_PORT_ROWS;
+    const rows = baseRows.filter((r) => (s.portSource === 'all' || r[5] === s.portSource) && (s.portSide === 'all' || r[1] === s.portSide) && (!s.portLosers || r[4].charAt(0) === '-') && (!s.portQuery.trim() || r[0].toLowerCase().indexOf(s.portQuery.trim().toLowerCase()) >= 0));
     body = '<div>'
       + '<div style="padding:14px 24px 0; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px 18px">'
       + '<div><div style="' + LBL9 + '">SEARCH</div><input value="' + esc(s.portQuery) + '" ' + T.inp((e) => T.setState({ portQuery: e.target.value }), 'portQuery') + ' placeholder="market or wallet…" style="width:100%; box-sizing:border-box; background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:7px; padding:8px 10px; ' + M + '; font-size:11.5px; color:#fff; outline:none" /></div>'
@@ -582,12 +604,35 @@ export function renderPortfolio(T) {
       + '<polyline points="' + equityPts + '" fill="none" stroke="#C8F542" stroke-width="2" /></svg></div>'
       + '</div>';
   } else if (s.portTab === 'exposure') {
-    const alloc = [
+    let alloc = [
       { label: 'MACRO', value: '$412', pct: 46, color: '#C8F542' },
       { label: 'POLITICS', value: '$268', pct: 30, color: '#C8F542' },
       { label: 'CRYPTO', value: '$143', pct: 16, color: '#4F8EF7' },
       { label: 'SPORTS', value: '$72', pct: 8, color: '#4F8EF7' }
     ];
+    let conc = null;
+    if (live && live.positions && live.positions.length) {
+      const byCat = {};
+      const values = [];
+      live.positions.forEach((r) => {
+        const value = parseFloat(String(r[5]).replace(/[$,]/g, '')) || 0;
+        values.push(value);
+        const m = T.markets.find((x) => x.title === r[0]);
+        const cat = (m ? m.cat : 'Other').toUpperCase();
+        byCat[cat] = (byCat[cat] || 0) + value;
+      });
+      const total = values.reduce((a, v) => a + v, 0) || 1;
+      alloc = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([label, value], i) => ({
+        label, value: '$' + value.toFixed(0), pct: Math.round(value / total * 100), color: i < 2 ? '#C8F542' : '#4F8EF7'
+      }));
+      const sorted = values.slice().sort((a, b) => b - a);
+      const cash = +kp.cash || 0;
+      conc = {
+        biggest: '$' + (sorted[0] || 0).toFixed(0) + ' · ' + Math.round((sorted[0] || 0) / total * 100) + '%',
+        top3: '$' + sorted.slice(0, 3).reduce((a, v) => a + v, 0).toFixed(0) + ' · ' + Math.round(sorted.slice(0, 3).reduce((a, v) => a + v, 0) / total * 100) + '%',
+        cash: '$' + cash.toFixed(0) + ' · ' + Math.round(cash / (total + cash) * 100) + '%'
+      };
+    }
     body = '<div style="padding:16px 24px; display:grid; grid-template-columns:1fr 1fr; gap:20px">'
       + '<div><div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55); margin-bottom:14px">BY CATEGORY</div>'
       + '<div style="display:flex; flex-direction:column; gap:14px">'
@@ -598,16 +643,21 @@ export function renderPortfolio(T) {
       + '</div></div>'
       + '<div><div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55); margin-bottom:14px">CONCENTRATION</div>'
       + '<div style="display:flex; flex-direction:column; gap:11px">'
-      + '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Biggest single position</span><span style="' + M + '">$268 · 26%</span></div>'
-      + '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Top three positions</span><span style="' + M + '">$641 · 61%</span></div>'
-      + '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Resolving within 7 days</span><span style="' + M + '; color:#F5A623">$392 · 38%</span></div>'
-      + '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Cash not deployed</span><span style="' + M + '">$312 · 23%</span></div>'
+      + (conc
+        ? '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Biggest single position</span><span style="' + M + '">' + conc.biggest + '</span></div>'
+        + '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Top three positions</span><span style="' + M + '">' + conc.top3 + '</span></div>'
+        + '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Cash not deployed</span><span style="' + M + '">' + conc.cash + '</span></div>'
+        : '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Biggest single position</span><span style="' + M + '">$268 · 26%</span></div>'
+        + '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Top three positions</span><span style="' + M + '">$641 · 61%</span></div>'
+        + '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Resolving within 7 days</span><span style="' + M + '; color:#F5A623">$392 · 38%</span></div>'
+        + '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Cash not deployed</span><span style="' + M + '">$312 · 23%</span></div>')
       + '</div></div></div>';
   } else if (s.portTab === 'history') {
+    const histRows = liveHistRows || DEMO_HIST_ROWS;
     body = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:14px 24px; overflow:hidden">'
       + '<div style="display:grid; grid-template-columns:110px 1fr 78px 92px 92px 100px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
       + '<div>DATE</div><div>MARKET</div><div style="text-align:right">SIDE</div><div style="text-align:right">ENTRY</div><div style="text-align:right">EXIT</div><div style="text-align:right">RESULT</div></div>'
-      + DEMO_HIST_ROWS.map((r) =>
+      + histRows.map((r) =>
         '<div style="display:grid; grid-template-columns:110px 1fr 78px 92px 92px 100px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06)">'
         + r.map((v, i) => {
           const style = i === 1 ? "font-family:'Inter',sans-serif; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" : M + '; font-size:12px; text-align:' + (i === 0 ? 'left' : 'right') + '; color:' + (i === 5 ? (v.charAt(0) === '+' ? '#C8F542' : '#FF4545') : i === 2 ? (v === 'YES' ? '#C8F542' : '#4F8EF7') : 'rgba(255,255,255,.7)');
