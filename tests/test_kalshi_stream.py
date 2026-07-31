@@ -397,6 +397,34 @@ class EnvLoadingTests(unittest.TestCase):
                 else:
                     os.environ[ka.KEY_ID_ENV] = saved
 
+    def test_the_pointer_may_live_in_the_project_env_file(self):
+        # Der Normalfall fuer eine Scheduled Task: sie erbt die
+        # Logon-Umgebung und weiss nichts von diesem Projekt.
+        import os
+
+        saved = os.environ.pop(ka.ENV_FILE_OVERRIDE, None)
+        project_env = ka.REPO_ROOT / ".env"
+        try:
+            if project_env.exists():
+                pointed = ka.read_selected_env(project_env,
+                                               (ka.ENV_FILE_OVERRIDE,))
+                if pointed.get(ka.ENV_FILE_OVERRIDE):
+                    self.assertEqual(str(ka.env_file_candidates()[0]),
+                                     str(Path(pointed[ka.ENV_FILE_OVERRIDE])))
+        finally:
+            if saved is not None:
+                os.environ[ka.ENV_FILE_OVERRIDE] = saved
+
+    def test_the_project_env_is_always_a_candidate(self):
+        import os
+
+        saved = os.environ.pop(ka.ENV_FILE_OVERRIDE, None)
+        try:
+            self.assertIn(ka.REPO_ROOT / ".env", ka.env_file_candidates())
+        finally:
+            if saved is not None:
+                os.environ[ka.ENV_FILE_OVERRIDE] = saved
+
     def test_an_override_path_is_searched_first(self):
         import os
 

@@ -223,12 +223,22 @@ def read_selected_env(path: str | os.PathLike,
 
 
 def env_file_candidates() -> list[Path]:
-    """Files that may carry the two Kalshi variables, most specific first."""
+    """Files that may carry the two Kalshi variables, most specific first.
+
+    ``KALSHI_ENV_FILE`` may itself be written in the project's own ``.env``
+    rather than exported, which is the normal case for a scheduled task: it
+    inherits the logon environment and knows nothing about this project. So the
+    project file is consulted for the pointer as well as for the values.
+    """
     candidates: list[Path] = []
     override = os.environ.get(ENV_FILE_OVERRIDE, "").strip()
+    project_env = REPO_ROOT / ".env"
+    if not override:
+        pointed = read_selected_env(project_env, (ENV_FILE_OVERRIDE,))
+        override = pointed.get(ENV_FILE_OVERRIDE, "").strip()
     if override:
         candidates.append(Path(override).expanduser())
-    candidates.append(REPO_ROOT / ".env")
+    candidates.append(project_env)
     return candidates
 
 
