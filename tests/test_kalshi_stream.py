@@ -14,7 +14,7 @@ def snapshot(market="KXTEST", yes=None, no=None, seq=1, sid=1):
         "yes_dollars_fp": yes if yes is not None
         else [["0.40", "100"], ["0.39", "200"]],
         "no_dollars_fp": no if no is not None
-        else [["0.55", "50"], ["0.54", "80"]],
+        else [["0.45", "50"], ["0.46", "80"]],
     }}
 
 
@@ -80,41 +80,44 @@ class DeltaSemanticsTests(unittest.TestCase):
 
     def setUp(self):
         self.book = st.BookState()
-        self.book.apply_snapshot([[40, 100]], [[55, 50]])
+        self.book.apply_snapshot([["0.40", "100"]], [["0.45", "50"]])
 
     def test_a_delta_adds_to_the_existing_size(self):
-        self.book.apply_delta(40, 25, "yes")
+        self.book.apply_delta("0.40", 25, "yes")
         self.assertEqual(self.book.yes_bids[0.40], 125.0)
 
     def test_a_negative_delta_subtracts(self):
-        self.book.apply_delta(40, -30, "yes")
+        self.book.apply_delta("0.40", -30, "yes")
         self.assertEqual(self.book.yes_bids[0.40], 70.0)
 
     def test_a_level_disappears_when_it_reaches_zero(self):
-        self.book.apply_delta(40, -100, "yes")
+        self.book.apply_delta("0.40", -100, "yes")
         self.assertNotIn(0.40, self.book.yes_bids)
 
     def test_a_level_cannot_go_negative(self):
-        self.book.apply_delta(40, -500, "yes")
+        self.book.apply_delta("0.40", -500, "yes")
         self.assertNotIn(0.40, self.book.yes_bids)
 
     def test_a_delta_can_create_a_new_level(self):
-        self.book.apply_delta(41, 10, "yes")
+        self.book.apply_delta("0.41", 10, "yes")
         self.assertEqual(self.book.best_bid(), 0.41)
 
     def test_a_malformed_delta_is_ignored(self):
         before = dict(self.book.yes_bids)
         self.book.apply_delta("nein", 10, "yes")
-        self.book.apply_delta(40, "nein", "yes")
+        self.book.apply_delta("0.40", "nein", "yes")
         self.assertEqual(self.book.yes_bids, before)
 
 
-class ReflectionTests(unittest.TestCase):
+class YesPricingTests(unittest.TestCase):
+    """With use_yes_price pinned, the no side already arrives as YES asks."""
     def setUp(self):
         self.book = st.BookState()
-        self.book.apply_snapshot([[40, 100], [39, 200]], [[55, 50], [54, 80]])
+        self.book.apply_snapshot([["0.40", "100"], ["0.39", "200"]],
+                                 [["0.45", "50"], ["0.46", "80"]])
 
-    def test_the_ask_is_the_reflected_best_no_bid(self):
+    def test_the_ask_is_taken_as_sent(self):
+        # Nochmal spiegeln wuerde 0.55 ergeben und jeden Spread invertieren.
         self.assertAlmostEqual(self.book.best_ask(), 0.45, places=6)
 
     def test_the_bid_is_taken_directly(self):
@@ -123,7 +126,7 @@ class ReflectionTests(unittest.TestCase):
     def test_the_book_does_not_cross(self):
         self.assertLess(self.book.best_bid(), self.book.best_ask())
 
-    def test_ask_levels_are_reflected_and_ordered_outward(self):
+    def test_ask_levels_are_ordered_outward(self):
         levels = self.book.ask_levels()
         self.assertAlmostEqual(levels[0][0], 0.45, places=6)
         self.assertAlmostEqual(levels[1][0], 0.46, places=6)
@@ -135,7 +138,7 @@ class ReflectionTests(unittest.TestCase):
 
     def test_a_one_sided_book_has_no_mid(self):
         book = st.BookState()
-        book.apply_snapshot([[40, 100]], [])
+        book.apply_snapshot([["0.40", "100"]], [])
         row = book.top_row("t", "snapshot")
         self.assertIsNone(row["mid"])
         self.assertIsNone(row["spread"])
@@ -256,6 +259,27 @@ class StreamStateTests(unittest.TestCase):
         self.assertEqual(self.state.book_rows, [])
 
 
+class CrossedBookAlarmTests(unittest.TestCase):
+    """A healthy book never crosses. Any count above zero is a convention bug."""
+
+    def test_a_normal_book_never_counts_as_crossed(self):
+        state = st.StreamState()
+        state.handle(snapshot(), "r")
+        self.assertEqual(state.crossed_books, 0)
+
+    def test_an_inverted_book_is_counted(self):
+        # Genau das Bild, das eine doppelte Spiegelung erzeugen wuerde.
+        state = st.StreamState()
+        state.handle(snapshot(yes=[["0.60", "10"]], no=[["0.40", "10"]]), "r")
+        self.assertEqual(state.crossed_books, 1)
+
+    def test_the_subscription_id_is_remembered_for_resync(self):
+        state = st.StreamState()
+        state.handle({"type": "subscribed", "msg": {"sid": 42,
+                                                    "market_ticker": "A"}}, "r")
+        self.assertEqual(state.sid, 42)
+
+
 class SubscribeTests(unittest.TestCase):
     def test_the_frame_asks_for_books_and_trades(self):
         msg = ks.subscribe_message(["A", "B"])
@@ -263,6 +287,18 @@ class SubscribeTests(unittest.TestCase):
         self.assertEqual(msg["params"]["market_tickers"], ["A", "B"])
         self.assertIn("orderbook_delta", msg["params"]["channels"])
         self.assertIn("trade", msg["params"]["channels"])
+
+    def test_the_price_scale_flag_is_pinned_not_defaulted(self):
+        # Kalshi kippt den Default; ohne explizites Setzen invertiert an dem
+        # Tag jeder Spread lautlos.
+        self.assertIs(ks.subscribe_message(["A"])["params"]["use_yes_price"],
+                      True)
+
+    def test_the_resnapshot_frame_targets_the_subscription(self):
+        msg = ks.resnapshot_message(7, ["A", "B"])
+        self.assertEqual(msg["cmd"], "update_subscription")
+        self.assertEqual(msg["params"]["action"], "get_snapshot")
+        self.assertEqual(msg["params"]["sids"], [7])
 
     def test_backoff_grows_and_caps(self):
         self.assertEqual(ks.backoff_delay(0), 1.0)

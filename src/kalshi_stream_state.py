@@ -9,9 +9,12 @@ a level is updated by addition and disappears when the running total reaches
 zero. Applying Polymarket's assignment semantics here would drift within
 seconds and never raise an error.
 
-Both ladders are bids. ``yes`` and ``no`` both hold bids. The YES ask side is
-the reflection of the NO bids, because a NO bid at 25 cents is an offer to sell
-YES at 75.
+Both ladders arrive in YES pricing. The subscription pins
+``use_yes_price: true``, so the no-side levels are already YES ask prices and
+must NOT be reflected again. Without the flag the two sides use different
+scales and the no side needs ``1 - p``; doing both, or neither, inverts every
+spread. The flag is pinned precisely so this file only has to be right about
+one convention.
 
 Sequence numbers are load bearing, and they count per subscription rather than
 per market. A single stream numbers every message across all subscribed
@@ -54,17 +57,17 @@ def to_dollars(price) -> float | None:
 class BookState:
     """One market's YES book, kept from a snapshot plus additive deltas."""
 
-    __slots__ = ("yes_bids", "no_bids", "seq", "broken")
+    __slots__ = ("yes_bids", "asks", "seq", "broken")
 
     def __init__(self) -> None:
         self.yes_bids: dict[float, float] = {}
-        self.no_bids: dict[float, float] = {}
+        self.asks: dict[float, float] = {}
         self.seq: int | None = None
         self.broken = False
 
     def apply_snapshot(self, yes: list, no: list, seq: int | None = None) -> None:
         self.yes_bids = self._parse(yes)
-        self.no_bids = self._parse(no)
+        self.asks = self._parse(no)
         self.seq = seq
         self.broken = False
 
@@ -90,7 +93,7 @@ class BookState:
             return
         if dollars is None:
             return
-        book = self.yes_bids if str(side).lower().startswith("y") else self.no_bids
+        book = self.yes_bids if str(side).lower().startswith("y") else self.asks
         total = book.get(dollars, 0.0) + change
         if total > 0:
             book[dollars] = total
@@ -105,14 +108,12 @@ class BookState:
         return max(self.yes_bids) if self.yes_bids else None
 
     def best_ask(self) -> float | None:
-        """Reflection of the best NO bid: a NO bid at p is a YES offer at 1 - p."""
-        if not self.no_bids:
-            return None
-        return round(1.0 - max(self.no_bids), 6)
+        """Lowest offer. Already in YES pricing thanks to ``use_yes_price``."""
+        return min(self.asks) if self.asks else None
 
     def ask_levels(self, levels: int = DEPTH_LEVELS) -> list[tuple[float, float]]:
-        prices = sorted(self.no_bids, reverse=True)[:levels]
-        return [(round(1.0 - price, 6), self.no_bids[price]) for price in prices]
+        prices = sorted(self.asks)[:levels]
+        return [(price, self.asks[price]) for price in prices]
 
     def bid_levels(self, levels: int = DEPTH_LEVELS) -> list[tuple[float, float]]:
         prices = sorted(self.yes_bids, reverse=True)[:levels]
@@ -126,8 +127,8 @@ class BookState:
     def touch_signature(self) -> tuple:
         bid, ask = self.best_bid(), self.best_ask()
         return (bid, ask,
-                self.yes_bids.get(max(self.yes_bids)) if self.yes_bids else None,
-                self.no_bids.get(max(self.no_bids)) if self.no_bids else None)
+                self.yes_bids.get(bid) if bid is not None else None,
+                self.asks.get(ask) if ask is not None else None)
 
     def top_row(self, recv_ts: str, event_type: str,
                 levels: int = DEPTH_LEVELS) -> dict:
@@ -147,10 +148,10 @@ class BookState:
             "bid_usd_top": bid_usd,
             "ask_usd_top": ask_usd,
             "imbalance_top": round(bid_usd / total, 6) if total > 0 else None,
-            "bid_size_touch": self.yes_bids.get(max(self.yes_bids)) if self.yes_bids else None,
-            "ask_size_touch": self.no_bids.get(max(self.no_bids)) if self.no_bids else None,
+            "bid_size_touch": self.yes_bids.get(bid) if bid is not None else None,
+            "ask_size_touch": self.asks.get(ask) if ask is not None else None,
             "bid_levels": len(self.yes_bids),
-            "ask_levels": len(self.no_bids),
+            "ask_levels": len(self.asks),
         }
 
 
@@ -165,6 +166,11 @@ class StreamState:
         self.counts: dict[str, int] = {}
         self.seq_gaps = 0
         self.needs_resync = False
+        #: Gekreuzte Buecher sind unmoeglich, solange die Preiskonvention
+        #: stimmt. Jeder Wert ueber null ist ein Alarm, kein Rauschen.
+        self.crossed_books = 0
+        #: Subscription-Id aus der Bestaetigung, gebraucht fuer den Resnapshot.
+        self.sid = None
         #: Der Zaehler laeuft je Subscription, nicht je Markt.
         self.seq_by_sid: dict[str, int] = {}
         self._last_touch: dict[str, tuple] = {}
@@ -205,6 +211,12 @@ class StreamState:
         self._last_touch[market] = signature
         row = book.top_row(recv_ts, event_type, self.depth_levels)
         row["market_id"] = market
+        # Lautes Signal gegen die stille Variante des Preis-Konventionsfehlers:
+        # waeren die Seiten vertauscht oder doppelt gespiegelt, kreuzt fast
+        # jedes Buch. Ein gesundes Buch kreuzt nie.
+        if row["best_bid"] is not None and row["best_ask"] is not None \
+                and row["best_ask"] <= row["best_bid"]:
+            self.crossed_books += 1
         self.book_rows.append(row)
 
     def handle(self, event: dict, recv_ts: str) -> None:
@@ -215,6 +227,12 @@ class StreamState:
         self.counts[event_type or "unknown"] = self.counts.get(event_type or "unknown", 0) + 1
         message = event.get("msg")
         if not isinstance(message, dict):
+            return
+        if event_type == "subscribed":
+            # Die Subscription-Id ist der einzige Weg, spaeter einen frischen
+            # Snapshot anzufordern; ohne sie bleibt ein Buch nach einer Luecke
+            # bis zum naechsten Verbindungszyklus tot.
+            self.sid = message.get("sid", event.get("sid"))
             return
         market = str(message.get("market_ticker") or "")
         if not market:
