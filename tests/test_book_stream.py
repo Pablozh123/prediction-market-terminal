@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from app import proc_lock
 from src import book_stream as bs
 
 
@@ -370,17 +371,17 @@ class LockTests(unittest.TestCase):
     def test_a_live_foreign_owner_blocks_the_start(self):
         # PID 1 existiert praktisch immer und gehoert uns nicht.
         (self.out / "stream_recorder.lock").write_text("1", encoding="utf-8")
-        original = bs._pid_alive
-        bs._pid_alive = lambda pid: True
-        self.addCleanup(setattr, bs, "_pid_alive", original)
+        original = proc_lock.pid_alive
+        proc_lock.pid_alive = lambda pid: True
+        self.addCleanup(setattr, proc_lock, "pid_alive", original)
         with self.assertRaises(bs.AlreadyRunning):
             bs.acquire_lock(self.out)
 
     def test_a_stale_lock_from_a_dead_process_is_taken_over(self):
         (self.out / "stream_recorder.lock").write_text("999999", encoding="utf-8")
-        original = bs._pid_alive
-        bs._pid_alive = lambda pid: False
-        self.addCleanup(setattr, bs, "_pid_alive", original)
+        original = proc_lock.pid_alive
+        proc_lock.pid_alive = lambda pid: False
+        self.addCleanup(setattr, proc_lock, "pid_alive", original)
         bs.acquire_lock(self.out)  # darf nicht werfen
 
     def test_a_corrupt_lock_does_not_block_forever(self):
@@ -399,8 +400,8 @@ class LockTests(unittest.TestCase):
         self.assertTrue(lock.exists())
 
     def test_pid_zero_is_never_alive(self):
-        self.assertFalse(bs._pid_alive(0))
-        self.assertFalse(bs._pid_alive(-5))
+        self.assertFalse(proc_lock.pid_alive(0))
+        self.assertFalse(proc_lock.pid_alive(-5))
 
     def test_run_releases_the_lock_even_when_it_fails(self):
         def boom(url):
@@ -413,9 +414,9 @@ class LockTests(unittest.TestCase):
     def test_a_second_run_is_refused_while_the_first_holds_the_lock(self):
         bs.acquire_lock(self.out)
         (self.out / "stream_recorder.lock").write_text("1", encoding="utf-8")
-        original = bs._pid_alive
-        bs._pid_alive = lambda pid: True
-        self.addCleanup(setattr, bs, "_pid_alive", original)
+        original = proc_lock.pid_alive
+        proc_lock.pid_alive = lambda pid: True
+        self.addCleanup(setattr, proc_lock, "pid_alive", original)
         with self.assertRaises(bs.AlreadyRunning):
             bs.run(out_dir=self.out, duration_s=1, loop=False,
                    ws_factory=lambda url: FakeSocket([]),
@@ -423,9 +424,9 @@ class LockTests(unittest.TestCase):
 
     def test_the_cli_reports_a_conflict_instead_of_crashing(self):
         (self.out / "stream_recorder.lock").write_text("1", encoding="utf-8")
-        original = bs._pid_alive
-        bs._pid_alive = lambda pid: True
-        self.addCleanup(setattr, bs, "_pid_alive", original)
+        original = proc_lock.pid_alive
+        proc_lock.pid_alive = lambda pid: True
+        self.addCleanup(setattr, proc_lock, "pid_alive", original)
         code = bs.main(["--duration", "1", "--out-dir", str(self.out)])
         self.assertEqual(code, 1)
 

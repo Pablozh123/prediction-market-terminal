@@ -4,6 +4,7 @@
 #   MarketIntelAlertScanner - background alert scanner (scripts/run_alert_scanner.py)
 #   MarketIntelBookRecorder - REST order-book recorder, one pass every 2 minutes
 #   MarketIntelBookStream   - CLOB WebSocket recorder, seconds resolution
+#   MarketIntelKalshi       - Kalshi REST recorder, one pass every 2 minutes
 # Re-running is safe: -Force re-registers an existing task in place.
 # Remove again with scripts/uninstall_autostart.ps1. No admin rights required.
 
@@ -16,7 +17,11 @@ $tasks = @(
     @{ Name = "MarketIntelCopyDaemon";    Args = "scripts\run_copy_trader.py" },
     @{ Name = "MarketIntelAlertScanner";  Args = "scripts\run_alert_scanner.py" },
     @{ Name = "MarketIntelBookRecorder";  Args = "scripts\run_book_recorder.py" },
-    @{ Name = "MarketIntelBookStream";    Args = "scripts\run_book_stream.py" }
+    @{ Name = "MarketIntelBookStream";    Args = "scripts\run_book_stream.py" },
+    @{ Name = "MarketIntelKalshi";        Args = "scripts\run_kalshi_recorder.py" },
+    # Braucht KALSHI_KEY_ID und KALSHI_PRIVATE_KEY_PATH. Ohne sie beendet sich
+    # die Task mit einer klaren Meldung, statt Daten zu schreiben.
+    @{ Name = "MarketIntelKalshiStream";  Args = "scripts\run_kalshi_stream.py" }
 )
 
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
