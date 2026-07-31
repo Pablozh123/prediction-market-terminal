@@ -42,9 +42,13 @@ late drift reconstructs terminal mark-to-mid exactly, asserted to nine decimal
 places in the tests.
 
 **The binding constraint is staleness, not spread width.** Same code, same
-parameters, run on seconds-resolution data: markout per fill falls from 361 to
-4 cents. Sample so far is one hour and 273 fills, so this is a first look, not
-a result. Widening the quote instead only crosses breakeven near an 8 cent half
+parameters, run on seconds-resolution data over two days and 1.4 million
+streamed rows: markout per fill falls from 361 to 19.5 cents, an eighteenfold
+reduction from nothing but requoting faster. Spread earned per fill barely
+moves, 142 against 148 cents - the quoting did not improve, the quotes stopped
+standing still. Not yet a profitability result: the two fill models disagree in
+sign, so the sign reported would be chosen by the fill assumption rather than
+the data. Widening the quote instead only crosses breakeven near an 8 cent half
 spread, where fills collapse tenfold.
 
 **Cross-venue gaps are carry, not arbitrage — and they prove it by staying
@@ -64,6 +68,15 @@ and pay 400 to 933 dollars a day. That reads like free money until the spread
 column: those books quote 4 to 64 cents wide against a 2.5 cent qualifying
 band. The venue is buying liquidity that does not otherwise exist, and adverse
 selection is the price.
+
+**Two venues can price the same event and settle it differently.** All five
+confirmed cross-venue pairs carry a resolution clause on one side the other
+does not mention. One is substantive: Kalshi resolves the 2028 presidential
+market on who is next *inaugurated*, Polymarket on who *wins the election* per
+named media sources. A candidate who wins and is not inaugurated pays YES on
+one venue and NO on the other, so a basket over that pair loses both legs
+instead of hedging. The titles are near identical; the difference lives only in
+the rule text, and that pair had passed my own mismatch screen as clean.
 
 **The streamed book is correct, and that is now tested rather than assumed.**
 Polymarket sends no sequence numbers, so a dropped update is invisible and the
@@ -98,7 +111,7 @@ them, so a dead socket and a quiet market look identical from this side. The
 second clock would have moved in lockstep with the first and only looked like a
 distinction. One honest clock, documented as a backstop, replaced it.
 
-## Four silent failures, and how they surfaced
+## Five silent failures, and how they surfaced
 
 None of these crashed, raised, or failed a test. Each would have corrupted
 numbers while every log stayed clean.
@@ -118,6 +131,10 @@ numbers while every log stayed clean.
 4. **A watchdog punishing the normal case.** Ninety seconds of silence ended
    the cycle and rebuilt the market selection, on markets where silence is the
    resting state.
+5. **A pair that passed my own screen.** The mismatch detector cleared the 2028
+   presidential pair because the titles matched and no keyword tripped. Only
+   reading both rulebooks showed that one settles on inauguration and the other
+   on winning. A screen that finds nothing has not cleared anything.
 
 ## What the literature says
 
