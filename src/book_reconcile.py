@@ -287,40 +287,38 @@ def _fmt(value, spec="{:.2f}") -> str:
 def _markdown(results: dict, tag: str) -> str:
     s = results["summary"]
     lines = [
-        f"# Buch-Abgleich Stream gegen REST ({tag})",
+        f"# Streamed book reconciled against REST ({tag})",
         "",
-        f"{results['tokens']} Tokens, {results['rounds_connected']} von "
-        f"{results['rounds_requested']} Runden verbunden, "
-        f"{results['seconds_per_round']:.0f} Sekunden Stream je Runde, "
-        f"Toleranz {results['tolerance_ticks']:.0f} Tick.",
+        f"{results['tokens']} tokens, {results['rounds_connected']} of "
+        f"{results['rounds_requested']} rounds connected, "
+        f"{results['seconds_per_round']:.0f} seconds of streaming per round, "
+        f"tolerance {results['tolerance_ticks']:.0f} tick.",
         "",
-        f"Vergleiche {s['comparisons']}, davon uebereinstimmend {s['match']}, "
-        f"abweichend {s['drift']}, nicht vergleichbar {s['unusable']}. "
-        f"Uebereinstimmungsquote {_fmt(s['match_rate'], '{:.1%}')}, "
-        f"groesste Abweichung {_fmt(s['max_diff_ticks'], '{:.1f}')} Ticks, "
-        f"mittlere {_fmt(s.get('mean_diff_ticks'), '{:.2f}')} Ticks.",
+        f"Comparisons {s['comparisons']}, of which matching {s['match']}, "
+        f"diverging {s['drift']}, not comparable {s['unusable']}. "
+        f"Agreement rate {_fmt(s['match_rate'], '{:.1%}')}, "
+        f"largest divergence {_fmt(s['max_diff_ticks'], '{:.1f}')} ticks, "
+        f"mean {_fmt(s.get('mean_diff_ticks'), '{:.2f}')} ticks.",
         "",
-        "## Warum das noetig ist",
+        "## Why this is necessary",
         "",
-        "Polymarket sendet keine Sequenznummern. Auf Kalshi verraet eine Luecke "
-        "im Zaehler, dass eine Nachricht verloren ging; auf Polymarket gibt es "
-        "diesen Zaehler nicht. Ein verlorenes oder falsch angewendetes Update "
-        "ist damit unsichtbar - das Buch driftet lautlos, und jeder Spread, "
-        "jeder Mid und jede Imbalance daraus ist falsch, ohne dass ein Test "
-        "oder ein Log das zeigt. Der Abgleich gegen das REST-Buch ist der "
-        "einzige Weg, den das Protokoll offen laesst.",
+        "Polymarket sends no sequence numbers. On Kalshi a gap in the counter "
+        "reveals that a message was lost; on Polymarket there is no such "
+        "counter. A dropped or misapplied update is therefore invisible: the "
+        "book drifts silently, and every spread, mid and imbalance derived "
+        "from it is wrong without any test or log showing it. Reconciling "
+        "against the REST book is the only route the protocol leaves open.",
         "",
-        "## Lesehilfe",
+        "## How to read this",
         "",
-        "Eine einzelne Abweichung beweist nichts: die beiden Beobachtungen "
-        "liegen Millisekunden auseinander, und ein schnelles Buch bewegt sich "
-        "in dieser Zeit voellig zu Recht. Aussagekraeftig ist die Form ueber "
-        "die Zeit - ob Abweichung selten und voruebergehend ist oder haeufig "
-        "und wachsend. Nur das Zweite ist ein Fehler, und nur eine Zeitreihe "
-        "kann die beiden auseinanderhalten. Deshalb schreibt dieses Modul eine "
-        "Reihe und behauptet nichts.",
+        "A single divergence proves nothing. The two observations lie "
+        "milliseconds apart, and a fast book moves in that time entirely "
+        "legitimately. What carries meaning is the shape over time: whether "
+        "divergence is rare and transient or frequent and growing. Only the "
+        "second is a defect, and only a time series can tell the two apart. "
+        "That is why this module records a series and asserts nothing.",
         "",
-        "Read-only-Forschung, keine Handelsempfehlung.",
+        "Read-only research. Not trading advice.",
     ]
     return "\n".join(lines)
 

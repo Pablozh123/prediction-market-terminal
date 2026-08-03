@@ -35,24 +35,24 @@ class NormaliseTests(unittest.TestCase):
 
 class FlagTests(unittest.TestCase):
     def test_an_ambiguity_clause_is_flagged(self):
-        self.assertIn("mehrdeutigkeit",
+        self.assertIn("ambiguity",
                       rr.flags("If the outcome is ambiguous, the market voids."))
 
     def test_a_last_traded_price_clause_is_flagged(self):
-        self.assertIn("mehrdeutigkeit",
+        self.assertIn("ambiguity",
                       rr.flags("settles at the last traded price"))
 
     def test_a_named_source_is_flagged(self):
-        self.assertIn("quelle", rr.flags("according to official results"))
+        self.assertIn("source", rr.flags("according to official results"))
 
     def test_a_partial_payout_clause_is_flagged(self):
-        self.assertIn("teilweise", rr.flags("pro rata across winners"))
+        self.assertIn("partial", rr.flags("pro rata across winners"))
 
     def test_plain_text_trips_nothing_relevant(self):
-        self.assertNotIn("mehrdeutigkeit", rr.flags("Resolves YES if X wins."))
+        self.assertNotIn("ambiguity", rr.flags("Resolves YES if X wins."))
 
     def test_flags_are_case_insensitive(self):
-        self.assertIn("mehrdeutigkeit", rr.flags("AMBIGUOUS OUTCOME"))
+        self.assertIn("ambiguity", rr.flags("AMBIGUOUS OUTCOME"))
 
     def test_empty_text_has_no_flags(self):
         self.assertEqual(rr.flags(""), [])
@@ -97,13 +97,13 @@ class ComparisonTests(unittest.TestCase):
         row = rr.compare_pair(self._pair(), feed(
             kalshi=kalshi_payload("If ambiguous, settle at last traded price."),
             gamma=gamma_payload("Resolves to the winner.")))
-        self.assertIn("mehrdeutigkeit", row["one_sided_flags"])
+        self.assertIn("ambiguity", row["one_sided_flags"])
 
     def test_a_clause_on_both_sides_is_not_one_sided(self):
         row = rr.compare_pair(self._pair(), feed(
             kalshi=kalshi_payload("If ambiguous, void."),
             gamma=gamma_payload("If the outcome is ambiguous, void.")))
-        self.assertNotIn("mehrdeutigkeit", row["one_sided_flags"])
+        self.assertNotIn("ambiguity", row["one_sided_flags"])
 
     def test_a_missing_text_is_not_silently_a_match(self):
         row = rr.compare_pair(self._pair(), feed(
@@ -132,8 +132,8 @@ class ReportTests(unittest.TestCase):
         paths = rr.write_outputs(self._results(), "test",
                                  research_dir=Path(self.tmp.name) / "r")
         body = paths["md"].read_text(encoding="utf-8")
-        self.assertIn("urteilt nicht", body)
-        self.assertIn("nicht freigegeben", body)
+        self.assertIn("does not judge", body)
+        self.assertIn("has not been cleared", body)
         self.assertNotIn("ß", body)
 
     def test_both_rulebooks_appear_in_the_report(self):

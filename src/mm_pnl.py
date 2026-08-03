@@ -642,8 +642,8 @@ def render_png(results: dict, out_path: Path) -> None:
             ax.spines[spine].set_color(COLOR_GRID)
         ax.tick_params(colors=COLOR_TEXT_2, labelsize=9)
 
-    labels = ["Spread-\nErtrag", "Markout\n(Adverse\nSelektion)",
-              "spaeterer\nDrift", "Rebate", "Summe"]
+    labels = ["Spread\nearned", "Markout\n(adverse\nselection)",
+              "Late\ndrift", "Rebate", "Total"]
     keys = ["spread_capture_usd", "markout_usd", "late_drift_usd",
             "rebate_usd", "total_usd"]
     width = 0.36
@@ -659,25 +659,27 @@ def render_png(results: dict, out_path: Path) -> None:
     ax1.set_xticks(range(len(labels)))
     ax1.set_xticklabels(labels, fontsize=8)
     ax1.set_ylabel("USD", color=COLOR_TEXT_2, fontsize=9)
-    ax1.set_title("PnL-Zerlegung (links Touch-Modell, rechts Tape-Modell)",
+    ax1.set_title("PnL decomposition (left touch model, right tape model)",
                   color=COLOR_TEXT, fontsize=11, loc="left")
 
     for model, colour in (("touch", COLOR_NEUTRAL), ("tape", COLOR_POS)):
         rows = results["fill_models"][model]["gamma_sweep"]
         ax2.plot([r["gamma"] for r in rows], [r["total_usd"] for r in rows],
                  color=colour, linewidth=2.0, marker="o", markersize=4,
-                 label=f"{model}-Modell")
+                 label=f"{model} model")
     ax2.axhline(0, color=COLOR_TEXT_2, linewidth=1.0)
-    ax2.set_xlabel("gamma (Staerke des Inventar-Skews)", color=COLOR_TEXT_2, fontsize=9)
-    ax2.set_ylabel("Gesamt-PnL (USD)", color=COLOR_TEXT_2, fontsize=9)
-    ax2.set_title("Wirkung der Skew-Staerke", color=COLOR_TEXT, fontsize=11, loc="left")
+    ax2.set_xlabel("gamma (strength of the inventory skew)", color=COLOR_TEXT_2,
+                   fontsize=9)
+    ax2.set_ylabel("Total PnL (USD)", color=COLOR_TEXT_2, fontsize=9)
+    ax2.set_title("Effect of skew strength", color=COLOR_TEXT, fontsize=11,
+                  loc="left")
     ax2.legend(frameon=False, fontsize=9, labelcolor=COLOR_TEXT_2)
 
     params = results["params"]
     fig.suptitle(
-        f"Paper-MM PnL-Zerlegung — {results['tokens']} Tokens, "
-        f"{len(results['days'])} Tage, halber Spread {params['half_spread']}, "
-        f"Quote {params['quote_usd']} USD, Cap {params['cap_usd']} USD",
+        f"Paper market-making PnL decomposition — {results['tokens']} tokens, "
+        f"{len(results['days'])} days, half spread {params['half_spread']}, "
+        f"quote {params['quote_usd']} USD, cap {params['cap_usd']} USD",
         color=COLOR_TEXT, fontsize=11.5, x=0.02, y=0.95, ha="left")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, facecolor=COLOR_SURFACE)
@@ -692,35 +694,35 @@ def _markdown(results: dict, tag: str) -> str:
     days = results["days"]
     params = results["params"]
     lines = [
-        f"# Paper-MM PnL-Zerlegung ({tag})",
+        f"# Paper market-making PnL decomposition ({tag})",
         "",
-        f"Quelle: {results['source']} "
-        f"({'Stream, ereignisgetrieben' if results['stream'] else 'REST, 120s-Raster'}), "
-        f"{results['tokens']} Tokens, {results['snapshots']:,} Snapshots, "
-        f"{results['tape_prints']:,} Tape-Prints, {len(days)} Tage "
-        f"({days[0] if days else '-'} bis {days[-1] if days else '-'}).",
+        f"Source: {results['source']} "
+        f"({'stream, event driven' if results['stream'] else 'REST, 120s grid'}), "
+        f"{results['tokens']} tokens, {results['snapshots']:,} snapshots, "
+        f"{results['tape_prints']:,} tape prints, {len(days)} days "
+        f"({days[0] if days else '-'} to {days[-1] if days else '-'}).",
         "",
-        f"Quoting: halber Spread {params['half_spread']}, gamma {params['gamma']}, "
-        f"Quote {params['quote_usd']} USD, Inventar-Cap {params['cap_usd']} USD. "
-        f"Maker-Oekonomie der Kategorie {results['category']}, Gebuehrenstand "
+        f"Quoting: half spread {params['half_spread']}, gamma {params['gamma']}, "
+        f"quote {params['quote_usd']} USD, inventory cap {params['cap_usd']} USD. "
+        f"Maker economics for category {results['category']}, fee schedule "
         f"{results['fee_model_version']}.",
         "",
-        "| Posten | Touch-Modell (USD) | Tape-Modell (USD) |",
+        "| Item | Touch model (USD) | Tape model (USD) |",
         "|---|---|---|",
     ]
     rows = [
         ("Fills", "fills", "{:,.0f}"),
-        ("Spread-Ertrag", "spread_capture_usd", "{:+.2f}"),
-        ("Markout 5min (Adverse Selektion)", "markout_usd", "{:+.2f}"),
-        ("spaeterer Drift (Inventar)", "late_drift_usd", "{:+.2f}"),
-        ("Maker-Rebate", "rebate_usd", "{:+.2f}"),
-        ("mark-to-mid (Identitaet)", "mark_to_mid_usd", "{:+.2f}"),
-        ("Summe", "total_usd", "{:+.2f}"),
-        ("Spread-Ertrag je Fill (Cents)", "spread_capture_cents_per_fill", "{:+.3f}"),
-        ("Markout je Fill (Cents)", "markout_cents_per_fill", "{:+.3f}"),
-        ("Ergebnis je Fill (Cents)", "total_cents_per_fill", "{:+.3f}"),
-        ("mittleres |Inventar| (USD)", "inventory_abs_mean_usd", "{:.2f}"),
-        ("max |Inventar| (USD)", "inventory_abs_max_usd", "{:.2f}"),
+        ("Spread earned", "spread_capture_usd", "{:+.2f}"),
+        ("Markout 5min (adverse selection)", "markout_usd", "{:+.2f}"),
+        ("Late drift (inventory)", "late_drift_usd", "{:+.2f}"),
+        ("Maker rebate", "rebate_usd", "{:+.2f}"),
+        ("Mark-to-mid (identity)", "mark_to_mid_usd", "{:+.2f}"),
+        ("Total", "total_usd", "{:+.2f}"),
+        ("Spread earned per fill (cents)", "spread_capture_cents_per_fill", "{:+.3f}"),
+        ("Markout per fill (cents)", "markout_cents_per_fill", "{:+.3f}"),
+        ("Result per fill (cents)", "total_cents_per_fill", "{:+.3f}"),
+        ("Mean |inventory| (USD)", "inventory_abs_mean_usd", "{:.2f}"),
+        ("Max |inventory| (USD)", "inventory_abs_max_usd", "{:.2f}"),
     ]
     for label, key, fmt in rows:
         touch = results["fill_models"]["touch"]["decomposition"][key]
@@ -733,12 +735,12 @@ def _markdown(results: dict, tag: str) -> str:
         walk = entry["walk_forward"]
         lines += [
             "",
-            f"## {model}-Fill-Modell",
+            f"## {model} fill model",
             "",
-            f"Block-Bootstrap-CI 95% auf Tagesebene fuer die Tagessumme: "
-            f"{ci if ci else 'nicht berechenbar'} USD.",
+            f"Block-bootstrap 95% CI at day level for the daily total: "
+            f"{ci if ci else 'not computable'} USD.",
             "",
-            "| gamma | Fills | Spread-Ertrag | Markout | Summe | mittleres \\|Inventar\\| |",
+            "| gamma | Fills | Spread earned | Markout | Total | mean \\|inventory\\| |",
             "|---|---|---|---|---|---|",
         ]
         for row in entry["gamma_sweep"]:
@@ -749,15 +751,15 @@ def _markdown(results: dict, tag: str) -> str:
         rewards = entry["liquidity_rewards"]
         lines += [
             "",
-            f"Liquiditaets-Rewards: im Schnitt "
-            f"{rewards['qualifying_share']:.0%} der Quote-Zeit innerhalb der "
-            f"Reward-Spanne, {rewards['markets']} Maerkte, Pool-Annahme "
-            f"{rewards['pool_usd_per_day']} USD pro Markt und Tag "
-            f"(Median der {lr.MARKETS_WITH_POOL:,} Maerkte mit Pool, "
-            f"Stand {rewards['snapshot_date']}).",
+            f"Liquidity rewards: on average "
+            f"{rewards['qualifying_share']:.0%} of quoting time inside the "
+            f"reward band, {rewards['markets']} markets, pool assumption "
+            f"{rewards['pool_usd_per_day']} USD per market per day "
+            f"(median of the {lr.MARKETS_WITH_POOL:,} markets carrying a pool, "
+            f"as of {rewards['snapshot_date']}).",
             "",
-            "| Konkurrenz (Vielfaches des eigenen Scores) | eigener Anteil | "
-            "Reward (USD) | Summe inkl. Reward (USD) |",
+            "| Competition (multiple of own score) | own share | "
+            "Reward (USD) | Total incl. reward (USD) |",
             "|---|---|---|---|",
         ]
         for row in rewards["sensitivity"]:
@@ -769,8 +771,8 @@ def _markdown(results: dict, tag: str) -> str:
 
         lines += [
             "",
-            "| Quoting-Modus | Fills | Spread-Ertrag je Fill (c) | Markout je "
-            "Fill (c) | Summe (USD) | CI95 Tagessumme |",
+            "| Quoting mode | Fills | Spread earned per fill (c) | Markout per "
+            "fill (c) | Total (USD) | CI95 daily total |",
             "|---|---|---|---|---|---|",
         ]
         for row in entry["quote_modes"]:
@@ -782,7 +784,7 @@ def _markdown(results: dict, tag: str) -> str:
 
         lines += [
             "",
-            "| halber Spread | Fills | Spread-Ertrag | Markout | Ertrag/Markout | Summe |",
+            "| Half spread | Fills | Spread earned | Markout | Earned/markout | Total |",
             "|---|---|---|---|---|---|",
         ]
         for row in entry["half_spread_sweep"]:
@@ -797,63 +799,61 @@ def _markdown(results: dict, tag: str) -> str:
         control = walk.get("control_test")
         lines += [
             "",
-            f"Walk-forward: auf den fruehen Tagen gewaehltes gamma "
-            f"{chosen if chosen is not None else '-'}; auf den spaeten Tagen "
-            f"ergibt es {_fmt(test['total_usd'] if test else None)} USD gegen "
-            f"{_fmt(control['total_usd'] if control else None)} USD ohne Skew "
+            f"Walk-forward: gamma chosen on the early days "
+            f"{chosen if chosen is not None else '-'}; on the late days it "
+            f"yields {_fmt(test['total_usd'] if test else None)} USD against "
+            f"{_fmt(control['total_usd'] if control else None)} USD without skew "
             f"(gamma 0).",
         ]
 
     lines += [
         "",
-        "## Lesehilfe",
+        "## How to read this",
         "",
-        "Die drei Preisposten sind keine Schaetzung, sondern eine Identitaet: "
-        "Spread-Ertrag plus Markout plus spaeterer Drift ergibt exakt den "
-        "mark-to-mid Endwert je Fill. Der Spread-Ertrag ist, was das Quoting "
-        "verdient hat, der Markout ist, was informierte Gegenparteien davon "
-        "zurueckgeholt haben, der spaetere Drift ist der Preis des getragenen "
-        "Inventars.",
+        "The three price items are not an estimate but an identity: spread "
+        "earned plus markout plus late drift reconstructs the terminal "
+        "mark-to-mid value per fill exactly. Spread earned is what the "
+        "quoting made, markout is what informed counterparties took back "
+        "out of it, and late drift is the price of the inventory carried.",
         "",
-        "Die beiden Fill-Modelle klammern die Wahrheit ein. Touch fuellt nur, "
-        "wenn die Gegenseite unsere Quote kreuzt, ignoriert also Fills am Touch "
-        "und unterschaetzt die Fill-Zahl. Tape fuellt bei jedem kreuzenden "
-        "Print, unterstellt also Queue-Prioritaet und ueberschaetzt sie. Wer "
-        "nur ein Modell rechnet, waehlt sein Ergebnis mit der Annahme.",
+        "The two fill models bracket the truth. Touch fills only when the "
+        "other side crosses our quote, so it ignores fills at the touch and "
+        "understates the fill count. Tape fills on every crossing print, so "
+        "it assumes queue priority and overstates it. Computing only one "
+        "model means choosing the result with the assumption.",
         "",
-        "Die Spalte Ertrag/Markout in der Breiten-Tabelle ist die "
-        "Break-even-Kennzahl: unter 1 frisst die Adverse Selektion mehr, als "
-        "das Quoting einnimmt. Sie steigt mit der Quote-Breite, weil der "
-        "Spread-Ertrag mit der Breite waechst, die Gegenbewegung aber von der "
-        "Marktbewegung bestimmt wird und nicht von unserer Quote. Wo die "
-        "Kennzahl 1 kreuzt, brechen zugleich die Fills ein - eine so breite "
-        "Quote steht am Markt vorbei.",
+        "The earned/markout column in the width table is the break-even "
+        "ratio: below 1, adverse selection eats more than the quoting takes "
+        "in. It rises with quote width, because spread earned grows with "
+        "width while the adverse move is set by the market and not by our "
+        "quote. Where the ratio crosses 1, the fills collapse at the same "
+        "time - a quote that wide stands past the market.",
         "",
-        "Maker zahlen auf Polymarket keine Gebuehr und bekommen einen Anteil "
-        "der eingesammelten Taker-Gebuehren zurueck. Der Rebate ist hier die "
-        "Obergrenze dieses Anteils, die tatsaechliche Tagesverteilung kann "
-        "niedriger ausfallen.",
+        "Makers pay no fee on Polymarket and receive a share of the taker "
+        "fees collected. The rebate here is the upper bound on that share; "
+        "the actual daily distribution can come out lower.",
         "",
-        "Die Liquiditaets-Rewards sind der dritte Ertragsposten und der "
-        "einzige, der nicht davon abhaengt, ob ein Fill zustande kommt: "
-        "bezahlt wird Praesenz nahe am Mid. Der eigene Anteil laesst sich nicht "
-        "berechnen, weil er von allen anderen Makern im selben Markt abhaengt, "
-        "deshalb steht dort eine Spanne statt einer Zahl. Die Pool-Annahme ist "
-        "der Median ueber alle Maerkte mit Pool und damit bewusst "
-        "konservativ: die Verteilung ist stark rechtsschief, der groesste Pool "
-        f"liegt bei {lr.POOL_MAX_USD:.0f} USD pro Tag gegen einen Median von "
-        f"{lr.POOL_MEDIAN_USD:.0f}. Der Hebel bei dieser Ertragsquelle ist "
-        "deshalb die Marktauswahl, nicht das engere Quoten - eine Aussage, die "
-        "diese Rechnung nahelegt und nicht belegt, weil hier nicht nach "
-        "Pool-Groesse ausgewaehlt wurde.",
+        "Liquidity rewards are the third revenue line and the only one that "
+        "does not depend on a fill happening at all: what is paid for is "
+        "presence near the mid. Your own share cannot be computed, because "
+        "it depends on every other maker in the same market, so a range "
+        "stands there instead of a number. The pool assumption is the median "
+        "across all markets carrying a pool and therefore deliberately "
+        "conservative: the distribution is strongly right skewed, the "
+        "largest pool "
+        f"sits at {lr.POOL_MAX_USD:.0f} USD per day against a median of "
+        f"{lr.POOL_MEDIAN_USD:.0f}. The lever on this revenue line is "
+        "therefore market selection, not quoting tighter - a statement this "
+        "calculation suggests rather than proves, because nothing here was "
+        "selected by pool size.",
         "",
     ]
     lines += _limits_section(results)
     lines += [
         "",
-        "Weitere Grenzen: mark-to-mid ohne Aufloesungs-Modellierung, Quotes nur "
-        "bei Mid in (0.05, 0.95) und Spread bis 0.10, keine Queue-Position, "
-        "keine Teilfills. Paper-only, keine Handelsempfehlung.",
+        "Further limits: mark-to-mid without resolution modelling, quotes only "
+        "where the mid is in (0.05, 0.95) and the spread at most 0.10, no "
+        "queue position, no partial fills. Paper only. Not trading advice.",
     ]
     return "\n".join(lines)
 
@@ -872,22 +872,21 @@ def _limits_section(results: dict) -> list[str]:
     """
     if results["stream"]:
         lines = [
-            "Aufloesung: die Quotes werden bei jeder Bewegung des Top of Book "
-            "neu gestellt, im Median unter einer Sekunde. Das ist der Fall, den "
-            "der REST-Lauf nicht messen kann, und der einzige, in dem die Frage "
-            "nach Market Making ueberhaupt sinnvoll gestellt ist.",
+            "Resolution: quotes are reposted on every top-of-book move, at a "
+            "median of under a second. That is the case the REST run cannot "
+            "measure, and the only one in which the market-making question "
+            "is posed sensibly at all.",
         ]
     else:
         lines = [
-            "Wichtigste Einschraenkung, und zugleich der eigentliche Befund: "
-            "das 120-Sekunden-Raster bedeutet, dass jede Quote zwei Minuten "
-            "unveraendert im Buch steht. Genau diese Standzeit ist die "
-            "gemessene Adverse Selektion - gefuellt wird man bevorzugt dann, "
-            "wenn der Markt an der veralteten Quote vorbeigelaufen ist. Ein "
-            "echter Market Maker requotet im Millisekundenbereich. Diese Zahlen "
-            "messen deshalb nicht, ob Market Making auf Polymarket "
-            "funktioniert, sondern was passiert, wenn man zwei Minuten lang "
-            "nicht nachzieht.",
+            "The most important limitation, and at the same time the actual "
+            "finding: the 120-second grid means every quote stands unchanged "
+            "in the book for two minutes. Exactly that staleness is the "
+            "adverse selection being measured - you are filled preferentially "
+            "when the market has walked past the stale quote. A real market "
+            "maker requotes on a millisecond scale. These numbers therefore "
+            "do not measure whether market making works on Polymarket, but "
+            "what happens when you fail to requote for two minutes.",
         ]
 
     days = len(results.get("days") or [])
@@ -898,20 +897,18 @@ def _limits_section(results: dict) -> list[str]:
     if days < MIN_DAYS_FOR_CLAIM or fills < MIN_FILLS_FOR_CLAIM:
         lines += [
             "",
-            f"ACHTUNG Stichprobe: {days} Tag(e), hoechstens {fills:,} Fills. "
-            f"Unter {MIN_DAYS_FOR_CLAIM} Tagen laesst sich weder walk-forward "
-            "trennen noch ein Tages-Bootstrap rechnen, und die Auswahl der "
-            "Tokens und Tageszeiten ist nicht repraesentativ. Dieser Lauf ist "
-            "ein erster Blick, aus dem keine Aussage ueber Profitabilitaet "
-            "folgt.",
+            f"SAMPLE WARNING: {days} day(s), at most {fills:,} fills. Below "
+            f"{MIN_DAYS_FOR_CLAIM} days neither a walk-forward split nor a "
+            "daily bootstrap can be computed, and the selection of tokens "
+            "and times of day is not representative. This run is a first "
+            "look from which no statement about profitability follows.",
         ]
     if len(signs) > 1:
         lines += [
             "",
-            "Die beiden Fill-Modelle sind sich hier nicht einmal im Vorzeichen "
-            "einig. Damit ist das Ergebnis unentschieden: welches Vorzeichen "
-            "man berichtet, waehlt in diesem Lauf die Fill-Annahme und nicht "
-            "die Daten.",
+            "The two fill models do not even agree on the sign here. The result "
+            "is therefore undecided: in this run the sign reported would be "
+            "chosen by the fill assumption rather than by the data.",
         ]
     return lines
 

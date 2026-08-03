@@ -374,7 +374,7 @@ class EndToEndTests(unittest.TestCase):
             payload = json.loads(paths["json"].read_text(encoding="utf-8"))
             self.assertIn("imbalance", payload["signals"])
             body = paths["md"].read_text(encoding="utf-8")
-            self.assertIn("Order-Flow-Studie", body)
+            self.assertIn("Order flow study", body)
             self.assertNotIn("ß", body)
 
     def test_study_on_an_empty_directory_does_not_crash(self):

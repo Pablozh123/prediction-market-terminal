@@ -178,7 +178,7 @@ class EndToEndTests(unittest.TestCase):
             out = Path(tmp) / "research"
             paths = es.write_outputs(results, "test", research_dir=out)
             body = paths["md"].read_text(encoding="utf-8")
-            self.assertIn("Wo sitzt die Kante", body)
+            self.assertIn("Where does the edge sit", body)
             self.assertNotIn("ß", body)
             payload = json.loads(paths["json"].read_text(encoding="utf-8"))
             self.assertIn("by_category", payload)
@@ -195,7 +195,7 @@ class EndToEndTests(unittest.TestCase):
             out = Path(tmp) / "research"
             body = es.write_outputs(results, "leer",
                                     research_dir=out)["md"].read_text(encoding="utf-8")
-            self.assertIn("Keine.", body)
+            self.assertIn("None. Of", body)
 
     def test_study_on_an_empty_directory_does_not_crash(self):
         with tempfile.TemporaryDirectory() as tmp:
