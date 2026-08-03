@@ -275,14 +275,14 @@ def render_png(results: dict, out_path: Path) -> None:
         ax.axvline(0, color=COLOR_TEXT_2, linewidth=1.0)
         ax.set_yticks(range(len(labels)))
         ax.set_yticklabels(labels, fontsize=8)
-        ax.set_xlabel("Netto (Cents je Signal)", color=COLOR_TEXT_2, fontsize=9)
-        ax.set_title(f"{category} (Rate {vf.polymarket_category_rate(category)})",
+        ax.set_xlabel("Net (cents per signal)", color=COLOR_TEXT_2, fontsize=9)
+        ax.set_title(f"{category} (rate {vf.polymarket_category_rate(category)})",
                      color=COLOR_TEXT, fontsize=10, loc="left")
 
     fig.suptitle(
-        f"Netto-Kante je Spread-Bucket und Gebuehrenkategorie — Signal "
-        f"{results['signal']}, {results['observations']:,} Firings, "
-        f"{len(results['days'])} Tage",
+        f"Net edge by spread bucket and fee category — signal "
+        f"{results['signal']}, {results['observations']:,} firings, "
+        f"{len(results['days'])} days",
         color=COLOR_TEXT, fontsize=11.5, x=0.02, y=0.97, ha="left")
     fig.subplots_adjust(top=0.84, bottom=0.11, left=0.09, right=0.98, wspace=0.35)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -297,40 +297,40 @@ def _fmt(value, spec="{:+.3f}") -> str:
 def _markdown(results: dict, tag: str) -> str:
     days = results["days"]
     lines = [
-        f"# Wo sitzt die Kante? Segmentierung ({tag})",
+        f"# Where does the edge sit? Segmentation ({tag})",
         "",
-        f"Quelle: {results['source']} "
-        f"({'Stream' if results['stream'] else 'REST, 120s-Raster'}), Signal "
-        f"{results['signal']} mit Schwelle {results['threshold']}, Horizont "
-        f"{int(results['horizon_s'])}s, {results['observations']:,} Firings an "
-        f"{len(days)} Tagen ({days[0] if days else '-'} bis "
-        f"{days[-1] if days else '-'}). Gebuehrenstand "
+        f"Source: {results['source']} "
+        f"({'stream' if results['stream'] else 'REST, 120s grid'}), signal "
+        f"{results['signal']} at threshold {results['threshold']}, horizon "
+        f"{int(results['horizon_s'])}s, {results['observations']:,} firings over "
+        f"{len(days)} days ({days[0] if days else '-'} to "
+        f"{days[-1] if days else '-'}). Fee schedule "
         f"{results['fee_model_version']}.",
         "",
-        "Alle Schnitte sind ex ante bekannt: Spread und Preis stehen beim "
-        "Entscheiden im Buch, die Signalstaerke ergibt sich aus dem Signal "
-        "selbst, die Gebuehrenkategorie aus dem Markt. Kein Schnitt benutzt "
-        "etwas, das erst hinterher bekannt ist.",
+        "Every cut is knowable before the trade: spread and price stand in the "
+        "book at decision time, signal strength follows from the signal "
+        "itself, the fee category from the market. No cut uses anything that "
+        "is only known afterwards.",
         "",
     ]
     for category, entry in results["by_category"].items():
         overall = entry["overall"]
         rate = vf.polymarket_category_rate(category)
         lines += [
-            f"## Gebuehrenkategorie {category} (Rate {rate})",
+            f"## Fee category {category} (rate {rate})",
             "",
-            f"Gesamt: netto {_fmt(overall['mean_net_cents'])} Cents je Signal, "
-            f"brutto {_fmt(overall['mean_gross_cents'])}, netto positiv in "
-            f"{_fmt(overall['net_positive_share'], '{:.1%}')} der Faelle. "
-            f"Getestete Segmente: {entry['tested_segments']}.",
+            f"Overall: net {_fmt(overall['mean_net_cents'])} cents per signal, "
+            f"gross {_fmt(overall['mean_gross_cents'])}, net positive in "
+            f"{_fmt(overall['net_positive_share'], '{:.1%}')} of cases. "
+            f"Segments tested: {entry['tested_segments']}.",
             "",
         ]
         for key, rows in entry["segments"].items():
             lines += [
-                f"### Schnitt: {key}",
+                f"### Cut: {key}",
                 "",
-                "| Bucket | n | Brutto | Netto | Netto in-sample | Netto "
-                "out-of-sample | CI95 | duenn |",
+                "| Bucket | n | Gross | Net | Net in-sample | Net "
+                "out-of-sample | CI95 | thin |",
                 "|---|---|---|---|---|---|---|---|",
             ]
             for row in rows:
@@ -341,14 +341,14 @@ def _markdown(results: dict, tag: str) -> str:
                     f"{_fmt(row['train_net_cents'])} | "
                     f"{_fmt(row['test_net_cents'])} | "
                     f"{row['net_ci95_cents'] or '-'} | "
-                    f"{'ja' if row['thin'] else 'nein'} |")
+                    f"{'yes' if row['thin'] else 'no'} |")
             lines.append("")
         winners = entry["survivors"]
         if winners:
             lines += [
-                "### Kandidaten (positiv in-sample UND out-of-sample, nicht duenn)",
+                "### Candidates (positive in-sample AND out-of-sample, not thin)",
                 "",
-                "| Segment | n | Netto | out-of-sample | CI95 |",
+                "| Segment | n | Net | out-of-sample | CI95 |",
                 "|---|---|---|---|---|",
             ]
             for row in winners:
@@ -362,34 +362,34 @@ def _markdown(results: dict, tag: str) -> str:
             lines.append("")
         else:
             lines += [
-                "### Kandidaten",
+                "### Candidates",
                 "",
-                f"Keine. Von {entry['tested_segments']} getesteten Segmenten "
-                "ueberlebt keines gleichzeitig die In-sample- und die "
-                "Out-of-sample-Bedingung bei ausreichender Fallzahl.",
+                f"None. Of {entry['tested_segments']} segments tested, not one "
+                "survives the in-sample and the out-of-sample condition "
+                "simultaneously at a sufficient case count.",
                 "",
             ]
     lines += [
-        "## Lesehilfe",
+        "## How to read this",
         "",
-        "Die Spalte out-of-sample ist die einzige, die zaehlt. Ein Segment, das "
-        "nur in-sample positiv ist, ist genau das, was Data Mining gratis "
-        "liefert: bei genuegend vielen Schnitten sieht immer irgendeiner gut "
-        "aus. Die Zahl der getesteten Segmente steht deshalb im Kopf jedes "
-        "Abschnitts, damit die Auswahlwahrscheinlichkeit sichtbar bleibt.",
+        "The out-of-sample column is the only one that counts. A segment that "
+        "is positive in-sample only is exactly what data mining supplies for "
+        "free: with enough cuts, one of them always looks good. The number of "
+        "segments tested therefore stands at the head of every section, so the "
+        "selection probability stays visible.",
         "",
-        "Die Gebuehrenkategorien sind das schaerfste Instrument in dieser "
-        "Tabelle, weil sie denselben Datensatz unter verschiedenen Kosten "
-        "zeigen. Geopolitik ist gebuehrenfrei, dort bleibt als Kosten nur der "
-        "Spread. Bleibt die Kante auch dort negativ, liegt es nicht an den "
-        "Gebuehren, sondern daran, dass die Bewegung zu klein ist.",
+        "The fee categories are the sharpest instrument in this table, because "
+        "they show the same dataset under different costs. Geopolitics is fee "
+        "free, so there the only cost left is the spread. If the edge stays "
+        "negative there too, the fees are not the reason - the move is simply "
+        "too small.",
         "",
-        "Duenne Segmente sind markiert und aus der Kandidatenliste "
-        "ausgeschlossen, aber absichtlich mit abgedruckt: ein Segment mit 40 "
-        "Beobachtungen und grosser Zahl ist kein Fund, sondern Rauschen, und "
-        "das soll man sehen statt es wegzulassen.",
+        "Thin segments are marked and excluded from the candidate list, but "
+        "printed deliberately: a segment with 40 observations and a large "
+        "number is not a find, it is noise, and that should be visible rather "
+        "than omitted.",
         "",
-        "Read-only-Forschung, keine Handelsempfehlung.",
+        "Read-only research. Not trading advice.",
     ]
     return "\n".join(lines)
 

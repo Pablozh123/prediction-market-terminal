@@ -470,34 +470,34 @@ class LimitsSectionTests(unittest.TestCase):
     def test_a_rest_run_carries_the_staleness_caveat(self):
         text = " ".join(mm_pnl._limits_section(
             self._results(False, 11, 30000, {"touch": -1.0, "tape": -1.0})))
-        self.assertIn("120-Sekunden-Raster", text)
+        self.assertIn("120-second grid", text)
 
     def test_a_stream_run_must_not_carry_the_rest_caveat(self):
         # Sonst stuende eine falsche Aussage im eingefrorenen Artefakt.
         text = " ".join(mm_pnl._limits_section(
             self._results(True, 11, 30000, {"touch": -1.0, "tape": -1.0})))
-        self.assertNotIn("120-Sekunden-Raster", text)
-        self.assertIn("unter einer Sekunde", text)
+        self.assertNotIn("120-second grid", text)
+        self.assertIn("under a second", text)
 
     def test_a_thin_sample_is_called_out(self):
         text = " ".join(mm_pnl._limits_section(
             self._results(True, 1, 230, {"touch": -1.0, "tape": 1.0})))
-        self.assertIn("ACHTUNG Stichprobe", text)
+        self.assertIn("SAMPLE WARNING", text)
 
     def test_a_fat_sample_carries_no_sample_warning(self):
         text = " ".join(mm_pnl._limits_section(
             self._results(False, 11, 30000, {"touch": -1.0, "tape": -1.0})))
-        self.assertNotIn("ACHTUNG Stichprobe", text)
+        self.assertNotIn("SAMPLE WARNING", text)
 
     def test_models_disagreeing_in_sign_is_stated(self):
         text = " ".join(mm_pnl._limits_section(
             self._results(True, 5, 5000, {"touch": -1.0, "tape": 1.0})))
-        self.assertIn("nicht einmal im Vorzeichen", text)
+        self.assertIn("do not even agree on the sign", text)
 
     def test_models_agreeing_in_sign_say_nothing_about_it(self):
         text = " ".join(mm_pnl._limits_section(
             self._results(False, 11, 30000, {"touch": -1.0, "tape": -2.0})))
-        self.assertNotIn("nicht einmal im Vorzeichen", text)
+        self.assertNotIn("do not even agree on the sign", text)
 
 
 class EndToEndTests(unittest.TestCase):
@@ -535,7 +535,7 @@ class EndToEndTests(unittest.TestCase):
             paths = mm_pnl.write_outputs(results, "test", research_dir=out)
             self.assertTrue(paths["md"].exists())
             body = paths["md"].read_text(encoding="utf-8")
-            self.assertIn("PnL-Zerlegung", body)
+            self.assertIn("PnL decomposition", body)
             self.assertNotIn("ß", body)
             payload = json.loads(paths["json"].read_text(encoding="utf-8"))
             self.assertIn("fill_models", payload)

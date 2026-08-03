@@ -567,15 +567,15 @@ def render_png(results: dict, out_path: Path, horizon_s: float = 300.0) -> None:
         delays = [r["delay_s"] for r in rows]
         ax1.plot(delays, [r["mean_gross_cents"] or 0.0 for r in rows],
                  color=palette[index % len(palette)], linewidth=2.0,
-                 marker="o", markersize=4, label=f"{signal} brutto")
+                 marker="o", markersize=4, label=f"{signal} gross")
         ax1.plot(delays, [r["mean_net_cents"] or 0.0 for r in rows],
                  color=palette[index % len(palette)], linewidth=1.6,
                  linestyle="--", marker="s", markersize=3,
-                 label=f"{signal} netto")
+                 label=f"{signal} net")
     ax1.axhline(0, color=COLOR_TEXT_2, linewidth=1.0)
-    ax1.set_title("Kante je Entry-Verzoegerung (Cents pro Signal)",
+    ax1.set_title("Edge by entry delay (cents per signal)",
                   color=COLOR_TEXT, fontsize=11, loc="left")
-    ax1.set_xlabel("Verzoegerung bis Entry (Sekunden)", color=COLOR_TEXT_2, fontsize=9)
+    ax1.set_xlabel("Delay to entry (seconds)", color=COLOR_TEXT_2, fontsize=9)
     ax1.legend(frameon=False, fontsize=8, labelcolor=COLOR_TEXT_2)
 
     labels, hit, lower = [], [], []
@@ -588,21 +588,21 @@ def render_png(results: dict, out_path: Path, horizon_s: float = 300.0) -> None:
             lower.append(100 * (row["wilson_lb95"] or 0.0))
     x = range(len(labels))
     ax2.bar([i - 0.18 for i in x], hit, width=0.36, color=COLOR_GROSS,
-            label="Trefferquote")
+            label="Hit rate")
     ax2.bar([i + 0.18 for i in x], lower, width=0.36, color=COLOR_NET,
-            label="Wilson-Untergrenze 95%")
+            label="Wilson lower bound 95%")
     ax2.axhline(50, color=COLOR_TEXT_2, linewidth=1.0, linestyle=":")
     ax2.set_xticks(list(x))
     ax2.set_xticklabels(labels, fontsize=9)
-    ax2.set_ylabel("Prozent", color=COLOR_TEXT_2, fontsize=9)
-    ax2.set_title("Richtungstreffer ohne Verzoegerung (bedingt auf Bewegung)",
+    ax2.set_ylabel("Percent", color=COLOR_TEXT_2, fontsize=9)
+    ax2.set_title("Directional hits without delay (conditional on movement)",
                   color=COLOR_TEXT, fontsize=11, loc="left")
     ax2.legend(frameon=False, fontsize=8, labelcolor=COLOR_TEXT_2)
 
     fig.suptitle(
-        f"Order-Flow-Studie — {results['tokens']} Tokens, "
-        f"{len(results['days'])} Tage, Horizont {int(horizon_s)}s, "
-        f"Schwelle {results['threshold']}, Kosten nach Gebuehrenmodell "
+        f"Order flow study — {results['tokens']} tokens, "
+        f"{len(results['days'])} days, horizon {int(horizon_s)}s, "
+        f"threshold {results['threshold']}, costs per fee model "
         f"{results['fee_model_version']}",
         color=COLOR_TEXT, fontsize=11.5, x=0.02, y=0.95, ha="left")
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -656,18 +656,18 @@ def _fmt(value, spec="{:+.3f}") -> str:
 def _markdown(results: dict, tag: str) -> str:
     days = results["days"]
     lines = [
-        f"# Order-Flow-Studie ({tag})",
+        f"# Order flow study ({tag})",
         "",
-        f"Quelle: {results['source']} "
-        f"({'Stream, ereignisgetrieben' if results['stream'] else 'REST, 120s-Raster'}), "
-        f"{results['tokens']} Tokens, {results['snapshots']:,} Snapshots, "
-        f"{results['tape_prints']:,} Tape-Prints, "
-        f"{len(days)} Tage ({days[0] if days else '-'} bis {days[-1] if days else '-'}).",
+        f"Source: {results['source']} "
+        f"({'stream, event driven' if results['stream'] else 'REST, 120s grid'}), "
+        f"{results['tokens']} tokens, {results['snapshots']:,} snapshots, "
+        f"{results['tape_prints']:,} tape prints, "
+        f"{len(days)} days ({days[0] if days else '-'} to {days[-1] if days else '-'}).",
         "",
-        f"Schwelle {results['threshold']}, Kostenmodell "
-        f"{results['category']}-Kategorie, Gebuehrenstand "
-        f"{results['fee_model_version']}. Kosten je Runde = Spread + zwei "
-        "Taker-Gebuehren. Trefferquote bedingt auf Bewegung.",
+        f"Threshold {results['threshold']}, cost model "
+        f"{results['category']} category, fee schedule "
+        f"{results['fee_model_version']}. Cost per round trip = spread plus two "
+        "taker fees. Hit rate conditional on movement.",
         "",
     ]
     for signal, entry in results["signals"].items():
@@ -675,13 +675,13 @@ def _markdown(results: dict, tag: str) -> str:
         lines += [
             f"## Signal: {signal}",
             "",
-            f"Beobachtungen {overall['n']:,} an {overall['days']} Tagen, "
-            f"davon bewegt {_fmt(overall['moved_share'], '{:.1%}')}. "
-            f"Trefferquote {_fmt(overall['hit_rate'], '{:.1%}')} "
-            f"(Wilson-Untergrenze {_fmt(overall['wilson_lb95'], '{:.1%}')}).",
+            f"Observations {overall['n']:,} over {overall['days']} days, "
+            f"of which moved {_fmt(overall['moved_share'], '{:.1%}')}. "
+            f"Hit rate {_fmt(overall['hit_rate'], '{:.1%}')} "
+            f"(Wilson lower bound {_fmt(overall['wilson_lb95'], '{:.1%}')}).",
             "",
-            "| Horizont | Verzoegerung | n | Treffer | Brutto (Cents) | "
-            "Spread (Cents) | Gebuehr (Cents) | Netto (Cents) | Kante erhalten |",
+            "| Horizon | Delay | n | Hits | Gross (cents) | "
+            "Spread (cents) | Fee (cents) | Net (cents) | Edge retained |",
             "|---|---|---|---|---|---|---|---|---|",
         ]
         for horizon, rows in entry["latency"].items():
@@ -697,41 +697,41 @@ def _markdown(results: dict, tag: str) -> str:
         ci = entry.get("net_ci95_cents")
         lines += [
             "",
-            f"Walk-forward: Train (fruehe Tage) netto "
-            f"{_fmt(entry['train']['mean_net_cents'])} Cents, Test (spaete Tage) "
-            f"netto {_fmt(entry['test']['mean_net_cents'])} Cents.",
-            f"Block-Bootstrap-CI 95% auf Tagesebene fuer netto ohne "
-            f"Verzoegerung: {ci if ci else 'nicht berechenbar'} Cents.",
+            f"Walk-forward: train (early days) net "
+            f"{_fmt(entry['train']['mean_net_cents'])} cents, test (late days) "
+            f"net {_fmt(entry['test']['mean_net_cents'])} cents.",
+            f"Block-bootstrap 95% CI at day level for net without "
+            f"delay: {ci if ci else 'not computable'} cents.",
             "",
         ]
     lines += [
-        "## Lesehilfe",
+        "## How to read this",
         "",
-        "Brutto ist die Mid-Bewegung in Signalrichtung. Netto zieht die volle "
-        "Runde ab: einmal Spread kreuzen beim Entry, einmal beim Exit, plus "
-        "zwei Taker-Gebuehren. Ein Signal mit hoher Trefferquote und negativem "
-        "Netto ist richtig und trotzdem unhandelbar.",
+        "Gross is the mid movement in the signal's direction. Net subtracts the "
+        "full round trip: crossing the spread once on entry, once on exit, plus "
+        "two taker fees. A signal with a high hit rate and a negative net is "
+        "correct and still untradable.",
         "",
-        "Die beiden Zahlen sind zugleich die Schranken der Ausfuehrungsart. "
-        "Netto ist die untere Schranke (alles aggressiv genommen), brutto die "
-        "obere (alles passiv gefuellt, auf Polymarket zahlen Maker keine "
-        "Gebuehr). Liegt der Wert eines Signals nur zwischen diesen beiden "
-        "Schranken, ist es kein Taker-Signal, sondern ein Grund, als Maker die "
-        "Quotes zu verschieben. Die getrennten Spalten fuer Spread und Gebuehr "
-        "zeigen, welcher der beiden Posten die Kante frisst.",
+        "The two numbers are at the same time the bounds on execution style. "
+        "Net is the lower bound (everything taken aggressively), gross the "
+        "upper bound (everything filled passively; on Polymarket makers pay no "
+        "fee). If a signal's value lies only between those two bounds, it is "
+        "not a taker signal but a reason to shift quotes as a maker. The "
+        "separate columns for spread and fee show which of the two eats the "
+        "edge.",
         "",
-        "Die Verzoegerungsspalte simuliert Reaktionszeit: das Signal feuert zu "
-        "t, der Entry-Preis ist das Buch zu t plus Verzoegerung, der Exit "
-        "bleibt bei t plus Horizont. Faellt die Kante schon bei kleinen "
-        "Verzoegerungen stark, ist es ein Latenzrennen und kein Research-Edge.",
+        "The delay column simulates reaction time: the signal fires at t, the "
+        "entry price is the book at t plus delay, the exit stays at t plus "
+        "horizon. If the edge already falls sharply at small delays, it is a "
+        "latency race and not a research edge.",
         "",
-        "Grenzen: das REST-Raster loest Verzoegerungen nur in 120-Sekunden-"
-        "Schritten auf, kleinere Werte fallen deshalb auf denselben Snapshot "
-        "und zeigen keinen Zerfall. Die Sekundenaufloesung liefert erst der "
-        "Stream-Recorder. Der REST-Tape ist gepollt und kann Prints zwischen "
-        "zwei Abrufen verpassen, was den Flow-Anteil unterschaetzt.",
+        "Limits: the REST grid resolves delays only in 120-second steps, so "
+        "smaller values land on the same snapshot and show no decay. Seconds "
+        "resolution comes only from the stream recorder. The REST tape is "
+        "polled and can miss prints between two fetches, which understates the "
+        "flow share.",
         "",
-        "Read-only-Forschung, keine Handelsempfehlung.",
+        "Read-only research. Not trading advice.",
     ]
     return "\n".join(lines)
 

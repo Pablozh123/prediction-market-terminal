@@ -63,7 +63,7 @@ class SuspectPairTests(unittest.TestCase):
             "Will Mark Kelly win the 2028 Democratic presidential nomination?",
             "Who will run for the Democratic presidential nomination in 2028? Mark Kelly")
         self.assertTrue(reasons)
-        self.assertIn("Fragetypen", reasons[0])
+        self.assertIn("different question types", reasons[0])
 
     def test_a_margin_market_is_not_the_outright_market(self):
         reasons = cvg.suspect_reasons(
@@ -341,8 +341,8 @@ class ReportTests(unittest.TestCase):
             body = cvg.write_outputs(self._results(), "test",
                                      research_dir=Path(tmp))["md"].read_text(
                                          encoding="utf-8")
-            self.assertIn("nicht verifiziert", body)
-            self.assertIn("Aufloesungsregeln", body)
+            self.assertIn("pairs are not verified", body)
+            self.assertIn("comparison of its resolution rules", body)
 
     def test_the_report_avoids_the_eszett(self):
         with tempfile.TemporaryDirectory() as tmp:

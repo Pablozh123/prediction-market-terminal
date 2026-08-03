@@ -47,14 +47,35 @@ RESEARCH_DIR = REPO_ROOT / "docs" / "research"
 CLOB_BOOK_URL = "https://clob.polymarket.com/book"
 HEADERS = {"User-Agent": "prediction-market-terminal reconciler/1.0 (read-only)"}
 
-#: Ab hier gilt ein Unterschied als echt und nicht als Zeitversatz zwischen
-#: den beiden Beobachtungen. Ein Tick ist 0.001.
-TICK = 0.001
+#: Der Tick ist NICHT konstant. Polymarket handelt je nach Markt auf 0.01
+#: oder 0.001 und wechselt zur Laufzeit (tick_size_change). Eine feste
+#: Annahme von 0.001 meldet auf einem Cent-Markt jede normale
+#: Ein-Tick-Bewegung als Abweichung - im ersten langen Lauf waren alle acht
+#: gemeldeten Abweichungen glatte Ganz-Cent-Vielfache in beide Richtungen,
+#: also genau das.
+TICK_CANDIDATES = (0.01, 0.001)
+DEFAULT_TICK = 0.001
 TOLERANCE_TICKS = 1.0
+
+
+def infer_tick(*prices) -> float:
+    """Coarsest grid all observed prices sit on.
+
+    Reading the grid off the prices beats assuming one: it is the same
+    information the venue used to place them, and it degrades to the finest
+    tick when the prices do not agree on anything coarser.
+    """
+    values = [p for p in prices if p is not None]
+    if not values:
+        return DEFAULT_TICK
+    for tick in TICK_CANDIDATES:
+        if all(abs(round(v / tick) * tick - v) < 1e-9 for v in values):
+            return tick
+    return DEFAULT_TICK
 
 RECONCILE_FIELDS = [
     "ts_utc", "token_id", "stream_bid", "rest_bid", "stream_ask", "rest_ask",
-    "bid_diff_ticks", "ask_diff_ticks", "verdict", "stream_age_s",
+    "bid_diff_ticks", "ask_diff_ticks", "verdict", "stream_age_s", "tick",
 ]
 
 
@@ -70,16 +91,21 @@ class Comparison:
     stream_age_s: float
 
     @property
+    def tick(self) -> float:
+        return infer_tick(self.stream_bid, self.stream_ask,
+                          self.rest_bid, self.rest_ask)
+
+    @property
     def bid_diff_ticks(self) -> float | None:
         if self.stream_bid is None or self.rest_bid is None:
             return None
-        return round(abs(self.stream_bid - self.rest_bid) / TICK, 2)
+        return round(abs(self.stream_bid - self.rest_bid) / self.tick, 2)
 
     @property
     def ask_diff_ticks(self) -> float | None:
         if self.stream_ask is None or self.rest_ask is None:
             return None
-        return round(abs(self.stream_ask - self.rest_ask) / TICK, 2)
+        return round(abs(self.stream_ask - self.rest_ask) / self.tick, 2)
 
     def verdict(self, tolerance: float = TOLERANCE_TICKS) -> str:
         """match, drift, or a named reason why no comparison was possible."""
@@ -105,6 +131,7 @@ class Comparison:
             "ask_diff_ticks": self.ask_diff_ticks,
             "verdict": self.verdict(tolerance),
             "stream_age_s": round(self.stream_age_s, 3),
+            "tick": self.tick,
         }
 
 
@@ -260,40 +287,38 @@ def _fmt(value, spec="{:.2f}") -> str:
 def _markdown(results: dict, tag: str) -> str:
     s = results["summary"]
     lines = [
-        f"# Buch-Abgleich Stream gegen REST ({tag})",
+        f"# Streamed book reconciled against REST ({tag})",
         "",
-        f"{results['tokens']} Tokens, {results['rounds_connected']} von "
-        f"{results['rounds_requested']} Runden verbunden, "
-        f"{results['seconds_per_round']:.0f} Sekunden Stream je Runde, "
-        f"Toleranz {results['tolerance_ticks']:.0f} Tick.",
+        f"{results['tokens']} tokens, {results['rounds_connected']} of "
+        f"{results['rounds_requested']} rounds connected, "
+        f"{results['seconds_per_round']:.0f} seconds of streaming per round, "
+        f"tolerance {results['tolerance_ticks']:.0f} tick.",
         "",
-        f"Vergleiche {s['comparisons']}, davon uebereinstimmend {s['match']}, "
-        f"abweichend {s['drift']}, nicht vergleichbar {s['unusable']}. "
-        f"Uebereinstimmungsquote {_fmt(s['match_rate'], '{:.1%}')}, "
-        f"groesste Abweichung {_fmt(s['max_diff_ticks'], '{:.1f}')} Ticks, "
-        f"mittlere {_fmt(s.get('mean_diff_ticks'), '{:.2f}')} Ticks.",
+        f"Comparisons {s['comparisons']}, of which matching {s['match']}, "
+        f"diverging {s['drift']}, not comparable {s['unusable']}. "
+        f"Agreement rate {_fmt(s['match_rate'], '{:.1%}')}, "
+        f"largest divergence {_fmt(s['max_diff_ticks'], '{:.1f}')} ticks, "
+        f"mean {_fmt(s.get('mean_diff_ticks'), '{:.2f}')} ticks.",
         "",
-        "## Warum das noetig ist",
+        "## Why this is necessary",
         "",
-        "Polymarket sendet keine Sequenznummern. Auf Kalshi verraet eine Luecke "
-        "im Zaehler, dass eine Nachricht verloren ging; auf Polymarket gibt es "
-        "diesen Zaehler nicht. Ein verlorenes oder falsch angewendetes Update "
-        "ist damit unsichtbar - das Buch driftet lautlos, und jeder Spread, "
-        "jeder Mid und jede Imbalance daraus ist falsch, ohne dass ein Test "
-        "oder ein Log das zeigt. Der Abgleich gegen das REST-Buch ist der "
-        "einzige Weg, den das Protokoll offen laesst.",
+        "Polymarket sends no sequence numbers. On Kalshi a gap in the counter "
+        "reveals that a message was lost; on Polymarket there is no such "
+        "counter. A dropped or misapplied update is therefore invisible: the "
+        "book drifts silently, and every spread, mid and imbalance derived "
+        "from it is wrong without any test or log showing it. Reconciling "
+        "against the REST book is the only route the protocol leaves open.",
         "",
-        "## Lesehilfe",
+        "## How to read this",
         "",
-        "Eine einzelne Abweichung beweist nichts: die beiden Beobachtungen "
-        "liegen Millisekunden auseinander, und ein schnelles Buch bewegt sich "
-        "in dieser Zeit voellig zu Recht. Aussagekraeftig ist die Form ueber "
-        "die Zeit - ob Abweichung selten und voruebergehend ist oder haeufig "
-        "und wachsend. Nur das Zweite ist ein Fehler, und nur eine Zeitreihe "
-        "kann die beiden auseinanderhalten. Deshalb schreibt dieses Modul eine "
-        "Reihe und behauptet nichts.",
+        "A single divergence proves nothing. The two observations lie "
+        "milliseconds apart, and a fast book moves in that time entirely "
+        "legitimately. What carries meaning is the shape over time: whether "
+        "divergence is rare and transient or frequent and growing. Only the "
+        "second is a defect, and only a time series can tell the two apart. "
+        "That is why this module records a series and asserts nothing.",
         "",
-        "Read-only-Forschung, keine Handelsempfehlung.",
+        "Read-only research. Not trading advice.",
     ]
     return "\n".join(lines)
 

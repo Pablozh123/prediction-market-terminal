@@ -205,9 +205,9 @@ class EndToEndTests(unittest.TestCase):
             for key in ("json", "csv", "md"):
                 self.assertTrue(paths[key].exists(), key)
             body = paths["md"].read_text(encoding="utf-8")
-            self.assertIn("Reward-Marktauswahl", body)
+            self.assertIn("Reward market selection", body)
             self.assertNotIn("ß", body)
-            self.assertIn("by_ratio" if False else "Rangfolge", body)
+            self.assertIn("by_ratio" if False else "It is a ranking, not a payout", body)
             json.loads(paths["json"].read_text(encoding="utf-8"))
 
 
