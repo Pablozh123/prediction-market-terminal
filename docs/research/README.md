@@ -27,7 +27,8 @@ cannot trade through this code.
 | Is signed order flow a signal? | 450,492 observations | No. 51.3% hit rate and gross edge already negative | [order flow](orderflow_rest-2026-07.md) | [`src/orderflow_study.py`](../../src/orderflow_study.py) |
 | Does any segment rescue the signal? | 205,835 firings, 34 ex-ante cuts, 3 fee scenarios | No. Exactly one cut survives in and out of sample, and its day-resampled CI contains zero — the expected false-positive count at 34 tests | [segments](edge_segments_july-2026.md) | [`src/edge_segments.py`](../../src/edge_segments.py) |
 | Does market making carry at a 120s requote? | 4,519 tokens, 12 days | No. Adverse selection takes 362 cents per fill against 148 cents of spread earned | [MM decomposition](mm_pnl_july-2026.md) | [`src/mm_pnl.py`](../../src/mm_pnl.py) |
-| Is the binding constraint spread width or staleness? | 112 tokens, 1,049,354 streamed snapshots, 2 days | Staleness. Same code and parameters on seconds data: markout per fill falls from 362 to 16 cents while spread earned barely moves, 148 against 140 | [MM on seconds data](mm_pnl_stream-2tage.md) | [`src/mm_pnl.py`](../../src/mm_pnl.py) |
+| Is the binding constraint spread width or staleness? | 468 tokens, 5,413,998 streamed snapshots, 5 days | Staleness. Same code and parameters on seconds data: markout per fill falls from 362 to 70 cents while spread earned barely moves, 138 against 148 | [MM on seconds data](mm_pnl_stream-5tage.md) | [`src/mm_pnl.py`](../../src/mm_pnl.py) |
+| Does market making pay, once the bootstrap can run? | same 5 days, daily block bootstrap | Not identified. The two fill models land on opposite sides of zero and neither interval touches it: touch (-12,121, -2,413) USD per day, tape (+881, +5,889). Queue position, not more data, is what would settle it | [MM on seconds data](mm_pnl_stream-5tage.md) | [`src/mm_pnl.py`](../../src/mm_pnl.py) |
 | Are cross-venue gaps arbitrage? | 300 Polymarket against 600 Kalshi markets, both fee curves subtracted | No, carry. 3 of 5 verified pairs clear both fee curves, best 3.07 cents, all settling 2027 or 2028 — 0.5 to 1.8% annualised | [cross-venue gaps](cross_venue_gaps_2026-07-31.md) | [`src/cross_venue_gaps.py`](../../src/cross_venue_gaps.py) |
 | How long does a gap stay open? | both stream recorders, 11.6 hours | 3 of 5 pairs were open at every moment observed. They do not close because they are not mispricings | [gap lifetime](gap_lifetime_2026-07-31.md) | [`src/gap_lifetime.py`](../../src/gap_lifetime.py) |
 | Are the large reward pools free money? | 9,900 markets carrying a pool, 164,661 USD per day | No. 14 of the 45 largest have a completely empty qualifying band — and quote 1 to 64 cents wide against a 2.5 cent band | [reward selection](reward_selection_2026-07-31.md) | [`src/reward_selection.py`](../../src/reward_selection.py) |
@@ -87,7 +88,7 @@ python -m src.orderflow_study --recorder-dir data/microstructure --tag rest-2026
 ```
 
 ```bash
-python -m src.mm_pnl --recorder-dir data/microstructure --stream --tag stream-2tage
+python -m src.mm_pnl --recorder-dir data/microstructure --stream --tag stream-5tage
 ```
 
 ```bash
@@ -96,9 +97,10 @@ python -m unittest discover -s tests -p "test_*.py"
 
 ## Limits
 
-Eleven days of two-minute data and two days of seconds data. Paper simulation
-without queue position or partial fills. The seconds finding is the most important
-and the thinnest: it becomes a result only once enough calendar days allow a
-walk-forward split, and until then the two fill models disagree in sign, so the
-sign reported would be chosen by the fill assumption rather than by the data. Fee
-rates are taken from venue documentation dated 2026-07-30 and are overridable.
+Eleven days of two-minute data and five days of seconds data. Paper simulation
+without queue position or partial fills, and that omission is now the binding
+one: five days was enough to make the daily bootstrap run, and it showed the two
+fill models sitting on opposite sides of zero. What separates them is queue
+position, so the open question is no longer how many days but what a fill model
+can be held to. Fee rates are taken from venue documentation dated 2026-07-30
+and are overridable.
