@@ -33,19 +33,24 @@ At 34 tests that is precisely the expected false-positive rate. Source:
 loses 362 to 698 cents per fill to better-informed counterparties, depending on
 the fill model. Per share at the quoted size that is roughly 1.5 cents earned
 against 3.6 to 7.0 cents lost. On seconds-resolution data, same code and same
-parameters, markout per fill in the tape model falls from 362 to 16 cents while
-spread earned barely moves, 148 against 140. Source: `mm_pnl_july-2026.md`
-against `mm_pnl_stream-2tage.md`.
+parameters, markout per fill in the tape model falls from 362 to 70 cents while
+spread earned barely moves, 138 against 148. Source: `mm_pnl_july-2026.md`
+against `mm_pnl_stream-5tage.md`.
 
-That comparison is a direction, not yet a result. The stream run covers two
-calendar days, which is one short of what the walk-forward split and the daily
-block bootstrap require, and the two fill models do not agree in sign over that
-window. The report states both.
+Latency explains the size of the loss. It does not settle the sign, and five
+days of data is what turned that from a caveat into a measurement. Below three
+days the daily block bootstrap cannot run; at five it does, and it puts the two
+fill models on opposite sides of zero without either interval touching it: touch
+(-12,121, -2,413) USD per day, tape (+881, +5,889). Waiting for more data
+sharpened the disagreement rather than resolving it, because what separates the
+models is queue position, and no number of calendar days supplies that.
 
-**The signal does not help the market making.** Using the imbalance to quote
-only the favoured side does not lower markout per fill (minus 361 against minus
-365 cents). The better total comes solely from trading less. Losing less by
-trading less is not an edge.
+**The signal does not help the market making.** On the two-minute data, using
+the imbalance to quote only the favoured side does not lower markout per fill
+(minus 361 against minus 365 cents); the better total comes solely from trading
+less, and losing less by trading less is not an edge. On five days of seconds
+data it is worse than that: markout per fill deteriorates to minus 82 against
+minus 70, and the total drops from 16,032 to 11,007 USD.
 
 ## What the literature says
 
@@ -120,11 +125,11 @@ paths like this:
 
 ## Limits
 
-Eleven days of REST data and two days of seconds data, a slice of the most
+Eleven days of REST data and five days of seconds data, a slice of the most
 active markets, paper simulation without queue position and without partial
-fills. The seconds finding is the most important and at the same time the
-thinnest; it becomes a result only once enough calendar days allow a
-walk-forward split. Fee rates come from venue documentation dated 2026-07-30 and
-are overridable.
+fills. That last item is now the binding limit rather than sample size: with the
+bootstrap running, queue position is the one thing standing between this work
+and a signed answer on market making. Fee rates come from venue documentation
+dated 2026-07-30 and are overridable.
 
 Read-only research. Not trading advice. No claim of returns.

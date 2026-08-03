@@ -36,20 +36,29 @@ a day-resampled confidence interval containing zero. At 34 tests that is the
 expected false-positive rate.
 
 **Market making loses to adverse selection at a two-minute requote interval.**
-Spread earned 1.4 cents per fill, adverse selection 3.6 to 7.0 cents. The
-decomposition is an identity, not an estimate: spread capture plus markout plus
-late drift reconstructs terminal mark-to-mid exactly, asserted to nine decimal
-places in the tests.
+Spread earned 148 cents per fill, adverse selection 362 to 698 cents depending
+on the fill model. The decomposition is an identity, not an estimate: spread
+capture plus markout plus late drift reconstructs terminal mark-to-mid exactly,
+asserted to nine decimal places in the tests.
 
 **The binding constraint is staleness, not spread width.** Same code, same
-parameters, run on seconds-resolution data over two days and 1.4 million
-streamed rows: markout per fill falls from 361 to 19.5 cents, an eighteenfold
-reduction from nothing but requoting faster. Spread earned per fill barely
-moves, 142 against 148 cents - the quoting did not improve, the quotes stopped
-standing still. Not yet a profitability result: the two fill models disagree in
-sign, so the sign reported would be chosen by the fill assumption rather than
-the data. Widening the quote instead only crosses breakeven near an 8 cent half
-spread, where fills collapse tenfold.
+parameters, run on seconds-resolution data over five days, 468 tokens and 5.4
+million streamed snapshots: markout per fill falls from 362 to 70 cents in the
+tape model, from nothing but requoting faster. Spread earned per fill barely
+moves, 138 against 148 cents - the quoting did not improve, the quotes stopped
+standing still.
+
+**Whether that makes money is not identified, and five days of data is what
+established it.** Below three days the daily block bootstrap cannot run at all,
+which is why the earlier two-day version of this study reported the fill-model
+disagreement as a caveat. With five days it runs, and it places the two models
+on opposite sides of zero with neither interval touching it: touch (-12,121,
+-2,413) USD per day, tape (+881, +5,889). More data did not resolve the
+ambiguity, it sharpened it. The sign reported would be chosen by the fill
+assumption rather than by the data, and settling it needs queue position and
+partial fills, not more days. Widening the quote instead buys a better
+earned-to-markout ratio at every step and collapses the fill count with it: at
+an 8 cent half spread the ratio is 89 and 393 fills remain out of 18,686.
 
 **Cross-venue gaps are carry, not arbitrage — and they prove it by staying
 open.** Both fee curves subtracted, size capped by real depth: five verified
@@ -89,11 +98,13 @@ of asserting a verdict.
 ## What I threw away
 
 **Signal-conditioned quoting.** The obvious next idea: if the signal is too
-small to pay a spread for, use it to choose which side to quote. Total PnL
-improved by 18 percent. Markout per fill did not move at all, minus 361 against
-minus 365 cents. The gain came only from placing fewer quotes. Losing less by
-trading less is not an edge, and the per-fill metric exists to catch exactly
-that.
+small to pay a spread for, use it to choose which side to quote. On the
+two-minute data total PnL improved by 18 percent while markout per fill did not
+move at all, minus 361 against minus 365 cents: the gain came only from placing
+fewer quotes, and losing less by trading less is not an edge. On five days of
+seconds data it does not even do that much. Markout per fill gets worse, minus
+82 against minus 70, and the total falls from 16,032 to 11,007 USD. The per-fill
+metric exists to catch exactly this, and here it caught it twice.
 
 **Signed order flow as a signal.** 51.3 percent hit rate, no usable edge.
 Published work later explained why: trade-direction inference on Polymarket is
@@ -158,12 +169,13 @@ pointed at the venue's own dictionary receives nothing without extending it.
 
 ## Limits
 
-Eleven days of two-minute data, hours of seconds data, paper simulation without
-queue position or partial fills. The seconds finding is the most important and
-the thinnest; it becomes a result only once several days allow a walk-forward
-split. Cross-venue pairs are matched on titles and their resolution rules have
-not been compared, which is the difference between a hedge and two open bets.
-Fee rates are taken from venue documentation dated 2026-07-30 and are
-overridable.
+Eleven days of two-minute data, five days of seconds data, paper simulation
+without queue position or partial fills. That last omission is no longer a
+footnote: with the bootstrap now running, queue position is the specific thing
+standing between this work and a signed answer on market making, because it is
+what separates the two fill models. Cross-venue pairs are matched on titles and
+their resolution rules have not been compared, which is the difference between a
+hedge and two open bets. Fee rates are taken from venue documentation dated
+2026-07-30 and are overridable.
 
 No profitability claim is made anywhere in this work.
