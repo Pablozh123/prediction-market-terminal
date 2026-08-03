@@ -10,3 +10,5 @@ networkx>=3.3,<4.0
 websocket-client>=1.8,<2.0
 # Required by st.login() (OIDC). Auth stays a no-op until .streamlit/secrets.toml [auth] exists.
 Authlib>=1.3.2,<2.0
+# Claim/caveat registry (data/claims.yaml) parsing
+PyYAML>=6.0,<7.0

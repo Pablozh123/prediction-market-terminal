@@ -25,6 +25,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app import app_settings as cfg
+from app import ledger
 from app import notify
 from app import signals as sig
 from src import prediction_markets as md
@@ -32,6 +33,7 @@ from src import prediction_markets as md
 STATE_PATH = Path("data/alert_scanner_state.json")
 RULES_PATH = Path("data/monitor_rules.json")
 STOP_PATH = Path("data/alert_scanner.stop")
+LEDGER_DB_PATH = ledger.DEFAULT_LEDGER_PATH
 MAX_SEEN = 4000
 MAX_MESSAGES_PER_SCAN = 10
 
@@ -98,6 +100,7 @@ def scan_once(settings: dict) -> tuple[int, int]:
     state = load_json(STATE_PATH, {})
     seen = list(state.get("seen", []))
     seen_set = set(seen)
+    new_rows: list[pd.Series] = []
     sent = 0
     for _, row in hits.iterrows():
         key = signal_key(row)
@@ -105,6 +108,7 @@ def scan_once(settings: dict) -> tuple[int, int]:
             continue
         seen.append(key)
         seen_set.add(key)
+        new_rows.append(row)
         if sent >= MAX_MESSAGES_PER_SCAN:
             continue
         ok, detail = notify.send_telegram(settings["telegram_bot_token"], settings["telegram_chat_id"], format_hit(row))
@@ -112,6 +116,14 @@ def scan_once(settings: dict) -> tuple[int, int]:
             sent += 1
         else:
             print(f"telegram delivery failed: {detail}", file=sys.stderr)
+    # Every new hit goes to the append-only ledger, not just the ones that fit
+    # under the Telegram message cap. A broken ledger must never kill the scan.
+    ledger_written = 0
+    if new_rows:
+        ledger_written, ledger_error = ledger.safe_emit_signals(pd.DataFrame(new_rows), LEDGER_DB_PATH)
+        if ledger_error:
+            print(ledger_error, file=sys.stderr)
+    state["last_ledger_written"] = ledger_written
     state["seen"] = seen[-MAX_SEEN:]
     state["last_scan_at"] = pd.Timestamp.now(tz="UTC").isoformat()
     state["last_hits"] = int(len(hits))
