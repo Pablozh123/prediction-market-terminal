@@ -28,6 +28,11 @@ LINT_SOURCES = (
     "app/*.py",
     "docs/specs/**/*.md",
     "README.md",
+    # The control-room frontend is the surface that goes public, so its copy is
+    # exactly what the register exists to govern. Linting only the Streamlit app
+    # would leave the published wording unchecked.
+    "web/index.html",
+    "web/js/**/*.js",
 )
 
 # Files that define or quote the forbidden list itself.
