@@ -219,7 +219,7 @@ class EndToEndTests(unittest.TestCase):
             results = gl.run_study(data, watchlist_path=wl)
             paths = gl.write_outputs(results, "test", research_dir=root / "r")
             body = paths["md"].read_text(encoding="utf-8")
-            self.assertIn("Lebensdauer", body)
+            self.assertIn("Lifetime of a cross-venue gap", body)
             self.assertNotIn("ß", body)
             self.assertTrue(paths["csv"].exists())
 

@@ -50,6 +50,36 @@ class RestTouchTests(unittest.TestCase):
         self.assertEqual(bid, 0.4)
 
 
+class TickInferenceTests(unittest.TestCase):
+    """The tick is not constant, and assuming it manufactures false drift."""
+
+    def test_cent_prices_imply_a_cent_tick(self):
+        self.assertEqual(br.infer_tick(0.65, 0.66, 0.63), 0.01)
+
+    def test_finer_prices_imply_the_finer_tick(self):
+        self.assertEqual(br.infer_tick(0.652, 0.653), 0.001)
+
+    def test_no_prices_falls_back(self):
+        self.assertEqual(br.infer_tick(None, None), br.DEFAULT_TICK)
+
+    def test_one_cent_apart_on_a_cent_market_is_one_tick_not_ten(self):
+        # Der Fehler aus dem ersten langen Lauf: acht gemeldete Abweichungen,
+        # alle glatte Ganz-Cent-Vielfache, alle in Wahrheit ein Tick.
+        result = br.compare("t1", stream_with(bids=[{"price": "0.65", "size": "1"}],
+                                              asks=[{"price": "0.66", "size": "1"}]),
+                            rest(bids=[{"price": "0.64", "size": "1"}],
+                                 asks=[{"price": "0.66", "size": "1"}]))
+        self.assertEqual(result.bid_diff_ticks, 1.0)
+        self.assertEqual(result.verdict(), "match")
+
+    def test_a_genuinely_large_move_is_still_drift(self):
+        result = br.compare("t1", stream_with(bids=[{"price": "0.65", "size": "1"}],
+                                              asks=[{"price": "0.66", "size": "1"}]),
+                            rest(bids=[{"price": "0.55", "size": "1"}],
+                                 asks=[{"price": "0.66", "size": "1"}]))
+        self.assertEqual(result.verdict(), "drift")
+
+
 class ComparisonTests(unittest.TestCase):
     def test_identical_books_match(self):
         result = br.compare("t1", stream_with(), rest())
@@ -65,7 +95,8 @@ class ComparisonTests(unittest.TestCase):
         result = br.compare("t1", stream_with(),
                             rest(bids=[{"price": "0.30", "size": "1"}]))
         self.assertEqual(result.verdict(), "drift")
-        self.assertEqual(result.bid_diff_ticks, 100.0)
+        # Zehn Cent auf einem Cent-Markt sind zehn Ticks, nicht hundert.
+        self.assertEqual(result.bid_diff_ticks, 10.0)
 
     def test_a_missing_stream_book_is_named_not_counted_as_match(self):
         result = br.compare("unbekannt", bs.StreamState(), rest())
@@ -165,8 +196,8 @@ class StudyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             paths = br.write_outputs(results, "test", research_dir=Path(tmp))
             body = paths["md"].read_text(encoding="utf-8")
-            self.assertIn("Buch-Abgleich", body)
-            self.assertIn("keine Sequenznummern", body)
+            self.assertIn("reconciled against REST", body)
+            self.assertIn("no sequence numbers", body)
             self.assertNotIn("ß", body)
             json.loads(paths["json"].read_text(encoding="utf-8"))
 

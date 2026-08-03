@@ -250,17 +250,17 @@ def _fmt(value, spec="{:.2f}") -> str:
 
 def _markdown(results: dict, tag: str) -> str:
     lines = [
-        f"# Lebensdauer einer Cross-Venue-Luecke ({tag})",
+        f"# Lifetime of a cross-venue gap ({tag})",
         "",
-        f"Quelle: {results['source']}, beide Stream-Recorder. Basketgroesse "
-        f"{results['shares']:.0f} Shares, Gegenseite hoechstens "
-        f"{results['max_staleness_s']:.0f} Sekunden alt, Gebuehrenstand "
+        f"Source: {results['source']}, both stream recorders. Basket size "
+        f"{results['shares']:.0f} shares, opposite leg at most "
+        f"{results['max_staleness_s']:.0f} seconds old, fee schedule "
         f"{results['fee_model_version']}. {results['pairs_with_both_sides']} "
-        f"von {results['pairs']} Paaren mit Aufzeichnung auf beiden Seiten, "
-        f"{results['windows_total']} offene Fenster insgesamt.",
+        f"of {results['pairs']} pairs recorded on both sides, "
+        f"{results['windows_total']} open windows in total.",
         "",
-        "| Paar | Beobachtungen | Stunden | Fenster | offen (s) | Anteil offen | "
-        "laengstes (s) | median (s) | ab 5s | Spitze netto (c) |",
+        "| Pair | Observations | Hours | Windows | open (s) | share open | "
+        "longest (s) | median (s) | over 5s | peak net (c) |",
         "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for row in results["rows"]:
@@ -278,45 +278,45 @@ def _markdown(results: dict, tag: str) -> str:
             f"{_fmt(row['peak_net_cents'], '{:+.2f}')} |")
     lines += [
         "",
-        "## Lesehilfe",
+        "## How to read this",
         "",
-        "Ein offenes Fenster heisst: zu diesem Zeitpunkt haetten beide Beine "
-        "zusammen nach Abzug beider Gebuehrenkurven Geld gebracht. Die Spalte "
-        "Anteil offen ist der Bruchteil der beobachteten Zeit, in dem das galt. "
-        "Die Spalte ab 5s zaehlt nur Fenster, die lange genug offen waren, um "
-        "sie ueber einen REST-Weg oder von Hand ueberhaupt zu erreichen; "
-        "kuerzere sind fuer alles ausser einer stehenden Order Theorie.",
+        "An open window means: at that moment both legs together would have "
+        "made money after subtracting both fee curves. The share-open column "
+        "is the fraction of observed time for which that held. The over-5s "
+        "column counts only windows that stayed open long enough to be "
+        "reachable at all over a REST path or by hand; anything shorter is "
+        "theory for everything except a resting order.",
         "",
-        "Die Zuordnung schaut ausschliesslich zurueck. Jede Kalshi-Beobachtung "
-        "wird mit der letzten Polymarket-Notierung davor gepaart, und verworfen, "
-        "wenn die aelter ist als die erlaubte Standzeit. Nach vorne zu schauen "
-        "waere bequemer und wuerde Preise aus der Zukunft verwenden.",
+        "The pairing looks backwards only. Every Kalshi observation is matched "
+        "with the last Polymarket quote before it, and discarded if that quote "
+        "is older than the permitted staleness. Looking forward would be more "
+        "convenient and would use prices from the future.",
         "",
-        "**Ein Fenster ist so dicht wie die Beobachtungen darin.** Die "
-        "Recorder schreiben nur, wenn sich das Top of Book bewegt, und diese "
-        "Maerkte bewegen sich kaum: ein Paar kann ueber elf Stunden zwei "
-        "Dutzend Beobachtungen haben. Ein Fenster ueber diese Spanne heisst "
-        "dann nicht, dass die Luecke nachweislich durchgehend offen war, "
-        "sondern dass sie zu jedem Zeitpunkt offen war, zu dem wir hingesehen "
-        "haben. Die Spalte Beobachtungen gehoert deshalb immer mitgelesen.",
+        "**A window is only as dense as the observations inside it.** The "
+        "recorders write only when the top of book moves, and these markets "
+        "barely move: a pair can have two dozen observations across eleven "
+        "hours. A window spanning that range therefore does not mean the gap "
+        "was demonstrably open throughout, but that it was open at every "
+        "moment we looked. The observations column always belongs read "
+        "alongside.",
         "",
-        "Der Befund passt zur annualisierten Rechnung der "
-        "Schnappschuss-Studie und erklaert sie. Diese Luecken schliessen sich "
-        "nicht in Sekunden, sie stehen stundenlang offen - weil sie keine "
-        "Arbitrage sind. Wer sie nimmt, bindet Kapital bis zur Aufloesung, und "
-        "bei 830 Tagen Restlaufzeit ist eine Kante von wenigen Cent gut ein "
-        "Prozent im Jahr. Der Markt versaeumt es nicht, die Luecke zu "
-        "schliessen; die Luecke ist der Preis fuer das gebundene Kapital und "
-        "das Regelrisiko auf beiden Seiten.",
+        "The finding fits the annualised calculation from the snapshot study "
+        "and explains it. These gaps do not close in seconds, they stand open "
+        "for hours - because they are not arbitrage. Taking one locks capital "
+        "until resolution, and at 830 days remaining an edge of a few cents is "
+        "a little over one percent a year. The market is not failing to close "
+        "the gap; the gap is the price of the locked capital and of the "
+        "resolution-rule risk on both sides.",
         "",
-        "Grenzen: die Paare sind titel-gematcht und ihre Aufloesungsregeln nicht "
-        "verglichen, es bleibt also offen, ob ein Basket ueberhaupt abgesichert "
-        "waere. Tiefe geht nicht ein, die Zahlen gelten fuer die Standardgroesse "
-        "und nicht fuer das, was wirklich im Buch liegt. Gleichzeitige "
-        "Ausfuehrung beider Beine ist unterstellt. Und ein Fenster ist eine "
-        "Beobachtung, keine Gelegenheit: wer hineinginge, veraenderte es.",
+        "Limits: the pairs are matched on titles and their resolution rules "
+        "have not been compared, so whether a basket would be hedged at all "
+        "remains open. Depth does not enter, so the numbers hold for the "
+        "standard size and not for what actually rests in the book. "
+        "Simultaneous execution of both legs is assumed. And a window is an "
+        "observation, not an opportunity: anyone stepping into it would change "
+        "it.",
         "",
-        "Read-only-Forschung, keine Handelsempfehlung.",
+        "Read-only research. Not trading advice.",
     ]
     return "\n".join(lines)
 

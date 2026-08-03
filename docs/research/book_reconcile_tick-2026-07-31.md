@@ -1,8 +1,8 @@
-# Streamed book reconciled against REST (2026-07-31)
+# Streamed book reconciled against REST (tick-2026-07-31)
 
-10 tokens, 3 of 3 rounds connected, 40 seconds of streaming per round, tolerance 1 tick.
+24 tokens, 3 of 3 rounds connected, 120 seconds of streaming per round, tolerance 1 tick.
 
-Comparisons 30, of which matching 30, diverging 0, not comparable 0. Agreement rate 100.0%, largest divergence 0.0 ticks, mean 0.00 ticks.
+Comparisons 72, of which matching 71, diverging 1, not comparable 0. Agreement rate 98.6%, largest divergence 2.0 ticks, mean 0.07 ticks.
 
 ## Why this is necessary
 

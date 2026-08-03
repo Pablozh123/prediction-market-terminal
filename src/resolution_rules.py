@@ -46,13 +46,13 @@ HEADERS = {"User-Agent": "prediction-market-terminal research/1.0 (read-only)"}
 #: Lesehinweise, keine Urteile: ein Paar ohne Treffer ist nicht geprueft,
 #: sondern nur nicht aufgefallen.
 FLAG_PATTERNS = {
-    "mehrdeutigkeit": r"\bambiguous|\bunclear|\bdispute|\bcannot be determined"
-                      r"|\bnicht eindeutig|last traded price|\bvoid\b",
-    "quelle": r"\bsource\b|\baccording to\b|\bconsensus\b|credible report"
+    "ambiguity": r"\bambiguous|\bunclear|\bdispute|\bcannot be determined"
+                 r"|\bnicht eindeutig|last traded price|\bvoid\b",
+    "source": r"\bsource\b|\baccording to\b|\bconsensus\b|credible report"
               r"|official\b|\bannounce",
-    "frist": r"\bdeadline|\bby \d|\bbefore \d|expiration|\bcutoff|\bet\b"
-             r"|\butc\b|\bdate\b",
-    "teilweise": r"\bpartial|\bpro rata|\bprorat|\bsplit\b",
+    "deadline": r"\bdeadline|\bby \d|\bbefore \d|expiration|\bcutoff|\bet\b"
+                r"|\butc\b|\bdate\b",
+    "partial": r"\bpartial|\bpro rata|\bprorat|\bsplit\b",
 }
 
 
@@ -141,29 +141,27 @@ def run_study(watchlist_path: Path | str = watchlist.DEFAULT_PATH,
 
 def _markdown(results: dict, tag: str) -> str:
     lines = [
-        f"# Aufloesungsregeln im Vergleich ({tag})",
+        f"# Resolution rules side by side ({tag})",
         "",
-        f"{results['pairs']} Paare, davon mit Regeltext auf beiden Seiten "
-        f"{results['with_both_texts']}. Bei "
-        f"{results['with_one_sided_flags']} Paaren dokumentiert nur eine Seite "
-        f"etwas, das die andere nicht erwaehnt.",
+        f"{results['pairs']} pairs, of which {results['with_both_texts']} carry "
+        f"rule text on both sides. For "
+        f"{results['with_one_sided_flags']} pairs only one side documents "
+        f"something the other never mentions.",
         "",
-        "**Gefunden im Lauf vom 2026-07-31:** beim Paar zur "
-        "US-Praesidentschaftswahl 2028 loest Kalshi darauf auf, wer als "
-        "naechster als Praesident *vereidigt* wird, Polymarket darauf, wer die "
-        "*Wahl gewinnt*, laut Associated Press, Fox News und NBC. Das sind "
-        "zwei verschiedene Bedingungen. Wer die Wahl gewinnt und nicht "
-        "vereidigt wird - Tod, Rueckzug, strittige Feststellung - loest auf "
-        "Polymarket YES aus und auf Kalshi NO. Ein Basket ueber dieses Paar "
-        "verliert dann beide Beine statt sich abzusichern. Die Titel sind "
-        "praktisch identisch; der Unterschied steht nur im Regeltext.",
+        "**Found in the run of 2026-07-31:** on the 2028 US presidential pair, "
+        "Kalshi resolves on who is next *inaugurated* as president, Polymarket "
+        "on who *wins the election* according to Associated Press, Fox News "
+        "and NBC. Those are two different conditions. A candidate who wins the "
+        "election and is not inaugurated - death, withdrawal, a disputed "
+        "certification - pays YES on Polymarket and NO on Kalshi. A basket "
+        "over that pair then loses both legs instead of hedging. The titles "
+        "are near identical; the difference lives only in the rule text.",
         "",
-        "**Dieses Dokument urteilt nicht.** Es legt die Regelwerke "
-        "nebeneinander und markiert, was zuerst zu lesen ist. Der gefaehrliche "
-        "Unterschied ist nie der sprachliche, sondern der inhaltliche unter "
-        "einem Randfall, und den findet kein Textvergleich zuverlaessig. Ein "
-        "Paar ohne Markierung ist nicht freigegeben, es ist nur nicht "
-        "aufgefallen.",
+        "**This document does not judge.** It places the rulebooks side by "
+        "side and marks what to read first. The dangerous difference is never "
+        "the linguistic one but the substantive one under an edge case, and no "
+        "text comparison finds that reliably. A pair without a mark has not "
+        "been cleared, it has merely not stood out.",
         "",
     ]
     for row in results["rows"]:
@@ -172,12 +170,12 @@ def _markdown(results: dict, tag: str) -> str:
             "",
             f"{row['question']}",
             "",
-            f"Nur auf einer Seite dokumentiert: "
-            f"{', '.join(row['one_sided_flags']) or 'nichts aufgefallen'}",
+            f"Documented on one side only: "
+            f"{', '.join(row['one_sided_flags']) or 'nothing stood out'}",
             "",
             "**Kalshi**",
             "",
-            "> " + (row["kalshi"].get("primary") or "kein Text abrufbar")[:700],
+            "> " + (row["kalshi"].get("primary") or "no text available")[:700],
             "",
         ]
         if row["kalshi"].get("secondary"):
@@ -185,23 +183,23 @@ def _markdown(results: dict, tag: str) -> str:
         lines += [
             "**Polymarket**",
             "",
-            "> " + (row["polymarket"].get("description") or "kein Text abrufbar")[:700],
+            "> " + (row["polymarket"].get("description") or "no text available")[:700],
             "",
         ]
         if row["polymarket"].get("resolution_source"):
-            lines += [f"Quelle laut Polymarket: "
+            lines += [f"Source per Polymarket: "
                       f"{row['polymarket']['resolution_source'][:200]}", ""]
     lines += [
-        "## Warum das hier steht",
+        "## Why this exists",
         "",
-        "Beim Super-Bowl-Markt zur Frage, ob Cardi B auftrat, wertete Kalshi "
-        "den Ausgang als mehrdeutig und rechnete zum letzten Handelspreis ab, "
-        "waehrend Polymarket YES voll auszahlte. Gleiches Bildmaterial, "
-        "verschiedene Regelwerke. Ueber so ein Paar ist ein Basket nicht "
-        "abgesichert, sondern sind es zwei offene Wetten - und das faellt erst "
-        "bei der Aufloesung auf, wenn beide Beine laengst stehen.",
+        "On the Super Bowl market asking whether Cardi B performed, Kalshi "
+        "judged the outcome ambiguous and settled at the last traded price, "
+        "while Polymarket paid YES in full. Same footage, different rulebooks. "
+        "Across a pair like that a basket is not hedged, it is two open bets - "
+        "and that only surfaces at resolution, when both legs have long been "
+        "on.",
         "",
-        "Read-only-Forschung, keine Handelsempfehlung.",
+        "Read-only research. Not trading advice.",
     ]
     return "\n".join(lines)
 
@@ -225,7 +223,7 @@ def main(argv: list[str] | None = None) -> int:
     paths = write_outputs(results, args.tag)
     print({k: v for k, v in results.items() if k != "rows"})
     for row in results["rows"]:
-        print(" ", row["pair"], "->", row["one_sided_flags"] or "nichts")
+        print(" ", row["pair"], "->", row["one_sided_flags"] or "nothing")
     print({key: str(path) for key, path in paths.items()})
     return 0
 

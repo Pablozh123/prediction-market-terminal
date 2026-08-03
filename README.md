@@ -2,7 +2,24 @@
 
 [![CI](https://github.com/Pablozh123/prediction-market-terminal/actions/workflows/ci.yml/badge.svg)](https://github.com/Pablozh123/prediction-market-terminal/actions/workflows/ci.yml)
 
-Streamlit research terminal for Polymarket and Kalshi: market discovery, trader/wallet research, live public flow, whale/insider risk screening, backtesting, alerts, tracking, portfolio research, and paper-only copy-trading.
+Microstructure research on Polymarket and Kalshi from self-recorded data, and the research terminal it runs on. Read-only throughout: no order path exists in this codebase, and the authenticated Kalshi socket signs `GET` only.
+
+## Research
+
+Four recorders run continuously across both venues — REST pollers on a 120-second grid, event-driven WebSocket recorders writing on every top-of-book change — feeding eight analysis modules. Every finding below has a report and a tested module behind it, and every cost is subtracted separately for spread and fee.
+
+- **Book imbalance predicts direction and is still not tradable as a taker.** 55.2% hit rate over 1,011,556 observations, Wilson lower bound 55.0%. Gross edge +0.03 to +0.13 cents against a 2.58 cent round trip. 34 cuts knowable before the trade fail to rescue it; the one survivor has a confidence interval containing zero, which is the expected false-positive count at 34 tests.
+- **Market making loses to staleness, not to spread width.** Same code and parameters on seconds-resolution data instead of a 120-second grid: markout per fill falls from 362 to 16 cents while spread earned per fill barely moves, 148 against 140. The decomposition is an identity, not an estimate — spread capture plus markout plus late drift reconstructs terminal mark-to-mid exactly, asserted to nine decimal places in the tests.
+- **Cross-venue gaps are carry, not arbitrage, and they prove it by staying open.** Net of both fee curves, 3 of 5 verified pairs clear: best 3.07 cents, all settling in 2027 or 2028, so 0.5 to 1.8% annualised. Reconstructed over 11.6 hours from both recorders, 3 of the 5 were open at every moment observed.
+- **Two venues can price the same event and settle it differently.** Kalshi resolves the 2028 presidential market on who is next inaugurated, Polymarket on who wins the election. A basket over that pair loses both legs instead of hedging — and that pair had passed this project's own title-based mismatch screen as clean.
+
+Discarded along the way, and documented as such: signal-conditioned quoting (better total PnL, unchanged markout per fill — the gain was only from trading less), signed order flow as a signal (51.3%), and two apparent cross-venue edges of 79 and 64 cents that turned out to be mismatched pairs.
+
+**Start here:** [one-page summary](docs/research/ONE_PAGER.md) · [full index of studies](docs/research/README.md)
+
+## The terminal
+
+Streamlit research terminal: market discovery, trader/wallet research, live public flow, whale/insider risk screening, backtesting, alerts, tracking, portfolio research, and paper-only copy-trading. It is the platform the research above runs on, and the place where wallet-level findings are checked against out-of-sample outcomes.
 
 All market data comes from the public Polymarket (Gamma/Data/CLOB) and Kalshi APIs. Live trading is disabled — the copy-trading module is paper-only. The app is a research tool, not investment advice.
 
