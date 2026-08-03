@@ -1,16 +1,16 @@
-# Aufloesungsregeln im Vergleich (2026-07-31)
+# Resolution rules side by side (2026-07-31)
 
-5 Paare, davon mit Regeltext auf beiden Seiten 5. Bei 5 Paaren dokumentiert nur eine Seite etwas, das die andere nicht erwaehnt.
+5 pairs, of which 5 carry rule text on both sides. For 5 pairs only one side documents something the other never mentions.
 
-**Gefunden im Lauf vom 2026-07-31:** beim Paar zur US-Praesidentschaftswahl 2028 loest Kalshi darauf auf, wer als naechster als Praesident *vereidigt* wird, Polymarket darauf, wer die *Wahl gewinnt*, laut Associated Press, Fox News und NBC. Das sind zwei verschiedene Bedingungen. Wer die Wahl gewinnt und nicht vereidigt wird - Tod, Rueckzug, strittige Feststellung - loest auf Polymarket YES aus und auf Kalshi NO. Ein Basket ueber dieses Paar verliert dann beide Beine statt sich abzusichern. Die Titel sind praktisch identisch; der Unterschied steht nur im Regeltext.
+**Found in the run of 2026-07-31:** on the 2028 US presidential pair, Kalshi resolves on who is next *inaugurated* as president, Polymarket on who *wins the election* according to Associated Press, Fox News and NBC. Those are two different conditions. A candidate who wins the election and is not inaugurated - death, withdrawal, a disputed certification - pays YES on Polymarket and NO on Kalshi. A basket over that pair then loses both legs instead of hedging. The titles are near identical; the difference lives only in the rule text.
 
-**Dieses Dokument urteilt nicht.** Es legt die Regelwerke nebeneinander und markiert, was zuerst zu lesen ist. Der gefaehrliche Unterschied ist nie der sprachliche, sondern der inhaltliche unter einem Randfall, und den findet kein Textvergleich zuverlaessig. Ein Paar ohne Markierung ist nicht freigegeben, es ist nur nicht aufgefallen.
+**This document does not judge.** It places the rulebooks side by side and marks what to read first. The dangerous difference is never the linguistic one but the substantive one under an edge case, and no text comparison finds that reliably. A pair without a mark has not been cleared, it has merely not stood out.
 
 ## KXEUROVISIONHOST-27-SOF
 
 Will Sofia host Eurovision 2027?
 
-Nur auf einer Seite dokumentiert: frist, quelle
+Documented on one side only: frist, quelle
 
 **Kalshi**
 
@@ -24,7 +24,7 @@ Nur auf einer Seite dokumentiert: frist, quelle
 
 Will Donald Trump win the 2028 US Presidential Election?
 
-Nur auf einer Seite dokumentiert: frist, quelle
+Documented on one side only: frist, quelle
 
 **Kalshi**
 
@@ -38,7 +38,7 @@ Nur auf einer Seite dokumentiert: frist, quelle
 
 Will Marco Rubio win the 2028 US Presidential Election?
 
-Nur auf einer Seite dokumentiert: frist, quelle
+Documented on one side only: frist, quelle
 
 **Kalshi**
 
@@ -52,7 +52,7 @@ Nur auf einer Seite dokumentiert: frist, quelle
 
 Will Marine Le Pen win the 2027 French presidential election?
 
-Nur auf einer Seite dokumentiert: frist, quelle
+Documented on one side only: frist, quelle
 
 **Kalshi**
 
@@ -66,7 +66,7 @@ Nur auf einer Seite dokumentiert: frist, quelle
 
 Will J.B. Pritzker win the 2028 Democratic presidential nomination?
 
-Nur auf einer Seite dokumentiert: quelle
+Documented on one side only: quelle
 
 **Kalshi**
 
@@ -76,8 +76,8 @@ Nur auf einer Seite dokumentiert: quelle
 
 > This market will resolve to “Yes” if the named individual wins and accepts the 2028 nomination of the Democratic Party for U.S. president. Otherwise, this market will resolve to “No”. The resolution source for this market will be a consensus of official Democratic Party sources. Any replacement of the democratic nominee before election day will not change the resolution of the market.
 
-## Warum das hier steht
+## Why this exists
 
-Beim Super-Bowl-Markt zur Frage, ob Cardi B auftrat, wertete Kalshi den Ausgang als mehrdeutig und rechnete zum letzten Handelspreis ab, waehrend Polymarket YES voll auszahlte. Gleiches Bildmaterial, verschiedene Regelwerke. Ueber so ein Paar ist ein Basket nicht abgesichert, sondern sind es zwei offene Wetten - und das faellt erst bei der Aufloesung auf, wenn beide Beine laengst stehen.
+On the Super Bowl market asking whether Cardi B performed, Kalshi judged the outcome ambiguous and settled at the last traded price, while Polymarket paid YES in full. Same footage, different rulebooks. Across a pair like that a basket is not hedged, it is two open bets - and that only surfaces at resolution, when both legs have long been on.
 
-Read-only-Forschung, keine Handelsempfehlung.
+Read-only research. Not trading advice.
