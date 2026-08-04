@@ -22,6 +22,7 @@ RESEARCH_FILES = {
     "pilot": "pilot",
     "pipeline-forward": "pipeline_forward",
     "methodology": "audit",
+    "microstructure": "microstructure",
     "postmortems": "postmortems",
     "meta": "meta",
 }
@@ -578,130 +579,6 @@ def track_payload(
             "url": _text(item.get("url")),
         })
     return {"wallets": wallets, "watchlist": markets}
-
-
-def microstructure_payload(studies: Mapping[str, Any]) -> dict[str, Any]:
-    """Die publizierten Studien-Artefakte aus docs/research/ als ein Payload.
-
-    ``studies`` mappt Kurznamen auf die geladenen JSONs (None = fehlt). Es
-    werden ausschliesslich Zahlen aus den Artefakten serviert — die Markdown-
-    Reports weichen teils ab, massgeblich sind die JSONs.
-    """
-
-    stats: list[dict[str, str]] = []
-    table: list[list[str]] = []
-    series: list[float] = []
-
-    of = (studies.get("orderflow") or {}).get("signals", {}).get("imbalance", {}).get("overall", {})
-    if of:
-        n = int(of.get("n", 0))
-        stats.append({"label": "IMBALANCE HIT RATE", "value": f"{of.get('hit_rate', 0) * 100:.1f}%", "note": f"n = {n:,} · Wilson LB {of.get('wilson_lb95', 0) * 100:.1f}%"})
-        stats.append({"label": "TAKER NET / SIGNAL", "value": f"{of.get('mean_net_cents', 0):+.2f}¢", "note": f"gross {of.get('mean_gross_cents', 0):+.2f}¢ vs {of.get('mean_cost_cents', 0):.2f}¢ costs"})
-        table.append([
-            "Book imbalance predicts the next tick",
-            f"{n:,} obs · {of.get('days', '—')}d",
-            f"{of.get('mean_gross_cents', 0):+.2f}¢",
-            f"{of.get('mean_net_cents', 0):+.2f}¢",
-            "real, not tradable as taker",
-        ])
-
-    mm = (studies.get("mm_stream") or {}).get("fill_models", {}).get("touch", {}).get("decomposition", {})
-    if mm:
-        stats.append({"label": "MM MARKOUT · TOUCH", "value": f"{mm.get('markout_cents_per_fill', 0):+.0f}¢/fill", "note": f"spread capture {mm.get('spread_capture_cents_per_fill', 0):+.0f}¢ · {int(mm.get('fills', 0)):,} fills"})
-        table.append([
-            "Market-maker PnL decomposition (seconds data)",
-            f"{int(mm.get('fills', 0)):,} fills · {mm.get('days', '—')}d",
-            f"spread {mm.get('spread_capture_cents_per_fill', 0):+.0f}¢/fill",
-            f"markout {mm.get('markout_cents_per_fill', 0):+.0f}¢/fill",
-            "adverse selection binds",
-        ])
-
-    cv = studies.get("cross_venue") or {}
-    cv_summary = cv.get("summary", {})
-    if cv_summary:
-        stats.append({"label": "CROSS-VENUE NET", "value": f"{int(cv_summary.get('net_positive', 0))} of {int(cv_summary.get('usable', 0))} clear", "note": f"max net {cv_summary.get('max_net_cents', 0):.2f}¢ · carry, not arb"})
-        table.append([
-            "Cross-venue gaps net of both fee curves",
-            f"{int(cv_summary.get('pairs', 0))} pairs · {int(cv_summary.get('usable', 0))} usable",
-            f"median gross {cv_summary.get('median_gross_cents', 0):.1f}¢",
-            f"median net {cv_summary.get('median_net_cents', 0):.2f}¢",
-            "carry, not arbitrage",
-        ])
-        for row in cv.get("rows", []):
-            net = _num(row.get("net_edge_per_share"))
-            if net is not None:
-                series.append(round(net * 100, 2))
-
-    gl = studies.get("gap_lifetime") or {}
-    if gl.get("rows"):
-        always_open = sum(1 for r in gl["rows"] if (_num(r.get("open_share"), 0.0) or 0.0) >= 0.999)
-        max_hours = max((_num(r.get("paired_hours"), 0.0) or 0.0) for r in gl["rows"])
-        table.append([
-            "Gap lifetime on both stream recorders",
-            f"{int(gl.get('pairs', 0))} pairs · {max_hours:.1f}h",
-            "—",
-            f"{always_open} of {int(gl.get('pairs', 0))} open at every observation",
-            "gaps are compensation, not error",
-        ])
-
-    es = studies.get("edge_segments") or {}
-    es_cats = es.get("by_category", {})
-    if es_cats:
-        total_n = sum(int((c.get("overall", {}) or {}).get("n", 0)) for c in es_cats.values())
-        table.append([
-            "Segment cuts trying to rescue the taker signal",
-            f"{total_n:,} firings · {len(es_cats)} categories",
-            "34 ex-ante cuts",
-            "1 survivor · CI contains zero",
-            "expected false-positive count",
-        ])
-
-    rs = studies.get("rewards") or {}
-    if rs:
-        table.append([
-            "Reward pools vs the books that earn them",
-            f"{int(rs.get('markets_with_pool', 0)):,} markets · ${rs.get('total_pool_usd_per_day', 0):,.0f}/day",
-            f"median pool ${rs.get('median_pool_usd', 0):.0f}",
-            f"{int(rs.get('empty_band_markets', 0))} of {int(rs.get('probed', 0))} probed bands empty",
-            "liquidity is being bought",
-        ])
-
-    rr = studies.get("resolution_rules") or {}
-    if rr:
-        table.append([
-            "Resolution rulebooks side by side",
-            f"{int(rr.get('pairs', 0))} verified pairs",
-            "—",
-            f"{int(rr.get('with_one_sided_flags', 0))} with one-sided clauses",
-            "settlement risk is real",
-        ])
-
-    br = (studies.get("book_reconcile") or {}).get("summary", {})
-    if br:
-        stats.append({"label": "STREAM VS REST", "value": f"{br.get('match_rate', 0) * 100:.0f}% match", "note": f"{int(br.get('comparisons', 0))} comparisons · max {br.get('max_diff_ticks', 0):.0f} ticks"})
-        table.append([
-            "Streamed book reconciled against REST",
-            f"{int(br.get('comparisons', 0))} comparisons",
-            "—",
-            f"mean diff {br.get('mean_diff_ticks', 0):.2f} ticks",
-            "a series, not a verdict",
-        ])
-
-    if not stats and not table:
-        return {}
-    return {
-        "stamp": _text(cv.get("ts_utc"))[:10] or _text(rs.get("snapshot_date")) or "rolling",
-        "note": "Numbers come from the published study artifacts in docs/research/ — recorded order books, both venues, every cost split into spread and fee. No profitability claim is made anywhere in this work.",
-        "stats": stats[:4],
-        "table": {
-            "label": "THE RECORDED-BOOK STUDIES",
-            "cols": "1fr 170px 150px 190px 170px",
-            "head": ["STUDY", "SAMPLE", "RAW READ", "NET / RESULT", "VERDICT"],
-            "rows": table,
-        },
-        "series": series,
-        "series_label": "CROSS-VENUE NET EDGE PER VERIFIED PAIR (¢)",
-    }
 
 
 def live_runs_extras(payload: Mapping[str, Any]) -> dict[str, Any]:

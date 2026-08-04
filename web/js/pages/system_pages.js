@@ -4,6 +4,7 @@
 
 import { esc, num } from '../util.js';
 import { DEMO_ALERT_FEED, DEMO_DELIVERIES, DEMO_RUN_KPIS, DEMO_RUN_CARDS, DEMO_TIMING_ROWS, DEMO_RUN_SIM_ROWS, DEMO_CALIB_ROWS, DEMO_TRACK_MONTHS } from '../demo_data.js';
+import { renderMicrostructure } from './microstructure_page.js';
 
 const M = "font-family:'JetBrains Mono',monospace";
 const LBL9 = M + '; font-size:9px; letter-spacing:.14em; color:rgba(255,255,255,.42); margin-bottom:6px';
@@ -120,20 +121,18 @@ export function renderResearch(T) {
     return '<div>' + header + renderLiveRuns(T, payload) + '</div>';
   }
 
-  // Microstructure: die publizierten Studien-Artefakte aus docs/research/
-  const micro = s.researchTab === 4 && payload && payload.table ? payload : null;
-  const stamp = micro ? micro.stamp : payload && payload.stand_utc ? String(payload.stand_utc).slice(0, 16).replace('T', ' ') + ' UTC' : study.stamp;
-  const note = micro ? micro.note : payload && payload.hinweis ? payload.hinweis : study.note;
-  const table = micro
-    ? studyTableHtml(T, micro.table.label, micro.table.cols, micro.table.head, micro.table.rows)
-    : buildStudyTable(T, s.researchTab, payload);
-  const stats = micro
-    ? micro.stats
-    : buildStudyStats(s.researchTab, payload) || study.stats.map((x) => ({ label: x[0], value: x[1], note: x[2] }));
-  const chartLabel = micro && micro.series && micro.series.length > 1 ? micro.series_label : study.chart;
-  const pts = micro && micro.series && micro.series.length > 1
-    ? T.seriesPoints(micro.series, 900, 220)
-    : micro ? '' : T.curve(s.researchTab * 977 + 31, 50, 900, 220, 0.4, 3.2).pts;
+  // Microstructure hat eine eigene Seite: zwoelf Studien, je Karte mit
+  // Frage, Verdikt, Diagramm und Quelle. Nutzlast aus public/data.
+  if (s.researchTab === 4) {
+    return '<div>' + header + renderMicrostructure(payload) + '</div>';
+  }
+
+  const stamp = payload && payload.stand_utc ? String(payload.stand_utc).slice(0, 16).replace('T', ' ') + ' UTC' : study.stamp;
+  const note = payload && payload.hinweis ? payload.hinweis : study.note;
+  const table = buildStudyTable(T, s.researchTab, payload);
+  const stats = buildStudyStats(s.researchTab, payload) || study.stats.map((x) => ({ label: x[0], value: x[1], note: x[2] }));
+  const chartLabel = study.chart;
+  const pts = T.curve(s.researchTab * 977 + 31, 50, 900, 220, 0.4, 3.2).pts;
 
   return '<div>' + header
     + '<div style="padding:22px 24px">'

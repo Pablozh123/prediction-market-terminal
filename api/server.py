@@ -523,32 +523,9 @@ def copy_state() -> dict[str, Any]:
     return payload
 
 
-RESEARCH_DIR = ROOT / "docs" / "research"
-
-MICROSTRUCTURE_FILES = {
-    "orderflow": "orderflow_rest-2026-07",
-    "mm_stream": "mm_pnl_stream-2tage",
-    "cross_venue": "cross_venue_gaps_2026-07-31",
-    "gap_lifetime": "gap_lifetime_2026-07-31",
-    "edge_segments": "edge_segments_july-2026",
-    "rewards": "reward_selection_2026-07-31",
-    "resolution_rules": "resolution_rules_2026-07-31",
-    "book_reconcile": "book_reconcile_2026-07-31",
-}
-
-
 @app.get("/api/research/{name}")
 def research(name: str) -> dict[str, Any]:
     name = name.strip().lower()
-    if name == "microstructure":
-        def _build() -> dict[str, Any]:
-            studies = {key: load_publish_payload(RESEARCH_DIR, fname + ".json") for key, fname in MICROSTRUCTURE_FILES.items()}
-            return apv.microstructure_payload(studies)
-
-        payload = cached("research_microstructure", _build, ttl=600.0)
-        if not payload:
-            raise HTTPException(status_code=404, detail="no study artifacts under docs/research/")
-        return payload
     filename = apv.RESEARCH_FILES.get(name)
     if not filename:
         raise HTTPException(status_code=404, detail=f"unknown study '{name}'")

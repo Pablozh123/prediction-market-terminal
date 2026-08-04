@@ -214,24 +214,10 @@ class TrackPayloadTests(unittest.TestCase):
         self.assertEqual(payload["watchlist"][0]["market_key"], "0xcond")
 
 
-class MicrostructurePayloadTests(unittest.TestCase):
-    def test_builds_from_artifacts_only(self) -> None:
-        payload = apv.microstructure_payload({
-            "orderflow": {"signals": {"imbalance": {"overall": {"n": 1011556, "hit_rate": 0.552, "wilson_lb95": 0.5505,
-                "mean_gross_cents": 0.0736, "mean_cost_cents": 2.5641, "mean_net_cents": -2.4905, "days": 11}}}},
-            "cross_venue": {"ts_utc": "2026-07-31T12:00:00Z", "summary": {"pairs": 8, "usable": 5, "net_positive": 3,
-                "median_gross_cents": 1.4, "median_net_cents": 1.16, "max_net_cents": 3.0669},
-                "rows": [{"net_edge_per_share": 0.0307}]},
-        })
-        labels = [s["label"] for s in payload["stats"]]
-        self.assertIn("IMBALANCE HIT RATE", labels)
-        self.assertIn("CROSS-VENUE NET", labels)
-        self.assertEqual(payload["series"], [3.07])
-        self.assertEqual(len(payload["table"]["rows"]), 2)
-        self.assertEqual(payload["stamp"], "2026-07-31")
-
-    def test_empty_when_no_artifacts(self) -> None:
-        self.assertEqual(apv.microstructure_payload({}), {})
+class ResearchFilesTests(unittest.TestCase):
+    def test_microstructure_wird_wie_die_uebrigen_studien_serviert(self) -> None:
+        """Microstructure kommt aus public/data, nicht aus einem Sonderpfad."""
+        self.assertEqual(apv.RESEARCH_FILES["microstructure"], "microstructure")
 
 
 class LiveRunsExtrasTests(unittest.TestCase):
