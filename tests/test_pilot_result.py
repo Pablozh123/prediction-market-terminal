@@ -146,13 +146,24 @@ class BefundTests(unittest.TestCase):
 
 
 class EchtdatenTests(unittest.TestCase):
+    """Gegen die publizierte Datei, ohne Annahme ueber ihren Inhalt.
+
+    `public/data/pilot.json` ist laufzeitgeneriert: je nach Stand stehen
+    dort null oder zwanzig Trades. Geprueft wird deshalb, dass die
+    Auswertung auf der echten Struktur durchlaeuft und wohlgeformt ist,
+    nicht wieviel gerade drinsteht.
+    """
+
     @unittest.skipUnless(PILOT.exists(), "public/data/pilot.json fehlt")
     def test_laeuft_auf_der_publizierten_datei(self):
         payload = json.loads(PILOT.read_text(encoding="utf-8"))
         r = pr.evaluate(payload, heute=date(2026, 8, 4))
-        self.assertGreater(r["trades"]["gesamt"], 0)
         self.assertIn(r["phase"], (pr.PHASE_LAEUFT, pr.PHASE_OFFEN, pr.PHASE_FERTIG))
         self.assertTrue(r["befund"])
+        self.assertGreaterEqual(r["trades"]["gesamt"], 0)
+        if r["trades"]["gesamt"]:
+            self.assertIn("slippage", r)
+            self.assertIn("regeltreue", r)
 
 
 if __name__ == "__main__":
