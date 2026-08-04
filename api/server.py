@@ -48,6 +48,7 @@ from app import api_views as apv
 from app import app_settings as cfg
 from app import backtester as btr
 from app import cross_pairs
+from app import pilot_result
 from app import scorecard as sc
 from app import signals as sig
 from app.analysis_views import load_publish_payload
@@ -534,6 +535,14 @@ def research(name: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=f"no published data for '{name}'")
     if filename == "pipeline_forward":
         payload = apv.trim_pipeline_payload(payload)
+    if filename == "pilot":
+        # Die Auswertung wird aus den Trades gerechnet, nicht mitpubliziert:
+        # so ueberschreibt ein neuer Publish-Lauf sie nicht.
+        payload = dict(payload)
+        try:
+            payload["auswertung"] = pilot_result.evaluate(payload)
+        except Exception as exc:
+            print(f"[warn] pilot evaluation: {exc}")
     if filename == "runs":
         def _extras() -> dict[str, Any]:
             return apv.live_runs_extras(payload)
