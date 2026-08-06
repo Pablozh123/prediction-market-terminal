@@ -1,13 +1,14 @@
 {
  "hinweis": "Descriptive microstructure research on data this project recorded itself. Every figure is produced by a tested module in this repository. No profitability claim is made anywhere in this work.",
  "einleitung": "Four recorders run continuously across both venues: REST pollers on a 120 second grid and event driven WebSocket recorders that write on every change at the top of the book. The studies below ask, in order, whether anything in that data can be turned into money. Most of the answers are no, and the reasoning behind each no is the point. Each study states what it measured, what the numbers say, and how else they could be read.",
- "stand_utc": "2026-08-06T00:18:30.166293+00:00",
+ "stand_utc": "2026-08-06T23:45:50.425579+00:00",
  "kennzeichnung": "research/frozen",
  "zaehler": {
   "gesamt": 12,
   "nein": 8,
-  "ja": 3,
-  "offen": 1
+  "ja": 2,
+  "offen": 1,
+  "kontrolle": 1
  },
  "studien": [
   {
@@ -37,7 +38,7 @@
      "text": "A signal only counts as real if the pessimistic end of a 95 percent Wilson interval still sits above 50 percent. A point estimate above the coin flip would not have been enough, because with enough observations noise alone clears that bar."
     }
    ],
-   "einfach": "Out of 1,011,556 firings the book pointed the right way 55.2 percent of the time, against the 50 percent a coin flip would give. Even the cautious end of the interval sits at 55.0 percent, so this is not a sampling accident. In 39.1 percent of firings the price actually moved at all; the rest sat still.",
+   "einfach": "Out of 205,835 firings the book pointed the right way 55.5 percent of the time, against the 50 percent a coin flip would give. Even the cautious end of the interval sits at 55.2 percent, so this is not a sampling accident. In 35.4 percent of firings the price actually moved at all; the rest sat still.",
    "interpretation": [
     {
      "art": "lesart",
@@ -64,32 +65,33 @@
    "gebuehrenmodell": "2026-07-30",
    "bild": "docs/research/orderflow_rest-2026-07.png",
    "basis": {
-    "beobachtungen": 1011556,
+    "beobachtungen": 205835,
     "snapshots": 370423,
     "tokens": 4489,
-    "tage": 11
+    "tage": 11,
+    "fenster": "2026-07-18 to 2026-07-28"
    },
    "zahlen": [
     {
      "label": "Hit rate",
-     "wert": 55.2,
+     "wert": 55.5,
      "einheit": "%",
      "hinweis": "share of firings where the book moved the predicted way"
     },
     {
      "label": "Wilson lower bound (95%)",
-     "wert": 55.0,
+     "wert": 55.2,
      "einheit": "%",
      "hinweis": "even the pessimistic end of the interval sits above the coin flip"
     },
     {
      "label": "Firings",
-     "wert": 1011556,
+     "wert": 205835,
      "einheit": "observations"
     },
     {
      "label": "Of those, price actually moved",
-     "wert": 39.1,
+     "wert": 35.4,
      "einheit": "%"
     }
    ],
@@ -102,40 +104,67 @@
     "punkte": [
      {
       "label": "Hit rate",
-      "wert": 55.2
+      "wert": 55.5
      },
      {
       "label": "Wilson lower bound",
-      "wert": 55.0
+      "wert": 55.2
      }
     ]
    },
    "details": {
-    "titel": "Split before and after the cut-off date",
+    "titel": "Every horizon and decision delay tested",
     "spalten": [
-     "Sample",
-     "Firings",
+     "Horizon",
+     "Decision delay",
+     "n",
      "Hit rate",
      "Wilson lower bound",
-     "Days"
+     "Net"
     ],
     "zeilen": [
      [
-      "In sample",
-      "574,091",
+      "300 s ←",
+      "0 s",
+      "205,835",
+      "55.5%",
       "55.2%",
-      "55.0%",
-      6
+      "-2.498"
      ],
      [
-      "Out of sample",
-      "437,465",
+      "300 s",
+      "120 s",
+      "204,191",
+      "53.7%",
+      "53.3%",
+      "-2.533"
+     ],
+     [
+      "900 s",
+      "0 s",
+      "201,430",
+      "56.8%",
+      "56.5%",
+      "-2.439"
+     ],
+     [
+      "900 s",
+      "120 s",
+      "200,099",
+      "55.6%",
       "55.2%",
-      "55.0%",
-      5
+      "-2.473"
+     ],
+     [
+      "900 s",
+      "300 s",
+      "200,001",
+      "53.8%",
+      "53.5%",
+      "-2.509"
      ]
     ],
-    "hinweis": "The out-of-sample half was never used to choose the threshold."
+    "hinweis": "The marked row is the one quoted above. The cells overlap, since every snapshot feeds each of them, so they must not be pooled into one sample: that is why the headline uses a single cell and not their sum."
    }
   },
   {
@@ -165,7 +194,7 @@
      "text": "Takeable means the net stays above zero. Costs come from the venue fee model in the repository, not from a round-number assumption."
     }
    ],
-   "einfach": "The signal is worth +0.07 cents per firing before costs. Crossing the spread costs 0.92 cents and the venue fee another 1.65, so the round trip takes 2.56 cents, roughly 35 times what the signal produces. The net is -2.49 cents, and only 4.2 percent of firings end positive. Even the best cut of the signal only reaches +0.14 cents gross, nowhere near the wall.",
+   "einfach": "The signal is worth +0.09 cents per firing before costs. Crossing the spread costs 0.94 cents and the venue fee another 1.65, so the round trip takes 2.58 cents, roughly 30 times what the signal produces. The net is -2.50 cents, and only 3.8 percent of firings end positive. Even the best cut of the signal only reaches +0.21 cents gross, nowhere near the wall.",
    "interpretation": [
     {
      "art": "lesart",
@@ -192,46 +221,47 @@
    ],
    "gebuehrenmodell": "2026-07-30",
    "basis": {
-    "beobachtungen": 1011556,
+    "beobachtungen": 205835,
     "snapshots": 370423,
     "tokens": 4489,
-    "tage": 11
+    "tage": 11,
+    "fenster": "2026-07-18 to 2026-07-28"
    },
    "zahlen": [
     {
      "label": "Gross edge, imbalance",
-     "wert": 0.0736,
+     "wert": 0.0856,
      "einheit": "cents per firing"
     },
     {
      "label": "Gross edge, best cut",
-     "wert": 0.1378,
+     "wert": 0.2111,
      "einheit": "cents per firing"
     },
     {
      "label": "Spread cost",
-     "wert": 0.9167,
+     "wert": 0.9383,
      "einheit": "cents"
     },
     {
      "label": "Fee cost",
-     "wert": 1.6474,
+     "wert": 1.6458,
      "einheit": "cents"
     },
     {
      "label": "Round trip total",
-     "wert": 2.5641,
+     "wert": 2.5841,
      "einheit": "cents"
     },
     {
      "label": "Net result",
-     "wert": -2.4905,
+     "wert": -2.4985,
      "einheit": "cents",
      "hinweis": "what is left after both cost legs"
     },
     {
      "label": "Firings that end net positive",
-     "wert": 4.2,
+     "wert": 3.8,
      "einheit": "%"
     }
    ],
@@ -242,22 +272,22 @@
     "punkte": [
      {
       "label": "Gross edge",
-      "wert": 0.0736,
+      "wert": 0.0856,
       "art": "gewinn"
      },
      {
       "label": "Spread cost",
-      "wert": -0.9167,
+      "wert": -0.9383,
       "art": "kosten"
      },
      {
       "label": "Fee cost",
-      "wert": -1.6474,
+      "wert": -1.6458,
       "art": "kosten"
      },
      {
       "label": "Net",
-      "wert": -2.4905,
+      "wert": -2.4985,
       "art": "summe"
      }
     ]
@@ -272,22 +302,22 @@
     "zeilen": [
      [
       "Gross edge",
-      "+0.0736",
+      "+0.0856",
       "the price move the signal caught"
      ],
      [
       "Spread cost",
-      "-0.9167",
+      "-0.9383",
       "half the spread, paid to cross the book"
      ],
      [
       "Fee cost",
-      "-1.6474",
+      "-1.6458",
       "the venue fee for this market category"
      ],
      [
       "Net",
-      "-2.4905",
+      "-2.4985",
       "what a taker actually keeps"
      ]
     ],
@@ -321,7 +351,7 @@
      "text": "The identical Wilson bar as the first study. Holding the test fixed is the whole point of running it on the same data."
     }
    ],
-   "einfach": "Over 450,492 firings this signal was right 51.3 percent of the time, barely above the coin flip and far below the 55.2 percent the resting book managed. Its gross edge is -0.029 cents, already negative before a single cost is subtracted, which means there is nothing here for costs to eat.",
+   "einfach": "Over 93,868 firings this signal was right 51.7 percent of the time, barely above the coin flip and far below the 55.5 percent the resting book managed. Its gross edge is -0.002 cents, already negative before a single cost is subtracted, which means there is nothing here for costs to eat.",
    "interpretation": [
     {
      "art": "lesart",
@@ -347,31 +377,32 @@
    ],
    "gebuehrenmodell": "2026-07-30",
    "basis": {
-    "beobachtungen": 450492,
+    "beobachtungen": 93868,
     "snapshots": 370423,
     "tokens": 4489,
-    "tage": 11
+    "tage": 11,
+    "fenster": "2026-07-18 to 2026-07-28"
    },
    "zahlen": [
     {
      "label": "Hit rate",
-     "wert": 51.3,
+     "wert": 51.7,
      "einheit": "%"
     },
     {
      "label": "Wilson lower bound (95%)",
-     "wert": 51.1,
+     "wert": 51.3,
      "einheit": "%"
     },
     {
      "label": "Gross edge",
-     "wert": -0.0285,
+     "wert": -0.0016,
      "einheit": "cents per firing",
      "hinweis": "already negative before any cost is subtracted"
     },
     {
      "label": "Firings",
-     "wert": 450492,
+     "wert": 93868,
      "einheit": "observations"
     }
    ],
@@ -384,11 +415,11 @@
     "punkte": [
      {
       "label": "Signed order flow",
-      "wert": 51.3
+      "wert": 51.7
      },
      {
       "label": "Book imbalance",
-      "wert": 55.2
+      "wert": 55.5
      }
     ]
    },
@@ -404,24 +435,24 @@
     "zeilen": [
      [
       "Book imbalance",
-      "1,011,556",
-      "55.2%",
-      "+0.0736",
-      "-2.4905"
+      "205,835",
+      "55.5%",
+      "+0.0856",
+      "-2.4985"
      ],
      [
       "Signed order flow",
-      "450,492",
-      "51.3%",
-      "-0.0285",
-      "-2.8882"
+      "93,868",
+      "51.7%",
+      "-0.0016",
+      "-2.8753"
      ],
      [
       "Both together",
-      "90,890",
-      "55.6%",
-      "+0.1378",
-      "-2.6408"
+      "18,891",
+      "56.6%",
+      "+0.2111",
+      "-2.6031"
      ]
     ],
     "hinweis": "Gross and net are cents per firing. Requiring both to agree raises the hit rate and shrinks the sample."
@@ -482,7 +513,8 @@
    "bild": "docs/research/edge_segments_july-2026.png",
    "basis": {
     "beobachtungen": 205835,
-    "tage": 11
+    "tage": 11,
+    "fenster": "2026-07-18 to 2026-07-28"
    },
    "zahlen": [
     {
@@ -738,7 +770,8 @@
    "basis": {
     "snapshots": 370903,
     "tokens": 4519,
-    "tage": 12
+    "tage": 12,
+    "fenster": "2026-07-18 to 2026-07-30"
    },
    "zahlen": [
     {
@@ -835,12 +868,12 @@
     {
      "schluessel": "wie",
      "titel": "How",
-     "text": "Identical code, identical parameters, identical fill model. The only thing that changes is how fresh the book is when the quote is placed. That makes it a controlled comparison rather than two separate experiments."
+     "text": "Identical code, identical parameters, identical fill model. What differs is how fresh the book is when the quote is placed. It is not a controlled experiment: the two runs also cover different days and a different set of tokens, so the data frequency is the main difference rather than the only one."
     },
     {
      "schluessel": "daten",
      "titel": "On what data",
-     "text": "5,413,998 streamed book snapshots over five days from the WebSocket recorders, against the twelve-day 120 second run."
+     "text": "5,413,998 streamed snapshots over five days and 468 tokens from the WebSocket recorders, against twelve days and 4,519 tokens on the 120 second grid. The two windows do not overlap."
     },
     {
      "schluessel": "entscheidung",
@@ -877,7 +910,8 @@
    "basis": {
     "snapshots": 5413998,
     "tokens": 468,
-    "tage": 5
+    "tage": 5,
+    "fenster": "2026-07-30 to 2026-08-03"
    },
    "zahlen": [
     {
@@ -1021,7 +1055,8 @@
    "basis": {
     "snapshots": 5413998,
     "tokens": 468,
-    "tage": 5
+    "tage": 5,
+    "fenster": "2026-07-30 to 2026-08-03"
    },
    "zahlen": [
     {
@@ -1162,6 +1197,7 @@
    ],
    "gebuehrenmodell": "2026-07-30",
    "basis": {
+    "fenster": "2026-07-30",
     "maerkte": 900,
     "paare": 8
    },
@@ -1228,7 +1264,7 @@
       "Will Sofia host Eurovision 2027?",
       "-7.00",
       "-9.82",
-      "153.02",
+      "153",
       "-20.51%"
      ],
      [
@@ -1236,7 +1272,7 @@
       "Will Mark Kelly win the 2028 Democratic presidential nomination?",
       "+65.90",
       "+64.25",
-      "830.02",
+      "830",
       "59.33%"
      ],
      [
@@ -1244,7 +1280,7 @@
       "Will Donald Trump win the 2028 US Presidential Election?",
       "+0.20",
       "-0.13",
-      "830.02",
+      "830",
       "-0.06%"
      ],
      [
@@ -1252,7 +1288,7 @@
       "Will Marco Rubio win the 2028 US Presidential Election?",
       "+4.60",
       "+3.07",
-      "830.02",
+      "830",
       "1.40%"
      ],
      [
@@ -1260,7 +1296,7 @@
       "Will Marine Le Pen win the 2027 French presidential election?",
       "+4.00",
       "+1.32",
-      "273.02",
+      "273",
       "1.85%"
      ],
      [
@@ -1268,7 +1304,7 @@
       "Will J.B. Pritzker win the 2028 Democratic presidential nomination?",
       "+1.40",
       "+1.16",
-      "830.02",
+      "830",
       "0.52%"
      ],
      [
@@ -1276,16 +1312,16 @@
       "Will Abdul El-Sayed win the 2026 Michigan Democratic Primary?",
       "+80.00",
       "+78.87",
-      "4.02",
-      "103576845656821844613277122983887064191766845950951615297172275200.00%"
+      "4",
+      "n/a, too short"
      ],
      [
       "rejected",
       "Will Haley Stevens win the 2026 Michigan Democratic Primary?",
       "-1.10",
       "-1.75",
-      "4.02",
-      "-79.51%"
+      "4",
+      "n/a, too short"
      ]
     ],
     "hinweis": "Gross and net in cents per share, both fee curves subtracted. Rejected pairs stay in the table on purpose: what a bad match looks like is the lesson."
@@ -1343,7 +1379,8 @@
    ],
    "gebuehrenmodell": "2026-07-30",
    "basis": {
-    "paare": 5
+    "paare": 5,
+    "fenster": "2026-07-31"
    },
    "zahlen": [
     {
@@ -1489,6 +1526,7 @@
    ],
    "gebuehrenmodell": null,
    "basis": {
+    "fenster": "2026-07-31",
     "maerkte": 9900
    },
    "zahlen": [
@@ -1692,7 +1730,8 @@
    ],
    "gebuehrenmodell": null,
    "basis": {
-    "paare": 5
+    "paare": 5,
+    "fenster": "2026-07-31"
    },
    "zahlen": [
     {
@@ -1765,8 +1804,8 @@
   {
    "id": "book-reconcile",
    "frage": "Does our own recorded book drift against the venue?",
-   "verdikt": "No. 98.6% agreement, mean divergence 0.07 ticks.",
-   "verdikt_art": "ja",
+   "verdikt": "No drift found. 98.6% agreement, mean divergence 0.07 ticks.",
+   "verdikt_art": "kontrolle",
    "analyse": [
     {
      "schluessel": "gemessen",
@@ -1816,7 +1855,8 @@
    "gebuehrenmodell": null,
    "basis": {
     "beobachtungen": 72,
-    "tokens": 24
+    "tokens": 24,
+    "fenster": "2026-07-31"
    },
    "zahlen": [
     {

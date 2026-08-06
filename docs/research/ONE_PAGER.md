@@ -21,13 +21,16 @@ gap-lifetime reconstruction, a reward-market ranker, and a book reconciler.
 
 ## What was measured
 
-**Book imbalance predicts direction.** 1,011,556 observations over 11 days.
-Hit rate 55.2 percent, Wilson lower bound 55.0. Real, and far outside noise at
-that sample size.
+**Book imbalance predicts direction.** 205,835 firings over 11 days, at a five
+minute horizon with no decision delay. Hit rate 55.5 percent, Wilson lower
+bound 55.2. Real, and far outside noise at that sample size. The study also
+runs four other horizon and delay combinations; they are reported separately
+rather than pooled, because every snapshot feeds each of them and summing them
+would inflate the sample past the number of snapshots it came from.
 
-**It is not tradable as a taker.** Mean gross edge 0.07 to 0.28 cents per
-signal against a 2.56 cent round trip, of which 1.65 cents is fee and 0.92 is
-spread. 4.2 percent of firings end net positive.
+**It is not tradable as a taker.** Mean gross edge 0.09 cents per firing
+against a 2.58 cent round trip, of which 1.65 cents is fee and 0.94 is spread.
+3.8 percent of firings end net positive.
 
 **No segment rescues it.** 34 cuts knowable before the trade — spread, price
 level, signal strength, their cross — across three fee scenarios including the

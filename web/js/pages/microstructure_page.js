@@ -15,8 +15,11 @@ const CARD = 'background:#10151A; border:1px solid rgba(255,255,255,.09); border
 const MUTED = 'color:rgba(255,255,255,.55)';
 const HR = 'border-top:1px solid rgba(255,255,255,.07); margin-top:20px; padding-top:18px';
 
-const VERDIKT_FARBE = { ja: '#C8F542', nein: '#FF7A7A', offen: '#F5A623' };
-const VERDIKT_TEXT = { ja: 'CONFIRMED', nein: 'REFUTED', offen: 'NOT IDENTIFIED' };
+const VERDIKT_FARBE = { ja: '#C8F542', nein: '#FF7A7A', offen: '#F5A623', kontrolle: '#7DE2D1' };
+// CONTROL ist bewusst kein CONFIRMED: die Studie prueft die eigene Messkette,
+// nicht den Markt. Als bestaetigte Hypothese gezaehlt waere sie ein
+// bestandener Selbsttest, der wie ein Befund aussieht.
+const VERDIKT_TEXT = { ja: 'CONFIRMED', nein: 'REFUTED', offen: 'NOT IDENTIFIED', kontrolle: 'CONTROL' };
 const BALKEN_FARBE = { gewinn: '#C8F542', kosten: '#FF4545', summe: '#4F8EF7' };
 // Lesart lime, Gegenlesart blau, Grenze grau: drei Farben, damit die
 // Gegenlesart nicht wie ein Nachtrag zur Lesart aussieht.
@@ -243,6 +246,9 @@ function basisZeile(basis) {
   if (b.maerkte) teile.push(Number(b.maerkte).toLocaleString('en-US') + ' markets');
   if (b.paare) teile.push(b.paare + ' pairs');
   if (b.tage) teile.push(b.tage + ' days');
+  // Das Kalenderfenster gehoert an jede Zahl. Ohne es ist nicht zu sehen,
+  // ob zwei Studien denselben Zeitraum messen.
+  if (b.fenster) teile.push(b.fenster);
   if (!teile.length) return '';
   return '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45)">DATA · ' + esc(teile.join(' · ')) + '</div>';
 }
@@ -312,6 +318,7 @@ function kopf(payload) {
     + kachel(z.nein || 0, 'REFUTED', '#FF7A7A')
     + kachel(z.ja || 0, 'CONFIRMED', '#C8F542')
     + kachel(z.offen || 0, 'NOT IDENTIFIED', '#F5A623')
+    + (z.kontrolle ? kachel(z.kontrolle, 'CONTROL', '#7DE2D1') : '')
     + '</div>'
     + (payload.hinweis
       ? '<div style="font-size:12px; color:rgba(255,255,255,.45); margin-top:14px; line-height:1.55; max-width:760px; '

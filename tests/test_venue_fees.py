@@ -147,10 +147,27 @@ class BasketEconomicsTests(unittest.TestCase):
     def test_carry_case_annualises_a_small_edge_over_a_long_hold(self):
         leg_a = vf.BasketLeg("polymarket", 0.45, 1000, "politics")
         leg_b = vf.BasketLeg("kalshi", 0.45, 1000)
-        quick = vf.basket_economics(leg_a, leg_b, days_to_resolution=7)
+        quick = vf.basket_economics(leg_a, leg_b, days_to_resolution=60)
         slow = vf.basket_economics(leg_a, leg_b, days_to_resolution=180)
         self.assertEqual(quick["return_on_capital"], slow["return_on_capital"])
         self.assertGreater(quick["annualised_return"], slow["annualised_return"])
+
+    def test_short_horizons_are_not_annualised(self):
+        """Vier Tage auf ein Jahr hochgerechnet ergibt 1e63 Prozent.
+
+        Die Potenz ist korrekt und die Aussage wertlos: sie unterstellt, der
+        Abstand liesse sich neunzigmal im Jahr wiederholen. Genau so eine Zahl
+        stand in der Cross-Venue-Belegtabelle.
+        """
+        leg_a = vf.BasketLeg("polymarket", 0.10, 1000, "politics")
+        leg_b = vf.BasketLeg("kalshi", 0.11, 1000)
+        kurz = vf.basket_economics(leg_a, leg_b, days_to_resolution=4)
+        self.assertIsNone(kurz["annualised_return"])
+        self.assertIsNotNone(kurz["return_on_capital"])
+
+        knapp_darueber = vf.basket_economics(
+            leg_a, leg_b, days_to_resolution=vf.MIN_ANNUALISIERUNG_TAGE)
+        self.assertIsNotNone(knapp_darueber["annualised_return"])
 
     def test_zero_depth_yields_no_trade(self):
         leg_a = vf.BasketLeg("polymarket", 0.45, depth_shares=0, category="politics")
