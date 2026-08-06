@@ -2,6 +2,7 @@
 
 import { esc, money, num } from '../util.js';
 import { DEMO_WHALES, DEMO_RISK_WALLETS, DEMO_FRESH_CLUSTERS, DEMO_TIMING_CLUSTERS, DEMO_NETWORK_CLUSTERS, DEMO_TRACKED_WALLETS } from '../demo_data.js';
+import { renderClusterGraphics } from './cluster_graphics.js';
 
 const M = "font-family:'JetBrains Mono',monospace";
 const LBL9 = M + '; font-size:9px; letter-spacing:.14em; color:rgba(255,255,255,.42); margin-bottom:6px';
@@ -283,7 +284,8 @@ export function renderRisk(T) {
   } else {
     const networkRows = live && live.network && live.network.length ? live.network : DEMO_NETWORK_CLUSTERS;
     body = '<div style="padding:16px 24px">'
-      + '<div style="font-size:12.5px; color:rgba(255,255,255,.55); line-height:1.5; max-width:820px">Wallets that repeatedly trade the same markets within five minutes of each other. Only groups with at least three shared markets and $10k of paired notional count as a cluster.</div>'
+      + renderClusterGraphics(live)
+      + '<div style="font-size:12.5px; color:rgba(255,255,255,.55); line-height:1.5; max-width:820px">Wallets that repeatedly trade the same markets. The rule that produced the current graph is stated above it: the screen tries the strict rule first and falls back only when it finds nothing.</div>'
       + '<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-top:14px">'
       + networkRows.map((n) =>
         '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:16px 18px">'

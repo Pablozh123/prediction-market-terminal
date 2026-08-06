@@ -757,3 +757,194 @@ def cluster_payload(
     out["network"] = network_rows[:6]
     out["kpis_clusters"] = {"fresh_clusters": len(fresh_rows), "coordinated_clusters": len(timing_rows)}
     return out
+
+
+def network_graph(
+    nodes: pd.DataFrame,
+    edges: pd.DataFrame,
+    *,
+    regel: str = "",
+    modularitaet: float | None = None,
+) -> dict[str, Any]:
+    """Den Co-Trading-Graphen zeichenfertig machen.
+
+    ``nodes`` muss bereits durch ``suspicion.cluster_layout`` gelaufen sein und
+    x/y tragen. Kanten referenzieren Knoten ueber ihren Index, damit die
+    Nutzlast klein bleibt und das Frontend nichts nachschlagen muss.
+
+    ``regel`` beschreibt, welche Kantenregel diesen Graphen erzeugt hat. Das
+    gehoert in die Nutzlast und nicht in einen festen Text im Frontend: die
+    Regel faellt auf eine lockerere zurueck, wenn die strenge nichts findet,
+    und ein Bild, das die falsche Regel behauptet, ist wertlos.
+    """
+
+    leer: dict[str, Any] = {"knoten": [], "kanten": [], "cluster": []}
+    if nodes is None or nodes.empty or "x" not in nodes.columns:
+        return leer
+
+    index_je_wallet: dict[str, int] = {}
+    knoten: list[dict[str, Any]] = []
+    for position, (_, row) in enumerate(nodes.iterrows()):
+        wallet = _text(row.get("wallet"))
+        index_je_wallet[wallet] = position
+        knoten.append({
+            "wallet": wallet,
+            "kurz": short_wallet(wallet),
+            "x": round(_num(row.get("x"), 0.0) or 0.0, 4),
+            "y": round(_num(row.get("y"), 0.0) or 0.0, 4),
+            "cluster": int(_num(row.get("cluster_id"), 0.0) or 0),
+            "volumen": _num(row.get("volume"), 0.0) or 0.0,
+            "maerkte": int(_num(row.get("markets"), 0.0) or 0),
+            "trades": int(_num(row.get("trades"), 0.0) or 0),
+            "geteilt": int(_num(row.get("shared_markets"), 0.0) or 0),
+        })
+
+    kanten: list[dict[str, Any]] = []
+    if edges is not None and not edges.empty:
+        for _, row in edges.iterrows():
+            a = index_je_wallet.get(_text(row.get("wallet_a")))
+            b = index_je_wallet.get(_text(row.get("wallet_b")))
+            if a is None or b is None:
+                continue
+            kanten.append({
+                "a": a, "b": b,
+                "geteilt": int(_num(row.get("shared_markets"), 0.0) or 0),
+                "notional": _num(row.get("pair_notional"), 0.0) or 0.0,
+            })
+
+    cluster: list[dict[str, Any]] = []
+    for cluster_id, gruppe in nodes.groupby("cluster_id"):
+        volumen = float(pd.to_numeric(gruppe.get("volume"), errors="coerce").fillna(0.0).sum())
+        cluster.append({
+            "id": int(_num(cluster_id, 0.0) or 0),
+            "name": f"C-{int(_num(cluster_id, 0.0) or 0)}",
+            "groesse": int(len(gruppe)),
+            "volumen": volumen,
+            "volumen_label": money_label(volumen),
+        })
+    cluster.sort(key=lambda c: c["groesse"], reverse=True)
+
+    xs = [k["x"] for k in knoten] or [0.0]
+    ys = [k["y"] for k in knoten] or [0.0]
+    ergebnis: dict[str, Any] = {
+        "knoten": knoten,
+        "kanten": kanten,
+        "cluster": cluster,
+        "spanne": {"x": [min(xs), max(xs)], "y": [min(ys), max(ys)]},
+        "kennzahl": {
+            "wallets": len(knoten),
+            "kanten": len(kanten),
+            "cluster": len(cluster),
+        },
+    }
+    if regel:
+        ergebnis["regel"] = regel
+    if modularitaet is not None:
+        ergebnis["kennzahl"]["modularitaet"] = round(float(modularitaet), 3)
+    return ergebnis
+
+
+def overlap_matrix(
+    trades: pd.DataFrame,
+    nodes: pd.DataFrame,
+    *,
+    max_wallets: int = 14,
+    max_maerkte: int = 14,
+) -> dict[str, Any]:
+    """Wallet-mal-Markt-Raster fuer den groessten Cluster.
+
+    Der Netzwerkgraph zeigt, wer mit wem verbunden ist. Diese Matrix zeigt
+    warum: welche Wallet welchen Markt auf welcher Seite angefasst hat. Eine
+    Kante im Graphen ist genau eine Zeile, die sich mit einer anderen in
+    mindestens zwei Spalten trifft.
+
+    Gefuellt wird mit dem Notional, damit sichtbar bleibt, ob eine
+    Ueberschneidung Gewicht hat oder nur ein Streifschuss war.
+    """
+
+    leer: dict[str, Any] = {"wallets": [], "maerkte": [], "zellen": []}
+    if nodes is None or nodes.empty or trades is None or trades.empty:
+        return leer
+    if "cluster_id" not in nodes.columns or "title" not in trades.columns:
+        return leer
+
+    groessen = nodes.groupby("cluster_id").size().sort_values(ascending=False)
+    if groessen.empty:
+        return leer
+    cluster_id = groessen.index[0]
+    gruppe = nodes[nodes["cluster_id"] == cluster_id]
+    mitglieder = [_text(w) for w in gruppe["wallet"].astype(str)]
+    if len(mitglieder) < 2:
+        return leer
+
+    teil = trades[trades["wallet"].astype(str).isin(mitglieder)].copy()
+    if teil.empty:
+        return leer
+    teil["_seite"] = teil.get("outcome", pd.Series("", index=teil.index)).astype(str)
+    teil["_schluessel"] = teil["title"].astype(str) + " | " + teil["_seite"]
+    teil["_notional"] = pd.to_numeric(teil.get("notional"), errors="coerce").fillna(0.0)
+
+    # Nur Maerkte, in denen sich mindestens zwei Wallets treffen: allein
+    # gehandelte Maerkte erklaeren keine einzige Kante.
+    je_markt = teil.groupby("_schluessel")["wallet"].nunique().sort_values(ascending=False)
+    spalten = [k for k, n in je_markt.items() if n >= 2][:max_maerkte]
+    if not spalten:
+        return leer
+
+    volumen_je_wallet = teil.groupby("wallet")["_notional"].sum().sort_values(ascending=False)
+    zeilen = [w for w in volumen_je_wallet.index if _text(w) in mitglieder][:max_wallets]
+    if len(zeilen) < 2:
+        return leer
+
+    summe = teil.groupby(["wallet", "_schluessel"])["_notional"].sum()
+    zellen: list[list[float]] = []
+    for wallet in zeilen:
+        zellen.append([round(float(summe.get((wallet, spalte), 0.0)), 2) for spalte in spalten])
+
+    cluster_nummer = int(_num(cluster_id, 0.0) or 0)
+    treffer = sum(1 for reihe in zellen for wert in reihe if wert > 0)
+    return {
+        "cluster": f"C-{cluster_nummer}",
+        "wallets": [
+            {"wallet": _text(w), "kurz": short_wallet(_text(w)),
+             "volumen": round(float(volumen_je_wallet.get(w, 0.0)), 2)}
+            for w in zeilen
+        ],
+        "maerkte": [
+            {
+                "label": str(spalte),
+                "markt": str(spalte).rsplit(" | ", 1)[0],
+                "seite": str(spalte).rsplit(" | ", 1)[-1],
+                "wallets": int(je_markt.get(spalte, 0)),
+            }
+            for spalte in spalten
+        ],
+        "zellen": zellen,
+        "belegt": treffer,
+        "felder": len(zeilen) * len(spalten),
+    }
+
+
+def tape_window_label(trades: pd.DataFrame) -> str:
+    """Beobachtungsfenster eines Tapes als Text.
+
+    Gehoert zu jedem Bild, das aus diesem Tape entsteht. Der oeffentliche
+    Trade-Feed liefert die juengsten N Prints, und wie lange die abdecken,
+    haengt an der Aktivitaet: mal Stunden, mal eine Minute. Ohne diese
+    Angabe ist ein Cluster-Bild nicht einzuordnen.
+    """
+
+    if trades is None or trades.empty or "time" not in trades.columns:
+        return ""
+    zeiten = pd.to_datetime(trades["time"], utc=True, errors="coerce").dropna()
+    if zeiten.empty:
+        return ""
+    von, bis = zeiten.min(), zeiten.max()
+    minuten = (bis - von).total_seconds() / 60.0
+    if minuten < 1:
+        spanne = f"{(bis - von).total_seconds():.0f} s"
+    elif minuten < 90:
+        spanne = f"{minuten:.0f} min"
+    else:
+        spanne = f"{minuten / 60:.1f} h"
+    return f"{von.strftime('%Y-%m-%d %H:%M')} to {bis.strftime('%H:%M')} UTC · {spanne} · {len(trades):,} prints"
