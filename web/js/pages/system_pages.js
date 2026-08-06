@@ -13,6 +13,25 @@ function filterGroup(label, chipsHtml) {
   return '<div><div style="' + LBL9 + '">' + label + '</div><div style="display:flex; gap:6px; flex-wrap:wrap">' + chipsHtml + '</div></div>';
 }
 
+// Welche publizierte Datei hinter welchem Research-Tab steht. Der Leerzustand
+// nennt sie beim Namen, damit klar ist, was fehlt statt nur dass etwas fehlt.
+const RESEARCH_DATEI = [
+  'queue.json', 'kategorie_karte.json', 'mentions_latenz.json', 'runs.json',
+  'microstructure.json', 'pilot.json', 'pipeline_forward.json', 'audit.json'
+];
+
+function fehlendeStudieHtml(study, datei) {
+  return '<div style="padding:26px 24px">'
+    + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:22px 24px; max-width:720px">'
+    + '<div style="font-size:16px; font-weight:600">' + esc(study.title) + '</div>'
+    + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:10px; line-height:1.6">'
+    + 'No published data for this study yet. It reads '
+    + '<span style="' + M + '">public/data/' + esc(datei || 'the study payload') + '</span>, '
+    + 'which the daily run writes. Nothing is shown here rather than a placeholder, '
+    + 'because a made-up figure under a frozen date would be worse than an empty panel.'
+    + '</div></div></div>';
+}
+
 // ---------------------------------------------------------------- alerts
 export function renderAlerts(T) {
   const s = T.state;
@@ -130,12 +149,25 @@ export function renderResearch(T) {
   const stamp = payload && payload.stand_utc ? String(payload.stand_utc).slice(0, 16).replace('T', ' ') + ' UTC' : study.stamp;
   const note = payload && payload.hinweis ? payload.hinweis : study.note;
   const table = buildStudyTable(T, s.researchTab, payload);
-  const stats = buildStudyStats(s.researchTab, payload) || study.stats.map((x) => ({ label: x[0], value: x[1], note: x[2] }));
+  // Ohne Nutzlast keine Zahlen. Die Demo-Werte in demo_data.js sind erfunden
+  // und widersprechen der eigenen Forschung teils frontal: dort stand
+  // "IMBALANCE EDGE +0.4c net of fees", gemessen sind -2.50 Cent. Unter einem
+  // Stempel wie "frozen 2026-06-30" ist eine erfundene Zahl nicht neutral,
+  // sondern belastend.
+  const stats = buildStudyStats(s.researchTab, payload);
+  if (!stats) {
+    return '<div>' + header + fehlendeStudieHtml(study, RESEARCH_DATEI[s.researchTab]) + '</div>';
+  }
   const chartLabel = study.chart;
-  // Der Pilot bekommt keine Zierkurve: die Positionen sind offen, eine
-  // Equity-Linie gaebe es nicht, und eine gemalte waere eine Behauptung.
-  const echtePilotAuswertung = s.researchTab === 5 && payload && payload.auswertung;
-  const pts = echtePilotAuswertung ? '' : T.curve(s.researchTab * 977 + 31, 50, 900, 220, 0.4, 3.2).pts;
+  // Keine Zierkurve mehr, nirgends. Hier lief ein Zufallsgenerator mit
+  // eingebautem Aufwaertsdrift unter Ueberschriften wie FORWARD PAPER EQUITY
+  // und BRIER SCORE BY CATEGORY, auch dann, wenn echte Daten geladen waren.
+  // Die Begruendung stand seit der Pilot-Ausnahme daneben und galt immer
+  // schon fuer alle: eine gemalte Kurve ist eine Behauptung. Ein Diagramm
+  // gibt es erst, wenn eine echte Serie in der Nutzlast liegt.
+  const serie = payload && Array.isArray(payload.serie) && payload.serie.length > 1
+    ? payload.serie : null;
+  const pts = serie ? T.seriesPoints(serie, 900, 220) : '';
 
   return '<div>' + header
     + '<div style="padding:22px 24px">'
@@ -284,8 +316,10 @@ function studyTableHtml(T, label, cols, head, rows) {
 }
 
 function buildStudyTable(T, tab, payload) {
-  const demo = T.studyTables[tab];
-  if (!payload) return studyTableHtml(T, demo.label, demo.cols, demo.head, demo.rows);
+  // Keine Demo-Tabelle als Rueckfall: eine erfundene Zeile in einer
+  // Belegtabelle ist genau die Sorte Zahl, die auf einem Floor die
+  // Glaubwuerdigkeit der echten Zeilen mitnimmt.
+  if (!payload) return '';
   try {
     if (tab === 0 && payload.faelle) {
       return studyTableHtml(T, 'OPEN CASES', '110px 1fr 130px 130px 140px', ['CASE','MARKET','BAND','DISCOUNT','RECOMMENDATION'],
@@ -308,10 +342,10 @@ function buildStudyTable(T, tab, payload) {
         payload.laeufe.slice(0, 12).map((l) => [String(l.profil), num(l.n_eintraege), num(l.n_kaeufe), '$' + (+l.extraktion_gekauft_usd || 0).toFixed(0), l.extraktionsquote != null ? Math.round((+l.extraktionsquote) * 100) + '%' : '—']));
     }
     if (tab === 7 && payload.prompt_hashes) {
-      return studyTableHtml(T, demo.label, demo.cols, demo.head, demo.rows);
+      return '';
     }
-  } catch (err) { /* malformed payload — fall through to demo table */ }
-  return studyTableHtml(T, demo.label, demo.cols, demo.head, demo.rows);
+  } catch (err) { /* malformed payload — show nothing rather than fixtures */ }
+  return '';
 }
 
 function buildStudyStats(tab, payload) {
@@ -375,16 +409,26 @@ function buildStudyStats(tab, payload) {
       return [
         { label: 'RUNS', value: String(payload.laeufe.length), note: 'forward, no edits' },
         { label: 'ENTRIES', value: num(entries), note: 'auto-published' },
-        { label: 'BUY DECISIONS', value: num(buys), note: 'of ' + num(entries) + ' entries' },
-        { label: 'DRIFT', value: 'none', note: 'config hash stable' }
+        // Kein DRIFT-Feld mehr: der Wert war das Literal 'none', ohne dass
+        // irgendetwas verglichen wurde. Stattdessen die Quote, die aus den
+        // Laeufen tatsaechlich hervorgeht.
+        { label: 'BUY DECISIONS', value: num(buys), note: entries ? Math.round((buys / entries) * 100) + '% of ' + num(entries) + ' entries' : 'of ' + num(entries) + ' entries' }
       ];
     }
     if (tab === 7 && payload.n_eintraege != null) {
+      // Frueher stand hier HASH CHAIN 'intact'. Das war ein fest verdrahteter
+      // String, und die Nutzlast traegt zwei flache Hash-Listen ohne
+      // Vorgaengerverweise, also gar keine Kette, die man pruefen koennte.
+      // Gezeigt wird jetzt, was die Datei wirklich hergibt.
+      const backends = Object.entries(payload.backend_zaehler || {});
+      const backend = backends.length
+        ? backends.sort((a, b) => b[1] - a[1])[0]
+        : ['—', 0];
       return [
-        { label: 'HASH CHAIN', value: 'intact', note: num(payload.n_eintraege) + ' entries' },
-        { label: 'PROMPT HASHES', value: num((payload.prompt_hashes || []).length), note: 'SHA-256' },
-        { label: 'OUTPUT HASHES', value: num((payload.output_hashes || []).length), note: 'SHA-256' },
-        { label: 'BACKEND', value: String(Object.keys(payload.backend_zaehler || { '—': 1 })[0]), note: 'no vendor exposed' }
+        { label: 'AUDIT ENTRIES', value: num(payload.n_eintraege), note: 'roles and counters only' },
+        { label: 'PROMPT HASHES', value: num((payload.prompt_hashes || []).length), note: 'SHA-256, no prompt text' },
+        { label: 'OUTPUT HASHES', value: num((payload.output_hashes || []).length), note: 'SHA-256, no output text' },
+        { label: 'BACKEND', value: String(backend[0]), note: backend[0] === 'mock' ? 'not a live model run' : num(backend[1]) + ' of ' + num(payload.n_eintraege) }
       ];
     }
   } catch (err) { /* malformed payload */ }
