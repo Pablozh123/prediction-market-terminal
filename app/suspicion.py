@@ -92,6 +92,12 @@ _TITLE_PATTERNS = (
     (re.compile(r"\btemperature\b|\brainfall\b|\bsnowfall\b|\bhurricane\b|\bstorm\b|\bheat wave\b|\bweather\b|\bdegrees\b|°[cf]\b", re.I), CONTEXT_WEATHER),
     (re.compile(r"\bbitcoin\b|\bbtc\b|\bethereum\b|\beth\b|\bsolana\b|\bxrp\b|\bdogecoin\b|\bcrypto\b|\btoken\b|\bs&p\b|\bnasdaq\b|\bstock price\b|\bshare price\b|\bgold price\b|\boil price\b|\bhit \$|\breach \$", re.I), CONTEXT_MARKET_PRICES),
     (re.compile(r"\bceasefire\b|\bsanctions?\b|\btariffs?\b|\btreaty\b|\bagreement\b|\bexecutive order\b|\bmilitary\b|(?<!-)\bstrikes?\b|\binvasion\b|\bnato\b|\bsummit\b|\belections?\b|\bpresident\b|\bminister\b|\bparliament\b|\bcongress\b|\bsenate\b|\bimpeach|\bputin\b|\bzelensky?y?\b|\bnetanyahu\b|\bxi jinping\b|\bkim jong\b", re.I), CONTEXT_POLITICS),
+    # Spieltag-Untermaerkte ohne Kontexttitel. "Will FC Thun win on
+    # 2026-08-06?" traegt kein Liga- oder Vereinswort, das der Katalog oben
+    # kennt, und rutschte deshalb als "General" in den Insider-Screen. Diese
+    # Regel steht bewusst hinter Politik und Konzernen: "Will the president
+    # win on ..." soll weiterhin Politik bleiben, nicht Sport.
+    (re.compile(r"\bfc\b|\bwin on \d{4}-\d{2}-\d{2}\b|\bwin their match\b|\bto lift the\b", re.I), CONTEXT_SPORTS),
     (re.compile(r"\bvs\.?\b", re.I), CONTEXT_SPORTS),
 )
 
@@ -225,13 +231,21 @@ def apply_fresh_wallet_bonus(event_risk: pd.DataFrame, clusters: pd.DataFrame, m
 def filter_insider_prone_trades(
     trades: pd.DataFrame,
     market_categories: pd.DataFrame | None = None,
-    excluded: tuple[str, ...] = (CONTEXT_SPORTS, CONTEXT_WEATHER),
+    excluded: tuple[str, ...] = (CONTEXT_SPORTS, CONTEXT_WEATHER, CONTEXT_MARKET_PRICES),
 ) -> pd.DataFrame:
     """Drop trades whose market classifies into an excluded context group.
 
     Used for the co-trading network and cluster bonuses so that routine
-    correlated sports betting (dozens of wallets on the same game) cannot
-    create 'possibly linked' clusters on a screen that excludes sports.
+    correlated trading cannot create 'possibly linked' clusters on a screen
+    that excludes those arenas anyway.
+
+    Crypto is excluded for the same reason as sports, and it has to be: the
+    five-minute up-down markets are the busiest on the venue, so dozens of
+    wallets touch the same handful of markets within minutes as a matter of
+    course. Left in, they produced the largest cluster on the screen purely
+    by volume. `CONTEXT_NOTES` already says asset prices are public and the
+    whales there are traders rather than insiders, and `INSIDER_PRONE_GROUPS`
+    already leaves crypto out; this default now matches both.
     """
 
     if trades is None or trades.empty or "title" not in trades.columns:

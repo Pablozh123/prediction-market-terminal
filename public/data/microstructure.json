@@ -1,0 +1,1884 @@
+{
+ "hinweis": "Descriptive microstructure research on data this project recorded itself. Every figure is produced by a tested module in this repository. No profitability claim is made anywhere in this work.",
+ "einleitung": "Four recorders run continuously across both venues: REST pollers on a 120 second grid and event driven WebSocket recorders that write on every change at the top of the book. The studies below ask, in order, whether anything in that data can be turned into money. Most of the answers are no, and the reasoning behind each no is the point. Each study states what it measured, what the numbers say, and how else they could be read.",
+ "stand_utc": "2026-08-06T00:18:30.166293+00:00",
+ "kennzeichnung": "research/frozen",
+ "zaehler": {
+  "gesamt": 12,
+  "nein": 8,
+  "ja": 3,
+  "offen": 1
+ },
+ "studien": [
+  {
+   "id": "imbalance-direction",
+   "frage": "Does book imbalance predict which way the price moves?",
+   "verdikt": "Yes. 55.2% hit rate, and the pessimistic end of the interval is still above the coin flip.",
+   "verdikt_art": "ja",
+   "analyse": [
+    {
+     "schluessel": "gemessen",
+     "titel": "What was measured",
+     "text": "How often the mid price, five minutes later, had moved in the direction the order book was leaning."
+    },
+    {
+     "schluessel": "wie",
+     "titel": "How",
+     "text": "Each recorded snapshot is checked for an imbalance past a fixed threshold. When it fires, the side it leans to is written down, and compared against where the mid actually sat 300 seconds later. Firings where nothing moved at all are counted separately so they cannot pad the score."
+    },
+    {
+     "schluessel": "daten",
+     "titel": "On what data",
+     "text": "Order books this project recorded itself on a 120 second grid, both venues, across eleven days."
+    },
+    {
+     "schluessel": "entscheidung",
+     "titel": "What would have counted as a yes",
+     "text": "A signal only counts as real if the pessimistic end of a 95 percent Wilson interval still sits above 50 percent. A point estimate above the coin flip would not have been enough, because with enough observations noise alone clears that bar."
+    }
+   ],
+   "einfach": "Out of 1,011,556 firings the book pointed the right way 55.2 percent of the time, against the 50 percent a coin flip would give. Even the cautious end of the interval sits at 55.0 percent, so this is not a sampling accident. In 39.1 percent of firings the price actually moved at all; the rest sat still.",
+   "interpretation": [
+    {
+     "art": "lesart",
+     "titel": "What it suggests",
+     "text": "The order book carries genuine information about the next few minutes. When one side is far heavier, that pressure tends to resolve in its own direction."
+    },
+    {
+     "art": "gegenlesart",
+     "titel": "What else fits the same numbers",
+     "text": "A hit rate says nothing about size. Being right often on tiny moves and wrong occasionally on large ones produces exactly this number and still loses money. That is the next study."
+    },
+    {
+     "art": "grenze",
+     "titel": "What this cannot tell you",
+     "text": "The grid is 120 seconds, so anything that happens and reverses faster than that is invisible here. A faster recorder might find a stronger or a weaker effect."
+    }
+   ],
+   "report": "docs/research/orderflow_rest-2026-07.md",
+   "modul": "src/orderflow_study.py",
+   "schlagworte": [
+    "signal",
+    "order book"
+   ],
+   "gebuehrenmodell": "2026-07-30",
+   "bild": "docs/research/orderflow_rest-2026-07.png",
+   "basis": {
+    "beobachtungen": 1011556,
+    "snapshots": 370423,
+    "tokens": 4489,
+    "tage": 11
+   },
+   "zahlen": [
+    {
+     "label": "Hit rate",
+     "wert": 55.2,
+     "einheit": "%",
+     "hinweis": "share of firings where the book moved the predicted way"
+    },
+    {
+     "label": "Wilson lower bound (95%)",
+     "wert": 55.0,
+     "einheit": "%",
+     "hinweis": "even the pessimistic end of the interval sits above the coin flip"
+    },
+    {
+     "label": "Firings",
+     "wert": 1011556,
+     "einheit": "observations"
+    },
+    {
+     "label": "Of those, price actually moved",
+     "wert": 39.1,
+     "einheit": "%"
+    }
+   ],
+   "diagramm": {
+    "art": "quote",
+    "titel": "Hit rate against a coin flip",
+    "einheit": "%",
+    "referenz": 50.0,
+    "referenz_label": "coin flip",
+    "punkte": [
+     {
+      "label": "Hit rate",
+      "wert": 55.2
+     },
+     {
+      "label": "Wilson lower bound",
+      "wert": 55.0
+     }
+    ]
+   },
+   "details": {
+    "titel": "Split before and after the cut-off date",
+    "spalten": [
+     "Sample",
+     "Firings",
+     "Hit rate",
+     "Wilson lower bound",
+     "Days"
+    ],
+    "zeilen": [
+     [
+      "In sample",
+      "574,091",
+      "55.2%",
+      "55.0%",
+      6
+     ],
+     [
+      "Out of sample",
+      "437,465",
+      "55.2%",
+      "55.0%",
+      5
+     ]
+    ],
+    "hinweis": "The out-of-sample half was never used to choose the threshold."
+   }
+  },
+  {
+   "id": "imbalance-takeable",
+   "frage": "Can that signal be taken as a taker?",
+   "verdikt": "No. The edge is worth about a tenth of a cent against a 2.56 cent round trip.",
+   "verdikt_art": "nein",
+   "analyse": [
+    {
+     "schluessel": "gemessen",
+     "titel": "What was measured",
+     "text": "What is left per firing after the two costs a taker cannot avoid: crossing the spread, and the venue fee."
+    },
+    {
+     "schluessel": "wie",
+     "titel": "How",
+     "text": "For each firing the price move is converted to cents per share. Then half the spread standing in the book at decision time is subtracted, and the fee schedule for that market's category on top. What remains is the net."
+    },
+    {
+     "schluessel": "daten",
+     "titel": "On what data",
+     "text": "The same eleven days and the same firings as the study above, so the two are directly comparable."
+    },
+    {
+     "schluessel": "entscheidung",
+     "titel": "What would have counted as a yes",
+     "text": "Takeable means the net stays above zero. Costs come from the venue fee model in the repository, not from a round-number assumption."
+    }
+   ],
+   "einfach": "The signal is worth +0.07 cents per firing before costs. Crossing the spread costs 0.92 cents and the venue fee another 1.65, so the round trip takes 2.56 cents, roughly 35 times what the signal produces. The net is -2.49 cents, and only 4.2 percent of firings end positive. Even the best cut of the signal only reaches +0.14 cents gross, nowhere near the wall.",
+   "interpretation": [
+    {
+     "art": "lesart",
+     "titel": "What it suggests",
+     "text": "Being right and making money are different questions, and this is the gap between them. Any analysis that stops at a hit rate has stopped one step too early."
+    },
+    {
+     "art": "gegenlesart",
+     "titel": "What else fits the same numbers",
+     "text": "This only condemns taking. A market maker does not pay the spread, they earn it, so the same information could still be worth something from the other side of the book. That is why the market-making studies follow."
+    },
+    {
+     "art": "grenze",
+     "titel": "What this cannot tell you",
+     "text": "It assumes taking at the touch. A patient limit order would pay less, but then the fill is no longer certain, and an unfilled order earns nothing at all."
+    }
+   ],
+   "report": "docs/research/orderflow_rest-2026-07.md",
+   "modul": "app/venue_fees.py",
+   "schlagworte": [
+    "cost",
+    "fees",
+    "key result"
+   ],
+   "gebuehrenmodell": "2026-07-30",
+   "basis": {
+    "beobachtungen": 1011556,
+    "snapshots": 370423,
+    "tokens": 4489,
+    "tage": 11
+   },
+   "zahlen": [
+    {
+     "label": "Gross edge, imbalance",
+     "wert": 0.0736,
+     "einheit": "cents per firing"
+    },
+    {
+     "label": "Gross edge, best cut",
+     "wert": 0.1378,
+     "einheit": "cents per firing"
+    },
+    {
+     "label": "Spread cost",
+     "wert": 0.9167,
+     "einheit": "cents"
+    },
+    {
+     "label": "Fee cost",
+     "wert": 1.6474,
+     "einheit": "cents"
+    },
+    {
+     "label": "Round trip total",
+     "wert": 2.5641,
+     "einheit": "cents"
+    },
+    {
+     "label": "Net result",
+     "wert": -2.4905,
+     "einheit": "cents",
+     "hinweis": "what is left after both cost legs"
+    },
+    {
+     "label": "Firings that end net positive",
+     "wert": 4.2,
+     "einheit": "%"
+    }
+   ],
+   "diagramm": {
+    "art": "kosten",
+    "titel": "The edge is real and still too small to take",
+    "einheit": "cents per firing",
+    "punkte": [
+     {
+      "label": "Gross edge",
+      "wert": 0.0736,
+      "art": "gewinn"
+     },
+     {
+      "label": "Spread cost",
+      "wert": -0.9167,
+      "art": "kosten"
+     },
+     {
+      "label": "Fee cost",
+      "wert": -1.6474,
+      "art": "kosten"
+     },
+     {
+      "label": "Net",
+      "wert": -2.4905,
+      "art": "summe"
+     }
+    ]
+   },
+   "details": {
+    "titel": "Every cost leg, per firing",
+    "spalten": [
+     "Component",
+     "Cents",
+     "What it is"
+    ],
+    "zeilen": [
+     [
+      "Gross edge",
+      "+0.0736",
+      "the price move the signal caught"
+     ],
+     [
+      "Spread cost",
+      "-0.9167",
+      "half the spread, paid to cross the book"
+     ],
+     [
+      "Fee cost",
+      "-1.6474",
+      "the venue fee for this market category"
+     ],
+     [
+      "Net",
+      "-2.4905",
+      "what a taker actually keeps"
+     ]
+    ],
+    "hinweis": "Costs come from the venue fee model in app/venue_fees.py, not from an assumption."
+   }
+  },
+  {
+   "id": "signed-flow",
+   "frage": "Is signed order flow a usable signal?",
+   "verdikt": "No. 51.3% hit rate, and the gross edge is negative before any cost.",
+   "verdikt_art": "nein",
+   "analyse": [
+    {
+     "schluessel": "gemessen",
+     "titel": "What was measured",
+     "text": "The same forward hit rate as the imbalance study, but for a signal built out of trade direction rather than resting orders."
+    },
+    {
+     "schluessel": "wie",
+     "titel": "How",
+     "text": "Each print on the tape is labelled a buy or a sell by comparing its price against the quote at the time. Those labels are summed into a signed volume imbalance, and that is checked forward exactly like the book signal."
+    },
+    {
+     "schluessel": "daten",
+     "titel": "On what data",
+     "text": "The same recorded tape and the same eleven days, so the difference is the signal and not the sample."
+    },
+    {
+     "schluessel": "entscheidung",
+     "titel": "What would have counted as a yes",
+     "text": "The identical Wilson bar as the first study. Holding the test fixed is the whole point of running it on the same data."
+    }
+   ],
+   "einfach": "Over 450,492 firings this signal was right 51.3 percent of the time, barely above the coin flip and far below the 55.2 percent the resting book managed. Its gross edge is -0.029 cents, already negative before a single cost is subtracted, which means there is nothing here for costs to eat.",
+   "interpretation": [
+    {
+     "art": "lesart",
+     "titel": "What it suggests",
+     "text": "The weak link is the labelling step, not the idea. Order flow ought to be informative, but you have to know which side actually initiated, and here that has to be guessed."
+    },
+    {
+     "art": "gegenlesart",
+     "titel": "What else fits the same numbers",
+     "text": "Published work later found that trade-direction inference on this venue lands between 49.8 and 50.5 percent depending on method. On that reading this measures the method, not the market, and the market question stays open."
+    },
+    {
+     "art": "grenze",
+     "titel": "What this cannot tell you",
+     "text": "Only one inference rule was tested. A venue that published true aggressor flags could give a different answer, and this study cannot rule that out."
+    }
+   ],
+   "report": "docs/research/orderflow_rest-2026-07.md",
+   "modul": "src/orderflow_study.py",
+   "schlagworte": [
+    "signal",
+    "negative result"
+   ],
+   "gebuehrenmodell": "2026-07-30",
+   "basis": {
+    "beobachtungen": 450492,
+    "snapshots": 370423,
+    "tokens": 4489,
+    "tage": 11
+   },
+   "zahlen": [
+    {
+     "label": "Hit rate",
+     "wert": 51.3,
+     "einheit": "%"
+    },
+    {
+     "label": "Wilson lower bound (95%)",
+     "wert": 51.1,
+     "einheit": "%"
+    },
+    {
+     "label": "Gross edge",
+     "wert": -0.0285,
+     "einheit": "cents per firing",
+     "hinweis": "already negative before any cost is subtracted"
+    },
+    {
+     "label": "Firings",
+     "wert": 450492,
+     "einheit": "observations"
+    }
+   ],
+   "diagramm": {
+    "art": "quote",
+    "titel": "Signed flow against imbalance and a coin flip",
+    "einheit": "%",
+    "referenz": 50.0,
+    "referenz_label": "coin flip",
+    "punkte": [
+     {
+      "label": "Signed order flow",
+      "wert": 51.3
+     },
+     {
+      "label": "Book imbalance",
+      "wert": 55.2
+     }
+    ]
+   },
+   "details": {
+    "titel": "All three signals, side by side",
+    "spalten": [
+     "Signal",
+     "Firings",
+     "Hit rate",
+     "Gross",
+     "Net"
+    ],
+    "zeilen": [
+     [
+      "Book imbalance",
+      "1,011,556",
+      "55.2%",
+      "+0.0736",
+      "-2.4905"
+     ],
+     [
+      "Signed order flow",
+      "450,492",
+      "51.3%",
+      "-0.0285",
+      "-2.8882"
+     ],
+     [
+      "Both together",
+      "90,890",
+      "55.6%",
+      "+0.1378",
+      "-2.6408"
+     ]
+    ],
+    "hinweis": "Gross and net are cents per firing. Requiring both to agree raises the hit rate and shrinks the sample."
+   }
+  },
+  {
+   "id": "edge-segments",
+   "frage": "Does any segment of the market rescue the signal?",
+   "verdikt": "No. One cut survives out of many, which is what pure chance predicts.",
+   "verdikt_art": "nein",
+   "analyse": [
+    {
+     "schluessel": "gemessen",
+     "titel": "What was measured",
+     "text": "The net result per firing inside each slice of the market, to see whether the cost wall has a gap somewhere."
+    },
+    {
+     "schluessel": "wie",
+     "titel": "How",
+     "text": "The firings are cut three ways: by the spread standing in the book, by the price level, and by how strongly the signal fired. Every bucket was fixed before looking at any result, and each one is evaluated separately in sample, out of sample, and with a day-resampled confidence interval."
+    },
+    {
+     "schluessel": "daten",
+     "titel": "On what data",
+     "text": "205,835 firings over eleven days, run through three different fee scenarios because the fee depends on the market category."
+    },
+    {
+     "schluessel": "entscheidung",
+     "titel": "What would have counted as a yes",
+     "text": "A slice counts only if it holds up in sample and out of sample and its interval excludes zero. Two out of three would not do, because with this many tests two out of three happens by luck."
+    }
+   ],
+   "einfach": "34 cuts were tested in each of 3 fee scenarios, 102 tests in total, and 1 survived. That is not encouraging, it is expected: run this many tests on noise and roughly one will look good anyway. The survivor nets +0.008 cents, and its interval [-0.112, +0.203] contains zero, so it is not distinguishable from luck. Across all firings the net stays at -2.50 cents.",
+   "interpretation": [
+    {
+     "art": "lesart",
+     "titel": "What it suggests",
+     "text": "There is no hiding place. The cost wall stands in wide spreads and narrow ones, at long odds and short, on strong signals and weak."
+    },
+    {
+     "art": "gegenlesart",
+     "titel": "What else fits the same numbers",
+     "text": "One survivor could in principle be a real but thin effect that this sample is too small to confirm. The honest way to settle that is fresh data, not a louder claim about the same data."
+    },
+    {
+     "art": "grenze",
+     "titel": "What this cannot tell you",
+     "text": "Only cuts that are knowable before the trade were allowed. A cut using information available afterwards would look far better and would mean nothing at all."
+    }
+   ],
+   "report": "docs/research/edge_segments_july-2026.md",
+   "modul": "src/edge_segments.py",
+   "schlagworte": [
+    "multiple testing",
+    "negative result"
+   ],
+   "gebuehrenmodell": "2026-07-30",
+   "bild": "docs/research/edge_segments_july-2026.png",
+   "basis": {
+    "beobachtungen": 205835,
+    "tage": 11
+   },
+   "zahlen": [
+    {
+     "label": "Cuts tested per fee scenario",
+     "wert": 34,
+     "einheit": "segments"
+    },
+    {
+     "label": "Fee scenarios",
+     "wert": 3
+    },
+    {
+     "label": "Cuts that survived",
+     "wert": 1,
+     "hinweis": "at this many tests, one lucky survivor is the expected count"
+    },
+    {
+     "label": "Net result over all",
+     "wert": -2.4985,
+     "einheit": "cents per firing"
+    },
+    {
+     "label": "Survivor (geopolitics), net",
+     "wert": 0.0077,
+     "einheit": "cents per firing"
+    },
+    {
+     "label": "Survivor, 95% interval",
+     "wert": [
+      -0.1124,
+      0.2033
+     ],
+     "einheit": "cents",
+     "hinweis": "the interval contains zero, so the survivor is not distinguishable from noise"
+    }
+   ],
+   "diagramm": {
+    "art": "intervall",
+    "titel": "Net result with its 95% interval",
+    "einheit": "cents per firing",
+    "referenz": 0.0,
+    "referenz_label": "break even",
+    "punkte": [
+     {
+      "label": "All firings",
+      "wert": -2.4985,
+      "von": -2.6158,
+      "bis": -2.3876
+     },
+     {
+      "label": "Survivor (geopolitics)",
+      "wert": 0.0077,
+      "von": -0.1124,
+      "bis": 0.2033
+     }
+    ]
+   },
+   "details": {
+    "titel": "Every cut, in and out of sample",
+    "spalten": [
+     "Cut",
+     "Bucket",
+     "n",
+     "Net",
+     "In sample",
+     "Out of sample",
+     "95% interval"
+    ],
+    "zeilen": [
+     [
+      "spread",
+      "0-0.5c",
+      "62,082",
+      "-1.635",
+      "-1.724",
+      "-1.468",
+      "[-1.780, -1.467]"
+     ],
+     [
+      "spread",
+      "0.5-1c",
+      "13,601",
+      "-2.184",
+      "-2.245",
+      "-2.077",
+      "[-2.344, -2.025]"
+     ],
+     [
+      "spread",
+      "1-2c",
+      "110,067",
+      "-2.624",
+      "-2.582",
+      "-2.669",
+      "[-2.729, -2.531]"
+     ],
+     [
+      "spread",
+      "2-5c",
+      "17,443",
+      "-4.022",
+      "-4.123",
+      "-3.904",
+      "[-4.241, -3.860]"
+     ],
+     [
+      "spread",
+      "5-10.1c",
+      "2,642",
+      "-9.113",
+      "-8.959",
+      "-9.242",
+      "[-9.716, -8.537]"
+     ],
+     [
+      "price",
+      "0.05-0.15",
+      "35,353",
+      "-1.715",
+      "-1.673",
+      "-1.777",
+      "[-1.860, -1.600]"
+     ],
+     [
+      "price",
+      "0.15-0.35",
+      "41,048",
+      "-2.721",
+      "-2.781",
+      "-2.646",
+      "[-2.803, -2.654]"
+     ],
+     [
+      "price",
+      "0.35-0.65",
+      "51,315",
+      "-3.345",
+      "-3.178",
+      "-3.549",
+      "[-3.492, -3.155]"
+     ],
+     [
+      "price",
+      "0.65-0.85",
+      "41,434",
+      "-2.676",
+      "-2.725",
+      "-2.613",
+      "[-2.758, -2.607]"
+     ],
+     [
+      "price",
+      "0.85-0.95",
+      "36,685",
+      "-1.619",
+      "-1.584",
+      "-1.666",
+      "[-1.713, -1.538]"
+     ],
+     [
+      "strength",
+      "0.65-0.75",
+      "66,898",
+      "-2.540",
+      "-2.461",
+      "-2.640",
+      "[-2.661, -2.420]"
+     ],
+     [
+      "strength",
+      "0.75-0.85",
+      "59,388",
+      "-2.470",
+      "-2.387",
+      "-2.590",
+      "[-2.604, -2.336]"
+     ],
+     [
+      "strength",
+      "0.85-0.95",
+      "63,696",
+      "-2.471",
+      "-2.484",
+      "-2.456",
+      "[-2.579, -2.373]"
+     ],
+     [
+      "strength",
+      "0.95-1.01",
+      "15,853",
+      "-2.543",
+      "-2.506",
+      "-2.622",
+      "[-2.818, -2.258]"
+     ]
+    ],
+    "hinweis": "Cents per firing. Every bucket was declared before looking at the result. Not one interval clears zero."
+   }
+  },
+  {
+   "id": "mm-120s",
+   "frage": "Does market making carry at a 120 second requote?",
+   "verdikt": "No. Adverse selection takes 362 cents per fill against 148 cents of spread earned.",
+   "verdikt_art": "nein",
+   "analyse": [
+    {
+     "schluessel": "gemessen",
+     "titel": "What was measured",
+     "text": "Profit per fill, split into the spread earned by quoting and the amount the market takes back immediately afterwards."
+    },
+    {
+     "schluessel": "wie",
+     "titel": "How",
+     "text": "Quotes are placed either side of the mid at a fixed half spread and refreshed every 120 seconds. Each fill is then marked out against the mid a short time later. The difference between what the quote earned and where the price went is the adverse selection."
+    },
+    {
+     "schluessel": "daten",
+     "titel": "On what data",
+     "text": "Recorded books over twelve days and 4,519 tokens, replayed offline. No orders were ever sent."
+    },
+    {
+     "schluessel": "entscheidung",
+     "titel": "What would have counted as a yes",
+     "text": "Carrying means the net per fill stays above zero once adverse selection is counted. Total profit alone would not do, because quoting less can raise it while the per-fill economics stay broken."
+    }
+   ],
+   "einfach": "Each fill earns 148 cents of spread and hands back 362 cents almost immediately, leaving -338 cents. The reason is who trades against a stale quote: whoever already knows the price has moved. Over 13,341 fills across 12 days that pattern does not average out, it is the pattern.",
+   "interpretation": [
+    {
+     "art": "lesart",
+     "titel": "What it suggests",
+     "text": "The problem is adverse selection, not fees. Being picked off costs more than twice what the spread pays, so no fee rebate would fix it."
+    },
+    {
+     "art": "gegenlesart",
+     "titel": "What else fits the same numbers",
+     "text": "It could be the parameters rather than the idea. A wider half spread or stronger inventory aversion might change the balance, and sweeps over both are in the full report."
+    },
+    {
+     "art": "grenze",
+     "titel": "What this cannot tell you",
+     "text": "120 seconds is very slow for quoting. This result may say more about the refresh rate than about market making, which is exactly what the next study tests."
+    }
+   ],
+   "report": "docs/research/mm_pnl_july-2026.md",
+   "modul": "src/mm_pnl.py",
+   "schlagworte": [
+    "market making",
+    "adverse selection"
+   ],
+   "gebuehrenmodell": "2026-07-30",
+   "bild": "docs/research/mm_pnl_july-2026.png",
+   "basis": {
+    "snapshots": 370903,
+    "tokens": 4519,
+    "tage": 12
+   },
+   "zahlen": [
+    {
+     "label": "Spread earned",
+     "wert": 148.3,
+     "einheit": "cents per fill"
+    },
+    {
+     "label": "Adverse selection",
+     "wert": -362.0,
+     "einheit": "cents per fill",
+     "hinweis": "what the market takes back right after the fill"
+    },
+    {
+     "label": "Net",
+     "wert": -337.6,
+     "einheit": "cents per fill"
+    },
+    {
+     "label": "Fills",
+     "wert": 13341
+    }
+   ],
+   "diagramm": {
+    "art": "vergleich",
+    "titel": "Earned against lost, per fill",
+    "einheit": "cents per fill",
+    "punkte": [
+     {
+      "label": "Spread earned",
+      "wert": 148.3,
+      "art": "gewinn"
+     },
+     {
+      "label": "Adverse selection",
+      "wert": -362.0,
+      "art": "kosten"
+     }
+    ]
+   },
+   "details": {
+    "titel": "Where the money went, in dollars over the whole run",
+    "spalten": [
+     "Component",
+     "USD",
+     "What it is"
+    ],
+    "zeilen": [
+     [
+      "Spread captured",
+      "+19,782",
+      "earned by quoting both sides"
+     ],
+     [
+      "Markout",
+      "-48,299",
+      "given back right after each fill"
+     ],
+     [
+      "Late drift",
+      "-19,037",
+      "further move after the markout window"
+     ],
+     [
+      "Rebate",
+      "+2,520",
+      "liquidity reward credited"
+     ],
+     [
+      "Fees",
+      "+0",
+      "paid to the venue"
+     ],
+     [
+      "Total",
+      "-45,035",
+      "what the strategy ends with"
+     ]
+    ],
+    "hinweis": "Tape fill model, 13,341 fills over 12 days. Average inventory 41 USD, peak 1491 USD."
+   }
+  },
+  {
+   "id": "mm-staleness",
+   "frage": "Is the binding constraint spread width or quote staleness?",
+   "verdikt": "Staleness. On seconds data the loss per fill falls from 362 to 70 cents while the spread earned barely moves.",
+   "verdikt_art": "ja",
+   "analyse": [
+    {
+     "schluessel": "gemessen",
+     "titel": "What was measured",
+     "text": "The same two quantities as the study above, spread earned and adverse selection, recomputed on seconds-resolution data."
+    },
+    {
+     "schluessel": "wie",
+     "titel": "How",
+     "text": "Identical code, identical parameters, identical fill model. The only thing that changes is how fresh the book is when the quote is placed. That makes it a controlled comparison rather than two separate experiments."
+    },
+    {
+     "schluessel": "daten",
+     "titel": "On what data",
+     "text": "5,413,998 streamed book snapshots over five days from the WebSocket recorders, against the twelve-day 120 second run."
+    },
+    {
+     "schluessel": "entscheidung",
+     "titel": "What would have counted as a yes",
+     "text": "Whichever of the two quantities moves is the binding constraint. If the spread earned had jumped, width would have been the answer; if the losses collapse, staleness is."
+    }
+   ],
+   "einfach": "Adverse selection falls from 362 cents per fill to 70, which is 81 percent of the loss gone. Meanwhile the spread earned barely moves, from 148 to 138 cents. One number collapses and the other stays put, which is what isolates the cause: the problem was never how much spread there is to earn, it was quoting on a picture of the book that had already expired.",
+   "interpretation": [
+    {
+     "art": "lesart",
+     "titel": "What it suggests",
+     "text": "Staleness is the binding constraint, and unlike a thin spread that is an infrastructure problem. Faster data is something you can buy."
+    },
+    {
+     "art": "gegenlesart",
+     "titel": "What else fits the same numbers",
+     "text": "The two runs are not perfectly matched. Seconds data also produces a different set of fills, across different moments and a shorter window, so part of the improvement could be the changed mix rather than the freshness."
+    },
+    {
+     "art": "grenze",
+     "titel": "What this cannot tell you",
+     "text": "Even at seconds resolution there is still no queue position, so this says the loss shrinks, not that the strategy pays. The next study is about exactly that gap."
+    }
+   ],
+   "report": "docs/research/mm_pnl_stream-5tage.md",
+   "modul": "src/mm_pnl.py",
+   "schlagworte": [
+    "market making",
+    "key result"
+   ],
+   "gebuehrenmodell": "2026-07-30",
+   "bild": "docs/research/mm_pnl_stream-5tage.png",
+   "basis": {
+    "snapshots": 5413998,
+    "tokens": 468,
+    "tage": 5
+   },
+   "zahlen": [
+    {
+     "label": "Adverse selection at 120s",
+     "wert": -362.0,
+     "einheit": "cents per fill"
+    },
+    {
+     "label": "Adverse selection on seconds data",
+     "wert": -70.3,
+     "einheit": "cents per fill"
+    },
+    {
+     "label": "Spread earned at 120s",
+     "wert": 148.3,
+     "einheit": "cents per fill"
+    },
+    {
+     "label": "Spread earned on seconds data",
+     "wert": 138.2,
+     "einheit": "cents per fill"
+    }
+   ],
+   "diagramm": {
+    "art": "vergleich",
+    "titel": "Same code, same parameters, faster quotes",
+    "einheit": "cents per fill",
+    "gruppen": [
+     "120 second requote",
+     "seconds data"
+    ],
+    "punkte": [
+     {
+      "label": "Spread earned",
+      "art": "gewinn",
+      "werte": [
+       148.3,
+       138.2
+      ]
+     },
+     {
+      "label": "Adverse selection",
+      "art": "kosten",
+      "werte": [
+       -362.0,
+       -70.3
+      ]
+     }
+    ]
+   },
+   "details": {
+    "titel": "The same run at two data frequencies",
+    "spalten": [
+     "Quantity",
+     "120 second grid",
+     "Seconds data",
+     "Change"
+    ],
+    "zeilen": [
+     [
+      "Spread earned, cents per fill",
+      "148.3",
+      "138.2",
+      "-10.0"
+     ],
+     [
+      "Adverse selection, cents per fill",
+      "-362.0",
+      "-70.3",
+      "+291.7"
+     ],
+     [
+      "Fills",
+      "13,341",
+      "18,686",
+      ""
+     ],
+     [
+      "Days",
+      "12",
+      "5",
+      ""
+     ]
+    ],
+    "hinweis": "Only the data frequency changed. The earnings barely move, the losses collapse."
+   }
+  },
+  {
+   "id": "mm-identified",
+   "frage": "Does market making pay, once the bootstrap can run?",
+   "verdikt": "Not identified. Two fill models land on opposite sides of zero and neither interval touches it.",
+   "verdikt_art": "offen",
+   "analyse": [
+    {
+     "schluessel": "gemessen",
+     "titel": "What was measured",
+     "text": "Daily profit with a confidence interval, computed twice under two different assumptions about when a quote would have been filled."
+    },
+    {
+     "schluessel": "wie",
+     "titel": "How",
+     "text": "The touch model assumes a fill whenever the price reaches the quote. The tape model assumes a fill only when a real print happened there. Daily totals are then resampled in blocks so the interval respects that days are not independent of themselves."
+    },
+    {
+     "schluessel": "daten",
+     "titel": "On what data",
+     "text": "The same five days of seconds data, 468 tokens, both models run over identical quotes."
+    },
+    {
+     "schluessel": "entscheidung",
+     "titel": "What would have counted as a yes",
+     "text": "Identified means both models agree on the sign. If they disagree, the answer depends on the assumption rather than on the data, and no result can honestly be claimed."
+    }
+   ],
+   "einfach": "Assume a fill whenever the price touches the quote and the answer is a loss between -12,121 and -2,413 dollars a day. Assume a fill only against a print that really happened and it is a profit between 881 and 5,889. Both intervals sit well clear of zero, in opposite directions. The difference is not noise, it is the assumption, and the assumption cannot be checked from outside the exchange.",
+   "interpretation": [
+    {
+     "art": "lesart",
+     "titel": "What it suggests",
+     "text": "The honest answer is that this is unknown. The two models bracket reality rather than measure it, and saying so is worth more than picking the flattering one."
+    },
+    {
+     "art": "gegenlesart",
+     "titel": "What else fits the same numbers",
+     "text": "The truth almost certainly sits between the two, since real fills need a real counterparty but not every print would have hit our quote. Where between depends on queue position."
+    },
+    {
+     "art": "grenze",
+     "titel": "What this cannot tell you",
+     "text": "More days would not settle this. It is an identification problem, not a sample size problem, and only order-level queue data would resolve it."
+    }
+   ],
+   "report": "docs/research/mm_pnl_stream-5tage.md",
+   "modul": "src/mm_pnl.py",
+   "schlagworte": [
+    "market making",
+    "not identified",
+    "key result"
+   ],
+   "gebuehrenmodell": "2026-07-30",
+   "basis": {
+    "snapshots": 5413998,
+    "tokens": 468,
+    "tage": 5
+   },
+   "zahlen": [
+    {
+     "label": "Touch model, daily",
+     "wert": [
+      -12121.02,
+      -2412.7
+     ],
+     "einheit": "USD per day",
+     "hinweis": "assumes a fill whenever the price touches our quote"
+    },
+    {
+     "label": "Tape model, daily",
+     "wert": [
+      881.05,
+      5888.98
+     ],
+     "einheit": "USD per day",
+     "hinweis": "assumes a fill only against a print that actually happened"
+    },
+    {
+     "label": "Fills, touch",
+     "wert": 12923
+    },
+    {
+     "label": "Fills, tape",
+     "wert": 18686
+    }
+   ],
+   "diagramm": {
+    "art": "intervall",
+    "titel": "Two fill models, opposite sides of zero",
+    "einheit": "USD per day",
+    "referenz": 0.0,
+    "referenz_label": "break even",
+    "punkte": [
+     {
+      "label": "Touch model",
+      "wert": -7266.86,
+      "von": -12121.02,
+      "bis": -2412.7
+     },
+     {
+      "label": "Tape model",
+      "wert": 3385.01,
+      "von": 881.05,
+      "bis": 5888.98
+     }
+    ]
+   },
+   "details": {
+    "titel": "Day by day, under both assumptions",
+    "spalten": [
+     "Day",
+     "Touch model, USD",
+     "Tape model, USD"
+    ],
+    "zeilen": [
+     [
+      "2026-07-30",
+      "-148",
+      "+196"
+     ],
+     [
+      "2026-07-31",
+      "-9,827",
+      "+7,902"
+     ],
+     [
+      "2026-08-01",
+      "-14,183",
+      "+1,621"
+     ],
+     [
+      "2026-08-02",
+      "-11,206",
+      "+5,542"
+     ],
+     [
+      "2026-08-03",
+      "-696",
+      "+771"
+     ]
+    ],
+    "hinweis": "The two models disagree on the sign on every single day, not just on average."
+   }
+  },
+  {
+   "id": "cross-venue",
+   "frage": "Are price gaps between the two venues arbitrage?",
+   "verdikt": "No, carry. The gaps that survive settle in 2027 or 2028, worth 0.5 to 1.8 percent annualised.",
+   "verdikt_art": "nein",
+   "analyse": [
+    {
+     "schluessel": "gemessen",
+     "titel": "What was measured",
+     "text": "The net gap per share between the two venues on the same event, after both fee curves, and what that is worth per year."
+    },
+    {
+     "schluessel": "wie",
+     "titel": "How",
+     "text": "Markets are matched by what the question actually asks rather than by wording overlap. For each surviving pair both books are priced, each venue's own fee curve is subtracted, and the remainder is annualised over the days until settlement."
+    },
+    {
+     "schluessel": "daten",
+     "titel": "On what data",
+     "text": "300 Polymarket markets against 600 Kalshi markets, matched down to a handful of confirmed pairs."
+    },
+    {
+     "schluessel": "entscheidung",
+     "titel": "What would have counted as a yes",
+     "text": "Arbitrage would mean a net gap that clears both fee curves and can be closed soon. A gap that only pays out years later is a financing trade, not an arbitrage."
+    }
+   ],
+   "einfach": "300 markets on one venue were matched against 600 on the other, giving 8 pairs. 3 were thrown out as mismatched questions, leaving 5 usable, of which 3 clear both fee curves. The best is 3.07 cents per share. But those all settle in 2027 or 2028, so the money is locked up for years and the return per year is tiny.",
+   "interpretation": [
+    {
+     "art": "lesart",
+     "titel": "What it suggests",
+     "text": "This is carry, not arbitrage. You are being paid a small amount to tie capital up for a long time and to carry the risk that the two venues settle differently."
+    },
+    {
+     "art": "gegenlesart",
+     "titel": "What else fits the same numbers",
+     "text": "At size, one to two percent annualised on capital that would otherwise sit idle is a real business. It is a bad headline and a defensible trade, depending on what else the money would be doing."
+    },
+    {
+     "art": "grenze",
+     "titel": "What this cannot tell you",
+     "text": "Three of the eight pairs were rejected as mismatched. The matcher is the weak point of this study, which is why the rejected pairs stay in the table instead of being quietly dropped."
+    }
+   ],
+   "report": "docs/research/cross_venue_gaps_2026-07-31.md",
+   "modul": "src/cross_venue_gaps.py",
+   "schlagworte": [
+    "cross venue",
+    "arbitrage"
+   ],
+   "gebuehrenmodell": "2026-07-30",
+   "basis": {
+    "maerkte": 900,
+    "paare": 8
+   },
+   "zahlen": [
+    {
+     "label": "Pairs matched",
+     "wert": 8
+    },
+    {
+     "label": "Usable after review",
+     "wert": 5
+    },
+    {
+     "label": "Rejected as mismatched",
+     "wert": 3
+    },
+    {
+     "label": "Clear both fee curves",
+     "wert": 3
+    },
+    {
+     "label": "Best net gap",
+     "wert": 3.0669,
+     "einheit": "cents"
+    },
+    {
+     "label": "Median net gap",
+     "wert": 1.1607,
+     "einheit": "cents"
+    }
+   ],
+   "diagramm": {
+    "art": "anteil",
+    "titel": "What survives the filters",
+    "einheit": "pairs",
+    "punkte": [
+     {
+      "label": "Matched",
+      "wert": 8
+     },
+     {
+      "label": "Usable",
+      "wert": 5
+     },
+     {
+      "label": "Clear both fee curves",
+      "wert": 3
+     }
+    ]
+   },
+   "details": {
+    "titel": "Every matched pair, including the rejected ones",
+    "spalten": [
+     "Status",
+     "Question",
+     "Gross",
+     "Net",
+     "Days to settle",
+     "Annualised"
+    ],
+    "zeilen": [
+     [
+      "usable",
+      "Will Sofia host Eurovision 2027?",
+      "-7.00",
+      "-9.82",
+      "153.02",
+      "-20.51%"
+     ],
+     [
+      "rejected",
+      "Will Mark Kelly win the 2028 Democratic presidential nomination?",
+      "+65.90",
+      "+64.25",
+      "830.02",
+      "59.33%"
+     ],
+     [
+      "usable",
+      "Will Donald Trump win the 2028 US Presidential Election?",
+      "+0.20",
+      "-0.13",
+      "830.02",
+      "-0.06%"
+     ],
+     [
+      "usable",
+      "Will Marco Rubio win the 2028 US Presidential Election?",
+      "+4.60",
+      "+3.07",
+      "830.02",
+      "1.40%"
+     ],
+     [
+      "usable",
+      "Will Marine Le Pen win the 2027 French presidential election?",
+      "+4.00",
+      "+1.32",
+      "273.02",
+      "1.85%"
+     ],
+     [
+      "usable",
+      "Will J.B. Pritzker win the 2028 Democratic presidential nomination?",
+      "+1.40",
+      "+1.16",
+      "830.02",
+      "0.52%"
+     ],
+     [
+      "rejected",
+      "Will Abdul El-Sayed win the 2026 Michigan Democratic Primary?",
+      "+80.00",
+      "+78.87",
+      "4.02",
+      "103576845656821844613277122983887064191766845950951615297172275200.00%"
+     ],
+     [
+      "rejected",
+      "Will Haley Stevens win the 2026 Michigan Democratic Primary?",
+      "-1.10",
+      "-1.75",
+      "4.02",
+      "-79.51%"
+     ]
+    ],
+    "hinweis": "Gross and net in cents per share, both fee curves subtracted. Rejected pairs stay in the table on purpose: what a bad match looks like is the lesson."
+   }
+  },
+  {
+   "id": "gap-lifetime",
+   "frage": "How long does such a gap stay open?",
+   "verdikt": "Most stayed open at every single moment observed.",
+   "verdikt_art": "nein",
+   "analyse": [
+    {
+     "schluessel": "gemessen",
+     "titel": "What was measured",
+     "text": "The share of observed time each gap was actually open, meaning both legs cleared their fee curve at the same moment."
+    },
+    {
+     "schluessel": "wie",
+     "titel": "How",
+     "text": "Both stream recorders run against the same pairs over one window. At every paired moment the two books are compared, and the gap is marked open or closed. A real mispricing should spend most of its time closed."
+    },
+    {
+     "schluessel": "daten",
+     "titel": "On what data",
+     "text": "Five confirmed pairs watched across roughly 11.6 hours of simultaneous recording on both venues."
+    },
+    {
+     "schluessel": "entscheidung",
+     "titel": "What would have counted as a yes",
+     "text": "A mispricing closes once it is noticed. A gap that never closes is evidence that it is not a mispricing at all."
+    }
+   ],
+   "einfach": "Of 5 pairs watched over 11.6 hours, 3 were open at every single moment observed and 1 never opened at all. Nothing in between converged. A genuine error closes when somebody notices it; these did not close because there is nothing to notice.",
+   "interpretation": [
+    {
+     "art": "lesart",
+     "titel": "What it suggests",
+     "text": "The gaps persist because they are the fair price of tying money up until settlement, not because the market has missed them."
+    },
+    {
+     "art": "gegenlesart",
+     "titel": "What else fits the same numbers",
+     "text": "Eleven hours is a short window. A gap that closes weekly would look permanently open here, and this study could not tell the difference."
+    },
+    {
+     "art": "grenze",
+     "titel": "What this cannot tell you",
+     "text": "Five pairs is a very small sample. This supports the carry reading from the previous study rather than standing on its own."
+    }
+   ],
+   "report": "docs/research/gap_lifetime_2026-07-31.md",
+   "modul": "src/gap_lifetime.py",
+   "schlagworte": [
+    "cross venue"
+   ],
+   "gebuehrenmodell": "2026-07-30",
+   "basis": {
+    "paare": 5
+   },
+   "zahlen": [
+    {
+     "label": "Pairs watched",
+     "wert": 5
+    },
+    {
+     "label": "Open at every moment observed",
+     "wert": 3,
+     "einheit": "pairs"
+    },
+    {
+     "label": "Never open at all",
+     "wert": 1,
+     "einheit": "pairs"
+    },
+    {
+     "label": "Observation window",
+     "wert": 11.6,
+     "einheit": "hours"
+    },
+    {
+     "label": "Assumed reachability",
+     "wert": 5.0,
+     "einheit": "seconds",
+     "hinweis": "how fast both legs would have to be hit"
+    }
+   ],
+   "diagramm": {
+    "art": "anteil",
+    "titel": "Gaps that never closed",
+    "einheit": "pairs",
+    "punkte": [
+     {
+      "label": "Pairs watched",
+      "wert": 5
+     },
+     {
+      "label": "Open the whole time",
+      "wert": 3
+     }
+    ]
+   },
+   "details": {
+    "titel": "How long each gap stayed open",
+    "spalten": [
+     "Question",
+     "Observations",
+     "Open share",
+     "Longest stretch",
+     "Peak net"
+    ],
+    "zeilen": [
+     [
+      "Will Sofia host Eurovision 2027?",
+      "109",
+      "12%",
+      "1.3 h",
+      "+4.72"
+     ],
+     [
+      "Will Donald Trump win the 2028 US Presidential Election?",
+      "13",
+      "0%",
+      "0.0 h",
+      "+0.00"
+     ],
+     [
+      "Will Marco Rubio win the 2028 US Presidential Election?",
+      "21",
+      "100%",
+      "11.6 h",
+      "+3.18"
+     ],
+     [
+      "Will Marine Le Pen win the 2027 French presidential election?",
+      "27",
+      "100%",
+      "11.6 h",
+      "+3.27"
+     ],
+     [
+      "Will J.B. Pritzker win the 2028 Democratic presidential nomination?",
+      "26",
+      "100%",
+      "11.6 h",
+      "+1.17"
+     ]
+    ],
+    "hinweis": "Open share is the fraction of observed time the gap cleared both fee curves at once."
+   }
+  },
+  {
+   "id": "rewards",
+   "frage": "Are the large liquidity reward pools free money?",
+   "verdikt": "No. Many of the biggest pools have a completely empty qualifying band.",
+   "verdikt_art": "nein",
+   "analyse": [
+    {
+     "schluessel": "gemessen",
+     "titel": "What was measured",
+     "text": "Whether anybody is quoting inside the narrow band a reward actually requires, in the markets paying the largest pools."
+    },
+    {
+     "schluessel": "wie",
+     "titel": "How",
+     "text": "Every market carrying a pool is ranked by daily payout. For the largest, the live book is probed against the band the reward demands, and the quotes actually standing there are counted."
+    },
+    {
+     "schluessel": "daten",
+     "titel": "On what data",
+     "text": "9,900 markets carrying a pool, together paying out over 164,000 dollars a day, with the 45 largest probed in detail."
+    },
+    {
+     "schluessel": "entscheidung",
+     "titel": "What would have counted as a yes",
+     "text": "Free money would mean a large pool with a reachable band. A pool nobody can qualify for is not an opportunity, however large the number looks."
+    }
+   ],
+   "einfach": "9,900 markets carry a reward pool, paying out $164,661 a day between them. Of the 45 largest, 14 have a qualifying band with nothing in it at all, which is 31 percent. The quotes that do exist sit far outside the band the reward needs. The pool is large because it is unreachable, not despite it.",
+   "interpretation": [
+    {
+     "art": "lesart",
+     "titel": "What it suggests",
+     "text": "Pool size is not opportunity size. The headline number measures what nobody has collected, which is the opposite of what it looks like."
+    },
+    {
+     "art": "gegenlesart",
+     "titel": "What else fits the same numbers",
+     "text": "An empty band is also an open invitation, if you can quote there and survive. What surviving costs is exactly what the market-making studies measure, and that answer was not encouraging."
+    },
+    {
+     "art": "grenze",
+     "titel": "What this cannot tell you",
+     "text": "This is one snapshot on one date. Bands empty and fill over time, and a different day could look different."
+    }
+   ],
+   "report": "docs/research/reward_selection_2026-07-31.md",
+   "modul": "src/reward_selection.py",
+   "schlagworte": [
+    "rewards",
+    "negative result"
+   ],
+   "gebuehrenmodell": null,
+   "basis": {
+    "maerkte": 9900
+   },
+   "zahlen": [
+    {
+     "label": "Markets carrying a pool",
+     "wert": 9900
+    },
+    {
+     "label": "Pool paid out",
+     "wert": 164661.35,
+     "einheit": "USD per day"
+    },
+    {
+     "label": "Largest pools probed",
+     "wert": 45,
+     "einheit": "markets"
+    },
+    {
+     "label": "Of those, qualifying band empty",
+     "wert": 14,
+     "einheit": "markets",
+     "hinweis": "nobody quotes inside the band the reward requires"
+    }
+   ],
+   "diagramm": {
+    "art": "anteil",
+    "titel": "The biggest pools nobody can reach",
+    "einheit": "markets",
+    "punkte": [
+     {
+      "label": "Largest pools probed",
+      "wert": 45
+     },
+     {
+      "label": "Qualifying band empty",
+      "wert": 14
+     }
+    ]
+   },
+   "details": {
+    "titel": "The twelve biggest pools, and what the book actually looks like",
+    "spalten": [
+     "Question",
+     "Pool per day",
+     "Band width",
+     "Book spread",
+     "Competing shares",
+     "Band"
+    ],
+    "zeilen": [
+     [
+      "LoL: CTBC Flying Oyster vs GAM Esports (BO3) - LCP Group Sta",
+      "$1,475",
+      "2.5c",
+      "4.7c",
+      "0",
+      "empty"
+     ],
+     [
+      "Counter-Strike: FaZe vs TheMongolz (BO3) - BLAST Bounty Play",
+      "$1,475",
+      "2.5c",
+      "1.0c",
+      "8,628",
+      "contested"
+     ],
+     [
+      "Will there be no change in Fed interest rates after the Sept",
+      "$1,000",
+      "4.5c",
+      "1.0c",
+      "773,992",
+      "contested"
+     ],
+     [
+      "Will the Fed increase interest rates by 25 bps after the Sep",
+      "$1,000",
+      "4.5c",
+      "1.0c",
+      "776,366",
+      "contested"
+     ],
+     [
+      "Will the U.S. invade Iran before 2027?",
+      "$1,000",
+      "3.5c",
+      "1.0c",
+      "2,035,099",
+      "contested"
+     ],
+     [
+      "Dota 2: L1ga Team vs REKONIX (BO3) - Games of the Future Gro",
+      "$933",
+      "2.5c",
+      "2.0c",
+      "362",
+      "contested"
+     ],
+     [
+      "Valorant: Global Esports vs Gen.G Esports (BO3) - VCT Pacifi",
+      "$933",
+      "2.5c",
+      "1.0c",
+      "1,176",
+      "contested"
+     ],
+     [
+      "Dota 2: Enjoy vs GLYPH (BO3) - Games of the Future Group C",
+      "$933",
+      "2.5c",
+      "2.0c",
+      "4,837",
+      "contested"
+     ],
+     [
+      "Map 3 Rounds Handicap: Sinners (-3.5) vs Rune Eaters (+3.5)",
+      "$759",
+      "2.5c",
+      "1.0c",
+      "102,261",
+      "contested"
+     ],
+     [
+      "Map 3 Total Rounds: Over/Under 21.5",
+      "$759",
+      "2.5c",
+      "1.0c",
+      "245,168",
+      "contested"
+     ],
+     [
+      "Games Total: O/U 2.5",
+      "$632",
+      "2.5c",
+      "4.0c",
+      "0",
+      "empty"
+     ],
+     [
+      "LoL: CTBC Flying Oyster vs GAM Esports - Game 2 Winner",
+      "$632",
+      "2.5c",
+      "7.0c",
+      "0",
+      "empty"
+     ]
+    ],
+    "hinweis": "Band width is what the reward requires. Book spread is what the market actually quotes. Where the second is far wider than the first, the reward is unreachable."
+   }
+  },
+  {
+   "id": "resolution-rules",
+   "frage": "Do two venues settle the same event the same way?",
+   "verdikt": "No. One asks who is inaugurated, the other who wins the election.",
+   "verdikt_art": "nein",
+   "analyse": [
+    {
+     "schluessel": "gemessen",
+     "titel": "What was measured",
+     "text": "Whether a matched pair of markets settles on the same underlying fact, read from each venue's own settlement text."
+    },
+    {
+     "schluessel": "wie",
+     "titel": "How",
+     "text": "Both rulebooks are put side by side and the conditions compared. Where one side carries a condition the other does not, that is flagged, because that is precisely where a hedge stops hedging."
+    },
+    {
+     "schluessel": "daten",
+     "titel": "On what data",
+     "text": "Five confirmed pairs, with both venues' settlement texts read in full rather than skimmed from titles."
+    },
+    {
+     "schluessel": "entscheidung",
+     "titel": "What would have counted as a yes",
+     "text": "Same wording is not the test. The test is whether the same real-world outcome pays out on both sides."
+    }
+   ],
+   "einfach": "5 confirmed pairs were checked, 5 with both settlement texts available, and 5 settle on a different fact than they appear to. One venue pays on who is next inaugurated, the other on who wins the election. Those are usually the same person and occasionally not, and the occasionally is the whole risk.",
+   "interpretation": [
+    {
+     "art": "lesart",
+     "titel": "What it suggests",
+     "text": "Matching by title is not enough. This is the trap sitting underneath every cross-venue trade, and it only shows up when it costs you both legs at once."
+    },
+    {
+     "art": "gegenlesart",
+     "titel": "What else fits the same numbers",
+     "text": "For most pairs the wording does agree. This is a per-pair risk to be read before trading, not a reason to write off cross-venue work altogether."
+    },
+    {
+     "art": "grenze",
+     "titel": "What this cannot tell you",
+     "text": "The reading is manual and the sample is five pairs. It proves the failure mode exists, not how common it is."
+    }
+   ],
+   "report": "docs/research/resolution_rules_2026-07-31.md",
+   "modul": "src/resolution_rules.py",
+   "schlagworte": [
+    "cross venue",
+    "settlement risk"
+   ],
+   "gebuehrenmodell": null,
+   "basis": {
+    "paare": 5
+   },
+   "zahlen": [
+    {
+     "label": "Confirmed pairs",
+     "wert": 5
+    },
+    {
+     "label": "Both rulebooks read side by side",
+     "wert": 5,
+     "einheit": "pairs"
+    },
+    {
+     "label": "Wording differs on who wins",
+     "wert": 5,
+     "einheit": "pairs"
+    }
+   ],
+   "diagramm": {
+    "art": "anteil",
+    "titel": "Same event, different rulebook",
+    "einheit": "pairs",
+    "punkte": [
+     {
+      "label": "Pairs checked",
+      "wert": 5
+     },
+     {
+      "label": "Rulebooks disagree",
+      "wert": 5
+     }
+    ]
+   },
+   "details": {
+    "titel": "Where the two rulebooks part ways",
+    "spalten": [
+     "Pair",
+     "Verdict",
+     "Condition only one side carries"
+    ],
+    "zeilen": [
+     [
+      "Will Sofia host Eurovision 2027?",
+      "differs",
+      "frist, quelle"
+     ],
+     [
+      "Will Donald Trump win the 2028 US Presidential Election?",
+      "differs",
+      "frist, quelle"
+     ],
+     [
+      "Will Marco Rubio win the 2028 US Presidential Election?",
+      "differs",
+      "frist, quelle"
+     ],
+     [
+      "Will Marine Le Pen win the 2027 French presidential election?",
+      "differs",
+      "frist, quelle"
+     ],
+     [
+      "Will J.B. Pritzker win the 2028 Democratic presidential nominati",
+      "differs",
+      "quelle"
+     ]
+    ],
+    "hinweis": "Read from both venues' own settlement text, not from the market titles."
+   }
+  },
+  {
+   "id": "book-reconcile",
+   "frage": "Does our own recorded book drift against the venue?",
+   "verdikt": "No. 98.6% agreement, mean divergence 0.07 ticks.",
+   "verdikt_art": "ja",
+   "analyse": [
+    {
+     "schluessel": "gemessen",
+     "titel": "What was measured",
+     "text": "How closely the book this project recorded matches the venue's own snapshot at the same moment."
+    },
+    {
+     "schluessel": "wie",
+     "titel": "How",
+     "text": "For the same token at the same instant, the streamed top of book is compared against a fresh REST snapshot, and the difference is expressed in ticks so it can be judged against the smallest price step that exists."
+    },
+    {
+     "schluessel": "daten",
+     "titel": "On what data",
+     "text": "24 tokens over three rounds of 120 seconds, giving 72 direct comparisons."
+    },
+    {
+     "schluessel": "entscheidung",
+     "titel": "What would have counted as a yes",
+     "text": "This is a control, not a finding. Every other number on this page is only worth as much as this one, so it had to be run and it had to be reported whatever it said."
+    }
+   ],
+   "einfach": "Across 72 comparisons our book agreed with the venue 98.6 percent of the time. The average difference is 0.069 ticks and the worst single case 2.0 ticks, a fraction of one price step. 1 comparison drifted beyond tolerance and 0 were unusable.",
+   "interpretation": [
+    {
+     "art": "lesart",
+     "titel": "What it suggests",
+     "text": "The recorder can be trusted at tick level, which is what the other eleven studies rest on. Without this they would all be assertions."
+    },
+    {
+     "art": "gegenlesart",
+     "titel": "What else fits the same numbers",
+     "text": "Agreement in calm conditions says little about behaviour under a burst, and bursts are exactly when a market maker gets hurt. This measures the easy case."
+    },
+    {
+     "art": "grenze",
+     "titel": "What this cannot tell you",
+     "text": "Three short rounds over 24 tokens is a spot check, not continuous monitoring. It shows no systematic drift; it cannot rule out rare gaps."
+    }
+   ],
+   "report": "docs/research/book_reconcile_tick-2026-07-31.md",
+   "modul": "src/book_reconcile.py",
+   "schlagworte": [
+    "data quality",
+    "control"
+   ],
+   "gebuehrenmodell": null,
+   "basis": {
+    "beobachtungen": 72,
+    "tokens": 24
+   },
+   "zahlen": [
+    {
+     "label": "Agreement with the venue",
+     "wert": 98.6,
+     "einheit": "%"
+    },
+    {
+     "label": "Mean divergence",
+     "wert": 0.069,
+     "einheit": "ticks"
+    },
+    {
+     "label": "Largest divergence",
+     "wert": 2.0,
+     "einheit": "ticks"
+    },
+    {
+     "label": "Comparisons",
+     "wert": 72
+    }
+   ],
+   "diagramm": {
+    "art": "quote",
+    "titel": "Does our recorded book match the venue",
+    "einheit": "%",
+    "referenz": 100.0,
+    "referenz_label": "perfect agreement",
+    "punkte": [
+     {
+      "label": "Agreement",
+      "wert": 98.6
+     }
+    ]
+   },
+   "details": {
+    "titel": "The comparison in full",
+    "spalten": [
+     "Outcome",
+     "Count",
+     "What it means"
+    ],
+    "zeilen": [
+     [
+      "Match",
+      "71",
+      "our book and the venue agree within tolerance"
+     ],
+     [
+      "Drift",
+      "1",
+      "a difference above tolerance appeared"
+     ],
+     [
+      "Unusable",
+      "0",
+      "no comparison possible at that moment"
+     ]
+    ],
+    "hinweis": "3 rounds of 120.0 seconds over 24 tokens, tolerance 1.0 tick."
+   }
+  }
+ ],
+ "fehlend": []
+}

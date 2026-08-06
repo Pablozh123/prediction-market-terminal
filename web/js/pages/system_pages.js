@@ -4,6 +4,7 @@
 
 import { esc, num } from '../util.js';
 import { DEMO_ALERT_FEED, DEMO_DELIVERIES, DEMO_RUN_KPIS, DEMO_RUN_CARDS, DEMO_TIMING_ROWS, DEMO_RUN_SIM_ROWS, DEMO_CALIB_ROWS, DEMO_TRACK_MONTHS } from '../demo_data.js';
+import { renderMicrostructure } from './microstructure_page.js';
 
 const M = "font-family:'JetBrains Mono',monospace";
 const LBL9 = M + '; font-size:9px; letter-spacing:.14em; color:rgba(255,255,255,.42); margin-bottom:6px';
@@ -120,20 +121,21 @@ export function renderResearch(T) {
     return '<div>' + header + renderLiveRuns(T, payload) + '</div>';
   }
 
-  // Microstructure: die publizierten Studien-Artefakte aus docs/research/
-  const micro = s.researchTab === 4 && payload && payload.table ? payload : null;
-  const stamp = micro ? micro.stamp : payload && payload.stand_utc ? String(payload.stand_utc).slice(0, 16).replace('T', ' ') + ' UTC' : study.stamp;
-  const note = micro ? micro.note : payload && payload.hinweis ? payload.hinweis : study.note;
-  const table = micro
-    ? studyTableHtml(T, micro.table.label, micro.table.cols, micro.table.head, micro.table.rows)
-    : buildStudyTable(T, s.researchTab, payload);
-  const stats = micro
-    ? micro.stats
-    : buildStudyStats(s.researchTab, payload) || study.stats.map((x) => ({ label: x[0], value: x[1], note: x[2] }));
-  const chartLabel = micro && micro.series && micro.series.length > 1 ? micro.series_label : study.chart;
-  const pts = micro && micro.series && micro.series.length > 1
-    ? T.seriesPoints(micro.series, 900, 220)
-    : micro ? '' : T.curve(s.researchTab * 977 + 31, 50, 900, 220, 0.4, 3.2).pts;
+  // Microstructure hat eine eigene Seite: zwoelf Studien, je Karte mit
+  // Frage, Verdikt, Diagramm und Quelle. Nutzlast aus public/data.
+  if (s.researchTab === 4) {
+    return '<div>' + header + renderMicrostructure(payload) + '</div>';
+  }
+
+  const stamp = payload && payload.stand_utc ? String(payload.stand_utc).slice(0, 16).replace('T', ' ') + ' UTC' : study.stamp;
+  const note = payload && payload.hinweis ? payload.hinweis : study.note;
+  const table = buildStudyTable(T, s.researchTab, payload);
+  const stats = buildStudyStats(s.researchTab, payload) || study.stats.map((x) => ({ label: x[0], value: x[1], note: x[2] }));
+  const chartLabel = study.chart;
+  // Der Pilot bekommt keine Zierkurve: die Positionen sind offen, eine
+  // Equity-Linie gaebe es nicht, und eine gemalte waere eine Behauptung.
+  const echtePilotAuswertung = s.researchTab === 5 && payload && payload.auswertung;
+  const pts = echtePilotAuswertung ? '' : T.curve(s.researchTab * 977 + 31, 50, 900, 220, 0.4, 3.2).pts;
 
   return '<div>' + header
     + '<div style="padding:22px 24px">'
@@ -158,11 +160,105 @@ export function renderResearch(T) {
     + '<line x1="0" y1="130" x2="900" y2="130" stroke="rgba(255,255,255,.07)" />'
     + '<line x1="0" y1="210" x2="900" y2="210" stroke="rgba(255,255,255,.14)" />'
     + '<polyline points="' + pts + '" fill="none" stroke="#4F8EF7" stroke-width="2" /></svg></div>' : '')
+    + (s.researchTab === 5 ? pilotAuswertungHtml(payload) : '')
+    + (s.researchTab === 6 ? pipelineRegelnHtml(payload) : '')
     + table
     + '<div style="display:flex; gap:10px; margin-top:14px">'
     + '<div class="hv-bd35" style="font-size:13px; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:10px 16px; cursor:pointer">Download the data</div>'
     + '<div class="hv-bd35" style="font-size:13px; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:10px 16px; cursor:pointer">Read the method</div>'
     + '</div></div></div>';
+}
+
+// Pilot: die aus den Trades gerechnete Auswertung (api/server.py haengt sie
+// als `auswertung` an). Befund, offener Ausgang und Regeltreue-Pruefung.
+function pilotAuswertungHtml(payload) {
+  const a = payload && payload.auswertung;
+  if (!a || !a.trades || !a.trades.gesamt) return '';
+  const karte = 'background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px';
+  const rt = a.regeltreue || {};
+  const punkte = (rt.punkte || []).map((p) => {
+    const farbe = p.erfuellt ? '#C8F542' : '#F5A623';
+    const zeichen = p.erfuellt ? '✓' : '!';
+    return '<div style="display:grid; grid-template-columns:18px 1fr auto; gap:12px; align-items:baseline; padding:10px 16px; border-bottom:1px solid rgba(255,255,255,.05)">'
+      + '<div style="' + M + '; font-size:13px; color:' + farbe + '">' + zeichen + '</div>'
+      + '<div><div style="font-size:12.5px; color:rgba(255,255,255,.8)">' + esc(p.regel) + '</div>'
+      + (p.hinweis ? '<div style="font-size:11.5px; color:#F5A623; margin-top:4px; line-height:1.5">' + esc(p.hinweis) + '</div>' : '')
+      + '</div>'
+      + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55); text-align:right; white-space:nowrap">'
+      + esc(p.ist || '') + (p.soll ? ' <span style="color:rgba(255,255,255,.35)">vs ' + esc(p.soll) + '</span>' : '')
+      + '</div></div>';
+  }).join('');
+
+  return '<div style="' + karte + '; margin-top:14px; padding:18px 20px">'
+    + '<div style="' + M + '; font-size:10px; letter-spacing:.14em; color:#4F8EF7">WHAT THE TEST MEASURED</div>'
+    + '<div style="font-size:14.5px; color:#fff; margin-top:10px; line-height:1.6; max-width:760px">' + esc(a.befund || '') + '</div>'
+    + (a.offener_ausgang
+      ? '<div style="font-size:13px; color:#F5A623; margin-top:12px; line-height:1.6; max-width:760px; '
+        + 'border-left:2px solid rgba(245,166,35,.4); padding-left:12px">' + esc(a.offener_ausgang) + '</div>'
+      : '')
+    + (punkte
+      ? '<div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45); margin:18px 0 8px">RULE ADHERENCE</div>'
+        + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:10px; overflow:hidden">' + punkte + '</div>'
+      : '')
+    + '</div>';
+}
+
+// Pipeline forward: die Entscheidungsregel in Klartext, plus die Gruende
+// aus dem tatsaechlichen Lauf. Schwellenwerte werden bewusst nicht
+// hartkodiert, sie stehen je Eintrag im reason-Feld des Laufs.
+const PIPELINE_GRUENDE = [
+  { test: /^kein_yes_ask/, text: 'Nobody was offering that side at all' },
+  { test: /^kein_no_ask/, text: 'Nobody was offering the no side' },
+  { test: /^yes_ask|^vollpreis/, text: 'Price including fee sat above the run cap' },
+  { test: /^count|^endstand/, text: 'Word count had not passed the market threshold' },
+  { test: /^skip/, text: 'Market was skipped before pricing' },
+  { test: /^kein_vollpass|^verschreibungs/, text: 'Transcript was not clean enough to bet on absence' }
+];
+
+function pipelineRegelnHtml(payload) {
+  const eintraege = (payload && payload.eintraege) || [];
+  if (!eintraege.length) return '';
+  const karte = 'background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px';
+
+  const zaehler = new Map();
+  let sonstige = 0;
+  eintraege.forEach((e) => {
+    const grund = String(e.reason || '');
+    const treffer = PIPELINE_GRUENDE.find((g) => g.test.test(grund));
+    if (treffer) zaehler.set(treffer.text, (zaehler.get(treffer.text) || 0) + 1);
+    else if (grund) sonstige += 1;
+  });
+  if (sonstige) zaehler.set('Other reasons', sonstige);
+  const gesamt = eintraege.length;
+  const gekauft = eintraege.filter((e) => String(e.action || '').toUpperCase() !== 'NONE').length;
+
+  const regel = (titel, text) =>
+    '<div style="padding:12px 16px; border-bottom:1px solid rgba(255,255,255,.05)">'
+    + '<div style="' + M + '; font-size:10px; letter-spacing:.12em; color:#4F8EF7">' + esc(titel) + '</div>'
+    + '<div style="font-size:12.5px; color:rgba(255,255,255,.75); margin-top:6px; line-height:1.6">' + esc(text) + '</div></div>';
+
+  const zeilen = [...zaehler.entries()].sort((a, b) => b[1] - a[1]).map(([text, n]) =>
+    '<div style="display:grid; grid-template-columns:1fr auto auto; gap:12px; align-items:baseline; padding:9px 16px; border-bottom:1px solid rgba(255,255,255,.05)">'
+    + '<div style="font-size:12.5px; color:rgba(255,255,255,.75)">' + esc(text) + '</div>'
+    + '<div style="' + M + '; font-size:12px; color:#fff">' + n + '</div>'
+    + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.4); width:46px; text-align:right">'
+    + Math.round((n / gesamt) * 100) + '%</div></div>'
+  ).join('');
+
+  return '<div style="' + karte + '; margin-top:14px; padding:18px 20px">'
+    + '<div style="' + M + '; font-size:10px; letter-spacing:.14em; color:#4F8EF7">HOW THE PIPELINE DECIDES</div>'
+    + '<div style="font-size:13.5px; color:rgba(255,255,255,.65); margin-top:10px; line-height:1.6; max-width:760px">'
+    + 'These are word-count markets: will a speaker say a given word often enough during an earnings call. '
+    + 'The pipeline follows the live transcript and counts. It never predicts what will be said, it acts only on what has already been said.</div>'
+    + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:10px; overflow:hidden; margin-top:14px">'
+    + regel('BUY YES', 'Only once the live count has already passed the market threshold, so the outcome is settled in fact, and only while the price including fee stays under the run cap. Above the cap there is no margin left in a decided outcome.')
+    + regel('BUY NO', 'Only after the full transcript, when the final count stayed far enough below the threshold, and only at a lower cap than YES. Betting on absence breaks on a single missed word, so it needs the bigger cushion.')
+    + regel('OTHERWISE NOTHING', 'Every other case is a no-trade, and each entry carries the reason that stopped it. The thresholds themselves are shown per entry, not fixed here.')
+    + '</div>'
+    + '<div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45); margin:18px 0 8px">'
+    + 'WHY IT DID NOT TRADE · ' + gesamt + ' decisions, ' + gekauft + ' acted on</div>'
+    + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:10px; overflow:hidden">' + zeilen + '</div>'
+    + '</div>';
 }
 
 function studyTableHtml(T, label, cols, head, rows) {
@@ -254,6 +350,18 @@ function buildStudyStats(tab, payload) {
     }
     if (tab === 5 && payload.trades) {
       const p = payload.protokoll || {};
+      const a = payload.auswertung;
+      if (a && a.trades && a.trades.gesamt) {
+        const sl = a.slippage || {};
+        const rt = a.regeltreue || {};
+        const cents = (v) => (v == null ? '—' : (v >= 0 ? '+' : '') + (v * 100).toFixed(2) + '¢');
+        return [
+          { label: 'STATUS', value: a.phase === 'entry_open' ? 'Open' : (a.phase === 'resolved' ? 'Resolved' : 'Entry closed'), note: 'window to ' + String(a.fenster_bis || '—') },
+          { label: 'TRADES PLACED', value: String(a.trades.gesamt), note: a.trades.offen + ' still open · $' + (a.trades.kapital_usd || 0) + ' deployed' },
+          { label: 'MEAN SLIPPAGE', value: cents(sl.mittel), note: (sl.teurer_als_signal || 0) + ' of ' + (sl.n || 0) + ' worse than signal' },
+          { label: 'RULE ADHERENCE', value: (rt.erfuellt != null ? rt.erfuellt + ' / ' + rt.gesamt : '—'), note: 'checks passed' }
+        ];
+      }
       return [
         { label: 'TRADES', value: String(payload.trades.length), note: 'all manual' },
         { label: 'BUDGET', value: '$' + (p.budget_usdc != null ? p.budget_usdc : '—'), note: 'preregistered' },

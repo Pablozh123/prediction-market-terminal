@@ -11925,19 +11925,7 @@ def load_deep_whale_tape(min_cash: float, pages: int = 4, page_size: int = 500) 
 def load_market_categories_by_ids(market_keys: tuple[str, ...]) -> pd.DataFrame:
     """Precise category lookup for the tape's markets via Gamma condition ids."""
 
-    raw = md.get_polymarket_markets_by_condition_ids(list(market_keys))
-    rows: list[dict[str, str]] = []
-    for market in raw:
-        events = market.get("events") if isinstance(market.get("events"), list) else []
-        first_event = events[0] if events and isinstance(events[0], dict) else {}
-        category = market.get("category") or first_event.get("category") or ""
-        # Parent event title ("Mexico vs. South Africa") — sub-market titles like
-        # "Will Mexico win on 2026-06-11?" carry no classifiable keyword themselves.
-        context_text = str(first_event.get("title") or "")
-        key = market.get("conditionId") or str(market.get("id", ""))
-        if key:
-            rows.append({"market_key": str(key), "category": str(category), "context_text": context_text})
-    return pd.DataFrame(rows, columns=["market_key", "category", "context_text"])
+    return md.market_category_frame(list(market_keys))
 
 
 def page_suspicious() -> None:

@@ -572,6 +572,59 @@ class AuditRegressionTests(unittest.TestCase):
         filtered = susp.filter_insider_prone_trades(tape(rows))
         self.assertEqual(list(filtered["title"]), ["Cabinet pick announced?"])
 
+    def test_filter_insider_prone_trades_drops_crypto_minute_markets(self):
+        """Krypto raus, sonst baut der belebteste Markt den groessten Cluster.
+
+        Die Fuenf-Minuten-Up-Down-Maerkte sind die aktivsten der Venue, also
+        fassen dort routinemaessig dutzende Wallets dieselben Titel an. Genau
+        die Scheinverbindung soll der Filter verhindern.
+        """
+        rows = [
+            trade("0xaaa", "Bitcoin Up or Down - August 6, 5:35PM-5:40PM ET", "Up", 15000.0),
+            trade("0xbbb", "Ethereum Up or Down - August 6, 5PM ET", "Down", 15000.0),
+            trade("0xccc", "Cabinet pick announced?", "Yes", 15000.0),
+        ]
+        filtered = susp.filter_insider_prone_trades(tape(rows))
+        self.assertEqual(list(filtered["title"]), ["Cabinet pick announced?"])
+
+    def test_matchday_submarkets_classify_as_sports(self):
+        """Spieltag-Untermaerkte ohne Kontexttitel duerfen nicht durchrutschen.
+
+        "Will FC Thun win on 2026-08-06?" traegt kein Liga- oder Vereinswort,
+        das der Katalog kennt, und landete deshalb als General im
+        Insider-Screen. Live baute genau das den groessten Cluster.
+        """
+        for titel in (
+            "Will FC Thun win on 2026-08-06?",
+            "Will FC Hradec Kralove win on 2026-08-06?",
+            "Will Mexico win on 2026-06-11?",
+        ):
+            with self.subTest(titel=titel):
+                self.assertEqual(susp.classify_insider_context(titel, None)[0], susp.CONTEXT_SPORTS)
+
+    def test_matchday_muster_frisst_keine_politik(self):
+        """Die Regel steht hinter Politik, sonst waere ein Wahltag Sport."""
+        self.assertEqual(
+            susp.classify_insider_context("Will the president win on 2026-11-03?", None)[0],
+            susp.CONTEXT_POLITICS,
+        )
+
+    def test_filter_default_matches_the_insider_prone_focus(self):
+        """Ausschlussliste und Fokusliste duerfen nicht auseinanderlaufen.
+
+        Die Seite zeigt `INSIDER_PRONE_GROUPS`; wenn der Netzwerkfilter eine
+        Gruppe durchlaesst, die dort nicht auftaucht, baut er Cluster aus
+        Maerkten, die der Screen selbst nicht als insider-anfaellig fuehrt.
+        """
+        import inspect
+
+        vorgabe = inspect.signature(susp.filter_insider_prone_trades).parameters["excluded"].default
+        for gruppe in vorgabe:
+            self.assertNotIn(gruppe, susp.INSIDER_PRONE_GROUPS)
+        for gruppe in susp.CONTEXT_MULTIPLIERS:
+            if gruppe not in susp.INSIDER_PRONE_GROUPS:
+                self.assertIn(gruppe, vorgabe, f"{gruppe} wird gezeigt, aber nicht ausgeschlossen")
+
 
 if __name__ == "__main__":
     unittest.main()
