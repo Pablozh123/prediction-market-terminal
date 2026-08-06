@@ -4,16 +4,23 @@
 // app/microstructure_report.py). Every number in here comes from that file;
 // this module only lays it out. Charts are plain SVG so the page stays
 // dependency free like the rest of the terminal.
+//
+// Each card runs in the order a reader needs: what was analysed, what the
+// numbers say, how else they could be read, then the raw rows behind it.
 
 import { esc } from '../util.js';
 
 const M = "font-family:'JetBrains Mono',monospace";
 const CARD = 'background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px';
 const MUTED = 'color:rgba(255,255,255,.55)';
+const HR = 'border-top:1px solid rgba(255,255,255,.07); margin-top:20px; padding-top:18px';
 
 const VERDIKT_FARBE = { ja: '#C8F542', nein: '#FF7A7A', offen: '#F5A623' };
 const VERDIKT_TEXT = { ja: 'CONFIRMED', nein: 'REFUTED', offen: 'NOT IDENTIFIED' };
 const BALKEN_FARBE = { gewinn: '#C8F542', kosten: '#FF4545', summe: '#4F8EF7' };
+// Lesart lime, Gegenlesart blau, Grenze grau: drei Farben, damit die
+// Gegenlesart nicht wie ein Nachtrag zur Lesart aussieht.
+const DEUTUNG_FARBE = { lesart: '#C8F542', gegenlesart: '#4F8EF7', grenze: '#95A0AB' };
 
 // Diagrammgeometrie. Labelspalte links, Balken rechts.
 const BREITE = 640;
@@ -21,6 +28,14 @@ const LABEL_X = 196;
 const PLOT_L = LABEL_X + 12;
 const PLOT_R = BREITE - 58;
 const ZEILE = 30;
+
+function abschnitt(titel, inhalt, zusatz) {
+  if (!inhalt) return '';
+  return '<div style="' + HR + '">'
+    + '<div style="' + M + '; font-size:10px; letter-spacing:.15em; color:#4F8EF7; margin-bottom:12px">'
+    + esc(titel) + (zusatz ? ' <span style="color:rgba(255,255,255,.32)">' + esc(zusatz) + '</span>' : '')
+    + '</div>' + inhalt + '</div>';
+}
 
 function fmtZahl(wert) {
   if (wert === null || wert === undefined) return '—';
@@ -94,9 +109,7 @@ function wertText(text, x, y, farbe) {
 function diagramm(dia) {
   if (!dia || !dia.punkte || !dia.punkte.length) return '';
   const gruppen = Array.isArray(dia.gruppen) ? dia.gruppen : null;
-  const zeilen = gruppen
-    ? dia.punkte.length * gruppen.length
-    : dia.punkte.length;
+  const zeilen = gruppen ? dia.punkte.length * gruppen.length : dia.punkte.length;
   const hoehe = zeilen * ZEILE + 40;
   const sk = skalaVon(dia);
   let y = 18;
@@ -143,16 +156,42 @@ function diagramm(dia) {
     y += ZEILE;
   });
 
-  return '<div style="' + CARD + '; padding:14px 16px 10px; margin-top:14px">'
+  return '<div style="' + CARD + '; padding:14px 16px 10px">'
     + '<div style="' + M + '; font-size:10px; letter-spacing:.13em; color:rgba(255,255,255,.5); margin-bottom:4px">'
     + esc(dia.titel || '') + (dia.einheit ? ' · ' + esc(dia.einheit) : '') + '</div>'
     + '<svg width="100%" viewBox="0 0 ' + BREITE + ' ' + hoehe + '" role="img" aria-label="' + esc(dia.titel || 'chart') + '">'
     + achse(sk, dia, hoehe) + koerper + '</svg></div>';
 }
 
+function analyseBlock(analyse) {
+  if (!analyse || !analyse.length) return '';
+  return '<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:1px; '
+    + 'background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.07); border-radius:10px; overflow:hidden">'
+    + analyse.map((a) =>
+      '<div style="background:#10151A; padding:14px 16px">'
+      + '<div style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:rgba(255,255,255,.42)">'
+      + esc(a.titel) + '</div>'
+      + '<div style="font-size:12.5px; color:rgba(255,255,255,.78); margin-top:7px; line-height:1.6">'
+      + esc(a.text) + '</div></div>'
+    ).join('')
+    + '</div>';
+}
+
+function deutungBlock(interpretation) {
+  if (!interpretation || !interpretation.length) return '';
+  return interpretation.map((i) => {
+    const farbe = DEUTUNG_FARBE[i.art] || '#95A0AB';
+    return '<div style="border-left:2px solid ' + farbe + '66; padding:2px 0 2px 14px; margin-bottom:14px">'
+      + '<div style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:' + farbe + '">'
+      + esc(i.titel) + '</div>'
+      + '<div style="font-size:13px; color:rgba(255,255,255,.72); margin-top:6px; line-height:1.65; max-width:720px">'
+      + esc(i.text) + '</div></div>';
+  }).join('');
+}
+
 function zahlenBlock(zahlen) {
   if (!zahlen || !zahlen.length) return '';
-  return '<div style="' + CARD + '; padding:6px 0; margin-top:14px">'
+  return '<div style="' + CARD + '; padding:6px 0">'
     + zahlen.map((z) =>
       '<div style="display:grid; grid-template-columns:1fr auto; gap:14px; align-items:baseline; padding:9px 16px; border-bottom:1px solid rgba(255,255,255,.05)">'
       + '<div><div style="font-size:12.5px; color:rgba(255,255,255,.78)">' + esc(z.label) + '</div>'
@@ -163,6 +202,35 @@ function zahlenBlock(zahlen) {
       + '</div></div>'
     ).join('')
     + '</div>';
+}
+
+/** Rohzeilen als aufklappbare Tabelle. Zugeklappt, damit die Karte lesbar bleibt. */
+function detailBlock(details) {
+  if (!details || !details.zeilen || !details.zeilen.length) return '';
+  const kopf = details.spalten.map((c, i) =>
+    '<th style="' + M + '; font-size:9.5px; letter-spacing:.1em; color:rgba(255,255,255,.45); '
+    + 'text-align:' + (i === 0 ? 'left' : 'right') + '; padding:8px 12px; white-space:nowrap; '
+    + 'border-bottom:1px solid rgba(255,255,255,.09)">' + esc(c) + '</th>').join('');
+  const koerper = details.zeilen.map((zeile) =>
+    '<tr>' + zeile.map((z, i) =>
+      '<td style="' + (i === 0 ? 'font-size:12px' : M + '; font-size:11.5px')
+      + '; color:rgba(255,255,255,' + (i === 0 ? '.75' : '.62') + '); '
+      + 'text-align:' + (i === 0 ? 'left' : 'right') + '; padding:7px 12px; white-space:nowrap; '
+      + 'border-bottom:1px solid rgba(255,255,255,.04)">' + esc(String(z)) + '</td>').join('')
+    + '</tr>').join('');
+
+  return '<details style="' + CARD + '; padding:0; overflow:hidden">'
+    + '<summary style="' + M + '; font-size:10.5px; letter-spacing:.1em; color:rgba(255,255,255,.6); '
+    + 'padding:13px 16px; cursor:pointer; list-style:none">▸ ' + esc(details.titel)
+    + ' <span style="color:rgba(255,255,255,.35)">· ' + details.zeilen.length + ' rows</span></summary>'
+    + '<div style="overflow-x:auto; border-top:1px solid rgba(255,255,255,.07)">'
+    + '<table style="width:100%; border-collapse:collapse"><thead><tr>' + kopf + '</tr></thead>'
+    + '<tbody>' + koerper + '</tbody></table></div>'
+    + (details.hinweis
+      ? '<div style="font-size:11.5px; ' + MUTED + '; padding:11px 16px; line-height:1.55; '
+        + 'border-top:1px solid rgba(255,255,255,.05)">' + esc(details.hinweis) + '</div>'
+      : '')
+    + '</details>';
 }
 
 function basisZeile(basis) {
@@ -176,8 +244,7 @@ function basisZeile(basis) {
   if (b.paare) teile.push(b.paare + ' pairs');
   if (b.tage) teile.push(b.tage + ' days');
   if (!teile.length) return '';
-  return '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:12px">DATA · '
-    + esc(teile.join(' · ')) + '</div>';
+  return '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45)">DATA · ' + esc(teile.join(' · ')) + '</div>';
 }
 
 function quelleLinks(s) {
@@ -185,31 +252,39 @@ function quelleLinks(s) {
     '<a href="https://github.com/Pablozh123/prediction-market-terminal/blob/main/' + esc(pfad)
     + '" target="_blank" rel="noopener" style="' + M + '; font-size:10.5px; color:#4F8EF7; text-decoration:none; '
     + 'border:1px solid rgba(79,142,247,.35); border-radius:6px; padding:5px 9px">' + esc(text) + ' ↗</a>';
-  return '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px">'
+  return '<div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">'
     + link(s.report, 'FULL REPORT') + link(s.modul, 'SOURCE MODULE') + '</div>';
 }
 
 function studieKarte(s, i) {
   const farbe = VERDIKT_FARBE[s.verdikt_art] || '#95A0AB';
   const marke = VERDIKT_TEXT[s.verdikt_art] || 'RESULT';
-  return '<div style="' + CARD + '; padding:20px 22px; margin-bottom:16px">'
+
+  const zahlenUndDiagramm = '<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:12px">'
+    + diagramm(s.diagramm) + zahlenBlock(s.zahlen) + '</div>';
+
+  return '<div style="' + CARD + '; padding:22px 24px; margin-bottom:18px">'
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:18px; flex-wrap:wrap">'
     + '<div style="flex:1; min-width:260px">'
     + '<div style="' + M + '; font-size:10px; letter-spacing:.16em; color:rgba(255,255,255,.35)">STUDY '
     + String(i + 1).padStart(2, '0') + '</div>'
-    + '<div style="font-size:18.5px; font-weight:600; margin-top:6px; line-height:1.35">' + esc(s.frage) + '</div>'
+    + '<div style="font-size:19px; font-weight:600; margin-top:6px; line-height:1.35">' + esc(s.frage) + '</div>'
     + '</div>'
     + '<div style="' + M + '; font-size:9.5px; letter-spacing:.13em; color:' + farbe
     + '; border:1px solid ' + farbe + '55; border-radius:6px; padding:6px 10px; white-space:nowrap">' + marke + '</div>'
     + '</div>'
-    + '<div style="font-size:14px; color:' + farbe + '; margin-top:12px; line-height:1.5; font-weight:500">'
+    + '<div style="font-size:14.5px; color:' + farbe + '; margin-top:12px; line-height:1.5; font-weight:500; max-width:760px">'
     + esc(s.verdikt) + '</div>'
-    + '<div style="font-size:13.5px; ' + MUTED + '; margin-top:10px; line-height:1.6; max-width:760px">'
-    + esc(s.einfach) + '</div>'
-    + diagramm(s.diagramm)
-    + zahlenBlock(s.zahlen)
-    + basisZeile(s.basis)
-    + quelleLinks(s)
+
+    + abschnitt('WHAT WAS ANALYSED', analyseBlock(s.analyse))
+    + abschnitt('WHAT THE NUMBERS SAY',
+      '<div style="font-size:13.5px; color:rgba(255,255,255,.75); line-height:1.7; max-width:760px; margin-bottom:14px">'
+      + esc(s.einfach) + '</div>' + zahlenUndDiagramm)
+    + abschnitt('HOW TO READ IT', deutungBlock(s.interpretation))
+    + abschnitt('THE ROWS BEHIND IT', detailBlock(s.details))
+
+    + '<div style="' + HR + '; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap">'
+    + basisZeile(s.basis) + quelleLinks(s) + '</div>'
     + '</div>';
 }
 

@@ -40,6 +40,80 @@ class PayloadTests(unittest.TestCase):
                 self.assertTrue(s.get("zahlen"), "keine Zahlen")
                 self.assertTrue(s.get("basis"), "keine Datenbasis")
 
+
+class AnalyseTests(unittest.TestCase):
+    """Was genau untersucht wurde, muss auf der Seite stehen."""
+
+    def test_jede_studie_erklaert_ihre_methode(self):
+        for s in mr.build_payload(PROJEKT)["studien"]:
+            with self.subTest(studie=s["id"]):
+                schluessel = [a["schluessel"] for a in s["analyse"]]
+                self.assertEqual(
+                    schluessel, ["gemessen", "wie", "daten", "entscheidung"],
+                    "Methodenblock unvollstaendig oder in falscher Reihenfolge",
+                )
+                for a in s["analyse"]:
+                    self.assertTrue(a["titel"])
+                    self.assertGreater(len(a["text"]), 40, "Methodentext zu duenn")
+
+    def test_entscheidungsregel_steht_vor_dem_ergebnis(self):
+        """Ohne vorab genannte Messlatte ist ein Verdikt nicht pruefbar."""
+        for s in mr.build_payload(PROJEKT)["studien"]:
+            regel = next(a for a in s["analyse"] if a["schluessel"] == "entscheidung")
+            with self.subTest(studie=s["id"]):
+                self.assertGreater(len(regel["text"]), 60)
+
+
+class InterpretationTests(unittest.TestCase):
+    def test_jede_studie_nennt_lesart_gegenlesart_und_grenze(self):
+        for s in mr.build_payload(PROJEKT)["studien"]:
+            with self.subTest(studie=s["id"]):
+                arten = [i["art"] for i in s["interpretation"]]
+                self.assertEqual(arten, [mr.LESART, mr.GEGENLESART, mr.GRENZE])
+                for i in s["interpretation"]:
+                    self.assertTrue(i["titel"])
+                    self.assertGreater(len(i["text"]), 50, "Interpretation zu duenn")
+
+    def test_gegenlesart_ist_nicht_die_lesart(self):
+        for s in mr.build_payload(PROJEKT)["studien"]:
+            texte = {i["art"]: i["text"] for i in s["interpretation"]}
+            with self.subTest(studie=s["id"]):
+                self.assertNotEqual(texte[mr.LESART], texte[mr.GEGENLESART])
+                self.assertNotEqual(texte[mr.LESART], texte[mr.GRENZE])
+
+
+class EinfachMitZahlenTests(unittest.TestCase):
+    def test_erklaerung_traegt_echte_zahlen(self):
+        for s in mr.build_payload(PROJEKT)["studien"]:
+            with self.subTest(studie=s["id"]):
+                self.assertTrue(
+                    any(z.isdigit() for z in s["einfach"]),
+                    "Erklaerung ohne eine einzige Zahl",
+                )
+                self.assertGreater(len(s["einfach"]), 120)
+
+    def test_keine_platzhalter_uebrig(self):
+        for s in mr.build_payload(PROJEKT)["studien"]:
+            with self.subTest(studie=s["id"]):
+                for muster in ("{", "}", "None", "nan"):
+                    self.assertNotIn(muster, s["einfach"], f"'{muster}' im Text")
+
+
+class DetailTabellenTests(unittest.TestCase):
+    def test_tabellen_sind_wohlgeformt(self):
+        for s in mr.build_payload(PROJEKT)["studien"]:
+            tab = s.get("details")
+            with self.subTest(studie=s["id"]):
+                self.assertIsNotNone(tab, "keine Detailtabelle")
+                self.assertTrue(tab["titel"])
+                self.assertTrue(tab["spalten"])
+                self.assertTrue(tab["zeilen"], "Tabelle ohne Zeilen")
+                for zeile in tab["zeilen"]:
+                    self.assertEqual(
+                        len(zeile), len(tab["spalten"]),
+                        f"Zeile passt nicht zu den Spalten: {zeile}",
+                    )
+
     def test_zaehler_summiert_auf(self):
         z = mr.build_payload(PROJEKT)["zaehler"]
         self.assertEqual(z["nein"] + z["ja"] + z["offen"], z["gesamt"])
@@ -115,6 +189,8 @@ class ZahlenKommenAusDenReportsTests(unittest.TestCase):
             )
             treffer = next(z for z in studie["zahlen"] if z["label"] == "Hit rate")
             self.assertEqual(treffer["wert"], 61.1)
+            # Der Fliesstext haengt an derselben Quelle wie die Kennzahl.
+            self.assertIn("61.1", studie["einfach"])
 
     def test_staleness_verschraenkt_beide_laeufe(self):
         with TemporaryDirectory() as tmp:
