@@ -48,6 +48,7 @@ from app import api_views as apv
 from app import app_settings as cfg
 from app import backtester as btr
 from app import cross_pairs
+from app import pilot_result
 from app import scorecard as sc
 from app import signals as sig
 from app.analysis_views import load_publish_payload
@@ -365,6 +366,62 @@ def cross(
     }
 
 
+def load_deep_tape(seiten: int = 8, min_cash: float = 1000.0) -> pd.DataFrame:
+    """Whale-Prints ueber mehrere Seiten, fuer das Co-Trading-Netzwerk.
+
+    Der Feed liefert die juengsten Prints, und tausend davon decken auf
+    dieser Venue nur Minuten ab. In Minuten teilt niemand zwei Maerkte, das
+    Netzwerk waere also leer, weil das Fenster zu kurz ist und nicht weil
+    keine Struktur da ist. Acht Seiten ergeben rund einen Tag.
+    """
+
+    def _load() -> pd.DataFrame:
+        teile: list[pd.DataFrame] = []
+        for seite in range(seiten):
+            try:
+                block = md.get_polymarket_trades(
+                    limit=1000, min_cash=min_cash, offset=seite * 1000)
+            except Exception as exc:
+                print(f"[warn] deep tape page {seite}: {exc}")
+                break
+            if block is None or block.empty:
+                break
+            teile.append(block)
+        if not teile:
+            return pd.DataFrame()
+        zusammen = pd.concat(teile, ignore_index=True, sort=False)
+        schluessel = [s for s in ("transaction_hash", "wallet", "asset") if s in zusammen.columns]
+        if schluessel:
+            zusammen = zusammen.drop_duplicates(subset=schluessel, keep="first")
+        return zusammen.reset_index(drop=True)
+
+    return cached(f"deep_tape_{seiten}_{min_cash}", _load, ttl=300.0)
+
+
+def _tape_categories(trades: pd.DataFrame) -> pd.DataFrame:
+    """Kategorien und Elterntitel fuer die Maerkte eines Tapes.
+
+    Fail-soft: ohne die Tabelle klassifiziert `classify_insider_context`
+    weiter ueber Titelmuster, nur eben grober. Ein Netzwerkfehler darf den
+    Risk-Screen nicht kippen.
+    """
+
+    if trades is None or trades.empty or "market_key" not in trades.columns:
+        return pd.DataFrame()
+    keys = tuple(sorted({str(k) for k in trades["market_key"].dropna().astype(str) if k}))
+    if not keys:
+        return pd.DataFrame()
+
+    def _load() -> pd.DataFrame:
+        return md.market_category_frame(list(keys))
+
+    try:
+        return cached(f"tape_categories_{hash(keys)}", _load, ttl=600.0)
+    except Exception as exc:
+        print(f"[warn] market categories: {exc}")
+        return pd.DataFrame()
+
+
 @app.get("/api/risk")
 def risk() -> dict[str, Any]:
     from app import suspicion as susp
@@ -384,19 +441,60 @@ def risk() -> dict[str, Any]:
         try:
             fresh = susp.fresh_wallet_clusters(base, whale_threshold=whale_threshold)
             coord = susp.coordinated_clusters(base)
-            nodes, edges = susp.co_trading_network(base, window_minutes=5.0, min_shared=3, max_wallets=300, min_pair_notional=10_000.0)
-            if nodes.empty:
-                nodes, edges = susp.co_trading_network(base, window_minutes=5.0, min_shared=2, max_wallets=300)
+
+            # Der Netzwerk-Tape geht bewusst tiefer als der Screen-Tape: das
+            # letzte Tausend Prints deckt auf dieser Venue rund eine Minute ab,
+            # und in einer Minute teilt niemand mehr als einen Markt.
+            netz_tape = load_deep_tape()
+            # Kategorien mitgeben: ein Untermarkt heisst "Will FC Thun win on
+            # 2026-08-06?" und traegt selbst kein Sportwort. Ohne den
+            # Elterntitel landen ganze Spieltage als "General" im Screen.
+            netz_basis = susp.filter_insider_prone_trades(
+                netz_tape, _tape_categories(netz_tape))
+            if netz_basis is None or netz_basis.empty:
+                netz_basis = base
+
+            # Regelleiter von streng nach locker. Welche Stufe gegriffen hat,
+            # geht mit in die Nutzlast: die Grafik ist nur so viel wert wie
+            # die Regel, die unter ihr steht, und die faellt hier nachweislich
+            # oft auf die unterste Stufe.
+            LEITER = (
+                ("same side of at least 3 markets within 5 minutes, $10k paired notional",
+                 dict(window_minutes=5.0, min_shared=3, min_pair_notional=10_000.0)),
+                ("same side of at least 2 markets within 5 minutes",
+                 dict(window_minutes=5.0, min_shared=2)),
+                ("same side of at least 2 markets anywhere in the window, no simultaneity required",
+                 dict(window_minutes=None, min_shared=2)),
+            )
+            regel = LEITER[-1][0]
+            nodes, edges = susp.co_trading_network(netz_basis, max_wallets=300)
+            for beschreibung, kwargs in LEITER:
+                nodes, edges = susp.co_trading_network(netz_basis, max_wallets=300, **kwargs)
+                if not nodes.empty:
+                    regel = beschreibung
+                    break
+
             payload.update(apv.cluster_payload(
                 fresh, coord, nodes, edges,
-                lambda cn, ce: susp.cluster_story(cn, ce, base),
+                lambda cn, ce: susp.cluster_story(cn, ce, netz_basis),
             ))
             payload["kpis"].update(payload.pop("kpis_clusters", {}))
+
+            if not nodes.empty:
+                try:
+                    modularitaet = susp.network_modularity(nodes, edges)
+                except Exception:
+                    modularitaet = None
+                payload["graph"] = apv.network_graph(
+                    susp.cluster_layout(nodes), edges,
+                    regel=regel, modularitaet=modularitaet)
+                payload["graph"]["fenster"] = apv.tape_window_label(netz_basis)
+                payload["matrix"] = apv.overlap_matrix(netz_basis, nodes)
         except Exception as exc:
             print(f"[warn] suspicion clusters: {exc}")
         return payload
 
-    payload = cached("risk_payload", _build, ttl=60.0)
+    payload = cached("risk_payload", _build, ttl=300.0)
     payload["as_of"] = md.now_utc_label()
     return payload
 
@@ -523,32 +621,9 @@ def copy_state() -> dict[str, Any]:
     return payload
 
 
-RESEARCH_DIR = ROOT / "docs" / "research"
-
-MICROSTRUCTURE_FILES = {
-    "orderflow": "orderflow_rest-2026-07",
-    "mm_stream": "mm_pnl_stream-2tage",
-    "cross_venue": "cross_venue_gaps_2026-07-31",
-    "gap_lifetime": "gap_lifetime_2026-07-31",
-    "edge_segments": "edge_segments_july-2026",
-    "rewards": "reward_selection_2026-07-31",
-    "resolution_rules": "resolution_rules_2026-07-31",
-    "book_reconcile": "book_reconcile_2026-07-31",
-}
-
-
 @app.get("/api/research/{name}")
 def research(name: str) -> dict[str, Any]:
     name = name.strip().lower()
-    if name == "microstructure":
-        def _build() -> dict[str, Any]:
-            studies = {key: load_publish_payload(RESEARCH_DIR, fname + ".json") for key, fname in MICROSTRUCTURE_FILES.items()}
-            return apv.microstructure_payload(studies)
-
-        payload = cached("research_microstructure", _build, ttl=600.0)
-        if not payload:
-            raise HTTPException(status_code=404, detail="no study artifacts under docs/research/")
-        return payload
     filename = apv.RESEARCH_FILES.get(name)
     if not filename:
         raise HTTPException(status_code=404, detail=f"unknown study '{name}'")
@@ -557,6 +632,14 @@ def research(name: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=f"no published data for '{name}'")
     if filename == "pipeline_forward":
         payload = apv.trim_pipeline_payload(payload)
+    if filename == "pilot":
+        # Die Auswertung wird aus den Trades gerechnet, nicht mitpubliziert:
+        # so ueberschreibt ein neuer Publish-Lauf sie nicht.
+        payload = dict(payload)
+        try:
+            payload["auswertung"] = pilot_result.evaluate(payload)
+        except Exception as exc:
+            print(f"[warn] pilot evaluation: {exc}")
     if filename == "runs":
         def _extras() -> dict[str, Any]:
             return apv.live_runs_extras(payload)
@@ -683,6 +766,22 @@ def backtest(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
             print(f"[warn] strategy comparison: {exc}")
     payload["as_of"] = md.now_utc_label()
     return payload
+
+
+@app.middleware("http")
+async def kein_frontend_cache(request, call_next):
+    """Frontend-Dateien nie cachen lassen.
+
+    Der Browser haelt ES-Module hartnaeckig fest: nach einer JS-Aenderung
+    zeigt die Seite den alten Stand, ohne Fehler, und man debuggt Code, der
+    gar nicht laeuft. Das hat hier schon zweimal Zeit gekostet. Die API
+    behaelt ihr eigenes Caching, das sitzt serverseitig in `cached`.
+    """
+
+    antwort = await call_next(request)
+    if not request.url.path.startswith("/api/"):
+        antwort.headers["Cache-Control"] = "no-store, must-revalidate"
+    return antwort
 
 
 # Frontend ausliefern (nach den API-Routen mounten, sonst schluckt es /api/*).

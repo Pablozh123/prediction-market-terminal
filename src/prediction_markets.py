@@ -282,6 +282,30 @@ def get_polymarket_markets_by_condition_ids(condition_ids: list[str]) -> list[di
     return rows
 
 
+def market_category_frame(condition_ids: list[str]) -> pd.DataFrame:
+    """market_key -> category plus the parent event title, for classification.
+
+    Der Kontexttitel ist der eigentliche Punkt: ein Untermarkt heisst
+    "Will FC Thun win on 2026-08-06?" und traegt selbst kein Sportwort. Erst
+    das Elternereignis ("FC Thun vs. FC Basel") macht ihn einordenbar. Ohne
+    diese Spalte landen ganze Spieltage als "General" im Insider-Screen.
+    """
+
+    rows: list[dict[str, str]] = []
+    for market in get_polymarket_markets_by_condition_ids(list(condition_ids)):
+        events = market.get("events") if isinstance(market.get("events"), list) else []
+        first_event = events[0] if events and isinstance(events[0], dict) else {}
+        category = market.get("category") or first_event.get("category") or ""
+        key = market.get("conditionId") or str(market.get("id", ""))
+        if key:
+            rows.append({
+                "market_key": str(key),
+                "category": str(category),
+                "context_text": str(first_event.get("title") or ""),
+            })
+    return pd.DataFrame(rows, columns=["market_key", "category", "context_text"])
+
+
 def polymarket_token_value_map(markets: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Map CLOB token id -> {price, closed, end_time} from raw Gamma market dicts."""
 

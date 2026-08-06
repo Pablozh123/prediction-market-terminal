@@ -22,6 +22,7 @@ RESEARCH_FILES = {
     "pilot": "pilot",
     "pipeline-forward": "pipeline_forward",
     "methodology": "audit",
+    "microstructure": "microstructure",
     "postmortems": "postmortems",
     "meta": "meta",
 }
@@ -580,130 +581,6 @@ def track_payload(
     return {"wallets": wallets, "watchlist": markets}
 
 
-def microstructure_payload(studies: Mapping[str, Any]) -> dict[str, Any]:
-    """Die publizierten Studien-Artefakte aus docs/research/ als ein Payload.
-
-    ``studies`` mappt Kurznamen auf die geladenen JSONs (None = fehlt). Es
-    werden ausschliesslich Zahlen aus den Artefakten serviert — die Markdown-
-    Reports weichen teils ab, massgeblich sind die JSONs.
-    """
-
-    stats: list[dict[str, str]] = []
-    table: list[list[str]] = []
-    series: list[float] = []
-
-    of = (studies.get("orderflow") or {}).get("signals", {}).get("imbalance", {}).get("overall", {})
-    if of:
-        n = int(of.get("n", 0))
-        stats.append({"label": "IMBALANCE HIT RATE", "value": f"{of.get('hit_rate', 0) * 100:.1f}%", "note": f"n = {n:,} · Wilson LB {of.get('wilson_lb95', 0) * 100:.1f}%"})
-        stats.append({"label": "TAKER NET / SIGNAL", "value": f"{of.get('mean_net_cents', 0):+.2f}¢", "note": f"gross {of.get('mean_gross_cents', 0):+.2f}¢ vs {of.get('mean_cost_cents', 0):.2f}¢ costs"})
-        table.append([
-            "Book imbalance predicts the next tick",
-            f"{n:,} obs · {of.get('days', '—')}d",
-            f"{of.get('mean_gross_cents', 0):+.2f}¢",
-            f"{of.get('mean_net_cents', 0):+.2f}¢",
-            "real, not tradable as taker",
-        ])
-
-    mm = (studies.get("mm_stream") or {}).get("fill_models", {}).get("touch", {}).get("decomposition", {})
-    if mm:
-        stats.append({"label": "MM MARKOUT · TOUCH", "value": f"{mm.get('markout_cents_per_fill', 0):+.0f}¢/fill", "note": f"spread capture {mm.get('spread_capture_cents_per_fill', 0):+.0f}¢ · {int(mm.get('fills', 0)):,} fills"})
-        table.append([
-            "Market-maker PnL decomposition (seconds data)",
-            f"{int(mm.get('fills', 0)):,} fills · {mm.get('days', '—')}d",
-            f"spread {mm.get('spread_capture_cents_per_fill', 0):+.0f}¢/fill",
-            f"markout {mm.get('markout_cents_per_fill', 0):+.0f}¢/fill",
-            "adverse selection binds",
-        ])
-
-    cv = studies.get("cross_venue") or {}
-    cv_summary = cv.get("summary", {})
-    if cv_summary:
-        stats.append({"label": "CROSS-VENUE NET", "value": f"{int(cv_summary.get('net_positive', 0))} of {int(cv_summary.get('usable', 0))} clear", "note": f"max net {cv_summary.get('max_net_cents', 0):.2f}¢ · carry, not arb"})
-        table.append([
-            "Cross-venue gaps net of both fee curves",
-            f"{int(cv_summary.get('pairs', 0))} pairs · {int(cv_summary.get('usable', 0))} usable",
-            f"median gross {cv_summary.get('median_gross_cents', 0):.1f}¢",
-            f"median net {cv_summary.get('median_net_cents', 0):.2f}¢",
-            "carry, not arbitrage",
-        ])
-        for row in cv.get("rows", []):
-            net = _num(row.get("net_edge_per_share"))
-            if net is not None:
-                series.append(round(net * 100, 2))
-
-    gl = studies.get("gap_lifetime") or {}
-    if gl.get("rows"):
-        always_open = sum(1 for r in gl["rows"] if (_num(r.get("open_share"), 0.0) or 0.0) >= 0.999)
-        max_hours = max((_num(r.get("paired_hours"), 0.0) or 0.0) for r in gl["rows"])
-        table.append([
-            "Gap lifetime on both stream recorders",
-            f"{int(gl.get('pairs', 0))} pairs · {max_hours:.1f}h",
-            "—",
-            f"{always_open} of {int(gl.get('pairs', 0))} open at every observation",
-            "gaps are compensation, not error",
-        ])
-
-    es = studies.get("edge_segments") or {}
-    es_cats = es.get("by_category", {})
-    if es_cats:
-        total_n = sum(int((c.get("overall", {}) or {}).get("n", 0)) for c in es_cats.values())
-        table.append([
-            "Segment cuts trying to rescue the taker signal",
-            f"{total_n:,} firings · {len(es_cats)} categories",
-            "34 ex-ante cuts",
-            "1 survivor · CI contains zero",
-            "expected false-positive count",
-        ])
-
-    rs = studies.get("rewards") or {}
-    if rs:
-        table.append([
-            "Reward pools vs the books that earn them",
-            f"{int(rs.get('markets_with_pool', 0)):,} markets · ${rs.get('total_pool_usd_per_day', 0):,.0f}/day",
-            f"median pool ${rs.get('median_pool_usd', 0):.0f}",
-            f"{int(rs.get('empty_band_markets', 0))} of {int(rs.get('probed', 0))} probed bands empty",
-            "liquidity is being bought",
-        ])
-
-    rr = studies.get("resolution_rules") or {}
-    if rr:
-        table.append([
-            "Resolution rulebooks side by side",
-            f"{int(rr.get('pairs', 0))} verified pairs",
-            "—",
-            f"{int(rr.get('with_one_sided_flags', 0))} with one-sided clauses",
-            "settlement risk is real",
-        ])
-
-    br = (studies.get("book_reconcile") or {}).get("summary", {})
-    if br:
-        stats.append({"label": "STREAM VS REST", "value": f"{br.get('match_rate', 0) * 100:.0f}% match", "note": f"{int(br.get('comparisons', 0))} comparisons · max {br.get('max_diff_ticks', 0):.0f} ticks"})
-        table.append([
-            "Streamed book reconciled against REST",
-            f"{int(br.get('comparisons', 0))} comparisons",
-            "—",
-            f"mean diff {br.get('mean_diff_ticks', 0):.2f} ticks",
-            "a series, not a verdict",
-        ])
-
-    if not stats and not table:
-        return {}
-    return {
-        "stamp": _text(cv.get("ts_utc"))[:10] or _text(rs.get("snapshot_date")) or "rolling",
-        "note": "Numbers come from the published study artifacts in docs/research/ — recorded order books, both venues, every cost split into spread and fee. No profitability claim is made anywhere in this work.",
-        "stats": stats[:4],
-        "table": {
-            "label": "THE RECORDED-BOOK STUDIES",
-            "cols": "1fr 170px 150px 190px 170px",
-            "head": ["STUDY", "SAMPLE", "RAW READ", "NET / RESULT", "VERDICT"],
-            "rows": table,
-        },
-        "series": series,
-        "series_label": "CROSS-VENUE NET EDGE PER VERIFIED PAIR (¢)",
-    }
-
-
 def live_runs_extras(payload: Mapping[str, Any]) -> dict[str, Any]:
     """Sizing-Simulation, Kalibrierung, Timing-Decay und Monatsbilanz aus
     runs.json — dieselben Module wie die Streamlit-Seite (app/run_sim.py)."""
@@ -880,3 +757,194 @@ def cluster_payload(
     out["network"] = network_rows[:6]
     out["kpis_clusters"] = {"fresh_clusters": len(fresh_rows), "coordinated_clusters": len(timing_rows)}
     return out
+
+
+def network_graph(
+    nodes: pd.DataFrame,
+    edges: pd.DataFrame,
+    *,
+    regel: str = "",
+    modularitaet: float | None = None,
+) -> dict[str, Any]:
+    """Den Co-Trading-Graphen zeichenfertig machen.
+
+    ``nodes`` muss bereits durch ``suspicion.cluster_layout`` gelaufen sein und
+    x/y tragen. Kanten referenzieren Knoten ueber ihren Index, damit die
+    Nutzlast klein bleibt und das Frontend nichts nachschlagen muss.
+
+    ``regel`` beschreibt, welche Kantenregel diesen Graphen erzeugt hat. Das
+    gehoert in die Nutzlast und nicht in einen festen Text im Frontend: die
+    Regel faellt auf eine lockerere zurueck, wenn die strenge nichts findet,
+    und ein Bild, das die falsche Regel behauptet, ist wertlos.
+    """
+
+    leer: dict[str, Any] = {"knoten": [], "kanten": [], "cluster": []}
+    if nodes is None or nodes.empty or "x" not in nodes.columns:
+        return leer
+
+    index_je_wallet: dict[str, int] = {}
+    knoten: list[dict[str, Any]] = []
+    for position, (_, row) in enumerate(nodes.iterrows()):
+        wallet = _text(row.get("wallet"))
+        index_je_wallet[wallet] = position
+        knoten.append({
+            "wallet": wallet,
+            "kurz": short_wallet(wallet),
+            "x": round(_num(row.get("x"), 0.0) or 0.0, 4),
+            "y": round(_num(row.get("y"), 0.0) or 0.0, 4),
+            "cluster": int(_num(row.get("cluster_id"), 0.0) or 0),
+            "volumen": _num(row.get("volume"), 0.0) or 0.0,
+            "maerkte": int(_num(row.get("markets"), 0.0) or 0),
+            "trades": int(_num(row.get("trades"), 0.0) or 0),
+            "geteilt": int(_num(row.get("shared_markets"), 0.0) or 0),
+        })
+
+    kanten: list[dict[str, Any]] = []
+    if edges is not None and not edges.empty:
+        for _, row in edges.iterrows():
+            a = index_je_wallet.get(_text(row.get("wallet_a")))
+            b = index_je_wallet.get(_text(row.get("wallet_b")))
+            if a is None or b is None:
+                continue
+            kanten.append({
+                "a": a, "b": b,
+                "geteilt": int(_num(row.get("shared_markets"), 0.0) or 0),
+                "notional": _num(row.get("pair_notional"), 0.0) or 0.0,
+            })
+
+    cluster: list[dict[str, Any]] = []
+    for cluster_id, gruppe in nodes.groupby("cluster_id"):
+        volumen = float(pd.to_numeric(gruppe.get("volume"), errors="coerce").fillna(0.0).sum())
+        cluster.append({
+            "id": int(_num(cluster_id, 0.0) or 0),
+            "name": f"C-{int(_num(cluster_id, 0.0) or 0)}",
+            "groesse": int(len(gruppe)),
+            "volumen": volumen,
+            "volumen_label": money_label(volumen),
+        })
+    cluster.sort(key=lambda c: c["groesse"], reverse=True)
+
+    xs = [k["x"] for k in knoten] or [0.0]
+    ys = [k["y"] for k in knoten] or [0.0]
+    ergebnis: dict[str, Any] = {
+        "knoten": knoten,
+        "kanten": kanten,
+        "cluster": cluster,
+        "spanne": {"x": [min(xs), max(xs)], "y": [min(ys), max(ys)]},
+        "kennzahl": {
+            "wallets": len(knoten),
+            "kanten": len(kanten),
+            "cluster": len(cluster),
+        },
+    }
+    if regel:
+        ergebnis["regel"] = regel
+    if modularitaet is not None:
+        ergebnis["kennzahl"]["modularitaet"] = round(float(modularitaet), 3)
+    return ergebnis
+
+
+def overlap_matrix(
+    trades: pd.DataFrame,
+    nodes: pd.DataFrame,
+    *,
+    max_wallets: int = 14,
+    max_maerkte: int = 14,
+) -> dict[str, Any]:
+    """Wallet-mal-Markt-Raster fuer den groessten Cluster.
+
+    Der Netzwerkgraph zeigt, wer mit wem verbunden ist. Diese Matrix zeigt
+    warum: welche Wallet welchen Markt auf welcher Seite angefasst hat. Eine
+    Kante im Graphen ist genau eine Zeile, die sich mit einer anderen in
+    mindestens zwei Spalten trifft.
+
+    Gefuellt wird mit dem Notional, damit sichtbar bleibt, ob eine
+    Ueberschneidung Gewicht hat oder nur ein Streifschuss war.
+    """
+
+    leer: dict[str, Any] = {"wallets": [], "maerkte": [], "zellen": []}
+    if nodes is None or nodes.empty or trades is None or trades.empty:
+        return leer
+    if "cluster_id" not in nodes.columns or "title" not in trades.columns:
+        return leer
+
+    groessen = nodes.groupby("cluster_id").size().sort_values(ascending=False)
+    if groessen.empty:
+        return leer
+    cluster_id = groessen.index[0]
+    gruppe = nodes[nodes["cluster_id"] == cluster_id]
+    mitglieder = [_text(w) for w in gruppe["wallet"].astype(str)]
+    if len(mitglieder) < 2:
+        return leer
+
+    teil = trades[trades["wallet"].astype(str).isin(mitglieder)].copy()
+    if teil.empty:
+        return leer
+    teil["_seite"] = teil.get("outcome", pd.Series("", index=teil.index)).astype(str)
+    teil["_schluessel"] = teil["title"].astype(str) + " | " + teil["_seite"]
+    teil["_notional"] = pd.to_numeric(teil.get("notional"), errors="coerce").fillna(0.0)
+
+    # Nur Maerkte, in denen sich mindestens zwei Wallets treffen: allein
+    # gehandelte Maerkte erklaeren keine einzige Kante.
+    je_markt = teil.groupby("_schluessel")["wallet"].nunique().sort_values(ascending=False)
+    spalten = [k for k, n in je_markt.items() if n >= 2][:max_maerkte]
+    if not spalten:
+        return leer
+
+    volumen_je_wallet = teil.groupby("wallet")["_notional"].sum().sort_values(ascending=False)
+    zeilen = [w for w in volumen_je_wallet.index if _text(w) in mitglieder][:max_wallets]
+    if len(zeilen) < 2:
+        return leer
+
+    summe = teil.groupby(["wallet", "_schluessel"])["_notional"].sum()
+    zellen: list[list[float]] = []
+    for wallet in zeilen:
+        zellen.append([round(float(summe.get((wallet, spalte), 0.0)), 2) for spalte in spalten])
+
+    cluster_nummer = int(_num(cluster_id, 0.0) or 0)
+    treffer = sum(1 for reihe in zellen for wert in reihe if wert > 0)
+    return {
+        "cluster": f"C-{cluster_nummer}",
+        "wallets": [
+            {"wallet": _text(w), "kurz": short_wallet(_text(w)),
+             "volumen": round(float(volumen_je_wallet.get(w, 0.0)), 2)}
+            for w in zeilen
+        ],
+        "maerkte": [
+            {
+                "label": str(spalte),
+                "markt": str(spalte).rsplit(" | ", 1)[0],
+                "seite": str(spalte).rsplit(" | ", 1)[-1],
+                "wallets": int(je_markt.get(spalte, 0)),
+            }
+            for spalte in spalten
+        ],
+        "zellen": zellen,
+        "belegt": treffer,
+        "felder": len(zeilen) * len(spalten),
+    }
+
+
+def tape_window_label(trades: pd.DataFrame) -> str:
+    """Beobachtungsfenster eines Tapes als Text.
+
+    Gehoert zu jedem Bild, das aus diesem Tape entsteht. Der oeffentliche
+    Trade-Feed liefert die juengsten N Prints, und wie lange die abdecken,
+    haengt an der Aktivitaet: mal Stunden, mal eine Minute. Ohne diese
+    Angabe ist ein Cluster-Bild nicht einzuordnen.
+    """
+
+    if trades is None or trades.empty or "time" not in trades.columns:
+        return ""
+    zeiten = pd.to_datetime(trades["time"], utc=True, errors="coerce").dropna()
+    if zeiten.empty:
+        return ""
+    von, bis = zeiten.min(), zeiten.max()
+    minuten = (bis - von).total_seconds() / 60.0
+    if minuten < 1:
+        spanne = f"{(bis - von).total_seconds():.0f} s"
+    elif minuten < 90:
+        spanne = f"{minuten:.0f} min"
+    else:
+        spanne = f"{minuten / 60:.1f} h"
+    return f"{von.strftime('%Y-%m-%d %H:%M')} to {bis.strftime('%H:%M')} UTC · {spanne} · {len(trades):,} prints"
