@@ -2,7 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # Feature branches are tested as they are pushed, not first at the pull
+    # request. Work here has previously sat on a branch for weeks; the point of
+    # a check is to fail while the change is still small enough to read.
+    branches: [main, "feat/**", "fix/**", "claude/**"]
   pull_request:
     branches: [main]
 

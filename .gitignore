@@ -47,7 +47,15 @@ notebooks/*.png
 # Useful while building, not something to publish.
 docs/competitive/
 docs/specs/
-"Website redesign directions/"
+# No quotes: gitignore treats them as literal characters, so the quoted form
+# matched a directory whose name actually begins with a double quote - that is,
+# nothing. Spaces inside a pattern need no escaping.
+Website redesign directions/
+
+# Working instructions for the coding assistant. The repo is public and goes
+# out with job applications; .claude/ and CONTRIBUTING.md are kept out for the
+# same reason.
+CLAUDE.md
 
 # Kursabgaben / PDFs
 *.pdf
