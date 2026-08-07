@@ -1,126 +1,222 @@
-# Production Readiness — öffentlicher Betrieb des Terminals
+# Production readiness — running the terminal publicly
 
-Stand: 2026-06-12. Recherchebasis: offizielle Doku von Streamlit, Hetzner, Cloudflare, Polymarket, Kalshi, EDÖB/KMU-Portal u. a. (Quellen jeweils verlinkt). Ziel: Alles im Repo ist vorbereitet — es fehlen nur noch die Dienste, die man **kaufen/registrieren** muss.
+Last updated 2026-08-07. Researched against the official documentation of
+Streamlit, Hetzner, Cloudflare, Polymarket, Kalshi and the Swiss data
+protection authority, with sources linked inline. The point of this document:
+everything that lives in the repository is prepared, and what remains is the
+set of services someone has to **buy or register**.
 
 ---
 
-## 1. Empfohlene Architektur
+## 1. Recommended architecture
 
-**Docker Compose auf einem VPS hinter Caddy, Cloudflare Free davor.** Das ist 2026 das Standardmuster für Streamlit-Apps mit Hintergrundjobs.
+**Docker Compose on a VPS behind Caddy, with Cloudflare Free in front.** This
+is the standard pattern for a Streamlit app that also runs background jobs.
 
 ```
-Browser ──HTTPS──▶ Cloudflare (Free: DDoS, WAF, 1 Rate-Limit-Regel)
+Browser ──HTTPS──▶ Cloudflare (Free: DDoS, WAF, one rate-limit rule)
                       │
                       ▼
-                Caddy (TLS via Let's Encrypt, Security-Header, optional Basic-Auth)
-                      │ reverse_proxy (inkl. WebSocket)
+                Caddy (TLS via Let's Encrypt, security headers, optional basic auth)
+                      │ reverse_proxy (including WebSocket)
                       ▼
-            terminal (Streamlit, Port nur intern)   alert-scanner (gleiche Codebasis)
+            terminal (Streamlit, internal port only)   alert-scanner (same codebase)
                       │
-                  ./data Volume (Settings, Watchlists, Paper-Trading-DB)
+                  ./data volume (settings, watchlists, paper-trading DB)
 ```
 
-**Warum nicht Streamlit Community Cloud?** ~1 GB RAM-Limit, keine Custom Domain (nur `*.streamlit.app`), US-Hosting, und vor allem: keine Hintergrund-Worker — der Alert-Scanner und der Copy-Daemon können dort nicht laufen. ([Limits](https://docs.streamlit.io/knowledge-base/deploy/resource-limits), [Domains](https://docs.streamlit.io/knowledge-base/deploy/custom-subdomains))
+**Why not Streamlit Community Cloud?** Roughly a 1 GB memory limit, no custom
+domain (only `*.streamlit.app`), US hosting, and above all no background
+workers — the alert scanner and the copy daemon cannot run there.
+([limits](https://docs.streamlit.io/knowledge-base/deploy/resource-limits),
+[domains](https://docs.streamlit.io/knowledge-base/deploy/custom-subdomains))
 
-**Warum nicht Railway/Render/Fly?** Funktioniert, aber App + Scanner + Bot = mehrere Services = mehrere Posten (Railway Hobby $5/Mo + Verbrauch; Render Starter $7/Mo pro Service, Free-Tier schläft nach 15 min ein). Ein VPS fährt alles zusammen günstiger.
+**Why not Railway, Render or Fly?** They work, but app plus scanner plus daemon
+means several services and therefore several line items (Railway Hobby $5/month
+plus usage; Render Starter $7/month per service, and the free tier sleeps after
+15 minutes). One VPS runs all of it for less.
 
-**Streamlit-Eigenheiten, die die Auslegung bestimmen:**
-- Eine persistente WebSocket-Verbindung pro Browser-Tab; der Proxy muss WebSocket-Upgrades durchreichen (Caddy macht das automatisch). ([Architektur](https://docs.streamlit.io/develop/concepts/architecture/architecture))
-- Ein einziger Python-Prozess; CPU-lastige Berechnungen blockieren andere Sessions. Für 100–1000 Besucher/Tag reicht das — `st.cache_data` (im Code durchgehend mit TTLs 30–900 s) teilt API-Antworten über **alle** Nutzer, d. h. die Polymarket/Kalshi-Last wächst nicht mit der Nutzerzahl. ([Caching](https://docs.streamlit.io/develop/concepts/architecture/caching))
-- Health-Endpoint für Monitore: `GET /_stcore/health` → "ok" (alternativ `/healthz`).
+**Streamlit properties that drive the sizing:**
 
-**Dimensionierung:** Hetzner **CX23** (2 vCPU/4 GB, €3.99/Mo) reicht zum Start; **CX33** (4 vCPU/8 GB, €6.49/Mo) wenn viele gleichzeitige Sessions mit großen DataFrames erwartet werden. (Preise nach Hetzner-Preisanpassung vom 01.04.2026, [offiziell](https://docs.hetzner.com/general/infrastructure-and-availability/price-adjustment/))
+- One persistent WebSocket per browser tab, so the proxy has to pass WebSocket
+  upgrades through. Caddy does that without configuration.
+  ([architecture](https://docs.streamlit.io/develop/concepts/architecture/architecture))
+- A single Python process, so CPU-heavy work blocks other sessions. For 100 to
+  1000 visitors a day that is fine: `st.cache_data` is used throughout with
+  TTLs between 30 and 900 seconds and shares API responses across **all**
+  users, which means the load on Polymarket and Kalshi does not grow with the
+  number of visitors.
+  ([caching](https://docs.streamlit.io/develop/concepts/architecture/caching))
+- Health endpoint for monitors: `GET /_stcore/health` returns "ok"
+  (`/healthz` also works).
 
-## 2. Was im Repo bereits vorbereitet ist
+**Sizing:** a Hetzner **CX23** (2 vCPU, 4 GB, €3.99/month) is enough to start;
+**CX33** (4 vCPU, 8 GB, €6.49/month) if many concurrent sessions with large
+dataframes are expected. Prices reflect the Hetzner adjustment of 2026-04-01
+([official](https://docs.hetzner.com/general/infrastructure-and-availability/price-adjustment/)).
 
-| Artefakt | Zweck |
+## 2. What the repository already ships
+
+| Artifact | Purpose |
 |---|---|
-| `Dockerfile` | Python-3.13-slim-Image, non-root User, Healthcheck, gehärtete Streamlit-Flags (XSRF an, CORS aus, Upload-Limit 1 MB, Telemetrie aus) |
-| `docker-compose.yml` | 3 Services: `terminal` (nur intern exponiert), `alert-scanner`, `caddy` (einziger öffentlicher Einstieg, Ports 80/443) |
-| `deploy/Caddyfile` | Automatisches TLS, HSTS, nosniff, Frame/Referrer/Permissions-Header, auskommentierter `basic_auth`-Block |
-| `.env.example` | Alle Secrets als Env-Variablen; `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` übersteuern die Settings-Datei und werden nie zurückgeschrieben |
-| `.dockerignore` | Hält Tests/Doku/Artefakte aus dem Image |
-| `requirements.txt` | inkl. `networkx` (Louvain-Clustering läuft sonst nur im Fallback) |
-| Sidebar-Disclaimer | "Research tool only — no investment advice … data provided as-is" auf jeder Seite |
+| `Dockerfile` | Python 3.13-slim image, non-root user, healthcheck, hardened Streamlit flags (XSRF on, CORS off, 1 MB upload limit, telemetry off) |
+| `docker-compose.yml` | Three services: `terminal` (internal only), `alert-scanner`, `caddy` (the single public entry point, ports 80 and 443) |
+| `deploy/Caddyfile` | Automatic TLS, HSTS, nosniff, frame/referrer/permissions headers, a commented-out `basic_auth` block |
+| `.env.example` | Every secret as an environment variable; `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` override the settings file and are never written back |
+| `.dockerignore` | Keeps tests, documentation and artifacts out of the image |
+| `requirements.txt` | Includes `networkx`, without which the Louvain clustering silently runs its fallback |
+| Sidebar disclaimer | "Research tool only — no investment advice … data provided as-is" on every page |
 
-**Deployment in 6 Schritten** (auf dem frischen VPS):
+**Deployment in six steps** on a fresh VPS:
+
 ```bash
-# 1. Docker installieren (Ubuntu 24.04): curl -fsSL https://get.docker.com | sh
-# 2. Repo klonen, .env aus .env.example befüllen
-# 3. Domain in deploy/Caddyfile eintragen (A/AAAA-Record zeigt auf den Server)
+# 1. Install Docker (Ubuntu 24.04): curl -fsSL https://get.docker.com | sh
+# 2. Clone the repo, fill .env from .env.example
+# 3. Put the domain in deploy/Caddyfile (A/AAAA record pointing at the server)
 # 4. docker compose up -d --build
-# 5. Cloudflare: DNS auf "Proxied", SSL-Modus "Full (strict)"
-# 6. Monitor auf https://domain/_stcore/health richten
+# 5. Cloudflare: DNS "Proxied", SSL mode "Full (strict)"
+# 6. Point a monitor at https://domain/_stcore/health
 ```
 
-## 3. Security-Checkliste
+## 3. Security checklist
 
-- [x] **TLS:** Caddy holt/erneuert Let's-Encrypt-Zertifikate automatisch, sobald die Domain auf den Server zeigt.
-- [x] **Security-Header:** HSTS, `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy`, `Permissions-Policy` im Caddyfile. **CSP bewusst nicht gesetzt:** Streamlits React-Frontend bricht unter strikter CSP (offene Issues [#6417](https://github.com/streamlit/streamlit/issues/6417), [#8524](https://github.com/streamlit/streamlit/issues/8524)) — falls gewünscht, zuerst nur als `Content-Security-Policy-Report-Only` testen.
-- [x] **Streamlit-Härtung:** `enableXsrfProtection=true`, `enableCORS=false`, `maxUploadSize=1`, Telemetrie aus, App-Port nicht öffentlich (nur Caddy exponiert 80/443).
-- [x] **Secrets:** Telegram-Token per Env (`.env`, gitignored); nie im JSON/Repo. Polymarket/Kalshi-Reads brauchen keinen Key.
-- [ ] **Rate-Limiting/DDoS:** Cloudflare Free davor schalten — unmetered DDoS-Schutz, Bot Fight Mode, 1 Rate-Limit-Regel inklusive ([Plan](https://www.cloudflare.com/plans/free/)). Empfohlene Regel: max. ~30 Requests/10 s pro IP auf `/_stcore/*`.
-- [x] **Admin-Bereiche schützen (wichtig):** ✅ Umgesetzt via Streamlit-nativem `st.login()` + Google-OIDC: sobald `.streamlit/secrets.toml [auth]` existiert (Template: `.streamlit/secrets.toml.example`), failt die Settings-Seite closed — nur eingeloggte Accounts auf der Admin-Allowlist (`ADMIN_EMAILS`-Env oder `[admin].emails` in secrets.toml) kommen durch; alle Research-Seiten bleiben öffentlich. Ohne Secrets: lokaler Research-Modus ohne Login-UI. Für Docker liegt der read-only-Secrets-Mount auskommentiert in `docker-compose.yml`. Zusätzlich möglich (ganze Site): **Cloudflare Access** (Zero Trust Free, bis 50 Nutzer) oder `basic_auth` im Caddyfile (Block auskommentiert bereit).
-- [ ] **Updates:** monatlich `docker compose pull/build` (Patch-Releases), Ubuntu unattended-upgrades aktivieren.
+- [x] **TLS:** Caddy obtains and renews Let's Encrypt certificates as soon as
+  the domain resolves to the server.
+- [x] **Security headers:** HSTS, `X-Content-Type-Options: nosniff`,
+  `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy` and `Permissions-Policy` in
+  the Caddyfile. **CSP is deliberately absent:** Streamlit's React frontend
+  breaks under a strict policy (open issues
+  [#6417](https://github.com/streamlit/streamlit/issues/6417),
+  [#8524](https://github.com/streamlit/streamlit/issues/8524)). If it is
+  wanted, start with `Content-Security-Policy-Report-Only`.
+- [x] **Streamlit hardening:** `enableXsrfProtection=true`, `enableCORS=false`,
+  `maxUploadSize=1`, telemetry off, and the app port not published — only
+  Caddy exposes 80 and 443.
+- [x] **Secrets:** the Telegram token comes from the environment (`.env`,
+  gitignored) and never from the JSON settings or the repository. Reading
+  Polymarket and Kalshi needs no key at all.
+- [ ] **Rate limiting and DDoS:** put Cloudflare Free in front — unmetered DDoS
+  protection, Bot Fight Mode and one rate-limit rule are included
+  ([plan](https://www.cloudflare.com/plans/free/)). Suggested rule: at most
+  ~30 requests per 10 seconds per IP against `/_stcore/*`.
+- [x] **Protecting the admin surface:** done, through Streamlit's native
+  `st.login()` with Google OIDC. Once `.streamlit/secrets.toml [auth]` exists
+  (template: `.streamlit/secrets.toml.example`) the Settings page fails closed
+  — only signed-in accounts on the admin allowlist (`ADMIN_EMAILS` env or
+  `[admin].emails`) get through, while every research page stays public.
+  Without those secrets the app runs in local research mode with no login
+  surface at all. For Docker the read-only secrets mount sits commented out in
+  `docker-compose.yml`. To gate the whole site instead, use **Cloudflare
+  Access** (Zero Trust Free, up to 50 users) or the `basic_auth` block in the
+  Caddyfile.
+- [ ] **Updates:** `docker compose pull && build` monthly for patch releases,
+  and enable Ubuntu unattended-upgrades.
 
-## 4. Rechtliches (Schweiz) — vor dem Launch erledigen
+## 4. Legal (Switzerland) — before launch
 
-1. **Impressum** (UWG Art. 3 Abs. 1 lit. s): Name, ladungsfähige Postadresse (kein Postfach), E-Mail. Pflicht gilt streng genommen für E-Commerce-Angebote; jede CH-Quelle empfiehlt es trotzdem für alle öffentlichen Sites — und sobald Spenden/Abo/Affiliate dazukommt, ist es zwingend. Verstöße sind strafbewehrt (UWG Art. 23). ([activemind](https://www.activemind.ch/blog/impressumspflicht/))
-2. **Datenschutzerklärung** (revDSG, seit 09/2023): unabhängig von Cookies Pflicht — Verantwortlicher, Zwecke, Empfängerkategorien, Exportländer, einfach zugänglich. ([KMU-Portal](https://www.kmu.admin.ch/kmu/en/home/facts-and-trends/digitization/data-protection/new-federal-act-on-data-protection-nfadp.html))
-3. **Kein Cookie-Banner nötig**, solange nur technisch notwendige Cookies gesetzt werden (Streamlit: Session/XSRF) und kein Ad-/Tracking-Stack läuft. Kein Google Analytics einbauen → Thema bleibt erledigt. (EDÖB-Cookie-Leitfaden v1.1, 10/2025)
-4. **GDPR/EU:** greift nur bei gezieltem Ausrichten auf EU-Nutzer oder Behavioral Tracking. Ohne Ads/Tracking und ohne EU-Marketing: außen vor.
-5. **Finanz-Disclaimer:** "Research only, keine Anlageberatung, keine Empfehlung" — im Sidebar-Footer bereits eingebaut; zusätzlich in Impressum/Disclaimer-Seite wiederholen. Keine personalisierten Empfehlungen anzeigen (tut die App nicht).
-6. **⚠️ Geldspielrecht — der wichtigste Punkt:** Polymarket UND Kalshi stehen auf der **GESPA-Sperrliste** (verifiziert in der Blocklist vom 25.11.2025). **Werbung für nicht bewilligte Geldspiele ist verboten** (BGS Art. 74 Abs. 3, Bussen bis CHF 500'000), und schon **Verlinkung kann als Werbung gelten** — 2025 liefen Strafverfahren gegen Influencer wegen Online-Casino-Promo. Konsequenz für die Site:
-   - Neutrale Daten-/Research-Darstellung ist Information, nicht Werbung (SRF/20min publizieren laufend Polymarket-Quoten) — aber **keine** Referral-/Affiliate-Links, keine "Trade now"-CTAs, keine Sign-up-Funnels.
-   - **CH-Geoblocking** (Cloudflare-Country-Rule) ist das anerkannte Branchenmuster und die stärkste Absicherung; eine Auslandsfirma bringt dagegen nichts (persönliche strafrechtliche Haftung + Steuerfalle "Ort der tatsächlichen Verwaltung"). Struktur-/Einnahmen-Plan: [LAUNCH_PLAN.md](LAUNCH_PLAN.md).
-   - Vor Monetarisierung: **2–4 h Beratung bei einem Schweizer Anwalt** zu BGS Art. 74 (Link-Policy + Geoblocking-Setup absegnen) — Kurzgutachten ca. CHF 1'000–3'000.
-7. **Quellenangabe:** "Marktdaten: öffentliche Polymarket- und Kalshi-APIs, ohne Gewähr" (im Sidebar-Footer eingebaut).
+1. **Imprint** (UWG Art. 3 para. 1 lit. s): name, a postal address that accepts
+   service (not a PO box), email. Strictly the duty applies to e-commerce
+   offerings, but every Swiss source recommends it for any public site — and it
+   becomes mandatory the moment donations, a subscription or affiliate income
+   appear. Violations are punishable (UWG Art. 23).
+   ([activemind](https://www.activemind.ch/blog/impressumspflicht/))
+2. **Privacy policy** (revDSG, in force since 09/2023): required regardless of
+   cookies — controller, purposes, categories of recipients, export countries,
+   easily reachable.
+   ([SME portal](https://www.kmu.admin.ch/kmu/en/home/facts-and-trends/digitization/data-protection/new-federal-act-on-data-protection-nfadp.html))
+3. **No cookie banner needed** as long as only technically necessary cookies
+   are set (Streamlit uses session and XSRF cookies) and no advertising or
+   tracking stack runs. Not adding Google Analytics keeps it that way.
+   (Swiss data protection authority cookie guidance v1.1, 10/2025)
+4. **GDPR:** applies only when deliberately targeting EU users or doing
+   behavioural tracking. Without ads, tracking or EU marketing it does not
+   engage.
+5. **Financial disclaimer:** "research only, not investment advice, not a
+   recommendation" — already in the sidebar footer, and worth repeating on the
+   imprint or disclaimer page. No personalised recommendations are shown, and
+   the app does not produce any.
+6. **⚠️ Gambling law — the decisive point:** both Polymarket and Kalshi appear
+   on the **GESPA blocklist** (verified against the list of 2025-11-25).
+   **Advertising unlicensed gambling is prohibited** (BGS Art. 74 para. 3,
+   fines up to CHF 500,000), and even **linking can count as advertising** —
+   criminal proceedings ran against influencers for online casino promotion in
+   2025. What follows for this site:
+   - Neutral data and research presentation is information, not advertising —
+     Swiss outlets publish Polymarket odds routinely — but **no** referral or
+     affiliate links, no "trade now" calls to action, and no sign-up funnels.
+   - **Swiss geoblocking** through a Cloudflare country rule is the accepted
+     industry pattern and the strongest protection available. A foreign company
+     does not help: personal criminal liability remains, and "place of
+     effective management" creates a tax problem on top. Structure and revenue
+     planning: [LAUNCH_PLAN.md](LAUNCH_PLAN.md).
+   - Before monetising: **two to four hours with a Swiss lawyer** on BGS
+     Art. 74, to sign off the link policy and the geoblocking setup. A short
+     opinion costs roughly CHF 1,000 to 3,000.
+7. **Attribution:** "market data: public Polymarket and Kalshi APIs, without
+   warranty", already in the sidebar footer.
 
-## 5. API-Bedingungen & Limits
+## 5. API terms and limits
 
-| Quelle | Limits (offiziell) | Bedingungen |
+| Source | Official limits | Terms |
 |---|---|---|
-| Polymarket Gamma | 4'000 Req/10 s gesamt; `/markets` 300/10 s; `/events` 500/10 s | Dashboards/Research/Analytics inkl. kommerzieller Nutzung erlaubt; verboten ist nur Bulk-Weiterverkauf als Datenfeed. Kein API-Key nötig. ([Rate Limits](https://docs.polymarket.com/api-reference/rate-limits)) |
-| Polymarket Data-API | 1'000 Req/10 s; `/trades` 200/10 s; `/positions` 150/10 s | dito; zusätzlich bekannter Offset-Cap ~3000 (im Code behandelt) |
-| Polymarket CLOB | 9'000 Req/10 s; `/book`,`/price` 1'500/10 s | dito |
-| Kalshi trade-api/v2 | Basic-Tier 20 Reads/s (Token-Bucket); public Reads ohne Auth | Papier-ToS streng (personal/non-commercial), Praxis gegenteilig: YC-finanzierte Aggregatoren (Oddpool), Google/CNN-Integrationen, Kalshis eigenes Builders-Programm wirbt um "analytics dashboards" ($2M Grants), kein Enforcement-Fall bekannt. **Maßnahme: Kalshi-Builders-Bewerbung = schriftliche Autorisierung; Kalshi-Feature-Flag für sauberes Abschalten.** Details + Playbook: [LAUNCH_PLAN.md](LAUNCH_PLAN.md). ([Data Terms PDF](https://kalshi-public-docs.s3.amazonaws.com/kalshi-data-terms-of-service.pdf), [Rate Limits](https://docs.kalshi.com/getting_started/rate_limits)) |
-| Telegram Bot API | ~1 Msg/s pro Chat, ~30 Msg/s broadcast, 20 Msg/min pro Gruppe | Free; der Scanner dedupliziert bereits und bleibt weit darunter |
+| Polymarket Gamma | 4,000 req/10 s overall; `/markets` 300/10 s; `/events` 500/10 s | Dashboards, research and analytics are allowed including commercial use; only bulk resale as a data feed is prohibited. No API key needed. ([rate limits](https://docs.polymarket.com/api-reference/rate-limits)) |
+| Polymarket Data API | 1,000 req/10 s; `/trades` 200/10 s; `/positions` 150/10 s | Same, plus the known offset cap around 3000, which the code handles |
+| Polymarket CLOB | 9,000 req/10 s; `/book` and `/price` 1,500/10 s | Same |
+| Kalshi trade-api/v2 | Basic tier 20 reads/s (token bucket); public reads need no auth | The written terms are strict (personal, non-commercial) while practice is the opposite: YC-funded aggregators, integrations at major outlets, and Kalshi's own builders programme courting "analytics dashboards" with $2M in grants. No enforcement case is known. **Mitigation: apply to the builders programme for written authorisation, and keep the Kalshi feature flag so it can be switched off cleanly.** Details: [LAUNCH_PLAN.md](LAUNCH_PLAN.md). ([data terms PDF](https://kalshi-public-docs.s3.amazonaws.com/kalshi-data-terms-of-service.pdf), [rate limits](https://docs.kalshi.com/getting_started/rate_limits)) |
+| Telegram Bot API | ~1 msg/s per chat, ~30 msg/s broadcast, 20 msg/min per group | Free; the scanner already deduplicates and stays far below |
 
-Die App-Caches (TTL 30–900 s) halten die tatsächliche API-Last unabhängig von der Besucherzahl in der Größenordnung von ~1–2 Req/s — weit unter allen Limits.
+The application caches (TTL 30 to 900 seconds) hold the real API load at
+roughly one to two requests per second independently of visitor count, which is
+far under every limit above.
 
-## 6. Betrieb
+## 6. Operations
 
-- **Uptime:** Better Stack Free (10 Monitore, 3-min-Checks, 1 Statuspage) auf `https://domain/_stcore/health`. (UptimeRobot Free verbietet seit 12/2024 kommerzielle Nutzung.)
-- **Fehler-Tracking:** Sentry Developer (free, 5'000 Events/Mo) — `sentry-sdk` initialisieren, Init gegen Streamlit-Reruns guarden. Optionaler späterer Einbau.
-- **Backups:** Nächtlich `restic` von `./data` (Settings, Watchlists, SQLite) auf Hetzner Object Storage (€6.49/Mo) oder beliebiges S3; zusätzlich wöchentlicher Server-Snapshot (€0.0143/GB/Mo).
-- **Logs:** Docker-Logging-Driver `json-file` mit `max-size: 10m`, `max-file: 3` (in Compose ergänzbar).
-- **Auto-Deploy (optional):** GitHub Actions → Image nach GHCR → `appleboy/ssh-action` → `docker compose pull && up -d`.
-- **Windows-Task-Altlast:** Beim Umzug auf den VPS die lokalen Scheduled Tasks (`MarketIntelTerminal` etc.) via `scripts/uninstall_autostart.ps1` entfernen.
+- **Uptime:** Better Stack Free (10 monitors, three-minute checks, one status
+  page) against `https://domain/_stcore/health`. UptimeRobot's free tier has
+  prohibited commercial use since 12/2024.
+- **Error tracking:** Sentry Developer (free, 5,000 events/month) — initialise
+  `sentry-sdk` and guard the init against Streamlit reruns. Optional, later.
+- **Backups:** nightly `restic` of `./data` (settings, watchlists, SQLite) to
+  Hetzner Object Storage (€6.49/month) or any S3, plus a weekly server snapshot
+  (€0.0143/GB/month).
+- **Logs:** Docker `json-file` driver with `max-size: 10m` and `max-file: 3`,
+  addable in Compose.
+- **Optional auto-deploy:** GitHub Actions builds the image to GHCR, then
+  `appleboy/ssh-action` runs `docker compose pull && up -d`.
+- **Leftover Windows tasks:** when moving to the VPS, remove the local
+  scheduled tasks with `scripts/uninstall_autostart.ps1`.
 
-## 7. Einkaufsliste (das Einzige, was noch fehlt)
+## 7. Shopping list (the only thing still missing)
 
-| # | Posten | Anbieter/Empfehlung | Kosten |
+| # | Item | Provider | Cost |
 |---|---|---|---|
-| 1 | **Domain** (.ch) | Infomaniak | ~CHF 9–12/Jahr (1 Mail-Adresse inklusive) |
-| 2 | **VPS** | Hetzner CX23 (Falkenstein/Helsinki) + IPv4 | ~€4.50/Mo ex MwSt (CX33: ~€7/Mo) |
-| 3 | Cloudflare Free + Zero Trust Free | Cloudflare | CHF 0 |
-| 4 | TLS (Caddy/Let's Encrypt) | — | CHF 0 |
+| 1 | **Domain** (.ch) | Infomaniak | ~CHF 9–12/year (one mailbox included) |
+| 2 | **VPS** | Hetzner CX23 (Falkenstein or Helsinki) plus IPv4 | ~€4.50/month ex VAT (CX33: ~€7/month) |
+| 3 | Cloudflare Free plus Zero Trust Free | Cloudflare | CHF 0 |
+| 4 | TLS (Caddy, Let's Encrypt) | — | CHF 0 |
 | 5 | Uptime (Better Stack Free) | — | CHF 0 |
-| 6 | Fehler-Tracking (Sentry Developer) | — | CHF 0 |
-| 7 | Backups (Object Storage, optional) | Hetzner | €0–6.50/Mo |
-| 8 | Anwalts-Konsultation BGS/Kalshi-ToS (einmalig, empfohlen) | CH-Kanzlei | ~CHF 300–600 einmalig |
+| 6 | Error tracking (Sentry Developer) | — | CHF 0 |
+| 7 | Backups (object storage, optional) | Hetzner | €0–6.50/month |
+| 8 | Legal consultation on BGS and the Kalshi terms (once, recommended) | Swiss firm | ~CHF 300–600 |
 
-**Laufende Kosten: ~CHF 6–8/Monat** (Minimal-Setup) bzw. **~CHF 15–25/Monat** (mit 8-GB-VPS + Object-Storage-Backups).
+**Running cost: roughly CHF 6–8 per month** for the minimal setup, or
+**CHF 15–25 per month** with an 8 GB VPS and object-storage backups.
 
-## 8. Launch-Checkliste (Reihenfolge)
+## 8. Launch checklist, in order
 
-1. Domain registrieren, Nameserver auf Cloudflare.
-2. VPS bestellen, Docker installieren, Repo deployen (`docker compose up -d --build`), Domain im Caddyfile setzen.
-3. Cloudflare: Proxy an, SSL "Full (strict)", Rate-Limit-Regel, Bot Fight Mode.
-4. Cloudflare Access (oder Caddy basic_auth) vor die Site, solange Settings/Copy-Daemon ungeschützt sind.
-5. Impressum + Datenschutzerklärung als eigene Seite/Sektion einfügen (Texte aus Generator, z. B. activemind.ch, gegenlesen).
-6. **Kalshi Developer Agreement lesen** (Browser) und BGS-Frage anwaltlich klären; je nach Ergebnis "Open market"-Links anpassen oder Kalshi-Re-Display klären.
-7. Better-Stack-Monitor + (optional) Sentry aktivieren.
-8. Lasttest mit 10–20 parallelen Tabs; RAM auf dem VPS beobachten (`docker stats`).
-9. Backup-Cron einrichten, Restore einmal testen.
-10. Go-live; lokale Windows-Scheduled-Tasks deinstallieren.
+1. Register the domain, point the nameservers at Cloudflare.
+2. Order the VPS, install Docker, deploy the repository
+   (`docker compose up -d --build`), set the domain in the Caddyfile.
+3. Cloudflare: proxy on, SSL "Full (strict)", rate-limit rule, Bot Fight Mode.
+4. Put Cloudflare Access (or Caddy basic auth) in front of the site for as long
+   as Settings and the copy daemon are unprotected.
+5. Add the imprint and privacy policy as their own page or section (draft from
+   a generator, then have them read).
+6. **Read the Kalshi developer agreement** and get the BGS question answered by
+   a lawyer; depending on the outcome, adjust the "open market" links or
+   clarify Kalshi re-display.
+7. Enable the Better Stack monitor and, optionally, Sentry.
+8. Load-test with 10 to 20 parallel tabs and watch memory on the VPS
+   (`docker stats`).
+9. Set up the backup cron and test a restore once.
+10. Go live, then uninstall the local Windows scheduled tasks.

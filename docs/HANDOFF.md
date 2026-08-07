@@ -23,7 +23,7 @@ in this codebase.
   `web/` as plain ES modules behind the read-only JSON API in `api/server.py`.
 - **Local:** http://127.0.0.1:8503 (Streamlit), http://127.0.0.1:8787 (web).
 - **Repo:** GitHub `Pablozh123/prediction-market-terminal`, default branch `main`.
-- **State:** 1,312 unit tests green (`python -m unittest discover -s tests`).
+- **State:** 1,370 unit tests green (`python -m unittest discover -s tests`).
 
 ## 2. Quick start on a new machine
 

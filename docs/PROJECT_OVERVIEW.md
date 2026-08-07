@@ -1,146 +1,309 @@
-# Projekt-Gesamtüberblick — Prediction Market Terminal
+# Project overview — Prediction Market Terminal
 
-Stand: 2026-08-07 · 1.312 Unit-Tests grün · live lokal auf http://127.0.0.1:8503
+Last updated 2026-08-07 · 1,370 unit tests green · local at http://127.0.0.1:8503
 
-Dieses Dokument ist **self-contained**: es beschreibt ohne weiteren Kontext, was das Produkt ist, was gebaut wurde, wie es technisch umgesetzt ist, wo die Datengrenzen liegen, welche Strategie dahintersteht und welche Entscheidungen offen sind. Gedacht für jeden, der das Projekt kalt aufnimmt.
+This document is **self-contained**: without further context it describes what
+the product is, what was built, how it works technically, where the data
+boundaries are, what strategy sits behind it and which decisions are open.
+Written for anyone picking the project up cold.
 
-> Rechtlicher Rahmen: legales Daten-/Analyse-Produkt über **öffentliche** Polymarket-/Kalshi-Daten. Paper-only, keine Custody, kein Live-Handel. Alle Rechtsthemen in den Plan-Docs sind Compliance-Research (kein Handeln ohne Anwalt).
-
----
-
-## 1. Was das Produkt ist
-
-Ein **Prediction-Market-Intelligence-Terminal** für Polymarket + Kalshi: Marktentdeckung, Trader-/Wallet-Research, Live-Flow, Whale-/Insider-Risk-Screening, Backtesting, verifizierte Track-Records, Alerts, Tracking, Portfolio und **Paper-only** Copy-Trading. Streamlit-Monolith, läuft lokal, deploybar via Docker.
-
-**Positionierung / Differenzierung (Kern):** Nicht noch ein Whale-Feed. Der Markt ist voll mit Polymarket-only-Klonen auf mathematisch falschen Leaderboards + Insider-Copy-Hype. Wir gewinnen mit **Ehrlichkeit + Rechen-Korrektheit + Cross-Venue-Breite + Research-Positionierung**. Details: [DIFFERENTIATION_STRATEGY.md](DIFFERENTIATION_STRATEGY.md).
+> Legal framing: a lawful data and analysis product over **public** Polymarket
+> and Kalshi data. Paper only, no custody, no live trading. Every legal topic
+> in the planning documents is compliance research, and none of it is acted on
+> without a lawyer.
 
 ---
 
-## 2. Tech-Stack & Architektur
+## 1. What the product is
 
-- **Sprache/Runtime:** Python 3.13/3.14.
-- **UI:** Streamlit 1.5x — ein Monolith `prediction_terminal.py` (~11k Zeilen). Seiten über `WORKSPACES`-Liste + Query-Slug-Routing (`PAGE_QUERY_SLUGS`, Aliasse `picks→Traders`, `alerts→Monitor`).
-- **Daten/Analytics:** `pandas`, `plotly` (Charts, `plotly_dark`), `networkx` (Louvain-Clustering), `requests`, `dnspython`, `websocket-client`.
-- **Streamlit-freie Logik in `app/`** (testbar, wiederverwendbar von Hintergrund-Skripten): `backtester.py`, `suspicion.py`, `track_record.py`, `signals.py`, `app_settings.py`, `authz.py`, `notify.py`, `copy_follow.py`, `copy_fidelity.py`.
-- **Datenquellen-Clients** in `src/prediction_markets.py` (Polymarket Gamma/Data/CLOB, Kalshi) + `src/copy_trading.py` (SQLite Paper-Engine + On-Chain-Lesen).
-- **Design-System:** Lime-Akzent `#C8F542` auf dunklem BG, Instrument-Serif-Headlines, JetBrains-Mono-Daten, Inter-Sans; CSS in `inject_css()`.
-- **Caching:** durchgehend `@st.cache_data` mit TTLs 30–900 s → Origin-API-Last unabhängig von Besucherzahl (einstellige % der dokumentierten Limits selbst bei 10k Besuchern/Tag).
-- **Verifikation:** `unittest` (311 Tests, `tests/`), Playwright-Visual-Smoke via System-Chrome (`scripts/visual_smoke.py`), Streamlit AppTest headless.
+A **prediction-market intelligence terminal** for Polymarket and Kalshi: market
+discovery, trader and wallet research, live flow, whale and insider risk
+screening, backtesting, verified track records, alerts, tracking, portfolio
+research and **paper-only** copy-trading — plus the microstructure research
+that runs on the recorded data.
+
+**Positioning:** not another whale feed. The market is full of Polymarket-only
+clones built on mathematically wrong leaderboards and insider-copy hype. The
+differentiators are **honesty, computational correctness, cross-venue breadth
+and a research posture**. Details:
+[DIFFERENTIATION_STRATEGY.md](DIFFERENTIATION_STRATEGY.md).
 
 ---
 
-## 3. Website-Features — alle 16 Workspaces
+## 2. Stack and architecture
 
-| Workspace | Was + wie umgesetzt |
+- **Runtime:** Python 3.12 or newer. CI runs 3.12 and 3.13; the container image
+  ships 3.13.
+- **Interfaces:** a Streamlit monolith `prediction_terminal.py` holding all
+  workspaces, and a second frontend under `web/` (plain ES modules) served by
+  the read-only JSON bridge in `api/server.py`.
+- **Data and analytics:** `pandas`, `plotly`, `networkx` (Louvain clustering),
+  `requests`, `dnspython`, `websocket-client`.
+- **Streamlit-free logic in `app/`**, testable and reused by the background
+  scripts: `backtester.py`, `suspicion.py`, `track_record.py`, `signals.py`,
+  `venue_fees.py`, `scorecard.py`, `app_settings.py`, `authz.py`, `notify.py`,
+  `copy_follow.py`, `copy_fidelity.py`, `filters.py`, `format.py`.
+- **Source clients** in `src/prediction_markets.py` (Polymarket Gamma, Data and
+  CLOB; Kalshi) plus `src/copy_trading.py` (SQLite paper engine and on-chain
+  reads), and the recorders `book_recorder.py`, `book_stream.py`,
+  `kalshi_recorder.py`, `kalshi_stream.py`.
+- **Design system:** a lime accent `#C8F542` on a dark background, serif
+  headlines, monospaced data, sans body; CSS in `inject_css()`.
+- **Caching:** `@st.cache_data` throughout with TTLs of 30 to 900 seconds, so
+  origin API load is independent of visitor count — single-digit percentages of
+  the documented limits even at 10,000 visitors a day.
+- **Verification:** `unittest` (1,370 tests), ruff in CI, a Playwright visual
+  smoke (`scripts/visual_smoke.py`), Streamlit AppTest headless, and a
+  Node-driven render test for the web frontend
+  (`tests/test_web_leerzustand.py`).
+
+---
+
+## 3. Workspaces
+
+| Workspace | What it does |
 |---|---|
-| **Overview** | Animierte Landing (Serif-Hero, LIVE-Pulse-Badge, 3 CTAs, Marquee-Ticker inkl. Volume-Anomalie-Item). CSS-Keyframes. |
-| **Search** | Command-Palette: globale Suche über Märkte/Trader/Trades/News/Alerts; `build_monitor_signals` gespeist. |
-| **Markets** | Tabelle/Karten/Kalender; Highlights (Volume-Anomalie ×ratio, Big-Mover, Ending-soon); "Who's-trading"-Quickview (PM + Kalshi, Whale-Prints + Top-Wallets mit Backtest/Track-Buttons). |
-| **Traders** | Polymarket-Leaderboard (data-api), Podium Top-3, Smart-Score-Ranking (`ct.rank_traders_by_smart_score`), Kategorie-Chips, Speed-Trader, Insider-Picks-Feed; On-Demand-Enrichment (Positionen/Win-Rates/Balances) aus öffentlichen Wallet-Daten. |
-| **Track** | Getrackte Märkte/Wallets, Live-Feed, Import, Action-Buttons. |
-| **Live Trades** | Echtzeit-Trade-Tape (PM + Kalshi mit **echten** Markttiteln via Ticker-Anreicherung), Flow-Chart, Wallet/Markt-Aggregation. |
-| **Wallets** | Wallet-Profil: Positionen, PnL-Kurve/Kalender, Activity, First-Funding, Account-Age, **Verified-Track-Record-Panel** (siehe §4.3). |
-| **Backtester** | Wallet-Replay Copy/Fade, 4 Sizing-Modi, Exposure-Cap, Mid-Window-Resolutions, Beste-Sizing-Simulation im Chart. (siehe §4.1) |
-| **Copy Trade** | Paper-Copy-Command-Center (Ziel-Wallet Swisstony), Daemon-Status, Sub-Accounts, ehrliche PnL. |
-| **Whale Flow** | Großdruck-Scanner, Wallet-Aggregation, Outcome-Bias, Track-Actions (4 Tabs). |
-| **Suspicious** | Insider-Risk-Screen (siehe §4.2): kategorie-bewusste Event-/Wallet-Scores, Fresh-Wallet-/Coordinated-Cluster, Louvain-Co-Trading-Netzwerk mit Klick-Isolation. |
-| **Cross-Venue** | Polymarket↔Kalshi Preislücken-Finder. |
-| **Monitor** | Signal-Scanner (Fast-Mover, Volume-Anomalie, Whale-Print, Tight-Spread, Holder-Konzentration, Ending, Watched) + gespeicherte Alert-Regeln + Telegram-Zustellung. |
-| **Resolved** | Closed-Market-Archiv, Accuracy, finale Yes-Preise, CSV-Export. |
-| **Portfolio** | Research-Portfolio, Copy-Portfolio, Exposure, Cash-Events, Paper-Historie, Watchlist. |
-| **Settings** | Daten-Knöpfe (market/trade/whale-Limits), Backtester-Defaults, Telegram-Config, Copy-Daemon-Start/Stop. |
+| **Overview** | Landing page: hero, live badge, marquee ticker including the volume-anomaly item. |
+| **Search** | Command palette: global search across markets, traders, trades, news and alerts, fed by `build_monitor_signals`. |
+| **Markets** | Table, cards and calendar; highlights (volume anomaly by ratio, big movers, ending soon); a "who is trading" quick view across both venues with whale prints and top wallets. |
+| **Traders** | Polymarket leaderboard, top-three podium, smart-score ranking, category chips, speed traders, insider-picks feed, and on-demand enrichment (positions, win rates, balances) from public wallet data. |
+| **Track** | Tracked markets and wallets, live feed, import, action buttons. |
+| **Live Trades** | Real-time trade tape across both venues with **real** market titles through ticker enrichment, flow chart, wallet and market aggregation. |
+| **Wallets** | Wallet profile: positions, PnL curve and calendar, activity, first funding, account age, and the **verified track-record panel** (§4.3). |
+| **Backtester** | Wallet replay, copy or fade, four sizing modes, exposure cap, mid-window resolutions, best-sizing simulation drawn into the chart (§4.1). |
+| **Copy Trade** | Paper-copy command centre, daemon status, sub-accounts, honest PnL. |
+| **Whale Flow** | Large-print scanner, wallet aggregation, outcome bias, track actions. |
+| **Suspicious** | Insider risk screen (§4.2): category-aware event and wallet scores, fresh-wallet and coordinated clusters, and a Louvain co-trading network with click-to-isolate. |
+| **Cross-Venue** | Price-gap finder between the two venues. |
+| **Monitor** | Signal scanner (fast movers, volume anomaly, whale prints, tight spreads, holder concentration, endings, watched) plus saved alert rules and Telegram delivery. |
+| **Resolved** | Closed-market archive, accuracy, final yes prices, CSV export. |
+| **Portfolio** | Research portfolio, copy portfolio, exposure, cash events, paper history, watchlist. |
+| **Settings** | Data limits, backtester defaults, Telegram config, copy-daemon start and stop. |
 
-Die meisten Seiten akzeptieren URL-Query-Filter (z.B. `/markets?q=bitcoin&probMin=0.05`, `/live-trades?side=buy&minNotional=2500`, `/traders?bot=true`).
+Most pages accept URL query filters, for example
+`/markets?q=bitcoin&probMin=0.05`, `/live-trades?side=buy&minNotional=2500`,
+`/traders?bot=true`.
 
 ---
 
-## 4. Kern-Engines (technisch)
+## 4. Core engines
 
 ### 4.1 Backtester — `app/backtester.py`
-Streamlit-frei, injectable Fetchers. Replayt Wallet-Trades über 7/30/90 Tage. `BacktestConfig`: sizing_mode (`SIZING_FIXED`/`PERCENT`/`MIRROR`/`PORTFOLIO`), stake_value, max_stake, fee_bps, slippage_bps, `strategy` (`STRATEGY_COPY`/`FADE` — Fade kauft Gegenseite zu 1−p), `max_exposure_pct` (Cap auf offene Copies, Default 50%), `trader_portfolio_value` (für Match-Modus). `replay()` mit `schedule_resolution`/`settle_due`: Mid-Window-Auflösungen recyceln Cash/Exposure (RESOLVE-Zeilen zur echten end_time). `token_values` für alle traded market_keys vorgeladen. `strategy_comparison` simuliert, welches Sizing am besten gewesen wäre → im Equity-Chart als gepunktete Amber-Linie + Label. Ehrliche Flat-Curves (kein Schönfärben): bei hyperaktiven Wallets schrumpft das Fenster via API-Cap → amber Skip-Breakdown-Hinweis.
 
-### 4.2 Insider-/Suspicion-Layer — `app/suspicion.py` + `src` Scorer
-Event-/Wallet-Insider-Scores aus Whale-Flow (`whale_event_risk_scores`/`whale_wallet_risk_scores`, Bänder 40/55/70). **Kategorie-Kontext** (`classify_insider_context`): Sport-Odds und Wetter werden **ganz ausgeschlossen** (Spielergebnisse/Wettermodelle nicht insider-handelbar), Crypto/Market-Prices gedämpft (Toggle), Politik/Geopolitik/Awards/Corporate fokussiert; nutzt Parent-Event-Titel (Gamma) für neutrale Sub-Markt-Titel. Bonusse: Fresh-Wallet-Cluster, Coordinated-Cluster (5-min-Fenster). **Louvain-Co-Trading-Netzwerk** (`co_trading_network`, networkx `louvain_communities`, seed=42): Kanten = gleiche Seite ≥min_shared Märkte + ≥$10k Paar-Volumen; Insel-Layout + Klick-Isolation (plotly `on_select`), Klartext-Cluster-Stories. Kalshi: event-level (keine Wallet-Identitäten public → wallet-level Logik überspringt Kalshi-Zeilen, UI erklärt es).
+Streamlit-free with injectable fetchers. Replays a wallet's trades over 7, 30
+or 90 days. `BacktestConfig` carries the sizing mode (fixed, percent, mirror,
+portfolio share, Kelly), stake value, cap, slippage, strategy (copy or fade,
+where fade buys the opposite side at 1−p), `max_exposure_pct` and
+`trader_portfolio_value`.
 
-### 4.3 Track-Record-Engine — `app/track_record.py` (WICHTIG: die vier Leaderboard-Korrekturen)
-Kern-Trust-Differenzierer. Naive Leaderboards täuschen 4-fach; wir korrigieren jede und zeigen naive vs. korrigiert:
-1. **NegRisk/Leg-Netting** — `market_records()` nettet pro conditionId, `event_records()` pro Event-Slug. Naive Tools zählen jedes Outcome-Leg separat → Win-Rate bis 2× aufgebläht.
-2. **Settled-only PnL** — echte realized_pnl pro resolved Markt.
-3. **Wash/Farmer-Flag** — hohes Volumen + ~0 Edge/Dollar.
-4. **Survivorship** — Sample-Gate (≥10 Märkte/≥14 Tage), Profit-Konzentration (one-hit-wonder), Sharpe-artiger `risk_adjusted`, Composite 0–100 → Grade A–F.
+**Fees follow the venue.** The engine charges Polymarket's own curve —
+`fee = shares · rate · p · (1 − p)`, which works out to `stake · rate · (1 − p)`
+and therefore depends on the price: about 250 bps at 0.50 and about 50 bps at
+0.90. A flat rate stays reachable as `fee_model="flat"` for comparison. On 90
+days of a real wallet the switch moved fees from $49.90 to $646.70 and the
+return from −3.21% to −5.41%, which is how much a flat 20 bps was flattering
+the result.
 
-**Echte Win-Rate + Datengrenze (zentral verstehen):** Polymarkets `/closed-positions` defaultet auf die **Top-50-Gewinner** (PnL-sortiert, hart bei 50 gekappt, offset ignoriert) → naiv sieht jede Wallet ~100% aus. Lösung: `get_polymarket_resolved_positions()` holt **beide Sort-Richtungen** (DESC-Gewinner ∪ ASC-Verlierer, dedup by market_key+outcome). Für **normale Wallets (≤50 je Seite) = vollständig → echte, verlässliche Win-Rate**. Für **hyperaktive (>50 Gewinne UND >50 Verluste) = `capped=True`** → ehrliches "EXTREMES ONLY"-Badge statt Fake-Zahl. Die Verteilungsmitte solcher Whales ist über die REST-Feeds **nicht** erreichbar. **Vollständige Lösung für ALLE = On-Chain-Indexing** (jeder Trade liegt auf Polygon, kein Cap; wie polymarketanalytics via Goldsky/Dune) — offener Skalierungsschritt, siehe §7.
+`replay()` with `schedule_resolution` and `settle_due` recycles cash and
+exposure on mid-window resolutions. `strategy_comparison` simulates which
+sizing would have been best and draws it into the equity chart. Curves stay
+honest: for hyperactive wallets the window shrinks against the API cap, and the
+interface says so instead of hiding it.
 
-### 4.4 WebSocket-Fast-Copy — `src/copy_trading.py` + `scripts/run_copy_trader.py`
-On-Chain-`OrderFilled`-Polling war die langsamste Detection (Log ~2s nach off-chain Match). Jetzt: **RTDS-WebSocket** (`RTDS_WS_URL = wss://ws-live-data.polymarket.com`, `rtds_subscribe_payload()` = globaler Firehose weil Wallet-Filter upstream kaputt, `decode_rtds_trade` matcht `proxyWallet` clientseitig). `RtdsTradeListener` (Thread + websocket-client, PING, Queue, graceful ohne lib), `WsApplyWorker` (dedizierter Thread, WAL + busy_timeout, drain 0.5s). On-Chain bleibt Reconciliation; `_fill_already_recorded()` dedupt cross-path auf (wallet,tx,asset,side) — WS-Match-Zeit ≠ Block-Zeit, also greift der timestamp-dedup_key nicht. `reconcile_backoff_seconds` bei RPC-429. Latenz sub-Sekunde statt ~2s. Nächste Speed-Schritte (im Plan): Execution härten, Worker nach Dublin/London co-locaten (Polymarket-CLOB = AWS eu-west-2).
+### 4.2 Insider and suspicion layer — `app/suspicion.py`
 
-### 4.5 Signals/Alerts — `app/signals.py`
-`build_monitor_signals` (inkl. "Volume anomaly": volume_1h ≥3× volume_24h/24, vol24≥$10k). Wiederverwendet von Monitor-Seite + Telegram-Scanner (`scripts/run_alert_scanner.py`, Dedup-State, Stop-File).
+Event and wallet insider scores from whale flow, banded at 40, 55 and 70.
+**Category context** (`classify_insider_context`) excludes sports odds and
+weather **entirely** — game results and weather models cannot be traded on
+early — damps crypto and market prices behind a toggle, and focuses politics,
+geopolitics, awards and corporate events. Parent event titles from Gamma give
+neutral sub-market names. Bonuses for fresh-wallet clusters and coordinated
+clusters in a five-minute window.
+
+The **Louvain co-trading network** (`co_trading_network`, `networkx`,
+`seed=42`) draws an edge where two wallets took the same side of at least
+`min_shared` markets with at least $10k of paired volume, then lays out islands
+with click-to-isolate and plain-language cluster stories. Kalshi stays
+event-level, because no wallet identities are published; the wallet-level logic
+skips those rows and the interface explains why.
+
+### 4.3 Track-record engine — `app/track_record.py`
+
+The core trust differentiator. Naive leaderboards mislead in four ways, and
+each is corrected here with the naive figure shown next to the corrected one:
+
+1. **NegRisk leg netting** — `market_records()` nets per condition id and
+   `event_records()` per event slug. Naive tools count every outcome leg
+   separately, inflating win rates by up to 2×.
+2. **Settled-only PnL** — real realised PnL per resolved market.
+3. **Wash and farmer flag** — high volume with roughly zero edge per dollar.
+4. **Survivorship** — a sample gate (at least 10 markets and 14 days), profit
+   concentration for one-hit wonders, a Sharpe-like `risk_adjusted` figure, and
+   a composite 0–100 mapped to grades A–F.
+
+**The real win rate and its data boundary, which is central:** Polymarket's
+`/closed-positions` defaults to the **top 50 winners**, sorted by PnL, hard
+capped at 50 with offset ignored — so naively every wallet looks perfect. The
+fix is `get_polymarket_resolved_positions()`, which fetches **both sort
+directions** (winners descending, losers ascending) and dedupes by market key
+and outcome. For **normal wallets** (50 or fewer per side) that is complete and
+the win rate is real. For **hyperactive wallets** (more than 50 wins *and* more
+than 50 losses) it sets `capped=True` and the interface shows an "extremes
+only" badge instead of a fabricated number: the middle of such a distribution
+is simply not reachable through the REST feeds. The complete answer for every
+wallet is **on-chain indexing**, since every trade sits on Polygon with no cap.
+That remains an open scaling step, see §7.
+
+### 4.4 WebSocket fast copy — `src/copy_trading.py`
+
+Polling on-chain `OrderFilled` was the slowest detection available, since the
+log lands about two seconds after the off-chain match. Detection now runs on
+the **RTDS WebSocket** (a global firehose, because the upstream wallet filter
+is broken, with `proxyWallet` matched client-side). `RtdsTradeListener` runs the
+socket and `WsApplyWorker` books in a dedicated thread with its own SQLite
+connection — the first version drained in the main loop and measured a
+105-second median, worse than the 30-second API fallback it was supposed to
+beat. On-chain polling stays as reconciliation, and `_fill_already_recorded()`
+dedupes across paths on wallet, transaction, asset and side, deliberately not
+on timestamp or price, which drift between match time and block time.
+`reconcile_backoff_seconds` backs off on RPC 429 streaks.
+
+### 4.5 Signals and alerts — `app/signals.py`
+
+`build_monitor_signals` produces fast movers, volume anomalies (hourly volume
+at least three times the 24-hour average with at least $10k daily), whale
+prints, tight spreads, holder concentration, endings and watched markets. The
+Monitor page and the Telegram scanner
+(`scripts/run_alert_scanner.py`, with dedupe state and a stop file) consume the
+same function.
 
 ---
 
-## 5. Datenquellen & ihre Grenzen (kritisch für weitere Recherche)
+## 5. Data sources and their limits
 
-- **Polymarket Gamma** (Märkte/Metadaten/Kategorien), **Data-API** (Trades/Positionen/Activity/Leaderboard), **CLOB** (Orderbook/Preise). Public, kein Key. Limits: Global 15'000/10s, Gamma 4'000/10s, Data-API 1'000/10s (/trades 200), CLOB 9'000/10s. Drosselung = Cloudflare-Queueing.
-- **Bekannte Caps/Fallen:**
-  - `/activity` lehnt offset+limit > ~3000 ab (`fetch_window_trades` cappt bei 3000). **ABER** offset paginiert sonst sauber (2494+ Events über Seiten verifiziert).
-  - `/closed-positions` **kappt bei ~50 Zeilen, offset ignoriert**, defaultet auf Gewinner; sortDirection ASC/DESC flippt welche 50 → Union-Trick (§4.3).
-  - Worthless-expiry-Verlierer erzeugen **kein Redeem-Event** → in /activity unsichtbar.
-- **Kalshi** (trade-api/v2): Märkte + Trades, **keine Wallet-Identitäten** (event-level only). `get_kalshi_markets(tickers=...)` reichert Trade-Ticker mit echten Titeln/Kategorien/End-Times an.
-- **On-Chain (Polygon)** — die vollständige Lane: `OrderFilled`-Logs (Decoder existiert in copy_trading.py), Redeem-Events. Kein Cap. Für komplette Track-Records nötig (via Goldsky-Subgraph/Dune/eigener Indexer). Noch nicht für Analytics genutzt, nur für Copy-Detection.
-- **Test-Wallet:** Swisstony `0x204f72f35326db932158cba6adff0b9a1da95e14` (~3000 Trades/Tag, hyperaktiv → Worst-Case für alle Cap-Themen).
-
----
-
-## 6. Ops, Deploy, Security
-
-- **Lokal:** 3 Windows Scheduled Tasks (`MarketIntelTerminal` :8503, `MarketIntelCopyDaemon`, `MarketIntelAlertScanner`) via `scripts/install_autostart.ps1`. Neustart: Stop-/Start-ScheduledTask.
-- **Produktion (bereit):** `Dockerfile` (non-root, healthcheck, gehärtete Streamlit-Flags), `docker-compose.yml` (terminal + alert-scanner + caddy), `deploy/Caddyfile` (Auto-TLS, Security-Header). Secrets via Env (`.env`, `.streamlit/secrets.toml` — gitignored).
-- **Auth:** `st.login()` + Google-OIDC, Settings failt closed hinter E-Mail-Allowlist (`app/authz.py`); ohne Secrets no-op (lokaler Research-Modus). Template `.streamlit/secrets.toml.example`.
-- **Kosten-Schätzung öffentlicher Betrieb:** ~CHF 6–8/Mo (Hetzner CX23 + Domain, Cloudflare/TLS/Monitoring gratis). Details: [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md).
-
----
-
-## 7. Offene Entscheidungen & Roadmap
-
-**Sofort baubar, kein Rechtsrisiko:**
-- **On-Chain-Indexer / vollständige Track-Records** — die "komplett für alle Wallets"-Version (§4.3, §5). Eigener Polygon-Log-Scan (Decoder da) oder Goldsky/Dune-Anbindung. Löst das 50er-Cap für Whales. **Nächste offene Produktentscheidung** (Aufwand/Kosten: Gratis-RPC langsam, Paid-RPC/Subgraph ~$0–50/Mo).
-- Speed-Schritt 2/3 (Execution härten, Worker co-locaten) — relevant bei Live-Execution.
-- Wallet-Connect read-only (React-Komponente wagmi/WalletConnect iframe + SIWE) — ~2–4 Tage. Streamlit kann kein natives web3-Frontend → iframe-Komponente nötig.
-- Weitere Differenzierungs-Features (aus DIFFERENTIATION_STRATEGY.md): Cross-Venue reconciled PnL/Tax, Copy-Decay-Ehrlichkeit, Kalibrierungs-Dashboard ("war 70% wirklich 70%?"), Resolution-/UMA-Dispute-Alerts.
-- Krypto-Zahlung (nach Launch): USDC-on-Polygon-Prepaid oder NOWPayments/CoinGate. Fiat (Stripe/MoR) zuerst.
-
-**Strategische Entscheidung — NICHT ohne Anwalt:**
-- **Live-Geld-Copytrading** — non-custodial Architektur geplant (Polymarket Builder-Program, getrennte maker/signer-Order-Felder), ABER **BGS Art. 130** (Bereitstellung technischer Mittel für GESPA-gesperrte Geldspiele, bis 3–5 J. Gefängnis; als CH-Resident kein Auslands-Schutz). Anwalts-Memo (CHF 5–25k) + CH+US-Geoblock + execution-only + benannte Entität zwingend VOR erstem Live-Trade. Details: [LIVE_COPYTRADING_PLAN.md](LIVE_COPYTRADING_PLAN.md).
-
-**Firmenstruktur/Einnahmen:** Privatperson → Einzelfirma (erste Einnahmen, MoR für EU-MwSt) → GmbH (ab ~CHF 100k). Auslandsfirma bringt nichts (persönliche Strafbarkeit + Steuerfalle). Hebel = CH-Geoblocking + keine Referral-Links. Details: [LAUNCH_PLAN.md](LAUNCH_PLAN.md).
+- **Polymarket Gamma** (markets, metadata, categories), **Data API** (trades,
+  positions, activity, leaderboard), **CLOB** (order book, prices). Public, no
+  key. Limits: 15,000 req/10 s globally, Gamma 4,000/10 s, Data API 1,000/10 s
+  (trades 200), CLOB 9,000/10 s. Throttling surfaces as queueing, not errors.
+- **Known caps and traps:**
+  - `/activity` rejects offset plus limit above roughly 3000, so
+    `fetch_window_trades` caps there. Offset otherwise paginates cleanly.
+  - `/closed-positions` **caps at about 50 rows, ignores offset** and defaults
+    to winners; the sort direction flips which 50 you get, hence the union
+    trick in §4.3.
+  - Losers that expire worthless produce **no redeem event** and are therefore
+    invisible in `/activity`.
+- **Kalshi** (trade-api/v2): markets and trades, **no wallet identities**, so
+  event-level only. `get_kalshi_markets(tickers=...)` enriches trade tickers
+  with real titles, categories and end times.
+- **On-chain (Polygon)** — the complete lane: `OrderFilled` logs (the decoder
+  exists) and redeem events, with no cap. Needed for complete track records.
+  Currently used for copy detection only, not for analytics.
+- **Test wallet:** `0x204f72f35326db932158cba6adff0b9a1da95e14`, roughly 3000
+  trades a day, which is the worst case for every cap above.
 
 ---
 
-## 8. Wettbewerb (Kurzbild, für Research-Kontext)
+## 6. Operations, deployment, security
 
-Table-Stakes (haben alle): Whale-Feed, Insider-Score, Leaderboard, Copy, Telegram-Alerts. Hauptakteure: **Unusual Whales** (3M Follower, PM-only, monitoring-only), **Verso** (YC, Multi-Venue-Terminal), **Kreo** (Copy, unter Polymarket-Audit), **Oddpool** (YC, cross-venue Daten), **polymarketanalytics/polyloly/polywhaler**, **Dome** (von Polymarket gekauft), **Stand** (Polymarket-COPYCAT). Konsolidierung + Funding-Welle (5c(c) $35M-Fonds) → Zeitdruck. White-Space: echtes Cross-Venue-UI, korrekte verifizierbare Track-Records, ehrlicher Copy-Decay, Tax-Reconciliation, Kalibrierung, non-English, Mobile. Volle Analyse: [DIFFERENTIATION_STRATEGY.md](DIFFERENTIATION_STRATEGY.md).
-
----
-
-## 9. Verweise (alle Docs im Repo)
-
-- [HANDOFF.md](HANDOFF.md) — Schnellstart/Workflow/Konventionen zum Weiterbauen von jeder Maschine.
-- [DIFFERENTIATION_STRATEGY.md](DIFFERENTIATION_STRATEGY.md) — Wettbewerb + Differenzierung + Bau-Plan.
-- [LAUNCH_PLAN.md](LAUNCH_PLAN.md) — Kalshi-/Polymarket-Datenrechte, Auth-Outsourcing, CH-Firmenstruktur.
-- [LIVE_COPYTRADING_PLAN.md](LIVE_COPYTRADING_PLAN.md) — Wallet-Connect, non-custodial Live-Copy, Speed, Krypto-Zahlung, Recht.
-- [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) — Hosting, Security, CH-Recht, API-Limits, Einkaufsliste.
-
-**Repo:** GitHub `Pablozh123/prediction-market-terminal`, Default-Branch `main`. **Verifikation:** `python -m unittest discover -s tests` (311), `python scripts/visual_smoke.py --base-url http://127.0.0.1:8503`.
+- **Local:** three Windows scheduled tasks (terminal on 8503, copy daemon,
+  alert scanner) registered by `scripts/install_autostart.ps1`.
+- **Production (ready):** `Dockerfile` (non-root, healthcheck, hardened
+  Streamlit flags), `docker-compose.yml` (terminal, alert scanner, Caddy),
+  `deploy/Caddyfile` (automatic TLS, security headers). Secrets come from the
+  environment; `.env` and `.streamlit/secrets.toml` are gitignored.
+- **Auth:** `st.login()` with Google OIDC, Settings failing closed behind an
+  email allowlist (`app/authz.py`); a complete no-op without secrets.
+- **Cost of running publicly:** roughly CHF 6–8 per month. Details:
+  [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md).
 
 ---
 
-## 10. Recherche-Startpunkte für die nächste Session
+## 7. Open decisions and roadmap
 
-Sinnvolle Fragen, die dieses Dokument aufwirft und die als Nächstes recherchiert/entschieden werden könnten:
-1. **On-Chain-Indexer:** Goldsky-Subgraph vs. Dune vs. eigener Polygon-Indexer — Kosten, Latenz, Wartung, Vollständigkeit für komplette Track-Records. (Löst die 50er-Cap-Grenze.)
-2. **Cross-Venue reconciled PnL/Tax** — technische Umsetzung PM+Kalshi in einem Portfolio, Form-8949-Export.
-3. **Kalibrierungs-Layer** — Brier-Score/Kalibrierungskurve pro Wallet aus resolved Märkten (Researcher-/Credibility-Funnel).
-4. **Wallet-Connect (read-only)** — konkrete Streamlit-React-Komponente + SIWE-Flow.
-5. **Go-to-Market** — Zielsegment (Sharps/Quant/Researcher), Pricing-Tier-Design, Free-Funnel.
-6. **Rechts-Memo** (nur falls Live-Copy) — Schweizer Gaming-/Fintech-Anwalt zu BGS Art. 130 + Geoblocking.
+**Buildable now, no legal exposure:**
+
+- **On-chain indexer and complete track records** — the "complete for every
+  wallet" version (§4.3, §5). Either a Polygon log scan of our own, the decoder
+  already exists, or a hosted subgraph. Solves the 50-row cap for whales.
+  **The next open product decision** (a free RPC is slow; a paid RPC or
+  subgraph runs $0–50 a month).
+- Speed steps 2 and 3 (harden execution, co-locate the worker) — relevant only
+  with live execution.
+- Read-only wallet connect (a React component with wagmi/WalletConnect in an
+  iframe, plus SIWE), two to four days. Streamlit cannot host a native web3
+  frontend, so the iframe component is required.
+- Further differentiating features from
+  [DIFFERENTIATION_STRATEGY.md](DIFFERENTIATION_STRATEGY.md): cross-venue
+  reconciled PnL and tax, copy-decay honesty, the calibration dashboard, and
+  resolution or dispute alerts.
+- Crypto payment after launch; fiat first.
+
+**Strategic decision, not without a lawyer:**
+
+- **Live-money copy-trading** — the non-custodial architecture is designed
+  (builder programme, separate maker and signer fields), but **BGS Art. 130**
+  (providing technical means for gambling blocked by the regulator, up to three
+  to five years' imprisonment, with no foreign shield for a Swiss resident)
+  makes a legal memo (CHF 5–25k), CH and US geoblocking, execution-only and a
+  named entity mandatory before a first live trade. Details:
+  [LIVE_COPYTRADING_PLAN.md](LIVE_COPYTRADING_PLAN.md).
+
+**Company and revenue:** private individual → sole proprietorship (first
+revenue, a merchant of record for EU VAT) → GmbH from roughly CHF 100k. A
+foreign company achieves nothing (personal liability plus a tax trap); the
+lever is Swiss geoblocking and no referral links. Details:
+[LAUNCH_PLAN.md](LAUNCH_PLAN.md).
+
+---
+
+## 8. Competition, in brief
+
+Table stakes everyone has: whale feed, insider score, leaderboard, copy,
+Telegram alerts. Main players: **Unusual Whales** (huge distribution,
+Polymarket only, monitoring only), **Verso** (YC, multi-venue terminal),
+**Kreo** (copy, under Polymarket audit), **Oddpool** (YC, cross-venue data),
+several analytics and copy sites, **Dome** (acquired by Polymarket) and
+**Stand**. Consolidation plus a funding wave means time pressure. White space:
+a real cross-venue interface, correct verifiable track records, honest copy
+decay, tax reconciliation, calibration, non-English, mobile. Full analysis:
+[DIFFERENTIATION_STRATEGY.md](DIFFERENTIATION_STRATEGY.md).
+
+---
+
+## 9. Other documents
+
+- [HANDOFF.md](HANDOFF.md) — quick start, conventions and state for continuing
+  from any machine.
+- [DIFFERENTIATION_STRATEGY.md](DIFFERENTIATION_STRATEGY.md) — competition,
+  differentiation, build plan.
+- [LAUNCH_PLAN.md](LAUNCH_PLAN.md) — data rights, auth outsourcing, company
+  structure.
+- [LIVE_COPYTRADING_PLAN.md](LIVE_COPYTRADING_PLAN.md) — wallet connect,
+  non-custodial live copy, speed, crypto payment, law.
+- [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) — hosting, security, Swiss
+  law, API limits, shopping list.
+- [research/README.md](research/README.md) — the microstructure studies and
+  their reports.
+
+**Repo:** GitHub `Pablozh123/prediction-market-terminal`, default branch
+`main`. **Verification:** `python -m unittest discover -s tests -p "test_*.py"`
+and `python -m ruff check .`
+
+---
+
+## 10. Research starting points
+
+Questions this document raises that would be worth settling next:
+
+1. **On-chain indexer:** hosted subgraph versus a query platform versus an
+   indexer of our own — cost, latency, maintenance and completeness for full
+   track records. Solves the 50-row cap.
+2. **Cross-venue reconciled PnL and tax** — both venues in one portfolio, with
+   a tax-form export.
+3. **Calibration layer** — a Brier score and calibration curve per wallet from
+   resolved markets, as the researcher and credibility funnel.
+4. **Read-only wallet connect** — the concrete Streamlit React component and
+   SIWE flow.
+5. **Go to market** — target segment, pricing tiers, free funnel.
+6. **Legal memo**, only if live copy is ever pursued.

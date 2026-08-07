@@ -17,7 +17,7 @@ with trading rights still cannot trade through this code.
 On top: fee models for both venues, an order-flow study, a segmentation
 harness, a market-making PnL decomposition, a cross-venue basket calculator, a
 gap-lifetime reconstruction, a reward-market ranker, and a book reconciler.
-1,312 unit tests.
+1,370 unit tests.
 
 ## What was measured
 

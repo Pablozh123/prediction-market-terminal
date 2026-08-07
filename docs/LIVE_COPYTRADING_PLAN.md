@@ -1,132 +1,283 @@
-# Plan: Wallet-Connect, Live-Copytrading, Krypto-Zahlung, Speed
+# Plan: wallet connect, live copy-trading, crypto payment, speed
 
-Stand: 2026-06-12. Vier Recherchen mit Primärquellen. Research-Unterstützung, **keine Rechtsberatung** — die Stellen mit **[ANWALT ZWINGEND]** sind nicht verhandelbar, bevor ein einziger Live-Trade läuft.
+Last updated 2026-08-07. Four research threads with primary sources. Research
+support, **not legal advice** — the points marked **[LAWYER REQUIRED]** are not
+negotiable before a single live trade runs.
 
 ---
 
-## Die wichtigste Erkenntnis zuerst
+## The important finding first
 
-Es gibt **zwei völlig verschiedene Risiko-Stufen**, und sie dürfen nicht vermischt werden:
+There are **two entirely different risk tiers**, and they must not be
+conflated:
 
-| Stufe | Was | Rechtsrisiko | Aufwand |
+| Tier | What | Legal risk | Effort |
 |---|---|---|---|
-| **A. Wallet-Connect read-only** (wie polywhaler) | Adresse verbinden → Positionen/PnL anzeigen | ~null (nur öffentliche Chain-Daten lesen) | 2–4 Tage |
-| **B. Speed-Upgrade Fast-Copy** (Paper bleibt Paper) | WebSocket statt On-Chain-Polling | null (interne Technik) | Stunden–1 Tag |
-| **C. Live-Geld-Copytrading** (wie polyhuntr) | Echte Orders mit Nutzer-Wallet ausführen | **HOCH — Geldspielrecht-Eskalation** | Wochen + Anwalt |
-| **D. Krypto-Zahlung** | USDC-Abo neben Karte | gering (Gateway = Intermediär) | 2–6 Tage |
+| **A. Read-only wallet connect** | Connect an address, show positions and PnL | ~none (reading public chain data) | 2–4 days |
+| **B. Fast-copy speed upgrade** (paper stays paper) | WebSocket instead of on-chain polling | none (internal plumbing) | hours to a day |
+| **C. Live-money copy-trading** | Execute real orders with the user's wallet | **HIGH — gambling-law escalation** | weeks plus a lawyer |
+| **D. Crypto payment** | USDC subscription alongside cards | low (the gateway is the intermediary) | 2–6 days |
 
-**A, B und D kannst du jederzeit bauen. C ist eine strategische Entscheidung mit echtem strafrechtlichem Risiko für dich als Schweizer Resident** — Details in Abschnitt 3.
+**A, B and D are buildable at any time. C is a strategic decision carrying real
+criminal exposure for a Swiss resident** — see section 3.
 
 ---
 
-## 1. Speed: unser Fast-Copy ist aktuell die langsamste brauchbare Methode
+## 1. Speed: on-chain polling was the slowest usable method
 
-**Befund (bestätigt deine Vermutung):** Unser Worker pollt einen gratis Polygon-RPC mit `eth_getLogs` auf `OrderFilled`-Events. Der On-Chain-Log ist aber das **letzte** Ereignis im Trade-Lebenszyklus: Polymarket matcht off-chain **sofort**, settled erst ~2 s später on-chain (ein Bor-Block). Wir zahlen also ~2 s + unser 1-s-Poll-Intervall Strafe — langsamer geht es kaum.
+> ✅ **Step 1 is implemented.** The copy daemon now detects on the RTDS
+> WebSocket and keeps on-chain polling as reconciliation. See HANDOFF.md §6 for
+> what that took, including the worker thread that had to be split out after
+> the first version measured a 105-second median.
 
-**Trade-Lebenszyklus, früheste → späteste Sichtbarkeit:**
-1. Nutzer signiert Order → CLOB-Operator matcht in-memory (~ms)
-2. **CLOB-WebSocket broadcastet den Trade** ← hier ist das früheste öffentliche Signal
-3. Settlement-Tx wird gebaut, an Relayer
-4. **On-Chain `OrderFilled` gemined (~2 s später) ← HIER hören wir aktuell zu**
+**The finding:** the original worker polled a free Polygon RPC with
+`eth_getLogs` for `OrderFilled` events. But the on-chain log is the **last**
+event in the trade lifecycle: Polymarket matches off-chain **immediately** and
+settles on-chain about two seconds later, one Bor block. So the design paid
+roughly two seconds plus the one-second poll interval. It is hard to be slower.
 
-**Der 80/20-Gewinn (größter Effekt, ~Stunden Arbeit, $0):** Detection auf den **CLOB-WebSocket** umstellen.
-- **RTDS `activity/trades`-Feed** (`wss://ws-live-data.polymarket.com`): liefert `proxyWallet`, `side`, `size`, `price`, `asset`, `conditionId`, `transactionHash` — **inklusive Wallet**, zum Match-Zeitpunkt. Gotcha: Einzel-Wallet-Filter ist kaputt (Issue #34) → mit leerem Filter den globalen Firehose abonnieren und `proxyWallet` clientseitig gegen die Ziel-Liste matchen. Alle 5 s `PING` senden.
-- Entfernt sofort ~2 s Latenz; On-Chain-Polling bleibt als **Reconciliation/Fallback** (fängt, was der WS verpasst, bestätigt Settlement).
+**Trade lifecycle, earliest to latest visibility:**
 
-**Ranked Upgrade-Pfad:**
-| # | Schritt | Latenz-Gewinn | Aufwand | Kosten |
+1. User signs an order, the CLOB operator matches in memory (milliseconds).
+2. **The CLOB WebSocket broadcasts the trade** ← the earliest public signal.
+3. The settlement transaction is built and handed to a relayer.
+4. **On-chain `OrderFilled` is mined (~2 s later)** ← where the old design
+   listened.
+
+**The 80/20 win:** move detection to the **CLOB WebSocket**.
+
+- The **RTDS `activity/trades` feed** (`wss://ws-live-data.polymarket.com`)
+  carries `proxyWallet`, `side`, `size`, `price`, `asset`, `conditionId` and
+  `transactionHash` — **including the wallet** — at match time. Gotcha: the
+  per-wallet filter upstream is broken, so subscribe to the global firehose
+  with an empty filter and match `proxyWallet` client-side against the target
+  list. Send `PING` every five seconds.
+- That removes about two seconds of latency outright; on-chain polling stays as
+  **reconciliation and fallback**, catching what the socket misses and
+  confirming settlement.
+
+**Ranked upgrade path:**
+
+| # | Step | Latency gain | Effort | Cost |
 |---|---|---|---|---|
-| 1 | **WS-Detection statt On-Chain-Polling** | **~2 s → sub-Sekunde** | Stunden | $0 |
-| 2 | Execution härten: keep-alive HTTPS zu clob.polymarket.com, gecachte L2-Creds, vorgeladene tick sizes/token IDs, **FOK**-Market-Orders via py-clob-client | ~100–200 ms Critical Path | ~1 Tag | $0 |
-| 3 | **Worker nach Dublin/London co-locaten** (Polymarket-CLOB läuft in AWS eu-west-2 London) | ~70–130 ms → ~1–10 ms RTT | ~halber Tag | ~$5–40/Mo VPS |
-| 4 | Paid WSS-RPC (Chainstack/Alchemy) mit `eth_subscribe` als On-Chain-Fallback | ersetzt unzuverlässigen Gratis-RPC | ~halber Tag | $0–50/Mo |
-| 5 | ~~bloXroute/Mempool, Builder-Partner-Tier~~ | — | **überspringen**: Settlement ist Relayer-batched, Mempool bringt nichts; Partner-Tier nur für Skalierung relevant | — |
+| 1 | **WS detection instead of on-chain polling** ✅ done | **~2 s → sub-second** | hours | $0 |
+| 2 | Harden execution: keep-alive HTTPS to the CLOB, cached L2 credentials, preloaded tick sizes and token IDs, **FOK** market orders via py-clob-client | ~100–200 ms of critical path | ~1 day | $0 |
+| 3 | **Co-locate the worker in Dublin or London** (the CLOB runs in AWS eu-west-2) | ~70–130 ms → ~1–10 ms RTT | ~half a day | ~$5–40/month VPS |
+| 4 | Paid WSS RPC with `eth_subscribe` as the on-chain fallback | replaces an unreliable free RPC | ~half a day | $0–50/month |
+| 5 | ~~Mempool or builder partner tier~~ | — | **skip**: settlement is relayer-batched so the mempool buys nothing, and the partner tier only matters at scale | — |
 
-**Netto:** Schritte 1–3 bringen uns von "~2–3 s hinterher + US-RTT" auf "**sub-Sekunde, oft ~100–300 ms end-to-end, am frühesten Signal, neben der Matching-Engine**" — für eine kleine Dublin-VPS und 1–2 Tage Arbeit. **Schritt 1 ist der dominante Gewinn** und gilt auch für unser Paper-Copy (realistischere Fills) und die Live-Trades/Suspicious-Feeds.
+**Net:** steps 1 to 3 move the system from "two to three seconds behind plus US
+round trip" to "**sub-second, often 100 to 300 ms end to end, on the earliest
+signal, next to the matching engine**", for a small Dublin VPS and a day or two
+of work. Step 1 dominates, and it also improves the paper copy (more realistic
+fills) and the live and suspicious feeds.
 
-## 2. Wallet-Connect (read-only): niedriges Risiko, hoher Wert
+## 2. Read-only wallet connect: low risk, high value
 
-**polywhaler-Muster:** "Connect wallet" = nur Adresse lesen → Positionen/PnL anzeigen. Keine Signatur, keine Custody, kein Finanzdienstleistungs-/Geldspiel-Fußabdruck. Genau das, was unsere Engine schon kann (sie liest `OrderFilled` per Adresse).
+**The pattern:** "connect wallet" means read the address only, then show
+positions and PnL. No signature, no custody, no financial-services or gambling
+footprint. It is exactly what the engine already does, since it reads
+`OrderFilled` by address.
 
-**Technik in Streamlit (das ist nicht trivial):** Streamlit ist serverseitig; echtes Wallet-JS läuft nur in einer **eigenen React-Komponente (iframe)** mit wagmi/WalletConnect, die Adresse + optional Signatur via `Streamlit.setComponentValue` zurückgibt. Die fertigen Komponenten (`streamlit-wallet-connect` etc.) sind 2022er-Stand, MetaMask-only, ohne Message-Signing — **nicht brauchbar**, nur als Referenz.
-- **Phase 1a (nur Adresse):** Nutzer tippt/verbindet Adresse → Engine liest öffentliche Daten. Minimal, null Risiko.
-- **Phase 1b (authentifiziert):** **SIWE / EIP-4361** (2025 finalisiert) — eine Klartext-Signatur beweist Wallet-Besitz, gated Premium-Analytics. Keine Transaktion, keine Fonds. Backend verifiziert mit `eth_account`/`siwe`.
-- **Aufwand:** ~2–4 Tage (Großteil = erster React-Komponenten-Build + iframe-Rerun-Handling).
+**The Streamlit problem, which is not trivial:** Streamlit is server-side, and
+real wallet JavaScript only runs in a **custom React component (iframe)** using
+wagmi or WalletConnect, which hands the address and optionally a signature back
+through `Streamlit.setComponentValue`. The off-the-shelf components are stuck
+in 2022, MetaMask-only and without message signing — **not usable**, only worth
+reading as reference.
 
-## 3. Live-Copytrading: technisch machbar, rechtlich die rote Linie
+- **Phase 1a (address only):** the user types or connects an address and the
+  engine reads public data. Minimal, no risk.
+- **Phase 1b (authenticated):** **SIWE / EIP-4361**, finalised in 2025 — a
+  plaintext signature proves wallet ownership and gates premium analytics. No
+  transaction, no funds. The backend verifies with `eth_account` or `siwe`.
+- **Effort:** two to four days, most of it the first React component build and
+  the iframe rerun handling.
 
-### 3a. Wie polyhuntr es baut (non-custodial)
-Wörtlich aus deren Terms: *"PolyHuntr does not hold, custody, or control your funds. All trades execute directly on Polymarket or Kalshi using your own wallet."* Privacy: *"exchange API secrets stay in your browser session only."* Gebühr: **10 % vom realisierten Gewinn, off-chain via Stripe abgerechnet** (kein On-Chain-Skim → konsistent mit non-custodial). **Betreiber/Jurisdiktion: NICHT offengelegt** (/about ist 404) — das ist ein Warnsignal, kein Vorbild für unsere Rechts-Hygiene.
+## 3. Live copy-trading: technically feasible, legally the red line
 
-### 3b. Polymarket unterstützt das technisch
-Der Order-Struct hat getrennte `maker` (Geldquelle) und `signer` (wer signiert) — *"Optional; if not present the signer is the maker."* Das ist der non-custodial Delegations-Hook. Saubere Architektur:
-1. Als **Polymarket Builder** registrieren (builderCode wird in die signierte Order serialisiert; Builder hält nie Fonds).
-2. Nutzer verbindet Proxy-Wallet (Gnosis Safe / Deposit-Wallet), signiert **einmalig** eine gedeckelte USDC-Allowance an die 4 Exchange-Contracts (Relayer zahlt Gas, gasless).
-3. Engine spiegelt Leader-Trades, indem sie Orders baut, die **die Nutzer-Wallet signiert** — entweder (A) Backend-**Session-Key** als `signer` mit On-Chain-Spend-Caps (beste UX für unbeaufsichtigtes Copy, aber Backend hält einen *beschränkten* Key) oder (B) **Browser signiert jede Order** (max non-custodial, aber Browser muss offen/zustimmen → kein "set and forget").
-4. Gebühr off-chain via Stripe.
-- **Technik-Stack-Delta:** kleiner **JS-Microservice** (Next.js, Polymarkets `wagmi-safe-builder-example` als Basis) fürs Onboarding (Wallet-Connect, Safe-Deploy, Approval-Batch, L2-Cred-Ableitung) + `py-clob-client` in der Engine. **Aufwand: Phase-2-Option-A ~2–4 Wochen** (Session-Key-Registrierung ist unter-dokumentiert → erst gegen Testnet/Kleinbeträge prototypen; v2-SDK-Signer-Bug #70 beachten).
+### 3a. How the incumbents build it (non-custodial)
 
-### 3c. Das Rechtsbild — hier wird es ernst
+One competitor's terms, verbatim: *"PolyHuntr does not hold, custody, or
+control your funds. All trades execute directly on Polymarket or Kalshi using
+your own wallet."* On privacy: *"exchange API secrets stay in your browser
+session only."* Fee: **10% of realised profit, billed off-chain through
+Stripe** — no on-chain skim, consistent with being non-custodial. **Operator
+and jurisdiction are not disclosed** (their /about is a 404), which is a
+warning sign rather than a model for our own legal hygiene.
 
-**Finanzrecht (machbar mit richtiger Gestaltung):** Non-custodial + keine diskretionäre Verwaltung + keine personalisierte Beratung hält dich wahrscheinlich aus den schweren Lizenzen (Bank, Effektenhändler, FinIA). Aber "Copy-Trading" ist eine eigene regulierte Kategorie (ESMA/FinSA-Funktionstest):
-- **Auto-Execute ohne Nutzeraktion → Portfolio-Management** (lizenzpflichtig). Vermeiden.
-- **Nutzer bestätigt jeden Trade → Anlageberatung/Auftragsübermittlung** (Verhaltenspflichten, Berater­register). Leichter.
-- **Execution-only (Nutzer löst aus, du übermittelst nur) → leichteste Stufe.** ← anzustrebende Gestaltung.
-- Custody ist überall die helle Linie: **nie Fonds/Keys halten** → keine Bank-/AMLA-Pflicht.
+### 3b. Polymarket supports this technically
 
-**⚠️ Geldspielrecht (BGS) — DIE Eskalation und der Grund, warum das ≠ Daten-Site ist:**
-- Polymarket ist GESPA-gesperrt (unbewilligtes Online-Geldspiel).
-- **BGS Art. 130:** Wer vorsätzlich unbewilligte Großspiele organisiert **oder "die technischen Mittel dafür bereitstellt, im Wissen um die beabsichtigte Verwendung"**, an Personen ohne Bewilligung → **Freiheitsstrafe bis 3 Jahre (5 bei Gewerbsmäßigkeit)**.
-- **BGS Art. 131:** Werbung für unbewilligte Spiele → Busse bis CHF 500'000.
-- Eine **Daten-/Leaderboard-Site** zeigt nur öffentliche Information. Ein Tool, das **Schweizer Nutzer beim Live-Trading auf einem gesperrten Geldspiel-Markt routet/erleichtert**, ist viel näher an "Bereitstellung der technischen Mittel" — der qualitative Sprung von Information zu Facilitation.
-- **Gegengewicht:** Schweizer Behörden zeigen *"wenig Appetit"* auf Strafverfahren gegen ausländische Sites, und die Auslands-Anwendbarkeit ist *"unsicher"* — Enforcement war bisher administrativ (Blocklist/DNS), nicht strafrechtlich. **ABER:** Diese "Handlung im Ausland"-Unsicherheit ist genau der Schutz, den du als **Schweizer Resident nicht hast**. Wer aus der Schweiz heraus die technischen Mittel bereitstellt, ist territorial klar erfasst.
+The order struct separates `maker` (the source of funds) from `signer` (who
+signs): *"Optional; if not present the signer is the maker."* That is the
+non-custodial delegation hook. A clean architecture:
 
-**Konsequenz:** Für Live-Copy ist **[ANWALT ZWINGEND]** — nicht optional. Die genaue Frage (darf ein Schweizer Resident Live-Trades für *Nicht*-Schweizer auf einem GESPA-gesperrten Markt erleichtern?) kann nur eine Schweizer Fintech-+-Gaming-Kanzlei klären. Kostenrahmen Memo: **~CHF 5'000–15'000** (Klassifizierung), volles Gutachten FinSA+BGS+AMLA grenzüberschreitend **~CHF 15'000–25'000+**. Angesichts der Gefängnis-Exposition von Art. 130 ist das die billigste Versicherung.
+1. Register as a **Polymarket builder** — the builder code is serialised into
+   the signed order and the builder never holds funds.
+2. The user connects a proxy wallet (Gnosis Safe or deposit wallet) and signs
+   a **one-time** capped USDC allowance to the four exchange contracts; the
+   relayer pays gas.
+3. The engine mirrors leader trades by building orders that **the user's wallet
+   signs** — either (A) a backend **session key** as `signer` with on-chain
+   spend caps (best UX for unattended copying, but the backend holds a
+   *limited* key) or (B) **the browser signs every order** (maximally
+   non-custodial, but the browser has to be open and consenting, so no "set and
+   forget").
+4. The fee is billed off-chain through Stripe.
 
-### 3c-bis. Konkurrenz: Gebührenmodelle, Custody, Sicherheitsvorfälle
+**Stack delta:** a small **JavaScript microservice** (Next.js, Polymarket's
+`wagmi-safe-builder-example` as the base) for onboarding — wallet connect, Safe
+deployment, the approval batch, L2 credential derivation — plus
+`py-clob-client` in the engine. **Effort for option A: two to four weeks.**
+Session-key registration is under-documented, so prototype against testnet or
+tiny amounts first.
 
-**Gebührenmodelle (zur Orientierung):**
-- **polyhuntr**: 10 % vom realisierten Gewinn, off-chain via Stripe, kein Abo. Live nur nach manueller Admin-Freigabe.
-- **PolyCopy**: $30/Mo + **1 % taker / 0.5 % maker als Polymarket-Builder-Fees** (on-chain) — der klarste offengelegte Einsatz der Builder-Fee-Schiene; Key-Custody via Turnkey HSM/TEE.
-- **Poly Syncer**: $299/Mo (bis 250 Wallets, dedizierter RPC), non-custodial. **PolyCop**: ~0.5 %. **Stand.trade**: aktuell $0 (erst wenn Polymarket Fees aktiviert), im Polymarket-Newsletter profiliert.
-- **Zwei Erlösschienen** also: (a) Builder-Fee on-chain (PolyCopy, 0.5–1 %) oder (b) Performance-Fee off-chain via Stripe (polyhuntr, 10 % Gewinn). (b) ist non-custodial-konformer und vermeidet die On-Chain-Fee-Mechanik-Frage.
+### 3c. The legal picture — this is where it gets serious
 
-**Sicherheitsvorfälle (untermauern die non-custodial-Pflicht):**
-- **Polycule** (Jan 2026, ~$230k gestohlen): war **custodial** — Backend generierte und speicherte Private Keys pro Nutzer, signierte serverseitig. Vektor u. a. SSRF + reversibler Key-Store. → Genau das Modell, das wir **nicht** bauen.
-- **PolyGun** (Feb 2026, ~$70k), und **bösartige GitHub-"copy-trading-bot"-Repos**, die Private Keys aus `.env` exfiltrieren. Lehre: Keys serverseitig = Angriffsfläche. Unser Vorteil: strikt non-custodial, nie Keys halten.
+**Financial law (workable with the right design):** non-custodial, no
+discretionary management and no personalised advice probably keeps this out of
+the heavy licences. But "copy-trading" is its own regulated category under the
+functional test:
 
-**Polymarkets Haltung — direkt relevant für unser Insider-Feature:** Im April 2026 begann Polymarket, Builder-Startups zu **auditieren, deren Apps Nutzern helfen, verdächtige Insider-Wallets zu kopieren** (genannt: Kreo, Polycool) — Auslöser: vier am selben Tag erstellte Wallets machten $663k auf einem US-Iran-Markt. Plus Palantir-Partnerschaft für On-Chain-Monitoring, neue Insider-Trading-Regeln. **Wichtig:** Es ist "embrace builders, police insider-copying", nicht anti-copy-trading (Polymarkets eigener Newsletter profiliert Copy-Tools positiv). **Konsequenz für uns:** Unser Suspicious/Insider-Screen ist wertvoll — aber ein Feature "kopiere diese Insider-Wallet automatisch" wäre genau das, was Polymarket gerade auditiert. Insider-Erkennung als **Research/Warnung** positionieren, nicht als "tail the insider"-Copy-Funnel.
+- **Auto-execute with no user action → portfolio management**, which is
+  licensed. Avoid.
+- **User confirms each trade → investment advice or order transmission**, with
+  conduct obligations and adviser registration. Lighter.
+- **Execution-only (the user triggers, you only transmit) → the lightest
+  tier.** ← the design to aim for.
+- Custody is the bright line everywhere: **never hold funds or keys**, and the
+  banking and anti-money-laundering obligations do not attach.
 
-**Counterparty-Beobachtung:** polyhuntr UND polywhaler legen **keine Rechtsentität, Adresse oder Governing Law** offen (nur E-Mail). Bei einem Tool, das Live-Trading-Credentials berührt, ist das ein Risikosignal — wir machen es anders (benannte Entität, echte Terms).
+**⚠️ Gambling law (BGS) — the escalation, and why this is not a data site:**
 
-### 3d. Verteidigbare Gestaltung, falls C kommt
-- **Strikt non-custodial** (nie Fonds/Keys/Secrets serverseitig), gedeckelte revoke-bare Allowance, Gebühr off-chain (Stripe).
-- **Execution-only / Nutzer bestätigt** statt stilles Auto-Execute; Signale **generisch, nicht personalisiert** (keine Beratung).
-- **Echtes Hartes Geoblocking: CH UND US blocken** (US = CFTC-IB/CPO/CTA-Minenfeld bei Event-Contracts), plus Polymarkets eigene Restricted-Liste — IP-Geofencing + Attestation + ToS, nicht nur Checkbox.
-- **Echte Terms** mit Restricted-Jurisdictions, "not financial advice", "not affiliated", non-custodial-Statement, benannte Betreiber-Entität (anders als polyhuntr), Haftungsdeckel, Governing Law.
-- **Anwalts-Memo vor dem ersten Live-Trade.**
+- Polymarket is on the GESPA blocklist as unlicensed online gambling.
+- **BGS Art. 130:** intentionally organising unlicensed large-scale games **or
+  "providing the technical means for them, knowing the intended use"** to
+  parties without a licence carries **imprisonment up to three years, five if
+  done commercially**.
+- **BGS Art. 131:** advertising unlicensed games, fines up to CHF 500,000.
+- A **data and leaderboard site** displays public information. A tool that
+  **routes or eases live trading for Swiss users on a blocked gambling market**
+  sits much closer to "providing the technical means" — that is the qualitative
+  jump from information to facilitation.
+- **Counterweight:** Swiss authorities show little appetite for criminal
+  proceedings against foreign sites, and extraterritorial application is
+  uncertain; enforcement so far has been administrative (blocklist, DNS) rather
+  than criminal. **But** that "acting from abroad" uncertainty is precisely the
+  protection a **Swiss resident does not have**. Providing the technical means
+  from inside Switzerland is territorially clear.
 
-## 4. Krypto-Zahlung
+**Consequence:** live copy is **[LAWYER REQUIRED]**, not optional. The precise
+question — may a Swiss resident facilitate live trades for *non*-Swiss users on
+a GESPA-blocked market — can only be answered by a Swiss fintech and gaming
+firm. Budget: **CHF 5,000–15,000** for a classification memo, **CHF
+15,000–25,000+** for a full cross-border opinion. Against the custodial
+exposure in Art. 130 that is the cheapest insurance available.
 
-**Zwei brauchbare Wege neben Karte/MoR:**
-1. **NOWPayments oder CoinGate** (Gateway, Auto-Konvertierung zu Fiat, ~0.5–1 %): Prozessor wird zum regulierten AMLA-Intermediär statt dir, du bekommst Fiat, keine Volatilität/Custody. CoinGate ist EU-/CH-konformer (EU-lizenziert, gratis SEPA). ~2–4 Tage. Recurring ist invoice-/reminder-basiert, kein echter Auto-Pull.
-2. **Direkte USDC-on-Polygon-Adresse, als 30-Tage-Prepaid verkauft** (kein Auto-Renew): crypto-nativ für unsere Polygon-Nutzer, <$0.01 Gebühr, Sekunden. Pro-Nutzer-Deposit-Adresse für Attribution, RPC-Watcher bestätigt Zahlung. ~3–6 Tage, kein Prozessor-Cut, aber du handhabst Edge-Cases selbst.
+### 3d. The competition: fee models, custody, security incidents
 
-**Tot/ungeeignet:** Coinbase Commerce (Shutdown 31.03.2026), Stripe-Stablecoin (nur US-Händler), Helio (Solana, falsche Chain), Loop/Sphere Auto-Pull (Over-Engineering bis Nutzer Auto-Renew verlangen).
+**Fee models, for orientation:**
 
-**Steuer/Recht (CH):** Krypto-Annahme macht dich **nicht** zum Finanzintermediär (Verkauf eigener Leistung ≠ Intermediation); Auto-Konvertierung via Gateway hält FINMA fern. Umsatz wird zum CHF-Wert bei Eingang als Geschäftsertrag verbucht (keine private Kapitalgewinn-Befreiung). MWST folgt der SaaS-Leistung, nicht der Zahlart.
+- 10% of realised profit, off-chain through Stripe, no subscription; live
+  access only after manual admin approval.
+- $30/month plus **1% taker and 0.5% maker as Polymarket builder fees**
+  on-chain — the clearest disclosed use of the builder-fee rail; key custody
+  through an HSM/TEE provider.
+- $299/month (up to 250 wallets, dedicated RPC), non-custodial. Another at
+  ~0.5%. One at $0 for now, until Polymarket switches fees on.
+- So there are **two revenue rails**: (a) an on-chain builder fee (0.5–1%) or
+  (b) an off-chain performance fee through Stripe (10% of profit). (b) is more
+  consistent with being non-custodial and avoids the on-chain fee mechanics
+  question entirely.
 
-**Empfehlung:** **Fiat-only zum Launch** (Stripe/MoR bringt mehr Umsatz pro Stunde und löst die EU-MwSt). Krypto (Option 2, USDC-Polygon-Button) nachrüsten, sobald zahlende Nutzer danach fragen — für unsere crypto-native Zielgruppe dann ein echtes Differenzierungsmerkmal.
+**Security incidents, which underline the non-custodial requirement:**
 
-## 5. Empfohlene Reihenfolge
+- One service lost roughly $230k in January 2026. It was **custodial** — the
+  backend generated and stored per-user private keys and signed server-side.
+  The vector included SSRF plus a reversible key store. That is exactly the
+  model **not** to build.
+- Another lost roughly $70k in February 2026, and malicious GitHub
+  "copy-trading-bot" repositories exfiltrate private keys out of `.env`. The
+  lesson is the same: keys on the server are attack surface.
 
-**Sofort baubar (null/geringes Risiko):**
-1. **Speed Schritt 1**: WS-Detection (RTDS `activity/trades`) statt On-Chain-Polling — größter Gewinn, paar Stunden, verbessert auch Paper-Copy + Live-Feeds.
-2. Speed 2–3: Execution härten + Worker nach Dublin (beim öffentlichen Deploy ohnehin EU-VPS).
-3. Wallet-Connect read-only (React-Komponente + SIWE), ~2–4 Tage.
-4. Krypto-Zahlung erst nach Launch, wenn nachgefragt.
+**Polymarket's own stance, directly relevant to the insider feature:** in April
+2026 Polymarket began **auditing builder startups whose apps help users copy
+suspicious insider wallets**, triggered by four wallets created on the same day
+making $663k on one market, alongside a monitoring partnership and new
+insider-trading rules. Importantly this is "embrace builders, police
+insider-copying", not anti-copy-trading — Polymarket's own newsletter profiles
+copy tools positively. **What follows for us:** the suspicious and insider
+screen is valuable, but a feature that "copies this insider wallet
+automatically" is precisely what is being audited. Position insider detection
+as **research and warning**, not as a tail-the-insider funnel.
 
-**Strategische Entscheidung (nicht ohne Anwalt):**
-5. Live-Copytrading nur nach **Anwalts-Memo (CHF 5–25k)** zur BGS-Art.-130-Frage + verteidigbarer Gestaltung (non-custodial, execution-only, CH+US-Geoblock, echte Terms, benannte Entität). Technik dann ~2–4 Wochen + JS-Onboarding-Microservice.
+**Counterparty observation:** the two best-known tools disclose **no legal
+entity, address or governing law**, only an email. For a tool that touches live
+trading credentials that is a risk signal — we do it differently, with a named
+entity and real terms.
 
-**Kernsatz:** Wir können sofort die schnellste *Paper*-Copy- und Analytics-Plattform werden (Speed Schritt 1 schlägt die meisten öffentlichen Bots) und Wallet-Connect-Analytics liefern — beides ohne Rechtsrisiko. Der Sprung zu **Live-Geld** ist eine separate, anwaltlich abzusichernde Entscheidung, weil er als Schweizer Resident die Geldspielrecht-Grenze berührt.
+### 3e. A defensible design, if C ever happens
+
+- **Strictly non-custodial:** never funds, keys or secrets on the server; a
+  capped, revocable allowance; the fee off-chain through Stripe.
+- **Execution-only or user-confirmed** rather than silent auto-execution, and
+  signals **generic, not personalised**, so it is not advice.
+- **Real geoblocking: Switzerland and the US** (event contracts are a CFTC
+  minefield), plus Polymarket's own restricted list — IP geofencing plus
+  attestation plus terms, not merely a checkbox.
+- **Real terms** with restricted jurisdictions, "not financial advice", "not
+  affiliated", a non-custodial statement, a named operating entity, a liability
+  cap and a governing law.
+- **The legal memo before the first live trade.**
+
+## 4. Crypto payment
+
+**Two workable routes alongside cards:**
+
+1. **A gateway with automatic conversion to fiat** (~0.5–1%): the processor
+   becomes the regulated intermediary instead of you, you receive fiat, and
+   there is no volatility or custody. An EU-licensed provider fits Swiss and EU
+   requirements better. Two to four days. Recurring billing is invoice- and
+   reminder-based, not a true auto-pull.
+2. **A direct USDC-on-Polygon address sold as a 30-day prepaid** (no
+   auto-renew): crypto-native for a Polygon audience, under $0.01 in fees,
+   settled in seconds. A per-user deposit address gives attribution and an RPC
+   watcher confirms payment. Three to six days, no processor cut, but the edge
+   cases are yours.
+
+**Dead or unsuitable:** Coinbase Commerce (shut down 2026-03-31), Stripe
+stablecoin (US merchants only), Solana-based gateways (wrong chain), auto-pull
+protocols (over-engineering until users ask for auto-renew).
+
+**Tax and law (Switzerland):** accepting crypto does **not** make you a
+financial intermediary, because selling your own service is not intermediation,
+and automatic conversion through a gateway keeps the regulator out of it.
+Revenue books at its CHF value on receipt as business income, with no private
+capital-gains exemption. VAT follows the SaaS service, not the payment method.
+
+**Recommendation: fiat only at launch.** Stripe or a merchant of record earns
+more revenue per hour of work and solves EU VAT. Add crypto (option 2, a
+USDC-on-Polygon button) once paying users ask for it — for a crypto-native
+audience it is then a real differentiator.
+
+## 5. Recommended order
+
+**Buildable now (no or low risk):**
+
+1. ✅ **Speed step 1**: WS detection instead of on-chain polling. Done.
+2. Speed 2–3: harden execution and move the worker to Dublin — the public
+   deploy puts it on an EU VPS anyway.
+3. Read-only wallet connect (React component plus SIWE), two to four days.
+4. Crypto payment only after launch, if asked for.
+
+**Strategic decision (not without a lawyer):**
+
+5. Live copy-trading only after a **legal memo (CHF 5–25k)** on the BGS
+   Art. 130 question, plus a defensible design (non-custodial, execution-only,
+   CH and US geoblocking, real terms, named entity). The engineering is then
+   two to four weeks plus the JavaScript onboarding microservice.
+
+**The short version:** we can be the fastest *paper* copy and analytics
+platform and ship wallet-connect analytics, both without legal exposure. The
+jump to **live money** is a separate decision that needs a lawyer, because for
+a Swiss resident it touches the gambling-law boundary.

@@ -1,125 +1,250 @@
-# Differenzierungs-Strategie — Prediction-Market Intelligence
+# Differentiation strategy — prediction-market intelligence
 
-Stand: 2026-06-12. Basis: 11 parallele Recherchen (Wettbewerber-Deep-Dives, User-Segmente, Pain-Points, Trust/Custody, Unmet-Needs, Zahlungsbereitschaft, Kalshi-Ökosystem) mit Primärquellen (WSJ, Bloomberg, Columbia-Studie, OrcaLayer, CNBC, YC, Vendor-Selbstauskünfte). Ziel: **nicht noch ein Whale-Feed** — verteidigbare Position im überfüllten Markt.
-
----
-
-## 0. Kernthese (ein Satz)
-
-Der Markt ist voll mit Polymarket-only Whale-Feed + Insider-Score + Copy-Bot-Klonen, die alle auf **irreführenden Vanity-Leaderboards** und **Insider-Copy-Hype** aufbauen — beides mathematisch nachweislich falsch und für Nutzer verlustbringend. Wir gewinnen durch **Ehrlichkeit + mathematische Korrektheit + Cross-Venue-Breite**: das neutrale **Prediction-Market-Intelligence-Terminal mit verifizierbaren, settled-only, survivorship-korrigierten Track-Records**, Research-Positionierung statt Glücksspiel-Copy-Funnel.
+Last updated 2026-08-07. Based on eleven parallel research threads (competitor
+deep dives, user segments, pain points, trust and custody, unmet needs,
+willingness to pay, the Kalshi ecosystem) with primary sources. The goal is
+**not another whale feed** but a defensible position in a crowded market.
 
 ---
 
-## 1. Marktrealität (belegt)
+## 0. The thesis in one sentence
 
-- **Barbell:** ~2 % der User = ~90 % Volumen; **Top 0.04–0.1 % = ~67–70 % der Gewinne**; **84 % der Trader verlieren Geld** (WSJ 1.7M Adressen; on-chain-Studie 2.5M Wallets, April 2026). Gewinner = Bots/Arbitrage/MM, **nicht kopierbare Menschen**. Bots: 89 Trades/Tag vs. 2.2 für Menschen; 14 der Top-20-Wallets sind Bots.
-- **Zahlende Segmente:** Degens (Copy, churny), Sharps (hohe WTP, bauen oft selbst), **Quant/Builder** (recurring, $99/Mo Data-API bewiesen). Researcher/Journalisten/Forecaster = niedrige WTP, aber **Credibility-Funnel**. Casuals = riesig, preissensibel.
-- **Nachfrage spiky:** Wahlnacht-Peak Kalshi ~400k DAU → Mitte 2025 ~27k. Novelty-Churn real → Retention braucht Workflow-Lock-in.
-- **60 % der PM-User sind Krypto-Neulinge** — Onboarding/Klarheit zählt.
+The market is full of Polymarket-only clones combining a whale feed, an insider
+score and a copy bot, all built on **misleading vanity leaderboards** and
+**insider-copy hype** — both demonstrably wrong mathematically and
+loss-making for users. The way to win is **honesty, mathematical correctness
+and cross-venue breadth**: a neutral prediction-market intelligence terminal
+with verifiable, settled-only, survivorship-corrected track records, positioned
+as research rather than as a gambling funnel.
 
-## 2. Wettbewerber
+---
 
-| Tool | Positionierung | Venues | Stärke | Schwäche/Lücke |
+## 1. Market reality (evidenced)
+
+- **Barbell:** about 2% of users account for roughly 90% of volume; the **top
+  0.04–0.1% take about 67–70% of the profits**; and **84% of traders lose
+  money** (WSJ across 1.7M addresses; an on-chain study of 2.5M wallets, April
+  2026). The winners are bots, arbitrage and market makers — **not humans worth
+  copying**. Bots trade 89 times a day against 2.2 for humans, and 14 of the
+  top 20 wallets are bots.
+- **Paying segments:** degens (copy, churny), sharps (high willingness to pay,
+  often build their own), **quants and builders** (recurring, a $99/month data
+  API is proven). Researchers, journalists and forecasters have low willingness
+  to pay but form a **credibility funnel**. Casual users are a huge,
+  price-sensitive base.
+- **Demand is spiky:** Kalshi peaked around 400k daily users on election night
+  and sat near 27k by mid-2025. Novelty churn is real, so retention needs
+  workflow lock-in.
+- **60% of prediction-market users are new to crypto**, so onboarding and
+  clarity matter.
+
+## 2. Competitors
+
+| Tool | Positioning | Venues | Strength | Gap |
 |---|---|---|---|---|
-| **Unusual Whales** (Unusual Predictions, Jan 2026) | Insider-Detection, **3M+ X-Follower** | **Polymarket-only** | Distribution, "Unusual Score", Marke | Monitoring-only (kein Copy/Alert/API/Backtest für PM), **kein Kalshi**, PM = Bolt-on |
-| **Verso** (YC-backed) | "Bloomberg Terminal for prediction markets" | PM + Kalshi | **Best-finanzierter Independent**, AI-News-Engine (30k Artikel→Contracts), Mobile, 15k+ Contracts | Neu, kein Copy/Backtest bekannt — **direkter Konkurrent** |
-| **Kreo** | "find insiders before the rest" | PM + Kalshi | Non-custodial-ish (Privy/Gnosis), AI-Matcher, echte Copy | **Opake Fee, kein Backtest, keine API, nur Telegram**, unter Polymarket-Audit |
-| **Oddpool** (YC S26) | "institutional data layer" | PM + Kalshi | Cross-venue, API, Whale-Feed | Free=1 Event, keine Lizenz, jung |
-| **PredictFolio / OrcaLayer** | Daten-Genauigkeits-Referenz | PM | **Korrekte Mathematik** (NegRisk-Korrektur, Farmer-Filter), Journalisten zitieren | Nische, PM-only |
-| **polywhaler** | Whale/Insider $9/$99 | PM | Insider-Scoring | Copy ausgelagert an PolyGun (Referral), anonym, Domain 5 Mt. alt |
-| **Stand.trade** | Pro-Terminal, Copy | PM (+Kalshi) | $0, im Polymarket-Newsletter (COPYCAT) | Monetarisierung unklar |
-| **PolyCopy / PolyGun / Polycule** | Copy-Bots | PM | Copy-Execution | **Custody-Risiko** (Polycule ~$230k gehackt), Referral-Spam |
-| **adj.news / Dome** | Multi-Venue **API** | Alle | Breiteste Daten | **API, kein UI**; Dome von Polymarket **gekauft** |
+| **Unusual Whales** (Unusual Predictions, 01/2026) | Insider detection, 3M+ followers | **Polymarket only** | Distribution, brand, its own score | Monitoring only — no copy, alerts, API or backtest for prediction markets; **no Kalshi**; the category is a bolt-on |
+| **Verso** (YC-backed) | "Bloomberg terminal for prediction markets" | Both | **Best-funded independent**, AI news engine (30k articles to contracts), mobile, 15k+ contracts | New, no copy or backtest known — **the direct competitor** |
+| **Kreo** | "find insiders before the rest" | Both | Roughly non-custodial, AI matcher, real copy | **Opaque fee, no backtest, no API, Telegram only**, and under Polymarket audit |
+| **Oddpool** (YC S26) | "institutional data layer" | Both | Cross-venue, API, whale feed | Free tier is one event, no licence, young |
+| **PredictFolio / OrcaLayer** | Data-accuracy reference | Polymarket | **Correct mathematics** (NegRisk correction, farmer filter), cited by journalists | Niche, single venue |
+| **polywhaler** | Whale and insider, $9/$99 | Polymarket | Insider scoring | Copy outsourced to a referral partner, anonymous, domain five months old |
+| **Stand.trade** | Pro terminal, copy | Polymarket (plus Kalshi) | $0, profiled in Polymarket's newsletter | Monetisation unclear |
+| **Copy bots (several)** | Copy execution | Polymarket | Execution | **Custody risk** (one lost ~$230k to a hack), referral spam |
+| **adj.news / Dome** | Multi-venue **API** | All | Broadest data | **API, no interface**; Dome was **acquired by Polymarket** |
 
-## 3. Table-Stakes vs. White-Space
+## 3. Table stakes versus white space
 
-**Table-Stakes (haben alle):** Whale-Feed, Insider-/Smart-Score, Leaderboard, Copy-Trade, "Backtest"-Label, Telegram-Alerts.
+**Table stakes (everyone has them):** whale feed, insider or smart score,
+leaderboard, copy trade, a "backtest" label, Telegram alerts.
 
-**White-Space (nachweislich schlecht/gar nicht gelöst) — nach Nachfrage × Ungelöstheit:**
+**White space, ranked by demand times how badly it is solved:**
 
-1. **Verifizierbare, korrekte Track-Records statt Vanity-Leaderboards** (größter Wedge). Belegte Defekte, die JEDES Leaderboard hat:
-   - **NegRisk-Doppelzählung:** Multi-Outcome-Märkte werden pro Outcome gezählt → **Win-Rates bis 2× aufgebläht** (OrcaLayer).
-   - **Falsches/vorzeichen-verkehrtes PnL:** gewonnene Positionen werden auto-redeemed und verschwinden aus der API → naive Tools zeigen Verlust statt Gewinn (Leo Labs: **−$3.5M angezeigt vs. +$11.4M real**).
-   - **Survivorship + Zombie-Orders:** naive WR 70-80 %, **settled-only echte WR nur 55-62 %** (SeriouslySirius real 53.3 %). ~16 % der Leaderboard-Spitze sind Airdrop-Farmer; **~25 % des Volumens ist Wash-Trading** (Columbia; 45 % im Sport).
-   - Niemand außer PredictFolio/OrcaLayer rechnet korrekt. → **Unser Moat: settled-only, NegRisk-korrigiert, Farmer-gefiltert, exit-liquiditäts-adjustiert, kalibrierungs-bewertet, Verhaltens-gelabelt (direktional/Hedge/MM/Arb), Multi-Wallet-verknüpft (Louvain haben wir), mit publizierter Methodik.**
+1. **Verifiable, correct track records instead of vanity leaderboards** — the
+   biggest wedge. The defects every leaderboard demonstrably has:
+   - **NegRisk double counting:** multi-outcome markets are counted per
+     outcome, which **inflates win rates by up to 2×**.
+   - **Wrong or sign-flipped PnL:** winning positions are auto-redeemed and
+     vanish from the API, so naive tools show a loss where there was a profit
+     — one documented case showed −$3.5M against a real +$11.4M.
+   - **Survivorship and zombie orders:** naive win rates land at 70–80% while
+     **settled-only rates are 55–62%**. Roughly 16% of the leaderboard top are
+     airdrop farmers, and **about 25% of volume is wash trading** (Columbia;
+     45% in sports).
+   - Nobody except the two accuracy-focused sites computes this correctly.
+     → **The moat: settled-only, NegRisk-corrected, farmer-filtered,
+     exit-liquidity-adjusted, calibration-scored, behaviour-labelled
+     (directional, hedge, market-making, arbitrage), multi-wallet-linked
+     (the Louvain clustering already exists), with a published methodology.**
 
-2. **Echtes Cross-Venue-UI** (PM + Kalshi, später Limitless/Manifold): konsolidierte Quoten, Arbitrage, **venue-übergreifend abgestimmte PnL**. adj.news=nur API, Dome von PM gekauft, UW/polywhaler=PM-only. Das manuelle Diffen macht heute jeder selbst. **Cross-Venue-Neutralität ist der Moat, den PM & Kalshi selbst nie bauen** (zeigen nie die Konkurrenz-Quoten).
+2. **A real cross-venue interface** (both venues now, more later): consolidated
+   odds, arbitrage, and **PnL reconciled across venues**. One competitor is API
+   only, another was bought, and the rest are single-venue. Everyone currently
+   diffs this by hand. **Cross-venue neutrality is the one moat the venues
+   themselves will never build**, because neither will show a competitor's
+   odds.
 
-3. **Ehrlichkeit über Copy-Decay.** Kern-Defekt: Whale bewegt mit eigenem Einstieg den dünnen Book → Copier kauft die Spitze (Whale ~127 % vs. Copier ~100 %). Plus MEV-Frontrun (ms), Cat-and-Mouse (Zweit-Accounts, Iceberging, Merge-Exits → "du wirst Exit-Liquidity"). **Niemand disclosed das.** Wir: "Median-Copier X¢ schlechter gefüllt", nur wo Copy viabel ist.
+3. **Honesty about copy decay.** The core defect: a whale's own entry moves a
+   thin book, so the copier buys the top (the whale realises ~127% of the move
+   against the copier's ~100%). Add MEV front-running at millisecond scale and
+   the cat-and-mouse of second accounts, iceberging and merge exits, and the
+   copier becomes exit liquidity. **Nobody discloses this.** We would: "the
+   median copier filled X cents worse", and only where copying is viable at
+   all.
 
-4. **Prediction-Market-native Steuer + Cross-Venue-Reconciliation.** Kein Anbieter löst es ("None observed"). PM gibt keine Steuerformulare; jeder Trade = Krypto-Event (Form 8949); Cross-Venue = zwei Steuer-Frameworks. **Hohe WTP, wide open.**
+4. **Prediction-market-native tax and cross-venue reconciliation.** No provider
+   solves it. The venues issue no tax forms, every trade is a crypto event, and
+   cross-venue means two tax frameworks. **High willingness to pay, wide
+   open.**
 
-5. **Persönliches Kalibrierungs-Dashboard für Echtgeld-Trader.** Manifold/Metaculus (Spielgeld) haben Brier-Score/Kalibrierung; PM/Kalshi **nicht**. "Bin ich wirklich kalibriert / habe ich Edge?" — sauberer, unbesetzter Gap. Perfekter Free-Tier/Credibility-Funnel.
+5. **A personal calibration dashboard for real-money traders.** The play-money
+   forecasting sites have Brier scores and calibration curves; the real-money
+   venues have **neither**. "Am I actually calibrated, do I have an edge?" is a
+   clean, unoccupied gap and a perfect free-tier credibility funnel.
 
-6. **Resolution-/UMA-Dispute-Risiko-Alerts.** Echte Verluste ($7M Ukraine-Markt falsch aufgelöst, 25 % UMA-Voting-Power). Kein Mainstream-Tool warnt "deine offene Position ist in Dispute". Verteidigbar via Resolution-Präzedenz-Datensatz.
+6. **Resolution and dispute risk alerts.** Real losses happen here — a $7M
+   market resolved wrongly, with a quarter of the oracle voting power in few
+   hands. No mainstream tool warns that "your open position is under dispute".
+   Defensible through a resolution-precedent dataset.
 
-7. **Kategorie-bewusstes, erklärbares Insider-Screening.** UW & Co. scoren Sport-Odds als "Insider" (Rauschen). Wir: Sport/Wetter raus, Politik/Geopolitik rein, "warum geflaggt". **Nur wir machen das.**
+7. **Category-aware, explainable insider screening.** The incumbents score
+   sports odds as "insider", which is noise. We exclude sports and weather,
+   keep politics and geopolitics, and say why a row was flagged. **Nobody else
+   does this.**
 
-## 4. Unsere Assets (schon gebaut)
+## 4. What we already have
 
-- **Cross-Venue PM + Kalshi in einer UI** (nicht nur API).
-- **Kategorie-bewusstes Insider-Screening** (Sport/Wetter ausgeschlossen — macht sonst keiner).
-- **Rigoroser Backtester** (Copy/Fade, 4 Sizing-Modi, Exposure-Cap, Mid-Window-Resolutions, **ehrliche Flat-Curves**).
-- **Louvain-Co-Trading-Netzwerk** (Multi-Wallet-Cluster — genau das Werkzeug gegen Cat-and-Mouse).
-- **Non-custodial by architecture** (Paper-only) — Custody ist DER Trust-Bottleneck (Polycule $230k, PolyGun-Keys serverseitig trotz "non-custodial"-Marketing).
-- **WS-Fast-Copy** (sub-Sekunde).
+- **Both venues in one interface**, not just an API.
+- **Category-aware insider screening** — sports and weather excluded, which
+  nobody else does.
+- **A rigorous backtester** (copy and fade, four sizing modes, exposure cap,
+  mid-window resolutions, and honest flat curves) that now charges the real
+  venue fee curve rather than a flattering flat rate.
+- **A Louvain co-trading network** for multi-wallet clusters, which is exactly
+  the tool against the cat-and-mouse problem.
+- **Non-custodial by architecture** (paper only) — custody is *the* trust
+  bottleneck in this category.
+- **Sub-second WebSocket fast copy.**
 
-## 5. Differenzierungs-These — vier Säulen
+## 5. Four pillars
 
-**Säule 1 — Korrekte, verifizierbare Track-Records ("die Mathematik stimmt").** Das ist der #1-Trust-Hebel der ganzen Kategorie (belegt: Sport-Wetten Blogabet/Pyckio-Modell = vorab-committed, unlöschbar). Settled-only, NegRisk-korrigiert, survivorship-bereinigt, kalibriert, on-chain nachprüfbar, Methodik publiziert. **Prove before you copy:** unser Backtester bewertet eine Wallet ehrlich (echte Fees/Slippage/Decay) BEVOR man folgt. Moat gegen UW (monitoring-only) und Copy-Bots (blindes Mirroring).
+**Pillar 1 — correct, verifiable track records ("the mathematics is right").**
+This is the category's number one trust lever; the sports-betting analogues
+that won did it with pre-committed, undeletable records. Settled-only,
+NegRisk-corrected, survivorship-adjusted, calibrated, verifiable on-chain, with
+the methodology published. **Prove before you copy:** the backtester scores a
+wallet honestly, with real fees, slippage and decay, *before* anyone follows
+it. That is the moat against monitoring-only incumbents and against blind
+mirroring bots.
 
-**Säule 2 — Cross-Venue Truth Layer.** DAS neutrale unified Terminal PM + Kalshi: Quoten, Arb, abgestimmte PnL/Tax. Verteidigbar, weil die Venues es aus Interessenkonflikt nie bauen.
+**Pillar 2 — a cross-venue truth layer.** The neutral unified terminal: odds,
+arbitrage, reconciled PnL and tax. Defensible precisely because the venues have
+a conflict of interest and will not build it.
 
-**Säule 3 — Research/Intelligence statt Copy-Funnel.** Insider-Screen = erklärbare **Warnung** (kategorie-bewusst), nicht "tail the insider". Umgeht Audit-/BGS-Art.-130-Falle (Kreo/Polycool), gewinnt Sharps/Researcher/Journalisten (gratis Kalibrierungs-Layer → Zitate → Marketing).
+**Pillar 3 — research and intelligence instead of a copy funnel.** The insider
+screen is an explainable **warning**, category-aware, not "tail the insider".
+That avoids the audit and gambling-law trap the copy-focused tools walked into,
+and it wins sharps, researchers and journalists — the free calibration layer
+turns into citations, which is free marketing.
 
-**Säule 4 — Ehrliche, non-custodial Positionierung.** "Wir fassen deine Funds nie an" + "du hättest beim Kopieren Geld verloren" — genau die Analytics, die die konfliktbehafteten Incumbents (PM/Kalshi/Copy-Bots) NICHT bauen können.
+**Pillar 4 — honest, non-custodial positioning.** "We never touch your funds"
+plus "you would have lost money copying this" — exactly the analytics the
+conflicted incumbents cannot publish.
 
-## 6. Bedrohungen & Konsolidierung
+## 6. Threats and consolidation
 
-- **Konsolidierung läuft:** Polymarket kaufte **Dome** (unified API), betreibt COPYCAT/Stand-Copy. Kalshi baut **eigenes Bloomberg-Terminal** (CNBC 04.06.2026, Alpha). → Rohdaten-Normalisierung + native Copy werden commoditized/first-party. **Nicht dort kämpfen.**
-- **Verso (YC):** best-finanzierter Independent-Multi-Venue-Terminal → schneller sein bei Trust-Rigor + Backtest + Kategorie-Intelligenz + ehrlichem Copy-Decay (haben sie nicht).
-- **Unusual Whales (3M Follower):** Distribution unerreichbar → nicht auf PM-Insider-Terrain kämpfen; gewinnen auf Cross-Venue + Rigor + Actionability.
-- **Kalshi-Anonymität:** Insider/Copy/verifizierte-Leaderboards sind auf Kalshi **strukturell unmöglich** (keine Wallets) — ehrlich sein: unser Kalshi-Layer = event-level; Wallet-Rigor = Polymarket-nativ.
-- **Funding-Welle = Zeitdruck:** Kalshi raist ~$40B, Polymarket ~$15B, ICE $2B rein; **5c(c) Capital (~$35M, erster PM-VC-Fonds)** wird ~20 weitere Tooling-Startups finanzieren. Der Raum wird schnell voller und besser finanziert → **jetzt Position besetzen, nicht später.**
+- **Consolidation is underway:** Polymarket bought Dome (the unified API) and
+  runs its own copy surface. Kalshi is building its own Bloomberg-style
+  terminal. Raw data normalisation and native copy will be commoditised and
+  first-party. **Do not fight there.**
+- **Verso:** the best-funded independent multi-venue terminal. Beat them on
+  trust rigour, backtesting, category intelligence and honest copy decay, none
+  of which they have.
+- **Unusual Whales:** the distribution is unreachable, so do not fight on
+  Polymarket insider terrain; win on cross-venue breadth, rigour and
+  actionability.
+- **Kalshi anonymity:** insider work, copy and verified leaderboards are
+  **structurally impossible** on Kalshi because there are no wallets. Be honest
+  about it — the Kalshi layer is event-level, and wallet-level rigour is
+  Polymarket-native.
+- **The funding wave is time pressure:** the venues are raising at enormous
+  valuations, ICE put in $2bn, and the first dedicated venture fund (~$35M)
+  will finance roughly twenty more tooling startups. The space fills up fast.
+  **Take the position now.**
 
-**Am wenigsten umkämpfte Achsen (fast leer, echte Nischen):**
-- **Non-English-Märkte** — jedes gefundene Tool ist English-only. Unbesetzt.
-- **Mobile** — praktisch niemand (nur Verso/Kalshi-Terminal deuten es an).
-- **Counter-Trading** — auto-faden von nachweislich schlechten Wallets (nur Stand macht es). **Wir haben die FADE-Strategie im Backtester bereits** — direkt ausbaubar.
-- **Prosumer-Tier (~$20-40)** — seriöses Retail will Institutional-Analytics zu fairem Preis; dünn bedient.
+**Least contested axes (nearly empty, real niches):**
 
-## 7. Konkreter Bau-Plan (differenzierende Features, priorisiert)
+- **Non-English markets** — every tool found is English-only. Unoccupied.
+- **Mobile** — almost nobody.
+- **Counter-trading** — automatically fading demonstrably bad wallets; one
+  competitor does it. **The fade strategy already exists in our backtester**
+  and is directly extendable.
+- **A prosumer tier (~$20–40)** — serious retail wants institutional analytics
+  at a fair price and is thinly served.
 
-1. **Track-Record-Engine v2** (größter Wedge, nutzt Louvain + Backtester): settled-only PnL (Auto-Redeem-korrekt), **NegRisk-Korrektur**, Farmer-Filter, Wash-Filter, exit-liquiditäts-Haircut, Kalibrierung, Verhaltens-Label, Multi-Wallet-Cluster, publizierte Methodik. Ersetzt das Vanity-Leaderboard auf Traders.
-2. **Cross-Venue reconciled PnL + Tax-Export** (Form-8949-fähig) — Cross-Venue-Seite ausbauen. Hohe WTP, unbesetzt.
-3. **Copy-Decay-Ehrlichkeit** aus WS-Detection-vs-Fill-Daten: "Median-Copier X¢ schlechter", pro Markt/Size-Band.
-4. **Persönliches Kalibrierungs-Dashboard** ("war 70 % wirklich 70 %?") — Resolved-Seite + Brier/Kalibrierungs-Kurve. Free-Tier/Credibility-Funnel.
-5. **Resolution-/Dispute-Risiko-Alerts** — "deine Position ist in UMA-Dispute" + Ambiguitäts-Score pro Markt.
-6. **Alerts-mit-Kontext** (Hedge vs. neues Risiko), gegen "spammy alerts".
+## 7. Build plan, prioritised
 
-## 8. Monetarisierung (matcht die Segmente + Preis-Anker)
+1. **Track-record engine v2** — the biggest wedge, and it uses the Louvain
+   clustering and the backtester we already have: settled-only PnL that handles
+   auto-redeem, **NegRisk correction**, farmer and wash filters, an
+   exit-liquidity haircut, calibration, behaviour labels, multi-wallet
+   clusters, and a published methodology. It replaces the vanity leaderboard.
+2. **Cross-venue reconciled PnL and tax export** — high willingness to pay,
+   unoccupied.
+3. **Copy-decay honesty** from the detection-versus-fill data: "the median
+   copier filled X cents worse", per market and size band.
+4. **A personal calibration dashboard** ("was 70% actually 70%?") — the
+   resolved page plus a Brier and calibration curve. Free tier, credibility
+   funnel.
+5. **Resolution and dispute risk alerts** — "your position is under dispute",
+   plus an ambiguity score per market.
+6. **Alerts with context** (a hedge versus new risk), against spammy alerts.
 
-**Preis-Realität:** PM-Tools sind **niedrig geankert ($10-20/Mo)**, weil Daten öffentlich + Gratis-Konkurrenz. Analogie-Leiter: TradingView $15/**$30 (sweet spot)**/$60; Pikkit $40; Nansen $129; Dune $399 (nur Pro/High-Volume). Usage-based/Pay-per-use im Kommen ($0.25/10 Whales).
+## 8. Monetisation
 
-- **Free (Reichweite + Trust):** Kalibrierungs-Layer, Basis-Feeds, citier­bare Quoten → Researcher/Journalisten/Casuals als Funnel.
-- **Pro (~$19-29/Mo, Sharps/Degens):** Cross-Venue-Flow, Track-Record-Engine, Copy-Decay, reconciled PnL/Tax, Alerts-mit-Kontext, Backtester.
-- **Data/API (~$99/Mo, Builder/Quant):** historische Orderbook-Daten + API — bewiesene recurring WTP.
-- **Optional Usage-Credits** für Gelegenheitsnutzer (statt $100+-Sub).
-- **Frictionless self-serve Cancel + transparente Abrechnung** (Nansen verliert Kunden genau daran).
-- **Nicht:** Vanity-Leaderboard, Insider-Copy-Hype, Custody, Referral-Links (BGS + Trust), Flat-Fee-für-Signale (Incentive-Misalignment).
+**Price reality:** tools in this category are **anchored low ($10–20/month)**
+because the data is public and free competition exists. The ladder for
+comparison: charting tools at $15/**$30 (the sweet spot)**/$60; a betting
+tracker at $40; on-chain analytics at $129; the heavy platforms at $399 for
+professionals only. Usage-based pricing is emerging.
 
-## 9. Anti-Ziele (bewusst NICHT tun)
+- **Free (reach and trust):** the calibration layer, basic feeds, citable odds
+  → researchers, journalists and casual users as the funnel.
+- **Pro (~$19–29/month, sharps and degens):** cross-venue flow, the
+  track-record engine, copy decay, reconciled PnL and tax, alerts with context,
+  the backtester.
+- **Data/API (~$99/month, builders and quants):** historical order-book data
+  plus an API — proven recurring willingness to pay.
+- **Optional usage credits** for occasional users, instead of a $100+
+  subscription.
+- **Frictionless self-serve cancellation and transparent billing** — the
+  incumbents lose customers on exactly this.
+- **Not:** vanity leaderboards, insider-copy hype, custody, referral links
+  (gambling law plus trust), or a flat fee for signals (incentive
+  misalignment).
 
-Kein blindes Copy ohne Decay-Warnung. Kein "tail-the-insider"-Funnel (Audit/BGS). Keine Custody. Kein Single-Venue-Denken. Kein wash-/NegRisk-verzerrtes Leaderboard. Kein Hype-Marketing ("900 % gewonnen") — verbrennt genau die zahlenden Sharp/Researcher. Keine undisclosed Referral-Deals (Trust-Killer).
+## 9. Anti-goals (deliberately not doing)
 
-## 10. Einzeiler-Pitch
+No blind copy without a decay warning. No tail-the-insider funnel (audit and
+gambling law). No custody. No single-venue thinking. No wash- or
+NegRisk-distorted leaderboard. No hype marketing ("up 900%"), which burns
+exactly the paying sharps and researchers. No undisclosed referral deals, which
+kill trust.
 
-> **"Bloomberg für Prediction Markets — cross-venue, ehrlich, non-custodial. Verifizierte settled-only Track-Records statt aufgeblähter Leaderboards. Prove before you copy."**
+## 10. One-line pitch
 
-## 11. Sofort-Chancen (kostenlos, aus Recherche)
+> **"Bloomberg for prediction markets — cross-venue, honest, non-custodial.
+> Verified settled-only track records instead of inflated leaderboards. Prove
+> before you copy."**
 
-- **Kalshi Builders Grant** ($2M+ Pool, bis $10k/Grant, nennt "analytics dashboards" explizit) — Bewerbung = Funding + Distribution + schriftliche Autorisierung.
-- **Polymarket Builder-Profil** (schriftliche Spur, Verified-Tier).
-- **PredictFolio als Genauigkeits-Benchmark** nehmen (0.7 % Abweichung anpeilen) → Journalisten-Zitate = gratis Marketing.
+## 11. Immediate, free opportunities
 
-Verwandte Docs: [LAUNCH_PLAN.md](LAUNCH_PLAN.md) (Recht/Auth/Firma), [LIVE_COPYTRADING_PLAN.md](LIVE_COPYTRADING_PLAN.md) (Speed/Wallet-Connect/Copy-Recht), [HANDOFF.md](HANDOFF.md) (Stand/Roadmap).
+- **The Kalshi builders grant** ($2M+ pool, up to $10k per grant, naming
+  "analytics dashboards" explicitly) — applying gets funding, distribution and
+  written authorisation at once.
+- **A Polymarket builder profile** for the written trail and the verified tier.
+- **Use the accuracy-focused sites as a benchmark** (aim for 0.7% deviation);
+  journalist citations follow, which is free marketing.
+
+Related: [LAUNCH_PLAN.md](LAUNCH_PLAN.md) (law, auth, company),
+[LIVE_COPYTRADING_PLAN.md](LIVE_COPYTRADING_PLAN.md) (speed, wallet connect,
+copy law), [HANDOFF.md](HANDOFF.md) (state and roadmap).

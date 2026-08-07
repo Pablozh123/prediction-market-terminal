@@ -1,106 +1,233 @@
-# Launch-Plan: Daten-Rechte, Auth, Standort & Einnahmen
+# Launch plan: data rights, auth, jurisdiction and revenue
 
-Stand: 2026-06-12. Vier Recherchen (Kalshi/Oddpool, Polymarket, Auth-Provider, CH-Recht/Firmenstruktur) mit Primärquellen — Details und Links in den jeweiligen Abschnitten. Research-Unterstützung, keine Rechtsberatung; wo ein Anwalt nötig ist, steht es explizit.
+Last updated 2026-08-07. Four research threads (Kalshi and the aggregator
+ecosystem, Polymarket, auth providers, Swiss law and company structure) with
+primary sources linked in each section. This is research support, not legal
+advice; where a lawyer is required it says so explicitly.
 
 ---
 
-## Die Antworten auf die offenen Fragen (Kurzfassung)
+## Short answers to the open questions
 
-| Frage | Antwort |
+| Question | Answer |
 |---|---|
-| **Müssen wir Kalshi entfernen?** | **Nein.** Behalten + Attribution + **Kalshi-Builders-Bewerbung** einreichen (verwandelt geduldete Nutzung in schriftlich autorisierte). Architektur so bauen, dass Kalshi per Schalter abschaltbar ist. |
-| **Wie "darf" Oddpool das?** | Sie haben **keine offengelegte Lizenz** — sie operieren in der geduldeten Zone, wie das ganze Ökosystem. YC finanziert sie öffentlich; Kalshi hat noch nie einen Aggregator abgemahnt und vergibt selbst $2M-Grants an "analytics dashboards". |
-| **Auth auslagern?** | **Ja.** Sofort: Streamlit-natives `st.login()` + Google-OIDC (gratis, 2–4 h) für Admin-Gating. Später Freemium: **Auth0 Free-Tier** (25k MAU, EU-Tenant) hinter demselben `st.login()` + Stripe (8–16 h). Nichts selbst hosten. |
-| **Polymarket-Limits — reicht das?** | **Locker.** Unser Server-Cache nutzt einstellige Prozent der dokumentierten Limits (Gamma 4'000 Req/10 s …). Rote Linie der ToS ist nur institutionelle Daten-Distribution (ICE-Exklusivdeal) — Retail-Dashboards sind die geduldete, teils offiziell beworbene Kategorie. Aktion: **Builder-Profil + Mail an builder@polymarket.com**. |
-| **Standort/Firma — Ausland wegen CH-Sperre?** | **Ausländische Firma bringt nichts**: Die Strafbarkeit (BGS-Werbeverbot) haftet an der handelnden Person, nicht am Firmenmantel, und eine aus CH geführte US-LLC/estnische OÜ wird steuerlich zur Schweizer Gesellschaft ("Ort der tatsächlichen Verwaltung"). Der echte Hebel: **CH-Geoblocking + keine Referral-/Sign-up-Links**. Einnahmen: Einzelfirma → ab ~CHF 100k GmbH. |
+| **Do we have to drop Kalshi?** | **No.** Keep it, attribute it, and **apply to the Kalshi builders programme**, which turns tolerated use into use that is authorised in writing. Build so that Kalshi can be switched off with a flag. |
+| **How is Oddpool allowed to do this?** | They have **no disclosed licence** — they operate in the tolerated zone, like the rest of the ecosystem. YC funds them publicly, Kalshi has never sent an aggregator a takedown, and Kalshi itself hands out $2M in grants to "analytics dashboards". |
+| **Outsource auth?** | **Yes.** Immediately: Streamlit's native `st.login()` with Google OIDC (free, two to four hours) for admin gating. Later, for freemium: **Auth0's free tier** (25k MAU, EU tenant) behind the same `st.login()`, plus Stripe. Host none of it yourself. |
+| **Polymarket limits — enough?** | **Comfortably.** The shared server cache uses single-digit percentages of the documented limits. The red line in the terms is institutional data distribution (the ICE exclusive), not retail dashboards. Action: **create a builder profile and email builder@polymarket.com**. |
+| **Jurisdiction — go offshore because of the Swiss block?** | **A foreign company achieves nothing.** Criminal liability under the advertising ban attaches to the person acting, not to the corporate shell, and a US LLC or Estonian OÜ run from Switzerland becomes a Swiss company for tax purposes ("place of effective management"). The real lever is **Swiss geoblocking and no referral or sign-up links**. Revenue: sole proprietorship first, GmbH from roughly CHF 100k. |
 
 ---
 
-## 1. Kalshi: Befund und Playbook
+## 1. Kalshi: findings and playbook
 
-**Die Papierlage ist streng:** Das Developer Agreement (v1.1, von Kalshis eigenem S3-Bucket) beschränkt API-Nutzung auf "facilitating a member's own trading" (§3) und verbietet Caching/Weitergabe ohne "prior written authorization" (§3.1); die Data Terms erlauben nur "personal use for non-commercial purposes". Kündigung jederzeit möglich (§8), Haftungsdeckel $50.
+**The written position is strict.** The developer agreement (v1.1, from
+Kalshi's own S3 bucket) limits API use to "facilitating a member's own trading"
+(§3) and forbids caching or redistribution without "prior written
+authorization" (§3.1); the data terms allow only "personal use for
+non-commercial purposes". Termination is at will (§8) and liability is capped
+at $50.
 
-**Die Praxis ist das Gegenteil:**
-- **Oddpool, Inc.** (Delaware, YC Spring 2026, Ex-Microsoft/Bloomberg-Gründer) verkauft Kalshi+Polymarket-Daten als Abo (Pro $30/Premium $100/Mo) — ohne jede offengelegte Lizenz, nur mit Disclaimer "Informational only".
-- **Dome** (YC, $5.2M) verkaufte eine kommerzielle Kalshi+Polymarket-API — und wurde im Feb 2026 **von Polymarket gekauft**, ohne dass Kalshi je interveniert hätte.
-- **Google** zeigt Kalshi-Odds in Search/Finance (seit 11/2025), **CNN** hat einen Kalshi-Live-Ticker (12/2025), **Pyth** publiziert Kalshi-Preise on-chain, electionbettingodds.com aggregiert seit Jahren.
-- **Kalshi selbst wirbt um Builder**: [kalshi.com/builders](https://kalshi.com/builders) mit "$2M in Grants & Developer Support"; der KalshiEco Hub (12/2025) nennt explizit "analytics dashboards" als gewünschte Kategorie und listet "Kalshinomics, a dashboard for market analytics" als Kollaborateur.
-- **Kein einziger Enforcement-Fall** gegen einen Daten-Re-Publisher auffindbar. Kalshis Rechtsenergie geht in Regulator-Streitigkeiten; ihr Marketing zahlt Influencer.
+**Practice is the opposite:**
 
-**Realistisches Worst-Case** für eine kleine Research-Site: API-Key-/Konto-Kündigung plus Takedown-Mail — keine Klage (öffentliche Preise sind als Fakten urheberrechtlich schwach, *Feist*; der Vertrag ist das einzige Instrument, und dessen Schaden ist auf $50 gedeckelt).
+- **Oddpool, Inc.** (Delaware, YC Spring 2026) sells Kalshi and Polymarket data
+  as a subscription (Pro $30, Premium $100 per month) with no disclosed licence
+  at all, carrying only an "informational only" disclaimer.
+- **Dome** (YC, $5.2M) sold a commercial Kalshi and Polymarket API and was
+  **acquired by Polymarket** in February 2026 without Kalshi ever intervening.
+- **Google** has shown Kalshi odds in Search and Finance since 11/2025, **CNN**
+  has run a Kalshi live ticker since 12/2025, **Pyth** publishes Kalshi prices
+  on-chain, and electionbettingodds.com has aggregated for years.
+- **Kalshi actively courts builders**: [kalshi.com/builders](https://kalshi.com/builders)
+  advertises "$2M in Grants & Developer Support", and the KalshiEco hub
+  (12/2025) names "analytics dashboards" as a wanted category and lists a
+  market-analytics dashboard as a collaborator.
+- **No enforcement case** against a data re-publisher is findable. Kalshi's
+  legal energy goes into regulatory disputes; its marketing pays influencers.
 
-**Ein Zukunftsrisiko:** Kalshi baut selbst ein "Bloomberg Terminal for prediction markets" (CNBC, 04.06.2026) — sie könnten Datenzugang später formalisieren/monetarisieren (CME-Playbook). Darum: Abschaltbarkeit einbauen.
+**Realistic worst case** for a small research site: API key or account
+termination plus a takedown email. Not a lawsuit — public prices are facts and
+weak under copyright (*Feist*), the contract is the only instrument, and its
+damages are capped at $50.
 
-**Playbook (in dieser Reihenfolge):**
-1. **Kalshi-Builders-Bewerbung einreichen** (kalshi.com/builders) — Annahme ist faktisch die "written authorization", die beide ToS-Dokumente als Heilung nennen; dazu Grant-Chance und Marketing-Support. Parallel im Developer-Discord (#dev) fragen.
-2. Attribution im Footer (bereits drin): "Data: Kalshi, Polymarket — not affiliated with or endorsed by either exchange."
-3. **Nie "Kalshi" im Produktnamen/Domain** (Trademark ist das Einzige, was Kalshi aktiv verteidigt).
-4. Keine Roh-/Bulk-Daten-Exporte verkaufen (meistverbotene Handlung in beiden Dokumenten); UI/Analyse verkaufen, nicht Daten.
-5. Keine Member-Deanonymisierung (§3.6 — passt: Kalshi liefert eh keine Identitäten), Rate-Limits respektieren (tun wir), keine AI-Trainings-Claims auf Kalshi-Daten.
-6. **Feature-Flag für Kalshi**: ein Settings-Schalter, der alle Kalshi-Feeds sauber deaktiviert, falls je eine Aufforderung kommt (Kündigungs-at-will ist das echte operative Risiko).
+**One forward risk:** Kalshi is building its own "Bloomberg terminal for
+prediction markets" (CNBC, 2026-06-04), so it could formalise or monetise data
+access later, following the CME playbook. Hence: build the off switch.
 
-## 2. Polymarket: Befund und Maßnahmen
+**Playbook, in order:**
 
-**ToS (Effective 01.06.2026, via eingebettetes Google-Doc gelesen):** Die Lizenz ist "personal, limited, revocable" — **ohne** Non-Commercial-Klausel. Die neue Daten-Klausel verbietet Nutzung/Weiterverkauf nur an **"Capital Market Clients"** (Broker, Hedgefonds, Market Maker, ETF-Emittenten …) und **"market data distributors"** ohne schriftliche Vereinbarung — das schützt den exklusiven institutionellen Feed von **ICE** ($2-Mrd-Investment 10/2025, "Polymarket Signals and Sentiment" seit 02/2026). Retail-Dashboards sind nicht das Ziel der Klausel.
+1. **Apply to the Kalshi builders programme.** Acceptance is in effect the
+   "written authorization" both documents name as the cure, and it comes with
+   grant eligibility and marketing support. Ask in the developer Discord in
+   parallel.
+2. Attribution in the footer, already present: "Data: Kalshi, Polymarket — not
+   affiliated with or endorsed by either exchange."
+3. **Never put "Kalshi" in the product name or domain.** The trademark is the
+   one thing Kalshi does defend actively.
+4. Sell no raw or bulk data exports — the most explicitly forbidden act in both
+   documents. Sell the interface and the analysis, not the data.
+5. No member deanonymisation (§3.6, which fits: Kalshi publishes no identities
+   anyway), respect the rate limits (we do), and make no AI-training claims on
+   Kalshi data.
+6. **Feature flag for Kalshi:** one settings switch that cleanly disables every
+   Kalshi feed, in case a request ever arrives. Termination at will is the real
+   operational risk.
 
-**Ökosystem:** polymarketanalytics.com (Goldsky-On-Chain-Indexing + Gamma-API) wurde in **Polymarkets eigenem Newsletter** vorgestellt; QuickNode listet 10+ Whale-Tracker; polywhaler/polyloly verkaufen Abos; **kein C&D gegen eine Analytics-Site bekannt**. Der ToS-Carve-out behält sich ausdrücklich vor, "access to public on-chain infrastructure and the Company's builder program" zu gewähren — On-Chain-Indexing ist die explizit saubere Spur.
+## 2. Polymarket: findings and actions
 
-**Limits (verifiziert, weiterhin aktuell):** Global 15'000 Req/10 s; Gamma 4'000/10 s (Markets 300, Events 500); Data-API 1'000/10 s (Trades 200); CLOB 9'000/10 s (Book/Price 1'500). Drosselung = Cloudflare-Queueing statt Fehler. **WebSocket-Marktkanal ist öffentlich und ohne Auth** — ersetzt Polling. Mit unserem geteilten Server-Cache (TTL 30–900 s) ist die Origin-Last unabhängig von der Besucherzahl: ~einstellige Prozent der Kapazität selbst bei 10k Besuchern/Tag.
+**Terms (effective 2026-06-01):** the licence is "personal, limited,
+revocable" — **with no** non-commercial clause. The data clause forbids use or
+resale only to **"Capital Market Clients"** (brokers, hedge funds, market
+makers, ETF issuers) and to **"market data distributors"** without a written
+agreement. That protects the exclusive institutional feed at **ICE** ($2bn
+investment in 10/2025, "Polymarket Signals and Sentiment" since 02/2026).
+Retail dashboards are not what the clause targets.
 
-**Maßnahmen:**
-1. **Builder-Profil anlegen** (polymarket.com/settings → Builder) und **builder@polymarket.com** anschreiben (API-Key, Use Case, erwartetes Volumen) → Verified-Tier. Kostet nichts, schafft die schriftliche Spur, und macht das Copy-Trading-Feature zukunftsfähig (Builder-Code = Volumen-Credit, wöchentliche USDC-Rewards, Grant-Eligibility).
-2. Eigene ToS der Site: Anzeige/Analyse ja, kein Roh-Feed-Verkauf, insbesondere nicht an Finanzinstitute.
-3. Bei Wachstum: WSS statt REST-Fan-out; historische Backfills über On-Chain (Achtung: seit 28.04.2026 v2-Datasets bei Goldsky, alte Public-Subgraphs liefern falsche Daten).
-4. Kein "Polymarket" im Produktnamen/Domain.
+**Ecosystem:** polymarketanalytics.com (Goldsky on-chain indexing plus the
+Gamma API) was featured in **Polymarket's own newsletter**; QuickNode lists ten
+or more whale trackers; several sites sell subscriptions; **no cease and desist
+against an analytics site is known**. The terms explicitly reserve the right to
+grant "access to public on-chain infrastructure and the Company's builder
+program", which makes on-chain indexing the clean lane.
 
-## 3. Auth: Auslagern — ja, so
+**Limits (verified):** 15,000 req/10 s globally; Gamma 4,000/10 s (markets 300,
+events 500); Data API 1,000/10 s (trades 200); CLOB 9,000/10 s (book and price
+1,500). Throttling shows up as Cloudflare queueing rather than errors. The
+**WebSocket market channel is public and needs no auth**, which replaces
+polling. With the shared server cache (TTL 30 to 900 seconds) origin load is
+independent of visitor count: single-digit percentages of capacity even at
+10,000 visitors a day.
 
-> ✅ **Umgesetzt (2026-06-12):** `st.login()` + Google-OIDC im Terminal; Settings failt closed hinter `ADMIN_EMAILS`/`[admin].emails`-Allowlist; Fake-Shell entfernt; ohne `.streamlit/secrets.toml [auth]` komplett no-op (lokaler Research-Modus). Template: `.streamlit/secrets.toml.example`, Logik: `app/authz.py`. Der Auth0-Schritt unten bleibt der spätere Freemium-Ausbau.
+**Actions:**
 
-**Sofort (Launch, Admin-Schutz, 2–4 h):** Streamlit-natives **`st.login()` + Google-OIDC direkt** — gratis, kein MAU-Limit, kein Anbieter-Lock-in. Settings-/Admin-Seite oben mit `st.user.is_logged_in` + E-Mail-Allowlist gaten, Fake-Sign-in-Shell löschen. Stolperfallen: Cookie fix 30 Tage; Streamlit ≥ gepatchte Version wegen der 1.57-Cookie-Regression pinnen; ggf. `client_kwargs = { "prompt" = "login" }` gegen den Logout-Account-Chooser.
+1. **Create a builder profile** (polymarket.com/settings → Builder) and email
+   **builder@polymarket.com** with the API key, use case and expected volume,
+   for the verified tier. It costs nothing, creates the written trail, and
+   keeps the copy-trading feature viable (a builder code earns volume credit,
+   weekly USDC rewards and grant eligibility).
+2. Site terms of our own: display and analysis yes, no raw feed resale, and
+   specifically not to financial institutions.
+3. On growth: WSS instead of REST fan-out, historical backfills on-chain. Note
+   that since 2026-04-28 the v2 datasets live at Goldsky and the old public
+   subgraphs return wrong data.
+4. No "Polymarket" in the product name or domain.
 
-**Später (Freemium mit Accounts + Stripe, 12–24 h gesamt):** **Auth0 Free-Tier** — seit Ende 2024 **25'000 MAU gratis**, EU-Tenant (Frankfurt/Dublin) wählbar, gehostete Login-/Signup-Seite, E-Mail-Verifizierung, Magic Links, Social Logins; eigener Mail-Provider statt Auth0-Dev-Mailer vor Launch. Integration: derselbe `st.login()`-Aufruf, nur secrets.toml ändern — der Gating-Code bleibt identisch. Zahlung: Stripe + [st-paywall](https://github.com/tylerjrichards/st-paywall) oder ~100 Zeilen eigener Entitlement-Check (`st.user.email` → Stripe-Subscription → Session-Cache).
+## 3. Auth: outsource, in this order
 
-**Alternativen, falls relevant:** **WorkOS AuthKit** (1 Mio. MAU gratis — größtes Free-Tier, $99/Mo für Custom Domain) wenn 25k MAU je knapp werden; **Zitadel** (Schweizer Firma, EU-Regionen) wenn CH/EU-Datenhaltung Pflicht wird. **Nicht nehmen:** Clerk (React-zentriert, OIDC-Umweg bringt nichts), Supabase Auth (keine gehostete Login-UI), Firebase (kein OIDC-Server für st.login), Keycloak self-hosted (Ops-Last solo unverhältnismäßig). Cloudflare Access (50 User gratis, E-Mail-OTP) bleibt die richtige Wahl für eine private Beta oder eine separate Admin-Instanz — nicht für "öffentlich mit geschütztem Settings-Tab" (eine Streamlit-Origin lässt sich nicht pfadweise gaten).
+> ✅ **Done:** `st.login()` with Google OIDC in the terminal; Settings fails
+> closed behind the `ADMIN_EMAILS` / `[admin].emails` allowlist; the fake
+> sign-in shell is gone; without `.streamlit/secrets.toml [auth]` the whole
+> thing is a no-op (local research mode). Template:
+> `.streamlit/secrets.toml.example`, logic: `app/authz.py`. The Auth0 step
+> below remains the later freemium build-out.
 
-## 4. Standort, Firma, Einnahmen
+**Now (launch, admin protection, two to four hours):** Streamlit's native
+**`st.login()` with Google OIDC directly** — free, no MAU limit, no vendor
+lock-in. Gate the Settings page on `st.user.is_logged_in` plus an email
+allowlist. Watch for: the cookie is fixed at 30 days; pin Streamlit past the
+1.57 cookie regression; and `client_kwargs = { "prompt" = "login" }` if the
+account chooser after logout is a problem.
 
-**Territorialität des BGS-Werbeverbots (Art. 74 Abs. 3):** Geschützt wird der Schweizer Markt; Kommentar-Literatur stellt auf Werbung ab, die **in der Schweiz wahrnehmbar/auf die Schweiz gerichtet** ist. Ausländische Anbieter nutzen **CH-Geoblocking**, um von der GESPA-Liste zu kommen — das ist das anerkannte, systemkonforme Muster. Aber: Wer **von Schweizer Boden aus handelt**, handelt strafrechtlich in der Schweiz, auch bei ausländischem Publikum — darum schützt weder Auslands-Hosting noch eine Auslandsfirma die Person. GESPA-Praxis 2024/25: 12–25 Strafanzeigen, Fokus auf Betreiber und **CH-gerichtete Promotion** (Influencer-/Affiliate-Fälle). **Kein Fall** gegen eine englischsprachige, CH-geoblockte Informations-Site gefunden. Wichtig: Neutrale Datendarstellung ist Information, nicht Werbung — SRF/20min publizieren laufend Polymarket-Quoten. Die Grenze verläuft bei Referral-Codes, Bonus-Inhalten, "Trade now"-CTAs.
+**Later (freemium with accounts and Stripe, 12 to 24 hours total):**
+**Auth0's free tier** — 25,000 MAU since late 2024, an EU tenant
+(Frankfurt or Dublin), hosted login and signup pages, email verification, magic
+links, social logins. Move off the Auth0 developer mailer before launch.
+Integration is the same `st.login()` call with a different secrets.toml; the
+gating code does not change. Payment: Stripe plus
+[st-paywall](https://github.com/tylerjrichards/st-paywall), or roughly 100
+lines of entitlement check (`st.user.email` → Stripe subscription → session
+cache).
 
-**Konsequenz Standortfrage:** Nicht der Firmensitz, sondern das **Site-Design** entscheidet. Empfehlung: international launchen, **Schweiz geo-blocken** (Cloudflare-Regel, 5 Minuten) oder mindestens CH-Besuchern die Outbound-Links zu polymarket.com/kalshi.com ausblenden; keinerlei Referral-Monetarisierung.
+**Alternatives if they become relevant:** **WorkOS AuthKit** (1M MAU free, the
+largest free tier; $99/month for a custom domain) if 25k MAU ever gets tight;
+**Zitadel** (Swiss company, EU regions) if Swiss or EU data residency becomes
+mandatory. **Not worth it:** Clerk (React-centric, the OIDC detour buys
+nothing), Supabase Auth (no hosted login UI), Firebase (no OIDC server for
+`st.login`), self-hosted Keycloak (operational load out of proportion for one
+person). Cloudflare Access (50 users free, email OTP) stays the right answer
+for a private beta or a separate admin instance — not for "public with a
+protected settings tab", because a single Streamlit origin cannot be gated by
+path.
 
-**Firmenstruktur (Kosten 2026):**
+## 4. Jurisdiction, company, revenue
 
-| Struktur | Einmalig | Laufend | Urteil |
+**Territorial reach of the advertising ban (BGS Art. 74 para. 3):** the
+protected interest is the Swiss market, and the commentary turns on advertising
+that is **perceivable in, or directed at, Switzerland**. Foreign operators use
+**Swiss geoblocking** to get off the GESPA list, which is the accepted,
+system-conforming pattern. But whoever **acts from Swiss soil** acts in
+Switzerland for criminal law, even with a foreign audience — so neither foreign
+hosting nor a foreign company protects the person. GESPA practice in 2024/25:
+12 to 25 criminal complaints, focused on operators and on **Swiss-directed
+promotion** (influencer and affiliate cases). **No case** was found against an
+English-language, Swiss-geoblocked information site. The distinction that
+matters: neutral data presentation is information, not advertising — Swiss
+outlets publish Polymarket odds routinely. The line sits at referral codes,
+bonus content and "trade now" calls to action.
+
+**Consequence for the jurisdiction question:** it is not the registered seat
+but the **design of the site** that decides. Recommendation: launch
+internationally, **geoblock Switzerland** (a Cloudflare rule, five minutes) or
+at minimum hide outbound links to the venues from Swiss visitors, and monetise
+nothing through referrals.
+
+**Company structure (2026 costs):**
+
+| Structure | One-off | Ongoing | Verdict |
 |---|---|---|---|
-| Privatperson (Phase 0) | CHF 0 | CHF 0 | Reicht ohne Einnahmen. Impressum + DSE trotzdem jetzt. |
-| **Einzelfirma (Phase 1)** | ~CHF 0 (HR-Eintrag erst ab CHF 100k Pflicht) | ~10 % AHV auf Nettoeinkommen (ab CHF 2'300/Jahr anmelden) | **Standard für erste Einnahmen.** Verschlechtert die BGS-Lage nicht — die haftet eh an der Person. |
-| **GmbH (Phase 2)** | CHF 20k Kapital + CHF 800–3'500 Gründung | CHF 2'500–5'000/Jahr (Buchhaltung etc.) | Ab ~CHF 100k Umsatz oder B2B-/Werbeverträgen. |
-| US-LLC / estnische OÜ | $100–300 bzw. €400+ | + IRS-Form 5472 ($25k Busse bei Versäumnis) bzw. €59–179/Mo Accounting | **Falle:** aus CH geführt = steuerlich Schweizer Gesellschaft (doppelte Pflichten), und null Schutz beim Werbeverbot. Nur bei echtem Wegzug sinnvoll. |
+| Private individual (phase 0) | CHF 0 | CHF 0 | Enough without revenue. Imprint and privacy policy still needed now. |
+| **Sole proprietorship (phase 1)** | ~CHF 0 (register entry only mandatory from CHF 100k) | ~10% social contributions on net income (register above CHF 2,300/year) | **The standard for first revenue.** Does not worsen the gambling-law position, which attaches to the person regardless. |
+| **GmbH (phase 2)** | CHF 20k capital plus CHF 800–3,500 formation | CHF 2,500–5,000/year (accounting) | From roughly CHF 100k revenue, or once B2B and advertising contracts appear. |
+| US LLC / Estonian OÜ | $100–300 / €400+ | IRS form 5472 ($25k penalty if missed) / €59–179/month accounting | **A trap:** run from Switzerland it is a Swiss company for tax (duplicate obligations) and offers zero protection against the advertising ban. Only sensible after actually emigrating. |
 
-**Einnahmen-Mechanik:**
-- **Abos:** Unter ~CHF 100–200k Umsatz **Merchant of Record** (Paddle/Lemon Squeezy, ~5 % + $0.50) — übernimmt als Verkäufer die gesamte EU/UK-MwSt. Alternative mit mehr Marge: Stripe (2.9 % + 0.30) + **Non-Union-OSS**-Registrierung in einem EU-Land (Pflicht ab dem ersten Euro B2C-Digitalumsatz in die EU — kein Schwellenwert für Nicht-EU-Anbieter!).
-- **Schweizer MWST:** Registrierung ab CHF 100k **Weltumsatz** (30 Tage Frist); Abos an Auslandskunden = 0 % CH-MWST.
-- **Ads (AdSense):** Vertragspartner Google Ireland, 0 % CH-MWST, zählt aber zur 100k-Schwelle; W-8BEN hinterlegen. Achtung: AdSense könnte eine Prediction-Market-Site als Gambling-nah einstufen und Ads limitieren — Abos sind das robustere Modell.
+**Revenue mechanics:**
 
-**Der eine Anwaltstermin, der sich lohnt** (Phase 1, vor Monetarisierung): 2–4 h bei einer Gaming-/ICT-Kanzlei (CHF 250–450/h, schriftliche Kurzeinschätzung CHF 1'000–3'000) zu genau zwei Fragen: (a) Link-Policy/CH-Posture unter Art. 74 Abs. 3 BGS, (b) Absegnung des Geoblocking-Setups. Mehr Anwalt braucht es nicht.
+- **Subscriptions:** below roughly CHF 100–200k revenue use a **merchant of
+  record** (Paddle, Lemon Squeezy, ~5% plus $0.50), which takes on all EU and
+  UK VAT as the seller. Higher margin alternative: Stripe (2.9% plus 0.30) with
+  a **non-Union OSS** registration in an EU country — mandatory from the first
+  euro of B2C digital revenue into the EU, with no threshold for non-EU
+  sellers.
+- **Swiss VAT:** registration from CHF 100k **worldwide** revenue, within 30
+  days. Subscriptions to foreign customers carry 0% Swiss VAT.
+- **Ads (AdSense):** the counterparty is Google Ireland, 0% Swiss VAT, but it
+  counts toward the 100k threshold; file a W-8BEN. Note that AdSense may class
+  a prediction-market site as gambling-adjacent and limit ads — subscriptions
+  are the more robust model.
 
-## 5. Roadmap (konkrete Reihenfolge)
+**The one legal consultation worth paying for** (phase 1, before monetising):
+two to four hours with a gaming or ICT firm (CHF 250–450/hour, a short written
+opinion CHF 1,000–3,000) on exactly two questions: (a) the link policy and
+Swiss posture under BGS Art. 74 para. 3, and (b) sign-off on the geoblocking
+setup. Nothing beyond that is needed.
 
-**Sofort (CHF 0):**
-1. Kalshi-Builders-Bewerbung + Polymarket-Builder-Profil/-Mail — beide schriftlichen Spuren anstoßen.
-2. Kalshi-Feature-Flag in Settings (sauberes Abschalten).
-3. `st.login()` + Google-OIDC fürs Admin-Gating; Fake-Auth-Shell raus.
-4. CH-Geoblocking-Entscheid umsetzen (Cloudflare-Country-Rule) + Referral-/CTA-Verbot als feste Site-Policy.
-5. Impressum + Datenschutzerklärung (revDSG) als Seite.
+## 5. Roadmap, in order
 
-**Launch (~CHF 6–8/Mo, siehe PRODUCTION_READINESS.md):**
-6. Domain + VPS + Cloudflare + Deploy (Artefakte liegen bereit).
-7. Eigene Site-ToS (Anzeige/Analyse ja, kein Datenfeed-Verkauf).
+**Now (CHF 0):**
 
-**Erste Einnahmen (< CHF 100k):**
-8. Einzelfirma/AHV-Anmeldung (ab CHF 2'300 Nettoeinkommen), Paddle/Lemon Squeezy als MoR, Auth0 vor `st.login()`, Stripe-Entitlements.
-9. Anwalts-Kurzgutachten (CHF 1'000–3'000) zur Link-Policy/Geoblocking.
+1. Kalshi builders application and Polymarket builder profile plus email —
+   start both written trails.
+2. Kalshi feature flag in Settings, for a clean shutdown.
+3. `st.login()` with Google OIDC for admin gating; remove the fake auth shell.
+4. Decide and implement Swiss geoblocking (Cloudflare country rule), and make
+   the no-referral, no-CTA rule a fixed site policy.
+5. Imprint and privacy policy (revDSG) as a page.
 
-**Skalierung (> CHF 100k):**
-10. GmbH-Umwandlung; MWST-Registrierung (30-Tage-Frist beachten); ggf. Stripe+OSS statt MoR; WSS/On-Chain-Indexing statt REST-Fan-out; Kalshi-Lage neu bewerten (deren eigenes Terminal beobachten).
+**Launch (~CHF 6–8/month, see PRODUCTION_READINESS.md):**
+
+6. Domain, VPS, Cloudflare, deploy — the artifacts are ready.
+7. Site terms of our own (display and analysis yes, no data feed resale).
+
+**First revenue (< CHF 100k):**
+
+8. Sole proprietorship and social-insurance registration (from CHF 2,300 net
+   income), Paddle or Lemon Squeezy as merchant of record, Auth0 in front of
+   `st.login()`, Stripe entitlements.
+9. Short legal opinion (CHF 1,000–3,000) on the link policy and geoblocking.
+
+**Scale (> CHF 100k):**
+
+10. Convert to a GmbH; register for VAT (mind the 30-day deadline); consider
+    Stripe plus OSS instead of a merchant of record; move to WSS and on-chain
+    indexing instead of REST fan-out; re-assess the Kalshi position and watch
+    their own terminal.

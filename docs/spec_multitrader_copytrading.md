@@ -1,124 +1,167 @@
-# Spec: Multi-Trader-Copytrading (Paper)
+# Spec: multi-trader copy-trading (paper)
 
-Status: Entwurf v2 (Entscheidungen eingearbeitet)
+Status: draft v2, decisions incorporated. Last updated 2026-08-07.
 
-## 1. Ziel und Abgrenzung
+## 1. Goal and scope
 
-Das bestehende Paper-Copytrading kopiert genau **ein** Polymarket-Wallet (Swisstony). Ziel ist die Erweiterung auf **mehrere Trader**, mit zwei Nutzungsarten:
+The existing paper copy-trading follows exactly **one** Polymarket wallet. The
+goal is to extend it to **several traders**, in two modes:
 
-- **Beliebiges Wallet folgen** (Kernfunktion): der Nutzer gibt irgendein Polymarket-Wallet an und kopiert es.
-- **Entdeckungs-Liste**: ein nach ROI geranktes Leaderboard schlägt am Anfang die besten Wallets vor, damit man nicht bei null anfängt.
+- **Follow any wallet** (the core function): the user names any Polymarket
+  wallet and copies it.
+- **A discovery list**: a leaderboard ranked by ROI suggests strong wallets at
+  the start, so nobody begins from nothing.
 
-Jeder gefolgte Trader bekommt ein **eigenes simuliertes Konto** (Sub-Portfolio). So lässt sich jeder Trader fair und einzeln auswerten.
+Every followed trader gets its **own simulated account** (a sub-portfolio), so
+each can be evaluated fairly and separately.
 
-Im Scope: Polymarket (on-chain + Public API), Paper-Modus, beliebiges Folgen + ROI-Ranking, Sub-Portfolios, Gleichverteilung, Pro-Trader-Reporting. Nicht im Scope: echtes Order-Routing (`live_trading_enabled` bleibt `false`) und Kalshi-Wallet-Copy (siehe Abschnitt 4).
+In scope: Polymarket (on-chain plus public API), paper mode, following any
+wallet plus ROI ranking, sub-portfolios, equal allocation, per-trader
+reporting. Out of scope: real order routing (`live_trading_enabled` stays
+`false`) and Kalshi wallet copy (section 5).
 
-## 2. Getroffene Entscheidungen
+## 2. Decisions taken
 
-1. **Konto-Modell:** eigener Topf je Trader (Sub-Portfolio), nicht gemeinsam.
-2. **Ranking:** beliebiges Wallet folgen ist möglich; zum Start werden die besten nach **ROI + Mindestaktivität** vorgeschlagen.
-3. **Allokation:** gleich verteilt — jeder Trader startet mit demselben Spielgeld-Betrag.
-4. **Migration:** Swisstony wird als erster Trader übernommen.
+1. **Account model:** one pot per trader (sub-portfolio), not shared.
+2. **Ranking:** following any wallet is possible; the starting suggestions rank
+   by **ROI plus a minimum activity bar**.
+3. **Allocation:** equal — every trader starts with the same paper capital.
+4. **Migration:** the current target wallet becomes the first trader.
 
-## 3. Ist-Zustand (Basis: `src/copy_trading.py`)
+## 3. Current state (`src/copy_trading.py`)
 
-Die Engine ist SQLite-gestützt und teils schon wallet-bewusst:
+The engine is SQLite-backed and already partly wallet-aware:
 
-- `CopySettings` hält ein einzelnes `target_wallet`, `copy_scale` (1 %), `max_order_equity_pct` (5 %), `paper_start_cash` plus dynamisches Sizing, an den Ziel-Wallet gekoppelt.
-- Tabelle `paper_orders` enthält bereits **`source_wallet`** — Orders sind pro Quelle zuordenbar.
-- Tabelle `positions` ist ein **gemeinsames** Depot (Schlüssel `asset`).
-- Tabelle `tony_positions` spiegelt die Positionen des einen Ziel-Wallets.
-- `cash` und Wallet-Stats liegen einzeln im `meta`-Store; `cash_events` kennt keine Wallet-Spalte.
+- `CopySettings` holds a single `target_wallet`, `copy_scale`,
+  `max_order_equity_pct` and `paper_start_cash`, plus dynamic sizing tied to
+  that one wallet.
+- The `paper_orders` table already carries **`source_wallet`**, so orders are
+  attributable per source.
+- The `positions` table is a **shared** book, keyed on `asset`.
+- One table mirrors the positions of the single target wallet.
+- `cash` and wallet stats sit as single values in the `meta` store, and
+  `cash_events` has no wallet column.
 
-Für Sub-Portfolios muss also das **Geld- und Positions-Modell pro Wallet getrennt** werden.
+So sub-portfolios require the **cash and position model to be separated per
+wallet**.
 
-## 4. Soll-Architektur
+## 4. Target architecture
 
-### 4.1 Datenmodell (Sub-Portfolio je Trader)
+### 4.1 Data model (one sub-portfolio per trader)
 
-Neue Tabelle `traders` (eine Zeile je gefolgtem Wallet, je mit eigenem Konto):
+New table `traders`, one row per followed wallet:
 
-| Spalte | Typ | Bedeutung |
+| Column | Type | Meaning |
 |---|---|---|
-| `wallet` | TEXT PK | Polymarket-Proxy-Wallet |
-| `label` | TEXT | Anzeigename (z. B. X-Handle) |
-| `active` | INTEGER | 1 = wird kopiert |
-| `start_cash` | REAL | Startkapital dieses Sub-Kontos |
-| `cash` | REAL | aktueller Barbestand des Sub-Kontos |
-| `copy_scale_override` | REAL NULL | überschreibt globales `copy_scale` |
-| `rank_score` | REAL | zuletzt berechneter ROI-Score |
-| `added_at` / `updated_at` | TEXT | Zeitstempel |
+| `wallet` | TEXT PK | Polymarket proxy wallet |
+| `label` | TEXT | Display name |
+| `active` | INTEGER | 1 means it is copied |
+| `start_cash` | REAL | Starting capital of this sub-account |
+| `cash` | REAL | Current cash balance of this sub-account |
+| `copy_scale_override` | REAL NULL | Overrides the global `copy_scale` |
+| `rank_score` | REAL | Last computed ROI score |
+| `added_at` / `updated_at` | TEXT | Timestamps |
 
-Generalisierungen am bestehenden Schema, damit jedes Sub-Konto getrennt geführt wird:
+Generalisations to the existing schema, so every sub-account is kept
+separately:
 
-- `positions` → Schlüssel von `asset` auf **`(trader_wallet, asset)`** umstellen (jedes Sub-Konto hat eigene Positionen).
-- `cash_events` → Spalte `trader_wallet` ergänzen (Cash-Bewegungen je Sub-Konto).
-- `tony_positions` → **`source_positions(wallet, asset, …)`** (Spiegel der realen Positionen jeder gefolgten Quelle).
-- Wallet-Stats aus dem `meta`-Store in **`trader_stats(wallet, roi, pnl, win_rate, trades, volume, last_refresh)`**.
-- `paper_orders.source_wallet` bleibt der Anker für Orders und Attribution.
+- `positions` → rekey from `asset` to **`(trader_wallet, asset)`**.
+- `cash_events` → add a `trader_wallet` column.
+- The single-wallet mirror table → **`source_positions(wallet, asset, …)`**.
+- Wallet stats move out of `meta` into
+  **`trader_stats(wallet, roi, pnl, win_rate, trades, volume, last_refresh)`**.
+- `paper_orders.source_wallet` stays the anchor for orders and attribution.
 
-Gesamt-Equity = Summe der Sub-Konto-Equities.
+Total equity is the sum of the sub-account equities.
 
-### 4.2 Beliebiges Wallet folgen + ROI-Ranking
+### 4.2 Following any wallet, and the ROI ranking
 
-- **Folgen:** UI-Aktion „Wallet folgen" (Eingabe einer Adresse **oder** Knopf im Leaderboard/Wallet-Analyzer) → neue Zeile in `traders` mit `start_cash`, Sync startet.
-- **Ranking (Vorschläge):** Datenquelle existiert (`src/prediction_markets.py`: PnL, Win-Rate, Trades, Volumen). Score primär nach **ROI** (Rendite in %, misst Können statt Kapitalgrösse), mit Mindestschwellen gegen Glückstreffer.
-- Schwellen (Vorschlag, anpassbar): min. 50 abgeschlossene Trades, positiver ROI, in den letzten 30 Tagen aktiv.
+- **Following:** a "follow wallet" action, either by entering an address or by
+  a button in the leaderboard or wallet analyzer, writes a new row in `traders`
+  with its `start_cash` and starts the sync.
+- **Ranking (suggestions):** the data source already exists in
+  `src/prediction_markets.py` (PnL, win rate, trades, volume). Score primarily
+  by **ROI**, since a percentage return measures skill rather than capital
+  size, with minimum thresholds against lucky one-offs.
+- Suggested thresholds, adjustable: at least 50 closed trades, positive ROI,
+  active within the last 30 days.
 
-### 4.3 Allokation und Sizing
+### 4.3 Allocation and sizing
 
-Gleichverteilung über **gleiches Startkapital je Sub-Konto**: ein konfigurierbares `per_trader_start_cash` (z. B. 1000 $), identisch für alle. Vorteil: gleiche Startlinie → faire Pro-Trader-Vergleiche, und das Hinzufügen/Entfernen eines Traders stört die anderen nicht.
+Equal allocation through **identical starting capital per sub-account**: one
+configurable `per_trader_start_cash`, the same for everyone. The benefit is a
+common starting line for fair per-trader comparison, and adding or removing a
+trader does not disturb the others.
 
-Pro Order im jeweiligen Sub-Konto:
+Per order, inside its own sub-account:
 
 ```
-order_notional = quelle_notional * effektiver_copy_scale(trader)
-gedeckelt durch max_order_equity_pct * equity(sub_konto)
+order_notional = source_notional * effective_copy_scale(trader)
+capped by max_order_equity_pct * equity(sub_account)
 ```
 
-Risikograenzen pro Sub-Konto: Markt-Cap (Diversifikation), kein Kauf bei zu wenig Cash. Das bisherige dynamische Sizing wird von „an Tony gekoppelt" auf „pro Sub-Konto" verallgemeinert.
+Risk limits per sub-account: a market cap for diversification, and no purchase
+when cash is short. The existing dynamic sizing generalises from "tied to the
+one wallet" to "per sub-account".
 
-### 4.4 Sync-Engine
+### 4.4 Sync engine
 
-- `sync_copy_trades` / `sync_onchain_copy_trades` über alle aktiven Trader iterieren; Buchung jeweils ins richtige Sub-Konto.
-- `trade_dedup_key` muss den Wallet enthalten (prüfen, sonst ergänzen).
-- `seed_tony_positions` → `seed_source_positions(wallet, …)`.
-- `scripts/run_copy_trader.py` liest die Wallet-Liste aus `traders` (`active=1`) statt einer Konstante.
+- `sync_copy_trades` and `sync_onchain_copy_trades` iterate over all active
+  traders and book into the right sub-account.
+- `trade_dedup_key` has to include the wallet — verify, and add it if missing.
+- The single-wallet seeding function becomes `seed_source_positions(wallet, …)`.
+- `scripts/run_copy_trader.py` reads the wallet list from `traders`
+  (`active=1`) instead of a constant.
 
-### 4.5 UI (`prediction_terminal.py`, Owner Codex — siehe Scope-Grenze unten)
+### 4.5 Interface
 
-- „Wallet folgen / entfolgen" im Leaderboard und Wallet-Analyzer.
-- Copytrading-Seite mit Trader-Liste, Sub-Konto-Kennzahlen (Cash, Equity, ROI), Aktiv-Schalter und Startkapital-Einstellung.
-- Bestehende Filter/Komponenten wiederverwenden.
+- "Follow" and "unfollow" in the leaderboard and the wallet analyzer.
+- A copy-trading page with the trader list, sub-account figures (cash, equity,
+  ROI), an active switch and the starting-capital setting.
+- Reuse the existing filters and components.
 
-### 4.6 Reporting und Attribution
+### 4.6 Reporting and attribution
 
-Da jeder Trader ein eigenes Sub-Konto hat, ist die Pro-Trader-Performance direkt ablesbar (Equity-Kurve je Wallet). Zusätzlich Detail-Drilldown über `paper_orders` nach `source_wallet`.
+Because every trader has its own sub-account, per-trader performance is
+directly readable as an equity curve per wallet. A detail drilldown goes
+through `paper_orders` by `source_wallet`.
 
-## 5. Kalshi-Abgrenzung
+## 5. The Kalshi boundary
 
-Kalshi-Public-Feeds geben **keine** Wallet-/Trader-Identitäten preis. Trader-Copy aus Public Data ist auf Kalshi grundsätzlich nicht möglich. Stattdessen: bestehende Cross-Venue-Signale (Preis-Gaps Polymarket↔Kalshi). In der Thesis als Daten-Boundary dokumentieren.
+Kalshi's public feeds expose **no** wallet or trader identities, so copying a
+trader from public data is impossible there in principle. What remains is the
+existing cross-venue signal, the price gap between the two venues. This is
+worth documenting as a data boundary rather than working around.
 
-## 6. Migration (Swisstony übernehmen)
+## 6. Migration
 
-Swisstony wird als **erster Trader** angelegt: Zeile in `traders` mit eigenem `start_cash`, bestehende `tony_positions` nach `source_positions` übertragen, bisherige `paper_orders` (haben schon `source_wallet`) seinem Sub-Konto zuordnen, Cash/Equity konsistent setzen. So bleibt der bisherige Verlauf erhalten.
+The current target wallet becomes the **first trader**: a row in `traders` with
+its own `start_cash`, the existing mirror positions moved to
+`source_positions`, the existing `paper_orders` (which already carry
+`source_wallet`) attributed to its sub-account, and cash and equity set
+consistently. The existing history is preserved.
 
-## 7. Umsetzungsschritte für Codex (geordnet)
+## 7. Implementation steps, in order
 
-1. Schema-Migration: `traders`, `source_positions`, `trader_stats`; `positions`/`cash_events` um `trader_wallet`; `init_db` + Migrationspfad für Swisstony.
-2. Engine von einem `target_wallet` auf die aktive Trader-Liste mit Sub-Konten umstellen.
-3. Sizing/Cash pro Sub-Konto; dynamisches Sizing verallgemeinern.
-4. ROI-Ranking + Schwellen (für die Vorschlagsliste).
-5. UI: Folgen/Entfolgen, Sub-Konto-Reporting, Startkapital.
-6. `run_copy_trader.py` auf Multi-Wallet.
-7. Tests in `tests/test_copy_trading.py` erweitern (Mehr-Wallet-Dedup, Sub-Konto-Buchung, ROI-Ranking, Migration).
+1. Schema migration: `traders`, `source_positions`, `trader_stats`; add
+   `trader_wallet` to `positions` and `cash_events`; extend `init_db` with a
+   migration path for the existing wallet.
+2. Move the engine from one `target_wallet` to the active trader list with
+   sub-accounts.
+3. Sizing and cash per sub-account; generalise the dynamic sizing.
+4. ROI ranking and thresholds for the suggestion list.
+5. Interface: follow and unfollow, sub-account reporting, starting capital.
+6. Move `run_copy_trader.py` to multi-wallet.
+7. Extend `tests/test_copy_trading.py` (multi-wallet dedup, sub-account
+   booking, ROI ranking, migration).
 
-Nach jedem Schritt: `python -m py_compile`, Tests, committen.
+After each step: compile, run the tests, commit.
 
-## 8. Scope-Grenze gegenüber dem Phase-1-Terminal
+## 8. Relation to the research question
 
-Codex' Dauerauftrag ist der exakte Nachbau von Phase-1-Terminal.com. Multi-Trader-Copytrading ist eine **bewusste Erweiterung darüber hinaus**, kein Teil des Klons. Damit beide Ziele sich nicht widersprechen: die Copytrading-Funktion als eigene Schicht/Seite halten, möglichst getrennt von den Klon-Teilen in `prediction_terminal.py`, und die Umsetzung an einem stabilen Klon-Meilenstein oder im isolierten Modul einplanen. Codex' Ziel sollte diese Grenze explizit kennen, damit es das Copytrading nicht als „nicht in Phase-1-Terminal" zurückbaut.
-
-## 9. Anknüpfung an die Bachelorarbeit
-
-Eigene Sub-Konten je Trader liefern direkt vergleichbare Equity-Kurven — empirisches Material zur Forschungsfrage: Gibt es auf Polymarket persistente, kopierbare Überrenditen, oder verschwindet der Vorsprung profitabler Wallets (informationelle Effizienz)? Die Kalshi-Boundary (Abschnitt 5) ist eine sauber begründbare Methodik-Limitation.
+Separate sub-accounts per trader produce directly comparable equity curves,
+which is empirical material for the question behind the research: are there
+persistent, copyable excess returns on Polymarket, or does the advantage of
+profitable wallets disappear once it is followed (informational efficiency)?
+The Kalshi boundary in section 5 is a methodological limitation that can be
+stated cleanly rather than hidden.

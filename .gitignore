@@ -43,6 +43,12 @@ notebooks/*.png
 # Local editor and tooling configuration (personal, not committed)
 .claude/
 
+# Internal working material: competitor teardowns and implementation briefs.
+# Useful while building, not something to publish.
+docs/competitive/
+docs/specs/
+"Website redesign directions/"
+
 # Kursabgaben / PDFs
 *.pdf
 !reports/FINAL_REPORT.pdf
