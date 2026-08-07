@@ -112,9 +112,11 @@ Sizing aims for a faithful scaled mirror of the source wallet: the default scale
 Every piece of logic lives in a Streamlit-free module under `app/` or `src/`
 with its own test file; `prediction_terminal.py` holds only `render_*` and
 `page_*` functions and is large because it is the whole UI in one file rather
-than because the logic sits there. The `web/` frontend and the background
-scripts import the same modules, which is why a fee model or a scoring change
-lands in all three at once.
+than because the logic sits there. Three consumers import those same modules —
+the Streamlit app, the JSON bridge in `api/server.py` behind the `web/`
+frontend, and the background runners in `scripts/` — so a change to the fee
+model or a score reaches all of them at once, and its tests cover all of them
+at once.
 
 | File | Purpose |
 |---|---|
