@@ -64,6 +64,7 @@ class Terminal {
       btExposure: 50,
       btBankroll: 1000,
       btFee: 20,
+      btFeeModel: 'curve',
       btSlip: 15,
       btCompare: '',
       btTab: 'log',
@@ -508,6 +509,7 @@ class Terminal {
           exposure_pct: s.btExposure,
           bankroll: s.btBankroll,
           fee_bps: s.btFee,
+          fee_model: s.btFeeModel,
           slippage_bps: s.btSlip,
           compare: s.btCompare.trim() || null,
           variants: !!s.sizingSimOpen

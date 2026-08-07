@@ -75,7 +75,8 @@ export function renderBacktester(T) {
   const bestVariant = simVariants[0] || null;
 
   const shortWallet = s.btWallet.trim().length > 12 ? s.btWallet.trim().slice(0, 6) + '…' + s.btWallet.trim().slice(-4) : s.btWallet.trim();
-  const runMeta = (s.btStrategy === 'copy' ? 'Copy' : 'Fade') + ' · last ' + s.btWindow + ' days · wallet ' + shortWallet + ' · ' + SIZING[s.btSizing] + ' · fees ' + s.btFee + ' bps · slippage ' + s.btSlip + ' bps'
+  const gebuehrText = s.btFeeModel === 'flat' ? 'fees ' + s.btFee + ' bps flat' : 'fees on the venue curve';
+  const runMeta = (s.btStrategy === 'copy' ? 'Copy' : 'Fade') + ' · last ' + s.btWindow + ' days · wallet ' + shortWallet + ' · ' + SIZING[s.btSizing] + ' · ' + gebuehrText + ' · slippage ' + s.btSlip + ' bps'
     + (live && live.stats && live.stats.window_truncated ? ' · window truncated (hyperactive wallet)' : '');
 
   // Ohne Lauf keine Kacheln: jede dieser Zahlen kaeme sonst aus dem Nichts.
@@ -238,18 +239,31 @@ export function renderBacktester(T) {
       '<div style="padding:14px; display:flex; flex-direction:column; gap:13px">'
       + stepRow('BANKROLL', '$' + num(s.btBankroll), { btBankroll: Math.max(100, s.btBankroll - 500) }, { btBankroll: s.btBankroll + 500 })
       + '<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px">'
-      + stepRow('FEE (BPS) · OVERRIDE', s.btFee + ' bps', { btFee: Math.max(0, s.btFee - 5) }, { btFee: s.btFee + 5 })
-      // Der Deckel gehoert danebengestellt. Polymarkets Taker-Gebuehr haengt
-      // am Preis: rund 250 bps bei 0.50, rund 50 bps bei 0.90. Eine flache
-      // Annahme von 20 bps ist an der Mitte des Buchs um mehr als das
-      // Zehnfache zu billig, und zu billige Gebuehren schmeicheln jedem
-      // Ergebnis. Die Zahlen stammen aus app/venue_fees.py.
-      + '<div style="font-size:11px; color:#F5A623; margin-top:-4px; margin-bottom:10px; line-height:1.5">'
-      + 'Flat override. The venue curve in app/venue_fees.py charges about 250 bps at a price of 0.50 '
-      + 'and about 50 bps at 0.90, so anything near 20 bps understates the real cost by a wide margin.'
-      + '</div>'
       + stepRow('SLIPPAGE (BPS)', s.btSlip + ' bps', { btSlip: Math.max(0, s.btSlip - 5) }, { btSlip: s.btSlip + 5 })
+      + '<div><div style="' + LBL95 + '">FEE MODEL</div>'
+      + '<div style="display:flex; gap:6px; margin-top:6px">'
+      + T.opt('Venue curve', s.btFeeModel !== 'flat', { btFeeModel: 'curve' })
+      + T.opt('Flat override', s.btFeeModel === 'flat', { btFeeModel: 'flat' })
+      + '</div></div>'
       + '</div>'
+      // Bis eben rechnete die Engine pauschal mit 20 bps, waehrend das
+      // Gebuehrenmodell im selben Repository die echte Kurve kannte. Sie
+      // haengt am Preis: rund 250 bps bei 0.50, rund 50 bps bei 0.90. In der
+      // Mitte des Buchs war die Voreinstellung um mehr als das Zehnfache zu
+      // billig, und zu billige Gebuehren schmeicheln jedem Ergebnis.
+      + (s.btFeeModel === 'flat'
+        ? '<div style="display:flex; flex-direction:column; gap:8px">'
+          + stepRow('FLAT FEE (BPS)', s.btFee + ' bps', { btFee: Math.max(0, s.btFee - 5) }, { btFee: s.btFee + 5 })
+          + '<div style="font-size:11px; color:#F5A623; line-height:1.5">'
+          + 'A flat rate cannot match the venue: Polymarket charges about 250 bps at a price of 0.50 '
+          + 'and about 50 bps at 0.90. Anything near 20 bps understates the real cost by a wide margin.'
+          + '</div></div>'
+        : '<div style="font-size:11.5px; color:rgba(255,255,255,.45); line-height:1.5">'
+          + 'Polymarket charges the taker fee on the variance of the price, so it peaks in the middle '
+          + 'of the book: about 250 bps at 0.50 and about 50 bps at 0.90, at the general category rate. '
+          + 'The model lives in app/venue_fees.py and the general rate applies, because a wallet history '
+          + 'carries no category.'
+          + '</div>')
       + '<div><div style="' + LBL95 + '">BENCHMARK</div>'
       + '<div style="font-size:11.5px; color:rgba(255,255,255,.45); margin-top:7px; line-height:1.5">The dashed line in the results is the same trades at a constant 2% of the starting bankroll per copy. The compare-wallet field was removed: the server never read it, and the table it fed derived the other wallet from ours by fixed multipliers.</div></div>'
       + '</div>' : '')

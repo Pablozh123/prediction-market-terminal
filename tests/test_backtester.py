@@ -34,7 +34,12 @@ def config(**overrides):
         sizing_mode=bt.SIZING_FIXED,
         stake_value=25.0,
         max_stake=250.0,
+        # Diese Testreihe prueft Sizing, Spiegelung und Abrechnung, nicht die
+        # Gebuehr. Dafuer muss sie sich abschalten lassen, und das geht nur
+        # ueber das pauschale Modell — beim Venue-Modell haengt die Gebuehr
+        # am Preis und nicht an fee_bps. Die Kurve hat eigene Tests.
         fee_bps=0.0,
+        fee_model=bt.FEE_MODEL_FLAT,
         slippage_bps=0.0,
         flat_stake=25.0,
     )
@@ -209,6 +214,77 @@ class ReplayTests(unittest.TestCase):
         ledger, positions = bt.replay(trades, config())
         self.assertEqual(ledger.iloc[0]["status"], "skipped")
         self.assertEqual(positions, {})
+
+
+class FeeCurveTests(unittest.TestCase):
+    """Die Gebuehr folgt dem Venue-Modell, nicht einem pauschalen Satz."""
+
+    def kurve(self, **overrides):
+        base = dict(
+            wallet="0x" + "a" * 40, days=90, bankroll=1000.0,
+            sizing_mode=bt.SIZING_FIXED, stake_value=25.0, max_stake=250.0,
+            slippage_bps=0.0, flat_stake=25.0,
+        )
+        base.update(overrides)
+        return bt.BacktestConfig(**base)
+
+    def test_kurve_ist_die_voreinstellung(self):
+        self.assertEqual(bt.BacktestConfig(wallet="0x" + "a" * 40).fee_model,
+                         bt.FEE_MODEL_CURVE)
+
+    def test_gebuehr_haengt_am_preis(self):
+        # fee / stake = rate * (1 - p), allgemeiner Satz 5 Prozent.
+        satz = bt.fee_rate_for(self.kurve())
+        self.assertAlmostEqual(satz(0.50), 0.025, places=6)
+        self.assertAlmostEqual(satz(0.90), 0.005, places=6)
+        self.assertAlmostEqual(satz(0.10), 0.045, places=6)
+
+    def test_mitte_des_buchs_kostet_ein_vielfaches_der_alten_pauschale(self):
+        # Der Kern der Sache: 20 bps gegen rund 250 bps bei 0.50. Dieser Test
+        # faellt, sobald jemand die Kurve wieder gegen einen flachen Satz
+        # tauscht, der in der Mitte des Buchs zu billig ist.
+        kurve = bt.fee_rate_for(self.kurve())(0.50)
+        pauschal = bt.fee_rate_for(self.kurve(fee_model=bt.FEE_MODEL_FLAT, fee_bps=20.0))(0.50)
+        self.assertGreater(kurve, 10.0 * pauschal)
+
+    def test_kategorie_senkt_den_satz(self):
+        allgemein = bt.fee_rate_for(self.kurve())(0.50)
+        politik = bt.fee_rate_for(self.kurve(fee_category="politics"))(0.50)
+        self.assertLess(politik, allgemein)
+
+    def test_kauf_bucht_die_kurvengebuehr(self):
+        trades = frame([trade("2026-05-01", "BUY", 0.50, 100.0)])
+        ledger, _ = bt.replay(trades, self.kurve())
+        buy = ledger.iloc[0]
+        self.assertAlmostEqual(buy["stake"], 25.0, places=6)
+        # 25 Dollar zu 0.50 sind 50 Anteile: 50 * 0.05 * 0.25 = 0.625
+        self.assertAlmostEqual(buy["fee"], 0.625, places=6)
+
+    def test_verkauf_bucht_die_kurvengebuehr(self):
+        trades = frame([
+            trade("2026-05-01", "BUY", 0.50, 100.0),
+            trade("2026-05-05", "SELL", 0.80, 100.0),
+        ])
+        ledger, _ = bt.replay(trades, self.kurve())
+        sell = ledger.iloc[1]
+        erloes = (25.0 / 0.50) * 0.80
+        self.assertAlmostEqual(sell["fee"], erloes * 0.05 * 0.20, places=6)
+
+    def test_kurve_kostet_mehr_als_die_alte_pauschale(self):
+        trades = frame([
+            trade("2026-05-01", "BUY", 0.50, 100.0),
+            trade("2026-05-05", "SELL", 0.55, 100.0),
+        ])
+        mit_kurve, _ = bt.replay(trades, self.kurve())
+        mit_pauschale, _ = bt.replay(trades, self.kurve(fee_model=bt.FEE_MODEL_FLAT, fee_bps=20.0))
+        self.assertGreater(float(mit_kurve["fee"].sum()), float(mit_pauschale["fee"].sum()))
+        self.assertLess(float(mit_kurve["realized_pnl"].sum()),
+                        float(mit_pauschale["realized_pnl"].sum()))
+
+    def test_pauschalmodell_bleibt_erreichbar(self):
+        trades = frame([trade("2026-05-01", "BUY", 0.50, 100.0)])
+        ledger, _ = bt.replay(trades, self.kurve(fee_model=bt.FEE_MODEL_FLAT, fee_bps=100.0))
+        self.assertAlmostEqual(ledger.iloc[0]["fee"], 0.25, places=6)
 
 
 class FadeStrategyTests(unittest.TestCase):
