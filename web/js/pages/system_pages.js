@@ -102,7 +102,6 @@ export function renderAlerts(T) {
   const alarmSatz = herkunftSatz(
     live ? { quelle: live._quelle === 'fehler' ? 'fehler' : 'leer', fehler: live._fehler } : null, '/api/alerts');
   const feedAll = live && live.signals ? live.signals : [];
-  const feed = feedAll.filter((a) => (s.alertPlatform === 'all' || a.venue === s.alertPlatform) && (s.alertType === 'all' || a.rule === s.alertType) && (s.alertScope === 'all' || a.watched) && (!s.alertQuery.trim() || a.market.toLowerCase().indexOf(s.alertQuery.trim().toLowerCase()) >= 0));
   // Fest verdrahtet standen hier 14, 6, 31 und 4 Treffer "heute" — an jedem
   // Tag dieselben. Gezaehlt wird jetzt der ganze Scan, nicht die Tabelle:
   // die zeigt nur die ersten 60 Zeilen, und wer die zaehlt, meldet fuer eine
@@ -115,6 +114,16 @@ export function renderAlerts(T) {
   const zaehlung = (live && live.rule_counts) || null;
   const ungeprueft = (live && live.rules_not_evaluated) || [];
   const gesamtTreffer = zaehlung ? Object.keys(zaehlung).reduce((a, k) => a + (zaehlung[k] || 0), 0) : 0;
+  const holderInaktiv = ungeprueft.indexOf('HOLDER CONCENTRATION') >= 0;
+  // Arten, die im Scan vorkommen, aber in keiner gelieferten Zeile: der
+  // Endpunkt sortiert nach Schwere und schneidet dann ab, eine ganze Art
+  // kann also unter den Schnitt fallen.
+  const gelieferteArten = feedAll.map((a) => a.rule);
+  const verschluckt = zaehlung
+    ? Object.keys(zaehlung)
+      .filter((art) => zaehlung[art] > 0 && gelieferteArten.indexOf(art) < 0)
+      .map((art) => [art, zaehlung[art]])
+    : [];
   const trefferText = (key, an) => {
     // Eine Regel, die der Endpunkt nicht auswertet, sagt das auch dann, wenn
     // der Schalter aus ist: sonst schaltet ein Leser sie ein und wartet auf
@@ -126,13 +135,33 @@ export function renderAlerts(T) {
     return (zaehlung[REGEL_SIGNAL[key]] || 0) + ' in this scan';
   };
   const rules = [
-    { key: 'movers', name: 'Fast movers', desc: 'A market moves more than five cents in under an hour.' },
+    { key: 'movers', name: 'Fast movers', desc: 'A market moves more than the move threshold in under an hour.' },
     { key: 'volume', name: 'Volume anomaly', desc: 'An hour trades more than three times its own daily average.' },
-    { key: 'whales', name: 'Whale prints', desc: 'A single trade above your whale threshold lands.' },
-    { key: 'spreads', name: 'Tight spreads', desc: 'A liquid market narrows below two cents.' },
+    { key: 'whales', name: 'Whale prints', desc: 'A single trade above the print threshold lands.' },
+    { key: 'spreads', name: 'Tight spreads', desc: 'A market narrows below the spread threshold.' },
     { key: 'holders', name: 'Holder concentration', desc: 'Three wallets or fewer hold most of one side.' },
-    { key: 'endings', name: 'Resolving soon', desc: 'A market you watch resolves within seventy-two hours.' }
+    { key: 'endings', name: 'Resolving soon', desc: 'A market resolves inside the resolving window.' }
   ];
+
+  // Die Schalter lagen bis eben nur im Frontend-Zustand und taten nichts:
+  // die Signalliste zeigte Tight-Spread-Zeilen auch bei ausgeschaltetem
+  // Schalter. Sie blenden jetzt die Signalarten aus, die sie benennen. Was
+  // sie nicht tun, ist den Scanner steuern — der laeuft ueber die Schwellen,
+  // und die Karten sagen die Trefferzahl des ganzen Scans, nicht der Anzeige.
+  const abgeschaltet = rules
+    .filter((r) => !s.alertsOn[r.key])
+    .map((r) => REGEL_SIGNAL[r.key]);
+  // Signalarten ohne eigenen Schalter — etwa WATCHED MARKET, an dem der
+  // Scope-Filter haengt — bleiben sichtbar. Ein Schalter blendet aus, was er
+  // benennt, und sonst nichts.
+  const sichtbar = (a) => abgeschaltet.indexOf(a.rule) < 0;
+  const ausgeblendet = feedAll.length - feedAll.filter(sichtbar).length;
+  const feed = feedAll.filter((a) =>
+    sichtbar(a)
+    && (s.alertPlatform === 'all' || a.venue === s.alertPlatform)
+    && (s.alertType === 'all' || a.rule === s.alertType)
+    && (s.alertScope === 'all' || a.watched)
+    && (!s.alertQuery.trim() || a.market.toLowerCase().indexOf(s.alertQuery.trim().toLowerCase()) >= 0));
 
   let body = '';
   if (s.alertTab === 'signals') {
@@ -142,11 +171,22 @@ export function renderAlerts(T) {
       // Zeilen zeigt und das verschweigt, liest sich wie der ganze Scan.
       + (zaehlung && live.shown_limit && gesamtTreffer > live.shown_limit
         ? '<div style="' + M + '; font-size:11px; color:#F5A623; padding:6px 24px 0">'
-          + 'showing the top ' + live.shown_limit + ' of ' + num(gesamtTreffer) + ' signals in this scan</div>'
+          + 'showing the top ' + live.shown_limit + ' of ' + num(gesamtTreffer) + ' signals in this scan, ranked by severity'
+          // Welche Art der Schnitt komplett verschluckt. Ohne den Zusatz
+          // widerspricht die Regelkarte scheinbar der Tabelle: sie meldet
+          // hundert Treffer fuer eine Art, von der keine Zeile zu sehen ist.
+          + (verschluckt.length
+            ? ' · none of ' + verschluckt.map((a) => esc(a[0]) + ' (' + num(a[1]) + ')').join(', ') + ' made the cut'
+            : '')
+          + '</div>'
         : '')
       + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:12px 24px; overflow:hidden">'
       + '<div style="display:grid; grid-template-columns:92px 170px 1fr 110px 120px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
       + '<div>TIME</div><div>SIGNAL</div><div>MARKET</div><div style="text-align:right">READING</div><div style="text-align:right">VENUE</div></div>'
+      + (ausgeblendet
+        ? '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); padding:6px 24px 0">'
+          + num(ausgeblendet) + ' signal' + (ausgeblendet === 1 ? '' : 's') + ' hidden by the rule switches</div>'
+        : '')
       + (feed.length ? '' : leerZeile(feedAll.length ? 'No signal matches these filters.' : alarmSatz))
       + feed.map((a) =>
         '<div style="display:grid; grid-template-columns:92px 170px 1fr 110px 120px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06)">'
@@ -190,19 +230,28 @@ export function renderAlerts(T) {
     + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="' + M + '; font-size:10px; letter-spacing:.18em; color:#C8F542">ALERTS</div>'
     + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">Tell me when this happens</div>'
-    + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:9px; max-width:700px">Rules run on the public feed every minute. Switch one on and it also goes to Telegram.</div></div>'
+    // Frueher stand hier "Switch one on and it also goes to Telegram". Der
+    // Versand haengt am Scanner-Skript und an dessen Konfiguration, nicht an
+    // diesen Schaltern — die entscheiden, was diese Seite zeigt.
+    + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:9px; max-width:700px">The thresholds below are sent to the scan. The switches decide which of its signal types this page shows; Telegram delivery is configured on the scanner, not here.</div></div>'
     + '<div style="padding:16px 24px 0; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px 18px">'
     + '<div><div style="' + LBL9 + '">SEARCH</div><input value="' + esc(s.alertQuery) + '" ' + T.inp((e) => T.setState({ alertQuery: e.target.value }), 'alertQuery') + ' placeholder="market, wallet, category…" style="width:100%; box-sizing:border-box; background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:7px; padding:8px 10px; ' + M + '; font-size:11.5px; color:#fff; outline:none" /></div>'
     + filterGroup('PLATFORM', [['all','All'],['Polymarket','Polymarket'],['Kalshi','Kalshi']].map((o) => T.opt(o[1], s.alertPlatform === o[0], { alertPlatform: o[0] })).join(''))
     + filterGroup('SIGNAL TYPE', [['all','All'],['WHALE PRINT','Whale prints'],['FAST MOVER','Fast movers'],['VOLUME ANOMALY','Volume']].map((o) => T.opt(o[1], s.alertType === o[0], { alertType: o[0] })).join(''))
     + filterGroup('SCOPE', [['all','Everything'],['watched','Watched only']].map((o) => T.opt(o[1], s.alertScope === o[0], { alertScope: o[0] })).join(''))
     + '</div>'
+    // Diese vier Schwellen gehen an den Endpunkt und loesen einen neuen Scan
+    // aus. Frueher aenderten sie nur den Text darueber.
     + '<div style="padding:16px 24px 0; display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:14px 18px">'
-    + filterGroup('MOVE AT LEAST', [3, 5, 8, 12].map((v) => T.opt(v + '¢', s.thMove === v, { thMove: v })).join(''))
-    + filterGroup('SPREAD UNDER', [1, 2, 3, 5].map((v) => T.opt(v + '¢', s.thSpread === v, { thSpread: v })).join(''))
-    + filterGroup('PRINT AT LEAST', [1000, 2500, 10000, 25000].map((v) => T.opt('$' + num(v), s.thWhale === v, { thWhale: v })).join(''))
-    + filterGroup('RESOLVING WITHIN', [24, 48, 72, 168].map((v) => T.opt(v + ' h', s.thEnding === v, { thEnding: v })).join(''))
-    + filterGroup('TOP HOLDER OVER', [25, 40, 60, 80].map((v) => T.opt(v + '%', s.thHolder === v, { thHolder: v })).join(''))
+    + filterGroup('MOVE AT LEAST', [3, 5, 8, 12].map((v) => T.opt(v + '¢', s.thMove === v, () => T.alarmNeuLaden({ thMove: v }))).join(''))
+    + filterGroup('SPREAD UNDER', [1, 2, 3, 5].map((v) => T.opt(v + '¢', s.thSpread === v, () => T.alarmNeuLaden({ thSpread: v }))).join(''))
+    + filterGroup('PRINT AT LEAST', [1000, 2500, 10000, 25000].map((v) => T.opt('$' + num(v), s.thWhale === v, () => T.alarmNeuLaden({ thWhale: v }))).join(''))
+    + filterGroup('RESOLVING WITHIN', [24, 48, 72, 168].map((v) => T.opt(v + ' h', s.thEnding === v, () => T.alarmNeuLaden({ thEnding: v }))).join(''))
+    // Die Holder-Schwelle bleibt ohne Wirkung, solange der Endpunkt die
+    // Regel nicht auswertet. Der Regler sagt es, statt Wirkung vorzutaeuschen.
+    + filterGroup('TOP HOLDER OVER'
+      + (holderInaktiv ? ' <span style="color:#F5A623">· not evaluated</span>' : ''),
+      [25, 40, 60, 80].map((v) => T.opt(v + '%', s.thHolder === v, { thHolder: v })).join(''))
     + '</div>'
     + '<div style="display:flex; gap:6px; padding:16px 24px 0; flex-wrap:wrap">'
     + [['signals','Signals'],['rules','Rules'],['deliveries','Deliveries']].map((o) => T.tab(o[1], s.alertTab === o[0], { alertTab: o[0] })).join('')

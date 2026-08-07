@@ -133,7 +133,14 @@ function mitDaten(T) {
   };
   T.liveData.alerts = {
     _quelle: 'live', as_of: '2026-08-07',
-    signals: [{ time: '12:00', rule: 'WHALE PRINT', market: 'Example question', value: '$9k', venue: 'Polymarket', watched: false }],
+    signals: [
+      { time: '12:00', rule: 'WHALE PRINT', market: 'Example question', value: '$9k', venue: 'Polymarket', watched: false },
+      // Der Tight-Spread-Schalter steht aus: diese Zeile muss verschwinden
+      // und die Seite muss sagen, dass sie sie ausblendet.
+      { time: '12:01', rule: 'TIGHT SPREAD', market: 'Example question', value: '1.0¢', venue: 'Polymarket', watched: false },
+      // Eine Art ohne eigenen Schalter bleibt sichtbar.
+      { time: '12:02', rule: 'WATCHED MARKET', market: 'Example question', value: '62.0¢', venue: 'Polymarket', watched: true }
+    ],
     // Der Scan fand mehr, als die Tabelle zeigt, und eine Regel wurde gar
     // nicht ausgewertet — beide Faelle muessen sich in der Anzeige trennen.
     rule_counts: { 'WHALE PRINT': 5, 'FAST MOVER': 0, 'ENDING SOON': 120 },

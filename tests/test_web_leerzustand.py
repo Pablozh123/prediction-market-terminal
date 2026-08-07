@@ -143,6 +143,28 @@ class WebLeerzustandTest(unittest.TestCase):
     def test_abgeschnittene_signalliste_sagt_es(self) -> None:
         live = _sichtbarer_text(self.ausgabe["live"]["alerts"])
         self.assertIn("showing the top 60 of 125 signals", live)
+        # Eine Art, die der Schnitt komplett verschluckt, wird benannt —
+        # sonst widerspricht ihre Regelkarte scheinbar der Tabelle.
+        self.assertIn("none of ENDING SOON (120) made the cut", live)
+        # Eine Art mit null Treffern gehoert nicht in diese Aufzaehlung.
+        self.assertNotIn("FAST MOVER (0)", live)
+
+    def test_regelschalter_blenden_aus_und_sagen_es(self) -> None:
+        live = _sichtbarer_text(self.ausgabe["live"]["alerts"])
+        # Der Tight-Spread-Schalter steht aus, also faellt die Zeile weg und
+        # die Seite schreibt hin, dass sie sie ausblendet.
+        self.assertIn("1 signal hidden by the rule switches", live)
+        self.assertNotIn("TIGHT SPREAD", live)
+        # Eingeschaltete Arten und Arten ohne Schalter bleiben stehen.
+        self.assertIn("WHALE PRINT", live)
+        self.assertIn("WATCHED MARKET", live)
+
+    def test_seite_behauptet_keinen_telegram_versand(self) -> None:
+        for modus in ("leer", "live"):
+            text = _sichtbarer_text(self.ausgabe[modus]["alerts"])
+            with self.subTest(modus=modus):
+                self.assertNotIn("Switch one on and it also goes to Telegram", text)
+                self.assertIn("configured on the scanner", text)
 
     def test_seitenleiste_ohne_papierstand(self) -> None:
         # Die Seitenleiste wird nicht ueber den Harness gerendert, sie haengt

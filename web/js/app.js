@@ -405,6 +405,26 @@ class Terminal {
     this.render();
   }
 
+  // Der Alarm-Pfad traegt die eingestellten Schwellen. Der Endpunkt nimmt
+  // Bewegung und Spread als Anteil, die Regler stehen in Cent.
+  alarmPfad() {
+    const s = this.state;
+    return '/api/alerts'
+      + '?min_move=' + (s.thMove / 100).toFixed(4)
+      + '&max_spread=' + (s.thSpread / 100).toFixed(4)
+      + '&min_whale=' + s.thWhale
+      + '&ending_days=' + Math.max(1, Math.round(s.thEnding / 24));
+  }
+
+  // Eine geaenderte Schwelle heisst: neu scannen. Ohne das Verwerfen liefert
+  // holen() die alte Antwort zurueck und die Regler blieben wirkungslos.
+  alarmNeuLaden(patch) {
+    Object.assign(this.state, patch);
+    this.liveData.alerts = null;
+    this.render();
+    this.fetchPageData('alerts');
+  }
+
   // Herkunft eines Containers aus der Antwort ableiten, die holen() abgelegt
   // hat. Vorhandensein entscheidet, nicht Laenge.
   herkunftAus(schluessel, zeilen) {
@@ -438,7 +458,11 @@ class Terminal {
       });
       this.herkunft.risks = this.herkunftAus('risk', this.risks);
     } else if (page === 'alerts') {
-      await this.holen('alerts', '/api/alerts');
+      // Die Schwellen gehoeren an den Endpunkt, der scannt. Bis eben blieben
+      // sie im Frontend: der Scan lief mit seinen Voreinstellungen, und die
+      // Zeile darueber nannte die Werte der Regler. Die Seite beschrieb damit
+      // einen Scan, den es nicht gegeben hat.
+      await this.holen('alerts', this.alarmPfad());
     } else if (page === 'copy' || page === 'portfolio') {
       await this.holen('copy', '/api/copy');
       if (page === 'portfolio') await this.holen('track', '/api/track');
