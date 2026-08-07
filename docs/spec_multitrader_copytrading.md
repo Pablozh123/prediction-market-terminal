@@ -1,6 +1,6 @@
 # Spec: Multi-Trader-Copytrading (Paper)
 
-Status: Entwurf v2 (Entscheidungen eingearbeitet) · Owner: Claude · Branch: `claude/multitrader-spec` · Umsetzung: Codex
+Status: Entwurf v2 (Entscheidungen eingearbeitet)
 
 ## 1. Ziel und Abgrenzung
 

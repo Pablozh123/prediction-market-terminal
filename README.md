@@ -42,16 +42,18 @@ read-only JSON API by `api/server.py`:
 python api/server.py
 ```
 
-Open `http://127.0.0.1:8787/`. The page starts on a labelled demo dataset and
-switches to `LIVE · POLYMARKET + KALSHI` as soon as the API answers; the badge
-in the top bar always states which one you are looking at. All fifteen
-workspaces (markets, live tape, cross-venue, leaderboard, whale flow, risk
-screen, backtester, paper copy-trading, alerts, the eight research studies,
-settings) reuse the exact same logic modules in `app/` and `src/` as the
-Streamlit app — the API only orchestrates and maps to JSON (`app/api_views.py`).
-Sample sizes, confidence intervals, `capped`/`window_truncated` flags and
-snapshot timestamps are part of every score-bearing response. The Streamlit
-app is unchanged and keeps working as before.
+Open `http://127.0.0.1:8787/`. There is no demo dataset: a panel either shows
+measured data or states which endpoint or published file it is waiting for, and
+whether that source answered with nothing or not at all. Nothing is drawn from
+a generator — the charting code cannot produce a curve without a real series
+behind it. All fifteen workspaces (markets, live tape, cross-venue, leaderboard,
+whale flow, risk screen, backtester, paper copy-trading, alerts, the eight
+research studies, settings) reuse the exact same logic modules in `app/` and
+`src/` as the Streamlit app — the API only orchestrates and maps to JSON
+(`app/api_views.py`). Sample sizes, confidence intervals,
+`capped`/`window_truncated` flags and snapshot timestamps are part of every
+score-bearing response. The Streamlit app is unchanged and keeps working as
+before.
 
 Optional background runners:
 
@@ -106,6 +108,13 @@ Accounting is contribution-aware: every cash injection (start cash, manual or au
 Sizing aims for a faithful scaled mirror of the source wallet: the default scale is the uncapped neutral portfolio ratio (your sub-account equity / source equity), a cash throttle shrinks all orders uniformly during cash droughts instead of skipping later trades, and the Copy fidelity tab quantifies every deviation — config fidelity (settings vs neutral), execution fidelity (filled vs desired, with loss breakdown), and a %-PnL overlay of the paper curve against the source wallet's official PnL curve.
 
 ## Main files
+
+Every piece of logic lives in a Streamlit-free module under `app/` or `src/`
+with its own test file; `prediction_terminal.py` holds only `render_*` and
+`page_*` functions and is large because it is the whole UI in one file rather
+than because the logic sits there. The `web/` frontend and the background
+scripts import the same modules, which is why a fee model or a scoring change
+lands in all three at once.
 
 | File | Purpose |
 |---|---|

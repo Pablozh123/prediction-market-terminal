@@ -423,8 +423,8 @@ class EnvLoadingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / ".env"
             path.write_text(
-                "POLY_PRIVATE_KEY=0xdeadbeef-darf-nicht-auftauchen\n"
-                "ANTHROPIC_API_KEY=sk-darf-nicht-auftauchen\n"
+                "POLY_PRIVATE_KEY=0xdeadbeef-must-not-appear\n"
+                "TELEGRAM_BOT_TOKEN=must-not-appear\n"
                 "KALSHI_KEY_ID=meine-kid\n"
                 "KALSHI_PRIVATE_KEY_PATH=C:/irgendwo/key.pem\n",
                 encoding="utf-8")

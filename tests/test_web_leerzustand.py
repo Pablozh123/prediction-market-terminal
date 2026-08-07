@@ -17,6 +17,7 @@ Node-Installation durch.
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -71,6 +72,14 @@ class WebLeerzustandTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         node = shutil.which("node")
         if node is None:
+            # Lokal ohne Node ueberspringen, in der CI nicht: ein Test, der
+            # sich dort still ueberspringt, bewacht nichts. Die CI-Definition
+            # installiert Node, und wenn dieser Schritt je verschwindet, soll
+            # es hier auffallen statt in einer gruenen Zusammenfassung.
+            if os.environ.get("CI"):
+                raise AssertionError(
+                    "node fehlt in der CI — der Render-Test der Weboberflaeche "
+                    "kann nicht laufen (setup-node im Workflow pruefen)")
             raise unittest.SkipTest("node ist nicht installiert")
         lauf = subprocess.run(
             [node, str(HARNESS)],

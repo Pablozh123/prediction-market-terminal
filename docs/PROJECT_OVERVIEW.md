@@ -1,8 +1,8 @@
 # Projekt-Gesamtüberblick — Prediction Market Terminal
 
-Stand: 2026-06-12 · main @ `796a0cc` · 311 Unit-Tests grün · live lokal auf http://127.0.0.1:8503
+Stand: 2026-08-07 · 1.312 Unit-Tests grün · live lokal auf http://127.0.0.1:8503
 
-Dieses Dokument ist **self-contained** und dafür gedacht, es einer neuen Claude-/Research-Session zu geben, damit sie ohne weiteren Kontext weiterarbeiten/-recherchieren kann. Es beschreibt: was das Produkt ist, was auf der Website gebaut wurde, wie es technisch umgesetzt ist, die Datengrenzen, die Strategie und die offenen Entscheidungen.
+Dieses Dokument ist **self-contained**: es beschreibt ohne weiteren Kontext, was das Produkt ist, was gebaut wurde, wie es technisch umgesetzt ist, wo die Datengrenzen liegen, welche Strategie dahintersteht und welche Entscheidungen offen sind. Gedacht für jeden, der das Projekt kalt aufnimmt.
 
 > Rechtlicher Rahmen: legales Daten-/Analyse-Produkt über **öffentliche** Polymarket-/Kalshi-Daten. Paper-only, keine Custody, kein Live-Handel. Alle Rechtsthemen in den Plan-Docs sind Compliance-Research (kein Handeln ohne Anwalt).
 
