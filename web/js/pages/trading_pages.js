@@ -3,7 +3,6 @@
 // otherwise the reference's deterministic synthetic curves.
 
 import { esc, money, num } from '../util.js';
-import { DEMO_COPY_POSITIONS, DEMO_CASH_ROWS, DEMO_PORT_ROWS, DEMO_HIST_ROWS } from '../demo_data.js';
 import { trackWatchRows } from './trader_pages.js';
 
 const M = "font-family:'JetBrains Mono',monospace";
@@ -17,6 +16,22 @@ function bt(T, patch) {
   return () => { T.setState(patch); T.runBacktestLive(); };
 }
 
+/** Warum keine Zahlen dastehen. Frueher stand hier ein synthetischer Lauf. */
+function ohneBacktestHtml() {
+  return '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:22px 24px; margin-top:14px; max-width:760px">'
+    + '<div style="font-size:15px; font-weight:600">No run to show yet</div>'
+    + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:10px; line-height:1.65">'
+    + 'Press Run backtest. The engine replays the wallet against recorded trades in '
+    + '<span style="' + M + '">app/backtester.py</span>, so it needs the API. If the numbers stay empty, either the '
+    + 'backend is not reachable, or the wallet has no trades inside the selected window.'
+    + '</div>'
+    + '<div style="font-size:12.5px; color:rgba(255,255,255,.4); margin-top:12px; line-height:1.6">'
+    + 'Nothing is estimated here. This panel used to fill itself from a generator when the '
+    + 'backend was silent, which produced an equity curve that responded to every slider and '
+    + 'meant nothing.'
+    + '</div></div>';
+}
+
 // ---------------------------------------------------------------- backtester
 export function renderBacktester(T) {
   const s = T.state;
@@ -26,76 +41,52 @@ export function renderBacktester(T) {
     : s.btSizing === 'kelly' ? bank * 0.25 * (s.btStakeKelly / 100) / 0.45
     : s.btStakeFixed;
   const stake = Math.min(rawStake, s.btCap);
-  const nPts = { 7: 26, 30: 60, 90: 110 }[s.btWindow];
-  const feeDrag = (s.btFee + s.btSlip) / 260;
-  const sizeF = Math.max(0.25, Math.min(3, stake / 25));
-  const seed = s.btWindow * 31 + (s.btStrategy === 'copy' ? 5 : 9) + Math.round(stake) + s.btExposure;
-  const drift = ((s.btStrategy === 'copy' ? 0.9 : -0.25) * sizeF * (s.btExposure / 50)) - feeDrag;
   const live = T.liveData.backtest;
+  const st = live && live.stats ? live.stats : null;
 
-  // Synthetic fallbacks (identical maths to the reference).
-  const eq = T.curve(seed, nPts, 900, 270, drift, 4.2 * sizeF);
-  const bench = T.curve(seed + 101, nPts, 900, 270, 0.55, 3.4);
-  const best = T.curve(seed + 202, nPts, 900, 270, Math.abs(drift) * 1.45 + 0.3, 4.0);
-  const cmp = s.btCompare.trim() ? T.curve(seed + 303, nPts, 900, 270, 0.45, 4.6) : null;
-  const scale = bank / 1000;
-  let finalEq = bank + eq.last * 11 * scale;
-  let benchPnl = bench.last * 11 * scale;
-  let ret = ((finalEq - bank) / bank) * 100;
-  let totalPnl = finalEq - bank;
-  let copied = Math.round(nPts * 1.9 * Math.min(1, s.btExposure / 55));
-  let skippedN = Math.round(nPts * 2.6 - copied);
-  let winsN = Math.round(copied * (s.btStrategy === 'copy' ? 0.57 : 0.43));
-  let lossesN = copied - winsN;
-  let feesPaid = copied * stake * (s.btFee / 10000);
-  let openValue = stake * 6.4;
-  let ddPct = Math.abs(eq.drawdown) * 1.1;
-  let equityPts = eq.pts, benchPts = bench.pts, ddPts = T.curve(seed + 404, nPts, 900, 220, -0.35, 3.0).pts;
-
-  if (live && live.stats) {
-    const st = live.stats;
-    finalEq = +st.final_equity; ret = +st.roi * 100; totalPnl = +st.total_pnl;
-    benchPnl = live.benchmark_stats ? +live.benchmark_stats.total_pnl : 0;
-    copied = +st.copied_trades; skippedN = +st.skipped_trades;
-    winsN = +st.wins; lossesN = +st.losses;
-    feesPaid = +st.fees_paid; openValue = +st.open_value;
-    ddPct = Math.abs(+st.max_drawdown) * 100;
-    if (live.equity && live.equity.length > 1) {
-      equityPts = T.seriesPoints(live.equity, 900, 270);
-      benchPts = live.benchmark && live.benchmark.length > 1 ? T.seriesPoints(live.benchmark, 900, 270) : '';
-      ddPts = live.drawdown && live.drawdown.length > 1 ? T.seriesPoints(live.drawdown, 900, 220) : ddPts;
-    }
-  }
+  // Kein synthetischer Lauf mehr. Hier stand eine Kurve aus einem
+  // Zufallsgenerator mit eingebautem Drift: 0.9 aufwaerts fuer Copy, -0.25
+  // abwaerts fuer Fade, Trefferquote fest 57 gegen 43 Prozent, und alles
+  // reagierte auf jeden Regler. Das sah aus wie ein Backtest, war aber die
+  // Behauptung, die dieses Projekt ausdruecklich nicht aufstellt. Ohne
+  // Antwort vom Backend gibt es jetzt Zahlen weder gerundet noch geraten.
+  const finalEq = st ? +st.final_equity : null;
+  const ret = st ? +st.roi * 100 : null;
+  const totalPnl = st ? +st.total_pnl : null;
+  const benchPnl = st && live.benchmark_stats ? +live.benchmark_stats.total_pnl : null;
+  const copied = st ? +st.copied_trades : null;
+  const skippedN = st ? +st.skipped_trades : null;
+  const winsN = st ? +st.wins : null;
+  const lossesN = st ? +st.losses : null;
+  const feesPaid = st ? +st.fees_paid : null;
+  const openValue = st ? +st.open_value : null;
+  const ddPct = st ? Math.abs(+st.max_drawdown) * 100 : null;
+  const equityPts = st && live.equity && live.equity.length > 1
+    ? T.seriesPoints(live.equity, 900, 270) : '';
+  const benchPts = st && live.benchmark && live.benchmark.length > 1
+    ? T.seriesPoints(live.benchmark, 900, 270) : '';
+  const ddPts = st && live.drawdown && live.drawdown.length > 1
+    ? T.seriesPoints(live.drawdown, 900, 220) : '';
 
   const simVariants = (live && live.variants ? live.variants.map((v) => ({
     name: v.name, eq: +v.final_equity, roi: +v.roi * 100, dd: Math.abs(+v.max_drawdown) * 100,
     wr: +v.win_rate * 100, copied: +v.copied_trades, skipped: +v.skipped_trades
-  })) : [
-    { name: 'Fixed $25', k: 1.0 },
-    { name: 'Fixed $50', k: 1.18 },
-    { name: '2% of bankroll', k: 1.09 },
-    { name: '5% of bankroll', k: 0.86 },
-    { name: 'Match trader % ×1', k: 1.31 },
-    { name: 'Kelly ¼ · 5 pts edge', k: 1.22 }
-  ].map((v, i) => {
-    const e = bank + eq.last * 11 * scale * v.k + (i * 3);
-    return { name: v.name, eq: e, roi: ((e - bank) / bank) * 100, dd: ddPct * (2 - v.k), wr: 50 + (v.k - 1) * 26, copied: Math.round(copied * Math.min(1.3, 2 - v.k * 0.6)), skipped: Math.round(skippedN * v.k) };
-  })).sort((a, b) => b.eq - a.eq);
-  const bestVariant = simVariants[0];
+  })) : []).sort((a, b) => b.eq - a.eq);
+  const bestVariant = simVariants[0] || null;
 
-  const shortCmp = s.btCompare.trim() ? s.btCompare.trim().slice(0, 6) + '…' + s.btCompare.trim().slice(-3) : 'compare wallet';
   const shortWallet = s.btWallet.trim().length > 12 ? s.btWallet.trim().slice(0, 6) + '…' + s.btWallet.trim().slice(-4) : s.btWallet.trim();
   const runMeta = (s.btStrategy === 'copy' ? 'Copy' : 'Fade') + ' · last ' + s.btWindow + ' days · wallet ' + shortWallet + ' · ' + SIZING[s.btSizing] + ' · fees ' + s.btFee + ' bps · slippage ' + s.btSlip + ' bps'
     + (live && live.stats && live.stats.window_truncated ? ' · window truncated (hyperactive wallet)' : '');
 
-  const statCards = [
+  // Ohne Lauf keine Kacheln: jede dieser Zahlen kaeme sonst aus dem Nichts.
+  const statCards = st ? [
     { label: 'FINAL EQUITY', value: '$' + finalEq.toFixed(0), sub: (ret >= 0 ? '+' : '') + ret.toFixed(1) + '% ROI', pos: ret >= 0 },
-    { label: 'TOTAL P&L', value: (totalPnl >= 0 ? '+' : '-') + '$' + Math.abs(totalPnl).toFixed(0), sub: (totalPnl - benchPnl >= 0 ? '+' : '-') + '$' + Math.abs(totalPnl - benchPnl).toFixed(0) + ' vs flat-bet', pos: totalPnl >= 0 },
+    { label: 'TOTAL P&L', value: (totalPnl >= 0 ? '+' : '-') + '$' + Math.abs(totalPnl).toFixed(0), sub: benchPnl === null ? 'no benchmark' : (totalPnl - benchPnl >= 0 ? '+' : '-') + '$' + Math.abs(totalPnl - benchPnl).toFixed(0) + ' vs flat-bet', pos: totalPnl >= 0 },
     { label: 'WIN RATE', value: Math.round((winsN / Math.max(1, copied)) * 100) + '%', sub: winsN + 'W / ' + lossesN + 'L', pos: null },
     { label: 'MAX DRAWDOWN', value: ddPct.toFixed(1) + '%', sub: 'from the running peak', pos: false },
     { label: 'TRADES COPIED', value: num(copied), sub: num(Math.max(0, skippedN)) + ' skipped', pos: null },
     { label: 'FEES PAID', value: '$' + feesPaid.toFixed(2), sub: '$' + openValue.toFixed(0) + ' still open', pos: null }
-  ];
+  ] : [];
 
   const stakeLabel = s.btSizing === 'pct' ? 'STAKE (% OF BANKROLL)' : s.btSizing === 'match' ? "MULTIPLIER (× TRADER'S SHARE)" : s.btSizing === 'kelly' ? 'ASSUMED EDGE (PROBABILITY POINTS)' : 'STAKE PER COPY ($)';
   const stakeValue = s.btSizing === 'pct' ? s.btStakePct.toFixed(1) + '%' : s.btSizing === 'match' ? '×' + s.btStakeMult.toFixed(1) : s.btSizing === 'kelly' ? s.btStakeKelly.toFixed(1) + ' pts' : '$' + s.btStakeFixed;
@@ -106,54 +97,29 @@ export function renderBacktester(T) {
   const stakeUp = s.btSizing === 'pct' ? { btStakePct: Math.min(100, s.btStakePct + 0.5) } : s.btSizing === 'match' ? { btStakeMult: Math.min(10, s.btStakeMult + 0.5) } : s.btSizing === 'kelly' ? { btStakeKelly: Math.min(30, s.btStakeKelly + 0.5) } : { btStakeFixed: s.btStakeFixed + 5 };
   const stakeDown = s.btSizing === 'pct' ? { btStakePct: Math.max(0.1, s.btStakePct - 0.5) } : s.btSizing === 'match' ? { btStakeMult: Math.max(0.1, s.btStakeMult - 0.5) } : s.btSizing === 'kelly' ? { btStakeKelly: Math.max(0.5, s.btStakeKelly - 0.5) } : { btStakeFixed: Math.max(1, s.btStakeFixed - 5) };
 
-  const demoLog = [
-    { t: '07-30 14:19', a: 'BUY', st: 'filled', m: 'Brazil win on 2026-06-13', side: 'No', src: 18400, fill: 0.415 },
-    { t: '07-30 09:02', a: 'BUY', st: 'filled', m: 'Fed cuts rates in September 2026', side: 'Yes', src: 9750, fill: 0.620 },
-    { t: '07-29 21:44', a: 'BUY', st: 'skipped', m: 'Germany win on 2026-06-20', side: 'No', src: 11200, fill: 0 },
-    { t: '07-29 16:31', a: 'SELL', st: 'filled', m: 'Iraq win on 2026-06-22', side: 'Yes', src: 15600, fill: 0.960 },
-    { t: '07-29 11:08', a: 'BUY', st: 'filled', m: 'Government shutdown before October 2026', side: 'Yes', src: 24800, fill: 0.290 },
-    { t: '07-28 19:55', a: 'BUY', st: 'skipped', m: 'Japan win on 2026-06-14', side: 'No', src: 7400, fill: 0 },
-    { t: '07-28 13:12', a: 'BUY', st: 'filled', m: 'Bitcoin above $150k on Dec 31, 2026', side: 'Yes', src: 3400, fill: 0.380 },
-    { t: '07-27 22:40', a: 'SELL', st: 'filled', m: 'Korea Republic win on 2026-06-11', side: 'No', src: 5050, fill: 0.635 }
-  ];
-  const logRows = live && live.log ? live.log.map((l) => ({
+  // Weder erfundene Trades noch eine erfundene Vergleichs-Wallet. Hier lagen
+  // acht ausgedachte Log-Zeilen, fuenf ausgedachte offene Positionen und eine
+  // Vergleichstabelle, die die Gegenseite als Vielfaches der eigenen Zahlen
+  // berechnete (Endkapital mal 0.88, PnL mal 0.72, Trefferquote fest 51).
+  // Ohne Backend gibt es davon nichts zu zeigen.
+  const logRows = (live && live.log ? live.log : []).map((l) => ({
     time: l.time, action: l.action, status: l.status, market: l.market, side: l.side,
     traderAmt: '$' + num(Math.round(+l.trader_amt || 0)),
     stake: +l.stake ? '$' + (+l.stake).toFixed(2) : '—',
     fill: +l.fill ? (+l.fill).toFixed(3) : '—',
     fee: +l.fee ? '$' + (+l.fee).toFixed(2) : '—',
     equity: '$' + (+l.equity).toFixed(2)
-  })) : demoLog.map((l, i) => {
-    const st_ = l.st === 'skipped' ? 0 : stake;
+  }));
+
+  const openRows = (live && live.open ? live.open : []).map((o) => {
+    const sh = +o.shares, avg = +o.avg, mark = +o.mark;
+    const cost = sh * avg, val = sh * mark, pnl = val - cost;
     return {
-      time: l.t, action: l.a, status: l.st, market: l.m, side: l.side,
-      traderAmt: '$' + num(l.src),
-      stake: st_ ? '$' + st_.toFixed(2) : '—',
-      fill: l.fill ? l.fill.toFixed(3) : '—',
-      fee: st_ ? '$' + (st_ * s.btFee / 10000).toFixed(2) : '—',
-      equity: '$' + (bank + (finalEq - bank) * ((i + 1) / 8)).toFixed(2)
+      market: o.market, side: o.side, shares: sh.toFixed(1), avg: avg.toFixed(3),
+      mark: mark.toFixed(3), cost: '$' + cost.toFixed(2), value: '$' + val.toFixed(2),
+      pnl: (pnl >= 0 ? '+' : '-') + '$' + Math.abs(pnl).toFixed(2), pnlPos: pnl >= 0
     };
   });
-
-  const demoOpen = [
-    { m: 'Fed cuts rates in September 2026', side: 'Yes', sh: 40.3, avg: 0.580, mark: 0.620 },
-    { m: 'Government shutdown before October 2026', side: 'Yes', sh: 86.2, avg: 0.220, mark: 0.290 },
-    { m: 'Bitcoin above $150k on Dec 31, 2026', side: 'Yes', sh: 61.0, avg: 0.410, mark: 0.380 },
-    { m: 'Brazil win on 2026-06-13', side: 'No', sh: 58.4, avg: 0.415, mark: 0.435 },
-    { m: 'ECB holds rates at the September meeting', side: 'Yes', sh: 34.1, avg: 0.680, mark: 0.710 }
-  ];
-  const openRows = (live && live.open ? live.open.map((o) => ({ m: o.market, side: o.side, sh: +o.shares, avg: +o.avg, mark: +o.mark })) : demoOpen).map((o) => {
-    const cost = o.sh * o.avg, val = o.sh * o.mark, pnl = val - cost;
-    return { market: o.m, side: o.side, shares: o.sh.toFixed(1), avg: o.avg.toFixed(3), mark: o.mark.toFixed(3), cost: '$' + cost.toFixed(2), value: '$' + val.toFixed(2), pnl: (pnl >= 0 ? '+' : '-') + '$' + Math.abs(pnl).toFixed(2), pnlPos: pnl >= 0 };
-  });
-
-  const compareRows = [
-    { metric: 'Final equity', a: finalEq, b: finalEq * 0.88, money: true },
-    { metric: 'Total P&L', a: totalPnl, b: totalPnl * 0.72, money: true },
-    { metric: 'Win rate', a: (winsN / Math.max(1, copied)) * 100, b: 51, pct: true },
-    { metric: 'Max drawdown', a: ddPct, b: ddPct * 1.4, pct: true },
-    { metric: 'Trades copied', a: copied, b: Math.round(copied * 1.3), plain: true }
-  ];
 
   const stepRow = (label, valueLabel, down, up) =>
     '<div><div style="' + LBL95 + '">' + label + '</div>'
@@ -166,7 +132,7 @@ export function renderBacktester(T) {
     T.tab('Trade log', s.btTab === 'log', { btTab: 'log' }),
     T.tab('Open positions', s.btTab === 'open', { btTab: 'open' }),
     T.tab('Drawdown', s.btTab === 'dd', { btTab: 'dd' })
-  ].concat(s.btCompare.trim() ? [T.tab('Comparison', s.btTab === 'cmp', { btTab: 'cmp' })] : []).join('');
+  ].join('');
 
   let tabBody = '';
   if (s.btTab === 'log') {
@@ -214,21 +180,7 @@ export function renderBacktester(T) {
       + '<line x1="0" y1="190" x2="900" y2="190" stroke="rgba(255,255,255,.07)" />'
       + '<polyline points="' + ddPts + '" fill="none" stroke="#FF4545" stroke-width="2" /></svg>'
       + '<div style="display:flex; justify-content:space-between; ' + M + '; font-size:10px; color:rgba(255,255,255,.4); margin-top:8px">'
-      + '<span>' + s.btWindow + 'd ago</span><span>worst: ' + ddPct.toFixed(1) + '%</span><span>today</span></div></div>';
-  } else if (s.btTab === 'cmp' && s.btCompare.trim()) {
-    tabBody = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:12px; overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:1fr 130px 130px 110px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
-      + '<div>METRIC</div><div style="text-align:right">' + esc(shortWallet) + '</div><div style="text-align:right">' + esc(shortCmp) + '</div><div style="text-align:right">DIFFERENCE</div></div>'
-      + compareRows.map((r) => {
-        const d = r.a - r.b;
-        const fmt = (v) => r.money ? '$' + v.toFixed(0) : r.pct ? v.toFixed(1) + '%' : num(Math.round(v));
-        return '<div style="display:grid; grid-template-columns:1fr 130px 130px 110px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:12.5px">'
-          + '<div style="font-family:\'Inter\',sans-serif; font-size:13px">' + r.metric + '</div>'
-          + '<div style="text-align:right">' + fmt(r.a) + '</div>'
-          + '<div style="text-align:right; color:#4F8EF7">' + fmt(r.b) + '</div>'
-          + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (d >= 0 ? '#C8F542' : '#FF4545') + '">' + (d >= 0 ? '+' : '-') + fmt(Math.abs(d)).replace('-', '') + '</div></div>';
-      }).join('')
-      + '</div>';
+      + '<span>' + s.btWindow + 'd ago</span><span>worst: ' + (ddPct === null ? '—' : ddPct.toFixed(1) + '%') + '</span><span>today</span></div></div>';
   }
 
   const advChevron = M + '; font-size:16px; color:rgba(255,255,255,.5); transition:transform .18s ease; transform:rotate(' + (s.advancedOpen ? '90deg' : '0deg') + ')';
@@ -289,9 +241,8 @@ export function renderBacktester(T) {
       + stepRow('FEE (BPS)', s.btFee + ' bps', { btFee: Math.max(0, s.btFee - 5) }, { btFee: s.btFee + 5 })
       + stepRow('SLIPPAGE (BPS)', s.btSlip + ' bps', { btSlip: Math.max(0, s.btSlip - 5) }, { btSlip: s.btSlip + 5 })
       + '</div>'
-      + '<div><div style="' + LBL95 + '">COMPARE WALLET (OPTIONAL)</div>'
-      + '<input value="' + esc(s.btCompare) + '" ' + T.inp((e) => { T.state.btCompare = e.target.value; T.runBacktestLive(); }, 'btCompare') + ' placeholder="0x…" style="width:100%; box-sizing:border-box; background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:7px; padding:8px 10px; ' + M + '; font-size:11.5px; color:#fff; outline:none" />'
-      + '<div style="font-size:11.5px; color:rgba(255,255,255,.45); margin-top:7px; line-height:1.5">Benchmark in the results is the same trades at a constant 2% of the starting bankroll per copy.</div></div>'
+      + '<div><div style="' + LBL95 + '">BENCHMARK</div>'
+      + '<div style="font-size:11.5px; color:rgba(255,255,255,.45); margin-top:7px; line-height:1.5">The dashed line in the results is the same trades at a constant 2% of the starting bankroll per copy. The compare-wallet field was removed: the server never read it, and the table it fed derived the other wallet from ours by fixed multipliers.</div></div>'
       + '</div>' : '')
     + '</div>'
 
@@ -300,6 +251,7 @@ export function renderBacktester(T) {
 
     + '<div style="padding:18px 24px">'
     + '<div style="' + M + '; font-size:11.5px; color:rgba(255,255,255,.6)">' + esc(runMeta) + '</div>'
+    + (st ? ''
 
     + '<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:14px">'
     + statCards.map((c) =>
@@ -318,7 +270,7 @@ export function renderBacktester(T) {
     + '<div style="display:flex; gap:16px; ' + M + '; font-size:10.5px; flex-wrap:wrap">'
     + '<span style="display:flex; align-items:center; gap:6px"><span style="width:14px; height:2px; background:#C8F542; display:inline-block"></span>' + esc(shortWallet) + '</span>'
     + '<span style="display:flex; align-items:center; gap:6px; color:rgba(255,255,255,.5)"><span style="width:14px; height:2px; background:#95A0AB; display:inline-block"></span>Flat-bet benchmark</span>'
-    + (s.sizingSimOpen ? '<span style="display:flex; align-items:center; gap:6px; color:#F5A623"><span style="width:14px; height:2px; background:#F5A623; display:inline-block"></span>Best sizing: ' + esc(bestVariant.name) + '</span>' : '')
+    + (s.sizingSimOpen && bestVariant ? '<span style="display:flex; align-items:center; gap:6px; color:#F5A623"><span style="width:14px; height:2px; background:#F5A623; display:inline-block"></span>Best sizing: ' + esc(bestVariant.name) + '</span>' : '')
     + '</div></div>'
     + '<svg width="100%" height="270" viewBox="0 0 900 270" preserveAspectRatio="none">'
     + '<line x1="0" y1="20" x2="900" y2="20" stroke="rgba(255,255,255,.07)" />'
@@ -327,9 +279,7 @@ export function renderBacktester(T) {
     + '<line x1="0" y1="200" x2="900" y2="200" stroke="rgba(255,255,255,.07)" />'
     + '<line x1="0" y1="258" x2="900" y2="258" stroke="rgba(255,255,255,.14)" />'
     + '<polyline points="' + benchPts + '" fill="none" stroke="#95A0AB" stroke-width="1.4" stroke-dasharray="6 4" />'
-    + (cmp ? '<polyline points="' + cmp.pts + '" fill="none" stroke="#4F8EF7" stroke-width="2" />' : '')
-    + (s.sizingSimOpen && !live ? '<polyline points="' + best.pts + '" fill="none" stroke="#F5A623" stroke-width="2" stroke-dasharray="2 4" />' : '')
-    + '<polyline points="' + equityPts + '" fill="none" stroke="' + (ret >= 0 ? '#C8F542' : '#FF4545') + '" stroke-width="2" />'
+        + '<polyline points="' + equityPts + '" fill="none" stroke="' + (ret >= 0 ? '#C8F542' : '#FF4545') + '" stroke-width="2" />'
     + '</svg>'
     + '<div style="display:flex; justify-content:space-between; ' + M + '; font-size:10px; color:rgba(255,255,255,.4); margin-top:8px">'
     + '<span>' + s.btWindow + 'd ago</span><span>' + Math.round(s.btWindow / 2) + 'd ago</span><span>today</span></div></div>'
@@ -340,7 +290,7 @@ export function renderBacktester(T) {
     + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:16px; overflow:hidden">'
     + '<div ' + T.act(() => { T.setState({ sizingSimOpen: !s.sizingSimOpen }); if (!s.sizingSimOpen) T.runBacktestLive(); }) + ' class="hv-el" style="display:flex; align-items:center; justify-content:space-between; padding:13px 18px; background:#10151A; cursor:pointer">'
     + '<div style="font-size:14px">Which sizing would have been best for this wallet?</div><div style="' + simChevron + '">›</div></div>'
-    + (s.sizingSimOpen ?
+    + (s.sizingSimOpen && bestVariant ?
       '<div style="padding:16px 18px">'
       + '<div style="font-size:12.5px; color:rgba(255,255,255,.55); line-height:1.5">Replays the same window once per sizing rule — identical fees, slippage, cap and exposure limit. Only the stake rule changes. The winner is drawn into the chart above as the dotted amber line.</div>'
       + '<div style="font-size:13px; margin-top:12px">Best for this wallet and window: <strong style="color:#F5A623">' + esc(bestVariant.name) + '</strong> → $' + bestVariant.eq.toFixed(0) + ' final equity (' + (bestVariant.roi >= 0 ? '+' : '') + bestVariant.roi.toFixed(1) + '% ROI)</div>'
@@ -364,21 +314,46 @@ export function renderBacktester(T) {
     + '<div class="hv-bd35" style="font-size:13px; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:10px 16px; cursor:pointer">Mirror this on paper</div>'
     + '<div class="hv-bd35" style="font-size:13px; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:10px 16px; cursor:pointer">Save this setup</div>'
     + '</div>'
+    : ohneBacktestHtml())
     + '</div></div></div>';
+}
+
+/** Leerzustand fuer die Papier-Simulationsseiten. */
+function ohnePapierDatenHtml(titel, kicker, grund) {
+  return '<div>'
+    + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(255,255,255,.09)">'
+    + '<div style="' + M + '; font-size:10px; letter-spacing:.18em; color:#C8F542">' + kicker + '</div>'
+    + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">' + titel + '</div></div>'
+    + '<div style="padding:26px 24px">'
+    + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:22px 24px; max-width:760px">'
+    + '<div style="font-size:15px; font-weight:600">Nothing to show</div>'
+    + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:10px; line-height:1.65">' + grund + '</div>'
+    + '<div style="font-size:12.5px; color:rgba(255,255,255,.4); margin-top:12px; line-height:1.6">'
+    + 'This page used to fill itself with fixtures when the backend was silent, including a cash '
+    + 'balance, a profit figure and a real wallet address as the source. None of that was measured.'
+    + '</div></div></div></div>';
 }
 
 // ---------------------------------------------------------------- copy trade
 export function renderCopy(T) {
   const s = T.state;
   const live = T.liveData.copy;
-  const st = live && live.status ? live.status : { running: s.daemonOn, source: '0x204f…5e14 · Swisstony', scale: 0.42, cash: 312.40, auto_topup: false };
-  const kp = live && live.kpis ? live.kpis : { equity: 1043.18, contributions: 1000.00, pnl: 43.18, source_return_pct: 5.9, mirrored: 214, total: 231, skipped: 17, fidelity: 96, config_fidelity: 98, exec_fidelity: 94 };
-  const orders = live && live.orders ? live.orders : T.copyOrders;
-  const positions = live && live.positions ? live.positions : DEMO_COPY_POSITIONS;
-  const cashRows = live && live.cash_events ? live.cash_events : DEMO_CASH_ROWS;
-  const equityPts = live && live.equity_curve && live.equity_curve.length > 1 ? T.seriesPoints(live.equity_curve, 760, 240) : T.curve(4711, 60, 760, 240, 0.9, 3.4).pts;
-  const srcPts = live && live.source_curve && live.source_curve.length > 1 ? T.seriesPoints(live.source_curve, 900, 200) : T.curve(4712, 60, 900, 200, 1.05, 3.0).pts;
-  const minePts = live && live.equity_curve && live.equity_curve.length > 1 ? T.seriesPoints(live.equity_curve, 900, 200) : T.curve(4713, 60, 900, 200, 0.92, 3.2).pts;
+  // Keine erfundene Kasse und keine erfundene Rendite. Hier standen ein
+  // Kontostand von 312.40, ein Ergebnis von +43.18 und Treuequoten um 96
+  // Prozent als Rueckfall, samt einer echten Wallet-Adresse als Quelle.
+  const st = live && live.status ? live.status : null;
+  const kp = live && live.kpis ? live.kpis : null;
+  const orders = live && live.orders ? live.orders : [];
+  const positions = live && live.positions ? live.positions : [];
+  if (!st || !kp) {
+    return ohnePapierDatenHtml('Mirror a wallet with fake money', 'COPY TRADE · PAPER',
+      'The copy daemon writes its state to <span style="' + M + '">data/copy_trading.sqlite</span>, '
+      + 'which the API reads. Either the backend is not reachable or the daemon has not run yet.');
+  }
+  const cashRows = live && live.cash_events ? live.cash_events : [];
+  const equityPts = live && live.equity_curve && live.equity_curve.length > 1 ? T.seriesPoints(live.equity_curve, 760, 240) : '';
+  const srcPts = live && live.source_curve && live.source_curve.length > 1 ? T.seriesPoints(live.source_curve, 900, 200) : '';
+  const minePts = live && live.equity_curve && live.equity_curve.length > 1 ? T.seriesPoints(live.equity_curve, 900, 200) : '';
 
   const copyTabs = [['orders','Orders'],['positions','Positions'],['perf','Performance'],['fidelity','Copy fidelity'],['cash','Cash events']].map((o) => T.tab(o[1], s.copyTab === o[0], { copyTab: o[0] })).join('');
 
@@ -548,8 +523,13 @@ function fidelityBar(label, valueLabel, pct, color, valueColor) {
 export function renderPortfolio(T) {
   const s = T.state;
   const live = T.liveData.copy;
-  const kp = live && live.kpis ? live.kpis : { equity: 1043.18, cash: 312.40, unrealized: 28.60, open_positions: 14 };
-  const equityPts = live && live.equity_curve && live.equity_curve.length > 1 ? T.seriesPoints(live.equity_curve, 900, 220) : T.curve(4711, 60, 900, 220, 0.9, 3.4).pts;
+  const kp = live && live.kpis ? live.kpis : null;
+  if (!kp) {
+    return ohnePapierDatenHtml('Your paper book', 'PORTFOLIO · PAPER',
+      'The positions here come from the same paper sub-account as the copy page. '
+      + 'Without the API there is no book to show.');
+  }
+  const equityPts = live && live.equity_curve && live.equity_curve.length > 1 ? T.seriesPoints(live.equity_curve, 900, 220) : '';
   const watch = trackWatchRows(T);
   // Live-Positionen des Copy-Traders in die Portfolio-Zeilen [Markt, Seite, Entry, Now, Profit, Quelle]
   const livePortRows = live && live.positions && live.positions.length ? live.positions.map((r) => [
@@ -563,7 +543,7 @@ export function renderPortfolio(T) {
 
   let body = '';
   if (s.portTab === 'positions') {
-    const baseRows = livePortRows || DEMO_PORT_ROWS;
+    const baseRows = livePortRows || [];
     const rows = baseRows.filter((r) => (s.portSource === 'all' || r[5] === s.portSource) && (s.portSide === 'all' || r[1] === s.portSide) && (!s.portLosers || r[4].charAt(0) === '-') && (!s.portQuery.trim() || r[0].toLowerCase().indexOf(s.portQuery.trim().toLowerCase()) >= 0));
     body = '<div>'
       + '<div style="padding:14px 24px 0; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px 18px">'
@@ -653,7 +633,7 @@ export function renderPortfolio(T) {
         + '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Cash not deployed</span><span style="' + M + '">$312 · 23%</span></div>')
       + '</div></div></div>';
   } else if (s.portTab === 'history') {
-    const histRows = liveHistRows || DEMO_HIST_ROWS;
+    const histRows = liveHistRows || [];
     body = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:14px 24px; overflow:hidden">'
       + '<div style="display:grid; grid-template-columns:110px 1fr 78px 92px 92px 100px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
       + '<div>DATE</div><div>MARKET</div><div style="text-align:right">SIDE</div><div style="text-align:right">ENTRY</div><div style="text-align:right">EXIT</div><div style="text-align:right">RESULT</div></div>'
