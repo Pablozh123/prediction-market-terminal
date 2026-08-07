@@ -115,6 +115,17 @@ class WebLeerzustandTest(unittest.TestCase):
         whale = _sichtbarer_text(self.ausgabe["live"]["whale"])
         self.assertIn("$9.0k", whale)
 
+    def test_backtester_nennt_das_gebuehrenmodell(self) -> None:
+        # Voreinstellung ist die Venue-Kurve, und der Kopf des Laufs sagt es.
+        kurve = _sichtbarer_text(self.ausgabe["leer"]["backtester_advanced"])
+        self.assertIn("FEE MODEL", kurve)
+        self.assertIn("fees on the venue curve", kurve)
+        self.assertIn("250 bps", kurve)
+        # Der pauschale Satz bleibt erreichbar und wird als solcher benannt.
+        flach = _sichtbarer_text(self.ausgabe["leer"]["backtester_flat_fee"])
+        self.assertIn("FLAT FEE (BPS)", flach)
+        self.assertIn("fees 20 bps flat", flach)
+
     def test_regel_treffer_kommen_aus_dem_feed(self) -> None:
         # Der Feed traegt genau einen Whale-Print, also steht dort eine 1 und
         # bei den uebrigen eingeschalteten Regeln eine 0.
@@ -122,8 +133,16 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("no feed loaded", leer)
         live = _sichtbarer_text(self.ausgabe["live"]["alerts_rules"])
         self.assertNotIn("no feed loaded", live)
-        self.assertIn("1 in this snapshot", live)
-        self.assertIn("0 in this snapshot", live)
+        # Gezaehlt wird der ganze Scan, nicht die abgeschnittene Tabelle: der
+        # Feed traegt eine Whale-Zeile, der Scan meldet fuenf.
+        self.assertIn("5 in this scan", live)
+        self.assertIn("0 in this scan", live)
+        # Eine nicht ausgewertete Regel meldet keine Null.
+        self.assertIn("not evaluated by this endpoint", live)
+
+    def test_abgeschnittene_signalliste_sagt_es(self) -> None:
+        live = _sichtbarer_text(self.ausgabe["live"]["alerts"])
+        self.assertIn("showing the top 60 of 125 signals", live)
 
     def test_seitenleiste_ohne_papierstand(self) -> None:
         # Die Seitenleiste wird nicht ueber den Harness gerendert, sie haengt

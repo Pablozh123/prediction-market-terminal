@@ -103,17 +103,27 @@ export function renderAlerts(T) {
     live ? { quelle: live._quelle === 'fehler' ? 'fehler' : 'leer', fehler: live._fehler } : null, '/api/alerts');
   const feedAll = live && live.signals ? live.signals : [];
   const feed = feedAll.filter((a) => (s.alertPlatform === 'all' || a.venue === s.alertPlatform) && (s.alertType === 'all' || a.rule === s.alertType) && (s.alertScope === 'all' || a.watched) && (!s.alertQuery.trim() || a.market.toLowerCase().indexOf(s.alertQuery.trim().toLowerCase()) >= 0));
-  // Gezaehlt wird der Feed, den die Seite gerade zeigt, und die Zeile sagt
-  // das auch. Fest verdrahtet standen hier 14, 6, 31 und 4 Treffer "heute" —
-  // an jedem Tag dieselben, unabhaengig davon, was der Scanner fand.
+  // Fest verdrahtet standen hier 14, 6, 31 und 4 Treffer "heute" — an jedem
+  // Tag dieselben. Gezaehlt wird jetzt der ganze Scan, nicht die Tabelle:
+  // die zeigt nur die ersten 60 Zeilen, und wer die zaehlt, meldet fuer eine
+  // Regel null, die in Wahrheit hundertfach ausgeloest hat. Und eine Regel,
+  // die der Endpunkt gar nicht auswertet, sagt das statt einer Null.
   const REGEL_SIGNAL = {
     movers: 'FAST MOVER', volume: 'VOLUME ANOMALY', whales: 'WHALE PRINT',
     spreads: 'TIGHT SPREAD', holders: 'HOLDER CONCENTRATION', endings: 'ENDING SOON'
   };
+  const zaehlung = (live && live.rule_counts) || null;
+  const ungeprueft = (live && live.rules_not_evaluated) || [];
+  const gesamtTreffer = zaehlung ? Object.keys(zaehlung).reduce((a, k) => a + (zaehlung[k] || 0), 0) : 0;
   const trefferText = (key, an) => {
+    // Eine Regel, die der Endpunkt nicht auswertet, sagt das auch dann, wenn
+    // der Schalter aus ist: sonst schaltet ein Leser sie ein und wartet auf
+    // Treffer, die nie kommen koennen.
+    if (ungeprueft.indexOf(REGEL_SIGNAL[key]) >= 0) return 'not evaluated by this endpoint';
     if (!an) return 'off';
     if (!live || !live.signals) return 'no feed loaded';
-    return feedAll.filter((a) => a.rule === REGEL_SIGNAL[key]).length + ' in this snapshot';
+    if (!zaehlung) return 'no count reported';
+    return (zaehlung[REGEL_SIGNAL[key]] || 0) + ' in this scan';
   };
   const rules = [
     { key: 'movers', name: 'Fast movers', desc: 'A market moves more than five cents in under an hour.' },
@@ -128,6 +138,12 @@ export function renderAlerts(T) {
   if (s.alertTab === 'signals') {
     body = '<div>'
       + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); padding:14px 24px 0">showing signals over ' + s.thMove + '¢ moves, prints above $' + num(s.thWhale) + ', spreads under ' + s.thSpread + '¢, resolving within ' + s.thEnding + ' h' + (live && live.as_of ? ' · snapshot ' + esc(live.as_of) : '') + '</div>'
+      // Der Schnitt gehoert danebengeschrieben. Eine Tabelle, die 60 von 300
+      // Zeilen zeigt und das verschweigt, liest sich wie der ganze Scan.
+      + (zaehlung && live.shown_limit && gesamtTreffer > live.shown_limit
+        ? '<div style="' + M + '; font-size:11px; color:#F5A623; padding:6px 24px 0">'
+          + 'showing the top ' + live.shown_limit + ' of ' + num(gesamtTreffer) + ' signals in this scan</div>'
+        : '')
       + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:12px 24px; overflow:hidden">'
       + '<div style="display:grid; grid-template-columns:92px 170px 1fr 110px 120px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
       + '<div>TIME</div><div>SIGNAL</div><div>MARKET</div><div style="text-align:right">READING</div><div style="text-align:right">VENUE</div></div>'

@@ -51,6 +51,7 @@ function neuesT() {
       searchQuery: '', btStrategy: 'copy', btWindow: 30, btWallet: '0xabc', btSizing: 'fixed',
       btStakeFixed: 25, btStakePct: 2, btStakeMult: 1, btStakeKelly: 5, btCap: 250,
       btExposure: 50, btBankroll: 1000, btFee: 20, btSlip: 15, btCompare: '', btTab: 'log',
+      btFeeModel: 'curve',
       advancedOpen: false, sizingSimOpen: false, researchTab: 0, liveTab: 'runs',
       alertsOn: { movers: true, volume: true, whales: true, spreads: false, holders: false, endings: true },
       settingsOn: { telegram: true, autotop: false, kalshi: true, sports: false, cache: true, admin: true },
@@ -132,7 +133,12 @@ function mitDaten(T) {
   };
   T.liveData.alerts = {
     _quelle: 'live', as_of: '2026-08-07',
-    signals: [{ time: '12:00', rule: 'WHALE PRINT', market: 'Example question', value: '$9k', venue: 'Polymarket', watched: false }]
+    signals: [{ time: '12:00', rule: 'WHALE PRINT', market: 'Example question', value: '$9k', venue: 'Polymarket', watched: false }],
+    // Der Scan fand mehr, als die Tabelle zeigt, und eine Regel wurde gar
+    // nicht ausgewertet — beide Faelle muessen sich in der Anzeige trennen.
+    rule_counts: { 'WHALE PRINT': 5, 'FAST MOVER': 0, 'ENDING SOON': 120 },
+    rules_not_evaluated: ['HOLDER CONCENTRATION'],
+    shown_limit: 60
   };
   T.liveData.copy = { _quelle: 'live', equity: 1000, pnl: 0, pnl_pct: 0, orders: [] };
   T.liveData.track = { _quelle: 'live', wallets: [], watchlist: [] };
@@ -164,6 +170,8 @@ function rendern(T) {
   // Reiter innerhalb einer Seite sind eigene Ansichten mit eigenen
   // Rueckfaellen. Sie werden hier einzeln durchgerendert.
   const varianten = [
+    ['backtester_advanced', 'backtester', { advancedOpen: true }],
+    ['backtester_flat_fee', 'backtester', { advancedOpen: true, btFeeModel: 'flat' }],
     ['alerts_rules', 'alerts', { alertTab: 'rules' }],
     ['alerts_deliveries', 'alerts', { alertTab: 'deliveries' }],
     ['risk_wallets', 'risk', { riskView: 'wallets' }],

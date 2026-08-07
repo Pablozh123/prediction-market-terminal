@@ -238,13 +238,30 @@ def risk_payload(wallet_scores: pd.DataFrame, event_scores: pd.DataFrame) -> dic
     }
 
 
+#: Wie viele Signalzeilen der Feed hoechstens ausliefert.
+ALERT_ROW_LIMIT = 60
+
+
+def alert_rule_counts(signals: pd.DataFrame) -> dict[str, int]:
+    """Treffer je Signalart ueber den ganzen Frame, nicht ueber die Anzeige.
+
+    ``alert_rows`` schneidet nach 60 Zeilen ab. Wer die Treffer aus der
+    angezeigten Tabelle zaehlt, zaehlt den Schnitt mit und meldet fuer eine
+    Regel null, obwohl der Scanner sie hundertfach ausgeloest hat.
+    """
+    if signals is None or signals.empty or "signal_type" not in signals:
+        return {}
+    zaehlung = signals["signal_type"].astype(str).str.upper().value_counts()
+    return {str(art): int(anzahl) for art, anzahl in zaehlung.items()}
+
+
 def alert_rows(signals: pd.DataFrame) -> list[dict[str, Any]]:
     """`sig.build_monitor_signals`-Frame in die Signal-Feed-Zeilen."""
 
     if signals is None or signals.empty:
         return []
     rows: list[dict[str, Any]] = []
-    for _, row in signals.head(60).iterrows():
+    for _, row in signals.head(ALERT_ROW_LIMIT).iterrows():
         time_label = _text(row.get("time"))
         if "T" in time_label:
             time_label = time_label.split("T")[1][:5]
