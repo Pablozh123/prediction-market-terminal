@@ -1,8 +1,8 @@
 // Market Intel terminal — vanilla JS port of the design reference.
 // One controller class; each workspace renders as an HTML string from state.
 
-import { num, money, esc, spark, curve, seriesPoints } from './util.js';
-import * as demo from './demo_data.js';
+import { num, money, esc, spark, seriesPoints } from './util.js';
+import { STUDIEN } from './studies.js';
 import { apiGet, apiPost } from './api.js';
 import { renderOverview, renderMarkets, renderFlow, renderCross, renderResolved } from './pages/core_pages.js';
 import { renderTraders, renderWhale, renderRisk, renderTrack } from './pages/trader_pages.js';
@@ -77,17 +77,23 @@ class Terminal {
       live: 'demo', liveAsOf: ''
     };
 
-    // Mutable data containers — start on the demo set, replaced by API data.
-    this.markets = demo.DEMO_MARKETS.slice();
-    this.marketExtra = Object.assign({}, demo.DEMO_MARKET_EXTRA);
-    this.traders = demo.DEMO_TRADERS.slice();
-    this.traderExtra = Object.assign({}, demo.DEMO_TRADER_EXTRA);
-    this.risks = demo.DEMO_RISKS.slice();
-    this.tape = demo.DEMO_TAPE.slice();
-    this.copyOrders = demo.DEMO_COPY_ORDERS.slice();
-    this.crossPairs = demo.DEMO_CROSS_PAIRS.slice();
-    this.studies = demo.STUDIES;
-    this.studyTables = demo.STUDY_TABLES;
+    // Datencontainer. Sie starten leer, nicht auf einem Demo-Satz: bis eine
+    // Antwort da ist, gibt es nichts zu zeigen. Frueher standen hier zwoelf
+    // erfundene Maerkte, acht erfundene Wallets und ein erfundener Tape, und
+    // jede Seite rechnete ihre Kennzahlen daraus aus.
+    this.markets = [];
+    this.marketExtra = {};
+    this.traders = [];
+    this.traderExtra = {};
+    this.risks = [];
+    this.tape = [];
+    this.crossPairs = [];
+    this.studies = STUDIEN;
+    // Herkunft je Container: null heisst noch keine Antwort, sonst
+    // { quelle: 'live' | 'leer' | 'fehler', fehler }. Eine leere Antwort und
+    // eine ausgebliebene Antwort sagen Verschiedenes, und beides ist etwas
+    // anderes als eine Zeile, die jemand hingeschrieben hat.
+    this.herkunft = { markets: null, tape: null, traders: null, risks: null, cross: null };
     // Zweites Adresssegment aufloesen: #research/microstructure soll die
     // Studie oeffnen, nicht die erste in der Liste.
     const segmente = (location.hash || '').replace('#', '').split('/');
@@ -117,7 +123,6 @@ class Terminal {
   money(n) { return money(n); }
   esc(v) { return esc(v); }
   spark(a) { return spark(a); }
-  curve(seed, n, w, h, drift, vol) { return curve(seed, n, w, h, drift, vol); }
   seriesPoints(v, w, h) { return seriesPoints(v, w, h); }
 
   // ---- action / input registries (rebuilt every render) ----
@@ -288,10 +293,13 @@ class Terminal {
   }
 
   renderSidebar() {
+    const hoheRisiken = this.risks.filter((r) => r.sev === 'high').length;
     const groups = [
       { label: 'DASHBOARD', items: [this.navItem('overview', 'Overview')] },
-      { label: 'MARKETS', items: [this.navItem('markets', 'Markets'), this.navItem('flow', 'Live tape', String(this.tape.length)), this.navItem('cross', 'Cross-venue'), this.navItem('resolved', 'Resolved')] },
-      { label: 'TRADERS', items: [this.navItem('traders', 'Leaderboard'), this.navItem('whale', 'Whale flow'), this.navItem('risk', 'Risk screen', String(this.risks.filter((r) => r.sev === 'high').length), 'amber'), this.navItem('track', 'Tracked')] },
+      // Kein Zaehler ohne Daten: eine 0 im Abzeichen liest sich als Messung,
+      // solange gar nichts geladen ist.
+      { label: 'MARKETS', items: [this.navItem('markets', 'Markets'), this.navItem('flow', 'Live tape', this.tape.length ? String(this.tape.length) : ''), this.navItem('cross', 'Cross-venue'), this.navItem('resolved', 'Resolved')] },
+      { label: 'TRADERS', items: [this.navItem('traders', 'Leaderboard'), this.navItem('whale', 'Whale flow'), this.navItem('risk', 'Risk screen', hoheRisiken ? String(hoheRisiken) : '', 'amber'), this.navItem('track', 'Tracked')] },
       { label: 'TRADING', items: [this.navItem('copy', 'Copy trade'), this.navItem('backtester', 'Backtester'), this.navItem('portfolio', 'Portfolio')] },
       { label: 'SYSTEM', items: [this.navItem('alerts', 'Alerts'), this.navItem('settings', 'Settings')] },
       { label: 'RESEARCH', items: this.studies.map((st, i) => this.navStudy(i, st.tab)) }
@@ -301,10 +309,20 @@ class Terminal {
       + '<div style="font-family:\'JetBrains Mono\',monospace; font-size:10px; letter-spacing:.18em; padding:0 6px 6px; color:rgba(255,255,255,.35)">' + g.label + '</div>'
       + g.items.join('') + '</div>'
     ).join('');
+    // Der Kasten zeigt nur eine Summe, wenn der Papierstand gemeldet wurde.
+    // Stand und Gewinn waren hier fest verdrahtet — derselbe erfundene
+    // Kontostand, der auf der Copy-Seite schon geloescht wurde, nur eine
+    // Ebene hoeher und auf jeder Seite sichtbar.
     const copyLive = this.liveData.copy;
-    const equity = copyLive && copyLive.equity != null ? copyLive.equity : 1043.18;
-    const pnl = copyLive && copyLive.pnl != null ? copyLive.pnl : 43.18;
-    const pnlPct = copyLive && copyLive.pnl_pct != null ? copyLive.pnl_pct : 4.3;
+    const equity = copyLive && copyLive.equity != null ? copyLive.equity : null;
+    const pnl = copyLive && copyLive.pnl != null ? copyLive.pnl : null;
+    const pnlPct = copyLive && copyLive.pnl_pct != null ? copyLive.pnl_pct : null;
+    const equityBlock = equity == null
+      ? '<div style="font-family:\'JetBrains Mono\',monospace; font-size:12px; color:rgba(255,255,255,.45); margin-top:5px; line-height:1.5">No paper account reported by /api/copy.</div>'
+      : '<div style="font-family:\'JetBrains Mono\',monospace; font-size:19px; margin-top:5px">$' + num(equity.toFixed(2)) + '</div>'
+        + (pnl == null ? '' : '<div style="font-family:\'JetBrains Mono\',monospace; font-size:12px; color:' + (pnl >= 0 ? '#C8F542' : '#FF4545') + '">'
+          + (pnl >= 0 ? '+' : '-') + '$' + Math.abs(pnl).toFixed(2)
+          + (pnlPct == null ? '' : ' · ' + (pnlPct >= 0 ? '+' : '') + pnlPct.toFixed(1) + '%') + '</div>');
     return ''
       + '<div style="display:flex; align-items:center; gap:9px; padding:0 6px 18px">'
       + '<div style="width:10px; height:10px; background:#C8F542; transform:rotate(45deg)"></div>'
@@ -315,9 +333,8 @@ class Terminal {
       + groupHtml
       + '<div style="margin-top:auto; padding-top:16px">'
       + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:10px; padding:11px 13px; background:#10151A">'
-      + '<div style="font-family:\'JetBrains Mono\',monospace; font-size:9.5px; letter-spacing:.14em; color:rgba(255,255,255,.45)">PAPER EQUITY · DEMO</div>'
-      + '<div style="font-family:\'JetBrains Mono\',monospace; font-size:19px; margin-top:5px">$' + num(equity.toFixed(2)) + '</div>'
-      + '<div style="font-family:\'JetBrains Mono\',monospace; font-size:12px; color:' + (pnl >= 0 ? '#C8F542' : '#FF4545') + '">' + (pnl >= 0 ? '+' : '-') + '$' + Math.abs(pnl).toFixed(2) + ' · ' + (pnl >= 0 ? '+' : '') + pnlPct.toFixed(1) + '%</div></div>'
+      + '<div style="font-family:\'JetBrains Mono\',monospace; font-size:9.5px; letter-spacing:.14em; color:rgba(255,255,255,.45)">PAPER EQUITY</div>'
+      + equityBlock + '</div>'
       + '<div style="font-family:\'JetBrains Mono\',monospace; font-size:9.5px; line-height:1.6; color:rgba(255,255,255,.35); margin-top:12px">Research only. No orders placed. Public Polymarket &amp; Kalshi data.</div></div>';
   }
 
@@ -342,16 +359,26 @@ class Terminal {
         apiGet('/api/tape?limit=250')
       ]);
       const { mapMarket, mapTrade } = await import('./util.js');
-      if (mk.rows && mk.rows.length) {
-        this.markets = mk.rows.map((r, i) => mapMarket(r, i));
-        this.marketExtra = {};
-        this.markets.forEach((m) => { this.marketExtra[m.id] = m._extra; });
-      }
-      if (tp.rows && tp.rows.length) this.tape = tp.rows.map((r) => mapTrade(r));
+      // Uebernommen wird, was kommt, auch die leere Liste. Der frühere
+      // Laengen-Guard liess bei einer korrekt leeren Antwort die alten Zeilen
+      // stehen und meldete daneben LIVE.
+      this.markets = (mk.rows || []).map((r, i) => mapMarket(r, i));
+      this.marketExtra = {};
+      this.markets.forEach((m) => { this.marketExtra[m.id] = m._extra; });
+      this.herkunft.markets = { quelle: this.markets.length ? 'live' : 'leer' };
+      this.tape = (tp.rows || []).map((r) => mapTrade(r));
+      this.herkunft.tape = { quelle: this.tape.length ? 'live' : 'leer' };
       this.setState({ live: 'live', liveAsOf: String(mk.as_of || '') });
     } catch (err) {
+      // Nach einem geglueckten Lauf bleibt der letzte Stand stehen, die
+      // Kopfzeile sagt das bereits. Vorher gibt es nichts zu behalten.
+      const text = String(err && err.message ? err.message : err);
       if (this.state.live === 'live') this.setState({ live: 'error' });
-      else this.render();
+      else {
+        this.herkunft.markets = { quelle: 'fehler', fehler: text };
+        this.herkunft.tape = { quelle: 'fehler', fehler: text };
+        this.render();
+      }
     }
   }
 
@@ -377,27 +404,38 @@ class Terminal {
     this.render();
   }
 
+  // Herkunft eines Containers aus der Antwort ableiten, die holen() abgelegt
+  // hat. Vorhandensein entscheidet, nicht Laenge.
+  herkunftAus(schluessel, zeilen) {
+    const antwort = this.liveData[schluessel];
+    if (!antwort) return null;
+    if (antwort._quelle === 'fehler') return { quelle: 'fehler', fehler: antwort._fehler };
+    return { quelle: zeilen && zeilen.length ? 'live' : 'leer' };
+  }
+
   async fetchPageData(page) {
     if (page === 'traders') {
       await this.holen('leaderboard', '/api/leaderboard?limit=100', (lb) => {
-        if (lb.rows && lb.rows.length) this.applyLeaderboard(lb.rows);
+        this.applyLeaderboard(lb.rows || []);
       });
+      this.herkunft.traders = this.herkunftAus('leaderboard', this.traders);
     } else if (page === 'cross') {
       await this.holen('cross', '/api/cross', (cr) => {
-        if (!cr.rows || !cr.rows.length) return;
-        this.crossPairs = cr.rows;
-        // Reale Paare liegen oft unter der Demo-Schwelle 0.30 — Slider einmalig anpassen.
-        if (!cr.rows.some((r) => r.sim >= this.state.crossSim)) {
-          const best = Math.max.apply(null, cr.rows.map((r) => r.sim));
+        this.crossPairs = cr.rows || [];
+        // Reale Paare liegen oft unter der Voreinstellung 0.30 — Slider einmalig anpassen.
+        if (this.crossPairs.length && !this.crossPairs.some((r) => r.sim >= this.state.crossSim)) {
+          const best = Math.max.apply(null, this.crossPairs.map((r) => r.sim));
           this.state.crossSim = Math.max(0.1, Math.floor(best * 50) / 50);
         }
       });
+      this.herkunft.cross = this.herkunftAus('cross', this.crossPairs);
     } else if (page === 'risk') {
       // Bewusst nicht mehr von der Startseite: der erste Aufbau paged einen Tag
       // Prints und schlaegt Marktkategorien nach, das blockierte die Overview.
       await this.holen('risk', '/api/risk', (rk) => {
-        if (rk.events && rk.events.length) this.risks = rk.events;
+        this.risks = rk.events || [];
       });
+      this.herkunft.risks = this.herkunftAus('risk', this.risks);
     } else if (page === 'alerts') {
       await this.holen('alerts', '/api/alerts');
     } else if (page === 'copy' || page === 'portfolio') {
