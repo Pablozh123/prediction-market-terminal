@@ -140,7 +140,9 @@ class HoldingPeriodTests(unittest.TestCase):
         self.assertIsNone(cvg.days_until(None))
 
     def test_a_distant_resolution_shrinks_the_annualised_return(self):
-        near = dict(pm_market(bid=0.30, ask=0.32), endDate="2026-09-01T00:00:00Z")
+        # Beide Horizonte liegen ueber der Annualisierungsgrenze von 30 Tagen,
+        # darunter wird bewusst nicht mehr hochgerechnet.
+        near = dict(pm_market(bid=0.30, ask=0.32), endDate="2027-01-01T00:00:00Z")
         far = dict(pm_market(bid=0.30, ask=0.32), endDate="2099-01-01T00:00:00Z")
         kalshi = [kalshi_market(bid=0.60, ask=0.62)]
         near_row = cvg.evaluate_candidate(cvg.find_candidates([near], kalshi)[0])

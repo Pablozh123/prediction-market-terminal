@@ -36,7 +36,8 @@ class PayloadTests(unittest.TestCase):
             with self.subTest(studie=s["id"]):
                 for feld in ("frage", "verdikt", "verdikt_art", "einfach", "report", "modul"):
                     self.assertTrue(s.get(feld), f"{feld} fehlt")
-                self.assertIn(s["verdikt_art"], (mr.VERDIKT_JA, mr.VERDIKT_NEIN, mr.VERDIKT_OFFEN))
+                self.assertIn(s["verdikt_art"], (
+                    mr.VERDIKT_JA, mr.VERDIKT_NEIN, mr.VERDIKT_OFFEN, mr.VERDIKT_KONTROLLE))
                 self.assertTrue(s.get("zahlen"), "keine Zahlen")
                 self.assertTrue(s.get("basis"), "keine Datenbasis")
 
@@ -99,6 +100,66 @@ class EinfachMitZahlenTests(unittest.TestCase):
                     self.assertNotIn(muster, s["einfach"], f"'{muster}' im Text")
 
 
+class StichprobeTests(unittest.TestCase):
+    """Die Kopfzahl muss aus einer Zelle stammen, nicht aus deren Summe."""
+
+    def test_beobachtungen_liegen_nicht_ueber_den_snapshots(self):
+        for s in mr.build_payload(PROJEKT)["studien"]:
+            basis = s.get("basis") or {}
+            if not (basis.get("beobachtungen") and basis.get("snapshots")):
+                continue
+            with self.subTest(studie=s["id"]):
+                self.assertLessEqual(
+                    basis["beobachtungen"], basis["snapshots"],
+                    "mehr Beobachtungen als Snapshots deutet auf gepoolte "
+                    "ueberlappende Zellen hin",
+                )
+
+    def test_kanonische_zelle_wird_gewaehlt(self):
+        studie = next(
+            s for s in mr.build_payload(PROJEKT)["studien"] if s["id"] == "imbalance-direction"
+        )
+        roh = json.loads((PROJEKT / mr.REPORT_DIR / "orderflow_rest-2026-07.json").read_text(encoding="utf-8"))
+        zelle = mr._kanon_zelle(roh["signals"]["imbalance"])
+        self.assertEqual(studie["basis"]["beobachtungen"], zelle["n"])
+        self.assertNotEqual(zelle["n"], roh["signals"]["imbalance"]["overall"]["n"])
+
+    def test_jede_studie_nennt_ihr_kalenderfenster(self):
+        for s in mr.build_payload(PROJEKT)["studien"]:
+            with self.subTest(studie=s["id"]):
+                self.assertTrue((s.get("basis") or {}).get("fenster"), "kein Zeitfenster")
+
+
+class VerdiktTests(unittest.TestCase):
+    def test_kontrollstudie_zaehlt_nicht_als_bestaetigt(self):
+        p = mr.build_payload(PROJEKT)
+        kontrolle = [s for s in p["studien"] if s["verdikt_art"] == mr.VERDIKT_KONTROLLE]
+        self.assertTrue(kontrolle, "keine Kontrollstudie ausgewiesen")
+        self.assertEqual(p["zaehler"]["kontrolle"], len(kontrolle))
+        for s in kontrolle:
+            self.assertNotIn(s["id"], [x["id"] for x in p["studien"] if x["verdikt_art"] == mr.VERDIKT_JA])
+
+    def test_bestaetigtes_verdikt_faengt_nicht_mit_nein_an(self):
+        """Genau der Widerspruch, den die Pruefung gefunden hat.
+
+        `book-reconcile` trug das Badge CONFIRMED ueber einem Verdikt, das
+        mit "No." beginnt. In den Kopfkacheln war das als bestaetigte
+        Hypothese gezaehlt, obwohl die Studie eine Kontrolle ist.
+        """
+        for s in mr.build_payload(PROJEKT)["studien"]:
+            if s["verdikt_art"] != mr.VERDIKT_JA:
+                continue
+            with self.subTest(studie=s["id"]):
+                self.assertFalse(
+                    s["verdikt"].strip().lower().startswith("no"),
+                    "Badge CONFIRMED, aber das Verdikt beginnt mit No",
+                )
+
+    def test_zaehler_summiert_alle_arten(self):
+        z = mr.build_payload(PROJEKT)["zaehler"]
+        self.assertEqual(z["nein"] + z["ja"] + z["offen"] + z["kontrolle"], z["gesamt"])
+
+
 class DetailTabellenTests(unittest.TestCase):
     def test_tabellen_sind_wohlgeformt(self):
         for s in mr.build_payload(PROJEKT)["studien"]:
@@ -116,7 +177,7 @@ class DetailTabellenTests(unittest.TestCase):
 
     def test_zaehler_summiert_auf(self):
         z = mr.build_payload(PROJEKT)["zaehler"]
-        self.assertEqual(z["nein"] + z["ja"] + z["offen"], z["gesamt"])
+        self.assertEqual(z["nein"] + z["ja"] + z["offen"] + z["kontrolle"], z["gesamt"])
 
     def test_report_und_modul_existieren(self):
         for s in mr.build_payload(PROJEKT)["studien"]:
@@ -180,7 +241,13 @@ class ZahlenKommenAusDenReportsTests(unittest.TestCase):
             wurzel = _kopiere_studien(Path(tmp))
             pfad = wurzel / mr.REPORT_DIR / "orderflow_rest-2026-07.json"
             daten = json.loads(pfad.read_text(encoding="utf-8"))
-            daten["signals"]["imbalance"]["overall"]["hit_rate"] = 0.611
+            # Die kanonische Zelle aendern, nicht die gepoolte Summe: die
+            # Seite liest bewusst genau diese Zelle.
+            zelle = next(
+                z for z in daten["signals"]["imbalance"]["latency"][mr.KANON_HORIZONT]
+                if float(z["delay_s"]) == mr.KANON_DELAY
+            )
+            zelle["hit_rate"] = 0.611
             pfad.write_text(json.dumps(daten), encoding="utf-8")
 
             studie = next(

@@ -22,7 +22,7 @@ cannot trade through this code.
 
 | Question | Data | Verdict | Report | Module |
 |---|---|---|---|---|
-| Does book imbalance predict direction? | 1,011,556 observations, 11 days | Yes. 55.2% hit rate, Wilson lower bound 55.0% | [order flow](orderflow_rest-2026-07.md) | [`src/orderflow_study.py`](../../src/orderflow_study.py) |
+| Does book imbalance predict direction? | 205,835 firings, 11 days | Yes. 55.5% hit rate, Wilson lower bound 55.2% | [order flow](orderflow_rest-2026-07.md) | [`src/orderflow_study.py`](../../src/orderflow_study.py) |
 | Can it be taken as a taker? | same basis, net of both cost legs | No. Gross edge +0.03 to +0.13 cents against a 2.58 cent round trip (0.94 spread, 1.65 fee) | [order flow](orderflow_rest-2026-07.md) | [`app/venue_fees.py`](../../app/venue_fees.py) |
 | Is signed order flow a signal? | 450,492 observations | No. 51.3% hit rate and gross edge already negative | [order flow](orderflow_rest-2026-07.md) | [`src/orderflow_study.py`](../../src/orderflow_study.py) |
 | Does any segment rescue the signal? | 205,835 firings, 34 ex-ante cuts, 3 fee scenarios | No. Exactly one cut survives in and out of sample, and its day-resampled CI contains zero — the expected false-positive count at 34 tests | [segments](edge_segments_july-2026.md) | [`src/edge_segments.py`](../../src/edge_segments.py) |

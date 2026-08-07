@@ -222,6 +222,14 @@ def basket_economics(leg_a: BasketLeg, leg_b: BasketLeg,
     return result
 
 
+# Unterhalb dieses Horizonts wird nicht annualisiert. Ein Paar mit vier Tagen
+# Restlaufzeit und 79 Cent Rohabstand ergibt hochgerechnet 1e63 Prozent. Die
+# Potenz ist rechnerisch korrekt und als Aussage wertlos: sie unterstellt, der
+# Abstand liesse sich 91 Mal im Jahr wiederholen. Ein solcher Wert in einer
+# Ergebnistabelle kostet mehr Glaubwuerdigkeit, als die Zeile wert ist.
+MIN_ANNUALISIERUNG_TAGE = 30.0
+
+
 def annualised_return(return_on_capital: float | None,
                       days_to_resolution: float) -> float | None:
     """Compound a holding-period return to a yearly rate.
@@ -229,11 +237,16 @@ def annualised_return(return_on_capital: float | None,
     A basket that nets 0.4 percent but sits for four months is not a 0.4 percent
     trade, it is a roughly 1.2 percent annual carry, which is the comparison
     that matters against simply holding the collateral.
+
+    Returns ``None`` when the horizon is shorter than
+    ``MIN_ANNUALISIERUNG_TAGE``: extrapolating a single short-dated observation
+    to a yearly rate is not a measurement, and the resulting figure is absurd
+    rather than merely imprecise.
     """
     if return_on_capital is None:
         return None
     days = float(days_to_resolution)
-    if days <= 0:
+    if days <= 0 or days < MIN_ANNUALISIERUNG_TAGE:
         return None
     base = 1.0 + float(return_on_capital)
     if base <= 0:
