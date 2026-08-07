@@ -21,7 +21,10 @@ const PAGES = {
 class Terminal {
   constructor() {
     this.state = {
-      page: (location.hash || '').replace('#', '') in PAGES ? location.hash.replace('#', '') : 'overview',
+      // Nur das erste Segment bestimmt die Seite; das zweite waehlt weiter
+      // unten die Studie aus, sobald die Studienliste steht.
+      page: (location.hash || '').replace('#', '').split('/')[0] in PAGES
+        ? (location.hash || '').replace('#', '').split('/')[0] : 'overview',
       tapeMin: 2500,
       tapeTracked: false,
       marketCat: 'All',
@@ -85,6 +88,16 @@ class Terminal {
     this.crossPairs = demo.DEMO_CROSS_PAIRS.slice();
     this.studies = demo.STUDIES;
     this.studyTables = demo.STUDY_TABLES;
+    // Zweites Adresssegment aufloesen: #research/microstructure soll die
+    // Studie oeffnen, nicht die erste in der Liste.
+    const segmente = (location.hash || '').replace('#', '').split('/');
+    if (segmente[0] === 'research' && segmente[1]) {
+      const treffer = this.studienIndexAus(segmente[1]);
+      if (treffer >= 0) {
+        this.state.page = 'research';
+        this.state.researchTab = treffer;
+      }
+    }
     // Per-endpoint live payloads; templates use these when present, demo otherwise.
     this.liveData = { leaderboard: null, cross: null, risk: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {} };
 
@@ -244,13 +257,33 @@ class Terminal {
     const active = this.state.page === 'research' && this.state.researchTab === i;
     const style = 'display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 10px; border-radius:7px; cursor:pointer; margin-bottom:2px; border-left:2px solid ' + (active ? '#4F8EF7' : 'transparent') + '; background:' + (active ? 'rgba(79,142,247,.12)' : 'transparent');
     const labelStyle = 'font-size:13px; color:' + (active ? '#ffffff' : 'rgba(255,255,255,.55)') + '; font-weight:' + (active ? '600' : '400');
-    return '<div ' + this.act(() => { this.setState({ page: 'research', researchTab: i, detail: null }); this.fetchPageData('research'); }) + ' class="hv-el" style="' + style + '">'
+    return '<div ' + this.act(() => {
+      this.setState({ page: 'research', researchTab: i, detail: null });
+      // Eigene Adresse je Studie: eine Bewerbung wird als Link verschickt, und
+      // ein Verweis auf #research landete bisher immer auf der Review queue.
+      try { history.pushState(null, '', '#research/' + this.studienSlug(i)); } catch (e) { /* file:// */ }
+      this.fetchPageData('research');
+    }) + ' class="hv-el" style="' + style + '">'
       + '<span style="' + labelStyle + '">' + esc(label) + '</span></div>';
+  }
+
+  studienSlug(i) {
+    const st = this.studies[i];
+    return st ? st.tab.toLowerCase().replace(/ /g, '-') : String(i);
+  }
+
+  studienIndexAus(slug) {
+    if (!slug) return -1;
+    for (let i = 0; i < this.studies.length; i += 1) {
+      if (this.studienSlug(i) === slug) return i;
+    }
+    return -1;
   }
 
   go(id) {
     this.setState({ page: id, detail: null });
-    try { history.replaceState(null, '', '#' + id); } catch (e) { /* file:// */ }
+    // pushState statt replaceState: der Zurueck-Knopf soll funktionieren.
+    try { history.pushState(null, '', '#' + id); } catch (e) { /* file:// */ }
     this.fetchPageData(id);
   }
 
@@ -322,54 +355,71 @@ class Terminal {
     }
   }
 
-  async fetchPageData(page) {
+  // Herkunft je Datenblock. Frueher entschieden Laengen-Guards: eine korrekt
+  // leere Live-Antwort liess die Demo stehen, und ein Fehler wurde still
+  // geschluckt. Beides fuehrte dazu, dass die Seite erfundene Zahlen zeigte
+  // und dabei LIVE meldete. Jetzt wird jede Antwort abgelegt, auch die leere,
+  // und ein Fehler ebenfalls, damit die Seite sagen kann, was los ist.
+  async holen(schluessel, pfad, danach) {
+    if (this.liveData[schluessel]) return;
     try {
-      if (page === 'traders' && !this.liveData.leaderboard) {
-        const lb = await apiGet('/api/leaderboard?limit=100');
-        if (lb.rows && lb.rows.length) { this.liveData.leaderboard = lb; this.applyLeaderboard(lb.rows); this.render(); }
-      } else if (page === 'cross' && !this.liveData.cross) {
-        const cr = await apiGet('/api/cross');
-        if (cr.rows && cr.rows.length) {
-          this.liveData.cross = cr;
-          this.crossPairs = cr.rows;
-          // Reale Paare liegen oft unter der Demo-Schwelle 0.30 — Slider einmalig anpassen.
-          if (!cr.rows.some((r) => r.sim >= this.state.crossSim)) {
-            const best = Math.max.apply(null, cr.rows.map((r) => r.sim));
-            this.state.crossSim = Math.max(0.1, Math.floor(best * 50) / 50);
-          }
-          this.render();
-        }
-      } else if ((page === 'risk' || page === 'overview') && !this.liveData.risk) {
-        const rk = await apiGet('/api/risk');
-        if (rk && (rk.events || rk.wallets)) {
-          this.liveData.risk = rk;
-          if (rk.events && rk.events.length) this.risks = rk.events;
-          this.render();
-        }
-      } else if (page === 'alerts' && !this.liveData.alerts) {
-        const al = await apiGet('/api/alerts');
-        if (al && al.signals) { this.liveData.alerts = al; this.render(); }
-      } else if ((page === 'copy' || page === 'portfolio') && !this.liveData.copy) {
-        const cp = await apiGet('/api/copy');
-        if (cp && cp.orders) { this.liveData.copy = cp; this.render(); }
-        if (page === 'portfolio' && !this.liveData.track) {
-          const tr = await apiGet('/api/track');
-          if (tr && (tr.wallets || tr.watchlist)) { this.liveData.track = tr; this.render(); }
-        }
-      } else if (page === 'resolved' && !this.liveData.resolved) {
-        const rs = await apiGet('/api/resolved');
-        if (rs && rs.rows && rs.rows.length) { this.liveData.resolved = rs; this.render(); }
-      } else if (page === 'track' && !this.liveData.track) {
-        const tr = await apiGet('/api/track');
-        if (tr && (tr.wallets || tr.watchlist)) { this.liveData.track = tr; this.render(); }
-      } else if (page === 'research') {
-        const key = this.studies[this.state.researchTab].tab;
-        if (!this.liveData.research[key]) {
-          const rs = await apiGet('/api/research/' + encodeURIComponent(key.toLowerCase().replace(/ /g, '-')));
-          if (rs) { this.liveData.research[key] = rs; this.render(); }
-        }
+      const antwort = await apiGet(pfad);
+      if (antwort && typeof antwort === 'object') {
+        antwort._quelle = 'live';
+        this.liveData[schluessel] = antwort;
+        if (danach) danach(antwort);
+      } else {
+        this.liveData[schluessel] = { _quelle: 'leer' };
       }
-    } catch (err) { /* stay on demo data */ }
+    } catch (err) {
+      this.liveData[schluessel] = { _quelle: 'fehler', _fehler: String(err && err.message ? err.message : err) };
+    }
+    this.render();
+  }
+
+  async fetchPageData(page) {
+    if (page === 'traders') {
+      await this.holen('leaderboard', '/api/leaderboard?limit=100', (lb) => {
+        if (lb.rows && lb.rows.length) this.applyLeaderboard(lb.rows);
+      });
+    } else if (page === 'cross') {
+      await this.holen('cross', '/api/cross', (cr) => {
+        if (!cr.rows || !cr.rows.length) return;
+        this.crossPairs = cr.rows;
+        // Reale Paare liegen oft unter der Demo-Schwelle 0.30 — Slider einmalig anpassen.
+        if (!cr.rows.some((r) => r.sim >= this.state.crossSim)) {
+          const best = Math.max.apply(null, cr.rows.map((r) => r.sim));
+          this.state.crossSim = Math.max(0.1, Math.floor(best * 50) / 50);
+        }
+      });
+    } else if (page === 'risk') {
+      // Bewusst nicht mehr von der Startseite: der erste Aufbau paged einen Tag
+      // Prints und schlaegt Marktkategorien nach, das blockierte die Overview.
+      await this.holen('risk', '/api/risk', (rk) => {
+        if (rk.events && rk.events.length) this.risks = rk.events;
+      });
+    } else if (page === 'alerts') {
+      await this.holen('alerts', '/api/alerts');
+    } else if (page === 'copy' || page === 'portfolio') {
+      await this.holen('copy', '/api/copy');
+      if (page === 'portfolio') await this.holen('track', '/api/track');
+    } else if (page === 'resolved') {
+      await this.holen('resolved', '/api/resolved');
+    } else if (page === 'track') {
+      await this.holen('track', '/api/track');
+    } else if (page === 'research') {
+      const key = this.studies[this.state.researchTab].tab;
+      if (!this.liveData.research[key]) {
+        const pfad = '/api/research/' + encodeURIComponent(key.toLowerCase().replace(/ /g, '-'));
+        try {
+          const rs = await apiGet(pfad);
+          this.liveData.research[key] = rs && typeof rs === 'object' ? rs : { _quelle: 'leer' };
+        } catch (err) {
+          this.liveData.research[key] = { _quelle: 'fehler', _fehler: String(err && err.message ? err.message : err) };
+        }
+        this.render();
+      }
+    }
   }
 
   applyLeaderboard(rows) {

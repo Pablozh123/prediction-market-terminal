@@ -784,6 +784,12 @@ async def kein_frontend_cache(request, call_next):
     return antwort
 
 
+# Die publizierten Nutzlasten unter /data ausliefern. Damit erreicht das
+# Frontend sie auch ohne laufende API ueber denselben relativen Pfad, und eine
+# statisch ausgelieferte Fassung braucht nur web/ plus public/data/ als data/.
+if PUBLISH_DIR.exists():
+    app.mount("/data", StaticFiles(directory=str(PUBLISH_DIR)), name="publish")
+
 # Frontend ausliefern (nach den API-Routen mounten, sonst schluckt es /api/*).
 WEB_DIR = ROOT / "web"
 if WEB_DIR.exists():

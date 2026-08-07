@@ -194,6 +194,12 @@ export function renderClusterGraphics(live) {
       + 'prints and looks up the market categories, so this takes a moment.',
       'rgba(255,255,255,.6)');
   }
+  if (live._quelle === 'fehler') {
+    return hinweisKarte(
+      'The risk endpoint did not answer: ' + (live._fehler || 'unknown error')
+      + '. Nothing is shown rather than a stale or invented network.',
+      '#F5A623');
+  }
   const g = live.graph;
   const m = live.matrix || {};
   if (!g || !g.knoten || !g.knoten.length) {
