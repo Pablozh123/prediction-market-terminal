@@ -109,6 +109,31 @@ class AlertRowsTests(unittest.TestCase):
         self.assertEqual(rows[0]["value"], "$18,400")
         self.assertTrue(rows[1]["watched"])
 
+    def test_counts_cover_the_whole_scan_not_the_shown_rows(self) -> None:
+        # Der Feed schneidet nach ALERT_ROW_LIMIT ab. Wer die Treffer aus den
+        # gezeigten Zeilen zaehlt, meldet fuer die abgeschnittene Art null,
+        # obwohl der Scan sie gefunden hat.
+        viele = [
+            {"signal_type": "Ending soon", "time": "2026-07-31T14:00:00Z", "title": f"m{i}",
+             "platform": "Polymarket", "value": 0.5, "reason": "ends soon"}
+            for i in range(apv.ALERT_ROW_LIMIT + 5)
+        ]
+        viele.append({"signal_type": "Whale print", "time": "2026-07-31T13:00:00Z",
+                      "title": "late whale", "platform": "Polymarket", "notional": 9000.0,
+                      "reason": "big print"})
+        signals = pd.DataFrame(viele)
+
+        rows = apv.alert_rows(signals)
+        self.assertEqual(len(rows), apv.ALERT_ROW_LIMIT)
+        self.assertNotIn("WHALE PRINT", {r["rule"] for r in rows})
+
+        counts = apv.alert_rule_counts(signals)
+        self.assertEqual(counts["WHALE PRINT"], 1)
+        self.assertEqual(counts["ENDING SOON"], apv.ALERT_ROW_LIMIT + 5)
+
+    def test_counts_on_an_empty_frame(self) -> None:
+        self.assertEqual(apv.alert_rule_counts(pd.DataFrame()), {})
+
 
 class CopyPayloadTests(unittest.TestCase):
     def test_builds_status_kpis_and_rows(self) -> None:

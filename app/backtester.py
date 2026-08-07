@@ -28,6 +28,7 @@ from typing import Any, Callable
 import pandas as pd
 
 from app.quant import kelly_binary
+from app.venue_fees import polymarket_category_rate
 
 SIZING_FIXED = "fixed"
 SIZING_PERCENT = "percent"
@@ -39,6 +40,12 @@ SIZING_MODES = (SIZING_FIXED, SIZING_PERCENT, SIZING_MIRROR, SIZING_PORTFOLIO, S
 STRATEGY_COPY = "copy"
 STRATEGY_FADE = "fade"
 STRATEGIES = (STRATEGY_COPY, STRATEGY_FADE)
+
+#: Wie die Gebuehr berechnet wird. "curve" nimmt das Venue-Modell aus
+#: app/venue_fees.py, "flat" den pauschalen bps-Satz aus der Konfiguration.
+FEE_MODEL_CURVE = "curve"
+FEE_MODEL_FLAT = "flat"
+FEE_MODELS = (FEE_MODEL_CURVE, FEE_MODEL_FLAT)
 
 MIN_STAKE = 1.0
 
@@ -83,7 +90,14 @@ class BacktestConfig:
     sizing_mode: str = SIZING_FIXED
     stake_value: float = 25.0
     max_stake: float = 250.0
+    # Nur wirksam bei fee_model == FEE_MODEL_FLAT. Der Wert war die
+    # Voreinstellung fuer alle Laeufe und lag bei der Haelfte des Buches
+    # weit unter der wirklichen Gebuehr.
     fee_bps: float = 20.0
+    fee_model: str = FEE_MODEL_CURVE
+    #: Polymarket staffelt den Taker-Satz nach Kategorie. Die Wallet-Historie
+    #: fuehrt keine mit, also gilt ohne Angabe der allgemeine Satz.
+    fee_category: str | None = None
     slippage_bps: float = 50.0
     flat_stake: float = 25.0
     strategy: str = STRATEGY_COPY
@@ -113,6 +127,26 @@ def _empty_ledger() -> pd.DataFrame:
 
 def _empty_positions() -> pd.DataFrame:
     return pd.DataFrame(columns=POSITION_COLUMNS)
+
+
+def fee_rate_for(config: BacktestConfig) -> Callable[[float], float]:
+    """Die Gebuehr als Anteil am Einsatz, als Funktion des Ausfuehrungspreises.
+
+    Polymarket rechnet ``fee = shares * rate * p * (1 - p)``. Ein Kauf ueber
+    ``stake`` bekommt ``stake / p`` Anteile, also ist die Gebuehr
+    ``stake * rate * (1 - p)``; beim Verkauf gilt dieselbe Form, weil der
+    Erloes ``shares * p`` ist. Die Gebuehr haengt damit nur am Preis, und
+    zwar stark: bei einem allgemeinen Satz von 5 Prozent kostet ein Taker
+    bei 0.50 rund 250 Basispunkte und bei 0.90 rund 50. Die pauschalen
+    20 bps, die hier als Voreinstellung standen, sind in der Mitte des
+    Buches mehr als zehnmal zu billig, und eine zu billige Gebuehr
+    schmeichelt jedem Ergebnis.
+    """
+    if str(config.fee_model or "").strip().lower() == FEE_MODEL_FLAT:
+        pauschal = max(0.0, float(config.fee_bps)) / 10_000.0
+        return lambda price: pauschal
+    rate = polymarket_category_rate(config.fee_category)
+    return lambda price: rate * (1.0 - max(0.0, min(1.0, float(price))))
 
 
 def _stake_for(config: BacktestConfig, equity_now: float, source_notional: float, entry_price: float | None = None) -> float:
@@ -158,7 +192,7 @@ def replay(
 
     cash = float(config.bankroll)
     realized_net = 0.0
-    fee_rate = max(0.0, config.fee_bps) / 10_000.0
+    fee_rate = fee_rate_for(config)
     slip_rate = max(0.0, config.slippage_bps) / 10_000.0
     fade = config.strategy == STRATEGY_FADE
     open_cost = 0.0
@@ -281,14 +315,17 @@ def replay(
                 if stake < MIN_STAKE:
                     log(trade.get("time"), "BUY", "skipped", record, note=f"exposure cap reached ({config.max_exposure_pct:.0f}% of bankroll in open copies)")
                     continue
-            fee = stake * fee_rate
+            # Der Ausfuehrungspreis steht vor der Gebuehr fest, weil die
+            # Gebuehr an ihm haengt und nicht am Einsatz allein.
+            exec_price = min(0.999, base_price * (1.0 + slip_rate))
+            satz = fee_rate(exec_price)
+            fee = stake * satz
             if stake + fee > cash:
-                stake = max(0.0, cash / (1.0 + fee_rate))
-                fee = stake * fee_rate
+                stake = max(0.0, cash / (1.0 + satz))
+                fee = stake * satz
             if stake < MIN_STAKE:
                 log(trade.get("time"), "BUY", "skipped", record, note="stake below minimum / out of cash")
                 continue
-            exec_price = min(0.999, base_price * (1.0 + slip_rate))
             shares = stake / exec_price
             position = positions.setdefault(
                 position_key,
@@ -331,7 +368,7 @@ def replay(
             base_price = (1.0 - price) if fade else price
             exec_price = max(0.001, base_price * (1.0 - slip_rate))
             proceeds = sell_shares * exec_price
-            fee = proceeds * fee_rate
+            fee = proceeds * fee_rate(exec_price)
             cost_released = held["cost_basis"] * (sell_shares / held["shares"])
             realized = proceeds - fee - cost_released
             held["shares"] -= sell_shares
@@ -631,6 +668,8 @@ def run_backtest(
         stake_value=config.flat_stake,
         max_stake=config.flat_stake,
         fee_bps=config.fee_bps,
+        fee_model=config.fee_model,
+        fee_category=config.fee_category,
         slippage_bps=config.slippage_bps,
         flat_stake=config.flat_stake,
         strategy=config.strategy,
@@ -733,6 +772,8 @@ def strategy_comparison(
             stake_value=stake_value,
             max_stake=config.max_stake,
             fee_bps=config.fee_bps,
+            fee_model=config.fee_model,
+            fee_category=config.fee_category,
             slippage_bps=config.slippage_bps,
             flat_stake=config.flat_stake,
             strategy=config.strategy,

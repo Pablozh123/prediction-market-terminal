@@ -1,8 +1,7 @@
 // Overview, Markets, Live tape, Cross-venue, Resolved — markup ported 1:1
 // from the design reference; data flows through the Terminal instance (T).
 
-import { esc, money, num } from '../util.js';
-import { DEMO_RESOLVED } from '../demo_data.js';
+import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf } from '../util.js';
 
 const M = "font-family:'JetBrains Mono',monospace";
 const LBL9 = M + '; font-size:9px; letter-spacing:.14em; color:rgba(255,255,255,.42); margin-bottom:6px';
@@ -39,14 +38,21 @@ export function renderOverview(T) {
   const bestTrader = T.traders.slice().sort((a, b) => b.pnl - a.pnl)[0];
   const pmVol = T.markets.filter((m) => m.venue === 'Polymarket').reduce((a, m) => a + m.vol, 0);
   const ksVol = totalVol - pmVol;
-  const pmShare = totalVol ? Math.round((pmVol / totalVol) * 100) : 50;
+  const pmShare = totalVol ? Math.round((pmVol / totalVol) * 100) : 0;
+  // Ohne Marktdaten keine Kennzahl. Hier standen bis eben feste Werte —
+  // 1.284 Maerkte, 84,2 Mio Volumen, +12,4 Prozent gegen gestern, ein bester
+  // Wallet namens Theo4 mit 22,05 Mio — die immer dann erschienen, wenn die
+  // API nicht antwortete, also genau dann, wenn niemand sie pruefen konnte.
+  const marktSatz = herkunftSatz(T.herkunft.markets, '/api/markets');
+  const tapeSatz = herkunftSatz(T.herkunft.tape, '/api/tape');
+  const hatMaerkte = T.markets.length > 0;
+  const hatTape = T.tape.length > 0;
 
   const tapeFilters = [
     T.chip('≥ $2.5K', s.tapeMin === 2500 && !s.tapeTracked, { tapeMin: 2500, tapeTracked: false }),
     T.chip('≥ $10K', s.tapeMin === 10000 && !s.tapeTracked, { tapeMin: 10000, tapeTracked: false }),
     T.chip('TRACKED ONLY', s.tapeTracked, { tapeTracked: true, tapeMin: 2500 })
   ].join('');
-  const demoMode = s.live !== 'live';
 
   return '<div>'
     + '<div style="padding:24px 24px 20px; border-bottom:1px solid rgba(255,255,255,.09)">'
@@ -54,17 +60,19 @@ export function renderOverview(T) {
     + '<div style="font-size:14px; color:rgba(255,255,255,.66); margin-top:7px; max-width:660px">Public wallet flow on Polymarket and Kalshi. No account, no orders — research only.</div></div>'
 
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid rgba(255,255,255,.09)">'
-    + kpiCell('MARKETS TRACKED', num(demoMode ? 1284 : T.markets.length), demoMode ? '982 Polymarket · 302 Kalshi' : num(pmCount) + ' Polymarket · ' + num(ksCount) + ' Kalshi', true)
-    + kpiCell('VOLUME · 24H', money(demoMode ? 84200000 : totalVol), demoMode ? '<span style="color:#C8F542">+12.4% vs yesterday</span>' : num(T.markets.length) + ' markets in sample', true)
-    + kpiCell('TRADES OVER $2.5K', num(demoMode ? 213 : whalePrints), 'from ' + num(demoMode ? 74 : whaleWallets) + ' wallets', true)
-    + kpiCell('BEST WALLET · ALL TIME', money(bestTrader ? bestTrader.pnl : 22050000), esc((bestTrader ? bestTrader.name : 'Theo4') + ' · ' + (bestTrader ? bestTrader.wallet : '0x9f3a…21c')), false)
+    + kpiCell('MARKETS TRACKED', hatMaerkte ? num(T.markets.length) : '—', hatMaerkte ? num(pmCount) + ' Polymarket · ' + num(ksCount) + ' Kalshi' : esc(marktSatz), true)
+    + kpiCell('VOLUME · 24H', hatMaerkte ? money(totalVol) : '—', hatMaerkte ? num(T.markets.length) + ' markets in sample' : esc(marktSatz), true)
+    + kpiCell('TRADES OVER $2.5K', hatTape ? num(whalePrints) : '—', hatTape ? 'from ' + num(whaleWallets) + ' wallets' : esc(tapeSatz), true)
+    + kpiCell('BEST WALLET · ALL TIME', bestTrader ? money(bestTrader.pnl) : '—',
+      bestTrader ? esc(bestTrader.name + ' · ' + bestTrader.wallet) : 'The leaderboard is not fetched on this page — open Leaderboard.', false)
     + '</div>'
 
     + '<div style="display:grid; grid-template-columns:1.45fr 1fr">'
     + '<div style="border-right:1px solid rgba(255,255,255,.09)">'
     + '<div style="display:flex; align-items:center; justify-content:space-between; padding:12px 20px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A">'
     + '<div style="' + M + '; font-size:11px; letter-spacing:.16em; color:#C8F542">BIGGEST MOVES · 1H</div>'
-    + '<div ' + T.act(() => T.go('markets')) + ' class="hv-lime" style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); cursor:pointer">ALL ' + num(T.markets.length === 12 ? 1284 : T.markets.length) + ' →</div></div>'
+    + '<div ' + T.act(() => T.go('markets')) + ' class="hv-lime" style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); cursor:pointer">' + (hatMaerkte ? 'ALL ' + num(T.markets.length) : 'ALL') + ' →</div></div>'
+    + (hatMaerkte ? '' : leerZeile(marktSatz))
     + movers.map((m) =>
       '<div ' + m.act + ' class="hv-panel" style="display:grid; grid-template-columns:1fr 78px 74px 88px; gap:12px; align-items:center; padding:13px 20px; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer; animation:rowIn .3s ease-out">'
       + '<div><div style="font-size:13.5px; line-height:1.35">' + esc(m.title) + '</div>'
@@ -79,6 +87,10 @@ export function renderOverview(T) {
     + '<div style="display:flex; align-items:center; justify-content:space-between; padding:12px 20px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A">'
     + '<div style="' + M + '; font-size:11px; letter-spacing:.16em; color:#F5A623">RISK FLAGS · TODAY</div>'
     + '<div ' + T.act(() => T.go('risk')) + ' class="hv-amber" style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); cursor:pointer">SCREEN →</div></div>'
+    // Der Risiko-Endpunkt wird von der Startseite bewusst nicht gezogen, er
+    // ist der schwerste. Das gehoert hingeschrieben, sonst liest sich die
+    // leere Spalte als "heute nichts gefunden".
+    + (topRisks.length ? '' : leerZeile('Not fetched here — /api/risk pages about a day of prints on its first build and would hold up this page. Open the risk screen.'))
     + topRisks.map((r) =>
       '<div ' + r.act + ' class="hv-panel" style="padding:14px 20px; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer">'
       + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px">'
@@ -90,12 +102,15 @@ export function renderOverview(T) {
     + '<div style="display:flex; align-items:center; justify-content:space-between; padding:12px 20px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A">'
     + '<div style="' + M + '; font-size:11px; letter-spacing:.16em; color:#C8F542">VOLUME BY VENUE</div>'
     + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45)">24H</div></div>'
-    + '<div style="padding:16px 20px; display:flex; flex-direction:column; gap:13px">'
-    + '<div><div style="display:flex; justify-content:space-between; ' + M + '; font-size:11.5px; margin-bottom:6px"><span style="color:rgba(255,255,255,.66)">POLYMARKET</span><span>' + money(demoMode ? 61400000 : pmVol) + '</span></div>'
-    + '<div style="height:9px; background:rgba(255,255,255,.07); border-radius:2px"><div style="width:' + pmShare + '%; height:9px; background:#C8F542; border-radius:2px"></div></div></div>'
-    + '<div><div style="display:flex; justify-content:space-between; ' + M + '; font-size:11.5px; margin-bottom:6px"><span style="color:rgba(255,255,255,.66)">KALSHI</span><span>' + money(demoMode ? 22800000 : ksVol) + '</span></div>'
-    + '<div style="height:9px; background:rgba(255,255,255,.07); border-radius:2px"><div style="width:' + (100 - pmShare) + '%; height:9px; background:#4F8EF7; border-radius:2px"></div></div></div>'
-    + '</div></div></div>'
+    + (hatMaerkte
+      ? '<div style="padding:16px 20px; display:flex; flex-direction:column; gap:13px">'
+        + '<div><div style="display:flex; justify-content:space-between; ' + M + '; font-size:11.5px; margin-bottom:6px"><span style="color:rgba(255,255,255,.66)">POLYMARKET</span><span>' + money(pmVol) + '</span></div>'
+        + '<div style="height:9px; background:rgba(255,255,255,.07); border-radius:2px"><div style="width:' + pmShare + '%; height:9px; background:#C8F542; border-radius:2px"></div></div></div>'
+        + '<div><div style="display:flex; justify-content:space-between; ' + M + '; font-size:11.5px; margin-bottom:6px"><span style="color:rgba(255,255,255,.66)">KALSHI</span><span>' + money(ksVol) + '</span></div>'
+        + '<div style="height:9px; background:rgba(255,255,255,.07); border-radius:2px"><div style="width:' + (100 - pmShare) + '%; height:9px; background:#4F8EF7; border-radius:2px"></div></div></div>'
+        + '</div>'
+      : leerZeile(marktSatz))
+    + '</div></div>'
 
     + '<div style="border-top:1px solid rgba(255,255,255,.09)">'
     + '<div style="display:flex; align-items:center; justify-content:space-between; padding:12px 20px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A">'
@@ -103,6 +118,7 @@ export function renderOverview(T) {
     + '<div style="display:flex; gap:6px">' + tapeFilters + '</div></div>'
     + '<div style="display:grid; grid-template-columns:96px 150px 1fr 74px 84px 100px; padding:9px 20px; border-bottom:1px solid rgba(255,255,255,.09); ' + HEAD_CELL + '">'
     + '<div>TIME</div><div>WALLET</div><div>MARKET</div><div>SIDE</div><div style="text-align:right">PRICE</div><div style="text-align:right">SIZE</div></div>'
+    + (tapeRows.length ? '' : leerZeile(hatTape ? 'No print in the tape passes the current size filter.' : tapeSatz))
     + tapeRows.map((t) =>
       '<div ' + t.act + ' class="hv-panel" style="display:grid; grid-template-columns:96px 150px 1fr 74px 84px 100px; align-items:center; padding:11px 20px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:12.5px; cursor:pointer; animation:rowIn .3s ease-out">'
       + '<div style="color:rgba(255,255,255,.55)">' + esc(t.ago) + '</div>'
@@ -126,9 +142,15 @@ function kpiCell(label, value, sub, borderRight) {
 // ---------------------------------------------------------------- markets
 export function renderMarkets(T) {
   const s = T.state;
+  if (!T.markets.length) {
+    return '<div>' + seitenKopf('MARKETS', 'Every market, one table', '#C8F542')
+      + leerBlock('NO MARKET DATA', herkunftSatz(T.herkunft.markets, '/api/markets')) + '</div>';
+  }
   const catSet = [];
   T.markets.forEach((m) => { if (catSet.indexOf(m.cat) < 0) catSet.push(m.cat); });
-  const cats = s.live === 'live' ? ['All'].concat(catSet.sort()) : ['All', 'Macro', 'Politics', 'Crypto', 'Sports', 'Science'];
+  // Die Kategorienleiste kommt aus den geladenen Maerkten. Eine feste Liste
+  // haette Reiter angeboten, hinter denen nichts liegt.
+  const cats = ['All'].concat(catSet.sort());
 
   const mx = (m) => T.marketExtraOf(m);
   let mRows = T.markets.slice();
@@ -249,6 +271,10 @@ export function renderMarkets(T) {
 // ---------------------------------------------------------------- flow (live tape)
 export function renderFlow(T) {
   const s = T.state;
+  if (!T.tape.length) {
+    return '<div>' + seitenKopf('LIVE TAPE', 'Every large print as it lands', '#C8F542')
+      + leerBlock('NO PRINTS', herkunftSatz(T.herkunft.tape, '/api/tape')) + '</div>';
+  }
   const tapeFiltered = T.tapeFiltered();
   const tapeNotional = tapeFiltered.reduce((a, t) => a + t.size, 0);
   const tapeWallets = tapeFiltered.filter((t) => t.wallet !== '—').map((t) => t.wallet).filter((v, i, arr) => arr.indexOf(v) === i).length;
@@ -305,6 +331,10 @@ export function renderFlow(T) {
 // ---------------------------------------------------------------- cross-venue
 export function renderCross(T) {
   const s = T.state;
+  if (!T.crossPairs.length) {
+    return '<div>' + seitenKopf('CROSS-VENUE', 'The same question, two prices', '#4F8EF7')
+      + leerBlock('NO PAIRS', herkunftSatz(T.herkunft.cross, '/api/cross')) + '</div>';
+  }
   let cRows = T.crossPairs.filter((c) => Math.abs(c.pm - c.ks) >= s.crossMinGap && c.sim >= s.crossSim && c.pmVol >= s.crossPmVol && c.ksVol >= s.crossKsVol);
   cRows = cRows.filter((c) => c.pm >= s.crossMinPrice && c.pm <= s.crossMaxPrice && c.ks >= s.crossMinPrice && c.ks <= s.crossMaxPrice);
   if (s.crossQuery.trim()) {
@@ -393,9 +423,16 @@ export function renderCross(T) {
 export function renderResolved(T) {
   const s = T.state;
   const live = T.liveData.resolved;
-  const resAll = live && live.rows && live.rows.length
-    ? live.rows
-    : DEMO_RESOLVED.map((r) => Object.assign({}, r, { err: r.yes ? 100 - r.last : r.last }));
+  // Ohne Antwort keine Zeilen. Hier lagen sechs erfundene Maerkte samt
+  // Ausgang, und die Kennzahl darueber hiess "how far the crowd was off" —
+  // eine Fehlermessung an Zahlen, die niemand gemessen hat.
+  const resAll = live && live.rows ? live.rows : [];
+  if (!resAll.length) {
+    return '<div>' + seitenKopf('RESOLVED', 'How the last questions ended', '#C8F542')
+      + leerBlock('NOTHING SETTLED HERE', herkunftSatz(
+        live ? { quelle: live._quelle === 'fehler' ? 'fehler' : 'leer', fehler: live._fehler } : null,
+        '/api/resolved')) + '</div>';
+  }
   let resRows = resAll.filter((r) => {
     if (s.resAnswer !== 'all' && (s.resAnswer === 'yes') !== r.yes) return false;
     if (s.resWindow !== 'all' && r.hours > Number(s.resWindow)) return false;

@@ -12,9 +12,12 @@ export function renderDetail(T) {
   if (!d) return '';
   let v;
   if (d.kind === 'market') {
-    const m = T.markets.find((x) => x.id === d.id) || T.markets[0];
+    const m = T.markets.find((x) => x.id === d.id);
+    if (!m) return '';
     const hist = T.liveData.marketHistory && T.liveData.marketHistory[d.id];
-    const c = hist ? { pts: T.seriesPoints(hist, 340, 150) } : T.curve(m.yes * 977 + 13, 40, 340, 150, m.chg / 40, 1.4);
+    // Ohne Historie kein Diagramm. Hier lief ein Zufallspfad aus dem Preis
+    // als Startwert unter der Ueberschrift YES PRICE · 24H.
+    const c = { pts: hist ? T.seriesPoints(hist, 340, 150) : '' };
     v = {
       kicker: 'MARKET',
       accent: m.chg >= 0 ? '#C8F542' : '#FF4545',
@@ -22,7 +25,9 @@ export function renderDetail(T) {
       meta: m.venue + ' · ' + m.cat + ' · resolves ' + m.ends,
       chartLabel: 'YES PRICE · 24H',
       chartPoints: c.pts,
+      chartEmpty: 'No price history loaded for this market — /api/market/<id>/history did not answer.',
       axisStart: '24h ago',
+      listEmpty: 'No print of this market in the current tape window.',
       stats: [
         { label: 'YES', value: m.yes + '¢', style: STAT_VAL },
         { label: 'CHANGE 1D', value: (m.chg >= 0 ? '+' : '') + m.chg + '¢', style: STAT_VAL + '; color:' + (m.chg >= 0 ? '#C8F542' : '#FF4545') },
@@ -30,7 +35,10 @@ export function renderDetail(T) {
         { label: 'LIQUIDITY', value: money(m.liq), style: STAT_VAL }
       ],
       listLabel: 'LARGEST PRINTS · 24H',
-      list: T.tape.filter((t) => t.market === m.title).concat(T.tape.slice(0, 4)).slice(0, 4).map((t) => ({
+      // Nur Prints dieses Marktes. Vorher wurde die Liste mit den ersten vier
+      // Zeilen des gesamten Tapes aufgefuellt, wenn der Markt keine hatte —
+      // fremde Trades unter der Ueberschrift dieses Marktes.
+      list: T.tape.filter((t) => t.market === m.title).slice(0, 4).map((t) => ({
         primary: t.wallet === '—' ? 'Anonymous (Kalshi)' : t.wallet,
         secondary: t.side + ' at ' + t.price + ' · ' + t.ago,
         value: money(t.size),
@@ -41,10 +49,14 @@ export function renderDetail(T) {
       note: ''
     };
   } else {
-    const t = T.traders.find((x) => x.name === d.id) || T.traders[0];
+    const t = T.traders.find((x) => x.name === d.id);
+    if (!t) return '';
     const wd = T.liveData.walletDetail[d.id];
-    const c = T.curve((t.score || 50) * 613 + 7, 60, 340, 150, 0.9, 2.6);
-    const chartPoints = wd && wd.pnl_curve && wd.pnl_curve.length > 1 ? T.seriesPoints(wd.pnl_curve, 340, 150) : c.pts;
+    // Die Gewinnkurve kommt aus /api/wallet oder es gibt keine. Der frühere
+    // Rueckfall zeichnete einen Zufallspfad mit Drift +0.9 unter der
+    // Ueberschrift PROFIT CURVE · 90 DAYS, neben dem echten Namen einer
+    // echten Wallet.
+    const chartPoints = wd && wd.pnl_curve && wd.pnl_curve.length > 1 ? T.seriesPoints(wd.pnl_curve, 340, 150) : '';
     const track = wd && wd.track ? wd.track : null;
     const edge = wd && wd.realized_edge ? wd.realized_edge : null;
     const sample = wd && wd.sample ? wd.sample : null;
@@ -66,7 +78,9 @@ export function renderDetail(T) {
       meta: t.wallet + (t.tags ? ' · ' + t.tags : ''),
       chartLabel: 'PROFIT CURVE · 90 DAYS',
       chartPoints,
+      chartEmpty: 'No profit curve for this wallet — /api/wallet did not answer with one.',
       axisStart: '90d ago',
+      listEmpty: 'No trades for this wallet — /api/wallet did not answer with any.',
       stats: [
         { label: 'PROFIT', value: money(t.pnl), style: STAT_VAL + '; color:#C8F542' },
         { label: 'WIN RATE', value: winLabel, style: STAT_VAL },
@@ -74,7 +88,9 @@ export function renderDetail(T) {
         { label: 'VOLUME', value: money(t.vol), style: STAT_VAL }
       ],
       listLabel: 'RECENT TRADES',
-      list: (wd && wd.recent_trades ? wd.recent_trades : T.tape.slice(0, 4)).slice(0, 4).map((x) => ({
+      // Nur die Trades dieser Wallet. Der Rueckfall auf die ersten vier
+      // Tape-Zeilen schrieb fremde Prints dieser Wallet zu.
+      list: (wd && wd.recent_trades ? wd.recent_trades : []).slice(0, 4).map((x) => ({
         primary: x.market,
         secondary: x.side + ' at ' + x.price + ' · ' + x.ago,
         value: money(x.size),
@@ -108,15 +124,19 @@ export function renderDetail(T) {
     + (v.note ? '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); line-height:1.7; margin-top:12px; border:1px solid rgba(255,255,255,.09); border-radius:8px; padding:9px 11px; background:#10151A">' + v.note + '</div>' : '')
     + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:14px; margin-top:14px">'
     + '<div style="' + M + '; font-size:9.5px; letter-spacing:.14em; color:rgba(255,255,255,.45); margin-bottom:10px">' + v.chartLabel + '</div>'
-    + '<svg width="100%" height="150" viewBox="0 0 340 150" preserveAspectRatio="none">'
-    + '<line x1="0" y1="25" x2="340" y2="25" stroke="rgba(255,255,255,.07)" />'
-    + '<line x1="0" y1="70" x2="340" y2="70" stroke="rgba(255,255,255,.07)" />'
-    + '<line x1="0" y1="115" x2="340" y2="115" stroke="rgba(255,255,255,.07)" />'
-    + '<line x1="0" y1="145" x2="340" y2="145" stroke="rgba(255,255,255,.14)" />'
-    + '<polyline points="' + v.chartPoints + '" fill="none" stroke="' + v.accent + '" stroke-width="2" /></svg>'
-    + '<div style="display:flex; justify-content:space-between; ' + M + '; font-size:10px; color:rgba(255,255,255,.4); margin-top:6px">'
-    + '<span>' + v.axisStart + '</span><span>now</span></div></div>'
+    + (v.chartPoints
+      ? '<svg width="100%" height="150" viewBox="0 0 340 150" preserveAspectRatio="none">'
+        + '<line x1="0" y1="25" x2="340" y2="25" stroke="rgba(255,255,255,.07)" />'
+        + '<line x1="0" y1="70" x2="340" y2="70" stroke="rgba(255,255,255,.07)" />'
+        + '<line x1="0" y1="115" x2="340" y2="115" stroke="rgba(255,255,255,.07)" />'
+        + '<line x1="0" y1="145" x2="340" y2="145" stroke="rgba(255,255,255,.14)" />'
+        + '<polyline points="' + v.chartPoints + '" fill="none" stroke="' + v.accent + '" stroke-width="2" /></svg>'
+        + '<div style="display:flex; justify-content:space-between; ' + M + '; font-size:10px; color:rgba(255,255,255,.4); margin-top:6px">'
+        + '<span>' + v.axisStart + '</span><span>now</span></div>'
+      : '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.42); line-height:1.6">' + esc(v.chartEmpty) + '</div>')
+    + '</div>'
     + '<div style="' + M + '; font-size:9.5px; letter-spacing:.14em; color:rgba(255,255,255,.45); margin:20px 0 10px">' + v.listLabel + '</div>'
+    + (v.list.length ? '' : '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.42); line-height:1.6">' + esc(v.listEmpty) + '</div>')
     + v.list.map((it) =>
       '<div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid rgba(255,255,255,.06)">'
       + '<div style="min-width:0">'

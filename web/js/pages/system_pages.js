@@ -2,8 +2,7 @@
 // design reference. Research tabs render the published JSON payloads from
 // public/data/ when the API serves them, incl. their stand_utc stamp and note.
 
-import { esc, num } from '../util.js';
-import { DEMO_ALERT_FEED, DEMO_DELIVERIES, DEMO_RUN_KPIS, DEMO_RUN_CARDS, DEMO_TIMING_ROWS, DEMO_RUN_SIM_ROWS, DEMO_CALIB_ROWS, DEMO_TRACK_MONTHS } from '../demo_data.js';
+import { esc, num, herkunftSatz, leerZeile } from '../util.js';
 import { renderMicrostructure } from './microstructure_page.js';
 
 const M = "font-family:'JetBrains Mono',monospace";
@@ -100,24 +99,95 @@ function fehlendeStudieHtml(study, datei) {
 export function renderAlerts(T) {
   const s = T.state;
   const live = T.liveData.alerts;
-  const feedAll = live && live.signals ? live.signals : DEMO_ALERT_FEED;
-  const feed = feedAll.filter((a) => (s.alertPlatform === 'all' || a.venue === s.alertPlatform) && (s.alertType === 'all' || a.rule === s.alertType) && (s.alertScope === 'all' || a.watched) && (!s.alertQuery.trim() || a.market.toLowerCase().indexOf(s.alertQuery.trim().toLowerCase()) >= 0));
+  const alarmSatz = herkunftSatz(
+    live ? { quelle: live._quelle === 'fehler' ? 'fehler' : 'leer', fehler: live._fehler } : null, '/api/alerts');
+  const feedAll = live && live.signals ? live.signals : [];
+  // Fest verdrahtet standen hier 14, 6, 31 und 4 Treffer "heute" — an jedem
+  // Tag dieselben. Gezaehlt wird jetzt der ganze Scan, nicht die Tabelle:
+  // die zeigt nur die ersten 60 Zeilen, und wer die zaehlt, meldet fuer eine
+  // Regel null, die in Wahrheit hundertfach ausgeloest hat. Und eine Regel,
+  // die der Endpunkt gar nicht auswertet, sagt das statt einer Null.
+  const REGEL_SIGNAL = {
+    movers: 'FAST MOVER', volume: 'VOLUME ANOMALY', whales: 'WHALE PRINT',
+    spreads: 'TIGHT SPREAD', holders: 'HOLDER CONCENTRATION', endings: 'ENDING SOON'
+  };
+  const zaehlung = (live && live.rule_counts) || null;
+  const ungeprueft = (live && live.rules_not_evaluated) || [];
+  const gesamtTreffer = zaehlung ? Object.keys(zaehlung).reduce((a, k) => a + (zaehlung[k] || 0), 0) : 0;
+  const holderInaktiv = ungeprueft.indexOf('HOLDER CONCENTRATION') >= 0;
+  // Arten, die im Scan vorkommen, aber in keiner gelieferten Zeile: der
+  // Endpunkt sortiert nach Schwere und schneidet dann ab, eine ganze Art
+  // kann also unter den Schnitt fallen.
+  const gelieferteArten = feedAll.map((a) => a.rule);
+  const verschluckt = zaehlung
+    ? Object.keys(zaehlung)
+      .filter((art) => zaehlung[art] > 0 && gelieferteArten.indexOf(art) < 0)
+      .map((art) => [art, zaehlung[art]])
+    : [];
+  const trefferText = (key, an) => {
+    // Eine Regel, die der Endpunkt nicht auswertet, sagt das auch dann, wenn
+    // der Schalter aus ist: sonst schaltet ein Leser sie ein und wartet auf
+    // Treffer, die nie kommen koennen.
+    if (ungeprueft.indexOf(REGEL_SIGNAL[key]) >= 0) return 'not evaluated by this endpoint';
+    if (!an) return 'off';
+    if (!live || !live.signals) return 'no feed loaded';
+    if (!zaehlung) return 'no count reported';
+    return (zaehlung[REGEL_SIGNAL[key]] || 0) + ' in this scan';
+  };
   const rules = [
-    { key: 'movers', name: 'Fast movers', desc: 'A market moves more than five cents in under an hour.', hits: '14 hits today' },
-    { key: 'volume', name: 'Volume anomaly', desc: 'An hour trades more than three times its own daily average.', hits: '6 hits today' },
-    { key: 'whales', name: 'Whale prints', desc: 'A single trade above your whale threshold lands.', hits: '31 hits today' },
-    { key: 'spreads', name: 'Tight spreads', desc: 'A liquid market narrows below two cents.', hits: 'off' },
-    { key: 'holders', name: 'Holder concentration', desc: 'Three wallets or fewer hold most of one side.', hits: 'off' },
-    { key: 'endings', name: 'Resolving soon', desc: 'A market you watch resolves within seventy-two hours.', hits: '4 hits today' }
+    { key: 'movers', name: 'Fast movers', desc: 'A market moves more than the move threshold in under an hour.' },
+    { key: 'volume', name: 'Volume anomaly', desc: 'An hour trades more than three times its own daily average.' },
+    { key: 'whales', name: 'Whale prints', desc: 'A single trade above the print threshold lands.' },
+    { key: 'spreads', name: 'Tight spreads', desc: 'A market narrows below the spread threshold.' },
+    { key: 'holders', name: 'Holder concentration', desc: 'Three wallets or fewer hold most of one side.' },
+    { key: 'endings', name: 'Resolving soon', desc: 'A market resolves inside the resolving window.' }
   ];
+
+  // Die Schalter lagen bis eben nur im Frontend-Zustand und taten nichts:
+  // die Signalliste zeigte Tight-Spread-Zeilen auch bei ausgeschaltetem
+  // Schalter. Sie blenden jetzt die Signalarten aus, die sie benennen. Was
+  // sie nicht tun, ist den Scanner steuern — der laeuft ueber die Schwellen,
+  // und die Karten sagen die Trefferzahl des ganzen Scans, nicht der Anzeige.
+  const abgeschaltet = rules
+    .filter((r) => !s.alertsOn[r.key])
+    .map((r) => REGEL_SIGNAL[r.key]);
+  // Signalarten ohne eigenen Schalter — etwa WATCHED MARKET, an dem der
+  // Scope-Filter haengt — bleiben sichtbar. Ein Schalter blendet aus, was er
+  // benennt, und sonst nichts.
+  const sichtbar = (a) => abgeschaltet.indexOf(a.rule) < 0;
+  const ausgeblendet = feedAll.length - feedAll.filter(sichtbar).length;
+  const feed = feedAll.filter((a) =>
+    sichtbar(a)
+    && (s.alertPlatform === 'all' || a.venue === s.alertPlatform)
+    && (s.alertType === 'all' || a.rule === s.alertType)
+    && (s.alertScope === 'all' || a.watched)
+    && (!s.alertQuery.trim() || a.market.toLowerCase().indexOf(s.alertQuery.trim().toLowerCase()) >= 0));
 
   let body = '';
   if (s.alertTab === 'signals') {
     body = '<div>'
       + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); padding:14px 24px 0">showing signals over ' + s.thMove + '¢ moves, prints above $' + num(s.thWhale) + ', spreads under ' + s.thSpread + '¢, resolving within ' + s.thEnding + ' h' + (live && live.as_of ? ' · snapshot ' + esc(live.as_of) : '') + '</div>'
+      // Der Schnitt gehoert danebengeschrieben. Eine Tabelle, die 60 von 300
+      // Zeilen zeigt und das verschweigt, liest sich wie der ganze Scan.
+      + (zaehlung && live.shown_limit && gesamtTreffer > live.shown_limit
+        ? '<div style="' + M + '; font-size:11px; color:#F5A623; padding:6px 24px 0">'
+          + 'showing the top ' + live.shown_limit + ' of ' + num(gesamtTreffer) + ' signals in this scan, ranked by severity'
+          // Welche Art der Schnitt komplett verschluckt. Ohne den Zusatz
+          // widerspricht die Regelkarte scheinbar der Tabelle: sie meldet
+          // hundert Treffer fuer eine Art, von der keine Zeile zu sehen ist.
+          + (verschluckt.length
+            ? ' · none of ' + verschluckt.map((a) => esc(a[0]) + ' (' + num(a[1]) + ')').join(', ') + ' made the cut'
+            : '')
+          + '</div>'
+        : '')
       + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:12px 24px; overflow:hidden">'
       + '<div style="display:grid; grid-template-columns:92px 170px 1fr 110px 120px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
       + '<div>TIME</div><div>SIGNAL</div><div>MARKET</div><div style="text-align:right">READING</div><div style="text-align:right">VENUE</div></div>'
+      + (ausgeblendet
+        ? '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); padding:6px 24px 0">'
+          + num(ausgeblendet) + ' signal' + (ausgeblendet === 1 ? '' : 's') + ' hidden by the rule switches</div>'
+        : '')
+      + (feed.length ? '' : leerZeile(feedAll.length ? 'No signal matches these filters.' : alarmSatz))
       + feed.map((a) =>
         '<div style="display:grid; grid-template-columns:92px 170px 1fr 110px 120px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06)">'
         + '<div style="' + M + '; font-size:12px; color:rgba(255,255,255,.55)">' + esc(a.time) + '</div>'
@@ -137,7 +207,7 @@ export function renderAlerts(T) {
           + '<div style="width:38px; height:21px; flex:none; border-radius:11px; padding:2px; display:flex; background:' + (on ? '#C8F542' : 'rgba(255,255,255,.14)') + '; justify-content:' + (on ? 'flex-end' : 'flex-start') + '">'
           + '<div style="width:17px; height:17px; border-radius:50%; background:' + (on ? '#0A0D0F' : 'rgba(255,255,255,.55)') + '"></div></div></div>'
           + '<div style="font-size:12.5px; color:rgba(255,255,255,.55); margin-top:8px; line-height:1.45">' + a.desc + '</div>'
-          + '<div style="' + M + '; font-size:10.5px; margin-top:12px; color:rgba(255,255,255,.4)">' + a.hits + '</div></div>';
+          + '<div style="' + M + '; font-size:10.5px; margin-top:12px; color:rgba(255,255,255,.4)">' + esc(trefferText(a.key, on)) + '</div></div>';
       }).join('')
       + '</div>';
   } else if (live && live.deliveries) {
@@ -148,37 +218,40 @@ export function renderAlerts(T) {
       + (dv.last_scan_at ? '<div style="' + M + '; font-size:11.5px; color:rgba(255,255,255,.45); margin-top:12px">last scan ' + esc(dv.last_scan_at) + ' · ' + esc(String(dv.last_hits)) + ' hits · ' + esc(String(dv.last_sent)) + ' sent</div>' : '')
       + '</div>';
   } else {
-    body = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:16px 24px; overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:110px 150px 1fr 110px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
-      + '<div>TIME</div><div>CHANNEL</div><div>MESSAGE</div><div style="text-align:right">STATUS</div></div>'
-      + DEMO_DELIVERIES.map((d) => {
-        const statusStyle = M + '; font-size:10.5px; letter-spacing:.08em; border-radius:4px; padding:3px 8px; ' + (d.status === 'sent' ? 'color:rgba(255,255,255,.7); border:1px solid rgba(255,255,255,.18)' : d.status === 'muted' ? 'color:rgba(255,255,255,.4); border:1px solid rgba(255,255,255,.12)' : 'color:#FF7A7A; border:1px solid rgba(255,69,69,.35)');
-        return '<div style="display:grid; grid-template-columns:110px 150px 1fr 110px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06)">'
-          + '<div style="' + M + '; font-size:12px; color:rgba(255,255,255,.55)">' + d.time + '</div>'
-          + '<div style="' + M + '; font-size:12px">' + d.channel + '</div>'
-          + '<div style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(d.message) + '</div>'
-          + '<div style="display:flex; justify-content:flex-end"><div style="' + statusStyle + '">' + d.status.toUpperCase() + '</div></div></div>';
-      }).join('')
-      + '</div>';
+    // Ein Zustellprotokoll ist ein Nachweis. Sechs erfundene Zeilen mit
+    // Uhrzeit, Kanal und Status behaupten Versand, den es nie gab.
+    body = '<div style="margin:16px 24px; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:22px; background:#10151A">'
+      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55)">DELIVERY LOG</div>'
+      + '<div style="font-size:13px; color:rgba(255,255,255,.6); margin-top:10px; line-height:1.5; max-width:640px">'
+      + esc(alarmSatz) + '</div></div>';
   }
 
   return '<div>'
     + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="' + M + '; font-size:10px; letter-spacing:.18em; color:#C8F542">ALERTS</div>'
     + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">Tell me when this happens</div>'
-    + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:9px; max-width:700px">Rules run on the public feed every minute. Switch one on and it also goes to Telegram.</div></div>'
+    // Frueher stand hier "Switch one on and it also goes to Telegram". Der
+    // Versand haengt am Scanner-Skript und an dessen Konfiguration, nicht an
+    // diesen Schaltern — die entscheiden, was diese Seite zeigt.
+    + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:9px; max-width:700px">The thresholds below are sent to the scan. The switches decide which of its signal types this page shows; Telegram delivery is configured on the scanner, not here.</div></div>'
     + '<div style="padding:16px 24px 0; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px 18px">'
     + '<div><div style="' + LBL9 + '">SEARCH</div><input value="' + esc(s.alertQuery) + '" ' + T.inp((e) => T.setState({ alertQuery: e.target.value }), 'alertQuery') + ' placeholder="market, wallet, category…" style="width:100%; box-sizing:border-box; background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:7px; padding:8px 10px; ' + M + '; font-size:11.5px; color:#fff; outline:none" /></div>'
     + filterGroup('PLATFORM', [['all','All'],['Polymarket','Polymarket'],['Kalshi','Kalshi']].map((o) => T.opt(o[1], s.alertPlatform === o[0], { alertPlatform: o[0] })).join(''))
     + filterGroup('SIGNAL TYPE', [['all','All'],['WHALE PRINT','Whale prints'],['FAST MOVER','Fast movers'],['VOLUME ANOMALY','Volume']].map((o) => T.opt(o[1], s.alertType === o[0], { alertType: o[0] })).join(''))
     + filterGroup('SCOPE', [['all','Everything'],['watched','Watched only']].map((o) => T.opt(o[1], s.alertScope === o[0], { alertScope: o[0] })).join(''))
     + '</div>'
+    // Diese vier Schwellen gehen an den Endpunkt und loesen einen neuen Scan
+    // aus. Frueher aenderten sie nur den Text darueber.
     + '<div style="padding:16px 24px 0; display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:14px 18px">'
-    + filterGroup('MOVE AT LEAST', [3, 5, 8, 12].map((v) => T.opt(v + '¢', s.thMove === v, { thMove: v })).join(''))
-    + filterGroup('SPREAD UNDER', [1, 2, 3, 5].map((v) => T.opt(v + '¢', s.thSpread === v, { thSpread: v })).join(''))
-    + filterGroup('PRINT AT LEAST', [1000, 2500, 10000, 25000].map((v) => T.opt('$' + num(v), s.thWhale === v, { thWhale: v })).join(''))
-    + filterGroup('RESOLVING WITHIN', [24, 48, 72, 168].map((v) => T.opt(v + ' h', s.thEnding === v, { thEnding: v })).join(''))
-    + filterGroup('TOP HOLDER OVER', [25, 40, 60, 80].map((v) => T.opt(v + '%', s.thHolder === v, { thHolder: v })).join(''))
+    + filterGroup('MOVE AT LEAST', [3, 5, 8, 12].map((v) => T.opt(v + '¢', s.thMove === v, () => T.alarmNeuLaden({ thMove: v }))).join(''))
+    + filterGroup('SPREAD UNDER', [1, 2, 3, 5].map((v) => T.opt(v + '¢', s.thSpread === v, () => T.alarmNeuLaden({ thSpread: v }))).join(''))
+    + filterGroup('PRINT AT LEAST', [1000, 2500, 10000, 25000].map((v) => T.opt('$' + num(v), s.thWhale === v, () => T.alarmNeuLaden({ thWhale: v }))).join(''))
+    + filterGroup('RESOLVING WITHIN', [24, 48, 72, 168].map((v) => T.opt(v + ' h', s.thEnding === v, () => T.alarmNeuLaden({ thEnding: v }))).join(''))
+    // Die Holder-Schwelle bleibt ohne Wirkung, solange der Endpunkt die
+    // Regel nicht auswertet. Der Regler sagt es, statt Wirkung vorzutaeuschen.
+    + filterGroup('TOP HOLDER OVER'
+      + (holderInaktiv ? ' <span style="color:#F5A623">· not evaluated</span>' : ''),
+      [25, 40, 60, 80].map((v) => T.opt(v + '%', s.thHolder === v, { thHolder: v })).join(''))
     + '</div>'
     + '<div style="display:flex; gap:6px; padding:16px 24px 0; flex-wrap:wrap">'
     + [['signals','Signals'],['rules','Rules'],['deliveries','Deliveries']].map((o) => T.tab(o[1], s.alertTab === o[0], { alertTab: o[0] })).join('')
@@ -220,11 +293,11 @@ export function renderResearch(T) {
   const stamp = payload && payload.stand_utc ? String(payload.stand_utc).slice(0, 16).replace('T', ' ') + ' UTC' : study.stamp;
   const note = payload && payload.hinweis ? payload.hinweis : study.note;
   const table = buildStudyTable(T, s.researchTab, payload);
-  // Ohne Nutzlast keine Zahlen. Die Demo-Werte in demo_data.js sind erfunden
-  // und widersprechen der eigenen Forschung teils frontal: dort stand
-  // "IMBALANCE EDGE +0.4c net of fees", gemessen sind -2.50 Cent. Unter einem
-  // Stempel wie "frozen 2026-06-30" ist eine erfundene Zahl nicht neutral,
-  // sondern belastend.
+  // Ohne Nutzlast keine Zahlen. Die frueheren Demo-Werte widersprachen der
+  // eigenen Forschung teils frontal: dort stand "IMBALANCE EDGE +0.4c net of
+  // fees", gemessen sind -2.50 Cent. Unter einem Stempel wie
+  // "frozen 2026-06-30" ist eine erfundene Zahl nicht neutral, sondern
+  // belastend.
   const stats = buildStudyStats(s.researchTab, payload);
   if (!stats) {
     return '<div>' + header + fehlendeStudieHtml(study, RESEARCH_DATEI[s.researchTab]) + '</div>';
@@ -518,7 +591,18 @@ function renderLiveRuns(T, payload) {
     { label: 'TOTAL STAKE', value: '$' + num((+agg.einsatz_usd).toFixed(0)), sub: 'wallet-reconciled', color: '#ffffff' },
     { label: 'REALIZED PNL', value: (agg.realisierter_pnl_usd >= 0 ? '+$' : '-$') + num(Math.abs(+agg.realisierter_pnl_usd).toFixed(0)), sub: 'wallet-reconciled · ' + (agg.wallet_abgleich_stand || ''), color: agg.realisierter_pnl_usd >= 0 ? '#C8F542' : '#FF4545' },
     { label: 'OPEN STAKE', value: '$' + num((+agg.offener_einsatz_usd).toFixed(0)), sub: 'in unresolved markets', color: '#ffffff' }
-  ] : DEMO_RUN_KPIS;
+  ] : [
+    // Kein Rueckfall auf 64 Laeufe, 1.208 Wetten und eine Trefferquote von
+    // 54 Prozent. Die Zahlen stehen in runs.json oder nirgends.
+    { label: 'RUNS', value: '—', sub: 'runs.json not loaded', color: '#ffffff' },
+    { label: 'BETS', value: '—', sub: 'runs.json not loaded', color: '#ffffff' },
+    { label: 'TOTAL STAKE', value: '—', sub: 'runs.json not loaded', color: '#ffffff' },
+    { label: 'REALIZED PNL', value: '—', sub: 'runs.json not loaded', color: '#ffffff' },
+    { label: 'OPEN STAKE', value: '—', sub: 'runs.json not loaded', color: '#ffffff' }
+  ];
+  const laufSatz = herkunftSatz(
+    payload ? { quelle: payload._quelle === 'fehler' ? 'fehler' : 'leer', fehler: payload._fehler } : null,
+    'public/data/runs.json');
 
   const cards = payload && payload.runs ? payload.runs.slice(0, 12).map((r) => {
     const bets = (r.wetten || []).map((b) => ({
@@ -542,7 +626,7 @@ function renderLiveRuns(T, payload) {
       footer: 'Stake $' + (+r.einsatz_usd).toFixed(2) + ' (log est.) · wallet net ' + (r.realisierter_pnl_usd >= 0 ? '+$' : '-$') + Math.abs(+r.realisierter_pnl_usd).toFixed(2),
       missed: missedN ? 'Missed chances (' + missedN + ') — budget or cap' : ''
     };
-  }) : DEMO_RUN_CARDS;
+  }) : [];
 
   const timingRows = payload && payload.runs ? payload.runs.flatMap((r) =>
     (r.wetten || []).filter((b) => b.fill_ts_utc).map((b) => ({
@@ -555,7 +639,7 @@ function renderLiveRuns(T, payload) {
       next: b.verfolger_s != null ? '+' + (+b.verfolger_s).toFixed(1) + ' s' : '—',
       rep: b.preis_nach_fill_30s != null && b.avg_fill_preis != null ? Math.round((b.preis_nach_fill_30s - b.avg_fill_preis) * 100) : null
     }))
-  ).slice(0, 20) : DEMO_TIMING_ROWS;
+  ).slice(0, 20) : [];
 
   const liveTabs = [['runs','Runs'],['timing','Timing & repricing'],['sim','Sizing simulator'],['calib','Calibration'],['record','Track record']].map((o) => T.tab(o[1], s.liveTab === o[0], { liveTab: o[0] })).join('');
 
@@ -563,6 +647,7 @@ function renderLiveRuns(T, payload) {
   if (s.liveTab === 'runs') {
     body = '<div style="margin-top:14px">'
       + '<div style="font-size:12.5px; color:rgba(255,255,255,.5); line-height:1.5; max-width:820px; margin-bottom:14px">Race chips compare each fill against the public taker tape of that market: how many other trades hit between the drop and our fill, and how long until the next trader after us. The anchor is the bot\'s logged fill time — chain timestamps can differ by a few seconds.</div>'
+      + (cards.length ? '' : leerZeile(laufSatz))
       + '<div style="display:flex; flex-direction:column; gap:12px">'
       + cards.map((r) => {
         const statusStyle = M + '; font-size:9.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; ' + (r.status === 'RESOLVED' ? 'color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.18)' : r.status === 'OPEN' ? 'color:#F5A623; border:1px solid rgba(245,166,35,.4)' : 'color:rgba(255,255,255,.4); border:1px solid rgba(255,255,255,.12)');
@@ -596,6 +681,7 @@ function renderLiveRuns(T, payload) {
       + '<div style="padding:11px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:#4F8EF7">TIMING AND REPRICING PER FILL</div>'
       + '<div style="display:grid; grid-template-columns:80px 1fr 90px 90px 100px 118px 106px 106px; gap:10px; padding:9px 16px; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
       + '<div>RUN</div><div>MARKET</div><div style="text-align:right">DROP</div><div style="text-align:right">FILL</div><div style="text-align:right">LATENCY</div><div style="text-align:right">TRADES BEFORE US</div><div style="text-align:right">NEXT TRADER</div><div style="text-align:right">REPRICE 30S</div></div>'
+      + (timingRows.length ? '' : leerZeile(laufSatz))
       + timingRows.map((t) => {
         const latLabel = t.lat == null ? '—' : t.lat >= 1000 ? (t.lat / 1000).toFixed(1) + ' s' : t.lat + ' ms';
         const latStyle = 'text-align:right; ' + M + '; font-size:12px; color:' + (t.lat == null ? 'rgba(255,255,255,.5)' : t.lat <= 800 ? '#C8F542' : t.lat <= 1500 ? '#F5A623' : '#FF4545');
@@ -617,12 +703,13 @@ function renderLiveRuns(T, payload) {
     const liveSims = extras && extras.sims && extras.sims.length
       ? extras.sims.map((v) => ({ name: v.name, net: v.net, roi: v.roi, dd: null, hit: null, bets: v.bets }))
       : null;
-    const simRows = liveSims || DEMO_RUN_SIM_ROWS;
+    const simRows = liveSims || [];
     body = '<div style="margin-top:14px">'
       + '<div style="font-size:12.5px; color:rgba(255,255,255,.55); line-height:1.5; max-width:820px">Replays the same runs with a different stake rule each time — same entries, same fills, only the size changes. Caps and the per-run budget stay as they were on the day.' + (liveSims ? ' Only resolved bets with a valid fill price count; bankroll $100, no compounding.' : '') + '</div>'
       + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; overflow:hidden">'
       + '<div style="display:grid; grid-template-columns:1fr 110px 96px 96px 96px 104px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
       + '<div>STAKE RULE</div><div style="text-align:right">NET</div><div style="text-align:right">ROI</div><div style="text-align:right">MAX DD</div><div style="text-align:right">HIT RATE</div><div style="text-align:right">BETS PLACED</div></div>'
+      + (simRows.length ? '' : leerZeile(laufSatz))
       + simRows.slice().sort((a, b) => b.roi - a.roi).map((r, i) =>
         '<div style="display:grid; grid-template-columns:1fr 110px 96px 96px 96px 104px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06); background:' + (i === 0 ? 'rgba(200,245,66,.06)' : 'transparent') + '">'
         + '<div style="font-size:12.5px; color:' + (i === 0 ? '#C8F542' : '#ffffff') + '">' + esc(r.name) + '</div>'
@@ -648,21 +735,20 @@ function renderLiveRuns(T, payload) {
             + '<div style="text-align:right; color:' + (t.pnl_delta_usd >= 0 ? 'rgba(255,255,255,.6)' : '#FF4545') + '">' + (t.pnl_delta_usd >= 0 ? '+$' : '-$') + Math.abs(t.pnl_delta_usd).toFixed(2) + '</div></div>'
           ).join('')
           + '</div>'
+        // Hier liefen zwei Zufallskurven mit eingebautem Aufwaertsdrift unter
+        // der Ueberschrift FLAT $25 VERSUS THE BEST RULE. Eine gemalte Kurve
+        // ist eine Behauptung; ohne timing_decay in der Nutzlast gibt es
+        // keine.
         : '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; padding:16px 18px">'
-          + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55); margin-bottom:12px">FLAT $25 VERSUS THE BEST RULE</div>'
-          + '<svg width="100%" height="200" viewBox="0 0 900 200" preserveAspectRatio="none">'
-          + '<line x1="0" y1="20" x2="900" y2="20" stroke="rgba(255,255,255,.07)" />'
-          + '<line x1="0" y1="70" x2="900" y2="70" stroke="rgba(255,255,255,.07)" />'
-          + '<line x1="0" y1="120" x2="900" y2="120" stroke="rgba(255,255,255,.07)" />'
-          + '<line x1="0" y1="190" x2="900" y2="190" stroke="rgba(255,255,255,.14)" />'
-          + '<polyline points="' + T.curve(8123, 50, 900, 200, 0.5, 2.6).pts + '" fill="none" stroke="#95A0AB" stroke-width="1.5" stroke-dasharray="5 4" />'
-          + '<polyline points="' + T.curve(8124, 50, 900, 200, 0.82, 3.0).pts + '" fill="none" stroke="#C8F542" stroke-width="2" /></svg></div>')
+          + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55); margin-bottom:10px">DELAYED ENTRY</div>'
+          + '<div style="font-size:12.5px; color:rgba(255,255,255,.5); line-height:1.5">'
+          + 'No delay series in this payload — runs.json carries it under extras.timing_decay.</div></div>')
       + '</div>';
   } else if (s.liveTab === 'calib') {
     const extras = payload && payload.extras;
     const calibRows = extras && extras.calibration && extras.calibration.rows && extras.calibration.rows.length
       ? extras.calibration.rows
-      : payload && payload.runs ? buildCalibFromRuns(payload.runs) : DEMO_CALIB_ROWS;
+      : payload && payload.runs ? buildCalibFromRuns(payload.runs) : [];
     const calibNote = extras && extras.calibration
       ? ' n = ' + extras.calibration.n + (extras.calibration.hit_low != null ? ' · hit rate ' + Math.round(extras.calibration.hit_rate * 100) + '% [' + Math.round(extras.calibration.hit_low * 100) + '–' + Math.round(extras.calibration.hit_high * 100) + '%] Wilson 95%' : '') + (extras.calibration.sample_ok ? '' : ' · sample below the minimum — read with care')
       : '';
@@ -671,6 +757,7 @@ function renderLiveRuns(T, payload) {
       + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; overflow:hidden">'
       + '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
       + '<div>ENTRY PRICE BAND</div><div style="text-align:right">BETS</div><div style="text-align:right">PAID</div><div style="text-align:right">SETTLED</div><div style="text-align:right">GAP</div></div>'
+      + (calibRows.length ? '' : leerZeile(laufSatz))
       + calibRows.map((c) => {
         const gap = c.settled - c.paid;
         return '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:12.5px">'
@@ -683,11 +770,12 @@ function renderLiveRuns(T, payload) {
       + '</div></div>';
   } else {
     const extras = payload && payload.extras;
-    const monthRows = extras && extras.monthly && extras.monthly.length ? extras.monthly : DEMO_TRACK_MONTHS;
+    const monthRows = extras && extras.monthly ? extras.monthly : [];
     body = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; overflow:hidden">'
       + '<div style="padding:11px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:#4F8EF7">MONTH BY MONTH</div>'
       + '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px 100px; gap:10px; padding:9px 16px; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
       + '<div>MONTH</div><div style="text-align:right">RUNS</div><div style="text-align:right">BETS</div><div style="text-align:right">STAKE</div><div style="text-align:right">NET</div><div style="text-align:right">ROI</div></div>'
+      + (monthRows.length ? '' : leerZeile(laufSatz))
       + monthRows.map((t) => {
         const roi = (t.net / t.stake) * 100;
         return '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px 100px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:12.5px">'
@@ -755,7 +843,9 @@ export function renderSettings(T) {
     + '<div ' + T.act(up) + ' class="hv-bd35w" style="width:28px; height:32px; flex:none; border:1px solid rgba(255,255,255,.16); border-radius:7px; display:flex; align-items:center; justify-content:center; ' + M + '; font-size:14px; color:rgba(255,255,255,.7); cursor:pointer">+</div></div></div>';
 
   const settingRows = [
-    { key: 'telegram', name: 'Telegram delivery', desc: 'Send every alert that fires to your Telegram chat.', value: 'chat 4711 · verified' },
+    // Der Wert stand hier als "chat 4711 · verified" — eine erfundene
+    // Chat-Kennung, die daneben behauptet, sie sei geprueft.
+    { key: 'telegram', name: 'Telegram delivery', desc: 'Send every alert that fires to your Telegram chat.', value: 'chat id and token live in the environment, not here' },
     { key: 'autotop', name: 'Auto top-up on the paper account', desc: 'Refill the sub-account when it runs out of cash instead of skipping buys.', value: 'off by default — skipped buys stay visible' },
     { key: 'kalshi', name: 'Include Kalshi', desc: 'Pull Kalshi markets and trades alongside Polymarket.', value: 'no wallet identities available there' },
     { key: 'sports', name: 'Score sports markets for insider risk', desc: 'Sports odds and weather are excluded by default — there is nothing to know early.', value: 'leave off unless you are testing' },

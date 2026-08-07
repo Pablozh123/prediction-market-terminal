@@ -1,7 +1,6 @@
 // Leaderboard, Whale flow, Risk screen, Tracked — ported from the design reference.
 
-import { esc, money, num } from '../util.js';
-import { DEMO_WHALES, DEMO_RISK_WALLETS, DEMO_FRESH_CLUSTERS, DEMO_TIMING_CLUSTERS, DEMO_TRACKED_WALLETS } from '../demo_data.js';
+import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf } from '../util.js';
 import { renderClusterGraphics } from './cluster_graphics.js';
 
 const M = "font-family:'JetBrains Mono',monospace";
@@ -15,6 +14,10 @@ function filterGroup(label, chipsHtml) {
 // ---------------------------------------------------------------- traders (leaderboard)
 export function renderTraders(T) {
   const s = T.state;
+  if (!T.traders.length) {
+    return '<div>' + seitenKopf('LEADERBOARD', 'Who is actually good at this', '#C8F542')
+      + leerBlock('NO WALLETS RANKED', herkunftSatz(T.herkunft.traders, '/api/leaderboard')) + '</div>';
+  }
   const tx = (t) => T.traderExtraOf(t);
   let tRows = T.traders.slice();
   let tCount = 0;
@@ -141,8 +144,15 @@ export function renderTraders(T) {
 // ---------------------------------------------------------------- whale flow
 export function renderWhale(T) {
   const s = T.state;
+  // Die Seite ist eine Gruppierung des Tapes, nichts weiter. Ohne Tape gibt
+  // es nichts zu gruppieren — hier standen bisher acht erfundene Wallets und
+  // die festen Kennzahlen 74 Wallets, 18,4 Mio bewegt, 214k groesster Print.
+  if (!T.tape.length) {
+    return '<div>' + seitenKopf('WHALE FLOW', 'Who is moving the big money', '#C8F542')
+      + leerBlock('NO PRINTS TO GROUP', herkunftSatz(T.herkunft.tape, '/api/tape')) + '</div>';
+  }
   let rows, walletCount, total, biggest;
-  if (T.state.live === 'live' && T.tape.length) {
+  {
     const byWallet = {};
     T.tape.filter((t) => t.wallet !== '—').forEach((t) => {
       const w = byWallet[t.wallet] || (byWallet[t.wallet] = { name: t.wallet, wallet: t.wallet, prints: 0, total: 0, biggest: 0, buys: 0, sells: 0, cats: {} });
@@ -160,9 +170,6 @@ export function renderWhale(T) {
     walletCount = Object.keys(byWallet).length;
     total = T.tape.reduce((a, t) => a + t.size, 0);
     biggest = T.tape.reduce((a, t) => Math.max(a, t.size), 0);
-  } else {
-    rows = DEMO_WHALES;
-    walletCount = 74; total = 18400000; biggest = 214000;
   }
 
   return '<div>'
@@ -177,6 +184,7 @@ export function renderWhale(T) {
     + '</div>'
     + '<div style="display:grid; grid-template-columns:1fr 96px 116px 116px 150px 120px; padding:10px 24px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A; ' + HEAD_CELL + '">'
     + '<div>WALLET</div><div style="text-align:right">PRINTS</div><div style="text-align:right">TOTAL</div><div style="text-align:right">BIGGEST</div><div style="text-align:right">LEANING</div><div style="text-align:right">MOSTLY IN</div></div>'
+    + (rows.length ? '' : leerZeile('Every print in this window is anonymous — Kalshi publishes no wallet identity, so there is nothing to group by.'))
     + rows.map((w) => {
       const leanStyle = M + '; font-size:11.5px; letter-spacing:.1em; text-align:right; color:' + (w.lean === 'BUYING' ? '#C8F542' : w.lean === 'SELLING' ? '#FF4545' : w.lean === 'FADING' ? '#F5A623' : 'rgba(255,255,255,.55)');
       return '<div ' + T.act(() => T.openWallet(w.name)) + ' class="hv-panel" style="display:grid; grid-template-columns:1fr 96px 116px 116px 150px 120px; align-items:center; padding:13px 24px; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer; animation:rowIn .25s ease-out">'
@@ -196,6 +204,10 @@ export function renderRisk(T) {
   const s = T.state;
   const riskFiltered = T.risks.filter((r) => s.riskFilter === 'all' || r.sev === s.riskFilter);
   const live = T.liveData.risk;
+  const risikoSatz = herkunftSatz(T.herkunft.risks, '/api/risk');
+  // Ein Screen, der Verdacht behauptet, darf keine erfundene Zahl tragen.
+  // Hier standen 412 geprueft, 2 auffaellige Ereignisse, 5 auffaellige
+  // Wallets, 4 und 3 Cluster — fuenf Messwerte ohne Messung.
   const kpis = live && live.kpis ? [
     { label: 'EVENTS SCREENED', value: String(live.kpis.events_screened) },
     { label: 'HIGH-RISK EVENTS', value: String(live.kpis.high_risk_events), amber: true },
@@ -203,13 +215,13 @@ export function renderRisk(T) {
     { label: 'FRESH-WALLET CLUSTERS', value: String(live.kpis.fresh_clusters) },
     { label: 'COORDINATED CLUSTERS', value: String(live.kpis.coordinated_clusters) }
   ] : [
-    { label: 'EVENTS SCREENED', value: '412' },
-    { label: 'HIGH-RISK EVENTS', value: '2', amber: true },
-    { label: 'HIGH-RISK WALLETS', value: '5', amber: true },
-    { label: 'FRESH-WALLET CLUSTERS', value: '4' },
-    { label: 'COORDINATED CLUSTERS', value: '3' }
+    { label: 'EVENTS SCREENED', value: '—' },
+    { label: 'HIGH-RISK EVENTS', value: '—' },
+    { label: 'HIGH-RISK WALLETS', value: '—' },
+    { label: 'FRESH-WALLET CLUSTERS', value: '—' },
+    { label: 'COORDINATED CLUSTERS', value: '—' }
   ];
-  const walletRows = live && live.wallets ? live.wallets : DEMO_RISK_WALLETS;
+  const walletRows = live && live.wallets ? live.wallets : [];
 
   let body = '';
   if (s.riskView === 'events') {
@@ -219,6 +231,7 @@ export function renderRisk(T) {
          T.tab('High', s.riskFilter === 'high', { riskFilter: 'high' }),
          T.tab('Watch', s.riskFilter === 'medium', { riskFilter: 'medium' })].join('')
       + '</div>'
+      + (riskFiltered.length ? '' : leerZeile(T.risks.length ? 'No event at this severity.' : risikoSatz))
       + '<div style="padding:18px 24px; display:grid; grid-template-columns:repeat(2,1fr); gap:14px">'
       + riskFiltered.map((r0) => {
         const r = T.riskCardView(r0);
@@ -241,6 +254,7 @@ export function renderRisk(T) {
     body = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:16px 24px; overflow:hidden">'
       + '<div style="display:grid; grid-template-columns:1fr 96px 110px 110px 130px 96px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
       + '<div>WALLET</div><div style="text-align:right">SCORE</div><div style="text-align:right">WHALE PRINTS</div><div style="text-align:right">NOTIONAL</div><div style="text-align:right">FIRST SEEN</div><div style="text-align:right">CLUSTER</div></div>'
+      + (walletRows.length ? '' : leerZeile(risikoSatz))
       + walletRows.map((w) => {
         const scoreStyle = M + '; font-size:12px; border-radius:5px; padding:3px 9px; ' + (w.score >= 70 ? 'color:#0A0D0F; background:#F5A623' : w.score >= 55 ? 'color:#F5A623; border:1px solid rgba(245,166,35,.35)' : 'color:rgba(255,255,255,.7); border:1px solid rgba(255,255,255,.18)');
         return '<div ' + T.act(() => T.openWallet(w.wallet)) + ' class="hv-panel" style="display:grid; grid-template-columns:1fr 96px 110px 110px 130px 96px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:12.5px; cursor:pointer">'
@@ -253,8 +267,9 @@ export function renderRisk(T) {
       }).join('')
       + '</div>';
   } else if (s.riskView === 'fresh') {
-    const freshRows = live && live.fresh && live.fresh.length ? live.fresh : DEMO_FRESH_CLUSTERS;
-    body = '<div style="padding:16px 24px; display:grid; grid-template-columns:repeat(2,1fr); gap:14px">'
+    const freshRows = live && live.fresh ? live.fresh : [];
+    body = (freshRows.length ? '' : leerZeile(risikoSatz))
+      + '<div style="padding:16px 24px; display:grid; grid-template-columns:repeat(2,1fr); gap:14px">'
       + freshRows.map((c) =>
         '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:16px 18px">'
         + '<div style="display:flex; align-items:center; justify-content:space-between">'
@@ -268,10 +283,11 @@ export function renderRisk(T) {
       ).join('')
       + '</div>';
   } else if (s.riskView === 'timing') {
-    const timingRows = live && live.timing && live.timing.length ? live.timing : DEMO_TIMING_CLUSTERS;
+    const timingRows = live && live.timing ? live.timing : [];
     body = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:16px 24px; overflow:hidden">'
       + '<div style="display:grid; grid-template-columns:1fr 100px 110px 120px 120px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
       + '<div>MARKET</div><div style="text-align:right">WALLETS</div><div style="text-align:right">WINDOW</div><div style="text-align:right">NOTIONAL</div><div style="text-align:right">SAME SIDE</div></div>'
+      + (timingRows.length ? '' : leerZeile(risikoSatz))
       + timingRows.map((c) =>
         '<div style="display:grid; grid-template-columns:1fr 100px 110px 120px 120px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:12.5px">'
         + '<div style="font-family:\'Inter\',sans-serif; font-size:13px">' + esc(c.market) + '</div>'
@@ -353,7 +369,9 @@ export function trackWalletCards(T) {
       pnlLabel: 'ALL-TIME PROFIT'
     }));
   }
-  return DEMO_TRACKED_WALLETS.map((w) => ({ name: w.name, wallet: w.wallet, grade: w.grade, pnl: w.pnl, pnlRaw: w.pnl.charAt(0) === '+' ? 1 : -1, last: w.last, openAs: w.name, pnlLabel: '30D PROFIT' }));
+  // Kein Rueckfall auf drei erfundene Wallets samt Note und 30-Tage-Gewinn.
+  // Wem jemand folgt, weiss nur /api/track.
+  return [];
 }
 
 export function trackWatchRows(T) {
@@ -370,7 +388,10 @@ export function trackWatchRows(T) {
       };
     });
   }
-  return [T.markets[0], T.markets[1], T.markets[7], T.markets[6]].filter(Boolean).map((m) => T.marketView(m));
+  // Vier Maerkte nach Listenposition auszuwaehlen und sie Watchlist zu
+  // nennen, war eine Behauptung ueber den Nutzer. Ohne /api/track ist die
+  // Watchlist leer.
+  return [];
 }
 
 export function renderTrack(T) {
@@ -401,6 +422,8 @@ export function renderTrack(T) {
     + '</div>'
     + '<div style="padding:18px 24px">'
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55); margin-bottom:13px">MARKETS ON YOUR WATCHLIST</div>'
+    + (watch.length ? '' : '<div style="' + M + '; font-size:11.5px; color:rgba(255,255,255,.4); padding:6px 0">'
+      + esc(herkunftSatz(T.liveData.track ? { quelle: T.liveData.track._quelle === 'fehler' ? 'fehler' : 'leer', fehler: T.liveData.track._fehler } : null, '/api/track')) + '</div>')
     + watch.map((m) =>
       '<div ' + m.act + ' class="hv-panel" style="display:grid; grid-template-columns:1fr 96px 88px 96px 108px; align-items:center; padding:12px 0; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer">'
       + '<div><div style="font-size:13.5px">' + esc(m.title) + '</div>'

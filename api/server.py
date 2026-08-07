@@ -513,7 +513,13 @@ def alerts(
     if combined.empty and trades.empty:
         raise HTTPException(status_code=503, detail="no market data available")
 
-    def _build() -> list[dict[str, Any]]:
+    # Welche Regeln dieser Endpunkt gar nicht auswertet. Die Regelkarten
+    # bewerben sechs Regeln; ohne diesen Hinweis liest sich eine nicht
+    # gepruefte Regel wie eine gepruefte ohne Treffer.
+    holder_checks = 0
+    nicht_geprueft = ["HOLDER CONCENTRATION"] if holder_checks == 0 else []
+
+    def _build() -> dict[str, Any]:
         signals = sig.build_monitor_signals(
             combined.copy(),
             trades.copy(),
@@ -524,10 +530,14 @@ def alerts(
             min_whale_notional=whale_threshold,
             ending_days=ending_days,
             holder_threshold=0.25,
-            holder_checks=0,
+            holder_checks=holder_checks,
             tracked_keys=set(),
         )
-        return apv.alert_rows(signals)
+        return {
+            "signals": apv.alert_rows(signals),
+            "rule_counts": apv.alert_rule_counts(signals),
+            "rules_not_evaluated": nicht_geprueft,
+        }
 
     key = f"alerts_{min_move}_{max_spread}_{whale_threshold}_{ending_days}"
     state_path = ROOT / "data" / "alert_scanner_state.json"
@@ -544,7 +554,15 @@ def alerts(
             }
         except (OSError, json.JSONDecodeError):
             pass
-    return {"signals": cached(key, _build, ttl=60.0), "deliveries": deliveries, "as_of": md.now_utc_label()}
+    gebaut = cached(key, _build, ttl=60.0)
+    return {
+        "signals": gebaut["signals"],
+        "rule_counts": gebaut["rule_counts"],
+        "rules_not_evaluated": gebaut["rules_not_evaluated"],
+        "shown_limit": apv.ALERT_ROW_LIMIT,
+        "deliveries": deliveries,
+        "as_of": md.now_utc_label(),
+    }
 
 
 @app.get("/api/copy")
@@ -741,6 +759,11 @@ def backtest(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
         stake_value=stake_value,
         max_stake=float(body.get("cap", 250.0)),
         fee_bps=float(body.get("fee_bps", 20.0)),
+        # Voreinstellung ist das Venue-Modell. Der pauschale bps-Satz wirkt
+        # nur, wenn er ausdruecklich verlangt wird.
+        fee_model=(btr.FEE_MODEL_FLAT
+                   if str(body.get("fee_model", "")).strip().lower() == btr.FEE_MODEL_FLAT
+                   else btr.FEE_MODEL_CURVE),
         slippage_bps=float(body.get("slippage_bps", 15.0)),
         strategy=strategy,
         max_exposure_pct=float(body.get("exposure_pct", 100.0)),

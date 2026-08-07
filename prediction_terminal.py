@@ -11169,6 +11169,7 @@ def run_backtest_cached(
     strategy: str,
     max_exposure_pct: float = 100.0,
     trader_portfolio_value: float = 0.0,
+    fee_model: str = btr.FEE_MODEL_CURVE,
 ) -> btr.BacktestResult:
     return btr.run_backtest(
         btr.BacktestConfig(
@@ -11179,6 +11180,7 @@ def run_backtest_cached(
             stake_value=stake_value,
             max_stake=max_stake,
             fee_bps=fee_bps,
+            fee_model=fee_model,
             slippage_bps=slippage_bps,
             flat_stake=flat_stake,
             strategy=strategy,
@@ -11199,6 +11201,7 @@ def run_strategy_comparison_cached(
     strategy: str,
     max_exposure_pct: float,
     trader_portfolio_value: float,
+    fee_model: str = btr.FEE_MODEL_CURVE,
 ) -> pd.DataFrame:
     return btr.strategy_comparison(
         btr.BacktestConfig(
@@ -11209,6 +11212,7 @@ def run_strategy_comparison_cached(
             stake_value=25.0,
             max_stake=max_stake,
             fee_bps=fee_bps,
+            fee_model=fee_model,
             slippage_bps=slippage_bps,
             flat_stake=bankroll * 0.02,
             strategy=strategy,
@@ -11457,7 +11461,28 @@ def page_backtester() -> None:
             st.markdown("<div class='field-hint'>Fade takes the opposite side of every trade the wallet makes.</div>", unsafe_allow_html=True)
             with st.expander("Advanced settings"):
                 bankroll = st.number_input("Bankroll ($)", min_value=10.0, max_value=1_000_000.0, value=float(app_config["backtest_bankroll"]), step=500.0, key="bt_bankroll")
-                fee_bps = st.number_input("Fee (bps)", min_value=0.0, max_value=500.0, value=float(app_config["backtest_fee_bps"]), step=5.0, key="bt_fee")
+                # Die Engine rechnete pauschal, obwohl app/venue_fees.py die
+                # echte Kurve kennt. Sie haengt am Preis: rund 250 bps bei
+                # 0.50, rund 50 bps bei 0.90. Eine flache Annahme von 20 bps
+                # ist in der Mitte des Buchs mehr als zehnmal zu billig.
+                fee_model_label = st.segmented_control(
+                    "Fee model", ["Venue curve", "Flat override"], default="Venue curve",
+                    key="bt_fee_model",
+                    help="The venue curve is Polymarket's own formula: the taker fee rides on the variance of the price, so it peaks in the middle of the book.",
+                )
+                fee_model = btr.FEE_MODEL_FLAT if str(fee_model_label) == "Flat override" else btr.FEE_MODEL_CURVE
+                if fee_model == btr.FEE_MODEL_FLAT:
+                    fee_bps = st.number_input("Flat fee (bps)", min_value=0.0, max_value=500.0, value=float(app_config["backtest_fee_bps"]), step=5.0, key="bt_fee")
+                    st.markdown(
+                        "<div class='field-hint'>A flat rate cannot match the venue: about 250 bps at a price of 0.50 and about 50 bps at 0.90.</div>",
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    fee_bps = float(app_config["backtest_fee_bps"])
+                    st.markdown(
+                        "<div class='field-hint'>Polymarket charges the taker fee on the variance of the price: about 250 bps at 0.50, about 50 bps at 0.90, at the general category rate.</div>",
+                        unsafe_allow_html=True,
+                    )
                 slippage_bps = st.number_input("Slippage (bps)", min_value=0.0, max_value=500.0, value=float(app_config["backtest_slippage_bps"]), step=5.0, key="bt_slippage")
                 compare_input = st.text_input("Compare wallet (optional)", placeholder="0x…", key="bt_compare")
                 st.markdown(
@@ -11506,6 +11531,7 @@ def page_backtester() -> None:
                     "stake_value": float(stake_input),
                     "max_stake": float(max_bet),
                     "fee_bps": float(fee_bps),
+                    "fee_model": fee_model,
                     "slippage_bps": float(slippage_bps),
                     "flat_stake": float(bankroll) * 0.02,
                     "strategy": BACKTEST_STRATEGY_OPTIONS.get(str(strategy_label or "Copy"), btr.STRATEGY_COPY),
@@ -11545,6 +11571,7 @@ def page_backtester() -> None:
                     request.get("strategy", btr.STRATEGY_COPY),
                     request.get("max_exposure_pct", 100.0),
                     request.get("trader_portfolio_value", 0.0),
+                    request.get("fee_model", btr.FEE_MODEL_CURVE),
                 )
                 compare_result = None
                 if request["compare"]:
@@ -11561,6 +11588,7 @@ def page_backtester() -> None:
                         request.get("strategy", btr.STRATEGY_COPY),
                         request.get("max_exposure_pct", 100.0),
                         0.0,
+                        request.get("fee_model", btr.FEE_MODEL_CURVE),
                     )
         except md.MarketDataError as exc:
             st.error(f"Market data request failed: {exc}")
@@ -11628,6 +11656,7 @@ def page_backtester() -> None:
                     request.get("strategy", btr.STRATEGY_COPY),
                     request.get("max_exposure_pct", 100.0),
                     request.get("trader_portfolio_value", 0.0),
+                    request.get("fee_model", btr.FEE_MODEL_CURVE),
                 )
             else:
                 best_label = f"{best_label} (= your setting)"
@@ -11669,6 +11698,7 @@ def page_backtester() -> None:
                     request.get("strategy", btr.STRATEGY_COPY),
                     request.get("max_exposure_pct", 100.0),
                     request.get("trader_portfolio_value", 0.0),
+                    request.get("fee_model", btr.FEE_MODEL_CURVE),
                 )
                 if comparison.empty:
                     draw_empty("No trades to simulate in this window.")
