@@ -24,6 +24,7 @@ Streamlit-frei nach Projektkonvention. Verbraucher sind
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -32,9 +33,19 @@ from typing import Any, Callable
 REPORT_DIR = Path("docs/research")
 
 # Verdikt-Arten. Steuert nur die Einfaerbung in der Oberflaeche.
-VERDIKT_NEIN = "nein"      # gemessen und widerlegt
-VERDIKT_JA = "ja"          # gemessen und bestaetigt
-VERDIKT_OFFEN = "offen"    # nicht identifiziert, bewusst kein Urteil
+VERDIKT_NEIN = "nein"          # gemessen und widerlegt
+VERDIKT_JA = "ja"              # gemessen und bestaetigt
+VERDIKT_OFFEN = "offen"        # nicht identifiziert, bewusst kein Urteil
+VERDIKT_KONTROLLE = "kontrolle"  # keine Hypothese, sondern eine Pruefung der Messkette
+
+# Die kanonische Zelle des Orderflow-Gitters: keine Entscheidungsverzoegerung,
+# fuenf Minuten Horizont. `overall` in dem Artefakt poolt fuenf ueberlappende
+# (delay, horizon)-Zellen aus denselben Snapshots, jeder Snapshot zaehlt also
+# bis zu fuenfmal. Als Kopfzahl waere das doppelt falsch: n liegt ueber der
+# Zahl der Snapshots, und das Wilson-Intervall unterstellt Unabhaengigkeit,
+# die zwischen den Zellen nicht besteht.
+KANON_HORIZONT = "300"
+KANON_DELAY = 0.0
 
 # Diagrammarten, die das Frontend rendern kann.
 DIA_KOSTEN = "kosten"        # Balken mit Summenlinie: Vorteil gegen Kosten
@@ -100,13 +111,82 @@ class Studie:
     schlagworte: tuple[str, ...] = field(default_factory=tuple)
 
 
-def _basis(werte: dict[str, Any], **zusatz: Any) -> dict[str, Any]:
+_DATUM = re.compile(r"(\d{4}-\d{2}-\d{2})")
+
+
+def _fenster(werte: dict[str, Any], quelle: str = "") -> str | None:
+    """Kalenderfenster der Studie, damit jede Zahl datiert ist.
+
+    Vier Quellen in absteigender Genauigkeit: die Tagesliste, ein Zeitstempel
+    im Kopf, ein Zeitstempel in der ersten Zeile, und zuletzt das Datum im
+    Dateinamen. Die Einmal-Messungen (Regelvergleich, Buchabgleich) tragen
+    kein Feld dafuer, ihr Stichtag steht aber im Namen des Artefakts.
+    """
+    tage = werte.get("days")
+    if isinstance(tage, list) and tage:
+        erster, letzter = str(tage[0]), str(tage[-1])
+        return erster if erster == letzter else f"{erster} to {letzter}"
+    stempel = werte.get("ts_utc") or werte.get("snapshot_date")
+    if stempel:
+        return str(stempel)[:10]
+    zeilen = werte.get("rows")
+    if isinstance(zeilen, list) and zeilen and isinstance(zeilen[0], dict):
+        roh = zeilen[0].get("ts_utc") or zeilen[0].get("date")
+        if roh:
+            return str(roh)[:10]
+    treffer = _DATUM.search(quelle)
+    return treffer.group(1) if treffer else None
+
+
+def _kanon_zelle(signal: dict[str, Any]) -> dict[str, Any]:
+    """Die (delay 0, horizon 300)-Zelle, sonst `overall` als Rueckfall.
+
+    Ohne diese Auswahl wandert die gepoolte Zahl in die Kopfzeile, und die
+    ist groesser als die Zahl der Snapshots, aus denen sie stammt.
+    """
+    gitter = signal.get("latency")
+    if isinstance(gitter, dict):
+        for zelle in gitter.get(KANON_HORIZONT) or []:
+            if float(zelle.get("delay_s", -1)) == KANON_DELAY:
+                return zelle
+    return signal.get("overall") or {}
+
+
+def _latenz_tabelle(signal: dict[str, Any], titel: str) -> dict[str, Any] | None:
+    """Alle Zellen des Gitters, damit die Auswahl nachvollziehbar bleibt."""
+    gitter = signal.get("latency")
+    if not isinstance(gitter, dict) or not gitter:
+        return None
+    zeilen: list[list[Any]] = []
+    for horizont in sorted(gitter, key=lambda h: int(h)):
+        for zelle in gitter[horizont]:
+            kanon = horizont == KANON_HORIZONT and float(zelle.get("delay_s", -1)) == KANON_DELAY
+            zeilen.append([
+                f"{horizont} s" + (" ←" if kanon else ""),
+                f"{zelle.get('delay_s', 0):.0f} s",
+                _n(zelle["n"]),
+                _pz(zelle["hit_rate"]) + "%",
+                _pz(zelle["wilson_lb95"]) + "%",
+                f"{zelle['mean_net_cents']:+.3f}",
+            ])
+    return _tabelle(
+        titel,
+        ["Horizon", "Decision delay", "n", "Hit rate", "Wilson lower bound", "Net"],
+        zeilen,
+        "The marked row is the one quoted above. The cells overlap, since every "
+        "snapshot feeds each of them, so they must not be pooled into one sample: "
+        "that is why the headline uses a single cell and not their sum.",
+    )
+
+
+def _basis(werte: dict[str, Any], *, quelle: str = "", **zusatz: Any) -> dict[str, Any]:
     """Datenbasis in einheitlicher Form, leere Felder fliegen raus."""
     basis = {
         "beobachtungen": zusatz.get("beobachtungen"),
         "snapshots": werte.get("snapshots"),
         "tokens": werte.get("tokens"),
         "tage": len(werte["days"]) if isinstance(werte.get("days"), list) else werte.get("days"),
+        "fenster": _fenster(werte, quelle),
         "maerkte": zusatz.get("maerkte"),
         "paare": zusatz.get("paare"),
     }
@@ -136,19 +216,8 @@ def _tabelle(titel: str, spalten: list[str], zeilen: list[list[Any]], hinweis: s
 
 def _extrakt_imbalance(d: dict[str, Any]) -> dict[str, Any]:
     sig = d["signals"]["imbalance"]
-    o = sig["overall"]
-    train, test = sig.get("train") or {}, sig.get("test") or {}
-    details = None
-    if train and test:
-        details = _tabelle(
-            "Split before and after the cut-off date",
-            ["Sample", "Firings", "Hit rate", "Wilson lower bound", "Days"],
-            [
-                ["In sample", _n(train["n"]), _pz(train["hit_rate"]) + "%", _pz(train["wilson_lb95"]) + "%", train.get("days", "")],
-                ["Out of sample", _n(test["n"]), _pz(test["hit_rate"]) + "%", _pz(test["wilson_lb95"]) + "%", test.get("days", "")],
-            ],
-            "The out-of-sample half was never used to choose the threshold.",
-        )
+    o = _kanon_zelle(sig)
+    details = _latenz_tabelle(sig, "Every horizon and decision delay tested")
     teil = {
         "basis": _basis(d, beobachtungen=o["n"]),
         "kennzahlen": {
@@ -182,8 +251,8 @@ def _extrakt_imbalance(d: dict[str, Any]) -> dict[str, Any]:
 
 
 def _extrakt_takeable(d: dict[str, Any]) -> dict[str, Any]:
-    o = d["signals"]["imbalance"]["overall"]
-    c = d["signals"]["combo"]["overall"]
+    o = _kanon_zelle(d["signals"]["imbalance"])
+    c = _kanon_zelle(d["signals"]["combo"])
     return {
         "basis": _basis(d, beobachtungen=o["n"]),
         "kennzahlen": {
@@ -229,9 +298,9 @@ def _extrakt_takeable(d: dict[str, Any]) -> dict[str, Any]:
 
 
 def _extrakt_signed_flow(d: dict[str, Any]) -> dict[str, Any]:
-    f = d["signals"]["flow"]["overall"]
-    i = d["signals"]["imbalance"]["overall"]
-    c = d["signals"]["combo"]["overall"]
+    f = _kanon_zelle(d["signals"]["flow"])
+    i = _kanon_zelle(d["signals"]["imbalance"])
+    c = _kanon_zelle(d["signals"]["combo"])
     return {
         "basis": _basis(d, beobachtungen=f["n"]),
         "kennzahlen": {
@@ -518,13 +587,22 @@ def _extrakt_cross_venue(d: dict[str, Any]) -> dict[str, Any]:
     s = d["summary"]
     zeilen = []
     for r in d.get("rows") or []:
+        tage = r.get("days_to_resolution")
+        jahres = r.get("annualised_return")
+        # Kurzlaeufer nicht annualisieren. Vier Tage Restlaufzeit auf ein Jahr
+        # hochgerechnet ergibt in diesem Datensatz 1e63 Prozent, und eine
+        # solche Zahl in der Belegtabelle erledigt die ganze Studie.
+        if jahres is None or (tage is not None and float(tage) < 30):
+            jahres_text = "n/a, too short"
+        else:
+            jahres_text = f"{jahres * 100:.2f}%"
         zeilen.append([
             "rejected" if r.get("suspect") else "usable",
             str(r.get("pm_question") or "")[:70],
             f"{r.get('gross_edge_cents', 0):+.2f}",
             f"{r.get('net_edge_cents', 0):+.2f}",
-            str(r.get("days_to_resolution") or ""),
-            f"{(r.get('annualised_return') or 0) * 100:.2f}%",
+            f"{float(tage):.0f}" if tage is not None else "",
+            jahres_text,
         ])
     return {
         "basis": _basis(d, maerkte=d["pm_markets"] + d["kalshi_markets"], paare=s["pairs"]),
@@ -895,8 +973,8 @@ STUDIEN: tuple[Studie, ...] = (
         verdikt_art=VERDIKT_JA,
         analyse={
             "gemessen": "The same two quantities as the study above, spread earned and adverse selection, recomputed on seconds-resolution data.",
-            "wie": "Identical code, identical parameters, identical fill model. The only thing that changes is how fresh the book is when the quote is placed. That makes it a controlled comparison rather than two separate experiments.",
-            "daten": "5,413,998 streamed book snapshots over five days from the WebSocket recorders, against the twelve-day 120 second run.",
+            "wie": "Identical code, identical parameters, identical fill model. What differs is how fresh the book is when the quote is placed. It is not a controlled experiment: the two runs also cover different days and a different set of tokens, so the data frequency is the main difference rather than the only one.",
+            "daten": "5,413,998 streamed snapshots over five days and 468 tokens from the WebSocket recorders, against twelve days and 4,519 tokens on the 120 second grid. The two windows do not overlap.",
             "entscheidung": "Whichever of the two quantities moves is the binding constraint. If the spread earned had jumped, width would have been the answer; if the losses collapse, staleness is.",
         },
         einfach=lambda k: (
@@ -1061,8 +1139,8 @@ STUDIEN: tuple[Studie, ...] = (
     Studie(
         id="book-reconcile",
         frage="Does our own recorded book drift against the venue?",
-        verdikt="No. 98.6% agreement, mean divergence 0.07 ticks.",
-        verdikt_art=VERDIKT_JA,
+        verdikt="No drift found. 98.6% agreement, mean divergence 0.07 ticks.",
+        verdikt_art=VERDIKT_KONTROLLE,
         analyse={
             "gemessen": "How closely the book this project recorded matches the venue's own snapshot at the same moment.",
             "wie": "For the same token at the same instant, the streamed top of book is compared against a fresh REST snapshot, and the difference is expressed in ticks so it can be judged against the smallest price step that exists.",
@@ -1144,6 +1222,13 @@ def build_payload(root: Path | str = ".", *, jetzt: datetime | None = None) -> d
             teil = studie.extrakt(daten)
 
         kennzahlen = teil.pop("kennzahlen", {})
+        # Fenster zentral nachtragen: die Einmal-Messungen tragen kein
+        # Datumsfeld, ihr Stichtag steht im Namen des Artefakts.
+        basis = teil.get("basis")
+        if isinstance(basis, dict) and not basis.get("fenster"):
+            nachgetragen = _fenster(daten, studie.quelle)
+            if nachgetragen:
+                basis["fenster"] = nachgetragen
         eintrag: dict[str, Any] = {
             "id": studie.id,
             "frage": studie.frage,
@@ -1169,11 +1254,15 @@ def build_payload(root: Path | str = ".", *, jetzt: datetime | None = None) -> d
         eintrag.update(teil)
         studien.append(eintrag)
 
+    # Die Kontrollstudie zaehlt nicht als bestaetigte Hypothese: sie prueft die
+    # Messkette, nicht den Markt. Sie unter "confirmed" zu fuehren waere ein
+    # bestandener Selbsttest, der wie ein Befund aussieht.
     zaehler = {
         "gesamt": len(studien),
         "nein": sum(1 for s in studien if s["verdikt_art"] == VERDIKT_NEIN),
         "ja": sum(1 for s in studien if s["verdikt_art"] == VERDIKT_JA),
         "offen": sum(1 for s in studien if s["verdikt_art"] == VERDIKT_OFFEN),
+        "kontrolle": sum(1 for s in studien if s["verdikt_art"] == VERDIKT_KONTROLLE),
     }
 
     return {

@@ -13,6 +13,89 @@ function filterGroup(label, chipsHtml) {
   return '<div><div style="' + LBL9 + '">' + label + '</div><div style="display:flex; gap:6px; flex-wrap:wrap">' + chipsHtml + '</div></div>';
 }
 
+// Welche publizierte Datei hinter welchem Research-Tab steht. Der Leerzustand
+// nennt sie beim Namen, damit klar ist, was fehlt statt nur dass etwas fehlt.
+const RESEARCH_DATEI = [
+  'queue.json', 'kategorie_karte.json', 'mentions_latenz.json', 'runs.json',
+  'microstructure.json', 'pilot.json', 'pipeline_forward.json', 'audit.json',
+  'postmortems.json'
+];
+
+// Farbe je Achse, damit sich die Fehlerarten auf einen Blick trennen lassen.
+const ACHSEN_FARBE = {
+  'Rule understanding': '#F5A623',
+  'Execution': '#FF7A7A',
+  'Microstructure': '#4F8EF7',
+  'Data': '#7DE2D1',
+  'Infrastructure': '#C792EA',
+};
+
+/** Post-Mortems: neun Vorfaelle mit Ursache, Kosten, Fix und Codeverweis. */
+function renderPostmortems(payload) {
+  const eintraege = (payload && payload.eintraege) || [];
+  if (!eintraege.length) {
+    return '<div style="padding:26px 24px">'
+      + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:22px 24px; max-width:720px">'
+      + '<div style="font-size:16px; font-weight:600">No incidents published</div>'
+      + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:10px; line-height:1.6">'
+      + 'This page reads <span style="' + M + '">public/data/postmortems.json</span>.</div></div></div>';
+  }
+
+  const achsen = {};
+  eintraege.forEach((e) => { achsen[e.achse] = (achsen[e.achse] || 0) + 1; });
+  const chips = Object.entries(achsen).sort((a, b) => b[1] - a[1]).map(([achse, n]) =>
+    '<div style="' + M + '; font-size:10px; color:' + (ACHSEN_FARBE[achse] || '#95A0AB')
+    + '; border:1px solid ' + (ACHSEN_FARBE[achse] || '#95A0AB') + '44; border-radius:5px; padding:4px 9px">'
+    + esc(achse.toUpperCase()) + ' ' + n + '</div>').join('');
+
+  const feld = (label, wert, farbe) =>
+    '<div style="margin-top:11px">'
+    + '<div style="' + M + '; font-size:9px; letter-spacing:.13em; color:rgba(255,255,255,.38)">' + label + '</div>'
+    + '<div style="font-size:12.5px; color:' + (farbe || 'rgba(255,255,255,.72)') + '; margin-top:4px; line-height:1.6">'
+    + esc(wert || '—') + '</div></div>';
+
+  const karten = eintraege.slice().sort((a, b) => String(b.datum).localeCompare(String(a.datum))).map((e) => {
+    const farbe = ACHSEN_FARBE[e.achse] || '#95A0AB';
+    return '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-left:2px solid ' + farbe
+      + '; border-radius:10px; padding:16px 18px">'
+      + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap">'
+      + '<div style="font-size:14.5px; font-weight:600; flex:1; min-width:220px">' + esc(e.titel) + '</div>'
+      + '<div style="' + M + '; font-size:10px; color:' + farbe + '">' + esc(e.achse || '') + '</div></div>'
+      + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.4); margin-top:5px">'
+      + esc(e.datum) + (e.profil ? ' · ' + esc(e.profil) : '') + '</div>'
+      + feld('WHAT HAPPENED', e.was_passierte)
+      + feld('WHAT IT COST', e.auswirkung, '#FF7A7A')
+      + feld('WHAT CHANGED', e.fix, '#C8F542')
+      + (e.referenz
+        ? '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.35); margin-top:11px; '
+          + 'border-top:1px solid rgba(255,255,255,.06); padding-top:9px">' + esc(e.referenz) + '</div>'
+        : '')
+      + '</div>';
+  }).join('');
+
+  return '<div style="padding:20px 24px 36px">'
+    + '<div style="font-size:13.5px; color:rgba(255,255,255,.6); line-height:1.6; max-width:820px">'
+    + esc((payload && payload.hinweis) || '')
+    + '</div>'
+    + '<div style="display:flex; gap:7px; flex-wrap:wrap; margin-top:12px">'
+    + '<div style="' + M + '; font-size:10px; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:5px; padding:4px 9px">'
+    + eintraege.length + ' INCIDENTS</div>' + chips + '</div>'
+    + '<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); gap:14px; margin-top:16px">'
+    + karten + '</div></div>';
+}
+
+function fehlendeStudieHtml(study, datei) {
+  return '<div style="padding:26px 24px">'
+    + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:22px 24px; max-width:720px">'
+    + '<div style="font-size:16px; font-weight:600">' + esc(study.title) + '</div>'
+    + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:10px; line-height:1.6">'
+    + 'No published data for this study yet. It reads '
+    + '<span style="' + M + '">public/data/' + esc(datei || 'the study payload') + '</span>, '
+    + 'which the daily run writes. Nothing is shown here rather than a placeholder, '
+    + 'because a made-up figure under a frozen date would be worse than an empty panel.'
+    + '</div></div></div>';
+}
+
 // ---------------------------------------------------------------- alerts
 export function renderAlerts(T) {
   const s = T.state;
@@ -114,11 +197,18 @@ export function renderResearch(T) {
   const header = '<div style="padding:20px 24px 0; border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="' + M + '; font-size:10px; letter-spacing:.18em; color:#4F8EF7">RESEARCH</div>'
     + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">The studies behind the terminal</div>'
-    + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:9px; max-width:720px">Eight studies, each read-only, pre-registered and dated. Pick one in the sidebar.</div>'
+    // Frueher stand hier "Eight studies, each read-only, pre-registered and
+    // dated". Vorregistriert ist bislang genau eine, und die als Entwurf mit
+    // der Nummer PENDING. Der Satz nennt jetzt, was jede Studie wirklich
+    // mitbringt, und das ist nachpruefbar.
+    + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:9px; max-width:720px">Read-only studies on recorded data. Each one states its method, its sample, its time window and what it cannot show. Pick one in the sidebar.</div>'
     + '<div style="height:18px"></div></div>';
 
   if (s.researchTab === 3) {
     return '<div>' + header + renderLiveRuns(T, payload) + '</div>';
+  }
+  if (s.researchTab === 8) {
+    return '<div>' + header + renderPostmortems(payload) + '</div>';
   }
 
   // Microstructure hat eine eigene Seite: zwoelf Studien, je Karte mit
@@ -130,12 +220,25 @@ export function renderResearch(T) {
   const stamp = payload && payload.stand_utc ? String(payload.stand_utc).slice(0, 16).replace('T', ' ') + ' UTC' : study.stamp;
   const note = payload && payload.hinweis ? payload.hinweis : study.note;
   const table = buildStudyTable(T, s.researchTab, payload);
-  const stats = buildStudyStats(s.researchTab, payload) || study.stats.map((x) => ({ label: x[0], value: x[1], note: x[2] }));
+  // Ohne Nutzlast keine Zahlen. Die Demo-Werte in demo_data.js sind erfunden
+  // und widersprechen der eigenen Forschung teils frontal: dort stand
+  // "IMBALANCE EDGE +0.4c net of fees", gemessen sind -2.50 Cent. Unter einem
+  // Stempel wie "frozen 2026-06-30" ist eine erfundene Zahl nicht neutral,
+  // sondern belastend.
+  const stats = buildStudyStats(s.researchTab, payload);
+  if (!stats) {
+    return '<div>' + header + fehlendeStudieHtml(study, RESEARCH_DATEI[s.researchTab]) + '</div>';
+  }
   const chartLabel = study.chart;
-  // Der Pilot bekommt keine Zierkurve: die Positionen sind offen, eine
-  // Equity-Linie gaebe es nicht, und eine gemalte waere eine Behauptung.
-  const echtePilotAuswertung = s.researchTab === 5 && payload && payload.auswertung;
-  const pts = echtePilotAuswertung ? '' : T.curve(s.researchTab * 977 + 31, 50, 900, 220, 0.4, 3.2).pts;
+  // Keine Zierkurve mehr, nirgends. Hier lief ein Zufallsgenerator mit
+  // eingebautem Aufwaertsdrift unter Ueberschriften wie FORWARD PAPER EQUITY
+  // und BRIER SCORE BY CATEGORY, auch dann, wenn echte Daten geladen waren.
+  // Die Begruendung stand seit der Pilot-Ausnahme daneben und galt immer
+  // schon fuer alle: eine gemalte Kurve ist eine Behauptung. Ein Diagramm
+  // gibt es erst, wenn eine echte Serie in der Nutzlast liegt.
+  const serie = payload && Array.isArray(payload.serie) && payload.serie.length > 1
+    ? payload.serie : null;
+  const pts = serie ? T.seriesPoints(serie, 900, 220) : '';
 
   return '<div>' + header
     + '<div style="padding:22px 24px">'
@@ -284,8 +387,10 @@ function studyTableHtml(T, label, cols, head, rows) {
 }
 
 function buildStudyTable(T, tab, payload) {
-  const demo = T.studyTables[tab];
-  if (!payload) return studyTableHtml(T, demo.label, demo.cols, demo.head, demo.rows);
+  // Keine Demo-Tabelle als Rueckfall: eine erfundene Zeile in einer
+  // Belegtabelle ist genau die Sorte Zahl, die auf einem Floor die
+  // Glaubwuerdigkeit der echten Zeilen mitnimmt.
+  if (!payload) return '';
   try {
     if (tab === 0 && payload.faelle) {
       return studyTableHtml(T, 'OPEN CASES', '110px 1fr 130px 130px 140px', ['CASE','MARKET','BAND','DISCOUNT','RECOMMENDATION'],
@@ -308,10 +413,10 @@ function buildStudyTable(T, tab, payload) {
         payload.laeufe.slice(0, 12).map((l) => [String(l.profil), num(l.n_eintraege), num(l.n_kaeufe), '$' + (+l.extraktion_gekauft_usd || 0).toFixed(0), l.extraktionsquote != null ? Math.round((+l.extraktionsquote) * 100) + '%' : '—']));
     }
     if (tab === 7 && payload.prompt_hashes) {
-      return studyTableHtml(T, demo.label, demo.cols, demo.head, demo.rows);
+      return '';
     }
-  } catch (err) { /* malformed payload — fall through to demo table */ }
-  return studyTableHtml(T, demo.label, demo.cols, demo.head, demo.rows);
+  } catch (err) { /* malformed payload — show nothing rather than fixtures */ }
+  return '';
 }
 
 function buildStudyStats(tab, payload) {
@@ -375,16 +480,26 @@ function buildStudyStats(tab, payload) {
       return [
         { label: 'RUNS', value: String(payload.laeufe.length), note: 'forward, no edits' },
         { label: 'ENTRIES', value: num(entries), note: 'auto-published' },
-        { label: 'BUY DECISIONS', value: num(buys), note: 'of ' + num(entries) + ' entries' },
-        { label: 'DRIFT', value: 'none', note: 'config hash stable' }
+        // Kein DRIFT-Feld mehr: der Wert war das Literal 'none', ohne dass
+        // irgendetwas verglichen wurde. Stattdessen die Quote, die aus den
+        // Laeufen tatsaechlich hervorgeht.
+        { label: 'BUY DECISIONS', value: num(buys), note: entries ? Math.round((buys / entries) * 100) + '% of ' + num(entries) + ' entries' : 'of ' + num(entries) + ' entries' }
       ];
     }
     if (tab === 7 && payload.n_eintraege != null) {
+      // Frueher stand hier HASH CHAIN 'intact'. Das war ein fest verdrahteter
+      // String, und die Nutzlast traegt zwei flache Hash-Listen ohne
+      // Vorgaengerverweise, also gar keine Kette, die man pruefen koennte.
+      // Gezeigt wird jetzt, was die Datei wirklich hergibt.
+      const backends = Object.entries(payload.backend_zaehler || {});
+      const backend = backends.length
+        ? backends.sort((a, b) => b[1] - a[1])[0]
+        : ['—', 0];
       return [
-        { label: 'HASH CHAIN', value: 'intact', note: num(payload.n_eintraege) + ' entries' },
-        { label: 'PROMPT HASHES', value: num((payload.prompt_hashes || []).length), note: 'SHA-256' },
-        { label: 'OUTPUT HASHES', value: num((payload.output_hashes || []).length), note: 'SHA-256' },
-        { label: 'BACKEND', value: String(Object.keys(payload.backend_zaehler || { '—': 1 })[0]), note: 'no vendor exposed' }
+        { label: 'AUDIT ENTRIES', value: num(payload.n_eintraege), note: 'roles and counters only' },
+        { label: 'PROMPT HASHES', value: num((payload.prompt_hashes || []).length), note: 'SHA-256, no prompt text' },
+        { label: 'OUTPUT HASHES', value: num((payload.output_hashes || []).length), note: 'SHA-256, no output text' },
+        { label: 'BACKEND', value: String(backend[0]), note: backend[0] === 'mock' ? 'not a live model run' : num(backend[1]) + ' of ' + num(payload.n_eintraege) }
       ];
     }
   } catch (err) { /* malformed payload */ }
