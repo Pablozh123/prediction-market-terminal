@@ -254,6 +254,22 @@ def annualised_return(return_on_capital: float | None,
     return round(base ** (365.0 / days) - 1.0, 6)
 
 
+def taker_fee_bps(venue: str = "polymarket", price: float = 0.5,
+                  category: str | None = None, shares: float = 100.0) -> float:
+    """Die Venue-Gebuehr als Basispunkte auf den Einsatz.
+
+    Zum Vergleich mit pauschalen bps-Annahmen, wie der Backtester sie
+    verwendet. Der Unterschied ist kein Rundungsfehler: die Kurve haengt am
+    Preis, und bei 0.50 kostet ein Taker auf Polymarket ein Vielfaches
+    dessen, was eine flache Annahme von 20 bps unterstellt. Eine zu billige
+    Gebuehr schmeichelt jedem Rueckrechnungsergebnis.
+    """
+    einsatz = float(shares) * float(price)
+    if einsatz <= 0:
+        return 0.0
+    return round(taker_fee(venue, shares, price, category) / einsatz * 10_000.0, 1)
+
+
 def no_arb_band_cents(price_a: float, price_b: float, venue_a: str = "polymarket",
                       venue_b: str = "kalshi", category_a: str | None = None,
                       category_b: str | None = None,

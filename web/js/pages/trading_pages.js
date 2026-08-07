@@ -238,7 +238,16 @@ export function renderBacktester(T) {
       '<div style="padding:14px; display:flex; flex-direction:column; gap:13px">'
       + stepRow('BANKROLL', '$' + num(s.btBankroll), { btBankroll: Math.max(100, s.btBankroll - 500) }, { btBankroll: s.btBankroll + 500 })
       + '<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px">'
-      + stepRow('FEE (BPS)', s.btFee + ' bps', { btFee: Math.max(0, s.btFee - 5) }, { btFee: s.btFee + 5 })
+      + stepRow('FEE (BPS) · OVERRIDE', s.btFee + ' bps', { btFee: Math.max(0, s.btFee - 5) }, { btFee: s.btFee + 5 })
+      // Der Deckel gehoert danebengestellt. Polymarkets Taker-Gebuehr haengt
+      // am Preis: rund 250 bps bei 0.50, rund 50 bps bei 0.90. Eine flache
+      // Annahme von 20 bps ist an der Mitte des Buchs um mehr als das
+      // Zehnfache zu billig, und zu billige Gebuehren schmeicheln jedem
+      // Ergebnis. Die Zahlen stammen aus app/venue_fees.py.
+      + '<div style="font-size:11px; color:#F5A623; margin-top:-4px; margin-bottom:10px; line-height:1.5">'
+      + 'Flat override. The venue curve in app/venue_fees.py charges about 250 bps at a price of 0.50 '
+      + 'and about 50 bps at 0.90, so anything near 20 bps understates the real cost by a wide margin.'
+      + '</div>'
       + stepRow('SLIPPAGE (BPS)', s.btSlip + ' bps', { btSlip: Math.max(0, s.btSlip - 5) }, { btSlip: s.btSlip + 5 })
       + '</div>'
       + '<div><div style="' + LBL95 + '">BENCHMARK</div>'

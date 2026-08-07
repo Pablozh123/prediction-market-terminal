@@ -228,3 +228,25 @@ class SanityTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BpsVergleichTests(unittest.TestCase):
+    """Der Backtester rechnet flach; hier steht, wie weit das danebenliegt."""
+
+    def test_gebuehr_in_bps_haengt_am_preis(self):
+        mitte = vf.taker_fee_bps("polymarket", 0.50, "politics")
+        rand = vf.taker_fee_bps("polymarket", 0.90, "politics")
+        self.assertGreater(mitte, rand)
+        self.assertGreater(mitte, 100.0)
+
+    def test_flache_zwanzig_bps_unterschaetzen_die_mitte_deutlich(self):
+        """Die Vorgabe des Backtesters gegen das echte Modell."""
+        from app import backtester as btr
+
+        flach = btr.BacktestConfig(wallet="0xtest").fee_bps
+        echt = vf.taker_fee_bps("polymarket", 0.50, "politics")
+        self.assertGreater(echt, flach * 5,
+                           "wenn das nicht mehr gilt, gehoert der Hinweis im UI angepasst")
+
+    def test_ohne_einsatz_keine_bps(self):
+        self.assertEqual(vf.taker_fee_bps("polymarket", 0.0, "politics"), 0.0)
