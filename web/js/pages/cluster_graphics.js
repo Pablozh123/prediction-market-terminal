@@ -79,22 +79,28 @@ function graphSvg(g) {
       + '<title>' + esc(n.kurz + ' · ' + n.maerkte + ' markets · ' + n.trades + ' trades') + '</title></circle>';
   }).join('');
 
-  // Cluster-Beschriftung am Schwerpunkt, nur fuer Gruppen ab drei Wallets:
-  // bei Paaren verdeckt das Label die Knoten.
-  const labelSvg = (g.cluster || []).filter((c) => c.groesse >= 3).map((c) => {
-    const mitglieder = knoten.filter((n) => n.cluster === c.id);
-    if (!mitglieder.length) return '';
-    const cx = mitglieder.reduce((a, n) => a + X(n.x), 0) / mitglieder.length;
-    const cy = Math.min(...mitglieder.map((n) => Y(n.y)));
-    return '<text x="' + cx.toFixed(1) + '" y="' + (cy - 13).toFixed(1) + '" text-anchor="middle" '
-      + 'font-size="10.5" font-family="JetBrains Mono, monospace" fill="'
-      + farbeVon(clusterIndex.get(c.id) || 0) + '" fill-opacity=".95">'
-      + esc(c.name + ' · ' + c.groesse + 'w · ' + c.volumen_label) + '</text>';
-  }).join('');
-
+  // Bewusst keine Beschriftung im Graphen: in den dichten Inseln liegt sie
+  // ueber den Knoten und verdeckt genau das, was gezeigt werden soll. Die
+  // Zuordnung uebernimmt die Farblegende darunter, wie in der Abbildung.
   return '<svg width="100%" viewBox="0 0 ' + W + ' ' + H + '" role="img" '
     + 'aria-label="co-trading network of wallets">'
-    + kantenSvg + knotenSvg + labelSvg + '</svg>';
+    + kantenSvg + knotenSvg + '</svg>';
+}
+
+/** Farbschluessel unter dem Graphen, statt Beschriftung mitten hinein. */
+function clusterLegende(g) {
+  const cluster = (g.cluster || []).filter((c) => c.groesse >= 2);
+  if (!cluster.length) return '';
+  return '<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); '
+    + 'gap:5px 12px; margin-top:12px">'
+    + cluster.map((c, i) =>
+      '<div style="display:flex; align-items:center; gap:7px">'
+      + '<span style="width:9px; height:9px; border-radius:2px; flex:none; background:'
+      + farbeVon(i) + '"></span>'
+      + '<span style="' + M + '; font-size:10px; color:rgba(255,255,255,.6); white-space:nowrap">'
+      + esc(c.name + ' · ' + c.groesse + 'w · ' + c.volumen_label) + '</span></div>'
+    ).join('')
+    + '</div>';
 }
 
 /** Matrix: Wallet-Zeilen mal Markt-Spalten, Fuellung nach Notional. */
@@ -170,15 +176,32 @@ function tafel(titel, unter, inhalt, fuss) {
     + (fuss || '') + '</div>';
 }
 
+function hinweisKarte(text, farbe) {
+  return '<div style="' + CARD + '; padding:20px 22px; margin-bottom:16px">'
+    + '<div style="' + M + '; font-size:10px; letter-spacing:.14em; color:#4F8EF7">CO-TRADING STRUCTURE</div>'
+    + '<div style="font-size:13.5px; color:' + farbe + '; margin-top:10px; line-height:1.6; max-width:720px">'
+    + esc(text) + '</div></div>';
+}
+
 export function renderClusterGraphics(live) {
-  const g = live && live.graph;
-  const m = (live && live.matrix) || {};
+  // Noch keine Antwort vom Server ist etwas anderes als kein Cluster. Der
+  // erste Aufbau paged den Tape und holt Marktkategorien, das dauert eine
+  // Weile, und in der Zeit hier "kein Cluster" zu behaupten waere schlicht
+  // falsch.
+  if (!live) {
+    return hinweisKarte(
+      'Loading the whale tape and building the network. The first run pages about a day of '
+      + 'prints and looks up the market categories, so this takes a moment.',
+      'rgba(255,255,255,.6)');
+  }
+  const g = live.graph;
+  const m = live.matrix || {};
   if (!g || !g.knoten || !g.knoten.length) {
-    return '<div style="' + CARD + '; padding:20px 22px; margin-bottom:16px">'
-      + '<div style="' + M + '; font-size:10px; letter-spacing:.14em; color:#4F8EF7">CO-TRADING STRUCTURE</div>'
-      + '<div style="font-size:13.5px; color:rgba(255,255,255,.7); margin-top:10px; line-height:1.6; max-width:720px">'
-      + 'No co-trading cluster in the current window. That is a result, not a gap: once sports and crypto are '
-      + 'excluded, the wallets left in the insider-prone markets do not repeatedly meet each other.</div></div>';
+    return hinweisKarte(
+      'No co-trading cluster in the current window. That is a result, not a gap: once sports and '
+      + 'crypto are excluded, the wallets left in the insider-prone markets do not repeatedly meet '
+      + 'each other.',
+      'rgba(255,255,255,.7)');
   }
 
   return '<div style="' + CARD + '; padding:18px 20px; margin-bottom:16px">'
@@ -196,7 +219,7 @@ export function renderClusterGraphics(live) {
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(330px,1fr)); gap:14px; margin-top:14px">'
     + tafel('WHO MOVES WITH WHOM',
       'Each dot is a wallet, sized by the money it moved. A line means the two took the same side of the same markets. Colour is the community the graph splits into.',
-      graphSvg(g))
+      graphSvg(g), clusterLegende(g))
     + tafel('WHY THEY ARE LINKED',
       'The same wallets against the markets they actually share. Every line on the left is a pair of rows here that meets in at least two columns.',
       matrixSvg(m), marktLegende(m))
