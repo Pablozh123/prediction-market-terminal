@@ -1,4 +1,3 @@
-import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -148,7 +147,7 @@ class PipelineLaeufeTests(unittest.TestCase):
             ],
         }
         laeufe = av.pipeline_laeufe(payload)
-        self.assertEqual([l["profil"] for l in laeufe], ["allin_july17", "allin_july3"])
+        self.assertEqual([lauf["profil"] for lauf in laeufe], ["allin_july17", "allin_july3"])
         self.assertEqual(laeufe[0]["n_eintraege"], 31)
         self.assertEqual(laeufe[0]["n_kaeufe"], 6)
         self.assertEqual(laeufe[0]["wortzaehler_endstaende"], {"a": 1})

@@ -101,7 +101,7 @@ def main() -> int:
     print("2. ABGLEICH MIT DER BUCHHALTUNGS-IDENTITAET")
     print("=" * 88)
     check = ocf.reconcile_ledger(total_in, total_out, args.balance, args.profit)
-    print(f"  Endbestand = Nettofluss + Profit")
+    print("  Endbestand = Nettofluss + Profit")
     print(f"  erwartet   : ${check['implied_balance']:>18,.2f}")
     print(f"  tatsaechlich: ${check['actual_balance']:>17,.2f}")
     print(f"  RESIDUUM   : ${check['residual']:>18,.2f}"

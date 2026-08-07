@@ -29,7 +29,6 @@ Loop: python scripts/run_book_stream.py
 from __future__ import annotations
 
 import argparse
-import csv
 import json
 import time
 from datetime import datetime, timezone

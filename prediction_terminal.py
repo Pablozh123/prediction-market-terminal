@@ -44,7 +44,6 @@ from app.format import (
     market_title_family_key,
     money,
     pct,
-    resolution_yield_summary,
     signed_cents,
 )
 from app.filters import (
@@ -62,7 +61,6 @@ from app.filters import (
     bool_mask,
     copy_order_status_bucket,
     filter_text,
-    market_filter_category,
     numeric_col,
     option_metric_filter,
 )
@@ -5196,7 +5194,8 @@ def page_markets() -> None:
         "activity_volume": st.column_config.NumberColumn(format="$%.0f"),
         "volume_24h": st.column_config.NumberColumn(format="$%.0f"),
         "volume": st.column_config.NumberColumn(format="$%.0f"),
-        "liquidity": st.column_config.NumberColumn(format="$%.0f"),
+        # "liquidity" is configured further up with its label. A second entry
+        # here silently won and cost the column its "Liquidity" header.
         "url": st.column_config.LinkColumn("URL"),
     }
     scan_action_cols = st.columns([1.1, 1.1, 3])

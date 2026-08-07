@@ -1,5 +1,6 @@
 """Polymarket API client with Cloudflare DNS fallback (bypasses Swiss ISP block)."""
 
+import json
 import time as _time
 import socket
 import requests
@@ -87,9 +88,13 @@ def get_markets(limit: int = 50, active_only: bool = True) -> pd.DataFrame:
                 # clobTokenId für Preis-History
                 clob_ids = market.get("clobTokenIds", "[]")
                 if isinstance(clob_ids, str):
-                    import json as _json
-                    try: clob_ids = _json.loads(clob_ids)
-                    except: clob_ids = []
+                    # The field arrives as a JSON string. A malformed one means
+                    # no price history for this market, not a dead request, so
+                    # it is caught narrowly instead of swallowing everything.
+                    try:
+                        clob_ids = json.loads(clob_ids)
+                    except (ValueError, TypeError):
+                        clob_ids = []
                 clob_token_id = clob_ids[0] if clob_ids else None
 
                 rows.append({

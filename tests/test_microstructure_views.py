@@ -1,36 +1,36 @@
 """Tests fuer die read-only Microstructure-Sichten (Recorder + Rolling-Study)."""
 
 import json
-import json
 import tempfile
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
-from app import microstructure_views as mv_new
+from app import microstructure_views as mv
 
 
 class StreamStatusTests(unittest.TestCase):
     def test_missing_status_is_reported_as_none(self):
         with tempfile.TemporaryDirectory() as tmp:
-            self.assertIsNone(mv_new.stream_status(Path(tmp)))
+            self.assertIsNone(mv.stream_status(Path(tmp)))
 
     def test_status_is_read_back(self):
         with tempfile.TemporaryDirectory() as tmp:
             (Path(tmp) / "stream_status.json").write_text(
                 json.dumps({"messages": 42}), encoding="utf-8")
-            self.assertEqual(mv_new.stream_status(Path(tmp))["messages"], 42)
+            self.assertEqual(mv.stream_status(Path(tmp))["messages"], 42)
 
     def test_corrupt_status_does_not_raise(self):
         with tempfile.TemporaryDirectory() as tmp:
             (Path(tmp) / "stream_status.json").write_text("{kaputt",
                                                           encoding="utf-8")
-            self.assertIsNone(mv_new.stream_status(Path(tmp)))
+            self.assertIsNone(mv.stream_status(Path(tmp)))
 
 
 class StreamCoverageTests(unittest.TestCase):
     def test_empty_directory_reports_zeroes(self):
         with tempfile.TemporaryDirectory() as tmp:
-            coverage = mv_new.stream_coverage(Path(tmp))
+            coverage = mv.stream_coverage(Path(tmp))
             self.assertEqual(coverage["book_rows"], 0)
             self.assertEqual(coverage["days"], 0)
 
@@ -41,7 +41,7 @@ class StreamCoverageTests(unittest.TestCase):
                 "recv_ts,token_id\na,b\nc,d\n", encoding="utf-8")
             (directory / "stream_trades_2026-07-30.csv").write_text(
                 "recv_ts,side\na,BUY\n", encoding="utf-8")
-            coverage = mv_new.stream_coverage(directory)
+            coverage = mv.stream_coverage(directory)
             self.assertEqual(coverage["book_rows"], 2)
             self.assertEqual(coverage["trade_rows"], 1)
             self.assertEqual(coverage["days"], 1)
@@ -57,11 +57,11 @@ class FileKindTests(unittest.TestCase):
             "stream_trades_2026-07-30.csv": "stream trades",
         }
         for name, expected in kinds.items():
-            self.assertEqual(mv_new._file_kind(name), expected, name)
+            self.assertEqual(mv._file_kind(name), expected, name)
 
     def test_stream_files_are_not_mislabelled_as_tape(self):
         # Vor der Trennung fiel jede Datei ohne books_-Prefix auf "trades".
-        self.assertNotEqual(mv_new._file_kind("stream_books_2026-07-30.csv"),
+        self.assertNotEqual(mv._file_kind("stream_books_2026-07-30.csv"),
                             "trades")
 
     def test_listing_covers_both_recorders(self):
@@ -69,13 +69,8 @@ class FileKindTests(unittest.TestCase):
             directory = Path(tmp)
             for name in ("books_2026-07-30.csv", "stream_books_2026-07-30.csv"):
                 (directory / name).write_text("a\n", encoding="utf-8")
-            kinds = {row["art"] for row in mv_new.recorder_files(directory)}
+            kinds = {row["art"] for row in mv.recorder_files(directory)}
             self.assertEqual(kinds, {"books", "stream books"})
-from pathlib import Path
-from tempfile import TemporaryDirectory
-
-from app import microstructure_views as mv
-
 BOOK_HEADER = (
     "ts_utc,market_id,slug,outcome,token_id,best_bid,best_ask,spread,mid,"
     "bid_usd_top,ask_usd_top,imbalance_top,bids_json,asks_json\n"

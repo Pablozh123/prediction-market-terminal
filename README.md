@@ -27,6 +27,9 @@ All market data comes from the public Polymarket (Gamma/Data/CLOB) and Kalshi AP
 
 ## Run locally
 
+Python 3.12 or newer. CI runs the suite on 3.12 and 3.13; the container image
+ships 3.13.
+
 ```powershell
 python -m streamlit run prediction_terminal.py --server.address=127.0.0.1 --server.port=8503
 ```

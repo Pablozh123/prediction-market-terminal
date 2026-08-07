@@ -1,0 +1,25 @@
+# Lint configuration. The default rule set (pycodestyle errors and pyflakes)
+# is what CI enforces; style beyond that is left to review rather than to a
+# formatter, because the repository predates one and a reformat would bury the
+# history of every file it touched.
+
+target-version = "py312"
+line-length = 120
+
+# Untracked scratch material that happens to sit in the working directory.
+exclude = ["Website redesign directions", ".venv_tracking", "notebooks"]
+
+[lint]
+# E4 imports, E7 statements, E9 runtime errors, F pyflakes. This is ruff's
+# default selection, stated explicitly so a future default change cannot
+# silently widen or narrow what CI checks.
+select = ["E4", "E7", "E9", "F"]
+
+[lint.per-file-ignores]
+# These entry points must put the repository root on sys.path before they can
+# import anything from app/ or src/, so their project imports cannot sit at the
+# top of the file. Moving them would break the script when it is run directly,
+# which is the only way these are ever run.
+"api/server.py" = ["E402"]
+"scripts/*.py" = ["E402"]
+"tests/test_app_smoke.py" = ["E402"]

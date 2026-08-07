@@ -9,17 +9,24 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The README promises 3.12 or newer and the container image ships
+        # 3.13, so both are tested rather than asserted.
+        python-version: ["3.12", "3.13"]
+    name: test (python ${{ matrix.python-version }})
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
           cache: pip
 
-      # Ohne Node ueberspringt sich der Render-Test der Weboberflaeche still,
-      # und damit waeren rund 4.000 Zeilen Frontend ungeprueft.
+      # Without Node the web render test skips itself silently, which would
+      # leave roughly 4,000 lines of frontend unguarded.
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
@@ -29,6 +36,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install ruff
+
+      - name: Lint (ruff)
+        run: python -m ruff check .
 
       - name: Syntax check (py_compile)
         run: >-
