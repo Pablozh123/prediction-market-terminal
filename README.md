@@ -8,18 +8,30 @@ Microstructure research on Polymarket and Kalshi from self-recorded data, and th
 
 Four recorders run continuously across both venues — REST pollers on a 120-second grid, event-driven WebSocket recorders writing on every top-of-book change — feeding eight analysis modules. Every finding below has a report and a tested module behind it, and every cost is subtracted separately for spread and fee.
 
-- **Book imbalance predicts direction and is still not tradable as a taker.** 55.2% hit rate over 1,011,556 observations, Wilson lower bound 55.0%. Gross edge +0.03 to +0.13 cents against a 2.58 cent round trip. 34 cuts knowable before the trade fail to rescue it; the one survivor has a confidence interval containing zero, which is the expected false-positive count at 34 tests.
+- **Book imbalance predicts direction and is still not tradable as a taker.** At a five-minute horizon with no decision delay: 205,835 firings over 11 days, 55.5% hit rate, Wilson lower bound 55.2%. The study runs four further horizon/delay cells on the same 370,423 snapshots; they are reported separately, never pooled (summed they would read 1,011,556 observations at 55.2%, more observations than snapshots). Mean gross edge +0.09 cents per firing at that cell, +0.03 to +0.13 across the five cells, against a 2.58 cent round trip (0.938 spread, 1.646 fee). 34 cuts knowable before the trade fail to rescue it; the one survivor has a confidence interval containing zero, which is the expected false-positive count at 34 tests.
 
   ![Net edge by spread bucket and fee category: negative in every segment, including the fee-free category](docs/research/edge_segments_july-2026.png)
-- **Market making loses to staleness, not to spread width — and whether it pays is not identified.** Same code and parameters on five days of seconds-resolution data instead of a 120-second grid: markout per fill falls from 362 to 70 cents while spread earned per fill barely moves, 138 against 148. The decomposition is an identity, not an estimate — spread capture plus markout plus late drift reconstructs terminal mark-to-mid exactly, asserted to nine decimal places in the tests. Five days is also the first sample where the daily block bootstrap runs, and it puts the two fill models on opposite sides of zero with neither interval touching it: touch (-12,121, -2,413) USD per day, tape (+881, +5,889). More data sharpened the ambiguity instead of resolving it; settling the sign needs queue position, not more days.
+- **Market making loses to staleness, not to spread width — and whether it pays is not identified.** Same code and parameters on five days of seconds-resolution data instead of a 120-second grid, tape fill model throughout: markout per fill falls from 362 to 70 cents while spread earned per fill barely moves, 138 against 148. The decomposition is an identity, not an estimate — spread capture plus markout plus late drift reconstructs terminal mark-to-mid exactly, asserted to nine decimal places in the tests. Five days is also the first sample where the daily block bootstrap runs, and it puts the two fill models on opposite sides of zero with neither interval touching it: touch (-12,121, -2,413) USD per day, tape (+881, +5,889). More data sharpened the ambiguity instead of resolving it; settling the sign needs queue position, not more days.
 
   ![Market-making PnL decomposition over 5 days of streamed data: spread earned vs. adverse selection, per fill model](docs/research/mm_pnl_stream-5tage.png)
 - **Cross-venue gaps are carry, not arbitrage, and they prove it by staying open.** Net of both fee curves, 3 of 5 verified pairs clear: best 3.07 cents, all settling in 2027 or 2028, so 0.5 to 1.8% annualised. Reconstructed over 11.6 hours from both recorders, 3 of the 5 were open at every moment observed.
 - **Two venues can price the same event and settle it differently.** Kalshi resolves the 2028 presidential market on who is next inaugurated, Polymarket on who wins the election. A basket over that pair loses both legs instead of hedging — and that pair had passed this project's own title-based mismatch screen as clean.
 
-Discarded along the way, and documented as such: signal-conditioned quoting (better total PnL, unchanged markout per fill — the gain was only from trading less), signed order flow as a signal (51.3%), and two apparent cross-venue edges of 79 and 64 cents that turned out to be mismatched pairs.
+Discarded along the way, and documented as such: signal-conditioned quoting (better total PnL, unchanged markout per fill — the gain was only from trading less), signed order flow as a signal (51.7% hit rate at the same five-minute, no-delay cell, Wilson lower bound 51.3%, gross edge negative before costs), and two apparent cross-venue edges of 79 and 64 cents that turned out to be mismatched pairs.
 
 **Start here:** [one-page summary](docs/research/ONE_PAGER.md) · [full index of studies](docs/research/README.md)
+
+## Live runs, pilot, field notes
+
+The research above is read-only. Alongside it, a separate codebase — [multi-agent-orchestration-informational-efficiency](https://github.com/Pablozh123/multi-agent-orchestration-informational-efficiency), the bachelor-thesis pipeline — traded small stakes with real money on Polymarket in July and August 2026, and this terminal publishes what came out of that: the runs, the pre-registered pilot, the post-mortems, and the field notes. Nothing in *this* repository places orders; the published files under `public/data/` are the review artifacts of that other system.
+
+- **Mentions bot, live.** Podcast and earnings-call "will X be said" markets: a content-drop prober, GPU transcription in 20-second chunks, speaker attribution, and a decision layer that buys YES only after the live count has already crossed the threshold and NO only after the full transcript at a stricter cap. Executed as fill-and-kill clips with a side-dependent price cap. 21 runs, 27 bets, 25 won. The measured lesson is negative and stated as such: the market reprices a spoken word in 1–4 seconds, the pipeline needs 15–25, so the single-word latency race is structurally lost — the edge that remained lives in doubt windows and count brackets, and the bot was still first taker on the traded side in 11 of 15 reconciled bets.
+- **Wallet-verified, not log-verified.** The runs page shows two PnL figures side by side because they differ: the log-reconstructed +$288.67 and the wallet-reconciled +$175.09 as of 2026-07-18 (root cause: the order response's `price` field is the cap, not the fill — post-mortem 2026-07-18). The trading wallet is public, `0x29afe1bf37700768a640a08f1b35dad5f202f88d`; anyone can rerun the check. Against the public Data API on 2026-08-16: deposits $339.83 (wallet reconciliation), 83 trades and 42 redeems between 2026-07-03 and 2026-08-11 across 29 events, $1,474.53 bought, $1,943.77 returned through sells and redemptions, net **+$469.25** — 36 winning positions, 17 losing (10 of them expired worthless), one flat; the largest single loss $22 on an All-In "Tension" NO. Small stakes, one wallet, six weeks: a record of process, not a return claim.
+- **Pre-registered pilot.** Rules frozen 2026-07-18 before the first trade, budget 100 USDC, two arms, exit only at resolution; the watcher scanned 1,992 markets, 20 trades were placed in one batch, and the page grades rule adherence trade by trade — including the deviations.
+- **Post-mortems.** Nine incidents that cost money or data, each with impact and verified fix: false trigger on a special episode, market makers pulling every quote at the drop, silent bot deaths on session teardown, a log that disagreed with the wallet.
+- **Field notes.** Five things the tape taught that no study captures cleanly: a near-certain YES that repriced ten-fold on a UMA dispute without any news; resting orders pennied within seconds by automated laddering; thin markets where the first resolution proposer defines the outcome; a Ukraine map market that traded nothing for eighteen minutes and then swept the ladder in one block; and why the latency race was abandoned. Each note carries observation, mechanism, consequence, and what evidence backs it.
+
+All of this is in the control-room frontend under **Research** (see below) and in [`public/data/`](public/data/).
 
 ## The terminal
 
@@ -53,14 +65,21 @@ Open `http://127.0.0.1:8787/`. There is no demo dataset: a panel either shows
 measured data or states which endpoint or published file it is waiting for, and
 whether that source answered with nothing or not at all. Nothing is drawn from
 a generator — the charting code cannot produce a curve without a real series
-behind it. All fifteen workspaces (markets, live tape, cross-venue, leaderboard,
-whale flow, risk screen, backtester, paper copy-trading, alerts, the eight
-research studies, settings) reuse the exact same logic modules in `app/` and
+behind it. The trading workspaces (markets, live tape, cross-venue, resolved,
+leaderboard, whale flow, risk screen, tracked, paper copy-trading, backtester,
+portfolio, alerts, settings) reuse the exact same logic modules in `app/` and
 `src/` as the Streamlit app — the API only orchestrates and maps to JSON
 (`app/api_views.py`). Sample sizes, confidence intervals,
 `capped`/`window_truncated` flags and snapshot timestamps are part of every
 score-bearing response. The Streamlit app is unchanged and keeps working as
 before.
+
+The **Research** group of the sidebar holds ten pages that render from the
+published files in `public/data/` and need no API at all — they work as a
+static site: Review queue, Category efficiency, Mentions latency, Live runs,
+Microstructure, Pilot, Pipeline forward, Methodology, Postmortems, Field notes.
+`microstructure.json` is generated here (`scripts/publish_microstructure.py`);
+the other files are written by the sister repository's daily review run.
 
 Optional background runners:
 
@@ -74,12 +93,19 @@ python scripts/run_alert_scanner.py                                             
 The repo ships production artifacts — see [docs/PRODUCTION_READINESS.md](docs/PRODUCTION_READINESS.md) for the full guide (hosting, security, Swiss legal checklist, API terms, costs).
 
 ```bash
-cp .env.example .env       # fill in Telegram secrets (env overrides the settings file)
-# set your domain in deploy/Caddyfile
+cp .env.example .env       # set DOMAIN=, optionally Telegram secrets (env overrides the settings file)
 docker compose up -d --build
 ```
 
-This starts the terminal, the alert scanner, and Caddy (automatic TLS + security headers) as the only public entry point.
+This starts the control room (`https://$DOMAIN`, FastAPI + `web/` + `public/data/`), the Streamlit terminal (`https://app.$DOMAIN`), the alert scanner, and Caddy (automatic TLS + security headers) as the only public entry point. The two expensive API routes (`/api/backtest`, `/api/risk`) are rate-limited per IP; the limits are env-tunable (see `.env.example`).
+
+**Static research site (no server needed).** The ten Research pages need no API:
+
+```bash
+python scripts/build_static_site.py     # writes dist/ = web/ + public/data/
+```
+
+Upload `dist/` to any static host (Cloudflare Pages, GitHub Pages, Netlify). Trading pages then show their honest "API did not answer" state instead of numbers.
 
 ### Optional: Google sign-in for the Settings page
 
