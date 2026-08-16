@@ -26,6 +26,7 @@ files removed from web/ or public/data/ disappear from dist/ as well.
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import shutil
 import sys
@@ -53,7 +54,7 @@ def referenced_payloads(api_js: Path) -> list[str]:
     return sorted(set(re.findall(r"'([A-Za-z0-9_\-]+\.json)'", text)))
 
 
-def build(out: Path) -> int:
+def build(out: Path, api_base: str = "") -> int:
     if not WEB_DIR.is_dir():
         print(f"error: {WEB_DIR} not found", file=sys.stderr)
         return 2
@@ -80,8 +81,19 @@ def build(out: Path) -> int:
         shutil.copy2(src, data_out / src.name)
         copied += 1
 
+    if api_base:
+        index = out / "index.html"
+        html = index.read_text(encoding="utf-8")
+        marker = '<meta name="api-base" content="">'
+        if marker not in html:
+            print("error: web/index.html has no <meta name=\"api-base\"> tag to fill", file=sys.stderr)
+            return 2
+        html = html.replace(marker, f'<meta name="api-base" content="{api_base}">', 1)
+        index.write_text(html, encoding="utf-8")
+
     missing = [name for name in referenced_payloads(WEB_DIR / "js" / "api.js") if not (data_out / name).exists()]
     print(f"static site written to {out}")
+    print(f"  api base: {api_base or '(same origin)'}")
     print(f"  {copied} payload(s) under {data_out.relative_to(out)}/")
     for name in ("index.html", "js", "css"):
         marker = "ok" if (out / name).exists() else "MISSING"
@@ -95,8 +107,18 @@ def build(out: Path) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT, help="output directory (default: dist/)")
+    parser.add_argument(
+        "--api-base",
+        default=os.environ.get("API_BASE_URL", ""),
+        help="absolute URL of the live API when it is hosted elsewhere, e.g. https://api.example.org "
+        "(default: env API_BASE_URL, else same origin)",
+    )
     args = parser.parse_args(argv)
-    return build(args.out)
+    api_base = args.api_base.strip().rstrip("/")
+    if api_base and not api_base.startswith(("http://", "https://")):
+        print("error: --api-base must be an absolute http(s) URL", file=sys.stderr)
+        return 2
+    return build(args.out, api_base)
 
 
 if __name__ == "__main__":

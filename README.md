@@ -107,6 +107,8 @@ python scripts/build_static_site.py     # writes dist/ = web/ + public/data/
 
 Upload `dist/` to any static host (Cloudflare Pages, GitHub Pages, Netlify). Trading pages then show their honest "API did not answer" state instead of numbers.
 
+**Split hosting (static site + PaaS API).** The static site can point at an API on another host: `python scripts/build_static_site.py --api-base https://api.example.org` (or env `API_BASE_URL`) fills `<meta name="api-base">` in `dist/index.html`. The repo ships a `railway.json` — connect the repo on Railway, it builds the Dockerfile and starts `python api/server.py`, which binds `0.0.0.0:$PORT` when `PORT` is set. Set `CORS_ORIGINS=https://example.org` on the API host so the static origin may call it.
+
 ### Optional: Google sign-in for the Settings page
 
 Without auth secrets the app runs in open local-research mode — no sign-in surface, Settings unrestricted. To restrict Settings on a public deployment, copy [.streamlit/secrets.toml.example](.streamlit/secrets.toml.example) to `.streamlit/secrets.toml` (gitignored), fill in the Google OIDC credentials, and set the admin allowlist (`[admin] emails` in secrets, or the `ADMIN_EMAILS` env var which takes precedence). With auth configured, Settings fail closed: only signed-in, allowlisted accounts can change configuration, while all research workspaces stay public. For Docker, uncomment the secrets volume in `docker-compose.yml`.

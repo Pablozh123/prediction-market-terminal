@@ -935,7 +935,11 @@ if __name__ == "__main__":
     import uvicorn
 
     # Lokal bleibt es bei 127.0.0.1:8787; der Container setzt API_HOST=0.0.0.0.
-    host = os.environ.get("API_HOST", "").strip() or "127.0.0.1"
-    port = _env_int("API_PORT", 8787)
+    # PaaS-Hosts (Railway, Heroku, Fly) geben nur PORT vor und erwarten, dass
+    # der Prozess auf allen Schnittstellen lauscht — PORT gesetzt heisst also
+    # 0.0.0.0, solange API_HOST nichts anderes sagt.
+    paas_port = os.environ.get("PORT", "").strip()
+    host = os.environ.get("API_HOST", "").strip() or ("0.0.0.0" if paas_port else "127.0.0.1")
+    port = _env_int("API_PORT", int(paas_port) if paas_port.isdigit() else 8787)
     print(f"Terminal API auf http://{host}:{port} — Strg+C zum Beenden")
     uvicorn.run(app, host=host, port=port)
