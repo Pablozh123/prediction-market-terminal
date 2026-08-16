@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/Pablozh123/prediction-market-terminal/actions/workflows/ci.yml/badge.svg)](https://github.com/Pablozh123/prediction-market-terminal/actions/workflows/ci.yml)
 
+**Live: [marketintel.dev](https://marketintel.dev)** — research pages served statically from Cloudflare Pages, live market data from the API at `api.marketintel.dev` (Railway).
+
 Microstructure research on Polymarket and Kalshi from self-recorded data, and the research terminal it runs on. Read-only throughout: no order path exists in this codebase, and the authenticated Kalshi socket signs `GET` only.
 
 ## Research
