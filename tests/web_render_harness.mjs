@@ -172,6 +172,67 @@ function mitDaten(T) {
     _quelle: 'live', stand_utc: '2026-08-07T00:00:00+00:00', hinweis: 'Harness payload.',
     n_eintraege: 3, prompt_hashes: ['a'], output_hashes: ['b'], backend_zaehler: { mock: 3 }
   };
+  // Eine Mikrostruktur-Studie mit allem, was die Karte zeigt: Diagramm mit
+  // Intervallpunkt, Kennzahlen, Methode und Deutung hinter dem <details>.
+  T.liveData.research['Microstructure'] = {
+    _quelle: 'live', stand_utc: '2026-08-07T00:00:00+00:00',
+    einleitung: 'Harness payload.', hinweis: 'Harness payload.',
+    zaehler: { gesamt: 1, nein: 1, ja: 0, offen: 0, kontrolle: 0 },
+    fehlend: [],
+    studien: [{
+      id: 'harness-study', frage: 'Does the harness study render?',
+      verdikt: 'No. The harness verdict sits above the chart.', verdikt_art: 'nein',
+      einfach: 'Out of 7 firings the harness pointed the right way 4 times.',
+      analyse: [{ schluessel: 'gemessen', titel: 'What was measured', text: 'Harness method text.' }],
+      interpretation: [{ art: 'lesart', titel: 'What it suggests', text: 'Harness reading.' }],
+      zahlen: [{ label: 'Hit rate', wert: 57.1, einheit: '%' }],
+      diagramm: {
+        art: 'intervall', titel: 'Harness interval', einheit: 'cents',
+        referenz: 0.0, referenz_label: 'break even',
+        punkte: [{ label: 'All firings', wert: -2.5, von: -2.6, bis: -2.4 }]
+      },
+      details: { titel: 'Harness rows', spalten: ['A', 'B'], zeilen: [['x', '1']] },
+      basis: { beobachtungen: 7, fenster: '2026-07-18 to 2026-07-28' },
+      report: 'docs/research/README.md', modul: 'src/orderflow_study.py'
+    }]
+  };
+  // Live runs: zwei Laeufe mit Fills und zwei ohne. Die Seite muss daraus
+  // die Treppenkurve, die vollen Karten und die Einzeiler-Liste bauen.
+  T.liveData.research['Live runs'] = {
+    _quelle: 'live', stand_utc: '2026-08-07T00:00:00+00:00', hinweis: 'Harness payload.',
+    kennzeichnung: 'live/descriptive',
+    aggregat: {
+      n_runs: 4, n_wetten: 2, gewonnen: 2, verloren: 0, offen: 0,
+      einsatz_usd: 40, realisierter_pnl_usd: 24, offener_einsatz_usd: 0,
+      wallet_netto_usd: 20, wallet_abgleich_stand: '2026-07-18'
+    },
+    runs: [
+      {
+        profil: 'harness_a', episode_titel: 'Run with a fill', modus: 'live',
+        pubdate_utc: '2026-07-01T00:00:00+00:00', n_entscheidungen: 5, eingepreist: 5,
+        einsatz_usd: 20, realisierter_pnl_usd: 14,
+        wetten: [{ frage: 'Will the harness say yes?', seite: 'YES', entscheidungs_preis: 0.5,
+                   avg_fill_preis: 0.5, einsatz_usd: 20, aufgeloest: true, gewonnen: true, pnl_usd: 14 }]
+      },
+      {
+        profil: 'harness_b', episode_titel: 'Second run with a fill', modus: 'live',
+        pubdate_utc: '2026-07-02T00:00:00+00:00', n_entscheidungen: 3, eingepreist: 3,
+        einsatz_usd: 20, realisierter_pnl_usd: 10,
+        wetten: [{ frage: 'Will it say yes twice?', seite: 'YES', entscheidungs_preis: 0.6,
+                   avg_fill_preis: 0.6, einsatz_usd: 20, aufgeloest: true, gewonnen: true, pnl_usd: 10 }]
+      },
+      {
+        profil: 'harness_c', episode_titel: 'Run without a fill', modus: 'live',
+        pubdate_utc: '2026-07-03T00:00:00+00:00', n_entscheidungen: 160, eingepreist: 160,
+        einsatz_usd: 0, realisierter_pnl_usd: 0, wetten: []
+      },
+      {
+        profil: 'harness_d', episode_titel: 'Second run without a fill', modus: 'live',
+        pubdate_utc: '2026-07-04T00:00:00+00:00', n_entscheidungen: 7, eingepreist: 7,
+        einsatz_usd: 0, realisierter_pnl_usd: 0, wetten: []
+      }
+    ]
+  };
   return T;
 }
 
@@ -215,6 +276,7 @@ function rendern(T) {
     ['runs_record', 'research', { researchTab: 3, liveTab: 'record' }],
     // Jede weitere Studie einmal, damit ein neuer Eintrag in STUDIEN ohne
     // Renderer oder mit falschem Index hier auffaellt.
+    ['research_microstructure', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Microstructure') }],
     ['research_postmortems', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Postmortems') }],
     ['research_field_notes', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Field notes') }],
     ['research_methodology', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Methodology') }],

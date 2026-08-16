@@ -1,7 +1,7 @@
 {
  "hinweis": "Descriptive microstructure research on data this project recorded itself. Every figure is produced by a tested module in this repository. No profitability claim is made anywhere in this work.",
  "einleitung": "Four recorders run continuously across both venues: REST pollers on a 120 second grid and event driven WebSocket recorders that write on every change at the top of the book. The studies below ask, in order, whether anything in that data can be turned into money. Most of the answers are no, and the reasoning behind each no is the point. Each study states what it measured, what the numbers say, and how else they could be read.",
- "stand_utc": "2026-08-16T18:39:52.108243+00:00",
+ "stand_utc": "2026-08-16T23:32:04.678297+00:00",
  "kennzeichnung": "research/frozen",
  "zaehler": {
   "gesamt": 12,
@@ -97,18 +97,40 @@
    ],
    "diagramm": {
     "art": "quote",
-    "titel": "Hit rate against a coin flip",
+    "titel": "Hit rate by horizon and decision delay",
     "einheit": "%",
     "referenz": 50.0,
     "referenz_label": "coin flip",
     "punkte": [
      {
-      "label": "Hit rate",
-      "wert": 55.5
+      "label": "300 s · no delay ←",
+      "wert": 55.5,
+      "von": 55.2,
+      "bis": 55.5
      },
      {
-      "label": "Wilson lower bound",
-      "wert": 55.2
+      "label": "300 s · 120 s delay",
+      "wert": 53.7,
+      "von": 53.3,
+      "bis": 53.7
+     },
+     {
+      "label": "900 s · no delay",
+      "wert": 56.8,
+      "von": 56.5,
+      "bis": 56.8
+     },
+     {
+      "label": "900 s · 120 s delay",
+      "wert": 55.6,
+      "von": 55.2,
+      "bis": 55.6
+     },
+     {
+      "label": "900 s · 300 s delay",
+      "wert": 53.8,
+      "von": 53.5,
+      "bis": 53.8
      }
     ]
    },
@@ -553,7 +575,7 @@
    ],
    "diagramm": {
     "art": "intervall",
-    "titel": "Net result with its 95% interval",
+    "titel": "Net result by segment, 95% intervals",
     "einheit": "cents per firing",
     "referenz": 0.0,
     "referenz_label": "break even",
@@ -563,6 +585,36 @@
       "wert": -2.4985,
       "von": -2.6158,
       "bis": -2.3876
+     },
+     {
+      "label": "Spread 0-0.5c",
+      "wert": -1.6347,
+      "von": -1.7802,
+      "bis": -1.4673
+     },
+     {
+      "label": "Spread 0.5-1c",
+      "wert": -2.1839,
+      "von": -2.344,
+      "bis": -2.0253
+     },
+     {
+      "label": "Spread 1-2c",
+      "wert": -2.6244,
+      "von": -2.7286,
+      "bis": -2.5312
+     },
+     {
+      "label": "Spread 2-5c",
+      "wert": -4.0219,
+      "von": -4.2407,
+      "bis": -3.8604
+     },
+     {
+      "label": "Spread 5-10.1c",
+      "wert": -9.1131,
+      "von": -9.7161,
+      "bis": -8.5375
      },
      {
       "label": "Survivor (geopolitics)",

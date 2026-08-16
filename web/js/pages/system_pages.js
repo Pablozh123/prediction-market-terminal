@@ -3,6 +3,7 @@
 // public/data/ when the API serves them, incl. their stand_utc stamp and note.
 
 import { esc, num, herkunftSatz, leerZeile } from '../util.js';
+import { stepKurve } from '../charts.js';
 import { renderMicrostructure } from './microstructure_page.js';
 
 const M = "font-family:'JetBrains Mono',monospace";
@@ -718,7 +719,7 @@ function renderLiveRuns(T, payload) {
     payload ? { quelle: payload._quelle === 'fehler' ? 'fehler' : 'leer', fehler: payload._fehler } : null,
     'public/data/runs.json');
 
-  const cards = payload && payload.runs ? payload.runs.slice(0, 12).map((r) => {
+  const alleKarten = payload && payload.runs ? payload.runs.map((r) => {
     const bets = (r.wetten || []).map((b) => ({
       market: b.frage, side: b.seite === 'YES' ? 'Yes' : 'No',
       limit: (+b.entscheidungs_preis).toFixed(2), fill: b.avg_fill_preis != null ? (+b.avg_fill_preis).toFixed(2) : '—',
@@ -741,6 +742,46 @@ function renderLiveRuns(T, payload) {
       missed: missedN ? 'Missed chances (' + missedN + ') — budget or cap' : ''
     };
   }) : [];
+  // Ein Lauf ohne Wette traegt drei Zahlen und sonst nichts. Als volle Karte
+  // wiederholt er 150 Pixel lang "nichts passiert" und verdraengt die Laeufe,
+  // in denen etwas passierte — er wird zur einzeiligen Zeile weiter unten.
+  const cards = alleKarten.filter((r) => r.bets.length).slice(0, 12);
+  const ohneFills = alleKarten.filter((r) => !r.bets.length);
+
+  // Kumulierte realisierte PnL je Lauf, geordnet nach dem ersten Fill des
+  // Laufs — dem Moment, in dem tatsaechlich Geld gebunden wurde. Nicht jeder
+  // Lauf traegt ein pubdate (Earnings-Calls haben keins), aber jeder Lauf
+  // mit PnL traegt Fills. Fehlt einem PnL-Lauf jeder Zeitstempel, gibt es
+  // keine Kurve statt einer falsch geordneten: die Summe der Kurve muss die
+  // Kachel daruber reproduzieren.
+  const equityPunkte = (() => {
+    if (!payload || !Array.isArray(payload.runs)) return [];
+    const mitZeit = [];
+    for (const r of payload.runs) {
+      if (r.realisierter_pnl_usd == null) continue;
+      const fillZeiten = (r.wetten || []).map((b) => b.fill_ts_utc).filter(Boolean).sort();
+      const zeit = fillZeiten[0] || r.pubdate_utc || r.drop_erkannt_utc;
+      if (!zeit) return [];
+      mitZeit.push({ zeit: String(zeit), pnl: +r.realisierter_pnl_usd });
+    }
+    mitZeit.sort((a, b) => a.zeit.localeCompare(b.zeit));
+    let summe = 0;
+    return mitZeit.map((r) => {
+      summe += r.pnl;
+      return { label: r.zeit.slice(5, 10), wert: Math.round(summe * 100) / 100 };
+    });
+  })();
+  const equityChart = equityPunkte.length > 1 ? stepKurve({
+    titel: 'CUMULATIVE REALIZED PNL BY RUN',
+    einheit: 'USD · log-reconstructed',
+    hinweis: agg && agg.wallet_netto_usd != null
+      ? 'wallet-reconciled net ' + (+agg.wallet_netto_usd >= 0 ? '+$' : '-$')
+        + Math.abs(+agg.wallet_netto_usd).toFixed(0)
+        + (agg.wallet_abgleich_stand ? ' as of ' + agg.wallet_abgleich_stand : '')
+        + ' — the two figures differ, see the note above'
+      : '',
+    punkte: equityPunkte
+  }) : '';
 
   const timingRows = payload && payload.runs ? payload.runs.flatMap((r) =>
     (r.wetten || []).filter((b) => b.fill_ts_utc).map((b) => ({
@@ -761,7 +802,7 @@ function renderLiveRuns(T, payload) {
   if (s.liveTab === 'runs') {
     body = '<div style="margin-top:14px">'
       + '<div style="font-size:12.5px; color:rgba(255,255,255,.5); line-height:1.5; max-width:820px; margin-bottom:14px">Race chips compare each fill against the public taker tape of that market: how many other trades hit between the drop and our fill, and how long until the next trader after us. The anchor is the bot\'s logged fill time — chain timestamps can differ by a few seconds.</div>'
-      + (cards.length ? '' : leerZeile(laufSatz))
+      + (alleKarten.length ? '' : leerZeile(laufSatz))
       + '<div style="display:flex; flex-direction:column; gap:12px">'
       + cards.map((r) => {
         const statusStyle = M + '; font-size:9.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; ' + (r.status === 'RESOLVED' ? 'color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.18)' : r.status === 'OPEN' ? 'color:#F5A623; border:1px solid rgba(245,166,35,.4)' : 'color:rgba(255,255,255,.4); border:1px solid rgba(255,255,255,.12)');
@@ -789,7 +830,23 @@ function renderLiveRuns(T, payload) {
           + (r.missed ? '<div style="' + M + '; font-size:11px; color:#F5A623; margin-top:7px">' + esc(r.missed) + '</div>' : '')
           + '</div>';
       }).join('')
-      + '</div></div>';
+      + '</div>'
+      // Die Laeufe ohne Fill, einzeilig: Profil, Episode, die zwei Zahlen,
+      // die sie tragen. Nichts faellt weg — nur die 150 Leerpixel je Lauf.
+      + (ohneFills.length
+        ? '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; overflow:hidden">'
+          + '<div style="padding:10px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10px; letter-spacing:.12em; color:rgba(255,255,255,.5)">RUNS WITHOUT A FILL · ' + ohneFills.length
+          + ' <span style="color:rgba(255,255,255,.35); letter-spacing:0">· the decision layer ran and placed nothing — one line per run</span></div>'
+          + ohneFills.map((r) =>
+            '<div style="display:flex; align-items:center; gap:10px; padding:9px 16px; border-bottom:1px solid rgba(255,255,255,.05)">'
+            + '<div style="' + M + '; font-size:9.5px; letter-spacing:.08em; color:#4F8EF7; border:1px solid rgba(79,142,247,.35); border-radius:4px; padding:2px 7px; white-space:nowrap">' + esc(r.profile) + '</div>'
+            + '<div style="font-size:12.5px; color:rgba(255,255,255,.75); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1">' + esc(r.title) + '</div>'
+            + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); white-space:nowrap">' + esc(r.chips.filter((c) => /decisions|priced/.test(c)).join(' · ') || '—') + '</div>'
+            + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.35); white-space:nowrap">' + esc(r.mode.toLowerCase()) + ' · no fills</div>'
+            + '</div>').join('')
+          + '</div>'
+        : '')
+      + '</div>';
   } else if (s.liveTab === 'timing') {
     body = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; overflow:hidden">'
       + '<div style="padding:11px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:#4F8EF7">TIMING AND REPRICING PER FILL</div>'
@@ -920,6 +977,9 @@ function renderLiveRuns(T, payload) {
       + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.4); margin-top:4px">' + esc(k.sub) + '</div></div>'
     ).join('')
     + '</div>'
+    // Die versprochene Kurve der Seite: kumulierte PnL je Lauf, aus den
+    // publizierten Laufwerten. Ohne Serie kein Diagramm.
+    + (equityChart ? '<div style="margin-top:12px">' + equityChart + '</div>' : '')
     + '<div style="display:flex; gap:6px; margin-top:18px; flex-wrap:wrap">' + liveTabs + '</div>'
     + body
     + '</div>';

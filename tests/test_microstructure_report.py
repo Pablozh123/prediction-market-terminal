@@ -223,6 +223,34 @@ class DiagrammTests(unittest.TestCase):
                     self.assertLessEqual(punkt["von"], punkt["wert"])
                     self.assertLessEqual(punkt["wert"], punkt["bis"])
 
+    def test_imbalance_diagramm_zeigt_alle_gitterzellen(self):
+        """Jede Horizont/Delay-Zelle wird zur Zeile mit Wilson-Band."""
+        p = mr.build_payload(PROJEKT)
+        studie = next(s for s in p["studien"] if s["id"] == "imbalance-direction")
+        roh = json.loads(
+            (PROJEKT / mr.REPORT_DIR / "orderflow_rest-2026-07.json").read_text(encoding="utf-8"))
+        gitter = roh["signals"]["imbalance"]["latency"]
+        zellen = sum(len(z) for z in gitter.values())
+        punkte = studie["diagramm"]["punkte"]
+        self.assertEqual(len(punkte), zellen)
+        for punkt in punkte:
+            # Band von der Untergrenze zum Punktschaetzer, nie andersherum.
+            self.assertLessEqual(punkt["von"], punkt["wert"])
+            self.assertEqual(punkt["bis"], punkt["wert"])
+        # Die kanonische Zelle ist markiert, damit die Kopfzahl auffindbar bleibt.
+        self.assertTrue(any(p_["label"].endswith("←") for p_ in punkte))
+
+    def test_segmente_diagramm_zeigt_spread_schnitte(self):
+        """Die Kernaussage — negativ in jedem Segment — steht als Bild da."""
+        p = mr.build_payload(PROJEKT)
+        studie = next(s for s in p["studien"] if s["id"] == "edge-segments")
+        punkte = studie["diagramm"]["punkte"]
+        spread = [p_ for p_ in punkte if p_["label"].startswith("Spread ")]
+        self.assertGreaterEqual(len(spread), 3)
+        for punkt in spread:
+            self.assertLessEqual(punkt["von"], punkt["wert"])
+            self.assertLessEqual(punkt["wert"], punkt["bis"])
+
     def test_vergleich_hat_passende_gruppen(self):
         for s in mr.build_payload(PROJEKT)["studien"]:
             d = s.get("diagramm") or {}

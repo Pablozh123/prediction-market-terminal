@@ -131,10 +131,12 @@ class WebLeerzustandTest(unittest.TestCase):
                 self.assertIn(quelle, text)
 
     def test_leerzustand_zeichnet_keine_kurve(self) -> None:
-        # Ein polyline mit Punkten ist eine Behauptung ueber einen Verlauf.
+        # Ein polyline mit Punkten ist eine Behauptung ueber einen Verlauf,
+        # ein path mit Koordinaten (die Treppenkurve aus charts.js) genauso.
         for name, html in self.ausgabe["leer"].items():
             with self.subTest(seite=name):
                 self.assertNotRegex(html, r'<polyline points="\s*\d')
+                self.assertNotRegex(html, r'<path d="M\s*\d')
 
     def test_mit_daten_echte_werte(self) -> None:
         text = _sichtbarer_text(self.ausgabe["live"]["overview"])
@@ -271,6 +273,52 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertNotIn("Read the method", _sichtbarer_text(live["research_methodology"]))
         # Ohne Nutzlast gibt es keine Datei zum Herunterladen und keine Knoepfe.
         self.assertNotIn("Download the data", _sichtbarer_text(self.ausgabe["leer"]["research"]))
+
+    def test_studienkarte_fuehrt_mit_befund_und_klappt_methode_zu(self) -> None:
+        # Verdikt und Diagramm stehen offen, Methode und Deutung liegen in
+        # einem <details> — vorhanden, aber nicht zwischen Leser und Befund.
+        live = self.ausgabe["live"]["research_microstructure"]
+        text = _sichtbarer_text(live)
+        self.assertIn("METHOD &amp; HOW TO READ IT", live)
+        self.assertIn("Does the harness study render?", text)
+        self.assertIn("Harness interval", text)
+        self.assertIn("<details", live)
+        # Der Methodentext steht im Dokument (nichts ist geloescht) …
+        self.assertIn("Harness method text.", text)
+        # … und zwar erst nach dem Diagramm, nicht davor.
+        self.assertLess(live.index("Harness interval"), live.index("Harness method text."))
+        # Leerzustand nennt die Datei, wie bisher.
+        leer = _sichtbarer_text(self.ausgabe["leer"]["research_microstructure"])
+        self.assertIn("microstructure.json", leer)
+
+    def test_laeufe_ohne_fill_werden_einzeilig(self) -> None:
+        live = _sichtbarer_text(self.ausgabe["live"]["runs_runs"])
+        self.assertIn("RUNS WITHOUT A FILL · 2", live)
+        self.assertIn("Run with a fill", live)
+        self.assertIn("Run without a fill", live)
+        # Die Einzeiler tragen keine Stake-Fusszeile — die gehoert zur Karte.
+        self.assertNotIn("Stake $0.00", live)
+
+    def test_laufkurve_kommt_aus_den_laufwerten(self) -> None:
+        # Vier Laeufe mit publizierten PnL-Werten ergeben eine Treppenkurve;
+        # ohne Nutzlast gibt es keine (test_leerzustand_zeichnet_keine_kurve).
+        live = self.ausgabe["live"]["runs_runs"]
+        self.assertIn("CUMULATIVE REALIZED PNL BY RUN", _sichtbarer_text(live))
+        self.assertRegex(live, r'<path d="M\s*\d')
+        # Der Hinweis nennt den wallet-abgeglichenen Wert aus der Nutzlast.
+        self.assertIn("wallet-reconciled net +$20", _sichtbarer_text(live))
+
+    def test_startseite_leerpanels_sind_verweise(self) -> None:
+        leer = _sichtbarer_text(self.ausgabe["leer"]["overview"])
+        self.assertIn("Open Leaderboard", leer)
+        self.assertIn("OPEN THE SCREEN", leer)
+        # Der Grund bleibt benannt, der Absatz nicht.
+        self.assertIn("/api/risk", leer)
+        self.assertNotIn("would hold up this page", leer)
+        # Mit Daten ersetzt die echte Kachel den Verweis.
+        live = _sichtbarer_text(self.ausgabe["live"]["overview"])
+        self.assertNotIn("Open Leaderboard", live)
+        self.assertNotIn("OPEN THE SCREEN", live)
 
     def test_field_notes_leerzustand(self) -> None:
         # Die neue Studie rendert ohne Nutzlast den Leerzustand mit Dateinamen

@@ -63,8 +63,14 @@ export function renderOverview(T) {
     + kpiCell('MARKETS TRACKED', hatMaerkte ? num(T.markets.length) : '—', hatMaerkte ? num(pmCount) + ' Polymarket · ' + num(ksCount) + ' Kalshi' : esc(marktSatz), true)
     + kpiCell('VOLUME · 24H', hatMaerkte ? money(totalVol) : '—', hatMaerkte ? num(T.markets.length) + ' markets in sample' : esc(marktSatz), true)
     + kpiCell('TRADES OVER $2.5K', hatTape ? num(whalePrints) : '—', hatTape ? 'from ' + num(whaleWallets) + ' wallets' : esc(tapeSatz), true)
-    + kpiCell('BEST WALLET · ALL TIME', bestTrader ? money(bestTrader.pnl) : '—',
-      bestTrader ? esc(bestTrader.name + ' · ' + bestTrader.wallet) : 'The leaderboard is not fetched on this page — open Leaderboard.', false)
+    // Ohne Leaderboard-Daten keine Prosa-Erklaerung in der Kachel: die
+    // Kachel wird selbst der Weg dorthin. Ein Satz Grund, ein Ziel.
+    + (bestTrader
+      ? kpiCell('BEST WALLET · ALL TIME', money(bestTrader.pnl), esc(bestTrader.name + ' · ' + bestTrader.wallet), false)
+      : '<div ' + T.act(() => T.go('traders')) + ' class="hv-panel" style="padding:16px 20px; cursor:pointer">'
+        + '<div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">BEST WALLET · ALL TIME</div>'
+        + '<div style="' + M + '; font-size:15px; margin-top:10px; color:#C8F542">Open Leaderboard →</div>'
+        + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); margin-top:6px">not fetched on this page</div></div>')
     + '</div>'
 
     + '<div style="display:grid; grid-template-columns:1.45fr 1fr">'
@@ -88,9 +94,12 @@ export function renderOverview(T) {
     + '<div style="' + M + '; font-size:11px; letter-spacing:.16em; color:#F5A623">RISK FLAGS · TODAY</div>'
     + '<div ' + T.act(() => T.go('risk')) + ' class="hv-amber" style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); cursor:pointer">SCREEN →</div></div>'
     // Der Risiko-Endpunkt wird von der Startseite bewusst nicht gezogen, er
-    // ist der schwerste. Das gehoert hingeschrieben, sonst liest sich die
-    // leere Spalte als "heute nichts gefunden".
-    + (topRisks.length ? '' : leerZeile('Not fetched here — /api/risk pages about a day of prints on its first build and would hold up this page. Open the risk screen.'))
+    // ist der schwerste. Der Grund bleibt hingeschrieben — sonst liest sich
+    // die leere Spalte als "heute nichts gefunden" — aber als eine Zeile mit
+    // Ziel statt als Absatz.
+    + (topRisks.length ? '' : '<div ' + T.act(() => T.go('risk')) + ' class="hv-panel" style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 20px; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer">'
+      + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.42); line-height:1.5">not fetched here — /api/risk pages a day of prints on its first build</div>'
+      + '<div style="' + M + '; font-size:11px; color:#F5A623; white-space:nowrap">OPEN THE SCREEN →</div></div>')
     + topRisks.map((r) =>
       '<div ' + r.act + ' class="hv-panel" style="padding:14px 20px; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer">'
       + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px">'
