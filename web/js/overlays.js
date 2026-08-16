@@ -44,8 +44,11 @@ export function renderDetail(T) {
         value: money(t.size),
         style: M + '; font-size:13px; color:' + (t.side.indexOf('BUY') === 0 ? '#C8F542' : '#FF4545')
       })),
-      primaryAction: 'Watch this market',
-      secondaryAction: 'Open on ' + m.venue,
+      // Keine Knoepfe: "Watch this market" hatte keinen Endpunkt (die
+      // Watchlist wird nur gelesen), und "Open on <venue>" verlinkte auf die
+      // Boerse — das Projekt setzt bewusst keine Venue-Links (Schweizer
+      // Rechtslage). Ein Knopf ohne Wirkung waere schlimmer als keiner.
+      primaryAction: '',
       note: ''
     };
   } else {
@@ -97,7 +100,8 @@ export function renderDetail(T) {
         style: M + '; font-size:13px; color:' + (String(x.side).indexOf('BUY') === 0 ? '#C8F542' : '#FF4545')
       })),
       primaryAction: 'Backtest this wallet',
-      secondaryAction: 'Follow on paper',
+      // "Follow on paper" stand hier als zweiter Knopf ohne Handler; /api/track
+      // liest die gefolgten Wallets nur, es gibt keinen Endpunkt zum Folgen.
       primaryAct: T.act(() => {
         const addr = (t.walletFull || '').trim();
         T.setState({ page: 'backtester', detail: null, btWallet: addr || T.state.btWallet });
@@ -144,10 +148,13 @@ export function renderDetail(T) {
       + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:3px">' + esc(it.secondary) + '</div></div>'
       + '<div style="' + it.style + '">' + it.value + '</div></div>'
     ).join('')
-    + '<div style="display:flex; flex-direction:column; gap:8px; margin-top:20px">'
-    + '<div ' + (v.primaryAct || '') + ' class="hv-limebg" style="font-size:13px; font-weight:600; text-align:center; color:#0A0D0F; background:#C8F542; border-radius:8px; padding:11px; cursor:pointer">' + v.primaryAction + '</div>'
-    + '<div class="hv-bd35" style="font-size:13px; text-align:center; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:11px; cursor:pointer">' + v.secondaryAction + '</div>'
-    + '</div></div></div>';
+    // Ein Knopf wird nur gezeichnet, wenn ein Handler daran haengt.
+    + (v.primaryAction && v.primaryAct
+      ? '<div style="display:flex; flex-direction:column; gap:8px; margin-top:20px">'
+        + '<div ' + v.primaryAct + ' class="hv-limebg" style="font-size:13px; font-weight:600; text-align:center; color:#0A0D0F; background:#C8F542; border-radius:8px; padding:11px; cursor:pointer">' + esc(v.primaryAction) + '</div>'
+        + '</div>'
+      : '')
+    + '</div></div>';
 }
 
 export function renderSearch(T) {

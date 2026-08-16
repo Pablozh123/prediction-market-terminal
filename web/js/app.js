@@ -41,7 +41,9 @@ class Terminal {
       tPnl: 'all', tVol: 'all', tPos: 'all', tTraits: [], tWin: 'all', tClosed: 'all', tBal: 'all', tAge: 'all', tAssets: 'all', tBotScore: 65,
       tEnrich: { positions: true, winrates: true, accounts: false },
       riskView: 'events', riskAgeCheck: false,
-      copyTab: 'orders', copyQuery: '', copySide: 'all', copyStatus2: 'all', copyMin: 'all', daemonOn: true,
+      // Kein daemonOn mehr: der Schalter im Frontend behauptete RUNNING, ohne
+      // dass etwas lief. Der Zustand kommt aus /api/copy oder gar nicht.
+      copyTab: 'orders', copyQuery: '', copySide: 'all', copyStatus2: 'all', copyMin: 'all',
       portTab: 'positions', portQuery: '', portSource: 'all', portSide: 'all', portLosers: false,
       tapeQuery: '', tapePlatform: 'all', tapeSide: 'all', tapeOutcome: 'all',
       resQuery: '', resAnswer: 'all', resWindow: 'all', resError: 'all', resSort: 'recent',
@@ -75,7 +77,9 @@ class Terminal {
       alertsOn: { movers: true, volume: true, whales: true, spreads: false, holders: false, endings: true },
       settingsOn: { telegram: true, autotop: false, kalshi: true, sports: false, cache: true, admin: true },
       clock: this.utcClock(),
-      live: 'demo', liveAsOf: ''
+      // 'waiting' bis zur ersten Antwort, dann 'live' oder 'error'. Der
+      // fruehere Wert 'demo' behauptete einen Demo-Datensatz, den es nicht gibt.
+      live: 'waiting', liveAsOf: ''
     };
 
     // Datencontainer. Sie starten leer, nicht auf einem Demo-Satz: bis eine
@@ -105,7 +109,8 @@ class Terminal {
         this.state.researchTab = treffer;
       }
     }
-    // Per-endpoint live payloads; templates use these when present, demo otherwise.
+    // Per-endpoint live payloads; templates use these when present and show
+    // an empty state naming the source otherwise.
     this.liveData = { leaderboard: null, cross: null, risk: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {} };
 
     this._acts = [];
@@ -197,7 +202,7 @@ class Terminal {
     try {
       const h = await apiGet('/api/market/' + encodeURIComponent(id) + '/history?days=1&interval=5m');
       if (h && h.points && h.points.length > 1) { this.liveData.marketHistory[id] = h.points; this.render(); }
-    } catch (err) { /* Detail behaelt die synthetische Kurve */ }
+    } catch (err) { /* Detail zeigt den Leerzustand ohne Kurve */ }
   }
   openWallet(name) {
     this.setState({ detail: { kind: 'wallet', id: name }, searchOpen: false });
@@ -314,10 +319,15 @@ class Terminal {
     // Stand und Gewinn waren hier fest verdrahtet — derselbe erfundene
     // Kontostand, der auf der Copy-Seite schon geloescht wurde, nur eine
     // Ebene hoeher und auf jeder Seite sichtbar.
+    // /api/copy traegt Stand und Gewinn unter kpis (app/api_views.py
+    // copy_payload). Bis eben las der Kasten sie von der obersten Ebene, wo
+    // sie nie liegen, und meldete deshalb auch bei laufendem Daemon "no
+    // paper account".
     const copyLive = this.liveData.copy;
-    const equity = copyLive && copyLive.equity != null ? copyLive.equity : null;
-    const pnl = copyLive && copyLive.pnl != null ? copyLive.pnl : null;
-    const pnlPct = copyLive && copyLive.pnl_pct != null ? copyLive.pnl_pct : null;
+    const kp = copyLive && copyLive.kpis ? copyLive.kpis : null;
+    const equity = kp && kp.equity != null ? +kp.equity : null;
+    const pnl = kp && kp.pnl != null ? +kp.pnl : null;
+    const pnlPct = kp && kp.pnl_pct != null ? +kp.pnl_pct : null;
     const equityBlock = equity == null
       ? '<div style="font-family:\'JetBrains Mono\',monospace; font-size:12px; color:rgba(255,255,255,.45); margin-top:5px; line-height:1.5">No paper account reported by /api/copy.</div>'
       : '<div style="font-family:\'JetBrains Mono\',monospace; font-size:19px; margin-top:5px">$' + num(equity.toFixed(2)) + '</div>'
@@ -342,14 +352,19 @@ class Terminal {
   renderTopbar() {
     const s = this.state;
     const liveDot = s.live === 'live' ? '#C8F542' : s.live === 'error' ? '#FF4545' : '#F5A623';
-    const liveLabel = s.live === 'live' ? 'LIVE · POLYMARKET + KALSHI' : s.live === 'error' ? 'API GETRENNT · LETZTER STAND' : 'DEMO-DATEN · API OFFLINE';
+    // Drei Zustaende, alle auf Englisch: noch keine Antwort, Antwort da, Antwort
+    // ausgeblieben nach einer, die da war. "Demo" gibt es nicht — es gibt
+    // keinen Demo-Datensatz, den die Zeile ankuendigen koennte.
+    const liveLabel = s.live === 'live' ? 'LIVE · POLYMARKET + KALSHI' : s.live === 'error' ? 'API OFFLINE · LAST KNOWN STATE' : 'WAITING FOR API';
+    // "Sign in" und "Get alerts" standen rechts ohne Handler. Es gibt weder
+    // eine Anmeldung noch eine Alarmzustellung, die von hier aus einzurichten
+    // waere (die haengt am Scanner-Skript). Zwei Knoepfe, die nichts tun, sind
+    // ein Versprechen ohne Deckung; die Leiste zeigt nur noch den Zustand.
     return ''
       + '<div style="display:flex; align-items:center; gap:10px">'
       + '<span style="width:7px; height:7px; border-radius:50%; background:' + liveDot + '; display:inline-block; animation:livePulse 1.6s ease-in-out infinite"></span>'
       + '<span style="font-family:\'JetBrains Mono\',monospace; font-size:11px; letter-spacing:.16em; color:rgba(255,255,255,.66)">' + liveLabel + ' · ' + s.clock + ' UTC</span></div>'
-      + '<div style="display:flex; gap:8px">'
-      + '<div class="hv-bd30" style="font-size:12.5px; color:rgba(255,255,255,.66); border:1px solid rgba(255,255,255,.16); border-radius:7px; padding:7px 13px; cursor:pointer">Sign in</div>'
-      + '<div class="hv-limebg" style="font-size:12.5px; font-weight:600; color:#0A0D0F; background:#C8F542; border-radius:7px; padding:7px 13px; cursor:pointer">Get alerts</div></div>';
+      + '<div style="font-family:\'JetBrains Mono\',monospace; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.35)">RESEARCH ONLY · NO ORDERS</div>';
   }
 
   // ---- data layer ----

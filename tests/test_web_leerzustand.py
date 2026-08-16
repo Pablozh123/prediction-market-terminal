@@ -46,6 +46,25 @@ ERFUNDENE_WERTE = [
     "hits today",   # feste Trefferzahlen der Alarm-Regeln
 ]
 
+# Werte, die auch mit einer echten, aber leeren Antwort nicht erscheinen
+# duerfen: die Rueckfaelle der Copy- und Portfolio-Reiter griffen genau dann,
+# wenn die API antwortete, das Buch aber leer war.
+ERFUNDENE_WERTE_LIVE = [
+    "312.40",          # CASH FREE
+    "28.60",           # UNREALISED
+    "$268 · 26%",      # Konzentration: groesste Position
+    "$641 · 61%",      # Konzentration: Top drei
+    "$392 · 38%",      # Konzentration: Aufloesung in 7 Tagen
+    "$312 · 23%",      # Konzentration: freie Kasse
+    "$412",            # Allokation MACRO
+    "-$11.40",         # Fidelity: Kasse leer
+    "-$4.20",          # Fidelity: schlechterer Preis
+    "-$16.50",         # Fidelity: Summe
+    "last sync 40 s",  # erfundene Sync-Zeiten
+    "Swisstony",       # fest verdrahteter Wallet-Name in der Legende
+    "900 ms",          # synthetische Latenz (900 + i * 140) fuer i = 0
+]
+
 # Je Seite ein Text, der im Leerzustand dastehen muss.
 LEER_ERWARTET = {
     "overview": "/api/markets",
@@ -196,6 +215,76 @@ class WebLeerzustandTest(unittest.TestCase):
             quelltext = datei.read_text(encoding="utf-8")
             with self.subTest(datei=datei.name):
                 self.assertNotIn("demo_data.js", quelltext)
+
+    def test_papierbuch_ohne_positionen_ohne_zahlen(self) -> None:
+        # Der Harness liefert Status und Kennzahlen, aber kein Buch. Genau
+        # dann griffen frueher die Rueckfaelle der Copy- und Portfolio-Reiter.
+        for name in ("copy", "copy_fidelity", "portfolio", "portfolio_exposure"):
+            text = _sichtbarer_text(self.ausgabe["live"][name])
+            for wert in ERFUNDENE_WERTE_LIVE:
+                with self.subTest(seite=name, wert=wert):
+                    self.assertNotIn(wert, text)
+        exposure = _sichtbarer_text(self.ausgabe["live"]["portfolio_exposure"])
+        self.assertIn("nothing to break down", exposure)
+        fidelity = _sichtbarer_text(self.ausgabe["live"]["copy_fidelity"])
+        self.assertIn("fidelity_detail is missing", fidelity)
+        # Der Daemon-Zustand kommt aus der Antwort: running true heisst RUNNING.
+        copy = _sichtbarer_text(self.ausgabe["live"]["copy"])
+        self.assertIn("RUNNING", copy)
+        self.assertNotIn("STATE NOT REPORTED", copy)
+        # Ohne gemessene Latenz steht ein Strich, keine Zahl in Millisekunden.
+        self.assertNotRegex(copy, r"\d+ ms")
+
+    def test_keine_toten_knoepfe(self) -> None:
+        # Jeder dieser Knoepfe stand als gestyltes Div ohne Handler da.
+        tot = ["Sign in", "Get alerts", "Save this view", "Export trade log CSV",
+               "Watch this market", "Follow on paper", "Mirror this on paper",
+               "Save this setup", "Sync now", "Seed baseline", "Stop the copier",
+               "Start the copier", "Export CSV", "Open on Polymarket", "Open on Kalshi"]
+        for modus in ("leer", "live"):
+            for name, html in self.ausgabe[modus].items():
+                text = _sichtbarer_text(html)
+                for knopf in tot:
+                    with self.subTest(modus=modus, seite=name, knopf=knopf):
+                        self.assertNotIn(knopf, text)
+        app_js = (WURZEL / "web" / "js" / "app.js").read_text(encoding="utf-8")
+        self.assertNotIn(">Sign in<", app_js)
+        self.assertNotIn(">Get alerts<", app_js)
+
+    def test_kopfzeile_auf_englisch_und_ohne_demo(self) -> None:
+        app_js = (WURZEL / "web" / "js" / "app.js").read_text(encoding="utf-8")
+        self.assertNotIn("DEMO-DATEN", app_js)
+        self.assertNotIn("API GETRENNT", app_js)
+        self.assertNotIn("live: 'demo'", app_js)
+        self.assertIn("WAITING FOR API", app_js)
+        self.assertIn("API OFFLINE · LAST KNOWN STATE", app_js)
+
+    def test_forschungsknoepfe_tun_etwas(self) -> None:
+        # "Download the data" ist ein Link auf die publizierte Datei der
+        # Studie, "Read the method" fuehrt zur Methodik. Auf der Methodik
+        # selbst gibt es keinen Verweis auf sich selbst.
+        live = self.ausgabe["live"]
+        # Reiter 0 (Review queue) traegt im Harness eine Nutzlast.
+        self.assertIn('href="./data/queue.json"', live["research"])
+        self.assertIn("Read the method", _sichtbarer_text(live["research"]))
+        self.assertIn('href="./data/audit.json"', live["research_methodology"])
+        self.assertNotIn("Read the method", _sichtbarer_text(live["research_methodology"]))
+        # Ohne Nutzlast gibt es keine Datei zum Herunterladen und keine Knoepfe.
+        self.assertNotIn("Download the data", _sichtbarer_text(self.ausgabe["leer"]["research"]))
+
+    def test_field_notes_leerzustand(self) -> None:
+        # Die neue Studie rendert ohne Nutzlast den Leerzustand mit Dateinamen
+        # und in keinem Zustand eine erfundene Notiz.
+        for modus in ("leer", "live"):
+            text = _sichtbarer_text(self.ausgabe[modus]["research_field_notes"])
+            with self.subTest(modus=modus):
+                self.assertIn("Field notes", text)
+                self.assertIn("field_notes.json", text)
+        api_js = (WURZEL / "web" / "js" / "api.js").read_text(encoding="utf-8")
+        self.assertIn("'/api/research/field-notes': 'field_notes.json'", api_js)
+        platzhalter = json.loads((WURZEL / "public" / "data" / "field_notes.json").read_text(encoding="utf-8"))
+        self.assertEqual(platzhalter["kennzeichnung"], "curated/field-notes")
+        self.assertIsInstance(platzhalter["notes"], list)
 
 
 if __name__ == "__main__":

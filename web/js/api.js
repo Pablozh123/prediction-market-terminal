@@ -16,6 +16,7 @@ const STATISCH = {
   '/api/research/pipeline-forward': 'pipeline_forward.json',
   '/api/research/methodology': 'audit.json',
   '/api/research/postmortems': 'postmortems.json',
+  '/api/research/field-notes': 'field_notes.json',
   '/api/research/meta': 'meta.json',
 };
 
