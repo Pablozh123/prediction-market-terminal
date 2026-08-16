@@ -1,0 +1,57 @@
+{
+  "hinweis": "Curated field notes from our own trading and recording on Polymarket and Kalshi. Each note is an observation, the mechanism we believe explains it, and the consequence we drew for how we trade or measure. Where a note is not backed by our own recorders it says so. No trading recommendation, no return claim.",
+  "kennzeichnung": "curated/field-notes",
+  "stand_utc": "2026-08-16T00:00:00+00:00",
+  "notes": [
+    {
+      "date": "2026-06",
+      "venue": "Polymarket",
+      "market": "2026 Colombian presidential election — winner market, resolution phase",
+      "title": "A near-certain YES is still short the resolution process",
+      "observation": "The result was effectively known and the market sat in the high 90s, but the formal resolution was still open. Then the proposed resolution was disputed — from what we could see, someone had bought cheap NO first and posted the UMA bond afterwards. When the market went back into review, holders panicked and NO briefly traded up roughly ten times, although nothing about the election itself had changed.",
+      "mechanism": "Polymarket resolves through UMA's optimistic oracle: anyone can propose or dispute an outcome by posting a bond (750 USDC at the time). Against a NO position bought at a few cents the dispute is cheap, so a disputer can force a repricing of the process risk without touching the event risk. In a thin book the forced sellers are YES holders who cannot or will not sit through a second review window.",
+      "consequence": "A YES at 0.97 or above is short an option on the resolution procedure, not just long the event. We size those positions as if the dispute window can be reopened, treat the dip during a dispute as a bet on the oracle procedure rather than on the election, and read the resolution rules and the dispute history before we read the price. The resolution-rules study — two venues settling the same event differently — is the systematic version of this note.",
+      "evidence": "Observed live in the order book at the time; our recorders were not on this market, so there is no chart from our data. Amounts recalled from memory."
+    },
+    {
+      "date": "2026-07",
+      "venue": "Polymarket",
+      "market": "All-In Podcast mentions markets (weekly, July 2026)",
+      "title": "Resting limit orders get pennied within seconds — automated laddering",
+      "observation": "Whenever we placed a resting limit order that improved the book, a new quote appeared one cent in front of it within seconds, repeatedly; once we pulled our order the ladder collapsed back. At the actual content drop the same makers withdrew every quote at once (post-mortem 2026-07-12), and by the run of 31 July the ask-side spread on the watched words had already widened from 0.23 to 0.62 before the episode dropped.",
+      "mechanism": "Consistent with market-maker software that requotes relative to the best visible order rather than to a fair value: it sits one tick ahead of any small resting order to keep queue priority, and steps away the moment information arrives. Our market-making study measured the other side of the same coin — quotes on a slow requote grid lose to staleness, not to spread width.",
+      "consequence": "For a small account there is no queue priority to be bought by quoting passively; the passive fill you do get is usually the one nobody else wanted. In the mentions runs we therefore took liquidity at the drop with fill-and-kill clips instead of resting orders, accepted the taker fee as the price of not being adversely selected, and measured fill quality with the price path 0 to 900 seconds after each fill.",
+      "evidence": "Repeated observation across the July 2026 All-In runs (runs.json, per-bet post-fill price path); post-mortem 2026-07-12; run notes of 2026-07-31 in the sister repository."
+    },
+    {
+      "date": "2026-07",
+      "venue": "Polymarket",
+      "market": "Mentions markets with low volume, especially NO on rarely said words",
+      "title": "In thin markets the payoff is what the first proposer says",
+      "observation": "For several NO outcomes on words that were, in our transcript check, clearly said or clearly not said, we expected the resolution to follow whoever proposed first rather than the transcript. These markets sat unresolved for a long time because nobody wanted to be the one posting the bond; once someone did, the proposal went through unchallenged. Across the earnings-call and tribute markets we tracked, unambiguous cases were proposed almost immediately and the doubtful ones last.",
+      "mechanism": "Resolution on an optimistic oracle is only as good as the incentive to challenge. When open interest is smaller than the 750 USDC bond, the first proposal effectively is the result — a binary event contract becomes a contract on the proposer's reading of the transcript, with the true event as a prior. Proposal order therefore doubles as an ambiguity signal.",
+      "consequence": "We treated resolution-rule risk as its own line item next to spread and fee: no thin NO positions where the transcript evidence was ambiguous, preference for markets whose source content is public and searchable, and — in the pilot — an explicit arm for markets already decided by the reference but still trading below 0.97. On a calibration set of 84 finalized mentions markets our own full-transcript reading agreed with the UMA outcome in 82.",
+      "evidence": "Own runs July 2026 (runs.json), pilot protocol arm 1 (pilot.json), resolution-rules study; calibration set and proposer-order notes in the sister repository (THESIS_ERKENNTNISSE_LIVE_MENTIONS_2026-07-29)."
+    },
+    {
+      "date": "2026-07-22",
+      "venue": "Polymarket",
+      "market": "Ukraine map markets — 'Will Russia enter Krasnoiarske'",
+      "title": "Eighteen minutes of nothing, then one block: the midpoint is not a price",
+      "observation": "The ISW map polygon that decides the market was created at 20:39:00 UTC. For 18 minutes and 43 seconds there was no trade at all. Then a single block of five fills, about 4,400 USD, took YES from 0.046 to 0.93. The cheapest real fill in that block was 0.395 while the displayed midpoint had been 0.046.",
+      "mechanism": "In a long-dated, thin market the midpoint is an artefact of two stale quotes far apart, not a tradable price. The first informed taker pays the whole ask ladder in one sweep, and everyone who saw the map first had that window to themselves.",
+      "consequence": "Every cap in our execution code checks the best ask (or the depth-weighted fill price), never the midpoint; the surprise window is the whole edge, so later events on the same map that were already anticipated moved only 1.5 to 6 points and were not worth taking; and detection latency is measured against the source (the map layer), not against the first trade.",
+      "evidence": "Read-only ISW recorder and book log in the sister repository (ISW_VORLAUF_MESSPROTOKOLL_2026-07-30); paper executor only, no live orders on this track."
+    },
+    {
+      "date": "2026-07",
+      "venue": "Polymarket",
+      "market": "Live-audio mentions markets (podcasts, earnings calls)",
+      "title": "The single-word latency race is structurally lost — the edge is elsewhere",
+      "observation": "The market repriced a spoken word within 1 to 4 seconds. A human on a low-latency stream needed 5 to 8 seconds. Our GPU transcription pipeline needed 15 to 25 seconds, dominated by the audio chunk length. Our own low-latency audio ran about 20 seconds ahead of the public player and the words were still sold out before it.",
+      "mechanism": "Someone is trading off the raw stream faster than any transcription loop can; against them, first detection of a single word is not a race a small operator can win.",
+      "consequence": "We stopped optimising for first detection and moved the strategy to what latency cannot buy: doubt windows on count brackets (YES only after the live count has already passed the threshold, NO only after the full transcript at a stricter cap), asymmetric price caps (YES 0.90, NO 0.80, because one transcription miss breaks a NO), and base-rate vetoes from prior episodes. The bot was still first taker on the traded side in 11 of 15 bets — not because it was fastest, but because it acted where nobody else was certain yet.",
+      "evidence": "Latency measurements and run notes in the sister repository (KENNZAHLEN_KAPITEL4_2026-07-18, THESIS_ERKENNTNISSE_LIVE_MENTIONS_2026-07-29); wallet-reconciled runs in runs.json."
+    }
+  ]
+}

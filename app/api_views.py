@@ -24,6 +24,7 @@ RESEARCH_FILES = {
     "methodology": "audit",
     "microstructure": "microstructure",
     "postmortems": "postmortems",
+    "field-notes": "field_notes",
     "meta": "meta",
 }
 

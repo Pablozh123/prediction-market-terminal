@@ -1,7 +1,7 @@
 {
  "hinweis": "Descriptive microstructure research on data this project recorded itself. Every figure is produced by a tested module in this repository. No profitability claim is made anywhere in this work.",
  "einleitung": "Four recorders run continuously across both venues: REST pollers on a 120 second grid and event driven WebSocket recorders that write on every change at the top of the book. The studies below ask, in order, whether anything in that data can be turned into money. Most of the answers are no, and the reasoning behind each no is the point. Each study states what it measured, what the numbers say, and how else they could be read.",
- "stand_utc": "2026-08-06T23:45:50.425579+00:00",
+ "stand_utc": "2026-08-16T18:39:52.108243+00:00",
  "kennzeichnung": "research/frozen",
  "zaehler": {
   "gesamt": 12,
@@ -14,7 +14,7 @@
   {
    "id": "imbalance-direction",
    "frage": "Does book imbalance predict which way the price moves?",
-   "verdikt": "Yes. 55.2% hit rate, and the pessimistic end of the interval is still above the coin flip.",
+   "verdikt": "Yes. 55.5% hit rate at a five-minute horizon with no decision delay, and the pessimistic end of the interval (55.2%) is still above the coin flip.",
    "verdikt_art": "ja",
    "analyse": [
     {
@@ -25,7 +25,7 @@
     {
      "schluessel": "wie",
      "titel": "How",
-     "text": "Each recorded snapshot is checked for an imbalance past a fixed threshold. When it fires, the side it leans to is written down, and compared against where the mid actually sat 300 seconds later. Firings where nothing moved at all are counted separately so they cannot pad the score."
+     "text": "Each recorded snapshot is checked for an imbalance past a fixed threshold. When it fires, the side it leans to is written down, and compared against where the mid actually sat 300 seconds later, with no decision delay between the firing and the entry price. Firings where nothing moved at all are counted separately so they cannot pad the score. The study also runs four other horizon and delay cells; they are reported in the table below, never pooled, because every snapshot feeds each of them."
     },
     {
      "schluessel": "daten",
@@ -170,7 +170,7 @@
   {
    "id": "imbalance-takeable",
    "frage": "Can that signal be taken as a taker?",
-   "verdikt": "No. The edge is worth about a tenth of a cent against a 2.56 cent round trip.",
+   "verdikt": "No. The edge is worth +0.09 cents per firing against a 2.58 cent round trip.",
    "verdikt_art": "nein",
    "analyse": [
     {
@@ -194,7 +194,7 @@
      "text": "Takeable means the net stays above zero. Costs come from the venue fee model in the repository, not from a round-number assumption."
     }
    ],
-   "einfach": "The signal is worth +0.09 cents per firing before costs. Crossing the spread costs 0.94 cents and the venue fee another 1.65, so the round trip takes 2.58 cents, roughly 30 times what the signal produces. The net is -2.50 cents, and only 3.8 percent of firings end positive. Even the best cut of the signal only reaches +0.21 cents gross, nowhere near the wall.",
+   "einfach": "The signal is worth +0.09 cents per firing before costs. Crossing the spread costs 0.938 cents and the venue fee another 1.646, so the round trip takes 2.58 cents, roughly 30 times what the signal produces. The net is -2.50 cents, and only 3.8 percent of firings end positive. Even the best cut of the signal only reaches +0.21 cents gross, nowhere near the wall.",
    "interpretation": [
     {
      "art": "lesart",
@@ -327,7 +327,7 @@
   {
    "id": "signed-flow",
    "frage": "Is signed order flow a usable signal?",
-   "verdikt": "No. 51.3% hit rate, and the gross edge is negative before any cost.",
+   "verdikt": "No. 51.7% hit rate at the same five-minute, no-delay cell (Wilson lower bound 51.3%), and the gross edge is negative before any cost.",
    "verdikt_art": "nein",
    "analyse": [
     {
@@ -717,7 +717,7 @@
   {
    "id": "mm-120s",
    "frage": "Does market making carry at a 120 second requote?",
-   "verdikt": "No. Adverse selection takes 362 cents per fill against 148 cents of spread earned.",
+   "verdikt": "No. Adverse selection takes 362 cents per fill against 148 cents of spread earned, in the tape fill model.",
    "verdikt_art": "nein",
    "analyse": [
     {

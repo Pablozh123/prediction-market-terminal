@@ -66,5 +66,14 @@ export const STUDIEN = [
     stamp: 'rolling',
     note: 'Every incident the live runs produced, with what happened, what it cost, and the code that changed as a result.',
     chart: ''
+  },
+  // Slug 'field-notes' (aus dem Reiter abgeleitet), Nutzlast field_notes.json.
+  // Kuratierte Beobachtungen, keine Messreihe — deshalb kein Diagrammtitel.
+  {
+    tab: 'Field notes',
+    title: 'Field notes — what the tape taught us',
+    stamp: 'curated',
+    note: 'Curated observations from watching the tape: what happened, the mechanism behind it, and what follows from it. Each note names its evidence or says it has none.',
+    chart: ''
   }
 ];

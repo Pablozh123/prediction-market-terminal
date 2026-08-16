@@ -17,16 +17,23 @@ function filterGroup(label, chipsHtml) {
 const RESEARCH_DATEI = [
   'queue.json', 'kategorie_karte.json', 'mentions_latenz.json', 'runs.json',
   'microstructure.json', 'pilot.json', 'pipeline_forward.json', 'audit.json',
-  'postmortems.json'
+  'postmortems.json', 'field_notes.json'
 ];
 
 // Farbe je Achse, damit sich die Fehlerarten auf einen Blick trennen lassen.
+// Die Palette bleibt bei den vier Grundfarben des Terminals (Limette, Blau,
+// Bernstein, Rot) und ihren gedaempften Varianten; jede Achse aus
+// public/data/postmortems.json hat einen Eintrag, sonst faellt sie auf Grau.
 const ACHSEN_FARBE = {
   'Rule understanding': '#F5A623',
   'Execution': '#FF7A7A',
   'Microstructure': '#4F8EF7',
   'Data': '#7DE2D1',
   'Infrastructure': '#C792EA',
+  'Risk discipline': '#FF4545',
+  'Engineering maturity': '#9AB0FF',
+  'Evaluation': '#C8F542',
+  'Detection latency': '#FFD166',
 };
 
 /** Post-Mortems: neun Vorfaelle mit Ursache, Kosten, Fix und Codeverweis. */
@@ -79,6 +86,82 @@ function renderPostmortems(payload) {
     + '<div style="display:flex; gap:7px; flex-wrap:wrap; margin-top:12px">'
     + '<div style="' + M + '; font-size:10px; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:5px; padding:4px 9px">'
     + eintraege.length + ' INCIDENTS</div>' + chips + '</div>'
+    + '<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); gap:14px; margin-top:16px">'
+    + karten + '</div></div>';
+}
+
+/** Field notes: kuratierte Beobachtungen vom Tape, je Notiz Datum, Venue,
+ *  Markt, Titel, Beobachtung, Mechanismus, Folge und optional ein Beleg.
+ *  Nur Struktur — jede Notiz kommt aus public/data/field_notes.json. */
+function renderFieldNotes(payload) {
+  const notes = (payload && Array.isArray(payload.notes)) ? payload.notes : [];
+  const kennung = payload && payload.kennzeichnung ? String(payload.kennzeichnung).toUpperCase() : 'CURATED';
+  const stempel = payload && payload.stand_utc
+    ? String(payload.stand_utc).slice(0, 16).replace('T', ' ') + ' UTC' : 'curated';
+  const kopf = '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px">'
+    + '<div style="max-width:720px">'
+    + '<div style="font-size:20px; font-weight:600">Field notes — what the tape taught us</div>'
+    + '<div style="font-size:13.5px; color:rgba(255,255,255,.6); margin-top:8px; line-height:1.5">'
+    + esc((payload && payload.hinweis) || 'Curated observations from watching the tape: what happened, the mechanism behind it, and what follows from it. Notes, not measurements — each one names its evidence or says it has none.')
+    + '</div></div>'
+    + '<div style="display:flex; gap:8px">'
+    + '<div style="' + M + '; font-size:9.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; color:#0A0D0F; background:#4F8EF7">' + esc(kennung) + '</div>'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.4); border:1px solid rgba(255,255,255,.14); border-radius:6px; padding:5px 10px; white-space:nowrap">' + esc(stempel) + '</div>'
+    + '</div></div>';
+
+  if (!payload) {
+    return '<div style="padding:22px 24px">' + kopf
+      + '<div style="margin-top:16px">' + leerZeile(herkunftSatz(null, 'public/data/field_notes.json')) + '</div></div>';
+  }
+  if (payload._quelle === 'fehler') {
+    return '<div style="padding:22px 24px">' + kopf
+      + '<div style="margin-top:16px">' + leerZeile(herkunftSatz({ quelle: 'fehler', fehler: payload._fehler }, 'public/data/field_notes.json')) + '</div></div>';
+  }
+  if (!notes.length) {
+    return '<div style="padding:22px 24px">' + kopf
+      + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:22px 24px; max-width:720px; margin-top:16px">'
+      + '<div style="font-size:16px; font-weight:600">No field notes published yet</div>'
+      + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:10px; line-height:1.6">'
+      + 'This page reads <span style="' + M + '">public/data/field_notes.json</span>. The file is there but its '
+      + '<span style="' + M + '">notes</span> list is empty, so there is nothing to show — and nothing is invented to fill the space.'
+      + '</div></div></div>';
+  }
+
+  const feld = (label, wert, farbe) => (wert
+    ? '<div style="margin-top:11px">'
+      + '<div style="' + M + '; font-size:9px; letter-spacing:.13em; color:rgba(255,255,255,.38)">' + label + '</div>'
+      + '<div style="font-size:12.5px; color:' + (farbe || 'rgba(255,255,255,.72)') + '; margin-top:4px; line-height:1.6">'
+      + esc(wert) + '</div></div>'
+    : '');
+
+  const venues = {};
+  notes.forEach((n) => { const v = String(n.venue || 'unknown venue'); venues[v] = (venues[v] || 0) + 1; });
+  const chips = Object.entries(venues).sort((a, b) => b[1] - a[1]).map(([v, n]) =>
+    '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.18); border-radius:5px; padding:4px 9px">'
+    + esc(v.toUpperCase()) + ' ' + n + '</div>').join('');
+
+  const karten = notes.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).map((n) =>
+    '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-left:2px solid #4F8EF7; border-radius:10px; padding:16px 18px">'
+    + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap">'
+    + '<div style="font-size:14.5px; font-weight:600; flex:1; min-width:220px">' + esc(n.title || '—') + '</div>'
+    + '<div style="' + M + '; font-size:10px; color:#4F8EF7">' + esc(n.venue || '') + '</div></div>'
+    + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.4); margin-top:5px">'
+    + esc(n.date || '—') + (n.market ? ' · ' + esc(n.market) : '') + '</div>'
+    + feld('OBSERVATION', n.observation)
+    + feld('MECHANISM', n.mechanism, '#F5A623')
+    + feld('CONSEQUENCE', n.consequence, '#C8F542')
+    + (n.evidence
+      ? '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.35); margin-top:11px; '
+        + 'border-top:1px solid rgba(255,255,255,.06); padding-top:9px">EVIDENCE · ' + esc(n.evidence) + '</div>'
+      : '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.3); margin-top:11px; '
+        + 'border-top:1px solid rgba(255,255,255,.06); padding-top:9px">NO EVIDENCE ATTACHED · an observation, not a finding</div>')
+    + '</div>'
+  ).join('');
+
+  return '<div style="padding:22px 24px 36px">' + kopf
+    + '<div style="display:flex; gap:7px; flex-wrap:wrap; margin-top:12px">'
+    + '<div style="' + M + '; font-size:10px; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:5px; padding:4px 9px">'
+    + notes.length + ' NOTE' + (notes.length === 1 ? '' : 'S') + '</div>' + chips + '</div>'
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); gap:14px; margin-top:16px">'
     + karten + '</div></div>';
 }
@@ -283,6 +366,11 @@ export function renderResearch(T) {
   if (s.researchTab === 8) {
     return '<div>' + header + renderPostmortems(payload) + '</div>';
   }
+  // Field notes haengen am Slug, nicht an der Position: die Liste waechst am
+  // Ende, und ein Index wuerde beim naechsten Eintrag verrutschen.
+  if (studienSlug(study) === 'field-notes') {
+    return '<div>' + header + renderFieldNotes(payload) + '</div>';
+  }
 
   // Microstructure hat eine eigene Seite: zwoelf Studien, je Karte mit
   // Frage, Verdikt, Diagramm und Quelle. Nutzlast aus public/data.
@@ -339,10 +427,36 @@ export function renderResearch(T) {
     + (s.researchTab === 5 ? pilotAuswertungHtml(payload) : '')
     + (s.researchTab === 6 ? pipelineRegelnHtml(payload) : '')
     + table
-    + '<div style="display:flex; gap:10px; margin-top:14px">'
-    + '<div class="hv-bd35" style="font-size:13px; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:10px 16px; cursor:pointer">Download the data</div>'
-    + '<div class="hv-bd35" style="font-size:13px; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:10px 16px; cursor:pointer">Read the method</div>'
-    + '</div></div></div>';
+    + studienKnoepfe(T, s.researchTab)
+    + '</div></div>';
+}
+
+// Der Slug einer Studie, wie er in der Adresse und in api.js STATISCH steht.
+function studienSlug(study) {
+  return String(study && study.tab ? study.tab : '').toLowerCase().replace(/ /g, '-');
+}
+
+// Zwei Knoepfe, die etwas tun. "Download the data" war ein Div ohne Ziel und
+// ist jetzt ein Link auf die publizierte Datei der Studie unter ./data/, die
+// api/server.py und ein reiner Dateiserver gleichermassen ausliefern. "Read
+// the method" springt auf die Methodik-Studie und ist dort selbst nicht da.
+function studienKnoepfe(T, tab) {
+  const KNOPF = 'font-size:13px; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:10px 16px; cursor:pointer; text-decoration:none; display:inline-block';
+  const datei = RESEARCH_DATEI[tab];
+  const methodik = T.studies.findIndex((st) => studienSlug(st) === 'methodology');
+  const teile = [];
+  if (datei) {
+    teile.push('<a href="./data/' + esc(datei) + '" download="' + esc(datei) + '" class="hv-bd35" style="' + KNOPF + '">Download the data</a>');
+  }
+  if (methodik >= 0 && methodik !== tab) {
+    teile.push('<div ' + T.act(() => {
+      T.setState({ page: 'research', researchTab: methodik, detail: null });
+      try { history.pushState(null, '', '#research/methodology'); } catch (e) { /* file:// */ }
+      T.fetchPageData('research');
+    }) + ' class="hv-bd35" style="' + KNOPF + '">Read the method</div>');
+  }
+  if (!teile.length) return '';
+  return '<div style="display:flex; gap:10px; margin-top:14px">' + teile.join('') + '</div>';
 }
 
 // Pilot: die aus den Trades gerechnete Auswertung (api/server.py haengt sie

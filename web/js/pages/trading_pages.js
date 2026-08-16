@@ -1,8 +1,9 @@
 // Backtester, Copy trade, Portfolio — ported from the design reference.
 // The backtester renders live results from POST /api/backtest when available,
-// otherwise the reference's deterministic synthetic curves.
+// otherwise an honest empty state. No panel here falls back to a fixture:
+// every figure comes from the API or the cell shows that it does not.
 
-import { esc, money, num } from '../util.js';
+import { esc, num, leerZeile } from '../util.js';
 import { trackWatchRows } from './trader_pages.js';
 
 const M = "font-family:'JetBrains Mono',monospace";
@@ -153,7 +154,8 @@ export function renderBacktester(T) {
         + '<div style="text-align:right; color:rgba(255,255,255,.5)">' + esc(l.fee) + '</div>'
         + '<div style="text-align:right">' + esc(l.equity) + '</div></div>'
       ).join('')
-      + '<div style="padding:12px 16px"><span class="hv-bd35" style="font-size:12.5px; border:1px solid rgba(255,255,255,.2); border-radius:7px; padding:8px 13px; cursor:pointer; display:inline-block">Export trade log CSV</span></div>'
+      // Der Knopf "Export trade log CSV" stand hier ohne Handler. Ein Knopf,
+      // der nichts tut, ist eine Behauptung ueber eine Funktion.
       + '</div>';
   } else if (s.btTab === 'open') {
     tabBody = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:12px; overflow:hidden">'
@@ -285,7 +287,11 @@ export function renderBacktester(T) {
     ).join('')
     + '</div>'
 
-    + (skippedN > copied ? '<div style="border:1px solid rgba(245,166,35,.3); background:rgba(245,166,35,.07); border-radius:10px; padding:12px 15px; margin-top:12px; font-size:12.5px; color:#F5A623; line-height:1.5">Why so many skips: ' + Math.round(skippedN * 0.6) + ' hit the exposure cap (' + s.btExposure + '%), ' + Math.round(skippedN * 0.3) + ' ran out of cash, ' + Math.round(skippedN * 0.1) + ' were sells of positions you never copied. Raise the exposure cap or lower the stake to copy more of the flow.</div>' : '')
+    // Keine erfundene Aufteilung der Skips mehr: hier stand 60 Prozent
+    // Exposure-Deckel, 30 Prozent Kasse leer, 10 Prozent fremde Verkaeufe —
+    // drei feste Anteile, die die Engine nie gemeldet hat. Der Grund je Zeile
+    // steht im Trade log; hier nur die gemessene Summe.
+    + (skippedN > copied ? '<div style="border:1px solid rgba(245,166,35,.3); background:rgba(245,166,35,.07); border-radius:10px; padding:12px 15px; margin-top:12px; font-size:12.5px; color:#F5A623; line-height:1.5">More skipped than copied: ' + num(skippedN) + ' of the wallet\'s trades were not mirrored. A skip happens when the exposure cap (' + s.btExposure + '%) is full, when the cash runs out, or when the wallet sells a position you never held — the trade log below marks each one. Raise the exposure cap or lower the stake to copy more of the flow.</div>' : '')
 
     + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; padding:16px 18px">'
     + '<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:10px">'
@@ -332,11 +338,9 @@ export function renderBacktester(T) {
       ).join('')
       + '</div></div>' : '')
     + '</div>'
-
-    + '<div style="display:flex; gap:10px; margin-top:16px">'
-    + '<div class="hv-bd35" style="font-size:13px; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:10px 16px; cursor:pointer">Mirror this on paper</div>'
-    + '<div class="hv-bd35" style="font-size:13px; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:10px 16px; cursor:pointer">Save this setup</div>'
-    + '</div>'
+    // "Mirror this on paper" und "Save this setup" standen hier ohne Handler.
+    // Es gibt keinen Endpunkt, der einen Backtest in den Copy-Trader
+    // uebernimmt oder eine Einstellung speichert; die Knoepfe sind weg.
     : ohneBacktestHtml())
     + '</div></div></div>';
 }
@@ -402,14 +406,17 @@ export function renderCopy(T) {
       + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:14px 24px; overflow:hidden">'
       + '<div style="display:grid; grid-template-columns:92px 1fr 78px 96px 96px 92px 110px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
       + '<div>TIME</div><div>MARKET</div><div style="text-align:right">SIDE</div><div style="text-align:right">THEY SPENT</div><div style="text-align:right">YOU SPENT</div><div style="text-align:right">LATENCY</div><div style="text-align:right">STATUS</div></div>'
-      + rows.map((o, i) =>
+      + (rows.length ? '' : leerZeile(orders.length ? 'No order matches these filters.' : 'No paper orders reported by /api/copy yet.'))
+      + rows.map((o) =>
         '<div style="display:grid; grid-template-columns:92px 1fr 78px 96px 96px 92px 110px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06)">'
         + '<div style="' + M + '; font-size:12px; color:rgba(255,255,255,.55)">' + esc(o.time) + '</div>'
         + '<div style="font-family:\'Inter\',sans-serif; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(o.market) + '</div>'
         + '<div style="' + M + '; font-size:12px; text-align:right; color:' + (o.side.indexOf('BUY') === 0 ? '#C8F542' : '#FF4545') + '">' + esc(o.side) + '</div>'
         + '<div style="' + M + '; font-size:12px; text-align:right; color:rgba(255,255,255,.55)">' + esc(o.theirs) + '</div>'
         + '<div style="' + M + '; font-size:12px; text-align:right">' + esc(o.yours) + '</div>'
-        + '<div style="' + M + '; font-size:12px; text-align:right; color:rgba(255,255,255,.55)">' + (o.latency_ms != null ? o.latency_ms + ' ms' : (900 + i * 140) + ' ms') + '</div>'
+        // Keine synthetische Latenz: hier stand (900 + i * 140) ms, eine
+        // Zahl aus der Zeilennummer. Ohne gemessenen Wert bleibt die Zelle leer.
+        + '<div style="' + M + '; font-size:12px; text-align:right; color:rgba(255,255,255,.55)">' + (o.latency_ms != null ? esc(String(o.latency_ms)) + ' ms' : '—') + '</div>'
         + '<div style="' + M + '; font-size:11px; text-align:right; color:' + (o.status === 'copied' ? '#C8F542' : o.status === 'skipped' ? '#F5A623' : 'rgba(255,255,255,.6)') + '">' + esc(o.status.toUpperCase()) + '</div></div>'
       ).join('')
       + '</div></div>';
@@ -417,6 +424,7 @@ export function renderCopy(T) {
     body = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:14px 24px; overflow:hidden">'
       + '<div style="display:grid; grid-template-columns:1fr 62px 78px 78px 78px 88px 100px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
       + '<div>MARKET</div><div style="text-align:right">SIDE</div><div style="text-align:right">SHARES</div><div style="text-align:right">AVG FILL</div><div style="text-align:right">MARK</div><div style="text-align:right">VALUE</div><div style="text-align:right">UNREALISED</div></div>'
+      + (positions.length ? '' : leerZeile('No open paper positions reported by /api/copy.'))
       + positions.map((r) =>
         '<div style="display:grid; grid-template-columns:1fr 62px 78px 78px 78px 88px 100px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06)">'
         + r.map((v, i) => {
@@ -447,7 +455,9 @@ export function renderCopy(T) {
       + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55)">YOUR RETURN VERSUS THE SOURCE WALLET</div>'
       + '<div style="display:flex; gap:14px; ' + M + '; font-size:10.5px">'
       + '<span style="display:flex; align-items:center; gap:6px"><span style="width:14px; height:2px; background:#C8F542; display:inline-block"></span>You</span>'
-      + '<span style="display:flex; align-items:center; gap:6px; color:#4F8EF7"><span style="width:14px; height:2px; background:#4F8EF7; display:inline-block"></span>Swisstony</span>'
+      // Der Name der Quell-Wallet kommt aus dem Status, nicht aus dem Code:
+      // hier stand "Swisstony" fest verdrahtet, egal welche Wallet lief.
+      + '<span style="display:flex; align-items:center; gap:6px; color:#4F8EF7"><span style="width:14px; height:2px; background:#4F8EF7; display:inline-block"></span>' + esc(st.source || 'source wallet') + '</span>'
       + '</div></div>'
       + '<svg width="100%" height="200" viewBox="0 0 900 200" preserveAspectRatio="none">'
       + '<line x1="0" y1="20" x2="900" y2="20" stroke="rgba(255,255,255,.07)" />'
@@ -469,18 +479,20 @@ export function renderCopy(T) {
         + '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Clamped (cash throttle / order cap)</span><span style="' + M + '; color:rgba(255,255,255,.6)">-$' + clamps.toFixed(2) + '</span></div>'
         + '<div style="display:flex; justify-content:space-between; font-size:13px; border-top:1px solid rgba(255,255,255,.09); padding-top:11px"><span>Total drag (24h)</span><span style="' + M + '; color:#FF4545">-$' + total.toFixed(2) + '</span></div>';
     } else {
-      gapCosts = '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Skipped for lack of cash</span><span style="' + M + '; color:#FF4545">-$11.40</span></div>'
-        + '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Filled at a worse price</span><span style="' + M + '; color:#FF4545">-$4.20</span></div>'
-        + '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Rounded position sizes</span><span style="' + M + '; color:rgba(255,255,255,.6)">-$0.90</span></div>'
-        + '<div style="display:flex; justify-content:space-between; font-size:13px; border-top:1px solid rgba(255,255,255,.09); padding-top:11px"><span>Total drag</span><span style="' + M + '; color:#FF4545">-$16.50</span></div>';
+      // Kein Rueckfall auf -11.40, -4.20 und -0.90 Dollar: das waren drei
+      // feste Betraege unter der Ueberschrift WHAT THE GAP COSTS, ohne dass
+      // jemand einen Abstand gemessen haette.
+      gapCosts = leerZeile('No execution breakdown in this /api/copy answer — fidelity_detail is missing. Nothing is shown rather than an estimate.');
     }
-    const throttleShare = fid && fid.execution && kp.total ? Math.round((kp.skipped / Math.max(1, kp.total)) * 100) : 7;
+    // Der Anteil uebersprungener Orders kommt aus den gezaehlten Orders. Ohne
+    // Zaehlung stand hier fest 7 Prozent.
+    const throttleShare = kp.total ? Math.round((kp.skipped / kp.total) * 100) : null;
     body = '<div style="padding:16px 24px; display:grid; grid-template-columns:1fr 1fr; gap:16px">'
       + '<div><div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55); margin-bottom:14px">WHERE THE COPY DRIFTS</div>'
       + '<div style="display:flex; flex-direction:column; gap:14px">'
       + fidelityBar('Settings vs a neutral mirror', kp.config_fidelity + '%', Math.min(100, kp.config_fidelity), '#C8F542')
       + fidelityBar('Filled vs what you wanted', kp.exec_fidelity + '%', Math.min(100, kp.exec_fidelity), '#C8F542')
-      + fidelityBar('Orders skipped', throttleShare + '% of orders', Math.min(100, throttleShare), '#F5A623', '#F5A623')
+      + fidelityBar('Orders skipped', throttleShare == null ? '— no orders yet' : throttleShare + '% of orders', throttleShare == null ? 0 : Math.min(100, throttleShare), '#F5A623', '#F5A623')
       + '</div></div>'
       + '<div><div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55); margin-bottom:14px">WHAT THE GAP COSTS</div>'
       + '<div style="display:flex; flex-direction:column; gap:11px">' + gapCosts + '</div></div></div>';
@@ -488,6 +500,7 @@ export function renderCopy(T) {
     body = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:14px 24px; overflow:hidden">'
       + '<div style="display:grid; grid-template-columns:110px 1fr 120px 120px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
       + '<div>DATE</div><div>WHAT HAPPENED</div><div style="text-align:right">AMOUNT</div><div style="text-align:right">CASH AFTER</div></div>'
+      + (cashRows.length ? '' : leerZeile('No cash events reported by /api/copy.'))
       + cashRows.map((r) =>
         '<div style="display:grid; grid-template-columns:110px 1fr 120px 120px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06)">'
         + r.map((v, i) => {
@@ -499,7 +512,12 @@ export function renderCopy(T) {
       + '</div>';
   }
 
-  const daemonOn = st.running != null ? !!st.running : s.daemonOn;
+  // Der Zustand des Daemons kommt aus der Antwort oder gar nicht. Vorher
+  // sprang er auf einen Schalter im Frontend zurueck, der auf true stand —
+  // RUNNING als Voreinstellung, ohne dass irgendetwas lief.
+  const daemonOn = st.running === true ? true : st.running === false ? false : null;
+  const daemonFarbe = daemonOn === true ? '#C8F542' : daemonOn === false ? '#F5A623' : 'rgba(255,255,255,.4)';
+  const daemonText = daemonOn === true ? 'RUNNING' : daemonOn === false ? 'STOPPED' : 'STATE NOT REPORTED';
   return '<div>'
     + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="' + M + '; font-size:10px; letter-spacing:.18em; color:#C8F542">COPY TRADE · PAPER</div>'
@@ -508,8 +526,8 @@ export function renderCopy(T) {
 
     + '<div style="display:flex; align-items:center; gap:26px; padding:13px 24px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A">'
     + '<div style="display:flex; align-items:center; gap:8px">'
-    + '<span style="width:7px; height:7px; border-radius:50%; background:' + (daemonOn ? '#C8F542' : '#F5A623') + '; display:inline-block; animation:livePulse 1.6s ease-in-out infinite"></span>'
-    + '<span style="' + M + '; font-size:11px; letter-spacing:.14em; color:' + (daemonOn ? '#C8F542' : '#F5A623') + '">' + (daemonOn ? 'RUNNING' : 'STOPPED') + '</span></div>'
+    + '<span style="width:7px; height:7px; border-radius:50%; background:' + daemonFarbe + '; display:inline-block; animation:livePulse 1.6s ease-in-out infinite"></span>'
+    + '<span style="' + M + '; font-size:11px; letter-spacing:.14em; color:' + daemonFarbe + '">' + daemonText + '</span></div>'
     + '<div style="' + M + '; font-size:11.5px; color:rgba(255,255,255,.6)">SOURCE <span style="color:#fff">' + esc(st.source) + '</span></div>'
     + '<div style="' + M + '; font-size:11.5px; color:rgba(255,255,255,.6)">SCALE <span style="color:#fff">' + (+st.scale).toFixed(2) + '×</span></div>'
     + '<div style="' + M + '; font-size:11.5px; color:rgba(255,255,255,.6)">CASH LEFT <span style="color:#fff">$' + (+st.cash).toFixed(2) + '</span></div>'
@@ -518,17 +536,25 @@ export function renderCopy(T) {
 
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="padding:16px 20px; border-right:1px solid rgba(255,255,255,.09)"><div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">SUB-ACCOUNT EQUITY</div><div style="' + M + '; font-size:26px; margin-top:8px">$' + num((+kp.equity).toFixed(2)) + '</div><div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); margin-top:4px">$' + num((+kp.contributions).toFixed(2)) + ' put in</div></div>'
-    + '<div style="padding:16px 20px; border-right:1px solid rgba(255,255,255,.09)"><div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">PROFIT ON PAPER</div><div style="' + M + '; font-size:26px; margin-top:8px; color:' + (kp.pnl >= 0 ? '#C8F542' : '#FF4545') + '">' + (kp.pnl >= 0 ? '+' : '-') + '$' + Math.abs(kp.pnl).toFixed(2) + '</div><div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); margin-top:4px">' + (kp.source_pnl_delta != null ? 'source wallet ' + (kp.source_pnl_delta >= 0 ? '+' : '-') + '$' + num(Math.abs(kp.source_pnl_delta).toFixed(0)) + ' same window' : 'source wallet +' + (+kp.source_return_pct).toFixed(1) + '% same window') + '</div></div>'
-    + '<div style="padding:16px 20px; border-right:1px solid rgba(255,255,255,.09)"><div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">ORDERS MIRRORED</div><div style="' + M + '; font-size:26px; margin-top:8px">' + kp.mirrored + ' <span style="font-size:15px; color:rgba(255,255,255,.45)">/ ' + kp.total + '</span></div><div style="' + M + '; font-size:11px; color:#F5A623; margin-top:4px">' + kp.skipped + ' skipped — no cash</div></div>'
+    + '<div style="padding:16px 20px; border-right:1px solid rgba(255,255,255,.09)"><div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">PROFIT ON PAPER</div><div style="' + M + '; font-size:26px; margin-top:8px; color:' + (kp.pnl >= 0 ? '#C8F542' : '#FF4545') + '">' + (kp.pnl >= 0 ? '+' : '-') + '$' + Math.abs(kp.pnl).toFixed(2) + '</div><div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); margin-top:4px">'
+    // source_return_pct ist im Backend das Literal 0.0, keine Messung. Ohne
+    // die PnL-Kurve der Quell-Wallet gibt es keinen Vergleich, und das steht
+    // dann da — statt "+0.0% same window".
+    + (kp.source_pnl_delta != null ? 'source wallet ' + (kp.source_pnl_delta >= 0 ? '+' : '-') + '$' + num(Math.abs(kp.source_pnl_delta).toFixed(0)) + ' same window' : 'source wallet return not loaded') + '</div></div>'
+    // "skipped — no cash" behauptete einen Grund. Der Daemon ueberspringt
+    // auch Trades vor dem Baseline-Schnitt; die Zaehlung kennt keinen Grund.
+    + '<div style="padding:16px 20px; border-right:1px solid rgba(255,255,255,.09)"><div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">ORDERS MIRRORED</div><div style="' + M + '; font-size:26px; margin-top:8px">' + kp.mirrored + ' <span style="font-size:15px; color:rgba(255,255,255,.45)">/ ' + kp.total + '</span></div><div style="' + M + '; font-size:11px; color:#F5A623; margin-top:4px">' + kp.skipped + ' skipped</div></div>'
     + '<div style="padding:16px 20px"><div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">HOW CLOSE TO THE SOURCE</div><div style="' + M + '; font-size:26px; margin-top:8px">' + kp.fidelity + '%</div><div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); margin-top:4px">config ' + kp.config_fidelity + '% · execution ' + kp.exec_fidelity + '%</div></div>'
     + '</div>'
 
-    + '<div style="display:flex; align-items:center; gap:8px; padding:14px 24px; border-bottom:1px solid rgba(255,255,255,.09); flex-wrap:wrap">'
-    + '<div class="hv-limebg" style="font-size:12.5px; font-weight:600; color:#0A0D0F; background:#C8F542; border-radius:7px; padding:8px 14px; cursor:pointer">Sync now</div>'
-    + '<div class="hv-bd35" style="font-size:12.5px; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:7px; padding:8px 14px; cursor:pointer">Seed baseline</div>'
-    + '<div ' + T.act(() => T.setState({ daemonOn: !s.daemonOn })) + ' style="font-size:12.5px; border-radius:7px; padding:8px 14px; cursor:pointer; ' + (daemonOn ? 'color:#FF7A7A; border:1px solid rgba(255,69,69,.35)' : 'color:#0A0D0F; background:#C8F542; font-weight:600') + '">' + (daemonOn ? 'Stop the copier' : 'Start the copier') + '</div>'
-    + '<div class="hv-bd35" style="font-size:12.5px; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:7px; padding:8px 14px; cursor:pointer">Export CSV</div>'
-    + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.4); margin-left:6px">' + (daemonOn ? 'Running · last sync 40 s ago · next in 20 s' : 'Stopped · nothing is being mirrored') + '</div>'
+    // Hier standen vier Knoepfe — Sync now, Seed baseline, Stop/Start the
+    // copier, Export CSV — von denen keiner einen Endpunkt hatte; der
+    // Start/Stop-Schalter drehte nur seine eigene Beschriftung. Daneben stand
+    // "last sync 40 s ago · next in 20 s", zwei erfundene Zeiten. Der Daemon
+    // wird ueber scripts/run_copy_trader.py bedient; diese Seite liest nur.
+    + '<div style="display:flex; align-items:center; gap:8px; padding:12px 24px; border-bottom:1px solid rgba(255,255,255,.09); flex-wrap:wrap">'
+    + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.4)">Read-only view of the copy daemon (scripts/run_copy_trader.py). This page starts, stops and syncs nothing.'
+    + (live.as_of ? ' · snapshot ' + esc(String(live.as_of)) : '') + '</div>'
     + '</div>'
 
     + '<div style="display:flex; gap:6px; padding:16px 24px 0; flex-wrap:wrap">' + copyTabs + '</div>'
@@ -581,6 +607,7 @@ export function renderPortfolio(T) {
       + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:14px 24px; overflow:hidden">'
       + '<div style="display:grid; grid-template-columns:1fr 76px 92px 92px 100px 100px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
       + '<div>MARKET</div><div style="text-align:right">SIDE</div><div style="text-align:right">ENTRY</div><div style="text-align:right">NOW</div><div style="text-align:right">PROFIT</div><div style="text-align:right">SOURCE</div></div>'
+      + (rows.length ? '' : leerZeile(baseRows.length ? 'No position matches these filters.' : 'No open positions in the paper book reported by /api/copy.'))
       + rows.map((r) =>
         '<div style="display:grid; grid-template-columns:1fr 76px 92px 92px 100px 100px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06)">'
         + r.map((v, i) => {
@@ -607,12 +634,10 @@ export function renderPortfolio(T) {
       + '<polyline points="' + equityPts + '" fill="none" stroke="#C8F542" stroke-width="2" /></svg></div>'
       + '</div>';
   } else if (s.portTab === 'exposure') {
-    let alloc = [
-      { label: 'MACRO', value: '$412', pct: 46, color: '#C8F542' },
-      { label: 'POLITICS', value: '$268', pct: 30, color: '#C8F542' },
-      { label: 'CRYPTO', value: '$143', pct: 16, color: '#4F8EF7' },
-      { label: 'SPORTS', value: '$72', pct: 8, color: '#4F8EF7' }
-    ];
+    // Keine erfundene Aufteilung mehr: hier standen MACRO $412, POLITICS
+    // $268, CRYPTO $143, SPORTS $72 als Rueckfall, wenn das Buch leer war.
+    // Ein leeres Buch hat keine Aufteilung, und das steht dann da.
+    let alloc = [];
     let conc = null;
     if (live && live.positions && live.positions.length) {
       const byCat = {};
@@ -636,9 +661,11 @@ export function renderPortfolio(T) {
         cash: '$' + cash.toFixed(0) + ' · ' + Math.round(cash / (total + cash) * 100) + '%'
       };
     }
+    const keinBuch = 'No open positions in the paper book reported by /api/copy — nothing to break down.';
     body = '<div style="padding:16px 24px; display:grid; grid-template-columns:1fr 1fr; gap:20px">'
       + '<div><div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55); margin-bottom:14px">BY CATEGORY</div>'
       + '<div style="display:flex; flex-direction:column; gap:14px">'
+      + (alloc.length ? '' : leerZeile(keinBuch))
       + alloc.map((a) =>
         '<div><div style="display:flex; justify-content:space-between; ' + M + '; font-size:11.5px; margin-bottom:6px"><span style="color:rgba(255,255,255,.66)">' + a.label + '</span><span>' + a.value + '</span></div>'
         + '<div style="height:8px; background:rgba(255,255,255,.07); border-radius:2px"><div style="width:' + a.pct + '%; height:8px; background:' + a.color + '; border-radius:2px"></div></div></div>'
@@ -650,16 +677,16 @@ export function renderPortfolio(T) {
         ? '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Biggest single position</span><span style="' + M + '">' + conc.biggest + '</span></div>'
         + '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Top three positions</span><span style="' + M + '">' + conc.top3 + '</span></div>'
         + '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Cash not deployed</span><span style="' + M + '">' + conc.cash + '</span></div>'
-        : '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Biggest single position</span><span style="' + M + '">$268 · 26%</span></div>'
-        + '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Top three positions</span><span style="' + M + '">$641 · 61%</span></div>'
-        + '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Resolving within 7 days</span><span style="' + M + '; color:#F5A623">$392 · 38%</span></div>'
-        + '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Cash not deployed</span><span style="' + M + '">$312 · 23%</span></div>')
+        // Hier standen $268 · 26%, $641 · 61%, $392 · 38% und $312 · 23% als
+        // Rueckfall — vier Konzentrationswerte fuer ein Buch ohne Positionen.
+        : leerZeile(keinBuch))
       + '</div></div></div>';
   } else if (s.portTab === 'history') {
     const histRows = liveHistRows || [];
     body = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:14px 24px; overflow:hidden">'
       + '<div style="display:grid; grid-template-columns:110px 1fr 78px 92px 92px 100px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
       + '<div>DATE</div><div>MARKET</div><div style="text-align:right">SIDE</div><div style="text-align:right">ENTRY</div><div style="text-align:right">EXIT</div><div style="text-align:right">RESULT</div></div>'
+      + (histRows.length ? '' : leerZeile('No settled paper trades reported by /api/copy yet.'))
       + histRows.map((r) =>
         '<div style="display:grid; grid-template-columns:110px 1fr 78px 92px 92px 100px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06)">'
         + r.map((v, i) => {
@@ -689,9 +716,14 @@ export function renderPortfolio(T) {
     + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">What you would be holding</div></div>'
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="padding:16px 20px; border-right:1px solid rgba(255,255,255,.09)"><div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">VALUE NOW</div><div style="' + M + '; font-size:26px; margin-top:8px">$' + num((+kp.equity).toFixed(2)) + '</div></div>'
-    + '<div style="padding:16px 20px; border-right:1px solid rgba(255,255,255,.09)"><div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">OPEN POSITIONS</div><div style="' + M + '; font-size:26px; margin-top:8px">' + (kp.open_positions != null ? kp.open_positions : 14) + '</div></div>'
-    + '<div style="padding:16px 20px; border-right:1px solid rgba(255,255,255,.09)"><div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">UNREALISED</div><div style="' + M + '; font-size:26px; margin-top:8px; color:#C8F542">+$' + (kp.unrealized != null ? (+kp.unrealized).toFixed(2) : '28.60') + '</div></div>'
-    + '<div style="padding:16px 20px"><div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">CASH FREE</div><div style="' + M + '; font-size:26px; margin-top:8px">$' + (kp.cash != null ? (+kp.cash).toFixed(2) : '312.40') + '</div></div>'
+    // Keine Rueckfallwerte in der Kennzahlenzeile: hier standen 14 offene
+    // Positionen, +$28.60 unrealisiert und $312.40 freie Kasse, sobald das
+    // Feld in der Antwort fehlte. Ein fehlendes Feld ist jetzt ein Strich.
+    // Und das Vorzeichen des Unrealisierten kommt aus der Zahl, nicht aus dem
+    // Template — vorher stand "+$" fest davor, in Gruen, auch bei Verlust.
+    + '<div style="padding:16px 20px; border-right:1px solid rgba(255,255,255,.09)"><div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">OPEN POSITIONS</div><div style="' + M + '; font-size:26px; margin-top:8px">' + (kp.open_positions != null ? num(kp.open_positions) : '—') + '</div></div>'
+    + '<div style="padding:16px 20px; border-right:1px solid rgba(255,255,255,.09)"><div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">UNREALISED</div><div style="' + M + '; font-size:26px; margin-top:8px; color:' + (kp.unrealized == null ? 'rgba(255,255,255,.4)' : +kp.unrealized >= 0 ? '#C8F542' : '#FF4545') + '">' + (kp.unrealized != null ? (+kp.unrealized >= 0 ? '+' : '-') + '$' + Math.abs(+kp.unrealized).toFixed(2) : '—') + '</div></div>'
+    + '<div style="padding:16px 20px"><div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">CASH FREE</div><div style="' + M + '; font-size:26px; margin-top:8px">' + (kp.cash != null ? '$' + (+kp.cash).toFixed(2) : '—') + '</div></div>'
     + '</div>'
     + '<div style="display:flex; gap:6px; padding:16px 24px 0; flex-wrap:wrap">' + portTabs + '</div>'
     + body

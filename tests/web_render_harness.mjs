@@ -40,7 +40,7 @@ function neuesT() {
       tBal: 'all', tAge: 'all', tAssets: 'all', tBotScore: 65,
       tEnrich: { positions: true, winrates: true, accounts: false },
       riskView: 'events', riskAgeCheck: false, copyTab: 'orders', copyQuery: '',
-      copySide: 'all', copyStatus2: 'all', copyMin: 'all', daemonOn: true,
+      copySide: 'all', copyStatus2: 'all', copyMin: 'all',
       portTab: 'positions', portQuery: '', portSource: 'all', portSide: 'all', portLosers: false,
       tapeQuery: '', tapePlatform: 'all', tapeSide: 'all', tapeOutcome: 'all',
       resQuery: '', resAnswer: 'all', resWindow: 'all', resError: 'all', resSort: 'recent',
@@ -55,7 +55,7 @@ function neuesT() {
       advancedOpen: false, sizingSimOpen: false, researchTab: 0, liveTab: 'runs',
       alertsOn: { movers: true, volume: true, whales: true, spreads: false, holders: false, endings: true },
       settingsOn: { telegram: true, autotop: false, kalshi: true, sports: false, cache: true, admin: true },
-      clock: '00:00', live: 'demo', liveAsOf: ''
+      clock: '00:00', live: 'waiting', liveAsOf: ''
     },
     markets: [], marketExtra: {}, traders: [], traderExtra: {}, risks: [], tape: [],
     crossPairs: [], studies: STUDIEN,
@@ -147,8 +147,31 @@ function mitDaten(T) {
     rules_not_evaluated: ['HOLDER CONCENTRATION'],
     shown_limit: 60
   };
-  T.liveData.copy = { _quelle: 'live', equity: 1000, pnl: 0, pnl_pct: 0, orders: [] };
+  // Die Form von app/api_views.py copy_payload: Status und Kennzahlen da,
+  // eine Order, aber kein Buch — genau der Fall, in dem frueher die
+  // Rueckfallwerte der Portfolio- und Fidelity-Reiter erschienen.
+  T.liveData.copy = {
+    _quelle: 'live', as_of: '2026-08-07',
+    status: { running: true, source: '0xab…c · w1', scale: 1, cash: 990, auto_topup: false },
+    kpis: {
+      equity: 1000, contributions: 1000, pnl: 0, pnl_pct: 0, source_return_pct: 0,
+      mirrored: 1, total: 1, skipped: 0, fidelity: 100, config_fidelity: 100, exec_fidelity: 100,
+      cash: 990, unrealized: 0, open_positions: 0
+    },
+    orders: [{ time: '12:00', market: 'Example question', side: 'BUY Yes', theirs: '$100', yours: '$10', status: 'copied' }],
+    positions: [], cash_events: [], history: [], equity_curve: []
+  };
   T.liveData.track = { _quelle: 'live', wallets: [], watchlist: [] };
+  // Zwei Studien mit Nutzlast, damit die Knopfleiste der Forschungsseite
+  // gerendert wird: einmal mit Verweis auf die Methodik, einmal auf ihr.
+  T.liveData.research['Review queue'] = {
+    _quelle: 'live', stand_utc: '2026-08-07T00:00:00+00:00', hinweis: 'Harness payload.',
+    faelle: [{ id: 'c1', markt_slug: 'example-question', score_band: 'high', skeptic_abschlag: 0.1, empfehlung: 'watch' }]
+  };
+  T.liveData.research['Methodology'] = {
+    _quelle: 'live', stand_utc: '2026-08-07T00:00:00+00:00', hinweis: 'Harness payload.',
+    n_eintraege: 3, prompt_hashes: ['a'], output_hashes: ['b'], backend_zaehler: { mock: 3 }
+  };
   return T;
 }
 
@@ -189,7 +212,14 @@ function rendern(T) {
     ['runs_timing', 'research', { researchTab: 3, liveTab: 'timing' }],
     ['runs_sim', 'research', { researchTab: 3, liveTab: 'sim' }],
     ['runs_calib', 'research', { researchTab: 3, liveTab: 'calib' }],
-    ['runs_record', 'research', { researchTab: 3, liveTab: 'record' }]
+    ['runs_record', 'research', { researchTab: 3, liveTab: 'record' }],
+    // Jede weitere Studie einmal, damit ein neuer Eintrag in STUDIEN ohne
+    // Renderer oder mit falschem Index hier auffaellt.
+    ['research_postmortems', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Postmortems') }],
+    ['research_field_notes', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Field notes') }],
+    ['research_methodology', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Methodology') }],
+    ['copy_fidelity', 'copy', { copyTab: 'fidelity' }],
+    ['portfolio_exposure', 'portfolio', { portTab: 'exposure' }]
   ];
   varianten.forEach(([name, seite, zustand]) => {
     const vorher = Object.assign({}, T.state);

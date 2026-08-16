@@ -98,7 +98,10 @@ class Studie:
 
     id: str
     frage: str
-    verdikt: str
+    # Ein fester Text, oder eine Vorlage ueber den Kennzahlen: sobald eine Zahl
+    # im Verdikt steht, muss sie aus dem Artefakt kommen wie in `einfach`,
+    # sonst driftet die Kopfzeile von den Zahlen darunter ab.
+    verdikt: str | Callable[[dict[str, Any]], str]
     verdikt_art: str
     analyse: dict[str, str]
     einfach: Callable[[dict[str, Any]], str]
@@ -819,11 +822,14 @@ STUDIEN: tuple[Studie, ...] = (
     Studie(
         id="imbalance-direction",
         frage="Does book imbalance predict which way the price moves?",
-        verdikt="Yes. 55.2% hit rate, and the pessimistic end of the interval is still above the coin flip.",
+        verdikt=lambda k: (
+            f"Yes. {_pz(k['hit'])}% hit rate at a five-minute horizon with no decision delay, "
+            f"and the pessimistic end of the interval ({_pz(k['lb'])}%) is still above the coin flip."
+        ),
         verdikt_art=VERDIKT_JA,
         analyse={
             "gemessen": "How often the mid price, five minutes later, had moved in the direction the order book was leaning.",
-            "wie": "Each recorded snapshot is checked for an imbalance past a fixed threshold. When it fires, the side it leans to is written down, and compared against where the mid actually sat 300 seconds later. Firings where nothing moved at all are counted separately so they cannot pad the score.",
+            "wie": "Each recorded snapshot is checked for an imbalance past a fixed threshold. When it fires, the side it leans to is written down, and compared against where the mid actually sat 300 seconds later, with no decision delay between the firing and the entry price. Firings where nothing moved at all are counted separately so they cannot pad the score. The study also runs four other horizon and delay cells; they are reported in the table below, never pooled, because every snapshot feeds each of them.",
             "daten": "Order books this project recorded itself on a 120 second grid, both venues, across eleven days.",
             "entscheidung": "A signal only counts as real if the pessimistic end of a 95 percent Wilson interval still sits above 50 percent. A point estimate above the coin flip would not have been enough, because with enough observations noise alone clears that bar.",
         },
@@ -848,7 +854,10 @@ STUDIEN: tuple[Studie, ...] = (
     Studie(
         id="imbalance-takeable",
         frage="Can that signal be taken as a taker?",
-        verdikt="No. The edge is worth about a tenth of a cent against a 2.56 cent round trip.",
+        verdikt=lambda k: (
+            f"No. The edge is worth {k['gross']:+.2f} cents per firing against a "
+            f"{k['cost']:.2f} cent round trip."
+        ),
         verdikt_art=VERDIKT_NEIN,
         analyse={
             "gemessen": "What is left per firing after the two costs a taker cannot avoid: crossing the spread, and the venue fee.",
@@ -858,7 +867,7 @@ STUDIEN: tuple[Studie, ...] = (
         },
         einfach=lambda k: (
             f"The signal is worth {k['gross']:+.2f} cents per firing before costs. Crossing the spread costs "
-            f"{k['spread']:.2f} cents and the venue fee another {k['fee']:.2f}, so the round trip takes "
+            f"{k['spread']:.3f} cents and the venue fee another {k['fee']:.3f}, so the round trip takes "
             f"{k['cost']:.2f} cents, roughly {k['faktor']:.0f} times what the signal produces. "
             f"The net is {k['net']:+.2f} cents, and only {_pz(k['positiv'])} percent of firings end positive. "
             f"Even the best cut of the signal only reaches {k['bester_gross']:+.2f} cents gross, nowhere near the wall."
@@ -877,7 +886,10 @@ STUDIEN: tuple[Studie, ...] = (
     Studie(
         id="signed-flow",
         frage="Is signed order flow a usable signal?",
-        verdikt="No. 51.3% hit rate, and the gross edge is negative before any cost.",
+        verdikt=lambda k: (
+            f"No. {_pz(k['hit'])}% hit rate at the same five-minute, no-delay cell "
+            f"(Wilson lower bound {_pz(k['lb'])}%), and the gross edge is negative before any cost."
+        ),
         verdikt_art=VERDIKT_NEIN,
         analyse={
             "gemessen": "The same forward hit rate as the imbalance study, but for a signal built out of trade direction rather than resting orders.",
@@ -940,7 +952,10 @@ STUDIEN: tuple[Studie, ...] = (
     Studie(
         id="mm-120s",
         frage="Does market making carry at a 120 second requote?",
-        verdikt="No. Adverse selection takes 362 cents per fill against 148 cents of spread earned.",
+        verdikt=lambda k: (
+            f"No. Adverse selection takes {abs(k['markout']):.0f} cents per fill against "
+            f"{k['spread']:.0f} cents of spread earned, in the tape fill model."
+        ),
         verdikt_art=VERDIKT_NEIN,
         analyse={
             "gemessen": "Profit per fill, split into the spread earned by quoting and the amount the market takes back immediately afterwards.",
@@ -969,7 +984,10 @@ STUDIEN: tuple[Studie, ...] = (
     Studie(
         id="mm-staleness",
         frage="Is the binding constraint spread width or quote staleness?",
-        verdikt="Staleness. On seconds data the loss per fill falls from 362 to 70 cents while the spread earned barely moves.",
+        verdikt=lambda k: (
+            f"Staleness. On seconds data the loss per fill falls from {abs(k['markout_langsam']):.0f} to "
+            f"{abs(k['markout_schnell']):.0f} cents while the spread earned barely moves."
+        ),
         verdikt_art=VERDIKT_JA,
         analyse={
             "gemessen": "The same two quantities as the study above, spread earned and adverse selection, recomputed on seconds-resolution data.",
@@ -1139,7 +1157,9 @@ STUDIEN: tuple[Studie, ...] = (
     Studie(
         id="book-reconcile",
         frage="Does our own recorded book drift against the venue?",
-        verdikt="No drift found. 98.6% agreement, mean divergence 0.07 ticks.",
+        verdikt=lambda k: (
+            f"No drift found. {_pz(k['quote'])}% agreement, mean divergence {k['mittel']:.2f} ticks."
+        ),
         verdikt_art=VERDIKT_KONTROLLE,
         analyse={
             "gemessen": "How closely the book this project recorded matches the venue's own snapshot at the same moment.",
@@ -1232,7 +1252,7 @@ def build_payload(root: Path | str = ".", *, jetzt: datetime | None = None) -> d
         eintrag: dict[str, Any] = {
             "id": studie.id,
             "frage": studie.frage,
-            "verdikt": studie.verdikt,
+            "verdikt": studie.verdikt(kennzahlen) if callable(studie.verdikt) else studie.verdikt,
             "verdikt_art": studie.verdikt_art,
             "analyse": [
                 {"schluessel": k, "titel": ANALYSE_TITEL[k], "text": studie.analyse[k]}

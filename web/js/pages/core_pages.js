@@ -212,7 +212,8 @@ export function renderMarkets(T) {
     + '<div style="display:flex; align-items:center; gap:10px">'
     + '<input value="' + esc(s.marketQuery) + '" ' + T.inp((e) => T.setState({ marketQuery: e.target.value }), 'marketQuery') + ' placeholder="Search markets…" style="background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:9px 12px; ' + M + '; font-size:12.5px; color:#fff; width:230px; outline:none" />'
     + '<div ' + T.act(() => T.setState({ mPlatform: 'all', mStatus: 'active', mProb: 'all', mSpread: 'all', mLiq: 'all', mVol: 'all', mEnds: 'all', mAge: 'all', mExclude: [], marketCat: 'All', marketQuery: '', mQuick: 'trending', marketSort: 'volume' })) + ' class="hv-bd32" style="font-size:12.5px; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:9px 13px; cursor:pointer">Reset filters</div>'
-    + '<div class="hv-bd32" style="font-size:12.5px; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:9px 13px; cursor:pointer">Save this view</div>'
+    // "Save this view" stand hier ohne Handler: es gibt keinen Speicherort
+    // fuer Ansichten. Ein Knopf, der nichts tut, ist weg.
     + '</div></div>'
 
     + '<div style="display:flex; align-items:center; gap:22px; margin-top:16px; flex-wrap:wrap">'

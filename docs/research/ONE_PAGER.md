@@ -24,13 +24,17 @@ gap-lifetime reconstruction, a reward-market ranker, and a book reconciler.
 **Book imbalance predicts direction.** 205,835 firings over 11 days, at a five
 minute horizon with no decision delay. Hit rate 55.5 percent, Wilson lower
 bound 55.2. Real, and far outside noise at that sample size. The study also
-runs four other horizon and delay combinations; they are reported separately
-rather than pooled, because every snapshot feeds each of them and summing them
-would inflate the sample past the number of snapshots it came from.
+runs four other horizon and delay combinations on the same 370,423 snapshots;
+they are reported separately rather than pooled, because every snapshot feeds
+each of them and summing them would inflate the sample past the number of
+snapshots it came from (pooled, the five cells would read 1,011,556
+observations at 55.2 percent, which is why that number appears in the raw
+report and nowhere in the headline).
 
-**It is not tradable as a taker.** Mean gross edge 0.09 cents per firing
-against a 2.58 cent round trip, of which 1.65 cents is fee and 0.94 is spread.
-3.8 percent of firings end net positive.
+**It is not tradable as a taker.** Mean gross edge +0.09 cents per firing at
+that cell, and no better than +0.03 to +0.13 across the five cells, against a
+2.58 cent round trip, of which 1.646 cents is fee and 0.938 is spread. 3.8
+percent of firings end net positive.
 
 **No segment rescues it.** 34 cuts knowable before the trade — spread, price
 level, signal strength, their cross — across three fee scenarios including the
@@ -39,17 +43,18 @@ a day-resampled confidence interval containing zero. At 34 tests that is the
 expected false-positive rate.
 
 **Market making loses to adverse selection at a two-minute requote interval.**
-Spread earned 148 cents per fill, adverse selection 362 to 698 cents depending
-on the fill model. The decomposition is an identity, not an estimate: spread
+Twelve days, 4,519 tokens. In the tape fill model, spread earned 148 cents per
+fill against 362 cents of adverse selection; the touch model is worse still,
+133 earned against 698. The decomposition is an identity, not an estimate: spread
 capture plus markout plus late drift reconstructs terminal mark-to-mid exactly,
 asserted to nine decimal places in the tests.
 
 **The binding constraint is staleness, not spread width.** Same code, same
-parameters, run on seconds-resolution data over five days, 468 tokens and 5.4
-million streamed snapshots: markout per fill falls from 362 to 70 cents in the
-tape model, from nothing but requoting faster. Spread earned per fill barely
-moves, 138 against 148 cents - the quoting did not improve, the quotes stopped
-standing still.
+parameters, run on seconds-resolution data over five days, 468 tokens and
+5,413,998 streamed snapshots: markout per fill falls from 362 to 70 cents in
+the tape model, from nothing but requoting faster. Spread earned per fill
+barely moves, 138 against 148 cents - the quoting did not improve, the quotes
+stopped standing still.
 
 **Whether that makes money is not identified, and five days of data is what
 established it.** Below three days the daily block bootstrap cannot run at all,
@@ -74,12 +79,12 @@ mispricings: the gap is the price of locking capital until resolution, plus
 resolution-rule risk on both venues.
 
 **Reward pools are large where nobody wants to stand.** Measured from the
-venue's own API: 9,921 markets carry a pool, 165,578 USD per day, median 4,
-largest 1,770. Of the 46 largest, 17 have a completely empty qualifying band
-and pay 400 to 933 dollars a day. That reads like free money until the spread
-column: those books quote 4 to 64 cents wide against a 2.5 cent qualifying
-band. The venue is buying liquidity that does not otherwise exist, and adverse
-selection is the price.
+venue's own API on 2026-07-31: 9,900 markets carry a pool, 164,661 USD per
+day, median 4, largest 1,770. Of the 45 largest, 14 have a completely empty
+qualifying band and pay 250 to 1,475 dollars a day. That reads like free money
+until the spread column: those books quote 1 to 64 cents wide against a 2.5
+cent qualifying band (4.5 cents on three of them). The venue is buying
+liquidity that does not otherwise exist, and adverse selection is the price.
 
 **Two venues can price the same event and settle it differently.** All five
 confirmed cross-venue pairs carry a resolution clause on one side the other
@@ -92,24 +97,28 @@ the rule text, and that pair had passed my own mismatch screen as clean.
 
 **The streamed book holds up, and that is now tested rather than assumed.**
 Polymarket sends no sequence numbers, so a dropped update is invisible and the
-book would drift silently. Reconciling against the authoritative REST book over
-twenty minutes of streaming: 98.6 percent agreement, mean divergence 0.07 ticks,
-the single exception two ticks. A first short run reported a perfect score and
-a longer one did not, which is the reason this module records a series instead
-of asserting a verdict.
+book would drift silently. Reconciling against the authoritative REST book on
+24 tokens over three rounds of 120 seconds, 72 comparisons: 98.6 percent
+agreement, mean divergence 0.07 ticks, the single exception two ticks. A first
+short run (10 tokens, three rounds of 40 seconds) reported a perfect score and
+a longer one (24 tokens, eight rounds of 150 seconds) did not, which is the
+reason this module records a series instead of asserting a verdict.
 
 ## What I threw away
 
 **Signal-conditioned quoting.** The obvious next idea: if the signal is too
 small to pay a spread for, use it to choose which side to quote. On the
-two-minute data total PnL improved by 18 percent while markout per fill did not
-move at all, minus 361 against minus 365 cents: the gain came only from placing
+two-minute data total PnL improved by 8 percent in the tape fill model and 18
+in the touch model, while markout per fill did not move at all, minus 362
+against minus 365 cents in the tape model: the gain came only from placing
 fewer quotes, and losing less by trading less is not an edge. On five days of
 seconds data it does not even do that much. Markout per fill gets worse, minus
 82 against minus 70, and the total falls from 16,032 to 11,007 USD. The per-fill
 metric exists to catch exactly this, and here it caught it twice.
 
-**Signed order flow as a signal.** 51.3 percent hit rate, no usable edge.
+**Signed order flow as a signal.** 51.7 percent hit rate at the same
+five-minute, no-delay cell, Wilson lower bound 51.3, gross edge negative before
+any cost, no usable edge.
 Published work later explained why: trade-direction inference on Polymarket is
 near-random, 49.8 to 50.5 percent depending on method. Most third-party "smart
 money flow" analytics rest on that inference.
@@ -172,12 +181,14 @@ pointed at the venue's own dictionary receives nothing without extending it.
 
 ## Limits
 
-Eleven days of two-minute data, five days of seconds data, paper simulation
-without queue position or partial fills. That last omission is no longer a
-footnote: with the bootstrap now running, queue position is the specific thing
-standing between this work and a signed answer on market making, because it is
-what separates the two fill models. Cross-venue pairs are matched on titles and
-their resolution rules have not been compared, which is the difference between a
+Eleven days of two-minute data for the order-flow studies and twelve for the
+market-making run, five days of seconds data, paper simulation without queue
+position or partial fills. That last omission is no longer a footnote: with the
+bootstrap now running, queue position is the specific thing standing between
+this work and a signed answer on market making, because it is what separates
+the two fill models. Cross-venue pairs are matched on titles; their resolution
+rules were compared by hand for the five confirmed pairs only, and that reading
+found the one substantive difference above, which is the difference between a
 hedge and two open bets. Fee rates are taken from venue documentation dated
 2026-07-30 and are overridable.
 

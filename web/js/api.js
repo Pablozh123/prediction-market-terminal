@@ -1,7 +1,16 @@
 // Thin fetch layer. Served by the FastAPI bridge the base is same-origin;
-// opened as a plain file it falls back to the default local API port.
+// opened as a plain file it falls back to the default local API port. A
+// static deployment that keeps its API on another host (Pages + Railway,
+// say) sets <meta name="api-base" content="https://api.example.org"> —
+// scripts/build_static_site.py writes that from --api-base / API_BASE_URL.
 
-const API_BASE = (location.protocol === 'file:') ? 'http://localhost:8787' : '';
+function apiBaseAusMeta() {
+  const meta = document.querySelector('meta[name="api-base"]');
+  const wert = meta && meta.content ? meta.content.trim() : '';
+  return wert.replace(/\/+$/, '');
+}
+
+const API_BASE = apiBaseAusMeta() || ((location.protocol === 'file:') ? 'http://localhost:8787' : '');
 
 // Wo die publizierten Nutzlasten liegen, wenn kein Python laeuft. Die
 // Forschungsseiten sind damit auch aus einem reinen Dateiserver lesbar, was
@@ -16,6 +25,7 @@ const STATISCH = {
   '/api/research/pipeline-forward': 'pipeline_forward.json',
   '/api/research/methodology': 'audit.json',
   '/api/research/postmortems': 'postmortems.json',
+  '/api/research/field-notes': 'field_notes.json',
   '/api/research/meta': 'meta.json',
 };
 
