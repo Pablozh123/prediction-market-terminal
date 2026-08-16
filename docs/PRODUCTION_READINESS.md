@@ -67,15 +67,43 @@ dataframes are expected. Prices reflect the Hetzner adjustment of 2026-04-01
 | `requirements.txt` | Includes `networkx`, without which the Louvain clustering silently runs its fallback |
 | Sidebar disclaimer | "Research tool only — no investment advice … data provided as-is" on every page |
 
+### Control room (primary public site)
+
+Since 2026-08 the compose stack fronts the **control room** — `api/server.py`
+(FastAPI, read-only JSON API) serving the `web/` frontend and the published
+research payloads from `public/data/` — and keeps Streamlit as a secondary
+service. Same image, two commands:
+
+| Hostname | Service | Port (internal) | Health |
+|---|---|---|---|
+| `https://$DOMAIN` | `controlroom` — `python -m uvicorn api.server:app --host 0.0.0.0 --port 8787` | 8787 | `GET /healthz` |
+| `https://app.$DOMAIN` | `terminal` — Streamlit | 8501 | `GET /healthz` or `/_stcore/health` |
+
+What the bridge does for a public URL: CORS restricted to `CORS_ORIGINS`
+(default: the two local addresses; the frontend is same-origin and needs
+none), a per-IP token bucket on the two expensive routes `POST /api/backtest`
+and `GET /api/risk` (`RATE_LIMIT_PER_MIN`, default 6/min with a burst of 3)
+plus a wide one for everything under `/api/` (`RATE_LIMIT_GLOBAL_PER_MIN`,
+default 120/min), 429 with `{"error":"rate_limited","retry_after_s":N}`, and a
+capped in-process cache (`CACHE_MAX_ENTRIES`, default 512). Behind Cloudflare
+set `RATE_LIMIT_IP_HEADER=CF-Connecting-IP`, otherwise every visitor shares
+Cloudflare's edge address. Country blocking stays a Cloudflare WAF rule; the
+Caddyfile says why. `DOMAIN` in `.env` fills `{$DOMAIN}` in the Caddyfile;
+both hostnames need DNS records.
+
+Research pages only, no server at all: `python scripts/build_static_site.py`
+writes `dist/` (web/ plus `data/*.json`) for any static host; the live pages
+show their empty state there.
+
 **Deployment in six steps** on a fresh VPS:
 
 ```bash
 # 1. Install Docker (Ubuntu 24.04): curl -fsSL https://get.docker.com | sh
-# 2. Clone the repo, fill .env from .env.example
-# 3. Put the domain in deploy/Caddyfile (A/AAAA record pointing at the server)
+# 2. Clone the repo, fill .env from .env.example — at least DOMAIN
+# 3. DNS: A/AAAA records for $DOMAIN and app.$DOMAIN pointing at the server
 # 4. docker compose up -d --build
 # 5. Cloudflare: DNS "Proxied", SSL mode "Full (strict)"
-# 6. Point a monitor at https://domain/_stcore/health
+# 6. Point a monitor at https://$DOMAIN/healthz (Streamlit: https://app.$DOMAIN/_stcore/health)
 ```
 
 ## 3. Security checklist

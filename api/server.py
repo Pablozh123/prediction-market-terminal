@@ -7,8 +7,25 @@ Start (aus dem Repo-Root):
     python api/server.py
 
 Laeuft auf http://localhost:8787 und liefert dort auch das Frontend aus web/ aus.
+Im Container: ``python -m uvicorn api.server:app --host 0.0.0.0 --port 8787``.
+
+Umgebung (alles optional, Voreinstellung = lokale Entwicklung):
+
+    API_HOST / API_PORT        Bind-Adresse fuer ``python api/server.py`` (127.0.0.1:8787)
+    CORS_ORIGINS               Komma-Liste erlaubter Origins; ohne Angabe nur die
+                               beiden lokalen Adressen. Das Frontend kommt vom selben
+                               Origin und braucht keinen Eintrag.
+    RATE_LIMIT_PER_MIN         Deckel fuer /api/backtest und /api/risk je IP (6);
+                               RATE_LIMIT_BURST Spitze davon (3); 0 schaltet ab.
+    RATE_LIMIT_GLOBAL_PER_MIN  Deckel fuer alles unter /api/ je IP (120), Spitze
+                               RATE_LIMIT_GLOBAL_BURST (40); 0 schaltet ab.
+    RATE_LIMIT_IP_HEADER       Header mit der Besucheradresse hinter dem Proxy
+                               (X-Forwarded-For; hinter Cloudflare CF-Connecting-IP).
+    CACHE_MAX_ENTRIES          Obergrenze des Prozess-Caches (512 Eintraege).
+
 Endpoints (alle read-only ausser POST /api/backtest, das nur simuliert):
 
+    GET  /healthz              (Alias von /api/health fuer Caddy und Compose)
     GET  /api/health
     GET  /api/overview
     GET  /api/markets?query=&category=&limit=250
@@ -30,8 +47,12 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import math
+import os
 import sys
+import threading
 import time
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
@@ -40,10 +61,12 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 import pandas as pd
-from fastapi import Body, FastAPI, HTTPException, Query
+from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from api.ratelimit import RateLimited, TokenBucketLimiter, client_ip
 from app import api_views as apv
 from app import app_settings as cfg
 from app import backtester as btr
@@ -54,28 +77,116 @@ from app import signals as sig
 from app.analysis_views import load_publish_payload
 from src import prediction_markets as md
 
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, "").strip() or default)
+    except ValueError:
+        return default
+
+
+def _env_int(name: str, default: int) -> int:
+    return int(_env_float(name, default))
+
+
+def _cors_origins() -> list[str]:
+    """Erlaubte Origins aus CORS_ORIGINS; ohne Angabe nur die lokalen Adressen.
+
+    Das Frontend wird vom selben Origin ausgeliefert und braucht gar keinen
+    CORS-Eintrag. Die Liste dient Entwicklern, die web/ von einem anderen
+    Port aus bedienen, und darf deshalb ruhig eng sein.
+    """
+
+    raw = os.environ.get("CORS_ORIGINS", "")
+    origins = [o.strip() for o in raw.split(",") if o.strip()]
+    return origins or ["http://127.0.0.1:8787", "http://localhost:8787"]
+
+
 app = FastAPI(title="Terminal API", version="0.2")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins(),
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
 PUBLISH_DIR = ROOT / "public" / "data"
 
-_CACHE: dict[str, tuple[float, Any]] = {}
+# Prozess-Cache mit Obergrenze. Die Schluessel enthalten Wallets und
+# Backtest-Parameter, also waechst er sonst mit jedem neuen Besucher; die
+# aeltesten Eintraege fallen zuerst heraus (LRU).
+CACHE_MAX_ENTRIES = max(16, _env_int("CACHE_MAX_ENTRIES", 512))
+_CACHE: OrderedDict[str, tuple[float, Any]] = OrderedDict()
+_CACHE_LOCK = threading.Lock()
 CACHE_TTL = 30.0  # Sekunden (Standard; einzelne Endpoints setzen mehr)
 
 
 def cached(key: str, fn, *args, ttl: float = CACHE_TTL, **kwargs):
     now = time.time()
-    hit = _CACHE.get(key)
-    if hit and now - hit[0] < ttl:
-        return hit[1]
+    with _CACHE_LOCK:
+        hit = _CACHE.get(key)
+        if hit and now - hit[0] < ttl:
+            _CACHE.move_to_end(key)
+            return hit[1]
+    # Der Aufruf selbst laeuft ohne Sperre: er wartet oft auf das Netz.
     value = fn(*args, **kwargs)
-    _CACHE[key] = (now, value)
+    with _CACHE_LOCK:
+        _CACHE[key] = (now, value)
+        _CACHE.move_to_end(key)
+        while len(_CACHE) > CACHE_MAX_ENTRIES:
+            _CACHE.popitem(last=False)
     return value
+
+
+# --- Rate limiting -----------------------------------------------------------
+# Zwei Eimer je Besucheradresse: ein enger fuer die beiden teuren Routen
+# (/api/backtest rechnet, /api/risk zieht beim ersten Mal einen Tag Tape) und
+# ein weiter fuer alles unter /api/. Beide sind reine In-Process-Bremsen; die
+# eigentliche Abwehr sitzt in Cloudflare (siehe deploy/Caddyfile).
+RATE_LIMIT_IP_HEADER = os.environ.get("RATE_LIMIT_IP_HEADER", "X-Forwarded-For").strip() or "X-Forwarded-For"
+EXPENSIVE_LIMITER = TokenBucketLimiter(
+    per_minute=_env_float("RATE_LIMIT_PER_MIN", 6.0),
+    burst=_env_int("RATE_LIMIT_BURST", 3),
+)
+GLOBAL_LIMITER = TokenBucketLimiter(
+    per_minute=_env_float("RATE_LIMIT_GLOBAL_PER_MIN", 120.0),
+    burst=_env_int("RATE_LIMIT_GLOBAL_BURST", 40),
+)
+
+
+def _request_ip(request: Request) -> str:
+    host = request.client.host if request.client else None
+    return client_ip(request.headers.get(RATE_LIMIT_IP_HEADER), host)
+
+
+def _rate_limited_response(retry_after_s: int) -> JSONResponse:
+    return JSONResponse(
+        status_code=429,
+        content={"error": "rate_limited", "retry_after_s": int(retry_after_s)},
+        headers={"Retry-After": str(int(retry_after_s))},
+    )
+
+
+def expensive_route_limit(request: Request) -> None:
+    """FastAPI-Dependency fuer die teuren Routen; wirft RateLimited."""
+
+    EXPENSIVE_LIMITER.hit(_request_ip(request))
+
+
+@app.exception_handler(RateLimited)
+async def _on_rate_limited(request: Request, exc: RateLimited) -> JSONResponse:
+    return _rate_limited_response(exc.retry_after_s)
+
+
+@app.middleware("http")
+async def globale_bremse(request: Request, call_next):
+    """Weiter Deckel je Adresse fuer alles unter /api/ (Frontend-Dateien nicht)."""
+
+    if request.url.path.startswith("/api/"):
+        allowed, wait = GLOBAL_LIMITER.check(_request_ip(request))
+        if not allowed:
+            return _rate_limited_response(max(1, math.ceil(wait)))
+    return await call_next(request)
 
 
 def df_records(df: pd.DataFrame, limit: int | None = None) -> list[dict[str, Any]]:
@@ -156,6 +267,7 @@ def load_ranked(limit: int = 250) -> pd.DataFrame:
 
 
 @app.get("/api/health")
+@app.get("/healthz", include_in_schema=False)
 def health() -> dict[str, Any]:
     return {"ok": True, "time": md.now_utc_label()}
 
@@ -422,7 +534,7 @@ def _tape_categories(trades: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-@app.get("/api/risk")
+@app.get("/api/risk", dependencies=[Depends(expensive_route_limit)])
 def risk() -> dict[str, Any]:
     from app import suspicion as susp
 
@@ -742,7 +854,7 @@ SIZING_MAP = {
 }
 
 
-@app.post("/api/backtest")
+@app.post("/api/backtest", dependencies=[Depends(expensive_route_limit)])
 def backtest(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     wallet = str(body.get("wallet", "")).strip()
     if not wallet.startswith("0x") or len(wallet) < 20:
@@ -822,5 +934,8 @@ if WEB_DIR.exists():
 if __name__ == "__main__":
     import uvicorn
 
-    print("Terminal API auf http://localhost:8787 — Strg+C zum Beenden")
-    uvicorn.run(app, host="127.0.0.1", port=8787)
+    # Lokal bleibt es bei 127.0.0.1:8787; der Container setzt API_HOST=0.0.0.0.
+    host = os.environ.get("API_HOST", "").strip() or "127.0.0.1"
+    port = _env_int("API_PORT", 8787)
+    print(f"Terminal API auf http://{host}:{port} — Strg+C zum Beenden")
+    uvicorn.run(app, host=host, port=port)

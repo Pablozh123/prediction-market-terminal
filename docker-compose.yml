@@ -1,29 +1,79 @@
-# Production stack: Caddy (TLS + security headers) -> Streamlit terminal + alert scanner.
-# 1. Copy .env.example to .env and fill in your values.
-# 2. Set your domain in deploy/Caddyfile.
-# 3. docker compose up -d
+# Production stack, one image, four services:
+#
+#   caddy          TLS + security headers; the only published ports (80/443)
+#   controlroom    FastAPI bridge + web/ frontend + public/data — the public site
+#                  at https://$DOMAIN
+#   terminal       Streamlit app — secondary, at https://app.$DOMAIN
+#   alert-scanner  Telegram alert scanner (no HTTP port)
+#
+# 1. Copy .env.example to .env and fill in your values — at least DOMAIN.
+# 2. DNS: A/AAAA records for $DOMAIN and app.$DOMAIN pointing at this server.
+# 3. docker compose up -d --build
+#
+# Streamlit off:  docker compose up -d --scale terminal=0   (app.$DOMAIN then 502s)
+
+x-app: &app
+  build: .
+  image: market-terminal:local
+  restart: unless-stopped
+  env_file: .env
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
 services:
+  controlroom:
+    <<: *app
+    command: ["python", "-m", "uvicorn", "api.server:app", "--host", "0.0.0.0", "--port", "8787"]
+    environment:
+      API_HOST: "0.0.0.0"
+      API_PORT: "8787"
+      HEALTHCHECK_PORT: "8787"
+      # Behind Cloudflare, Caddy sees only Cloudflare's edge in X-Forwarded-For.
+      # Uncomment so the per-IP rate limiter keys on the real visitor:
+      # RATE_LIMIT_IP_HEADER: "CF-Connecting-IP"
+    volumes:
+      # Read-only: the bridge only reads settings, the scanner state and the
+      # paper-trading SQLite. Writers are the scanner (below) and the copy
+      # daemon, which are not this container.
+      - ./data:/app/data:ro
+      # Optional: serve freshly pulled research payloads without rebuilding
+      # the image (the daily publish run commits into public/data).
+      # - ./public/data:/app/public/data:ro
+    expose:
+      - "8787"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8787/healthz', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      start-period: 20s
+      retries: 3
+    # Never publish 8787 directly — Caddy is the only public entry point, and
+    # the rate limiter trusts the forwarding header only because of that.
+
   terminal:
-    build: .
-    restart: unless-stopped
-    env_file: .env
+    <<: *app
     volumes:
       - ./data:/app/data
       # Optional Google sign-in for the Settings/admin gate: create
       # .streamlit/secrets.toml from .streamlit/secrets.toml.example, then
       # uncomment. Without it the app runs in open local-research mode.
+      # (With sign-in on, the OIDC redirect URI is https://app.$DOMAIN/oauth2callback.)
       # - ./.streamlit/secrets.toml:/app/.streamlit/secrets.toml:ro
     expose:
       - "8501"
     # Never publish 8501 directly — Caddy is the only public entry point.
 
   alert-scanner:
-    build: .
-    restart: unless-stopped
-    env_file: .env
+    <<: *app
     command: ["python", "scripts/run_alert_scanner.py"]
     volumes:
       - ./data:/app/data
+    healthcheck:
+      # No HTTP port here; the image-level check would report it unhealthy.
+      disable: true
 
   caddy:
     image: caddy:2-alpine
@@ -31,11 +81,15 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      # Substituted into deploy/Caddyfile as {$DOMAIN}. Fails fast if unset.
+      DOMAIN: ${DOMAIN:?DOMAIN is not set - copy .env.example to .env and set it}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
+      - controlroom
       - terminal
 
 volumes:

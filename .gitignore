@@ -26,6 +26,9 @@ data/
 !public/data/
 !public/data/**
 
+# Statischer Export der Research-Seiten (scripts/build_static_site.py), aus web/ + public/data/ erzeugt
+dist/
+
 # Jupyter
 .ipynb_checkpoints/
 notebooks/.ipynb_checkpoints/

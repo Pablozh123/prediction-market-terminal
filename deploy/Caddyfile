@@ -1,8 +1,26 @@
-# Replace example.com with your domain (A/AAAA record must point at this server).
-# Caddy provisions and renews Let's Encrypt certificates automatically.
-example.com {
-	encode gzip
+# Two hostnames, one server. {$DOMAIN} is read from the caddy container's
+# environment (docker-compose.yml takes it from .env). Both names need an
+# A/AAAA record pointing at this server; Caddy provisions and renews the
+# Let's Encrypt certificates automatically.
+#
+#   https://{$DOMAIN}       control room: FastAPI bridge + web/ frontend  -> controlroom:8787
+#   https://app.{$DOMAIN}   Streamlit terminal, secondary                  -> terminal:8501
+#
+# Country blocking (Switzerland — docs/PRODUCTION_READINESS.md §4.6) is NOT
+# done here. Caddy's `remote_ip` matcher understands CIDRs, not countries, and
+# there is no country database in the stock image. Do it in Cloudflare:
+# Security -> WAF -> Custom rules -> expression `(ip.geoip.country eq "CH")`
+# -> Block. That rule sits in front of everything below and needs no restart.
+# If it ever has to live in Caddy, build the image with the community
+# `caddy-maxmind-geolocation` module and use the sketch inside the site block.
+#
+# Behind Cloudflare, Caddy sees only Cloudflare's edge as the client. Two
+# consequences: (1) set RATE_LIMIT_IP_HEADER=CF-Connecting-IP for the
+# controlroom service so the per-IP limiter keys on visitors, not edges;
+# (2) if access logs or {client_ip} should show visitors, add the global
+# option `trusted_proxies static <Cloudflare ranges>` (https://www.cloudflare.com/ips/).
 
+(security_headers) {
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options "nosniff"
@@ -11,12 +29,56 @@ example.com {
 		Permissions-Policy "camera=(), microphone=(), geolocation=()"
 		-Server
 	}
+}
 
-	# Optional: protect the whole site (or use Cloudflare Access in front instead).
+# ---- Control room (primary) ------------------------------------------------
+{$DOMAIN} {
+	encode zstd gzip
+	import security_headers
+
+	# The frontend is plain ES modules from this origin plus Google Fonts;
+	# inline styles are used, inline scripts and event handlers are not.
+	# JSON responses carry the header too, which is harmless.
+	header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'"
+
+	# Sketch for in-Caddy geoblocking — requires the caddy-maxmind-geolocation
+	# module and a GeoLite2-Country.mmdb mounted into the container. Prefer the
+	# Cloudflare rule described at the top of this file.
+	# @ch {
+	# 	maxmind_geolocation {
+	# 		db_path "/etc/caddy/GeoLite2-Country.mmdb"
+	# 		allow_countries CH
+	# 	}
+	# }
+	# handle @ch {
+	# 	respond "Not available in this region." 451
+	# }
+
+	# Optional: gate the whole site (or use Cloudflare Access in front instead).
 	# Generate the hash with: docker run --rm caddy:2-alpine caddy hash-password --plaintext 'yourpassword'
 	# basic_auth {
 	# 	admin $2a$14$REPLACE_WITH_HASH
 	# }
 
+	reverse_proxy controlroom:8787
+}
+
+# ---- Streamlit terminal (secondary) -----------------------------------------
+app.{$DOMAIN} {
+	encode zstd gzip
+	import security_headers
+	# No CSP here: Streamlit's React frontend breaks under a strict policy
+	# (see docs/PRODUCTION_READINESS.md §3).
+
+	# basic_auth {
+	# 	admin $2a$14$REPLACE_WITH_HASH
+	# }
+
+	# WebSocket upgrade for Streamlit's session channel passes through by default.
 	reverse_proxy terminal:8501
 }
+
+# Optional: send www to the apex (needs its own DNS record).
+# www.{$DOMAIN} {
+# 	redir https://{$DOMAIN}{uri} permanent
+# }
