@@ -5,10 +5,13 @@
 // this module only lays it out. Charts are plain SVG so the page stays
 // dependency free like the rest of the terminal.
 //
-// Each card runs in the order a reader needs: what was analysed, what the
-// numbers say, how else they could be read, then the raw rows behind it.
+// Jede Karte fuehrt mit Verdikt, Diagramm und Kennzahlen; die Methode, der
+// erklaerende Fliesstext und die Gegenlesarten stehen vollstaendig darunter,
+// zugeklappt hinter einem <details>. Nichts davon ist gekuerzt — nur die
+// Reihenfolge folgt jetzt dem Leser: erst der Befund, dann die Pruefung.
 
 import { esc } from '../util.js';
+import { diagramm, fmtZahl } from '../charts.js';
 
 const M = "font-family:'JetBrains Mono',monospace";
 const CARD = 'background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px';
@@ -20,17 +23,9 @@ const VERDIKT_FARBE = { ja: '#C8F542', nein: '#FF7A7A', offen: '#F5A623', kontro
 // nicht den Markt. Als bestaetigte Hypothese gezaehlt waere sie ein
 // bestandener Selbsttest, der wie ein Befund aussieht.
 const VERDIKT_TEXT = { ja: 'CONFIRMED', nein: 'REFUTED', offen: 'NOT IDENTIFIED', kontrolle: 'CONTROL' };
-const BALKEN_FARBE = { gewinn: '#C8F542', kosten: '#FF4545', summe: '#4F8EF7' };
 // Lesart lime, Gegenlesart blau, Grenze grau: drei Farben, damit die
 // Gegenlesart nicht wie ein Nachtrag zur Lesart aussieht.
 const DEUTUNG_FARBE = { lesart: '#C8F542', gegenlesart: '#4F8EF7', grenze: '#95A0AB' };
-
-// Diagrammgeometrie. Labelspalte links, Balken rechts.
-const BREITE = 640;
-const LABEL_X = 196;
-const PLOT_L = LABEL_X + 12;
-const PLOT_R = BREITE - 58;
-const ZEILE = 30;
 
 function abschnitt(titel, inhalt, zusatz) {
   if (!inhalt) return '';
@@ -40,131 +35,8 @@ function abschnitt(titel, inhalt, zusatz) {
     + '</div>' + inhalt + '</div>';
 }
 
-function fmtZahl(wert) {
-  if (wert === null || wert === undefined) return '—';
-  if (Array.isArray(wert)) return wert.map(fmtZahl).join(' to ');
-  if (typeof wert !== 'number') return String(wert);
-  const abs = Math.abs(wert);
-  if (abs >= 10000) return wert.toLocaleString('en-US', { maximumFractionDigits: 0 });
-  if (abs >= 100) return wert.toLocaleString('en-US', { maximumFractionDigits: 1 });
-  if (abs >= 1) return String(Math.round(wert * 100) / 100);
-  return String(Math.round(wert * 10000) / 10000);
-}
-
-/** Alle Zahlenwerte eines Diagramms, damit die Skala beide Vorzeichen fasst. */
-function werteVon(dia) {
-  const raus = [];
-  (dia.punkte || []).forEach((p) => {
-    if (Array.isArray(p.werte)) p.werte.forEach((w) => { if (typeof w === 'number') raus.push(w); });
-    if (typeof p.wert === 'number') raus.push(p.wert);
-    if (typeof p.von === 'number') raus.push(p.von);
-    if (typeof p.bis === 'number') raus.push(p.bis);
-  });
-  if (typeof dia.referenz === 'number') raus.push(dia.referenz);
-  return raus;
-}
-
-function skalaVon(dia) {
-  const werte = werteVon(dia);
-  let min = Math.min(0, ...werte);
-  let max = Math.max(0, ...werte);
-  if (min === max) { max = min + 1; }
-  const luft = (max - min) * 0.08;
-  min -= luft; max += luft;
-  const spanne = max - min;
-  return {
-    min, max,
-    x: (w) => PLOT_L + ((w - min) / spanne) * (PLOT_R - PLOT_L)
-  };
-}
-
-function achse(sk, dia, hoehe) {
-  let out = '';
-  const nullX = sk.x(0);
-  if (sk.min < 0 && sk.max > 0) {
-    out += '<line x1="' + nullX + '" y1="6" x2="' + nullX + '" y2="' + (hoehe - 22)
-      + '" stroke="rgba(255,255,255,.28)" stroke-width="1" />';
-  }
-  if (typeof dia.referenz === 'number' && dia.referenz !== 0) {
-    const rx = sk.x(dia.referenz);
-    out += '<line x1="' + rx + '" y1="6" x2="' + rx + '" y2="' + (hoehe - 22)
-      + '" stroke="rgba(255,255,255,.35)" stroke-width="1" stroke-dasharray="4 4" />';
-    if (dia.referenz_label) {
-      out += '<text x="' + rx + '" y="' + (hoehe - 8) + '" fill="rgba(255,255,255,.45)" '
-        + 'font-size="10" font-family="JetBrains Mono, monospace" text-anchor="middle">'
-        + esc(dia.referenz_label) + '</text>';
-    }
-  }
-  return out;
-}
-
-function labelText(text, y) {
-  return '<text x="' + LABEL_X + '" y="' + (y + 4) + '" fill="rgba(255,255,255,.72)" font-size="11.5" '
-    + 'font-family="JetBrains Mono, monospace" text-anchor="end">' + esc(text) + '</text>';
-}
-
-function wertText(text, x, y, farbe) {
-  return '<text x="' + x + '" y="' + (y + 4) + '" fill="' + farbe + '" font-size="11.5" '
-    + 'font-family="JetBrains Mono, monospace">' + esc(text) + '</text>';
-}
-
-/** Balken- und Intervalldiagramm. Eine Zeile je Punkt, Nulllinie wenn noetig. */
-function diagramm(dia) {
-  if (!dia || !dia.punkte || !dia.punkte.length) return '';
-  const gruppen = Array.isArray(dia.gruppen) ? dia.gruppen : null;
-  const zeilen = gruppen ? dia.punkte.length * gruppen.length : dia.punkte.length;
-  const hoehe = zeilen * ZEILE + 40;
-  const sk = skalaVon(dia);
-  let y = 18;
-  let koerper = '';
-
-  dia.punkte.forEach((p) => {
-    if (gruppen && Array.isArray(p.werte)) {
-      p.werte.forEach((w, i) => {
-        const farbe = BALKEN_FARBE[p.art] || '#4F8EF7';
-        const x0 = sk.x(0);
-        const x1 = sk.x(w);
-        koerper += labelText(gruppen[i] + ' · ' + p.label, y);
-        koerper += '<rect x="' + Math.min(x0, x1) + '" y="' + (y - 8) + '" width="' + Math.abs(x1 - x0)
-          + '" height="16" rx="3" fill="' + farbe + '" fill-opacity="' + (i === 0 ? '.45' : '.95') + '" />';
-        koerper += wertText(fmtZahl(w), PLOT_R + 8, y, 'rgba(255,255,255,.75)');
-        y += ZEILE;
-      });
-      return;
-    }
-
-    koerper += labelText(p.label, y);
-    if (typeof p.von === 'number' && typeof p.bis === 'number') {
-      const xa = sk.x(p.von);
-      const xb = sk.x(p.bis);
-      const xm = sk.x(p.wert);
-      const beruehrt = p.von <= (dia.referenz || 0) && p.bis >= (dia.referenz || 0);
-      const farbe = beruehrt ? '#F5A623' : '#4F8EF7';
-      koerper += '<line x1="' + xa + '" y1="' + y + '" x2="' + xb + '" y2="' + y
-        + '" stroke="' + farbe + '" stroke-width="3" stroke-linecap="round" />';
-      koerper += '<line x1="' + xa + '" y1="' + (y - 6) + '" x2="' + xa + '" y2="' + (y + 6)
-        + '" stroke="' + farbe + '" stroke-width="2" />';
-      koerper += '<line x1="' + xb + '" y1="' + (y - 6) + '" x2="' + xb + '" y2="' + (y + 6)
-        + '" stroke="' + farbe + '" stroke-width="2" />';
-      koerper += '<circle cx="' + xm + '" cy="' + y + '" r="4" fill="' + farbe + '" />';
-      koerper += wertText(fmtZahl(p.von) + ' … ' + fmtZahl(p.bis), PLOT_R + 8, y, 'rgba(255,255,255,.75)');
-    } else if (typeof p.wert === 'number') {
-      const farbe = BALKEN_FARBE[p.art] || (p.wert < 0 ? '#FF4545' : '#C8F542');
-      const x0 = sk.x(0);
-      const x1 = sk.x(p.wert);
-      koerper += '<rect x="' + Math.min(x0, x1) + '" y="' + (y - 9) + '" width="' + Math.abs(x1 - x0)
-        + '" height="18" rx="3" fill="' + farbe + '" fill-opacity=".92" />';
-      koerper += wertText(fmtZahl(p.wert), PLOT_R + 8, y, 'rgba(255,255,255,.78)');
-    }
-    y += ZEILE;
-  });
-
-  return '<div style="' + CARD + '; padding:14px 16px 10px">'
-    + '<div style="' + M + '; font-size:10px; letter-spacing:.13em; color:rgba(255,255,255,.5); margin-bottom:4px">'
-    + esc(dia.titel || '') + (dia.einheit ? ' · ' + esc(dia.einheit) : '') + '</div>'
-    + '<svg width="100%" viewBox="0 0 ' + BREITE + ' ' + hoehe + '" role="img" aria-label="' + esc(dia.titel || 'chart') + '">'
-    + achse(sk, dia, hoehe) + koerper + '</svg></div>';
-}
+// fmtZahl und das Balken-/Intervalldiagramm leben jetzt in ../charts.js und
+// werden oben importiert; hier bleibt nur die Kartenstruktur der Studien.
 
 function analyseBlock(analyse) {
   if (!analyse || !analyse.length) return '';
@@ -262,11 +134,29 @@ function quelleLinks(s) {
     + link(s.report, 'FULL REPORT') + link(s.modul, 'SOURCE MODULE') + '</div>';
 }
 
+// Methode, Fliesstext und Deutung, zugeklappt. Der Inhalt ist derselbe wie
+// vorher — nur steht er nicht mehr zwischen Leser und Befund. Ein <details>
+// statt eines eigenen Handlers, damit die Seite eine reine Funktion bleibt.
+function methodeBlock(s) {
+  const inhalt = abschnitt('WHAT WAS ANALYSED', analyseBlock(s.analyse))
+    + abschnitt('WHAT THE NUMBERS SAY',
+      '<div style="font-size:13.5px; color:rgba(255,255,255,.75); line-height:1.7; max-width:760px">'
+      + esc(s.einfach) + '</div>')
+    + abschnitt('HOW TO READ IT', deutungBlock(s.interpretation));
+  if (!inhalt) return '';
+  return '<details style="' + CARD + '; margin-top:14px; overflow:hidden">'
+    + '<summary style="' + M + '; font-size:10.5px; letter-spacing:.1em; color:rgba(255,255,255,.6); '
+    + 'padding:13px 16px; cursor:pointer; list-style:none">▸ METHOD &amp; HOW TO READ IT'
+    + ' <span style="color:rgba(255,255,255,.35)">· what was analysed, what else fits the numbers</span></summary>'
+    + '<div style="padding:0 18px 18px; border-top:1px solid rgba(255,255,255,.07)">' + inhalt + '</div>'
+    + '</details>';
+}
+
 function studieKarte(s, i) {
   const farbe = VERDIKT_FARBE[s.verdikt_art] || '#95A0AB';
   const marke = VERDIKT_TEXT[s.verdikt_art] || 'RESULT';
 
-  const zahlenUndDiagramm = '<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:12px">'
+  const zahlenUndDiagramm = '<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:12px; margin-top:16px">'
     + diagramm(s.diagramm) + zahlenBlock(s.zahlen) + '</div>';
 
   return '<div style="' + CARD + '; padding:22px 24px; margin-bottom:18px">'
@@ -282,12 +172,11 @@ function studieKarte(s, i) {
     + '<div style="font-size:14.5px; color:' + farbe + '; margin-top:12px; line-height:1.5; font-weight:500; max-width:760px">'
     + esc(s.verdikt) + '</div>'
 
-    + abschnitt('WHAT WAS ANALYSED', analyseBlock(s.analyse))
-    + abschnitt('WHAT THE NUMBERS SAY',
-      '<div style="font-size:13.5px; color:rgba(255,255,255,.75); line-height:1.7; max-width:760px; margin-bottom:14px">'
-      + esc(s.einfach) + '</div>' + zahlenUndDiagramm)
-    + abschnitt('HOW TO READ IT', deutungBlock(s.interpretation))
-    + abschnitt('THE ROWS BEHIND IT', detailBlock(s.details))
+    // Befund zuerst: Diagramm und Kennzahlen direkt unter dem Verdikt.
+    + zahlenUndDiagramm
+    + methodeBlock(s)
+    + (s.details && s.details.zeilen && s.details.zeilen.length
+      ? '<div style="margin-top:12px">' + detailBlock(s.details) + '</div>' : '')
 
     + '<div style="' + HR + '; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap">'
     + basisZeile(s.basis) + quelleLinks(s) + '</div>'

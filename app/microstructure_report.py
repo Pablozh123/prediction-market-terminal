@@ -238,11 +238,15 @@ def _extrakt_imbalance(d: dict[str, Any]) -> dict[str, Any]:
         ],
         "diagramm": {
             "art": DIA_QUOTE,
-            "titel": "Hit rate against a coin flip",
+            "titel": "Hit rate by horizon and decision delay",
             "einheit": "%",
             "referenz": 50.0,
             "referenz_label": "coin flip",
-            "punkte": [
+            # Alle Gitterzellen statt nur der kanonischen: jede Zeile traegt
+            # das Band von der Wilson-Untergrenze zum Punktschaetzer. Das ist
+            # dieselbe Information wie die Detailtabelle, nur sichtbar — und
+            # sie zeigt, wie die 120 Sekunden Wartezeit den Treffer abbauen.
+            "punkte": _latenz_punkte(sig) or [
                 {"label": "Hit rate", "wert": round(o["hit_rate"] * 100, 1)},
                 {"label": "Wilson lower bound", "wert": round(o["wilson_lb95"] * 100, 1)},
             ],
@@ -251,6 +255,31 @@ def _extrakt_imbalance(d: dict[str, Any]) -> dict[str, Any]:
     if details:
         teil["details"] = details
     return teil
+
+
+def _latenz_punkte(signal: dict[str, Any]) -> list[dict[str, Any]]:
+    """Eine Diagrammzeile je Gitterzelle, Band = Wilson-Untergrenze bis Punkt.
+
+    Kein Konfidenzintervall im klassischen Sinn — die Obergrenze des Reports
+    ist der Punktschaetzer selbst, weil der Report nur die Untergrenze
+    publiziert. Genau so steht es auch in der Detailtabelle.
+    """
+    gitter = signal.get("latency")
+    if not isinstance(gitter, dict) or not gitter:
+        return []
+    punkte: list[dict[str, Any]] = []
+    for horizont in sorted(gitter, key=lambda h: int(h)):
+        for zelle in gitter[horizont]:
+            delay = float(zelle.get("delay_s", 0))
+            kanon = horizont == KANON_HORIZONT and delay == KANON_DELAY
+            label = f"{horizont} s · " + ("no delay" if delay == 0 else f"{delay:.0f} s delay")
+            punkte.append({
+                "label": label + (" ←" if kanon else ""),
+                "wert": round(zelle["hit_rate"] * 100, 1),
+                "von": round(zelle["wilson_lb95"] * 100, 1),
+                "bis": round(zelle["hit_rate"] * 100, 1),
+            })
+    return punkte
 
 
 def _extrakt_takeable(d: dict[str, Any]) -> dict[str, Any]:
@@ -365,6 +394,20 @@ def _extrakt_segmente(d: dict[str, Any]) -> dict[str, Any]:
         "von": _cents(ci[0]) if ci[0] is not None else None,
         "bis": _cents(ci[1]) if ci[1] is not None else None,
     }]
+    # Die Spread-Schnitte des Leitszenarios als eigene Intervallzeilen: das
+    # ist die Kernaussage der Studie — negativ in jedem Segment — als Bild
+    # statt nur als Satz. Duenne Schnitte bleiben draussen wie im Report.
+    for b in (leit.get("segments") or {}).get("spread") or []:
+        if b.get("thin"):
+            continue
+        b_ci = b.get("net_ci95_cents") or [None, None]
+        if b_ci[0] is None:
+            continue
+        punkte.append({
+            "label": f"Spread {b.get('bucket', '')}",
+            "wert": _cents(b["mean_net_cents"]),
+            "von": _cents(b_ci[0]), "bis": _cents(b_ci[1]),
+        })
     zahlen = [
         _zahl("Cuts tested per fee scenario", je_szenario, "segments"),
         _zahl("Fee scenarios", len(szenarien), ""),
@@ -415,7 +458,7 @@ def _extrakt_segmente(d: dict[str, Any]) -> dict[str, Any]:
         "zahlen": zahlen,
         "diagramm": {
             "art": DIA_INTERVALL,
-            "titel": "Net result with its 95% interval",
+            "titel": "Net result by segment, 95% intervals",
             "einheit": "cents per firing",
             "referenz": 0.0,
             "referenz_label": "break even",
