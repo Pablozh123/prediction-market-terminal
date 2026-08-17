@@ -17,6 +17,8 @@ Umgebung (alles optional, Voreinstellung = lokale Entwicklung):
                                Origin und braucht keinen Eintrag.
     RATE_LIMIT_PER_MIN         Deckel fuer /api/backtest und /api/risk je IP (6);
                                RATE_LIMIT_BURST Spitze davon (3); 0 schaltet ab.
+    RATE_LIMIT_WALLET_PER_MIN  Eigener Deckel fuer /api/wallet je IP (12), Spitze
+                               RATE_LIMIT_WALLET_BURST (6).
     RATE_LIMIT_GLOBAL_PER_MIN  Deckel fuer alles unter /api/ je IP (120), Spitze
                                RATE_LIMIT_GLOBAL_BURST (40); 0 schaltet ab.
     RATE_LIMIT_IP_HEADER       Header mit der Besucheradresse hinter dem Proxy
@@ -42,7 +44,7 @@ Endpoints (alle read-only ausser POST /api/backtest, das nur simuliert):
     GET  /api/tape?limit=250&min_cash=0
     GET  /api/leaderboard?limit=100&period=ALL&order_by=PNL
     GET  /api/wallet/{wallet}      (0x + 40 hex; the whole wallet page, ~6 upstream calls,
-                                    300 s cache, same per-IP limiter as /api/risk)
+                                    300 s cache, own per-IP limiter: 12/min, burst 6)
     GET  /api/cross?query=&min_similarity=0.5&max_pairs=50   (gate: sim >= 0.5, volume on both venues)
     GET  /api/risk
     GET  /api/risk/log?limit=100&enrich=1   (Flag-Log; enrich=1 haengt an die neuesten 30
@@ -188,6 +190,22 @@ def _rate_limited_response(retry_after_s: int) -> JSONResponse:
         content={"error": "rate_limited", "retry_after_s": int(retry_after_s)},
         headers={"Retry-After": str(int(retry_after_s))},
     )
+
+
+# Eigener Eimer fuer /api/wallet: die Route ist teuer (sechs Upstream-Rufe),
+# aber sie darf sich den engen Burst von /api/risk und /api/backtest nicht
+# teilen — wer den Risk-Screen oeffnet, eine Wallet anklickt und den
+# Backtester startet, bekaeme sonst beim dritten Klick ein 429.
+WALLET_LIMITER = TokenBucketLimiter(
+    per_minute=_env_float("RATE_LIMIT_WALLET_PER_MIN", 12.0),
+    burst=_env_int("RATE_LIMIT_WALLET_BURST", 6),
+)
+
+
+def wallet_route_limit(request: Request) -> None:
+    """FastAPI-Dependency fuer /api/wallet; wirft RateLimited."""
+
+    WALLET_LIMITER.hit(_request_ip(request))
 
 
 def expensive_route_limit(request: Request) -> None:
@@ -547,7 +565,7 @@ def build_wallet_detail(wallet: str) -> dict[str, Any]:
     )
 
 
-@app.get("/api/wallet/{wallet}", dependencies=[Depends(expensive_route_limit)])
+@app.get("/api/wallet/{wallet}", dependencies=[Depends(wallet_route_limit)])
 def wallet_detail(wallet: str) -> dict[str, Any]:
     wallet = wallet.strip()
     if not WALLET_ADDRESS.match(wallet):
