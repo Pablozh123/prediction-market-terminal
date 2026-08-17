@@ -180,3 +180,5 @@ python -m scripts.visual_smoke --base-url http://127.0.0.1:8503 --output-dir art
 ```
 
 The full Streamlit page smoke (network-dependent) runs with `RUN_APP_SMOKE=1 python -m unittest tests.test_app_smoke -v`.
+
+Terminal UX smoke (Playwright, headless Chromium, not in CI): `python scripts/ux_smoke.py --base-url http://127.0.0.1:8790` against a running `api/server.py`, or `--static` against `python -m http.server -d dist 8791` after `scripts/build_static_site.py` — clicks every page, study, sub-tab, the palette, the drawer and the deep links; exits non-zero on console errors, failed requests, an address out of step with the page, lost `<details>` state or an anchor that did not scroll (`pip install playwright && playwright install chromium` once).

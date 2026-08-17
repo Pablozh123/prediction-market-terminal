@@ -234,6 +234,22 @@ function fensterText(zeile) {
   return n + ' · ' + a + ' → ' + (gleicherTag ? b.slice(6) : b);
 }
 
+// While the payload is still on its way (undefined: asked, not answered) the
+// page says so and names the file. Rendering the "missing" state meanwhile
+// flashed "file is missing" on every open of a study — and on a slow host
+// stated it for seconds. Live runs and Methodology keep their own tiles
+// ("not loaded"), which stay true while loading.
+function ladeStudieHtml(study, datei) {
+  return '<div style="padding:26px 24px">'
+    + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:22px 24px; max-width:720px">'
+    + '<div style="font-size:16px; font-weight:600">' + esc(study.title) + '</div>'
+    + '<div style="display:flex; align-items:center; gap:10px; margin-top:12px">'
+    + '<span style="width:7px; height:7px; border-radius:50%; background:#F5A623; display:inline-block; animation:livePulse 1.2s ease-in-out infinite"></span>'
+    + '<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:#F5A623">loading public/data/' + esc(datei || 'the study payload') + '</span></div>'
+    + '<div style="font-size:12.5px; color:rgba(255,255,255,.5); margin-top:10px; line-height:1.6">The page fills in when the payload answers; nothing is shown before, and no figure is a placeholder.</div>'
+    + '</div></div>';
+}
+
 function fehlendeStudieHtml(study, datei) {
   return '<div style="padding:26px 24px">'
     + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:22px 24px; max-width:720px">'
@@ -343,7 +359,7 @@ export function renderAlerts(T) {
         '<div style="display:grid; grid-template-columns:92px 170px 1fr 110px 120px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06)">'
         + '<div style="' + M + '; font-size:12px; color:rgba(255,255,255,.55)">' + esc(a.time) + '</div>'
         + '<div style="' + M + '; font-size:10.5px; letter-spacing:.1em; color:#C8F542">' + esc(a.rule) + '</div>'
-        + '<div style="font-size:13px; padding-right:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(a.market) + '</div>'
+        + '<div style="font-size:13px; padding-right:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(a.market) + '">' + esc(a.market) + '</div>'
         + '<div style="' + M + '; font-size:12.5px; text-align:right">' + esc(a.value) + '</div>'
         + '<div style="' + M + '; font-size:11.5px; text-align:right; color:rgba(255,255,255,.45)">' + esc(a.venue) + '</div></div>'
       ).join('')
@@ -416,7 +432,10 @@ export function renderResearch(T) {
   const s = T.state;
   const study = T.studies[s.researchTab];
   const key = study.tab;
-  const payload = T.liveData.research[key] || null;
+  const roh = T.liveData.research[key];
+  const payload = roh || null;
+  // undefined = asked and not answered yet; null/{_quelle} = answered.
+  const laedt = roh === undefined;
 
   const header = '<div style="padding:20px 24px 0; border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="' + M + '; font-size:10px; letter-spacing:.18em; color:#4F8EF7">RESEARCH</div>'
@@ -430,6 +449,9 @@ export function renderResearch(T) {
 
   if (s.researchTab === 3) {
     return '<div>' + header + renderLiveRuns(T, payload) + '</div>';
+  }
+  if (laedt && studienSlug(study) !== 'methodology') {
+    return '<div>' + header + ladeStudieHtml(study, RESEARCH_DATEI[s.researchTab]) + '</div>';
   }
   if (s.researchTab === 8) {
     return '<div>' + header + renderPostmortems(payload) + '</div>';
@@ -528,7 +550,9 @@ function studienKnoepfe(T, tab) {
     teile.push('<a href="./data/' + esc(datei) + '" download="' + esc(datei) + '" class="hv-bd35" style="' + KNOPF + '">Download the data</a>');
   }
   if (methodik >= 0 && methodik !== tab) {
+    // goStudy sets the address and fetches; the harness T has no such method.
     teile.push('<div ' + T.act(() => {
+      if (T.goStudy) { T.goStudy(methodik); return; }
       T.setState({ page: 'research', researchTab: methodik, detail: null });
       try { history.pushState(null, '', '#research/methodology'); } catch (e) { /* file:// */ }
       T.fetchPageData('research');
@@ -696,7 +720,7 @@ function studyTableHtml(T, label, cols, head, rows) {
         const neg = cs.charAt(0) === '-' && cs.indexOf('$') > 0;
         const pos = cs.charAt(0) === '+' && cs.indexOf('$') > 0;
         const style = (first ? 'font-family:Inter,sans-serif; font-size:13px' : M + '; font-size:12.5px; text-align:right') + '; color:' + (neg ? '#FF4545' : pos ? '#C8F542' : first ? '#ffffff' : 'rgba(255,255,255,.7)') + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis';
-        return '<div style="' + style + '">' + esc(cs) + '</div>';
+        return '<div style="' + style + '" title="' + esc(cs) + '">' + esc(cs) + '</div>';
       }).join('')
       + '</div>'
     ).join('')
@@ -1003,7 +1027,7 @@ function renderCategoryEfficiency(T, payload, study) {
     + kopfzeile
     + zeilen.map((z) =>
       '<div style="display:grid; grid-template-columns:' + spalten + '; gap:12px; align-items:center; padding:9px 18px; border-bottom:1px solid rgba(255,255,255,.06)">'
-      + '<div style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(z.name) + '</div>'
+      + '<div style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(z.name) + '">' + esc(z.name) + '</div>'
       + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(255,255,255,.7)">' + (z.maerkte != null ? num(z.maerkte) : '—') + '</div>'
       + alleTage.map((t) => zelle(horizontVon(z, t))).join('')
       + '<div style="text-align:right; ' + M + '; font-size:12px; color:rgba(255,255,255,.55)">' + (z.entschiedenT7 != null ? Math.round(z.entschiedenT7 * 100) + '%' : '—') + '</div>'
@@ -1214,7 +1238,7 @@ function renderLiveRuns(T, payload) {
           + '<div style="margin-top:12px; border-top:1px solid rgba(255,255,255,.07)">'
           + r.bets.map((b) =>
             '<div style="display:grid; grid-template-columns:1fr 62px 78px 78px 80px 92px; gap:10px; align-items:center; padding:9px 0; border-bottom:1px solid rgba(255,255,255,.05); ' + M + '; font-size:11.5px">'
-            + '<div style="font-family:\'Inter\',sans-serif; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(b.market) + '</div>'
+            + '<div style="font-family:\'Inter\',sans-serif; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(b.market) + '">' + esc(b.market) + '</div>'
             + '<div style="' + M + '; font-size:11.5px; color:' + (b.side === 'Yes' ? '#C8F542' : '#4F8EF7') + '">' + b.side + '</div>'
             + '<div style="text-align:right; color:rgba(255,255,255,.55)">limit ' + b.limit + '</div>'
             + '<div style="text-align:right; color:rgba(255,255,255,.55)">fill ' + b.fill + '</div>'
@@ -1236,7 +1260,7 @@ function renderLiveRuns(T, payload) {
           + ohneFills.map((r) =>
             '<div style="display:flex; align-items:center; gap:10px; padding:9px 16px; border-bottom:1px solid rgba(255,255,255,.05)">'
             + '<div style="' + M + '; font-size:9.5px; letter-spacing:.08em; color:#4F8EF7; border:1px solid rgba(79,142,247,.35); border-radius:4px; padding:2px 7px; white-space:nowrap">' + esc(r.profile) + '</div>'
-            + '<div style="font-size:12.5px; color:rgba(255,255,255,.75); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1">' + esc(r.title) + '</div>'
+            + '<div style="font-size:12.5px; color:rgba(255,255,255,.75); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1" title="' + esc(r.title) + '">' + esc(r.title) + '</div>'
             + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); white-space:nowrap">' + esc(r.chips.filter((c) => /decisions|priced/.test(c)).join(' · ') || '—') + '</div>'
             + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.35); white-space:nowrap">' + esc(r.mode.toLowerCase()) + ' · no fills</div>'
             + '</div>').join('')
@@ -1266,7 +1290,7 @@ function renderLiveRuns(T, payload) {
         const repStyle = (v) => 'text-align:right; ' + M + '; font-size:12px; color:' + (v != null && v >= 5 ? '#C8F542' : v != null && v <= -5 ? '#FF4545' : 'rgba(255,255,255,.6)');
         return '<div style="display:grid; grid-template-columns:' + repSpalten + '; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:12px">'
           + '<div style="color:rgba(255,255,255,.55)">' + esc(t.run) + '</div>'
-          + '<div style="font-family:\'Inter\',sans-serif; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(t.market) + '</div>'
+          + '<div style="font-family:\'Inter\',sans-serif; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(t.market) + '">' + esc(t.market) + '</div>'
           + '<div style="text-align:right; color:rgba(255,255,255,.55)">' + esc(t.drop) + '</div>'
           + '<div style="text-align:right; color:rgba(255,255,255,.55)">' + esc(t.fill) + '</div>'
           + '<div style="' + latStyle + '">' + latLabel + '</div>'
@@ -1659,7 +1683,7 @@ function ledgerMarktZeile(m) {
     + '<div style="text-align:right">' + ledgerGeld(m.einsatz_usd, false) + '</div>'
     + '<div style="text-align:right; color:' + ledgerFarbe(m.pnl_usd) + '" title="' + esc(m.pnl_art || '') + '">' + ledgerGeld(m.pnl_usd, true) + '</div>'
     + '<div style="color:' + statusFarbe + '">' + esc(status) + '</div>'
-    + '<div style="color:rgba(255,255,255,.45); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(zuordnung + (m.run_profil ? ' · ' + m.run_profil : '')) + '</div>'
+    + '<div style="color:rgba(255,255,255,.45); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(zuordnung + (m.run_profil ? ' · ' + m.run_profil : '')) + '">' + esc(zuordnung + (m.run_profil ? ' · ' + m.run_profil : '')) + '</div>'
     + '</div>';
 }
 
@@ -1716,11 +1740,12 @@ function walletLedgerHtml(T, payload) {
     const mixRest = String(e.typ_mix || '').split(' + ').filter((t) => t && t !== typ).join(' + ');
     const notes = Array.isArray(e.notes) ? e.notes : [];
     const maerkte = Array.isArray(e.maerkte) ? e.maerkte : [];
-    return '<details style="border-bottom:1px solid rgba(255,255,255,.06)">'
+    // data-key: app.js keeps open <details> across re-renders by this key.
+    return '<details data-key="ledger:' + esc(String(e.event_slug || e.titel || '')) + '" style="border-bottom:1px solid rgba(255,255,255,.06)">'
       + '<summary style="display:grid; grid-template-columns:' + spalten + '; gap:10px; align-items:center; padding:10px 16px; cursor:pointer; list-style:none">'
       + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55); white-space:nowrap" title="' + esc(zeitraum) + '">' + esc(datum) + '</div>'
-      + '<div style="font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">'
-      + (e.url ? '<a href="' + esc(e.url) + '" target="_blank" rel="noopener" style="color:#fff; text-decoration:none" title="' + esc(e.event_slug || '') + '">' + esc(e.titel || e.event_slug || '—') + ' <span style="' + M + '; font-size:10px; color:#4F8EF7">↗</span></a>' : esc(e.titel || e.event_slug || '—'))
+      + '<div style="font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(e.titel || e.event_slug || '') + '">'
+      + (e.url ? '<a href="' + esc(e.url) + '" target="_blank" rel="noopener" style="color:#fff; text-decoration:none" title="' + esc((e.titel || e.event_slug || '') + ' — open the event on Polymarket') + '">' + esc(e.titel || e.event_slug || '—') + ' <span style="' + M + '; font-size:10px; color:#4F8EF7">↗</span></a>' : esc(e.titel || e.event_slug || '—'))
       + (e.run_profil ? ' <span style="' + M + '; font-size:10px; color:rgba(255,255,255,.4)">' + esc(e.run_profil) + '</span>' : '')
       + '</div>'
       + '<div style="display:flex; gap:4px; align-items:center; flex-wrap:wrap">' + ledgerTypChip(typ)
@@ -1728,7 +1753,7 @@ function walletLedgerHtml(T, payload) {
       + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:rgba(255,255,255,.7)">' + num(e.n_maerkte != null ? e.n_maerkte : maerkte.length) + '</div>'
       + '<div style="text-align:right; ' + M + '; font-size:11.5px">' + ledgerGeld(e.einsatz_usd, false) + '</div>'
       + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:' + ledgerFarbe(e.pnl_usd != null ? e.pnl_usd : e.netto_cash_usd) + '" title="' + esc('API realised PnL ' + ledgerGeld(e.pnl_usd, true) + ' · cash flow ' + ledgerGeld(e.netto_cash_usd, true)) + '">' + ledgerGeld(e.pnl_usd != null ? e.pnl_usd : e.netto_cash_usd, true) + '</div>'
-      + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(e.status_text || '—') + '</div>'
+      + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(e.status_text || '') + '">' + esc(e.status_text || '—') + '</div>'
       + '</summary>'
       + '<div style="padding:4px 16px 12px 108px">'
       + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.4); margin-bottom:4px">'

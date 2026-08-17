@@ -80,7 +80,7 @@ function zahlenBlock(zahlen) {
 }
 
 /** Rohzeilen als aufklappbare Tabelle. Zugeklappt, damit die Karte lesbar bleibt. */
-function detailBlock(details) {
+function detailBlock(details, id) {
   if (!details || !details.zeilen || !details.zeilen.length) return '';
   const kopf = details.spalten.map((c, i) =>
     '<th style="' + M + '; font-size:9.5px; letter-spacing:.1em; color:rgba(255,255,255,.45); '
@@ -94,7 +94,8 @@ function detailBlock(details) {
       + 'border-bottom:1px solid rgba(255,255,255,.04)">' + esc(String(z)) + '</td>').join('')
     + '</tr>').join('');
 
-  return '<details style="' + CARD + '; padding:0; overflow:hidden">'
+  // data-key wie beim Methodenblock: die App merkt sich geoeffnete <details>.
+  return '<details data-key="raw:' + esc(String(id || '')) + '" style="' + CARD + '; padding:0; overflow:hidden">'
     + '<summary style="' + M + '; font-size:10.5px; letter-spacing:.1em; color:rgba(255,255,255,.6); '
     + 'padding:13px 16px; cursor:pointer; list-style:none">▸ ' + esc(details.titel)
     + ' <span style="color:rgba(255,255,255,.35)">· ' + details.zeilen.length + ' rows</span></summary>'
@@ -235,7 +236,7 @@ function studieKarte(s, i) {
     + zahlenUndDiagramm
     + methodeBlock(s)
     + (s.details && s.details.zeilen && s.details.zeilen.length
-      ? '<div style="margin-top:12px">' + detailBlock(s.details) + '</div>' : '')
+      ? '<div style="margin-top:12px">' + detailBlock(s.details, s.id) + '</div>' : '')
 
     + '<div style="' + HR + '; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap">'
     + basisZeile(s.basis) + quelleLinks(s) + '</div>'

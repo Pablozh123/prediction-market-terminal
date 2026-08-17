@@ -32,6 +32,16 @@ export const LIVE_RUN_WALLET = '0x29af…f88d';
 // for the newest Polymarket flags (enrich=1).
 const RISK_LOG_PATH = '/api/risk/log?limit=100&enrich=1';
 
+// Sub-tabs that belong in the address, so a link can point at a tab and the
+// address always says which one is open: #risk/log, #alerts/rules,
+// #research/live-runs/timing. The default tab carries no segment.
+const SUB_TABS = {
+  risk: { key: 'riskView', standard: 'events', werte: ['events', 'wallets', 'fresh', 'timing', 'network', 'log'] },
+  alerts: { key: 'alertTab', standard: 'signals', werte: ['signals', 'rules', 'deliveries'] }
+};
+const LIVE_RUNS_TABS = { key: 'liveTab', standard: 'runs', werte: ['runs', 'timing', 'sim', 'calib', 'record'] };
+const ADRESS_SCHLUESSEL = ['riskView', 'alertTab', 'liveTab'];
+
 class Terminal {
   constructor() {
     this.state = {
@@ -56,7 +66,9 @@ class Terminal {
       traderRank: 'pnl',
       traderQuery: '', traderFiltersOpen: false,
       tPnl: 'all', tVol: 'all',
-      riskView: 'events', riskAgeCheck: false,
+      // Kein riskAgeCheck mehr: der Schalter "Check real account ages" stand
+      // ohne Endpunkt dahinter — /api/risk kennt keinen solchen Parameter.
+      riskView: 'events',
       // Kein daemonOn mehr: der Schalter im Frontend behauptete RUNNING, ohne
       // dass etwas lief. Der Zustand kommt aus /api/copy oder gar nicht.
       copyTab: 'orders', copyQuery: '', copySide: 'all', copyStatus2: 'all', copyMin: 'all',
@@ -101,10 +113,14 @@ class Terminal {
       alertsOn: { movers: true, volume: true, whales: true, spreads: false, holders: false, endings: true },
       settingsOn: { telegram: true, autotop: false, kalshi: true, sports: false, cache: true, admin: true },
       clock: this.utcClock(),
-      // 'waiting' bis zur ersten Antwort, dann 'live' oder 'error'. Der
+      // 'waiting' bis zur ersten Antwort, dann 'live' oder 'error'; 'offline'
+      // wenn die erste Antwort ausblieb (reiner Dateihost, API schlaeft). Der
       // fruehere Wert 'demo' behauptete einen Demo-Datensatz, den es nicht gibt.
       live: 'waiting', liveAsOf: '', tapeAsOf: ''
     };
+    // Sub-tab from the address (#risk/log, #alerts/rules), if it names one.
+    const startSegmente = (location.hash || '').replace('#', '').split('/');
+    this.tabAusAdresse(startSegmente);
 
     // Datencontainer. Sie starten leer, nicht auf einem Demo-Satz: bis eine
     // Antwort da ist, gibt es nichts zu zeigen. Frueher standen hier zwoelf
@@ -134,8 +150,9 @@ class Terminal {
       if (treffer >= 0) {
         this.state.page = 'research';
         this.state.researchTab = treffer;
-        // Drittes Segment = Karte auf der Seite (#research/microstructure/<id>).
-        this._pendingAnchor = segmente[2] ? segmente.join('/') : null;
+        // Drittes Segment = Karte auf der Seite (#research/microstructure/<id>)
+        // oder der Reiter der Live runs (#research/live-runs/timing).
+        this._pendingAnchor = segmente[2] && !this.tabAusAdresse(segmente) ? segmente.join('/') : null;
       }
     }
     // Per-endpoint live payloads; templates use these when present and show
@@ -169,6 +186,48 @@ class Terminal {
   setState(patch) {
     Object.assign(this.state, patch);
     this.render();
+    // A sub-tab click rewrites the address in place (no history entry: the
+    // back button leaves the page, it does not walk through its tabs).
+    if (patch && ADRESS_SCHLUESSEL.some((k) => Object.prototype.hasOwnProperty.call(patch, k))) this.adresseAngleichen();
+  }
+
+  // The address the current page and sub-tab should carry, without the '#'.
+  // null for research studies without tabs: their address is set by
+  // goStudy() and may carry a card anchor that must survive re-renders.
+  adresseSoll() {
+    const s = this.state;
+    if (s.page === 'research') {
+      const slug = this.studienSlug(s.researchTab);
+      if (slug !== 'live-runs') return null;
+      return 'research/live-runs' + (s.liveTab !== LIVE_RUNS_TABS.standard && LIVE_RUNS_TABS.werte.indexOf(s.liveTab) >= 0 ? '/' + s.liveTab : '');
+    }
+    const t = SUB_TABS[s.page];
+    return s.page + (t && s[t.key] !== t.standard && t.werte.indexOf(s[t.key]) >= 0 ? '/' + s[t.key] : '');
+  }
+
+  adresseAngleichen() {
+    const soll = this.adresseSoll();
+    if (soll === null || (location.hash || '').replace('#', '') === soll) return;
+    try { history.replaceState(null, '', '#' + soll); } catch (e) { /* file:// */ }
+  }
+
+  // Read a sub-tab out of the address segments into state; without a segment
+  // the page opens on its default tab, so the address and the page agree.
+  // Returns true when a segment named a tab (the caller then does not treat
+  // it as a card anchor).
+  tabAusAdresse(segmente) {
+    if (!segmente || !segmente.length) return false;
+    let t = SUB_TABS[segmente[0]];
+    let wert = segmente[1];
+    if (segmente[0] === 'research') {
+      if (segmente[1] !== 'live-runs') return false;
+      t = LIVE_RUNS_TABS;
+      wert = segmente[2];
+    }
+    if (!t) return false;
+    const gueltig = !!wert && t.werte.indexOf(wert) >= 0;
+    this.state[t.key] = gueltig ? wert : t.standard;
+    return gueltig;
   }
 
   // ---- shared UI atoms (styles verbatim from the reference) ----
@@ -236,9 +295,13 @@ class Terminal {
       if (h && h.points && h.points.length > 1) { this.liveData.marketHistory[id] = h.points; this.render(); }
     } catch (err) { /* Detail zeigt den Leerzustand ohne Kurve */ }
   }
-  openWallet(name) {
-    this.setState({ detail: { kind: 'wallet', id: name }, searchOpen: false });
-    this.fetchWalletDetail(name);
+  // A wallet drawer for a leaderboard name or, from Whale flow and the risk
+  // screen, for a wallet the leaderboard does not list: the address (when
+  // known) lets /api/wallet be asked; the drawer otherwise shows the prints
+  // of that wallet in the tape window and says what it cannot show.
+  openWallet(name, address) {
+    this.setState({ detail: { kind: 'wallet', id: name, address: address || '' }, searchOpen: false });
+    this.fetchWalletDetail(name, address);
   }
 
   // Per-market extras from the API row (spread, age, days to resolution).
@@ -262,28 +325,29 @@ class Terminal {
     });
   }
 
+  // A row opens the market drawer only when that market is in the loaded
+  // sample (top 250 by volume); otherwise it carries no handler and no
+  // pointer, instead of looking clickable and doing nothing.
   tapeRowView(t) {
+    const m = this.markets.find((x) => x.title === t.market);
     return {
       ago: t.ago, wallet: t.wallet, market: t.market, side: t.side, price: t.price,
       size: money(t.size), venue: t.venue, category: t.category || 'Other',
       sideStyle: "font-family:'JetBrains Mono',monospace; font-size:12.5px; color:" + (t.side.indexOf('BUY') === 0 ? '#C8F542' : '#FF4545'),
-      act: this.act(() => {
-        const m = this.markets.find((x) => x.title === t.market);
-        if (m) this.setState({ detail: { kind: 'market', id: m.id } });
-      })
+      act: m ? this.act(() => this.openMarket(m.id)) : '',
+      clickable: !!m
     };
   }
 
   riskCardView(r) {
+    const m = this.markets.find((x) => x.title === r.market);
     return {
       kind: r.kind, score: r.score, market: r.market, detail: r.detail,
       wallets: r.wallets, notional: r.notional, window: r.window, venue: r.venue,
       kindStyle: "font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.12em; color:" + (r.sev === 'high' ? '#F5A623' : r.sev === 'medium' ? 'rgba(255,255,255,.66)' : 'rgba(255,255,255,.45)'),
       scoreStyle: "font-family:'JetBrains Mono',monospace; font-size:18px; color:" + (r.sev === 'high' ? '#F5A623' : 'rgba(255,255,255,.72)'),
-      act: this.act(() => {
-        const m = this.markets.find((x) => x.title === r.market);
-        if (m) this.setState({ detail: { kind: 'market', id: m.id } });
-      })
+      act: m ? this.act(() => this.openMarket(m.id)) : '',
+      clickable: !!m
     };
   }
 
@@ -323,8 +387,16 @@ class Terminal {
     this.setState({ page: 'research', researchTab: i, detail: null });
     // Eigene Adresse je Studie: eine Bewerbung wird als Link verschickt, und
     // ein Verweis auf #research landete bisher immer auf der Review queue.
-    try { history.pushState(null, '', '#' + (anker ? String(anker) : 'research/' + this.studienSlug(i))); } catch (e) { /* file:// */ }
+    this.adresseSetzen(anker ? String(anker) : (this.adresseSoll() || 'research/' + this.studienSlug(i)));
     this.fetchPageData('research');
+  }
+
+  // pushState statt replaceState: der Zurueck-Knopf soll funktionieren. But
+  // the same address twice in a row (a second click on the open sidebar
+  // entry) adds no entry — back would otherwise need two presses.
+  adresseSetzen(adresse) {
+    if ((location.hash || '').replace('#', '') === adresse) return;
+    try { history.pushState(null, '', '#' + adresse); } catch (e) { /* file:// */ }
   }
 
   goStudySlug(slug) {
@@ -347,8 +419,7 @@ class Terminal {
 
   go(id) {
     this.setState({ page: id, detail: null });
-    // pushState statt replaceState: der Zurueck-Knopf soll funktionieren.
-    try { history.pushState(null, '', '#' + id); } catch (e) { /* file:// */ }
+    this.adresseSetzen(this.adresseSoll() || id);
     this.fetchPageData(id);
   }
 
@@ -418,11 +489,16 @@ class Terminal {
 
   renderTopbar() {
     const s = this.state;
-    const liveDot = s.live === 'live' ? '#C8F542' : s.live === 'error' ? '#FF4545' : '#F5A623';
-    // Drei Zustaende, alle auf Englisch: noch keine Antwort, Antwort da, Antwort
-    // ausgeblieben nach einer, die da war. "Demo" gibt es nicht — es gibt
-    // keinen Demo-Datensatz, den die Zeile ankuendigen koennte.
-    const liveLabel = s.live === 'live' ? 'LIVE · POLYMARKET + KALSHI' : s.live === 'error' ? 'API OFFLINE · LAST KNOWN STATE' : 'WAITING FOR API';
+    const liveDot = s.live === 'live' ? '#C8F542' : (s.live === 'error' || s.live === 'offline') ? '#FF4545' : '#F5A623';
+    // Vier Zustaende, alle auf Englisch: noch keine Antwort, Antwort da, Antwort
+    // ausgeblieben nach einer, die da war, und gar keine Antwort (reiner
+    // Dateihost oder schlafende API — die Forschungsseiten lesen dann die
+    // publizierten Dateien). "Demo" gibt es nicht — es gibt keinen
+    // Demo-Datensatz, den die Zeile ankuendigen koennte.
+    const liveLabel = s.live === 'live' ? 'LIVE · POLYMARKET + KALSHI'
+      : s.live === 'error' ? 'API OFFLINE · LAST KNOWN STATE'
+        : s.live === 'offline' ? 'API NOT REACHABLE · RESEARCH FROM PUBLISHED FILES'
+          : 'WAITING FOR API';
     // "Sign in" und "Get alerts" standen rechts ohne Handler. Es gibt weder
     // eine Anmeldung noch eine Alarmzustellung, die von hier aus einzurichten
     // waere (die haengt am Scanner-Skript). Zwei Knoepfe, die nichts tun, sind
@@ -460,9 +536,12 @@ class Terminal {
       const text = String(err && err.message ? err.message : err);
       if (this.state.live === 'live') this.setState({ live: 'error' });
       else {
+        // Nothing to keep: the request failed before anything ever answered.
+        // The topbar says so instead of "waiting" — a static file host and a
+        // sleeping API look the same from here, and both are not "waiting".
         this.herkunft.markets = { quelle: 'fehler', fehler: text };
         this.herkunft.tape = { quelle: 'fehler', fehler: text };
-        this.render();
+        this.setState({ live: 'offline' });
       }
     }
   }
@@ -639,10 +718,11 @@ class Terminal {
     }));
   }
 
-  async fetchWalletDetail(name) {
+  async fetchWalletDetail(name, address) {
     if (this.state.live !== 'live') return;
     const t = this.traders.find((x) => x.name === name);
-    const addr = t && t.walletFull;
+    const tapeRow = this.tape.find((x) => x.wallet === name && x.walletAddress);
+    const addr = (t && t.walletFull) || address || (tapeRow && tapeRow.walletAddress);
     if (!addr || this.liveData.walletDetail[name]) return;
     try {
       const wd = await apiGet('/api/wallet/' + addr);
@@ -691,7 +771,14 @@ class Terminal {
         this._btCountdown();
       } else {
         const text = String(err && err.message ? err.message : err);
-        this.setState({ btRun: 'error', btError: text === 'HTTP 502' ? 'The backtest engine failed on this wallet and window (HTTP 502).' : text });
+        const status = err && err.status;
+        // A static file host answers POST with 404/405/501: there is no
+        // engine behind this page here, and the line should say so instead
+        // of showing a bare status code.
+        const meldung = text === 'HTTP 502' ? 'The backtest engine failed on this wallet and window (HTTP 502).'
+          : (status === 404 || status === 405 || status === 501) ? 'No backtest API on this host (' + text + ') — the engine runs where api/server.py is served; this copy carries the research payloads only.'
+            : text;
+        this.setState({ btRun: 'error', btError: meldung });
       }
     });
   }
@@ -802,10 +889,18 @@ class Terminal {
       if (fn) fn(e);
     });
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') this.setState({ searchOpen: false, detail: null });
-      else if (e.key === '/' && !this.state.searchOpen && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) {
+      const aktiv = document.activeElement;
+      const tippt = !!(aktiv && /INPUT|TEXTAREA/.test(aktiv.tagName));
+      if (e.key === 'Escape') {
+        // Nothing open, nothing to do — no re-render for a stray Escape.
+        if (this.state.searchOpen || this.state.detail) this.setState({ searchOpen: false, detail: null });
+      } else if (e.key === '/' && !this.state.searchOpen && !tippt) {
         e.preventDefault();
         this.setState({ searchOpen: true });
+      } else if (e.key === 'Enter' && this.state.searchOpen) {
+        // Enter opens the first result of the palette (the highlighted row).
+        const erster = document.querySelector('#search [data-act][data-result]');
+        if (erster) { e.preventDefault(); erster.click(); }
       }
     });
     // Back/forward: re-read the hash so the visible page follows the address.
@@ -813,10 +908,17 @@ class Terminal {
       const segmente = (location.hash || '#overview').replace('#', '').split('/');
       if (segmente[0] === 'research') {
         const i = this.studienIndexAus(segmente[1]);
-        this._pendingAnchor = segmente[2] ? segmente.join('/') : null;
+        // The third segment is a card anchor (#research/microstructure/<id>)
+        // unless it names a Live-runs tab (#research/live-runs/timing).
+        this._pendingAnchor = segmente[2] && !this.tabAusAdresse(segmente) ? segmente.join('/') : null;
         this.setState({ page: 'research', researchTab: i >= 0 ? i : this.state.researchTab, detail: null });
         this.fetchPageData('research');
-      } else if (segmente[0] in PAGES && segmente[0] !== this.state.page) {
+      } else if (segmente[0] in PAGES) {
+        // Same page, other tab (#risk → #risk/log) counts as navigation too.
+        const vorher = this.state.page + '/' + (SUB_TABS[segmente[0]] ? this.state[SUB_TABS[segmente[0]].key] : '');
+        this.tabAusAdresse(segmente);
+        const nachher = segmente[0] + '/' + (SUB_TABS[segmente[0]] ? this.state[SUB_TABS[segmente[0]].key] : '');
+        if (vorher === nachher) return;
         this.setState({ page: segmente[0], detail: null });
         this.fetchPageData(segmente[0]);
       }

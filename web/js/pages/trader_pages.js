@@ -259,16 +259,18 @@ export function renderWhale(T) {
       const leanColor = w.lean === 'BUYING' ? '#C8F542' : w.lean === 'SELLING' ? '#FF4545' : w.lean === 'MOSTLY BUYING' ? 'rgba(200,245,66,.75)' : 'rgba(255,69,69,.75)';
       const leanStyle = M + '; font-size:11px; letter-spacing:.08em; text-align:right; color:' + leanColor;
       const topMarketShare = w.total ? Math.round(w.topMarket.dollar / w.total * 100) : 0;
-      return '<div ' + T.act(() => T.openWallet(w.name)) + ' class="hv-panel" style="display:grid; grid-template-columns:' + GRID + '; gap:0 10px; align-items:center; padding:12px 24px; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer; animation:rowIn .25s ease-out">'
-        + '<div style="min-width:0"><div style="font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(w.name) + '</div>'
-        + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(w.wallet) + ' · ' + esc(w.venues) + '</div></div>'
+      // The drawer gets the address too: most of these wallets are not on
+      // the leaderboard, and without it the click opened nothing.
+      return '<div ' + T.act(() => T.openWallet(w.name, w.wallet !== w.name ? w.wallet : '')) + ' class="hv-panel" style="display:grid; grid-template-columns:' + GRID + '; gap:0 10px; align-items:center; padding:12px 24px; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer; animation:rowIn .25s ease-out">'
+        + '<div style="min-width:0"><div style="font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(w.name) + '">' + esc(w.name) + '</div>'
+        + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(w.wallet) + '">' + esc(w.wallet) + ' · ' + esc(w.venues) + '</div></div>'
         + '<div style="' + M + '; font-size:13px; text-align:right; color:rgba(255,255,255,.6)">' + w.prints + '</div>'
         + '<div style="' + M + '; font-size:14px; text-align:right">' + money(w.total) + '</div>'
         + '<div style="' + M + '; font-size:13px; text-align:right; color:rgba(255,255,255,.6)">' + money(w.biggest) + '</div>'
         + '<div><div style="' + leanStyle + '">' + esc(w.lean) + '</div>'
         + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.4); text-align:right; margin-top:2px">' + w.buys + ' buy' + (w.buys === 1 ? '' : 's') + ' · ' + w.sells + ' sell' + (w.sells === 1 ? '' : 's') + '</div></div>'
         + '<div style="' + M + '; font-size:13px; text-align:right; color:rgba(255,255,255,.6)">' + w.marketCount + '</div>'
-        + '<div style="min-width:0"><div style="font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(w.topMarket.title) + '</div>'
+        + '<div style="min-width:0"><div style="font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(w.topMarket.title) + '">' + esc(w.topMarket.title) + '</div>'
         + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.4); margin-top:2px">' + money(w.topMarket.dollar) + ' · ' + topMarketShare + '% of this wallet</div></div>'
         + '<div style="text-align:right"><div style="' + M + '; font-size:11.5px; color:rgba(255,255,255,.75)">' + esc(w.cat) + '</div>'
         + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.4); margin-top:2px">' + esc(w.catShare) + ' prints</div></div>'
@@ -465,7 +467,10 @@ export function renderRisk(T) {
         // are read from the raw row: an older payload without them renders
         // the card as before, with nothing invented in the gaps.
         const hatFlow = r0.side != null || r0.price_last != null || r0.first_print;
-        return '<div ' + r.act + ' data-bg class="hv-bd20" style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:16px 18px; cursor:pointer; animation:rowIn .25s ease-out">'
+        // The card opens the market drawer only when the market is in the
+        // loaded sample; otherwise it is a plain card (its links still work).
+        const klickbar = r.act && r.clickable !== false;
+        return '<div ' + (klickbar ? r.act + ' class="hv-bd20" ' : '') + 'data-bg style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:16px 18px; ' + (klickbar ? 'cursor:pointer; ' : '') + 'animation:rowIn .25s ease-out">'
           + '<div style="display:flex; align-items:center; justify-content:space-between; gap:12px">'
           + '<div style="' + r.kindStyle + '">' + esc(r.kind) + '</div>'
           + '<div style="display:flex; align-items:baseline; gap:6px"><div style="' + r.scoreStyle + '">' + r.score + '</div>'
@@ -564,13 +569,13 @@ export function renderRisk(T) {
 
   return '<div>'
     + '<div style="padding:20px 24px 14px; border-bottom:1px solid rgba(255,255,255,.09)">'
+    // No "Check real account ages" toggle: /api/risk takes no such parameter,
+    // so the switch flipped a colour and changed nothing.
     + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:20px">'
     + '<div><div style="' + M + '; font-size:10px; letter-spacing:.18em; color:#F5A623">RISK SCREEN</div>'
     + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">Trades that look like someone knew</div></div>'
-    + '<div style="display:flex; align-items:center; gap:10px">'
-    + T.toggle(s.riskAgeCheck, { riskAgeCheck: !s.riskAgeCheck })
-    + '<span style="font-size:12.5px; color:rgba(255,255,255,.7)">Check real account ages (slower)</span>'
-    + '</div></div>'
+    + (live && live.as_of ? '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.35)">as of ' + esc(String(live.as_of)) + '</div>' : '')
+    + '</div>'
     + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:10px; max-width:760px">Best-effort screen on public trade data — research leads, not legal findings. Sports odds, crypto &amp; market prices, and weather are excluded: game results, exchange prices and weather models cannot be traded on early.</div>'
     + '<div style="display:flex; gap:7px; margin-top:12px; flex-wrap:wrap">'
     + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.45); border:1px solid rgba(255,255,255,.12); border-radius:5px; padding:4px 9px">UNDER 40 · LOW</div>'

@@ -53,8 +53,19 @@ export function renderDetail(T) {
       note: ''
     };
   } else {
-    const t = T.traders.find((x) => x.name === d.id);
-    if (!t) return '';
+    let t = T.traders.find((x) => x.name === d.id);
+    // Not on the loaded leaderboard (Whale flow, risk screen): a card from
+    // what the tape window knows about this wallet, and nothing else.
+    const tapePrints = T.tape.filter((x) => x.wallet === d.id);
+    const nurTape = !t;
+    if (!t) {
+      const addr = d.address || (tapePrints.find((x) => x.walletAddress) || {}).walletAddress || '';
+      t = {
+        name: d.id, walletFull: addr,
+        wallet: addr ? addr.slice(0, 6) + '…' + addr.slice(-4) : '',
+        pnl: null, win: null, resolved: null, vol: null, score: null, grade: null, scoreParts: []
+      };
+    }
     const wd = T.liveData.walletDetail[d.id];
     // Die Gewinnkurve kommt aus /api/wallet oder es gibt keine. Der frühere
     // Rueckfall zeichnete einen Zufallspfad mit Drift +0.9 unter der
@@ -79,39 +90,77 @@ export function renderDetail(T) {
     // string next to the address.
     const parts = scorePartsOf(t);
     if (parts.length) note = (note ? note + '<br>' : '') + 'score components: ' + parts.map((p) => esc(p.label) + ' ' + esc(p.value)).join(' · ');
-    v = {
-      kicker: 'WALLET',
-      accent: '#C8F542',
-      title: t.name,
-      meta: t.wallet + (t.grade ? ' · grade ' + t.grade : ''),
-      chartLabel: 'PROFIT CURVE · 90 DAYS',
-      chartPoints,
-      chartEmpty: 'No profit curve for this wallet — /api/wallet did not answer with one.',
-      axisStart: '90d ago',
-      listEmpty: 'No trades for this wallet — /api/wallet did not answer with any.',
-      stats: [
+    // Tape-only wallets: the tiles carry what the tape window shows for this
+    // wallet (prints, notional, biggest print, markets) — no profit, no win
+    // rate, because nothing here measured them.
+    const tapeNotional = tapePrints.reduce((a, x) => a + (+x.size || 0), 0);
+    const tapeBiggest = tapePrints.reduce((a, x) => Math.max(a, +x.size || 0), 0);
+    const tapeMarkets = tapePrints.map((x) => x.marketKey || x.market).filter((k, i, arr) => arr.indexOf(k) === i).length;
+    const stats = nurTape
+      ? [
+        { label: 'PRINTS · TAPE WINDOW', value: num(tapePrints.length), style: STAT_VAL },
+        { label: 'MOVED · TAPE WINDOW', value: tapePrints.length ? money(tapeNotional) : '—', style: STAT_VAL },
+        { label: 'BIGGEST PRINT', value: tapePrints.length ? money(tapeBiggest) : '—', style: STAT_VAL },
+        { label: 'MARKETS · TAPE WINDOW', value: tapePrints.length ? num(tapeMarkets) : '—', style: STAT_VAL }
+      ]
+      : [
         { label: 'PROFIT', value: money(t.pnl), style: STAT_VAL + '; color:#C8F542' },
         { label: 'WIN RATE', value: winLabel, style: STAT_VAL },
         { label: 'RESOLVED BETS', value: resolvedLabel, style: STAT_VAL },
         { label: 'VOLUME', value: money(t.vol), style: STAT_VAL }
-      ],
-      listLabel: 'RECENT TRADES',
-      // Nur die Trades dieser Wallet. Der Rueckfall auf die ersten vier
-      // Tape-Zeilen schrieb fremde Prints dieser Wallet zu.
-      list: (wd && wd.recent_trades ? wd.recent_trades : []).slice(0, 4).map((x) => ({
+      ];
+    if (nurTape) {
+      note = (note ? note + '<br>' : '') + esc('Not on the loaded leaderboard — no profit, win rate or score is measured for this wallet here.'
+        + (t.walletFull ? '' : ' No address is known for it, so /api/wallet cannot be asked.'));
+    }
+    // Recent trades from /api/wallet when it answered; for a tape-only wallet
+    // without that answer, its prints from the tape window.
+    const wdTrades = wd && wd.recent_trades ? wd.recent_trades : [];
+    const list = wdTrades.length || !nurTape
+      ? wdTrades.slice(0, 4).map((x) => ({
         primary: x.market,
         secondary: x.side + ' at ' + x.price + ' · ' + x.ago,
         value: money(x.size),
         style: M + '; font-size:13px; color:' + (String(x.side).indexOf('BUY') === 0 ? '#C8F542' : '#FF4545')
-      })),
-      primaryAction: 'Open in the backtester',
+      }))
+      : tapePrints.slice(0, 4).map((x) => ({
+        primary: x.market,
+        secondary: x.side + ' at ' + x.price + ' · ' + x.ago,
+        value: money(x.size),
+        style: M + '; font-size:13px; color:' + (String(x.side).indexOf('BUY') === 0 ? '#C8F542' : '#FF4545')
+      }));
+    v = {
+      kicker: 'WALLET',
+      accent: '#C8F542',
+      title: t.name,
+      meta: (t.wallet || 'address not public') + (t.grade ? ' · grade ' + t.grade : ''),
+      chartLabel: 'PROFIT CURVE · 90 DAYS',
+      chartPoints,
+      chartEmpty: t.walletFull
+        ? 'No profit curve for this wallet — /api/wallet did not answer with one.'
+        : 'No profit curve — no address is known for this wallet, so /api/wallet was not asked.',
+      axisStart: '90d ago',
+      listEmpty: nurTape
+        ? 'No print of this wallet in the current tape window.'
+        : 'No trades for this wallet — /api/wallet did not answer with any.',
+      stats,
+      listLabel: nurTape && !wdTrades.length ? 'PRINTS · TAPE WINDOW' : 'RECENT TRADES',
+      // Nur die Trades dieser Wallet. Der Rueckfall auf die ersten vier
+      // Tape-Zeilen schrieb fremde Prints dieser Wallet zu.
+      list,
+      // The backtester needs an address; without one there is no button.
+      primaryAction: t.walletFull ? 'Open in the backtester' : '',
       // "Follow on paper" stand hier als zweiter Knopf ohne Handler; /api/track
       // liest die gefolgten Wallets nur, es gibt keinen Endpunkt zum Folgen.
       // The backtester does not auto-run: it opens with the wallet filled in
       // and waits for RUN.
       primaryAct: T.act(() => {
         const addr = (t.walletFull || '').trim();
-        T.setState({ page: 'backtester', detail: null, btWallet: addr || T.state.btWallet, btDirty: !!T.liveData.backtest });
+        // go() sets the address (no duplicate history entry when already there).
+        T.state.btWallet = addr || T.state.btWallet;
+        T.state.btDirty = !!T.liveData.backtest;
+        if (T.go) { T.go('backtester'); return; }
+        T.setState({ page: 'backtester', detail: null });
         try { history.pushState(null, '', '#backtester'); } catch (e) { /* file:// */ }
       }),
       note
@@ -151,7 +200,7 @@ export function renderDetail(T) {
     + v.list.map((it) =>
       '<div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid rgba(255,255,255,.06)">'
       + '<div style="min-width:0">'
-      + '<div style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(it.primary) + '</div>'
+      + '<div style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(it.primary) + '">' + esc(it.primary) + '</div>'
       + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:3px">' + esc(it.secondary) + '</div></div>'
       + '<div style="' + it.style + '">' + it.value + '</div></div>'
     ).join('')
@@ -184,16 +233,19 @@ export function renderSearch(T) {
     + '<div data-stop style="width:620px; background:#10151A; border:1px solid rgba(255,255,255,.14); border-radius:14px; overflow:hidden; box-shadow:0 30px 80px rgba(0,0,0,.6)">'
     + '<input value="' + esc(s.searchQuery) + '" ' + T.inp((e) => T.setState({ searchQuery: e.target.value }), 'searchQuery') + ' placeholder="Search markets, wallets, categories…" style="width:100%; box-sizing:border-box; background:transparent; border:none; border-bottom:1px solid rgba(255,255,255,.09); padding:17px 20px; ' + M + '; font-size:14px; color:#fff; outline:none" autofocus />'
     + '<div style="max-height:380px; overflow-y:auto">'
-    + results.map((r) =>
-      '<div ' + r.act + ' class="hv-el" style="display:flex; align-items:center; gap:12px; padding:12px 20px; border-bottom:1px solid rgba(255,255,255,.05); cursor:pointer">'
+    // The first row is marked (data-result) and lightly highlighted: Enter
+    // opens it (app.js keydown), so the palette works without the mouse.
+    + results.map((r, i) =>
+      '<div ' + r.act + ' data-result="' + i + '" class="hv-el" style="display:flex; align-items:center; gap:12px; padding:12px 20px; border-bottom:1px solid rgba(255,255,255,.05); cursor:pointer' + (i === 0 ? '; background:#161C22' : '') + '">'
       + '<div style="' + r.tagStyle + '">' + r.tag + '</div>'
       + '<div style="flex:1; min-width:0">'
-      + '<div style="font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(r.title) + '</div>'
+      + '<div style="font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(r.title) + '">' + esc(r.title) + '</div>'
       + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:2px">' + esc(r.meta) + '</div></div>'
       + '<div style="' + M + '; font-size:12.5px; color:rgba(255,255,255,.6)">' + r.value + '</div></div>'
     ).join('')
     + '</div>'
     + '<div style="padding:10px 20px; ' + M + '; font-size:10px; color:rgba(255,255,255,.35); display:flex; gap:16px">'
-    + '<span>ESC to close</span><span>' + results.length + ' results</span></div>'
+    + '<span>ESC to close</span>' + (results.length ? '<span>ENTER opens the first result</span>' : '') + '<span>' + results.length + ' results'
+    + (!T.markets.length && !T.traders.length ? ' — nothing loaded to search: markets come from /api/markets, wallets from the leaderboard' : '') + '</span></div>'
     + '</div></div>';
 }

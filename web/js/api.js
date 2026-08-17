@@ -50,9 +50,15 @@ export function timeoutFuer(url) {
 
 async function hole(url, optionen) {
   const abbruch = new AbortController();
-  const uhr = setTimeout(() => abbruch.abort(), timeoutFuer(url));
+  const frist = timeoutFuer(url);
+  const uhr = setTimeout(() => abbruch.abort(), frist);
   try {
     return await fetch(url, Object.assign({ signal: abbruch.signal }, optionen || {}));
+  } catch (err) {
+    // The browser's own text for a timed-out request is "signal is aborted
+    // without reason"; the empty state should say how long it waited.
+    if (err && err.name === 'AbortError') throw new Error('no answer within ' + Math.round(frist / 1000) + ' s');
+    throw err;
   } finally {
     clearTimeout(uhr);
   }

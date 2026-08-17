@@ -175,11 +175,12 @@ export function renderOverview(T) {
         // nicht zum Seitenanfang: gleicher Anker wie die Sprungliste dort.
         return '<div ' + goStudy(microIdx, studieAnker(st, i)) + ' class="hv-panel" style="display:grid; grid-template-columns:36px 1fr 128px 190px 150px; align-items:center; padding:11px 24px; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer; animation:rowIn .25s ease-out">'
           + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.4)">' + String(i + 1).padStart(2, '0') + '</div>'
-          + '<div style="padding-right:16px"><div style="font-size:13.5px; line-height:1.35">' + esc(st.frage || st.id || '—') + '</div>'
-          + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(String(st.verdikt || '').split('. ')[0]) + '</div></div>'
+          + '<div style="padding-right:16px; min-width:0"><div style="font-size:13.5px; line-height:1.35">' + esc(st.frage || st.id || '—') + '</div>'
+          // Truncated lines carry the full text as a tooltip.
+          + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(String(st.verdikt || '')) + '">' + esc(String(st.verdikt || '').split('. ')[0]) + '</div></div>'
           + '<div>' + verdictTag(st.verdikt_art) + '</div>'
-          + '<div style="text-align:right"><div style="' + M + '; font-size:14px">' + esc(kn.value) + (kn.unit ? ' <span style="font-size:10px; color:rgba(255,255,255,.45)">' + esc(kn.unit) + '</span>' : '') + '</div>'
-          + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.4); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(kn.label) + (nLabel ? ' · ' + esc(nLabel) : '') + '</div></div>'
+          + '<div style="text-align:right; min-width:0"><div style="' + M + '; font-size:14px">' + esc(kn.value) + (kn.unit ? ' <span style="font-size:10px; color:rgba(255,255,255,.45)">' + esc(kn.unit) + '</span>' : '') + '</div>'
+          + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.4); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(kn.label + (nLabel ? ' · ' + nLabel : '')) + '">' + esc(kn.label) + (nLabel ? ' · ' + esc(nLabel) : '') + '</div></div>'
           + '<div style="' + M + '; font-size:11px; text-align:right; color:rgba(255,255,255,.5)">' + esc(basis.fenster || '—') + '</div></div>';
       }).join('');
   } else {
@@ -452,10 +453,13 @@ export function renderFlow(T) {
     + (tapeFiltered.length ? '' : leerZeile('No print in the tape window passes the current filters (size, category, side).'))
     + tapeFiltered.map((t0) => {
       const t = T.tapeRowView(t0);
-      return '<div ' + t.act + ' class="hv-panel" style="display:grid; grid-template-columns:96px 160px 1fr 110px 84px 90px 110px 96px; align-items:center; padding:12px 24px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:12.5px; cursor:pointer; animation:rowIn .25s ease-out">'
+      // Only a print of a loaded market opens the drawer; the other rows are
+      // plain rows, not pointers that lead nowhere.
+      const klickbar = t.act && t.clickable !== false;
+      return '<div ' + (klickbar ? t.act + ' class="hv-panel"' : '') + ' style="display:grid; grid-template-columns:96px 160px 1fr 110px 84px 90px 110px 96px; align-items:center; padding:12px 24px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:12.5px; ' + (klickbar ? 'cursor:pointer; ' : '') + 'animation:rowIn .25s ease-out">'
         + '<div style="color:rgba(255,255,255,.55)">' + esc(t.ago) + '</div>'
-        + '<div>' + esc(t.wallet) + '</div>'
-        + '<div style="font-family:\'Inter\',sans-serif; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:12px">' + esc(t.market) + '</div>'
+        + '<div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(t.wallet) + '">' + esc(t.wallet) + '</div>'
+        + '<div style="font-family:\'Inter\',sans-serif; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:12px" title="' + esc(t.market) + '">' + esc(t.market) + '</div>'
         + '<div style="font-size:11px; color:rgba(255,255,255,.55)">' + esc(t.category || 'Other') + '</div>'
         + '<div style="' + t.sideStyle + '">' + esc(t.side) + '</div>'
         + '<div style="text-align:right">' + esc(t.price) + '</div>'
