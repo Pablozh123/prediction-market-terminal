@@ -226,9 +226,15 @@ def load_tape(limit: int = 250, min_cash: float = 0.0) -> pd.DataFrame:
         except Exception as exc:
             print(f"[warn] polymarket trades: {exc}")
         try:
-            ks = md.get_kalshi_trades(limit=limit)
+            # Kalshi kennt keinen Cash-Filter; die 15-Minuten-Kryptomaerkte
+            # drucken tausend Mikro-Trades in Sekunden. Bei einem Mindestbetrag
+            # deshalb das ganze Fenster holen und hier filtern, sonst waere die
+            # Kalshi-Seite des Tapes leer oder nur Staub.
+            ks = md.get_kalshi_trades(limit=1000 if min_cash > 0 else limit)
+            if not ks.empty and min_cash > 0 and "notional" in ks.columns:
+                ks = ks[pd.to_numeric(ks["notional"], errors="coerce").fillna(0.0) >= float(min_cash)]
             if not ks.empty:
-                frames.append(ks)
+                frames.append(ks.head(limit))
         except Exception as exc:
             print(f"[warn] kalshi trades: {exc}")
         if not frames:
@@ -351,7 +357,10 @@ def tape(limit: int = Query(250, le=1000), min_cash: float = 0.0) -> dict[str, A
     trades = load_tape(limit=limit, min_cash=min_cash)
     if trades.empty:
         return {"rows": [], "total": 0}
-    return {"rows": df_records(trades, limit), "total": int(len(trades)), "as_of": md.now_utc_label()}
+    # Venue-balanciert statt reine Zeitreihenfolge: sonst verdraengen die
+    # Kalshi-Mikro-Trades jeden Polymarket-Print aus dem Fenster.
+    shown = apv.balanced_head(trades, limit)
+    return {"rows": df_records(shown, limit), "total": int(len(trades)), "as_of": md.now_utc_label()}
 
 
 @app.get("/api/leaderboard")

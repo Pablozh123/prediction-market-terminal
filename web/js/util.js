@@ -136,6 +136,10 @@ export function mapMarket(r, i) {
   };
 }
 
+export function isWalletAddress(v) {
+  return /^0x[0-9a-fA-F]{6,}$/.test(String(v || '').trim());
+}
+
 // Map one /api/tape row into the tape-row shape.
 export function mapTrade(r) {
   const t = r.time ? new Date(r.time) : null;
@@ -143,8 +147,11 @@ export function mapTrade(r) {
   const ago = mins < 1 ? 'just now' : mins < 60 ? mins + ' min ago' : Math.round(mins / 60) + ' h ago';
   return {
     ago, mins,
-    wallet: String(r.name || r.pseudonym || '') || shortWallet(r.proxyWallet || r.wallet) || '—',
-    walletAddress: String(r.proxyWallet || r.wallet || ''),
+    // Kalshi publishes no wallet identities: its rows carry the literal
+    // "Not public". That is no wallet, so it must not become one in the
+    // grouping on Whale flow — it stays a dash and the page says why.
+    wallet: String(r.name || r.pseudonym || '') || (isWalletAddress(r.proxyWallet || r.wallet) ? shortWallet(r.proxyWallet || r.wallet) : '') || '—',
+    walletAddress: isWalletAddress(r.proxyWallet || r.wallet) ? String(r.proxyWallet || r.wallet) : '',
     market: String(r.title || r.market || '—'),
     side: (String(r.side || 'BUY').toUpperCase() === 'SELL' ? 'SELL ' : 'BUY ') + (String(r.outcome || 'Yes')),
     price: ((+r.price || 0) * 100).toFixed(1) + '¢',

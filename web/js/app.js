@@ -372,7 +372,9 @@ class Terminal {
     try {
       const [mk, tp] = await Promise.all([
         apiGet('/api/markets?limit=250'),
-        apiGet('/api/tape?limit=250')
+        // Grosse Prints ab $2,5k auf beiden Venues; ohne Mindestbetrag bestuende
+        // das Fenster nur aus Kalshi-Mikro-Trades der 15-Minuten-Kryptomaerkte.
+        apiGet('/api/tape?limit=250&min_cash=2500')
       ]);
       const { mapMarket, mapTrade } = await import('./util.js');
       // Uebernommen wird, was kommt, auch die leere Liste. Der frühere

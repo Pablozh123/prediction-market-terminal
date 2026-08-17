@@ -53,6 +53,61 @@ def short_wallet(value: Any) -> str:
     return text
 
 
+def balanced_head(
+    frame: pd.DataFrame,
+    limit: int,
+    group_col: str = "platform",
+    time_col: str = "time",
+) -> pd.DataFrame:
+    """Die neuesten ``limit`` Zeilen, ohne dass eine Venue die andere verdraengt.
+
+    Ein reines ``sort_values(time).head(limit)`` liefert auf dem Tape nur noch
+    Kalshi: die 15-Minuten-Kryptomaerkte drucken tausend Mikro-Trades in
+    wenigen Sekunden und schieben jeden Polymarket-Print aus dem Fenster.
+    Hier bekommt jede Venue zunaechst einen gleichen Anteil an ``limit``;
+    was eine Venue nicht fuellt, geht an die anderen. Innerhalb einer Venue
+    zaehlt weiterhin die Zeit, und das Ergebnis ist wieder nach Zeit sortiert.
+    """
+    if frame is None or frame.empty or limit <= 0:
+        return frame.iloc[0:0] if frame is not None else pd.DataFrame()
+    if group_col not in frame.columns:
+        out = frame
+        if time_col in out.columns:
+            out = out.sort_values(time_col, ascending=False)
+        return out.head(limit)
+    ordered = frame.sort_values(time_col, ascending=False) if time_col in frame.columns else frame
+    groups = {key: part for key, part in ordered.groupby(group_col, sort=False, dropna=False)}
+    if not groups:
+        return ordered.head(limit)
+    quota = {key: 0 for key in groups}
+    remaining = limit
+    open_keys = list(groups)
+    # Runde fuer Runde gleich verteilen; wer voll ist, faellt aus der Runde.
+    while remaining > 0 and open_keys:
+        share = max(1, remaining // len(open_keys))
+        progressed = False
+        for key in list(open_keys):
+            available = len(groups[key]) - quota[key]
+            take = min(share, available, remaining)
+            if take <= 0:
+                open_keys.remove(key)
+                continue
+            quota[key] += take
+            remaining -= take
+            progressed = True
+            if quota[key] >= len(groups[key]):
+                open_keys.remove(key)
+            if remaining <= 0:
+                break
+        if not progressed:
+            break
+    parts = [groups[key].head(n) for key, n in quota.items() if n > 0]
+    out = pd.concat(parts, ignore_index=False) if parts else ordered.iloc[0:0]
+    if time_col in out.columns:
+        out = out.sort_values(time_col, ascending=False)
+    return out.head(limit)
+
+
 def leaderboard_rows(leaderboard: pd.DataFrame, ranked: pd.DataFrame | None = None) -> list[dict[str, Any]]:
     """Leaderboard plus Smart-Score-Spalten, ohne teure Per-Wallet-Fetches.
 

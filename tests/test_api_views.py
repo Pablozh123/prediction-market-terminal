@@ -298,3 +298,44 @@ class VariantsPayloadTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BalancedHeadTests(unittest.TestCase):
+    """Das Tape darf nicht von einer Venue allein gefuellt werden."""
+
+    @staticmethod
+    def _tape() -> pd.DataFrame:
+        # 1000 Kalshi-Mikroprints in den letzten Sekunden, 300 aeltere Polymarket-Prints.
+        ks_times = pd.date_range("2026-08-17 00:14:20", periods=1000, freq="ms", tz="UTC")
+        pm_times = pd.date_range("2026-08-17 00:10:00", periods=300, freq="-1min", tz="UTC")
+        ks = pd.DataFrame({"platform": "Kalshi", "time": ks_times, "notional": 2.9})
+        pm = pd.DataFrame({"platform": "Polymarket", "time": pm_times, "notional": 5000.0})
+        return pd.concat([ks, pm], ignore_index=True)
+
+    def test_naive_head_would_be_kalshi_only(self) -> None:
+        naive = self._tape().sort_values("time", ascending=False).head(250)
+        self.assertEqual(set(naive["platform"]), {"Kalshi"})
+
+    def test_balanced_head_gives_each_venue_half(self) -> None:
+        out = apv.balanced_head(self._tape(), 250)
+        counts = out["platform"].value_counts()
+        self.assertEqual(len(out), 250)
+        self.assertEqual(int(counts["Kalshi"]), 125)
+        self.assertEqual(int(counts["Polymarket"]), 125)
+        # sorted by time, newest first
+        self.assertTrue(out["time"].is_monotonic_decreasing)
+
+    def test_leftover_quota_flows_to_the_other_venue(self) -> None:
+        tape = self._tape()
+        small = pd.concat([tape[tape["platform"] == "Polymarket"], tape[tape["platform"] == "Kalshi"].head(5)])
+        out = apv.balanced_head(small, 250)
+        counts = out["platform"].value_counts()
+        self.assertEqual(int(counts["Kalshi"]), 5)
+        self.assertEqual(int(counts["Polymarket"]), 245)
+
+    def test_single_venue_and_empty(self) -> None:
+        tape = self._tape()
+        only_pm = tape[tape["platform"] == "Polymarket"]
+        self.assertEqual(len(apv.balanced_head(only_pm, 50)), 50)
+        self.assertEqual(len(apv.balanced_head(only_pm.iloc[0:0], 50)), 0)
+        self.assertEqual(len(apv.balanced_head(tape, 0)), 0)

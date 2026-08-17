@@ -152,6 +152,14 @@ export function renderWhale(T) {
       + leerBlock('NO PRINTS TO GROUP', herkunftSatz(T.herkunft.tape, '/api/tape')) + '</div>';
   }
   let rows, walletCount, total, biggest;
+  // Kalshi publishes no wallet identities, so its prints cannot be grouped
+  // and are counted here only to say how many were left out.
+  const ohneWallet = T.tape.filter((t) => t.wallet === '—').length;
+  const mitWallet = T.tape.length - ohneWallet;
+  if (!mitWallet) {
+    return '<div>' + seitenKopf('WHALE FLOW', 'Who is moving the big money', '#C8F542')
+      + leerBlock('NO WALLET-LEVEL PRINTS', ohneWallet + ' print(s) in the tape carry no wallet identity (Kalshi publishes none), so there is nothing to group. Polymarket prints appear here as soon as the tape has some.') + '</div>';
+  }
   {
     const byWallet = {};
     T.tape.filter((t) => t.wallet !== '—').forEach((t) => {
@@ -168,15 +176,19 @@ export function renderWhale(T) {
       cat: Object.entries(w.cats).sort((a, b) => b[1] - a[1])[0][0]
     }));
     walletCount = Object.keys(byWallet).length;
-    total = T.tape.reduce((a, t) => a + t.size, 0);
-    biggest = T.tape.reduce((a, t) => Math.max(a, t.size), 0);
+    const grouped = T.tape.filter((t) => t.wallet !== '—');
+    total = grouped.reduce((a, t) => a + t.size, 0);
+    biggest = grouped.reduce((a, t) => Math.max(a, t.size), 0);
   }
+  const ausschlussSatz = ohneWallet
+    ? ' ' + ohneWallet + ' Kalshi print(s) are not shown here: Kalshi publishes no wallet identities, so they cannot be grouped.'
+    : '';
 
   return '<div>'
     + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="' + M + '; font-size:10px; letter-spacing:.18em; color:#C8F542">WHALE FLOW</div>'
     + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">Who is moving the big money</div>'
-    + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:9px; max-width:700px">The same prints as the tape, grouped by wallet, so one wallet buying twenty times reads as one story instead of twenty rows.</div></div>'
+    + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:9px; max-width:700px">The same prints as the tape, grouped by wallet, so one wallet buying twenty times reads as one story instead of twenty rows.' + esc(ausschlussSatz) + '</div></div>'
     + '<div style="display:grid; grid-template-columns:repeat(3,1fr); border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="padding:16px 20px; border-right:1px solid rgba(255,255,255,.09)"><div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">WALLETS PRINTING BIG</div><div style="' + M + '; font-size:26px; margin-top:8px">' + num(walletCount) + '</div></div>'
     + '<div style="padding:16px 20px; border-right:1px solid rgba(255,255,255,.09)"><div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">TOTAL MOVED · 24H</div><div style="' + M + '; font-size:26px; margin-top:8px">' + money(total) + '</div></div>'
