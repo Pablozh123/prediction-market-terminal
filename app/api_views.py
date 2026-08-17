@@ -16,7 +16,10 @@ from typing import Any, Callable, Mapping
 
 import pandas as pd
 
+from app import perf_metrics as perf
+from app import quant
 from app import suspicion as susp
+from app import track_record as trec
 
 RESEARCH_FILES = {
     "review-queue": "queue",
@@ -382,18 +385,539 @@ def score_parts(row: Mapping[str, Any]) -> list[dict[str, Any]]:
     return parts
 
 
+#: Wie viele Trades der Wallet-Seite im Aktivitaetsblock stehen und wie viele
+#: geschlossene Positionen in der Tabelle; der Rest wird gezaehlt, nicht gezeigt.
+WALLET_TRADES_SHOWN = 60
+WALLET_CLOSED_SHOWN = 100
+WALLET_POSITIONS_SHOWN = 100
+
+#: Der Wallet-Endpunkt liest die Aktivitaet seitenweise (500 je Seite) bis zu
+#: dieser Zeilenzahl; danach heisst es ``window_truncated``. Die Data API
+#: nimmt hoehere Offsets, aber jede Seite ist ein weiterer Aufruf, und die
+#: Antwort soll in Sekunden stehen, nicht in Minuten.
+WALLET_ACTIVITY_MAX_ROWS = 2000
+
+#: Ehrliche Grenzen des Wallet-Endpunkts, wie die Seite sie zitiert.
+WALLET_LIMITS = [
+    "Resolved positions come from the public /closed-positions feed, read in both sort directions "
+    "(biggest winners, biggest losers) with ~50 rows per tail. When both tails hit the cap ('capped'), "
+    "the middle of the record is unreachable and win rate, edge and PnL describe the extremes only.",
+    f"Trades come from the public /activity feed in pages of 500 up to {WALLET_ACTIVITY_MAX_ROWS:,} rows "
+    "('window_truncated' when the cap was hit). Trade counts, categories and context shares cover that window.",
+    "The PnL curve is the profile curve from user-pnl-api.polymarket.com (daily fidelity, all time). "
+    "Sharpe, Sortino and Calmar are computed in dollars per day without a capital base and annualised on 365 days.",
+    "Positions that resolved against the wallet and were never redeemed stay in /positions at price 0; "
+    "they are counted as 'worthless', not as closed.",
+    "No on-chain reconstruction runs here: deposits, withdrawals and transfers between wallets are not read. "
+    "Everything is a read of the public Data API at request time, cached for 300 s.",
+]
+
+
+def _wilson(wins: int, n: int) -> list[float] | None:
+    if not n:
+        return None
+    lo, hi = quant.wilson_interval(int(wins), int(n))
+    return [round(float(lo), 4), round(float(hi), 4)]
+
+
+def _classify_titles(titles: list[str], classify: Callable[[Any, Any], Any] | None) -> list[str]:
+    if classify is None:
+        return ["Other"] * len(titles)
+    out: list[str] = []
+    for title in titles:
+        try:
+            out.append(clean_category(classify("", title)))
+        except Exception:  # noqa: BLE001 - a classifier hiccup must not sink the page
+            out.append("Other")
+    return out
+
+
+def _wallet_identity(
+    wallet: str,
+    activity: pd.DataFrame | None,
+    pseudonym: str,
+    activity_truncated: bool,
+) -> dict[str, Any]:
+    first = last = ""
+    days_active: float | None = None
+    n_rows = 0
+    if activity is not None and not activity.empty and "time" in activity:
+        times = pd.to_datetime(activity["time"], utc=True, errors="coerce").dropna()
+        n_rows = int(len(activity))
+        if not times.empty:
+            first = _iso(times.min())
+            last = _iso(times.max())
+            days_active = round(float((times.max() - times.min()).total_seconds()) / 86400.0, 1)
+        if not pseudonym and "trader" in activity:
+            names = [t for t in (_text(v).strip() for v in activity["trader"].tolist()) if t]
+            pseudonym = names[0] if names else ""
+    return {
+        "address": wallet,
+        "short": short_wallet(wallet),
+        "pseudonym": pseudonym or "",
+        "profile_url": f"https://polymarket.com/profile/{wallet}",
+        "polygonscan_url": f"https://polygonscan.com/address/{wallet}",
+        "first_activity": first,
+        "last_activity": last,
+        # Days between the oldest and newest activity row in the window read
+        # — for a truncated window that is a lower bound.
+        "days_active": days_active,
+        "n_activity_rows": n_rows,
+        "activity_truncated": bool(activity_truncated),
+    }
+
+
+def _wallet_track_record(
+    track: Mapping[str, Any] | None,
+    resolved: pd.DataFrame | None,
+    capped: bool,
+    as_of: str,
+) -> dict[str, Any] | None:
+    if not track:
+        return None
+    naive_n = int(track.get("naive_legs") or 0)
+    naive_rate = _num(track.get("naive_win_rate"))
+    naive_wins = int(round(naive_rate * naive_n)) if naive_rate is not None else 0
+    events_n = int(track.get("resolved_events") or 0)
+    event_rate = _num(track.get("event_win_rate"))
+    event_wins = int(round(event_rate * events_n)) if event_rate is not None else 0
+    markets_n = int(track.get("resolved_markets") or 0)
+    market_rate = _num(track.get("corrected_win_rate"))
+    market_wins = int(round(market_rate * markets_n)) if market_rate is not None else 0
+
+    # Profit concentration beyond the single best market: the top three
+    # markets' share of gross profit, with their titles.
+    top3: list[dict[str, Any]] = []
+    top3_share: float | None = None
+    if resolved is not None and not resolved.empty:
+        markets = trec.market_records(resolved)
+        titles: dict[str, str] = {}
+        if "market_key" in resolved and "title" in resolved:
+            for key, title in zip(resolved["market_key"].tolist(), resolved["title"].tolist()):
+                titles.setdefault(_text(key), _text(title))
+        positive = markets[markets["net_pnl"] > 0].sort_values("net_pnl", ascending=False)
+        gross = float(positive["net_pnl"].sum()) if not positive.empty else 0.0
+        if gross > 0:
+            head = positive.head(3)
+            top3_share = round(float(head["net_pnl"].sum()) / gross, 4)
+            top3 = [
+                {"title": titles.get(_text(r["market_key"]), _text(r["market_key"])), "pnl": round(float(r["net_pnl"]), 2),
+                 "share": round(float(r["net_pnl"]) / gross, 4)}
+                for _, r in head.iterrows()
+            ]
+    return {
+        "as_of": as_of,
+        "source": "polymarket /closed-positions, winner and loser tails unioned",
+        "capped": bool(capped),
+        "naive": {
+            "label": "per position leg (what the leaderboard implies)",
+            "win_rate": naive_rate, "wins": naive_wins, "n": naive_n, "ci95": _wilson(naive_wins, naive_n),
+        },
+        "corrected": {
+            "label": "per event, NegRisk legs netted",
+            "win_rate": event_rate, "wins": event_wins, "n": events_n, "ci95": _wilson(event_wins, events_n),
+        },
+        "per_market": {
+            "label": "per market (conditionId), legs netted",
+            "win_rate": market_rate, "wins": market_wins, "n": markets_n, "ci95": _wilson(market_wins, markets_n),
+        },
+        "legs_netted": max(0, naive_n - events_n),
+        "leg_inflation": _num(track.get("leg_inflation")),
+        "win_rate_reliable": bool(track.get("win_rate_reliable")),
+        "settled_pnl": _num(track.get("settled_pnl")),
+        "volume": _num(track.get("volume")),
+        "pnl_per_volume": _num(track.get("pnl_per_volume")),
+        "exit_win_rate": _num(track.get("exit_win_rate")),
+        "wash_flag": {
+            "flag": bool(track.get("farmer_flag")),
+            "rule": (f"volume >= ${trec.FARMER_MIN_VOLUME:,.0f} and |settled PnL| / volume < "
+                     f"{trec.FARMER_MAX_EDGE * 100:.1f}% over >= 5 resolved markets"),
+        },
+        "survivorship_gate": {
+            "ok": bool(track.get("sample_ok")),
+            "resolved_markets": markets_n,
+            "span_days": _num(track.get("span_days")),
+            "min_markets": trec.MIN_RESOLVED_MARKETS,
+            "min_span_days": trec.MIN_SPAN_DAYS,
+        },
+        "concentration": {
+            "top_market_share": _num(track.get("top_market_share")),
+            "top3_share": top3_share,
+            "top3": top3,
+            "one_hit_flag": bool(track.get("one_hit_flag")),
+        },
+        "risk_adjusted": _num(track.get("risk_adjusted")),
+        "score": _num(track.get("score")),
+        "grade": _text(track.get("grade")),
+        "score_components": list(track.get("score_components") or []),
+        "flags": list(track.get("flags") or []),
+        "coverage_note": _text(track.get("coverage_note")),
+    }
+
+
+def _wallet_pnl(pnl_points: pd.DataFrame | None, as_of: str, window: str) -> dict[str, Any]:
+    if pnl_points is None or pnl_points.empty or "pnl" not in pnl_points:
+        return {"as_of": as_of, "window": window, "points": [], "n_points": 0, "stats": None,
+                "source": "user-pnl-api.polymarket.com", "note": "The profile PnL curve did not answer."}
+    frame = pnl_points.copy()
+    frame["pnl"] = pd.to_numeric(frame["pnl"], errors="coerce")
+    if "time" in frame:
+        frame["time"] = pd.to_datetime(frame["time"], utc=True, errors="coerce")
+    frame = frame.dropna(subset=["pnl"])
+    points = [
+        {"t": _iso(row.get("time")) if "time" in frame else "", "pnl": round(float(row["pnl"]), 2)}
+        for _, row in frame.iterrows()
+    ]
+    stats = None
+    try:
+        stats = perf.summarize_curve(frame[[c for c in ("time", "pnl") if c in frame.columns]])
+    except Exception:  # noqa: BLE001 - a bad curve leaves the stats empty, not the page dead
+        stats = None
+    if stats is not None:
+        # Floats through _num (NaN/inf -> null), counts stay integers.
+        stats = {k: (_num(v) if isinstance(v, float) else v) for k, v in stats.items()}
+    return {
+        "as_of": as_of,
+        "window": window,
+        "source": "user-pnl-api.polymarket.com (the curve polymarket.com shows on the profile)",
+        "points": points,
+        "n_points": len(points),
+        "stats": stats,
+        "note": "Ratios in dollars per day, no capital base, annualised on 365 days; n_days is the sample.",
+    }
+
+
+def _wallet_edge(
+    resolved: pd.DataFrame | None,
+    realized: Mapping[str, Any] | None,
+    capped: bool,
+    classify: Callable[[Any, Any], Any] | None,
+    as_of: str,
+) -> dict[str, Any]:
+    per_dollar: dict[str, Any] = {"edge": None, "ci_low": None, "ci_high": None, "groups": 0, "significant": False}
+    by_category: list[dict[str, Any]] = []
+    if resolved is not None and not resolved.empty:
+        df = resolved.copy()
+        df["cost"] = pd.to_numeric(df.get("total_bought"), errors="coerce").fillna(0.0)
+        df["payout"] = df["cost"] + pd.to_numeric(df.get("realized_pnl"), errors="coerce").fillna(0.0)
+        df["group"] = df.apply(trec._event_key, axis=1)
+        try:
+            per_dollar = perf.cluster_bootstrap_edge(df, "group", cost_column="cost", payout_column="payout")
+        except Exception:  # noqa: BLE001
+            pass
+        titles = [_text(v) for v in df.get("title", pd.Series("", index=df.index)).tolist()]
+        df["category"] = _classify_titles(titles, classify)
+        for category, part in df.groupby("category", sort=False):
+            groups = int(part["group"].nunique())
+            cost = float(part["cost"].sum())
+            if cost <= 0:
+                continue
+            row: dict[str, Any] = {
+                "category": str(category), "groups": groups, "positions": int(len(part)),
+                "cost": round(cost, 2), "pnl": round(float((part["payout"] - part["cost"]).sum()), 2),
+                "edge": round(float(part["payout"].sum() / cost - 1.0), 4), "ci_low": None, "ci_high": None,
+            }
+            if groups >= 3:
+                try:
+                    boot = perf.cluster_bootstrap_edge(part, "group", cost_column="cost", payout_column="payout", draws=2000)
+                    row["ci_low"] = _num(boot.get("ci_low"))
+                    row["ci_high"] = _num(boot.get("ci_high"))
+                except Exception:  # noqa: BLE001
+                    pass
+            by_category.append(row)
+        by_category.sort(key=lambda r: -r["cost"])
+    return {
+        "as_of": as_of,
+        "capped": bool(capped),
+        "per_dollar": {
+            "edge": _num(per_dollar.get("edge")),
+            "ci_low": _num(per_dollar.get("ci_low")),
+            "ci_high": _num(per_dollar.get("ci_high")),
+            "groups": int(per_dollar.get("groups") or 0),
+            "significant": bool(per_dollar.get("significant")),
+            "method": "payout / cost - 1 over resolved positions; 95% CI from a cluster bootstrap "
+                      "resampling whole events (4000 draws)",
+        },
+        "per_share": dict(realized) if realized else None,
+        "by_category": by_category,
+    }
+
+
+def _wallet_positions(positions: pd.DataFrame | None, as_of: str, requested: int) -> dict[str, Any]:
+    if positions is None or positions.empty:
+        return {"as_of": as_of, "rows": [], "n": 0, "shown": 0, "capped": False, "total_exposure": 0.0,
+                "total_cost": 0.0, "unrealized_pnl": 0.0, "worthless_n": 0,
+                "note": "No open positions in the public /positions feed."}
+    rows: list[dict[str, Any]] = []
+    exposure = cost = unreal = 0.0
+    worthless = 0
+    for _, row in positions.iterrows():
+        size = _num(row.get("size"), 0.0) or 0.0
+        avg = _num(row.get("avg_price"), 0.0) or 0.0
+        cur = _num(row.get("current_price"), 0.0) or 0.0
+        value = _num(row.get("value"), 0.0) or 0.0
+        pnl = _num(row.get("unrealized_pnl"), 0.0) or 0.0
+        end_time = _iso(row.get("end_time"))
+        resolved_worthless = cur <= 0.0 and value <= 0.0
+        if resolved_worthless:
+            worthless += 1
+        exposure += value
+        cost += size * avg
+        unreal += pnl
+        rows.append({
+            "title": _text(row.get("title")),
+            "outcome": _text(row.get("outcome")),
+            "size": round(size, 4),
+            "avg_price": round(avg, 4),
+            "current_price": round(cur, 4),
+            "value": round(value, 2),
+            "cost": round(size * avg, 2),
+            "unrealized_pnl": round(pnl, 2),
+            "pnl_pct": _num(row.get("pnl_pct")),
+            "end_time": end_time,
+            "market_key": _text(row.get("market_key")),
+            "url": market_url("Polymarket", _text(row.get("market_key")), _text(row.get("url"))),
+            "status": "worthless" if resolved_worthless else "open",
+        })
+    rows.sort(key=lambda r: -r["value"])
+    return {
+        "as_of": as_of,
+        "rows": rows[:WALLET_POSITIONS_SHOWN],
+        "n": len(rows),
+        "shown": min(len(rows), WALLET_POSITIONS_SHOWN),
+        "capped": len(rows) >= int(requested),
+        "total_exposure": round(exposure, 2),
+        "total_cost": round(cost, 2),
+        "unrealized_pnl": round(unreal, 2),
+        "worthless_n": worthless,
+        "note": ("Value at the current price; positions at price 0 past their end date resolved against "
+                 "the wallet and were not redeemed ('worthless')."),
+    }
+
+
+def _wallet_closed(resolved: pd.DataFrame | None, capped: bool, worthless_n: int, as_of: str,
+                   coverage_note: str) -> dict[str, Any]:
+    if resolved is None or resolved.empty:
+        return {"as_of": as_of, "capped": bool(capped), "n": 0, "shown": 0, "won": 0, "lost": 0, "flat": 0,
+                "worthless_not_redeemed": int(worthless_n), "rows": [], "realized_pnl": 0.0, "note": coverage_note,
+                "source": "polymarket /closed-positions, both sort directions, ~50 rows per tail"}
+    df = resolved.copy()
+    df["_pnl"] = pd.to_numeric(df.get("realized_pnl"), errors="coerce").fillna(0.0)
+    won = int((df["_pnl"] > 0).sum())
+    lost = int((df["_pnl"] < 0).sum())
+    flat = int(len(df) - won - lost)
+    df = df.reindex(df["_pnl"].abs().sort_values(ascending=False).index)
+    rows = [
+        {
+            "title": _text(row.get("title")),
+            "outcome": _text(row.get("outcome")),
+            "avg_price": _num(row.get("avg_price")),
+            "current_price": _num(row.get("current_price")),
+            "total_bought": _num(row.get("total_bought")),
+            "realized_pnl": round(float(row["_pnl"]), 2),
+            "time": _iso(row.get("time")),
+            "market_key": _text(row.get("market_key")),
+            "url": market_url("Polymarket", _text(row.get("market_key")), _text(row.get("url"))),
+            "result": "won" if row["_pnl"] > 0 else "lost" if row["_pnl"] < 0 else "flat",
+        }
+        for _, row in df.head(WALLET_CLOSED_SHOWN).iterrows()
+    ]
+    return {
+        "as_of": as_of,
+        "capped": bool(capped),
+        "n": int(len(df)),
+        "shown": len(rows),
+        "won": won,
+        "lost": lost,
+        "flat": flat,
+        "worthless_not_redeemed": int(worthless_n),
+        "realized_pnl": round(float(df["_pnl"].sum()), 2),
+        "rows": rows,
+        "note": coverage_note,
+        "source": "polymarket /closed-positions, both sort directions, ~50 rows per tail",
+    }
+
+
+def _wallet_activity(activity: pd.DataFrame | None, truncated: bool, as_of: str) -> dict[str, Any]:
+    empty = {"as_of": as_of, "n_rows": 0, "n_trades": 0, "n_redeems": 0, "window_truncated": bool(truncated),
+             "first": "", "last": "", "span_days": None, "trades": [], "shown": 0, "buy_n": 0, "sell_n": 0,
+             "buy_notional": 0.0, "sell_notional": 0.0, "redeem_notional": 0.0, "net_cash_flow": 0.0,
+             "volume_traded": 0.0, "avg_trade_size": None, "trades_per_day": None, "source": "polymarket /activity"}
+    if activity is None or activity.empty:
+        return empty
+    df = activity.copy()
+    df["_type"] = df.get("type", pd.Series("", index=df.index)).astype(str).str.upper()
+    df["_side"] = df.get("side", pd.Series("", index=df.index)).astype(str).str.upper()
+    df["_usd"] = pd.to_numeric(df.get("notional"), errors="coerce").fillna(0.0)
+    df["_time"] = pd.to_datetime(df.get("time"), utc=True, errors="coerce")
+    trades = df[df["_type"].eq("TRADE")]
+    times = df["_time"].dropna()
+    span_days = round(float((times.max() - times.min()).total_seconds()) / 86400.0, 2) if len(times) >= 2 else 0.0
+    buys = trades[trades["_side"].eq("BUY")]
+    sells = trades[trades["_side"].eq("SELL")]
+    redeems = df[df["_type"].isin(["REDEEM", "MERGE"])]
+    n_trades = int(len(trades))
+    volume = float(trades["_usd"].sum())
+    buy_usd = float(buys["_usd"].sum())
+    sell_usd = float(sells["_usd"].sum())
+    redeem_usd = float(redeems["_usd"].sum())
+    shown = trades.sort_values("_time", ascending=False).head(WALLET_TRADES_SHOWN)
+    rows = [
+        {
+            "time": _iso(row.get("_time")),
+            "type": _text(row.get("type")),
+            "side": _text(row.get("side")).upper(),
+            "outcome": _text(row.get("outcome")),
+            "price": _num(row.get("price")),
+            "size": _num(row.get("size")),
+            "notional": round(float(row["_usd"]), 2),
+            "title": _text(row.get("title")),
+            "market_key": _text(row.get("market_key")),
+            "url": market_url("Polymarket", _text(row.get("market_key")), _text(row.get("url")), _text(row.get("slug"))),
+        }
+        for _, row in shown.iterrows()
+    ]
+    return {
+        "as_of": as_of,
+        "n_rows": int(len(df)),
+        "n_trades": n_trades,
+        "n_redeems": int(df["_type"].eq("REDEEM").sum()),
+        "window_truncated": bool(truncated),
+        "first": _iso(times.min()) if not times.empty else "",
+        "last": _iso(times.max()) if not times.empty else "",
+        "span_days": span_days,
+        "trades": rows,
+        "shown": len(rows),
+        "buy_n": int(len(buys)),
+        "sell_n": int(len(sells)),
+        "buy_notional": round(buy_usd, 2),
+        "sell_notional": round(sell_usd, 2),
+        "redeem_notional": round(redeem_usd, 2),
+        # Cash view of the window: what came back (sells + redemptions) minus
+        # what went in (buys). Open positions and unredeemed winners are not in it.
+        "net_cash_flow": round(sell_usd + redeem_usd - buy_usd, 2),
+        "volume_traded": round(volume, 2),
+        "avg_trade_size": round(volume / n_trades, 2) if n_trades else None,
+        "trades_per_day": round(n_trades / max(span_days, 1.0), 3) if n_trades else None,
+        "source": "polymarket /activity",
+    }
+
+
+def _wallet_categories(
+    activity: pd.DataFrame | None,
+    resolved: pd.DataFrame | None,
+    classify: Callable[[Any, Any], Any] | None,
+    as_of: str,
+) -> dict[str, Any]:
+    stake: dict[str, dict[str, Any]] = {}
+
+    def _slot(label: str) -> dict[str, Any]:
+        return stake.setdefault(label, {"category": label, "stake": 0.0, "trades": 0, "pnl": 0.0, "resolved_markets": 0})
+
+    if activity is not None and not activity.empty:
+        df = activity.copy()
+        df["_type"] = df.get("type", pd.Series("", index=df.index)).astype(str).str.upper()
+        df["_side"] = df.get("side", pd.Series("", index=df.index)).astype(str).str.upper()
+        df["_usd"] = pd.to_numeric(df.get("notional"), errors="coerce").fillna(0.0)
+        trades = df[df["_type"].eq("TRADE")]
+        labels = _classify_titles([_text(v) for v in trades.get("title", pd.Series("", index=trades.index)).tolist()], classify)
+        for label, side, usd in zip(labels, trades["_side"].tolist(), trades["_usd"].tolist()):
+            slot = _slot(label)
+            slot["trades"] += 1
+            if side == "BUY":
+                slot["stake"] += float(usd)
+    if resolved is not None and not resolved.empty:
+        markets = trec.market_records(resolved)
+        titles: dict[str, str] = {}
+        if "market_key" in resolved and "title" in resolved:
+            for key, title in zip(resolved["market_key"].tolist(), resolved["title"].tolist()):
+                titles.setdefault(_text(key), _text(title))
+        labels = _classify_titles([titles.get(_text(k), "") for k in markets["market_key"].tolist()], classify)
+        for label, pnl in zip(labels, markets["net_pnl"].tolist()):
+            slot = _slot(label)
+            slot["pnl"] += float(pnl)
+            slot["resolved_markets"] += 1
+    rows = sorted(stake.values(), key=lambda r: (-r["stake"], -r["trades"]))
+    for row in rows:
+        row["stake"] = round(row["stake"], 2)
+        row["pnl"] = round(row["pnl"], 2)
+    return {
+        "as_of": as_of,
+        "rows": rows,
+        "classifier": "market_filter_category, then the insider-context title patterns (app.suspicion)",
+        "note": "Stake = BUY notional in the activity window; PnL = settled PnL of resolved markets, netted per market.",
+    }
+
+
+def _wallet_context(activity: pd.DataFrame | None, as_of: str) -> dict[str, Any]:
+    if activity is None or activity.empty:
+        return {"as_of": as_of, "n_trades": 0, "notional": 0.0, "groups": [], "insider_prone_share": None,
+                "excluded_share": None, "note": "No trades in the activity window to classify."}
+    df = activity.copy()
+    df["_type"] = df.get("type", pd.Series("", index=df.index)).astype(str).str.upper()
+    df["_usd"] = pd.to_numeric(df.get("notional"), errors="coerce").fillna(0.0)
+    trades = df[df["_type"].eq("TRADE")]
+    totals: dict[str, dict[str, Any]] = {}
+    for title, usd in zip(trades.get("title", pd.Series("", index=trades.index)).tolist(), trades["_usd"].tolist()):
+        group, _mult, note = susp.classify_insider_context(_text(title), "")
+        slot = totals.setdefault(group, {"group": group, "notional": 0.0, "trades": 0, "note": note,
+                                         "insider_prone": group in susp.INSIDER_PRONE_GROUPS})
+        slot["notional"] += float(usd)
+        slot["trades"] += 1
+    notional = float(trades["_usd"].sum())
+    groups = sorted(totals.values(), key=lambda g: -g["notional"])
+    for g in groups:
+        g["notional"] = round(g["notional"], 2)
+        g["share"] = round(g["notional"] / notional, 4) if notional > 0 else None
+    prone = sum(g["notional"] for g in groups if g["insider_prone"])
+    return {
+        "as_of": as_of,
+        "n_trades": int(len(trades)),
+        "notional": round(notional, 2),
+        "groups": groups,
+        "insider_prone_share": round(prone / notional, 4) if notional > 0 else None,
+        "excluded_share": round(1.0 - prone / notional, 4) if notional > 0 else None,
+        "note": ("Share of traded notional by insider-plausibility group (app.suspicion.classify_insider_context). "
+                 "Sports odds, weather and crypto/market prices are the groups the risk screen excludes."),
+    }
+
+
 def wallet_detail(
     card: Mapping[str, Any],
     positions: pd.DataFrame | None = None,
     pnl_points: pd.DataFrame | None = None,
     activity: pd.DataFrame | None = None,
+    *,
+    resolved: pd.DataFrame | None = None,
+    resolved_capped: bool | None = None,
+    activity_truncated: bool = False,
+    classify: Callable[[Any, Any], Any] | None = None,
+    pseudonym: str = "",
+    as_of: str = "",
+    pnl_window: str = "All",
+    positions_requested: int = 250,
 ) -> dict[str, Any]:
-    """Scorecard + offene Positionen + PnL-Kurve + letzte Trades als JSON."""
+    """Scorecard + offene Positionen + PnL-Kurve + letzte Trades als JSON.
 
+    Die alten Schluessel (``track``, ``pnl_curve``, ``positions`` als Liste,
+    ``recent_trades`` …) bleiben, die Detail-Lade liest sie. Dazu kommen die
+    Bloecke der Wallet-Seite: ``identity``, ``track_record``, ``pnl``,
+    ``edge``, ``open_positions``, ``closed``, ``activity``, ``categories``,
+    ``context``, ``limits`` — jeder mit ``as_of`` und seinen Stichproben- und
+    ``capped``/``window_truncated``-Angaben. ``resolved`` ist der Frame, aus
+    dem die Scorecard gerechnet wurde (beide Tails); ohne ihn bleiben die
+    Bloecke, die ihn brauchen, leer statt geraten.
+    """
+
+    wallet = _text(card.get("wallet"))
+    track = card.get("track") if isinstance(card.get("track"), Mapping) else None
+    capped = bool(resolved_capped) if resolved_capped is not None else bool(track and track.get("resolved_capped"))
+    stamp = as_of or _text(card.get("snapshot_at"))
     payload: dict[str, Any] = {
-        "wallet": card.get("wallet"),
+        "wallet": wallet,
         "snapshot_at": card.get("snapshot_at"),
-        "track": card.get("track"),
+        "as_of": stamp,
+        "track": track,
         "calibration": _strip_frames(card.get("calibration")),
         "realized_edge": card.get("realized_edge"),
         "attribution": card.get("attribution"),
@@ -418,6 +942,10 @@ def wallet_detail(
             for _, row in positions.head(25).iterrows()
         ]
     if activity is not None and not activity.empty:
+        recent = activity
+        if "type" in activity:
+            only_trades = activity[activity["type"].astype(str).str.upper().eq("TRADE")]
+            recent = only_trades if not only_trades.empty else activity
         payload["recent_trades"] = [
             {
                 "market": _text(row.get("title")),
@@ -426,8 +954,22 @@ def wallet_detail(
                 "ago": _text(row.get("time"))[:16].replace("T", " "),
                 "size": _num(row.get("notional"), 0.0),
             }
-            for _, row in activity.head(6).iterrows()
+            for _, row in recent.head(6).iterrows()
         ]
+
+    realized = card.get("realized_edge") if isinstance(card.get("realized_edge"), Mapping) else None
+    open_block = _wallet_positions(positions, stamp, positions_requested)
+    payload["identity"] = _wallet_identity(wallet, activity, pseudonym, activity_truncated)
+    payload["track_record"] = _wallet_track_record(track, resolved, capped, stamp)
+    payload["pnl"] = _wallet_pnl(pnl_points, stamp, pnl_window)
+    payload["edge"] = _wallet_edge(resolved, realized, capped, classify, stamp)
+    payload["open_positions"] = open_block
+    payload["closed"] = _wallet_closed(resolved, capped, open_block["worthless_n"], stamp,
+                                       _text(track.get("coverage_note")) if track else "")
+    payload["activity"] = _wallet_activity(activity, activity_truncated, stamp)
+    payload["categories"] = _wallet_categories(activity, resolved, classify, stamp)
+    payload["context"] = _wallet_context(activity, stamp)
+    payload["limits"] = list(WALLET_LIMITS)
     return payload
 
 
@@ -639,6 +1181,8 @@ def risk_payload(wallet_scores: pd.DataFrame, event_scores: pd.DataFrame) -> dic
             score = _num(row.get("wallet_insider_score") or row.get("wallet_risk_score"), 0.0) or 0.0
             wallets.append({
                 "wallet": _text(row.get("trader")) or short_wallet(row.get("wallet")),
+                # The full address, so the wallet page can be opened from the row.
+                "address": _text(row.get("wallet")),
                 "context": _text(row.get("top_market"))[:40] or "—",
                 "score": round(score),
                 "prints": int(_num(row.get("trade_count"), 0.0) or 0),

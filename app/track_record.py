@@ -351,10 +351,18 @@ def track_record(
 
     # Composite score (0-100). Uses win rate only when reliable (uncapped set),
     # alongside edge-per-volume and cross-market consistency; concentration penalised.
+    # ``score_components`` lists the parts with their ceilings so a page can
+    # label the score instead of quoting a bare number.
+    score_components: list[dict[str, Any]]
     if not sample_ok:
         score = min(30.0, 15.0 + resolved_markets)
+        score_components = [{
+            "label": "insufficient sample (15 + resolved markets, capped at 30)",
+            "value": round(score, 1), "max": 30,
+        }]
     elif farmer_flag:
         score = 20.0
+        score_components = [{"label": "wash/farm pattern (fixed)", "value": 20.0, "max": 20}]
     else:
         edge_pts = max(0.0, min(1.0, pnl_per_volume / 0.20)) * 35
         consistency_pts = max(0.0, min(1.0, (risk_adjusted + 1.0) / 4.0)) * 35
@@ -362,6 +370,14 @@ def track_record(
         winrate_pts = max(0.0, min(1.0, ((wr_for_score or 0.55) - 0.5) / 0.35)) * 20
         concentration_penalty = top_market_share * 15
         score = max(0.0, min(100.0, edge_pts + consistency_pts + winrate_pts + 10 - concentration_penalty))
+        score_components = [
+            {"label": "edge per $ of volume", "value": round(edge_pts, 1), "max": 35},
+            {"label": "consistency across markets (Sharpe-like)", "value": round(consistency_pts, 1), "max": 35},
+            {"label": "win rate" if win_rate_reliable else "win rate (capped set: prior 55% used)",
+             "value": round(winrate_pts, 1), "max": 20},
+            {"label": "base", "value": 10.0, "max": 10},
+            {"label": "concentration penalty (top market share x 15)", "value": round(-concentration_penalty, 1), "max": 0},
+        ]
 
     return {
         "resolved_markets": resolved_markets,
@@ -388,5 +404,6 @@ def track_record(
         "one_hit_flag": one_hit_flag,
         "score": round(score, 1),
         "grade": _grade(score),
+        "score_components": score_components,
         "flags": flags,
     }
