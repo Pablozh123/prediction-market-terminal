@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import unittest
 from dataclasses import dataclass, field
 
@@ -54,6 +55,246 @@ class WalletDetailTests(unittest.TestCase):
         self.assertEqual(payload["pnl_curve"], [0.0, 5.0, 3.0])
         # DataFrame im Kalibrierungsblock muss JSON-tauglich geworden sein.
         self.assertIsInstance(payload["calibration"]["buckets"], list)
+        # Ohne Resolved-Frame bleiben die Seitenbloecke leer, aber vorhanden.
+        self.assertIn("identity", payload)
+        self.assertEqual(payload["closed"]["n"], 0)
+        self.assertEqual(payload["edge"]["per_dollar"]["groups"], 0)
+        self.assertEqual(payload["activity"]["n_trades"], 0)
+
+
+def _resolved_fixture(n: int) -> pd.DataFrame:
+    """n resolved markets: even indices won (+$40 on $50), odd lost (-$50); markets 1 and 2 share one NegRisk event."""
+
+    rows = []
+    for i in range(n):
+        won = i % 2 == 0
+        rows.append({
+            "title": ("Will the Fed cut rates in " if i % 3 == 0 else "LoL: Team A vs Team B ") + f"market {i}?",
+            "outcome": "Yes",
+            "avg_price": 0.5,
+            "current_price": 1.0 if won else 0.0,
+            "total_bought": 50.0,
+            "realized_pnl": 40.0 if won else -50.0,
+            "time": pd.Timestamp("2026-06-01", tz="UTC") + pd.Timedelta(i, unit="D"),
+            "market_key": f"0xc{i}",
+            "url": "https://polymarket.com/event/event-1" if i in (1, 2) else f"https://polymarket.com/event/event-{i}",
+        })
+    return pd.DataFrame(rows)
+
+
+def _activity_fixture() -> pd.DataFrame:
+    base = pd.Timestamp("2026-07-01T10:00:00", tz="UTC")
+    rows = [
+        {"time": base, "type": "TRADE", "side": "BUY", "outcome": "Yes", "title": "Will the Fed cut rates in market 0?",
+         "price": 0.5, "size": 100.0, "notional": 50.0, "market_key": "0xc0", "slug": "fed-0",
+         "url": "https://polymarket.com/event/event-0", "trader": "harness_wallet"},
+        {"time": base + pd.Timedelta(1, unit="D"), "type": "TRADE", "side": "BUY", "outcome": "No", "title": "LoL: Team A vs Team B market 1?",
+         "price": 0.25, "size": 100.0, "notional": 25.0, "market_key": "0xc1", "slug": "lol-1",
+         "url": "https://polymarket.com/event/event-1", "trader": "harness_wallet"},
+        {"time": base + pd.Timedelta(2, unit="D"), "type": "TRADE", "side": "SELL", "outcome": "Yes", "title": "Will the Fed cut rates in market 0?",
+         "price": 0.6, "size": 50.0, "notional": 30.0, "market_key": "0xc0", "slug": "fed-0",
+         "url": "https://polymarket.com/event/event-0", "trader": "harness_wallet"},
+        {"time": base + pd.Timedelta(4, unit="D"), "type": "REDEEM", "side": "", "outcome": "Yes", "title": "Will the Fed cut rates in market 0?",
+         "price": 0.0, "size": 50.0, "notional": 50.0, "market_key": "0xc0", "slug": "fed-0",
+         "url": "https://polymarket.com/event/event-0", "trader": "harness_wallet"},
+    ]
+    return pd.DataFrame(rows).sort_values("time", ascending=False).reset_index(drop=True)
+
+
+def _positions_fixture() -> pd.DataFrame:
+    return pd.DataFrame([
+        {"title": "Open market A?", "outcome": "Yes", "size": 100.0, "avg_price": 0.4, "current_price": 0.55, "value": 55.0,
+         "unrealized_pnl": 15.0, "pnl_pct": 0.375, "end_time": pd.Timestamp("2026-12-31", tz="UTC"), "market_key": "0xopenA",
+         "url": "https://polymarket.com/event/open-a"},
+        {"title": "Resolved against, not redeemed?", "outcome": "No", "size": 20.0, "avg_price": 0.5, "current_price": 0.0, "value": 0.0,
+         "unrealized_pnl": -10.0, "pnl_pct": -1.0, "end_time": pd.Timestamp("2026-06-30", tz="UTC"), "market_key": "0xworthless",
+         "url": "https://polymarket.com/event/"},
+    ])
+
+
+class WalletPageBlocksTests(unittest.TestCase):
+    """Die Bloecke der Wallet-Seite: Zahlen mit n, CI, capped/window_truncated und as_of."""
+
+    def _card(self, resolved: pd.DataFrame, capped: bool, activity: pd.DataFrame | None = None) -> dict:
+        from app import calibration as calib
+        from app import track_record as trec
+
+        frame = calib.resolution_frame(resolved)
+        return {
+            "wallet": "0x29afe1bf37700768a640a08f1b35dad5f202f88d",
+            "snapshot_at": "2026-08-17T19:00:00+00:00",
+            "track": trec.track_record(resolved, None, activity, resolved_capped=capped),
+            "calibration": calib.calibration_report(frame, capped=capped),
+            "realized_edge": calib.realized_edge(frame, capped=capped),
+            "attribution": trec.pnl_attribution(resolved),
+            "smart": None, "risk": None,
+            "sample": {"n_resolved": 10, "quality": "insufficient", "verdict_allowed": False},
+            "errors": {},
+        }
+
+    def _classify(self):
+        return apv.chained_classifier(lambda raw, title: "", apv.context_group_classifier())
+
+    def test_full_payload_from_fixtures(self) -> None:
+        resolved = _resolved_fixture(12)
+        activity = _activity_fixture()
+        pnl = pd.DataFrame({
+            "time": pd.date_range("2026-07-01", periods=6, freq="D", tz="UTC"),
+            "pnl": [0.0, 10.0, 5.0, 20.0, 15.0, 30.0],
+        })
+        payload = apv.wallet_detail(
+            self._card(resolved, False, activity), _positions_fixture(), pnl, activity,
+            resolved=resolved, resolved_capped=False, activity_truncated=False,
+            classify=self._classify(), pseudonym="", as_of="2026-08-17 19:00 UTC",
+            positions_requested=250,
+        )
+        # Legacy keys the drawer reads stay in place.
+        for key in ("track", "pnl_curve", "positions", "recent_trades", "sample", "realized_edge"):
+            self.assertIn(key, payload)
+        self.assertIsInstance(payload["positions"], list)
+        # recent_trades lists trades, not redemptions.
+        self.assertTrue(all("BUY" in r["side"] or "SELL" in r["side"] for r in payload["recent_trades"]))
+
+        ident = payload["identity"]
+        self.assertEqual(ident["short"], "0x29af…f88d")
+        self.assertEqual(ident["pseudonym"], "harness_wallet")          # from the activity feed
+        self.assertTrue(ident["profile_url"].endswith("/profile/0x29afe1bf37700768a640a08f1b35dad5f202f88d"))
+        self.assertIn("polygonscan.com/address/", ident["polygonscan_url"])
+        self.assertEqual(ident["first_activity"], "2026-07-01T10:00:00Z")
+        self.assertEqual(ident["days_active"], 4.0)
+        self.assertFalse(ident["activity_truncated"])
+
+        tr = payload["track_record"]
+        self.assertEqual(tr["as_of"], "2026-08-17 19:00 UTC")
+        self.assertFalse(tr["capped"])
+        # 12 legs, 6 won -> naive 50%; two legs share one event -> 11 events.
+        self.assertEqual(tr["naive"]["n"], 12)
+        self.assertEqual(tr["naive"]["wins"], 6)
+        self.assertAlmostEqual(tr["naive"]["win_rate"], 0.5)
+        self.assertEqual(len(tr["naive"]["ci95"]), 2)
+        self.assertLess(tr["naive"]["ci95"][0], 0.5)
+        self.assertGreater(tr["naive"]["ci95"][1], 0.5)
+        self.assertEqual(tr["corrected"]["n"], 11)
+        self.assertEqual(tr["legs_netted"], 1)
+        self.assertEqual(tr["per_market"]["n"], 12)
+        self.assertAlmostEqual(tr["settled_pnl"], 6 * 40.0 - 6 * 50.0)
+        self.assertFalse(tr["wash_flag"]["flag"])
+        self.assertIn("25,000", tr["wash_flag"]["rule"])
+        self.assertEqual(tr["survivorship_gate"]["min_markets"], 10)
+        self.assertEqual(tr["survivorship_gate"]["resolved_markets"], 12)
+        self.assertEqual(len(tr["concentration"]["top3"]), 3)
+        self.assertAlmostEqual(tr["concentration"]["top3_share"], 0.5)   # 3 of 6 equal winners
+        self.assertIn(tr["grade"], list("ABCDF"))
+        self.assertTrue(tr["score_components"])
+        self.assertTrue(all({"label", "value", "max"} <= set(c) for c in tr["score_components"]))
+        self.assertAlmostEqual(sum(c["value"] for c in tr["score_components"]), tr["score"], places=0)
+
+        curve = payload["pnl"]
+        self.assertEqual(curve["n_points"], 6)
+        self.assertEqual(curve["points"][0], {"t": "2026-07-01T00:00:00Z", "pnl": 0.0})
+        self.assertEqual(curve["stats"]["n_days"], 5)
+        self.assertIsInstance(curve["stats"]["n_days"], int)
+        self.assertAlmostEqual(curve["stats"]["total_pnl"], 30.0)
+        self.assertAlmostEqual(curve["stats"]["max_drawdown"], 5.0)
+        self.assertEqual(curve["stats"]["winning_days"], 3)
+        self.assertEqual(curve["stats"]["losing_days"], 2)
+
+        edge = payload["edge"]
+        self.assertEqual(edge["per_dollar"]["groups"], 11)
+        self.assertAlmostEqual(edge["per_dollar"]["edge"], (6 * 40.0 - 6 * 50.0) / 600.0)
+        self.assertIsNotNone(edge["per_dollar"]["ci_low"])
+        self.assertLessEqual(edge["per_dollar"]["ci_low"], edge["per_dollar"]["edge"])
+        self.assertGreaterEqual(edge["per_dollar"]["ci_high"], edge["per_dollar"]["edge"])
+        self.assertEqual(edge["per_share"]["n_events"], 11)
+        cats = {r["category"]: r for r in edge["by_category"]}
+        self.assertIn("Sports", cats)                                   # "LoL: X vs Y" via the context patterns
+        self.assertEqual(sum(r["positions"] for r in edge["by_category"]), 12)
+
+        opened = payload["open_positions"]
+        self.assertEqual(opened["n"], 2)
+        self.assertFalse(opened["capped"])
+        self.assertEqual(opened["worthless_n"], 1)
+        self.assertEqual(opened["rows"][0]["title"], "Open market A?")   # sorted by value
+        self.assertEqual(opened["rows"][0]["status"], "open")
+        self.assertEqual(opened["rows"][1]["status"], "worthless")
+        self.assertEqual(opened["rows"][1]["url"], "")                    # "…/event/" is a link to nothing
+        self.assertAlmostEqual(opened["total_exposure"], 55.0)
+        self.assertAlmostEqual(opened["unrealized_pnl"], 5.0)
+
+        closed = payload["closed"]
+        self.assertEqual((closed["n"], closed["won"], closed["lost"], closed["flat"]), (12, 6, 6, 0))
+        self.assertEqual(closed["worthless_not_redeemed"], 1)
+        self.assertFalse(closed["capped"])
+        self.assertEqual(closed["rows"][0]["result"], "lost")             # |-50| sorts before |+40|
+        self.assertIn("50 rows per tail", closed["source"])
+
+        act = payload["activity"]
+        self.assertEqual(act["n_rows"], 4)
+        self.assertEqual(act["n_trades"], 3)
+        self.assertEqual(act["n_redeems"], 1)
+        self.assertEqual((act["buy_n"], act["sell_n"]), (2, 1))
+        self.assertAlmostEqual(act["buy_notional"], 75.0)
+        self.assertAlmostEqual(act["sell_notional"], 30.0)
+        self.assertAlmostEqual(act["redeem_notional"], 50.0)
+        self.assertAlmostEqual(act["net_cash_flow"], 5.0)
+        self.assertAlmostEqual(act["avg_trade_size"], 35.0)
+        self.assertFalse(act["window_truncated"])
+        self.assertEqual(act["trades"][0]["url"], "https://polymarket.com/event/event-0")
+        self.assertEqual(len(act["trades"]), 3)
+
+        cats = {r["category"]: r for r in payload["categories"]["rows"]}
+        self.assertAlmostEqual(cats["Sports"]["stake"], 25.0)
+        self.assertEqual(cats["Sports"]["trades"], 1)
+        ctx = payload["context"]
+        self.assertEqual(ctx["n_trades"], 3)
+        groups = {g["group"]: g for g in ctx["groups"]}
+        self.assertIn("Sports odds", groups)
+        self.assertFalse(groups["Sports odds"]["insider_prone"])
+        self.assertAlmostEqual(sum(g["share"] for g in ctx["groups"]), 1.0, places=3)
+        self.assertTrue(payload["limits"])
+        self.assertTrue(any("closed-positions" in line for line in payload["limits"]))
+        # JSON-serialisable end to end.
+        json.dumps(payload)
+
+    def test_capped_and_truncated_flags_travel(self) -> None:
+        resolved = _resolved_fixture(8)
+        payload = apv.wallet_detail(
+            self._card(resolved, True), None, None, _activity_fixture(),
+            resolved=resolved, resolved_capped=True, activity_truncated=True,
+            classify=self._classify(), as_of="2026-08-17 19:00 UTC",
+        )
+        self.assertTrue(payload["track_record"]["capped"])
+        self.assertFalse(payload["track_record"]["win_rate_reliable"])
+        self.assertTrue(payload["closed"]["capped"])
+        self.assertTrue(payload["edge"]["capped"])
+        self.assertEqual(payload["edge"]["per_share"]["verdict"], "capped")
+        self.assertTrue(payload["activity"]["window_truncated"])
+        self.assertTrue(payload["identity"]["activity_truncated"])
+        # Below the survivorship gate: 8 markets < 10.
+        self.assertFalse(payload["track_record"]["survivorship_gate"]["ok"])
+        self.assertIn("insufficient sample", payload["track_record"]["score_components"][0]["label"])
+        # No curve -> no stats, no invented Sharpe.
+        self.assertIsNone(payload["pnl"]["stats"])
+        self.assertEqual(payload["pnl"]["points"], [])
+        self.assertEqual(payload["open_positions"]["n"], 0)
+
+    def test_positions_capped_when_the_page_is_full(self) -> None:
+        pos = pd.concat([_positions_fixture()] * 5, ignore_index=True)
+        payload = apv.wallet_detail({"wallet": "0xabc", "snapshot_at": "", "errors": {}}, pos, None, None,
+                                    positions_requested=10, as_of="x")
+        self.assertTrue(payload["open_positions"]["capped"])
+        self.assertEqual(payload["open_positions"]["n"], 10)
+
+
+class RiskWalletAddressTests(unittest.TestCase):
+    def test_wallet_rows_carry_the_full_address(self) -> None:
+        wallets = pd.DataFrame([{
+            "wallet": "0xbbb2000000000000000000000000000000000002", "trader": "", "top_market": "Example",
+            "wallet_insider_score": 71.0, "trade_count": 3, "notional": 40000.0, "first_seen": "2026-08-17T09:40:00Z",
+        }])
+        payload = apv.risk_payload(wallets, pd.DataFrame())
+        self.assertEqual(payload["wallets"][0]["address"], "0xbbb2000000000000000000000000000000000002")
+        self.assertEqual(payload["wallets"][0]["wallet"], "0xbbb2…0002")
 
 
 class CrossRowsTests(unittest.TestCase):

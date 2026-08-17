@@ -260,7 +260,9 @@ export function renderWhale(T) {
       const leanStyle = M + '; font-size:11px; letter-spacing:.08em; text-align:right; color:' + leanColor;
       const topMarketShare = w.total ? Math.round(w.topMarket.dollar / w.total * 100) : 0;
       // The drawer gets the address too: most of these wallets are not on
-      // the leaderboard, and without it the click opened nothing.
+      // the leaderboard, and without it the click opened nothing (w.wallet is
+      // the full address when the print carried one, else the name again —
+      // openWallet keeps only a full address).
       return '<div ' + T.act(() => T.openWallet(w.name, w.wallet !== w.name ? w.wallet : '')) + ' class="hv-panel" style="display:grid; grid-template-columns:' + GRID + '; gap:0 10px; align-items:center; padding:12px 24px; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer; animation:rowIn .25s ease-out">'
         + '<div style="min-width:0"><div style="font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(w.name) + '">' + esc(w.name) + '</div>'
         + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(w.wallet) + '">' + esc(w.wallet) + ' · ' + esc(w.venues) + '</div></div>'
@@ -502,7 +504,7 @@ export function renderRisk(T) {
       + (walletRows.length ? '' : leerZeile(risikoSatz))
       + walletRows.map((w) => {
         const scoreStyle = M + '; font-size:12px; border-radius:5px; padding:3px 9px; ' + (w.score >= 70 ? 'color:#0A0D0F; background:#F5A623' : w.score >= 55 ? 'color:#F5A623; border:1px solid rgba(245,166,35,.35)' : 'color:rgba(255,255,255,.7); border:1px solid rgba(255,255,255,.18)');
-        return '<div ' + T.act(() => T.openWallet(w.wallet)) + ' class="hv-panel" style="display:grid; grid-template-columns:1fr 96px 110px 110px 130px 96px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:12.5px; cursor:pointer">'
+        return '<div ' + T.act(() => T.openWallet(w.wallet, w.address)) + ' class="hv-panel" style="display:grid; grid-template-columns:1fr 96px 110px 110px 130px 96px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:12.5px; cursor:pointer">'
           + '<div><span style="font-family:\'Inter\',sans-serif; font-size:13px">' + esc(w.wallet) + '</span> <span style="color:rgba(255,255,255,.4); font-size:11px">· ' + esc(w.context) + '</span></div>'
           + '<div style="display:flex; justify-content:flex-end"><div style="' + scoreStyle + '">' + w.score + '</div></div>'
           + '<div style="text-align:right; color:rgba(255,255,255,.6)">' + w.prints + '</div>'

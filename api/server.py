@@ -41,7 +41,8 @@ Endpoints (alle read-only ausser POST /api/backtest, das nur simuliert):
     GET  /api/markets?query=&category=&limit=250
     GET  /api/tape?limit=250&min_cash=0
     GET  /api/leaderboard?limit=100&period=ALL&order_by=PNL
-    GET  /api/wallet/{wallet}
+    GET  /api/wallet/{wallet}      (0x + 40 hex; the whole wallet page, ~6 upstream calls,
+                                    300 s cache, same per-IP limiter as /api/risk)
     GET  /api/cross?query=&min_similarity=0.5&max_pairs=50   (gate: sim >= 0.5, volume on both venues)
     GET  /api/risk
     GET  /api/risk/log?limit=100&enrich=1   (Flag-Log; enrich=1 haengt an die neuesten 30
@@ -61,6 +62,7 @@ import dataclasses
 import json
 import math
 import os
+import re
 import sys
 import threading
 import time
@@ -425,11 +427,48 @@ def leaderboard(
     }
 
 
-@app.get("/api/wallet/{wallet}")
-def wallet_detail(wallet: str) -> dict[str, Any]:
-    wallet = wallet.strip()
-    if not wallet.startswith("0x") or len(wallet) < 20:
-        raise HTTPException(status_code=400, detail="expected a Polymarket wallet address")
+#: A Polymarket proxy wallet: 0x + 40 hex characters. Anything else is a 400,
+#: not a fetch that comes back empty and reads as "this wallet did nothing".
+WALLET_ADDRESS = re.compile(r"^0x[0-9a-fA-F]{40}$")
+WALLET_ACTIVITY_PAGE = 500
+WALLET_POSITIONS_LIMIT = 250
+WALLET_CACHE_TTL = 300.0
+
+
+def fetch_wallet_activity(wallet: str, page: int = WALLET_ACTIVITY_PAGE,
+                          max_rows: int = apv.WALLET_ACTIVITY_MAX_ROWS) -> tuple[pd.DataFrame, bool]:
+    """Walk /activity in pages until a short page or ``max_rows``; (frame, truncated)."""
+
+    frames: list[pd.DataFrame] = []
+    offset = 0
+    truncated = False
+    while True:
+        chunk = md.get_polymarket_activity(wallet, limit=page, offset=offset)
+        if chunk is None or chunk.empty:
+            break
+        frames.append(chunk)
+        if len(chunk) < page:
+            break
+        offset += page
+        if offset >= max_rows:
+            truncated = True
+            break
+    if not frames:
+        return pd.DataFrame(), False
+    out = pd.concat(frames, ignore_index=True, sort=False)
+    if "time" in out.columns:
+        out = out.sort_values("time", ascending=False).reset_index(drop=True)
+    return out, truncated
+
+
+def build_wallet_detail(wallet: str) -> dict[str, Any]:
+    """The whole wallet page from the public Data API: about six upstream calls.
+
+    closed-positions (both tails), positions, the profile PnL curve and the
+    activity pages; the leaderboard/ranked frame and the whale tape come from
+    their own caches. Every part fails on its own — a missing curve leaves the
+    curve empty, it does not take the track record with it.
+    """
 
     def _smart_row(w: str):
         ranked = load_ranked()
@@ -448,23 +487,72 @@ def wallet_detail(wallet: str) -> dict[str, Any]:
         match = scores[scores["wallet"].astype(str).str.lower() == w.lower()]
         return match.iloc[0].to_dict() if not match.empty else None
 
-    card = sc.wallet_scorecard(wallet, fetchers={"smart_row": _smart_row, "risk_row": _risk_row})
+    resolved = pd.DataFrame()
+    capped = False
+    resolved_error: str | None = None
+    try:
+        resolved, capped = md.get_polymarket_resolved_positions(wallet)
+        if resolved is None:
+            resolved = pd.DataFrame()
+    except Exception as exc:
+        resolved_error = str(exc)
+        print(f"[warn] resolved positions {wallet}: {exc}")
+
+    activity = pd.DataFrame()
+    truncated = False
+    try:
+        activity, truncated = fetch_wallet_activity(wallet)
+    except Exception as exc:
+        print(f"[warn] activity {wallet}: {exc}")
+
+    def _resolved(_w: str):
+        if resolved_error:
+            raise RuntimeError(resolved_error)
+        return resolved, capped
+
+    # One resolved fetch feeds the scorecard and the page blocks, so the two
+    # cannot disagree about the data state. refresh=True: the scorecard keeps
+    # its own 15-minute cache, this endpoint has its own 300 s one.
+    card = sc.wallet_scorecard(
+        wallet,
+        fetchers={"resolved": _resolved, "activity": lambda _w: activity, "smart_row": _smart_row, "risk_row": _risk_row},
+        refresh=True,
+    )
     positions = pd.DataFrame()
     pnl = pd.DataFrame()
-    activity = pd.DataFrame()
     try:
-        positions = cached(f"pos_{wallet.lower()}", md.get_polymarket_positions, wallet, 25, ttl=120.0)
+        positions = md.get_polymarket_positions(wallet, WALLET_POSITIONS_LIMIT)
     except Exception as exc:
         print(f"[warn] positions {wallet}: {exc}")
     try:
-        pnl = cached(f"pnl_{wallet.lower()}", md.get_polymarket_user_pnl, wallet, "1mo", ttl=300.0)
+        pnl = md.get_polymarket_user_pnl(wallet, "All")
     except Exception as exc:
         print(f"[warn] user pnl {wallet}: {exc}")
+
+    pseudonym = ""
     try:
-        activity = cached(f"act_{wallet.lower()}", md.get_polymarket_activity, wallet, 25, ttl=120.0)
+        lb = load_leaderboard(limit=100)
+        if lb is not None and not lb.empty and "wallet" in lb:
+            match = lb[lb["wallet"].astype(str).str.lower() == wallet.lower()]
+            if not match.empty:
+                pseudonym = str(match.iloc[0].get("trader") or "")
     except Exception as exc:
-        print(f"[warn] activity {wallet}: {exc}")
-    return apv.wallet_detail(card, positions, pnl, activity)
+        print(f"[warn] leaderboard pseudonym {wallet}: {exc}")
+
+    return apv.wallet_detail(
+        card, positions, pnl, activity,
+        resolved=resolved, resolved_capped=capped, activity_truncated=truncated,
+        classify=TAPE_CLASSIFIER, pseudonym=pseudonym, as_of=md.now_utc_label(),
+        pnl_window="All", positions_requested=WALLET_POSITIONS_LIMIT,
+    )
+
+
+@app.get("/api/wallet/{wallet}", dependencies=[Depends(expensive_route_limit)])
+def wallet_detail(wallet: str) -> dict[str, Any]:
+    wallet = wallet.strip()
+    if not WALLET_ADDRESS.match(wallet):
+        raise HTTPException(status_code=400, detail="expected a Polymarket wallet address (0x + 40 hex characters)")
+    return cached(f"wallet_page_{wallet.lower()}", build_wallet_detail, wallet.lower(), ttl=WALLET_CACHE_TTL)
 
 
 #: Was /api/cross als "gate" mitmeldet, damit das Frontend den leeren Fall

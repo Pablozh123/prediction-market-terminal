@@ -8,6 +8,7 @@ import { renderOverview, renderMarkets, renderFlow, renderCross, renderResolved 
 import { renderTraders, renderWhale, renderRisk, renderTrack } from './pages/trader_pages.js';
 import { renderBacktester, renderCopy, renderPortfolio } from './pages/trading_pages.js';
 import { renderAlerts, renderResearch, renderSettings } from './pages/system_pages.js';
+import { renderWallet, isFullAddress } from './pages/wallet_page.js';
 import { renderDetail, renderSearch } from './overlays.js';
 
 // Every route stays reachable by hash. The sidebar lists a subset (see
@@ -18,6 +19,7 @@ const PAGES = {
   overview: renderOverview, markets: renderMarkets, flow: renderFlow,
   cross: renderCross, resolved: renderResolved,
   traders: renderTraders, whale: renderWhale, risk: renderRisk, track: renderTrack,
+  wallet: renderWallet,
   backtester: renderBacktester, copy: renderCopy, portfolio: renderPortfolio,
   alerts: renderAlerts, research: renderResearch, settings: renderSettings
 };
@@ -110,6 +112,10 @@ class Terminal {
       sizingSimOpen: false,
       researchTab: 0,
       liveTab: 'runs',
+      // Wallet page: the address being analysed (from #wallet/<addr> or the
+      // input), the raw input, the addresses analysed this session (not
+      // persisted), and the sort of the open-positions table.
+      walletAddr: '', walletInput: '', walletRecent: [], walletPosSort: 'value',
       alertsOn: { movers: true, volume: true, whales: true, spreads: false, holders: false, endings: true },
       settingsOn: { telegram: true, autotop: false, kalshi: true, sports: false, cache: true, admin: true },
       clock: this.utcClock(),
@@ -155,11 +161,24 @@ class Terminal {
         this._pendingAnchor = segmente[2] && !this.tabAusAdresse(segmente) ? segmente.join('/') : null;
       }
     }
+    // Deep link #wallet/<address>: the page opens on that wallet and fetches
+    // it on mount (fetchPageData). A malformed address opens the empty page
+    // with the text in the input, so the reader sees what did not parse.
+    if (segmente[0] === 'wallet' && segmente[1]) {
+      const kandidat = decodeURIComponent(segmente[1]).trim();
+      this.state.walletInput = kandidat;
+      if (isFullAddress(kandidat)) {
+        this.state.walletAddr = kandidat.toLowerCase();
+        this.state.walletRecent = [kandidat.toLowerCase()];
+      }
+    }
     // Per-endpoint live payloads; templates use these when present and show
     // an empty state naming the source otherwise.
     // riskLog: the flag log of the risk screen (/api/risk/log), fetched only
     // when its tab is opened — null until then.
-    this.liveData = { leaderboard: null, cross: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {} };
+    // wallet: one entry per analysed address — { herkunft: 'loading' | 'live'
+    // | 'fehler', data, fehler, status, retryAfter }.
+    this.liveData = { leaderboard: null, cross: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {} };
 
     this._acts = [];
     this._inps = [];
@@ -201,6 +220,8 @@ class Terminal {
       if (slug !== 'live-runs') return null;
       return 'research/live-runs' + (s.liveTab !== LIVE_RUNS_TABS.standard && LIVE_RUNS_TABS.werte.indexOf(s.liveTab) >= 0 ? '/' + s.liveTab : '');
     }
+    // The wallet page keeps its address in the hash so the link stays a deep link.
+    if (s.page === 'wallet') return 'wallet' + (s.walletAddr ? '/' + s.walletAddr : '');
     const t = SUB_TABS[s.page];
     return s.page + (t && s[t.key] !== t.standard && t.werte.indexOf(s[t.key]) >= 0 ? '/' + s[t.key] : '');
   }
@@ -296,12 +317,58 @@ class Terminal {
     } catch (err) { /* Detail zeigt den Leerzustand ohne Kurve */ }
   }
   // A wallet drawer for a leaderboard name or, from Whale flow and the risk
-  // screen, for a wallet the leaderboard does not list: the address (when
-  // known) lets /api/wallet be asked; the drawer otherwise shows the prints
-  // of that wallet in the tape window and says what it cannot show.
-  openWallet(name, address) {
-    this.setState({ detail: { kind: 'wallet', id: name, address: address || '' }, searchOpen: false });
-    this.fetchWalletDetail(name, address);
+  // screen, for a wallet the leaderboard does not list. ``addr`` is optional:
+  // the leaderboard rows resolve it from their name, whale/risk rows pass it
+  // in so a wallet outside the leaderboard still gets its detail (/api/wallet
+  // can be asked) and its "Full analysis" link; without an address the drawer
+  // shows the prints of that wallet in the tape window and says what it
+  // cannot show.
+  openWallet(name, addr) {
+    const full = addr && isFullAddress(addr) ? String(addr).trim().toLowerCase() : '';
+    this.setState({ detail: { kind: 'wallet', id: name, addr: full }, searchOpen: false });
+    this.fetchWalletDetail(name, full);
+  }
+
+  // The wallet page for one address: sets the route, remembers the address
+  // for this session and fetches unless an answer is already there. Not
+  // gated on the poll state — the API answers or the page says it did not.
+  analyseWallet(addr) {
+    const full = String(addr || '').trim();
+    if (!isFullAddress(full)) {
+      this.setState({ page: 'wallet', walletInput: full, detail: null, searchOpen: false, searchQuery: '' });
+      this.adresseSetzen('wallet');
+      return;
+    }
+    const key = full.toLowerCase();
+    const recent = [key].concat((this.state.walletRecent || []).filter((a) => a !== key)).slice(0, 8);
+    this.setState({ page: 'wallet', walletAddr: key, walletInput: full, walletRecent: recent, detail: null, searchOpen: false, searchQuery: '' });
+    // The address is the deep link (#wallet/<addr>); adresseSetzen adds no
+    // second history entry when the page already sits on it.
+    this.adresseSetzen('wallet/' + key);
+    this.fetchWallet(key, false);
+  }
+
+  async fetchWallet(addr, force) {
+    const key = String(addr || '').toLowerCase();
+    if (!isFullAddress(key)) return;
+    const vorhanden = this.liveData.wallet[key];
+    if (vorhanden && !force && vorhanden.herkunft !== 'fehler') return;
+    this.liveData.wallet[key] = { herkunft: 'loading' };
+    this.render();
+    try {
+      const antwort = await apiGet('/api/wallet/' + key);
+      this.liveData.wallet[key] = antwort && typeof antwort === 'object'
+        ? { herkunft: 'live', data: antwort }
+        : { herkunft: 'live', data: null };
+    } catch (err) {
+      this.liveData.wallet[key] = {
+        herkunft: 'fehler',
+        fehler: String(err && err.message ? err.message : err),
+        status: err && err.status ? err.status : null,
+        retryAfter: err && err.retryAfter ? err.retryAfter : null
+      };
+    }
+    this.render();
   }
 
   // Per-market extras from the API row (spread, age, days to resolution).
@@ -419,6 +486,8 @@ class Terminal {
 
   go(id) {
     this.setState({ page: id, detail: null });
+    // adresseSoll() carries the sub-tab (#risk/log) or, on the wallet page,
+    // the analysed address (#wallet/<addr>), so the link stays a deep link.
     this.adresseSetzen(this.adresseSoll() || id);
     this.fetchPageData(id);
   }
@@ -453,6 +522,7 @@ class Terminal {
         this.navItem('whale', 'Whale flow'),
         this.navItem('cross', 'Cross-venue'),
         this.navItem('traders', 'Leaderboard'),
+        this.navItem('wallet', 'Wallet'),
         this.navItem('risk', 'Risk screen', hoheRisiken ? String(hoheRisiken) : '', 'amber'),
         this.navItem('alerts', 'Alerts'),
         this.navItem('backtester', 'Backtester')
@@ -681,6 +751,8 @@ class Terminal {
       await this.holen('resolved', '/api/resolved');
     } else if (page === 'track') {
       await this.holen('track', '/api/track');
+    } else if (page === 'wallet') {
+      if (this.state.walletAddr) await this.fetchWallet(this.state.walletAddr, false);
     } else if (page === 'research') {
       const key = this.studies[this.state.researchTab].tab;
       if (!this.liveData.research[key]) {
@@ -718,14 +790,20 @@ class Terminal {
     }));
   }
 
-  async fetchWalletDetail(name, address) {
-    if (this.state.live !== 'live') return;
+  // Detail for the drawer. No gate on the poll state any more: the earlier
+  // `live !== 'live'` guard meant that on the static host the drawer never
+  // asked at all. The address comes from the caller (whale/risk rows), the
+  // leaderboard row of that name, or a tape print of that wallet — whichever
+  // is known. Reuses a page answer for the same address when there is one.
+  async fetchWalletDetail(name, addr) {
     const t = this.traders.find((x) => x.name === name);
     const tapeRow = this.tape.find((x) => x.wallet === name && x.walletAddress);
-    const addr = (t && t.walletFull) || address || (tapeRow && tapeRow.walletAddress);
-    if (!addr || this.liveData.walletDetail[name]) return;
+    const full = String(addr || (t && t.walletFull) || (tapeRow && tapeRow.walletAddress) || '').toLowerCase();
+    if (!isFullAddress(full) || this.liveData.walletDetail[name]) return;
+    const seite = this.liveData.wallet[full];
+    if (seite && seite.herkunft === 'live' && seite.data) { this.liveData.walletDetail[name] = seite.data; this.render(); return; }
     try {
-      const wd = await apiGet('/api/wallet/' + addr);
+      const wd = await apiGet('/api/wallet/' + full);
       if (wd) { this.liveData.walletDetail[name] = wd; this.render(); }
     } catch (err) { /* detail stays on list data */ }
   }
@@ -891,9 +969,18 @@ class Terminal {
     document.addEventListener('keydown', (e) => {
       const aktiv = document.activeElement;
       const tippt = !!(aktiv && /INPUT|TEXTAREA/.test(aktiv.tagName));
+      const feld = e.target && e.target.dataset ? e.target.dataset.key : '';
       if (e.key === 'Escape') {
         // Nothing open, nothing to do — no re-render for a stray Escape.
         if (this.state.searchOpen || this.state.detail) this.setState({ searchOpen: false, detail: null });
+      } else if (e.key === 'Enter' && feld === 'walletInput') {
+        // Enter in the wallet input = the Analyse button.
+        e.preventDefault();
+        this.analyseWallet(e.target.value);
+      } else if (e.key === 'Enter' && feld === 'searchQuery' && isFullAddress(e.target.value)) {
+        // Enter on a pasted address in the palette opens the wallet page.
+        e.preventDefault();
+        this.analyseWallet(e.target.value);
       } else if (e.key === '/' && !this.state.searchOpen && !tippt) {
         e.preventDefault();
         this.setState({ searchOpen: true });
@@ -913,6 +1000,20 @@ class Terminal {
         this._pendingAnchor = segmente[2] && !this.tabAusAdresse(segmente) ? segmente.join('/') : null;
         this.setState({ page: 'research', researchTab: i >= 0 ? i : this.state.researchTab, detail: null });
         this.fetchPageData('research');
+      } else if (segmente[0] === 'wallet') {
+        // #wallet/<addr> from back/forward or a pasted link: analyse that
+        // address; a bare #wallet just shows the page as it is.
+        const kandidat = segmente[1] ? decodeURIComponent(segmente[1]).trim() : '';
+        if (kandidat && isFullAddress(kandidat)) {
+          if (kandidat.toLowerCase() !== this.state.walletAddr || this.state.page !== 'wallet') {
+            const key = kandidat.toLowerCase();
+            const recent = [key].concat((this.state.walletRecent || []).filter((a) => a !== key)).slice(0, 8);
+            this.setState({ page: 'wallet', walletAddr: key, walletInput: kandidat, walletRecent: recent, detail: null });
+            this.fetchWallet(key, false);
+          }
+        } else if (this.state.page !== 'wallet') {
+          this.setState({ page: 'wallet', detail: null });
+        }
       } else if (segmente[0] in PAGES) {
         // Same page, other tab (#risk → #risk/log) counts as navigation too.
         const vorher = this.state.page + '/' + (SUB_TABS[segmente[0]] ? this.state[SUB_TABS[segmente[0]].key] : '');
