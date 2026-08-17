@@ -138,7 +138,9 @@ Most pages accept URL query filters, e.g. `/markets?q=bitcoin&platform=polymarke
 
 ## Paper copy-trading
 
-The Copy Trade page follows a target wallet (default Swisstony, `0x204f72f35326db932158cba6adff0b9a1da95e14`) with local SQLite persistence (`data/copy_trading.sqlite`), paper-only accounting, baseline seeding, settlement recycling, CSV exports, and URL filters such as `/copy-trade?status=copied,baseline`.
+The copy desk follows **several Polymarket wallets at once**, one paper sub-account each (same start cash, same sizing settings — the sub-accounts are the comparison), with local SQLite persistence (`data/copy_trading.sqlite`), paper-only accounting, per-wallet baseline seeding, settlement recycling, per-trader equity curves, CSV exports (Streamlit), and URL filters such as `/copy-trade?status=copied,baseline`.
+
+Two front ends drive the same books: the Streamlit Copy Trade page, and the **Copy trade page of the control room** (`api/server.py` → `#copy`), which on this machine is a small admin desk: paste a wallet (address, profile URL or leaderboard handle), give it a label, start cash and a note, follow it — the wallet's open positions are mirrored and its recent trades recorded as observed, so only what it does from then on is copied. Traders can be paused (books kept) and resumed (baseline re-seeded), topped up, relabelled; the sizing settings are edited in place; one sync pass can be run from the page. Writes are accepted from loopback only, or with `COPY_ADMIN_TOKEN` (`X-Admin-Token`); the public host stays read-only. `scripts\start_paper_desk.ps1` starts API and daemon together and opens the desk; the daemon alone is `scripts/run_copy_trader.py`.
 
 Accounting is contribution-aware: every cash injection (start cash, manual or auto top-up) is tracked separately from trading PnL, the equity chart draws equity against the contributions step line, and auto top-up is **off by default** — when a sub-account runs out of cash, buys skip visibly until settlements recycle funds.
 
@@ -159,7 +161,9 @@ at once.
 |---|---|
 | `prediction_terminal.py` | Streamlit app (all workspaces + UI) |
 | `src/prediction_markets.py` | Public API clients and analytics helpers |
-| `src/copy_trading.py` | SQLite-backed paper copy-trading engine |
+| `src/copy_trading.py` | SQLite-backed paper copy-trading engine (one sub-account per followed wallet) |
+| `app/copy_admin.py` | The copy desk behind the web page: write gate, follow/pause with baseline seeding, settings, one-shot sync, daemon status |
+| `web/js/pages/copy_page.js` | Copy trade page of the control room (traders, follow form, settings, sync) |
 | `app/backtester.py` | Streamlit-free backtest engine |
 | `app/suspicion.py` | Insider-risk scoring, clusters, co-trading network |
 | `app/signals.py` | Monitor signal/rule logic (shared with the scanner) |

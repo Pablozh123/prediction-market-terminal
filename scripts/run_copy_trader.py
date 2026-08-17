@@ -1,8 +1,9 @@
 """Continuously sync paper-copy trades for every active trader.
 
 This runner is paper-only. It never places real Polymarket orders. It copies
-every wallet marked active in the ``traders`` table, each into its own
-sub-account; with no followed traders it falls back to the legacy Swisstony
+every wallet marked active in the ``traders`` table (the list the Copy trade
+page edits), each into its own sub-account; with every trader paused it idles.
+Only a database with no trader rows at all falls back to the legacy Swisstony
 wallet.
 """
 
@@ -24,21 +25,42 @@ if str(ROOT) not in sys.path:
 from src import copy_trading as ct
 
 
-def write_status(path: Path, payload: dict[str, Any]) -> None:
+def write_status(path: Path, payload: dict[str, Any], attempts: int = 8) -> None:
+    """Atomic status write, best effort.
+
+    On Windows ``os.replace`` fails with "access denied" while another process
+    (the API answering /api/copy) has the file open for reading — a race
+    that killed the daemon once, in the very second the page was refreshed.
+    Retry briefly; a status write that still fails is dropped, never fatal:
+    the books are in SQLite, the status file is only the pulse.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
-    tmp.replace(path)
+    for attempt in range(max(1, attempts)):
+        try:
+            tmp.replace(path)
+            return
+        except PermissionError:
+            time.sleep(0.05 * (attempt + 1))
+        except OSError:
+            break
+    try:
+        # Last resort: overwrite in place (not atomic, but a reader that
+        # catches a half-written file simply retries next time).
+        path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    except OSError:
+        pass
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run the local Swisstony paper-copy sync loop.")
+    parser = argparse.ArgumentParser(description="Run the local paper-copy sync loop over every active trader.")
     parser.add_argument("--interval", type=float, default=1.0, help="Fast on-chain polling interval in seconds.")
     parser.add_argument("--api-interval", type=float, default=30.0, help="Public Data API fallback interval in seconds.")
     # 90s: cash recycling is the copy's scarce resource — the source wallet
     # redeploys settlement proceeds within minutes, so we re-sync at least as fast.
     parser.add_argument("--settlement-interval", type=float, default=90.0, help="Settlement/redeem recycling sync interval in seconds.")
-    parser.add_argument("--limit", type=int, default=500, help="Recent Swisstony trades to inspect per API fallback poll.")
+    parser.add_argument("--limit", type=int, default=500, help="Recent source trades to inspect per trader and API fallback poll.")
     parser.add_argument("--rpc-url", default=ct.POLYGON_RPC_URL, help="Polygon JSON-RPC endpoint for the fast on-chain path.")
     parser.add_argument("--lookback-blocks", type=int, default=1200, help="Blocks to scan on first fast start.")
     parser.add_argument("--max-block-span", type=int, default=2000, help="Maximum blocks to scan in one fast pass.")
@@ -290,6 +312,8 @@ def main() -> int:
             snapshot = ct.value_paper_portfolio(db_path=db_path)
             try:
                 ct.record_equity_snapshot(db_path=db_path, snapshot=snapshot, min_interval_seconds=60.0)
+                # One curve per trader — the comparison the multi-trader test is about.
+                ct.record_trader_equity_snapshots(db_path=db_path, min_interval_seconds=60.0)
             except Exception:
                 pass  # history is best-effort; never stall the copy loop for it
             dynamic_sizing = ct.get_dynamic_sizing_snapshot(db_path=db_path)

@@ -17,7 +17,10 @@ if (Test-Path $StopFile) {
     Remove-Item -LiteralPath $StopFile -Force
 }
 
-$python = (Get-Command python).Source
+# The venv interpreter carries the dependencies; the bare "python" on a fresh
+# Windows install is the Store stub and the daemon would never start.
+$Venv = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
+if (Test-Path $Venv) { $python = $Venv } else { $python = (Get-Command python).Source }
 $args = @(
     "-u",
     $Runner,

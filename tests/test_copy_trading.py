@@ -1729,5 +1729,218 @@ class ResolvedOutcomeLabelTests(unittest.TestCase):
         self.assertTrue(ct.label_trade_outcomes(pd.DataFrame(), pd.DataFrame()).empty)
 
 
+WALLET_B = "0x" + "b" * 40
+
+
+def _trades_frame(*rows: dict) -> pd.DataFrame:
+    return pd.DataFrame(list(rows))
+
+
+class PerWalletBaselineTests(unittest.TestCase):
+    """Every followed wallet gets its own baseline cutoff.
+
+    Before, one global ``tony_seeded_at``/``baseline_cutoff_ts`` served every
+    trader: a wallet followed a day after the first one was treated as seeded
+    and its recent history — everything after the *first* wallet's cutoff —
+    was copied at stale prices on the first pass.
+    """
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.db_path = Path(self.tmp.name) / "copy.sqlite"
+        self.settings = ct.CopySettings(trade_limit=20)
+        ct.reset_paper_portfolio(db_path=self.db_path)
+        conn = ct.connect(self.db_path)
+        try:
+            # The primary wallet was seeded the old way, with the global keys only.
+            ct._set_meta(conn, "tony_seeded_at", ct.utc_now())
+            ct._set_meta(conn, "baseline_cutoff_ts", "1779900000")
+            conn.commit()
+        finally:
+            conn.close()
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def test_global_keys_count_for_the_primary_wallet_only(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            self.assertTrue(ct.is_wallet_seeded(conn, ct.COPY_TARGET_WALLET))
+            self.assertEqual(ct.wallet_baseline_cutoff(conn, ct.COPY_TARGET_WALLET), 1779900000)
+            self.assertFalse(ct.is_wallet_seeded(conn, WALLET_B))
+            self.assertEqual(ct.wallet_baseline_cutoff(conn, WALLET_B), 0)
+            self.assertIsNone(ct.wallet_seeded_at(conn, WALLET_B))
+        finally:
+            conn.close()
+
+    def test_second_wallet_is_seeded_on_its_own_and_copies_only_afterwards(self) -> None:
+        ct.follow_trader(WALLET_B, label="Second", db_path=self.db_path)
+        history = _trades_frame(
+            source_trade(tx="0xold1", asset="asset-b1", timestamp=1779900500),
+            source_trade(tx="0xold2", asset="asset-b2", timestamp=1779900600),
+        )
+        positions = pd.DataFrame([{"asset": "asset-b1", "size": 100.0, "market_key": "m-b", "title": "B", "outcome": "Yes", "avg_price": 0.5, "current_price": 0.6}])
+        with patch("src.copy_trading.fetch_source_trades", return_value=history), \
+                patch("src.copy_trading.md.get_polymarket_positions", return_value=positions), \
+                patch("src.copy_trading.refresh_tony_wallet_stats", return_value=None):
+            first = ct.sync_copy_trades(WALLET_B, settings=ct.CopySettings(trade_limit=20, target_wallet=WALLET_B), db_path=self.db_path)
+        self.assertTrue(first.seeded)
+        self.assertEqual(first.copied, 0)
+
+        conn = ct.connect(self.db_path)
+        try:
+            self.assertTrue(ct.is_wallet_seeded(conn, WALLET_B))
+            self.assertEqual(ct.wallet_baseline_cutoff(conn, WALLET_B), 1779900600)
+            # The primary wallet's cutoff is untouched by the second seed.
+            self.assertEqual(ct.wallet_baseline_cutoff(conn, ct.COPY_TARGET_WALLET), 1779900000)
+            statuses = {
+                str(r["source_tx"]): str(r["status"])
+                for r in conn.execute("SELECT source_tx, status FROM paper_orders WHERE source_wallet = ?", (WALLET_B,)).fetchall()
+            }
+            mirrored = conn.execute("SELECT shares FROM source_positions WHERE wallet = ? AND asset = 'asset-b1'", (WALLET_B,)).fetchone()
+        finally:
+            conn.close()
+        self.assertEqual(statuses, {"0xold1": "seed_observed", "0xold2": "seed_observed"})
+        self.assertAlmostEqual(float(mirrored["shares"]), 100.0)
+
+        # Next pass: one trade before the wallet's own cutoff (observed), one after (copied).
+        later = _trades_frame(
+            source_trade(tx="0xold3", asset="asset-b3", timestamp=1779900550),
+            source_trade(tx="0xnew1", asset="asset-b4", timestamp=1779900700),
+        )
+        with patch("src.copy_trading.fetch_source_trades", return_value=later), \
+                patch("src.copy_trading.refresh_tony_wallet_stats", return_value=None):
+            second = ct.sync_copy_trades(WALLET_B, settings=ct.CopySettings(trade_limit=20, target_wallet=WALLET_B), db_path=self.db_path)
+        self.assertFalse(second.seeded)
+        self.assertEqual(second.copied, 1)
+        self.assertEqual(second.skipped, 1)
+
+    def test_seed_trader_baseline_is_the_follow_hook(self) -> None:
+        ct.follow_trader(WALLET_B, db_path=self.db_path)
+        with patch("src.copy_trading.fetch_source_trades", return_value=_trades_frame(source_trade(tx="0xh", timestamp=1780000000))), \
+                patch("src.copy_trading.md.get_polymarket_positions", return_value=pd.DataFrame()):
+            result = ct.seed_trader_baseline(WALLET_B, db_path=self.db_path)
+        self.assertTrue(result.seeded)
+        conn = ct.connect(self.db_path)
+        try:
+            self.assertEqual(ct.wallet_baseline_cutoff(conn, WALLET_B), 1780000000)
+            self.assertIsNotNone(ct.wallet_seeded_at(conn, WALLET_B))
+        finally:
+            conn.close()
+
+    def test_first_seed_ever_also_writes_the_legacy_keys(self) -> None:
+        fresh = Path(self.tmp.name) / "fresh.sqlite"
+        conn = ct.connect(fresh)
+        try:
+            ct.seed_wallet_baseline(conn, WALLET_B, trades=_trades_frame(source_trade(tx="0xh", timestamp=1780000000)), positions=pd.DataFrame())
+            conn.commit()
+            self.assertEqual(ct._get_meta(conn, "target_wallet"), WALLET_B)
+            self.assertIsNotNone(ct._get_meta(conn, "tony_seeded_at"))
+            self.assertEqual(ct._get_meta(conn, "baseline_cutoff_ts"), "1780000000")
+        finally:
+            conn.close()
+
+    def test_ws_trades_for_an_unseeded_second_wallet_wait_for_its_seed(self) -> None:
+        ct.follow_trader(WALLET_B, db_path=self.db_path)
+        trade = ct.decode_rtds_trade(rtds_message(wallet=WALLET_B, tx="0xwsb", timestamp=1779900900), [WALLET_B])
+        results = ct.apply_ws_trades([trade], settings=self.settings, db_path=self.db_path)
+        self.assertEqual(results[WALLET_B].skipped, 1)
+        self.assertEqual(results[WALLET_B].copied, 0)
+        conn = ct.connect(self.db_path)
+        try:
+            ct.seed_wallet_baseline(conn, WALLET_B, trades=pd.DataFrame(), positions=pd.DataFrame())
+            conn.commit()
+        finally:
+            conn.close()
+        results = ct.apply_ws_trades([trade], settings=self.settings, db_path=self.db_path)
+        self.assertEqual(results[WALLET_B].copied, 1)
+
+    def test_paused_wallets_are_not_copied_from_the_firehose(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            ct.update_trader(ct.COPY_TARGET_WALLET, active=False, conn=conn)
+        finally:
+            conn.close()
+        trade = ct.decode_rtds_trade(rtds_message(), [ct.COPY_TARGET_WALLET])
+        results = ct.apply_ws_trades([trade], settings=self.settings, db_path=self.db_path)
+        self.assertEqual(results, {})
+
+    def test_onchain_cursor_is_kept_per_wallet(self) -> None:
+        # Two wallets, one pass each: the second must scan the same block
+        # window instead of starting behind the first wallet's cursor.
+        ct.follow_trader(WALLET_B, db_path=self.db_path)
+        conn = ct.connect(self.db_path)
+        try:
+            ct.seed_wallet_baseline(conn, WALLET_B, trades=pd.DataFrame(), positions=pd.DataFrame())
+            conn.commit()
+        finally:
+            conn.close()
+        windows: list[tuple[str, int, int]] = []
+
+        def fake_logs(rpc_url, wallet, from_block, to_block):
+            windows.append((wallet, from_block, to_block))
+            return []
+
+        with patch("src.copy_trading._rpc_call", return_value=hex(1000)), \
+                patch("src.copy_trading._fetch_order_filled_logs", side_effect=fake_logs), \
+                patch("src.copy_trading._block_timestamps", return_value={}), \
+                patch("src.copy_trading.refresh_tony_wallet_stats", return_value=None):
+            ct.sync_onchain_copy_trades(ct.COPY_TARGET_WALLET, settings=self.settings, db_path=self.db_path, lookback_blocks=100)
+            ct.sync_onchain_copy_trades(WALLET_B, settings=ct.CopySettings(target_wallet=WALLET_B), db_path=self.db_path, lookback_blocks=100)
+        self.assertEqual(windows, [(ct.COPY_TARGET_WALLET, 901, 1000), (WALLET_B, 901, 1000)])
+        conn = ct.connect(self.db_path)
+        try:
+            self.assertEqual(ct._get_meta(conn, f"fast_last_block:{WALLET_B}"), "1000")
+            self.assertEqual(ct._get_meta(conn, "fast_last_block"), "1000")
+        finally:
+            conn.close()
+
+
+class TraderRowTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.db_path = Path(self.tmp.name) / "copy.sqlite"
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def test_all_paused_means_copy_nobody(self) -> None:
+        ct.follow_trader(WALLET_B, db_path=self.db_path)
+        ct.update_trader(ct.COPY_TARGET_WALLET, active=False, db_path=self.db_path)
+        ct.update_trader(WALLET_B, active=False, db_path=self.db_path)
+        self.assertEqual(ct.active_trader_wallets(db_path=self.db_path), [])
+        ct.update_trader(WALLET_B, active=True, db_path=self.db_path)
+        self.assertEqual(ct.active_trader_wallets(db_path=self.db_path), [WALLET_B])
+
+    def test_note_and_label_travel_with_the_row(self) -> None:
+        ct.follow_trader(WALLET_B, label="Geo desk", note="geopolitics, a few trades a week", db_path=self.db_path)
+        row = ct.get_traders(db_path=self.db_path).set_index("wallet").loc[WALLET_B]
+        self.assertEqual(row["label"], "Geo desk")
+        self.assertEqual(row["note"], "geopolitics, a few trades a week")
+        self.assertTrue(ct.update_trader(WALLET_B, note="paused for the summer", db_path=self.db_path))
+        row = ct.get_traders(db_path=self.db_path).set_index("wallet").loc[WALLET_B]
+        self.assertEqual(row["note"], "paused for the summer")
+        self.assertEqual(row["label"], "Geo desk")
+        self.assertFalse(ct.update_trader("0x" + "c" * 40, note="nobody", db_path=self.db_path))
+
+    def test_re_follow_keeps_the_note_unless_a_new_one_is_given(self) -> None:
+        ct.follow_trader(WALLET_B, note="first note", db_path=self.db_path)
+        ct.unfollow_trader(WALLET_B, db_path=self.db_path)
+        ct.follow_trader(WALLET_B, db_path=self.db_path)
+        self.assertEqual(ct.get_traders(db_path=self.db_path).set_index("wallet").loc[WALLET_B]["note"], "first note")
+
+    def test_trader_equity_snapshots_are_per_wallet(self) -> None:
+        ct.follow_trader(WALLET_B, start_cash=500.0, db_path=self.db_path)
+        written = ct.record_trader_equity_snapshots(db_path=self.db_path)
+        self.assertEqual(written, 2)
+        # Throttled: a second call inside the interval writes nothing.
+        self.assertEqual(ct.record_trader_equity_snapshots(db_path=self.db_path), 0)
+        curve = ct.get_trader_equity_snapshots(WALLET_B, db_path=self.db_path)
+        self.assertEqual(len(curve), 1)
+        self.assertAlmostEqual(float(curve.iloc[0]["equity"]), 500.0)
+        self.assertAlmostEqual(float(curve.iloc[0]["contributions"]), 500.0)
+        self.assertTrue(ct.get_trader_equity_snapshots("0x" + "c" * 40, db_path=self.db_path).empty)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -35,7 +35,12 @@ Umgebung (alles optional, Voreinstellung = lokale Entwicklung):
                                Minuten anstoesst und die Flags loggt, auch ohne Besucher
                                (0 = aus). Nutzt denselben 300-s-Cache wie /api/risk.
 
-Endpoints (alle read-only ausser POST /api/backtest, das nur simuliert):
+    COPY_ADMIN_TOKEN           Schreibzugriff auf den Paper-Copy-Desk (/api/copy/*): ohne
+                               Token nur von dieser Maschine (Loopback, kein Proxy-Header);
+                               mit Token nur mit Header X-Admin-Token, von ueberall.
+
+Endpoints (read-only ausser POST /api/backtest, das nur simuliert, und dem
+Paper-Copy-Desk unter /api/copy/*, der lokale Papierbuecher schreibt):
 
     GET  /healthz              (Alias von /api/health fuer Caddy und Compose)
     GET  /api/health
@@ -50,7 +55,13 @@ Endpoints (alle read-only ausser POST /api/backtest, das nur simuliert):
     GET  /api/risk/log?limit=100&enrich=1   (Flag-Log; enrich=1 haengt an die neuesten 30
                                              Polymarket-Flags den Preis +30 min/+2 h/+24 h)
     GET  /api/alerts
-    GET  /api/copy
+    GET  /api/copy                 (Buecher, Trader-Liste, Settings, Daemon-Puls, write_access)
+    POST /api/copy/traders         {wallet|handle|profile URL, label, start_cash, note}
+    POST /api/copy/traders/{w}     {active, label, note}   (Pause/Weiter, Umbenennen)
+    POST /api/copy/traders/{w}/topup {amount}
+    POST /api/copy/settings        (editierbare Untermenge von CopySettings)
+    POST /api/copy/sync            (ein API+Settlement-Durchlauf im Hintergrund)
+    GET  /api/copy/sync
     GET  /api/research/{name}
     POST /api/backtest
 
@@ -1018,16 +1029,66 @@ def alerts(
     }
 
 
-@app.get("/api/copy")
-def copy_state() -> dict[str, Any]:
+# --- Paper copy desk -----------------------------------------------------------
+# The Copy trade page reads /api/copy and, from this machine (or with
+# COPY_ADMIN_TOKEN), writes through the routes below: follow/pause traders,
+# settings, top-ups, one sync pass. app/copy_admin.py holds the behaviour;
+# these routes only map HTTP onto it. The daemon (scripts/run_copy_trader.py)
+# is still the thing that copies continuously; the desk configures it and can
+# run a single pass without it.
+COPY_DB_PATH = ROOT / "data" / "copy_trading.sqlite"
+COPY_SETTINGS_PATH = ROOT / "data" / "copy_settings.json"
+COPY_STATUS_PATH = ROOT / "data" / "copy_trader_status.json"
+
+
+def _copy_write_access(request: Request):
+    from app import copy_admin as ca
+
+    host = request.client.host if request.client else None
+    # A proxied request is never "local", whatever the socket peer says: with
+    # Caddy on the same box the peer is loopback for every visitor. Any
+    # forwarding header (the configured one or the plain X-Forwarded-For)
+    # marks the request as remote — and a forged "X-Forwarded-For: 127.0.0.1"
+    # must not talk its way in either, so the forwarded address is only named,
+    # never trusted as loopback.
+    forwarded = request.headers.get(RATE_LIMIT_IP_HEADER) or request.headers.get("X-Forwarded-For")
+    if forwarded:
+        host = "proxied:" + client_ip(forwarded, host)
+    return ca.write_access(host, request.headers.get(ca.ADMIN_TOKEN_HEADER), ca.configured_token())
+
+
+def copy_write_guard(request: Request) -> None:
+    """FastAPI dependency: 403 with the reason when this request may not write."""
+    access = _copy_write_access(request)
+    if not access.allowed:
+        raise HTTPException(status_code=403, detail=access.reason)
+
+
+def _copy_cache_drop() -> None:
+    with _CACHE_LOCK:
+        _CACHE.pop("copy_payload", None)
+
+
+def _copy_settings_for_engine():
     from src import copy_trading as ct
 
-    db_path = ROOT / "data" / "copy_trading.sqlite"
-    if not db_path.exists():
-        raise HTTPException(status_code=503, detail="copy trading database not found")
+    return ct.load_copy_settings(COPY_SETTINGS_PATH)
+
+
+@app.get("/api/copy")
+def copy_state(request: Request) -> dict[str, Any]:
+    from app import copy_admin as ca
+    from src import copy_trading as ct
+
+    # The public host has no books and nobody may write there: say so instead
+    # of conjuring an empty desk with a seed trader in it. Where writes are
+    # allowed (this machine), a missing database is a desk nobody has used yet
+    # and connect() lays down the schema so the follow form has somewhere to go.
+    if not COPY_DB_PATH.exists() and not _copy_write_access(request).allowed:
+        raise HTTPException(status_code=503, detail="no paper copy desk on this host — the books live where the copy daemon runs")
 
     def _build() -> dict[str, Any]:
-        conn = ct.connect(db_path)
+        conn = ct.connect(COPY_DB_PATH)
         try:
             orders = ct.get_paper_orders(conn=conn)
             positions = ct.get_positions(conn=conn)
@@ -1046,29 +1107,37 @@ def copy_state() -> dict[str, Any]:
                 sizing = ct.get_dynamic_sizing_snapshot(conn=conn)
             except Exception:
                 sizing = {}
+            desk = ca.desk_state(db_path=COPY_DB_PATH, settings_path=COPY_SETTINGS_PATH, status_path=COPY_STATUS_PATH)
         finally:
             conn.close()
-        payload = apv.copy_payload(
-            orders,
-            positions,
-            cash_events,
-            equity,
-            portfolio,
-            contributions,
-            ct.COPY_TARGET_WALLET,
-            ct.SWISSTONY_LABEL,
-            sizing,
-        )
-        try:
-            source_pnl = md.get_polymarket_user_pnl(ct.COPY_TARGET_WALLET, "1mo")
-            if source_pnl is not None and not source_pnl.empty and "pnl" in source_pnl:
-                curve = [float(v) for v in source_pnl["pnl"].tolist() if v == v]
-                if curve:
-                    payload["source_curve"] = curve
-                    # PnL-Kurve ohne Kapitalbasis: Delta in Dollar, kein Prozent.
-                    payload["kpis"]["source_pnl_delta"] = curve[-1] - curve[0]
-        except Exception as exc:
-            print(f"[warn] source pnl curve: {exc}")
+        active = [t for t in desk["traders"] if t["active"]]
+        # The status line names the active traders (or says none is), not a
+        # wallet fixed in the code.
+        if active:
+            source_label = ", ".join(t["label"] for t in active[:3]) + (f" +{len(active) - 3}" if len(active) > 3 else "")
+            source_wallet = active[0]["wallet"]
+        else:
+            source_label = "no active trader"
+            source_wallet = ""
+        payload = apv.copy_payload(orders, positions, cash_events, equity, portfolio, contributions, source_wallet, source_label, sizing)
+        payload["status"]["source"] = source_label
+        payload["status"]["running"] = desk["daemon"].get("running")
+        payload["status"]["auto_topup"] = bool(desk["settings"].get("auto_top_up_enabled"))
+        payload.update({k: desk[k] for k in ("traders", "active_count", "settings", "daemon", "totals")})
+        payload["sync"] = desk["sync"]
+        # The source PnL overlay follows the first active trader (one curve
+        # per wallet lives in each trader row's equity_curve for the paper side).
+        if source_wallet:
+            try:
+                source_pnl = md.get_polymarket_user_pnl(source_wallet, "1mo")
+                if source_pnl is not None and not source_pnl.empty and "pnl" in source_pnl:
+                    curve = [float(v) for v in source_pnl["pnl"].tolist() if v == v]
+                    if curve:
+                        payload["source_curve"] = curve
+                        # PnL-Kurve ohne Kapitalbasis: Delta in Dollar, kein Prozent.
+                        payload["kpis"]["source_pnl_delta"] = curve[-1] - curve[0]
+            except Exception as exc:
+                print(f"[warn] source pnl curve: {exc}")
         fidelity = apv.fidelity_block(orders, portfolio, sizing)
         if fidelity:
             payload["fidelity_detail"] = fidelity
@@ -1085,11 +1154,117 @@ def copy_state() -> dict[str, Any]:
         return payload
 
     try:
-        payload = cached("copy_payload", _build, ttl=30.0)
+        payload = dict(cached("copy_payload", _build, ttl=15.0))
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"copy state unavailable: {exc}")
+    # Per request, never cached: who is asking decides whether they may write,
+    # and the sync state changes underneath the cache.
+    payload["write_access"] = _copy_write_access(request).as_dict()
+    payload["sync"] = ca.sync_state()
     payload["as_of"] = md.now_utc_label()
     return payload
+
+
+@app.post("/api/copy/traders", dependencies=[Depends(copy_write_guard)])
+def copy_follow(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """Follow a wallet: open its sub-account and seed its baseline now."""
+    from app import copy_admin as ca
+    from src import copy_trading as ct
+
+    wallet = ca.resolve_wallet(body.get("wallet", ""), load_leaderboard)
+    if not wallet:
+        raise HTTPException(status_code=400, detail="no Polymarket wallet found in the input — paste the 0x… proxy address (or an exact handle from the leaderboard)")
+    try:
+        result = ca.follow(
+            wallet,
+            label=str(body.get("label", "") or ""),
+            start_cash=float(body.get("start_cash") or 0) or ct.PER_TRADER_START_CASH,
+            note=str(body.get("note", "") or ""),
+            db_path=COPY_DB_PATH,
+            settings=_copy_settings_for_engine(),
+            seed=bool(body.get("seed", True)),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    _copy_cache_drop()
+    return result
+
+
+@app.post("/api/copy/traders/{wallet}", dependencies=[Depends(copy_write_guard)])
+def copy_set_trader(wallet: str, body: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+    """Pause/resume or relabel one followed trader (``active``, ``label``, ``note``)."""
+    from app import copy_admin as ca
+
+    if not re.fullmatch(r"0x[a-fA-F0-9]{40}", wallet or ""):
+        raise HTTPException(status_code=400, detail="expected a 0x… wallet in the path")
+    active = body.get("active")
+    try:
+        result = ca.set_trader(
+            wallet,
+            active=None if active is None else bool(active),
+            label=None if body.get("label") is None else str(body.get("label")),
+            note=None if body.get("note") is None else str(body.get("note")),
+            db_path=COPY_DB_PATH,
+            settings=_copy_settings_for_engine(),
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc.args[0] if exc.args else exc))
+    _copy_cache_drop()
+    return result
+
+
+@app.post("/api/copy/traders/{wallet}/topup", dependencies=[Depends(copy_write_guard)])
+def copy_top_up(wallet: str, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    from app import copy_admin as ca
+
+    if not re.fullmatch(r"0x[a-fA-F0-9]{40}", wallet or ""):
+        raise HTTPException(status_code=400, detail="expected a 0x… wallet in the path")
+    try:
+        result = ca.top_up(wallet, float(body.get("amount") or 0), db_path=COPY_DB_PATH)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    _copy_cache_drop()
+    return result
+
+
+@app.post("/api/copy/settings", dependencies=[Depends(copy_write_guard)])
+def copy_settings(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """Change the sizing/cash settings the daemon reads on every pass."""
+    from app import copy_admin as ca
+
+    try:
+        updated = ca.update_settings(body, COPY_SETTINGS_PATH)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    _copy_cache_drop()
+    return {"settings": ca.settings_view(updated)}
+
+
+@app.post("/api/copy/sync", dependencies=[Depends(copy_write_guard)])
+def copy_sync() -> dict[str, Any]:
+    """Run one API + settlement pass over the active traders in the background."""
+    from app import copy_admin as ca
+
+    settings = _copy_settings_for_engine()
+
+    def _pass() -> dict[str, Any]:
+        try:
+            return ca.run_sync_pass(db_path=COPY_DB_PATH, settings=settings)
+        finally:
+            # The books changed underneath the cached read; the next
+            # /api/copy must rebuild instead of serving the pre-sync state.
+            _copy_cache_drop()
+
+    started = ca.start_sync(runner=_pass)
+    _copy_cache_drop()
+    return started
+
+
+@app.get("/api/copy/sync")
+def copy_sync_state() -> dict[str, Any]:
+    from app import copy_admin as ca
+
+    return ca.sync_state()
 
 
 @app.get("/api/research/{name}")

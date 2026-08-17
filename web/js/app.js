@@ -3,7 +3,7 @@
 
 import { num, money, esc, spark, seriesPoints } from './util.js';
 import { STUDIEN } from './studies.js';
-import { apiGet, apiPost } from './api.js';
+import { apiGet, apiGetRaw, apiPost } from './api.js';
 import { renderOverview, renderMarkets, renderFlow, renderCross, renderResolved } from './pages/core_pages.js';
 import { renderTraders, renderWhale, renderRisk, renderTrack } from './pages/trader_pages.js';
 import { renderBacktester, renderCopy, renderPortfolio } from './pages/trading_pages.js';
@@ -73,7 +73,17 @@ class Terminal {
       riskView: 'events',
       // Kein daemonOn mehr: der Schalter im Frontend behauptete RUNNING, ohne
       // dass etwas lief. Der Zustand kommt aus /api/copy oder gar nicht.
-      copyTab: 'orders', copyQuery: '', copySide: 'all', copyStatus2: 'all', copyMin: 'all',
+      copyTab: 'traders', copyQuery: '', copySide: 'all', copyStatus2: 'all', copyMin: 'all',
+      // Copy desk: trader filter for the order/position/cash/perf tabs, the
+      // follow form, inline edit/top-up rows, the pending settings edit
+      // (null = showing what is saved), the in-flight action, the last
+      // outcome line, and the admin token (kept in localStorage, sent as
+      // X-Admin-Token when the server asks for one).
+      copyTrader: 'all',
+      copyForm: { wallet: '', label: '', cash: '1000', note: '' },
+      copyEdit: null, copyTopup: null, copySettings: null,
+      copyBusy: '', copyMsg: null,
+      copyToken: (() => { try { return localStorage.getItem('copyAdminToken') || ''; } catch (e) { return ''; } })(),
       portTab: 'positions', portQuery: '', portSource: 'all', portSide: 'all', portLosers: false,
       tapeQuery: '', tapePlatform: 'all', tapeSide: 'all', tapeOutcome: 'all',
       // Whale flow: Sortierung der Wallet-Zeilen — 'total' | 'biggest' | 'prints'.
@@ -528,6 +538,17 @@ class Terminal {
         this.navItem('backtester', 'Backtester')
       ] }
     ];
+    // The paper desk is a local instrument: listed where the site runs next
+    // to its own api/server.py (or where this browser holds the admin
+    // token), reachable by hash (#copy, #portfolio) everywhere else.
+    if (this.paperDeskSichtbar()) {
+      const c = this.liveData.copy;
+      const aktiv = c && c.active_count != null ? String(c.active_count) : '';
+      groups.push({ label: 'PAPER DESK', items: [
+        this.navItem('copy', 'Copy trade', aktiv),
+        this.navItem('portfolio', 'Portfolio')
+      ] });
+    }
     const groupHtml = groups.map((g) =>
       '<div style="margin-bottom:14px">'
       + '<div style="font-family:\'JetBrains Mono\',monospace; font-size:10px; letter-spacing:.18em; padding:0 6px 6px; color:rgba(255,255,255,.35)">' + g.label + '</div>'
@@ -745,7 +766,7 @@ class Terminal {
       // einen Scan, den es nicht gegeben hat.
       await this.holen('alerts', this.alarmPfad());
     } else if (page === 'copy' || page === 'portfolio') {
-      await this.holen('copy', '/api/copy');
+      await this.holenCopy();
       if (page === 'portfolio') await this.holen('track', '/api/track');
     } else if (page === 'resolved') {
       await this.holen('resolved', '/api/resolved');
@@ -878,6 +899,161 @@ class Terminal {
   runBacktestLive() {
     if (this.liveData.backtest && !this.state.btDirty) this.setState({ btDirty: true });
     else this.render();
+  }
+
+  // ---- copy desk ----
+  // The desk is the one place the page writes. Every action posts, then
+  // re-reads /api/copy so the table shows the books as the server has them —
+  // never an optimistic row. The outcome (or the server's reason for a
+  // refusal) lands in copyMsg.
+  copyHeaders() {
+    const token = String(this.state.copyToken || '').trim();
+    return token ? { 'X-Admin-Token': token } : {};
+  }
+
+  // Whether this host runs the desk: a local origin, or an answer that says
+  // this browser may write. Decides if the sidebar lists it.
+  paperDeskSichtbar() {
+    const host = (location.hostname || '').toLowerCase();
+    if (host === 'localhost' || host === '127.0.0.1' || location.protocol === 'file:') return true;
+    const c = this.liveData.copy;
+    return !!(c && c.write_access && c.write_access.allowed);
+  }
+
+  // ``leise`` (quiet) keeps the current answer on screen until the new one
+  // is in — the periodic refresh must not flash the empty state every 30 s.
+  async holenCopy(leise) {
+    if (this.liveData.copy && !leise) return;
+    try {
+      const antwort = await apiGetRaw('/api/copy', this.copyHeaders());
+      if (antwort && typeof antwort === 'object') {
+        antwort._quelle = 'live';
+        this.liveData.copy = antwort;
+      } else {
+        this.liveData.copy = { _quelle: 'leer' };
+      }
+    } catch (err) {
+      // A failed refresh keeps the last books; the error is only worth
+      // replacing them when there was nothing on screen.
+      if (!leise || !this.liveData.copy) this.liveData.copy = { _quelle: 'fehler', _fehler: String(err && err.message ? err.message : err) };
+    }
+    this.render();
+  }
+
+  copyReload(leise) {
+    if (leise) return this.holenCopy(true);
+    this.liveData.copy = null;
+    this.render();
+    return this.holenCopy();
+  }
+
+  copyFehlerText(err) {
+    if (err && err.status === 429) return 'rate-limited — retry in ' + Math.max(1, Math.round(err.retryAfter || 10)) + ' s';
+    if (err && err.detail) return err.detail;
+    const status = err && err.status;
+    if (status === 404 || status === 405 || status === 501) return 'no copy desk API on this host (' + err.message + ') — the desk runs where api/server.py is served';
+    if (status === 403) return 'not allowed from here (' + err.message + ')';
+    return String(err && err.message ? err.message : err);
+  }
+
+  async copyAktion(kennung, path, body, erfolg) {
+    if (this.state.copyBusy) return;
+    this.setState({ copyBusy: kennung, copyMsg: null });
+    try {
+      const antwort = await apiPost(path, body, this.copyHeaders());
+      const text = typeof erfolg === 'function' ? erfolg(antwort) : erfolg;
+      this.setState({ copyBusy: '', copyMsg: text ? { kind: 'ok', text } : null });
+      await this.copyReload(true);
+      return antwort;
+    } catch (err) {
+      this.setState({ copyBusy: '', copyMsg: { kind: 'err', text: this.copyFehlerText(err) } });
+      return null;
+    }
+  }
+
+  copyFollow() {
+    const f = this.state.copyForm || {};
+    const wallet = String(f.wallet || '').trim();
+    if (!wallet) { this.setState({ copyMsg: { kind: 'err', text: 'paste a wallet address (0x…) or an exact handle first' } }); return; }
+    const cash = Number(String(f.cash || '').replace(/[$,]/g, ''));
+    if (!(cash > 0)) { this.setState({ copyMsg: { kind: 'err', text: 'start cash must be a positive number' } }); return; }
+    const kurz = (w) => (w && w.length > 12 ? w.slice(0, 6) + '…' + w.slice(-4) : w);
+    this.copyAktion('follow', '/api/copy/traders', { wallet, label: f.label || '', start_cash: cash, note: f.note || '' }, (r) => {
+      this.state.copyForm = { wallet: '', label: '', cash: String(cash), note: '' };
+      const who = kurz(r.wallet);
+      if (r.added) return 'now following ' + who + (r.seeded ? ' — baseline seeded, copying from now on' : r.seed_error ? ' — baseline not seeded yet (' + r.seed_error + '); the daemon seeds it on its first pass' : '');
+      return who + ' was already followed' + (r.resumed ? ' and is active again (start cash unchanged, baseline re-seeded)' : '');
+    });
+  }
+
+  copySetTrader(wallet, patch) {
+    const kurz = wallet && wallet.length > 12 ? wallet.slice(0, 6) + '…' + wallet.slice(-4) : wallet;
+    this.copyAktion(wallet, '/api/copy/traders/' + encodeURIComponent(wallet), patch, (r) => {
+      this.state.copyEdit = null;
+      if (patch.active === false) return kurz + ' paused — nothing new is booked into it until you resume';
+      if (patch.active === true) return kurz + ' active again' + (r.seeded ? ' — baseline re-seeded, trades made while paused are observed only' : r.seed_error ? ' — baseline not re-seeded (' + r.seed_error + ')' : '');
+      return kurz + ' updated';
+    });
+  }
+
+  copyTopUp(wallet) {
+    const t = this.state.copyTopup || {};
+    const amount = Number(String(t.amount || '').replace(/[$,]/g, ''));
+    if (!(amount > 0)) { this.setState({ copyMsg: { kind: 'err', text: 'top-up amount must be a positive number' } }); return; }
+    this.copyAktion(wallet, '/api/copy/traders/' + encodeURIComponent(wallet) + '/topup', { amount }, (r) => {
+      this.state.copyTopup = null;
+      return 'added $' + amount.toFixed(2) + ' paper cash — cash now $' + Number(r.cash_after).toFixed(2) + ' (counted as put in)';
+    });
+  }
+
+  copySaveSettings() {
+    const pending = this.state.copySettings;
+    if (!pending) { this.setState({ copyMsg: { kind: 'ok', text: 'nothing changed' } }); return; }
+    const editable = (this.liveData.copy && this.liveData.copy.settings && this.liveData.copy.settings.editable) || Object.keys(pending);
+    const body = {};
+    editable.forEach((k) => { if (k in pending) body[k] = pending[k]; });
+    this.copyAktion('settings', '/api/copy/settings', body, () => {
+      this.state.copySettings = null;
+      return 'settings saved — the daemon picks them up on its next pass';
+    });
+  }
+
+  copySetToken(value) {
+    const token = String(value || '').trim();
+    try { if (token) localStorage.setItem('copyAdminToken', token); else localStorage.removeItem('copyAdminToken'); } catch (e) { /* private mode */ }
+    this.state.copyToken = token;
+    this.copyReload();
+  }
+
+  // One sync pass in the background; poll /api/copy/sync until it is done,
+  // then re-read the books. The page shows "sync running…" meanwhile.
+  async copySync() {
+    if (this.state.copyBusy) return;
+    this.setState({ copyBusy: 'sync', copyMsg: null });
+    try {
+      const start = await apiPost('/api/copy/sync', {}, this.copyHeaders());
+      if (!start.started) {
+        this.setState({ copyBusy: '', copyMsg: { kind: 'ok', text: 'a sync pass is already running' } });
+        return;
+      }
+      const bis = Date.now() + 180000;
+      let zustand = start.state;
+      while (zustand && zustand.running && Date.now() < bis) {
+        await new Promise((r) => setTimeout(r, 2500));
+        zustand = await apiGetRaw('/api/copy/sync', this.copyHeaders());
+      }
+      let text;
+      if (zustand && zustand.running) text = 'the sync pass is still running — the table refreshes when you press Refresh';
+      else if (zustand && zustand.error) text = 'sync pass failed: ' + zustand.error;
+      else if (zustand && zustand.result && zustand.result.api) {
+        const a = zustand.result.api;
+        text = 'sync pass done: ' + a.wallets + ' wallet(s), ' + a.copied + ' copied, ' + a.skipped + ' skipped, ' + a.duplicates + ' already known';
+      } else text = 'sync pass done';
+      this.setState({ copyBusy: '', copyMsg: { kind: zustand && zustand.error ? 'err' : 'ok', text } });
+      await this.copyReload(true);
+    } catch (err) {
+      this.setState({ copyBusy: '', copyMsg: { kind: 'err', text: this.copyFehlerText(err) } });
+    }
   }
 
   // ---- render loop ----
@@ -1034,6 +1210,12 @@ class Terminal {
     this.render();
     this.pollLive();
     setInterval(() => this.pollLive(), 30000);
+    // The copy desk re-reads its books every 30 s while it is open (the
+    // daemon writes between renders); not while an action is in flight, and
+    // never mid-edit — the form values live in state and survive the render.
+    setInterval(() => {
+      if (this.state.page === 'copy' && !this.state.copyBusy && this.liveData.copy && this.liveData.copy._quelle === 'live') this.copyReload(true);
+    }, 30000);
     this.ladeLanding();
     this.fetchPageData(this.state.page);
   }

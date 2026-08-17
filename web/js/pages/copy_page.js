@@ -1,0 +1,506 @@
+// Copy trade — the paper copy desk. Reads /api/copy; from this machine (or
+// with an admin token) it also writes: follow or pause traders, change the
+// sizing settings, top up a sub-account, run one sync pass. Every figure on
+// the page comes from the API answer; a missing field renders as missing.
+//
+// The page is a pure function of (state, liveData.copy). Actions are closures
+// handed to T.act(); the Terminal methods they call (copyFollow, copySetTrader,
+// copySaveSettings, copySync, copyTopUp, copyReload) live in app.js.
+
+import { esc, num, leerZeile } from '../util.js';
+
+const M = "font-family:'JetBrains Mono',monospace";
+const LBL9 = M + '; font-size:9px; letter-spacing:.14em; color:rgba(255,255,255,.42); margin-bottom:6px';
+const LIME = '#C8F542', RED = '#FF4545', AMBER = '#F5A623', BLUE = '#4F8EF7';
+const DIM = 'rgba(255,255,255,.55)';
+const INPUT = 'width:100%; box-sizing:border-box; background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:7px; padding:8px 10px; ' + M + '; font-size:11.5px; color:#fff; outline:none';
+const CARD = 'background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px';
+const BTN = M + "; font-size:11px; letter-spacing:.06em; border-radius:7px; padding:8px 14px; cursor:pointer; display:inline-block; user-select:none";
+const BTN_PRIMARY = BTN + '; color:#0A0D0F; background:' + LIME + '; font-weight:600';
+const BTN_GHOST = BTN + '; color:rgba(255,255,255,.75); border:1px solid rgba(255,255,255,.18)';
+const BTN_WARN = BTN + '; color:' + AMBER + '; border:1px solid rgba(245,166,35,.4)';
+const BTN_OFF = BTN + '; color:rgba(255,255,255,.3); border:1px solid rgba(255,255,255,.1); cursor:default';
+
+export const COPY_TABS = [
+  ['traders', 'Traders'], ['orders', 'Orders'], ['positions', 'Positions'], ['perf', 'Performance'],
+  ['fidelity', 'Copy fidelity'], ['cash', 'Cash events'], ['settings', 'Settings']
+];
+
+function shortW(w) {
+  const v = String(w || '');
+  return v.length > 12 ? v.slice(0, 6) + '…' + v.slice(-4) : v;
+}
+
+// $1,234.56 with sign; the page never rounds a paper figure away.
+function usd(n, digits) {
+  const v = Number(n) || 0;
+  const d = digits == null ? 2 : digits;
+  return (v < 0 ? '-' : '') + '$' + num(Math.abs(v).toFixed(d));
+}
+
+function signedUsd(n, digits) {
+  const v = Number(n) || 0;
+  return (v >= 0 ? '+' : '-') + '$' + num(Math.abs(v).toFixed(digits == null ? 2 : digits));
+}
+
+function pnlColor(v) { return (Number(v) || 0) >= 0 ? LIME : RED; }
+
+// "12 min ago" from an ISO stamp; nothing when there is no stamp.
+function ago(iso) {
+  if (!iso) return '';
+  const t = Date.parse(String(iso));
+  if (!isFinite(t)) return String(iso);
+  const sec = Math.max(0, Math.round((Date.now() - t) / 1000));
+  if (sec < 90) return sec + ' s ago';
+  const min = Math.round(sec / 60);
+  if (min < 90) return min + ' min ago';
+  const h = Math.round(min / 60);
+  if (h < 36) return h + ' h ago';
+  return Math.round(h / 24) + ' d ago';
+}
+
+function fmtStamp(iso) {
+  if (!iso) return '—';
+  const s = String(iso);
+  return s.length >= 16 ? s.slice(0, 10) + ' ' + s.slice(11, 16) + ' UTC' : s;
+}
+
+function field(label, inner) {
+  return '<div><div style="' + LBL9 + '">' + label + '</div>' + inner + '</div>';
+}
+
+function textInput(T, key, value, placeholder, onInput, extraStyle) {
+  return '<input value="' + esc(value == null ? '' : value) + '" ' + T.inp(onInput, key) + ' placeholder="' + esc(placeholder || '') + '" style="' + INPUT + (extraStyle ? '; ' + extraStyle : '') + '" />';
+}
+
+function button(T, label, onClick, style, title) {
+  if (!onClick) return '<div style="' + (style || BTN_OFF) + '"' + (title ? ' title="' + esc(title) + '"' : '') + '>' + esc(label) + '</div>';
+  return '<div ' + T.act(onClick) + ' style="' + (style || BTN_GHOST) + '"' + (title ? ' title="' + esc(title) + '"' : '') + '>' + esc(label) + '</div>';
+}
+
+// The empty state names the source; it never shows a number.
+function ohneDesk(live) {
+  const fehler = live && live._quelle === 'fehler' ? live._fehler : '';
+  const grund = fehler
+    ? '/api/copy did not answer: ' + esc(fehler) + '. The desk lives where <span style="' + M + '">api/server.py</span> runs; a static copy of the site carries no paper books.'
+    : 'Waiting for /api/copy. The desk reads <span style="' + M + '">data/copy_trading.sqlite</span> through the API; until it answers there is nothing to show.';
+  return '<div>'
+    + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(255,255,255,.09)">'
+    + '<div style="' + M + '; font-size:10px; letter-spacing:.18em; color:' + LIME + '">COPY TRADE · PAPER</div>'
+    + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">Follow traders with fake money</div></div>'
+    + '<div style="padding:26px 24px"><div style="' + CARD + '; padding:22px 24px; max-width:760px">'
+    + '<div style="font-size:15px; font-weight:600">Nothing to show</div>'
+    + '<div style="font-size:13px; color:' + DIM + '; margin-top:10px; line-height:1.65">' + grund + '</div>'
+    + '</div></div></div>';
+}
+
+// ---------------------------------------------------------------- traders tab
+
+function traderRow(T, t, s, canWrite, busy) {
+  const editing = s.copyEdit && s.copyEdit.wallet === t.wallet;
+  const topping = s.copyTopup && s.copyTopup.wallet === t.wallet;
+  const rowBusy = busy === t.wallet;
+  const o = t.orders || {};
+  const spark = t.equity_curve && t.equity_curve.length > 1
+    ? '<svg width="90" height="26" viewBox="0 0 90 26" preserveAspectRatio="none"><polyline points="' + T.seriesPoints(t.equity_curve, 90, 26) + '" fill="none" stroke="' + pnlColor(t.pnl) + '" stroke-width="1.5" /></svg>'
+    : '<span style="' + M + '; font-size:10px; color:rgba(255,255,255,.3)" title="one point per daemon pass, once a minute">' + (t.equity_curve && t.equity_curve.length === 1 ? '1 point' : 'no curve yet') + '</span>';
+  const state = t.active
+    ? '<span style="' + M + '; font-size:10px; letter-spacing:.1em; color:' + LIME + '; border:1px solid rgba(200,245,66,.35); border-radius:4px; padding:2px 6px">ACTIVE</span>'
+    : '<span style="' + M + '; font-size:10px; letter-spacing:.1em; color:' + AMBER + '; border:1px solid rgba(245,166,35,.35); border-radius:4px; padding:2px 6px">PAUSED</span>';
+  const seeded = t.seeded_at
+    ? '<span title="baseline seeded ' + esc(fmtStamp(t.seeded_at)) + ' — trades before it are observed, not copied" style="color:rgba(255,255,255,.4)">baseline ' + esc(ago(t.seeded_at)) + '</span>'
+    : '<span title="no baseline yet: the first daemon pass mirrors the wallet\'s positions and sets the cutoff" style="color:' + AMBER + '">not seeded yet</span>';
+  const actions = !canWrite ? ''
+    : rowBusy ? '<span style="' + M + '; font-size:10.5px; color:' + DIM + '">working…</span>'
+      : (t.active
+        ? button(T, 'Pause', () => T.copySetTrader(t.wallet, { active: false }), BTN_WARN, 'stop copying this wallet; positions and history stay')
+        : button(T, 'Resume', () => T.copySetTrader(t.wallet, { active: true }), BTN_PRIMARY, 're-seed the baseline and copy from now on'))
+        + ' ' + button(T, editing ? 'Close' : 'Edit', () => T.setState({ copyEdit: editing ? null : { wallet: t.wallet, label: t.label || '', note: t.note || '' }, copyTopup: null }), BTN_GHOST, 'label and note')
+        + ' ' + button(T, topping ? 'Close' : 'Top up', () => T.setState({ copyTopup: topping ? null : { wallet: t.wallet, amount: '500' }, copyEdit: null }), BTN_GHOST, 'add paper cash to this sub-account (counts as put in, not profit)');
+  const grid = 'display:grid; grid-template-columns:minmax(180px,1.6fr) 74px 90px 90px 110px 96px 70px 96px 92px minmax(200px,1.4fr); gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06)';
+  let html = '<div style="' + grid + '">'
+    + '<div><div style="font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(t.label || shortW(t.wallet)) + '</div>'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:2px; display:flex; gap:8px; align-items:center; flex-wrap:wrap">'
+    + '<span ' + T.act(() => T.analyseWallet(t.wallet)) + ' class="hv-lime" title="open the wallet page" style="cursor:pointer; text-decoration:underline dotted">' + esc(shortW(t.wallet)) + '</span>'
+    + (t.profile_url ? '<a href="' + esc(t.profile_url) + '" target="_blank" rel="noopener" style="color:' + BLUE + '">Polymarket ↗</a>' : '')
+    + seeded + '</div>'
+    + (t.note ? '<div style="font-size:11.5px; color:rgba(255,255,255,.55); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(t.note) + '">' + esc(t.note) + '</div>' : '')
+    + '</div>'
+    + '<div>' + state + '</div>'
+    + '<div style="' + M + '; font-size:12px; text-align:right; color:' + DIM + '">' + usd(t.start_cash, 0) + '</div>'
+    + '<div style="' + M + '; font-size:12px; text-align:right">' + usd(t.cash) + '</div>'
+    + '<div style="' + M + '; font-size:12px; text-align:right">' + usd(t.equity) + '<div style="font-size:10px; color:rgba(255,255,255,.4)">' + usd(t.contributions, 0) + ' put in</div></div>'
+    + '<div style="' + M + '; font-size:12px; text-align:right; color:' + pnlColor(t.pnl) + '">' + signedUsd(t.pnl) + '<div style="font-size:10px">' + ((t.pnl_pct >= 0 ? '+' : '') + Number(t.pnl_pct || 0).toFixed(2)) + '%</div></div>'
+    + '<div style="' + M + '; font-size:12px; text-align:right" title="copied / skipped (observed baseline trades not counted)">' + (o.copied || 0) + ' <span style="color:' + AMBER + '">/ ' + (o.skipped || 0) + '</span></div>'
+    + '<div style="' + M + '; font-size:12px; text-align:right">' + (t.open_positions || 0) + '<div style="font-size:10px; color:rgba(255,255,255,.4)">' + (t.last_copy_at ? 'last ' + esc(ago(t.last_copy_at)) : 'no copy yet') + '</div></div>'
+    + '<div style="text-align:right">' + spark + '</div>'
+    + '<div style="display:flex; gap:6px; justify-content:flex-end; flex-wrap:wrap">' + actions + '</div>'
+    + '</div>';
+  if (editing && canWrite) {
+    const e = s.copyEdit;
+    html += '<div style="display:grid; grid-template-columns:1fr 2fr auto; gap:12px; align-items:end; padding:10px 16px 14px; background:rgba(255,255,255,.02); border-bottom:1px solid rgba(255,255,255,.06)">'
+      + field('LABEL', textInput(T, 'copyEditLabel', e.label, 'display name', (ev) => { T.state.copyEdit.label = ev.target.value; }))
+      + field('NOTE — domain, cadence, why you follow', textInput(T, 'copyEditNote', e.note, 'e.g. geopolitics desk, a few trades a week', (ev) => { T.state.copyEdit.note = ev.target.value; }))
+      + button(T, 'Save', () => T.copySetTrader(t.wallet, { label: T.state.copyEdit.label, note: T.state.copyEdit.note }), BTN_PRIMARY)
+      + '</div>';
+  }
+  if (topping && canWrite) {
+    html += '<div style="display:grid; grid-template-columns:160px auto 1fr; gap:12px; align-items:end; padding:10px 16px 14px; background:rgba(255,255,255,.02); border-bottom:1px solid rgba(255,255,255,.06)">'
+      + field('TOP UP $', textInput(T, 'copyTopupAmount', s.copyTopup.amount, '500', (ev) => { T.state.copyTopup.amount = ev.target.value; }))
+      + button(T, 'Add paper cash', () => T.copyTopUp(t.wallet), BTN_PRIMARY)
+      + '<div style="font-size:11.5px; color:rgba(255,255,255,.45); line-height:1.5">Booked as a cash event and counted as put in, so it can never read as profit. Off by default for the daemon (auto top-up).</div>'
+      + '</div>';
+  }
+  return html;
+}
+
+function followForm(T, s, live, canWrite) {
+  const f = s.copyForm || { wallet: '', label: '', cash: '1000', note: '' };
+  const busy = s.copyBusy === 'follow';
+  const access = live.write_access || {};
+  if (!canWrite) {
+    const tokenBox = access.mode === 'token'
+      ? '<div style="display:grid; grid-template-columns:1fr auto; gap:10px; align-items:end; margin-top:12px; max-width:520px">'
+        + field('ADMIN TOKEN (X-Admin-Token, stored in this browser only)', textInput(T, 'copyToken', s.copyToken || '', 'paste COPY_ADMIN_TOKEN', (ev) => { T.state.copyToken = ev.target.value; }))
+        + button(T, 'Use token', () => T.copySetToken(T.state.copyToken), BTN_PRIMARY)
+        + '</div>'
+      : '';
+    return '<div style="' + CARD + '; padding:16px 18px; margin:16px 24px 0">'
+      + '<div style="' + M + '; font-size:10px; letter-spacing:.14em; color:' + AMBER + '">READ-ONLY FROM HERE</div>'
+      + '<div style="font-size:13px; color:' + DIM + '; margin-top:8px; line-height:1.6">' + esc(access.reason || 'This copy of the site cannot write to the desk.')
+      + (access.mode === 'locked' ? ' Open the site on the machine that runs api/server.py, or set <span style="' + M + '">COPY_ADMIN_TOKEN</span> there and paste it here.' : '') + '</div>'
+      + tokenBox + '</div>';
+  }
+  return '<div style="' + CARD + '; padding:16px 18px; margin:16px 24px 0">'
+    + '<div style="display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap">'
+    + '<div style="' + M + '; font-size:10px; letter-spacing:.14em; color:' + LIME + '">FOLLOW A WALLET</div>'
+    + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.4)">' + esc(access.mode === 'token' ? 'writes with admin token' : 'writes allowed: local request') + '</div></div>'
+    + '<div style="display:grid; grid-template-columns:2.2fr 1.2fr 0.8fr 2fr auto; gap:12px; align-items:end; margin-top:12px">'
+    + field('POLYMARKET WALLET · 0x… / profile URL / exact handle', textInput(T, 'copyFormWallet', f.wallet, '0x… or swisstony', (ev) => { T.state.copyForm.wallet = ev.target.value; }))
+    + field('LABEL', textInput(T, 'copyFormLabel', f.label, 'e.g. Geo desk', (ev) => { T.state.copyForm.label = ev.target.value; }))
+    + field('START CASH $', textInput(T, 'copyFormCash', f.cash, '1000', (ev) => { T.state.copyForm.cash = ev.target.value; }))
+    + field('NOTE — domain, cadence, thesis', textInput(T, 'copyFormNote', f.note, 'e.g. elections only, ~5 trades/week', (ev) => { T.state.copyForm.note = ev.target.value; }))
+    + (busy ? '<div style="' + BTN_OFF + '">following…</div>' : button(T, 'Follow wallet', () => T.copyFollow(), BTN_PRIMARY, 'opens a sub-account with this start cash and seeds the baseline now'))
+    + '</div>'
+    + '<div style="font-size:11.5px; color:rgba(255,255,255,.45); margin-top:10px; line-height:1.55">'
+    + 'On follow the wallet\'s open positions are mirrored and its recent trades recorded as <span style="' + M + '">observed</span>; only what it does from that moment on is copied, into its own sub-account with the same settings as every other trader. Equal start cash keeps the traders comparable.'
+    + '</div>'
+    + '</div>';
+}
+
+function daemonBlock(T, live, canWrite, s) {
+  const d = live.daemon || {};
+  const sync = live.sync || {};
+  const running = d.running === true ? true : d.running === false ? false : null;
+  const farbe = running === true ? LIME : running === false ? AMBER : 'rgba(255,255,255,.4)';
+  const text = running === true ? 'DAEMON RUNNING' : running === false ? 'DAEMON STOPPED' : 'DAEMON NEVER RAN HERE';
+  const facts = [];
+  if (d.mode) facts.push('mode ' + esc(d.mode));
+  if (d.ws_connected != null) facts.push('websocket ' + (d.ws_connected ? 'connected' : 'not connected'));
+  if (d.last_sync_at) facts.push('last pass ' + esc(ago(d.last_sync_at)));
+  if (d.pid) facts.push('pid ' + esc(String(d.pid)));
+  if (d.last_error) facts.push('<span style="color:' + RED + '">' + esc(String(d.last_error)) + '</span>');
+  const syncBusy = s.copyBusy === 'sync' || sync.running === true;
+  let syncLine = '';
+  if (sync.running) syncLine = 'sync pass running since ' + esc(ago(sync.started_at)) + '…';
+  else if (sync.error) syncLine = '<span style="color:' + RED + '">last pass failed: ' + esc(sync.error) + '</span>';
+  else if (sync.result && sync.result.api) {
+    const a = sync.result.api, st = sync.result.settlement || {};
+    syncLine = 'last pass ' + esc(ago(sync.finished_at)) + ': ' + a.wallets + ' wallet(s), ' + a.copied + ' copied, ' + a.skipped + ' skipped, ' + a.duplicates + ' already known'
+      + (st.copied ? ', ' + st.copied + ' settlement(s)' : '') + (a.errors && a.errors.length ? ' — <span style="color:' + RED + '">' + esc(a.errors[0]) + '</span>' : '');
+  }
+  return '<div style="' + CARD + '; padding:16px 18px; margin:14px 24px 0">'
+    + '<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap">'
+    + '<span style="width:7px; height:7px; border-radius:50%; background:' + farbe + '; display:inline-block"></span>'
+    + '<span style="' + M + '; font-size:11px; letter-spacing:.14em; color:' + farbe + '">' + text + '</span>'
+    + '<span style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45)">' + facts.join(' · ') + '</span>'
+    + '<span style="flex:1"></span>'
+    + (canWrite ? (syncBusy ? '<div style="' + BTN_OFF + '">sync running…</div>' : button(T, 'Run one sync pass', () => T.copySync(), BTN_GHOST, 'one API + settlement pass over the active traders, in the background')) : '')
+    + '</div>'
+    + (d.reason ? '<div style="font-size:12px; color:' + DIM + '; margin-top:8px">' + esc(d.reason) + '</div>' : '')
+    + (syncLine ? '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); margin-top:8px">' + syncLine + '</div>' : '')
+    + '<div style="font-size:12px; color:rgba(255,255,255,.45); margin-top:10px; line-height:1.6">'
+    + 'The daemon copies continuously (WebSocket + API, settlements every 90 s) and reads the traders and settings from this desk on every pass. '
+    + 'Start it in a terminal from the repo root: <span style="' + M + '; color:rgba(255,255,255,.75)">.venv\\Scripts\\python.exe scripts\\run_copy_trader.py</span> '
+    + '(or <span style="' + M + '; color:rgba(255,255,255,.75)">scripts\\start_paper_desk.ps1</span>, which starts API and daemon together). '
+    + 'A sync pass from here books the same trades, just once, at up to 30 s latency.'
+    + '</div></div>';
+}
+
+function tradersTab(T, s, live, canWrite) {
+  const traders = live.traders || [];
+  const busy = s.copyBusy;
+  const head = 'display:grid; grid-template-columns:minmax(180px,1.6fr) 74px 90px 90px 110px 96px 70px 96px 92px minmax(200px,1.4fr); gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)';
+  return followForm(T, s, live, canWrite)
+    + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:14px 24px 0; overflow:hidden">'
+    + '<div style="overflow-x:auto"><div style="min-width:1180px">'
+    + '<div style="' + head + '">'
+    + '<div>TRADER</div><div>STATE</div><div style="text-align:right">START</div><div style="text-align:right">CASH</div><div style="text-align:right">EQUITY</div><div style="text-align:right">PAPER PNL</div><div style="text-align:right">COPIED / SKIP</div><div style="text-align:right">OPEN</div><div style="text-align:right">EQUITY CURVE</div><div style="text-align:right">' + (canWrite ? 'ACTIONS' : '') + '</div></div>'
+    + (traders.length ? traders.map((t) => traderRow(T, t, s, canWrite, busy)).join('') : leerZeile('No traders followed yet. Add the first wallet above — each one gets its own sub-account.'))
+    + '</div></div></div>'
+    + daemonBlock(T, live, canWrite, s);
+}
+
+// ---------------------------------------------------------------- settings tab
+
+function settingsTab(T, s, live, canWrite) {
+  const saved = live.settings || {};
+  const f = s.copySettings || saved;
+  const dirty = !!s.copySettings;
+  const busy = s.copyBusy === 'settings';
+  const set = (key) => (ev) => { const next = Object.assign({}, T.state.copySettings || saved); next[key] = ev.target.value; T.state.copySettings = next; };
+  const flip = (key) => () => { const next = Object.assign({}, T.state.copySettings || saved); next[key] = !next[key]; T.setState({ copySettings: next }); };
+  const numField = (key, label, hint) => field(label, textInput(T, 'copySet_' + key, f[key], '', set(key)) + (hint ? '<div style="font-size:11px; color:rgba(255,255,255,.4); margin-top:5px; line-height:1.45">' + hint + '</div>' : ''));
+  const boolField = (key, label, hint) => '<div><div style="' + LBL9 + '">' + label + '</div><div style="display:flex; align-items:center; gap:10px; padding:6px 0">' + T.toggle(!!f[key], canWrite ? flip(key) : () => {}) + '<span style="' + M + '; font-size:11px; color:' + DIM + '">' + (f[key] ? 'on' : 'off') + '</span></div>' + (hint ? '<div style="font-size:11px; color:rgba(255,255,255,.4); line-height:1.45">' + hint + '</div>' : '') + '</div>';
+  const dyn = !!f.dynamic_sizing_enabled;
+  const grid = 'display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:16px 22px';
+  return '<div style="padding:16px 24px">'
+    + '<div style="' + CARD + '; padding:18px 20px">'
+    + '<div style="display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:14px">'
+    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55)">SIZING — THE SAME FOR EVERY TRADER</div>'
+    + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.4)">saved in data/copy_settings.json · the daemon reads it on every pass · live trading stays off</div></div>'
+    + '<div style="' + grid + '">'
+    + boolField('dynamic_sizing_enabled', 'DYNAMIC SIZING', 'On: every order is scaled by (sub-account equity ÷ source wallet equity) × multiplier — a faithful mirror. Off: the fixed scale below.')
+    + numField('dynamic_sizing_multiplier', 'MULTIPLIER (dynamic)', '1 = neutral mirror. Ignored when dynamic sizing is off.')
+    + numField('copy_scale', 'FIXED SCALE (when dynamic is off)', 'Fraction of the source notional per order, e.g. 0.01 = 1 %.')
+    + numField('max_order_equity_pct', 'MAX ORDER · % OF EQUITY (0..1)', 'Cap per order. 0.05 = 5 % of the sub-account.')
+    + boolField('dynamic_order_cap_from_tony', 'RAISE THE CAP TO THE SOURCE\'S LARGEST POSITION', 'A source that puts 20 % into one market gets a 20 % cap here too, so big conviction bets are not clipped.')
+    + numField('cash_throttle_pct', 'CASH THROTTLE (0..1)', 'One order may spend at most this share of the remaining cash; 0.25 keeps a drought from starving later trades. 0 = off.')
+    + numField('min_copy_notional', 'MIN COPY NOTIONAL $', 'Orders below this are skipped as dust.')
+    + numField('trade_limit', 'TRADES PER API POLL', 'How many recent source trades each pass inspects (250 covers a busy hour).')
+    + boolField('auto_top_up_enabled', 'AUTO TOP-UP', 'Off by default: a sub-account out of cash skips buys visibly until settlements recycle cash. On prints paper money — it distorts the comparison.')
+    + numField('auto_top_up_amount', 'AUTO TOP-UP AMOUNT $', '')
+    + numField('auto_top_up_threshold', 'AUTO TOP-UP BELOW $', '')
+    + '</div>'
+    + '<div style="display:flex; gap:10px; align-items:center; margin-top:18px; flex-wrap:wrap">'
+    + (canWrite
+      ? (busy ? '<div style="' + BTN_OFF + '">saving…</div>' : button(T, 'Save settings', () => T.copySaveSettings(), dirty ? BTN_PRIMARY : BTN_GHOST))
+        + (dirty ? button(T, 'Discard changes', () => T.setState({ copySettings: null }), BTN_GHOST) : '')
+      : '<span style="' + M + '; font-size:11px; color:' + AMBER + '">read-only from here</span>')
+    + '<span style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.4)">mode now: ' + (dyn ? 'dynamic (equity ratio × ' + esc(String(f.dynamic_sizing_multiplier)) + ')' : 'fixed × ' + esc(String(f.copy_scale))) + '</span>'
+    + '</div></div></div>';
+}
+
+// ---------------------------------------------------------------- the page
+
+export function renderCopy(T) {
+  const s = T.state;
+  const live = T.liveData.copy;
+  const st = live && live.status ? live.status : null;
+  const kp = live && live.kpis ? live.kpis : null;
+  if (!st || !kp) return ohneDesk(live);
+
+  const traders = live.traders || [];
+  const canWrite = !!(live.write_access && live.write_access.allowed);
+  const filter = s.copyTrader || 'all';
+  const labelOf = {};
+  traders.forEach((t) => { labelOf[t.wallet] = t.label || shortW(t.wallet); });
+  const orders = (live.orders || []).filter((o) => filter === 'all' || String(o.wallet || '').toLowerCase() === filter);
+  const positions = (live.positions || []).filter((r) => filter === 'all' || String(r[7] || '').toLowerCase() === filter);
+  const cashRows = (live.cash_events || []).filter((r) => filter === 'all' || String(r[4] || '').toLowerCase() === filter);
+  const filtered = traders.find((t) => t.wallet === filter) || null;
+  const equityCurve = filtered ? (filtered.equity_curve || []) : (live.equity_curve || []);
+  const equityPts = equityCurve.length > 1 ? T.seriesPoints(equityCurve, 900, 240) : '';
+  const firstActive = traders.find((t) => t.active) || null;
+  const showSource = live.source_curve && live.source_curve.length > 1 && (filter === 'all' || (firstActive && firstActive.wallet === filter));
+  const srcPts = showSource ? T.seriesPoints(live.source_curve, 900, 200) : '';
+  const minePts = equityCurve.length > 1 ? T.seriesPoints(equityCurve, 900, 200) : '';
+  const tab = s.copyTab || 'traders';
+
+  const copyTabs = COPY_TABS.map((o) => T.tab(o[1], tab === o[0], { copyTab: o[0] })).join('');
+  const traderChips = (tab === 'orders' || tab === 'positions' || tab === 'perf' || tab === 'cash') && traders.length > 1
+    ? '<div style="display:flex; gap:6px; padding:12px 24px 0; flex-wrap:wrap; align-items:center"><span style="' + LBL9 + '; margin:0 4px 0 0">TRADER</span>'
+      + T.opt('All', filter === 'all', { copyTrader: 'all' })
+      + traders.map((t) => T.opt(t.label || shortW(t.wallet), filter === t.wallet, { copyTrader: t.wallet })).join('')
+      + '</div>'
+    : '';
+
+  let body = '';
+  if (tab === 'traders') {
+    body = tradersTab(T, s, live, canWrite);
+  } else if (tab === 'settings') {
+    body = settingsTab(T, s, live, canWrite);
+  } else if (tab === 'orders') {
+    const rows = orders.filter((o) => {
+      if (s.copyStatus2 !== 'all' && o.status !== s.copyStatus2) return false;
+      if (s.copySide !== 'all' && o.side.indexOf(s.copySide) !== 0) return false;
+      if (s.copyMin !== 'all' && Number(String(o.theirs).replace(/[$,]/g, '')) < Number(s.copyMin)) return false;
+      if (s.copyQuery.trim() && o.market.toLowerCase().indexOf(s.copyQuery.trim().toLowerCase()) < 0) return false;
+      return true;
+    });
+    const grid = 'display:grid; grid-template-columns:92px 120px 1fr 90px 96px 96px 120px; gap:10px';
+    body = '<div>'
+      + '<div style="padding:14px 24px 0; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px 18px">'
+      + '<div><div style="' + LBL9 + '">SEARCH</div><input value="' + esc(s.copyQuery) + '" ' + T.inp((e) => T.setState({ copyQuery: e.target.value }), 'copyQuery') + ' placeholder="market…" style="' + INPUT + '" /></div>'
+      + '<div><div style="' + LBL9 + '">SIDE</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
+      + [['all', 'All'], ['BUY', 'Buys'], ['SELL', 'Sells'], ['REDEEM', 'Redeems']].map((o) => T.opt(o[1], s.copySide === o[0], { copySide: o[0] })).join('') + '</div></div>'
+      + '<div><div style="' + LBL9 + '">STATUS</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
+      + [['all', 'All'], ['copied', 'Copied'], ['settled', 'Settled'], ['seed_observed', 'Baseline'], ['skipped', 'Skipped']].map((o) => T.opt(o[1], s.copyStatus2 === o[0], { copyStatus2: o[0] })).join('') + '</div></div>'
+      + '<div><div style="' + LBL9 + '">MINIMUM SIZE THEY TRADED</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
+      + [['all', 'Any'], ['1000', '>$1k'], ['5000', '>$5k'], ['10000', '>$10k']].map((o) => T.opt(o[1], s.copyMin === o[0], { copyMin: o[0] })).join('') + '</div></div>'
+      + '</div>'
+      + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:14px 24px; overflow:hidden">'
+      + '<div style="' + grid + '; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
+      + '<div>TIME</div><div>TRADER</div><div>MARKET</div><div style="text-align:right">SIDE</div><div style="text-align:right">THEY SPENT</div><div style="text-align:right">YOU SPENT</div><div style="text-align:right">STATUS</div></div>'
+      + (rows.length ? '' : leerZeile(orders.length ? 'No order matches these filters.' : 'No paper orders reported by /api/copy yet.'))
+      + rows.map((o) => {
+        const farbe = o.status === 'copied' || o.status === 'settled' ? LIME : o.status === 'skipped' ? AMBER : 'rgba(255,255,255,.5)';
+        const label = o.status === 'seed_observed' ? 'BASELINE' : String(o.status).toUpperCase();
+        return '<div style="' + grid + '; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06)">'
+          + '<div style="' + M + '; font-size:12px; color:' + DIM + '" title="' + esc(o.at || '') + '">' + esc(o.time) + '</div>'
+          + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.65); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(o.wallet || '') + '">' + esc(labelOf[o.wallet] || shortW(o.wallet) || '—') + '</div>'
+          + '<div style="font-family:\'Inter\',sans-serif; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(o.market) + '</div>'
+          + '<div style="' + M + '; font-size:12px; text-align:right; color:' + (o.side.indexOf('BUY') === 0 ? LIME : o.side.indexOf('SELL') === 0 ? RED : BLUE) + '">' + esc(o.side) + '</div>'
+          + '<div style="' + M + '; font-size:12px; text-align:right; color:' + DIM + '">' + esc(o.theirs) + '</div>'
+          + '<div style="' + M + '; font-size:12px; text-align:right">' + esc(o.yours) + '</div>'
+          + '<div style="' + M + '; font-size:11px; text-align:right; color:' + farbe + '" title="' + esc(o.reason || '') + '">' + esc(label) + '</div></div>';
+      }).join('')
+      + '</div></div>';
+  } else if (tab === 'positions') {
+    const grid = 'display:grid; grid-template-columns:120px 1fr 62px 78px 78px 78px 88px 100px; gap:10px';
+    body = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:14px 24px; overflow:hidden">'
+      + '<div style="' + grid + '; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
+      + '<div>TRADER</div><div>MARKET</div><div style="text-align:right">SIDE</div><div style="text-align:right">SHARES</div><div style="text-align:right">AVG FILL</div><div style="text-align:right">MARK</div><div style="text-align:right">VALUE</div><div style="text-align:right">UNREALISED</div></div>'
+      + (positions.length ? '' : leerZeile('No open paper positions reported by /api/copy.'))
+      + positions.map((r) =>
+        '<div style="' + grid + '; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06)">'
+        + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.65); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(r[7] || '') + '">' + esc(labelOf[r[7]] || shortW(r[7]) || '—') + '</div>'
+        + r.slice(0, 7).map((v, i) => {
+          const style = i === 0 ? "font-family:'Inter',sans-serif; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" : M + '; font-size:12px; text-align:right; color:' + (i === 6 ? (String(v).charAt(0) === '+' ? LIME : RED) : i === 1 ? (v === 'Yes' ? LIME : BLUE) : 'rgba(255,255,255,.75)');
+          return '<div style="' + style + '">' + esc(String(v)) + '</div>';
+        }).join('')
+        + '</div>'
+      ).join('')
+      + '</div>';
+  } else if (tab === 'perf') {
+    const putIn = filtered ? filtered.contributions : kp.contributions;
+    const sourceName = firstActive ? (firstActive.label || shortW(firstActive.wallet)) : 'source wallet';
+    body = '<div style="padding:16px 24px">'
+      + '<div style="' + CARD + '; padding:16px 18px">'
+      + '<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:10px">'
+      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55)">' + (filtered ? esc((filtered.label || shortW(filtered.wallet)).toUpperCase()) + ' — ' : 'ALL SUB-ACCOUNTS — ') + 'EQUITY VS CASH PUT IN</div>'
+      + '<div style="display:flex; gap:14px; ' + M + '; font-size:10.5px">'
+      + '<span style="display:flex; align-items:center; gap:6px"><span style="width:14px; height:2px; background:' + LIME + '; display:inline-block"></span>Paper equity</span>'
+      + '<span style="display:flex; align-items:center; gap:6px; color:rgba(255,255,255,.5)"><span style="width:14px; height:2px; background:rgba(255,255,255,.35); display:inline-block"></span>Cash put in ' + esc(usd(putIn, 0)) + '</span>'
+      + '</div></div>'
+      + (equityPts
+        ? '<svg width="100%" height="240" viewBox="0 0 900 240" preserveAspectRatio="none">'
+          + '<line x1="0" y1="20" x2="900" y2="20" stroke="rgba(255,255,255,.07)" /><line x1="0" y1="80" x2="900" y2="80" stroke="rgba(255,255,255,.07)" /><line x1="0" y1="140" x2="900" y2="140" stroke="rgba(255,255,255,.07)" /><line x1="0" y1="230" x2="900" y2="230" stroke="rgba(255,255,255,.14)" />'
+          + '<polyline points="' + equityPts + '" fill="none" stroke="' + LIME + '" stroke-width="2" /></svg>'
+        : leerZeile('No equity curve yet — the daemon (or a sync pass) records one point per minute per trader.'))
+      + '</div>'
+      + '<div style="' + CARD + '; padding:16px 18px; margin-top:14px">'
+      + '<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:10px">'
+      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55)">YOUR RETURN VERSUS THE SOURCE WALLET</div>'
+      + '<div style="display:flex; gap:14px; ' + M + '; font-size:10.5px">'
+      + '<span style="display:flex; align-items:center; gap:6px"><span style="width:14px; height:2px; background:' + LIME + '; display:inline-block"></span>You</span>'
+      + '<span style="display:flex; align-items:center; gap:6px; color:' + BLUE + '"><span style="width:14px; height:2px; background:' + BLUE + '; display:inline-block"></span>' + esc(sourceName) + ' (official PnL, 1 month)</span>'
+      + '</div></div>'
+      + (srcPts || minePts
+        ? '<svg width="100%" height="200" viewBox="0 0 900 200" preserveAspectRatio="none">'
+          + '<line x1="0" y1="20" x2="900" y2="20" stroke="rgba(255,255,255,.07)" /><line x1="0" y1="100" x2="900" y2="100" stroke="rgba(255,255,255,.07)" /><line x1="0" y1="190" x2="900" y2="190" stroke="rgba(255,255,255,.14)" />'
+          + (srcPts ? '<polyline points="' + srcPts + '" fill="none" stroke="' + BLUE + '" stroke-width="2" />' : '')
+          + (minePts ? '<polyline points="' + minePts + '" fill="none" stroke="' + LIME + '" stroke-width="2" />' : '') + '</svg>'
+        : leerZeile('Neither curve has two points yet.'))
+      + (showSource ? '' : '<div style="font-size:11.5px; color:rgba(255,255,255,.4); margin-top:8px">The source overlay is loaded for the first active trader only' + (firstActive ? ' (' + esc(firstActive.label || shortW(firstActive.wallet)) + ')' : '') + '.</div>')
+      + '</div></div>';
+  } else if (tab === 'fidelity') {
+    const fid = live && live.fidelity_detail;
+    let gapCosts;
+    if (fid && fid.execution) {
+      const skips = Object.entries(fid.execution.lost_to_skips || {}).sort((a, b) => b[1] - a[1]);
+      const clamps = +fid.execution.lost_to_clamps || 0;
+      const total = skips.reduce((a, kv) => a + (+kv[1] || 0), 0) + clamps;
+      gapCosts = skips.map(([reason, value]) =>
+        '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Skipped: ' + esc(reason) + '</span><span style="' + M + '; color:' + RED + '">-$' + (+value).toFixed(2) + '</span></div>'
+      ).join('')
+        + '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(255,255,255,.7)">Clamped (cash throttle / order cap)</span><span style="' + M + '; color:rgba(255,255,255,.6)">-$' + clamps.toFixed(2) + '</span></div>'
+        + '<div style="display:flex; justify-content:space-between; font-size:13px; border-top:1px solid rgba(255,255,255,.09); padding-top:11px"><span>Total drag (24h)</span><span style="' + M + '; color:' + RED + '">-$' + total.toFixed(2) + '</span></div>';
+    } else {
+      gapCosts = leerZeile('No execution breakdown in this /api/copy answer — fidelity_detail is missing. Nothing is shown rather than an estimate.');
+    }
+    const throttleShare = kp.total ? Math.round((kp.skipped / kp.total) * 100) : null;
+    body = '<div style="padding:16px 24px; display:grid; grid-template-columns:1fr 1fr; gap:16px">'
+      + '<div><div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55); margin-bottom:14px">WHERE THE COPY DRIFTS (ALL TRADERS)</div>'
+      + '<div style="display:flex; flex-direction:column; gap:14px">'
+      + fidelityBar('Settings vs a neutral mirror', kp.config_fidelity + '%', Math.min(100, kp.config_fidelity), LIME)
+      + fidelityBar('Filled vs what you wanted', kp.exec_fidelity + '%', Math.min(100, kp.exec_fidelity), LIME)
+      + fidelityBar('Orders skipped', throttleShare == null ? '— no orders yet' : throttleShare + '% of orders', throttleShare == null ? 0 : Math.min(100, throttleShare), AMBER, AMBER)
+      + '</div></div>'
+      + '<div><div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55); margin-bottom:14px">WHAT THE GAP COSTS</div>'
+      + '<div style="display:flex; flex-direction:column; gap:11px">' + gapCosts + '</div></div></div>';
+  } else {
+    const grid = 'display:grid; grid-template-columns:110px 120px 1fr 120px 120px; gap:10px';
+    body = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:14px 24px; overflow:hidden">'
+      + '<div style="' + grid + '; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
+      + '<div>DATE</div><div>TRADER</div><div>WHAT HAPPENED</div><div style="text-align:right">AMOUNT</div><div style="text-align:right">CASH AFTER</div></div>'
+      + (cashRows.length ? '' : leerZeile('No cash events reported by /api/copy. Start cash is not an event; top-ups are.'))
+      + cashRows.map((r) =>
+        '<div style="' + grid + '; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06)">'
+        + '<div style="' + M + '; font-size:12px; color:rgba(255,255,255,.75)">' + esc(String(r[0])) + '</div>'
+        + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.65); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(r[4] || '') + '">' + esc(labelOf[r[4]] || shortW(r[4]) || '—') + '</div>'
+        + '<div style="font-family:\'Inter\',sans-serif; font-size:12.5px">' + esc(String(r[1])) + '</div>'
+        + '<div style="' + M + '; font-size:12px; text-align:right; color:' + (String(r[2]).charAt(0) === '+' && r[2] !== '+$0.00' ? LIME : 'rgba(255,255,255,.75)') + '">' + esc(String(r[2])) + '</div>'
+        + '<div style="' + M + '; font-size:12px; text-align:right; color:rgba(255,255,255,.75)">' + esc(String(r[3] || '')) + '</div>'
+        + '</div>'
+      ).join('')
+      + '</div>';
+  }
+
+  // Daemon state from the answer or not at all — never a switch in the page.
+  const daemonOn = st.running === true ? true : st.running === false ? false : null;
+  const daemonFarbe = daemonOn === true ? LIME : daemonOn === false ? AMBER : 'rgba(255,255,255,.4)';
+  const daemonText = daemonOn === true ? 'RUNNING' : daemonOn === false ? 'STOPPED' : 'STATE NOT REPORTED';
+  const activeCount = live.active_count != null ? live.active_count : traders.filter((t) => t.active).length;
+  const totals = live.totals || { equity: kp.equity, contributions: kp.contributions };
+  const msg = s.copyMsg
+    ? '<div style="margin:12px 24px 0; padding:9px 12px; border-radius:7px; ' + M + '; font-size:11.5px; display:flex; justify-content:space-between; gap:12px; '
+      + (s.copyMsg.kind === 'err' ? 'color:' + RED + '; border:1px solid rgba(255,69,69,.35); background:rgba(255,69,69,.06)' : 'color:' + LIME + '; border:1px solid rgba(200,245,66,.3); background:rgba(200,245,66,.05)') + '">'
+      + '<span>' + esc(s.copyMsg.text) + '</span><span ' + T.act(() => T.setState({ copyMsg: null })) + ' style="cursor:pointer; color:rgba(255,255,255,.5)">dismiss</span></div>'
+    : '';
+  const access = live.write_access || {};
+  const accessText = !access.mode ? '' : access.allowed ? (access.mode === 'token' ? 'WRITES · TOKEN' : 'WRITES · LOCAL') : 'READ-ONLY';
+  return '<div>'
+    + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(255,255,255,.09)">'
+    + '<div style="' + M + '; font-size:10px; letter-spacing:.18em; color:' + LIME + '">COPY TRADE · PAPER</div>'
+    + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">Follow traders with fake money</div>'
+    + '<div style="font-size:13px; color:' + DIM + '; margin-top:9px; max-width:760px">Every buy a followed wallet makes is scaled into that wallet\'s own sub-account and booked at the printed price. Equal start cash, equal settings — the sub-accounts are the comparison. Nothing is sent to a venue.</div></div>'
+
+    + '<div style="display:flex; align-items:center; gap:26px; padding:13px 24px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A; flex-wrap:wrap">'
+    + '<div style="display:flex; align-items:center; gap:8px" title="' + esc((live.daemon && live.daemon.reason) || '') + '">'
+    + '<span style="width:7px; height:7px; border-radius:50%; background:' + daemonFarbe + '; display:inline-block; animation:livePulse 1.6s ease-in-out infinite"></span>'
+    + '<span style="' + M + '; font-size:11px; letter-spacing:.14em; color:' + daemonFarbe + '">' + daemonText + '</span></div>'
+    + '<div style="' + M + '; font-size:11.5px; color:rgba(255,255,255,.6)">FOLLOWING <span style="color:#fff">' + activeCount + ' active</span>' + (traders.length > activeCount ? ' <span style="color:' + AMBER + '">' + (traders.length - activeCount) + ' paused</span>' : '') + '</div>'
+    + '<div style="' + M + '; font-size:11.5px; color:rgba(255,255,255,.6)">SOURCE <span style="color:#fff">' + esc(st.source) + '</span></div>'
+    + '<div style="' + M + '; font-size:11.5px; color:rgba(255,255,255,.6)">SCALE <span style="color:#fff">' + (+st.scale).toFixed(4) + '×</span></div>'
+    + '<div style="' + M + '; font-size:11.5px; color:rgba(255,255,255,.6)">CASH LEFT <span style="color:#fff">' + esc(usd(st.cash)) + '</span></div>'
+    + '<div style="' + M + '; font-size:11px; color:' + AMBER + '; border:1px solid rgba(245,166,35,.35); border-radius:5px; padding:3px 8px">AUTO TOP-UP ' + (st.auto_topup ? 'ON' : 'OFF') + '</div>'
+    + (accessText ? '<div style="' + M + '; font-size:11px; color:' + (access.allowed ? LIME : 'rgba(255,255,255,.5)') + '; border:1px solid rgba(255,255,255,.14); border-radius:5px; padding:3px 8px" title="' + esc(access.reason || '') + '">' + accessText + '</div>' : '')
+    + '</div>'
+
+    + '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid rgba(255,255,255,.09)">'
+    + '<div style="padding:16px 20px; border-right:1px solid rgba(255,255,255,.09)"><div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">ALL SUB-ACCOUNTS · EQUITY</div><div style="' + M + '; font-size:26px; margin-top:8px">' + esc(usd(totals.equity)) + '</div><div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); margin-top:4px">' + esc(usd(totals.contributions)) + ' put in</div></div>'
+    + '<div style="padding:16px 20px; border-right:1px solid rgba(255,255,255,.09)"><div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">PROFIT ON PAPER</div><div style="' + M + '; font-size:26px; margin-top:8px; color:' + pnlColor(kp.pnl) + '">' + esc(signedUsd(kp.pnl)) + '</div><div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); margin-top:4px">'
+    + (kp.source_pnl_delta != null ? 'first source ' + (kp.source_pnl_delta >= 0 ? '+' : '-') + '$' + num(Math.abs(kp.source_pnl_delta).toFixed(0)) + ' same window' : 'source wallet return not loaded') + '</div></div>'
+    + '<div style="padding:16px 20px; border-right:1px solid rgba(255,255,255,.09)"><div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">ORDERS MIRRORED</div><div style="' + M + '; font-size:26px; margin-top:8px">' + kp.mirrored + ' <span style="font-size:15px; color:rgba(255,255,255,.45)">/ ' + kp.total + '</span></div><div style="' + M + '; font-size:11px; color:' + AMBER + '; margin-top:4px">' + kp.skipped + ' skipped</div></div>'
+    + '<div style="padding:16px 20px"><div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">HOW CLOSE TO THE SOURCE</div><div style="' + M + '; font-size:26px; margin-top:8px">' + kp.fidelity + '%</div><div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); margin-top:4px">config ' + kp.config_fidelity + '% · execution ' + kp.exec_fidelity + '%</div></div>'
+    + '</div>'
+
+    + '<div style="display:flex; align-items:center; gap:8px; padding:10px 24px; border-bottom:1px solid rgba(255,255,255,.09); flex-wrap:wrap">'
+    + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.4)">' + (canWrite ? 'This page writes to data/copy_trading.sqlite and data/copy_settings.json; the daemon (scripts/run_copy_trader.py) copies from them.' : 'Read-only view of the copy desk; the daemon runs where api/server.py runs.')
+    + (live.as_of ? ' · snapshot ' + esc(String(live.as_of)) : '') + '</div>'
+    + '<span style="flex:1"></span>'
+    + button(T, 'Refresh', () => T.copyReload(), BTN_GHOST, 'ask /api/copy again')
+    + '</div>'
+    + msg
+    + '<div style="display:flex; gap:6px; padding:16px 24px 0; flex-wrap:wrap">' + copyTabs + '</div>'
+    + traderChips
+    + body
+    + '</div>';
+}
+
+function fidelityBar(label, valueLabel, pct, color, valueColor) {
+  return '<div>'
+    + '<div style="display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:6px"><span style="color:rgba(255,255,255,.7)">' + label + '</span><span style="' + M + (valueColor ? '; color:' + valueColor : '') + '">' + valueLabel + '</span></div>'
+    + '<div style="height:7px; background:rgba(255,255,255,.07); border-radius:2px"><div style="width:' + pct + '%; height:7px; background:' + color + '; border-radius:2px"></div></div></div>';
+}

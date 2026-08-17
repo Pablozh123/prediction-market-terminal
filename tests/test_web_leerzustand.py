@@ -549,8 +549,17 @@ class WebLeerzustandTest(unittest.TestCase):
         for weg in ("PAPER EQUITY", "No paper account", "'DASHBOARD'", "'TRADING'", "'SYSTEM'"):
             self.assertNotIn(weg, app_js)
         # Nicht mehr gelistet, aber als Route erreichbar.
-        for seite in ("'settings'", "'track'", "'copy'", "'portfolio'", "'resolved'"):
+        for seite in ("'settings'", "'track'", "'resolved'"):
             self.assertNotIn("this.navItem(" + seite, app_js)
+        # Der Paper-Desk (Copy trade, Portfolio) steht nur in der Seitenleiste,
+        # wo er laeuft: hinter paperDeskSichtbar() (lokaler Host oder eine
+        # Antwort mit Schreibrecht), in einer eigenen Gruppe.
+        self.assertIn("'PAPER DESK'", app_js)
+        desk = app_js[app_js.index("if (this.paperDeskSichtbar())"):app_js.index("'PAPER DESK'") + 400]
+        self.assertIn("this.navItem('copy'", desk)
+        self.assertIn("this.navItem('portfolio'", desk)
+        self.assertEqual(app_js.count("this.navItem('copy'"), 1)
+        self.assertEqual(app_js.count("this.navItem('portfolio'"), 1)
         self.assertIn("settings: renderSettings", app_js)
         self.assertIn("track: renderTrack", app_js)
         # Fusszeile: Repo, Read-only-Satz, Live-run-Wallet.
@@ -1263,6 +1272,85 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertNotIn("if (this.state.live !== 'live') return;\n    const t = this.traders.find", app_js)
         seite = (WURZEL / "web" / "js" / "pages" / "wallet_page.js").read_text(encoding="utf-8")
         self.assertIn("/^0x[0-9a-fA-F]{40}$/", seite)
+
+    # ---- Copy desk ----------------------------------------------------------
+
+    def test_copy_desk_traders_tab(self) -> None:
+        # Two traders from the payload: the active one with its counts, the
+        # paused one saying it has no curve and no baseline yet. Actions only
+        # where the answer grants write access.
+        live = _sichtbarer_text(self.ausgabe["live"]["copy"])
+        self.assertIn("FOLLOW A WALLET", live)
+        self.assertIn("FOLLOWING 1 active 1 paused", live)
+        self.assertIn("WRITES · LOCAL", live)
+        for wert in ("w1", "harness desk, slow trader", "ACTIVE", "1 / 0", "Pause", "w2", "PAUSED", "not seeded yet", "no curve yet", "no copy yet", "Resume", "Top up", "Edit"):
+            self.assertIn(wert, live)
+        self.assertIn("DAEMON RUNNING", live)
+        self.assertIn("websocket connected", live)
+        self.assertIn("Run one sync pass", live)
+        self.assertIn("scripts\\run_copy_trader.py", live)
+        # Every button on the desk carries a handler (data-act), none is a bare div.
+        html = self.ausgabe["live"]["copy"]
+        for knopf in ("Follow wallet", "Pause", "Resume", "Run one sync pass", "Refresh"):
+            with self.subTest(knopf=knopf):
+                self.assertRegex(html, r'data-act="\d+"[^>]*>' + re.escape(knopf) + "<")
+
+    def test_copy_desk_read_only_and_token_states(self) -> None:
+        ro = _sichtbarer_text(self.ausgabe["live"]["copy_readonly"])
+        self.assertIn("READ-ONLY FROM HERE", ro)
+        self.assertIn("COPY_ADMIN_TOKEN", ro)
+        for weg in ("Follow wallet", "Pause", "Resume", "Run one sync pass", "Top up"):
+            self.assertNotIn(weg, ro)
+        token = _sichtbarer_text(self.ausgabe["live"]["copy_token_needed"])
+        self.assertIn("ADMIN TOKEN", token)
+        self.assertIn("Use token", token)
+        self.assertNotIn("Follow wallet", token)
+
+    def test_copy_desk_empty_and_error_states(self) -> None:
+        leer = _sichtbarer_text(self.ausgabe["live"]["copy_no_traders"])
+        self.assertIn("No traders followed yet", leer)
+        self.assertIn("FOLLOWING 0 active", leer)
+        self.assertIn("DAEMON NEVER RAN HERE", leer)
+        self.assertIn("STATE NOT REPORTED", leer)
+        fehler = _sichtbarer_text(self.ausgabe["live"]["copy_error"])
+        self.assertIn("/api/copy did not answer: HTTP 404", fehler)
+        self.assertNotIn("$", fehler)
+        # In-flight and failed actions say so.
+        self.assertIn("following…", _sichtbarer_text(self.ausgabe["live"]["copy_busy"]))
+        self.assertIn("harness error line", _sichtbarer_text(self.ausgabe["live"]["copy_msg_err"]))
+
+    def test_copy_desk_filters_settings_and_rows(self) -> None:
+        # Trader filter: w2 has no orders, and the table says so instead of
+        # showing w1's row.
+        alle = _sichtbarer_text(self.ausgabe["live"]["copy_orders"])
+        self.assertIn("Example question", alle)
+        self.assertIn("TRADER All w1 w2", alle)
+        nur_b = _sichtbarer_text(self.ausgabe["live"]["copy_filter_b"])
+        self.assertNotIn("Example question", nur_b)
+        self.assertIn("No paper orders reported by /api/copy yet.", nur_b)
+        # Performance for one trader draws that trader's curve (three points)
+        # and names it; the aggregate has no curve and says so.
+        perf_a = self.ausgabe["live"]["copy_perf_filter_a"]
+        self.assertIn("W1 — EQUITY VS CASH PUT IN", _sichtbarer_text(perf_a))
+        self.assertRegex(perf_a, r'<polyline points="[0-9., ]+"')
+        perf_all = self.ausgabe["live"]["copy_perf"]
+        self.assertIn("No equity curve yet", _sichtbarer_text(perf_all))
+        self.assertNotRegex(perf_all, r'<polyline points="[0-9., ]+"')
+        # Settings tab: the editable fields with their saved values, and the
+        # save button turns primary once something changed.
+        settings = _sichtbarer_text(self.ausgabe["live"]["copy_settings"])
+        for wert in ("DYNAMIC SIZING", "CASH THROTTLE", "AUTO TOP-UP", "Save settings", "mode now: dynamic"):
+            self.assertIn(wert, settings)
+        self.assertIn('value="0.25"', self.ausgabe["live"]["copy_settings"])
+        dirty = _sichtbarer_text(self.ausgabe["live"]["copy_settings_dirty"])
+        self.assertIn("Discard changes", dirty)
+        self.assertIn("mode now: fixed × 0.02", dirty)
+        # Inline rows.
+        self.assertIn("NOTE — domain, cadence, why you follow", _sichtbarer_text(self.ausgabe["live"]["copy_edit_row"]))
+        self.assertIn("Add paper cash", _sichtbarer_text(self.ausgabe["live"]["copy_topup_row"]))
+        # Cash events / positions carry a trader column and stay honest when empty.
+        self.assertIn("No cash events reported by /api/copy", _sichtbarer_text(self.ausgabe["live"]["copy_cash"]))
+        self.assertIn("No open paper positions reported by /api/copy", _sichtbarer_text(self.ausgabe["live"]["copy_positions"]))
 
 
 if __name__ == "__main__":

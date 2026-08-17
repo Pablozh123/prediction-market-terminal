@@ -40,8 +40,10 @@ function neuesT() {
       traderFiltersOpen: false,
       tPnl: 'all', tVol: 'all',
       btRun: 'idle', btError: '', btRetryIn: 0, btDirty: false,
-      riskView: 'events', riskAgeCheck: false, copyTab: 'orders', copyQuery: '',
+      riskView: 'events', riskAgeCheck: false, copyTab: 'traders', copyQuery: '',
       copySide: 'all', copyStatus2: 'all', copyMin: 'all',
+      copyTrader: 'all', copyForm: { wallet: '', label: '', cash: '1000', note: '' },
+      copyEdit: null, copyTopup: null, copySettings: null, copyBusy: '', copyMsg: null, copyToken: '',
       portTab: 'positions', portQuery: '', portSource: 'all', portSide: 'all', portLosers: false,
       tapeQuery: '', tapePlatform: 'all', tapeSide: 'all', tapeOutcome: 'all',
       whaleSort: 'total',
@@ -274,16 +276,43 @@ function mitDaten(T) {
   // Die Form von app/api_views.py copy_payload: Status und Kennzahlen da,
   // eine Order, aber kein Buch — genau der Fall, in dem frueher die
   // Rueckfallwerte der Portfolio- und Fidelity-Reiter erschienen.
+  // Two followed traders (one paused), the settings, a fresh daemon heartbeat
+  // and write access granted — the shape /api/copy answers with on the local
+  // desk. Trader B has no orders and no curve: those cells must say so.
   T.liveData.copy = {
     _quelle: 'live', as_of: '2026-08-07',
-    status: { running: true, source: '0xab…c · w1', scale: 1, cash: 990, auto_topup: false },
+    status: { running: true, source: 'w1', scale: 1, cash: 990, auto_topup: false },
     kpis: {
       equity: 1000, contributions: 1000, pnl: 0, pnl_pct: 0, source_return_pct: 0,
       mirrored: 1, total: 1, skipped: 0, fidelity: 100, config_fidelity: 100, exec_fidelity: 100,
       cash: 990, unrealized: 0, open_positions: 0
     },
-    orders: [{ time: '12:00', market: 'Example question', side: 'BUY Yes', theirs: '$100', yours: '$10', status: 'copied' }],
-    positions: [], cash_events: [], history: [], equity_curve: []
+    orders: [{ time: '12:00', market: 'Example question', side: 'BUY Yes', theirs: '$100', yours: '$10', status: 'copied', reason: 'buy_scaled', wallet: HARNESS_TRADER_A, at: '2026-08-07T12:00:00+00:00' }],
+    positions: [], cash_events: [], history: [], equity_curve: [],
+    traders: [
+      { wallet: HARNESS_TRADER_A, label: 'w1', note: 'harness desk, slow trader', active: true, start_cash: 500, cash: 490, position_value: 10, equity: 500,
+        contributions: 500, pnl: 0, pnl_pct: 0, realized_pnl: 0, unrealized_pnl: 0,
+        orders: { copied: 1, skipped: 0, settled: 0, observed: 3, total: 4 }, open_positions: 1, last_copy_at: '2026-08-07T12:00:00+00:00',
+        added_at: '2026-08-06T00:00:00+00:00', seeded_at: '2026-08-06T00:00:05+00:00', baseline_cutoff_ts: 1785000000,
+        equity_curve: [500, 500, 500], profile_url: 'https://polymarket.com/profile/' + HARNESS_TRADER_A },
+      { wallet: HARNESS_TRADER_B, label: 'w2', note: '', active: false, start_cash: 500, cash: 500, position_value: 0, equity: 500,
+        contributions: 500, pnl: 0, pnl_pct: 0, realized_pnl: 0, unrealized_pnl: 0,
+        orders: { copied: 0, skipped: 0, settled: 0, observed: 0, total: 0 }, open_positions: 0, last_copy_at: null,
+        added_at: '2026-08-07T00:00:00+00:00', seeded_at: null, baseline_cutoff_ts: null,
+        equity_curve: [], profile_url: 'https://polymarket.com/profile/' + HARNESS_TRADER_B }
+    ],
+    active_count: 1,
+    totals: { equity: 1000, contributions: 1000, cash: 990 },
+    settings: {
+      target_wallet: HARNESS_TRADER_A, paper_start_cash: 1000, copy_scale: 0.01, max_order_equity_pct: 0.05, live_trading_enabled: false,
+      trade_limit: 250, dynamic_sizing_enabled: true, dynamic_sizing_multiplier: 1, dynamic_stats_refresh_seconds: 300,
+      dynamic_scale_max: 0, dynamic_scale_min: 0, dynamic_order_cap_from_tony: true, cash_throttle_pct: 0.25,
+      auto_top_up_enabled: false, auto_top_up_amount: 1000, auto_top_up_threshold: 1, min_copy_notional: 0.01,
+      editable: ['copy_scale', 'dynamic_sizing_enabled', 'dynamic_sizing_multiplier', 'max_order_equity_pct', 'cash_throttle_pct', 'auto_top_up_enabled', 'auto_top_up_amount', 'auto_top_up_threshold', 'min_copy_notional', 'trade_limit', 'dynamic_order_cap_from_tony', 'dynamic_scale_max', 'dynamic_scale_min', 'paper_start_cash']
+    },
+    daemon: { running: true, claims_running: true, stale: false, age_seconds: 12, reason: 'heartbeat fresh', pid: 4242, mode: 'paper_ws_chain', ws_connected: true, last_sync_at: '2026-08-07T11:59:48+00:00', last_error: null },
+    sync: { running: false, started_at: null, finished_at: null, result: null, error: null },
+    write_access: { allowed: true, mode: 'loopback', reason: 'local request, no admin token configured' }
   };
   T.liveData.track = { _quelle: 'live', wallets: [], watchlist: [] };
   // Zwei Studien mit Nutzlast, damit die Knopfleiste der Forschungsseite
@@ -537,6 +566,8 @@ function mitDaten(T) {
 }
 
 const WALLET_HARNESS_ADDR = '0xabc0000000000000000000000000000000000abc';
+const HARNESS_TRADER_A = '0x' + 'a'.repeat(40);
+const HARNESS_TRADER_B = '0x' + 'b'.repeat(40);
 
 function walletNutzlast() {
   return {
@@ -722,6 +753,41 @@ function rendern(T) {
         beispiele: []
       }]],
     ['copy_fidelity', 'copy', { copyTab: 'fidelity' }],
+    // The copy desk: every tab, the trader filter, the inline edit and
+    // top-up rows, a read-only host (remote, no token) and one asking for a
+    // token, an action in flight, an error line, and a desk with no traders.
+    ['copy_orders', 'copy', { copyTab: 'orders' }],
+    ['copy_positions', 'copy', { copyTab: 'positions' }],
+    ['copy_perf', 'copy', { copyTab: 'perf' }],
+    ['copy_cash', 'copy', { copyTab: 'cash' }],
+    ['copy_settings', 'copy', { copyTab: 'settings' }],
+    ['copy_settings_dirty', 'copy', { copyTab: 'settings', copySettings: { dynamic_sizing_enabled: false, copy_scale: '0.02' } }],
+    ['copy_filter_b', 'copy', { copyTab: 'orders', copyTrader: HARNESS_TRADER_B }],
+    ['copy_perf_filter_a', 'copy', { copyTab: 'perf', copyTrader: HARNESS_TRADER_A }],
+    ['copy_edit_row', 'copy', { copyEdit: { wallet: HARNESS_TRADER_A, label: 'w1', note: 'x' } }],
+    ['copy_topup_row', 'copy', { copyTopup: { wallet: HARNESS_TRADER_A, amount: '500' } }],
+    ['copy_busy', 'copy', { copyBusy: 'follow' }],
+    ['copy_msg_err', 'copy', { copyMsg: { kind: 'err', text: 'harness error line' } }],
+    ['copy_readonly', 'copy', {}, null, (T) => {
+      const alt = T.liveData.copy;
+      if (alt) T.liveData.copy = Object.assign({}, alt, { write_access: { allowed: false, mode: 'locked', reason: 'writes are accepted from this machine only unless COPY_ADMIN_TOKEN is set' } });
+      return () => { T.liveData.copy = alt; };
+    }],
+    ['copy_token_needed', 'copy', {}, null, (T) => {
+      const alt = T.liveData.copy;
+      if (alt) T.liveData.copy = Object.assign({}, alt, { write_access: { allowed: false, mode: 'token', reason: 'admin token required (X-Admin-Token header)' } });
+      return () => { T.liveData.copy = alt; };
+    }],
+    ['copy_no_traders', 'copy', {}, null, (T) => {
+      const alt = T.liveData.copy;
+      if (alt) T.liveData.copy = Object.assign({}, alt, { traders: [], active_count: 0, orders: [], status: Object.assign({}, alt.status, { running: null, source: 'no active trader' }), daemon: { running: null, reason: 'no status file at data/copy_trader_status.json — the daemon has not run here yet' } });
+      return () => { T.liveData.copy = alt; };
+    }],
+    ['copy_error', 'copy', {}, null, (T) => {
+      const alt = T.liveData.copy;
+      T.liveData.copy = { _quelle: 'fehler', _fehler: 'HTTP 404' };
+      return () => { T.liveData.copy = alt; };
+    }],
     ['portfolio_exposure', 'portfolio', { portTab: 'exposure' }],
     // Live tape / Whale flow narrowed by a category chip: the harness tape
     // carries one Macro print (with wallet) and one Crypto print (Kalshi, no

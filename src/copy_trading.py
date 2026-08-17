@@ -1,7 +1,8 @@
-"""SQLite-backed paper copy-trading for one public Polymarket wallet.
+"""SQLite-backed paper copy-trading for public Polymarket wallets.
 
-This module is intentionally paper-only. It observes a target wallet's public
-trades, scales them into a local simulated portfolio, and never places orders.
+This module is intentionally paper-only. It observes the public trades of
+every followed wallet (``traders`` table, one sub-account each), scales them
+into a local simulated portfolio, and never places orders.
 """
 
 from __future__ import annotations
@@ -308,8 +309,21 @@ def init_db(conn: sqlite3.Connection, start_cash: float = 1000.0) -> None:
             copy_scale_override REAL,
             rank_score REAL NOT NULL DEFAULT 0,
             added_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
+            updated_at TEXT NOT NULL,
+            note TEXT NOT NULL DEFAULT ''
         );
+
+        CREATE TABLE IF NOT EXISTS trader_equity_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            wallet TEXT NOT NULL,
+            snapshot_time TEXT NOT NULL,
+            cash REAL NOT NULL,
+            position_value REAL NOT NULL,
+            equity REAL NOT NULL,
+            contributions REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_trader_equity_wallet_time
+            ON trader_equity_snapshots (wallet, snapshot_time);
 
         CREATE TABLE IF NOT EXISTS source_positions (
             wallet TEXT NOT NULL,
@@ -405,6 +419,10 @@ def _migrate_to_multitrader(conn: sqlite3.Connection, start_cash: float = 1000.0
             )
     if "desired_notional" not in _table_columns(conn, "paper_orders"):
         conn.execute("ALTER TABLE paper_orders ADD COLUMN desired_notional REAL NOT NULL DEFAULT 0")
+    if "note" not in _table_columns(conn, "traders"):
+        # Free text per followed trader: what the follower expects of them
+        # (domain, cadence, thesis). Display only; the engine never reads it.
+        conn.execute("ALTER TABLE traders ADD COLUMN note TEXT NOT NULL DEFAULT ''")
     _migrate_positions_to_sub_accounts(conn)
 
     if conn.execute("SELECT 1 FROM traders LIMIT 1").fetchone() is None:
@@ -622,6 +640,85 @@ def get_equity_snapshots(
             params=(int(limit),),
         )
         return frame
+    finally:
+        if should_close:
+            conn.close()
+
+
+def trader_contributions(conn: sqlite3.Connection, wallet: str) -> float:
+    """Cash put into one sub-account: its start cash plus its recorded top-ups."""
+    row = conn.execute("SELECT start_cash FROM traders WHERE wallet = ?", (wallet,)).fetchone()
+    start = float(row["start_cash"] or 0.0) if row is not None else 0.0
+    try:
+        events = conn.execute("SELECT COALESCE(SUM(amount), 0) FROM cash_events WHERE trader_wallet = ?", (wallet,)).fetchone()
+        top_ups = float(events[0] or 0.0) if events else 0.0
+    except sqlite3.OperationalError:
+        top_ups = 0.0
+    return start + top_ups
+
+
+def record_trader_equity_snapshots(
+    db_path: str | Path = DEFAULT_DB_PATH,
+    min_interval_seconds: float = 60.0,
+    conn: sqlite3.Connection | None = None,
+    wallets: Iterable[str] | None = None,
+) -> int:
+    """Append one equity snapshot per followed trader (throttled per wallet).
+
+    The aggregate ``equity_snapshots`` curve mixes every sub-account; the
+    per-trader comparison the multi-trader test is about (spec §4.6) needs a
+    curve per wallet, which is what these rows are. Returns how many rows
+    were written this call. Paused traders are snapshotted too — their book
+    still marks to market while they sit out.
+    """
+    should_close = conn is None
+    conn = conn or connect(db_path)
+    try:
+        if wallets is None:
+            wallets = [str(r["wallet"]) for r in conn.execute("SELECT wallet FROM traders ORDER BY added_at ASC").fetchall()]
+        written = 0
+        now = datetime.now(timezone.utc)
+        for wallet in wallets:
+            wallet = str(wallet or "").strip().lower()
+            if not wallet:
+                continue
+            last = conn.execute(
+                "SELECT snapshot_time FROM trader_equity_snapshots WHERE wallet = ? ORDER BY id DESC LIMIT 1", (wallet,)
+            ).fetchone()
+            if last and min_interval_seconds > 0:
+                try:
+                    if (now - datetime.fromisoformat(str(last[0]))).total_seconds() < float(min_interval_seconds):
+                        continue
+                except ValueError:
+                    pass
+            snap = value_sub_account(wallet, conn=conn)
+            conn.execute(
+                "INSERT INTO trader_equity_snapshots (wallet, snapshot_time, cash, position_value, equity, contributions)"
+                " VALUES (?, ?, ?, ?, ?, ?)",
+                (wallet, utc_now(), float(snap.cash), float(snap.position_value), float(snap.equity), trader_contributions(conn, wallet)),
+            )
+            written += 1
+        conn.commit()
+        return written
+    finally:
+        if should_close:
+            conn.close()
+
+
+def get_trader_equity_snapshots(
+    wallet: str,
+    db_path: str | Path = DEFAULT_DB_PATH,
+    limit: int = 5000,
+    conn: sqlite3.Connection | None = None,
+) -> pd.DataFrame:
+    should_close = conn is None
+    conn = conn or connect(db_path)
+    try:
+        return pd.read_sql_query(
+            "SELECT * FROM (SELECT * FROM trader_equity_snapshots WHERE wallet = ? ORDER BY id DESC LIMIT ?) ORDER BY id ASC",
+            conn,
+            params=(str(wallet or "").strip().lower(), int(limit)),
+        )
     finally:
         if should_close:
             conn.close()
@@ -849,6 +946,105 @@ def refresh_tony_wallet_stats(
     return stats
 
 
+def _primary_wallet(conn: sqlite3.Connection) -> str:
+    """The wallet the legacy single-target meta keys describe."""
+    return _normalize_address(_get_meta(conn, "target_wallet") or COPY_TARGET_WALLET)
+
+
+def is_wallet_seeded(conn: sqlite3.Connection, wallet: str) -> bool:
+    """Whether ``wallet`` has its own baseline (positions mirrored, cutoff set).
+
+    Every trader keeps its own ``seeded_at:<wallet>`` marker. The single-wallet
+    databases before that carried one global ``tony_seeded_at``; it still
+    counts, but only for the wallet it was written for (the primary target),
+    so a trader followed later is seeded on its own instead of inheriting the
+    first trader's cutoff and copying its whole recent history at stale prices.
+    """
+    wallet = _normalize_address(wallet)
+    if _get_meta(conn, f"seeded_at:{wallet}") is not None:
+        return True
+    return wallet == _primary_wallet(conn) and _get_meta(conn, "tony_seeded_at") is not None
+
+
+def wallet_baseline_cutoff(conn: sqlite3.Connection, wallet: str) -> int:
+    """Epoch-second cutoff: source trades at or before it are observed, not copied."""
+    wallet = _normalize_address(wallet)
+    value = _get_meta(conn, f"baseline_cutoff_ts:{wallet}")
+    if value is not None:
+        return int(_to_float(value, 0.0))
+    if wallet == _primary_wallet(conn):
+        return int(_get_float_meta(conn, "baseline_cutoff_ts", 0.0))
+    return 0
+
+
+def wallet_seeded_at(conn: sqlite3.Connection, wallet: str) -> str | None:
+    wallet = _normalize_address(wallet)
+    value = _get_meta(conn, f"seeded_at:{wallet}")
+    if value is not None:
+        return value
+    if wallet == _primary_wallet(conn):
+        return _get_meta(conn, "tony_seeded_at")
+    return None
+
+
+def seed_wallet_baseline(
+    conn: sqlite3.Connection,
+    wallet: str,
+    settings: CopySettings | None = None,
+    trades: pd.DataFrame | None = None,
+    positions: pd.DataFrame | None = None,
+) -> SyncResult:
+    """Lay down ``wallet``'s baseline: mirror its open positions, record its
+    recent trades as observed (never copied) and set its cutoff at the newest
+    of them. Everything the wallet does after this moment is copied.
+
+    ``trades``/``positions`` may be passed in (tests, or a caller that already
+    fetched them); otherwise they come from the public Data API. The first
+    wallet ever seeded also writes the legacy global keys so older readers of
+    the meta table (the Streamlit page) keep working.
+    """
+    settings = settings or CopySettings(target_wallet=wallet)
+    wallet = _normalize_address(wallet)
+    if trades is None:
+        trades = fetch_source_trades(wallet, limit=settings.trade_limit)
+    if positions is None:
+        positions = md.get_polymarket_positions(wallet, limit=500)
+    if positions is not None and not positions.empty:
+        seed_source_positions(conn, wallet, positions)
+        if wallet == _primary_wallet(conn):
+            seed_tony_positions(conn, positions)
+    seed_count = _mark_existing_trades_as_seed(conn, trades, wallet) if trades is not None and not trades.empty else 0
+    baseline_cutoff = int(_sort_source_trades(trades)["timestamp"].max()) if trades is not None and not trades.empty else 0
+    now = utc_now()
+    _set_meta(conn, f"seeded_at:{wallet}", now)
+    _set_meta(conn, f"baseline_cutoff_ts:{wallet}", str(baseline_cutoff))
+    _set_meta(conn, f"baseline_trade_limit:{wallet}", str(settings.trade_limit))
+    if _get_meta(conn, "tony_seeded_at") is None:
+        _set_meta(conn, "target_wallet", wallet)
+        _set_meta(conn, "tony_seeded_at", now)
+        _set_meta(conn, "baseline_cutoff_ts", str(baseline_cutoff))
+        _set_meta(conn, "baseline_trade_limit", str(settings.trade_limit))
+    _set_meta(conn, "last_sync_at", now)
+    return SyncResult(processed=seed_count, skipped=seed_count, seeded=True)
+
+
+def seed_trader_baseline(
+    wallet: str,
+    settings: CopySettings | None = None,
+    db_path: str | Path = DEFAULT_DB_PATH,
+) -> SyncResult:
+    """Public entry point: seed one trader's baseline now (used when a wallet
+    is followed from the interface, so its first daemon pass copies only what
+    happens from here on)."""
+    conn = connect(db_path)
+    try:
+        result = seed_wallet_baseline(conn, wallet, settings=settings)
+        conn.commit()
+        return result
+    finally:
+        conn.close()
+
+
 def sync_copy_trades(
     wallet: str = COPY_TARGET_WALLET,
     settings: CopySettings | None = None,
@@ -859,25 +1055,15 @@ def sync_copy_trades(
     conn = connect(db_path)
     try:
         refresh_tony_wallet_stats(conn, wallet, settings=settings)
-        seeded = _get_meta(conn, "tony_seeded_at") is not None
-        if not seeded:
-            seed_positions = md.get_polymarket_positions(wallet, limit=500)
-            seed_tony_positions(conn, seed_positions)
-            seed_source_positions(conn, wallet, seed_positions)
-            seed_count = _mark_existing_trades_as_seed(conn, trades, wallet)
-            baseline_cutoff = int(_sort_source_trades(trades)["timestamp"].max()) if not trades.empty else 0
-            _set_meta(conn, "target_wallet", wallet)
-            _set_meta(conn, "tony_seeded_at", utc_now())
-            _set_meta(conn, "baseline_cutoff_ts", str(baseline_cutoff))
-            _set_meta(conn, "baseline_trade_limit", str(settings.trade_limit))
-            _set_meta(conn, "last_sync_at", utc_now())
+        if not is_wallet_seeded(conn, wallet):
+            result = seed_wallet_baseline(conn, wallet, settings=settings, trades=trades)
             conn.commit()
-            return SyncResult(processed=seed_count, skipped=seed_count, seeded=True)
+            return result
 
         copied = skipped = duplicates = processed = 0
         errors: list[str] = []
         ordered = _sort_source_trades(trades)
-        baseline_cutoff = int(_get_float_meta(conn, "baseline_cutoff_ts", 0.0))
+        baseline_cutoff = wallet_baseline_cutoff(conn, wallet)
         for _, row in ordered.iterrows():
             try:
                 if int(row.get("timestamp") or 0) <= baseline_cutoff:
@@ -991,9 +1177,10 @@ def sync_onchain_copy_trades(
     wallet's signed order side, token id, filled size, and price.
     """
     settings = settings or CopySettings(target_wallet=wallet)
+    wallet_key = _normalize_address(wallet)
     conn = connect(db_path)
     try:
-        if _get_meta(conn, "tony_seeded_at") is None:
+        if not is_wallet_seeded(conn, wallet):
             conn.close()
             seed_result = sync_copy_trades(wallet, settings=settings, db_path=db_path)
             conn = connect(db_path)
@@ -1010,7 +1197,14 @@ def sync_onchain_copy_trades(
         except (requests.RequestException, RuntimeError, ValueError) as exc:
             return SyncResult(source="chain", errors=(f"rpc unavailable: {exc}",))
         latest_block = max(0, int(str(latest_raw), 16) - max(0, confirmations))
-        previous = _get_meta(conn, "fast_last_block")
+        # One scan cursor per wallet. With a single global cursor the first
+        # wallet of the pass advanced it to the head and every wallet after it
+        # found nothing left to scan — the on-chain layer silently covered one
+        # trader only. Databases from before carry the cursor of their primary
+        # wallet under the old key; that wallet inherits it once.
+        previous = _get_meta(conn, f"fast_last_block:{wallet_key}")
+        if previous is None and wallet_key == _primary_wallet(conn):
+            previous = _get_meta(conn, "fast_last_block")
         if previous is None:
             from_block = max(0, latest_block - max(0, lookback_blocks) + 1)
         else:
@@ -1035,7 +1229,7 @@ def sync_onchain_copy_trades(
             block_timestamps = _block_timestamps(rpc_url, {int(log["blockNumber"], 16) for log in logs if log.get("blockNumber")})
         except (requests.RequestException, RuntimeError, ValueError) as exc:
             return SyncResult(source="chain", latest_block=latest_block, from_block=from_block, to_block=to_block, errors=(f"rpc unavailable: {exc}",))
-        baseline_cutoff = int(_get_float_meta(conn, "baseline_cutoff_ts", 0.0))
+        baseline_cutoff = wallet_baseline_cutoff(conn, wallet)
         copied = skipped = duplicates = processed = 0
         errors: list[str] = []
 
@@ -1073,7 +1267,11 @@ def sync_onchain_copy_trades(
             except Exception as exc:
                 errors.append(str(exc))
 
-        _set_meta(conn, "fast_last_block", str(to_block))
+        _set_meta(conn, f"fast_last_block:{wallet_key}", str(to_block))
+        # The global keys stay as the "how far has the chain scan come" display
+        # values (Streamlit status panel); they mirror the primary wallet's cursor.
+        if wallet_key == _primary_wallet(conn):
+            _set_meta(conn, "fast_last_block", str(to_block))
         _set_meta(conn, "fast_latest_block", str(latest_block))
         _set_meta(conn, "fast_last_seen_at", utc_now())
         _set_meta(conn, "fast_rpc_url", rpc_url)
@@ -1368,14 +1566,15 @@ def apply_ws_trades(
     conn = connect(db_path)
     try:
         active = {_normalize_address(w) for w in active_trader_wallets(db_path=db_path, conn=conn)}
-        seeded = _get_meta(conn, "tony_seeded_at") is not None
-        baseline_cutoff = int(_get_float_meta(conn, "baseline_cutoff_ts", 0.0))
         for wallet, wallet_trades in by_wallet.items():
-            if active and wallet not in active:
+            # Paused traders (active = 0) are not copied even if the firehose
+            # still carries their prints; with every trader paused, nothing is.
+            if wallet not in active:
                 continue
-            if not seeded:
+            if not is_wallet_seeded(conn, wallet):
                 results[wallet] = SyncResult(source="ws", skipped=len(wallet_trades))
                 continue
+            baseline_cutoff = wallet_baseline_cutoff(conn, wallet)
             wallet_settings = replace(settings, target_wallet=wallet) if settings is not None else CopySettings(target_wallet=wallet)
             copied = skipped = duplicates = processed = 0
             errors: list[str] = []
@@ -1968,15 +2167,18 @@ def get_source_positions(db_path: str | Path = DEFAULT_DB_PATH, conn: sqlite3.Co
 def active_trader_wallets(db_path: str | Path = DEFAULT_DB_PATH, conn: sqlite3.Connection | None = None) -> list[str]:
     """Return the wallets the engine should copy, in follow order.
 
-    Falls back to the legacy single target wallet if the ``traders`` table is
-    empty (e.g. a database created before the multi-trader migration).
+    Falls back to the legacy single target wallet only if the ``traders`` table
+    has no rows at all (a database created before the multi-trader migration).
+    Traders that exist but are all paused mean exactly that: copy nobody —
+    the fallback must not quietly resume the seed wallet.
     """
     owns_conn = conn is None
     conn = connect(db_path) if conn is None else conn
     try:
-        rows = conn.execute("SELECT wallet FROM traders WHERE active = 1 ORDER BY added_at ASC, wallet ASC").fetchall()
-        wallets = [str(row["wallet"]) for row in rows if str(row["wallet"] or "")]
-        return wallets or [COPY_TARGET_WALLET]
+        rows = conn.execute("SELECT wallet, active FROM traders ORDER BY added_at ASC, wallet ASC").fetchall()
+        if not rows:
+            return [COPY_TARGET_WALLET]
+        return [str(row["wallet"]) for row in rows if int(row["active"] or 0) == 1 and str(row["wallet"] or "")]
     finally:
         if owns_conn:
             conn.close()
@@ -1989,12 +2191,15 @@ def follow_trader(
     copy_scale_override: float | None = None,
     db_path: str | Path = DEFAULT_DB_PATH,
     conn: sqlite3.Connection | None = None,
+    note: str = "",
 ) -> bool:
     """Open (or re-activate) a sub-account for ``wallet``.
 
     Returns True when a new trader row is created, False when an existing one is
     re-activated. Each new sub-account starts with the same ``start_cash`` so
-    traders share a fair starting line (spec §4.3).
+    traders share a fair starting line (spec §4.3). ``note`` is free text for
+    the follower (domain, cadence, thesis); on re-activation a non-empty note
+    replaces the stored one.
     """
     wallet = str(wallet or "").strip().lower()
     if not wallet:
@@ -2003,24 +2208,72 @@ def follow_trader(
     conn = connect(db_path) if conn is None else conn
     try:
         now = utc_now()
+        note = str(note or "").strip()
         existing = conn.execute("SELECT wallet FROM traders WHERE wallet = ?", (wallet,)).fetchone()
         if existing is None:
             conn.execute(
                 """
                 INSERT INTO traders
-                    (wallet, label, active, start_cash, cash, copy_scale_override, rank_score, added_at, updated_at)
-                VALUES (?, ?, 1, ?, ?, ?, 0, ?, ?)
+                    (wallet, label, active, start_cash, cash, copy_scale_override, rank_score, added_at, updated_at, note)
+                VALUES (?, ?, 1, ?, ?, ?, 0, ?, ?, ?)
                 """,
-                (wallet, label or wallet, float(start_cash), float(start_cash), copy_scale_override, now, now),
+                (wallet, label or wallet, float(start_cash), float(start_cash), copy_scale_override, now, now, note),
             )
             conn.commit()
             return True
         conn.execute(
-            "UPDATE traders SET active = 1, label = CASE WHEN ? <> '' THEN ? ELSE label END, updated_at = ? WHERE wallet = ?",
-            (label, label, now, wallet),
+            "UPDATE traders SET active = 1, label = CASE WHEN ? <> '' THEN ? ELSE label END,"
+            " note = CASE WHEN ? <> '' THEN ? ELSE note END, updated_at = ? WHERE wallet = ?",
+            (label, label, note, note, now, wallet),
         )
         conn.commit()
         return False
+    finally:
+        if owns_conn:
+            conn.close()
+
+
+def update_trader(
+    wallet: str,
+    *,
+    active: bool | None = None,
+    label: str | None = None,
+    note: str | None = None,
+    db_path: str | Path = DEFAULT_DB_PATH,
+    conn: sqlite3.Connection | None = None,
+) -> bool:
+    """Change a trader's display or pause state without touching its books.
+
+    ``None`` leaves a field alone. Returns True if the row exists (and was
+    written), False if the wallet is not followed at all. Pausing keeps the
+    sub-account, its positions and its history — the daemon simply stops
+    booking new source trades into it until it is resumed.
+    """
+    wallet = str(wallet or "").strip().lower()
+    owns_conn = conn is None
+    conn = connect(db_path) if conn is None else conn
+    try:
+        if conn.execute("SELECT 1 FROM traders WHERE wallet = ?", (wallet,)).fetchone() is None:
+            return False
+        sets: list[str] = []
+        params: list[Any] = []
+        if active is not None:
+            sets.append("active = ?")
+            params.append(1 if active else 0)
+        if label is not None:
+            sets.append("label = ?")
+            params.append(str(label).strip() or wallet)
+        if note is not None:
+            sets.append("note = ?")
+            params.append(str(note).strip())
+        if not sets:
+            return True
+        sets.append("updated_at = ?")
+        params.append(utc_now())
+        params.append(wallet)
+        conn.execute(f"UPDATE traders SET {', '.join(sets)} WHERE wallet = ?", params)
+        conn.commit()
+        return True
     finally:
         if owns_conn:
             conn.close()

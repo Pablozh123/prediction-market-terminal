@@ -1272,17 +1272,26 @@ def copy_payload(
     source_label: str,
     sizing: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """SQLite-Zustand des Copy-Traders in die Copy/Portfolio-Seiten."""
+    """SQLite-Zustand des Copy-Traders in die Copy/Portfolio-Seiten.
+
+    Jede Order-Zeile traegt ``wallet`` (die Quell-Wallet, klein geschrieben),
+    jede Positions- und Kassenzeile die Wallet als letztes Listenelement — so
+    kann die Seite nach Trader filtern, ohne dass die aelteren Spalten
+    wandern. Die Zaehler in ``kpis`` gehen ueber alle Orders, nicht nur ueber
+    die gezeigten Zeilen.
+    """
 
     order_rows: list[dict[str, Any]] = []
     copied = skipped = 0
+    total_orders = 0
     if orders is not None and not orders.empty:
-        for _, row in orders.head(60).iterrows():
+        total_orders = int(len(orders))
+        if "status" in orders:
+            status_all = orders["status"].astype(str)
+            copied = int(status_all.eq("copied").sum())
+            skipped = int(status_all.eq("skipped").sum())
+        for _, row in orders.head(200).iterrows():
             status = _text(row.get("status")) or "copied"
-            if status == "copied":
-                copied += 1
-            elif status == "skipped":
-                skipped += 1
             time_label = _text(row.get("source_time") or row.get("created_at"))
             if "T" in time_label:
                 time_label = time_label.split("T")[1][:5]
@@ -1294,13 +1303,16 @@ def copy_payload(
                 "theirs": f"${(_num(row.get('source_notional'), 0.0) or 0.0):,.0f}",
                 "yours": f"${(_num(row.get('copy_notional'), 0.0) or 0.0):,.0f}",
                 "status": status,
+                "reason": _text(row.get("reason")),
+                "wallet": _text(row.get("source_wallet")).lower(),
+                "at": _text(row.get("source_time") or row.get("created_at")),
             })
     position_rows: list[list[Any]] = []
     if positions is not None and not positions.empty:
-        for _, row in positions.head(30).iterrows():
+        for _, row in positions.head(60).iterrows():
             shares = _num(row.get("size") or row.get("shares"), 0.0) or 0.0
             avg = _num(row.get("avg_price"), 0.0) or 0.0
-            mark = _num(row.get("current_price") or row.get("mark_price"), avg) or avg
+            mark = _num(row.get("current_price") or row.get("mark_price") or row.get("last_price"), avg) or avg
             value = shares * mark
             pnl = value - shares * avg
             position_rows.append([
@@ -1311,16 +1323,19 @@ def copy_payload(
                 f"{mark:.3f}",
                 f"${value:.2f}",
                 ("+" if pnl >= 0 else "-") + f"${abs(pnl):.2f}",
+                _text(row.get("trader_wallet") or row.get("wallet")).lower(),
             ])
     cash_rows: list[list[Any]] = []
     if cash_events is not None and not cash_events.empty:
-        for _, row in cash_events.head(20).iterrows():
+        for _, row in cash_events.head(40).iterrows():
             amount = _num(row.get("amount"), 0.0) or 0.0
+            cash_after = _num(row.get("cash_after"))
             cash_rows.append([
-                _text(row.get("created_at") or row.get("time"))[:10],
+                _text(row.get("event_time") or row.get("created_at") or row.get("time"))[:10],
                 _text(row.get("reason") or row.get("kind")) or "Cash event",
                 ("+" if amount >= 0 else "-") + f"${abs(amount):,.2f}",
-                "",
+                f"${cash_after:,.2f}" if cash_after is not None else "",
+                _text(row.get("trader_wallet")).lower(),
             ])
     history_rows: list[list[Any]] = []
     if orders is not None and not orders.empty:
@@ -1345,7 +1360,7 @@ def copy_payload(
     cash = _num(portfolio.get("cash"), 0.0) or 0.0
     contributions = _num(contributions, 0.0) or 0.0
     pnl = equity - contributions
-    total = len(order_rows)
+    total = total_orders
     fidelity = round(copied / total * 100) if total else 100
     scale = _num((sizing or {}).get("effective_copy_scale"), 1.0) or 1.0
     return {

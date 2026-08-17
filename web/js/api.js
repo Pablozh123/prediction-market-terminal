@@ -103,12 +103,30 @@ export async function apiGet(path) {
   }
 }
 
-export async function apiPost(path, body) {
+// Extra headers ride along (the copy desk sends X-Admin-Token). A non-2xx
+// answer with a JSON {detail} carries that text on the error, so the page can
+// say "max_order_equity_pct is a fraction" instead of "HTTP 400".
+export async function apiPost(path, body, headers) {
   const res = await hole(API_BASE + path, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
+    headers: Object.assign({ 'Content-Type': 'application/json' }, headers || {}),
+    body: JSON.stringify(body == null ? {} : body)
   });
+  if (!res.ok) {
+    const err = await httpFehler(res);
+    try {
+      const daten = await res.json();
+      if (daten && daten.detail) err.detail = typeof daten.detail === 'string' ? daten.detail : JSON.stringify(daten.detail);
+    } catch (e) { /* kein JSON-Koerper */ }
+    throw err;
+  }
+  return res.json();
+}
+
+// GET with headers, without the static fallback (used for the copy desk,
+// which has no published file to fall back to).
+export async function apiGetRaw(path, headers) {
+  const res = await hole(API_BASE + path, { headers: headers || {} });
   if (!res.ok) throw await httpFehler(res);
   return res.json();
 }
