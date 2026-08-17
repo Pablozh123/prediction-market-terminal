@@ -69,10 +69,26 @@ async function statischerRueckfall(path) {
   return daten;
 }
 
+// HTTP errors carry the status and, on 429, the server's retry_after_s so
+// the caller can say "rate-limited, retry in N s" instead of "HTTP 429".
+async function httpFehler(res) {
+  const err = new Error('HTTP ' + res.status);
+  err.status = res.status;
+  if (res.status === 429) {
+    let sekunden = Number(res.headers.get('Retry-After')) || 0;
+    try {
+      const daten = await res.json();
+      if (daten && daten.retry_after_s != null) sekunden = Number(daten.retry_after_s) || sekunden;
+    } catch (e) { /* kein JSON-Koerper */ }
+    err.retryAfter = sekunden || 10;
+  }
+  return err;
+}
+
 export async function apiGet(path) {
   try {
     const res = await hole(API_BASE + path);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) throw await httpFehler(res);
     return await res.json();
   } catch (err) {
     const ersatz = await statischerRueckfall(path);
@@ -81,26 +97,12 @@ export async function apiGet(path) {
   }
 }
 
-// HTTP errors carry the status and, on 429, the server's retry_after_s so
-// the caller can say "rate-limited, retry in N s" instead of "HTTP 429".
 export async function apiPost(path, body) {
   const res = await hole(API_BASE + path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
-  if (!res.ok) {
-    const err = new Error('HTTP ' + res.status);
-    err.status = res.status;
-    if (res.status === 429) {
-      let sekunden = Number(res.headers.get('Retry-After')) || 0;
-      try {
-        const daten = await res.json();
-        if (daten && daten.retry_after_s != null) sekunden = Number(daten.retry_after_s) || sekunden;
-      } catch (e) { /* kein JSON-Koerper */ }
-      err.retryAfter = sekunden || 10;
-    }
-    throw err;
-  }
+  if (!res.ok) throw await httpFehler(res);
   return res.json();
 }
