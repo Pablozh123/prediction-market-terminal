@@ -107,15 +107,15 @@ leaderboard, copy trade, a "backtest" label, Telegram alerts.
    Defensible through a resolution-precedent dataset.
 
 7. **Category-aware, explainable insider screening.** The incumbents score
-   sports odds as "insider", which is noise. We exclude sports and weather,
-   keep politics and geopolitics, and say why a row was flagged. **Nobody else
-   does this.**
+   sports odds as "insider", which is noise. We exclude sports, weather and
+   crypto/market prices, keep politics and geopolitics, and say why a row was
+   flagged. **Nobody else does this.**
 
 ## 4. What we already have
 
 - **Both venues in one interface**, not just an API.
-- **Category-aware insider screening** — sports and weather excluded, which
-  nobody else does.
+- **Category-aware insider screening** — sports, weather and crypto/market
+  prices excluded, which nobody else does.
 - **A rigorous backtester** (copy and fade, four sizing modes, exposure cap,
   mid-window resolutions, and honest flat curves) that now charges the real
   venue fee curve rather than a flattering flat rate.

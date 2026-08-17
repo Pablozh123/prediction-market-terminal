@@ -104,6 +104,19 @@ def _safe_ts(value: Any) -> pd.Timestamp | None:
             # Polymarket uses epoch seconds; some feeds use epoch milliseconds.
             unit = "ms" if abs(float(value)) >= 1_000_000_000_000 else "s"
             return pd.to_datetime(value, unit=unit, utc=True)
+        if isinstance(value, str):
+            # Fast path for the ISO stamps every Polymarket payload carries
+            # ("2026-07-20T00:00:00Z", "2026-07-20 01:14:28+00"): pandas
+            # guesses the format per call and needs ~3 ms for it, which
+            # turns a page of two thousand markets into half a minute.
+            try:
+                parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+            except ValueError:
+                parsed = None
+            if parsed is not None:
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=timezone.utc)
+                return pd.Timestamp(parsed).tz_convert("UTC")
         return pd.to_datetime(value, utc=True)
     except Exception:
         return None
@@ -356,6 +369,53 @@ def get_polymarket_event_markets(event_url_or_slug: str) -> pd.DataFrame:
     return _finalize_polymarket_markets([_normalize_polymarket_market(market, event) for market in rows])
 
 
+def normalize_polymarket_event_markets(event: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Normalized market dicts for the markets nested in one raw Gamma event.
+
+    Network-free counterpart of ``get_polymarket_event_markets`` for callers
+    that already hold the event payload (e.g. a page of ``/events``). Every
+    row carries the same keys as the live market frames plus ``raw`` for the
+    fields the normalizer drops (``outcomePrices``, ``umaResolutionStatus``).
+    """
+
+    if not isinstance(event, Mapping):
+        return []
+    rows = event.get("markets", []) if isinstance(event.get("markets"), list) else []
+    return [_normalize_polymarket_market(market, event) for market in rows if isinstance(market, Mapping)]
+
+
+def get_polymarket_closed_events(
+    limit: int = 100,
+    offset: int = 0,
+    end_date_min: Any | None = None,
+    end_date_max: Any | None = None,
+    order: str = "volume",
+) -> list[dict[str, Any]]:
+    """One page of closed Gamma events, raw dicts with ``tags`` and nested ``markets``.
+
+    ``/events`` is the only listing that carries the event tags (Sports,
+    Politics, Crypto, ...); ``/markets`` embeds the parent event without them.
+    Gamma caps a page at 100 events regardless of ``limit``; callers page by
+    ``offset``. Ordered by ``order`` descending (default lifetime volume).
+    """
+
+    params: dict[str, Any] = {
+        "closed": "true",
+        "archived": "false",
+        "limit": int(limit),
+        "offset": int(offset),
+        "order": order,
+        "ascending": "false",
+    }
+    for key, value in (("end_date_min", end_date_min), ("end_date_max", end_date_max)):
+        stamp = _safe_ts(value)
+        if stamp is not None:
+            params[key] = stamp.strftime("%Y-%m-%dT%H:%M:%SZ")
+    data = _get_json(f"{POLY_GAMMA}/events", params=params, timeout=60)
+    rows = data if isinstance(data, list) else data.get("data", []) if isinstance(data, dict) else []
+    return [row for row in rows if isinstance(row, dict)]
+
+
 def get_polymarket_closed_markets(limit: int = 250) -> pd.DataFrame:
     df = get_polymarket_markets(limit=limit, active_only=False)
     if df.empty:
@@ -606,7 +666,10 @@ def get_polymarket_price_history(
     window plus the matching ``fidelity`` (bucket size in minutes) instead.
 
     ``end_time`` defaults to now; pass a market's resolution time to read the
-    history of an already-closed market.
+    history of an already-closed market. The window itself is capped by the
+    CLOB at roughly 15 days (longer spans come back as "interval is too
+    long" and, via the swallowed error, as an empty frame); for anything
+    older use ``get_polymarket_price_history_lifetime``.
     """
 
     if not token_id:
@@ -625,6 +688,12 @@ def get_polymarket_price_history(
         )
     except MarketDataError:
         return pd.DataFrame(columns=["time", "price"])
+    return price_history_frame(data)
+
+
+def price_history_frame(data: Any) -> pd.DataFrame:
+    """``{"history": [{"t": epoch_s, "p": price}, ...]}`` -> frame(time, price), sorted."""
+
     rows = data.get("history", data) if isinstance(data, dict) else data
     df = pd.DataFrame(rows or [])
     if df.empty or "t" not in df.columns or "p" not in df.columns:
@@ -632,6 +701,30 @@ def get_polymarket_price_history(
     df["time"] = pd.to_datetime(df["t"], unit="s", utc=True)
     df["price"] = pd.to_numeric(df["p"], errors="coerce")
     return df[["time", "price"]].dropna().sort_values("time").reset_index(drop=True)
+
+
+def get_polymarket_price_history_lifetime(token_id: str, interval: str = "1d") -> pd.DataFrame:
+    """Whole-life price series of one CLOB token (``interval=max``).
+
+    An explicit ``startTs``/``endTs`` window is rejected by the CLOB once it
+    exceeds roughly two weeks, so a horizon of 30 days before resolution
+    cannot be read through ``get_polymarket_price_history``. ``interval=max``
+    returns the full history instead; at the daily bucket (``1d``) that is
+    the complete life of the market, at finer buckets the CLOB truncates the
+    series to its most recent part.
+    """
+
+    if not token_id:
+        return pd.DataFrame(columns=["time", "price"])
+    fidelity = PRICE_HISTORY_FIDELITY_MINUTES.get(str(interval), 1440)
+    try:
+        data = _get_json(
+            f"{POLY_CLOB}/prices-history",
+            params={"market": token_id, "interval": "max", "fidelity": fidelity},
+        )
+    except MarketDataError:
+        return pd.DataFrame(columns=["time", "price"])
+    return price_history_frame(data)
 
 
 def get_polymarket_orderbook(token_id: str, depth: int = 25) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -3662,6 +3755,50 @@ def market_category_counts(markets: pd.DataFrame, column: str = "category") -> l
     return [{"category": str(category), "count": int(count)} for category, count in counts.items()]
 
 
+#: Category keywords in priority order, shared by ``market_category_label`` and
+#: ``market_filter_category``. In readable text (titles, "Climate and Weather")
+#: a bare keyword matches at a word start only, so "RATE" still finds "rates"
+#: and "ELECTION" finds "elections", but "RAIN" no longer fires on "Ukraine"
+#: nor "RATE" on "moderate". Keywords padded with spaces (" ETH ", " F1 ",
+#: " TEMP ", " DOW ") match whole words only ("temple", "down" stay out).
+#: Kalshi ticker prefixes ("KXNBAGAME") have no word boundaries and are matched
+#: as plain substrings by ``market_category_label``.
+_CATEGORY_KEYWORDS: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("SPORT", "ESPORT", "NBA", "WNBA", "NFL", "MLB", "NHL", "FIFA", "WORLD CUP", "SOCCER", "TENNIS", "GOLF", "UFC", "MMA", "FORMULA 1", " F1 ", "CRICKET"), "Sports"),
+    (("CRYPTO", "BITCOIN", "BTC", "ETHEREUM", " ETH ", "SOLANA", "DOGE", "XRP"), "Crypto"),
+    (("ELECTION", "REELECTION", "POLITIC", "GEOPOLITIC", "TRUMP", "BIDEN", "CONGRESS", "SENATE", "PRESIDENT", "MAYORAL", "GOVERNOR"), "Politics"),
+    (("WEATHER", "TEMPERATURE", " TEMP ", " TEMPS ", "HURRICANE", "RAIN", "SNOW"), "Weather"),
+    (("STOCK", "NASDAQ", "SPY", "S&P", " DOW ", "FED", "INFLATION", "RATE", "WTI", "CRUDE OIL", "IPO"), "Finance"),
+)
+
+
+def _category_keyword_pattern(keywords: tuple[str, ...]) -> re.Pattern[str]:
+    """Regex matching any keyword at a word start; padded keywords as whole words."""
+
+    parts: list[str] = []
+    for keyword in keywords:
+        word = keyword.strip()
+        part = r"\b" + re.escape(word)
+        if word != keyword:
+            part += r"\b"
+        parts.append(part)
+    return re.compile("|".join(parts))
+
+
+_CATEGORY_KEYWORD_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
+    (_category_keyword_pattern(keywords), label) for keywords, label in _CATEGORY_KEYWORDS
+)
+
+
+def _keyword_category(text: str) -> str:
+    """First category whose keyword occurs at a word start in upper-cased ``text``."""
+
+    for pattern, label in _CATEGORY_KEYWORD_PATTERNS:
+        if pattern.search(text):
+            return label
+    return ""
+
+
 def market_category_label(category: Any) -> str:
     """Display raw Polymarket/Kalshi category identifiers as readable filter labels."""
 
@@ -3679,15 +3816,16 @@ def market_category_label(category: Any) -> str:
     upper = re.sub(r"[^A-Z0-9]", "", raw.upper())
     if upper in exact:
         return exact[upper]
-    keyword_labels = (
-        (("SPORT", "NBA", "NFL", "MLB", "NHL", "FIFA", "SOCCER", "TENNIS", "GOLF", "UFC", "MMA"), "Sports"),
-        (("CRYPTO", "BITCOIN", "BTC", "ETH", "SOLANA"), "Crypto"),
-        (("ELECTION", "POLITIC", "TRUMP", "BIDEN", "CONGRESS", "SENATE", "PRESIDENT"), "Politics"),
-        (("WEATHER", "TEMP", "HURRICANE", "RAIN", "SNOW"), "Weather"),
-        (("STOCK", "NASDAQ", "SPY", "DOW", "FED", "INFLATION", "RATE"), "Finance"),
-    )
-    for keywords, label in keyword_labels:
-        if any(keyword in upper for keyword in keywords):
+    if raw.isupper():
+        # Ticker-style identifiers (KXNBAGAME, KXBTC15M) carry no word
+        # boundaries, so keywords are looked up as substrings of the
+        # alphanumeric skeleton.
+        for keywords, label in _CATEGORY_KEYWORDS:
+            if any(keyword.strip() in upper for keyword in keywords):
+                return label
+    else:
+        label = _keyword_category(normalized.upper())
+        if label:
             return label
     if raw.isupper() and upper.startswith("KX"):
         return raw
@@ -3695,21 +3833,16 @@ def market_category_label(category: Any) -> str:
 
 
 def market_filter_category(category: Any, title: Any = "") -> str:
-    """Infer a practical scanner category from raw category plus market title."""
+    """Infer a practical scanner category from raw category plus market title.
+
+    Keywords are matched at word starts (see ``_CATEGORY_KEYWORDS``), so
+    "Ukraine" is not weather and "moderate" is not finance; the raw category
+    label decides when the title says nothing.
+    """
 
     label = market_category_label(category)
     text = f"{category or ''} {title or ''}".upper()
-    keyword_labels = (
-        (("SPORT", "NBA", "NFL", "MLB", "NHL", "FIFA", "WORLD CUP", "SOCCER", "TENNIS", "GOLF", "UFC", "MMA", "FORMULA 1", " F1 ", "CRICKET"), "Sports"),
-        (("CRYPTO", "BITCOIN", "BTC", "ETHEREUM", " ETH ", "SOLANA", "DOGE", "XRP"), "Crypto"),
-        (("ELECTION", "POLITIC", "TRUMP", "BIDEN", "CONGRESS", "SENATE", "PRESIDENT", "MAYORAL", "GOVERNOR"), "Politics"),
-        (("WEATHER", "TEMP", "HURRICANE", "RAIN", "SNOW"), "Weather"),
-        (("STOCK", "NASDAQ", "SPY", "S&P", "DOW", "FED", "INFLATION", "RATE", "WTI", "CRUDE OIL", "IPO"), "Finance"),
-    )
-    for keywords, inferred in keyword_labels:
-        if any(keyword in text for keyword in keywords):
-            return inferred
-    return label
+    return _keyword_category(text) or label
 
 
 def market_category_chip_options(

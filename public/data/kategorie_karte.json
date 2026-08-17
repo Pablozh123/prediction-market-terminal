@@ -1,56 +1,1308 @@
 {
- "hinweis": "Brier scores and pricing-speed examples per market category; sport/pop-culture convergence times are documented upper bounds.",
- "stand_utc": "2026-08-07T04:30:03+00:00",
+ "hinweis": "Brier score, hit rate and calibration of the Polymarket YES price at fixed horizons before each market's decision time, per category. Sample: resolved binary markets from the highest-volume closed events with an end date from 2025-08-17, at most 6 markets per event and 250 long-lived markets per category (1679 markets, 7 categories). A market counts at a horizon only if it had a price then, so n differs by horizon; every figure carries its n. Prices are hourly for T-14 and nearer and daily for T-30. Sample selection and its caveats are in `quelle`; the thesis figures this replaces are kept under `thesis_snapshot`; the pricing-speed examples (`beispiele`) are unchanged. Observations per horizon — T-30: 860, T-14: 1154, T-7: 1263, T-3: 1567, T-1: 1679.",
+ "stand_utc": "2026-08-17T00:55:59+00:00",
+ "provenienz": "terminal/category_efficiency",
+ "horizonte_tage": [
+  30,
+  14,
+  7,
+  3,
+  1
+ ],
+ "quelle": {
+  "methode": "YES price at T-N days before the decision time (min of closedTime and endDate) versus the settled outcome from outcomePrices; Brier = mean (p - y)^2, hit = (p >= 0.5) == y, both per category and horizon with n; calibration bins of the T-7 price against the realised share won.",
+  "kategorisierung": "Gamma event tags in a fixed priority (Sports, Crypto, Mentions, Politics, Pop culture, Business/Finance, Science/Tech, Weather), mentions by title pattern first, then the live title/tag classifier market_filter_category, else Other.",
+  "datenfenster": {
+   "abgerufen_utc": "2026-08-17T00:55:59+00:00",
+   "end_date_min": "2025-08-17T00:00:00Z",
+   "reihenfolge": "Gamma /events closed=true ordered by lifetime volume, descending",
+   "events_gesichtet": 2100,
+   "seiten": 21,
+   "aufgeloeste_binaere_maerkte_gesehen": 32670,
+   "kandidaten": 1682,
+   "je_bucket": {
+    "Business/Finance": 208,
+    "Business/Finance|short": 8,
+    "Crypto": 250,
+    "Crypto|short": 125,
+    "Mentions": 24,
+    "Politics": 250,
+    "Politics|short": 125,
+    "Pop culture": 170,
+    "Pop culture|short": 19,
+    "Science/Tech": 113,
+    "Science/Tech|short": 15,
+    "Sports": 250,
+    "Sports|short": 125
+   }
+  },
+  "auswahl": {
+   "max_per_event": 6,
+   "max_per_category_long_lived": 250,
+   "max_per_category_short_lived": 125,
+   "min_volume_usd": 1000.0,
+   "min_life_days": 1.0,
+   "min_markets_per_category": 30
+  },
+  "preise": {
+   "hourly": "CLOB /prices-history, 15-day window ending at the decision time, fidelity 60 min",
+   "daily": "CLOB /prices-history interval=max, fidelity 1440 min (whole life), fallback and T-30",
+   "abrufe": {
+    "cached": 0,
+    "fetched": 1682,
+    "empty": 0,
+    "unavailable": 0
+   }
+  },
+  "raten": "Gamma /events 500 per 10 s, CLOB /prices-history 1,000 per 10 s (IP-based, throttled); this run stays far below both",
+  "stichprobe": {
+   "n_maerkte": 1679,
+   "n_kategorien": 7,
+   "n_je_horizont": {
+    "T-30": 860,
+    "T-14": 1154,
+    "T-7": 1263,
+    "T-3": 1567,
+    "T-1": 1679
+   }
+  },
+  "einschraenkungen": [
+   "Highest-volume events first, so the sample over-represents liquid markets; per-event cap of 6 favours each event's most-traded lines.",
+   "n differs by horizon: a market only counts where it had a price, and short-lived markets never reach T-7.",
+   "Decision time is min(closedTime, endDate); a market that kept trading past its nominal end date is read at that end date.",
+   "Category is the event's tag, not a human label; ambiguous events follow the fixed tag priority.",
+   "Descriptive of the past sample; not a forecast of any category's future pricing."
+  ]
+ },
  "kategorien": [
   {
-   "kategorie": "Politik",
-   "brier_t7": 0.3521,
-   "trefferquote_t7": 0.4167,
-   "brier_t1": 0.0361,
-   "trefferquote_t1": 0.9315,
-   "n_maerkte": 73,
-   "n_t7": 12,
-   "median_volumen_usd": 9883931.33
+   "kategorie": "Politics",
+   "brier_t7": 0.1197,
+   "trefferquote_t7": 0.8353,
+   "brier_t1": 0.0609,
+   "trefferquote_t1": 0.9147,
+   "n_maerkte": 375,
+   "n_t7": 249,
+   "n_t1": 375,
+   "anteil_entschieden_t7": 0.5341,
+   "median_volumen_usd": 4282069.66,
+   "horizonte": [
+    {
+     "horizont_tage": 30,
+     "brier": 0.1044,
+     "trefferquote": 0.8545,
+     "trefferquote_ci95": [
+      0.7927,
+      0.9003
+     ],
+     "n": 165,
+     "anteil_entschieden": 0.5939
+    },
+    {
+     "horizont_tage": 14,
+     "brier": 0.1272,
+     "trefferquote": 0.8281,
+     "trefferquote_ci95": [
+      0.7728,
+      0.8721
+     ],
+     "n": 221,
+     "anteil_entschieden": 0.5113
+    },
+    {
+     "horizont_tage": 7,
+     "brier": 0.1197,
+     "trefferquote": 0.8353,
+     "trefferquote_ci95": [
+      0.7842,
+      0.8762
+     ],
+     "n": 249,
+     "anteil_entschieden": 0.5341
+    },
+    {
+     "horizont_tage": 3,
+     "brier": 0.063,
+     "trefferquote": 0.9162,
+     "trefferquote_ci95": [
+      0.8835,
+      0.9403
+     ],
+     "n": 370,
+     "anteil_entschieden": 0.6973
+    },
+    {
+     "horizont_tage": 1,
+     "brier": 0.0609,
+     "trefferquote": 0.9147,
+     "trefferquote_ci95": [
+      0.882,
+      0.9389
+     ],
+     "n": 375,
+     "anteil_entschieden": 0.752
+    }
+   ],
+   "kalibrierung": {
+    "horizont_tage": 7,
+    "bins": [
+     {
+      "von": 0.0,
+      "bis": 0.1,
+      "vorhergesagt": 0.0172,
+      "realisiert": 0.0805,
+      "realisiert_ci95": [
+       0.0467,
+       0.1355
+      ],
+      "n": 149
+     },
+     {
+      "von": 0.1,
+      "bis": 0.2,
+      "vorhergesagt": 0.1479,
+      "realisiert": 0.2258,
+      "realisiert_ci95": [
+       0.1139,
+       0.3981
+      ],
+      "n": 31
+     },
+     {
+      "von": 0.2,
+      "bis": 0.3,
+      "vorhergesagt": 0.2296,
+      "realisiert": 0.2857,
+      "realisiert_ci95": [
+       0.1172,
+       0.5465
+      ],
+      "n": 14
+     },
+     {
+      "von": 0.3,
+      "bis": 0.4,
+      "vorhergesagt": 0.3407,
+      "realisiert": 0.5455,
+      "realisiert_ci95": [
+       0.2801,
+       0.7873
+      ],
+      "n": 11
+     },
+     {
+      "von": 0.4,
+      "bis": 0.5,
+      "vorhergesagt": 0.453,
+      "realisiert": 0.6667,
+      "realisiert_ci95": [
+       0.3,
+       0.9032
+      ],
+      "n": 6
+     },
+     {
+      "von": 0.5,
+      "bis": 0.6,
+      "vorhergesagt": 0.5521,
+      "realisiert": 0.5714,
+      "realisiert_ci95": [
+       0.2505,
+       0.8418
+      ],
+      "n": 7
+     },
+     {
+      "von": 0.6,
+      "bis": 0.7,
+      "vorhergesagt": 0.6602,
+      "realisiert": 0.8182,
+      "realisiert_ci95": [
+       0.523,
+       0.9486
+      ],
+      "n": 11
+     },
+     {
+      "von": 0.7,
+      "bis": 0.8,
+      "vorhergesagt": 0.7488,
+      "realisiert": 0.75,
+      "realisiert_ci95": [
+       0.4093,
+       0.9285
+      ],
+      "n": 8
+     },
+     {
+      "von": 0.8,
+      "bis": 0.9,
+      "vorhergesagt": 0.854,
+      "realisiert": 0.8,
+      "realisiert_ci95": [
+       0.3755,
+       0.9638
+      ],
+      "n": 5
+     },
+     {
+      "von": 0.9,
+      "bis": 1.0,
+      "vorhergesagt": 0.9548,
+      "realisiert": 1.0,
+      "realisiert_ci95": [
+       0.6457,
+       1.0
+      ],
+      "n": 7
+     }
+    ]
+   }
   },
   {
-   "kategorie": "Sport",
-   "brier_t7": 0.042,
-   "trefferquote_t7": 0.9231,
-   "brier_t1": 0.0412,
-   "trefferquote_t1": 0.95,
-   "n_maerkte": 60,
-   "n_t7": 26,
-   "median_volumen_usd": 4750770.96
+   "kategorie": "Sports",
+   "brier_t7": 0.1393,
+   "trefferquote_t7": 0.812,
+   "brier_t1": 0.1479,
+   "trefferquote_t1": 0.7787,
+   "n_maerkte": 375,
+   "n_t7": 250,
+   "n_t1": 375,
+   "anteil_entschieden_t7": 0.336,
+   "median_volumen_usd": 4784864.16,
+   "horizonte": [
+    {
+     "horizont_tage": 30,
+     "brier": 0.1445,
+     "trefferquote": 0.7937,
+     "trefferquote_ci95": [
+      0.7359,
+      0.8416
+     ],
+     "n": 223,
+     "anteil_entschieden": 0.3722
+    },
+    {
+     "horizont_tage": 14,
+     "brier": 0.1387,
+     "trefferquote": 0.8087,
+     "trefferquote_ci95": [
+      0.753,
+      0.8543
+     ],
+     "n": 230,
+     "anteil_entschieden": 0.3739
+    },
+    {
+     "horizont_tage": 7,
+     "brier": 0.1393,
+     "trefferquote": 0.812,
+     "trefferquote_ci95": [
+      0.759,
+      0.8556
+     ],
+     "n": 250,
+     "anteil_entschieden": 0.336
+    },
+    {
+     "horizont_tage": 3,
+     "brier": 0.1499,
+     "trefferquote": 0.7721,
+     "trefferquote_ci95": [
+      0.7208,
+      0.8164
+     ],
+     "n": 294,
+     "anteil_entschieden": 0.2789
+    },
+    {
+     "horizont_tage": 1,
+     "brier": 0.1479,
+     "trefferquote": 0.7787,
+     "trefferquote_ci95": [
+      0.7339,
+      0.8177
+     ],
+     "n": 375,
+     "anteil_entschieden": 0.2373
+    }
+   ],
+   "kalibrierung": {
+    "horizont_tage": 7,
+    "bins": [
+     {
+      "von": 0.0,
+      "bis": 0.1,
+      "vorhergesagt": 0.0194,
+      "realisiert": 0.0404,
+      "realisiert_ci95": [
+       0.0158,
+       0.0993
+      ],
+      "n": 99
+     },
+     {
+      "von": 0.1,
+      "bis": 0.2,
+      "vorhergesagt": 0.1506,
+      "realisiert": 0.1818,
+      "realisiert_ci95": [
+       0.0861,
+       0.3439
+      ],
+      "n": 33
+     },
+     {
+      "von": 0.2,
+      "bis": 0.3,
+      "vorhergesagt": 0.2463,
+      "realisiert": 0.3061,
+      "realisiert_ci95": [
+       0.1952,
+       0.4453
+      ],
+      "n": 49
+     },
+     {
+      "von": 0.3,
+      "bis": 0.4,
+      "vorhergesagt": 0.3376,
+      "realisiert": 0.2222,
+      "realisiert_ci95": [
+       0.09,
+       0.4522
+      ],
+      "n": 18
+     },
+     {
+      "von": 0.4,
+      "bis": 0.5,
+      "vorhergesagt": 0.4631,
+      "realisiert": 0.2,
+      "realisiert_ci95": [
+       0.0705,
+       0.4519
+      ],
+      "n": 15
+     },
+     {
+      "von": 0.5,
+      "bis": 0.6,
+      "vorhergesagt": 0.5592,
+      "realisiert": 0.5833,
+      "realisiert_ci95": [
+       0.3195,
+       0.8067
+      ],
+      "n": 12
+     },
+     {
+      "von": 0.6,
+      "bis": 0.7,
+      "vorhergesagt": 0.6588,
+      "realisiert": 0.6154,
+      "realisiert_ci95": [
+       0.3552,
+       0.8229
+      ],
+      "n": 13
+     },
+     {
+      "von": 0.7,
+      "bis": 0.8,
+      "vorhergesagt": 0.749,
+      "realisiert": 0.4286,
+      "realisiert_ci95": [
+       0.1582,
+       0.7495
+      ],
+      "n": 7
+     },
+     {
+      "von": 0.8,
+      "bis": 0.9,
+      "vorhergesagt": 0.8535,
+      "realisiert": 1.0,
+      "realisiert_ci95": [
+       0.3424,
+       1.0
+      ],
+      "n": 2
+     },
+     {
+      "von": 0.9,
+      "bis": 1.0,
+      "vorhergesagt": 0.924,
+      "realisiert": 0.5,
+      "realisiert_ci95": [
+       0.0945,
+       0.9055
+      ],
+      "n": 2
+     }
+    ]
+   }
   },
   {
-   "kategorie": "Krypto",
-   "brier_t7": 0.1135,
-   "trefferquote_t7": 0.8364,
-   "brier_t1": 0.0614,
-   "trefferquote_t1": 0.9383,
-   "n_maerkte": 81,
-   "n_t7": 55,
-   "median_volumen_usd": 1082207.46
+   "kategorie": "Crypto",
+   "brier_t7": 0.0984,
+   "trefferquote_t7": 0.848,
+   "brier_t1": 0.0789,
+   "trefferquote_t1": 0.8907,
+   "n_maerkte": 375,
+   "n_t7": 250,
+   "n_t1": 375,
+   "anteil_entschieden_t7": 0.564,
+   "median_volumen_usd": 1688840.86,
+   "horizonte": [
+    {
+     "horizont_tage": 30,
+     "brier": 0.1042,
+     "trefferquote": 0.8358,
+     "trefferquote_ci95": [
+      0.7294,
+      0.9058
+     ],
+     "n": 67,
+     "anteil_entschieden": 0.4776
+    },
+    {
+     "horizont_tage": 14,
+     "brier": 0.1023,
+     "trefferquote": 0.8596,
+     "trefferquote_ci95": [
+      0.8086,
+      0.8988
+     ],
+     "n": 228,
+     "anteil_entschieden": 0.5044
+    },
+    {
+     "horizont_tage": 7,
+     "brier": 0.0984,
+     "trefferquote": 0.848,
+     "trefferquote_ci95": [
+      0.7983,
+      0.8872
+     ],
+     "n": 250,
+     "anteil_entschieden": 0.564
+    },
+    {
+     "horizont_tage": 3,
+     "brier": 0.1013,
+     "trefferquote": 0.8464,
+     "trefferquote_ci95": [
+      0.8054,
+      0.88
+     ],
+     "n": 358,
+     "anteil_entschieden": 0.581
+    },
+    {
+     "horizont_tage": 1,
+     "brier": 0.0789,
+     "trefferquote": 0.8907,
+     "trefferquote_ci95": [
+      0.855,
+      0.9184
+     ],
+     "n": 375,
+     "anteil_entschieden": 0.6773
+    }
+   ],
+   "kalibrierung": {
+    "horizont_tage": 7,
+    "bins": [
+     {
+      "von": 0.0,
+      "bis": 0.1,
+      "vorhergesagt": 0.0217,
+      "realisiert": 0.0359,
+      "realisiert_ci95": [
+       0.0166,
+       0.0762
+      ],
+      "n": 167
+     },
+     {
+      "von": 0.1,
+      "bis": 0.2,
+      "vorhergesagt": 0.1449,
+      "realisiert": 0.3,
+      "realisiert_ci95": [
+       0.1455,
+       0.519
+      ],
+      "n": 20
+     },
+     {
+      "von": 0.2,
+      "bis": 0.3,
+      "vorhergesagt": 0.2458,
+      "realisiert": 0.4615,
+      "realisiert_ci95": [
+       0.2321,
+       0.7086
+      ],
+      "n": 13
+     },
+     {
+      "von": 0.3,
+      "bis": 0.4,
+      "vorhergesagt": 0.3506,
+      "realisiert": 0.7333,
+      "realisiert_ci95": [
+       0.4805,
+       0.891
+      ],
+      "n": 15
+     },
+     {
+      "von": 0.4,
+      "bis": 0.5,
+      "vorhergesagt": 0.4492,
+      "realisiert": 0.3333,
+      "realisiert_ci95": [
+       0.0615,
+       0.7923
+      ],
+      "n": 3
+     },
+     {
+      "von": 0.5,
+      "bis": 0.6,
+      "vorhergesagt": 0.5557,
+      "realisiert": 0.5556,
+      "realisiert_ci95": [
+       0.2666,
+       0.8112
+      ],
+      "n": 9
+     },
+     {
+      "von": 0.6,
+      "bis": 0.7,
+      "vorhergesagt": 0.6495,
+      "realisiert": 0.5,
+      "realisiert_ci95": [
+       0.1876,
+       0.8124
+      ],
+      "n": 6
+     },
+     {
+      "von": 0.7,
+      "bis": 0.8,
+      "vorhergesagt": 0.7525,
+      "realisiert": 0.5,
+      "realisiert_ci95": [
+       0.0945,
+       0.9055
+      ],
+      "n": 2
+     },
+     {
+      "von": 0.8,
+      "bis": 0.9,
+      "vorhergesagt": 0.8467,
+      "realisiert": 1.0,
+      "realisiert_ci95": [
+       0.6097,
+       1.0
+      ],
+      "n": 6
+     },
+     {
+      "von": 0.9,
+      "bis": 1.0,
+      "vorhergesagt": 0.9453,
+      "realisiert": 1.0,
+      "realisiert_ci95": [
+       0.7008,
+       1.0
+      ],
+      "n": 9
+     }
+    ]
+   }
   },
   {
-   "kategorie": "Popkultur",
-   "brier_t7": 0.0581,
-   "trefferquote_t7": 0.9512,
-   "brier_t1": 0.0135,
-   "trefferquote_t1": 1.0,
-   "n_maerkte": 65,
-   "n_t7": 41,
-   "median_volumen_usd": 1147205.83
+   "kategorie": "Pop culture",
+   "brier_t7": 0.061,
+   "trefferquote_t7": 0.929,
+   "brier_t1": 0.0658,
+   "trefferquote_t1": 0.9096,
+   "n_maerkte": 188,
+   "n_t7": 169,
+   "n_t1": 188,
+   "anteil_entschieden_t7": 0.7219,
+   "median_volumen_usd": 789797.78,
+   "horizonte": [
+    {
+     "horizont_tage": 30,
+     "brier": 0.0586,
+     "trefferquote": 0.9402,
+     "trefferquote_ci95": [
+      0.8816,
+      0.9707
+     ],
+     "n": 117,
+     "anteil_entschieden": 0.6325
+    },
+    {
+     "horizont_tage": 14,
+     "brier": 0.0605,
+     "trefferquote": 0.9416,
+     "trefferquote_ci95": [
+      0.8927,
+      0.969
+     ],
+     "n": 154,
+     "anteil_entschieden": 0.7208
+    },
+    {
+     "horizont_tage": 7,
+     "brier": 0.061,
+     "trefferquote": 0.929,
+     "trefferquote_ci95": [
+      0.88,
+      0.9589
+     ],
+     "n": 169,
+     "anteil_entschieden": 0.7219
+    },
+    {
+     "horizont_tage": 3,
+     "brier": 0.0797,
+     "trefferquote": 0.9096,
+     "trefferquote_ci95": [
+      0.86,
+      0.9428
+     ],
+     "n": 188,
+     "anteil_entschieden": 0.7128
+    },
+    {
+     "horizont_tage": 1,
+     "brier": 0.0658,
+     "trefferquote": 0.9096,
+     "trefferquote_ci95": [
+      0.86,
+      0.9428
+     ],
+     "n": 188,
+     "anteil_entschieden": 0.7766
+    }
+   ],
+   "kalibrierung": {
+    "horizont_tage": 7,
+    "bins": [
+     {
+      "von": 0.0,
+      "bis": 0.1,
+      "vorhergesagt": 0.0133,
+      "realisiert": 0.0323,
+      "realisiert_ci95": [
+       0.0126,
+       0.08
+      ],
+      "n": 124
+     },
+     {
+      "von": 0.1,
+      "bis": 0.2,
+      "vorhergesagt": 0.1317,
+      "realisiert": 0.1111,
+      "realisiert_ci95": [
+       0.0199,
+       0.435
+      ],
+      "n": 9
+     },
+     {
+      "von": 0.2,
+      "bis": 0.3,
+      "vorhergesagt": 0.2496,
+      "realisiert": 0.1818,
+      "realisiert_ci95": [
+       0.0514,
+       0.477
+      ],
+      "n": 11
+     },
+     {
+      "von": 0.3,
+      "bis": 0.4,
+      "vorhergesagt": 0.3425,
+      "realisiert": 0.2857,
+      "realisiert_ci95": [
+       0.0822,
+       0.6411
+      ],
+      "n": 7
+     },
+     {
+      "von": 0.4,
+      "bis": 0.5,
+      "vorhergesagt": 0.4627,
+      "realisiert": 0.3333,
+      "realisiert_ci95": [
+       0.0615,
+       0.7923
+      ],
+      "n": 3
+     },
+     {
+      "von": 0.6,
+      "bis": 0.7,
+      "vorhergesagt": 0.6475,
+      "realisiert": 0.5,
+      "realisiert_ci95": [
+       0.0945,
+       0.9055
+      ],
+      "n": 2
+     },
+     {
+      "von": 0.7,
+      "bis": 0.8,
+      "vorhergesagt": 0.77,
+      "realisiert": 1.0,
+      "realisiert_ci95": [
+       0.2065,
+       1.0
+      ],
+      "n": 1
+     },
+     {
+      "von": 0.9,
+      "bis": 1.0,
+      "vorhergesagt": 0.9647,
+      "realisiert": 0.9167,
+      "realisiert_ci95": [
+       0.6461,
+       0.9851
+      ],
+      "n": 12
+     }
+    ]
+   }
   },
   {
-   "kategorie": "Mentions",
-   "brier_t7": 0.1078,
-   "trefferquote_t7": 0.875,
-   "brier_t1": 0.0369,
-   "trefferquote_t1": 0.9559,
-   "n_maerkte": 68,
+   "kategorie": "Business/Finance",
+   "brier_t7": 0.0455,
+   "trefferquote_t7": 0.9423,
+   "brier_t1": 0.0254,
+   "trefferquote_t1": 0.9676,
+   "n_maerkte": 216,
+   "n_t7": 208,
+   "n_t1": 216,
+   "anteil_entschieden_t7": 0.8077,
+   "median_volumen_usd": 1486145.65,
+   "horizonte": [
+    {
+     "horizont_tage": 30,
+     "brier": 0.0594,
+     "trefferquote": 0.9267,
+     "trefferquote_ci95": [
+      0.8807,
+      0.9558
+     ],
+     "n": 191,
+     "anteil_entschieden": 0.623
+    },
+    {
+     "horizont_tage": 14,
+     "brier": 0.0467,
+     "trefferquote": 0.9324,
+     "trefferquote_ci95": [
+      0.8897,
+      0.9593
+     ],
+     "n": 207,
+     "anteil_entschieden": 0.744
+    },
+    {
+     "horizont_tage": 7,
+     "brier": 0.0455,
+     "trefferquote": 0.9423,
+     "trefferquote_ci95": [
+      0.9019,
+      0.9667
+     ],
+     "n": 208,
+     "anteil_entschieden": 0.8077
+    },
+    {
+     "horizont_tage": 3,
+     "brier": 0.0348,
+     "trefferquote": 0.9486,
+     "trefferquote_ci95": [
+      0.9103,
+      0.9711
+     ],
+     "n": 214,
+     "anteil_entschieden": 0.8084
+    },
+    {
+     "horizont_tage": 1,
+     "brier": 0.0254,
+     "trefferquote": 0.9676,
+     "trefferquote_ci95": [
+      0.9346,
+      0.9842
+     ],
+     "n": 216,
+     "anteil_entschieden": 0.8102
+    }
+   ],
+   "kalibrierung": {
+    "horizont_tage": 7,
+    "bins": [
+     {
+      "von": 0.0,
+      "bis": 0.1,
+      "vorhergesagt": 0.0092,
+      "realisiert": 0.0065,
+      "realisiert_ci95": [
+       0.0011,
+       0.0359
+      ],
+      "n": 154
+     },
+     {
+      "von": 0.1,
+      "bis": 0.2,
+      "vorhergesagt": 0.1428,
+      "realisiert": 0.5455,
+      "realisiert_ci95": [
+       0.2801,
+       0.7873
+      ],
+      "n": 11
+     },
+     {
+      "von": 0.2,
+      "bis": 0.3,
+      "vorhergesagt": 0.2383,
+      "realisiert": 0.6,
+      "realisiert_ci95": [
+       0.2307,
+       0.8824
+      ],
+      "n": 5
+     },
+     {
+      "von": 0.3,
+      "bis": 0.4,
+      "vorhergesagt": 0.3417,
+      "realisiert": 0.5,
+      "realisiert_ci95": [
+       0.0945,
+       0.9055
+      ],
+      "n": 2
+     },
+     {
+      "von": 0.4,
+      "bis": 0.5,
+      "vorhergesagt": 0.42,
+      "realisiert": 0.0,
+      "realisiert_ci95": [
+       0.0,
+       0.7935
+      ],
+      "n": 1
+     },
+     {
+      "von": 0.5,
+      "bis": 0.6,
+      "vorhergesagt": 0.5275,
+      "realisiert": 1.0,
+      "realisiert_ci95": [
+       0.3424,
+       1.0
+      ],
+      "n": 2
+     },
+     {
+      "von": 0.6,
+      "bis": 0.7,
+      "vorhergesagt": 0.635,
+      "realisiert": 0.6667,
+      "realisiert_ci95": [
+       0.2077,
+       0.9385
+      ],
+      "n": 3
+     },
+     {
+      "von": 0.7,
+      "bis": 0.8,
+      "vorhergesagt": 0.765,
+      "realisiert": 1.0,
+      "realisiert_ci95": [
+       0.3424,
+       1.0
+      ],
+      "n": 2
+     },
+     {
+      "von": 0.8,
+      "bis": 0.9,
+      "vorhergesagt": 0.8497,
+      "realisiert": 1.0,
+      "realisiert_ci95": [
+       0.4385,
+       1.0
+      ],
+      "n": 3
+     },
+     {
+      "von": 0.9,
+      "bis": 1.0,
+      "vorhergesagt": 0.9755,
+      "realisiert": 1.0,
+      "realisiert_ci95": [
+       0.8668,
+       1.0
+      ],
+      "n": 25
+     }
+    ]
+   }
+  },
+  {
+   "kategorie": "Science/Tech",
+   "brier_t7": 0.0301,
+   "trefferquote_t7": 0.9469,
+   "brier_t1": 0.0188,
+   "trefferquote_t1": 0.9683,
+   "n_maerkte": 126,
+   "n_t7": 113,
+   "n_t1": 126,
+   "anteil_entschieden_t7": 0.7611,
+   "median_volumen_usd": 1029143.03,
+   "horizonte": [
+    {
+     "horizont_tage": 30,
+     "brier": 0.0728,
+     "trefferquote": 0.9072,
+     "trefferquote_ci95": [
+      0.833,
+      0.9504
+     ],
+     "n": 97,
+     "anteil_entschieden": 0.5773
+    },
+    {
+     "horizont_tage": 14,
+     "brier": 0.0444,
+     "trefferquote": 0.9352,
+     "trefferquote_ci95": [
+      0.8722,
+      0.9683
+     ],
+     "n": 108,
+     "anteil_entschieden": 0.7037
+    },
+    {
+     "horizont_tage": 7,
+     "brier": 0.0301,
+     "trefferquote": 0.9469,
+     "trefferquote_ci95": [
+      0.889,
+      0.9754
+     ],
+     "n": 113,
+     "anteil_entschieden": 0.7611
+    },
+    {
+     "horizont_tage": 3,
+     "brier": 0.0291,
+     "trefferquote": 0.9412,
+     "trefferquote_ci95": [
+      0.8835,
+      0.9712
+     ],
+     "n": 119,
+     "anteil_entschieden": 0.8235
+    },
+    {
+     "horizont_tage": 1,
+     "brier": 0.0188,
+     "trefferquote": 0.9683,
+     "trefferquote_ci95": [
+      0.9212,
+      0.9876
+     ],
+     "n": 126,
+     "anteil_entschieden": 0.8254
+    }
+   ],
+   "kalibrierung": {
+    "horizont_tage": 7,
+    "bins": [
+     {
+      "von": 0.0,
+      "bis": 0.1,
+      "vorhergesagt": 0.0096,
+      "realisiert": 0.0,
+      "realisiert_ci95": [
+       0.0,
+       0.0448
+      ],
+      "n": 82
+     },
+     {
+      "von": 0.1,
+      "bis": 0.2,
+      "vorhergesagt": 0.1375,
+      "realisiert": 0.0,
+      "realisiert_ci95": [
+       0.0,
+       0.6576
+      ],
+      "n": 2
+     },
+     {
+      "von": 0.2,
+      "bis": 0.3,
+      "vorhergesagt": 0.2667,
+      "realisiert": 0.5,
+      "realisiert_ci95": [
+       0.15,
+       0.85
+      ],
+      "n": 4
+     },
+     {
+      "von": 0.3,
+      "bis": 0.4,
+      "vorhergesagt": 0.3613,
+      "realisiert": 0.25,
+      "realisiert_ci95": [
+       0.0456,
+       0.6994
+      ],
+      "n": 4
+     },
+     {
+      "von": 0.4,
+      "bis": 0.5,
+      "vorhergesagt": 0.495,
+      "realisiert": 1.0,
+      "realisiert_ci95": [
+       0.2065,
+       1.0
+      ],
+      "n": 1
+     },
+     {
+      "von": 0.5,
+      "bis": 0.6,
+      "vorhergesagt": 0.51,
+      "realisiert": 0.0,
+      "realisiert_ci95": [
+       0.0,
+       0.7935
+      ],
+      "n": 1
+     },
+     {
+      "von": 0.6,
+      "bis": 0.7,
+      "vorhergesagt": 0.645,
+      "realisiert": 0.6667,
+      "realisiert_ci95": [
+       0.2077,
+       0.9385
+      ],
+      "n": 3
+     },
+     {
+      "von": 0.7,
+      "bis": 0.8,
+      "vorhergesagt": 0.715,
+      "realisiert": 1.0,
+      "realisiert_ci95": [
+       0.2065,
+       1.0
+      ],
+      "n": 1
+     },
+     {
+      "von": 0.8,
+      "bis": 0.9,
+      "vorhergesagt": 0.8618,
+      "realisiert": 1.0,
+      "realisiert_ci95": [
+       0.3424,
+       1.0
+      ],
+      "n": 2
+     },
+     {
+      "von": 0.9,
+      "bis": 1.0,
+      "vorhergesagt": 0.9585,
+      "realisiert": 1.0,
+      "realisiert_ci95": [
+       0.7719,
+       1.0
+      ],
+      "n": 13
+     }
+    ]
+   }
+  },
+  {
+   "kategorie": "Other",
+   "brier_t7": 0.197,
+   "trefferquote_t7": 0.625,
+   "brier_t1": 0.2115,
+   "trefferquote_t1": 0.6667,
+   "n_maerkte": 24,
    "n_t7": 24,
-   "median_volumen_usd": 49068.46
+   "n_t1": 24,
+   "anteil_entschieden_t7": 0.0,
+   "median_volumen_usd": 189739.39,
+   "horizonte": [
+    {
+     "horizont_tage": 30,
+     "brier": null,
+     "trefferquote": null,
+     "n": 0,
+     "anteil_entschieden": null
+    },
+    {
+     "horizont_tage": 14,
+     "brier": 0.1035,
+     "trefferquote": 0.8333,
+     "trefferquote_ci95": [
+      0.4365,
+      0.9699
+     ],
+     "n": 6,
+     "anteil_entschieden": 0.0
+    },
+    {
+     "horizont_tage": 7,
+     "brier": 0.197,
+     "trefferquote": 0.625,
+     "trefferquote_ci95": [
+      0.4271,
+      0.7884
+     ],
+     "n": 24,
+     "anteil_entschieden": 0.0
+    },
+    {
+     "horizont_tage": 3,
+     "brier": 0.219,
+     "trefferquote": 0.625,
+     "trefferquote_ci95": [
+      0.4271,
+      0.7884
+     ],
+     "n": 24,
+     "anteil_entschieden": 0.0417
+    },
+    {
+     "horizont_tage": 1,
+     "brier": 0.2115,
+     "trefferquote": 0.6667,
+     "trefferquote_ci95": [
+      0.4671,
+      0.8203
+     ],
+     "n": 24,
+     "anteil_entschieden": 0.0417
+    }
+   ],
+   "kalibrierung": {
+    "horizont_tage": 7,
+    "bins": [
+     {
+      "von": 0.0,
+      "bis": 0.1,
+      "vorhergesagt": 0.074,
+      "realisiert": 0.0,
+      "realisiert_ci95": [
+       0.0,
+       0.6576
+      ],
+      "n": 2
+     },
+     {
+      "von": 0.2,
+      "bis": 0.3,
+      "vorhergesagt": 0.2833,
+      "realisiert": 0.0,
+      "realisiert_ci95": [
+       0.0,
+       0.5615
+      ],
+      "n": 3
+     },
+     {
+      "von": 0.4,
+      "bis": 0.5,
+      "vorhergesagt": 0.4483,
+      "realisiert": 0.3333,
+      "realisiert_ci95": [
+       0.0615,
+       0.7923
+      ],
+      "n": 3
+     },
+     {
+      "von": 0.5,
+      "bis": 0.6,
+      "vorhergesagt": 0.555,
+      "realisiert": 0.3333,
+      "realisiert_ci95": [
+       0.0968,
+       0.7
+      ],
+      "n": 6
+     },
+     {
+      "von": 0.6,
+      "bis": 0.7,
+      "vorhergesagt": 0.64,
+      "realisiert": 0.25,
+      "realisiert_ci95": [
+       0.0456,
+       0.6994
+      ],
+      "n": 4
+     },
+     {
+      "von": 0.7,
+      "bis": 0.8,
+      "vorhergesagt": 0.7775,
+      "realisiert": 0.5,
+      "realisiert_ci95": [
+       0.0945,
+       0.9055
+      ],
+      "n": 2
+     },
+     {
+      "von": 0.8,
+      "bis": 0.9,
+      "vorhergesagt": 0.845,
+      "realisiert": 1.0,
+      "realisiert_ci95": [
+       0.5101,
+       1.0
+      ],
+      "n": 4
+     }
+    ]
+   }
   }
  ],
  "beispiele": [
@@ -99,5 +1351,61 @@
    "t0_utc": "",
    "praezisions_hinweis": "Median der Status-ok-Zeilen aus mentions_latency.csv (fidelity=1; Drop = Beginn der Uebertragung, Latenz enthaelt die Zeit bis zur aufloesungsrelevanten Aussage)."
   }
- ]
+ ],
+ "thesis_snapshot": {
+  "hinweis": "Brier scores and pricing-speed examples per market category; sport/pop-culture convergence times are documented upper bounds.",
+  "stand_utc": "2026-08-07T04:30:03+00:00",
+  "kategorien": [
+   {
+    "kategorie": "Politik",
+    "brier_t7": 0.3521,
+    "trefferquote_t7": 0.4167,
+    "brier_t1": 0.0361,
+    "trefferquote_t1": 0.9315,
+    "n_maerkte": 73,
+    "n_t7": 12,
+    "median_volumen_usd": 9883931.33
+   },
+   {
+    "kategorie": "Sport",
+    "brier_t7": 0.042,
+    "trefferquote_t7": 0.9231,
+    "brier_t1": 0.0412,
+    "trefferquote_t1": 0.95,
+    "n_maerkte": 60,
+    "n_t7": 26,
+    "median_volumen_usd": 4750770.96
+   },
+   {
+    "kategorie": "Krypto",
+    "brier_t7": 0.1135,
+    "trefferquote_t7": 0.8364,
+    "brier_t1": 0.0614,
+    "trefferquote_t1": 0.9383,
+    "n_maerkte": 81,
+    "n_t7": 55,
+    "median_volumen_usd": 1082207.46
+   },
+   {
+    "kategorie": "Popkultur",
+    "brier_t7": 0.0581,
+    "trefferquote_t7": 0.9512,
+    "brier_t1": 0.0135,
+    "trefferquote_t1": 1.0,
+    "n_maerkte": 65,
+    "n_t7": 41,
+    "median_volumen_usd": 1147205.83
+   },
+   {
+    "kategorie": "Mentions",
+    "brier_t7": 0.1078,
+    "trefferquote_t7": 0.875,
+    "brier_t1": 0.0369,
+    "trefferquote_t1": 0.9559,
+    "n_maerkte": 68,
+    "n_t7": 24,
+    "median_volumen_usd": 49068.46
+   }
+  ]
+ }
 }

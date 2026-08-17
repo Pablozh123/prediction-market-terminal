@@ -619,6 +619,11 @@ class AuditRegressionTests(unittest.TestCase):
         import inspect
 
         vorgabe = inspect.signature(susp.filter_insider_prone_trades).parameters["excluded"].default
+        self.assertEqual(tuple(vorgabe), tuple(susp.EXCLUDED_CONTEXTS))
+        self.assertEqual(
+            inspect.signature(susp.exclude_contexts).parameters["excluded"].default,
+            susp.EXCLUDED_CONTEXTS,
+        )
         for gruppe in vorgabe:
             self.assertNotIn(gruppe, susp.INSIDER_PRONE_GROUPS)
         for gruppe in susp.CONTEXT_MULTIPLIERS:
@@ -626,5 +631,152 @@ class AuditRegressionTests(unittest.TestCase):
                 self.assertIn(gruppe, vorgabe, f"{gruppe} wird gezeigt, aber nicht ausgeschlossen")
 
 
+class MarketPricesExclusionTests(unittest.TestCase):
+    """Crypto & market prices are EXCLUDED from the risk screen, exactly like
+    sports odds and weather — not damped, not behind a toggle. Asset prices are
+    public (no insider knowledge possible) and the 15-minute crypto markets
+    would otherwise flood every output with noise."""
+
+    BTC_TITLE = "Will Bitcoin hit $150k by December 31?"
+    KALSHI_TICKER = "KXBTC15M-26AUG16-1345-T119000"
+    POLITICS_TITLE = "Cabinet pick announced?"
+
+    def _tape(self):
+        rows = []
+        # A large, bursty, one-sided crypto print stream that would score high
+        # on every event/wallet signal if it were allowed into the screen.
+        for i, wallet in enumerate(("0xc01", "0xc02", "0xc03", "0xc04")):
+            rows.append(trade(wallet, self.BTC_TITLE, "Yes", 250_000.0, f"2026-06-10T12:0{i}:00Z"))
+            rows.append(trade(wallet, self.KALSHI_TICKER, "Yes", 250_000.0, f"2026-06-10T12:0{i}:30Z"))
+            rows.append(trade(wallet, "Ethereum Up or Down - August 6, 5PM ET", "Up", 250_000.0, f"2026-06-10T12:0{i}:45Z"))
+        rows.append(trade("0xp01", self.POLITICS_TITLE, "Yes", 15_000.0, "2026-06-10T12:00:00Z"))
+        rows.append(trade("0xp02", self.POLITICS_TITLE, "Yes", 15_000.0, "2026-06-10T12:01:00Z"))
+        frame = tape(rows)
+        frame["platform"] = "Polymarket"
+        frame["market_key"] = frame["title"]
+        return frame
+
+    def test_market_prices_is_an_excluded_context(self):
+        self.assertIn(susp.CONTEXT_MARKET_PRICES, susp.EXCLUDED_CONTEXTS)
+        self.assertIn(susp.CONTEXT_SPORTS, susp.EXCLUDED_CONTEXTS)
+        self.assertIn(susp.CONTEXT_WEATHER, susp.EXCLUDED_CONTEXTS)
+        self.assertNotIn(susp.CONTEXT_MARKET_PRICES, susp.INSIDER_PRONE_GROUPS)
+        # Excluded and focused groups partition the whole context space.
+        self.assertEqual(set(susp.EXCLUDED_CONTEXTS) | set(susp.INSIDER_PRONE_GROUPS), set(susp.CONTEXT_MULTIPLIERS))
+        self.assertFalse(set(susp.EXCLUDED_CONTEXTS) & set(susp.INSIDER_PRONE_GROUPS))
+
+    def test_crypto_titles_and_kalshi_price_tickers_classify_as_market_prices(self):
+        for title in (
+            self.BTC_TITLE,
+            self.KALSHI_TICKER,
+            "KXETHD-26AUG16-T4200",
+            "KXINXD-26AUG16-T6400",
+            # Live /api/risk leaks (2026-08-16): 15-minute commodity tickers and
+            # Polymarket's price-series formats classified as "General".
+            "KXWTI15M-26AUG162045-45",
+            "KXGOLD15M-26AUG162045-45",
+            "Bitcoin Up or Down - August 16, 1:45PM-2:00PM ET",
+            "BNB Up or Down - August 16, 8:30PM-8:45PM ET",
+            "WTI Crude Oil (WTI) Up or Down on August 17?",
+            "Will WTI Crude Oil (WTI) hit (HIGH) $85 in August?",
+            "Will Crude Oil reach a new all-time high by December 31?",
+            "Will Apple be the largest company in the world by market cap on December 31?",
+            "Bitcoin price at 1:45pm EDT?",
+        ):
+            with self.subTest(title=title):
+                self.assertEqual(susp.classify_insider_context(title)[0], susp.CONTEXT_MARKET_PRICES)
+        # The ticker rule must not swallow unrelated KX tickers, and the new
+        # price words must leave the insider-prone arenas alone.
+        for title in (
+            "KXETHIOPIA-26DEC31-YES",
+            "Will Trump acquire Greenland before 2027?",
+            "Iran charges Hormuz fees by August 31?",
+            "Will Brent Venables be fired before the season ends?",
+            "OpenAI IPO closing market cap above $800B?",
+        ):
+            with self.subTest(title=title):
+                self.assertNotEqual(susp.classify_insider_context(title)[0], susp.CONTEXT_MARKET_PRICES)
+
+    def test_filter_drops_every_crypto_print_before_scoring(self):
+        screened = susp.filter_insider_prone_trades(self._tape())
+        self.assertEqual(set(screened["title"]), {self.POLITICS_TITLE})
+        self.assertEqual(len(screened), 2)
+
+    def test_exclude_contexts_drops_scored_crypto_events_and_wallets(self):
+        events = pd.DataFrame(
+            [
+                {"title": self.BTC_TITLE, "market_key": "b1", "event_insider_score": 95.0, "event_insider_flags": "long-odds big bet", "notional": 1_000_000.0},
+                {"title": self.KALSHI_TICKER, "market_key": "b2", "event_insider_score": 95.0, "event_insider_flags": "multi-wallet burst", "notional": 1_000_000.0},
+                {"title": "Lakers vs Celtics", "market_key": "s1", "event_insider_score": 95.0, "event_insider_flags": "", "notional": 1_000_000.0},
+                {"title": self.POLITICS_TITLE, "market_key": "p1", "event_insider_score": 40.0, "event_insider_flags": "", "notional": 30_000.0},
+            ]
+        )
+        scored = susp.apply_category_context(events)
+        kept = susp.exclude_contexts(scored)
+        self.assertEqual(list(kept["title"]), [self.POLITICS_TITLE])
+        self.assertTrue(kept["insider_context"].isin(susp.INSIDER_PRONE_GROUPS).all())
+
+        wallet_risk = pd.DataFrame(
+            [
+                {"wallet": "0xc01", "wallet_insider_score": 95.0, "wallet_insider_flags": "long-odds big bet", "notional": 750_000.0},
+                {"wallet": "0xp01", "wallet_insider_score": 45.0, "wallet_insider_flags": "watch only", "notional": 15_000.0},
+            ]
+        )
+        wallets = susp.exclude_contexts(susp.apply_wallet_category_context(wallet_risk, self._tape()))
+        self.assertEqual(list(wallets["wallet"]), ["0xp01"])
+
+    def test_large_crypto_print_never_reaches_any_screen_output(self):
+        """End-to-end over the API pipeline: gate the tape, then score/cluster.
+
+        A $250k-per-print, four-wallet, same-minute, same-side stream on
+        "Will Bitcoin hit $150k…" / "KXBTC15M-…" must not appear in events,
+        wallets, fresh-wallet clusters, timing clusters or the network.
+        """
+        from src import prediction_markets as md
+
+        base = susp.filter_insider_prone_trades(self._tape())
+        events = md.whale_event_risk_scores(base, whale_threshold=2_500.0)
+        wallets = md.whale_wallet_risk_scores(base, whale_threshold=2_500.0)
+        fresh = susp.fresh_wallet_clusters(base, whale_threshold=2_500.0)
+        timing = susp.coordinated_clusters(base, window_minutes=30.0, min_wallets=2)
+        nodes, edges = susp.co_trading_network(base, window_minutes=None, min_shared=1)
+
+        crypto_titles = {self.BTC_TITLE, self.KALSHI_TICKER, "Ethereum Up or Down - August 6, 5PM ET"}
+        crypto_wallets = {"0xc01", "0xc02", "0xc03", "0xc04"}
+        for name, frame in (("events", events), ("fresh", fresh), ("timing", timing)):
+            titles = set(frame["title"].astype(str)) if not frame.empty and "title" in frame else set()
+            self.assertFalse(titles & crypto_titles, f"{name} still carries a crypto market: {titles & crypto_titles}")
+        self.assertEqual(set(events["title"]), {self.POLITICS_TITLE})
+        self.assertFalse(set(wallets["wallet"].astype(str).str.lower()) & crypto_wallets)
+        self.assertFalse(set(nodes.get("wallet", pd.Series(dtype=str)).astype(str)) & crypto_wallets)
+        for column in ("wallet_a", "wallet_b"):
+            self.assertFalse(set(edges.get(column, pd.Series(dtype=str)).astype(str)) & crypto_wallets)
+
+    def test_all_crypto_tape_yields_empty_screen_not_a_crypto_screen(self):
+        rows = [
+            trade("0xc01", self.BTC_TITLE, "Yes", 250_000.0),
+            trade("0xc02", self.KALSHI_TICKER, "Yes", 250_000.0),
+        ]
+        screened = susp.filter_insider_prone_trades(tape(rows))
+        self.assertTrue(screened.empty)
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
+class KalshiSportsWeatherTickerTests(unittest.TestCase):
+    """API-side Kalshi rows carry the raw ticker as title; the series must classify."""
+
+    def test_sports_series_tickers_are_sports(self) -> None:
+        for ticker in ("KXATPMATCH-26AUG16ROMHUR-HUR", "KXMLBGAME-26AUG16NYYBOS-NYY", "KXWNBAGAME-26AUG16IND-IND",
+                       "KXVALORANTMAP-26AUG16-1", "KXWTASETWINNER-26AUG15BOUSTE-2-BOU"):
+            self.assertEqual(susp.classify_insider_context(ticker, "")[0], susp.CONTEXT_SPORTS, ticker)
+
+    def test_weather_series_tickers_are_weather(self) -> None:
+        for ticker in ("KXHIGHTHOU-26AUG16-B90", "KXHIGHNY-26AUG16-T88", "KXRAINNYC-26AUG16"):
+            self.assertEqual(susp.classify_insider_context(ticker, "")[0], susp.CONTEXT_WEATHER, ticker)
+
+    def test_non_sports_kx_tickers_stay_untouched(self) -> None:
+        self.assertNotIn(susp.classify_insider_context("KXETHIOPIA-26DEC31", "")[0], susp.EXCLUDED_CONTEXTS)
+        self.assertEqual(susp.classify_insider_context("Will the president win on 2026-11-03?", "")[0], susp.CONTEXT_POLITICS)

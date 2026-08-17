@@ -113,12 +113,17 @@ interface says so instead of hiding it.
 ### 4.2 Insider and suspicion layer — `app/suspicion.py`
 
 Event and wallet insider scores from whale flow, banded at 40, 55 and 70.
-**Category context** (`classify_insider_context`) excludes sports odds and
-weather **entirely** — game results and weather models cannot be traded on
-early — damps crypto and market prices behind a toggle, and focuses politics,
-geopolitics, awards and corporate events. Parent event titles from Gamma give
-neutral sub-market names. Bonuses for fresh-wallet clusters and coordinated
-clusters in a five-minute window.
+**Category context** (`classify_insider_context`, `EXCLUDED_CONTEXTS`)
+excludes sports odds, weather and crypto/market prices **entirely** — game
+results and weather models cannot be traded on early, asset prices are public
+(a whale there is a trader, not an insider), and the 15-minute crypto markets
+would otherwise flood every list with noise — and focuses politics,
+geopolitics, awards and corporate events. `filter_insider_prone_trades` gates
+the tape before scoring (API) and `exclude_contexts` drops scored rows
+(Streamlit); Kalshi price tickers (`KXBTC15M-…`, `KXETHD-…`) are recognised
+even when the tape carries only the raw ticker. Parent event titles from Gamma
+give neutral sub-market names. Bonuses for fresh-wallet clusters and
+coordinated clusters in a five-minute window.
 
 The **Louvain co-trading network** (`co_trading_network`, `networkx`,
 `seed=42`) draws an edge where two wallets took the same side of at least

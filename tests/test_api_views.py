@@ -339,3 +339,242 @@ class BalancedHeadTests(unittest.TestCase):
         self.assertEqual(len(apv.balanced_head(only_pm, 50)), 50)
         self.assertEqual(len(apv.balanced_head(only_pm.iloc[0:0], 50)), 0)
         self.assertEqual(len(apv.balanced_head(tape, 0)), 0)
+
+
+class TapeCategoryTests(unittest.TestCase):
+    """Jeder Print traegt eine Kategorie: Universum zuerst, dann Titel-Heuristik, sonst Other."""
+
+    @staticmethod
+    def _universe() -> pd.DataFrame:
+        return pd.DataFrame([
+            {"platform": "Polymarket", "market_key": "0xcond1", "slug": "fed-cut-sept", "title": "Fed cut in September?", "category": "Economics", "filter_category": "Finance"},
+            {"platform": "Polymarket", "market_key": "0xcond2", "slug": "some-slug", "title": "Some question", "category": "Politics", "filter_category": ""},
+            {"platform": "Kalshi", "market_key": "KXHIGHNY-26AUG17-B80", "slug": "KXHIGHNY-26AUG17-B80", "title": "KXHIGHNY-26AUG17-B80", "category": "Climate and Weather", "filter_category": "Weather"},
+        ])
+
+    @staticmethod
+    def _classify(raw, title):
+        # Kleine, nachvollziehbare Titel-Heuristik anstelle von md.market_filter_category.
+        text = f"{raw or ''} {title or ''}".upper()
+        if "BTC" in text or "BITCOIN" in text:
+            return "Crypto"
+        if "NBA" in text:
+            return "Sports"
+        if "TRUMP" in text:
+            return "Politics"
+        return raw or "Uncategorized"
+
+    def test_universe_hit_wins_by_key_slug_or_title(self) -> None:
+        tape = pd.DataFrame([
+            {"platform": "Polymarket", "market_key": "0xcond1", "slug": "", "title": "Any title"},
+            {"platform": "Polymarket", "market_key": "0xunknown", "slug": "fed-cut-sept", "title": "Any title"},
+            {"platform": "Polymarket", "market_key": "0xunknown", "slug": "", "title": "Fed cut in September?"},
+            {"platform": "Kalshi", "ticker": "KXHIGHNY-26AUG17-B80", "title": "KXHIGHNY-26AUG17-B80"},
+        ])
+        out = apv.tape_rows_with_category(tape, self._universe(), self._classify)
+        self.assertEqual(out["category"].tolist(), ["Finance", "Finance", "Finance", "Weather"])
+
+    def test_universe_hit_without_filter_category_runs_the_classifier(self) -> None:
+        tape = pd.DataFrame([{"platform": "Polymarket", "market_key": "0xcond2", "slug": "", "title": "Some question"}])
+        out = apv.tape_rows_with_category(tape, self._universe(), self._classify)
+        # Rohkategorie "Politics" ohne filter_category -> classify(raw, title) -> raw.
+        self.assertEqual(out["category"].tolist(), ["Politics"])
+
+    def test_no_universe_hit_falls_back_to_the_title(self) -> None:
+        tape = pd.DataFrame([
+            {"platform": "Polymarket", "market_key": "0xnew", "slug": "", "title": "Will Bitcoin hit $150k?"},
+            {"platform": "Polymarket", "market_key": "0xnew2", "slug": "", "title": "Will Trump sign it?"},
+            {"platform": "Polymarket", "market_key": "0xnew3", "slug": "", "title": "Something without a keyword"},
+        ])
+        out = apv.tape_rows_with_category(tape, self._universe(), self._classify)
+        self.assertEqual(out["category"].tolist(), ["Crypto", "Politics", "Other"])
+
+    def test_kalshi_uses_the_ticker_series_prefix(self) -> None:
+        tape = pd.DataFrame([
+            {"platform": "Kalshi", "ticker": "KXBTC15M-26AUG17-1030-T115", "title": "KXBTC15M-26AUG17-1030-T115"},
+            {"platform": "Kalshi", "ticker": "KXNBA-26OCT01-LAL", "title": "KXNBA-26OCT01-LAL"},
+            {"platform": "Kalshi", "ticker": "KXFOO-26AUG17", "title": "KXFOO-26AUG17"},
+        ])
+        out = apv.tape_rows_with_category(tape, None, self._classify)
+        self.assertEqual(out["category"].tolist(), ["Crypto", "Sports", "Other"])
+        self.assertEqual(apv.kalshi_series("KXBTC15M-26AUG17-1030-T115"), "KXBTC15M")
+        self.assertEqual(apv.kalshi_series(""), "")
+
+    def test_real_classifier_on_realistic_prints(self) -> None:
+        from src import prediction_markets as md
+
+        tape = pd.DataFrame([
+            {"platform": "Polymarket", "market_key": "0xa", "slug": "", "title": "Will Bitcoin close above $120k on Friday?"},
+            {"platform": "Polymarket", "market_key": "0xb", "slug": "", "title": "Will Trump sign the executive order?"},
+            {"platform": "Polymarket", "market_key": "0xc", "slug": "", "title": "Lakers vs Celtics: NBA Finals winner"},
+            {"platform": "Kalshi", "ticker": "KXBTC15M-26AUG17-1030-T115", "title": "KXBTC15M-26AUG17-1030-T115"},
+            {"platform": "Kalshi", "ticker": "KXHIGHNY-26AUG17-B80", "title": "KXHIGHNY-26AUG17-B80"},
+        ])
+        out = apv.tape_rows_with_category(tape, None, md.market_filter_category)
+        self.assertEqual(out["category"].tolist(), ["Crypto", "Politics", "Sports", "Crypto", "Other"])
+
+    def test_chained_classifier_catches_what_the_market_heuristic_misses(self) -> None:
+        # Genau die Prints, die das echte Tape dominieren und mit der
+        # Markt-Heuristik allein "Other" blieben.
+        from src import prediction_markets as md
+
+        chain = apv.chained_classifier(md.market_filter_category, apv.context_group_classifier())
+        tape = pd.DataFrame([
+            {"platform": "Polymarket", "market_key": "0x1", "title": "LoL: LYON vs Sentinels (BO3) - LCS Regular Season"},
+            {"platform": "Polymarket", "market_key": "0x2", "title": "Seattle Mariners vs. Houston Astros"},
+            {"platform": "Polymarket", "market_key": "0x3", "title": "Dota 2: TEAM VISION vs BoomBoys (BO3) - The International Playoffs"},
+            {"platform": "Polymarket", "market_key": "0x4", "title": "Will CF América win on 2026-08-16?"},
+            {"platform": "Polymarket", "market_key": "0x5", "title": "Will the CEO resign before October?"},
+            {"platform": "Polymarket", "market_key": "0x6", "title": "Will the film win Best Picture at the Oscars?"},
+            {"platform": "Polymarket", "market_key": "0x7", "title": "Will Elon Musk post 120-139 tweets from August 11 to August 18, 2026?"},
+            # Die Markt-Heuristik gewinnt, wo sie etwas sagt.
+            {"platform": "Polymarket", "market_key": "0x8", "title": "Will the price of Bitcoin be above $64,000 on August 17?"},
+        ])
+        out = apv.tape_rows_with_category(tape, None, chain)
+        self.assertEqual(
+            out["category"].tolist(),
+            ["Sports", "Sports", "Sports", "Sports", "Business", "Entertainment", "Other", "Crypto"],
+        )
+
+    def test_context_group_classifier_maps_groups_and_leaves_general_empty(self) -> None:
+        fake = lambda title, raw="", context_text="": ("Sports odds" if "vs" in str(title) else "General", 1.0, "")  # noqa: E731
+        classify = apv.context_group_classifier(fake)
+        self.assertEqual(classify("", "A vs B"), "Sports")
+        self.assertEqual(classify("", "Something else"), "")
+        self.assertEqual(apv.chained_classifier(classify)("", "Something else"), "Other")
+
+    def test_never_leaks_uncategorized_or_raw_series_codes(self) -> None:
+        self.assertEqual(apv.clean_category("Uncategorized"), "Other")
+        self.assertEqual(apv.clean_category(""), "Other")
+        self.assertEqual(apv.clean_category(None), "Other")
+        self.assertEqual(apv.clean_category("KXHIGHNY"), "Other")
+        self.assertEqual(apv.clean_category("Politics"), "Politics")
+
+    def test_input_is_not_mutated_and_empty_frames_survive(self) -> None:
+        tape = pd.DataFrame([{"platform": "Polymarket", "market_key": "0xcond1", "slug": "", "title": "x"}])
+        out = apv.tape_rows_with_category(tape, self._universe(), self._classify)
+        self.assertNotIn("category", tape.columns)
+        self.assertIn("category", out.columns)
+        empty = apv.tape_rows_with_category(pd.DataFrame(), self._universe(), self._classify)
+        self.assertTrue(empty.empty)
+        self.assertIn("category", empty.columns)
+        self.assertTrue(apv.tape_rows_with_category(None, None, None).empty)
+
+
+class MarketRecordsTests(unittest.TestCase):
+    """/api/markets liefert nur die Felder, die das Frontend liest."""
+
+    def _frame(self) -> pd.DataFrame:
+        return pd.DataFrame([
+            {
+                "market_key": "0xcond1", "ticker": "0xcond1", "slug": "fed-cuts", "title": "Fed cuts rates",
+                "platform": "Polymarket", "category": "Economics", "filter_category": "Finance",
+                "yes_price": 0.62, "change_1d": 0.03, "volume_24h": 120000.0, "liquidity": 40000.0,
+                "end_time": pd.Timestamp("2026-12-31", tz="UTC"), "url": "https://polymarket.com/event/x",
+                "spread": 0.02, "market_age_days": 40.2,
+                # Ballast, der nicht in die Antwort darf:
+                "raw": {"question": "Fed cuts rates", "description": "x" * 5000, "clobTokenIds": ["1", "2"]},
+                "description": "y" * 3000, "image": "https://img/x.png",
+                "outcomes": ["Yes", "No"], "yes_token_id": "111", "no_token_id": "222",
+            },
+            {
+                "market_key": "KXMVECROSSCATEGORY-26AUG", "ticker": "KXMVECROSSCATEGORY-26AUG", "slug": "",
+                "title": "Parlay", "platform": "Kalshi", "category": "KXMVECROSSCATEGORY",
+                "filter_category": "Cross Category", "yes_price": 0.4, "change_1d": 0.0,
+                "volume_24h": 10.0, "liquidity": 0.0, "end_time": None, "url": "", "raw": {"a": 1},
+                "description": "", "image": "", "outcomes": ["Yes", "No"], "yes_token_id": None, "no_token_id": None,
+            },
+        ])
+
+    def test_strips_blobs_and_keeps_frontend_fields(self) -> None:
+        rows = apv.market_records(self._frame())
+        self.assertEqual(len(rows), 2)
+        for row in rows:
+            for weg in ("raw", "description", "image", "outcomes", "yes_token_id", "no_token_id"):
+                self.assertNotIn(weg, row)
+        first = rows[0]
+        for feld in ("market_key", "title", "platform", "filter_category", "yes_price", "change_1d",
+                     "volume_24h", "liquidity", "end_time", "url", "spread", "market_age_days"):
+            self.assertIn(feld, first)
+        self.assertEqual(first["yes_price"], 0.62)
+        self.assertTrue(str(first["end_time"]).startswith("2026-12-31"))
+        # Kompakt: zwei Zeilen unter einem Kilobyte, statt der 8k Ballast oben.
+        import json
+        self.assertLess(len(json.dumps(rows)), 1200)
+
+    def test_cross_category_becomes_other_and_limit_applies(self) -> None:
+        rows = apv.market_records(self._frame())
+        self.assertEqual(rows[1]["filter_category"], "Other")
+        self.assertEqual(rows[1]["category"], "Other")
+        self.assertEqual(rows[0]["filter_category"], "Finance")
+        self.assertEqual(len(apv.market_records(self._frame(), limit=1)), 1)
+        self.assertEqual(apv.market_records(pd.DataFrame()), [])
+        self.assertEqual(apv.market_records(None), [])
+        self.assertEqual(apv.clean_category("Cross Category"), "Other")
+        self.assertEqual(apv.clean_category("cross-category"), "Other")
+
+    def test_missing_columns_do_not_break(self) -> None:
+        rows = apv.market_records(pd.DataFrame([{"title": "only a title", "platform": "Kalshi"}]))
+        self.assertEqual(rows, [{"title": "only a title", "platform": "Kalshi"}])
+
+
+class CrossGateTests(unittest.TestCase):
+    """Cross-Venue-Paare: nur Aehnlichkeit >= 0.5 und Volumen auf beiden Seiten."""
+
+    def _candidates(self) -> pd.DataFrame:
+        return pd.DataFrame([
+            {"polymarket_title": "kept", "kalshi_title": "kept", "polymarket_yes": 0.62, "kalshi_yes": 0.58,
+             "polymarket_volume": 100000.0, "kalshi_volume": 40000.0, "similarity": 0.71},
+            {"polymarket_title": "too dissimilar", "kalshi_title": "x", "polymarket_yes": 0.79, "kalshi_yes": 0.64,
+             "polymarket_volume": 100000.0, "kalshi_volume": 40000.0, "similarity": 0.44},
+            {"polymarket_title": "no kalshi volume", "kalshi_title": "x", "polymarket_yes": 0.5, "kalshi_yes": 0.5,
+             "polymarket_volume": 100000.0, "kalshi_volume": 0.0, "similarity": 0.9},
+            {"polymarket_title": "no polymarket volume", "kalshi_title": "x", "polymarket_yes": 0.5, "kalshi_yes": 0.5,
+             "polymarket_volume": None, "kalshi_volume": 4000.0, "similarity": 0.9},
+            {"polymarket_title": "exactly at the gate", "kalshi_title": "x", "polymarket_yes": 0.5, "kalshi_yes": 0.5,
+             "polymarket_volume": 1.0, "kalshi_volume": 1.0, "similarity": 0.5},
+        ])
+
+    def test_default_gate_keeps_only_similar_pairs_with_volume_on_both_venues(self) -> None:
+        rows = apv.cross_rows(self._candidates())
+        self.assertEqual([r["event"] for r in rows], ["kept", "exactly at the gate"])
+        self.assertEqual(rows[0]["sim"], 0.71)
+        self.assertEqual(apv.CROSS_MIN_SIMILARITY, 0.5)
+
+    def test_gate_can_be_tightened_or_volume_requirement_dropped(self) -> None:
+        strenger = apv.cross_rows(self._candidates(), min_similarity=0.6)
+        self.assertEqual([r["event"] for r in strenger], ["kept"])
+        ohne_volumen = apv.cross_rows(self._candidates(), require_volume=False)
+        self.assertEqual([r["event"] for r in ohne_volumen], ["kept", "no kalshi volume", "no polymarket volume", "exactly at the gate"])
+        self.assertEqual(apv.cross_rows(pd.DataFrame()), [])
+
+    def test_server_gate_cannot_be_lowered_below_default(self) -> None:
+        # api/server.py klemmt den Query-Parameter auf mindestens die Schranke.
+        from pathlib import Path
+        server = (Path(__file__).resolve().parents[1] / "api" / "server.py").read_text(encoding="utf-8")
+        self.assertIn("min_similarity = max(float(min_similarity), apv.CROSS_MIN_SIMILARITY)", server)
+        self.assertIn('"candidates_before_gate"', server)
+
+
+class ScorePartsTests(unittest.TestCase):
+    def test_leaderboard_rows_carry_labelled_score_parts(self) -> None:
+        lb = pd.DataFrame([{"trader": "Theo4", "wallet": "0xAAA1111111111111111111", "pnl": 1000.0, "volume": 50000.0}])
+        ranked = pd.DataFrame([{
+            "wallet": "0xaaa1111111111111111111", "copy_smart_score": 87.4, "copy_grade": "A",
+            "copy_rank_reason": "return 90, sharpe-proxy 60, drawdown-proxy 100, win 55, recency 50, volume 80",
+            "copy_return_score": 90.0, "copy_sharpe_proxy": 60.4, "copy_drawdown_proxy": 100.0,
+            "copy_win_score": 55.0, "copy_recency_score": 50.0, "copy_volume_score": 80.0,
+        }])
+        rows = apv.leaderboard_rows(lb, ranked)
+        parts = rows[0]["score_parts"]
+        self.assertEqual([p["label"] for p in parts], ["return", "sharpe proxy", "drawdown proxy", "win", "recency", "volume"])
+        self.assertEqual([p["value"] for p in parts], [90, 60, 100, 55, 50, 80])
+        self.assertAlmostEqual(sum(p["weight"] for p in parts), 1.0)
+        # Ohne Ranked-Treffer eine leere Liste, kein None und keine Nullen.
+        rows_ohne = apv.leaderboard_rows(lb, None)
+        self.assertEqual(rows_ohne[0]["score_parts"], [])
+
+    def test_score_parts_skips_missing_columns(self) -> None:
+        parts = apv.score_parts({"copy_return_score": 12.6, "copy_win_score": None})
+        self.assertEqual(parts, [{"label": "return", "value": 13, "weight": 0.35}])
+        self.assertEqual(apv.score_parts({}), [])

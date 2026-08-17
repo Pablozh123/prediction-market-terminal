@@ -1416,6 +1416,43 @@ class PortfolioImportTests(unittest.TestCase):
         self.assertEqual(md.market_filter_category("Uncategorized", "Will Scotland win the 2026 FIFA World Cup?"), "Sports")
         self.assertEqual(md.market_filter_category("Uncategorized", "Will Bitcoin hit $100k?"), "Crypto")
 
+    def test_market_filter_category_matches_keywords_at_word_starts_only(self) -> None:
+        # "UKRAINE" contains "RAIN", "MODERATE"/"CORPORATE" contain "RATE", "TEMPLE" contains "TEMP".
+        self.assertEqual(
+            md.market_filter_category("Uncategorized", "Will Russia and Ukraine hold any diplomatic meeting by September 30?"),
+            "Uncategorized",
+        )
+        self.assertEqual(md.market_filter_category("Uncategorized", "Will Iran moderate its stance by year end?"), "Uncategorized")
+        self.assertEqual(md.market_filter_category("Uncategorized", "Will corporate buybacks slow in Q4?"), "Uncategorized")
+        self.assertEqual(md.market_filter_category("Uncategorized", "Will the temple reopen before June?"), "Uncategorized")
+        self.assertEqual(md.market_filter_category("Uncategorized", "Will the government shut down on October 1?"), "Uncategorized")
+
+    def test_market_filter_category_still_matches_prefixes_and_padded_words(self) -> None:
+        self.assertEqual(md.market_filter_category("Uncategorized", "Fed rate decision in September?"), "Finance")
+        self.assertEqual(md.market_filter_category("Uncategorized", "Will the Fed cut rates twice in 2026?"), "Finance")
+        self.assertEqual(md.market_filter_category("Uncategorized", "Highest temperature in NYC on August 20?"), "Weather")
+        self.assertEqual(md.market_filter_category("Uncategorized", "Will the high temp in Chicago exceed 90F today?"), "Weather")
+        self.assertEqual(md.market_filter_category("Uncategorized", "Will the 2026 midterm elections flip the House?"), "Politics")
+        self.assertEqual(md.market_filter_category("Uncategorized", "Will Newsom win re-election?"), "Politics")
+        self.assertEqual(md.market_filter_category("Uncategorized", "Will ETH close above $5,000 on Friday?"), "Crypto")
+        self.assertEqual(md.market_filter_category("Uncategorized", "Who wins the 2026 F1 Drivers' Championship?"), "Sports")
+        self.assertEqual(md.market_filter_category("Uncategorized", "Will the Dow close above 45,000?"), "Finance")
+        self.assertEqual(md.market_filter_category("Uncategorized", "S&P 500 above 6,000 at year end?"), "Finance")
+        self.assertEqual(md.market_filter_category("Geopolitics", "Will Russia and Ukraine hold any diplomatic meeting?"), "Politics")
+        # Kalshi tickers keep the substring lookup: no word boundaries inside a series prefix.
+        self.assertEqual(md.market_filter_category("KXBTC15M", "KXBTC15M-26AUG17-1030-T115"), "Crypto")
+        self.assertEqual(md.market_filter_category("KXNBAGAME", "Lakers vs Celtics"), "Sports")
+
+    def test_market_category_label_matches_words_in_readable_categories(self) -> None:
+        # "TRANSPORTATION" contains "SPORT" but is not a sports category.
+        self.assertEqual(md.market_category_label("Transportation"), "Transportation")
+        self.assertEqual(md.market_filter_category("Transportation", "Will TSA screen over 3M passengers on Sunday?"), "Transportation")
+        self.assertEqual(md.market_category_label("Climate and Weather"), "Weather")
+        self.assertEqual(md.market_category_label("us-politics"), "Politics")
+        self.assertEqual(md.market_category_label("Esports"), "Sports")
+        self.assertEqual(md.market_category_label("KXNBAGAME"), "Sports")
+        self.assertEqual(md.market_category_label("KXHIGHNY"), "KXHIGHNY")
+
     def test_add_market_filter_metrics_adds_filter_category(self) -> None:
         markets = pd.DataFrame(
             [

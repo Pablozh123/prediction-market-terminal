@@ -13,24 +13,60 @@ const HEAD_CELL = M + '; font-size:9.5px; letter-spacing:.14em; color:rgba(255,2
 
 const SIZING = { fixed: 'Fixed $', pct: '% of bankroll', match: 'Match trader %', kelly: 'Kelly ¼' };
 
+// A setting changed: mark the shown result as stale. Nothing runs until RUN
+// is pressed — the earlier auto-run on every stepper click hit the rate
+// limit after three clicks and flickered between results.
 function bt(T, patch) {
-  return () => { T.setState(patch); T.runBacktestLive(); };
+  return () => { T.setState(Object.assign({ btDirty: !!(T.liveData && T.liveData.backtest) }, patch)); };
 }
 
 /** Warum keine Zahlen dastehen. Frueher stand hier ein synthetischer Lauf. */
-function ohneBacktestHtml() {
-  return '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:22px 24px; margin-top:14px; max-width:760px">'
-    + '<div style="font-size:15px; font-weight:600">No run to show yet</div>'
-    + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:10px; line-height:1.65">'
-    + 'Press Run backtest. The engine replays the wallet against recorded trades in '
+function ohneBacktestHtml(s) {
+  const running = s && s.btRun === 'running';
+  const err = s && s.btRun === 'error' ? s.btError : '';
+  let kopf = 'No run to show yet';
+  let text = 'Press RUN. The engine replays the wallet against recorded trades in '
     + '<span style="' + M + '">app/backtester.py</span>, so it needs the API. If the numbers stay empty, either the '
-    + 'backend is not reachable, or the wallet has no trades inside the selected window.'
-    + '</div>'
+    + 'backend is not reachable, or the wallet has no trades inside the selected window.';
+  if (running) {
+    kopf = 'running…';
+    text = 'Replaying the wallet against recorded trades. A ninety-day window on an active wallet takes a while.';
+  } else if (err === 'rate-limited') {
+    kopf = 'rate-limited';
+    text = 'The public API allows a few backtests per minute per address. Retry in ' + (s.btRetryIn > 0 ? s.btRetryIn + ' s' : 'a moment') + '.';
+  } else if (err) {
+    kopf = 'The run did not answer';
+    text = esc(err);
+  }
+  return '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:22px 24px; margin-top:14px; max-width:760px">'
+    + '<div style="font-size:15px; font-weight:600; color:' + (running ? '#F5A623' : err ? '#FF7A7A' : '#ffffff') + '">' + kopf + '</div>'
+    + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:10px; line-height:1.65">' + text + '</div>'
     + '<div style="font-size:12.5px; color:rgba(255,255,255,.4); margin-top:12px; line-height:1.6">'
     + 'Nothing is estimated here. This panel used to fill itself from a generator when the '
     + 'backend was silent, which produced an equity curve that responded to every slider and '
     + 'meant nothing.'
     + '</div></div>';
+}
+
+// One line above the results: running / rate-limited / error / stale, or
+// nothing when the shown result matches the current settings.
+function laufStatusHtml(s, hatErgebnis) {
+  if (s.btRun === 'running') {
+    return '<div style="display:flex; align-items:center; gap:8px; margin-top:8px; ' + M + '; font-size:11px; color:#F5A623">'
+      + '<span style="width:7px; height:7px; border-radius:50%; background:#F5A623; display:inline-block; animation:livePulse 1.2s ease-in-out infinite"></span>running…'
+      + (hatErgebnis ? ' <span style="color:rgba(255,255,255,.4)">— the last result stays below until the new one lands</span>' : '') + '</div>';
+  }
+  if (s.btRun === 'error' && s.btError === 'rate-limited') {
+    return '<div style="margin-top:8px; ' + M + '; font-size:11px; color:#F5A623">rate-limited, retry in ' + (s.btRetryIn > 0 ? s.btRetryIn + ' s' : 'a moment')
+      + (hatErgebnis ? ' <span style="color:rgba(255,255,255,.4)">— the last result is kept below</span>' : '') + '</div>';
+  }
+  if (s.btRun === 'error' && s.btError) {
+    return '<div style="margin-top:8px; ' + M + '; font-size:11px; color:#FF7A7A">' + esc(s.btError) + (hatErgebnis ? ' <span style="color:rgba(255,255,255,.4)">— the last result is kept below</span>' : '') + '</div>';
+  }
+  if (hatErgebnis && s.btDirty) {
+    return '<div style="margin-top:8px; ' + M + '; font-size:11px; color:rgba(255,255,255,.5)">settings changed since this run — press RUN to refresh</div>';
+  }
+  return '';
 }
 
 // ---------------------------------------------------------------- backtester
@@ -78,7 +114,7 @@ export function renderBacktester(T) {
   const shortWallet = s.btWallet.trim().length > 12 ? s.btWallet.trim().slice(0, 6) + '…' + s.btWallet.trim().slice(-4) : s.btWallet.trim();
   const gebuehrText = s.btFeeModel === 'flat' ? 'fees ' + s.btFee + ' bps flat' : 'fees on the venue curve';
   const runMeta = (s.btStrategy === 'copy' ? 'Copy' : 'Fade') + ' · last ' + s.btWindow + ' days · wallet ' + shortWallet + ' · ' + SIZING[s.btSizing] + ' · ' + gebuehrText + ' · slippage ' + s.btSlip + ' bps'
-    + (live && live.stats && live.stats.window_truncated ? ' · window truncated (hyperactive wallet)' : '');
+    + (live && live.stats && live.stats.window_truncated ? ' · window truncated at the engine\'s trade cap' : '');
 
   // Ohne Lauf keine Kacheln: jede dieser Zahlen kaeme sonst aus dem Nichts.
   const statCards = st ? [
@@ -201,9 +237,9 @@ export function renderBacktester(T) {
     + '<div style="display:grid; grid-template-columns:352px 1fr">'
     + '<div style="border-right:1px solid rgba(255,255,255,.09); padding:18px 20px; display:flex; flex-direction:column; gap:22px">'
 
-    + '<div><div style="' + M + '; font-size:10px; letter-spacing:.16em; color:#C8F542; margin-bottom:9px">01 · WALLET TO COPY</div>'
-    + '<input value="' + esc(s.btWallet) + '" ' + T.inp((e) => { T.state.btWallet = e.target.value; T.runBacktestLive(); }, 'btWallet') + ' placeholder="0x…" style="width:100%; box-sizing:border-box; background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:10px 12px; ' + M + '; font-size:12px; color:#fff; outline:none" />'
-    + '<div style="font-size:11.5px; color:rgba(255,255,255,.45); margin-top:7px; line-height:1.5">Paste any Polymarket address — for example from the leaderboard.</div></div>'
+    + '<div><div style="' + M + '; font-size:10px; letter-spacing:.16em; color:#C8F542; margin-bottom:9px">01 · WALLET TO REPLAY</div>'
+    + '<input value="' + esc(s.btWallet) + '" ' + T.inp((e) => { T.state.btWallet = e.target.value; if (T.liveData.backtest) T.state.btDirty = true; }, 'btWallet') + ' placeholder="0x…" style="width:100%; box-sizing:border-box; background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:10px 12px; ' + M + '; font-size:12px; color:#fff; outline:none" />'
+    + '<div style="font-size:11.5px; color:rgba(255,255,255,.45); margin-top:7px; line-height:1.5">Any public Polymarket address — the default is one with a long public trade history, chosen so a first run has something to replay. Take one from the leaderboard to compare.</div></div>'
 
     + '<div><div style="' + M + '; font-size:10px; letter-spacing:.16em; color:#C8F542; margin-bottom:9px">02 · STAKE PER COPY</div>'
     + '<div style="display:grid; grid-template-columns:1fr 1fr; gap:6px">'
@@ -271,11 +307,19 @@ export function renderBacktester(T) {
       + '</div>' : '')
     + '</div>'
 
-    + '<div ' + T.act(() => { T.setState({ btTab: 'log' }); T.runBacktestLive(); }) + ' class="hv-limebg" style="font-size:13.5px; font-weight:600; text-align:center; color:#0A0D0F; background:#C8F542; border-radius:8px; padding:12px; cursor:pointer">Run backtest →</div>'
+    // The only thing that starts a run. While one runs the button is inert
+    // and says so; after a 429 it says how long to wait.
+    + (s.btRun === 'running'
+      ? '<div style="font-size:13.5px; font-weight:600; text-align:center; color:rgba(255,255,255,.5); border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:12px; cursor:default">running…</div>'
+      : s.btRun === 'error' && s.btError === 'rate-limited' && s.btRetryIn > 0
+        ? '<div style="font-size:13.5px; font-weight:600; text-align:center; color:#F5A623; border:1px solid rgba(245,166,35,.4); border-radius:8px; padding:12px; cursor:default">rate-limited · retry in ' + s.btRetryIn + ' s</div>'
+        : '<div ' + T.act(() => { T.setState({ btTab: 'log' }); T.runBacktest(); }) + ' class="hv-limebg" style="font-size:13.5px; font-weight:600; text-align:center; color:#0A0D0F; background:#C8F542; border-radius:8px; padding:12px; cursor:pointer">RUN backtest →</div>')
     + '</div>'
 
     + '<div style="padding:18px 24px">'
     + '<div style="' + M + '; font-size:11.5px; color:rgba(255,255,255,.6)">' + esc(runMeta) + '</div>'
+    // Without a result the empty block below carries the run state itself.
+    + (st ? laufStatusHtml(s, true) : '')
     + (st ? ''
 
     + '<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:14px">'
@@ -317,8 +361,11 @@ export function renderBacktester(T) {
     + tabBody
 
     + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:16px; overflow:hidden">'
-    + '<div ' + T.act(() => { T.setState({ sizingSimOpen: !s.sizingSimOpen }); if (!s.sizingSimOpen) T.runBacktestLive(); }) + ' class="hv-el" style="display:flex; align-items:center; justify-content:space-between; padding:13px 18px; background:#10151A; cursor:pointer">'
+    + '<div ' + T.act(() => { T.setState({ sizingSimOpen: !s.sizingSimOpen, btDirty: !s.sizingSimOpen && !(live && live.variants) ? true : s.btDirty }); }) + ' class="hv-el" style="display:flex; align-items:center; justify-content:space-between; padding:13px 18px; background:#10151A; cursor:pointer">'
     + '<div style="font-size:14px">Which sizing would have been best for this wallet?</div><div style="' + simChevron + '">›</div></div>'
+    + (s.sizingSimOpen && !bestVariant
+      ? '<div style="padding:14px 18px; ' + M + '; font-size:11px; color:rgba(255,255,255,.5)">The variants are computed with the run — press RUN with this section open to include them.</div>'
+      : '')
     + (s.sizingSimOpen && bestVariant ?
       '<div style="padding:16px 18px">'
       + '<div style="font-size:12.5px; color:rgba(255,255,255,.55); line-height:1.5">Replays the same window once per sizing rule — identical fees, slippage, cap and exposure limit. Only the stake rule changes. The winner is drawn into the chart above as the dotted amber line.</div>'
@@ -341,7 +388,7 @@ export function renderBacktester(T) {
     // "Mirror this on paper" und "Save this setup" standen hier ohne Handler.
     // Es gibt keinen Endpunkt, der einen Backtest in den Copy-Trader
     // uebernimmt oder eine Einstellung speichert; die Knoepfe sind weg.
-    : ohneBacktestHtml())
+    : ohneBacktestHtml(s))
     + '</div></div></div>';
 }
 

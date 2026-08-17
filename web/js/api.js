@@ -35,9 +35,21 @@ const STATISCH = {
 // zu sagen worauf.
 const TIMEOUT_MS = 45000;
 
+// /api/risk pages a day of prints and looks up market categories on a cold
+// cache — around 90 s. With the general 45 s cap the first click always
+// failed and the second one hit the warm cache; the screen looked flaky when
+// it was only slow. Only this route gets the longer leash.
+const TIMEOUT_LANG_MS = 150000;
+const LANGSAME_PFADE = ['/api/risk'];
+
+export function timeoutFuer(url) {
+  const pfad = String(url || '').split('?')[0];
+  return LANGSAME_PFADE.some((p) => pfad.endsWith(p)) ? TIMEOUT_LANG_MS : TIMEOUT_MS;
+}
+
 async function hole(url, optionen) {
   const abbruch = new AbortController();
-  const uhr = setTimeout(() => abbruch.abort(), TIMEOUT_MS);
+  const uhr = setTimeout(() => abbruch.abort(), timeoutFuer(url));
   try {
     return await fetch(url, Object.assign({ signal: abbruch.signal }, optionen || {}));
   } finally {
@@ -68,12 +80,26 @@ export async function apiGet(path) {
   }
 }
 
+// HTTP errors carry the status and, on 429, the server's retry_after_s so
+// the caller can say "rate-limited, retry in N s" instead of "HTTP 429".
 export async function apiPost(path, body) {
   const res = await hole(API_BASE + path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
-  if (!res.ok) throw new Error('HTTP ' + res.status);
+  if (!res.ok) {
+    const err = new Error('HTTP ' + res.status);
+    err.status = res.status;
+    if (res.status === 429) {
+      let sekunden = Number(res.headers.get('Retry-After')) || 0;
+      try {
+        const daten = await res.json();
+        if (daten && daten.retry_after_s != null) sekunden = Number(daten.retry_after_s) || sekunden;
+      } catch (e) { /* kein JSON-Koerper */ }
+      err.retryAfter = sekunden || 10;
+    }
+    throw err;
+  }
   return res.json();
 }

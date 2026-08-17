@@ -122,7 +122,7 @@ Overview, Search, Markets, Traders, Track, Live Trades, Wallets, Backtester, Cop
 Highlights:
 
 - **Backtester** — replay any wallet's trades over 7/30/90 days with Copy or Fade strategy, four sizing modes, exposure cap, mid-window resolution recycling, and a best-sizing simulation drawn into the equity chart.
-- **Suspicious** — event/wallet insider-risk scores from public whale flow with category context (sports odds and weather are excluded — nothing to know early there), fresh-wallet clusters, coordinated-timing clusters, and a Louvain co-trading network with click-to-isolate cluster stories.
+- **Suspicious** — event/wallet insider-risk scores from public whale flow with category context (sports odds, weather and crypto/market prices are excluded — nothing to know early there, and the 15-minute crypto markets would only add noise), fresh-wallet clusters, coordinated-timing clusters, and a Louvain co-trading network with click-to-isolate cluster stories.
 - **Traders** — Polymarket leaderboard with podium, smart-score ranking, speed traders, insider-picks feed, and on-demand enrichment (open positions, win rates, balances) from public wallet data.
 - **Monitor** — signal scanner (fast movers, volume anomaly, whale prints, tight spreads, holder concentration, endings) with saved alert rules and Telegram delivery.
 - **Kalshi integration** — markets, trades (with real market titles), cross-venue gaps, and event-level whale/insider signals; Kalshi publishes no wallet identities, so wallet-level scoring skips those rows and the UI says so.

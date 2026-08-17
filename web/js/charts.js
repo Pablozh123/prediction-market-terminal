@@ -160,6 +160,126 @@ export function diagramm(dia) {
     + achse(sk, dia, hoehe) + koerper + '</svg></div>';
 }
 
+// Serienfarben fuer Mehrlinien-Diagramme: die vier Grundfarben des Terminals
+// und ihre gedaempften Verwandten, wie ACHSEN_FARBE auf der Postmortem-Seite.
+export const SERIEN_FARBEN = ['#C8F542', '#4F8EF7', '#F5A623', '#FF7A7A', '#7DE2D1', '#C792EA', '#9AB0FF', '#FFD166', '#95A0AB'];
+
+/** Mehrere Linien ueber einer gemeinsamen Kategorienachse.
+ *
+ *  k: { titel, einheit, hinweis, x: ['T-30', 'T-14', ...],
+ *       serien: [{ name, werte: [zahl|null, ...], farbe? }], y_label? }
+ *  Ein null in werte unterbricht die Linie an der Stelle statt sie zu
+ *  interpolieren — wo kein Wert ist, ist auch kein Strich. Unter zwei
+ *  gueltigen Punkten in allen Serien gibt es kein Diagramm.
+ */
+export function linien(k) {
+  if (!k || !Array.isArray(k.x) || k.x.length < 2 || !Array.isArray(k.serien)) return '';
+  const serien = k.serien.filter((s) => s && Array.isArray(s.werte) && s.werte.some((w) => typeof w === 'number'));
+  const gueltig = serien.reduce((a, s) => a + s.werte.filter((w) => typeof w === 'number').length, 0);
+  if (!serien.length || gueltig < 2) return '';
+  const B = 640, H = 230;
+  const L = 52, R = B - 18, TOP = 16, BOT = H - 30;
+  const alle = [];
+  serien.forEach((s) => s.werte.forEach((w) => { if (typeof w === 'number') alle.push(w); }));
+  let min = Math.min(0, ...alle);
+  let max = Math.max(...alle);
+  if (min === max) max = min + 1;
+  const luft = (max - min) * 0.08;
+  max += luft;
+  const y = (w) => BOT - ((w - min) / (max - min)) * (BOT - TOP);
+  const x = (i) => L + (i * (R - L)) / (k.x.length - 1);
+
+  let raster = '';
+  [0, 0.5, 1].forEach((f) => {
+    const w = min + (max - min) * f;
+    raster += '<line x1="' + L + '" y1="' + y(w).toFixed(1) + '" x2="' + R + '" y2="' + y(w).toFixed(1)
+      + '" stroke="rgba(255,255,255,' + (f === 0 ? '.18' : '.07') + ')" stroke-width="1" />'
+      + '<text x="' + (L - 6) + '" y="' + (y(w) + 4).toFixed(1) + '" fill="rgba(255,255,255,.4)" font-size="10" '
+      + 'font-family="JetBrains Mono, monospace" text-anchor="end">' + esc(fmtZahl(Math.round(w * 1000) / 1000)) + '</text>';
+  });
+  let xLabels = '';
+  k.x.forEach((label, i) => {
+    xLabels += '<text x="' + x(i).toFixed(1) + '" y="' + (H - 10) + '" fill="rgba(255,255,255,.45)" font-size="10" '
+      + 'font-family="JetBrains Mono, monospace" text-anchor="middle">' + esc(String(label)) + '</text>';
+  });
+  let pfade = '';
+  let legende = '';
+  serien.forEach((s, si) => {
+    const farbe = s.farbe || SERIEN_FARBEN[si % SERIEN_FARBEN.length];
+    let d = '';
+    let offen = false;
+    s.werte.forEach((w, i) => {
+      if (typeof w !== 'number') { offen = false; return; }
+      d += (offen ? ' L ' : ' M ') + x(i).toFixed(1) + ' ' + y(w).toFixed(1);
+      offen = true;
+      pfade += '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(w).toFixed(1) + '" r="3" fill="' + farbe + '">'
+        + '<title>' + esc(s.name + ' · ' + k.x[i] + ' · ' + fmtZahl(w)) + '</title></circle>';
+    });
+    if (d) pfade += '<path d="' + d.trim() + '" fill="none" stroke="' + farbe + '" stroke-width="1.8" />';
+    legende += '<div style="display:flex; align-items:center; gap:6px; ' + M + '; font-size:10px; color:rgba(255,255,255,.65)">'
+      + '<span style="display:inline-block; width:14px; height:3px; background:' + farbe + '; border-radius:2px"></span>'
+      + esc(s.name) + '</div>';
+  });
+
+  return '<div style="' + CARD + '; padding:14px 16px 10px">'
+    + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:4px">'
+    + '<div style="' + M + '; font-size:10px; letter-spacing:.13em; color:rgba(255,255,255,.5)">'
+    + esc(k.titel || '') + (k.einheit ? ' · ' + esc(k.einheit) : '') + '</div>'
+    + (k.hinweis ? '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.38)">' + esc(k.hinweis) + '</div>' : '')
+    + '</div>'
+    + '<div style="display:flex; gap:12px; flex-wrap:wrap; margin:4px 0 6px">' + legende + '</div>'
+    + '<svg width="100%" viewBox="0 0 ' + B + ' ' + H + '" role="img" aria-label="' + esc(k.titel || 'lines') + '">'
+    + raster + xLabels + pfade + '</svg></div>';
+}
+
+/** Kalibrierung: vorhergesagte Wahrscheinlichkeit gegen realisierte Haeufigkeit.
+ *
+ *  k: { titel, hinweis, punkte: [{ vorhergesagt, realisiert, n, ci?: [lo, hi] }] }
+ *  Quadrat mit Diagonale; ein Punkt je Bin, Radius nach n, Bernstein wenn das
+ *  Intervall der realisierten Quote die Vorhersage nicht einschliesst. Ohne
+ *  Punkte kein Diagramm.
+ */
+export function kalibrierung(k) {
+  if (!k || !Array.isArray(k.punkte)) return '';
+  const punkte = k.punkte.filter((p) => p && typeof p.vorhergesagt === 'number' && typeof p.realisiert === 'number');
+  if (!punkte.length) return '';
+  const S = 200, PAD = 22;
+  const pos = (v) => PAD + Math.max(0, Math.min(1, v)) * (S - 2 * PAD);
+  const nMax = Math.max(1, ...punkte.map((p) => +p.n || 0));
+  const gesamt = punkte.reduce((a, p) => a + (+p.n || 0), 0);
+  let marken = '';
+  let linie = '';
+  punkte.slice().sort((a, b) => a.vorhergesagt - b.vorhergesagt).forEach((p, i) => {
+    const cx = pos(p.vorhergesagt), cy = S - pos(p.realisiert);
+    const ci = Array.isArray(p.ci) && p.ci.length === 2 ? p.ci : null;
+    const daneben = ci && (ci[0] > p.vorhergesagt || ci[1] < p.vorhergesagt);
+    const farbe = daneben ? '#F5A623' : '#4F8EF7';
+    const r = 2.5 + 4.5 * Math.sqrt((+p.n || 0) / nMax);
+    linie += (i === 0 ? 'M ' : ' L ') + cx.toFixed(1) + ' ' + cy.toFixed(1);
+    if (ci) {
+      marken += '<line x1="' + cx.toFixed(1) + '" y1="' + (S - pos(ci[0])).toFixed(1) + '" x2="' + cx.toFixed(1)
+        + '" y2="' + (S - pos(ci[1])).toFixed(1) + '" stroke="' + farbe + '" stroke-opacity=".45" stroke-width="1" />';
+    }
+    marken += '<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="' + r.toFixed(1) + '" fill="' + farbe + '" fill-opacity=".9">'
+      + '<title>' + esc('predicted ' + Math.round(p.vorhergesagt * 100) + '% · realised ' + Math.round(p.realisiert * 100) + '% · n ' + (p.n != null ? p.n : '—')) + '</title></circle>';
+  });
+  const achse = 'fill="rgba(255,255,255,.4)" font-size="9" font-family="JetBrains Mono, monospace"';
+  return '<div style="' + CARD + '; padding:12px 14px 8px">'
+    + '<div style="' + M + '; font-size:10px; letter-spacing:.12em; color:rgba(255,255,255,.6)">' + esc(k.titel || '') + '</div>'
+    + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.38); margin-top:2px">' + esc(k.hinweis || ('n ' + gesamt + ' · ' + punkte.length + ' bins')) + '</div>'
+    + '<svg width="100%" viewBox="0 0 ' + S + ' ' + S + '" role="img" aria-label="' + esc(k.titel || 'calibration') + '" style="max-width:240px; display:block; margin:6px auto 0">'
+    + '<rect x="' + PAD + '" y="' + PAD + '" width="' + (S - 2 * PAD) + '" height="' + (S - 2 * PAD) + '" fill="none" stroke="rgba(255,255,255,.1)" />'
+    + '<line x1="' + PAD + '" y1="' + (S - PAD) + '" x2="' + (S - PAD) + '" y2="' + PAD + '" stroke="rgba(255,255,255,.3)" stroke-dasharray="3 3" />'
+    + '<path d="' + linie + '" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="1" />'
+    + marken
+    + '<text x="' + PAD + '" y="' + (S - 6) + '" ' + achse + '>0</text>'
+    + '<text x="' + (S - PAD) + '" y="' + (S - 6) + '" ' + achse + ' text-anchor="end">predicted 1</text>'
+    + '<text x="6" y="' + (PAD + 4) + '" ' + achse + '>1</text>'
+    + '<text x="6" y="' + (S - PAD) + '" ' + achse + '>0</text>'
+    + '<text x="' + (S / 2) + '" y="' + (S - 6) + '" ' + achse + ' text-anchor="middle">→ realised ↑</text>'
+    + '</svg></div>';
+}
+
 /** Treppenkurve fuer eine kumulierte Serie, ein Punkt je Schritt.
  *
  *  k: { titel, einheit, hinweis, punkte: [{ label, wert }] }. Unter zwei

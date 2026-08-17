@@ -105,6 +105,9 @@ class WebLeerzustandTest(unittest.TestCase):
             cwd=str(WURZEL),
             capture_output=True,
             text=True,
+            # Node schreibt UTF-8; ohne Angabe dekodiert Windows mit der
+            # Locale-Codepage und aus "·" wird Kauderwelsch.
+            encoding="utf-8",
             timeout=120,
         )
         if lauf.returncode != 0:
@@ -144,6 +147,52 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertNotIn("Waiting for /api/markets", text)
         whale = _sichtbarer_text(self.ausgabe["live"]["whale"])
         self.assertIn("$9.0k", whale)
+
+    def test_whale_flow_gruppiert_das_tape_mit_kategorie(self) -> None:
+        # Der Harness-Tape traegt einen Polymarket-Print (Wallet w1, Macro,
+        # $9,000) und einen Kalshi-Print ohne Wallet. Die Seite zeigt die
+        # Kategorie aus dem Print, zaehlt nur den gruppierbaren und sagt,
+        # dass der andere fehlt — und keine Zahl, die nicht aus den beiden
+        # Prints folgt.
+        html = self.ausgabe["live"]["whale"]
+        text = _sichtbarer_text(html)
+        self.assertIn("Macro", text)
+        self.assertIn("1/1 prints", text)              # MOSTLY IN mit Anteil
+        self.assertIn("TOP CATEGORY BY $", text)
+        self.assertIn("100% of $", text)               # Macro haelt alle gruppierten Dollar
+        self.assertIn("$9.0k", text)                   # $ GROUPED
+        self.assertIn("1 Kalshi print(s) are not shown here", text)
+        self.assertIn("1 without a wallet left out", text)
+        self.assertIn("One wallet accounts for all $9.0k", text)
+        self.assertIn("Example question", text)        # TOP MARKET
+        self.assertIn("100% of this wallet", text)
+        self.assertIn("2 min ago", text)               # LAST PRINT
+        self.assertIn("SORT BY", text)
+        # Die Kalshi-Kategorie steht nicht in der Wallet-Tabelle: der Print
+        # ist ausgeschlossen, seine Dollar zaehlen nirgends mit.
+        self.assertNotIn("Crypto", text)
+        self.assertNotIn("$12.0k", text)
+        self.assertNotIn("$3.0k", text)
+        # Kein Titel-Nachschlagen in T.markets mehr, und keine 24h-Behauptung
+        # ueber ein Fenster, dessen Laenge niemand gemessen hat.
+        self.assertNotIn("Other", text)
+        self.assertNotIn("24H", text)
+        for wert in ("18.4m", "214k"):
+            self.assertNotIn(wert, text)
+        quelltext = (WURZEL / "web" / "js" / "pages" / "trader_pages.js").read_text(encoding="utf-8")
+        self.assertNotIn("T.markets.find((x) => x.title === t.market)", quelltext)
+        # Ohne Tape bleibt der Leerzustand mit Quelle, ohne Kategorie und Kennzahl.
+        leer = _sichtbarer_text(self.ausgabe["leer"]["whale"])
+        self.assertIn("/api/tape", leer)
+        self.assertNotIn("TOP CATEGORY", leer)
+        self.assertNotIn("Macro", leer)
+
+    def test_risk_screen_nennt_die_ausgeschlossenen_gruppen(self) -> None:
+        for modus in ("leer", "live"):
+            text = _sichtbarer_text(self.ausgabe[modus]["risk"])
+            with self.subTest(modus=modus):
+                self.assertIn("Sports odds, crypto &amp; market prices, and weather are excluded", text)
+                self.assertNotIn("Sports odds and weather are excluded", text)
 
     def test_backtester_nennt_das_gebuehrenmodell(self) -> None:
         # Voreinstellung ist die Venue-Kurve, und der Kopf des Laufs sagt es.
@@ -308,17 +357,32 @@ class WebLeerzustandTest(unittest.TestCase):
         # Der Hinweis nennt den wallet-abgeglichenen Wert aus der Nutzlast.
         self.assertIn("wallet-reconciled net +$20", _sichtbarer_text(live))
 
-    def test_startseite_leerpanels_sind_verweise(self) -> None:
-        leer = _sichtbarer_text(self.ausgabe["leer"]["overview"])
-        self.assertIn("Open Leaderboard", leer)
-        self.assertIn("OPEN THE SCREEN", leer)
-        # Der Grund bleibt benannt, der Absatz nicht.
-        self.assertIn("/api/risk", leer)
-        self.assertNotIn("would hold up this page", leer)
-        # Mit Daten ersetzt die echte Kachel den Verweis.
-        live = _sichtbarer_text(self.ausgabe["live"]["overview"])
-        self.assertNotIn("Open Leaderboard", live)
-        self.assertNotIn("OPEN THE SCREEN", live)
+    def test_startseite_ist_forschungslandung(self) -> None:
+        # Die Startseite fuehrt mit der Forschung, nicht mit dem Whale-Feed:
+        # Kopfzeile, Unterzeile aus den Nutzlasten, Verdict board, Live-runs-
+        # Streifen, Field notes, dann erst die Live-Kacheln. Die frueheren
+        # Verweise "Open Leaderboard" / "OPEN THE SCREEN" gibt es nicht mehr.
+        for modus in ("leer", "live"):
+            text = _sichtbarer_text(self.ausgabe[modus]["overview"])
+            with self.subTest(modus=modus):
+                self.assertIn("Prediction-market microstructure, measured on self-recorded books.", text)
+                self.assertIn("no profitability claim", text)
+                self.assertIn("VERDICT BOARD", text)
+                self.assertIn("LIVE RUNS · SMALL STAKE", text)
+                self.assertIn("FIELD NOTES", text)
+                self.assertIn("github.com/Pablozh123/prediction-market-terminal", self.ausgabe[modus]["overview"])
+                self.assertIn("docs/research/ONE_PAGER.md", self.ausgabe[modus]["overview"])
+                self.assertNotIn("Open Leaderboard", text)
+                self.assertNotIn("OPEN THE SCREEN", text)
+                self.assertNotIn("Where the money moved", text)
+                self.assertNotIn("BIGGEST MOVES · 1H", text)
+                self.assertNotIn("updated every 15 seconds", text)
+                self.assertIn("refresh every 30 seconds", text)
+        # Reihenfolge: Board vor Runs vor Notes vor Live-Daten.
+        live = self.ausgabe["live"]["overview"]
+        self.assertLess(live.index("VERDICT BOARD"), live.index("LIVE RUNS · SMALL STAKE"))
+        self.assertLess(live.index("LIVE RUNS · SMALL STAKE"), live.index("FIELD NOTES"))
+        self.assertLess(live.index("FIELD NOTES"), live.index("LIVE DATA"))
 
     def test_field_notes_leerzustand(self) -> None:
         # Die neue Studie rendert ohne Nutzlast den Leerzustand mit Dateinamen
@@ -334,6 +398,520 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertEqual(platzhalter["kennzeichnung"], "curated/field-notes")
         self.assertIsInstance(platzhalter["notes"], list)
 
+    def test_review_queue_eine_zeile_je_markt(self) -> None:
+        # Der Harness traegt fuenf Faelle ueber zwei Slugs (drei Fenster fuer
+        # example-question, zwei fuer second-question). Die Seite zeigt zwei
+        # Zeilen, je den Fall mit der hoechsten Prioritaet, und nennt die
+        # Fensterzahl in der Kachel und in der Spalte WINDOWS.
+        zeilen = json.loads(self.ausgabe["live"]["_collapse_queue"])
+        self.assertEqual([z["markt_slug"] for z in zeilen], ["example-question", "second-question"])
+        self.assertEqual([z["id"] for z in zeilen], ["c1", "c5"])          # high band, dann juengster ts
+        self.assertEqual([z["windows_n"] for z in zeilen], [3, 2])
+        self.assertEqual(zeilen[0]["windows_first"], "2026-05-22T20:45:00Z")
+        self.assertEqual(zeilen[0]["windows_last"], "2026-05-22T21:50:00Z")
+        # Die Begruendung des behaltenen Falls bleibt unangetastet.
+        self.assertEqual(zeilen[0]["begruendung"], "kept-high-case")
+        self.assertEqual(zeilen[1]["begruendung"], "kept-newer-medium-case")
+        # Ohne Nutzlast eine leere Liste, kein Fehler.
+        self.assertEqual(json.loads(self.ausgabe["leer"]["_collapse_queue"]), [])
+        html = self.ausgabe["live"]["research"]
+        text = _sichtbarer_text(html)
+        self.assertIn("2 markets", text)
+        self.assertIn("5 windows", text)
+        self.assertIn("WINDOWS", text)
+        self.assertIn("3 · 05-22 20:45 → 21:50", text)
+        self.assertIn("2 · 05-22 20:45 → 05-23 20:45", text)
+        # Eine Zeile je Slug: der Slug steht genau einmal in der Tabelle.
+        self.assertEqual(text.count("example-question"), 1)
+        self.assertEqual(text.count("second-question"), 1)
+        # Die verworfenen Fenster tauchen nicht als Zeilen auf.
+        for verworfen in ("c2", "c3", "c4"):
+            self.assertNotRegex(text, r"\b" + verworfen + r"\b")
+
+    def test_category_efficiency_neue_und_alte_form(self) -> None:
+        # Neue kategorie_karte.json: Kennzahlen mit n, Balken je Horizont,
+        # Brier-ueber-Horizont-Linien, Kalibrierung, Tabelle mit allen
+        # Horizonten, zugeklappte Methode mit Thesis-Schnappschuss.
+        neu = self.ausgabe["live"]["research_category_efficiency"]
+        text = _sichtbarer_text(neu)
+        self.assertIn("MARKETS IN SAMPLE 540", text)
+        self.assertIn("410 priced at T-7", text)
+        self.assertIn("BEST AT T-7 Politics Brier 0.100 · n 200", text)
+        self.assertIn("WORST AT T-7 Sports Brier 0.200 · n 210", text)
+        self.assertIn("BRIER AT T-7 BY CATEGORY", text)
+        self.assertIn("BRIER AT T-1 BY CATEGORY", text)
+        self.assertIn("Politics · n 200", text)               # n am Balken
+        self.assertIn("BRIER BY HORIZON", text)
+        self.assertRegex(neu, r'<path d="M\s*\d')             # Linien nur mit Daten
+        self.assertIn("CALIBRATION AT T-7", text)
+        self.assertIn("predicted 3% · realised 5% · n 120", text)
+        self.assertIn("T-30 BRIER · HIT · N", text)
+        self.assertIn("0.200 80% · n 150", text)
+        self.assertIn("THESIS FIGURES THIS TABLE REPLACES", text)
+        self.assertIn("Politik: Brier T-7 0.352 (n 12)", text)
+        self.assertIn("<details", neu)
+        self.assertLess(neu.index("BY CATEGORY AND HORIZON"), neu.index("Harness method text."))
+        # Alte Form (nur brier_t7/brier_t1): rendert weiter, ohne Kurve, ohne
+        # erfundene Horizonte, ohne Kalibrierung, und n_t1 steht als unbekannt.
+        alt = self.ausgabe["live"]["research_category_efficiency_alt"]
+        text_alt = _sichtbarer_text(alt)
+        self.assertIn("BEST AT T-7 Sport Brier 0.042 · n 26", text_alt)
+        self.assertIn("WORST AT T-7 Politik Brier 0.352 · n 12", text_alt)
+        self.assertNotIn("BRIER BY HORIZON", text_alt)
+        self.assertNotIn("CALIBRATION", text_alt)
+        self.assertNotIn("T-30", text_alt)
+        self.assertNotRegex(alt, r'<path d="M\s*\d')
+        self.assertIn("0.036 93% · n —", text_alt)
+        # Leerzustand nennt die Datei.
+        leer = _sichtbarer_text(self.ausgabe["leer"]["research_category_efficiency"])
+        self.assertIn("kategorie_karte.json", leer)
+        self.assertNotIn("BEST AT T-7", leer)
+
+    # ---- Landing (Overview als Forschungsseite) ---------------------------
+
+    def test_verdict_board_aus_der_nutzlast(self) -> None:
+        # Vier Harness-Studien, jede als Zeile: Frage, Verdikt-Tag aus
+        # verdikt_art, Kennzahl mit Einheit und n, Fenster. Die Zaehlung in
+        # der Unterzeile kommt aus dem Payload (zaehler), nicht aus dem Code.
+        html = self.ausgabe["live"]["overview"]
+        text = _sichtbarer_text(html)
+        self.assertIn("VERDICT BOARD · 4 STUDIES", text)
+        self.assertIn("Four studies (2 refuted, 1 confirmed, 0 not identified, 1 control), 21 small-stake live runs, a pre-registered pilot — no profitability claim.", text)
+        self.assertIn("Does the harness board render a confirmed row?", text)
+        self.assertIn("CONFIRMED", text)
+        self.assertEqual(text.count("REFUTED"), 2)
+        self.assertIn("CONTROL", text)
+        self.assertNotIn("NOT IDENTIFIED", text)          # 0 offene: kein Tag erfunden
+        self.assertIn("55.5 %", text)
+        self.assertIn("Hit rate · n = 205,835 obs", text)
+        self.assertIn("2026-07-18 to 2026-07-28", text)
+        self.assertIn("n = 8 pairs", text)
+        self.assertIn("payload 2026-08-16 23:32 UTC", text)   # Stand der Datei
+        # Direkt aufgerufene Helfer: Zaehlung und Unterzeile.
+        self.assertEqual(json.loads(self.ausgabe["live"]["_verdict_counts"]),
+                         {"total": 4, "ja": 1, "nein": 2, "offen": 0, "kontrolle": 1})
+        self.assertTrue(self.ausgabe["live"]["_landing_subline"].startswith("Four studies (2 refuted"))
+        # Ohne Nutzlast: Ladehinweis mit Dateinamen, keine Zeile, keine Zahl.
+        leer = _sichtbarer_text(self.ausgabe["leer"]["overview"])
+        self.assertIn("microstructure.json", leer)
+        self.assertNotIn("CONFIRMED", leer)
+        self.assertNotIn("REFUTED", leer)
+        self.assertNotIn("studies (", leer)
+        self.assertEqual(json.loads(self.ausgabe["leer"]["_verdict_counts"])["total"], 0)
+
+    def test_live_runs_streifen_zeigt_beide_pnl_zahlen(self) -> None:
+        # Log-rekonstruiert (+$288.67) UND wallet-abgeglichen (+$175.09) mit
+        # Abgleichsdatum, jeweils beschriftet; Runs, Wetten, gewonnen/verloren.
+        text = _sichtbarer_text(self.ausgabe["live"]["overview"])
+        self.assertIn("LOG-RECONSTRUCTED PNL +$288.67", text)
+        self.assertIn("WALLET-RECONCILED NET +$175.09", text)
+        self.assertIn("reconciled 2026-07-18", text)
+        self.assertIn("RUNS · BETS 21 · 27", text)
+        self.assertIn("WON · LOST 25 · 2", text)
+        self.assertIn("Two PnL figures on purpose", text)
+        # Fehlt runs.json, sagt der Streifen das und zeigt keine PnL-Zahl.
+        teil = _sichtbarer_text(self.ausgabe["live"]["overview_partial"])
+        self.assertIn("runs.json did not load: HTTP 404", teil)
+        self.assertNotIn("+$288.67", teil)
+        self.assertNotIn("+$175.09", teil)
+        self.assertNotIn("21 small-stake live runs", teil)
+        # Und die noch ladende Notiz-Datei wird als ladend benannt.
+        self.assertIn("Loading field_notes.json", teil)
+        leer = _sichtbarer_text(self.ausgabe["leer"]["overview"])
+        self.assertIn("runs.json", leer)
+        self.assertNotIn("+$", leer)
+
+    def test_field_notes_streifen_fuenf_titel(self) -> None:
+        text = _sichtbarer_text(self.ausgabe["live"]["overview"])
+        for i in ("one", "two", "three", "four", "five"):
+            self.assertIn("Harness note " + i, text)
+        self.assertNotIn("Harness note six", text)
+        leer = _sichtbarer_text(self.ausgabe["leer"]["overview"])
+        self.assertIn("field_notes.json", leer)
+        self.assertNotIn("Harness note", leer)
+
+    def test_landing_live_zeile_mit_stand(self) -> None:
+        # Die Live-Kacheln tragen den as_of-Stempel des Polls; ohne Poll steht
+        # keine Uhrzeit da, sondern die Quelle.
+        live = _sichtbarer_text(self.ausgabe["live"]["overview"])
+        self.assertIn("as of 2026-08-17 10:00 UTC", live)
+        self.assertIn("MARKETS TRACKED 1", live)
+        self.assertIn("PRINTS ≥ $2.5K · TAPE WINDOW 2", live)
+        leer = _sichtbarer_text(self.ausgabe["leer"]["overview"])
+        self.assertNotIn("as of", leer)
+        self.assertIn("/api/markets", leer)
+        self.assertIn("/api/tape", leer)
+
+    def test_seitenleiste_neu_gruppiert_und_ohne_papierkasten(self) -> None:
+        app_js = (WURZEL / "web" / "js" / "app.js").read_text(encoding="utf-8")
+        for gruppe in ("START HERE", "EVIDENCE", "RECORD", "LIVE DATA"):
+            self.assertIn("'" + gruppe + "'", app_js)
+        for weg in ("PAPER EQUITY", "No paper account", "'DASHBOARD'", "'TRADING'", "'SYSTEM'"):
+            self.assertNotIn(weg, app_js)
+        # Nicht mehr gelistet, aber als Route erreichbar.
+        for seite in ("'settings'", "'track'", "'copy'", "'portfolio'", "'resolved'"):
+            self.assertNotIn("this.navItem(" + seite, app_js)
+        self.assertIn("settings: renderSettings", app_js)
+        self.assertIn("track: renderTrack", app_js)
+        # Fusszeile: Repo, Read-only-Satz, Live-run-Wallet.
+        self.assertIn("github.com/Pablozh123/prediction-market-terminal", app_js)
+        self.assertIn("Read-only. No orders placed. Public Polymarket &amp; Kalshi data.", app_js)
+        self.assertIn("0x29af…f88d", app_js)
+        # Titel der Seite.
+        index = (WURZEL / "web" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("<title>Market Intel — prediction-market microstructure, measured</title>", index)
+
+    # ---- Cross-venue Ehrlichkeits-Schranke ---------------------------------
+
+    def test_cross_venue_schranke_und_ladezustand(self) -> None:
+        # Laufende Anfrage: Ladezeile mit Quelle. Antwort ohne Treffer: der
+        # ehrliche Leerblock mit Verweis auf die Studien 08 und 11 und die
+        # Mikrostruktur-Route. Mit Treffer: Zeile plus Schranken-Satz.
+        laedt = _sichtbarer_text(self.ausgabe["live"]["cross_loading"])
+        self.assertIn("matching pairs across venues", laedt.lower())
+        self.assertIn("/api/cross", laedt)
+        leer = _sichtbarer_text(self.ausgabe["live"]["cross_gate_empty"])
+        self.assertIn("No cross-venue pair clears the match gate right now (similarity ≥ 0.5, volume on both venues).", leer)
+        self.assertIn("See studies 08 and 11: the two 79¢/64¢ 'edges' were mismatched questions.", leer)
+        self.assertIn("#research/microstructure", leer)
+        self.assertNotIn("Example question", leer)
+        live = _sichtbarer_text(self.ausgabe["live"]["cross"])
+        self.assertIn("1 of 9 candidate pairs clear the gate (similarity ≥ 0.5, volume on both venues)", live)
+        self.assertIn("similarity 0.71", live)
+        self.assertIn("GATE 0.50", live)
+        # Der Schieber faengt bei der Schranke an, nicht darunter.
+        self.assertNotIn("0.30", live)
+        # Ohne jede Antwort (leerer Harness): Ladezustand, keine Zeile.
+        leer0 = _sichtbarer_text(self.ausgabe["leer"]["cross"])
+        self.assertIn("/api/cross", leer0)
+        self.assertNotIn("Example question", leer0)
+
+    # ---- Leaderboard: tote Regler weg, Score-Bestandteile beschriftet -------
+
+    def test_leaderboard_ohne_tote_regler_und_ohne_rohen_tags_string(self) -> None:
+        html = self.ausgabe["live"]["traders"]
+        text = _sichtbarer_text(html)
+        for weg in ("VIEW", "COLUMNS", "PERIOD", "Bot-like only", "Active only", "TRAITS", "BALANCE",
+                    "ACCOUNT AGE", "ASSETS", "OPEN POSITIONS VALUE", "MINIMUM BOT SCORE",
+                    "Fetch open positions", "Fetch win rates", "EXTRA DATA"):
+            with self.subTest(weg=weg):
+                self.assertNotIn(weg, text)
+        # Ohne Werte in der Antwort gibt es weder Spalte noch Rangoption.
+        self.assertNotIn("WIN RATE", text)
+        self.assertNotIn("RESOLVED BETS", text)
+        self.assertNotIn("Win rate", text)
+        # Der rohe Begruendungs-String erscheint nicht; seine Bestandteile
+        # stehen beschriftet unter der Wallet.
+        self.assertNotIn("return 90, sharpe-proxy 60", text)
+        self.assertNotIn("drawdown-proxy", text)
+        self.assertIn("SCORE COMPONENTS", text)
+        self.assertIn("return 90", text)
+        self.assertIn("sharpe proxy 60", text)
+        self.assertIn("volume 80", text)
+        self.assertIn("grade B", text)
+        # Rangoptionen, die tatsaechlich sortieren.
+        for option in ("Smart score", "Profit", "Volume", "Profit / volume"):
+            self.assertIn(option, text)
+        # Auch das Detailpanel und die Suche leaken den String nicht.
+        detail = _sichtbarer_text(self.ausgabe["live"]["_detail_wallet"])
+        self.assertNotIn("return 90, sharpe-proxy 60", detail)
+        self.assertIn("score components: return 90 · sharpe proxy 60 · volume 80", detail)
+        suche = _sichtbarer_text(self.ausgabe["live"]["_suche"])
+        self.assertNotIn("sharpe-proxy", suche)
+
+    # ---- Markets: tote Ansichten weg, 1D statt 1H, kein Sparkline ----------
+
+    def test_markets_ohne_tote_ansichten(self) -> None:
+        text = _sichtbarer_text(self.ausgabe["live"]["markets"])
+        for weg in ("VIEW", "Cards", "Calendar", "Saved", "My positions", "SPREAD", "TREND 24H"):
+            with self.subTest(weg=weg):
+                self.assertNotIn(weg, text)
+        self.assertIn("CHANGE 1D", text)
+        self.assertIn("as of 2026-08-17 10:00 UTC", text)
+        self.assertNotIn('<polyline', self.ausgabe["live"]["markets"])
+        core = (WURZEL / "web" / "js" / "pages" / "core_pages.js").read_text(encoding="utf-8")
+        self.assertNotIn("· 1H", core)
+        util = (WURZEL / "web" / "js" / "util.js").read_text(encoding="utf-8")
+        self.assertNotIn("sparkArr", util)
+        # Kalshi "Cross Category" wird zu Other, im Frontend wie im Server.
+        self.assertIn("cross[ -]?category", util)
+        apv = (WURZEL / "app" / "api_views.py").read_text(encoding="utf-8")
+        self.assertIn('"cross category"', apv)
+
+    # ---- Live tape / Whale flow: Kategorie-Chips ---------------------------
+
+    def test_tape_und_whale_kategorie_chips(self) -> None:
+        # Der Harness-Tape traegt Macro (mit Wallet) und Crypto (Kalshi, ohne
+        # Wallet). Die Chip-Leiste bietet genau die vorhandenen Kategorien an.
+        tape = _sichtbarer_text(self.ausgabe["live"]["flow"])
+        self.assertIn("CATEGORY ALL CRYPTO MACRO", tape)
+        self.assertIn("PRINTS SHOWN 2", tape)
+        crypto = _sichtbarer_text(self.ausgabe["live"]["flow_cat_crypto"])
+        self.assertIn("PRINTS SHOWN 1", crypto)
+        self.assertIn("KXBTC15M", crypto)
+        self.assertNotIn("Example question", crypto)
+        macro = _sichtbarer_text(self.ausgabe["live"]["flow_cat_macro"])
+        self.assertIn("PRINTS SHOWN 1", macro)
+        self.assertIn("Example question", macro)
+        self.assertNotIn("KXBTC15M", macro)
+        # Whale flow: nur Kategorien mit Wallet-Prints als Chips; Crypto (ohne
+        # Wallet) laesst sich nicht gruppieren, und die Seite sagt das.
+        whale = _sichtbarer_text(self.ausgabe["live"]["whale"])
+        self.assertIn("CATEGORY ALL MACRO", whale)
+        whale_macro = _sichtbarer_text(self.ausgabe["live"]["whale_cat_macro"])
+        self.assertIn("in the category Macro", whale_macro)
+        self.assertIn("$9.0k", whale_macro)
+        whale_crypto = _sichtbarer_text(self.ausgabe["live"]["whale_cat_crypto"])
+        self.assertIn("NO PRINTS IN THIS CATEGORY", whale_crypto)
+        self.assertNotIn("$9.0k", whale_crypto)
+        # Kein "TRACKED ONLY"-Chip mehr: nichts setzt das Flag.
+        self.assertNotIn("TRACKED ONLY", tape)
+
+    # ---- Backtester: kein Auto-Lauf, RUN-Knopf, 429 -------------------------
+
+    def test_backtester_laeuft_nur_auf_knopfdruck(self) -> None:
+        leer = _sichtbarer_text(self.ausgabe["leer"]["backtester"])
+        self.assertIn("RUN backtest", leer)
+        self.assertIn("Press RUN", leer)
+        self.assertNotIn("hyperactive", leer)
+        laeuft = _sichtbarer_text(self.ausgabe["live"]["backtester_running"])
+        self.assertIn("running…", laeuft)
+        self.assertNotIn("RUN backtest", laeuft)          # Knopf ist inert
+        gebremst = _sichtbarer_text(self.ausgabe["live"]["backtester_rate_limited"])
+        self.assertIn("rate-limited", gebremst)
+        self.assertIn("retry in 7 s", gebremst)
+        fehler = _sichtbarer_text(self.ausgabe["live"]["backtester_error"])
+        self.assertIn("HTTP 502", fehler)
+        # Kein Stepper ruft den Lauf mehr auf: bt() setzt nur den Zustand.
+        trading = (WURZEL / "web" / "js" / "pages" / "trading_pages.js").read_text(encoding="utf-8")
+        self.assertNotIn("T.runBacktestLive()", trading)
+        self.assertIn("T.runBacktest()", trading)
+        app_js = (WURZEL / "web" / "js" / "app.js").read_text(encoding="utf-8")
+        self.assertNotIn("setTimeout(async () =>", app_js)
+        self.assertIn("err.status === 429", app_js)
+        # Der lange Timeout gilt nur fuer /api/risk.
+        api_js = (WURZEL / "web" / "js" / "api.js").read_text(encoding="utf-8")
+        self.assertIn("LANGSAME_PFADE = ['/api/risk']", api_js)
+        self.assertIn("TIMEOUT_LANG_MS = 150000", api_js)
+        self.assertIn("TIMEOUT_MS = 45000", api_js)
+        risk = _sichtbarer_text(self.ausgabe["live"]["risk_loading"])
+        self.assertIn("building the day's tape, ~90 s on a cold cache", risk)
+
+    def test_keine_sichtbaren_deutschen_oder_internen_texte(self) -> None:
+        # Sichtbarer Text der eigenen Seiten ist Englisch; "Streamlit" ist
+        # kein Begriff dieser Oberflaeche.
+        verdaechtig = ("Streamlit", "Leerzustand", "Nutzlast", "Herkunft", "Papier", "Wallet-Zeilen", "Zeile")
+        for modus in ("leer", "live"):
+            for name, html in self.ausgabe[modus].items():
+                if name.startswith("_") or name.startswith("research") or name.startswith("runs_") or name.startswith("alerts"):
+                    continue
+                text = _sichtbarer_text(html)
+                for wort in verdaechtig:
+                    with self.subTest(modus=modus, seite=name, wort=wort):
+                        self.assertNotIn(wort, text)
+
+    # ---- Live runs: zwei PnL-Zahlen, Abgleichszeile, First taker, Diagramme --
+
+    def test_live_runs_beide_pnl_zahlen_und_abgleichszeile(self) -> None:
+        # Die Kachel REALIZED PNL · wallet-reconciled zeigte die Log-Zahl.
+        # Jetzt stehen beide Zahlen mit ihrer Herkunft, dazu die Abgleichszeile
+        # (Log-Einsatz gegen Wallet-Kaeufe, Log-PnL gegen Wallet-Netto), der
+        # Satz zum Unterschied und die Wallet-Adresse.
+        live = self.ausgabe["live"]["runs_runs"]
+        text = _sichtbarer_text(live)
+        self.assertIn("LOG-RECONSTRUCTED PNL +$24", text)
+        self.assertIn("WALLET-RECONCILED NET (AS OF 2026-07-18) +$20", text)
+        self.assertNotIn("REALIZED PNL +$24", text)                 # die alte Kachel
+        self.assertNotIn("PNL +$24 wallet-reconciled", text)
+        self.assertNotIn("TOTAL STAKE $40 wallet-reconciled", text)
+        self.assertIn("TOTAL STAKE $40 log estimate", text)
+        self.assertIn("RECONCILIATION · LOG VS WALLET · WALLET AS OF 2026-07-18", text)
+        self.assertIn("LOG STAKE $40.00 WALLET BUYS $30.00 LOG-RECONSTRUCTED PNL +$24.00 WALLET-RECONCILED NET +$20.00", text)
+        self.assertIn("the order response price is the cap, not the fill", text)
+        self.assertIn("post-mortem 2026-07-18", text)
+        self.assertIn("0x29afe1bf37700768a640a08f1b35dad5f202f88d", text)
+        self.assertIn("public Polymarket Data API", text)
+        # Je Lauf: Log-PnL und Wallet-Netto getrennt benannt.
+        self.assertIn("log PnL +$14.00 · wallet net +$12.00", text)
+        self.assertIn("log PnL +$10.00 · wallet net not reconciled for this run", text)
+        # Der Simulator-Reiter benennt seine Zahlen als Simulation.
+        sim = _sichtbarer_text(self.ausgabe["live"]["runs_sim"])
+        self.assertIn("simulation on log-estimated fills", sim)
+        # Leerzustand: Kacheln mit Dateinamen, keine Zahl, keine Adresse.
+        leer = _sichtbarer_text(self.ausgabe["leer"]["runs_runs"])
+        self.assertIn("LOG-RECONSTRUCTED PNL — runs.json not loaded", leer)
+        self.assertIn("WALLET-RECONCILED NET — runs.json not loaded", leer)
+        self.assertNotIn("RECONCILIATION", leer)
+
+    def test_live_runs_first_taker_aus_den_race_feldern(self) -> None:
+        # Zwei Wetten mit Tape: eine mit null fremden Trades davor, eine mit
+        # zwei; Verfolger 30 s und 60 s, Median 45 s.
+        text = _sichtbarer_text(self.ausgabe["live"]["runs_runs"])
+        self.assertIn("FIRST TAKER 1 of 2 first on the traded side · 2 tape-reconciled bets · median 45 s to the next buyer", text)
+        leer = _sichtbarer_text(self.ausgabe["leer"]["runs_runs"])
+        self.assertIn("FIRST TAKER — runs.json not loaded", leer)
+
+    def test_live_runs_diagramme_und_saubere_titel(self) -> None:
+        live = self.ausgabe["live"]["runs_runs"]
+        text = _sichtbarer_text(live)
+        # Preispfad nach dem Fill aus preis_nach_fill, eine Serie je Wette.
+        self.assertIn("POST-FILL PRICE PATH · 2 OF 2 BETS", text)
+        self.assertIn("lime won, red lost, grey open", text)
+        # Interne Klammerzusaetze sind aus den Titeln verschwunden, die
+        # Drop-Quelle steht als Chip; "event ↗" ist ein Link oder weg.
+        self.assertNotIn("(URL-Prober)", text)
+        self.assertNotIn("(kanalseite)", text)
+        self.assertIn("Second run with a fill", text)
+        self.assertIn("drop via RSS feed", text)
+        self.assertIn('href="https://polymarket.com/event/harness-event-a"', live)
+        self.assertEqual(live.count("event ↗"), 1)          # nur der Lauf mit Slug
+        # Timing-Reiter: Repricing-Treppen aus repricing[].punkte, dann die
+        # Tabelle mit den Spalten aus preis_nach_fill (30 s war immer leer).
+        timing = self.ausgabe["live"]["runs_timing"]
+        ttext = _sichtbarer_text(timing)
+        self.assertIn("REPRICING AFTER THE DROP · 1 BET", ttext)
+        self.assertIn("our fill 10 s after drop · priced in after 2.0 min", ttext)
+        self.assertIn("REPRICE 30 S REPRICE 900 S", ttext)
+        self.assertIn("+5¢ +40¢", ttext)
+        self.assertLess(timing.index("REPRICING AFTER THE DROP"), timing.index("TIMING AND REPRICING PER FILL"))
+        # Kalibrierung: das Quadrat aus charts.js ueber der Tabelle.
+        calib = self.ausgabe["live"]["runs_calib"]
+        self.assertIn("ENTRY PRICE VS SETTLED SHARE · 2 BANDS", _sichtbarer_text(calib))
+        self.assertLess(calib.index("ENTRY PRICE VS SETTLED SHARE"), calib.index("ENTRY PRICE BAND"))
+        # Ohne Nutzlast keine Pfade und keine Kurven.
+        leer = _sichtbarer_text(self.ausgabe["leer"]["runs_timing"])
+        self.assertNotIn("REPRICING AFTER THE DROP", leer)
+
+    # ---- Mentions latency, Pilot, Pipeline forward, Methodology ------------
+
+    def test_mentions_latency_diagramm_und_ausschluesse(self) -> None:
+        html = self.ausgabe["live"]["research_mentions_latency"]
+        text = _sichtbarer_text(html)
+        # Echter Median (0.5 und 10 → 5.25), als Kachel und als Referenzlinie.
+        self.assertIn("MEDIAN LATENCY 5.25 min n = 2 events with a reaction", text)
+        self.assertIn("MINUTES TO FIRST REACTION (≥ 2¢ MOVE) PER EVENT · n 2", text)
+        self.assertIn("median 5.25 min", text)
+        self.assertIn("MINUTES TO CONVERGENCE PER EVENT · n 2", text)
+        self.assertIn("linear scale, 30 to 600 min", text)
+        self.assertIn("EXCLUDED EVENTS · 1", text)
+        self.assertIn("harness_excluded excluded · ambiguous mapping between content and market", text)
+        self.assertIn("HOW TO READ IT First reaction is the first move of at least 2¢", text)
+        # Tabelle mit Outcome und Status je Zeile, alle Zeilen.
+        self.assertIn("MENTIONS EVENTS · 3 OF 3", text)
+        self.assertIn("RESOLVED STATUS", text)
+        self.assertIn("harness_fast 0.5 min 30 min 0.5 YES ok", text)
+        self.assertIn("harness_none — — — NO no_reaction", text)
+        # Leerzustand nennt die Datei.
+        leer = _sichtbarer_text(self.ausgabe["leer"]["research_mentions_latency"])
+        self.assertIn("mentions_latenz.json", leer)
+        self.assertNotIn("MEDIAN LATENCY", leer)
+
+    def test_pilot_alle_trades_englisch_und_slippage_diagramm(self) -> None:
+        html = self.ausgabe["live"]["research_pilot"]
+        text = _sichtbarer_text(html)
+        self.assertIn("PILOT TRADES · 20 OF 20", text)
+        self.assertEqual(text.count("held to resolution (protocol)"), 20)
+        self.assertNotIn("haelt bis zur Aufloesung", text)
+        self.assertNotIn("Protokoll", text)
+        # Statische Kacheln: Einsatz aus den Trades, Abweichung benannt.
+        self.assertIn("STAKE PER TRADE $5 protocol $10 · deviates from the frozen text", text)
+        self.assertIn("TRADES 20 20 still open", text)
+        # Keine Serie: die ehrliche Zeile statt einer Kurve, dann Slippage.
+        self.assertIn("PILOT EQUITY VS RULE ADHERENCE: no series", text)
+        self.assertNotRegex(html, r'<polyline points="\s*\d')
+        self.assertIn("SLIPPAGE PER TRADE · EXECUTION MINUS SIGNAL PRICE · n 20", text)
+        self.assertIn("10 of 20 worse than signal · mean +0.50¢", text)
+        # Watcher-Trichter aus den Zaehlern.
+        self.assertIn("1,992 markets scanned · 323 rule matches", text)
+        self.assertIn("WATCHER FUNNEL · LAST RUN 2026-08-01 04:33 UTC", text)
+        self.assertIn("arm 2 · already expired 1,155", text)
+        self.assertIn("arm 2 signals 322", text)
+        leer = _sichtbarer_text(self.ausgabe["leer"]["research_pilot"])
+        self.assertIn("pilot.json", leer)
+        self.assertNotIn("SLIPPAGE", leer)
+
+    def test_pipeline_forward_ehrliche_ueberschrift(self) -> None:
+        html = self.ausgabe["live"]["research_pipeline_forward"]
+        text = _sichtbarer_text(html)
+        self.assertIn("Almost nothing was tradable: 1 of 5 rule-compliant decision checks ended in a buy (20%) · dominant reason: no YES ask in the book (3 of 4 no-trades, 75%)", text)
+        self.assertIn("WHY IT DID NOT TRADE · REASON COUNTS · 4 NO-TRADES ACROSS 2 RUNS", text)
+        self.assertIn("No YES ask in the book 3", text)
+        self.assertIn("YES ask (incl. fee) above the run cap 1", text)
+        self.assertIn("No equity curve", text)
+        self.assertNotIn("FORWARD PAPER EQUITY", text)
+        self.assertIn("FORWARD LOG · 2 OF 2 RUNS", text)
+        leer = _sichtbarer_text(self.ausgabe["leer"]["research_pipeline_forward"])
+        self.assertIn("pipeline_forward.json", leer)
+        self.assertNotIn("Almost nothing was tradable", leer)
+
+    def test_methodology_hat_methodentext(self) -> None:
+        for modus in ("leer", "live"):
+            html = self.ausgabe[modus]["research_methodology"]
+            text = _sichtbarer_text(html)
+            with self.subTest(modus=modus):
+                for titel in ("WHAT A STUDY OBSERVATION IS", "HIT RATE AND WILSON LOWER BOUND",
+                              "ROUND-TRIP COST = SPREAD + FEE", "FILL MODELS: TOUCH VS TAPE, AND THE MARKOUT IDENTITY",
+                              "BLOCK BOOTSTRAP", "CROSS-VENUE MATCHING AND FEE CURVES", "WALLET RECONCILIATION VS LOG",
+                              "PRE-REGISTRATION POLICY", "AGENT LAYER GUARDRAILS"):
+                    self.assertIn(titel, text)
+                self.assertIn("The skeptic can only lower a case's priority", text)
+                self.assertIn("default backend is a deterministic mock", text)
+                self.assertIn("Read the full one-pager", text)
+                self.assertIn("github.com/Pablozh123/prediction-market-terminal/blob/main/docs/research/ONE_PAGER.md", html)
+        # Mit audit.json: die vier Zaehler und der Satz, dass mock heisst mock.
+        live = _sichtbarer_text(self.ausgabe["live"]["research_methodology"])
+        self.assertIn("AUDIT ENTRIES 3", live)
+        self.assertIn("BACKEND mock not a live model run", live)
+        self.assertIn("backend counter mock 3 of 3 entries", live)
+        self.assertIn("review queue is mock output, not a live model run", live)
+        # Ohne audit.json: Kacheln mit Dateinamen, Text trotzdem da.
+        leer = _sichtbarer_text(self.ausgabe["leer"]["research_methodology"])
+        self.assertIn("AUDIT ENTRIES — audit.json not loaded", leer)
+        self.assertNotIn("backend counter mock", leer)
+
+    def test_microstructure_sprungliste_und_verdiktzeile(self) -> None:
+        html = self.ausgabe["live"]["research_microstructure"]
+        text = _sichtbarer_text(html)
+        # Verdiktzeile aus den Karten gezaehlt (eine Studie, refuted).
+        self.assertIn("1 refuted · 0 confirmed · 0 not identified · 0 control · 1 studies", text)
+        # Sprungliste: ein Anker je Karte unter der Research-Route, Label aus
+        # der Studien-ID.
+        self.assertIn('href="#research/microstructure/harness-study"', html)
+        self.assertIn('id="research/microstructure/harness-study"', html)
+        self.assertIn("01 Harness study", text)
+        leer = _sichtbarer_text(self.ausgabe["leer"]["research_microstructure"])
+        self.assertNotIn("refuted", leer)
+
+    def test_postmortem_referenzen_werden_links(self) -> None:
+        html = self.ausgabe["live"]["research_postmortems"]
+        self.assertIn('href="https://github.com/Pablozh123/multi-agent-orchestration-informational-efficiency/pull/12"', html)
+        self.assertIn('href="https://github.com/Pablozh123/multi-agent-orchestration-informational-efficiency/commit/8af07d6"', html)
+        self.assertIn('href="https://github.com/Pablozh123/prediction-market-terminal/blob/main/docs/research/ONE_PAGER.md"', html)
+        text = _sichtbarer_text(html)
+        self.assertIn("PR #12 ↗ (fill accounting); commit 8af07d6 ↗ (heartbeat); docs/research/ONE_PAGER.md ↗ ; plain note", text)
+
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_review_queue_ein_eintrag_je_markt(self) -> None:
+        # Fuenf Faelle auf zwei Slugs -> zwei Zeilen; je Slug gewinnt die
+        # hoechste Prioritaet, und die Fensterzahl steht daneben.
+        zeilen = json.loads(self.ausgabe["live"]["_collapse_queue"])
+        self.assertEqual([z["markt_slug"] for z in zeilen], sorted({z["markt_slug"] for z in zeilen}, key=[z["markt_slug"] for z in zeilen].index))
+        self.assertEqual(len(zeilen), 2)
+        je_slug = {z["markt_slug"]: z for z in zeilen}
+        self.assertEqual(je_slug["example-question"]["score_band"], "high")
+        self.assertEqual(int(je_slug["example-question"]["fenster"]), 3)
+        self.assertEqual(int(je_slug["second-question"]["fenster"]), 2)
+        self.assertEqual(json.loads(self.ausgabe["leer"]["_collapse_queue"]), [])
+
+    def test_category_efficiency_zeigt_horizonte_und_n(self) -> None:
+        text = _sichtbarer_text(self.ausgabe["live"]["research_category_efficiency"])
+        self.assertIn("Category efficiency", text)
+        # Stichprobe je Kategorie und Horizont sichtbar, keine Zahl ohne n.
+        self.assertRegex(text, r"n\s*=\s*\d+")
+        for tag in ("BRIER", "T-7", "T-1"):
+            self.assertIn(tag, text.upper())
+        leer = _sichtbarer_text(self.ausgabe["leer"]["research_category_efficiency"])
+        self.assertIn("kategorie_karte.json", leer)

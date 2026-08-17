@@ -152,6 +152,63 @@ function methodeBlock(s) {
     + '</details>';
 }
 
+// Anker je Karte. Die Adresse bleibt unter der Research-Route, damit der
+// hashchange-Handler der App auf derselben Studie landet und ein Reload die
+// Seite wiederfindet: #research/microstructure/<id>.
+export function studieAnker(s, i) {
+  const id = String((s && s.id) || ('study-' + (i + 1))).toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
+  return 'research/microstructure/' + id;
+}
+
+// Kurzlabel fuer die Sprungliste: die Studien-ID in Worten ("mm-staleness"
+// → "MM staleness"); ohne ID die Frage, auf wenige Woerter gekuerzt.
+function kurzLabel(s, i) {
+  const nr = String(i + 1).padStart(2, '0') + ' ';
+  const id = String((s && s.id) || '').trim();
+  if (id) {
+    const worte = id.split(/[-_]+/).filter(Boolean).map((w) => (w === 'mm' ? 'MM' : w));
+    if (worte.length) worte[0] = worte[0] === 'MM' ? 'MM' : worte[0].charAt(0).toUpperCase() + worte[0].slice(1);
+    return nr + worte.join(' ');
+  }
+  const frage = String((s && s.frage) || '').replace(/\?$/, '');
+  const worte = frage.split(/\s+/).filter(Boolean);
+  const kurz = worte.length > 5 ? worte.slice(0, 5).join(' ') + '…' : frage;
+  return nr + (kurz || ('Study ' + (i + 1)));
+}
+
+// Verdikte aus den Studien selbst gezaehlt, nicht aus dem Zaehlerfeld —
+// die Zeile darf der Kartenliste nie widersprechen.
+export function verdiktZaehlung(studien) {
+  const z = { ja: 0, nein: 0, offen: 0, kontrolle: 0, gesamt: 0 };
+  (Array.isArray(studien) ? studien : []).forEach((s) => {
+    z.gesamt += 1;
+    if (s && Object.prototype.hasOwnProperty.call(z, s.verdikt_art)) z[s.verdikt_art] += 1;
+  });
+  return z;
+}
+
+function verdiktZeile(studien) {
+  const z = verdiktZaehlung(studien);
+  if (!z.gesamt) return '';
+  const teil = (n, text, farbe) => '<span style="color:' + farbe + '">' + n + ' ' + text + '</span>';
+  return '<div style="' + M + '; font-size:11.5px; color:rgba(255,255,255,.55); margin-top:12px">'
+    + [teil(z.nein, 'refuted', VERDIKT_FARBE.nein), teil(z.ja, 'confirmed', VERDIKT_FARBE.ja),
+      teil(z.offen, 'not identified', VERDIKT_FARBE.offen), teil(z.kontrolle, 'control', VERDIKT_FARBE.kontrolle)].join(' · ')
+    + ' <span style="color:rgba(255,255,255,.35)">· ' + z.gesamt + ' studies</span></div>';
+}
+
+function sprungliste(studien) {
+  if (!Array.isArray(studien) || !studien.length) return '';
+  return '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:12px">'
+    + studien.map((s, i) => {
+      const farbe = VERDIKT_FARBE[s.verdikt_art] || '#95A0AB';
+      return '<a href="#' + esc(studieAnker(s, i)) + '" style="' + M + '; font-size:10px; color:rgba(255,255,255,.7); text-decoration:none; '
+        + 'border:1px solid rgba(255,255,255,.14); border-left:2px solid ' + farbe + '; border-radius:5px; padding:4px 8px; white-space:nowrap">'
+        + esc(kurzLabel(s, i)) + '</a>';
+    }).join('')
+    + '</div>';
+}
+
 function studieKarte(s, i) {
   const farbe = VERDIKT_FARBE[s.verdikt_art] || '#95A0AB';
   const marke = VERDIKT_TEXT[s.verdikt_art] || 'RESULT';
@@ -159,7 +216,7 @@ function studieKarte(s, i) {
   const zahlenUndDiagramm = '<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:12px; margin-top:16px">'
     + diagramm(s.diagramm) + zahlenBlock(s.zahlen) + '</div>';
 
-  return '<div style="' + CARD + '; padding:22px 24px; margin-bottom:18px">'
+  return '<div id="' + esc(studieAnker(s, i)) + '" style="' + CARD + '; padding:22px 24px; margin-bottom:18px; scroll-margin-top:16px">'
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:18px; flex-wrap:wrap">'
     + '<div style="flex:1; min-width:260px">'
     + '<div style="' + M + '; font-size:10px; letter-spacing:.16em; color:rgba(255,255,255,.35)">STUDY '
@@ -202,6 +259,9 @@ function kopf(payload) {
     + esc(payload.einleitung || '') + '</div></div>'
     + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.4); border:1px solid rgba(255,255,255,.14); '
     + 'border-radius:6px; padding:6px 10px; white-space:nowrap">' + esc(stempel) + '</div></div>'
+    // Verdiktzeile aus den Karten gezaehlt und die Sprungliste zu den Ankern.
+    + verdiktZeile(payload.studien)
+    + sprungliste(payload.studien)
     + '<div style="display:flex; gap:12px; margin-top:16px; flex-wrap:wrap">'
     + kachel(z.gesamt || 0, 'STUDIES', '#fff')
     + kachel(z.nein || 0, 'REFUTED', '#FF7A7A')

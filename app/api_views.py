@@ -9,10 +9,13 @@ Schicht nicht.
 
 from __future__ import annotations
 
+import json
 import math
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 import pandas as pd
+
+from app import suspicion as susp
 
 RESEARCH_FILES = {
     "review-queue": "queue",
@@ -108,6 +111,200 @@ def balanced_head(
     return out.head(limit)
 
 
+#: Was als Kategorie nichts sagt und deshalb "Other" heisst. "Cross Category"
+#: ist Kalshis Sammelserie fuer Multi-Event-Parlays (KXMVECROSSCATEGORY): ein
+#: Behaelter, keine Kategorie, und darf nicht als Reiter erscheinen.
+_LEERE_KATEGORIEN = {"", "uncategorized", "other", "nan", "none", "cross category", "cross-category"}
+
+
+#: Felder einer Markt-Zeile, die das Frontend liest (web/js/util.js mapMarket
+#: und die Detailansicht). Alles andere — ``raw`` (das komplette Gamma-Objekt),
+#: ``description``, ``image``, Outcome- und Token-Blobs — bleibt im Server.
+#: 250 Zeilen mit ``raw`` wogen ueber ein Megabyte; ohne liegen sie bei rund
+#: 100 KB. Die Token-IDs braucht nur /api/market/{key}/history, und das liest
+#: sie serverseitig aus dem Universum.
+MARKET_FIELDS = (
+    "market_key",
+    "ticker",
+    "title",
+    "platform",
+    "category",
+    "filter_category",
+    "yes_price",
+    "spread",
+    "change_1d",
+    "volume_24h",
+    "activity_volume",
+    "liquidity",
+    "end_time",
+    "market_age_days",
+    "url",
+)
+
+
+def market_records(markets: pd.DataFrame, limit: int | None = None) -> list[dict[str, Any]]:
+    """Markt-Zeilen fuer /api/markets: nur die Felder aus ``MARKET_FIELDS``.
+
+    NaN wird null, Zeitstempel werden ISO, und ``filter_category`` laeuft
+    durch ``clean_category`` — damit "Cross Category" und rohe Seriencodes
+    nicht als Kategorie-Reiter im Frontend landen.
+    """
+
+    if markets is None or markets.empty:
+        return []
+    frame = markets.head(limit) if limit else markets
+    keep = [c for c in MARKET_FIELDS if c in frame.columns]
+    slim = frame[keep].copy()
+    if "filter_category" in slim.columns:
+        slim["filter_category"] = [clean_category(v) for v in slim["filter_category"].tolist()]
+    if "category" in slim.columns:
+        slim["category"] = [clean_category(v) for v in slim["category"].tolist()]
+    return json.loads(slim.to_json(orient="records", date_format="iso"))
+
+
+def kalshi_series(ticker: Any) -> str:
+    """Serien-Praefix eines Kalshi-Tickers: KXBTC15M-26AUG17-1030-T115 -> KXBTC15M."""
+
+    text = _text(ticker).strip()
+    return text.split("-", 1)[0].upper() if text else ""
+
+
+def clean_category(label: Any) -> str:
+    """Kategorie-Label bereinigen; alles Nichtssagende wird "Other".
+
+    Ein roher Kalshi-Seriencode (KXHIGHNY) ist keine Kategorie, sondern das
+    Fehlen einer — er darf nicht als solche in der Spalte MOSTLY IN stehen.
+    """
+
+    text = _text(label).strip()
+    if text.casefold() in _LEERE_KATEGORIEN:
+        return "Other"
+    if text.isupper() and text.startswith("KX"):
+        return "Other"
+    return text
+
+
+#: Insider-Kontextgruppen aus app.suspicion -> Kategorie-Label des Tapes.
+#: "General" fehlt absichtlich: das ist keine Kategorie, sondern "Other".
+CONTEXT_GROUP_CATEGORY = {
+    susp.CONTEXT_SPORTS: "Sports",
+    susp.CONTEXT_MARKET_PRICES: "Finance",
+    susp.CONTEXT_WEATHER: "Weather",
+    susp.CONTEXT_POLITICS: "Politics",
+    susp.CONTEXT_AWARDS: "Entertainment",
+    susp.CONTEXT_CORPORATE: "Business",
+}
+
+
+def context_group_classifier(classify_context: Callable[..., Any] = susp.classify_insider_context) -> Callable[[Any, Any], str]:
+    """``app.suspicion.classify_insider_context`` als Kategorie-Klassifizierer.
+
+    Die Titelmuster dort kennen, was die Markt-Heuristik in
+    ``md.market_filter_category`` nicht kennt: "LoL: X vs Y", "Dota 2: ...",
+    "Will CF Thun win on 2026-08-06?" — genau die Prints, die das Tape
+    dominieren. Die Gruppe wird auf das Kategorie-Vokabular der Marktseite
+    abgebildet; "General" bleibt leer und wird damit "Other".
+    """
+
+    def classify(raw: Any, title: Any) -> str:
+        group = classify_context(title, raw)[0]
+        return CONTEXT_GROUP_CATEGORY.get(str(group), "")
+
+    return classify
+
+
+def chained_classifier(*classifiers: Callable[[Any, Any], Any]) -> Callable[[Any, Any], str]:
+    """Der erste Klassifizierer, der etwas anderes als "Other" sagt, gewinnt."""
+
+    def classify(raw: Any, title: Any) -> str:
+        for fn in classifiers:
+            label = clean_category(fn(raw, title))
+            if label != "Other":
+                return label
+        return "Other"
+
+    return classify
+
+
+def tape_rows_with_category(
+    trades: pd.DataFrame,
+    universe: pd.DataFrame | None = None,
+    classify_fn: Callable[[Any, Any], Any] | None = None,
+) -> pd.DataFrame:
+    """Jede Tape-Zeile bekommt eine ``category``-Spalte; die Eingabe bleibt unberuehrt.
+
+    Das Frontend hat den Markt bisher ueber den Titel in seinen 250 geladenen
+    Maerkten gesucht — die meisten Prints des Tapes sind dort nicht dabei,
+    also stand fast ueberall "Other". Hier wird je Zeile in dieser
+    Reihenfolge nachgeschlagen:
+
+    1. Marktuniversum ueber ``market_key`` (Polymarket conditionId bzw.
+       Kalshi-Ticker), dann ``slug``, dann exakter Titel. Traegt der Treffer
+       ein ``filter_category`` (hat die Titel-Heuristik schon durchlaufen),
+       gilt das; sonst laeuft seine rohe ``category`` mit dem Titel durch
+       ``classify_fn``.
+    2. Ohne Treffer: ``classify_fn(rohkategorie, titel)`` — bei Polymarket
+       ohne Rohkategorie nur ueber den Titel, bei Kalshi ueber das
+       Serien-Praefix des Tickers (KXBTC15M sagt Crypto, KXNBA sagt Sports).
+    3. Was danach noch keinen Namen hat, heisst "Other".
+
+    ``classify_fn`` ist im Server ``chained_classifier(md.market_filter_category,
+    context_group_classifier())``; hier bleibt es ein Parameter, damit die
+    Funktion netz- und modulfrei testbar ist.
+    """
+
+    if trades is None:
+        return pd.DataFrame()
+    out = trades.copy()
+    if out.empty:
+        if "category" not in out.columns:
+            out["category"] = pd.Series(dtype=object)
+        return out
+    classify = classify_fn or (lambda raw, title: raw)
+
+    # Nachschlagetabellen aus dem Universum: Schluessel -> (roh, filter).
+    lookup: dict[str, tuple[str, str]] = {}
+    if universe is not None and not universe.empty:
+        raw_col = universe["category"] if "category" in universe.columns else pd.Series("", index=universe.index)
+        fine_col = universe["filter_category"] if "filter_category" in universe.columns else pd.Series("", index=universe.index)
+        for key_col in ("market_key", "slug", "title"):
+            if key_col not in universe.columns:
+                continue
+            for key, raw, fine in zip(universe[key_col].tolist(), raw_col.tolist(), fine_col.tolist()):
+                key_text = _text(key).strip()
+                if key_text and key_text not in lookup:
+                    lookup[key_text] = (_text(raw).strip(), _text(fine).strip())
+
+    def _column(name: str) -> list[str]:
+        if name in out.columns:
+            return [_text(v).strip() for v in out[name].tolist()]
+        return [""] * len(out)
+
+    platforms = _column("platform")
+    keys = _column("market_key")
+    tickers = _column("ticker")
+    slugs = _column("slug")
+    titles = _column("title")
+
+    categories: list[str] = []
+    for platform, key, ticker, slug, title in zip(platforms, keys, tickers, slugs, titles):
+        hit = None
+        for candidate in (key, ticker, slug, title):
+            if candidate and candidate in lookup:
+                hit = lookup[candidate]
+                break
+        if hit is not None:
+            raw, fine = hit
+            label = fine if fine.casefold() not in _LEERE_KATEGORIEN else classify(raw, title)
+        elif platform.casefold() == "kalshi":
+            label = classify(kalshi_series(ticker or key or title), title)
+        else:
+            label = classify("", title)
+        categories.append(clean_category(label))
+    out["category"] = categories
+    return out
+
+
 def leaderboard_rows(leaderboard: pd.DataFrame, ranked: pd.DataFrame | None = None) -> list[dict[str, Any]]:
     """Leaderboard plus Smart-Score-Spalten, ohne teure Per-Wallet-Fetches.
 
@@ -125,6 +322,7 @@ def leaderboard_rows(leaderboard: pd.DataFrame, ranked: pd.DataFrame | None = No
                 "score": _num(row.get("copy_smart_score")),
                 "grade": _text(row.get("copy_grade")),
                 "reason": _text(row.get("copy_rank_reason")),
+                "parts": score_parts(row),
             }
     rows: list[dict[str, Any]] = []
     for _, row in leaderboard.iterrows():
@@ -141,8 +339,42 @@ def leaderboard_rows(leaderboard: pd.DataFrame, ranked: pd.DataFrame | None = No
             "score": round(score, 1) if score is not None else None,
             "grade": smart.get("grade") or None,
             "tags": smart.get("reason") or "",
+            # Die Bestandteile des Scores als Liste, damit das Frontend sie
+            # beschriftet zeigt statt den rohen Begruendungs-String zu leaken.
+            "score_parts": smart.get("parts") or [],
         })
     return rows
+
+
+#: Bestandteile des Smart-Scores (src/copy_trading.rank_traders_by_smart_score)
+#: mit ihrem Gewicht und einem kurzen Label fuer die Oberflaeche.
+SCORE_PART_COLUMNS = (
+    ("copy_return_score", "return", 0.35),
+    ("copy_sharpe_proxy", "sharpe proxy", 0.20),
+    ("copy_drawdown_proxy", "drawdown proxy", 0.15),
+    ("copy_win_score", "win", 0.10),
+    ("copy_recency_score", "recency", 0.10),
+    ("copy_volume_score", "volume", 0.10),
+)
+
+
+def score_parts(row: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Score-Bestandteile einer Ranked-Zeile als ``[{label, value, weight}]``.
+
+    Nur Spalten, die wirklich da sind — fehlt eine, fehlt sie in der Liste,
+    statt als 0 zu erscheinen.
+    """
+
+    parts: list[dict[str, Any]] = []
+    for column, label, weight in SCORE_PART_COLUMNS:
+        try:
+            value = _num(row.get(column))
+        except AttributeError:
+            value = None
+        if value is None:
+            continue
+        parts.append({"label": label, "value": round(value), "weight": weight})
+    return parts
 
 
 def wallet_detail(
@@ -208,11 +440,27 @@ def _strip_frames(block: Any) -> Any:
     return out
 
 
-def cross_rows(candidates: pd.DataFrame, categories: Mapping[str, str] | None = None) -> list[dict[str, Any]]:
+#: Ehrlichkeits-Schranke fuer Cross-Venue-Paare. Studie 08 und 11 in
+#: public/data/microstructure.json haben gezeigt, dass die beiden 79¢/64¢
+#: "Kanten" verschiedene Fragen waren; unter 0.5 Aehnlichkeit ist ein Paar
+#: eine Vermutung, und ohne Volumen auf beiden Seiten gibt es keinen Preis,
+#: den man vergleichen koennte.
+CROSS_MIN_SIMILARITY = 0.5
+
+
+def cross_rows(
+    candidates: pd.DataFrame,
+    categories: Mapping[str, str] | None = None,
+    *,
+    min_similarity: float = CROSS_MIN_SIMILARITY,
+    require_volume: bool = True,
+) -> list[dict[str, Any]]:
     """`md.cross_venue_candidates`-Frame in die Frontend-Paar-Zeilen.
 
     ``categories`` mappt Polymarket ``market_key`` auf eine Kategorie, damit
     die Zeile die echte Markt-Kategorie statt eines Platzhalters traegt.
+    Es bleiben nur Paare mit ``similarity >= min_similarity`` und — bei
+    ``require_volume`` — mit Volumen groesser null auf beiden Venues.
     """
 
     if candidates is None or candidates.empty:
@@ -224,15 +472,22 @@ def cross_rows(candidates: pd.DataFrame, categories: Mapping[str, str] | None = 
         ks_yes = _num(row.get("kalshi_yes"))
         if pm_yes is None or ks_yes is None:
             continue
+        sim = _num(row.get("similarity"), 0.0) or 0.0
+        if sim < float(min_similarity):
+            continue
+        pm_vol = _num(row.get("polymarket_volume"), 0.0) or 0.0
+        ks_vol = _num(row.get("kalshi_volume"), 0.0) or 0.0
+        if require_volume and (pm_vol <= 0 or ks_vol <= 0):
+            continue
         pm_key = _text(row.get("polymarket_market_key"))
         rows.append({
             "event": _text(row.get("polymarket_title")) or _text(row.get("kalshi_title")),
             "cat": (_text(categories.get(pm_key)) or "PAIR").upper(),
             "pm": round(pm_yes * 100),
             "ks": round(ks_yes * 100),
-            "pmVol": _num(row.get("polymarket_volume"), 0.0),
-            "ksVol": _num(row.get("kalshi_volume"), 0.0),
-            "sim": round(_num(row.get("similarity"), 0.0) or 0.0, 2),
+            "pmVol": pm_vol,
+            "ksVol": ks_vol,
+            "sim": round(sim, 2),
             "held": "—",
             "pm_url": _text(row.get("polymarket_url")),
             "ks_url": _text(row.get("kalshi_url")),
@@ -282,6 +537,10 @@ def risk_payload(wallet_scores: pd.DataFrame, event_scores: pd.DataFrame) -> dic
     high_wallets = sum(1 for w in wallets if w["score"] >= 70)
     return {
         "disclaimer": "Best-effort screen on public trade data — research leads, not legal findings.",
+        # Was der Screen gar nicht erst anschaut (susp.EXCLUDED_CONTEXTS):
+        # Sportquoten, Wetter, Krypto/Marktpreise — dort gibt es nichts
+        # frueher zu wissen, und die 15-Minuten-Kryptomaerkte waeren nur Rauschen.
+        "scope": "Sports odds, weather and crypto/market prices are excluded from this screen — nothing to know early there.",
         "kpis": {
             "events_screened": len(events),
             "high_risk_events": high_events,

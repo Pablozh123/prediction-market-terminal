@@ -82,24 +82,58 @@ export function leerZeile(satz) {
     + esc(satz) + '</div>';
 }
 
+// Category vocabulary shared by Markets, Live tape and Whale flow. Kalshi's
+// "Cross Category" is a container series for multi-event parlays, not a
+// category — it folds into Other, as do empty and "uncategorized" labels.
 export function liveCat(raw) {
-  const c = String(raw || '').toLowerCase();
-  if (/macro|econ|rate|inflation|fed/.test(c)) return 'Macro';
+  const c = String(raw || '').toLowerCase().trim();
+  if (!c || /^(other|uncategorized|none|nan|cross[ -]?category)$/.test(c)) return 'Other';
+  if (/macro|econ|rate|inflation|fed|finance/.test(c)) return 'Macro-Finance';
   if (/politic|election|senate|congress|geopol/.test(c)) return 'Politics';
   if (/crypto|bitcoin|eth/.test(c)) return 'Crypto';
   if (/sport|soccer|nfl|nba|football|world cup/.test(c)) return 'Sports';
+  if (/weather|temp|hurricane/.test(c)) return 'Weather';
   if (/science|space|tech|ai/.test(c)) return 'Science';
-  return raw ? String(raw).charAt(0).toUpperCase() + String(raw).slice(1).toLowerCase() : 'Other';
+  return String(raw).charAt(0).toUpperCase() + String(raw).slice(1).toLowerCase();
 }
 
+// Fixed order for category chip rows; anything else present in the data is
+// appended alphabetically. Only categories that occur are offered.
+export const CAT_ORDER = ['Politics', 'Macro-Finance', 'Sports', 'Crypto', 'Weather', 'Other'];
+
+export function catChipsPresent(rows, key) {
+  const seen = {};
+  (rows || []).forEach((r) => { const c = r && r[key] ? String(r[key]) : 'Other'; seen[c] = true; });
+  const known = CAT_ORDER.filter((c) => seen[c]);
+  const rest = Object.keys(seen).filter((c) => CAT_ORDER.indexOf(c) < 0).sort();
+  return known.concat(rest);
+}
+
+// Ends-in helper. Unknown dates stay unknown (days: null) — the earlier
+// fallback of 365 days made every dateless market "open ended" in filters.
 export function endsInfo(iso) {
-  if (!iso) return { label: '—', days: 365 };
+  if (!iso) return { label: '—', days: null };
   const d = new Date(iso);
-  if (isNaN(d)) return { label: '—', days: 365 };
+  if (isNaN(d)) return { label: '—', days: null };
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const days = Math.max(0, Math.round((d - Date.now()) / 86400000));
   const far = d.getFullYear() > new Date().getFullYear();
   return { label: far ? months[d.getMonth()] + ' ' + d.getFullYear() : d.getDate() + ' ' + months[d.getMonth()], days };
+}
+
+// Signed dollar amount with two decimals: +$288.67 / -$12.00.
+export function signedMoney(n, decimals) {
+  const v = +n || 0;
+  const d = decimals == null ? 2 : decimals;
+  return (v >= 0 ? '+$' : '-$') + num(Math.abs(v).toFixed(d));
+}
+
+// "2026-08-16T23:32:04.678297+00:00" -> "2026-08-16 23:32 UTC"; short ISO dates pass through.
+export function stempel(iso) {
+  const s = String(iso || '');
+  if (!s) return '';
+  if (s.length <= 10) return s;
+  return s.slice(0, 16).replace('T', ' ') + ' UTC';
 }
 
 export function shortWallet(w) {
@@ -109,14 +143,11 @@ export function shortWallet(w) {
 // Map one /api/markets row into the shape every screen consumes.
 export function mapMarket(r, i) {
   const yes = Math.round(((+r.yes_price || 0)) * 100);
+  // change_1d from the API: the column is the one-day change, labelled 1D.
   const chg = Math.round(((+r.change_1d || 0)) * 100);
   const ends = endsInfo(r.end_time);
-  const from = Math.min(96, Math.max(4, yes - chg));
-  // Zwei Punkte, gerade verbunden: gestern gegen heute. Hier lag vorher ein
-  // Wackeln aus (k * 37 + i * 13) % 5 auf der Linie — ein erfundener
-  // Intraday-Verlauf, den niemand gemessen hat, unter der Spalte TREND 24H.
-  // Die 1d-Aenderung ist bekannt, der Weg dorthin nicht.
-  const sparkArr = [from, yes].map((v) => Math.round(50 - Math.min(96, Math.max(4, v)) / 2));
+  // No sparkline: the API carries yesterday's change, not an intraday path.
+  // A two-point line under a "TREND" heading read as a measured curve.
   return {
     id: String(r.market_key || r.ticker || 'live' + i),
     title: String(r.title || '—'),
@@ -127,11 +158,12 @@ export function mapMarket(r, i) {
     liq: +r.liquidity || 0,
     ends: ends.label,
     url: r.url || '',
-    spark: sparkArr,
+    // Unknown stays null. The earlier defaults (spread 5¢, age 100 days)
+    // made filters on those fields operate on constants.
     _extra: {
-      spread: r.spread != null ? Math.round(+r.spread * 100) : 5,
-      age: r.market_age_days != null ? Math.round(+r.market_age_days) : 100,
-      endsDays: ends.days, saved: false, pos: false
+      spread: r.spread != null && r.spread === r.spread ? Math.round(+r.spread * 100) : null,
+      age: r.market_age_days != null && r.market_age_days === r.market_age_days ? Math.round(+r.market_age_days) : null,
+      endsDays: ends.days
     }
   };
 }
@@ -153,6 +185,14 @@ export function mapTrade(r) {
     wallet: String(r.name || r.pseudonym || '') || (isWalletAddress(r.proxyWallet || r.wallet) ? shortWallet(r.proxyWallet || r.wallet) : '') || '—',
     walletAddress: isWalletAddress(r.proxyWallet || r.wallet) ? String(r.proxyWallet || r.wallet) : '',
     market: String(r.title || r.market || '—'),
+    // Markt-Schluessel (conditionId bzw. Kalshi-Ticker), damit Whale flow
+    // Maerkte zaehlen kann, ohne zwei Titel fuer denselben Markt zu halten.
+    marketKey: String(r.market_key || r.ticker || r.title || ''),
+    // Die Kategorie kommt vom Server (/api/tape reichert sie aus dem
+    // Marktuniversum bzw. der Titel-Heuristik an). Ohne Feld heisst es
+    // "Other" — kein Nachschlagen ueber den Titel in den 250 geladenen
+    // Maerkten mehr, das traf fast nie und machte alles zu "Other".
+    category: r.category ? liveCat(r.category) : 'Other',
     side: (String(r.side || 'BUY').toUpperCase() === 'SELL' ? 'SELL ' : 'BUY ') + (String(r.outcome || 'Yes')),
     price: ((+r.price || 0) * 100).toFixed(1) + '¢',
     size: +r.notional || Math.round((+r.size || 0) * (+r.price || 0)) || 0,

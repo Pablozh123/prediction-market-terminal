@@ -32,7 +32,7 @@ Endpoints (alle read-only ausser POST /api/backtest, das nur simuliert):
     GET  /api/tape?limit=250&min_cash=0
     GET  /api/leaderboard?limit=100&period=ALL&order_by=PNL
     GET  /api/wallet/{wallet}
-    GET  /api/cross?query=&min_similarity=0.3&max_pairs=50
+    GET  /api/cross?query=&min_similarity=0.5&max_pairs=50   (gate: sim >= 0.5, volume on both venues)
     GET  /api/risk
     GET  /api/alerts
     GET  /api/copy
@@ -247,6 +247,12 @@ def load_tape(limit: int = 250, min_cash: float = 0.0) -> pd.DataFrame:
     return cached(f"tape_{limit}_{min_cash}", _load, ttl=45.0)
 
 
+#: Kategorie fuer Tape-Zeilen ohne Treffer im Marktuniversum: erst die
+#: Heuristik der Marktseite (Rohkategorie + Titel), dann die Titelmuster des
+#: Risk-Screens (app.suspicion), die Matchups und Esports erkennen.
+TAPE_CLASSIFIER = apv.chained_classifier(md.market_filter_category, apv.context_group_classifier())
+
+
 def load_leaderboard(limit: int = 100, period: str = "ALL", order_by: str = "PNL") -> pd.DataFrame:
     return cached(
         f"lb_{limit}_{period}_{order_by}",
@@ -337,7 +343,7 @@ def markets(
 ) -> dict[str, Any]:
     combined = load_universe(max(limit, 250))
     if combined.empty:
-        return {"rows": [], "total": 0}
+        return {"rows": [], "total": 0, "as_of": md.now_utc_label()}
     df = combined
     if query.strip():
         mask = df.get("title", pd.Series(dtype=str)).astype(str).str.contains(query.strip(), case=False, na=False)
@@ -349,17 +355,31 @@ def markets(
         df = df[df.get(cat_col).astype(str).str.casefold() == category.strip().casefold()]
     if sort in df.columns:
         df = df.sort_values(sort, ascending=False, na_position="last")
-    return {"rows": df_records(df, limit), "total": int(len(df)), "as_of": md.now_utc_label()}
+    # Schlanke Zeilen: nur die Felder, die das Frontend liest (apv.MARKET_FIELDS).
+    # Mit ``raw``, ``description`` und den Token-Blobs wog die Antwort fuer
+    # 250 Zeilen ueber ein Megabyte, alle 30 Sekunden.
+    return {"rows": apv.market_records(df, limit), "total": int(len(df)), "as_of": md.now_utc_label()}
 
 
 @app.get("/api/tape")
 def tape(limit: int = Query(250, le=1000), min_cash: float = 0.0) -> dict[str, Any]:
     trades = load_tape(limit=limit, min_cash=min_cash)
     if trades.empty:
-        return {"rows": [], "total": 0}
+        return {"rows": [], "total": 0, "as_of": md.now_utc_label()}
     # Venue-balanciert statt reine Zeitreihenfolge: sonst verdraengen die
     # Kalshi-Mikro-Trades jeden Polymarket-Print aus dem Fenster.
     shown = apv.balanced_head(trades, limit)
+    # Kategorie je Print: erst aus dem Marktuniversum (dieselbe Ableitung wie
+    # /api/markets), sonst ueber die Titel-Heuristiken (Marktseite, dann die
+    # Kontextmuster des Risk-Screens) bzw. das Kalshi-Serien-Praefix. Das
+    # Universum ist ohnehin im Cache (das Frontend laedt es mit); faellt es
+    # aus, bleibt das Tape ohne Universum-Treffer, aber nicht leer.
+    try:
+        universe = load_universe(250)
+    except Exception as exc:
+        print(f"[warn] universe for tape categories: {exc}")
+        universe = pd.DataFrame()
+    shown = apv.tape_rows_with_category(shown, universe, TAPE_CLASSIFIER)
     return {"rows": df_records(shown, limit), "total": int(len(trades)), "as_of": md.now_utc_label()}
 
 
@@ -426,12 +446,33 @@ def wallet_detail(wallet: str) -> dict[str, Any]:
     return apv.wallet_detail(card, positions, pnl, activity)
 
 
+#: Was /api/cross als "gate" mitmeldet, damit das Frontend den leeren Fall
+#: benennen kann, ohne die Schwelle selbst zu kennen.
+#: Lockere Matcher-Schranke fuer die Zaehlung "N of M candidates": was der
+#: Matcher ueberhaupt fuer verwandt haelt, bevor die Schranke greift.
+CROSS_CANDIDATE_FLOOR = 0.2
+
+CROSS_GATE_NOTE = (
+    "Only pairs with title similarity >= {sim:.2f} and volume on both venues are shown. "
+    "Matched by title similarity — pairs are not verified to resolve identically "
+    "(studies 08 and 11 in the microstructure report show two matched pairs that were different questions)."
+)
+
+
 @app.get("/api/cross")
 def cross(
     query: str = "",
-    min_similarity: float = 0.2,
+    min_similarity: float = Query(apv.CROSS_MIN_SIMILARITY, ge=0.0, le=1.0),
     max_pairs: int = Query(150, le=150),
 ) -> dict[str, Any]:
+    # Ehrlichkeits-Schranke: unter 0.5 Aehnlichkeit war ein Paar bisher oft
+    # zwei verschiedene Fragen (Studien 08 und 11), und ohne Volumen auf
+    # beiden Seiten gibt es keinen Preis, den man vergleichen koennte. Der
+    # Parameter kann die Schranke anheben, nicht senken.
+    min_similarity = max(float(min_similarity), apv.CROSS_MIN_SIMILARITY)
+    gate = {"min_similarity": min_similarity, "require_volume_both": True}
+    leer = {"rows": [], "total": 0, "gate": gate, "as_of": md.now_utc_label(),
+            "note": CROSS_GATE_NOTE.format(sim=min_similarity)}
     # Eigenes, tiefes Universum je Venue: Gamma liefert max. 100 je Seite,
     # also paginieren; der Matcher in app/cross_pairs.py vergleicht die volle
     # Breite statt der Top-80.
@@ -452,9 +493,9 @@ def cross(
         ks = cached("cross_ks", _ks, ttl=300.0)
     except Exception as exc:
         print(f"[warn] cross venue universes: {exc}")
-        return {"rows": [], "total": 0}
+        return leer
     if pm.empty or ks.empty:
-        return {"rows": [], "total": 0}
+        return leer
     try:
         candidates = cached(
             f"cross_cand_{min_similarity}_{max_pairs}",
@@ -465,12 +506,24 @@ def cross(
             max_pairs,
             ttl=300.0,
         )
+        # Wie viele Paare der Matcher unterhalb der Schranke ueberhaupt
+        # findet — damit die Seite "N of M candidates clear the gate" sagen
+        # kann statt nur "nothing". Gleicher Matcher, lockere Schranke.
+        vor_schranke = cached(
+            f"cross_cand_{CROSS_CANDIDATE_FLOOR}_150",
+            cross_pairs.deep_cross_candidates,
+            pm,
+            ks,
+            CROSS_CANDIDATE_FLOOR,
+            150,
+            ttl=300.0,
+        )
         if query.strip():
             mask = candidates["polymarket_title"].str.contains(query.strip(), case=False, na=False) | candidates["kalshi_title"].str.contains(query.strip(), case=False, na=False)
             candidates = candidates[mask]
     except Exception as exc:
         print(f"[warn] cross venue: {exc}")
-        return {"rows": [], "total": 0}
+        return leer
     categories = {}
     if "market_key" in pm.columns and "category" in pm.columns:
         categories = {
@@ -478,12 +531,14 @@ def cross(
             for key, cat in zip(pm["market_key"], pm["category"])
             if key is not None and cat
         }
-    rows = apv.cross_rows(candidates, categories)
+    rows = apv.cross_rows(candidates, categories, min_similarity=min_similarity, require_volume=True)
     return {
         "rows": rows,
         "total": len(rows),
+        "candidates_before_gate": int(len(vor_schranke)) if vor_schranke is not None else int(len(candidates)),
+        "gate": gate,
         "as_of": md.now_utc_label(),
-        "note": "Matched by title similarity — pairs are not verified to resolve identically.",
+        "note": CROSS_GATE_NOTE.format(sim=min_similarity),
     }
 
 
@@ -554,8 +609,12 @@ def risk() -> dict[str, Any]:
         raise HTTPException(status_code=503, detail="no trade tape available")
 
     def _build() -> dict[str, Any]:
+        # Sports, weather and crypto/market prices are excluded from the
+        # screen entirely (susp.EXCLUDED_CONTEXTS). No fallback to the raw
+        # tape: when the last thousand prints are all 15-minute crypto
+        # markets the honest answer is an empty screen, not a crypto screen.
         screened = susp.filter_insider_prone_trades(trades)
-        base = screened if screened is not None and not screened.empty else trades
+        base = screened if screened is not None else pd.DataFrame()
         wallet_scores = md.whale_wallet_risk_scores(base, whale_threshold=whale_threshold)
         event_scores = md.whale_event_risk_scores(base, whale_threshold=whale_threshold)
         payload = apv.risk_payload(wallet_scores, event_scores)

@@ -32,7 +32,27 @@ EMPFEHLUNG_LABELS = {
 
 #: Kategorien, deren Konvergenzzeit eine dokumentierte Obergrenze ist
 #: (enthaelt Spiel- bzw. Zeremoniedauer).
-CENSORED_KATEGORIEN = ("Sport", "Popkultur")
+CENSORED_KATEGORIEN = ("Sport", "Popkultur", "Sports", "Pop culture")
+
+#: Die Kennzahlen-Zeilen kommen seit terminal/category_efficiency mit
+#: englischen Namen (Politics, Sports, ...), die kuratierten Beispiele der
+#: Thesis tragen die deutschen (Politik, Sport, ...). Der Join laeuft ueber
+#: einen normierten Schluessel, damit beide Formen zusammenfinden.
+KATEGORIE_ALIAS = {
+    "politik": "politics",
+    "sport": "sports",
+    "krypto": "crypto",
+    "popkultur": "pop culture",
+    "wirtschaft": "business/finance",
+    "wissenschaft": "science/tech",
+}
+
+
+def kategorie_schluessel(name: Any) -> str:
+    """Normierter Kategorienschluessel: klein, getrimmt, deutsch -> englisch."""
+
+    key = str(name or "").strip().casefold()
+    return KATEGORIE_ALIAS.get(key, key)
 
 #: Lesbare Ticks fuer die log-Zeitachse (Minuten, 1 min bis 8 h).
 LOG_TICKS = ((1, "1 min"), (5, "5 min"), (15, "15 min"), (60, "1 h"), (240, "4 h"), (480, "8 h"))
@@ -69,12 +89,12 @@ def kategorie_points(karte: dict[str, Any]) -> list[dict[str, Any]]:
     """
 
     beispiel_by_kategorie = {
-        str(item.get("kategorie", "")): item for item in karte.get("beispiele", [])
+        kategorie_schluessel(item.get("kategorie", "")): item for item in karte.get("beispiele", [])
     }
     points: list[dict[str, Any]] = []
     for zeile in karte.get("kategorien", karte.get("zeilen", [])):
         kategorie = str(zeile.get("kategorie", ""))
-        beispiel = beispiel_by_kategorie.get(kategorie)
+        beispiel = beispiel_by_kategorie.get(kategorie_schluessel(kategorie))
         brier = zeile.get("brier_t7")
         minuten = beispiel.get("minuten_bis_konvergenz") if beispiel else None
         if brier is None or minuten is None:
@@ -91,6 +111,9 @@ def kategorie_points(karte: dict[str, Any]) -> list[dict[str, Any]]:
                 "censored": kategorie in CENSORED_KATEGORIEN,
                 "hinweis": str(beispiel.get("praezisions_hinweis", "")) if beispiel else "",
                 "n_maerkte": int(zeile.get("n_maerkte", 0) or 0),
+                # Seit terminal/category_efficiency traegt jede Zeile ihr n am
+                # T-7-Horizont; die Thesis-Zeilen haben es als n_t7.
+                "n_t7": int(zeile.get("n_t7", 0) or 0),
             }
         )
     return points

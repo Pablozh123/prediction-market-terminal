@@ -69,6 +69,33 @@ class KategoriePointsTests(unittest.TestCase):
     def test_empty_karte_safe(self):
         self.assertEqual(av.kategorie_points({}), [])
 
+    def test_english_rows_join_german_examples(self):
+        # terminal/category_efficiency schreibt englische Kategorienamen mit
+        # Horizonten; die kuratierten Beispiele bleiben deutsch. Der Join muss
+        # trotzdem treffen, Sports/Pop culture bleiben zensiert markiert.
+        karte = {
+            "provenienz": "terminal/category_efficiency",
+            "kategorien": [
+                {"kategorie": "Politics", "brier_t7": 0.12, "n_maerkte": 240, "n_t7": 200,
+                 "horizonte": [{"horizont_tage": 7, "brier": 0.12, "n": 200}]},
+                {"kategorie": "Sports", "brier_t7": 0.05, "n_maerkte": 300, "n_t7": 210},
+                {"kategorie": "Pop culture", "brier_t7": 0.07, "n_maerkte": 120, "n_t7": 90},
+                {"kategorie": "Science/Tech", "brier_t7": 0.09, "n_maerkte": 80, "n_t7": 60},
+                {"kategorie": "Business/Finance", "brier_t7": None, "n_maerkte": 10, "n_t7": 0},
+            ],
+            "beispiele": [
+                {"kategorie": "Politik", "minuten_bis_konvergenz": 60.0, "praezisions_hinweis": "Median"},
+                {"kategorie": "Sport", "minuten_bis_konvergenz": 180.4, "praezisions_hinweis": "enthaelt Spieldauer"},
+                {"kategorie": "Popkultur", "minuten_bis_konvergenz": 220.4, "praezisions_hinweis": ""},
+            ],
+        }
+        points = av.kategorie_points(karte)
+        self.assertEqual([p["kategorie"] for p in points], ["Politics", "Sports", "Pop culture"])
+        self.assertEqual([p["censored"] for p in points], [False, True, True])
+        self.assertEqual(points[0]["n_t7"], 200)
+        self.assertEqual(av.kategorie_schluessel(" Popkultur "), "pop culture")
+        self.assertEqual(av.kategorie_schluessel("Mentions"), "mentions")
+
 
 class MentionsBarsTests(unittest.TestCase):
     def test_sorted_by_tradeable_window_desc(self):

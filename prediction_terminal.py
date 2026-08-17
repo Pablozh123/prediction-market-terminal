@@ -12040,17 +12040,17 @@ def page_suspicious() -> None:
     wallet_risk = susp.apply_cluster_bonus(wallet_risk, cluster_assignments)
     event_risk = susp.apply_category_context(event_risk, market_categories)
     wallet_risk = susp.apply_wallet_category_context(wallet_risk, trades, market_categories)
-    # Sports odds and weather are pure high-roller arenas — game results and weather
-    # models cannot be insider-traded, so they are excluded from this screen entirely.
-    excluded_contexts = (susp.CONTEXT_SPORTS, susp.CONTEXT_WEATHER)
-    if not event_risk.empty and "insider_context" in event_risk:
-        event_risk = event_risk[~event_risk["insider_context"].isin(excluded_contexts)].reset_index(drop=True)
+    # Sports odds, weather and crypto/market prices are excluded from this
+    # screen entirely (susp.EXCLUDED_CONTEXTS): game results and weather models
+    # cannot be insider-traded, asset prices are public — a whale there is a
+    # trader, not an insider — and the 15-minute crypto markets would otherwise
+    # flood every list on this page.
+    event_risk = susp.exclude_contexts(event_risk)
     # Keep the pre-exclusion wallet frame: the event drill-down must show every
     # participant of an insider-prone event, even wallets whose OWN dominant
     # flow is sports/crypto.
     wallet_risk_all = wallet_risk
-    if not wallet_risk.empty and "insider_context" in wallet_risk:
-        wallet_risk = wallet_risk[~wallet_risk["insider_context"].isin(excluded_contexts)].reset_index(drop=True)
+    wallet_risk = susp.exclude_contexts(wallet_risk)
     if st.toggle("Check real account ages for the top wallets (slower)", value=False, key="susp_age_toggle") and not wallet_risk.empty:
         top_wallets = tuple(wallet_risk.head(10)["wallet"].astype(str))
         account_stats = safe_load("Wallet account stats", load_wallet_account_stats, top_wallets, default=pd.DataFrame())
@@ -12065,7 +12065,7 @@ def page_suspicious() -> None:
     stat_cols[3].metric(
         "Whale volume",
         money(numeric_col(event_risk, "notional").sum()),
-        help="Whale-sized volume across screened categories — sports odds and weather are excluded from this screen.",
+        help="Whale-sized volume across screened categories — sports odds, weather and crypto/market prices are excluded from this screen.",
     )
     stat_cols[4].metric("Whale threshold", money(whale_floor), help="Minimum trade size counted as a whale print — change it on the Settings page.")
 
@@ -12076,8 +12076,9 @@ def page_suspicious() -> None:
             "- **Sample first:** every number describes the *sampled whale prints* (recent trades above the threshold), not the whole market. "
             "Distribution claims — one-wallet share, one-sided flow, bursts — count toward the score only from 3 sampled prints upward "
             "and reach full weight at 5; a single print is always \"100% one wallet\" and means nothing.\n"
-            "- **Category context:** sports odds and weather are excluded entirely — game results and weather models cannot be insider-traded. "
-            "Crypto/market prices are damped and hidden by default (toggle below). Politics/geopolitics, awards and corporate/legal outcomes are where insider knowledge plausibly flows.\n"
+            "- **Category context:** sports odds, weather and crypto/market prices are excluded entirely — game results and weather models cannot be insider-traded, "
+            "and asset prices are public, so a whale there is a trader, not an insider (the 15-minute crypto markets would otherwise flood this page). "
+            "Politics/geopolitics, awards and corporate/legal outcomes are where insider knowledge plausibly flows.\n"
             "- **One-wallet share:** how much of a market's *sampled whale volume* comes from its single biggest wallet — shown as n/a below 3 prints.\n"
             "- **Clusters:** wallets that repeatedly take the same side of the same markets, or hit the same market within minutes, are flagged as possibly linked. "
             "True linkage would need on-chain funding tracing, which this screen does not do.\n"
@@ -12108,8 +12109,8 @@ def page_suspicious() -> None:
         fig.update_layout(height=220, margin=dict(l=10, r=40, t=10, b=10), paper_bgcolor=BG, plot_bgcolor=BG, showlegend=False)
         st.plotly_chart(fig, width="stretch", config=plot_config())
         st.markdown(
-            "<div class='field-hint'>Sports odds and weather are excluded from this screen entirely. Crypto/market prices are damped — "
-            "big flow there is usually trading, not insider knowledge. Awards/entertainment and corporate/legal outcomes carry full weight.</div>",
+            "<div class='field-hint'>Sports odds, weather and crypto/market prices are excluded from this screen entirely — "
+            "big flow there is trading, not insider knowledge. Awards/entertainment and corporate/legal outcomes carry full weight.</div>",
             unsafe_allow_html=True,
         )
 
@@ -12118,16 +12119,11 @@ def page_suspicious() -> None:
         "Live behavioural screen over the sampled whale tape — instant and unvetted, "
         "unlike the Review Queue's daily baseline anomalies with agent triage. "
         "Distribution claims (one-wallet share, one-sided flow) need at least 3 sampled "
-        "prints; cards with fewer say so instead of claiming 100%."
-    )
-    show_all_arenas = st.toggle(
-        "Include crypto & market prices",
-        value=False,
-        key="susp_show_all",
-        help="Asset prices are public — big flow there is usually traders, not insiders. Sports odds and weather are excluded from this screen entirely.",
+        "prints; cards with fewer say so instead of claiming 100%. "
+        "Sports odds, weather and crypto/market prices are excluded from this screen entirely."
     )
     focused_events = event_risk
-    if not show_all_arenas and not event_risk.empty and "insider_context" in event_risk:
+    if not event_risk.empty and "insider_context" in event_risk:
         focused_events = event_risk[event_risk["insider_context"].isin(susp.INSIDER_PRONE_GROUPS)].reset_index(drop=True)
     # Cross-reference with the daily research pipeline: if a market slug from
     # queue.json appears in an event URL, surface its Pruef-Empfehlung here.
@@ -12146,7 +12142,7 @@ def page_suspicious() -> None:
         end_time_map.update({str(k): v for k, v in zip(kalshi_tape["market_key"].astype(str), end_series) if pd.notna(v)})
     now_ts = pd.Timestamp.now(tz="UTC")
     if focused_events.empty:
-        draw_empty("No insider-prone events in the current tape — enable the toggle above to include crypto & market prices.")
+        draw_empty("No insider-prone events in the current tape — sports odds, weather and crypto/market prices are excluded from this screen.")
     else:
         event_rows = list(focused_events.head(6).iterrows())
         for start in range(0, len(event_rows), 2):
@@ -12304,14 +12300,14 @@ def page_suspicious() -> None:
         draw_empty("No wallet-level signals in the current tape.")
         return
     focused_wallets = wallet_risk
-    if not show_all_arenas and "insider_context" in wallet_risk:
+    if "insider_context" in wallet_risk:
         focused_wallets = wallet_risk[wallet_risk["insider_context"].isin(susp.INSIDER_PRONE_GROUPS)].reset_index(drop=True)
     if focused_wallets.empty:
-        st.caption(
-            "No wallets in the insider-prone groups right now — showing all screened wallets "
-            "(including crypto & market prices) instead."
+        draw_empty(
+            "No wallets in the insider-prone groups right now — wallets whose flow sits in sports odds, "
+            "weather or crypto/market prices are excluded from this screen."
         )
-        focused_wallets = wallet_risk
+        return
     top_wallets_frame = focused_wallets.head(25)
     st.dataframe(
         clean_table(top_wallets_frame, ["wallet", "trader", "wallet_insider_level", "wallet_insider_score", "insider_context", "wallet_insider_flags", "notional", "largest_trade", "markets", "trade_count", "account_age_days"]),

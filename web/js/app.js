@@ -10,6 +10,10 @@ import { renderBacktester, renderCopy, renderPortfolio } from './pages/trading_p
 import { renderAlerts, renderResearch, renderSettings } from './pages/system_pages.js';
 import { renderDetail, renderSearch } from './overlays.js';
 
+// Every route stays reachable by hash. The sidebar lists a subset (see
+// renderSidebar): Settings, Tracked, Copy trade, Portfolio and Resolved are
+// reachable but not advertised — they describe a local paper setup that the
+// public host does not run.
 const PAGES = {
   overview: renderOverview, markets: renderMarkets, flow: renderFlow,
   cross: renderCross, resolved: renderResolved,
@@ -17,6 +21,13 @@ const PAGES = {
   backtester: renderBacktester, copy: renderCopy, portfolio: renderPortfolio,
   alerts: renderAlerts, research: renderResearch, settings: renderSettings
 };
+
+// Public repository and the wallet the live runs were placed from. Both are
+// facts about the project, not settings.
+export const REPO_URL = 'https://github.com/Pablozh123/prediction-market-terminal';
+export const ONE_PAGER_URL = REPO_URL + '/blob/main/docs/research/ONE_PAGER.md';
+export const LIVE_RUN_WALLET_FULL = '0x29afe1bf37700768a640a08f1b35dad5f202f88d';
+export const LIVE_RUN_WALLET = '0x29af…f88d';
 
 class Terminal {
   constructor() {
@@ -27,25 +38,29 @@ class Terminal {
         ? (location.hash || '').replace('#', '').split('/')[0] : 'overview',
       tapeMin: 2500,
       tapeTracked: false,
+      // Category chips on Live tape and Whale flow; 'All' shows everything.
+      tapeCat: 'All', whaleCat: 'All',
       marketCat: 'All',
       marketFiltersOpen: false,
-      mPlatform: 'all', mStatus: 'active', mProb: 'all', mSpread: 'all', mLiq: 'all', mVol: 'all', mEnds: 'all', mAge: 'all',
-      mExclude: [], mView: 'table', mQuick: 'trending',
-      crossQuery: '', crossSim: 0.30, crossMaxPairs: 50, crossMinGap: 0, crossLower: 'any',
+      mPlatform: 'all', mStatus: 'active', mProb: 'all', mLiq: 'all', mVol: 'all', mEnds: 'all', mAge: 'all',
+      mExclude: [], mQuick: 'trending',
+      // Cross-venue: the server gates at similarity 0.5 and volume on both
+      // venues; the local stepper can only tighten from there.
+      crossQuery: '', crossSim: 0.5, crossMaxPairs: 50, crossMinGap: 0, crossLower: 'any',
       crossPmVol: 0, crossKsVol: 0, crossMinPrice: 0, crossMaxPrice: 100,
       marketSort: 'volume',
       marketQuery: '',
       traderRank: 'pnl',
-      traderQuery: '', traderView: 'table', traderCols: 'default', traderPeriod: 'ALL',
-      traderActiveOnly: false, traderBotsOnly: false, traderFiltersOpen: false,
-      tPnl: 'all', tVol: 'all', tPos: 'all', tTraits: [], tWin: 'all', tClosed: 'all', tBal: 'all', tAge: 'all', tAssets: 'all', tBotScore: 65,
-      tEnrich: { positions: true, winrates: true, accounts: false },
+      traderQuery: '', traderFiltersOpen: false,
+      tPnl: 'all', tVol: 'all',
       riskView: 'events', riskAgeCheck: false,
       // Kein daemonOn mehr: der Schalter im Frontend behauptete RUNNING, ohne
       // dass etwas lief. Der Zustand kommt aus /api/copy oder gar nicht.
       copyTab: 'orders', copyQuery: '', copySide: 'all', copyStatus2: 'all', copyMin: 'all',
       portTab: 'positions', portQuery: '', portSource: 'all', portSide: 'all', portLosers: false,
       tapeQuery: '', tapePlatform: 'all', tapeSide: 'all', tapeOutcome: 'all',
+      // Whale flow: Sortierung der Wallet-Zeilen — 'total' | 'biggest' | 'prints'.
+      whaleSort: 'total',
       resQuery: '', resAnswer: 'all', resWindow: 'all', resError: 'all', resSort: 'recent',
       setMarketSample: 250, setTradeSample: 250, setWhale: 2500, setBankroll: 1000, setFee: 20, setSlip: 15,
       alertTab: 'signals', alertQuery: '', alertPlatform: 'all', alertType: 'all', alertScope: 'all',
@@ -56,6 +71,8 @@ class Terminal {
       searchQuery: '',
       btStrategy: 'copy',
       btWindow: 30,
+      // Default wallet for the backtester: a public Polymarket address with a
+      // long trade history, so the first run returns something to look at.
       btWallet: '0x204f72f35326db932158cba6adff0b9a1da95e14',
       btSizing: 'fixed',
       btStakeFixed: 25,
@@ -70,6 +87,10 @@ class Terminal {
       btSlip: 15,
       btCompare: '',
       btTab: 'log',
+      // Backtester run state: nothing runs until RUN is pressed. 'idle' |
+      // 'running' | 'done' | 'error'; btError carries the message, btRetryIn
+      // the seconds the server asked us to wait after a 429.
+      btRun: 'idle', btError: '', btRetryIn: 0, btDirty: false,
       advancedOpen: false,
       sizingSimOpen: false,
       researchTab: 0,
@@ -79,7 +100,7 @@ class Terminal {
       clock: this.utcClock(),
       // 'waiting' bis zur ersten Antwort, dann 'live' oder 'error'. Der
       // fruehere Wert 'demo' behauptete einen Demo-Datensatz, den es nicht gibt.
-      live: 'waiting', liveAsOf: ''
+      live: 'waiting', liveAsOf: '', tapeAsOf: ''
     };
 
     // Datencontainer. Sie starten leer, nicht auf einem Demo-Satz: bis eine
@@ -89,7 +110,6 @@ class Terminal {
     this.markets = [];
     this.marketExtra = {};
     this.traders = [];
-    this.traderExtra = {};
     this.risks = [];
     this.tape = [];
     this.crossPairs = [];
@@ -99,6 +119,10 @@ class Terminal {
     // eine ausgebliebene Antwort sagen Verschiedenes, und beides ist etwas
     // anderes als eine Zeile, die jemand hingeschrieben hat.
     this.herkunft = { markets: null, tape: null, traders: null, risks: null, cross: null };
+    // Research landing payloads (static JSON under ./data, also served by
+    // /api/research/*): the verdict board, the live-runs strip and the field
+    // notes on the Overview. Each key is null until its request answered.
+    this.landing = { micro: null, runs: null, notes: null, herkunft: { micro: null, runs: null, notes: null } };
     // Zweites Adresssegment aufloesen: #research/microstructure soll die
     // Studie oeffnen, nicht die erste in der Liste.
     const segmente = (location.hash || '').replace('#', '').split('/');
@@ -180,7 +204,8 @@ class Terminal {
     return {
       title: m.title,
       meta: m.venue.toUpperCase() + ' · ' + m.cat.toUpperCase(),
-      sparkPoints: spark(m.spark),
+      // No sparkline: the API carries a one-day change, not an intraday path.
+      sparkPoints: '',
       color: m.chg >= 0 ? '#C8F542' : '#FF4545',
       priceLabel: m.yes + '¢',
       changeLabel: (m.chg >= 0 ? '+' : '') + m.chg + '¢',
@@ -209,8 +234,9 @@ class Terminal {
     this.fetchWalletDetail(name);
   }
 
-  marketExtraOf(m) { return this.marketExtra[m.id] || { spread: 5, age: 100, endsDays: 30, saved: false, pos: false }; }
-  traderExtraOf(t) { return this.traderExtra[t.name] || { positions: 0, assets: 0, balance: 0, ageDays: 100, traits: [], bot: 20, active: 10 }; }
+  // Per-market extras from the API row (spread, age, days to resolution).
+  // Unknown fields are null; no filter operates on a made-up default.
+  marketExtraOf(m) { return this.marketExtra[m.id] || { spread: null, age: null, endsDays: null }; }
 
   tapeFiltered() {
     const s = this.state;
@@ -220,6 +246,7 @@ class Terminal {
       if (s.tapePlatform !== 'all' && t.venue !== s.tapePlatform) return false;
       if (s.tapeSide !== 'all' && t.side.indexOf(s.tapeSide) !== 0) return false;
       if (s.tapeOutcome !== 'all' && t.side.indexOf(s.tapeOutcome) < 0) return false;
+      if (s.tapeCat !== 'All' && (t.category || 'Other') !== s.tapeCat) return false;
       if (s.tapeQuery.trim()) {
         const tq = s.tapeQuery.trim().toLowerCase();
         if (t.market.toLowerCase().indexOf(tq) < 0 && t.wallet.toLowerCase().indexOf(tq) < 0) return false;
@@ -231,7 +258,7 @@ class Terminal {
   tapeRowView(t) {
     return {
       ago: t.ago, wallet: t.wallet, market: t.market, side: t.side, price: t.price,
-      size: money(t.size), venue: t.venue,
+      size: money(t.size), venue: t.venue, category: t.category || 'Other',
       sideStyle: "font-family:'JetBrains Mono',monospace; font-size:12.5px; color:" + (t.side.indexOf('BUY') === 0 ? '#C8F542' : '#FF4545'),
       act: this.act(() => {
         const m = this.markets.find((x) => x.title === t.market);
@@ -264,18 +291,35 @@ class Terminal {
       + '<span style="' + badgeStyle + '">' + esc(badge || '') + '</span></div>';
   }
 
-  navStudy(i, label) {
+  // A research study as a sidebar entry. Studies keep their own routes
+  // (#research/<slug>, defined by studies.js); the sidebar just groups them.
+  navStudy(i, label, accent) {
     const active = this.state.page === 'research' && this.state.researchTab === i;
-    const style = 'display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 10px; border-radius:7px; cursor:pointer; margin-bottom:2px; border-left:2px solid ' + (active ? '#4F8EF7' : 'transparent') + '; background:' + (active ? 'rgba(79,142,247,.12)' : 'transparent');
-    const labelStyle = 'font-size:13px; color:' + (active ? '#ffffff' : 'rgba(255,255,255,.55)') + '; font-weight:' + (active ? '600' : '400');
-    return '<div ' + this.act(() => {
-      this.setState({ page: 'research', researchTab: i, detail: null });
-      // Eigene Adresse je Studie: eine Bewerbung wird als Link verschickt, und
-      // ein Verweis auf #research landete bisher immer auf der Review queue.
-      try { history.pushState(null, '', '#research/' + this.studienSlug(i)); } catch (e) { /* file:// */ }
-      this.fetchPageData('research');
-    }) + ' class="hv-el" style="' + style + '">'
+    const farbe = accent || '#4F8EF7';
+    const style = 'display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 10px; border-radius:7px; cursor:pointer; margin-bottom:2px; border-left:2px solid ' + (active ? farbe : 'transparent') + '; background:' + (active ? 'rgba(79,142,247,.12)' : 'transparent');
+    const labelStyle = 'font-size:13.5px; color:' + (active ? '#ffffff' : 'rgba(255,255,255,.62)') + '; font-weight:' + (active ? '600' : '400');
+    return '<div ' + this.act(() => this.goStudy(i)) + ' class="hv-el" style="' + style + '">'
       + '<span style="' + labelStyle + '">' + esc(label) + '</span></div>';
+  }
+
+  // Sidebar entry for a study by its tab name; missing studies render nothing
+  // rather than a dead entry.
+  navStudyByTab(tab, label) {
+    const i = this.studies.findIndex((st) => st.tab === tab);
+    return i >= 0 ? this.navStudy(i, label || tab) : '';
+  }
+
+  goStudy(i) {
+    this.setState({ page: 'research', researchTab: i, detail: null });
+    // Eigene Adresse je Studie: eine Bewerbung wird als Link verschickt, und
+    // ein Verweis auf #research landete bisher immer auf der Review queue.
+    try { history.pushState(null, '', '#research/' + this.studienSlug(i)); } catch (e) { /* file:// */ }
+    this.fetchPageData('research');
+  }
+
+  goStudySlug(slug) {
+    const i = this.studienIndexAus(slug);
+    if (i >= 0) this.goStudy(i);
   }
 
   studienSlug(i) {
@@ -300,40 +344,50 @@ class Terminal {
 
   renderSidebar() {
     const hoheRisiken = this.risks.filter((r) => r.sev === 'high').length;
+    // Order is the argument: what was measured first, the record second, the
+    // live feeds last. Settings, Tracked, Copy trade, Portfolio and Resolved
+    // stay reachable by hash but describe a local paper setup and are not
+    // listed on the public host.
     const groups = [
-      { label: 'DASHBOARD', items: [this.navItem('overview', 'Overview')] },
+      { label: 'START HERE', items: [this.navItem('overview', 'Overview')] },
+      { label: 'EVIDENCE', items: [
+        this.navStudyByTab('Microstructure'),
+        this.navStudyByTab('Live runs'),
+        this.navStudyByTab('Pilot'),
+        this.navStudyByTab('Category efficiency'),
+        this.navStudyByTab('Mentions latency'),
+        this.navStudyByTab('Pipeline forward')
+      ] },
+      { label: 'RECORD', items: [
+        this.navStudyByTab('Postmortems', 'Post-mortems'),
+        this.navStudyByTab('Field notes'),
+        this.navStudyByTab('Methodology'),
+        this.navStudyByTab('Review queue')
+      ] },
       // Kein Zaehler ohne Daten: eine 0 im Abzeichen liest sich als Messung,
       // solange gar nichts geladen ist.
-      { label: 'MARKETS', items: [this.navItem('markets', 'Markets'), this.navItem('flow', 'Live tape', this.tape.length ? String(this.tape.length) : ''), this.navItem('cross', 'Cross-venue'), this.navItem('resolved', 'Resolved')] },
-      { label: 'TRADERS', items: [this.navItem('traders', 'Leaderboard'), this.navItem('whale', 'Whale flow'), this.navItem('risk', 'Risk screen', hoheRisiken ? String(hoheRisiken) : '', 'amber'), this.navItem('track', 'Tracked')] },
-      { label: 'TRADING', items: [this.navItem('copy', 'Copy trade'), this.navItem('backtester', 'Backtester'), this.navItem('portfolio', 'Portfolio')] },
-      { label: 'SYSTEM', items: [this.navItem('alerts', 'Alerts'), this.navItem('settings', 'Settings')] },
-      { label: 'RESEARCH', items: this.studies.map((st, i) => this.navStudy(i, st.tab)) }
+      { label: 'LIVE DATA', items: [
+        this.navItem('markets', 'Markets'),
+        this.navItem('flow', 'Live tape', this.tape.length ? String(this.tape.length) : ''),
+        this.navItem('whale', 'Whale flow'),
+        this.navItem('cross', 'Cross-venue'),
+        this.navItem('traders', 'Leaderboard'),
+        this.navItem('risk', 'Risk screen', hoheRisiken ? String(hoheRisiken) : '', 'amber'),
+        this.navItem('alerts', 'Alerts'),
+        this.navItem('backtester', 'Backtester')
+      ] }
     ];
     const groupHtml = groups.map((g) =>
       '<div style="margin-bottom:14px">'
       + '<div style="font-family:\'JetBrains Mono\',monospace; font-size:10px; letter-spacing:.18em; padding:0 6px 6px; color:rgba(255,255,255,.35)">' + g.label + '</div>'
       + g.items.join('') + '</div>'
     ).join('');
-    // Der Kasten zeigt nur eine Summe, wenn der Papierstand gemeldet wurde.
-    // Stand und Gewinn waren hier fest verdrahtet — derselbe erfundene
-    // Kontostand, der auf der Copy-Seite schon geloescht wurde, nur eine
-    // Ebene hoeher und auf jeder Seite sichtbar.
-    // /api/copy traegt Stand und Gewinn unter kpis (app/api_views.py
-    // copy_payload). Bis eben las der Kasten sie von der obersten Ebene, wo
-    // sie nie liegen, und meldete deshalb auch bei laufendem Daemon "no
-    // paper account".
-    const copyLive = this.liveData.copy;
-    const kp = copyLive && copyLive.kpis ? copyLive.kpis : null;
-    const equity = kp && kp.equity != null ? +kp.equity : null;
-    const pnl = kp && kp.pnl != null ? +kp.pnl : null;
-    const pnlPct = kp && kp.pnl_pct != null ? +kp.pnl_pct : null;
-    const equityBlock = equity == null
-      ? '<div style="font-family:\'JetBrains Mono\',monospace; font-size:12px; color:rgba(255,255,255,.45); margin-top:5px; line-height:1.5">No paper account reported by /api/copy.</div>'
-      : '<div style="font-family:\'JetBrains Mono\',monospace; font-size:19px; margin-top:5px">$' + num(equity.toFixed(2)) + '</div>'
-        + (pnl == null ? '' : '<div style="font-family:\'JetBrains Mono\',monospace; font-size:12px; color:' + (pnl >= 0 ? '#C8F542' : '#FF4545') + '">'
-          + (pnl >= 0 ? '+' : '-') + '$' + Math.abs(pnl).toFixed(2)
-          + (pnlPct == null ? '' : ' · ' + (pnlPct >= 0 ? '+' : '') + pnlPct.toFixed(1) + '%') + '</div>');
+    // Footer: repository, the read-only statement, and the wallet the live
+    // runs were placed from. The paper-equity box that stood here reported a
+    // missing paper account on the public host — a box about a thing that
+    // does not exist there.
+    const foot = "font-family:'JetBrains Mono',monospace; font-size:10px; line-height:1.7; color:rgba(255,255,255,.4)";
+    const runsIdx = this.studies.findIndex((st) => st.tab === 'Live runs');
     return ''
       + '<div style="display:flex; align-items:center; gap:9px; padding:0 6px 18px">'
       + '<div style="width:10px; height:10px; background:#C8F542; transform:rotate(45deg)"></div>'
@@ -342,11 +396,14 @@ class Terminal {
       + '<div style="font-family:\'JetBrains Mono\',monospace; font-size:12px; color:rgba(255,255,255,.45); flex:1">Search</div>'
       + '<div style="font-family:\'JetBrains Mono\',monospace; font-size:11px; color:rgba(255,255,255,.35); border:1px solid rgba(255,255,255,.16); border-radius:4px; padding:0 5px">/</div></div>'
       + groupHtml
-      + '<div style="margin-top:auto; padding-top:16px">'
-      + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:10px; padding:11px 13px; background:#10151A">'
-      + '<div style="font-family:\'JetBrains Mono\',monospace; font-size:9.5px; letter-spacing:.14em; color:rgba(255,255,255,.45)">PAPER EQUITY</div>'
-      + equityBlock + '</div>'
-      + '<div style="font-family:\'JetBrains Mono\',monospace; font-size:9.5px; line-height:1.6; color:rgba(255,255,255,.35); margin-top:12px">Research only. No orders placed. Public Polymarket &amp; Kalshi data.</div></div>';
+      + '<div style="margin-top:auto; padding-top:16px; border-top:1px solid rgba(255,255,255,.09)">'
+      + '<div style="' + foot + '"><a href="' + REPO_URL + '" target="_blank" rel="noopener">github.com/Pablozh123/prediction-market-terminal</a></div>'
+      + '<div style="' + foot + '; margin-top:6px">Read-only. No orders placed. Public Polymarket &amp; Kalshi data.</div>'
+      + '<div style="' + foot + '; margin-top:6px">Live-run wallet '
+      + (runsIdx >= 0
+        ? '<span ' + this.act(() => this.goStudy(runsIdx)) + ' class="hv-lime" title="' + esc(LIVE_RUN_WALLET_FULL) + ' — every bet on the Live runs page" style="color:rgba(255,255,255,.7); cursor:pointer; text-decoration:underline dotted">' + esc(LIVE_RUN_WALLET) + '</span>'
+        : esc(LIVE_RUN_WALLET))
+      + '</div></div>';
   }
 
   renderTopbar() {
@@ -364,7 +421,7 @@ class Terminal {
       + '<div style="display:flex; align-items:center; gap:10px">'
       + '<span style="width:7px; height:7px; border-radius:50%; background:' + liveDot + '; display:inline-block; animation:livePulse 1.6s ease-in-out infinite"></span>'
       + '<span style="font-family:\'JetBrains Mono\',monospace; font-size:11px; letter-spacing:.16em; color:rgba(255,255,255,.66)">' + liveLabel + ' · ' + s.clock + ' UTC</span></div>'
-      + '<div style="font-family:\'JetBrains Mono\',monospace; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.35)">RESEARCH ONLY · NO ORDERS</div>';
+      + '<div style="font-family:\'JetBrains Mono\',monospace; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.35)">MICROSTRUCTURE, MEASURED · READ-ONLY · NO ORDERS</div>';
   }
 
   // ---- data layer ----
@@ -386,7 +443,7 @@ class Terminal {
       this.herkunft.markets = { quelle: this.markets.length ? 'live' : 'leer' };
       this.tape = (tp.rows || []).map((r) => mapTrade(r));
       this.herkunft.tape = { quelle: this.tape.length ? 'live' : 'leer' };
-      this.setState({ live: 'live', liveAsOf: String(mk.as_of || '') });
+      this.setState({ live: 'live', liveAsOf: String(mk.as_of || ''), tapeAsOf: String(tp.as_of || mk.as_of || '') });
     } catch (err) {
       // Nach einem geglueckten Lauf bleibt der letzte Stand stehen, die
       // Kopfzeile sagt das bereits. Vorher gibt es nichts zu behalten.
@@ -398,6 +455,32 @@ class Terminal {
         this.render();
       }
     }
+  }
+
+  // Research payloads for the landing page. apiGet falls back to the static
+  // ./data/*.json when no API answers, so this works on a plain file host.
+  // Each key records its own outcome; a missing payload renders an empty
+  // state that names the file, never a placeholder number.
+  async ladeLanding() {
+    const quellen = [
+      ['micro', '/api/research/microstructure'],
+      ['runs', '/api/research/live-runs'],
+      ['notes', '/api/research/field-notes']
+    ];
+    await Promise.all(quellen.map(async ([key, pfad]) => {
+      try {
+        const antwort = await apiGet(pfad);
+        if (antwort && typeof antwort === 'object') {
+          this.landing[key] = antwort;
+          this.landing.herkunft[key] = { quelle: antwort._quelle === 'statisch' ? 'statisch' : 'live' };
+        } else {
+          this.landing.herkunft[key] = { quelle: 'leer' };
+        }
+      } catch (err) {
+        this.landing.herkunft[key] = { quelle: 'fehler', fehler: String(err && err.message ? err.message : err) };
+      }
+    }));
+    this.render();
   }
 
   // Herkunft je Datenblock. Frueher entschieden Laengen-Guards: eine korrekt
@@ -442,6 +525,16 @@ class Terminal {
     this.fetchPageData('alerts');
   }
 
+  // Forget one endpoint's answer and ask again — the retry for a failed or
+  // rate-limited request (holen() never re-asks on its own).
+  neuLaden(schluessel, page) {
+    this.liveData[schluessel] = null;
+    if (schluessel === 'risk') { this.herkunft.risks = null; this.risks = []; }
+    if (schluessel === 'cross') { this.herkunft.cross = null; this.crossPairs = []; }
+    this.render();
+    this.fetchPageData(page || schluessel);
+  }
+
   // Herkunft eines Containers aus der Antwort ableiten, die holen() abgelegt
   // hat. Vorhandensein entscheidet, nicht Laenge.
   herkunftAus(schluessel, zeilen) {
@@ -458,13 +551,11 @@ class Terminal {
       });
       this.herkunft.traders = this.herkunftAus('leaderboard', this.traders);
     } else if (page === 'cross') {
+      // While the request runs the page shows a loading line; the server
+      // already applies the honesty gate (similarity >= 0.5, volume on both
+      // venues), so nothing here lowers a threshold to make rows appear.
       await this.holen('cross', '/api/cross', (cr) => {
         this.crossPairs = cr.rows || [];
-        // Reale Paare liegen oft unter der Voreinstellung 0.30 — Slider einmalig anpassen.
-        if (this.crossPairs.length && !this.crossPairs.some((r) => r.sim >= this.state.crossSim)) {
-          const best = Math.max.apply(null, this.crossPairs.map((r) => r.sim));
-          this.state.crossSim = Math.max(0.1, Math.floor(best * 50) / 50);
-        }
       });
       this.herkunft.cross = this.herkunftAus('cross', this.crossPairs);
     } else if (page === 'risk') {
@@ -513,12 +604,15 @@ class Terminal {
       resolved: r.resolved != null ? +r.resolved : null,
       vol: +r.vol || +r.volume || 0,
       score: r.score != null ? +r.score : null,
+      grade: r.grade || null,
       scoreN: r.score_n != null ? +r.score_n : null,
       scoreCi: r.score_ci || null,
       sampleBadge: r.sample_badge || null,
+      // Score components as a labelled list (api_views.score_parts); the raw
+      // reason string is kept only as a fallback for older payloads.
+      scoreParts: Array.isArray(r.score_parts) ? r.score_parts : [],
       tags: String(r.tags || '')
     }));
-    this.traderExtra = {};
   }
 
   async fetchWalletDetail(name) {
@@ -532,32 +626,69 @@ class Terminal {
     } catch (err) { /* detail stays on list data */ }
   }
 
-  runBacktestLive() {
+  // Backtest runs only when asked. Every stepper used to fire a debounced
+  // request, which on the public host meant a 429 after three clicks and a
+  // panel that flickered between results. Now: RUN starts it, the page shows
+  // "running…", a 429 says how long to wait, and the last result stays put.
+  runBacktest() {
     const s = this.state;
-    clearTimeout(this._btT);
-    this._btT = setTimeout(async () => {
-      try {
-        const resp = await apiPost('/api/backtest', {
-          wallet: s.btWallet.trim(),
-          window_days: s.btWindow,
-          strategy: s.btStrategy,
-          sizing_mode: s.btSizing,
-          stake_fixed: s.btStakeFixed,
-          stake_pct: s.btStakePct,
-          stake_mult: s.btStakeMult,
-          stake_kelly: s.btStakeKelly,
-          cap: s.btCap,
-          exposure_pct: s.btExposure,
-          bankroll: s.btBankroll,
-          fee_bps: s.btFee,
-          fee_model: s.btFeeModel,
-          slippage_bps: s.btSlip,
-          compare: s.btCompare.trim() || null,
-          variants: !!s.sizingSimOpen
-        });
-        if (resp && resp.stats) { this.liveData.backtest = resp; this.render(); }
-      } catch (err) { this.liveData.backtest = null; }
-    }, 450);
+    if (s.btRun === 'running') return;
+    clearTimeout(this._btRetryT);
+    this.setState({ btRun: 'running', btError: '', btRetryIn: 0, btDirty: false });
+    const body = {
+      wallet: s.btWallet.trim(),
+      window_days: s.btWindow,
+      strategy: s.btStrategy,
+      sizing_mode: s.btSizing,
+      stake_fixed: s.btStakeFixed,
+      stake_pct: s.btStakePct,
+      stake_mult: s.btStakeMult,
+      stake_kelly: s.btStakeKelly,
+      cap: s.btCap,
+      exposure_pct: s.btExposure,
+      bankroll: s.btBankroll,
+      fee_bps: s.btFee,
+      fee_model: s.btFeeModel,
+      slippage_bps: s.btSlip,
+      compare: s.btCompare.trim() || null,
+      variants: !!s.sizingSimOpen
+    };
+    apiPost('/api/backtest', body).then((resp) => {
+      if (resp && resp.stats) {
+        this.liveData.backtest = resp;
+        this.setState({ btRun: 'done', btError: '' });
+      } else {
+        this.setState({ btRun: 'error', btError: 'The backtest answered without statistics — nothing to show for this window.' });
+      }
+    }).catch((err) => {
+      if (err && err.status === 429) {
+        const warten = Math.max(1, Math.round(err.retryAfter || 10));
+        this.setState({ btRun: 'error', btError: 'rate-limited', btRetryIn: warten });
+        this._btCountdown();
+      } else {
+        const text = String(err && err.message ? err.message : err);
+        this.setState({ btRun: 'error', btError: text === 'HTTP 502' ? 'The backtest engine failed on this wallet and window (HTTP 502).' : text });
+      }
+    });
+  }
+
+  // Count the retry window down so the line reads "retry in 7 s", not a
+  // number that stopped being true the moment it was written.
+  _btCountdown() {
+    clearTimeout(this._btRetryT);
+    if (this.state.btRetryIn <= 0) return;
+    this._btRetryT = setTimeout(() => {
+      const rest = this.state.btRetryIn - 1;
+      this.setState({ btRetryIn: Math.max(0, rest) });
+      if (rest > 0) this._btCountdown();
+    }, 1000);
+  }
+
+  // Kept for callers that only want to mark the setup as changed: a click on
+  // a stepper marks the current result as stale instead of re-running.
+  runBacktestLive() {
+    if (this.liveData.backtest && !this.state.btDirty) this.setState({ btDirty: true });
+    else this.render();
   }
 
   // ---- render loop ----
@@ -611,10 +742,23 @@ class Terminal {
         this.setState({ searchOpen: true });
       }
     });
+    // Back/forward: re-read the hash so the visible page follows the address.
+    window.addEventListener('hashchange', () => {
+      const segmente = (location.hash || '#overview').replace('#', '').split('/');
+      if (segmente[0] === 'research') {
+        const i = this.studienIndexAus(segmente[1]);
+        this.setState({ page: 'research', researchTab: i >= 0 ? i : this.state.researchTab, detail: null });
+        this.fetchPageData('research');
+      } else if (segmente[0] in PAGES && segmente[0] !== this.state.page) {
+        this.setState({ page: segmente[0], detail: null });
+        this.fetchPageData(segmente[0]);
+      }
+    });
     setInterval(() => this.setState({ clock: this.utcClock() }), 15000);
     this.render();
     this.pollLive();
     setInterval(() => this.pollLive(), 30000);
+    this.ladeLanding();
     this.fetchPageData(this.state.page);
   }
 }

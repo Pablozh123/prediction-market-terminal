@@ -3,6 +3,7 @@
 // answered for that wallet; scores never render without their sample size.
 
 import { esc, money, num } from './util.js';
+import { scorePartsOf } from './pages/trader_pages.js';
 
 const M = "font-family:'JetBrains Mono',monospace";
 const STAT_VAL = M + '; font-size:19px; margin-top:5px';
@@ -74,11 +75,15 @@ export function renderDetail(T) {
       if (track && track.resolved_capped) parts.push('resolved list capped — win rate not reliable');
       note = parts.join('<br>');
     }
+    // Score components as a labelled list in the note, not the raw reason
+    // string next to the address.
+    const parts = scorePartsOf(t);
+    if (parts.length) note = (note ? note + '<br>' : '') + 'score components: ' + parts.map((p) => esc(p.label) + ' ' + esc(p.value)).join(' · ');
     v = {
       kicker: 'WALLET',
       accent: '#C8F542',
       title: t.name,
-      meta: t.wallet + (t.tags ? ' · ' + t.tags : ''),
+      meta: t.wallet + (t.grade ? ' · grade ' + t.grade : ''),
       chartLabel: 'PROFIT CURVE · 90 DAYS',
       chartPoints,
       chartEmpty: 'No profit curve for this wallet — /api/wallet did not answer with one.',
@@ -99,13 +104,15 @@ export function renderDetail(T) {
         value: money(x.size),
         style: M + '; font-size:13px; color:' + (String(x.side).indexOf('BUY') === 0 ? '#C8F542' : '#FF4545')
       })),
-      primaryAction: 'Backtest this wallet',
+      primaryAction: 'Open in the backtester',
       // "Follow on paper" stand hier als zweiter Knopf ohne Handler; /api/track
       // liest die gefolgten Wallets nur, es gibt keinen Endpunkt zum Folgen.
+      // The backtester does not auto-run: it opens with the wallet filled in
+      // and waits for RUN.
       primaryAct: T.act(() => {
         const addr = (t.walletFull || '').trim();
-        T.setState({ page: 'backtester', detail: null, btWallet: addr || T.state.btWallet });
-        T.runBacktestLive();
+        T.setState({ page: 'backtester', detail: null, btWallet: addr || T.state.btWallet, btDirty: !!T.liveData.backtest });
+        try { history.pushState(null, '', '#backtester'); } catch (e) { /* file:// */ }
       }),
       note
     };
@@ -167,7 +174,7 @@ export function renderSearch(T) {
     act: T.act(() => T.setState({ detail: { kind: 'market', id: m.id }, searchOpen: false, searchQuery: '' }))
   }));
   const searchTraders = T.traders.filter((t) => !q || t.name.toLowerCase().indexOf(q) >= 0).slice(0, 3).map((t) => ({
-    tag: 'WALLET', title: t.name, meta: t.wallet + (t.tags ? ' · ' + t.tags : ''), value: money(t.pnl),
+    tag: 'WALLET', title: t.name, meta: t.wallet + (t.score != null ? ' · smart score ' + t.score : ''), value: money(t.pnl),
     tagStyle: M + '; font-size:9px; letter-spacing:.12em; color:#0A0D0F; background:#4F8EF7; border-radius:4px; padding:3px 6px',
     act: T.act(() => { T.setState({ searchOpen: false, searchQuery: '' }); T.openWallet(t.name); })
   }));

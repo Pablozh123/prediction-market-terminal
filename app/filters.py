@@ -259,24 +259,6 @@ def apply_account_age_filter(df: pd.DataFrame, preset: str, custom_days: int) ->
     return df
 
 
-def market_filter_category(category: Any, title: Any = "") -> str:
-    if hasattr(md, "market_filter_category"):
-        return md.market_filter_category(category, title)
-    label = md.market_category_label(category)
-    text = f"{category or ''} {title or ''}".upper()
-    keyword_labels = (
-        (("SPORT", "NBA", "NFL", "MLB", "NHL", "FIFA", "WORLD CUP", "SOCCER", "TENNIS", "GOLF", "UFC", "MMA", "FORMULA 1", " F1 ", "CRICKET"), "Sports"),
-        (("CRYPTO", "BITCOIN", "BTC", "ETHEREUM", " ETH ", "SOLANA", "DOGE", "XRP"), "Crypto"),
-        (("ELECTION", "POLITIC", "TRUMP", "BIDEN", "CONGRESS", "SENATE", "PRESIDENT", "MAYORAL", "GOVERNOR"), "Politics"),
-        (("WEATHER", "TEMP", "HURRICANE", "RAIN", "SNOW"), "Weather"),
-        (("STOCK", "NASDAQ", "SPY", "S&P", "DOW", "FED", "INFLATION", "RATE", "WTI", "CRUDE OIL", "IPO"), "Finance"),
-    )
-    for keywords, inferred in keyword_labels:
-        if any(keyword in text for keyword in keywords):
-            return inferred
-    return label
-
-
 def add_market_filter_metrics(markets: pd.DataFrame, now: pd.Timestamp | None = None) -> pd.DataFrame:
     if markets.empty:
         return markets
@@ -292,7 +274,7 @@ def add_market_filter_metrics(markets: pd.DataFrame, now: pd.Timestamp | None = 
         else pd.Series("", index=enriched.index, dtype="string")
     )
     enriched["filter_category"] = [
-        market_filter_category(category, title)
+        md.market_filter_category(category, title)
         for category, title in zip(categories.tolist(), titles.tolist())
     ]
     now_ts = pd.to_datetime(now if now is not None else pd.Timestamp.now(tz="UTC"), utc=True)

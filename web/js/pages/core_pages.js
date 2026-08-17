@@ -1,150 +1,265 @@
-// Overview, Markets, Live tape, Cross-venue, Resolved — markup ported 1:1
-// from the design reference; data flows through the Terminal instance (T).
+// Overview (research landing), Markets, Live tape, Cross-venue, Resolved.
+// Markup ported from the design reference; data flows through the Terminal
+// instance (T). Nothing here invents a number: every figure names its payload
+// or the panel says which payload is missing.
 
-import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf } from '../util.js';
+import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, signedMoney, stempel } from '../util.js';
 
 const M = "font-family:'JetBrains Mono',monospace";
 const LBL9 = M + '; font-size:9px; letter-spacing:.14em; color:rgba(255,255,255,.42); margin-bottom:6px';
 const HEAD_CELL = M + '; font-size:9.5px; letter-spacing:.14em; color:rgba(255,255,255,.45)';
+const REPO_URL = 'https://github.com/Pablozh123/prediction-market-terminal';
+const ONE_PAGER_URL = REPO_URL + '/blob/main/docs/research/ONE_PAGER.md';
 
 function filterGroup(label, chipsHtml) {
   return '<div><div style="' + LBL9 + '">' + label + '</div><div style="display:flex; gap:6px; flex-wrap:wrap">' + chipsHtml + '</div></div>';
 }
 
+// Category chip row shared by Markets, Live tape and Whale flow: only the
+// categories present in the rows are offered, 'All' first.
+function catChipRow(T, rows, key, stateKey, current) {
+  const cats = ['All'].concat(catChipsPresent(rows, key));
+  return '<div style="display:flex; gap:7px; flex-wrap:wrap">'
+    + cats.map((c) => T.chip(c.toUpperCase(), current === c, { [stateKey]: c })).join('')
+    + '</div>';
+}
+
+// One-line "as of" stamp for a live block; empty when the API has not
+// answered yet, so no line claims a time it does not have.
+function asOfLine(iso) {
+  return iso ? '<span style="' + M + '; font-size:10px; color:rgba(255,255,255,.35)">as of ' + esc(stempel(iso)) + '</span>' : '';
+}
+
 function marketRowHtml(v) {
-  return '<div ' + v.act + ' class="hv-panel" style="display:grid; grid-template-columns:1fr 96px 88px 96px 108px 108px; align-items:center; padding:13px 24px; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer; animation:rowIn .25s ease-out">'
+  return '<div ' + v.act + ' class="hv-panel" style="display:grid; grid-template-columns:1fr 88px 96px 108px 108px; align-items:center; padding:13px 24px; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer; animation:rowIn .25s ease-out">'
     + '<div style="padding-right:20px">'
     + '<div style="font-size:13.5px; line-height:1.35">' + esc(v.title) + '</div>'
     + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:3px">' + esc(v.meta) + '</div></div>'
-    + '<div style="display:flex; justify-content:flex-end"><svg width="78" height="26" viewBox="0 0 78 26"><polyline points="' + v.sparkPoints + '" fill="none" stroke="' + v.color + '" stroke-width="1.6" /></svg></div>'
     + '<div style="' + M + '; font-size:15px; text-align:right">' + v.priceLabel + '</div>'
     + '<div style="' + v.changeStyle + '">' + v.changeLabel + '</div>'
     + '<div style="' + M + '; font-size:13px; text-align:right">' + v.volLabel + '</div>'
     + '<div style="' + M + '; font-size:12px; text-align:right; color:rgba(255,255,255,.55)">' + esc(v.ends) + '</div></div>';
 }
 
-// ---------------------------------------------------------------- overview
+// ---------------------------------------------------------------- overview (research landing)
+
+// Verdict vocabulary of public/data/microstructure.json (verdikt_art) as a
+// tag: label, colour. Anything unknown renders its raw value, uncoloured.
+const VERDICT_TAG = {
+  ja: { label: 'CONFIRMED', color: '#C8F542', bg: 'rgba(200,245,66,.12)' },
+  nein: { label: 'REFUTED', color: '#FF7A7A', bg: 'rgba(255,69,69,.12)' },
+  offen: { label: 'NOT IDENTIFIED', color: '#F5A623', bg: 'rgba(245,166,35,.12)' },
+  kontrolle: { label: 'CONTROL', color: '#4F8EF7', bg: 'rgba(79,142,247,.14)' }
+};
+
+function verdictTag(art) {
+  const v = VERDICT_TAG[String(art || '').toLowerCase()];
+  const label = v ? v.label : String(art || '—').toUpperCase();
+  const style = M + '; font-size:9.5px; letter-spacing:.12em; border-radius:4px; padding:3px 8px; white-space:nowrap; '
+    + (v ? 'color:' + v.color + '; background:' + v.bg : 'color:rgba(255,255,255,.55); border:1px solid rgba(255,255,255,.16)');
+  return '<span style="' + style + '">' + esc(label) + '</span>';
+}
+
+// The verdict counts, derived from the payload, never typed in: prefer the
+// payload's own zaehler block, fall back to counting studien[].verdikt_art.
+export function verdictCounts(micro) {
+  const st = micro && Array.isArray(micro.studien) ? micro.studien : [];
+  const z = micro && micro.zaehler ? micro.zaehler : null;
+  const zaehl = (art) => st.filter((s) => String(s.verdikt_art || '').toLowerCase() === art).length;
+  const total = z && z.gesamt != null ? +z.gesamt : st.length;
+  return {
+    total,
+    ja: z && z.ja != null ? +z.ja : zaehl('ja'),
+    nein: z && z.nein != null ? +z.nein : zaehl('nein'),
+    offen: z && z.offen != null ? +z.offen : zaehl('offen'),
+    kontrolle: z && z.kontrolle != null ? +z.kontrolle : zaehl('kontrolle')
+  };
+}
+
+// The key number of a study: first entry of zahlen[] with its unit, and the
+// sample size from basis (observations, snapshots, pairs, markets — whichever
+// the study recorded). Ranges render as "a to b".
+function keyNumber(study) {
+  const z = study && Array.isArray(study.zahlen) && study.zahlen.length ? study.zahlen[0] : null;
+  if (!z) return { value: '—', label: '', unit: '' };
+  let value;
+  if (Array.isArray(z.wert)) value = z.wert.map((v) => fmtWert(v)).join(' to ');
+  else value = fmtWert(z.wert);
+  return { value, label: String(z.label || ''), unit: String(z.einheit || '') };
+}
+
+function fmtWert(v) {
+  if (v == null || v === '') return '—';
+  const n = +v;
+  if (isNaN(n)) return String(v);
+  if (Math.abs(n) >= 1000) return num(Math.round(n));
+  if (Number.isInteger(n)) return String(n);
+  return String(Math.abs(n) < 1 ? +n.toFixed(3) : +n.toFixed(1));
+}
+
+function sampleLabel(basis) {
+  if (!basis) return '';
+  const order = [['beobachtungen', 'obs'], ['snapshots', 'snapshots'], ['paare', 'pairs'], ['maerkte', 'markets'], ['tokens', 'tokens']];
+  for (let i = 0; i < order.length; i += 1) {
+    const [k, l] = order[i];
+    if (basis[k] != null && basis[k] !== '') return 'n = ' + num(basis[k]) + ' ' + l;
+  }
+  return '';
+}
+
+// Words the sub-line uses for counts; anything above twelve falls back to
+// the digit so the sentence never lies about the payload.
+const ZAHLWORT = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+function zahlwort(n) { return n >= 0 && n < ZAHLWORT.length ? ZAHLWORT[n] : String(n); }
+
+// The sub-line of the landing, assembled from the three payloads. Each clause
+// appears only when its payload answered.
+export function landingSubline(landing) {
+  const teile = [];
+  const micro = landing && landing.micro;
+  const runs = landing && landing.runs;
+  if (micro && Array.isArray(micro.studien) && micro.studien.length) {
+    const c = verdictCounts(micro);
+    const w = zahlwort(c.total);
+    teile.push(w.charAt(0).toUpperCase() + w.slice(1) + ' studies (' + c.nein + ' refuted, ' + c.ja + ' confirmed, ' + c.offen + ' not identified, ' + c.kontrolle + ' control)');
+  }
+  const agg = runs && runs.aggregat;
+  if (agg && agg.n_runs != null) teile.push(num(agg.n_runs) + ' small-stake live runs');
+  teile.push('a pre-registered pilot');
+  const satz = teile.join(', ') + ' — no profitability claim.';
+  return satz.charAt(0).toUpperCase() + satz.slice(1);
+}
+
+function landingLeerSatz(herkunft, datei) {
+  const q = herkunft && herkunft.quelle;
+  if (q === 'fehler') return datei + ' did not load: ' + (herkunft.fehler || 'unknown error') + '. Nothing is shown rather than a placeholder.';
+  if (q === 'leer') return datei + ' answered without content.';
+  return 'Loading ' + datei + '…';
+}
+
+function sectionHead(label, right, color) {
+  return '<div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 24px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A">'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.16em; color:' + (color || '#C8F542') + '">' + label + '</div>'
+    + '<div style="display:flex; align-items:center; gap:14px">' + (right || '') + '</div></div>';
+}
+
 export function renderOverview(T) {
   const s = T.state;
-  const movers = T.markets.slice().sort((a, b) => Math.abs(b.chg) - Math.abs(a.chg)).slice(0, 5).map((m) => T.marketView(m));
-  const topRisks = T.risks.slice(0, 3).map((r) => T.riskCardView(r));
-  const tapeFiltered = T.tapeFiltered();
-  const tapeRows = tapeFiltered.slice(0, 6).map((t) => T.tapeRowView(t));
+  const landing = T.landing || { micro: null, runs: null, notes: null, herkunft: {} };
+  const micro = landing.micro;
+  const runs = landing.runs;
+  const notes = landing.notes;
+  const hk = landing.herkunft || {};
+  const microIdx = T.studies.findIndex((st) => st.tab === 'Microstructure');
+  const runsIdx = T.studies.findIndex((st) => st.tab === 'Live runs');
+  const notesIdx = T.studies.findIndex((st) => st.tab === 'Field notes');
+  const pilotIdx = T.studies.findIndex((st) => st.tab === 'Pilot');
+  const goStudy = (i) => (i >= 0 && T.goStudy ? T.act(() => T.goStudy(i)) : '');
+  const link = (i, label, color) => (i >= 0
+    ? '<div ' + goStudy(i) + ' class="hv-lime" style="' + M + '; font-size:11px; color:' + (color || 'rgba(255,255,255,.45)') + '; cursor:pointer; white-space:nowrap">' + label + ' →</div>'
+    : '');
+
+  // ---- verdict board -----------------------------------------------------
+  const studien = micro && Array.isArray(micro.studien) ? micro.studien : [];
+  const counts = verdictCounts(micro);
+  let board;
+  if (studien.length) {
+    board = '<div style="display:grid; grid-template-columns:36px 1fr 128px 190px 150px; padding:9px 24px; border-bottom:1px solid rgba(255,255,255,.09); ' + HEAD_CELL + '">'
+      + '<div>#</div><div>QUESTION</div><div>VERDICT</div><div style="text-align:right">KEY NUMBER · N</div><div style="text-align:right">WINDOW</div></div>'
+      + studien.map((st, i) => {
+        const kn = keyNumber(st);
+        const basis = st.basis || {};
+        const nLabel = sampleLabel(basis);
+        return '<div ' + goStudy(microIdx) + ' class="hv-panel" style="display:grid; grid-template-columns:36px 1fr 128px 190px 150px; align-items:center; padding:11px 24px; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer; animation:rowIn .25s ease-out">'
+          + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.4)">' + String(i + 1).padStart(2, '0') + '</div>'
+          + '<div style="padding-right:16px"><div style="font-size:13.5px; line-height:1.35">' + esc(st.frage || st.id || '—') + '</div>'
+          + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(String(st.verdikt || '').split('. ')[0]) + '</div></div>'
+          + '<div>' + verdictTag(st.verdikt_art) + '</div>'
+          + '<div style="text-align:right"><div style="' + M + '; font-size:14px">' + esc(kn.value) + (kn.unit ? ' <span style="font-size:10px; color:rgba(255,255,255,.45)">' + esc(kn.unit) + '</span>' : '') + '</div>'
+          + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.4); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(kn.label) + (nLabel ? ' · ' + esc(nLabel) : '') + '</div></div>'
+          + '<div style="' + M + '; font-size:11px; text-align:right; color:rgba(255,255,255,.5)">' + esc(basis.fenster || '—') + '</div></div>';
+      }).join('');
+  } else {
+    board = leerZeile(landingLeerSatz(hk.micro, 'microstructure.json'));
+  }
+
+  // ---- live-runs strip ----------------------------------------------------
+  const agg = runs && runs.aggregat ? runs.aggregat : null;
+  const runsStrip = agg
+    ? '<div style="display:grid; grid-template-columns:repeat(5,1fr); border-bottom:1px solid rgba(255,255,255,.09)">'
+      + kpiCell('RUNS · BETS', num(agg.n_runs != null ? agg.n_runs : '—') + ' · ' + num(agg.n_wetten != null ? agg.n_wetten : '—'), 'stake ' + (agg.einsatz_usd != null ? '$' + num((+agg.einsatz_usd).toFixed(0)) : '—') + ' (log estimate)', true)
+      + kpiCell('WON · LOST', num(agg.gewonnen != null ? agg.gewonnen : '—') + ' · ' + num(agg.verloren != null ? agg.verloren : '—'), (agg.offen ? num(agg.offen) + ' open' : 'none open'), true)
+      + kpiCell('LOG-RECONSTRUCTED PNL', agg.realisierter_pnl_usd != null ? signedMoney(agg.realisierter_pnl_usd) : '—', 'from run logs; fill prices partly assumed', true, agg.realisierter_pnl_usd)
+      + kpiCell('WALLET-RECONCILED NET', agg.wallet_netto_usd != null ? signedMoney(agg.wallet_netto_usd) : '—', 'on-chain wallet' + (agg.wallet_abgleich_stand ? ' · reconciled ' + esc(String(agg.wallet_abgleich_stand)) : ''), true, agg.wallet_netto_usd)
+      + kpiCell('VISIBLE DEPTH AT ENTRY', agg.sichtbare_tiefe_usd != null ? '$' + num((+agg.sichtbare_tiefe_usd).toFixed(0)) : '—', agg.einsatz_zu_sichtbarer_tiefe_pct != null ? 'stake was ' + (+agg.einsatz_zu_sichtbarer_tiefe_pct).toFixed(1) + '% of visible depth' : '', false)
+      + '</div>'
+      + '<div style="padding:10px 24px; border-bottom:1px solid rgba(255,255,255,.09); font-size:12px; color:rgba(255,255,255,.5); line-height:1.5">'
+      + 'Two PnL figures on purpose: the log-reconstructed number assumes the price cap where the order status returned no fill price and overstates the stake; the wallet-reconciled net is what the wallet actually shows'
+      + (agg.wallet_abgleich_stand ? ' as of ' + esc(String(agg.wallet_abgleich_stand)) : '') + '. Neither is a profitability claim.'
+      + (runs && runs.stand_utc ? ' <span style="' + M + '; font-size:10px; color:rgba(255,255,255,.35)">payload ' + esc(stempel(runs.stand_utc)) + '</span>' : '')
+      + '</div>'
+    : leerZeile(landingLeerSatz(hk.runs, 'runs.json'));
+
+  // ---- field-notes strip --------------------------------------------------
+  const noteList = notes && Array.isArray(notes.notes) ? notes.notes.slice(0, 5) : [];
+  const notesStrip = noteList.length
+    ? noteList.map((n) =>
+      '<div ' + goStudy(notesIdx) + ' class="hv-panel" style="display:grid; grid-template-columns:96px 1fr 120px; gap:12px; align-items:center; padding:11px 24px; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer">'
+      + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45)">' + esc(String(n.date || '').slice(0, 10)) + '</div>'
+      + '<div style="font-size:13px; line-height:1.35">' + esc(n.title || '—') + '</div>'
+      + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); text-align:right">' + esc(n.venue || '') + '</div></div>'
+    ).join('')
+    : leerZeile(landingLeerSatz(hk.notes, 'field_notes.json'));
+
+  // ---- live data row (from the existing 30 s poll) -----------------------
   const totalVol = T.markets.reduce((a, m) => a + m.vol, 0);
   const pmCount = T.markets.filter((m) => m.venue === 'Polymarket').length;
   const ksCount = T.markets.length - pmCount;
   const whalePrints = T.tape.filter((t) => t.size >= s.setWhale).length;
   const whaleWallets = new Set(T.tape.filter((t) => t.size >= s.setWhale && t.wallet !== '—').map((t) => t.wallet)).size;
-  const bestTrader = T.traders.slice().sort((a, b) => b.pnl - a.pnl)[0];
-  const pmVol = T.markets.filter((m) => m.venue === 'Polymarket').reduce((a, m) => a + m.vol, 0);
-  const ksVol = totalVol - pmVol;
-  const pmShare = totalVol ? Math.round((pmVol / totalVol) * 100) : 0;
-  // Ohne Marktdaten keine Kennzahl. Hier standen bis eben feste Werte —
-  // 1.284 Maerkte, 84,2 Mio Volumen, +12,4 Prozent gegen gestern, ein bester
-  // Wallet namens Theo4 mit 22,05 Mio — die immer dann erschienen, wenn die
-  // API nicht antwortete, also genau dann, wenn niemand sie pruefen konnte.
   const marktSatz = herkunftSatz(T.herkunft.markets, '/api/markets');
   const tapeSatz = herkunftSatz(T.herkunft.tape, '/api/tape');
   const hatMaerkte = T.markets.length > 0;
   const hatTape = T.tape.length > 0;
+  const liveRow = '<div style="display:grid; grid-template-columns:repeat(3,1fr); border-bottom:1px solid rgba(255,255,255,.09)">'
+    + kpiCell('MARKETS TRACKED', hatMaerkte ? num(T.markets.length) : '—', hatMaerkte ? num(pmCount) + ' Polymarket · ' + num(ksCount) + ' Kalshi' : esc(marktSatz), true)
+    + kpiCell('VOLUME · 24H', hatMaerkte ? money(totalVol) : '—', hatMaerkte ? 'sum over the ' + num(T.markets.length) + ' markets in the sample' : esc(marktSatz), true)
+    + kpiCell('PRINTS ≥ $2.5K · TAPE WINDOW', hatTape ? num(whalePrints) : '—', hatTape ? 'from ' + num(whaleWallets) + ' identified wallets' : esc(tapeSatz), false)
+    + '</div>';
 
-  const tapeFilters = [
-    T.chip('≥ $2.5K', s.tapeMin === 2500 && !s.tapeTracked, { tapeMin: 2500, tapeTracked: false }),
-    T.chip('≥ $10K', s.tapeMin === 10000 && !s.tapeTracked, { tapeMin: 10000, tapeTracked: false }),
-    T.chip('TRACKED ONLY', s.tapeTracked, { tapeTracked: true, tapeMin: 2500 })
-  ].join('');
-
+  const subline = landingSubline(landing);
   return '<div>'
     + '<div style="padding:24px 24px 20px; border-bottom:1px solid rgba(255,255,255,.09)">'
-    + '<div style="font-family:\'Instrument Serif\',serif; font-size:34px; line-height:1.08">Where the money moved <em style="color:#C8F542">in the last hour.</em></div>'
-    + '<div style="font-size:14px; color:rgba(255,255,255,.66); margin-top:7px; max-width:660px">Public wallet flow on Polymarket and Kalshi. No account, no orders — research only.</div></div>'
-
-    + '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid rgba(255,255,255,.09)">'
-    + kpiCell('MARKETS TRACKED', hatMaerkte ? num(T.markets.length) : '—', hatMaerkte ? num(pmCount) + ' Polymarket · ' + num(ksCount) + ' Kalshi' : esc(marktSatz), true)
-    + kpiCell('VOLUME · 24H', hatMaerkte ? money(totalVol) : '—', hatMaerkte ? num(T.markets.length) + ' markets in sample' : esc(marktSatz), true)
-    + kpiCell('TRADES OVER $2.5K', hatTape ? num(whalePrints) : '—', hatTape ? 'from ' + num(whaleWallets) + ' wallets' : esc(tapeSatz), true)
-    // Ohne Leaderboard-Daten keine Prosa-Erklaerung in der Kachel: die
-    // Kachel wird selbst der Weg dorthin. Ein Satz Grund, ein Ziel.
-    + (bestTrader
-      ? kpiCell('BEST WALLET · ALL TIME', money(bestTrader.pnl), esc(bestTrader.name + ' · ' + bestTrader.wallet), false)
-      : '<div ' + T.act(() => T.go('traders')) + ' class="hv-panel" style="padding:16px 20px; cursor:pointer">'
-        + '<div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">BEST WALLET · ALL TIME</div>'
-        + '<div style="' + M + '; font-size:15px; margin-top:10px; color:#C8F542">Open Leaderboard →</div>'
-        + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); margin-top:6px">not fetched on this page</div></div>')
-    + '</div>'
-
-    + '<div style="display:grid; grid-template-columns:1.45fr 1fr">'
-    + '<div style="border-right:1px solid rgba(255,255,255,.09)">'
-    + '<div style="display:flex; align-items:center; justify-content:space-between; padding:12px 20px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.16em; color:#C8F542">BIGGEST MOVES · 1H</div>'
-    + '<div ' + T.act(() => T.go('markets')) + ' class="hv-lime" style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); cursor:pointer">' + (hatMaerkte ? 'ALL ' + num(T.markets.length) : 'ALL') + ' →</div></div>'
-    + (hatMaerkte ? '' : leerZeile(marktSatz))
-    + movers.map((m) =>
-      '<div ' + m.act + ' class="hv-panel" style="display:grid; grid-template-columns:1fr 78px 74px 88px; gap:12px; align-items:center; padding:13px 20px; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer; animation:rowIn .3s ease-out">'
-      + '<div><div style="font-size:13.5px; line-height:1.35">' + esc(m.title) + '</div>'
-      + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:3px">' + esc(m.meta) + '</div></div>'
-      + '<svg width="78" height="26" viewBox="0 0 78 26"><polyline points="' + m.sparkPoints + '" fill="none" stroke="' + m.color + '" stroke-width="1.6" /></svg>'
-      + '<div style="' + M + '; font-size:15px; text-align:right">' + m.priceLabel + '</div>'
-      + '<div style="' + m.changeStyle + '">' + m.changeLabel + '</div></div>'
-    ).join('')
-    + '</div>'
-
-    + '<div>'
-    + '<div style="display:flex; align-items:center; justify-content:space-between; padding:12px 20px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.16em; color:#F5A623">RISK FLAGS · TODAY</div>'
-    + '<div ' + T.act(() => T.go('risk')) + ' class="hv-amber" style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); cursor:pointer">SCREEN →</div></div>'
-    // Der Risiko-Endpunkt wird von der Startseite bewusst nicht gezogen, er
-    // ist der schwerste. Der Grund bleibt hingeschrieben — sonst liest sich
-    // die leere Spalte als "heute nichts gefunden" — aber als eine Zeile mit
-    // Ziel statt als Absatz.
-    + (topRisks.length ? '' : '<div ' + T.act(() => T.go('risk')) + ' class="hv-panel" style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 20px; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer">'
-      + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.42); line-height:1.5">not fetched here — /api/risk pages a day of prints on its first build</div>'
-      + '<div style="' + M + '; font-size:11px; color:#F5A623; white-space:nowrap">OPEN THE SCREEN →</div></div>')
-    + topRisks.map((r) =>
-      '<div ' + r.act + ' class="hv-panel" style="padding:14px 20px; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer">'
-      + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px">'
-      + '<div style="' + r.kindStyle + '">' + esc(r.kind) + '</div>'
-      + '<div style="' + r.scoreStyle + '">' + r.score + '</div></div>'
-      + '<div style="font-size:13px; margin-top:5px; line-height:1.35">' + esc(r.market) + '</div>'
-      + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); margin-top:4px">' + esc(r.detail) + '</div></div>'
-    ).join('')
-    + '<div style="display:flex; align-items:center; justify-content:space-between; padding:12px 20px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.16em; color:#C8F542">VOLUME BY VENUE</div>'
-    + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45)">24H</div></div>'
-    + (hatMaerkte
-      ? '<div style="padding:16px 20px; display:flex; flex-direction:column; gap:13px">'
-        + '<div><div style="display:flex; justify-content:space-between; ' + M + '; font-size:11.5px; margin-bottom:6px"><span style="color:rgba(255,255,255,.66)">POLYMARKET</span><span>' + money(pmVol) + '</span></div>'
-        + '<div style="height:9px; background:rgba(255,255,255,.07); border-radius:2px"><div style="width:' + pmShare + '%; height:9px; background:#C8F542; border-radius:2px"></div></div></div>'
-        + '<div><div style="display:flex; justify-content:space-between; ' + M + '; font-size:11.5px; margin-bottom:6px"><span style="color:rgba(255,255,255,.66)">KALSHI</span><span>' + money(ksVol) + '</span></div>'
-        + '<div style="height:9px; background:rgba(255,255,255,.07); border-radius:2px"><div style="width:' + (100 - pmShare) + '%; height:9px; background:#4F8EF7; border-radius:2px"></div></div></div>'
-        + '</div>'
-      : leerZeile(marktSatz))
+    + '<div style="font-family:\'Instrument Serif\',serif; font-size:34px; line-height:1.08">Prediction-market microstructure, <em style="color:#C8F542">measured on self-recorded books.</em></div>'
+    + '<div style="font-size:14px; color:rgba(255,255,255,.66); margin-top:8px; max-width:760px">' + esc(subline) + '</div>'
+    + '<div style="display:flex; gap:14px; margin-top:12px; flex-wrap:wrap; ' + M + '; font-size:11px">'
+    + '<a href="' + REPO_URL + '" target="_blank" rel="noopener">GitHub repository →</a>'
+    + '<a href="' + ONE_PAGER_URL + '" target="_blank" rel="noopener">One-pager (docs/research/ONE_PAGER.md) →</a>'
+    + (pilotIdx >= 0 ? '<span ' + goStudy(pilotIdx) + ' class="hv-lime" style="color:rgba(255,255,255,.55); cursor:pointer">Pre-registered pilot →</span>' : '')
     + '</div></div>'
 
-    + '<div style="border-top:1px solid rgba(255,255,255,.09)">'
-    + '<div style="display:flex; align-items:center; justify-content:space-between; padding:12px 20px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.16em; color:#C8F542">LARGE TRADES · LIVE TAPE</div>'
-    + '<div style="display:flex; gap:6px">' + tapeFilters + '</div></div>'
-    + '<div style="display:grid; grid-template-columns:96px 150px 1fr 74px 84px 100px; padding:9px 20px; border-bottom:1px solid rgba(255,255,255,.09); ' + HEAD_CELL + '">'
-    + '<div>TIME</div><div>WALLET</div><div>MARKET</div><div>SIDE</div><div style="text-align:right">PRICE</div><div style="text-align:right">SIZE</div></div>'
-    + (tapeRows.length ? '' : leerZeile(hatTape ? 'No print in the tape passes the current size filter.' : tapeSatz))
-    + tapeRows.map((t) =>
-      '<div ' + t.act + ' class="hv-panel" style="display:grid; grid-template-columns:96px 150px 1fr 74px 84px 100px; align-items:center; padding:11px 20px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:12.5px; cursor:pointer; animation:rowIn .3s ease-out">'
-      + '<div style="color:rgba(255,255,255,.55)">' + esc(t.ago) + '</div>'
-      + '<div>' + esc(t.wallet) + '</div>'
-      + '<div style="font-family:\'Inter\',sans-serif; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:12px">' + esc(t.market) + '</div>'
-      + '<div style="' + t.sideStyle + '">' + esc(t.side) + '</div>'
-      + '<div style="text-align:right">' + esc(t.price) + '</div>'
-      + '<div style="text-align:right">' + t.size + '</div></div>'
-    ).join('')
-    + '<div style="padding:26px; text-align:center; ' + M + '; font-size:11px; color:rgba(255,255,255,.35)">Public data only · updated every 15 seconds</div>'
-    + '</div></div>';
+    + sectionHead('VERDICT BOARD · ' + (studien.length ? num(counts.total) + ' STUDIES' : 'MICROSTRUCTURE'),
+      (micro && micro.stand_utc ? '<span style="' + M + '; font-size:10px; color:rgba(255,255,255,.35)">payload ' + esc(stempel(micro.stand_utc)) + '</span>' : '')
+      + link(microIdx, 'FULL REPORT'))
+    + board
+
+    + sectionHead('LIVE RUNS · SMALL STAKE', link(runsIdx, 'EVERY BET'))
+    + runsStrip
+
+    + sectionHead('FIELD NOTES', link(notesIdx, 'ALL NOTES'), '#4F8EF7')
+    + notesStrip
+
+    + sectionHead('LIVE DATA', asOfLine(s.liveAsOf) + '<div ' + T.act(() => T.go('markets')) + ' class="hv-lime" style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); cursor:pointer">MARKETS →</div><div ' + T.act(() => T.go('flow')) + ' class="hv-lime" style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); cursor:pointer">TAPE →</div>')
+    + liveRow
+    + '<div style="padding:22px 24px; text-align:center; ' + M + '; font-size:11px; color:rgba(255,255,255,.35)">Public data only · live blocks refresh every 30 seconds · research payloads are frozen files under ./data</div>'
+    + '</div>';
 }
 
-function kpiCell(label, value, sub, borderRight) {
+function kpiCell(label, value, sub, borderRight, signed) {
+  const color = signed == null ? '#ffffff' : (+signed >= 0 ? '#C8F542' : '#FF4545');
   return '<div style="padding:16px 20px' + (borderRight ? '; border-right:1px solid rgba(255,255,255,.09)' : '') + '">'
     + '<div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">' + label + '</div>'
-    + '<div style="' + M + '; font-size:26px; margin-top:8px">' + value + '</div>'
+    + '<div style="' + M + '; font-size:24px; margin-top:8px; color:' + color + '">' + value + '</div>'
     + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); margin-top:4px">' + sub + '</div></div>';
 }
 
@@ -159,7 +274,7 @@ export function renderMarkets(T) {
   T.markets.forEach((m) => { if (catSet.indexOf(m.cat) < 0) catSet.push(m.cat); });
   // Die Kategorienleiste kommt aus den geladenen Maerkten. Eine feste Liste
   // haette Reiter angeboten, hinter denen nichts liegt.
-  const cats = ['All'].concat(catSet.sort());
+  const cats = ['All'].concat(catChipsPresent(T.markets, 'cat'));
 
   const mx = (m) => T.marketExtraOf(m);
   let mRows = T.markets.slice();
@@ -173,14 +288,11 @@ export function renderMarkets(T) {
   if (s.marketCat !== 'All') { mRows = mRows.filter((m) => m.cat === s.marketCat); addChip(s.marketCat, { marketCat: 'All' }); }
   if (s.mExclude.length) { mRows = mRows.filter((m) => s.mExclude.indexOf(m.cat) < 0); addChip('excluding ' + s.mExclude.join(', '), { mExclude: [] }); }
   if (s.mPlatform !== 'all') { mRows = mRows.filter((m) => m.venue === s.mPlatform); addChip(s.mPlatform, { mPlatform: 'all' }); }
-  if (s.mStatus === 'closed') { mRows = []; addChip('closed only', { mStatus: 'active' }); }
-  else if (s.mStatus === 'all') addChip('active + closed', { mStatus: 'active' });
   if (s.mProb !== 'all') {
     const p = { '5-95': [5, 95], '20-80': [20, 80], '80': [80, 100], '95': [95, 100], '99': [99, 100] }[s.mProb];
     mRows = mRows.filter((m) => m.yes >= p[0] && m.yes <= p[1]);
     addChip('probability ' + s.mProb, { mProb: 'all' });
   }
-  if (s.mSpread !== 'all') { mRows = mRows.filter((m) => mx(m).spread < Number(s.mSpread)); addChip('spread < ' + s.mSpread + '¢', { mSpread: 'all' }); }
   if (s.mLiq !== 'all') {
     const v = { '1k': 1000, '10k': 10000, '100k': 100000 }[s.mLiq];
     mRows = mRows.filter((m) => m.liq >= v); addChip('liquidity > $' + s.mLiq, { mLiq: 'all' });
@@ -189,24 +301,34 @@ export function renderMarkets(T) {
     const v = { '10k': 10000, '100k': 100000, '1m': 1000000 }[s.mVol];
     mRows = mRows.filter((m) => m.vol >= v); addChip('volume > $' + s.mVol, { mVol: 'all' });
   }
+  // Date-based filters only judge rows whose date is known; a market without
+  // an end date is neither "ending soon" nor "open ended".
   if (s.mEnds !== 'all') {
     const d = { '1d': 1, '7d': 7, '30d': 30 }[s.mEnds];
-    mRows = s.mEnds === 'open' ? mRows.filter((m) => mx(m).endsDays > 180) : mRows.filter((m) => mx(m).endsDays <= d);
+    mRows = s.mEnds === 'open'
+      ? mRows.filter((m) => mx(m).endsDays != null && mx(m).endsDays > 180)
+      : mRows.filter((m) => mx(m).endsDays != null && mx(m).endsDays <= d);
     addChip('resolves ' + (s.mEnds === 'open' ? 'far out' : 'in < ' + s.mEnds), { mEnds: 'all' });
   }
   if (s.mAge !== 'all') {
-    mRows = s.mAge === '30d' ? mRows.filter((m) => mx(m).age > 30) : mRows.filter((m) => mx(m).age <= ({ '1d': 1, '7d': 7 })[s.mAge]);
+    mRows = s.mAge === '30d'
+      ? mRows.filter((m) => mx(m).age != null && mx(m).age > 30)
+      : mRows.filter((m) => mx(m).age != null && mx(m).age <= ({ '1d': 1, '7d': 7 })[s.mAge]);
     addChip('age ' + s.mAge, { mAge: 'all' });
   }
-  if (s.mQuick === 'saved') { mRows = mRows.filter((m) => mx(m).saved); addChip('saved only', { mQuick: 'trending' }); }
-  if (s.mQuick === 'positions') { mRows = mRows.filter((m) => mx(m).pos); addChip('my positions', { mQuick: 'trending' }); }
-  if (s.mQuick === 'ending') { mRows = mRows.filter((m) => mx(m).endsDays <= 14); addChip('ending soon', { mQuick: 'trending' }); }
-  if (s.mQuick === 'new') { mRows = mRows.filter((m) => mx(m).age <= 90); addChip('new markets', { mQuick: 'trending' }); }
+  if (s.mQuick === 'ending') { mRows = mRows.filter((m) => mx(m).endsDays != null && mx(m).endsDays <= 14); addChip('ending soon', { mQuick: 'trending' }); }
+  if (s.mQuick === 'new') { mRows = mRows.filter((m) => mx(m).age != null && mx(m).age <= 90); addChip('new markets', { mQuick: 'trending' }); }
+  const nullLast = (a, b, asc) => {
+    if (a == null && b == null) return 0;
+    if (a == null) return 1;
+    if (b == null) return -1;
+    return asc ? a - b : b - a;
+  };
   mRows = mRows.sort((a, b) => {
     if (s.marketSort === 'change') return Math.abs(b.chg) - Math.abs(a.chg);
     if (s.marketSort === 'liquidity') return b.liq - a.liq;
-    if (s.marketSort === 'ending') return mx(a).endsDays - mx(b).endsDays;
-    if (s.marketSort === 'newest') return mx(a).age - mx(b).age;
+    if (s.marketSort === 'ending') return nullLast(mx(a).endsDays, mx(b).endsDays, true);
+    if (s.marketSort === 'newest') return nullLast(mx(a).age, mx(b).age, true);
     return b.vol - a.vol;
   });
 
@@ -220,16 +342,15 @@ export function renderMarkets(T) {
     + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">Every market, one table</div></div>'
     + '<div style="display:flex; align-items:center; gap:10px">'
     + '<input value="' + esc(s.marketQuery) + '" ' + T.inp((e) => T.setState({ marketQuery: e.target.value }), 'marketQuery') + ' placeholder="Search markets…" style="background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:9px 12px; ' + M + '; font-size:12.5px; color:#fff; width:230px; outline:none" />'
-    + '<div ' + T.act(() => T.setState({ mPlatform: 'all', mStatus: 'active', mProb: 'all', mSpread: 'all', mLiq: 'all', mVol: 'all', mEnds: 'all', mAge: 'all', mExclude: [], marketCat: 'All', marketQuery: '', mQuick: 'trending', marketSort: 'volume' })) + ' class="hv-bd32" style="font-size:12.5px; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:9px 13px; cursor:pointer">Reset filters</div>'
-    // "Save this view" stand hier ohne Handler: es gibt keinen Speicherort
-    // fuer Ansichten. Ein Knopf, der nichts tut, ist weg.
+    + '<div ' + T.act(() => T.setState({ mPlatform: 'all', mStatus: 'active', mProb: 'all', mLiq: 'all', mVol: 'all', mEnds: 'all', mAge: 'all', mExclude: [], marketCat: 'All', marketQuery: '', mQuick: 'trending', marketSort: 'volume' })) + ' class="hv-bd32" style="font-size:12.5px; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:9px 13px; cursor:pointer">Reset filters</div>'
     + '</div></div>'
 
+    // VIEW (Cards / Calendar) and QUICK Saved / My positions are gone: the
+    // first two had no renderer, the last two filtered on flags nothing sets.
     + '<div style="display:flex; align-items:center; gap:22px; margin-top:16px; flex-wrap:wrap">'
-    + '<div style="display:flex; align-items:center; gap:8px"><span style="' + LBL9.replace('; margin-bottom:6px', '') + '">VIEW</span>'
-    + [['table','Table'],['card','Cards'],['calendar','Calendar']].map((o) => T.opt(o[1], s.mView === o[0], { mView: o[0] })).join('') + '</div>'
     + '<div style="display:flex; align-items:center; gap:8px"><span style="' + LBL9.replace('; margin-bottom:6px', '') + '">QUICK</span>'
-    + [['trending','Trending'],['saved','Saved'],['positions','My positions'],['ending','Ending soon'],['new','New']].map((o) => T.opt(o[1], s.mQuick === o[0], { mQuick: o[0] })).join('') + '</div>'
+    + [['trending','By volume'],['ending','Ending soon'],['new','New']].map((o) => T.opt(o[1], s.mQuick === o[0], { mQuick: o[0] })).join('') + '</div>'
+    + asOfLine(s.liveAsOf)
     + '</div>'
 
     + '<div style="display:flex; gap:7px; margin-top:14px; flex-wrap:wrap">'
@@ -243,9 +364,7 @@ export function renderMarkets(T) {
     + (s.marketFiltersOpen ?
       '<div style="padding:16px; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:16px 20px">'
       + filterGroup('PLATFORM', [['all','All'],['Polymarket','Polymarket'],['Kalshi','Kalshi']].map((o) => T.opt(o[1], s.mPlatform === o[0], { mPlatform: o[0] })).join(''))
-      + filterGroup('STATUS', [['active','Active'],['all','All'],['closed','Closed']].map((o) => T.opt(o[1], s.mStatus === o[0], { mStatus: o[0] })).join(''))
       + filterGroup('PROBABILITY', [['all','All'],['5-95','5–95%'],['20-80','20–80%'],['80','>80%'],['95','>95%'],['99','>99%']].map((o) => T.opt(o[1], s.mProb === o[0], { mProb: o[0] })).join(''))
-      + filterGroup('SPREAD', [['all','All'],['3','<3¢'],['7','<7¢'],['10','<10¢']].map((o) => T.opt(o[1], s.mSpread === o[0], { mSpread: o[0] })).join(''))
       + filterGroup('LIQUIDITY', [['all','All'],['1k','>$1k'],['10k','>$10k'],['100k','>$100k']].map((o) => T.opt(o[1], s.mLiq === o[0], { mLiq: o[0] })).join(''))
       + filterGroup('VOLUME 24H', [['all','All'],['10k','>$10k'],['100k','>$100k'],['1m','>$1m']].map((o) => T.opt(o[1], s.mVol === o[0], { mVol: o[0] })).join(''))
       + filterGroup('RESOLVES IN', [['all','All'],['1d','<1 day'],['7d','<7 days'],['30d','<30 days'],['open','Open ended']].map((o) => T.opt(o[1], s.mEnds === o[0], { mEnds: o[0] })).join(''))
@@ -266,13 +385,14 @@ export function renderMarkets(T) {
     ).join('')
     + '</div></div>'
 
-    + '<div style="display:grid; grid-template-columns:1fr 96px 88px 96px 108px 108px; padding:10px 24px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A; ' + HEAD_CELL + '">'
+    // No TREND column: the API carries a one-day change, not an intraday
+    // path, and a two-point line under "TREND 24H" read as a curve.
+    + '<div style="display:grid; grid-template-columns:1fr 88px 96px 108px 108px; padding:10px 24px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A; ' + HEAD_CELL + '">'
     + '<div>MARKET</div>'
-    + '<div style="text-align:right">TREND 24H</div>'
     + '<div style="text-align:right">YES</div>'
     + '<div ' + T.act(() => T.setState({ marketSort: 'change' })) + ' style="text-align:right; cursor:pointer; color:' + (s.marketSort === 'change' ? '#C8F542' : 'rgba(255,255,255,.45)') + '">CHANGE 1D</div>'
     + '<div ' + T.act(() => T.setState({ marketSort: 'volume' })) + ' style="text-align:right; cursor:pointer; color:' + (s.marketSort === 'volume' ? '#C8F542' : 'rgba(255,255,255,.45)') + '">VOLUME 24H</div>'
-    + '<div style="text-align:right">RESOLVES</div></div>'
+    + '<div ' + T.act(() => T.setState({ marketSort: 'ending' })) + ' style="text-align:right; cursor:pointer; color:' + (s.marketSort === 'ending' ? '#C8F542' : 'rgba(255,255,255,.45)') + '">RESOLVES</div></div>'
     + mRows.map((m) => marketRowHtml(T.marketView(m))).join('')
     + (mRows.length === 0 ? '<div style="padding:60px; text-align:center; ' + M + '; font-size:12px; color:rgba(255,255,255,.35)">No market matches that filter.</div>' : '')
     + '</div>';
@@ -301,13 +421,15 @@ export function renderFlow(T) {
     + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:20px">'
     + '<div><div style="' + M + '; font-size:10px; letter-spacing:.18em; color:#C8F542">LIVE TAPE</div>'
     + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">Every large print as it lands</div></div>'
+    + '<div style="display:flex; align-items:center; gap:12px">'
+    + asOfLine(s.tapeAsOf || s.liveAsOf)
     + '<input value="' + esc(s.tapeQuery) + '" ' + T.inp((e) => T.setState({ tapeQuery: e.target.value }), 'tapeQuery') + ' placeholder="market, wallet, trader…" style="background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:9px 12px; ' + M + '; font-size:12.5px; color:#fff; width:250px; outline:none" />'
-    + '</div>'
+    + '</div></div>'
+    + '<div style="margin-top:14px">' + filterGroup('CATEGORY', catChipRow(T, T.tape, 'category', 'tapeCat', s.tapeCat)) + '</div>'
     + '<div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px 18px; margin-top:14px">'
     + filterGroup('MINIMUM SIZE', [
       T.chip('≥ $2.5K', s.tapeMin === 2500 && !s.tapeTracked, { tapeMin: 2500, tapeTracked: false }),
-      T.chip('≥ $10K', s.tapeMin === 10000 && !s.tapeTracked, { tapeMin: 10000, tapeTracked: false }),
-      T.chip('TRACKED ONLY', s.tapeTracked, { tapeTracked: true, tapeMin: 2500 })
+      T.chip('≥ $10K', s.tapeMin === 10000 && !s.tapeTracked, { tapeMin: 10000, tapeTracked: false })
     ].join(''))
     + filterGroup('PLATFORM', [['all','All'],['Polymarket','Polymarket'],['Kalshi','Kalshi']].map((o) => T.opt(o[1], s.tapePlatform === o[0], { tapePlatform: o[0] })).join(''))
     + filterGroup('SIDE', [['all','All'],['BUY','Buys'],['SELL','Sells']].map((o) => T.opt(o[1], s.tapeSide === o[0], { tapeSide: o[0] })).join(''))
@@ -322,14 +444,16 @@ export function renderFlow(T) {
     ).join('')
     + '</div>'
 
-    + '<div style="display:grid; grid-template-columns:96px 160px 1fr 84px 90px 110px 96px; padding:10px 24px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A; ' + HEAD_CELL + '">'
-    + '<div>TIME</div><div>WALLET</div><div>MARKET</div><div>SIDE</div><div style="text-align:right">PRICE</div><div style="text-align:right">SIZE</div><div style="text-align:right">VENUE</div></div>'
+    + '<div style="display:grid; grid-template-columns:96px 160px 1fr 110px 84px 90px 110px 96px; padding:10px 24px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A; ' + HEAD_CELL + '">'
+    + '<div>TIME</div><div>WALLET</div><div>MARKET</div><div>CATEGORY</div><div>SIDE</div><div style="text-align:right">PRICE</div><div style="text-align:right">SIZE</div><div style="text-align:right">VENUE</div></div>'
+    + (tapeFiltered.length ? '' : leerZeile('No print in the tape window passes the current filters (size, category, side).'))
     + tapeFiltered.map((t0) => {
       const t = T.tapeRowView(t0);
-      return '<div ' + t.act + ' class="hv-panel" style="display:grid; grid-template-columns:96px 160px 1fr 84px 90px 110px 96px; align-items:center; padding:12px 24px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:12.5px; cursor:pointer; animation:rowIn .25s ease-out">'
+      return '<div ' + t.act + ' class="hv-panel" style="display:grid; grid-template-columns:96px 160px 1fr 110px 84px 90px 110px 96px; align-items:center; padding:12px 24px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:12.5px; cursor:pointer; animation:rowIn .25s ease-out">'
         + '<div style="color:rgba(255,255,255,.55)">' + esc(t.ago) + '</div>'
         + '<div>' + esc(t.wallet) + '</div>'
         + '<div style="font-family:\'Inter\',sans-serif; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:12px">' + esc(t.market) + '</div>'
+        + '<div style="font-size:11px; color:rgba(255,255,255,.55)">' + esc(t.category || 'Other') + '</div>'
         + '<div style="' + t.sideStyle + '">' + esc(t.side) + '</div>'
         + '<div style="text-align:right">' + esc(t.price) + '</div>'
         + '<div style="text-align:right">' + t.size + '</div>'
@@ -339,12 +463,47 @@ export function renderFlow(T) {
 }
 
 // ---------------------------------------------------------------- cross-venue
+
+// The honesty gate as words, used by both the empty block and the caption.
+export const CROSS_GATE_TEXT = 'similarity ≥ 0.5, volume on both venues';
+
+function crossGateBlock(T) {
+  const microIdx = T.studies.findIndex((st) => st.tab === 'Microstructure');
+  return '<div style="padding:26px 24px">'
+    + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:20px 22px; max-width:760px">'
+    + '<div style="' + M + '; font-size:10px; letter-spacing:.14em; color:#F5A623">NO PAIR CLEARS THE GATE</div>'
+    + '<div style="font-size:13px; color:rgba(255,255,255,.6); margin-top:9px; line-height:1.6">No cross-venue pair clears the match gate right now (' + CROSS_GATE_TEXT + '). '
+    + 'See studies 08 and 11: the two 79¢/64¢ \'edges\' were mismatched questions.</div>'
+    + (microIdx >= 0 && T.goStudy
+      ? '<div ' + T.act(() => T.goStudy(microIdx)) + ' class="hv-lime" style="' + M + '; font-size:11px; color:#4F8EF7; margin-top:12px; cursor:pointer">Open the microstructure report (#research/microstructure) →</div>'
+      : '<a href="#research/microstructure" style="' + M + '; font-size:11px; display:inline-block; margin-top:12px">Open the microstructure report →</a>')
+    + '</div></div>';
+}
+
 export function renderCross(T) {
   const s = T.state;
+  const hk = T.herkunft.cross;
   if (!T.crossPairs.length) {
-    return '<div>' + seitenKopf('CROSS-VENUE', 'The same question, two prices', '#4F8EF7')
-      + leerBlock('NO PAIRS', herkunftSatz(T.herkunft.cross, '/api/cross')) + '</div>';
+    // Three empty states, all named: request still running, request failed,
+    // request answered and nothing passed the gate.
+    let body;
+    if (!hk) {
+      body = '<div style="padding:26px 24px">'
+        + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:20px 22px; max-width:760px">'
+        + '<div style="display:flex; align-items:center; gap:10px">'
+        + '<span style="width:7px; height:7px; border-radius:50%; background:#F5A623; display:inline-block; animation:livePulse 1.2s ease-in-out infinite"></span>'
+        + '<div style="' + M + '; font-size:11px; letter-spacing:.12em; color:#F5A623">MATCHING PAIRS ACROSS VENUES…</div></div>'
+        + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:9px; line-height:1.6">Waiting for /api/cross. It pages both venues and scores every title pair; the gate keeps only ' + CROSS_GATE_TEXT + '.</div>'
+        + '</div></div>';
+    } else if (hk.quelle === 'fehler') {
+      body = leerBlock('NO PAIRS', herkunftSatz(hk, '/api/cross'))
+        + (T.neuLaden ? '<div style="padding:0 24px 24px"><div ' + T.act(() => T.neuLaden('cross', 'cross')) + ' class="hv-bd32" style="display:inline-block; ' + M + '; font-size:11px; color:rgba(255,255,255,.7); border:1px solid rgba(255,255,255,.16); border-radius:6px; padding:6px 12px; cursor:pointer">Try again</div></div>' : '');
+    } else {
+      body = crossGateBlock(T);
+    }
+    return '<div>' + seitenKopf('CROSS-VENUE', 'The same question, two prices', '#4F8EF7') + body + '</div>';
   }
+  // Local filters can only tighten what the server let through.
   let cRows = T.crossPairs.filter((c) => Math.abs(c.pm - c.ks) >= s.crossMinGap && c.sim >= s.crossSim && c.pmVol >= s.crossPmVol && c.ksVol >= s.crossKsVol);
   cRows = cRows.filter((c) => c.pm >= s.crossMinPrice && c.pm <= s.crossMaxPrice && c.ks >= s.crossMinPrice && c.ks <= s.crossMaxPrice);
   if (s.crossQuery.trim()) {
@@ -357,10 +516,14 @@ export function renderCross(T) {
   const medianGap = gaps.length ? gaps[Math.floor(gaps.length / 2)] : 0;
   const sims = cRows.map((c) => c.sim).sort((a, b) => a - b);
   const medianSim = sims.length ? sims[Math.floor(sims.length / 2)] : 0;
+  const cl = T.liveData.cross || {};
+  const gateNote = cl.candidates_before_gate != null
+    ? num(T.crossPairs.length) + ' of ' + num(cl.candidates_before_gate) + ' candidate pairs clear the gate (' + CROSS_GATE_TEXT + ')'
+    : num(T.crossPairs.length) + ' pairs clear the gate (' + CROSS_GATE_TEXT + ')';
 
   const activeChips = [].concat(
     s.crossQuery.trim() ? ['search: ' + s.crossQuery.trim()] : [],
-    s.crossSim !== 0.30 ? ['similarity ≥ ' + s.crossSim.toFixed(2)] : [],
+    s.crossSim > 0.5 ? ['similarity ≥ ' + s.crossSim.toFixed(2)] : [],
     s.crossMinGap > 0 ? ['gap ≥ ' + s.crossMinGap.toFixed(1) + '¢'] : [],
     s.crossPmVol > 0 ? ['Polymarket volume > $' + num(s.crossPmVol)] : [],
     s.crossKsVol > 0 ? ['Kalshi volume > $' + num(s.crossKsVol)] : [],
@@ -382,13 +545,14 @@ export function renderCross(T) {
     + '<div><div style="' + M + '; font-size:10px; letter-spacing:.18em; color:#4F8EF7">CROSS-VENUE</div>'
     + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">The same question, two prices</div></div>'
     + '<div style="display:flex; align-items:center; gap:10px">'
+    + asOfLine(cl.as_of)
     + '<input value="' + esc(s.crossQuery) + '" ' + T.inp((e) => T.setState({ crossQuery: e.target.value }), 'crossQuery') + ' placeholder="bitcoin, fed, election…" style="background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:9px 12px; ' + M + '; font-size:12.5px; color:#fff; width:230px; outline:none" />'
-    + '<div ' + T.act(() => T.setState({ crossQuery: '', crossSim: 0.30, crossMaxPairs: 50, crossMinGap: 0, crossLower: 'any', crossPmVol: 0, crossKsVol: 0, crossMinPrice: 0, crossMaxPrice: 100 })) + ' class="hv-bd32" style="font-size:12.5px; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:9px 13px; cursor:pointer">Reset filters</div>'
+    + '<div ' + T.act(() => T.setState({ crossQuery: '', crossSim: 0.5, crossMaxPairs: 50, crossMinGap: 0, crossLower: 'any', crossPmVol: 0, crossKsVol: 0, crossMinPrice: 0, crossMaxPrice: 100 })) + ' class="hv-bd32" style="font-size:12.5px; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:9px 13px; cursor:pointer">Reset filters</div>'
     + '</div></div>'
-    + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:10px; max-width:760px">Matched by event, not by ticker, so wording differences do not hide a gap. A gap is not free money — fees, settlement rules and resolution sources differ between the two venues.</div>'
+    + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:10px; max-width:760px">Matched by title similarity, not by ticker. ' + esc(gateNote) + '. A gap is not free money — fees, settlement rules and resolution sources differ between the two venues, and two matched titles can still be two different questions (studies 08 and 11).</div>'
 
     + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:10px; margin-top:14px; padding:16px; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:16px 18px">'
-    + stepGroup('MIN SIMILARITY', s.crossSim.toFixed(2), () => T.setState({ crossSim: Math.max(0.1, s.crossSim - 0.02) }), () => T.setState({ crossSim: Math.min(0.7, s.crossSim + 0.02) }))
+    + stepGroup('MIN SIMILARITY (GATE 0.50)', s.crossSim.toFixed(2), () => T.setState({ crossSim: Math.max(0.5, +(s.crossSim - 0.02).toFixed(2)) }), () => T.setState({ crossSim: Math.min(0.9, +(s.crossSim + 0.02).toFixed(2)) }))
     + stepGroup('MAX PAIRS', String(s.crossMaxPairs), () => T.setState({ crossMaxPairs: Math.max(10, s.crossMaxPairs - 10) }), () => T.setState({ crossMaxPairs: Math.min(150, s.crossMaxPairs + 10) }))
     + stepGroup('MIN GAP (¢)', s.crossMinGap.toFixed(1) + '¢', () => T.setState({ crossMinGap: Math.max(0, s.crossMinGap - 0.5) }), () => T.setState({ crossMinGap: s.crossMinGap + 0.5 }))
     + '<div><div style="' + LBL9 + '">LOWER YES ON</div><div style="display:flex; gap:6px">'
@@ -405,7 +569,7 @@ export function renderCross(T) {
     + '</div></div>'
 
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid rgba(255,255,255,.09)">'
-    + '<div style="padding:14px 24px; border-right:1px solid rgba(255,255,255,.09)"><div style="' + HEAD_CELL + '">CANDIDATE PAIRS</div><div style="' + M + '; font-size:22px; margin-top:7px">' + cRows.length + '</div></div>'
+    + '<div style="padding:14px 24px; border-right:1px solid rgba(255,255,255,.09)"><div style="' + HEAD_CELL + '">PAIRS SHOWN</div><div style="' + M + '; font-size:22px; margin-top:7px">' + cRows.length + '</div></div>'
     + '<div style="padding:14px 24px; border-right:1px solid rgba(255,255,255,.09)"><div style="' + HEAD_CELL + '">LARGEST GAP</div><div style="' + M + '; font-size:22px; margin-top:7px; color:#F5A623">' + (gaps.length ? gaps[gaps.length - 1] + '¢' : '—') + '</div></div>'
     + '<div style="padding:14px 24px; border-right:1px solid rgba(255,255,255,.09)"><div style="' + HEAD_CELL + '">MEDIAN SIMILARITY</div><div style="' + M + '; font-size:22px; margin-top:7px">' + (medianSim ? medianSim.toFixed(2) : '—') + '</div></div>'
     + '<div style="padding:14px 24px"><div style="' + HEAD_CELL + '">MEDIAN GAP</div><div style="' + M + '; font-size:22px; margin-top:7px">' + (medianGap ? medianGap + '¢' : '—') + '</div></div>'
@@ -422,10 +586,10 @@ export function renderCross(T) {
         + '<div style="' + M + '; font-size:14px; text-align:right; color:#C8F542">' + c.pm + '¢</div>'
         + '<div style="' + M + '; font-size:14px; text-align:right; color:#4F8EF7">' + c.ks + '¢</div>'
         + '<div style="' + gapStyle + '">' + g + '¢</div>'
-        + '<div style="' + M + '; font-size:12.5px; text-align:right; color:rgba(255,255,255,.6)">$' + ((c.pmVol + c.ksVol) / 1000000).toFixed(1) + 'm</div>'
+        + '<div style="' + M + '; font-size:12.5px; text-align:right; color:rgba(255,255,255,.6)">' + money(c.pmVol + c.ksVol) + '</div>'
         + '<div style="' + M + '; font-size:12px; text-align:right; color:rgba(255,255,255,.45)">' + esc(c.held) + '</div></div>';
     }).join('')
-    + (cRows.length === 0 ? '<div style="padding:60px; text-align:center; ' + M + '; font-size:12px; color:rgba(255,255,255,.35)">No pair is that far apart right now.</div>' : '')
+    + (cRows.length === 0 ? '<div style="padding:60px; text-align:center; ' + M + '; font-size:12px; color:rgba(255,255,255,.35)">No pair passes the local filters; loosen a stepper above.</div>' : '')
     + '</div>';
 }
 

@@ -44,6 +44,18 @@ CONTEXT_AWARDS = "Awards & entertainment"
 CONTEXT_CORPORATE = "Corporate & legal"
 CONTEXT_GENERAL = "General"
 
+# Groups the risk screen drops ENTIRELY — not damped, not behind a toggle.
+# Sports odds and weather: game results and weather models cannot be
+# insider-traded. Crypto & market prices: asset prices are public, so a whale
+# there is a trader, not an insider — and the 15-minute up/down markets are
+# the busiest on both venues, so left in they flood every output (events,
+# wallets, fresh-wallet and timing clusters, the co-trading network) with
+# noise. Every consumer (API /api/risk, Streamlit "Suspicious" page) filters
+# with this tuple; ``INSIDER_PRONE_GROUPS`` is its complement.
+EXCLUDED_CONTEXTS = (CONTEXT_SPORTS, CONTEXT_WEATHER, CONTEXT_MARKET_PRICES)
+
+# The multipliers only matter for the groups that survive the exclusion above;
+# the excluded groups keep a value so ``classify_insider_context`` stays total.
 CONTEXT_MULTIPLIERS = {
     CONTEXT_SPORTS: 0.6,
     CONTEXT_MARKET_PRICES: 0.6,
@@ -64,7 +76,7 @@ CONTEXT_NOTES = {
     CONTEXT_GENERAL: "",
 }
 
-# Groups where insider knowledge is plausible — the page focuses on these by default.
+# Groups where insider knowledge is plausible — the only groups the screen shows.
 INSIDER_PRONE_GROUPS = (CONTEXT_POLITICS, CONTEXT_AWARDS, CONTEXT_CORPORATE, CONTEXT_GENERAL)
 
 _CATEGORY_GROUPS = (
@@ -90,7 +102,25 @@ _TITLE_PATTERNS = (
     (re.compile(r"\bceo\b|\bacquisition\b|\bmerger\b|\bipo\b|\bearnings\b|\blawsuit\b|\bcourt\b|\bruling\b|\bverdict\b|\bindicted?\b|\bconvicted\b|\bpardon\b|\bresigns?\b|\bappoints?\b|\bnominee\b|\bnomination\b|\bcabinet\b|\bsteps? down\b|\bfired\b|\brelease date\b", re.I), CONTEXT_CORPORATE),
     (re.compile(r"\boscars?\b|\bgrammys?\b|\bemmys?\b|\bgolden globe\b|\baward\b|\balbum\b|\bbox office\b|\btrailer\b|\bseason finale\b|\brenewed\b|\beurovision\b|\bperson of the year\b|\bbillboard\b", re.I), CONTEXT_AWARDS),
     (re.compile(r"\btemperature\b|\brainfall\b|\bsnowfall\b|\bhurricane\b|\bstorm\b|\bheat wave\b|\bweather\b|\bdegrees\b|°[cf]\b", re.I), CONTEXT_WEATHER),
-    (re.compile(r"\bbitcoin\b|\bbtc\b|\bethereum\b|\beth\b|\bsolana\b|\bxrp\b|\bdogecoin\b|\bcrypto\b|\btoken\b|\bs&p\b|\bnasdaq\b|\bstock price\b|\bshare price\b|\bgold price\b|\boil price\b|\bhit \$|\breach \$", re.I), CONTEXT_MARKET_PRICES),
+    # Public asset prices: crypto, indices, commodities, market caps. "Up or
+    # Down" is Polymarket's price-series format (Bitcoin/BNB/WTI Up or Down -
+    # <window>); "hit (HIGH) $" is its commodity/valuation ladder format.
+    (re.compile(r"\bbitcoin\b|\bbtc\b|\bethereum\b|\beth\b|\bsolana\b|\bxrp\b|\bdogecoin\b|\bbnb\b|\bcrypto\b|\btoken\b|\bs&p\b|\bnasdaq\b|\bstock price\b|\bshare price\b|\bgold price\b|\boil price\b|\bcrude oil\b|\bwti\b|\bbrent\b|\bmarket cap\b|\bup or down\b|\b(?:hit|reach) (?:\((?:high|low)\) )?\$", re.I), CONTEXT_MARKET_PRICES),
+    # Kalshi price tickers. The API tape carries the raw ticker as title
+    # (KXBTC15M-26AUG16-1345, KXETHD-…, KXWTI15M-…, KXINXD-…) and "\bbtc\b"
+    # cannot see "btc" inside "KXBTC15M". Every KX…15M ticker is a 15-minute
+    # price up/down market; the prefix set is explicit otherwise so
+    # KXETHIOPIA-… does not turn into an Ethereum market.
+    (re.compile(r"\bkx[a-z0-9]{1,12}15m(?=-|\b)|\bkx(?:btc|eth|sol|xrp|doge|bnb|inx|nasdaq100|wti|gold|silver)(?:15m|d|h|w|m|y|maxy?|miny?)?(?=-|\b)", re.I), CONTEXT_MARKET_PRICES),
+    # Kalshi sports and weather series carry the same problem: the API tape
+    # sees "KXWNBAGAME-26AUG16-…" or "KXHIGHTHOU-…" as the title, and "\bwnba\b"
+    # cannot fire inside a ticker. Series names are league/format words glued
+    # together, so match the known league prefixes and the GAME/MATCH/SET/MAP
+    # suffix families for sports, and the HIGH/LOW/TEMP/RAIN/SNOW families for
+    # weather. Both stay excluded from the insider screen for the same reason
+    # as their Polymarket counterparts.
+    (re.compile(r"\bkx(?:atp|wta|mlb|nba|wnba|nfl|nhl|ufc|mma|pga|lpga|f1|nascar|mls|epl|ucl|laliga|bundesliga|seriea|ligue1|valorant|cs2|csgo|lol|dota|tennis|golf|soccer|ncaa[a-z]*|[a-z0-9]*(?:game|match|set|map|series|round|race|fight))(?:[a-z0-9]*)?(?=-|\b)", re.I), CONTEXT_SPORTS),
+    (re.compile(r"\bkx(?:high|low|temp|rain|snow|wind|hurr|precip|heat)[a-z0-9]*(?=-|\b)", re.I), CONTEXT_WEATHER),
     (re.compile(r"\bceasefire\b|\bsanctions?\b|\btariffs?\b|\btreaty\b|\bagreement\b|\bexecutive order\b|\bmilitary\b|(?<!-)\bstrikes?\b|\binvasion\b|\bnato\b|\bsummit\b|\belections?\b|\bpresident\b|\bminister\b|\bparliament\b|\bcongress\b|\bsenate\b|\bimpeach|\bputin\b|\bzelensky?y?\b|\bnetanyahu\b|\bxi jinping\b|\bkim jong\b", re.I), CONTEXT_POLITICS),
     # Spieltag-Untermaerkte ohne Kontexttitel. "Will FC Thun win on
     # 2026-08-06?" traegt kein Liga- oder Vereinswort, das der Katalog oben
@@ -231,21 +261,17 @@ def apply_fresh_wallet_bonus(event_risk: pd.DataFrame, clusters: pd.DataFrame, m
 def filter_insider_prone_trades(
     trades: pd.DataFrame,
     market_categories: pd.DataFrame | None = None,
-    excluded: tuple[str, ...] = (CONTEXT_SPORTS, CONTEXT_WEATHER, CONTEXT_MARKET_PRICES),
+    excluded: tuple[str, ...] = EXCLUDED_CONTEXTS,
 ) -> pd.DataFrame:
     """Drop trades whose market classifies into an excluded context group.
 
-    Used for the co-trading network and cluster bonuses so that routine
-    correlated trading cannot create 'possibly linked' clusters on a screen
-    that excludes those arenas anyway.
-
-    Crypto is excluded for the same reason as sports, and it has to be: the
-    five-minute up-down markets are the busiest on the venue, so dozens of
-    wallets touch the same handful of markets within minutes as a matter of
-    course. Left in, they produced the largest cluster on the screen purely
-    by volume. `CONTEXT_NOTES` already says asset prices are public and the
-    whales there are traders rather than insiders, and `INSIDER_PRONE_GROUPS`
-    already leaves crypto out; this default now matches both.
+    This is the single entry gate of the risk screen: run it over the tape
+    BEFORE scoring, and sports, weather and crypto/market-price prints never
+    reach events, wallets, fresh-wallet or timing clusters or the co-trading
+    network. (The network needs it doubly: the crypto up/down markets are the
+    busiest on the venue, so dozens of wallets touch the same handful of
+    markets within minutes as a matter of course and produced the largest
+    cluster on the screen purely by volume.)
     """
 
     if trades is None or trades.empty or "title" not in trades.columns:
@@ -262,6 +288,20 @@ def filter_insider_prone_trades(
     ]
     mask = [group not in excluded for group in groups]
     return trades[pd.Series(mask, index=trades.index)].reset_index(drop=True)
+
+
+def exclude_contexts(frame: pd.DataFrame, excluded: tuple[str, ...] = EXCLUDED_CONTEXTS) -> pd.DataFrame:
+    """Drop scored rows (events or wallets) whose ``insider_context`` is excluded.
+
+    Second gate for callers that score the full tape first and attach the
+    context afterwards (``apply_category_context`` /
+    ``apply_wallet_category_context``): the same tuple as
+    ``filter_insider_prone_trades`` so the two never disagree.
+    """
+
+    if frame is None or frame.empty or "insider_context" not in frame.columns:
+        return frame
+    return frame[~frame["insider_context"].isin(excluded)].reset_index(drop=True)
 
 
 def dominant_context_map(trades: pd.DataFrame, market_categories: pd.DataFrame | None = None) -> dict[str, str]:
@@ -722,9 +762,10 @@ def apply_wallet_category_context(
     """Scale wallet scores by the notional-weighted insider plausibility of their flow.
 
     A wallet whose whale flow sits mostly in sports/crypto/weather markets is
-    damped (high roller, not insider); flow concentrated in insider-prone
-    categories keeps or gains weight. Adds insider_context (dominant group),
-    context_multiplier (weighted) and wallet_score_raw.
+    damped here and then dropped by ``exclude_contexts`` (high roller, not
+    insider); flow concentrated in insider-prone categories keeps or gains
+    weight. Adds insider_context (dominant group), context_multiplier
+    (weighted) and wallet_score_raw.
     """
 
     if wallet_risk is None or wallet_risk.empty or trades is None or trades.empty:
