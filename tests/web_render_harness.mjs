@@ -13,12 +13,14 @@ import { renderOverview, renderMarkets, renderFlow, renderCross, renderResolved,
 import { renderTraders, renderWhale, renderRisk, renderTrack } from '../web/js/pages/trader_pages.js';
 import { renderBacktester, renderCopy, renderPortfolio } from '../web/js/pages/trading_pages.js';
 import { renderAlerts, renderResearch, renderSettings, collapseQueue } from '../web/js/pages/system_pages.js';
+import { renderWallet } from '../web/js/pages/wallet_page.js';
 import { renderDetail, renderSearch } from '../web/js/overlays.js';
 
 const SEITEN = {
   overview: renderOverview, markets: renderMarkets, flow: renderFlow,
   cross: renderCross, resolved: renderResolved,
   traders: renderTraders, whale: renderWhale, risk: renderRisk, track: renderTrack,
+  wallet: renderWallet,
   backtester: renderBacktester, copy: renderCopy, portfolio: renderPortfolio,
   alerts: renderAlerts, research: renderResearch, settings: renderSettings
 };
@@ -53,6 +55,7 @@ function neuesT() {
       btExposure: 50, btBankroll: 1000, btFee: 20, btSlip: 15, btCompare: '', btTab: 'log',
       btFeeModel: 'curve',
       advancedOpen: false, sizingSimOpen: false, researchTab: 0, liveTab: 'runs',
+      walletAddr: '', walletInput: '', walletRecent: [], walletPosSort: 'value',
       alertsOn: { movers: true, volume: true, whales: true, spreads: false, holders: false, endings: true },
       settingsOn: { telegram: true, autotop: false, kalshi: true, sports: false, cache: true, admin: true },
       clock: '00:00', live: 'waiting', liveAsOf: '', tapeAsOf: ''
@@ -62,7 +65,7 @@ function neuesT() {
     herkunft: { markets: null, tape: null, traders: null, risks: null, cross: null },
     // Landing payloads (Overview): null until loaded, like in app.js.
     landing: { micro: null, runs: null, notes: null, herkunft: { micro: null, runs: null, notes: null } },
-    liveData: { leaderboard: null, cross: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {} },
+    liveData: { leaderboard: null, cross: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {} },
     num, money, esc, spark,
     seriesPoints: (v, w, h) => seriesPoints(v, w, h),
     act: () => 'data-act="0"',
@@ -521,7 +524,101 @@ function mitDaten(T) {
       was_passierte: 'x', auswirkung: 'y', fix: 'z',
       referenz: 'PR #12 (fill accounting); commit 8af07d6 (heartbeat); docs/research/ONE_PAGER.md; plain note' }]
   };
+  // Wallet page: one analysed address with the full /api/wallet answer
+  // (shape of app/api_views.wallet_detail). Small numbers, but every block
+  // the page reads: identity, track record with CIs and components, PnL
+  // curve with stats, edge with CI and categories, open/closed positions,
+  // activity, categories, context, limits.
+  T.state.walletAddr = WALLET_HARNESS_ADDR;
+  T.state.walletInput = WALLET_HARNESS_ADDR;
+  T.state.walletRecent = [WALLET_HARNESS_ADDR];
+  T.liveData.wallet[WALLET_HARNESS_ADDR] = { herkunft: 'live', data: walletNutzlast() };
   return T;
+}
+
+const WALLET_HARNESS_ADDR = '0xabc0000000000000000000000000000000000abc';
+
+function walletNutzlast() {
+  return {
+    wallet: WALLET_HARNESS_ADDR, snapshot_at: '2026-08-17T19:00:00+00:00', as_of: '2026-08-17 19:00 UTC',
+    track: { headline_win_rate: 0.75, resolved_markets: 12, resolved_capped: false },
+    realized_edge: { n_positions: 12, n_events: 11, edge: 0.05, ci_low: -0.02, ci_high: 0.12, verdict: 'thin', headline: 'Too few resolved events (11 < 30) to tell edge from chance either way.', capped: false },
+    sample: { n_resolved: 11, quality: 'insufficient', verdict_allowed: false },
+    errors: {},
+    pnl_curve: [0, 10, 5, 20, 15, 30],
+    recent_trades: [{ market: 'Harness market 0?', side: 'BUY Yes', price: '50.0¢', ago: '2026-07-01 10:00', size: 50 }],
+    identity: {
+      address: WALLET_HARNESS_ADDR, short: '0xabc0…0abc', pseudonym: 'harness_wallet',
+      profile_url: 'https://polymarket.com/profile/' + WALLET_HARNESS_ADDR, polygonscan_url: 'https://polygonscan.com/address/' + WALLET_HARNESS_ADDR,
+      first_activity: '2026-07-01T10:00:00Z', last_activity: '2026-07-05T10:00:00Z', days_active: 4.0, n_activity_rows: 4, activity_truncated: false
+    },
+    track_record: {
+      as_of: '2026-08-17 19:00 UTC', source: 'polymarket /closed-positions, winner and loser tails unioned', capped: false,
+      naive: { label: 'per position leg', win_rate: 0.75, wins: 9, n: 12, ci95: [0.468, 0.911] },
+      corrected: { label: 'per event, NegRisk legs netted', win_rate: 0.7273, wins: 8, n: 11, ci95: [0.4304, 0.9051] },
+      per_market: { label: 'per market', win_rate: 0.75, wins: 9, n: 12, ci95: [0.468, 0.911] },
+      legs_netted: 1, leg_inflation: 1.03, win_rate_reliable: true,
+      settled_pnl: 210.0, volume: 600.0, pnl_per_volume: 0.35, exit_win_rate: 1.0,
+      wash_flag: { flag: false, rule: 'volume >= $25,000 and |settled PnL| / volume < 0.5% over >= 5 resolved markets' },
+      survivorship_gate: { ok: false, resolved_markets: 12, span_days: 11.0, min_markets: 10, min_span_days: 14.0 },
+      concentration: { top_market_share: 0.2222, top3_share: 0.6667, top3: [{ title: 'Harness market 0?', pnl: 60.0, share: 0.2222 }, { title: 'Harness market 2?', pnl: 60.0, share: 0.2222 }, { title: 'Harness market 4?', pnl: 60.0, share: 0.2222 }], one_hit_flag: false },
+      risk_adjusted: 0.42, score: 27.0, grade: 'F',
+      score_components: [{ label: 'insufficient sample (15 + resolved markets, capped at 30)', value: 27.0, max: 30 }],
+      flags: ['insufficient sample (12 markets / 11d)'],
+      coverage_note: 'Complete resolved set: winners and losers unioned from the public closed-positions feed.'
+    },
+    pnl: {
+      as_of: '2026-08-17 19:00 UTC', window: 'All', source: 'user-pnl-api.polymarket.com',
+      points: [{ t: '2026-07-01T00:00:00Z', pnl: 0 }, { t: '2026-07-02T00:00:00Z', pnl: 10 }, { t: '2026-07-03T00:00:00Z', pnl: 5 }, { t: '2026-07-04T00:00:00Z', pnl: 20 }, { t: '2026-07-05T00:00:00Z', pnl: 15 }, { t: '2026-07-06T00:00:00Z', pnl: 30 }],
+      n_points: 6,
+      stats: { n_days: 5, total_pnl: 30.0, best_day: 15.0, worst_day: -5.0, mean_day: 6.0, daily_vol: 9.6177, winning_days: 3, losing_days: 2, win_day_rate: 0.6, max_drawdown: 5.0, max_drawdown_pct: 0.25, sharpe: 11.918, sortino: 22.916, calmar: 438.0, capital: null, return_on_capital: null, annualised_return: null },
+      note: 'Ratios in dollars per day, no capital base, annualised on 365 days; n_days is the sample.'
+    },
+    edge: {
+      as_of: '2026-08-17 19:00 UTC', capped: false,
+      per_dollar: { edge: 0.35, ci_low: 0.12, ci_high: 0.55, groups: 11, significant: true, method: 'payout / cost - 1 over resolved positions; 95% CI from a cluster bootstrap resampling whole events (4000 draws)' },
+      per_share: { n_positions: 12, n_events: 11, edge: 0.05, ci_low: -0.02, ci_high: 0.12, verdict: 'thin', headline: 'Too few resolved events (11 < 30) to tell edge from chance either way.', capped: false },
+      by_category: [{ category: 'Politics', groups: 7, positions: 8, cost: 400.0, pnl: 160.0, edge: 0.4, ci_low: 0.1, ci_high: 0.6 }, { category: 'Sports', groups: 4, positions: 4, cost: 200.0, pnl: 50.0, edge: 0.25, ci_low: null, ci_high: null }]
+    },
+    open_positions: {
+      as_of: '2026-08-17 19:00 UTC', n: 2, shown: 2, capped: false, total_exposure: 55.0, total_cost: 50.0, unrealized_pnl: 5.0, worthless_n: 1,
+      rows: [
+        { title: 'Open harness market A?', outcome: 'Yes', size: 100.0, avg_price: 0.4, current_price: 0.55, value: 55.0, cost: 40.0, unrealized_pnl: 15.0, pnl_pct: 0.375, end_time: '2026-12-31T00:00:00Z', market_key: '0xopenA', url: 'https://polymarket.com/event/open-a', status: 'open' },
+        { title: 'Resolved against, not redeemed?', outcome: 'No', size: 20.0, avg_price: 0.5, current_price: 0.0, value: 0.0, cost: 10.0, unrealized_pnl: -10.0, pnl_pct: -1.0, end_time: '2026-06-30T00:00:00Z', market_key: '0xworthless', url: '', status: 'worthless' }
+      ],
+      note: 'Value at the current price; positions at price 0 past their end date resolved against the wallet and were not redeemed (worthless).'
+    },
+    closed: {
+      as_of: '2026-08-17 19:00 UTC', capped: false, n: 12, shown: 2, won: 9, lost: 3, flat: 0, worthless_not_redeemed: 1, realized_pnl: 210.0,
+      rows: [
+        { title: 'Harness market 1?', outcome: 'Yes', avg_price: 0.5, current_price: 0.0, total_bought: 50.0, realized_pnl: -50.0, time: '2026-06-02T00:00:00Z', market_key: '0xc1', url: 'https://polymarket.com/event/event-1', result: 'lost' },
+        { title: 'Harness market 0?', outcome: 'Yes', avg_price: 0.5, current_price: 1.0, total_bought: 50.0, realized_pnl: 40.0, time: '2026-06-01T00:00:00Z', market_key: '0xc0', url: 'https://polymarket.com/event/event-0', result: 'won' }
+      ],
+      note: 'Complete resolved set: winners and losers unioned from the public closed-positions feed.',
+      source: 'polymarket /closed-positions, both sort directions, ~50 rows per tail'
+    },
+    activity: {
+      as_of: '2026-08-17 19:00 UTC', n_rows: 4, n_trades: 3, n_redeems: 1, window_truncated: false, first: '2026-07-01T10:00:00Z', last: '2026-07-05T10:00:00Z', span_days: 4.0,
+      trades: [
+        { time: '2026-07-03T10:00:00Z', type: 'TRADE', side: 'SELL', outcome: 'Yes', price: 0.6, size: 50.0, notional: 30.0, title: 'Harness market 0?', market_key: '0xc0', url: 'https://polymarket.com/event/event-0' },
+        { time: '2026-07-02T10:00:00Z', type: 'TRADE', side: 'BUY', outcome: 'No', price: 0.25, size: 100.0, notional: 25.0, title: 'LoL: Team A vs Team B market 1?', market_key: '0xc1', url: 'https://polymarket.com/event/event-1' },
+        { time: '2026-07-01T10:00:00Z', type: 'TRADE', side: 'BUY', outcome: 'Yes', price: 0.5, size: 100.0, notional: 50.0, title: 'Harness market 0?', market_key: '0xc0', url: 'https://polymarket.com/event/event-0' }
+      ],
+      shown: 3, buy_n: 2, sell_n: 1, buy_notional: 75.0, sell_notional: 30.0, redeem_notional: 50.0, net_cash_flow: 5.0, volume_traded: 105.0, avg_trade_size: 35.0, trades_per_day: 0.75, source: 'polymarket /activity'
+    },
+    categories: {
+      as_of: '2026-08-17 19:00 UTC', classifier: 'market_filter_category, then the insider-context title patterns (app.suspicion)',
+      rows: [{ category: 'Politics', stake: 50.0, trades: 2, pnl: 160.0, resolved_markets: 8 }, { category: 'Sports', stake: 25.0, trades: 1, pnl: 50.0, resolved_markets: 4 }],
+      note: 'Stake = BUY notional in the activity window; PnL = settled PnL of resolved markets, netted per market.'
+    },
+    context: {
+      as_of: '2026-08-17 19:00 UTC', n_trades: 3, notional: 105.0,
+      groups: [{ group: 'General', notional: 80.0, trades: 2, note: '', insider_prone: true, share: 0.7619 }, { group: 'Sports odds', notional: 25.0, trades: 1, note: 'public-odds arena', insider_prone: false, share: 0.2381 }],
+      insider_prone_share: 0.7619, excluded_share: 0.2381,
+      note: 'Share of traded notional by insider-plausibility group (app.suspicion.classify_insider_context).'
+    },
+    limits: ['Resolved positions come from the public /closed-positions feed, read in both sort directions with ~50 rows per tail.', 'Trades come from the public /activity feed in pages of 500 up to 2,000 rows.']
+  };
 }
 
 function rendern(T) {
@@ -539,9 +636,19 @@ function rendern(T) {
     raus['_detail_markt'] = String(renderDetail(T));
     T.state.detail = { kind: 'wallet', id: 'w1' };
     raus['_detail_wallet'] = String(renderDetail(T));
+    // A wallet outside the leaderboard opened by address (whale flow / risk
+    // screen row): the drawer must render from the address alone.
+    T.state.detail = { kind: 'wallet', id: '0xbbb2…0002', addr: '0xbbb2000000000000000000000000000000000002' };
+    raus['_detail_wallet_addr'] = String(renderDetail(T));
     T.state.detail = null;
     T.state.searchOpen = true;
     raus['_suche'] = String(renderSearch(T));
+    // The palette with a pasted full address, and with a partial one.
+    T.state.searchQuery = '0x29afe1bf37700768a640a08f1b35dad5f202f88d';
+    raus['_suche_adresse'] = String(renderSearch(T));
+    T.state.searchQuery = '0x29afe1';
+    raus['_suche_adresse_teil'] = String(renderSearch(T));
+    T.state.searchQuery = '';
     T.state.searchOpen = false;
   } catch (err) {
     raus['_overlays'] = 'RENDER-FEHLER: ' + (err && err.stack ? err.stack : err);
@@ -674,6 +781,51 @@ function rendern(T) {
       const alt = T.liveData.riskLog;
       T.liveData.riskLog = { _quelle: 'fehler', _fehler: 'HTTP 503' };
       return () => { T.liveData.riskLog = alt; };
+    }],
+    // Wallet page states: no address chosen, request in flight, failed
+    // (generic / 400 / 429), and the full answer sorted by unrealised PnL.
+    // The empty run has no payload: 'wallet' there is the no-address page.
+    ['wallet_none', 'wallet', { walletAddr: '', walletInput: '' }],
+    ['wallet_partial_input', 'wallet', { walletAddr: '', walletInput: '0x29afe1' }],
+    ['wallet_loading', 'wallet', { walletAddr: WALLET_HARNESS_ADDR, walletInput: WALLET_HARNESS_ADDR }, null, (T) => {
+      const alt = T.liveData.wallet[WALLET_HARNESS_ADDR];
+      T.liveData.wallet[WALLET_HARNESS_ADDR] = { herkunft: 'loading' };
+      return () => { if (alt) T.liveData.wallet[WALLET_HARNESS_ADDR] = alt; else delete T.liveData.wallet[WALLET_HARNESS_ADDR]; };
+    }],
+    ['wallet_error', 'wallet', { walletAddr: WALLET_HARNESS_ADDR, walletInput: WALLET_HARNESS_ADDR }, null, (T) => {
+      const alt = T.liveData.wallet[WALLET_HARNESS_ADDR];
+      T.liveData.wallet[WALLET_HARNESS_ADDR] = { herkunft: 'fehler', fehler: 'Failed to fetch', status: null };
+      return () => { if (alt) T.liveData.wallet[WALLET_HARNESS_ADDR] = alt; else delete T.liveData.wallet[WALLET_HARNESS_ADDR]; };
+    }],
+    ['wallet_error_400', 'wallet', { walletAddr: WALLET_HARNESS_ADDR, walletInput: WALLET_HARNESS_ADDR }, null, (T) => {
+      const alt = T.liveData.wallet[WALLET_HARNESS_ADDR];
+      T.liveData.wallet[WALLET_HARNESS_ADDR] = { herkunft: 'fehler', fehler: 'HTTP 400', status: 400 };
+      return () => { if (alt) T.liveData.wallet[WALLET_HARNESS_ADDR] = alt; else delete T.liveData.wallet[WALLET_HARNESS_ADDR]; };
+    }],
+    ['wallet_error_429', 'wallet', { walletAddr: WALLET_HARNESS_ADDR, walletInput: WALLET_HARNESS_ADDR }, null, (T) => {
+      const alt = T.liveData.wallet[WALLET_HARNESS_ADDR];
+      T.liveData.wallet[WALLET_HARNESS_ADDR] = { herkunft: 'fehler', fehler: 'HTTP 429', status: 429, retryAfter: 7 };
+      return () => { if (alt) T.liveData.wallet[WALLET_HARNESS_ADDR] = alt; else delete T.liveData.wallet[WALLET_HARNESS_ADDR]; };
+    }],
+    ['wallet_sort_pnl', 'wallet', { walletPosSort: 'pnl' }],
+    // The same address answered with an empty read: no resolved positions,
+    // no curve, no trades. Every block must say so, none may print a figure.
+    ['wallet_empty_answer', 'wallet', { walletAddr: WALLET_HARNESS_ADDR, walletInput: WALLET_HARNESS_ADDR }, null, (T) => {
+      const alt = T.liveData.wallet[WALLET_HARNESS_ADDR];
+      T.liveData.wallet[WALLET_HARNESS_ADDR] = { herkunft: 'live', data: {
+        wallet: WALLET_HARNESS_ADDR, as_of: '2026-08-17 19:00 UTC', errors: { resolved: 'HTTP 502' },
+        identity: { address: WALLET_HARNESS_ADDR, short: '0xabc0…0abc', pseudonym: '', profile_url: 'https://polymarket.com/profile/' + WALLET_HARNESS_ADDR, polygonscan_url: 'https://polygonscan.com/address/' + WALLET_HARNESS_ADDR, first_activity: '', last_activity: '', days_active: null, n_activity_rows: 0, activity_truncated: false },
+        track_record: null,
+        pnl: { as_of: '2026-08-17 19:00 UTC', window: 'All', points: [], n_points: 0, stats: null, source: 'user-pnl-api.polymarket.com', note: 'The profile PnL curve did not answer.' },
+        edge: { as_of: '2026-08-17 19:00 UTC', capped: false, per_dollar: { edge: null, ci_low: null, ci_high: null, groups: 0, significant: false, method: '' }, per_share: null, by_category: [] },
+        open_positions: { as_of: '2026-08-17 19:00 UTC', rows: [], n: 0, shown: 0, capped: false, total_exposure: 0, total_cost: 0, unrealized_pnl: 0, worthless_n: 0, note: 'No open positions in the public /positions feed.' },
+        closed: { as_of: '2026-08-17 19:00 UTC', capped: false, n: 0, shown: 0, won: 0, lost: 0, flat: 0, worthless_not_redeemed: 0, rows: [], realized_pnl: 0, note: 'No resolved positions found in the public feed for this wallet.', source: 'polymarket /closed-positions' },
+        activity: { as_of: '2026-08-17 19:00 UTC', n_rows: 0, n_trades: 0, n_redeems: 0, window_truncated: false, first: '', last: '', span_days: null, trades: [], shown: 0, buy_n: 0, sell_n: 0, buy_notional: 0, sell_notional: 0, redeem_notional: 0, net_cash_flow: 0, volume_traded: 0, avg_trade_size: null, trades_per_day: null, source: 'polymarket /activity' },
+        categories: { as_of: '2026-08-17 19:00 UTC', rows: [], classifier: 'x', note: 'x' },
+        context: { as_of: '2026-08-17 19:00 UTC', n_trades: 0, notional: 0, groups: [], insider_prone_share: null, excluded_share: null, note: 'No trades in the activity window to classify.' },
+        limits: ['Harness limit line.']
+      } };
+      return () => { if (alt) T.liveData.wallet[WALLET_HARNESS_ADDR] = alt; else delete T.liveData.wallet[WALLET_HARNESS_ADDR]; };
     }]
   ];
   varianten.forEach(([name, seite, zustand, nutzlast, vorbereiten]) => {

@@ -1101,5 +1101,165 @@ class WebLeerzustandTest(unittest.TestCase):
         leer = _sichtbarer_text(self.ausgabe["leer"]["research_category_efficiency"])
         self.assertIn("kategorie_karte.json", leer)
 
+    # ---- Wallet page ------------------------------------------------------
+
+    def test_wallet_seite_ohne_adresse_zeigt_eingabe_und_beispiel(self) -> None:
+        # No address chosen: input, Analyse button, example chip, no figure.
+        for name in ("wallet", "wallet_none"):
+            html = self.ausgabe["leer"][name]
+            text = _sichtbarer_text(html)
+            with self.subTest(seite=name):
+                self.assertIn('placeholder="0x… (40 hex characters)"', html)
+                self.assertIn("Analyse →", text)
+                self.assertIn("0x29af…f88d · live-run wallet", text)
+                self.assertIn("0x29afe1bf37700768a640a08f1b35dad5f202f88d", html)
+                self.assertIn("NO WALLET SELECTED", text)
+                self.assertNotIn("SETTLED PNL", text)
+                self.assertNotRegex(text, r"\$\d")
+        # A partial address is named as such, nothing is fetched.
+        teil = _sichtbarer_text(self.ausgabe["leer"]["wallet_partial_input"])
+        self.assertIn("Not a full address yet", teil)
+        self.assertIn("40 hex characters", teil)
+
+    def test_wallet_seite_lade_und_fehlerzustaende(self) -> None:
+        laden = _sichtbarer_text(self.ausgabe["leer"]["wallet_loading"])
+        self.assertIn("ANALYSING 0XABC0…0ABC", laden)
+        self.assertIn("up to ~10 s, six public API calls", laden)
+        self.assertNotIn("SETTLED PNL", laden)
+        fehler = _sichtbarer_text(self.ausgabe["leer"]["wallet_error"])
+        self.assertIn("API DID NOT ANSWER", fehler)
+        self.assertIn("/api/wallet/0xabc0…0abc did not answer: Failed to fetch", fehler)
+        self.assertIn("Try again", fehler)
+        vierhundert = _sichtbarer_text(self.ausgabe["leer"]["wallet_error_400"])
+        self.assertIn("NOT A WALLET ADDRESS", vierhundert)
+        self.assertIn("HTTP 400", vierhundert)
+        limit = _sichtbarer_text(self.ausgabe["leer"]["wallet_error_429"])
+        self.assertIn("RATE-LIMITED", limit)
+        self.assertIn("try again in 7 s", limit)
+        # No curve in any of these states.
+        for name in ("wallet_loading", "wallet_error", "wallet_error_400", "wallet_error_429"):
+            with self.subTest(seite=name):
+                self.assertNotRegex(self.ausgabe["leer"][name], r'<path d="M\s*\d')
+
+    def test_wallet_seite_mit_nutzlast_zeigt_jede_zahl_mit_n(self) -> None:
+        html = self.ausgabe["live"]["wallet"]
+        text = _sichtbarer_text(html)
+        # Identity with links and the as-of stamp.
+        self.assertIn("harness_wallet", text)
+        self.assertIn('href="https://polymarket.com/profile/0xabc0000000000000000000000000000000000abc"', html)
+        self.assertIn('href="https://polygonscan.com/address/0xabc0000000000000000000000000000000000abc"', html)
+        self.assertIn("as of 2026-08-17 19:00 UTC · cached 300 s", text)
+        self.assertIn("Replay this wallet in the backtester →", text)
+        # KPI row: every figure with its n / CI.
+        self.assertIn("SETTLED PNL +$210.00 n 12 resolved markets", text)
+        self.assertIn("CORRECTED WIN RATE 73% 8/11 events · 95% [43%, 91%]", text)
+        self.assertIn("GRADE F score 27 / 100 · below sample gate", text)
+        self.assertIn("SHARPE · DAILY $ 11.92 n 5 days · no capital base", text)
+        self.assertIn("MAX DRAWDOWN $5.00 25.0% of the running peak", text)
+        self.assertIn("VOLUME TRADED $105 3 trades", text)
+        # Track record: naive vs corrected side by side, flags, gate, components.
+        self.assertIn("Naive — per position leg (what a leaderboard implies) 75% 9 / 12 [47%, 91%]", text)
+        self.assertIn("Corrected — per event, NegRisk legs netted 73% 8 / 11 [43%, 91%]", text)
+        self.assertIn("NEGRISK LEGS NETTED 1", text)
+        self.assertIn("WASH / FARMER FLAG not flagged rule: volume", text)
+        self.assertIn("SURVIVORSHIP GATE not passed 12 markets over 11 d · needs ≥ 10 and ≥ 14 d", text)
+        self.assertIn("PROFIT CONCENTRATION 67% in top 3 best market 22%", text)
+        self.assertIn("SCORE 27 / 100 · GRADE F · COMPONENTS insufficient sample", text)
+        self.assertIn("insufficient sample (12 markets / 11d)", text)
+        # PnL curve drawn from the points, with its stats and their n.
+        self.assertIn("CUMULATIVE PNL · PROFILE CURVE · ALL", text)
+        self.assertRegex(html, r'<path d="M\s*\d')
+        self.assertIn("6 points · 5 daily changes", text)
+        self.assertIn("SORTINO 22.92", text)
+        self.assertIn("WIN-DAY SHARE 60% 3 up · 2 down · n 5", text)
+        # Edge with CI, per category; the interval chart is drawn.
+        self.assertIn("EDGE PER $ · CLUSTER BOOTSTRAP 35.0¢ per $ 95% CI [12.0¢, 55.0¢] · n 11 events · excludes zero", text)
+        self.assertIn("EDGE PER SHARE · ENTRY VS SETTLEMENT +5.0pp · THIN 95% CI [-2.0pp, +12.0pp] · n 11 events / 12 positions", text)
+        self.assertIn("Politics · n 7", text)
+        self.assertIn("RETURN PER $ STAKED · 95% CI", text)
+        # Open positions: N of N, exposure, worthless count, sort chips.
+        self.assertIn("2 of 2 positions", text)
+        self.assertIn("TOTAL EXPOSURE $55.00 value at current prices · 2 positions", text)
+        self.assertIn("RESOLVED · NOT REDEEMED 1", text)
+        self.assertIn("resolved · not redeemed", text)
+        self.assertIn("SORT BY Value Unrealised Cost Ends", text)
+        # Closed: won/lost/flat/worthless, N of N, capped not claimed.
+        self.assertIn("WON 9", text)
+        self.assertIn("LOST 3", text)
+        self.assertIn("2 of 12 resolved positions, largest |PnL| first", text)
+        self.assertNotIn("CAPPED", text)
+        # Categories / context bars, trades table with links, limits.
+        self.assertIn("STAKE BY CATEGORY", text)
+        self.assertIn("INSIDER-CONTEXT GROUPS · SHARE OF NOTIONAL", text)
+        self.assertIn("76% of traded notional sits in insider-plausible groups", text)
+        self.assertIn("3 of 3 trades, newest first", text)
+        self.assertIn("BUY · SELL 2 · 1", text)
+        self.assertIn("NET CASH FLOW +$5.00", text)
+        self.assertIn('href="https://polymarket.com/event/event-0"', html)
+        self.assertIn("LIMITS OF THIS READ", text)
+        self.assertIn("50 rows per tail", text)
+        # Every table sits in its own horizontal scroller.
+        self.assertGreaterEqual(html.count("overflow-x:auto"), 3)
+        # Sorted by unrealised PnL the worthless row still renders, nothing invented.
+        sortiert = _sichtbarer_text(self.ausgabe["live"]["wallet_sort_pnl"])
+        self.assertIn("Open harness market A?", sortiert)
+
+    def test_wallet_seite_leere_antwort_ohne_zahlen(self) -> None:
+        # The API answered, but the wallet has nothing in the public feeds:
+        # every block names its source, no figure appears, the failed part is
+        # listed under the limits.
+        text = _sichtbarer_text(self.ausgabe["live"]["wallet_empty_answer"])
+        self.assertIn("SETTLED PNL — no track record", text)
+        self.assertIn("SHARPE · DAILY $ — no PnL curve", text)
+        self.assertIn("No track record in the answer", text)
+        self.assertIn("No PnL curve — user-pnl-api.polymarket.com did not answer", text)
+        self.assertIn("No realized edge", text)
+        self.assertIn("No open positions in the public /positions feed", text)
+        self.assertIn("No trades in the public /activity feed", text)
+        self.assertIn("Parts that did not answer this time: resolved (HTTP 502)", text)
+        self.assertNotRegex(text, r"\d+%")
+        self.assertNotRegex(self.ausgabe["live"]["wallet_empty_answer"], r'<path d="M\s*\d')
+
+    def test_suchpalette_bietet_die_adresse_an(self) -> None:
+        # A pasted full address is offered as an action, a partial one gets a
+        # hint; both without any loaded list.
+        for modus in ("leer", "live"):
+            voll = _sichtbarer_text(self.ausgabe[modus]["_suche_adresse"])
+            with self.subTest(modus=modus):
+                self.assertIn("ANALYSE Analyse wallet 0x29af…f88d", voll)
+                self.assertIn("opens the wallet page (#wallet/", voll)
+        teil = _sichtbarer_text(self.ausgabe["leer"]["_suche_adresse_teil"])
+        self.assertIn("Paste the full address to analyse a wallet", teil)
+        self.assertIn("8 of 42 so far", teil)
+        self.assertNotIn("Analyse wallet", teil)
+        # The plain palette does not carry the action.
+        self.assertNotIn("Analyse wallet", _sichtbarer_text(self.ausgabe["leer"]["_suche"]))
+
+    def test_lade_zeigt_full_analysis_und_rendert_per_adresse(self) -> None:
+        # The drawer for a leaderboard row links to the full page; a wallet
+        # opened by address alone (whale flow, risk screen) renders too and
+        # names the request it is waiting for.
+        lade = _sichtbarer_text(self.ausgabe["live"]["_detail_wallet"])
+        self.assertIn("Full analysis →", lade)
+        self.assertIn("Open in the backtester", lade)
+        adresse = _sichtbarer_text(self.ausgabe["leer"]["_detail_wallet_addr"])
+        self.assertIn("0xbbb2000000000000000000000000000000000002", adresse)
+        self.assertIn("Waiting for /api/wallet/0xbbb2…0002", adresse)
+        self.assertIn("Full analysis →", adresse)
+        self.assertNotRegex(adresse, r"\$\d")
+
+    def test_wallet_route_und_seitenleiste(self) -> None:
+        app_js = (WURZEL / "web" / "js" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("wallet: renderWallet", app_js)
+        self.assertIn("this.navItem('wallet', 'Wallet')", app_js)
+        self.assertLess(app_js.index("this.navItem('traders', 'Leaderboard')"), app_js.index("this.navItem('wallet', 'Wallet')"))
+        self.assertIn("'#wallet/' + key", app_js)
+        self.assertIn("analyseWallet(addr)", app_js)
+        # No poll-state gate on the wallet fetches any more.
+        self.assertNotIn("if (this.state.live !== 'live') return;\n    const t = this.traders.find", app_js)
+        seite = (WURZEL / "web" / "js" / "pages" / "wallet_page.js").read_text(encoding="utf-8")
+        self.assertIn("/^0x[0-9a-fA-F]{40}$/", seite)
+
+
 if __name__ == "__main__":
     unittest.main()
