@@ -199,6 +199,7 @@ function daemonBlock(T, live, canWrite, s) {
   if (d.ws_connected != null) facts.push('websocket ' + (d.ws_connected ? 'connected' : 'not connected'));
   if (d.last_sync_at) facts.push('last pass ' + esc(ago(d.last_sync_at)));
   if (d.pid) facts.push('pid ' + esc(String(d.pid)));
+  if (d.in_process) facts.push('inside the API process');
   if (d.last_error) facts.push('<span style="color:' + RED + '">' + esc(String(d.last_error)) + '</span>');
   const syncBusy = s.copyBusy === 'sync' || sync.running === true;
   let syncLine = '';
@@ -221,8 +222,10 @@ function daemonBlock(T, live, canWrite, s) {
     + (syncLine ? '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); margin-top:8px">' + syncLine + '</div>' : '')
     + '<div style="font-size:12px; color:rgba(255,255,255,.45); margin-top:10px; line-height:1.6">'
     + 'The daemon copies continuously (WebSocket + API, settlements every 90 s) and reads the traders and settings from this desk on every pass. '
-    + 'Start it in a terminal from the repo root: <span style="' + M + '; color:rgba(255,255,255,.75)">.venv\\Scripts\\python.exe scripts\\run_copy_trader.py</span> '
-    + '(or <span style="' + M + '; color:rgba(255,255,255,.75)">scripts\\start_paper_desk.ps1</span>, which starts API and daemon together). '
+    + (d.in_process
+      ? 'Here it runs inside the API process (COPY_DAEMON=1) and restarts with it; the books sit on the host\'s volume. '
+      : 'Start it in a terminal from the repo root: <span style="' + M + '; color:rgba(255,255,255,.75)">.venv\\Scripts\\python.exe scripts\\run_copy_trader.py</span> '
+        + '(or <span style="' + M + '; color:rgba(255,255,255,.75)">scripts\\start_paper_desk.ps1</span>, which starts API and daemon together). ')
     + 'A sync pass from here books the same trades, just once, at up to 30 s latency.'
     + '</div></div>';
 }

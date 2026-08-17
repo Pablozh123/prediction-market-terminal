@@ -916,6 +916,9 @@ class Terminal {
   paperDeskSichtbar() {
     const host = (location.hostname || '').toLowerCase();
     if (host === 'localhost' || host === '127.0.0.1' || location.protocol === 'file:') return true;
+    // A stored admin token means this browser runs the desk on the public
+    // host; the sidebar lists it and the desk is fetched at mount.
+    if (String(this.state.copyToken || '').trim()) return true;
     const c = this.liveData.copy;
     return !!(c && c.write_access && c.write_access.allowed);
   }
@@ -1218,6 +1221,9 @@ class Terminal {
     }, 30000);
     this.ladeLanding();
     this.fetchPageData(this.state.page);
+    // The desk's badge in the sidebar (active traders) needs the answer even
+    // when the page opened elsewhere — only where this browser is its admin.
+    if (String(this.state.copyToken || '').trim() && this.state.page !== 'copy' && this.state.page !== 'portfolio') this.holenCopy();
   }
 }
 

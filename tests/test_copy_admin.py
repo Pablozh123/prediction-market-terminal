@@ -296,20 +296,80 @@ class DaemonStatusTests(unittest.TestCase):
         self.assertIsNone(ca.daemon_status(self.path)["running"])
 
 
+class FreshDeskTests(unittest.TestCase):
+    def test_fresh_desk_starts_with_the_seed_row_paused(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        try:
+            db = Path(tmp.name) / "desk" / "copy.sqlite"
+            self.assertTrue(ca.ensure_desk(db))
+            self.assertEqual(ct.active_trader_wallets(db_path=db), [])
+            row = ct.get_traders(db_path=db).set_index("wallet").loc[ct.COPY_TARGET_WALLET]
+            self.assertEqual(int(row["active"]), 0)
+            self.assertIn("paused", row["note"])
+            # Existing books are left alone (a resumed seed row stays resumed).
+            ct.update_trader(ct.COPY_TARGET_WALLET, active=True, db_path=db)
+            self.assertFalse(ca.ensure_desk(db))
+            self.assertEqual(ct.active_trader_wallets(db_path=db), [ct.COPY_TARGET_WALLET])
+        finally:
+            tmp.cleanup()
+
+
+class DaemonModuleTests(unittest.TestCase):
+    """app/copy_daemon.py hosts the loop; the script and the API both call it."""
+
+    def test_config_mirrors_the_cli_and_the_script_delegates(self) -> None:
+        import importlib.util
+        from app import copy_daemon as cd
+
+        script = Path(__file__).resolve().parents[1] / "scripts" / "run_copy_trader.py"
+        spec = importlib.util.spec_from_file_location("run_copy_trader_cli", script)
+        mod = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(mod)
+        with patch("sys.argv", ["run_copy_trader.py", "--once", "--disable-ws", "--api-interval", "12"]):
+            args = mod.parse_args()
+        cfg = cd.DaemonConfig(**vars(args))
+        self.assertTrue(cfg.once)
+        self.assertTrue(cfg.disable_ws)
+        self.assertEqual(cfg.api_interval, 12.0)
+        self.assertIs(mod.run, cd.run)
+        self.assertIs(mod.write_status, cd.write_status)
+
+    def test_once_pass_in_a_thread_writes_status_and_clears_a_stale_stop_file(self) -> None:
+        from app import copy_daemon as cd
+
+        tmp = tempfile.TemporaryDirectory()
+        try:
+            root = Path(tmp.name)
+            stop = root / "copy_trader.stop"
+            stop.write_text("stale", encoding="utf-8")
+            ca.ensure_desk(root / "copy.sqlite")
+            cfg = cd.DaemonConfig(once=True, disable_ws=True, disable_fast=True, db=str(root / "copy.sqlite"),
+                                  status_file=str(root / "status.json"), stop_file=str(stop))
+            with patch("src.copy_trading.measure_clock_offset_seconds", return_value=0.0), \
+                    patch("src.copy_trading.sync_active_copy_trades", return_value={}), \
+                    patch("src.copy_trading.sync_active_settlement_activity", return_value={}):
+                thread = cd.start_thread(cfg)
+                thread.join(20)
+            self.assertFalse(thread.is_alive())
+            self.assertFalse(stop.exists())
+            status = json.loads((root / "status.json").read_text(encoding="utf-8"))
+            self.assertTrue(status["completed_once"])
+            self.assertEqual(status["trader_wallets"], [])
+            self.assertIsNone(status["last_error"])
+        finally:
+            tmp.cleanup()
+
+
 class DaemonStatusWriteTests(unittest.TestCase):
-    """scripts/run_copy_trader.py write_status: the Windows rename race must
-    not kill the daemon (it did, the second the page was refreshed)."""
+    """app/copy_daemon.py write_status: the Windows rename race must not kill
+    the daemon (it did, the second the page was refreshed)."""
 
     @classmethod
     def setUpClass(cls) -> None:
-        import importlib.util
-        from pathlib import Path as _P
+        from app import copy_daemon as cd
 
-        script = _P(__file__).resolve().parents[1] / "scripts" / "run_copy_trader.py"
-        spec = importlib.util.spec_from_file_location("run_copy_trader_under_test", script)
-        cls.mod = importlib.util.module_from_spec(spec)
-        assert spec.loader is not None
-        spec.loader.exec_module(cls.mod)
+        cls.mod = cd
 
     def test_retries_the_rename_and_never_raises(self) -> None:
         tmp = tempfile.TemporaryDirectory()

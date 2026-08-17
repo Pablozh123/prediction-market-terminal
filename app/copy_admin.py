@@ -509,6 +509,34 @@ def sync_state() -> dict[str, Any]:
     return dict(_SYNC_STATE)
 
 
+# --- a fresh desk -------------------------------------------------------------
+
+
+def ensure_desk(db_path: str | Path = ct.DEFAULT_DB_PATH) -> bool:
+    """Create the books if they do not exist yet; a fresh desk copies nobody.
+
+    ``init_db`` seeds the legacy Swisstony wallet as the first trader (the
+    migration rule for databases that already followed it). On a desk that
+    never had books that would mean copying a wallet nobody asked for the
+    moment the daemon starts — so the seed row is created **paused**, with a
+    note saying why. Returns True when the database was created here.
+    """
+    path = Path(db_path)
+    if path.exists():
+        return False
+    conn = ct.connect(path)
+    try:
+        ct.update_trader(
+            ct.COPY_TARGET_WALLET,
+            active=False,
+            note="seed row from the migration — paused; resume only if you mean to copy this wallet",
+            conn=conn,
+        )
+    finally:
+        conn.close()
+    return True
+
+
 # --- the whole desk in one read -----------------------------------------------
 
 

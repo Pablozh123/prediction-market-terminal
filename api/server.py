@@ -38,6 +38,11 @@ Umgebung (alles optional, Voreinstellung = lokale Entwicklung):
     COPY_ADMIN_TOKEN           Schreibzugriff auf den Paper-Copy-Desk (/api/copy/*): ohne
                                Token nur von dieser Maschine (Loopback, kein Proxy-Header);
                                mit Token nur mit Header X-Admin-Token, von ueberall.
+    COPY_DATA_DIR              Ordner der Papierbuecher (Voreinstellung data/); auf einem
+                               PaaS ins gemountete Volume zeigen lassen (z. B. /data/copy_desk).
+    COPY_DAEMON=1              Copy-Schleife im API-Prozess mitlaufen lassen (ein Dienst, ein
+                               Volume). Lokal laeuft sie als eigener Prozess.
+    COPY_DESK_PRIVATE=1        Auch Lesen von /api/copy nur mit Admin-Token.
 
 Endpoints (read-only ausser POST /api/backtest, das nur simuliert, und dem
 Paper-Copy-Desk unter /api/copy/*, der lokale Papierbuecher schreibt):
@@ -135,6 +140,8 @@ async def _lifespan(_app: FastAPI):
     # Flag-Sampler (RISK_LOG_INTERVAL_MIN), siehe weiter unten; die Funktion
     # ist beim Start laengst definiert.
     start_risk_sampler()
+    # Copy daemon in-process (COPY_DAEMON=1), see the paper copy desk section.
+    start_copy_daemon()
     yield
 
 
@@ -1036,9 +1043,48 @@ def alerts(
 # these routes only map HTTP onto it. The daemon (scripts/run_copy_trader.py)
 # is still the thing that copies continuously; the desk configures it and can
 # run a single pass without it.
-COPY_DB_PATH = ROOT / "data" / "copy_trading.sqlite"
-COPY_SETTINGS_PATH = ROOT / "data" / "copy_settings.json"
-COPY_STATUS_PATH = ROOT / "data" / "copy_trader_status.json"
+#
+# COPY_DATA_DIR    where the books live (default data/ under the repo). On a
+#                  PaaS point it into the mounted volume, e.g. /data/copy_desk,
+#                  or the desk forgets everything on the next deploy.
+# COPY_DAEMON=1    run the copy loop inside this process (app/copy_daemon.py):
+#                  the one-service, one-volume way to have the daemon on a
+#                  host like Railway. Off by default — locally the daemon is
+#                  its own process (scripts/run_copy_trader.py).
+# COPY_DESK_PRIVATE=1  reads of /api/copy need the admin token as well; by
+#                  default the books are readable by everyone, writable by
+#                  the token holder — like the rest of the site, public read.
+COPY_DATA_DIR = Path(os.environ.get("COPY_DATA_DIR", "").strip() or (ROOT / "data"))
+COPY_DB_PATH = COPY_DATA_DIR / "copy_trading.sqlite"
+COPY_SETTINGS_PATH = COPY_DATA_DIR / "copy_settings.json"
+COPY_STATUS_PATH = COPY_DATA_DIR / "copy_trader_status.json"
+COPY_STOP_PATH = COPY_DATA_DIR / "copy_trader.stop"
+COPY_DAEMON_IN_PROCESS = os.environ.get("COPY_DAEMON", "").strip().lower() in {"1", "true", "yes", "on"}
+COPY_DESK_PRIVATE = os.environ.get("COPY_DESK_PRIVATE", "").strip().lower() in {"1", "true", "yes", "on"}
+_COPY_DAEMON_THREAD: threading.Thread | None = None
+
+
+def start_copy_daemon() -> None:
+    """Start the in-process copy loop when COPY_DAEMON is set (once)."""
+    global _COPY_DAEMON_THREAD
+    if not COPY_DAEMON_IN_PROCESS or (_COPY_DAEMON_THREAD is not None and _COPY_DAEMON_THREAD.is_alive()):
+        return
+    from app import copy_admin as ca
+    from app import copy_daemon as cd
+
+    # A desk that never had books starts with nobody active (the migration's
+    # seed row is paused) — the daemon must not copy a wallet nobody chose.
+    created = ca.ensure_desk(COPY_DB_PATH)
+    config = cd.DaemonConfig(
+        api_interval=30.0,
+        settlement_interval=90.0,
+        min_copy_notional=0.0,
+        db=str(COPY_DB_PATH),
+        status_file=str(COPY_STATUS_PATH),
+        stop_file=str(COPY_STOP_PATH),
+    )
+    _COPY_DAEMON_THREAD = cd.start_thread(config)
+    print(f"[copy-daemon] running in-process; books at {COPY_DB_PATH}" + (" (created fresh, seed trader paused)" if created else ""))
 
 
 def _copy_write_access(request: Request):
@@ -1080,12 +1126,17 @@ def copy_state(request: Request) -> dict[str, Any]:
     from app import copy_admin as ca
     from src import copy_trading as ct
 
-    # The public host has no books and nobody may write there: say so instead
-    # of conjuring an empty desk with a seed trader in it. Where writes are
-    # allowed (this machine), a missing database is a desk nobody has used yet
-    # and connect() lays down the schema so the follow form has somewhere to go.
-    if not COPY_DB_PATH.exists() and not _copy_write_access(request).allowed:
-        raise HTTPException(status_code=503, detail="no paper copy desk on this host — the books live where the copy daemon runs")
+    access = _copy_write_access(request)
+    if COPY_DESK_PRIVATE and not access.allowed:
+        raise HTTPException(status_code=403, detail="this desk is private — reads need the admin token too")
+    # A host without books where nobody may write: say so instead of conjuring
+    # an empty desk. Where writes are allowed, a missing database is a desk
+    # nobody has used yet: create it (seed row paused) so the form has
+    # somewhere to go.
+    if not COPY_DB_PATH.exists():
+        if not access.allowed:
+            raise HTTPException(status_code=503, detail="no paper copy desk on this host — the books live where the copy daemon runs")
+        ca.ensure_desk(COPY_DB_PATH)
 
     def _build() -> dict[str, Any]:
         conn = ct.connect(COPY_DB_PATH)
@@ -1159,8 +1210,9 @@ def copy_state(request: Request) -> dict[str, Any]:
         raise HTTPException(status_code=503, detail=f"copy state unavailable: {exc}")
     # Per request, never cached: who is asking decides whether they may write,
     # and the sync state changes underneath the cache.
-    payload["write_access"] = _copy_write_access(request).as_dict()
+    payload["write_access"] = access.as_dict()
     payload["sync"] = ca.sync_state()
+    payload["daemon"] = dict(payload.get("daemon") or {}, in_process=COPY_DAEMON_IN_PROCESS)
     payload["as_of"] = md.now_utc_label()
     return payload
 
