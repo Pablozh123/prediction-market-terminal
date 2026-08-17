@@ -246,6 +246,7 @@ def apply_fresh_wallet_bonus(event_risk: pd.DataFrame, clusters: pd.DataFrame, m
     enriched["fresh_wallets"] = pd.to_numeric(enriched.get("fresh_wallets"), errors="coerce").fillna(0).astype(int)
     has_cluster = enriched["fresh_wallets"] >= 2
     bonus = (enriched["fresh_wallets"].clip(upper=4) * (max_bonus / 4.0)).where(has_cluster, 0.0)
+    enriched["component_fresh_wallets"] = bonus.round(1)
     enriched["event_insider_score"] = (numeric_col(enriched, "event_insider_score") + bonus).clip(0, 100).round(0)
     enriched["event_insider_level"] = enriched["event_insider_score"].map(risk_level)
     if "event_insider_flags" in enriched:
@@ -409,6 +410,7 @@ def apply_coordination_bonus(event_risk: pd.DataFrame, clusters: pd.DataFrame, m
     if "event_insider_flags" in enriched.columns:
         already_bursty = enriched["event_insider_flags"].fillna("").astype(str).str.contains("multi-wallet burst")
         bonus = bonus.where(~already_bursty, bonus / 2.0)
+    enriched["component_coordination"] = bonus.round(1)
     enriched["event_insider_score"] = (numeric_col(enriched, "event_insider_score") + bonus).clip(0, 100).round(0)
     enriched["event_insider_level"] = enriched["event_insider_score"].map(risk_level)
     if "event_insider_flags" in enriched:
@@ -921,3 +923,269 @@ def wallets_for_event(trades: pd.DataFrame, wallet_risk: pd.DataFrame, title: st
         return pd.DataFrame()
     subset = wallet_risk[wallet_risk["wallet"].astype(str).str.lower().str.strip().isin(involved)]
     return subset.sort_values("wallet_insider_score", ascending=False).reset_index(drop=True)
+
+
+# ---------------------------------------------------------------------------
+# Flow details per event: which side, at what price, from whom, when.
+#
+# The base event score says "something is off here"; the owner reviewing a
+# flag afterwards needs to know WHICH side the money went to, at what price,
+# from which wallets and in which minutes — the market link and the price
+# afterwards decide whether the flag meant anything. Everything below is a
+# pure aggregation of the same trades frame the scores came from.
+# ---------------------------------------------------------------------------
+
+#: Order of the side buckets and their plain labels. "buys" of an outcome are
+#: exposure to that outcome; sells are the taker leaving it.
+SIDE_BUCKETS = (
+    ("buy_yes", "YES buys"),
+    ("buy_no", "NO buys"),
+    ("sell_yes", "YES sells"),
+    ("sell_no", "NO sells"),
+)
+
+#: Wallet placeholders of venues that publish no identities.
+_NO_WALLET = {"", "nan", "none", "not public"}
+
+
+def _side_bucket(side: Any, outcome: Any) -> str:
+    """Map a print to buy_yes / buy_no / sell_yes / sell_no.
+
+    Polymarket carries side BUY/SELL and outcome Yes/No. Kalshi carries the
+    taker side (yes/no) as ``side`` and the same as ``outcome``: the taker
+    took that outcome, i.e. bought it.
+    """
+
+    side_text = str(side or "").strip().upper()
+    outcome_text = str(outcome or "").strip().upper()
+    if outcome_text not in ("YES", "NO"):
+        outcome_text = side_text if side_text in ("YES", "NO") else ""
+    if not outcome_text:
+        return ""
+    verb = "sell" if side_text == "SELL" else "buy"
+    return f"{verb}_{outcome_text.lower()}"
+
+
+def _prep_flow_frame(trades: pd.DataFrame) -> pd.DataFrame:
+    df = trades.copy()
+    df["platform"] = df.get("platform", pd.Series("", index=df.index)).fillna("").astype(str)
+    df["title"] = df.get("title", pd.Series("", index=df.index)).fillna("").astype(str)
+    df = df[df["title"].str.strip().ne("")]
+    if df.empty:
+        return df
+    df["_wallet"] = df.get("wallet", pd.Series("", index=df.index)).fillna("").astype(str).str.lower().str.strip()
+    df.loc[df["_wallet"].isin(_NO_WALLET), "_wallet"] = ""
+    df["_notional"] = numeric_col(df, "notional").clip(lower=0.0)
+    df["_price"] = pd.to_numeric(df.get("price", pd.Series(dtype=float)), errors="coerce")
+    df["_time"] = pd.to_datetime(df.get("time", pd.Series(pd.NaT, index=df.index)), utc=True, errors="coerce")
+    sides = df.get("side", pd.Series("", index=df.index))
+    outcomes = df.get("outcome", pd.Series("", index=df.index))
+    df["_bucket"] = [_side_bucket(s, o) for s, o in zip(sides, outcomes)]
+    df["_bucket_label"] = df["_bucket"].map(dict(SIDE_BUCKETS)).fillna("")
+    return df
+
+
+def event_flow_details(
+    trades: pd.DataFrame,
+    *,
+    top_n: int = 3,
+    fresh_max_trades: int = 2,
+    whale_threshold: float | None = None,
+) -> pd.DataFrame:
+    """Per (platform, title): side split, dominant side, prices, window, top wallets, link.
+
+    Columns: platform, title, side_buy_yes, side_buy_no, side_sell_yes,
+    side_sell_no (notional per bucket), side (label of the dominant bucket,
+    e.g. "NO buys"), side_notional, side_share, price_outcome (YES/NO — the
+    outcome the prices refer to), price_first, price_last, price_min,
+    price_max (over the dominant-side prints, in that outcome's price),
+    first_print, last_print (UTC), window_minutes, top_wallets (list of
+    {wallet, notional, share, side, fresh}), url, slug, token_id (asset of the
+    latest dominant-side print, Polymarket only).
+
+    ``fresh`` per wallet uses the same tape-relative proxy as
+    :func:`fresh_wallet_clusters` (few prints in the whole tape, whale-sized
+    total) and is only computed when ``whale_threshold`` is given; otherwise
+    it is ``None`` — the payload says "not computed" rather than "no".
+    """
+
+    columns = [
+        "platform", "title", "side_buy_yes", "side_buy_no", "side_sell_yes", "side_sell_no",
+        "side", "side_notional", "side_share", "price_outcome", "price_first", "price_last",
+        "price_min", "price_max", "first_print", "last_print", "window_minutes", "top_wallets",
+        "url", "slug", "token_id",
+    ]
+    if trades is None or trades.empty or "title" not in trades.columns:
+        return pd.DataFrame(columns=columns)
+    df = _prep_flow_frame(trades)
+    if df.empty:
+        return pd.DataFrame(columns=columns)
+
+    fresh_set: set[str] | None = None
+    if whale_threshold is not None:
+        with_wallet = df[df["_wallet"].ne("")]
+        if not with_wallet.empty:
+            per_wallet = with_wallet.groupby("_wallet").agg(n=("_wallet", "size"), total=("_notional", "sum"))
+            fresh_set = set(per_wallet[(per_wallet["n"] <= int(fresh_max_trades)) & (per_wallet["total"] >= float(whale_threshold))].index)
+        else:
+            fresh_set = set()
+
+    rows: list[dict[str, Any]] = []
+    for (platform, title), group in df.groupby(["platform", "title"], dropna=False, sort=False):
+        total = float(group["_notional"].sum())
+        split = group.groupby("_bucket")["_notional"].sum()
+        buckets = {key: float(split.get(key, 0.0)) for key, _ in SIDE_BUCKETS}
+        dominant_key = ""
+        dominant_value = 0.0
+        for key, _ in SIDE_BUCKETS:
+            if buckets[key] > dominant_value:
+                dominant_key, dominant_value = key, buckets[key]
+        side_label = dict(SIDE_BUCKETS).get(dominant_key, "")
+        dominant = group[group["_bucket"].eq(dominant_key)] if dominant_key else group.iloc[0:0]
+        priced = dominant[dominant["_price"].notna() & (dominant["_price"] > 0)].sort_values("_time")
+        price_first = float(priced["_price"].iloc[0]) if not priced.empty else None
+        price_last = float(priced["_price"].iloc[-1]) if not priced.empty else None
+        price_min = float(priced["_price"].min()) if not priced.empty else None
+        price_max = float(priced["_price"].max()) if not priced.empty else None
+        price_outcome = dominant_key.split("_")[-1].upper() if dominant_key else ""
+
+        times = group["_time"].dropna()
+        first_print = times.min() if not times.empty else pd.NaT
+        last_print = times.max() if not times.empty else pd.NaT
+        window_minutes = float((last_print - first_print).total_seconds() / 60.0) if not times.empty else None
+
+        top_wallets: list[dict[str, Any]] = []
+        with_wallet = group[group["_wallet"].ne("")]
+        if not with_wallet.empty:
+            per_wallet = with_wallet.groupby("_wallet")["_notional"].sum().sort_values(ascending=False).head(int(top_n))
+            for wallet, value in per_wallet.items():
+                own = with_wallet[with_wallet["_wallet"].eq(wallet)]
+                own_split = own.groupby("_bucket_label")["_notional"].sum().sort_values(ascending=False)
+                own_side = str(own_split.index[0]) if not own_split.empty and str(own_split.index[0]) else ""
+                top_wallets.append({
+                    "wallet": str(wallet),
+                    "notional": float(value),
+                    "share": float(value / total) if total > 0 else 0.0,
+                    "side": own_side,
+                    "fresh": (wallet in fresh_set) if fresh_set is not None else None,
+                })
+
+        url = ""
+        slug = ""
+        if "url" in group.columns:
+            urls = group["url"].dropna().astype(str)
+            urls = urls[urls.str.strip().ne("") & urls.str.lower().ne("nan")]
+            url = str(urls.iloc[0]) if not urls.empty else ""
+        if "slug" in group.columns:
+            slugs = group["slug"].dropna().astype(str)
+            slugs = slugs[slugs.str.strip().ne("") & slugs.str.lower().ne("nan")]
+            slug = str(slugs.iloc[0]) if not slugs.empty else ""
+        token_id = ""
+        if "asset" in dominant.columns and not dominant.empty:
+            assets = dominant.sort_values("_time", ascending=False)["asset"].dropna().astype(str)
+            assets = assets[assets.str.strip().ne("") & assets.str.lower().ne("nan")]
+            token_id = str(assets.iloc[0]) if not assets.empty else ""
+
+        rows.append({
+            "platform": str(platform),
+            "title": str(title),
+            "side_buy_yes": buckets["buy_yes"],
+            "side_buy_no": buckets["buy_no"],
+            "side_sell_yes": buckets["sell_yes"],
+            "side_sell_no": buckets["sell_no"],
+            "side": side_label,
+            "side_notional": dominant_value,
+            "side_share": (dominant_value / total) if total > 0 else 0.0,
+            "price_outcome": price_outcome,
+            "price_first": price_first,
+            "price_last": price_last,
+            "price_min": price_min,
+            "price_max": price_max,
+            "first_print": first_print,
+            "last_print": last_print,
+            "window_minutes": window_minutes,
+            "top_wallets": top_wallets,
+            "url": url,
+            "slug": slug,
+            "token_id": token_id,
+        })
+    return pd.DataFrame(rows, columns=columns)
+
+
+def enrich_event_flow(event_risk: pd.DataFrame, trades: pd.DataFrame, **kwargs: Any) -> pd.DataFrame:
+    """Attach :func:`event_flow_details` to the scored event frame (by platform + title).
+
+    The details win over same-named base columns (the base ``side_share`` is
+    the BUY-vs-SELL share, the flow ``side_share`` the share of the dominant
+    YES/NO bucket — the latter is what the card and the log mean by "side").
+    Only ``url`` keeps the base value when the details carry none.
+    """
+
+    if event_risk is None or event_risk.empty:
+        return event_risk
+    details = event_flow_details(trades, **kwargs)
+    if details.empty:
+        return event_risk
+    merge_keys = ["platform", "title"] if "platform" in event_risk.columns else ["title"]
+    if "platform" not in event_risk.columns:
+        details = details.drop(columns=["platform"])
+    overlap = [c for c in details.columns if c in event_risk.columns and c not in merge_keys]
+    enriched = event_risk.merge(details.rename(columns={c: f"{c}__flow" for c in overlap}), on=merge_keys, how="left")
+    for column in overlap:
+        flow_col = f"{column}__flow"
+        base = enriched[column]
+        flow = enriched[flow_col]
+        if column == "url":
+            base_empty = base.isna() | base.astype(str).str.strip().eq("") | base.astype(str).str.lower().eq("nan")
+            enriched[column] = base.where(~base_empty, flow)
+        else:
+            enriched[column] = flow.where(flow.notna(), base)
+        enriched = enriched.drop(columns=[flow_col])
+    return enriched
+
+
+#: Score components an event row can carry, with label and cap. The base
+#: components come from ``whale_event_risk_scores`` (component_* columns),
+#: the bonuses from apply_fresh_wallet_bonus / apply_coordination_bonus.
+EVENT_COMPONENTS = (
+    ("component_notional", "notional", 15.0),
+    ("component_largest", "largest print", 10.0),
+    ("component_long_odds", "long odds", 10.0),
+    ("component_concentration", "top-wallet concentration", 15.0),
+    ("component_direction", "one-sided flow", 10.0),
+    ("component_burst", "burst", 15.0),
+    ("component_late", "late flow", 15.0),
+    ("price_move_score", "price move", 10.0),
+    ("component_cluster", "multi-wallet burst", 10.0),
+    ("component_fresh_wallets", "fresh-wallet cluster", 10.0),
+    ("component_coordination", "timing cluster", 10.0),
+)
+
+
+def event_components(row: Any) -> list[dict[str, Any]]:
+    """Labelled score components of one event row: [{key, label, value, max}].
+
+    Only columns present on the row are listed (an older frame without the
+    component columns yields an empty list, never invented zeros). The
+    context multiplier is appended as its own entry when the row carries one.
+    """
+
+    getter = row.get if hasattr(row, "get") else (lambda key, default=None: default)
+    parts: list[dict[str, Any]] = []
+    for key, label, cap in EVENT_COMPONENTS:
+        value = getter(key, None)
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            continue
+        if math.isnan(number):
+            continue
+        parts.append({"key": key, "label": label, "value": round(number, 1), "max": cap})
+    multiplier = getter("context_multiplier", None)
+    try:
+        factor = float(multiplier)
+    except (TypeError, ValueError):
+        factor = None
+    if factor is not None and not math.isnan(factor):
+        parts.append({"key": "context_multiplier", "label": "context multiplier", "value": round(factor, 2), "max": None})
+    return parts

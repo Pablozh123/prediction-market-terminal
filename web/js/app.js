@@ -28,6 +28,9 @@ export const REPO_URL = 'https://github.com/Pablozh123/prediction-market-termina
 export const ONE_PAGER_URL = REPO_URL + '/blob/main/docs/research/ONE_PAGER.md';
 export const LIVE_RUN_WALLET_FULL = '0x29afe1bf37700768a640a08f1b35dad5f202f88d';
 export const LIVE_RUN_WALLET = '0x29af…f88d';
+// Flag log of the risk screen: newest 100 rows, with the price after the flag
+// for the newest Polymarket flags (enrich=1).
+const RISK_LOG_PATH = '/api/risk/log?limit=100&enrich=1';
 
 class Terminal {
   constructor() {
@@ -135,7 +138,9 @@ class Terminal {
     }
     // Per-endpoint live payloads; templates use these when present and show
     // an empty state naming the source otherwise.
-    this.liveData = { leaderboard: null, cross: null, risk: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {} };
+    // riskLog: the flag log of the risk screen (/api/risk/log), fetched only
+    // when its tab is opened — null until then.
+    this.liveData = { leaderboard: null, cross: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {} };
 
     this._acts = [];
     this._inps = [];
@@ -535,6 +540,14 @@ class Terminal {
     this.fetchPageData(page || schluessel);
   }
 
+  // Open the flag-log tab of the risk screen and fetch the log once. The log
+  // is not part of /api/risk: it is read only when someone wants to see it,
+  // and re-read only via "Try again" (neuLaden) or a page reload.
+  openRiskLog() {
+    this.setState({ riskView: 'log' });
+    if (!this.liveData.riskLog) this.holen('riskLog', RISK_LOG_PATH);
+  }
+
   // Herkunft eines Containers aus der Antwort ableiten, die holen() abgelegt
   // hat. Vorhandensein entscheidet, nicht Laenge.
   herkunftAus(schluessel, zeilen) {
@@ -561,9 +574,15 @@ class Terminal {
     } else if (page === 'risk') {
       // Bewusst nicht mehr von der Startseite: der erste Aufbau paged einen Tag
       // Prints und schlaegt Marktkategorien nach, das blockierte die Overview.
-      await this.holen('risk', '/api/risk', (rk) => {
-        this.risks = rk.events || [];
-      });
+      // The flag log is a separate, cheaper request and only asked for while
+      // its tab is open (see openRiskLog); a retry via neuLaden lands here.
+      const logNeeded = this.state.riskView === 'log' && !this.liveData.riskLog;
+      await Promise.all([
+        this.holen('risk', '/api/risk', (rk) => {
+          this.risks = rk.events || [];
+        }),
+        logNeeded ? this.holen('riskLog', RISK_LOG_PATH) : Promise.resolve()
+      ]);
       this.herkunft.risks = this.herkunftAus('risk', this.risks);
     } else if (page === 'alerts') {
       // Die Schwellen gehoeren an den Endpunkt, der scannt. Bis eben blieben

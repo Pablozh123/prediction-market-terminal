@@ -26,6 +26,7 @@ const STATISCH = {
   '/api/research/methodology': 'audit.json',
   '/api/research/postmortems': 'postmortems.json',
   '/api/research/field-notes': 'field_notes.json',
+  '/api/research/wallet-ledger': 'wallet_ledger.json',
   '/api/research/meta': 'meta.json',
 };
 

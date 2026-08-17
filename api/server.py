@@ -22,6 +22,16 @@ Umgebung (alles optional, Voreinstellung = lokale Entwicklung):
     RATE_LIMIT_IP_HEADER       Header mit der Besucheradresse hinter dem Proxy
                                (X-Forwarded-For; hinter Cloudflare CF-Connecting-IP).
     CACHE_MAX_ENTRIES          Obergrenze des Prozess-Caches (512 Eintraege).
+    RISK_LOG_DIR               Verzeichnis des Flag-Logs des Risk-Screens (app/risk_log.py,
+                               Datei flags.jsonl); Voreinstellung data/risk_flags unter dem
+                               Repo-Root. Auf Railway ist das Dateisystem fluechtig: das Log
+                               ueberlebt ein Redeploy nur mit einem Volume unter /app/data
+                               (oder RISK_LOG_DIR zeigt in eines). Nicht beschreibbar =>
+                               Warnung auf stdout, kein Log, die Antwort bleibt heil.
+    RISK_LOG_MIN_SCORE         Ab welchem Score ein Event geloggt wird (40 = Band "Elevated").
+    RISK_LOG_INTERVAL_MIN      > 0 startet einen Daemon-Thread, der die Risk-Rechnung alle N
+                               Minuten anstoesst und die Flags loggt, auch ohne Besucher
+                               (0 = aus). Nutzt denselben 300-s-Cache wie /api/risk.
 
 Endpoints (alle read-only ausser POST /api/backtest, das nur simuliert):
 
@@ -34,6 +44,8 @@ Endpoints (alle read-only ausser POST /api/backtest, das nur simuliert):
     GET  /api/wallet/{wallet}
     GET  /api/cross?query=&min_similarity=0.5&max_pairs=50   (gate: sim >= 0.5, volume on both venues)
     GET  /api/risk
+    GET  /api/risk/log?limit=100&enrich=1   (Flag-Log; enrich=1 haengt an die neuesten 30
+                                             Polymarket-Flags den Preis +30 min/+2 h/+24 h)
     GET  /api/alerts
     GET  /api/copy
     GET  /api/research/{name}
@@ -53,6 +65,7 @@ import sys
 import threading
 import time
 from collections import OrderedDict
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -102,7 +115,15 @@ def _cors_origins() -> list[str]:
     return origins or ["http://127.0.0.1:8787", "http://localhost:8787"]
 
 
-app = FastAPI(title="Terminal API", version="0.2")
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    # Flag-Sampler (RISK_LOG_INTERVAL_MIN), siehe weiter unten; die Funktion
+    # ist beim Start laengst definiert.
+    start_risk_sampler()
+    yield
+
+
+app = FastAPI(title="Terminal API", version="0.2", lifespan=_lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins(),
@@ -598,15 +619,21 @@ def _tape_categories(trades: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-@app.get("/api/risk", dependencies=[Depends(expensive_route_limit)])
-def risk() -> dict[str, Any]:
+def build_risk_payload() -> dict[str, Any]:
+    """Der komplette Risk-Screen (Events, Wallets, Cluster, Netzwerk), 300 s gecacht.
+
+    Von ``/api/risk`` und vom Flag-Sampler gemeinsam genutzt, damit beide
+    dieselbe Rechnung und denselben Cache sehen. Wirft ``LookupError``, wenn
+    kein Tape da ist.
+    """
+
     from app import suspicion as susp
 
     settings = cfg.load_settings()
     whale_threshold = float(settings.get("whale_threshold", 2500))
     trades = load_tape(limit=1000, min_cash=0.0)
     if trades.empty:
-        raise HTTPException(status_code=503, detail="no trade tape available")
+        raise LookupError("no trade tape available")
 
     def _build() -> dict[str, Any]:
         # Sports, weather and crypto/market prices are excluded from the
@@ -617,11 +644,26 @@ def risk() -> dict[str, Any]:
         base = screened if screened is not None else pd.DataFrame()
         wallet_scores = md.whale_wallet_risk_scores(base, whale_threshold=whale_threshold)
         event_scores = md.whale_event_risk_scores(base, whale_threshold=whale_threshold)
-        payload = apv.risk_payload(wallet_scores, event_scores)
+        fresh = pd.DataFrame()
+        coord = pd.DataFrame()
         try:
             fresh = susp.fresh_wallet_clusters(base, whale_threshold=whale_threshold)
             coord = susp.coordinated_clusters(base)
-
+            # Same ladder as the Streamlit "Suspicious" page: fresh-wallet and
+            # timing bonuses, then the insider-plausibility multiplier of the
+            # market's context group. Each step leaves its points in a column
+            # (component_*), so the card and the flag log can say WHY.
+            event_scores = susp.apply_fresh_wallet_bonus(event_scores, fresh)
+            event_scores = susp.apply_coordination_bonus(event_scores, coord)
+            event_scores = susp.apply_category_context(event_scores)
+            # Side of the flow, price range, first/last print, top wallets,
+            # market link — what a review of the flag needs afterwards.
+            event_scores = susp.enrich_event_flow(
+                event_scores, base, whale_threshold=whale_threshold)
+        except Exception as exc:
+            print(f"[warn] event flow details: {exc}")
+        payload = apv.risk_payload(wallet_scores, event_scores)
+        try:
             # Der Netzwerk-Tape geht bewusst tiefer als der Screen-Tape: das
             # letzte Tausend Prints deckt auf dieser Venue rund eine Minute ab,
             # und in einer Minute teilt niemand mehr als einen Markt.
@@ -674,9 +716,134 @@ def risk() -> dict[str, Any]:
             print(f"[warn] suspicion clusters: {exc}")
         return payload
 
-    payload = cached("risk_payload", _build, ttl=300.0)
+    return cached("risk_payload", _build, ttl=300.0)
+
+
+def _record_risk_flags(payload: dict[str, Any]) -> None:
+    """Flag-Log fuettern; darf die Antwort nie kippen."""
+
+    try:
+        from app import risk_log
+
+        result = risk_log.record_flags(payload.get("events") or [])
+        if result.get("written") or result.get("updated"):
+            print(f"[risk-log] {result['written']} new, {result['updated']} updated -> {result['path']}")
+    except Exception as exc:
+        print(f"[warn] risk flag log: {exc}")
+
+
+@app.get("/api/risk", dependencies=[Depends(expensive_route_limit)])
+def risk() -> dict[str, Any]:
+    try:
+        payload = build_risk_payload()
+    except LookupError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    _record_risk_flags(payload)
     payload["as_of"] = md.now_utc_label()
     return payload
+
+
+#: Wie viele der neuesten Polymarket-Flags /api/risk/log?enrich=1 mit dem
+#: Preis danach versieht (ein CLOB-Aufruf je Flag, 300 s gecacht).
+RISK_LOG_ENRICH_MAX = 30
+
+
+def _flag_price_after(row: dict[str, Any]) -> dict[str, Any] | None:
+    """Preis +30 min / +2 h / +24 h nach dem Flag fuer ein Polymarket-Flag.
+
+    Der Token ist das Asset der dominanten Seite (aus den Prints), der Preis
+    also in derselben Outcome-Waehrung wie ``price_at_flag``. Ohne Token oder
+    ohne Historie ehrlich ``None``.
+    """
+
+    from app import risk_log
+
+    if str(row.get("venue") or "").lower() != "polymarket":
+        return None
+    token_id = str(row.get("token_id") or "").strip()
+    flag_time = row.get("window_end") or row.get("first_seen")
+    if not token_id or not flag_time:
+        return None
+    start = pd.to_datetime(flag_time, utc=True, errors="coerce")
+    if pd.isna(start):
+        return None
+    # Zwei Tage ab 23 h vor dem Flag: deckt +24 h ab, bleibt unter dem CLOB-
+    # Fensterdeckel und liefert Fuenf-Minuten-Kerzen fuer den +30-min-Punkt.
+    end_time = min(start + pd.Timedelta(hours=25), pd.Timestamp.now(tz="UTC"))
+
+    def _load() -> dict[str, Any] | None:
+        history = md.get_polymarket_price_history(token_id, days=2, interval="5m", end_time=end_time)
+        return risk_log.price_after(history, start, row.get("price_at_flag"))
+
+    return cached(f"flag_after_{row.get('flag_id')}_{token_id}", _load, ttl=300.0)
+
+
+@app.get("/api/risk/log")
+def risk_log_endpoint(limit: int = Query(100, ge=1, le=500), enrich: int = 0, since: str | None = None) -> dict[str, Any]:
+    from app import risk_log
+
+    rows = risk_log.read_flags(limit=limit, since=since)
+    enriched = 0
+    if enrich:
+        budget = RISK_LOG_ENRICH_MAX
+        for row in rows:
+            row["after"] = None
+            if budget <= 0:
+                continue
+            if str(row.get("venue") or "").lower() != "polymarket":
+                continue
+            budget -= 1
+            try:
+                row["after"] = _flag_price_after(row)
+                enriched += 1 if row["after"] else 0
+            except Exception as exc:
+                print(f"[warn] flag price after: {exc}")
+                row["after"] = None
+    return {
+        "rows": rows,
+        "count": len(rows),
+        "enriched": enriched,
+        "enrich_max": RISK_LOG_ENRICH_MAX,
+        "min_score": risk_log.min_score(),
+        "dedupe_hours": risk_log.DEDUPE_HOURS,
+        "sampler_interval_min": RISK_LOG_INTERVAL_MIN,
+        "note": ("Every event the screen flags (score >= min_score) is logged with side, price and wallets at that "
+                 "moment; 'after' is the price of the flagged side +30 min / +2 h / +24 h later (Polymarket only, "
+                 "null where the horizon has not passed or no history is available)."),
+        "as_of": md.now_utc_label(),
+    }
+
+
+# --- Flag-Sampler ------------------------------------------------------------
+# RISK_LOG_INTERVAL_MIN > 0 startet EINEN Daemon-Thread, der die Risk-Rechnung
+# alle N Minuten anstoesst und die Flags loggt — auch wenn niemand die Seite
+# oeffnet. Er nutzt denselben 300-s-Cache wie /api/risk; ein Intervall unter
+# fuenf Minuten rechnet also nicht oefter, es liest nur oefter den Cache.
+RISK_LOG_INTERVAL_MIN = max(0.0, _env_float("RISK_LOG_INTERVAL_MIN", 0.0))
+_SAMPLER_STARTED = threading.Event()
+
+
+def _risk_sampler_loop(interval_s: float) -> None:
+    print(f"[risk-log] sampler every {interval_s / 60:.1f} min")
+    while True:
+        try:
+            payload = build_risk_payload()
+            _record_risk_flags(payload)
+        except Exception as exc:
+            print(f"[warn] risk sampler: {exc}")
+        time.sleep(max(30.0, interval_s))
+
+
+def start_risk_sampler() -> bool:
+    """Startet den Sampler genau einmal; False, wenn aus oder schon gestartet."""
+
+    if RISK_LOG_INTERVAL_MIN <= 0 or _SAMPLER_STARTED.is_set():
+        return False
+    _SAMPLER_STARTED.set()
+    thread = threading.Thread(
+        target=_risk_sampler_loop, args=(RISK_LOG_INTERVAL_MIN * 60.0,), name="risk-flag-sampler", daemon=True)
+    thread.start()
+    return True
 
 
 @app.get("/api/alerts")

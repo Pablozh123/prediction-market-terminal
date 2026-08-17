@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import math
+from pathlib import Path
 from typing import Any, Callable, Mapping
 
 import pandas as pd
@@ -29,6 +30,10 @@ RESEARCH_FILES = {
     "postmortems": "postmortems",
     "field-notes": "field_notes",
     "meta": "meta",
+    # Everything the trading wallet did, by event — rebuilt from the public
+    # Data API by scripts/wallet_ledger.py. Also merged into the live-runs
+    # extras so the runs page needs no second request when the API answers.
+    "wallet-ledger": "wallet_ledger",
 }
 
 
@@ -495,6 +500,128 @@ def cross_rows(
     return rows
 
 
+#: Wie viele Event-Karten der Risk-Screen zeigt (und loggt).
+RISK_EVENT_LIMIT = 12
+
+
+def _iso(value: Any) -> str:
+    """Zeitstempel als ISO-8601 UTC ('' wenn leer/ungueltig)."""
+
+    stamp = pd.to_datetime(value, utc=True, errors="coerce")
+    if stamp is None or pd.isna(stamp):
+        return ""
+    return stamp.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def market_url(venue: str, market_key: str, url: str = "", slug: str = "") -> str:
+    """Direkter Link zum Markt: Polymarket-Event-Slug oder Kalshi-Ticker.
+
+    Bevorzugt die URL, die die Trades tragen (Polymarket-Trades fuehren den
+    Event-Slug); ohne sie den Markt-Slug; bei Kalshi den Ticker. Kein Link
+    ist besser als ein geratener.
+    """
+
+    url = _text(url).strip()
+    # A print without eventSlug leaves "https://polymarket.com/event/" behind:
+    # a link to nothing. Fall through to the slug or nothing at all.
+    if url.startswith("http") and not url.rstrip("/").endswith("/event"):
+        return url
+    slug = _text(slug).strip()
+    if slug:
+        return f"https://polymarket.com/event/{slug}"
+    key = _text(market_key).strip()
+    if str(venue).lower() == "kalshi" and key:
+        return f"https://kalshi.com/markets/{key}"
+    return ""
+
+
+def wallet_profile_url(venue: str, wallet: str) -> str:
+    address = _text(wallet).strip()
+    if str(venue).lower() == "polymarket" and address.startswith("0x"):
+        return f"https://polymarket.com/profile/{address}"
+    return ""
+
+
+def _split_from_row(row: Any) -> dict[str, float]:
+    return {
+        key: round(_num(row.get(f"side_{key}"), 0.0) or 0.0, 2)
+        for key, _label in susp.SIDE_BUCKETS
+    }
+
+
+def risk_event_row(row: Any) -> dict[str, Any]:
+    """Eine Event-Zeile des Risk-Screens mit Seite, Preis, Wallets, Fenster, Komponenten.
+
+    Felder ohne Messung bleiben ``None`` bzw. leer (Preis ohne Prints,
+    Wallets auf Kalshi, Komponenten eines aelteren Frames) — die Oberflaeche
+    sagt dann "n/a" statt eine Zahl zu erfinden.
+    """
+
+    flags = row.get("event_insider_flags") or row.get("event_risk_reasons") or []
+    if isinstance(flags, str):
+        # Der Score-Kern liefert die Flags als "; "-Kette; hier werden sie zu
+        # einzelnen Eintraegen, damit die Karte eine Art nennt und die Liste
+        # der Gruende getrennt zeigt. "watch only" ist kein Flag.
+        flags = [part.strip() for part in flags.split(";") if part.strip() and part.strip() != susp.WATCH_ONLY]
+    level = _text(row.get("event_insider_level") or row.get("event_risk_level")).lower()
+    venue = _text(row.get("platform")) or "Polymarket"
+    # Kalshi prints carry the ticker, not a market_key; the ticker IS the key.
+    market_key = _text(row.get("market_key")) or _text(row.get("ticker")) or (
+        _text(row.get("title")) if venue.lower() == "kalshi" else "")
+    notional = _num(row.get("notional"), 0.0) or 0.0
+    top_wallets_raw = row.get("top_wallets")
+    top_wallets: list[dict[str, Any]] = []
+    if isinstance(top_wallets_raw, (list, tuple)):
+        for item in top_wallets_raw:
+            if not isinstance(item, dict):
+                continue
+            address = _text(item.get("wallet"))
+            fresh = item.get("fresh")
+            top_wallets.append({
+                "wallet": address,
+                "short": short_wallet(address),
+                "notional": round(_num(item.get("notional"), 0.0) or 0.0, 2),
+                "share": round(_num(item.get("share"), 0.0) or 0.0, 4),
+                "side": _text(item.get("side")),
+                "fresh": bool(fresh) if fresh is not None else None,
+                "url": wallet_profile_url(venue, address),
+            })
+    window_minutes = _num(row.get("window_minutes"))
+    return {
+        "kind": (_text(flags[0]).upper() if flags else "EVENT SCREEN"),
+        "score": round(_num(row.get("event_insider_score") or row.get("event_risk_score"), 0.0) or 0.0),
+        "market": _text(row.get("title")),
+        "market_key": market_key,
+        "url": market_url(venue, market_key, _text(row.get("url")), _text(row.get("slug"))),
+        "detail": " · ".join(_text(f) for f in flags) or "No individual flags — score from combined components.",
+        "flags": [_text(f) for f in flags],
+        "wallets": int(_num(row.get("unique_wallets"), 0.0) or 0),
+        "notional": f"${notional / 1000:.0f}k",
+        "notional_usd": round(notional, 2),
+        "window": f"{(_num(row.get('trades_per_hour'), 0.0) or 0.0):.1f}/h",
+        "venue": venue,
+        "sev": "high" if level == "high" else "medium" if level == "medium" else "low",
+        "category": _text(row.get("insider_context")),
+        "context_note": _text(row.get("context_note")),
+        "side": _text(row.get("side")),
+        "side_notional": round(_num(row.get("side_notional"), 0.0) or 0.0, 2),
+        "side_share": round(_num(row.get("side_share"), 0.0) or 0.0, 4),
+        "side_split": _split_from_row(row),
+        "price_outcome": _text(row.get("price_outcome")),
+        "price_first": _num(row.get("price_first")),
+        "price_last": _num(row.get("price_last")),
+        "price_min": _num(row.get("price_min")),
+        "price_max": _num(row.get("price_max")),
+        "first_print": _iso(row.get("first_print")),
+        "last_print": _iso(row.get("last_print")),
+        "window_minutes": round(window_minutes, 1) if window_minutes is not None else None,
+        "prints": int(_num(row.get("trades"), 0.0) or 0),
+        "top_wallets": top_wallets,
+        "components": susp.event_components(row),
+        "token_id": _text(row.get("token_id")),
+    }
+
+
 def risk_payload(wallet_scores: pd.DataFrame, event_scores: pd.DataFrame) -> dict[str, Any]:
     """Whale-Risk-Frames in Events-Karten + Wallet-Tabelle + KPIs.
 
@@ -504,22 +631,8 @@ def risk_payload(wallet_scores: pd.DataFrame, event_scores: pd.DataFrame) -> dic
 
     events: list[dict[str, Any]] = []
     if event_scores is not None and not event_scores.empty:
-        for _, row in event_scores.head(12).iterrows():
-            flags = row.get("event_insider_flags") or row.get("event_risk_reasons") or []
-            if isinstance(flags, str):
-                flags = [flags] if flags.strip() else []
-            level = _text(row.get("event_insider_level") or row.get("event_risk_level")).lower()
-            events.append({
-                "kind": (_text(flags[0]).upper() if flags else "EVENT SCREEN"),
-                "score": round(_num(row.get("event_insider_score") or row.get("event_risk_score"), 0.0) or 0.0),
-                "market": _text(row.get("title")),
-                "detail": " · ".join(_text(f) for f in flags) or "No individual flags — score from combined components.",
-                "wallets": int(_num(row.get("unique_wallets"), 0.0) or 0),
-                "notional": f"${(_num(row.get('notional'), 0.0) or 0.0) / 1000:.0f}k",
-                "window": f"{(_num(row.get('trades_per_hour'), 0.0) or 0.0):.1f}/h",
-                "venue": _text(row.get("platform")) or "Polymarket",
-                "sev": "high" if level == "high" else "medium" if level == "medium" else "low",
-            })
+        for _, row in event_scores.head(RISK_EVENT_LIMIT).iterrows():
+            events.append(risk_event_row(row))
     wallets: list[dict[str, Any]] = []
     if wallet_scores is not None and not wallet_scores.empty:
         for _, row in wallet_scores.head(20).iterrows():
@@ -913,9 +1026,10 @@ def track_payload(
     return {"wallets": wallets, "watchlist": markets}
 
 
-def live_runs_extras(payload: Mapping[str, Any]) -> dict[str, Any]:
+def live_runs_extras(payload: Mapping[str, Any], publish_dir: Path | None = None) -> dict[str, Any]:
     """Sizing-Simulation, Kalibrierung, Timing-Decay und Monatsbilanz aus
-    runs.json — dieselben Module wie die Streamlit-Seite (app/run_sim.py)."""
+    runs.json — dieselben Module wie die Streamlit-Seite (app/run_sim.py) —
+    plus the wallet ledger from ``publish_dir`` (default public/data)."""
 
     from app import calibration as calib
     from app import run_sim as rsim
@@ -985,7 +1099,26 @@ def live_runs_extras(payload: Mapping[str, Any]) -> dict[str, Any]:
             {"month": month, "runs": len(slot["runs"]), "bets": slot["bets"], "stake": round(slot["stake"], 2), "net": round(slot["net"], 2)}
             for month, slot in sorted(monthly.items(), reverse=True)
         ]
+    # The wallet ledger (public/data/wallet_ledger.json, scripts/wallet_ledger.py)
+    # rides along so the runs page shows "everything the wallet did" from the
+    # same response; the static site fetches the file itself. Absent file →
+    # no key, and the page names the file it is missing.
+    ledger = wallet_ledger_payload(publish_dir)
+    if ledger is not None:
+        out["wallet_ledger"] = ledger
     return out
+
+
+#: Where the published payloads live; api/server.py reads the same directory.
+PUBLISH_DIR = Path(__file__).resolve().parents[1] / "public" / "data"
+
+
+def wallet_ledger_payload(publish_dir: Path | None = None) -> dict[str, Any] | None:
+    """public/data/wallet_ledger.json as published, or None when it is not there."""
+
+    from app.analysis_views import load_publish_payload
+
+    return load_publish_payload(Path(publish_dir) if publish_dir is not None else PUBLISH_DIR, "wallet_ledger.json")
 
 
 def fidelity_block(orders: pd.DataFrame, portfolio: Mapping[str, Any], sizing: Mapping[str, Any]) -> dict[str, Any]:

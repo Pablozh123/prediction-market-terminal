@@ -780,3 +780,142 @@ class KalshiSportsWeatherTickerTests(unittest.TestCase):
     def test_non_sports_kx_tickers_stay_untouched(self) -> None:
         self.assertNotIn(susp.classify_insider_context("KXETHIOPIA-26DEC31", "")[0], susp.EXCLUDED_CONTEXTS)
         self.assertEqual(susp.classify_insider_context("Will the president win on 2026-11-03?", "")[0], susp.CONTEXT_POLITICS)
+
+
+class EventFlowDetailTests(unittest.TestCase):
+    """Side, price, window, top wallets and link per event, from the same tape as the score."""
+
+    def _tape(self) -> pd.DataFrame:
+        base = {"platform": "Polymarket", "title": "Rate hike in September?", "market_key": "0xc1",
+                "slug": "rate-hike-sep", "url": "https://polymarket.com/event/fed-september"}
+        return pd.DataFrame([
+            dict(base, time="2026-08-16T12:00:00Z", wallet="0xAAA1", side="BUY", outcome="No", price=0.30, notional=3000.0, asset="tokNO"),
+            dict(base, time="2026-08-16T12:10:00Z", wallet="0xBBB2", side="BUY", outcome="No", price=0.34, notional=17000.0, asset="tokNO"),
+            dict(base, time="2026-08-16T12:20:00Z", wallet="0xCCC3", side="BUY", outcome="Yes", price=0.66, notional=2000.0, asset="tokYES"),
+            dict(base, time="2026-08-16T12:25:00Z", wallet="0xAAA1", side="SELL", outcome="Yes", price=0.65, notional=1000.0, asset="tokYES"),
+            {"platform": "Kalshi", "title": "KXFED-26SEP", "market_key": "KXFED-26SEP", "time": "2026-08-16T12:20:00Z",
+             "wallet": "Not public", "side": "yes", "outcome": "yes", "price": 0.40, "notional": 4000.0,
+             "url": "https://kalshi.com/markets/KXFED-26SEP"},
+        ])
+
+    def test_side_split_dominant_side_and_prices(self) -> None:
+        details = susp.event_flow_details(self._tape(), whale_threshold=2500.0)
+        row = details[details["title"].eq("Rate hike in September?")].iloc[0]
+        self.assertEqual(row["side"], "NO buys")
+        self.assertAlmostEqual(row["side_buy_no"], 20000.0)
+        self.assertAlmostEqual(row["side_buy_yes"], 2000.0)
+        self.assertAlmostEqual(row["side_sell_yes"], 1000.0)
+        self.assertAlmostEqual(row["side_sell_no"], 0.0)
+        self.assertAlmostEqual(row["side_notional"], 20000.0)
+        self.assertAlmostEqual(row["side_share"], 20000.0 / 23000.0)
+        # Prices are those of the dominant side's outcome (NO), first/last by time.
+        self.assertEqual(row["price_outcome"], "NO")
+        self.assertAlmostEqual(row["price_first"], 0.30)
+        self.assertAlmostEqual(row["price_last"], 0.34)
+        self.assertAlmostEqual(row["price_min"], 0.30)
+        self.assertAlmostEqual(row["price_max"], 0.34)
+        self.assertEqual(row["token_id"], "tokNO")
+
+    def test_window_top_wallets_and_link(self) -> None:
+        details = susp.event_flow_details(self._tape(), whale_threshold=2500.0)
+        row = details[details["title"].eq("Rate hike in September?")].iloc[0]
+        self.assertEqual(str(row["first_print"]), "2026-08-16 12:00:00+00:00")
+        self.assertEqual(str(row["last_print"]), "2026-08-16 12:25:00+00:00")
+        self.assertAlmostEqual(row["window_minutes"], 25.0)
+        wallets = row["top_wallets"]
+        self.assertEqual([w["wallet"] for w in wallets], ["0xbbb2", "0xaaa1", "0xccc3"])
+        self.assertAlmostEqual(wallets[0]["share"], 17000.0 / 23000.0)
+        self.assertEqual(wallets[0]["side"], "NO buys")
+        # 0xBBB2: one print, $17k >= threshold -> fresh; 0xAAA1: two prints but
+        # only $4k in total; 0xCCC3: $2k below threshold. Neither is fresh.
+        self.assertTrue(wallets[0]["fresh"])
+        self.assertTrue(wallets[1]["fresh"])
+        self.assertFalse(wallets[2]["fresh"])
+        self.assertEqual(row["url"], "https://polymarket.com/event/fed-september")
+        self.assertEqual(row["slug"], "rate-hike-sep")
+
+    def test_fresh_is_none_when_not_computed_and_kalshi_has_no_wallets(self) -> None:
+        details = susp.event_flow_details(self._tape())
+        poly = details[details["title"].eq("Rate hike in September?")].iloc[0]
+        self.assertIsNone(poly["top_wallets"][0]["fresh"])
+        kalshi = details[details["title"].eq("KXFED-26SEP")].iloc[0]
+        self.assertEqual(kalshi["top_wallets"], [])
+        # Kalshi taker side "yes" is a YES buy; the price is the YES price.
+        self.assertEqual(kalshi["side"], "YES buys")
+        self.assertEqual(kalshi["price_outcome"], "YES")
+        self.assertAlmostEqual(kalshi["price_last"], 0.40)
+        self.assertEqual(kalshi["token_id"], "")
+
+    def test_empty_and_walletless_frames(self) -> None:
+        self.assertTrue(susp.event_flow_details(pd.DataFrame()).empty)
+        self.assertTrue(susp.event_flow_details(None).empty)
+        no_title = pd.DataFrame([{"wallet": "0x1", "notional": 5.0}])
+        self.assertTrue(susp.event_flow_details(no_title).empty)
+
+    def test_enrich_event_flow_merges_by_platform_and_title_and_keeps_base_url(self) -> None:
+        from src import prediction_markets as md
+
+        tape_df = self._tape()
+        events = md.whale_event_risk_scores(tape_df, whale_threshold=2500.0)
+        enriched = susp.enrich_event_flow(events, tape_df, whale_threshold=2500.0)
+        self.assertEqual(len(enriched), len(events))
+        poly = enriched[enriched["title"].eq("Rate hike in September?")].iloc[0]
+        self.assertEqual(poly["side"], "NO buys")
+        # The flow share (dominant YES/NO bucket) replaces the base BUY/SELL share.
+        self.assertAlmostEqual(poly["side_share"], 20000.0 / 23000.0)
+        self.assertEqual(poly["url"], "https://polymarket.com/event/fed-september")
+        for column in ("price_last", "first_print", "last_print", "top_wallets", "window_minutes", "token_id"):
+            self.assertIn(column, enriched.columns)
+        # Base component columns survive the merge.
+        self.assertIn("component_notional", enriched.columns)
+
+    def test_enrich_event_flow_leaves_empty_frames_alone(self) -> None:
+        empty = pd.DataFrame()
+        self.assertTrue(susp.enrich_event_flow(empty, self._tape()).empty)
+        events = pd.DataFrame([{"platform": "Polymarket", "title": "x", "event_insider_score": 10.0}])
+        self.assertEqual(len(susp.enrich_event_flow(events, pd.DataFrame())), 1)
+
+
+class EventComponentTests(unittest.TestCase):
+    """Score components come out as labelled numbers, never a joined string."""
+
+    def test_components_from_scored_frame_with_bonuses_and_context(self) -> None:
+        from src import prediction_markets as md
+
+        rows = [
+            trade("0xf1", "CEO resigns by Friday?", "Yes", 30_000.0, "2026-06-10T12:00:00Z"),
+            trade("0xf2", "CEO resigns by Friday?", "Yes", 30_000.0, "2026-06-10T12:03:00Z"),
+            trade("0xf3", "CEO resigns by Friday?", "Yes", 30_000.0, "2026-06-10T12:05:00Z"),
+        ]
+        for row in rows:
+            row["platform"] = "Polymarket"
+            row["side"] = "BUY"
+            row["price"] = 0.2
+        base = tape(rows)
+        events = md.whale_event_risk_scores(base, whale_threshold=2_500.0)
+        events = susp.apply_fresh_wallet_bonus(events, susp.fresh_wallet_clusters(base, whale_threshold=2_500.0))
+        events = susp.apply_coordination_bonus(events, susp.coordinated_clusters(base))
+        events = susp.apply_category_context(events)
+        parts = susp.event_components(events.iloc[0])
+        keys = {p["key"]: p for p in parts}
+        for key in ("component_notional", "component_largest", "component_concentration", "component_burst",
+                    "component_fresh_wallets", "component_coordination", "context_multiplier"):
+            self.assertIn(key, keys, key)
+        self.assertGreater(keys["component_fresh_wallets"]["value"], 0.0)
+        self.assertGreater(keys["component_coordination"]["value"], 0.0)
+        self.assertEqual(keys["component_fresh_wallets"]["max"], 10.0)
+        self.assertAlmostEqual(keys["context_multiplier"]["value"], susp.CONTEXT_MULTIPLIERS[susp.CONTEXT_CORPORATE])
+        for part in parts:
+            self.assertIsInstance(part["label"], str)
+            self.assertIsInstance(part["value"], float)
+
+    def test_components_of_an_older_row_without_columns_is_empty(self) -> None:
+        row = pd.Series({"title": "x", "event_insider_score": 50.0})
+        self.assertEqual(susp.event_components(row), [])
+        self.assertEqual(susp.event_components({}), [])
+
+    def test_nan_components_are_skipped(self) -> None:
+        row = pd.Series({"component_notional": float("nan"), "component_burst": 3.25, "context_multiplier": 1.15})
+        parts = susp.event_components(row)
+        self.assertEqual([p["key"] for p in parts], ["component_burst", "context_multiplier"])
+        self.assertEqual(parts[0]["value"], 3.2)

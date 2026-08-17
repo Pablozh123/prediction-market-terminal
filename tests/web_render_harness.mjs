@@ -62,7 +62,7 @@ function neuesT() {
     herkunft: { markets: null, tape: null, traders: null, risks: null, cross: null },
     // Landing payloads (Overview): null until loaded, like in app.js.
     landing: { micro: null, runs: null, notes: null, herkunft: { micro: null, runs: null, notes: null } },
-    liveData: { leaderboard: null, cross: null, risk: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {} },
+    liveData: { leaderboard: null, cross: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {} },
     num, money, esc, spark,
     seriesPoints: (v, w, h) => seriesPoints(v, w, h),
     act: () => 'data-act="0"',
@@ -184,15 +184,65 @@ function mitDaten(T) {
   }];
   T.herkunft.traders = { quelle: 'live' };
   T.liveData.leaderboard = { _quelle: 'live', rows: [], as_of: '2026-08-07' };
+  // Two event rows: one in the richer shape of api_views.risk_event_row
+  // (side, prices, window, top wallets, components, link) and one older row
+  // without those fields, which must still render without invented values.
   T.risks = [{
     kind: 'TIMING', score: 61, market: 'Example question', detail: 'three wallets, one side',
-    wallets: 3, notional: '$40k', window: '2 h', venue: 'Polymarket', sev: 'medium'
+    wallets: 3, notional: '$40k', window: '2 h', venue: 'Polymarket', sev: 'medium',
+    market_key: '0xc1', url: 'https://polymarket.com/event/example-question', flags: ['three wallets, one side'],
+    notional_usd: 40000, category: 'Politics & geopolitics', context_note: 'decisions are known to officials before the public',
+    side: 'NO buys', side_notional: 34000, side_share: 0.85,
+    side_split: { buy_yes: 6000, buy_no: 34000, sell_yes: 0, sell_no: 0 },
+    price_outcome: 'NO', price_first: 0.30, price_last: 0.34, price_min: 0.30, price_max: 0.34,
+    first_print: '2026-08-17T09:40:00Z', last_print: '2026-08-17T10:00:00Z', window_minutes: 20, prints: 4,
+    top_wallets: [
+      { wallet: '0xbbb2000000000000000000000000000000000002', short: '0xbbb2…0002', notional: 26000, share: 0.65, side: 'NO buys', fresh: true, url: 'https://polymarket.com/profile/0xbbb2000000000000000000000000000000000002' },
+      { wallet: '0xaaa1000000000000000000000000000000000001', short: '0xaaa1…0001', notional: 8000, share: 0.2, side: 'NO buys', fresh: false, url: 'https://polymarket.com/profile/0xaaa1000000000000000000000000000000000001' }
+    ],
+    components: [
+      { key: 'component_notional', label: 'notional', value: 6.0, max: 15 },
+      { key: 'component_concentration', label: 'top-wallet concentration', value: 9.8, max: 15 },
+      { key: 'component_late', label: 'late flow', value: 0, max: 15 },
+      { key: 'component_fresh_wallets', label: 'fresh-wallet cluster', value: 5.0, max: 10 },
+      { key: 'context_multiplier', label: 'context multiplier', value: 1.1, max: null }
+    ],
+    token_id: 'tokNO'
+  }, {
+    kind: 'EVENT SCREEN', score: 44, market: 'KXFED-26SEP', detail: 'No individual flags — score from combined components.',
+    wallets: 0, notional: '$12k', window: '3.0/h', venue: 'Kalshi', sev: 'low'
   }];
   T.herkunft.risks = { quelle: 'live' };
   T.liveData.risk = {
     _quelle: 'live',
     kpis: { events_screened: 12, high_risk_events: 1, high_risk_wallets: 2, fresh_clusters: 0, coordinated_clusters: 0 },
     wallets: [], fresh: [], timing: [], network: [], graph: null, matrix: {}
+  };
+  // Flag log (/api/risk/log?enrich=1): one Polymarket flag with the price
+  // after the flag read for +30 min and +2 h, +24 h not yet passed; one Kalshi
+  // flag without history. Newest first as the API delivers it.
+  T.liveData.riskLog = {
+    _quelle: 'live', as_of: '2026-08-17 10:30 UTC', count: 2, enriched: 1, enrich_max: 30, min_score: 40, dedupe_hours: 6, sampler_interval_min: 0,
+    rows: [{
+      flag_id: 'f1', first_seen: '2026-08-17T10:05:00Z', last_seen: '2026-08-17T10:25:00Z', times_seen: 3,
+      venue: 'Polymarket', market_key: '0xc1', title: 'Example question', url: 'https://polymarket.com/event/example-question',
+      category: 'Politics & geopolitics', kind: 'TIMING', flags: ['three wallets, one side'],
+      side: 'NO buys', side_share: 0.85, side_notional: 34000, side_split: { buy_yes: 6000, buy_no: 34000, sell_yes: 0, sell_no: 0 },
+      price_outcome: 'NO', price_at_flag: 0.34, price_min: 0.30, price_max: 0.34, notional: 40000, unique_wallets: 3, prints: 4,
+      top_wallets: [{ wallet: '0xbbb2000000000000000000000000000000000002', short: '0xbbb2…0002', notional: 26000, share: 0.65, side: 'NO buys', fresh: true, url: 'https://polymarket.com/profile/0xbbb2000000000000000000000000000000000002' }],
+      score: 61, sev: 'medium',
+      components: [{ key: 'component_concentration', label: 'top-wallet concentration', value: 9.8, max: 15 }, { key: 'component_fresh_wallets', label: 'fresh-wallet cluster', value: 5.0, max: 10 }],
+      window_start: '2026-08-17T09:40:00Z', window_end: '2026-08-17T10:00:00Z', window_minutes: 20, token_id: 'tokNO',
+      after: { '30m': { price: 0.37, move_c: 3.0 }, '2h': { price: 0.31, move_c: -3.0 }, '24h': null }
+    }, {
+      flag_id: 'f2', first_seen: '2026-08-17T09:00:00Z', last_seen: '2026-08-17T09:00:00Z', times_seen: 1,
+      venue: 'Kalshi', market_key: 'KXFED-26SEP', title: 'KXFED-26SEP', url: 'https://kalshi.com/markets/KXFED-26SEP',
+      category: 'General', kind: 'LARGE PRINT', flags: ['large print'],
+      side: 'YES buys', side_share: 1, side_notional: 12000, side_split: { buy_yes: 12000, buy_no: 0, sell_yes: 0, sell_no: 0 },
+      price_outcome: 'YES', price_at_flag: 0.4, price_min: 0.4, price_max: 0.4, notional: 12000, unique_wallets: 0, prints: 1,
+      top_wallets: [], score: 44, sev: 'low', components: [],
+      window_start: '2026-08-17T08:59:00Z', window_end: '2026-08-17T08:59:00Z', window_minutes: 0, token_id: '', after: null
+    }]
   };
   // One pair that clears the server gate (sim >= 0.5, volume on both venues).
   T.crossPairs = [{ event: 'Example question', cat: 'Macro', pm: 62, ks: 58, sim: 0.71, pmVol: 1200000, ksVol: 300000, held: '2 h' }];
@@ -372,7 +422,51 @@ function mitDaten(T) {
         pubdate_utc: '2026-07-04T00:00:00+00:00', n_entscheidungen: 7, eingepreist: 7,
         einsatz_usd: 0, realisierter_pnl_usd: 0, wetten: []
       }
-    ]
+    ],
+    // The wallet ledger as the API merges it (extras.wallet_ledger; the
+    // static site fetches wallet_ledger.json into the same shape): three
+    // events — a mixed bot event, a discretionary one with the Curtis note,
+    // a pilot one — and the aggregate the KPI row reads.
+    extras: {
+      wallet_ledger: {
+        hinweis: 'Harness ledger note.', stand_utc: '2026-08-17T01:02:03+00:00',
+        wallet: '0x29afe1bf37700768a640a08f1b35dad5f202f88d', kennzeichnung: 'wallet/public-api',
+        aggregat: {
+          einzahlungen_usd: null, kaeufe_usd: 156.35, verkaeufe_usd: 20, einloesungen_usd: 184.98,
+          netto_cashflow_usd: 48.63, n_events: 3, n_maerkte: 4, n_trades: 6, n_kaeufe: 5, n_verkaeufe: 1, n_einloesungen: 3,
+          positionen: { won: 2, lost: 1, flat: 0, worthless: 1, open: 0, unknown: 0 },
+          positionen_gewonnen: 2, positionen_verloren: 2, positionen_wertlos: 1, positionen_offen: 0, positionen_flat: 0,
+          closed_positions_capped: false, erste_aktivitaet_utc: '2026-07-18T00:48:16Z', letzte_aktivitaet_utc: '2026-08-11T17:03:24Z',
+          nach_typ: { bot: { events: 1, maerkte: 2 }, discretionary: { events: 1, maerkte: 1 }, pilot: { events: 1, maerkte: 1 } }
+        },
+        events: [
+          { event_slug: 'harness-event-a', titel: 'Harness bot event', url: 'https://polymarket.com/event/harness-event-a',
+            typ: 'bot', typ_mix: 'bot + discretionary', run_profil: 'harness_a', run_im_log: true,
+            von_utc: '2026-07-18T00:48:16Z', bis_utc: '2026-07-24T12:00:00Z', n_maerkte: 2, n_trades: 3, n_einloesungen: 2,
+            einsatz_usd: 51.34, verkaeufe_usd: 20, einloesungen_usd: 79.81, netto_cash_usd: 48.47, pnl_usd: 45.97,
+            status: { won: 1, lost: 0, flat: 0, worthless: 1, open: 0, unknown: 0 }, status_text: '1 won · 1 worthless',
+            notes: ['1 of 2 markets are not in the run log of \'harness_a\' (discretionary).'],
+            maerkte: [
+              { titel: 'Will the harness say "yes"?', seite: 'Yes', zuordnung: 'bot', run_profil: 'harness_a', avg_preis: 0.5, shares: 82.68, einsatz_usd: 41.34, pnl_usd: 55.97, pnl_art: 'realised (API realizedPnl)', status: 'won' },
+              { titel: 'Will the harness say "extra"?', seite: 'No', zuordnung: 'discretionary', run_profil: '', avg_preis: 0.5, shares: 20, einsatz_usd: 10, pnl_usd: -10, pnl_art: 'position resolved against and not redeemed (API cashPnl)', status: 'worthless' }
+            ] },
+          { event_slug: 'harness-curtis-e3', titel: 'Harness Curtis E3 event', url: 'https://polymarket.com/event/harness-curtis-e3',
+            typ: 'discretionary', typ_mix: '', run_profil: '', run_im_log: false,
+            von_utc: '2026-08-07T00:00:00Z', bis_utc: '2026-08-11T17:03:24Z', n_maerkte: 1, n_trades: 2, n_einloesungen: 0,
+            einsatz_usd: 100, verkaeufe_usd: 0, einloesungen_usd: 100, netto_cash_usd: 0, pnl_usd: 0.97,
+            status: { won: 1, lost: 0, flat: 0, worthless: 0, open: 0, unknown: 0 }, status_text: '1 won',
+            notes: ['Forecasts pre-registered before airing: https://github.com/Pablozh123/multi-agent-orchestration-informational-efficiency/blob/main/docs/project/PREREG_CURTIS_E3_2026-08-07.md'],
+            maerkte: [{ titel: 'Will anyone say "Harness" during President Curtis E3 S1?', seite: 'Yes', zuordnung: 'discretionary', run_profil: '', avg_preis: 0.95, shares: 105.3, einsatz_usd: 100, pnl_usd: 0.97, pnl_art: 'realised (API realizedPnl)', status: 'won' }] },
+          { event_slug: 'harness-pilot-gdp', titel: 'Harness pilot GDP event', url: 'https://polymarket.com/event/harness-pilot-gdp',
+            typ: 'pilot', typ_mix: '', run_profil: '', run_im_log: false,
+            von_utc: '2026-07-22T13:07:54Z', bis_utc: '2026-07-30T00:00:00Z', n_maerkte: 1, n_trades: 1, n_einloesungen: 1,
+            einsatz_usd: 5.01, verkaeufe_usd: 0, einloesungen_usd: 5.17, netto_cash_usd: 0.16, pnl_usd: 0.16,
+            status: { won: 1, lost: 0, flat: 0, worthless: 0, open: 0, unknown: 0 }, status_text: '1 won',
+            notes: ['Pre-registered small-stake pilot, rules frozen 2026-07-18; one of the 20 pilot trades of 2026-07-22.'],
+            maerkte: [{ titel: 'Will US GDP growth in Q2 2026 be less than 1.0%?', seite: 'No', zuordnung: 'pilot', run_profil: '', avg_preis: 0.967, shares: 5.18, einsatz_usd: 5.01, pnl_usd: 0.16, pnl_art: 'realised (API realizedPnl)', status: 'won' }] }
+        ]
+      }
+    }
   };
   // Mentions latency: zwei Ereignisse mit Zeiten, eines ohne Reaktion, ein
   // Ausschluss mit Statuscode. Median von 0.5 und 10 ist 5.25.
@@ -468,6 +562,35 @@ function rendern(T) {
     ['runs_sim', 'research', { researchTab: 3, liveTab: 'sim' }],
     ['runs_calib', 'research', { researchTab: 3, liveTab: 'calib' }],
     ['runs_record', 'research', { researchTab: 3, liveTab: 'record' }],
+    // Many runs: 15 with a fill and 6 without, like the 21 of runs.json. Every
+    // one must appear — a card per run with fills, a line per run without —
+    // and the ledger section must fall back to its file-naming line when the
+    // payload carries no extras. Only swapped in when a Live-runs payload is
+    // there (live mode); in the empty mode the page keeps its empty state.
+    ['runs_runs_many', 'research', { researchTab: 3, liveTab: 'runs' }, null, (T) => {
+      if (!T.liveData.research['Live runs']) return null;
+      const alt = T.liveData.research['Live runs'];
+      const runs = [];
+      for (let i = 0; i < 15; i += 1) {
+        runs.push({
+          profil: 'many_fill_' + i, episode_titel: 'Many-run card ' + i, modus: 'live', event_slug: 'many-event-' + i,
+          pubdate_utc: '2026-07-' + String(1 + i).padStart(2, '0') + 'T00:00:00+00:00',
+          n_entscheidungen: 3, eingepreist: 3, einsatz_usd: 10, realisierter_pnl_usd: 1,
+          wetten: [{ frage: 'Will many-run ' + i + ' say "yes"?', seite: 'YES', entscheidungs_preis: 0.5, avg_fill_preis: 0.5,
+                     einsatz_usd: 10, aufgeloest: true, gewonnen: true, pnl_usd: 1, fill_ts_utc: '2026-07-' + String(1 + i).padStart(2, '0') + 'T00:00:10Z' }]
+        });
+      }
+      for (let i = 0; i < 6; i += 1) {
+        runs.push({ profil: 'many_empty_' + i, episode_titel: 'Many-run line ' + i, modus: 'live',
+          pubdate_utc: '2026-07-2' + i + 'T00:00:00+00:00', n_entscheidungen: 2, eingepreist: 2, einsatz_usd: 0, realisierter_pnl_usd: 0, wetten: [] });
+      }
+      T.liveData.research['Live runs'] = {
+        _quelle: 'live', stand_utc: '2026-08-07T00:00:00+00:00', hinweis: 'Many-run harness payload.', kennzeichnung: 'live/descriptive',
+        aggregat: { n_runs: 21, n_wetten: 15, gewonnen: 15, verloren: 0, offen: 0, einsatz_usd: 150, realisierter_pnl_usd: 15, offener_einsatz_usd: 0 },
+        runs
+      };
+      return () => { T.liveData.research['Live runs'] = alt; };
+    }],
     // Jede weitere Studie einmal, damit ein neuer Eintrag in STUDIEN ohne
     // Renderer oder mit falschem Index hier auffaellt.
     ['research_microstructure', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Microstructure') }],
@@ -532,6 +655,25 @@ function rendern(T) {
       const alt = { live: T.liveData.risk, hk: T.herkunft.risks, risks: T.risks };
       T.liveData.risk = null; T.herkunft.risks = null; T.risks = [];
       return () => { T.liveData.risk = alt.live; T.herkunft.risks = alt.hk; T.risks = alt.risks; };
+    }],
+    // Flag log tab: with rows (live payload above / null in the empty run),
+    // still loading, answered empty, and failed. The log is fetched only when
+    // the tab is opened, so "loading" is the state right after the click.
+    ['risk_log', 'risk', { riskView: 'log' }],
+    ['risk_log_loading', 'risk', { riskView: 'log' }, null, (T) => {
+      const alt = T.liveData.riskLog;
+      T.liveData.riskLog = null;
+      return () => { T.liveData.riskLog = alt; };
+    }],
+    ['risk_log_empty', 'risk', { riskView: 'log' }, null, (T) => {
+      const alt = T.liveData.riskLog;
+      T.liveData.riskLog = { _quelle: 'live', rows: [], count: 0, enriched: 0, enrich_max: 30, min_score: 40, dedupe_hours: 6, sampler_interval_min: 0, as_of: '2026-08-17 10:30 UTC' };
+      return () => { T.liveData.riskLog = alt; };
+    }],
+    ['risk_log_error', 'risk', { riskView: 'log' }, null, (T) => {
+      const alt = T.liveData.riskLog;
+      T.liveData.riskLog = { _quelle: 'fehler', _fehler: 'HTTP 503' };
+      return () => { T.liveData.riskLog = alt; };
     }]
   ];
   varianten.forEach(([name, seite, zustand, nutzlast, vorbereiten]) => {

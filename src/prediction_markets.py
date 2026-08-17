@@ -3355,6 +3355,17 @@ def whale_event_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_00
     burst_score = (grouped["trades_per_hour"] / 30).clip(upper=1.0) * 15 * sample_weight
     late_score = grouped["late_share"].fillna(0.0).clip(upper=1.0) * 15
     cluster_score = (((grouped["unique_wallets"] >= 3) & (grouped["trades_per_hour"] >= 10)).astype(float)) * 10
+    # Die Punkte je Komponente bleiben als Spalten stehen: der Risk-Screen
+    # und das Flag-Log zeigen "warum" als beschriftete Zahlen, nicht als
+    # zusammengesetzten String (app.suspicion.event_components).
+    grouped["component_notional"] = notional_score.round(1)
+    grouped["component_largest"] = largest_score.round(1)
+    grouped["component_long_odds"] = long_odds_score.round(1)
+    grouped["component_concentration"] = wallet_concentration_score.round(1)
+    grouped["component_direction"] = direction_score.round(1)
+    grouped["component_burst"] = burst_score.round(1)
+    grouped["component_late"] = late_score.round(1)
+    grouped["component_cluster"] = cluster_score.round(1)
     grouped["event_insider_score"] = (
         notional_score
         + largest_score

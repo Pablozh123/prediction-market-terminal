@@ -264,6 +264,12 @@ export function kalibrierung(k) {
       + '<title>' + esc('predicted ' + Math.round(p.vorhergesagt * 100) + '% · realised ' + Math.round(p.realisiert * 100) + '% · n ' + (p.n != null ? p.n : '—')) + '</title></circle>';
   });
   const achse = 'fill="rgba(255,255,255,.4)" font-size="9" font-family="JetBrains Mono, monospace"';
+  // Axis lettering that survives the ~200 px small multiples of the category
+  // page: the ticks "0" and "1" sit at the ends of each axis, "predicted"
+  // alone in the middle under the x-axis, "realised" rotated along the
+  // y-axis. The former "→ realised ↑" centred under the x-axis ran into
+  // "predicted 1" at that width.
+  const yMitte = S / 2;
   return '<div style="' + CARD + '; padding:12px 14px 8px">'
     + '<div style="' + M + '; font-size:10px; letter-spacing:.12em; color:rgba(255,255,255,.6)">' + esc(k.titel || '') + '</div>'
     + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.38); margin-top:2px">' + esc(k.hinweis || ('n ' + gesamt + ' · ' + punkte.length + ' bins')) + '</div>'
@@ -272,11 +278,14 @@ export function kalibrierung(k) {
     + '<line x1="' + PAD + '" y1="' + (S - PAD) + '" x2="' + (S - PAD) + '" y2="' + PAD + '" stroke="rgba(255,255,255,.3)" stroke-dasharray="3 3" />'
     + '<path d="' + linie + '" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="1" />'
     + marken
-    + '<text x="' + PAD + '" y="' + (S - 6) + '" ' + achse + '>0</text>'
-    + '<text x="' + (S - PAD) + '" y="' + (S - 6) + '" ' + achse + ' text-anchor="end">predicted 1</text>'
+    // x-axis: 0 (left end), predicted (centre), 1 (right end)
+    + '<text x="' + PAD + '" y="' + (S - 6) + '" ' + achse + ' text-anchor="start">0</text>'
+    + '<text x="' + (S / 2) + '" y="' + (S - 6) + '" ' + achse + ' text-anchor="middle">predicted</text>'
+    + '<text x="' + (S - PAD) + '" y="' + (S - 6) + '" ' + achse + ' text-anchor="end">1</text>'
+    // y-axis: 1 (top end), realised (rotated, centre), 0 (bottom end)
     + '<text x="6" y="' + (PAD + 4) + '" ' + achse + '>1</text>'
+    + '<text x="10" y="' + yMitte + '" ' + achse + ' text-anchor="middle" transform="rotate(-90 10 ' + yMitte + ')">realised</text>'
     + '<text x="6" y="' + (S - PAD) + '" ' + achse + '>0</text>'
-    + '<text x="' + (S / 2) + '" y="' + (S - 6) + '" ' + achse + ' text-anchor="middle">→ realised ↑</text>'
     + '</svg></div>';
 }
 

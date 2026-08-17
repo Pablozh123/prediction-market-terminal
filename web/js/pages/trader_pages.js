@@ -278,6 +278,148 @@ export function renderWhale(T) {
 }
 
 // ---------------------------------------------------------------- risk screen
+// Helpers for the event cards and the flag log. Every field they read comes
+// from /api/risk (api_views.risk_event_row) or /api/risk/log; a missing value
+// renders as "—" or "n/a", never as a default number.
+const CHIP = M + '; font-size:9.5px; color:rgba(255,255,255,.55); border:1px solid rgba(255,255,255,.1); border-radius:4px; padding:1px 6px; white-space:nowrap';
+const LINK = 'color:#C8F542; text-decoration:none; ' + M + '; font-size:10.5px; letter-spacing:.06em';
+
+function cents(p) {
+  return (p == null || isNaN(p)) ? '—' : Math.round(Number(p) * 100) + '¢';
+}
+
+function utcShort(iso) {
+  // "2026-08-16T12:20:00Z" -> "16 Aug 12:20"; the API stamps are UTC.
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  if (!m) return '—';
+  const monate = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return Number(m[3]) + ' ' + monate[Number(m[2]) - 1] + ' ' + m[4] + ':' + m[5];
+}
+
+function windowLabel(first, last, minutes) {
+  if (!first && !last) return '—';
+  const span = minutes == null ? '' : ' · ' + (minutes < 90 ? Math.round(minutes) + ' min' : (minutes / 60).toFixed(1) + ' h');
+  return utcShort(first) + ' – ' + utcShort(last).replace(/^\d+ \w+ /, '') + ' UTC' + span;
+}
+
+// The dominant side of the flow as a chip: "NO buys $12k of $14k (86%)".
+export function riskSideChip(r) {
+  const side = r && r.side ? String(r.side) : '';
+  if (!side) return '<span style="' + CHIP + '">side n/a</span>';
+  const isNo = /^NO/.test(side);
+  const isSell = /sells$/.test(side);
+  const farbe = isSell ? '#FF7A7A' : isNo ? '#F5A623' : '#C8F542';
+  const total = r.notional_usd != null ? money(r.notional_usd) : String(r.notional || '');
+  const anteil = r.side_share != null ? ' (' + Math.round(r.side_share * 100) + '%)' : '';
+  return '<span style="' + M + '; font-size:10.5px; letter-spacing:.06em; color:' + farbe + '; border:1px solid ' + farbe + '55; border-radius:4px; padding:2px 7px; white-space:nowrap">'
+    + esc(side) + ' ' + esc(money(r.side_notional || 0)) + ' of ' + esc(total) + esc(anteil) + '</span>';
+}
+
+// Price of the flagged side at flag time: "NO 34¢ (30–34¢)".
+export function riskPriceLabel(r) {
+  if (!r || r.price_last == null) return 'price n/a';
+  const out = r.price_outcome ? r.price_outcome + ' ' : '';
+  const range = (r.price_min != null && r.price_max != null && (r.price_min !== r.price_max))
+    ? ' (' + cents(r.price_min) + '–' + cents(r.price_max) + ')' : '';
+  return out + cents(r.price_last) + range;
+}
+
+// Score components with points; zero components are left out (nothing to
+// explain), the context multiplier is shown when it is not 1.
+export function riskComponentsHtml(components) {
+  if (!Array.isArray(components) || !components.length) return '';
+  const teile = components.filter((c) => c && (c.key === 'context_multiplier' ? Number(c.value) !== 1 : Number(c.value) > 0));
+  if (!teile.length) return '<span style="' + CHIP + '">no component above zero</span>';
+  return teile.map((c) => '<span style="' + CHIP + '">' + esc(c.label) + ' <span style="color:rgba(255,255,255,.85)">'
+    + (c.key === 'context_multiplier' ? '×' + esc(String(c.value)) : esc(String(c.value)) + (c.max != null ? '/' + esc(String(c.max)) : '')) + '</span></span>').join('');
+}
+
+// Top wallets with share and profile link; "fresh" when the tape-relative
+// proxy says so, nothing when it was not computed.
+export function riskWalletsHtml(wallets, count) {
+  if (!Array.isArray(wallets) || !wallets.length) {
+    return count ? '' : '<span style="' + CHIP + '">wallet identities not public on this venue</span>';
+  }
+  return wallets.map((w) => {
+    const label = esc(w.short || w.wallet || '—') + (w.share != null ? ' ' + Math.round(w.share * 100) + '%' : '')
+      + (w.side ? ' · ' + esc(w.side) : '') + (w.fresh ? ' · fresh' : '');
+    return w.url
+      ? '<a data-stop href="' + esc(w.url) + '" target="_blank" rel="noopener" style="' + CHIP + '; color:#C8F542; text-decoration:none">' + label + ' ↗</a>'
+      : '<span style="' + CHIP + '">' + label + '</span>';
+  }).join('');
+}
+
+function marketLink(url) {
+  return url ? '<a data-stop href="' + esc(url) + '" target="_blank" rel="noopener" title="Open the market" style="' + LINK + '">market ↗</a>' : '';
+}
+
+// The move after the flag: "+30 m 36¢ (+2.0)"; "not yet" when the horizon
+// has not passed, "n/a" when no history could be read.
+function afterCell(after, key, label) {
+  const p = after && after[key];
+  if (!after) return '<div><div style="' + HEAD_CELL + '">' + label + '</div><div style="' + M + '; font-size:12px; color:rgba(255,255,255,.4); margin-top:2px">n/a</div></div>';
+  if (!p) return '<div><div style="' + HEAD_CELL + '">' + label + '</div><div style="' + M + '; font-size:12px; color:rgba(255,255,255,.4); margin-top:2px">not yet</div></div>';
+  const move = p.move_c == null ? '' : ' <span style="color:' + (p.move_c > 0 ? '#C8F542' : p.move_c < 0 ? '#FF7A7A' : 'rgba(255,255,255,.5)') + '">' + (p.move_c > 0 ? '+' : '') + esc(String(p.move_c)) + '</span>';
+  return '<div><div style="' + HEAD_CELL + '">' + label + '</div><div style="' + M + '; font-size:12px; margin-top:2px">' + cents(p.price) + move + '</div></div>';
+}
+
+// The flag log tab: rows newest first, with the price after the flag when
+// the API could read it. Fetched only when the tab is opened.
+export function renderRiskLog(T) {
+  const live = T.liveData.riskLog;
+  const intro = '<div style="padding:14px 24px 0; font-size:13px; color:rgba(255,255,255,.6); max-width:820px; line-height:1.5">'
+    + 'Every event the screen flags is logged with the side, price and wallets at that moment, so it can be checked afterwards against what happened next.'
+    + (live && live.min_score != null ? ' Rows with a score of ' + esc(String(live.min_score)) + ' and up are kept; the same market and side is one row per day (updated while it keeps flagging).' : '')
+    + (live && live.sampler_interval_min ? ' A background sampler re-runs the screen every ' + esc(String(live.sampler_interval_min)) + ' min.' : '')
+    + '</div>';
+  if (!live) {
+    return intro + '<div style="display:flex; align-items:center; gap:10px; padding:16px 24px">'
+      + '<span style="width:7px; height:7px; border-radius:50%; background:#F5A623; display:inline-block; animation:livePulse 1.2s ease-in-out infinite"></span>'
+      + '<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:#F5A623">loading /api/risk/log</span>'
+      + '<span style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.4)">reads the log and, for the newest Polymarket flags, the price afterwards</span></div>';
+  }
+  if (live._quelle === 'fehler') {
+    return intro + '<div style="display:flex; align-items:center; gap:12px; padding:16px 24px">'
+      + '<span style="' + M + '; font-size:11px; color:#FF7A7A">' + esc(herkunftSatz({ quelle: 'fehler', fehler: live._fehler }, '/api/risk/log')) + '</span>'
+      + (T.neuLaden ? '<div ' + T.act(() => T.neuLaden('riskLog', 'risk')) + ' class="hv-bd32" style="' + M + '; font-size:11px; color:rgba(255,255,255,.7); border:1px solid rgba(255,255,255,.16); border-radius:6px; padding:5px 10px; cursor:pointer; white-space:nowrap">Try again</div>' : '')
+      + '</div>';
+  }
+  const rows = Array.isArray(live.rows) ? live.rows : [];
+  if (!rows.length) {
+    return intro + leerZeile('The flag log is empty so far — it fills as the screen flags events (score '
+      + (live.min_score != null ? String(live.min_score) : '40') + ' and up); nothing has been flagged since logging started on this host.');
+  }
+  const kopf = '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); padding:12px 24px 0">' + rows.length + ' flag' + (rows.length === 1 ? '' : 's')
+    + (live.enriched != null ? ' · price after the flag read for ' + live.enriched + ' of the newest ' + Math.min(rows.length, live.enrich_max || 30) + ' Polymarket flags' : '')
+    + (live.as_of ? ' · as of ' + esc(String(live.as_of)) : '') + '</div>';
+  return intro + kopf + '<div style="padding:12px 24px 18px; display:grid; gap:12px">'
+    + rows.map((f) => {
+      const sevColor = f.sev === 'high' ? '#F5A623' : f.sev === 'medium' ? 'rgba(255,255,255,.72)' : 'rgba(255,255,255,.5)';
+      const scoreStyle = M + '; font-size:16px; color:' + sevColor;
+      const preis = { price_last: f.price_at_flag, price_outcome: f.price_outcome, price_min: f.price_min, price_max: f.price_max };
+      const seite = { side: f.side, side_notional: f.side_notional, side_share: f.side_share, notional_usd: f.notional };
+      const hatAfter = Object.prototype.hasOwnProperty.call(f, 'after');
+      return '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:14px 18px">'
+        + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px">'
+        + '<div style="min-width:0">'
+        + '<div style="' + M + '; font-size:10px; letter-spacing:.12em; color:rgba(255,255,255,.45)">' + esc(utcShort(f.last_seen)) + ' UTC · ' + esc(String(f.venue || '')) + (f.category ? ' · ' + esc(f.category) : '') + (f.times_seen > 1 ? ' · seen ' + f.times_seen + '× since ' + esc(utcShort(f.first_seen)) : '') + '</div>'
+        + '<div style="font-size:14.5px; margin-top:5px; line-height:1.35">' + esc(f.title || f.market_key || '—') + (f.url ? ' ' + marketLink(f.url) : '') + '</div>'
+        + '</div>'
+        + '<div style="display:flex; align-items:baseline; gap:5px; flex:none"><div style="' + scoreStyle + '">' + (f.score != null ? Math.round(f.score) : '—') + '</div><div style="' + M + '; font-size:10px; color:rgba(255,255,255,.35)">/100</div></div>'
+        + '</div>'
+        + '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:9px; align-items:center">' + riskSideChip(seite)
+        + '<span style="' + CHIP + '">at flag ' + esc(riskPriceLabel(preis)) + '</span>'
+        + '<span style="' + CHIP + '">' + esc(windowLabel(f.window_start, f.window_end, f.window_minutes)) + '</span>'
+        + '<span style="' + CHIP + '">' + (f.unique_wallets || 0) + ' wallet' + (f.unique_wallets === 1 ? '' : 's') + (f.prints ? ' · ' + f.prints + ' prints' : '') + '</span></div>'
+        + (hatAfter ? '<div style="display:flex; gap:22px; margin-top:10px">' + afterCell(f.after, '30m', '+30 MIN') + afterCell(f.after, '2h', '+2 H') + afterCell(f.after, '24h', '+24 H')
+          + '<div><div style="' + HEAD_CELL + '">MEASURED ON</div><div style="' + M + '; font-size:12px; color:rgba(255,255,255,.55); margin-top:2px">' + (f.after ? esc(f.price_outcome || 'flagged') + ' side, from last print' : (String(f.venue).toLowerCase() === 'kalshi' ? 'Kalshi: no history read' : 'no history / not in the enriched set')) + '</div></div></div>' : '')
+        + '<div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:9px">' + riskWalletsHtml(f.top_wallets, f.unique_wallets) + '</div>'
+        + '<div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:7px">' + riskComponentsHtml(f.components) + '</div>'
+        + '</div>';
+    }).join('')
+    + '</div>';
+}
+
 export function renderRisk(T) {
   const s = T.state;
   const riskFiltered = T.risks.filter((r) => s.riskFilter === 'all' || r.sev === s.riskFilter);
@@ -319,13 +461,25 @@ export function renderRisk(T) {
       + '<div style="padding:18px 24px; display:grid; grid-template-columns:repeat(2,1fr); gap:14px">'
       + riskFiltered.map((r0) => {
         const r = T.riskCardView(r0);
-        return '<div ' + r.act + ' class="hv-bd20" style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:16px 18px; cursor:pointer; animation:rowIn .25s ease-out">'
+        // The richer fields (side, prices, window, wallets, components, link)
+        // are read from the raw row: an older payload without them renders
+        // the card as before, with nothing invented in the gaps.
+        const hatFlow = r0.side != null || r0.price_last != null || r0.first_print;
+        return '<div ' + r.act + ' data-bg class="hv-bd20" style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:16px 18px; cursor:pointer; animation:rowIn .25s ease-out">'
           + '<div style="display:flex; align-items:center; justify-content:space-between; gap:12px">'
           + '<div style="' + r.kindStyle + '">' + esc(r.kind) + '</div>'
           + '<div style="display:flex; align-items:baseline; gap:6px"><div style="' + r.scoreStyle + '">' + r.score + '</div>'
           + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.35)">/100</div></div></div>'
-          + '<div style="font-size:15px; margin-top:10px; line-height:1.35">' + esc(r.market) + '</div>'
+          + '<div style="font-size:15px; margin-top:10px; line-height:1.35">' + esc(r.market) + (r0.url ? ' ' + marketLink(r0.url) : '') + '</div>'
+          + (r0.category ? '<div style="' + M + '; font-size:10px; letter-spacing:.1em; color:rgba(255,255,255,.4); margin-top:4px">' + esc(String(r0.category).toUpperCase()) + (r0.context_note ? ' · ' + esc(r0.context_note) : '') + '</div>' : '')
           + '<div style="font-size:13px; color:rgba(255,255,255,.6); margin-top:7px; line-height:1.45">' + esc(r.detail) + '</div>'
+          + (hatFlow
+            ? '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; align-items:center">' + riskSideChip(r0)
+              + '<span style="' + CHIP + '">at flag ' + esc(riskPriceLabel(r0)) + '</span>'
+              + '<span style="' + CHIP + '">' + esc(windowLabel(r0.first_print, r0.last_print, r0.window_minutes)) + '</span></div>'
+              + '<div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:8px">' + riskWalletsHtml(r0.top_wallets, r0.wallets) + '</div>'
+              + (Array.isArray(r0.components) && r0.components.length ? '<div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:7px">' + riskComponentsHtml(r0.components) + '</div>' : '')
+            : '')
           + '<div style="height:1px; background:rgba(255,255,255,.07); margin:14px 0 12px"></div>'
           + '<div style="display:flex; gap:22px">'
           + [['WALLETS', r.wallets], ['NOTIONAL', r.notional], ['WINDOW', r.window], ['VENUE', r.venue]].map((p) =>
@@ -334,6 +488,8 @@ export function renderRisk(T) {
           + '</div></div>';
       }).join('')
       + '</div></div>';
+  } else if (s.riskView === 'log') {
+    body = renderRiskLog(T);
   } else if (s.riskView === 'wallets') {
     body = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:16px 24px; overflow:hidden">'
       + '<div style="display:grid; grid-template-columns:1fr 96px 110px 110px 130px 96px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
@@ -446,6 +602,9 @@ export function renderRisk(T) {
         : ''))
     + '<div style="display:flex; gap:6px; padding:16px 24px 0; flex-wrap:wrap">'
     + [['events','Events'],['wallets','Wallets'],['fresh','Fresh-wallet clusters'],['timing','Coordinated timing'],['network','Co-trading network']].map((o) => T.tab(o[1], s.riskView === o[0], { riskView: o[0] })).join('')
+    // The log is fetched only when its tab is opened (app.js openRiskLog);
+    // the harness T has no such method and just switches the view.
+    + T.tab('Flag log', s.riskView === 'log', () => (T.openRiskLog ? T.openRiskLog() : T.setState({ riskView: 'log' })))
     + '</div>'
     + body
     + '</div>';

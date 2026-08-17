@@ -754,9 +754,11 @@ class WebLeerzustandTest(unittest.TestCase):
     def test_live_runs_diagramme_und_saubere_titel(self) -> None:
         live = self.ausgabe["live"]["runs_runs"]
         text = _sichtbarer_text(live)
-        # Preispfad nach dem Fill aus preis_nach_fill, eine Serie je Wette.
-        self.assertIn("POST-FILL PRICE PATH · 2 OF 2 BETS", text)
-        self.assertIn("lime won, red lost, grey open", text)
+        # Der Preispfad nach dem Fill wird nicht mehr gezeichnet (Wunsch des
+        # Wallet-Inhabers); die Daten bleiben im Timing-Reiter lesbar.
+        self.assertNotIn("POST-FILL PRICE PATH", text)
+        self.assertNotIn("lime won, red lost, grey open", text)
+        self.assertNotIn("preis_nach_fill", text)
         # Interne Klammerzusaetze sind aus den Titeln verschwunden, die
         # Drop-Quelle steht als Chip; "event ↗" ist ein Link oder weg.
         self.assertNotIn("(URL-Prober)", text)
@@ -781,6 +783,112 @@ class WebLeerzustandTest(unittest.TestCase):
         # Ohne Nutzlast keine Pfade und keine Kurven.
         leer = _sichtbarer_text(self.ausgabe["leer"]["runs_timing"])
         self.assertNotIn("REPRICING AFTER THE DROP", leer)
+
+    def test_live_runs_wallet_ledger_je_event(self) -> None:
+        # "Everything the wallet did": KPI-Zeile aus aggregat, alle Events
+        # (N OF N), Typ-Chips, Links, Notizen mit Link, Legende — aus
+        # extras.wallet_ledger (API) bzw. wallet_ledger.json (statisch).
+        live = self.ausgabe["live"]["runs_runs"]
+        text = _sichtbarer_text(live)
+        self.assertIn("EVERYTHING THE WALLET DID · BY EVENT", text)
+        self.assertIn("WALLET/PUBLIC-API", text)
+        self.assertIn("as of 2026-08-17 01:02 UTC", text)
+        self.assertIn("EVENTS 3 1 bot · 1 discretionary · 1 pilot", text)
+        self.assertIn("TRADES 6 5 buys · 1 sell · 3 redemptions", text)
+        self.assertIn("STAKE (BUYS) $156.35", text)
+        self.assertIn("NET CASH FLOW +$48.63 sells $20.00 + redemptions $184.98 − buys", text)
+        self.assertIn("POSITIONS WON / LOST 2 / 2 1 of the lost expired worthless", text)
+        self.assertIn("3 OF 3 EVENTS · NEWEST FIRST", text)
+        # Reihenfolge: neuestes Event zuerst.
+        self.assertLess(text.index("Harness Curtis E3 event"), text.index("Harness pilot GDP event"))
+        self.assertLess(text.index("Harness pilot GDP event"), text.index("Harness bot event"))
+        # Typ-Chips, gemischtes Event, Laufprofil, Maerkte je Event.
+        self.assertIn("DISCRETIONARY 1 $100.00 +$0.97 1 won", text)
+        self.assertIn("PILOT 1 $5.01 +$0.16 1 won", text)
+        self.assertIn("harness_a BOT + discretionary 2 $51.34 +$45.97 1 won · 1 worthless", text)
+        self.assertIn("1 of 2 markets are not in the run log of 'harness_a' (discretionary).", text)
+        self.assertIn("worthless discretionary", text)
+        # Links: Event-Seite je Zeile, Vorregistrierungs-Dokument in der Notiz, Download.
+        self.assertIn('href="https://polymarket.com/event/harness-curtis-e3"', live)
+        self.assertIn('href="https://polymarket.com/event/harness-pilot-gdp"', live)
+        self.assertIn('href="https://github.com/Pablozh123/multi-agent-orchestration-informational-efficiency/blob/main/docs/project/PREREG_CURTIS_E3_2026-08-07.md"', live)
+        self.assertIn('href="./data/wallet_ledger.json"', live)
+        self.assertIn("Forecasts pre-registered before airing", text)
+        self.assertIn("rules frozen 2026-07-18", text)
+        # Legende: drei Typen, Verweis auf die Laufkarten oben.
+        self.assertIn("BOT market and side appear in a runs.json run log — these runs are also listed above with their latency data", text)
+        self.assertIn("DISCRETIONARY placed by hand, in no run log", text)
+        self.assertIn("PILOT one of the pre-registered pilot trades of 2026-07-22", text)
+        # Der Abschnitt steht unter den Laufkarten und der Einzeiler-Liste.
+        self.assertLess(live.index("RUNS WITHOUT A FILL"), live.index("EVERYTHING THE WALLET DID"))
+        # Ohne Ledger: die Zeile nennt die Datei und das Skript, keine Zahl.
+        for name in ("runs_runs_many",):
+            ohne = _sichtbarer_text(self.ausgabe["live"][name])
+            self.assertIn("EVERYTHING THE WALLET DID · BY EVENT", ohne)
+            self.assertIn("public/data/wallet_ledger.json", ohne)
+            self.assertIn("scripts/wallet_ledger.py", ohne)
+            self.assertNotIn("OF 3 EVENTS", ohne)
+        leer = _sichtbarer_text(self.ausgabe["leer"]["runs_runs"])
+        self.assertIn("public/data/wallet_ledger.json", leer)
+        self.assertNotIn("EVENTS 3", leer)
+        # api.js kennt die Datei fuer den statischen Rueckfall.
+        api_js = (WURZEL / "web" / "js" / "api.js").read_text(encoding="utf-8")
+        self.assertIn("'/api/research/wallet-ledger': 'wallet_ledger.json'", api_js)
+
+    def test_live_runs_zeigt_alle_laeufe_ohne_deckel(self) -> None:
+        # 15 Laeufe mit Fill werden 15 Karten, 6 ohne Fill 6 Zeilen — kein
+        # Deckel (frueher .slice(0, 12)).
+        viele = _sichtbarer_text(self.ausgabe["live"]["runs_runs_many"])
+        for i in range(15):
+            with self.subTest(karte=i):
+                self.assertIn("Many-run card " + str(i), viele)
+        self.assertIn("RUNS WITHOUT A FILL · 6", viele)
+        for i in range(6):
+            with self.subTest(zeile=i):
+                self.assertIn("Many-run line " + str(i), viele)
+        self.assertEqual(viele.count("REAL ORDERS"), 15)
+
+    def test_kalibrierungsdiagramm_achsenbeschriftung_ohne_ueberlappung(self) -> None:
+        # Frueher standen "→ realised ↑" (mittig) und "predicted 1" (rechts)
+        # auf derselben Grundlinie und liefen bei 200 px ineinander. Jetzt:
+        # "0" und "1" an den Achsenenden, "predicted" mittig unter der
+        # x-Achse, "realised" gedreht an der y-Achse — und die Textboxen der
+        # x-Achse ueberschneiden sich rechnerisch nicht.
+        for name in ("runs_calib", "research_category_efficiency"):
+            html = self.ausgabe["live"][name]
+            svgs = re.findall(r'<svg[^>]*viewBox="0 0 200 200"[^>]*>(.*?)</svg>', html, re.S)
+            self.assertTrue(svgs, name)
+            svg = svgs[0]
+            texte = re.findall(r'<text([^>]*)>([^<]*)</text>', svg)
+            beschriftungen = [t.strip() for _, t in texte]
+            with self.subTest(diagramm=name):
+                self.assertEqual(sorted(beschriftungen), ["0", "0", "1", "1", "predicted", "realised"])
+                self.assertNotIn("→ realised ↑", svg)
+                self.assertNotIn("predicted 1", svg)
+                # x-Achse: drei Texte auf einer Grundlinie, Boxen disjunkt
+                # (Monospace 9 px ≈ 5.4 px je Zeichen).
+                unten = []
+                for attrs, txt in texte:
+                    if 'transform="rotate' in attrs:
+                        self.assertEqual(txt.strip(), "realised")
+                        continue
+                    x = float(re.search(r'\bx="([\d.]+)"', attrs).group(1))
+                    y = float(re.search(r'\by="([\d.]+)"', attrs).group(1))
+                    anker = re.search(r'text-anchor="(\w+)"', attrs)
+                    anker = anker.group(1) if anker else "start"
+                    breite = len(txt.strip()) * 5.4
+                    links = x if anker == "start" else x - breite if anker == "end" else x - breite / 2
+                    # Die x-Achsen-Beschriftung liegt unter dem Quadrat (y > 185);
+                    # der y-Tick "0" bei y = 178 gehoert zur y-Achse.
+                    if y > 185:
+                        unten.append((links, links + breite, txt.strip()))
+                unten.sort()
+                self.assertEqual([t for _, _, t in unten], ["0", "predicted", "1"])
+                for (_, ende_a, _), (start_b, _, _) in zip(unten, unten[1:]):
+                    self.assertLess(ende_a, start_b)
+                # y-Achse: "realised" gedreht, mittig zwischen den Ticks 1 (oben) und 0 (unten).
+                gedreht = [a for a, t in texte if t.strip() == "realised"][0]
+                self.assertIn('transform="rotate(-90 10 100)"', gedreht)
 
     # ---- Mentions latency, Pilot, Pipeline forward, Methodology ------------
 
@@ -890,9 +998,85 @@ class WebLeerzustandTest(unittest.TestCase):
         text = _sichtbarer_text(html)
         self.assertIn("PR #12 ↗ (fill accounting); commit 8af07d6 ↗ (heartbeat); docs/research/ONE_PAGER.md ↗ ; plain note", text)
 
+    # ---- Risk screen: richer event rows and the flag log -----------------
 
-if __name__ == "__main__":
-    unittest.main()
+    def test_risk_event_karte_zeigt_seite_preis_wallets_und_komponenten(self) -> None:
+        # The harness carries one row in the richer /api/risk shape and one
+        # older row without those fields. The rich card shows the side chip,
+        # the price at flag time, the window, the wallets with profile links,
+        # the market link and the score components as labelled numbers.
+        html = self.ausgabe["live"]["risk"]
+        text = _sichtbarer_text(html)
+        self.assertIn("NO buys $34.0k of $40.0k (85%)", text)
+        self.assertIn("at flag NO 34¢ (30¢–34¢)", text)
+        self.assertIn("17 Aug 09:40 – 10:00 UTC · 20 min", text)
+        self.assertIn("0xbbb2…0002 65% · NO buys · fresh", text)
+        self.assertIn('href="https://polymarket.com/profile/0xbbb2000000000000000000000000000000000002"', html)
+        self.assertIn('href="https://polymarket.com/event/example-question"', html)
+        self.assertIn("market ↗", text)
+        self.assertIn("top-wallet concentration 9.8/15", text)
+        self.assertIn("fresh-wallet cluster 5/10", text)
+        self.assertIn("context multiplier ×1.1", text)
+        # A zero component is not listed; the joined flag string is not the
+        # only explanation any more.
+        self.assertNotIn("late flow 0/15", text)
+        # The older row renders as before: no side chip, no price, no invented
+        # wallet or component.
+        self.assertIn("KXFED-26SEP", text)
+        self.assertNotIn("side n/a", text)
+        self.assertNotIn("price n/a", text)
+        # Links inside the card must not trigger the card action.
+        self.assertIn("data-bg", html)
+        self.assertIn('data-stop href="https://polymarket.com/event/example-question"', html)
+
+    def test_flag_log_reiter_zustaende(self) -> None:
+        # Tab exists on both modes; the log is fetched only when the tab opens.
+        for modus in ("leer", "live"):
+            self.assertIn("Flag log", _sichtbarer_text(self.ausgabe[modus]["risk"]))
+        intro = "Every event the screen flags is logged with the side, price and wallets at that moment, so it can be checked afterwards against what happened next."
+        # Loading: no rows, no numbers, names the endpoint.
+        laedt = _sichtbarer_text(self.ausgabe["live"]["risk_log_loading"])
+        self.assertIn(intro, laedt)
+        self.assertIn("loading /api/risk/log", laedt)
+        self.assertNotIn("+30 MIN", laedt)
+        # Empty answer: says the log is empty and why, not a placeholder row.
+        leer = _sichtbarer_text(self.ausgabe["live"]["risk_log_empty"])
+        self.assertIn(intro, leer)
+        self.assertIn("The flag log is empty so far", leer)
+        self.assertIn("score 40 and up", leer)
+        self.assertNotIn("+30 MIN", leer)
+        # Error: names the endpoint and the error.
+        fehler = _sichtbarer_text(self.ausgabe["live"]["risk_log_error"])
+        self.assertIn("/api/risk/log did not answer: HTTP 503", fehler)
+        # In the empty run the tab shows the loading line (nothing recorded yet).
+        self.assertIn("loading /api/risk/log", _sichtbarer_text(self.ausgabe["leer"]["risk_log"]))
+
+    def test_flag_log_zeilen_mit_preis_danach(self) -> None:
+        html = self.ausgabe["live"]["risk_log"]
+        text = _sichtbarer_text(html)
+        self.assertIn("2 flags", text)
+        self.assertIn("price after the flag read for 1 of the newest 2 Polymarket flags", text)
+        # Newest first: the Polymarket flag (10:25) before the Kalshi flag (09:00).
+        self.assertLess(text.find("17 Aug 10:25 UTC"), text.find("17 Aug 09:00 UTC"))
+        self.assertIn("seen 3× since 17 Aug 10:05", text)
+        self.assertIn("NO buys $34.0k of $40.0k (85%)", text)
+        self.assertIn("at flag NO 34¢ (30¢–34¢)", text)
+        # +30 min and +2 h with the move in cents, +24 h honestly "not yet".
+        self.assertIn("+30 MIN 37¢ +3", text)
+        self.assertIn("+2 H 31¢ -3", text)
+        self.assertIn("+24 H not yet", text)
+        self.assertIn("MEASURED ON NO side, from last print", text)
+        # Kalshi row: no history, said so; no wallets, said so.
+        self.assertIn("Kalshi: no history read", text)
+        self.assertIn("wallet identities not public on this venue", text)
+        self.assertIn('href="https://kalshi.com/markets/KXFED-26SEP"', html)
+        self.assertIn("3 wallets · 4 prints", text)
+        self.assertIn("top-wallet concentration 9.8/15", text)
+        # app.js fetches the log only when the tab is opened, with enrich=1.
+        app_js = (WURZEL / "web" / "js" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("openRiskLog()", app_js)
+        self.assertIn("'/api/risk/log?limit=100&enrich=1'", app_js)
+        self.assertIn("riskLog: null", app_js)
 
     def test_review_queue_ein_eintrag_je_markt(self) -> None:
         # Fuenf Faelle auf zwei Slugs -> zwei Zeilen; je Slug gewinnt die
@@ -901,17 +1085,21 @@ if __name__ == "__main__":
         self.assertEqual([z["markt_slug"] for z in zeilen], sorted({z["markt_slug"] for z in zeilen}, key=[z["markt_slug"] for z in zeilen].index))
         self.assertEqual(len(zeilen), 2)
         je_slug = {z["markt_slug"]: z for z in zeilen}
-        self.assertEqual(je_slug["example-question"]["score_band"], "high")
-        self.assertEqual(int(je_slug["example-question"]["fenster"]), 3)
-        self.assertEqual(int(je_slug["second-question"]["fenster"]), 2)
+        best = je_slug["example-question"].get("best") or je_slug["example-question"]
+        self.assertEqual(best["score_band"], "high")
+        self.assertEqual(int(je_slug["example-question"]["windows_n"]), 3)
+        self.assertEqual(int(je_slug["second-question"]["windows_n"]), 2)
         self.assertEqual(json.loads(self.ausgabe["leer"]["_collapse_queue"]), [])
 
     def test_category_efficiency_zeigt_horizonte_und_n(self) -> None:
         text = _sichtbarer_text(self.ausgabe["live"]["research_category_efficiency"])
-        self.assertIn("Category efficiency", text)
+        self.assertIn("Which categories price things well", text)
         # Stichprobe je Kategorie und Horizont sichtbar, keine Zahl ohne n.
-        self.assertRegex(text, r"n\s*=\s*\d+")
+        self.assertRegex(text, r"n \d+")
         for tag in ("BRIER", "T-7", "T-1"):
             self.assertIn(tag, text.upper())
         leer = _sichtbarer_text(self.ausgabe["leer"]["research_category_efficiency"])
         self.assertIn("kategorie_karte.json", leer)
+
+if __name__ == "__main__":
+    unittest.main()

@@ -266,6 +266,23 @@ class LiveRunsExtrasTests(unittest.TestCase):
         self.assertEqual(extras["monthly"][0]["bets"], 2)
         self.assertAlmostEqual(extras["monthly"][0]["net"], 0.0, places=2)
 
+    def test_wallet_ledger_rides_along_when_published(self) -> None:
+        """extras.wallet_ledger is the published file, or absent when there is none."""
+        import json
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        payload = {"runs": []}
+        with TemporaryDirectory() as tmp:
+            self.assertNotIn("wallet_ledger", apv.live_runs_extras(payload, publish_dir=Path(tmp)))
+            ledger = {"kennzeichnung": "wallet/public-api", "wallet": "0xabc", "aggregat": {"n_events": 2}, "events": []}
+            (Path(tmp) / "wallet_ledger.json").write_text(json.dumps(ledger), encoding="utf-8")
+            extras = apv.live_runs_extras(payload, publish_dir=Path(tmp))
+            self.assertEqual(extras["wallet_ledger"]["aggregat"]["n_events"], 2)
+            self.assertEqual(extras["wallet_ledger"]["kennzeichnung"], "wallet/public-api")
+        # The same file is also served as its own study.
+        self.assertEqual(apv.RESEARCH_FILES["wallet-ledger"], "wallet_ledger")
+
 
 class ClusterPayloadTests(unittest.TestCase):
     def test_maps_suspicion_frames(self) -> None:
@@ -578,3 +595,94 @@ class ScorePartsTests(unittest.TestCase):
         parts = apv.score_parts({"copy_return_score": 12.6, "copy_win_score": None})
         self.assertEqual(parts, [{"label": "return", "value": 13, "weight": 0.35}])
         self.assertEqual(apv.score_parts({}), [])
+
+
+class RiskEventRowTests(unittest.TestCase):
+    """The event card carries side, price, wallets, window, link and components — or honest gaps."""
+
+    def _row(self) -> pd.Series:
+        return pd.Series({
+            "platform": "Polymarket", "title": "Rate hike in September?", "market_key": "0xc1",
+            "url": "https://polymarket.com/event/fed-september", "slug": "rate-hike-sep",
+            "event_insider_score": 66.0, "event_insider_level": "Medium",
+            "event_insider_flags": "wallet concentration; one-sided flow; 2 fresh wallets on NO",
+            "unique_wallets": 3, "trades": 4, "notional": 23000.0, "trades_per_hour": 9.6,
+            "insider_context": "Politics & geopolitics", "context_note": "decisions are known early",
+            "context_multiplier": 1.1,
+            "side": "NO buys", "side_notional": 20000.0, "side_share": 20000.0 / 23000.0,
+            "side_buy_yes": 2000.0, "side_buy_no": 20000.0, "side_sell_yes": 1000.0, "side_sell_no": 0.0,
+            "price_outcome": "NO", "price_first": 0.30, "price_last": 0.34, "price_min": 0.30, "price_max": 0.34,
+            "first_print": pd.Timestamp("2026-08-16T12:00:00Z"), "last_print": pd.Timestamp("2026-08-16T12:25:00Z"),
+            "window_minutes": 25.0,
+            "top_wallets": [
+                {"wallet": "0xbbb2000000000000000000000000000000000002", "notional": 17000.0, "share": 0.739, "side": "NO buys", "fresh": True},
+                {"wallet": "0xaaa1000000000000000000000000000000000001", "notional": 4000.0, "share": 0.174, "side": "NO buys", "fresh": None},
+            ],
+            "component_notional": 5.75, "component_concentration": 8.3, "component_fresh_wallets": 5.0,
+            "price_move_score": 2.7, "token_id": "tokNO",
+        })
+
+    def test_full_row(self) -> None:
+        event = apv.risk_event_row(self._row())
+        self.assertEqual(event["kind"], "WALLET CONCENTRATION")
+        self.assertEqual(event["flags"], ["wallet concentration", "one-sided flow", "2 fresh wallets on NO"])
+        self.assertEqual(event["detail"], "wallet concentration · one-sided flow · 2 fresh wallets on NO")
+        self.assertEqual(event["url"], "https://polymarket.com/event/fed-september")
+        self.assertEqual(event["market_key"], "0xc1")
+        self.assertEqual(event["category"], "Politics & geopolitics")
+        self.assertEqual(event["side"], "NO buys")
+        self.assertAlmostEqual(event["side_notional"], 20000.0)
+        self.assertAlmostEqual(event["side_share"], round(20000.0 / 23000.0, 4))
+        self.assertEqual(event["side_split"], {"buy_yes": 2000.0, "buy_no": 20000.0, "sell_yes": 1000.0, "sell_no": 0.0})
+        self.assertEqual(event["price_outcome"], "NO")
+        self.assertAlmostEqual(event["price_last"], 0.34)
+        self.assertAlmostEqual(event["price_min"], 0.30)
+        self.assertEqual(event["first_print"], "2026-08-16T12:00:00Z")
+        self.assertEqual(event["last_print"], "2026-08-16T12:25:00Z")
+        self.assertEqual(event["window_minutes"], 25.0)
+        self.assertEqual(event["prints"], 4)
+        self.assertEqual(event["notional"], "$23k")
+        self.assertAlmostEqual(event["notional_usd"], 23000.0)
+        self.assertEqual(event["sev"], "medium")
+        wallets = event["top_wallets"]
+        self.assertEqual(wallets[0]["short"], "0xbbb2…0002")
+        self.assertEqual(wallets[0]["url"], "https://polymarket.com/profile/0xbbb2000000000000000000000000000000000002")
+        self.assertTrue(wallets[0]["fresh"])
+        self.assertIsNone(wallets[1]["fresh"])
+        keys = [c["key"] for c in event["components"]]
+        self.assertEqual(keys, ["component_notional", "component_concentration", "price_move_score",
+                                "component_fresh_wallets", "context_multiplier"])
+        self.assertEqual(event["components"][0]["value"], 5.8)
+        self.assertEqual(event["token_id"], "tokNO")
+
+    def test_older_row_without_flow_fields_has_honest_gaps(self) -> None:
+        event = apv.risk_event_row(pd.Series({
+            "platform": "Kalshi", "title": "KXFED-26SEP", "market_key": "KXFED-26SEP",
+            "event_insider_score": 20.0, "event_insider_level": "Low", "event_insider_flags": "watch only",
+            "unique_wallets": 0, "notional": 12000.0, "trades_per_hour": 3.0,
+        }))
+        self.assertEqual(event["kind"], "EVENT SCREEN")
+        self.assertEqual(event["flags"], [])
+        self.assertEqual(event["url"], "https://kalshi.com/markets/KXFED-26SEP")
+        self.assertEqual(event["side"], "")
+        self.assertIsNone(event["price_last"])
+        self.assertEqual(event["first_print"], "")
+        self.assertIsNone(event["window_minutes"])
+        self.assertEqual(event["top_wallets"], [])
+        self.assertEqual(event["components"], [])
+        self.assertEqual(event["side_split"], {"buy_yes": 0.0, "buy_no": 0.0, "sell_yes": 0.0, "sell_no": 0.0})
+
+    def test_market_url_and_wallet_url(self) -> None:
+        self.assertEqual(apv.market_url("Polymarket", "0xc1", "https://polymarket.com/event/x"), "https://polymarket.com/event/x")
+        self.assertEqual(apv.market_url("Polymarket", "0xc1", "", "my-slug"), "https://polymarket.com/event/my-slug")
+        self.assertEqual(apv.market_url("Kalshi", "KXFED-26SEP"), "https://kalshi.com/markets/KXFED-26SEP")
+        self.assertEqual(apv.market_url("Polymarket", "0xc1"), "")
+        self.assertEqual(apv.wallet_profile_url("Polymarket", "0xabc"), "https://polymarket.com/profile/0xabc")
+        self.assertEqual(apv.wallet_profile_url("Kalshi", "Not public"), "")
+
+    def test_risk_payload_uses_the_richer_rows_and_the_limit(self) -> None:
+        events = pd.DataFrame([self._row().to_dict() for _ in range(apv.RISK_EVENT_LIMIT + 3)])
+        payload = apv.risk_payload(pd.DataFrame(), events)
+        self.assertEqual(len(payload["events"]), apv.RISK_EVENT_LIMIT)
+        self.assertEqual(payload["events"][0]["side"], "NO buys")
+        self.assertIn("components", payload["events"][0])

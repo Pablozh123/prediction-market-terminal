@@ -1130,7 +1130,9 @@ function renderLiveRuns(T, payload) {
   // Ein Lauf ohne Wette traegt drei Zahlen und sonst nichts. Als volle Karte
   // wiederholt er 150 Pixel lang "nichts passiert" und verdraengt die Laeufe,
   // in denen etwas passierte — er wird zur einzeiligen Zeile weiter unten.
-  const cards = alleKarten.filter((r) => r.bets.length).slice(0, 12);
+  // Kein Deckel auf den Karten: jeder Lauf mit Fill ist eine Karte, jeder
+  // ohne Fill eine Zeile — zusammen alle Laeufe aus runs.json.
+  const cards = alleKarten.filter((r) => r.bets.length);
   const ohneFills = alleKarten.filter((r) => !r.bets.length);
 
   // Kumulierte realisierte PnL je Lauf, geordnet nach dem ersten Fill des
@@ -1240,6 +1242,9 @@ function renderLiveRuns(T, payload) {
             + '</div>').join('')
           + '</div>'
         : '')
+      // Alles, was die Wallet tat, je Event — auch das, was in keinem Lauf
+      // steht (diskretionaere Wortwetten, der Pilot). Aus wallet_ledger.json.
+      + walletLedgerHtml(T, payload)
       + '</div>';
   } else if (s.liveTab === 'timing') {
     // Erst die Kurven, dann die Tabelle: Repricing je Wette als Treppe aus
@@ -1400,9 +1405,9 @@ function renderLiveRuns(T, payload) {
     // Die versprochene Kurve der Seite: kumulierte PnL je Lauf, aus den
     // publizierten Laufwerten. Ohne Serie kein Diagramm.
     + (equityChart ? '<div style="margin-top:12px">' + equityChart + '</div>' : '')
-    // Preispfad nach dem Fill je Wette, aus preis_nach_fill. Ohne Pfade
-    // steht da, welches Feld fehlt.
-    + postFillPfadeHtml(payload)
+    // Der Preispfad nach dem Fill (preis_nach_fill) wird hier nicht mehr
+    // gezeichnet — Wunsch des Wallet-Inhabers; die Daten bleiben in runs.json
+    // und die Spalten REPRICE 30 S / 900 S im Timing-Reiter lesen sie weiter.
     + '<div style="display:flex; gap:6px; margin-top:18px; flex-wrap:wrap">' + liveTabs + '</div>'
     + body
     + '</div>';
@@ -1441,9 +1446,6 @@ const DROP_QUELLE_TEXT = {
   youtube: 'YouTube channel page',
   mp3_url_prober: 'MP3 URL probe'
 };
-
-// Sampling grid of preis_nach_fill in runs.json: seconds after our fill.
-const NACH_FILL_SEKUNDEN = ['0', '30', '60', '120', '300', '900'];
 
 function medianVon(werte) {
   const w = werte.filter((v) => typeof v === 'number' && !isNaN(v)).sort((a, b) => a - b);
@@ -1575,37 +1577,198 @@ function abgleichTabelleHtml(payload, agg) {
     + '</div></div>';
 }
 
-// Post-fill price paths, one line per bet, coloured by outcome. Bets without a
-// recorded path are counted, not drawn.
-function postFillPfadeHtml(payload) {
-  const runs = payload && Array.isArray(payload.runs) ? payload.runs : [];
-  if (!runs.length) return '';
-  const serien = [];
-  let ohnePfad = 0;
-  let gesamt = 0;
-  runs.forEach((r) => (r.wetten || []).forEach((b) => {
-    gesamt += 1;
-    const pfad = b.preis_nach_fill;
-    const werte = pfad && typeof pfad === 'object'
-      ? NACH_FILL_SEKUNDEN.map((k) => (typeof pfad[k] === 'number' ? pfad[k] : null))
-      : [];
-    if (!werte.some((w) => typeof w === 'number')) { ohnePfad += 1; return; }
-    const farbe = !b.aufgeloest ? '#95A0AB' : b.gewonnen ? '#C8F542' : '#FF4545';
-    serien.push({ name: kurzFrage(b.frage) + ' · ' + String(b.seite || ''), werte, farbe });
-  }));
-  if (!gesamt) return '';
-  const chart = serien.length ? linien({
-    titel: 'POST-FILL PRICE PATH · ' + serien.length + ' OF ' + gesamt + ' BETS',
-    einheit: 'price of the traded side after our fill · lime won, red lost, grey open',
-    hinweis: 'x = seconds after fill' + (ohnePfad ? ' · ' + ohnePfad + ' bet' + (ohnePfad === 1 ? '' : 's') + ' without a recorded path' : ''),
-    x: NACH_FILL_SEKUNDEN.map((s) => s + ' s'),
-    serien
-  }) : '';
-  if (!chart) {
-    return '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:12px; padding:14px 18px; ' + M + '; font-size:11px; color:rgba(255,255,255,.45)">'
-      + 'No post-fill price paths in this payload — runs.json carries them per bet under wetten[].preis_nach_fill (0…900 s).</div>';
+// ---- wallet ledger: everything the wallet did, by event (wallet_ledger.json)
+
+// Module-level cache for the static path (marketintel.dev): the file is
+// fetched once, then every render reads it from here. When the API answers,
+// the ledger already sits in payload.extras.wallet_ledger and no fetch runs.
+const LEDGER = { daten: null, laedt: false, fehler: '' };
+
+// The ledger for this render: from the runs payload's extras (API), else
+// from the module cache (static), else kick off the one fetch and return
+// null — the caller renders an honest "loading" line and T.render() draws
+// the section once the file is in. Outside a browser (the render harness)
+// nothing is fetched.
+function walletLedgerVon(T, payload) {
+  const extras = payload && payload.extras;
+  if (extras && extras.wallet_ledger && typeof extras.wallet_ledger === 'object') return extras.wallet_ledger;
+  if (LEDGER.daten) return LEDGER.daten;
+  const imBrowser = typeof window !== 'undefined' && typeof fetch === 'function';
+  if (!LEDGER.laedt && !LEDGER.fehler && imBrowser) {
+    LEDGER.laedt = true;
+    fetch('./data/wallet_ledger.json')
+      .then((res) => { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
+      .then((daten) => { LEDGER.daten = daten && typeof daten === 'object' ? daten : null; if (!LEDGER.daten) LEDGER.fehler = 'empty file'; })
+      .catch((err) => { LEDGER.fehler = String(err && err.message ? err.message : err); })
+      .then(() => { LEDGER.laedt = false; if (T && typeof T.render === 'function') T.render(); });
   }
-  return '<div style="margin-top:12px">' + chart + '</div>';
+  return null;
+}
+
+const LEDGER_TYP_FARBE = { bot: '#4F8EF7', discretionary: '#F5A623', pilot: '#C8F542' };
+
+function ledgerTypChip(typ) {
+  const farbe = LEDGER_TYP_FARBE[typ] || '#95A0AB';
+  return '<span style="' + M + '; font-size:9.5px; letter-spacing:.1em; border-radius:4px; padding:2px 7px; color:' + farbe + '; border:1px solid ' + farbe + '66; white-space:nowrap">' + esc(String(typ || '—').toUpperCase()) + '</span>';
+}
+
+function ledgerGeld(v, vorzeichen) {
+  if (v == null || isNaN(+v)) return '—';
+  const abs = num(Math.abs(+v).toFixed(2));
+  if (!vorzeichen) return '$' + abs;
+  return (+v >= 0 ? '+$' : '-$') + abs;
+}
+
+function ledgerFarbe(v) {
+  return v == null || isNaN(+v) ? 'rgba(255,255,255,.5)' : +v >= 0 ? '#C8F542' : '#FF4545';
+}
+
+// "1 sell", "6 sells" — the KPI sub-lines count things.
+function ledgerZahlwort(n, einzahl, mehrzahl) {
+  const z = n == null ? 0 : +n;
+  return num(z) + ' ' + (z === 1 ? einzahl : mehrzahl);
+}
+
+// A ledger note as text with its https links clickable (the Curtis E3 note
+// carries the pre-registration document of the sister repo).
+function ledgerNotizHtml(text) {
+  const roh = String(text == null ? '' : text);
+  const muster = /https?:\/\/[^\s)]+/g;
+  let raus = '';
+  let letzte = 0;
+  let m;
+  while ((m = muster.exec(roh)) !== null) {
+    raus += esc(roh.slice(letzte, m.index));
+    raus += '<a href="' + esc(m[0]) + '" target="_blank" rel="noopener" style="color:#4F8EF7; text-decoration:none">' + esc(m[0].replace(/^https?:\/\//, '')) + ' ↗</a>';
+    letzte = m.index + m[0].length;
+  }
+  return raus + esc(roh.slice(letzte));
+}
+
+// One line per market inside an event's <details>: side, price, shares,
+// stake, PnL as the API states it, status, and which log it belongs to.
+function ledgerMarktZeile(m) {
+  const status = String(m.status || '—');
+  const statusFarbe = status === 'won' ? '#C8F542' : (status === 'lost' || status === 'worthless') ? '#FF4545' : 'rgba(255,255,255,.55)';
+  const zuordnung = String(m.zuordnung || '');
+  return '<div style="display:grid; grid-template-columns:1fr 44px 70px 70px 84px 92px 78px 110px; gap:8px; align-items:center; padding:7px 0; border-top:1px solid rgba(255,255,255,.05); ' + M + '; font-size:11px">'
+    + '<div style="font-family:\'Inter\',sans-serif; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(m.titel || '') + '">' + esc(m.titel || '—') + '</div>'
+    + '<div style="color:' + (String(m.seite).toLowerCase() === 'yes' ? '#C8F542' : '#4F8EF7') + '">' + esc(m.seite || '—') + '</div>'
+    + '<div style="text-align:right; color:rgba(255,255,255,.55)">' + (m.avg_preis != null ? 'avg ' + (+m.avg_preis).toFixed(2) : '—') + '</div>'
+    + '<div style="text-align:right; color:rgba(255,255,255,.55)">' + (m.shares != null ? num((+m.shares).toFixed(0)) + ' sh' : '—') + '</div>'
+    + '<div style="text-align:right">' + ledgerGeld(m.einsatz_usd, false) + '</div>'
+    + '<div style="text-align:right; color:' + ledgerFarbe(m.pnl_usd) + '" title="' + esc(m.pnl_art || '') + '">' + ledgerGeld(m.pnl_usd, true) + '</div>'
+    + '<div style="color:' + statusFarbe + '">' + esc(status) + '</div>'
+    + '<div style="color:rgba(255,255,255,.45); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(zuordnung + (m.run_profil ? ' · ' + m.run_profil : '')) + '</div>'
+    + '</div>';
+}
+
+// The section: KPI row from aggregat, one row per event (all of them, no
+// cap), a legend for the three types. Without the file: the honest line
+// naming it; while it loads: says so.
+function walletLedgerHtml(T, payload) {
+  const KOPF = '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:#4F8EF7">EVERYTHING THE WALLET DID · BY EVENT</div>';
+  const karte = 'background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px';
+  const ledger = walletLedgerVon(T, payload);
+  if (!ledger || !ledger.aggregat || !Array.isArray(ledger.events)) {
+    const satz = LEDGER.laedt
+      ? 'Loading the wallet ledger (public/data/wallet_ledger.json)…'
+      : 'No wallet ledger loaded — this section reads public/data/wallet_ledger.json'
+        + (LEDGER.fehler ? ' (' + LEDGER.fehler + ')' : '')
+        + '. scripts/wallet_ledger.py rebuilds it read-only from the public Polymarket Data API for wallet ' + LIVE_RUN_WALLET + '.';
+    return '<div style="margin-top:22px">' + KOPF
+      + '<div style="' + karte + '; margin-top:8px; padding:14px 18px; ' + M + '; font-size:11px; color:rgba(255,255,255,.45); line-height:1.6">' + esc(satz) + '</div></div>';
+  }
+  const agg = ledger.aggregat;
+  const events = ledger.events.slice().sort((a, b) => String(b.von_utc || '').localeCompare(String(a.von_utc || '')));
+  const stand = ledger.stand_utc ? String(ledger.stand_utc).slice(0, 16).replace('T', ' ') + ' UTC' : '—';
+  const nachTyp = agg.nach_typ || {};
+  const typZahl = (t) => (nachTyp[t] && nachTyp[t].events != null ? nachTyp[t].events : 0);
+  const pos = agg.positionen || {};
+  const kpis = [
+    { label: 'EVENTS', value: String(agg.n_events != null ? agg.n_events : events.length),
+      sub: typZahl('bot') + ' bot · ' + typZahl('discretionary') + ' discretionary · ' + typZahl('pilot') + ' pilot', color: '#fff' },
+    { label: 'TRADES', value: num(agg.n_trades != null ? agg.n_trades : '—'),
+      sub: [agg.n_kaeufe != null ? ledgerZahlwort(agg.n_kaeufe, 'buy', 'buys') : '',
+        agg.n_verkaeufe != null ? ledgerZahlwort(agg.n_verkaeufe, 'sell', 'sells') : '',
+        agg.n_einloesungen != null ? ledgerZahlwort(agg.n_einloesungen, 'redemption', 'redemptions') : ''].filter(Boolean).join(' · '), color: '#fff' },
+    { label: 'STAKE (BUYS)', value: ledgerGeld(agg.kaeufe_usd, false), sub: 'sum of buy notionals · ' + (agg.n_maerkte != null ? num(agg.n_maerkte) + ' positions' : ''), color: '#fff' },
+    { label: 'NET CASH FLOW', value: ledgerGeld(agg.netto_cashflow_usd, true),
+      sub: 'sells ' + ledgerGeld(agg.verkaeufe_usd, false) + ' + redemptions ' + ledgerGeld(agg.einloesungen_usd, false) + ' − buys', color: ledgerFarbe(agg.netto_cashflow_usd) },
+    { label: 'POSITIONS WON / LOST', value: (agg.positionen_gewonnen != null ? agg.positionen_gewonnen : '—') + ' / ' + (agg.positionen_verloren != null ? agg.positionen_verloren : '—'),
+      sub: (pos.worthless != null ? pos.worthless + ' of the lost expired worthless' : '') + (pos.flat ? ' · ' + pos.flat + ' flat' : '') + (pos.open ? ' · ' + pos.open + ' open' : '') + (agg.closed_positions_capped ? ' · closed feed capped at 50 per tail' : ''), color: '#fff' }
+  ];
+  const kpiHtml = '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; margin-top:12px">'
+    + kpis.map((k) =>
+      '<div style="' + karte + '; border-radius:10px; padding:12px 14px">'
+      + '<div style="' + M + '; font-size:9.5px; letter-spacing:.13em; color:rgba(255,255,255,.45)">' + esc(k.label) + '</div>'
+      + '<div style="' + M + '; font-size:19px; margin-top:6px; color:' + k.color + '; white-space:nowrap">' + esc(k.value) + '</div>'
+      + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.4); margin-top:4px">' + esc(k.sub) + '</div></div>'
+    ).join('') + '</div>';
+
+  const spalten = '92px 1fr 118px 64px 96px 96px 150px';
+  const zeilen = events.map((e) => {
+    const datum = String(e.von_utc || '').slice(0, 10) || '—';
+    const bis = String(e.bis_utc || '').slice(0, 10);
+    const zeitraum = bis && bis !== datum ? datum + ' → ' + bis : datum;
+    const typ = String(e.typ || 'discretionary');
+    // A mixed event ("bot + discretionary") shows the other part next to the chip.
+    const mixRest = String(e.typ_mix || '').split(' + ').filter((t) => t && t !== typ).join(' + ');
+    const notes = Array.isArray(e.notes) ? e.notes : [];
+    const maerkte = Array.isArray(e.maerkte) ? e.maerkte : [];
+    return '<details style="border-bottom:1px solid rgba(255,255,255,.06)">'
+      + '<summary style="display:grid; grid-template-columns:' + spalten + '; gap:10px; align-items:center; padding:10px 16px; cursor:pointer; list-style:none">'
+      + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55); white-space:nowrap" title="' + esc(zeitraum) + '">' + esc(datum) + '</div>'
+      + '<div style="font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">'
+      + (e.url ? '<a href="' + esc(e.url) + '" target="_blank" rel="noopener" style="color:#fff; text-decoration:none" title="' + esc(e.event_slug || '') + '">' + esc(e.titel || e.event_slug || '—') + ' <span style="' + M + '; font-size:10px; color:#4F8EF7">↗</span></a>' : esc(e.titel || e.event_slug || '—'))
+      + (e.run_profil ? ' <span style="' + M + '; font-size:10px; color:rgba(255,255,255,.4)">' + esc(e.run_profil) + '</span>' : '')
+      + '</div>'
+      + '<div style="display:flex; gap:4px; align-items:center; flex-wrap:wrap">' + ledgerTypChip(typ)
+      + (mixRest ? '<span style="' + M + '; font-size:9.5px; color:rgba(255,255,255,.4)">+ ' + esc(mixRest) + '</span>' : '') + '</div>'
+      + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:rgba(255,255,255,.7)">' + num(e.n_maerkte != null ? e.n_maerkte : maerkte.length) + '</div>'
+      + '<div style="text-align:right; ' + M + '; font-size:11.5px">' + ledgerGeld(e.einsatz_usd, false) + '</div>'
+      + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:' + ledgerFarbe(e.pnl_usd != null ? e.pnl_usd : e.netto_cash_usd) + '" title="' + esc('API realised PnL ' + ledgerGeld(e.pnl_usd, true) + ' · cash flow ' + ledgerGeld(e.netto_cash_usd, true)) + '">' + ledgerGeld(e.pnl_usd != null ? e.pnl_usd : e.netto_cash_usd, true) + '</div>'
+      + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(e.status_text || '—') + '</div>'
+      + '</summary>'
+      + '<div style="padding:4px 16px 12px 108px">'
+      + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.4); margin-bottom:4px">'
+      + esc(zeitraum + ' · ' + ledgerZahlwort(e.n_trades, 'trade', 'trades') + ' · ' + ledgerZahlwort(e.n_einloesungen, 'redemption', 'redemptions') + ' · cash flow ' + ledgerGeld(e.netto_cash_usd, true) + (e.pnl_usd != null ? ' · API realised PnL ' + ledgerGeld(e.pnl_usd, true) : ''))
+      + '</div>'
+      + maerkte.map(ledgerMarktZeile).join('')
+      + (notes.length ? '<div style="font-size:11.5px; color:rgba(255,255,255,.55); margin-top:8px; line-height:1.5">' + notes.map((n) => ledgerNotizHtml(n)).join('<br>') + '</div>' : '')
+      + '</div></details>';
+  }).join('');
+
+  const tabelle = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:12px; overflow:hidden">'
+    + '<div style="padding:10px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10px; letter-spacing:.12em; color:rgba(255,255,255,.5)">'
+    + events.length + ' OF ' + events.length + ' EVENTS · NEWEST FIRST <span style="color:rgba(255,255,255,.35); letter-spacing:0">· click a row for its markets</span></div>'
+    + '<div style="display:grid; grid-template-columns:' + spalten + '; gap:10px; padding:8px 16px; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
+    + '<div>DATE</div><div>EVENT</div><div>TYPE</div><div style="text-align:right">MARKETS</div><div style="text-align:right">STAKE</div><div style="text-align:right">PNL</div><div>STATUS</div></div>'
+    + (events.length ? zeilen : leerZeile('The ledger holds no events — wallet_ledger.json lists none for this wallet.'))
+    + '</div>';
+
+  const legende = '<div style="font-size:11.5px; color:rgba(255,255,255,.5); margin-top:10px; line-height:1.6">'
+    + ledgerTypChip('bot') + ' market and side appear in a runs.json run log — these runs are also listed above with their latency data · '
+    + ledgerTypChip('discretionary') + ' placed by hand, in no run log · '
+    + ledgerTypChip('pilot') + ' one of the pre-registered pilot trades of 2026-07-22 (rules frozen 2026-07-18). '
+    + 'PnL is the API\'s realised figure per market (unrealised for positions not yet redeemed); the cash flow of an event can differ. Deposits are not in the Data API.'
+    + '</div>';
+
+  return '<div style="margin-top:22px">'
+    + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap">'
+    + '<div style="max-width:760px">' + KOPF
+    + '<div style="font-size:12.5px; color:rgba(255,255,255,.55); margin-top:6px; line-height:1.5">' + esc(ledger.hinweis || '') + '</div></div>'
+    + '<div style="display:flex; gap:8px; align-items:center">'
+    + '<div style="' + M + '; font-size:9.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; color:#0A0D0F; background:#C8F542">' + esc(String(ledger.kennzeichnung || 'wallet/public-api').toUpperCase()) + '</div>'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.4); border:1px solid rgba(255,255,255,.14); border-radius:6px; padding:5px 10px; white-space:nowrap">as of ' + esc(stand) + '</div>'
+    + '</div></div>'
+    + kpiHtml
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:8px">Wallet ' + esc(ledger.wallet || LIVE_RUN_WALLET)
+    + (agg.erste_aktivitaet_utc ? ' · first activity ' + esc(String(agg.erste_aktivitaet_utc).slice(0, 10)) : '')
+    + (agg.letzte_aktivitaet_utc ? ' · last activity ' + esc(String(agg.letzte_aktivitaet_utc).slice(0, 10)) : '')
+    + ' · <a href="./data/wallet_ledger.json" download="wallet_ledger.json" style="color:#4F8EF7; text-decoration:none">download the ledger</a></div>'
+    + tabelle + legende
+    + '</div>';
 }
 
 // Repricing after the drop, one step curve per bet from repricing[].punkte
