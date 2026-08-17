@@ -144,7 +144,9 @@ function methodeBlock(s) {
       + esc(s.einfach) + '</div>')
     + abschnitt('HOW TO READ IT', deutungBlock(s.interpretation));
   if (!inhalt) return '';
-  return '<details style="' + CARD + '; margin-top:14px; overflow:hidden">'
+  // data-key: die App merkt sich geoeffnete <details> ueber Re-Renders; die
+  // zwoelf Karten tragen denselben Summary-Text, also braucht jede ihre ID.
+  return '<details data-key="method:' + esc(String(s.id || '')) + '" style="' + CARD + '; margin-top:14px; overflow:hidden">'
     + '<summary style="' + M + '; font-size:10.5px; letter-spacing:.1em; color:rgba(255,255,255,.6); '
     + 'padding:13px 16px; cursor:pointer; list-style:none">▸ METHOD &amp; HOW TO READ IT'
     + ' <span style="color:rgba(255,255,255,.35)">· what was analysed, what else fits the numbers</span></summary>'

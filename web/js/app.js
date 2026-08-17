@@ -134,6 +134,8 @@ class Terminal {
       if (treffer >= 0) {
         this.state.page = 'research';
         this.state.researchTab = treffer;
+        // Drittes Segment = Karte auf der Seite (#research/microstructure/<id>).
+        this._pendingAnchor = segmente[2] ? segmente.join('/') : null;
       }
     }
     // Per-endpoint live payloads; templates use these when present and show
@@ -314,11 +316,14 @@ class Terminal {
     return i >= 0 ? this.navStudy(i, label || tab) : '';
   }
 
-  goStudy(i) {
+  goStudy(i, anker) {
+    // Optionaler Anker (z.B. eine Studienkarte auf der Microstructure-Seite):
+    // die Seite scrollt nach dem Rendern dorthin statt oben zu landen.
+    this._pendingAnchor = anker ? String(anker) : null;
     this.setState({ page: 'research', researchTab: i, detail: null });
     // Eigene Adresse je Studie: eine Bewerbung wird als Link verschickt, und
     // ein Verweis auf #research landete bisher immer auf der Review queue.
-    try { history.pushState(null, '', '#research/' + this.studienSlug(i)); } catch (e) { /* file:// */ }
+    try { history.pushState(null, '', '#' + (anker ? String(anker) : 'research/' + this.studienSlug(i))); } catch (e) { /* file:// */ }
     this.fetchPageData('research');
   }
 
@@ -721,12 +726,54 @@ class Terminal {
       this._focus = null;
     }
 
+    // Was der Leser aufgeklappt hat, bleibt aufgeklappt, und die Seite bleibt,
+    // wo sie war: der Poll alle 30 s baut das DOM neu auf, und ohne diese
+    // beiden Schritte schloss sich jedes <details> und die Seite sprang hoch.
+    const main = document.getElementById('main');
+    const scroller = main ? main.closest('.content') || main : null;
+    const scrollVorher = scroller ? scroller.scrollTop : 0;
+    const seiteVorher = this._renderedPage;
+    const offen = [];
+    if (main) {
+      // Schluessel: data-key, sonst Zusammenfassungstext plus Position — die
+      // zwoelf Studienkarten tragen denselben Summary-Text.
+      main.querySelectorAll('details').forEach((d, idx) => {
+        if (!d.open) return;
+        const key = d.getAttribute('data-key') || ((d.querySelector('summary') ? d.querySelector('summary').textContent.trim() : '') + '#' + idx);
+        offen.push(key);
+      });
+    }
+
     document.getElementById('sidebar').innerHTML = this.renderSidebar();
     document.getElementById('topbar').innerHTML = this.renderTopbar();
     const pageFn = PAGES[this.state.page] || renderOverview;
     document.getElementById('main').innerHTML = pageFn(this);
     document.getElementById('detail').innerHTML = renderDetail(this);
     document.getElementById('search').innerHTML = renderSearch(this);
+
+    const seiteJetzt = this.state.page + '/' + (this.state.page === 'research' ? this.state.researchTab : '');
+    if (main && offen.length && seiteJetzt === seiteVorher) {
+      main.querySelectorAll('details').forEach((d, idx) => {
+        const key = d.getAttribute('data-key') || ((d.querySelector('summary') ? d.querySelector('summary').textContent.trim() : '') + '#' + idx);
+        if (offen.indexOf(key) >= 0) d.setAttribute('open', '');
+      });
+    }
+    if (this._pendingAnchor) {
+      // Der Anker bleibt vorgemerkt, bis die Karte tatsaechlich im DOM ist:
+      // die Studienseite rendert erst leer und dann noch einmal mit Nutzlast.
+      const ziel = document.getElementById(this._pendingAnchor);
+      if (ziel) {
+        this._pendingAnchor = null;
+        ziel.scrollIntoView({ block: 'start' });
+      } else if (this._pendingAnchor.indexOf(this.state.page) !== 0) {
+        this._pendingAnchor = null;
+      } else if (scroller && seiteJetzt !== seiteVorher) {
+        scroller.scrollTop = 0;
+      }
+    } else if (scroller) {
+      scroller.scrollTop = seiteJetzt === seiteVorher ? scrollVorher : 0;
+    }
+    this._renderedPage = seiteJetzt;
 
     if (this._focus) {
       const el = document.querySelector('[data-key="' + this._focus.key + '"]');
@@ -766,6 +813,7 @@ class Terminal {
       const segmente = (location.hash || '#overview').replace('#', '').split('/');
       if (segmente[0] === 'research') {
         const i = this.studienIndexAus(segmente[1]);
+        this._pendingAnchor = segmente[2] ? segmente.join('/') : null;
         this.setState({ page: 'research', researchTab: i >= 0 ? i : this.state.researchTab, detail: null });
         this.fetchPageData('research');
       } else if (segmente[0] in PAGES && segmente[0] !== this.state.page) {
@@ -773,7 +821,13 @@ class Terminal {
         this.fetchPageData(segmente[0]);
       }
     });
-    setInterval(() => this.setState({ clock: this.utcClock() }), 15000);
+    // Die Uhr rendert nur die Kopfzeile neu: ein voller Render alle 15 s
+    // schloss jedes geoeffnete <details> und warf die Scrollposition zurueck.
+    setInterval(() => {
+      this.state.clock = this.utcClock();
+      const tb = document.getElementById('topbar');
+      if (tb) tb.innerHTML = this.renderTopbar();
+    }, 15000);
     this.render();
     this.pollLive();
     setInterval(() => this.pollLive(), 30000);

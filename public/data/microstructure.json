@@ -1,7 +1,7 @@
 {
  "hinweis": "Descriptive microstructure research on data this project recorded itself. Every figure is produced by a tested module in this repository. No profitability claim is made anywhere in this work.",
  "einleitung": "Four recorders run continuously across both venues: REST pollers on a 120 second grid and event driven WebSocket recorders that write on every change at the top of the book. The studies below ask, in order, whether anything in that data can be turned into money. Most of the answers are no, and the reasoning behind each no is the point. Each study states what it measured, what the numbers say, and how else they could be read.",
- "stand_utc": "2026-08-16T23:32:04.678297+00:00",
+ "stand_utc": "2026-08-17T18:38:23.065928+00:00",
  "kennzeichnung": "research/frozen",
  "zaehler": {
   "gesamt": 12,
@@ -208,7 +208,7 @@
     {
      "schluessel": "daten",
      "titel": "On what data",
-     "text": "The same eleven days and the same firings as the study above, so the two are directly comparable."
+     "text": "The same eleven days (2026-07-18 to 07-28) and the same 205,835 firings as study 1, book imbalance, so the two are directly comparable."
     },
     {
      "schluessel": "entscheidung",
@@ -365,7 +365,7 @@
     {
      "schluessel": "daten",
      "titel": "On what data",
-     "text": "The same recorded tape and the same eleven days, so the difference is the signal and not the sample."
+     "text": "The same recorded tape and the same eleven days as studies 1 and 2, so the difference is the signal and not the sample."
     },
     {
      "schluessel": "entscheidung",
@@ -915,7 +915,7 @@
     {
      "schluessel": "gemessen",
      "titel": "What was measured",
-     "text": "The same two quantities as the study above, spread earned and adverse selection, recomputed on seconds-resolution data."
+     "text": "The same two quantities as study 5 (market making at a 120-second requote), spread earned and adverse selection, recomputed on seconds-resolution data."
     },
     {
      "schluessel": "wie",
@@ -1070,7 +1070,7 @@
     {
      "schluessel": "daten",
      "titel": "On what data",
-     "text": "The same five days of seconds data, 468 tokens, both models run over identical quotes."
+     "text": "The same five days of seconds data as study 6 (468 tokens, 5,413,998 snapshots), both fill models run over identical quotes."
     },
     {
      "schluessel": "entscheidung",
@@ -1421,7 +1421,7 @@
     {
      "art": "grenze",
      "titel": "What this cannot tell you",
-     "text": "Five pairs is a very small sample. This supports the carry reading from the previous study rather than standing on its own."
+     "text": "Five pairs is a very small sample. This supports the carry reading of study 8 (cross-venue gaps) rather than standing on its own."
     }
    ],
    "report": "docs/research/gap_lifetime_2026-07-31.md",

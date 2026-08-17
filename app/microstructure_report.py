@@ -905,7 +905,7 @@ STUDIEN: tuple[Studie, ...] = (
         analyse={
             "gemessen": "What is left per firing after the two costs a taker cannot avoid: crossing the spread, and the venue fee.",
             "wie": "For each firing the price move is converted to cents per share. Then half the spread standing in the book at decision time is subtracted, and the fee schedule for that market's category on top. What remains is the net.",
-            "daten": "The same eleven days and the same firings as the study above, so the two are directly comparable.",
+            "daten": "The same eleven days (2026-07-18 to 07-28) and the same 205,835 firings as study 1, book imbalance, so the two are directly comparable.",
             "entscheidung": "Takeable means the net stays above zero. Costs come from the venue fee model in the repository, not from a round-number assumption.",
         },
         einfach=lambda k: (
@@ -937,7 +937,7 @@ STUDIEN: tuple[Studie, ...] = (
         analyse={
             "gemessen": "The same forward hit rate as the imbalance study, but for a signal built out of trade direction rather than resting orders.",
             "wie": "Each print on the tape is labelled a buy or a sell by comparing its price against the quote at the time. Those labels are summed into a signed volume imbalance, and that is checked forward exactly like the book signal.",
-            "daten": "The same recorded tape and the same eleven days, so the difference is the signal and not the sample.",
+            "daten": "The same recorded tape and the same eleven days as studies 1 and 2, so the difference is the signal and not the sample.",
             "entscheidung": "The identical Wilson bar as the first study. Holding the test fixed is the whole point of running it on the same data.",
         },
         einfach=lambda k: (
@@ -1033,7 +1033,7 @@ STUDIEN: tuple[Studie, ...] = (
         ),
         verdikt_art=VERDIKT_JA,
         analyse={
-            "gemessen": "The same two quantities as the study above, spread earned and adverse selection, recomputed on seconds-resolution data.",
+            "gemessen": "The same two quantities as study 5 (market making at a 120-second requote), spread earned and adverse selection, recomputed on seconds-resolution data.",
             "wie": "Identical code, identical parameters, identical fill model. What differs is how fresh the book is when the quote is placed. It is not a controlled experiment: the two runs also cover different days and a different set of tokens, so the data frequency is the main difference rather than the only one.",
             "daten": "5,413,998 streamed snapshots over five days and 468 tokens from the WebSocket recorders, against twelve days and 4,519 tokens on the 120 second grid. The two windows do not overlap.",
             "entscheidung": "Whichever of the two quantities moves is the binding constraint. If the spread earned had jumped, width would have been the answer; if the losses collapse, staleness is.",
@@ -1065,7 +1065,7 @@ STUDIEN: tuple[Studie, ...] = (
         analyse={
             "gemessen": "Daily profit with a confidence interval, computed twice under two different assumptions about when a quote would have been filled.",
             "wie": "The touch model assumes a fill whenever the price reaches the quote. The tape model assumes a fill only when a real print happened there. Daily totals are then resampled in blocks so the interval respects that days are not independent of themselves.",
-            "daten": "The same five days of seconds data, 468 tokens, both models run over identical quotes.",
+            "daten": "The same five days of seconds data as study 6 (468 tokens, 5,413,998 snapshots), both fill models run over identical quotes.",
             "entscheidung": "Identified means both models agree on the sign. If they disagree, the answer depends on the assumption rather than on the data, and no result can honestly be claimed.",
         },
         einfach=lambda k: (
@@ -1133,7 +1133,7 @@ STUDIEN: tuple[Studie, ...] = (
         interpretation=(
             (LESART, "The gaps persist because they are the fair price of tying money up until settlement, not because the market has missed them."),
             (GEGENLESART, "Eleven hours is a short window. A gap that closes weekly would look permanently open here, and this study could not tell the difference."),
-            (GRENZE, "Five pairs is a very small sample. This supports the carry reading from the previous study rather than standing on its own."),
+            (GRENZE, "Five pairs is a very small sample. This supports the carry reading of study 8 (cross-venue gaps) rather than standing on its own."),
         ),
         quelle="gap_lifetime_2026-07-31",
         report="docs/research/gap_lifetime_2026-07-31.md",

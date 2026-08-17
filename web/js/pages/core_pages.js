@@ -4,6 +4,7 @@
 // or the panel says which payload is missing.
 
 import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, signedMoney, stempel } from '../util.js';
+import { studieAnker } from './microstructure_page.js';
 
 const M = "font-family:'JetBrains Mono',monospace";
 const LBL9 = M + '; font-size:9px; letter-spacing:.14em; color:rgba(255,255,255,.42); margin-bottom:6px';
@@ -154,7 +155,7 @@ export function renderOverview(T) {
   const runsIdx = T.studies.findIndex((st) => st.tab === 'Live runs');
   const notesIdx = T.studies.findIndex((st) => st.tab === 'Field notes');
   const pilotIdx = T.studies.findIndex((st) => st.tab === 'Pilot');
-  const goStudy = (i) => (i >= 0 && T.goStudy ? T.act(() => T.goStudy(i)) : '');
+  const goStudy = (i, anker) => (i >= 0 && T.goStudy ? T.act(() => T.goStudy(i, anker)) : '');
   const link = (i, label, color) => (i >= 0
     ? '<div ' + goStudy(i) + ' class="hv-lime" style="' + M + '; font-size:11px; color:' + (color || 'rgba(255,255,255,.45)') + '; cursor:pointer; white-space:nowrap">' + label + ' →</div>'
     : '');
@@ -170,7 +171,9 @@ export function renderOverview(T) {
         const kn = keyNumber(st);
         const basis = st.basis || {};
         const nLabel = sampleLabel(basis);
-        return '<div ' + goStudy(microIdx) + ' class="hv-panel" style="display:grid; grid-template-columns:36px 1fr 128px 190px 150px; align-items:center; padding:11px 24px; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer; animation:rowIn .25s ease-out">'
+        // Jede Zeile fuehrt direkt zu ihrer Karte auf der Microstructure-Seite,
+        // nicht zum Seitenanfang: gleicher Anker wie die Sprungliste dort.
+        return '<div ' + goStudy(microIdx, studieAnker(st, i)) + ' class="hv-panel" style="display:grid; grid-template-columns:36px 1fr 128px 190px 150px; align-items:center; padding:11px 24px; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer; animation:rowIn .25s ease-out">'
           + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.4)">' + String(i + 1).padStart(2, '0') + '</div>'
           + '<div style="padding-right:16px"><div style="font-size:13.5px; line-height:1.35">' + esc(st.frage || st.id || '—') + '</div>'
           + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(String(st.verdikt || '').split('. ')[0]) + '</div></div>'
