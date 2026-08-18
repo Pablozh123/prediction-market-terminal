@@ -397,8 +397,55 @@ class CopyPayloadTests(unittest.TestCase):
         self.assertEqual(payload["status"]["scale"], 0.42)
         self.assertIn("Swisstony", payload["status"]["source"])
         self.assertEqual(payload["orders"][0]["side"], "BUY No")
+        self.assertEqual(payload["orders"][0]["kind"], "BUY")
         self.assertEqual(payload["positions"][0][0], "Brazil win")
         self.assertEqual(payload["equity_curve"][-1], 1043.18)
+
+    def test_merges_and_settlements_say_what_they_are_and_carry_the_source_book(self) -> None:
+        # The row that confused the reader: source_side MERGE with outcome
+        # "Yes" read like a YES bet, while the wallet was net NO. The kind says
+        # MERGE, the sentence says both sides went back for cash, and the book
+        # line says what the source holds in that market now.
+        w = "0x" + "a" * 40
+        orders = pd.DataFrame([
+            {"source_time": "2026-08-17T10:00:00Z", "title": "Iran fees Hormuz until 31 Aug", "source_side": "MERGE",
+             "outcome": "Yes", "source_notional": 3000.0, "copy_notional": 30.0, "status": "settled",
+             "reason": "merge_complete_set", "source_wallet": w, "market_key": "0xcond"},
+            {"source_time": "2026-08-17T09:00:00Z", "title": "Iran fees Hormuz until 31 Aug", "source_side": "REDEEM",
+             "outcome": "No", "source_notional": 500.0, "copy_notional": 5.0, "status": "settled",
+             "reason": "redeem_resolution", "source_wallet": w, "market_key": "0xother"},
+            {"source_time": "2026-08-17T08:00:00Z", "title": "Old market", "source_side": "",
+             "outcome": "Yes", "source_notional": 0.0, "copy_notional": 0.0, "status": "settled",
+             "reason": "resolution_loser_loss", "source_wallet": w, "market_key": "0xold"},
+            {"source_time": "2026-08-17T07:00:00Z", "title": "Iran fees Hormuz until 31 Aug", "source_side": "BUY",
+             "outcome": "Yes", "source_notional": 1000.0, "copy_notional": 10.0, "status": "copied",
+             "reason": "buy_scaled", "source_wallet": w, "market_key": "0xcond"},
+        ])
+        source_positions = pd.DataFrame([
+            {"wallet": w, "market_key": "0xcond", "outcome": "No", "shares": 12000.0},
+            {"wallet": w, "market_key": "0xcond", "outcome": "Yes", "shares": 100.0},
+        ])
+        payload = apv.copy_payload(orders, pd.DataFrame(), pd.DataFrame(), pd.DataFrame(),
+                                   {"cash": 1000.0, "equity": 1000.0}, 1000.0, w, "x", {}, source_positions=source_positions)
+        merge, redeem, resolution, buy = payload["orders"]
+        self.assertEqual(merge["kind"], "MERGE")
+        self.assertIn("both sides", merge["explain"])
+        self.assertIn("not a bet on Yes", merge["explain"])
+        self.assertEqual(merge["book"], "source book now: 100 YES / 12.0k NO → net NO")
+        self.assertEqual(redeem["kind"], "REDEEM")
+        self.assertEqual(redeem["book"], "")  # no mirror row for that market
+        self.assertEqual(resolution["kind"], "RESOLUTION")
+        self.assertIn("against Yes", resolution["explain"])
+        self.assertEqual(buy["kind"], "BUY")
+        self.assertEqual(buy["book"], merge["book"])
+        # Without the mirror the book line stays empty rather than "flat".
+        bare = apv.copy_payload(orders, pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), {"cash": 1000.0, "equity": 1000.0}, 1000.0, w, "x", {})
+        self.assertEqual(bare["orders"][0]["book"], "")
+
+    def test_source_book_line_wording(self) -> None:
+        self.assertEqual(apv.source_book_line({"yes": 0.0, "no": 0.0}), "source book now: flat in this market")
+        self.assertEqual(apv.source_book_line({"yes": 950.0, "no": 1000.0}), "source book now: 950 YES / 1.0k NO → balanced")
+        self.assertEqual(apv.source_book_line(None), "")
 
 
 @dataclass

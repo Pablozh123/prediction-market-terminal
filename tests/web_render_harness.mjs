@@ -67,7 +67,7 @@ function neuesT() {
     herkunft: { markets: null, tape: null, traders: null, risks: null, cross: null },
     // Landing payloads (Overview): null until loaded, like in app.js.
     landing: { micro: null, runs: null, notes: null, herkunft: { micro: null, runs: null, notes: null } },
-    liveData: { leaderboard: null, cross: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {} },
+    liveData: { leaderboard: null, cross: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {}, riskBook: {} },
     num, money, esc, spark,
     seriesPoints: (v, w, h) => seriesPoints(v, w, h),
     act: () => 'data-act="0"',
@@ -102,7 +102,8 @@ function neuesT() {
     go: () => {},
     goStudy: () => {},
     openWallet: () => {},
-    openMarket: () => {}
+    openMarket: () => {},
+    fetchRiskBook: () => {}
   };
 }
 
@@ -195,7 +196,9 @@ function mitDaten(T) {
   T.risks = [{
     kind: 'TIMING', score: 61, market: 'Example question', detail: 'three wallets, one side',
     wallets: 3, notional: '$40k', window: '2 h', venue: 'Polymarket', sev: 'medium',
-    market_key: '0xc1', url: 'https://polymarket.com/event/example-question', flags: ['three wallets, one side'],
+    // A conditionId-shaped key: the wallet-book line asks /api/risk/book only
+    // for those (0x + 64 hex), never for a Kalshi ticker.
+    market_key: HARNESS_CONDITION, url: 'https://polymarket.com/event/example-question', flags: ['three wallets, one side'],
     notional_usd: 40000, category: 'Politics & geopolitics', context_note: 'decisions are known to officials before the public',
     side: 'NO buys', side_notional: 34000, side_share: 0.85,
     side_split: { buy_yes: 6000, buy_no: 34000, sell_yes: 0, sell_no: 0 },
@@ -287,19 +290,25 @@ function mitDaten(T) {
       mirrored: 1, total: 1, skipped: 0, fidelity: 100, config_fidelity: 100, exec_fidelity: 100,
       cash: 990, unrealized: 0, open_positions: 0
     },
-    orders: [{ time: '12:00', market: 'Example question', side: 'BUY Yes', theirs: '$100', yours: '$10', status: 'copied', reason: 'buy_scaled', wallet: HARNESS_TRADER_A, at: '2026-08-07T12:00:00+00:00' }],
+    orders: [
+      { time: '12:00', market: 'Example question', side: 'BUY Yes', kind: 'BUY', outcome: 'Yes', explain: 'the source bought Yes; the copy scaled it into the sub-account', book: 'source book now: 100 YES / 12.0k NO → net NO', theirs: '$100', yours: '$10', status: 'copied', reason: 'buy_scaled', wallet: HARNESS_TRADER_A, at: '2026-08-07T12:00:00+00:00' },
+      // The row that misled: source side MERGE with outcome "Yes" is not a
+      // YES bet — the kind, the sentence and the book line say so.
+      { time: '12:05', market: 'Example question', side: 'MERGE Yes', kind: 'MERGE', outcome: 'Yes', explain: 'the source handed equal YES + NO shares back to the venue for $1 each — that closes exposure on both sides (a hedge unwound or an exit), it is not a bet on Yes', book: 'source book now: 100 YES / 12.0k NO → net NO', theirs: '$3,000', yours: '$30', status: 'settled', reason: 'merge_complete_set', wallet: HARNESS_TRADER_A, at: '2026-08-07T12:05:00+00:00' }
+    ],
     positions: [], cash_events: [], history: [], equity_curve: [],
     traders: [
       { wallet: HARNESS_TRADER_A, label: 'w1', note: 'harness desk, slow trader', active: true, start_cash: 500, cash: 490, position_value: 10, equity: 500,
         contributions: 500, pnl: 0, pnl_pct: 0, realized_pnl: 0, unrealized_pnl: 0,
         orders: { copied: 1, skipped: 0, settled: 0, observed: 3, total: 4 }, open_positions: 1, last_copy_at: '2026-08-07T12:00:00+00:00',
         added_at: '2026-08-06T00:00:00+00:00', seeded_at: '2026-08-06T00:00:05+00:00', baseline_cutoff_ts: 1785000000,
-        equity_curve: [500, 500, 500], profile_url: 'https://polymarket.com/profile/' + HARNESS_TRADER_A },
+        equity_curve: [500, 500, 500], profile_url: 'https://polymarket.com/profile/' + HARNESS_TRADER_A,
+        source_equity: 52000, neutral_ratio: 500 / 52000 },
       { wallet: HARNESS_TRADER_B, label: 'w2', note: '', active: false, start_cash: 500, cash: 500, position_value: 0, equity: 500,
         contributions: 500, pnl: 0, pnl_pct: 0, realized_pnl: 0, unrealized_pnl: 0,
         orders: { copied: 0, skipped: 0, settled: 0, observed: 0, total: 0 }, open_positions: 0, last_copy_at: null,
         added_at: '2026-08-07T00:00:00+00:00', seeded_at: null, baseline_cutoff_ts: null,
-        equity_curve: [], profile_url: 'https://polymarket.com/profile/' + HARNESS_TRADER_B }
+        equity_curve: [], profile_url: 'https://polymarket.com/profile/' + HARNESS_TRADER_B, source_equity: null, neutral_ratio: null }
     ],
     active_count: 1,
     totals: { equity: 1000, contributions: 1000, cash: 990 },
@@ -566,6 +575,7 @@ function mitDaten(T) {
 }
 
 const WALLET_HARNESS_ADDR = '0xabc0000000000000000000000000000000000abc';
+const HARNESS_CONDITION = '0xc1' + '0'.repeat(62);
 const HARNESS_TRADER_A = '0x' + 'a'.repeat(40);
 const HARNESS_TRADER_B = '0x' + 'b'.repeat(40);
 
@@ -762,6 +772,8 @@ function rendern(T) {
     ['copy_cash', 'copy', { copyTab: 'cash' }],
     ['copy_settings', 'copy', { copyTab: 'settings' }],
     ['copy_settings_dirty', 'copy', { copyTab: 'settings', copySettings: { dynamic_sizing_enabled: false, copy_scale: '0.02' } }],
+    ['copy_settings_one', 'copy', { copyTab: 'settings', copySettings: { dynamic_sizing_enabled: false, copy_scale: '1' } }],
+    ['copy_orders_merges', 'copy', { copyTab: 'orders', copySide: 'MERGE' }],
     ['copy_filter_b', 'copy', { copyTab: 'orders', copyTrader: HARNESS_TRADER_B }],
     ['copy_perf_filter_a', 'copy', { copyTab: 'perf', copyTrader: HARNESS_TRADER_A }],
     ['copy_edit_row', 'copy', { copyEdit: { wallet: HARNESS_TRADER_A, label: 'w1', note: 'x' } }],
@@ -833,6 +845,17 @@ function rendern(T) {
     // still loading, answered empty, and failed. The log is fetched only when
     // the tab is opened, so "loading" is the state right after the click.
     ['risk_log', 'risk', { riskView: 'log' }],
+    // The wallet-book line on the risk card: answered (net NO, the NO buys add
+    // to the book), and failed (not read, no side invented).
+    ['risk_book', 'risk', {}, null, (T) => {
+      T.liveData.riskBook[HARNESS_CONDITION] = { herkunft: 'live', data: { market_key: HARNESS_CONDITION, flagged_side: 'NO buys', wallets: [
+        { wallet: '0xbbb2000000000000000000000000000000000002', short: '0xbbb2…0002', read: true, positions: 1, yes_shares: 0, no_shares: 12000, yes_value: 0, no_value: 4080, net: 'NO', net_shares: 12000, relation: 'adds', text: 'holds 0 YES / 12.0k NO now — net NO; the flagged NO buys add to that side' },
+        { wallet: '0xaaa1000000000000000000000000000000000001', short: '0xaaa1…0001', read: true, positions: 2, yes_shares: 9000, no_shares: 200, yes_value: 5940, no_value: 68, net: 'YES', net_shares: 8800, relation: 'reduces', text: 'holds 9.00k YES / 200 NO now — net YES; the flagged NO buys work against a YES book (hedge / closing / merging), not a new NO bet' }
+      ], dropped: 0, note: 'read now' } };
+    }],
+    ['risk_book_err', 'risk', {}, null, (T) => {
+      T.liveData.riskBook[HARNESS_CONDITION] = { herkunft: 'fehler', fehler: 'no answer within 45 s' };
+    }],
     ['risk_log_loading', 'risk', { riskView: 'log' }, null, (T) => {
       const alt = T.liveData.riskLog;
       T.liveData.riskLog = null;

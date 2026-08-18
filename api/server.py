@@ -57,6 +57,8 @@ Paper-Copy-Desk unter /api/copy/*, der lokale Papierbuecher schreibt):
                                     300 s cache, own per-IP limiter: 12/min, burst 6)
     GET  /api/cross?query=&min_similarity=0.5&max_pairs=50   (gate: sim >= 0.5, volume on both venues)
     GET  /api/risk
+    GET  /api/risk/book?market=<conditionId>&wallets=a,b&side=YES%20buys  (was die Wallets in dem
+                                             Markt jetzt halten; hedge oder neue Wette)
     GET  /api/risk/log?limit=100&enrich=1   (Flag-Log; enrich=1 haengt an die neuesten 30
                                              Polymarket-Flags den Preis +30 min/+2 h/+24 h)
     GET  /api/alerts
@@ -902,6 +904,42 @@ def _flag_price_after(row: dict[str, Any]) -> dict[str, Any] | None:
     return cached(f"flag_after_{row.get('flag_id')}_{token_id}", _load, ttl=300.0)
 
 
+@app.get("/api/risk/book")
+def risk_book(
+    market: str = Query(..., min_length=3, max_length=120),
+    wallets: str = Query(..., min_length=42, max_length=400),
+    side: str = Query("", max_length=20),
+) -> dict[str, Any]:
+    """What the flagged wallets hold in the flagged market, read now.
+
+    ``wallets`` is a comma list of addresses (at most five are read), ``side``
+    the flagged flow ("YES buys") so the answer can say whether that flow adds
+    to, reduces or hedges the wallet's book. Cached five minutes per
+    (market, wallet); the market's answer is assembled from those.
+    """
+    from app import wallet_book as wb
+
+    market_key = market.strip()
+    if not re.fullmatch(r"0x[a-fA-F0-9]{64}", market_key):
+        raise HTTPException(status_code=400, detail="market must be a Polymarket conditionId (0x + 64 hex)")
+    addresses = [w.strip().lower() for w in wallets.split(",") if w.strip()]
+    if not all(re.fullmatch(r"0x[a-fA-F0-9]{40}", w) for w in addresses):
+        raise HTTPException(status_code=400, detail="wallets must be 0x + 40 hex addresses, comma-separated")
+    flagged = side.strip()
+    books = [
+        cached(f"risk_book_{market_key}_{w}_{flagged.lower()}", wb.wallet_book, w, market_key, flagged, ttl=300.0)
+        for w in addresses[: wb.MAX_WALLETS]
+    ]
+    return {
+        "market_key": market_key,
+        "flagged_side": flagged,
+        "wallets": books,
+        "dropped": max(0, len(addresses) - wb.MAX_WALLETS),
+        "note": "open positions in this market from the public Data API, read now — not at flag time",
+        "as_of": md.now_utc_label(),
+    }
+
+
 @app.get("/api/risk/log")
 def risk_log_endpoint(limit: int = Query(100, ge=1, le=500), enrich: int = 0, since: str | None = None) -> dict[str, Any]:
     from app import risk_log
@@ -1145,6 +1183,7 @@ def copy_state(request: Request) -> dict[str, Any]:
             positions = ct.get_positions(conn=conn)
             cash_events = ct.get_cash_events(conn=conn)
             equity = ct.get_equity_snapshots(conn=conn)
+            source_books = ct.get_source_positions(conn=conn)
             snapshot = ct.value_paper_portfolio(conn=conn)
             portfolio = {
                 "cash": snapshot.cash,
@@ -1170,7 +1209,7 @@ def copy_state(request: Request) -> dict[str, Any]:
         else:
             source_label = "no active trader"
             source_wallet = ""
-        payload = apv.copy_payload(orders, positions, cash_events, equity, portfolio, contributions, source_wallet, source_label, sizing)
+        payload = apv.copy_payload(orders, positions, cash_events, equity, portfolio, contributions, source_wallet, source_label, sizing, source_positions=source_books)
         payload["status"]["source"] = source_label
         payload["status"]["running"] = desk["daemon"].get("running")
         payload["status"]["auto_topup"] = bool(desk["settings"].get("auto_top_up_enabled"))

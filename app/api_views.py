@@ -1261,6 +1261,81 @@ def alert_rows(signals: pd.DataFrame) -> list[dict[str, Any]]:
     return rows
 
 
+#: What a paper order row *is*, from its source side and reason. The source
+#: side of a settlement row is the activity type (MERGE, REDEEM), of a
+#: resolution row the synthetic reason; a bare "MERGE Yes" in the list read
+#: like a bet on YES when it was the opposite — both sides handed back for
+#: cash. The kind and the sentence say what happened, in words.
+ORDER_KINDS: dict[str, tuple[str, str]] = {
+    "BUY": ("BUY", "the source bought {outcome}; the copy scaled it into the sub-account"),
+    "SELL": ("SELL", "the source sold {outcome}; the copy sold the same share of its position"),
+    "MERGE": (
+        "MERGE",
+        "the source handed equal YES + NO shares back to the venue for $1 each — that closes exposure on both sides "
+        "(a hedge unwound or an exit), it is not a bet on {outcome}",
+    ),
+    "REDEEM": ("REDEEM", "the market resolved; the source redeemed its winning shares for cash"),
+    "SPLIT": ("SPLIT", "the source split cash into equal YES + NO shares (no direction yet)"),
+    "CONVERT": ("CONVERT", "the source converted shares between outcomes of a multi-outcome market"),
+}
+
+
+def order_kind(row: Mapping[str, Any]) -> tuple[str, str]:
+    """Kind label and explanation for one paper_orders row."""
+
+    reason = _text(row.get("reason")).lower()
+    outcome = _text(row.get("outcome")) or "Yes"
+    if reason.startswith("resolution_winner"):
+        return "RESOLUTION", f"the market resolved for {outcome}; the paper position paid out $1 a share"
+    if reason.startswith("resolution_loser"):
+        return "RESOLUTION", f"the market resolved against {outcome}; the paper position went to zero"
+    if reason.startswith("redeem"):
+        return "REDEEM", ORDER_KINDS["REDEEM"][1]
+    side = _text(row.get("source_side")).upper() or _text(row.get("copy_side")).upper() or "BUY"
+    label, sentence = ORDER_KINDS.get(side, (side, "source activity of type " + side))
+    return label, sentence.format(outcome=outcome)
+
+
+def _source_book_index(source_positions: pd.DataFrame | None) -> dict[tuple[str, str], dict[str, float]]:
+    """(wallet, market_key) -> {yes, no} shares the source holds now, from the
+    engine's mirror of the source wallets' books (source_positions)."""
+
+    index: dict[tuple[str, str], dict[str, float]] = {}
+    if source_positions is None or source_positions.empty:
+        return index
+    for _, row in source_positions.iterrows():
+        wallet = _text(row.get("wallet")).lower()
+        market_key = _text(row.get("market_key"))
+        shares = _num(row.get("shares"), 0.0) or 0.0
+        if not wallet or not market_key or shares <= 0:
+            continue
+        outcome = _text(row.get("outcome")).upper()
+        entry = index.setdefault((wallet, market_key), {"yes": 0.0, "no": 0.0})
+        if outcome == "YES":
+            entry["yes"] += shares
+        elif outcome == "NO":
+            entry["no"] += shares
+    return index
+
+
+def source_book_line(book: Mapping[str, float] | None) -> str:
+    """"his book now: 12.0k NO / 0 YES → net NO" from a {yes, no} entry."""
+
+    if not book:
+        return ""
+    yes = float(book.get("yes", 0.0) or 0.0)
+    no = float(book.get("no", 0.0) or 0.0)
+    if yes <= 0 and no <= 0:
+        return "source book now: flat in this market"
+
+    def fmt(v: float) -> str:
+        return f"{v / 1000:.1f}k" if v >= 1000 else f"{v:.0f}"
+
+    larger = max(yes, no)
+    net = "balanced" if abs(yes - no) <= 0.10 * larger else ("net YES" if yes > no else "net NO")
+    return f"source book now: {fmt(yes)} YES / {fmt(no)} NO → {net}"
+
+
 def copy_payload(
     orders: pd.DataFrame,
     positions: pd.DataFrame,
@@ -1271,6 +1346,7 @@ def copy_payload(
     source_wallet: str,
     source_label: str,
     sizing: Mapping[str, Any] | None = None,
+    source_positions: pd.DataFrame | None = None,
 ) -> dict[str, Any]:
     """SQLite-Zustand des Copy-Traders in die Copy/Portfolio-Seiten.
 
@@ -1278,12 +1354,14 @@ def copy_payload(
     jede Positions- und Kassenzeile die Wallet als letztes Listenelement — so
     kann die Seite nach Trader filtern, ohne dass die aelteren Spalten
     wandern. Die Zaehler in ``kpis`` gehen ueber alle Orders, nicht nur ueber
-    die gezeigten Zeilen.
+    die gezeigten Zeilen. Mit ``source_positions`` (Spiegel der Quell-Buecher)
+    traegt jede Order-Zeile den aktuellen Bestand der Quelle in dem Markt.
     """
 
     order_rows: list[dict[str, Any]] = []
     copied = skipped = 0
     total_orders = 0
+    books = _source_book_index(source_positions)
     if orders is not None and not orders.empty:
         total_orders = int(len(orders))
         if "status" in orders:
@@ -1296,15 +1374,25 @@ def copy_payload(
             if "T" in time_label:
                 time_label = time_label.split("T")[1][:5]
             side = (_text(row.get("copy_side") or row.get("source_side")).upper() or "BUY") + " " + (_text(row.get("outcome")) or "Yes")
+            kind, explain = order_kind(row)
+            wallet = _text(row.get("source_wallet")).lower()
+            book = books.get((wallet, _text(row.get("market_key"))))
             order_rows.append({
                 "time": time_label or "—",
                 "market": _text(row.get("title")),
                 "side": side,
+                "kind": kind,
+                "outcome": _text(row.get("outcome")) or "Yes",
+                "explain": explain,
+                "book": source_book_line(book),
+                "shares": round(_num(row.get("source_size"), 0.0) or 0.0, 2),
+                "price": _num(row.get("source_price")),
+                "realized": round(_num(row.get("realized_pnl"), 0.0) or 0.0, 2),
                 "theirs": f"${(_num(row.get('source_notional'), 0.0) or 0.0):,.0f}",
                 "yours": f"${(_num(row.get('copy_notional'), 0.0) or 0.0):,.0f}",
                 "status": status,
                 "reason": _text(row.get("reason")),
-                "wallet": _text(row.get("source_wallet")).lower(),
+                "wallet": wallet,
                 "at": _text(row.get("source_time") or row.get("created_at")),
             })
     position_rows: list[list[Any]] = []

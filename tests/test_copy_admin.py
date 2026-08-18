@@ -242,6 +242,22 @@ class OverviewTests(unittest.TestCase):
         self.assertIsNone(b["last_copy_at"])
         self.assertIsNotNone(a["last_copy_at"])
         self.assertTrue(a["profile_url"].endswith(WALLET_A))
+        # No sizing refresh yet: no source equity, no ratio — nothing invented.
+        self.assertIsNone(a["source_equity"])
+        self.assertIsNone(a["neutral_ratio"])
+
+    def test_source_equity_and_neutral_ratio_come_from_the_sizing_stats(self) -> None:
+        ca.follow(WALLET_A, label="A", start_cash=500, db_path=self.db, seed=False)
+        conn = ct.connect(self.db)
+        try:
+            ct._set_meta(conn, f"wallet_stat:{WALLET_A}:visible_equity", "52000")
+            conn.commit()
+        finally:
+            conn.close()
+        row = {r["wallet"]: r for r in ca.traders_overview(db_path=self.db)}[WALLET_A]
+        self.assertAlmostEqual(row["source_equity"], 52000.0)
+        # "same share of account": his $1,000 (1.92 % of his) = $9.62 of a $500 book.
+        self.assertAlmostEqual(row["neutral_ratio"], 500 / 52000, places=9)
 
     def test_desk_state_bundles_everything(self) -> None:
         state = ca.desk_state(db_path=self.db, settings_path=Path(self.tmp.name) / "s.json", status_path=Path(self.tmp.name) / "none.json")

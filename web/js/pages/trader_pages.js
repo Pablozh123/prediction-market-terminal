@@ -353,6 +353,38 @@ export function riskWalletsHtml(wallets, count) {
   }).join('');
 }
 
+// The book behind the flow: what the top wallets hold in this market right
+// now (/api/risk/book), and whether the flagged flow adds to that book, works
+// against it (hedge / closing / merging) or exits it. A wallet on 12k NO that
+// buys YES is not a YES bet — the tape says "YES buys", the book says "net
+// NO"; this line says which. Polymarket only (Kalshi has no wallets); read
+// now, not at flag time; "reading" until the answer is there.
+export function riskBookHtml(T, r) {
+  if (!r || !Array.isArray(r.top_wallets) || !r.top_wallets.length) return '';
+  if (String(r.venue || 'Polymarket').toLowerCase() !== 'polymarket') return '';
+  const key = String(r.market_key || '');
+  if (!/^0x[0-9a-f]{64}$/i.test(key)) return '';
+  if (typeof T.fetchRiskBook === 'function') T.fetchRiskBook(key, r.top_wallets, r.side || '');
+  const eintrag = T.liveData && T.liveData.riskBook ? T.liveData.riskBook[key] : null;
+  const kopf = '<span style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:rgba(255,255,255,.4)">WALLET BOOK NOW</span> ';
+  if (!eintrag || eintrag.herkunft === 'loading') return '<div style="margin-top:8px; font-size:11.5px; color:rgba(255,255,255,.45)">' + kopf + 'reading the wallets\' open positions in this market…</div>';
+  if (eintrag.herkunft === 'fehler') return '<div style="margin-top:8px; font-size:11.5px; color:rgba(255,255,255,.45)">' + kopf + 'not read (' + esc(eintrag.fehler || 'no answer') + ')</div>';
+  const books = eintrag.data && Array.isArray(eintrag.data.wallets) ? eintrag.data.wallets : [];
+  if (!books.length) return '<div style="margin-top:8px; font-size:11.5px; color:rgba(255,255,255,.45)">' + kopf + 'no wallet readable</div>';
+  const farbe = (rel) => rel === 'adds' || rel === 'new_bet' ? '#C8F542' : rel === 'reduces' || rel === 'hedge' || rel === 'exit' ? '#F5A623' : 'rgba(255,255,255,.6)';
+  const wort = (rel) => rel === 'adds' ? 'ADDS TO BOOK' : rel === 'reduces' ? 'HEDGE / CLOSING' : rel === 'hedge' ? 'HEDGED BOTH SIDES' : rel === 'exit' ? 'EXIT' : rel === 'new_bet' ? 'NOT HELD NOW' : 'BOOK';
+  return '<div style="margin-top:8px; display:flex; flex-direction:column; gap:4px">'
+    + books.map((b) => {
+      if (!b.read) return '<div style="font-size:11.5px; color:rgba(255,255,255,.45)">' + kopf + esc(b.short || b.wallet) + ' not read (' + esc(b.error || 'no answer') + ')</div>';
+      const netz = b.net === 'YES' || b.net === 'NO' ? 'net ' + b.net : b.net === 'balanced' ? 'balanced' : 'flat';
+      return '<div style="font-size:11.5px; line-height:1.45; color:rgba(255,255,255,.7)">' + kopf
+        + '<span style="' + M + '; color:rgba(255,255,255,.85)">' + esc(b.short || b.wallet) + '</span> '
+        + '<span style="' + M + '; font-size:10px; letter-spacing:.08em; color:' + farbe(b.relation) + '; border:1px solid ' + farbe(b.relation) + '55; border-radius:4px; padding:1px 6px; margin:0 4px">' + wort(b.relation) + ' · ' + esc(netz) + '</span>'
+        + esc(b.text || '') + '</div>';
+    }).join('')
+    + '</div>';
+}
+
 function marketLink(url) {
   return url ? '<a data-stop href="' + esc(url) + '" target="_blank" rel="noopener" title="Open the market" style="' + LINK + '">market ↗</a>' : '';
 }
@@ -418,6 +450,7 @@ export function renderRiskLog(T) {
         + (hatAfter ? '<div style="display:flex; gap:22px; margin-top:10px">' + afterCell(f.after, '30m', '+30 MIN') + afterCell(f.after, '2h', '+2 H') + afterCell(f.after, '24h', '+24 H')
           + '<div><div style="' + HEAD_CELL + '">MEASURED ON</div><div style="' + M + '; font-size:12px; color:rgba(255,255,255,.55); margin-top:2px">' + (f.after ? esc(f.price_outcome || 'flagged') + ' side, from last print' : (String(f.venue).toLowerCase() === 'kalshi' ? 'Kalshi: no history read' : 'no history / not in the enriched set')) + '</div></div></div>' : '')
         + '<div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:9px">' + riskWalletsHtml(f.top_wallets, f.unique_wallets) + '</div>'
+        + riskBookHtml(T, { top_wallets: f.top_wallets, venue: f.venue, market_key: f.market_key, side: f.side })
         + '<div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:7px">' + riskComponentsHtml(f.components) + '</div>'
         + '</div>';
     }).join('')
@@ -485,6 +518,7 @@ export function renderRisk(T) {
               + '<span style="' + CHIP + '">at flag ' + esc(riskPriceLabel(r0)) + '</span>'
               + '<span style="' + CHIP + '">' + esc(windowLabel(r0.first_print, r0.last_print, r0.window_minutes)) + '</span></div>'
               + '<div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:8px">' + riskWalletsHtml(r0.top_wallets, r0.wallets) + '</div>'
+              + riskBookHtml(T, r0)
               + (Array.isArray(r0.components) && r0.components.length ? '<div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:7px">' + riskComponentsHtml(r0.components) + '</div>' : '')
             : '')
           + '<div style="height:1px; background:rgba(255,255,255,.07); margin:14px 0 12px"></div>'

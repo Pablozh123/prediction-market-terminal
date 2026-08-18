@@ -1339,14 +1339,51 @@ class WebLeerzustandTest(unittest.TestCase):
         # Settings tab: the editable fields with their saved values, and the
         # save button turns primary once something changed.
         settings = _sichtbarer_text(self.ausgabe["live"]["copy_settings"])
-        for wert in ("DYNAMIC SIZING", "CASH THROTTLE", "AUTO TOP-UP", "Save settings", "mode now: dynamic"):
+        for wert in ("SAME SHARE OF ACCOUNT", "FIXED % OF HIS TRADE", "DOLLAR FOR DOLLAR", "CASH THROTTLE", "AUTO TOP-UP",
+                     "Save settings", "mode now: same share of account × 1"):
             self.assertIn(wert, settings)
-        self.assertIn('value="0.25"', self.ausgabe["live"]["copy_settings"])
+        # Percent fields show percent (0.25 -> 25) and the worked example uses
+        # the trader's source equity: $500 / $52,000 -> his $1,000 = $9.62 here.
+        self.assertIn('value="25"', self.ausgabe["live"]["copy_settings"])
+        self.assertIn("his equity $52,000 · your sub-account $500", settings)
+        self.assertIn("his $1,000 bet (1.92 % of his account) = $9.62 here (1.92 % of yours)", settings)
         dirty = _sichtbarer_text(self.ausgabe["live"]["copy_settings_dirty"])
         self.assertIn("Discard changes", dirty)
-        self.assertIn("mode now: fixed × 0.02", dirty)
+        self.assertIn("mode now: fixed 2 % of his trade", dirty)
+        self.assertIn("his $1,000 bet → $20.00 here (2 % of his trade", dirty)
+        eins = _sichtbarer_text(self.ausgabe["live"]["copy_settings_one"])
+        self.assertIn("mode now: dollar for dollar", eins)
+        self.assertIn("his $1,000 bet → $1,000 here, dollar for dollar", eins)
+        # The traders table names his equity and the neutral ratio per trader.
+        self.assertIn("his equity $52,000 · ratio 0.962 %", _sichtbarer_text(self.ausgabe["live"]["copy"]))
+        # Orders: a MERGE row says what a merge is and what the source holds
+        # in that market now; the "Merges" chip keeps only that row.
+        orders = _sichtbarer_text(self.ausgabe["live"]["copy_orders"])
+        self.assertIn("KIND · SIDE", orders)
+        self.assertIn("MERGE $3,000 $30 SETTLED", orders)
+        self.assertIn("it is not a bet on Yes", orders)
+        self.assertIn("source book now: 100 YES / 12.0k NO → net NO", orders)
+        merges = _sichtbarer_text(self.ausgabe["live"]["copy_orders_merges"])
+        self.assertIn("MERGE $3,000", merges)
+        self.assertNotIn("BUY Yes $100", merges)
         # Inline rows.
         self.assertIn("NOTE — domain, cadence, why you follow", _sichtbarer_text(self.ausgabe["live"]["copy_edit_row"]))
+
+    def test_risk_karte_zeigt_das_wallet_buch(self) -> None:
+        # Before the answer: "reading", no side invented. With the answer: the
+        # NO buys of a net-NO wallet ADD, the NO buys of a net-YES wallet are a
+        # HEDGE / CLOSING — the reader sees which without opening the wallet.
+        warten = _sichtbarer_text(self.ausgabe["live"]["risk"])
+        self.assertIn("WALLET BOOK NOW reading the wallets' open positions", warten)
+        buch = _sichtbarer_text(self.ausgabe["live"]["risk_book"])
+        self.assertIn("0xbbb2…0002 ADDS TO BOOK · net NO holds 0 YES / 12.0k NO now", buch)
+        self.assertIn("0xaaa1…0001 HEDGE / CLOSING · net YES holds 9.00k YES / 200 NO now", buch)
+        self.assertIn("not a new NO bet", buch)
+        fehler = _sichtbarer_text(self.ausgabe["live"]["risk_book_err"])
+        self.assertIn("WALLET BOOK NOW not read (no answer within 45 s)", fehler)
+        self.assertNotIn("net NO", fehler)
+        # Kalshi cards (no wallets) carry no book line at all.
+        self.assertEqual(buch.count("WALLET BOOK NOW"), 2)
         self.assertIn("Add paper cash", _sichtbarer_text(self.ausgabe["live"]["copy_topup_row"]))
         # Cash events / positions carry a trader column and stay honest when empty.
         self.assertIn("No cash events reported by /api/copy", _sichtbarer_text(self.ausgabe["live"]["copy_cash"]))

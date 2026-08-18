@@ -125,6 +125,11 @@ function traderRow(T, t, s, canWrite, busy) {
     + (t.profile_url ? '<a href="' + esc(t.profile_url) + '" target="_blank" rel="noopener" style="color:' + BLUE + '">Polymarket ↗</a>' : '')
     + seeded + '</div>'
     + (t.note ? '<div style="font-size:11.5px; color:rgba(255,255,255,.55); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(t.note) + '">' + esc(t.note) + '</div>' : '')
+    // His account size as the sizing refresh last saw it, and the neutral
+    // ratio (your equity ÷ his) — the number "same share of account" uses.
+    + (t.source_equity != null
+      ? '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:3px">his equity ' + esc(usd(t.source_equity, 0)) + (t.neutral_ratio != null ? ' · ratio ' + esc((Number(t.neutral_ratio) * 100).toFixed(3)) + ' %' : '') + '</div>'
+      : (t.active ? '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.35); margin-top:3px">his equity not read yet</div>' : ''))
     + '</div>'
     + '<div>' + state + '</div>'
     + '<div style="' + M + '; font-size:12px; text-align:right; color:' + DIM + '">' + usd(t.start_cash, 0) + '</div>'
@@ -246,29 +251,116 @@ function tradersTab(T, s, live, canWrite) {
 
 // ---------------------------------------------------------------- settings tab
 
+// The sizing mode is a reading of three CopySettings fields, and choosing
+// one writes them: "same share" = dynamic sizing on (order = his notional x
+// your equity / his equity x multiplier); "fixed %" = dynamic off, copy_scale
+// < 1; "dollar for dollar" = dynamic off, copy_scale = 1. Nothing else on the
+// engine changes — the mode is how the page talks about those fields.
+export function sizingModeOf(f) {
+  if (f && f.dynamic_sizing_enabled) return 'share';
+  return Number(f && f.copy_scale) === 1 ? 'one' : 'fixed';
+}
+
+function pctInputValue(fraction) {
+  const v = Number(fraction);
+  if (!isFinite(v)) return '';
+  const p = v * 100;
+  return String(Math.round(p * 10000) / 10000);
+}
+
+// One line per active trader: what a $1,000 source bet becomes under the
+// current mode, from the source equity the sizing refresh last saw. No
+// source equity yet -> says so instead of a made-up ratio.
+function sizingExampleRows(traders, f, mode) {
+  const rows = (traders || []).filter((t) => t.active);
+  if (!rows.length) return '<div style="font-size:11.5px; color:rgba(255,255,255,.45)">No active trader yet — follow one and the example fills in with its equity.</div>';
+  const mult = Number(f.dynamic_sizing_multiplier) || 0;
+  const cap = Number(f.max_order_equity_pct) || 0;
+  const scaleMax = Number(f.dynamic_scale_max) || 0;
+  const fixed = Number(f.copy_scale) || 0;
+  return rows.map((t) => {
+    const eq = Number(t.equity) || 0;
+    const src = t.source_equity == null ? null : Number(t.source_equity);
+    let text;
+    if (mode === 'share') {
+      if (!src || !(src > 0) || !(eq > 0)) {
+        text = 'source equity not read yet (the daemon reads it on its first pass) — no ratio to show';
+      } else {
+        const ratio = eq / src * (mult || 1);
+        const bet = 1000;
+        let mine = bet * ratio;
+        const clipped = [];
+        if (scaleMax > 0 && ratio > scaleMax) { mine = bet * scaleMax; clipped.push('max ' + pctInputValue(scaleMax) + ' % of his trade'); }
+        if (cap > 0 && mine > eq * cap) { mine = eq * cap; clipped.push('order cap ' + pctInputValue(cap) + ' % of your equity'); }
+        text = 'his equity ' + usd(src, 0) + ' · your sub-account ' + usd(eq, 0) + ' → ratio ' + (ratio * 100).toFixed(3) + ' %: his $1,000 bet (' + (bet / src * 100).toFixed(2) + ' % of his account) = ' + usd(mine, 2) + ' here (' + (eq > 0 ? (mine / eq * 100).toFixed(2) : '—') + ' % of yours)'
+          + (clipped.length ? ' — clipped by ' + clipped.join(' and ') : '');
+      }
+    } else if (mode === 'fixed') {
+      let mine = 1000 * fixed;
+      const clipped = cap > 0 && eq > 0 && mine > eq * cap ? ' — clipped to ' + usd(eq * cap, 2) + ' by the order cap' : '';
+      text = 'his $1,000 bet → ' + usd(mine, 2) + ' here (' + pctInputValue(fixed) + ' % of his trade, whatever his account size)' + clipped;
+    } else {
+      const clipped = eq > 0 && cap > 0 ? ' — the order cap (' + pctInputValue(cap) + ' % of ' + usd(eq, 0) + ' = ' + usd(eq * cap, 2) + ') and the cash throttle will clip most of it' : '';
+      text = 'his $1,000 bet → $1,000 here, dollar for dollar' + clipped;
+    }
+    return '<div style="font-size:11.5px; line-height:1.5; color:rgba(255,255,255,.7)"><span style="' + M + '; color:rgba(255,255,255,.9)">' + esc(t.label || shortW(t.wallet)) + '</span> — ' + text + '</div>';
+  }).join('');
+}
+
 function settingsTab(T, s, live, canWrite) {
   const saved = live.settings || {};
   const f = s.copySettings || saved;
   const dirty = !!s.copySettings;
   const busy = s.copyBusy === 'settings';
+  const patch = (changes) => { const next = Object.assign({}, T.state.copySettings || saved, changes); T.setState({ copySettings: next }); };
   const set = (key) => (ev) => { const next = Object.assign({}, T.state.copySettings || saved); next[key] = ev.target.value; T.state.copySettings = next; };
+  // Percent fields: the input shows 5 for a stored 0.05 and writes 0.05 back.
+  const setPct = (key) => (ev) => { const next = Object.assign({}, T.state.copySettings || saved); const v = parseFloat(String(ev.target.value).replace(',', '.')); next[key] = isFinite(v) ? String(v / 100) : ev.target.value; T.state.copySettings = next; };
   const flip = (key) => () => { const next = Object.assign({}, T.state.copySettings || saved); next[key] = !next[key]; T.setState({ copySettings: next }); };
-  const numField = (key, label, hint) => field(label, textInput(T, 'copySet_' + key, f[key], '', set(key)) + (hint ? '<div style="font-size:11px; color:rgba(255,255,255,.4); margin-top:5px; line-height:1.45">' + hint + '</div>' : ''));
-  const boolField = (key, label, hint) => '<div><div style="' + LBL9 + '">' + label + '</div><div style="display:flex; align-items:center; gap:10px; padding:6px 0">' + T.toggle(!!f[key], canWrite ? flip(key) : () => {}) + '<span style="' + M + '; font-size:11px; color:' + DIM + '">' + (f[key] ? 'on' : 'off') + '</span></div>' + (hint ? '<div style="font-size:11px; color:rgba(255,255,255,.4); line-height:1.45">' + hint + '</div>' : '') + '</div>';
-  const dyn = !!f.dynamic_sizing_enabled;
+  const hintHtml = (hint) => (hint ? '<div style="font-size:11px; color:rgba(255,255,255,.4); margin-top:5px; line-height:1.45">' + hint + '</div>' : '');
+  const numField = (key, label, hint) => field(label, textInput(T, 'copySet_' + key, f[key], '', set(key)) + hintHtml(hint));
+  const pctField = (key, label, hint) => field(label, textInput(T, 'copySetPct_' + key, pctInputValue(f[key]), '', setPct(key)) + hintHtml(hint));
+  const boolField = (key, label, hint) => '<div><div style="' + LBL9 + '">' + label + '</div><div style="display:flex; align-items:center; gap:10px; padding:6px 0">' + T.toggle(!!f[key], canWrite ? flip(key) : () => {}) + '<span style="' + M + '; font-size:11px; color:' + DIM + '">' + (f[key] ? 'on' : 'off') + '</span></div>' + hintHtml(hint) + '</div>';
+  const mode = sizingModeOf(f);
+  const chooseMode = (m) => () => {
+    if (!canWrite) return;
+    if (m === 'share') patch({ dynamic_sizing_enabled: true });
+    else if (m === 'one') patch({ dynamic_sizing_enabled: false, copy_scale: '1' });
+    else patch({ dynamic_sizing_enabled: false, copy_scale: Number(f.copy_scale) === 1 || !(Number(f.copy_scale) > 0) ? '0.01' : f.copy_scale });
+  };
+  const modeCard = (m, title, line) => {
+    const on = mode === m;
+    return '<div ' + T.act(chooseMode(m)) + ' style="flex:1; min-width:200px; border:1px solid ' + (on ? LIME : 'rgba(255,255,255,.14)') + '; background:' + (on ? 'rgba(200,245,66,.08)' : 'transparent') + '; border-radius:10px; padding:12px 14px; cursor:' + (canWrite ? 'pointer' : 'default') + '">'
+      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:' + (on ? LIME : 'rgba(255,255,255,.75)') + '">' + (on ? '● ' : '○ ') + title + '</div>'
+      + '<div style="font-size:11.5px; color:rgba(255,255,255,.55); margin-top:6px; line-height:1.45">' + line + '</div></div>';
+  };
   const grid = 'display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:16px 22px';
+  const modeFields = mode === 'share'
+    ? numField('dynamic_sizing_multiplier', 'MULTIPLIER', '1 = exactly his share of account. 0.5 = half his share, 2 = double.')
+      + pctField('dynamic_scale_max', 'MAX % OF HIS TRADE (0 = uncapped)', 'A hard lid on the ratio. A small account following a big one is well below it anyway; a big account following a small one gets clipped here.')
+      + boolField('dynamic_order_cap_from_tony', 'LET THE ORDER CAP FOLLOW HIS LARGEST POSITION', 'A source that puts 20 % into one market gets a 20 % per-order cap here too, so his conviction bets are not clipped by the base cap below.')
+    : mode === 'fixed'
+      ? pctField('copy_scale', '% OF HIS TRADE', 'Every order is this share of what he moved. 1 = his $1,000 becomes $10 here, regardless of either account size.')
+      : '<div style="font-size:11.5px; color:rgba(255,255,255,.55); line-height:1.5; grid-column:span 2">Every order is booked at his notional. Only sensible when your sub-account is about the size of his — otherwise the order cap and the cash throttle below clip almost every trade and the copy stops resembling him.</div>';
   return '<div style="padding:16px 24px">'
     + '<div style="' + CARD + '; padding:18px 20px">'
-    + '<div style="display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:14px">'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55)">SIZING — THE SAME FOR EVERY TRADER</div>'
-    + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.4)">saved in data/copy_settings.json · the daemon reads it on every pass · live trading stays off</div></div>'
+    + '<div style="display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:12px">'
+    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55)">SIZING MODE — THE SAME FOR EVERY TRADER</div>'
+    + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.4)">saved in copy_settings.json · the daemon reads it on every pass · live trading stays off</div></div>'
+    + '<div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px">'
+    + modeCard('share', 'SAME SHARE OF ACCOUNT', 'He bets $1,000 = 1 % of his account → you bet 1 % of your sub-account. Order = his notional × (your equity ÷ his equity) × multiplier. The faithful scaled mirror.')
+    + modeCard('fixed', 'FIXED % OF HIS TRADE', 'Every order is a fixed fraction of what he moved, e.g. 1 %. Simple, but ignores how big the bet was for him.')
+    + modeCard('one', 'DOLLAR FOR DOLLAR', 'He bets $1,000 → you bet $1,000. 1:1 on notional; only makes sense with a sub-account about his size.')
+    + '</div>'
+    + '<div style="' + M + '; font-size:9.5px; letter-spacing:.14em; color:rgba(255,255,255,.4); margin-bottom:8px">WHAT A $1,000 BET OF HIS BECOMES HERE, PER ACTIVE TRADER</div>'
+    + '<div style="display:flex; flex-direction:column; gap:5px; margin-bottom:18px; padding:10px 12px; border:1px solid rgba(255,255,255,.08); border-radius:8px">' + sizingExampleRows(live.traders, f, mode) + '</div>'
     + '<div style="' + grid + '">'
-    + boolField('dynamic_sizing_enabled', 'DYNAMIC SIZING', 'On: every order is scaled by (sub-account equity ÷ source wallet equity) × multiplier — a faithful mirror. Off: the fixed scale below.')
-    + numField('dynamic_sizing_multiplier', 'MULTIPLIER (dynamic)', '1 = neutral mirror. Ignored when dynamic sizing is off.')
-    + numField('copy_scale', 'FIXED SCALE (when dynamic is off)', 'Fraction of the source notional per order, e.g. 0.01 = 1 %.')
-    + numField('max_order_equity_pct', 'MAX ORDER · % OF EQUITY (0..1)', 'Cap per order. 0.05 = 5 % of the sub-account.')
-    + boolField('dynamic_order_cap_from_tony', 'RAISE THE CAP TO THE SOURCE\'S LARGEST POSITION', 'A source that puts 20 % into one market gets a 20 % cap here too, so big conviction bets are not clipped.')
-    + numField('cash_throttle_pct', 'CASH THROTTLE (0..1)', 'One order may spend at most this share of the remaining cash; 0.25 keeps a drought from starving later trades. 0 = off.')
+    + modeFields
+    + '</div>'
+    + '<div style="' + M + '; font-size:9.5px; letter-spacing:.14em; color:rgba(255,255,255,.4); margin:20px 0 10px">LIMITS AND CASH — APPLY IN EVERY MODE</div>'
+    + '<div style="' + grid + '">'
+    + pctField('max_order_equity_pct', 'MAX PER ORDER · % OF YOUR EQUITY', 'Cap per order. 5 = at most 5 % of the sub-account in one order.')
+    + pctField('cash_throttle_pct', 'CASH THROTTLE · % OF REMAINING CASH', 'One order may spend at most this share of the cash left; 25 keeps a drought from starving later trades. 0 = off.')
     + numField('min_copy_notional', 'MIN COPY NOTIONAL $', 'Orders below this are skipped as dust.')
     + numField('trade_limit', 'TRADES PER API POLL', 'How many recent source trades each pass inspects (250 covers a busy hour).')
     + boolField('auto_top_up_enabled', 'AUTO TOP-UP', 'Off by default: a sub-account out of cash skips buys visibly until settlements recycle cash. On prints paper money — it distorts the comparison.')
@@ -280,7 +372,7 @@ function settingsTab(T, s, live, canWrite) {
       ? (busy ? '<div style="' + BTN_OFF + '">saving…</div>' : button(T, 'Save settings', () => T.copySaveSettings(), dirty ? BTN_PRIMARY : BTN_GHOST))
         + (dirty ? button(T, 'Discard changes', () => T.setState({ copySettings: null }), BTN_GHOST) : '')
       : '<span style="' + M + '; font-size:11px; color:' + AMBER + '">read-only from here</span>')
-    + '<span style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.4)">mode now: ' + (dyn ? 'dynamic (equity ratio × ' + esc(String(f.dynamic_sizing_multiplier)) + ')' : 'fixed × ' + esc(String(f.copy_scale))) + '</span>'
+    + '<span style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.4)">mode now: ' + (mode === 'share' ? 'same share of account × ' + esc(String(f.dynamic_sizing_multiplier)) : mode === 'one' ? 'dollar for dollar' : 'fixed ' + esc(pctInputValue(f.copy_scale)) + ' % of his trade') + (dirty ? ' · unsaved changes' : '') + '</span>'
     + '</div></div></div>';
 }
 
@@ -324,39 +416,60 @@ export function renderCopy(T) {
   } else if (tab === 'settings') {
     body = settingsTab(T, s, live, canWrite);
   } else if (tab === 'orders') {
+    // What a row IS comes from the API (kind + explain): a MERGE is both
+    // sides handed back for cash, not a bet on the outcome printed next to
+    // it; a REDEEM / RESOLUTION is the market settling. The book line is the
+    // engine's mirror of the source wallet's holdings in that market now.
+    const kindOf = (o) => String(o.kind || (o.side || '').split(' ')[0] || '').toUpperCase();
     const rows = orders.filter((o) => {
       if (s.copyStatus2 !== 'all' && o.status !== s.copyStatus2) return false;
-      if (s.copySide !== 'all' && o.side.indexOf(s.copySide) !== 0) return false;
+      const k = kindOf(o);
+      if (s.copySide === 'SETTLE' ? !(k === 'MERGE' || k === 'REDEEM' || k === 'RESOLUTION' || k === 'SPLIT' || k === 'CONVERT') : (s.copySide !== 'all' && k !== s.copySide)) return false;
       if (s.copyMin !== 'all' && Number(String(o.theirs).replace(/[$,]/g, '')) < Number(s.copyMin)) return false;
       if (s.copyQuery.trim() && o.market.toLowerCase().indexOf(s.copyQuery.trim().toLowerCase()) < 0) return false;
       return true;
     });
-    const grid = 'display:grid; grid-template-columns:92px 120px 1fr 90px 96px 96px 120px; gap:10px';
+    const grid = 'display:grid; grid-template-columns:92px 120px 1fr 118px 96px 96px 120px; gap:10px';
+    const kindStyle = (k) => k === 'BUY' ? LIME : k === 'SELL' ? RED : k === 'MERGE' ? AMBER : k === 'REDEEM' || k === 'RESOLUTION' ? BLUE : 'rgba(255,255,255,.6)';
     body = '<div>'
       + '<div style="padding:14px 24px 0; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px 18px">'
       + '<div><div style="' + LBL9 + '">SEARCH</div><input value="' + esc(s.copyQuery) + '" ' + T.inp((e) => T.setState({ copyQuery: e.target.value }), 'copyQuery') + ' placeholder="market…" style="' + INPUT + '" /></div>'
-      + '<div><div style="' + LBL9 + '">SIDE</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
-      + [['all', 'All'], ['BUY', 'Buys'], ['SELL', 'Sells'], ['REDEEM', 'Redeems']].map((o) => T.opt(o[1], s.copySide === o[0], { copySide: o[0] })).join('') + '</div></div>'
+      + '<div><div style="' + LBL9 + '">KIND</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
+      + [['all', 'All'], ['BUY', 'Buys'], ['SELL', 'Sells'], ['MERGE', 'Merges'], ['SETTLE', 'Merges + settlements']].map((o) => T.opt(o[1], s.copySide === o[0], { copySide: o[0] })).join('') + '</div></div>'
       + '<div><div style="' + LBL9 + '">STATUS</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
       + [['all', 'All'], ['copied', 'Copied'], ['settled', 'Settled'], ['seed_observed', 'Baseline'], ['skipped', 'Skipped']].map((o) => T.opt(o[1], s.copyStatus2 === o[0], { copyStatus2: o[0] })).join('') + '</div></div>'
       + '<div><div style="' + LBL9 + '">MINIMUM SIZE THEY TRADED</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
       + [['all', 'Any'], ['1000', '>$1k'], ['5000', '>$5k'], ['10000', '>$10k']].map((o) => T.opt(o[1], s.copyMin === o[0], { copyMin: o[0] })).join('') + '</div></div>'
       + '</div>'
+      + '<div style="padding:10px 24px 0; font-size:11.5px; color:rgba(255,255,255,.45); line-height:1.5">'
+      + '<span style="' + M + '; color:' + LIME + '">BUY</span> / <span style="' + M + '; color:' + RED + '">SELL</span> are the source\'s trades, scaled into the sub-account. '
+      + '<span style="' + M + '; color:' + AMBER + '">MERGE</span> = the source handed equal YES + NO shares back for $1 each — closes both sides, no direction. '
+      + '<span style="' + M + '; color:' + BLUE + '">REDEEM / RESOLUTION</span> = the market settled. Every row says what it was and what the source holds in that market now.'
+      + '</div>'
       + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:14px 24px; overflow:hidden">'
       + '<div style="' + grid + '; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
-      + '<div>TIME</div><div>TRADER</div><div>MARKET</div><div style="text-align:right">SIDE</div><div style="text-align:right">THEY SPENT</div><div style="text-align:right">YOU SPENT</div><div style="text-align:right">STATUS</div></div>'
+      + '<div>TIME</div><div>TRADER</div><div>MARKET</div><div style="text-align:right">KIND · SIDE</div><div style="text-align:right">THEY MOVED</div><div style="text-align:right">YOU MOVED</div><div style="text-align:right">STATUS</div></div>'
       + (rows.length ? '' : leerZeile(orders.length ? 'No order matches these filters.' : 'No paper orders reported by /api/copy yet.'))
       + rows.map((o) => {
         const farbe = o.status === 'copied' || o.status === 'settled' ? LIME : o.status === 'skipped' ? AMBER : 'rgba(255,255,255,.5)';
         const label = o.status === 'seed_observed' ? 'BASELINE' : String(o.status).toUpperCase();
-        return '<div style="' + grid + '; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06)">'
+        const k = kindOf(o);
+        const seite = k === 'BUY' || k === 'SELL' ? k + ' ' + esc(o.outcome || String(o.side || '').split(' ').slice(1).join(' ')) : k;
+        const teile = [];
+        if (o.explain) teile.push(esc(o.explain));
+        if (o.book) teile.push('<span style="' + M + '; color:rgba(255,255,255,.75)">' + esc(o.book) + '</span>');
+        if (o.reason && o.status === 'skipped') teile.push('skipped: ' + esc(o.reason));
+        return '<div style="padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06)">'
+          + '<div style="' + grid + '; align-items:center">'
           + '<div style="' + M + '; font-size:12px; color:' + DIM + '" title="' + esc(o.at || '') + '">' + esc(o.time) + '</div>'
           + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.65); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(o.wallet || '') + '">' + esc(labelOf[o.wallet] || shortW(o.wallet) || '—') + '</div>'
           + '<div style="font-family:\'Inter\',sans-serif; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(o.market) + '</div>'
-          + '<div style="' + M + '; font-size:12px; text-align:right; color:' + (o.side.indexOf('BUY') === 0 ? LIME : o.side.indexOf('SELL') === 0 ? RED : BLUE) + '">' + esc(o.side) + '</div>'
+          + '<div style="' + M + '; font-size:11.5px; text-align:right; color:' + kindStyle(k) + '">' + seite + '</div>'
           + '<div style="' + M + '; font-size:12px; text-align:right; color:' + DIM + '">' + esc(o.theirs) + '</div>'
           + '<div style="' + M + '; font-size:12px; text-align:right">' + esc(o.yours) + '</div>'
-          + '<div style="' + M + '; font-size:11px; text-align:right; color:' + farbe + '" title="' + esc(o.reason || '') + '">' + esc(label) + '</div></div>';
+          + '<div style="' + M + '; font-size:11px; text-align:right; color:' + farbe + '" title="' + esc(o.reason || '') + '">' + esc(label) + '</div></div>'
+          + (teile.length ? '<div style="font-size:11px; color:rgba(255,255,255,.45); margin-top:5px; padding-left:222px; line-height:1.45">' + teile.join(' · ') + '</div>' : '')
+          + '</div>';
       }).join('')
       + '</div></div>';
   } else if (tab === 'positions') {

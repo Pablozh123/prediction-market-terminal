@@ -344,6 +344,11 @@ def traders_overview(
             curve = [float(v) for v in curve_frame["equity"].tolist()] if not curve_frame.empty else []
             open_positions = int((snap.positions["shares"] > 0).sum()) if not snap.positions.empty and "shares" in snap.positions else 0
             pnl = float(snap.equity) - float(contributions)
+            # The source wallet's visible equity as the sizing refresh last saw
+            # it (positions value + USDC), and the neutral ratio that follows:
+            # sub-account equity / source equity — "his 1 % is your 1 %".
+            source_equity = ct._get_wallet_float_stat(conn, wallet, "visible_equity", 0.0)
+            neutral_ratio = (float(snap.equity) / source_equity) if source_equity > 0 and snap.equity > 0 else None
             rows.append({
                 "wallet": wallet,
                 "label": str(trader.get("label", "") or "") or wallet,
@@ -366,6 +371,8 @@ def traders_overview(
                 "baseline_cutoff_ts": ct.wallet_baseline_cutoff(conn, wallet) or None,
                 "equity_curve": curve,
                 "profile_url": md.polymarket_profile_url(wallet),
+                "source_equity": source_equity if source_equity > 0 else None,
+                "neutral_ratio": neutral_ratio,
             })
         return rows
     finally:

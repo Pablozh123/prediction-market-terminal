@@ -188,7 +188,7 @@ class Terminal {
     // when its tab is opened — null until then.
     // wallet: one entry per analysed address — { herkunft: 'loading' | 'live'
     // | 'fehler', data, fehler, status, retryAfter }.
-    this.liveData = { leaderboard: null, cross: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {} };
+    this.liveData = { leaderboard: null, cross: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {}, riskBook: {} };
 
     this._acts = [];
     this._inps = [];
@@ -827,6 +827,32 @@ class Terminal {
       const wd = await apiGet('/api/wallet/' + full);
       if (wd) { this.liveData.walletDetail[name] = wd; this.render(); }
     } catch (err) { /* detail stays on list data */ }
+  }
+
+  // The book of the flagged wallets in the flagged market (/api/risk/book):
+  // one request per card, at most three in flight, each market once. The
+  // card asks for it while rendering; until the answer is there it says
+  // "reading" and never guesses a side.
+  fetchRiskBook(marketKey, wallets, side) {
+    const key = String(marketKey || '');
+    const addrs = (wallets || []).map((w) => String((w && w.wallet) || w || '').toLowerCase()).filter((a) => isFullAddress(a));
+    if (!/^0x[0-9a-f]{64}$/i.test(key) || !addrs.length || this.liveData.riskBook[key]) return;
+    this.liveData.riskBook[key] = { herkunft: 'loading' };
+    this._riskBookQueue = this._riskBookQueue || [];
+    this._riskBookQueue.push({ key, addrs: addrs.slice(0, 5), side: String(side || '') });
+    this._pumpRiskBooks();
+  }
+
+  _pumpRiskBooks() {
+    this._riskBookActive = this._riskBookActive || 0;
+    while (this._riskBookActive < 3 && this._riskBookQueue && this._riskBookQueue.length) {
+      const job = this._riskBookQueue.shift();
+      this._riskBookActive += 1;
+      apiGet('/api/risk/book?market=' + encodeURIComponent(job.key) + '&wallets=' + encodeURIComponent(job.addrs.join(',')) + '&side=' + encodeURIComponent(job.side))
+        .then((antwort) => { this.liveData.riskBook[job.key] = { herkunft: 'live', data: antwort }; })
+        .catch((err) => { this.liveData.riskBook[job.key] = { herkunft: 'fehler', fehler: String(err && err.message ? err.message : err) }; })
+        .then(() => { this._riskBookActive -= 1; this.render(); this._pumpRiskBooks(); });
+    }
   }
 
   // Backtest runs only when asked. Every stepper used to fire a debounced
