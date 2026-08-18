@@ -162,7 +162,7 @@ function renderError(T, addr, entry) {
 // ---- sections --------------------------------------------------------------
 export const WALLET_TABS = [
   ['overview', 'Overview'], ['record', 'Track record'], ['positions', 'Positions'],
-  ['trades', 'Trades'], ['categories', 'Categories']
+  ['trades', 'Trades'], ['categories', 'Categories'], ['risk', 'Risk'], ['similar', 'Similar wallets']
 ];
 
 function initials(name, addr) {
@@ -639,6 +639,120 @@ function renderLimits(d) {
     + (errs.length ? '<div style="' + NOTE + '; margin-top:10px; color:#F5A623">Parts that did not answer this time: ' + errs.map((e) => esc(e[0]) + ' (' + esc(e[1]) + ')').join(' · ') + '</div>' : ''));
 }
 
+// ---- risk tab: profit factor, risk/reward, streaks, conviction, heatmap ----
+function riskCard(label, value, sub, tone, partial) {
+  const border = tone === 'up' ? 'rgba(200,245,66,.35)' : tone === 'down' ? 'rgba(255,69,69,.35)' : tone === 'warn' ? 'rgba(245,166,35,.4)' : 'rgba(255,255,255,.12)';
+  const color = tone === 'up' ? '#C8F542' : tone === 'down' ? '#FF4545' : tone === 'warn' ? '#F5A623' : '#fff';
+  return '<div style="' + CARD + '; border-color:' + border + '; padding:14px 16px; min-width:0">'
+    + '<div style="display:flex; justify-content:space-between; gap:8px; align-items:center"><div style="' + LBL + '">' + label + '</div>'
+    + (partial ? '<span title="the closed set is capped at ~50 rows per tail — these figures describe the biggest winners and losers only" style="' + M + '; font-size:9px; letter-spacing:.1em; color:#F5A623; border:1px solid rgba(245,166,35,.45); border-radius:4px; padding:1px 6px">~PARTIAL</span>' : '') + '</div>'
+    + '<div style="' + M + '; font-size:24px; margin-top:8px; color:' + color + '">' + value + '</div>'
+    + (sub ? '<div style="' + NOTE + '; margin-top:4px">' + sub + '</div>' : '') + '</div>';
+}
+
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+// Trades by weekday and UTC hour; cell depth = share of the busiest cell.
+// Every cell carries its count and notional in the title. Without trades
+// the grid is not drawn (a flat grid of zeros would look like quiet
+// weekends, not like an unread wallet).
+function heatmapHtml(hm) {
+  if (!hm || !hm.n || !Array.isArray(hm.counts)) return '<div style="' + NOTE + '">No trades in the activity window — nothing to place on the clock.</div>';
+  let max = 0;
+  hm.counts.forEach((r) => r.forEach((v) => { if (v > max) max = v; }));
+  const hours = Array.from({ length: 24 }, (_, i) => i);
+  const head = '<div style="display:grid; grid-template-columns:34px repeat(24, minmax(0,1fr)); gap:3px; margin-bottom:4px">'
+    + '<div></div>' + hours.map((h) => '<div style="' + M + '; font-size:9px; color:rgba(255,255,255,.4); text-align:center">' + (h % 3 === 0 ? h : '') + '</div>').join('') + '</div>';
+  const rows = hm.counts.map((r, wd) => '<div style="display:grid; grid-template-columns:34px repeat(24, minmax(0,1fr)); gap:3px; margin-bottom:3px">'
+    + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.5); align-self:center">' + WEEKDAYS[wd] + '</div>'
+    + r.map((v, h) => {
+      const a = max > 0 ? v / max : 0;
+      const bg = v > 0 ? 'rgba(79,142,247,' + (0.18 + a * 0.72).toFixed(2) + ')' : 'rgba(255,255,255,.04)';
+      const usd = hm.notional && hm.notional[wd] ? hm.notional[wd][h] : 0;
+      return '<div title="' + esc(WEEKDAYS[wd] + ' ' + String(h).padStart(2, '0') + ':00 UTC — ' + v + ' trade' + (v === 1 ? '' : 's') + (v ? ' · ' + absDollars(usd) : '')) + '" style="height:16px; border-radius:3px; background:' + bg + '"></div>';
+    }).join('') + '</div>').join('');
+  const busiest = hm.busiest ? WEEKDAYS[hm.busiest.weekday] + ' ' + String(hm.busiest.hour).padStart(2, '0') + ':00 UTC (' + hm.busiest.trades + (hm.busiest.trades === 1 ? ' trade)' : ' trades)') : '—';
+  return head + rows
+    + '<div style="' + NOTE + '; margin-top:8px">' + esc(hm.note || '') + ' · n ' + num(hm.n) + ' trades · busiest cell ' + esc(busiest) + '</div>';
+}
+
+function renderRiskTab(d) {
+  const rp = d.risk_profile || null;
+  const partial = !!(rp && rp.partial);
+  const fmt = (v, digits) => (v == null ? '—' : Number(v).toFixed(digits == null ? 2 : digits));
+  const bands = rp && rp.bands ? rp.bands : {};
+  const cards = rp && rp.n_rows
+    ? [
+      riskCard('PROFIT FACTOR', fmt(rp.profit_factor), (bands.profit_factor ? esc(bands.profit_factor) + ' · ' : '') + 'wins ' + absDollars(rp.avg_win != null ? rp.avg_win * rp.n_win : 0) + ' / losses ' + absDollars(rp.avg_loss != null ? rp.avg_loss * rp.n_loss : 0),
+        rp.profit_factor == null ? 'neutral' : rp.profit_factor >= 1.2 ? 'up' : rp.profit_factor >= 1 ? 'warn' : 'down', partial),
+      riskCard('RISK / REWARD', fmt(rp.risk_reward), (bands.risk_reward ? esc(bands.risk_reward) + ' · ' : '') + 'avg win ' + absDollars(rp.avg_win) + ' · avg loss ' + absDollars(rp.avg_loss),
+        rp.risk_reward == null ? 'neutral' : rp.risk_reward >= 1.5 ? 'up' : rp.risk_reward >= 0.8 ? 'warn' : 'down', partial),
+      riskCard('WIN STREAK', String(rp.win_streak), rp.win_streak + ' consecutive winning rows' + (rp.current_streak_kind === 'win' ? ' · current run ' + rp.current_streak : ''), rp.win_streak > 0 ? 'up' : 'neutral', partial),
+      riskCard('LOSS STREAK', String(rp.loss_streak), rp.loss_streak + ' consecutive losing rows' + (rp.current_streak_kind === 'loss' ? ' · current run ' + rp.current_streak : ''), rp.loss_streak > 0 ? 'down' : 'neutral', partial),
+      riskCard('CONVICTION', rp.conviction == null ? '—' : fmt(rp.conviction) + '×', (bands.conviction ? esc(bands.conviction) + ' · ' : '') + 'avg stake won ' + absDollars(rp.avg_stake_win) + ' / lost ' + absDollars(rp.avg_stake_loss),
+        rp.conviction == null ? 'neutral' : rp.conviction >= 1.2 ? 'up' : rp.conviction >= 0.8 ? 'warn' : 'down', partial)
+    ].join('')
+    : '';
+  const rules = rp && rp.rules ? '<div style="' + NOTE + '; margin-top:10px; line-height:1.6">'
+    + Object.entries(rp.rules).map((kv) => '<span style="color:rgba(255,255,255,.6)">' + esc(kv[0].replace(/_/g, ' ')) + '</span>: ' + esc(kv[1])).join(' · ') + '</div>' : '';
+  const insider = d.risk && typeof d.risk === 'object' && d.risk.wallet_insider_score != null
+    ? '<div style="' + CARD + '; padding:14px 16px; margin-top:14px"><div style="' + LBL + '">INSIDER-RISK SCORE · FROM THE RISK SCREEN</div>'
+      + '<div style="display:flex; gap:14px; align-items:baseline; margin-top:6px"><div style="' + M + '; font-size:22px; color:' + (d.risk.wallet_insider_score >= 70 ? '#F5A623' : '#fff') + '">' + Math.round(d.risk.wallet_insider_score) + '<span style="font-size:12px; color:rgba(255,255,255,.4)"> /100</span></div>'
+      + (d.risk.risk_level ? '<span style="' + M + '; font-size:10.5px; letter-spacing:.1em; color:rgba(255,255,255,.6)">' + esc(String(d.risk.risk_level).toUpperCase()) + '</span>' : '') + '</div>'
+      + (Array.isArray(d.risk.flags) && d.risk.flags.length ? '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px">' + d.risk.flags.map((f) => '<span style="' + M + '; font-size:10.5px; color:#F5A623; border:1px solid rgba(245,166,35,.35); border-radius:4px; padding:2px 7px">' + esc(f) + '</span>').join('') + '</div>' : '<div style="' + NOTE + '; margin-top:6px">no flags on this wallet in the current screen</div>')
+      + '</div>'
+    : '';
+  const head = card('RISK PROFILE · FROM THE RESOLVED ROWS',
+    (cards ? '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:10px">' + cards + '</div>' : '<div style="' + NOTE + '">No resolved rows to read a profit factor, streaks or conviction from.</div>')
+    + (rp && rp.note ? '<div style="' + NOTE + '; margin-top:10px">' + esc(rp.note) + '</div>' : '') + rules,
+    rp ? 'as of ' + esc(rp.as_of || '') + (partial ? ' · PARTIAL (capped tails)' : '') : '');
+  const clock = card('TRADING ACTIVITY · WEEKDAY × UTC HOUR', heatmapHtml(rp ? rp.heatmap : null), rp && rp.heatmap ? 'n ' + num(rp.heatmap.n) + ' trades' : '');
+  return head + clock + insider;
+}
+
+// ---- similar wallets: top holders of the same markets ---------------------
+function renderSimilarTab(T, d) {
+  const addr = String(T.state.walletAddr || '').toLowerCase();
+  if (typeof T.fetchWalletSimilar === 'function') T.fetchWalletSimilar(addr);
+  const entry = T.liveData && T.liveData.walletSimilar ? T.liveData.walletSimilar[addr] : null;
+  const intro = '<div style="' + CARD + '; padding:14px 16px; margin-top:14px; display:flex; gap:12px; align-items:flex-start">'
+    + '<div style="width:34px; height:34px; flex:none; border-radius:8px; border:1px solid rgba(79,142,247,.4); display:flex; align-items:center; justify-content:center; color:#4F8EF7; ' + M + '; font-size:13px">≡</div>'
+    + '<div><div style="font-size:14px">Similar wallets</div><div style="' + NOTE + '; margin-top:3px">Wallets among the top holders of this wallet\'s largest open markets, sorted by how many of those markets they share — same side or opposite side. Read from the public /holders feed when this tab is opened.</div></div></div>';
+  if (!entry || entry.herkunft === 'loading') {
+    return intro + card('SIMILAR WALLETS', '<div style="' + NOTE + '">Reading the top holders of the largest open markets — up to ~22 public API calls, a few seconds…</div>');
+  }
+  if (entry.herkunft === 'fehler') {
+    return intro + card('SIMILAR WALLETS', '<div style="' + NOTE + '; color:#F5A623">/api/wallet/' + esc(shortAddr(addr)) + '/similar did not answer: ' + esc(entry.fehler || 'unknown error') + '.</div>'
+      + '<div style="margin-top:10px"><div ' + T.act(() => { if (T.fetchWalletSimilar) T.fetchWalletSimilar(addr, true); }) + ' class="hv-bd32" style="' + M + '; font-size:11px; color:rgba(255,255,255,.7); border:1px solid rgba(255,255,255,.16); border-radius:6px; padding:5px 10px; cursor:pointer; display:inline-block">Try again</div></div>');
+  }
+  const data = entry.data || {};
+  const basis = data.basis || {};
+  const q = String(T.state.walletSimilarQuery || '').trim().toLowerCase();
+  const rowsAll = Array.isArray(data.rows) ? data.rows : [];
+  const rows = q ? rowsAll.filter((r) => String(r.wallet).indexOf(q) >= 0 || String(r.name || '').toLowerCase().indexOf(q) >= 0) : rowsAll;
+  const search = '<input value="' + esc(T.state.walletSimilarQuery || '') + '" ' + T.inp((e) => { T.state.walletSimilarQuery = e.target.value; T.render(); }, 'walletSimilarQuery')
+    + ' placeholder="search wallet address or name…" spellcheck="false" style="width:100%; box-sizing:border-box; background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:9px 12px; ' + M + '; font-size:12px; color:#fff; outline:none; margin-bottom:12px" />';
+  const cols = 'minmax(220px, 2fr) 110px 150px 150px 120px 90px 170px';
+  const head = '<div>WALLET</div><div style="text-align:right">SHARED MARKETS</div><div style="text-align:right">THEIR OPEN POSITIONS</div><div>OVERLAP</div><div style="text-align:right">LEADERBOARD PNL</div><div style="text-align:right">VOLUME</div><div style="text-align:right">VIEW</div>';
+  const body = rows.map((r) => {
+    const bar = '<div style="display:flex; align-items:center; gap:8px"><div style="flex:1; height:5px; background:rgba(255,255,255,.08); border-radius:3px; overflow:hidden"><div style="width:' + Math.round((r.overlap || 0) * 100) + '%; height:5px; background:#4F8EF7"></div></div><span style="' + M + '; font-size:11.5px">' + Math.round((r.overlap || 0) * 100) + '%</span></div>';
+    const sides = (r.same_side ? r.same_side + ' same side' : '') + (r.same_side && r.opposite_side ? ' · ' : '') + (r.opposite_side ? r.opposite_side + ' opposite' : '');
+    return row(cols,
+      '<div style="min-width:0"><div style="' + M + '; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(r.wallet) + '">' + (r.name ? esc(r.name) + ' <span style="color:rgba(255,255,255,.45)">· ' + esc(r.short) + '</span>' : esc(r.short)) + '</div><div style="' + NOTE + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(sides || 'sides not readable') + '</div></div>'
+      + cell(num(r.shared) + ' <span style="color:rgba(255,255,255,.4)">/ ' + num(basis.markets_checked || 0) + '</span>', 'text-align:right')
+      + cell(r.summary_read && r.their_positions != null ? num(r.their_positions) + ' <span style="color:rgba(255,255,255,.45)">· ' + absDollars(r.their_value) + '</span>' : 'not read', 'text-align:right; color:' + (r.summary_read ? '#fff' : 'rgba(255,255,255,.4)'))
+      + cell(bar, '')
+      + cell(r.on_leaderboard && r.lb_pnl != null ? dollars(r.lb_pnl) : 'not on board', 'text-align:right; color:' + (r.on_leaderboard && r.lb_pnl != null ? pnlColor(r.lb_pnl) : 'rgba(255,255,255,.4)'))
+      + cell(r.on_leaderboard && r.lb_volume != null ? money(r.lb_volume) : '—', 'text-align:right; color:rgba(255,255,255,.65)')
+      + cell('<span ' + T.act(() => { if (T.analyseWallet) T.analyseWallet(r.wallet); }) + ' class="hv-bd32" style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.75); border:1px solid rgba(255,255,255,.16); border-radius:5px; padding:3px 8px; cursor:pointer">Analyse</span> '
+        + (r.profile_url ? '<a href="' + esc(r.profile_url) + '" target="_blank" rel="noopener" data-stop style="' + M + '; font-size:10.5px; color:#4F8EF7; text-decoration:none; margin-left:6px">profile ↗</a>' : ''), 'text-align:right'));
+  }).join('');
+  const table = tableWith(cols, head, body, rowsAll.length ? 'No wallet matches the search.' : 'No overlapping top holder found in the checked markets.', 1010);
+  const errs = Array.isArray(basis.errors) && basis.errors.length ? '<div style="' + NOTE + '; margin-top:8px; color:#F5A623">Markets that did not answer: ' + basis.errors.map((e) => esc(e)).join(' · ') + '</div>' : '';
+  const sub = 'as of ' + esc(data.as_of || '') + ' · ' + num(basis.markets_checked || 0) + ' of ' + num(basis.markets_available || 0) + ' open markets checked · ' + num(data.candidates || 0) + ' wallets seen';
+  return intro + card('SIMILAR WALLETS · TOP ' + num(rows.length) + (rowsAll.length !== rows.length ? ' OF ' + num(rowsAll.length) : ''), search + table + '<div style="' + NOTE + '; margin-top:8px">' + esc(basis.note || '') + '</div>' + errs, sub);
+}
+
 // ---- page ------------------------------------------------------------------
 export function renderWallet(T) {
   const s = T.state;
@@ -660,6 +774,8 @@ export function renderWallet(T) {
       else if (tab === 'positions') main = renderOpenPositions(T, d) + renderClosed(d);
       else if (tab === 'trades') main = renderTrades(d);
       else if (tab === 'categories') main = renderCategoriesContext(d);
+      else if (tab === 'risk') main = renderRiskTab(d);
+      else if (tab === 'similar') main = renderSimilarTab(T, d);
       else main = renderOverview(T, d);
       // Left: the stacked stat cards (224px, wraps under the main column on
       // a narrow screen); right: the tabbed detail. Both read the same

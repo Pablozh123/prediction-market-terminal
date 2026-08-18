@@ -256,6 +256,62 @@ class WalletPageBlocksTests(unittest.TestCase):
         # JSON-serialisable end to end.
         json.dumps(payload)
 
+        # Risk profile: from the 12 resolved rows (6 won +$40, 6 lost -$50,
+        # alternating in time) and the trading-hours heatmap from the 3 trades.
+        rp = payload["risk_profile"]
+        self.assertFalse(rp["partial"])
+        self.assertEqual(rp["n_rows"], 12)
+        self.assertEqual((rp["n_win"], rp["n_loss"]), (6, 6))
+        self.assertAlmostEqual(rp["profit_factor"], 240 / 300, places=2)
+        self.assertAlmostEqual(rp["risk_reward"], 0.8, places=2)
+        self.assertEqual(rp["conviction"], 1.0)  # $50 bought on every row
+        self.assertEqual((rp["win_streak"], rp["loss_streak"]), (1, 1))
+        self.assertEqual(rp["current_streak_kind"], "loss")  # market 11 lost, last in time
+        self.assertEqual(rp["bands"]["profit_factor"], "losing")
+        self.assertEqual(rp["bands"]["risk_reward"], "about even")
+        self.assertEqual(rp["bands"]["conviction"], "even sizing")
+        self.assertIn("n 12 rows, 6 won, 6 lost", rp["note"])
+        hm = rp["heatmap"]
+        self.assertEqual(hm["n"], 3)
+        self.assertEqual(sum(sum(r) for r in hm["counts"]), 3)
+        # 2026-07-01 10:00 UTC is a Wednesday (weekday 2), hour 10; two more
+        # trades on Thu 10:00 and Fri 10:00.
+        self.assertEqual(hm["counts"][2][10], 1)
+        self.assertEqual(hm["counts"][3][10], 1)
+        self.assertEqual(hm["counts"][4][10], 1)
+        self.assertEqual(hm["notional"][2][10], 50.0)
+        self.assertEqual(hm["busiest"]["hour"], 10)
+        self.assertEqual(hm["tz"], "UTC")
+
+    def test_risk_profile_streaks_partial_and_empty(self) -> None:
+        # Three wins in a row then two losses, bigger stakes on the wins;
+        # capped tails mark the block PARTIAL.
+        rows = []
+        for i, (pnl, stake) in enumerate([(10, 100), (20, 120), (5, 80), (-30, 40), (-10, 60)]):
+            rows.append({"realized_pnl": pnl, "total_bought": stake, "time": pd.Timestamp("2026-06-01", tz="UTC") + pd.Timedelta(i, unit="D")})
+        rp = apv._wallet_risk_profile(pd.DataFrame(rows), True, None, "x")
+        self.assertTrue(rp["partial"])
+        self.assertEqual(rp["win_streak"], 3)
+        self.assertEqual(rp["loss_streak"], 2)
+        self.assertEqual(rp["current_streak"], 2)
+        self.assertEqual(rp["current_streak_kind"], "loss")
+        self.assertAlmostEqual(rp["profit_factor"], round(35 / 40, 2), places=3)
+        self.assertAlmostEqual(rp["conviction"], 100 / 50, places=3)
+        self.assertEqual(rp["bands"]["conviction"], "sizes up when right")
+        self.assertIn("CAPPED", rp["note"])
+        self.assertEqual(rp["heatmap"]["n"], 0)
+        # Nothing at all: every figure None / 0, no bands, no note.
+        empty = apv._wallet_risk_profile(None, False, None, "x")
+        self.assertIsNone(empty["profit_factor"])
+        self.assertEqual(empty["win_streak"], 0)
+        self.assertEqual(empty["bands"], {})
+        json.dumps(empty)
+        # Only wins: profit factor undefined, band says why.
+        wins = pd.DataFrame([{"realized_pnl": 5, "total_bought": 10, "time": pd.Timestamp("2026-06-01", tz="UTC")}])
+        only = apv._wallet_risk_profile(wins, False, None, "x")
+        self.assertIsNone(only["profit_factor"])
+        self.assertEqual(only["bands"]["profit_factor"], "no losing row")
+
     def test_capped_and_truncated_flags_travel(self) -> None:
         resolved = _resolved_fixture(8)
         payload = apv.wallet_detail(

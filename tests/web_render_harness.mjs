@@ -57,7 +57,7 @@ function neuesT() {
       btExposure: 50, btBankroll: 1000, btFee: 20, btSlip: 15, btCompare: '', btTab: 'log',
       btFeeModel: 'curve',
       advancedOpen: false, sizingSimOpen: false, researchTab: 0, liveTab: 'runs',
-      walletAddr: '', walletInput: '', walletRecent: [], walletPosSort: 'value', walletTab: 'overview', walletTreemap: 'all',
+      walletAddr: '', walletInput: '', walletRecent: [], walletPosSort: 'value', walletTab: 'overview', walletTreemap: 'all', walletSimilarQuery: '',
       alertsOn: { movers: true, volume: true, whales: true, spreads: false, holders: false, endings: true },
       settingsOn: { telegram: true, autotop: false, kalshi: true, sports: false, cache: true, admin: true },
       clock: '00:00', live: 'waiting', liveAsOf: '', tapeAsOf: ''
@@ -67,7 +67,7 @@ function neuesT() {
     herkunft: { markets: null, tape: null, traders: null, risks: null, cross: null },
     // Landing payloads (Overview): null until loaded, like in app.js.
     landing: { micro: null, runs: null, notes: null, herkunft: { micro: null, runs: null, notes: null } },
-    liveData: { leaderboard: null, cross: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {}, riskBook: {} },
+    liveData: { leaderboard: null, cross: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {}, riskBook: {}, walletSimilar: {} },
     num, money, esc, spark,
     seriesPoints: (v, w, h) => seriesPoints(v, w, h),
     act: () => 'data-act="0"',
@@ -103,7 +103,8 @@ function neuesT() {
     goStudy: () => {},
     openWallet: () => {},
     openMarket: () => {},
-    fetchRiskBook: () => {}
+    fetchRiskBook: () => {},
+    fetchWalletSimilar: () => {}
   };
 }
 
@@ -658,6 +659,17 @@ function walletNutzlast() {
       insider_prone_share: 0.7619, excluded_share: 0.2381,
       note: 'Share of traded notional by insider-plausibility group (app.suspicion.classify_insider_context).'
     },
+    // Risk profile from the 12 resolved rows (alternating win/loss in the
+    // fixture) and the three trades on the clock: Wed/Thu/Fri 10:00 UTC.
+    risk_profile: {
+      as_of: '2026-08-17 19:00 UTC', partial: false, n_rows: 12, n_win: 6, n_loss: 6,
+      profit_factor: 0.8, risk_reward: 0.8, conviction: 1.0, win_streak: 1, loss_streak: 1, current_streak: 1, current_streak_kind: 'loss',
+      avg_win: 40, avg_loss: 50, largest_win: 40, largest_loss: -50, avg_stake_win: 50, avg_stake_loss: 50,
+      bands: { profit_factor: 'losing', risk_reward: 'about even', conviction: 'even sizing' },
+      note: 'closed rows: both tails of the /closed-positions feed; n 12 rows, 6 won, 6 lost',
+      rules: { profit_factor: "sum of winning rows' realised PnL / |sum of losing rows'|", risk_reward: 'average winning row / average losing row (absolute)', conviction: 'average $ bought on winning rows / average $ bought on losing rows', streaks: 'longest run of consecutive winning / losing resolved rows in time order' },
+      heatmap: (() => { const c = [[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]]; const u = c.map((r) => r.slice()); c[2][10] = 1; c[3][10] = 1; c[4][10] = 1; u[2][10] = 50; u[3][10] = 25; u[4][10] = 30; return { counts: c, notional: u, n: 3, tz: 'UTC', busiest: { weekday: 2, hour: 10, trades: 1 }, note: 'trades in the activity window by weekday (Mon–Sun) and UTC hour' }; })()
+    },
     limits: ['Resolved positions come from the public /closed-positions feed, read in both sort directions with ~50 rows per tail.', 'Trades come from the public /activity feed in pages of 500 up to 2,000 rows.']
   };
 }
@@ -904,6 +916,25 @@ function rendern(T) {
     ['wallet_tab_categories', 'wallet', { walletTab: 'categories' }],
     ['wallet_treemap_closed', 'wallet', { walletTreemap: 'closed' }],
     ['wallet_treemap_open', 'wallet', { walletTreemap: 'open' }],
+    ['wallet_tab_risk', 'wallet', { walletTab: 'risk' }],
+    ['wallet_tab_similar', 'wallet', { walletTab: 'similar' }],
+    ['wallet_tab_similar_data', 'wallet', { walletTab: 'similar' }, null, (T) => {
+      T.liveData.walletSimilar[WALLET_HARNESS_ADDR] = { herkunft: 'live', data: {
+        wallet: WALLET_HARNESS_ADDR, as_of: '2026-08-18 15:00 UTC', candidates: 7,
+        rows: [
+          { wallet: '0x' + 'b'.repeat(40), short: '0xbbbb…bbbb', name: 'bee', shared: 2, same_side: 2, opposite_side: 0, overlap: 1.0, markets: [],
+            their_positions: 12, their_value: 4200.5, summary_read: true, lb_pnl: 1500.25, lb_volume: 90000, on_leaderboard: true, profile_url: 'https://polymarket.com/profile/0x' + 'b'.repeat(40) },
+          { wallet: '0x' + 'c'.repeat(40), short: '0xcccc…cccc', name: '', shared: 1, same_side: 0, opposite_side: 1, overlap: 0.5, markets: [],
+            their_positions: null, their_value: null, summary_read: false, lb_pnl: null, lb_volume: null, on_leaderboard: false, profile_url: 'https://polymarket.com/profile/0x' + 'c'.repeat(40) }
+        ],
+        basis: { markets_checked: 2, markets_available: 2, holders_per_token: 20, top: 10, note: "overlap among the top 20 holders per outcome of this wallet's 2 largest open markets", errors: ['0x1111111…: holders down'] }
+      } };
+      return () => { delete T.liveData.walletSimilar[WALLET_HARNESS_ADDR]; };
+    }],
+    ['wallet_tab_similar_err', 'wallet', { walletTab: 'similar' }, null, (T) => {
+      T.liveData.walletSimilar[WALLET_HARNESS_ADDR] = { herkunft: 'fehler', fehler: 'HTTP 429', status: 429 };
+      return () => { delete T.liveData.walletSimilar[WALLET_HARNESS_ADDR]; };
+    }],
     // The same address answered with an empty read: no resolved positions,
     // no curve, no trades. Every block must say so, none may print a figure.
     ['wallet_empty_answer', 'wallet', { walletAddr: WALLET_HARNESS_ADDR, walletInput: WALLET_HARNESS_ADDR }, null, (T) => {

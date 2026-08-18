@@ -805,6 +805,117 @@ def _wallet_activity(activity: pd.DataFrame | None, truncated: bool, as_of: str)
     }
 
 
+def _band(value: float | None, rules: list[tuple[float, str]], below: str) -> str:
+    """First label whose threshold the value reaches (rules sorted high→low)."""
+
+    if value is None:
+        return ""
+    for threshold, label in rules:
+        if value >= threshold:
+            return label
+    return below
+
+
+def _wallet_risk_profile(resolved: pd.DataFrame | None, capped: bool, activity: pd.DataFrame | None, as_of: str) -> dict[str, Any]:
+    """Profit factor, risk/reward, streaks, conviction and the trading-hours
+    heatmap — the "Risk" tab. Every figure names its n; with capped tails
+    the closed set holds the extremes only, so the block says PARTIAL and
+    the reader knows the middle of the record is not in these numbers.
+    """
+
+    out: dict[str, Any] = {
+        "as_of": as_of,
+        "partial": bool(capped),
+        "n_rows": 0,
+        "profit_factor": None, "risk_reward": None, "conviction": None,
+        "win_streak": 0, "loss_streak": 0, "current_streak": 0, "current_streak_kind": "",
+        "n_win": 0, "n_loss": 0, "avg_win": None, "avg_loss": None, "largest_win": None, "largest_loss": None,
+        "avg_stake_win": None, "avg_stake_loss": None,
+        "bands": {}, "note": "",
+        "rules": {
+            "profit_factor": "sum of winning rows' realised PnL / |sum of losing rows'|",
+            "risk_reward": "average winning row / average losing row (absolute)",
+            "conviction": "average $ bought on winning rows / average $ bought on losing rows — above 1 means the wallet sized up when it was right",
+            "streaks": "longest run of consecutive winning / losing resolved rows in time order",
+        },
+        "heatmap": {"counts": [[0] * 24 for _ in range(7)], "notional": [[0.0] * 24 for _ in range(7)], "n": 0, "tz": "UTC",
+                     "busiest": None, "note": "trades in the activity window by weekday (Mon–Sun) and UTC hour"},
+    }
+    if resolved is not None and not resolved.empty:
+        df = resolved.copy()
+        df["_pnl"] = pd.to_numeric(df.get("realized_pnl"), errors="coerce").fillna(0.0)
+        df["_stake"] = pd.to_numeric(df.get("total_bought"), errors="coerce").fillna(0.0)
+        df["_time"] = pd.to_datetime(df.get("time"), utc=True, errors="coerce")
+        wins = df[df["_pnl"] > 0]
+        losses = df[df["_pnl"] < 0]
+        gross_win = float(wins["_pnl"].sum())
+        gross_loss = float(-losses["_pnl"].sum())
+        out["n_rows"] = int(len(df))
+        out["n_win"] = int(len(wins))
+        out["n_loss"] = int(len(losses))
+        out["profit_factor"] = round(gross_win / gross_loss, 2) if gross_loss > 0 else None
+        out["avg_win"] = round(gross_win / len(wins), 2) if len(wins) else None
+        out["avg_loss"] = round(gross_loss / len(losses), 2) if len(losses) else None
+        out["risk_reward"] = round(out["avg_win"] / out["avg_loss"], 2) if out["avg_win"] and out["avg_loss"] else None
+        out["largest_win"] = round(float(wins["_pnl"].max()), 2) if len(wins) else None
+        out["largest_loss"] = round(float(losses["_pnl"].min()), 2) if len(losses) else None
+        stake_w = float(wins["_stake"].mean()) if len(wins) and wins["_stake"].gt(0).any() else None
+        stake_l = float(losses["_stake"].mean()) if len(losses) and losses["_stake"].gt(0).any() else None
+        out["avg_stake_win"] = round(stake_w, 2) if stake_w is not None else None
+        out["avg_stake_loss"] = round(stake_l, 2) if stake_l is not None else None
+        out["conviction"] = round(stake_w / stake_l, 2) if stake_w and stake_l else None
+        ordered = df.dropna(subset=["_time"]).sort_values("_time")
+        best_w = best_l = run = 0
+        kind = ""
+        for pnl in ordered["_pnl"].tolist():
+            k = "win" if pnl > 0 else "loss" if pnl < 0 else ""
+            if not k:
+                continue
+            run = run + 1 if k == kind else 1
+            kind = k
+            if k == "win":
+                best_w = max(best_w, run)
+            else:
+                best_l = max(best_l, run)
+        out["win_streak"] = int(best_w)
+        out["loss_streak"] = int(best_l)
+        out["current_streak"] = int(run)
+        out["current_streak_kind"] = kind
+        out["bands"] = {
+            "profit_factor": _band(out["profit_factor"], [(2.0, "strong"), (1.2, "positive"), (1.0, "thin")], "losing") if out["profit_factor"] is not None else ("no losing row" if len(wins) and not len(losses) else ""),
+            "risk_reward": _band(out["risk_reward"], [(1.5, "wins bigger than losses"), (0.8, "about even")], "losses bigger than wins"),
+            "conviction": _band(out["conviction"], [(1.2, "sizes up when right"), (0.8, "even sizing")], "sizes up when wrong"),
+        }
+        out["note"] = ("closed rows: both tails of the /closed-positions feed" + (" — CAPPED at ~50 per tail, so profit factor, streaks and conviction describe the biggest winners and losers only" if capped else "")
+                       + f"; n {len(df)} rows, {len(wins)} won, {len(losses)} lost")
+    if activity is not None and not activity.empty:
+        df = activity.copy()
+        typ = df.get("type", pd.Series("", index=df.index)).astype(str).str.upper()
+        trades = df[typ.eq("TRADE")].copy()
+        trades["_time"] = pd.to_datetime(trades.get("time"), utc=True, errors="coerce")
+        trades["_usd"] = pd.to_numeric(trades.get("notional"), errors="coerce").fillna(0.0)
+        trades = trades.dropna(subset=["_time"])
+        counts = [[0] * 24 for _ in range(7)]
+        usd = [[0.0] * 24 for _ in range(7)]
+        for t, n in zip(trades["_time"].tolist(), trades["_usd"].tolist()):
+            counts[t.weekday()][t.hour] += 1
+            usd[t.weekday()][t.hour] += float(n)
+        best = None
+        for wd in range(7):
+            for hr in range(24):
+                if counts[wd][hr] and (best is None or counts[wd][hr] > best[2]):
+                    best = (wd, hr, counts[wd][hr])
+        out["heatmap"] = {
+            "counts": counts,
+            "notional": [[round(v, 2) for v in row] for row in usd],
+            "n": int(len(trades)),
+            "tz": "UTC",
+            "busiest": {"weekday": best[0], "hour": best[1], "trades": best[2]} if best else None,
+            "note": "trades in the activity window by weekday (Mon–Sun) and UTC hour",
+        }
+    return out
+
+
 def _wallet_categories(
     activity: pd.DataFrame | None,
     resolved: pd.DataFrame | None,
@@ -969,6 +1080,9 @@ def wallet_detail(
     payload["closed"] = _wallet_closed(resolved, capped, open_block["worthless_n"], stamp,
                                        _text(track.get("coverage_note")) if track else "")
     payload["activity"] = _wallet_activity(activity, activity_truncated, stamp)
+    payload["risk_profile"] = _wallet_risk_profile(resolved, capped, activity, stamp)
+    if activity_truncated and payload["risk_profile"]["heatmap"]["n"]:
+        payload["risk_profile"]["heatmap"]["note"] += " — the window was truncated at the page cap"
     payload["categories"] = _wallet_categories(activity, resolved, classify, stamp)
     payload["context"] = _wallet_context(activity, stamp)
     payload["limits"] = list(WALLET_LIMITS)

@@ -1182,7 +1182,7 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("BUY / SELL RATIO 66.7% buy 2 sell 1", text)
         self.assertIn("REALIZED EDGE 35.0¢ per $ 95% CI [12.0¢, 55.0¢] events 11 per share +5.0pp · thin CI excludes zero", text)
         # Tabs, PnL curve, top cards.
-        self.assertIn("Overview Track record Positions Trades Categories", text)
+        self.assertIn("Overview Track record Positions Trades Categories Risk Similar wallets", text)
         self.assertIn("CUMULATIVE PNL · PROFILE CURVE · ALL", text)
         self.assertRegex(html, r'<path d="M\s*\d')
         self.assertIn("6 points · 5 daily changes", text)
@@ -1235,6 +1235,43 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("STAKE BY CATEGORY", cats)
         self.assertIn("INSIDER-CONTEXT GROUPS · SHARE OF NOTIONAL", cats)
         self.assertIn("76% of traded notional sits in insider-plausible groups", cats)
+
+    def test_wallet_risk_tab_and_similar_wallets(self) -> None:
+        # Risk tab: the five cards from the resolved rows with their bands
+        # and the rule text, the trading clock with its n and busiest cell.
+        risk_html = self.ausgabe["live"]["wallet_tab_risk"]
+        risk = _sichtbarer_text(risk_html)
+        self.assertIn("PROFIT FACTOR 0.80 losing · wins $240.00 / losses $300.00", risk)
+        self.assertIn("RISK / REWARD 0.80 about even · avg win $40.00 · avg loss $50.00", risk)
+        self.assertIn("WIN STREAK 1 1 consecutive winning rows", risk)
+        self.assertIn("LOSS STREAK 1 1 consecutive losing rows · current run 1", risk)
+        self.assertIn("CONVICTION 1.00× even sizing · avg stake won $50.00 / lost $50.00", risk)
+        self.assertNotIn("~PARTIAL", risk)  # not capped in the fixture
+        self.assertIn("n 12 rows, 6 won, 6 lost", risk)
+        self.assertIn("TRADING ACTIVITY · WEEKDAY × UTC HOUR n 3 trades", risk)
+        self.assertIn("busiest cell Wed 10:00 UTC (1 trade)", risk)
+        # 7 x 24 cells, three of them coloured, each with its count in the title.
+        self.assertEqual(risk_html.count('height:16px; border-radius:3px; background:'), 7 * 24)
+        self.assertEqual(risk_html.count("background:rgba(79,142,247,"), 3)
+        self.assertIn('title="Wed 10:00 UTC — 1 trade · $50.00"', risk_html)
+        # Similar wallets: waiting state names the request; the answer lists
+        # shared markets, sides, overlap bar, leaderboard PnL where on the
+        # board, and "not read" / "not on board" otherwise; the error state
+        # offers a retry.
+        warten = _sichtbarer_text(self.ausgabe["live"]["wallet_tab_similar"])
+        self.assertIn("Reading the top holders of the largest open markets", warten)
+        daten_html = self.ausgabe["live"]["wallet_tab_similar_data"]
+        daten = _sichtbarer_text(daten_html)
+        self.assertIn("SIMILAR WALLETS · TOP 2 as of 2026-08-18 15:00 UTC · 2 of 2 open markets checked · 7 wallets seen", daten)
+        self.assertIn("bee · 0xbbbb…bbbb 2 same side 2 / 2 12 · $4,201 100% +$1,500 $90.0k Analyse profile ↗", daten)
+        self.assertIn("0xcccc…cccc 1 opposite 1 / 2 not read 50% not on board — Analyse profile ↗", daten)
+        self.assertIn("Markets that did not answer: 0x1111111…: holders down", daten)
+        self.assertIn('href="https://polymarket.com/profile/0x' + "b" * 40 + '"', daten_html)
+        fehler = _sichtbarer_text(self.ausgabe["live"]["wallet_tab_similar_err"])
+        self.assertIn("/api/wallet/0xabc0…0abc/similar did not answer: HTTP 429", fehler)
+        self.assertIn("Try again", fehler)
+        # The tab bar carries both new tabs.
+        self.assertIn("Overview Track record Positions Trades Categories Risk Similar wallets", _sichtbarer_text(self.ausgabe["live"]["wallet"]))
 
     def test_wallet_treemap_tiles_are_the_positions(self) -> None:
         # All: two open + two closed rows with a stake = four tiles, area from

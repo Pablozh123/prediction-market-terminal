@@ -55,6 +55,8 @@ Paper-Copy-Desk unter /api/copy/*, der lokale Papierbuecher schreibt):
     GET  /api/leaderboard?limit=100&period=ALL&order_by=PNL
     GET  /api/wallet/{wallet}      (0x + 40 hex; the whole wallet page, ~6 upstream calls,
                                     300 s cache, own per-IP limiter: 12/min, burst 6)
+    GET  /api/wallet/{wallet}/similar  (top holders of its largest open markets, ~22 upstream
+                                    calls cold, 600 s cache, same limiter)
     GET  /api/cross?query=&min_similarity=0.5&max_pairs=50   (gate: sim >= 0.5, volume on both venues)
     GET  /api/risk
     GET  /api/risk/book?market=<conditionId>&wallets=a,b&side=YES%20buys  (was die Wallets in dem
@@ -591,6 +593,40 @@ def wallet_detail(wallet: str) -> dict[str, Any]:
     if not WALLET_ADDRESS.match(wallet):
         raise HTTPException(status_code=400, detail="expected a Polymarket wallet address (0x + 40 hex characters)")
     return cached(f"wallet_page_{wallet.lower()}", build_wallet_detail, wallet.lower(), ttl=WALLET_CACHE_TTL)
+
+
+@app.get("/api/wallet/{wallet}/similar", dependencies=[Depends(wallet_route_limit)])
+def wallet_similar(wallet: str) -> dict[str, Any]:
+    """Wallets among the top holders of this wallet's largest open markets.
+
+    Reads the (cached) wallet page for the open positions, then one /holders
+    call per checked market and one /positions call per listed wallet — up to
+    ~22 upstream reads on a cold cache, cached ten minutes. Same per-IP
+    bucket as the wallet page.
+    """
+    from app import wallet_similar as ws
+
+    wallet = wallet.strip().lower()
+    if not WALLET_ADDRESS.match(wallet):
+        raise HTTPException(status_code=400, detail="expected a Polymarket wallet address (0x + 40 hex characters)")
+
+    def _build() -> dict[str, Any]:
+        page = cached(f"wallet_page_{wallet}", build_wallet_detail, wallet, ttl=WALLET_CACHE_TTL)
+        open_rows = (page.get("open_positions") or {}).get("rows") or []
+        # Leaderboard rows by address for PnL / volume where the wallet is on it.
+        lb: dict[str, dict[str, Any]] = {}
+        try:
+            frame = load_leaderboard(limit=250)
+            if frame is not None and not frame.empty and "wallet" in frame:
+                for _, row in frame.iterrows():
+                    lb[str(row.get("wallet") or "").lower()] = row.to_dict()
+        except Exception as exc:
+            print(f"[warn] leaderboard for similar wallets: {exc}")
+        out = ws.similar_wallets(wallet, open_rows, leaderboard=lb)
+        out["as_of"] = md.now_utc_label()
+        return out
+
+    return cached(f"wallet_similar_{wallet}", _build, ttl=600.0)
 
 
 #: Was /api/cross als "gate" mitmeldet, damit das Frontend den leeren Fall

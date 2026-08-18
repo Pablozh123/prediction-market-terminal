@@ -125,7 +125,7 @@ class Terminal {
       // Wallet page: the address being analysed (from #wallet/<addr> or the
       // input), the raw input, the addresses analysed this session (not
       // persisted), and the sort of the open-positions table.
-      walletAddr: '', walletInput: '', walletRecent: [], walletPosSort: 'value', walletTab: 'overview', walletTreemap: 'all',
+      walletAddr: '', walletInput: '', walletRecent: [], walletPosSort: 'value', walletTab: 'overview', walletTreemap: 'all', walletSimilarQuery: '',
       alertsOn: { movers: true, volume: true, whales: true, spreads: false, holders: false, endings: true },
       settingsOn: { telegram: true, autotop: false, kalshi: true, sports: false, cache: true, admin: true },
       clock: this.utcClock(),
@@ -188,7 +188,7 @@ class Terminal {
     // when its tab is opened — null until then.
     // wallet: one entry per analysed address — { herkunft: 'loading' | 'live'
     // | 'fehler', data, fehler, status, retryAfter }.
-    this.liveData = { leaderboard: null, cross: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {}, riskBook: {} };
+    this.liveData = { leaderboard: null, cross: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {}, riskBook: {}, walletSimilar: {} };
 
     this._acts = [];
     this._inps = [];
@@ -827,6 +827,20 @@ class Terminal {
       const wd = await apiGet('/api/wallet/' + full);
       if (wd) { this.liveData.walletDetail[name] = wd; this.render(); }
     } catch (err) { /* detail stays on list data */ }
+  }
+
+  // Similar wallets (/api/wallet/<addr>/similar): asked for when the tab is
+  // opened, once per address; "Try again" forces a re-read.
+  fetchWalletSimilar(addr, force) {
+    const key = String(addr || '').toLowerCase();
+    if (!isFullAddress(key)) return;
+    const vorhanden = this.liveData.walletSimilar[key];
+    if (vorhanden && !force) return;
+    this.liveData.walletSimilar[key] = { herkunft: 'loading' };
+    apiGet('/api/wallet/' + key + '/similar')
+      .then((antwort) => { this.liveData.walletSimilar[key] = { herkunft: 'live', data: antwort && typeof antwort === 'object' ? antwort : { rows: [] } }; })
+      .catch((err) => { this.liveData.walletSimilar[key] = { herkunft: 'fehler', fehler: String(err && err.message ? err.message : err), status: err && err.status ? err.status : null }; })
+      .then(() => this.render());
   }
 
   // The book of the flagged wallets in the flagged market (/api/risk/book):
