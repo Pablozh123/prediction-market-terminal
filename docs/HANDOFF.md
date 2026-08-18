@@ -1,7 +1,7 @@
 # Handoff — Prediction Market Terminal
 
 Single entry point for continuing this project from another machine.
-Last updated 2026-08-07.
+Last updated 2026-08-18.
 
 > This is a data and analysis product for public Polymarket and Kalshi data.
 > The legal sections in the planning documents are compliance research for a
@@ -23,7 +23,9 @@ in this codebase.
   `web/` as plain ES modules behind the read-only JSON API in `api/server.py`.
 - **Local:** http://127.0.0.1:8503 (Streamlit), http://127.0.0.1:8787 (web).
 - **Repo:** GitHub `Pablozh123/prediction-market-terminal`, default branch `main`.
-- **State:** 1,370 unit tests green (`python -m unittest discover -s tests`).
+- **Live:** https://marketintel.dev (Cloudflare Pages, static build of `web/`) +
+  https://api.marketintel.dev (Railway, `api/server.py`, hosts the paper copy desk).
+- **State:** 1,629 unit tests green (`python -m unittest discover -s tests`).
 
 ## 2. Quick start on a new machine
 
@@ -34,11 +36,16 @@ python -m pip install -r requirements.txt
 python -m streamlit run prediction_terminal.py --server.address=127.0.0.1 --server.port=8503
 ```
 
+On the current development machine only `.venv\Scripts\python.exe` is a real
+interpreter (`python` on PATH is the Windows Store stub); every command below
+means that one. Keep PowerShell scripts ASCII.
+
 Background runners (optional, paper only):
 
 ```bash
 python scripts/run_copy_trader.py     # copy daemon: WS detection, on-chain reconciliation, settlement
 python scripts/run_alert_scanner.py   # Telegram alert scanner (token via env, see .env.example)
+scripts\start_paper_desk.ps1          # Windows: API on 127.0.0.1:8787 + copy daemon, opens #copy
 ```
 
 Production: `docker compose up -d --build` starts the terminal, the alert
@@ -79,8 +86,10 @@ Buildable now, no legal exposure:
 5. ⬜ **Read-only wallet connect** — own React component (wagmi/WalletConnect)
    plus SIWE.
 6. ⬜ **Crypto payment** — only if asked for after launch. Fiat first.
-7. ⬜ **Production deploy** — domain plus VPS (needs a purchase decision),
-   `docker compose up`, CDN in front, imprint and privacy policy, geoblocking.
+7. ✅ **Production deploy** — live as marketintel.dev (Cloudflare Pages) +
+   api.marketintel.dev (Railway), see §9.1. Imprint / privacy policy and
+   geoblocking are still open; the compose + Caddy path in
+   PRODUCTION_READINESS.md remains the self-hosted alternative.
 
 Strategic decision, not without a lawyer:
 
@@ -106,7 +115,13 @@ Strategic decision, not without a lawyer:
 | `app/signals.py` | Monitor signal and rule logic (shared with the scanner) |
 | `app/app_settings.py` | Persisted settings with env-var overrides for secrets |
 | `app/authz.py` | Streamlit-free admin-gate logic (fail closed) |
-| `scripts/run_copy_trader.py` | Copy daemon loop |
+| `app/copy_daemon.py` | The copy daemon loop (`scripts/run_copy_trader.py` is a thin CLI over it; the API runs it in-process with `COPY_DAEMON=1`) |
+| `app/copy_admin.py` | Paper copy desk: write gate (loopback or `COPY_ADMIN_TOKEN`), follow + per-wallet baseline seed, settings, overview, daemon status, one-shot sync, `ensure_desk` |
+| `app/wallet_book.py` | Risk cards: what a flagged wallet holds in the flagged market now (hedge vs new bet), `/api/risk/book` |
+| `app/wallet_similar.py` | Wallet page: top holders of the wallet's largest open markets, `/api/wallet/{w}/similar` |
+| `web/js/pages/copy_page.js` | Copy desk page (traders, sizing modes, orders with kinds, settings) |
+| `web/js/pages/wallet_page.js`, `web/js/treemap.js` | Wallet page (identity strip, KPI strip, aside, tabs, squarified positions treemap, Risk and Similar tabs) |
+| `scripts/run_copy_trader.py` | Copy daemon CLI |
 | `scripts/run_alert_scanner.py` | Alert scanner with Telegram delivery |
 | `Dockerfile`, `docker-compose.yml`, `deploy/Caddyfile` | Production deploy |
 
@@ -165,8 +180,54 @@ Telegram secrets, daemon control) has to be protected.
 
 ## 9. Operations
 
+### 9.1 Deploying the live site
+
+Two hosts, two mechanisms — this cost a session once, so it is spelled out:
+
+- **marketintel.dev** (Cloudflare Pages) rebuilds from a push to `origin/main`
+  within a few minutes (`scripts/build_static_site.py --api-base
+  https://api.marketintel.dev` writes `dist/`).
+- **api.marketintel.dev** (Railway project `victorious-strength`, service
+  `attractive-truth`, Dockerfile) does **not** follow GitHub. After the push run
+  `railway up --detach` from the repo root and poll a new route until it
+  answers (build ~1 min; the in-process copy daemon pauses for that minute).
+  `railway up` uploads the working tree minus `.gitignore` — `data/` never
+  ships. Under Git Bash prefix `MSYS_NO_PATHCONV=1` when setting a variable
+  whose value starts with `/` (`/data/...` was mangled to `C:/Program Files/Git/data/...`).
+- Railway variables (read with `railway variables`, never in the repo):
+  `COPY_DATA_DIR=/data/copy_desk` (the mounted volume `attractive-truth-volume`
+  at `/data`, 500 MB), `COPY_DAEMON=1`, `COPY_ADMIN_TOKEN=<secret>`,
+  `CORS_ORIGINS=https://marketintel.dev,https://www.marketintel.dev`,
+  `API_HOST=0.0.0.0`, `PORT=8787`. Optional `COPY_DESK_PRIVATE=1` gates reads too.
+- Frontend-only changes need only the push (Pages); anything under `api/`,
+  `app/`, `src/` needs `railway up` as well.
+
+### 9.2 The paper copy desk (live)
+
+- Page: https://marketintel.dev/#copy. Reads are public; writes need the admin
+  token pasted once into the page (kept in that browser's localStorage, sent as
+  `X-Admin-Token`). Locally (`127.0.0.1:8787`) writes are open from loopback.
+- Books: `copy_trading.sqlite`, `copy_settings.json`, `copy_trader_status.json`
+  in `COPY_DATA_DIR`. A fresh desk starts with the migration's Swisstony row
+  **paused**; nothing is copied until a wallet is followed. Follow = row +
+  per-wallet baseline (positions mirrored, recent trades marked observed,
+  cutoff = newest of them); resume re-seeds.
+- Sizing modes on the Settings tab map onto `CopySettings`: same share of
+  account (dynamic sizing on, order = his notional × your equity / his equity ×
+  multiplier), fixed % of his trade (dynamic off, `copy_scale`), dollar for
+  dollar (dynamic off, `copy_scale = 1`). Settings are global — the sub-accounts
+  are the comparison, so every trader runs the same rules.
+- Orders carry a kind (BUY / SELL / MERGE / REDEEM / RESOLUTION), a sentence and
+  the source wallet's mirrored YES/NO book; a MERGE is both sides handed back
+  for cash, not a bet on the printed outcome.
+- Local desk on the dev machine (`scripts\start_paper_desk.ps1`) has its own,
+  separate books under `data/`; it was stopped so there is one desk.
+
+### 9.3 Machine tasks
+
 - Three Windows scheduled tasks (registered by `scripts/install_autostart.ps1`):
-  the terminal on 8503, the copy daemon, the alert scanner.
+  the terminal on 8503, the copy daemon, the alert scanner. Not registered on
+  the current dev machine; the scripts prefer `.venv\Scripts\python.exe`.
 - Secrets come from the environment (`.env`, gitignored):
   `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` override `data/app_settings.json`
   and are never written back.
@@ -204,13 +265,40 @@ Telegram secrets, daemon control) has to be protected.
   `ct.measure_clock_offset_seconds()` against the CLOB `/time` endpoint at
   startup and every 30 minutes and corrects the reported latency.
 
+- **Multi-trader engine (fixed 2026-08-18):** baseline cutoff and on-chain
+  scan cursor are per wallet now (`seeded_at:<w>`, `baseline_cutoff_ts:<w>`,
+  `fast_last_block:<w>`, legacy global keys serve the primary wallet). Before,
+  one global cutoff copied a later-followed wallet's history at stale prices and
+  one global cursor left every wallet but the first unscanned on-chain. All
+  traders paused now means copy nobody (the fallback to Swisstony applies only
+  to a `traders` table with no rows). `copy_scale_override` is stored but not
+  read by the sizing — remove it or wire it, do not expose it.
+- **Daemon on Windows:** `write_status` retries the atomic rename (a reader
+  holding the file made the daemon die on the first page refresh).
+- **Wallet page basis lines:** the Similar tab is "top 20 holders per outcome of
+  the 12 largest open markets", not "everyone who traded them"; PnL only where
+  the wallet is on the cached leaderboard; conviction = avg $ bought on winners
+  / losers. The Risk tab is PARTIAL whenever the closed tails are capped. Keep
+  those sentences on the page when touching it.
+
 ## 11. Next concrete step
 
-Two candidates from the roadmap in §4:
+Open from the 2026-08-18 session (the paper copy experiment on the live desk is
+running with slow domain-expert wallets; the owner reviews sub-accounts there):
 
-- **Production deploy (7)** — the actual launch: domain and VPS (a purchase
-  decision), `docker compose up`, CDN in front, imprint and privacy policy. The
-  auth precondition is met; the guide is in
+- Watch the live desk for a week; the per-trader equity curves
+  (`trader_equity_snapshots`) are the comparison the experiment is about.
+- Wallet page: mobile widths (the aside wraps, the treemap is fixed 440px);
+  a range brush on the PnL curve and trade markers were left out.
+- Similar wallets: PnL/volume are sparse because only the cached top-250
+  leaderboard is consulted; a per-wallet PnL read would cost one call each.
+- Streamlit copy page still says "Swisstony is the seed trader and stays
+  followed" — the engine no longer requires that; align or retire that panel.
+
+Earlier candidates from the roadmap in §4:
+
+- **Launch hygiene (7, rest)** — imprint and privacy policy on marketintel.dev,
+  geoblocking decision; the guide is in
   [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md).
 - **Read-only wallet connect (5)** — buildable without any purchase: a React
   component (wagmi/WalletConnect) plus SIWE. Details in
