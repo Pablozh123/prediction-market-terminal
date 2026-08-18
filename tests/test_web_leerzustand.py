@@ -1151,83 +1151,136 @@ class WebLeerzustandTest(unittest.TestCase):
                 self.assertNotRegex(self.ausgabe["leer"][name], r'<path d="M\s*\d')
 
     def test_wallet_seite_mit_nutzlast_zeigt_jede_zahl_mit_n(self) -> None:
+        # Overview: identity strip, KPI strip, fact line, the aside cards, the
+        # PnL curve, top open / closed and the treemap. The other sections
+        # sit on their tabs (below).
         html = self.ausgabe["live"]["wallet"]
         text = _sichtbarer_text(html)
-        # Identity with links and the as-of stamp.
         self.assertIn("harness_wallet", text)
         self.assertIn('href="https://polymarket.com/profile/0xabc0000000000000000000000000000000000abc"', html)
         self.assertIn('href="https://polygonscan.com/address/0xabc0000000000000000000000000000000000abc"', html)
         self.assertIn("as of 2026-08-17 19:00 UTC · cached 300 s", text)
+        self.assertIn("Follow on the copy desk →", text)
         self.assertIn("Replay this wallet in the backtester →", text)
-        # KPI row: every figure with its n / CI.
+        self.assertIn("GRADE F · 27/100 BELOW SAMPLE GATE 4 DAYS ACTIVE", text)
+        # KPI strip: every figure with its n / CI; the fact line below it.
         self.assertIn("SETTLED PNL +$210.00 n 12 resolved markets", text)
         self.assertIn("CORRECTED WIN RATE 73% 8/11 events · 95% [43%, 91%]", text)
         self.assertIn("GRADE F score 27 / 100 · below sample gate", text)
         self.assertIn("SHARPE · DAILY $ 11.92 n 5 days · no capital base", text)
         self.assertIn("MAX DRAWDOWN $5.00 25.0% of the running peak", text)
-        self.assertIn("VOLUME TRADED $105 3 trades", text)
-        # Track record: naive vs corrected side by side, flags, gate, components.
-        self.assertIn("Naive — per position leg (what a leaderboard implies) 75% 9 / 12 [47%, 91%]", text)
-        self.assertIn("Corrected — per event, NegRisk legs netted 73% 8 / 11 [43%, 91%]", text)
-        self.assertIn("NEGRISK LEGS NETTED 1", text)
-        self.assertIn("WASH / FARMER FLAG not flagged rule: volume", text)
-        self.assertIn("SURVIVORSHIP GATE not passed 12 markets over 11 d · needs ≥ 10 and ≥ 14 d", text)
-        self.assertIn("PROFIT CONCENTRATION 67% in top 3 best market 22%", text)
-        self.assertIn("SCORE 27 / 100 · GRADE F · COMPONENTS insufficient sample", text)
-        self.assertIn("insufficient sample (12 markets / 11d)", text)
-        # PnL curve drawn from the points, with its stats and their n.
+        self.assertIn("VOLUME TRADED $105 TRADES 3 AVG TRADE $35.00 DAYS ACTIVE 4 SINCE 2026-07-01", text)
+        # Aside: portfolio, breakdown, core stats, buy/sell bar, edge.
+        self.assertIn("PORTFOLIO · OPEN $55.00 cost basis $50.00 unrealised +$5.00 positions 2", text)
+        self.assertIn("PNL BREAKDOWN settled (track record) +$210.00 realised (closed rows) +$210.00 unrealised (open) +$5.00 position value $55.00", text)
+        self.assertIn("CORE STATS avg trade $35.00 won / lost 9 / 3 open / resolved 2 / 12 buy / sell 2 / 1 trades / day 0.75 not redeemed 1", text)
+        self.assertIn("BUY / SELL RATIO 66.7% buy 2 sell 1", text)
+        self.assertIn("REALIZED EDGE 35.0¢ per $ 95% CI [12.0¢, 55.0¢] events 11 per share +5.0pp · thin CI excludes zero", text)
+        # Tabs, PnL curve, top cards.
+        self.assertIn("Overview Track record Positions Trades Categories", text)
         self.assertIn("CUMULATIVE PNL · PROFILE CURVE · ALL", text)
         self.assertRegex(html, r'<path d="M\s*\d')
         self.assertIn("6 points · 5 daily changes", text)
         self.assertIn("SORTINO 22.92", text)
         self.assertIn("WIN-DAY SHARE 60% 3 up · 2 down · n 5", text)
-        # Edge with CI, per category; the interval chart is drawn.
-        self.assertIn("EDGE PER $ · CLUSTER BOOTSTRAP 35.0¢ per $ 95% CI [12.0¢, 55.0¢] · n 11 events · excludes zero", text)
-        self.assertIn("EDGE PER SHARE · ENTRY VS SETTLEMENT +5.0pp · THIN 95% CI [-2.0pp, +12.0pp] · n 11 events / 12 positions", text)
-        self.assertIn("Politics · n 7", text)
-        self.assertIn("RETURN PER $ STAKED · 95% CI", text)
-        # Open positions: N of N, exposure, worthless count, sort chips.
-        self.assertIn("2 of 2 positions", text)
-        self.assertIn("TOTAL EXPOSURE $55.00 value at current prices · 2 positions", text)
-        self.assertIn("RESOLVED · NOT REDEEMED 1", text)
-        self.assertIn("resolved · not redeemed", text)
-        self.assertIn("SORT BY Value Unrealised Cost Ends", text)
-        # Closed: won/lost/flat/worthless, N of N, capped not claimed.
-        self.assertIn("WON 9", text)
-        self.assertIn("LOST 3", text)
-        self.assertIn("2 of 12 resolved positions, largest |PnL| first", text)
-        self.assertNotIn("CAPPED", text)
-        # Categories / context bars, trades table with links, limits.
-        self.assertIn("STAKE BY CATEGORY", text)
-        self.assertIn("INSIDER-CONTEXT GROUPS · SHARE OF NOTIONAL", text)
-        self.assertIn("76% of traded notional sits in insider-plausible groups", text)
-        self.assertIn("3 of 3 trades, newest first", text)
-        self.assertIn("BUY · SELL 2 · 1", text)
-        self.assertIn("NET CASH FLOW +$5.00", text)
-        self.assertIn('href="https://polymarket.com/event/event-0"', html)
+        self.assertIn("TOP OPEN · BY UNREALISED YES Open harness market A? +38% $40.00 → $55.00 · +$15.00 unrealised", text)
+        self.assertIn("TOP CLOSED · BY REALISED YES Harness market 0? +80% $50.00 → $90.00 · +$40.00 realised", text)
+        # Limits stay on every tab.
         self.assertIn("LIMITS OF THIS READ", text)
         self.assertIn("50 rows per tail", text)
-        # Every table sits in its own horizontal scroller.
-        self.assertGreaterEqual(html.count("overflow-x:auto"), 3)
-        # Sorted by unrealised PnL the worthless row still renders, nothing invented.
+        # Track record tab: naive vs corrected side by side, flags, gate,
+        # components, and the edge with its CI and category rows.
+        record = _sichtbarer_text(self.ausgabe["live"]["wallet_tab_record"])
+        self.assertIn("Naive — per position leg (what a leaderboard implies) 75% 9 / 12 [47%, 91%]", record)
+        self.assertIn("Corrected — per event, NegRisk legs netted 73% 8 / 11 [43%, 91%]", record)
+        self.assertIn("NEGRISK LEGS NETTED 1", record)
+        self.assertIn("WASH / FARMER FLAG not flagged rule: volume", record)
+        self.assertIn("SURVIVORSHIP GATE not passed 12 markets over 11 d · needs ≥ 10 and ≥ 14 d", record)
+        self.assertIn("PROFIT CONCENTRATION 67% in top 3 best market 22%", record)
+        self.assertIn("SCORE 27 / 100 · GRADE F · COMPONENTS insufficient sample", record)
+        self.assertIn("insufficient sample (12 markets / 11d)", record)
+        self.assertIn("EDGE PER $ · CLUSTER BOOTSTRAP 35.0¢ per $ 95% CI [12.0¢, 55.0¢] · n 11 events · excludes zero", record)
+        self.assertIn("EDGE PER SHARE · ENTRY VS SETTLEMENT +5.0pp · THIN 95% CI [-2.0pp, +12.0pp] · n 11 events / 12 positions", record)
+        self.assertIn("Politics · n 7", record)
+        self.assertIn("RETURN PER $ STAKED · 95% CI", record)
+        self.assertNotIn("CUMULATIVE PNL · PROFILE CURVE", record)
+        # Positions tab: open (N of N, exposure, worthless, sort chips) and closed.
+        pos_html = self.ausgabe["live"]["wallet_tab_positions"]
+        pos = _sichtbarer_text(pos_html)
+        self.assertIn("2 of 2 positions", pos)
+        self.assertIn("TOTAL EXPOSURE $55.00 value at current prices · 2 positions", pos)
+        self.assertIn("RESOLVED · NOT REDEEMED 1", pos)
+        self.assertIn("resolved · not redeemed", pos)
+        self.assertIn("SORT BY Value Unrealised Cost Ends", pos)
+        self.assertIn("WON 9", pos)
+        self.assertIn("LOST 3", pos)
+        self.assertIn("2 of 12 resolved positions, largest |PnL| first", pos)
+        self.assertNotIn("CAPPED", pos)
+        self.assertGreaterEqual(pos_html.count("overflow-x:auto"), 2)
         sortiert = _sichtbarer_text(self.ausgabe["live"]["wallet_sort_pnl"])
         self.assertIn("Open harness market A?", sortiert)
+        # Trades tab and categories tab.
+        trades_html = self.ausgabe["live"]["wallet_tab_trades"]
+        trades = _sichtbarer_text(trades_html)
+        self.assertIn("3 of 3 trades, newest first", trades)
+        self.assertIn("BUY · SELL 2 · 1", trades)
+        self.assertIn("NET CASH FLOW +$5.00", trades)
+        self.assertIn('href="https://polymarket.com/event/event-0"', trades_html)
+        cats = _sichtbarer_text(self.ausgabe["live"]["wallet_tab_categories"])
+        self.assertIn("STAKE BY CATEGORY", cats)
+        self.assertIn("INSIDER-CONTEXT GROUPS · SHARE OF NOTIONAL", cats)
+        self.assertIn("76% of traded notional sits in insider-plausible groups", cats)
+
+    def test_wallet_treemap_tiles_are_the_positions(self) -> None:
+        # All: two open + two closed rows with a stake = four tiles, area from
+        # the stake, colour from the PnL sign; each tile carries its figures
+        # in the title. Closed only: the two closed rows. Open only: the two
+        # open rows, the worthless one red.
+        html = self.ausgabe["live"]["wallet"]
+        text = _sichtbarer_text(html)
+        self.assertIn("POSITIONS TREEMAP", text)
+        self.assertIn("tile area = $ at stake", text)
+        self.assertIn("4 tiles", text)
+        self.assertIn("Open harness market A? · YES · open", html)
+        self.assertIn("stake $40.00 · value $55.00", html)
+        self.assertIn("PnL +$15.00 (+38%)", html)
+        self.assertIn("price now 55.0¢", html)
+        self.assertIn("Resolved against, not redeemed? · NO · open", html)
+        self.assertIn("resolved, not redeemed", html)
+        self.assertIn("Harness market 1? · YES · closed · lost", html)
+        # Tiles: absolutely placed percent boxes; a lost row is red, a won one lime.
+        self.assertGreaterEqual(html.count("position:absolute; left:"), 4)
+        self.assertIn("background:rgba(255,69,69,", html)
+        self.assertIn("background:rgba(200,245,66,", html)
+        geschlossen = _sichtbarer_text(self.ausgabe["live"]["wallet_treemap_closed"])
+        self.assertIn("2 tiles", geschlossen)
+        offen = self.ausgabe["live"]["wallet_treemap_open"]
+        self.assertIn("2 tiles", _sichtbarer_text(offen))
+        self.assertNotIn("Harness market 1? · YES · closed", offen)
+        # The tiles link to the market where the row carries a URL.
+        self.assertIn('href="https://polymarket.com/event/open-a"', html)
 
     def test_wallet_seite_leere_antwort_ohne_zahlen(self) -> None:
         # The API answered, but the wallet has nothing in the public feeds:
         # every block names its source, no figure appears, the failed part is
-        # listed under the limits.
+        # listed under the limits, and the treemap has nothing to tile.
         text = _sichtbarer_text(self.ausgabe["live"]["wallet_empty_answer"])
         self.assertIn("SETTLED PNL — no track record", text)
         self.assertIn("SHARPE · DAILY $ — no PnL curve", text)
-        self.assertIn("No track record in the answer", text)
         self.assertIn("No PnL curve — user-pnl-api.polymarket.com did not answer", text)
-        self.assertIn("No realized edge", text)
         self.assertIn("No open positions in the public /positions feed", text)
-        self.assertIn("No trades in the public /activity feed", text)
+        self.assertIn("Nothing to tile: no positions with a stake in either feed", text)
+        self.assertIn("TOP OPEN · BY UNREALISED nothing to show", text)
+        self.assertIn("REALIZED EDGE — no resolved positions with a stake", text)
         self.assertIn("Parts that did not answer this time: resolved (HTTP 502)", text)
         self.assertNotRegex(text, r"\d+%")
         self.assertNotRegex(self.ausgabe["live"]["wallet_empty_answer"], r'<path d="M\s*\d')
+        self.assertNotIn("position:absolute; left:", self.ausgabe["live"]["wallet_empty_answer"].split("POSITIONS TREEMAP")[-1])
+        record = _sichtbarer_text(self.ausgabe["live"]["wallet_empty_record"])
+        self.assertIn("No track record in the answer", record)
+        self.assertIn("No realized edge", record)
+        trades = _sichtbarer_text(self.ausgabe["live"]["wallet_empty_trades"])
+        self.assertIn("No trades in the public /activity feed", trades)
 
     def test_suchpalette_bietet_die_adresse_an(self) -> None:
         # A pasted full address is offered as an action, a partial one gets a

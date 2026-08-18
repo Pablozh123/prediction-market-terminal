@@ -7,6 +7,7 @@
 
 import { esc, money, num, signedMoney, stempel, leerBlock } from '../util.js';
 import { diagramm, stepKurve, fmtZahl } from '../charts.js';
+import { squarify, pnlIntensity } from '../treemap.js';
 
 const M = "font-family:'JetBrains Mono',monospace";
 const CARD = 'background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px';
@@ -159,35 +160,75 @@ function renderError(T, addr, entry) {
 }
 
 // ---- sections --------------------------------------------------------------
+export const WALLET_TABS = [
+  ['overview', 'Overview'], ['record', 'Track record'], ['positions', 'Positions'],
+  ['trades', 'Trades'], ['categories', 'Categories']
+];
+
+function initials(name, addr) {
+  const n = String(name || '').trim();
+  if (n) return n.replace(/[^a-z0-9]/gi, '').slice(0, 2).toUpperCase() || n.slice(0, 2).toUpperCase();
+  const a = String(addr || '').replace(/^0x/, '');
+  return a.slice(0, 2).toUpperCase() || '?';
+}
+
+// Identity strip: avatar, name, address, first/last activity, then the
+// actions — the copy desk (follow this wallet with paper money), the
+// backtester, and the two external profiles.
 function renderIdentity(T, d) {
   const id = d.identity || {};
   const addr = id.address || T.state.walletAddr;
-  const facts = [
-    ['FIRST ACTIVITY', when(id.first_activity)],
-    ['LAST ACTIVITY', when(id.last_activity)],
-    ['DAYS ACTIVE', id.days_active != null ? String(id.days_active) + (id.activity_truncated ? '+ (window truncated)' : '') : '—'],
-    ['ACTIVITY ROWS READ', id.n_activity_rows != null ? num(id.n_activity_rows) : '—']
-  ];
-  const btBtn = '<div ' + T.act(() => {
+  const tr = d.track_record || null;
+  const btn = (label, fn, primary, title) => '<div ' + T.act(fn) + ' class="' + (primary ? 'hv-limebg' : 'hv-bd32') + '" title="' + esc(title || '') + '" style="' + M + '; font-size:11px; letter-spacing:.04em; border-radius:6px; padding:6px 11px; cursor:pointer; white-space:nowrap; ' + (primary ? 'color:#0A0D0F; background:#C8F542; font-weight:600' : 'color:rgba(255,255,255,.72); border:1px solid rgba(255,255,255,.16)') + '">' + label + '</div>';
+  const follow = () => {
+    // Prefill the copy desk's follow form and open it. Nothing is followed
+    // until the button on that page is pressed.
+    if (!T.setState) return;
+    T.setState({ page: 'copy', copyTab: 'traders', detail: null, copyForm: { wallet: addr, label: id.pseudonym || '', cash: '1000', note: '' } });
+    if (T.adresseSetzen) T.adresseSetzen('copy');
+    if (T.fetchPageData) T.fetchPageData('copy');
+  };
+  const replay = () => {
     if (T.setState) T.setState({ page: 'backtester', detail: null, btWallet: addr, btDirty: !!(T.liveData && T.liveData.backtest) });
     try { history.pushState(null, '', '#backtester'); } catch (e) { /* file:// */ }
-  }) + ' class="hv-bd32" style="' + M + '; font-size:11px; color:rgba(255,255,255,.7); border:1px solid rgba(255,255,255,.16); border-radius:6px; padding:6px 11px; cursor:pointer; white-space:nowrap">Replay this wallet in the backtester →</div>';
-  return '<div style="' + CARD + '; padding:16px 18px">'
-    + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap">'
+  };
+  const tags = [];
+  if (tr && tr.grade) tags.push('<span style="' + M + '; font-size:10px; letter-spacing:.08em; color:' + (tr.grade === 'A' || tr.grade === 'B' ? '#C8F542' : tr.grade === 'F' ? '#F5A623' : 'rgba(255,255,255,.75)') + '; border:1px solid rgba(255,255,255,.16); border-radius:4px; padding:2px 7px">GRADE ' + esc(tr.grade) + (tr.score != null ? ' · ' + tr.score + '/100' : '') + '</span>');
+  if (tr && tr.survivorship_gate && !tr.survivorship_gate.ok) tags.push('<span style="' + M + '; font-size:10px; letter-spacing:.08em; color:#F5A623; border:1px solid rgba(245,166,35,.35); border-radius:4px; padding:2px 7px">BELOW SAMPLE GATE</span>');
+  if (tr && tr.wash_flag && tr.wash_flag.flag) tags.push('<span style="' + M + '; font-size:10px; letter-spacing:.08em; color:#F5A623; border:1px solid rgba(245,166,35,.35); border-radius:4px; padding:2px 7px">WASH / FARMER FLAG</span>');
+  if (id.days_active != null) tags.push('<span style="' + M + '; font-size:10px; letter-spacing:.08em; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.12); border-radius:4px; padding:2px 7px">' + id.days_active + (id.activity_truncated ? '+' : '') + ' DAYS ACTIVE</span>');
+  return '<div style="' + CARD + '; padding:16px 18px; position:relative; overflow:hidden">'
+    + '<div style="position:absolute; left:-40px; top:-60px; width:180px; height:180px; border-radius:50%; background:radial-gradient(closest-side, rgba(200,245,66,.10), rgba(200,245,66,0)); pointer-events:none"></div>'
+    + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; position:relative">'
+    + '<div style="display:flex; align-items:flex-start; gap:14px; min-width:0">'
+    + '<div style="width:46px; height:46px; flex:none; border-radius:50%; background:linear-gradient(135deg, rgba(200,245,66,.35), rgba(79,142,247,.35)); border:1px solid rgba(255,255,255,.14); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:15px; font-weight:600; color:#fff">' + esc(initials(id.pseudonym, addr)) + '</div>'
     + '<div style="min-width:0">'
-    + '<div style="font-size:19px">' + esc(id.pseudonym || shortAddr(addr)) + (id.pseudonym ? ' <span style="' + M + '; font-size:12px; color:rgba(255,255,255,.45)">' + esc(shortAddr(addr)) + '</span>' : '') + '</div>'
+    + '<div style="font-size:20px; line-height:1.2">' + esc(id.pseudonym || shortAddr(addr)) + '</div>'
     + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55); margin-top:4px; word-break:break-all">' + esc(addr) + '</div>'
-    + '<div style="display:flex; gap:14px; margin-top:8px; flex-wrap:wrap">'
-    + (id.profile_url ? externalLink(id.profile_url, 'Polymarket profile') : '')
-    + (id.polygonscan_url ? externalLink(id.polygonscan_url, 'Polygonscan') : '')
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:5px">first activity ' + esc(when(id.first_activity)) + ' · last ' + esc(when(id.last_activity)) + ' · ' + (id.n_activity_rows != null ? num(id.n_activity_rows) + ' activity rows read' : 'activity not read') + '</div>'
+    + (tags.length ? '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px">' + tags.join('') + '</div>' : '')
     + '</div></div>'
     + '<div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px">'
-    + btBtn
+    + '<div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end">'
+    + btn('Follow on the copy desk →', follow, true, 'prefills the follow form of the paper copy desk with this address')
+    + btn('Replay this wallet in the backtester →', replay, false, '')
+    + (id.profile_url ? '<a href="' + esc(id.profile_url) + '" target="_blank" rel="noopener" class="hv-bd32" style="' + M + '; font-size:11px; color:rgba(255,255,255,.72); border:1px solid rgba(255,255,255,.16); border-radius:6px; padding:6px 11px; text-decoration:none; white-space:nowrap">Polymarket profile ↗</a>' : '')
+    + (id.polygonscan_url ? '<a href="' + esc(id.polygonscan_url) + '" target="_blank" rel="noopener" class="hv-bd32" style="' + M + '; font-size:11px; color:rgba(255,255,255,.72); border:1px solid rgba(255,255,255,.16); border-radius:6px; padding:6px 11px; text-decoration:none; white-space:nowrap">Polygonscan ↗</a>' : '')
+    + '</div>'
     + '<div style="' + NOTE + '">as of ' + esc(d.as_of || stempel(d.snapshot_at)) + ' · cached 300 s</div>'
-    + '</div></div>'
-    + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-top:14px">'
-    + facts.map((f) => '<div><div style="' + LBL + '">' + f[0] + '</div><div style="' + M + '; font-size:13px; margin-top:3px">' + esc(f[1]) + '</div></div>').join('')
-    + '</div></div>';
+    + '</div></div></div>';
+}
+
+// The KPI strip: five tiles with a tinted border (lime for a positive
+// figure, red for a negative one, blue for neutral), then a thin fact line
+// with the activity counts. Every figure keeps its n / CI / window note.
+function kpiTile(label, value, sub, tone) {
+  const border = tone === 'up' ? 'rgba(200,245,66,.35)' : tone === 'down' ? 'rgba(255,69,69,.35)' : tone === 'warn' ? 'rgba(245,166,35,.4)' : 'rgba(79,142,247,.3)';
+  const color = tone === 'up' ? '#C8F542' : tone === 'down' ? '#FF4545' : tone === 'warn' ? '#F5A623' : '#fff';
+  return '<div style="border:1px solid ' + border + '; border-radius:12px; padding:12px 14px; min-height:62px; min-width:0; background:rgba(255,255,255,.015)">'
+    + '<div style="' + LBL + '">' + label + '</div>'
+    + '<div style="' + M + '; font-size:21px; margin-top:5px; color:' + color + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + value + '</div>'
+    + (sub ? '<div style="' + NOTE + '; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + sub + '</div>' : '') + '</div>';
 }
 
 function renderKpis(d) {
@@ -198,15 +239,170 @@ function renderKpis(d) {
   const corr = tr && tr.corrected ? tr.corrected : null;
   const capNote = tr && tr.capped ? ' · capped' : '';
   const tiles = [
-    tile('SETTLED PNL', tr ? dollars(tr.settled_pnl) : '—', tr ? 'n ' + num(tr.per_market ? tr.per_market.n : 0) + ' resolved markets' + capNote : 'no track record', tr ? pnlColor(tr.settled_pnl) : null),
-    tile('CORRECTED WIN RATE', corr && corr.win_rate != null ? pct(corr.win_rate) : '—', corr && corr.n ? corr.wins + '/' + corr.n + ' events · 95% ' + ci(corr.ci95) + capNote : 'no resolved events'),
-    tile('GRADE', tr && tr.grade ? esc(tr.grade) : '—', tr && tr.score != null ? 'score ' + tr.score + ' / 100' + (tr.survivorship_gate && !tr.survivorship_gate.ok ? ' · below sample gate' : '') : ''),
-    tile('SHARPE · DAILY $', st && st.sharpe != null ? ratio(st.sharpe) : '—', st ? 'n ' + st.n_days + ' days · no capital base' : 'no PnL curve'),
-    tile('MAX DRAWDOWN', st ? absDollars(st.max_drawdown) : '—', st ? pct(st.max_drawdown_pct, 1) + ' of the running peak' : 'no PnL curve', st && st.max_drawdown > 0 ? '#FF4545' : null),
-    tile('DAYS ACTIVE', id.days_active != null ? String(id.days_active) : '—', id.first_activity ? 'since ' + String(id.first_activity).slice(0, 10) + (id.activity_truncated ? ' · window truncated' : '') : ''),
-    tile('VOLUME TRADED', act && act.n_trades ? money(act.volume_traded) : '—', act && act.n_trades ? num(act.n_trades) + ' trades' + (act.window_truncated ? ' · window truncated' : '') : 'no trades read')
+    kpiTile('SETTLED PNL', tr ? dollars(tr.settled_pnl) : '—', tr ? 'n ' + num(tr.per_market ? tr.per_market.n : 0) + ' resolved markets' + capNote : 'no track record', tr ? (tr.settled_pnl < 0 ? 'down' : 'up') : 'neutral'),
+    kpiTile('CORRECTED WIN RATE', corr && corr.win_rate != null ? pct(corr.win_rate) : '—', corr && corr.n ? corr.wins + '/' + corr.n + ' events · 95% ' + ci(corr.ci95) + capNote : 'no resolved events', corr && corr.win_rate != null ? (corr.win_rate >= 0.5 ? 'up' : 'down') : 'neutral'),
+    kpiTile('GRADE', tr && tr.grade ? esc(tr.grade) : '—', tr && tr.score != null ? 'score ' + tr.score + ' / 100' + (tr.survivorship_gate && !tr.survivorship_gate.ok ? ' · below sample gate' : '') : '', tr && tr.grade ? (tr.grade === 'A' || tr.grade === 'B' ? 'up' : tr.grade === 'F' ? 'warn' : 'neutral') : 'neutral'),
+    kpiTile('SHARPE · DAILY $', st && st.sharpe != null ? ratio(st.sharpe) : '—', st ? 'n ' + st.n_days + ' days · no capital base' : 'no PnL curve', st && st.sharpe != null ? (st.sharpe >= 0 ? 'up' : 'down') : 'neutral'),
+    kpiTile('MAX DRAWDOWN', st ? absDollars(st.max_drawdown) : '—', st ? pct(st.max_drawdown_pct, 1) + ' of the running peak' : 'no PnL curve', st && st.max_drawdown > 0 ? 'down' : 'neutral')
   ];
-  return '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:10px; margin-top:14px">' + tiles.join('') + '</div>';
+  const facts = [
+    ['VOLUME TRADED', act && act.n_trades ? money(act.volume_traded) : '—'],
+    ['TRADES', act && act.n_trades ? num(act.n_trades) + (act.window_truncated ? ' · window truncated' : '') : 'no trades read'],
+    ['AVG TRADE', act && act.avg_trade_size != null ? absDollars(act.avg_trade_size) : '—'],
+    ['DAYS ACTIVE', id.days_active != null ? String(id.days_active) + (id.activity_truncated ? '+ (window truncated)' : '') : '—'],
+    ['SINCE', id.first_activity ? String(id.first_activity).slice(0, 10) : '—']
+  ];
+  return '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:10px; margin-top:14px">' + tiles.join('') + '</div>'
+    + '<div style="display:flex; gap:18px; flex-wrap:wrap; margin-top:10px; padding:0 4px">'
+    + facts.map((f) => '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55)"><span style="letter-spacing:.1em; color:rgba(255,255,255,.4)">' + f[0] + '</span> <span style="color:#fff">' + f[1] + '</span></div>').join('')
+    + '</div>';
+}
+
+// ---- left column: the stacked stat cards --------------------------------
+function asideCard(title, rows, sub) {
+  return '<div style="' + CARD + '; padding:12px 14px">'
+    + '<div style="' + LBL + '; margin-bottom:8px">' + title + '</div>'
+    + rows.map((r) => (r.length === 1
+      ? '<div style="' + M + '; font-size:20px; margin:2px 0 4px; color:' + (r[0][1] || '#fff') + '">' + r[0][0] + '</div>'
+      : '<div style="display:flex; justify-content:space-between; gap:8px; padding:3px 0; font-size:12px"><span style="color:rgba(255,255,255,.55)">' + r[0] + '</span><span style="' + M + '; color:' + (r[2] || '#fff') + '">' + r[1] + '</span></div>')).join('')
+    + (sub ? '<div style="' + NOTE + '; margin-top:6px">' + sub + '</div>' : '')
+    + '</div>';
+}
+
+function renderAside(d) {
+  const op = d.open_positions || null;
+  const c = d.closed || null;
+  const tr = d.track_record || null;
+  const a = d.activity || null;
+  const e = d.edge || null;
+  const pd = e && e.per_dollar ? e.per_dollar : null;
+  const ps = e && e.per_share ? e.per_share : null;
+  const cards = [];
+  cards.push(asideCard('PORTFOLIO · OPEN', op && op.n
+    ? [[[absDollars(op.total_exposure)]], ['cost basis', absDollars(op.total_cost)], ['unrealised', dollars(op.unrealized_pnl), pnlColor(op.unrealized_pnl)], ['positions', num(op.n) + (op.capped ? '+' : '')]]
+    : [[['—']]], op && op.n ? 'value at current prices · as of ' + esc(op.as_of || '') : (op && op.note ? esc(op.note) : 'no open positions read')));
+  cards.push(asideCard('PNL BREAKDOWN', [
+    ['settled (track record)', tr ? dollars(tr.settled_pnl) : '—', tr ? pnlColor(tr.settled_pnl) : 'rgba(255,255,255,.4)'],
+    ['realised (closed rows)', c && c.n ? dollars(c.realized_pnl) : '—', c && c.n ? pnlColor(c.realized_pnl) : 'rgba(255,255,255,.4)'],
+    ['unrealised (open)', op && op.n ? dollars(op.unrealized_pnl) : '—', op && op.n ? pnlColor(op.unrealized_pnl) : 'rgba(255,255,255,.4)'],
+    ['position value', op && op.n ? absDollars(op.total_exposure) : '—']
+  ], tr && tr.capped ? 'closed tails capped at ~50 each' : ''));
+  cards.push(asideCard('CORE STATS', [
+    ['avg trade', a && a.avg_trade_size != null ? absDollars(a.avg_trade_size) : '—'],
+    ['won / lost', c && c.n ? num(c.won) + ' / ' + num(c.lost) : '—'],
+    ['open / resolved', (op && op.n != null ? num(op.n) : '—') + ' / ' + (c && c.n != null ? num(c.n) : '—')],
+    ['buy / sell', a && a.n_trades ? num(a.buy_n) + ' / ' + num(a.sell_n) : '—'],
+    ['trades / day', a && a.trades_per_day != null ? fmtZahl(a.trades_per_day) : '—'],
+    ['not redeemed', op ? num(op.worthless_n || 0) : '—', op && op.worthless_n ? '#F5A623' : '#fff']
+  ], a && a.window_truncated ? 'activity window truncated' : ''));
+  const buyN = a ? Number(a.buy_n) || 0 : 0;
+  const sellN = a ? Number(a.sell_n) || 0 : 0;
+  const share = buyN + sellN > 0 ? buyN / (buyN + sellN) : null;
+  cards.push('<div style="' + CARD + '; padding:12px 14px">'
+    + '<div style="' + LBL + '; margin-bottom:8px">BUY / SELL RATIO</div>'
+    + '<div style="' + M + '; font-size:20px">' + (share == null ? '—' : pct(share, 1)) + '</div>'
+    + '<div style="height:6px; border-radius:3px; background:rgba(255,69,69,.35); margin-top:8px; overflow:hidden"><div style="width:' + (share == null ? 0 : Math.round(share * 100)) + '%; height:6px; background:#C8F542"></div></div>'
+    + '<div style="display:flex; justify-content:space-between; ' + M + '; font-size:10.5px; color:rgba(255,255,255,.55); margin-top:6px"><span>buy ' + num(buyN) + '</span><span>sell ' + num(sellN) + '</span></div>'
+    + (share == null ? '<div style="' + NOTE + '; margin-top:6px">no trades in the activity window</div>' : '')
+    + '</div>');
+  cards.push(asideCard('REALIZED EDGE', pd && pd.edge != null
+    ? [[[(pd.edge * 100).toFixed(1) + '¢ per $', pnlColor(pd.edge)]], ['95% CI', pd.ci_low != null ? '[' + (pd.ci_low * 100).toFixed(1) + '¢, ' + (pd.ci_high * 100).toFixed(1) + '¢]' : 'n/a'], ['events', num(pd.groups)], ['per share', ps ? pp(ps.edge) + ' · ' + esc(String(ps.verdict || '')) : '—']]
+    : [[['—']]], pd && pd.edge != null ? (pd.significant ? 'CI excludes zero' : 'CI includes zero') + (e && e.capped ? ' · capped tails' : '') : 'no resolved positions with a stake'));
+  return '<div style="display:flex; flex-direction:column; gap:10px">' + cards.join('') + '</div>';
+}
+
+// ---- overview: PnL curve, top open / top closed, treemap ---------------
+function topCard(label, r, kind) {
+  if (!r) return '<div style="' + CARD + '; padding:14px 16px"><div style="' + LBL + '">' + label + '</div><div style="' + NOTE + '; margin-top:8px">nothing to show</div></div>';
+  const pnl = kind === 'open' ? r.unrealized_pnl : r.realized_pnl;
+  const stake = kind === 'open' ? r.cost : r.total_bought;
+  const now = kind === 'open' ? r.value : (Number(r.total_bought) || 0) + (Number(r.realized_pnl) || 0);
+  const ret = stake > 0 ? pnl / stake : null;
+  return '<div style="' + CARD + '; padding:14px 16px; min-width:0">'
+    + '<div style="display:flex; justify-content:space-between; gap:8px; align-items:baseline"><div style="' + LBL + '">' + label + '</div>'
+    + '<span style="' + M + '; font-size:10px; letter-spacing:.08em; color:' + (String(r.outcome).toLowerCase() === 'yes' ? '#C8F542' : '#FF7A7A') + '; border:1px solid rgba(255,255,255,.14); border-radius:4px; padding:1px 6px">' + esc(String(r.outcome || '—').toUpperCase()) + '</span></div>'
+    + '<div style="font-family:\'Inter\',sans-serif; font-size:13px; margin-top:8px; line-height:1.4; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden">' + link(r.url, r.title) + '</div>'
+    + '<div style="' + M + '; font-size:18px; margin-top:8px; color:' + pnlColor(pnl) + '">' + (ret == null ? dollars(pnl) : (ret >= 0 ? '+' : '') + (ret * 100).toFixed(0) + '%') + '</div>'
+    + '<div style="' + NOTE + '; margin-top:2px">' + absDollars(stake) + ' → ' + absDollars(now) + ' · ' + dollars(pnl) + (kind === 'open' ? ' unrealised' : ' realised') + '</div>'
+    + '</div>';
+}
+
+// Tiles: area = $ at stake (open: value at current prices; closed: $
+// bought), colour = PnL sign, depth = |PnL| relative to the stake. Each tile
+// carries the exact figures in its title, so a hover reads them.
+export function treemapItems(d, mode) {
+  const out = [];
+  const op = d.open_positions && Array.isArray(d.open_positions.rows) ? d.open_positions.rows : [];
+  const cl = d.closed && Array.isArray(d.closed.rows) ? d.closed.rows : [];
+  if (mode !== 'closed') {
+    op.forEach((r) => {
+      const value = Number(r.value) || 0;
+      const stake = Number(r.cost) || 0;
+      out.push({ value: value > 0 ? value : stake, kind: 'open', title: r.title, outcome: r.outcome, url: r.url, pnl: Number(r.unrealized_pnl) || 0, stake, now: r.current_price, status: r.status });
+    });
+  }
+  if (mode !== 'open') {
+    cl.forEach((r) => {
+      const stake = Number(r.total_bought) || 0;
+      out.push({ value: stake, kind: 'closed', title: r.title, outcome: r.outcome, url: r.url, pnl: Number(r.realized_pnl) || 0, stake, result: r.result });
+    });
+  }
+  return out.filter((it) => it.value > 0);
+}
+
+function renderTreemap(T, d) {
+  const mode = T.state.walletTreemap || 'all';
+  const chip = (label, key) => (T.chip ? T.chip(label, mode === key, { walletTreemap: key }) : '<div>' + esc(label) + '</div>');
+  const items = treemapItems(d, mode);
+  const W = 1000;
+  const H = 440;
+  const rects = squarify(items, W, H);
+  const op = d.open_positions || {};
+  const cl = d.closed || {};
+  const capped = (mode !== 'closed' && op.capped) || (mode !== 'open' && cl.capped);
+  const head = '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:10px">'
+    + '<div><div style="' + LBL + '">POSITIONS TREEMAP</div><div style="' + NOTE + '; margin-top:3px">tile area = $ at stake (open: value at current prices · closed: $ bought) · colour = PnL, lime up, red down, deeper = larger relative to the stake</div></div>'
+    + '<div style="display:flex; gap:6px">' + chip('All', 'all') + chip('Open', 'open') + chip('Closed', 'closed') + '</div></div>';
+  if (!rects.length) {
+    return '<div style="' + CARD + '; padding:16px 18px; margin-top:14px">' + head + '<div style="' + NOTE + '">Nothing to tile: ' + (mode === 'open' ? 'no open positions with a value' : mode === 'closed' ? 'no resolved positions with a stake' : 'no positions with a stake in either feed') + '.</div></div>';
+  }
+  const tiles = rects.map((rc) => {
+    const it = rc.item;
+    const up = it.pnl >= 0;
+    const alpha = pnlIntensity(it.pnl, it.stake);
+    const bg = up ? 'rgba(200,245,66,' + alpha.toFixed(2) + ')' : 'rgba(255,69,69,' + alpha.toFixed(2) + ')';
+    const wPct = (rc.w / W) * 100;
+    const hPct = (rc.h / H) * 100;
+    const wide = rc.w >= 110 && rc.h >= 62;
+    const tiny = rc.w < 56 || rc.h < 34;
+    const ret = it.stake > 0 ? it.pnl / it.stake : null;
+    const detail = String(it.title || '') + ' · ' + String(it.outcome || '').toUpperCase() + ' · ' + (it.kind === 'open' ? 'open' : 'closed' + (it.result ? ' · ' + it.result : ''))
+      + '\nstake ' + absDollars(it.stake) + ' · value ' + absDollars(it.value)
+      + '\nPnL ' + dollars(it.pnl) + (ret != null ? ' (' + (ret >= 0 ? '+' : '') + (ret * 100).toFixed(0) + '%)' : '')
+      + (it.kind === 'open' && it.now != null ? '\nprice now ' + cents(it.now) + (it.status === 'worthless' ? ' · resolved, not redeemed' : '') : '');
+    const inner = tiny ? ''
+      : '<div style="display:flex; justify-content:space-between; gap:4px; align-items:flex-start">'
+        + (wide ? '<div style="font-family:\'Inter\',sans-serif; font-size:11px; font-weight:600; line-height:1.3; color:#fff; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden">' + esc(it.title || '') + '</div>' : '')
+        + '<span style="' + M + '; font-size:9px; letter-spacing:.06em; color:rgba(255,255,255,.9); background:rgba(0,0,0,.35); border-radius:3px; padding:1px 4px; flex:none">' + esc(String(it.outcome || '').toUpperCase().slice(0, 3)) + (it.kind === 'closed' ? ' ✓' : '') + '</span></div>'
+        + '<div style="' + M + '; font-size:' + (wide ? '12px' : '10px') + '; color:#fff; margin-top:auto">' + absDollars(it.value) + (wide && ret != null ? ' <span style="color:rgba(255,255,255,.8)">' + (ret >= 0 ? '+' : '') + (ret * 100).toFixed(0) + '%</span>' : '') + '</div>';
+    const style = 'position:absolute; left:' + ((rc.x / W) * 100).toFixed(3) + '%; top:' + ((rc.y / H) * 100).toFixed(3) + '%; width:' + wPct.toFixed(3) + '%; height:' + hPct.toFixed(3) + '%; box-sizing:border-box; padding:' + (tiny ? '0' : '6px 7px') + '; border:1px solid #0A0D0F; border-radius:5px; background:' + bg + '; display:flex; flex-direction:column; overflow:hidden; text-decoration:none; color:inherit';
+    return it.url
+      ? '<a data-stop href="' + esc(it.url) + '" target="_blank" rel="noopener" title="' + esc(detail) + '" style="' + style + '">' + inner + '</a>'
+      : '<div title="' + esc(detail) + '" style="' + style + '">' + inner + '</div>';
+  }).join('');
+  const foot = '<div style="' + NOTE + '; margin-top:8px">' + num(rects.length) + ' tiles' + (capped ? ' · the feeds were capped, so the middle of the record is missing here too' : '') + ' · hover a tile for stake, value, PnL and price</div>';
+  return '<div style="' + CARD + '; padding:16px 18px; margin-top:14px">' + head
+    + '<div style="position:relative; width:100%; height:' + H + 'px; border-radius:8px; overflow:hidden; background:#0D1114">' + tiles + '</div>' + foot + '</div>';
+}
+
+function renderOverview(T, d) {
+  const op = d.open_positions && Array.isArray(d.open_positions.rows) ? d.open_positions.rows : [];
+  const cl = d.closed && Array.isArray(d.closed.rows) ? d.closed.rows : [];
+  const topOpen = op.slice().sort((a, b) => (Number(b.unrealized_pnl) || 0) - (Number(a.unrealized_pnl) || 0))[0] || null;
+  const topClosed = cl.slice().sort((a, b) => (Number(b.realized_pnl) || 0) - (Number(a.realized_pnl) || 0))[0] || null;
+  return renderPnl(d)
+    + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:14px; margin-top:14px">' + topCard('TOP OPEN · BY UNREALISED', topOpen, 'open') + topCard('TOP CLOSED · BY REALISED', topClosed, 'closed') + '</div>'
+    + renderTreemap(T, d);
 }
 
 function renderTrackRecord(d) {
@@ -442,16 +638,24 @@ export function renderWallet(T) {
     else if (!entry.data) body = leerBlock('EMPTY ANSWER', '/api/wallet/' + shortAddr(addr) + ' answered without a payload. That is the result, not a gap.');
     else {
       const d = entry.data;
+      const tab = WALLET_TABS.some((t) => t[0] === s.walletTab) ? s.walletTab : 'overview';
+      const tabs = '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:2px">' + WALLET_TABS.map((t) => (T.tab ? T.tab(t[1], tab === t[0], { walletTab: t[0] }) : '<div>' + esc(t[1]) + '</div>')).join('') + '</div>';
+      let main = '';
+      if (tab === 'record') main = renderTrackRecord(d) + renderEdge(d);
+      else if (tab === 'positions') main = renderOpenPositions(T, d) + renderClosed(d);
+      else if (tab === 'trades') main = renderTrades(d);
+      else if (tab === 'categories') main = renderCategoriesContext(d);
+      else main = renderOverview(T, d);
+      // Left: the stacked stat cards (224px, wraps under the main column on
+      // a narrow screen); right: the tabbed detail. Both read the same
+      // payload, so the aside repeats what the tabs prove.
       body = '<div style="padding:16px 24px 28px">'
         + renderIdentity(T, d)
         + renderKpis(d)
-        + renderTrackRecord(d)
-        + renderPnl(d)
-        + renderEdge(d)
-        + renderOpenPositions(T, d)
-        + renderClosed(d)
-        + renderCategoriesContext(d)
-        + renderTrades(d)
+        + '<div style="display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap; margin-top:14px">'
+        + '<div style="flex:0 0 224px; min-width:200px; max-width:100%">' + renderAside(d) + '</div>'
+        + '<div style="flex:1 1 560px; min-width:0">' + tabs + main + '</div>'
+        + '</div>'
         + renderLimits(d)
         + '</div>';
     }
