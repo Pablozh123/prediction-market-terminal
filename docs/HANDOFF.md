@@ -290,6 +290,12 @@ Two hosts, two mechanisms — this cost a session once, so it is spelled out:
   `settled` / `none`; the page charts the settled curve with an amber "PROFILE
   CURVE FLAT" line and the KPI strip names which curve Sharpe / drawdown come
   from. Capped tails make the settled curve the extremes only, and it says so.
+  The block is laid out after predicts.guru's PnL Timeline: current PnL big at
+  the right, `charts.pnlZeitkurve` (time axis, area fill, $ ticks), six stat
+  tiles, definitions collapsed in a `<details>`. Sortino follows Sortino & van
+  der Meer (downside RMS over all days) and is None under 3 losing days
+  (`perf_metrics.MIN_DOWNSIDE_DAYS`) — the old losers-only denominator printed
+  246,860 for Theo4 off one −$21 day.
 
 ## 11. Next concrete step
 

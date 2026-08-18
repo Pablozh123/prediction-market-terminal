@@ -27,6 +27,10 @@ import pandas as pd
 
 TRADING_DAYS = 365  # prediction markets settle every day, including weekends
 
+#: Fewer losing days than this and the downside deviation is one or two
+#: observations — a Sortino built on it is not a measurement, so it is None.
+MIN_DOWNSIDE_DAYS = 3
+
 
 def daily_pnl(curve: Any, time_column: str = "time", value_column: str = "pnl") -> pd.Series:
     """Cumulative PnL curve -> daily PnL changes, indexed by date.
@@ -86,19 +90,25 @@ def sharpe_ratio(pnl: Any, periods_per_year: int = TRADING_DAYS) -> float | None
     return float(values.mean() / std * math.sqrt(periods_per_year))
 
 
-def sortino_ratio(pnl: Any, periods_per_year: int = TRADING_DAYS) -> float | None:
-    """Like Sharpe but penalising downside deviation only.
+def sortino_ratio(pnl: Any, periods_per_year: int = TRADING_DAYS,
+                  min_downside_days: int = MIN_DOWNSIDE_DAYS) -> float | None:
+    """Like Sharpe but penalising downside deviation only (target 0).
 
-    None when nothing negative ever happened: a record with no losing day has no
-    measurable downside risk, and reporting a huge number there would invent
-    precision the sample cannot support.
+    Downside deviation follows Sortino & van der Meer: the root mean square of
+    ``min(0, pnl)`` over *all* periods, not only the losing ones — averaging
+    over the losers alone (a common shortcut) understates the ratio and makes
+    it jump with the number of losing days.
+
+    None when fewer than ``min_downside_days`` days lost: a record with no or
+    one losing day has no measurable downside risk, and reporting a six- or
+    seven-figure ratio there would invent precision the sample cannot support.
     """
 
     values = pd.to_numeric(pd.Series(pnl), errors="coerce").dropna()
     if len(values) < 2:
         return None
-    downside = values[values < 0]
-    if downside.empty:
+    downside = values.clip(upper=0.0)
+    if int((values < 0).sum()) < max(1, int(min_downside_days)):
         return None
     deviation = float(math.sqrt((downside ** 2).mean()))
     if deviation <= 0:

@@ -289,6 +289,113 @@ export function kalibrierung(k) {
     + '</svg></div>';
 }
 
+/** Kompaktes Geld fuer Achsen und Kopfzahlen: -$210.2K, $1.4M, +$22.1M. */
+export function kurzGeld(wert, vorzeichen) {
+  if (wert === null || wert === undefined || typeof wert !== 'number' || wert !== wert) return '—';
+  const abs = Math.abs(wert);
+  const zahl = abs >= 1e9 ? (abs / 1e9).toFixed(2) + 'B'
+    : abs >= 1e6 ? (abs / 1e6).toFixed(abs >= 1e8 ? 0 : 1) + 'M'
+      : abs >= 1e3 ? (abs / 1e3).toFixed(abs >= 1e5 ? 0 : 1) + 'K'
+        : abs >= 100 ? abs.toFixed(0) : String(parseFloat(abs.toFixed(2)));
+  return (wert < 0 ? '-' : vorzeichen && wert > 0 ? '+' : '') + '$' + zahl;
+}
+
+/** "Schoene" Achsenschritte: 1, 2, 2.5, 5 x 10^k, so dass etwa n Ticks entstehen. */
+function schoeneSchritte(min, max, n) {
+  const spanne = max - min;
+  if (!(spanne > 0)) return [min];
+  const roh = spanne / Math.max(1, n);
+  const zehner = Math.pow(10, Math.floor(Math.log10(roh)));
+  const kandidaten = [1, 2, 2.5, 5, 10].map((f) => f * zehner);
+  const schritt = kandidaten.find((k) => k >= roh) || kandidaten[kandidaten.length - 1];
+  const raus = [];
+  for (let v = Math.ceil(min / schritt) * schritt; v <= max + schritt * 1e-9; v += schritt) raus.push(+v.toFixed(10));
+  return raus;
+}
+
+/** Zeitachsen-Kurve fuer eine kumulierte PnL-Serie: Flaeche unter der Linie,
+ *  Betragsticks rechts, Datum unten, gestrichelte Nulllinie. x liegt auf der
+ *  Zeit, nicht auf dem Index — 23 Schritte ueber 80 Tage stehen dort, wo sie
+ *  passiert sind. Treppe (Wert gilt bis zum naechsten Punkt), weil eine
+ *  realisierte Kurve zwischen zwei Aufloesungen nichts tut.
+ *
+ *  k: { punkte: [{ t (ISO), wert }], farbe?, hoehe?, marken? }. Unter zwei
+ *  Punkten mit Zeit gibt es keine Kurve.
+ */
+export function pnlZeitkurve(k) {
+  const pts = (k && Array.isArray(k.punkte) ? k.punkte : [])
+    .map((p) => ({ ms: Date.parse(String(p.t || '')), wert: +p.wert }))
+    .filter((p) => p.ms === p.ms && p.wert === p.wert)
+    .sort((a, b) => a.ms - b.ms);
+  if (pts.length < 2) return '';
+  const B = 900, H = k.hoehe || 250;
+  const L = 12, R = B - 74, TOP = 14, BOT = H - 28;
+  const werte = pts.map((p) => p.wert);
+  let min = Math.min(0, ...werte);
+  let max = Math.max(0, ...werte);
+  if (min === max) max = min + 1;
+  const luft = (max - min) * 0.06;
+  min -= luft; max += luft;
+  const t0 = pts[0].ms, t1 = pts[pts.length - 1].ms;
+  const spanne = Math.max(1, t1 - t0);
+  const x = (ms) => L + ((ms - t0) / spanne) * (R - L);
+  const y = (w) => BOT - ((w - min) / (max - min)) * (BOT - TOP);
+  const letzte = werte[werte.length - 1];
+  const farbe = k.farbe || (letzte >= 0 ? '#C8F542' : '#FF4545');
+  const gid = 'pnlgrad' + Math.abs(Math.round(letzte * 100) + pts.length).toString(36);
+
+  // Treppe nach rechts, dann Flaeche bis zur Nulllinie (oder zum Boden).
+  let linie = 'M ' + x(pts[0].ms).toFixed(1) + ' ' + y(pts[0].wert).toFixed(1);
+  for (let i = 1; i < pts.length; i += 1) {
+    linie += ' H ' + x(pts[i].ms).toFixed(1) + ' V ' + y(pts[i].wert).toFixed(1);
+  }
+  const boden = (min < 0 && max > 0) ? y(0) : BOT;
+  const flaeche = linie + ' V ' + boden.toFixed(1) + ' H ' + x(pts[0].ms).toFixed(1) + ' Z';
+
+  // Betragsticks rechts mit feinen Gitterlinien.
+  const ticks = schoeneSchritte(min + luft, max - luft, 4);
+  let gitter = '';
+  ticks.forEach((tv) => {
+    const yy = y(tv);
+    if (yy < TOP - 1 || yy > BOT + 1) return;
+    gitter += '<line x1="' + L + '" y1="' + yy.toFixed(1) + '" x2="' + R + '" y2="' + yy.toFixed(1) + '" stroke="rgba(255,255,255,.07)" stroke-width="1" />'
+      + '<text x="' + (R + 8) + '" y="' + (yy + 3.5).toFixed(1) + '" fill="rgba(255,255,255,.42)" font-size="10.5" font-family="JetBrains Mono, monospace">' + esc(kurzGeld(tv)) + '</text>';
+  });
+  let nulllinie = '';
+  if (min < 0 && max > 0) {
+    nulllinie = '<line x1="' + L + '" y1="' + y(0).toFixed(1) + '" x2="' + R + '" y2="' + y(0).toFixed(1)
+      + '" stroke="rgba(255,255,255,.28)" stroke-width="1" stroke-dasharray="4 4" />';
+  }
+
+  // Datum: Anfang, Ende und bis zu zwei Zwischenmarken auf der Zeit.
+  const datum = (ms) => new Date(ms).toISOString().slice(0, 10);
+  const nDatum = spanne > 3 * 86400000 ? 4 : 2;
+  let xLabels = '';
+  for (let i = 0; i < nDatum; i += 1) {
+    const ms = t0 + (spanne * i) / (nDatum - 1);
+    const anker = i === 0 ? 'start' : i === nDatum - 1 ? 'end' : 'middle';
+    xLabels += '<text x="' + x(ms).toFixed(1) + '" y="' + (H - 9) + '" fill="rgba(255,255,255,.4)" font-size="10.5" '
+      + 'font-family="JetBrains Mono, monospace" text-anchor="' + anker + '">' + esc(datum(ms)) + '</text>';
+  }
+
+  // Marken nur, wenn die Serie so duenn ist, dass jeder Punkt eine Aufloesung ist.
+  let marken = '';
+  if (k.marken !== false && pts.length <= 60) {
+    pts.forEach((p) => {
+      marken += '<circle cx="' + x(p.ms).toFixed(1) + '" cy="' + y(p.wert).toFixed(1) + '" r="2.4" fill="' + farbe + '"><title>' + esc(datum(p.ms) + ' · ' + kurzGeld(p.wert, true)) + '</title></circle>';
+    });
+  }
+  const endPunkt = '<circle cx="' + x(t1).toFixed(1) + '" cy="' + y(letzte).toFixed(1) + '" r="4" fill="' + farbe + '" stroke="#10151A" stroke-width="2" />';
+
+  return '<svg width="100%" viewBox="0 0 ' + B + ' ' + H + '" role="img" aria-label="' + esc(k.titel || 'cumulative PnL') + '" style="display:block">'
+    + '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + farbe + '" stop-opacity=".28" /><stop offset="1" stop-color="' + farbe + '" stop-opacity="0" /></linearGradient></defs>'
+    + gitter + nulllinie
+    + '<path d="' + flaeche + '" fill="url(#' + gid + ')" stroke="none" />'
+    + '<path d="' + linie + '" fill="none" stroke="' + farbe + '" stroke-width="2" vector-effect="non-scaling-stroke" />'
+    + marken + endPunkt + xLabels
+    + '</svg>';
+}
+
 /** Treppenkurve fuer eine kumulierte Serie, ein Punkt je Schritt.
  *
  *  k: { titel, einheit, hinweis, punkte: [{ label, wert }] }. Unter zwei

@@ -1172,8 +1172,8 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("SETTLED PNL +$210.00 n 12 resolved markets", text)
         self.assertIn("CORRECTED WIN RATE 73% 8/11 events · 95% [43%, 91%]", text)
         self.assertIn("GRADE F score 27 / 100 · below sample gate", text)
-        self.assertIn("SHARPE · DAILY $ 11.92 n 5 days · no capital base", text)
-        self.assertIn("MAX DRAWDOWN $5.00 25.0% of the running peak", text)
+        self.assertIn("SHARPE · DAILY $ 11.92 n 5 d · profile curve", text)
+        self.assertIn("MAX DRAWDOWN $5.00 25.0% of peak · profile curve", text)
         self.assertIn("VOLUME TRADED $105 TRADES 3 AVG TRADE $35.00 DAYS ACTIVE 4 SINCE 2026-07-01", text)
         # Aside: portfolio, breakdown, core stats, buy/sell bar, edge.
         self.assertIn("PORTFOLIO · OPEN $55.00 cost basis $50.00 unrealised +$5.00 positions 2", text)
@@ -1183,11 +1183,22 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("REALIZED EDGE 35.0¢ per $ 95% CI [12.0¢, 55.0¢] events 11 per share +5.0pp · thin CI excludes zero", text)
         # Tabs, PnL curve, top cards.
         self.assertIn("Overview Track record Positions Trades Categories Risk Similar wallets", text)
-        self.assertIn("CUMULATIVE PNL · PROFILE CURVE · ALL", text)
+        # PnL timeline: head with the current PnL big, a time-axis area chart
+        # with $ ticks and dates, six stat tiles, the definitions collapsed.
+        self.assertIn("PNL TIMELINE · PROFILE CURVE i 6 daily points · 2026-07-01 → 2026-07-06 CURRENT PNL +$30 +$30.00 · 2026-07-06", text)
         self.assertRegex(html, r'<path d="M\s*\d')
-        self.assertIn("6 points · 5 daily changes", text)
-        self.assertIn("SORTINO 22.92", text)
-        self.assertIn("WIN-DAY SHARE 60% 3 up · 2 down · n 5", text)
+        self.assertIn('<linearGradient id="pnlgrad', html)
+        self.assertIn(">$30<", html)                                    # y tick
+        self.assertIn("2026-07-01 2026-07-02 2026-07-04 2026-07-06", text)  # x dates on the time axis
+        self.assertIn("SHARPE 11.92 n 5 d · $/day", text)
+        self.assertIn("SORTINO — 2 down days · needs 3", text)
+        self.assertIn("CALMAR 438.00 annual PnL / max DD", text)
+        self.assertIn("MAX DRAWDOWN $5.00 25.0% of peak", text)
+        self.assertIn("WIN DAYS 60% 3 up · 2 down", text)
+        self.assertIn("BEST · WORST DAY +$15 · -$5 vol $9.62 / day", text)
+        self.assertIn("<details", html)
+        self.assertIn("BASIS · DEFINITIONS as of 2026-08-17 19:00 UTC", text)
+        self.assertIn("Sortino = mean / downside RMS over all days (target 0), shown only with 3+ losing days", text)
         self.assertIn("TOP OPEN · BY UNREALISED YES Open harness market A? +38% $40.00 → $55.00 · +$15.00 unrealised", text)
         self.assertIn("TOP CLOSED · BY REALISED YES Harness market 0? +80% $50.00 → $90.00 · +$40.00 realised", text)
         # Limits stay on every tab.
@@ -1352,21 +1363,22 @@ class WebLeerzustandTest(unittest.TestCase):
         # names the basis. The 22M level of the flat line is not charted.
         html = self.ausgabe["live"]["wallet_flat_profile"]
         text = _sichtbarer_text(html)
-        self.assertIn("PNL CURVE · SETTLED POSITIONS", text)
-        self.assertIn("PROFILE CURVE FLAT — The profile curve is a flat line at $22,053,934 over its 630 points (2024-11-28 to 2026-08-18)", text)
-        self.assertIn("Shown instead: our own settled curve", text)
-        self.assertIn("CUMULATIVE REALISED PNL · SETTLED ROWS · n 22", text)
-        self.assertIn("6 points · 80 daily changes · polymarket /closed-positions, both sort directions, summed by our code", text)
+        self.assertIn("PNL TIMELINE · SETTLED CURVE i 22 closed rows · complete set · 2024-10-13 → 2025-01-01 REALISED PNL +$22.1M +$22,069,555 · 2025-01-01", text)
+        self.assertIn("PROFILE CURVE FLAT one level (+$22.1M) for 630 points since 2024-11-28 — showing our settled curve instead", text)
         self.assertRegex(html, r'<path d="M\s*\d')
-        self.assertIn("SHARPE 3.94 annualised, $ per day", text)
-        self.assertIn("MAX DRAWDOWN $39,300 0.6% of the peak", text)
-        self.assertIn("WIN-DAY SHARE 88% 7 up · 1 down · n 80", text)
-        self.assertIn("CURVE TOTAL +$22,069,555 sum of the 22 rows' realised PnL", text)
-        self.assertIn("starting at $0 the day before the first resolution", text)
-        self.assertIn("as of 2026-08-18 15:47 UTC · 2024-10-14 → 2025-01-01", text)
+        self.assertIn("2024-10-13 2024-11-09 2024-12-05 2025-01-01", text)      # x dates on the time axis
+        self.assertIn(">$20.0M<", html)                                       # y tick
+        self.assertIn("SHARPE 3.94 n 80 d · $/day", text)
+        self.assertIn("SORTINO — 1 down day · needs 3", text)
+        self.assertIn("MAX DRAWDOWN $39,300 0.6% of peak", text)
+        self.assertIn("WIN DAYS 88% 7 up · 1 down", text)
+        self.assertIn("BEST · WORST DAY +$8.3M · -$21.35 vol $1.3M / day", text)
+        # The long explanations sit in the collapsed basis block.
+        self.assertIn("CURVE Realised PnL of the 22 closed-position rows summed in resolution order, starting at $0 the day before the first resolution", text)
+        self.assertIn("PROFILE CURVE The profile curve is a flat line at $22,053,934 over its 630 points (2024-11-28 to 2026-08-18)", text)
         # KPI strip reads the same curve and says so.
-        self.assertIn("SHARPE · DAILY $ 3.94 n 80 days · no capital base · settled curve, closed rows", text)
-        self.assertIn("MAX DRAWDOWN $39,300 0.6% of the running peak · settled curve, closed rows", text)
+        self.assertIn("SHARPE · DAILY $ 3.94 n 80 d · settled curve", text)
+        self.assertIn("MAX DRAWDOWN $39,300 0.6% of peak · settled curve", text)
         # The flat 22,053,934 line is not the charted series.
         self.assertNotIn(">22,053,934<", html)
 

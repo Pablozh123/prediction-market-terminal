@@ -6,7 +6,7 @@
 // only thing the page invents is the layout.
 
 import { esc, money, num, signedMoney, stempel, leerBlock } from '../util.js';
-import { diagramm, stepKurve, fmtZahl } from '../charts.js';
+import { diagramm, pnlZeitkurve, kurzGeld, fmtZahl } from '../charts.js';
 import { squarify, pnlIntensity } from '../treemap.js';
 
 const M = "font-family:'JetBrains Mono',monospace";
@@ -257,7 +257,7 @@ function renderKpis(d) {
   const tr = d.track_record || null;
   const shown = pnlShown(d);
   const st = shown.st;
-  const basis = shown.kind === 'settled' ? 'settled curve, closed rows' : shown.kind === 'profile' ? 'profile curve' : '';
+  const basis = shown.kind === 'settled' ? 'settled curve' : shown.kind === 'profile' ? 'profile curve' : '';
   const flat = statsFlat(st);
   const act = d.activity || null;
   const id = d.identity || {};
@@ -267,8 +267,8 @@ function renderKpis(d) {
     kpiTile('SETTLED PNL', tr ? dollars(tr.settled_pnl) : '—', tr ? 'n ' + num(tr.per_market ? tr.per_market.n : 0) + ' resolved markets' + capNote : 'no track record', tr ? (tr.settled_pnl < 0 ? 'down' : 'up') : 'neutral'),
     kpiTile('CORRECTED WIN RATE', corr && corr.win_rate != null ? pct(corr.win_rate) : '—', corr && corr.n ? corr.wins + '/' + corr.n + ' events · 95% ' + ci(corr.ci95) + capNote : 'no resolved events', corr && corr.win_rate != null ? (corr.win_rate >= 0.5 ? 'up' : 'down') : 'neutral'),
     kpiTile('GRADE', tr && tr.grade ? esc(tr.grade) : '—', tr && tr.score != null ? 'score ' + tr.score + ' / 100' + (tr.survivorship_gate && !tr.survivorship_gate.ok ? ' · below sample gate' : '') : '', tr && tr.grade ? (tr.grade === 'A' || tr.grade === 'B' ? 'up' : tr.grade === 'F' ? 'warn' : 'neutral') : 'neutral'),
-    kpiTile('SHARPE · DAILY $', st && st.sharpe != null ? ratio(st.sharpe) : '—', st ? (flat ? 'flat curve — no daily change in ' + st.n_days + ' days' : 'n ' + st.n_days + ' days · no capital base · ' + basis) : 'no PnL curve', st && st.sharpe != null ? (st.sharpe >= 0 ? 'up' : 'down') : 'neutral'),
-    kpiTile('MAX DRAWDOWN', st ? absDollars(st.max_drawdown) : '—', st ? (flat ? 'flat curve — never moved off its level' : pct(st.max_drawdown_pct, 1) + ' of the running peak · ' + basis) : 'no PnL curve', st && st.max_drawdown > 0 ? 'down' : 'neutral')
+    kpiTile('SHARPE · DAILY $', st && st.sharpe != null ? ratio(st.sharpe) : '—', st ? (flat ? 'flat curve · no daily change' : 'n ' + st.n_days + ' d · ' + basis) : 'no PnL curve', st && st.sharpe != null ? (st.sharpe >= 0 ? 'up' : 'down') : 'neutral'),
+    kpiTile('MAX DRAWDOWN', st ? absDollars(st.max_drawdown) : '—', st ? (flat ? 'flat curve · never moved' : pct(st.max_drawdown_pct, 1) + ' of peak · ' + basis) : 'no PnL curve', st && st.max_drawdown > 0 ? 'down' : 'neutral')
   ];
   const facts = [
     ['VOLUME TRADED', act && act.n_trades ? money(act.volume_traded) : '—'],
@@ -498,47 +498,79 @@ function renderPnl(d) {
     const why = p && p.flat && Array.isArray(p.points) && p.points.length
       ? esc(p.note || '')
       : 'user-pnl-api.polymarket.com did not answer for this wallet' + (p && p.settled && p.settled.n_rows ? ' and the closed rows give a single point' : ' and there are no closed rows to sum');
-    return card('PROFILE PNL CURVE', '<div style="' + NOTE + '">No PnL curve — ' + why + ', so there is no Sharpe, drawdown or win-day share to show.</div>', p ? 'as of ' + esc(p.as_of || '') : '');
+    return card('PNL TIMELINE', '<div style="' + NOTE + '">No PnL curve — ' + why + ', so there is no Sharpe, drawdown or win-day share to show.</div>', p ? 'as of ' + esc(p.as_of || '') : '');
   }
   const settled = shown.kind === 'settled';
   const c = shown.curve;
   const st = shown.st;
   const flat = statsFlat(st);
-  const kurve = stepKurve({
-    titel: settled
-      ? 'CUMULATIVE REALISED PNL · SETTLED ROWS · n ' + num(c.n_rows) + (c.capped ? ' · CAPPED' : '')
-      : 'CUMULATIVE PNL · PROFILE CURVE · ' + String(p.window || '').toUpperCase(),
-    einheit: 'USD',
-    hinweis: num(c.n_points) + ' points · ' + (st ? st.n_days + ' daily changes' : '') + ' · ' + esc(c.source || ''),
-    punkte: c.points.map((pt) => ({ label: String(pt.t || '').slice(0, 10), wert: +pt.pnl }))
-  });
-  // The profile curve is flat: say why the block does not use it, before the
-  // curve it uses instead — the reader must not take the settled curve for
-  // the one polymarket.com shows.
+  const last = c.points[c.points.length - 1];
+  const lastVal = Number(last.pnl);
+  const first = String(c.points[0].t || '').slice(0, 10);
+  const lastDay = String(last.t || '').slice(0, 10);
+  const profileHasPoints = Array.isArray(p.points) && p.points.length > 0;
+
+  // Head: title with a plain-words tooltip, the current PnL big at the right
+  // (the way a profile page reads), the swap chip when the settled curve
+  // stands in for a flat profile curve. Everything longer sits in "basis".
+  const headTip = settled
+    ? 'Realised PnL of the closed rows, summed in the order they resolved. Not the curve polymarket.com shows — that one is flat for this wallet.'
+    : 'The curve polymarket.com shows on the profile: user-pnl-api.polymarket.com, daily points, all time.';
+  const head = '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap">'
+    + '<div><div style="' + LBL + '">' + (settled ? 'PNL TIMELINE · SETTLED CURVE' : 'PNL TIMELINE · PROFILE CURVE')
+    + ' <span title="' + esc(headTip) + '" style="display:inline-block; width:13px; height:13px; line-height:13px; text-align:center; border-radius:50%; border:1px solid rgba(255,255,255,.25); color:rgba(255,255,255,.55); font-size:9px; letter-spacing:0; cursor:help; vertical-align:1px">i</span></div>'
+    + '<div style="' + NOTE + '; margin-top:4px">' + (settled
+      ? num(c.n_rows) + ' closed rows' + (c.capped ? ' · <span style="color:#F5A623">capped tails</span>' : ' · complete set') + ' · ' + esc(first) + ' → ' + esc(lastDay)
+      : num(c.n_points) + ' daily points · ' + esc(first) + ' → ' + esc(lastDay)) + '</div></div>'
+    + '<div style="text-align:right"><div style="' + LBL + '">' + (settled ? 'REALISED PNL' : 'CURRENT PNL') + '</div>'
+    + '<div style="' + M + '; font-size:24px; font-weight:600; line-height:1.15; color:' + pnlColor(lastVal) + '">' + esc(kurzGeld(lastVal, true)) + '</div>'
+    + '<div style="' + NOTE + '">' + esc(dollars(lastVal)) + ' · ' + esc(lastDay) + '</div></div>'
+    + '</div>';
   const swap = settled
-    ? '<div style="' + M + '; font-size:11px; line-height:1.5; color:#F5A623; border:1px solid rgba(245,166,35,.35); border-radius:6px; padding:8px 10px; margin-bottom:10px">'
-      + '<span style="letter-spacing:.1em">PROFILE CURVE ' + (Array.isArray(p.points) && p.points.length ? 'FLAT' : 'MISSING') + '</span> — '
-      + esc(p.flat ? p.note : 'user-pnl-api.polymarket.com did not answer for this wallet.')
-      + ' Shown instead: our own settled curve — realised PnL of the closed rows summed in resolution order' + (c.capped ? ', capped tails' : '') + '.</div>'
-    : '';
-  const stats = st ? [
-    ['SHARPE', ratio(st.sharpe), flat ? 'flat curve — no daily change' : 'annualised, $ per day'],
-    ['SORTINO', ratio(st.sortino), flat ? 'flat curve' : st.sortino == null ? 'no losing day in sample' : 'downside only'],
-    ['CALMAR', ratio(st.calmar), flat ? 'flat curve' : st.calmar == null ? 'never in drawdown' : 'annual PnL / max DD'],
-    ['MAX DRAWDOWN', absDollars(st.max_drawdown), flat ? 'never moved off its level' : pct(st.max_drawdown_pct, 1) + ' of the peak'],
-    ['WIN-DAY SHARE', pct(st.win_day_rate), st.winning_days + ' up · ' + st.losing_days + ' down · n ' + st.n_days + (flat ? ' · all flat' : '')],
-    ['BEST · WORST DAY', dollars(st.best_day) + ' · ' + dollars(st.worst_day), 'daily vol $' + fmtZahl(st.daily_vol)],
-    ['CURVE TOTAL', dollars(st.total_pnl), settled ? 'sum of the ' + num(c.n_rows) + ' rows\' realised PnL' : 'last minus first point']
-  ] : [];
-  const statsHtml = st ? '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px 16px; margin-top:12px">'
-    + stats.map((f) => '<div><div style="' + LBL + '">' + f[0] + '</div><div style="' + M + '; font-size:14px; margin-top:3px">' + f[1] + '</div><div style="' + NOTE + '; margin-top:2px">' + esc(f[2]) + '</div></div>').join('')
+    ? '<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:10px; ' + M + '; font-size:10.5px; color:#F5A623">'
+      + '<span style="border:1px solid rgba(245,166,35,.45); border-radius:4px; padding:2px 7px; letter-spacing:.1em">PROFILE CURVE ' + (profileHasPoints ? 'FLAT' : 'MISSING') + '</span>'
+      + '<span style="color:rgba(245,166,35,.85)">' + (profileHasPoints && p.flat
+        ? 'one level (' + esc(kurzGeld(Number(p.points[p.points.length - 1].pnl), true)) + ') for ' + num(p.n_points) + ' points since ' + esc(String(p.first || '').slice(0, 10)) + ' — showing our settled curve instead'
+        : 'user-pnl-api did not answer — showing our settled curve instead') + '</span>'
+      + '<span style="color:rgba(255,255,255,.4)">details below ↓</span></div>'
+    : (flat ? '<div style="margin-top:10px; ' + M + '; font-size:10.5px; color:#F5A623">Flat: the profile curve never moved in ' + num(c.n_points) + ' points, and there are no closed rows to sum instead.</div>' : '');
+
+  const kurve = pnlZeitkurve({
+    titel: settled ? 'cumulative realised PnL, settled rows' : 'cumulative PnL, profile curve',
+    punkte: c.points.map((pt) => ({ t: pt.t, wert: +pt.pnl }))
+  });
+
+  // Six tiles, one figure each, one short line under it. The definitions and
+  // the sample caveats live in the collapsed basis block underneath.
+  const down = st ? Number(st.losing_days) || 0 : 0;
+  const stTile = (label, value, sub, tone) => '<div style="border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:10px 12px; min-width:0; background:rgba(255,255,255,.015)">'
+    + '<div style="' + LBL + '">' + label + '</div>'
+    + '<div style="' + M + '; font-size:17px; margin-top:4px; color:' + (tone || '#fff') + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + value + '</div>'
+    + '<div style="' + NOTE + '; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + sub + '</div></div>';
+  const statsHtml = st ? '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:8px; margin-top:12px">'
+    + stTile('SHARPE', ratio(st.sharpe), flat ? 'flat curve' : 'n ' + num(st.n_days) + ' d · $/day', st.sharpe != null ? (st.sharpe >= 0 ? '#C8F542' : '#FF4545') : 'rgba(255,255,255,.4)')
+    + stTile('SORTINO', ratio(st.sortino), flat ? 'flat curve' : st.sortino == null ? (down + ' down day' + (down === 1 ? '' : 's') + ' · needs 3') : 'downside only · ' + num(down) + ' down d', st.sortino != null ? (st.sortino >= 0 ? '#C8F542' : '#FF4545') : 'rgba(255,255,255,.4)')
+    + stTile('CALMAR', ratio(st.calmar), flat ? 'flat curve' : st.calmar == null ? 'never in drawdown' : 'annual PnL / max DD', st.calmar != null ? '#fff' : 'rgba(255,255,255,.4)')
+    + stTile('MAX DRAWDOWN', absDollars(st.max_drawdown), flat ? 'never moved' : pct(st.max_drawdown_pct, 1) + ' of peak', st.max_drawdown > 0 ? '#FF4545' : '#fff')
+    + stTile('WIN DAYS', pct(st.win_day_rate), num(st.winning_days) + ' up · ' + num(st.losing_days) + ' down' + (flat ? ' · flat' : ''), st.win_day_rate != null ? (st.win_day_rate >= 0.5 ? '#C8F542' : '#FF4545') : 'rgba(255,255,255,.4)')
+    + stTile('BEST · WORST DAY', esc(kurzGeld(st.best_day, true)) + ' · ' + esc(kurzGeld(st.worst_day, true)), 'vol ' + esc(kurzGeld(st.daily_vol)) + ' / day')
     + '</div>' : '<div style="' + NOTE + '; margin-top:10px">Curve present, statistics not computable (fewer than two daily points).</div>';
-  const basis = settled
-    ? esc(c.note || '') + ' Ratios in dollars per day, no capital base, annualised on 365 days; n_days is the sample.'
-    : esc(p.note || '');
-  const title = settled ? 'PNL CURVE · SETTLED POSITIONS' : 'PROFILE PNL CURVE';
-  const stamp = 'as of ' + esc(p.as_of || '') + (settled ? ' · ' + esc(String(c.first || '').slice(0, 10)) + ' → ' + esc(String(c.last || '').slice(0, 10)) : '');
-  return card(title, swap + kurve + statsHtml + '<div style="' + NOTE + '; margin-top:10px">' + basis + '</div>', stamp);
+
+  // Basis, collapsed: what the curve is, what the ratios are, the caveats.
+  const basisRows = [];
+  if (settled) basisRows.push(['Curve', c.note || '']);
+  else basisRows.push(['Curve', 'user-pnl-api.polymarket.com — the profile curve polymarket.com shows; daily fidelity, all time; ' + num(c.n_points) + ' points.']);
+  if (settled && profileHasPoints) basisRows.push(['Profile curve', p.note || '']);
+  if (settled && !profileHasPoints) basisRows.push(['Profile curve', 'user-pnl-api.polymarket.com did not answer for this wallet.']);
+  basisRows.push(['Ratios', 'Daily PnL in dollars (one point per day, differenced), no capital base, annualised on 365 days; n is the number of daily changes. Sharpe = mean / sd. Sortino = mean / downside RMS over all days (target 0), shown only with 3+ losing days. Calmar = annualised mean daily PnL / max drawdown. Max drawdown = deepest fall from a running peak, % of that peak.']);
+  const basis = '<details style="margin-top:10px"><summary style="' + NOTE + '; cursor:pointer; list-style:none; display:inline-flex; align-items:center; gap:6px"><span style="border:1px solid rgba(255,255,255,.14); border-radius:4px; padding:1px 7px; letter-spacing:.1em">BASIS · DEFINITIONS</span><span>as of ' + esc(p.as_of || '') + '</span></summary>'
+    + '<div style="margin-top:8px; display:grid; grid-template-columns:110px 1fr; gap:6px 12px">'
+    + basisRows.map((r) => '<div style="' + LBL + '; padding-top:2px">' + esc(r[0]).toUpperCase() + '</div><div style="' + NOTE + '">' + esc(r[1]) + '</div>').join('')
+    + '</div></details>';
+
+  return '<div style="' + CARD + '; padding:16px 18px; margin-top:14px">' + head + swap
+    + '<div style="margin-top:12px; border:1px solid rgba(255,255,255,.07); border-radius:10px; padding:10px 8px 4px; background:#0D1114">' + kurve + '</div>'
+    + statsHtml + basis + '</div>';
 }
 
 function renderEdge(d) {

@@ -60,12 +60,30 @@ class RatioTests(unittest.TestCase):
         self.assertIsNone(pmx.sharpe_ratio([1.0]))
 
     def test_sortino_ignores_upside_volatility(self) -> None:
-        steady = [1.0, -1.0, 1.0, -1.0]
-        spiky = [1.0, -1.0, 50.0, -1.0]
+        steady = [1.0, -1.0, 1.0, -1.0, 1.0, -1.0]
+        spiky = [1.0, -1.0, 50.0, -1.0, 1.0, -1.0]
         self.assertGreater(pmx.sortino_ratio(spiky), pmx.sortino_ratio(steady))
+
+    def test_sortino_downside_deviation_runs_over_all_days(self) -> None:
+        # Sortino & van der Meer: RMS of min(0, pnl) over all N days, target 0.
+        # [4, -2, 3, -2, -2, 5]: mean 1, downside RMS sqrt(12/6) = sqrt(2).
+        pnl = [4.0, -2.0, 3.0, -2.0, -2.0, 5.0]
+        expected = 1.0 / math.sqrt(2.0) * math.sqrt(365)
+        self.assertAlmostEqual(pmx.sortino_ratio(pnl), expected, places=9)
+        # Averaging over the three losers only would give 1 / 2 * sqrt(365).
+        self.assertNotAlmostEqual(pmx.sortino_ratio(pnl), 0.5 * math.sqrt(365), places=3)
 
     def test_sortino_without_losing_days_is_none(self) -> None:
         self.assertIsNone(pmx.sortino_ratio([1.0, 2.0, 3.0]))
+
+    def test_sortino_needs_three_losing_days(self) -> None:
+        # One losing day of -21 against a +8M day is not a downside sample.
+        one = [8_000_000.0, 0.0, 0.0, -21.35, 0.0, 200.0]
+        self.assertIsNone(pmx.sortino_ratio(one))
+        two = [3.0, -1.0, 2.0, -1.0]
+        self.assertIsNone(pmx.sortino_ratio(two))
+        self.assertIsNotNone(pmx.sortino_ratio(two, min_downside_days=2))
+        self.assertEqual(pmx.MIN_DOWNSIDE_DAYS, 3)
 
     def test_calmar_needs_a_drawdown(self) -> None:
         self.assertIsNone(pmx.calmar_ratio([1.0, 2.0], [0, 1, 3]))

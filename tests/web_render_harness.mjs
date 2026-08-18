@@ -613,7 +613,8 @@ function walletNutzlast() {
       as_of: '2026-08-17 19:00 UTC', window: 'All', source: 'user-pnl-api.polymarket.com',
       points: [{ t: '2026-07-01T00:00:00Z', pnl: 0 }, { t: '2026-07-02T00:00:00Z', pnl: 10 }, { t: '2026-07-03T00:00:00Z', pnl: 5 }, { t: '2026-07-04T00:00:00Z', pnl: 20 }, { t: '2026-07-05T00:00:00Z', pnl: 15 }, { t: '2026-07-06T00:00:00Z', pnl: 30 }],
       n_points: 6,
-      stats: { n_days: 5, total_pnl: 30.0, best_day: 15.0, worst_day: -5.0, mean_day: 6.0, daily_vol: 9.6177, winning_days: 3, losing_days: 2, win_day_rate: 0.6, max_drawdown: 5.0, max_drawdown_pct: 0.25, sharpe: 11.918, sortino: 22.916, calmar: 438.0, capital: null, return_on_capital: null, annualised_return: null },
+      // Sortino null: two losing days are below the 3-day floor (perf_metrics.MIN_DOWNSIDE_DAYS).
+      stats: { n_days: 5, total_pnl: 30.0, best_day: 15.0, worst_day: -5.0, mean_day: 6.0, daily_vol: 9.6177, winning_days: 3, losing_days: 2, win_day_rate: 0.6, max_drawdown: 5.0, max_drawdown_pct: 0.25, sharpe: 11.918, sortino: null, calmar: 438.0, capital: null, return_on_capital: null, annualised_return: null },
       note: 'Ratios in dollars per day, no capital base, annualised on 365 days; n_days is the sample.'
     },
     edge: {
@@ -956,7 +957,7 @@ function rendern(T) {
         settled: {
           points: [{ t: '2024-10-13T22:30:57Z', pnl: 0 }, { t: '2024-10-14T22:30:57Z', pnl: 0 }, { t: '2024-10-16T15:18:39Z', pnl: 685.65 }, { t: '2024-11-11T22:30:39Z', pnl: 8302699.25 }, { t: '2024-11-12T10:03:19Z', pnl: 14363839.43 }, { t: '2025-01-01T08:27:52Z', pnl: 22069554.81 }],
           n_points: 6, n_rows: 22, first: '2024-10-14T22:30:57Z', last: '2025-01-01T08:27:52Z', total: 22069554.81, capped: false,
-          stats: { n_days: 80, total_pnl: 22069554.81, best_day: 8302013.6, worst_day: -21.35, mean_day: 275869.44, daily_vol: 1339066.95, winning_days: 7, losing_days: 1, win_day_rate: 0.875, max_drawdown: 39300, max_drawdown_pct: 0.0062, sharpe: 3.936, sortino: 246860.8, calmar: 2562.15, capital: null, return_on_capital: null, annualised_return: null },
+          stats: { n_days: 80, total_pnl: 22069554.81, best_day: 8302013.6, worst_day: -21.35, mean_day: 275869.44, daily_vol: 1339066.95, winning_days: 7, losing_days: 1, win_day_rate: 0.875, max_drawdown: 39300, max_drawdown_pct: 0.0062, sharpe: 3.936, sortino: null, calmar: 2562.15, capital: null, return_on_capital: null, annualised_return: null },
           source: 'polymarket /closed-positions, both sort directions, summed by our code',
           note: "Realised PnL of the 22 closed-position rows summed in resolution order, starting at $0 the day before the first resolution. Open positions' unrealised PnL is not in it. Complete resolved set (both tails)."
         },
