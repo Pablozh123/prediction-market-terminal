@@ -38,3 +38,10 @@ input { font-family: inherit; }
 .hv-lime:hover { color: #C8F542 !important; }
 .hv-amber:hover { color: #F5A623 !important; }
 .hv-limebg:hover { background: #D7FF63 !important; }
+
+/* Treemap tiles (wallet page): lift on hover; the figures come up in the
+   floating card #tip that app.js positions next to the pointer. */
+.tm-tile { transition: transform .12s ease, box-shadow .12s ease; }
+.tm-tile:hover { transform: scale(1.03); z-index: 5; box-shadow: 0 10px 28px rgba(0,0,0,.5); }
+#tip { position: fixed; z-index: 60; pointer-events: none; display: none; max-width: 320px; background: rgba(8,10,12,.96); border: 1px solid rgba(255,255,255,.14); border-radius: 10px; padding: 12px 14px; box-shadow: 0 12px 32px rgba(0,0,0,.55); }
+#tip.on { display: block; }

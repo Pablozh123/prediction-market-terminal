@@ -338,13 +338,13 @@ export function treemapItems(d, mode) {
     op.forEach((r) => {
       const value = Number(r.value) || 0;
       const stake = Number(r.cost) || 0;
-      out.push({ value: value > 0 ? value : stake, kind: 'open', title: r.title, outcome: r.outcome, url: r.url, pnl: Number(r.unrealized_pnl) || 0, stake, now: r.current_price, status: r.status });
+      out.push({ value: value > 0 ? value : stake, kind: 'open', title: r.title, outcome: r.outcome, url: r.url, image: r.image || '', pnl: Number(r.unrealized_pnl) || 0, stake, now: r.current_price, avg: r.avg_price, status: r.status, ends: r.end_time });
     });
   }
   if (mode !== 'open') {
     cl.forEach((r) => {
       const stake = Number(r.total_bought) || 0;
-      out.push({ value: stake, kind: 'closed', title: r.title, outcome: r.outcome, url: r.url, pnl: Number(r.realized_pnl) || 0, stake, result: r.result });
+      out.push({ value: stake, kind: 'closed', title: r.title, outcome: r.outcome, url: r.url, image: r.image || '', pnl: Number(r.realized_pnl) || 0, stake, result: r.result, avg: r.avg_price, settled: r.current_price, time: r.time });
     });
   }
   return out.filter((it) => it.value > 0);
@@ -366,6 +366,10 @@ function renderTreemap(T, d) {
   if (!rects.length) {
     return '<div style="' + CARD + '; padding:16px 18px; margin-top:14px">' + head + '<div style="' + NOTE + '">Nothing to tile: ' + (mode === 'open' ? 'no open positions with a value' : mode === 'closed' ? 'no resolved positions with a stake' : 'no positions with a stake in either feed') + '.</div></div>';
   }
+  // Every tile carries its figures in data-tip (JSON: title, image, rows);
+  // app.js shows them in a floating card on hover, whatever the tile size.
+  // Larger tiles also show the market image, the title, the side and the
+  // value in place. The image is the market's own, as the feed carries it.
   const tiles = rects.map((rc) => {
     const it = rc.item;
     const up = it.pnl >= 0;
@@ -374,23 +378,34 @@ function renderTreemap(T, d) {
     const wPct = (rc.w / W) * 100;
     const hPct = (rc.h / H) * 100;
     const wide = rc.w >= 110 && rc.h >= 62;
+    const showImg = rc.w >= 74 && rc.h >= 58 && it.image;
     const tiny = rc.w < 56 || rc.h < 34;
     const ret = it.stake > 0 ? it.pnl / it.stake : null;
-    const detail = String(it.title || '') + ' · ' + String(it.outcome || '').toUpperCase() + ' · ' + (it.kind === 'open' ? 'open' : 'closed' + (it.result ? ' · ' + it.result : ''))
-      + '\nstake ' + absDollars(it.stake) + ' · value ' + absDollars(it.value)
-      + '\nPnL ' + dollars(it.pnl) + (ret != null ? ' (' + (ret >= 0 ? '+' : '') + (ret * 100).toFixed(0) + '%)' : '')
-      + (it.kind === 'open' && it.now != null ? '\nprice now ' + cents(it.now) + (it.status === 'worthless' ? ' · resolved, not redeemed' : '') : '');
+    const rows = [
+      ['side', String(it.outcome || '—').toUpperCase() + ' · ' + (it.kind === 'open' ? (it.status === 'worthless' ? 'resolved, not redeemed' : 'open') : 'closed' + (it.result ? ' · ' + it.result : ''))],
+      [it.kind === 'open' ? 'stake (cost)' : 'stake (bought)', absDollars(it.stake)],
+      [it.kind === 'open' ? 'value now' : 'returned', absDollars(it.kind === 'open' ? it.value : (Number(it.stake) || 0) + (Number(it.pnl) || 0))],
+      [it.kind === 'open' ? 'unrealised' : 'realised', dollars(it.pnl) + (ret != null ? ' (' + (ret >= 0 ? '+' : '') + (ret * 100).toFixed(0) + '%)' : '')]
+    ];
+    if (it.avg != null) rows.push(['avg entry', cents(it.avg)]);
+    if (it.kind === 'open' && it.now != null) rows.push(['price now', cents(it.now) + ' — the market\'s current chance of this side']);
+    if (it.kind === 'closed' && it.settled != null) rows.push(['settled at', cents(it.settled)]);
+    if (it.kind === 'open' && it.ends) rows.push(['ends', String(it.ends).slice(0, 10)]);
+    if (it.kind === 'closed' && it.time) rows.push(['resolved', String(it.time).slice(0, 10)]);
+    const tip = { title: String(it.title || ''), image: String(it.image || ''), pnl: up ? 'up' : 'down', rows };
     const inner = tiny ? ''
       : '<div style="display:flex; justify-content:space-between; gap:4px; align-items:flex-start">'
-        + (wide ? '<div style="font-family:\'Inter\',sans-serif; font-size:11px; font-weight:600; line-height:1.3; color:#fff; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden">' + esc(it.title || '') + '</div>' : '')
-        + '<span style="' + M + '; font-size:9px; letter-spacing:.06em; color:rgba(255,255,255,.9); background:rgba(0,0,0,.35); border-radius:3px; padding:1px 4px; flex:none">' + esc(String(it.outcome || '').toUpperCase().slice(0, 3)) + (it.kind === 'closed' ? ' ✓' : '') + '</span></div>'
+        + (showImg ? '<img src="' + esc(it.image) + '" alt="" loading="lazy" style="width:' + (wide ? 34 : 26) + 'px; height:' + (wide ? 34 : 26) + 'px; border-radius:5px; object-fit:cover; flex:none; background:rgba(0,0,0,.25)" />' : '')
+        + '<span style="' + M + '; font-size:9px; letter-spacing:.06em; color:rgba(255,255,255,.9); background:rgba(0,0,0,.35); border-radius:3px; padding:1px 4px; flex:none; margin-left:auto">' + esc(String(it.outcome || '').toUpperCase().slice(0, 3)) + (it.kind === 'closed' ? ' ✓' : '') + '</span></div>'
+        + (wide ? '<div style="font-family:\'Inter\',sans-serif; font-size:11px; font-weight:600; line-height:1.3; color:#fff; margin-top:5px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden">' + esc(it.title || '') + '</div>' : '')
         + '<div style="' + M + '; font-size:' + (wide ? '12px' : '10px') + '; color:#fff; margin-top:auto">' + absDollars(it.value) + (wide && ret != null ? ' <span style="color:rgba(255,255,255,.8)">' + (ret >= 0 ? '+' : '') + (ret * 100).toFixed(0) + '%</span>' : '') + '</div>';
     const style = 'position:absolute; left:' + ((rc.x / W) * 100).toFixed(3) + '%; top:' + ((rc.y / H) * 100).toFixed(3) + '%; width:' + wPct.toFixed(3) + '%; height:' + hPct.toFixed(3) + '%; box-sizing:border-box; padding:' + (tiny ? '0' : '6px 7px') + '; border:1px solid #0A0D0F; border-radius:5px; background:' + bg + '; display:flex; flex-direction:column; overflow:hidden; text-decoration:none; color:inherit';
+    const attrs = 'class="tm-tile" data-tip="' + esc(JSON.stringify(tip)) + '" style="' + style + '"';
     return it.url
-      ? '<a data-stop href="' + esc(it.url) + '" target="_blank" rel="noopener" title="' + esc(detail) + '" style="' + style + '">' + inner + '</a>'
-      : '<div title="' + esc(detail) + '" style="' + style + '">' + inner + '</div>';
+      ? '<a data-stop href="' + esc(it.url) + '" target="_blank" rel="noopener" ' + attrs + '>' + inner + '</a>'
+      : '<div ' + attrs + '>' + inner + '</div>';
   }).join('');
-  const foot = '<div style="' + NOTE + '; margin-top:8px">' + num(rects.length) + ' tiles' + (capped ? ' · the feeds were capped, so the middle of the record is missing here too' : '') + ' · hover a tile for stake, value, PnL and price</div>';
+  const foot = '<div style="' + NOTE + '; margin-top:8px">' + num(rects.length) + ' tiles' + (capped ? ' · the feeds were capped, so the middle of the record is missing here too' : '') + ' · hover a tile for its figures, click it to open the market</div>';
   return '<div style="' + CARD + '; padding:16px 18px; margin-top:14px">' + head
     + '<div style="position:relative; width:100%; height:' + H + 'px; border-radius:8px; overflow:hidden; background:#0D1114">' + tiles + '</div>' + foot + '</div>';
 }

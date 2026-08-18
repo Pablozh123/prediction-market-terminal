@@ -624,7 +624,7 @@ function walletNutzlast() {
     open_positions: {
       as_of: '2026-08-17 19:00 UTC', n: 2, shown: 2, capped: false, total_exposure: 55.0, total_cost: 50.0, unrealized_pnl: 5.0, worthless_n: 1,
       rows: [
-        { title: 'Open harness market A?', outcome: 'Yes', size: 100.0, avg_price: 0.4, current_price: 0.55, value: 55.0, cost: 40.0, unrealized_pnl: 15.0, pnl_pct: 0.375, end_time: '2026-12-31T00:00:00Z', market_key: '0xopenA', url: 'https://polymarket.com/event/open-a', status: 'open' },
+        { title: 'Open harness market A?', outcome: 'Yes', size: 100.0, avg_price: 0.4, current_price: 0.55, value: 55.0, cost: 40.0, unrealized_pnl: 15.0, pnl_pct: 0.375, end_time: '2026-12-31T00:00:00Z', market_key: '0xopenA', url: 'https://polymarket.com/event/open-a', image: 'https://polymarket-upload.s3.us-east-2.amazonaws.com/harness-open-a.png', status: 'open' },
         { title: 'Resolved against, not redeemed?', outcome: 'No', size: 20.0, avg_price: 0.5, current_price: 0.0, value: 0.0, cost: 10.0, unrealized_pnl: -10.0, pnl_pct: -1.0, end_time: '2026-06-30T00:00:00Z', market_key: '0xworthless', url: '', status: 'worthless' }
       ],
       note: 'Value at the current price; positions at price 0 past their end date resolved against the wallet and were not redeemed (worthless).'
@@ -633,7 +633,7 @@ function walletNutzlast() {
       as_of: '2026-08-17 19:00 UTC', capped: false, n: 12, shown: 2, won: 9, lost: 3, flat: 0, worthless_not_redeemed: 1, realized_pnl: 210.0,
       rows: [
         { title: 'Harness market 1?', outcome: 'Yes', avg_price: 0.5, current_price: 0.0, total_bought: 50.0, realized_pnl: -50.0, time: '2026-06-02T00:00:00Z', market_key: '0xc1', url: 'https://polymarket.com/event/event-1', result: 'lost' },
-        { title: 'Harness market 0?', outcome: 'Yes', avg_price: 0.5, current_price: 1.0, total_bought: 50.0, realized_pnl: 40.0, time: '2026-06-01T00:00:00Z', market_key: '0xc0', url: 'https://polymarket.com/event/event-0', result: 'won' }
+        { title: 'Harness market 0?', outcome: 'Yes', avg_price: 0.5, current_price: 1.0, total_bought: 50.0, realized_pnl: 40.0, time: '2026-06-01T00:00:00Z', market_key: '0xc0', url: 'https://polymarket.com/event/event-0', image: 'https://polymarket-upload.s3.us-east-2.amazonaws.com/harness-event-0.jpg', result: 'won' }
       ],
       note: 'Complete resolved set: winners and losers unioned from the public closed-positions feed.',
       source: 'polymarket /closed-positions, both sort directions, ~50 rows per tail'

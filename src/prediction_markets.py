@@ -1964,6 +1964,8 @@ def get_polymarket_positions(user: str, limit: int = 250) -> pd.DataFrame:
     df["market_key"] = df.get("conditionId", "")
     df["slug"] = df.get("slug", "")
     df["url"] = "https://polymarket.com/event/" + df.get("eventSlug", df["slug"]).fillna(df["slug"]).astype(str)
+    # The market's image as the feed carries it (``icon``); display only.
+    df["image"] = df.get("icon", "").fillna("").astype(str) if "icon" in df else ""
     cols = [
         "platform",
         "wallet",
@@ -1979,6 +1981,7 @@ def get_polymarket_positions(user: str, limit: int = 250) -> pd.DataFrame:
         "end_time",
         "market_key",
         "url",
+        "image",
     ]
     return df[[c for c in cols if c in df.columns]].sort_values("value", ascending=False).reset_index(drop=True)
 
@@ -2011,6 +2014,7 @@ def get_polymarket_closed_positions(
     df["market_key"] = df.get("conditionId", "")
     df["slug"] = df.get("slug", "")
     df["url"] = "https://polymarket.com/event/" + df.get("eventSlug", df["slug"]).fillna(df["slug"]).astype(str)
+    df["image"] = df.get("icon", "").fillna("").astype(str) if "icon" in df else ""
     cols = [
         "platform",
         "wallet",
@@ -2023,6 +2027,7 @@ def get_polymarket_closed_positions(
         "realized_pnl",
         "market_key",
         "url",
+        "image",
     ]
     return df[[c for c in cols if c in df.columns]].sort_values("realized_pnl", ascending=False).reset_index(drop=True)
 

@@ -677,6 +677,7 @@ def _wallet_positions(positions: pd.DataFrame | None, as_of: str, requested: int
             "end_time": end_time,
             "market_key": _text(row.get("market_key")),
             "url": market_url("Polymarket", _text(row.get("market_key")), _text(row.get("url"))),
+            "image": _image_url(row.get("image")),
             "status": "worthless" if resolved_worthless else "open",
         })
     rows.sort(key=lambda r: -r["value"])
@@ -718,6 +719,7 @@ def _wallet_closed(resolved: pd.DataFrame | None, capped: bool, worthless_n: int
             "time": _iso(row.get("time")),
             "market_key": _text(row.get("market_key")),
             "url": market_url("Polymarket", _text(row.get("market_key")), _text(row.get("url"))),
+            "image": _image_url(row.get("image")),
             "result": "won" if row["_pnl"] > 0 else "lost" if row["_pnl"] < 0 else "flat",
         }
         for _, row in df.head(WALLET_CLOSED_SHOWN).iterrows()
@@ -1053,6 +1055,14 @@ def _iso(value: Any) -> str:
     if stamp is None or pd.isna(stamp):
         return ""
     return stamp.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _image_url(value: Any) -> str:
+    """The market image URL as the public feed carries it — only an absolute
+    https URL passes; anything else renders as no image."""
+
+    text = _text(value).strip()
+    return text if text.startswith("https://") else ""
 
 
 def market_url(venue: str, market_key: str, url: str = "", slug: str = "") -> str:

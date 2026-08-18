@@ -1195,6 +1195,52 @@ class Terminal {
         if (erster) { e.preventDefault(); erster.click(); }
       }
     });
+    // Floating card for elements that carry data-tip (the treemap tiles):
+    // JSON {title, image, pnl, rows:[[label, value]]} rendered next to the
+    // pointer, kept inside the viewport. One element, reused; nothing in
+    // the card that is not in the attribute.
+    let tipEl = document.getElementById('tip');
+    if (!tipEl) { tipEl = document.createElement('div'); tipEl.id = 'tip'; document.body.appendChild(tipEl); }
+    const M = "font-family:'JetBrains Mono',monospace";
+    const tipMove = (e) => {
+      const pad = 14;
+      const w = tipEl.offsetWidth || 280;
+      const h = tipEl.offsetHeight || 120;
+      let x = e.clientX + pad;
+      let y = e.clientY + pad;
+      if (x + w > window.innerWidth - 8) x = e.clientX - w - pad;
+      if (y + h > window.innerHeight - 8) y = e.clientY - h - pad;
+      tipEl.style.left = Math.max(4, x) + 'px';
+      tipEl.style.top = Math.max(4, y) + 'px';
+    };
+    document.addEventListener('mouseover', (e) => {
+      const el = e.target.closest ? e.target.closest('[data-tip]') : null;
+      if (!el) return;
+      let tip = null;
+      try { tip = JSON.parse(el.getAttribute('data-tip') || ''); } catch (err) { tip = null; }
+      if (!tip || !Array.isArray(tip.rows)) return;
+      const farbe = tip.pnl === 'down' ? '#FF4545' : '#C8F542';
+      tipEl.innerHTML = '<div style="display:flex; gap:10px; align-items:flex-start">'
+        + (tip.image ? '<img src="' + esc(tip.image) + '" alt="" style="width:40px; height:40px; border-radius:6px; object-fit:cover; flex:none; background:rgba(255,255,255,.06)" />' : '')
+        + '<div style="font-family:\'Inter\',sans-serif; font-size:12.5px; font-weight:600; line-height:1.35; color:#fff">' + esc(tip.title || '') + '</div></div>'
+        + '<div style="margin-top:9px; display:flex; flex-direction:column; gap:3px">'
+        + tip.rows.map((r) => '<div style="display:flex; justify-content:space-between; gap:14px; font-size:11.5px"><span style="color:rgba(255,255,255,.55)">' + esc(String(r[0])) + '</span><span style="' + M + '; color:' + (/^(unrealised|realised)$/.test(String(r[0])) ? farbe : '#fff') + '; text-align:right">' + esc(String(r[1])) + '</span></div>').join('')
+        + '</div>';
+      tipEl.classList.add('on');
+      tipMove(e);
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (!tipEl.classList.contains('on')) return;
+      const el = e.target.closest ? e.target.closest('[data-tip]') : null;
+      if (!el) { tipEl.classList.remove('on'); return; }
+      tipMove(e);
+    });
+    document.addEventListener('mouseout', (e) => {
+      const el = e.target.closest ? e.target.closest('[data-tip]') : null;
+      if (!el) return;
+      const to = e.relatedTarget && e.relatedTarget.closest ? e.relatedTarget.closest('[data-tip]') : null;
+      if (to !== el) tipEl.classList.remove('on');
+    });
     // Back/forward: re-read the hash so the visible page follows the address.
     window.addEventListener('hashchange', () => {
       const segmente = (location.hash || '#overview').replace('#', '').split('/');

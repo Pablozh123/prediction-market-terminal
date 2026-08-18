@@ -16,6 +16,7 @@ Node-Installation durch.
 
 from __future__ import annotations
 
+import html as _html_mod
 import json
 import os
 import re
@@ -78,6 +79,10 @@ LEER_ERWARTET = {
     "alerts": "/api/alerts",
     "track": "/api/track",
 }
+
+
+def _html_unescape(text: str) -> str:
+    return _html_mod.unescape(text)
 
 
 def _sichtbarer_text(html: str) -> str:
@@ -1241,13 +1246,34 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("POSITIONS TREEMAP", text)
         self.assertIn("tile area = $ at stake", text)
         self.assertIn("4 tiles", text)
-        self.assertIn("Open harness market A? · YES · open", html)
-        self.assertIn("stake $40.00 · value $55.00", html)
-        self.assertIn("PnL +$15.00 (+38%)", html)
-        self.assertIn("price now 55.0¢", html)
-        self.assertIn("Resolved against, not redeemed? · NO · open", html)
-        self.assertIn("resolved, not redeemed", html)
-        self.assertIn("Harness market 1? · YES · closed · lost", html)
+        # The hover card's figures ride in data-tip as JSON: title, the
+        # market's own image URL from the feed, and label/value rows.
+        tips = [json.loads(_html_unescape(m)) for m in re.findall(r'data-tip="([^"]*)"', html)]
+        self.assertEqual(len(tips), 4)
+        by_title = {t["title"]: t for t in tips}
+        a = by_title["Open harness market A?"]
+        self.assertEqual(a["image"], "https://polymarket-upload.s3.us-east-2.amazonaws.com/harness-open-a.png")
+        self.assertEqual(a["pnl"], "up")
+        rows = dict(a["rows"])
+        self.assertEqual(rows["side"], "YES · open")
+        self.assertEqual(rows["stake (cost)"], "$40.00")
+        self.assertEqual(rows["value now"], "$55.00")
+        self.assertEqual(rows["unrealised"], "+$15.00 (+38%)")
+        self.assertIn("55.0¢", rows["price now"])
+        self.assertEqual(rows["ends"], "2026-12-31")
+        w = by_title["Resolved against, not redeemed?"]
+        self.assertEqual(dict(w["rows"])["side"], "NO · resolved, not redeemed")
+        self.assertEqual(w["image"], "")
+        lost = by_title["Harness market 1?"]
+        self.assertEqual(dict(lost["rows"])["side"], "YES · closed · lost")
+        self.assertEqual(dict(lost["rows"])["realised"], "-$50.00 (-100%)")
+        won = by_title["Harness market 0?"]
+        self.assertEqual(dict(won["rows"])["returned"], "$90.00")
+        self.assertEqual(won["image"], "https://polymarket-upload.s3.us-east-2.amazonaws.com/harness-event-0.jpg")
+        # Tiles big enough carry the market image in place; the ones without
+        # an image URL carry no <img> at all.
+        self.assertIn('<img src="https://polymarket-upload.s3.us-east-2.amazonaws.com/harness-open-a.png"', html)
+        self.assertEqual(html.count('class="tm-tile"'), 4)
         # Tiles: absolutely placed percent boxes; a lost row is red, a won one lime.
         self.assertGreaterEqual(html.count("position:absolute; left:"), 4)
         self.assertIn("background:rgba(255,69,69,", html)
@@ -1256,7 +1282,7 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("2 tiles", geschlossen)
         offen = self.ausgabe["live"]["wallet_treemap_open"]
         self.assertIn("2 tiles", _sichtbarer_text(offen))
-        self.assertNotIn("Harness market 1? · YES · closed", offen)
+        self.assertNotIn("Harness market 1?", offen.split("POSITIONS TREEMAP")[-1])
         # The tiles link to the market where the row carries a URL.
         self.assertIn('href="https://polymarket.com/event/open-a"', html)
 
