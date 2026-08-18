@@ -231,9 +231,34 @@ function kpiTile(label, value, sub, tone) {
     + (sub ? '<div style="' + NOTE + '; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + sub + '</div>' : '') + '</div>';
 }
 
+// Which PnL series carries information: the profile curve from user-pnl-api
+// unless it is flat (the API's history starts late 2024; a wallet that stopped
+// before that, or has not moved since, is one level for hundreds of points),
+// then our own settled curve summed from the closed rows. The API says which
+// in pnl.shown; older answers without it are resolved here the same way.
+function pnlShown(d) {
+  const p = d.pnl || null;
+  if (!p) return { kind: 'none', p: null, curve: null, st: null };
+  const settled = p.settled && Array.isArray(p.settled.points) && p.settled.points.length >= 2 ? p.settled : null;
+  const profileOk = Array.isArray(p.points) && p.points.length >= 2;
+  let kind = p.shown || (profileOk && !p.flat ? 'profile' : settled ? 'settled' : profileOk ? 'profile' : 'none');
+  if (kind === 'settled' && !settled) kind = profileOk ? 'profile' : 'none';
+  if (kind === 'profile' && !profileOk) kind = settled ? 'settled' : 'none';
+  const curve = kind === 'settled' ? settled : kind === 'profile' ? p : null;
+  return { kind, p, curve, st: curve && curve.stats ? curve.stats : null };
+}
+
+// A stats block whose sample never moved: no up day, no down day, no vol.
+function statsFlat(st) {
+  return !!(st && st.n_days > 0 && !st.winning_days && !st.losing_days && !(st.daily_vol > 0));
+}
+
 function renderKpis(d) {
   const tr = d.track_record || null;
-  const st = d.pnl && d.pnl.stats ? d.pnl.stats : null;
+  const shown = pnlShown(d);
+  const st = shown.st;
+  const basis = shown.kind === 'settled' ? 'settled curve, closed rows' : shown.kind === 'profile' ? 'profile curve' : '';
+  const flat = statsFlat(st);
   const act = d.activity || null;
   const id = d.identity || {};
   const corr = tr && tr.corrected ? tr.corrected : null;
@@ -242,8 +267,8 @@ function renderKpis(d) {
     kpiTile('SETTLED PNL', tr ? dollars(tr.settled_pnl) : '—', tr ? 'n ' + num(tr.per_market ? tr.per_market.n : 0) + ' resolved markets' + capNote : 'no track record', tr ? (tr.settled_pnl < 0 ? 'down' : 'up') : 'neutral'),
     kpiTile('CORRECTED WIN RATE', corr && corr.win_rate != null ? pct(corr.win_rate) : '—', corr && corr.n ? corr.wins + '/' + corr.n + ' events · 95% ' + ci(corr.ci95) + capNote : 'no resolved events', corr && corr.win_rate != null ? (corr.win_rate >= 0.5 ? 'up' : 'down') : 'neutral'),
     kpiTile('GRADE', tr && tr.grade ? esc(tr.grade) : '—', tr && tr.score != null ? 'score ' + tr.score + ' / 100' + (tr.survivorship_gate && !tr.survivorship_gate.ok ? ' · below sample gate' : '') : '', tr && tr.grade ? (tr.grade === 'A' || tr.grade === 'B' ? 'up' : tr.grade === 'F' ? 'warn' : 'neutral') : 'neutral'),
-    kpiTile('SHARPE · DAILY $', st && st.sharpe != null ? ratio(st.sharpe) : '—', st ? 'n ' + st.n_days + ' days · no capital base' : 'no PnL curve', st && st.sharpe != null ? (st.sharpe >= 0 ? 'up' : 'down') : 'neutral'),
-    kpiTile('MAX DRAWDOWN', st ? absDollars(st.max_drawdown) : '—', st ? pct(st.max_drawdown_pct, 1) + ' of the running peak' : 'no PnL curve', st && st.max_drawdown > 0 ? 'down' : 'neutral')
+    kpiTile('SHARPE · DAILY $', st && st.sharpe != null ? ratio(st.sharpe) : '—', st ? (flat ? 'flat curve — no daily change in ' + st.n_days + ' days' : 'n ' + st.n_days + ' days · no capital base · ' + basis) : 'no PnL curve', st && st.sharpe != null ? (st.sharpe >= 0 ? 'up' : 'down') : 'neutral'),
+    kpiTile('MAX DRAWDOWN', st ? absDollars(st.max_drawdown) : '—', st ? (flat ? 'flat curve — never moved off its level' : pct(st.max_drawdown_pct, 1) + ' of the running peak · ' + basis) : 'no PnL curve', st && st.max_drawdown > 0 ? 'down' : 'neutral')
   ];
   const facts = [
     ['VOLUME TRADED', act && act.n_trades ? money(act.volume_traded) : '—'],
@@ -467,30 +492,53 @@ function renderTrackRecord(d) {
 }
 
 function renderPnl(d) {
-  const p = d.pnl || null;
-  if (!p || !Array.isArray(p.points) || !p.points.length) {
-    return card('PROFILE PNL CURVE', '<div style="' + NOTE + '">No PnL curve — user-pnl-api.polymarket.com did not answer for this wallet, so there is no Sharpe, drawdown or win-day share to show.</div>');
+  const shown = pnlShown(d);
+  const p = shown.p;
+  if (shown.kind === 'none') {
+    const why = p && p.flat && Array.isArray(p.points) && p.points.length
+      ? esc(p.note || '')
+      : 'user-pnl-api.polymarket.com did not answer for this wallet' + (p && p.settled && p.settled.n_rows ? ' and the closed rows give a single point' : ' and there are no closed rows to sum');
+    return card('PROFILE PNL CURVE', '<div style="' + NOTE + '">No PnL curve — ' + why + ', so there is no Sharpe, drawdown or win-day share to show.</div>', p ? 'as of ' + esc(p.as_of || '') : '');
   }
-  const st = p.stats || null;
+  const settled = shown.kind === 'settled';
+  const c = shown.curve;
+  const st = shown.st;
+  const flat = statsFlat(st);
   const kurve = stepKurve({
-    titel: 'CUMULATIVE PNL · PROFILE CURVE · ' + String(p.window || '').toUpperCase(),
+    titel: settled
+      ? 'CUMULATIVE REALISED PNL · SETTLED ROWS · n ' + num(c.n_rows) + (c.capped ? ' · CAPPED' : '')
+      : 'CUMULATIVE PNL · PROFILE CURVE · ' + String(p.window || '').toUpperCase(),
     einheit: 'USD',
-    hinweis: num(p.n_points) + ' points · ' + (st ? st.n_days + ' daily changes' : '') + ' · ' + esc(p.source || ''),
-    punkte: p.points.map((pt) => ({ label: String(pt.t || '').slice(0, 10), wert: +pt.pnl }))
+    hinweis: num(c.n_points) + ' points · ' + (st ? st.n_days + ' daily changes' : '') + ' · ' + esc(c.source || ''),
+    punkte: c.points.map((pt) => ({ label: String(pt.t || '').slice(0, 10), wert: +pt.pnl }))
   });
+  // The profile curve is flat: say why the block does not use it, before the
+  // curve it uses instead — the reader must not take the settled curve for
+  // the one polymarket.com shows.
+  const swap = settled
+    ? '<div style="' + M + '; font-size:11px; line-height:1.5; color:#F5A623; border:1px solid rgba(245,166,35,.35); border-radius:6px; padding:8px 10px; margin-bottom:10px">'
+      + '<span style="letter-spacing:.1em">PROFILE CURVE ' + (Array.isArray(p.points) && p.points.length ? 'FLAT' : 'MISSING') + '</span> — '
+      + esc(p.flat ? p.note : 'user-pnl-api.polymarket.com did not answer for this wallet.')
+      + ' Shown instead: our own settled curve — realised PnL of the closed rows summed in resolution order' + (c.capped ? ', capped tails' : '') + '.</div>'
+    : '';
   const stats = st ? [
-    ['SHARPE', ratio(st.sharpe), 'annualised, $ per day'],
-    ['SORTINO', ratio(st.sortino), st.sortino == null ? 'no losing day in sample' : 'downside only'],
-    ['CALMAR', ratio(st.calmar), st.calmar == null ? 'never in drawdown' : 'annual PnL / max DD'],
-    ['MAX DRAWDOWN', absDollars(st.max_drawdown), pct(st.max_drawdown_pct, 1) + ' of the peak'],
-    ['WIN-DAY SHARE', pct(st.win_day_rate), st.winning_days + ' up · ' + st.losing_days + ' down · n ' + st.n_days],
+    ['SHARPE', ratio(st.sharpe), flat ? 'flat curve — no daily change' : 'annualised, $ per day'],
+    ['SORTINO', ratio(st.sortino), flat ? 'flat curve' : st.sortino == null ? 'no losing day in sample' : 'downside only'],
+    ['CALMAR', ratio(st.calmar), flat ? 'flat curve' : st.calmar == null ? 'never in drawdown' : 'annual PnL / max DD'],
+    ['MAX DRAWDOWN', absDollars(st.max_drawdown), flat ? 'never moved off its level' : pct(st.max_drawdown_pct, 1) + ' of the peak'],
+    ['WIN-DAY SHARE', pct(st.win_day_rate), st.winning_days + ' up · ' + st.losing_days + ' down · n ' + st.n_days + (flat ? ' · all flat' : '')],
     ['BEST · WORST DAY', dollars(st.best_day) + ' · ' + dollars(st.worst_day), 'daily vol $' + fmtZahl(st.daily_vol)],
-    ['CURVE TOTAL', dollars(st.total_pnl), 'last minus first point']
+    ['CURVE TOTAL', dollars(st.total_pnl), settled ? 'sum of the ' + num(c.n_rows) + ' rows\' realised PnL' : 'last minus first point']
   ] : [];
   const statsHtml = st ? '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px 16px; margin-top:12px">'
     + stats.map((f) => '<div><div style="' + LBL + '">' + f[0] + '</div><div style="' + M + '; font-size:14px; margin-top:3px">' + f[1] + '</div><div style="' + NOTE + '; margin-top:2px">' + esc(f[2]) + '</div></div>').join('')
     + '</div>' : '<div style="' + NOTE + '; margin-top:10px">Curve present, statistics not computable (fewer than two daily points).</div>';
-  return card('PROFILE PNL CURVE', kurve + statsHtml + '<div style="' + NOTE + '; margin-top:10px">' + esc(p.note || '') + '</div>', 'as of ' + esc(p.as_of || ''));
+  const basis = settled
+    ? esc(c.note || '') + ' Ratios in dollars per day, no capital base, annualised on 365 days; n_days is the sample.'
+    : esc(p.note || '');
+  const title = settled ? 'PNL CURVE · SETTLED POSITIONS' : 'PROFILE PNL CURVE';
+  const stamp = 'as of ' + esc(p.as_of || '') + (settled ? ' · ' + esc(String(c.first || '').slice(0, 10)) + ' → ' + esc(String(c.last || '').slice(0, 10)) : '');
+  return card(title, swap + kurve + statsHtml + '<div style="' + NOTE + '; margin-top:10px">' + basis + '</div>', stamp);
 }
 
 function renderEdge(d) {

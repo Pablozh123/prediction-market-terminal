@@ -1345,6 +1345,31 @@ class WebLeerzustandTest(unittest.TestCase):
         trades = _sichtbarer_text(self.ausgabe["live"]["wallet_empty_trades"])
         self.assertIn("No trades in the public /activity feed", trades)
 
+    def test_wallet_seite_flache_profilkurve_zeigt_die_settled_kurve(self) -> None:
+        # Theo4-shaped answer: 630 identical profile points. The block swaps
+        # to the settled curve summed from the closed rows, says why in an
+        # amber line, the ratios come from that curve, and the KPI strip
+        # names the basis. The 22M level of the flat line is not charted.
+        html = self.ausgabe["live"]["wallet_flat_profile"]
+        text = _sichtbarer_text(html)
+        self.assertIn("PNL CURVE · SETTLED POSITIONS", text)
+        self.assertIn("PROFILE CURVE FLAT — The profile curve is a flat line at $22,053,934 over its 630 points (2024-11-28 to 2026-08-18)", text)
+        self.assertIn("Shown instead: our own settled curve", text)
+        self.assertIn("CUMULATIVE REALISED PNL · SETTLED ROWS · n 22", text)
+        self.assertIn("6 points · 80 daily changes · polymarket /closed-positions, both sort directions, summed by our code", text)
+        self.assertRegex(html, r'<path d="M\s*\d')
+        self.assertIn("SHARPE 3.94 annualised, $ per day", text)
+        self.assertIn("MAX DRAWDOWN $39,300 0.6% of the peak", text)
+        self.assertIn("WIN-DAY SHARE 88% 7 up · 1 down · n 80", text)
+        self.assertIn("CURVE TOTAL +$22,069,555 sum of the 22 rows' realised PnL", text)
+        self.assertIn("starting at $0 the day before the first resolution", text)
+        self.assertIn("as of 2026-08-18 15:47 UTC · 2024-10-14 → 2025-01-01", text)
+        # KPI strip reads the same curve and says so.
+        self.assertIn("SHARPE · DAILY $ 3.94 n 80 days · no capital base · settled curve, closed rows", text)
+        self.assertIn("MAX DRAWDOWN $39,300 0.6% of the running peak · settled curve, closed rows", text)
+        # The flat 22,053,934 line is not the charted series.
+        self.assertNotIn(">22,053,934<", html)
+
     def test_suchpalette_bietet_die_adresse_an(self) -> None:
         # A pasted full address is offered as an action, a partial one gets a
         # hint; both without any loaded list.

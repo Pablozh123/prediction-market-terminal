@@ -404,7 +404,9 @@ WALLET_LIMITS = [
     "the middle of the record is unreachable and win rate, edge and PnL describe the extremes only.",
     f"Trades come from the public /activity feed in pages of 500 up to {WALLET_ACTIVITY_MAX_ROWS:,} rows "
     "('window_truncated' when the cap was hit). Trade counts, categories and context shares cover that window.",
-    "The PnL curve is the profile curve from user-pnl-api.polymarket.com (daily fidelity, all time). "
+    "The PnL curve is the profile curve from user-pnl-api.polymarket.com (daily fidelity, all time). That API's history "
+    "begins in late 2024, so a wallet that stopped trading before then, or has not moved since, is a flat line there; "
+    "the page then charts our own settled curve — the closed rows' realised PnL summed in resolution order — and says so. "
     "Sharpe, Sortino and Calmar are computed in dollars per day without a capital base and annualised on 365 days.",
     "Positions that resolved against the wallet and were never redeemed stay in /positions at price 0; "
     "they are counted as 'worthless', not as closed.",
@@ -555,10 +557,82 @@ def _wallet_track_record(
     }
 
 
-def _wallet_pnl(pnl_points: pd.DataFrame | None, as_of: str, window: str) -> dict[str, Any]:
+def _curve_stats(frame: pd.DataFrame) -> dict[str, Any] | None:
+    """perf.summarize_curve on a [time, pnl] frame, JSON-safe; None when it fails."""
+
+    try:
+        stats = perf.summarize_curve(frame[[c for c in ("time", "pnl") if c in frame.columns]])
+    except Exception:  # noqa: BLE001 - a bad curve leaves the stats empty, not the page dead
+        return None
+    # Floats through _num (NaN/inf -> null), counts stay integers.
+    return {k: (_num(v) if isinstance(v, float) else v) for k, v in stats.items()}
+
+
+def _settled_curve(resolved: pd.DataFrame | None, capped: bool) -> dict[str, Any] | None:
+    """Cumulative realised PnL from the closed-positions rows, in resolution
+    order — our own curve, for wallets whose profile curve carries nothing.
+
+    The series starts at $0 one day before the first resolution (a cumulative
+    curve needs an opening level, and the feed has none), then steps by each
+    row's realised PnL at the row's time. With capped tails only the biggest
+    winners and losers are in it, and the block says so.
+    """
+
+    if resolved is None or resolved.empty or "realized_pnl" not in resolved or "time" not in resolved:
+        return None
+    df = pd.DataFrame({
+        "time": pd.to_datetime(resolved["time"], utc=True, errors="coerce"),
+        "pnl": pd.to_numeric(resolved["realized_pnl"], errors="coerce"),
+    }).dropna(subset=["time", "pnl"]).sort_values("time")
+    if len(df) < 1:
+        return None
+    n_rows = int(len(df))
+    start = df["time"].iloc[0] - pd.Timedelta(1, unit="D")
+    curve = pd.DataFrame({
+        "time": [start, *df["time"].tolist()],
+        "pnl": [0.0, *df["pnl"].cumsum().tolist()],
+    })
+    points = [{"t": _iso(row["time"]), "pnl": round(float(row["pnl"]), 2)} for _, row in curve.iterrows()]
+    note = (
+        f"Realised PnL of the {n_rows:,} closed-position rows summed in resolution order, starting at $0 the day before "
+        "the first resolution. Open positions' unrealised PnL is not in it. "
+        + ("Capped tails: only the ~50 biggest winners and ~50 biggest losers are in the sum, so the middle of the record "
+           "is missing and the swings are the extremes only." if capped else "Complete resolved set (both tails).")
+    )
+    return {
+        "points": points,
+        "n_points": len(points),
+        "n_rows": n_rows,
+        "first": _iso(df["time"].iloc[0]),
+        "last": _iso(df["time"].iloc[-1]),
+        "total": round(float(df["pnl"].sum()), 2),
+        "capped": bool(capped),
+        "stats": _curve_stats(curve),
+        "source": "polymarket /closed-positions, both sort directions, summed by our code",
+        "note": note,
+    }
+
+
+def _wallet_pnl(pnl_points: pd.DataFrame | None, as_of: str, window: str,
+                resolved: pd.DataFrame | None = None, capped: bool = False) -> dict[str, Any]:
+    """The PnL-curve block: the profile curve from user-pnl-api (points, stats)
+    plus our own settled curve from the closed rows, and ``shown`` — which of
+    the two carries information.
+
+    The user-pnl API's history begins late 2024; a wallet whose trading ended
+    before that (or that has not moved since) gets a flat line there — 630
+    identical points, zero drawdown, no Sharpe. ``flat`` names that case and
+    ``shown`` points the page at the settled curve instead, so the ratios come
+    from a series that actually changes.
+    """
+
+    settled = _settled_curve(resolved, capped)
     if pnl_points is None or pnl_points.empty or "pnl" not in pnl_points:
         return {"as_of": as_of, "window": window, "points": [], "n_points": 0, "stats": None,
-                "source": "user-pnl-api.polymarket.com", "note": "The profile PnL curve did not answer."}
+                "flat": False, "first": "", "last": "",
+                "source": "user-pnl-api.polymarket.com", "note": "The profile PnL curve did not answer.",
+                "settled": settled,
+                "shown": "settled" if settled and settled["n_points"] >= 2 else "none"}
     frame = pnl_points.copy()
     frame["pnl"] = pd.to_numeric(frame["pnl"], errors="coerce")
     if "time" in frame:
@@ -568,14 +642,28 @@ def _wallet_pnl(pnl_points: pd.DataFrame | None, as_of: str, window: str) -> dic
         {"t": _iso(row.get("time")) if "time" in frame else "", "pnl": round(float(row["pnl"]), 2)}
         for _, row in frame.iterrows()
     ]
-    stats = None
-    try:
-        stats = perf.summarize_curve(frame[[c for c in ("time", "pnl") if c in frame.columns]])
-    except Exception:  # noqa: BLE001 - a bad curve leaves the stats empty, not the page dead
-        stats = None
-    if stats is not None:
-        # Floats through _num (NaN/inf -> null), counts stay integers.
-        stats = {k: (_num(v) if isinstance(v, float) else v) for k, v in stats.items()}
+    stats = _curve_stats(frame)
+    values = frame["pnl"].astype(float)
+    flat = bool(len(values) >= 1 and float(values.max() - values.min()) < 0.005)
+    first = points[0]["t"] if points else ""
+    last = points[-1]["t"] if points else ""
+    if len(points) >= 2 and not flat:
+        shown = "profile"
+    elif settled and settled["n_points"] >= 2:
+        shown = "settled"
+    elif len(points) >= 2:
+        shown = "profile"
+    else:
+        shown = "none"
+    note = "Ratios in dollars per day, no capital base, annualised on 365 days; n_days is the sample."
+    if flat and points:
+        level = points[-1]["pnl"]
+        note = (
+            f"The profile curve is a flat line at ${level:,.0f} over its {len(points):,} points"
+            + (f" ({first[:10]} to {last[:10]})" if first and last else "")
+            + ": user-pnl-api's history for this wallet begins there and nothing has changed since — "
+            "no daily change, so no Sharpe, drawdown or win-day share can come out of it."
+        )
     return {
         "as_of": as_of,
         "window": window,
@@ -583,7 +671,12 @@ def _wallet_pnl(pnl_points: pd.DataFrame | None, as_of: str, window: str) -> dic
         "points": points,
         "n_points": len(points),
         "stats": stats,
-        "note": "Ratios in dollars per day, no capital base, annualised on 365 days; n_days is the sample.",
+        "flat": flat,
+        "first": first,
+        "last": last,
+        "note": note,
+        "settled": settled,
+        "shown": shown,
     }
 
 
@@ -1074,7 +1167,7 @@ def wallet_detail(
     open_block = _wallet_positions(positions, stamp, positions_requested)
     payload["identity"] = _wallet_identity(wallet, activity, pseudonym, activity_truncated)
     payload["track_record"] = _wallet_track_record(track, resolved, capped, stamp)
-    payload["pnl"] = _wallet_pnl(pnl_points, stamp, pnl_window)
+    payload["pnl"] = _wallet_pnl(pnl_points, stamp, pnl_window, resolved, capped)
     payload["edge"] = _wallet_edge(resolved, realized, capped, classify, stamp)
     payload["open_positions"] = open_block
     payload["closed"] = _wallet_closed(resolved, capped, open_block["worthless_n"], stamp,

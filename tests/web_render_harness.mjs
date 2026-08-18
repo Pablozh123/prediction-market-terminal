@@ -935,6 +935,36 @@ function rendern(T) {
       T.liveData.walletSimilar[WALLET_HARNESS_ADDR] = { herkunft: 'fehler', fehler: 'HTTP 429', status: 429 };
       return () => { delete T.liveData.walletSimilar[WALLET_HARNESS_ADDR]; };
     }],
+    // A wallet whose trading ended before user-pnl-api's history begins
+    // (Theo4-shaped): the profile curve is one level for 630 points, so the
+    // block must swap to the settled curve summed from the closed rows and
+    // say why, and the KPI strip must take Sharpe / drawdown from that.
+    ['wallet_flat_profile', 'wallet', { walletAddr: WALLET_HARNESS_ADDR, walletInput: WALLET_HARNESS_ADDR }, null, (T) => {
+      const alt = T.liveData.wallet[WALLET_HARNESS_ADDR];
+      if (!alt) return null;                       // empty mode: the page stays in its waiting state
+      const voll = walletNutzlast();
+      const flach = [];
+      for (let i = 0; i < 630; i += 1) {
+        const tag = new Date(Date.UTC(2024, 10, 28) + i * 86400000).toISOString().slice(0, 10);
+        flach.push({ t: tag + 'T00:00:00Z', pnl: 22053934 });
+      }
+      voll.pnl = {
+        as_of: '2026-08-18 15:47 UTC', window: 'All', source: 'user-pnl-api.polymarket.com (the curve polymarket.com shows on the profile)',
+        points: flach, n_points: 630, first: '2024-11-28T00:00:00Z', last: '2026-08-18T15:00:00Z', flat: true,
+        stats: { n_days: 628, total_pnl: 0, best_day: 0, worst_day: 0, mean_day: 0, daily_vol: 0, winning_days: 0, losing_days: 0, win_day_rate: null, max_drawdown: 0, max_drawdown_pct: 0, sharpe: null, sortino: null, calmar: null, capital: null, return_on_capital: null, annualised_return: null },
+        note: "The profile curve is a flat line at $22,053,934 over its 630 points (2024-11-28 to 2026-08-18): user-pnl-api's history for this wallet begins there and nothing has changed since — no daily change, so no Sharpe, drawdown or win-day share can come out of it.",
+        settled: {
+          points: [{ t: '2024-10-13T22:30:57Z', pnl: 0 }, { t: '2024-10-14T22:30:57Z', pnl: 0 }, { t: '2024-10-16T15:18:39Z', pnl: 685.65 }, { t: '2024-11-11T22:30:39Z', pnl: 8302699.25 }, { t: '2024-11-12T10:03:19Z', pnl: 14363839.43 }, { t: '2025-01-01T08:27:52Z', pnl: 22069554.81 }],
+          n_points: 6, n_rows: 22, first: '2024-10-14T22:30:57Z', last: '2025-01-01T08:27:52Z', total: 22069554.81, capped: false,
+          stats: { n_days: 80, total_pnl: 22069554.81, best_day: 8302013.6, worst_day: -21.35, mean_day: 275869.44, daily_vol: 1339066.95, winning_days: 7, losing_days: 1, win_day_rate: 0.875, max_drawdown: 39300, max_drawdown_pct: 0.0062, sharpe: 3.936, sortino: 246860.8, calmar: 2562.15, capital: null, return_on_capital: null, annualised_return: null },
+          source: 'polymarket /closed-positions, both sort directions, summed by our code',
+          note: "Realised PnL of the 22 closed-position rows summed in resolution order, starting at $0 the day before the first resolution. Open positions' unrealised PnL is not in it. Complete resolved set (both tails)."
+        },
+        shown: 'settled'
+      };
+      T.liveData.wallet[WALLET_HARNESS_ADDR] = { herkunft: 'live', data: voll };
+      return () => { if (alt) T.liveData.wallet[WALLET_HARNESS_ADDR] = alt; else delete T.liveData.wallet[WALLET_HARNESS_ADDR]; };
+    }],
     // The same address answered with an empty read: no resolved positions,
     // no curve, no trades. Every block must say so, none may print a figure.
     ['wallet_empty_answer', 'wallet', { walletAddr: WALLET_HARNESS_ADDR, walletInput: WALLET_HARNESS_ADDR }, null, (T) => {

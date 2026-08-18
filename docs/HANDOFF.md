@@ -280,6 +280,16 @@ Two hosts, two mechanisms — this cost a session once, so it is spelled out:
   the wallet is on the cached leaderboard; conviction = avg $ bought on winners
   / losers. The Risk tab is PARTIAL whenever the closed tails are capped. Keep
   those sentences on the page when touching it.
+- **PnL curve fallback (2026-08-18):** `user-pnl-api.polymarket.com` only has
+  history from late November 2024 (`interval=all` = `max`; the API accepts
+  `max/all/1m/1w/1d/12h/6h` × `1d/18h/12h/3h/1h`). Theo4 (0x5668…5839) traded
+  Oct–Nov 2024, so its profile curve is 630 identical points at $22.05M — zero
+  drawdown, no Sharpe. `api_views._wallet_pnl` now flags `flat`, always adds a
+  `settled` curve (closed rows' realised PnL summed in resolution order, starting
+  at $0 the day before the first resolution) and sets `shown` to `profile` /
+  `settled` / `none`; the page charts the settled curve with an amber "PROFILE
+  CURVE FLAT" line and the KPI strip names which curve Sharpe / drawdown come
+  from. Capped tails make the settled curve the extremes only, and it says so.
 
 ## 11. Next concrete step
 

@@ -329,10 +329,62 @@ class WalletPageBlocksTests(unittest.TestCase):
         # Below the survivorship gate: 8 markets < 10.
         self.assertFalse(payload["track_record"]["survivorship_gate"]["ok"])
         self.assertIn("insufficient sample", payload["track_record"]["score_components"][0]["label"])
-        # No curve -> no stats, no invented Sharpe.
+        # No profile curve -> no profile stats, no invented Sharpe; the block
+        # falls back to the settled curve from the 8 capped rows and says so.
         self.assertIsNone(payload["pnl"]["stats"])
         self.assertEqual(payload["pnl"]["points"], [])
+        self.assertFalse(payload["pnl"]["flat"])
+        self.assertEqual(payload["pnl"]["shown"], "settled")
+        self.assertTrue(payload["pnl"]["settled"]["capped"])
+        self.assertIn("Capped tails", payload["pnl"]["settled"]["note"])
         self.assertEqual(payload["open_positions"]["n"], 0)
+
+    def test_flat_profile_curve_swaps_to_the_settled_curve(self) -> None:
+        # Theo4's case: user-pnl-api's history starts after the wallet's last
+        # trade, so the profile curve is one level for 630 points. The block
+        # names it flat, sums the closed rows into its own curve (starting at
+        # $0 the day before the first resolution) and points the page there.
+        resolved = _resolved_fixture(6)          # +40 -50 +40 -50 +40 -50 on 2026-06-01..06
+        flat = pd.DataFrame({
+            "time": pd.date_range("2026-07-01", periods=630, freq="D", tz="UTC"),
+            "pnl": [22053934.0] * 630,
+        })
+        block = apv._wallet_pnl(flat, "2026-08-18 16:00 UTC", "All", resolved, False)
+        self.assertTrue(block["flat"])
+        self.assertEqual(block["shown"], "settled")
+        self.assertEqual(block["n_points"], 630)
+        self.assertEqual(block["first"], "2026-07-01T00:00:00Z")
+        self.assertIn("flat line at $22,053,934 over its 630 points (2026-07-01 to 2028-03-21)", block["note"])
+        self.assertIsNone(block["stats"]["sharpe"])
+        self.assertEqual(block["stats"]["winning_days"], 0)
+        settled = block["settled"]
+        self.assertEqual(settled["n_rows"], 6)
+        self.assertEqual(settled["n_points"], 7)
+        self.assertEqual(settled["points"][0], {"t": "2026-05-31T00:00:00Z", "pnl": 0.0})
+        self.assertEqual(settled["points"][1], {"t": "2026-06-01T00:00:00Z", "pnl": 40.0})
+        self.assertEqual(settled["points"][-1]["pnl"], -30.0)
+        self.assertAlmostEqual(settled["total"], -30.0)
+        self.assertFalse(settled["capped"])
+        self.assertEqual(settled["stats"]["n_days"], 6)
+        self.assertEqual(settled["stats"]["winning_days"], 3)
+        self.assertEqual(settled["stats"]["losing_days"], 3)
+        self.assertAlmostEqual(settled["stats"]["total_pnl"], -30.0)
+        self.assertIn("Complete resolved set", settled["note"])
+        json.dumps(block)
+        # A moving profile curve stays the shown one, settled travels along.
+        moving = pd.DataFrame({"time": pd.date_range("2026-07-01", periods=3, freq="D", tz="UTC"), "pnl": [0.0, 5.0, 3.0]})
+        block = apv._wallet_pnl(moving, "x", "All", resolved, False)
+        self.assertFalse(block["flat"])
+        self.assertEqual(block["shown"], "profile")
+        self.assertEqual(block["settled"]["n_rows"], 6)
+        # Nothing at all: shown is none, settled is None.
+        block = apv._wallet_pnl(None, "x", "All", None, False)
+        self.assertEqual(block["shown"], "none")
+        self.assertIsNone(block["settled"])
+        # A flat curve and no closed rows: the flat profile stays shown, flagged.
+        block = apv._wallet_pnl(flat, "x", "All", None, False)
+        self.assertEqual(block["shown"], "profile")
+        self.assertTrue(block["flat"])
 
     def test_positions_capped_when_the_page_is_full(self) -> None:
         pos = pd.concat([_positions_fixture()] * 5, ignore_index=True)
