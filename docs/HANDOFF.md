@@ -317,6 +317,14 @@ Two hosts, two mechanisms — this cost a session once, so it is spelled out:
   listed parts do not reach the score). `whale_base` rides on the event row
   so the rule can say "full marks at $100k". The toggle carries `data-stop`
   so the card's market-drawer click does not fire.
+- **Size floor on the event screen (2026-08-19):** the distribution parts
+  (one wallet, one side, speed, several wallets, long-odds share) and their
+  flags are damped linearly below `DISTRIBUTION_NOTIONAL_FLOOR` ($500, or 20%
+  of the whale threshold) — a $2 flow scored 52 on "100% one wallet / 100%
+  one side / 60 prints an hour". Columns `distribution_size_weight`,
+  `distribution_size_floor`, `distribution_weight` ride on the row; the card's
+  weight note names it ("damped ×0.20: only $100 of flow, full weight from
+  $500").
 
 ## 11. Next concrete step
 

@@ -1213,8 +1213,10 @@ EVENT_COMPONENTS = (
 )
 
 #: Components damped by the sample weight (a handful of prints makes every
-#: distribution "100% one wallet"); the card says so when the weight is < 1.
+#: distribution "100% one wallet") and by the size weight (a $2 flow too);
+#: the card says so when the weight is < 1.
 _SAMPLE_WEIGHTED = {"component_long_odds", "component_concentration", "component_direction", "component_burst"}
+_SIZE_WEIGHTED = _SAMPLE_WEIGHTED | {"component_cluster"}
 
 
 def _fnum(getter: Any, key: str, default: float = 0.0) -> float:
@@ -1315,8 +1317,11 @@ def event_components(row: Any) -> list[dict[str, Any]]:
 
     getter = row.get if hasattr(row, "get") else (lambda key, default=None: default)
     parts: list[dict[str, Any]] = []
-    weight = _fnum(getter, "distribution_sample_weight", 1.0)
+    sample_w = _fnum(getter, "distribution_sample_weight", 1.0)
+    size_w = _fnum(getter, "distribution_size_weight", 1.0)
+    floor = _fnum(getter, "distribution_size_floor", 0.0)
     trades = int(_fnum(getter, "trades", 0.0))
+    notional = _fnum(getter, "notional", 0.0)
     for key, label, cap, measures in EVENT_COMPONENTS:
         value = getter(key, None)
         try:
@@ -1328,9 +1333,17 @@ def event_components(row: Any) -> list[dict[str, Any]]:
         fact, rule = _component_fact(key, getter)
         entry: dict[str, Any] = {"key": key, "label": label, "value": round(number, 1), "max": cap,
                                  "measures": measures, "fact": fact, "rule": rule}
-        if key in _SAMPLE_WEIGHTED and weight < 1.0:
+        gruende: list[str] = []
+        weight = 1.0
+        if key in _SAMPLE_WEIGHTED and sample_w < 1.0:
+            weight *= sample_w
+            gruende.append(f"only {trades} print{'s' if trades != 1 else ''} in the sample")
+        if key in _SIZE_WEIGHTED and size_w < 1.0:
+            weight *= size_w
+            gruende.append(f"only {_dollars(notional)} of flow" + (f", full weight from {_dollars(floor)}" if floor > 0 else ""))
+        if gruende:
             entry["weight"] = round(weight, 2)
-            entry["weight_note"] = f"damped ×{weight:.2f}: only {trades} print{'s' if trades != 1 else ''} in the sample"
+            entry["weight_note"] = f"damped ×{weight:.2f}: " + "; ".join(gruende)
         parts.append(entry)
     multiplier = getter("context_multiplier", None)
     try:

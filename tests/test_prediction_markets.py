@@ -1897,3 +1897,42 @@ class KalshiTitleTests(unittest.TestCase):
         with patch("src.prediction_markets._get_json", return_value=raw):
             trades = md.get_kalshi_trades()
         self.assertEqual(trades["market_key"].tolist(), ["KXFED-26SEP"])
+
+
+class DistributionSizeWeightTests(unittest.TestCase):
+    """The distribution signals (one wallet, one side, speed, several wallets)
+    count fully from $500 of flow (or 20% of the whale threshold); a $2 flow
+    is trivially one wallet / one side and must not score or flag on it."""
+
+    def _tape(self, notional: float) -> pd.DataFrame:
+        base = pd.Timestamp("2026-08-19T17:56:00Z")
+        rows = []
+        for i in range(5):
+            rows.append({"platform": "Polymarket", "time": base + pd.Timedelta(i * 10, unit="s"), "title": "Q?",
+                         "market_key": "0x" + "a" * 64, "wallet": "0x" + ("b" if i < 4 else "c") * 40,
+                         "side": "BUY", "outcome": "Yes", "price": 0.5, "notional": notional / 5, "size": notional / 2.5})
+        return pd.DataFrame(rows)
+
+    def test_tiny_flow_scores_nothing_on_distribution(self) -> None:
+        row = md.whale_event_risk_scores(self._tape(2.0), whale_threshold=2500, now="2026-08-19T18:00:00Z").iloc[0]
+        self.assertEqual(float(row["event_insider_score"]), 0.0)
+        self.assertEqual(str(row["event_insider_flags"]), "watch only")
+        self.assertAlmostEqual(float(row["distribution_size_weight"]), 0.004)
+        self.assertEqual(float(row["distribution_size_floor"]), 500.0)
+        self.assertEqual(float(row["component_concentration"]), 0.0)
+        self.assertLessEqual(float(row["component_burst"]), 0.1)   # 15 × 0.004, rounded
+
+    def test_flow_at_the_floor_counts_fully(self) -> None:
+        small = md.whale_event_risk_scores(self._tape(100.0), whale_threshold=2500, now="2026-08-19T18:00:00Z").iloc[0]
+        full = md.whale_event_risk_scores(self._tape(500.0), whale_threshold=2500, now="2026-08-19T18:00:00Z").iloc[0]
+        self.assertAlmostEqual(float(small["distribution_size_weight"]), 0.2)
+        self.assertEqual(float(full["distribution_size_weight"]), 1.0)
+        self.assertLess(float(small["component_concentration"]), float(full["component_concentration"]))
+        self.assertNotIn("wallet concentration", str(small["event_insider_flags"]))
+        self.assertIn("wallet concentration", str(full["event_insider_flags"]))
+        self.assertIn("fast burst", str(full["event_insider_flags"]))
+
+    def test_floor_follows_a_higher_whale_threshold(self) -> None:
+        row = md.whale_event_risk_scores(self._tape(500.0), whale_threshold=10_000, now="2026-08-19T18:00:00Z").iloc[0]
+        self.assertEqual(float(row["distribution_size_floor"]), 2000.0)
+        self.assertAlmostEqual(float(row["distribution_size_weight"]), 0.25)

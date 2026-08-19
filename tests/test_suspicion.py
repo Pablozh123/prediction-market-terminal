@@ -1005,6 +1005,24 @@ class EventComponentFactsTests(unittest.TestCase):
         self.assertEqual(parts["component_concentration"]["weight_note"], "damped ×0.50: only 3 prints in the sample")
         self.assertNotIn("weight", parts["component_notional"])
 
+    def test_size_weight_is_named_too(self) -> None:
+        row = self._row()
+        row["distribution_size_weight"] = 0.2
+        row["distribution_size_floor"] = 500.0
+        row["notional"] = 100.0
+        parts = {c["key"]: c for c in susp.event_components(row)}
+        self.assertEqual(parts["component_concentration"]["weight"], 0.2)
+        self.assertEqual(parts["component_concentration"]["weight_note"], "damped ×0.20: only $100 of flow, full weight from $500")
+        # "Several wallets at once" is size-weighted, not sample-weighted.
+        self.assertEqual(parts["component_cluster"]["weight"], 0.2)
+        self.assertNotIn("weight", parts["component_notional"])
+        # Both dampings at once: the note names both, the weight is the product.
+        row["distribution_sample_weight"] = 0.5
+        row["trades"] = 3
+        parts = {c["key"]: c for c in susp.event_components(row)}
+        self.assertEqual(parts["component_concentration"]["weight"], 0.1)
+        self.assertEqual(parts["component_concentration"]["weight_note"], "damped ×0.10: only 3 prints in the sample; only $100 of flow, full weight from $500")
+
     def test_missing_columns_yield_nothing_invented(self) -> None:
         self.assertEqual(susp.event_components({}), [])
         parts = susp.event_components({"component_burst": 3.0})
