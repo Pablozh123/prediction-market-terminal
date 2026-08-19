@@ -286,6 +286,7 @@ export function renderWhale(T) {
 // from /api/risk (api_views.risk_event_row) or /api/risk/log; a missing value
 // renders as "—" or "n/a", never as a default number.
 const CHIP = M + '; font-size:9.5px; color:rgba(255,255,255,.55); border:1px solid rgba(255,255,255,.1); border-radius:4px; padding:1px 6px; white-space:nowrap';
+const NOTE_R = M + '; font-size:11px; color:rgba(255,255,255,.45); line-height:1.6';
 const LINK = 'color:#C8F542; text-decoration:none; ' + M + '; font-size:10.5px; letter-spacing:.06em';
 
 function cents(p) {
@@ -336,6 +337,58 @@ export function riskComponentsHtml(components) {
   if (!teile.length) return '<span style="' + CHIP + '">no component above zero</span>';
   return teile.map((c) => '<span style="' + CHIP + '">' + esc(c.label) + ' <span style="color:rgba(255,255,255,.85)">'
     + (c.key === 'context_multiplier' ? '×' + esc(String(c.value)) : esc(String(c.value)) + (c.max != null ? '/' + esc(String(c.max)) : '')) + '</span></span>').join('');
+}
+
+// The score, taken apart: one row per component that scored — a plain
+// label, a bar against its cap, the points, and under it what the tape
+// showed and what full marks would take (both from the API: fact / rule).
+// Components at zero fold into one "not found" line, the context multiplier
+// closes the list, and the last line does the arithmetic so the reader can
+// check the score. Older payloads without fact/rule get the bar and label.
+export function riskScoreBreakdown(components, score) {
+  if (!Array.isArray(components) || !components.length) return '';
+  const rows = components.filter((c) => c && c.key !== 'context_multiplier');
+  const ctx = components.find((c) => c && c.key === 'context_multiplier') || null;
+  const scored = rows.filter((c) => Number(c.value) > 0).sort((a, b) => Number(b.value) - Number(a.value));
+  const zero = rows.filter((c) => !(Number(c.value) > 0));
+  const summe = scored.reduce((acc, c) => acc + Number(c.value), 0);
+  const faktor = ctx ? Number(ctx.value) : 1;
+  const bar = (c) => {
+    const max = Number(c.max) || 1;
+    const anteil = Math.max(0, Math.min(1, Number(c.value) / max));
+    const voll = anteil >= 0.66;
+    const farbe = voll ? '#F5A623' : 'rgba(255,255,255,.55)';
+    const unter = [c.fact, c.rule].filter(Boolean).map((t) => esc(String(t))).join(' <span style="color:rgba(255,255,255,.25)">·</span> ')
+      + (c.weight_note ? ' <span style="color:#F5A623">' + esc(c.weight_note) + '</span>' : '');
+    return '<div style="padding:6px 0; border-bottom:1px solid rgba(255,255,255,.05)">'
+      + '<div style="display:flex; align-items:center; gap:10px">'
+      + '<div style="flex:0 0 158px; font-size:12.5px; color:rgba(255,255,255,.85)" title="' + esc(String(c.measures || '')) + '">' + esc(String(c.label || c.key || '')) + '</div>'
+      + '<div style="flex:1; height:6px; border-radius:3px; background:rgba(255,255,255,.08); overflow:hidden"><div style="width:' + (anteil * 100).toFixed(1) + '%; height:6px; background:' + farbe + '"></div></div>'
+      + '<div style="flex:0 0 64px; text-align:right; ' + M + '; font-size:11.5px; color:' + (voll ? '#F5A623' : 'rgba(255,255,255,.8)') + '">' + esc(String(c.value)) + '<span style="color:rgba(255,255,255,.35)">/' + esc(String(c.max)) + '</span></div>'
+      + '</div>'
+      + (unter ? '<div style="font-size:11px; color:rgba(255,255,255,.5); margin-top:3px; padding-left:0; line-height:1.45">' + unter + '</div>' : '')
+      + '</div>';
+  };
+  const nichts = zero.length
+    ? '<div style="font-size:11px; color:rgba(255,255,255,.42); padding:7px 0; line-height:1.5"><span style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:rgba(255,255,255,.35)">NOT FOUND</span> '
+      + zero.map((c) => esc(String(c.label || c.key || '')).toLowerCase() + (c.fact ? ' <span style="color:rgba(255,255,255,.3)">(' + esc(String(c.fact)) + ')</span>' : '')).join(' · ') + '</div>'
+    : '';
+  const kontext = ctx
+    ? '<div style="display:flex; align-items:baseline; gap:10px; padding:7px 0; border-top:1px solid rgba(255,255,255,.05)">'
+      + '<div style="flex:0 0 158px; font-size:12.5px; color:rgba(255,255,255,.85)">' + esc(String(ctx.label || 'Context')) + '</div>'
+      + '<div style="flex:1; font-size:11px; color:rgba(255,255,255,.5); line-height:1.45">' + esc(String(ctx.fact || '')) + (ctx.rule ? ' <span style="color:rgba(255,255,255,.3)">· ' + esc(String(ctx.rule)) + '</span>' : '') + '</div>'
+      + '<div style="flex:0 0 64px; text-align:right; ' + M + '; font-size:11.5px; color:' + (faktor > 1 ? '#F5A623' : faktor < 1 ? 'rgba(255,255,255,.5)' : 'rgba(255,255,255,.8)') + '">×' + esc(String(ctx.value)) + '</div></div>'
+    : '';
+  // The arithmetic, checkable: parts × context = score. When the listed
+  // parts do not reach the score (an older answer without every column),
+  // the line says so instead of pretending they do.
+  const produkt = Math.min(100, Math.round(summe * faktor));
+  const stimmt = score == null || Math.abs(produkt - Number(score)) <= 1;
+  const rechnung = '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55); padding-top:8px; border-top:1px solid rgba(255,255,255,.08); margin-top:2px">'
+    + summe.toFixed(1) + ' pts' + (ctx ? ' × ' + esc(String(ctx.value)) : '') + ' = <span style="color:#fff">' + produkt + '</span> / 100'
+    + (stimmt ? '' : ' <span style="color:#F5A623">· the card says ' + esc(String(score)) + ' — parts missing from this answer</span>')
+    + ' <span style="color:rgba(255,255,255,.35)">· under 40 low · 40–54 elevated · 55–69 medium · 70+ high</span></div>';
+  return '<div>' + scored.map(bar).join('') + nichts + kontext + rechnung + '</div>';
 }
 
 // Top wallets with share and profile link; "fresh" when the tape-relative
@@ -488,11 +541,14 @@ export function renderRiskLog(T) {
     + '</div>';
 }
 
-// One event card. Closed: kind and score, the market, the flow (side, price
-// at flag, window), the top wallets, one line for their book, the four
-// figures. "Why this score" opens the flags, the score components, the
-// context note and the per-wallet book lines — the reasoning, not the lead.
-// The open state lives in T.state.riskOpen[key] so a re-render keeps it.
+// One event card. Closed: what the screen saw — kind and score with its
+// band, the market, the flow (side, price at flag, window), the top wallets,
+// one line for their book, the four figures. "Why this score" opens the
+// score taken apart (riskScoreBreakdown: bars, facts, arithmetic) and the
+// per-wallet book lines. The open state lives in T.state.riskOpen[key] so a
+// re-render keeps it.
+const BAND = (score) => score >= 70 ? ['HIGH', '#F5A623'] : score >= 55 ? ['MEDIUM', '#F5A623'] : score >= 40 ? ['ELEVATED', 'rgba(255,255,255,.7)'] : ['LOW', 'rgba(255,255,255,.45)'];
+
 export function riskEventCard(T, r0) {
   const r = T.riskCardView(r0);
   const s = T.state || {};
@@ -505,38 +561,45 @@ export function riskEventCard(T, r0) {
   // The card opens the market drawer only when the market is in the
   // loaded sample; otherwise it is a plain card (its links still work).
   const klickbar = r.act && r.clickable !== false;
-  const hatDetails = !!(r.detail || r0.context_note || (Array.isArray(r0.components) && r0.components.length) || riskBookEntry(T, r0));
+  const comps = Array.isArray(r0.components) ? r0.components : [];
+  const hatDetails = !!(comps.length || riskBookEntry(T, r0));
+  const score = Number(r.score) || 0;
+  const band = BAND(score);
   const toggle = hatDetails
-    ? '<div data-stop ' + T.act(() => T.setState({ riskOpen: Object.assign({}, s.riskOpen || {}, { [key]: !offen }) })) + ' class="hv-bd32" style="' + M + '; font-size:10.5px; letter-spacing:.06em; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.14); border-radius:6px; padding:4px 9px; cursor:pointer; white-space:nowrap; user-select:none">' + (offen ? 'Why this score ▴' : 'Why this score ▾') + '</div>'
+    ? '<div data-stop ' + T.act(() => T.setState({ riskOpen: Object.assign({}, s.riskOpen || {}, { [key]: !offen }) })) + ' class="hv-bd32" style="' + M + '; font-size:10.5px; letter-spacing:.06em; color:' + (offen ? '#fff' : 'rgba(255,255,255,.6)') + '; border:1px solid rgba(255,255,255,' + (offen ? '.3' : '.14') + '); border-radius:6px; padding:4px 9px; cursor:pointer; white-space:nowrap; user-select:none">' + (offen ? 'Why ' + score + '? ▴' : 'Why ' + score + '? ▾') + '</div>'
     : '';
+  const flags = Array.isArray(r0.flags) && r0.flags.length ? r0.flags : (r.detail && !/^No individual flags/.test(r.detail) ? String(r.detail).split(' · ') : []);
   const details = offen && hatDetails
     ? '<div data-stop style="margin-top:12px; border-top:1px dashed rgba(255,255,255,.1); padding-top:10px; cursor:default">'
-      + (r.detail ? '<div style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:rgba(255,255,255,.4)">FLAGS</div><div style="font-size:12.5px; color:rgba(255,255,255,.65); margin-top:3px; line-height:1.45">' + esc(r.detail) + '</div>' : '')
-      + (r0.context_note ? '<div style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:rgba(255,255,255,.4); margin-top:9px">CONTEXT</div><div style="font-size:12.5px; color:rgba(255,255,255,.65); margin-top:3px; line-height:1.45">' + esc(String(r0.category || '')) + (r0.category ? ' — ' : '') + esc(r0.context_note) + '</div>' : '')
-      + (Array.isArray(r0.components) && r0.components.length ? '<div style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:rgba(255,255,255,.4); margin-top:9px">SCORE COMPONENTS</div><div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:5px">' + riskComponentsHtml(r0.components) + '</div>' : '')
+      + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px; flex-wrap:wrap">'
+      + '<div style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:rgba(255,255,255,.4)">WHY ' + score + ' / 100 · WHAT EACH PART SAW</div>'
+      + (flags.length ? '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.45)">flags: ' + flags.map((f) => esc(String(f))).join(' · ') + '</div>' : '')
+      + '</div>'
+      + (comps.length ? '<div style="margin-top:6px">' + riskScoreBreakdown(comps, score) + '</div>' : '<div style="' + NOTE_R + '; margin-top:6px">' + esc(r.detail || 'No component breakdown in this answer.') + '</div>')
       + riskBookHtml(T, r0)
       + '</div>'
     : '';
   return '<div ' + (klickbar ? r.act + ' class="hv-bd20" ' : '') + 'data-bg style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:16px 18px; ' + (klickbar ? 'cursor:pointer; ' : '') + 'animation:rowIn .25s ease-out">'
-    + '<div style="display:flex; align-items:center; justify-content:space-between; gap:12px">'
-    + '<div style="' + r.kindStyle + '">' + esc(r.kind) + '</div>'
-    + '<div style="display:flex; align-items:baseline; gap:6px"><div style="' + r.scoreStyle + '">' + r.score + '</div>'
-    + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.35)">/100</div></div></div>'
-    + '<div style="font-size:15px; margin-top:10px; line-height:1.35">' + esc(r.market) + (r0.url ? ' ' + marketLink(r0.url) : '') + '</div>'
-    + (r0.category ? '<div style="' + M + '; font-size:10px; letter-spacing:.1em; color:rgba(255,255,255,.4); margin-top:4px"' + (r0.context_note ? ' title="' + esc(r0.context_note) + '"' : '') + '>' + esc(String(r0.category).toUpperCase()) + '</div>' : '')
+    + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px">'
+    + '<div style="' + r.kindStyle + '; padding-top:4px">' + esc(r.kind) + '</div>'
+    + '<div style="text-align:right; flex:none"><div style="display:flex; align-items:baseline; gap:6px; justify-content:flex-end"><div style="' + r.scoreStyle + '">' + r.score + '</div>'
+    + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.35)">/100</div></div>'
+    + '<div style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:' + band[1] + '">' + band[0] + '</div></div></div>'
+    + '<div style="font-size:15px; margin-top:6px; line-height:1.35">' + esc(r.market) + (r0.url ? ' ' + marketLink(r0.url) : '') + '</div>'
+    + '<div style="' + M + '; font-size:10px; letter-spacing:.1em; color:rgba(255,255,255,.4); margin-top:4px"' + (r0.context_note ? ' title="' + esc(r0.context_note) + '"' : '') + '>' + (r0.category ? esc(String(r0.category).toUpperCase()) + ' · ' : '') + esc(String(r.venue || '').toUpperCase()) + '</div>'
     + (hatFlow
       ? '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; align-items:center">' + riskSideChip(r0)
         + '<span style="' + CHIP + '">at flag ' + esc(riskPriceLabel(r0)) + '</span>'
-        + '<span style="' + CHIP + '">' + esc(windowLabel(r0.first_print, r0.last_print, r0.window_minutes)) + '</span></div>'
+        + '<span style="' + CHIP + '">' + esc(windowLabel(r0.first_print, r0.last_print, r0.window_minutes)) + (r0.prints ? ' · ' + r0.prints + ' print' + (r0.prints === 1 ? '' : 's') : '') + '</span></div>'
         + '<div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:8px">' + riskWalletsHtml(r0.top_wallets, r0.wallets) + '</div>'
         + riskBookSummary(T, r0)
       : '<div style="font-size:13px; color:rgba(255,255,255,.6); margin-top:7px; line-height:1.45">' + esc(r.detail) + '</div>')
     + '<div style="height:1px; background:rgba(255,255,255,.07); margin:14px 0 12px"></div>'
     + '<div style="display:flex; gap:22px; align-items:flex-end; justify-content:space-between; flex-wrap:wrap"><div style="display:flex; gap:22px">'
-    + [['WALLETS', r.wallets], ['NOTIONAL', r.notional], ['WINDOW', r.window], ['VENUE', r.venue]].map((p) =>
+    + [['WALLETS', r.wallets], ['NOTIONAL', r.notional], ['WINDOW', r.window]].map((p) =>
       '<div><div style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:rgba(255,255,255,.4)">' + p[0] + '</div><div style="' + M + '; font-size:14px; margin-top:3px">' + esc(String(p[1])) + '</div></div>'
     ).join('')
-    + '</div>' + (hatFlow ? toggle : '') + '</div>'
+    + '</div>' + toggle + '</div>'
     + details
     + '</div>';
 }

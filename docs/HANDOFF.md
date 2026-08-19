@@ -306,10 +306,17 @@ Two hosts, two mechanisms — this cost a session once, so it is spelled out:
   KXSILVER15M/KXHIGHMIA/parlays sat on the risk screen as "General".
 - **Risk event card (2026-08-19):** closed card = kind, score, market, flow
   chips, top wallets, one-line `BOOK NOW 1 adds · 2 not held`, four figures,
-  "Why this score" toggle (`state.riskOpen[market_key]`, not `<details>` —
-  the 30 s re-render would close it). Open = flags, context note, score
-  components, per-wallet book lines. The toggle carries `data-stop` so the
-  card's market-drawer click does not fire.
+  "Why 63?" toggle (`state.riskOpen[market_key]`, not `<details>` — the
+  30 s re-render would close it). Open = the score taken apart
+  (`riskScoreBreakdown`): one row per scoring part with a plain label
+  ("One wallet dominates", not "top-wallet concentration"), a bar against
+  its cap, the points, and under it `fact` / `rule` from
+  `suspicion.event_components` ("0x07be…5233 did 97% of the flow · full marks
+  when one wallet did all of it"); zero parts in one NOT FOUND line; the
+  context multiplier; the arithmetic "56.9 pts × 1.1 = 63" (flagged when the
+  listed parts do not reach the score). `whale_base` rides on the event row
+  so the rule can say "full marks at $100k". The toggle carries `data-stop`
+  so the card's market-drawer click does not fire.
 
 ## 11. Next concrete step
 

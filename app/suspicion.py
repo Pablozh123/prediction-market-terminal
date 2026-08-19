@@ -1192,32 +1192,132 @@ def enrich_event_flow(event_risk: pd.DataFrame, trades: pd.DataFrame, **kwargs: 
 #: Score components an event row can carry, with label and cap. The base
 #: components come from ``whale_event_risk_scores`` (component_* columns),
 #: the bonuses from apply_fresh_wallet_bonus / apply_coordination_bonus.
+def short_wallet(value: Any) -> str:
+    text = str(value or "")
+    return text[:6] + "…" + text[-4:] if len(text) > 12 else text
+
+
 EVENT_COMPONENTS = (
-    ("component_notional", "notional", 15.0),
-    ("component_largest", "largest print", 10.0),
-    ("component_long_odds", "long odds", 10.0),
-    ("component_concentration", "top-wallet concentration", 15.0),
-    ("component_direction", "one-sided flow", 10.0),
-    ("component_burst", "burst", 15.0),
-    ("component_late", "late flow", 15.0),
-    ("price_move_score", "price move", 10.0),
-    ("component_cluster", "multi-wallet burst", 10.0),
-    ("component_fresh_wallets", "fresh-wallet cluster", 10.0),
-    ("component_coordination", "timing cluster", 10.0),
+    # key, label on the card, cap, what the component measures (one line)
+    ("component_notional", "Size of the flow", 15.0, "dollars traded in this market in the window"),
+    ("component_largest", "Biggest single print", 10.0, "the largest one trade"),
+    ("component_long_odds", "Long-odds bet", 10.0, "money placed at 20¢ or below"),
+    ("component_concentration", "One wallet dominates", 15.0, "share of the flow done by the top wallet"),
+    ("component_direction", "One side only", 10.0, "net YES-vs-NO pressure of the flow"),
+    ("component_burst", "Speed", 15.0, "prints per hour in the window"),
+    ("component_late", "Late in the market", 15.0, "share of the flow inside the market's last 48 h"),
+    ("price_move_score", "Price moved their way", 10.0, "price change in the flow's direction within the window"),
+    ("component_cluster", "Several wallets at once", 10.0, "3+ wallets and 10+ prints an hour"),
+    ("component_fresh_wallets", "Fresh wallets", 10.0, "wallets barely seen on the tape, same side"),
+    ("component_coordination", "Same minute, same side", 10.0, "wallets hitting one side within minutes"),
 )
+
+#: Components damped by the sample weight (a handful of prints makes every
+#: distribution "100% one wallet"); the card says so when the weight is < 1.
+_SAMPLE_WEIGHTED = {"component_long_odds", "component_concentration", "component_direction", "component_burst"}
+
+
+def _fnum(getter: Any, key: str, default: float = 0.0) -> float:
+    try:
+        value = float(getter(key, default))
+    except (TypeError, ValueError):
+        return default
+    return default if math.isnan(value) else value
+
+
+def _dollars(value: float) -> str:
+    value = float(value or 0.0)
+    if value >= 1_000_000:
+        return f"${value / 1_000_000:.1f}M"
+    if value >= 1_000:
+        text = f"{value / 1_000:.1f}".rstrip("0").rstrip(".")
+        return f"${text}k"
+    return f"${value:,.0f}"
+
+
+def _component_fact(key: str, getter: Any) -> tuple[str, str]:
+    """(what was observed, what full marks would take) for one component —
+    the plain-words line under the bar on the risk card."""
+
+    base = _fnum(getter, "whale_base", 0.0) or 1_000.0
+    trades = int(_fnum(getter, "trades", 0.0))
+    if key == "component_notional":
+        return (f"{_dollars(_fnum(getter, 'notional'))} traded in the window",
+                f"full marks at {_dollars(base * 40)}")
+    if key == "component_largest":
+        return (f"largest single print {_dollars(_fnum(getter, 'largest_trade'))}",
+                f"full marks at {_dollars(base * 5)}")
+    if key == "component_long_odds":
+        usd = _fnum(getter, "long_odds_notional")
+        share = _fnum(getter, "long_odds_share")
+        if usd <= 0:
+            return ("no money placed at 20¢ or below", "")
+        return (f"{_dollars(usd)} ({share:.0%} of the flow) placed at 20¢ or below",
+                f"full marks near {_dollars(base * 5)} or all of the flow")
+    if key == "component_concentration":
+        share = _fnum(getter, "top_wallet_share")
+        wallet = str(getter("top_wallet", "") or "")
+        who = short_wallet(wallet) if wallet and wallet.lower() != "nan" else "the top wallet"
+        return (f"{who} did {share:.0%} of the flow", "full marks when one wallet did all of it")
+    if key == "component_direction":
+        share = _fnum(getter, "event_directional_share")
+        label = str(getter("event_directional_label", "") or "").upper()
+        if share <= 0.55:
+            return (f"flow split — {share:.0%} net on one side", "points start above 55% net one side")
+        return (f"{share:.0%} of the money net on {label or 'one side'}", "full marks at 100% one side")
+    if key == "component_burst":
+        tph = _fnum(getter, "trades_per_hour")
+        return (f"{trades} print{'s' if trades != 1 else ''} at {tph:.0f} an hour", "full marks from 30 an hour")
+    if key == "component_late":
+        share = _fnum(getter, "late_share")
+        if share <= 0:
+            return ("nothing inside the market's last 48 h", "")
+        return (f"{share:.0%} of the flow inside the market's last 48 h", "full marks when all of it was")
+    if key == "price_move_score":
+        move = _fnum(getter, "price_move")
+        if move <= 0:
+            return ("no move in the flow's direction", "")
+        return (f"price moved {move * 100:+.0f}¢ the flow's way inside the window", "full marks at +10¢")
+    if key == "component_cluster":
+        wallets = int(_fnum(getter, "unique_wallets"))
+        tph = _fnum(getter, "trades_per_hour")
+        return (f"{wallets} wallet{'s' if wallets != 1 else ''}, {tph:.0f} prints an hour",
+                "all or nothing: 3+ wallets and 10+ an hour")
+    if key == "component_fresh_wallets":
+        fresh = int(_fnum(getter, "fresh_wallets"))
+        if fresh < 2:
+            return ("no cluster of barely-seen wallets", "")
+        return (f"{fresh} wallets barely seen on the tape, same side", "full marks at 4")
+    if key == "component_coordination":
+        wallets = int(_fnum(getter, "coordinated_wallets"))
+        if wallets < 3:
+            return ("no three wallets on one side within minutes", "")
+        span = _fnum(getter, "coordinated_span_minutes")
+        outcome = str(getter("coordinated_outcome", "") or "").upper()
+        halved = _fnum(getter, "component_cluster") > 0
+        return (f"{wallets} wallets on {outcome or 'one side'} within {span:.0f} min",
+                "full marks at 5 wallets" + ("; halved because 'several wallets at once' already scored this burst" if halved else ""))
+    return ("", "")
 
 
 def event_components(row: Any) -> list[dict[str, Any]]:
-    """Labelled score components of one event row: [{key, label, value, max}].
+    """Labelled score components of one event row:
+    [{key, label, value, max, measures, fact, rule, weight?}].
 
-    Only columns present on the row are listed (an older frame without the
-    component columns yields an empty list, never invented zeros). The
-    context multiplier is appended as its own entry when the row carries one.
+    ``fact`` is what the tape showed ("0x07be…5233 did 97% of the flow"),
+    ``rule`` what full marks would take ("full marks when one wallet did all
+    of it"), ``measures`` the one-line definition; ``weight`` < 1 names the
+    sample damping on the distribution components. Only columns present on
+    the row are listed (an older frame without the component columns yields
+    an empty list, never invented zeros). The context multiplier is appended
+    as its own entry when the row carries one.
     """
 
     getter = row.get if hasattr(row, "get") else (lambda key, default=None: default)
     parts: list[dict[str, Any]] = []
-    for key, label, cap in EVENT_COMPONENTS:
+    weight = _fnum(getter, "distribution_sample_weight", 1.0)
+    trades = int(_fnum(getter, "trades", 0.0))
+    for key, label, cap, measures in EVENT_COMPONENTS:
         value = getter(key, None)
         try:
             number = float(value)
@@ -1225,12 +1325,23 @@ def event_components(row: Any) -> list[dict[str, Any]]:
             continue
         if math.isnan(number):
             continue
-        parts.append({"key": key, "label": label, "value": round(number, 1), "max": cap})
+        fact, rule = _component_fact(key, getter)
+        entry: dict[str, Any] = {"key": key, "label": label, "value": round(number, 1), "max": cap,
+                                 "measures": measures, "fact": fact, "rule": rule}
+        if key in _SAMPLE_WEIGHTED and weight < 1.0:
+            entry["weight"] = round(weight, 2)
+            entry["weight_note"] = f"damped ×{weight:.2f}: only {trades} print{'s' if trades != 1 else ''} in the sample"
+        parts.append(entry)
     multiplier = getter("context_multiplier", None)
     try:
         factor = float(multiplier)
     except (TypeError, ValueError):
         factor = None
     if factor is not None and not math.isnan(factor):
-        parts.append({"key": "context_multiplier", "label": "context multiplier", "value": round(factor, 2), "max": None})
+        context = str(getter("insider_context", "") or "")
+        note = str(getter("context_note", "") or "")
+        parts.append({"key": "context_multiplier", "label": "Context", "value": round(factor, 2), "max": None,
+                      "measures": "insider plausibility of the market's subject",
+                      "fact": (context + (" — " + note if note else "")) if context else note,
+                      "rule": "points × the multiplier; politics, awards and corporate decisions count more, general topics ×1"})
     return parts

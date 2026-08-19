@@ -209,12 +209,14 @@ function mitDaten(T) {
       { wallet: '0xbbb2000000000000000000000000000000000002', short: '0xbbb2…0002', notional: 26000, share: 0.65, side: 'NO buys', fresh: true, url: 'https://polymarket.com/profile/0xbbb2000000000000000000000000000000000002' },
       { wallet: '0xaaa1000000000000000000000000000000000001', short: '0xaaa1…0001', notional: 8000, share: 0.2, side: 'NO buys', fresh: false, url: 'https://polymarket.com/profile/0xaaa1000000000000000000000000000000000001' }
     ],
+    // Components as app.suspicion.event_components ships them: plain label,
+    // points, cap, what it measures, what the tape showed, what full marks take.
     components: [
-      { key: 'component_notional', label: 'notional', value: 6.0, max: 15 },
-      { key: 'component_concentration', label: 'top-wallet concentration', value: 9.8, max: 15 },
-      { key: 'component_late', label: 'late flow', value: 0, max: 15 },
-      { key: 'component_fresh_wallets', label: 'fresh-wallet cluster', value: 5.0, max: 10 },
-      { key: 'context_multiplier', label: 'context multiplier', value: 1.1, max: null }
+      { key: 'component_notional', label: 'Size of the flow', value: 6.0, max: 15, measures: 'dollars traded in this market in the window', fact: '$40k traded in the window', rule: 'full marks at $100k' },
+      { key: 'component_concentration', label: 'One wallet dominates', value: 9.8, max: 15, measures: 'share of the flow done by the top wallet', fact: '0xbbb2…0002 did 65% of the flow', rule: 'full marks when one wallet did all of it' },
+      { key: 'component_late', label: 'Late in the market', value: 0, max: 15, measures: "share of the flow inside the market's last 48 h", fact: "nothing inside the market's last 48 h", rule: '' },
+      { key: 'component_fresh_wallets', label: 'Fresh wallets', value: 5.0, max: 10, measures: 'wallets barely seen on the tape, same side', fact: '2 wallets barely seen on the tape, same side', rule: 'full marks at 4' },
+      { key: 'context_multiplier', label: 'Context', value: 1.1, max: null, measures: "insider plausibility of the market's subject", fact: 'Politics & geopolitics — decisions are known to officials before the public', rule: 'points × the multiplier; politics, awards and corporate decisions count more, general topics ×1' }
     ],
     token_id: 'tokNO'
   }, {

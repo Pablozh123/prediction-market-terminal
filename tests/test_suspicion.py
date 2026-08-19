@@ -953,3 +953,60 @@ class KalshiTickerContextTests(unittest.TestCase):
         # A conditionId is no ticker: nothing is appended, the title decides.
         self.assertEqual(susp._context_with_ticker("0x" + "a" * 64, {}), "")
         self.assertEqual(susp._context_with_ticker("KXFED-26SEP", {"KXFED-26SEP": "parent"}), "parent KXFED-26SEP")
+
+
+class EventComponentFactsTests(unittest.TestCase):
+    """Each score component carries what the tape showed and what full marks
+    would take, in plain words, from the row's own columns."""
+
+    def _row(self) -> dict:
+        return {
+            "component_notional": 0.2, "component_largest": 0.8, "component_long_odds": 0.0,
+            "component_concentration": 14.5, "component_direction": 10.0, "component_burst": 15.0,
+            "component_late": 0.0, "price_move_score": 2.4, "component_cluster": 10.0,
+            "component_fresh_wallets": 0.0, "component_coordination": 4.0,
+            "context_multiplier": 1.1, "insider_context": "Politics & geopolitics",
+            "context_note": "decisions are known to officials before the public",
+            "whale_base": 2500.0, "notional": 1020.0, "largest_trade": 400.0,
+            "top_wallet": "0x07be0000000000000000000000000000005233", "top_wallet_share": 0.97,
+            "event_directional_share": 0.97, "event_directional_label": "NO",
+            "trades": 5, "trades_per_hour": 60.0, "price_move": 0.024, "unique_wallets": 4,
+            "coordinated_wallets": 4, "coordinated_span_minutes": 0.2, "coordinated_outcome": "NO",
+            "distribution_sample_weight": 1.0, "late_share": 0.0, "long_odds_notional": 0.0, "fresh_wallets": 0,
+        }
+
+    def test_facts_and_rules(self) -> None:
+        parts = {c["key"]: c for c in susp.event_components(self._row())}
+        self.assertEqual(parts["component_notional"]["label"], "Size of the flow")
+        self.assertEqual(parts["component_notional"]["fact"], "$1k traded in the window")
+        self.assertEqual(parts["component_notional"]["rule"], "full marks at $100k")
+        self.assertEqual(parts["component_largest"]["rule"], "full marks at $12.5k")
+        self.assertEqual(parts["component_concentration"]["fact"], "0x07be…5233 did 97% of the flow")
+        self.assertEqual(parts["component_direction"]["fact"], "97% of the money net on NO")
+        self.assertEqual(parts["component_burst"]["fact"], "5 prints at 60 an hour")
+        self.assertEqual(parts["price_move_score"]["fact"], "price moved +2¢ the flow's way inside the window")
+        self.assertEqual(parts["component_cluster"]["fact"], "4 wallets, 60 prints an hour")
+        self.assertEqual(parts["component_coordination"]["fact"], "4 wallets on NO within 0 min")
+        self.assertIn("halved because", parts["component_coordination"]["rule"])
+        self.assertEqual(parts["component_long_odds"]["fact"], "no money placed at 20¢ or below")
+        self.assertEqual(parts["component_long_odds"]["rule"], "")
+        self.assertEqual(parts["context_multiplier"]["label"], "Context")
+        self.assertEqual(parts["context_multiplier"]["fact"], "Politics & geopolitics — decisions are known to officials before the public")
+        self.assertNotIn("weight", parts["component_concentration"])
+        # Every component names what it measures.
+        self.assertTrue(all(c["measures"] for c in parts.values()))
+
+    def test_sample_weight_is_named(self) -> None:
+        row = self._row()
+        row["distribution_sample_weight"] = 0.5
+        row["trades"] = 3
+        parts = {c["key"]: c for c in susp.event_components(row)}
+        self.assertEqual(parts["component_concentration"]["weight"], 0.5)
+        self.assertEqual(parts["component_concentration"]["weight_note"], "damped ×0.50: only 3 prints in the sample")
+        self.assertNotIn("weight", parts["component_notional"])
+
+    def test_missing_columns_yield_nothing_invented(self) -> None:
+        self.assertEqual(susp.event_components({}), [])
+        parts = susp.event_components({"component_burst": 3.0})
+        self.assertEqual(len(parts), 1)
+        self.assertEqual(parts[0]["fact"], "0 prints at 0 an hour")

@@ -3489,6 +3489,9 @@ def whale_event_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_00
     # Die Punkte je Komponente bleiben als Spalten stehen: der Risk-Screen
     # und das Flag-Log zeigen "warum" als beschriftete Zahlen, nicht als
     # zusammengesetzten String (app.suspicion.event_components).
+    # The scale the points were measured on travels with the row, so the
+    # card can say "full marks at $100k" instead of a bare "0.2/15".
+    grouped["whale_base"] = float(whale_base)
     grouped["component_notional"] = notional_score.round(1)
     grouped["component_largest"] = largest_score.round(1)
     grouped["component_long_odds"] = long_odds_score.round(1)

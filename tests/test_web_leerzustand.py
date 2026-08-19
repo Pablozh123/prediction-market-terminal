@@ -1032,19 +1032,34 @@ class WebLeerzustandTest(unittest.TestCase):
         # components, the context note as a tooltip on the category; the
         # "Why this score" toggle opens them (state riskOpen, not <details>,
         # so the 30 s re-render keeps it open).
-        self.assertIn("POLITICS &amp; GEOPOLITICS NO buys", text)
+        self.assertIn("TIMING 61 /100 MEDIUM Example question", text)
+        self.assertIn("POLITICS &amp; GEOPOLITICS · POLYMARKET NO buys", text)
         self.assertIn('title="decisions are known to officials before the public"', html)
-        self.assertNotIn("top-wallet concentration", text)
+        self.assertIn("20 min · 4 prints", text)
+        self.assertNotIn("One wallet dominates", text)
         self.assertNotIn("three wallets, one side", text.split("EVENT SCREEN")[0])
-        self.assertIn("VENUE Polymarket Why this score ▾", text)
+        self.assertIn("WINDOW 2 h Why 61? ▾", text)
+        self.assertIn("EVENT SCREEN 44 /100 ELEVATED KXFED-26SEP KALSHI", text)
+        # Open: the score taken apart — one row per scoring part with its
+        # bar, points, what the tape showed and what full marks take; the
+        # zero parts in one "not found" line; the context multiplier; the
+        # arithmetic, which says so when the listed parts do not reach the
+        # score (this fixture lists four of eleven).
         offen = _sichtbarer_text(self.ausgabe["live"]["risk_open"])
-        self.assertIn("Why this score ▴ FLAGS three wallets, one side CONTEXT Politics &amp; geopolitics — decisions are known to officials before the public SCORE COMPONENTS notional 6/15 top-wallet concentration 9.8/15 fresh-wallet cluster 5/10 context multiplier ×1.1", offen)
-        # A zero component is not listed; the joined flag string is not the
-        # only explanation any more.
-        self.assertNotIn("late flow 0/15", offen)
+        offen_html = self.ausgabe["live"]["risk_open"]
+        self.assertIn("Why 61? ▴ WHY 61 / 100 · WHAT EACH PART SAW flags: three wallets, one side", offen)
+        self.assertIn("One wallet dominates 9.8 /15 0xbbb2…0002 did 65% of the flow · full marks when one wallet did all of it", offen)
+        self.assertIn("Size of the flow 6 /15 $40k traded in the window · full marks at $100k", offen)
+        self.assertIn("Fresh wallets 5 /10 2 wallets barely seen on the tape, same side · full marks at 4", offen)
+        self.assertIn("NOT FOUND late in the market (nothing inside the market's last 48 h)", offen)
+        self.assertIn("Context Politics &amp; geopolitics — decisions are known to officials before the public", offen)
+        self.assertIn("20.8 pts × 1.1 = 23 / 100 · the card says 61 — parts missing from this answer", offen)
+        self.assertIn("width:65.3%", offen_html)           # 9.8 / 15 bar
+        self.assertIn('title="share of the flow done by the top wallet"', offen_html)
         # The toggle must not trigger the card action, and the open block
         # neither.
         self.assertIn('<div data-stop data-act="0" class="hv-bd32"', html)
+        self.assertIn('<div data-stop style="margin-top:12px; border-top:1px dashed', offen_html)
         # The older row renders as before: no side chip, no price, no invented
         # wallet or component.
         self.assertIn("KXFED-26SEP", text)
