@@ -105,7 +105,7 @@ _TITLE_PATTERNS = (
     # Public asset prices: crypto, indices, commodities, market caps. "Up or
     # Down" is Polymarket's price-series format (Bitcoin/BNB/WTI Up or Down -
     # <window>); "hit (HIGH) $" is its commodity/valuation ladder format.
-    (re.compile(r"\bbitcoin\b|\bbtc\b|\bethereum\b|\beth\b|\bsolana\b|\bxrp\b|\bdogecoin\b|\bbnb\b|\bcrypto\b|\btoken\b|\bs&p\b|\bnasdaq\b|\bstock price\b|\bshare price\b|\bgold price\b|\boil price\b|\bgas prices?\b|\bsilver price\b|\bcrude oil\b|\bwti\b|\bbrent\b|\bmarket cap\b|\bup or down\b|\b(?:hit|reach) (?:\((?:high|low)\) )?\$", re.I), CONTEXT_MARKET_PRICES),
+    (re.compile(r"\bbitcoin\b|\bbtc\b|\bethereum\b|\beth\b|\bsolana\b|\bxrp\b|\bdogecoin\b|\bbnb\b|\bcrypto\b|\btoken\b|\bs&p\b|\bnasdaq\b|\bstock price\b|\bshare price\b|\bgold price\b|\boil price\b|\bgas prices?\b|\bsilver price\b|\btreasury yield\b|\bclose price\b|\bexchange rate\b|\bcrude oil\b|\bwti\b|\bbrent\b|\bmarket cap\b|\bup or down\b|\b(?:hit|reach) (?:\((?:high|low)\) )?\$", re.I), CONTEXT_MARKET_PRICES),
     # Kalshi price tickers. The API tape carries the raw ticker as title
     # (KXBTC15M-26AUG16-1345, KXETHD-…, KXWTI15M-…, KXINXD-…) and "\bbtc\b"
     # cannot see "btc" inside "KXBTC15M". Every KX…15M ticker is a 15-minute
