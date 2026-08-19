@@ -296,6 +296,20 @@ Two hosts, two mechanisms — this cost a session once, so it is spelled out:
   der Meer (downside RMS over all days) and is None under 3 losing days
   (`perf_metrics.MIN_DOWNSIDE_DAYS`) — the old losers-only denominator printed
   246,860 for Theo4 off one −$21 day.
+- **Kalshi titles on the tape (2026-08-19):** the trade feed carries tickers
+  only; `md.enrich_kalshi_tape` (memoised per ticker, `kalshi_market_meta`)
+  swaps them for `kalshi_display_title` — question plus strike ("Bitcoin price
+  on Aug 19? · $68,200 or above"), parlays as "Parlay · N legs: …". Kalshi
+  prints now carry `market_key = ticker`, and `app/suspicion` feeds the ticker
+  into the context classifier as context (`_context_with_ticker`), so the
+  KX… exclusion patterns still fire when the title is the question. Before,
+  KXSILVER15M/KXHIGHMIA/parlays sat on the risk screen as "General".
+- **Risk event card (2026-08-19):** closed card = kind, score, market, flow
+  chips, top wallets, one-line `BOOK NOW 1 adds · 2 not held`, four figures,
+  "Why this score" toggle (`state.riskOpen[market_key]`, not `<details>` —
+  the 30 s re-render would close it). Open = flags, context note, score
+  components, per-wallet book lines. The toggle carries `data-stop` so the
+  card's market-drawer click does not fire.
 
 ## 11. Next concrete step
 

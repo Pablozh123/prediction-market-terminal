@@ -105,7 +105,7 @@ _TITLE_PATTERNS = (
     # Public asset prices: crypto, indices, commodities, market caps. "Up or
     # Down" is Polymarket's price-series format (Bitcoin/BNB/WTI Up or Down -
     # <window>); "hit (HIGH) $" is its commodity/valuation ladder format.
-    (re.compile(r"\bbitcoin\b|\bbtc\b|\bethereum\b|\beth\b|\bsolana\b|\bxrp\b|\bdogecoin\b|\bbnb\b|\bcrypto\b|\btoken\b|\bs&p\b|\bnasdaq\b|\bstock price\b|\bshare price\b|\bgold price\b|\boil price\b|\bcrude oil\b|\bwti\b|\bbrent\b|\bmarket cap\b|\bup or down\b|\b(?:hit|reach) (?:\((?:high|low)\) )?\$", re.I), CONTEXT_MARKET_PRICES),
+    (re.compile(r"\bbitcoin\b|\bbtc\b|\bethereum\b|\beth\b|\bsolana\b|\bxrp\b|\bdogecoin\b|\bbnb\b|\bcrypto\b|\btoken\b|\bs&p\b|\bnasdaq\b|\bstock price\b|\bshare price\b|\bgold price\b|\boil price\b|\bgas prices?\b|\bsilver price\b|\bcrude oil\b|\bwti\b|\bbrent\b|\bmarket cap\b|\bup or down\b|\b(?:hit|reach) (?:\((?:high|low)\) )?\$", re.I), CONTEXT_MARKET_PRICES),
     # Kalshi price tickers. The API tape carries the raw ticker as title
     # (KXBTC15M-26AUG16-1345, KXETHD-…, KXWTI15M-…, KXINXD-…) and "\bbtc\b"
     # cannot see "btc" inside "KXBTC15M". Every KX…15M ticker is a 15-minute
@@ -119,7 +119,7 @@ _TITLE_PATTERNS = (
     # suffix families for sports, and the HIGH/LOW/TEMP/RAIN/SNOW families for
     # weather. Both stay excluded from the insider screen for the same reason
     # as their Polymarket counterparts.
-    (re.compile(r"\bkx(?:atp|wta|mlb|nba|wnba|nfl|nhl|ufc|mma|pga|lpga|f1|nascar|mls|epl|ucl|laliga|bundesliga|seriea|ligue1|valorant|cs2|csgo|lol|dota|tennis|golf|soccer|ncaa[a-z]*|[a-z0-9]*(?:game|match|set|map|series|round|race|fight))(?:[a-z0-9]*)?(?=-|\b)", re.I), CONTEXT_SPORTS),
+    (re.compile(r"\bkx(?:atp|wta|mlb|nba|wnba|nfl|nhl|ufc|mma|pga|lpga|f1|nascar|mls|epl|ucl|laliga|bundesliga|seriea|ligue1|valorant|cs2|csgo|lol|dota|tennis|golf|soccer|ncaa[a-z]*|mve[a-z]*|itf[a-z]*|[a-z0-9]*(?:game|match|set|map|series|round|race|fight))(?:[a-z0-9]*)?(?=-|\b)", re.I), CONTEXT_SPORTS),
     (re.compile(r"\bkx(?:high|low|temp|rain|snow|wind|hurr|precip|heat)[a-z0-9]*(?=-|\b)", re.I), CONTEXT_WEATHER),
     (re.compile(r"\bceasefire\b|\bsanctions?\b|\btariffs?\b|\btreaty\b|\bagreement\b|\bexecutive order\b|\bmilitary\b|(?<!-)\bstrikes?\b|\binvasion\b|\bnato\b|\bsummit\b|\belections?\b|\bpresident\b|\bminister\b|\bparliament\b|\bcongress\b|\bsenate\b|\bimpeach|\bputin\b|\bzelensky?y?\b|\bnetanyahu\b|\bxi jinping\b|\bkim jong\b", re.I), CONTEXT_POLITICS),
     # Spieltag-Untermaerkte ohne Kontexttitel. "Will FC Thun win on
@@ -127,7 +127,7 @@ _TITLE_PATTERNS = (
     # kennt, und rutschte deshalb als "General" in den Insider-Screen. Diese
     # Regel steht bewusst hinter Politik und Konzernen: "Will the president
     # win on ..." soll weiterhin Politik bleiben, nicht Sport.
-    (re.compile(r"\bfc\b|\bwin on \d{4}-\d{2}-\d{2}\b|\bwin their match\b|\bto lift the\b", re.I), CONTEXT_SPORTS),
+    (re.compile(r"\bfc\b|\bwin on \d{4}-\d{2}-\d{2}\b|\bwin their match\b|\bto lift the\b|^parlay · \d+ legs:", re.I), CONTEXT_SPORTS),
     (re.compile(r"\bvs\.?\b", re.I), CONTEXT_SPORTS),
 )
 
@@ -166,6 +166,51 @@ def _category_context_maps(market_categories: pd.DataFrame | None) -> tuple[dict
     if "context_text" in market_categories.columns:
         context_map = dict(zip(keys, market_categories["context_text"].fillna("").astype(str)))
     return category_map, context_map
+
+
+_KALSHI_TICKER_RE = re.compile(r"^KX[A-Z0-9]+(?:-[A-Z0-9.]+)+$", re.I)
+
+
+def _keys_with_ticker(frame: pd.DataFrame) -> pd.Series:
+    """market_key per row, or the Kalshi ticker where the key is empty —
+    Kalshi prints carry no market_key, the ticker is their key."""
+
+    keys = frame.get("market_key", pd.Series("", index=frame.index)).fillna("").astype(str)
+    if "ticker" in frame.columns:
+        ticker = frame["ticker"].fillna("").astype(str)
+        keys = keys.where(keys.str.strip().ne("") & keys.str.lower().ne("nan"), ticker)
+    return keys
+
+
+def _row_key(row: Any) -> str:
+    """market_key of one row, or its Kalshi ticker when the key is missing
+    or NaN (a frame with both kinds of rows has NaN in the other column)."""
+
+    for field in ("market_key", "ticker"):
+        value = row.get(field, "") if hasattr(row, "get") else ""
+        text = "" if value is None else str(value).strip()
+        if text and text.lower() != "nan":
+            return text
+    return ""
+
+
+def _context_with_ticker(key: Any, context_map: dict[str, str]) -> str:
+    """Context text for a market key: the parent-event text, plus the key
+    itself when it is a Kalshi ticker.
+
+    The tape used to carry the Kalshi ticker as the title, and the KX…
+    patterns above read it there. Now the title is the market's question
+    ("Silver price up in next 15 mins?") and the ticker lives only in
+    market_key — so the ticker rides along as context, and KXSILVER15M still
+    says "market price", KXHIGHMIA still says "weather", whatever the
+    question's wording.
+    """
+
+    key_text = str(key or "")
+    extra = context_map.get(key_text, "")
+    if _KALSHI_TICKER_RE.match(key_text):
+        return f"{extra} {key_text}".strip()
+    return extra
 
 
 def risk_level(score: Any) -> str:
@@ -278,12 +323,12 @@ def filter_insider_prone_trades(
     if trades is None or trades.empty or "title" not in trades.columns:
         return trades if trades is not None else pd.DataFrame()
     category_map, context_map = _category_context_maps(market_categories)
-    keys = trades.get("market_key", pd.Series("", index=trades.index)).astype(str)
+    keys = _keys_with_ticker(trades)
     cache: dict[tuple[str, str, str], str] = {}
     groups = [
         cache.setdefault(
-            (title, category_map.get(key, ""), context_map.get(key, "")),
-            classify_insider_context(title, category_map.get(key, ""), context_map.get(key, ""))[0],
+            (title, category_map.get(key, ""), _context_with_ticker(key, context_map)),
+            classify_insider_context(title, category_map.get(key, ""), _context_with_ticker(key, context_map))[0],
         )
         for title, key in zip(trades["title"].astype(str), keys)
     ]
@@ -317,11 +362,11 @@ def dominant_context_map(trades: pd.DataFrame, market_categories: pd.DataFrame |
         return {}
     category_map, context_map = _category_context_maps(market_categories)
     title_groups: dict[tuple[str, str, str], str] = {}
-    keys = df.get("market_key", pd.Series("", index=df.index)).astype(str)
+    keys = _keys_with_ticker(df)
     df["_group"] = [
         title_groups.setdefault(
-            (title, category_map.get(key, ""), context_map.get(key, "")),
-            classify_insider_context(title, category_map.get(key, ""), context_map.get(key, ""))[0],
+            (title, category_map.get(key, ""), _context_with_ticker(key, context_map)),
+            classify_insider_context(title, category_map.get(key, ""), _context_with_ticker(key, context_map))[0],
         )
         for title, key in zip(df["title"].astype(str), keys)
     ]
@@ -743,7 +788,7 @@ def apply_category_context(event_risk: pd.DataFrame, market_categories: pd.DataF
         classify_insider_context(
             row.get("title", ""),
             category_map.get(str(row.get("market_key", "")), ""),
-            context_map.get(str(row.get("market_key", "")), ""),
+            _context_with_ticker(_row_key(row), context_map),
         )
         for _, row in enriched.iterrows()
     ]
@@ -782,7 +827,7 @@ def apply_wallet_category_context(
         classify_insider_context(
             row.get("title", ""),
             category_map.get(str(row.get("market_key", "")), ""),
-            context_map.get(str(row.get("market_key", "")), ""),
+            _context_with_ticker(_row_key(row), context_map),
         )
         for _, row in df.iterrows()
     ]

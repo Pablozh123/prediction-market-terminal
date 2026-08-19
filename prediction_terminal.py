@@ -2085,32 +2085,9 @@ def load_polymarket_trades(limit: int, min_cash: float, user: str | None = None,
 
 
 def _enrich_kalshi_tape(tape: pd.DataFrame) -> pd.DataFrame:
-    """Swap ticker placeholders for real market titles (+ category/end time).
+    """Ticker placeholders -> market titles; the shared, memoised reader."""
 
-    Kalshi's trade feed only carries tickers like KXWCSPREAD-26JUN11MEXRSA-MEX2 —
-    unreadable in any table. One markets lookup per refresh fixes every consumer.
-    """
-
-    if tape is None or tape.empty or "ticker" not in tape.columns:
-        return tape
-    try:
-        meta = md.get_kalshi_markets(tickers=tape["ticker"].astype(str).tolist())
-    except md.MarketDataError:
-        return tape
-    if meta is None or meta.empty or "ticker" not in meta.columns:
-        return tape
-    meta = meta.drop_duplicates(subset=["ticker"]).set_index("ticker")
-    tape = tape.copy()
-    tickers = tape["ticker"].astype(str)
-    if "title" in meta.columns:
-        titles = tickers.map(meta["title"]).fillna("").astype(str)
-        fallback = tape["title"].astype(str) if "title" in tape.columns else tickers
-        tape["title"] = titles.where(titles.str.strip().ne(""), fallback)
-    if "category" in meta.columns:
-        tape["category"] = tickers.map(meta["category"]).fillna("").astype(str)
-    if "end_time" in meta.columns:
-        tape["end_time"] = pd.to_datetime(tickers.map(meta["end_time"]), utc=True, errors="coerce")
-    return tape
+    return md.enrich_kalshi_tape(tape)
 
 
 @st.cache_data(ttl=45, show_spinner=False)

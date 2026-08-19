@@ -919,3 +919,37 @@ class EventComponentTests(unittest.TestCase):
         parts = susp.event_components(row)
         self.assertEqual([p["key"] for p in parts], ["component_burst", "context_multiplier"])
         self.assertEqual(parts[0]["value"], 3.2)
+
+
+class KalshiTickerContextTests(unittest.TestCase):
+    """Kalshi prints now carry the market's question as title; the KX… ticker
+    patterns still apply because the ticker rides along as context."""
+
+    def _tape(self) -> pd.DataFrame:
+        return pd.DataFrame([
+            {"platform": "Kalshi", "title": "Silver price up in next 15 mins? · Target Price: $65.758", "ticker": "KXSILVER15M-26AUG191430-30", "market_key": "KXSILVER15M-26AUG191430-30", "wallet": "", "notional": 500.0},
+            {"platform": "Kalshi", "title": "Will the temp in Miami be above 94.99° on Aug 19, 2026?", "ticker": "KXHIGHMIA-26AUG19-T94.99", "market_key": "", "wallet": "", "notional": 500.0},
+            {"platform": "Kalshi", "title": "Parlay · 2 legs: yes Detroit · yes Atlanta", "ticker": "KXMVECROSSCATEGORY-SHARD1-S2026-AB", "market_key": "KXMVECROSSCATEGORY-SHARD1-S2026-AB", "wallet": "", "notional": 500.0},
+            {"platform": "Kalshi", "title": "Will Insidious have the highest Rotten Tomatoes score on Aug 24, 2026?", "ticker": "KXRTCOMPARE-INS26AUG24-INS", "market_key": "KXRTCOMPARE-INS26AUG24-INS", "wallet": "", "notional": 500.0},
+            {"platform": "Polymarket", "title": "Will ACM Neto win the 2026 Bahia gubernatorial election?", "market_key": "0x" + "a" * 64, "wallet": "0x" + "b" * 40, "notional": 500.0},
+        ])
+
+    def test_filter_reads_the_ticker_when_the_title_is_the_question(self) -> None:
+        kept = susp.filter_insider_prone_trades(self._tape())
+        self.assertEqual(kept["title"].tolist(), [
+            "Will Insidious have the highest Rotten Tomatoes score on Aug 24, 2026?",
+            "Will ACM Neto win the 2026 Bahia gubernatorial election?",
+        ])
+
+    def test_event_context_reads_the_ticker(self) -> None:
+        events = pd.DataFrame([
+            {"title": "Silver price up in next 15 mins?", "ticker": "KXSILVER15M-26AUG191430-30", "event_insider_score": 60.0, "notional": 500.0},
+            {"title": "Will the temp in Miami be above 94.99°?", "market_key": "KXHIGHMIA-26AUG19-T94.99", "event_insider_score": 60.0, "notional": 500.0},
+        ])
+        out = susp.apply_category_context(events)
+        self.assertEqual(set(out["insider_context"]), {susp.CONTEXT_MARKET_PRICES, susp.CONTEXT_WEATHER})
+
+    def test_polymarket_keys_are_not_context(self) -> None:
+        # A conditionId is no ticker: nothing is appended, the title decides.
+        self.assertEqual(susp._context_with_ticker("0x" + "a" * 64, {}), "")
+        self.assertEqual(susp._context_with_ticker("KXFED-26SEP", {"KXFED-26SEP": "parent"}), "parent KXFED-26SEP")

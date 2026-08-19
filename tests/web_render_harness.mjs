@@ -51,7 +51,7 @@ function neuesT() {
       setMarketSample: 250, setTradeSample: 250, setWhale: 2500, setBankroll: 1000,
       setFee: 20, setSlip: 15, alertTab: 'signals', alertQuery: '', alertPlatform: 'all',
       alertType: 'all', alertScope: 'all', thMove: 5, thSpread: 3, thWhale: 2500,
-      thEnding: 72, thHolder: 40, riskFilter: 'all', detail: null, searchOpen: false,
+      thEnding: 72, thHolder: 40, riskFilter: 'all', riskOpen: {}, detail: null, searchOpen: false,
       searchQuery: '', btStrategy: 'copy', btWindow: 30, btWallet: '0xabc', btSizing: 'fixed',
       btStakeFixed: 25, btStakePct: 2, btStakeMult: 1, btStakeKelly: 5, btCap: 250,
       btExposure: 50, btBankroll: 1000, btFee: 20, btSlip: 15, btCompare: '', btTab: 'log',
@@ -861,6 +861,15 @@ function rendern(T) {
     // The wallet-book line on the risk card: answered (net NO, the NO buys add
     // to the book), and failed (not read, no side invented).
     ['risk_book', 'risk', {}, null, (T) => {
+      T.liveData.riskBook[HARNESS_CONDITION] = { herkunft: 'live', data: { market_key: HARNESS_CONDITION, flagged_side: 'NO buys', wallets: [
+        { wallet: '0xbbb2000000000000000000000000000000000002', short: '0xbbb2…0002', read: true, positions: 1, yes_shares: 0, no_shares: 12000, yes_value: 0, no_value: 4080, net: 'NO', net_shares: 12000, relation: 'adds', text: 'holds 0 YES / 12.0k NO now — net NO; the flagged NO buys add to that side' },
+        { wallet: '0xaaa1000000000000000000000000000000000001', short: '0xaaa1…0001', read: true, positions: 2, yes_shares: 9000, no_shares: 200, yes_value: 5940, no_value: 68, net: 'YES', net_shares: 8800, relation: 'reduces', text: 'holds 9.00k YES / 200 NO now — net YES; the flagged NO buys work against a YES book (hedge / closing / merging), not a new NO bet' }
+      ], dropped: 0, note: 'read now' } };
+    }],
+    // The card opened ("Why this score"): flags, context, score components
+    // and the per-wallet book lines appear; closed, the card carries the
+    // one-line book summary only.
+    ['risk_open', 'risk', { riskOpen: { [HARNESS_CONDITION]: true } }, null, (T) => {
       T.liveData.riskBook[HARNESS_CONDITION] = { herkunft: 'live', data: { market_key: HARNESS_CONDITION, flagged_side: 'NO buys', wallets: [
         { wallet: '0xbbb2000000000000000000000000000000000002', short: '0xbbb2…0002', read: true, positions: 1, yes_shares: 0, no_shares: 12000, yes_value: 0, no_value: 4080, net: 'NO', net_shares: 12000, relation: 'adds', text: 'holds 0 YES / 12.0k NO now — net NO; the flagged NO buys add to that side' },
         { wallet: '0xaaa1000000000000000000000000000000000001', short: '0xaaa1…0001', read: true, positions: 2, yes_shares: 9000, no_shares: 200, yes_value: 5940, no_value: 68, net: 'YES', net_shares: 8800, relation: 'reduces', text: 'holds 9.00k YES / 200 NO now — net YES; the flagged NO buys work against a YES book (hedge / closing / merging), not a new NO bet' }

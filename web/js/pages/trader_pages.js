@@ -353,33 +353,64 @@ export function riskWalletsHtml(wallets, count) {
   }).join('');
 }
 
-// The book behind the flow: what the top wallets hold in this market right
-// now (/api/risk/book), and whether the flagged flow adds to that book, works
-// against it (hedge / closing / merging) or exits it. A wallet on 12k NO that
-// buys YES is not a YES bet — the tape says "YES buys", the book says "net
-// NO"; this line says which. Polymarket only (Kalshi has no wallets); read
-// now, not at flag time; "reading" until the answer is there.
-export function riskBookHtml(T, r) {
-  if (!r || !Array.isArray(r.top_wallets) || !r.top_wallets.length) return '';
-  if (String(r.venue || 'Polymarket').toLowerCase() !== 'polymarket') return '';
+// Reads the book answer for a card: null when the card has no wallets or is
+// not a Polymarket conditionId (Kalshi has no wallets); otherwise the cached
+// entry (loading / fehler / live) after asking for it once.
+function riskBookEntry(T, r) {
+  if (!r || !Array.isArray(r.top_wallets) || !r.top_wallets.length) return null;
+  if (String(r.venue || 'Polymarket').toLowerCase() !== 'polymarket') return null;
   const key = String(r.market_key || '');
-  if (!/^0x[0-9a-f]{64}$/i.test(key)) return '';
+  if (!/^0x[0-9a-f]{64}$/i.test(key)) return null;
   if (typeof T.fetchRiskBook === 'function') T.fetchRiskBook(key, r.top_wallets, r.side || '');
   const eintrag = T.liveData && T.liveData.riskBook ? T.liveData.riskBook[key] : null;
+  return eintrag || { herkunft: 'loading' };
+}
+
+const BOOK_FARBE = (rel) => rel === 'adds' || rel === 'new_bet' ? '#C8F542' : rel === 'reduces' || rel === 'hedge' || rel === 'exit' ? '#F5A623' : 'rgba(255,255,255,.6)';
+const BOOK_WORT = (rel) => rel === 'adds' ? 'ADDS TO BOOK' : rel === 'reduces' ? 'HEDGE / CLOSING' : rel === 'hedge' ? 'HEDGED BOTH SIDES' : rel === 'exit' ? 'EXIT' : rel === 'new_bet' ? 'NOT HELD NOW' : 'BOOK';
+const BOOK_KURZ = (rel) => rel === 'adds' ? 'adds' : rel === 'reduces' ? 'hedge / closing' : rel === 'hedge' ? 'hedged' : rel === 'exit' ? 'exit' : rel === 'new_bet' ? 'not held' : 'book';
+
+// One line for the closed card: "BOOK NOW 1 adds · 2 not held" — the
+// relation counts, coloured like the full lines. "reading…" / "not read"
+// while the answer is missing. Empty string when the card has no book.
+export function riskBookSummary(T, r) {
+  const eintrag = riskBookEntry(T, r);
+  if (!eintrag) return '';
+  const kopf = '<span style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:rgba(255,255,255,.4)">BOOK NOW</span> ';
+  const grau = '<span style="font-size:11.5px; color:rgba(255,255,255,.45)">';
+  if (eintrag.herkunft === 'loading') return '<div style="margin-top:8px">' + kopf + grau + 'reading the wallets\' open positions…</span></div>';
+  if (eintrag.herkunft === 'fehler') return '<div style="margin-top:8px">' + kopf + grau + 'not read (' + esc(eintrag.fehler || 'no answer') + ')</span></div>';
+  const books = eintrag.data && Array.isArray(eintrag.data.wallets) ? eintrag.data.wallets : [];
+  if (!books.length) return '<div style="margin-top:8px">' + kopf + grau + 'no wallet readable</span></div>';
+  const zaehler = {};
+  let ungelesen = 0;
+  books.forEach((b) => { if (!b.read) { ungelesen += 1; return; } zaehler[b.relation || 'book'] = (zaehler[b.relation || 'book'] || 0) + 1; });
+  const teile = Object.keys(zaehler).map((rel) => '<span style="' + M + '; font-size:10.5px; color:' + BOOK_FARBE(rel) + '">' + zaehler[rel] + ' ' + BOOK_KURZ(rel) + '</span>');
+  if (ungelesen) teile.push('<span style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45)">' + ungelesen + ' not read</span>');
+  return '<div style="margin-top:8px; display:flex; align-items:center; gap:8px; flex-wrap:wrap">' + kopf + teile.join('<span style="color:rgba(255,255,255,.25)">·</span>') + '</div>';
+}
+
+// The book behind the flow, one line per wallet: what the top wallets hold in
+// this market right now (/api/risk/book), and whether the flagged flow adds to
+// that book, works against it (hedge / closing / merging) or exits it. A
+// wallet on 12k NO that buys YES is not a YES bet — the tape says "YES buys",
+// the book says "net NO"; this line says which. Polymarket only (Kalshi has
+// no wallets); read now, not at flag time; "reading" until the answer is there.
+export function riskBookHtml(T, r) {
+  const eintrag = riskBookEntry(T, r);
+  if (!eintrag) return '';
   const kopf = '<span style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:rgba(255,255,255,.4)">WALLET BOOK NOW</span> ';
-  if (!eintrag || eintrag.herkunft === 'loading') return '<div style="margin-top:8px; font-size:11.5px; color:rgba(255,255,255,.45)">' + kopf + 'reading the wallets\' open positions in this market…</div>';
+  if (eintrag.herkunft === 'loading') return '<div style="margin-top:8px; font-size:11.5px; color:rgba(255,255,255,.45)">' + kopf + 'reading the wallets\' open positions in this market…</div>';
   if (eintrag.herkunft === 'fehler') return '<div style="margin-top:8px; font-size:11.5px; color:rgba(255,255,255,.45)">' + kopf + 'not read (' + esc(eintrag.fehler || 'no answer') + ')</div>';
   const books = eintrag.data && Array.isArray(eintrag.data.wallets) ? eintrag.data.wallets : [];
   if (!books.length) return '<div style="margin-top:8px; font-size:11.5px; color:rgba(255,255,255,.45)">' + kopf + 'no wallet readable</div>';
-  const farbe = (rel) => rel === 'adds' || rel === 'new_bet' ? '#C8F542' : rel === 'reduces' || rel === 'hedge' || rel === 'exit' ? '#F5A623' : 'rgba(255,255,255,.6)';
-  const wort = (rel) => rel === 'adds' ? 'ADDS TO BOOK' : rel === 'reduces' ? 'HEDGE / CLOSING' : rel === 'hedge' ? 'HEDGED BOTH SIDES' : rel === 'exit' ? 'EXIT' : rel === 'new_bet' ? 'NOT HELD NOW' : 'BOOK';
   return '<div style="margin-top:8px; display:flex; flex-direction:column; gap:4px">'
     + books.map((b) => {
       if (!b.read) return '<div style="font-size:11.5px; color:rgba(255,255,255,.45)">' + kopf + esc(b.short || b.wallet) + ' not read (' + esc(b.error || 'no answer') + ')</div>';
       const netz = b.net === 'YES' || b.net === 'NO' ? 'net ' + b.net : b.net === 'balanced' ? 'balanced' : 'flat';
       return '<div style="font-size:11.5px; line-height:1.45; color:rgba(255,255,255,.7)">' + kopf
         + '<span style="' + M + '; color:rgba(255,255,255,.85)">' + esc(b.short || b.wallet) + '</span> '
-        + '<span style="' + M + '; font-size:10px; letter-spacing:.08em; color:' + farbe(b.relation) + '; border:1px solid ' + farbe(b.relation) + '55; border-radius:4px; padding:1px 6px; margin:0 4px">' + wort(b.relation) + ' · ' + esc(netz) + '</span>'
+        + '<span style="' + M + '; font-size:10px; letter-spacing:.08em; color:' + BOOK_FARBE(b.relation) + '; border:1px solid ' + BOOK_FARBE(b.relation) + '55; border-radius:4px; padding:1px 6px; margin:0 4px">' + BOOK_WORT(b.relation) + ' · ' + esc(netz) + '</span>'
         + esc(b.text || '') + '</div>';
     }).join('')
     + '</div>';
@@ -457,6 +488,59 @@ export function renderRiskLog(T) {
     + '</div>';
 }
 
+// One event card. Closed: kind and score, the market, the flow (side, price
+// at flag, window), the top wallets, one line for their book, the four
+// figures. "Why this score" opens the flags, the score components, the
+// context note and the per-wallet book lines — the reasoning, not the lead.
+// The open state lives in T.state.riskOpen[key] so a re-render keeps it.
+export function riskEventCard(T, r0) {
+  const r = T.riskCardView(r0);
+  const s = T.state || {};
+  const key = String(r0.market_key || r0.market || '');
+  const offen = !!(s.riskOpen && s.riskOpen[key]);
+  // The richer fields (side, prices, window, wallets, components, link)
+  // are read from the raw row: an older payload without them renders
+  // the card as before, with nothing invented in the gaps.
+  const hatFlow = r0.side != null || r0.price_last != null || r0.first_print;
+  // The card opens the market drawer only when the market is in the
+  // loaded sample; otherwise it is a plain card (its links still work).
+  const klickbar = r.act && r.clickable !== false;
+  const hatDetails = !!(r.detail || r0.context_note || (Array.isArray(r0.components) && r0.components.length) || riskBookEntry(T, r0));
+  const toggle = hatDetails
+    ? '<div data-stop ' + T.act(() => T.setState({ riskOpen: Object.assign({}, s.riskOpen || {}, { [key]: !offen }) })) + ' class="hv-bd32" style="' + M + '; font-size:10.5px; letter-spacing:.06em; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.14); border-radius:6px; padding:4px 9px; cursor:pointer; white-space:nowrap; user-select:none">' + (offen ? 'Why this score ▴' : 'Why this score ▾') + '</div>'
+    : '';
+  const details = offen && hatDetails
+    ? '<div data-stop style="margin-top:12px; border-top:1px dashed rgba(255,255,255,.1); padding-top:10px; cursor:default">'
+      + (r.detail ? '<div style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:rgba(255,255,255,.4)">FLAGS</div><div style="font-size:12.5px; color:rgba(255,255,255,.65); margin-top:3px; line-height:1.45">' + esc(r.detail) + '</div>' : '')
+      + (r0.context_note ? '<div style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:rgba(255,255,255,.4); margin-top:9px">CONTEXT</div><div style="font-size:12.5px; color:rgba(255,255,255,.65); margin-top:3px; line-height:1.45">' + esc(String(r0.category || '')) + (r0.category ? ' — ' : '') + esc(r0.context_note) + '</div>' : '')
+      + (Array.isArray(r0.components) && r0.components.length ? '<div style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:rgba(255,255,255,.4); margin-top:9px">SCORE COMPONENTS</div><div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:5px">' + riskComponentsHtml(r0.components) + '</div>' : '')
+      + riskBookHtml(T, r0)
+      + '</div>'
+    : '';
+  return '<div ' + (klickbar ? r.act + ' class="hv-bd20" ' : '') + 'data-bg style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:16px 18px; ' + (klickbar ? 'cursor:pointer; ' : '') + 'animation:rowIn .25s ease-out">'
+    + '<div style="display:flex; align-items:center; justify-content:space-between; gap:12px">'
+    + '<div style="' + r.kindStyle + '">' + esc(r.kind) + '</div>'
+    + '<div style="display:flex; align-items:baseline; gap:6px"><div style="' + r.scoreStyle + '">' + r.score + '</div>'
+    + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.35)">/100</div></div></div>'
+    + '<div style="font-size:15px; margin-top:10px; line-height:1.35">' + esc(r.market) + (r0.url ? ' ' + marketLink(r0.url) : '') + '</div>'
+    + (r0.category ? '<div style="' + M + '; font-size:10px; letter-spacing:.1em; color:rgba(255,255,255,.4); margin-top:4px"' + (r0.context_note ? ' title="' + esc(r0.context_note) + '"' : '') + '>' + esc(String(r0.category).toUpperCase()) + '</div>' : '')
+    + (hatFlow
+      ? '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; align-items:center">' + riskSideChip(r0)
+        + '<span style="' + CHIP + '">at flag ' + esc(riskPriceLabel(r0)) + '</span>'
+        + '<span style="' + CHIP + '">' + esc(windowLabel(r0.first_print, r0.last_print, r0.window_minutes)) + '</span></div>'
+        + '<div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:8px">' + riskWalletsHtml(r0.top_wallets, r0.wallets) + '</div>'
+        + riskBookSummary(T, r0)
+      : '<div style="font-size:13px; color:rgba(255,255,255,.6); margin-top:7px; line-height:1.45">' + esc(r.detail) + '</div>')
+    + '<div style="height:1px; background:rgba(255,255,255,.07); margin:14px 0 12px"></div>'
+    + '<div style="display:flex; gap:22px; align-items:flex-end; justify-content:space-between; flex-wrap:wrap"><div style="display:flex; gap:22px">'
+    + [['WALLETS', r.wallets], ['NOTIONAL', r.notional], ['WINDOW', r.window], ['VENUE', r.venue]].map((p) =>
+      '<div><div style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:rgba(255,255,255,.4)">' + p[0] + '</div><div style="' + M + '; font-size:14px; margin-top:3px">' + esc(String(p[1])) + '</div></div>'
+    ).join('')
+    + '</div>' + (hatFlow ? toggle : '') + '</div>'
+    + details
+    + '</div>';
+}
+
 export function renderRisk(T) {
   const s = T.state;
   const riskFiltered = T.risks.filter((r) => s.riskFilter === 'all' || r.sev === s.riskFilter);
@@ -496,38 +580,7 @@ export function renderRisk(T) {
       + '</div>'
       + (riskFiltered.length ? '' : leerZeile(T.risks.length ? 'No event at this severity.' : risikoSatz))
       + '<div style="padding:18px 24px; display:grid; grid-template-columns:repeat(2,1fr); gap:14px">'
-      + riskFiltered.map((r0) => {
-        const r = T.riskCardView(r0);
-        // The richer fields (side, prices, window, wallets, components, link)
-        // are read from the raw row: an older payload without them renders
-        // the card as before, with nothing invented in the gaps.
-        const hatFlow = r0.side != null || r0.price_last != null || r0.first_print;
-        // The card opens the market drawer only when the market is in the
-        // loaded sample; otherwise it is a plain card (its links still work).
-        const klickbar = r.act && r.clickable !== false;
-        return '<div ' + (klickbar ? r.act + ' class="hv-bd20" ' : '') + 'data-bg style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:16px 18px; ' + (klickbar ? 'cursor:pointer; ' : '') + 'animation:rowIn .25s ease-out">'
-          + '<div style="display:flex; align-items:center; justify-content:space-between; gap:12px">'
-          + '<div style="' + r.kindStyle + '">' + esc(r.kind) + '</div>'
-          + '<div style="display:flex; align-items:baseline; gap:6px"><div style="' + r.scoreStyle + '">' + r.score + '</div>'
-          + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.35)">/100</div></div></div>'
-          + '<div style="font-size:15px; margin-top:10px; line-height:1.35">' + esc(r.market) + (r0.url ? ' ' + marketLink(r0.url) : '') + '</div>'
-          + (r0.category ? '<div style="' + M + '; font-size:10px; letter-spacing:.1em; color:rgba(255,255,255,.4); margin-top:4px">' + esc(String(r0.category).toUpperCase()) + (r0.context_note ? ' · ' + esc(r0.context_note) : '') + '</div>' : '')
-          + '<div style="font-size:13px; color:rgba(255,255,255,.6); margin-top:7px; line-height:1.45">' + esc(r.detail) + '</div>'
-          + (hatFlow
-            ? '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; align-items:center">' + riskSideChip(r0)
-              + '<span style="' + CHIP + '">at flag ' + esc(riskPriceLabel(r0)) + '</span>'
-              + '<span style="' + CHIP + '">' + esc(windowLabel(r0.first_print, r0.last_print, r0.window_minutes)) + '</span></div>'
-              + '<div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:8px">' + riskWalletsHtml(r0.top_wallets, r0.wallets) + '</div>'
-              + riskBookHtml(T, r0)
-              + (Array.isArray(r0.components) && r0.components.length ? '<div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:7px">' + riskComponentsHtml(r0.components) + '</div>' : '')
-            : '')
-          + '<div style="height:1px; background:rgba(255,255,255,.07); margin:14px 0 12px"></div>'
-          + '<div style="display:flex; gap:22px">'
-          + [['WALLETS', r.wallets], ['NOTIONAL', r.notional], ['WINDOW', r.window], ['VENUE', r.venue]].map((p) =>
-            '<div><div style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:rgba(255,255,255,.4)">' + p[0] + '</div><div style="' + M + '; font-size:14px; margin-top:3px">' + esc(String(p[1])) + '</div></div>'
-          ).join('')
-          + '</div></div>';
-      }).join('')
+      + riskFiltered.map((r0) => riskEventCard(T, r0)).join('')
       + '</div></div>';
   } else if (s.riskView === 'log') {
     body = renderRiskLog(T);

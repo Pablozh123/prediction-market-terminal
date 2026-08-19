@@ -1836,3 +1836,64 @@ class KalshiTradePricingTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class KalshiTitleTests(unittest.TestCase):
+    """Ticker placeholders become the market's question (+ strike), memoised."""
+
+    def setUp(self) -> None:
+        md._KALSHI_TITLE_MEMO.clear()
+
+    def test_display_title_appends_a_strike_that_adds_a_word(self) -> None:
+        self.assertEqual(md.kalshi_display_title({"title": "Bitcoin price on Aug 19, 2026?", "subtitle": "$68,200 or above"}),
+                         "Bitcoin price on Aug 19, 2026? · $68,200 or above")
+        # The strike repeats the title: nothing appended. Yes/No: nothing.
+        self.assertEqual(md.kalshi_display_title({"title": "Will over 3.5 goals be scored?", "subtitle": "Over 3.5 goals scored"}),
+                         "Will over 3.5 goals be scored?")
+        self.assertEqual(md.kalshi_display_title({"title": "First inning run?", "yes_sub_title": "Yes"}), "First inning run?")
+        # No title at all: strike, then ticker.
+        self.assertEqual(md.kalshi_display_title({"subtitle": "x"}, "TICK"), "x")
+        self.assertEqual(md.kalshi_display_title({}, "TICK"), "TICK")
+
+    def test_enrich_swaps_tickers_for_titles_and_memoises(self) -> None:
+        raw = {"markets": [
+            {"ticker": "KXRTCOMPARE-INS26AUG24-INS", "event_ticker": "KXRTCOMPARE-INS26AUG24",
+             "title": "Will Insidious have the highest Rotten Tomatoes score on Aug 24, 2026?", "category": None,
+             "close_time": "2026-08-24T14:00:00Z"},
+        ]}
+        tape = pd.DataFrame([
+            {"ticker": "KXRTCOMPARE-INS26AUG24-INS", "title": "KXRTCOMPARE-INS26AUG24-INS", "notional": 402.0},
+            {"ticker": "KXUNKNOWN-1", "title": "KXUNKNOWN-1", "notional": 10.0},
+        ])
+        with patch("src.prediction_markets._get_json", return_value=raw) as fetch:
+            out = md.enrich_kalshi_tape(tape)
+            self.assertEqual(fetch.call_count, 1)
+            self.assertEqual(out["title"].tolist(), ["Will Insidious have the highest Rotten Tomatoes score on Aug 24, 2026?", "KXUNKNOWN-1"])
+            # No category invented from the ticker prefix; the end time travels.
+            self.assertEqual(out["category"].tolist(), ["", ""])
+            self.assertEqual(str(out["end_time"].iloc[0])[:10], "2026-08-24")
+            # Second pass: both tickers are in the memo (the unknown one as a
+            # remembered gap), so nothing is asked again.
+            md.enrich_kalshi_tape(tape)
+            self.assertEqual(fetch.call_count, 1)
+
+    def test_enrich_survives_a_failed_lookup(self) -> None:
+        tape = pd.DataFrame([{"ticker": "KXA", "title": "KXA"}])
+        with patch("src.prediction_markets._get_json", side_effect=md.MarketDataError("down")):
+            out = md.enrich_kalshi_tape(tape)
+        self.assertEqual(out["title"].tolist(), ["KXA"])
+        with patch("src.prediction_markets._get_json") as fetch:
+            self.assertTrue(md.enrich_kalshi_tape(pd.DataFrame()).empty)
+            fetch.assert_not_called()
+
+    def test_parlay_title_names_the_legs(self) -> None:
+        self.assertEqual(md.kalshi_display_title({"title": "yes Barcelona,yes Atletico,yes Bodoe/Glimt", "mve_collection_ticker": "KXMVECROSSCATEGORY-SHARD1-R"}, "KXMVECROSSCATEGORY-1"),
+                         "Parlay · 3 legs: yes Barcelona · yes Atletico · yes Bodoe/Glimt")
+        self.assertEqual(md.kalshi_display_title({"title": "yes a,yes b,yes c,yes d,yes e,yes f"}, "KXMVECROSSCATEGORY-1"),
+                         "Parlay · 6 legs: yes a · yes b · yes c · yes d · +2 more")
+
+    def test_kalshi_trades_carry_the_ticker_as_market_key(self) -> None:
+        raw = {"trades": [{"ticker": "KXFED-26SEP", "created_time": "2026-06-10T12:00:00Z", "taker_side": "yes", "taker_outcome_side": "yes", "yes_price_dollars": 0.15, "count_fp": 100.0}]}
+        with patch("src.prediction_markets._get_json", return_value=raw):
+            trades = md.get_kalshi_trades()
+        self.assertEqual(trades["market_key"].tolist(), ["KXFED-26SEP"])

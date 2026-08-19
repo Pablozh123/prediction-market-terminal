@@ -92,7 +92,7 @@ class Terminal {
       setMarketSample: 250, setTradeSample: 250, setWhale: 2500, setBankroll: 1000, setFee: 20, setSlip: 15,
       alertTab: 'signals', alertQuery: '', alertPlatform: 'all', alertType: 'all', alertScope: 'all',
       thMove: 5, thSpread: 3, thWhale: 2500, thEnding: 72, thHolder: 40,
-      riskFilter: 'all',
+      riskFilter: 'all', riskOpen: {},
       detail: null,
       searchOpen: false,
       searchQuery: '',

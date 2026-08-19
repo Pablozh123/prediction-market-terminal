@@ -1028,12 +1028,23 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn('href="https://polymarket.com/profile/0xbbb2000000000000000000000000000000000002"', html)
         self.assertIn('href="https://polymarket.com/event/example-question"', html)
         self.assertIn("market ↗", text)
-        self.assertIn("top-wallet concentration 9.8/15", text)
-        self.assertIn("fresh-wallet cluster 5/10", text)
-        self.assertIn("context multiplier ×1.1", text)
+        # Closed, the card carries the lead only: no flag sentence, no
+        # components, the context note as a tooltip on the category; the
+        # "Why this score" toggle opens them (state riskOpen, not <details>,
+        # so the 30 s re-render keeps it open).
+        self.assertIn("POLITICS &amp; GEOPOLITICS NO buys", text)
+        self.assertIn('title="decisions are known to officials before the public"', html)
+        self.assertNotIn("top-wallet concentration", text)
+        self.assertNotIn("three wallets, one side", text.split("EVENT SCREEN")[0])
+        self.assertIn("VENUE Polymarket Why this score ▾", text)
+        offen = _sichtbarer_text(self.ausgabe["live"]["risk_open"])
+        self.assertIn("Why this score ▴ FLAGS three wallets, one side CONTEXT Politics &amp; geopolitics — decisions are known to officials before the public SCORE COMPONENTS notional 6/15 top-wallet concentration 9.8/15 fresh-wallet cluster 5/10 context multiplier ×1.1", offen)
         # A zero component is not listed; the joined flag string is not the
         # only explanation any more.
-        self.assertNotIn("late flow 0/15", text)
+        self.assertNotIn("late flow 0/15", offen)
+        # The toggle must not trigger the card action, and the open block
+        # neither.
+        self.assertIn('<div data-stop data-act="0" class="hv-bd32"', html)
         # The older row renders as before: no side chip, no price, no invented
         # wallet or component.
         self.assertIn("KXFED-26SEP", text)
@@ -1527,16 +1538,22 @@ class WebLeerzustandTest(unittest.TestCase):
         # NO buys of a net-NO wallet ADD, the NO buys of a net-YES wallet are a
         # HEDGE / CLOSING — the reader sees which without opening the wallet.
         warten = _sichtbarer_text(self.ausgabe["live"]["risk"])
-        self.assertIn("WALLET BOOK NOW reading the wallets' open positions", warten)
+        self.assertIn("BOOK NOW reading the wallets' open positions", warten)
+        # Closed card: the relation counts in one line; open card: one line
+        # per wallet with the relation, the net side and the sentence.
         buch = _sichtbarer_text(self.ausgabe["live"]["risk_book"])
-        self.assertIn("0xbbb2…0002 ADDS TO BOOK · net NO holds 0 YES / 12.0k NO now", buch)
-        self.assertIn("0xaaa1…0001 HEDGE / CLOSING · net YES holds 9.00k YES / 200 NO now", buch)
-        self.assertIn("not a new NO bet", buch)
+        self.assertIn("BOOK NOW 1 adds · 1 hedge / closing WALLETS 3", buch)
+        self.assertNotIn("WALLET BOOK NOW", buch)
+        offen = _sichtbarer_text(self.ausgabe["live"]["risk_open"])
+        self.assertIn("0xbbb2…0002 ADDS TO BOOK · net NO holds 0 YES / 12.0k NO now", offen)
+        self.assertIn("0xaaa1…0001 HEDGE / CLOSING · net YES holds 9.00k YES / 200 NO now", offen)
+        self.assertIn("not a new NO bet", offen)
         fehler = _sichtbarer_text(self.ausgabe["live"]["risk_book_err"])
-        self.assertIn("WALLET BOOK NOW not read (no answer within 45 s)", fehler)
+        self.assertIn("BOOK NOW not read (no answer within 45 s)", fehler)
         self.assertNotIn("net NO", fehler)
         # Kalshi cards (no wallets) carry no book line at all.
-        self.assertEqual(buch.count("WALLET BOOK NOW"), 2)
+        self.assertEqual(offen.count("WALLET BOOK NOW"), 2)
+        self.assertEqual(buch.count("BOOK NOW"), 1)
         self.assertIn("Add paper cash", _sichtbarer_text(self.ausgabe["live"]["copy_topup_row"]))
         # Cash events / positions carry a trader column and stay honest when empty.
         self.assertIn("No cash events reported by /api/copy", _sichtbarer_text(self.ausgabe["live"]["copy_cash"]))

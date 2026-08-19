@@ -297,7 +297,11 @@ def load_tape(limit: int = 250, min_cash: float = 0.0) -> pd.DataFrame:
             if not ks.empty and min_cash > 0 and "notional" in ks.columns:
                 ks = ks[pd.to_numeric(ks["notional"], errors="coerce").fillna(0.0) >= float(min_cash)]
             if not ks.empty:
-                frames.append(ks.head(limit))
+                # The feed carries tickers only (KXRTCOMPARE-INS26AUG24-INS);
+                # one memoised markets lookup gives every consumer — tape,
+                # risk cards, flag log — the question instead.
+                ks = md.enrich_kalshi_tape(ks.head(limit))
+                frames.append(ks)
         except Exception as exc:
             print(f"[warn] kalshi trades: {exc}")
         if not frames:

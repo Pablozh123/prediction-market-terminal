@@ -2466,6 +2466,41 @@ def get_market_news(query: str, limit: int = 20) -> pd.DataFrame:
     return df
 
 
+def kalshi_display_title(market: Mapping[str, Any], ticker: str = "") -> str:
+    """The readable name of a Kalshi market: its question plus the strike.
+
+    Multi-outcome events give every strike the same ``title`` ("Bitcoin
+    price on Aug 19, 2026?") and put the outcome in ``subtitle`` /
+    ``yes_sub_title`` ("$68,200 or above"); shown alone, twenty markets read
+    as one. The strike is appended when it adds a word the title lacks.
+    Falls back to the ticker when the market carries no title at all.
+    """
+
+    # Kalshi writes markdown emphasis into some titles ("**gas prices**").
+    title = str(_first_nonempty(market.get("title"), "") or "").replace("**", "").strip()
+    strike = str(_first_nonempty(market.get("subtitle"), market.get("yes_sub_title"), "") or "").strip()
+    # Multi-leg parlays (mve_collection_ticker set, KXMVE… tickers): the
+    # title is the comma-joined leg list "yes Barcelona,yes Atletico,…".
+    # Name it as what it is and list the legs readably.
+    if market.get("mve_collection_ticker") or str(ticker or "").upper().startswith("KXMVE"):
+        legs = [leg.strip() for leg in title.split(",") if leg.strip()]
+        if legs:
+            kopf = f"Parlay · {len(legs)} legs: "
+            liste = " · ".join(legs[:4]) + (f" · +{len(legs) - 4} more" if len(legs) > 4 else "")
+            return kopf + liste
+    if not title:
+        return strike or str(ticker or "")
+    if not strike or strike.lower() in ("yes", "no"):
+        return title
+    # Only a strike that says something the title does not: "Over 3.5 goals
+    # scored" under "Will over 3.5 goals be scored?" adds nothing, "$68,200
+    # or above" under "Bitcoin price on Aug 19?" does.
+    neu = set(TITLE_TOKEN_RE.findall(strike.lower())) - set(TITLE_TOKEN_RE.findall(title.lower()))
+    if neu:
+        return f"{title} · {strike}"
+    return title
+
+
 def get_kalshi_markets(
     limit: int = 250, status: str = "open", cursor: str | None = None, tickers: Iterable[str] | None = None
 ) -> pd.DataFrame:
@@ -2498,7 +2533,7 @@ def get_kalshi_markets(
                 "ticker": ticker,
                 "slug": ticker,
                 "event_slug": market.get("event_ticker", ""),
-                "title": _first_nonempty(market.get("title"), market.get("subtitle"), ticker),
+                "title": kalshi_display_title(market, ticker),
                 "description": _first_nonempty(market.get("rules_primary"), market.get("rules_secondary"), ""),
                 "category": _first_nonempty(market.get("category"), market.get("event_ticker", "").split("-")[0], "Uncategorized"),
                 "yes_price": yes_price,
@@ -2594,11 +2629,102 @@ def get_kalshi_trades(limit: int = 250, ticker: str | None = None) -> pd.DataFra
     df["size"] = pd.to_numeric(df.get("count_fp", 0), errors="coerce").fillna(0.0)
     df["notional"] = df["size"] * df["price"]
     df["title"] = df["ticker"]
+    # The ticker IS the market key on this venue: every consumer that groups
+    # or links by market_key (event scores, risk cards, the context
+    # classifier's KX… patterns) finds it there, whatever the title says.
+    df["market_key"] = df["ticker"].astype(str)
     df["wallet"] = "Not public"
     df["trader"] = "Not public"
     df["url"] = "https://kalshi.com/markets/" + df["ticker"].astype(str)
-    cols = ["platform", "time", "trader", "wallet", "side", "outcome", "title", "ticker", "price", "size", "notional", "url"]
+    cols = ["platform", "time", "trader", "wallet", "side", "outcome", "title", "ticker", "market_key", "price", "size", "notional", "url"]
     return df[[c for c in cols if c in df.columns]].sort_values("time", ascending=False).reset_index(drop=True)
+
+
+#: Ticker -> (title, category, end_time, fetched_at). Kalshi market titles do
+#: not change, so one lookup per ticker serves every tape refresh; a ticker
+#: the API does not return is remembered with an empty title for the same
+#: time, so it is not asked again every 45 s.
+_KALSHI_TITLE_MEMO: dict[str, tuple[str, str, Any, float]] = {}
+KALSHI_TITLE_MEMO_TTL = 6 * 3600.0
+KALSHI_TITLE_LOOKUP_MAX = 300
+
+
+def kalshi_market_meta(tickers: Iterable[str]) -> pd.DataFrame:
+    """[ticker, title, category, end_time] for a set of tickers, memoised.
+
+    Only the tickers not in the memo (or stale) go to the network, at most
+    ``KALSHI_TITLE_LOOKUP_MAX`` per call — the trade feed's last thousand
+    prints rarely hold more distinct tickers than that, and a ticker left
+    out this round is looked up on the next. A network failure leaves the
+    memo as it is and returns what it holds; the caller keeps the ticker as
+    the title.
+    """
+
+    wanted = sorted({str(t).strip() for t in tickers if str(t).strip()})
+    if not wanted:
+        return pd.DataFrame(columns=["ticker", "title", "category", "end_time"])
+    now = time.time()
+    fehlend = [t for t in wanted if t not in _KALSHI_TITLE_MEMO or now - _KALSHI_TITLE_MEMO[t][3] > KALSHI_TITLE_MEMO_TTL]
+    if fehlend:
+        frisch = pd.DataFrame()
+        try:
+            frisch = get_kalshi_markets(tickers=fehlend[:KALSHI_TITLE_LOOKUP_MAX])
+        except MarketDataError:
+            frisch = pd.DataFrame()
+        if frisch is not None and not frisch.empty and "ticker" in frisch.columns:
+            for _, row in frisch.drop_duplicates(subset=["ticker"]).iterrows():
+                # The market's own category only — get_kalshi_markets falls
+                # back to the ticker prefix ("KXITFMATCH"), which is no
+                # category and would push the title classifier aside.
+                roh = row.get("raw") if isinstance(row.get("raw"), Mapping) else {}
+                kategorie = str(roh.get("category") or "") if roh else ""
+                _KALSHI_TITLE_MEMO[str(row.get("ticker"))] = (
+                    str(row.get("title") or ""), kategorie, row.get("end_time"), now)
+        # Asked and not answered: remember the gap so the next refresh does
+        # not ask again; the next TTL window retries.
+        for t in fehlend[:KALSHI_TITLE_LOOKUP_MAX]:
+            if t not in _KALSHI_TITLE_MEMO:
+                _KALSHI_TITLE_MEMO[t] = ("", "", None, now)
+    rows = [
+        {"ticker": t, "title": _KALSHI_TITLE_MEMO[t][0], "category": _KALSHI_TITLE_MEMO[t][1], "end_time": _KALSHI_TITLE_MEMO[t][2]}
+        for t in wanted if t in _KALSHI_TITLE_MEMO
+    ]
+    return pd.DataFrame(rows, columns=["ticker", "title", "category", "end_time"])
+
+
+def enrich_kalshi_tape(tape: pd.DataFrame, meta: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Swap ticker placeholders for real market titles (+ category / end time).
+
+    Kalshi's trade feed only carries tickers like KXRTCOMPARE-INS26AUG24-INS —
+    unreadable in any table or on a risk card. ``meta`` is the
+    [ticker, title, category, end_time] frame from ``kalshi_market_meta``
+    (looked up here when not given). Rows whose ticker has no title keep the
+    ticker; an empty title never replaces one.
+    """
+
+    if tape is None or tape.empty or "ticker" not in tape.columns:
+        return tape
+    if meta is None:
+        meta = kalshi_market_meta(tape["ticker"].astype(str).tolist())
+    if meta is None or meta.empty or "ticker" not in meta.columns:
+        return tape
+    meta = meta.drop_duplicates(subset=["ticker"]).set_index("ticker")
+    tape = tape.copy()
+    tickers = tape["ticker"].astype(str)
+    if "title" in meta.columns:
+        titles = tickers.map(meta["title"]).fillna("").astype(str)
+        fallback = tape["title"].astype(str) if "title" in tape.columns else tickers
+        tape["title"] = titles.where(titles.str.strip().ne(""), fallback)
+    if "category" in meta.columns:
+        cats = tickers.map(meta["category"]).fillna("").astype(str)
+        if "category" in tape.columns:
+            alt = tape["category"].fillna("").astype(str)
+            tape["category"] = cats.where(cats.str.strip().ne(""), alt)
+        else:
+            tape["category"] = cats
+    if "end_time" in meta.columns:
+        tape["end_time"] = pd.to_datetime(tickers.map(meta["end_time"]), utc=True, errors="coerce")
+    return tape
 
 
 def get_kalshi_orderbook(ticker: str) -> tuple[pd.DataFrame, pd.DataFrame]:
