@@ -1944,3 +1944,158 @@ class TraderRowTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PaperBookSeedTests(unittest.TestCase):
+    """Following a wallet buys its current open book into the sub-account.
+
+    A sub-account that starts 100% cash cannot mirror the source's exits
+    (skipped_no_paper_position) and stays flat for a slow trader whose PnL
+    sits in positions opened before the follow — the live desk showed
+    exactly that: 16 cent-copies, every big SELL skipped, curve at $0.
+    """
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.db_path = Path(self.tmp.name) / "copy.sqlite"
+        ct.reset_paper_portfolio(db_path=self.db_path)
+        ct.follow_trader(WALLET_B, label="Book", db_path=self.db_path)
+        self.settings = ct.CopySettings(trade_limit=20, target_wallet=WALLET_B)
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def _positions(self) -> pd.DataFrame:
+        return pd.DataFrame([
+            {"asset": "asset-y", "size": 10_000.0, "current_price": 0.60, "avg_price": 0.40,
+             "market_key": "m-y", "title": "Yes market", "outcome": "Yes"},
+            {"asset": "asset-n", "size": 5_000.0, "current_price": 0.20, "avg_price": 0.30,
+             "market_key": "m-n", "title": "No market", "outcome": "No"},
+            # Resolved rows: nothing left to win, must not be bought.
+            {"asset": "asset-won", "size": 100.0, "current_price": 1.0, "avg_price": 0.5,
+             "market_key": "m-w", "title": "Won", "outcome": "Yes"},
+            {"asset": "asset-lost", "size": 100.0, "current_price": 0.0, "avg_price": 0.5,
+             "market_key": "m-l", "title": "Lost", "outcome": "Yes"},
+        ])
+
+    def _seed(self, conn: sqlite3.Connection, equity: float = 100_000.0) -> None:
+        ct._set_meta(conn, f"wallet_stat:{WALLET_B}:visible_equity", str(equity))
+        with patch("src.copy_trading.fetch_source_trades", return_value=_trades_frame(source_trade(tx="0xh", timestamp=1779900000))), \
+                patch("src.copy_trading.md.get_polymarket_positions", return_value=self._positions()), \
+                patch("src.copy_trading.refresh_tony_wallet_stats", return_value=None):
+            ct.seed_wallet_baseline(conn, WALLET_B, settings=self.settings)
+        conn.commit()
+
+    def test_follow_buys_the_source_book_scaled(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            self._seed(conn)  # scale = 1000 / 100k = 1%
+            rows = {str(r["asset"]): r for r in conn.execute(
+                "SELECT * FROM positions WHERE trader_wallet = ?", (WALLET_B,)).fetchall()}
+            self.assertEqual(set(rows), {"asset-y", "asset-n"})
+            self.assertAlmostEqual(float(rows["asset-y"]["shares"]), 100.0)
+            self.assertAlmostEqual(float(rows["asset-y"]["avg_price"]), 0.60)
+            self.assertAlmostEqual(float(rows["asset-n"]["shares"]), 50.0)
+            self.assertAlmostEqual(ct._get_trader_cash(conn, WALLET_B, 0.0), 1000.0 - 60.0 - 10.0)
+            self.assertIsNotNone(ct.wallet_paper_seeded_at(conn, WALLET_B))
+            orders = conn.execute(
+                "SELECT * FROM paper_orders WHERE source_wallet = ? AND reason = 'seed_position'", (WALLET_B,)).fetchall()
+            self.assertEqual(len(orders), 2)
+            self.assertEqual({str(o["status"]) for o in orders}, {"copied"})
+            # The Orders tab names the row a SEED, not a bare BUY.
+            from app import api_views as apv
+            kind, sentence = apv.order_kind({"reason": "seed_position", "source_side": "BUY", "outcome": "Yes"})
+            self.assertEqual(kind, "SEED")
+            self.assertIn("follow started", sentence)
+        finally:
+            conn.close()
+
+    def test_sells_of_pre_follow_positions_are_mirrored_after_the_seed(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            self._seed(conn)
+            sell = source_trade(tx="0xsell", asset="asset-y", side="SELL", price=0.7, size=5_000.0, timestamp=1779990000)
+            sell["market_key"] = "m-y"
+            order = ct.apply_paper_trade(conn, sell, self.settings)
+            conn.commit()
+            self.assertEqual(order.status, "copied")
+            row = conn.execute(
+                "SELECT shares FROM positions WHERE trader_wallet = ? AND asset = 'asset-y'", (WALLET_B,)).fetchone()
+            # Source sold half its 10k shares -> the paper book sells half of its 100.
+            self.assertAlmostEqual(float(row["shares"]), 50.0)
+        finally:
+            conn.close()
+
+    def test_backfill_seeds_a_pre_change_book_once(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            # A book from before the paper seed existed: baseline set, all cash.
+            ct._set_meta(conn, f"seeded_at:{WALLET_B}", ct.utc_now())
+            ct._set_meta(conn, f"baseline_cutoff_ts:{WALLET_B}", "1779900000")
+            ct._set_meta(conn, f"wallet_stat:{WALLET_B}:visible_equity", "100000")
+            conn.commit()
+        finally:
+            conn.close()
+        with patch("src.copy_trading.fetch_source_trades", return_value=_trades_frame()), \
+                patch("src.copy_trading.md.get_polymarket_positions", return_value=self._positions()) as fetch_pos, \
+                patch("src.copy_trading.refresh_tony_wallet_stats", return_value=None):
+            ct.sync_copy_trades(WALLET_B, settings=self.settings, db_path=self.db_path)
+            ct.sync_copy_trades(WALLET_B, settings=self.settings, db_path=self.db_path)
+        self.assertEqual(fetch_pos.call_count, 1)  # marker stops the second fetch
+        conn = ct.connect(self.db_path)
+        try:
+            n = conn.execute("SELECT COUNT(*) FROM paper_orders WHERE reason = 'seed_position'").fetchone()[0]
+            self.assertEqual(int(n), 2)
+        finally:
+            conn.close()
+
+    def test_no_seed_at_the_wrong_scale_when_source_equity_is_unread(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            with patch("src.copy_trading.fetch_source_trades", return_value=_trades_frame()), \
+                    patch("src.copy_trading.md.get_polymarket_positions", return_value=self._positions()), \
+                    patch("src.copy_trading.refresh_tony_wallet_stats", return_value=None):
+                ct.seed_wallet_baseline(conn, WALLET_B, settings=self.settings)
+            conn.commit()
+            # No equity stat -> no seed, no marker; the next pass retries.
+            self.assertIsNone(ct.wallet_paper_seeded_at(conn, WALLET_B))
+            n = conn.execute("SELECT COUNT(*) FROM positions WHERE trader_wallet = ?", (WALLET_B,)).fetchone()[0]
+            self.assertEqual(int(n), 0)
+        finally:
+            conn.close()
+
+    def test_empty_book_sets_the_marker_without_orders(self) -> None:
+        conn = ct.connect(self.db_path)
+        try:
+            with patch("src.copy_trading.md.get_polymarket_positions", return_value=pd.DataFrame()):
+                seeded = ct.seed_paper_positions(conn, WALLET_B, settings=self.settings)
+            conn.commit()
+            self.assertEqual(seeded, 0)
+            self.assertIsNotNone(ct.wallet_paper_seeded_at(conn, WALLET_B))
+        finally:
+            conn.close()
+
+    def test_a_fully_invested_source_leaves_the_cash_reserve(self) -> None:
+        # Book worth 2x our cash at scale: shrink proportionally, keep 2%.
+        conn = ct.connect(self.db_path)
+        try:
+            ct._set_meta(conn, f"wallet_stat:{WALLET_B}:visible_equity", "100000")
+            big = pd.DataFrame([
+                {"asset": "asset-a", "size": 200_000.0, "current_price": 0.50, "avg_price": 0.5,
+                 "market_key": "m-a", "title": "A", "outcome": "Yes"},
+                {"asset": "asset-b", "size": 100_000.0, "current_price": 0.50, "avg_price": 0.5,
+                 "market_key": "m-b", "title": "B", "outcome": "Yes"},
+            ])
+            with patch("src.copy_trading.md.get_polymarket_positions", return_value=big), \
+                    patch("src.copy_trading.refresh_tony_wallet_stats", return_value=None):
+                ct.seed_paper_positions(conn, WALLET_B, settings=self.settings)
+            conn.commit()
+            cash = ct._get_trader_cash(conn, WALLET_B, 0.0)
+            self.assertAlmostEqual(cash, 20.0, places=6)          # 2% of 1000
+            rows = {str(r["asset"]): float(r["cost_basis"]) for r in conn.execute(
+                "SELECT asset, cost_basis FROM positions WHERE trader_wallet = ?", (WALLET_B,)).fetchall()}
+            # Proportions survive the shrink: A is twice B.
+            self.assertAlmostEqual(rows["asset-a"] / rows["asset-b"], 2.0, places=6)
+            self.assertAlmostEqual(sum(rows.values()), 980.0, places=6)
+        finally:
+            conn.close()

@@ -58,6 +58,7 @@ EDITABLE_SETTINGS: dict[str, type] = {
     "min_copy_notional": float,
     "trade_limit": int,
     "paper_start_cash": float,
+    "seed_paper_book": bool,
 }
 #: Fractions of equity/cash: clamped to 0..1 so a "5" typed for 5 % cannot
 #: turn into a five-fold order cap.
@@ -155,6 +156,22 @@ def _seed_now(wallet: str, db_path: str | Path, settings: ct.CopySettings | None
     except Exception as exc:  # noqa: BLE001 - surfaced to the caller as text
         return None, f"{type(exc).__name__}: {exc}"
     return asdict(result), None
+
+
+def _source_last_trade_at(conn, wallet: str) -> str | None:
+    """Newest source_time in paper_orders for this wallet — seed-observed rows
+    count (a wallet dead since 2024 shows 2024), but not seed_position rows:
+    those are our book purchase at follow time, not a print of the source."""
+    try:
+        row = conn.execute(
+            "SELECT MAX(source_time) FROM paper_orders "
+            "WHERE source_wallet = ? AND source_time != '' AND reason != 'seed_position'",
+            (str(wallet or "").lower(),),
+        ).fetchone()
+    except Exception:  # noqa: BLE001 - a stats miss must not break the desk read
+        return None
+    value = row[0] if row else None
+    return str(value) if value else None
 
 
 def follow(
@@ -368,6 +385,11 @@ def traders_overview(
                 "last_copy_at": last_copy_at,
                 "added_at": str(trader.get("added_at", "") or ""),
                 "seeded_at": ct.wallet_seeded_at(conn, wallet),
+                "paper_seeded_at": ct.wallet_paper_seeded_at(conn, wallet),
+                # Newest source print the engine has seen for this wallet —
+                # the desk says "source idle since ..." for dead sources
+                # instead of showing zeros without a reason.
+                "source_last_trade_at": _source_last_trade_at(conn, wallet),
                 "baseline_cutoff_ts": ct.wallet_baseline_cutoff(conn, wallet) or None,
                 "equity_curve": curve,
                 "profile_url": md.polymarket_profile_url(wallet),

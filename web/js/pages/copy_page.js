@@ -110,6 +110,17 @@ function traderRow(T, t, s, canWrite, busy) {
   const seeded = t.seeded_at
     ? '<span title="baseline seeded ' + esc(fmtStamp(t.seeded_at)) + ' — trades before it are observed, not copied" style="color:rgba(255,255,255,.4)">baseline ' + esc(ago(t.seeded_at)) + '</span>'
     : '<span title="no baseline yet: the first daemon pass mirrors the wallet\'s positions and sets the cutoff" style="color:' + AMBER + '">not seeded yet</span>';
+  // The book seed: the sub-account bought the source's open positions at
+  // follow time (scaled), so its exits can be mirrored. Books from before
+  // that existed are backfilled by the daemon within a pass.
+  const bookSeed = t.paper_seeded_at
+    ? '<span title="the source\'s open book was bought into this sub-account ' + esc(fmtStamp(t.paper_seeded_at)) + ', scaled like every order — its sells and redeems can be mirrored" style="color:rgba(255,255,255,.4)">book seeded</span>'
+    : '<span title="this sub-account is still 100% cash: the daemon buys the source\'s open book on its next pass" style="color:' + AMBER + '">book not seeded yet</span>';
+  // A dead source produces zeros forever — say it instead of showing them.
+  const idleMs = t.source_last_trade_at ? Date.now() - Date.parse(String(t.source_last_trade_at)) : null;
+  const idle = idleMs != null && isFinite(idleMs) && idleMs > 14 * 86400000
+    ? '<span title="newest print of the source wallet the engine has seen — a wallet that stopped trading will never produce a copy" style="color:' + AMBER + '">source idle since ' + esc(String(t.source_last_trade_at).slice(0, 10)) + '</span>'
+    : '';
   const actions = !canWrite ? ''
     : rowBusy ? '<span style="' + M + '; font-size:10.5px; color:' + DIM + '">working…</span>'
       : (t.active
@@ -123,7 +134,7 @@ function traderRow(T, t, s, canWrite, busy) {
     + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:2px; display:flex; gap:8px; align-items:center; flex-wrap:wrap">'
     + '<span ' + T.act(() => T.analyseWallet(t.wallet)) + ' class="hv-lime" title="open the wallet page" style="cursor:pointer; text-decoration:underline dotted">' + esc(shortW(t.wallet)) + '</span>'
     + (t.profile_url ? '<a href="' + esc(t.profile_url) + '" target="_blank" rel="noopener" style="color:' + BLUE + '">Polymarket ↗</a>' : '')
-    + seeded + '</div>'
+    + seeded + bookSeed + idle + '</div>'
     + (t.note ? '<div style="font-size:11.5px; color:rgba(255,255,255,.55); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(t.note) + '">' + esc(t.note) + '</div>' : '')
     // His account size as the sizing refresh last saw it, and the neutral
     // ratio (your equity ÷ his) — the number "same share of account" uses.

@@ -72,6 +72,12 @@ class CopySettings:
     live_trading_enabled: bool = False
     trade_limit: int = 250
     dynamic_sizing_enabled: bool = True
+    #: Buy the source's current open book into the sub-account when a wallet
+    #: is followed (and once for wallets followed before this existed). A
+    #: sub-account that starts 100% cash cannot mirror the source's SELLs,
+    #: REDEEMs or MERGEs of pre-follow positions (skipped_no_paper_position)
+    #: and its curve cannot track a source whose PnL lives in that book.
+    seed_paper_book: bool = True
     dynamic_sizing_multiplier: float = 1.0
     dynamic_stats_refresh_seconds: int = 300
     # 0 = uncapped: copy at the neutral portfolio ratio (our equity / source
@@ -175,7 +181,7 @@ def load_copy_settings(
                         base[key] = payload[key]
         except (OSError, json.JSONDecodeError, TypeError, ValueError):
             pass
-    bool_fields = {"live_trading_enabled", "dynamic_sizing_enabled", "dynamic_order_cap_from_tony", "auto_top_up_enabled"}
+    bool_fields = {"live_trading_enabled", "dynamic_sizing_enabled", "dynamic_order_cap_from_tony", "auto_top_up_enabled", "seed_paper_book"}
     int_fields = {"trade_limit", "dynamic_stats_refresh_seconds"}
     cleaned: dict[str, Any] = {}
     for key, value in base.items():
@@ -987,6 +993,158 @@ def wallet_seeded_at(conn: sqlite3.Connection, wallet: str) -> str | None:
     return None
 
 
+#: Share of the sub-account's cash the paper seed leaves liquid, so the
+#: copy flow after it does not start with insufficient_cash on every BUY.
+PAPER_SEED_CASH_RESERVE = 0.02
+
+
+def wallet_paper_seeded_at(conn: sqlite3.Connection, wallet: str) -> str | None:
+    """When the sub-account's paper book was seeded from the source's open
+    positions; None for books from before that existed (they get backfilled
+    once by ``sync_copy_trades``)."""
+    return _get_meta(conn, f"paper_seeded_at:{_normalize_address(wallet)}")
+
+
+def seed_paper_positions(
+    conn: sqlite3.Connection,
+    wallet: str,
+    settings: CopySettings | None = None,
+    positions: pd.DataFrame | None = None,
+) -> int:
+    """Buy the source's current open book into the paper sub-account, once.
+
+    This is the moment a real copier joins: mirror the portfolio at today's
+    prices (scaled exactly like every later order — sub-account equity over
+    source equity), then copy trades forward. Without it the sub-account is
+    100% cash, every SELL/REDEEM/MERGE of a pre-follow position skips as
+    ``skipped_no_paper_position``, and a source whose PnL sits in its open
+    book (most slow traders) produces a flat line no matter what it does.
+
+    Each bought position is recorded as an order (status ``copied``, reason
+    ``seed_position``) so the Orders tab shows what happened and fidelity
+    counts it. Resolved-but-unredeemed rows (price at 0 or 1) are not bought:
+    there is nothing left to win. Spend is clamped at available cash; the
+    marker ``paper_seeded_at:<wallet>`` is set even when there was nothing to
+    buy, so the daemon does not refetch the book every pass.
+    """
+    wallet = _normalize_address(wallet)
+    if _get_meta(conn, f"paper_seeded_at:{wallet}") is not None:
+        return 0
+    settings = settings or CopySettings(target_wallet=wallet)
+    if not getattr(settings, "seed_paper_book", True):
+        return 0
+    if positions is None:
+        positions = md.get_polymarket_positions(wallet, limit=500)
+    now = utc_now()
+    _ensure_trader(conn, wallet, settings.paper_start_cash)
+    if positions is None or positions.empty:
+        _set_meta(conn, f"paper_seeded_at:{wallet}", now)
+        _set_meta(conn, f"paper_seed_count:{wallet}", "0")
+        return 0
+    sizing = settings if settings.target_wallet == wallet else replace(settings, target_wallet=wallet)
+    refresh_tony_wallet_stats(conn, wallet, settings=sizing, force=True)
+    if sizing.dynamic_sizing_enabled and _get_wallet_float_stat(conn, wallet, "visible_equity", 0.0) <= 0:
+        # The scale would fall back to the fixed copy_scale and buy the book
+        # at the wrong size. No marker: the next pass retries once the
+        # source's equity has been read.
+        return 0
+    snapshot = value_sub_account(wallet, conn=conn)
+    scale = _effective_copy_scale(conn, snapshot, sizing)
+    cash = _get_trader_cash(conn, wallet, settings.paper_start_cash)
+    # A near-fully-invested source (denizz: ~102% of visible equity in
+    # positions) would eat all the cash and starve every later BUY copy
+    # (insufficient_cash). Shrink the whole book proportionally so the
+    # proportions survive and a small reserve stays liquid.
+    eligible: list[tuple[Any, float, float]] = []
+    desired_total = 0.0
+    for _, row in positions.iterrows():
+        asset = str(row.get("asset") or "").strip()
+        size = _to_float(row.get("size"), 0.0)
+        price = _to_float(row.get("current_price"), 0.0)
+        if not asset or size <= 0 or not (0.001 <= price <= 0.999):
+            continue
+        eligible.append((row, size, price))
+        desired_total += size * scale * price
+    budget = cash * (1.0 - PAPER_SEED_CASH_RESERVE)
+    shrink = min(1.0, budget / desired_total) if desired_total > 0 else 1.0
+    spent = 0.0
+    seeded = 0
+    for row, size, price in eligible:
+        asset = str(row.get("asset") or "").strip()
+        dedup_key = f"paper_seed:{wallet}:{asset}"
+        if conn.execute("SELECT 1 FROM paper_orders WHERE dedup_key = ?", (dedup_key,)).fetchone():
+            continue
+        desired = size * scale * price
+        shares = size * scale * shrink
+        cost = shares * price
+        available = cash - spent
+        if available <= 0:
+            break
+        if cost > available:
+            shares = available / price
+            cost = available
+        if cost < 0.0001:
+            continue
+        position = _get_position(conn, wallet, asset)
+        if position:
+            new_shares = float(position["shares"]) + shares
+            new_cost = float(position["cost_basis"]) + cost
+            avg_price = new_cost / new_shares if new_shares else price
+        else:
+            new_shares = shares
+            new_cost = cost
+            avg_price = price
+        conn.execute(
+            """
+            INSERT INTO positions (trader_wallet, asset, market_key, title, outcome, shares, avg_price, cost_basis, last_price, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(trader_wallet, asset) DO UPDATE SET
+                market_key = excluded.market_key,
+                title = excluded.title,
+                outcome = excluded.outcome,
+                shares = excluded.shares,
+                avg_price = excluded.avg_price,
+                cost_basis = excluded.cost_basis,
+                last_price = excluded.last_price,
+                updated_at = excluded.updated_at
+            """,
+            (
+                wallet,
+                asset,
+                str(row.get("market_key") or ""),
+                str(row.get("title") or ""),
+                str(row.get("outcome") or ""),
+                new_shares,
+                avg_price,
+                new_cost,
+                price,
+                now,
+            ),
+        )
+        parsed = {
+            "dedup_key": dedup_key,
+            "source_wallet": wallet,
+            "source_tx": "",
+            "source_time": now,
+            "market_key": str(row.get("market_key") or ""),
+            "asset": asset,
+            "title": str(row.get("title") or ""),
+            "outcome": str(row.get("outcome") or ""),
+            "side": "BUY",
+            "price": price,
+            "size": size,
+            "source_notional": size * price,
+        }
+        order = PaperOrder(dedup_key, "copied", "seed_position", "BUY", size * price, cost, shares, desired_notional=desired)
+        _insert_order(conn, parsed, order, {"seed": "source open position bought at follow time"})
+        spent += cost
+        seeded += 1
+    _set_trader_cash(conn, wallet, cash - spent)
+    _set_meta(conn, f"paper_seeded_at:{wallet}", now)
+    _set_meta(conn, f"paper_seed_count:{wallet}", str(seeded))
+    return seeded
+
+
 def seed_wallet_baseline(
     conn: sqlite3.Connection,
     wallet: str,
@@ -1013,6 +1171,9 @@ def seed_wallet_baseline(
         seed_source_positions(conn, wallet, positions)
         if wallet == _primary_wallet(conn):
             seed_tony_positions(conn, positions)
+    # The paper book starts as a scaled copy of that source book, not as
+    # 100% cash — see seed_paper_positions.
+    seed_paper_positions(conn, wallet, settings=settings, positions=positions)
     seed_count = _mark_existing_trades_as_seed(conn, trades, wallet) if trades is not None and not trades.empty else 0
     baseline_cutoff = int(_sort_source_trades(trades)["timestamp"].max()) if trades is not None and not trades.empty else 0
     now = utc_now()
@@ -1062,6 +1223,14 @@ def sync_copy_trades(
 
         copied = skipped = duplicates = processed = 0
         errors: list[str] = []
+        # Books followed before the paper seed existed start 100% cash;
+        # backfill them once so the live desk repairs itself on deploy.
+        if wallet_paper_seeded_at(conn, wallet) is None:
+            try:
+                seed_paper_positions(conn, wallet, settings=settings)
+                conn.commit()
+            except Exception as exc:  # noqa: BLE001 - the copy loop must survive a failed backfill
+                errors.append(f"paper seed backfill: {exc}")
         ordered = _sort_source_trades(trades)
         baseline_cutoff = wallet_baseline_cutoff(conn, wallet)
         for _, row in ordered.iterrows():

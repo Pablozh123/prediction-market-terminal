@@ -467,3 +467,42 @@ class SyncPassTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TraderRowSourceInfoTests(unittest.TestCase):
+    """The trader rows say when the source last printed and whether the paper
+    book was seeded — a dead source (Theo4: nothing since Nov 2024) showed
+    zeros with no reason on the live desk."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.db = Path(self.tmp.name) / "copy.sqlite"
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def test_rows_carry_source_last_trade_and_paper_seed(self) -> None:
+        positions = pd.DataFrame([
+            {"asset": "asset-y", "size": 1_000.0, "current_price": 0.50, "avg_price": 0.40,
+             "market_key": "m-y", "title": "Y", "outcome": "Yes"},
+        ])
+        with patch("src.copy_trading.fetch_source_trades", return_value=pd.DataFrame([_trade("0xh1", 1731600000)])), \
+                patch("src.copy_trading.md.get_polymarket_positions", return_value=positions), \
+                patch("src.copy_trading.refresh_tony_wallet_stats", return_value=None):
+            conn = ct.connect(self.db)
+            try:
+                ct._set_meta(conn, f"wallet_stat:{WALLET_A}:visible_equity", "50000")
+                conn.commit()
+            finally:
+                conn.close()
+            ca.follow(WALLET_A, label="Book", db_path=self.db)
+        rows = {r["wallet"]: r for r in ca.traders_overview(db_path=self.db)}
+        row = rows[WALLET_A]
+        self.assertIsNotNone(row["paper_seeded_at"])
+        # Newest source print (the baseline trade's own time) — the desk can
+        # say "source idle since ..." instead of showing zeros for a wallet
+        # that stopped trading.
+        self.assertTrue(str(row["source_last_trade_at"]).startswith("2026-05-27"), row["source_last_trade_at"])
+        # The seeded book shows up in the sub-account figures.
+        self.assertEqual(row["open_positions"], 1)
+        self.assertLess(row["cash"], row["start_cash"])

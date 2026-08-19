@@ -325,6 +325,21 @@ Two hosts, two mechanisms — this cost a session once, so it is spelled out:
   `distribution_size_floor`, `distribution_weight` ride on the row; the card's
   weight note names it ("damped ×0.20: only $100 of flow, full weight from
   $500").
+- **Paper book seed (2026-08-19):** a sub-account used to start 100% cash, so
+  a slow source whose PnL sits in pre-follow positions produced a flat curve
+  and every SELL/REDEEM/MERGE skipped as `skipped_no_paper_position` (the
+  live desk: 16 cent-copies, all big sells skipped, PnL $0 forever).
+  `ct.seed_paper_positions` now buys the source's current open book into the
+  sub-account at follow time — current prices, the same equity-ratio scale as
+  every later order, proportional shrink to keep `PAPER_SEED_CASH_RESERVE`
+  (2%) liquid, resolved rows (price 0/1) skipped, one order per position
+  (status copied, reason `seed_position`, Orders tab kind SEED). Books from
+  before this get backfilled once by `sync_copy_trades` (marker
+  `paper_seeded_at:<wallet>`); no seed while the source equity is unread
+  (the fixed-scale fallback would buy at the wrong size). Trader rows carry
+  `paper_seeded_at` + `source_last_trade_at`; the desk says "source idle
+  since …" for dead sources (Theo4: nothing since 2024-11-15 — that row will
+  never copy, unfollow it or keep it as a control).
 
 ## 11. Next concrete step
 

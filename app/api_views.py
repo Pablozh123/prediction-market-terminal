@@ -1508,6 +1508,11 @@ def order_kind(row: Mapping[str, Any]) -> tuple[str, str]:
         return "RESOLUTION", f"the market resolved against {outcome}; the paper position went to zero"
     if reason.startswith("redeem"):
         return "REDEEM", ORDER_KINDS["REDEEM"][1]
+    if reason == "seed_position":
+        return "SEED", (
+            "follow started: the source already held this position, so the copy bought it at the current price, "
+            "scaled like every later order — without it the source's exits could not be mirrored"
+        )
     side = _text(row.get("source_side")).upper() or _text(row.get("copy_side")).upper() or "BUY"
     label, sentence = ORDER_KINDS.get(side, (side, "source activity of type " + side))
     return label, sentence.format(outcome=outcome)
