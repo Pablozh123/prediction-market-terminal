@@ -587,20 +587,35 @@ class BacktestPayloadTests(unittest.TestCase):
 
 
 class PipelineTrimTests(unittest.TestCase):
-    def test_trims_entries_and_word_counters(self) -> None:
+    def test_slims_run_entries_and_drops_word_counters(self) -> None:
+        # Die Lauf-Eintraege bleiben VOLLZAEHLIG erhalten (die Seite zaehlt
+        # den Trichter darueber), aber je Eintrag nur action und reason —
+        # frueher flogen sie ganz raus und die Kopfzeile zaehlte nur die
+        # gekappte Spiegel-Liste eines einzigen Laufs.
         payload = {
             "hinweis": "x",
             "eintraege": [{"a": i} for i in range(200)],
             "wortzaehler_endstaende": {"m": 3},
-            "laeufe": [{"profil": "p1", "eintraege": [1, 2, 3], "wortzaehler_endstaende": {"m": 1}, "n_eintraege": 3}],
+            "laeufe": [{
+                "profil": "p1", "n_eintraege": 2, "wortzaehler_endstaende": {"m": 1},
+                "eintraege": [
+                    {"action": "NONE", "reason": "kein_yes_ask", "limit_price": None, "bestes_angebot": 0.9, "size_usd": 0.0},
+                    {"action": "YES", "reason": "count 2 >= ziel 1", "limit_price": 0.8, "bestes_angebot": 0.8, "size_usd": 12.0},
+                ],
+            }],
         }
         out = apv.trim_pipeline_payload(payload, max_entries=40)
         self.assertEqual(len(out["eintraege"]), 40)
         self.assertNotIn("wortzaehler_endstaende", out)
-        self.assertNotIn("eintraege", out["laeufe"][0])
-        self.assertEqual(out["laeufe"][0]["n_eintraege"], 3)
+        self.assertNotIn("wortzaehler_endstaende", out["laeufe"][0])
+        self.assertEqual(out["laeufe"][0]["eintraege"], [
+            {"action": "NONE", "reason": "kein_yes_ask"},
+            {"action": "YES", "reason": "count 2 >= ziel 1"},
+        ])
+        self.assertEqual(out["laeufe"][0]["n_eintraege"], 2)
         # Original bleibt unangetastet
         self.assertEqual(len(payload["eintraege"]), 200)
+        self.assertIn("size_usd", payload["laeufe"][0]["eintraege"][0])
 
 
 

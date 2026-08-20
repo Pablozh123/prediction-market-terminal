@@ -1052,11 +1052,19 @@ class WebLeerzustandTest(unittest.TestCase):
     def test_pipeline_forward_ehrliche_ueberschrift(self) -> None:
         html = self.ausgabe["live"]["research_pipeline_forward"]
         text = _sichtbarer_text(html)
-        self.assertIn("Almost nothing was tradable: 1 of 5 rule-compliant decision checks ended in a buy (20%) · dominant reason: no YES ask in the book (3 of 4 no-trades, 75%)", text)
+        self.assertIn("Almost nothing was tradable: of 5 decision checks, only 1 ended in a paper buy (20%) — most common stopper: no YES ask in the book (3 of 4 no-trades, 75%)", text)
         self.assertIn("WHY IT DID NOT TRADE · REASON COUNTS · 4 NO-TRADES ACROSS 2 RUNS", text)
         self.assertIn("No YES ask in the book 3", text)
         self.assertIn("YES ask (incl. fee) above the run cap 1", text)
         self.assertIn("No equity curve", text)
+        # Querverweis statt Anspruch: die echten Wetten stehen bei Live runs.
+        self.assertIn("What the same pipeline did with real money is on the Live runs page.", text)
+        # Der Trichter steht genau einmal — die alte Zweitdarstellung
+        # (Anteil an allen Checks) ist weg, dafuer erklaert sich die
+        # Lauf-Tabelle in Klartext.
+        self.assertNotIn("share of all checks", text)
+        self.assertIn("QUOTE is that share", text)
+        self.assertIn("episode, call or speech", text)
         self.assertNotIn("FORWARD PAPER EQUITY", text)
         self.assertIn("FORWARD LOG · 2 OF 2 RUNS", text)
         leer = _sichtbarer_text(self.ausgabe["leer"]["research_pipeline_forward"])

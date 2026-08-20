@@ -641,7 +641,11 @@ export function pipelineZaehlung(eintraege) {
   return { gesamt: eintraege.length, gekauft, keine: eintraege.length - gekauft, gruende };
 }
 
-// Headline of the forward test, from the counts alone.
+// Headline of the forward test, from the counts alone. Der Trichter steht
+// genau einmal auf der Seite: frueher zeigte die Regel-Karte dieselben
+// Gruende noch einmal als Tabelle (Anteil an allen Checks statt an den
+// No-Trades) — zwei Darstellungen derselben Zaehlung lasen sich wie zwei
+// Befunde.
 function pipelineHeadlineHtml(payload) {
   const { eintraege, quelle } = pipelineEintraege(payload);
   if (!eintraege.length) return '';
@@ -656,11 +660,11 @@ function pipelineHeadlineHtml(payload) {
   return '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; padding:18px 20px">'
     + '<div style="' + M + '; font-size:10px; letter-spacing:.14em; color:#4F8EF7">WHAT THE FORWARD TEST FOUND</div>'
     + '<div style="font-size:15px; color:#fff; margin-top:10px; line-height:1.6; max-width:820px">'
-    + 'Almost nothing was tradable: ' + num(z.gekauft) + ' of ' + num(z.gesamt) + ' rule-compliant decision checks ended in a buy ('
+    + 'Almost nothing was tradable: of ' + num(z.gesamt) + ' decision checks, only ' + num(z.gekauft) + ' ended in a paper buy ('
     + (anteil < 10 ? anteil.toFixed(1) : Math.round(anteil)) + '%)'
-    + (top ? ' · dominant reason: ' + esc(top[0].charAt(0).toLowerCase() + top[0].slice(1)) + ' (' + num(top[1]) + ' of ' + num(z.keine) + ' no-trades, ' + Math.round((top[1] / Math.max(1, z.keine)) * 100) + '%)' : '')
+    + (top ? ' — most common stopper: ' + esc(top[0].charAt(0).toLowerCase() + top[0].slice(1)) + ' (' + num(top[1]) + ' of ' + num(z.keine) + ' no-trades, ' + Math.round((top[1] / Math.max(1, z.keine)) * 100) + '%)' : '')
     + '.</div>'
-    + '<div style="font-size:12px; color:rgba(255,255,255,.5); margin-top:8px; line-height:1.5">Counted over ' + esc(quelle) + ' in pipeline_forward.json. No equity curve: the file carries decision fields and best book prices only — no fills, no wallet data, no return claim.</div>'
+    + '<div style="font-size:12px; color:rgba(255,255,255,.5); margin-top:8px; line-height:1.5">Counted over ' + esc(quelle) + ' in pipeline_forward.json. No equity curve on purpose: the log carries decisions and best book prices only — no fills, no wallet data, no return claim. What the same pipeline did with real money is on the Live runs page.</div>'
     + (chart ? '<div style="margin-top:14px">' + chart + '</div>' : '')
     + '</div>';
 }
@@ -669,36 +673,25 @@ function pipelineRegelnHtml(payload) {
   const { eintraege } = pipelineEintraege(payload);
   if (!eintraege.length) return '';
   const karte = 'background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px';
-  const z = pipelineZaehlung(eintraege);
-  const gesamt = z.gesamt;
-  const gekauft = z.gekauft;
 
   const regel = (titel, text) =>
     '<div style="padding:12px 16px; border-bottom:1px solid rgba(255,255,255,.05)">'
     + '<div style="' + M + '; font-size:10px; letter-spacing:.12em; color:#4F8EF7">' + esc(titel) + '</div>'
     + '<div style="font-size:12.5px; color:rgba(255,255,255,.75); margin-top:6px; line-height:1.6">' + esc(text) + '</div></div>';
 
-  const zeilen = z.gruende.map(([text, n]) =>
-    '<div style="display:grid; grid-template-columns:1fr auto auto; gap:12px; align-items:baseline; padding:9px 16px; border-bottom:1px solid rgba(255,255,255,.05)">'
-    + '<div style="font-size:12.5px; color:rgba(255,255,255,.75)">' + esc(text) + '</div>'
-    + '<div style="' + M + '; font-size:12px; color:#fff">' + num(n) + '</div>'
-    + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.4); width:46px; text-align:right">'
-    + Math.round((n / gesamt) * 100) + '%</div></div>'
-  ).join('');
-
   return '<div style="' + karte + '; margin-top:14px; padding:18px 20px">'
     + '<div style="' + M + '; font-size:10px; letter-spacing:.14em; color:#4F8EF7">HOW THE PIPELINE DECIDES</div>'
     + '<div style="font-size:13.5px; color:rgba(255,255,255,.65); margin-top:10px; line-height:1.6; max-width:760px">'
-    + 'These are word-count markets: will a speaker say a given word often enough during an earnings call. '
-    + 'The pipeline follows the live transcript and counts. It never predicts what will be said, it acts only on what has already been said.</div>'
+    + 'These are word-count markets: will a speaker say a given word often enough during an episode, call or speech. '
+    + 'The pipeline follows the live transcript and counts. It never predicts what will be said, it acts only on what has already been said. '
+    + 'One run is one broadcast; every market it checks becomes one row in the log, buy or no-trade.</div>'
     + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:10px; overflow:hidden; margin-top:14px">'
     + regel('BUY YES', 'Only once the live count has already passed the market threshold, so the outcome is settled in fact, and only while the price including fee stays under the run cap. Above the cap there is no margin left in a decided outcome.')
     + regel('BUY NO', 'Only after the full transcript, when the final count stayed far enough below the threshold, and only at a lower cap than YES. Betting on absence breaks on a single missed word, so it needs the bigger cushion.')
     + regel('OTHERWISE NOTHING', 'Every other case is a no-trade, and each entry carries the reason that stopped it. The thresholds themselves are shown per entry, not fixed here.')
     + '</div>'
-    + '<div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45); margin:18px 0 8px">'
-    + 'WHY IT DID NOT TRADE · ' + num(gesamt) + ' decision checks, ' + num(gekauft) + ' acted on · share of all checks</div>'
-    + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:10px; overflow:hidden">' + zeilen + '</div>'
+    + '<div style="font-size:12px; color:rgba(255,255,255,.5); margin-top:12px; line-height:1.5; max-width:760px">'
+    + 'Reading the run table below: EXTRACTED $ is the dollar value the run&#39;s buys actually captured of what its already-decided outcomes offered within the caps; QUOTE is that share — 100% means it caught everything its own rules allowed.</div>'
     + '</div>';
 }
 

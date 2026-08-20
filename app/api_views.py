@@ -1820,7 +1820,15 @@ def variants_payload(comparison: pd.DataFrame) -> list[dict[str, Any]]:
 
 
 def trim_pipeline_payload(payload: Mapping[str, Any], max_entries: int = 40) -> dict[str, Any]:
-    """pipeline_forward.json ist ~800 KB — Eintraege fuers Web kappen."""
+    """pipeline_forward.json ist ~800 KB — fuers Web schlank machen, nicht kappen.
+
+    Die Seite zaehlt den Entscheidungs-Trichter ueber ALLE Laeufe; dafuer
+    braucht jeder Lauf-Eintrag nur action und reason. Preise, Groessen und
+    die Wortzaehler-Endstaende bleiben der publizierten Datei vorbehalten.
+    Frueher flogen die Lauf-Eintraege komplett raus und der Client fiel auf
+    die gekappte Spiegel-Liste EINES Laufs zurueck — die Kopfzeile sagte
+    "1 von 40 Checks", die Tabelle darunter "21 Laeufe, 3.370 Checks".
+    """
 
     out = dict(payload)
     if isinstance(out.get("eintraege"), list):
@@ -1829,7 +1837,11 @@ def trim_pipeline_payload(payload: Mapping[str, Any], max_entries: int = 40) -> 
         trimmed = []
         for lauf in out["laeufe"]:
             lauf = dict(lauf)
-            lauf.pop("eintraege", None)
+            if isinstance(lauf.get("eintraege"), list):
+                lauf["eintraege"] = [
+                    {"action": e.get("action"), "reason": e.get("reason")} if isinstance(e, Mapping) else e
+                    for e in lauf["eintraege"]
+                ]
             lauf.pop("wortzaehler_endstaende", None)
             trimmed.append(lauf)
         out["laeufe"] = trimmed

@@ -49,8 +49,8 @@ export const STUDIEN = [
   {
     tab: 'Pipeline forward',
     title: 'Forward test of the pipeline',
-    stamp: 'rolling',
-    note: 'The analysis pipeline runs forward with no intervention, so its record cannot be fitted after the fact.',
+    stamp: 'paper log',
+    note: 'The word-count pipeline in watch mode: it reads the live transcript and logs, for every market, whether its rules would have allowed a bet — mostly they would not. No intervention, so the record cannot be fitted after the fact.',
     chart: 'FORWARD PAPER EQUITY'
   },
   {
