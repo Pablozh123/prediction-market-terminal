@@ -777,10 +777,13 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn('href="https://polygonscan.com/address/0x29afe1bf37700768a640a08f1b35dad5f202f88d"', live)
         self.assertIn('href="https://polymarket.com/profile/0x29afe1bf37700768a640a08f1b35dad5f202f88d"', live)
         self.assertIn("public Polymarket Data API", text)
-        # Je Lauf eine fuehrende PnL-Zahl, Quelle benannt, Log daneben:
-        # harness_a traegt den kuratierten Abgleich, harness_b nur den Ledger.
-        self.assertIn("PnL +$12.00 (wallet) · log estimate +$14.00", text)
-        self.assertIn("PnL +$10.03 (wallet ledger, API realised) · log estimate +$10.00", text)
+        # Das Laufdetail steckt im aufklappbaren Bot-Event: die Zeile traegt
+        # die Wallet-Zahl, das Detail nur noch die Log-Seite, so beschriftet.
+        self.assertIn("run harness_a · Run with a fill · real orders · resolved", text)
+        self.assertIn("Stake $20.00 (log est.) · log PnL +$14.00 — the wallet figure is the PNL column of this row", text)
+        self.assertIn("Stake $20.00 (log est.) · log PnL +$10.00 — the wallet figure is the PNL column of this row", text)
+        # Keine Karten mehr neben der Tabelle — eine Darstellung, nicht drei.
+        self.assertNotIn("RUNS WITH FILLS", text)
         # Der Simulator-Reiter benennt seine Zahlen als Simulation.
         sim = _sichtbarer_text(self.ausgabe["live"]["runs_sim"])
         self.assertIn("simulation on log-estimated fills", sim)
@@ -812,7 +815,9 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("Second run with a fill", text)
         self.assertIn("drop via RSS feed", text)
         self.assertIn('href="https://polymarket.com/event/harness-event-a"', live)
-        self.assertEqual(live.count("event ↗"), 1)          # nur der Lauf mit Slug
+        # Keine Karten mehr: der "event ↗"-Kartenlink ist weg, der Link haengt
+        # am Zeilentitel der Tabelle.
+        self.assertNotIn(">event ↗</a>", live)
         # Timing-Reiter: Repricing-Treppen aus repricing[].punkte, dann die
         # Tabelle mit den Spalten aus preis_nach_fill (30 s war immer leer).
         timing = self.ausgabe["live"]["runs_timing"]
@@ -868,14 +873,15 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn('href="./data/wallet_ledger.json"', live)
         self.assertIn("Forecasts pre-registered before airing", text)
         self.assertIn("rules frozen 2026-07-18", text)
-        # Legende: drei Typen, Verweis auf die Laufkarten oben.
-        self.assertIn("BOT market and side appear in a runs.json run log — these runs are also listed above with their latency data", text)
+        # Legende: drei Typen plus NO FILLS; Bot-Zeilen tragen das Laufdetail.
+        self.assertIn("BOT market and side appear in a runs.json run log — open the row for the full run detail (latency, decisions, every bet)", text)
         self.assertIn("DISCRETIONARY placed by hand, in no run log", text)
         self.assertIn("PILOT one of the pre-registered pilot trades of 2026-07-22", text)
         # Die NO-FILLS-Zeile erklaert sich in der Legende.
         self.assertIn("NO FILLS the bot ran and placed nothing — no wallet trace", text)
-        # Der Abschnitt steht unter den Laufkarten.
-        self.assertLess(live.index("RUNS WITH FILLS"), live.index("ALL EVENTS · RUNS AND WALLET"))
+        # Im gemischten Event stehen die Handelszeilen von Hand unter dem
+        # eingebetteten Laufdetail, beschriftet.
+        self.assertIn("PLACED BY HAND ON THE SAME EVENT", text)
         # Ohne Ledger: die Zeile nennt die Datei und das Skript, keine Zahl.
         for name in ("runs_runs_many",):
             ohne = _sichtbarer_text(self.ausgabe["live"][name])
