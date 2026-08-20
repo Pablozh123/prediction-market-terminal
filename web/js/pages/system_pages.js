@@ -2309,12 +2309,32 @@ function mentionsExtrasHtml(payload) {
   const charts = reaktion || konvergenz
     ? '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(360px, 1fr)); gap:12px; margin-top:14px">' + reaktion + konvergenz + '</div>'
     : hinweisKarte('No reaction or convergence minutes in this payload — mentions_latenz.json carries them per event under faelle[].minuten_bis_erste_reaktion and minuten_bis_konvergenz.');
+  // YES- und NO-Faelle messen verschiedene Mechanismen (Reaktion auf eine
+  // gefallene Aussage vs. Zerfall der Resthoffnung ohne Ereignis) — die
+  // Mediane kommen getrennt aus der Datei, sobald sie aggregate traegt.
+  const agg = payload.aggregate && typeof payload.aggregate === 'object' ? payload.aggregate : null;
+  const jeOutcome = agg && agg.je_outcome && typeof agg.je_outcome === 'object' ? agg.je_outcome : null;
+  const splitKachel = (name, o, deutung) => (o && o.n != null
+    ? '<div style="' + KARTE + '; padding:14px 16px">'
+      + '<div style="' + M + '; font-size:10px; letter-spacing:.14em; color:#4F8EF7">RESOLVED ' + esc(name) + ' · n ' + num(o.n) + '</div>'
+      + '<div style="' + M + '; font-size:12.5px; color:rgba(255,255,255,.85); margin-top:8px; line-height:1.8">'
+      + 'median first reaction ' + fmtZahl(o.median_minuten_bis_erste_reaktion) + ' min<br>'
+      + 'median convergence ' + fmtZahl(o.median_minuten_bis_konvergenz) + ' min<br>'
+      + 'median tradeable window ' + fmtZahl(o.median_stunden_im_handelbaren_fenster) + ' h</div>'
+      + '<div style="font-size:11.5px; color:rgba(255,255,255,.45); margin-top:8px; line-height:1.5">' + esc(deutung) + '</div></div>'
+    : '');
+  const split = jeOutcome
+    ? '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px; margin-top:12px">'
+      + splitKachel('YES', jeOutcome.YES, 'A reaction to an utterance that happened — the market hears it and moves.')
+      + splitKachel('NO', jeOutcome.NO, 'No triggering event: the first move is drift, and certainty only comes once the broadcast is (almost) over.')
+      + '</div>'
+    : '';
   const methode = '<div style="' + KARTE + '; margin-top:12px; padding:14px 18px">'
     + '<div style="' + M + '; font-size:10px; letter-spacing:.14em; color:#4F8EF7">HOW TO READ IT</div>'
     + '<div style="font-size:12.5px; color:rgba(255,255,255,.65); margin-top:8px; line-height:1.6; max-width:860px">'
     + 'First reaction is the first move of at least 2¢ after the content went live; convergence is the time until the price had settled on the outcome that later resolved, as measured by the daily run'
     + (payload.hinweis ? ' — the published note reads: "' + esc(payload.hinweis) + '"' : '')
-    + '. The RESOLVED column shows the outcome the market settled to; the tradeable window is the hours between first reaction and convergence in which the outcome was still priced below certainty. Both bar charts use a linear axis — one slow event stretches the scale, so read the median line, not the longest bar.'
+    + '. The RESOLVED column shows the outcome the market settled to. The tradeable window is the hours after the drop in which that outcome was still priced below certainty — measured on the price series itself, so it can start before the first 2¢ reaction and is not simply convergence minus reaction. Both bar charts use a linear axis — one slow event stretches the scale, so read the median line, not the longest bar.'
     + '</div></div>';
   const ausschlussHtml = ausschluesse.length
     ? '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:12px; overflow:hidden">'
@@ -2325,7 +2345,27 @@ function mentionsExtrasHtml(payload) {
         + '<div style="' + M + '; font-size:11px; color:#F5A623">' + esc(ausschlussText(a && a.status)) + '</div></div>').join('')
       + '</div>'
     : hinweisKarte('No exclusions listed in mentions_latenz.json (ausschluesse is empty).');
-  return charts + methode + ausschlussHtml;
+  // Methode, Datengrundlage und Grenzen, zugeklappt — direkt aus der Datei,
+  // damit die Seite nichts behauptet, was die Nutzlast nicht traegt.
+  const quelle = payload.quelle && typeof payload.quelle === 'object' ? payload.quelle : null;
+  const quelleAbsatz = (titel, text) => (text
+    ? '<div style="margin-top:10px"><div style="' + M + '; font-size:9px; letter-spacing:.13em; color:rgba(255,255,255,.38)">' + titel + '</div>'
+      + '<div style="font-size:12.5px; color:rgba(255,255,255,.7); margin-top:4px; line-height:1.6">' + esc(text) + '</div></div>'
+    : '');
+  const quelleHtml = quelle
+    ? '<details style="margin-top:12px; ' + KARTE + '; padding:0 18px">'
+      + '<summary style="cursor:pointer; padding:12px 0; ' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55); list-style:none">METHOD, SAMPLE &amp; WHAT IT CANNOT SHOW ▸</summary>'
+      + '<div style="padding-bottom:14px">'
+      + quelleAbsatz('WHAT WAS MEASURED', quelle.methode)
+      + quelleAbsatz('DATA BASIS', quelle.datengrundlage)
+      + (Array.isArray(quelle.einschraenkungen) && quelle.einschraenkungen.length
+        ? '<div style="margin-top:10px"><div style="' + M + '; font-size:9px; letter-spacing:.13em; color:rgba(255,255,255,.38)">WHAT IT CANNOT SHOW</div>'
+          + '<ul style="margin:4px 0 0 18px; padding:0; font-size:12.5px; color:rgba(255,255,255,.7); line-height:1.6">'
+          + quelle.einschraenkungen.map((e) => '<li>' + esc(String(e)) + '</li>').join('') + '</ul></div>'
+        : '')
+      + '</div></details>'
+    : '';
+  return charts + split + methode + ausschlussHtml + quelleHtml;
 }
 
 // Exclusion status codes of mentions_latenz.json in plain words; unknown codes

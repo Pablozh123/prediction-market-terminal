@@ -539,6 +539,18 @@ function mitDaten(T) {
   // Ausschluss mit Statuscode. Median von 0.5 und 10 ist 5.25.
   T.liveData.research['Mentions latency'] = {
     _quelle: 'live', stand_utc: '2026-08-07T04:30:03+00:00', hinweis: 'Harness mentions note.',
+    aggregate: {
+      gesamt: { n: 2, median_minuten_bis_erste_reaktion: 5.25, median_minuten_bis_konvergenz: 315, median_stunden_im_handelbaren_fenster: 5.15 },
+      je_outcome: {
+        YES: { n: 1, median_minuten_bis_erste_reaktion: 0.5, median_minuten_bis_konvergenz: 30, median_stunden_im_handelbaren_fenster: 0.5 },
+        NO: { n: 1, median_minuten_bis_erste_reaktion: 10, median_minuten_bis_konvergenz: 600, median_stunden_im_handelbaren_fenster: 9.8 }
+      }
+    },
+    quelle: {
+      methode: 'Harness mentions method.',
+      datengrundlage: 'Harness mentions data basis.',
+      einschraenkungen: ['Harness mentions caveat.']
+    },
     faelle: [
       { event: 'harness_fast', minuten_bis_erste_reaktion: 0.5, minuten_bis_konvergenz: 30, stunden_im_handelbaren_fenster: 0.5, korrekt_aufgeloestes_outcome: 'YES', status: 'ok' },
       { event: 'harness_slow', minuten_bis_erste_reaktion: 10, minuten_bis_konvergenz: 600, stunden_im_handelbaren_fenster: 9.8, korrekt_aufgeloestes_outcome: 'NO', status: 'ok' },

@@ -1002,6 +1002,18 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("EXCLUDED EVENTS · 1", text)
         self.assertIn("harness_excluded excluded · ambiguous mapping between content and market", text)
         self.assertIn("HOW TO READ IT First reaction is the first move of at least 2¢", text)
+        # Das handelbare Fenster ist NICHT Konvergenz minus Reaktion — der
+        # Lesetext muss das sagen (cnbc_kernen/jre_vance beweisen es).
+        self.assertIn("not simply convergence minus reaction", text)
+        # YES- und NO-Mediane getrennt, mit n, direkt aus aggregate.
+        self.assertIn("RESOLVED YES · n 1", text)
+        self.assertIn("RESOLVED NO · n 1", text)
+        self.assertIn("median convergence 600 min", text)
+        self.assertIn("median tradeable window 9.8 h", text)
+        # Methode/Grenzen kommen aus quelle, zugeklappt.
+        self.assertIn("METHOD, SAMPLE &amp; WHAT IT CANNOT SHOW", text)
+        self.assertIn("Harness mentions method.", text)
+        self.assertIn("Harness mentions caveat.", text)
         # Tabelle mit Outcome und Status je Zeile, alle Zeilen.
         self.assertIn("MENTIONS EVENTS · 3 OF 3", text)
         self.assertIn("RESOLVED STATUS", text)
@@ -1011,6 +1023,7 @@ class WebLeerzustandTest(unittest.TestCase):
         leer = _sichtbarer_text(self.ausgabe["leer"]["research_mentions_latency"])
         self.assertIn("mentions_latenz.json", leer)
         self.assertNotIn("MEDIAN LATENCY", leer)
+        self.assertNotIn("RESOLVED YES", leer)
 
     def test_pilot_alle_trades_englisch_und_slippage_diagramm(self) -> None:
         html = self.ausgabe["live"]["research_pilot"]

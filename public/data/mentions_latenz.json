@@ -1,6 +1,43 @@
 {
- "hinweis": "Reaction and convergence times of mentions markets after the content drop; exclusions listed separately.",
+ "hinweis": "Reaction and convergence times of mentions markets after the content drop; exclusions listed separately. Medians are published per resolved outcome because YES and NO cases measure different mechanisms: a YES market reacts to an utterance that happened, a NO market decays as the remaining window empties. Method, data basis and caveats are in `quelle`.",
  "stand_utc": "2026-08-07T04:30:03+00:00",
+ "provenienz": "thesis/mentions_latency.csv (kuratiert, fidelity=1)",
+ "aggregate": {
+  "gesamt": {
+   "n": 12,
+   "median_minuten_bis_erste_reaktion": 0.2,
+   "median_minuten_bis_konvergenz": 260.7,
+   "median_stunden_im_handelbaren_fenster": 1.8
+  },
+  "je_outcome": {
+   "YES": {
+    "n": 5,
+    "median_minuten_bis_erste_reaktion": 0.1,
+    "median_minuten_bis_konvergenz": 300.2,
+    "median_stunden_im_handelbaren_fenster": 1.5
+   },
+   "NO": {
+    "n": 7,
+    "median_minuten_bis_erste_reaktion": 4.0,
+    "median_minuten_bis_konvergenz": 221.2,
+    "median_stunden_im_handelbaren_fenster": 2.0
+   }
+  }
+ },
+ "quelle": {
+  "methode": "t0 is the start of the transmission (the content drop); price series at fidelity=1 (minute grid). First reaction = first move of at least 2 cents after t0. Convergence = the price durably settled on the outcome that later resolved. Tradeable window = hours after t0 in which that outcome was still priced below certainty, measured on the price series independently of the 2-cent threshold — it can start before the first reaction (jre_vance_2221: window 0.08 h against a reaction-to-convergence span of 0.03 h) and is not convergence minus reaction.",
+  "datengrundlage": "12 curated status-ok cases plus one documented exclusion from the thesis file data/results/mentions_latency.csv. The raw file with per-case t0 stamps, market ids and price series is not published, so the per-case figures cannot be recomputed from this payload alone. The Mentions example in kategorie_karte.json (median 0.2 / 260.7 min) is the median of exactly these 12 cases.",
+  "einschraenkungen": [
+   "Convergence contains the time until the resolution-relevant statement inside the broadcast: a word said in minute 90 makes convergence at least 90 minutes without the market being slow. Every convergence figure is an upper bound on reaction speed, not a reaction time.",
+   "YES and NO cases measure different mechanisms. YES reacts to an utterance that happened (median first reaction 0.1 min). A NO market has no triggering event: its first 2-cent move (median 4.0 min) is drift, and it can only converge once the broadcast is (almost) over. The pooled medians mix both; compare per outcome.",
+   "The 2-cent threshold has no placebo baseline: how often a 2-cent move occurs in a quiet window of comparable books was not counter-tested, so in thin books a 'first reaction' can be noise.",
+   "n = 12 hand-picked events, not a random sample; selection favours broadcasts with a clean, documentable drop timestamp.",
+   "fidelity=1: values of 0.0 and 0.1 minutes sit at the measurement resolution.",
+   "Frozen snapshot of 2026-08-07, curated by hand — no generator script exists in the repo, and mentions events keep happening weekly. Nothing after that date is measured.",
+   "No per-case t0, market slug or price series is published here; external readers cannot re-derive these rows."
+  ],
+  "dokumentation_ergaenzt_utc": "2026-08-20"
+ },
  "faelle": [
   {
    "event": "melania_ai_talk",

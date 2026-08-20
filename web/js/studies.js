@@ -21,7 +21,7 @@ export const STUDIEN = [
   {
     tab: 'Mentions latency',
     title: 'How fast mentions markets react',
-    stamp: 'frozen 2026-06-30',
+    stamp: 'frozen 2026-08-07',
     note: 'Time between a piece of content going live and the market moving more than two cents.',
     chart: 'MINUTES TO FIRST MOVE'
   },
