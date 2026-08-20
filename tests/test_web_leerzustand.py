@@ -845,11 +845,15 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("ALL EVENTS · RUNS AND WALLET", text)
         self.assertIn("WALLET/PUBLIC-API", text)
         self.assertIn("as of 2026-08-17 01:02 UTC", text)
-        self.assertIn("EVENTS 4 2 bot · 1 discretionary · 1 pilot", text)
-        self.assertIn("TRADES 7 6 buys · 1 sell · 4 redemptions", text)
-        self.assertIn("STAKE (BUYS) $176.35", text)
-        self.assertIn("NET CASH FLOW +$58.66 sells $20.00 + redemptions $215.01 − buys", text)
-        self.assertIn("POSITIONS WON / LOST 3 / 2 1 of the lost expired worthless", text)
+        # Keine zweite KPI-Reihe mehr: die Wallet-Summen sind eine
+        # beschriftete Textzeile, die Kacheln oben bleiben die einzigen.
+        self.assertIn("Whole wallet: 4 events (2 bot · 1 discretionary · 1 pilot) · 7 trades (6 buys · 1 sell · 4 redemptions) · buys $176.35 · net cash flow +$58.66 (sells + redemptions − buys) · positions 3 won / 2 lost (1 expired worthless)", text)
+        self.assertNotIn("STAKE (BUYS)", text)
+        self.assertNotIn("NET CASH FLOW +$58.66 sells", text)
+        # Der Herkunftstext der Tabelle ist zugeklappt, nicht ein Absatz.
+        self.assertIn("WHAT THIS TABLE IS", text)
+        self.assertIn('<details data-key="ledger-was"', live)
+        self.assertIn("Race chips in an opened bot row compare each fill", text)
         self.assertIn("4 WALLET EVENTS + 2 RUNS WITHOUT A TRADE · NEWEST FIRST", text)
         # Reihenfolge: neueste Zeile zuerst; die Laeufe ohne Trade (07-03 und
         # 07-04) liegen zwischen Bot-Event A (07-18) und Bot-Event B (07-02).
@@ -891,7 +895,7 @@ class WebLeerzustandTest(unittest.TestCase):
             self.assertNotIn("WALLET EVENTS", ohne)
         leer = _sichtbarer_text(self.ausgabe["leer"]["runs_runs"])
         self.assertIn("public/data/wallet_ledger.json", leer)
-        self.assertNotIn("EVENTS 4", leer)
+        self.assertNotIn("Whole wallet:", leer)
         # api.js kennt die Datei fuer den statischen Rueckfall.
         api_js = (WURZEL / "web" / "js" / "api.js").read_text(encoding="utf-8")
         self.assertIn("'/api/research/wallet-ledger': 'wallet_ledger.json'", api_js)

@@ -1321,7 +1321,11 @@ function renderLiveRuns(T, payload) {
     // dann die Tabelle mit denselben Events, dann der Rest: drei Darstellungen
     // fuer eine Sache.
     body = '<div style="margin-top:14px">'
-      + '<div style="font-size:12.5px; color:rgba(255,255,255,.5); line-height:1.5; max-width:820px; margin-bottom:14px">Race chips compare each fill against the public taker tape of that market: how many other trades hit between the drop and our fill, and how long until the next trader after us. The anchor is the bot\'s logged fill time — chain timestamps can differ by a few seconds.</div>'
+      // Der Erklaertext steht im zugeklappten WHAT THIS TABLE IS des
+      // Tabellenabschnitts — hier nur noch im Rueckfall ohne Ledger.
+      + (!ledger
+        ? '<div style="font-size:12.5px; color:rgba(255,255,255,.5); line-height:1.5; max-width:820px; margin-bottom:14px">Race chips compare each fill against the public taker tape of that market: how many other trades hit between the drop and our fill, and how long until the next trader after us. The anchor is the bot\'s logged fill time — chain timestamps can differ by a few seconds.</div>'
+        : '')
       + (alleKarten.length ? '' : leerZeile(laufSatz))
       + (!ledger && cards.length
         ? '<div style="' + M + '; font-size:10px; letter-spacing:.12em; color:rgba(255,255,255,.5); margin-bottom:10px">RUNS WITH FILLS · ' + cards.length
@@ -1876,26 +1880,27 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
   const nachTyp = agg.nach_typ || {};
   const typZahl = (t) => (nachTyp[t] && nachTyp[t].events != null ? nachTyp[t].events : 0);
   const pos = agg.positionen || {};
-  const kpis = [
-    { label: 'EVENTS', value: String(agg.n_events != null ? agg.n_events : events.length),
-      sub: typZahl('bot') + ' bot · ' + typZahl('discretionary') + ' discretionary · ' + typZahl('pilot') + ' pilot', color: '#fff' },
-    { label: 'TRADES', value: num(agg.n_trades != null ? agg.n_trades : '—'),
-      sub: [agg.n_kaeufe != null ? ledgerZahlwort(agg.n_kaeufe, 'buy', 'buys') : '',
-        agg.n_verkaeufe != null ? ledgerZahlwort(agg.n_verkaeufe, 'sell', 'sells') : '',
-        agg.n_einloesungen != null ? ledgerZahlwort(agg.n_einloesungen, 'redemption', 'redemptions') : ''].filter(Boolean).join(' · '), color: '#fff' },
-    { label: 'STAKE (BUYS)', value: ledgerGeld(agg.kaeufe_usd, false), sub: 'sum of buy notionals · ' + (agg.n_maerkte != null ? num(agg.n_maerkte) + ' positions' : ''), color: '#fff' },
-    { label: 'NET CASH FLOW', value: ledgerGeld(agg.netto_cashflow_usd, true),
-      sub: 'sells ' + ledgerGeld(agg.verkaeufe_usd, false) + ' + redemptions ' + ledgerGeld(agg.einloesungen_usd, false) + ' − buys', color: ledgerFarbe(agg.netto_cashflow_usd) },
-    { label: 'POSITIONS WON / LOST', value: (agg.positionen_gewonnen != null ? agg.positionen_gewonnen : '—') + ' / ' + (agg.positionen_verloren != null ? agg.positionen_verloren : '—'),
-      sub: (pos.worthless != null ? pos.worthless + ' of the lost expired worthless' : '') + (pos.flat ? ' · ' + pos.flat + ' flat' : '') + (pos.open ? ' · ' + pos.open + ' open' : '') + (agg.closed_positions_capped ? ' · closed feed capped at 50 per tail' : ''), color: '#fff' }
+  // Eine Textzeile statt einer zweiten KPI-Reihe: die Kacheln oben messen
+  // die Bot-Laeufe, hier stand ein zweiter Kachelblock mit den Zahlen der
+  // ganzen Wallet daneben — zwei Stakes, zwei Netto-Zahlen, doppelte Optik.
+  // Die Wallet-Summen sind eine beschriftete Zeile ueber der Tabelle.
+  const metaTeile = [
+    num(agg.n_events != null ? agg.n_events : events.length) + ' events (' + typZahl('bot') + ' bot · ' + typZahl('discretionary') + ' discretionary · ' + typZahl('pilot') + ' pilot)'
   ];
-  const kpiHtml = '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; margin-top:12px">'
-    + kpis.map((k) =>
-      '<div style="' + karte + '; border-radius:10px; padding:12px 14px">'
-      + '<div style="' + M + '; font-size:9.5px; letter-spacing:.13em; color:rgba(255,255,255,.45)">' + esc(k.label) + '</div>'
-      + '<div style="' + M + '; font-size:19px; margin-top:6px; color:' + k.color + '; white-space:nowrap">' + esc(k.value) + '</div>'
-      + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.4); margin-top:4px">' + esc(k.sub) + '</div></div>'
-    ).join('') + '</div>';
+  if (agg.n_trades != null) {
+    metaTeile.push(num(agg.n_trades) + ' trades ('
+      + [agg.n_kaeufe != null ? ledgerZahlwort(agg.n_kaeufe, 'buy', 'buys') : '',
+        agg.n_verkaeufe != null ? ledgerZahlwort(agg.n_verkaeufe, 'sell', 'sells') : '',
+        agg.n_einloesungen != null ? ledgerZahlwort(agg.n_einloesungen, 'redemption', 'redemptions') : ''].filter(Boolean).join(' · ') + ')');
+  }
+  if (agg.kaeufe_usd != null) metaTeile.push('buys ' + ledgerGeld(agg.kaeufe_usd, false));
+  if (agg.netto_cashflow_usd != null) metaTeile.push('net cash flow ' + ledgerGeld(agg.netto_cashflow_usd, true) + ' (sells + redemptions − buys)');
+  if (agg.positionen_gewonnen != null || agg.positionen_verloren != null) {
+    metaTeile.push('positions ' + (agg.positionen_gewonnen != null ? agg.positionen_gewonnen : '—') + ' won / ' + (agg.positionen_verloren != null ? agg.positionen_verloren : '—') + ' lost'
+      + (pos.worthless ? ' (' + pos.worthless + ' expired worthless)' : '') + (pos.flat ? ' · ' + pos.flat + ' flat' : '') + (pos.open ? ' · ' + pos.open + ' open' : ''));
+  }
+  if (agg.closed_positions_capped) metaTeile.push('closed feed capped at 50 per tail');
+  const metaZeile = '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55); margin-top:8px; line-height:1.7">Whole wallet: ' + esc(metaTeile.join(' · ')) + '</div>';
 
   const spalten = '92px 1fr 118px 64px 96px 96px 150px';
   // Laeufe ohne Fill: eine eigene Zeile nur, wenn kein Wallet-Event denselben
@@ -2065,19 +2070,29 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
     + 'PnL is the API\'s realised figure per market (unrealised for positions not yet redeemed); the cash flow of an event can differ. Deposits are not in the Data API.'
     + '</div>';
 
+  // Der lange Herkunftstext der Tabelle plus die Race-Chip-Erklaerung
+  // zugeklappt: wer wissen will, wie die Tabelle gebaut ist, klappt auf —
+  // die Seite selbst bleibt eine Kachelreihe und eine Tabelle.
+  const erklaerung = '<details data-key="ledger-was" style="' + karte + '; margin-top:10px; padding:0 16px">'
+    + '<summary style="cursor:pointer; padding:11px 0; list-style:none; ' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.5)">WHAT THIS TABLE IS &amp; HOW TO READ THE RUN DETAIL ▸</summary>'
+    + '<div style="padding-bottom:12px; font-size:12.5px; color:rgba(255,255,255,.6); line-height:1.6">'
+    + esc(ledger.hinweis || '')
+    + '<div style="margin-top:8px">Race chips in an opened bot row compare each fill against the public taker tape of that market: how many other trades hit between the drop and our fill, and how long until the next trader after us. The anchor is the bot\'s logged fill time — chain timestamps can differ by a few seconds.</div>'
+    + '</div></details>';
+
   return '<div style="margin-top:22px">'
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap">'
-    + '<div style="max-width:760px">' + KOPF
-    + '<div style="font-size:12.5px; color:rgba(255,255,255,.55); margin-top:6px; line-height:1.5">' + esc(ledger.hinweis || '') + '</div></div>'
+    + '<div style="max-width:860px">' + KOPF + metaZeile
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:5px">Wallet ' + walletLinkHtml(ledger.wallet)
+    + (agg.erste_aktivitaet_utc ? ' · first activity ' + esc(String(agg.erste_aktivitaet_utc).slice(0, 10)) : '')
+    + (agg.letzte_aktivitaet_utc ? ' · last activity ' + esc(String(agg.letzte_aktivitaet_utc).slice(0, 10)) : '')
+    + ' · <a href="./data/wallet_ledger.json" download="wallet_ledger.json" style="color:#4F8EF7; text-decoration:none">download the ledger</a></div>'
+    + '</div>'
     + '<div style="display:flex; gap:8px; align-items:center">'
     + '<div style="' + M + '; font-size:9.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; color:#0A0D0F; background:#C8F542">' + esc(String(ledger.kennzeichnung || 'wallet/public-api').toUpperCase()) + '</div>'
     + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.4); border:1px solid rgba(255,255,255,.14); border-radius:6px; padding:5px 10px; white-space:nowrap">as of ' + esc(stand) + '</div>'
     + '</div></div>'
-    + kpiHtml
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:8px">Wallet ' + walletLinkHtml(ledger.wallet)
-    + (agg.erste_aktivitaet_utc ? ' · first activity ' + esc(String(agg.erste_aktivitaet_utc).slice(0, 10)) : '')
-    + (agg.letzte_aktivitaet_utc ? ' · last activity ' + esc(String(agg.letzte_aktivitaet_utc).slice(0, 10)) : '')
-    + ' · <a href="./data/wallet_ledger.json" download="wallet_ledger.json" style="color:#4F8EF7; text-decoration:none">download the ledger</a></div>'
+    + erklaerung
     + tabelle + legende
     + '</div>';
 }
