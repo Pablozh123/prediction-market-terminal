@@ -59,7 +59,7 @@ export function leerBlock(titel, satz) {
   const M = "font-family:'JetBrains Mono',monospace";
   return '<div style="padding:26px 24px">'
     + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:20px 22px; max-width:760px">'
-    + '<div style="' + M + '; font-size:10px; letter-spacing:.14em; color:#F5A623">' + esc(titel) + '</div>'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#F5A623">' + esc(titel) + '</div>'
     + '<div style="font-size:13px; color:rgba(255,255,255,.6); margin-top:9px; line-height:1.6">' + esc(satz) + '</div>'
     + '</div></div>';
 }
@@ -69,7 +69,7 @@ export function leerBlock(titel, satz) {
 export function seitenKopf(kicker, titel, farbe) {
   const M = "font-family:'JetBrains Mono',monospace";
   return '<div style="padding:20px 24px 14px; border-bottom:1px solid rgba(255,255,255,.09)">'
-    + '<div style="' + M + '; font-size:10px; letter-spacing:.18em; color:' + farbe + '">' + esc(kicker) + '</div>'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.18em; color:' + farbe + '">' + esc(kicker) + '</div>'
     + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">'
     + esc(titel) + '</div></div>';
 }
@@ -78,7 +78,7 @@ export function seitenKopf(kicker, titel, farbe) {
 // einer Liste sitzt und nicht deren Platz einnehmen soll.
 export function leerZeile(satz) {
   const M = "font-family:'JetBrains Mono',monospace";
-  return '<div style="padding:22px 20px; ' + M + '; font-size:11.5px; color:rgba(255,255,255,.42); line-height:1.6">'
+  return '<div style="padding:22px 20px; ' + M + '; font-size:11.5px; color:rgba(255,255,255,.6); line-height:1.6">'
     + esc(satz) + '</div>';
 }
 

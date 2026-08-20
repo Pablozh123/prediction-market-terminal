@@ -4,8 +4,8 @@ import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChi
 import { renderClusterGraphics } from './cluster_graphics.js';
 
 const M = "font-family:'JetBrains Mono',monospace";
-const LBL9 = M + '; font-size:9px; letter-spacing:.14em; color:rgba(255,255,255,.42); margin-bottom:6px';
-const HEAD_CELL = M + '; font-size:9.5px; letter-spacing:.14em; color:rgba(255,255,255,.45)';
+const LBL9 = M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.6); margin-bottom:6px';
+const HEAD_CELL = M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.6)';
 
 function filterGroup(label, chipsHtml) {
   return '<div><div style="' + LBL9 + '">' + label + '</div><div style="display:flex; gap:6px; flex-wrap:wrap">' + chipsHtml + '</div></div>';
@@ -30,7 +30,7 @@ function scorePartsHtml(t) {
   const parts = scorePartsOf(t);
   if (!parts.length) return '';
   return '<div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:4px">'
-    + parts.map((p) => '<span style="' + M + '; font-size:9.5px; color:rgba(255,255,255,.5); border:1px solid rgba(255,255,255,.1); border-radius:4px; padding:1px 6px; white-space:nowrap">' + esc(p.label) + ' <span style="color:rgba(255,255,255,.8)">' + esc(p.value) + '</span></span>').join('')
+    + parts.map((p) => '<span style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.5); border:1px solid rgba(255,255,255,.1); border-radius:4px; padding:1px 6px; white-space:nowrap">' + esc(p.label) + ' <span style="color:rgba(255,255,255,.8)">' + esc(p.value) + '</span></span>').join('')
     + '</div>';
 }
 
@@ -66,7 +66,7 @@ export function renderTraders(T) {
     return b.pnl - a.pnl;
   });
 
-  const badge = tCount ? M + '; font-size:10px; color:#0A0D0F; background:#C8F542; border-radius:4px; padding:1px 7px' : 'display:none';
+  const badge = tCount ? M + '; font-size:11px; color:#0A0D0F; background:#C8F542; border-radius:4px; padding:1px 7px' : 'display:none';
   const chevron = M + '; font-size:16px; color:rgba(255,255,255,.5); transition:transform .18s ease; transform:rotate(' + (s.traderFiltersOpen ? '90deg' : '0deg') + ')';
   const asOf = T.liveData.leaderboard && T.liveData.leaderboard.as_of ? ' · snapshot ' + T.liveData.leaderboard.as_of : '';
   const grid = '44px 1fr 120px' + (hatWin ? ' 100px' : '') + (hatResolved ? ' 118px' : '') + ' 100px 92px';
@@ -79,7 +79,7 @@ export function renderTraders(T) {
   return '<div>'
     + '<div style="padding:20px 24px 14px; border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:20px">'
-    + '<div><div style="' + M + '; font-size:10px; letter-spacing:.18em; color:#C8F542">LEADERBOARD</div>'
+    + '<div><div style="' + M + '; font-size:11px; letter-spacing:.18em; color:#C8F542">LEADERBOARD</div>'
     + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">Who is actually good at this</div></div>'
     + '<div style="display:flex; align-items:center; gap:10px">'
     + '<input value="' + esc(s.traderQuery) + '" ' + T.inp((e) => T.setState({ traderQuery: e.target.value }), 'traderQuery') + ' placeholder="Search name or wallet…" style="background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:9px 12px; ' + M + '; font-size:12.5px; color:#fff; width:230px; outline:none" />'
@@ -102,7 +102,7 @@ export function renderTraders(T) {
       + filterGroup('VOLUME', [['all','All'],['10k','>$10k'],['100k','>$100k'],['1m','>$1m'],['50m','>$50m']].map((o) => T.opt(o[1], s.tVol === o[0], { tVol: o[0] })).join(''))
       + '</div>' : '')
     + '</div>'
-    + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); margin-top:12px">' + traderSorted.length + ' of ' + T.traders.length + ' wallets · all-time' + esc(asOf) + '</div>'
+    + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); margin-top:12px">' + traderSorted.length + ' of ' + T.traders.length + ' wallets · all-time' + esc(asOf) + '</div>'
     + '</div>'
 
     + '<div style="display:grid; grid-template-columns:' + grid + '; padding:10px 24px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A; ' + HEAD_CELL + '">'
@@ -113,13 +113,13 @@ export function renderTraders(T) {
     + traderSorted.map((t, i) => {
       const score = t.score;
       const avatarStyle = 'width:28px; height:28px; flex:none; border-radius:7px; background:#1C232B; border:1px solid rgba(255,255,255,.09); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:12px; color:' + (score != null && score >= 80 ? '#C8F542' : 'rgba(255,255,255,.6)');
-      const scoreStyle = M + '; font-size:12.5px; border-radius:5px; padding:3px 9px; ' + (score == null ? 'color:rgba(255,255,255,.4); border:1px solid rgba(255,255,255,.12)' : score >= 80 ? 'color:#0A0D0F; background:#C8F542' : score >= 60 ? 'color:rgba(255,255,255,.8); border:1px solid rgba(255,255,255,.2)' : 'color:#F5A623; border:1px solid rgba(245,166,35,.35)');
+      const scoreStyle = M + '; font-size:12.5px; border-radius:5px; padding:3px 9px; ' + (score == null ? 'color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.12)' : score >= 80 ? 'color:#0A0D0F; background:#C8F542' : score >= 60 ? 'color:rgba(255,255,255,.8); border:1px solid rgba(255,255,255,.2)' : 'color:#F5A623; border:1px solid rgba(245,166,35,.35)');
       return '<div ' + T.act(() => T.openWallet(t.name)) + ' class="hv-panel" style="display:grid; grid-template-columns:' + grid + '; align-items:center; padding:13px 24px; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer; animation:rowIn .25s ease-out">'
-        + '<div style="' + M + '; font-size:13px; color:rgba(255,255,255,.45)">' + (i + 1) + '</div>'
+        + '<div style="' + M + '; font-size:13px; color:rgba(255,255,255,.6)">' + (i + 1) + '</div>'
         + '<div style="display:flex; align-items:center; gap:10px; min-width:0">'
         + '<div style="' + avatarStyle + '">' + esc(t.name.charAt(0).toUpperCase()) + '</div>'
         + '<div style="min-width:0"><div style="font-size:13.5px">' + esc(t.name) + '</div>'
-        + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:2px">' + esc(t.wallet) + (t.grade ? ' · grade ' + esc(t.grade) : '') + '</div>'
+        + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); margin-top:2px">' + esc(t.wallet) + (t.grade ? ' · grade ' + esc(t.grade) : '') + '</div>'
         + scorePartsHtml(t) + '</div></div>'
         + '<div style="' + M + '; font-size:14px; text-align:right; color:' + (t.pnl >= 0 ? '#C8F542' : '#FF4545') + '">' + money(t.pnl) + '</div>'
         + (hatWin ? '<div style="' + M + '; font-size:13px; text-align:right">' + (t.win != null ? Math.round(t.win * 100) + '%' : '—') + '</div>' : '')
@@ -222,15 +222,19 @@ export function renderWhale(T) {
     : '';
   const kpi = (label, value, sub, last) =>
     '<div style="padding:14px 20px' + (last ? '' : '; border-right:1px solid rgba(255,255,255,.09)') + '">'
-    + '<div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">' + label + '</div>'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:rgba(255,255,255,.6)">' + label + '</div>'
     + '<div style="' + M + '; font-size:24px; margin-top:7px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + value + '</div>'
-    + (sub ? '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.4); margin-top:3px">' + sub + '</div>' : '')
+    + (sub ? '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); margin-top:3px">' + sub + '</div>' : '')
     + '</div>';
-  const GRID = 'minmax(170px,1.2fr) 58px 96px 96px 128px 66px minmax(150px,1fr) 118px 78px';
+  // Die Spaltensummen lagen ueber der Breite des Inhaltsbereichs (1040 px
+  // Minimum gegen 958 px Platz), also schob die Tabelle die Seite seitwaerts.
+  // Die flexiblen Spalten bekommen kleinere Mindestbreiten; ueberlange Titel
+  // faengt die Ellipse ab, wie in den anderen Tabellen auch.
+  const GRID = 'minmax(140px,1.2fr) 58px 92px 92px 110px 62px minmax(110px,1fr) 108px 74px';
 
   return '<div>'
     + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(255,255,255,.09)">'
-    + '<div style="' + M + '; font-size:10px; letter-spacing:.18em; color:#C8F542">WHALE FLOW</div>'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.18em; color:#C8F542">WHALE FLOW</div>'
     + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">Who is moving the big money</div>'
     + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:9px; max-width:760px">The same prints as the tape, grouped by wallet, so one wallet buying twenty times reads as one story instead of twenty rows. Every figure below is a sum over the prints in this tape window' + (whaleCat === 'All' ? '' : ' in the category ' + esc(whaleCat)) + '.' + esc(ausschlussSatz) + '</div>'
     + '<div style="display:flex; align-items:center; gap:8px; margin-top:12px; flex-wrap:wrap">'
@@ -242,7 +246,7 @@ export function renderWhale(T) {
     + T.chip('Total $', sortKey === 'total', { whaleSort: 'total' })
     + T.chip('Biggest print', sortKey === 'biggest', { whaleSort: 'biggest' })
     + T.chip('Prints', sortKey === 'prints', { whaleSort: 'prints' })
-    + '<span style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); margin-left:6px">' + (walletCount > SHOW ? 'top ' + SHOW + ' of ' + num(walletCount) + ' wallets' : num(walletCount) + ' wallet' + (walletCount === 1 ? '' : 's')) + ' · ' + num(grouped.length) + ' print' + (grouped.length === 1 ? '' : 's') + ' grouped</span>'
+    + '<span style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); margin-left:6px">' + (walletCount > SHOW ? 'top ' + SHOW + ' of ' + num(walletCount) + ' wallets' : num(walletCount) + ' wallet' + (walletCount === 1 ? '' : 's')) + ' · ' + num(grouped.length) + ' print' + (grouped.length === 1 ? '' : 's') + ' grouped</span>'
     + '</div></div>'
     + '<div style="display:grid; grid-template-columns:repeat(5,1fr); border-bottom:1px solid rgba(255,255,255,.09)">'
     + kpi('WALLETS PRINTING BIG', num(walletCount), '')
@@ -251,12 +255,16 @@ export function renderWhale(T) {
     + kpi('BIGGEST SINGLE PRINT', money(biggest), '')
     + kpi('TOP CATEGORY BY $', esc(topCatLabel), esc(topCatShare), true)
     + '</div>'
-    + '<div style="padding:10px 24px; border-bottom:1px solid rgba(255,255,255,.09); font-size:12px; color:rgba(255,255,255,.55)"><span style="' + M + '; font-size:9.5px; letter-spacing:.14em; color:rgba(255,255,255,.42); margin-right:8px">CONCENTRATION</span>' + esc(konzentrationSatz) + '</div>'
+    + '<div style="padding:10px 24px; border-bottom:1px solid rgba(255,255,255,.09); font-size:12px; color:rgba(255,255,255,.55)"><span style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.6); margin-right:8px">CONCENTRATION</span>' + esc(konzentrationSatz) + '</div>'
     + '<div style="display:grid; grid-template-columns:' + GRID + '; gap:0 10px; padding:10px 24px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A; ' + HEAD_CELL + '">'
     + '<div>WALLET · VENUE</div><div style="text-align:right">PRINTS</div><div style="text-align:right">TOTAL</div><div style="text-align:right">BIGGEST</div><div style="text-align:right">LEANING</div><div style="text-align:right">MARKETS</div><div>TOP MARKET</div><div style="text-align:right">MOSTLY IN</div><div style="text-align:right">LAST PRINT</div></div>'
     + (rows.length ? '' : leerZeile('Every print in this window is anonymous — Kalshi publishes no wallet identity, so there is nothing to group by.'))
     + rows.map((w) => {
-      const leanColor = w.lean === 'BUYING' ? '#C8F542' : w.lean === 'SELLING' ? '#FF4545' : w.lean === 'MOSTLY BUYING' ? 'rgba(200,245,66,.75)' : 'rgba(255,69,69,.75)';
+      // "MOSTLY" war ein Alphawert auf demselben Rot — bei 11 px landete das
+      // bei 3.6:1 und damit unter der Lesbarkeitsschwelle. Jetzt trennt der
+      // gedaempftere Farbton der Palette (#FF7A7A) die beiden Staerken, statt
+      // Deckkraft wegzunehmen.
+      const leanColor = w.lean === 'BUYING' ? '#C8F542' : w.lean === 'SELLING' ? '#FF4545' : w.lean === 'MOSTLY BUYING' ? 'rgba(200,245,66,.75)' : '#FF7A7A';
       const leanStyle = M + '; font-size:11px; letter-spacing:.08em; text-align:right; color:' + leanColor;
       const topMarketShare = w.total ? Math.round(w.topMarket.dollar / w.total * 100) : 0;
       // The drawer gets the address too: most of these wallets are not on
@@ -265,17 +273,17 @@ export function renderWhale(T) {
       // openWallet keeps only a full address).
       return '<div ' + T.act(() => T.openWallet(w.name, w.wallet !== w.name ? w.wallet : '')) + ' class="hv-panel" style="display:grid; grid-template-columns:' + GRID + '; gap:0 10px; align-items:center; padding:12px 24px; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer; animation:rowIn .25s ease-out">'
         + '<div style="min-width:0"><div style="font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(w.name) + '">' + esc(w.name) + '</div>'
-        + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(w.wallet) + '">' + esc(w.wallet) + ' · ' + esc(w.venues) + '</div></div>'
+        + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(w.wallet) + '">' + esc(w.wallet) + ' · ' + esc(w.venues) + '</div></div>'
         + '<div style="' + M + '; font-size:13px; text-align:right; color:rgba(255,255,255,.6)">' + w.prints + '</div>'
         + '<div style="' + M + '; font-size:14px; text-align:right">' + money(w.total) + '</div>'
         + '<div style="' + M + '; font-size:13px; text-align:right; color:rgba(255,255,255,.6)">' + money(w.biggest) + '</div>'
         + '<div><div style="' + leanStyle + '">' + esc(w.lean) + '</div>'
-        + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.4); text-align:right; margin-top:2px">' + w.buys + ' buy' + (w.buys === 1 ? '' : 's') + ' · ' + w.sells + ' sell' + (w.sells === 1 ? '' : 's') + '</div></div>'
+        + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); text-align:right; margin-top:2px">' + w.buys + ' buy' + (w.buys === 1 ? '' : 's') + ' · ' + w.sells + ' sell' + (w.sells === 1 ? '' : 's') + '</div></div>'
         + '<div style="' + M + '; font-size:13px; text-align:right; color:rgba(255,255,255,.6)">' + w.marketCount + '</div>'
         + '<div style="min-width:0"><div style="font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(w.topMarket.title) + '">' + esc(w.topMarket.title) + '</div>'
-        + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.4); margin-top:2px">' + money(w.topMarket.dollar) + ' · ' + topMarketShare + '% of this wallet</div></div>'
+        + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); margin-top:2px">' + money(w.topMarket.dollar) + ' · ' + topMarketShare + '% of this wallet</div></div>'
         + '<div style="text-align:right"><div style="' + M + '; font-size:11.5px; color:rgba(255,255,255,.75)">' + esc(w.cat) + '</div>'
-        + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.4); margin-top:2px">' + esc(w.catShare) + ' prints</div></div>'
+        + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); margin-top:2px">' + esc(w.catShare) + ' prints</div></div>'
         + '<div style="' + M + '; font-size:11px; text-align:right; color:rgba(255,255,255,.5)">' + esc(w.lastAgo) + '</div></div>';
     }).join('')
     + '</div>';
@@ -285,8 +293,8 @@ export function renderWhale(T) {
 // Helpers for the event cards and the flag log. Every field they read comes
 // from /api/risk (api_views.risk_event_row) or /api/risk/log; a missing value
 // renders as "—" or "n/a", never as a default number.
-const CHIP = M + '; font-size:9.5px; color:rgba(255,255,255,.55); border:1px solid rgba(255,255,255,.1); border-radius:4px; padding:1px 6px; white-space:nowrap';
-const NOTE_R = M + '; font-size:11px; color:rgba(255,255,255,.45); line-height:1.6';
+const CHIP = M + '; font-size:10.5px; color:rgba(255,255,255,.55); border:1px solid rgba(255,255,255,.1); border-radius:4px; padding:1px 6px; white-space:nowrap';
+const NOTE_R = M + '; font-size:11px; color:rgba(255,255,255,.6); line-height:1.6';
 const LINK = 'color:#C8F542; text-decoration:none; ' + M + '; font-size:10.5px; letter-spacing:.06em';
 
 function cents(p) {
@@ -358,25 +366,25 @@ export function riskScoreBreakdown(components, score) {
     const anteil = Math.max(0, Math.min(1, Number(c.value) / max));
     const voll = anteil >= 0.66;
     const farbe = voll ? '#F5A623' : 'rgba(255,255,255,.55)';
-    const unter = [c.fact, c.rule].filter(Boolean).map((t) => esc(String(t))).join(' <span style="color:rgba(255,255,255,.25)">·</span> ')
+    const unter = [c.fact, c.rule].filter(Boolean).map((t) => esc(String(t))).join(' <span style="color:rgba(255,255,255,.5)">·</span> ')
       + (c.weight_note ? ' <span style="color:#F5A623">' + esc(c.weight_note) + '</span>' : '');
     return '<div style="padding:6px 0; border-bottom:1px solid rgba(255,255,255,.05)">'
       + '<div style="display:flex; align-items:center; gap:10px">'
       + '<div style="flex:0 0 158px; font-size:12.5px; color:rgba(255,255,255,.85)" title="' + esc(String(c.measures || '')) + '">' + esc(String(c.label || c.key || '')) + '</div>'
       + '<div style="flex:1; height:6px; border-radius:3px; background:rgba(255,255,255,.08); overflow:hidden"><div style="width:' + (anteil * 100).toFixed(1) + '%; height:6px; background:' + farbe + '"></div></div>'
-      + '<div style="flex:0 0 64px; text-align:right; ' + M + '; font-size:11.5px; color:' + (voll ? '#F5A623' : 'rgba(255,255,255,.8)') + '">' + esc(String(c.value)) + '<span style="color:rgba(255,255,255,.35)">/' + esc(String(c.max)) + '</span></div>'
+      + '<div style="flex:0 0 64px; text-align:right; ' + M + '; font-size:11.5px; color:' + (voll ? '#F5A623' : 'rgba(255,255,255,.8)') + '">' + esc(String(c.value)) + '<span style="color:rgba(255,255,255,.55)">/' + esc(String(c.max)) + '</span></div>'
       + '</div>'
       + (unter ? '<div style="font-size:11px; color:rgba(255,255,255,.5); margin-top:3px; padding-left:0; line-height:1.45">' + unter + '</div>' : '')
       + '</div>';
   };
   const nichts = zero.length
-    ? '<div style="font-size:11px; color:rgba(255,255,255,.42); padding:7px 0; line-height:1.5"><span style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:rgba(255,255,255,.35)">NOT FOUND</span> '
-      + zero.map((c) => esc(String(c.label || c.key || '')).toLowerCase() + (c.fact ? ' <span style="color:rgba(255,255,255,.3)">(' + esc(String(c.fact)) + ')</span>' : '')).join(' · ') + '</div>'
+    ? '<div style="font-size:11px; color:rgba(255,255,255,.6); padding:7px 0; line-height:1.5"><span style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.55)">NOT FOUND</span> '
+      + zero.map((c) => esc(String(c.label || c.key || '')).toLowerCase() + (c.fact ? ' <span style="color:rgba(255,255,255,.5)">(' + esc(String(c.fact)) + ')</span>' : '')).join(' · ') + '</div>'
     : '';
   const kontext = ctx
     ? '<div style="display:flex; align-items:baseline; gap:10px; padding:7px 0; border-top:1px solid rgba(255,255,255,.05)">'
       + '<div style="flex:0 0 158px; font-size:12.5px; color:rgba(255,255,255,.85)">' + esc(String(ctx.label || 'Context')) + '</div>'
-      + '<div style="flex:1; font-size:11px; color:rgba(255,255,255,.5); line-height:1.45">' + esc(String(ctx.fact || '')) + (ctx.rule ? ' <span style="color:rgba(255,255,255,.3)">· ' + esc(String(ctx.rule)) + '</span>' : '') + '</div>'
+      + '<div style="flex:1; font-size:11px; color:rgba(255,255,255,.5); line-height:1.45">' + esc(String(ctx.fact || '')) + (ctx.rule ? ' <span style="color:rgba(255,255,255,.5)">· ' + esc(String(ctx.rule)) + '</span>' : '') + '</div>'
       + '<div style="flex:0 0 64px; text-align:right; ' + M + '; font-size:11.5px; color:' + (faktor > 1 ? '#F5A623' : faktor < 1 ? 'rgba(255,255,255,.5)' : 'rgba(255,255,255,.8)') + '">×' + esc(String(ctx.value)) + '</div></div>'
     : '';
   // The arithmetic, checkable: parts × context = score. When the listed
@@ -387,7 +395,7 @@ export function riskScoreBreakdown(components, score) {
   const rechnung = '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55); padding-top:8px; border-top:1px solid rgba(255,255,255,.08); margin-top:2px">'
     + summe.toFixed(1) + ' pts' + (ctx ? ' × ' + esc(String(ctx.value)) : '') + ' = <span style="color:#fff">' + produkt + '</span> / 100'
     + (stimmt ? '' : ' <span style="color:#F5A623">· the card says ' + esc(String(score)) + ' — parts missing from this answer</span>')
-    + ' <span style="color:rgba(255,255,255,.35)">· under 40 low · 40–54 elevated · 55–69 medium · 70+ high</span></div>';
+    + ' <span style="color:rgba(255,255,255,.55)">· under 40 low · 40–54 elevated · 55–69 medium · 70+ high</span></div>';
   return '<div>' + scored.map(bar).join('') + nichts + kontext + rechnung + '</div>';
 }
 
@@ -429,8 +437,8 @@ const BOOK_KURZ = (rel) => rel === 'adds' ? 'adds' : rel === 'reduces' ? 'hedge 
 export function riskBookSummary(T, r) {
   const eintrag = riskBookEntry(T, r);
   if (!eintrag) return '';
-  const kopf = '<span style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:rgba(255,255,255,.4)">BOOK NOW</span> ';
-  const grau = '<span style="font-size:11.5px; color:rgba(255,255,255,.45)">';
+  const kopf = '<span style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">BOOK NOW</span> ';
+  const grau = '<span style="font-size:11.5px; color:rgba(255,255,255,.6)">';
   if (eintrag.herkunft === 'loading') return '<div style="margin-top:8px">' + kopf + grau + 'reading the wallets\' open positions…</span></div>';
   if (eintrag.herkunft === 'fehler') return '<div style="margin-top:8px">' + kopf + grau + 'not read (' + esc(eintrag.fehler || 'no answer') + ')</span></div>';
   const books = eintrag.data && Array.isArray(eintrag.data.wallets) ? eintrag.data.wallets : [];
@@ -439,8 +447,8 @@ export function riskBookSummary(T, r) {
   let ungelesen = 0;
   books.forEach((b) => { if (!b.read) { ungelesen += 1; return; } zaehler[b.relation || 'book'] = (zaehler[b.relation || 'book'] || 0) + 1; });
   const teile = Object.keys(zaehler).map((rel) => '<span style="' + M + '; font-size:10.5px; color:' + BOOK_FARBE(rel) + '">' + zaehler[rel] + ' ' + BOOK_KURZ(rel) + '</span>');
-  if (ungelesen) teile.push('<span style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45)">' + ungelesen + ' not read</span>');
-  return '<div style="margin-top:8px; display:flex; align-items:center; gap:8px; flex-wrap:wrap">' + kopf + teile.join('<span style="color:rgba(255,255,255,.25)">·</span>') + '</div>';
+  if (ungelesen) teile.push('<span style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6)">' + ungelesen + ' not read</span>');
+  return '<div style="margin-top:8px; display:flex; align-items:center; gap:8px; flex-wrap:wrap">' + kopf + teile.join('<span style="color:rgba(255,255,255,.5)">·</span>') + '</div>';
 }
 
 // The book behind the flow, one line per wallet: what the top wallets hold in
@@ -452,18 +460,18 @@ export function riskBookSummary(T, r) {
 export function riskBookHtml(T, r) {
   const eintrag = riskBookEntry(T, r);
   if (!eintrag) return '';
-  const kopf = '<span style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:rgba(255,255,255,.4)">WALLET BOOK NOW</span> ';
-  if (eintrag.herkunft === 'loading') return '<div style="margin-top:8px; font-size:11.5px; color:rgba(255,255,255,.45)">' + kopf + 'reading the wallets\' open positions in this market…</div>';
-  if (eintrag.herkunft === 'fehler') return '<div style="margin-top:8px; font-size:11.5px; color:rgba(255,255,255,.45)">' + kopf + 'not read (' + esc(eintrag.fehler || 'no answer') + ')</div>';
+  const kopf = '<span style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">WALLET BOOK NOW</span> ';
+  if (eintrag.herkunft === 'loading') return '<div style="margin-top:8px; font-size:11.5px; color:rgba(255,255,255,.6)">' + kopf + 'reading the wallets\' open positions in this market…</div>';
+  if (eintrag.herkunft === 'fehler') return '<div style="margin-top:8px; font-size:11.5px; color:rgba(255,255,255,.6)">' + kopf + 'not read (' + esc(eintrag.fehler || 'no answer') + ')</div>';
   const books = eintrag.data && Array.isArray(eintrag.data.wallets) ? eintrag.data.wallets : [];
-  if (!books.length) return '<div style="margin-top:8px; font-size:11.5px; color:rgba(255,255,255,.45)">' + kopf + 'no wallet readable</div>';
+  if (!books.length) return '<div style="margin-top:8px; font-size:11.5px; color:rgba(255,255,255,.6)">' + kopf + 'no wallet readable</div>';
   return '<div style="margin-top:8px; display:flex; flex-direction:column; gap:4px">'
     + books.map((b) => {
-      if (!b.read) return '<div style="font-size:11.5px; color:rgba(255,255,255,.45)">' + kopf + esc(b.short || b.wallet) + ' not read (' + esc(b.error || 'no answer') + ')</div>';
+      if (!b.read) return '<div style="font-size:11.5px; color:rgba(255,255,255,.6)">' + kopf + esc(b.short || b.wallet) + ' not read (' + esc(b.error || 'no answer') + ')</div>';
       const netz = b.net === 'YES' || b.net === 'NO' ? 'net ' + b.net : b.net === 'balanced' ? 'balanced' : 'flat';
       return '<div style="font-size:11.5px; line-height:1.45; color:rgba(255,255,255,.7)">' + kopf
         + '<span style="' + M + '; color:rgba(255,255,255,.85)">' + esc(b.short || b.wallet) + '</span> '
-        + '<span style="' + M + '; font-size:10px; letter-spacing:.08em; color:' + BOOK_FARBE(b.relation) + '; border:1px solid ' + BOOK_FARBE(b.relation) + '55; border-radius:4px; padding:1px 6px; margin:0 4px">' + BOOK_WORT(b.relation) + ' · ' + esc(netz) + '</span>'
+        + '<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:' + BOOK_FARBE(b.relation) + '; border:1px solid ' + BOOK_FARBE(b.relation) + '55; border-radius:4px; padding:1px 6px; margin:0 4px">' + BOOK_WORT(b.relation) + ' · ' + esc(netz) + '</span>'
         + esc(b.text || '') + '</div>';
     }).join('')
     + '</div>';
@@ -477,8 +485,8 @@ function marketLink(url) {
 // has not passed, "n/a" when no history could be read.
 function afterCell(after, key, label) {
   const p = after && after[key];
-  if (!after) return '<div><div style="' + HEAD_CELL + '">' + label + '</div><div style="' + M + '; font-size:12px; color:rgba(255,255,255,.4); margin-top:2px">n/a</div></div>';
-  if (!p) return '<div><div style="' + HEAD_CELL + '">' + label + '</div><div style="' + M + '; font-size:12px; color:rgba(255,255,255,.4); margin-top:2px">not yet</div></div>';
+  if (!after) return '<div><div style="' + HEAD_CELL + '">' + label + '</div><div style="' + M + '; font-size:12px; color:rgba(255,255,255,.6); margin-top:2px">n/a</div></div>';
+  if (!p) return '<div><div style="' + HEAD_CELL + '">' + label + '</div><div style="' + M + '; font-size:12px; color:rgba(255,255,255,.6); margin-top:2px">not yet</div></div>';
   const move = p.move_c == null ? '' : ' <span style="color:' + (p.move_c > 0 ? '#C8F542' : p.move_c < 0 ? '#FF7A7A' : 'rgba(255,255,255,.5)') + '">' + (p.move_c > 0 ? '+' : '') + esc(String(p.move_c)) + '</span>';
   return '<div><div style="' + HEAD_CELL + '">' + label + '</div><div style="' + M + '; font-size:12px; margin-top:2px">' + cents(p.price) + move + '</div></div>';
 }
@@ -496,7 +504,7 @@ export function renderRiskLog(T) {
     return intro + '<div style="display:flex; align-items:center; gap:10px; padding:16px 24px">'
       + '<span style="width:7px; height:7px; border-radius:50%; background:#F5A623; display:inline-block; animation:livePulse 1.2s ease-in-out infinite"></span>'
       + '<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:#F5A623">loading /api/risk/log</span>'
-      + '<span style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.4)">reads the log and, for the newest Polymarket flags, the price afterwards</span></div>';
+      + '<span style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6)">reads the log and, for the newest Polymarket flags, the price afterwards</span></div>';
   }
   if (live._quelle === 'fehler') {
     return intro + '<div style="display:flex; align-items:center; gap:12px; padding:16px 24px">'
@@ -509,7 +517,7 @@ export function renderRiskLog(T) {
     return intro + leerZeile('The flag log is empty so far — it fills as the screen flags events (score '
       + (live.min_score != null ? String(live.min_score) : '40') + ' and up); nothing has been flagged since logging started on this host.');
   }
-  const kopf = '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); padding:12px 24px 0">' + rows.length + ' flag' + (rows.length === 1 ? '' : 's')
+  const kopf = '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); padding:12px 24px 0">' + rows.length + ' flag' + (rows.length === 1 ? '' : 's')
     + (live.enriched != null ? ' · price after the flag read for ' + live.enriched + ' of the newest ' + Math.min(rows.length, live.enrich_max || 30) + ' Polymarket flags' : '')
     + (live.as_of ? ' · as of ' + esc(String(live.as_of)) : '') + '</div>';
   return intro + kopf + '<div style="padding:12px 24px 18px; display:grid; gap:12px">'
@@ -522,10 +530,10 @@ export function renderRiskLog(T) {
       return '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:14px 18px">'
         + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px">'
         + '<div style="min-width:0">'
-        + '<div style="' + M + '; font-size:10px; letter-spacing:.12em; color:rgba(255,255,255,.45)">' + esc(utcShort(f.last_seen)) + ' UTC · ' + esc(String(f.venue || '')) + (f.category ? ' · ' + esc(f.category) : '') + (f.times_seen > 1 ? ' · seen ' + f.times_seen + '× since ' + esc(utcShort(f.first_seen)) : '') + '</div>'
+        + '<div style="' + M + '; font-size:11px; letter-spacing:.12em; color:rgba(255,255,255,.6)">' + esc(utcShort(f.last_seen)) + ' UTC · ' + esc(String(f.venue || '')) + (f.category ? ' · ' + esc(f.category) : '') + (f.times_seen > 1 ? ' · seen ' + f.times_seen + '× since ' + esc(utcShort(f.first_seen)) : '') + '</div>'
         + '<div style="font-size:14.5px; margin-top:5px; line-height:1.35">' + esc(f.title || f.market_key || '—') + (f.url ? ' ' + marketLink(f.url) : '') + '</div>'
         + '</div>'
-        + '<div style="display:flex; align-items:baseline; gap:5px; flex:none"><div style="' + scoreStyle + '">' + (f.score != null ? Math.round(f.score) : '—') + '</div><div style="' + M + '; font-size:10px; color:rgba(255,255,255,.35)">/100</div></div>'
+        + '<div style="display:flex; align-items:baseline; gap:5px; flex:none"><div style="' + scoreStyle + '">' + (f.score != null ? Math.round(f.score) : '—') + '</div><div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55)">/100</div></div>'
         + '</div>'
         + '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:9px; align-items:center">' + riskSideChip(seite)
         + '<span style="' + CHIP + '">at flag ' + esc(riskPriceLabel(preis)) + '</span>'
@@ -547,7 +555,7 @@ export function renderRiskLog(T) {
 // score taken apart (riskScoreBreakdown: bars, facts, arithmetic) and the
 // per-wallet book lines. The open state lives in T.state.riskOpen[key] so a
 // re-render keeps it.
-const BAND = (score) => score >= 70 ? ['HIGH', '#F5A623'] : score >= 55 ? ['MEDIUM', '#F5A623'] : score >= 40 ? ['ELEVATED', 'rgba(255,255,255,.7)'] : ['LOW', 'rgba(255,255,255,.45)'];
+const BAND = (score) => score >= 70 ? ['HIGH', '#F5A623'] : score >= 55 ? ['MEDIUM', '#F5A623'] : score >= 40 ? ['ELEVATED', 'rgba(255,255,255,.7)'] : ['LOW', 'rgba(255,255,255,.6)'];
 
 export function riskEventCard(T, r0) {
   const r = T.riskCardView(r0);
@@ -572,8 +580,8 @@ export function riskEventCard(T, r0) {
   const details = offen && hatDetails
     ? '<div data-stop style="margin-top:12px; border-top:1px dashed rgba(255,255,255,.1); padding-top:10px; cursor:default">'
       + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px; flex-wrap:wrap">'
-      + '<div style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:rgba(255,255,255,.4)">WHY ' + score + ' / 100 · WHAT EACH PART SAW</div>'
-      + (flags.length ? '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.45)">flags: ' + flags.map((f) => esc(String(f))).join(' · ') + '</div>' : '')
+      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">WHY ' + score + ' / 100 · WHAT EACH PART SAW</div>'
+      + (flags.length ? '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6)">flags: ' + flags.map((f) => esc(String(f))).join(' · ') + '</div>' : '')
       + '</div>'
       + (comps.length ? '<div style="margin-top:6px">' + riskScoreBreakdown(comps, score) + '</div>' : '<div style="' + NOTE_R + '; margin-top:6px">' + esc(r.detail || 'No component breakdown in this answer.') + '</div>')
       + riskBookHtml(T, r0)
@@ -583,10 +591,10 @@ export function riskEventCard(T, r0) {
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px">'
     + '<div style="' + r.kindStyle + '; padding-top:4px">' + esc(r.kind) + '</div>'
     + '<div style="text-align:right; flex:none"><div style="display:flex; align-items:baseline; gap:6px; justify-content:flex-end"><div style="' + r.scoreStyle + '">' + r.score + '</div>'
-    + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.35)">/100</div></div>'
-    + '<div style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:' + band[1] + '">' + band[0] + '</div></div></div>'
+    + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55)">/100</div></div>'
+    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:' + band[1] + '">' + band[0] + '</div></div></div>'
     + '<div style="font-size:15px; margin-top:6px; line-height:1.35">' + esc(r.market) + (r0.url ? ' ' + marketLink(r0.url) : '') + '</div>'
-    + '<div style="' + M + '; font-size:10px; letter-spacing:.1em; color:rgba(255,255,255,.4); margin-top:4px"' + (r0.context_note ? ' title="' + esc(r0.context_note) + '"' : '') + '>' + (r0.category ? esc(String(r0.category).toUpperCase()) + ' · ' : '') + esc(String(r.venue || '').toUpperCase()) + '</div>'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.1em; color:rgba(255,255,255,.6); margin-top:4px"' + (r0.context_note ? ' title="' + esc(r0.context_note) + '"' : '') + '>' + (r0.category ? esc(String(r0.category).toUpperCase()) + ' · ' : '') + esc(String(r.venue || '').toUpperCase()) + '</div>'
     + (hatFlow
       ? '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; align-items:center">' + riskSideChip(r0)
         + '<span style="' + CHIP + '">at flag ' + esc(riskPriceLabel(r0)) + '</span>'
@@ -597,7 +605,7 @@ export function riskEventCard(T, r0) {
     + '<div style="height:1px; background:rgba(255,255,255,.07); margin:14px 0 12px"></div>'
     + '<div style="display:flex; gap:22px; align-items:flex-end; justify-content:space-between; flex-wrap:wrap"><div style="display:flex; gap:22px">'
     + [['WALLETS', r.wallets], ['NOTIONAL', r.notional], ['WINDOW', r.window]].map((p) =>
-      '<div><div style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:rgba(255,255,255,.4)">' + p[0] + '</div><div style="' + M + '; font-size:14px; margin-top:3px">' + esc(String(p[1])) + '</div></div>'
+      '<div><div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">' + p[0] + '</div><div style="' + M + '; font-size:14px; margin-top:3px">' + esc(String(p[1])) + '</div></div>'
     ).join('')
     + '</div>' + toggle + '</div>'
     + details
@@ -649,13 +657,13 @@ export function renderRisk(T) {
     body = renderRiskLog(T);
   } else if (s.riskView === 'wallets') {
     body = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:16px 24px; overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:1fr 96px 110px 110px 130px 96px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
+      + '<div style="display:grid; grid-template-columns:1fr 96px 110px 110px 130px 96px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">'
       + '<div>WALLET</div><div style="text-align:right">SCORE</div><div style="text-align:right">WHALE PRINTS</div><div style="text-align:right">NOTIONAL</div><div style="text-align:right">FIRST SEEN</div><div style="text-align:right">CLUSTER</div></div>'
       + (walletRows.length ? '' : leerZeile(risikoSatz))
       + walletRows.map((w) => {
         const scoreStyle = M + '; font-size:12px; border-radius:5px; padding:3px 9px; ' + (w.score >= 70 ? 'color:#0A0D0F; background:#F5A623' : w.score >= 55 ? 'color:#F5A623; border:1px solid rgba(245,166,35,.35)' : 'color:rgba(255,255,255,.7); border:1px solid rgba(255,255,255,.18)');
         return '<div ' + T.act(() => T.openWallet(w.wallet, w.address)) + ' class="hv-panel" style="display:grid; grid-template-columns:1fr 96px 110px 110px 130px 96px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:12.5px; cursor:pointer">'
-          + '<div><span style="font-family:\'Inter\',sans-serif; font-size:13px">' + esc(w.wallet) + '</span> <span style="color:rgba(255,255,255,.4); font-size:11px">· ' + esc(w.context) + '</span></div>'
+          + '<div><span style="font-family:\'Inter\',sans-serif; font-size:13px">' + esc(w.wallet) + '</span> <span style="color:rgba(255,255,255,.6); font-size:11px">· ' + esc(w.context) + '</span></div>'
           + '<div style="display:flex; justify-content:flex-end"><div style="' + scoreStyle + '">' + w.score + '</div></div>'
           + '<div style="text-align:right; color:rgba(255,255,255,.6)">' + w.prints + '</div>'
           + '<div style="text-align:right">' + esc(String(w.notional)) + '</div>'
@@ -682,7 +690,7 @@ export function renderRisk(T) {
   } else if (s.riskView === 'timing') {
     const timingRows = live && live.timing ? live.timing : [];
     body = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:16px 24px; overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:1fr 100px 110px 120px 120px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
+      + '<div style="display:grid; grid-template-columns:1fr 100px 110px 120px 120px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">'
       + '<div>MARKET</div><div style="text-align:right">WALLETS</div><div style="text-align:right">WINDOW</div><div style="text-align:right">NOTIONAL</div><div style="text-align:right">SAME SIDE</div></div>'
       + (timingRows.length ? '' : leerZeile(risikoSatz))
       + timingRows.map((c) =>
@@ -712,8 +720,8 @@ export function renderRisk(T) {
         + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.5)">' + n.size + ' wallets</div></div>'
         + '<div style="font-size:12.5px; color:rgba(255,255,255,.6); margin-top:8px; line-height:1.45">' + esc(n.story) + '</div>'
         + '<div style="display:flex; gap:20px; margin-top:12px">'
-        + '<div><div style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:rgba(255,255,255,.4)">SHARED MARKETS</div><div style="' + M + '; font-size:14px; margin-top:3px">' + esc(n.shared) + '</div></div>'
-        + '<div><div style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:rgba(255,255,255,.4)">PAIRED NOTIONAL</div><div style="' + M + '; font-size:14px; margin-top:3px">' + esc(n.notional) + '</div></div>'
+        + '<div><div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">SHARED MARKETS</div><div style="' + M + '; font-size:14px; margin-top:3px">' + esc(n.shared) + '</div></div>'
+        + '<div><div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">PAIRED NOTIONAL</div><div style="' + M + '; font-size:14px; margin-top:3px">' + esc(n.notional) + '</div></div>'
         + '</div></div>'
       ).join('')
       + '</div></div>';
@@ -724,16 +732,16 @@ export function renderRisk(T) {
     // No "Check real account ages" toggle: /api/risk takes no such parameter,
     // so the switch flipped a colour and changed nothing.
     + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:20px">'
-    + '<div><div style="' + M + '; font-size:10px; letter-spacing:.18em; color:#F5A623">RISK SCREEN</div>'
+    + '<div><div style="' + M + '; font-size:11px; letter-spacing:.18em; color:#F5A623">RISK SCREEN</div>'
     + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">Trades that look like someone knew</div></div>'
-    + (live && live.as_of ? '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.35)">as of ' + esc(String(live.as_of)) + '</div>' : '')
+    + (live && live.as_of ? '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55)">as of ' + esc(String(live.as_of)) + '</div>' : '')
     + '</div>'
     + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:10px; max-width:760px">Best-effort screen on public trade data — research leads, not legal findings. Sports odds, crypto &amp; market prices, and weather are excluded: game results, exchange prices and weather models cannot be traded on early.</div>'
     + '<div style="display:flex; gap:7px; margin-top:12px; flex-wrap:wrap">'
-    + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.45); border:1px solid rgba(255,255,255,.12); border-radius:5px; padding:4px 9px">UNDER 40 · LOW</div>'
-    + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.18); border-radius:5px; padding:4px 9px">40–54 · ELEVATED</div>'
-    + '<div style="' + M + '; font-size:10px; color:#F5A623; border:1px solid rgba(245,166,35,.3); border-radius:5px; padding:4px 9px">55–69 · MEDIUM</div>'
-    + '<div style="' + M + '; font-size:10px; color:#0A0D0F; background:#F5A623; border-radius:5px; padding:4px 9px">70 AND UP · HIGH</div>'
+    + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.12); border-radius:5px; padding:4px 9px">UNDER 40 · LOW</div>'
+    + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.18); border-radius:5px; padding:4px 9px">40–54 · ELEVATED</div>'
+    + '<div style="' + M + '; font-size:11px; color:#F5A623; border:1px solid rgba(245,166,35,.3); border-radius:5px; padding:4px 9px">55–69 · MEDIUM</div>'
+    + '<div style="' + M + '; font-size:11px; color:#0A0D0F; background:#F5A623; border-radius:5px; padding:4px 9px">70 AND UP · HIGH</div>'
     + '</div></div>'
 
     + '<div style="display:grid; grid-template-columns:repeat(5,1fr); border-bottom:1px solid rgba(255,255,255,.09)">'
@@ -748,7 +756,7 @@ export function renderRisk(T) {
       ? '<div style="display:flex; align-items:center; gap:10px; padding:12px 24px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A">'
         + '<span style="width:7px; height:7px; border-radius:50%; background:#F5A623; display:inline-block; animation:livePulse 1.2s ease-in-out infinite"></span>'
         + '<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:#F5A623">building the day\'s tape, ~90 s on a cold cache</span>'
-        + '<span style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.4)">/api/risk pages a day of prints and looks up market categories; the second visit is instant</span></div>'
+        + '<span style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6)">/api/risk pages a day of prints and looks up market categories; the second visit is instant</span></div>'
       : (T.herkunft.risks && T.herkunft.risks.quelle === 'fehler' && T.neuLaden
         // A failed or rate-limited request can be asked again from here;
         // nothing re-asks on its own. /api/risk shares its rate limit with
@@ -796,7 +804,7 @@ export function trackWatchRows(T) {
       return {
         title: item.title, meta: (item.platform || '').toUpperCase() + ' · WATCHLIST',
         sparkPoints: '', color: 'rgba(255,255,255,.3)', priceLabel: '—', changeLabel: '—',
-        changeStyle: M + '; font-size:13px; text-align:right; color:rgba(255,255,255,.4)',
+        changeStyle: M + '; font-size:13px; text-align:right; color:rgba(255,255,255,.6)',
         volLabel: '—', ends: '—', act: ''
       };
     });
@@ -812,35 +820,35 @@ export function renderTrack(T) {
   const cards = trackWalletCards(T);
   return '<div>'
     + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(255,255,255,.09)">'
-    + '<div style="' + M + '; font-size:10px; letter-spacing:.18em; color:#C8F542">TRACKED</div>'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.18em; color:#C8F542">TRACKED</div>'
     + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">Your wallets and your watchlist</div></div>'
     + '<div style="padding:18px 24px; border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55); margin-bottom:13px">WALLETS YOU FOLLOW</div>'
     + (cards.length ? '<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:14px">'
     + cards.map((w) => {
-      const gradeStyle = M + '; font-size:12px; border-radius:5px; padding:2px 9px; ' + (w.grade === 'A' || w.grade === 'A+' ? 'color:#0A0D0F; background:#C8F542' : w.grade === '—' ? 'color:rgba(255,255,255,.45); border:1px solid rgba(255,255,255,.14)' : 'color:#F5A623; border:1px solid rgba(245,166,35,.35)');
+      const gradeStyle = M + '; font-size:12px; border-radius:5px; padding:2px 9px; ' + (w.grade === 'A' || w.grade === 'A+' ? 'color:#0A0D0F; background:#C8F542' : w.grade === '—' ? 'color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.14)' : 'color:#F5A623; border:1px solid rgba(245,166,35,.35)');
       const pnlText = typeof w.pnlRaw === 'number' && T.liveData.track ? (w.pnlRaw >= 0 ? '+' : '-') + money(Math.abs(w.pnlRaw)) : w.pnl;
       const pnlStyle = M + '; font-size:14px; margin-top:3px; color:' + (String(pnlText).charAt(0) === '+' ? '#C8F542' : String(pnlText).charAt(0) === '-' ? '#FF4545' : 'rgba(255,255,255,.5)');
       return '<div ' + T.act(() => T.openWallet(w.openAs)) + ' class="hv-bd20" style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:15px 17px; cursor:pointer">'
         + '<div style="display:flex; align-items:center; justify-content:space-between">'
         + '<div style="font-size:15px">' + esc(w.name) + '</div>'
         + '<div style="' + gradeStyle + '">' + esc(w.grade) + '</div></div>'
-        + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:4px">' + esc(w.wallet) + '</div>'
+        + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); margin-top:4px">' + esc(w.wallet) + '</div>'
         + '<div style="display:flex; gap:20px; margin-top:14px">'
-        + '<div><div style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:rgba(255,255,255,.4)">' + (w.pnlLabel || '30D PROFIT') + '</div><div style="' + pnlStyle + '">' + esc(String(pnlText)) + '</div></div>'
-        + '<div><div style="' + M + '; font-size:9.5px; letter-spacing:.12em; color:rgba(255,255,255,.4)">LAST TRADE</div><div style="' + M + '; font-size:14px; margin-top:3px">' + esc(w.last) + '</div></div>'
+        + '<div><div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">' + (w.pnlLabel || '30D PROFIT') + '</div><div style="' + pnlStyle + '">' + esc(String(pnlText)) + '</div></div>'
+        + '<div><div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">LAST TRADE</div><div style="' + M + '; font-size:14px; margin-top:3px">' + esc(w.last) + '</div></div>'
         + '</div></div>';
     }).join('')
-    + '</div>' : '<div style="' + M + '; font-size:11.5px; color:rgba(255,255,255,.4); padding:14px 0">No followed wallets reported by /api/track — the list lives in data/followed_wallets.json on the machine that runs the API, and this page only reads it.</div>')
+    + '</div>' : '<div style="' + M + '; font-size:11.5px; color:rgba(255,255,255,.6); padding:14px 0">No followed wallets reported by /api/track — the list lives in data/followed_wallets.json on the machine that runs the API, and this page only reads it.</div>')
     + '</div>'
     + '<div style="padding:18px 24px">'
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55); margin-bottom:13px">MARKETS ON YOUR WATCHLIST</div>'
-    + (watch.length ? '' : '<div style="' + M + '; font-size:11.5px; color:rgba(255,255,255,.4); padding:6px 0">'
+    + (watch.length ? '' : '<div style="' + M + '; font-size:11.5px; color:rgba(255,255,255,.6); padding:6px 0">'
       + esc(herkunftSatz(T.liveData.track ? { quelle: T.liveData.track._quelle === 'fehler' ? 'fehler' : 'leer', fehler: T.liveData.track._fehler } : null, '/api/track')) + '</div>')
     + watch.map((m) =>
       '<div ' + m.act + ' class="hv-panel" style="display:grid; grid-template-columns:1fr 96px 88px 96px 108px; align-items:center; padding:12px 0; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer">'
       + '<div><div style="font-size:13.5px">' + esc(m.title) + '</div>'
-      + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:3px">' + esc(m.meta) + '</div></div>'
+      + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); margin-top:3px">' + esc(m.meta) + '</div></div>'
       + '<div style="display:flex; justify-content:flex-end"><svg width="78" height="26" viewBox="0 0 78 26"><polyline points="' + m.sparkPoints + '" fill="none" stroke="' + m.color + '" stroke-width="1.6" /></svg></div>'
       + '<div style="' + M + '; font-size:15px; text-align:right">' + m.priceLabel + '</div>'
       + '<div style="' + m.changeStyle + '">' + m.changeLabel + '</div>'

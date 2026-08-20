@@ -333,10 +333,15 @@ class WebLeerzustandTest(unittest.TestCase):
         # einem <details> — vorhanden, aber nicht zwischen Leser und Befund.
         live = self.ausgabe["live"]["research_microstructure"]
         text = _sichtbarer_text(live)
-        self.assertIn("METHOD &amp; HOW TO READ IT", live)
+        self.assertIn("METHOD, HOW TO READ IT &amp; THE RAW ROWS", live)
         self.assertIn("Does the harness study render?", text)
         self.assertIn("Harness interval", text)
         self.assertIn("<details", live)
+        # EIN Klappfeld je Studie, nicht zwei: die Rohzeilen sitzen darin,
+        # statt eine zweite Tuer neben der Methode aufzumachen.
+        self.assertEqual(live.count("<details"), 1)
+        self.assertIn("Harness rows · 1 rows", text)
+        self.assertLess(live.index("HOW TO READ IT"), live.index("Harness rows"))
         # Der Methodentext steht im Dokument (nichts ist geloescht) …
         self.assertIn("Harness method text.", text)
         # … und zwar erst nach dem Diagramm, nicht davor.
@@ -463,24 +468,36 @@ class WebLeerzustandTest(unittest.TestCase):
         neu = self.ausgabe["live"]["research_category_efficiency"]
         text = _sichtbarer_text(neu)
         self.assertIn("MARKETS IN SAMPLE 540", text)
-        self.assertIn("410 priced at T-7", text)
-        # Traegt die Datei brier_offen, rangieren Best/Worst auf dem Brier
-        # der offenen Fragen — der Gesamt-Brier kuert sonst die Kategorie
-        # mit den meisten schon entschiedenen Preisen.
-        self.assertIn("BEST AT T-7 Politics open Brier 0.150 · n 90", text)
-        self.assertIn("WORST AT T-7 Sports open Brier 0.220 · n 180", text)
-        self.assertIn("BRIER AT T-7 BY CATEGORY", text)
-        self.assertIn("BRIER AT T-1 BY CATEGORY", text)
-        self.assertIn("Politics · n 200", text)               # n am Balken
+        self.assertIn("410 of them priced at T-7", text)
+        # Kopfzeile: EINE Zeile Stichprobe. Der lange hinweis-Absatz steht
+        # nicht mehr ueber der ersten Zahl, sondern im Methodenfeld.
+        self.assertIn("540 resolved binary markets · 2 categories", text)
+        self.assertLess(neu.index("MARKETS IN SAMPLE"), neu.index("Harness payload."))
+        # Traegt die Datei brier_offen, rangieren Chart und Tabelle auf dem
+        # Brier der offenen Fragen — der Gesamt-Brier kuert sonst die
+        # Kategorie mit den meisten schon entschiedenen Preisen.
+        self.assertIn("OPEN-PRICE BRIER AT T-7 0.150 – 0.220", text)
+        self.assertIn("ALREADY DECIDED AT T-7 10% – 40%", text)
+        self.assertIn("BRIER AT T-7 · ALL PRICES → OPEN PRICES ONLY", text)
+        self.assertIn("Politics 0.150 n 90", text)            # Hantel: Wert und n
+        self.assertIn("Sports 0.220 n 180", text)
+        self.assertIn("RANKED ON OPEN PRICES AT T-7", text)
+        self.assertIn("CATEGORY OPEN BRIER ALL PRICES DECIDED MARKETS MEDIAN VOLUME", text)
+        self.assertLess(text.index("Politics 0.150 0.100"), text.index("Sports 0.220 0.200"))
+        # Der Befund wird gerechnet und erscheint nur, wenn die Zahlen ihn
+        # tragen: zwei Kategorien reichen nicht fuer eine Rangaussage.
+        self.assertNotIn("THE FINDING", text)
+        # Ein Balkendiagramm statt zweier — T-1 steht in der Horizonttabelle.
+        self.assertNotIn("BRIER AT T-1 BY CATEGORY", text)
         self.assertIn("BRIER BY HORIZON", text)
         self.assertRegex(neu, r'<path d="M\s*\d')             # Linien nur mit Daten
         self.assertIn("CALIBRATION AT T-7", text)
         self.assertIn("predicted 3% · realised 5% · n 120", text)
+        # Alle Horizonte und Trefferquoten: nichts geloescht, nur ins
+        # Klappfeld verschoben.
+        self.assertIn("ALL HORIZONS &amp; HIT RATES, PLUS CALIBRATION", text)
         self.assertIn("T-30 BRIER · HIT · N", text)
         self.assertIn("0.200 80% · n 150", text)
-        # Spalte mit dem offenen T-7-Brier, je Zelle mit n.
-        self.assertIn("T-7 OPEN BRIER · N", text)
-        self.assertIn("0.220 n 180", text)
         # Einpreisungs-Logik je Kategorie: Anker, Treiber, blinder Fleck,
         # t0-Quelle — plus Mechanik-Mix und die messlogik-only-Kategorie
         # (Weather erklaert ihre eigene Stichprobenluecke).
@@ -492,23 +509,34 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("THESIS FIGURES THIS TABLE REPLACES", text)
         self.assertIn("Politik: Brier T-7 0.352 (n 12)", text)
         self.assertIn("<details", neu)
-        self.assertLess(neu.index("BY CATEGORY AND HORIZON"), neu.index("Harness method text."))
+        self.assertLess(neu.index("ALL HORIZONS &amp; HIT RATES"), neu.index("Harness method text."))
         self.assertLess(neu.index("PRICING-IN LOGIC BY CATEGORY"), neu.index("Harness method text."))
         # Alte Form (nur brier_t7/brier_t1): rendert weiter, ohne Kurve, ohne
         # erfundene Horizonte, ohne Kalibrierung, und n_t1 steht als unbekannt.
         alt = self.ausgabe["live"]["research_category_efficiency_alt"]
         text_alt = _sichtbarer_text(alt)
-        self.assertIn("BEST AT T-7 Sport Brier 0.042 · n 26", text_alt)
-        self.assertIn("WORST AT T-7 Politik Brier 0.352 · n 12", text_alt)
+        # Ohne brier_offen rangiert alles auf dem Gesamt-Brier, und die
+        # Kacheln sagen, was fehlt, statt zweimal dasselbe zu zeigen.
+        self.assertIn("BRIER AT T-7 0.042 – 0.352", text_alt)
+        self.assertIn("CATEGORIES 2 T-7 samples from 12 to 26", text_alt)
+        self.assertIn("RANKED ON BRIER AT T-7", text_alt)
+        self.assertIn("CATEGORY BRIER T-7 HIT RATE DECIDED MARKETS", text_alt)
+        self.assertIn("Sport · n 26 0.042", text_alt)
+        self.assertNotIn("OPEN-PRICE BRIER", text_alt)
+        self.assertNotIn("THE FINDING", text_alt)
         self.assertNotIn("BRIER BY HORIZON", text_alt)
-        self.assertNotIn("CALIBRATION", text_alt)
+        # Ohne Bins wird keine Kalibrierung erfunden — und das Klappfeld
+        # verspricht sie auch nicht im Titel.
+        self.assertNotIn("CALIBRATION AT T-7", text_alt)
+        self.assertNotIn("PLUS CALIBRATION", text_alt)
+        self.assertIn("No calibration bins in this payload", text_alt)
         self.assertNotIn("T-30", text_alt)
         self.assertNotRegex(alt, r'<path d="M\s*\d')
         self.assertIn("0.036 93% · n —", text_alt)
         # Leerzustand nennt die Datei.
         leer = _sichtbarer_text(self.ausgabe["leer"]["research_category_efficiency"])
         self.assertIn("kategorie_karte.json", leer)
-        self.assertNotIn("BEST AT T-7", leer)
+        self.assertNotIn("MARKETS IN SAMPLE", leer)
 
     # ---- Landing (Overview als Forschungsseite) ---------------------------
 
@@ -995,10 +1023,15 @@ class WebLeerzustandTest(unittest.TestCase):
         text = _sichtbarer_text(html)
         # Echter Median (0.5 und 10 → 5.25), als Kachel und als Referenzlinie.
         self.assertIn("MEDIAN LATENCY 5.25 min n = 2 events with a reaction", text)
-        self.assertIn("MINUTES TO FIRST REACTION (≥ 2¢ MOVE) PER EVENT · n 2", text)
-        self.assertIn("median 5.25 min", text)
-        self.assertIn("MINUTES TO CONVERGENCE PER EVENT · n 2", text)
-        self.assertIn("linear scale, 30 to 600 min", text)
+        # Ein Diagramm, nicht zwei: Reaktion und Konvergenz teilen sich eine
+        # Achse, sonst standen zwei Messungen desselben Ereignisses auf zwei
+        # verschiedenen Skalen nebeneinander und lasen sich als zwei Befunde.
+        self.assertIn("FIRST REACTION AND CONVERGENCE PER EVENT · n 2", text)
+        self.assertIn("median first reaction 5.25 min", text)
+        self.assertNotIn("MINUTES TO CONVERGENCE PER EVENT", text)
+        self.assertIn("pale bar = first ≥ 2¢ move, solid = fully priced in", text)
+        self.assertIn("reaction · harness_fast 0.5", text)
+        self.assertIn("converged · harness_fast 30", text)
         self.assertIn("EXCLUDED EVENTS · 1", text)
         self.assertIn("harness_excluded excluded · ambiguous mapping between content and market", text)
         self.assertIn("HOW TO READ IT First reaction is the first move of at least 2¢", text)

@@ -7,9 +7,9 @@ import { esc, num, leerZeile } from '../util.js';
 import { trackWatchRows } from './trader_pages.js';
 
 const M = "font-family:'JetBrains Mono',monospace";
-const LBL9 = M + '; font-size:9px; letter-spacing:.14em; color:rgba(255,255,255,.42); margin-bottom:6px';
-const LBL95 = M + '; font-size:9.5px; letter-spacing:.14em; color:rgba(255,255,255,.45); margin-bottom:7px';
-const HEAD_CELL = M + '; font-size:9.5px; letter-spacing:.14em; color:rgba(255,255,255,.45)';
+const LBL9 = M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.6); margin-bottom:6px';
+const LBL95 = M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.6); margin-bottom:7px';
+const HEAD_CELL = M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.6)';
 
 const SIZING = { fixed: 'Fixed $', pct: '% of bankroll', match: 'Match trader %', kelly: 'Kelly ¼' };
 
@@ -41,7 +41,7 @@ function ohneBacktestHtml(s) {
   return '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:22px 24px; margin-top:14px; max-width:760px">'
     + '<div style="font-size:15px; font-weight:600; color:' + (running ? '#F5A623' : err ? '#FF7A7A' : '#ffffff') + '">' + kopf + '</div>'
     + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:10px; line-height:1.65">' + text + '</div>'
-    + '<div style="font-size:12.5px; color:rgba(255,255,255,.4); margin-top:12px; line-height:1.6">'
+    + '<div style="font-size:12.5px; color:rgba(255,255,255,.6); margin-top:12px; line-height:1.6">'
     + 'Nothing is estimated here. This panel used to fill itself from a generator when the '
     + 'backend was silent, which produced an equity curve that responded to every slider and '
     + 'meant nothing.'
@@ -54,14 +54,14 @@ function laufStatusHtml(s, hatErgebnis) {
   if (s.btRun === 'running') {
     return '<div style="display:flex; align-items:center; gap:8px; margin-top:8px; ' + M + '; font-size:11px; color:#F5A623">'
       + '<span style="width:7px; height:7px; border-radius:50%; background:#F5A623; display:inline-block; animation:livePulse 1.2s ease-in-out infinite"></span>running…'
-      + (hatErgebnis ? ' <span style="color:rgba(255,255,255,.4)">— the last result stays below until the new one lands</span>' : '') + '</div>';
+      + (hatErgebnis ? ' <span style="color:rgba(255,255,255,.6)">— the last result stays below until the new one lands</span>' : '') + '</div>';
   }
   if (s.btRun === 'error' && s.btError === 'rate-limited') {
     return '<div style="margin-top:8px; ' + M + '; font-size:11px; color:#F5A623">rate-limited, retry in ' + (s.btRetryIn > 0 ? s.btRetryIn + ' s' : 'a moment')
-      + (hatErgebnis ? ' <span style="color:rgba(255,255,255,.4)">— the last result is kept below</span>' : '') + '</div>';
+      + (hatErgebnis ? ' <span style="color:rgba(255,255,255,.6)">— the last result is kept below</span>' : '') + '</div>';
   }
   if (s.btRun === 'error' && s.btError) {
-    return '<div style="margin-top:8px; ' + M + '; font-size:11px; color:#FF7A7A">' + esc(s.btError) + (hatErgebnis ? ' <span style="color:rgba(255,255,255,.4)">— the last result is kept below</span>' : '') + '</div>';
+    return '<div style="margin-top:8px; ' + M + '; font-size:11px; color:#FF7A7A">' + esc(s.btError) + (hatErgebnis ? ' <span style="color:rgba(255,255,255,.6)">— the last result is kept below</span>' : '') + '</div>';
   }
   if (hatErgebnis && s.btDirty) {
     return '<div style="margin-top:8px; ' + M + '; font-size:11px; color:rgba(255,255,255,.5)">settings changed since this run — press RUN to refresh</div>';
@@ -175,13 +175,13 @@ export function renderBacktester(T) {
   let tabBody = '';
   if (s.btTab === 'log') {
     tabBody = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:12px; overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:88px 74px 84px 1fr 60px 84px 78px 74px 84px 88px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
+      + '<div style="display:grid; grid-template-columns:88px 74px 84px 1fr 60px 84px 78px 74px 84px 88px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">'
       + '<div>TIME</div><div>ACTION</div><div>STATUS</div><div>MARKET</div><div>SIDE</div><div style="text-align:right">TRADER $</div><div style="text-align:right">STAKE</div><div style="text-align:right">FILL</div><div style="text-align:right">FEE</div><div style="text-align:right">EQUITY</div></div>'
       + logRows.map((l) =>
         '<div style="display:grid; grid-template-columns:88px 74px 84px 1fr 60px 84px 78px 74px 84px 88px; gap:10px; align-items:center; padding:10px 16px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:11.5px">'
         + '<div style="color:rgba(255,255,255,.5)">' + esc(l.time) + '</div>'
         + '<div style="' + M + '; font-size:11.5px; color:' + (l.action === 'BUY' ? '#C8F542' : '#FF4545') + '">' + esc(l.action) + '</div>'
-        + '<div><span style="' + M + '; font-size:9.5px; letter-spacing:.08em; border-radius:4px; padding:2px 6px; ' + (l.status === 'skipped' ? 'color:#F5A623; border:1px solid rgba(245,166,35,.35)' : 'color:rgba(255,255,255,.7); border:1px solid rgba(255,255,255,.18)') + '">' + esc(l.status) + '</span></div>'
+        + '<div><span style="' + M + '; font-size:10.5px; letter-spacing:.08em; border-radius:4px; padding:2px 6px; ' + (l.status === 'skipped' ? 'color:#F5A623; border:1px solid rgba(245,166,35,.35)' : 'color:rgba(255,255,255,.7); border:1px solid rgba(255,255,255,.18)') + '">' + esc(l.status) + '</span></div>'
         + '<div style="font-family:\'Inter\',sans-serif; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(l.market) + '</div>'
         + '<div style="color:rgba(255,255,255,.6)">' + esc(l.side) + '</div>'
         + '<div style="text-align:right; color:rgba(255,255,255,.5)">' + esc(l.traderAmt) + '</div>'
@@ -195,7 +195,7 @@ export function renderBacktester(T) {
       + '</div>';
   } else if (s.btTab === 'open') {
     tabBody = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:12px; overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:1fr 62px 78px 78px 78px 88px 88px 100px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
+      + '<div style="display:grid; grid-template-columns:1fr 62px 78px 78px 78px 88px 88px 100px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">'
       + '<div>MARKET</div><div>SIDE</div><div style="text-align:right">SHARES</div><div style="text-align:right">AVG FILL</div><div style="text-align:right">MARK</div><div style="text-align:right">COST</div><div style="text-align:right">VALUE</div><div style="text-align:right">UNREALISED</div></div>'
       + openRows.map((o) =>
         '<div style="display:grid; grid-template-columns:1fr 62px 78px 78px 78px 88px 88px 100px; gap:10px; align-items:center; padding:10px 16px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:11.5px">'
@@ -218,7 +218,7 @@ export function renderBacktester(T) {
       + '<line x1="0" y1="130" x2="900" y2="130" stroke="rgba(255,255,255,.07)" />'
       + '<line x1="0" y1="190" x2="900" y2="190" stroke="rgba(255,255,255,.07)" />'
       + '<polyline points="' + ddPts + '" fill="none" stroke="#FF4545" stroke-width="2" /></svg>'
-      + '<div style="display:flex; justify-content:space-between; ' + M + '; font-size:10px; color:rgba(255,255,255,.4); margin-top:8px">'
+      + '<div style="display:flex; justify-content:space-between; ' + M + '; font-size:11px; color:rgba(255,255,255,.6); margin-top:8px">'
       + '<span>' + s.btWindow + 'd ago</span><span>worst: ' + (ddPct === null ? '—' : ddPct.toFixed(1) + '%') + '</span><span>today</span></div></div>';
   }
 
@@ -228,7 +228,7 @@ export function renderBacktester(T) {
   return '<div>'
     + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:20px">'
-    + '<div><div style="' + M + '; font-size:10px; letter-spacing:.18em; color:#C8F542">BACKTESTER · PAPER SIM</div>'
+    + '<div><div style="' + M + '; font-size:11px; letter-spacing:.18em; color:#C8F542">BACKTESTER · PAPER SIM</div>'
     + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">Replay a wallet with your own sizing</div>'
     + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:9px; max-width:680px">Every simulated fill is priced with fees and slippage, up to ninety days back.</div></div>'
     + '<div style="' + M + '; font-size:10.5px; color:#0A0D0F; background:#C8F542; border-radius:5px; padding:5px 10px">POLYMARKET</div>'
@@ -237,11 +237,11 @@ export function renderBacktester(T) {
     + '<div style="display:grid; grid-template-columns:352px 1fr">'
     + '<div style="border-right:1px solid rgba(255,255,255,.09); padding:18px 20px; display:flex; flex-direction:column; gap:22px">'
 
-    + '<div><div style="' + M + '; font-size:10px; letter-spacing:.16em; color:#C8F542; margin-bottom:9px">01 · WALLET TO REPLAY</div>'
+    + '<div><div style="' + M + '; font-size:11px; letter-spacing:.16em; color:#C8F542; margin-bottom:9px">01 · WALLET TO REPLAY</div>'
     + '<input value="' + esc(s.btWallet) + '" ' + T.inp((e) => { T.state.btWallet = e.target.value; if (T.liveData.backtest) T.state.btDirty = true; }, 'btWallet') + ' placeholder="0x…" style="width:100%; box-sizing:border-box; background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:10px 12px; ' + M + '; font-size:12px; color:#fff; outline:none" />'
-    + '<div style="font-size:11.5px; color:rgba(255,255,255,.45); margin-top:7px; line-height:1.5">Any public Polymarket address — the default is one with a long public trade history, chosen so a first run has something to replay. Take one from the leaderboard to compare.</div></div>'
+    + '<div style="font-size:11.5px; color:rgba(255,255,255,.6); margin-top:7px; line-height:1.5">Any public Polymarket address — the default is one with a long public trade history, chosen so a first run has something to replay. Take one from the leaderboard to compare.</div></div>'
 
-    + '<div><div style="' + M + '; font-size:10px; letter-spacing:.16em; color:#C8F542; margin-bottom:9px">02 · STAKE PER COPY</div>'
+    + '<div><div style="' + M + '; font-size:11px; letter-spacing:.16em; color:#C8F542; margin-bottom:9px">02 · STAKE PER COPY</div>'
     + '<div style="display:grid; grid-template-columns:1fr 1fr; gap:6px">'
     + Object.keys(SIZING).map((k) =>
       '<div ' + T.act(bt(T, { btSizing: k })) + ' style="font-size:12px; text-align:center; border-radius:7px; padding:8px 6px; cursor:pointer; ' + (s.btSizing === k ? 'color:#0A0D0F; background:#C8F542; font-weight:600' : 'color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.16)') + '">' + SIZING[k] + '</div>'
@@ -252,23 +252,23 @@ export function renderBacktester(T) {
     + '<div ' + T.act(bt(T, stakeDown)) + ' class="hv-bd35w" style="width:32px; height:34px; flex:none; border:1px solid rgba(255,255,255,.16); border-radius:8px; display:flex; align-items:center; justify-content:center; ' + M + '; font-size:15px; color:rgba(255,255,255,.7); cursor:pointer">−</div>'
     + '<div style="flex:1; background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:8px 12px; ' + M + '; font-size:13px; text-align:center">' + esc(stakeValue) + '</div>'
     + '<div ' + T.act(bt(T, stakeUp)) + ' class="hv-bd35w" style="width:32px; height:34px; flex:none; border:1px solid rgba(255,255,255,.16); border-radius:8px; display:flex; align-items:center; justify-content:center; ' + M + '; font-size:15px; color:rgba(255,255,255,.7); cursor:pointer">+</div></div>'
-    + '<div style="font-size:11.5px; color:rgba(255,255,255,.45); margin-top:7px; line-height:1.5">' + stakeHint + '</div></div>'
+    + '<div style="font-size:11.5px; color:rgba(255,255,255,.6); margin-top:7px; line-height:1.5">' + stakeHint + '</div></div>'
     + '<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px">'
     + stepRow('CAP PER TRADE', '$' + s.btCap, { btCap: Math.max(10, s.btCap - 50) }, { btCap: s.btCap + 50 })
     + stepRow('MAX BANKROLL IN OPEN COPIES', s.btExposure + '%', { btExposure: Math.max(5, s.btExposure - 5) }, { btExposure: Math.min(100, s.btExposure + 5) })
     + '</div>'
-    + '<div style="font-size:11.5px; color:rgba(255,255,255,.45); margin-top:7px; line-height:1.5">New copies are skipped while open copies already tie up that share of the bankroll. Sells free the room up again.</div></div>'
+    + '<div style="font-size:11.5px; color:rgba(255,255,255,.6); margin-top:7px; line-height:1.5">New copies are skipped while open copies already tie up that share of the bankroll. Sells free the room up again.</div></div>'
 
-    + '<div><div style="' + M + '; font-size:10px; letter-spacing:.16em; color:#C8F542; margin-bottom:9px">03 · TIME WINDOW</div>'
+    + '<div><div style="' + M + '; font-size:11px; letter-spacing:.16em; color:#C8F542; margin-bottom:9px">03 · TIME WINDOW</div>'
     + '<div style="display:flex; gap:7px">'
     + [T.tab('7d', s.btWindow === 7, bt(T, { btWindow: 7 })), T.tab('30d', s.btWindow === 30, bt(T, { btWindow: 30 })), T.tab('90d', s.btWindow === 90, bt(T, { btWindow: 90 }))].join('')
     + '</div></div>'
 
-    + '<div><div style="' + M + '; font-size:10px; letter-spacing:.16em; color:#C8F542; margin-bottom:9px">04 · STRATEGY</div>'
+    + '<div><div style="' + M + '; font-size:11px; letter-spacing:.16em; color:#C8F542; margin-bottom:9px">04 · STRATEGY</div>'
     + '<div style="display:flex; gap:7px">'
     + [T.tab('Copy', s.btStrategy === 'copy', bt(T, { btStrategy: 'copy' })), T.tab('Fade', s.btStrategy === 'fade', bt(T, { btStrategy: 'fade' }))].join('')
     + '</div>'
-    + '<div style="font-size:11.5px; color:rgba(255,255,255,.45); margin-top:7px; line-height:1.5">' + (s.btStrategy === 'copy' ? 'Mirror every trade the wallet makes, at the same price.' : 'Fade takes the opposite side of every trade the wallet makes.') + '</div></div>'
+    + '<div style="font-size:11.5px; color:rgba(255,255,255,.6); margin-top:7px; line-height:1.5">' + (s.btStrategy === 'copy' ? 'Mirror every trade the wallet makes, at the same price.' : 'Fade takes the opposite side of every trade the wallet makes.') + '</div></div>'
 
     + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:10px; overflow:hidden">'
     + '<div ' + T.act(() => T.setState({ advancedOpen: !s.advancedOpen })) + ' class="hv-el" style="display:flex; align-items:center; justify-content:space-between; padding:11px 14px; background:#10151A; cursor:pointer">'
@@ -296,14 +296,14 @@ export function renderBacktester(T) {
           + 'A flat rate cannot match the venue: Polymarket charges about 250 bps at a price of 0.50 '
           + 'and about 50 bps at 0.90. Anything near 20 bps understates the real cost by a wide margin.'
           + '</div></div>'
-        : '<div style="font-size:11.5px; color:rgba(255,255,255,.45); line-height:1.5">'
+        : '<div style="font-size:11.5px; color:rgba(255,255,255,.6); line-height:1.5">'
           + 'Polymarket charges the taker fee on the variance of the price, so it peaks in the middle '
           + 'of the book: about 250 bps at 0.50 and about 50 bps at 0.90, at the general category rate. '
           + 'The model lives in app/venue_fees.py and the general rate applies, because a wallet history '
           + 'carries no category.'
           + '</div>')
       + '<div><div style="' + LBL95 + '">BENCHMARK</div>'
-      + '<div style="font-size:11.5px; color:rgba(255,255,255,.45); margin-top:7px; line-height:1.5">The dashed line in the results is the same trades at a constant 2% of the starting bankroll per copy. The compare-wallet field was removed: the server never read it, and the table it fed derived the other wallet from ours by fixed multipliers.</div></div>'
+      + '<div style="font-size:11.5px; color:rgba(255,255,255,.6); margin-top:7px; line-height:1.5">The dashed line in the results is the same trades at a constant 2% of the starting bankroll per copy. The compare-wallet field was removed: the server never read it, and the table it fed derived the other wallet from ours by fixed multipliers.</div></div>'
       + '</div>' : '')
     + '</div>'
 
@@ -325,9 +325,9 @@ export function renderBacktester(T) {
     + '<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:14px">'
     + statCards.map((c) =>
       '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:10px; padding:14px 16px">'
-      + '<div style="' + M + '; font-size:9.5px; letter-spacing:.13em; color:rgba(255,255,255,.45)">' + c.label + '</div>'
+      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(255,255,255,.6)">' + c.label + '</div>'
       + '<div style="' + M + '; font-size:22px; margin-top:7px; color:' + (c.pos === true ? '#C8F542' : c.pos === false ? '#FF4545' : '#ffffff') + '">' + c.value + '</div>'
-      + '<div style="' + M + '; font-size:11px; margin-top:5px; color:rgba(255,255,255,.45)">' + c.sub + '</div></div>'
+      + '<div style="' + M + '; font-size:11px; margin-top:5px; color:rgba(255,255,255,.6)">' + c.sub + '</div></div>'
     ).join('')
     + '</div>'
 
@@ -354,7 +354,7 @@ export function renderBacktester(T) {
     + '<polyline points="' + benchPts + '" fill="none" stroke="#95A0AB" stroke-width="1.4" stroke-dasharray="6 4" />'
         + '<polyline points="' + equityPts + '" fill="none" stroke="' + (ret >= 0 ? '#C8F542' : '#FF4545') + '" stroke-width="2" />'
     + '</svg>'
-    + '<div style="display:flex; justify-content:space-between; ' + M + '; font-size:10px; color:rgba(255,255,255,.4); margin-top:8px">'
+    + '<div style="display:flex; justify-content:space-between; ' + M + '; font-size:11px; color:rgba(255,255,255,.6); margin-top:8px">'
     + '<span>' + s.btWindow + 'd ago</span><span>' + Math.round(s.btWindow / 2) + 'd ago</span><span>today</span></div></div>'
 
     + '<div style="display:flex; gap:6px; margin-top:16px">' + btTabs + '</div>'
@@ -371,7 +371,7 @@ export function renderBacktester(T) {
       + '<div style="font-size:12.5px; color:rgba(255,255,255,.55); line-height:1.5">Replays the same window once per sizing rule — identical fees, slippage, cap and exposure limit. Only the stake rule changes. The winner is drawn into the chart above as the dotted amber line.</div>'
       + '<div style="font-size:13px; margin-top:12px">Best for this wallet and window: <strong style="color:#F5A623">' + esc(bestVariant.name) + '</strong> → $' + bestVariant.eq.toFixed(0) + ' final equity (' + (bestVariant.roi >= 0 ? '+' : '') + bestVariant.roi.toFixed(1) + '% ROI)</div>'
       + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:10px; margin-top:14px; overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:1fr 110px 96px 96px 96px 88px 88px; gap:10px; padding:9px 14px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
+      + '<div style="display:grid; grid-template-columns:1fr 110px 96px 96px 96px 88px 88px; gap:10px; padding:9px 14px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">'
       + '<div>SIZING RULE</div><div style="text-align:right">FINAL EQUITY</div><div style="text-align:right">ROI</div><div style="text-align:right">MAX DD</div><div style="text-align:right">WIN RATE</div><div style="text-align:right">COPIED</div><div style="text-align:right">SKIPPED</div></div>'
       + simVariants.map((v, i) =>
         '<div style="display:grid; grid-template-columns:1fr 110px 96px 96px 96px 88px 88px; gap:10px; align-items:center; padding:10px 14px; border-bottom:1px solid rgba(255,255,255,.06); background:' + (i === 0 ? 'rgba(245,166,35,.07)' : 'transparent') + '">'
@@ -396,13 +396,13 @@ export function renderBacktester(T) {
 function ohnePapierDatenHtml(titel, kicker, grund) {
   return '<div>'
     + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(255,255,255,.09)">'
-    + '<div style="' + M + '; font-size:10px; letter-spacing:.18em; color:#C8F542">' + kicker + '</div>'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.18em; color:#C8F542">' + kicker + '</div>'
     + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">' + titel + '</div></div>'
     + '<div style="padding:26px 24px">'
     + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:22px 24px; max-width:760px">'
     + '<div style="font-size:15px; font-weight:600">Nothing to show</div>'
     + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:10px; line-height:1.65">' + grund + '</div>'
-    + '<div style="font-size:12.5px; color:rgba(255,255,255,.4); margin-top:12px; line-height:1.6">'
+    + '<div style="font-size:12.5px; color:rgba(255,255,255,.6); margin-top:12px; line-height:1.6">'
     + 'This page used to fill itself with fixtures when the backend was silent, including a cash '
     + 'balance, a profit figure and a real wallet address as the source. None of that was measured.'
     + '</div></div></div></div>';
@@ -450,7 +450,7 @@ export function renderPortfolio(T) {
       + [['all','Everything'],['losers','Losing only']].map((o) => T.opt(o[1], (s.portLosers ? 'losers' : 'all') === o[0], { portLosers: o[0] === 'losers' })).join('') + '</div></div>'
       + '</div>'
       + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:14px 24px; overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:1fr 76px 92px 92px 100px 100px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
+      + '<div style="display:grid; grid-template-columns:1fr 76px 92px 92px 100px 100px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">'
       + '<div>MARKET</div><div style="text-align:right">SIDE</div><div style="text-align:right">ENTRY</div><div style="text-align:right">NOW</div><div style="text-align:right">PROFIT</div><div style="text-align:right">SOURCE</div></div>'
       + (rows.length ? '' : leerZeile(baseRows.length ? 'No position matches these filters.' : 'No open positions in the paper book reported by /api/copy.'))
       + rows.map((r) =>
@@ -465,9 +465,9 @@ export function renderPortfolio(T) {
   } else if (s.portTab === 'copy') {
     body = '<div style="padding:16px 24px">'
       + '<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px">'
-      + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:10px; padding:14px 16px"><div style="' + M + '; font-size:9.5px; letter-spacing:.13em; color:rgba(255,255,255,.45)">COPY EQUITY</div><div style="' + M + '; font-size:21px; margin-top:7px">$' + num((+kp.equity).toFixed(2)) + '</div></div>'
-      + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:10px; padding:14px 16px"><div style="' + M + '; font-size:9.5px; letter-spacing:.13em; color:rgba(255,255,255,.45)">RESEARCH CASH</div><div style="' + M + '; font-size:21px; margin-top:7px">$' + (+kp.cash).toFixed(2) + '</div></div>'
-      + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:10px; padding:14px 16px"><div style="' + M + '; font-size:9.5px; letter-spacing:.13em; color:rgba(255,255,255,.45)">EVERYTHING TOGETHER</div><div style="' + M + '; font-size:21px; margin-top:7px; color:#C8F542">$' + num(((+kp.equity) + (+kp.cash)).toFixed(2)) + '</div></div>'
+      + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:10px; padding:14px 16px"><div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(255,255,255,.6)">COPY EQUITY</div><div style="' + M + '; font-size:21px; margin-top:7px">$' + num((+kp.equity).toFixed(2)) + '</div></div>'
+      + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:10px; padding:14px 16px"><div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(255,255,255,.6)">RESEARCH CASH</div><div style="' + M + '; font-size:21px; margin-top:7px">$' + (+kp.cash).toFixed(2) + '</div></div>'
+      + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:10px; padding:14px 16px"><div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(255,255,255,.6)">EVERYTHING TOGETHER</div><div style="' + M + '; font-size:21px; margin-top:7px; color:#C8F542">$' + num(((+kp.equity) + (+kp.cash)).toFixed(2)) + '</div></div>'
       + '</div>'
       + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:16px 18px; margin-top:14px">'
       + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55); margin-bottom:12px">COMBINED EQUITY</div>'
@@ -529,7 +529,7 @@ export function renderPortfolio(T) {
   } else if (s.portTab === 'history') {
     const histRows = liveHistRows || [];
     body = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:14px 24px; overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:110px 1fr 78px 92px 92px 100px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
+      + '<div style="display:grid; grid-template-columns:110px 1fr 78px 92px 92px 100px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">'
       + '<div>DATE</div><div>MARKET</div><div style="text-align:right">SIDE</div><div style="text-align:right">ENTRY</div><div style="text-align:right">EXIT</div><div style="text-align:right">RESULT</div></div>'
       + (histRows.length ? '' : leerZeile('No settled paper trades reported by /api/copy yet.'))
       + histRows.map((r) =>
@@ -546,7 +546,7 @@ export function renderPortfolio(T) {
       + watch.map((m) =>
         '<div ' + m.act + ' class="hv-panel" style="display:grid; grid-template-columns:1fr 96px 88px 96px 108px; align-items:center; padding:12px 0; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer">'
         + '<div><div style="font-size:13.5px">' + esc(m.title) + '</div>'
-        + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:3px">' + esc(m.meta) + '</div></div>'
+        + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); margin-top:3px">' + esc(m.meta) + '</div></div>'
         + '<div style="display:flex; justify-content:flex-end"><svg width="78" height="26" viewBox="0 0 78 26"><polyline points="' + m.sparkPoints + '" fill="none" stroke="' + m.color + '" stroke-width="1.6" /></svg></div>'
         + '<div style="' + M + '; font-size:15px; text-align:right">' + m.priceLabel + '</div>'
         + '<div style="' + m.changeStyle + '">' + m.changeLabel + '</div>'
@@ -557,18 +557,18 @@ export function renderPortfolio(T) {
 
   return '<div>'
     + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(255,255,255,.09)">'
-    + '<div style="' + M + '; font-size:10px; letter-spacing:.18em; color:#C8F542">PORTFOLIO · PAPER</div>'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.18em; color:#C8F542">PORTFOLIO · PAPER</div>'
     + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">What you would be holding</div></div>'
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid rgba(255,255,255,.09)">'
-    + '<div style="padding:16px 20px; border-right:1px solid rgba(255,255,255,.09)"><div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">VALUE NOW</div><div style="' + M + '; font-size:26px; margin-top:8px">$' + num((+kp.equity).toFixed(2)) + '</div></div>'
+    + '<div style="padding:16px 20px; border-right:1px solid rgba(255,255,255,.09)"><div style="' + M + '; font-size:11px; letter-spacing:.14em; color:rgba(255,255,255,.6)">VALUE NOW</div><div style="' + M + '; font-size:26px; margin-top:8px">$' + num((+kp.equity).toFixed(2)) + '</div></div>'
     // Keine Rueckfallwerte in der Kennzahlenzeile: hier standen 14 offene
     // Positionen, +$28.60 unrealisiert und $312.40 freie Kasse, sobald das
     // Feld in der Antwort fehlte. Ein fehlendes Feld ist jetzt ein Strich.
     // Und das Vorzeichen des Unrealisierten kommt aus der Zahl, nicht aus dem
     // Template — vorher stand "+$" fest davor, in Gruen, auch bei Verlust.
-    + '<div style="padding:16px 20px; border-right:1px solid rgba(255,255,255,.09)"><div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">OPEN POSITIONS</div><div style="' + M + '; font-size:26px; margin-top:8px">' + (kp.open_positions != null ? num(kp.open_positions) : '—') + '</div></div>'
-    + '<div style="padding:16px 20px; border-right:1px solid rgba(255,255,255,.09)"><div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">UNREALISED</div><div style="' + M + '; font-size:26px; margin-top:8px; color:' + (kp.unrealized == null ? 'rgba(255,255,255,.4)' : +kp.unrealized >= 0 ? '#C8F542' : '#FF4545') + '">' + (kp.unrealized != null ? (+kp.unrealized >= 0 ? '+' : '-') + '$' + Math.abs(+kp.unrealized).toFixed(2) : '—') + '</div></div>'
-    + '<div style="padding:16px 20px"><div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">CASH FREE</div><div style="' + M + '; font-size:26px; margin-top:8px">' + (kp.cash != null ? '$' + (+kp.cash).toFixed(2) : '—') + '</div></div>'
+    + '<div style="padding:16px 20px; border-right:1px solid rgba(255,255,255,.09)"><div style="' + M + '; font-size:11px; letter-spacing:.14em; color:rgba(255,255,255,.6)">OPEN POSITIONS</div><div style="' + M + '; font-size:26px; margin-top:8px">' + (kp.open_positions != null ? num(kp.open_positions) : '—') + '</div></div>'
+    + '<div style="padding:16px 20px; border-right:1px solid rgba(255,255,255,.09)"><div style="' + M + '; font-size:11px; letter-spacing:.14em; color:rgba(255,255,255,.6)">UNREALISED</div><div style="' + M + '; font-size:26px; margin-top:8px; color:' + (kp.unrealized == null ? 'rgba(255,255,255,.6)' : +kp.unrealized >= 0 ? '#C8F542' : '#FF4545') + '">' + (kp.unrealized != null ? (+kp.unrealized >= 0 ? '+' : '-') + '$' + Math.abs(+kp.unrealized).toFixed(2) : '—') + '</div></div>'
+    + '<div style="padding:16px 20px"><div style="' + M + '; font-size:11px; letter-spacing:.14em; color:rgba(255,255,255,.6)">CASH FREE</div><div style="' + M + '; font-size:26px; margin-top:8px">' + (kp.cash != null ? '$' + (+kp.cash).toFixed(2) : '—') + '</div></div>'
     + '</div>'
     + '<div style="display:flex; gap:6px; padding:16px 24px 0; flex-wrap:wrap">' + portTabs + '</div>'
     + body

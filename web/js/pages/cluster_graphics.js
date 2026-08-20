@@ -26,7 +26,7 @@ const farbeVon = (i) => CLUSTER_COLORS[i % CLUSTER_COLORS.length];
 function kopfzeile(g, m) {
   const k = g.kennzahl || {};
   const chip = (label, wert) =>
-    '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.55); border:1px solid rgba(255,255,255,.14); '
+    '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55); border:1px solid rgba(255,255,255,.14); '
     + 'border-radius:5px; padding:4px 9px; white-space:nowrap">' + esc(label) + ' <span style="color:#fff">'
     + esc(String(wert)) + '</span></div>';
   return '<div style="display:flex; gap:7px; flex-wrap:wrap; margin-top:10px">'
@@ -64,7 +64,7 @@ function graphSvg(g) {
     const a = knoten[e.a], b = knoten[e.b];
     if (!a || !b) return '';
     const gleich = a.cluster === b.cluster;
-    const farbe = gleich ? farbeVon(clusterIndex.get(a.cluster) || 0) : 'rgba(255,255,255,.28)';
+    const farbe = gleich ? farbeVon(clusterIndex.get(a.cluster) || 0) : 'rgba(255,255,255,.5)';
     const staerke = 0.8 + 2.2 * ((e.geteilt || 1) / maxGeteilt);
     return '<line x1="' + X(a.x).toFixed(1) + '" y1="' + Y(a.y).toFixed(1) + '" x2="' + X(b.x).toFixed(1)
       + '" y2="' + Y(b.y).toFixed(1) + '" stroke="' + farbe + '" stroke-opacity="'
@@ -97,7 +97,7 @@ function clusterLegende(g) {
       '<div style="display:flex; align-items:center; gap:7px">'
       + '<span style="width:9px; height:9px; border-radius:2px; flex:none; background:'
       + farbeVon(i) + '"></span>'
-      + '<span style="' + M + '; font-size:10px; color:rgba(255,255,255,.6); white-space:nowrap">'
+      + '<span style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); white-space:nowrap">'
       + esc(c.name + ' · ' + c.groesse + 'w · ' + c.volumen_label) + '</span></div>'
     ).join('')
     + '</div>';
@@ -118,13 +118,13 @@ function matrixSvg(m) {
 
   const kopf = maerkte.map((mk, j) =>
     '<text x="' + (LABEL_W + j * (zellBreite + luecke) + zellBreite / 2) + '" y="' + (KOPF_H - 9)
-    + '" text-anchor="middle" font-size="9.5" font-family="JetBrains Mono, monospace" '
+    + '" text-anchor="middle" font-size="10.5" font-family="JetBrains Mono, monospace" '
     + 'fill="rgba(255,255,255,.5)">M' + (j + 1) + '</text>').join('');
 
   const reihen = wallets.map((w, i) => {
     const y = KOPF_H + i * (zellHoehe + luecke);
     const label = '<text x="' + (LABEL_W - 10) + '" y="' + (y + zellHoehe / 2 + 3.5) + '" text-anchor="end" '
-      + 'font-size="10" font-family="JetBrains Mono, monospace" fill="rgba(255,255,255,.65)">'
+      + 'font-size="11" font-family="JetBrains Mono, monospace" fill="rgba(255,255,255,.65)">'
       + esc(w.kurz) + '</text>';
     const felder = maerkte.map((mk, j) => {
       const wert = (zellen[i] || [])[j] || 0;
@@ -144,8 +144,8 @@ function matrixSvg(m) {
     return label + felder;
   }).join('');
 
-  const fuss = '<text x="' + LABEL_W + '" y="' + (H - 5) + '" font-size="9.5" '
-    + 'font-family="JetBrains Mono, monospace" fill="rgba(255,255,255,.38)">'
+  const fuss = '<text x="' + LABEL_W + '" y="' + (H - 5) + '" font-size="10.5" '
+    + 'font-family="JetBrains Mono, monospace" fill="rgba(255,255,255,.55)">'
     + esc('filled = wallet took that side · shade = notional') + '</text>';
 
   return '<svg width="100%" viewBox="0 0 ' + W + ' ' + H + '" role="img" '
@@ -158,11 +158,11 @@ function marktLegende(m) {
   return '<div style="margin-top:10px; display:grid; gap:3px">'
     + maerkte.map((mk, j) =>
       '<div style="display:flex; gap:8px; align-items:baseline; font-size:11px">'
-      + '<span style="' + M + '; color:rgba(255,255,255,.4); min-width:26px">M' + (j + 1) + '</span>'
+      + '<span style="' + M + '; color:rgba(255,255,255,.6); min-width:26px">M' + (j + 1) + '</span>'
       + '<span style="color:rgba(255,255,255,.66); overflow:hidden; text-overflow:ellipsis; white-space:nowrap">'
       + esc(mk.markt) + '</span>'
-      + '<span style="' + M + '; color:#C8F542; font-size:10px; white-space:nowrap">' + esc(mk.seite) + '</span>'
-      + '<span style="' + M + '; color:rgba(255,255,255,.35); font-size:10px; white-space:nowrap">'
+      + '<span style="' + M + '; color:#C8F542; font-size:11px; white-space:nowrap">' + esc(mk.seite) + '</span>'
+      + '<span style="' + M + '; color:rgba(255,255,255,.55); font-size:11px; white-space:nowrap">'
       + mk.wallets + 'w</span></div>'
     ).join('')
     + '</div>';
@@ -170,7 +170,7 @@ function marktLegende(m) {
 
 function tafel(titel, unter, inhalt, fuss) {
   return '<div style="' + CARD + '; padding:16px 18px; min-width:0">'
-    + '<div style="' + M + '; font-size:10px; letter-spacing:.14em; color:#4F8EF7">' + esc(titel) + '</div>'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#4F8EF7">' + esc(titel) + '</div>'
     + '<div style="font-size:12.5px; color:rgba(255,255,255,.55); margin-top:6px; line-height:1.5">' + esc(unter) + '</div>'
     + '<div style="margin-top:12px">' + inhalt + '</div>'
     + (fuss || '') + '</div>';
@@ -178,7 +178,7 @@ function tafel(titel, unter, inhalt, fuss) {
 
 function hinweisKarte(text, farbe) {
   return '<div style="' + CARD + '; padding:20px 22px; margin-bottom:16px">'
-    + '<div style="' + M + '; font-size:10px; letter-spacing:.14em; color:#4F8EF7">CO-TRADING STRUCTURE</div>'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#4F8EF7">CO-TRADING STRUCTURE</div>'
     + '<div style="font-size:13.5px; color:' + farbe + '; margin-top:10px; line-height:1.6; max-width:720px">'
     + esc(text) + '</div></div>';
 }
@@ -213,11 +213,11 @@ export function renderClusterGraphics(live) {
   return '<div style="' + CARD + '; padding:18px 20px; margin-bottom:16px">'
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:18px; flex-wrap:wrap">'
     + '<div style="max-width:640px">'
-    + '<div style="' + M + '; font-size:10px; letter-spacing:.14em; color:#4F8EF7">CO-TRADING STRUCTURE</div>'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#4F8EF7">CO-TRADING STRUCTURE</div>'
     + '<div style="font-size:17px; font-weight:600; margin-top:6px">Wallets that keep meeting in the same markets</div>'
     + '</div></div>'
     + kopfzeile(g, m)
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:10px; line-height:1.6">'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); margin-top:10px; line-height:1.6">'
     + 'RULE · ' + esc(g.regel || 'not stated')
     + (g.fenster ? '<br>WINDOW · ' + esc(g.fenster) : '')
     + '<br>SCOPE · insider-prone markets only, sports crypto and weather excluded</div>'

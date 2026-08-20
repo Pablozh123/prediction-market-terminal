@@ -178,17 +178,17 @@ export function renderDetail(T) {
     + '<div ' + T.act(() => T.setState({ detail: null })) + ' class="hv-white" style="' + M + '; font-size:14px; color:rgba(255,255,255,.5); cursor:pointer; line-height:1">✕</div></div>'
     + '<div style="padding:20px">'
     + '<div style="font-size:19px; line-height:1.3">' + esc(v.title) + '</div>'
-    + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); margin-top:6px">' + esc(v.meta) + '</div>'
+    + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); margin-top:6px">' + esc(v.meta) + '</div>'
     + '<div style="display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-top:18px">'
     + v.stats.map((st) =>
       '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:10px; padding:11px 13px">'
-      + '<div style="' + M + '; font-size:9.5px; letter-spacing:.13em; color:rgba(255,255,255,.45)">' + st.label + '</div>'
+      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(255,255,255,.6)">' + st.label + '</div>'
       + '<div style="' + st.style + '">' + st.value + '</div></div>'
     ).join('')
     + '</div>'
-    + (v.note ? '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); line-height:1.7; margin-top:12px; border:1px solid rgba(255,255,255,.09); border-radius:8px; padding:9px 11px; background:#10151A">' + v.note + '</div>' : '')
+    + (v.note ? '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); line-height:1.7; margin-top:12px; border:1px solid rgba(255,255,255,.09); border-radius:8px; padding:9px 11px; background:#10151A">' + v.note + '</div>' : '')
     + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:14px; margin-top:14px">'
-    + '<div style="' + M + '; font-size:9.5px; letter-spacing:.14em; color:rgba(255,255,255,.45); margin-bottom:10px">' + v.chartLabel + '</div>'
+    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.6); margin-bottom:10px">' + v.chartLabel + '</div>'
     + (v.chartPoints
       ? '<svg width="100%" height="150" viewBox="0 0 340 150" preserveAspectRatio="none">'
         + '<line x1="0" y1="25" x2="340" y2="25" stroke="rgba(255,255,255,.07)" />'
@@ -196,17 +196,17 @@ export function renderDetail(T) {
         + '<line x1="0" y1="115" x2="340" y2="115" stroke="rgba(255,255,255,.07)" />'
         + '<line x1="0" y1="145" x2="340" y2="145" stroke="rgba(255,255,255,.14)" />'
         + '<polyline points="' + v.chartPoints + '" fill="none" stroke="' + v.accent + '" stroke-width="2" /></svg>'
-        + '<div style="display:flex; justify-content:space-between; ' + M + '; font-size:10px; color:rgba(255,255,255,.4); margin-top:6px">'
+        + '<div style="display:flex; justify-content:space-between; ' + M + '; font-size:11px; color:rgba(255,255,255,.6); margin-top:6px">'
         + '<span>' + v.axisStart + '</span><span>now</span></div>'
-      : '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.42); line-height:1.6">' + esc(v.chartEmpty) + '</div>')
+      : '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); line-height:1.6">' + esc(v.chartEmpty) + '</div>')
     + '</div>'
-    + '<div style="' + M + '; font-size:9.5px; letter-spacing:.14em; color:rgba(255,255,255,.45); margin:20px 0 10px">' + v.listLabel + '</div>'
-    + (v.list.length ? '' : '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.42); line-height:1.6">' + esc(v.listEmpty) + '</div>')
+    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.6); margin:20px 0 10px">' + v.listLabel + '</div>'
+    + (v.list.length ? '' : '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); line-height:1.6">' + esc(v.listEmpty) + '</div>')
     + v.list.map((it) =>
       '<div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid rgba(255,255,255,.06)">'
       + '<div style="min-width:0">'
       + '<div style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(it.primary) + '">' + esc(it.primary) + '</div>'
-      + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:3px">' + esc(it.secondary) + '</div></div>'
+      + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); margin-top:3px">' + esc(it.secondary) + '</div></div>'
       + '<div style="' + it.style + '">' + it.value + '</div></div>'
     ).join('')
     // Ein Knopf wird nur gezeichnet, wenn ein Handler daran haengt.
@@ -232,24 +232,24 @@ export function renderSearch(T) {
   if (isFullAddress(rawQuery)) {
     walletActions.push({
       tag: 'ANALYSE', title: 'Analyse wallet ' + rawQuery.slice(0, 6) + '…' + rawQuery.slice(-4), meta: rawQuery + ' · opens the wallet page (#wallet/<address>)', value: '→',
-      tagStyle: M + '; font-size:9px; letter-spacing:.12em; color:#0A0D0F; background:#C8F542; border-radius:4px; padding:3px 6px',
+      tagStyle: M + '; font-size:10.5px; letter-spacing:.12em; color:#0A0D0F; background:#C8F542; border-radius:4px; padding:3px 6px',
       act: T.act(() => { if (T.analyseWallet) T.analyseWallet(rawQuery); else T.setState({ searchOpen: false, searchQuery: '' }); })
     });
   } else if (/^0x[0-9a-fA-F]*$/.test(rawQuery) && rawQuery.length > 2) {
     walletActions.push({
       tag: 'WALLET', title: 'Paste the full address to analyse a wallet', meta: '0x followed by 40 hex characters — ' + rawQuery.length + ' of 42 so far', value: '',
-      tagStyle: M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.2); border-radius:4px; padding:3px 6px',
+      tagStyle: M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.2); border-radius:4px; padding:3px 6px',
       act: ''
     });
   }
   const searchMarkets = T.markets.filter((m) => !q || m.title.toLowerCase().indexOf(q) >= 0).slice(0, 5).map((m) => ({
     tag: 'MARKET', title: m.title, meta: m.venue + ' · ' + m.cat, value: m.yes + '¢',
-    tagStyle: M + '; font-size:9px; letter-spacing:.12em; color:#0A0D0F; background:#C8F542; border-radius:4px; padding:3px 6px',
+    tagStyle: M + '; font-size:10.5px; letter-spacing:.12em; color:#0A0D0F; background:#C8F542; border-radius:4px; padding:3px 6px',
     act: T.act(() => T.setState({ detail: { kind: 'market', id: m.id }, searchOpen: false, searchQuery: '' }))
   }));
   const searchTraders = T.traders.filter((t) => !q || t.name.toLowerCase().indexOf(q) >= 0).slice(0, 3).map((t) => ({
     tag: 'WALLET', title: t.name, meta: t.wallet + (t.score != null ? ' · smart score ' + t.score : ''), value: money(t.pnl),
-    tagStyle: M + '; font-size:9px; letter-spacing:.12em; color:#0A0D0F; background:#4F8EF7; border-radius:4px; padding:3px 6px',
+    tagStyle: M + '; font-size:10.5px; letter-spacing:.12em; color:#0A0D0F; background:#4F8EF7; border-radius:4px; padding:3px 6px',
     act: T.act(() => { T.setState({ searchOpen: false, searchQuery: '' }); T.openWallet(t.name); })
   }));
   const results = walletActions.concat(searchMarkets, searchTraders);
@@ -265,11 +265,11 @@ export function renderSearch(T) {
       + '<div style="' + r.tagStyle + '">' + r.tag + '</div>'
       + '<div style="flex:1; min-width:0">'
       + '<div style="font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(r.title) + '">' + esc(r.title) + '</div>'
-      + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:2px">' + esc(r.meta) + '</div></div>'
+      + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); margin-top:2px">' + esc(r.meta) + '</div></div>'
       + '<div style="' + M + '; font-size:12.5px; color:rgba(255,255,255,.6)">' + r.value + '</div></div>'
     ).join('')
     + '</div>'
-    + '<div style="padding:10px 20px; ' + M + '; font-size:10px; color:rgba(255,255,255,.35); display:flex; gap:16px">'
+    + '<div style="padding:10px 20px; ' + M + '; font-size:11px; color:rgba(255,255,255,.55); display:flex; gap:16px">'
     + '<span>ESC to close</span>' + (results.length ? '<span>ENTER opens the first result</span>' : '') + '<span>' + results.length + ' results'
     + (!T.markets.length && !T.traders.length ? ' — nothing loaded to search: markets come from /api/markets, wallets from the leaderboard' : '') + '</span></div>'
     + '</div></div>';

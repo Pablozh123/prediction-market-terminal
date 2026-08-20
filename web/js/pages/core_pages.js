@@ -7,8 +7,8 @@ import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChi
 import { studieAnker } from './microstructure_page.js';
 
 const M = "font-family:'JetBrains Mono',monospace";
-const LBL9 = M + '; font-size:9px; letter-spacing:.14em; color:rgba(255,255,255,.42); margin-bottom:6px';
-const HEAD_CELL = M + '; font-size:9.5px; letter-spacing:.14em; color:rgba(255,255,255,.45)';
+const LBL9 = M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.6); margin-bottom:6px';
+const HEAD_CELL = M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.6)';
 const REPO_URL = 'https://github.com/Pablozh123/prediction-market-terminal';
 const ONE_PAGER_URL = REPO_URL + '/blob/main/docs/research/ONE_PAGER.md';
 
@@ -28,7 +28,7 @@ function catChipRow(T, rows, key, stateKey, current) {
 // One-line "as of" stamp for a live block; empty when the API has not
 // answered yet, so no line claims a time it does not have.
 function asOfLine(iso) {
-  return iso ? '<span style="' + M + '; font-size:10px; color:rgba(255,255,255,.35)">as of ' + esc(stempel(iso)) + '</span>' : '';
+  return iso ? '<span style="' + M + '; font-size:11px; color:rgba(255,255,255,.55)">as of ' + esc(stempel(iso)) + '</span>' : '';
 }
 
 // Spaltenraster der Markttabelle — Kopfzeile und Zeilen teilen es.
@@ -38,7 +38,7 @@ function marketRowHtml(v) {
   return '<div ' + v.act + ' class="hv-panel" style="display:grid; grid-template-columns:' + MARKT_SPALTEN + '; align-items:center; padding:13px 24px; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer; animation:rowIn .25s ease-out">'
     + '<div style="padding-right:20px">'
     + '<div style="font-size:13.5px; line-height:1.35">' + esc(v.title) + '</div>'
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:3px">' + esc(v.meta) + '</div></div>'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); margin-top:3px">' + esc(v.meta) + '</div></div>'
     + '<div style="' + M + '; font-size:15px; text-align:right">' + v.priceLabel + '</div>'
     + '<div style="' + v.changeStyle + '">' + v.changeLabel + '</div>'
     + '<div style="' + M + '; font-size:12px; text-align:right; color:rgba(255,255,255,.55)">' + esc(v.spreadLabel || '—') + '</div>'
@@ -52,9 +52,9 @@ function marketRowHtml(v) {
 // loaded sample has nothing that qualifies.
 function insightPanel(titel, sub, rowsHtml, leerSatz) {
   return '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:10px; overflow:hidden">'
-    + '<div style="padding:9px 14px; border-bottom:1px solid rgba(255,255,255,.08)"><span style="' + M + '; font-size:10px; letter-spacing:.13em; color:#C8F542">' + titel + '</span>'
-    + (sub ? ' <span style="' + M + '; font-size:9.5px; color:rgba(255,255,255,.35); letter-spacing:0">· ' + sub + '</span>' : '') + '</div>'
-    + (rowsHtml || '<div style="padding:12px 14px; ' + M + '; font-size:10.5px; color:rgba(255,255,255,.35)">' + esc(leerSatz) + '</div>')
+    + '<div style="padding:9px 14px; border-bottom:1px solid rgba(255,255,255,.08)"><span style="' + M + '; font-size:11px; letter-spacing:.13em; color:#C8F542">' + titel + '</span>'
+    + (sub ? ' <span style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.55); letter-spacing:0">· ' + sub + '</span>' : '') + '</div>'
+    + (rowsHtml || '<div style="padding:12px 14px; ' + M + '; font-size:10.5px; color:rgba(255,255,255,.55)">' + esc(leerSatz) + '</div>')
     + '</div>';
 }
 
@@ -72,7 +72,7 @@ const VERDICT_TAG = {
 function verdictTag(art) {
   const v = VERDICT_TAG[String(art || '').toLowerCase()];
   const label = v ? v.label : String(art || '—').toUpperCase();
-  const style = M + '; font-size:9.5px; letter-spacing:.12em; border-radius:4px; padding:3px 8px; white-space:nowrap; '
+  const style = M + '; font-size:10.5px; letter-spacing:.12em; border-radius:4px; padding:3px 8px; white-space:nowrap; '
     + (v ? 'color:' + v.color + '; background:' + v.bg : 'color:rgba(255,255,255,.55); border:1px solid rgba(255,255,255,.16)');
   return '<span style="' + style + '">' + esc(label) + '</span>';
 }
@@ -173,7 +173,7 @@ export function renderOverview(T) {
   const pilotIdx = T.studies.findIndex((st) => st.tab === 'Pilot');
   const goStudy = (i, anker) => (i >= 0 && T.goStudy ? T.act(() => T.goStudy(i, anker)) : '');
   const link = (i, label, color) => (i >= 0
-    ? '<div ' + goStudy(i) + ' class="hv-lime" style="' + M + '; font-size:11px; color:' + (color || 'rgba(255,255,255,.45)') + '; cursor:pointer; white-space:nowrap">' + label + ' →</div>'
+    ? '<div ' + goStudy(i) + ' class="hv-lime" style="' + M + '; font-size:11px; color:' + (color || 'rgba(255,255,255,.6)') + '; cursor:pointer; white-space:nowrap">' + label + ' →</div>'
     : '');
 
   // ---- verdict board -----------------------------------------------------
@@ -190,13 +190,13 @@ export function renderOverview(T) {
         // Jede Zeile fuehrt direkt zu ihrer Karte auf der Microstructure-Seite,
         // nicht zum Seitenanfang: gleicher Anker wie die Sprungliste dort.
         return '<div ' + goStudy(microIdx, studieAnker(st, i)) + ' class="hv-panel" style="display:grid; grid-template-columns:36px 1fr 128px 190px 150px; align-items:center; padding:11px 24px; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer; animation:rowIn .25s ease-out">'
-          + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.4)">' + String(i + 1).padStart(2, '0') + '</div>'
+          + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6)">' + String(i + 1).padStart(2, '0') + '</div>'
           + '<div style="padding-right:16px; min-width:0"><div style="font-size:13.5px; line-height:1.35">' + esc(st.frage || st.id || '—') + '</div>'
           // Truncated lines carry the full text as a tooltip.
-          + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(String(st.verdikt || '')) + '">' + esc(String(st.verdikt || '').split('. ')[0]) + '</div></div>'
+          + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(String(st.verdikt || '')) + '">' + esc(String(st.verdikt || '').split('. ')[0]) + '</div></div>'
           + '<div>' + verdictTag(st.verdikt_art) + '</div>'
-          + '<div style="text-align:right; min-width:0"><div style="' + M + '; font-size:14px">' + esc(kn.value) + (kn.unit ? ' <span style="font-size:10px; color:rgba(255,255,255,.45)">' + esc(kn.unit) + '</span>' : '') + '</div>'
-          + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.4); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(kn.label + (nLabel ? ' · ' + nLabel : '')) + '">' + esc(kn.label) + (nLabel ? ' · ' + esc(nLabel) : '') + '</div></div>'
+          + '<div style="text-align:right; min-width:0"><div style="' + M + '; font-size:14px">' + esc(kn.value) + (kn.unit ? ' <span style="font-size:11px; color:rgba(255,255,255,.6)">' + esc(kn.unit) + '</span>' : '') + '</div>'
+          + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(kn.label + (nLabel ? ' · ' + nLabel : '')) + '">' + esc(kn.label) + (nLabel ? ' · ' + esc(nLabel) : '') + '</div></div>'
           + '<div style="' + M + '; font-size:11px; text-align:right; color:rgba(255,255,255,.5)">' + esc(basis.fenster || '—') + '</div></div>';
       }).join('');
   } else {
@@ -238,9 +238,9 @@ export function renderOverview(T) {
   const notesStrip = noteList.length
     ? noteList.map((n) =>
       '<div ' + goStudy(notesIdx) + ' class="hv-panel" style="display:grid; grid-template-columns:96px 1fr 120px; gap:12px; align-items:center; padding:11px 24px; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer">'
-      + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45)">' + esc(String(n.date || '').slice(0, 10)) + '</div>'
+      + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6)">' + esc(String(n.date || '').slice(0, 10)) + '</div>'
       + '<div style="font-size:13px; line-height:1.35">' + esc(n.title || '—') + '</div>'
-      + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); text-align:right">' + esc(n.venue || '') + '</div></div>'
+      + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); text-align:right">' + esc(n.venue || '') + '</div></div>'
     ).join('')
     : leerZeile(landingLeerSatz(hk.notes, 'field_notes.json'));
 
@@ -286,16 +286,16 @@ export function renderOverview(T) {
     + runsStrip
 
     + sectionHead('VERDICT BOARD · ' + (studien.length ? num(counts.total) + ' STUDIES' : 'MICROSTRUCTURE'),
-      (micro && micro.stand_utc ? '<span style="' + M + '; font-size:10px; color:rgba(255,255,255,.35)">payload ' + esc(stempel(micro.stand_utc)) + '</span>' : '')
+      (micro && micro.stand_utc ? '<span style="' + M + '; font-size:11px; color:rgba(255,255,255,.55)">payload ' + esc(stempel(micro.stand_utc)) + '</span>' : '')
       + link(microIdx, 'FULL REPORT'))
     + board
 
     + sectionHead('FIELD NOTES', link(notesIdx, 'ALL NOTES'), '#4F8EF7')
     + notesStrip
 
-    + sectionHead('ANALYSIS TOOL · LIVE DATA', asOfLine(s.liveAsOf) + '<div ' + T.act(() => T.go('markets')) + ' class="hv-lime" style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); cursor:pointer">MARKETS →</div><div ' + T.act(() => T.go('flow')) + ' class="hv-lime" style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); cursor:pointer">TAPE →</div>')
+    + sectionHead('ANALYSIS TOOL · LIVE DATA', asOfLine(s.liveAsOf) + '<div ' + T.act(() => T.go('markets')) + ' class="hv-lime" style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); cursor:pointer">MARKETS →</div><div ' + T.act(() => T.go('flow')) + ' class="hv-lime" style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); cursor:pointer">TAPE →</div>')
     + liveRow
-    + '<div style="padding:22px 24px; text-align:center; ' + M + '; font-size:11px; color:rgba(255,255,255,.35)">Public data only · live blocks refresh every 30 seconds · research payloads are frozen files under ./data</div>'
+    + '<div style="padding:22px 24px; text-align:center; ' + M + '; font-size:11px; color:rgba(255,255,255,.55)">Public data only · live blocks refresh every 30 seconds · research payloads are frozen files under ./data</div>'
     + '</div>';
 }
 
@@ -303,16 +303,16 @@ export function renderOverview(T) {
 // target study is not in the list, the card then renders without a cursor.
 function pfadKarte(act, label, farbe, satz) {
   return '<div ' + act + (act ? ' class="hv-panel"' : '') + ' style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:14px 16px' + (act ? '; cursor:pointer' : '') + '">'
-    + '<div style="' + M + '; font-size:10px; letter-spacing:.16em; color:' + farbe + '">' + label + ' →</div>'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.16em; color:' + farbe + '">' + label + ' →</div>'
     + '<div style="font-size:12.5px; color:rgba(255,255,255,.6); margin-top:6px; line-height:1.5">' + satz + '</div></div>';
 }
 
 function kpiCell(label, value, sub, borderRight, signed) {
   const color = signed == null ? '#ffffff' : (+signed >= 0 ? '#C8F542' : '#FF4545');
   return '<div style="padding:16px 20px' + (borderRight ? '; border-right:1px solid rgba(255,255,255,.09)' : '') + '">'
-    + '<div style="' + M + '; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.45)">' + label + '</div>'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:rgba(255,255,255,.6)">' + label + '</div>'
     + '<div style="' + M + '; font-size:24px; margin-top:8px; color:' + color + '">' + value + '</div>'
-    + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); margin-top:4px">' + sub + '</div></div>';
+    + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); margin-top:4px">' + sub + '</div></div>';
 }
 
 // ---------------------------------------------------------------- markets
@@ -420,13 +420,13 @@ export function renderMarkets(T) {
     return b.vol - a.vol;
   });
 
-  const badge = mActive.length ? M + '; font-size:10px; color:#0A0D0F; background:#C8F542; border-radius:4px; padding:1px 7px' : 'display:none';
+  const badge = mActive.length ? M + '; font-size:11px; color:#0A0D0F; background:#C8F542; border-radius:4px; padding:1px 7px' : 'display:none';
   const chevron = M + '; font-size:16px; color:rgba(255,255,255,.5); transition:transform .18s ease; transform:rotate(' + (s.marketFiltersOpen ? '90deg' : '0deg') + ')';
 
   return '<div>'
     + '<div style="padding:20px 24px 14px; border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:20px">'
-    + '<div><div style="' + M + '; font-size:10px; letter-spacing:.18em; color:#C8F542">MARKETS</div>'
+    + '<div><div style="' + M + '; font-size:11px; letter-spacing:.18em; color:#C8F542">MARKETS</div>'
     + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">Every market, one table</div></div>'
     + '<div style="display:flex; align-items:center; gap:10px">'
     + '<input value="' + esc(s.marketQuery) + '" ' + T.inp((e) => T.setState({ marketQuery: e.target.value }), 'marketQuery') + ' placeholder="Search markets…" style="background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:9px 12px; ' + M + '; font-size:12.5px; color:#fff; width:230px; outline:none" />'
@@ -473,7 +473,7 @@ export function renderMarkets(T) {
     + '</div>'
 
     + '<div style="display:flex; align-items:center; gap:8px; margin-top:12px; flex-wrap:wrap">'
-    + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45)">' + mRows.length + ' of ' + T.markets.length + ' markets</div>'
+    + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6)">' + mRows.length + ' of ' + T.markets.length + ' markets</div>'
     + mActive.map((c) =>
       '<div ' + T.act(() => T.setState(c.reset)) + ' class="hv-bd30" style="' + M + '; font-size:11px; color:rgba(255,255,255,.7); border:1px solid rgba(255,255,255,.14); background:#161C22; border-radius:6px; padding:3px 9px; cursor:pointer">' + esc(c.label) + ' ✕</div>'
     ).join('')
@@ -482,19 +482,19 @@ export function renderMarkets(T) {
     // No TREND column: the API carries a one-day change, not an intraday
     // path, and a two-point line under "TREND 24H" read as a curve. SPREAD
     // und LIQUIDITY kommen aus denselben API-Zeilen (unbekannt bleibt —).
-    + '<div style="display:grid; grid-template-columns:' + MARKT_SPALTEN + '; padding:10px 24px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A; ' + HEAD_CELL + '">'
+    + '<div style="display:grid; grid-template-columns:' + MARKT_SPALTEN + '; padding:10px 24px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A; position:sticky; top:0; z-index:3; ' + HEAD_CELL + '">'
     + '<div>MARKET</div>'
     + '<div style="text-align:right">YES</div>'
-    + '<div ' + T.act(() => T.setState({ marketSort: 'change' })) + ' style="text-align:right; cursor:pointer; color:' + (s.marketSort === 'change' ? '#C8F542' : 'rgba(255,255,255,.45)') + '">CHANGE 1D</div>'
+    + '<div ' + T.act(() => T.setState({ marketSort: 'change' })) + ' style="text-align:right; cursor:pointer; color:' + (s.marketSort === 'change' ? '#C8F542' : 'rgba(255,255,255,.6)') + '">CHANGE 1D</div>'
     + '<div style="text-align:right">SPREAD</div>'
-    + '<div ' + T.act(() => T.setState({ marketSort: 'liquidity' })) + ' style="text-align:right; cursor:pointer; color:' + (s.marketSort === 'liquidity' ? '#C8F542' : 'rgba(255,255,255,.45)') + '">LIQUIDITY</div>'
-    + '<div ' + T.act(() => T.setState({ marketSort: 'volume' })) + ' style="text-align:right; cursor:pointer; color:' + (s.marketSort === 'volume' ? '#C8F542' : 'rgba(255,255,255,.45)') + '">VOLUME 24H</div>'
-    + '<div ' + T.act(() => T.setState({ marketSort: 'ending' })) + ' style="text-align:right; cursor:pointer; color:' + (s.marketSort === 'ending' ? '#C8F542' : 'rgba(255,255,255,.45)') + '">RESOLVES</div></div>'
+    + '<div ' + T.act(() => T.setState({ marketSort: 'liquidity' })) + ' style="text-align:right; cursor:pointer; color:' + (s.marketSort === 'liquidity' ? '#C8F542' : 'rgba(255,255,255,.6)') + '">LIQUIDITY</div>'
+    + '<div ' + T.act(() => T.setState({ marketSort: 'volume' })) + ' style="text-align:right; cursor:pointer; color:' + (s.marketSort === 'volume' ? '#C8F542' : 'rgba(255,255,255,.6)') + '">VOLUME 24H</div>'
+    + '<div ' + T.act(() => T.setState({ marketSort: 'ending' })) + ' style="text-align:right; cursor:pointer; color:' + (s.marketSort === 'ending' ? '#C8F542' : 'rgba(255,255,255,.6)') + '">RESOLVES</div></div>'
     + mRows.map((m) => marketRowHtml(Object.assign(T.marketView(m), {
       spreadLabel: mx(m).spread != null ? mx(m).spread + '¢' : '—',
       liqLabel: m.liq ? money(m.liq) : '—'
     }))).join('')
-    + (mRows.length === 0 ? '<div style="padding:60px; text-align:center; ' + M + '; font-size:12px; color:rgba(255,255,255,.35)">No market matches that filter.</div>' : '')
+    + (mRows.length === 0 ? '<div style="padding:60px; text-align:center; ' + M + '; font-size:12px; color:rgba(255,255,255,.55)">No market matches that filter.</div>' : '')
     + '</div>';
 }
 
@@ -519,7 +519,7 @@ export function renderFlow(T) {
   return '<div>'
     + '<div style="padding:20px 24px 14px; border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:20px">'
-    + '<div><div style="' + M + '; font-size:10px; letter-spacing:.18em; color:#C8F542">LIVE TAPE</div>'
+    + '<div><div style="' + M + '; font-size:11px; letter-spacing:.18em; color:#C8F542">LIVE TAPE</div>'
     + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">Every large print as it lands</div></div>'
     + '<div style="display:flex; align-items:center; gap:12px">'
     + asOfLine(s.tapeAsOf || s.liveAsOf)
@@ -544,7 +544,7 @@ export function renderFlow(T) {
     ).join('')
     + '</div>'
 
-    + '<div style="display:grid; grid-template-columns:96px 160px 1fr 110px 84px 90px 110px 96px; padding:10px 24px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A; ' + HEAD_CELL + '">'
+    + '<div style="display:grid; grid-template-columns:96px 160px 1fr 110px 84px 90px 110px 96px; padding:10px 24px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A; position:sticky; top:0; z-index:3; ' + HEAD_CELL + '">'
     + '<div>TIME</div><div>WALLET</div><div>MARKET</div><div>CATEGORY</div><div>SIDE</div><div style="text-align:right">PRICE</div><div style="text-align:right">SIZE</div><div style="text-align:right">VENUE</div></div>'
     + (tapeFiltered.length ? '' : leerZeile('No print in the tape window passes the current filters (size, category, side).'))
     + tapeFiltered.map((t0) => {
@@ -560,7 +560,7 @@ export function renderFlow(T) {
         + '<div style="' + t.sideStyle + '">' + esc(t.side) + '</div>'
         + '<div style="text-align:right">' + esc(t.price) + '</div>'
         + '<div style="text-align:right">' + t.size + '</div>'
-        + '<div style="text-align:right; color:rgba(255,255,255,.45); font-size:11px">' + esc(t.venue) + '</div></div>';
+        + '<div style="text-align:right; color:rgba(255,255,255,.6); font-size:11px">' + esc(t.venue) + '</div></div>';
     }).join('')
     + '</div>';
 }
@@ -574,7 +574,7 @@ function crossGateBlock(T) {
   const microIdx = T.studies.findIndex((st) => st.tab === 'Microstructure');
   return '<div style="padding:26px 24px">'
     + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:20px 22px; max-width:760px">'
-    + '<div style="' + M + '; font-size:10px; letter-spacing:.14em; color:#F5A623">NO PAIR CLEARS THE GATE</div>'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#F5A623">NO PAIR CLEARS THE GATE</div>'
     + '<div style="font-size:13px; color:rgba(255,255,255,.6); margin-top:9px; line-height:1.6">No cross-venue pair clears the match gate right now (' + CROSS_GATE_TEXT + '). '
     + 'See studies 08 and 11: the two 79¢/64¢ \'edges\' were mismatched questions.</div>'
     + (microIdx >= 0 && T.goStudy
@@ -596,7 +596,9 @@ export function renderCross(T) {
         + '<div style="display:flex; align-items:center; gap:10px">'
         + '<span style="width:7px; height:7px; border-radius:50%; background:#F5A623; display:inline-block; animation:livePulse 1.2s ease-in-out infinite"></span>'
         + '<div style="' + M + '; font-size:11px; letter-spacing:.12em; color:#F5A623">MATCHING PAIRS ACROSS VENUES…</div></div>'
-        + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:9px; line-height:1.6">Waiting for /api/cross. It pages both venues and scores every title pair; the gate keeps only ' + CROSS_GATE_TEXT + '.</div>'
+        // Ohne Dauer liest sich der pulsierende Punkt wie eine kaputte Seite.
+        // Er ist keine: der erste Aufruf blaettert beide Boersen durch.
+        + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:9px; line-height:1.6">This is a live scan, not a stored file: /api/cross pages both venues and scores every title pair, which takes up to a minute on a cold cache. The gate then keeps only ' + CROSS_GATE_TEXT + '. If it fails you will see the error and a retry here, not this spinner.</div>'
         + '</div></div>';
     } else if (hk.quelle === 'fehler') {
       body = leerBlock('NO PAIRS', herkunftSatz(hk, '/api/cross'))
@@ -645,7 +647,7 @@ export function renderCross(T) {
   return '<div>'
     + '<div style="padding:20px 24px 14px; border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:20px">'
-    + '<div><div style="' + M + '; font-size:10px; letter-spacing:.18em; color:#4F8EF7">CROSS-VENUE</div>'
+    + '<div><div style="' + M + '; font-size:11px; letter-spacing:.18em; color:#4F8EF7">CROSS-VENUE</div>'
     + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">The same question, two prices</div></div>'
     + '<div style="display:flex; align-items:center; gap:10px">'
     + asOfLine(cl.as_of)
@@ -678,21 +680,21 @@ export function renderCross(T) {
     + '<div style="padding:14px 24px"><div style="' + HEAD_CELL + '">MEDIAN GAP</div><div style="' + M + '; font-size:22px; margin-top:7px">' + (medianGap ? medianGap + '¢' : '—') + '</div></div>'
     + '</div>'
 
-    + '<div style="display:grid; grid-template-columns:1fr 118px 118px 96px 110px 118px; padding:10px 24px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A; ' + HEAD_CELL + '">'
+    + '<div style="display:grid; grid-template-columns:1fr 118px 118px 96px 110px 118px; padding:10px 24px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A; position:sticky; top:0; z-index:3; ' + HEAD_CELL + '">'
     + '<div>EVENT</div><div style="text-align:right">POLYMARKET</div><div style="text-align:right">KALSHI</div><div style="text-align:right">GAP</div><div style="text-align:right">VOLUME 24H</div><div style="text-align:right">HELD FOR</div></div>'
     + cRows.map((c) => {
       const g = Math.abs(c.pm - c.ks);
       const gapStyle = M + '; font-size:14px; text-align:right; color:' + (g >= 5 ? '#F5A623' : g >= 3 ? '#ffffff' : 'rgba(255,255,255,.5)');
       return '<div style="display:grid; grid-template-columns:1fr 118px 118px 96px 110px 118px; align-items:center; padding:13px 24px; border-bottom:1px solid rgba(255,255,255,.06); animation:rowIn .25s ease-out">'
         + '<div style="padding-right:20px"><div style="font-size:13.5px; line-height:1.35">' + esc(c.event) + '</div>'
-        + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:3px">' + esc(c.cat) + ' · similarity ' + c.sim.toFixed(2) + '</div></div>'
+        + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); margin-top:3px">' + esc(c.cat) + ' · similarity ' + c.sim.toFixed(2) + '</div></div>'
         + '<div style="' + M + '; font-size:14px; text-align:right; color:#C8F542">' + c.pm + '¢</div>'
         + '<div style="' + M + '; font-size:14px; text-align:right; color:#4F8EF7">' + c.ks + '¢</div>'
         + '<div style="' + gapStyle + '">' + g + '¢</div>'
         + '<div style="' + M + '; font-size:12.5px; text-align:right; color:rgba(255,255,255,.6)">' + money(c.pmVol + c.ksVol) + '</div>'
-        + '<div style="' + M + '; font-size:12px; text-align:right; color:rgba(255,255,255,.45)">' + esc(c.held) + '</div></div>';
+        + '<div style="' + M + '; font-size:12px; text-align:right; color:rgba(255,255,255,.6)">' + esc(c.held) + '</div></div>';
     }).join('')
-    + (cRows.length === 0 ? '<div style="padding:60px; text-align:center; ' + M + '; font-size:12px; color:rgba(255,255,255,.35)">No pair passes the local filters; loosen a stepper above.</div>' : '')
+    + (cRows.length === 0 ? '<div style="padding:60px; text-align:center; ' + M + '; font-size:12px; color:rgba(255,255,255,.55)">No pair passes the local filters; loosen a stepper above.</div>' : '')
     + '</div>';
 }
 
@@ -731,7 +733,7 @@ export function renderResolved(T) {
   return '<div>'
     + '<div style="padding:20px 24px 14px; border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:20px">'
-    + '<div><div style="' + M + '; font-size:10px; letter-spacing:.18em; color:#C8F542">RESOLVED</div>'
+    + '<div><div style="' + M + '; font-size:11px; letter-spacing:.18em; color:#C8F542">RESOLVED</div>'
     + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">How the last questions ended</div></div>'
     + '<input value="' + esc(s.resQuery) + '" ' + T.inp((e) => T.setState({ resQuery: e.target.value }), 'resQuery') + ' placeholder="Search resolved markets…" style="background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:9px 12px; ' + M + '; font-size:12.5px; color:#fff; width:250px; outline:none" />'
     + '</div>'
@@ -751,19 +753,19 @@ export function renderResolved(T) {
     ).join('')
     + '</div>'
 
-    + '<div style="display:grid; grid-template-columns:1fr 110px 118px 128px 110px 120px; padding:10px 24px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A; ' + HEAD_CELL + '">'
+    + '<div style="display:grid; grid-template-columns:1fr 110px 118px 128px 110px 120px; padding:10px 24px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A; position:sticky; top:0; z-index:3; ' + HEAD_CELL + '">'
     + '<div>MARKET</div><div style="text-align:right">ANSWER</div><div style="text-align:right">LAST PRICE</div><div style="text-align:right">CROWD OFF BY</div><div style="text-align:right">VOLUME</div><div style="text-align:right">SETTLED</div></div>'
     + resRows.map((r) => {
       const answerStyle = M + '; font-size:11px; letter-spacing:.1em; border-radius:5px; padding:3px 10px; ' + (r.yes ? 'color:#0A0D0F; background:#C8F542' : 'color:#FF7A7A; border:1px solid rgba(255,69,69,.35)');
       const errStyle = M + '; font-size:14px; text-align:right; color:' + (r.err >= 50 ? '#FF4545' : r.err >= 25 ? '#F5A623' : 'rgba(255,255,255,.6)');
       return '<div style="display:grid; grid-template-columns:1fr 110px 118px 128px 110px 120px; align-items:center; padding:13px 24px; border-bottom:1px solid rgba(255,255,255,.06); animation:rowIn .25s ease-out">'
         + '<div style="padding-right:20px"><div style="font-size:13.5px; line-height:1.35">' + esc(r.title) + '</div>'
-        + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:3px">' + esc(r.meta) + '</div></div>'
+        + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); margin-top:3px">' + esc(r.meta) + '</div></div>'
         + '<div style="display:flex; justify-content:flex-end"><div style="' + answerStyle + '">' + (r.yes ? 'YES' : 'NO') + '</div></div>'
         + '<div style="' + M + '; font-size:14px; text-align:right">' + r.last + '¢</div>'
         + '<div style="' + errStyle + '">' + r.err + '¢</div>'
         + '<div style="' + M + '; font-size:12.5px; text-align:right; color:rgba(255,255,255,.6)">' + esc(r.vol) + '</div>'
-        + '<div style="' + M + '; font-size:12px; text-align:right; color:rgba(255,255,255,.45)">' + esc(r.when) + '</div></div>';
+        + '<div style="' + M + '; font-size:12px; text-align:right; color:rgba(255,255,255,.6)">' + esc(r.when) + '</div></div>';
     }).join('')
     + '</div>';
 }

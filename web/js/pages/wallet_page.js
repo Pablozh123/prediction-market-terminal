@@ -11,9 +11,9 @@ import { squarify, pnlIntensity } from '../treemap.js';
 
 const M = "font-family:'JetBrains Mono',monospace";
 const CARD = 'background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px';
-const LBL = M + '; font-size:9.5px; letter-spacing:.14em; color:rgba(255,255,255,.45)';
-const HEAD_CELL = M + '; font-size:9.5px; letter-spacing:.14em; color:rgba(255,255,255,.45)';
-const NOTE = M + '; font-size:10.5px; color:rgba(255,255,255,.45); line-height:1.6';
+const LBL = M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.6)';
+const HEAD_CELL = M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.6)';
+const NOTE = M + '; font-size:10.5px; color:rgba(255,255,255,.6); line-height:1.6';
 const CELL = M + '; font-size:12px';
 
 export const WALLET_ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
@@ -112,12 +112,12 @@ function renderHeader(T) {
   const valid = isFullAddress(input);
   const looksLike = /^0x/i.test(input.trim()) && !valid;
   const btnStyle = 'font-size:12.5px; font-weight:600; border-radius:8px; padding:9px 14px; cursor:pointer; white-space:nowrap; '
-    + (valid ? 'color:#0A0D0F; background:#C8F542' : 'color:rgba(255,255,255,.4); border:1px solid rgba(255,255,255,.14)');
+    + (valid ? 'color:#0A0D0F; background:#C8F542' : 'color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.14)');
   const analyse = () => { if (T.analyseWallet) T.analyseWallet(input.trim()); };
   const recent = Array.isArray(s.walletRecent) ? s.walletRecent.filter((a) => a !== EXAMPLE_WALLET) : [];
   const chip = (addr, label, title) => '<div ' + T.act(() => { if (T.analyseWallet) T.analyseWallet(addr); }) + ' class="hv-bd32" title="' + esc(title || addr) + '" style="' + M + '; font-size:10.5px; letter-spacing:.04em; border-radius:5px; padding:4px 9px; cursor:pointer; color:rgba(255,255,255,.62); border:1px solid rgba(255,255,255,.16); white-space:nowrap">' + esc(label) + '</div>';
   return '<div style="padding:20px 24px 14px; border-bottom:1px solid rgba(255,255,255,.09)">'
-    + '<div style="' + M + '; font-size:10px; letter-spacing:.18em; color:#C8F542">WALLET</div>'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.18em; color:#C8F542">WALLET</div>'
     + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">One wallet, read from the public feed</div>'
     + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:8px; max-width:800px">Paste a Polymarket proxy address. The page reads its resolved positions (both tails), open positions, the profile PnL curve and its trades from the public Data API, and prints the corrected track record next to the naive one — every figure with its sample size, interval and time stamp. Read-only, nothing is placed.</div>'
     + '<div style="display:flex; align-items:center; gap:10px; margin-top:14px; flex-wrap:wrap">'
@@ -152,7 +152,7 @@ function renderError(T, addr, entry) {
   else if (/HTTP 5\d\d/.test(msg)) { title = 'API ERROR'; text = '/api/wallet failed on this address (' + msg + '). The upstream Data API may be slow or down; nothing is shown in its place.'; }
   return '<div style="padding:26px 24px">'
     + '<div style="' + CARD + '; padding:20px 22px; max-width:760px">'
-    + '<div style="' + M + '; font-size:10px; letter-spacing:.14em; color:#F5A623">' + esc(title) + '</div>'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#F5A623">' + esc(title) + '</div>'
     + '<div style="font-size:13px; color:rgba(255,255,255,.6); margin-top:9px; line-height:1.6">' + esc(text) + '</div>'
     + '<div style="display:flex; gap:8px; margin-top:12px">'
     + '<div ' + T.act(() => { if (T.fetchWallet) T.fetchWallet(addr, true); }) + ' class="hv-bd32" style="' + M + '; font-size:11px; color:rgba(255,255,255,.7); border:1px solid rgba(255,255,255,.16); border-radius:6px; padding:5px 10px; cursor:pointer">Try again</div>'
@@ -193,10 +193,10 @@ function renderIdentity(T, d) {
     try { history.pushState(null, '', '#backtester'); } catch (e) { /* file:// */ }
   };
   const tags = [];
-  if (tr && tr.grade) tags.push('<span style="' + M + '; font-size:10px; letter-spacing:.08em; color:' + (tr.grade === 'A' || tr.grade === 'B' ? '#C8F542' : tr.grade === 'F' ? '#F5A623' : 'rgba(255,255,255,.75)') + '; border:1px solid rgba(255,255,255,.16); border-radius:4px; padding:2px 7px">GRADE ' + esc(tr.grade) + (tr.score != null ? ' · ' + tr.score + '/100' : '') + '</span>');
-  if (tr && tr.survivorship_gate && !tr.survivorship_gate.ok) tags.push('<span style="' + M + '; font-size:10px; letter-spacing:.08em; color:#F5A623; border:1px solid rgba(245,166,35,.35); border-radius:4px; padding:2px 7px">BELOW SAMPLE GATE</span>');
-  if (tr && tr.wash_flag && tr.wash_flag.flag) tags.push('<span style="' + M + '; font-size:10px; letter-spacing:.08em; color:#F5A623; border:1px solid rgba(245,166,35,.35); border-radius:4px; padding:2px 7px">WASH / FARMER FLAG</span>');
-  if (id.days_active != null) tags.push('<span style="' + M + '; font-size:10px; letter-spacing:.08em; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.12); border-radius:4px; padding:2px 7px">' + id.days_active + (id.activity_truncated ? '+' : '') + ' DAYS ACTIVE</span>');
+  if (tr && tr.grade) tags.push('<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:' + (tr.grade === 'A' || tr.grade === 'B' ? '#C8F542' : tr.grade === 'F' ? '#F5A623' : 'rgba(255,255,255,.75)') + '; border:1px solid rgba(255,255,255,.16); border-radius:4px; padding:2px 7px">GRADE ' + esc(tr.grade) + (tr.score != null ? ' · ' + tr.score + '/100' : '') + '</span>');
+  if (tr && tr.survivorship_gate && !tr.survivorship_gate.ok) tags.push('<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:#F5A623; border:1px solid rgba(245,166,35,.35); border-radius:4px; padding:2px 7px">BELOW SAMPLE GATE</span>');
+  if (tr && tr.wash_flag && tr.wash_flag.flag) tags.push('<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:#F5A623; border:1px solid rgba(245,166,35,.35); border-radius:4px; padding:2px 7px">WASH / FARMER FLAG</span>');
+  if (id.days_active != null) tags.push('<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.12); border-radius:4px; padding:2px 7px">' + id.days_active + (id.activity_truncated ? '+' : '') + ' DAYS ACTIVE</span>');
   return '<div style="' + CARD + '; padding:16px 18px; position:relative; overflow:hidden">'
     + '<div style="position:absolute; left:-40px; top:-60px; width:180px; height:180px; border-radius:50%; background:radial-gradient(closest-side, rgba(200,245,66,.10), rgba(200,245,66,0)); pointer-events:none"></div>'
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; position:relative">'
@@ -205,7 +205,7 @@ function renderIdentity(T, d) {
     + '<div style="min-width:0">'
     + '<div style="font-size:20px; line-height:1.2">' + esc(id.pseudonym || shortAddr(addr)) + '</div>'
     + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55); margin-top:4px; word-break:break-all">' + esc(addr) + '</div>'
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:5px">first activity ' + esc(when(id.first_activity)) + ' · last ' + esc(when(id.last_activity)) + ' · ' + (id.n_activity_rows != null ? num(id.n_activity_rows) + ' activity rows read' : 'activity not read') + '</div>'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); margin-top:5px">first activity ' + esc(when(id.first_activity)) + ' · last ' + esc(when(id.last_activity)) + ' · ' + (id.n_activity_rows != null ? num(id.n_activity_rows) + ' activity rows read' : 'activity not read') + '</div>'
     + (tags.length ? '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px">' + tags.join('') + '</div>' : '')
     + '</div></div>'
     + '<div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px">'
@@ -279,7 +279,7 @@ function renderKpis(d) {
   ];
   return '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:10px; margin-top:14px">' + tiles.join('') + '</div>'
     + '<div style="display:flex; gap:18px; flex-wrap:wrap; margin-top:10px; padding:0 4px">'
-    + facts.map((f) => '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55)"><span style="letter-spacing:.1em; color:rgba(255,255,255,.4)">' + f[0] + '</span> <span style="color:#fff">' + f[1] + '</span></div>').join('')
+    + facts.map((f) => '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55)"><span style="letter-spacing:.1em; color:rgba(255,255,255,.6)">' + f[0] + '</span> <span style="color:#fff">' + f[1] + '</span></div>').join('')
     + '</div>';
 }
 
@@ -307,9 +307,9 @@ function renderAside(d) {
     ? [[[absDollars(op.total_exposure)]], ['cost basis', absDollars(op.total_cost)], ['unrealised', dollars(op.unrealized_pnl), pnlColor(op.unrealized_pnl)], ['positions', num(op.n) + (op.capped ? '+' : '')]]
     : [[['—']]], op && op.n ? 'value at current prices · as of ' + esc(op.as_of || '') : (op && op.note ? esc(op.note) : 'no open positions read')));
   cards.push(asideCard('PNL BREAKDOWN', [
-    ['settled (track record)', tr ? dollars(tr.settled_pnl) : '—', tr ? pnlColor(tr.settled_pnl) : 'rgba(255,255,255,.4)'],
-    ['realised (closed rows)', c && c.n ? dollars(c.realized_pnl) : '—', c && c.n ? pnlColor(c.realized_pnl) : 'rgba(255,255,255,.4)'],
-    ['unrealised (open)', op && op.n ? dollars(op.unrealized_pnl) : '—', op && op.n ? pnlColor(op.unrealized_pnl) : 'rgba(255,255,255,.4)'],
+    ['settled (track record)', tr ? dollars(tr.settled_pnl) : '—', tr ? pnlColor(tr.settled_pnl) : 'rgba(255,255,255,.6)'],
+    ['realised (closed rows)', c && c.n ? dollars(c.realized_pnl) : '—', c && c.n ? pnlColor(c.realized_pnl) : 'rgba(255,255,255,.6)'],
+    ['unrealised (open)', op && op.n ? dollars(op.unrealized_pnl) : '—', op && op.n ? pnlColor(op.unrealized_pnl) : 'rgba(255,255,255,.6)'],
     ['position value', op && op.n ? absDollars(op.total_exposure) : '—']
   ], tr && tr.capped ? 'closed tails capped at ~50 each' : ''));
   cards.push(asideCard('CORE STATS', [
@@ -345,7 +345,7 @@ function topCard(label, r, kind) {
   const ret = stake > 0 ? pnl / stake : null;
   return '<div style="' + CARD + '; padding:14px 16px; min-width:0">'
     + '<div style="display:flex; justify-content:space-between; gap:8px; align-items:baseline"><div style="' + LBL + '">' + label + '</div>'
-    + '<span style="' + M + '; font-size:10px; letter-spacing:.08em; color:' + (String(r.outcome).toLowerCase() === 'yes' ? '#C8F542' : '#FF7A7A') + '; border:1px solid rgba(255,255,255,.14); border-radius:4px; padding:1px 6px">' + esc(String(r.outcome || '—').toUpperCase()) + '</span></div>'
+    + '<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:' + (String(r.outcome).toLowerCase() === 'yes' ? '#C8F542' : '#FF7A7A') + '; border:1px solid rgba(255,255,255,.14); border-radius:4px; padding:1px 6px">' + esc(String(r.outcome || '—').toUpperCase()) + '</span></div>'
     + '<div style="font-family:\'Inter\',sans-serif; font-size:13px; margin-top:8px; line-height:1.4; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden">' + link(r.url, r.title) + '</div>'
     + '<div style="' + M + '; font-size:18px; margin-top:8px; color:' + pnlColor(pnl) + '">' + (ret == null ? dollars(pnl) : (ret >= 0 ? '+' : '') + (ret * 100).toFixed(0) + '%') + '</div>'
     + '<div style="' + NOTE + '; margin-top:2px">' + absDollars(stake) + ' → ' + absDollars(now) + ' · ' + dollars(pnl) + (kind === 'open' ? ' unrealised' : ' realised') + '</div>'
@@ -421,7 +421,7 @@ function renderTreemap(T, d) {
     const inner = tiny ? ''
       : '<div style="display:flex; justify-content:space-between; gap:4px; align-items:flex-start">'
         + (showImg ? '<img src="' + esc(it.image) + '" alt="" loading="lazy" style="width:' + (wide ? 34 : 26) + 'px; height:' + (wide ? 34 : 26) + 'px; border-radius:5px; object-fit:cover; flex:none; background:rgba(0,0,0,.25)" />' : '')
-        + '<span style="' + M + '; font-size:9px; letter-spacing:.06em; color:rgba(255,255,255,.9); background:rgba(0,0,0,.35); border-radius:3px; padding:1px 4px; flex:none; margin-left:auto">' + esc(String(it.outcome || '').toUpperCase().slice(0, 3)) + (it.kind === 'closed' ? ' ✓' : '') + '</span></div>'
+        + '<span style="' + M + '; font-size:10.5px; letter-spacing:.06em; color:rgba(255,255,255,.9); background:rgba(0,0,0,.35); border-radius:3px; padding:1px 4px; flex:none; margin-left:auto">' + esc(String(it.outcome || '').toUpperCase().slice(0, 3)) + (it.kind === 'closed' ? ' ✓' : '') + '</span></div>'
         + (wide ? '<div style="font-family:\'Inter\',sans-serif; font-size:11px; font-weight:600; line-height:1.3; color:#fff; margin-top:5px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden">' + esc(it.title || '') + '</div>' : '')
         + '<div style="' + M + '; font-size:' + (wide ? '12px' : '10px') + '; color:#fff; margin-top:auto">' + absDollars(it.value) + (wide && ret != null ? ' <span style="color:rgba(255,255,255,.8)">' + (ret >= 0 ? '+' : '') + (ret * 100).toFixed(0) + '%</span>' : '') + '</div>';
     const style = 'position:absolute; left:' + ((rc.x / W) * 100).toFixed(3) + '%; top:' + ((rc.y / H) * 100).toFixed(3) + '%; width:' + wPct.toFixed(3) + '%; height:' + hPct.toFixed(3) + '%; box-sizing:border-box; padding:' + (tiny ? '0' : '6px 7px') + '; border:1px solid #0A0D0F; border-radius:5px; background:' + bg + '; display:flex; flex-direction:column; overflow:hidden; text-decoration:none; color:inherit';
@@ -518,7 +518,7 @@ function renderPnl(d) {
     : 'The curve polymarket.com shows on the profile: user-pnl-api.polymarket.com, daily points, all time.';
   const head = '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap">'
     + '<div><div style="' + LBL + '">' + (settled ? 'PNL TIMELINE · SETTLED CURVE' : 'PNL TIMELINE · PROFILE CURVE')
-    + ' <span title="' + esc(headTip) + '" style="display:inline-block; width:13px; height:13px; line-height:13px; text-align:center; border-radius:50%; border:1px solid rgba(255,255,255,.25); color:rgba(255,255,255,.55); font-size:9px; letter-spacing:0; cursor:help; vertical-align:1px">i</span></div>'
+    + ' <span title="' + esc(headTip) + '" style="display:inline-block; width:13px; height:13px; line-height:13px; text-align:center; border-radius:50%; border:1px solid rgba(255,255,255,.25); color:rgba(255,255,255,.55); font-size:10.5px; letter-spacing:0; cursor:help; vertical-align:1px">i</span></div>'
     + '<div style="' + NOTE + '; margin-top:4px">' + (settled
       ? num(c.n_rows) + ' closed rows' + (c.capped ? ' · <span style="color:#F5A623">capped tails</span>' : ' · complete set') + ' · ' + esc(first) + ' → ' + esc(lastDay)
       : num(c.n_points) + ' daily points · ' + esc(first) + ' → ' + esc(lastDay)) + '</div></div>'
@@ -532,7 +532,7 @@ function renderPnl(d) {
       + '<span style="color:rgba(245,166,35,.85)">' + (profileHasPoints && p.flat
         ? 'one level (' + esc(kurzGeld(Number(p.points[p.points.length - 1].pnl), true)) + ') for ' + num(p.n_points) + ' points since ' + esc(String(p.first || '').slice(0, 10)) + ' — showing our settled curve instead'
         : 'user-pnl-api did not answer — showing our settled curve instead') + '</span>'
-      + '<span style="color:rgba(255,255,255,.4)">details below ↓</span></div>'
+      + '<span style="color:rgba(255,255,255,.6)">details below ↓</span></div>'
     : (flat ? '<div style="margin-top:10px; ' + M + '; font-size:10.5px; color:#F5A623">Flat: the profile curve never moved in ' + num(c.n_points) + ' points, and there are no closed rows to sum instead.</div>' : '');
 
   const kurve = pnlZeitkurve({
@@ -548,11 +548,11 @@ function renderPnl(d) {
     + '<div style="' + M + '; font-size:17px; margin-top:4px; color:' + (tone || '#fff') + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + value + '</div>'
     + '<div style="' + NOTE + '; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + sub + '</div></div>';
   const statsHtml = st ? '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:8px; margin-top:12px">'
-    + stTile('SHARPE', ratio(st.sharpe), flat ? 'flat curve' : 'n ' + num(st.n_days) + ' d · $/day', st.sharpe != null ? (st.sharpe >= 0 ? '#C8F542' : '#FF4545') : 'rgba(255,255,255,.4)')
-    + stTile('SORTINO', ratio(st.sortino), flat ? 'flat curve' : st.sortino == null ? (down + ' down day' + (down === 1 ? '' : 's') + ' · needs 3') : 'downside only · ' + num(down) + ' down d', st.sortino != null ? (st.sortino >= 0 ? '#C8F542' : '#FF4545') : 'rgba(255,255,255,.4)')
-    + stTile('CALMAR', ratio(st.calmar), flat ? 'flat curve' : st.calmar == null ? 'never in drawdown' : 'annual PnL / max DD', st.calmar != null ? '#fff' : 'rgba(255,255,255,.4)')
+    + stTile('SHARPE', ratio(st.sharpe), flat ? 'flat curve' : 'n ' + num(st.n_days) + ' d · $/day', st.sharpe != null ? (st.sharpe >= 0 ? '#C8F542' : '#FF4545') : 'rgba(255,255,255,.6)')
+    + stTile('SORTINO', ratio(st.sortino), flat ? 'flat curve' : st.sortino == null ? (down + ' down day' + (down === 1 ? '' : 's') + ' · needs 3') : 'downside only · ' + num(down) + ' down d', st.sortino != null ? (st.sortino >= 0 ? '#C8F542' : '#FF4545') : 'rgba(255,255,255,.6)')
+    + stTile('CALMAR', ratio(st.calmar), flat ? 'flat curve' : st.calmar == null ? 'never in drawdown' : 'annual PnL / max DD', st.calmar != null ? '#fff' : 'rgba(255,255,255,.6)')
     + stTile('MAX DRAWDOWN', absDollars(st.max_drawdown), flat ? 'never moved' : pct(st.max_drawdown_pct, 1) + ' of peak', st.max_drawdown > 0 ? '#FF4545' : '#fff')
-    + stTile('WIN DAYS', pct(st.win_day_rate), num(st.winning_days) + ' up · ' + num(st.losing_days) + ' down' + (flat ? ' · flat' : ''), st.win_day_rate != null ? (st.win_day_rate >= 0.5 ? '#C8F542' : '#FF4545') : 'rgba(255,255,255,.4)')
+    + stTile('WIN DAYS', pct(st.win_day_rate), num(st.winning_days) + ' up · ' + num(st.losing_days) + ' down' + (flat ? ' · flat' : ''), st.win_day_rate != null ? (st.win_day_rate >= 0.5 ? '#C8F542' : '#FF4545') : 'rgba(255,255,255,.6)')
     + stTile('BEST · WORST DAY', esc(kurzGeld(st.best_day, true)) + ' · ' + esc(kurzGeld(st.worst_day, true)), 'vol ' + esc(kurzGeld(st.daily_vol)) + ' / day')
     + '</div>' : '<div style="' + NOTE + '; margin-top:10px">Curve present, statistics not computable (fewer than two daily points).</div>';
 
@@ -725,7 +725,7 @@ function riskCard(label, value, sub, tone, partial) {
   const color = tone === 'up' ? '#C8F542' : tone === 'down' ? '#FF4545' : tone === 'warn' ? '#F5A623' : '#fff';
   return '<div style="' + CARD + '; border-color:' + border + '; padding:14px 16px; min-width:0">'
     + '<div style="display:flex; justify-content:space-between; gap:8px; align-items:center"><div style="' + LBL + '">' + label + '</div>'
-    + (partial ? '<span title="the closed set is capped at ~50 rows per tail — these figures describe the biggest winners and losers only" style="' + M + '; font-size:9px; letter-spacing:.1em; color:#F5A623; border:1px solid rgba(245,166,35,.45); border-radius:4px; padding:1px 6px">~PARTIAL</span>' : '') + '</div>'
+    + (partial ? '<span title="the closed set is capped at ~50 rows per tail — these figures describe the biggest winners and losers only" style="' + M + '; font-size:10.5px; letter-spacing:.1em; color:#F5A623; border:1px solid rgba(245,166,35,.45); border-radius:4px; padding:1px 6px">~PARTIAL</span>' : '') + '</div>'
     + '<div style="' + M + '; font-size:24px; margin-top:8px; color:' + color + '">' + value + '</div>'
     + (sub ? '<div style="' + NOTE + '; margin-top:4px">' + sub + '</div>' : '') + '</div>';
 }
@@ -742,9 +742,9 @@ function heatmapHtml(hm) {
   hm.counts.forEach((r) => r.forEach((v) => { if (v > max) max = v; }));
   const hours = Array.from({ length: 24 }, (_, i) => i);
   const head = '<div style="display:grid; grid-template-columns:34px repeat(24, minmax(0,1fr)); gap:3px; margin-bottom:4px">'
-    + '<div></div>' + hours.map((h) => '<div style="' + M + '; font-size:9px; color:rgba(255,255,255,.4); text-align:center">' + (h % 3 === 0 ? h : '') + '</div>').join('') + '</div>';
+    + '<div></div>' + hours.map((h) => '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); text-align:center">' + (h % 3 === 0 ? h : '') + '</div>').join('') + '</div>';
   const rows = hm.counts.map((r, wd) => '<div style="display:grid; grid-template-columns:34px repeat(24, minmax(0,1fr)); gap:3px; margin-bottom:3px">'
-    + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.5); align-self:center">' + WEEKDAYS[wd] + '</div>'
+    + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.5); align-self:center">' + WEEKDAYS[wd] + '</div>'
     + r.map((v, h) => {
       const a = max > 0 ? v / max : 0;
       const bg = v > 0 ? 'rgba(79,142,247,' + (0.18 + a * 0.72).toFixed(2) + ')' : 'rgba(255,255,255,.04)';
@@ -777,7 +777,7 @@ function renderRiskTab(d) {
     + Object.entries(rp.rules).map((kv) => '<span style="color:rgba(255,255,255,.6)">' + esc(kv[0].replace(/_/g, ' ')) + '</span>: ' + esc(kv[1])).join(' · ') + '</div>' : '';
   const insider = d.risk && typeof d.risk === 'object' && d.risk.wallet_insider_score != null
     ? '<div style="' + CARD + '; padding:14px 16px; margin-top:14px"><div style="' + LBL + '">INSIDER-RISK SCORE · FROM THE RISK SCREEN</div>'
-      + '<div style="display:flex; gap:14px; align-items:baseline; margin-top:6px"><div style="' + M + '; font-size:22px; color:' + (d.risk.wallet_insider_score >= 70 ? '#F5A623' : '#fff') + '">' + Math.round(d.risk.wallet_insider_score) + '<span style="font-size:12px; color:rgba(255,255,255,.4)"> /100</span></div>'
+      + '<div style="display:flex; gap:14px; align-items:baseline; margin-top:6px"><div style="' + M + '; font-size:22px; color:' + (d.risk.wallet_insider_score >= 70 ? '#F5A623' : '#fff') + '">' + Math.round(d.risk.wallet_insider_score) + '<span style="font-size:12px; color:rgba(255,255,255,.6)"> /100</span></div>'
       + (d.risk.risk_level ? '<span style="' + M + '; font-size:10.5px; letter-spacing:.1em; color:rgba(255,255,255,.6)">' + esc(String(d.risk.risk_level).toUpperCase()) + '</span>' : '') + '</div>'
       + (Array.isArray(d.risk.flags) && d.risk.flags.length ? '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px">' + d.risk.flags.map((f) => '<span style="' + M + '; font-size:10.5px; color:#F5A623; border:1px solid rgba(245,166,35,.35); border-radius:4px; padding:2px 7px">' + esc(f) + '</span>').join('') + '</div>' : '<div style="' + NOTE + '; margin-top:6px">no flags on this wallet in the current screen</div>')
       + '</div>'
@@ -818,11 +818,11 @@ function renderSimilarTab(T, d) {
     const bar = '<div style="display:flex; align-items:center; gap:8px"><div style="flex:1; height:5px; background:rgba(255,255,255,.08); border-radius:3px; overflow:hidden"><div style="width:' + Math.round((r.overlap || 0) * 100) + '%; height:5px; background:#4F8EF7"></div></div><span style="' + M + '; font-size:11.5px">' + Math.round((r.overlap || 0) * 100) + '%</span></div>';
     const sides = (r.same_side ? r.same_side + ' same side' : '') + (r.same_side && r.opposite_side ? ' · ' : '') + (r.opposite_side ? r.opposite_side + ' opposite' : '');
     return row(cols,
-      '<div style="min-width:0"><div style="' + M + '; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(r.wallet) + '">' + (r.name ? esc(r.name) + ' <span style="color:rgba(255,255,255,.45)">· ' + esc(r.short) + '</span>' : esc(r.short)) + '</div><div style="' + NOTE + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(sides || 'sides not readable') + '</div></div>'
-      + cell(num(r.shared) + ' <span style="color:rgba(255,255,255,.4)">/ ' + num(basis.markets_checked || 0) + '</span>', 'text-align:right')
-      + cell(r.summary_read && r.their_positions != null ? num(r.their_positions) + ' <span style="color:rgba(255,255,255,.45)">· ' + absDollars(r.their_value) + '</span>' : 'not read', 'text-align:right; color:' + (r.summary_read ? '#fff' : 'rgba(255,255,255,.4)'))
+      '<div style="min-width:0"><div style="' + M + '; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(r.wallet) + '">' + (r.name ? esc(r.name) + ' <span style="color:rgba(255,255,255,.6)">· ' + esc(r.short) + '</span>' : esc(r.short)) + '</div><div style="' + NOTE + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(sides || 'sides not readable') + '</div></div>'
+      + cell(num(r.shared) + ' <span style="color:rgba(255,255,255,.6)">/ ' + num(basis.markets_checked || 0) + '</span>', 'text-align:right')
+      + cell(r.summary_read && r.their_positions != null ? num(r.their_positions) + ' <span style="color:rgba(255,255,255,.6)">· ' + absDollars(r.their_value) + '</span>' : 'not read', 'text-align:right; color:' + (r.summary_read ? '#fff' : 'rgba(255,255,255,.6)'))
       + cell(bar, '')
-      + cell(r.on_leaderboard && r.lb_pnl != null ? dollars(r.lb_pnl) : 'not on board', 'text-align:right; color:' + (r.on_leaderboard && r.lb_pnl != null ? pnlColor(r.lb_pnl) : 'rgba(255,255,255,.4)'))
+      + cell(r.on_leaderboard && r.lb_pnl != null ? dollars(r.lb_pnl) : 'not on board', 'text-align:right; color:' + (r.on_leaderboard && r.lb_pnl != null ? pnlColor(r.lb_pnl) : 'rgba(255,255,255,.6)'))
       + cell(r.on_leaderboard && r.lb_volume != null ? money(r.lb_volume) : '—', 'text-align:right; color:rgba(255,255,255,.65)')
       + cell('<span ' + T.act(() => { if (T.analyseWallet) T.analyseWallet(r.wallet); }) + ' class="hv-bd32" style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.75); border:1px solid rgba(255,255,255,.16); border-radius:5px; padding:3px 8px; cursor:pointer">Analyse</span> '
         + (r.profile_url ? '<a href="' + esc(r.profile_url) + '" target="_blank" rel="noopener" data-stop style="' + M + '; font-size:10.5px; color:#4F8EF7; text-decoration:none; margin-left:6px">profile ↗</a>' : ''), 'text-align:right'));

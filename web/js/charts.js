@@ -80,8 +80,8 @@ function achse(sk, dia, hoehe) {
     out += '<line x1="' + rx + '" y1="6" x2="' + rx + '" y2="' + (hoehe - 22)
       + '" stroke="rgba(255,255,255,.35)" stroke-width="1" stroke-dasharray="4 4" />';
     if (dia.referenz_label) {
-      out += '<text x="' + rx + '" y="' + (hoehe - 8) + '" fill="rgba(255,255,255,.45)" '
-        + 'font-size="10" font-family="JetBrains Mono, monospace" text-anchor="middle">'
+      out += '<text x="' + rx + '" y="' + (hoehe - 8) + '" fill="rgba(255,255,255,.6)" '
+        + 'font-size="11" font-family="JetBrains Mono, monospace" text-anchor="middle">'
         + esc(dia.referenz_label) + '</text>';
     }
   }
@@ -129,15 +129,19 @@ export function diagramm(dia) {
       const xb = sk.x(p.bis);
       const xm = sk.x(p.wert);
       const beruehrt = p.von <= (dia.referenz || 0) && p.bis >= (dia.referenz || 0);
-      const farbe = beruehrt ? '#F5A623' : '#4F8EF7';
+      // p.farbe und p.text lassen den Aufrufer die Deutung setzen: eine
+      // Hantel (zwei Lesarten derselben Zahl) faerbt nach dem Endwert und
+      // beschriftet ihn, nicht die Spanne. Ohne beide bleibt es das alte
+      // Intervall mit Referenzfaerbung.
+      const farbe = p.farbe || (beruehrt ? '#F5A623' : '#4F8EF7');
       koerper += '<line x1="' + xa + '" y1="' + y + '" x2="' + xb + '" y2="' + y
-        + '" stroke="' + farbe + '" stroke-width="3" stroke-linecap="round" />';
+        + '" stroke="' + farbe + '" stroke-width="3" stroke-linecap="round" stroke-opacity="' + (p.farbe ? '.45' : '1') + '" />';
       koerper += '<line x1="' + xa + '" y1="' + (y - 6) + '" x2="' + xa + '" y2="' + (y + 6)
         + '" stroke="' + farbe + '" stroke-width="2" />';
       koerper += '<line x1="' + xb + '" y1="' + (y - 6) + '" x2="' + xb + '" y2="' + (y + 6)
         + '" stroke="' + farbe + '" stroke-width="2" />';
-      koerper += '<circle cx="' + xm + '" cy="' + y + '" r="4" fill="' + farbe + '" />';
-      koerper += wertText(fmtZahl(p.von) + ' … ' + fmtZahl(p.bis), PLOT_R + 8, y, 'rgba(255,255,255,.75)');
+      koerper += '<circle cx="' + xm + '" cy="' + y + '" r="4.5" fill="' + farbe + '" />';
+      koerper += wertText(p.text || (fmtZahl(p.von) + ' … ' + fmtZahl(p.bis)), PLOT_R + 8, y, 'rgba(255,255,255,.75)');
     } else if (typeof p.wert === 'number') {
       const farbe = BALKEN_FARBE[p.art] || (p.wert < 0 ? '#FF4545' : '#C8F542');
       // Auf einer referenzverankerten Skala liegt die Null links ausserhalb;
@@ -154,7 +158,7 @@ export function diagramm(dia) {
   });
 
   return '<div style="' + CARD + '; padding:14px 16px 10px">'
-    + '<div style="' + M + '; font-size:10px; letter-spacing:.13em; color:rgba(255,255,255,.5); margin-bottom:4px">'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(255,255,255,.5); margin-bottom:4px">'
     + esc(dia.titel || '') + (dia.einheit ? ' · ' + esc(dia.einheit) : '') + '</div>'
     + '<svg width="100%" viewBox="0 0 ' + BREITE + ' ' + hoehe + '" role="img" aria-label="' + esc(dia.titel || 'chart') + '">'
     + achse(sk, dia, hoehe) + koerper + '</svg></div>';
@@ -194,12 +198,12 @@ export function linien(k) {
     const w = min + (max - min) * f;
     raster += '<line x1="' + L + '" y1="' + y(w).toFixed(1) + '" x2="' + R + '" y2="' + y(w).toFixed(1)
       + '" stroke="rgba(255,255,255,' + (f === 0 ? '.18' : '.07') + ')" stroke-width="1" />'
-      + '<text x="' + (L - 6) + '" y="' + (y(w) + 4).toFixed(1) + '" fill="rgba(255,255,255,.4)" font-size="10" '
+      + '<text x="' + (L - 6) + '" y="' + (y(w) + 4).toFixed(1) + '" fill="rgba(255,255,255,.6)" font-size="11" '
       + 'font-family="JetBrains Mono, monospace" text-anchor="end">' + esc(fmtZahl(Math.round(w * 1000) / 1000)) + '</text>';
   });
   let xLabels = '';
   k.x.forEach((label, i) => {
-    xLabels += '<text x="' + x(i).toFixed(1) + '" y="' + (H - 10) + '" fill="rgba(255,255,255,.45)" font-size="10" '
+    xLabels += '<text x="' + x(i).toFixed(1) + '" y="' + (H - 10) + '" fill="rgba(255,255,255,.6)" font-size="11" '
       + 'font-family="JetBrains Mono, monospace" text-anchor="middle">' + esc(String(label)) + '</text>';
   });
   let pfade = '';
@@ -216,16 +220,16 @@ export function linien(k) {
         + '<title>' + esc(s.name + ' · ' + k.x[i] + ' · ' + fmtZahl(w)) + '</title></circle>';
     });
     if (d) pfade += '<path d="' + d.trim() + '" fill="none" stroke="' + farbe + '" stroke-width="1.8" />';
-    legende += '<div style="display:flex; align-items:center; gap:6px; ' + M + '; font-size:10px; color:rgba(255,255,255,.65)">'
+    legende += '<div style="display:flex; align-items:center; gap:6px; ' + M + '; font-size:11px; color:rgba(255,255,255,.65)">'
       + '<span style="display:inline-block; width:14px; height:3px; background:' + farbe + '; border-radius:2px"></span>'
       + esc(s.name) + '</div>';
   });
 
   return '<div style="' + CARD + '; padding:14px 16px 10px">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:4px">'
-    + '<div style="' + M + '; font-size:10px; letter-spacing:.13em; color:rgba(255,255,255,.5)">'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(255,255,255,.5)">'
     + esc(k.titel || '') + (k.einheit ? ' · ' + esc(k.einheit) : '') + '</div>'
-    + (k.hinweis ? '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.38)">' + esc(k.hinweis) + '</div>' : '')
+    + (k.hinweis ? '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55)">' + esc(k.hinweis) + '</div>' : '')
     + '</div>'
     + '<div style="display:flex; gap:12px; flex-wrap:wrap; margin:4px 0 6px">' + legende + '</div>'
     + '<svg width="100%" viewBox="0 0 ' + B + ' ' + H + '" role="img" aria-label="' + esc(k.titel || 'lines') + '">'
@@ -263,7 +267,7 @@ export function kalibrierung(k) {
     marken += '<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="' + r.toFixed(1) + '" fill="' + farbe + '" fill-opacity=".9">'
       + '<title>' + esc('predicted ' + Math.round(p.vorhergesagt * 100) + '% · realised ' + Math.round(p.realisiert * 100) + '% · n ' + (p.n != null ? p.n : '—')) + '</title></circle>';
   });
-  const achse = 'fill="rgba(255,255,255,.4)" font-size="9" font-family="JetBrains Mono, monospace"';
+  const achse = 'fill="rgba(255,255,255,.6)" font-size="10.5" font-family="JetBrains Mono, monospace"';
   // Axis lettering that survives the ~200 px small multiples of the category
   // page: the ticks "0" and "1" sit at the ends of each axis, "predicted"
   // alone in the middle under the x-axis, "realised" rotated along the
@@ -271,8 +275,8 @@ export function kalibrierung(k) {
   // "predicted 1" at that width.
   const yMitte = S / 2;
   return '<div style="' + CARD + '; padding:12px 14px 8px">'
-    + '<div style="' + M + '; font-size:10px; letter-spacing:.12em; color:rgba(255,255,255,.6)">' + esc(k.titel || '') + '</div>'
-    + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.38); margin-top:2px">' + esc(k.hinweis || ('n ' + gesamt + ' · ' + punkte.length + ' bins')) + '</div>'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.12em; color:rgba(255,255,255,.6)">' + esc(k.titel || '') + '</div>'
+    + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55); margin-top:2px">' + esc(k.hinweis || ('n ' + gesamt + ' · ' + punkte.length + ' bins')) + '</div>'
     + '<svg width="100%" viewBox="0 0 ' + S + ' ' + S + '" role="img" aria-label="' + esc(k.titel || 'calibration') + '" style="max-width:240px; display:block; margin:6px auto 0">'
     + '<rect x="' + PAD + '" y="' + PAD + '" width="' + (S - 2 * PAD) + '" height="' + (S - 2 * PAD) + '" fill="none" stroke="rgba(255,255,255,.1)" />'
     + '<line x1="' + PAD + '" y1="' + (S - PAD) + '" x2="' + (S - PAD) + '" y2="' + PAD + '" stroke="rgba(255,255,255,.3)" stroke-dasharray="3 3" />'
@@ -359,7 +363,7 @@ export function pnlZeitkurve(k) {
     const yy = y(tv);
     if (yy < TOP - 1 || yy > BOT + 1) return;
     gitter += '<line x1="' + L + '" y1="' + yy.toFixed(1) + '" x2="' + R + '" y2="' + yy.toFixed(1) + '" stroke="rgba(255,255,255,.07)" stroke-width="1" />'
-      + '<text x="' + (R + 8) + '" y="' + (yy + 3.5).toFixed(1) + '" fill="rgba(255,255,255,.42)" font-size="10.5" font-family="JetBrains Mono, monospace">' + esc(kurzGeld(tv)) + '</text>';
+      + '<text x="' + (R + 8) + '" y="' + (yy + 3.5).toFixed(1) + '" fill="rgba(255,255,255,.6)" font-size="10.5" font-family="JetBrains Mono, monospace">' + esc(kurzGeld(tv)) + '</text>';
   });
   let nulllinie = '';
   if (min < 0 && max > 0) {
@@ -374,7 +378,7 @@ export function pnlZeitkurve(k) {
   for (let i = 0; i < nDatum; i += 1) {
     const ms = t0 + (spanne * i) / (nDatum - 1);
     const anker = i === 0 ? 'start' : i === nDatum - 1 ? 'end' : 'middle';
-    xLabels += '<text x="' + x(ms).toFixed(1) + '" y="' + (H - 9) + '" fill="rgba(255,255,255,.4)" font-size="10.5" '
+    xLabels += '<text x="' + x(ms).toFixed(1) + '" y="' + (H - 9) + '" fill="rgba(255,255,255,.6)" font-size="10.5" '
       + 'font-family="JetBrains Mono, monospace" text-anchor="' + anker + '">' + esc(datum(ms)) + '</text>';
   }
 
@@ -435,16 +439,16 @@ export function stepKurve(k) {
 
   const endLabel = '<text x="' + (R + 8) + '" y="' + (y(letzte) + 4).toFixed(1) + '" fill="' + farbe
     + '" font-size="12" font-family="JetBrains Mono, monospace">' + esc(fmtZahl(letzte)) + '</text>';
-  const xLabels = '<text x="' + L + '" y="' + (H - 8) + '" fill="rgba(255,255,255,.4)" font-size="10" '
+  const xLabels = '<text x="' + L + '" y="' + (H - 8) + '" fill="rgba(255,255,255,.6)" font-size="11" '
     + 'font-family="JetBrains Mono, monospace">' + esc(String(k.punkte[0].label || '')) + '</text>'
-    + '<text x="' + R + '" y="' + (H - 8) + '" fill="rgba(255,255,255,.4)" font-size="10" '
+    + '<text x="' + R + '" y="' + (H - 8) + '" fill="rgba(255,255,255,.6)" font-size="11" '
     + 'font-family="JetBrains Mono, monospace" text-anchor="end">' + esc(String(k.punkte[k.punkte.length - 1].label || '')) + '</text>';
 
   return '<div style="' + CARD + '; padding:14px 16px 10px">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:4px">'
-    + '<div style="' + M + '; font-size:10px; letter-spacing:.13em; color:rgba(255,255,255,.5)">'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(255,255,255,.5)">'
     + esc(k.titel || '') + (k.einheit ? ' · ' + esc(k.einheit) : '') + '</div>'
-    + (k.hinweis ? '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.38)">' + esc(k.hinweis) + '</div>' : '')
+    + (k.hinweis ? '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55)">' + esc(k.hinweis) + '</div>' : '')
     + '</div>'
     + '<svg width="100%" viewBox="0 0 ' + B + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="' + esc(k.titel || 'series') + '">'
     + nulllinie

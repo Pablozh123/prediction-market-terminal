@@ -421,7 +421,7 @@ class Terminal {
     return {
       kind: r.kind, score: r.score, market: r.market, detail: r.detail,
       wallets: r.wallets, notional: r.notional, window: r.window, venue: r.venue,
-      kindStyle: "font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.12em; color:" + (r.sev === 'high' ? '#F5A623' : r.sev === 'medium' ? 'rgba(255,255,255,.66)' : 'rgba(255,255,255,.45)'),
+      kindStyle: "font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.12em; color:" + (r.sev === 'high' ? '#F5A623' : r.sev === 'medium' ? 'rgba(255,255,255,.66)' : 'rgba(255,255,255,.6)'),
       scoreStyle: "font-family:'JetBrains Mono',monospace; font-size:18px; color:" + (r.sev === 'high' ? '#F5A623' : 'rgba(255,255,255,.72)'),
       act: m ? this.act(() => this.openMarket(m.id)) : '',
       clickable: !!m
@@ -433,7 +433,7 @@ class Terminal {
     const active = this.state.page === id;
     const style = 'display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 10px; border-radius:7px; cursor:pointer; margin-bottom:2px; border-left:2px solid ' + (active ? '#C8F542' : 'transparent') + '; background:' + (active ? 'rgba(200,245,66,.10)' : 'transparent');
     const labelStyle = 'font-size:13.5px; color:' + (active ? '#ffffff' : 'rgba(255,255,255,.62)') + '; font-weight:' + (active ? '600' : '400');
-    const badgeStyle = badge ? ("font-family:'JetBrains Mono',monospace; font-size:10px; padding:1px 6px; border-radius:3px; " + (badgeColor === 'amber' ? 'color:#F5A623; border:1px solid rgba(245,166,35,.4)' : 'color:#0A0D0F; background:#C8F542')) : 'display:none';
+    const badgeStyle = badge ? ("font-family:'JetBrains Mono',monospace; font-size:11px; padding:1px 6px; border-radius:3px; " + (badgeColor === 'amber' ? 'color:#F5A623; border:1px solid rgba(245,166,35,.4)' : 'color:#0A0D0F; background:#C8F542')) : 'display:none';
     return '<div ' + this.act(() => this.go(id)) + ' class="hv-el" style="' + style + '">'
       + '<span style="' + labelStyle + '">' + esc(label) + '</span>'
       + '<span style="' + badgeStyle + '">' + esc(badge || '') + '</span></div>';
@@ -552,22 +552,22 @@ class Terminal {
     }
     const groupHtml = groups.map((g) =>
       '<div style="margin-bottom:14px">'
-      + '<div style="font-family:\'JetBrains Mono\',monospace; font-size:10px; letter-spacing:.18em; padding:0 6px 6px; color:rgba(255,255,255,.35)">' + g.label + '</div>'
+      + '<div style="font-family:\'JetBrains Mono\',monospace; font-size:11px; letter-spacing:.18em; padding:0 6px 6px; color:rgba(255,255,255,.55)">' + g.label + '</div>'
       + g.items.join('') + '</div>'
     ).join('');
     // Footer: repository, the read-only statement, and the wallet the live
     // runs were placed from. The paper-equity box that stood here reported a
     // missing paper account on the public host — a box about a thing that
     // does not exist there.
-    const foot = "font-family:'JetBrains Mono',monospace; font-size:10px; line-height:1.7; color:rgba(255,255,255,.4)";
+    const foot = "font-family:'JetBrains Mono',monospace; font-size:11px; line-height:1.7; color:rgba(255,255,255,.6)";
     const runsIdx = this.studies.findIndex((st) => st.tab === 'Live runs');
     return ''
       + '<div style="display:flex; align-items:center; gap:9px; padding:0 6px 18px">'
       + '<div style="width:10px; height:10px; background:#C8F542; transform:rotate(45deg)"></div>'
       + '<div style="font-family:\'Instrument Serif\',serif; font-size:21px">Market Intel</div></div>'
       + '<div ' + this.act(() => this.setState({ searchOpen: true })) + ' class="hv-bd22" style="display:flex; align-items:center; gap:8px; background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:8px; padding:9px 10px; cursor:pointer; margin-bottom:18px">'
-      + '<div style="font-family:\'JetBrains Mono\',monospace; font-size:12px; color:rgba(255,255,255,.45); flex:1">Search</div>'
-      + '<div style="font-family:\'JetBrains Mono\',monospace; font-size:11px; color:rgba(255,255,255,.35); border:1px solid rgba(255,255,255,.16); border-radius:4px; padding:0 5px">/</div></div>'
+      + '<div style="font-family:\'JetBrains Mono\',monospace; font-size:12px; color:rgba(255,255,255,.6); flex:1">Search</div>'
+      + '<div style="font-family:\'JetBrains Mono\',monospace; font-size:11px; color:rgba(255,255,255,.55); border:1px solid rgba(255,255,255,.16); border-radius:4px; padding:0 5px">/</div></div>'
       + groupHtml
       + '<div style="margin-top:auto; padding-top:16px; border-top:1px solid rgba(255,255,255,.09)">'
       + '<div style="' + foot + '"><a href="' + REPO_URL + '" target="_blank" rel="noopener">github.com/Pablozh123/prediction-market-terminal</a></div>'
@@ -604,7 +604,7 @@ class Terminal {
       + '<div style="display:flex; align-items:center; gap:10px">'
       + '<span style="width:7px; height:7px; border-radius:50%; background:' + liveDot + '; display:inline-block; animation:livePulse 1.6s ease-in-out infinite"></span>'
       + '<span style="font-family:\'JetBrains Mono\',monospace; font-size:11px; letter-spacing:.16em; color:rgba(255,255,255,.66)">' + liveLabel + ' · ' + s.clock + ' UTC</span></div>'
-      + '<div style="font-family:\'JetBrains Mono\',monospace; font-size:10px; letter-spacing:.14em; color:rgba(255,255,255,.35)">MICROSTRUCTURE, MEASURED · READ-ONLY · NO ORDERS</div>';
+      + '<div style="font-family:\'JetBrains Mono\',monospace; font-size:11px; letter-spacing:.14em; color:rgba(255,255,255,.55)">MICROSTRUCTURE, MEASURED · READ-ONLY · NO ORDERS</div>';
   }
 
   // ---- data layer ----

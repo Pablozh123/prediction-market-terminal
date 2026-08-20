@@ -45,3 +45,19 @@ input { font-family: inherit; }
 .tm-tile:hover { transform: scale(1.03); z-index: 5; box-shadow: 0 10px 28px rgba(0,0,0,.5); }
 #tip { position: fixed; z-index: 60; pointer-events: none; display: none; max-width: 320px; background: rgba(8,10,12,.96); border: 1px solid rgba(255,255,255,.14); border-radius: 10px; padding: 12px 14px; box-shadow: 0 12px 32px rgba(0,0,0,.55); }
 #tip.on { display: block; }
+
+/* Desktop-only is a decision here, not an oversight: .shell never goes below
+   1280px because the markets and tape tables genuinely need the columns.
+   Below that a phone gets a sideways-scrolling page, which reads as a broken
+   site unless it says otherwise — so it says so. */
+.narrow-note { display: none; }
+@media (max-width: 1279px) {
+  .narrow-note {
+    display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 80;
+    box-sizing: border-box; background: rgba(16,21,26,.97);
+    border-top: 1px solid rgba(255,255,255,.16); color: rgba(255,255,255,.72);
+    font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.5;
+    padding: 11px 16px; text-align: center;
+  }
+  .narrow-note b { color: #C8F542; font-weight: 500; }
+}
