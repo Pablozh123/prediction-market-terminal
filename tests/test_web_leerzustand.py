@@ -359,8 +359,9 @@ class WebLeerzustandTest(unittest.TestCase):
         live = self.ausgabe["live"]["runs_runs"]
         self.assertIn("CUMULATIVE REALIZED PNL BY RUN", _sichtbarer_text(live))
         self.assertRegex(live, r'<path d="M\s*\d')
-        # Der Hinweis nennt den wallet-abgeglichenen Wert aus der Nutzlast.
-        self.assertIn("wallet-reconciled net +$20", _sichtbarer_text(live))
+        # Der Hinweis nennt die frischeste Wallet-Zahl (Harness-Ledger) und
+        # verweist auf das zugeklappte LOG VS WALLET darueber.
+        self.assertIn("wallet net +$56 as of 2026-08-17 — why the figures differ: LOG VS WALLET above", _sichtbarer_text(live))
 
     def test_startseite_ist_forschungslandung(self) -> None:
         # Die Startseite fuehrt mit der Forschung, nicht mit dem Whale-Feed:
@@ -373,8 +374,11 @@ class WebLeerzustandTest(unittest.TestCase):
                 self.assertIn("Prediction-market microstructure, measured on self-recorded books.", text)
                 self.assertIn("no profitability claim", text)
                 self.assertIn("VERDICT BOARD", text)
-                self.assertIn("LIVE RUNS · SMALL STAKE", text)
+                self.assertIn("TESTED STRATEGY · LIVE RUNS, REAL MONEY", text)
                 self.assertIn("FIELD NOTES", text)
+                # Die zwei Einstiege unter dem Titel: Strategie und Werkzeug.
+                self.assertIn("TESTED STRATEGY →", text)
+                self.assertIn("ANALYSIS TOOL →", text)
                 self.assertIn("github.com/Pablozh123/prediction-market-terminal", self.ausgabe[modus]["overview"])
                 self.assertIn("docs/research/ONE_PAGER.md", self.ausgabe[modus]["overview"])
                 self.assertNotIn("Open Leaderboard", text)
@@ -383,11 +387,12 @@ class WebLeerzustandTest(unittest.TestCase):
                 self.assertNotIn("BIGGEST MOVES · 1H", text)
                 self.assertNotIn("updated every 15 seconds", text)
                 self.assertIn("refresh every 30 seconds", text)
-        # Reihenfolge: Board vor Runs vor Notes vor Live-Daten.
+        # Reihenfolge: die getestete Strategie zuerst, dann das Board, die
+        # Notes, zuletzt das Analysewerkzeug.
         live = self.ausgabe["live"]["overview"]
-        self.assertLess(live.index("VERDICT BOARD"), live.index("LIVE RUNS · SMALL STAKE"))
-        self.assertLess(live.index("LIVE RUNS · SMALL STAKE"), live.index("FIELD NOTES"))
-        self.assertLess(live.index("FIELD NOTES"), live.index("LIVE DATA"))
+        self.assertLess(live.index("TESTED STRATEGY · LIVE RUNS"), live.index("VERDICT BOARD"))
+        self.assertLess(live.index("VERDICT BOARD"), live.index("FIELD NOTES"))
+        self.assertLess(live.index("FIELD NOTES"), live.index("ANALYSIS TOOL · LIVE DATA"))
 
     def test_field_notes_leerzustand(self) -> None:
         # Die neue Studie rendert ohne Nutzlast den Leerzustand mit Dateinamen
@@ -504,16 +509,18 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertNotIn("studies (", leer)
         self.assertEqual(json.loads(self.ausgabe["leer"]["_verdict_counts"])["total"], 0)
 
-    def test_live_runs_streifen_zeigt_beide_pnl_zahlen(self) -> None:
-        # Log-rekonstruiert (+$288.67) UND wallet-abgeglichen (+$175.09) mit
-        # Abgleichsdatum, jeweils beschriftet; Runs, Wetten, gewonnen/verloren.
+    def test_live_runs_streifen_eine_pnl_zahl(self) -> None:
+        # Eine PnL-Zelle: die Wallet-Zahl fuehrt (+$175.09 mit Abgleichsdatum),
+        # die Log-Schaetzung steht benannt in der Unterzeile — nicht mehr zwei
+        # gleichrangige Zellen plus Methodenabsatz.
         text = _sichtbarer_text(self.ausgabe["live"]["overview"])
-        self.assertIn("LOG-RECONSTRUCTED PNL +$288.67", text)
-        self.assertIn("WALLET-RECONCILED NET +$175.09", text)
+        self.assertIn("NET PNL (WALLET) +$175.09", text)
         self.assertIn("reconciled 2026-07-18", text)
+        self.assertIn("log estimate +$288.67", text)
+        self.assertNotIn("LOG-RECONSTRUCTED PNL", text)
         self.assertIn("RUNS · BETS 21 · 27", text)
         self.assertIn("WON · LOST 25 · 2", text)
-        self.assertIn("Two PnL figures on purpose", text)
+        self.assertNotIn("Two PnL figures on purpose", text)
         # Fehlt runs.json, sagt der Streifen das und zeigt keine PnL-Zahl.
         teil = _sichtbarer_text(self.ausgabe["live"]["overview_partial"])
         self.assertIn("runs.json did not load: HTTP 404", teil)
@@ -549,7 +556,7 @@ class WebLeerzustandTest(unittest.TestCase):
 
     def test_seitenleiste_neu_gruppiert_und_ohne_papierkasten(self) -> None:
         app_js = (WURZEL / "web" / "js" / "app.js").read_text(encoding="utf-8")
-        for gruppe in ("START HERE", "EVIDENCE", "RECORD", "LIVE DATA"):
+        for gruppe in ("START HERE", "TESTED STRATEGY", "RECORD", "ANALYSIS TOOL"):
             self.assertIn("'" + gruppe + "'", app_js)
         for weg in ("PAPER EQUITY", "No paper account", "'DASHBOARD'", "'TRADING'", "'SYSTEM'"):
             self.assertNotIn(weg, app_js)
@@ -724,38 +731,44 @@ class WebLeerzustandTest(unittest.TestCase):
                     with self.subTest(modus=modus, seite=name, wort=wort):
                         self.assertNotIn(wort, text)
 
-    # ---- Live runs: zwei PnL-Zahlen, Abgleichszeile, First taker, Diagramme --
+    # ---- Live runs: eine PnL-Kachel, LOG VS WALLET zugeklappt, First taker --
 
-    def test_live_runs_beide_pnl_zahlen_und_abgleichszeile(self) -> None:
-        # Die Kachel REALIZED PNL · wallet-reconciled zeigte die Log-Zahl.
-        # Jetzt stehen beide Zahlen mit ihrer Herkunft, dazu die Abgleichszeile
-        # (Log-Einsatz gegen Wallet-Kaeufe, Log-PnL gegen Wallet-Netto), der
-        # Satz zum Unterschied und die Wallet-Adresse.
+    def test_live_runs_eine_pnl_kachel_und_log_vs_wallet(self) -> None:
+        # Eine PnL-Kachel: die Wallet-Zahl fuehrt, und zwar aus der frischesten
+        # Quelle — der Harness-Ledger (2026-08-17, Bot netto +$55.97) ist neuer
+        # als der kuratierte Abgleich (2026-07-18, +$20). Die Log-Zahl steht
+        # benannt in der Unterzeile; beide Spalten samt Begruendung liegen im
+        # zugeklappten LOG VS WALLET, mit der Wallet-Adresse als Link.
         live = self.ausgabe["live"]["runs_runs"]
         text = _sichtbarer_text(live)
-        self.assertIn("LOG-RECONSTRUCTED PNL +$24", text)
-        self.assertIn("WALLET-RECONCILED NET (AS OF 2026-07-18) +$20", text)
-        self.assertNotIn("REALIZED PNL +$24", text)                 # die alte Kachel
-        self.assertNotIn("PNL +$24 wallet-reconciled", text)
+        self.assertIn("NET PNL (WALLET, AS OF 2026-08-17) +$56", text)
+        self.assertIn("cash truth, wallet ledger · log estimate +$24", text)
+        # Die Log-Zahl steht genau einmal: als Spalte im zugeklappten
+        # LOG VS WALLET, nicht mehr als zweite Kachel.
+        self.assertEqual(text.count("LOG-RECONSTRUCTED PNL"), 1)
+        self.assertNotIn("WALLET-RECONCILED NET (AS OF", text)
         self.assertNotIn("TOTAL STAKE $40 wallet-reconciled", text)
         self.assertIn("TOTAL STAKE $40 log estimate", text)
-        self.assertIn("RECONCILIATION · LOG VS WALLET · WALLET AS OF 2026-07-18", text)
-        self.assertIn("LOG STAKE $40.00 WALLET BUYS $30.00 LOG-RECONSTRUCTED PNL +$24.00 WALLET-RECONCILED NET +$20.00", text)
+        self.assertIn("LOG VS WALLET · WHY THE FIGURES DIFFER · WALLET AS OF 2026-08-17", text)
+        self.assertIn('<details data-key="runs-abgleich"', live)
+        self.assertIn("LOG STAKE $40.00 WALLET BUYS $41.34 LOG-RECONSTRUCTED PNL +$24.00 WALLET-RECONCILED NET +$55.97", text)
         self.assertIn("the order response price is the cap, not the fill", text)
         self.assertIn("post-mortem 2026-07-18", text)
+        self.assertIn("Wallet columns come from the wallet ledger at the bottom of this page (bot markets only), as of 2026-08-17.", text)
         self.assertIn("0x29afe1bf37700768a640a08f1b35dad5f202f88d", text)
+        self.assertIn('href="https://polygonscan.com/address/0x29afe1bf37700768a640a08f1b35dad5f202f88d"', live)
+        self.assertIn('href="https://polymarket.com/profile/0x29afe1bf37700768a640a08f1b35dad5f202f88d"', live)
         self.assertIn("public Polymarket Data API", text)
-        # Je Lauf: Log-PnL und Wallet-Netto getrennt benannt.
-        self.assertIn("log PnL +$14.00 · wallet net +$12.00", text)
-        self.assertIn("log PnL +$10.00 · wallet net not reconciled for this run", text)
+        # Je Lauf eine fuehrende PnL-Zahl, Quelle benannt, Log daneben.
+        self.assertIn("PnL +$12.00 (wallet) · log estimate +$14.00", text)
+        self.assertIn("PnL +$10.00 (log estimate) · not wallet-reconciled", text)
         # Der Simulator-Reiter benennt seine Zahlen als Simulation.
         sim = _sichtbarer_text(self.ausgabe["live"]["runs_sim"])
         self.assertIn("simulation on log-estimated fills", sim)
         # Leerzustand: Kacheln mit Dateinamen, keine Zahl, keine Adresse.
         leer = _sichtbarer_text(self.ausgabe["leer"]["runs_runs"])
-        self.assertIn("LOG-RECONSTRUCTED PNL — runs.json not loaded", leer)
-        self.assertIn("WALLET-RECONCILED NET — runs.json not loaded", leer)
-        self.assertNotIn("RECONCILIATION", leer)
+        self.assertIn("NET PNL — runs.json not loaded", leer)
+        self.assertNotIn("LOG VS WALLET", leer)
 
     def test_live_runs_first_taker_aus_den_race_feldern(self) -> None:
         # Zwei Wetten mit Tape: eine mit null fremden Trades davor, eine mit

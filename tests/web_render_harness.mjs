@@ -481,7 +481,10 @@ function mitDaten(T) {
           positionen: { won: 2, lost: 1, flat: 0, worthless: 1, open: 0, unknown: 0 },
           positionen_gewonnen: 2, positionen_verloren: 2, positionen_wertlos: 1, positionen_offen: 0, positionen_flat: 0,
           closed_positions_capped: false, erste_aktivitaet_utc: '2026-07-18T00:48:16Z', letzte_aktivitaet_utc: '2026-08-11T17:03:24Z',
-          nach_typ: { bot: { events: 1, maerkte: 2 }, discretionary: { events: 1, maerkte: 1 }, pilot: { events: 1, maerkte: 1 } }
+          // bot traegt einsatz/netto_cash: der Ledger (2026-08-17) ist frischer
+          // als der kuratierte Abgleich (2026-07-18), die Seite muss dann die
+          // Ledger-Zahlen in Kachel und LOG-VS-WALLET-Spalten zeigen.
+          nach_typ: { bot: { events: 1, maerkte: 2, einsatz_usd: 41.34, netto_cash_usd: 55.97 }, discretionary: { events: 1, maerkte: 1 }, pilot: { events: 1, maerkte: 1 } }
         },
         events: [
           { event_slug: 'harness-event-a', titel: 'Harness bot event', url: 'https://polymarket.com/event/harness-event-a',

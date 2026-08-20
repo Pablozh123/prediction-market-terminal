@@ -189,18 +189,31 @@ export function renderOverview(T) {
 
   // ---- live-runs strip ----------------------------------------------------
   const agg = runs && runs.aggregat ? runs.aggregat : null;
+  // Eine PnL-Zelle, nicht zwei: die Wallet-Zahl fuehrt (frischeste Quelle
+  // zuerst — der Ledger aus extras, sonst der kuratierte Abgleich), die
+  // Log-Schaetzung steht in der Unterzeile. Die Methodennote dazu traegt die
+  // Live-runs-Seite unter LOG VS WALLET, nicht die Landung.
+  const ledger = runs && runs.extras && runs.extras.wallet_ledger;
+  const ledgerBot = ledger && ledger.aggregat && ledger.aggregat.nach_typ ? ledger.aggregat.nach_typ.bot : null;
+  const ledgerStand = ledger && ledger.stand_utc ? String(ledger.stand_utc).slice(0, 10) : '';
+  const abgleichStand = agg && agg.wallet_abgleich_stand ? String(agg.wallet_abgleich_stand) : '';
+  const walletNetto = ledgerBot && ledgerBot.netto_cash_usd != null && ledgerStand && (!abgleichStand || ledgerStand > abgleichStand)
+    ? { wert: +ledgerBot.netto_cash_usd, stand: ledgerStand, quelle: 'wallet ledger' }
+    : agg && agg.wallet_netto_usd != null
+      ? { wert: +agg.wallet_netto_usd, stand: abgleichStand, quelle: 'on-chain wallet' }
+      : null;
+  const logSchaetzung = agg && agg.realisierter_pnl_usd != null ? signedMoney(agg.realisierter_pnl_usd) : '—';
+  const pnlZelle = walletNetto
+    ? kpiCell('NET PNL (WALLET)', signedMoney(walletNetto.wert),
+      esc(walletNetto.quelle) + (walletNetto.stand ? ' · reconciled ' + esc(walletNetto.stand) : '') + ' · log estimate ' + logSchaetzung, true, walletNetto.wert)
+    : kpiCell('NET PNL (LOG ESTIMATE)', logSchaetzung, 'from run logs; fill prices partly assumed · no wallet reconciliation yet', true, agg && agg.realisierter_pnl_usd);
   const runsStrip = agg
-    ? '<div style="display:grid; grid-template-columns:repeat(5,1fr); border-bottom:1px solid rgba(255,255,255,.09)">'
-      + kpiCell('RUNS · BETS', num(agg.n_runs != null ? agg.n_runs : '—') + ' · ' + num(agg.n_wetten != null ? agg.n_wetten : '—'), 'stake ' + (agg.einsatz_usd != null ? '$' + num((+agg.einsatz_usd).toFixed(0)) : '—') + ' (log estimate)', true)
-      + kpiCell('WON · LOST', num(agg.gewonnen != null ? agg.gewonnen : '—') + ' · ' + num(agg.verloren != null ? agg.verloren : '—'), (agg.offen ? num(agg.offen) + ' open' : 'none open'), true)
-      + kpiCell('LOG-RECONSTRUCTED PNL', agg.realisierter_pnl_usd != null ? signedMoney(agg.realisierter_pnl_usd) : '—', 'from run logs; fill prices partly assumed', true, agg.realisierter_pnl_usd)
-      + kpiCell('WALLET-RECONCILED NET', agg.wallet_netto_usd != null ? signedMoney(agg.wallet_netto_usd) : '—', 'on-chain wallet' + (agg.wallet_abgleich_stand ? ' · reconciled ' + esc(String(agg.wallet_abgleich_stand)) : ''), true, agg.wallet_netto_usd)
+    ? '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid rgba(255,255,255,.09)">'
+      + kpiCell('RUNS · BETS', num(agg.n_runs != null ? agg.n_runs : '—') + ' · ' + num(agg.n_wetten != null ? agg.n_wetten : '—'), 'stake ' + (agg.einsatz_usd != null ? '$' + num((+agg.einsatz_usd).toFixed(0)) : '—') + ' (log estimate)'
+        + (runs && runs.stand_utc ? ' · payload ' + esc(stempel(runs.stand_utc)) : ''), true)
+      + kpiCell('WON · LOST', num(agg.gewonnen != null ? agg.gewonnen : '—') + ' · ' + num(agg.verloren != null ? agg.verloren : '—'), (agg.offen ? num(agg.offen) + ' open' : 'none open') + ' · no profitability claim', true)
+      + pnlZelle
       + kpiCell('VISIBLE DEPTH AT ENTRY', agg.sichtbare_tiefe_usd != null ? '$' + num((+agg.sichtbare_tiefe_usd).toFixed(0)) : '—', agg.einsatz_zu_sichtbarer_tiefe_pct != null ? 'stake was ' + (+agg.einsatz_zu_sichtbarer_tiefe_pct).toFixed(1) + '% of visible depth' : '', false)
-      + '</div>'
-      + '<div style="padding:10px 24px; border-bottom:1px solid rgba(255,255,255,.09); font-size:12px; color:rgba(255,255,255,.5); line-height:1.5">'
-      + 'Two PnL figures on purpose: the log-reconstructed number assumes the price cap where the order status returned no fill price and overstates the stake; the wallet-reconciled net is what the wallet actually shows'
-      + (agg.wallet_abgleich_stand ? ' as of ' + esc(String(agg.wallet_abgleich_stand)) : '') + '. Neither is a profitability claim.'
-      + (runs && runs.stand_utc ? ' <span style="' + M + '; font-size:10px; color:rgba(255,255,255,.35)">payload ' + esc(stempel(runs.stand_utc)) + '</span>' : '')
       + '</div>'
     : leerZeile(landingLeerSatz(hk.runs, 'runs.json'));
 
@@ -232,31 +245,50 @@ export function renderOverview(T) {
     + '</div>';
 
   const subline = landingSubline(landing);
+  // Die zwei Haelften der Seite als zwei Einstiege direkt unter dem Titel:
+  // links die getestete Strategie (Forschung, echte Laeufe, Bilanz), rechts
+  // das Analysewerkzeug (Live-Screens). Wer die Seite oeffnet, sieht zuerst
+  // diese Trennung, nicht eine Liste gleichrangiger Bloecke.
+  const pfade = '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px; margin-top:16px; max-width:860px">'
+    + pfadKarte(goStudy(runsIdx), 'TESTED STRATEGY', '#C8F542', 'Researched, then run with real money: every bet, its latency and the on-chain wallet that proves it.')
+    + pfadKarte(T.act(() => T.go('markets')), 'ANALYSIS TOOL', '#4F8EF7', 'Live screens on Polymarket & Kalshi: markets, tape, whale flow, cross-venue, risk.')
+    + '</div>';
   return '<div>'
     + '<div style="padding:24px 24px 20px; border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="font-family:\'Instrument Serif\',serif; font-size:34px; line-height:1.08">Prediction-market microstructure, <em style="color:#C8F542">measured on self-recorded books.</em></div>'
     + '<div style="font-size:14px; color:rgba(255,255,255,.66); margin-top:8px; max-width:760px">' + esc(subline) + '</div>'
-    + '<div style="display:flex; gap:14px; margin-top:12px; flex-wrap:wrap; ' + M + '; font-size:11px">'
+    + pfade
+    + '<div style="display:flex; gap:14px; margin-top:14px; flex-wrap:wrap; ' + M + '; font-size:11px">'
     + '<a href="' + REPO_URL + '" target="_blank" rel="noopener">GitHub repository →</a>'
     + '<a href="' + ONE_PAGER_URL + '" target="_blank" rel="noopener">One-pager (docs/research/ONE_PAGER.md) →</a>'
     + (pilotIdx >= 0 ? '<span ' + goStudy(pilotIdx) + ' class="hv-lime" style="color:rgba(255,255,255,.55); cursor:pointer">Pre-registered pilot →</span>' : '')
     + '</div></div>'
+
+    // Die getestete Strategie zuerst — sie ist das Argument der Seite; die
+    // Studien liefern die Begruendung darunter.
+    + sectionHead('TESTED STRATEGY · LIVE RUNS, REAL MONEY', link(runsIdx, 'EVERY BET'))
+    + runsStrip
 
     + sectionHead('VERDICT BOARD · ' + (studien.length ? num(counts.total) + ' STUDIES' : 'MICROSTRUCTURE'),
       (micro && micro.stand_utc ? '<span style="' + M + '; font-size:10px; color:rgba(255,255,255,.35)">payload ' + esc(stempel(micro.stand_utc)) + '</span>' : '')
       + link(microIdx, 'FULL REPORT'))
     + board
 
-    + sectionHead('LIVE RUNS · SMALL STAKE', link(runsIdx, 'EVERY BET'))
-    + runsStrip
-
     + sectionHead('FIELD NOTES', link(notesIdx, 'ALL NOTES'), '#4F8EF7')
     + notesStrip
 
-    + sectionHead('LIVE DATA', asOfLine(s.liveAsOf) + '<div ' + T.act(() => T.go('markets')) + ' class="hv-lime" style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); cursor:pointer">MARKETS →</div><div ' + T.act(() => T.go('flow')) + ' class="hv-lime" style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); cursor:pointer">TAPE →</div>')
+    + sectionHead('ANALYSIS TOOL · LIVE DATA', asOfLine(s.liveAsOf) + '<div ' + T.act(() => T.go('markets')) + ' class="hv-lime" style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); cursor:pointer">MARKETS →</div><div ' + T.act(() => T.go('flow')) + ' class="hv-lime" style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); cursor:pointer">TAPE →</div>')
     + liveRow
     + '<div style="padding:22px 24px; text-align:center; ' + M + '; font-size:11px; color:rgba(255,255,255,.35)">Public data only · live blocks refresh every 30 seconds · research payloads are frozen files under ./data</div>'
     + '</div>';
+}
+
+// One of the two entry cards under the landing title; act is empty when the
+// target study is not in the list, the card then renders without a cursor.
+function pfadKarte(act, label, farbe, satz) {
+  return '<div ' + act + (act ? ' class="hv-panel"' : '') + ' style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:14px 16px' + (act ? '; cursor:pointer' : '') + '">'
+    + '<div style="' + M + '; font-size:10px; letter-spacing:.16em; color:' + farbe + '">' + label + ' →</div>'
+    + '<div style="font-size:12.5px; color:rgba(255,255,255,.6); margin-top:6px; line-height:1.5">' + satz + '</div></div>';
 }
 
 function kpiCell(label, value, sub, borderRight, signed) {

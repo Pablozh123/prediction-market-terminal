@@ -504,16 +504,17 @@ class Terminal {
 
   renderSidebar() {
     const hoheRisiken = this.risks.filter((r) => r.sev === 'high').length;
-    // Order is the argument: what was measured first, the record second, the
-    // live feeds last. Settings, Tracked, Copy trade, Portfolio and Resolved
-    // stay reachable by hash but describe a local paper setup and are not
-    // listed on the public host.
+    // Die zwei Haelften der Seite als zwei Blockpaare: erst die getestete
+    // Strategie mit ihrem Protokoll (Live runs zuoberst — sie sind das
+    // Argument), dann das Analysewerkzeug. Settings, Tracked, Copy trade,
+    // Portfolio und Resolved bleiben per Hash erreichbar, beschreiben aber
+    // einen lokalen Papieraufbau und stehen nicht auf dem oeffentlichen Host.
     const groups = [
       { label: 'START HERE', items: [this.navItem('overview', 'Overview')] },
-      { label: 'EVIDENCE', items: [
-        this.navStudyByTab('Microstructure'),
+      { label: 'TESTED STRATEGY', items: [
         this.navStudyByTab('Live runs'),
         this.navStudyByTab('Pilot'),
+        this.navStudyByTab('Microstructure'),
         this.navStudyByTab('Category efficiency'),
         this.navStudyByTab('Mentions latency'),
         this.navStudyByTab('Pipeline forward')
@@ -526,7 +527,7 @@ class Terminal {
       ] },
       // Kein Zaehler ohne Daten: eine 0 im Abzeichen liest sich als Messung,
       // solange gar nichts geladen ist.
-      { label: 'LIVE DATA', items: [
+      { label: 'ANALYSIS TOOL', items: [
         this.navItem('markets', 'Markets'),
         this.navItem('flow', 'Live tape', this.tape.length ? String(this.tape.length) : ''),
         this.navItem('whale', 'Whale flow'),
@@ -571,10 +572,15 @@ class Terminal {
       + '<div style="margin-top:auto; padding-top:16px; border-top:1px solid rgba(255,255,255,.09)">'
       + '<div style="' + foot + '"><a href="' + REPO_URL + '" target="_blank" rel="noopener">github.com/Pablozh123/prediction-market-terminal</a></div>'
       + '<div style="' + foot + '; margin-top:6px">Read-only. No orders placed. Public Polymarket &amp; Kalshi data.</div>'
+      // Die Adresse oeffnet die On-Chain-Ansicht auf Polygonscan; zur Seite
+      // mit jeder Wette fuehrt daneben der eigene Live-runs-Link. Vorher
+      // sprang der Klick auf die Adresse nur intern auf die Studienseite und
+      // nichts fuehrte zur Kette.
       + '<div style="' + foot + '; margin-top:6px">Live-run wallet '
+      + '<a href="https://polygonscan.com/address/' + esc(LIVE_RUN_WALLET_FULL) + '" target="_blank" rel="noopener" class="hv-lime" title="' + esc(LIVE_RUN_WALLET_FULL) + ' — view on-chain on Polygonscan" style="color:rgba(255,255,255,.7); text-decoration:underline dotted">' + esc(LIVE_RUN_WALLET) + ' ↗</a>'
       + (runsIdx >= 0
-        ? '<span ' + this.act(() => this.goStudy(runsIdx)) + ' class="hv-lime" title="' + esc(LIVE_RUN_WALLET_FULL) + ' — every bet on the Live runs page" style="color:rgba(255,255,255,.7); cursor:pointer; text-decoration:underline dotted">' + esc(LIVE_RUN_WALLET) + '</span>'
-        : esc(LIVE_RUN_WALLET))
+        ? ' · <span ' + this.act(() => this.goStudy(runsIdx)) + ' class="hv-lime" title="every bet on the Live runs page" style="color:rgba(255,255,255,.55); cursor:pointer; text-decoration:underline dotted">runs</span>'
+        : '')
       + '</div></div>';
   }
 
