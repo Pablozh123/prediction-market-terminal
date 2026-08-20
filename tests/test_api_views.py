@@ -873,6 +873,30 @@ class TapeCategoryTests(unittest.TestCase):
         self.assertIn("category", empty.columns)
         self.assertTrue(apv.tape_rows_with_category(None, None, None).empty)
 
+    def test_enrich_filter_categories_fills_only_the_others(self) -> None:
+        # Das Universum sagte zuletzt in 907 von 1000 Zeilen "Other" — die
+        # Titelmuster kennen die Formen (Parlays, Einzelspiele). Nur Other-
+        # Zeilen laufen durch den Klassifizierer; benannte bleiben, wie sie
+        # sind, und die Eingabe wird nicht veraendert.
+        from src import prediction_markets as md
+
+        # Dieselbe Kette wie der Server (TAPE_CLASSIFIER): Parlays sind eine
+        # eigene Kategorie, sonst fluteten sie "Sports".
+        chain = apv.chained_classifier(md.market_filter_category, apv.parlay_classifier, apv.context_group_classifier())
+        universe = pd.DataFrame([
+            {"title": "Parlay · 2 legs: yes Both Teams To Score · yes Bilbao wins", "category": "", "filter_category": "Other"},
+            {"title": "Will CF América win on 2026-08-16?", "category": "", "filter_category": ""},
+            {"title": "Xi Jinping out before 2027?", "category": "", "filter_category": "Politics"},
+            {"title": "Completely unclassifiable thing", "category": "", "filter_category": ""},
+        ])
+        out = apv.enrich_filter_categories(universe, chain)
+        self.assertEqual(out["filter_category"].tolist(), ["Parlays", "Sports", "Politics", "Other"])
+        self.assertEqual(universe["filter_category"].tolist(), ["Other", "", "Politics", ""])
+        # Ohne Titel oder ohne Zeilen: unveraendert zurueck, kein Fehler.
+        ohne_titel = pd.DataFrame([{"category": "", "filter_category": ""}])
+        self.assertIs(apv.enrich_filter_categories(ohne_titel, chain), ohne_titel)
+        self.assertTrue(apv.enrich_filter_categories(pd.DataFrame(), chain).empty)
+
 
 class MarketRecordsTests(unittest.TestCase):
     """/api/markets liefert nur die Felder, die das Frontend liest."""

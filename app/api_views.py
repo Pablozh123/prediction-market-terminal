@@ -221,6 +221,18 @@ def context_group_classifier(classify_context: Callable[..., Any] = susp.classif
     return classify
 
 
+def parlay_classifier(raw: Any, title: Any) -> str:
+    """Kalshi-Parlays ("Parlay · 2 legs: …") als eigene Kategorie.
+
+    Als "Sports" klassifiziert fluteten mehrere hundert Parlay-Kombis die
+    Kategorie und verdraengten jede echte Einzelspiel-Zeile aus dem Chip —
+    ein Parlay ist ein eigenes Genre, und wer es nicht sehen will, blendet
+    genau diese Kategorie aus.
+    """
+
+    return "Parlays" if _text(title).strip().casefold().startswith("parlay") else ""
+
+
 def chained_classifier(*classifiers: Callable[[Any, Any], Any]) -> Callable[[Any, Any], str]:
     """Der erste Klassifizierer, der etwas anderes als "Other" sagt, gewinnt."""
 
@@ -232,6 +244,29 @@ def chained_classifier(*classifiers: Callable[[Any, Any], Any]) -> Callable[[Any
         return "Other"
 
     return classify
+
+
+def enrich_filter_categories(markets: pd.DataFrame, classify_fn: Callable[[Any, Any], Any]) -> pd.DataFrame:
+    """``filter_category`` fuer Zeilen nachziehen, die noch "Other" heissen.
+
+    Die Rohkategorien des Universums sind fast leer (Kalshi-Parlays, Esports,
+    Einzelspiele — zuletzt sagten 907 von 1000 Zeilen "Other"), waehrend die
+    Titelmuster des Tape-Klassifizierers genau diese Formen kennen. Nur
+    Zeilen ohne Namen laufen durch ``classify_fn``; was danach immer noch
+    keinen hat, bleibt ehrlich "Other". Die Eingabe bleibt unberuehrt.
+    """
+
+    if markets is None or markets.empty or "title" not in markets.columns:
+        return markets
+    out = markets.copy()
+    raw = out["category"] if "category" in out.columns else pd.Series("", index=out.index)
+    fine = out["filter_category"] if "filter_category" in out.columns else pd.Series("", index=out.index)
+    neu = []
+    for r, f, t in zip(raw.tolist(), fine.tolist(), out["title"].tolist()):
+        label = clean_category(f)
+        neu.append(label if label != "Other" else clean_category(classify_fn(r, t)))
+    out["filter_category"] = neu
+    return out
 
 
 def tape_rows_with_category(

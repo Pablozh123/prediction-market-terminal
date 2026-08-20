@@ -260,18 +260,32 @@ def _finalize_polymarket_markets(normalized: list[dict[str, Any]]) -> pd.DataFra
 
 
 def get_polymarket_markets(limit: int = 250, offset: int = 0, active_only: bool | None = True) -> pd.DataFrame:
-    params = {
-        "limit": limit,
-        "offset": offset,
-        "archived": "false",
-    }
-    if active_only is True:
-        params.update({"active": "true", "closed": "false"})
-    elif active_only is False:
-        params.update({"closed": "true"})
-    data = _get_json(f"{POLY_GAMMA}/markets", params=params)
-    rows = data if isinstance(data, list) else data.get("data", [])
-    return _finalize_polymarket_markets([_normalize_polymarket_market(market) for market in rows])
+    # Gamma deckelt eine Seite bei 100 Zeilen: wer 500 verlangte, bekam
+    # stillschweigend 100. Seitenweise nach 24h-Volumen geordnet holen, bis
+    # ``limit`` erreicht ist oder eine Seite leer bzw. unvoll zurueckkommt.
+    raw_rows: list[Any] = []
+    page_size = 100
+    while len(raw_rows) < limit:
+        wanted = min(page_size, limit - len(raw_rows))
+        params = {
+            "limit": wanted,
+            "offset": offset + len(raw_rows),
+            "archived": "false",
+            "order": "volume24hr",
+            "ascending": "false",
+        }
+        if active_only is True:
+            params.update({"active": "true", "closed": "false"})
+        elif active_only is False:
+            params.update({"closed": "true"})
+        data = _get_json(f"{POLY_GAMMA}/markets", params=params)
+        page = data if isinstance(data, list) else data.get("data", [])
+        if not page:
+            break
+        raw_rows.extend(page)
+        if len(page) < wanted:
+            break
+    return _finalize_polymarket_markets([_normalize_polymarket_market(market) for market in raw_rows])
 
 
 def get_polymarket_markets_by_condition_ids(condition_ids: list[str]) -> list[dict[str, Any]]:

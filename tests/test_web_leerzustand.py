@@ -662,12 +662,30 @@ class WebLeerzustandTest(unittest.TestCase):
 
     def test_markets_ohne_tote_ansichten(self) -> None:
         text = _sichtbarer_text(self.ausgabe["live"]["markets"])
-        for weg in ("VIEW", "Cards", "Calendar", "Saved", "My positions", "SPREAD", "TREND 24H"):
+        for weg in ("VIEW", "Cards", "Calendar", "Saved", "My positions", "TREND 24H"):
             with self.subTest(weg=weg):
                 self.assertNotIn(weg, text)
         self.assertIn("CHANGE 1D", text)
         self.assertIn("as of 2026-08-17 10:00 UTC", text)
         self.assertNotIn('<polyline', self.ausgabe["live"]["markets"])
+        # Der Ueberblick: vier Kennzahlen des Ausschnitts, drei Einblick-
+        # Panels, alles aus den geladenen Zeilen (ein Harness-Markt).
+        self.assertIn("MARKETS IN SAMPLE 1 1 Polymarket · 0 Kalshi", text)
+        self.assertIn("BIGGEST 1D MOVE +3¢ Example question", text)
+        self.assertIn("MEDIAN SPREAD 2¢ n = 1 markets with a quoted spread", text)
+        self.assertIn("TOP MOVERS · 1D", text)
+        self.assertIn("RESOLVING NEXT", text)
+        self.assertIn("in 120 d", text)
+        self.assertIn("COIN FLIPS", text)
+        self.assertIn("no market in the sample is priced 40–60¢", text)
+        # Neue Spalten aus denselben API-Feldern, Kategorien-Chips mit Zahl.
+        self.assertIn("SPREAD", text)
+        self.assertIn("LIQUIDITY", text)
+        self.assertIn("MACRO 1", text)
+        # Leerzustand unveraendert: keine Kennzahl, die Quelle benannt.
+        leer = _sichtbarer_text(self.ausgabe["leer"]["markets"])
+        self.assertNotIn("MARKETS IN SAMPLE", leer)
+        self.assertIn("/api/markets", leer)
         core = (WURZEL / "web" / "js" / "pages" / "core_pages.js").read_text(encoding="utf-8")
         self.assertNotIn("· 1H", core)
         util = (WURZEL / "web" / "js" / "util.js").read_text(encoding="utf-8")

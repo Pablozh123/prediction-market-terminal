@@ -274,7 +274,12 @@ def load_universe(limit: int = 250) -> pd.DataFrame:
         if not frames:
             return pd.DataFrame()
         combined = pd.concat(frames, ignore_index=True, sort=False)
-        return md.add_market_filter_metrics(combined)
+        combined = md.add_market_filter_metrics(combined)
+        # Titelmuster des Tape-Klassifizierers auch fuers Universum: die
+        # Rohkategorien sind fast leer (Kalshi-Parlays, Esports, Einzelspiele
+        # sagen alle "Other"), die Marktseite bekam dadurch kaum Kategorien
+        # zum Auswaehlen. Laeuft einmal je Cache-Fuellung, nicht je Request.
+        return apv.enrich_filter_categories(combined, TAPE_CLASSIFIER)
 
     return cached(f"universe_{limit}", _load)
 
@@ -317,7 +322,7 @@ def load_tape(limit: int = 250, min_cash: float = 0.0) -> pd.DataFrame:
 #: Kategorie fuer Tape-Zeilen ohne Treffer im Marktuniversum: erst die
 #: Heuristik der Marktseite (Rohkategorie + Titel), dann die Titelmuster des
 #: Risk-Screens (app.suspicion), die Matchups und Esports erkennen.
-TAPE_CLASSIFIER = apv.chained_classifier(md.market_filter_category, apv.context_group_classifier())
+TAPE_CLASSIFIER = apv.chained_classifier(md.market_filter_category, apv.parlay_classifier, apv.context_group_classifier())
 
 
 def load_leaderboard(limit: int = 100, period: str = "ALL", order_by: str = "PNL") -> pd.DataFrame:
@@ -422,10 +427,24 @@ def markets(
         df = df[df.get(cat_col).astype(str).str.casefold() == category.strip().casefold()]
     if sort in df.columns:
         df = df.sort_values(sort, ascending=False, na_position="last")
+    total = int(len(df))
+    # Venue- UND kategorie-balanciert: rein nach Volumen bestand die Antwort
+    # fast nur aus Sport-Parlays und einem einzigen Polymarket-Thema. Jede
+    # (Venue, Kategorie)-Gruppe bekommt zuerst einen gleichen Anteil; was
+    # eine Gruppe nicht fuellt, geht an die groesseren — innerhalb einer
+    # Gruppe zaehlt weiter das Sortierkriterium.
+    ordnung = sort if sort in df.columns else "volume_24h"
+    if "platform" in df.columns:
+        cat_col = "filter_category" if "filter_category" in df.columns else "category"
+        gruppen = df["platform"].astype(str) + " · " + (df[cat_col].astype(str) if cat_col in df.columns else "")
+        df = df.assign(_balance_gruppe=gruppen)
+        df = apv.balanced_head(df, limit, group_col="_balance_gruppe", time_col=ordnung).drop(columns=["_balance_gruppe"])
+    else:
+        df = apv.balanced_head(df, limit, group_col="platform", time_col=ordnung)
     # Schlanke Zeilen: nur die Felder, die das Frontend liest (apv.MARKET_FIELDS).
     # Mit ``raw``, ``description`` und den Token-Blobs wog die Antwort fuer
     # 250 Zeilen ueber ein Megabyte, alle 30 Sekunden.
-    return {"rows": apv.market_records(df, limit), "total": int(len(df)), "as_of": md.now_utc_label()}
+    return {"rows": apv.market_records(df, limit), "total": total, "as_of": md.now_utc_label()}
 
 
 @app.get("/api/tape")

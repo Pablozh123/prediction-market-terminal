@@ -611,7 +611,9 @@ class Terminal {
   async pollLive() {
     try {
       const [mk, tp] = await Promise.all([
-        apiGet('/api/markets?limit=250'),
+        // 500 statt 250: mit dem kleinen Fenster sah die Marktseite kaum
+        // Kategorien; die Antwort bleibt schlank (MARKET_FIELDS, ~200 KB).
+        apiGet('/api/markets?limit=500'),
         // Grosse Prints ab $2,5k auf beiden Venues; ohne Mindestbetrag bestuende
         // das Fenster nur aus Kalshi-Mikro-Trades der 15-Minuten-Kryptomaerkte.
         apiGet('/api/tape?limit=250&min_cash=2500')

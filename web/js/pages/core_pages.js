@@ -31,15 +31,31 @@ function asOfLine(iso) {
   return iso ? '<span style="' + M + '; font-size:10px; color:rgba(255,255,255,.35)">as of ' + esc(stempel(iso)) + '</span>' : '';
 }
 
+// Spaltenraster der Markttabelle — Kopfzeile und Zeilen teilen es.
+const MARKT_SPALTEN = '1fr 64px 90px 76px 96px 104px 96px';
+
 function marketRowHtml(v) {
-  return '<div ' + v.act + ' class="hv-panel" style="display:grid; grid-template-columns:1fr 88px 96px 108px 108px; align-items:center; padding:13px 24px; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer; animation:rowIn .25s ease-out">'
+  return '<div ' + v.act + ' class="hv-panel" style="display:grid; grid-template-columns:' + MARKT_SPALTEN + '; align-items:center; padding:13px 24px; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer; animation:rowIn .25s ease-out">'
     + '<div style="padding-right:20px">'
     + '<div style="font-size:13.5px; line-height:1.35">' + esc(v.title) + '</div>'
     + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); margin-top:3px">' + esc(v.meta) + '</div></div>'
     + '<div style="' + M + '; font-size:15px; text-align:right">' + v.priceLabel + '</div>'
     + '<div style="' + v.changeStyle + '">' + v.changeLabel + '</div>'
+    + '<div style="' + M + '; font-size:12px; text-align:right; color:rgba(255,255,255,.55)">' + esc(v.spreadLabel || '—') + '</div>'
+    + '<div style="' + M + '; font-size:12px; text-align:right; color:rgba(255,255,255,.55)">' + esc(v.liqLabel || '—') + '</div>'
     + '<div style="' + M + '; font-size:13px; text-align:right">' + v.volLabel + '</div>'
     + '<div style="' + M + '; font-size:12px; text-align:right; color:rgba(255,255,255,.55)">' + esc(v.ends) + '</div></div>';
+}
+
+// One compact insight panel on the Markets page: a heading, up to five
+// clickable rows (each opens its market), and an honest line when the
+// loaded sample has nothing that qualifies.
+function insightPanel(titel, sub, rowsHtml, leerSatz) {
+  return '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:10px; overflow:hidden">'
+    + '<div style="padding:9px 14px; border-bottom:1px solid rgba(255,255,255,.08)"><span style="' + M + '; font-size:10px; letter-spacing:.13em; color:#C8F542">' + titel + '</span>'
+    + (sub ? ' <span style="' + M + '; font-size:9.5px; color:rgba(255,255,255,.35); letter-spacing:0">· ' + sub + '</span>' : '') + '</div>'
+    + (rowsHtml || '<div style="padding:12px 14px; ' + M + '; font-size:10.5px; color:rgba(255,255,255,.35)">' + esc(leerSatz) + '</div>')
+    + '</div>';
 }
 
 // ---------------------------------------------------------------- overview (research landing)
@@ -306,13 +322,49 @@ export function renderMarkets(T) {
     return '<div>' + seitenKopf('MARKETS', 'Every market, one table', '#C8F542')
       + leerBlock('NO MARKET DATA', herkunftSatz(T.herkunft.markets, '/api/markets')) + '</div>';
   }
-  const catSet = [];
-  T.markets.forEach((m) => { if (catSet.indexOf(m.cat) < 0) catSet.push(m.cat); });
   // Die Kategorienleiste kommt aus den geladenen Maerkten. Eine feste Liste
-  // haette Reiter angeboten, hinter denen nichts liegt.
+  // haette Reiter angeboten, hinter denen nichts liegt. Jeder Chip traegt
+  // seine Anzahl, damit man sieht, wo etwas liegt, bevor man klickt.
   const cats = ['All'].concat(catChipsPresent(T.markets, 'cat'));
+  const catAnzahl = {};
+  T.markets.forEach((m) => { const c = m.cat || 'Other'; catAnzahl[c] = (catAnzahl[c] || 0) + 1; });
 
   const mx = (m) => T.marketExtraOf(m);
+
+  // ---- Einblicke aus dem geladenen Ausschnitt, alle Zeilen klickbar ------
+  const gesamtVol = T.markets.reduce((a, m) => a + m.vol, 0);
+  const pmAnzahl = T.markets.filter((m) => m.venue === 'Polymarket').length;
+  const spreads = T.markets.map((m) => mx(m).spread).filter((v) => v != null).sort((a, b) => a - b);
+  const spreadMedian = spreads.length ? (spreads.length % 2 ? spreads[(spreads.length - 1) / 2] : (spreads[spreads.length / 2 - 1] + spreads[spreads.length / 2]) / 2) : null;
+  const movers = T.markets.filter((m) => m.chg !== 0).sort((a, b) => Math.abs(b.chg) - Math.abs(a.chg)).slice(0, 5);
+  const baldFaellig = T.markets.filter((m) => mx(m).endsDays != null).sort((a, b) => mx(a).endsDays - mx(b).endsDays).slice(0, 5);
+  const unentschieden = T.markets.filter((m) => m.yes >= 40 && m.yes <= 60).sort((a, b) => b.vol - a.vol).slice(0, 5);
+  const topMover = movers[0] || null;
+  const kurz = (t) => (String(t).length > 44 ? String(t).slice(0, 43) + '…' : String(t));
+  const zeile = (m, mitte, rechts) =>
+    '<div ' + T.act(() => T.openMarket(m.id)) + ' class="hv-panel" style="display:grid; grid-template-columns:1fr 46px 78px; gap:8px; align-items:center; padding:8px 14px; border-bottom:1px solid rgba(255,255,255,.05); cursor:pointer">'
+    + '<div style="font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(m.title) + '">' + esc(m.title) + '</div>'
+    + '<div style="' + M + '; font-size:11.5px; text-align:right; color:rgba(255,255,255,.55)">' + mitte + '</div>'
+    + '<div style="' + M + '; font-size:11.5px; text-align:right">' + rechts + '</div></div>';
+  const kpiStrip = '<div style="display:grid; grid-template-columns:repeat(4,1fr); border:1px solid rgba(255,255,255,.09); border-radius:10px; margin-top:14px; overflow:hidden; background:#10151A">'
+    + kpiCell('MARKETS IN SAMPLE', num(T.markets.length), pmAnzahl + ' Polymarket · ' + (T.markets.length - pmAnzahl) + ' Kalshi', true)
+    + kpiCell('VOLUME 24H', money(gesamtVol), 'sum over the sample', true)
+    + kpiCell('BIGGEST 1D MOVE', topMover ? (topMover.chg >= 0 ? '+' : '') + topMover.chg + '¢' : '—',
+      topMover ? esc(kurz(topMover.title)) : 'no market in the sample moved', true, topMover ? topMover.chg : null)
+    + kpiCell('MEDIAN SPREAD', spreadMedian != null ? spreadMedian + '¢' : '—',
+      spreads.length ? 'n = ' + num(spreads.length) + ' markets with a quoted spread' : 'no spreads in the sample', false)
+    + '</div>';
+  const einblicke = '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px; margin-top:12px">'
+    + insightPanel('TOP MOVERS · 1D', 'yes price · change',
+      movers.map((m) => zeile(m, m.yes + '¢', '<span style="color:' + (m.chg >= 0 ? '#C8F542' : '#FF4545') + '">' + (m.chg >= 0 ? '+' : '') + m.chg + '¢</span>')).join(''),
+      'no market in the sample moved in the last day')
+    + insightPanel('RESOLVING NEXT', 'yes price · resolves',
+      baldFaellig.map((m) => zeile(m, m.yes + '¢', esc(mx(m).endsDays <= 1 ? 'under 1 d' : 'in ' + mx(m).endsDays + ' d'))).join(''),
+      'no market in the sample carries an end date')
+    + insightPanel('COIN FLIPS', 'priced 40–60¢, the market is undecided · by volume',
+      unentschieden.map((m) => zeile(m, m.yes + '¢', money(m.vol))).join(''),
+      'no market in the sample is priced 40–60¢')
+    + '</div>';
   let mRows = T.markets.slice();
   const mActive = [];
   const addChip = (label, reset) => mActive.push({ label, reset });
@@ -381,6 +433,12 @@ export function renderMarkets(T) {
     + '<div ' + T.act(() => T.setState({ mPlatform: 'all', mStatus: 'active', mProb: 'all', mLiq: 'all', mVol: 'all', mEnds: 'all', mAge: 'all', mExclude: [], marketCat: 'All', marketQuery: '', mQuick: 'trending', marketSort: 'volume' })) + ' class="hv-bd32" style="font-size:12.5px; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:9px 13px; cursor:pointer">Reset filters</div>'
     + '</div></div>'
 
+    // Der Ueberblick zuerst: vier Kennzahlen des Ausschnitts und drei
+    // Einblick-Panels (Movers, naechste Aufloesungen, 40–60¢), jede Zeile
+    // oeffnet ihren Markt. Alles aus den geladenen Zeilen, nichts erfunden.
+    + kpiStrip
+    + einblicke
+
     // VIEW (Cards / Calendar) and QUICK Saved / My positions are gone: the
     // first two had no renderer, the last two filtered on flags nothing sets.
     + '<div style="display:flex; align-items:center; gap:22px; margin-top:16px; flex-wrap:wrap">'
@@ -390,7 +448,7 @@ export function renderMarkets(T) {
     + '</div>'
 
     + '<div style="display:flex; gap:7px; margin-top:14px; flex-wrap:wrap">'
-    + cats.map((c) => T.chip(c.toUpperCase(), s.marketCat === c, { marketCat: c })).join('')
+    + cats.map((c) => T.chip((c.toUpperCase() + ' ' + (c === 'All' ? T.markets.length : catAnzahl[c] || 0)), s.marketCat === c, { marketCat: c })).join('')
     + '</div>'
 
     + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:10px; margin-top:14px; overflow:hidden">'
@@ -422,14 +480,20 @@ export function renderMarkets(T) {
     + '</div></div>'
 
     // No TREND column: the API carries a one-day change, not an intraday
-    // path, and a two-point line under "TREND 24H" read as a curve.
-    + '<div style="display:grid; grid-template-columns:1fr 88px 96px 108px 108px; padding:10px 24px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A; ' + HEAD_CELL + '">'
+    // path, and a two-point line under "TREND 24H" read as a curve. SPREAD
+    // und LIQUIDITY kommen aus denselben API-Zeilen (unbekannt bleibt —).
+    + '<div style="display:grid; grid-template-columns:' + MARKT_SPALTEN + '; padding:10px 24px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A; ' + HEAD_CELL + '">'
     + '<div>MARKET</div>'
     + '<div style="text-align:right">YES</div>'
     + '<div ' + T.act(() => T.setState({ marketSort: 'change' })) + ' style="text-align:right; cursor:pointer; color:' + (s.marketSort === 'change' ? '#C8F542' : 'rgba(255,255,255,.45)') + '">CHANGE 1D</div>'
+    + '<div style="text-align:right">SPREAD</div>'
+    + '<div ' + T.act(() => T.setState({ marketSort: 'liquidity' })) + ' style="text-align:right; cursor:pointer; color:' + (s.marketSort === 'liquidity' ? '#C8F542' : 'rgba(255,255,255,.45)') + '">LIQUIDITY</div>'
     + '<div ' + T.act(() => T.setState({ marketSort: 'volume' })) + ' style="text-align:right; cursor:pointer; color:' + (s.marketSort === 'volume' ? '#C8F542' : 'rgba(255,255,255,.45)') + '">VOLUME 24H</div>'
     + '<div ' + T.act(() => T.setState({ marketSort: 'ending' })) + ' style="text-align:right; cursor:pointer; color:' + (s.marketSort === 'ending' ? '#C8F542' : 'rgba(255,255,255,.45)') + '">RESOLVES</div></div>'
-    + mRows.map((m) => marketRowHtml(T.marketView(m))).join('')
+    + mRows.map((m) => marketRowHtml(Object.assign(T.marketView(m), {
+      spreadLabel: mx(m).spread != null ? mx(m).spread + '¢' : '—',
+      liqLabel: m.liq ? money(m.liq) : '—'
+    }))).join('')
     + (mRows.length === 0 ? '<div style="padding:60px; text-align:center; ' + M + '; font-size:12px; color:rgba(255,255,255,.35)">No market matches that filter.</div>' : '')
     + '</div>';
 }
