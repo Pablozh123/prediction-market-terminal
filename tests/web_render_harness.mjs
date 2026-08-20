@@ -476,15 +476,15 @@ function mitDaten(T) {
         hinweis: 'Harness ledger note.', stand_utc: '2026-08-17T01:02:03+00:00',
         wallet: '0x29afe1bf37700768a640a08f1b35dad5f202f88d', kennzeichnung: 'wallet/public-api',
         aggregat: {
-          einzahlungen_usd: null, kaeufe_usd: 156.35, verkaeufe_usd: 20, einloesungen_usd: 184.98,
-          netto_cashflow_usd: 48.63, n_events: 3, n_maerkte: 4, n_trades: 6, n_kaeufe: 5, n_verkaeufe: 1, n_einloesungen: 3,
-          positionen: { won: 2, lost: 1, flat: 0, worthless: 1, open: 0, unknown: 0 },
-          positionen_gewonnen: 2, positionen_verloren: 2, positionen_wertlos: 1, positionen_offen: 0, positionen_flat: 0,
-          closed_positions_capped: false, erste_aktivitaet_utc: '2026-07-18T00:48:16Z', letzte_aktivitaet_utc: '2026-08-11T17:03:24Z',
+          einzahlungen_usd: null, kaeufe_usd: 176.35, verkaeufe_usd: 20, einloesungen_usd: 215.01,
+          netto_cashflow_usd: 58.66, n_events: 4, n_maerkte: 5, n_trades: 7, n_kaeufe: 6, n_verkaeufe: 1, n_einloesungen: 4,
+          positionen: { won: 3, lost: 1, flat: 0, worthless: 1, open: 0, unknown: 0 },
+          positionen_gewonnen: 3, positionen_verloren: 2, positionen_wertlos: 1, positionen_offen: 0, positionen_flat: 0,
+          closed_positions_capped: false, erste_aktivitaet_utc: '2026-07-02T00:00:20Z', letzte_aktivitaet_utc: '2026-08-11T17:03:24Z',
           // bot traegt einsatz/netto_cash: der Ledger (2026-08-17) ist frischer
           // als der kuratierte Abgleich (2026-07-18), die Seite muss dann die
-          // Ledger-Zahlen in Kachel und LOG-VS-WALLET-Spalten zeigen.
-          nach_typ: { bot: { events: 1, maerkte: 2, einsatz_usd: 41.34, netto_cash_usd: 55.97 }, discretionary: { events: 1, maerkte: 1 }, pilot: { events: 1, maerkte: 1 } }
+          // Ledger-Zahlen in Kachel, LOG-VS-WALLET-Spalten und Kurve zeigen.
+          nach_typ: { bot: { events: 2, maerkte: 3, einsatz_usd: 61.34, netto_cash_usd: 66.0 }, discretionary: { events: 1, maerkte: 1 }, pilot: { events: 1, maerkte: 1 } }
         },
         events: [
           { event_slug: 'harness-event-a', titel: 'Harness bot event', url: 'https://polymarket.com/event/harness-event-a',
@@ -497,6 +497,15 @@ function mitDaten(T) {
               { titel: 'Will the harness say "yes"?', seite: 'Yes', zuordnung: 'bot', run_profil: 'harness_a', avg_preis: 0.5, shares: 82.68, einsatz_usd: 41.34, pnl_usd: 55.97, pnl_art: 'realised (API realizedPnl)', status: 'won' },
               { titel: 'Will the harness say "extra"?', seite: 'No', zuordnung: 'discretionary', run_profil: '', avg_preis: 0.5, shares: 20, einsatz_usd: 10, pnl_usd: -10, pnl_art: 'position resolved against and not redeemed (API cashPnl)', status: 'worthless' }
             ] },
+          // Zweites Bot-Event (harness_b): damit die Wallet-Kurve zwei Punkte
+          // hat und jeder Lauf mit Fill im Ledger steht.
+          { event_slug: 'harness-event-b', titel: 'Harness bot event B', url: '',
+            typ: 'bot', typ_mix: '', run_profil: 'harness_b', run_im_log: true,
+            von_utc: '2026-07-02T00:00:20Z', bis_utc: '2026-07-02T12:00:00Z', n_maerkte: 1, n_trades: 1, n_einloesungen: 1,
+            einsatz_usd: 20, verkaeufe_usd: 0, einloesungen_usd: 30.03, netto_cash_usd: 10.03, pnl_usd: 10.03,
+            status: { won: 1, lost: 0, flat: 0, worthless: 0, open: 0, unknown: 0 }, status_text: '1 won',
+            notes: [],
+            maerkte: [{ titel: 'Will it say yes twice?', seite: 'Yes', zuordnung: 'bot', run_profil: 'harness_b', avg_preis: 0.6, shares: 33.38, einsatz_usd: 20, pnl_usd: 10.03, pnl_art: 'realised (API realizedPnl)', status: 'won' }] },
           { event_slug: 'harness-curtis-e3', titel: 'Harness Curtis E3 event', url: 'https://polymarket.com/event/harness-curtis-e3',
             typ: 'discretionary', typ_mix: '', run_profil: '', run_im_log: false,
             von_utc: '2026-08-07T00:00:00Z', bis_utc: '2026-08-11T17:03:24Z', n_maerkte: 1, n_trades: 2, n_einloesungen: 0,

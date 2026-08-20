@@ -345,23 +345,41 @@ class WebLeerzustandTest(unittest.TestCase):
         leer = _sichtbarer_text(self.ausgabe["leer"]["research_microstructure"])
         self.assertIn("microstructure.json", leer)
 
-    def test_laeufe_ohne_fill_werden_einzeilig(self) -> None:
+    def test_laeufe_ohne_fill_stehen_in_der_einen_tabelle(self) -> None:
+        # Mit Ledger gibt es keine eigene "RUNS WITHOUT A FILL"-Box mehr: die
+        # Laeufe ohne Fill stehen als NO-FILLS-Zeilen in der einen Event-
+        # Tabelle unten, mit ihren Entscheidungszahlen als Status.
         live = _sichtbarer_text(self.ausgabe["live"]["runs_runs"])
-        self.assertIn("RUNS WITHOUT A FILL · 2", live)
+        self.assertNotIn("RUNS WITHOUT A FILL", live)
         self.assertIn("Run with a fill", live)
         self.assertIn("Run without a fill", live)
+        self.assertIn("NO FILLS", live)
+        self.assertIn("160 decisions · 160 priced in · placed nothing", live)
+        self.assertIn("Second run without a fill", live)
         # Die Einzeiler tragen keine Stake-Fusszeile — die gehoert zur Karte.
         self.assertNotIn("Stake $0.00", live)
+        # Ohne Ledger bleibt die Box als Rueckfall, damit kein Lauf
+        # verschwindet (runs_runs_many hat keinen Ledger).
+        self.assertIn("RUNS WITHOUT A FILL · 6", _sichtbarer_text(self.ausgabe["live"]["runs_runs_many"]))
 
     def test_laufkurve_kommt_aus_den_laufwerten(self) -> None:
         # Vier Laeufe mit publizierten PnL-Werten ergeben eine Treppenkurve;
         # ohne Nutzlast gibt es keine (test_leerzustand_zeichnet_keine_kurve).
         live = self.ausgabe["live"]["runs_runs"]
-        self.assertIn("CUMULATIVE REALIZED PNL BY RUN", _sichtbarer_text(live))
+        # Die Kurve zeigt die Wallet-Zahl der Kachel (55.97 → 66.0 kumuliert
+        # ueber die zwei Bot-Events des Ledgers), nicht mehr die Log-Reihe.
+        text = _sichtbarer_text(live)
+        self.assertIn("CUMULATIVE WALLET PNL BY RUN", text)
+        self.assertIn("USD · wallet ledger, bot markets", text)
+        self.assertNotIn("CUMULATIVE REALIZED PNL BY RUN", text)
         self.assertRegex(live, r'<path d="M\s*\d')
-        # Der Hinweis nennt die frischeste Wallet-Zahl (Harness-Ledger) und
-        # verweist auf das zugeklappte LOG VS WALLET darueber.
-        self.assertIn("wallet net +$56 as of 2026-08-17 — why the figures differ: LOG VS WALLET above", _sichtbarer_text(live))
+        self.assertIn("66", text)
+        self.assertIn("last bot fill 07-02 · ledger as of 2026-08-17 · log estimate +$24 — LOG VS WALLET above", text)
+        # Ohne Ledger (runs_runs_many) faellt die Kurve auf die Log-Reihe
+        # zurueck und sagt das im Titel.
+        viele = _sichtbarer_text(self.ausgabe["live"]["runs_runs_many"])
+        self.assertIn("CUMULATIVE REALIZED PNL BY RUN", viele)
+        self.assertIn("USD · log-reconstructed", viele)
 
     def test_startseite_ist_forschungslandung(self) -> None:
         # Die Startseite fuehrt mit der Forschung, nicht mit dem Whale-Feed:
@@ -735,13 +753,13 @@ class WebLeerzustandTest(unittest.TestCase):
 
     def test_live_runs_eine_pnl_kachel_und_log_vs_wallet(self) -> None:
         # Eine PnL-Kachel: die Wallet-Zahl fuehrt, und zwar aus der frischesten
-        # Quelle — der Harness-Ledger (2026-08-17, Bot netto +$55.97) ist neuer
+        # Quelle — der Harness-Ledger (2026-08-17, Bot netto +$66.00) ist neuer
         # als der kuratierte Abgleich (2026-07-18, +$20). Die Log-Zahl steht
         # benannt in der Unterzeile; beide Spalten samt Begruendung liegen im
         # zugeklappten LOG VS WALLET, mit der Wallet-Adresse als Link.
         live = self.ausgabe["live"]["runs_runs"]
         text = _sichtbarer_text(live)
-        self.assertIn("NET PNL (WALLET, AS OF 2026-08-17) +$56", text)
+        self.assertIn("NET PNL (WALLET, AS OF 2026-08-17) +$66", text)
         self.assertIn("cash truth, wallet ledger · log estimate +$24", text)
         # Die Log-Zahl steht genau einmal: als Spalte im zugeklappten
         # LOG VS WALLET, nicht mehr als zweite Kachel.
@@ -751,7 +769,7 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("TOTAL STAKE $40 log estimate", text)
         self.assertIn("LOG VS WALLET · WHY THE FIGURES DIFFER · WALLET AS OF 2026-08-17", text)
         self.assertIn('<details data-key="runs-abgleich"', live)
-        self.assertIn("LOG STAKE $40.00 WALLET BUYS $41.34 LOG-RECONSTRUCTED PNL +$24.00 WALLET-RECONCILED NET +$55.97", text)
+        self.assertIn("LOG STAKE $40.00 WALLET BUYS $61.34 LOG-RECONSTRUCTED PNL +$24.00 WALLET-RECONCILED NET +$66.00", text)
         self.assertIn("the order response price is the cap, not the fill", text)
         self.assertIn("post-mortem 2026-07-18", text)
         self.assertIn("Wallet columns come from the wallet ledger at the bottom of this page (bot markets only), as of 2026-08-17.", text)
@@ -759,9 +777,10 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn('href="https://polygonscan.com/address/0x29afe1bf37700768a640a08f1b35dad5f202f88d"', live)
         self.assertIn('href="https://polymarket.com/profile/0x29afe1bf37700768a640a08f1b35dad5f202f88d"', live)
         self.assertIn("public Polymarket Data API", text)
-        # Je Lauf eine fuehrende PnL-Zahl, Quelle benannt, Log daneben.
+        # Je Lauf eine fuehrende PnL-Zahl, Quelle benannt, Log daneben:
+        # harness_a traegt den kuratierten Abgleich, harness_b nur den Ledger.
         self.assertIn("PnL +$12.00 (wallet) · log estimate +$14.00", text)
-        self.assertIn("PnL +$10.00 (log estimate) · not wallet-reconciled", text)
+        self.assertIn("PnL +$10.03 (wallet ledger, API realised) · log estimate +$10.00", text)
         # Der Simulator-Reiter benennt seine Zahlen als Simulation.
         sim = _sichtbarer_text(self.ausgabe["live"]["runs_sim"])
         self.assertIn("simulation on log-estimated fills", sim)
@@ -812,23 +831,30 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertNotIn("REPRICING AFTER THE DROP", leer)
 
     def test_live_runs_wallet_ledger_je_event(self) -> None:
-        # "Everything the wallet did": KPI-Zeile aus aggregat, alle Events
-        # (N OF N), Typ-Chips, Links, Notizen mit Link, Legende — aus
+        # Die eine Tabelle unter den Karten: KPI-Zeile aus aggregat, jedes
+        # Wallet-Event (Pilot als gruppierte Zeile), die Laeufe ohne Trade,
+        # Typ-Chips, Links, Notizen mit Link, Legende — aus
         # extras.wallet_ledger (API) bzw. wallet_ledger.json (statisch).
         live = self.ausgabe["live"]["runs_runs"]
         text = _sichtbarer_text(live)
-        self.assertIn("EVERYTHING THE WALLET DID · BY EVENT", text)
+        self.assertIn("ALL EVENTS · RUNS AND WALLET", text)
         self.assertIn("WALLET/PUBLIC-API", text)
         self.assertIn("as of 2026-08-17 01:02 UTC", text)
-        self.assertIn("EVENTS 3 1 bot · 1 discretionary · 1 pilot", text)
-        self.assertIn("TRADES 6 5 buys · 1 sell · 3 redemptions", text)
-        self.assertIn("STAKE (BUYS) $156.35", text)
-        self.assertIn("NET CASH FLOW +$48.63 sells $20.00 + redemptions $184.98 − buys", text)
-        self.assertIn("POSITIONS WON / LOST 2 / 2 1 of the lost expired worthless", text)
-        self.assertIn("3 OF 3 EVENTS · NEWEST FIRST", text)
-        # Reihenfolge: neuestes Event zuerst.
+        self.assertIn("EVENTS 4 2 bot · 1 discretionary · 1 pilot", text)
+        self.assertIn("TRADES 7 6 buys · 1 sell · 4 redemptions", text)
+        self.assertIn("STAKE (BUYS) $176.35", text)
+        self.assertIn("NET CASH FLOW +$58.66 sells $20.00 + redemptions $215.01 − buys", text)
+        self.assertIn("POSITIONS WON / LOST 3 / 2 1 of the lost expired worthless", text)
+        self.assertIn("4 WALLET EVENTS + 2 RUNS WITHOUT A TRADE · NEWEST FIRST", text)
+        # Reihenfolge: neueste Zeile zuerst; die Laeufe ohne Trade (07-03 und
+        # 07-04) liegen zwischen Bot-Event A (07-18) und Bot-Event B (07-02).
         self.assertLess(text.index("Harness Curtis E3 event"), text.index("Harness pilot GDP event"))
         self.assertLess(text.index("Harness pilot GDP event"), text.index("Harness bot event"))
+        self.assertLess(text.index("Harness bot event"), text.index("Second run without a fill"))
+        self.assertLess(text.index("Second run without a fill"), text.index("Run without a fill"))
+        self.assertLess(text.index("Run without a fill"), text.index("Harness bot event B"))
+        # Der Pilot ist eine gruppierte Zeile mit dem Einzel-Event darin.
+        self.assertIn("Pre-registered pilot — 1 small event", text)
         # Typ-Chips, gemischtes Event, Laufprofil, Maerkte je Event.
         self.assertIn("DISCRETIONARY 1 $100.00 +$0.97 1 won", text)
         self.assertIn("PILOT 1 $5.01 +$0.16 1 won", text)
@@ -846,18 +872,20 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("BOT market and side appear in a runs.json run log — these runs are also listed above with their latency data", text)
         self.assertIn("DISCRETIONARY placed by hand, in no run log", text)
         self.assertIn("PILOT one of the pre-registered pilot trades of 2026-07-22", text)
-        # Der Abschnitt steht unter den Laufkarten und der Einzeiler-Liste.
-        self.assertLess(live.index("RUNS WITHOUT A FILL"), live.index("EVERYTHING THE WALLET DID"))
+        # Die NO-FILLS-Zeile erklaert sich in der Legende.
+        self.assertIn("NO FILLS the bot ran and placed nothing — no wallet trace", text)
+        # Der Abschnitt steht unter den Laufkarten.
+        self.assertLess(live.index("RUNS WITH FILLS"), live.index("ALL EVENTS · RUNS AND WALLET"))
         # Ohne Ledger: die Zeile nennt die Datei und das Skript, keine Zahl.
         for name in ("runs_runs_many",):
             ohne = _sichtbarer_text(self.ausgabe["live"][name])
-            self.assertIn("EVERYTHING THE WALLET DID · BY EVENT", ohne)
+            self.assertIn("ALL EVENTS · RUNS AND WALLET", ohne)
             self.assertIn("public/data/wallet_ledger.json", ohne)
             self.assertIn("scripts/wallet_ledger.py", ohne)
-            self.assertNotIn("OF 3 EVENTS", ohne)
+            self.assertNotIn("WALLET EVENTS", ohne)
         leer = _sichtbarer_text(self.ausgabe["leer"]["runs_runs"])
         self.assertIn("public/data/wallet_ledger.json", leer)
-        self.assertNotIn("EVENTS 3", leer)
+        self.assertNotIn("EVENTS 4", leer)
         # api.js kennt die Datei fuer den statischen Rueckfall.
         api_js = (WURZEL / "web" / "js" / "api.js").read_text(encoding="utf-8")
         self.assertIn("'/api/research/wallet-ledger': 'wallet_ledger.json'", api_js)

@@ -1206,6 +1206,7 @@ function renderLiveRuns(T, payload) {
     // Ledger-Events — Laeufe ohne jeden Zeitstempel sortieren ans Ende.
     const fillZeiten = (r.wetten || []).map((b) => String(b.fill_ts_utc || '')).filter(Boolean).sort();
     return {
+      profil: String(r.profil || ''),
       profile: String(r.profil || '').toUpperCase(), mode: String(r.modus || '').toUpperCase() === 'LIVE' ? 'REAL ORDERS' : 'DRY RUN',
       status: bets.length === 0 ? 'NO FILLS' : resolvedAll ? 'RESOLVED' : 'OPEN',
       title: laufTitel(r, ledgerLauf), url: episodenUrl(r) || (ledgerLauf ? ledgerLauf.url : ''), chips, bets,
@@ -1248,18 +1249,46 @@ function renderLiveRuns(T, payload) {
       return { label: r.zeit.slice(5, 10), wert: Math.round(summe * 100) / 100 };
     });
   })();
-  const equityChart = equityPunkte.length > 1 ? stepKurve({
+  // Dieselbe Zahl wie die PnL-Kachel: kumulierte Wallet-PnL je Lauf, aus den
+  // Bot-Maerkten des Ledgers, nach erstem Fill geordnet. Die Log-Kurve endete
+  // bei +$289 neben einer Kachel mit +$418 und las sich als Fehler. Nur wenn
+  // jeder Lauf mit Fill im Ledger steht, sonst waere die Kurve eine Mischung
+  // zweier Methoden — dann Rueckfall auf die Log-Reihe, so beschriftet.
+  const walletPunkte = (() => {
+    if (!payload || !Array.isArray(payload.runs)) return [];
+    const mitZeit = [];
+    for (const r of payload.runs) {
+      if (!(r.wetten || []).length) continue;
+      const lauf = ledgerJeLauf[String(r.profil || '')];
+      if (!lauf || !lauf.n) return [];
+      const fillZeiten = (r.wetten || []).map((b) => b.fill_ts_utc).filter(Boolean).sort();
+      const zeit = fillZeiten[0] || r.drop_erkannt_utc || r.pubdate_utc || lauf.von;
+      if (!zeit) return [];
+      mitZeit.push({ zeit: String(zeit), pnl: lauf.pnl });
+    }
+    mitZeit.sort((a, b) => a.zeit.localeCompare(b.zeit));
+    let summe = 0;
+    return mitZeit.map((r) => {
+      summe += r.pnl;
+      return { label: r.zeit.slice(5, 10), wert: Math.round(summe * 100) / 100 };
+    });
+  })();
+  const equityChart = walletPunkte.length > 1 ? stepKurve({
+    titel: 'CUMULATIVE WALLET PNL BY RUN',
+    einheit: 'USD · wallet ledger, bot markets',
+    hinweis: 'last bot fill ' + walletPunkte[walletPunkte.length - 1].label
+      + (ledgerStand ? ' · ledger as of ' + ledgerStand : '')
+      + ' · log estimate ' + logPnlKurz + ' — LOG VS WALLET above',
+    punkte: walletPunkte
+  }) : equityPunkte.length > 1 ? stepKurve({
     titel: 'CUMULATIVE REALIZED PNL BY RUN',
     einheit: 'USD · log-reconstructed',
-    hinweis: frisch
-      ? 'wallet net ' + (frisch.netto >= 0 ? '+$' : '-$') + Math.abs(frisch.netto).toFixed(0)
-        + ' as of ' + frisch.stand + ' — why the figures differ: LOG VS WALLET above'
-      : agg && agg.wallet_netto_usd != null
-        ? 'wallet net ' + (+agg.wallet_netto_usd >= 0 ? '+$' : '-$')
-          + Math.abs(+agg.wallet_netto_usd).toFixed(0)
-          + (agg.wallet_abgleich_stand ? ' as of ' + agg.wallet_abgleich_stand : '')
-          + ' — why the figures differ: LOG VS WALLET above'
-        : '',
+    hinweis: agg && agg.wallet_netto_usd != null
+      ? 'wallet net ' + (+agg.wallet_netto_usd >= 0 ? '+$' : '-$')
+        + Math.abs(+agg.wallet_netto_usd).toFixed(0)
+        + (agg.wallet_abgleich_stand ? ' as of ' + agg.wallet_abgleich_stand : '')
+        + ' — why the figures differ: LOG VS WALLET above'
+      : '',
     punkte: equityPunkte
   }) : '';
 
@@ -1289,7 +1318,7 @@ function renderLiveRuns(T, payload) {
       + (alleKarten.length ? '' : leerZeile(laufSatz))
       + (cards.length
         ? '<div style="' + M + '; font-size:10px; letter-spacing:.12em; color:rgba(255,255,255,.5); margin-bottom:10px">RUNS WITH FILLS · ' + cards.length
-          + ' <span style="color:rgba(255,255,255,.35); letter-spacing:0">· newest first · the same bot events appear once more in the wallet ledger at the bottom, seen from the chain</span></div>'
+          + ' <span style="color:rgba(255,255,255,.35); letter-spacing:0">· newest first · the money view of every event sits in the one table at the bottom</span></div>'
         : '')
       + '<div style="display:flex; flex-direction:column; gap:12px">'
       + cards.map((r) => {
@@ -1324,9 +1353,12 @@ function renderLiveRuns(T, payload) {
           + '</div>';
       }).join('')
       + '</div>'
-      // Die Laeufe ohne Fill, einzeilig: Profil, Episode, die zwei Zahlen,
-      // die sie tragen. Nichts faellt weg — nur die 150 Leerpixel je Lauf.
-      + (ohneFills.length
+      // Die Laeufe ohne Fill stehen als Zeilen in der einen Event-Tabelle
+      // unten (walletLedgerHtml) — frueher waren sie eine eigene Box, und
+      // dieselben Events tauchten darunter im Ledger noch einmal auf. Nur
+      // wenn kein Ledger da ist, bleibt die Box als Rueckfall, damit kein
+      // Lauf verschwindet.
+      + (ohneFills.length && !ledger
         ? '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; overflow:hidden">'
           + '<div style="padding:10px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10px; letter-spacing:.12em; color:rgba(255,255,255,.5)">RUNS WITHOUT A FILL · ' + ohneFills.length
           + ' <span style="color:rgba(255,255,255,.35); letter-spacing:0">· the decision layer ran and placed nothing — one line per run, newest first</span></div>'
@@ -1339,9 +1371,10 @@ function renderLiveRuns(T, payload) {
             + '</div>').join('')
           + '</div>'
         : '')
-      // Alles, was die Wallet tat, je Event — auch das, was in keinem Lauf
-      // steht (diskretionaere Wortwetten, der Pilot). Aus wallet_ledger.json.
-      + walletLedgerHtml(T, payload)
+      // Die eine Tabelle fuer alles darunter: jedes Wallet-Event (Bot, von
+      // Hand, Pilot — Pilot gruppiert) plus die Laeufe ohne Fill und ohne
+      // Wallet-Spur. Aus wallet_ledger.json und runs.json.
+      + walletLedgerHtml(T, payload, ohneFills)
       + '</div>';
   } else if (s.liveTab === 'timing') {
     // Erst die Kurven, dann die Tabelle: Repricing je Wette als Treppe aus
@@ -1741,6 +1774,12 @@ function ledgerTypChip(typ) {
   return '<span style="' + M + '; font-size:9.5px; letter-spacing:.1em; border-radius:4px; padding:2px 7px; color:' + farbe + '; border:1px solid ' + farbe + '66; white-space:nowrap">' + esc(String(typ || '—').toUpperCase()) + '</span>';
 }
 
+// Chip for a run that placed nothing and left no wallet trace — muted, so
+// the money rows stand out against the process rows in the same table.
+function noFillChip() {
+  return '<span style="' + M + '; font-size:9.5px; letter-spacing:.1em; border-radius:4px; padding:2px 7px; color:rgba(255,255,255,.5); border:1px solid rgba(255,255,255,.22); white-space:nowrap">NO FILLS</span>';
+}
+
 function ledgerGeld(v, vorzeichen) {
   if (v == null || isNaN(+v)) return '—';
   const abs = num(Math.abs(+v).toFixed(2));
@@ -1792,11 +1831,14 @@ function ledgerMarktZeile(m) {
     + '</div>';
 }
 
-// The section: KPI row from aggregat, one row per event (all of them, no
-// cap), a legend for the three types. Without the file: the honest line
-// naming it; while it loads: says so.
-function walletLedgerHtml(T, payload) {
-  const KOPF = '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:#4F8EF7">EVERYTHING THE WALLET DID · BY EVENT</div>';
+// The section: KPI row from aggregat, then ONE table for everything below
+// the run cards — every wallet event (the pilot's many small events grouped
+// into one expandable row) plus the runs that placed nothing and left no
+// wallet trace. Runs whose event already sits in the table (bot ran, placed
+// nothing, a human traded the same event by hand) are noted on that event
+// instead of listed twice. Without the file: the honest line naming it.
+function walletLedgerHtml(T, payload, ohneFills) {
+  const KOPF = '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:#4F8EF7">ALL EVENTS · RUNS AND WALLET</div>';
   const karte = 'background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px';
   const ledger = walletLedgerVon(T, payload);
   if (!ledger || !ledger.aggregat || !Array.isArray(ledger.events)) {
@@ -1836,7 +1878,20 @@ function walletLedgerHtml(T, payload) {
     ).join('') + '</div>';
 
   const spalten = '92px 1fr 118px 64px 96px 96px 150px';
-  const zeilen = events.map((e) => {
+  // Laeufe ohne Fill: eine eigene Zeile nur, wenn kein Wallet-Event denselben
+  // run_profil traegt — sonst steht der Vermerk am Event, statt dass dasselbe
+  // Event zweimal in der Tabelle auftaucht.
+  const referenziert = new Set();
+  events.forEach((e) => {
+    if (e.run_profil) referenziert.add(String(e.run_profil));
+    (Array.isArray(e.maerkte) ? e.maerkte : []).forEach((m) => { if (m.run_profil) referenziert.add(String(m.run_profil)); });
+  });
+  const ohneFillJeProfil = {};
+  (ohneFills || []).forEach((r) => { if (r.profil) ohneFillJeProfil[r.profil] = r; });
+  const laeufe = (ohneFills || []).filter((r) => !r.profil || !referenziert.has(r.profil));
+  const entscheidungenVon = (r) => (r && r.chips ? r.chips.filter((c) => /decisions|priced/.test(c)).join(' · ') : '');
+
+  const eventZeile = (e) => {
     const datum = String(e.von_utc || '').slice(0, 10) || '—';
     const bis = String(e.bis_utc || '').slice(0, 10);
     const zeitraum = bis && bis !== datum ? datum + ' → ' + bis : datum;
@@ -1845,6 +1900,7 @@ function walletLedgerHtml(T, payload) {
     const mixRest = String(e.typ_mix || '').split(' + ').filter((t) => t && t !== typ).join(' + ');
     const notes = Array.isArray(e.notes) ? e.notes : [];
     const maerkte = Array.isArray(e.maerkte) ? e.maerkte : [];
+    const lauf = e.run_profil ? ohneFillJeProfil[String(e.run_profil)] : null;
     // data-key: app.js keeps open <details> across re-renders by this key.
     return '<details data-key="ledger:' + esc(String(e.event_slug || e.titel || '')) + '" style="border-bottom:1px solid rgba(255,255,255,.06)">'
       + '<summary style="display:grid; grid-template-columns:' + spalten + '; gap:10px; align-items:center; padding:10px 16px; cursor:pointer; list-style:none">'
@@ -1864,23 +1920,94 @@ function walletLedgerHtml(T, payload) {
       + '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.4); margin-bottom:4px">'
       + esc(zeitraum + ' · ' + ledgerZahlwort(e.n_trades, 'trade', 'trades') + ' · ' + ledgerZahlwort(e.n_einloesungen, 'redemption', 'redemptions') + ' · cash flow ' + ledgerGeld(e.netto_cash_usd, true) + (e.pnl_usd != null ? ' · API realised PnL ' + ledgerGeld(e.pnl_usd, true) : ''))
       + '</div>'
+      + (lauf
+        ? '<div style="' + M + '; font-size:10px; color:rgba(255,255,255,.45); margin-bottom:4px">'
+          + esc('The bot ran on this event and placed nothing (' + (entscheidungenVon(lauf) || 'no decisions logged') + ') — these trades were placed by hand.')
+          + '</div>'
+        : '')
       + maerkte.map(ledgerMarktZeile).join('')
       + (notes.length ? '<div style="font-size:11.5px; color:rgba(255,255,255,.55); margin-top:8px; line-height:1.5">' + notes.map((n) => ledgerNotizHtml(n)).join('<br>') + '</div>' : '')
       + '</div></details>';
-  }).join('');
+  };
 
+  // Der Pilot ist ein Block aus vielen Kleinst-Events desselben Tages: als
+  // 18 fast identische Zeilen verdraengte er die Laeufe. Eine Zeile mit den
+  // Summen, aufklappbar auf die einzelnen Events.
+  const pilotEvents = events.filter((e) => String(e.typ || '') === 'pilot');
+  const andere = events.filter((e) => String(e.typ || '') !== 'pilot');
+  const pilotGruppe = (() => {
+    if (!pilotEvents.length) return null;
+    const summe = (f) => (pilotEvents.every((e) => e[f] == null) ? null
+      : Math.round(pilotEvents.reduce((a, e) => a + (e[f] != null && !isNaN(+e[f]) ? +e[f] : 0), 0) * 100) / 100);
+    const maerkteN = pilotEvents.reduce((a, e) => a + (e.n_maerkte != null ? +e.n_maerkte : (e.maerkte || []).length), 0);
+    const st = { won: 0, lost: 0, worthless: 0, flat: 0, open: 0 };
+    pilotEvents.forEach((e) => { const sst = e.status || {}; Object.keys(st).forEach((k) => { st[k] += +sst[k] || 0; }); });
+    const statusText = [st.won ? st.won + ' won' : '', st.lost ? st.lost + ' lost' : '', st.worthless ? st.worthless + ' worthless' : '', st.flat ? st.flat + ' flat' : '', st.open ? st.open + ' open' : ''].filter(Boolean).join(' · ');
+    const zeit = pilotEvents.reduce((a, e) => (String(e.von_utc || '') > a ? String(e.von_utc || '') : a), '');
+    const pnl = summe('pnl_usd');
+    const html = '<details data-key="ledger:pilot-group" style="border-bottom:1px solid rgba(255,255,255,.06)">'
+      + '<summary style="display:grid; grid-template-columns:' + spalten + '; gap:10px; align-items:center; padding:10px 16px; cursor:pointer; list-style:none">'
+      + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55); white-space:nowrap">' + esc(zeit.slice(0, 10) || '—') + '</div>'
+      + '<div style="font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">Pre-registered pilot — ' + pilotEvents.length + ' small event' + (pilotEvents.length === 1 ? '' : 's') + ' <span style="' + M + '; font-size:10px; color:rgba(255,255,255,.4)">click for each one</span></div>'
+      + '<div style="display:flex; gap:4px; align-items:center">' + ledgerTypChip('pilot') + '</div>'
+      + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:rgba(255,255,255,.7)">' + num(maerkteN) + '</div>'
+      + '<div style="text-align:right; ' + M + '; font-size:11.5px">' + ledgerGeld(summe('einsatz_usd'), false) + '</div>'
+      + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:' + ledgerFarbe(pnl) + '" title="' + esc('sum of API realised PnL ' + ledgerGeld(pnl, true) + ' · sum of cash flow ' + ledgerGeld(summe('netto_cash_usd'), true)) + '">' + ledgerGeld(pnl, true) + '</div>'
+      + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(statusText) + '">' + esc(statusText || '—') + '</div>'
+      + '</summary>'
+      + '<div style="padding:4px 16px 12px 108px">'
+      + pilotEvents.map((e) =>
+        '<div style="display:grid; grid-template-columns:76px 1fr 96px 96px 130px; gap:8px; align-items:center; padding:7px 0; border-top:1px solid rgba(255,255,255,.05); ' + M + '; font-size:11px">'
+        + '<div style="color:rgba(255,255,255,.45); white-space:nowrap">' + esc(String(e.von_utc || '').slice(0, 10) || '—') + '</div>'
+        + '<div style="font-family:\'Inter\',sans-serif; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(e.titel || e.event_slug || '') + '">'
+        + (e.url ? '<a href="' + esc(e.url) + '" target="_blank" rel="noopener" style="color:#fff; text-decoration:none">' + esc(e.titel || e.event_slug || '—') + ' <span style="' + M + '; font-size:10px; color:#4F8EF7">↗</span></a>' : esc(e.titel || e.event_slug || '—'))
+        + '</div>'
+        + '<div style="text-align:right">' + ledgerGeld(e.einsatz_usd, false) + '</div>'
+        + '<div style="text-align:right; color:' + ledgerFarbe(e.pnl_usd != null ? e.pnl_usd : e.netto_cash_usd) + '">' + ledgerGeld(e.pnl_usd != null ? e.pnl_usd : e.netto_cash_usd, true) + '</div>'
+        + '<div style="color:rgba(255,255,255,.55); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(e.status_text || '—') + '</div>'
+        + '</div>').join('')
+      + '</div></details>';
+    return { zeit, html };
+  })();
+
+  // Eine Zeile je Lauf ohne Fill und ohne Wallet-Event: das Prozessprotokoll
+  // neben den Geldzeilen, damit alles unterhalb der Karten in einer Tabelle
+  // steht.
+  const laufZeile = (r) => '<div style="display:grid; grid-template-columns:' + spalten + '; gap:10px; align-items:center; padding:10px 16px; border-bottom:1px solid rgba(255,255,255,.06)">'
+    + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.45); white-space:nowrap">' + esc(String(r.zeit || '').slice(0, 10) || '—') + '</div>'
+    + '<div style="font-size:12.5px; color:rgba(255,255,255,.7); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(r.title) + '">'
+    + (r.url ? '<a href="' + esc(r.url) + '" target="_blank" rel="noopener" style="color:rgba(255,255,255,.7); text-decoration:none">' + esc(r.title) + ' <span style="' + M + '; font-size:10px; color:#4F8EF7">↗</span></a>' : esc(r.title))
+    + ' <span style="' + M + '; font-size:10px; color:rgba(255,255,255,.35)">' + esc(r.profil) + '</span></div>'
+    + '<div style="display:flex; gap:4px; align-items:center">' + noFillChip() + '</div>'
+    + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:rgba(255,255,255,.35)">—</div>'
+    + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:rgba(255,255,255,.35)">—</div>'
+    + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:rgba(255,255,255,.35)">—</div>'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(entscheidungenVon(r)) + '">' + esc((entscheidungenVon(r) ? entscheidungenVon(r) + ' · ' : '') + 'placed nothing') + '</div>'
+    + '</div>';
+
+  const eintraege = andere.map((e) => ({ zeit: String(e.von_utc || ''), html: eventZeile(e) }))
+    .concat(pilotGruppe ? [pilotGruppe] : [])
+    .concat(laeufe.map((r) => ({ zeit: String(r.zeit || ''), html: laufZeile(r) })));
+  eintraege.sort((a, b) => b.zeit.localeCompare(a.zeit));
+  const zeilen = eintraege.map((z) => z.html).join('');
+
+  const kopfzeile = events.length + ' WALLET EVENTS'
+    + (pilotEvents.length > 1 ? ' (' + pilotEvents.length + ' PILOT IN ONE ROW)' : '')
+    + (laeufe.length ? ' + ' + laeufe.length + ' RUN' + (laeufe.length === 1 ? '' : 'S') + ' WITHOUT A TRADE' : '')
+    + ' · NEWEST FIRST';
   const tabelle = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:12px; overflow:hidden">'
     + '<div style="padding:10px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10px; letter-spacing:.12em; color:rgba(255,255,255,.5)">'
-    + events.length + ' OF ' + events.length + ' EVENTS · NEWEST FIRST <span style="color:rgba(255,255,255,.35); letter-spacing:0">· click a row for its markets</span></div>'
+    + kopfzeile + ' <span style="color:rgba(255,255,255,.35); letter-spacing:0">· click a row for its markets</span></div>'
     + '<div style="display:grid; grid-template-columns:' + spalten + '; gap:10px; padding:8px 16px; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9px; letter-spacing:.12em; color:rgba(255,255,255,.45)">'
     + '<div>DATE</div><div>EVENT</div><div>TYPE</div><div style="text-align:right">MARKETS</div><div style="text-align:right">STAKE</div><div style="text-align:right">PNL</div><div>STATUS</div></div>'
-    + (events.length ? zeilen : leerZeile('The ledger holds no events — wallet_ledger.json lists none for this wallet.'))
+    + (eintraege.length ? zeilen : leerZeile('The ledger holds no events — wallet_ledger.json lists none for this wallet.'))
     + '</div>';
 
   const legende = '<div style="font-size:11.5px; color:rgba(255,255,255,.5); margin-top:10px; line-height:1.6">'
     + ledgerTypChip('bot') + ' market and side appear in a runs.json run log — these runs are also listed above with their latency data · '
     + ledgerTypChip('discretionary') + ' placed by hand, in no run log · '
-    + ledgerTypChip('pilot') + ' one of the pre-registered pilot trades of 2026-07-22 (rules frozen 2026-07-18). '
+    + ledgerTypChip('pilot') + ' one of the pre-registered pilot trades of 2026-07-22 (rules frozen 2026-07-18)'
+    + (laeufe.length ? ' · ' + noFillChip() + ' the bot ran and placed nothing — no wallet trace; listed so every run sits in this one table' : '') + '. '
     + 'PnL is the API\'s realised figure per market (unrealised for positions not yet redeemed); the cash flow of an event can differ. Deposits are not in the Data API.'
     + '</div>';
 
