@@ -74,6 +74,60 @@ class ClassifyTests(unittest.TestCase):
         self.assertEqual(ce.classify_category("Will Scotland win the 2026 FIFA World Cup?", []), "Sports")
         self.assertEqual(ce.classify_category("Will it be a leap year?", ["Recurring", "Featured"]), "Other")
 
+    def test_elections_split_from_politics(self) -> None:
+        # Direct tag, and Gamma's many spellings via word match on the label.
+        self.assertEqual(ce.classify_category("Will Mamdani win?", ["nyc mayor", "world elections", "politics"]), "Elections")
+        self.assertEqual(ce.classify_category("AfD above 10%?", ["Politics", "deprec German Election", "World"]), "Elections")
+        # Elections beats Geopolitics: an election in a conflict country is still an election.
+        self.assertEqual(ce.classify_category("Who wins?", ["Ukraine", "Elections"]), "Elections")
+
+    def test_geopolitics_split_from_politics(self) -> None:
+        self.assertEqual(ce.classify_category("US x Iran deal?", ["Geopolitics", "Iran", "Trump"]), "Geopolitics")
+        self.assertEqual(ce.classify_category("Ceasefire holds?", ["Middle East", "Politics"]), "Geopolitics")
+        # Generic "world" without anything more specific is geopolitics now.
+        self.assertEqual(ce.classify_category("First leader out in 2026?", ["World"]), "Geopolitics")
+        # Domestic politics stays politics.
+        self.assertEqual(ce.classify_category("Shutdown by Friday?", ["Politics", "Government Shutdown"]), "Politics")
+
+    def test_tweet_count_markets_by_tag_and_title(self) -> None:
+        self.assertEqual(ce.classify_category("Elon posts 100-119 times?", ["Tweet Markets", "Elon Musk"]), "Tweets/Social")
+        self.assertEqual(ce.classify_category("Will Elon Musk tweet 500+ times this week?", ["Elon Musk"]), "Tweets/Social")
+
+
+class EinpreisungstypTests(unittest.TestCase):
+    def test_schwelle_zaehler_und_defaults(self) -> None:
+        self.assertEqual(ce.einpreisungstyp("Will Bitcoin hit $100k in 2026?", "Crypto"), "schwelle")
+        self.assertEqual(ce.einpreisungstyp("S&P 500 up or down on Friday?", "Business/Finance"), "schwelle")
+        self.assertEqual(ce.einpreisungstyp("Will the SEC approve a Solana ETF?", "Crypto"), "nachrichten")
+        self.assertEqual(ce.einpreisungstyp('Will Trump say "tariff"?', "Mentions"), "zaehler")
+        self.assertEqual(ce.einpreisungstyp("Elon posts 260-279 tweets?", "Tweets/Social"), "zaehler")
+        self.assertEqual(ce.einpreisungstyp("How many times will Musk mention Mars?", "Science/Tech"), "zaehler")
+        self.assertEqual(ce.einpreisungstyp("Highest temperature in NYC above 90F?", "Weather"), "schwelle")
+        self.assertEqual(ce.einpreisungstyp("Anything", "Other"), "unklar")
+
+    def test_sports_fixture_vs_future(self) -> None:
+        # A "vs" title or a short life = one game, in play; long-lived futures are a series.
+        self.assertEqual(ce.einpreisungstyp("Spain vs. Belgium: extra time?", "Sports", 20.0), "spielverlauf")
+        self.assertEqual(ce.einpreisungstyp("Will Egypt win on 2026-06-15?", "Sports", 40.0), "spielverlauf")
+        self.assertEqual(ce.einpreisungstyp("Game prop created days out", "Sports", 2.0), "spielverlauf")
+        self.assertEqual(ce.einpreisungstyp("Will the Lakers win the 2026 NBA Finals?", "Sports", 200.0), "serie")
+        # An in-game total is in play, not a price threshold.
+        self.assertEqual(ce.einpreisungstyp("Lakers score above 110 points?", "Sports", 3.0), "spielverlauf")
+
+    def test_stichtag_reveals(self) -> None:
+        self.assertEqual(ce.einpreisungstyp("Will Connolly win the Irish Presidential Election?", "Elections"), "stichtag")
+        self.assertEqual(ce.einpreisungstyp("Will Colin Farrell win Best Actor at the 98th Academy Awards?", "Pop culture"), "stichtag")
+        self.assertEqual(ce.einpreisungstyp("Fed rate cut in September?", "Business/Finance"), "stichtag")
+        self.assertEqual(ce.einpreisungstyp("Will TikTok's sale be announced by June?", "Pop culture"), "nachrichten")
+
+    def test_messlogik_covers_every_category(self) -> None:
+        # The published messlogik must speak for every bucket the table can show.
+        for name in ce.CATEGORIES:
+            self.assertIn(name, ce.MESSLOGIK)
+        for name, block in ce.MESSLOGIK.items():
+            for key in ("anker", "einpreisung", "nicht_gemessen", "latenz_t0"):
+                self.assertTrue(str(block.get(key) or "").strip(), f"{name}.{key} empty")
+
 
 class EventRowsTests(unittest.TestCase):
     def test_decision_time_is_the_earlier_stamp(self) -> None:
@@ -188,7 +242,71 @@ class TableTests(unittest.TestCase):
         rows = ce.category_table([{"category": "Sports", "won": True, "volume": 1, "prices": {1: 0.9}}], horizons=(7, 1))
         self.assertIsNone(rows[0]["brier_t7"])
         self.assertEqual(rows[0]["n_t7"], 0)
-        self.assertEqual(rows[0]["horizonte"][0], {"horizont_tage": 7, "brier": None, "trefferquote": None, "n": 0, "anteil_entschieden": None})
+        self.assertEqual(rows[0]["horizonte"][0], {
+            "horizont_tage": 7, "brier": None, "trefferquote": None, "n": 0, "anteil_entschieden": None,
+            "brier_offen": None, "trefferquote_offen": None, "n_offen": 0,
+        })
+
+    def test_open_subset_excludes_settled_prices(self) -> None:
+        # Two effectively settled prices score near-perfect and drag the
+        # headline Brier down; brier_offen must ignore them.
+        obs = [
+            {"category": "S", "won": True, "volume": 1, "prices": {7: 0.99}},
+            {"category": "S", "won": False, "volume": 1, "prices": {7: 0.01}},
+            {"category": "S", "won": True, "volume": 1, "prices": {7: 0.6}},
+            {"category": "S", "won": False, "volume": 1, "prices": {7: 0.4}},
+        ]
+        row = ce.category_table(obs, horizons=(7,))[0]
+        h7 = row["horizonte"][0]
+        self.assertEqual(h7["n"], 4)
+        self.assertEqual(h7["n_offen"], 2)
+        self.assertAlmostEqual(h7["brier_offen"], (0.4 ** 2 + 0.4 ** 2) / 2, places=4)
+        self.assertEqual(h7["anteil_entschieden"], 0.5)
+        self.assertEqual(row["brier_t7_offen"], h7["brier_offen"])
+        self.assertEqual(row["n_t7_offen"], 2)
+
+    def test_typen_breakdown_and_vorzeitig_share(self) -> None:
+        obs = [
+            {"category": "S", "won": True, "volume": 1, "prices": {1: 0.9}, "einpreisungstyp": "spielverlauf", "vorzeitig": False},
+            {"category": "S", "won": False, "volume": 1, "prices": {1: 0.2}, "einpreisungstyp": "spielverlauf", "vorzeitig": True},
+            {"category": "S", "won": True, "volume": 1, "prices": {1: 0.8}, "einpreisungstyp": "serie", "vorzeitig": None},
+        ]
+        row = ce.category_table(obs, horizons=(1,))[0]
+        typen = {t["typ"]: t for t in row["typen"]}
+        self.assertEqual(set(typen), {"spielverlauf", "serie"})
+        self.assertEqual(typen["spielverlauf"]["n"], 2)
+        self.assertAlmostEqual(typen["spielverlauf"]["brier_t1"], (0.01 + 0.04) / 2, places=4)
+        self.assertEqual(typen["serie"]["n_t1"], 1)
+        # Share of early closes counts only rows where the stamp pair existed.
+        self.assertEqual(row["anteil_vorzeitig"], 0.5)
+        # Observations scored before the typology existed: no typen, no guess.
+        ohne = ce.category_table([{"category": "S", "won": True, "volume": 1, "prices": {1: 0.9}}], horizons=(1,))[0]
+        self.assertEqual(ohne["typen"], [])
+        self.assertIsNone(ohne["anteil_vorzeitig"])
+
+    def test_rescore_joins_tags_and_retypes(self) -> None:
+        candidates = [
+            {"market_key": "m1", "question": "Will Mamdani win?", "tags": ["world elections", "politics"]},
+            {"market_key": "m2", "question": "Spain vs. Belgium: extra time?", "tags": ["Sports", "Soccer"]},
+        ]
+        observations = [
+            {"market_key": "m1", "question": "Will Mamdani win?", "category": "Politics", "won": True,
+             "volume": 10.0, "lifetime_days": 90.0, "prices": {"7": 0.7, "1": 0.9}},
+            {"market_key": "m2", "question": "Spain vs. Belgium: extra time?", "category": "Sports", "won": False,
+             "volume": 5.0, "lifetime_days": 3.0, "prices": {"1": 0.2}},
+            {"market_key": "m3", "question": "Orphan without candidate", "category": "Crypto", "won": True,
+             "volume": 1.0, "lifetime_days": 10.0, "prices": {"1": 0.6}},
+        ]
+        neu = ce.rescore_observations(candidates, observations)
+        by = {o["market_key"]: o for o in neu}
+        self.assertEqual(by["m1"]["category"], "Elections")
+        self.assertEqual(by["m1"]["einpreisungstyp"], "stichtag")
+        self.assertEqual(by["m2"]["einpreisungstyp"], "spielverlauf")
+        # Prices and outcomes stay exactly as cached.
+        self.assertEqual(by["m1"]["prices"], {"7": 0.7, "1": 0.9})
+        # No candidate: category kept, typed from title alone.
+        self.assertEqual(by["m3"]["category"], "Crypto")
+        self.assertEqual(by["m3"]["einpreisungstyp"], "nachrichten")
 
     def test_thin_categories_fold_into_other(self) -> None:
         rows = ce.category_table(self._obs(), horizons=(7, 1), min_markets=2)

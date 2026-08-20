@@ -4,6 +4,7 @@
     python scripts/category_efficiency.py
     python scripts/category_efficiency.py --max-per-category 250 --horizons 30,14,7,3,1
     python scripts/category_efficiency.py --offline        # recompute from the cache only
+    python scripts/category_efficiency.py --rescore        # re-classify the cached sample, no network
 
 Pages the highest-volume closed Gamma events (with their tags), keeps the
 resolved binary markets, reads each market's YES price at fixed horizons
@@ -264,6 +265,9 @@ def price_candidates(candidates: list[dict[str, Any]], horizons: list[int], fetc
             "question": row["question"],
             "event_slug": row["event_slug"],
             "category": row["category"],
+            "einpreisungstyp": row.get("einpreisungstyp"),
+            "vorzeitig": row.get("vorzeitig"),
+            "tags": list(row.get("tags") or []),
             "won": bool(row["won"]),
             "volume": float(row["volume"]),
             "decision_time": pd.Timestamp(row["decision_time"]).isoformat(),
@@ -288,17 +292,31 @@ def price_candidates(candidates: list[dict[str, Any]], horizons: list[int], fetc
     return observations
 
 
-def build_hinweis(args: argparse.Namespace, summary: dict[str, Any], fetch_stats: dict[str, int], end_date_min: str, horizons: list[int]) -> str:
+def build_hinweis(args: argparse.Namespace, summary: dict[str, Any], fetch_stats: dict[str, int], end_date_min: str, horizons: list[int], rescore: bool = False) -> str:
+    # A rescore keeps the cached sweep, whose ordering is recorded in
+    # quelle.datenfenster — the note must not claim the monthly windows then.
+    sweep_wortlaut = "highest-volume closed events" if rescore else "highest-volume closed events per month"
     text = (
         "Brier score, hit rate and calibration of the Polymarket YES price at fixed horizons before "
-        "each market's decision time, per category. Sample: resolved binary markets from the "
-        f"highest-volume closed events per month with an end date from {end_date_min[:10]}, at most {args.max_per_event} "
+        f"each market's decision time, per category. Sample: resolved binary markets from the "
+        f"{sweep_wortlaut} with an end date from {end_date_min[:10]}, at most {args.max_per_event} "
         f"markets per event and {args.max_per_category} long-lived markets per category "
         f"({summary['n_maerkte']} markets, {summary['n_kategorien']} categories). A market counts at a horizon "
         "only if it had a price then, so n differs by horizon; every figure carries its n. Prices are hourly "
-        "for T-14 and nearer and daily for T-30. Sample selection and its caveats are in `quelle`; the thesis "
+        "for T-14 and nearer and daily for T-30. Each horizon also carries brier_offen over genuinely open "
+        "prices (0.05 < p < 0.95) — the comparable figure across categories — and each category a `typen` "
+        "split by pricing mechanism (threshold, tally, in-play game, series, scheduled reveal, news). "
+        "These horizons measure forecast quality, never pricing-in speed: in-play moves and news reactions "
+        "happen between T-1 and the decision and are invisible here — per-category detail in `quelle.messlogik`. "
+        "Sample selection and its caveats are in `quelle`; the thesis "
         "figures this replaces are kept under `thesis_snapshot`; the pricing-speed examples (`beispiele`) are unchanged."
     )
+    if rescore:
+        text += (
+            " This file was re-scored from the cached sample: categories and mechanism types were re-derived "
+            "from the cached tags and titles; prices, outcomes and the sample itself are unchanged from the "
+            "cached sweep (whose caps applied under the previous, coarser taxonomy)."
+        )
     horizon_line = ", ".join(f"T-{h}: {summary['n_je_horizont'].get(f'T-{h}', 0)}" for h in horizons)
     text += f" Observations per horizon — {horizon_line}."
     if fetch_stats.get("unavailable"):
@@ -334,6 +352,9 @@ def main() -> int:
     parser.add_argument("--cache-dir", default=str(DEFAULT_CACHE))
     parser.add_argument("--out", default=str(DEFAULT_OUT))
     parser.add_argument("--offline", action="store_true", help="Cache only, no network")
+    parser.add_argument("--rescore", action="store_true",
+                        help="Re-classify the cached candidates/observations under the current taxonomy and "
+                             "typology and re-score; no network, sample and prices unchanged")
     args = parser.parse_args()
 
     horizons = sorted({int(h.strip()) for h in str(args.horizons).split(",") if h.strip()}, reverse=True)
@@ -346,25 +367,46 @@ def main() -> int:
     out = Path(args.out)
     previous = load_json(out) if out.exists() else None
 
-    log(f"category efficiency — horizons {horizons}, cap {args.max_per_category}/category, "
-        f"{args.max_per_event}/event, min volume ${args.min_volume:,.0f}, events since {end_date_min[:10]}"
-        f"{' (offline)' if args.offline else ''}")
-    # Placeholder end dates ("by end of 2026") sit far past today even for
-    # markets that resolved months ago, so the windows run a year ahead.
-    start = datetime.strptime(end_date_min, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-    windows = month_windows(start, now + timedelta(days=400))
-    log(f"sweeping closed events in {len(windows)} monthly end-date windows")
-    candidates, sweep_meta = collect_candidates(args, cache_dir, windows)
-    if not candidates:
-        log("no candidates — nothing written")
-        return 1
-    dump_json(cache_dir / "candidates.json", candidates)
+    if args.rescore:
+        # No sweep, no fetch: the cached sample is re-read, categories and
+        # mechanism types re-derived from the cached tags/titles, prices kept.
+        cands = load_json(cache_dir / "candidates.json")
+        obs_raw = load_json(cache_dir / "observations.json")
+        if not isinstance(cands, list) or not isinstance(obs_raw, list) or not cands or not obs_raw:
+            log("rescore: no cached candidates.json/observations.json — run once without --rescore first")
+            return 1
+        observations = ce.rescore_observations(cands, obs_raw)
+        fetch_stats = {"cached": len(observations), "fetched": 0, "empty": 0, "unavailable": 0}
+        vorher = previous.get("quelle") if isinstance(previous, dict) else None
+        sweep_meta = dict((vorher or {}).get("datenfenster") or {}) if isinstance(vorher, dict) else {}
+        if sweep_meta.get("end_date_min"):
+            end_date_min = str(sweep_meta["end_date_min"])
+        sweep_meta["modus"] = (
+            "rescore: Kategorien und Einpreisungstypen neu aus dem Cache bewertet; Stichprobe, Preise und "
+            "Outcomes unveraendert (die Kategorie-Caps des Sweeps galten unter der frueheren, groeberen Taxonomie)"
+        )
+        log(f"category efficiency — rescore of {len(observations)} cached observations, no network")
+    else:
+        log(f"category efficiency — horizons {horizons}, cap {args.max_per_category}/category, "
+            f"{args.max_per_event}/event, min volume ${args.min_volume:,.0f}, events since {end_date_min[:10]}"
+            f"{' (offline)' if args.offline else ''}")
+        # Placeholder end dates ("by end of 2026") sit far past today even for
+        # markets that resolved months ago, so the windows run a year ahead.
+        start = datetime.strptime(end_date_min, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        windows = month_windows(start, now + timedelta(days=400))
+        log(f"sweeping closed events in {len(windows)} monthly end-date windows")
+        candidates, sweep_meta = collect_candidates(args, cache_dir, windows)
+        if not candidates:
+            log("no candidates — nothing written")
+            return 1
+        dump_json(cache_dir / "candidates.json", candidates)
 
-    log(f"reading price series for {len(candidates)} markets ({args.workers} workers)")
-    fetcher = HistoryFetcher(cache_dir, need_daily=max(horizons) > HOURLY_WINDOW_DAYS - 1, offline=args.offline, pause=args.pause)
-    observations = price_candidates(candidates, horizons, fetcher, args.workers)
-    dump_json(cache_dir / "observations.json", observations)
-    log(f"price series: {fetcher.stats}")
+        log(f"reading price series for {len(candidates)} markets ({args.workers} workers)")
+        fetcher = HistoryFetcher(cache_dir, need_daily=max(horizons) > HOURLY_WINDOW_DAYS - 1, offline=args.offline, pause=args.pause)
+        observations = price_candidates(candidates, horizons, fetcher, args.workers)
+        dump_json(cache_dir / "observations.json", observations)
+        fetch_stats = fetcher.stats
+        log(f"price series: {fetch_stats}")
 
     kategorien = ce.category_table(observations, horizons, min_markets=args.min_markets)
     summary = ce.sample_summary(kategorien)
@@ -377,12 +419,26 @@ def main() -> int:
         "methode": (
             "YES price at T-N days before the decision time (min of closedTime and endDate) versus the "
             "settled outcome from outcomePrices; Brier = mean (p - y)^2, hit = (p >= 0.5) == y, both per "
-            "category and horizon with n; calibration bins of the T-7 price against the realised share won."
+            "category and horizon with n; calibration bins of the T-7 price against the realised share won. "
+            "brier_offen/trefferquote_offen restrict each horizon to genuinely open prices (0.05 < p < 0.95): "
+            "the cross-category comparison belongs there, because a bucket full of near-settled prices scores "
+            "an excellent Brier without anyone having forecast anything."
+        ),
+        "typologie": (
+            "einpreisungstyp per market, heuristic from title/tags/lifetime: schwelle (price tracks an "
+            "observable underlying against a level — an option delta, not judgement), zaehler (public running "
+            "tally, converges mechanically), spielverlauf (single fixture, outcome forms live in play), serie "
+            "(season/tournament future, repriced stepwise after each scheduled sub-event), stichtag (answer "
+            "appears at a known moment: election night, data print, award), nachrichten (undated events decide). "
+            "The per-category `typen` split shows which mix produced each category's figures."
         ),
         "kategorisierung": (
-            "Gamma event tags in a fixed priority (Sports, Crypto, Mentions, Politics, Pop culture, "
-            "Business/Finance, Science/Tech, Weather), mentions by title pattern first, then the live "
-            "title/tag classifier market_filter_category, else Other."
+            "Gamma event tags in a fixed priority (Sports, Crypto, Mentions, Tweets/Social, Elections, "
+            "Geopolitics, Politics, Pop culture, Business/Finance, Science/Tech, Weather), mentions and "
+            "tweet-count markets by title pattern first, election tags by word match on the label, then the "
+            "live title/tag classifier market_filter_category, else Other. Elections, Geopolitics and "
+            "Tweets/Social were split out 2026-08: each prices by a different mechanism (scheduled count "
+            "night, unscheduled news, public tally) and the sample carried enough of each."
         ),
         "datenfenster": {
             "abgerufen_utc": now.isoformat(timespec="seconds"),
@@ -401,15 +457,26 @@ def main() -> int:
         "preise": {
             "hourly": f"CLOB /prices-history, {HOURLY_WINDOW_DAYS}-day window ending at the decision time, fidelity 60 min",
             "daily": "CLOB /prices-history interval=max, fidelity 1440 min (whole life), fallback and T-30",
-            "abrufe": fetcher.stats,
+            "abrufe": fetch_stats,
         },
         "raten": "Gamma /events 500 per 10 s, CLOB /prices-history 1,000 per 10 s (IP-based, throttled); this run stays far below both",
         "stichprobe": summary,
+        "messlogik": ce.MESSLOGIK,
         "einschraenkungen": [
             "Highest-volume events of each month first, so the sample over-represents liquid markets; per-event cap of "
             f"{args.max_per_event} favours each event's most-traded lines.",
             "n differs by horizon: a market only counts where it had a price, and short-lived markets never reach T-7.",
             "Decision time is min(closedTime, endDate); a market that kept trading past its nominal end date is read at that end date.",
+            "Markets that resolved early anchor at closedTime, which lags the real deciding event by hours to days — "
+            "short horizons there can read prices that already knew the answer. anteil_entschieden and anteil_vorzeitig "
+            "make the share visible; they do not repair it.",
+            "The fixed horizons measure forecast quality, never pricing-in speed: in-play moves (a goal, a data print, "
+            "an announcement) happen between T-1 and the decision and are invisible here. quelle.messlogik states per "
+            "category what a proper event-anchored latency study would need.",
+            "The headline Brier mixes open and effectively settled markets; brier_offen is the comparable figure.",
+            "einpreisungstyp is a title/tag heuristic, not a human label; the `typen` split is context, not a finding.",
+            "Weather is empty because the volume-first sweep never reaches the small daily markets — a sampling gap, "
+            "not a statement about the category.",
             "Category is the event's tag, not a human label; ambiguous events follow the fixed tag priority.",
             "Descriptive of the past sample; not a forecast of any category's future pricing.",
         ],
@@ -419,7 +486,7 @@ def main() -> int:
         stand_utc=now.isoformat(timespec="seconds"),
         horizons=horizons,
         quelle=quelle,
-        hinweis=build_hinweis(args, summary, fetcher.stats, end_date_min, horizons),
+        hinweis=build_hinweis(args, summary, fetch_stats, end_date_min, horizons, rescore=args.rescore),
     )
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(payload, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")

@@ -464,8 +464,11 @@ class WebLeerzustandTest(unittest.TestCase):
         text = _sichtbarer_text(neu)
         self.assertIn("MARKETS IN SAMPLE 540", text)
         self.assertIn("410 priced at T-7", text)
-        self.assertIn("BEST AT T-7 Politics Brier 0.100 · n 200", text)
-        self.assertIn("WORST AT T-7 Sports Brier 0.200 · n 210", text)
+        # Traegt die Datei brier_offen, rangieren Best/Worst auf dem Brier
+        # der offenen Fragen — der Gesamt-Brier kuert sonst die Kategorie
+        # mit den meisten schon entschiedenen Preisen.
+        self.assertIn("BEST AT T-7 Politics open Brier 0.150 · n 90", text)
+        self.assertIn("WORST AT T-7 Sports open Brier 0.220 · n 180", text)
         self.assertIn("BRIER AT T-7 BY CATEGORY", text)
         self.assertIn("BRIER AT T-1 BY CATEGORY", text)
         self.assertIn("Politics · n 200", text)               # n am Balken
@@ -475,10 +478,22 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("predicted 3% · realised 5% · n 120", text)
         self.assertIn("T-30 BRIER · HIT · N", text)
         self.assertIn("0.200 80% · n 150", text)
+        # Spalte mit dem offenen T-7-Brier, je Zelle mit n.
+        self.assertIn("T-7 OPEN BRIER · N", text)
+        self.assertIn("0.220 n 180", text)
+        # Einpreisungs-Logik je Kategorie: Anker, Treiber, blinder Fleck,
+        # t0-Quelle — plus Mechanik-Mix und die messlogik-only-Kategorie
+        # (Weather erklaert ihre eigene Stichprobenluecke).
+        self.assertIn("PRICING-IN LOGIC BY CATEGORY", text)
+        self.assertIn("Harness anchor text.", text)
+        self.assertIn("Harness blind spot.", text)
+        self.assertIn("Harness weather gap.", text)
+        self.assertIn("nachrichten n 200 (Brier T-1 0.060)", text)
         self.assertIn("THESIS FIGURES THIS TABLE REPLACES", text)
         self.assertIn("Politik: Brier T-7 0.352 (n 12)", text)
         self.assertIn("<details", neu)
         self.assertLess(neu.index("BY CATEGORY AND HORIZON"), neu.index("Harness method text."))
+        self.assertLess(neu.index("PRICING-IN LOGIC BY CATEGORY"), neu.index("Harness method text."))
         # Alte Form (nur brier_t7/brier_t1): rendert weiter, ohne Kurve, ohne
         # erfundene Horizonte, ohne Kalibrierung, und n_t1 steht als unbekannt.
         alt = self.ausgabe["live"]["research_category_efficiency_alt"]

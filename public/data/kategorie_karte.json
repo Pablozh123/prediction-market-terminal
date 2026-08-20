@@ -1,6 +1,6 @@
 {
- "hinweis": "Brier score, hit rate and calibration of the Polymarket YES price at fixed horizons before each market's decision time, per category. Sample: resolved binary markets from the highest-volume closed events with an end date from 2025-08-17, at most 6 markets per event and 250 long-lived markets per category (1679 markets, 7 categories). A market counts at a horizon only if it had a price then, so n differs by horizon; every figure carries its n. Prices are hourly for T-14 and nearer and daily for T-30. Sample selection and its caveats are in `quelle`; the thesis figures this replaces are kept under `thesis_snapshot`; the pricing-speed examples (`beispiele`) are unchanged. Observations per horizon — T-30: 860, T-14: 1154, T-7: 1263, T-3: 1567, T-1: 1679.",
- "stand_utc": "2026-08-17T00:55:59+00:00",
+ "hinweis": "Brier score, hit rate and calibration of the Polymarket YES price at fixed horizons before each market's decision time, per category. Sample: resolved binary markets from the highest-volume closed events with an end date from 2025-08-17, at most 6 markets per event and 250 long-lived markets per category (1679 markets, 10 categories). A market counts at a horizon only if it had a price then, so n differs by horizon; every figure carries its n. Prices are hourly for T-14 and nearer and daily for T-30. Each horizon also carries brier_offen over genuinely open prices (0.05 < p < 0.95) — the comparable figure across categories — and each category a `typen` split by pricing mechanism (threshold, tally, in-play game, series, scheduled reveal, news). These horizons measure forecast quality, never pricing-in speed: in-play moves and news reactions happen between T-1 and the decision and are invisible here — per-category detail in `quelle.messlogik`. Sample selection and its caveats are in `quelle`; the thesis figures this replaces are kept under `thesis_snapshot`; the pricing-speed examples (`beispiele`) are unchanged. This file was re-scored from the cached sample: categories and mechanism types were re-derived from the cached tags and titles; prices, outcomes and the sample itself are unchanged from the cached sweep (whose caps applied under the previous, coarser taxonomy). Observations per horizon — T-30: 860, T-14: 1154, T-7: 1263, T-3: 1567, T-1: 1679.",
+ "stand_utc": "2026-08-20T20:59:36+00:00",
  "provenienz": "terminal/category_efficiency",
  "horizonte_tage": [
   30,
@@ -10,8 +10,9 @@
   1
  ],
  "quelle": {
-  "methode": "YES price at T-N days before the decision time (min of closedTime and endDate) versus the settled outcome from outcomePrices; Brier = mean (p - y)^2, hit = (p >= 0.5) == y, both per category and horizon with n; calibration bins of the T-7 price against the realised share won.",
-  "kategorisierung": "Gamma event tags in a fixed priority (Sports, Crypto, Mentions, Politics, Pop culture, Business/Finance, Science/Tech, Weather), mentions by title pattern first, then the live title/tag classifier market_filter_category, else Other.",
+  "methode": "YES price at T-N days before the decision time (min of closedTime and endDate) versus the settled outcome from outcomePrices; Brier = mean (p - y)^2, hit = (p >= 0.5) == y, both per category and horizon with n; calibration bins of the T-7 price against the realised share won. brier_offen/trefferquote_offen restrict each horizon to genuinely open prices (0.05 < p < 0.95): the cross-category comparison belongs there, because a bucket full of near-settled prices scores an excellent Brier without anyone having forecast anything.",
+  "typologie": "einpreisungstyp per market, heuristic from title/tags/lifetime: schwelle (price tracks an observable underlying against a level — an option delta, not judgement), zaehler (public running tally, converges mechanically), spielverlauf (single fixture, outcome forms live in play), serie (season/tournament future, repriced stepwise after each scheduled sub-event), stichtag (answer appears at a known moment: election night, data print, award), nachrichten (undated events decide). The per-category `typen` split shows which mix produced each category's figures.",
+  "kategorisierung": "Gamma event tags in a fixed priority (Sports, Crypto, Mentions, Tweets/Social, Elections, Geopolitics, Politics, Pop culture, Business/Finance, Science/Tech, Weather), mentions and tweet-count markets by title pattern first, election tags by word match on the label, then the live title/tag classifier market_filter_category, else Other. Elections, Geopolitics and Tweets/Social were split out 2026-08: each prices by a different mechanism (scheduled count night, unscheduled news, public tally) and the sample carried enough of each.",
   "datenfenster": {
    "abgerufen_utc": "2026-08-17T00:55:59+00:00",
    "end_date_min": "2025-08-17T00:00:00Z",
@@ -34,7 +35,8 @@
     "Science/Tech|short": 15,
     "Sports": 250,
     "Sports|short": 125
-   }
+   },
+   "modus": "rescore: Kategorien und Einpreisungstypen neu aus dem Cache bewertet; Stichprobe, Preise und Outcomes unveraendert (die Kategorie-Caps des Sweeps galten unter der frueheren, groeberen Taxonomie)"
   },
   "auswahl": {
    "max_per_event": 6,
@@ -48,8 +50,8 @@
    "hourly": "CLOB /prices-history, 15-day window ending at the decision time, fidelity 60 min",
    "daily": "CLOB /prices-history interval=max, fidelity 1440 min (whole life), fallback and T-30",
    "abrufe": {
-    "cached": 0,
-    "fetched": 1682,
+    "cached": 1682,
+    "fetched": 0,
     "empty": 0,
     "unavailable": 0
    }
@@ -57,7 +59,7 @@
   "raten": "Gamma /events 500 per 10 s, CLOB /prices-history 1,000 per 10 s (IP-based, throttled); this run stays far below both",
   "stichprobe": {
    "n_maerkte": 1679,
-   "n_kategorien": 7,
+   "n_kategorien": 10,
    "n_je_horizont": {
     "T-30": 860,
     "T-14": 1154,
@@ -66,10 +68,89 @@
     "T-1": 1679
    }
   },
+  "messlogik": {
+   "Politics": {
+    "anker": "T-N zaehlt rueckwaerts vom Entscheid (min aus endDate und closedTime). Politikmaerkte loesen oft vorzeitig auf (Unterschrift, Rueckzug, Deal); dann ankert T-N an der Marktschliessung, die dem wahren Ereignis um Stunden bis Tage nachlaeuft — T-1 kann dann NACH dem Ereignis liegen und liest ein Preisniveau, das die Antwort schon kennt.",
+    "einpreisung": "Getrieben von unterminierten Nachrichten: Ankuendigungen, Personalien, Abstimmungen. Ein t0 je Ereignis ist nur ueber externe Quellen definierbar (Wire-Zeitstempel, offizielles Dokument, C-SPAN), nie aus den Marktdaten selbst.",
+    "nicht_gemessen": "Reaktionslatenz auf einzelne Nachrichten. Die Horizonte messen Prognoseguete zu festen Abstaenden, keine Geschwindigkeit.",
+    "latenz_t0": "AP/Reuters-Wire-Zeitstempel oder amtliche Veroeffentlichung (Congress.gov, Federal Register) gegen die CLOB-Minutenserie."
+   },
+   "Elections": {
+    "anker": "endDate ist der Wahltermin — der sauberste Anker aller Kategorien. T-N ist hier echte Vorhersageguete vor einem bekannten Stichtag.",
+    "einpreisung": "Stichtagsereignis: die Auszaehlung am Wahlabend entscheidet; davor treiben Umfragen den Preis kontinuierlich. t0 fuer eine Latenzmessung: der AP-Race-Call bzw. das amtliche Ergebnis, sekundengenau dokumentiert.",
+    "nicht_gemessen": "Die Einpreisung der Auszaehlung am Wahlabend selbst (Minutenbereich; Thesis Tabelle A1 haelt 26–94 Minuten bis zu stabilen Niveaus fest).",
+    "latenz_t0": "AP-Race-Call-Zeitstempel je Rennen gegen die CLOB-Minutenserie der Wahlnacht."
+   },
+   "Geopolitics": {
+    "anker": "Viele Maerkte tragen Platzhalter-Enddaten (\"by end of 2026\") und loesen vorzeitig auf; T-N ankert dann an closedTime und kurze Horizonte lesen teils Preise NACH dem entscheidenden Ereignis. Der Anteil bereits entschiedener Preise (anteil_entschieden) macht das sichtbar, heilt es aber nicht.",
+    "einpreisung": "Unterminierte Nachrichten: Eskalation, Waffenruhe, Abkommen. t0 ist oft selbst umstritten (wann 'beginnt' eine Waffenruhe?) — Resolution-Streits und UMA-Challenges sind hier am haeufigsten.",
+    "nicht_gemessen": "Reaktionslatenz auf Konfliktnachrichten; ebenso, wie oft der Markt zwischenzeitlich falsch lag (ein T-7-Preis von 0.5, der zweimal dreht, zaehlt gleich wie einer, der ruhig liegt).",
+    "latenz_t0": "Wire-Zeitstempel (Reuters/AP) grosser Eskalations-/Deeskalationsmeldungen gegen die Minutenserie."
+   },
+   "Sports": {
+    "anker": "Bei Einzelspielen liegt endDate am Spieltag: T-1 ist eine Pre-Game-Quote, T-7 existiert fuer die meisten Spielmaerkte nicht (sie leben kuerzer und fuellen den Short-Bucket). Bei Futures (Turnier-/Saisonsieger) misst T-N die Aggregation ueber viele Spiele — zwei verschiedene Fragen im selben Bucket, deshalb der Typen-Split spielverlauf/serie.",
+    "einpreisung": "Zwei Arten, beide ZWISCHEN T-1 und dem Entscheid und mit Tageshorizonten prinzipiell unsichtbar: (1) die kontinuierlich driftende Siegwahrscheinlichkeit im Spielverlauf, (2) diskrete Schocks (Tor, Platzverweis, Verletzung) mit exakt bestimmbarem t0 aus Play-by-play-Feeds.",
+    "nicht_gemessen": "Jede In-Play-Bewegung. Das publizierte Super-Bowl-Beispiel (180 min bis Konvergenz) zaehlt ab Kickoff und enthaelt die Spieldauer — dokumentierte Obergrenze, keine Reaktionszeit auf ein Ereignis.",
+    "latenz_t0": "Play-by-play-Zeitstempel (offizielle Liga-Feeds, ESPN/Opta) je Score-Ereignis gegen die CLOB-Serie mit fidelity=1."
+   },
+   "Crypto": {
+    "anker": "Der Grossteil des Buckets sind Schwellenmaerkte (Tags hit price/multi strikes): der Marktpreis folgt mechanisch dem Spot der Referenzboerse. T-N misst dort die Verteilung des Basiswerts (ein Options-Delta), nicht die Urteilskraft von Haendlern.",
+    "einpreisung": "t0 exakt definierbar: die 1-Minuten-Kerze der Aufloesungsboerse (Coinbase/Binance) kreuzt die Schwelle. Bestdefinierter t0 aller Kategorien; Arbitrage haelt die Latenz nahe null (Beispiel im Datensatz: Konvergenz 44 min VOR t0). News-Krypto (ETF-Zulassung, Airdrop, Listing) verhaelt sich dagegen wie Politik: unterminiert.",
+    "nicht_gemessen": "Nichts Strukturelles — aber ein guter Brier belegt hier keine Prognosefaehigkeit, sondern dass Spotpreise nachvollzogen werden.",
+    "latenz_t0": "Referenzboersen-Kerze (Aufloesungsquelle laut Marktregeln) gegen die CLOB-Minutenserie."
+   },
+   "Pop culture": {
+    "anker": "Zeremonien und Veroeffentlichungen sind terminiert; endDate liegt am Termin, T-N davor ist echte Vorhersageguete (Prognosen aus Kritiken, Vorab-Awards, Charts).",
+    "einpreisung": "Stichtag: die Verkuendung im Lauf der Zeremonie. t0 ist der Verkuendungszeitpunkt der einzelnen Kategorie, NICHT der Zeremoniebeginn — das Oscar-Beispiel (220 min ab Zeremoniebeginn) ist deshalb eine Obergrenze. Box-Office- und Chart-Maerkte sind dagegen Zaehler mit taeglich publizierten Zwischenstaenden.",
+    "nicht_gemessen": "Die Minuten zwischen Verkuendung und Konvergenz; dafuer braucht es Broadcast-Zeitstempel je Award-Kategorie.",
+    "latenz_t0": "Broadcast-/Social-Zeitstempel der Verkuendung (offizieller Stream) je Kategorie."
+   },
+   "Business/Finance": {
+    "anker": "Makro-Stichtage (FOMC-Statement 14:00 ET, CPI 08:30 ET) sind sekundengenau terminiert — endDate faellt auf den Termin, T-N davor misst echte Erwartungsbildung. Firmen-News (Deals, Ankuendigungen) sind dagegen unterminiert wie Politik.",
+    "einpreisung": "Beim Datenprint entsteht die Antwort in einem Augenblick; die Einpreisung ist ein Sprung bei t0. Zwischen den Prints bewegen Fed-Reden und Datenrevisionen den Preis kontinuierlich.",
+    "nicht_gemessen": "Die Sprunggeschwindigkeit nach dem Print (Sekunden bis Minuten) — mit Tageshorizonten unsichtbar, mit dem exakten Release-Zeitstempel aber praezise messbar.",
+    "latenz_t0": "Offizieller Release-Zeitstempel (BLS/Fed-Kalender) gegen die CLOB-Minutenserie."
+   },
+   "Science/Tech": {
+    "anker": "Gemischt: Launches und Events sind (grob) terminiert, Modell-Releases und Zulassungen nicht. Vorzeitige Aufloesungen (Release erschienen) ankern an closedTime mit demselben Nachlauf-Problem wie Politik.",
+    "einpreisung": "Ueberwiegend unterminierte Ankuendigungen (Release-Blogposts, FDA-Entscheide, Launch-Ergebnis). t0 je Ereignis aus offiziellen Kanaelen bestimmbar, aber nicht aus Marktdaten.",
+    "nicht_gemessen": "Reaktionslatenz auf Ankuendigungen; ausserdem ist der Bucket heterogen (KI, Raumfahrt, Gesundheit) — ein einzelner Brier mittelt ueber sehr verschiedene Mechanismen.",
+    "latenz_t0": "Zeitstempel der offiziellen Ankuendigung (Blogpost, Livestream, Behoerden-Release)."
+   },
+   "Tweets/Social": {
+    "anker": "Zaehlermaerkte mit festem Fensterende: endDate ist das Fensterende, T-N liest den Preis bei bekanntem Zwischenstand des oeffentlich einsehbaren Zaehlers.",
+    "einpreisung": "Jeder Post ist ein exakt gestempeltes Teilereignis; der Preis rueckt schrittweise nach und konvergiert gegen Fensterende mechanisch. Brier misst hier vor allem die Restvarianz des Zaehlers, nicht Prognosekunst.",
+    "nicht_gemessen": "Die Latenz je Post (waere mit Post-Zeitstempeln exakt messbar, ist aber oekonomisch uninteressant, solange der Zwischenstand oeffentlich ist).",
+    "latenz_t0": "Post-Zeitstempel der Plattform gegen die Minutenserie — nur der Vollstaendigkeit halber."
+   },
+   "Weather": {
+    "anker": "Schwellen auf amtlichen Messreihen (NWS/METAR): endDate ist das Messfensterende. Im aktuellen Sample fehlen Wettermaerkte, weil der Sweep die volumenstaerksten Events zuerst zieht und Tagesmaerkte darunter bleiben — eine Stichprobenluecke, keine Aussage ueber die Kategorie.",
+    "einpreisung": "t0 = die Beobachtung, die die Schwelle reisst (stuendliche Messung); davor preist der Markt Wettermodelle ein, die selbst nur zu festen Laeufen (00/06/12/18 UTC) erscheinen.",
+    "nicht_gemessen": "Alles — solange die Stichprobe leer ist, gibt es hier keine Zahl, und es wird keine erfunden.",
+    "latenz_t0": "Zeitstempel der amtlichen Beobachtung (METAR/NWS) gegen die Minutenserie."
+   },
+   "Mentions": {
+    "anker": "Zaehler im Sendungsfenster; endDate ist das Sendungsende. T-N davor misst, wie gut der Sprachgebrauch einer Person vorhersagbar ist.",
+    "einpreisung": "Eigene Studie auf dieser Seite: fidelity=1, t0 = Beginn der Uebertragung; Median 0.2 min bis zur ersten Reaktion, 260.7 min bis Konvergenz (enthaelt die Zeit bis zur aufloesungsrelevanten Aussage).",
+    "nicht_gemessen": "Nichts darueber hinaus — Mentions ist die einzige Kategorie mit systematischer Latenzmessung statt Einzelbeispielen.",
+    "latenz_t0": "Sendungs-/Transkript-Zeitstempel (siehe mentions_latenz.json)."
+   },
+   "Other": {
+    "anker": "Restbucket plus alle Kategorien unter der Mindestgroesse (min_markets). Die Mischung wechselt von Lauf zu Lauf.",
+    "einpreisung": "Kein einheitlicher Mechanismus — der Typen-Split zeigt, was gerade drinliegt.",
+    "nicht_gemessen": "Zahlen aus diesem Bucket nicht interpretieren; er existiert, damit duenne Kategorien die Bestenliste nicht kippen.",
+    "latenz_t0": "—"
+   }
+  },
   "einschraenkungen": [
-   "Highest-volume events first, so the sample over-represents liquid markets; per-event cap of 6 favours each event's most-traded lines.",
+   "Highest-volume events of each month first, so the sample over-represents liquid markets; per-event cap of 6 favours each event's most-traded lines.",
    "n differs by horizon: a market only counts where it had a price, and short-lived markets never reach T-7.",
    "Decision time is min(closedTime, endDate); a market that kept trading past its nominal end date is read at that end date.",
+   "Markets that resolved early anchor at closedTime, which lags the real deciding event by hours to days — short horizons there can read prices that already knew the answer. anteil_entschieden and anteil_vorzeitig make the share visible; they do not repair it.",
+   "The fixed horizons measure forecast quality, never pricing-in speed: in-play moves (a goal, a data print, an announcement) happen between T-1 and the decision and are invisible here. quelle.messlogik states per category what a proper event-anchored latency study would need.",
+   "The headline Brier mixes open and effectively settled markets; brier_offen is the comparable figure.",
+   "einpreisungstyp is a title/tag heuristic, not a human label; the `typen` split is context, not a finding.",
+   "Weather is empty because the volume-first sweep never reaches the small daily markets — a sampling gap, not a statement about the category.",
    "Category is the event's tag, not a human label; ambiguous events follow the fixed tag priority.",
    "Descriptive of the past sample; not a forecast of any category's future pricing."
   ]
@@ -77,70 +158,98 @@
  "kategorien": [
   {
    "kategorie": "Politics",
-   "brier_t7": 0.1197,
-   "trefferquote_t7": 0.8353,
-   "brier_t1": 0.0609,
-   "trefferquote_t1": 0.9147,
-   "n_maerkte": 375,
-   "n_t7": 249,
-   "n_t1": 375,
-   "anteil_entschieden_t7": 0.5341,
-   "median_volumen_usd": 4282069.66,
+   "brier_t7": 0.0794,
+   "trefferquote_t7": 0.9091,
+   "brier_t1": 0.0332,
+   "trefferquote_t1": 0.9167,
+   "n_maerkte": 36,
+   "n_t7": 22,
+   "n_t1": 36,
+   "anteil_entschieden_t7": 0.5909,
+   "brier_t7_offen": 0.1938,
+   "n_t7_offen": 9,
+   "anteil_vorzeitig": null,
+   "median_volumen_usd": 7030816.34,
+   "typen": [
+    {
+     "typ": "nachrichten",
+     "n": 36,
+     "brier_t7": 0.0794,
+     "n_t7": 22,
+     "brier_t1": 0.0332,
+     "n_t1": 36
+    }
+   ],
    "horizonte": [
     {
      "horizont_tage": 30,
-     "brier": 0.1044,
-     "trefferquote": 0.8545,
+     "brier": 0.0764,
+     "trefferquote": 0.9,
      "trefferquote_ci95": [
-      0.7927,
-      0.9003
+      0.699,
+      0.9721
      ],
-     "n": 165,
-     "anteil_entschieden": 0.5939
+     "n": 20,
+     "anteil_entschieden": 0.6,
+     "brier_offen": 0.191,
+     "trefferquote_offen": 0.75,
+     "n_offen": 8
     },
     {
      "horizont_tage": 14,
-     "brier": 0.1272,
-     "trefferquote": 0.8281,
+     "brier": 0.076,
+     "trefferquote": 0.9091,
      "trefferquote_ci95": [
-      0.7728,
-      0.8721
+      0.7218,
+      0.9747
      ],
-     "n": 221,
-     "anteil_entschieden": 0.5113
+     "n": 22,
+     "anteil_entschieden": 0.5909,
+     "brier_offen": 0.1855,
+     "trefferquote_offen": 0.7778,
+     "n_offen": 9
     },
     {
      "horizont_tage": 7,
-     "brier": 0.1197,
-     "trefferquote": 0.8353,
+     "brier": 0.0794,
+     "trefferquote": 0.9091,
      "trefferquote_ci95": [
-      0.7842,
-      0.8762
+      0.7218,
+      0.9747
      ],
-     "n": 249,
-     "anteil_entschieden": 0.5341
+     "n": 22,
+     "anteil_entschieden": 0.5909,
+     "brier_offen": 0.1938,
+     "trefferquote_offen": 0.7778,
+     "n_offen": 9
     },
     {
      "horizont_tage": 3,
-     "brier": 0.063,
-     "trefferquote": 0.9162,
+     "brier": 0.0373,
+     "trefferquote": 0.9412,
      "trefferquote_ci95": [
-      0.8835,
-      0.9403
+      0.8091,
+      0.9837
      ],
-     "n": 370,
-     "anteil_entschieden": 0.6973
+     "n": 34,
+     "anteil_entschieden": 0.5294,
+     "brier_offen": 0.0789,
+     "trefferquote_offen": 0.875,
+     "n_offen": 16
     },
     {
      "horizont_tage": 1,
-     "brier": 0.0609,
-     "trefferquote": 0.9147,
+     "brier": 0.0332,
+     "trefferquote": 0.9167,
      "trefferquote_ci95": [
-      0.882,
-      0.9389
+      0.7817,
+      0.9713
      ],
-     "n": 375,
-     "anteil_entschieden": 0.752
+     "n": 36,
+     "anteil_entschieden": 0.7778,
+     "brier_offen": 0.1487,
+     "trefferquote_offen": 0.625,
+     "n_offen": 8
     }
    ],
    "kalibrierung": {
@@ -149,51 +258,450 @@
      {
       "von": 0.0,
       "bis": 0.1,
-      "vorhergesagt": 0.0172,
-      "realisiert": 0.0805,
+      "vorhergesagt": 0.0158,
+      "realisiert": 0.0714,
       "realisiert_ci95": [
-       0.0467,
-       0.1355
-      ],
-      "n": 149
-     },
-     {
-      "von": 0.1,
-      "bis": 0.2,
-      "vorhergesagt": 0.1479,
-      "realisiert": 0.2258,
-      "realisiert_ci95": [
-       0.1139,
-       0.3981
-      ],
-      "n": 31
-     },
-     {
-      "von": 0.2,
-      "bis": 0.3,
-      "vorhergesagt": 0.2296,
-      "realisiert": 0.2857,
-      "realisiert_ci95": [
-       0.1172,
-       0.5465
+       0.0127,
+       0.3147
       ],
       "n": 14
      },
      {
+      "von": 0.1,
+      "bis": 0.2,
+      "vorhergesagt": 0.1472,
+      "realisiert": 0.0,
+      "realisiert_ci95": [
+       0.0,
+       0.6576
+      ],
+      "n": 2
+     },
+     {
       "von": 0.3,
       "bis": 0.4,
-      "vorhergesagt": 0.3407,
-      "realisiert": 0.5455,
+      "vorhergesagt": 0.3125,
+      "realisiert": 0.5,
       "realisiert_ci95": [
-       0.2801,
-       0.7873
+       0.0945,
+       0.9055
       ],
-      "n": 11
+      "n": 2
+     },
+     {
+      "von": 0.4,
+      "bis": 0.5,
+      "vorhergesagt": 0.4725,
+      "realisiert": 0.0,
+      "realisiert_ci95": [
+       0.0,
+       0.7935
+      ],
+      "n": 1
+     },
+     {
+      "von": 0.7,
+      "bis": 0.8,
+      "vorhergesagt": 0.7845,
+      "realisiert": 1.0,
+      "realisiert_ci95": [
+       0.2065,
+       1.0
+      ],
+      "n": 1
+     },
+     {
+      "von": 0.9,
+      "bis": 1.0,
+      "vorhergesagt": 0.9677,
+      "realisiert": 1.0,
+      "realisiert_ci95": [
+       0.3424,
+       1.0
+      ],
+      "n": 2
+     }
+    ]
+   }
+  },
+  {
+   "kategorie": "Elections",
+   "brier_t7": 0.0472,
+   "trefferquote_t7": 0.9355,
+   "brier_t1": 0.0311,
+   "trefferquote_t1": 0.9596,
+   "n_maerkte": 99,
+   "n_t7": 93,
+   "n_t1": 99,
+   "anteil_entschieden_t7": 0.6774,
+   "brier_t7_offen": 0.1462,
+   "n_t7_offen": 30,
+   "anteil_vorzeitig": null,
+   "median_volumen_usd": 6883971.48,
+   "typen": [
+    {
+     "typ": "stichtag",
+     "n": 99,
+     "brier_t7": 0.0472,
+     "n_t7": 93,
+     "brier_t1": 0.0311,
+     "n_t1": 99
+    }
+   ],
+   "horizonte": [
+    {
+     "horizont_tage": 30,
+     "brier": 0.0725,
+     "trefferquote": 0.914,
+     "trefferquote_ci95": [
+      0.8393,
+      0.9558
+     ],
+     "n": 93,
+     "anteil_entschieden": 0.6989,
+     "brier_offen": 0.2056,
+     "trefferquote_offen": 0.75,
+     "n_offen": 28
+    },
+    {
+     "horizont_tage": 14,
+     "brier": 0.0505,
+     "trefferquote": 0.9462,
+     "trefferquote_ci95": [
+      0.8803,
+      0.9768
+     ],
+     "n": 93,
+     "anteil_entschieden": 0.6882,
+     "brier_offen": 0.1295,
+     "trefferquote_offen": 0.8621,
+     "n_offen": 29
+    },
+    {
+     "horizont_tage": 7,
+     "brier": 0.0472,
+     "trefferquote": 0.9355,
+     "trefferquote_ci95": [
+      0.8663,
+      0.9701
+     ],
+     "n": 93,
+     "anteil_entschieden": 0.6774,
+     "brier_offen": 0.1462,
+     "trefferquote_offen": 0.8,
+     "n_offen": 30
+    },
+    {
+     "horizont_tage": 3,
+     "brier": 0.0291,
+     "trefferquote": 0.9596,
+     "trefferquote_ci95": [
+      0.9007,
+      0.9842
+     ],
+     "n": 99,
+     "anteil_entschieden": 0.7374,
+     "brier_offen": 0.1102,
+     "trefferquote_offen": 0.8462,
+     "n_offen": 26
+    },
+    {
+     "horizont_tage": 1,
+     "brier": 0.0311,
+     "trefferquote": 0.9596,
+     "trefferquote_ci95": [
+      0.9007,
+      0.9842
+     ],
+     "n": 99,
+     "anteil_entschieden": 0.7576,
+     "brier_offen": 0.128,
+     "trefferquote_offen": 0.8333,
+     "n_offen": 24
+    }
+   ],
+   "kalibrierung": {
+    "horizont_tage": 7,
+    "bins": [
+     {
+      "von": 0.0,
+      "bis": 0.1,
+      "vorhergesagt": 0.0063,
+      "realisiert": 0.0149,
+      "realisiert_ci95": [
+       0.0026,
+       0.0798
+      ],
+      "n": 67
+     },
+     {
+      "von": 0.1,
+      "bis": 0.2,
+      "vorhergesagt": 0.1396,
+      "realisiert": 0.0,
+      "realisiert_ci95": [
+       0.0,
+       0.3903
+      ],
+      "n": 6
+     },
+     {
+      "von": 0.2,
+      "bis": 0.3,
+      "vorhergesagt": 0.2294,
+      "realisiert": 0.2,
+      "realisiert_ci95": [
+       0.0362,
+       0.6245
+      ],
+      "n": 5
+     },
+     {
+      "von": 0.3,
+      "bis": 0.4,
+      "vorhergesagt": 0.345,
+      "realisiert": 0.0,
+      "realisiert_ci95": [
+       0.0,
+       0.7935
+      ],
+      "n": 1
+     },
+     {
+      "von": 0.4,
+      "bis": 0.5,
+      "vorhergesagt": 0.4335,
+      "realisiert": 1.0,
+      "realisiert_ci95": [
+       0.2065,
+       1.0
+      ],
+      "n": 1
+     },
+     {
+      "von": 0.5,
+      "bis": 0.6,
+      "vorhergesagt": 0.56,
+      "realisiert": 0.0,
+      "realisiert_ci95": [
+       0.0,
+       0.7935
+      ],
+      "n": 1
+     },
+     {
+      "von": 0.6,
+      "bis": 0.7,
+      "vorhergesagt": 0.6763,
+      "realisiert": 1.0,
+      "realisiert_ci95": [
+       0.5101,
+       1.0
+      ],
+      "n": 4
+     },
+     {
+      "von": 0.7,
+      "bis": 0.8,
+      "vorhergesagt": 0.7668,
+      "realisiert": 0.6667,
+      "realisiert_ci95": [
+       0.2077,
+       0.9385
+      ],
+      "n": 3
+     },
+     {
+      "von": 0.8,
+      "bis": 0.9,
+      "vorhergesagt": 0.8567,
+      "realisiert": 0.6667,
+      "realisiert_ci95": [
+       0.2077,
+       0.9385
+      ],
+      "n": 3
+     },
+     {
+      "von": 0.9,
+      "bis": 1.0,
+      "vorhergesagt": 0.938,
+      "realisiert": 1.0,
+      "realisiert_ci95": [
+       0.3424,
+       1.0
+      ],
+      "n": 2
+     }
+    ]
+   }
+  },
+  {
+   "kategorie": "Geopolitics",
+   "brier_t7": 0.1885,
+   "trefferquote_t7": 0.7328,
+   "brier_t1": 0.1251,
+   "trefferquote_t1": 0.8284,
+   "n_maerkte": 134,
+   "n_t7": 116,
+   "n_t1": 134,
+   "anteil_entschieden_t7": 0.3879,
+   "brier_t7_offen": 0.2423,
+   "n_t7_offen": 71,
+   "anteil_vorzeitig": null,
+   "median_volumen_usd": 5849796.27,
+   "typen": [
+    {
+     "typ": "nachrichten",
+     "n": 128,
+     "brier_t7": 0.1944,
+     "n_t7": 110,
+     "brier_t1": 0.1277,
+     "n_t1": 128
+    },
+    {
+     "typ": "schwelle",
+     "n": 6,
+     "brier_t7": 0.0796,
+     "n_t7": 6,
+     "brier_t1": 0.0686,
+     "n_t1": 6
+    }
+   ],
+   "horizonte": [
+    {
+     "horizont_tage": 30,
+     "brier": 0.172,
+     "trefferquote": 0.7308,
+     "trefferquote_ci95": [
+      0.5975,
+      0.8323
+     ],
+     "n": 52,
+     "anteil_entschieden": 0.4038,
+     "brier_offen": 0.258,
+     "trefferquote_offen": 0.5806,
+     "n_offen": 31
+    },
+    {
+     "horizont_tage": 14,
+     "brier": 0.2051,
+     "trefferquote": 0.7075,
+     "trefferquote_ci95": [
+      0.6149,
+      0.7857
+     ],
+     "n": 106,
+     "anteil_entschieden": 0.3396,
+     "brier_offen": 0.2832,
+     "trefferquote_offen": 0.5857,
+     "n_offen": 70
+    },
+    {
+     "horizont_tage": 7,
+     "brier": 0.1885,
+     "trefferquote": 0.7328,
+     "trefferquote_ci95": [
+      0.6457,
+      0.8049
+     ],
+     "n": 116,
+     "anteil_entschieden": 0.3879,
+     "brier_offen": 0.2423,
+     "trefferquote_offen": 0.6338,
+     "n_offen": 71
+    },
+    {
+     "horizont_tage": 3,
+     "brier": 0.131,
+     "trefferquote": 0.8244,
+     "trefferquote_ci95": [
+      0.7503,
+      0.8801
+     ],
+     "n": 131,
+     "anteil_entschieden": 0.4962,
+     "brier_offen": 0.202,
+     "trefferquote_offen": 0.7121,
+     "n_offen": 66
+    },
+    {
+     "horizont_tage": 1,
+     "brier": 0.1251,
+     "trefferquote": 0.8284,
+     "trefferquote_ci95": [
+      0.7556,
+      0.8828
+     ],
+     "n": 134,
+     "anteil_entschieden": 0.5821,
+     "brier_offen": 0.2298,
+     "trefferquote_offen": 0.6607,
+     "n_offen": 56
+    }
+   ],
+   "kalibrierung": {
+    "horizont_tage": 7,
+    "bins": [
+     {
+      "von": 0.0,
+      "bis": 0.1,
+      "vorhergesagt": 0.0293,
+      "realisiert": 0.1667,
+      "realisiert_ci95": [
+       0.0902,
+       0.2874
+      ],
+      "n": 54
+     },
+     {
+      "von": 0.1,
+      "bis": 0.2,
+      "vorhergesagt": 0.1562,
+      "realisiert": 0.3158,
+      "realisiert_ci95": [
+       0.1536,
+       0.5399
+      ],
+      "n": 19
+     },
+     {
+      "von": 0.2,
+      "bis": 0.3,
+      "vorhergesagt": 0.2297,
+      "realisiert": 0.3333,
+      "realisiert_ci95": [
+       0.1206,
+       0.6458
+      ],
+      "n": 9
+     },
+     {
+      "von": 0.3,
+      "bis": 0.4,
+      "vorhergesagt": 0.3472,
+      "realisiert": 0.625,
+      "realisiert_ci95": [
+       0.3057,
+       0.8632
+      ],
+      "n": 8
      },
      {
       "von": 0.4,
       "bis": 0.5,
       "vorhergesagt": 0.453,
+      "realisiert": 0.75,
+      "realisiert_ci95": [
+       0.3006,
+       0.9544
+      ],
+      "n": 4
+     },
+     {
+      "von": 0.5,
+      "bis": 0.6,
+      "vorhergesagt": 0.5508,
       "realisiert": 0.6667,
       "realisiert_ci95": [
        0.3,
@@ -202,59 +710,48 @@
       "n": 6
      },
      {
-      "von": 0.5,
-      "bis": 0.6,
-      "vorhergesagt": 0.5521,
-      "realisiert": 0.5714,
-      "realisiert_ci95": [
-       0.2505,
-       0.8418
-      ],
-      "n": 7
-     },
-     {
       "von": 0.6,
       "bis": 0.7,
-      "vorhergesagt": 0.6602,
-      "realisiert": 0.8182,
+      "vorhergesagt": 0.651,
+      "realisiert": 0.7143,
       "realisiert_ci95": [
-       0.523,
-       0.9486
+       0.3589,
+       0.9178
       ],
-      "n": 11
+      "n": 7
      },
      {
       "von": 0.7,
       "bis": 0.8,
-      "vorhergesagt": 0.7488,
+      "vorhergesagt": 0.7262,
       "realisiert": 0.75,
       "realisiert_ci95": [
-       0.4093,
-       0.9285
+       0.3006,
+       0.9544
       ],
-      "n": 8
+      "n": 4
      },
      {
       "von": 0.8,
       "bis": 0.9,
-      "vorhergesagt": 0.854,
-      "realisiert": 0.8,
+      "vorhergesagt": 0.85,
+      "realisiert": 1.0,
       "realisiert_ci95": [
-       0.3755,
-       0.9638
+       0.3424,
+       1.0
       ],
-      "n": 5
+      "n": 2
      },
      {
       "von": 0.9,
       "bis": 1.0,
-      "vorhergesagt": 0.9548,
+      "vorhergesagt": 0.9573,
       "realisiert": 1.0,
       "realisiert_ci95": [
-       0.6457,
+       0.4385,
        1.0
       ],
-      "n": 7
+      "n": 3
      }
     ]
    }
@@ -269,7 +766,28 @@
    "n_t7": 250,
    "n_t1": 375,
    "anteil_entschieden_t7": 0.336,
+   "brier_t7_offen": 0.2096,
+   "n_t7_offen": 166,
+   "anteil_vorzeitig": null,
    "median_volumen_usd": 4784864.16,
+   "typen": [
+    {
+     "typ": "spielverlauf",
+     "n": 246,
+     "brier_t7": 0.205,
+     "n_t7": 121,
+     "brier_t1": 0.1992,
+     "n_t1": 246
+    },
+    {
+     "typ": "serie",
+     "n": 129,
+     "brier_t7": 0.0776,
+     "n_t7": 129,
+     "brier_t1": 0.0499,
+     "n_t1": 129
+    }
+   ],
    "horizonte": [
     {
      "horizont_tage": 30,
@@ -280,7 +798,10 @@
       0.8416
      ],
      "n": 223,
-     "anteil_entschieden": 0.3722
+     "anteil_entschieden": 0.3722,
+     "brier_offen": 0.223,
+     "trefferquote_offen": 0.6786,
+     "n_offen": 140
     },
     {
      "horizont_tage": 14,
@@ -291,7 +812,10 @@
       0.8543
      ],
      "n": 230,
-     "anteil_entschieden": 0.3739
+     "anteil_entschieden": 0.3739,
+     "brier_offen": 0.2213,
+     "trefferquote_offen": 0.6944,
+     "n_offen": 144
     },
     {
      "horizont_tage": 7,
@@ -302,7 +826,10 @@
       0.8556
      ],
      "n": 250,
-     "anteil_entschieden": 0.336
+     "anteil_entschieden": 0.336,
+     "brier_offen": 0.2096,
+     "trefferquote_offen": 0.7169,
+     "n_offen": 166
     },
     {
      "horizont_tage": 3,
@@ -313,7 +840,10 @@
       0.8164
      ],
      "n": 294,
-     "anteil_entschieden": 0.2789
+     "anteil_entschieden": 0.2789,
+     "brier_offen": 0.2077,
+     "trefferquote_offen": 0.684,
+     "n_offen": 212
     },
     {
      "horizont_tage": 1,
@@ -324,7 +854,10 @@
       0.8177
      ],
      "n": 375,
-     "anteil_entschieden": 0.2373
+     "anteil_entschieden": 0.2373,
+     "brier_offen": 0.1938,
+     "trefferquote_offen": 0.7098,
+     "n_offen": 286
     }
    ],
    "kalibrierung": {
@@ -445,70 +978,106 @@
   },
   {
    "kategorie": "Crypto",
-   "brier_t7": 0.0984,
-   "trefferquote_t7": 0.848,
-   "brier_t1": 0.0789,
-   "trefferquote_t1": 0.8907,
-   "n_maerkte": 375,
-   "n_t7": 250,
-   "n_t1": 375,
-   "anteil_entschieden_t7": 0.564,
-   "median_volumen_usd": 1688840.86,
+   "brier_t7": 0.093,
+   "trefferquote_t7": 0.859,
+   "brier_t1": 0.0816,
+   "trefferquote_t1": 0.8889,
+   "n_maerkte": 351,
+   "n_t7": 227,
+   "n_t1": 351,
+   "anteil_entschieden_t7": 0.5771,
+   "brier_t7_offen": 0.1998,
+   "n_t7_offen": 96,
+   "anteil_vorzeitig": null,
+   "median_volumen_usd": 1653454.12,
+   "typen": [
+    {
+     "typ": "schwelle",
+     "n": 253,
+     "brier_t7": 0.0834,
+     "n_t7": 167,
+     "brier_t1": 0.0798,
+     "n_t1": 253
+    },
+    {
+     "typ": "nachrichten",
+     "n": 98,
+     "brier_t7": 0.1195,
+     "n_t7": 60,
+     "brier_t1": 0.0863,
+     "n_t1": 98
+    }
+   ],
    "horizonte": [
     {
      "horizont_tage": 30,
-     "brier": 0.1042,
-     "trefferquote": 0.8358,
+     "brier": 0.1026,
+     "trefferquote": 0.8519,
      "trefferquote_ci95": [
-      0.7294,
-      0.9058
+      0.734,
+      0.923
      ],
-     "n": 67,
-     "anteil_entschieden": 0.4776
+     "n": 54,
+     "anteil_entschieden": 0.5741,
+     "brier_offen": 0.1984,
+     "trefferquote_offen": 0.6957,
+     "n_offen": 23
     },
     {
      "horizont_tage": 14,
-     "brier": 0.1023,
-     "trefferquote": 0.8596,
+     "brier": 0.0902,
+     "trefferquote": 0.878,
      "trefferquote_ci95": [
-      0.8086,
-      0.8988
+      0.8262,
+      0.916
      ],
-     "n": 228,
-     "anteil_entschieden": 0.5044
+     "n": 205,
+     "anteil_entschieden": 0.5268,
+     "brier_offen": 0.1323,
+     "trefferquote_offen": 0.8041,
+     "n_offen": 97
     },
     {
      "horizont_tage": 7,
-     "brier": 0.0984,
-     "trefferquote": 0.848,
+     "brier": 0.093,
+     "trefferquote": 0.859,
      "trefferquote_ci95": [
-      0.7983,
-      0.8872
+      0.8078,
+      0.8983
      ],
-     "n": 250,
-     "anteil_entschieden": 0.564
+     "n": 227,
+     "anteil_entschieden": 0.5771,
+     "brier_offen": 0.1998,
+     "trefferquote_offen": 0.6875,
+     "n_offen": 96
     },
     {
      "horizont_tage": 3,
-     "brier": 0.1013,
-     "trefferquote": 0.8464,
+     "brier": 0.1033,
+     "trefferquote": 0.8443,
      "trefferquote_ci95": [
-      0.8054,
-      0.88
+      0.8015,
+      0.8793
      ],
-     "n": 358,
-     "anteil_entschieden": 0.581
+     "n": 334,
+     "anteil_entschieden": 0.5838,
+     "brier_offen": 0.1935,
+     "trefferquote_offen": 0.6835,
+     "n_offen": 139
     },
     {
      "horizont_tage": 1,
-     "brier": 0.0789,
-     "trefferquote": 0.8907,
+     "brier": 0.0816,
+     "trefferquote": 0.8889,
      "trefferquote_ci95": [
-      0.855,
-      0.9184
+      0.8517,
+      0.9176
      ],
-     "n": 375,
-     "anteil_entschieden": 0.6773
+     "n": 351,
+     "anteil_entschieden": 0.6724,
+     "brier_offen": 0.2072,
+     "trefferquote_offen": 0.7043,
+     "n_offen": 115
     }
    ],
    "kalibrierung": {
@@ -517,68 +1086,68 @@
      {
       "von": 0.0,
       "bis": 0.1,
-      "vorhergesagt": 0.0217,
-      "realisiert": 0.0359,
+      "vorhergesagt": 0.0211,
+      "realisiert": 0.0387,
       "realisiert_ci95": [
-       0.0166,
-       0.0762
+       0.0179,
+       0.0819
       ],
-      "n": 167
+      "n": 155
      },
      {
       "von": 0.1,
       "bis": 0.2,
-      "vorhergesagt": 0.1449,
-      "realisiert": 0.3,
+      "vorhergesagt": 0.1465,
+      "realisiert": 0.3158,
       "realisiert_ci95": [
-       0.1455,
-       0.519
+       0.1536,
+       0.5399
       ],
-      "n": 20
+      "n": 19
      },
      {
       "von": 0.2,
       "bis": 0.3,
-      "vorhergesagt": 0.2458,
-      "realisiert": 0.4615,
+      "vorhergesagt": 0.2418,
+      "realisiert": 0.3333,
       "realisiert_ci95": [
-       0.2321,
-       0.7086
+       0.1206,
+       0.6458
       ],
-      "n": 13
+      "n": 9
      },
      {
       "von": 0.3,
       "bis": 0.4,
-      "vorhergesagt": 0.3506,
-      "realisiert": 0.7333,
+      "vorhergesagt": 0.3528,
+      "realisiert": 0.75,
       "realisiert_ci95": [
-       0.4805,
-       0.891
+       0.4677,
+       0.9111
       ],
-      "n": 15
+      "n": 12
      },
      {
       "von": 0.4,
       "bis": 0.5,
-      "vorhergesagt": 0.4492,
-      "realisiert": 0.3333,
+      "vorhergesagt": 0.4363,
+      "realisiert": 0.5,
       "realisiert_ci95": [
-       0.0615,
-       0.7923
+       0.0945,
+       0.9055
       ],
-      "n": 3
+      "n": 2
      },
      {
       "von": 0.5,
       "bis": 0.6,
-      "vorhergesagt": 0.5557,
-      "realisiert": 0.5556,
+      "vorhergesagt": 0.5545,
+      "realisiert": 0.5714,
       "realisiert_ci95": [
-       0.2666,
-       0.8112
+       0.2505,
+       0.8418
       ],
-      "n": 9
+      "n": 7
      },
      {
       "von": 0.6,
@@ -631,13 +1200,50 @@
    "kategorie": "Pop culture",
    "brier_t7": 0.061,
    "trefferquote_t7": 0.929,
-   "brier_t1": 0.0658,
-   "trefferquote_t1": 0.9096,
-   "n_maerkte": 188,
+   "brier_t1": 0.067,
+   "trefferquote_t1": 0.9091,
+   "n_maerkte": 176,
    "n_t7": 169,
-   "n_t1": 188,
+   "n_t1": 176,
    "anteil_entschieden_t7": 0.7219,
-   "median_volumen_usd": 789797.78,
+   "brier_t7_offen": 0.1571,
+   "n_t7_offen": 47,
+   "anteil_vorzeitig": null,
+   "median_volumen_usd": 905308.39,
+   "typen": [
+    {
+     "typ": "nachrichten",
+     "n": 93,
+     "brier_t7": 0.055,
+     "n_t7": 86,
+     "brier_t1": 0.0692,
+     "n_t1": 93
+    },
+    {
+     "typ": "stichtag",
+     "n": 42,
+     "brier_t7": 0.0593,
+     "n_t7": 42,
+     "brier_t1": 0.0654,
+     "n_t1": 42
+    },
+    {
+     "typ": "schwelle",
+     "n": 32,
+     "brier_t7": 0.0818,
+     "n_t7": 32,
+     "brier_t1": 0.0659,
+     "n_t1": 32
+    },
+    {
+     "typ": "zaehler",
+     "n": 9,
+     "brier_t7": 0.0519,
+     "n_t7": 9,
+     "brier_t1": 0.0557,
+     "n_t1": 9
+    }
+   ],
    "horizonte": [
     {
      "horizont_tage": 30,
@@ -648,7 +1254,10 @@
       0.9707
      ],
      "n": 117,
-     "anteil_entschieden": 0.6325
+     "anteil_entschieden": 0.6325,
+     "brier_offen": 0.1132,
+     "trefferquote_offen": 0.8837,
+     "n_offen": 43
     },
     {
      "horizont_tage": 14,
@@ -659,7 +1268,10 @@
       0.969
      ],
      "n": 154,
-     "anteil_entschieden": 0.7208
+     "anteil_entschieden": 0.7208,
+     "brier_offen": 0.1269,
+     "trefferquote_offen": 0.8837,
+     "n_offen": 43
     },
     {
      "horizont_tage": 7,
@@ -670,29 +1282,38 @@
       0.9589
      ],
      "n": 169,
-     "anteil_entschieden": 0.7219
+     "anteil_entschieden": 0.7219,
+     "brier_offen": 0.1571,
+     "trefferquote_offen": 0.8085,
+     "n_offen": 47
     },
     {
      "horizont_tage": 3,
-     "brier": 0.0797,
-     "trefferquote": 0.9096,
+     "brier": 0.0801,
+     "trefferquote": 0.9091,
      "trefferquote_ci95": [
-      0.86,
-      0.9428
+      0.8574,
+      0.9433
      ],
-     "n": 188,
-     "anteil_entschieden": 0.7128
+     "n": 176,
+     "anteil_entschieden": 0.7273,
+     "brier_offen": 0.1938,
+     "trefferquote_offen": 0.7708,
+     "n_offen": 48
     },
     {
      "horizont_tage": 1,
-     "brier": 0.0658,
-     "trefferquote": 0.9096,
+     "brier": 0.067,
+     "trefferquote": 0.9091,
      "trefferquote_ci95": [
-      0.86,
-      0.9428
+      0.8574,
+      0.9433
      ],
-     "n": 188,
-     "anteil_entschieden": 0.7766
+     "n": 176,
+     "anteil_entschieden": 0.7784,
+     "brier_offen": 0.179,
+     "trefferquote_offen": 0.7179,
+     "n_offen": 39
     }
    ],
    "kalibrierung": {
@@ -791,70 +1412,114 @@
   },
   {
    "kategorie": "Business/Finance",
-   "brier_t7": 0.0455,
-   "trefferquote_t7": 0.9423,
-   "brier_t1": 0.0254,
-   "trefferquote_t1": 0.9676,
-   "n_maerkte": 216,
-   "n_t7": 208,
-   "n_t1": 216,
-   "anteil_entschieden_t7": 0.8077,
-   "median_volumen_usd": 1486145.65,
+   "brier_t7": 0.0561,
+   "trefferquote_t7": 0.9221,
+   "brier_t1": 0.0267,
+   "trefferquote_t1": 0.9625,
+   "n_maerkte": 240,
+   "n_t7": 231,
+   "n_t1": 240,
+   "anteil_entschieden_t7": 0.7706,
+   "brier_t7_offen": 0.2442,
+   "n_t7_offen": 53,
+   "anteil_vorzeitig": null,
+   "median_volumen_usd": 1585302.68,
+   "typen": [
+    {
+     "typ": "schwelle",
+     "n": 103,
+     "brier_t7": 0.1128,
+     "n_t7": 96,
+     "brier_t1": 0.0303,
+     "n_t1": 103
+    },
+    {
+     "typ": "nachrichten",
+     "n": 91,
+     "brier_t7": 0.0224,
+     "n_t7": 89,
+     "brier_t1": 0.0343,
+     "n_t1": 91
+    },
+    {
+     "typ": "stichtag",
+     "n": 46,
+     "brier_t7": 0.0031,
+     "n_t7": 46,
+     "brier_t1": 0.0038,
+     "n_t1": 46
+    }
+   ],
    "horizonte": [
     {
      "horizont_tage": 30,
-     "brier": 0.0594,
-     "trefferquote": 0.9267,
+     "brier": 0.0627,
+     "trefferquote": 0.9167,
      "trefferquote_ci95": [
-      0.8807,
-      0.9558
+      0.8706,
+      0.9473
      ],
-     "n": 191,
-     "anteil_entschieden": 0.623
+     "n": 204,
+     "anteil_entschieden": 0.5882,
+     "brier_offen": 0.1518,
+     "trefferquote_offen": 0.7976,
+     "n_offen": 84
     },
     {
      "horizont_tage": 14,
-     "brier": 0.0467,
-     "trefferquote": 0.9324,
+     "brier": 0.0631,
+     "trefferquote": 0.9087,
      "trefferquote_ci95": [
-      0.8897,
-      0.9593
+      0.8645,
+      0.9395
      ],
-     "n": 207,
-     "anteil_entschieden": 0.744
+     "n": 230,
+     "anteil_entschieden": 0.7,
+     "brier_offen": 0.2098,
+     "trefferquote_offen": 0.6957,
+     "n_offen": 69
     },
     {
      "horizont_tage": 7,
-     "brier": 0.0455,
-     "trefferquote": 0.9423,
+     "brier": 0.0561,
+     "trefferquote": 0.9221,
      "trefferquote_ci95": [
-      0.9019,
-      0.9667
+      0.8802,
+      0.9501
      ],
-     "n": 208,
-     "anteil_entschieden": 0.8077
+     "n": 231,
+     "anteil_entschieden": 0.7706,
+     "brier_offen": 0.2442,
+     "trefferquote_offen": 0.6604,
+     "n_offen": 53
     },
     {
      "horizont_tage": 3,
-     "brier": 0.0348,
-     "trefferquote": 0.9486,
+     "brier": 0.0386,
+     "trefferquote": 0.9412,
      "trefferquote_ci95": [
-      0.9103,
-      0.9711
+      0.9037,
+      0.9646
      ],
-     "n": 214,
-     "anteil_entschieden": 0.8084
+     "n": 238,
+     "anteil_entschieden": 0.7815,
+     "brier_offen": 0.1584,
+     "trefferquote_offen": 0.75,
+     "n_offen": 52
     },
     {
      "horizont_tage": 1,
-     "brier": 0.0254,
-     "trefferquote": 0.9676,
+     "brier": 0.0267,
+     "trefferquote": 0.9625,
      "trefferquote_ci95": [
-      0.9346,
-      0.9842
+      0.9303,
+      0.9801
      ],
-     "n": 216,
-     "anteil_entschieden": 0.8102
+     "n": 240,
+     "anteil_entschieden": 0.8042,
+     "brier_offen": 0.136,
+     "trefferquote_offen": 0.8085,
+     "n_offen": 47
     }
    ],
    "kalibrierung": {
@@ -863,29 +1528,40 @@
      {
       "von": 0.0,
       "bis": 0.1,
-      "vorhergesagt": 0.0092,
-      "realisiert": 0.0065,
+      "vorhergesagt": 0.0106,
+      "realisiert": 0.006,
       "realisiert_ci95": [
        0.0011,
-       0.0359
+       0.0333
       ],
-      "n": 154
+      "n": 166
      },
      {
       "von": 0.1,
       "bis": 0.2,
-      "vorhergesagt": 0.1428,
-      "realisiert": 0.5455,
+      "vorhergesagt": 0.1405,
+      "realisiert": 0.5,
       "realisiert_ci95": [
-       0.2801,
-       0.7873
+       0.2538,
+       0.7462
       ],
-      "n": 11
+      "n": 12
      },
      {
       "von": 0.2,
       "bis": 0.3,
-      "vorhergesagt": 0.2383,
+      "vorhergesagt": 0.2457,
+      "realisiert": 0.6667,
+      "realisiert_ci95": [
+       0.3542,
+       0.8794
+      ],
+      "n": 9
+     },
+     {
+      "von": 0.3,
+      "bis": 0.4,
+      "vorhergesagt": 0.3417,
       "realisiert": 0.6,
       "realisiert_ci95": [
        0.2307,
@@ -894,37 +1570,26 @@
       "n": 5
      },
      {
-      "von": 0.3,
-      "bis": 0.4,
-      "vorhergesagt": 0.3417,
-      "realisiert": 0.5,
-      "realisiert_ci95": [
-       0.0945,
-       0.9055
-      ],
-      "n": 2
-     },
-     {
       "von": 0.4,
       "bis": 0.5,
-      "vorhergesagt": 0.42,
+      "vorhergesagt": 0.4475,
       "realisiert": 0.0,
       "realisiert_ci95": [
        0.0,
-       0.7935
+       0.6576
       ],
-      "n": 1
+      "n": 2
      },
      {
       "von": 0.5,
       "bis": 0.6,
-      "vorhergesagt": 0.5275,
-      "realisiert": 1.0,
+      "vorhergesagt": 0.5437,
+      "realisiert": 0.75,
       "realisiert_ci95": [
-       0.3424,
-       1.0
+       0.3006,
+       0.9544
       ],
-      "n": 2
+      "n": 4
      },
      {
       "von": 0.6,
@@ -983,7 +1648,28 @@
    "n_t7": 113,
    "n_t1": 126,
    "anteil_entschieden_t7": 0.7611,
+   "brier_t7_offen": 0.1253,
+   "n_t7_offen": 27,
+   "anteil_vorzeitig": null,
    "median_volumen_usd": 1029143.03,
+   "typen": [
+    {
+     "typ": "nachrichten",
+     "n": 108,
+     "brier_t7": 0.0246,
+     "n_t7": 95,
+     "brier_t1": 0.0102,
+     "n_t1": 108
+    },
+    {
+     "typ": "schwelle",
+     "n": 18,
+     "brier_t7": 0.0589,
+     "n_t7": 18,
+     "brier_t1": 0.0703,
+     "n_t1": 18
+    }
+   ],
    "horizonte": [
     {
      "horizont_tage": 30,
@@ -994,7 +1680,10 @@
       0.9504
      ],
      "n": 97,
-     "anteil_entschieden": 0.5773
+     "anteil_entschieden": 0.5773,
+     "brier_offen": 0.172,
+     "trefferquote_offen": 0.7805,
+     "n_offen": 41
     },
     {
      "horizont_tage": 14,
@@ -1005,7 +1694,10 @@
       0.9683
      ],
      "n": 108,
-     "anteil_entschieden": 0.7037
+     "anteil_entschieden": 0.7037,
+     "brier_offen": 0.1492,
+     "trefferquote_offen": 0.7812,
+     "n_offen": 32
     },
     {
      "horizont_tage": 7,
@@ -1016,7 +1708,10 @@
       0.9754
      ],
      "n": 113,
-     "anteil_entschieden": 0.7611
+     "anteil_entschieden": 0.7611,
+     "brier_offen": 0.1253,
+     "trefferquote_offen": 0.7778,
+     "n_offen": 27
     },
     {
      "horizont_tage": 3,
@@ -1027,7 +1722,10 @@
       0.9712
      ],
      "n": 119,
-     "anteil_entschieden": 0.8235
+     "anteil_entschieden": 0.8235,
+     "brier_offen": 0.1644,
+     "trefferquote_offen": 0.6667,
+     "n_offen": 21
     },
     {
      "horizont_tage": 1,
@@ -1038,7 +1736,10 @@
       0.9876
      ],
      "n": 126,
-     "anteil_entschieden": 0.8254
+     "anteil_entschieden": 0.8254,
+     "brier_offen": 0.1073,
+     "trefferquote_offen": 0.8182,
+     "n_offen": 22
     }
    ],
    "kalibrierung": {
@@ -1158,6 +1859,122 @@
    }
   },
   {
+   "kategorie": "Tweets/Social",
+   "brier_t7": 0.0997,
+   "trefferquote_t7": 0.8889,
+   "brier_t1": 0.02,
+   "trefferquote_t1": 0.9746,
+   "n_maerkte": 118,
+   "n_t7": 18,
+   "n_t1": 118,
+   "anteil_entschieden_t7": 0.6667,
+   "brier_t7_offen": 0.135,
+   "n_t7_offen": 6,
+   "anteil_vorzeitig": null,
+   "median_volumen_usd": 350251.04,
+   "typen": [
+    {
+     "typ": "zaehler",
+     "n": 118,
+     "brier_t7": 0.0997,
+     "n_t7": 18,
+     "brier_t1": 0.02,
+     "n_t1": 118
+    }
+   ],
+   "horizonte": [
+    {
+     "horizont_tage": 30,
+     "brier": null,
+     "trefferquote": null,
+     "n": 0,
+     "anteil_entschieden": null,
+     "brier_offen": null,
+     "trefferquote_offen": null,
+     "n_offen": 0
+    },
+    {
+     "horizont_tage": 14,
+     "brier": null,
+     "trefferquote": null,
+     "n": 0,
+     "anteil_entschieden": null,
+     "brier_offen": null,
+     "trefferquote_offen": null,
+     "n_offen": 0
+    },
+    {
+     "horizont_tage": 7,
+     "brier": 0.0997,
+     "trefferquote": 0.8889,
+     "trefferquote_ci95": [
+      0.672,
+      0.969
+     ],
+     "n": 18,
+     "anteil_entschieden": 0.6667,
+     "brier_offen": 0.135,
+     "trefferquote_offen": 0.8333,
+     "n_offen": 6
+    },
+    {
+     "horizont_tage": 3,
+     "brier": 0.0246,
+     "trefferquote": 0.9746,
+     "trefferquote_ci95": [
+      0.9279,
+      0.9913
+     ],
+     "n": 118,
+     "anteil_entschieden": 0.9153,
+     "brier_offen": 0.0964,
+     "trefferquote_offen": 0.9,
+     "n_offen": 10
+    },
+    {
+     "horizont_tage": 1,
+     "brier": 0.02,
+     "trefferquote": 0.9746,
+     "trefferquote_ci95": [
+      0.9279,
+      0.9913
+     ],
+     "n": 118,
+     "anteil_entschieden": 0.9322,
+     "brier_offen": 0.1721,
+     "trefferquote_offen": 0.75,
+     "n_offen": 8
+    }
+   ],
+   "kalibrierung": {
+    "horizont_tage": 7,
+    "bins": [
+     {
+      "von": 0.0,
+      "bis": 0.1,
+      "vorhergesagt": 0.0245,
+      "realisiert": 0.0714,
+      "realisiert_ci95": [
+       0.0127,
+       0.3147
+      ],
+      "n": 14
+     },
+     {
+      "von": 0.1,
+      "bis": 0.2,
+      "vorhergesagt": 0.1212,
+      "realisiert": 0.25,
+      "realisiert_ci95": [
+       0.0456,
+       0.6994
+      ],
+      "n": 4
+     }
+    ]
+   }
+  },
+  {
    "kategorie": "Other",
    "brier_t7": 0.197,
    "trefferquote_t7": 0.625,
@@ -1167,14 +1984,30 @@
    "n_t7": 24,
    "n_t1": 24,
    "anteil_entschieden_t7": 0.0,
+   "brier_t7_offen": 0.197,
+   "n_t7_offen": 24,
+   "anteil_vorzeitig": null,
    "median_volumen_usd": 189739.39,
+   "typen": [
+    {
+     "typ": "zaehler",
+     "n": 24,
+     "brier_t7": 0.197,
+     "n_t7": 24,
+     "brier_t1": 0.2115,
+     "n_t1": 24
+    }
+   ],
    "horizonte": [
     {
      "horizont_tage": 30,
      "brier": null,
      "trefferquote": null,
      "n": 0,
-     "anteil_entschieden": null
+     "anteil_entschieden": null,
+     "brier_offen": null,
+     "trefferquote_offen": null,
+     "n_offen": 0
     },
     {
      "horizont_tage": 14,
@@ -1185,7 +2018,10 @@
       0.9699
      ],
      "n": 6,
-     "anteil_entschieden": 0.0
+     "anteil_entschieden": 0.0,
+     "brier_offen": 0.1035,
+     "trefferquote_offen": 0.8333,
+     "n_offen": 6
     },
     {
      "horizont_tage": 7,
@@ -1196,7 +2032,10 @@
       0.7884
      ],
      "n": 24,
-     "anteil_entschieden": 0.0
+     "anteil_entschieden": 0.0,
+     "brier_offen": 0.197,
+     "trefferquote_offen": 0.625,
+     "n_offen": 24
     },
     {
      "horizont_tage": 3,
@@ -1207,7 +2046,10 @@
       0.7884
      ],
      "n": 24,
-     "anteil_entschieden": 0.0417
+     "anteil_entschieden": 0.0417,
+     "brier_offen": 0.2285,
+     "trefferquote_offen": 0.6087,
+     "n_offen": 23
     },
     {
      "horizont_tage": 1,
@@ -1218,7 +2060,10 @@
       0.8203
      ],
      "n": 24,
-     "anteil_entschieden": 0.0417
+     "anteil_entschieden": 0.0417,
+     "brier_offen": 0.2207,
+     "trefferquote_offen": 0.6522,
+     "n_offen": 23
     }
    ],
    "kalibrierung": {

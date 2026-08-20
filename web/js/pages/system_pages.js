@@ -873,7 +873,8 @@ function kategorieZeilen(payload) {
     let horizonte = Array.isArray(k.horizonte)
       ? k.horizonte.filter((h) => h && h.horizont_tage != null).map((h) => ({
         tage: +h.horizont_tage, brier: zahl(h.brier), treffer: zahl(h.trefferquote),
-        n: h.n == null ? null : +h.n, entschieden: zahl(h.anteil_entschieden)
+        n: h.n == null ? null : +h.n, entschieden: zahl(h.anteil_entschieden),
+        brierOffen: zahl(h.brier_offen), nOffen: h.n_offen == null ? null : +h.n_offen
       }))
       : [];
     if (!horizonte.length) {
@@ -889,6 +890,10 @@ function kategorieZeilen(payload) {
       maerkte: k.n_maerkte == null ? null : +k.n_maerkte,
       medianVol: zahl(k.median_volumen_usd),
       entschiedenT7: zahl(k.anteil_entschieden_t7),
+      typen: Array.isArray(k.typen) ? k.typen.filter((t) => t && t.typ != null).map((t) => ({
+        typ: String(t.typ), n: t.n == null ? null : +t.n,
+        brierT1: zahl(t.brier_t1), nT1: t.n_t1 == null ? null : +t.n_t1
+      })) : [],
       horizonte,
       kalibrierungTage: k.kalibrierung && k.kalibrierung.horizont_tage != null ? +k.kalibrierung.horizont_tage : 7,
       bins: bins.filter((b) => b && b.vorhergesagt != null && b.realisiert != null).map((b) => ({
@@ -931,10 +936,15 @@ function renderCategoryEfficiency(T, payload, study) {
       + '</div></div></div>';
   }
 
-  // Kennzahlen: Maerkte, Kategorien, beste und schlechteste bei T-7 — je mit n.
+  // Kennzahlen: Maerkte, Kategorien, beste und schlechteste bei T-7 — je mit
+  // n. Sobald die Datei brier_offen traegt, rangieren Best/Worst auf dem
+  // Brier der offenen Fragen (0.05 < p < 0.95): der Gesamt-Brier kuert sonst
+  // die Kategorie mit den meisten schon entschiedenen Preisen.
   const gesamt = zeilen.reduce((a, z) => a + (z.maerkte || 0), 0);
-  const mitT7 = zeilen.filter((z) => { const h = horizontVon(z, 7); return h && h.brier != null; })
-    .sort((a, b) => horizontVon(a, 7).brier - horizontVon(b, 7).brier);
+  const hatOffenT7 = zeilen.some((z) => { const h = horizontVon(z, 7); return h && h.brierOffen != null; });
+  const rangwert = (z) => { const h = horizontVon(z, 7); return hatOffenT7 ? h.brierOffen : h.brier; };
+  const mitT7 = zeilen.filter((z) => { const h = horizontVon(z, 7); return h && (hatOffenT7 ? h.brierOffen != null : h.brier != null); })
+    .sort((a, b) => rangwert(a) - rangwert(b));
   const nT7 = zeilen.reduce((a, z) => { const h = horizontVon(z, 7); return a + (h && h.n ? h.n : 0); }, 0);
   const nT7Werte = mitT7.map((z) => horizontVon(z, 7).n).filter((n) => n != null);
   const kpi = (label, wert, hinweis) =>
@@ -944,6 +954,7 @@ function renderCategoryEfficiency(T, payload, study) {
     + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.4); margin-top:4px">' + esc(hinweis) + '</div></div>';
   const brierText = (z, tage) => {
     const h = horizontVon(z, tage);
+    if (hatOffenT7 && tage === 7) return 'open Brier ' + h.brierOffen.toFixed(3) + ' · n ' + (h.nOffen != null ? num(h.nOffen) : '—');
     return 'Brier ' + h.brier.toFixed(3) + ' · n ' + (h.n != null ? num(h.n) : '—');
   };
   const kpis = [
@@ -1007,17 +1018,25 @@ function renderCategoryEfficiency(T, payload, study) {
       : '');
 
   // Kompakte Tabelle mit allen Horizonten. Zwei Zeilen je Zelle: Brier oben,
-  // Trefferquote und n darunter.
-  const spalten = '1fr 76px ' + alleTage.map(() => '118px').join(' ') + ' 96px 108px';
+  // Trefferquote und n darunter. Traegt die Datei brier_offen, kommt eine
+  // Spalte fuer den T-7-Brier der offenen Fragen dazu.
+  const spalten = '1fr 76px ' + alleTage.map(() => '118px').join(' ') + (hatOffenT7 ? ' 118px' : '') + ' 96px 108px';
   const kopfzeile = '<div style="display:grid; grid-template-columns:' + spalten + '; gap:12px; padding:9px 18px; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:9.5px; letter-spacing:.14em; color:rgba(255,255,255,.45)">'
     + '<div>CATEGORY</div><div style="text-align:right">MARKETS</div>'
     + alleTage.map((t) => '<div style="text-align:right">T-' + t + ' BRIER · HIT · N</div>').join('')
+    + (hatOffenT7 ? '<div style="text-align:right">T-7 OPEN BRIER · N</div>' : '')
     + '<div style="text-align:right">≤5% OR ≥95% AT T-7</div><div style="text-align:right">MEDIAN VOLUME</div></div>';
   const zelle = (h) => {
     if (!h || h.brier == null) return '<div style="text-align:right; ' + M + '; font-size:12px; color:rgba(255,255,255,.3)">—</div>';
     return '<div style="text-align:right; ' + M + '">'
       + '<div style="font-size:12.5px; color:rgba(255,255,255,.85)">' + h.brier.toFixed(3) + '</div>'
       + '<div style="font-size:10px; color:rgba(255,255,255,.4); margin-top:2px">' + (h.treffer != null ? Math.round(h.treffer * 100) + '%' : '—') + ' · n ' + (h.n != null ? num(h.n) : '—') + '</div></div>';
+  };
+  const offenZelle = (h) => {
+    if (!h || h.brierOffen == null) return '<div style="text-align:right; ' + M + '; font-size:12px; color:rgba(255,255,255,.3)">—</div>';
+    return '<div style="text-align:right; ' + M + '">'
+      + '<div style="font-size:12.5px; color:rgba(255,255,255,.85)">' + h.brierOffen.toFixed(3) + '</div>'
+      + '<div style="font-size:10px; color:rgba(255,255,255,.4); margin-top:2px">n ' + (h.nOffen != null ? num(h.nOffen) : '—') + '</div></div>';
   };
   const tabelle = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:16px; overflow:hidden">'
     + '<div style="padding:11px 18px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:#4F8EF7">BY CATEGORY AND HORIZON</div>'
@@ -1027,6 +1046,7 @@ function renderCategoryEfficiency(T, payload, study) {
       + '<div style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(z.name) + '">' + esc(z.name) + '</div>'
       + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(255,255,255,.7)">' + (z.maerkte != null ? num(z.maerkte) : '—') + '</div>'
       + alleTage.map((t) => zelle(horizontVon(z, t))).join('')
+      + (hatOffenT7 ? offenZelle(horizontVon(z, 7)) : '')
       + '<div style="text-align:right; ' + M + '; font-size:12px; color:rgba(255,255,255,.55)">' + (z.entschiedenT7 != null ? Math.round(z.entschiedenT7 * 100) + '%' : '—') + '</div>'
       + '<div style="text-align:right; ' + M + '; font-size:12px; color:rgba(255,255,255,.55)">' + (z.medianVol != null ? '$' + num(Math.round(z.medianVol)) : '—') + '</div>'
       + '</div>').join('')
@@ -1064,12 +1084,46 @@ function renderCategoryEfficiency(T, payload, study) {
       + '</div></details>'
     : '';
 
+  // Einpreisungs-Logik je Kategorie, zugeklappt: woran die Horizonte ankern,
+  // welche realen Ereignisse den Preis bewegen, was die Tabelle prinzipiell
+  // nicht sehen kann (In-Play, Nachrichtenlatenz) und woher eine echte
+  // Latenzstudie ihr t0 naehme — plus der Mechanik-Mix (typen) der
+  // Stichprobe. Nur wenn die Datei quelle.messlogik traegt.
+  const messlogik = q && q.messlogik && typeof q.messlogik === 'object' ? q.messlogik : null;
+  let messlogikHtml = '';
+  if (messlogik) {
+    const namen = zeilen.map((z) => z.name).filter((n) => messlogik[n]);
+    Object.keys(messlogik).forEach((n) => { if (namen.indexOf(n) < 0) namen.push(n); });
+    const block = (name) => {
+      const m = messlogik[name] || {};
+      const zeile = zeilen.find((z) => z.name === name);
+      const typZeile = zeile && zeile.typen.length
+        ? zeile.typen.map((t) => t.typ + ' n ' + (t.n != null ? num(t.n) : '—') + (t.brierT1 != null ? ' (Brier T-1 ' + t.brierT1.toFixed(3) + ')' : '')).join(' · ')
+        : '';
+      return '<div style="margin-top:14px; padding-top:12px; border-top:1px solid rgba(255,255,255,.07)">'
+        + '<div style="font-size:13px; font-weight:600">' + esc(name) + '</div>'
+        + (typZeile ? '<div style="' + M + '; font-size:10.5px; color:#4F8EF7; margin-top:4px">' + esc(typZeile) + '</div>' : '')
+        + absatz('ANCHOR OF THE HORIZONS', m.anker)
+        + absatz('WHAT REPRICES IT', m.einpreisung)
+        + absatz('NOT MEASURED HERE', m.nicht_gemessen)
+        + absatz('T0 FOR A LATENCY STUDY', m.latenz_t0)
+        + '</div>';
+    };
+    messlogikHtml = '<details style="margin-top:14px; ' + karte + '; padding:0 18px">'
+      + '<summary style="cursor:pointer; padding:12px 0; ' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55); list-style:none">PRICING-IN LOGIC BY CATEGORY ▸</summary>'
+      + '<div style="padding-bottom:14px">'
+      + '<div style="font-size:12px; color:rgba(255,255,255,.5); line-height:1.5">These horizons measure forecast quality, never pricing-in speed: in-play moves and news reactions happen between T-1 and the decision and are invisible above. Per category: what the horizons anchor to, which real-world events reprice it, what stays unmeasured, and where an event-anchored latency study would take its t0 from. The blue line is the sample&#39;s pricing-mechanism mix.</div>'
+      + namen.map(block).join('')
+      + '</div></details>';
+  }
+
   return '<div style="padding:22px 24px">' + kopf
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:18px">' + kpis + '</div>'
     + balkenHtml
     + (linienHtml ? '<div style="margin-top:12px">' + linienHtml + '</div>' : '')
     + kalibHtml
     + tabelle
+    + messlogikHtml
     + methodeHtml
     + studienKnoepfe(T, 1)
     + '</div>';

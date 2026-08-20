@@ -359,14 +359,23 @@ function mitDaten(T) {
       datenfenster: { end_date_min: '2025-08-17T00:00:00Z', abgerufen_utc: '2026-08-17T00:00:00', events_gesichtet: 4, reihenfolge: 'volume desc' },
       auswahl: { max_per_event: 6, max_per_category_long_lived: 250, max_per_category_short_lived: 125, min_volume_usd: 1000, min_markets_per_category: 30 },
       preise: { hourly: 'h', daily: 'd' },
+      messlogik: {
+        Politics: { anker: 'Harness anchor text.', einpreisung: 'Harness repricing text.', nicht_gemessen: 'Harness blind spot.', latenz_t0: 'Harness t0 source.' },
+        Weather: { anker: 'Harness weather gap.', einpreisung: 'w', nicht_gemessen: 'w', latenz_t0: 'w' }
+      },
       einschraenkungen: ['Harness caveat.']
     },
     kategorien: [
       { kategorie: 'Politics', brier_t7: 0.1, trefferquote_t7: 0.9, brier_t1: 0.05, trefferquote_t1: 0.95, n_maerkte: 240, n_t7: 200, n_t1: 240,
         anteil_entschieden_t7: 0.4, median_volumen_usd: 12345,
+        brier_t7_offen: 0.15, n_t7_offen: 90,
+        typen: [
+          { typ: 'nachrichten', n: 200, brier_t7: 0.11, n_t7: 170, brier_t1: 0.06, n_t1: 200 },
+          { typ: 'stichtag', n: 40, brier_t7: 0.05, n_t7: 30, brier_t1: 0.02, n_t1: 40 }
+        ],
         horizonte: [
           { horizont_tage: 30, brier: 0.2, trefferquote: 0.8, n: 150 },
-          { horizont_tage: 7, brier: 0.1, trefferquote: 0.9, n: 200 },
+          { horizont_tage: 7, brier: 0.1, trefferquote: 0.9, n: 200, brier_offen: 0.15, trefferquote_offen: 0.8, n_offen: 90 },
           { horizont_tage: 1, brier: 0.05, trefferquote: 0.95, n: 240 }
         ],
         kalibrierung: { horizont_tage: 7, bins: [
@@ -375,9 +384,11 @@ function mitDaten(T) {
         ] } },
       { kategorie: 'Sports', brier_t7: 0.2, trefferquote_t7: 0.7, brier_t1: 0.15, trefferquote_t1: 0.8, n_maerkte: 300, n_t7: 210, n_t1: 300,
         anteil_entschieden_t7: 0.1, median_volumen_usd: 500000,
+        brier_t7_offen: 0.22, n_t7_offen: 180,
+        typen: [],
         horizonte: [
           { horizont_tage: 30, brier: null, trefferquote: null, n: 0 },
-          { horizont_tage: 7, brier: 0.2, trefferquote: 0.7, n: 210 },
+          { horizont_tage: 7, brier: 0.2, trefferquote: 0.7, n: 210, brier_offen: 0.22, trefferquote_offen: 0.68, n_offen: 180 },
           { horizont_tage: 1, brier: 0.15, trefferquote: 0.8, n: 300 }
         ],
         kalibrierung: { horizont_tage: 7, bins: [] } }
