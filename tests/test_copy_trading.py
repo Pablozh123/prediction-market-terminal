@@ -345,6 +345,29 @@ class CopyTradingTests(unittest.TestCase):
         self.assertAlmostEqual(legacy_equity, 1_500_000.0, msg="non-target trader must not clobber tony_* keys")
         self.assertAlmostEqual(per_wallet, 44_000.0, msg="per-wallet stats must still be written")
 
+    def test_non_primary_wallet_never_inherits_tony_stats(self) -> None:
+        # Observed live: two followed wallets without their own sizing stats
+        # were displayed and sized against the primary trader's $1.2M equity
+        # via the legacy tony_* fallback. Only the primary may use it; anyone
+        # else gets the default and the sizing's explicit fixed fallback.
+        other = "0x3d1ecf16942939b3603c2539a406514a40b504d0"
+        conn = ct.connect(self.db_path)
+        try:
+            ct._set_meta(conn, "target_wallet", ct.COPY_TARGET_WALLET)
+            ct._set_meta(conn, "tony_visible_equity", "1200000")
+
+            primary_equity = ct._get_wallet_float_stat(conn, ct.COPY_TARGET_WALLET, "visible_equity", 0.0)
+            other_equity = ct._get_wallet_float_stat(conn, other, "visible_equity", 0.0)
+
+            ct._set_meta(conn, f"wallet_stat:{other}:visible_equity", "44000")
+            other_own = ct._get_wallet_float_stat(conn, other, "visible_equity", 0.0)
+        finally:
+            conn.close()
+
+        self.assertAlmostEqual(primary_equity, 1_200_000.0)
+        self.assertAlmostEqual(other_equity, 0.0, msg="non-primary wallet must not inherit tony_* stats")
+        self.assertAlmostEqual(other_own, 44_000.0)
+
     def test_auto_top_up_after_buy_drains_cash(self) -> None:
         settings = ct.CopySettings(
             trade_limit=20, max_order_equity_pct=1.0, auto_top_up_enabled=True, cash_throttle_pct=0.0

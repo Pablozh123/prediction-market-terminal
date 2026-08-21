@@ -1593,6 +1593,22 @@ def source_book_line(book: Mapping[str, float] | None) -> str:
     return f"source book now: {fmt(yes)} YES / {fmt(no)} NO → {net}"
 
 
+def _usd_compact(value: Any) -> str:
+    """Dollar label that keeps cents while they are the whole story.
+
+    A $1k sub-account copying a whale at the neutral ratio trades pennies;
+    whole-dollar rounding showed every one of those fills as "$0" and the
+    Orders tab looked broken. Small amounts keep two decimals, large ones
+    stay thousands-grouped without decimals.
+    """
+    v = float(_num(value, 0.0) or 0.0)
+    if abs(v) < 0.005:
+        return "$0"
+    if abs(v) < 100:
+        return f"${v:,.2f}"
+    return f"${v:,.0f}"
+
+
 def copy_payload(
     orders: pd.DataFrame,
     positions: pd.DataFrame,
@@ -1645,8 +1661,8 @@ def copy_payload(
                 "shares": round(_num(row.get("source_size"), 0.0) or 0.0, 2),
                 "price": _num(row.get("source_price")),
                 "realized": round(_num(row.get("realized_pnl"), 0.0) or 0.0, 2),
-                "theirs": f"${(_num(row.get('source_notional'), 0.0) or 0.0):,.0f}",
-                "yours": f"${(_num(row.get('copy_notional'), 0.0) or 0.0):,.0f}",
+                "theirs": _usd_compact(row.get("source_notional")),
+                "yours": _usd_compact(row.get("copy_notional")),
                 "status": status,
                 "reason": _text(row.get("reason")),
                 "wallet": wallet,

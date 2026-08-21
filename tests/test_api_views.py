@@ -509,6 +509,27 @@ class CopyPayloadTests(unittest.TestCase):
         self.assertEqual(payload["positions"][0][0], "Brazil win")
         self.assertEqual(payload["equity_curve"][-1], 1043.18)
 
+    def test_penny_copies_show_cents_instead_of_dollar_zero(self) -> None:
+        # A $1k sub-account copying a $1.2M whale fills pennies per order;
+        # whole-dollar rounding rendered every one of them as "$0" and the
+        # Orders tab read as broken. Cents stay visible, true zero stays "$0".
+        orders = pd.DataFrame([
+            {"source_time": "2026-08-20T19:45:00Z", "title": "Penny copy", "copy_side": "buy",
+             "outcome": "Yes", "source_notional": 34.0, "copy_notional": 0.03, "status": "copied"},
+            {"source_time": "2026-08-20T19:44:00Z", "title": "Big copy", "copy_side": "buy",
+             "outcome": "Yes", "source_notional": 2307.0, "copy_notional": 1234.56, "status": "copied"},
+            {"source_time": "2026-08-20T19:43:00Z", "title": "Observed", "copy_side": "buy",
+             "outcome": "Yes", "source_notional": 500.0, "copy_notional": 0.0, "status": "seed_observed"},
+        ])
+        payload = apv.copy_payload(orders, pd.DataFrame(), pd.DataFrame(), pd.DataFrame(),
+                                   {"cash": 1000.0, "equity": 1000.0}, 1000.0, "0x" + "a" * 40, "x", {})
+        penny, big, observed = payload["orders"]
+        self.assertEqual(penny["yours"], "$0.03")
+        self.assertEqual(penny["theirs"], "$34.00")
+        self.assertEqual(big["yours"], "$1,235")
+        self.assertEqual(big["theirs"], "$2,307")
+        self.assertEqual(observed["yours"], "$0")
+
     def test_merges_and_settlements_say_what_they_are_and_carry_the_source_book(self) -> None:
         # The row that confused the reader: source_side MERGE with outcome
         # "Yes" read like a YES bet, while the wallet was net NO. The kind says

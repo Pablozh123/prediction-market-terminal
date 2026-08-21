@@ -3445,11 +3445,21 @@ def get_dynamic_sizing_snapshot(db_path: str | Path = DEFAULT_DB_PATH, conn: sql
 
 
 def _get_wallet_float_stat(conn: sqlite3.Connection, wallet: str, name: str, default: float) -> float:
-    """Per-source-wallet sizing stat, falling back to the legacy global value."""
+    """Per-source-wallet sizing stat.
+
+    Only the primary target may fall back to the legacy global ``tony_*``
+    keys — those describe the primary wallet's book, and any other trader
+    inheriting them is sized and displayed against a stranger's equity
+    (observed live: every followed wallet showing the first trader's $1.2M).
+    A non-primary wallet without its own stats gets the default, which sends
+    the sizing to its explicit fixed fallback instead.
+    """
     value = _get_meta(conn, f"wallet_stat:{wallet}:{name}")
     if value is not None:
         return _to_float(value, default)
-    return _get_float_meta(conn, f"tony_{name}", default)
+    if _normalize_address(wallet) == _primary_wallet(conn):
+        return _get_float_meta(conn, f"tony_{name}", default)
+    return default
 
 
 def _effective_copy_scale(conn: sqlite3.Connection, snapshot: PortfolioSnapshot, settings: CopySettings) -> float:
