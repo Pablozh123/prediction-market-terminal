@@ -13,7 +13,7 @@ const M = "font-family:'JetBrains Mono',monospace";
 const LBL9 = M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.6); margin-bottom:6px';
 const LIME = '#C8F542', RED = '#FF4545', AMBER = '#F5A623', BLUE = '#4F8EF7';
 const DIM = 'rgba(255,255,255,.55)';
-const INPUT = 'width:100%; box-sizing:border-box; background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:7px; padding:8px 10px; ' + M + '; font-size:11.5px; color:#fff; outline:none';
+const INPUT = 'width:100%; box-sizing:border-box; background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:7px; padding:8px 10px; ' + M + '; font-size:11.5px; color:#fff';
 const CARD = 'background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px';
 const BTN = M + "; font-size:11px; letter-spacing:.06em; border-radius:7px; padding:8px 14px; cursor:pointer; display:inline-block; user-select:none";
 const BTN_PRIMARY = BTN + '; color:#0A0D0F; background:' + LIME + '; font-weight:600';

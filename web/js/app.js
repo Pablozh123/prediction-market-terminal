@@ -209,7 +209,18 @@ class Terminal {
   seriesPoints(v, w, h) { return seriesPoints(v, w, h); }
 
   // ---- action / input registries (rebuilt every render) ----
-  act(fn) { this._acts.push(fn); return 'data-act="' + (this._acts.length - 1) + '"'; }
+  // Every registered action is a control, so it renders as one: focusable and
+  // announced. Two opt-outs, both for containers rather than controls —
+  // opts.plain for a click-to-close backdrop (a full-viewport layer is not a
+  // tab stop), opts.role === null for a card that already holds a link or a
+  // nested action (a button inside a button announces as neither).
+  act(fn, opts) {
+    this._acts.push(fn);
+    const attr = 'data-act="' + (this._acts.length - 1) + '"';
+    if (opts && opts.plain) return attr;
+    const rolle = opts && 'role' in opts ? opts.role : 'button';
+    return attr + (rolle ? ' role="' + rolle + '"' : '') + ' tabindex="0"';
+  }
   inp(fn, key) { this._inps.push(fn); return 'data-inp="' + (this._inps.length - 1) + '" data-key="' + key + '"'; }
 
   setState(patch) {
@@ -423,7 +434,10 @@ class Terminal {
       wallets: r.wallets, notional: r.notional, window: r.window, venue: r.venue,
       kindStyle: "font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.12em; color:" + (r.sev === 'high' ? '#F5A623' : r.sev === 'medium' ? 'rgba(255,255,255,.66)' : 'rgba(255,255,255,.6)'),
       scoreStyle: "font-family:'JetBrains Mono',monospace; font-size:18px; color:" + (r.sev === 'high' ? '#F5A623' : 'rgba(255,255,255,.72)'),
-      act: m ? this.act(() => this.openMarket(m.id)) : '',
+      // The card takes the focus but not the button role: it already holds the
+      // market link and the WHY-this-score toggle, and a button around those
+      // two announces as a button containing buttons.
+      act: m ? this.act(() => this.openMarket(m.id), { role: null }) : '',
       clickable: !!m
     };
   }
@@ -434,9 +448,15 @@ class Terminal {
     const style = 'display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 10px; border-radius:7px; cursor:pointer; margin-bottom:2px; border-left:2px solid ' + (active ? '#C8F542' : 'transparent') + '; background:' + (active ? 'rgba(200,245,66,.10)' : 'transparent');
     const labelStyle = 'font-size:13.5px; color:' + (active ? '#ffffff' : 'rgba(255,255,255,.62)') + '; font-weight:' + (active ? '600' : '400');
     const badgeStyle = badge ? ("font-family:'JetBrains Mono',monospace; font-size:11px; padding:1px 6px; border-radius:3px; " + (badgeColor === 'amber' ? 'color:#F5A623; border:1px solid rgba(245,166,35,.4)' : 'color:#0A0D0F; background:#C8F542')) : 'display:none';
-    return '<div ' + this.act(() => this.go(id)) + ' class="hv-el" style="' + style + '">'
+    // A link, not a div: the router runs on the hash anyway, so the anchor
+    // costs nothing and buys the tab stop, the link role, aria-current and
+    // open-in-new-tab. go() still does the work — it resolves the deep
+    // address (#risk/log) that a bare href cannot know.
+    const act = this.act((e) => { e.preventDefault(); this.go(id); }, { role: null });
+    return '<a href="#' + esc(id) + '" ' + act + (active ? ' aria-current="page"' : '')
+      + ' class="hv-el" style="text-decoration:none; ' + style + '">'
       + '<span style="' + labelStyle + '">' + esc(label) + '</span>'
-      + '<span style="' + badgeStyle + '">' + esc(badge || '') + '</span></div>';
+      + '<span style="' + badgeStyle + '">' + esc(badge || '') + '</span></a>';
   }
 
   // A research study as a sidebar entry. Studies keep their own routes
@@ -446,8 +466,10 @@ class Terminal {
     const farbe = accent || '#4F8EF7';
     const style = 'display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 10px; border-radius:7px; cursor:pointer; margin-bottom:2px; border-left:2px solid ' + (active ? farbe : 'transparent') + '; background:' + (active ? 'rgba(79,142,247,.12)' : 'transparent');
     const labelStyle = 'font-size:13.5px; color:' + (active ? '#ffffff' : 'rgba(255,255,255,.62)') + '; font-weight:' + (active ? '600' : '400');
-    return '<div ' + this.act(() => this.goStudy(i)) + ' class="hv-el" style="' + style + '">'
-      + '<span style="' + labelStyle + '">' + esc(label) + '</span></div>';
+    const act = this.act((e) => { e.preventDefault(); this.goStudy(i); }, { role: null });
+    return '<a href="#research/' + esc(this.studienSlug(i)) + '" ' + act + (active ? ' aria-current="page"' : '')
+      + ' class="hv-el" style="text-decoration:none; ' + style + '">'
+      + '<span style="' + labelStyle + '">' + esc(label) + '</span></a>';
   }
 
   // Sidebar entry for a study by its tab name; missing studies render nothing
@@ -1211,8 +1233,21 @@ class Terminal {
       } else if (e.key === '/' && !this.state.searchOpen && !tippt) {
         e.preventDefault();
         this.setState({ searchOpen: true });
+      } else if ((e.key === 'Enter' || e.key === ' ') && !tippt) {
+        // Enter/Space on a focused control does what a click does. Native
+        // elements are left alone — a link inside a row handles its own
+        // Enter, and firing the row as well would do two things at once.
+        // The handler is called directly rather than through .click() so a
+        // nested control never bubbles into the card around it.
+        const nativ = e.target.closest ? e.target.closest('a[href],button,input,select,textarea,summary') : null;
+        if (!nativ) {
+          const el = e.target.closest ? e.target.closest('[data-act][tabindex]') : null;
+          const fn = el ? this._acts[+el.dataset.act] : null;
+          if (fn) { e.preventDefault(); fn(e); }
+        }
       } else if (e.key === 'Enter' && this.state.searchOpen) {
-        // Enter opens the first result of the palette (the highlighted row).
+        // Enter from the palette's own field opens the first result. Focus on
+        // a result row is handled above, by that row.
         const erster = document.querySelector('#search [data-act][data-result]');
         if (erster) { e.preventDefault(); erster.click(); }
       }
