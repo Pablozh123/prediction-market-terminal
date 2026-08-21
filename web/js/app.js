@@ -275,23 +275,31 @@ class Terminal {
   // ---- shared UI atoms (styles verbatim from the reference) ----
   opt(label, active, patch) {
     const style = "font-family:'JetBrains Mono',monospace; font-size:10.5px; border-radius:5px; padding:5px 9px; cursor:pointer; " + (active ? 'color:#0A0D0F; background:#C8F542; font-weight:600' : 'color:rgba(255,255,255,.55); border:1px solid rgba(255,255,255,.14)');
-    return '<div ' + this.act(typeof patch === 'function' ? patch : () => this.setState(patch)) + ' style="' + style + '">' + esc(label) + '</div>';
+    return '<div ' + this.act(typeof patch === 'function' ? patch : () => this.setState(patch))
+      + ' aria-pressed="' + (active ? 'true' : 'false') + '" style="' + style + '">' + esc(label) + '</div>';
   }
 
   chip(label, active, patch) {
     const style = "font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.06em; border-radius:5px; padding:5px 10px; cursor:pointer; " + (active ? 'color:#0A0D0F; background:#C8F542; font-weight:600' : 'color:rgba(255,255,255,.55); border:1px solid rgba(255,255,255,.16)');
-    return '<div ' + this.act(typeof patch === 'function' ? patch : () => this.setState(patch)) + ' style="' + style + '">' + esc(label) + '</div>';
+    return '<div ' + this.act(typeof patch === 'function' ? patch : () => this.setState(patch))
+      + ' aria-pressed="' + (active ? 'true' : 'false') + '" style="' + style + '">' + esc(label) + '</div>';
   }
 
   tab(label, active, patch) {
     const style = 'font-size:12.5px; border-radius:7px; padding:7px 13px; cursor:pointer; ' + (active ? 'color:#0A0D0F; background:#C8F542; font-weight:600' : 'color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.16)');
-    return '<div ' + this.act(typeof patch === 'function' ? patch : () => this.setState(patch)) + ' style="' + style + '">' + esc(label) + '</div>';
+    return '<div ' + this.act(typeof patch === 'function' ? patch : () => this.setState(patch))
+      + ' aria-pressed="' + (active ? 'true' : 'false') + '" style="' + style + '">' + esc(label) + '</div>';
   }
 
-  toggle(on, patch) {
+  toggle(on, patch, label) {
     const wrap = 'width:34px; height:19px; flex:none; border-radius:10px; padding:2px; display:flex; cursor:pointer; background:' + (on ? '#C8F542' : 'rgba(255,255,255,.14)') + '; justify-content:' + (on ? 'flex-end' : 'flex-start');
     const knob = 'width:15px; height:15px; border-radius:50%; background:' + (on ? '#0A0D0F' : 'rgba(255,255,255,.55)');
-    return '<div ' + this.act(typeof patch === 'function' ? patch : () => this.setState(patch)) + ' style="' + wrap + '"><div style="' + knob + '"></div></div>';
+    // A switch, not a button: act() gives up its role so this one stands, and
+    // the caller passes the label that sits above the control on screen.
+    return '<div ' + this.act(typeof patch === 'function' ? patch : () => this.setState(patch), { role: null })
+      + ' role="switch" aria-checked="' + (on ? 'true' : 'false') + '"'
+      + (label ? ' aria-label="' + esc(label) + '"' : '')
+      + ' style="' + wrap + '"><div style="' + knob + '"></div></div>';
   }
 
   stepper(valueLabel, onDown, onUp, size) {

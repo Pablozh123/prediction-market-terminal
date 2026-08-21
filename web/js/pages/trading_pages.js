@@ -238,7 +238,7 @@ export function renderBacktester(T) {
     + '<div style="border-right:1px solid rgba(255,255,255,.09); padding:18px 20px; display:flex; flex-direction:column; gap:22px">'
 
     + '<div><div style="' + M + '; font-size:11px; letter-spacing:.16em; color:#C8F542; margin-bottom:9px">01 · WALLET TO REPLAY</div>'
-    + '<input value="' + esc(s.btWallet) + '" ' + T.inp((e) => { T.state.btWallet = e.target.value; if (T.liveData.backtest) T.state.btDirty = true; }, 'btWallet') + ' aria-label="Wallet address to replay" placeholder="0x…" style="width:100%; box-sizing:border-box; background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:10px 12px; ' + M + '; font-size:12px; color:#fff" />'
+    + '<input value="' + esc(s.btWallet) + '" ' + T.inp((e) => { T.state.btWallet = e.target.value; if (T.liveData.backtest) T.state.btDirty = true; }, 'btWallet') + ' aria-label="Wallet address to replay" placeholder="0x…" style="width:100%; box-sizing:border-box; background:#10151A; border:1px solid rgba(255,255,255,.35); border-radius:8px; padding:10px 12px; ' + M + '; font-size:12px; color:#fff" />'
     + '<div style="font-size:11.5px; color:rgba(255,255,255,.6); margin-top:7px; line-height:1.5">Any public Polymarket address — the default is one with a long public trade history, chosen so a first run has something to replay. Take one from the leaderboard to compare.</div></div>'
 
     + '<div><div style="' + M + '; font-size:11px; letter-spacing:.16em; color:#C8F542; margin-bottom:9px">02 · STAKE PER COPY</div>'
@@ -441,7 +441,7 @@ export function renderPortfolio(T) {
     const rows = baseRows.filter((r) => (s.portSource === 'all' || r[5] === s.portSource) && (s.portSide === 'all' || r[1] === s.portSide) && (!s.portLosers || r[4].charAt(0) === '-') && (!s.portQuery.trim() || r[0].toLowerCase().indexOf(s.portQuery.trim().toLowerCase()) >= 0));
     body = '<div>'
       + '<div style="padding:14px 24px 0; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px 18px">'
-      + '<div><div style="' + LBL9 + '">SEARCH</div><input value="' + esc(s.portQuery) + '" ' + T.inp((e) => T.setState({ portQuery: e.target.value }), 'portQuery') + ' placeholder="market or wallet…" style="width:100%; box-sizing:border-box; background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:7px; padding:8px 10px; ' + M + '; font-size:11.5px; color:#fff" /></div>'
+      + '<div><div style="' + LBL9 + '">SEARCH</div><input value="' + esc(s.portQuery) + '" ' + T.inp((e) => T.setState({ portQuery: e.target.value }), 'portQuery') + ' placeholder="market or wallet…" style="width:100%; box-sizing:border-box; background:#10151A; border:1px solid rgba(255,255,255,.35); border-radius:7px; padding:8px 10px; ' + M + '; font-size:11.5px; color:#fff" /></div>'
       + '<div><div style="' + LBL9 + '">SOURCE</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
       + [['all','All'],['research','Research'],['copy','Copy trade']].map((o) => T.opt(o[1], s.portSource === o[0], { portSource: o[0] })).join('') + '</div></div>'
       + '<div><div style="' + LBL9 + '">SIDE</div><div style="display:flex; gap:6px; flex-wrap:wrap">'

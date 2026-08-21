@@ -82,7 +82,7 @@ export function renderTraders(T) {
     + '<div><div style="' + M + '; font-size:11px; letter-spacing:.18em; color:#C8F542">LEADERBOARD</div>'
     + '<h1 style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin:5px 0 0; font-weight:400">Who is actually good at this</h1></div>'
     + '<div style="display:flex; align-items:center; gap:10px">'
-    + '<input value="' + esc(s.traderQuery) + '" ' + T.inp((e) => T.setState({ traderQuery: e.target.value }), 'traderQuery') + ' placeholder="Search name or wallet…" style="background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:9px 12px; ' + M + '; font-size:12.5px; color:#fff; width:230px" />'
+    + '<input value="' + esc(s.traderQuery) + '" ' + T.inp((e) => T.setState({ traderQuery: e.target.value }), 'traderQuery') + ' placeholder="Search name or wallet…" style="background:#10151A; border:1px solid rgba(255,255,255,.35); border-radius:8px; padding:9px 12px; ' + M + '; font-size:12.5px; color:#fff; width:230px" />'
     + '<div ' + T.act(() => T.setState({ traderQuery: '', tPnl: 'all', tVol: 'all', traderRank: 'pnl' })) + ' class="hv-bd32" style="font-size:12.5px; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:9px 13px; cursor:pointer">Reset filters</div>'
     + '</div></div>'
     + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:10px; max-width:760px">Ranked from the public Polymarket all-time leaderboard. The smart score is a weighted composite of the components listed under each wallet; win rate and resolved-bet counts are computed per wallet with sample size and confidence interval — open a wallet to see them.</div>'

@@ -173,7 +173,7 @@ export function renderOverview(T) {
   const pilotIdx = T.studies.findIndex((st) => st.tab === 'Pilot');
   const goStudy = (i, anker) => (i >= 0 && T.goStudy ? T.act(() => T.goStudy(i, anker)) : '');
   const link = (i, label, color) => (i >= 0
-    ? '<div ' + goStudy(i) + ' class="hv-lime" style="' + M + '; font-size:11px; color:' + (color || 'rgba(255,255,255,.6)') + '; cursor:pointer; white-space:nowrap">' + label + ' →</div>'
+    ? '<div ' + goStudy(i) + ' class="hv-lime" style="' + M + '; font-size:11px; color:' + (color || 'rgba(255,255,255,.6)') + '; cursor:pointer; padding:5px 0; white-space:nowrap">' + label + ' →</div>'
     : '');
 
   // ---- verdict board -----------------------------------------------------
@@ -277,7 +277,7 @@ export function renderOverview(T) {
     + '<div style="display:flex; gap:14px; margin-top:14px; flex-wrap:wrap; ' + M + '; font-size:11px">'
     + '<a href="' + REPO_URL + '" target="_blank" rel="noopener">GitHub repository →</a>'
     + '<a href="' + ONE_PAGER_URL + '" target="_blank" rel="noopener">One-pager (docs/research/ONE_PAGER.md) →</a>'
-    + (pilotIdx >= 0 ? '<span ' + goStudy(pilotIdx) + ' class="hv-lime" style="color:rgba(255,255,255,.55); cursor:pointer">Pre-registered pilot →</span>' : '')
+    + (pilotIdx >= 0 ? '<span ' + goStudy(pilotIdx) + ' class="hv-lime" style="color:rgba(255,255,255,.55); cursor:pointer; display:inline-block; padding:5px 0">Pre-registered pilot →</span>' : '')
     + '</div></div>'
 
     // Die getestete Strategie zuerst — sie ist das Argument der Seite; die
@@ -293,7 +293,7 @@ export function renderOverview(T) {
     + sectionHead('FIELD NOTES', link(notesIdx, 'ALL NOTES'), '#4F8EF7')
     + notesStrip
 
-    + sectionHead('ANALYSIS TOOL · LIVE DATA', asOfLine(s.liveAsOf) + '<div ' + T.act(() => T.go('markets')) + ' class="hv-lime" style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); cursor:pointer">MARKETS →</div><div ' + T.act(() => T.go('flow')) + ' class="hv-lime" style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); cursor:pointer">TAPE →</div>')
+    + sectionHead('ANALYSIS TOOL · LIVE DATA', asOfLine(s.liveAsOf) + '<div ' + T.act(() => T.go('markets')) + ' class="hv-lime" style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); cursor:pointer; padding:5px 0">MARKETS →</div><div ' + T.act(() => T.go('flow')) + ' class="hv-lime" style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); cursor:pointer; padding:5px 0">TAPE →</div>')
     + liveRow
     + '<div style="padding:22px 24px; text-align:center; ' + M + '; font-size:11px; color:rgba(255,255,255,.55)">Public data only · live blocks refresh every 30 seconds · research payloads are frozen files under ./data</div>'
     + '</div>';
@@ -429,7 +429,7 @@ export function renderMarkets(T) {
     + '<div><div style="' + M + '; font-size:11px; letter-spacing:.18em; color:#C8F542">MARKETS</div>'
     + '<h1 style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin:5px 0 0; font-weight:400">Every market, one table</h1></div>'
     + '<div style="display:flex; align-items:center; gap:10px">'
-    + '<input value="' + esc(s.marketQuery) + '" ' + T.inp((e) => T.setState({ marketQuery: e.target.value }), 'marketQuery') + ' placeholder="Search markets…" style="background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:9px 12px; ' + M + '; font-size:12.5px; color:#fff; width:230px" />'
+    + '<input value="' + esc(s.marketQuery) + '" ' + T.inp((e) => T.setState({ marketQuery: e.target.value }), 'marketQuery') + ' placeholder="Search markets…" style="background:#10151A; border:1px solid rgba(255,255,255,.35); border-radius:8px; padding:9px 12px; ' + M + '; font-size:12.5px; color:#fff; width:230px" />'
     + '<div ' + T.act(() => T.setState({ mPlatform: 'all', mStatus: 'active', mProb: 'all', mLiq: 'all', mVol: 'all', mEnds: 'all', mAge: 'all', mExclude: [], marketCat: 'All', marketQuery: '', mQuick: 'trending', marketSort: 'volume' })) + ' class="hv-bd32" style="font-size:12.5px; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:9px 13px; cursor:pointer">Reset filters</div>'
     + '</div></div>'
 
@@ -485,11 +485,11 @@ export function renderMarkets(T) {
     + '<div style="display:grid; grid-template-columns:' + MARKT_SPALTEN + '; padding:10px 24px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A; position:sticky; top:0; z-index:3; ' + HEAD_CELL + '">'
     + '<div>MARKET</div>'
     + '<div style="text-align:right">YES</div>'
-    + '<div ' + T.act(() => T.setState({ marketSort: 'change' })) + ' style="text-align:right; cursor:pointer; color:' + (s.marketSort === 'change' ? '#C8F542' : 'rgba(255,255,255,.6)') + '">CHANGE 1D</div>'
+    + '<div ' + T.act(() => T.setState({ marketSort: 'change' })) + ' style="text-align:right; cursor:pointer; padding:5px 0; color:' + (s.marketSort === 'change' ? '#C8F542' : 'rgba(255,255,255,.6)') + '">CHANGE 1D</div>'
     + '<div style="text-align:right">SPREAD</div>'
-    + '<div ' + T.act(() => T.setState({ marketSort: 'liquidity' })) + ' style="text-align:right; cursor:pointer; color:' + (s.marketSort === 'liquidity' ? '#C8F542' : 'rgba(255,255,255,.6)') + '">LIQUIDITY</div>'
-    + '<div ' + T.act(() => T.setState({ marketSort: 'volume' })) + ' style="text-align:right; cursor:pointer; color:' + (s.marketSort === 'volume' ? '#C8F542' : 'rgba(255,255,255,.6)') + '">VOLUME 24H</div>'
-    + '<div ' + T.act(() => T.setState({ marketSort: 'ending' })) + ' style="text-align:right; cursor:pointer; color:' + (s.marketSort === 'ending' ? '#C8F542' : 'rgba(255,255,255,.6)') + '">RESOLVES</div></div>'
+    + '<div ' + T.act(() => T.setState({ marketSort: 'liquidity' })) + ' style="text-align:right; cursor:pointer; padding:5px 0; color:' + (s.marketSort === 'liquidity' ? '#C8F542' : 'rgba(255,255,255,.6)') + '">LIQUIDITY</div>'
+    + '<div ' + T.act(() => T.setState({ marketSort: 'volume' })) + ' style="text-align:right; cursor:pointer; padding:5px 0; color:' + (s.marketSort === 'volume' ? '#C8F542' : 'rgba(255,255,255,.6)') + '">VOLUME 24H</div>'
+    + '<div ' + T.act(() => T.setState({ marketSort: 'ending' })) + ' style="text-align:right; cursor:pointer; padding:5px 0; color:' + (s.marketSort === 'ending' ? '#C8F542' : 'rgba(255,255,255,.6)') + '">RESOLVES</div></div>'
     + mRows.map((m) => marketRowHtml(Object.assign(T.marketView(m), {
       spreadLabel: mx(m).spread != null ? mx(m).spread + '¢' : '—',
       liqLabel: m.liq ? money(m.liq) : '—'
@@ -523,7 +523,7 @@ export function renderFlow(T) {
     + '<h1 style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin:5px 0 0; font-weight:400">Every large print as it lands</h1></div>'
     + '<div style="display:flex; align-items:center; gap:12px">'
     + asOfLine(s.tapeAsOf || s.liveAsOf)
-    + '<input value="' + esc(s.tapeQuery) + '" ' + T.inp((e) => T.setState({ tapeQuery: e.target.value }), 'tapeQuery') + ' placeholder="market, wallet, trader…" style="background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:9px 12px; ' + M + '; font-size:12.5px; color:#fff; width:250px" />'
+    + '<input value="' + esc(s.tapeQuery) + '" ' + T.inp((e) => T.setState({ tapeQuery: e.target.value }), 'tapeQuery') + ' placeholder="market, wallet, trader…" style="background:#10151A; border:1px solid rgba(255,255,255,.35); border-radius:8px; padding:9px 12px; ' + M + '; font-size:12.5px; color:#fff; width:250px" />'
     + '</div></div>'
     + '<div style="margin-top:14px">' + filterGroup('CATEGORY', catChipRow(T, T.tape, 'category', 'tapeCat', s.tapeCat)) + '</div>'
     + '<div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px 18px; margin-top:14px">'
@@ -651,7 +651,7 @@ export function renderCross(T) {
     + '<h1 style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin:5px 0 0; font-weight:400">The same question, two prices</h1></div>'
     + '<div style="display:flex; align-items:center; gap:10px">'
     + asOfLine(cl.as_of)
-    + '<input value="' + esc(s.crossQuery) + '" ' + T.inp((e) => T.setState({ crossQuery: e.target.value }), 'crossQuery') + ' placeholder="bitcoin, fed, election…" style="background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:9px 12px; ' + M + '; font-size:12.5px; color:#fff; width:230px" />'
+    + '<input value="' + esc(s.crossQuery) + '" ' + T.inp((e) => T.setState({ crossQuery: e.target.value }), 'crossQuery') + ' placeholder="bitcoin, fed, election…" style="background:#10151A; border:1px solid rgba(255,255,255,.35); border-radius:8px; padding:9px 12px; ' + M + '; font-size:12.5px; color:#fff; width:230px" />'
     + '<div ' + T.act(() => T.setState({ crossQuery: '', crossSim: 0.5, crossMaxPairs: 50, crossMinGap: 0, crossLower: 'any', crossPmVol: 0, crossKsVol: 0, crossMinPrice: 0, crossMaxPrice: 100 })) + ' class="hv-bd32" style="font-size:12.5px; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:9px 13px; cursor:pointer">Reset filters</div>'
     + '</div></div>'
     + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:10px; max-width:760px">Matched by title similarity, not by ticker. ' + esc(gateNote) + '. A gap is not free money — fees, settlement rules and resolution sources differ between the two venues, and two matched titles can still be two different questions (studies 08 and 11).</div>'
@@ -735,7 +735,7 @@ export function renderResolved(T) {
     + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:20px">'
     + '<div><div style="' + M + '; font-size:11px; letter-spacing:.18em; color:#C8F542">RESOLVED</div>'
     + '<h1 style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin:5px 0 0; font-weight:400">How the last questions ended</h1></div>'
-    + '<input value="' + esc(s.resQuery) + '" ' + T.inp((e) => T.setState({ resQuery: e.target.value }), 'resQuery') + ' placeholder="Search resolved markets…" style="background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:9px 12px; ' + M + '; font-size:12.5px; color:#fff; width:250px" />'
+    + '<input value="' + esc(s.resQuery) + '" ' + T.inp((e) => T.setState({ resQuery: e.target.value }), 'resQuery') + ' placeholder="Search resolved markets…" style="background:#10151A; border:1px solid rgba(255,255,255,.35); border-radius:8px; padding:9px 12px; ' + M + '; font-size:12.5px; color:#fff; width:250px" />'
     + '</div>'
     + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:10px; max-width:700px">The last price before settlement next to the answer. The gap between the two is what the crowd got wrong.</div>'
     + '<div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px 18px; margin-top:14px">'

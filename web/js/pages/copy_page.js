@@ -13,7 +13,7 @@ const M = "font-family:'JetBrains Mono',monospace";
 const LBL9 = M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.6); margin-bottom:6px';
 const LIME = '#C8F542', RED = '#FF4545', AMBER = '#F5A623', BLUE = '#4F8EF7';
 const DIM = 'rgba(255,255,255,.55)';
-const INPUT = 'width:100%; box-sizing:border-box; background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:7px; padding:8px 10px; ' + M + '; font-size:11.5px; color:#fff';
+const INPUT = 'width:100%; box-sizing:border-box; background:#10151A; border:1px solid rgba(255,255,255,.35); border-radius:7px; padding:8px 10px; ' + M + '; font-size:11.5px; color:#fff';
 const CARD = 'background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px';
 const BTN = M + "; font-size:11px; letter-spacing:.06em; border-radius:7px; padding:8px 14px; cursor:pointer; display:inline-block; user-select:none";
 const BTN_PRIMARY = BTN + '; color:#0A0D0F; background:' + LIME + '; font-weight:600';
@@ -331,7 +331,7 @@ function settingsTab(T, s, live, canWrite) {
   const hintHtml = (hint) => (hint ? '<div style="font-size:11px; color:rgba(255,255,255,.6); margin-top:5px; line-height:1.45">' + hint + '</div>' : '');
   const numField = (key, label, hint) => field(label, textInput(T, 'copySet_' + key, f[key], '', set(key)) + hintHtml(hint));
   const pctField = (key, label, hint) => field(label, textInput(T, 'copySetPct_' + key, pctInputValue(f[key]), '', setPct(key)) + hintHtml(hint));
-  const boolField = (key, label, hint) => '<div><div style="' + LBL9 + '">' + label + '</div><div style="display:flex; align-items:center; gap:10px; padding:6px 0">' + T.toggle(!!f[key], canWrite ? flip(key) : () => {}) + '<span style="' + M + '; font-size:11px; color:' + DIM + '">' + (f[key] ? 'on' : 'off') + '</span></div>' + hintHtml(hint) + '</div>';
+  const boolField = (key, label, hint) => '<div><div style="' + LBL9 + '">' + label + '</div><div style="display:flex; align-items:center; gap:10px; padding:6px 0">' + T.toggle(!!f[key], canWrite ? flip(key) : () => {}, label) + '<span style="' + M + '; font-size:11px; color:' + DIM + '">' + (f[key] ? 'on' : 'off') + '</span></div>' + hintHtml(hint) + '</div>';
   const mode = sizingModeOf(f);
   const chooseMode = (m) => () => {
     if (!canWrite) return;

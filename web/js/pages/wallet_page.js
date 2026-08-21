@@ -122,7 +122,7 @@ function renderHeader(T) {
     + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:8px; max-width:800px">Paste a Polymarket proxy address. The page reads its resolved positions (both tails), open positions, the profile PnL curve and its trades from the public Data API, and prints the corrected track record next to the naive one — every figure with its sample size, interval and time stamp. Read-only, nothing is placed.</div>'
     + '<div style="display:flex; align-items:center; gap:10px; margin-top:14px; flex-wrap:wrap">'
     + '<input value="' + esc(input) + '" ' + T.inp((e) => { T.state.walletInput = e.target.value; T.render(); }, 'walletInput')
-    + ' placeholder="0x… (40 hex characters)" aria-label="Wallet address to analyse" spellcheck="false" style="flex:1; min-width:280px; max-width:520px; box-sizing:border-box; background:#10151A; border:1px solid ' + (looksLike ? 'rgba(245,166,35,.5)' : 'rgba(255,255,255,.16)') + '; border-radius:8px; padding:10px 12px; ' + M + '; font-size:12.5px; color:#fff" />'
+    + ' placeholder="0x… (40 hex characters)" aria-label="Wallet address to analyse" spellcheck="false" style="flex:1; min-width:280px; max-width:520px; box-sizing:border-box; background:#10151A; border:1px solid ' + (looksLike ? 'rgba(245,166,35,.5)' : 'rgba(255,255,255,.35)') + '; border-radius:8px; padding:10px 12px; ' + M + '; font-size:12.5px; color:#fff" />'
     + '<div ' + T.act(analyse) + (valid ? ' class="hv-limebg"' : '') + ' style="' + btnStyle + '">Analyse →</div>'
     + '</div>'
     + (looksLike ? '<div style="' + M + '; font-size:10.5px; color:#F5A623; margin-top:6px">Not a full address yet — a Polymarket wallet is 0x followed by 40 hex characters.</div>' : '')
@@ -811,7 +811,7 @@ function renderSimilarTab(T, d) {
   const rowsAll = Array.isArray(data.rows) ? data.rows : [];
   const rows = q ? rowsAll.filter((r) => String(r.wallet).indexOf(q) >= 0 || String(r.name || '').toLowerCase().indexOf(q) >= 0) : rowsAll;
   const search = '<input value="' + esc(T.state.walletSimilarQuery || '') + '" ' + T.inp((e) => { T.state.walletSimilarQuery = e.target.value; T.render(); }, 'walletSimilarQuery')
-    + ' placeholder="search wallet address or name…" spellcheck="false" style="width:100%; box-sizing:border-box; background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:9px 12px; ' + M + '; font-size:12px; color:#fff; margin-bottom:12px" />';
+    + ' placeholder="search wallet address or name…" spellcheck="false" style="width:100%; box-sizing:border-box; background:#10151A; border:1px solid rgba(255,255,255,.35); border-radius:8px; padding:9px 12px; ' + M + '; font-size:12px; color:#fff; margin-bottom:12px" />';
   const cols = 'minmax(220px, 2fr) 110px 150px 150px 120px 90px 170px';
   const head = '<div>WALLET</div><div style="text-align:right">SHARED MARKETS</div><div style="text-align:right">THEIR OPEN POSITIONS</div><div>OVERLAP</div><div style="text-align:right">LEADERBOARD PNL</div><div style="text-align:right">VOLUME</div><div style="text-align:right">VIEW</div>';
   const body = rows.map((r) => {

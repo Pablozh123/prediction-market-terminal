@@ -256,7 +256,7 @@ export function renderSearch(T) {
 
   return '<div ' + T.act(() => T.setState({ searchOpen: false }), { plain: true }) + ' data-bg style="position:fixed; inset:0; background:rgba(5,7,9,.72); display:flex; align-items:flex-start; justify-content:center; padding-top:14vh; z-index:50">'
     + '<div data-stop role="dialog" aria-modal="true" aria-label="Search markets, wallets and categories" style="width:620px; background:#10151A; border:1px solid rgba(255,255,255,.14); border-radius:14px; overflow:hidden; box-shadow:0 30px 80px rgba(0,0,0,.6)">'
-    + '<input value="' + esc(s.searchQuery) + '" ' + T.inp((e) => T.setState({ searchQuery: e.target.value }), 'searchQuery') + ' placeholder="Search markets, wallets, categories — or paste a 0x… address to analyse it" style="width:100%; box-sizing:border-box; background:transparent; border:none; border-bottom:1px solid rgba(255,255,255,.09); padding:17px 20px; ' + M + '; font-size:14px; color:#fff" autofocus />'
+    + '<input value="' + esc(s.searchQuery) + '" ' + T.inp((e) => T.setState({ searchQuery: e.target.value }), 'searchQuery') + ' placeholder="Search markets, wallets, categories — or paste a 0x… address to analyse it" style="width:100%; box-sizing:border-box; background:transparent; border:none; border-bottom:1px solid rgba(255,255,255,.35); padding:17px 20px; ' + M + '; font-size:14px; color:#fff" autofocus />'
     + '<div style="max-height:380px; overflow-y:auto">'
     // The first row is marked (data-result) and lightly highlighted: Enter
     // opens it (app.js keydown), so the palette works without the mouse.

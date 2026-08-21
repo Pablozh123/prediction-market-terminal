@@ -55,6 +55,18 @@ input { font-family: inherit; }
 /* h1/h2 are the document outline; the look stays the design's. */
 .content h1, .content h2 { font-weight: inherit; }
 
+/* Motion is decoration here: the live dot pulses forever, rows and the detail
+   panel slide in, treemap tiles lift. None of it carries meaning, so anyone
+   who has asked their system for less simply gets the end state. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Hover utilities — the reference uses per-element hover styles; these classes
    reproduce every hover pattern it contains. */
 .hv-el:hover { background: #161C22 !important; }
