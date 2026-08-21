@@ -520,15 +520,18 @@ class CopyPayloadTests(unittest.TestCase):
              "outcome": "Yes", "source_notional": 2307.0, "copy_notional": 1234.56, "status": "copied"},
             {"source_time": "2026-08-20T19:43:00Z", "title": "Observed", "copy_side": "buy",
              "outcome": "Yes", "source_notional": 500.0, "copy_notional": 0.0, "status": "seed_observed"},
+            {"source_time": "2026-08-20T19:42:00Z", "title": "Sub-cent copy", "copy_side": "buy",
+             "outcome": "Yes", "source_notional": 3.75, "copy_notional": 0.003, "status": "copied"},
         ])
         payload = apv.copy_payload(orders, pd.DataFrame(), pd.DataFrame(), pd.DataFrame(),
                                    {"cash": 1000.0, "equity": 1000.0}, 1000.0, "0x" + "a" * 40, "x", {})
-        penny, big, observed = payload["orders"]
+        penny, big, observed, subcent = payload["orders"]
         self.assertEqual(penny["yours"], "$0.03")
         self.assertEqual(penny["theirs"], "$34.00")
         self.assertEqual(big["yours"], "$1,235")
         self.assertEqual(big["theirs"], "$2,307")
         self.assertEqual(observed["yours"], "$0")
+        self.assertEqual(subcent["yours"], "<$0.01")
 
     def test_merges_and_settlements_say_what_they_are_and_carry_the_source_book(self) -> None:
         # The row that confused the reader: source_side MERGE with outcome

@@ -1598,12 +1598,15 @@ def _usd_compact(value: Any) -> str:
 
     A $1k sub-account copying a whale at the neutral ratio trades pennies;
     whole-dollar rounding showed every one of those fills as "$0" and the
-    Orders tab looked broken. Small amounts keep two decimals, large ones
-    stay thousands-grouped without decimals.
+    Orders tab looked broken. Small amounts keep two decimals, sub-half-cent
+    fills say "<$0.01" (only an exact zero shows "$0"), large amounts stay
+    thousands-grouped without decimals.
     """
     v = float(_num(value, 0.0) or 0.0)
-    if abs(v) < 0.005:
+    if v == 0.0:
         return "$0"
+    if abs(v) < 0.005:
+        return "<$0.01"
     if abs(v) < 100:
         return f"${v:,.2f}"
     return f"${v:,.0f}"

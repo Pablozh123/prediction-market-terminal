@@ -436,7 +436,7 @@ export function renderCopy(T) {
       if (s.copyStatus2 !== 'all' && o.status !== s.copyStatus2) return false;
       const k = kindOf(o);
       if (s.copySide === 'SETTLE' ? !(k === 'MERGE' || k === 'REDEEM' || k === 'RESOLUTION' || k === 'SPLIT' || k === 'CONVERT') : (s.copySide !== 'all' && k !== s.copySide)) return false;
-      if (s.copyMin !== 'all' && Number(String(o.theirs).replace(/[$,]/g, '')) < Number(s.copyMin)) return false;
+      if (s.copyMin !== 'all' && Number(String(o.theirs).replace(/[^0-9.-]/g, '')) < Number(s.copyMin)) return false;
       if (s.copyQuery.trim() && o.market.toLowerCase().indexOf(s.copyQuery.trim().toLowerCase()) < 0) return false;
       return true;
     });
