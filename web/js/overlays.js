@@ -172,10 +172,10 @@ export function renderDetail(T) {
     };
   }
 
-  return '<div style="position:absolute; top:0; right:0; bottom:0; width:392px; box-sizing:border-box; border-left:1px solid rgba(255,255,255,.09); background:#0A0D0F; overflow-y:auto; z-index:20; box-shadow:-24px 0 48px rgba(0,0,0,.45); animation:panelIn .22s ease-out">'
+  return '<div role="dialog" aria-modal="true" aria-label="' + esc(v.title || v.kicker || 'Detail') + '" style="position:absolute; top:0; right:0; bottom:0; width:392px; box-sizing:border-box; border-left:1px solid rgba(255,255,255,.09); background:#0A0D0F; overflow-y:auto; z-index:20; box-shadow:-24px 0 48px rgba(0,0,0,.45); animation:panelIn .22s ease-out">'
     + '<div style="display:flex; align-items:center; justify-content:space-between; padding:13px 20px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A; position:sticky; top:0">'
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.16em; color:' + v.accent + '">' + v.kicker + '</div>'
-    + '<div ' + T.act(() => T.setState({ detail: null })) + ' class="hv-white" style="' + M + '; font-size:14px; color:rgba(255,255,255,.5); cursor:pointer; line-height:1">✕</div></div>'
+    + '<div ' + T.act(() => T.setState({ detail: null })) + ' aria-label="Close" class="hv-white" style="' + M + '; font-size:14px; color:rgba(255,255,255,.5); cursor:pointer; line-height:1">✕</div></div>'
     + '<div style="padding:20px">'
     + '<div style="font-size:19px; line-height:1.3">' + esc(v.title) + '</div>'
     + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); margin-top:6px">' + esc(v.meta) + '</div>'
@@ -190,7 +190,7 @@ export function renderDetail(T) {
     + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:14px; margin-top:14px">'
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.6); margin-bottom:10px">' + v.chartLabel + '</div>'
     + (v.chartPoints
-      ? '<svg width="100%" height="150" viewBox="0 0 340 150" preserveAspectRatio="none">'
+      ? '<svg width="100%" height="150" viewBox="0 0 340 150" preserveAspectRatio="none" role="img" aria-label="' + esc(v.chartLabel || 'chart') + '">'
         + '<line x1="0" y1="25" x2="340" y2="25" stroke="rgba(255,255,255,.07)" />'
         + '<line x1="0" y1="70" x2="340" y2="70" stroke="rgba(255,255,255,.07)" />'
         + '<line x1="0" y1="115" x2="340" y2="115" stroke="rgba(255,255,255,.07)" />'
@@ -255,7 +255,7 @@ export function renderSearch(T) {
   const results = walletActions.concat(searchMarkets, searchTraders);
 
   return '<div ' + T.act(() => T.setState({ searchOpen: false }), { plain: true }) + ' data-bg style="position:fixed; inset:0; background:rgba(5,7,9,.72); display:flex; align-items:flex-start; justify-content:center; padding-top:14vh; z-index:50">'
-    + '<div data-stop style="width:620px; background:#10151A; border:1px solid rgba(255,255,255,.14); border-radius:14px; overflow:hidden; box-shadow:0 30px 80px rgba(0,0,0,.6)">'
+    + '<div data-stop role="dialog" aria-modal="true" aria-label="Search markets, wallets and categories" style="width:620px; background:#10151A; border:1px solid rgba(255,255,255,.14); border-radius:14px; overflow:hidden; box-shadow:0 30px 80px rgba(0,0,0,.6)">'
     + '<input value="' + esc(s.searchQuery) + '" ' + T.inp((e) => T.setState({ searchQuery: e.target.value }), 'searchQuery') + ' placeholder="Search markets, wallets, categories — or paste a 0x… address to analyse it" style="width:100%; box-sizing:border-box; background:transparent; border:none; border-bottom:1px solid rgba(255,255,255,.09); padding:17px 20px; ' + M + '; font-size:14px; color:#fff" autofocus />'
     + '<div style="max-height:380px; overflow-y:auto">'
     // The first row is marked (data-result) and lightly highlighted: Enter
@@ -270,7 +270,7 @@ export function renderSearch(T) {
     ).join('')
     + '</div>'
     + '<div style="padding:10px 20px; ' + M + '; font-size:11px; color:rgba(255,255,255,.55); display:flex; gap:16px">'
-    + '<span>ESC to close</span>' + (results.length ? '<span>ENTER opens the first result</span>' : '') + '<span>' + results.length + ' results'
+    + '<span>ESC to close</span>' + (results.length ? '<span>ENTER opens the first result, ARROW KEYS walk them</span>' : '') + '<span role="status">' + results.length + ' results'
     + (!T.markets.length && !T.traders.length ? ' — nothing loaded to search: markets come from /api/markets, wallets from the leaderboard' : '') + '</span></div>'
     + '</div></div>';
 }

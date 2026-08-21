@@ -30,9 +30,9 @@ const DEUTUNG_FARBE = { lesart: '#C8F542', gegenlesart: '#4F8EF7', grenze: '#95A
 function abschnitt(titel, inhalt, zusatz) {
   if (!inhalt) return '';
   return '<div style="' + HR + '">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.15em; color:#4F8EF7; margin-bottom:12px">'
+    + '<h2 style="' + M + '; font-size:11px; letter-spacing:.15em; color:#4F8EF7; margin:0 0 12px; font-weight:400">'
     + esc(titel) + (zusatz ? ' <span style="color:rgba(255,255,255,.5)">' + esc(zusatz) + '</span>' : '')
-    + '</div>' + inhalt + '</div>';
+    + '</h2>' + inhalt + '</div>';
 }
 
 // fmtZahl und das Balken-/Intervalldiagramm leben jetzt in ../charts.js und
@@ -261,7 +261,7 @@ function kopf(payload) {
   return '<div style="padding:2px 0 0">'
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px; flex-wrap:wrap">'
     + '<div style="max-width:760px">'
-    + '<div style="font-size:20px; font-weight:600">Order books, recorded by this project</div>'
+    + '<h2 style="font-size:20px; font-weight:600; margin:0">Order books, recorded by this project</h2>'
     + '<div style="font-size:13.5px; ' + MUTED + '; margin-top:9px; line-height:1.6">'
     + esc(payload.einleitung || '') + '</div></div>'
     + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.14); '

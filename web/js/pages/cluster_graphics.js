@@ -170,7 +170,7 @@ function marktLegende(m) {
 
 function tafel(titel, unter, inhalt, fuss) {
   return '<div style="' + CARD + '; padding:16px 18px; min-width:0">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#4F8EF7">' + esc(titel) + '</div>'
+    + '<h2 style="' + M + '; font-size:11px; letter-spacing:.14em; color:#4F8EF7; margin:0; font-weight:400">' + esc(titel) + '</h2>'
     + '<div style="font-size:12.5px; color:rgba(255,255,255,.55); margin-top:6px; line-height:1.5">' + esc(unter) + '</div>'
     + '<div style="margin-top:12px">' + inhalt + '</div>'
     + (fuss || '') + '</div>';

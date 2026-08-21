@@ -70,8 +70,8 @@ export function seitenKopf(kicker, titel, farbe) {
   const M = "font-family:'JetBrains Mono',monospace";
   return '<div style="padding:20px 24px 14px; border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="' + M + '; font-size:11px; letter-spacing:.18em; color:' + farbe + '">' + esc(kicker) + '</div>'
-    + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">'
-    + esc(titel) + '</div></div>';
+    + '<h1 style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin:5px 0 0; font-weight:400">'
+    + esc(titel) + '</h1></div>';
 }
 
 // Eine Zeile dort, wo sonst Zeilen stehen wuerden. Kurz, weil sie mitten in

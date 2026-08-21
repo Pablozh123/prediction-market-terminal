@@ -118,11 +118,11 @@ function renderHeader(T) {
   const chip = (addr, label, title) => '<div ' + T.act(() => { if (T.analyseWallet) T.analyseWallet(addr); }) + ' class="hv-bd32" title="' + esc(title || addr) + '" style="' + M + '; font-size:10.5px; letter-spacing:.04em; border-radius:5px; padding:4px 9px; cursor:pointer; color:rgba(255,255,255,.62); border:1px solid rgba(255,255,255,.16); white-space:nowrap">' + esc(label) + '</div>';
   return '<div style="padding:20px 24px 14px; border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="' + M + '; font-size:11px; letter-spacing:.18em; color:#C8F542">WALLET</div>'
-    + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">One wallet, read from the public feed</div>'
+    + '<h1 style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin:5px 0 0; font-weight:400">One wallet, read from the public feed</h1>'
     + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:8px; max-width:800px">Paste a Polymarket proxy address. The page reads its resolved positions (both tails), open positions, the profile PnL curve and its trades from the public Data API, and prints the corrected track record next to the naive one — every figure with its sample size, interval and time stamp. Read-only, nothing is placed.</div>'
     + '<div style="display:flex; align-items:center; gap:10px; margin-top:14px; flex-wrap:wrap">'
     + '<input value="' + esc(input) + '" ' + T.inp((e) => { T.state.walletInput = e.target.value; T.render(); }, 'walletInput')
-    + ' placeholder="0x… (40 hex characters)" spellcheck="false" style="flex:1; min-width:280px; max-width:520px; box-sizing:border-box; background:#10151A; border:1px solid ' + (looksLike ? 'rgba(245,166,35,.5)' : 'rgba(255,255,255,.16)') + '; border-radius:8px; padding:10px 12px; ' + M + '; font-size:12.5px; color:#fff" />'
+    + ' placeholder="0x… (40 hex characters)" aria-label="Wallet address to analyse" spellcheck="false" style="flex:1; min-width:280px; max-width:520px; box-sizing:border-box; background:#10151A; border:1px solid ' + (looksLike ? 'rgba(245,166,35,.5)' : 'rgba(255,255,255,.16)') + '; border-radius:8px; padding:10px 12px; ' + M + '; font-size:12.5px; color:#fff" />'
     + '<div ' + T.act(analyse) + (valid ? ' class="hv-limebg"' : '') + ' style="' + btnStyle + '">Analyse →</div>'
     + '</div>'
     + (looksLike ? '<div style="' + M + '; font-size:10.5px; color:#F5A623; margin-top:6px">Not a full address yet — a Polymarket wallet is 0x followed by 40 hex characters.</div>' : '')

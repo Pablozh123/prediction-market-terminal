@@ -1189,6 +1189,36 @@ class Terminal {
     }
     this._renderedPage = seiteJetzt;
 
+    // The design has no visible <label> — the placeholder is the label. A
+    // placeholder is not a name, and it disappears the moment someone types,
+    // so mirror it into aria-label. Markup that already carries its own
+    // aria-label wins; this only fills the gaps, including future fields.
+    document.querySelectorAll('input[placeholder]:not([aria-label])').forEach((el) => {
+      el.setAttribute('aria-label', el.getAttribute('placeholder'));
+    });
+
+    // Overlays are modal, so the keyboard follows them: into the panel when
+    // it opens, back to the content when it closes. Returning to the exact
+    // control that opened it is not possible here — render() has already
+    // replaced the markup holding it — so <main> takes the focus rather than
+    // the top of the document, which is where it would otherwise land.
+    const overlayOffen = this.state.searchOpen ? 'search' : (this.state.detail ? 'detail' : '');
+    if (overlayOffen !== this._overlayOffen) {
+      if (overlayOffen === 'search') {
+        // autofocus only fires for markup the parser inserts, and this panel
+        // arrives through innerHTML — so move the caret here explicitly.
+        const feld = document.querySelector('#search input');
+        if (feld) feld.focus();
+      } else if (overlayOffen === 'detail') {
+        const zu = document.querySelector('#detail [data-act][tabindex]');
+        if (zu) zu.focus();
+      } else if (!overlayOffen && this._overlayOffen) {
+        const m = document.getElementById('main');
+        if (m) m.focus();
+      }
+      this._overlayOffen = overlayOffen;
+    }
+
     if (this._focus) {
       const el = document.querySelector('[data-key="' + this._focus.key + '"]');
       if (el) {
@@ -1222,6 +1252,28 @@ class Terminal {
       if (e.key === 'Escape') {
         // Nothing open, nothing to do — no re-render for a stray Escape.
         if (this.state.searchOpen || this.state.detail) this.setState({ searchOpen: false, detail: null });
+      } else if (e.key === 'Tab' && this.state.searchOpen) {
+        // The palette is modal, so Tab cycles inside it. Without this the
+        // keyboard wanders into a page the reader cannot see behind it.
+        const box = document.getElementById('search');
+        const ziele = box ? [...box.querySelectorAll('input, [data-act][tabindex]')] : [];
+        if (ziele.length) {
+          const erster = ziele[0];
+          const letzter = ziele[ziele.length - 1];
+          if (!box.contains(document.activeElement)) { e.preventDefault(); erster.focus(); }
+          else if (e.shiftKey && document.activeElement === erster) { e.preventDefault(); letzter.focus(); }
+          else if (!e.shiftKey && document.activeElement === letzter) { e.preventDefault(); erster.focus(); }
+        }
+      } else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && this.state.searchOpen) {
+        // Down from the field steps into the results and wraps around, so the
+        // list is reachable without leaving the keys the typing hand is on.
+        const rows = [...document.querySelectorAll('#search [data-result]')];
+        if (rows.length) {
+          e.preventDefault();
+          const hier = document.activeElement && document.activeElement.closest ? document.activeElement.closest('[data-result]') : null;
+          const i = hier ? rows.indexOf(hier) : -1;
+          rows[e.key === 'ArrowDown' ? (i + 1) % rows.length : (i <= 0 ? rows.length - 1 : i - 1)].focus();
+        }
       } else if (e.key === 'Enter' && feld === 'walletInput') {
         // Enter in the wallet input = the Analyse button.
         e.preventDefault();

@@ -52,7 +52,7 @@ function marketRowHtml(v) {
 // loaded sample has nothing that qualifies.
 function insightPanel(titel, sub, rowsHtml, leerSatz) {
   return '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:10px; overflow:hidden">'
-    + '<div style="padding:9px 14px; border-bottom:1px solid rgba(255,255,255,.08)"><span style="' + M + '; font-size:11px; letter-spacing:.13em; color:#C8F542">' + titel + '</span>'
+    + '<div style="padding:9px 14px; border-bottom:1px solid rgba(255,255,255,.08)"><h2 style="' + M + '; font-size:11px; letter-spacing:.13em; color:#C8F542; margin:0; display:inline">' + titel + '</h2>'
     + (sub ? ' <span style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.55); letter-spacing:0">· ' + sub + '</span>' : '') + '</div>'
     + (rowsHtml || '<div style="padding:12px 14px; ' + M + '; font-size:10.5px; color:rgba(255,255,255,.55)">' + esc(leerSatz) + '</div>')
     + '</div>';
@@ -271,7 +271,7 @@ export function renderOverview(T) {
     + '</div>';
   return '<div>'
     + '<div style="padding:24px 24px 20px; border-bottom:1px solid rgba(255,255,255,.09)">'
-    + '<div style="font-family:\'Instrument Serif\',serif; font-size:34px; line-height:1.08">Prediction-market microstructure, <em style="color:#C8F542">measured on self-recorded books.</em></div>'
+    + '<h1 style="font-family:\'Instrument Serif\',serif; font-size:34px; line-height:1.08; margin:0; font-weight:400">Prediction-market microstructure, <em style="color:#C8F542">measured on self-recorded books.</em></h1>'
     + '<div style="font-size:14px; color:rgba(255,255,255,.66); margin-top:8px; max-width:760px">' + esc(subline) + '</div>'
     + pfade
     + '<div style="display:flex; gap:14px; margin-top:14px; flex-wrap:wrap; ' + M + '; font-size:11px">'
@@ -427,7 +427,7 @@ export function renderMarkets(T) {
     + '<div style="padding:20px 24px 14px; border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:20px">'
     + '<div><div style="' + M + '; font-size:11px; letter-spacing:.18em; color:#C8F542">MARKETS</div>'
-    + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">Every market, one table</div></div>'
+    + '<h1 style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin:5px 0 0; font-weight:400">Every market, one table</h1></div>'
     + '<div style="display:flex; align-items:center; gap:10px">'
     + '<input value="' + esc(s.marketQuery) + '" ' + T.inp((e) => T.setState({ marketQuery: e.target.value }), 'marketQuery') + ' placeholder="Search markets…" style="background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:9px 12px; ' + M + '; font-size:12.5px; color:#fff; width:230px" />'
     + '<div ' + T.act(() => T.setState({ mPlatform: 'all', mStatus: 'active', mProb: 'all', mLiq: 'all', mVol: 'all', mEnds: 'all', mAge: 'all', mExclude: [], marketCat: 'All', marketQuery: '', mQuick: 'trending', marketSort: 'volume' })) + ' class="hv-bd32" style="font-size:12.5px; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:9px 13px; cursor:pointer">Reset filters</div>'
@@ -520,7 +520,7 @@ export function renderFlow(T) {
     + '<div style="padding:20px 24px 14px; border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:20px">'
     + '<div><div style="' + M + '; font-size:11px; letter-spacing:.18em; color:#C8F542">LIVE TAPE</div>'
-    + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">Every large print as it lands</div></div>'
+    + '<h1 style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin:5px 0 0; font-weight:400">Every large print as it lands</h1></div>'
     + '<div style="display:flex; align-items:center; gap:12px">'
     + asOfLine(s.tapeAsOf || s.liveAsOf)
     + '<input value="' + esc(s.tapeQuery) + '" ' + T.inp((e) => T.setState({ tapeQuery: e.target.value }), 'tapeQuery') + ' placeholder="market, wallet, trader…" style="background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:9px 12px; ' + M + '; font-size:12.5px; color:#fff; width:250px" />'
@@ -648,7 +648,7 @@ export function renderCross(T) {
     + '<div style="padding:20px 24px 14px; border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:20px">'
     + '<div><div style="' + M + '; font-size:11px; letter-spacing:.18em; color:#4F8EF7">CROSS-VENUE</div>'
-    + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">The same question, two prices</div></div>'
+    + '<h1 style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin:5px 0 0; font-weight:400">The same question, two prices</h1></div>'
     + '<div style="display:flex; align-items:center; gap:10px">'
     + asOfLine(cl.as_of)
     + '<input value="' + esc(s.crossQuery) + '" ' + T.inp((e) => T.setState({ crossQuery: e.target.value }), 'crossQuery') + ' placeholder="bitcoin, fed, election…" style="background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:9px 12px; ' + M + '; font-size:12.5px; color:#fff; width:230px" />'
@@ -734,7 +734,7 @@ export function renderResolved(T) {
     + '<div style="padding:20px 24px 14px; border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:20px">'
     + '<div><div style="' + M + '; font-size:11px; letter-spacing:.18em; color:#C8F542">RESOLVED</div>'
-    + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">How the last questions ended</div></div>'
+    + '<h1 style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin:5px 0 0; font-weight:400">How the last questions ended</h1></div>'
     + '<input value="' + esc(s.resQuery) + '" ' + T.inp((e) => T.setState({ resQuery: e.target.value }), 'resQuery') + ' placeholder="Search resolved markets…" style="background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:9px 12px; ' + M + '; font-size:12.5px; color:#fff; width:250px" />'
     + '</div>'
     + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:10px; max-width:700px">The last price before settlement next to the answer. The gap between the two is what the crowd got wrong.</div>'

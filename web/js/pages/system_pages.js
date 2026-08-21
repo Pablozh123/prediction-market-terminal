@@ -457,7 +457,7 @@ export function renderAlerts(T) {
   return '<div>'
     + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="' + M + '; font-size:11px; letter-spacing:.18em; color:#C8F542">ALERTS</div>'
-    + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">Tell me when this happens</div>'
+    + '<h1 style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin:5px 0 0; font-weight:400">Tell me when this happens</h1>'
     // Frueher stand hier "Switch one on and it also goes to Telegram". Der
     // Versand haengt am Scanner-Skript und an dessen Konfiguration, nicht an
     // diesen Schaltern — die entscheiden, was diese Seite zeigt.
@@ -503,7 +503,7 @@ export function renderResearch(T) {
   // jeder Studie und schoben deren eigenen Titel unter die Falz. Der
   // Brotkrumen sagt, wo man ist; den Pitch traegt die Startseite.
   const header = '<div style="padding:16px 24px 0">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.18em; color:#4F8EF7">RESEARCH · ' + esc(String(study.tab || '').toUpperCase()) + '</div></div>';
+    + '<h1 style="' + M + '; font-size:11px; letter-spacing:.18em; color:#4F8EF7; margin:0; font-weight:400">RESEARCH · ' + esc(String(study.tab || '').toUpperCase()) + '</h1></div>';
 
   if (s.researchTab === 3) {
     return '<div>' + header + renderLiveRuns(T, payload) + '</div>';
@@ -576,7 +576,7 @@ export function renderResearch(T) {
     + '</div>'
     + (pts ? '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; padding:16px 18px">'
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55); margin-bottom:12px">' + esc(chartLabel) + '</div>'
-    + '<svg width="100%" height="220" viewBox="0 0 900 220" preserveAspectRatio="none">'
+    + '<svg width="100%" height="220" viewBox="0 0 900 220" preserveAspectRatio="none" role="img" aria-label="' + esc(chartLabel) + '">'
     + '<line x1="0" y1="20" x2="900" y2="20" stroke="rgba(255,255,255,.07)" />'
     + '<line x1="0" y1="75" x2="900" y2="75" stroke="rgba(255,255,255,.07)" />'
     + '<line x1="0" y1="130" x2="900" y2="130" stroke="rgba(255,255,255,.07)" />'
@@ -2416,7 +2416,7 @@ export function renderSettings(T) {
   return '<div>'
     + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="' + M + '; font-size:11px; letter-spacing:.18em; color:#C8F542">SETTINGS</div>'
-    + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">How much data, and where it goes</div></div>'
+    + '<h1 style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin:5px 0 0; font-weight:400">How much data, and where it goes</h1></div>'
     + '<div style="padding:20px 24px 0; max-width:1000px">'
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:#C8F542; margin-bottom:12px">HOW MUCH DATA TO PULL</div>'
     + '<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px">'

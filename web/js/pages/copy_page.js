@@ -87,7 +87,7 @@ function ohneDesk(live) {
   return '<div>'
     + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="' + M + '; font-size:11px; letter-spacing:.18em; color:' + LIME + '">COPY TRADE · PAPER</div>'
-    + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">Follow traders with fake money</div></div>'
+    + '<h1 style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin:5px 0 0; font-weight:400">Follow traders with fake money</h1></div>'
     + '<div style="padding:26px 24px"><div style="' + CARD + '; padding:22px 24px; max-width:760px">'
     + '<div style="font-size:15px; font-weight:600">Nothing to show</div>'
     + '<div style="font-size:13px; color:' + DIM + '; margin-top:10px; line-height:1.65">' + grund + '</div>'
@@ -102,7 +102,7 @@ function traderRow(T, t, s, canWrite, busy) {
   const rowBusy = busy === t.wallet;
   const o = t.orders || {};
   const spark = t.equity_curve && t.equity_curve.length > 1
-    ? '<svg width="90" height="26" viewBox="0 0 90 26" preserveAspectRatio="none"><polyline points="' + T.seriesPoints(t.equity_curve, 90, 26) + '" fill="none" stroke="' + pnlColor(t.pnl) + '" stroke-width="1.5" /></svg>'
+    ? '<svg width="90" height="26" viewBox="0 0 90 26" preserveAspectRatio="none" aria-hidden="true" focusable="false"><polyline points="' + T.seriesPoints(t.equity_curve, 90, 26) + '" fill="none" stroke="' + pnlColor(t.pnl) + '" stroke-width="1.5" /></svg>'
     : '<span style="' + M + '; font-size:11px; color:rgba(255,255,255,.5)" title="one point per daemon pass, once a minute">' + (t.equity_curve && t.equity_curve.length === 1 ? '1 point' : 'no curve yet') + '</span>';
   const state = t.active
     ? '<span style="' + M + '; font-size:11px; letter-spacing:.1em; color:' + LIME + '; border:1px solid rgba(200,245,66,.35); border-radius:4px; padding:2px 6px">ACTIVE</span>'
@@ -444,7 +444,7 @@ export function renderCopy(T) {
     const kindStyle = (k) => k === 'BUY' ? LIME : k === 'SELL' ? RED : k === 'MERGE' ? AMBER : k === 'REDEEM' || k === 'RESOLUTION' ? BLUE : 'rgba(255,255,255,.6)';
     body = '<div>'
       + '<div style="padding:14px 24px 0; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px 18px">'
-      + '<div><div style="' + LBL9 + '">SEARCH</div><input value="' + esc(s.copyQuery) + '" ' + T.inp((e) => T.setState({ copyQuery: e.target.value }), 'copyQuery') + ' placeholder="market…" style="' + INPUT + '" /></div>'
+      + '<div><div style="' + LBL9 + '">SEARCH</div><input value="' + esc(s.copyQuery) + '" ' + T.inp((e) => T.setState({ copyQuery: e.target.value }), 'copyQuery') + ' aria-label="Search the copy desk by market" placeholder="market…" style="' + INPUT + '" /></div>'
       + '<div><div style="' + LBL9 + '">KIND</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
       + [['all', 'All'], ['BUY', 'Buys'], ['SELL', 'Sells'], ['MERGE', 'Merges'], ['SETTLE', 'Merges + settlements']].map((o) => T.opt(o[1], s.copySide === o[0], { copySide: o[0] })).join('') + '</div></div>'
       + '<div><div style="' + LBL9 + '">STATUS</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
@@ -511,7 +511,7 @@ export function renderCopy(T) {
       + '<span style="display:flex; align-items:center; gap:6px; color:rgba(255,255,255,.5)"><span style="width:14px; height:2px; background:rgba(255,255,255,.35); display:inline-block"></span>Cash put in ' + esc(usd(putIn, 0)) + '</span>'
       + '</div></div>'
       + (equityPts
-        ? '<svg width="100%" height="240" viewBox="0 0 900 240" preserveAspectRatio="none">'
+        ? '<svg width="100%" height="240" viewBox="0 0 900 240" preserveAspectRatio="none" role="img" aria-label="Paper equity over time, against the benchmark">'
           + '<line x1="0" y1="20" x2="900" y2="20" stroke="rgba(255,255,255,.07)" /><line x1="0" y1="80" x2="900" y2="80" stroke="rgba(255,255,255,.07)" /><line x1="0" y1="140" x2="900" y2="140" stroke="rgba(255,255,255,.07)" /><line x1="0" y1="230" x2="900" y2="230" stroke="rgba(255,255,255,.14)" />'
           + '<polyline points="' + equityPts + '" fill="none" stroke="' + LIME + '" stroke-width="2" /></svg>'
         : leerZeile('No equity curve yet — the daemon (or a sync pass) records one point per minute per trader.'))
@@ -524,7 +524,7 @@ export function renderCopy(T) {
       + '<span style="display:flex; align-items:center; gap:6px; color:' + BLUE + '"><span style="width:14px; height:2px; background:' + BLUE + '; display:inline-block"></span>' + esc(sourceName) + ' (official PnL, 1 month)</span>'
       + '</div></div>'
       + (srcPts || minePts
-        ? '<svg width="100%" height="200" viewBox="0 0 900 200" preserveAspectRatio="none">'
+        ? '<svg width="100%" height="200" viewBox="0 0 900 200" preserveAspectRatio="none" role="img" aria-label="Your paper equity against the trader you follow">'
           + '<line x1="0" y1="20" x2="900" y2="20" stroke="rgba(255,255,255,.07)" /><line x1="0" y1="100" x2="900" y2="100" stroke="rgba(255,255,255,.07)" /><line x1="0" y1="190" x2="900" y2="190" stroke="rgba(255,255,255,.14)" />'
           + (srcPts ? '<polyline points="' + srcPts + '" fill="none" stroke="' + BLUE + '" stroke-width="2" />' : '')
           + (minePts ? '<polyline points="' + minePts + '" fill="none" stroke="' + LIME + '" stroke-width="2" />' : '') + '</svg>'
@@ -590,7 +590,7 @@ export function renderCopy(T) {
   return '<div>'
     + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(255,255,255,.09)">'
     + '<div style="' + M + '; font-size:11px; letter-spacing:.18em; color:' + LIME + '">COPY TRADE · PAPER</div>'
-    + '<div style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin-top:5px">Follow traders with fake money</div>'
+    + '<h1 style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin:5px 0 0; font-weight:400">Follow traders with fake money</h1>'
     + '<div style="font-size:13px; color:' + DIM + '; margin-top:9px; max-width:760px">Every buy a followed wallet makes is scaled into that wallet\'s own sub-account and booked at the printed price. Equal start cash, equal settings — the sub-accounts are the comparison. Nothing is sent to a venue.</div></div>'
 
     + '<div style="display:flex; align-items:center; gap:26px; padding:13px 24px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A; flex-wrap:wrap">'

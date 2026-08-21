@@ -20,12 +20,13 @@
 <link rel="stylesheet" href="./css/terminal.css">
 </head>
 <body>
+<a class="skip" href="#main">Skip to content</a>
 <div id="app" class="shell">
-  <div id="sidebar" class="sidebar"></div>
+  <nav id="sidebar" class="sidebar" aria-label="Sections"></nav>
   <div class="maincol">
-    <div id="topbar" class="topbar"></div>
+    <header id="topbar" class="topbar"></header>
     <div class="content-wrap">
-      <div id="main" class="content"></div>
+      <main id="main" class="content" tabindex="-1"></main>
       <div id="detail"></div>
     </div>
   </div>
