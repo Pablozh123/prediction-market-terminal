@@ -482,14 +482,14 @@ export function renderMarkets(T) {
     // No TREND column: the API carries a one-day change, not an intraday
     // path, and a two-point line under "TREND 24H" read as a curve. SPREAD
     // und LIQUIDITY kommen aus denselben API-Zeilen (unbekannt bleibt —).
-    + '<div style="display:grid; grid-template-columns:' + MARKT_SPALTEN + '; padding:10px 24px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A; position:sticky; top:0; z-index:3; ' + HEAD_CELL + '">'
+    + '<div style="display:grid; grid-template-columns:' + MARKT_SPALTEN + '; align-items:center; padding:10px 24px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A; position:sticky; top:0; z-index:3; ' + HEAD_CELL + '">'
     + '<div>MARKET</div>'
     + '<div style="text-align:right">YES</div>'
-    + '<div ' + T.act(() => T.setState({ marketSort: 'change' })) + ' style="text-align:right; cursor:pointer; padding:5px 0; color:' + (s.marketSort === 'change' ? '#C8F542' : 'rgba(255,255,255,.6)') + '">CHANGE 1D</div>'
+    + '<div ' + T.act(() => T.setState({ marketSort: 'change' })) + ' aria-pressed="' + (s.marketSort === 'change' ? 'true' : 'false') + '"' + ' style="text-align:right; cursor:pointer; padding:5px 0; color:' + (s.marketSort === 'change' ? '#C8F542' : 'rgba(255,255,255,.6)') + '">CHANGE 1D</div>'
     + '<div style="text-align:right">SPREAD</div>'
-    + '<div ' + T.act(() => T.setState({ marketSort: 'liquidity' })) + ' style="text-align:right; cursor:pointer; padding:5px 0; color:' + (s.marketSort === 'liquidity' ? '#C8F542' : 'rgba(255,255,255,.6)') + '">LIQUIDITY</div>'
-    + '<div ' + T.act(() => T.setState({ marketSort: 'volume' })) + ' style="text-align:right; cursor:pointer; padding:5px 0; color:' + (s.marketSort === 'volume' ? '#C8F542' : 'rgba(255,255,255,.6)') + '">VOLUME 24H</div>'
-    + '<div ' + T.act(() => T.setState({ marketSort: 'ending' })) + ' style="text-align:right; cursor:pointer; padding:5px 0; color:' + (s.marketSort === 'ending' ? '#C8F542' : 'rgba(255,255,255,.6)') + '">RESOLVES</div></div>'
+    + '<div ' + T.act(() => T.setState({ marketSort: 'liquidity' })) + ' aria-pressed="' + (s.marketSort === 'liquidity' ? 'true' : 'false') + '"' + ' style="text-align:right; cursor:pointer; padding:5px 0; color:' + (s.marketSort === 'liquidity' ? '#C8F542' : 'rgba(255,255,255,.6)') + '">LIQUIDITY</div>'
+    + '<div ' + T.act(() => T.setState({ marketSort: 'volume' })) + ' aria-pressed="' + (s.marketSort === 'volume' ? 'true' : 'false') + '"' + ' style="text-align:right; cursor:pointer; padding:5px 0; color:' + (s.marketSort === 'volume' ? '#C8F542' : 'rgba(255,255,255,.6)') + '">VOLUME 24H</div>'
+    + '<div ' + T.act(() => T.setState({ marketSort: 'ending' })) + ' aria-pressed="' + (s.marketSort === 'ending' ? 'true' : 'false') + '"' + ' style="text-align:right; cursor:pointer; padding:5px 0; color:' + (s.marketSort === 'ending' ? '#C8F542' : 'rgba(255,255,255,.6)') + '">RESOLVES</div></div>'
     + mRows.map((m) => marketRowHtml(Object.assign(T.marketView(m), {
       spreadLabel: mx(m).spread != null ? mx(m).spread + '¢' : '—',
       liqLabel: m.liq ? money(m.liq) : '—'

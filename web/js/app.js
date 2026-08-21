@@ -291,13 +291,14 @@ class Terminal {
       + ' aria-pressed="' + (active ? 'true' : 'false') + '" style="' + style + '">' + esc(label) + '</div>';
   }
 
-  toggle(on, patch, label) {
-    const wrap = 'width:34px; height:19px; flex:none; border-radius:10px; padding:2px; display:flex; cursor:pointer; background:' + (on ? '#C8F542' : 'rgba(255,255,255,.14)') + '; justify-content:' + (on ? 'flex-end' : 'flex-start');
+  toggle(on, patch, label, gesperrt) {
+    const wrap = 'width:34px; height:19px; flex:none; border-radius:10px; padding:2px; display:flex; cursor:' + (gesperrt ? 'default' : 'pointer') + '; opacity:' + (gesperrt ? '.45' : '1') + '; background:' + (on ? '#C8F542' : 'rgba(255,255,255,.14)') + '; justify-content:' + (on ? 'flex-end' : 'flex-start');
     const knob = 'width:15px; height:15px; border-radius:50%; background:' + (on ? '#0A0D0F' : 'rgba(255,255,255,.55)');
     // A switch, not a button: act() gives up its role so this one stands, and
     // the caller passes the label that sits above the control on screen.
     return '<div ' + this.act(typeof patch === 'function' ? patch : () => this.setState(patch), { role: null })
       + ' role="switch" aria-checked="' + (on ? 'true' : 'false') + '"'
+      + (gesperrt ? ' aria-disabled="true"' : '')
       + (label ? ' aria-label="' + esc(label) + '"' : '')
       + ' style="' + wrap + '"><div style="' + knob + '"></div></div>';
   }
@@ -1260,10 +1261,12 @@ class Terminal {
       if (e.key === 'Escape') {
         // Nothing open, nothing to do — no re-render for a stray Escape.
         if (this.state.searchOpen || this.state.detail) this.setState({ searchOpen: false, detail: null });
-      } else if (e.key === 'Tab' && this.state.searchOpen) {
-        // The palette is modal, so Tab cycles inside it. Without this the
-        // keyboard wanders into a page the reader cannot see behind it.
-        const box = document.getElementById('search');
+      } else if (e.key === 'Tab' && (this.state.searchOpen || this.state.detail)) {
+        // Both panels say aria-modal, so Tab cycles inside whichever is open.
+        // Without this the keyboard wanders into a page the reader cannot see
+        // behind it — and the drawer would be promising a modality it does
+        // not keep. The palette wins when both are up; it sits on top.
+        const box = document.getElementById(this.state.searchOpen ? 'search' : 'detail');
         const ziele = box ? [...box.querySelectorAll('input, [data-act][tabindex]')] : [];
         if (ziele.length) {
           const erster = ziele[0];

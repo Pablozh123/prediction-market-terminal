@@ -331,7 +331,7 @@ function settingsTab(T, s, live, canWrite) {
   const hintHtml = (hint) => (hint ? '<div style="font-size:11px; color:rgba(255,255,255,.6); margin-top:5px; line-height:1.45">' + hint + '</div>' : '');
   const numField = (key, label, hint) => field(label, textInput(T, 'copySet_' + key, f[key], '', set(key)) + hintHtml(hint));
   const pctField = (key, label, hint) => field(label, textInput(T, 'copySetPct_' + key, pctInputValue(f[key]), '', setPct(key)) + hintHtml(hint));
-  const boolField = (key, label, hint) => '<div><div style="' + LBL9 + '">' + label + '</div><div style="display:flex; align-items:center; gap:10px; padding:6px 0">' + T.toggle(!!f[key], canWrite ? flip(key) : () => {}, label) + '<span style="' + M + '; font-size:11px; color:' + DIM + '">' + (f[key] ? 'on' : 'off') + '</span></div>' + hintHtml(hint) + '</div>';
+  const boolField = (key, label, hint) => '<div><div style="' + LBL9 + '">' + label + '</div><div style="display:flex; align-items:center; gap:10px; padding:6px 0">' + T.toggle(!!f[key], canWrite ? flip(key) : () => {}, label, !canWrite) + '<span style="' + M + '; font-size:11px; color:' + DIM + '">' + (f[key] ? 'on' : 'off') + '</span></div>' + hintHtml(hint) + '</div>';
   const mode = sizingModeOf(f);
   const chooseMode = (m) => () => {
     if (!canWrite) return;
