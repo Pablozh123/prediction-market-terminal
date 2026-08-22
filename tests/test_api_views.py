@@ -404,6 +404,20 @@ class RiskWalletAddressTests(unittest.TestCase):
         self.assertEqual(payload["wallets"][0]["address"], "0xbbb2000000000000000000000000000000000002")
         self.assertEqual(payload["wallets"][0]["wallet"], "0xbbb2…0002")
 
+    def test_wallet_rows_explain_the_score_and_keep_small_dollars(self) -> None:
+        # The score alone said nothing: the row now carries the scorer's own
+        # reasons, and a $450 wallet reads "$450", not "$0k".
+        wallets = pd.DataFrame([{
+            "wallet": "0xbbb2000000000000000000000000000000000002", "trader": "", "top_market": "Example",
+            "wallet_insider_score": 55.0, "trade_count": 1, "notional": 450.0, "largest_trade": 450.0,
+            "first_seen": "2026-08-17", "wallet_insider_flags": "long-odds big bet; late-market flow",
+        }])
+        row = apv.risk_payload(wallets, pd.DataFrame())["wallets"][0]
+        self.assertEqual(row["flags"], ["long-odds big bet", "late-market flow"])
+        self.assertEqual(row["notional"], "$450")
+        self.assertEqual(row["largest"], "$450")
+        self.assertNotIn("cluster", row)
+
 
 class CrossRowsTests(unittest.TestCase):
     def test_maps_candidate_frame(self) -> None:
@@ -731,11 +745,26 @@ class ClusterPayloadTests(unittest.TestCase):
             {"wallet": "0xb", "cluster_id": 0, "cluster_size": 2, "shared_markets": 3, "volume": 50.0},
         ])
         edges = pd.DataFrame([{"wallet_a": "0xa", "wallet_b": "0xb", "shared_markets": 3, "pair_notional": 150.0}])
-        payload = apv.cluster_payload(fresh, coord, nodes, edges, lambda cn, ce: {"headline": "Two wallets, three shared markets."})
-        self.assertEqual(payload["fresh"][0]["score"], 4)
+        payload = apv.cluster_payload(fresh, coord, nodes, edges, lambda cn, ce: {
+            "headline": "Two wallets, three shared markets.", "pattern": "Tight clique",
+            "markets": [{"title": "Iraq win", "label": "$88.0k"}],
+        })
+        # count, not "score": the fresh number is a wallet count and says so.
+        self.assertEqual(payload["fresh"][0]["count"], 4)
+        self.assertEqual(payload["fresh"][0]["side"], "YES")
+        self.assertEqual(payload["fresh"][0]["notional"], "$88.0k")
         self.assertEqual(payload["timing"][0]["window"], "40 s")
-        self.assertEqual(payload["network"][0]["size"], 2)
-        self.assertIn("Two wallets", payload["network"][0]["story"])
+        self.assertEqual(payload["timing"][0]["span_minutes"], 0.7)
+        self.assertEqual(payload["timing"][0]["side"], "YES")
+        netz = payload["network"][0]
+        self.assertEqual(netz["size"], 2)
+        self.assertIn("Two wallets", netz["story"])
+        # The card can say who is in the cluster and where they met.
+        self.assertEqual(netz["id"], 0)
+        self.assertEqual(netz["pattern"], "Tight clique")
+        self.assertEqual([m["wallet"] for m in netz["members"]], ["0xa", "0xb"])
+        self.assertEqual(netz["members"][0]["kurz"], "0xa")
+        self.assertEqual(netz["markets"][0]["title"], "Iraq win")
         self.assertEqual(payload["kpis_clusters"], {"fresh_clusters": 1, "coordinated_clusters": 1})
 
 

@@ -224,10 +224,61 @@ function mitDaten(T) {
     wallets: 0, notional: '$12k', window: '3.0/h', venue: 'Kalshi', sev: 'low'
   }];
   T.herkunft.risks = { quelle: 'live' };
+  // The four sub-tabs carry one row each in the enriched shape the API now
+  // sends (flags on wallets, count/side on fresh, span on timing, members +
+  // markets on network) plus a two-node graph, so the tests can pin the
+  // redesigned views. The "..._empty"-suffixed variants below cover the
+  // honest empty states.
   T.liveData.risk = {
     _quelle: 'live',
-    kpis: { events_screened: 12, high_risk_events: 1, high_risk_wallets: 2, fresh_clusters: 0, coordinated_clusters: 0 },
-    wallets: [], fresh: [], timing: [], network: [], graph: null, matrix: {}
+    kpis: { events_screened: 12, high_risk_events: 1, high_risk_wallets: 2, fresh_clusters: 1, coordinated_clusters: 1 },
+    wallets: [{
+      wallet: 'quietwhale', address: '0xdd10000000000000000000000000000000000001',
+      context: 'Xi Jinping out before 2027?', score: 71,
+      flags: ['long-odds big bet', 'late-market flow'],
+      prints: 4, notional: '$52.0k', largest: '$26.0k', firstSeen: '2026-08-16'
+    }, {
+      wallet: '0xdd20…0002', address: '0xdd20000000000000000000000000000000000002',
+      context: 'Fed cuts in September?', score: 37,
+      flags: ['watch only'],
+      prints: 1, notional: '$450', largest: '$450', firstSeen: '2026-08-17'
+    }],
+    fresh: [{
+      count: 4, side: 'YES', market: 'Iraq win', venue: 'Polymarket',
+      notional: '$88.0k',
+      detail: '4 wallets with at most two prior trades in this tape took YES for $88.0k combined.'
+    }],
+    timing: [{
+      market: 'Iraq win', venue: 'Polymarket', wallets: 6, window: '40 s',
+      span_minutes: 0.7, side: 'YES', notional: '$214.0k', same: true
+    }],
+    network: [{
+      id: 1, name: 'Cluster C-2', size: 2, shared: '3', notional: '$63.8k',
+      story: '2 wallets · $63.8k combined whale volume · tight clique',
+      pattern: 'Tight clique',
+      members: [
+        { kurz: '0x5111…cbe1', wallet: '0x5111000000000000000000000000000000000cbe1' },
+        { kurz: '0x0380…073d', wallet: '0x0380000000000000000000000000000000000073d' }
+      ],
+      members_total: 2,
+      markets: [
+        { title: 'Xi Jinping out before 2027?', label: '$41.2k' },
+        { title: 'Iran leadership change?', label: '$22.6k' }
+      ]
+    }],
+    graph: {
+      knoten: [
+        { wallet: '0x5111000000000000000000000000000000000cbe1', kurz: '0x5111…cbe1', x: 0.2, y: 0.4, cluster: 1, volumen: 41000, maerkte: 3, trades: 5, geteilt: 3 },
+        { wallet: '0x0380000000000000000000000000000000000073d', kurz: '0x0380…073d', x: 0.8, y: 0.6, cluster: 1, volumen: 22000, maerkte: 3, trades: 4, geteilt: 3 }
+      ],
+      kanten: [{ a: 0, b: 1, geteilt: 3, notional: 63800 }],
+      cluster: [{ id: 1, name: 'C-1', groesse: 2, volumen: 63800, volumen_label: '$63.8k' }],
+      spanne: { x: [0, 1], y: [0, 1] },
+      kennzahl: { wallets: 2, kanten: 1, cluster: 1, modularitaet: 0.4 },
+      regel: 'same side of at least 3 markets within 5 minutes, $10k paired notional',
+      fenster: '2026-08-21 12:00 to 01:42 UTC · 13.7 h · 563 prints'
+    },
+    matrix: {}
   };
   // Flag log (/api/risk/log?enrich=1): one Polymarket flag with the price
   // after the flag read for +30 min and +2 h, +24 h not yet passed; one Kalshi
@@ -755,6 +806,23 @@ function rendern(T) {
     ['risk_fresh', 'risk', { riskView: 'fresh' }],
     ['risk_timing', 'risk', { riskView: 'timing' }],
     ['risk_network', 'risk', { riskView: 'network' }],
+    // The same tabs when the screen answered but found nothing: the empty
+    // state must say what was looked for and not found, not "live · answered".
+    ['risk_fresh_empty', 'risk', { riskView: 'fresh' }, null, (T) => {
+      const alt = T.liveData.risk;
+      T.liveData.risk = Object.assign({}, alt, { fresh: [], timing: [], wallets: [] });
+      return () => { T.liveData.risk = alt; };
+    }],
+    ['risk_timing_empty', 'risk', { riskView: 'timing' }, null, (T) => {
+      const alt = T.liveData.risk;
+      T.liveData.risk = Object.assign({}, alt, { fresh: [], timing: [], wallets: [] });
+      return () => { T.liveData.risk = alt; };
+    }],
+    ['risk_wallets_empty', 'risk', { riskView: 'wallets' }, null, (T) => {
+      const alt = T.liveData.risk;
+      T.liveData.risk = Object.assign({}, alt, { fresh: [], timing: [], wallets: [] });
+      return () => { T.liveData.risk = alt; };
+    }],
     ['runs_runs', 'research', { researchTab: 3, liveTab: 'runs' }],
     ['runs_timing', 'research', { researchTab: 3, liveTab: 'timing' }],
     ['runs_sim', 'research', { researchTab: 3, liveTab: 'sim' }],

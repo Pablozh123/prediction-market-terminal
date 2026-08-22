@@ -1,7 +1,7 @@
 // Leaderboard, Whale flow, Risk screen, Tracked — ported from the design reference.
 
 import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent } from '../util.js';
-import { renderClusterGraphics } from './cluster_graphics.js';
+import { renderClusterGraphics, clusterFarbe } from './cluster_graphics.js';
 
 const M = "font-family:'JetBrains Mono',monospace";
 const LBL9 = M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.6); margin-bottom:6px';
@@ -656,74 +656,157 @@ export function renderRisk(T) {
   } else if (s.riskView === 'log') {
     body = renderRiskLog(T);
   } else if (s.riskView === 'wallets') {
-    body = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:16px 24px; overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:1fr 96px 110px 110px 130px 96px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">'
-      + '<div>WALLET</div><div style="text-align:right">SCORE</div><div style="text-align:right">WHALE PRINTS</div><div style="text-align:right">NOTIONAL</div><div style="text-align:right">FIRST SEEN</div><div style="text-align:right">CLUSTER</div></div>'
-      + (walletRows.length ? '' : leerZeile(risikoSatz))
+    // Die Antwort auf "wer hat das platziert?": derselbe Tape wie Events,
+    // nach Wallet gruppiert. Der Score allein war nichtssagend — jetzt sagt
+    // die Zeile, welche Muster gefeuert haben (die Flags des Scorers), und
+    // die tote CLUSTER-Spalte (immer "—") ist weg.
+    const GRID_W = 'minmax(230px,1.4fr) 80px 64px 96px 96px 96px';
+    const antwortDa = !!live && live._quelle !== 'fehler';
+    body = '<div>'
+      + '<div style="padding:14px 24px 0; font-size:12.5px; color:rgba(255,255,255,.62); line-height:1.55; max-width:860px">'
+      + 'The flagged flow grouped by the wallet that placed it — the <span style="font-style:italic">who</span> behind the Events tab. '
+      + 'Same 0–100 score and bands as Events: how much this wallet\'s prints look like early knowledge (size, long odds, timing, account freshness). '
+      + 'The chips under each wallet say which patterns fired; <span style="' + M + '; font-size:11.5px">watch only</span> means none did — the wallet is listed for size alone.'
+      + '</div>'
+      + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:14px 24px; overflow:hidden">'
+      + '<div style="display:grid; grid-template-columns:' + GRID_W + '; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">'
+      + '<div>WALLET · WHY FLAGGED</div><div style="text-align:right">SCORE</div><div style="text-align:right">PRINTS</div><div style="text-align:right">NOTIONAL</div><div style="text-align:right">BIGGEST</div><div style="text-align:right">FIRST SEEN</div></div>'
+      + (walletRows.length ? '' : leerZeile(antwortDa ? 'No wallet cleared the screen in this window — nothing in the flagged flow groups to a suspicious wallet.' : risikoSatz))
       + walletRows.map((w) => {
+        const band = BAND(Number(w.score) || 0);
         const scoreStyle = M + '; font-size:12px; border-radius:5px; padding:3px 9px; ' + (w.score >= 70 ? 'color:#0A0D0F; background:#F5A623' : w.score >= 55 ? 'color:#F5A623; border:1px solid rgba(245,166,35,.35)' : 'color:rgba(255,255,255,.7); border:1px solid rgba(255,255,255,.18)');
-        return '<div ' + T.act(() => T.openWallet(w.wallet, w.address)) + ' class="hv-panel" style="display:grid; grid-template-columns:1fr 96px 110px 110px 130px 96px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:12.5px; cursor:pointer">'
-          + '<div><span style="font-family:\'Inter\',sans-serif; font-size:13px">' + esc(w.wallet) + '</span> <span style="color:rgba(255,255,255,.6); font-size:11px">· ' + esc(w.context) + '</span></div>'
-          + '<div style="display:flex; justify-content:flex-end"><div style="' + scoreStyle + '">' + w.score + '</div></div>'
+        const flags = Array.isArray(w.flags) ? w.flags : [];
+        const flagChips = flags.map((f) => {
+          const echt = f !== 'watch only';
+          return '<span style="' + M + '; font-size:10.5px; white-space:nowrap; border-radius:4px; padding:1px 6px; '
+            + (echt ? 'color:#F5A623; border:1px solid rgba(245,166,35,.3)' : 'color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.12)') + '">' + esc(f) + '</span>';
+        }).join('');
+        return '<div ' + T.act(() => T.openWallet(w.wallet, w.address)) + ' class="hv-panel" style="display:grid; grid-template-columns:' + GRID_W + '; gap:10px; align-items:center; padding:12px 16px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:12.5px; cursor:pointer">'
+          + '<div style="min-width:0"><div style="font-family:\'Inter\',sans-serif; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(w.address || w.wallet) + '">' + esc(w.wallet) + '</div>'
+          + '<div style="font-size:11px; color:rgba(255,255,255,.62); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(w.context) + '">mostly in ' + esc(w.context) + '</div>'
+          + (flagChips ? '<div style="display:flex; gap:4px; flex-wrap:wrap; margin-top:5px">' + flagChips + '</div>' : '')
+          + '</div>'
+          + '<div style="text-align:right"><div style="display:inline-block; ' + scoreStyle + '">' + w.score + '</div>'
+          + '<div style="' + M + '; font-size:10px; letter-spacing:.1em; color:' + band[1] + '; margin-top:3px">' + band[0] + '</div></div>'
           + '<div style="text-align:right; color:rgba(255,255,255,.6)">' + w.prints + '</div>'
           + '<div style="text-align:right">' + esc(String(w.notional)) + '</div>'
-          + '<div style="text-align:right; color:rgba(255,255,255,.6)">' + esc(w.firstSeen) + '</div>'
-          + '<div style="text-align:right; color:rgba(255,255,255,.6)">' + esc(w.cluster) + '</div></div>';
+          + '<div style="text-align:right; color:rgba(255,255,255,.6)">' + esc(String(w.largest || '—')) + '</div>'
+          + '<div style="text-align:right; color:rgba(255,255,255,.6)">' + esc(w.firstSeen) + '</div></div>';
       }).join('')
-      + '</div>';
+      + '</div></div>';
   } else if (s.riskView === 'fresh') {
+    // Eine Karte je Markt: WIE VIELE frische Wallets, WELCHE Seite, WIE VIEL
+    // Geld — als drei benannte Zahlen statt einer amber Zahl, die wie ein
+    // Score aussah und in Wahrheit der Zaehler war.
     const freshRows = live && live.fresh ? live.fresh : [];
-    body = (freshRows.length ? '' : leerZeile(risikoSatz))
-      + '<div style="padding:16px 24px; display:grid; grid-template-columns:repeat(2,1fr); gap:14px">'
-      + freshRows.map((c) =>
-        '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:16px 18px">'
-        + '<div style="display:flex; align-items:center; justify-content:space-between">'
-        + '<div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:#F5A623">' + esc(c.tag) + '</div>'
-        + '<div style="' + M + '; font-size:16px; color:#F5A623">' + c.score + '</div></div>'
-        + '<div style="font-size:14.5px; margin-top:9px">' + esc(c.market) + '</div>'
-        + '<div style="font-size:12.5px; color:rgba(255,255,255,.6); margin-top:6px; line-height:1.45">' + esc(c.detail) + '</div>'
-        + '<div style="display:flex; gap:7px; margin-top:12px; flex-wrap:wrap">'
-        + c.wallets.map((w) => '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.65); background:#161C22; border:1px solid rgba(255,255,255,.09); border-radius:5px; padding:3px 8px">' + esc(w) + '</div>').join('')
-        + '</div></div>'
-      ).join('')
-      + '</div>';
+    const antwortDa = !!live && live._quelle !== 'fehler';
+    const seiteFarbe = (seite) => seite === 'YES' ? '#C8F542' : seite === 'NO' ? '#FF7A7A' : 'rgba(255,255,255,.7)';
+    body = '<div>'
+      + '<div style="padding:14px 24px 0; font-size:12.5px; color:rgba(255,255,255,.62); line-height:1.55; max-width:860px">'
+      + '<span style="' + M + '; font-size:11.5px">Fresh</span> = a wallet with at most two prior trades in this tape window. '
+      + 'Several of them betting whale size on the same side of one market is the classic pattern of accounts created for a single bet.'
+      + '</div>'
+      + (freshRows.length ? '' : leerZeile(antwortDa
+        ? 'No fresh-wallet cluster in this window — no market where several brand-new wallets took the same side at size. Most windows look like this; a hit shows up here and raises the market\'s event score.'
+        : risikoSatz))
+      + '<div style="padding:16px 24px 4px; display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:14px">'
+      + freshRows.map((c) => {
+        const punkte = '●'.repeat(Math.min(Number(c.count) || 0, 8)) + (Number(c.count) > 8 ? '…' : '');
+        return '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:16px 18px">'
+          + '<div style="font-size:14.5px; line-height:1.35">' + esc(c.market) + (c.venue ? ' <span style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6)">' + esc(String(c.venue).toUpperCase()) + '</span>' : '') + '</div>'
+          + '<div style="display:flex; gap:22px; margin-top:12px; align-items:flex-end; flex-wrap:wrap">'
+          + '<div><div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">FRESH WALLETS</div>'
+          + '<div style="display:flex; align-items:baseline; gap:8px; margin-top:3px"><span style="' + M + '; font-size:20px; color:#F5A623">' + (c.count != null ? c.count : '—') + '</span>'
+          + '<span style="' + M + '; font-size:11px; color:#F5A623; letter-spacing:2px">' + punkte + '</span></div></div>'
+          + '<div><div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">ALL ON</div>'
+          + '<div style="' + M + '; font-size:16px; margin-top:3px; color:' + seiteFarbe(c.side) + '">' + esc(c.side || 'same side') + '</div></div>'
+          + '<div><div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">COMBINED</div>'
+          + '<div style="' + M + '; font-size:16px; margin-top:3px">' + esc(String(c.notional || '—')) + '</div></div>'
+          + '</div>'
+          + '<div style="font-size:11.5px; color:rgba(255,255,255,.62); margin-top:10px; line-height:1.45">' + esc(c.detail) + '</div>'
+          + '</div>';
+      }).join('')
+      + '</div></div>';
   } else if (s.riskView === 'timing') {
+    // Je Markt ein Burst-Balken: wie eng die Wallets beieinander lagen. Der
+    // Massstab ist das 30-Minuten-Suchfenster des Screens — ein Balken ueber
+    // die volle Breite heisst "ueber die vollen 30 Minuten verteilt", ein
+    // schmaler Streifen "innerhalb von Sekunden".
     const timingRows = live && live.timing ? live.timing : [];
-    body = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:16px 24px; overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:1fr 100px 110px 120px 120px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">'
-      + '<div>MARKET</div><div style="text-align:right">WALLETS</div><div style="text-align:right">WINDOW</div><div style="text-align:right">NOTIONAL</div><div style="text-align:right">SAME SIDE</div></div>'
-      + (timingRows.length ? '' : leerZeile(risikoSatz))
-      + timingRows.map((c) =>
-        '<div style="display:grid; grid-template-columns:1fr 100px 110px 120px 120px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:12.5px">'
-        + '<div style="font-family:\'Inter\',sans-serif; font-size:13px">' + esc(c.market) + '</div>'
-        + '<div style="text-align:right">' + c.wallets + '</div>'
-        + '<div style="text-align:right; color:rgba(255,255,255,.6)">' + esc(c.window) + '</div>'
-        + '<div style="text-align:right">' + esc(c.notional) + '</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:12px; color:' + (c.same ? '#F5A623' : 'rgba(255,255,255,.5)') + '">' + (c.same ? 'all one side' : 'mixed') + '</div></div>'
-      ).join('')
-      + '</div>';
+    const antwortDa = !!live && live._quelle !== 'fehler';
+    const GRID_T = 'minmax(200px,1.2fr) 90px minmax(150px,1fr) 110px 110px';
+    body = '<div>'
+      + '<div style="padding:14px 24px 0; font-size:12.5px; color:rgba(255,255,255,.62); line-height:1.55; max-width:860px">'
+      + 'Markets where three or more wallets hit the same side within a 30-minute window — money arriving together. '
+      + 'The bar shows how tight the burst was: the full track is 30 minutes, the filled part is the actual span.'
+      + '</div>'
+      + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:14px 24px; overflow:hidden">'
+      + '<div style="display:grid; grid-template-columns:' + GRID_T + '; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">'
+      + '<div>MARKET</div><div style="text-align:right">WALLETS</div><div>BURST · OF 30 MIN</div><div style="text-align:right">SIDE</div><div style="text-align:right">NOTIONAL</div></div>'
+      + (timingRows.length ? '' : leerZeile(antwortDa
+        ? 'No coordinated burst in this window — no market where three or more wallets hit the same side within 30 minutes of each other.'
+        : risikoSatz))
+      + timingRows.map((c) => {
+        const span = Number(c.span_minutes);
+        const anteil = isNaN(span) ? 0 : Math.max(0.02, Math.min(1, span / 30));
+        const balken = '<div style="display:flex; align-items:center; gap:8px">'
+          + '<div style="flex:1; height:7px; border-radius:4px; background:rgba(255,255,255,.08); overflow:hidden">'
+          + '<div style="width:' + (anteil * 100).toFixed(1) + '%; height:7px; background:' + (c.same ? '#F5A623' : 'rgba(255,255,255,.45)') + '"></div></div>'
+          + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.7); white-space:nowrap">' + esc(c.window) + '</div></div>';
+        return '<div style="display:grid; grid-template-columns:' + GRID_T + '; gap:10px; align-items:center; padding:12px 16px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:12.5px">'
+          + '<div style="font-family:\'Inter\',sans-serif; font-size:13px; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(c.market) + '">' + esc(c.market) + '</div>'
+          + '<div style="text-align:right">' + c.wallets + '</div>'
+          + balken
+          + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:' + (c.same ? '#F5A623' : 'rgba(255,255,255,.6)') + '">' + (c.same ? 'all on ' + esc(c.side || 'one side') : 'mixed') + '</div>'
+          + '<div style="text-align:right">' + esc(c.notional) + '</div></div>';
+      }).join('')
+      + '</div></div>';
   } else {
     // Keine Demo-Cluster, solange echte fehlen: erfundene Wallet-Gruppen auf
     // einem Screen, der Verdacht behauptet, sind schlimmer als eine leere
     // Flaeche. Die Grafik darueber sagt bereits, woran es liegt.
+    // Je Cluster eine Karte in der Farbe des Graphen: WER drin ist (die
+    // Wallets, klickbar), WIE eng (das Muster mit Dichte) und WO sie sich
+    // trafen (die geteilten Maerkte mit Summen) — der Beleg, den vorher die
+    // unlesbare Wallet-Markt-Matrix tragen sollte.
     const networkRows = live ? (live.network || []) : [];
+    const musterFarbe = (p) => p === 'Tight clique' ? '#F5A623' : p === 'Connected group' ? 'rgba(255,255,255,.8)' : 'rgba(255,255,255,.55)';
     body = '<div style="padding:16px 24px">'
       + renderClusterGraphics(live)
-      + (networkRows.length
-        ? '<div style="font-size:12.5px; color:rgba(255,255,255,.55); line-height:1.5; max-width:820px">Wallets that repeatedly trade the same markets. The rule that produced the current graph is stated above it: the screen tries the strict rule first and falls back only when it finds nothing.</div>'
-        : '')
-      + '<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-top:14px">'
-      + networkRows.map((n) =>
-        '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:16px 18px">'
-        + '<div style="display:flex; align-items:center; justify-content:space-between">'
-        + '<div style="font-size:14.5px; font-weight:600">' + esc(n.name) + '</div>'
-        + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.5)">' + n.size + ' wallets</div></div>'
-        + '<div style="font-size:12.5px; color:rgba(255,255,255,.6); margin-top:8px; line-height:1.45">' + esc(n.story) + '</div>'
-        + '<div style="display:flex; gap:20px; margin-top:12px">'
-        + '<div><div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">SHARED MARKETS</div><div style="' + M + '; font-size:14px; margin-top:3px">' + esc(n.shared) + '</div></div>'
-        + '<div><div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">PAIRED NOTIONAL</div><div style="' + M + '; font-size:14px; margin-top:3px">' + esc(n.notional) + '</div></div>'
-        + '</div></div>'
-      ).join('')
+      + '<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(360px,1fr)); gap:14px">'
+      + networkRows.map((n) => {
+        const farbe = clusterFarbe(live && live.graph, n.id);
+        const mitglieder = Array.isArray(n.members) ? n.members : [];
+        const rest = (n.members_total || mitglieder.length) - mitglieder.length;
+        const maerkte = Array.isArray(n.markets) ? n.markets : [];
+        return '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-left:3px solid ' + farbe + '; border-radius:12px; padding:16px 18px">'
+          + '<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap">'
+          + '<div style="display:flex; align-items:center; gap:8px"><span style="width:9px; height:9px; border-radius:2px; flex:none; background:' + farbe + '"></span>'
+          + '<span style="font-size:14.5px; font-weight:600">' + esc(n.name) + '</span>'
+          + '<span style="' + M + '; font-size:11px; color:rgba(255,255,255,.6)">' + n.size + ' wallets</span></div>'
+          + (n.pattern ? '<span style="' + M + '; font-size:10.5px; letter-spacing:.1em; color:' + musterFarbe(n.pattern) + '; border:1px solid rgba(255,255,255,.14); border-radius:4px; padding:2px 7px">' + esc(String(n.pattern).toUpperCase()) + '</span>' : '')
+          + '</div>'
+          + '<div style="font-size:12.5px; color:rgba(255,255,255,.62); margin-top:8px; line-height:1.45">' + esc(n.story) + '</div>'
+          + (mitglieder.length
+            ? '<div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6); margin-top:11px">WHO</div>'
+              + '<div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:5px">'
+              + mitglieder.map((mm) => '<span ' + T.act(() => T.openWallet(mm.kurz, mm.wallet)) + ' class="hv-bd32" style="' + M + '; font-size:11px; color:rgba(255,255,255,.8); border:1px solid rgba(255,255,255,.16); border-radius:5px; padding:3px 8px; cursor:pointer" title="open this wallet">' + esc(mm.kurz) + '</span>').join('')
+              + (rest > 0 ? '<span style="' + M + '; font-size:11px; color:rgba(255,255,255,.55); padding:3px 2px">+ ' + rest + ' more</span>' : '')
+              + '</div>'
+            : '')
+          + (maerkte.length
+            ? '<div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6); margin-top:11px">WHERE THEY MET</div>'
+              + '<div style="margin-top:5px; display:grid; gap:4px">'
+              + maerkte.map((mk) => '<div style="display:flex; gap:10px; align-items:baseline; font-size:12px">'
+                + '<span style="color:rgba(255,255,255,.75); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1" title="' + esc(mk.title) + '">' + esc(mk.title) + '</span>'
+                + '<span style="' + M + '; font-size:11.5px; white-space:nowrap">' + esc(mk.label || '') + '</span></div>').join('')
+              + '</div>'
+            : '')
+          + '<div style="display:flex; gap:20px; margin-top:12px">'
+          + '<div><div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">SHARED MARKETS</div><div style="' + M + '; font-size:14px; margin-top:3px">' + esc(n.shared) + '</div></div>'
+          + '<div><div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">PAIRED NOTIONAL</div><div style="' + M + '; font-size:14px; margin-top:3px">' + esc(n.notional) + '</div></div>'
+          + '</div></div>';
+      }).join('')
       + '</div></div>';
   }
 

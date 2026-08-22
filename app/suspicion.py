@@ -695,6 +695,7 @@ def cluster_story(
 
     members = set(cluster_nodes["wallet"].astype(str))
     top_markets: list[str] = []
+    markets_struct: list[dict[str, Any]] = []
     distinct_markets = 0
     if trades is not None and not trades.empty and {"wallet", "title"}.issubset(trades.columns):
         flow = trades.copy()
@@ -705,6 +706,9 @@ def cluster_story(
             distinct_markets = int(flow["title"].nunique())
             top = flow.groupby("title")["notional"].sum().sort_values(ascending=False).head(3)
             top_markets = [f"{str(title)[:70]} ({money(value)})" for title, value in top.items()]
+            # Structured for the cluster card: title and label separately, so
+            # the page can lay them out instead of parsing a sentence.
+            markets_struct = [{"title": str(title)[:80], "label": money(value)} for title, value in top.items()]
 
     window_text = f"within {window_minutes:.0f} minutes of each other" if window_minutes else "in the sampled tape"
     reasons = [
@@ -735,7 +739,7 @@ def cluster_story(
             "the narrower and more obscure these markets, the harder the pattern is to explain as coincidence."
         )
     headline = f"{count} wallets · {money(volume)} combined whale volume · {pattern.lower()}"
-    return {"headline": headline, "pattern": pattern, "reasons": reasons, "top_markets": top_markets, "density": density}
+    return {"headline": headline, "pattern": pattern, "reasons": reasons, "top_markets": top_markets, "markets": markets_struct, "density": density}
 
 
 def wallet_co_trading_clusters(trades: pd.DataFrame, *, min_shared: int = 2, max_wallets: int = 200) -> pd.DataFrame:

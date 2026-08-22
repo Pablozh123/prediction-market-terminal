@@ -199,6 +199,48 @@ class WebLeerzustandTest(unittest.TestCase):
                 self.assertIn("Sports odds, crypto &amp; market prices, and weather are excluded", text)
                 self.assertNotIn("Sports odds and weather are excluded", text)
 
+    def test_risk_unter_tabs_erklaeren_sich_selbst(self) -> None:
+        # Die vier Neben-Tabs des Risk-Screens tragen ihre Erklaerung selbst:
+        # Wallets sagt, was der Score ist und WARUM ein Wallet geflaggt wurde
+        # (die Flags des Scorers als Chips); Fresh zaehlt benannt (Anzahl,
+        # Seite, Summe) statt einer Amber-Zahl, die wie ein Score aussah;
+        # Timing zeigt die Enge des Bursts als Balken gegen das 30-min-
+        # Fenster; das Netzwerk beschriftet seine Knoten und belegt jedes
+        # Cluster mit WER (klickbare Wallets) und WO (geteilte Maerkte) —
+        # die unlesbare Wallet-Markt-Matrix ist weg.
+        wallets = _sichtbarer_text(self.ausgabe["live"]["risk_wallets"])
+        self.assertIn("Same 0–100 score and bands as Events", wallets)
+        self.assertIn("long-odds big bet", wallets)
+        self.assertIn("late-market flow", wallets)
+        self.assertIn("watch only", wallets)
+        self.assertIn("71 HIGH", wallets)
+        self.assertIn("$450", wallets)  # not "$0k"
+        self.assertNotIn("CLUSTER", wallets.replace("FRESH-WALLET CLUSTERS", "").replace("COORDINATED CLUSTERS", ""))
+        fresh = _sichtbarer_text(self.ausgabe["live"]["risk_fresh"])
+        self.assertIn("at most two prior trades", fresh)
+        self.assertIn("FRESH WALLETS 4", fresh)
+        self.assertIn("ALL ON YES", fresh)
+        self.assertIn("COMBINED $88.0k", fresh)
+        timing = _sichtbarer_text(self.ausgabe["live"]["risk_timing"])
+        self.assertIn("BURST · OF 30 MIN", timing)
+        self.assertIn("all on YES", timing)
+        self.assertIn("40 s", timing)
+        netz_html = self.ausgabe["live"]["risk_network"]
+        netz = _sichtbarer_text(netz_html)
+        self.assertIn("WHO", netz)
+        self.assertIn("WHERE THEY MET", netz)
+        self.assertIn("TIGHT CLIQUE", netz)
+        self.assertIn("Xi Jinping out before 2027? $41.2k", netz)
+        self.assertNotIn("WHY THEY ARE LINKED", netz)
+        self.assertNotIn("WHO MOVES WITH WHOM", netz)
+        # Die Knoten tragen ihr Wallet-Kuerzel im Bild.
+        self.assertIn('>0x5111…cbe1</text>', netz_html)
+        # Leere Fenster sagen, was gesucht und nicht gefunden wurde — nicht
+        # "live · answered".
+        self.assertIn("No fresh-wallet cluster in this window", _sichtbarer_text(self.ausgabe["live"]["risk_fresh_empty"]))
+        self.assertIn("No coordinated burst in this window", _sichtbarer_text(self.ausgabe["live"]["risk_timing_empty"]))
+        self.assertIn("No wallet cleared the screen in this window", _sichtbarer_text(self.ausgabe["live"]["risk_wallets_empty"]))
+
     def test_backtester_nennt_das_gebuehrenmodell(self) -> None:
         # Voreinstellung ist die Venue-Kurve, und der Kopf des Laufs sagt es.
         kurve = _sichtbarer_text(self.ausgabe["leer"]["backtester_advanced"])

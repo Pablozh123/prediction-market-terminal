@@ -1431,16 +1431,23 @@ def risk_payload(wallet_scores: pd.DataFrame, event_scores: pd.DataFrame) -> dic
     if wallet_scores is not None and not wallet_scores.empty:
         for _, row in wallet_scores.head(20).iterrows():
             score = _num(row.get("wallet_insider_score") or row.get("wallet_risk_score"), 0.0) or 0.0
+            # The plain-language reasons the scorer recorded ("long-odds big
+            # bet; late-market flow") — without them the row is a bare number
+            # nobody can check. "watch only" means no pattern fired.
+            flags = [t.strip() for t in _text(row.get("wallet_insider_flags") or row.get("wallet_risk_reasons")).split(";") if t.strip()]
+            largest = _num(row.get("largest_trade"), 0.0) or 0.0
             wallets.append({
                 "wallet": _text(row.get("trader")) or short_wallet(row.get("wallet")),
                 # The full address, so the wallet page can be opened from the row.
                 "address": _text(row.get("wallet")),
-                "context": _text(row.get("top_market"))[:40] or "—",
+                "context": _text(row.get("top_market"))[:60] or "—",
                 "score": round(score),
+                "flags": flags,
                 "prints": int(_num(row.get("trade_count"), 0.0) or 0),
-                "notional": f"${(_num(row.get('notional'), 0.0) or 0.0) / 1000:.0f}k",
+                # money_label, not a k-rounder: a $450 wallet showed as "$0k".
+                "notional": money_label(_num(row.get("notional"), 0.0) or 0.0),
+                "largest": money_label(largest) if largest > 0 else "",
                 "firstSeen": _text(row.get("first_seen"))[:10] or "—",
-                "cluster": "—",
             })
     high_events = sum(1 for e in events if e["sev"] == "high")
     high_wallets = sum(1 for w in wallets if w["score"] >= 70)
@@ -2111,12 +2118,16 @@ def cluster_payload(
         for _, row in fresh.head(8).iterrows():
             count = int(_num(row.get("fresh_wallets"), 0.0) or 0)
             notional = _num(row.get("fresh_notional"), 0.0) or 0.0
+            side = _text(row.get("fresh_outcome")).upper()
             fresh_rows.append({
-                "tag": "FRESH WALLETS · SAME SIDE",
-                "score": count,
+                # count, not "score": the number is how many barely-seen
+                # wallets met on this side, and the page says so.
+                "count": count,
+                "side": side,
                 "market": _text(row.get("title")),
-                "detail": f"{count} wallets with at most two prior trades took {_text(row.get('fresh_outcome')) or 'the same side'} for {money_label(notional)} combined.",
-                "wallets": [],
+                "venue": _text(row.get("platform")),
+                "notional": money_label(notional),
+                "detail": f"{count} wallets with at most two prior trades in this tape took {side or 'the same side'} for {money_label(notional)} combined.",
             })
     out["fresh"] = fresh_rows
     timing_rows: list[dict[str, Any]] = []
@@ -2125,8 +2136,11 @@ def cluster_payload(
             span = _num(row.get("coordinated_span_minutes"), 0.0) or 0.0
             timing_rows.append({
                 "market": _text(row.get("title")),
+                "venue": _text(row.get("platform")),
                 "wallets": int(_num(row.get("coordinated_wallets"), 0.0) or 0),
                 "window": f"{span:.0f} min" if span >= 1 else f"{span * 60:.0f} s",
+                "span_minutes": round(span, 1),
+                "side": _text(row.get("coordinated_outcome")).upper(),
                 "notional": money_label(_num(row.get("coordinated_notional"), 0.0) or 0.0),
                 "same": bool(_text(row.get("coordinated_outcome"))),
             })
@@ -2146,12 +2160,26 @@ def cluster_payload(
                     story = story_fn(group, cluster_edges) or {}
                 except Exception:
                     story = {}
+            # Members and shared markets ride along so the cluster card can
+            # name who is in the group (clickable) and where they met —
+            # the bare "C-2 · 2 wallets · $63.8k" card explained nothing.
+            member_rows = [
+                {"kurz": short_wallet(w), "wallet": str(w)}
+                for w in group.sort_values("volume", ascending=False)["wallet"].astype(str)
+            ] if "volume" in group else [
+                {"kurz": short_wallet(w), "wallet": str(w)} for w in group["wallet"].astype(str)
+            ]
             network_rows.append({
+                "id": int(_num(cluster_id, 0.0) or 0),
                 "name": f"Cluster C-{int(cluster_id) + 1}" if str(cluster_id).isdigit() else f"Cluster {cluster_id}",
                 "size": int(len(group)),
                 "shared": str(int(_num(group.get("shared_markets", pd.Series(dtype=float)).max(), 0.0) or 0)),
                 "notional": money_label(float(pd.to_numeric(group.get("volume"), errors="coerce").fillna(0.0).sum())),
                 "story": _text(story.get("headline")) or _text(story.get("pattern")) or "Co-trading pattern on shared markets.",
+                "pattern": _text(story.get("pattern")),
+                "members": member_rows[:8],
+                "members_total": int(len(group)),
+                "markets": list(story.get("markets") or [])[:3],
             })
     network_rows.sort(key=lambda r: r["size"], reverse=True)
     out["network"] = network_rows[:6]
