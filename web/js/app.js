@@ -570,17 +570,16 @@ class Terminal {
         this.navItem('backtester', 'Backtester')
       ] }
     ];
-    // The paper desk is a local instrument: listed where the site runs next
-    // to its own api/server.py (or where this browser holds the admin
-    // token), reachable by hash (#copy, #portfolio) everywhere else.
-    if (this.paperDeskSichtbar()) {
-      const c = this.liveData.copy;
-      const aktiv = c && c.active_count != null ? String(c.active_count) : '';
-      groups.push({ label: 'PAPER DESK', items: [
-        this.navItem('copy', 'Copy trade', aktiv),
-        this.navItem('portfolio', 'Portfolio')
-      ] });
-    }
+    // The copy desk is public read-only (the API's write guard decides who
+    // may act), so it is listed for everyone. Portfolio stays a local
+    // instrument — listed where the site runs next to its own api/server.py
+    // or where this browser holds the admin token, reachable by hash
+    // (#portfolio) everywhere else.
+    const copyDaten = this.liveData.copy;
+    const aktiv = copyDaten && copyDaten.active_count != null ? String(copyDaten.active_count) : '';
+    const deskItems = [this.navItem('copy', 'Copy trade', aktiv)];
+    if (this.paperDeskSichtbar()) deskItems.push(this.navItem('portfolio', 'Portfolio'));
+    groups.push({ label: 'PAPER DESK', items: deskItems });
     const groupHtml = groups.map((g) =>
       '<div style="margin-bottom:14px">'
       + '<div style="font-family:\'JetBrains Mono\',monospace; font-size:11px; letter-spacing:.18em; padding:0 6px 6px; color:rgba(255,255,255,.55)">' + g.label + '</div>'

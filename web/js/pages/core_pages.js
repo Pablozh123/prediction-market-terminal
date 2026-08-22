@@ -205,27 +205,31 @@ export function renderOverview(T) {
 
   // ---- live-runs strip ----------------------------------------------------
   const agg = runs && runs.aggregat ? runs.aggregat : null;
-  // Eine PnL-Zelle, nicht zwei: die Wallet-Zahl fuehrt (frischeste Quelle
-  // zuerst — der Ledger aus extras, sonst der kuratierte Abgleich), die
-  // Log-Schaetzung steht in der Unterzeile. Die Methodennote dazu traegt die
-  // Live-runs-Seite unter LOG VS WALLET, nicht die Landung.
+  // Wallet-Zahlen ueberall (frischeste Quelle zuerst — der Ledger aus
+  // extras, sonst der kuratierte Abgleich). Die Log-Rekonstruktion steht
+  // nicht mehr auf der Landung; sie erscheint nur als benannter Rueckfall,
+  // wenn es noch keine Wallet-Zahl gibt.
   const ledger = runs && runs.extras && runs.extras.wallet_ledger;
   const ledgerBot = ledger && ledger.aggregat && ledger.aggregat.nach_typ ? ledger.aggregat.nach_typ.bot : null;
   const ledgerStand = ledger && ledger.stand_utc ? String(ledger.stand_utc).slice(0, 10) : '';
   const abgleichStand = agg && agg.wallet_abgleich_stand ? String(agg.wallet_abgleich_stand) : '';
-  const walletNetto = ledgerBot && ledgerBot.netto_cash_usd != null && ledgerStand && (!abgleichStand || ledgerStand > abgleichStand)
-    ? { wert: +ledgerBot.netto_cash_usd, stand: ledgerStand, quelle: 'wallet ledger' }
+  const ledgerFrischer = ledgerBot && ledgerStand && (!abgleichStand || ledgerStand > abgleichStand);
+  const walletNetto = ledgerFrischer && ledgerBot.netto_cash_usd != null
+    ? { wert: +ledgerBot.netto_cash_usd, stand: ledgerStand }
     : agg && agg.wallet_netto_usd != null
-      ? { wert: +agg.wallet_netto_usd, stand: abgleichStand, quelle: 'on-chain wallet' }
+      ? { wert: +agg.wallet_netto_usd, stand: abgleichStand }
       : null;
-  const logSchaetzung = agg && agg.realisierter_pnl_usd != null ? signedMoney(agg.realisierter_pnl_usd) : '—';
+  const walletKaeufe = ledgerFrischer && ledgerBot.einsatz_usd != null
+    ? +ledgerBot.einsatz_usd
+    : agg && agg.wallet_kaeufe_usd != null ? +agg.wallet_kaeufe_usd : null;
   const pnlZelle = walletNetto
     ? kpiCell('NET PNL (WALLET)', signedMoney(walletNetto.wert),
-      esc(walletNetto.quelle) + (walletNetto.stand ? ' · reconciled ' + esc(walletNetto.stand) : '') + ' · log estimate ' + logSchaetzung, true, walletNetto.wert)
-    : kpiCell('NET PNL (LOG ESTIMATE)', logSchaetzung, 'from run logs; fill prices partly assumed · no wallet reconciliation yet', true, agg && agg.realisierter_pnl_usd);
+      'on-chain wallet' + (walletNetto.stand ? ' · reconciled ' + esc(walletNetto.stand) : ''), true, walletNetto.wert)
+    : kpiCell('NET PNL (FROM RUN LOGS)', agg && agg.realisierter_pnl_usd != null ? signedMoney(agg.realisierter_pnl_usd) : '—', 'no wallet reconciliation yet', true, agg && agg.realisierter_pnl_usd);
   const runsStrip = agg
     ? '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid rgba(255,255,255,.09)">'
-      + kpiCell('RUNS · BETS', num(agg.n_runs != null ? agg.n_runs : '—') + ' · ' + num(agg.n_wetten != null ? agg.n_wetten : '—'), 'stake ' + (agg.einsatz_usd != null ? '$' + num((+agg.einsatz_usd).toFixed(0)) : '—') + ' (log estimate)'
+      + kpiCell('RUNS · BETS', num(agg.n_runs != null ? agg.n_runs : '—') + ' · ' + num(agg.n_wetten != null ? agg.n_wetten : '—'),
+        (walletKaeufe != null ? 'wallet buys $' + num(walletKaeufe.toFixed(0)) : 'stake ' + (agg.einsatz_usd != null ? '$' + num((+agg.einsatz_usd).toFixed(0)) + ' (from run logs)' : '—'))
         + (runs && runs.stand_utc ? ' · payload ' + esc(stempel(runs.stand_utc)) : ''), true)
       + kpiCell('WON · LOST', num(agg.gewonnen != null ? agg.gewonnen : '—') + ' · ' + num(agg.verloren != null ? agg.verloren : '—'), (agg.offen ? num(agg.offen) + ' open' : 'none open') + ' · no profitability claim', true)
       + pnlZelle

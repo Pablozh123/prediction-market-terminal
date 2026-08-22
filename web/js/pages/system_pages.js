@@ -1361,37 +1361,45 @@ function renderLiveRuns(T, payload) {
     });
   }
   const firstTaker = firstTakerKpi(payload);
-  // Eine PnL-Kachel, nicht zwei: die Wallet-Zahl fuehrt (Kassenwahrheit,
-  // frischeste Quelle zuerst), die Log-Rekonstruktion steht in der Unterzeile
-  // und im zugeklappten LOG VS WALLET darunter. Zwei gleich grosse Kacheln
-  // liessen jeden Leser erst die Methodennote studieren.
-  const logPnlKurz = agg && agg.realisierter_pnl_usd != null
-    ? (agg.realisierter_pnl_usd >= 0 ? '+$' : '-$') + num(Math.abs(+agg.realisierter_pnl_usd).toFixed(0))
-    : '—';
+  // Eine Zahlenwelt, nicht zwei: jede Geld-Kachel traegt die Wallet-Zahl
+  // (Kassenwahrheit, frischeste Quelle zuerst). Die Log-Rekonstruktion
+  // verwirrte mehr als sie erklaerte und ist von der Seite verschwunden;
+  // sie erscheint nur noch als Rueckfall, wenn es keine Wallet-Zahl gibt,
+  // und sagt dann, woher sie kommt.
   const nettoKachel = agg && (() => {
     if (frisch) return {
       label: 'NET PNL (WALLET, AS OF ' + frisch.stand + ')',
       value: (frisch.netto >= 0 ? '+$' : '-$') + num(Math.abs(frisch.netto).toFixed(0)),
-      sub: 'cash truth, wallet ledger · log estimate ' + logPnlKurz,
+      sub: 'cash truth from the on-chain wallet',
       color: frisch.netto >= 0 ? '#C8F542' : '#FF4545'
     };
     if (agg.wallet_netto_usd != null) return {
       label: 'NET PNL (WALLET' + (walletStand ? ', AS OF ' + walletStand : '') + ')',
       value: (+agg.wallet_netto_usd >= 0 ? '+$' : '-$') + num(Math.abs(+agg.wallet_netto_usd).toFixed(0)),
-      sub: 'cash truth, on-chain statement · log estimate ' + logPnlKurz,
+      sub: 'cash truth from the on-chain wallet',
       color: +agg.wallet_netto_usd >= 0 ? '#C8F542' : '#FF4545'
     };
     return {
-      label: 'NET PNL (LOG ESTIMATE)',
-      value: logPnlKurz,
-      sub: 'from run logs' + (agg.roi_realisiert_pct != null ? ' · ' + (+agg.roi_realisiert_pct).toFixed(1) + '% on log stake' : '') + ' · no wallet reconciliation yet',
+      label: 'NET PNL (FROM RUN LOGS)',
+      value: agg.realisierter_pnl_usd != null
+        ? (agg.realisierter_pnl_usd >= 0 ? '+$' : '-$') + num(Math.abs(+agg.realisierter_pnl_usd).toFixed(0))
+        : '—',
+      sub: 'no wallet reconciliation yet',
       color: agg.realisierter_pnl_usd >= 0 ? '#C8F542' : '#FF4545'
     };
   })();
+  // Die Stake-Kachel zeigt, was die Wallet fuer Bot-Maerkte ausgab — die
+  // Zahl, die zum Guthaben passt. Die Log-Summe stand hier mit Preisdeckel-
+  // Annahme daneben und widersprach dem Wallet-Auszug.
+  const stakeKachel = frisch && frisch.kaeufe != null
+    ? { label: 'TOTAL STAKE (WALLET)', value: '$' + num((+frisch.kaeufe).toFixed(0)), sub: 'buys from the wallet, bot markets · as of ' + frisch.stand, color: '#ffffff' }
+    : agg && agg.wallet_kaeufe_usd != null
+      ? { label: 'TOTAL STAKE (WALLET)', value: '$' + num((+agg.wallet_kaeufe_usd).toFixed(0)), sub: 'buys from the wallet statement' + (walletStand ? ' · as of ' + walletStand : ''), color: '#ffffff' }
+      : { label: 'TOTAL STAKE', value: agg ? '$' + num((+agg.einsatz_usd).toFixed(0)) : '—', sub: 'from run logs · no wallet reconciliation yet', color: '#ffffff' };
   const kpis = agg ? [
     { label: 'RUNS', value: String(agg.n_runs), sub: 'one run = one episode or event', color: '#ffffff' },
     { label: 'BETS', value: num(agg.n_wetten), sub: agg.gewonnen + 'W · ' + agg.verloren + 'L · ' + agg.offen + ' open', color: '#ffffff' },
-    { label: 'TOTAL STAKE', value: '$' + num((+agg.einsatz_usd).toFixed(0)), sub: 'log estimate · cap assumed where no fill price', color: '#ffffff' },
+    stakeKachel,
     nettoKachel,
     { label: 'FIRST TAKER', value: firstTaker.value, sub: firstTaker.sub, color: '#ffffff' },
     { label: 'OPEN STAKE', value: '$' + num((+agg.offener_einsatz_usd).toFixed(0)), sub: 'in unresolved markets', color: '#ffffff' }
@@ -1405,7 +1413,6 @@ function renderLiveRuns(T, payload) {
     { label: 'FIRST TAKER', value: '—', sub: 'runs.json not loaded', color: '#ffffff' },
     { label: 'OPEN STAKE', value: '—', sub: 'runs.json not loaded', color: '#ffffff' }
   ];
-  const abgleichHtml = agg ? abgleichTabelleHtml(payload, agg, frisch) : '';
   const laufSatz = herkunftSatz(
     payload ? { quelle: payload._quelle === 'fehler' ? 'fehler' : 'leer', fehler: payload._fehler } : null,
     'public/data/runs.json');
@@ -1429,20 +1436,16 @@ function renderLiveRuns(T, payload) {
     if (r.drop_quelle && DROP_QUELLE_TEXT[String(r.drop_quelle)]) chips.push('drop via ' + DROP_QUELLE_TEXT[String(r.drop_quelle)]);
     const resolvedAll = bets.length && bets.every((b) => b.result !== 'open');
     const missedN = (r.verpasste_chancen || []).length;
-    // Je Lauf zwei Zahlen, beide benannt: realisierter_pnl_usd ist die
-    // Log-Rekonstruktion, wallet_netto_usd der Wallet-Abgleich — frueher
-    // stand die Log-Zahl als "wallet net" in der Fusszeile.
-    // Eine fuehrende PnL-Zahl je Lauf, die Wallet-Sicht zuerst: kuratierter
-    // Abgleich, sonst die Summe der API-realisierten PnL der Bot-Maerkte aus
-    // dem Ledger, sonst die Log-Schaetzung — jede Quelle benannt, denn die
-    // Methoden liefern verschiedene Zahlen (Abgleich vs. realizedPnl vs. Log).
+    // Eine PnL-Zahl je Lauf, die Wallet-Sicht zuerst: kuratierter Abgleich,
+    // sonst die Summe der API-realisierten PnL der Bot-Maerkte aus dem
+    // Ledger, sonst die Log-Zahl — die dann sagt, dass sie aus dem Log
+    // kommt. Die frueheren Doppel-Zahlen ("· log estimate …") sind weg.
     const geldMit = (v) => (+v >= 0 ? '+$' : '-$') + Math.abs(+v).toFixed(2);
-    const logPnl = geldMit(r.realisierter_pnl_usd);
     const pnlSatz = r.wallet_netto_usd != null
-      ? 'PnL ' + geldMit(r.wallet_netto_usd) + ' (wallet) · log estimate ' + logPnl
+      ? 'PnL ' + geldMit(r.wallet_netto_usd) + ' (wallet)'
       : ledgerLauf && ledgerLauf.n
-        ? 'PnL ' + geldMit(ledgerLauf.pnl) + ' (wallet ledger, API realised) · log estimate ' + logPnl
-        : 'PnL ' + logPnl + ' (log estimate) · not wallet-reconciled';
+        ? 'PnL ' + geldMit(ledgerLauf.pnl) + ' (wallet)'
+        : 'PnL ' + geldMit(r.realisierter_pnl_usd) + ' (from the run log, not yet in the wallet statement)';
     // Sortierschluessel: erster Fill, sonst Drop/Pubdate, sonst das Datum des
     // Ledger-Events — Laeufe ohne jeden Zeitstempel sortieren ans Ende.
     const fillZeiten = (r.wetten || []).map((b) => String(b.fill_ts_utc || '')).filter(Boolean).sort();
@@ -1453,7 +1456,7 @@ function renderLiveRuns(T, payload) {
       title: laufTitel(r, ledgerLauf), url: episodenUrl(r) || (ledgerLauf ? ledgerLauf.url : ''), chips, bets,
       zeit: fillZeiten[0] || String(r.drop_erkannt_utc || r.pubdate_utc || (ledgerLauf && ledgerLauf.von) || ''),
       einsatzLog: +r.einsatz_usd, pnlLog: r.realisierter_pnl_usd != null ? +r.realisierter_pnl_usd : null,
-      footer: 'Stake $' + (+r.einsatz_usd).toFixed(2) + ' (log est.) · ' + pnlSatz,
+      footer: 'Stake $' + (+r.einsatz_usd).toFixed(2) + ' · ' + pnlSatz,
       missed: missedN ? 'Missed chances (' + missedN + ') — budget or cap' : ''
     };
   }) : [];
@@ -1517,20 +1520,18 @@ function renderLiveRuns(T, payload) {
   })();
   const equityChart = walletPunkte.length > 1 ? stepKurve({
     titel: 'CUMULATIVE WALLET PNL BY RUN',
-    einheit: 'USD · wallet ledger, bot markets',
+    einheit: 'USD · wallet, bot markets',
     hinweis: 'last bot fill ' + walletPunkte[walletPunkte.length - 1].label
-      + (ledgerStand ? ' · ledger as of ' + ledgerStand : '')
-      + ' · log estimate ' + logPnlKurz + ' — LOG VS WALLET above',
+      + (ledgerStand ? ' · wallet as of ' + ledgerStand : ''),
     punkte: walletPunkte
   }) : equityPunkte.length > 1 ? stepKurve({
-    titel: 'CUMULATIVE REALIZED PNL BY RUN',
-    einheit: 'USD · log-reconstructed',
+    titel: 'CUMULATIVE PNL BY RUN',
+    einheit: 'USD · from run logs',
     hinweis: agg && agg.wallet_netto_usd != null
       ? 'wallet net ' + (+agg.wallet_netto_usd >= 0 ? '+$' : '-$')
         + Math.abs(+agg.wallet_netto_usd).toFixed(0)
         + (agg.wallet_abgleich_stand ? ' as of ' + agg.wallet_abgleich_stand : '')
-        + ' — why the figures differ: LOG VS WALLET above'
-      : '',
+      : 'no wallet reconciliation yet',
     punkte: equityPunkte
   }) : '';
 
@@ -1760,9 +1761,12 @@ function renderLiveRuns(T, payload) {
       + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); margin-top:4px">' + esc(k.sub) + '</div></div>'
     ).join('')
     + '</div>'
-    // Log gegen Wallet in einer Zeile, mit dem Satz, warum sie auseinander
-    // liegen, und der Adresse, ueber die jeder den Abgleich nachrechnen kann.
-    + abgleichHtml
+    // Die Adresse, ueber die jeder jede Zahl der Seite nachrechnen kann —
+    // der aufklappbare LOG-VS-WALLET-Block, der hier stand, erklaerte eine
+    // zweite Zahlenwelt, die die Seite nicht mehr zeigt.
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); margin-top:10px; line-height:1.6">'
+    + 'Wallet ' + walletLinkHtml() + ' · the headline figures come from the public Polymarket Data API for this address — anyone can rerun the check.'
+    + '</div>'
     // Die versprochene Kurve der Seite: kumulierte PnL je Lauf, aus den
     // publizierten Laufwerten. Ohne Serie kein Diagramm.
     + (equityChart ? '<div style="margin-top:12px">' + equityChart + '</div>' : '')
@@ -1921,55 +1925,6 @@ export function firstTakerKpi(payload) {
   return { value: '—', sub: runs.length ? 'no race fields (fremde_davor, verfolger_s, race) in runs.json' : 'runs.json not loaded' };
 }
 
-// One-row reconciliation: log stake vs wallet buys, log PnL vs wallet net,
-// plus why they differ and the address anyone can check. With `frisch`
-// (the wallet ledger is newer than the curated reconciliation) the wallet
-// columns come from the ledger's bot markets, labeled with its date.
-function abgleichTabelleHtml(payload, agg, frisch) {
-  const geld = (v, vorzeichen) => {
-    if (v == null || isNaN(+v)) return '—';
-    const abs = num(Math.abs(+v).toFixed(2));
-    if (!vorzeichen) return '$' + abs;
-    return (+v >= 0 ? '+$' : '-$') + abs;
-  };
-  const stand = frisch ? frisch.stand : agg.wallet_abgleich_stand ? String(agg.wallet_abgleich_stand) : '';
-  const walletKaeufe = frisch ? frisch.kaeufe : agg.wallet_kaeufe_usd;
-  const walletNetto = frisch ? frisch.netto : agg.wallet_netto_usd;
-  // Runs whose first fill came after the wallet reconciliation date are
-  // log-only: the two columns do not cover the same set of runs.
-  const runs = Array.isArray(payload.runs) ? payload.runs : [];
-  const nachStand = stand
-    ? runs.filter((r) => {
-      const fills = (r.wetten || []).map((b) => String(b.fill_ts_utc || '')).filter(Boolean).sort();
-      return fills.length && fills[0].slice(0, 10) > stand;
-    }).length
-    : 0;
-  const zelle = (label, wert, farbe) =>
-    '<div><div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(255,255,255,.6)">' + esc(label) + '</div>'
-    + '<div style="' + M + '; font-size:15px; margin-top:5px; color:' + (farbe || '#fff') + '; white-space:nowrap">' + esc(wert) + '</div></div>';
-  const farbeVon = (v) => (v == null ? '#fff' : +v >= 0 ? '#C8F542' : '#FF4545');
-  // Zugeklappt: die Methode hinter der einen PnL-Kachel, nicht ein zweiter
-  // Zahlenblock auf der Seite. Wer nachrechnen will, klappt auf.
-  return '<details data-key="runs-abgleich" style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:12px; padding:0 18px">'
-    + '<summary style="cursor:pointer; padding:13px 0; list-style:none; ' + M + '; font-size:11px; letter-spacing:.14em; color:#4F8EF7">LOG VS WALLET · WHY THE FIGURES DIFFER' + (stand ? ' · WALLET AS OF ' + esc(stand) : '') + ' ▸</summary>'
-    + '<div style="padding-bottom:14px">'
-    + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:14px">'
-    + zelle('LOG STAKE', geld(agg.einsatz_usd, false))
-    + zelle('WALLET BUYS', geld(walletKaeufe, false))
-    + zelle('LOG-RECONSTRUCTED PNL', geld(agg.realisierter_pnl_usd, true), farbeVon(agg.realisierter_pnl_usd))
-    + zelle('WALLET-RECONCILED NET', geld(walletNetto, true), farbeVon(walletNetto))
-    + '</div>'
-    + '<div style="font-size:12.5px; color:rgba(255,255,255,.6); margin-top:12px; line-height:1.6; max-width:860px">'
-    + 'Why they differ: where the FAK order status returned no fill price, the log reconstruction assumes the price cap — the order response <span style="' + M + '">price</span> is the cap, not the fill — which overstates the stake and understates the shares; the wallet statement is the cash truth (post-mortem 2026-07-18, "Log reconstruction diverged from the wallet statement").'
-    + (frisch
-      ? ' Wallet columns come from the wallet ledger at the bottom of this page (bot markets only), as of ' + esc(stand) + '.'
-      : stand ? ' Wallet columns are as of ' + esc(stand) + (nachStand ? '; ' + nachStand + ' run' + (nachStand === 1 ? '' : 's') + ' with fills after that date ' + (nachStand === 1 ? 'is' : 'are') + ' log-only, so the two columns do not cover the same set of runs.' : '.') : '')
-    + '</div>'
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); margin-top:8px; line-height:1.6">'
-    + 'Wallet ' + walletLinkHtml() + ' · anyone can rerun the check against the public Polymarket Data API for this address.'
-    + '</div></div></details>';
-}
-
 // ---- wallet ledger: everything the wallet did, by event (wallet_ledger.json)
 
 // Module-level cache for the static path (marketintel.dev): the file is
@@ -2039,7 +1994,7 @@ function laufDetailHtml(k) {
         + '</div>'
       : '')
     + laufWettenHtml(k)
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); margin-top:8px">' + esc('Stake $' + k.einsatzLog.toFixed(2) + ' (log est.) · log PnL ' + geldMit(k.pnlLog) + ' — the wallet figure is the PNL column of this row') + '</div>'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); margin-top:8px">' + esc('Stake $' + k.einsatzLog.toFixed(2) + ' — the wallet figure is the PNL column of this row') + '</div>'
     + (k.missed ? '<div style="' + M + '; font-size:10.5px; color:#F5A623; margin-top:5px">' + esc(k.missed) + '</div>' : '')
     + '</div>';
 }
@@ -2277,9 +2232,9 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
     + ' <span style="' + M + '; font-size:11px; color:rgba(255,255,255,.6)">' + esc(k.profil) + '</span></div>'
     + '<div style="display:flex; gap:4px; align-items:center">' + ledgerTypChip('bot') + '</div>'
     + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:rgba(255,255,255,.7)">' + num(k.bets.length) + '</div>'
-    + '<div style="text-align:right; ' + M + '; font-size:11.5px" title="log estimate">' + ledgerGeld(k.einsatzLog, false) + '</div>'
-    + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:' + ledgerFarbe(k.pnlLog) + '" title="log estimate — not in the wallet ledger">' + ledgerGeld(k.pnlLog, true) + '</div>'
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); white-space:nowrap">' + esc(k.status.toLowerCase() + ' · log figures') + '</div>'
+    + '<div style="text-align:right; ' + M + '; font-size:11.5px" title="from the run log — not yet in the wallet statement">' + ledgerGeld(k.einsatzLog, false) + '</div>'
+    + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:' + ledgerFarbe(k.pnlLog) + '" title="from the run log — not yet in the wallet statement">' + ledgerGeld(k.pnlLog, true) + '</div>'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); white-space:nowrap">' + esc(k.status.toLowerCase() + ' · from the run log') + '</div>'
     + '</summary>'
     + '<div style="padding:4px 16px 12px 108px">' + laufDetailHtml(k) + '</div></details>';
 
@@ -2734,7 +2689,7 @@ const KERNSATZ = {
   'FILL MODELS: TOUCH VS TAPE, AND THE MARKOUT IDENTITY': 'Two fill models bracket the truth; when they straddle zero the verdict is "not identified".',
   'BLOCK BOOTSTRAP': 'Days are resampled in blocks; under three days no interval can be computed at all.',
   'CROSS-VENUE MATCHING AND FEE CURVES': 'Pairs are matched by what the question asks, not by wording — two apparent edges were mismatches.',
-  'WALLET RECONCILIATION VS LOG': 'The wallet net is the cash truth; the log figure overstates stake where no fill price came back.',
+  'WALLET RECONCILIATION VS LOG': 'The page shows the wallet figures; the log reconstruction stays in runs.json as raw data.',
   'PRE-REGISTRATION POLICY': 'Rules fixed and time-stamped before the outcome period, and failures published too.',
   'AGENT LAYER GUARDRAILS': 'Read-only tools, capped rows, a skeptic that can only lower priority, mock backend by default.'
 };
@@ -2779,7 +2734,7 @@ function renderMethodology(T, payload, study) {
     abschnitt('CROSS-VENUE MATCHING AND FEE CURVES',
       'Markets on the two venues are matched by what the question actually asks, not by wording overlap; two apparent 79 and 64 cent edges were mismatched pairs and stay in the report as the lesson. For each surviving pair both books are priced, each venue\'s own fee curve is subtracted, size is capped by the real depth, and the remainder is annualised over the days until settlement. Both rulebooks are then put side by side, because a resolution clause one side carries and the other does not is precisely where a hedge stops hedging.'),
     abschnitt('WALLET RECONCILIATION VS LOG',
-      'The live-run PnL is shown twice on purpose. The log-reconstructed figure comes from the bot\'s own logs; where the FAK order status returned no fill price, it assumes the price cap (the order response ' + mono('price') + ' is the cap, not the fill), which overstates the stake and understates the shares. The wallet-reconciled net is what the on-chain wallet statement shows and is the cash truth, dated by its reconciliation day. Both are labelled wherever they appear, and the wallet address ' + mono(LIVE_RUN_WALLET) + ' is public, so anyone can rerun the check against the Polymarket Data API.'),
+      'The live-runs page shows the wallet-reconciled figures: what the on-chain wallet statement records as buys and net PnL, dated by its reconciliation day — the cash truth. The bot\'s own logs also reconstruct a stake and PnL, but where the FAK order status returned no fill price that reconstruction assumes the price cap (the order response ' + mono('price') + ' is the cap, not the fill), which overstates the stake and understates the shares — so the log figures stay in runs.json as raw data and appear on the page only where no wallet figure exists yet, labelled as coming from the run log. The wallet address ' + mono(LIVE_RUN_WALLET) + ' is public, so anyone can rerun the check against the Polymarket Data API.'),
     abschnitt('PRE-REGISTRATION POLICY',
       'Pre-registered means: hypothesis, primary metric, success threshold, cohort and exclusion rules are fixed before the first look at the outcome period, and externally time-stamped. Results are published in both directions — a failure and an insufficient sample are both citable results — and every analysis outside the pre-registered primary test is marked exploratory. The pilot froze its rules before the first trade and reports its own deviation from the frozen text (stake halved) as a deviation; the track-record validation is drafted for AsPredicted and listed as pending until submitted.'),
     abschnitt('AGENT LAYER GUARDRAILS',

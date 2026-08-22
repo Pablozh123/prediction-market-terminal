@@ -372,19 +372,21 @@ class WebLeerzustandTest(unittest.TestCase):
         # ohne Nutzlast gibt es keine (test_leerzustand_zeichnet_keine_kurve).
         live = self.ausgabe["live"]["runs_runs"]
         # Die Kurve zeigt die Wallet-Zahl der Kachel (55.97 → 66.0 kumuliert
-        # ueber die zwei Bot-Events des Ledgers), nicht mehr die Log-Reihe.
+        # ueber die zwei Bot-Events des Ledgers), nicht mehr die Log-Reihe —
+        # und ohne den frueheren "log estimate"-Anhang im Hinweis.
         text = _sichtbarer_text(live)
         self.assertIn("CUMULATIVE WALLET PNL BY RUN", text)
-        self.assertIn("USD · wallet ledger, bot markets", text)
+        self.assertIn("USD · wallet, bot markets", text)
         self.assertNotIn("CUMULATIVE REALIZED PNL BY RUN", text)
         self.assertRegex(live, r'<path d="M\s*\d')
         self.assertIn("66", text)
-        self.assertIn("last bot fill 07-02 · ledger as of 2026-08-17 · log estimate +$24 — LOG VS WALLET above", text)
+        self.assertIn("last bot fill 07-02 · wallet as of 2026-08-17", text)
+        self.assertNotIn("log estimate", text)
         # Ohne Ledger (runs_runs_many) faellt die Kurve auf die Log-Reihe
-        # zurueck und sagt das im Titel.
+        # zurueck und sagt, woher sie kommt.
         viele = _sichtbarer_text(self.ausgabe["live"]["runs_runs_many"])
-        self.assertIn("CUMULATIVE REALIZED PNL BY RUN", viele)
-        self.assertIn("USD · log-reconstructed", viele)
+        self.assertIn("CUMULATIVE PNL BY RUN", viele)
+        self.assertIn("USD · from run logs", viele)
 
     def test_startseite_ist_forschungslandung(self) -> None:
         # Die Startseite fuehrt mit der Forschung, nicht mit dem Whale-Feed:
@@ -571,13 +573,14 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertEqual(json.loads(self.ausgabe["leer"]["_verdict_counts"])["total"], 0)
 
     def test_live_runs_streifen_eine_pnl_zahl(self) -> None:
-        # Eine PnL-Zelle: die Wallet-Zahl fuehrt (+$175.09 mit Abgleichsdatum),
-        # die Log-Schaetzung steht benannt in der Unterzeile — nicht mehr zwei
-        # gleichrangige Zellen plus Methodenabsatz.
+        # Eine PnL-Zelle mit der Wallet-Zahl (+$175.09 mit Abgleichsdatum) und
+        # die Wallet-Kaeufe als Stake — die Log-Schaetzung steht nicht mehr auf
+        # der Landung, auch nicht in einer Unterzeile.
         text = _sichtbarer_text(self.ausgabe["live"]["overview"])
         self.assertIn("NET PNL (WALLET) +$175.09", text)
-        self.assertIn("reconciled 2026-07-18", text)
-        self.assertIn("log estimate +$288.67", text)
+        self.assertIn("on-chain wallet · reconciled 2026-07-18", text)
+        self.assertIn("wallet buys $493", text)
+        self.assertNotIn("log estimate", text)
         self.assertNotIn("LOG-RECONSTRUCTED PNL", text)
         self.assertIn("RUNS · BETS 21 · 27", text)
         self.assertIn("WON · LOST 25 · 2", text)
@@ -624,13 +627,12 @@ class WebLeerzustandTest(unittest.TestCase):
         # Nicht mehr gelistet, aber als Route erreichbar.
         for seite in ("'settings'", "'track'", "'resolved'"):
             self.assertNotIn("this.navItem(" + seite, app_js)
-        # Der Paper-Desk (Copy trade, Portfolio) steht nur in der Seitenleiste,
-        # wo er laeuft: hinter paperDeskSichtbar() (lokaler Host oder eine
-        # Antwort mit Schreibrecht), in einer eigenen Gruppe.
+        # Der Copy trade steht fuer alle in der Seitenleiste — der Desk ist
+        # oeffentlich read-only, wer schreiben darf, entscheidet die API.
+        # Portfolio bleibt ein lokales Instrument hinter paperDeskSichtbar().
         self.assertIn("'PAPER DESK'", app_js)
-        desk = app_js[app_js.index("if (this.paperDeskSichtbar())"):app_js.index("'PAPER DESK'") + 400]
-        self.assertIn("this.navItem('copy'", desk)
-        self.assertIn("this.navItem('portfolio'", desk)
+        self.assertIn("const deskItems = [this.navItem('copy'", app_js)
+        self.assertIn("if (this.paperDeskSichtbar()) deskItems.push(this.navItem('portfolio'", app_js)
         self.assertEqual(app_js.count("this.navItem('copy'"), 1)
         self.assertEqual(app_js.count("this.navItem('portfolio'"), 1)
         self.assertIn("settings: renderSettings", app_js)
@@ -813,36 +815,30 @@ class WebLeerzustandTest(unittest.TestCase):
     # ---- Live runs: eine PnL-Kachel, LOG VS WALLET zugeklappt, First taker --
 
     def test_live_runs_eine_pnl_kachel_und_log_vs_wallet(self) -> None:
-        # Eine PnL-Kachel: die Wallet-Zahl fuehrt, und zwar aus der frischesten
-        # Quelle — der Harness-Ledger (2026-08-17, Bot netto +$66.00) ist neuer
-        # als der kuratierte Abgleich (2026-07-18, +$20). Die Log-Zahl steht
-        # benannt in der Unterzeile; beide Spalten samt Begruendung liegen im
-        # zugeklappten LOG VS WALLET, mit der Wallet-Adresse als Link.
+        # Wallet-Zahlen ueberall, aus der frischesten Quelle — der Harness-
+        # Ledger (2026-08-17, Bot netto +$66.00, Kaeufe $61.34) ist neuer als
+        # der kuratierte Abgleich (2026-07-18, +$20). Die Log-Rekonstruktion
+        # steht nicht mehr auf der Seite: kein "log estimate", kein
+        # zugeklappter LOG-VS-WALLET-Block — nur die Wallet-Adresse als
+        # nachrechenbare Quelle.
         live = self.ausgabe["live"]["runs_runs"]
         text = _sichtbarer_text(live)
         self.assertIn("NET PNL (WALLET, AS OF 2026-08-17) +$66", text)
-        self.assertIn("cash truth, wallet ledger · log estimate +$24", text)
-        # Die Log-Zahl steht genau einmal: als Spalte im zugeklappten
-        # LOG VS WALLET, nicht mehr als zweite Kachel.
-        self.assertEqual(text.count("LOG-RECONSTRUCTED PNL"), 1)
-        self.assertNotIn("WALLET-RECONCILED NET (AS OF", text)
-        self.assertNotIn("TOTAL STAKE $40 wallet-reconciled", text)
-        self.assertIn("TOTAL STAKE $40 log estimate", text)
-        self.assertIn("LOG VS WALLET · WHY THE FIGURES DIFFER · WALLET AS OF 2026-08-17", text)
-        self.assertIn('<details data-key="runs-abgleich"', live)
-        self.assertIn("LOG STAKE $40.00 WALLET BUYS $61.34 LOG-RECONSTRUCTED PNL +$24.00 WALLET-RECONCILED NET +$66.00", text)
-        self.assertIn("the order response price is the cap, not the fill", text)
-        self.assertIn("post-mortem 2026-07-18", text)
-        self.assertIn("Wallet columns come from the wallet ledger at the bottom of this page (bot markets only), as of 2026-08-17.", text)
+        self.assertIn("cash truth from the on-chain wallet", text)
+        self.assertIn("TOTAL STAKE (WALLET) $61", text)
+        self.assertIn("buys from the wallet, bot markets · as of 2026-08-17", text)
+        self.assertNotIn("log estimate", text)
+        self.assertNotIn("LOG-RECONSTRUCTED PNL", text)
+        self.assertNotIn("LOG VS WALLET", text)
+        self.assertNotIn('<details data-key="runs-abgleich"', live)
         self.assertIn("0x29afe1bf37700768a640a08f1b35dad5f202f88d", text)
         self.assertIn('href="https://polygonscan.com/address/0x29afe1bf37700768a640a08f1b35dad5f202f88d"', live)
         self.assertIn('href="https://polymarket.com/profile/0x29afe1bf37700768a640a08f1b35dad5f202f88d"', live)
         self.assertIn("public Polymarket Data API", text)
         # Das Laufdetail steckt im aufklappbaren Bot-Event: die Zeile traegt
-        # die Wallet-Zahl, das Detail nur noch die Log-Seite, so beschriftet.
+        # die Wallet-Zahl, das Detail nennt seinen Log-Einsatz ohne Doppelzahl.
         self.assertIn("run harness_a · Run with a fill · real orders · resolved", text)
-        self.assertIn("Stake $20.00 (log est.) · log PnL +$14.00 — the wallet figure is the PNL column of this row", text)
-        self.assertIn("Stake $20.00 (log est.) · log PnL +$10.00 — the wallet figure is the PNL column of this row", text)
+        self.assertIn("Stake $20.00 — the wallet figure is the PNL column of this row", text)
         # Keine Karten mehr neben der Tabelle — eine Darstellung, nicht drei.
         self.assertNotIn("RUNS WITH FILLS", text)
         # Der Simulator-Reiter benennt seine Zahlen als Simulation.
