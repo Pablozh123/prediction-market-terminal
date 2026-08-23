@@ -1151,7 +1151,7 @@ class RiskEventRowTests(unittest.TestCase):
             "side_buy_yes": 2000.0, "side_buy_no": 20000.0, "side_sell_yes": 1000.0, "side_sell_no": 0.0,
             "price_outcome": "NO", "price_first": 0.30, "price_last": 0.34, "price_min": 0.30, "price_max": 0.34,
             "first_print": pd.Timestamp("2026-08-16T12:00:00Z"), "last_print": pd.Timestamp("2026-08-16T12:25:00Z"),
-            "window_minutes": 25.0,
+            "window_minutes": 25.0, "print_offsets": [0.0, 0.4, 0.8, 1.0],
             "top_wallets": [
                 {"wallet": "0xbbb2000000000000000000000000000000000002", "notional": 17000.0, "share": 0.739, "side": "NO buys", "fresh": True},
                 {"wallet": "0xaaa1000000000000000000000000000000000001", "notional": 4000.0, "share": 0.174, "side": "NO buys", "fresh": None},
@@ -1178,6 +1178,7 @@ class RiskEventRowTests(unittest.TestCase):
         self.assertEqual(event["first_print"], "2026-08-16T12:00:00Z")
         self.assertEqual(event["last_print"], "2026-08-16T12:25:00Z")
         self.assertEqual(event["window_minutes"], 25.0)
+        self.assertEqual(event["print_offsets"], [0.0, 0.4, 0.8, 1.0])
         self.assertEqual(event["prints"], 4)
         self.assertEqual(event["notional"], "$23k")
         self.assertAlmostEqual(event["notional_usd"], 23000.0)
@@ -1206,6 +1207,7 @@ class RiskEventRowTests(unittest.TestCase):
         self.assertIsNone(event["price_last"])
         self.assertEqual(event["first_print"], "")
         self.assertIsNone(event["window_minutes"])
+        self.assertEqual(event["print_offsets"], [])
         self.assertEqual(event["top_wallets"], [])
         self.assertEqual(event["components"], [])
         self.assertEqual(event["side_split"], {"buy_yes": 0.0, "buy_no": 0.0, "sell_yes": 0.0, "sell_no": 0.0})

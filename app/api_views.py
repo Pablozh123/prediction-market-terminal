@@ -1382,6 +1382,14 @@ def risk_event_row(row: Any) -> dict[str, Any]:
                 "url": wallet_profile_url(venue, address),
             })
     window_minutes = _num(row.get("window_minutes"))
+    # Position jedes Prints im Fenster (0..1, von event_flow_details): die
+    # Karte zeichnet daraus die Tick-Leiste. Fehlt die Spalte (aelterer
+    # Frame), bleibt die Liste leer und die Karte zeigt nur den Text.
+    offsets_raw = row.get("print_offsets")
+    print_offsets = (
+        [round(_num(value, 0.0) or 0.0, 4) for value in offsets_raw]
+        if isinstance(offsets_raw, (list, tuple)) else []
+    )
     return {
         "kind": (_text(flags[0]).upper() if flags else "EVENT SCREEN"),
         "score": round(_num(row.get("event_insider_score") or row.get("event_risk_score"), 0.0) or 0.0),
@@ -1410,6 +1418,7 @@ def risk_event_row(row: Any) -> dict[str, Any]:
         "first_print": _iso(row.get("first_print")),
         "last_print": _iso(row.get("last_print")),
         "window_minutes": round(window_minutes, 1) if window_minutes is not None else None,
+        "print_offsets": print_offsets,
         "prints": int(_num(row.get("trades"), 0.0) or 0),
         "top_wallets": top_wallets,
         "components": susp.event_components(row),

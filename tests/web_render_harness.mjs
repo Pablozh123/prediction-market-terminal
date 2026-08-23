@@ -205,6 +205,9 @@ function mitDaten(T) {
     side_split: { buy_yes: 6000, buy_no: 34000, sell_yes: 0, sell_no: 0 },
     price_outcome: 'NO', price_first: 0.30, price_last: 0.34, price_min: 0.30, price_max: 0.34,
     first_print: '2026-08-17T09:40:00Z', last_print: '2026-08-17T10:00:00Z', window_minutes: 20, prints: 4,
+    // Measured print positions in the window (suspicion.event_flow_details):
+    // three prints in the first quarter, one at the end — a visible clump.
+    print_offsets: [0, 0.11, 0.45, 1],
     top_wallets: [
       { wallet: '0xbbb2000000000000000000000000000000000002', short: '0xbbb2…0002', notional: 26000, share: 0.65, side: 'NO buys', fresh: true, url: 'https://polymarket.com/profile/0xbbb2000000000000000000000000000000000002' },
       { wallet: '0xaaa1000000000000000000000000000000000001', short: '0xaaa1…0001', notional: 8000, share: 0.2, side: 'NO buys', fresh: false, url: 'https://polymarket.com/profile/0xaaa1000000000000000000000000000000000001' }
@@ -215,6 +218,7 @@ function mitDaten(T) {
       { key: 'component_notional', label: 'Size of the flow', value: 6.0, max: 15, measures: 'dollars traded in this market in the window', fact: '$40k traded in the window', rule: 'full marks at $100k' },
       { key: 'component_concentration', label: 'One wallet dominates', value: 9.8, max: 15, measures: 'share of the flow done by the top wallet', fact: '0xbbb2…0002 did 65% of the flow', rule: 'full marks when one wallet did all of it' },
       { key: 'component_late', label: 'Late in the market', value: 0, max: 15, measures: "share of the flow inside the market's last 48 h", fact: "nothing inside the market's last 48 h", rule: '' },
+      { key: 'price_move_score', label: 'Price moved their way', value: 2.7, max: 10, measures: "price change in the flow's direction within the window", fact: 'price moved +4¢ behind the buys', rule: 'full marks at +10¢' },
       { key: 'component_fresh_wallets', label: 'Fresh wallets', value: 5.0, max: 10, measures: 'wallets barely seen on the tape, same side', fact: '2 wallets barely seen on the tape, same side', rule: 'full marks at 4' },
       { key: 'context_multiplier', label: 'Context', value: 1.1, max: null, measures: "insider plausibility of the market's subject", fact: 'Politics & geopolitics — decisions are known to officials before the public', rule: 'points × the multiplier; politics, awards and corporate decisions count more, general topics ×1' }
     ],
