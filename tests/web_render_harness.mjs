@@ -231,7 +231,11 @@ function mitDaten(T) {
   // honest empty states.
   T.liveData.risk = {
     _quelle: 'live',
-    kpis: { events_screened: 12, high_risk_events: 1, high_risk_wallets: 2, fresh_clusters: 1, coordinated_clusters: 1 },
+    // The display floor of the payload travels along: cards start at 40,
+    // everything screened below it is a count ("7 more markets…"), not a card.
+    event_min_score: 40,
+    events_below_min: 7,
+    kpis: { events_screened: 9, events_flagged: 2, high_risk_events: 1, high_risk_wallets: 2, fresh_clusters: 1, coordinated_clusters: 1 },
     wallets: [{
       wallet: 'quietwhale', address: '0xdd10000000000000000000000000000000000001',
       context: 'Xi Jinping out before 2027?', score: 71,

@@ -816,7 +816,13 @@ def build_risk_payload() -> dict[str, Any]:
 
     settings = cfg.load_settings()
     whale_threshold = float(settings.get("whale_threshold", 2500))
-    trades = load_tape(limit=1000, min_cash=0.0)
+    # Mit min_cash=0 fressen die Mikro-Prints das Fenster: 1000 Prints jeder
+    # Groesse decken auf dieser Venue Minuten ab, und fast jeder gescorte
+    # "Markt" war ein einzelner Kleinstbetrag. Der Boden ist derselbe, ab dem
+    # der Scorer Verteilungs-Signale voll zaehlt (distribution_size_floor) —
+    # dieselben 1000 Prints tragen dann Stunden relevanten Flows statt Staub.
+    tape_floor = max(md.DISTRIBUTION_NOTIONAL_FLOOR, whale_threshold * 0.2)
+    trades = load_tape(limit=1000, min_cash=tape_floor)
     if trades.empty:
         raise LookupError("no trade tape available")
 

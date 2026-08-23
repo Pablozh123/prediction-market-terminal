@@ -457,6 +457,56 @@ class RiskPayloadTests(unittest.TestCase):
         self.assertEqual(payload["events"][0]["kind"], "COORDINATED BURST")
         self.assertEqual(payload["wallets"][0]["score"], 84)
 
+    def test_events_below_the_flag_threshold_are_counted_not_shown(self) -> None:
+        # Der Scorer bewertet JEDEN Markt mit einem Print im Tape; ohne Boden
+        # fuellten "0/100"-Zeilen das Grid, sobald das gefilterte Tape duenn
+        # war. Karten gibt es ab der Log-Schwelle (risk_log.min_score(), 40);
+        # was darunter liegt, wird gezaehlt statt gezeigt.
+        events = pd.DataFrame([
+            {"title": "Cabinet reshuffle", "event_insider_score": 62.0, "event_insider_level": "Medium",
+             "event_insider_flags": "one-sided flow", "unique_wallets": 3, "notional": 80000.0,
+             "trades_per_hour": 8.0, "platform": "Polymarket"},
+            {"title": "Tiny market", "event_insider_score": 0.0, "event_insider_level": "Low",
+             "event_insider_flags": "", "unique_wallets": 1, "notional": 45.0,
+             "trades_per_hour": 1.0, "platform": "Polymarket"},
+            {"title": "Small market", "event_insider_score": 12.0, "event_insider_level": "Low",
+             "event_insider_flags": "watch only", "unique_wallets": 1, "notional": 900.0,
+             "trades_per_hour": 2.0, "platform": "Kalshi"},
+        ])
+        payload = apv.risk_payload(pd.DataFrame(), events)
+        self.assertEqual([e["market"] for e in payload["events"]], ["Cabinet reshuffle"])
+        self.assertEqual(payload["event_min_score"], 40)
+        self.assertEqual(payload["events_below_min"], 2)
+        # events_screened zaehlt die gescorten Maerkte, nicht die Karten —
+        # vorher stand hier len(events) und die Zahl log.
+        self.assertEqual(payload["kpis"]["events_screened"], 3)
+        self.assertEqual(payload["kpis"]["events_flagged"], 1)
+
+    def test_all_events_below_threshold_leave_an_empty_screen_with_counts(self) -> None:
+        events = pd.DataFrame([
+            {"title": "Tiny market", "event_insider_score": 2.0, "event_insider_level": "Low",
+             "event_insider_flags": "", "unique_wallets": 1, "notional": 45.0,
+             "trades_per_hour": 1.0, "platform": "Polymarket"},
+            {"title": "Small market", "event_insider_score": 31.0, "event_insider_level": "Low",
+             "event_insider_flags": "watch only", "unique_wallets": 2, "notional": 3200.0,
+             "trades_per_hour": 2.0, "platform": "Kalshi"},
+        ])
+        payload = apv.risk_payload(pd.DataFrame(), events)
+        self.assertEqual(payload["events"], [])
+        self.assertEqual(payload["events_below_min"], 2)
+        self.assertEqual(payload["kpis"]["events_screened"], 2)
+        self.assertEqual(payload["kpis"]["events_flagged"], 0)
+
+    def test_threshold_override_zero_shows_every_scored_row(self) -> None:
+        events = pd.DataFrame([
+            {"title": "Tiny market", "event_insider_score": 0.0, "event_insider_level": "Low",
+             "event_insider_flags": "", "unique_wallets": 1, "notional": 45.0,
+             "trades_per_hour": 1.0, "platform": "Polymarket"},
+        ])
+        payload = apv.risk_payload(pd.DataFrame(), events, min_event_score=0.0)
+        self.assertEqual(len(payload["events"]), 1)
+        self.assertEqual(payload["events_below_min"], 0)
+
 
 class AlertRowsTests(unittest.TestCase):
     def test_maps_signal_frame(self) -> None:

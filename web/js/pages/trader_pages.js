@@ -643,16 +643,40 @@ export function renderRisk(T) {
 
   let body = '';
   if (s.riskView === 'events') {
+    // The recipe behind the number, page-level: what 0–100 is made of and
+    // that cards only start at the flag threshold — before this line, the
+    // reader had to open a card's "Why?" to learn what the score even means.
+    const schwelle = live && live.event_min_score != null ? Number(live.event_min_score) : null;
+    const unterZahl = live ? Number(live.events_below_min) || 0 : 0;
+    const rezept = '<div style="padding:14px 24px 0; font-size:12.5px; color:rgba(255,255,255,.62); line-height:1.55; max-width:920px">'
+      + 'Each card is one market\'s whale flow, scored 0–100 from capped parts: flow size <span style="' + M + '; font-size:11.5px">/15</span>, largest print <span style="' + M + '; font-size:11.5px">/10</span>, long-odds bets <span style="' + M + '; font-size:11.5px">/10</span>, wallet concentration <span style="' + M + '; font-size:11.5px">/15</span>, one-sidedness <span style="' + M + '; font-size:11.5px">/10</span>, trade burst <span style="' + M + '; font-size:11.5px">/15</span>, late flow <span style="' + M + '; font-size:11.5px">/15</span>, price move behind the buys and multi-wallet bursts <span style="' + M + '; font-size:11.5px">/10</span> — then × the insider plausibility of the topic. '
+      + (schwelle != null ? 'Only markets at or above the flag threshold (' + schwelle + ') get a card; the rest are counted, not shown. ' : '')
+      + 'Open <span style="' + M + '; font-size:11.5px">Why?</span> on a card for the full arithmetic.'
+      + '</div>';
+    // The honest empty state: with the threshold in place, "no cards" most
+    // often means "everything screened was unremarkable", and the page says
+    // exactly that with the numbers, instead of a bare loading sentence.
+    const leerSatz = T.risks.length
+      ? 'No event at this severity.'
+      : (unterZahl > 0
+        ? 'All ' + (live && live.kpis ? live.kpis.events_screened : unterZahl) + ' screened markets scored below the flag threshold (' + (schwelle != null ? schwelle : 40) + ') — nothing suspicious in this window.'
+        : risikoSatz);
+    const unterNote = riskFiltered.length && unterZahl > 0
+      ? '<div style="padding:0 24px 18px; ' + M + '; font-size:11px; color:rgba(255,255,255,.55)">' + unterZahl + ' more market' + (unterZahl === 1 ? '' : 's') + ' screened below ' + (schwelle != null ? schwelle : 40) + '/100 — watch only, no card.</div>'
+      : '';
     body = '<div>'
+      + rezept
       + '<div style="display:flex; gap:6px; padding:14px 24px 0; flex-wrap:wrap">'
       + [T.tab('All', s.riskFilter === 'all', { riskFilter: 'all' }),
          T.tab('High', s.riskFilter === 'high', { riskFilter: 'high' }),
          T.tab('Watch', s.riskFilter === 'medium', { riskFilter: 'medium' })].join('')
       + '</div>'
-      + (riskFiltered.length ? '' : leerZeile(T.risks.length ? 'No event at this severity.' : risikoSatz))
+      + (riskFiltered.length ? '' : leerZeile(leerSatz))
       + '<div style="padding:18px 24px; display:grid; grid-template-columns:repeat(2,1fr); gap:14px">'
       + riskFiltered.map((r0) => riskEventCard(T, r0)).join('')
-      + '</div></div>';
+      + '</div>'
+      + unterNote
+      + '</div>';
   } else if (s.riskView === 'log') {
     body = renderRiskLog(T);
   } else if (s.riskView === 'wallets') {

@@ -199,6 +199,19 @@ class WebLeerzustandTest(unittest.TestCase):
                 self.assertIn("Sports odds, crypto &amp; market prices, and weather are excluded", text)
                 self.assertNotIn("Sports odds and weather are excluded", text)
 
+    def test_risk_events_erklaeren_score_und_schwelle(self) -> None:
+        # Die Events-Seite sagt selbst, woraus der 0–100-Score besteht und
+        # dass Karten erst ab der Flag-Schwelle existieren; was darunter
+        # gescreent wurde, steht als Zaehler unter dem Grid ("watch only,
+        # no card") statt als "0/100"-Karte im Grid.
+        text = _sichtbarer_text(self.ausgabe["live"]["risk"])
+        self.assertIn("scored 0–100 from capped parts", text)
+        self.assertIn("flag threshold (40)", text)
+        self.assertIn("7 more markets screened below 40/100 — watch only, no card.", text)
+        # Ohne Antwort keine erfundene Schwelle und kein Zaehler.
+        leer = _sichtbarer_text(self.ausgabe["leer"]["risk"])
+        self.assertNotIn("more markets screened below", leer)
+
     def test_risk_unter_tabs_erklaeren_sich_selbst(self) -> None:
         # Die vier Neben-Tabs des Risk-Screens tragen ihre Erklaerung selbst:
         # Wallets sagt, was der Score ist und WARUM ein Wallet geflaggt wurde
