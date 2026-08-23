@@ -18,6 +18,7 @@ import pandas as pd
 
 from app import perf_metrics as perf
 from app import quant
+from app import risk_log
 from app import suspicion as susp
 from app import track_record as trec
 
@@ -1381,6 +1382,14 @@ def risk_event_row(row: Any) -> dict[str, Any]:
                 "url": wallet_profile_url(venue, address),
             })
     window_minutes = _num(row.get("window_minutes"))
+    # Position jedes Prints im Fenster (0..1, von event_flow_details): die
+    # Karte zeichnet daraus die Tick-Leiste. Fehlt die Spalte (aelterer
+    # Frame), bleibt die Liste leer und die Karte zeigt nur den Text.
+    offsets_raw = row.get("print_offsets")
+    print_offsets = (
+        [round(_num(value, 0.0) or 0.0, 4) for value in offsets_raw]
+        if isinstance(offsets_raw, (list, tuple)) else []
+    )
     return {
         "kind": (_text(flags[0]).upper() if flags else "EVENT SCREEN"),
         "score": round(_num(row.get("event_insider_score") or row.get("event_risk_score"), 0.0) or 0.0),
@@ -1409,6 +1418,7 @@ def risk_event_row(row: Any) -> dict[str, Any]:
         "first_print": _iso(row.get("first_print")),
         "last_print": _iso(row.get("last_print")),
         "window_minutes": round(window_minutes, 1) if window_minutes is not None else None,
+        "print_offsets": print_offsets,
         "prints": int(_num(row.get("trades"), 0.0) or 0),
         "top_wallets": top_wallets,
         "components": susp.event_components(row),
@@ -1416,17 +1426,35 @@ def risk_event_row(row: Any) -> dict[str, Any]:
     }
 
 
-def risk_payload(wallet_scores: pd.DataFrame, event_scores: pd.DataFrame) -> dict[str, Any]:
+def risk_payload(
+    wallet_scores: pd.DataFrame,
+    event_scores: pd.DataFrame,
+    min_event_score: float | None = None,
+) -> dict[str, Any]:
     """Whale-Risk-Frames in Events-Karten + Wallet-Tabelle + KPIs.
+
+    Karten gibt es nur ab der Flag-Schwelle des Logs (``risk_log.min_score()``,
+    Standard 40): der Scorer bewertet JEDEN Markt mit einem Print im Tape, und
+    ohne Boden fuellten "0/100"-Zeilen das Grid auf, sobald das gefilterte Tape
+    duenn war. Was unter der Schwelle liegt, wird gezaehlt statt gezeigt
+    (``events_below_min``) — dieselbe Definition von "Flag" wie im Log.
 
     Disclaimer gehoert zur Antwort: Best-effort-Screen auf oeffentlichen
     Daten, Research-Leads, keine Rechtsfeststellung.
     """
 
+    threshold = float(min_event_score) if min_event_score is not None else risk_log.min_score()
     events: list[dict[str, Any]] = []
+    events_screened = 0
+    events_below_min = 0
     if event_scores is not None and not event_scores.empty:
-        for _, row in event_scores.head(RISK_EVENT_LIMIT).iterrows():
-            events.append(risk_event_row(row))
+        events_screened = int(len(event_scores))
+        for _, row in event_scores.iterrows():
+            score = _num(row.get("event_insider_score") or row.get("event_risk_score"), 0.0) or 0.0
+            if score < threshold:
+                events_below_min += 1
+            elif len(events) < RISK_EVENT_LIMIT:
+                events.append(risk_event_row(row))
     wallets: list[dict[str, Any]] = []
     if wallet_scores is not None and not wallet_scores.empty:
         for _, row in wallet_scores.head(20).iterrows():
@@ -1457,8 +1485,15 @@ def risk_payload(wallet_scores: pd.DataFrame, event_scores: pd.DataFrame) -> dic
         # Sportquoten, Wetter, Krypto/Marktpreise — dort gibt es nichts
         # frueher zu wissen, und die 15-Minuten-Kryptomaerkte waeren nur Rauschen.
         "scope": "Sports odds, weather and crypto/market prices are excluded from this screen — nothing to know early there.",
+        # Die Schwelle und die Zahl darunter gehen mit: die Oberflaeche sagt
+        # "N weitere Maerkte unter 40 — watch only" statt Null-Karten zu zeigen.
+        "event_min_score": round(threshold),
+        "events_below_min": events_below_min,
         "kpis": {
-            "events_screened": len(events),
+            # Alle gescorten Maerkte, nicht die Kartenanzahl: vorher stand hier
+            # len(events) — mit 12 Karten log die Zahl, mit Floor erst recht.
+            "events_screened": events_screened,
+            "events_flagged": events_screened - events_below_min,
             "high_risk_events": high_events,
             "high_risk_wallets": high_wallets,
             "fresh_clusters": 0,

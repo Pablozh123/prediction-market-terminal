@@ -337,6 +337,110 @@ export function riskPriceLabel(r) {
   return out + cents(r.price_last) + range;
 }
 
+// The three families the composition bar folds the scoring parts into: how
+// big the money is (grey), when and at what price it moved (amber), and who
+// moved it (lime). Same grouping as the page legend; the per-part detail
+// stays in the "Why?" breakdown.
+const FAM_GROESSE = ['component_notional', 'component_largest'];
+const FAM_TIMING = ['component_long_odds', 'component_late', 'price_move_score'];
+const FAM_MUSTER = ['component_concentration', 'component_direction', 'component_burst', 'component_cluster', 'component_fresh_wallets', 'component_coordination'];
+
+// The score as a 0-100 bar: the measured family points (after the context
+// multiplier) as colored segments, threshold ticks at 40/55/70 and a marker
+// at the card's score. When an older answer carries only some parts, the
+// segments simply stop short of the marker — the gap is honest, nothing is
+// invented to close it (the breakdown says "parts missing" the same way).
+export function riskCompositionBar(components, score) {
+  if (!Array.isArray(components) || !components.length) return '';
+  const punkte = (keys) => components
+    .filter((c) => c && keys.indexOf(c.key) >= 0)
+    .reduce((acc, c) => acc + (Number(c.value) > 0 ? Number(c.value) : 0), 0);
+  const ctx = components.find((c) => c && c.key === 'context_multiplier');
+  const faktor = ctx && Number(ctx.value) > 0 ? Number(ctx.value) : 1;
+  const groesse = punkte(FAM_GROESSE) * faktor;
+  const timing = punkte(FAM_TIMING) * faktor;
+  const muster = punkte(FAM_MUSTER) * faktor;
+  const gesamt = groesse + timing + muster;
+  if (!(gesamt > 0)) return '';
+  const skala = gesamt > 100 ? 100 / gesamt : 1;
+  const seg = (w, farbe) => (w > 0 ? '<div style="width:' + (w * skala).toFixed(2) + '%; background:' + farbe + '"></div>' : '');
+  const tick = (p, farbe) => '<div style="position:absolute; left:' + p + '%; top:-3px; width:1px; height:16px; background:' + farbe + '"></div>';
+  const wert = Math.max(0, Math.min(100, Number(score) || 0));
+  return '<div style="margin-top:10px">'
+    + '<div style="position:relative; height:10px">'
+    + '<div style="display:flex; height:10px; border-radius:5px; overflow:hidden; background:rgba(255,255,255,.07)">'
+    + seg(groesse, 'rgba(255,255,255,.42)') + seg(timing, '#F5A623') + seg(muster, '#C8F542')
+    + '</div>'
+    + tick(40, 'rgba(255,255,255,.28)') + tick(55, 'rgba(255,255,255,.28)') + tick(70, 'rgba(245,166,35,.6)')
+    + '<div style="position:absolute; left:' + wert.toFixed(1) + '%; top:-3px; width:2px; height:16px; background:rgba(255,255,255,.9)"></div>'
+    + '</div>'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.55); margin-top:5px">size ' + groesse.toFixed(1) + ' · price &amp; timing ' + timing.toFixed(1) + ' · wallet pattern ' + muster.toFixed(1) + '</div>'
+    + '</div>';
+}
+
+// The whole flow as one bar — YES buys (lime), NO buys (amber), sells (red)
+// — with the dominant-side chip below it and the remaining buckets named.
+// Values come from side_split; a card without the split keeps the chip alone.
+export function riskFlowRow(r) {
+  const teil = r && r.side_split ? r.side_split : null;
+  const kaufYes = teil ? Number(teil.buy_yes) || 0 : 0;
+  const kaufNo = teil ? Number(teil.buy_no) || 0 : 0;
+  const verkauf = teil ? (Number(teil.sell_yes) || 0) + (Number(teil.sell_no) || 0) : 0;
+  const gesamt = kaufYes + kaufNo + verkauf;
+  const seg = (w, farbe) => (w > 0 ? '<div style="width:' + ((w / gesamt) * 100).toFixed(2) + '%; background:' + farbe + '"></div>' : '');
+  const balken = gesamt > 0
+    ? '<div style="display:flex; height:8px; border-radius:4px; overflow:hidden; background:rgba(255,255,255,.06); margin-bottom:5px">'
+      + seg(kaufYes, '#C8F542') + seg(kaufNo, '#F5A623') + seg(verkauf, '#FF7A7A') + '</div>'
+    : '';
+  const rest = gesamt > 0
+    ? [['YES buys', kaufYes, '#C8F542'], ['NO buys', kaufNo, '#F5A623'], ['sells', verkauf, '#FF7A7A']]
+      .filter((b) => b[1] > 0 && String(r.side || '').indexOf(b[0]) !== 0)
+      .map((b) => '<span style="color:' + b[2] + '">' + b[0] + ' ' + money(b[1]) + '</span>').join(' · ')
+    : '';
+  return '<div style="margin-top:10px">' + balken
+    + '<div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap">'
+    + riskSideChip(r)
+    + (rest ? '<span style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.55)">' + rest + '</span>' : '')
+    + '</div></div>';
+}
+
+// Where the flagged side's price sat on the 0-100¢ scale: min-max band,
+// marker at the last print, and how far it moved over the window.
+export function riskPriceStrip(r) {
+  if (!r || r.price_last == null) return '';
+  const min = r.price_min != null ? Number(r.price_min) : Number(r.price_last);
+  const max = r.price_max != null ? Number(r.price_max) : Number(r.price_last);
+  const links = Math.max(0, Math.min(99, min * 100));
+  const band = Math.max(1, Math.min(100 - links, (max - min) * 100));
+  const diff = r.price_first != null ? Math.round((Number(r.price_last) - Number(r.price_first)) * 100) : null;
+  const bewegt = diff == null ? '' : ' · ' + (diff === 0 ? 'unchanged in the window' : (diff > 0 ? '+' : '') + diff + '¢ in the window');
+  return '<div style="flex:1; min-width:0">'
+    + '<div style="position:relative; height:8px; border-radius:4px; background:rgba(255,255,255,.06)">'
+    + '<div style="position:absolute; left:' + links.toFixed(1) + '%; top:0; width:' + band.toFixed(1) + '%; height:8px; border-radius:4px; background:rgba(245,166,35,.4)"></div>'
+    + '<div style="position:absolute; left:' + Math.max(0, Math.min(99, Number(r.price_last) * 100)).toFixed(1) + '%; top:-2px; width:2px; height:12px; background:#F5A623"></div>'
+    + '</div>'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.55); margin-top:5px">at flag ' + esc(riskPriceLabel(r)) + bewegt + '</div>'
+    + '</div>';
+}
+
+// The window as a tick strip: one tick per sampled print at its real
+// position (print_offsets from the API, 0..1). A burst reads as a clump of
+// ticks. Without offsets (older answer) the caption alone remains — the
+// positions are measured, never invented.
+export function riskWindowStrip(r) {
+  if (!r || (!r.first_print && !r.last_print)) return '';
+  const offsets = Array.isArray(r.print_offsets) ? r.print_offsets : [];
+  const ticks = offsets.length
+    ? '<div style="position:relative; height:8px">'
+      + offsets.map((o) => '<div style="position:absolute; left:' + Math.max(0, Math.min(98, (Number(o) || 0) * 98)).toFixed(1) + '%; top:0; width:2px; height:8px; background:rgba(255,255,255,.55)"></div>').join('')
+      + '<div style="position:absolute; left:0; right:0; bottom:-2px; height:1px; background:rgba(255,255,255,.12)"></div>'
+      + '</div>'
+    : '';
+  return '<div style="flex:1; min-width:0">' + ticks
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.55); margin-top:5px">' + esc(windowLabel(r.first_print, r.last_print, r.window_minutes)) + (r.prints ? ' · ' + r.prints + ' print' + (r.prints === 1 ? '' : 's') : '') + '</div>'
+    + '</div>';
+}
+
 // Score components with points; zero components are left out (nothing to
 // explain), the context multiplier is shown when it is not 1.
 export function riskComponentsHtml(components) {
@@ -587,7 +691,14 @@ export function riskEventCard(T, r0) {
       + riskBookHtml(T, r0)
       + '</div>'
     : '';
-  return '<div ' + (klickbar ? r.act + ' class="hv-bd20" ' : '') + 'data-bg style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:16px 18px; ' + (klickbar ? 'cursor:pointer; ' : '') + 'animation:rowIn .25s ease-out">'
+  // Preis- und Fenster-Grafik teilen sich eine Zeile; fehlt eine Seite
+  // (Kalshi ohne Preise, aeltere Antwort ohne Fenster), bleibt die andere.
+  const preisSpalte = hatFlow ? riskPriceStrip(r0) : '';
+  const fensterSpalte = hatFlow ? riskWindowStrip(r0) : '';
+  const streifen = (preisSpalte || fensterSpalte)
+    ? '<div style="display:flex; gap:14px; margin-top:10px">' + preisSpalte + fensterSpalte + '</div>'
+    : '';
+  return '<div ' + (klickbar ? r.act + ' class="hv-bd20" ' : '') + 'data-bg style="background:#10151A; border:1px solid ' + (r0.sev === 'high' ? 'rgba(245,166,35,.3)' : 'rgba(255,255,255,.09)') + '; border-radius:12px; padding:16px 18px; ' + (klickbar ? 'cursor:pointer; ' : '') + 'animation:rowIn .25s ease-out">'
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px">'
     + '<div style="' + r.kindStyle + '; padding-top:4px">' + esc(r.kind) + '</div>'
     + '<div style="text-align:right; flex:none"><div style="display:flex; align-items:baseline; gap:6px; justify-content:flex-end"><div style="' + r.scoreStyle + '">' + r.score + '</div>'
@@ -595,10 +706,10 @@ export function riskEventCard(T, r0) {
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:' + band[1] + '">' + band[0] + '</div></div></div>'
     + '<div style="font-size:15px; margin-top:6px; line-height:1.35">' + esc(r.market) + (r0.url ? ' ' + marketLink(r0.url) : '') + '</div>'
     + '<div style="' + M + '; font-size:11px; letter-spacing:.1em; color:rgba(255,255,255,.6); margin-top:4px"' + (r0.context_note ? ' title="' + esc(r0.context_note) + '"' : '') + '>' + (r0.category ? esc(String(r0.category).toUpperCase()) + ' · ' : '') + esc(String(r.venue || '').toUpperCase()) + '</div>'
+    + riskCompositionBar(comps, score)
     + (hatFlow
-      ? '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; align-items:center">' + riskSideChip(r0)
-        + '<span style="' + CHIP + '">at flag ' + esc(riskPriceLabel(r0)) + '</span>'
-        + '<span style="' + CHIP + '">' + esc(windowLabel(r0.first_print, r0.last_print, r0.window_minutes)) + (r0.prints ? ' · ' + r0.prints + ' print' + (r0.prints === 1 ? '' : 's') : '') + '</span></div>'
+      ? riskFlowRow(r0)
+        + streifen
         + '<div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:8px">' + riskWalletsHtml(r0.top_wallets, r0.wallets) + '</div>'
         + riskBookSummary(T, r0)
       : '<div style="font-size:13px; color:rgba(255,255,255,.6); margin-top:7px; line-height:1.45">' + esc(r.detail) + '</div>')
@@ -625,34 +736,84 @@ export function renderRisk(T) {
     : herkunftSatz(T.herkunft.risks, '/api/risk');
   // Ein Screen, der Verdacht behauptet, darf keine erfundene Zahl tragen.
   // Hier standen 412 geprueft, 2 auffaellige Ereignisse, 5 auffaellige
-  // Wallets, 4 und 3 Cluster — fuenf Messwerte ohne Messung.
-  const kpis = live && live.kpis ? [
-    { label: 'EVENTS SCREENED', value: String(live.kpis.events_screened) },
-    { label: 'HIGH-RISK EVENTS', value: String(live.kpis.high_risk_events), amber: true },
-    { label: 'HIGH-RISK WALLETS', value: String(live.kpis.high_risk_wallets), amber: true },
-    { label: 'FRESH-WALLET CLUSTERS', value: String(live.kpis.fresh_clusters) },
-    { label: 'COORDINATED CLUSTERS', value: String(live.kpis.coordinated_clusters) }
-  ] : [
-    { label: 'EVENTS SCREENED', value: '—' },
-    { label: 'HIGH-RISK EVENTS', value: '—' },
-    { label: 'HIGH-RISK WALLETS', value: '—' },
-    { label: 'FRESH-WALLET CLUSTERS', value: '—' },
-    { label: 'COORDINATED CLUSTERS', value: '—' }
-  ];
+  // Wallets, 4 und 3 Cluster — fuenf Messwerte ohne Messung. Statt fuenf
+  // gleichfoermiger Kacheln ist die Event-Seite jetzt ein Trichter: was
+  // angeschaut wurde, was die Flag-Schwelle nahm, was heiss ist — die
+  // Balken machen die Groessenordnung sichtbar. Ohne Antwort: "—", leere
+  // Balken.
+  const kp = live && live.kpis ? live.kpis : null;
+  const minScore = live && live.event_min_score != null ? Math.round(Number(live.event_min_score)) : 40;
+  const screened = kp && kp.events_screened != null ? Number(kp.events_screened) : null;
+  const flagged = kp && kp.events_flagged != null ? Number(kp.events_flagged) : null;
+  const hochEvents = kp && kp.high_risk_events != null ? Number(kp.high_risk_events) : null;
+  const trichterBreite = (wert) => (screened > 0 && wert != null ? Math.max(wert > 0 ? 1.5 : 0, Math.min(100, (wert / screened) * 100)) : 0);
+  const trichterZeile = (label, wert, farbe, balkenFarbe, satz) =>
+    '<div style="display:flex; align-items:center; gap:12px">'
+    + '<div style="flex:0 0 158px; ' + M + '; font-size:11px; letter-spacing:.08em; color:' + farbe + '">' + label + ' <span style="font-size:13px; color:' + (farbe === '#F5A623' ? '#F5A623' : '#ffffff') + '">' + (wert != null ? wert : '—') + '</span></div>'
+    + '<div style="flex:1; height:12px; border-radius:6px; background:rgba(255,255,255,.07); overflow:hidden"><div style="width:' + trichterBreite(wert).toFixed(1) + '%; height:12px; background:' + balkenFarbe + '"></div></div>'
+    + '<div style="flex:0 0 210px; font-size:11px; color:rgba(255,255,255,.5)">' + satz + '</div>'
+    + '</div>';
+  const seitenKpi = (label, wert, amber) =>
+    '<div style="flex:1; background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; gap:10px">'
+    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">' + label + '</div>'
+    + '<div style="' + M + '; font-size:18px; color:' + (amber ? '#F5A623' : '#ffffff') + '">' + (wert != null ? wert : '—') + '</div></div>';
+  const trichter =
+    '<div style="display:flex; gap:14px; padding:14px 24px; border-bottom:1px solid rgba(255,255,255,.09)">'
+    + '<div style="flex:1; background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:14px 18px; display:flex; flex-direction:column; gap:9px">'
+    + '<div style="display:flex; justify-content:space-between; align-items:baseline; gap:10px">'
+    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">THE SCREEN, AS A FUNNEL</div>'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.45)">floor at ' + minScore + '/100</div></div>'
+    + trichterZeile('SCREENED', screened, 'rgba(255,255,255,.72)', 'rgba(255,255,255,.18)', 'every market with whale flow in the window')
+    + trichterZeile('FLAGGED ≥ ' + minScore, flagged, 'rgba(255,255,255,.72)', 'rgba(255,255,255,.5)', 'cleared the flag threshold — these get cards')
+    + trichterZeile('HIGH ≥ 70', hochEvents, '#F5A623', '#F5A623', 'strongest insider-like pattern')
+    + '</div>'
+    + '<div style="flex:0 0 280px; display:flex; flex-direction:column; gap:10px">'
+    + seitenKpi('HIGH-RISK WALLETS', kp ? kp.high_risk_wallets : null, true)
+    + seitenKpi('FRESH-WALLET CLUSTERS', kp ? kp.fresh_clusters : null, false)
+    + seitenKpi('COORDINATED CLUSTERS', kp ? kp.coordinated_clusters : null, false)
+    + '</div></div>';
   const walletRows = live && live.wallets ? live.wallets : [];
 
   let body = '';
   if (s.riskView === 'events') {
+    // The color code of the composition bars, taught once page-level; the
+    // per-part recipe lives in each card's "Why?" breakdown. The funnel
+    // above already says that cards start at the flag threshold.
+    const unterZahl = live ? Number(live.events_below_min) || 0 : 0;
+    const swatch = (farbe, wort) => '<div style="display:flex; align-items:center; gap:7px"><div style="width:14px; height:8px; border-radius:2px; background:' + farbe + '"></div><div style="font-size:11.5px; color:rgba(255,255,255,.72)">' + wort + '</div></div>';
+    const legende = '<div style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:14px 24px 0; flex-wrap:wrap">'
+      + '<div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap">'
+      + '<span style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">SCORE COMPOSITION</span>'
+      + swatch('rgba(255,255,255,.42)', 'size of the money')
+      + swatch('#F5A623', 'price &amp; timing')
+      + swatch('#C8F542', 'wallet pattern')
+      + '</div>'
+      + '<div style="font-size:11.5px; color:rgba(255,255,255,.5)">ticks at 40 · 55 · 70 — low → elevated → medium → high · open <span style="' + M + '; font-size:11px">Why?</span> on a card for the full arithmetic</div>'
+      + '</div>';
+    // The honest empty state: with the threshold in place, "no cards" most
+    // often means "everything screened was unremarkable", and the page says
+    // exactly that with the numbers, instead of a bare loading sentence.
+    const leerSatz = T.risks.length
+      ? 'No event at this severity.'
+      : (unterZahl > 0
+        ? 'All ' + (live && live.kpis ? live.kpis.events_screened : unterZahl) + ' screened markets scored below the flag threshold (' + minScore + ') — nothing suspicious in this window.'
+        : risikoSatz);
+    const unterNote = riskFiltered.length && unterZahl > 0
+      ? '<div style="padding:0 24px 18px; ' + M + '; font-size:11px; color:rgba(255,255,255,.55)">' + unterZahl + ' more market' + (unterZahl === 1 ? '' : 's') + ' screened below ' + minScore + '/100 — watch only, no card.</div>'
+      : '';
     body = '<div>'
+      + legende
       + '<div style="display:flex; gap:6px; padding:14px 24px 0; flex-wrap:wrap">'
       + [T.tab('All', s.riskFilter === 'all', { riskFilter: 'all' }),
          T.tab('High', s.riskFilter === 'high', { riskFilter: 'high' }),
          T.tab('Watch', s.riskFilter === 'medium', { riskFilter: 'medium' })].join('')
       + '</div>'
-      + (riskFiltered.length ? '' : leerZeile(T.risks.length ? 'No event at this severity.' : risikoSatz))
+      + (riskFiltered.length ? '' : leerZeile(leerSatz))
       + '<div style="padding:18px 24px; display:grid; grid-template-columns:repeat(2,1fr); gap:14px">'
       + riskFiltered.map((r0) => riskEventCard(T, r0)).join('')
-      + '</div></div>';
+      + '</div>'
+      + unterNote
+      + '</div>';
   } else if (s.riskView === 'log') {
     body = renderRiskLog(T);
   } else if (s.riskView === 'wallets') {
@@ -827,13 +988,7 @@ export function renderRisk(T) {
     + '<div style="' + M + '; font-size:11px; color:#0A0D0F; background:#F5A623; border-radius:5px; padding:4px 9px">70 AND UP · HIGH</div>'
     + '</div></div>'
 
-    + '<div style="display:grid; grid-template-columns:repeat(5,1fr); border-bottom:1px solid rgba(255,255,255,.09)">'
-    + kpis.map((k, i) =>
-      '<div style="padding:14px 24px' + (i < 4 ? '; border-right:1px solid rgba(255,255,255,.09)' : '') + '">'
-      + '<div style="' + HEAD_CELL + '">' + k.label + '</div>'
-      + '<div style="' + M + '; font-size:22px; margin-top:7px; color:' + (k.amber ? '#F5A623' : '#ffffff') + '">' + k.value + '</div></div>'
-    ).join('')
-    + '</div>'
+    + trichter
 
     + (laedt
       ? '<div style="display:flex; align-items:center; gap:10px; padding:12px 24px; border-bottom:1px solid rgba(255,255,255,.09); background:#10151A">'

@@ -457,6 +457,56 @@ class RiskPayloadTests(unittest.TestCase):
         self.assertEqual(payload["events"][0]["kind"], "COORDINATED BURST")
         self.assertEqual(payload["wallets"][0]["score"], 84)
 
+    def test_events_below_the_flag_threshold_are_counted_not_shown(self) -> None:
+        # Der Scorer bewertet JEDEN Markt mit einem Print im Tape; ohne Boden
+        # fuellten "0/100"-Zeilen das Grid, sobald das gefilterte Tape duenn
+        # war. Karten gibt es ab der Log-Schwelle (risk_log.min_score(), 40);
+        # was darunter liegt, wird gezaehlt statt gezeigt.
+        events = pd.DataFrame([
+            {"title": "Cabinet reshuffle", "event_insider_score": 62.0, "event_insider_level": "Medium",
+             "event_insider_flags": "one-sided flow", "unique_wallets": 3, "notional": 80000.0,
+             "trades_per_hour": 8.0, "platform": "Polymarket"},
+            {"title": "Tiny market", "event_insider_score": 0.0, "event_insider_level": "Low",
+             "event_insider_flags": "", "unique_wallets": 1, "notional": 45.0,
+             "trades_per_hour": 1.0, "platform": "Polymarket"},
+            {"title": "Small market", "event_insider_score": 12.0, "event_insider_level": "Low",
+             "event_insider_flags": "watch only", "unique_wallets": 1, "notional": 900.0,
+             "trades_per_hour": 2.0, "platform": "Kalshi"},
+        ])
+        payload = apv.risk_payload(pd.DataFrame(), events)
+        self.assertEqual([e["market"] for e in payload["events"]], ["Cabinet reshuffle"])
+        self.assertEqual(payload["event_min_score"], 40)
+        self.assertEqual(payload["events_below_min"], 2)
+        # events_screened zaehlt die gescorten Maerkte, nicht die Karten —
+        # vorher stand hier len(events) und die Zahl log.
+        self.assertEqual(payload["kpis"]["events_screened"], 3)
+        self.assertEqual(payload["kpis"]["events_flagged"], 1)
+
+    def test_all_events_below_threshold_leave_an_empty_screen_with_counts(self) -> None:
+        events = pd.DataFrame([
+            {"title": "Tiny market", "event_insider_score": 2.0, "event_insider_level": "Low",
+             "event_insider_flags": "", "unique_wallets": 1, "notional": 45.0,
+             "trades_per_hour": 1.0, "platform": "Polymarket"},
+            {"title": "Small market", "event_insider_score": 31.0, "event_insider_level": "Low",
+             "event_insider_flags": "watch only", "unique_wallets": 2, "notional": 3200.0,
+             "trades_per_hour": 2.0, "platform": "Kalshi"},
+        ])
+        payload = apv.risk_payload(pd.DataFrame(), events)
+        self.assertEqual(payload["events"], [])
+        self.assertEqual(payload["events_below_min"], 2)
+        self.assertEqual(payload["kpis"]["events_screened"], 2)
+        self.assertEqual(payload["kpis"]["events_flagged"], 0)
+
+    def test_threshold_override_zero_shows_every_scored_row(self) -> None:
+        events = pd.DataFrame([
+            {"title": "Tiny market", "event_insider_score": 0.0, "event_insider_level": "Low",
+             "event_insider_flags": "", "unique_wallets": 1, "notional": 45.0,
+             "trades_per_hour": 1.0, "platform": "Polymarket"},
+        ])
+        payload = apv.risk_payload(pd.DataFrame(), events, min_event_score=0.0)
+        self.assertEqual(len(payload["events"]), 1)
+        self.assertEqual(payload["events_below_min"], 0)
+
 
 class AlertRowsTests(unittest.TestCase):
     def test_maps_signal_frame(self) -> None:
@@ -1101,7 +1151,7 @@ class RiskEventRowTests(unittest.TestCase):
             "side_buy_yes": 2000.0, "side_buy_no": 20000.0, "side_sell_yes": 1000.0, "side_sell_no": 0.0,
             "price_outcome": "NO", "price_first": 0.30, "price_last": 0.34, "price_min": 0.30, "price_max": 0.34,
             "first_print": pd.Timestamp("2026-08-16T12:00:00Z"), "last_print": pd.Timestamp("2026-08-16T12:25:00Z"),
-            "window_minutes": 25.0,
+            "window_minutes": 25.0, "print_offsets": [0.0, 0.4, 0.8, 1.0],
             "top_wallets": [
                 {"wallet": "0xbbb2000000000000000000000000000000000002", "notional": 17000.0, "share": 0.739, "side": "NO buys", "fresh": True},
                 {"wallet": "0xaaa1000000000000000000000000000000000001", "notional": 4000.0, "share": 0.174, "side": "NO buys", "fresh": None},
@@ -1128,6 +1178,7 @@ class RiskEventRowTests(unittest.TestCase):
         self.assertEqual(event["first_print"], "2026-08-16T12:00:00Z")
         self.assertEqual(event["last_print"], "2026-08-16T12:25:00Z")
         self.assertEqual(event["window_minutes"], 25.0)
+        self.assertEqual(event["print_offsets"], [0.0, 0.4, 0.8, 1.0])
         self.assertEqual(event["prints"], 4)
         self.assertEqual(event["notional"], "$23k")
         self.assertAlmostEqual(event["notional_usd"], 23000.0)
@@ -1156,6 +1207,7 @@ class RiskEventRowTests(unittest.TestCase):
         self.assertIsNone(event["price_last"])
         self.assertEqual(event["first_print"], "")
         self.assertIsNone(event["window_minutes"])
+        self.assertEqual(event["print_offsets"], [])
         self.assertEqual(event["top_wallets"], [])
         self.assertEqual(event["components"], [])
         self.assertEqual(event["side_split"], {"buy_yes": 0.0, "buy_no": 0.0, "sell_yes": 0.0, "sell_no": 0.0})

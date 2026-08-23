@@ -199,6 +199,29 @@ class WebLeerzustandTest(unittest.TestCase):
                 self.assertIn("Sports odds, crypto &amp; market prices, and weather are excluded", text)
                 self.assertNotIn("Sports odds and weather are excluded", text)
 
+    def test_risk_events_erklaeren_score_und_schwelle(self) -> None:
+        # Die Events-Seite traegt den Screen als Trichter (gescreent →
+        # geflaggt ≥40 → high, mit Balken), die Farb-Legende der
+        # Kompositionsleisten und den Zaehler unter dem Grid ("watch only,
+        # no card") statt "0/100"-Karten im Grid.
+        text = _sichtbarer_text(self.ausgabe["live"]["risk"])
+        self.assertIn("THE SCREEN, AS A FUNNEL", text)
+        self.assertIn("floor at 40/100", text)
+        self.assertIn("SCREENED 9", text)
+        self.assertIn("FLAGGED ≥ 40 2", text)
+        self.assertIn("HIGH ≥ 70 1", text)
+        self.assertIn("cleared the flag threshold — these get cards", text)
+        self.assertIn("SCORE COMPOSITION", text)
+        self.assertIn("size of the money", text)
+        self.assertIn("price &amp; timing", text)
+        self.assertIn("wallet pattern", text)
+        self.assertIn("ticks at 40 · 55 · 70 — low → elevated → medium → high", text)
+        self.assertIn("7 more markets screened below 40/100 — watch only, no card.", text)
+        # Ohne Antwort keine erfundene Zahl: Trichter mit "—", kein Zaehler.
+        leer = _sichtbarer_text(self.ausgabe["leer"]["risk"])
+        self.assertIn("SCREENED —", leer)
+        self.assertNotIn("more markets screened below", leer)
+
     def test_risk_unter_tabs_erklaeren_sich_selbst(self) -> None:
         # Die vier Neben-Tabs des Risk-Screens tragen ihre Erklaerung selbst:
         # Wallets sagt, was der Score ist und WARUM ein Wallet geflaggt wurde
@@ -1209,7 +1232,17 @@ class WebLeerzustandTest(unittest.TestCase):
         # "Why this score" toggle opens them (state riskOpen, not <details>,
         # so the 30 s re-render keeps it open).
         self.assertIn("TIMING 61 /100 MEDIUM Example question", text)
-        self.assertIn("POLITICS &amp; GEOPOLITICS · POLYMARKET NO buys", text)
+        # Zwischen Kategorie-Zeile und Flow-Chip sitzt jetzt die
+        # Kompositionsleiste: Familien-Punkte nach Kontext-Multiplikator
+        # (6.0×1.1, 2.7×1.1, (9.8+5.0)×1.1) — die Luecke zum Score-Marker
+        # bei 61 bleibt sichtbar, weil dieses Fixture nur vier der elf
+        # Komponenten traegt.
+        self.assertIn("POLITICS &amp; GEOPOLITICS · POLYMARKET size 6.6 · price &amp; timing 3.0 · wallet pattern 16.3", text)
+        self.assertIn("NO buys $34.0k of $40.0k (85%) YES buys $6.0k", text)
+        # Die Fenster-Ticks stehen an den gemessenen print_offsets
+        # (0.45 × 98 = 44.1), nicht an erfundenen Positionen.
+        self.assertIn("left:44.1%", html)
+        self.assertIn("+4¢ in the window", text)
         self.assertIn('title="decisions are known to officials before the public"', html)
         self.assertIn("20 min · 4 prints", text)
         self.assertNotIn("One wallet dominates", text)
@@ -1229,7 +1262,7 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("Fresh wallets 5 /10 2 wallets barely seen on the tape, same side · full marks at 4", offen)
         self.assertIn("NOT FOUND late in the market (nothing inside the market's last 48 h)", offen)
         self.assertIn("Context Politics &amp; geopolitics — decisions are known to officials before the public", offen)
-        self.assertIn("20.8 pts × 1.1 = 23 / 100 · the card says 61 — parts missing from this answer", offen)
+        self.assertIn("23.5 pts × 1.1 = 26 / 100 · the card says 61 — parts missing from this answer", offen)
         self.assertIn("width:65.3%", offen_html)           # 9.8 / 15 bar
         self.assertIn('title="share of the flow done by the top wallet"', offen_html)
         # The toggle must not trigger the card action, and the open block

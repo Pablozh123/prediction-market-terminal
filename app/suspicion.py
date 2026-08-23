@@ -1061,8 +1061,8 @@ def event_flow_details(
     columns = [
         "platform", "title", "side_buy_yes", "side_buy_no", "side_sell_yes", "side_sell_no",
         "side", "side_notional", "side_share", "price_outcome", "price_first", "price_last",
-        "price_min", "price_max", "first_print", "last_print", "window_minutes", "top_wallets",
-        "url", "slug", "token_id",
+        "price_min", "price_max", "first_print", "last_print", "window_minutes", "print_offsets",
+        "top_wallets", "url", "slug", "token_id",
     ]
     if trades is None or trades.empty or "title" not in trades.columns:
         return pd.DataFrame(columns=columns)
@@ -1102,6 +1102,17 @@ def event_flow_details(
         first_print = times.min() if not times.empty else pd.NaT
         last_print = times.max() if not times.empty else pd.NaT
         window_minutes = float((last_print - first_print).total_seconds() / 60.0) if not times.empty else None
+        # Position jedes Prints im Fenster (0..1), chronologisch: die Karte
+        # zeichnet daraus die Tick-Leiste ("6 Prints in den ersten Minuten")
+        # statt Positionen zu erfinden. Bei Fenster 0 liegen alle auf 0.
+        print_offsets: list[float] = []
+        if not times.empty:
+            span_seconds = float((last_print - first_print).total_seconds())
+            ordered = times.sort_values().head(80)
+            if span_seconds > 0:
+                print_offsets = [round(float((t - first_print).total_seconds() / span_seconds), 4) for t in ordered]
+            else:
+                print_offsets = [0.0] * int(len(ordered))
 
         top_wallets: list[dict[str, Any]] = []
         with_wallet = group[group["_wallet"].ne("")]
@@ -1153,6 +1164,7 @@ def event_flow_details(
             "first_print": first_print,
             "last_print": last_print,
             "window_minutes": window_minutes,
+            "print_offsets": print_offsets,
             "top_wallets": top_wallets,
             "url": url,
             "slug": slug,

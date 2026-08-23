@@ -822,6 +822,12 @@ class EventFlowDetailTests(unittest.TestCase):
         self.assertEqual(str(row["first_print"]), "2026-08-16 12:00:00+00:00")
         self.assertEqual(str(row["last_print"]), "2026-08-16 12:25:00+00:00")
         self.assertAlmostEqual(row["window_minutes"], 25.0)
+        # Gemessene Print-Positionen im Fenster (0..1): 12:00, 12:10, 12:20,
+        # 12:25 auf 25 Minuten. Ein Ein-Print-Event (Kalshi) liegt auf 0.
+        self.assertEqual(list(row["print_offsets"]), [0.0, 0.4, 0.8, 1.0])
+        kalshi = susp.event_flow_details(self._tape(), whale_threshold=2500.0)
+        kalshi_row = kalshi[kalshi["title"].eq("KXFED-26SEP")].iloc[0]
+        self.assertEqual(list(kalshi_row["print_offsets"]), [0.0])
         wallets = row["top_wallets"]
         self.assertEqual([w["wallet"] for w in wallets], ["0xbbb2", "0xaaa1", "0xccc3"])
         self.assertAlmostEqual(wallets[0]["share"], 17000.0 / 23000.0)
