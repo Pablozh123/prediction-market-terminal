@@ -1320,7 +1320,8 @@ function renderCategoryEfficiency(T, payload, study) {
 function renderLiveRuns(T, payload) {
   const s = T.state;
   const agg = payload && payload.aggregat ? payload.aggregat : null;
-  const stamp = payload && payload.stand_utc ? String(payload.stand_utc).slice(0, 10) : 'rolling';
+  // Kein "rolling" mehr: der letzte Publish ist datiert, kein Einsatz offen.
+  const stamp = payload && payload.stand_utc ? 'concluded ' + String(payload.stand_utc).slice(0, 10) : 'concluded';
 
   // Zwei PnL-Zahlen, beide beschriftet: die aus den Logs rekonstruierte (die
   // Nutzlast nimmt den Preisdeckel an, wo die FAK-Antwort keinen Fillpreis
@@ -1775,7 +1776,90 @@ function renderLiveRuns(T, payload) {
     // und die Spalten REPRICE 30 S / 900 S im Timing-Reiter lesen sie weiter.
     + '<div style="display:flex; gap:6px; margin-top:18px; flex-wrap:wrap">' + liveTabs + '</div>'
     + body
+    + paperLogHtml(T)
     + '</div>';
+}
+
+// Der Knopf zu einer archivierten Studienseite: nicht mehr in der
+// Seitenleiste, aber die volle Seite bleibt am Slug erreichbar.
+function archivKnopf(T, slug, label) {
+  const idx = T.studies.findIndex((st) => studienSlug(st) === slug);
+  if (idx < 0) return '';
+  return '<div ' + T.act(() => {
+    if (T.goStudy) { T.goStudy(idx); return; }
+    T.setState({ page: 'research', researchTab: idx, detail: null });
+    try { history.pushState(null, '', '#research/' + slug); } catch (e) { /* file:// */ }
+    T.fetchPageData('research');
+  }) + ' class="hv-bd35" style="font-size:12.5px; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:8px 14px; cursor:pointer; display:inline-block">' + esc(label) + '</div>';
+}
+
+// Forward paper log, zusammengefasst auf der Live-runs-Seite: dieselbe
+// Wortzaehler-Pipeline im Watch-Modus, je Lauf Entscheidungen, Papier-Kaeufe
+// und Extraktion aus pipeline_forward.json (laedt neben runs.json, app.js
+// BEGLEITER). Nur Zaehlwerte aus der Nutzlast — keine Equity, kein
+// Return-Claim; die volle Archivseite haengt am Slug pipeline-forward.
+function paperLogHtml(T) {
+  const pf = T.liveData && T.liveData.research ? T.liveData.research['Pipeline forward'] : null;
+  const karte = 'background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; padding:18px 20px';
+  const kopf = '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#4F8EF7">FORWARD PAPER LOG · SAME PIPELINE, NO MONEY</div>';
+  if (!pf || pf._quelle === 'fehler') {
+    const satz = pf && pf._quelle === 'fehler'
+      ? 'pipeline_forward.json did not answer: ' + String(pf._fehler || 'no answer')
+      : 'reading pipeline_forward.json…';
+    return '<div style="' + karte + '">' + kopf
+      + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55); margin-top:8px">' + esc(satz) + '</div></div>';
+  }
+  const laeufe = Array.isArray(pf.laeufe) ? pf.laeufe : [];
+  const stand = pf.stand_utc ? String(pf.stand_utc).slice(0, 10) : '';
+  const entscheidungen = laeufe.reduce((a, l) => a + (+l.n_eintraege || 0), 0);
+  const kaeufe = laeufe.reduce((a, l) => a + (+l.n_kaeufe || 0), 0);
+  const zeilen = laeufe.map((l) => {
+    const quote = l.extraktionsquote != null ? Math.round(+l.extraktionsquote * 100) + '%' : '—';
+    const gekauft = l.extraktion_gekauft_usd != null ? '$' + num(Math.round(+l.extraktion_gekauft_usd)) : '—';
+    return '<div style="display:grid; grid-template-columns:1fr 110px 110px 130px; gap:10px; align-items:center; padding:9px 16px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:12px">'
+      + '<div style="font-family:\'Inter\',sans-serif; font-size:13px">' + esc(String(l.profil || '—')) + '</div>'
+      + '<div style="text-align:right; color:rgba(255,255,255,.6)">' + num(+l.n_eintraege || 0) + '</div>'
+      + '<div style="text-align:right">' + num(+l.n_kaeufe || 0) + '</div>'
+      + '<div style="text-align:right; color:rgba(255,255,255,.6)">' + esc(gekauft) + ' · ' + esc(quote) + '</div></div>';
+  }).join('');
+  return '<div style="' + karte + '">'
+    + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap">' + kopf
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.55)">' + num(laeufe.length) + ' paper runs · ' + num(entscheidungen) + ' decisions · ' + num(kaeufe) + ' paper buys' + (stand ? ' · ' + esc(stand) : '') + '</div></div>'
+    + '<div style="font-size:12.5px; color:rgba(255,255,255,.6); margin-top:8px; line-height:1.55; max-width:820px">The same word-count pipeline in watch mode: it reads the live transcript and logs, per market, whether its rules would have allowed a bet — mostly they would not. Decisions and best book prices only, no fills, no wallet data, no return claim. What the same pipeline did with real money is the record above.</div>'
+    + (zeilen
+      ? '<div style="border:1px solid rgba(255,255,255,.09); border-radius:10px; margin-top:12px; overflow:hidden">'
+        + '<div style="display:grid; grid-template-columns:1fr 110px 110px 130px; gap:10px; padding:8px 16px; background:#0A0D0F; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">'
+        + '<div>RUN PROFILE</div><div style="text-align:right">DECISIONS</div><div style="text-align:right">PAPER BUYS</div><div style="text-align:right">EXTRACTION</div></div>'
+        + zeilen + '</div>'
+      : '<div style="margin-top:10px">' + leerZeile('pipeline_forward.json carries no runs.') + '</div>')
+    + '<div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap">'
+    + archivKnopf(T, 'pipeline-forward', 'Open the full paper log')
+    + '<a href="./data/pipeline_forward.json" download="pipeline_forward.json" class="hv-bd35" style="font-size:12.5px; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:8px 14px; text-decoration:none; display:inline-block">Download the data</a>'
+    + '</div></div>';
+}
+
+// Die archivierte Review queue als Abschnitt der Methodology-Seite: der
+// taegliche Lauf endete 2026-08-07, die Queue ist seit 2026-07-14
+// eingefroren — die Zaehler bleiben hier lesbar, die volle Seite haengt am
+// Slug review-queue (app.js BEGLEITER laedt queue.json mit).
+function queueArchivHtml(T) {
+  const q = T.liveData && T.liveData.research ? T.liveData.research['Review queue'] : null;
+  const karte = 'background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; padding:16px 18px';
+  const kopf = '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#4F8EF7">HUMAN VERIFICATION QUEUE · ARCHIVED</div>';
+  const zahl = q
+    ? (q._quelle === 'fehler'
+      ? 'queue.json did not answer: ' + String(q._fehler || 'no answer')
+      : num(Array.isArray(q.faelle) ? q.faelle.length : 0) + ' flagged cases'
+        + (q.stand_utc ? ' · last run ' + String(q.stand_utc).slice(0, 10) : ''))
+    : 'reading queue.json…';
+  return '<div style="' + karte + '">'
+    + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap">' + kopf
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.55)">' + esc(zahl) + '</div></div>'
+    + '<div style="font-size:12.5px; color:rgba(255,255,255,.6); margin-top:8px; line-height:1.55; max-width:820px">Cases the daily run flagged for a human to check, ranked by how much the automated read and the market disagree. The queue froze 2026-07-14 and the daily run ended 2026-08-07 — a closed record, kept verifiable, not an ongoing process.</div>'
+    + '<div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap">'
+    + archivKnopf(T, 'review-queue', 'Open the archived queue')
+    + '<a href="./data/queue.json" download="queue.json" class="hv-bd35" style="font-size:12.5px; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:8px 14px; text-decoration:none; display:inline-block">Download the data</a>'
+    + '</div></div>';
 }
 
 function buildCalibFromRuns(runs) {
@@ -2759,6 +2843,7 @@ function renderMethodology(T, payload, study) {
     + (payload ? '' : '<div style="margin-top:12px">' + leerZeile(herkunftSatz(null, 'public/data/audit.json')) + '</div>')
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:#4F8EF7; margin:20px 0 10px">HOW THE STUDIES ARE MEASURED</div>'
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(380px, 1fr)); gap:12px">' + sektionen.join('') + '</div>'
+    + queueArchivHtml(T)
     + '<div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap">'
     + '<a href="' + ONE_PAGER_URL + '" target="_blank" rel="noopener" class="hv-bd35" style="font-size:13px; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:10px 16px; text-decoration:none; display:inline-block">Read the full one-pager ↗</a>'
     + '</div>'

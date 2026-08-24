@@ -535,26 +535,30 @@ class Terminal {
 
   renderSidebar() {
     const hoheRisiken = this.risks.filter((r) => r.sev === 'high').length;
-    // Die zwei Haelften der Seite als zwei Blockpaare: erst die getestete
-    // Strategie mit ihrem Protokoll (Live runs zuoberst — sie sind das
-    // Argument), dann das Analysewerkzeug. Settings, Tracked, Copy trade,
-    // Portfolio und Resolved bleiben per Hash erreichbar, beschreiben aber
-    // einen lokalen Papieraufbau und stehen nicht auf dem oeffentlichen Host.
+    // Die Seitenleiste erzaehlt den Stand ehrlich: erst der abgeschlossene
+    // Track Record (Live runs zuoberst — er ist das Argument; der Pilot ist
+    // per Protokoll seit 2026-08-01 fertig), dann die eingefrorenen Studien,
+    // dann das kuratierte Record, dann das Analysewerkzeug. Review queue und
+    // Pipeline forward sind archiviert: nicht mehr gelistet, aber per Hash
+    // erreichbar — die Queue-Zaehler stehen auf Methodology, das Paper-Log
+    // zusammengefasst auf Live runs. Settings, Tracked, Copy trade, Portfolio
+    // und Resolved bleiben per Hash erreichbar, beschreiben aber einen
+    // lokalen Papieraufbau und stehen nicht auf dem oeffentlichen Host.
     const groups = [
       { label: 'START HERE', items: [this.navItem('overview', 'Overview')] },
-      { label: 'TESTED STRATEGY', items: [
+      { label: 'TRACK RECORD', items: [
         this.navStudyByTab('Live runs'),
-        this.navStudyByTab('Pilot'),
+        this.navStudyByTab('Pilot')
+      ] },
+      { label: 'STUDIES · FROZEN', items: [
         this.navStudyByTab('Microstructure'),
         this.navStudyByTab('Category efficiency'),
-        this.navStudyByTab('Mentions latency'),
-        this.navStudyByTab('Pipeline forward')
+        this.navStudyByTab('Mentions latency')
       ] },
       { label: 'RECORD', items: [
         this.navStudyByTab('Postmortems', 'Post-mortems'),
         this.navStudyByTab('Field notes'),
-        this.navStudyByTab('Methodology'),
-        this.navStudyByTab('Review queue')
+        this.navStudyByTab('Methodology')
       ] },
       // Kein Zaehler ohne Daten: eine 0 im Abzeichen liest sich als Messung,
       // solange gar nichts geladen ist.
@@ -814,13 +818,20 @@ class Terminal {
       if (this.state.walletAddr) await this.fetchWallet(this.state.walletAddr, false);
     } else if (page === 'research') {
       const key = this.studies[this.state.researchTab].tab;
-      if (!this.liveData.research[key]) {
-        const pfad = '/api/research/' + encodeURIComponent(key.toLowerCase().replace(/ /g, '-'));
+      // Begleiter-Nutzlasten der zusammengelegten Seiten: Live runs fasst das
+      // Paper-Log (Pipeline forward) zusammen, Methodology die archivierte
+      // Review queue — beide Sektionen lesen dieselben publizierten Dateien,
+      // die auch die Archiv-Seiten zeigen.
+      const BEGLEITER = { 'Live runs': 'Pipeline forward', 'Methodology': 'Review queue' };
+      const keys = [key].concat(BEGLEITER[key] ? [BEGLEITER[key]] : []);
+      for (const k of keys) {
+        if (this.liveData.research[k]) continue;
+        const pfad = '/api/research/' + encodeURIComponent(k.toLowerCase().replace(/ /g, '-'));
         try {
           const rs = await apiGet(pfad);
-          this.liveData.research[key] = rs && typeof rs === 'object' ? rs : { _quelle: 'leer' };
+          this.liveData.research[k] = rs && typeof rs === 'object' ? rs : { _quelle: 'leer' };
         } catch (err) {
-          this.liveData.research[key] = { _quelle: 'fehler', _fehler: String(err && err.message ? err.message : err) };
+          this.liveData.research[k] = { _quelle: 'fehler', _fehler: String(err && err.message ? err.message : err) };
         }
         this.render();
       }
