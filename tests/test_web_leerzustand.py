@@ -484,6 +484,29 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertLess(live.index("VERDICT BOARD"), live.index("FIELD NOTES"))
         self.assertLess(live.index("FIELD NOTES"), live.index("ANALYSIS TOOL · LIVE DATA"))
 
+    def test_live_runs_fasst_paper_log_zusammen_und_methodology_die_queue(self) -> None:
+        # Pipeline forward und Review queue sind archiviert: die Live-runs-
+        # Seite fasst das Paper-Log zusammen (dieselbe Pipeline, gleiche
+        # Laeufe), Methodology die Queue-Zaehler — beide aus denselben
+        # publizierten Dateien, mit Link auf die volle Archivseite.
+        runs = _sichtbarer_text(self.ausgabe["live"]["runs_runs"])
+        self.assertIn("FORWARD PAPER LOG · SAME PIPELINE, NO MONEY", runs)
+        self.assertIn("2 paper runs · 5 decisions · 1 paper buys · 2026-08-07", runs)
+        self.assertIn("harness_run_1", runs)
+        self.assertIn("Open the full paper log", runs)
+        # Der Stempel der Seite ist datiert, nicht "rolling" — es ist kein
+        # Einsatz offen und der letzte Publish traegt ein Datum.
+        self.assertIn("concluded 2026-08-07", runs)
+        self.assertNotIn("rolling", runs)
+        method = _sichtbarer_text(self.ausgabe["live"]["research_methodology"])
+        self.assertIn("HUMAN VERIFICATION QUEUE · ARCHIVED", method)
+        self.assertIn("5 flagged cases · last run 2026-08-07", method)
+        self.assertIn("Open the archived queue", method)
+        # Ohne Nutzlast keine erfundene Zahl — nur die Ladezeile mit dem
+        # Dateinamen, wie ueberall sonst.
+        self.assertIn("reading pipeline_forward.json…", _sichtbarer_text(self.ausgabe["leer"]["runs_runs"]))
+        self.assertIn("reading queue.json…", _sichtbarer_text(self.ausgabe["leer"]["research_methodology"]))
+
     def test_field_notes_leerzustand(self) -> None:
         # Die neue Studie rendert ohne Nutzlast den Leerzustand mit Dateinamen
         # und in keinem Zustand eine erfundene Notiz.
@@ -685,10 +708,15 @@ class WebLeerzustandTest(unittest.TestCase):
 
     def test_seitenleiste_neu_gruppiert_und_ohne_papierkasten(self) -> None:
         app_js = (WURZEL / "web" / "js" / "app.js").read_text(encoding="utf-8")
-        for gruppe in ("START HERE", "TESTED STRATEGY", "RECORD", "ANALYSIS TOOL"):
+        for gruppe in ("START HERE", "TRACK RECORD", "STUDIES · FROZEN", "RECORD", "ANALYSIS TOOL"):
             self.assertIn("'" + gruppe + "'", app_js)
-        for weg in ("PAPER EQUITY", "No paper account", "'DASHBOARD'", "'TRADING'", "'SYSTEM'"):
+        for weg in ("PAPER EQUITY", "No paper account", "'DASHBOARD'", "'TRADING'", "'SYSTEM'", "'TESTED STRATEGY'"):
             self.assertNotIn(weg, app_js)
+        # Archiviert: Review queue und Pipeline forward stehen nicht mehr in
+        # der Seitenleiste, ihre Seiten bleiben am Slug erreichbar (die
+        # Zaehler auf Methodology, das Paper-Log auf Live runs).
+        self.assertNotIn("navStudyByTab('Review queue'", app_js)
+        self.assertNotIn("navStudyByTab('Pipeline forward'", app_js)
         # Nicht mehr gelistet, aber als Route erreichbar.
         for seite in ("'settings'", "'track'", "'resolved'"):
             self.assertNotIn("this.navItem(" + seite, app_js)
