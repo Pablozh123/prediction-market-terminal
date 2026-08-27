@@ -105,6 +105,11 @@ class Terminal {
       // long trade history, so the first run returns something to look at.
       btWallet: '0x204f72f35326db932158cba6adff0b9a1da95e14',
       btSizing: 'fixed',
+      // Auto-Fit an: die Engine misst, wie viele Positionen die Wallet
+      // hoechstens zugleich offen hat, und passt den Einsatz je Copy so an,
+      // dass Bankroll und Exposure-Deckel dem Tempo folgen koennen. Was
+      // angewendet wurde, steht im Ergebnis; abschaltbar neben dem Einsatz.
+      btAutoFit: true,
       btStakeFixed: 25,
       btStakePct: 2,
       btStakeMult: 1,
@@ -1009,6 +1014,7 @@ class Terminal {
       window_days: s.btWindow,
       strategy: s.btStrategy,
       sizing_mode: s.btSizing,
+      auto_fit: !!s.btAutoFit,
       stake_fixed: s.btStakeFixed,
       stake_pct: s.btStakePct,
       stake_mult: s.btStakeMult,

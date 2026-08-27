@@ -221,10 +221,37 @@ export function renderDetail(T) {
     + '</div></div>';
 }
 
+// Seiten-Index der Palette: Route, Anzeige, Stichwoerter. Die Suche soll
+// alles finden, was die Seite hat — nicht nur Maerkte: jede Seite und jeder
+// Reiter ist ueber Namen und Synonyme erreichbar, die Forschungsstudien
+// kommen zur Laufzeit aus T.studies dazu (Titel UND Beschreibung zaehlen).
+const SEITEN = [
+  { route: 'overview', label: 'Overview', hint: 'Verdict board, live-runs strip and field notes', worte: 'home start landing verdicts summary' },
+  { route: 'markets', label: 'Markets', hint: 'Market screen with filters and categories', worte: 'market screen prices list filter categories polymarket kalshi' },
+  { route: 'flow', label: 'Live tape', hint: 'Large prints on both venues', worte: 'tape prints trades feed flow' },
+  { route: 'whale', label: 'Whale flow', hint: 'Big prints grouped by wallet', worte: 'whales big trades size flow' },
+  { route: 'cross', label: 'Cross-venue', hint: 'Polymarket/Kalshi pairs and their gaps', worte: 'kalshi pairs arbitrage gap venues compare' },
+  { route: 'traders', label: 'Leaderboard', hint: 'Top wallets by PnL with scorecards', worte: 'traders top wallets ranking pnl smart score' },
+  { route: 'wallet', label: 'Wallet analysis', hint: 'Full analysis for one address', worte: 'address analyse roi edge calibration scorecard track record' },
+  { route: 'risk', label: 'Risk screen', hint: 'Suspicious flow, flagged and logged', worte: 'insider suspicion flags unusual risk' },
+  { route: 'alerts', label: 'Alerts', hint: 'Signal scan with adjustable thresholds', worte: 'signals movers spread whale ending soon thresholds rules' },
+  { route: 'backtester', label: 'Backtester', hint: 'Replay a wallet with your own sizing', worte: 'backtest copy replay simulate sizing kelly fees slippage paper' },
+  { route: 'copy', label: 'Copy trade', hint: 'Paper copy desk', worte: 'copy trading follow desk paper' },
+  { route: 'portfolio', label: 'Portfolio', hint: 'Local paper positions', worte: 'paper positions holdings' },
+  { route: 'resolved', label: 'Resolved', hint: 'Settled markets', worte: 'settled outcomes closed history' },
+  { route: 'settings', label: 'Settings', hint: 'Terminal settings', worte: 'settings configuration theme api preferences' }
+];
+
+// Alle Suchtokens muessen im Text vorkommen (Reihenfolge egal).
+function trifft(text, tokens) {
+  return tokens.every((t) => text.indexOf(t) >= 0);
+}
+
 export function renderSearch(T) {
   const s = T.state;
   if (!s.searchOpen) return '';
   const q = s.searchQuery.trim().toLowerCase();
+  const tokens = q ? q.split(/\s+/) : [];
   // A pasted address is not in any loaded list — it is an action: open the
   // wallet page for it. A partial 0x… gets a hint row instead of silence.
   const rawQuery = s.searchQuery.trim();
@@ -242,6 +269,40 @@ export function renderSearch(T) {
       act: ''
     });
   }
+  const grauTag = M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.7); border:1px solid rgba(var(--ink),.22); border-radius:4px; padding:3px 6px';
+  // Seiten und Reiter: bei leerer Anfrage die Schnellnavigation, sonst jede
+  // Seite, deren Name, Beschreibung oder Stichwoerter die Anfrage enthalten.
+  const seitenTreffer = SEITEN
+    .filter((p) => !q || trifft((p.label + ' ' + p.hint + ' ' + p.worte).toLowerCase(), tokens))
+    .slice(0, q ? 4 : 6)
+    .map((p) => ({
+      tag: 'PAGE', title: p.label, meta: p.hint + ' — #' + p.route, value: '→',
+      tagStyle: grauTag,
+      act: T.act(() => { T.setState({ searchOpen: false, searchQuery: '', detail: null }); location.hash = '#' + p.route; })
+    }));
+  // Forschungsstudien: Reitername, Titel und Kurzbeschreibung sind
+  // durchsuchbar — "brier", "latency" oder "order books" finden ihre Studie.
+  const studienTreffer = (q && T.studies ? T.studies : [])
+    .map((st, i) => ({ st, i }))
+    .filter(({ st }) => trifft((st.tab + ' ' + st.title + ' ' + st.note + ' ' + (st.stamp || '')).toLowerCase(), tokens))
+    .slice(0, 3)
+    .map(({ st, i }) => ({
+      tag: 'STUDY', title: st.title || st.tab, meta: st.tab + ' · ' + (st.stamp || '') + ' — #research/' + T.studienSlug(i), value: '→',
+      tagStyle: grauTag,
+      act: T.act(() => { T.setState({ searchOpen: false, searchQuery: '', detail: null }); location.hash = '#research/' + T.studienSlug(i); })
+    }));
+  // Kategorien des Markt-Screens ("politics", "sports", ...): ein Klick
+  // oeffnet die Marktliste bereits gefiltert.
+  const katSet = {};
+  T.markets.forEach((m) => { if (m.cat) katSet[m.cat] = true; });
+  const katTreffer = (q ? Object.keys(katSet) : [])
+    .filter((c) => c.toLowerCase().indexOf(q) >= 0)
+    .slice(0, 2)
+    .map((c) => ({
+      tag: 'CATEGORY', title: c, meta: 'Filter the market screen to this category', value: '→',
+      tagStyle: grauTag,
+      act: T.act(() => { T.setState({ page: 'markets', marketCat: c, detail: null, searchOpen: false, searchQuery: '' }); if (T.adresseSetzen) T.adresseSetzen('markets'); })
+    }));
   const marketRow = (m) => ({
     tag: 'MARKET', title: m.title, meta: m.venue + ' · ' + m.cat, value: m.yes + '¢',
     tagStyle: M + '; font-size:10.5px; letter-spacing:.12em; color:var(--on-accent); background:var(--accent); border-radius:4px; padding:3px 6px',
@@ -267,7 +328,14 @@ export function renderSearch(T) {
     tagStyle: M + '; font-size:10.5px; letter-spacing:.12em; color:var(--on-accent); background:var(--info); border-radius:4px; padding:3px 6px',
     act: T.act(() => { if (T.analyseWallet) T.analyseWallet(w.wallet); else T.setState({ searchOpen: false, searchQuery: '' }); })
   })) : [];
-  const results = walletActions.concat(searchMarkets, searchTraders, remoteWallets);
+  // Volltext-Handlung: die Anfrage als Filter auf den Markt-Screen legen —
+  // fuer alles, was keine eigene Zeile getroffen hat.
+  const screenAktion = q && !/^0x[0-9a-fA-F]*$/.test(rawQuery) ? [{
+    tag: 'FILTER', title: 'Search the market screen for "' + rawQuery + '"', meta: 'Applies the text as a filter on #markets', value: '→',
+    tagStyle: grauTag,
+    act: T.act(() => { T.setState({ page: 'markets', marketQuery: rawQuery, detail: null, searchOpen: false, searchQuery: '' }); if (T.adresseSetzen) T.adresseSetzen('markets'); })
+  }] : [];
+  const results = walletActions.concat(seitenTreffer, studienTreffer, katTreffer, searchMarkets, searchTraders, remoteWallets, screenAktion);
   // Statuszeile der venue-weiten Suche fuer die Fusszeile.
   const sr = T.searchRemote || {};
   let remoteHinweis = '';
@@ -279,7 +347,7 @@ export function renderSearch(T) {
 
   return '<div ' + T.act(() => T.setState({ searchOpen: false }), { plain: true }) + ' data-bg style="position:fixed; inset:0; background:var(--scrim); display:flex; align-items:flex-start; justify-content:center; padding-top:14vh; z-index:50">'
     + '<div data-stop role="dialog" aria-modal="true" aria-label="Search markets, wallets and categories" style="width:620px; background:var(--panel); border:1px solid rgba(var(--ink),.14); border-radius:14px; overflow:hidden; box-shadow:0 30px 80px var(--shadow-60)">'
-    + '<input value="' + esc(s.searchQuery) + '" ' + T.inp((e) => { T.sucheRemote(e.target.value); T.setState({ searchQuery: e.target.value }); }, 'searchQuery') + ' placeholder="Search markets, wallets, categories — or paste a 0x… address to analyse it" style="width:100%; box-sizing:border-box; background:transparent; border:none; border-bottom:1px solid rgba(var(--ink),.35); padding:17px 20px; ' + M + '; font-size:14px; color:var(--text)" autofocus />'
+    + '<input value="' + esc(s.searchQuery) + '" ' + T.inp((e) => { T.sucheRemote(e.target.value); T.setState({ searchQuery: e.target.value }); }, 'searchQuery') + ' placeholder="Search pages, studies, markets, wallets, categories — or paste a 0x… address" style="width:100%; box-sizing:border-box; background:transparent; border:none; border-bottom:1px solid rgba(var(--ink),.35); padding:17px 20px; ' + M + '; font-size:14px; color:var(--text)" autofocus />'
     + '<div style="max-height:380px; overflow-y:auto">'
     // The first row is marked (data-result) and lightly highlighted: Enter
     // opens it (app.js keydown), so the palette works without the mouse.
@@ -295,6 +363,6 @@ export function renderSearch(T) {
     + '<div style="padding:10px 20px; ' + M + '; font-size:11px; color:rgba(var(--ink),.55); display:flex; gap:16px">'
     + '<span>ESC to close</span>' + (results.length ? '<span>ENTER opens the first result, ARROW KEYS walk them</span>' : '') + '<span role="status">' + results.length + ' results'
     + (remoteHinweis ? ' — ' + esc(remoteHinweis) : '')
-    + (!T.markets.length && !T.traders.length && !remoteMaerkte.length ? ' — nothing loaded to search: markets come from /api/markets, wallets from the leaderboard' : '') + '</span></div>'
+    + (!T.markets.length && !T.traders.length && !remoteMaerkte.length ? ' — market rows need /api/markets, wallet rows the leaderboard; pages and studies are always searchable' : '') + '</span></div>'
     + '</div></div>';
 }

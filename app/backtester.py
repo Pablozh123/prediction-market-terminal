@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import inspect
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Callable
 
 import pandas as pd
@@ -109,6 +109,13 @@ class BacktestConfig:
     # default: the assumed edge is an estimate, and overbetting past the
     # optimum destroys growth asymmetrically.
     kelly_fraction: float = 0.25
+    #: Einsatz automatisch an das Tempo der Quell-Wallet anpassen: der
+    #: Einsatz je Copy wird so gewaehlt, dass die Hoechstzahl gleichzeitig
+    #: offener Quell-Positionen in Bankroll und Exposure-Deckel passt.
+    #: Wirkt nur bei SIZING_FIXED und SIZING_PERCENT; die uebrigen Modi
+    #: dimensionieren sich selbst. Was angewendet wurde, steht in
+    #: ``stats["auto_fit"]`` — nichts wird still veraendert.
+    auto_fit: bool = False
 
 
 @dataclass(frozen=True)
@@ -487,12 +494,23 @@ def equity_curve(
     bankroll: float,
     final_unrealized: float = 0.0,
 ) -> pd.DataFrame:
-    """Daily equity series: bankroll + cumulative net realized; MTM lands on the last day."""
+    """Equity series: bankroll + cumulative net realized; MTM lands on the last point.
 
-    days = pd.date_range(window_start.normalize(), window_end.normalize(), freq="D", tz="UTC")
-    if days.empty:
-        days = pd.DatetimeIndex([window_end.normalize()], tz="UTC")
-    curve = pd.DataFrame({"time": days, "equity": float(bankroll)})
+    Die Aufloesung folgt der Spanne: bis sieben Tage stundenweise, darueber
+    taeglich. Vorher war die Kurve immer taeglich ueber das ANGEFRAGTE
+    Fenster — deckten die Daten nur zwei Tage ab, zeigte sie 28 erfundene
+    flache Tage und dann eine Stufe. Der Aufrufer uebergibt deshalb die
+    tatsaechlich abgedeckte Spanne (run_backtest: ab effective_start, wenn
+    das Fenster abgeschnitten ist).
+    """
+
+    span = window_end - window_start
+    freq = "h" if span <= pd.Timedelta(days=7) else "D"
+    anchor = (lambda ts: ts.floor("h")) if freq == "h" else (lambda ts: ts.normalize())
+    points = pd.date_range(anchor(window_start), anchor(window_end), freq=freq, tz="UTC")
+    if points.empty:
+        points = pd.DatetimeIndex([anchor(window_end)], tz="UTC")
+    curve = pd.DataFrame({"time": points, "equity": float(bankroll)})
     if ledger is not None and not ledger.empty:
         events = ledger[ledger["status"].isin(["copied", "settled"])].copy()
         if not events.empty:
@@ -501,10 +519,11 @@ def equity_curve(
             events["net"] = events["realized_pnl"].fillna(0.0) - events["fee"].fillna(0.0).where(
                 events["action"].eq("BUY"), 0.0
             )
-            daily = events.set_index("time")["net"].sort_index().cumsum().resample("D").last().ffill()
-            daily.index = daily.index.normalize()
+            # resample-Bins liegen auf denselben Grenzen wie date_range oben
+            # (Mitternacht bei "D", volle Stunde bei "h") — reindex passt.
+            verlauf = events.set_index("time")["net"].sort_index().cumsum().resample(freq).last().ffill()
             curve = curve.set_index("time")
-            curve["realized"] = daily.reindex(curve.index).ffill().fillna(0.0)
+            curve["realized"] = verlauf.reindex(curve.index).ffill().fillna(0.0)
             curve["equity"] = float(bankroll) + curve["realized"]
             curve = curve.drop(columns=["realized"]).reset_index()
     if final_unrealized:
@@ -537,11 +556,26 @@ def compute_stats(ledger: pd.DataFrame, open_positions: pd.DataFrame, curve: pd.
         "open_positions": 0,
         "open_value": 0.0,
     }
+    stats["skip_reasons"] = {"out_of_cash": 0, "exposure_cap": 0, "no_position": 0, "bad_data": 0, "other": 0}
     if ledger is not None and not ledger.empty:
         copied = ledger[ledger["status"].isin(["copied", "settled"])]
         skipped = ledger[ledger["status"].eq("skipped")]
         stats["copied_trades"] = int((copied["action"].isin(["BUY", "SELL"])).sum())
         stats["skipped_trades"] = int(len(skipped))
+        # Gemessene Skip-Gruende statt einer Pauschalzahl: die Oberflaeche
+        # soll sagen koennen, WARUM sie nicht mitging (Kasse leer und
+        # Exposure-Deckel sind Bankroll-Grenzen, keine Datenluecken).
+        for note in skipped["note"].fillna("").astype(str):
+            if "out of cash" in note:
+                stats["skip_reasons"]["out_of_cash"] += 1
+            elif "exposure cap" in note:
+                stats["skip_reasons"]["exposure_cap"] += 1
+            elif "no copied position" in note:
+                stats["skip_reasons"]["no_position"] += 1
+            elif "bad trade data" in note:
+                stats["skip_reasons"]["bad_data"] += 1
+            else:
+                stats["skip_reasons"]["other"] += 1
         stats["fees_paid"] = float(copied["fee"].fillna(0.0).sum())
         stats["volume_copied"] = float(copied.loc[copied["action"].eq("BUY"), "stake"].fillna(0.0).sum())
         closers = copied[copied["action"].isin(["SELL", "RESOLVE"])]
@@ -710,6 +744,87 @@ def _resolve_token_values(
     return token_values
 
 
+def source_peak_concurrency(
+    trades: pd.DataFrame,
+    token_values: dict[str, dict[str, Any]] | None = None,
+) -> int:
+    """Hoechstzahl gleichzeitig offener Positionen der QUELL-Wallet im Fenster.
+
+    Chronologischer Durchlauf ueber die Trades selbst: BUY oeffnet oder
+    erhoeht, SELL reduziert, und eine Position gilt als geschlossen, sobald
+    ihr Markt laut ``token_values`` aufgeloest ist. Das ist die Kennzahl,
+    an der eine Copy-Bankroll wirklich haengt: nicht wie VIEL die Wallet
+    handelt, sondern wie viele Positionen sie zugleich offen halten kann.
+    """
+
+    if trades is None or trades.empty:
+        return 0
+    shares: dict[str, float] = {}
+    pending: list[tuple[pd.Timestamp, str]] = []
+    peak = 0
+    for _, trade in trades.sort_values("time", ascending=True).iterrows():
+        now = pd.to_datetime(trade.get("time"), utc=True, errors="coerce")
+        while pending and pd.notna(now) and pending[0][0] <= now:
+            _, done = pending.pop(0)
+            shares.pop(done, None)
+        side = str(trade.get("side", "") or "").upper()
+        asset = str(trade.get("asset", "") or "")
+        size = float(trade.get("size", 0.0) or 0.0)
+        if not asset or size <= 0.0:
+            continue
+        if side == "BUY":
+            neu = asset not in shares
+            shares[asset] = shares.get(asset, 0.0) + size
+            if neu and token_values:
+                info = token_values.get(asset, {})
+                end_time = info.get("end_time")
+                if info.get("closed") and isinstance(end_time, pd.Timestamp) and pd.notna(end_time):
+                    resolve_time = end_time if pd.isna(now) or end_time >= now else now
+                    pending.append((resolve_time, asset))
+                    pending.sort(key=lambda item: item[0])
+            peak = max(peak, len(shares))
+        elif side == "SELL":
+            rest = shares.get(asset, 0.0) - size
+            if asset in shares:
+                if rest <= 1e-9:
+                    shares.pop(asset, None)
+                else:
+                    shares[asset] = rest
+    return peak
+
+
+def _auto_fit_config(
+    config: BacktestConfig,
+    peak: int,
+) -> tuple[BacktestConfig, dict[str, Any]]:
+    """Einsatz je Copy an das gemessene Tempo der Wallet anpassen.
+
+    Budget = Bankroll x Exposure-Deckel; davon je gleichzeitiger Position
+    ein Anteil, mit zehn Prozent Reserve fuer Gebuehren und Slippage (die
+    Kasse liegt durch bezahlte Gebuehren immer unter dem Exposure-Budget).
+    Unter den Mindesteinsatz geht der Fit nicht — dann sagt das Ergebnis
+    ehrlich, dass selbst der Mindesteinsatz dem Tempo nicht folgen kann.
+    """
+
+    info: dict[str, Any] = {"applied": False, "peak_concurrent": int(peak), "stake": None}
+    if peak <= 0:
+        return config, info
+    budget = float(config.bankroll) * max(0.0, min(float(config.max_exposure_pct), 100.0)) / 100.0
+    fitted = max(MIN_STAKE, min(float(config.max_stake), 0.9 * budget / peak))
+    info["stake"] = fitted
+    if not config.auto_fit:
+        return config, info
+    if config.sizing_mode == SIZING_FIXED:
+        info["applied"] = True
+        return replace(config, stake_value=fitted), info
+    if config.sizing_mode == SIZING_PERCENT and config.bankroll > 0:
+        pct = 100.0 * fitted / float(config.bankroll)
+        info["applied"] = True
+        info["percent"] = pct
+        return replace(config, stake_value=pct), info
+    return config, info
+
+
 def run_backtest(
     config: BacktestConfig,
     *,
@@ -742,7 +857,12 @@ def run_backtest(
     if token_values is None:
         token_values = _resolve_token_values(trades, fetch_markets_by_ids, fetch_markets_by_event_slugs, token_value_builder)
 
-    ledger, positions = replay(trades, config, token_values)
+    # Tempo der Quell-Wallet messen und, wenn verlangt, den Einsatz daran
+    # anpassen — der Replay laeuft dann mit dem angepassten Einsatz statt
+    # blind in Kasse-leer/Exposure-Deckel zu laufen.
+    peak = source_peak_concurrency(trades, token_values)
+    replay_config, auto_fit_info = _auto_fit_config(config, peak)
+    ledger, positions = replay(trades, replay_config, token_values)
     flat_config = BacktestConfig(
         wallet=config.wallet,
         days=config.days,
@@ -767,13 +887,22 @@ def run_backtest(
 
     unrealized = float(open_positions["unrealized_pnl"].sum()) if not open_positions.empty else 0.0
     flat_unrealized = float(flat_open["unrealized_pnl"].sum()) if not flat_open.empty else 0.0
-    curve = equity_curve(full_ledger, window_start, window_end, config.bankroll, unrealized)
-    flat_curve = equity_curve(flat_full, window_start, window_end, config.bankroll, flat_unrealized)
+    # Ist das Fenster abgeschnitten, beginnt die Kurve an der tatsaechlich
+    # abgedeckten Kante. Sonst behauptete der flache Vorlauf Wissen ueber
+    # Tage, aus denen kein einziger Trade geladen wurde.
+    curve_start = window_start
+    if window_truncated and trades is not None and not trades.empty:
+        oldest_trade = pd.to_datetime(trades["time"], utc=True, errors="coerce").min()
+        if pd.notna(oldest_trade) and oldest_trade > curve_start:
+            curve_start = oldest_trade
+    curve = equity_curve(full_ledger, curve_start, window_end, config.bankroll, unrealized)
+    flat_curve = equity_curve(flat_full, curve_start, window_end, config.bankroll, flat_unrealized)
     curve["benchmark"] = flat_curve["equity"].to_numpy()
 
     stats = compute_stats(full_ledger, open_positions, curve, config.bankroll)
     flat_stats = compute_stats(flat_full, flat_open, flat_curve, config.bankroll)
     stats["window_truncated"] = bool(window_truncated)
+    stats["auto_fit"] = auto_fit_info
     effective_start = trades["time"].min() if trades is not None and not trades.empty else window_start
     stats["effective_start"] = effective_start if pd.notna(effective_start) else window_start
 

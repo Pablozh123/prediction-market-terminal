@@ -1823,6 +1823,21 @@ def backtest_payload(result: Any) -> dict[str, Any]:
             # Bis wohin die Daten wirklich zurueckreichen. Bei einem
             # abgeschnittenen Fenster ist das die ehrliche Fensterkante.
             "effective_start": _text(stats.get("effective_start"))[:10],
+            # Gemessene Skip-Gruende (Kasse leer, Exposure-Deckel, fremder
+            # Verkauf, kaputte Zeile) — die Seite nennt die Anteile statt
+            # einer nackten Summe.
+            "skip_reasons": {
+                key: int(_num(value, 0.0) or 0)
+                for key, value in (stats.get("skip_reasons") or {}).items()
+            },
+            # Auto-Fit: was die Engine gemessen und ggf. angewendet hat —
+            # Hoechstzahl gleichzeitig offener Quell-Positionen und der
+            # daraus abgeleitete Einsatz je Copy.
+            "auto_fit": {
+                "applied": bool((stats.get("auto_fit") or {}).get("applied", False)),
+                "stake": _num((stats.get("auto_fit") or {}).get("stake")),
+                "peak_concurrent": int(_num((stats.get("auto_fit") or {}).get("peak_concurrent"), 0.0) or 0),
+            },
         },
         "benchmark_stats": {
             "total_pnl": _num((result.benchmark_stats or {}).get("total_pnl"), 0.0),
@@ -1832,6 +1847,14 @@ def backtest_payload(result: Any) -> dict[str, Any]:
         payload["equity"] = [v for v in (_num(x) for x in equity_df.get("equity", pd.Series(dtype=float)).tolist()) if v is not None]
         payload["benchmark"] = [v for v in (_num(x) for x in equity_df.get("benchmark", pd.Series(dtype=float)).tolist()) if v is not None]
         payload["drawdown"] = [v for v in (_num(x) for x in equity_df.get("drawdown", pd.Series(dtype=float)).tolist()) if v is not None]
+        # Was die Kurve wirklich abdeckt: bei einem abgeschnittenen Fenster
+        # beginnt sie an der Datenkante, nicht am angefragten Starttag. Die
+        # Achsenbeschriftung darf nicht "30d ago" behaupten, wenn die erste
+        # Stuetzstelle von vorgestern ist.
+        zeiten = pd.to_datetime(equity_df.get("time", pd.Series(dtype="datetime64[ns, UTC]")), utc=True, errors="coerce").dropna()
+        if not zeiten.empty:
+            payload["curve_start"] = zeiten.min().isoformat()[:16]
+            payload["curve_end"] = zeiten.max().isoformat()[:16]
     ledger: pd.DataFrame = result.ledger
     if ledger is not None and not ledger.empty:
         payload["log"] = [

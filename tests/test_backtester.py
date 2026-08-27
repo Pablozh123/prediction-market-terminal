@@ -593,6 +593,127 @@ class RunBacktestTests(unittest.TestCase):
         )
         self.assertFalse(result.stats["window_truncated"])
 
+    def test_truncated_window_anchors_curve_at_covered_edge(self):
+        # Deckt der Fetch nur die letzten zwei Tage ab, darf die Kurve nicht
+        # 28 erfundene flache Tage davor zeigen: sie beginnt an der Datenkante
+        # und laeuft stundenweise statt taeglich.
+        now = pd.Timestamp("2026-06-10", tz="UTC")
+        rows = [
+            trade((now - pd.Timedelta(seconds=40 * i)).tz_convert(None).isoformat(), "BUY", 0.5, 10.0, asset=f"tok-{i}", market_key=f"c-{i}")
+            for i in range(4000)  # ~44 Stunden im 40-Sekunden-Takt
+        ]
+
+        # Legacy-Fetcher ohne end-Parameter: der Scan endet am Slice-Cap
+        # (3000 Zeilen), das Fenster ist abgeschnitten.
+        def fetch_activity(wallet, limit=500, offset=0):
+            return pd.DataFrame(rows[offset : offset + limit])
+
+        result = bt.run_backtest(
+            config(days=30),
+            fetch_activity=fetch_activity,
+            fetch_markets_by_ids=lambda ids: [],
+            now=now,
+        )
+        self.assertTrue(result.stats["window_truncated"])
+        curve_start = result.equity["time"].min()
+        # Datenkante: aeltester geladener Trade (Slice-Cap 3000 -> Zeile 2999),
+        # auf die volle Stunde gerundet.
+        self.assertGreaterEqual(curve_start, (now - pd.Timedelta(seconds=40 * 3000)).floor("h"))
+        self.assertGreater(len(result.equity), 24)   # stundenweise ueber ~33 Stunden
+        self.assertLess(len(result.equity), 80)      # nicht 31 Tagespunkte, nicht Minutentakt
+
+    def test_skip_reasons_are_counted(self):
+        trades = frame(
+            [
+                trade("2026-05-01", "BUY", 0.50, 100.0, asset="a1", market_key="c1"),
+                trade("2026-05-02", "BUY", 0.50, 100.0, asset="a2", market_key="c2"),
+                trade("2026-05-03", "BUY", 0.50, 100.0, asset="a3", market_key="c3"),
+                trade("2026-05-04", "SELL", 0.50, 100.0, asset="a9", market_key="c9"),
+            ]
+        )
+        # Bankroll 30, 10% Gebuehr: Kauf 1 kostet 25+2.50, Kauf 2 nimmt den
+        # Kassenrest, Kauf 3 ist "out of cash" (die Gebuehren haben die Kasse
+        # unter den Exposure-Spielraum gedrueckt); der Verkauf trifft keine
+        # kopierte Position.
+        ledger, positions = bt.replay(trades, config(bankroll=30.0, fee_bps=1000.0))
+        curve = bt.equity_curve(ledger, pd.Timestamp("2026-05-01", tz="UTC"), pd.Timestamp("2026-05-10", tz="UTC"), 30.0)
+        stats = bt.compute_stats(ledger, bt._empty_positions(), curve, 30.0)
+        self.assertEqual(stats["skip_reasons"]["out_of_cash"], 1)
+        self.assertEqual(stats["skip_reasons"]["no_position"], 1)
+        self.assertEqual(stats["skip_reasons"]["exposure_cap"], 0)
+        self.assertEqual(stats["skipped_trades"], 2)
+
+    def test_source_peak_concurrency_counts_open_positions(self):
+        trades = frame(
+            [
+                trade("2026-05-01", "BUY", 0.5, 10.0, asset="a1", market_key="c1"),
+                trade("2026-05-02", "BUY", 0.5, 10.0, asset="a2", market_key="c2"),
+                trade("2026-05-03", "SELL", 0.5, 10.0, asset="a1", market_key="c1"),
+                trade("2026-05-04", "BUY", 0.5, 10.0, asset="a3", market_key="c3"),
+                trade("2026-05-06", "BUY", 0.5, 10.0, asset="a4", market_key="c4"),
+            ]
+        )
+        # a2 ist am 2026-05-05 aufgeloest: beim Kauf von a4 sind nur a3+a4
+        # offen. Hoechststand: a2+a3 (und zuvor a1+a2) -> 2.
+        token_values = {"a2": {"price": 1.0, "closed": True, "end_time": pd.Timestamp("2026-05-05", tz="UTC")}}
+        self.assertEqual(bt.source_peak_concurrency(trades, token_values), 2)
+        # Ohne Aufloesungen bleibt a2 offen: a2+a3+a4 -> 3.
+        self.assertEqual(bt.source_peak_concurrency(trades, {}), 3)
+        self.assertEqual(bt.source_peak_concurrency(pd.DataFrame(), {}), 0)
+
+    def _zehn_positionen(self):
+        rows = [
+            trade(f"2026-05-{tag:02d}", "BUY", 0.50, 100.0, asset=f"tok-{tag}", market_key=f"c-{tag}")
+            for tag in range(1, 11)
+        ]
+        activity = pd.DataFrame(rows)
+
+        def fetch_activity(wallet, limit=500, offset=0):
+            return activity if offset == 0 else pd.DataFrame()
+
+        return fetch_activity
+
+    def test_auto_fit_sizes_stake_to_the_wallets_pace(self):
+        # Zehn gleichzeitig offene Positionen, Einsatz 250 zu gross fuer die
+        # 1000er-Bankroll: Auto-Fit dimensioniert auf 0.9 * 1000 / 10 = 90
+        # je Copy, und ALLE zehn Trades werden kopiert statt vier.
+        result = bt.run_backtest(
+            config(stake_value=250.0, auto_fit=True),
+            fetch_activity=self._zehn_positionen(),
+            fetch_markets_by_ids=lambda ids: [],
+            now=pd.Timestamp("2026-06-10", tz="UTC"),
+        )
+        self.assertTrue(result.stats["auto_fit"]["applied"])
+        self.assertEqual(result.stats["auto_fit"]["peak_concurrent"], 10)
+        self.assertAlmostEqual(result.stats["auto_fit"]["stake"], 90.0, places=6)
+        self.assertEqual(result.stats["copied_trades"], 10)
+        self.assertEqual(result.stats["skip_reasons"]["exposure_cap"], 0)
+        self.assertEqual(result.stats["skip_reasons"]["out_of_cash"], 0)
+
+    def test_auto_fit_off_reports_the_fitting_stake(self):
+        result = bt.run_backtest(
+            config(stake_value=250.0, auto_fit=False),
+            fetch_activity=self._zehn_positionen(),
+            fetch_markets_by_ids=lambda ids: [],
+            now=pd.Timestamp("2026-06-10", tz="UTC"),
+        )
+        self.assertFalse(result.stats["auto_fit"]["applied"])
+        self.assertEqual(result.stats["auto_fit"]["peak_concurrent"], 10)
+        self.assertAlmostEqual(result.stats["auto_fit"]["stake"], 90.0, places=6)
+        # Ohne Fit laeuft die Bankroll voll: 4 Kopien, der Rest am Deckel.
+        self.assertEqual(result.stats["copied_trades"], 4)
+        self.assertEqual(result.stats["skip_reasons"]["exposure_cap"], 6)
+
+    def test_auto_fit_leaves_self_sizing_modes_alone(self):
+        result = bt.run_backtest(
+            config(sizing_mode=bt.SIZING_MIRROR, stake_value=10.0, auto_fit=True),
+            fetch_activity=self._zehn_positionen(),
+            fetch_markets_by_ids=lambda ids: [],
+            now=pd.Timestamp("2026-06-10", tz="UTC"),
+        )
+        self.assertFalse(result.stats["auto_fit"]["applied"])
+        self.assertEqual(result.stats["auto_fit"]["peak_concurrent"], 10)
+
     def test_event_slug_fallback_resolves_missing_markets(self):
         # /markets?condition_ids= kommt fuer Sport-Untermaerkte regelmaessig
         # leer zurueck; ueber das Elternereignis muss die Position trotzdem
