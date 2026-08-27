@@ -1,6 +1,6 @@
 {
- "hinweis": "Observing paper run: decision fields and best book prices only, no wallet data, no return claim. Profil: earnings_pypl_july28. Top-level fields mirror this run; all 21 runs are listed under laeufe, newest first.",
- "stand_utc": "2026-08-07T04:30:03+00:00",
+ "hinweis": "Observing paper run: decision fields and best book prices only, no wallet data, no return claim. Profil: earnings_pypl_july28. Top-level fields mirror this run; all 23 runs are listed under laeufe, newest first.",
+ "stand_utc": "2026-08-26T23:48:42+00:00",
  "kennzeichnung": "observed/paper",
  "eintraege": [
   {
@@ -1145,6 +1145,219 @@
   "will-paypal-say-bitcoin-during-earnings-call-20260724221739523": 0
  },
  "laeufe": [
+  {
+   "profil": "allin_august7",
+   "n_eintraege": 16,
+   "n_kaeufe": 0,
+   "eintraege": [
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.99 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.9,
+     "size_usd": 0.0,
+     "verfuegbar_usd": null,
+     "extraktionsquote": null
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.99 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.88,
+     "size_usd": 0.0,
+     "verfuegbar_usd": null,
+     "extraktionsquote": null
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.99 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.59,
+     "size_usd": 0.0,
+     "verfuegbar_usd": null,
+     "extraktionsquote": null
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.97 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.97,
+     "bestes_gebot": 0.85,
+     "size_usd": 0.0,
+     "verfuegbar_usd": null,
+     "extraktionsquote": null
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.99 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.36,
+     "size_usd": 0.0,
+     "verfuegbar_usd": null,
+     "extraktionsquote": null
+    },
+    {
+     "action": "NONE",
+     "reason": "yes_ask 0.99 > 0.9",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.88,
+     "size_usd": 0.0,
+     "verfuegbar_usd": null,
+     "extraktionsquote": null
+    },
+    {
+     "action": "NONE",
+     "reason": "basisrate_veto 0.93 (n=14 Wochen)",
+     "limit_price": null,
+     "bestes_angebot": 0.91,
+     "bestes_gebot": 0.02,
+     "size_usd": 0.0,
+     "verfuegbar_usd": null,
+     "extraktionsquote": null
+    },
+    {
+     "action": "NONE",
+     "reason": "basisrate_veto 1.00 (n=6 Wochen)",
+     "limit_price": null,
+     "bestes_angebot": 0.1,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0,
+     "verfuegbar_usd": null,
+     "extraktionsquote": null
+    },
+    {
+     "action": "NONE",
+     "reason": "basisrate_veto 1.00 (n=18 Wochen)",
+     "limit_price": null,
+     "bestes_angebot": 0.12,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0,
+     "verfuegbar_usd": null,
+     "extraktionsquote": null
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 33 > grenze 2.0999999999999996",
+     "limit_price": null,
+     "bestes_angebot": 0.41,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0,
+     "verfuegbar_usd": null,
+     "extraktionsquote": null
+    },
+    {
+     "action": "NONE",
+     "reason": "basisrate_veto 1.00 (n=5 Wochen)",
+     "limit_price": null,
+     "bestes_angebot": 0.15,
+     "bestes_gebot": 0.03,
+     "size_usd": 0.0,
+     "verfuegbar_usd": null,
+     "extraktionsquote": null
+    },
+    {
+     "action": "NONE",
+     "reason": "endstand 11 > grenze 0.7",
+     "limit_price": null,
+     "bestes_angebot": 0.64,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0,
+     "verfuegbar_usd": null,
+     "extraktionsquote": null
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.99 > 0.8",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0,
+     "verfuegbar_usd": null,
+     "extraktionsquote": null
+    },
+    {
+     "action": "NONE",
+     "reason": "basisrate_veto 0.83 (n=6 Wochen)",
+     "limit_price": null,
+     "bestes_angebot": 0.99,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0,
+     "verfuegbar_usd": null,
+     "extraktionsquote": null
+    },
+    {
+     "action": "NONE",
+     "reason": "basisrate_veto 1.00 (n=11 Wochen)",
+     "limit_price": null,
+     "bestes_angebot": 0.12,
+     "bestes_gebot": 0.01,
+     "size_usd": 0.0,
+     "verfuegbar_usd": null,
+     "extraktionsquote": null
+    },
+    {
+     "action": "NONE",
+     "reason": "no_ask 0.96 > 0.8",
+     "limit_price": null,
+     "bestes_angebot": 0.96,
+     "bestes_gebot": 0.05,
+     "size_usd": 0.0,
+     "verfuegbar_usd": null,
+     "extraktionsquote": null
+    }
+   ],
+   "wortzaehler_endstaende": {
+    "will-ai-be-said-50-times-during-the-next-episode-of-the-all-in-podcast-20260731211505800": 50,
+    "will-hundred-or-thousand-or-million-be-said-10-times-during-the-next-episode-of-the-all-in-podcast-20260731211420611": 24,
+    "will-anthropic-be-said-5-times-during-the-next-episode-of-the-all-in-podcast-20260731211505802": 18,
+    "will-spacex-be-said-3-times-during-the-next-episode-of-the-all-in-podcast-20260731211505803": 16,
+    "will-ipo-be-said-during-the-next-episode-of-the-all-in-podcast-20260731211505804": 10,
+    "will-nvidia-be-said-during-the-next-episode-of-the-all-in-podcast-20260731211505805": 5,
+    "will-red-be-said-during-the-next-episode-of-the-all-in-podcast-20260731211505806": 0,
+    "will-blue-be-said-during-the-next-episode-of-the-all-in-podcast-20260731211505807": 0,
+    "will-software-be-said-during-the-next-episode-of-the-all-in-podcast-20260731211505808": 9,
+    "will-stock-market-be-said-during-the-next-episode-of-the-all-in-podcast-20260731211505809": 0
+   },
+   "extraktion_gekauft_usd": null,
+   "extraktion_verfuegbar_usd": null,
+   "extraktionsquote": null
+  },
+  {
+   "profil": "elon_august3",
+   "n_eintraege": 2,
+   "n_kaeufe": 0,
+   "eintraege": [
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.999,
+     "size_usd": 0.0,
+     "verfuegbar_usd": null,
+     "extraktionsquote": null
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_yes_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": 0.93,
+     "size_usd": 0.0,
+     "verfuegbar_usd": null,
+     "extraktionsquote": null
+    }
+   ],
+   "wortzaehler_endstaende": {},
+   "extraktion_gekauft_usd": null,
+   "extraktion_verfuegbar_usd": null,
+   "extraktionsquote": null
+  },
   {
    "profil": "jre_august3",
    "n_eintraege": 8,

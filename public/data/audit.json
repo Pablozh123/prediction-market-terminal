@@ -1,13 +1,13 @@
 {
  "hinweis": "Transparency about the agent run: counters and hashes only, no prompts, no vendor or version details.",
- "stand_utc": "2026-08-07T04:30:03+00:00",
- "n_eintraege": 68,
+ "stand_utc": "2026-08-26T23:48:42+00:00",
+ "n_eintraege": 70,
  "rollen_zaehler": {
-  "CaseNarrative": 34,
-  "SkepticReviewer": 34
+  "CaseNarrative": 35,
+  "SkepticReviewer": 35
  },
  "backend_zaehler": {
-  "mock": 68
+  "mock": 70
  },
  "prompt_hashes": [
   "b0bef02b0d1a4368dcb5021a148ebd46c0c1742ddff0c09773cffc4b0dda2596",
@@ -76,6 +76,8 @@
   "8cbdd7f7166901a605f7105ec0f1d8b03a70e3e65ba7a33a421710c4188c7869",
   "4f12c58d4f2bbc38840dfc4c7e91249af2244d8c85bc665493e18abb1bfb76fd",
   "c0f74b287f5dfad7869c6beb2ae8cb28b151342ad4434dcdee86a10f39dda464",
+  "7747bc638ef318bd53a41c0adfb739111d88caeb8bb1cc71af82c918941c412d",
+  "f1611cf7d62eb81cb34c311b6abc3279f54e0d98fdfb38b59bf6ba06933432b6",
   "7747bc638ef318bd53a41c0adfb739111d88caeb8bb1cc71af82c918941c412d",
   "f1611cf7d62eb81cb34c311b6abc3279f54e0d98fdfb38b59bf6ba06933432b6"
  ],
@@ -146,6 +148,8 @@
   "5783ff64df7a3ee8062c3fa29074a37230e85e6ef61a90bad701266c71df1556",
   "e73b61114d8ef2a64a5e28898b263efeeaffdcc0e69b92515b33e87de51823f8",
   "c006254dd7756694527a1d0180cfe08416ba8e4f05cd8188eb9088fa2f57062c",
+  "e13310d11653383d873537b337b82e10f6e554afdf66f17625e002d093d44071",
+  "b5f7a1a242c68c531de24051e539c69ad4394006f1bbb83bc9f9368afdb60143",
   "e13310d11653383d873537b337b82e10f6e554afdf66f17625e002d093d44071",
   "b5f7a1a242c68c531de24051e539c69ad4394006f1bbb83bc9f9368afdb60143"
  ]

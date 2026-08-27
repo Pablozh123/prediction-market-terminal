@@ -544,7 +544,10 @@ export function renderResearch(T) {
   // fees", gemessen sind -2.50 Cent. Unter einem Stempel wie
   // "frozen 2026-06-30" ist eine erfundene Zahl nicht neutral, sondern
   // belastend.
-  const stats = buildStudyStats(s.researchTab, payload);
+  // Der Pilot liest seine Wallet-Wahrheit (W/L, Netto-Cash) aus demselben
+  // Ledger wie die Live-runs-Seite; die anderen Studien brauchen ihn nicht.
+  const pilotLedger = s.researchTab === 5 ? walletLedgerVon(T, payload) : null;
+  const stats = buildStudyStats(s.researchTab, payload, pilotLedger);
   if (!stats) {
     return '<div>' + header + fehlendeStudieHtml(study, RESEARCH_DATEI[s.researchTab]) + '</div>';
   }
@@ -566,7 +569,9 @@ export function renderResearch(T) {
     + '<div style="font-size:20px; font-weight:600">' + esc(study.title) + '</div>'
     + '<div style="font-size:13.5px; color:rgba(var(--ink),.6); margin-top:8px; line-height:1.5">' + esc(note) + '</div></div>'
     + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.14); border-radius:4px; padding:6px 10px; white-space:nowrap">' + esc(stamp) + '</div></div>'
-    + '<div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:18px">'
+    // So viele Spalten wie Kacheln: der Pilot traegt mit der Wallet-Kachel
+    // fuenf, die uebrigen Studien weiter ihre drei oder vier.
+    + '<div style="display:grid; grid-template-columns:repeat(' + stats.length + ',1fr); gap:12px; margin-top:18px">'
     + stats.map((x) =>
       '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:14px 16px">'
       + '<div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(var(--ink),.6)">' + esc(x.label) + '</div>'
@@ -584,7 +589,7 @@ export function renderResearch(T) {
     + '<polyline points="' + pts + '" fill="none" style="stroke:var(--info)" stroke-width="2" /></svg></div>' : '')
     // Je Studie ihre Diagramme und Zusatzbloecke (Mentions latency, Pilot,
     // Pipeline forward), am Slug aufgehaengt statt am Index.
-    + studienExtrasHtml(studienSlug(study), payload)
+    + studienExtrasHtml(studienSlug(study), payload, pilotLedger)
     + table
     + studienKnoepfe(T, s.researchTab)
     + '</div></div>';
@@ -622,7 +627,7 @@ function studienKnoepfe(T, tab) {
 
 // Pilot: die aus den Trades gerechnete Auswertung (api/server.py haengt sie
 // als `auswertung` an). Befund, offener Ausgang und Regeltreue-Pruefung.
-function pilotAuswertungHtml(payload) {
+function pilotAuswertungHtml(payload, abgeschlossen) {
   const a = payload && payload.auswertung;
   if (!a || !a.trades || !a.trades.gesamt) return '';
   const karte = 'background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px';
@@ -643,7 +648,10 @@ function pilotAuswertungHtml(payload) {
   return '<div style="' + karte + '; margin-top:14px; padding:18px 20px">'
     + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:var(--info)">WHAT THE TEST MEASURED</div>'
     + '<div style="font-size:14.5px; color:var(--text); margin-top:10px; line-height:1.6; max-width:760px">' + esc(a.befund || '') + '</div>'
-    + (a.offener_ausgang
+    // Der servergerechnete Satz "N positions are still open" stammt aus der
+    // Trade-Liste ohne Aufloesungen; sobald das Wallet abgerechnet hat,
+    // steht der Ausgang in der Karte HOW IT ENDED und der Satz entfaellt.
+    + (a.offener_ausgang && !abgeschlossen
       ? '<div style="font-size:13px; color:var(--warn); margin-top:12px; line-height:1.6; max-width:760px; '
         + 'border-left:2px solid rgba(var(--warn-rgb),.4); padding-left:12px">' + esc(a.offener_ausgang) + '</div>'
       : '')
@@ -757,20 +765,23 @@ function pipelineRegelnHtml(payload) {
 }
 
 function studyTableHtml(T, label, cols, head, rows) {
-  const headStyle = 'display:grid; grid-template-columns:' + cols + '; gap:14px; padding:9px 18px; border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.6)';
+  // Kompakte Zeilen wie in den Live-runs- und Ledger-Tabellen: die alten
+  // 11px/18px-Polster und 13px-Zellen machten jede Studientabelle im
+  // Vergleich zum Rest der Seite auffallend gross.
+  const headStyle = 'display:grid; grid-template-columns:' + cols + '; gap:10px; padding:7px 14px; border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:9.5px; letter-spacing:.13em; color:rgba(var(--ink),.6)';
   return '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; overflow:hidden">'
-    + '<div style="padding:11px 18px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:var(--info)">' + esc(label) + '</div>'
+    + '<div style="padding:9px 14px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:var(--info)">' + esc(label) + '</div>'
     + '<div style="' + headStyle + '">'
     + head.map((h, i) => '<div style="' + (i === 0 ? '' : 'text-align:right') + '">' + esc(h) + '</div>').join('')
     + '</div>'
     + rows.map((row) =>
-      '<div style="display:grid; grid-template-columns:' + cols + '; gap:14px; align-items:center; padding:11px 18px; border-bottom:1px solid rgba(var(--ink),.06)">'
+      '<div style="display:grid; grid-template-columns:' + cols + '; gap:10px; align-items:center; padding:8px 14px; border-bottom:1px solid rgba(var(--ink),.06)">'
       + row.map((cell, i) => {
         const first = i === 0;
         const cs = String(cell);
         const neg = cs.charAt(0) === '-' && cs.indexOf('$') > 0;
         const pos = cs.charAt(0) === '+' && cs.indexOf('$') > 0;
-        const style = (first ? 'font-family:IBM Plex Sans,sans-serif; font-size:13px' : M + '; font-size:12.5px; text-align:right') + '; color:' + (neg ? 'var(--neg)' : pos ? 'var(--pos)' : first ? 'var(--text)' : 'rgba(var(--ink),.7)') + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis';
+        const style = (first ? 'font-family:IBM Plex Sans,sans-serif; font-size:12.5px' : M + '; font-size:11.5px; text-align:right') + '; color:' + (neg ? 'var(--neg)' : pos ? 'var(--pos)' : first ? 'var(--text)' : 'rgba(var(--ink),.7)') + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis';
         return '<div style="' + style + '" title="' + esc(cs) + '">' + esc(cs) + '</div>';
       }).join('')
       + '</div>'
@@ -821,7 +832,40 @@ function buildStudyTable(T, tab, payload) {
   return '';
 }
 
-function buildStudyStats(tab, payload) {
+// Wallet-Wahrheit des Piloten aus dem Ledger: Zaehlung der als pilot
+// markierten Maerkte plus Netto-Cash und Einsatz aus dem Typ-Aggregat.
+// null ohne Ledger oder ohne Pilot-Maerkte darin.
+export function pilotLedgerStand(ledger) {
+  if (!ledger || !Array.isArray(ledger.events)) return null;
+  const z = { n: 0, won: 0, lost: 0, flat: 0, open: 0 };
+  ledger.events.forEach((e) => (Array.isArray(e.maerkte) ? e.maerkte : []).forEach((m) => {
+    if (String(m.zuordnung || '') !== 'pilot') return;
+    z.n += 1;
+    const st = String(m.status || '');
+    if (st === 'won') z.won += 1;
+    else if (st === 'lost' || st === 'worthless') z.lost += 1;
+    else if (st === 'flat') z.flat += 1;
+    else if (st === 'open') z.open += 1;
+  }));
+  if (!z.n) return null;
+  const typ = ledger.aggregat && ledger.aggregat.nach_typ ? ledger.aggregat.nach_typ.pilot : null;
+  return {
+    pos: z,
+    settled: z.open === 0,
+    netto: typ && typ.netto_cash_usd != null ? +typ.netto_cash_usd : null,
+    einsatz: typ && typ.einsatz_usd != null ? +typ.einsatz_usd : null,
+    stand: ledger.stand_utc ? String(ledger.stand_utc).slice(0, 10) : ''
+  };
+}
+
+// W-und-L-Satz der Pilot-Positionen, wie ihn Kacheln und Karten teilen.
+function pilotWlText(pos) {
+  return pos.won + 'W · ' + pos.lost + 'L'
+    + (pos.flat ? ' · ' + pos.flat + ' flat' : '')
+    + (pos.open ? ' · ' + pos.open + ' open' : '');
+}
+
+function buildStudyStats(tab, payload, ledger) {
   if (!payload) return null;
   try {
     if (tab === 0 && payload.faelle) {
@@ -864,16 +908,28 @@ function buildStudyStats(tab, payload) {
     if (tab === 5 && payload.trades) {
       const p = payload.protokoll || {};
       const a = payload.auswertung;
+      // W und L wie auf den anderen Seiten aus dem Wallet-Ledger, nicht aus
+      // der Trade-Liste: die trades.csv kennt keine Aufloesungen, und "still
+      // open" stand noch da, als das ganze Wallet laengst abgerechnet war.
+      const wl = pilotLedgerStand(ledger);
+      const nettoKachel = wl && wl.netto != null
+        ? {
+          label: 'NET CASH (WALLET · PILOT)',
+          value: (wl.netto >= 0 ? '+$' : '-$') + Math.abs(wl.netto).toFixed(0),
+          note: 'sells + redemptions - buys' + (wl.stand ? ' · as of ' + wl.stand : '')
+        }
+        : null;
       if (a && a.trades && a.trades.gesamt) {
         const sl = a.slippage || {};
         const rt = a.regeltreue || {};
         const cents = (v) => (v == null ? '—' : (v >= 0 ? '+' : '') + (v * 100).toFixed(2) + '¢');
         return [
-          { label: 'STATUS', value: a.phase === 'entry_open' ? 'Open' : (a.phase === 'resolved' ? 'Resolved' : 'Entry closed'), note: 'window to ' + String(a.fenster_bis || '—') },
-          { label: 'TRADES PLACED', value: String(a.trades.gesamt), note: a.trades.offen + ' still open · $' + (a.trades.kapital_usd || 0) + ' deployed' },
+          { label: 'STATUS', value: wl && wl.settled ? 'Resolved' : (a.phase === 'entry_open' ? 'Open' : (a.phase === 'resolved' ? 'Resolved' : 'Entry closed')), note: 'window to ' + String(a.fenster_bis || '—') },
+          { label: 'TRADES PLACED', value: String(a.trades.gesamt), note: wl ? pilotWlText(wl.pos) + ' · wallet, worthless counts as lost' : a.trades.offen + ' still open · $' + (a.trades.kapital_usd || 0) + ' deployed' }
+        ].concat(nettoKachel ? [nettoKachel] : []).concat([
           { label: 'MEAN SLIPPAGE', value: cents(sl.mittel), note: (sl.teurer_als_signal || 0) + ' of ' + (sl.n || 0) + ' worse than signal' },
           { label: 'RULE ADHERENCE', value: (rt.erfuellt != null ? rt.erfuellt + ' / ' + rt.gesamt : '—'), note: 'checks passed' }
-        ];
+        ]);
       }
       // Statischer Pfad ohne auswertung: Stueckzahl und Einsatz kommen aus
       // den Trades selbst; der Protokollwert steht daneben, und eine
@@ -883,12 +939,13 @@ function buildStudyStats(tab, payload) {
       const einheitlich = groessen.length > 0 && groessen.every((v) => v === groessen[0]);
       const soll = p.einsatz_je_trade_usdc != null ? +p.einsatz_je_trade_usdc : null;
       return [
-        { label: 'TRADES', value: String(payload.trades.length), note: offen + ' still open · exit via resolution' },
+        { label: 'TRADES', value: String(payload.trades.length), note: wl ? pilotWlText(wl.pos) + ' · wallet, worthless counts as lost' : offen + ' still open · exit via resolution' }
+      ].concat(nettoKachel ? [nettoKachel] : []).concat([
         { label: 'BUDGET', value: '$' + (p.budget_usdc != null ? p.budget_usdc : '—'), note: 'preregistered' },
         { label: 'STAKE PER TRADE', value: groessen.length ? (einheitlich ? '$' + groessen[0] : '$' + Math.min(...groessen) + '–' + Math.max(...groessen)) : '—',
           note: soll != null ? 'protocol $' + soll + (einheitlich && groessen[0] !== soll ? ' · deviates from the frozen text' : '') : 'no protocol stake in the file' },
         { label: 'RULES FROZEN', value: String(p.regel_freeze_datum || '—'), note: 'before first trade' }
-      ];
+      ]);
     }
     if (tab === 6 && payload.laeufe) {
       const entries = payload.laeufe.reduce((a, l) => a + (+l.n_eintraege || 0), 0);
@@ -1397,18 +1454,51 @@ function renderLiveRuns(T, payload) {
       color: agg.realisierter_pnl_usd >= 0 ? 'var(--pos)' : 'var(--neg)'
     };
   })();
-  // Die Stake-Kachel zeigt, was die Wallet fuer Bot-Maerkte ausgab — die
-  // Zahl, die zum Guthaben passt. Die Log-Summe stand hier mit Preisdeckel-
-  // Annahme daneben und widersprach dem Wallet-Auszug.
-  const stakeKachel = frisch && frisch.kaeufe != null
-    ? { label: 'TOTAL STAKE (WALLET)', value: '$' + num((+frisch.kaeufe).toFixed(0)), sub: 'buys from the wallet, bot markets · as of ' + frisch.stand, color: 'var(--text)' }
-    : agg && agg.wallet_kaeufe_usd != null
-      ? { label: 'TOTAL STAKE (WALLET)', value: '$' + num((+agg.wallet_kaeufe_usd).toFixed(0)), sub: 'buys from the wallet statement' + (walletStand ? ' · as of ' + walletStand : ''), color: 'var(--text)' }
-      : { label: 'TOTAL STAKE', value: agg ? '$' + num((+agg.einsatz_usd).toFixed(0)) : '—', sub: 'from run logs · no wallet reconciliation yet', color: 'var(--text)' };
+  // Statt der Stake-Summe die Rendite, dieselbe Rechnung wie auf der
+  // Overview: Netto-Cashflow des ganzen Wallets gegen die deklarierten
+  // Einzahlungen (on-chain nachpruefbar). Solange der Ledger keine
+  // Einzahlungen kennt, gegen die kumulierten Kaeufe, und die Kachel
+  // benennt ihre Basis.
+  const la = ledger && ledger.aggregat ? ledger.aggregat : null;
+  const einzahlungen = la && la.einzahlungen_usd != null ? +la.einzahlungen_usd : null;
+  const roiBasis = einzahlungen || (la && la.kaeufe_usd != null ? +la.kaeufe_usd : 0) || 0;
+  const roiKachel = (la && la.netto_cashflow_usd != null && roiBasis > 0)
+    ? (() => {
+      const roi = (100 * +la.netto_cashflow_usd) / roiBasis;
+      return {
+        label: 'ROI (WALLET · ALL ACTIVITY)',
+        value: (roi >= 0 ? '+' : '') + roi.toFixed(1) + '%',
+        sub: 'net cashflow ' + (+la.netto_cashflow_usd >= 0 ? '+$' : '-$') + num(Math.abs(+la.netto_cashflow_usd).toFixed(0))
+          + (einzahlungen ? ' on deposits of $' + num(einzahlungen.toFixed(0)) : ' on buys of $' + num((+la.kaeufe_usd).toFixed(0))),
+        color: roi >= 0 ? 'var(--pos)' : 'var(--neg)'
+      };
+    })()
+    : { label: 'ROI (WALLET)', value: '—', sub: 'wallet_ledger.json not loaded yet', color: 'var(--text)' };
+  // W und L wie auf der Overview aus dem Wallet-Ledger, nicht aus der
+  // Log-Rekonstruktion: gezaehlt werden die Bot-Maerkte des Wallets,
+  // wertlos ausgelaufene zaehlen als verloren. Mehrere Fills desselben
+  // Markts sind eine Wallet-Position, darum steht die Marktzahl dabei.
+  // Ohne Ledger bleibt die Log-Zaehlung als benannter Rueckfall.
+  let botPositionen = null;
+  if (ledger && Array.isArray(ledger.events)) {
+    const z = { n: 0, won: 0, lost: 0, open: 0 };
+    ledger.events.forEach((e) => (Array.isArray(e.maerkte) ? e.maerkte : []).forEach((m) => {
+      if (String(m.zuordnung || '') !== 'bot') return;
+      z.n += 1;
+      const st = String(m.status || '');
+      if (st === 'won') z.won += 1;
+      else if (st === 'lost' || st === 'worthless') z.lost += 1;
+      else if (st === 'open') z.open += 1;
+    }));
+    if (z.n) botPositionen = z;
+  }
+  const betsKachel = agg && botPositionen
+    ? { label: 'BETS', value: num(agg.n_wetten), sub: botPositionen.won + 'W · ' + botPositionen.lost + 'L · ' + botPositionen.open + ' open · ' + num(botPositionen.n) + ' bot markets in the wallet, worthless counts as lost', color: 'var(--text)' }
+    : { label: 'BETS', value: agg ? num(agg.n_wetten) : '—', sub: agg ? agg.gewonnen + 'W · ' + agg.verloren + 'L · ' + agg.offen + ' open · from run logs' : '', color: 'var(--text)' };
   const kpis = agg ? [
     { label: 'RUNS', value: String(agg.n_runs), sub: 'one run = one episode or event', color: 'var(--text)' },
-    { label: 'BETS', value: num(agg.n_wetten), sub: agg.gewonnen + 'W · ' + agg.verloren + 'L · ' + agg.offen + ' open', color: 'var(--text)' },
-    stakeKachel,
+    betsKachel,
+    roiKachel,
     nettoKachel,
     { label: 'FIRST TAKER', value: firstTaker.value, sub: firstTaker.sub, color: 'var(--text)' },
     { label: 'OPEN STAKE', value: '$' + num((+agg.offener_einsatz_usd).toFixed(0)), sub: 'in unresolved markets', color: 'var(--text)' }
@@ -1417,7 +1507,7 @@ function renderLiveRuns(T, payload) {
     // 54 Prozent. Die Zahlen stehen in runs.json oder nirgends.
     { label: 'RUNS', value: '—', sub: 'runs.json not loaded', color: 'var(--text)' },
     { label: 'BETS', value: '—', sub: 'runs.json not loaded', color: 'var(--text)' },
-    { label: 'TOTAL STAKE', value: '—', sub: 'runs.json not loaded', color: 'var(--text)' },
+    { label: 'ROI (WALLET)', value: '—', sub: 'runs.json not loaded', color: 'var(--text)' },
     { label: 'NET PNL', value: '—', sub: 'runs.json not loaded', color: 'var(--text)' },
     { label: 'FIRST TAKER', value: '—', sub: 'runs.json not loaded', color: 'var(--text)' },
     { label: 'OPEN STAKE', value: '—', sub: 'runs.json not loaded', color: 'var(--text)' }
@@ -2024,6 +2114,12 @@ export function firstTakerKpi(payload) {
 // the ledger already sits in payload.extras.wallet_ledger and no fetch runs.
 const LEDGER = { daten: null, laedt: false, fehler: '' };
 
+// Fuer den 60-s-Refresh der Live-runs-Seite (app.js): den einmal geladenen
+// Ledger verwerfen, damit der naechste Render die Datei neu holt.
+export function ledgerVerwerfen() {
+  if (!LEDGER.laedt) { LEDGER.daten = null; LEDGER.fehler = ''; }
+}
+
 // The ledger for this render: from the runs payload's extras (API), else
 // from the module cache (static), else kick off the one fetch and return
 // null — the caller renders an honest "loading" line and T.render() draws
@@ -2501,10 +2597,10 @@ export function renderSettings(T) {
 // rendern (Kacheln, Tabelle, Knoepfe). Was hier steht, kommt zwischen die
 // Kacheln und die Tabelle. Jede Funktion gibt '' zurueck, wenn die Nutzlast
 // nichts hergibt — und sagt dann in einer Zeile, welches Feld fehlt.
-function studienExtrasHtml(slug, payload) {
+function studienExtrasHtml(slug, payload, ledger) {
   if (!payload) return '';
   if (slug === 'mentions-latency') return mentionsExtrasHtml(payload);
-  if (slug === 'pilot') return pilotExtrasHtml(payload);
+  if (slug === 'pilot') return pilotExtrasHtml(payload, ledger);
   if (slug === 'pipeline-forward') return pipelineHeadlineHtml(payload) + pipelineRegelnHtml(payload);
   return '';
 }
@@ -2760,14 +2856,34 @@ function watcherText(key) {
   return WATCHER_TEXT[key] || String(key).replace(/^arm(\d)[:_]/, 'arm $1 · ').replace(/_/g, ' ');
 }
 
-function pilotExtrasHtml(payload) {
+function pilotExtrasHtml(payload, ledger) {
   const trades = Array.isArray(payload.trades) ? payload.trades : [];
   const teile = [];
+
+  // Der Abschluss zuerst, aus dem Wallet-Ledger: die trades.csv kennt keine
+  // Aufloesungen, und die Seite behauptete "still open", als das Wallet
+  // laengst abgerechnet hatte.
+  const wl = pilotLedgerStand(ledger);
+  const abgeschlossen = wl && wl.settled;
+  if (abgeschlossen) {
+    teile.push('<div style="' + KARTE + '; margin-top:14px; padding:16px 18px">'
+      + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:var(--accent)">HOW IT ENDED · WALLET</div>'
+      + '<div style="font-size:13.5px; color:var(--text); margin-top:8px; line-height:1.6; max-width:760px">'
+      + 'All ' + wl.pos.n + ' positions have resolved: ' + esc(pilotWlText(wl.pos)) + ' (wallet, worthless counts as lost).'
+      + (wl.netto != null
+        ? ' Net cash of the pilot: ' + (wl.netto >= 0 ? '+$' : '-$') + Math.abs(wl.netto).toFixed(2)
+          + (wl.einsatz != null ? ' on $' + wl.einsatz.toFixed(0) + ' deployed' : '')
+          + ' — sells + redemptions minus buys, from the public wallet ledger' + (wl.stand ? ' as of ' + wl.stand : '') + '.'
+        : '')
+      + '</div></div>');
+  }
 
   // The promised chart has no series: say so instead of drawing one.
   const offen = trades.filter((t) => !t.exit_zeit_utc && !t.exit_preis).length;
   teile.push(hinweisKarte('PILOT EQUITY VS RULE ADHERENCE: no series — pilot.json carries no equity curve'
-    + (trades.length ? ' and ' + offen + ' of ' + trades.length + ' positions exit only through resolution, so no equity path exists yet' : '')
+    + (abgeschlossen
+      ? '; every position exited through resolution, the wallet outcome is in the card above'
+      : (trades.length ? ' and ' + offen + ' of ' + trades.length + ' positions exit only through resolution, so no equity path exists yet' : ''))
     + '. Below instead: execution against signal price per trade, and the watcher funnel of the last run.'));
 
   // Slippage per trade, execution minus signal, in cents. Positive = paid more.
@@ -2827,7 +2943,7 @@ function pilotExtrasHtml(payload) {
   }
 
   // The API-side evaluation (auswertung), when served.
-  teile.push(pilotAuswertungHtml(payload));
+  teile.push(pilotAuswertungHtml(payload, abgeschlossen));
   return teile.join('');
 }
 
