@@ -116,6 +116,11 @@ class BacktestConfig:
     #: dimensionieren sich selbst. Was angewendet wurde, steht in
     #: ``stats["auto_fit"]`` — nichts wird still veraendert.
     auto_fit: bool = False
+    #: Nur Quell-Trades ab diesem Notional kopieren. Kleinere BUYs werden
+    #: als "filtered" markiert (bewusste Auswahl, kein Fehlschlag); der
+    #: Auto-Fit setzt die Schwelle selbst, wenn der ganze Flow nicht in
+    #: die Bankroll passt. 0 = alles kopieren.
+    min_follow_notional: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -316,6 +321,12 @@ def replay(
         record["outcome"] = display_outcome
         if side == "BUY":
             source_shares[asset] = source_shares.get(asset, 0.0) + size
+            # Unter der Folge-Schwelle wird nicht kopiert — bewusste
+            # Auswahl ("filtered"), kein Fehlschlag. Die Quellbestaende
+            # oben zaehlen weiter, damit spaetere SELLs richtig spiegeln.
+            if config.min_follow_notional > 0.0 and float(trade.get("notional", 0.0) or 0.0) < config.min_follow_notional:
+                log(trade.get("time"), "BUY", "filtered", record, note=f"below the follow threshold (${config.min_follow_notional:,.0f})")
+                continue
             base_price = (1.0 - price) if fade else price
             stake = _stake_for(config, equity_now(), float(trade.get("notional", 0.0) or 0.0), base_price)
             exposure_room = max_open - open_cost
@@ -370,7 +381,10 @@ def replay(
             src_before = source_shares.get(asset, 0.0)
             source_shares[asset] = max(0.0, src_before - size)
             if not held or held["shares"] <= 0.0:
-                log(trade.get("time"), "SELL", "skipped", record, note="no copied position")
+                # Kein Fehlschlag: die Position wurde nie gefolgt (unter der
+                # Schwelle, vor dem Fenster eroeffnet oder beim Kauf am
+                # Limit) — der Verkauf betrifft uns schlicht nicht.
+                log(trade.get("time"), "SELL", "filtered", record, note="position not followed")
                 continue
             fraction = 1.0 if src_before <= 0.0 else min(1.0, size / src_before)
             sell_shares = held["shares"] * fraction
@@ -557,11 +571,15 @@ def compute_stats(ledger: pd.DataFrame, open_positions: pd.DataFrame, curve: pd.
         "open_value": 0.0,
     }
     stats["skip_reasons"] = {"out_of_cash": 0, "exposure_cap": 0, "no_position": 0, "bad_data": 0, "other": 0}
+    stats["filtered_trades"] = 0
     if ledger is not None and not ledger.empty:
         copied = ledger[ledger["status"].isin(["copied", "settled"])]
         skipped = ledger[ledger["status"].eq("skipped")]
         stats["copied_trades"] = int((copied["action"].isin(["BUY", "SELL"])).sum())
         stats["skipped_trades"] = int(len(skipped))
+        # Bewusst nicht gefolgt (Schwelle, fremde Verkaeufe) — getrennt von
+        # den echten Fehlschlaegen, damit "skipped" Versagen bedeutet.
+        stats["filtered_trades"] = int(ledger["status"].eq("filtered").sum())
         # Gemessene Skip-Gruende statt einer Pauschalzahl: die Oberflaeche
         # soll sagen koennen, WARUM sie nicht mitging (Kasse leer und
         # Exposure-Deckel sind Bankroll-Grenzen, keine Datenluecken).
@@ -757,16 +775,42 @@ def source_peak_concurrency(
     handelt, sondern wie viele Positionen sie zugleich offen halten kann.
     """
 
+    return _peak_concurrent(source_position_intervals(trades, token_values))
+
+
+def source_position_intervals(
+    trades: pd.DataFrame,
+    token_values: dict[str, dict[str, Any]] | None = None,
+) -> list[tuple[pd.Timestamp, pd.Timestamp | None, float]]:
+    """Offene Zeitraeume der QUELL-Positionen: (Einstieg, Ausstieg, Einstiegs-Notional).
+
+    Chronologischer Durchlauf ueber die Trades selbst: der erste BUY oeffnet
+    eine Position (ihr Notional ist die Einstiegsgroesse), SELL auf null
+    schliesst sie, und ein Markt gilt als geschlossen, sobald er laut
+    ``token_values`` aufgeloest ist. ``None`` als Ausstieg heisst: am
+    Fensterende noch offen. Aus den Intervallen liest der Auto-Fit beides
+    ab — wie viele Positionen zugleich offen sind, und wie gross die Wallet
+    einsteigt.
+    """
+
     if trades is None or trades.empty:
-        return 0
+        return []
     shares: dict[str, float] = {}
+    offen: dict[str, tuple[pd.Timestamp, float]] = {}
     pending: list[tuple[pd.Timestamp, str]] = []
-    peak = 0
+    intervals: list[tuple[pd.Timestamp, pd.Timestamp | None, float]] = []
+
+    def schliessen(asset: str, wann: pd.Timestamp) -> None:
+        start = offen.pop(asset, None)
+        if start is not None:
+            intervals.append((start[0], wann, start[1]))
+
     for _, trade in trades.sort_values("time", ascending=True).iterrows():
         now = pd.to_datetime(trade.get("time"), utc=True, errors="coerce")
         while pending and pd.notna(now) and pending[0][0] <= now:
-            _, done = pending.pop(0)
+            wann, done = pending.pop(0)
             shares.pop(done, None)
+            schliessen(done, wann)
         side = str(trade.get("side", "") or "").upper()
         asset = str(trade.get("asset", "") or "")
         size = float(trade.get("size", 0.0) or 0.0)
@@ -775,54 +819,147 @@ def source_peak_concurrency(
         if side == "BUY":
             neu = asset not in shares
             shares[asset] = shares.get(asset, 0.0) + size
-            if neu and token_values:
-                info = token_values.get(asset, {})
-                end_time = info.get("end_time")
-                if info.get("closed") and isinstance(end_time, pd.Timestamp) and pd.notna(end_time):
-                    resolve_time = end_time if pd.isna(now) or end_time >= now else now
-                    pending.append((resolve_time, asset))
-                    pending.sort(key=lambda item: item[0])
-            peak = max(peak, len(shares))
+            if neu:
+                offen[asset] = (now, float(trade.get("notional", 0.0) or 0.0))
+                if token_values:
+                    info = token_values.get(asset, {})
+                    end_time = info.get("end_time")
+                    if info.get("closed") and isinstance(end_time, pd.Timestamp) and pd.notna(end_time):
+                        resolve_time = end_time if pd.isna(now) or end_time >= now else now
+                        pending.append((resolve_time, asset))
+                        pending.sort(key=lambda item: item[0])
         elif side == "SELL":
             rest = shares.get(asset, 0.0) - size
             if asset in shares:
                 if rest <= 1e-9:
                     shares.pop(asset, None)
+                    schliessen(asset, now)
                 else:
                     shares[asset] = rest
+    for asset in list(offen):
+        start = offen.pop(asset)
+        intervals.append((start[0], None, start[1]))
+    return intervals
+
+
+def _peak_concurrent(
+    intervals: list[tuple[pd.Timestamp, pd.Timestamp | None, float]],
+    threshold: float = 0.0,
+) -> int:
+    """Hoechstzahl gleichzeitig offener Positionen mit Einstieg >= threshold."""
+
+    events: list[tuple[pd.Timestamp, int]] = []
+    ende = pd.Timestamp.max.tz_localize("UTC")
+    for entry, exit_, notional in intervals:
+        if notional < threshold or not isinstance(entry, pd.Timestamp) or pd.isna(entry):
+            continue
+        events.append((entry, 1))
+        events.append((exit_ if isinstance(exit_, pd.Timestamp) and pd.notna(exit_) else ende, -1))
+    # Bei gleichem Zeitpunkt zaehlt der Ausstieg vor dem Einstieg.
+    events.sort(key=lambda item: (item[0], item[1]))
+    peak = laufend = 0
+    for _, delta in events:
+        laufend += delta
+        peak = max(peak, laufend)
     return peak
+
+
+def _fit_follow_threshold(
+    intervals: list[tuple[pd.Timestamp, pd.Timestamp | None, float]],
+    capacity: int,
+) -> float | None:
+    """Kleinste Einstiegs-Schwelle, bei der das gefilterte Tempo ins Budget passt.
+
+    Monoton: eine hoehere Schwelle folgt weniger Positionen, also faellt
+    die Spitzen-Gleichzeitigkeit. Binaersuche ueber die vorkommenden
+    Einstiegsgroessen; ``None``, wenn selbst die groessten Einstiege (etwa
+    lauter gleich grosse) nicht unter die Kapazitaet kommen.
+    """
+
+    if capacity <= 0 or not intervals:
+        return None
+    if _peak_concurrent(intervals, 0.0) <= capacity:
+        return 0.0
+    werte = sorted({notional for _, _, notional in intervals})
+    if _peak_concurrent(intervals, werte[-1]) > capacity:
+        return None
+    lo, hi = 0, len(werte) - 1
+    while lo < hi:
+        mitte = (lo + hi) // 2
+        if _peak_concurrent(intervals, werte[mitte]) <= capacity:
+            hi = mitte
+        else:
+            lo = mitte + 1
+    return float(werte[lo])
 
 
 def _auto_fit_config(
     config: BacktestConfig,
-    peak: int,
+    intervals: list[tuple[pd.Timestamp, pd.Timestamp | None, float]],
 ) -> tuple[BacktestConfig, dict[str, Any]]:
-    """Einsatz je Copy an das gemessene Tempo der Wallet anpassen.
+    """Die Copy-Logik an das gemessene Tempo der Wallet anpassen.
 
-    Budget = Bankroll x Exposure-Deckel; davon je gleichzeitiger Position
-    ein Anteil, mit zehn Prozent Reserve fuer Gebuehren und Slippage (die
-    Kasse liegt durch bezahlte Gebuehren immer unter dem Exposure-Budget).
-    Unter den Mindesteinsatz geht der Fit nicht — dann sagt das Ergebnis
-    ehrlich, dass selbst der Mindesteinsatz dem Tempo nicht folgen kann.
+    Zwei Hebel, in dieser Reihenfolge:
+
+    1. **Schwelle statt Staub.** Passt nicht der ganze Flow ins Budget
+       (Bankroll x Exposure-Deckel, zehn Prozent Reserve fuer Gebuehren
+       und Slippage), folgt der Backtest beim EINGESTELLTEN Einsatz nur
+       noch den groessten Einstiegen der Wallet — wie ein echter Copier,
+       der Conviction-Positionen mitgeht statt jeden Market-Making-Kruemel.
+       Alles darunter markiert der Replay als "filtered", nicht als
+       Fehlschlag.
+    2. **Einsatz schrumpfen** bleibt der Rueckfall, wenn keine Schwelle
+       trennt (etwa lauter gleich grosse Einstiege): dann wird der Einsatz
+       je Copy so verkleinert, dass die volle Gleichzeitigkeit passt.
+
+    Nichts davon passiert still: was angewendet wurde, steht in
+    ``stats["auto_fit"]`` und auf der Seite.
     """
 
-    info: dict[str, Any] = {"applied": False, "peak_concurrent": int(peak), "stake": None}
+    peak = _peak_concurrent(intervals)
+    info: dict[str, Any] = {
+        "applied": False,
+        "mode": None,
+        "peak_concurrent": int(peak),
+        "stake": None,
+        "follow_threshold": None,
+        "followed_positions": len(intervals),
+        "capacity": None,
+    }
     if peak <= 0:
         return config, info
     budget = float(config.bankroll) * max(0.0, min(float(config.max_exposure_pct), 100.0)) / 100.0
-    fitted = max(MIN_STAKE, min(float(config.max_stake), 0.9 * budget / peak))
-    info["stake"] = fitted
-    if not config.auto_fit:
+    geschrumpft = max(MIN_STAKE, min(float(config.max_stake), 0.9 * budget / peak))
+    info["stake"] = geschrumpft
+    if not config.auto_fit or config.sizing_mode not in (SIZING_FIXED, SIZING_PERCENT):
         return config, info
-    if config.sizing_mode == SIZING_FIXED:
-        info["applied"] = True
-        return replace(config, stake_value=fitted), info
+    # Der Einsatz, den die Einstellungen ergeben — er bestimmt, wie viele
+    # Copies gleichzeitig ins Budget passen.
+    if config.sizing_mode == SIZING_PERCENT:
+        stake_user = float(config.bankroll) * float(config.stake_value) / 100.0
+    else:
+        stake_user = float(config.stake_value)
+    stake_user = max(MIN_STAKE, min(float(config.max_stake), stake_user))
+    if budget > 0:
+        stake_user = min(stake_user, budget)
+    capacity = max(1, int(0.9 * budget // stake_user)) if budget > 0 else 0
+    info["capacity"] = capacity
+    threshold = _fit_follow_threshold(intervals, capacity)
+    if threshold is not None:
+        followed = sum(1 for _, _, notional in intervals if notional >= threshold)
+        info.update({
+            "applied": True,
+            "mode": "threshold",
+            "stake": stake_user,
+            "follow_threshold": float(threshold),
+            "followed_positions": followed,
+        })
+        return replace(config, min_follow_notional=float(threshold)), info
+    # Keine Schwelle trennt: Einsatz je Copy schrumpfen, allem folgen.
+    info.update({"applied": True, "mode": "stake", "stake": geschrumpft})
     if config.sizing_mode == SIZING_PERCENT and config.bankroll > 0:
-        pct = 100.0 * fitted / float(config.bankroll)
-        info["applied"] = True
-        info["percent"] = pct
-        return replace(config, stake_value=pct), info
-    return config, info
+        return replace(config, stake_value=100.0 * geschrumpft / float(config.bankroll)), info
+    return replace(config, stake_value=geschrumpft), info
 
 
 def run_backtest(
@@ -857,11 +994,11 @@ def run_backtest(
     if token_values is None:
         token_values = _resolve_token_values(trades, fetch_markets_by_ids, fetch_markets_by_event_slugs, token_value_builder)
 
-    # Tempo der Quell-Wallet messen und, wenn verlangt, den Einsatz daran
-    # anpassen — der Replay laeuft dann mit dem angepassten Einsatz statt
+    # Tempo der Quell-Wallet messen und, wenn verlangt, die Copy-Logik
+    # daran anpassen (Folge-Schwelle oder geschrumpfter Einsatz) — statt
     # blind in Kasse-leer/Exposure-Deckel zu laufen.
-    peak = source_peak_concurrency(trades, token_values)
-    replay_config, auto_fit_info = _auto_fit_config(config, peak)
+    intervals = source_position_intervals(trades, token_values)
+    replay_config, auto_fit_info = _auto_fit_config(config, intervals)
     ledger, positions = replay(trades, replay_config, token_values)
     flat_config = BacktestConfig(
         wallet=config.wallet,

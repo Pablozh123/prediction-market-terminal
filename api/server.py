@@ -1627,6 +1627,9 @@ def backtest(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
         # Einsatz automatisch an das Tempo der Wallet anpassen (Engine misst
         # die Hoechstzahl gleichzeitig offener Quell-Positionen).
         auto_fit=bool(body.get("auto_fit", False)),
+        # Manuelle Folge-Schwelle: nur Quell-Trades ab diesem Notional
+        # kopieren. Der Auto-Fit setzt bei Bedarf seine eigene.
+        min_follow_notional=max(0.0, float(body.get("min_notional", 0.0))),
     )
     key = "bt_" + "_".join(str(v) for v in dataclasses.astuple(config))
 
