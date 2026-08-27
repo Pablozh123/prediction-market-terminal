@@ -175,21 +175,43 @@ function tapeLivePanel(T) {
   const zeilen = rows.map((t) => {
     const neu = !erste && !gesehen.has(schluessel(t));
     const kauf = String(t.side).indexOf('BUY') === 0;
-    return '<div' + (neu ? ' class="tape-in"' : '') + ' style="display:grid; grid-template-columns:64px minmax(0,1fr) 96px 64px; gap:8px; align-items:baseline; padding:6px 0; border-bottom:1px solid rgba(var(--ink),.06)">'
+    return '<div' + (neu ? ' class="tape-in"' : '') + ' style="display:grid; grid-template-columns:84px minmax(0,1fr) 110px 76px; gap:10px; align-items:baseline; padding:7px 24px; border-bottom:1px solid rgba(var(--ink),.06)">'
       + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.5); white-space:nowrap">' + esc(t.ago) + '</div>'
-      + '<div style="font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(t.market) + '">' + esc(t.market) + '</div>'
+      + '<div style="font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(t.market) + '">' + esc(t.market) + '</div>'
       + '<div style="' + M + '; font-size:10.5px; color:' + (kauf ? 'var(--pos)' : 'var(--neg)') + '; text-align:right; white-space:nowrap">' + esc(t.side) + ' ' + esc(t.price || '') + '</div>'
       + '<div style="' + M + '; font-size:11px; text-align:right">' + money(t.size) + '</div></div>';
   }).join('');
   // Merken, was diese Antwort zeigte — der naechste Poll animiert nur Neues.
   T._tapeGesehen = new Set(rows.map(schluessel));
-  return '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:14px 18px 6px">'
-    + '<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:4px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.16em; color:var(--accent)">THE TAPE, LIVE · PRINTS ≥ $2.5K</div>'
-    + '<div ' + T.act(() => T.go('flow')) + ' class="hv-accent" style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.55); cursor:pointer; white-space:nowrap">full tape →</div></div>'
-    + zeilen
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.5); padding:8px 0 6px">Polymarket + Kalshi · refreshes every 30 s · read-only</div>'
-    + '</div>';
+  return '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px; padding:14px 24px 8px; border-top:1px solid rgba(var(--ink),.06)">'
+    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.15em; color:rgba(var(--ink),.6)">THE TAPE, LIVE · PRINTS ≥ $2.5K</div>'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.5)">refreshes every 30 s · read-only</div></div>'
+    + zeilen;
+}
+
+// ---- The wire (landing) ----------------------------------------------------
+// Ein laufendes Band der groessten Maerkte aus dem 30-s-Poll. Die Zeilen sind
+// dieselben echten Reihen wie auf der Marktseite; nur die Bewegung ist Zierde
+// (ambient.js schiebt das Band; der Inhalt ist fuer die Schleife verdoppelt).
+// Eine Preiszelle blitzt einmal auf, wenn der Poll sie bewegt hat. Ohne
+// lebende Maerkte gibt es kein Band. Fuer Screenreader ist es verborgen —
+// die Maerkte stehen als richtige Tabelle einen Klick entfernt.
+function wireStrip(T) {
+  const maerkte = T.markets.slice().sort((a, b) => b.vol - a.vol).slice(0, 10);
+  if (!maerkte.length) return '';
+  const vorher = T._wireVorher instanceof Map ? T._wireVorher : null;
+  const items = maerkte.map((m) => {
+    const delta = vorher && vorher.has(m.id) ? m.yes - vorher.get(m.id) : 0;
+    const blitz = delta > 0 ? ' class="wire-up"' : delta < 0 ? ' class="wire-dn"' : '';
+    return '<span style="display:inline-flex; align-items:baseline; gap:8px; padding:0 22px; border-right:1px solid rgba(var(--ink),.1)">'
+      + '<span style="color:rgba(var(--ink),.62)">' + esc(m.title) + '</span>'
+      + '<span' + blitz + ' style="font-weight:600; border-radius:3px; padding:0 4px">' + num(m.yes) + '¢</span>'
+      + (m.chg ? '<span style="color:' + (m.chg > 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (m.chg > 0 ? '+' : '−') + Math.abs(m.chg) + '</span>' : '')
+      + '</span>';
+  }).join('');
+  T._wireVorher = new Map(maerkte.map((m) => [m.id, m.yes]));
+  return '<div aria-hidden="true" style="border-bottom:1px solid rgba(var(--ink),.09); background:var(--panel); overflow:hidden; ' + M + '; font-size:12px">'
+    + '<div id="wire-row" style="display:inline-flex; white-space:nowrap; padding:9px 0; will-change:transform">' + items + items + '</div></div>';
 }
 
 export function renderOverview(T) {
@@ -319,11 +341,14 @@ export function renderOverview(T) {
     + '</div>';
   // Rechts neben dem Titel, sobald der 30-s-Poll Prints liefert: das Band,
   // wie es gerade laeuft. Ohne lebende Antwort bleibt der Kopf einspaltig.
-  const tapePanel = tapeLivePanel(T);
+  // Hinter dem Kopf treibt der Wahrscheinlichkeits-Fluss die volle Breite
+  // (ambient.js malt in die Canvas; ohne Achsen und Zahlen ist er erkennbar
+  // Zierde, keine Messung). Der Verlauf davor haelt die Headline lesbar.
   return '<div>'
-    + '<div style="padding:24px 24px 20px; border-bottom:1px solid rgba(var(--ink),.09)">'
-    + '<div style="display:grid; grid-template-columns:minmax(0,1fr)' + (tapePanel ? ' minmax(400px,500px)' : '') + '; gap:28px; align-items:start">'
-    + '<div>'
+    + '<div style="padding:30px 24px 24px; border-bottom:1px solid rgba(var(--ink),.09); position:relative; overflow:hidden; min-height:300px; box-sizing:border-box; display:flex; align-items:center">'
+    + '<canvas id="river-cv" aria-hidden="true" style="position:absolute; inset:0; width:100%; height:100%"></canvas>'
+    + '<div aria-hidden="true" style="position:absolute; inset:0; pointer-events:none; background:linear-gradient(90deg, rgba(var(--bg-rgb),.92) 0%, rgba(var(--bg-rgb),.62) 40%, rgba(var(--bg-rgb),.12) 68%, rgba(var(--bg-rgb),0) 100%)"></div>'
+    + '<div style="position:relative; max-width:640px">'
     + '<h1 style="font-size:26px; line-height:1.2; margin:0; font-weight:600; letter-spacing:-0.015em">Prediction-market microstructure, <em style="color:var(--accent)">measured on self-recorded books.</em></h1>'
     + '<div style="font-size:14px; color:rgba(var(--ink),.66); margin-top:8px; max-width:760px">' + esc(subline) + '</div>'
     + pfade
@@ -332,8 +357,10 @@ export function renderOverview(T) {
     + '<a href="' + ONE_PAGER_URL + '" target="_blank" rel="noopener">One-pager (docs/research/ONE_PAGER.md) →</a>'
     + (pilotIdx >= 0 ? '<span ' + goStudy(pilotIdx) + ' class="hv-accent" style="color:rgba(var(--ink),.55); cursor:pointer; display:inline-block; padding:5px 0">Pre-registered pilot →</span>' : '')
     + '</div></div>'
-    + tapePanel
-    + '</div></div>'
+    + '</div>'
+
+    // Das Band mit den groessten Maerkten laeuft direkt unter dem Kopf.
+    + wireStrip(T)
 
     // Die getestete Strategie zuerst — sie ist das Argument der Seite; die
     // Studien liefern die Begruendung darunter.
@@ -350,6 +377,9 @@ export function renderOverview(T) {
 
     + sectionHead('ANALYSIS TOOL · LIVE DATA', asOfLine(s.liveAsOf) + '<div ' + T.act(() => T.go('markets')) + ' class="hv-accent" style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); cursor:pointer; padding:5px 0">MARKETS →</div><div ' + T.act(() => T.go('flow')) + ' class="hv-accent" style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); cursor:pointer; padding:5px 0">TAPE →</div>')
     + liveRow
+    // Das Tape als Streifen im Live-Block — dieselben Prints wie im Poll,
+    // neue Zeilen gleiten ein, sobald sie ankommen.
+    + tapeLivePanel(T)
     + '<div style="padding:22px 24px; text-align:center; ' + M + '; font-size:11px; color:rgba(var(--ink),.55)">Public data only · live blocks refresh every 30 seconds · research payloads are frozen files under ./data</div>'
     + '</div>';
 }

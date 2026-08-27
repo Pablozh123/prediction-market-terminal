@@ -660,6 +660,22 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertNotIn("studies (", leer)
         self.assertEqual(json.loads(self.ausgabe["leer"]["_verdict_counts"])["total"], 0)
 
+    def test_river_canvas_und_wire_band_auf_der_landung(self) -> None:
+        # Der Fluss ist Zierde (Canvas ohne Achsen, immer da); das Band traegt
+        # echte Marktzeilen und existiert darum nur, wenn der Poll geliefert
+        # hat. Beim Erst-Render blitzt keine Preiszelle (kein Vorher-Wert).
+        html = self.ausgabe["live"]["overview"]
+        self.assertIn('id="river-cv"', html)
+        self.assertIn('id="wire-row"', html)
+        # Verdoppelter Inhalt fuer die Schleife: Titel im Band zweimal, dazu
+        # einmal im Tape-Panel.
+        self.assertGreaterEqual(html.count("Example question"), 3)
+        self.assertNotIn("wire-up", html)
+        self.assertNotIn("wire-dn", html)
+        leer = self.ausgabe["leer"]["overview"]
+        self.assertIn('id="river-cv"', leer)      # Zierde behauptet nichts
+        self.assertNotIn('id="wire-row"', leer)   # keine Maerkte, kein Band
+
     def test_tape_live_panel_zeigt_nur_gelieferte_prints(self) -> None:
         # Das Hero-Panel "The tape, live" listet die Prints aus dem 30-s-Poll.
         # Beim Erst-Render traegt keine Zeile die Einblend-Klasse (kein
@@ -668,7 +684,6 @@ class WebLeerzustandTest(unittest.TestCase):
         text = _sichtbarer_text(html)
         self.assertIn("THE TAPE, LIVE · PRINTS ≥ $2.5K", text)
         self.assertIn("Example question", text)
-        self.assertIn("full tape →", text)
         self.assertIn("refreshes every 30 s · read-only", text)
         self.assertNotIn("tape-in", html)
         leer = self.ausgabe["leer"]["overview"]
