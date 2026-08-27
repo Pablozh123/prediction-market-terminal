@@ -278,8 +278,7 @@ export function renderOverview(T) {
     : agg && agg.wallet_kaeufe_usd != null ? +agg.wallet_kaeufe_usd : null;
   const pnlZelle = walletNetto
     ? kpiCell('NET PNL (WALLET · BOT)', signedMoney(walletNetto.wert),
-      (ledgerFrischer ? 'bot trades in the wallet ledger' : 'on-chain wallet, reconciled')
-      + (walletNetto.stand ? ' · ' + esc(walletNetto.stand) : ''), true, walletNetto.wert)
+      ledgerFrischer ? 'bot trades in the wallet ledger' : 'on-chain wallet, reconciled', true, walletNetto.wert)
     : kpiCell('NET PNL (FROM RUN LOGS)', agg && agg.realisierter_pnl_usd != null ? signedMoney(agg.realisierter_pnl_usd) : '—', 'no wallet reconciliation yet', true, agg && agg.realisierter_pnl_usd);
   // Die vierte Zelle: das ganze Wallet als Rendite. Die Bezugsgroesse steht
   // in der Zelle — auf Einzahlungen, sobald der Ledger sie kennt (das
@@ -295,15 +294,22 @@ export function renderOverview(T) {
     const roi = (100 * +la.netto_cashflow_usd) / roiBasis;
     flussZelle = kpiCell('ROI (WALLET · ALL ACTIVITY)', (roi >= 0 ? '+' : '') + roi.toFixed(1) + '%',
       'net cashflow ' + signedMoney(+la.netto_cashflow_usd)
-      + (einzahlungen ? ' on deposits of $' + num(einzahlungen.toFixed(0)) : ' on buys of $' + num((+la.kaeufe_usd).toFixed(0)))
-      + (ledgerStand ? ' · ' + esc(ledgerStand) : ''), false, roi);
+      + (einzahlungen ? ' on deposits of $' + num(einzahlungen.toFixed(0)) : ' on buys of $' + num((+la.kaeufe_usd).toFixed(0))), false, roi);
   }
   const runsStrip = agg
     ? '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid rgba(var(--ink),.09)">'
       + kpiCell('RUNS · BETS', num(agg.n_runs != null ? agg.n_runs : '—') + ' · ' + num(agg.n_wetten != null ? agg.n_wetten : '—'),
         (walletKaeufe != null ? 'wallet buys $' + num(walletKaeufe.toFixed(0)) : 'stake ' + (agg.einsatz_usd != null ? '$' + num((+agg.einsatz_usd).toFixed(0)) + ' (from run logs)' : '—'))
         + (runs && runs.stand_utc ? ' · payload ' + esc(stempel(runs.stand_utc)) : ''), true)
-      + kpiCell('WON · LOST', num(agg.gewonnen != null ? agg.gewonnen : '—') + ' · ' + num(agg.verloren != null ? agg.verloren : '—'), (agg.offen ? num(agg.offen) + ' open' : 'none open') + ' · no profitability claim', true)
+      // WON · LOST aus dem Wallet-Ledger (alle aufgeloesten Positionen,
+      // wertlos ausgelaufene zaehlen als verloren) — die Run-Zaehlung aus
+      // runs.json sah nur die Bot-Wetten und unterschlug den Rest des
+      // Wallets. Ohne Ledger bleibt die Run-Zaehlung als benannter Rueckfall.
+      + (la && la.positionen_gewonnen != null && la.positionen_verloren != null
+        ? kpiCell('WON · LOST', num(la.positionen_gewonnen) + ' · ' + num(la.positionen_verloren),
+          (la.positionen && +la.positionen.open ? num(la.positionen.open) + ' open · ' : '')
+          + 'all wallet positions, worthless counts as lost · no profitability claim', true)
+        : kpiCell('WON · LOST', num(agg.gewonnen != null ? agg.gewonnen : '—') + ' · ' + num(agg.verloren != null ? agg.verloren : '—'), (agg.offen ? num(agg.offen) + ' open' : 'none open') + ' · no profitability claim · bot runs only', true))
       + pnlZelle
       + flussZelle
       + '</div>'

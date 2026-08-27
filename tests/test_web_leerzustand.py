@@ -696,20 +696,28 @@ class WebLeerzustandTest(unittest.TestCase):
         # weg — sie brauchte den Methodenteil, um verstanden zu werden.
         text = _sichtbarer_text(self.ausgabe["live"]["overview"])
         self.assertIn("NET PNL (WALLET · BOT) +$417.77", text)
-        self.assertIn("bot trades in the wallet ledger · 2026-08-17", text)
+        # Ohne Datumsanhang: die Frische zeigt der Ledger-Stand im Payload,
+        # nicht jede Zelle einzeln.
+        self.assertIn("bot trades in the wallet ledger", text)
+        self.assertNotIn("bot trades in the wallet ledger ·", text)
         self.assertIn("wallet buys $1,039", text)
         # ROI mit benannter Basis: der Ledger traegt die vom Betreiber
         # deklarierten Einzahlungen (on-chain nachpruefbar), also
         # 469.25 / 300 = +156.4% auf Einzahlungen.
         self.assertIn("ROI (WALLET · ALL ACTIVITY) +156.4%", text)
-        self.assertIn("net cashflow +$469.25 on deposits of $300 · 2026-08-17", text)
+        self.assertIn("net cashflow +$469.25 on deposits of $300", text)
+        self.assertNotIn("on deposits of $300 ·", text)
         self.assertNotIn("+$175.09", text)                 # die eingefrorene Zahl
         self.assertNotIn("VISIBLE DEPTH", text)
         self.assertNotIn("stake was", text)
         self.assertNotIn("log estimate", text)
         self.assertNotIn("LOG-RECONSTRUCTED PNL", text)
         self.assertIn("RUNS · BETS 21 · 27", text)
-        self.assertIn("WON · LOST 25 · 2", text)
+        # WON · LOST zaehlt das ganze Wallet aus dem Ledger (wertlos = verloren),
+        # nicht mehr nur die Bot-Runs aus runs.json.
+        self.assertIn("WON · LOST 36 · 18", text)
+        self.assertIn("all wallet positions, worthless counts as lost · no profitability claim", text)
+        self.assertNotIn("WON · LOST 25 · 2", text)
         self.assertNotIn("Two PnL figures on purpose", text)
         # Fehlt runs.json, sagt der Streifen das und zeigt keine PnL-Zahl.
         teil = _sichtbarer_text(self.ausgabe["live"]["overview_partial"])

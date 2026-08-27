@@ -10,7 +10,19 @@ function apiBaseAusMeta() {
   return wert.replace(/\/+$/, '');
 }
 
-const API_BASE = apiBaseAusMeta() || ((location.protocol === 'file:') ? 'http://localhost:8787' : '');
+// Ohne gefuellte api-base kennt die statische Auslieferung ihre API
+// trotzdem: die produktiven Hostnamen des Projekts sind Fakten (README —
+// marketintel.dev auf Cloudflare Pages, api.marketintel.dev auf Railway),
+// keine Konfiguration. Vorher hing das am Build-Schritt, und eine Pages-
+// Auslieferung ohne ihn zeigte "API NOT REACHABLE", obwohl die API lief.
+// Lokale Entwicklung (localhost, file://) bleibt unberuehrt.
+function produktionsApi() {
+  const h = location.hostname;
+  return (h === 'marketintel.dev' || h === 'www.marketintel.dev' || h.endsWith('.prediction-market-terminal.pages.dev'))
+    ? 'https://api.marketintel.dev' : '';
+}
+
+const API_BASE = apiBaseAusMeta() || produktionsApi() || ((location.protocol === 'file:') ? 'http://localhost:8787' : '');
 
 // Wo die publizierten Nutzlasten liegen, wenn kein Python laeuft. Die
 // Forschungsseiten sind damit auch aus einem reinen Dateiserver lesbar, was
