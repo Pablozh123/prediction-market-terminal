@@ -160,6 +160,130 @@ function sectionHead(label, right, color) {
     + '<div style="display:flex; align-items:center; gap:14px">' + (right || '') + '</div></div>';
 }
 
+// ---- The race, replayed (landing hero) ------------------------------------
+// One real run from runs.json on one time axis: the drop, our fill, the
+// market's repricing and the median follower. Nothing here is staged — every
+// mark is a published number, the initial render is the finished picture,
+// and REPLAY only re-plays how it unfolded.
+
+function mmss(s) {
+  const n = Math.max(0, Math.round(+s || 0));
+  return Math.floor(n / 60) + ':' + String(n % 60).padStart(2, '0');
+}
+
+// Der Lauf mit vollstaendigem Rennen gegen das Band: Tape-Abdeckung, ein
+// Repricing-Pfad mit Zeitstempel, Fill-Zeit. Bei mehreren zaehlt erst der
+// Anteil "Erster auf dem Band", dann der realisierte PnL.
+function raceLauf(nutzlast) {
+  const liste = nutzlast && Array.isArray(nutzlast.runs) ? nutzlast.runs : [];
+  const kandidaten = liste.filter((r) => r && r.race && +r.race.wetten_mit_tape > 0
+    && r.erster_fill_s != null && Array.isArray(r.repricing)
+    && r.repricing.some((e) => e && e.time_to_priced_s != null && Array.isArray(e.punkte) && e.punkte.length));
+  if (!kandidaten.length) return null;
+  kandidaten.sort((a, b) => (b.race.first_on / b.race.wetten_mit_tape) - (a.race.first_on / a.race.wetten_mit_tape)
+    || (+b.realisierter_pnl_usd || 0) - (+a.realisierter_pnl_usd || 0));
+  return kandidaten[0];
+}
+
+// Die Wette des Laufs mit dem groessten Sprung zwischen unserem Fill und dem
+// ersten Band-Preis danach — die, an der man das Rennen sehen kann. Nur
+// YES-Wetten: die Band-Punkte sind YES-Preise, und ein NO-Fill neben einem
+// YES-Pfad wuerde zwei Seiten als eine Zahl ausgeben.
+function raceWette(r) {
+  const wetten = Array.isArray(r.wetten) ? r.wetten : [];
+  let beste = null;
+  for (const e of r.repricing) {
+    if (!e || e.time_to_priced_s == null || !Array.isArray(e.punkte) || !e.punkte.length) continue;
+    const w = wetten.find((x) => x && x.frage === e.frage);
+    if (!w || w.avg_fill_preis == null || (e.seite || w.seite) !== 'YES') continue;
+    const sprung = Math.abs(+e.punkte[0][1] - +w.avg_fill_preis);
+    if (!beste || sprung > beste.sprung) beste = { e, w, sprung };
+  }
+  return beste;
+}
+
+function raceReplayPanel(T, nutzlast, runsLinkAttrs) {
+  const r = raceLauf(nutzlast);
+  const b = r ? raceWette(r) : null;
+  if (!r || !b) return '';
+  // Marker und Pfad gehoeren zur gezeigten Wette: ihr eigener Fill-Zeitpunkt,
+  // nicht der erste des Laufs (die Kopfzeile nennt den Lauf-Wert).
+  const fillS = b.e.fill_nach_s != null ? +b.e.fill_nach_s : +r.erster_fill_s;
+  const pricedS = +b.e.time_to_priced_s;
+  const folgerS = r.race.median_verfolger_s != null ? +r.race.median_verfolger_s : null;
+  const fillP = +b.w.avg_fill_preis;
+  const xMax = Math.max(fillS, pricedS, folgerS || 0) * 1.14;
+  const W = 520, H = 176, PL = 8, PR = 8, TOP = 16, BASE = 138;
+  const x = (t) => PL + (Math.max(0, Math.min(+t, xMax)) / xMax) * (W - PL - PR);
+  const y = (p) => TOP + (1 - Math.max(0, Math.min(+p, 1))) * (BASE - TOP - 6);
+  // Verzoegerung eines Ereignisses im Replay: linear auf der Zeitachse,
+  // im gleichen Fenster wie der Cursor (.15s Start, 2.6s Lauf).
+  const verz = (t) => (0.15 + 2.6 * (Math.min(+t, xMax) / xMax)).toFixed(2);
+
+  // Preispfad: flach auf dem Fill-Preis, dann die Band-Punkte als Stufen.
+  const punkte = b.e.punkte.filter((q) => +q[0] <= xMax);
+  let pfad = 'M' + x(fillS).toFixed(1) + ' ' + y(fillP).toFixed(1);
+  for (const q of punkte) pfad += ' H' + x(q[0]).toFixed(1) + ' V' + y(q[1]).toFixed(1);
+  pfad += ' H' + x(xMax).toFixed(1);
+  const endPreis = punkte.length ? +punkte[punkte.length - 1][1] : fillP;
+  const cent = (p) => Math.round(+p * 100) + '¢';
+
+  const mark = (t, inhalt) => '<g class="race-m" style="animation-delay:' + verz(t) + 's">' + inhalt + '</g>';
+  const lbl = 'font-size="10" font-family="IBM Plex Mono, monospace"';
+  const dim = 'style="fill:rgba(var(--ink),.6)"';
+  const figur = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%; height:auto; display:block" role="img" '
+    + 'aria-label="Timeline of the run: drop detected at 0:00, our fill at ' + mmss(fillS) + ' at ' + cent(fillP)
+    + ', the market repriced at ' + mmss(pricedS) + ' to ' + cent(punkte.length ? punkte[0][1] : endPreis)
+    + (folgerS != null ? ', median follower at ' + mmss(folgerS) : '') + '">'
+    // Grundlinie und die 100¢-Marke als leise Referenz.
+    + '<line x1="' + PL + '" y1="' + BASE + '" x2="' + (W - PR) + '" y2="' + BASE + '" style="stroke:rgba(var(--ink),.18)" stroke-width="1" />'
+    + '<line x1="' + PL + '" y1="' + y(1) + '" x2="' + (W - PR) + '" y2="' + y(1) + '" style="stroke:rgba(var(--ink),.07)" stroke-width="1" stroke-dasharray="3 4" />'
+    + '<path class="race-path" d="' + pfad + '" pathLength="100" fill="none" style="stroke:var(--accent); stroke-dasharray:100" stroke-width="2" vector-effect="non-scaling-stroke" />'
+    + mark(0, '<line x1="' + x(0) + '" y1="' + (BASE - 5) + '" x2="' + x(0) + '" y2="' + (BASE + 5) + '" style="stroke:rgba(var(--ink),.5)" stroke-width="1" />'
+      + '<text x="' + x(0) + '" y="' + (BASE + 17) + '" ' + lbl + ' ' + dim + '>0:00 DROP DETECTED</text>')
+    + mark(fillS, '<circle cx="' + x(fillS).toFixed(1) + '" cy="' + y(fillP).toFixed(1) + '" r="4" style="fill:var(--accent)" />'
+      + '<text x="' + (x(fillS) + 8).toFixed(1) + '" y="' + (y(fillP) + 3).toFixed(1) + '" ' + lbl + ' style="fill:var(--text)">OUR FILL ' + mmss(fillS) + ' · ' + cent(fillP) + '</text>')
+    + (punkte.length
+      ? mark(pricedS, '<circle cx="' + x(pricedS).toFixed(1) + '" cy="' + y(punkte[0][1]).toFixed(1) + '" r="3.5" style="fill:rgba(var(--ink),.8)" />'
+        + '<text x="' + (x(pricedS) - 8).toFixed(1) + '" y="' + (y(punkte[0][1]) + 14).toFixed(1) + '" text-anchor="end" ' + lbl + ' style="fill:var(--text)">REPRICED ' + mmss(pricedS) + ' · ' + cent(punkte[0][1]) + '</text>')
+      : '')
+    + (folgerS != null
+      ? mark(folgerS, '<line x1="' + x(folgerS).toFixed(1) + '" y1="' + (BASE - 5) + '" x2="' + x(folgerS).toFixed(1) + '" y2="' + (BASE + 5) + '" style="stroke:rgba(var(--ink),.5)" stroke-width="1" />'
+        + '<text x="' + Math.min(x(folgerS), W - PR - 4).toFixed(1) + '" y="' + (BASE + 17) + '" text-anchor="end" ' + lbl + ' ' + dim + '>MEDIAN FOLLOWER +' + mmss(folgerS) + '</text>')
+      : '')
+    + '</svg>';
+
+  const datum = String(r.drop_erkannt_utc || '').slice(0, 10);
+  const frageKurz = (b.w.frage.match(/"[^"]+"/) || [b.w.frage.slice(0, 34) + '…'])[0];
+  const rennen = 'FIRST ON ' + num(r.race.first_on) + '/' + num(r.race.wetten_mit_tape) + ' TAPE-COVERED BETS'
+    + (r.race.fremde_trades_vor_uns != null ? ' · ' + num(r.race.fremde_trades_vor_uns) + ' TRADES AHEAD OF US' : '');
+  // REPLAY faesst keinen Zustand an: die Klasse laeuft einmal durch, und der
+  // naechste Poll-Render zeigt wieder das fertige Bild — den Ruhezustand.
+  const replay = T.act(() => {
+    const el = document.getElementById('race-fig');
+    if (!el) return;
+    el.classList.remove('race-anim');
+    void el.offsetWidth;
+    el.classList.add('race-anim');
+  });
+  return '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:16px 18px 12px">'
+    + '<div style="display:flex; align-items:center; justify-content:space-between; gap:10px">'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.16em; color:var(--accent)">THE RACE, REPLAYED' + (datum ? ' · ' + esc(datum) : '') + '</div>'
+    + '<div ' + replay + ' aria-label="Replay the run timeline" class="hv-bd30" style="' + M + '; font-size:10.5px; letter-spacing:.08em; border:1px solid rgba(var(--ink),.22); border-radius:4px; padding:3px 9px; cursor:pointer; color:rgba(var(--ink),.7); user-select:none">REPLAY</div></div>'
+    + '<div style="font-size:13.5px; line-height:1.45; margin-top:9px"><b>' + mmss(r.erster_fill_s) + '</b> from drop to first fill. The market repriced after <b>' + mmss(pricedS) + '</b>.</div>'
+    + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(b.w.frage) + '">'
+    + esc(b.w.seite || 'YES') + ' ' + esc(frageKurz) + ' · ' + cent(fillP) + ' → ' + cent(endPreis)
+    + (b.w.pnl_usd != null ? ' · ' + (b.w.gewonnen ? 'won ' : '') + signedMoney(+b.w.pnl_usd) : '') + '</div>'
+    + '<div id="race-fig" style="position:relative; margin-top:8px">'
+    + '<div class="race-cursor" style="position:absolute; top:4%; bottom:16%; width:1px; background:rgba(var(--ink),.3)"></div>'
+    + figur + '</div>'
+    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.06em; color:rgba(var(--ink),.6)">' + rennen + '</div>'
+    + '<div style="display:flex; justify-content:space-between; gap:10px; ' + M + '; font-size:10.5px; color:rgba(var(--ink),.5); margin-top:5px">'
+    + '<span>one run of ' + num((nutzlast.aggregat && nutzlast.aggregat.n_runs) || (nutzlast.runs || []).length) + ' · source: public tape, read-only</span>'
+    + (runsLinkAttrs ? '<span ' + runsLinkAttrs + ' class="hv-accent" style="cursor:pointer; white-space:nowrap">every bet →</span>' : '')
+    + '</div></div>';
+}
+
 export function renderOverview(T) {
   const s = T.state;
   const landing = T.landing || { micro: null, runs: null, notes: null, herkunft: {} };
@@ -273,8 +397,13 @@ export function renderOverview(T) {
     + pfadKarte(goStudy(runsIdx), 'TESTED STRATEGY', 'var(--accent)', 'Researched, then run with real money: every bet, its latency and the on-chain wallet that proves it.')
     + pfadKarte(T.act(() => T.go('markets')), 'ANALYSIS TOOL', 'var(--info)', 'Live screens on Polymarket & Kalshi: markets, tape, whale flow, cross-venue, risk.')
     + '</div>';
+  // Rechts neben dem Titel, wenn runs.json einen Lauf mit Renn-Daten traegt:
+  // ein echter Lauf, abspielbar. Ohne die Daten bleibt der Kopf einspaltig.
+  const racePanel = raceReplayPanel(T, runs, runsIdx >= 0 ? goStudy(runsIdx) : '');
   return '<div>'
     + '<div style="padding:24px 24px 20px; border-bottom:1px solid rgba(var(--ink),.09)">'
+    + '<div style="display:grid; grid-template-columns:minmax(0,1fr)' + (racePanel ? ' minmax(400px,480px)' : '') + '; gap:28px; align-items:start">'
+    + '<div>'
     + '<h1 style="font-size:26px; line-height:1.2; margin:0; font-weight:600; letter-spacing:-0.015em">Prediction-market microstructure, <em style="color:var(--accent)">measured on self-recorded books.</em></h1>'
     + '<div style="font-size:14px; color:rgba(var(--ink),.66); margin-top:8px; max-width:760px">' + esc(subline) + '</div>'
     + pfade
@@ -282,6 +411,8 @@ export function renderOverview(T) {
     + '<a href="' + REPO_URL + '" target="_blank" rel="noopener">GitHub repository →</a>'
     + '<a href="' + ONE_PAGER_URL + '" target="_blank" rel="noopener">One-pager (docs/research/ONE_PAGER.md) →</a>'
     + (pilotIdx >= 0 ? '<span ' + goStudy(pilotIdx) + ' class="hv-accent" style="color:rgba(var(--ink),.55); cursor:pointer; display:inline-block; padding:5px 0">Pre-registered pilot →</span>' : '')
+    + '</div></div>'
+    + racePanel
     + '</div></div>'
 
     // Die getestete Strategie zuerst — sie ist das Argument der Seite; die

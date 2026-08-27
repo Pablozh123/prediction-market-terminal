@@ -108,6 +108,19 @@ a:hover { color: var(--accent-bright); }
 /* The detail drawer slides in once per open — state reveal, not decoration. */
 @keyframes panelIn { from { opacity: 0; transform: translateX(10px) } to { opacity: 1; transform: translateX(0) } }
 
+/* The race, replayed (overview hero). The initial render is the finished
+   picture; .race-anim — set by the REPLAY control, never on load — runs the
+   sequence exactly once. Marks carry their event's time as an inline
+   animation-delay, the path draws over the same 2.6 s window the cursor
+   sweeps, so everything lands at its published second. */
+.race-cursor { display: none; }
+.race-anim .race-cursor { display: block; animation: raceCursor 2.6s linear .15s both; }
+.race-anim .race-m { animation: raceMark .35s ease-out both; }
+.race-anim .race-path { animation: raceDraw 2.6s linear .15s both; }
+@keyframes raceCursor { from { left: 1.5% } 96% { opacity: 1 } to { left: 98.5%; opacity: 0 } }
+@keyframes raceMark { from { opacity: 0; transform: translateY(5px) } to { opacity: 1; transform: translateY(0) } }
+@keyframes raceDraw { from { stroke-dashoffset: 100 } to { stroke-dashoffset: 0 } }
+
 body { font-family: var(--font-ui); }
 
 .shell { display: flex; height: 100vh; width: 100%; min-width: 1280px; overflow: hidden; background: var(--bg); color: var(--text); }
@@ -155,6 +168,9 @@ input { font-family: inherit; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: .001ms !important;
+    /* Delays too: the race replay staggers its marks by delay, and reduced
+       motion should jump straight to the finished picture. */
+    animation-delay: 0s !important;
     animation-iteration-count: 1 !important;
     transition-duration: .001ms !important;
     scroll-behavior: auto !important;
