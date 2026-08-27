@@ -698,10 +698,11 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("NET PNL (WALLET · BOT) +$417.77", text)
         self.assertIn("bot trades in the wallet ledger · 2026-08-17", text)
         self.assertIn("wallet buys $1,039", text)
-        # ROI mit benannter Basis: Einzahlungen kennt das oeffentliche API
-        # nicht, also auf die kumulierten Kaeufe (469.25 / 1474.53).
-        self.assertIn("ROI (WALLET · ALL ACTIVITY) +31.8%", text)
-        self.assertIn("net cashflow +$469.25 on buys of $1,475 · 2026-08-17", text)
+        # ROI mit benannter Basis: der Ledger traegt die vom Betreiber
+        # deklarierten Einzahlungen (on-chain nachpruefbar), also
+        # 469.25 / 300 = +156.4% auf Einzahlungen.
+        self.assertIn("ROI (WALLET · ALL ACTIVITY) +156.4%", text)
+        self.assertIn("net cashflow +$469.25 on deposits of $300 · 2026-08-17", text)
         self.assertNotIn("+$175.09", text)                 # die eingefrorene Zahl
         self.assertNotIn("VISIBLE DEPTH", text)
         self.assertNotIn("stake was", text)

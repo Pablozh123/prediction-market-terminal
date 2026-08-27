@@ -31,6 +31,11 @@ jobs:
         run: pip install requests
 
       - name: Rebuild the ledger
+        env:
+          # Owner-declared total deposits; verifiable on-chain via the
+          # wallet's USDC transfers. The public Data API cannot see them,
+          # so the figure travels with the pipeline, not the payload.
+          WALLET_DEPOSITS_USD: "300"
         run: python scripts/wallet_ledger.py
 
       # stand_utc moves on every run; a commit needs a real change, or the

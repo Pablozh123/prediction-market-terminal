@@ -26,8 +26,8 @@
   "pilot_condition_ids_aufgeloest": 20
  },
  "aggregat": {
-  "einzahlungen_usd": null,
-  "einzahlungen_hinweis": "not derivable from the public Data API (needs an on-chain USDC transfer scan)",
+  "einzahlungen_usd": 300.0,
+  "einzahlungen_hinweis": "declared by the wallet owner; verifiable on-chain via the wallet's USDC transfers, not derivable from the public Data API",
   "kaeufe_usd": 1474.53,
   "verkaeufe_usd": 268.82,
   "einloesungen_usd": 1674.95,

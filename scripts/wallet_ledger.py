@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -117,6 +118,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--publish-dir", type=Path, default=PUBLISH_DIR,
                         help="where runs.json and pilot.json live (default public/data)")
     parser.add_argument("--no-gamma", action="store_true", help="skip Gamma lookups (event titles, pilot condition ids)")
+    parser.add_argument(
+        "--deposits", type=float,
+        default=(float(os.environ["WALLET_DEPOSITS_USD"]) if os.environ.get("WALLET_DEPOSITS_USD") else None),
+        help="owner-declared total deposits in USD, verifiable on-chain via the wallet's USDC transfers "
+             "(default: env WALLET_DEPOSITS_USD, else absent)",
+    )
     parser.add_argument("--dump-raw", type=Path, default=None, help="also write the raw API rows to this JSON file")
     args = parser.parse_args(argv)
     wallet = args.wallet.strip().lower()
@@ -150,6 +157,7 @@ def main(argv: list[str] | None = None) -> int:
         activity, positions, closed_desc, closed_asc,
         wallet=wallet, runs_payload=runs_payload, pilot_payload=pilot_payload,
         pilot_condition_ids=list(pilot_cids.values()), event_titles=event_titles, stand_utc=stand,
+        einzahlungen_usd=args.deposits,
         quellen={
             "data_api": DATA_API,
             "activity_rows": len(activity), "positions_rows": len(positions),

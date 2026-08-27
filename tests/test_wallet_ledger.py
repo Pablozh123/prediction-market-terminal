@@ -124,6 +124,16 @@ class AggregateTests(unittest.TestCase):
         self.assertEqual(agg["erste_aktivitaet_utc"], "2025-07-24T23:33:21Z")
         self.assertEqual(agg["letzte_aktivitaet_utc"], "2025-07-26T03:20:00Z")
 
+    def test_deklarierte_einzahlungen(self) -> None:
+        # Der Betreiber kann die Einzahlungen deklarieren (per USDC-Transfers
+        # der Wallet on-chain nachpruefbar); der Hinweis nennt dann die
+        # Herkunft statt des "not derivable"-Satzes.
+        agg = _build(einzahlungen_usd=300.0)["aggregat"]
+        self.assertEqual(agg["einzahlungen_usd"], 300.0)
+        self.assertIn("declared by the wallet owner", agg["einzahlungen_hinweis"])
+        self.assertIn("verifiable on-chain", agg["einzahlungen_hinweis"])
+        self.assertNotIn("needs an on-chain", agg["einzahlungen_hinweis"])
+
     def test_position_outcomes(self) -> None:
         agg = _build()["aggregat"]
         # 3 won (Blue, GDP, Tough Cookie), 1 lost (Tension), 1 worthless (Extra), none open/unknown.
