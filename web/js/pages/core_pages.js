@@ -3,7 +3,7 @@
 // instance (T). Nothing here invents a number: every figure names its payload
 // or the panel says which payload is missing.
 
-import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, signedMoney, stempel } from '../util.js';
+import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, signedMoney, stempel, EINZAHLUNGEN_USD } from '../util.js';
 import { studieAnker } from './microstructure_page.js';
 
 const M = "font-family:'IBM Plex Mono',monospace";
@@ -280,21 +280,18 @@ export function renderOverview(T) {
     ? kpiCell('NET PNL (WALLET · BOT)', signedMoney(walletNetto.wert),
       ledgerFrischer ? 'bot trades in the wallet ledger' : 'on-chain wallet, reconciled', true, walletNetto.wert)
     : kpiCell('NET PNL (FROM RUN LOGS)', agg && agg.realisierter_pnl_usd != null ? signedMoney(agg.realisierter_pnl_usd) : '—', 'no wallet reconciliation yet', true, agg && agg.realisierter_pnl_usd);
-  // Die vierte Zelle: das ganze Wallet als Rendite. Die Bezugsgroesse steht
-  // in der Zelle — auf Einzahlungen, sobald der Ledger sie kennt (das
-  // braucht den On-Chain-USDC-Scan; das oeffentliche Data API sieht sie
-  // nicht), bis dahin auf die kumulierten Kaeufe. Eine Prozentzahl ohne
-  // benannte Basis waere eine Behauptung. Die fruehere Sichttiefe-Zelle
-  // steht weiter im Live-runs-Bericht.
+  // Die vierte Zelle: das ganze Wallet als Rendite. Bezugsgroesse ist immer
+  // die einmalige Einzahlung (on-chain nachpruefbar) — aus dem Ledger, sonst
+  // die deklarierte Konstante. Nie die Kaufsumme: jeder reinvestierte Dollar
+  // wuerde die Basis aufblaehen und die Rendite kleinrechnen.
   const la = ledger && ledger.aggregat ? ledger.aggregat : null;
-  const einzahlungen = la && la.einzahlungen_usd != null ? +la.einzahlungen_usd : null;
-  const roiBasis = einzahlungen || (la ? +la.kaeufe_usd : 0) || 0;
+  const einzahlungen = la && la.einzahlungen_usd != null ? +la.einzahlungen_usd : EINZAHLUNGEN_USD;
   let flussZelle = kpiCell('ROI (WALLET · ALL ACTIVITY)', '—', 'wallet_ledger.json not loaded yet', false);
-  if (la && la.netto_cashflow_usd != null && roiBasis > 0) {
-    const roi = (100 * +la.netto_cashflow_usd) / roiBasis;
+  if (la && la.netto_cashflow_usd != null && einzahlungen > 0) {
+    const roi = (100 * +la.netto_cashflow_usd) / einzahlungen;
     flussZelle = kpiCell('ROI (WALLET · ALL ACTIVITY)', (roi >= 0 ? '+' : '') + roi.toFixed(1) + '%',
       'net cashflow ' + signedMoney(+la.netto_cashflow_usd)
-      + (einzahlungen ? ' on deposits of $' + num(einzahlungen.toFixed(0)) : ' on buys of $' + num((+la.kaeufe_usd).toFixed(0))), false, roi);
+      + ' on the one-time deposit of $' + num(einzahlungen.toFixed(0)), false, roi);
   }
   const runsStrip = agg
     ? '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid rgba(var(--ink),.09)">'
