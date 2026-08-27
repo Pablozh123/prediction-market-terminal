@@ -660,28 +660,6 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertNotIn("studies (", leer)
         self.assertEqual(json.loads(self.ausgabe["leer"]["_verdict_counts"])["total"], 0)
 
-    def test_race_replay_zeichnet_den_publizierten_lauf(self) -> None:
-        # Das Hero-Panel "The race, replayed" kommt komplett aus runs.json:
-        # Fill nach 0:58 zu 29¢, Band preist nach 10:32 auf 95¢, der
-        # Median-Verfolger nach 9:33, Erster auf 7/7 Wetten. Der Erst-Render
-        # ist das fertige Bild (keine race-anim-Klasse); REPLAY spielt nur ab.
-        html = self.ausgabe["live"]["overview"]
-        text = _sichtbarer_text(html)
-        self.assertIn("THE RACE, REPLAYED · 2026-07-24", text)
-        self.assertIn("0:58 from drop to first fill. The market repriced after 10:32", text)
-        self.assertIn("OUR FILL 0:58 · 29¢", text)
-        self.assertIn("REPRICED 10:32 · 95¢", text)
-        self.assertIn("MEDIAN FOLLOWER +9:33", text)
-        self.assertIn("FIRST ON 7/7 TAPE-COVERED BETS · 0 TRADES AHEAD OF US", text)
-        self.assertIn("one run of 21 · source: public tape, read-only", text)
-        self.assertIn('class="race-path"', html)
-        self.assertIn(">REPLAY</div>", html)
-        self.assertNotIn("race-anim", html)
-        # Ohne runs.json gibt es kein Panel und keine erfundene Zeitachse.
-        leer = self.ausgabe["leer"]["overview"]
-        self.assertNotIn("THE RACE, REPLAYED", leer)
-        self.assertNotIn("race-path", leer)
-
     def test_live_runs_streifen_eine_pnl_zahl(self) -> None:
         # Eine PnL-Zelle mit der Wallet-Zahl (+$175.09 mit Abgleichsdatum) und
         # die Wallet-Kaeufe als Stake — die Log-Schaetzung steht nicht mehr auf

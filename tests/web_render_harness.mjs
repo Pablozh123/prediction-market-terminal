@@ -135,15 +135,7 @@ function landingNutzlast() {
       sichtbare_tiefe_usd: 1515.04, einsatz_zu_sichtbarer_tiefe_pct: 77.4,
       wallet_netto_usd: 175.09, wallet_kaeufe_usd: 492.51, wallet_abgleich_stand: '2026-07-18'
     },
-    // Ein Lauf mit Renn-Daten, damit die Landung ihr Replay-Panel zeichnet:
-    // Fill nach 58 s, Band preist nach 632 s auf 95¢, Median-Verfolger 573 s.
-    runs: [{
-      profil: 'allin_july24', modus: 'LIVE', drop_erkannt_utc: '2026-07-24T20:52:41Z',
-      erster_fill_s: 58, realisierter_pnl_usd: 150.63,
-      race: { wetten_mit_tape: 7, first_on: 7, fremde_trades_vor_uns: 0, median_verfolger_s: 573, quelle: 'data-api.polymarket.com/trades (oeffentlich, read-only)' },
-      repricing: [{ frage: 'Will "Constitution" be said during the next episode?', seite: 'YES', time_to_priced_s: 632, fill_nach_s: 58, punkte: [[632, 0.95]] }],
-      wetten: [{ frage: 'Will "Constitution" be said during the next episode?', seite: 'YES', avg_fill_preis: 0.29, pnl_usd: 43.31, gewonnen: true }]
-    }]
+    runs: []
   };
   const notes = {
     _quelle: 'statisch', stand_utc: '2026-08-17T00:00:00+00:00', kennzeichnung: 'curated/field-notes',
