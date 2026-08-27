@@ -1156,22 +1156,28 @@ class WebLeerzustandTest(unittest.TestCase):
     def test_mentions_latency_diagramm_und_ausschluesse(self) -> None:
         html = self.ausgabe["live"]["research_mentions_latency"]
         text = _sichtbarer_text(html)
-        # Echter Median (0.5 und 10 → 5.25), als Kachel und als Referenzlinie.
-        self.assertIn("MEDIAN LATENCY 5.25 min n = 2 events with a reaction", text)
+        # Median und FASTEST in exakten Sekunden (Fixture ohne sekunden_*
+        # faellt auf Minuten*60 zurueck: 30 s und 600 s, Median 315 s).
+        self.assertIn("MEDIAN LATENCY 315 s gap drop → first deviating minute-grid point · n = 2 events", text)
         # Ein Diagramm, EINE Zeile je Ereignis: Punkt = erste Bewegung,
         # Linienende = ausgepreist. Zwei Zeilen je Ereignis machten die Karte
         # doppelt so hoch wie der Rest der Seite.
         self.assertIn("FIRST REACTION → FULLY PRICED IN · n 2", text)
-        self.assertIn("median first reaction 5.25 min", text)
+        self.assertIn("median first reaction 315 s (dashed line)", text)
         self.assertNotIn("MINUTES TO CONVERGENCE PER EVENT", text)
+        # Log-Zeitachse mit Klartext-Ticks; unter dem Minutenraster wird
+        # geklemmt statt Sekunden vorzutaeuschen.
         self.assertIn(
-            "dot = first &gt; 1-point move off the pre-drop baseline (either direction), "
-            "line end = durably priced on the side that won · green = resolved YES, blue = resolved NO",
+            "log time axis after broadcast start · dot = first &gt; 1-point move "
+            "(values under the 1-minute grid sit at ≤1 min) · line end = durably priced on the winning side",
             text,
         )
-        # Je Ereignis genau eine Zeile: Label plus Konvergenz-Minuten rechts.
-        self.assertIn("harness_fast 30 min", text)
-        self.assertIn("harness_slow 600 min", text)
+        self.assertIn("≤1 min", text)
+        self.assertIn("10 min", text)
+        self.assertIn("1 h", text)
+        # Je Ereignis genau eine Zeile: Label, rechts Dauer und Outcome.
+        self.assertIn("harness_fast 30 min · YES", text)
+        self.assertIn("harness_slow 10 h · NO", text)
         # Der Klartext steht VOR dem Bild und sagt, wo die Uhren starten.
         self.assertIn("Both clocks start when the broadcast starts — not when the words are said", text)
         self.assertIn("EXCLUDED EVENTS · 1", text)
@@ -1185,14 +1191,14 @@ class WebLeerzustandTest(unittest.TestCase):
         # traegt das Flag, Kachel und Tabelle muessen es zeigen, sonst liest
         # sich "10 min" als Markt, der eine gefallene Aussage verschlief.
         self.assertIn("SLOWEST 10 min first reaction · resolved NO · first move went the wrong way", text)
-        self.assertIn("FASTEST 0.5 min first reaction · resolved YES", text)
+        self.assertIn("FASTEST 30 s first reaction · resolved YES", text)
         # Das handelbare Fenster ist NICHT Konvergenz minus Reaktion — der
         # Lesetext muss das sagen (cnbc_kernen/jre_vance beweisen es).
         self.assertIn("not simply convergence minus reaction", text)
         # YES- und NO-Mediane getrennt, mit n, direkt aus aggregate.
         self.assertIn("RESOLVED YES · n 1", text)
         self.assertIn("RESOLVED NO · n 1", text)
-        self.assertIn("median convergence 600 min", text)
+        self.assertIn("median convergence 10 h", text)
         self.assertIn("median tradeable window 9.8 h", text)
         # Methode/Grenzen kommen aus quelle, zugeklappt.
         self.assertIn("METHOD, SAMPLE &amp; WHAT IT CANNOT SHOW", text)
@@ -1201,8 +1207,8 @@ class WebLeerzustandTest(unittest.TestCase):
         # Tabelle mit Outcome und Status je Zeile, alle Zeilen.
         self.assertIn("MENTIONS EVENTS · 3 OF 3", text)
         self.assertIn("RESOLVED STATUS", text)
-        self.assertIn("harness_fast 0.5 min 30 min 0.5 YES ok", text)
-        self.assertIn("harness_slow 10 min (away) 600 min 9.8 NO ok", text)
+        self.assertIn("harness_fast 30 s 30 min 0.5 YES ok", text)
+        self.assertIn("harness_slow 600 s (away) 10 h 9.8 NO ok", text)
         self.assertIn("harness_none — — — NO no_reaction", text)
         # Leerzustand nennt die Datei.
         leer = _sichtbarer_text(self.ausgabe["leer"]["research_mentions_latency"])
