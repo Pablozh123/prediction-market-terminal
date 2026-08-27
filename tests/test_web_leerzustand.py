@@ -705,8 +705,8 @@ class WebLeerzustandTest(unittest.TestCase):
         # deklarierten Einzahlungen (on-chain nachpruefbar), also
         # 469.25 / 300 = +156.4% auf Einzahlungen.
         self.assertIn("ROI (WALLET · ALL ACTIVITY) +156.4%", text)
-        self.assertIn("net cashflow +$469.25 on deposits of $300", text)
-        self.assertNotIn("on deposits of $300 ·", text)
+        self.assertIn("net cashflow +$469.25 on the one-time deposit of $300", text)
+        self.assertNotIn("on the one-time deposit of $300 ·", text)
         self.assertNotIn("+$175.09", text)                 # die eingefrorene Zahl
         self.assertNotIn("VISIBLE DEPTH", text)
         self.assertNotIn("stake was", text)
@@ -965,10 +965,12 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("NET PNL (WALLET, AS OF 2026-08-17) +$66", text)
         self.assertIn("cash truth from the on-chain wallet", text)
         # Statt der Stake-Summe die Rendite wie auf der Overview: Cashflow
-        # des ganzen Wallets gegen die benannte Basis (der Harness-Ledger
-        # kennt keine Einzahlungen, also gegen die Kaeufe).
-        self.assertIn("ROI (WALLET · ALL ACTIVITY) +33.3%", text)
-        self.assertIn("net cashflow +$59 on buys of $176", text)
+        # des ganzen Wallets gegen die einmalige Einzahlung. Der Harness-
+        # Ledger kennt keine Einzahlungen — dann greift die im Frontend
+        # deklarierte Konstante ($300), nie die Kaufsumme.
+        self.assertIn("ROI (WALLET · ALL ACTIVITY) +19.6%", text)
+        self.assertIn("net cashflow +$59 on the one-time deposit of $300", text)
+        self.assertNotIn("on buys of", text)
         self.assertNotIn("TOTAL STAKE", text)
         # W und L aus dem Wallet-Ledger (Bot-Maerkte), nicht aus den Logs.
         self.assertIn("BETS 2 2W · 0L · 0 open · 2 bot markets in the wallet, worthless counts as lost", text)

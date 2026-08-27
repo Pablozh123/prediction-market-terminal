@@ -2,7 +2,7 @@
 // design reference. Research tabs render the published JSON payloads from
 // public/data/ when the API serves them, incl. their stand_utc stamp and note.
 
-import { esc, num, herkunftSatz, leerZeile } from '../util.js';
+import { esc, num, herkunftSatz, leerZeile, EINZAHLUNGEN_USD } from '../util.js';
 import { stepKurve, diagramm, linien, kalibrierung, fmtZahl, SERIEN_FARBEN } from '../charts.js';
 import { renderMicrostructure } from './microstructure_page.js';
 
@@ -1455,21 +1455,20 @@ function renderLiveRuns(T, payload) {
     };
   })();
   // Statt der Stake-Summe die Rendite, dieselbe Rechnung wie auf der
-  // Overview: Netto-Cashflow des ganzen Wallets gegen die deklarierten
-  // Einzahlungen (on-chain nachpruefbar). Solange der Ledger keine
-  // Einzahlungen kennt, gegen die kumulierten Kaeufe, und die Kachel
-  // benennt ihre Basis.
+  // Overview: Netto-Cashflow des ganzen Wallets gegen die einmalige
+  // Einzahlung (on-chain nachpruefbar) — aus dem Ledger, sonst die
+  // deklarierte Konstante. Nie die Kaufsumme als Basis: reinvestierte
+  // Dollars wuerden die Rendite kleinrechnen.
   const la = ledger && ledger.aggregat ? ledger.aggregat : null;
-  const einzahlungen = la && la.einzahlungen_usd != null ? +la.einzahlungen_usd : null;
-  const roiBasis = einzahlungen || (la && la.kaeufe_usd != null ? +la.kaeufe_usd : 0) || 0;
-  const roiKachel = (la && la.netto_cashflow_usd != null && roiBasis > 0)
+  const einzahlungen = la && la.einzahlungen_usd != null ? +la.einzahlungen_usd : EINZAHLUNGEN_USD;
+  const roiKachel = (la && la.netto_cashflow_usd != null && einzahlungen > 0)
     ? (() => {
-      const roi = (100 * +la.netto_cashflow_usd) / roiBasis;
+      const roi = (100 * +la.netto_cashflow_usd) / einzahlungen;
       return {
         label: 'ROI (WALLET · ALL ACTIVITY)',
         value: (roi >= 0 ? '+' : '') + roi.toFixed(1) + '%',
         sub: 'net cashflow ' + (+la.netto_cashflow_usd >= 0 ? '+$' : '-$') + num(Math.abs(+la.netto_cashflow_usd).toFixed(0))
-          + (einzahlungen ? ' on deposits of $' + num(einzahlungen.toFixed(0)) : ' on buys of $' + num((+la.kaeufe_usd).toFixed(0))),
+          + ' on the one-time deposit of $' + num(einzahlungen.toFixed(0)),
         color: roi >= 0 ? 'var(--pos)' : 'var(--neg)'
       };
     })()

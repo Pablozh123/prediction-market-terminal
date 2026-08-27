@@ -1,5 +1,13 @@
 // Shared formatting and mapping helpers, ported from the design reference.
 
+// Owner-declared one-time deposit into the live-run wallet, verifiable
+// on-chain via the wallet's USDC transfers. The public Data API cannot see
+// deposits, so the figure travels with the pipeline (WALLET_DEPOSITS_USD in
+// the refresh workflow) AND with the frontend: an older API host can still
+// serve a ledger without einzahlungen_usd, and the ROI basis must never
+// silently fall back to the buy volume.
+export const EINZAHLUNGEN_USD = 300;
+
 export function num(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
 
 export function money(n) {
