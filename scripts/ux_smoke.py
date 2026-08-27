@@ -62,7 +62,7 @@ JS_OPEN_DETAILS = ("() => Array.from(document.querySelectorAll('#main details[op
 JS_MAIN_TEXT = "document.querySelector('#main').innerText"
 JS_TOPBAR = "document.querySelector('#topbar').innerText.split('\\n')[0]"
 JS_ACTIVE_CHIPS = ("() => Array.from(document.querySelectorAll('#main [data-act]'))"
-                   ".filter(e => (e.getAttribute('style') || '').includes('background:#C8F542'))"
+                   ".filter(e => (e.getAttribute('style') || '').includes('background:var(--accent)'))"
                    ".map(e => e.textContent.trim())")
 JS_ANCHOR_TOP = ("(id) => { const e = document.getElementById(id); if (!e) return null;"
                  " const c = document.querySelector('.content').getBoundingClientRect();"

@@ -56,29 +56,29 @@ export function herkunftSatz(herkunft, endpunkt) {
 // leere Flaeche kostet nichts; eine erfundene Kennzahl kostet die
 // Glaubwuerdigkeit jeder echten Zahl daneben.
 export function leerBlock(titel, satz) {
-  const M = "font-family:'JetBrains Mono',monospace";
+  const M = "font-family:'IBM Plex Mono',monospace";
   return '<div style="padding:26px 24px">'
-    + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:20px 22px; max-width:760px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#F5A623">' + esc(titel) + '</div>'
-    + '<div style="font-size:13px; color:rgba(255,255,255,.6); margin-top:9px; line-height:1.6">' + esc(satz) + '</div>'
+    + '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:20px 22px; max-width:760px">'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:var(--warn)">' + esc(titel) + '</div>'
+    + '<div style="font-size:13px; color:rgba(var(--ink),.6); margin-top:9px; line-height:1.6">' + esc(satz) + '</div>'
     + '</div></div>';
 }
 
 // Der Seitenkopf allein, damit eine Seite ohne Daten trotzdem sagt, welche
 // Seite sie ist, und darunter warum sie leer ist.
 export function seitenKopf(kicker, titel, farbe) {
-  const M = "font-family:'JetBrains Mono',monospace";
-  return '<div style="padding:20px 24px 14px; border-bottom:1px solid rgba(255,255,255,.09)">'
+  const M = "font-family:'IBM Plex Mono',monospace";
+  return '<div style="padding:20px 24px 14px; border-bottom:1px solid rgba(var(--ink),.09)">'
     + '<div style="' + M + '; font-size:11px; letter-spacing:.18em; color:' + farbe + '">' + esc(kicker) + '</div>'
-    + '<h1 style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin:5px 0 0; font-weight:400">'
+    + '<h1 style="font-size:21px; line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">'
     + esc(titel) + '</h1></div>';
 }
 
 // Eine Zeile dort, wo sonst Zeilen stehen wuerden. Kurz, weil sie mitten in
 // einer Liste sitzt und nicht deren Platz einnehmen soll.
 export function leerZeile(satz) {
-  const M = "font-family:'JetBrains Mono',monospace";
-  return '<div style="padding:22px 20px; ' + M + '; font-size:11.5px; color:rgba(255,255,255,.6); line-height:1.6">'
+  const M = "font-family:'IBM Plex Mono',monospace";
+  return '<div style="padding:22px 20px; ' + M + '; font-size:11.5px; color:rgba(var(--ink),.6); line-height:1.6">'
     + esc(satz) + '</div>';
 }
 

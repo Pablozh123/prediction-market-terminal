@@ -47,8 +47,10 @@ and a research posture**. Details:
   CLOB; Kalshi) plus `src/copy_trading.py` (SQLite paper engine and on-chain
   reads), and the recorders `book_recorder.py`, `book_stream.py`,
   `kalshi_recorder.py`, `kalshi_stream.py`.
-- **Design system:** a lime accent `#C8F542` on a dark background, serif
-  headlines, monospaced data, sans body; CSS in `inject_css()`.
+- **Design system:** an amber accent `#D9A648` on a warm near-black, green/red
+  reserved for signed values, monospaced data, sans headlines and body
+  (IBM Plex); the palette of record is the `:root` block in
+  `web/css/terminal.css`.
 - **Caching:** `@st.cache_data` throughout with TTLs of 30 to 900 seconds, so
   origin API load is independent of visitor count — single-digit percentages of
   the documented limits even at 10,000 visitors a day.

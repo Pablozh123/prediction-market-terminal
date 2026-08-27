@@ -82,8 +82,8 @@ class SvgTests(unittest.TestCase):
         # 2 Wallets x 2 Maerkte: drei belegt (lime), eines leer. Auf die
         # Zellform rx="2.5" gepruefft, sonst zaehlen Knoten in derselben
         # Clusterfarbe mit.
-        belegt = re.findall(r'rx="2\.5" fill="#C8F542" fill-opacity', svg)
-        leer = re.findall(r'rx="2\.5" fill="#ffffff" fill-opacity="0\.045"', svg)
+        belegt = re.findall(r'rx="2\.5" fill="#D9A648" fill-opacity', svg)
+        leer = re.findall(r'rx="2\.5" fill="#EAE6DC" fill-opacity="0\.045"', svg)
         self.assertEqual(len(belegt), 3)
         self.assertEqual(len(leer), 1)
 

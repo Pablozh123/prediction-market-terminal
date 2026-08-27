@@ -8,10 +8,10 @@
 
 import { esc } from './util.js';
 
-const M = "font-family:'JetBrains Mono',monospace";
-const CARD = 'background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px';
+const M = "font-family:'IBM Plex Mono',monospace";
+const CARD = 'background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px';
 
-const BALKEN_FARBE = { gewinn: '#C8F542', kosten: '#FF4545', summe: '#4F8EF7' };
+const BALKEN_FARBE = { gewinn: 'var(--pos)', kosten: 'var(--neg)', summe: 'var(--info)' };
 
 // Diagrammgeometrie des Balken- und Intervalldiagramms. Labelspalte links,
 // Balken rechts.
@@ -73,15 +73,15 @@ function achse(sk, dia, hoehe) {
   const nullX = sk.x(0);
   if (sk.min < 0 && sk.max > 0) {
     out += '<line x1="' + nullX + '" y1="6" x2="' + nullX + '" y2="' + (hoehe - 22)
-      + '" stroke="rgba(255,255,255,.28)" stroke-width="1" />';
+      + '" style="stroke:rgba(var(--ink),.28)" stroke-width="1" />';
   }
   if (typeof dia.referenz === 'number' && dia.referenz !== 0) {
     const rx = sk.x(dia.referenz);
     out += '<line x1="' + rx + '" y1="6" x2="' + rx + '" y2="' + (hoehe - 22)
-      + '" stroke="rgba(255,255,255,.35)" stroke-width="1" stroke-dasharray="4 4" />';
+      + '" style="stroke:rgba(var(--ink),.35)" stroke-width="1" stroke-dasharray="4 4" />';
     if (dia.referenz_label) {
-      out += '<text x="' + rx + '" y="' + (hoehe - 8) + '" fill="rgba(255,255,255,.6)" '
-        + 'font-size="11" font-family="JetBrains Mono, monospace" text-anchor="middle">'
+      out += '<text x="' + rx + '" y="' + (hoehe - 8) + '" style="fill:rgba(var(--ink),.6)" '
+        + 'font-size="11" font-family="IBM Plex Mono, monospace" text-anchor="middle">'
         + esc(dia.referenz_label) + '</text>';
     }
   }
@@ -89,13 +89,13 @@ function achse(sk, dia, hoehe) {
 }
 
 function labelText(text, y) {
-  return '<text x="' + LABEL_X + '" y="' + (y + 4) + '" fill="rgba(255,255,255,.72)" font-size="11.5" '
-    + 'font-family="JetBrains Mono, monospace" text-anchor="end">' + esc(text) + '</text>';
+  return '<text x="' + LABEL_X + '" y="' + (y + 4) + '" style="fill:rgba(var(--ink),.72)" font-size="11.5" '
+    + 'font-family="IBM Plex Mono, monospace" text-anchor="end">' + esc(text) + '</text>';
 }
 
 function wertText(text, x, y, farbe) {
-  return '<text x="' + x + '" y="' + (y + 4) + '" fill="' + farbe + '" font-size="11.5" '
-    + 'font-family="JetBrains Mono, monospace">' + esc(text) + '</text>';
+  return '<text x="' + x + '" y="' + (y + 4) + '" style="fill:' + farbe + '" font-size="11.5" '
+    + 'font-family="IBM Plex Mono, monospace">' + esc(text) + '</text>';
 }
 
 /** Balken- und Intervalldiagramm. Eine Zeile je Punkt, Nulllinie wenn noetig. */
@@ -111,13 +111,13 @@ export function diagramm(dia) {
   dia.punkte.forEach((p) => {
     if (gruppen && Array.isArray(p.werte)) {
       p.werte.forEach((w, i) => {
-        const farbe = BALKEN_FARBE[p.art] || '#4F8EF7';
+        const farbe = BALKEN_FARBE[p.art] || 'var(--info)';
         const x0 = sk.x(0);
         const x1 = sk.x(w);
         koerper += labelText(gruppen[i] + ' · ' + p.label, y);
         koerper += '<rect x="' + Math.min(x0, x1) + '" y="' + (y - 8) + '" width="' + Math.abs(x1 - x0)
-          + '" height="16" rx="3" fill="' + farbe + '" fill-opacity="' + (i === 0 ? '.45' : '.95') + '" />';
-        koerper += wertText(fmtZahl(w), PLOT_R + 8, y, 'rgba(255,255,255,.75)');
+          + '" height="16" rx="3" style="fill:' + farbe + '" fill-opacity="' + (i === 0 ? '.45' : '.95') + '" />';
+        koerper += wertText(fmtZahl(w), PLOT_R + 8, y, 'rgba(var(--ink),.75)');
         y += ZEILE;
       });
       return;
@@ -133,17 +133,17 @@ export function diagramm(dia) {
       // Hantel (zwei Lesarten derselben Zahl) faerbt nach dem Endwert und
       // beschriftet ihn, nicht die Spanne. Ohne beide bleibt es das alte
       // Intervall mit Referenzfaerbung.
-      const farbe = p.farbe || (beruehrt ? '#F5A623' : '#4F8EF7');
+      const farbe = p.farbe || (beruehrt ? 'var(--warn)' : 'var(--info)');
       koerper += '<line x1="' + xa + '" y1="' + y + '" x2="' + xb + '" y2="' + y
-        + '" stroke="' + farbe + '" stroke-width="3" stroke-linecap="round" stroke-opacity="' + (p.farbe ? '.45' : '1') + '" />';
+        + '" style="stroke:' + farbe + '" stroke-width="3" stroke-linecap="round" stroke-opacity="' + (p.farbe ? '.45' : '1') + '" />';
       koerper += '<line x1="' + xa + '" y1="' + (y - 6) + '" x2="' + xa + '" y2="' + (y + 6)
-        + '" stroke="' + farbe + '" stroke-width="2" />';
+        + '" style="stroke:' + farbe + '" stroke-width="2" />';
       koerper += '<line x1="' + xb + '" y1="' + (y - 6) + '" x2="' + xb + '" y2="' + (y + 6)
-        + '" stroke="' + farbe + '" stroke-width="2" />';
-      koerper += '<circle cx="' + xm + '" cy="' + y + '" r="4.5" fill="' + farbe + '" />';
-      koerper += wertText(p.text || (fmtZahl(p.von) + ' … ' + fmtZahl(p.bis)), PLOT_R + 8, y, 'rgba(255,255,255,.75)');
+        + '" style="stroke:' + farbe + '" stroke-width="2" />';
+      koerper += '<circle cx="' + xm + '" cy="' + y + '" r="4.5" style="fill:' + farbe + '" />';
+      koerper += wertText(p.text || (fmtZahl(p.von) + ' … ' + fmtZahl(p.bis)), PLOT_R + 8, y, 'rgba(var(--ink),.75)');
     } else if (typeof p.wert === 'number') {
-      const farbe = BALKEN_FARBE[p.art] || (p.wert < 0 ? '#FF4545' : '#C8F542');
+      const farbe = BALKEN_FARBE[p.art] || (p.wert < 0 ? 'var(--neg)' : 'var(--pos)');
       // Auf einer referenzverankerten Skala liegt die Null links ausserhalb;
       // der Balken beginnt dann an der Referenz, denn die Abweichung von ihr
       // ist die Aussage.
@@ -151,14 +151,14 @@ export function diagramm(dia) {
       const x0 = sk.x(anker);
       const x1 = sk.x(p.wert);
       koerper += '<rect x="' + Math.min(x0, x1) + '" y="' + (y - 9) + '" width="' + Math.abs(x1 - x0)
-        + '" height="18" rx="3" fill="' + farbe + '" fill-opacity=".92" />';
-      koerper += wertText(fmtZahl(p.wert), PLOT_R + 8, y, 'rgba(255,255,255,.78)');
+        + '" height="18" rx="3" style="fill:' + farbe + '" fill-opacity=".92" />';
+      koerper += wertText(fmtZahl(p.wert), PLOT_R + 8, y, 'rgba(var(--ink),.78)');
     }
     y += ZEILE;
   });
 
   return '<div style="' + CARD + '; padding:14px 16px 10px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(255,255,255,.5); margin-bottom:4px">'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(var(--ink),.5); margin-bottom:4px">'
     + esc(dia.titel || '') + (dia.einheit ? ' · ' + esc(dia.einheit) : '') + '</div>'
     + '<svg width="100%" viewBox="0 0 ' + BREITE + ' ' + hoehe + '" role="img" aria-label="' + esc(dia.titel || 'chart') + '">'
     + achse(sk, dia, hoehe) + koerper + '</svg></div>';
@@ -166,7 +166,7 @@ export function diagramm(dia) {
 
 // Serienfarben fuer Mehrlinien-Diagramme: die vier Grundfarben des Terminals
 // und ihre gedaempften Verwandten, wie ACHSEN_FARBE auf der Postmortem-Seite.
-export const SERIEN_FARBEN = ['#C8F542', '#4F8EF7', '#F5A623', '#FF7A7A', '#7DE2D1', '#C792EA', '#9AB0FF', '#FFD166', '#95A0AB'];
+export const SERIEN_FARBEN = ['var(--accent)', 'var(--info)', 'var(--pos)', 'var(--cat-violet)', 'var(--cat-teal)', 'var(--neg-soft)', 'var(--cat-gold)', 'var(--cat-blue2)', 'var(--muted)'];
 
 /** Mehrere Linien ueber einer gemeinsamen Kategorienachse.
  *
@@ -197,14 +197,14 @@ export function linien(k) {
   [0, 0.5, 1].forEach((f) => {
     const w = min + (max - min) * f;
     raster += '<line x1="' + L + '" y1="' + y(w).toFixed(1) + '" x2="' + R + '" y2="' + y(w).toFixed(1)
-      + '" stroke="rgba(255,255,255,' + (f === 0 ? '.18' : '.07') + ')" stroke-width="1" />'
-      + '<text x="' + (L - 6) + '" y="' + (y(w) + 4).toFixed(1) + '" fill="rgba(255,255,255,.6)" font-size="11" '
-      + 'font-family="JetBrains Mono, monospace" text-anchor="end">' + esc(fmtZahl(Math.round(w * 1000) / 1000)) + '</text>';
+      + '" style="stroke:rgba(var(--ink),' + (f === 0 ? '.18' : '.07') + ')" stroke-width="1" />'
+      + '<text x="' + (L - 6) + '" y="' + (y(w) + 4).toFixed(1) + '" style="fill:rgba(var(--ink),.6)" font-size="11" '
+      + 'font-family="IBM Plex Mono, monospace" text-anchor="end">' + esc(fmtZahl(Math.round(w * 1000) / 1000)) + '</text>';
   });
   let xLabels = '';
   k.x.forEach((label, i) => {
-    xLabels += '<text x="' + x(i).toFixed(1) + '" y="' + (H - 10) + '" fill="rgba(255,255,255,.6)" font-size="11" '
-      + 'font-family="JetBrains Mono, monospace" text-anchor="middle">' + esc(String(label)) + '</text>';
+    xLabels += '<text x="' + x(i).toFixed(1) + '" y="' + (H - 10) + '" style="fill:rgba(var(--ink),.6)" font-size="11" '
+      + 'font-family="IBM Plex Mono, monospace" text-anchor="middle">' + esc(String(label)) + '</text>';
   });
   let pfade = '';
   let legende = '';
@@ -216,20 +216,20 @@ export function linien(k) {
       if (typeof w !== 'number') { offen = false; return; }
       d += (offen ? ' L ' : ' M ') + x(i).toFixed(1) + ' ' + y(w).toFixed(1);
       offen = true;
-      pfade += '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(w).toFixed(1) + '" r="3" fill="' + farbe + '">'
+      pfade += '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(w).toFixed(1) + '" r="3" style="fill:' + farbe + '">'
         + '<title>' + esc(s.name + ' · ' + k.x[i] + ' · ' + fmtZahl(w)) + '</title></circle>';
     });
-    if (d) pfade += '<path d="' + d.trim() + '" fill="none" stroke="' + farbe + '" stroke-width="1.8" />';
-    legende += '<div style="display:flex; align-items:center; gap:6px; ' + M + '; font-size:11px; color:rgba(255,255,255,.65)">'
+    if (d) pfade += '<path d="' + d.trim() + '" fill="none" style="stroke:' + farbe + '" stroke-width="1.8" />';
+    legende += '<div style="display:flex; align-items:center; gap:6px; ' + M + '; font-size:11px; color:rgba(var(--ink),.65)">'
       + '<span style="display:inline-block; width:14px; height:3px; background:' + farbe + '; border-radius:2px"></span>'
       + esc(s.name) + '</div>';
   });
 
   return '<div style="' + CARD + '; padding:14px 16px 10px">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:4px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(255,255,255,.5)">'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(var(--ink),.5)">'
     + esc(k.titel || '') + (k.einheit ? ' · ' + esc(k.einheit) : '') + '</div>'
-    + (k.hinweis ? '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55)">' + esc(k.hinweis) + '</div>' : '')
+    + (k.hinweis ? '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.55)">' + esc(k.hinweis) + '</div>' : '')
     + '</div>'
     + '<div style="display:flex; gap:12px; flex-wrap:wrap; margin:4px 0 6px">' + legende + '</div>'
     + '<svg width="100%" viewBox="0 0 ' + B + ' ' + H + '" role="img" aria-label="' + esc(k.titel || 'lines') + '">'
@@ -257,17 +257,17 @@ export function kalibrierung(k) {
     const cx = pos(p.vorhergesagt), cy = S - pos(p.realisiert);
     const ci = Array.isArray(p.ci) && p.ci.length === 2 ? p.ci : null;
     const daneben = ci && (ci[0] > p.vorhergesagt || ci[1] < p.vorhergesagt);
-    const farbe = daneben ? '#F5A623' : '#4F8EF7';
+    const farbe = daneben ? 'var(--warn)' : 'var(--info)';
     const r = 2.5 + 4.5 * Math.sqrt((+p.n || 0) / nMax);
     linie += (i === 0 ? 'M ' : ' L ') + cx.toFixed(1) + ' ' + cy.toFixed(1);
     if (ci) {
       marken += '<line x1="' + cx.toFixed(1) + '" y1="' + (S - pos(ci[0])).toFixed(1) + '" x2="' + cx.toFixed(1)
-        + '" y2="' + (S - pos(ci[1])).toFixed(1) + '" stroke="' + farbe + '" stroke-opacity=".45" stroke-width="1" />';
+        + '" y2="' + (S - pos(ci[1])).toFixed(1) + '" style="stroke:' + farbe + '" stroke-opacity=".45" stroke-width="1" />';
     }
-    marken += '<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="' + r.toFixed(1) + '" fill="' + farbe + '" fill-opacity=".9">'
+    marken += '<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="' + r.toFixed(1) + '" style="fill:' + farbe + '" fill-opacity=".9">'
       + '<title>' + esc('predicted ' + Math.round(p.vorhergesagt * 100) + '% · realised ' + Math.round(p.realisiert * 100) + '% · n ' + (p.n != null ? p.n : '—')) + '</title></circle>';
   });
-  const achse = 'fill="rgba(255,255,255,.6)" font-size="10.5" font-family="JetBrains Mono, monospace"';
+  const achse = 'style="fill:rgba(var(--ink),.6)" font-size="10.5" font-family="IBM Plex Mono, monospace"';
   // Axis lettering that survives the ~200 px small multiples of the category
   // page: the ticks "0" and "1" sit at the ends of each axis, "predicted"
   // alone in the middle under the x-axis, "realised" rotated along the
@@ -275,12 +275,12 @@ export function kalibrierung(k) {
   // "predicted 1" at that width.
   const yMitte = S / 2;
   return '<div style="' + CARD + '; padding:12px 14px 8px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.12em; color:rgba(255,255,255,.6)">' + esc(k.titel || '') + '</div>'
-    + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55); margin-top:2px">' + esc(k.hinweis || ('n ' + gesamt + ' · ' + punkte.length + ' bins')) + '</div>'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.12em; color:rgba(var(--ink),.6)">' + esc(k.titel || '') + '</div>'
+    + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.55); margin-top:2px">' + esc(k.hinweis || ('n ' + gesamt + ' · ' + punkte.length + ' bins')) + '</div>'
     + '<svg width="100%" viewBox="0 0 ' + S + ' ' + S + '" role="img" aria-label="' + esc(k.titel || 'calibration') + '" style="max-width:240px; display:block; margin:6px auto 0">'
-    + '<rect x="' + PAD + '" y="' + PAD + '" width="' + (S - 2 * PAD) + '" height="' + (S - 2 * PAD) + '" fill="none" stroke="rgba(255,255,255,.1)" />'
-    + '<line x1="' + PAD + '" y1="' + (S - PAD) + '" x2="' + (S - PAD) + '" y2="' + PAD + '" stroke="rgba(255,255,255,.3)" stroke-dasharray="3 3" />'
-    + '<path d="' + linie + '" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="1" />'
+    + '<rect x="' + PAD + '" y="' + PAD + '" width="' + (S - 2 * PAD) + '" height="' + (S - 2 * PAD) + '" fill="none" style="stroke:rgba(var(--ink),.1)" />'
+    + '<line x1="' + PAD + '" y1="' + (S - PAD) + '" x2="' + (S - PAD) + '" y2="' + PAD + '" style="stroke:rgba(var(--ink),.3)" stroke-dasharray="3 3" />'
+    + '<path d="' + linie + '" fill="none" style="stroke:rgba(var(--ink),.25)" stroke-width="1" />'
     + marken
     // x-axis: 0 (left end), predicted (centre), 1 (right end)
     + '<text x="' + PAD + '" y="' + (S - 6) + '" ' + achse + ' text-anchor="start">0</text>'
@@ -345,7 +345,7 @@ export function pnlZeitkurve(k) {
   const x = (ms) => L + ((ms - t0) / spanne) * (R - L);
   const y = (w) => BOT - ((w - min) / (max - min)) * (BOT - TOP);
   const letzte = werte[werte.length - 1];
-  const farbe = k.farbe || (letzte >= 0 ? '#C8F542' : '#FF4545');
+  const farbe = k.farbe || (letzte >= 0 ? 'var(--pos)' : 'var(--neg)');
   const gid = 'pnlgrad' + Math.abs(Math.round(letzte * 100) + pts.length).toString(36);
 
   // Treppe nach rechts, dann Flaeche bis zur Nulllinie (oder zum Boden).
@@ -362,13 +362,13 @@ export function pnlZeitkurve(k) {
   ticks.forEach((tv) => {
     const yy = y(tv);
     if (yy < TOP - 1 || yy > BOT + 1) return;
-    gitter += '<line x1="' + L + '" y1="' + yy.toFixed(1) + '" x2="' + R + '" y2="' + yy.toFixed(1) + '" stroke="rgba(255,255,255,.07)" stroke-width="1" />'
-      + '<text x="' + (R + 8) + '" y="' + (yy + 3.5).toFixed(1) + '" fill="rgba(255,255,255,.6)" font-size="10.5" font-family="JetBrains Mono, monospace">' + esc(kurzGeld(tv)) + '</text>';
+    gitter += '<line x1="' + L + '" y1="' + yy.toFixed(1) + '" x2="' + R + '" y2="' + yy.toFixed(1) + '" style="stroke:rgba(var(--ink),.07)" stroke-width="1" />'
+      + '<text x="' + (R + 8) + '" y="' + (yy + 3.5).toFixed(1) + '" style="fill:rgba(var(--ink),.6)" font-size="10.5" font-family="IBM Plex Mono, monospace">' + esc(kurzGeld(tv)) + '</text>';
   });
   let nulllinie = '';
   if (min < 0 && max > 0) {
     nulllinie = '<line x1="' + L + '" y1="' + y(0).toFixed(1) + '" x2="' + R + '" y2="' + y(0).toFixed(1)
-      + '" stroke="rgba(255,255,255,.28)" stroke-width="1" stroke-dasharray="4 4" />';
+      + '" style="stroke:rgba(var(--ink),.28)" stroke-width="1" stroke-dasharray="4 4" />';
   }
 
   // Datum: Anfang, Ende und bis zu zwei Zwischenmarken auf der Zeit.
@@ -378,24 +378,24 @@ export function pnlZeitkurve(k) {
   for (let i = 0; i < nDatum; i += 1) {
     const ms = t0 + (spanne * i) / (nDatum - 1);
     const anker = i === 0 ? 'start' : i === nDatum - 1 ? 'end' : 'middle';
-    xLabels += '<text x="' + x(ms).toFixed(1) + '" y="' + (H - 9) + '" fill="rgba(255,255,255,.6)" font-size="10.5" '
-      + 'font-family="JetBrains Mono, monospace" text-anchor="' + anker + '">' + esc(datum(ms)) + '</text>';
+    xLabels += '<text x="' + x(ms).toFixed(1) + '" y="' + (H - 9) + '" style="fill:rgba(var(--ink),.6)" font-size="10.5" '
+      + 'font-family="IBM Plex Mono, monospace" text-anchor="' + anker + '">' + esc(datum(ms)) + '</text>';
   }
 
   // Marken nur, wenn die Serie so duenn ist, dass jeder Punkt eine Aufloesung ist.
   let marken = '';
   if (k.marken !== false && pts.length <= 60) {
     pts.forEach((p) => {
-      marken += '<circle cx="' + x(p.ms).toFixed(1) + '" cy="' + y(p.wert).toFixed(1) + '" r="2.4" fill="' + farbe + '"><title>' + esc(datum(p.ms) + ' · ' + kurzGeld(p.wert, true)) + '</title></circle>';
+      marken += '<circle cx="' + x(p.ms).toFixed(1) + '" cy="' + y(p.wert).toFixed(1) + '" r="2.4" style="fill:' + farbe + '"><title>' + esc(datum(p.ms) + ' · ' + kurzGeld(p.wert, true)) + '</title></circle>';
     });
   }
-  const endPunkt = '<circle cx="' + x(t1).toFixed(1) + '" cy="' + y(letzte).toFixed(1) + '" r="4" fill="' + farbe + '" stroke="#10151A" stroke-width="2" />';
+  const endPunkt = '<circle cx="' + x(t1).toFixed(1) + '" cy="' + y(letzte).toFixed(1) + '" r="4" style="fill:' + farbe + '; stroke:var(--panel)" stroke-width="2" />';
 
   return '<svg width="100%" viewBox="0 0 ' + B + ' ' + H + '" role="img" aria-label="' + esc(k.titel || 'cumulative PnL') + '" style="display:block">'
     + '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + farbe + '" stop-opacity=".28" /><stop offset="1" stop-color="' + farbe + '" stop-opacity="0" /></linearGradient></defs>'
     + gitter + nulllinie
     + '<path d="' + flaeche + '" fill="url(#' + gid + ')" stroke="none" />'
-    + '<path d="' + linie + '" fill="none" stroke="' + farbe + '" stroke-width="2" vector-effect="non-scaling-stroke" />'
+    + '<path d="' + linie + '" fill="none" style="stroke:' + farbe + '" stroke-width="2" vector-effect="non-scaling-stroke" />'
     + marken + endPunkt + xLabels
     + '</svg>';
 }
@@ -419,7 +419,7 @@ export function stepKurve(k) {
   const x = (i) => L + (i * (R - L)) / (k.punkte.length - 1);
 
   const letzte = werte[werte.length - 1];
-  const farbe = k.farbe || (letzte >= 0 ? '#C8F542' : '#FF4545');
+  const farbe = k.farbe || (letzte >= 0 ? 'var(--pos)' : 'var(--neg)');
 
   // Treppe: erst waagerecht zum naechsten Schritt, dann senkrecht auf ihn.
   let pfad = 'M ' + x(0).toFixed(1) + ' ' + y(werte[0]).toFixed(1);
@@ -428,31 +428,31 @@ export function stepKurve(k) {
   }
   let marken = '';
   werte.forEach((w, i) => {
-    marken += '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(w).toFixed(1) + '" r="2.6" fill="' + farbe + '" />';
+    marken += '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(w).toFixed(1) + '" r="2.6" style="fill:' + farbe + '" />';
   });
 
   let nulllinie = '';
   if (min < 0 && max > 0) {
     nulllinie = '<line x1="' + L + '" y1="' + y(0).toFixed(1) + '" x2="' + R + '" y2="' + y(0).toFixed(1)
-      + '" stroke="rgba(255,255,255,.25)" stroke-width="1" stroke-dasharray="4 4" />';
+      + '" style="stroke:rgba(var(--ink),.25)" stroke-width="1" stroke-dasharray="4 4" />';
   }
 
-  const endLabel = '<text x="' + (R + 8) + '" y="' + (y(letzte) + 4).toFixed(1) + '" fill="' + farbe
-    + '" font-size="12" font-family="JetBrains Mono, monospace">' + esc(fmtZahl(letzte)) + '</text>';
-  const xLabels = '<text x="' + L + '" y="' + (H - 8) + '" fill="rgba(255,255,255,.6)" font-size="11" '
-    + 'font-family="JetBrains Mono, monospace">' + esc(String(k.punkte[0].label || '')) + '</text>'
-    + '<text x="' + R + '" y="' + (H - 8) + '" fill="rgba(255,255,255,.6)" font-size="11" '
-    + 'font-family="JetBrains Mono, monospace" text-anchor="end">' + esc(String(k.punkte[k.punkte.length - 1].label || '')) + '</text>';
+  const endLabel = '<text x="' + (R + 8) + '" y="' + (y(letzte) + 4).toFixed(1) + '" style="fill:' + farbe
+    + '" font-size="12" font-family="IBM Plex Mono, monospace">' + esc(fmtZahl(letzte)) + '</text>';
+  const xLabels = '<text x="' + L + '" y="' + (H - 8) + '" style="fill:rgba(var(--ink),.6)" font-size="11" '
+    + 'font-family="IBM Plex Mono, monospace">' + esc(String(k.punkte[0].label || '')) + '</text>'
+    + '<text x="' + R + '" y="' + (H - 8) + '" style="fill:rgba(var(--ink),.6)" font-size="11" '
+    + 'font-family="IBM Plex Mono, monospace" text-anchor="end">' + esc(String(k.punkte[k.punkte.length - 1].label || '')) + '</text>';
 
   return '<div style="' + CARD + '; padding:14px 16px 10px">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:4px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(255,255,255,.5)">'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(var(--ink),.5)">'
     + esc(k.titel || '') + (k.einheit ? ' · ' + esc(k.einheit) : '') + '</div>'
-    + (k.hinweis ? '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55)">' + esc(k.hinweis) + '</div>' : '')
+    + (k.hinweis ? '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.55)">' + esc(k.hinweis) + '</div>' : '')
     + '</div>'
     + '<svg width="100%" viewBox="0 0 ' + B + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="' + esc(k.titel || 'series') + '">'
     + nulllinie
-    + '<path d="' + pfad + '" fill="none" stroke="' + farbe + '" stroke-width="2" />'
+    + '<path d="' + pfad + '" fill="none" style="stroke:' + farbe + '" stroke-width="2" />'
     + marken + endLabel + xLabels
     + '</svg></div>';
 }
