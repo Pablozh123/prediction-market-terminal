@@ -22,6 +22,8 @@ Model:
 
 from __future__ import annotations
 
+import inspect
+import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -571,37 +573,74 @@ def compute_stats(ledger: pd.DataFrame, open_positions: pd.DataFrame, curve: pd.
     return stats
 
 
+def _supports_end_param(fetch_activity: Callable[..., pd.DataFrame]) -> bool:
+    """Ob der Fetcher ein ``end``-Keyword (Unix-Sekunden) annimmt."""
+
+    try:
+        return "end" in inspect.signature(fetch_activity).parameters
+    except (TypeError, ValueError):
+        return False
+
+
 def fetch_window_trades(
     wallet: str,
     window_start: pd.Timestamp,
     fetch_activity: Callable[..., pd.DataFrame],
     page_size: int = 500,
-    max_rows: int = 3000,
+    max_rows: int = 30_000,
+    slice_rows: int = 3000,
 ) -> pd.DataFrame:
     """Page the wallet's activity feed back until the window start (TRADE rows only).
 
-    The public data API rejects deep pagination (offset+limit beyond ~3500), so the
-    scan is capped; for hyper-active wallets the window covers the most recent
-    ``max_rows`` activity rows. Errors on follow-up pages keep the rows already
-    fetched instead of failing the whole backtest.
+    The public data API rejects deep pagination (offset+limit beyond a few
+    thousand rows), so offsets alone cannot cover a real window for an active
+    wallet. When the fetcher accepts an ``end`` timestamp (the default
+    ``get_polymarket_activity`` does), the scan opens a new slice at the oldest
+    timestamp seen instead of paging deeper — offset resets to zero and the
+    window keeps extending backwards. The boundary row is fetched twice by
+    design (``end`` is inclusive; several trades can share one second) and
+    removed by the transaction-hash dedupe below. ``max_rows`` stays as a
+    safety cap; only when it is hit is the window reported as truncated.
+    Errors on follow-up pages keep the rows already fetched instead of failing
+    the whole backtest.
     """
 
     frames: list[pd.DataFrame] = []
     offset = 0
+    total = 0
+    slice_end: int | None = None
     truncated = False
     window_covered = False
-    while offset < max_rows:
-        try:
-            page = fetch_activity(wallet, limit=page_size, offset=offset)
-        except Exception:
+    supports_end = _supports_end_param(fetch_activity)
+    while total < max_rows:
+        # Ein transienter Fehler (Rate-Limit, Netz) darf nicht den ganzen
+        # Scan beenden — sonst deckt der Backtest still nur einen Bruchteil
+        # des Fensters ab. Zwei Wiederholungen mit kurzem Backoff, erst
+        # danach gilt die Seite als verloren.
+        page = None
+        letzter_fehler: Exception | None = None
+        for versuch in range(3):
+            try:
+                if slice_end is None:
+                    page = fetch_activity(wallet, limit=page_size, offset=offset)
+                else:
+                    page = fetch_activity(wallet, limit=page_size, offset=offset, end=slice_end)
+                letzter_fehler = None
+                break
+            except Exception as exc:
+                letzter_fehler = exc
+                if versuch < 2:
+                    time.sleep(0.6 * (versuch + 1))
+        if letzter_fehler is not None:
             if frames:
                 truncated = True
                 break
-            raise
+            raise letzter_fehler
         if page is None or page.empty:
             window_covered = True
             break
         frames.append(page)
+        total += len(page)
         oldest = pd.to_datetime(page["time"], utc=True, errors="coerce").min()
         if pd.isna(oldest) or oldest < window_start:
             window_covered = True
@@ -610,6 +649,16 @@ def fetch_window_trades(
             window_covered = True
             break
         offset += page_size
+        if offset + page_size > slice_rows:
+            if not supports_end:
+                break
+            next_end = int(oldest.timestamp())
+            if slice_end is not None and next_end >= slice_end:
+                # Mehr Zeilen in einer Sekunde als eine Scheibe fasst — hier
+                # gaebe es keinen Fortschritt mehr, nur dieselbe Antwort.
+                break
+            slice_end = next_end
+            offset = 0
     if frames and not window_covered and not truncated:
         truncated = True
     if not frames:
@@ -625,11 +674,48 @@ def fetch_window_trades(
     return trades.sort_values("time", ascending=True).reset_index(drop=True), truncated
 
 
+def _resolve_token_values(
+    trades: pd.DataFrame,
+    fetch_markets_by_ids: Callable[[list[str]], list[dict[str, Any]]],
+    fetch_markets_by_event_slugs: Callable[[list[str]], list[dict[str, Any]]] | None,
+    token_value_builder: Callable[[list[dict[str, Any]]], dict[str, dict[str, Any]]],
+) -> dict[str, dict[str, Any]]:
+    """Token -> Wert/Status fuer alle gehandelten Maerkte des Fensters.
+
+    Erst ueber die conditionIds (eine Batch-Abfrage je 20). Was dort fehlt —
+    Sport-Untermaerkte kommen aus ``/markets?condition_ids=`` regelmaessig
+    leer zurueck — wird ueber das Elternereignis nachgeschlagen
+    (``/events?slug=``). Ohne diesen zweiten Weg blieben ganze Spieltage
+    unaufgeloest: keine Wins/Losses, alles "open at cost".
+    """
+
+    if trades is None or trades.empty:
+        return {}
+    trade_keys = sorted({str(key) for key in trades.get("market_key", pd.Series(dtype=str)).dropna().astype(str) if key})
+    markets = fetch_markets_by_ids(trade_keys) if trade_keys else []
+    token_values = token_value_builder(markets)
+    if fetch_markets_by_event_slugs is None or "asset" not in trades.columns:
+        return token_values
+    slug_col = "event_slug" if "event_slug" in trades.columns else ("slug" if "slug" in trades.columns else None)
+    if slug_col is None:
+        return token_values
+    fehlend = trades[~trades["asset"].astype(str).isin(set(token_values))]
+    slugs = sorted({str(s).strip() for s in fehlend[slug_col].dropna().astype(str) if str(s).strip()})
+    if not slugs:
+        return token_values
+    extra = fetch_markets_by_event_slugs(slugs)
+    if extra:
+        for key, value in token_value_builder(extra).items():
+            token_values.setdefault(key, value)
+    return token_values
+
+
 def run_backtest(
     config: BacktestConfig,
     *,
     fetch_activity: Callable[..., pd.DataFrame] | None = None,
     fetch_markets_by_ids: Callable[[list[str]], list[dict[str, Any]]] | None = None,
+    fetch_markets_by_event_slugs: Callable[[list[str]], list[dict[str, Any]]] | None = None,
     token_values: dict[str, dict[str, Any]] | None = None,
     now: pd.Timestamp | None = None,
 ) -> BacktestResult:
@@ -640,6 +726,9 @@ def run_backtest(
 
         fetch_activity = fetch_activity or md.get_polymarket_activity
         fetch_markets_by_ids = fetch_markets_by_ids or md.get_polymarket_markets_by_condition_ids
+        # Der Slug-Rueckweg gehoert zum Produktionspfad; injizierte Fetcher
+        # (Tests) bekommen ihn nur, wenn sie ihn selbst mitbringen.
+        fetch_markets_by_event_slugs = fetch_markets_by_event_slugs or md.get_polymarket_markets_by_event_slugs
         token_value_builder = md.polymarket_token_value_map
     else:
         from src import prediction_markets as md
@@ -651,13 +740,7 @@ def run_backtest(
     trades, window_truncated = fetch_window_trades(config.wallet, window_start, fetch_activity)
 
     if token_values is None:
-        trade_keys = (
-            sorted({str(key) for key in trades.get("market_key", pd.Series(dtype=str)).dropna().astype(str) if key})
-            if trades is not None and not trades.empty
-            else []
-        )
-        markets = fetch_markets_by_ids(trade_keys) if trade_keys else []
-        token_values = token_value_builder(markets)
+        token_values = _resolve_token_values(trades, fetch_markets_by_ids, fetch_markets_by_event_slugs, token_value_builder)
 
     ledger, positions = replay(trades, config, token_values)
     flat_config = BacktestConfig(
@@ -733,6 +816,7 @@ def strategy_comparison(
     *,
     fetch_activity: Callable[..., pd.DataFrame] | None = None,
     fetch_markets_by_ids: Callable[[list[str]], list[dict[str, Any]]] | None = None,
+    fetch_markets_by_event_slugs: Callable[[list[str]], list[dict[str, Any]]] | None = None,
     token_values: dict[str, dict[str, Any]] | None = None,
     now: pd.Timestamp | None = None,
 ) -> pd.DataFrame:
@@ -746,6 +830,10 @@ def strategy_comparison(
 
     from src import prediction_markets as md
 
+    if fetch_markets_by_ids is None:
+        # Produktionspfad: der Slug-Rueckweg gehoert dazu (siehe
+        # _resolve_token_values); injizierte Fetcher bringen ihn selbst mit.
+        fetch_markets_by_event_slugs = fetch_markets_by_event_slugs or md.get_polymarket_markets_by_event_slugs
     fetch_activity = fetch_activity or md.get_polymarket_activity
     fetch_markets_by_ids = fetch_markets_by_ids or md.get_polymarket_markets_by_condition_ids
     window_end = now if now is not None else pd.Timestamp.now(tz="UTC")
@@ -756,13 +844,9 @@ def strategy_comparison(
     rows: list[dict[str, Any]] = []
     resolved_token_values = token_values
     if resolved_token_values is None:
-        trade_keys = (
-            sorted({str(key) for key in trades.get("market_key", pd.Series(dtype=str)).dropna().astype(str) if key})
-            if trades is not None and not trades.empty
-            else []
+        resolved_token_values = _resolve_token_values(
+            trades, fetch_markets_by_ids, fetch_markets_by_event_slugs, md.polymarket_token_value_map
         )
-        markets = fetch_markets_by_ids(trade_keys) if trade_keys else []
-        resolved_token_values = md.polymarket_token_value_map(markets)
     for label, sizing_mode, stake_value in variants:
         variant_config = BacktestConfig(
             wallet=config.wallet,

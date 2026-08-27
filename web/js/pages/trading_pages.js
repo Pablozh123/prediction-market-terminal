@@ -114,7 +114,9 @@ export function renderBacktester(T) {
   const shortWallet = s.btWallet.trim().length > 12 ? s.btWallet.trim().slice(0, 6) + '…' + s.btWallet.trim().slice(-4) : s.btWallet.trim();
   const gebuehrText = s.btFeeModel === 'flat' ? 'fees ' + s.btFee + ' bps flat' : 'fees on the venue curve';
   const runMeta = (s.btStrategy === 'copy' ? 'Copy' : 'Fade') + ' · last ' + s.btWindow + ' days · wallet ' + shortWallet + ' · ' + SIZING[s.btSizing] + ' · ' + gebuehrText + ' · slippage ' + s.btSlip + ' bps'
-    + (live && live.stats && live.stats.window_truncated ? ' · window truncated at the engine\'s trade cap' : '');
+    + (live && live.stats && live.stats.window_truncated
+      ? ' · window truncated at the engine\'s trade cap' + (live.stats.effective_start ? ' — data reaches back to ' + live.stats.effective_start : '')
+      : '');
 
   // Ohne Lauf keine Kacheln: jede dieser Zahlen kaeme sonst aus dem Nichts.
   const statCards = st ? [

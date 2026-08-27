@@ -1936,3 +1936,64 @@ class DistributionSizeWeightTests(unittest.TestCase):
         row = md.whale_event_risk_scores(self._tape(500.0), whale_threshold=10_000, now="2026-08-19T18:00:00Z").iloc[0]
         self.assertEqual(float(row["distribution_size_floor"]), 2000.0)
         self.assertAlmostEqual(float(row["distribution_size_weight"]), 0.25)
+
+
+class SearchPolymarketTests(unittest.TestCase):
+    """Volltextsuche ueber Gamma public-search: Events flach zu Maerkten,
+    geschlossene Maerkte raus, Profile als name/wallet-Paare."""
+
+    def _payload(self):
+        return {
+            "events": [
+                {
+                    "slug": "zelensky-visit",
+                    "category": "Politics",
+                    "markets": [
+                        {
+                            "conditionId": "0xopen",
+                            "question": "Will Zelensky visit by Nov 10?",
+                            "outcomePrices": '["0.3", "0.7"]',
+                            "closed": False,
+                            "active": True,
+                            "volume24hr": 1234.0,
+                            "endDate": "2026-11-10T00:00:00Z",
+                        },
+                        {
+                            "conditionId": "0xclosed",
+                            "question": "Resolved sibling market",
+                            "closed": True,
+                        },
+                    ],
+                },
+                "kein dict",
+            ],
+            "profiles": [
+                {"name": "swisstony", "proxyWallet": "0x" + "1" * 40},
+                {"name": "", "proxyWallet": "0x" + "2" * 40},
+                {"name": "ohne-wallet", "proxyWallet": ""},
+            ],
+        }
+
+    def test_flattens_events_and_filters_closed(self) -> None:
+        with patch("src.prediction_markets._get_json", return_value=self._payload()) as fetch:
+            markets, profiles = md.search_polymarket("zelensky", limit_per_type=5)
+        self.assertEqual(list(markets["market_key"]), ["0xopen"])
+        self.assertEqual(markets.iloc[0]["platform"], "Polymarket")
+        self.assertEqual(markets.iloc[0]["category"], "Politics")
+        self.assertEqual(markets.iloc[0]["event_slug"], "zelensky-visit")
+        params = fetch.call_args.kwargs.get("params") or fetch.call_args.args[1]
+        self.assertEqual(params["q"], "zelensky")
+        self.assertEqual(params["limit_per_type"], 5)
+        self.assertEqual(params["search_profiles"], "true")
+
+    def test_profiles_need_name_and_wallet(self) -> None:
+        with patch("src.prediction_markets._get_json", return_value=self._payload()):
+            _markets, profiles = md.search_polymarket("swisstony")
+        self.assertEqual(profiles, [{"name": "swisstony", "wallet": "0x" + "1" * 40}])
+
+    def test_empty_query_makes_no_request(self) -> None:
+        with patch("src.prediction_markets._get_json") as fetch:
+            markets, profiles = md.search_polymarket("   ")
+        self.assertTrue(markets.empty)
+        self.assertEqual(profiles, [])
+        fetch.assert_not_called()

@@ -1820,6 +1820,9 @@ def backtest_payload(result: Any) -> dict[str, Any]:
             "fees_paid": _num(stats.get("fees_paid"), 0.0),
             "open_value": _num(stats.get("open_value"), 0.0),
             "window_truncated": bool(stats.get("window_truncated", False)),
+            # Bis wohin die Daten wirklich zurueckreichen. Bei einem
+            # abgeschnittenen Fenster ist das die ehrliche Fensterkante.
+            "effective_start": _text(stats.get("effective_start"))[:10],
         },
         "benchmark_stats": {
             "total_pnl": _num((result.benchmark_stats or {}).get("total_pnl"), 0.0),

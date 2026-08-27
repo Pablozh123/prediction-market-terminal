@@ -411,6 +411,77 @@ class CurveAndStatsTests(unittest.TestCase):
         self.assertAlmostEqual(stats["final_equity"], 1000.0, places=6)
 
 
+class FetchWindowTradesTests(unittest.TestCase):
+    """Zeitfenster-Slices: der Offset-Cap der Daten-API darf das Fenster
+    nicht mehr abschneiden, solange der Fetcher ``end`` versteht."""
+
+    NOW = pd.Timestamp("2026-06-10", tz="UTC")
+
+    def _minute_rows(self, count):
+        # Ein Trade pro Minute, rueckwaerts ab NOW; jede Zeile eindeutig.
+        return [
+            trade((self.NOW - pd.Timedelta(minutes=i)).tz_convert(None).isoformat(), "BUY", 0.5, 10.0, asset=f"tok-{i}", market_key=f"c-{i}")
+            for i in range(count)
+        ]
+
+    def _sliced_fetcher(self, rows, offset_cap=3000):
+        def fetch_activity(wallet, limit=500, offset=0, end=None):
+            if offset + limit > offset_cap:
+                raise AssertionError("deep pagination — the API would reject this")
+            subset = rows if end is None else [r for r in rows if int(r["time"].timestamp()) <= end]
+            return pd.DataFrame(subset[offset : offset + limit])
+
+        return fetch_activity
+
+    def test_time_sliced_pagination_covers_the_window(self):
+        rows = self._minute_rows(4000)
+        window_start = self.NOW - pd.Timedelta(minutes=3500)
+        trades, truncated = bt.fetch_window_trades(
+            "0x" + "a" * 40,
+            window_start,
+            self._sliced_fetcher(rows),
+            page_size=250,
+            slice_rows=1000,
+        )
+        self.assertFalse(truncated)
+        # Alle 3501 Zeilen im Fenster (i = 0..3500), Randzeilen der Scheiben
+        # ohne Dubletten.
+        self.assertEqual(len(trades), 3501)
+        self.assertEqual(trades["transactionHash"].nunique(), 3501)
+        self.assertTrue(trades["time"].is_monotonic_increasing)
+
+    def test_max_rows_cap_still_reports_truncation(self):
+        rows = self._minute_rows(4000)
+        window_start = self.NOW - pd.Timedelta(minutes=3500)
+        trades, truncated = bt.fetch_window_trades(
+            "0x" + "a" * 40,
+            window_start,
+            self._sliced_fetcher(rows),
+            page_size=250,
+            max_rows=1500,
+            slice_rows=1000,
+        )
+        self.assertTrue(truncated)
+        self.assertLess(len(trades), 3501)
+
+    def test_legacy_fetcher_without_end_stops_at_slice_cap(self):
+        rows = self._minute_rows(4000)
+        window_start = self.NOW - pd.Timedelta(minutes=3500)
+
+        def fetch_activity(wallet, limit=500, offset=0):
+            return pd.DataFrame(rows[offset : offset + limit])
+
+        trades, truncated = bt.fetch_window_trades(
+            "0x" + "a" * 40,
+            window_start,
+            fetch_activity,
+            page_size=250,
+            slice_rows=1000,
+        )
+        self.assertTrue(truncated)
+        self.assertEqual(len(trades), 1000)
+
+
 class RunBacktestTests(unittest.TestCase):
     def test_end_to_end_with_injected_fetchers(self):
         now = pd.Timestamp("2026-06-10", tz="UTC")
@@ -521,6 +592,41 @@ class RunBacktestTests(unittest.TestCase):
             now=now,
         )
         self.assertFalse(result.stats["window_truncated"])
+
+    def test_event_slug_fallback_resolves_missing_markets(self):
+        # /markets?condition_ids= kommt fuer Sport-Untermaerkte regelmaessig
+        # leer zurueck; ueber das Elternereignis muss die Position trotzdem
+        # aufgeloest werden, statt ewig "open at cost" zu stehen.
+        now = pd.Timestamp("2026-06-10", tz="UTC")
+        row = trade("2026-05-01", "BUY", 0.50, 100.0, asset="tok-sport", market_key="cond-sport")
+        row["event_slug"] = "epl-xyz-2026-05-01"
+        activity = pd.DataFrame([row])
+
+        def fetch_activity(wallet, limit=500, offset=0):
+            return activity if offset == 0 else pd.DataFrame()
+
+        def fetch_by_slugs(slugs):
+            self.assertEqual(slugs, ["epl-xyz-2026-05-01"])
+            return [
+                {
+                    "conditionId": "cond-sport",
+                    "clobTokenIds": json.dumps(["tok-sport", "tok-sport-no"]),
+                    "outcomePrices": json.dumps(["1", "0"]),
+                    "closed": True,
+                    "endDate": "2026-05-02T00:00:00Z",
+                }
+            ]
+
+        result = bt.run_backtest(
+            config(),
+            fetch_activity=fetch_activity,
+            fetch_markets_by_ids=lambda ids: [],
+            fetch_markets_by_event_slugs=fetch_by_slugs,
+            now=now,
+        )
+        self.assertEqual(result.stats["wins"], 1)
+        self.assertEqual(result.stats["open_positions"], 0)
+        self.assertAlmostEqual(result.stats["realized_pnl"], 25.0, places=6)
 
     def test_strategy_comparison_ranks_variants(self):
         now = pd.Timestamp("2026-06-10", tz="UTC")
