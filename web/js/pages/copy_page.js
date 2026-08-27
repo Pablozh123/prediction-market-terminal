@@ -10,18 +10,18 @@
 import { esc, num, leerZeile } from '../util.js';
 
 const M = "font-family:'IBM Plex Mono',monospace";
-const LBL9 = M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(234,230,220,.6); margin-bottom:6px';
-const ACCENT = '#D9A648';
-const POS = '#69B47E'; // gain green, always paired with RED
-const RED = '#D95F52', AMBER = '#DE7E36', BLUE = '#6E9BC8';
-const DIM = 'rgba(234,230,220,.55)';
-const INPUT = 'width:100%; box-sizing:border-box; background:#131311; border:1px solid rgba(234,230,220,.35); border-radius:4px; padding:8px 10px; ' + M + '; font-size:11.5px; color:#EAE6DC';
-const CARD = 'background:#131311; border:1px solid rgba(234,230,220,.09); border-radius:6px';
+const LBL9 = M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.6); margin-bottom:6px';
+const ACCENT = 'var(--accent)';
+const POS = 'var(--pos)'; // gain green, always paired with RED
+const RED = 'var(--neg)', AMBER = 'var(--warn)', BLUE = 'var(--info)';
+const DIM = 'rgba(var(--ink),.55)';
+const INPUT = 'width:100%; box-sizing:border-box; background:var(--panel); border:1px solid rgba(var(--ink),.35); border-radius:4px; padding:8px 10px; ' + M + '; font-size:11.5px; color:var(--text)';
+const CARD = 'background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px';
 const BTN = M + "; font-size:11px; letter-spacing:.06em; border-radius:4px; padding:8px 14px; cursor:pointer; display:inline-block; user-select:none";
-const BTN_PRIMARY = BTN + '; color:#0B0B0A; background:' + ACCENT + '; font-weight:600';
-const BTN_GHOST = BTN + '; color:rgba(234,230,220,.75); border:1px solid rgba(234,230,220,.18)';
-const BTN_WARN = BTN + '; color:' + AMBER + '; border:1px solid rgba(222,126,54,.4)';
-const BTN_OFF = BTN + '; color:rgba(234,230,220,.5); border:1px solid rgba(234,230,220,.1); cursor:default';
+const BTN_PRIMARY = BTN + '; color:var(--on-accent); background:' + ACCENT + '; font-weight:600';
+const BTN_GHOST = BTN + '; color:rgba(var(--ink),.75); border:1px solid rgba(var(--ink),.18)';
+const BTN_WARN = BTN + '; color:' + AMBER + '; border:1px solid rgba(var(--warn-rgb),.4)';
+const BTN_OFF = BTN + '; color:rgba(var(--ink),.5); border:1px solid rgba(var(--ink),.1); cursor:default';
 
 export const COPY_TABS = [
   ['traders', 'Traders'], ['orders', 'Orders'], ['positions', 'Positions'], ['perf', 'Performance'],
@@ -87,7 +87,7 @@ function ohneDesk(live) {
     ? '/api/copy did not answer: ' + esc(fehler) + '. The desk lives where <span style="' + M + '">api/server.py</span> runs; a static copy of the site carries no paper books.'
     : 'Waiting for /api/copy. The desk reads <span style="' + M + '">data/copy_trading.sqlite</span> through the API; until it answers there is nothing to show.';
   return '<div>'
-    + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(234,230,220,.09)">'
+    + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(var(--ink),.09)">'
     + '<div style="' + M + '; font-size:11px; letter-spacing:.18em; color:' + ACCENT + '">COPY TRADE · PAPER</div>'
     + '<h1 style="font-size:21px; line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">Follow traders with fake money</h1></div>'
     + '<div style="padding:26px 24px"><div style="' + CARD + '; padding:22px 24px; max-width:760px">'
@@ -104,19 +104,19 @@ function traderRow(T, t, s, canWrite, busy) {
   const rowBusy = busy === t.wallet;
   const o = t.orders || {};
   const spark = t.equity_curve && t.equity_curve.length > 1
-    ? '<svg width="90" height="26" viewBox="0 0 90 26" preserveAspectRatio="none" aria-hidden="true" focusable="false"><polyline points="' + T.seriesPoints(t.equity_curve, 90, 26) + '" fill="none" stroke="' + pnlColor(t.pnl) + '" stroke-width="1.5" /></svg>'
-    : '<span style="' + M + '; font-size:11px; color:rgba(234,230,220,.5)" title="one point per daemon pass, once a minute">' + (t.equity_curve && t.equity_curve.length === 1 ? '1 point' : 'no curve yet') + '</span>';
+    ? '<svg width="90" height="26" viewBox="0 0 90 26" preserveAspectRatio="none" aria-hidden="true" focusable="false"><polyline points="' + T.seriesPoints(t.equity_curve, 90, 26) + '" fill="none" style="stroke:' + pnlColor(t.pnl) + '" stroke-width="1.5" /></svg>'
+    : '<span style="' + M + '; font-size:11px; color:rgba(var(--ink),.5)" title="one point per daemon pass, once a minute">' + (t.equity_curve && t.equity_curve.length === 1 ? '1 point' : 'no curve yet') + '</span>';
   const state = t.active
-    ? '<span style="' + M + '; font-size:11px; letter-spacing:.1em; color:' + ACCENT + '; border:1px solid rgba(217,166,72,.35); border-radius:4px; padding:2px 6px">ACTIVE</span>'
-    : '<span style="' + M + '; font-size:11px; letter-spacing:.1em; color:' + AMBER + '; border:1px solid rgba(222,126,54,.35); border-radius:4px; padding:2px 6px">PAUSED</span>';
+    ? '<span style="' + M + '; font-size:11px; letter-spacing:.1em; color:' + ACCENT + '; border:1px solid rgba(var(--accent-rgb),.35); border-radius:4px; padding:2px 6px">ACTIVE</span>'
+    : '<span style="' + M + '; font-size:11px; letter-spacing:.1em; color:' + AMBER + '; border:1px solid rgba(var(--warn-rgb),.35); border-radius:4px; padding:2px 6px">PAUSED</span>';
   const seeded = t.seeded_at
-    ? '<span title="baseline seeded ' + esc(fmtStamp(t.seeded_at)) + ' — trades before it are observed, not copied" style="color:rgba(234,230,220,.6)">baseline ' + esc(ago(t.seeded_at)) + '</span>'
+    ? '<span title="baseline seeded ' + esc(fmtStamp(t.seeded_at)) + ' — trades before it are observed, not copied" style="color:rgba(var(--ink),.6)">baseline ' + esc(ago(t.seeded_at)) + '</span>'
     : '<span title="no baseline yet: the first daemon pass mirrors the wallet\'s positions and sets the cutoff" style="color:' + AMBER + '">not seeded yet</span>';
   // The book seed: the sub-account bought the source's open positions at
   // follow time (scaled), so its exits can be mirrored. Books from before
   // that existed are backfilled by the daemon within a pass.
   const bookSeed = t.paper_seeded_at
-    ? '<span title="the source\'s open book was bought into this sub-account ' + esc(fmtStamp(t.paper_seeded_at)) + ', scaled like every order — its sells and redeems can be mirrored" style="color:rgba(234,230,220,.6)">book seeded</span>'
+    ? '<span title="the source\'s open book was bought into this sub-account ' + esc(fmtStamp(t.paper_seeded_at)) + ', scaled like every order — its sells and redeems can be mirrored" style="color:rgba(var(--ink),.6)">book seeded</span>'
     : '<span title="this sub-account is still 100% cash: the daemon buys the source\'s open book on its next pass" style="color:' + AMBER + '">book not seeded yet</span>';
   // A dead source produces zeros forever — say it instead of showing them.
   const idleMs = t.source_last_trade_at ? Date.now() - Date.parse(String(t.source_last_trade_at)) : null;
@@ -130,43 +130,43 @@ function traderRow(T, t, s, canWrite, busy) {
         : button(T, 'Resume', () => T.copySetTrader(t.wallet, { active: true }), BTN_PRIMARY, 're-seed the baseline and copy from now on'))
         + ' ' + button(T, editing ? 'Close' : 'Edit', () => T.setState({ copyEdit: editing ? null : { wallet: t.wallet, label: t.label || '', note: t.note || '' }, copyTopup: null }), BTN_GHOST, 'label and note')
         + ' ' + button(T, topping ? 'Close' : 'Top up', () => T.setState({ copyTopup: topping ? null : { wallet: t.wallet, amount: '500' }, copyEdit: null }), BTN_GHOST, 'add paper cash to this sub-account (counts as put in, not profit)');
-  const grid = 'display:grid; grid-template-columns:minmax(180px,1.6fr) 74px 90px 90px 110px 96px 70px 96px 92px minmax(200px,1.4fr); gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(234,230,220,.06)';
+  const grid = 'display:grid; grid-template-columns:minmax(180px,1.6fr) 74px 90px 90px 110px 96px 70px 96px 92px minmax(200px,1.4fr); gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(var(--ink),.06)';
   let html = '<div style="' + grid + '">'
     + '<div><div style="font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(t.label || shortW(t.wallet)) + '</div>'
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(234,230,220,.6); margin-top:2px; display:flex; gap:8px; align-items:center; flex-wrap:wrap">'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); margin-top:2px; display:flex; gap:8px; align-items:center; flex-wrap:wrap">'
     + '<span ' + T.act(() => T.analyseWallet(t.wallet)) + ' class="hv-accent" title="open the wallet page" style="cursor:pointer; text-decoration:underline dotted">' + esc(shortW(t.wallet)) + '</span>'
     + (t.profile_url ? '<a href="' + esc(t.profile_url) + '" target="_blank" rel="noopener" style="color:' + BLUE + '">Polymarket ↗</a>' : '')
     + seeded + bookSeed + idle + '</div>'
-    + (t.note ? '<div style="font-size:11.5px; color:rgba(234,230,220,.55); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(t.note) + '">' + esc(t.note) + '</div>' : '')
+    + (t.note ? '<div style="font-size:11.5px; color:rgba(var(--ink),.55); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(t.note) + '">' + esc(t.note) + '</div>' : '')
     // His account size as the sizing refresh last saw it, and the neutral
     // ratio (your equity ÷ his) — the number "same share of account" uses.
     + (t.source_equity != null
-      ? '<div style="' + M + '; font-size:10.5px; color:rgba(234,230,220,.6); margin-top:3px">his equity ' + esc(usd(t.source_equity, 0)) + (t.neutral_ratio != null ? ' · ratio ' + esc((Number(t.neutral_ratio) * 100).toFixed(3)) + ' %' : '') + '</div>'
-      : (t.active ? '<div style="' + M + '; font-size:10.5px; color:rgba(234,230,220,.55); margin-top:3px">his equity not read yet</div>' : ''))
+      ? '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); margin-top:3px">his equity ' + esc(usd(t.source_equity, 0)) + (t.neutral_ratio != null ? ' · ratio ' + esc((Number(t.neutral_ratio) * 100).toFixed(3)) + ' %' : '') + '</div>'
+      : (t.active ? '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.55); margin-top:3px">his equity not read yet</div>' : ''))
     + '</div>'
     + '<div>' + state + '</div>'
     + '<div style="' + M + '; font-size:12px; text-align:right; color:' + DIM + '">' + usd(t.start_cash, 0) + '</div>'
     + '<div style="' + M + '; font-size:12px; text-align:right">' + usd(t.cash) + '</div>'
-    + '<div style="' + M + '; font-size:12px; text-align:right">' + usd(t.equity) + '<div style="font-size:11px; color:rgba(234,230,220,.6)">' + usd(t.contributions, 0) + ' put in</div></div>'
+    + '<div style="' + M + '; font-size:12px; text-align:right">' + usd(t.equity) + '<div style="font-size:11px; color:rgba(var(--ink),.6)">' + usd(t.contributions, 0) + ' put in</div></div>'
     + '<div style="' + M + '; font-size:12px; text-align:right; color:' + pnlColor(t.pnl) + '">' + signedUsd(t.pnl) + '<div style="font-size:11px">' + ((t.pnl_pct >= 0 ? '+' : '') + Number(t.pnl_pct || 0).toFixed(2)) + '%</div></div>'
     + '<div style="' + M + '; font-size:12px; text-align:right" title="copied / skipped (observed baseline trades not counted)">' + (o.copied || 0) + ' <span style="color:' + AMBER + '">/ ' + (o.skipped || 0) + '</span></div>'
-    + '<div style="' + M + '; font-size:12px; text-align:right">' + (t.open_positions || 0) + '<div style="font-size:11px; color:rgba(234,230,220,.6)">' + (t.last_copy_at ? 'last ' + esc(ago(t.last_copy_at)) : 'no copy yet') + '</div></div>'
+    + '<div style="' + M + '; font-size:12px; text-align:right">' + (t.open_positions || 0) + '<div style="font-size:11px; color:rgba(var(--ink),.6)">' + (t.last_copy_at ? 'last ' + esc(ago(t.last_copy_at)) : 'no copy yet') + '</div></div>'
     + '<div style="text-align:right">' + spark + '</div>'
     + '<div style="display:flex; gap:6px; justify-content:flex-end; flex-wrap:wrap">' + actions + '</div>'
     + '</div>';
   if (editing && canWrite) {
     const e = s.copyEdit;
-    html += '<div style="display:grid; grid-template-columns:1fr 2fr auto; gap:12px; align-items:end; padding:10px 16px 14px; background:rgba(234,230,220,.02); border-bottom:1px solid rgba(234,230,220,.06)">'
+    html += '<div style="display:grid; grid-template-columns:1fr 2fr auto; gap:12px; align-items:end; padding:10px 16px 14px; background:rgba(var(--ink),.02); border-bottom:1px solid rgba(var(--ink),.06)">'
       + field('LABEL', textInput(T, 'copyEditLabel', e.label, 'display name', (ev) => { T.state.copyEdit.label = ev.target.value; }))
       + field('NOTE — domain, cadence, why you follow', textInput(T, 'copyEditNote', e.note, 'e.g. geopolitics desk, a few trades a week', (ev) => { T.state.copyEdit.note = ev.target.value; }))
       + button(T, 'Save', () => T.copySetTrader(t.wallet, { label: T.state.copyEdit.label, note: T.state.copyEdit.note }), BTN_PRIMARY)
       + '</div>';
   }
   if (topping && canWrite) {
-    html += '<div style="display:grid; grid-template-columns:160px auto 1fr; gap:12px; align-items:end; padding:10px 16px 14px; background:rgba(234,230,220,.02); border-bottom:1px solid rgba(234,230,220,.06)">'
+    html += '<div style="display:grid; grid-template-columns:160px auto 1fr; gap:12px; align-items:end; padding:10px 16px 14px; background:rgba(var(--ink),.02); border-bottom:1px solid rgba(var(--ink),.06)">'
       + field('TOP UP $', textInput(T, 'copyTopupAmount', s.copyTopup.amount, '500', (ev) => { T.state.copyTopup.amount = ev.target.value; }))
       + button(T, 'Add paper cash', () => T.copyTopUp(t.wallet), BTN_PRIMARY)
-      + '<div style="font-size:11.5px; color:rgba(234,230,220,.6); line-height:1.5">Booked as a cash event and counted as put in, so it can never read as profit. Off by default for the daemon (auto top-up).</div>'
+      + '<div style="font-size:11.5px; color:rgba(var(--ink),.6); line-height:1.5">Booked as a cash event and counted as put in, so it can never read as profit. Off by default for the daemon (auto top-up).</div>'
       + '</div>';
   }
   return html;
@@ -192,7 +192,7 @@ function followForm(T, s, live, canWrite) {
   return '<div style="' + CARD + '; padding:16px 18px; margin:16px 24px 0">'
     + '<div style="display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap">'
     + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:' + ACCENT + '">FOLLOW A WALLET</div>'
-    + '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.6)">' + esc(access.mode === 'token' ? 'writes with admin token' : 'writes allowed: local request') + '</div></div>'
+    + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6)">' + esc(access.mode === 'token' ? 'writes with admin token' : 'writes allowed: local request') + '</div></div>'
     + '<div style="display:grid; grid-template-columns:2.2fr 1.2fr 0.8fr 2fr auto; gap:12px; align-items:end; margin-top:12px">'
     + field('POLYMARKET WALLET · 0x… / profile URL / exact handle', textInput(T, 'copyFormWallet', f.wallet, '0x… or swisstony', (ev) => { T.state.copyForm.wallet = ev.target.value; }))
     + field('LABEL', textInput(T, 'copyFormLabel', f.label, 'e.g. Geo desk', (ev) => { T.state.copyForm.label = ev.target.value; }))
@@ -200,7 +200,7 @@ function followForm(T, s, live, canWrite) {
     + field('NOTE — domain, cadence, thesis', textInput(T, 'copyFormNote', f.note, 'e.g. elections only, ~5 trades/week', (ev) => { T.state.copyForm.note = ev.target.value; }))
     + (busy ? '<div style="' + BTN_OFF + '">following…</div>' : button(T, 'Follow wallet', () => T.copyFollow(), BTN_PRIMARY, 'opens a sub-account with this start cash and seeds the baseline now'))
     + '</div>'
-    + '<div style="font-size:11.5px; color:rgba(234,230,220,.6); margin-top:10px; line-height:1.55">'
+    + '<div style="font-size:11.5px; color:rgba(var(--ink),.6); margin-top:10px; line-height:1.55">'
     + 'On follow the wallet\'s open positions are mirrored and its recent trades recorded as <span style="' + M + '">observed</span>; only what it does from that moment on is copied, into its own sub-account with the same settings as every other trader. Equal start cash keeps the traders comparable.'
     + '</div>'
     + '</div>';
@@ -210,7 +210,7 @@ function daemonBlock(T, live, canWrite, s) {
   const d = live.daemon || {};
   const sync = live.sync || {};
   const running = d.running === true ? true : d.running === false ? false : null;
-  const farbe = running === true ? POS : running === false ? AMBER : 'rgba(234,230,220,.6)';
+  const farbe = running === true ? POS : running === false ? AMBER : 'rgba(var(--ink),.6)';
   const text = running === true ? 'DAEMON RUNNING' : running === false ? 'DAEMON STOPPED' : 'DAEMON NEVER RAN HERE';
   const facts = [];
   if (d.mode) facts.push('mode ' + esc(d.mode));
@@ -232,18 +232,18 @@ function daemonBlock(T, live, canWrite, s) {
     + '<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap">'
     + '<span style="width:7px; height:7px; border-radius:50%; background:' + farbe + '; display:inline-block"></span>'
     + '<span style="' + M + '; font-size:11px; letter-spacing:.14em; color:' + farbe + '">' + text + '</span>'
-    + '<span style="' + M + '; font-size:10.5px; color:rgba(234,230,220,.6)">' + facts.join(' · ') + '</span>'
+    + '<span style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6)">' + facts.join(' · ') + '</span>'
     + '<span style="flex:1"></span>'
     + (canWrite ? (syncBusy ? '<div style="' + BTN_OFF + '">sync running…</div>' : button(T, 'Run one sync pass', () => T.copySync(), BTN_GHOST, 'one API + settlement pass over the active traders, in the background')) : '')
     + '</div>'
     + (d.reason ? '<div style="font-size:12px; color:' + DIM + '; margin-top:8px">' + esc(d.reason) + '</div>' : '')
-    + (syncLine ? '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.6); margin-top:8px">' + syncLine + '</div>' : '')
-    + '<div style="font-size:12px; color:rgba(234,230,220,.6); margin-top:10px; line-height:1.6">'
+    + (syncLine ? '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:8px">' + syncLine + '</div>' : '')
+    + '<div style="font-size:12px; color:rgba(var(--ink),.6); margin-top:10px; line-height:1.6">'
     + 'The daemon copies continuously (WebSocket + API, settlements every 90 s) and reads the traders and settings from this desk on every pass. '
     + (d.in_process
       ? 'Here it runs inside the API process (COPY_DAEMON=1) and restarts with it; the books sit on the host\'s volume. '
-      : 'Start it in a terminal from the repo root: <span style="' + M + '; color:rgba(234,230,220,.75)">.venv\\Scripts\\python.exe scripts\\run_copy_trader.py</span> '
-        + '(or <span style="' + M + '; color:rgba(234,230,220,.75)">scripts\\start_paper_desk.ps1</span>, which starts API and daemon together). ')
+      : 'Start it in a terminal from the repo root: <span style="' + M + '; color:rgba(var(--ink),.75)">.venv\\Scripts\\python.exe scripts\\run_copy_trader.py</span> '
+        + '(or <span style="' + M + '; color:rgba(var(--ink),.75)">scripts\\start_paper_desk.ps1</span>, which starts API and daemon together). ')
     + 'A sync pass from here books the same trades, just once, at up to 30 s latency.'
     + '</div></div>';
 }
@@ -251,9 +251,9 @@ function daemonBlock(T, live, canWrite, s) {
 function tradersTab(T, s, live, canWrite) {
   const traders = live.traders || [];
   const busy = s.copyBusy;
-  const head = 'display:grid; grid-template-columns:minmax(180px,1.6fr) 74px 90px 90px 110px 96px 70px 96px 92px minmax(200px,1.4fr); gap:10px; padding:9px 16px; background:#131311; border-bottom:1px solid rgba(234,230,220,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(234,230,220,.6)';
+  const head = 'display:grid; grid-template-columns:minmax(180px,1.6fr) 74px 90px 90px 110px 96px 70px 96px 92px minmax(200px,1.4fr); gap:10px; padding:9px 16px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6)';
   return followForm(T, s, live, canWrite)
-    + '<div style="border:1px solid rgba(234,230,220,.09); border-radius:6px; margin:14px 24px 0; overflow:hidden">'
+    + '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin:14px 24px 0; overflow:hidden">'
     + '<div style="overflow-x:auto"><div style="min-width:1180px">'
     + '<div style="' + head + '">'
     + '<div>TRADER</div><div>STATE</div><div style="text-align:right">START</div><div style="text-align:right">CASH</div><div style="text-align:right">EQUITY</div><div style="text-align:right">PAPER PNL</div><div style="text-align:right">COPIED / SKIP</div><div style="text-align:right">OPEN</div><div style="text-align:right">EQUITY CURVE</div><div style="text-align:right">' + (canWrite ? 'ACTIONS' : '') + '</div></div>'
@@ -286,7 +286,7 @@ function pctInputValue(fraction) {
 // source equity yet -> says so instead of a made-up ratio.
 function sizingExampleRows(traders, f, mode) {
   const rows = (traders || []).filter((t) => t.active);
-  if (!rows.length) return '<div style="font-size:11.5px; color:rgba(234,230,220,.6)">No active trader yet — follow one and the example fills in with its equity.</div>';
+  if (!rows.length) return '<div style="font-size:11.5px; color:rgba(var(--ink),.6)">No active trader yet — follow one and the example fills in with its equity.</div>';
   const mult = Number(f.dynamic_sizing_multiplier) || 0;
   const cap = Number(f.max_order_equity_pct) || 0;
   const scaleMax = Number(f.dynamic_scale_max) || 0;
@@ -316,7 +316,7 @@ function sizingExampleRows(traders, f, mode) {
       const clipped = eq > 0 && cap > 0 ? ' — the order cap (' + pctInputValue(cap) + ' % of ' + usd(eq, 0) + ' = ' + usd(eq * cap, 2) + ') and the cash throttle will clip most of it' : '';
       text = 'his $1,000 bet → $1,000 here, dollar for dollar' + clipped;
     }
-    return '<div style="font-size:11.5px; line-height:1.5; color:rgba(234,230,220,.7)"><span style="' + M + '; color:rgba(234,230,220,.9)">' + esc(t.label || shortW(t.wallet)) + '</span> — ' + text + '</div>';
+    return '<div style="font-size:11.5px; line-height:1.5; color:rgba(var(--ink),.7)"><span style="' + M + '; color:rgba(var(--ink),.9)">' + esc(t.label || shortW(t.wallet)) + '</span> — ' + text + '</div>';
   }).join('');
 }
 
@@ -330,7 +330,7 @@ function settingsTab(T, s, live, canWrite) {
   // Percent fields: the input shows 5 for a stored 0.05 and writes 0.05 back.
   const setPct = (key) => (ev) => { const next = Object.assign({}, T.state.copySettings || saved); const v = parseFloat(String(ev.target.value).replace(',', '.')); next[key] = isFinite(v) ? String(v / 100) : ev.target.value; T.state.copySettings = next; };
   const flip = (key) => () => { const next = Object.assign({}, T.state.copySettings || saved); next[key] = !next[key]; T.setState({ copySettings: next }); };
-  const hintHtml = (hint) => (hint ? '<div style="font-size:11px; color:rgba(234,230,220,.6); margin-top:5px; line-height:1.45">' + hint + '</div>' : '');
+  const hintHtml = (hint) => (hint ? '<div style="font-size:11px; color:rgba(var(--ink),.6); margin-top:5px; line-height:1.45">' + hint + '</div>' : '');
   const numField = (key, label, hint) => field(label, textInput(T, 'copySet_' + key, f[key], '', set(key)) + hintHtml(hint));
   const pctField = (key, label, hint) => field(label, textInput(T, 'copySetPct_' + key, pctInputValue(f[key]), '', setPct(key)) + hintHtml(hint));
   const boolField = (key, label, hint) => '<div><div style="' + LBL9 + '">' + label + '</div><div style="display:flex; align-items:center; gap:10px; padding:6px 0">' + T.toggle(!!f[key], canWrite ? flip(key) : () => {}, label, !canWrite) + '<span style="' + M + '; font-size:11px; color:' + DIM + '">' + (f[key] ? 'on' : 'off') + '</span></div>' + hintHtml(hint) + '</div>';
@@ -343,9 +343,9 @@ function settingsTab(T, s, live, canWrite) {
   };
   const modeCard = (m, title, line) => {
     const on = mode === m;
-    return '<div ' + T.act(chooseMode(m)) + ' style="flex:1; min-width:200px; border:1px solid ' + (on ? ACCENT : 'rgba(234,230,220,.14)') + '; background:' + (on ? 'rgba(217,166,72,.08)' : 'transparent') + '; border-radius:6px; padding:12px 14px; cursor:' + (canWrite ? 'pointer' : 'default') + '">'
-      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:' + (on ? ACCENT : 'rgba(234,230,220,.75)') + '">' + (on ? '● ' : '○ ') + title + '</div>'
-      + '<div style="font-size:11.5px; color:rgba(234,230,220,.55); margin-top:6px; line-height:1.45">' + line + '</div></div>';
+    return '<div ' + T.act(chooseMode(m)) + ' style="flex:1; min-width:200px; border:1px solid ' + (on ? ACCENT : 'rgba(var(--ink),.14)') + '; background:' + (on ? 'rgba(var(--accent-rgb),.08)' : 'transparent') + '; border-radius:6px; padding:12px 14px; cursor:' + (canWrite ? 'pointer' : 'default') + '">'
+      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:' + (on ? ACCENT : 'rgba(var(--ink),.75)') + '">' + (on ? '● ' : '○ ') + title + '</div>'
+      + '<div style="font-size:11.5px; color:rgba(var(--ink),.55); margin-top:6px; line-height:1.45">' + line + '</div></div>';
   };
   const grid = 'display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:16px 22px';
   const modeFields = mode === 'share'
@@ -354,23 +354,23 @@ function settingsTab(T, s, live, canWrite) {
       + boolField('dynamic_order_cap_from_tony', 'LET THE ORDER CAP FOLLOW HIS LARGEST POSITION', 'A source that puts 20 % into one market gets a 20 % per-order cap here too, so his conviction bets are not clipped by the base cap below.')
     : mode === 'fixed'
       ? pctField('copy_scale', '% OF HIS TRADE', 'Every order is this share of what he moved. 1 = his $1,000 becomes $10 here, regardless of either account size.')
-      : '<div style="font-size:11.5px; color:rgba(234,230,220,.55); line-height:1.5; grid-column:span 2">Every order is booked at his notional. Only sensible when your sub-account is about the size of his — otherwise the order cap and the cash throttle below clip almost every trade and the copy stops resembling him.</div>';
+      : '<div style="font-size:11.5px; color:rgba(var(--ink),.55); line-height:1.5; grid-column:span 2">Every order is booked at his notional. Only sensible when your sub-account is about the size of his — otherwise the order cap and the cash throttle below clip almost every trade and the copy stops resembling him.</div>';
   return '<div style="padding:16px 24px">'
     + '<div style="' + CARD + '; padding:18px 20px">'
     + '<div style="display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:12px">'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(234,230,220,.55)">SIZING MODE — THE SAME FOR EVERY TRADER</div>'
-    + '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.6)">saved in copy_settings.json · the daemon reads it on every pass · live trading stays off</div></div>'
+    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.55)">SIZING MODE — THE SAME FOR EVERY TRADER</div>'
+    + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6)">saved in copy_settings.json · the daemon reads it on every pass · live trading stays off</div></div>'
     + '<div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px">'
     + modeCard('share', 'SAME SHARE OF ACCOUNT', 'He bets $1,000 = 1 % of his account → you bet 1 % of your sub-account. Order = his notional × (your equity ÷ his equity) × multiplier. The faithful scaled mirror.')
     + modeCard('fixed', 'FIXED % OF HIS TRADE', 'Every order is a fixed fraction of what he moved, e.g. 1 %. Simple, but ignores how big the bet was for him.')
     + modeCard('one', 'DOLLAR FOR DOLLAR', 'He bets $1,000 → you bet $1,000. 1:1 on notional; only makes sense with a sub-account about his size.')
     + '</div>'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(234,230,220,.6); margin-bottom:8px">WHAT A $1,000 BET OF HIS BECOMES HERE, PER ACTIVE TRADER</div>'
-    + '<div style="display:flex; flex-direction:column; gap:5px; margin-bottom:18px; padding:10px 12px; border:1px solid rgba(234,230,220,.08); border-radius:4px">' + sizingExampleRows(live.traders, f, mode) + '</div>'
+    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.6); margin-bottom:8px">WHAT A $1,000 BET OF HIS BECOMES HERE, PER ACTIVE TRADER</div>'
+    + '<div style="display:flex; flex-direction:column; gap:5px; margin-bottom:18px; padding:10px 12px; border:1px solid rgba(var(--ink),.08); border-radius:4px">' + sizingExampleRows(live.traders, f, mode) + '</div>'
     + '<div style="' + grid + '">'
     + modeFields
     + '</div>'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(234,230,220,.6); margin:20px 0 10px">LIMITS AND CASH — APPLY IN EVERY MODE</div>'
+    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.6); margin:20px 0 10px">LIMITS AND CASH — APPLY IN EVERY MODE</div>'
     + '<div style="' + grid + '">'
     + pctField('max_order_equity_pct', 'MAX PER ORDER · % OF YOUR EQUITY', 'Cap per order. 5 = at most 5 % of the sub-account in one order.')
     + pctField('cash_throttle_pct', 'CASH THROTTLE · % OF REMAINING CASH', 'One order may spend at most this share of the cash left; 25 keeps a drought from starving later trades. 0 = off.')
@@ -385,7 +385,7 @@ function settingsTab(T, s, live, canWrite) {
       ? (busy ? '<div style="' + BTN_OFF + '">saving…</div>' : button(T, 'Save settings', () => T.copySaveSettings(), dirty ? BTN_PRIMARY : BTN_GHOST))
         + (dirty ? button(T, 'Discard changes', () => T.setState({ copySettings: null }), BTN_GHOST) : '')
       : '<span style="' + M + '; font-size:11px; color:' + AMBER + '">read-only from here</span>')
-    + '<span style="' + M + '; font-size:10.5px; color:rgba(234,230,220,.6)">mode now: ' + (mode === 'share' ? 'same share of account × ' + esc(String(f.dynamic_sizing_multiplier)) : mode === 'one' ? 'dollar for dollar' : 'fixed ' + esc(pctInputValue(f.copy_scale)) + ' % of his trade') + (dirty ? ' · unsaved changes' : '') + '</span>'
+    + '<span style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6)">mode now: ' + (mode === 'share' ? 'same share of account × ' + esc(String(f.dynamic_sizing_multiplier)) : mode === 'one' ? 'dollar for dollar' : 'fixed ' + esc(pctInputValue(f.copy_scale)) + ' % of his trade') + (dirty ? ' · unsaved changes' : '') + '</span>'
     + '</div></div></div>';
 }
 
@@ -443,7 +443,7 @@ export function renderCopy(T) {
       return true;
     });
     const grid = 'display:grid; grid-template-columns:92px 120px 1fr 118px 96px 96px 120px; gap:10px';
-    const kindStyle = (k) => k === 'BUY' ? POS : k === 'SELL' ? RED : k === 'MERGE' ? AMBER : k === 'REDEEM' || k === 'RESOLUTION' ? BLUE : 'rgba(234,230,220,.6)';
+    const kindStyle = (k) => k === 'BUY' ? POS : k === 'SELL' ? RED : k === 'MERGE' ? AMBER : k === 'REDEEM' || k === 'RESOLUTION' ? BLUE : 'rgba(var(--ink),.6)';
     body = '<div>'
       + '<div style="padding:14px 24px 0; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px 18px">'
       + '<div><div style="' + LBL9 + '">SEARCH</div><input value="' + esc(s.copyQuery) + '" ' + T.inp((e) => T.setState({ copyQuery: e.target.value }), 'copyQuery') + ' aria-label="Search the copy desk by market" placeholder="market…" style="' + INPUT + '" /></div>'
@@ -454,48 +454,48 @@ export function renderCopy(T) {
       + '<div><div style="' + LBL9 + '">MINIMUM SIZE THEY TRADED</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
       + [['all', 'Any'], ['1000', '>$1k'], ['5000', '>$5k'], ['10000', '>$10k']].map((o) => T.opt(o[1], s.copyMin === o[0], { copyMin: o[0] })).join('') + '</div></div>'
       + '</div>'
-      + '<div style="padding:10px 24px 0; font-size:11.5px; color:rgba(234,230,220,.6); line-height:1.5">'
+      + '<div style="padding:10px 24px 0; font-size:11.5px; color:rgba(var(--ink),.6); line-height:1.5">'
       + '<span style="' + M + '; color:' + POS + '">BUY</span> / <span style="' + M + '; color:' + RED + '">SELL</span> are the source\'s trades, scaled into the sub-account. '
       + '<span style="' + M + '; color:' + AMBER + '">MERGE</span> = the source handed equal YES + NO shares back for $1 each — closes both sides, no direction. '
       + '<span style="' + M + '; color:' + BLUE + '">REDEEM / RESOLUTION</span> = the market settled. Every row says what it was and what the source holds in that market now.'
       + '</div>'
-      + '<div style="border:1px solid rgba(234,230,220,.09); border-radius:6px; margin:14px 24px; overflow:hidden">'
-      + '<div style="' + grid + '; padding:9px 16px; background:#131311; border-bottom:1px solid rgba(234,230,220,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(234,230,220,.6)">'
+      + '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin:14px 24px; overflow:hidden">'
+      + '<div style="' + grid + '; padding:9px 16px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6)">'
       + '<div>TIME</div><div>TRADER</div><div>MARKET</div><div style="text-align:right">KIND · SIDE</div><div style="text-align:right">THEY MOVED</div><div style="text-align:right">YOU MOVED</div><div style="text-align:right">STATUS</div></div>'
       + (rows.length ? '' : leerZeile(orders.length ? 'No order matches these filters.' : 'No paper orders reported by /api/copy yet.'))
       + rows.map((o) => {
-        const farbe = o.status === 'copied' || o.status === 'settled' ? POS : o.status === 'skipped' ? AMBER : 'rgba(234,230,220,.5)';
+        const farbe = o.status === 'copied' || o.status === 'settled' ? POS : o.status === 'skipped' ? AMBER : 'rgba(var(--ink),.5)';
         const label = o.status === 'seed_observed' ? 'BASELINE' : String(o.status).toUpperCase();
         const k = kindOf(o);
         const seite = k === 'BUY' || k === 'SELL' ? k + ' ' + esc(o.outcome || String(o.side || '').split(' ').slice(1).join(' ')) : k;
         const teile = [];
         if (o.explain) teile.push(esc(o.explain));
-        if (o.book) teile.push('<span style="' + M + '; color:rgba(234,230,220,.75)">' + esc(o.book) + '</span>');
+        if (o.book) teile.push('<span style="' + M + '; color:rgba(var(--ink),.75)">' + esc(o.book) + '</span>');
         if (o.reason && o.status === 'skipped') teile.push('skipped: ' + esc(o.reason));
-        return '<div style="padding:11px 16px; border-bottom:1px solid rgba(234,230,220,.06)">'
+        return '<div style="padding:11px 16px; border-bottom:1px solid rgba(var(--ink),.06)">'
           + '<div style="' + grid + '; align-items:center">'
           + '<div style="' + M + '; font-size:12px; color:' + DIM + '" title="' + esc(o.at || '') + '">' + esc(o.time) + '</div>'
-          + '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.65); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(o.wallet || '') + '">' + esc(labelOf[o.wallet] || shortW(o.wallet) || '—') + '</div>'
+          + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.65); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(o.wallet || '') + '">' + esc(labelOf[o.wallet] || shortW(o.wallet) || '—') + '</div>'
           + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(o.market) + '</div>'
           + '<div style="' + M + '; font-size:11.5px; text-align:right; color:' + kindStyle(k) + '">' + seite + '</div>'
           + '<div style="' + M + '; font-size:12px; text-align:right; color:' + DIM + '">' + esc(o.theirs) + '</div>'
           + '<div style="' + M + '; font-size:12px; text-align:right">' + esc(o.yours) + '</div>'
           + '<div style="' + M + '; font-size:11px; text-align:right; color:' + farbe + '" title="' + esc(o.reason || '') + '">' + esc(label) + '</div></div>'
-          + (teile.length ? '<div style="font-size:11px; color:rgba(234,230,220,.6); margin-top:5px; padding-left:222px; line-height:1.45">' + teile.join(' · ') + '</div>' : '')
+          + (teile.length ? '<div style="font-size:11px; color:rgba(var(--ink),.6); margin-top:5px; padding-left:222px; line-height:1.45">' + teile.join(' · ') + '</div>' : '')
           + '</div>';
       }).join('')
       + '</div></div>';
   } else if (tab === 'positions') {
     const grid = 'display:grid; grid-template-columns:120px 1fr 62px 78px 78px 78px 88px 100px; gap:10px';
-    body = '<div style="border:1px solid rgba(234,230,220,.09); border-radius:6px; margin:14px 24px; overflow:hidden">'
-      + '<div style="' + grid + '; padding:9px 16px; background:#131311; border-bottom:1px solid rgba(234,230,220,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(234,230,220,.6)">'
+    body = '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin:14px 24px; overflow:hidden">'
+      + '<div style="' + grid + '; padding:9px 16px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6)">'
       + '<div>TRADER</div><div>MARKET</div><div style="text-align:right">SIDE</div><div style="text-align:right">SHARES</div><div style="text-align:right">AVG FILL</div><div style="text-align:right">MARK</div><div style="text-align:right">VALUE</div><div style="text-align:right">UNREALISED</div></div>'
       + (positions.length ? '' : leerZeile('No open paper positions reported by /api/copy.'))
       + positions.map((r) =>
-        '<div style="' + grid + '; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(234,230,220,.06)">'
-        + '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.65); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(r[7] || '') + '">' + esc(labelOf[r[7]] || shortW(r[7]) || '—') + '</div>'
+        '<div style="' + grid + '; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(var(--ink),.06)">'
+        + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.65); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(r[7] || '') + '">' + esc(labelOf[r[7]] || shortW(r[7]) || '—') + '</div>'
         + r.slice(0, 7).map((v, i) => {
-          const style = i === 0 ? "font-family:'IBM Plex Sans',sans-serif; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" : M + '; font-size:12px; text-align:right; color:' + (i === 6 ? (String(v).charAt(0) === '+' ? POS : RED) : i === 1 ? (v === 'Yes' ? POS : BLUE) : 'rgba(234,230,220,.75)');
+          const style = i === 0 ? "font-family:'IBM Plex Sans',sans-serif; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" : M + '; font-size:12px; text-align:right; color:' + (i === 6 ? (String(v).charAt(0) === '+' ? POS : RED) : i === 1 ? (v === 'Yes' ? POS : BLUE) : 'rgba(var(--ink),.75)');
           return '<div style="' + style + '">' + esc(String(v)) + '</div>';
         }).join('')
         + '</div>'
@@ -507,31 +507,31 @@ export function renderCopy(T) {
     body = '<div style="padding:16px 24px">'
       + '<div style="' + CARD + '; padding:16px 18px">'
       + '<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:10px">'
-      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(234,230,220,.55)">' + (filtered ? esc((filtered.label || shortW(filtered.wallet)).toUpperCase()) + ' — ' : 'ALL SUB-ACCOUNTS — ') + 'EQUITY VS CASH PUT IN</div>'
+      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.55)">' + (filtered ? esc((filtered.label || shortW(filtered.wallet)).toUpperCase()) + ' — ' : 'ALL SUB-ACCOUNTS — ') + 'EQUITY VS CASH PUT IN</div>'
       + '<div style="display:flex; gap:14px; ' + M + '; font-size:10.5px">'
       + '<span style="display:flex; align-items:center; gap:6px"><span style="width:14px; height:2px; background:' + ACCENT + '; display:inline-block"></span>Paper equity</span>'
-      + '<span style="display:flex; align-items:center; gap:6px; color:rgba(234,230,220,.5)"><span style="width:14px; height:2px; background:rgba(234,230,220,.35); display:inline-block"></span>Cash put in ' + esc(usd(putIn, 0)) + '</span>'
+      + '<span style="display:flex; align-items:center; gap:6px; color:rgba(var(--ink),.5)"><span style="width:14px; height:2px; background:rgba(var(--ink),.35); display:inline-block"></span>Cash put in ' + esc(usd(putIn, 0)) + '</span>'
       + '</div></div>'
       + (equityPts
         ? '<svg width="100%" height="240" viewBox="0 0 900 240" preserveAspectRatio="none" role="img" aria-label="Paper equity over time, against the benchmark">'
-          + '<line x1="0" y1="20" x2="900" y2="20" stroke="rgba(234,230,220,.07)" /><line x1="0" y1="80" x2="900" y2="80" stroke="rgba(234,230,220,.07)" /><line x1="0" y1="140" x2="900" y2="140" stroke="rgba(234,230,220,.07)" /><line x1="0" y1="230" x2="900" y2="230" stroke="rgba(234,230,220,.14)" />'
-          + '<polyline points="' + equityPts + '" fill="none" stroke="' + ACCENT + '" stroke-width="2" /></svg>'
+          + '<line x1="0" y1="20" x2="900" y2="20" style="stroke:rgba(var(--ink),.07)" /><line x1="0" y1="80" x2="900" y2="80" style="stroke:rgba(var(--ink),.07)" /><line x1="0" y1="140" x2="900" y2="140" style="stroke:rgba(var(--ink),.07)" /><line x1="0" y1="230" x2="900" y2="230" style="stroke:rgba(var(--ink),.14)" />'
+          + '<polyline points="' + equityPts + '" fill="none" style="stroke:' + ACCENT + '" stroke-width="2" /></svg>'
         : leerZeile('No equity curve yet — the daemon (or a sync pass) records one point per minute per trader.'))
       + '</div>'
       + '<div style="' + CARD + '; padding:16px 18px; margin-top:14px">'
       + '<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:10px">'
-      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(234,230,220,.55)">YOUR RETURN VERSUS THE SOURCE WALLET</div>'
+      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.55)">YOUR RETURN VERSUS THE SOURCE WALLET</div>'
       + '<div style="display:flex; gap:14px; ' + M + '; font-size:10.5px">'
       + '<span style="display:flex; align-items:center; gap:6px"><span style="width:14px; height:2px; background:' + ACCENT + '; display:inline-block"></span>You</span>'
       + '<span style="display:flex; align-items:center; gap:6px; color:' + BLUE + '"><span style="width:14px; height:2px; background:' + BLUE + '; display:inline-block"></span>' + esc(sourceName) + ' (official PnL, 1 month)</span>'
       + '</div></div>'
       + (srcPts || minePts
         ? '<svg width="100%" height="200" viewBox="0 0 900 200" preserveAspectRatio="none" role="img" aria-label="Your paper equity against the trader you follow">'
-          + '<line x1="0" y1="20" x2="900" y2="20" stroke="rgba(234,230,220,.07)" /><line x1="0" y1="100" x2="900" y2="100" stroke="rgba(234,230,220,.07)" /><line x1="0" y1="190" x2="900" y2="190" stroke="rgba(234,230,220,.14)" />'
-          + (srcPts ? '<polyline points="' + srcPts + '" fill="none" stroke="' + BLUE + '" stroke-width="2" />' : '')
-          + (minePts ? '<polyline points="' + minePts + '" fill="none" stroke="' + ACCENT + '" stroke-width="2" />' : '') + '</svg>'
+          + '<line x1="0" y1="20" x2="900" y2="20" style="stroke:rgba(var(--ink),.07)" /><line x1="0" y1="100" x2="900" y2="100" style="stroke:rgba(var(--ink),.07)" /><line x1="0" y1="190" x2="900" y2="190" style="stroke:rgba(var(--ink),.14)" />'
+          + (srcPts ? '<polyline points="' + srcPts + '" fill="none" style="stroke:' + BLUE + '" stroke-width="2" />' : '')
+          + (minePts ? '<polyline points="' + minePts + '" fill="none" style="stroke:' + ACCENT + '" stroke-width="2" />' : '') + '</svg>'
         : leerZeile('Neither curve has two points yet.'))
-      + (showSource ? '' : '<div style="font-size:11.5px; color:rgba(234,230,220,.6); margin-top:8px">The source overlay is loaded for the first active trader only' + (firstActive ? ' (' + esc(firstActive.label || shortW(firstActive.wallet)) + ')' : '') + '.</div>')
+      + (showSource ? '' : '<div style="font-size:11.5px; color:rgba(var(--ink),.6); margin-top:8px">The source overlay is loaded for the first active trader only' + (firstActive ? ' (' + esc(firstActive.label || shortW(firstActive.wallet)) + ')' : '') + '.</div>')
       + '</div></div>';
   } else if (tab === 'fidelity') {
     const fid = live && live.fidelity_detail;
@@ -541,36 +541,36 @@ export function renderCopy(T) {
       const clamps = +fid.execution.lost_to_clamps || 0;
       const total = skips.reduce((a, kv) => a + (+kv[1] || 0), 0) + clamps;
       gapCosts = skips.map(([reason, value]) =>
-        '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(234,230,220,.7)">Skipped: ' + esc(reason) + '</span><span style="' + M + '; color:' + RED + '">-$' + (+value).toFixed(2) + '</span></div>'
+        '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(var(--ink),.7)">Skipped: ' + esc(reason) + '</span><span style="' + M + '; color:' + RED + '">-$' + (+value).toFixed(2) + '</span></div>'
       ).join('')
-        + '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(234,230,220,.7)">Clamped (cash throttle / order cap)</span><span style="' + M + '; color:rgba(234,230,220,.6)">-$' + clamps.toFixed(2) + '</span></div>'
-        + '<div style="display:flex; justify-content:space-between; font-size:13px; border-top:1px solid rgba(234,230,220,.09); padding-top:11px"><span>Total drag (24h)</span><span style="' + M + '; color:' + RED + '">-$' + total.toFixed(2) + '</span></div>';
+        + '<div style="display:flex; justify-content:space-between; font-size:13px"><span style="color:rgba(var(--ink),.7)">Clamped (cash throttle / order cap)</span><span style="' + M + '; color:rgba(var(--ink),.6)">-$' + clamps.toFixed(2) + '</span></div>'
+        + '<div style="display:flex; justify-content:space-between; font-size:13px; border-top:1px solid rgba(var(--ink),.09); padding-top:11px"><span>Total drag (24h)</span><span style="' + M + '; color:' + RED + '">-$' + total.toFixed(2) + '</span></div>';
     } else {
       gapCosts = leerZeile('No execution breakdown in this /api/copy answer — fidelity_detail is missing. Nothing is shown rather than an estimate.');
     }
     const throttleShare = kp.total ? Math.round((kp.skipped / kp.total) * 100) : null;
     body = '<div style="padding:16px 24px; display:grid; grid-template-columns:1fr 1fr; gap:16px">'
-      + '<div><div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(234,230,220,.55); margin-bottom:14px">WHERE THE COPY DRIFTS (ALL TRADERS)</div>'
+      + '<div><div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.55); margin-bottom:14px">WHERE THE COPY DRIFTS (ALL TRADERS)</div>'
       + '<div style="display:flex; flex-direction:column; gap:14px">'
       + fidelityBar('Settings vs a neutral mirror', kp.config_fidelity + '%', Math.min(100, kp.config_fidelity), ACCENT)
       + fidelityBar('Filled vs what you wanted', kp.exec_fidelity + '%', Math.min(100, kp.exec_fidelity), ACCENT)
       + fidelityBar('Orders skipped', throttleShare == null ? '— no orders yet' : throttleShare + '% of orders', throttleShare == null ? 0 : Math.min(100, throttleShare), AMBER, AMBER)
       + '</div></div>'
-      + '<div><div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(234,230,220,.55); margin-bottom:14px">WHAT THE GAP COSTS</div>'
+      + '<div><div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.55); margin-bottom:14px">WHAT THE GAP COSTS</div>'
       + '<div style="display:flex; flex-direction:column; gap:11px">' + gapCosts + '</div></div></div>';
   } else {
     const grid = 'display:grid; grid-template-columns:110px 120px 1fr 120px 120px; gap:10px';
-    body = '<div style="border:1px solid rgba(234,230,220,.09); border-radius:6px; margin:14px 24px; overflow:hidden">'
-      + '<div style="' + grid + '; padding:9px 16px; background:#131311; border-bottom:1px solid rgba(234,230,220,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(234,230,220,.6)">'
+    body = '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin:14px 24px; overflow:hidden">'
+      + '<div style="' + grid + '; padding:9px 16px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6)">'
       + '<div>DATE</div><div>TRADER</div><div>WHAT HAPPENED</div><div style="text-align:right">AMOUNT</div><div style="text-align:right">CASH AFTER</div></div>'
       + (cashRows.length ? '' : leerZeile('No cash events reported by /api/copy. Start cash is not an event; top-ups are.'))
       + cashRows.map((r) =>
-        '<div style="' + grid + '; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(234,230,220,.06)">'
-        + '<div style="' + M + '; font-size:12px; color:rgba(234,230,220,.75)">' + esc(String(r[0])) + '</div>'
-        + '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.65); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(r[4] || '') + '">' + esc(labelOf[r[4]] || shortW(r[4]) || '—') + '</div>'
+        '<div style="' + grid + '; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(var(--ink),.06)">'
+        + '<div style="' + M + '; font-size:12px; color:rgba(var(--ink),.75)">' + esc(String(r[0])) + '</div>'
+        + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.65); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(r[4] || '') + '">' + esc(labelOf[r[4]] || shortW(r[4]) || '—') + '</div>'
         + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:12.5px">' + esc(String(r[1])) + '</div>'
-        + '<div style="' + M + '; font-size:12px; text-align:right; color:' + (String(r[2]).charAt(0) === '+' && r[2] !== '+$0.00' ? POS : 'rgba(234,230,220,.75)') + '">' + esc(String(r[2])) + '</div>'
-        + '<div style="' + M + '; font-size:12px; text-align:right; color:rgba(234,230,220,.75)">' + esc(String(r[3] || '')) + '</div>'
+        + '<div style="' + M + '; font-size:12px; text-align:right; color:' + (String(r[2]).charAt(0) === '+' && r[2] !== '+$0.00' ? POS : 'rgba(var(--ink),.75)') + '">' + esc(String(r[2])) + '</div>'
+        + '<div style="' + M + '; font-size:12px; text-align:right; color:rgba(var(--ink),.75)">' + esc(String(r[3] || '')) + '</div>'
         + '</div>'
       ).join('')
       + '</div>';
@@ -578,45 +578,45 @@ export function renderCopy(T) {
 
   // Daemon state from the answer or not at all — never a switch in the page.
   const daemonOn = st.running === true ? true : st.running === false ? false : null;
-  const daemonFarbe = daemonOn === true ? ACCENT : daemonOn === false ? AMBER : 'rgba(234,230,220,.6)';
+  const daemonFarbe = daemonOn === true ? ACCENT : daemonOn === false ? AMBER : 'rgba(var(--ink),.6)';
   const daemonText = daemonOn === true ? 'RUNNING' : daemonOn === false ? 'STOPPED' : 'STATE NOT REPORTED';
   const activeCount = live.active_count != null ? live.active_count : traders.filter((t) => t.active).length;
   const totals = live.totals || { equity: kp.equity, contributions: kp.contributions };
   const msg = s.copyMsg
     ? '<div style="margin:12px 24px 0; padding:9px 12px; border-radius:4px; ' + M + '; font-size:11.5px; display:flex; justify-content:space-between; gap:12px; '
-      + (s.copyMsg.kind === 'err' ? 'color:' + RED + '; border:1px solid rgba(217,95,82,.35); background:rgba(217,95,82,.06)' : 'color:' + POS + '; border:1px solid rgba(105,180,126,.3); background:rgba(105,180,126,.05)') + '">'
-      + '<span>' + esc(s.copyMsg.text) + '</span><span ' + T.act(() => T.setState({ copyMsg: null })) + ' style="cursor:pointer; color:rgba(234,230,220,.5)">dismiss</span></div>'
+      + (s.copyMsg.kind === 'err' ? 'color:' + RED + '; border:1px solid rgba(var(--neg-rgb),.35); background:rgba(var(--neg-rgb),.06)' : 'color:' + POS + '; border:1px solid rgba(var(--pos-rgb),.3); background:rgba(var(--pos-rgb),.05)') + '">'
+      + '<span>' + esc(s.copyMsg.text) + '</span><span ' + T.act(() => T.setState({ copyMsg: null })) + ' style="cursor:pointer; color:rgba(var(--ink),.5)">dismiss</span></div>'
     : '';
   const access = live.write_access || {};
   const accessText = !access.mode ? '' : access.allowed ? (access.mode === 'token' ? 'WRITES · TOKEN' : 'WRITES · LOCAL') : 'READ-ONLY';
   return '<div>'
-    + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(234,230,220,.09)">'
+    + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(var(--ink),.09)">'
     + '<div style="' + M + '; font-size:11px; letter-spacing:.18em; color:' + ACCENT + '">COPY TRADE · PAPER</div>'
     + '<h1 style="font-size:21px; line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">Follow traders with fake money</h1>'
     + '<div style="font-size:13px; color:' + DIM + '; margin-top:9px; max-width:760px">Every buy a followed wallet makes is scaled into that wallet\'s own sub-account and booked at the printed price. Equal start cash, equal settings — the sub-accounts are the comparison. Nothing is sent to a venue.</div></div>'
 
-    + '<div style="display:flex; align-items:center; gap:26px; padding:13px 24px; border-bottom:1px solid rgba(234,230,220,.09); background:#131311; flex-wrap:wrap">'
+    + '<div style="display:flex; align-items:center; gap:26px; padding:13px 24px; border-bottom:1px solid rgba(var(--ink),.09); background:var(--panel); flex-wrap:wrap">'
     + '<div style="display:flex; align-items:center; gap:8px" title="' + esc((live.daemon && live.daemon.reason) || '') + '">'
     + '<span style="width:7px; height:7px; border-radius:50%; background:' + daemonFarbe + '; display:inline-block"></span>'
     + '<span style="' + M + '; font-size:11px; letter-spacing:.14em; color:' + daemonFarbe + '">' + daemonText + '</span></div>'
-    + '<div style="' + M + '; font-size:11.5px; color:rgba(234,230,220,.6)">FOLLOWING <span style="color:#EAE6DC">' + activeCount + ' active</span>' + (traders.length > activeCount ? ' <span style="color:' + AMBER + '">' + (traders.length - activeCount) + ' paused</span>' : '') + '</div>'
-    + '<div style="' + M + '; font-size:11.5px; color:rgba(234,230,220,.6)">SOURCE <span style="color:#EAE6DC">' + esc(st.source) + '</span></div>'
-    + '<div style="' + M + '; font-size:11.5px; color:rgba(234,230,220,.6)">SCALE <span style="color:#EAE6DC">' + (+st.scale).toFixed(4) + '×</span></div>'
-    + '<div style="' + M + '; font-size:11.5px; color:rgba(234,230,220,.6)">CASH LEFT <span style="color:#EAE6DC">' + esc(usd(st.cash)) + '</span></div>'
-    + '<div style="' + M + '; font-size:11px; color:' + AMBER + '; border:1px solid rgba(222,126,54,.35); border-radius:4px; padding:3px 8px">AUTO TOP-UP ' + (st.auto_topup ? 'ON' : 'OFF') + '</div>'
-    + (accessText ? '<div style="' + M + '; font-size:11px; color:' + (access.allowed ? ACCENT : 'rgba(234,230,220,.5)') + '; border:1px solid rgba(234,230,220,.14); border-radius:4px; padding:3px 8px" title="' + esc(access.reason || '') + '">' + accessText + '</div>' : '')
+    + '<div style="' + M + '; font-size:11.5px; color:rgba(var(--ink),.6)">FOLLOWING <span style="color:var(--text)">' + activeCount + ' active</span>' + (traders.length > activeCount ? ' <span style="color:' + AMBER + '">' + (traders.length - activeCount) + ' paused</span>' : '') + '</div>'
+    + '<div style="' + M + '; font-size:11.5px; color:rgba(var(--ink),.6)">SOURCE <span style="color:var(--text)">' + esc(st.source) + '</span></div>'
+    + '<div style="' + M + '; font-size:11.5px; color:rgba(var(--ink),.6)">SCALE <span style="color:var(--text)">' + (+st.scale).toFixed(4) + '×</span></div>'
+    + '<div style="' + M + '; font-size:11.5px; color:rgba(var(--ink),.6)">CASH LEFT <span style="color:var(--text)">' + esc(usd(st.cash)) + '</span></div>'
+    + '<div style="' + M + '; font-size:11px; color:' + AMBER + '; border:1px solid rgba(var(--warn-rgb),.35); border-radius:4px; padding:3px 8px">AUTO TOP-UP ' + (st.auto_topup ? 'ON' : 'OFF') + '</div>'
+    + (accessText ? '<div style="' + M + '; font-size:11px; color:' + (access.allowed ? ACCENT : 'rgba(var(--ink),.5)') + '; border:1px solid rgba(var(--ink),.14); border-radius:4px; padding:3px 8px" title="' + esc(access.reason || '') + '">' + accessText + '</div>' : '')
     + '</div>'
 
-    + '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid rgba(234,230,220,.09)">'
-    + '<div style="padding:16px 20px; border-right:1px solid rgba(234,230,220,.09)"><div style="' + M + '; font-size:11px; letter-spacing:.14em; color:rgba(234,230,220,.6)">ALL SUB-ACCOUNTS · EQUITY</div><div style="' + M + '; font-size:26px; margin-top:8px">' + esc(usd(totals.equity)) + '</div><div style="' + M + '; font-size:11px; color:rgba(234,230,220,.6); margin-top:4px">' + esc(usd(totals.contributions)) + ' put in</div></div>'
-    + '<div style="padding:16px 20px; border-right:1px solid rgba(234,230,220,.09)"><div style="' + M + '; font-size:11px; letter-spacing:.14em; color:rgba(234,230,220,.6)">PROFIT ON PAPER</div><div style="' + M + '; font-size:26px; margin-top:8px; color:' + pnlColor(kp.pnl) + '">' + esc(signedUsd(kp.pnl)) + '</div><div style="' + M + '; font-size:11px; color:rgba(234,230,220,.6); margin-top:4px">'
+    + '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid rgba(var(--ink),.09)">'
+    + '<div style="padding:16px 20px; border-right:1px solid rgba(var(--ink),.09)"><div style="' + M + '; font-size:11px; letter-spacing:.14em; color:rgba(var(--ink),.6)">ALL SUB-ACCOUNTS · EQUITY</div><div style="' + M + '; font-size:26px; margin-top:8px">' + esc(usd(totals.equity)) + '</div><div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:4px">' + esc(usd(totals.contributions)) + ' put in</div></div>'
+    + '<div style="padding:16px 20px; border-right:1px solid rgba(var(--ink),.09)"><div style="' + M + '; font-size:11px; letter-spacing:.14em; color:rgba(var(--ink),.6)">PROFIT ON PAPER</div><div style="' + M + '; font-size:26px; margin-top:8px; color:' + pnlColor(kp.pnl) + '">' + esc(signedUsd(kp.pnl)) + '</div><div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:4px">'
     + (kp.source_pnl_delta != null ? 'first source ' + (kp.source_pnl_delta >= 0 ? '+' : '-') + '$' + num(Math.abs(kp.source_pnl_delta).toFixed(0)) + ' same window' : 'source wallet return not loaded') + '</div></div>'
-    + '<div style="padding:16px 20px; border-right:1px solid rgba(234,230,220,.09)"><div style="' + M + '; font-size:11px; letter-spacing:.14em; color:rgba(234,230,220,.6)">ORDERS MIRRORED</div><div style="' + M + '; font-size:26px; margin-top:8px">' + kp.mirrored + ' <span style="font-size:15px; color:rgba(234,230,220,.6)">/ ' + kp.total + '</span></div><div style="' + M + '; font-size:11px; color:' + AMBER + '; margin-top:4px">' + kp.skipped + ' skipped</div></div>'
-    + '<div style="padding:16px 20px"><div style="' + M + '; font-size:11px; letter-spacing:.14em; color:rgba(234,230,220,.6)">HOW CLOSE TO THE SOURCE</div><div style="' + M + '; font-size:26px; margin-top:8px">' + kp.fidelity + '%</div><div style="' + M + '; font-size:11px; color:rgba(234,230,220,.6); margin-top:4px">config ' + kp.config_fidelity + '% · execution ' + kp.exec_fidelity + '%</div></div>'
+    + '<div style="padding:16px 20px; border-right:1px solid rgba(var(--ink),.09)"><div style="' + M + '; font-size:11px; letter-spacing:.14em; color:rgba(var(--ink),.6)">ORDERS MIRRORED</div><div style="' + M + '; font-size:26px; margin-top:8px">' + kp.mirrored + ' <span style="font-size:15px; color:rgba(var(--ink),.6)">/ ' + kp.total + '</span></div><div style="' + M + '; font-size:11px; color:' + AMBER + '; margin-top:4px">' + kp.skipped + ' skipped</div></div>'
+    + '<div style="padding:16px 20px"><div style="' + M + '; font-size:11px; letter-spacing:.14em; color:rgba(var(--ink),.6)">HOW CLOSE TO THE SOURCE</div><div style="' + M + '; font-size:26px; margin-top:8px">' + kp.fidelity + '%</div><div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:4px">config ' + kp.config_fidelity + '% · execution ' + kp.exec_fidelity + '%</div></div>'
     + '</div>'
 
-    + '<div style="display:flex; align-items:center; gap:8px; padding:10px 24px; border-bottom:1px solid rgba(234,230,220,.09); flex-wrap:wrap">'
-    + '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.6)">' + (canWrite ? 'This page writes to data/copy_trading.sqlite and data/copy_settings.json; the daemon (scripts/run_copy_trader.py) copies from them.' : 'Read-only view of the copy desk; the daemon runs where api/server.py runs.')
+    + '<div style="display:flex; align-items:center; gap:8px; padding:10px 24px; border-bottom:1px solid rgba(var(--ink),.09); flex-wrap:wrap">'
+    + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6)">' + (canWrite ? 'This page writes to data/copy_trading.sqlite and data/copy_settings.json; the daemon (scripts/run_copy_trader.py) copies from them.' : 'Read-only view of the copy desk; the daemon runs where api/server.py runs.')
     + (live.as_of ? ' · snapshot ' + esc(String(live.as_of)) : '') + '</div>'
     + '<span style="flex:1"></span>'
     + button(T, 'Refresh', () => T.copyReload(), BTN_GHOST, 'ask /api/copy again')
@@ -630,6 +630,6 @@ export function renderCopy(T) {
 
 function fidelityBar(label, valueLabel, pct, color, valueColor) {
   return '<div>'
-    + '<div style="display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:6px"><span style="color:rgba(234,230,220,.7)">' + label + '</span><span style="' + M + (valueColor ? '; color:' + valueColor : '') + '">' + valueLabel + '</span></div>'
-    + '<div style="height:7px; background:rgba(234,230,220,.07); border-radius:2px"><div style="width:' + pct + '%; height:7px; background:' + color + '; border-radius:2px"></div></div></div>';
+    + '<div style="display:flex; justify-content:space-between; font-size:12.5px; margin-bottom:6px"><span style="color:rgba(var(--ink),.7)">' + label + '</span><span style="' + M + (valueColor ? '; color:' + valueColor : '') + '">' + valueLabel + '</span></div>'
+    + '<div style="height:7px; background:rgba(var(--ink),.07); border-radius:2px"><div style="width:' + pct + '%; height:7px; background:' + color + '; border-radius:2px"></div></div></div>';
 }

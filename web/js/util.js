@@ -58,9 +58,9 @@ export function herkunftSatz(herkunft, endpunkt) {
 export function leerBlock(titel, satz) {
   const M = "font-family:'IBM Plex Mono',monospace";
   return '<div style="padding:26px 24px">'
-    + '<div style="background:#131311; border:1px solid rgba(234,230,220,.09); border-radius:6px; padding:20px 22px; max-width:760px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#DE7E36">' + esc(titel) + '</div>'
-    + '<div style="font-size:13px; color:rgba(234,230,220,.6); margin-top:9px; line-height:1.6">' + esc(satz) + '</div>'
+    + '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:20px 22px; max-width:760px">'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:var(--warn)">' + esc(titel) + '</div>'
+    + '<div style="font-size:13px; color:rgba(var(--ink),.6); margin-top:9px; line-height:1.6">' + esc(satz) + '</div>'
     + '</div></div>';
 }
 
@@ -68,7 +68,7 @@ export function leerBlock(titel, satz) {
 // Seite sie ist, und darunter warum sie leer ist.
 export function seitenKopf(kicker, titel, farbe) {
   const M = "font-family:'IBM Plex Mono',monospace";
-  return '<div style="padding:20px 24px 14px; border-bottom:1px solid rgba(234,230,220,.09)">'
+  return '<div style="padding:20px 24px 14px; border-bottom:1px solid rgba(var(--ink),.09)">'
     + '<div style="' + M + '; font-size:11px; letter-spacing:.18em; color:' + farbe + '">' + esc(kicker) + '</div>'
     + '<h1 style="font-size:21px; line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">'
     + esc(titel) + '</h1></div>';
@@ -78,7 +78,7 @@ export function seitenKopf(kicker, titel, farbe) {
 // einer Liste sitzt und nicht deren Platz einnehmen soll.
 export function leerZeile(satz) {
   const M = "font-family:'IBM Plex Mono',monospace";
-  return '<div style="padding:22px 20px; ' + M + '; font-size:11.5px; color:rgba(234,230,220,.6); line-height:1.6">'
+  return '<div style="padding:22px 20px; ' + M + '; font-size:11.5px; color:rgba(var(--ink),.6); line-height:1.6">'
     + esc(satz) + '</div>';
 }
 

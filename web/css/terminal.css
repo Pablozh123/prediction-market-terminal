@@ -1,37 +1,100 @@
 /* Market Intel terminal — base styles.
-   The :root block below is the palette of record. The inline styles the JS
-   emits carry the same literal values (style attributes are built as strings;
-   SVG presentation attributes cannot read var()), so a colour change happens
-   here first and is then applied to the JS literals in the same commit.
-   Do not tweak either side casually.
+   The :root block below is the palette of record; [data-theme="light"]
+   overrides it wholesale. The JS builds inline styles as strings, and those
+   strings reference these custom properties (SVG colour attributes were
+   rewritten to style form for the same reason), so both themes repaint from
+   here alone. Do not reintroduce colour literals in the JS.
 
-   Direction: professional terminal on a warm near-black — amber carries
-   interaction and selection, green/red are reserved for signed values,
-   orange is attention. No neon, no decorative motion. */
+   Direction: professional terminal — amber carries interaction and
+   selection, green/red are reserved for signed values, orange is attention.
+   No neon, no decorative motion. Text and border tiers are rgba(var(--ink),α),
+   where --ink is an RGB triplet. */
 
 :root {
+  color-scheme: dark;
   /* surfaces */
   --bg: #0B0B0A;            /* page and shell */
+  --bg-rgb: 11, 11, 10;
   --panel: #131311;         /* cards, inputs, table headers */
-  --panel-hover: #1A1A17;   /* row and element hover */
+  --panel-hover: #1A1A17;   /* element hover */
   --edge: #2A2A26;          /* scrollbar thumb, strong dividers */
-  /* text — warm off-white; tiers use rgba(234,230,220,α) */
+  /* text — warm off-white; tiers use rgba(var(--ink),α) */
   --text: #EAE6DC;
+  --ink: 234, 230, 220;
   /* roles */
   --accent: #D9A648;        /* interactive: links, active nav, buttons, selection */
+  --accent-rgb: 217, 166, 72;
   --accent-bright: #E5C079; /* link hover */
   --accent-bg-hover: #E2B45C;
+  --on-accent: #0B0B0A;     /* text on an accent-filled control */
   --pos: #69B47E;           /* signed values up, BUY, live */
+  --pos-rgb: 105, 180, 126;
   --neg: #D95F52;           /* signed values down, SELL, errors */
+  --neg-rgb: 217, 95, 82;
   --neg-soft: #DE8A7A;
   --warn: #DE7E36;          /* attention: flags, waiting, high severity */
+  --warn-rgb: 222, 126, 54;
   --info: #6E9BC8;          /* neutral reference lines, third series */
+  --info-rgb: 110, 155, 200;
+  /* categorical series beyond the roles */
+  --muted: #98978E;
+  --cat-violet: #AC93C6;
+  --cat-teal: #86BDB2;
+  --cat-gold: #D4B878;
+  --cat-blue2: #93A5C6;
+  --cat-rose: #C98A9E;
+  /* overlay chrome */
+  --scrim: rgba(8, 8, 7, .72);
+  --shadow-25: rgba(0, 0, 0, .25);
+  --shadow-35: rgba(0, 0, 0, .35);
+  --shadow-45: rgba(0, 0, 0, .45);
+  --shadow-55: rgba(0, 0, 0, .55);
+  --shadow-60: rgba(0, 0, 0, .6);
   /* shape */
   --r-control: 4px;         /* buttons, chips, inputs */
   --r-panel: 6px;           /* cards, overlays, tooltips */
   /* type */
   --font-ui: 'IBM Plex Sans', -apple-system, sans-serif;
   --font-mono: 'IBM Plex Mono', monospace;
+}
+
+/* Light: warm paper, same roles two to three shades darker so every pairing
+   keeps its contrast (amber text needs ~#8A651C on this ground, not #D9A648). */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #F4F1EA;
+  --bg-rgb: 244, 241, 234;
+  --panel: #FBFAF6;
+  --panel-hover: #EAE6DB;
+  --edge: #CCC7B9;
+  --text: #201E19;
+  --ink: 32, 30, 25;
+  --accent: #8A651C;
+  --accent-rgb: 138, 101, 28;
+  --accent-bright: #6E5116;
+  --accent-bg-hover: #9C7421;
+  --on-accent: #FBFAF6;
+  --pos: #2E7D4F;
+  --pos-rgb: 46, 125, 79;
+  --neg: #B23B2E;
+  --neg-rgb: 178, 59, 46;
+  --neg-soft: #9E5D50;
+  --warn: #A85A14;
+  --warn-rgb: 168, 90, 20;
+  --info: #3E6796;
+  --info-rgb: 62, 103, 150;
+  --muted: #767264;
+  --cat-violet: #77609A;
+  --cat-teal: #3F7F72;
+  --cat-gold: #8F7430;
+  --cat-blue2: #5C7194;
+  --cat-rose: #9C5B72;
+  --scrim: rgba(45, 42, 35, .45);
+  --shadow-25: rgba(70, 62, 48, .14);
+  --shadow-35: rgba(70, 62, 48, .18);
+  --shadow-45: rgba(70, 62, 48, .22);
+  --shadow-55: rgba(70, 62, 48, .25);
+  --shadow-60: rgba(70, 62, 48, .28);
 }
 
 html, body { margin: 0; background: var(--bg); color: var(--text); }
@@ -48,9 +111,9 @@ a:hover { color: var(--accent-bright); }
 body { font-family: var(--font-ui); }
 
 .shell { display: flex; height: 100vh; width: 100%; min-width: 1280px; overflow: hidden; background: var(--bg); color: var(--text); }
-.sidebar { width: 264px; box-sizing: border-box; flex: none; border-right: 1px solid rgba(234,230,220,.09); display: flex; flex-direction: column; padding: 20px 14px 16px; overflow-y: auto; }
+.sidebar { width: 264px; box-sizing: border-box; flex: none; border-right: 1px solid rgba(var(--ink), .09); display: flex; flex-direction: column; padding: 20px 14px 16px; overflow-y: auto; }
 .maincol { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.topbar { display: flex; align-items: center; justify-content: space-between; padding: 13px 24px; border-bottom: 1px solid rgba(234,230,220,.09); flex: none; }
+.topbar { display: flex; align-items: center; justify-content: space-between; padding: 13px 24px; border-bottom: 1px solid rgba(var(--ink), .09); flex: none; }
 .content-wrap { flex: 1; min-height: 0; display: flex; position: relative; }
 .content { flex: 1; min-width: 1010px; overflow-y: auto; }
 
@@ -58,7 +121,7 @@ input { font-family: inherit; }
 
 /* Focus. Every control used to set `outline:none` inline, so a keyboard user
    moving through the page saw nothing move — the ring is the only thing
-   telling them where they are. Amber on the darkest surface is 8.7:1, and
+   telling them where they are. The accent keeps ≥4.5:1 on both grounds, and
    :focus-visible keeps it off the mouse. Do not reintroduce `outline:none`;
    if a ring crops badly, give the element room, not an override. */
 :focus-visible {
@@ -76,10 +139,10 @@ input { font-family: inherit; }
    with display:none — that would take it out of the tab order entirely. */
 .skip {
   position: fixed; left: 8px; top: -60px; z-index: 100;
-  background: var(--accent); color: var(--bg); padding: 9px 14px; border-radius: var(--r-control);
+  background: var(--accent); color: var(--on-accent); padding: 9px 14px; border-radius: var(--r-control);
   font-size: 13px; font-weight: 600; text-decoration: none; transition: top .12s ease;
 }
-.skip:focus { top: 8px; color: var(--bg); }
+.skip:focus { top: 8px; color: var(--on-accent); }
 
 /* <main> takes focus from the skip link but is not a control: no ring. */
 #main:focus, #main:focus-visible { outline: none; }
@@ -102,12 +165,12 @@ input { font-family: inherit; }
    reproduce every hover pattern it contains. */
 .hv-el:hover { background: var(--panel-hover) !important; }
 .hv-panel:hover { background: var(--panel) !important; }
-.hv-bd22:hover { border-color: rgba(234,230,220,.22) !important; }
-.hv-bd30:hover { border-color: rgba(234,230,220,.3) !important; color: var(--text) !important; }
-.hv-bd32:hover { border-color: rgba(234,230,220,.32) !important; color: var(--text) !important; }
-.hv-bd35:hover { border-color: rgba(234,230,220,.35) !important; }
-.hv-bd35w:hover { border-color: rgba(234,230,220,.35) !important; color: var(--text) !important; }
-.hv-bd20:hover { border-color: rgba(234,230,220,.2) !important; }
+.hv-bd22:hover { border-color: rgba(var(--ink), .22) !important; }
+.hv-bd30:hover { border-color: rgba(var(--ink), .3) !important; color: var(--text) !important; }
+.hv-bd32:hover { border-color: rgba(var(--ink), .32) !important; color: var(--text) !important; }
+.hv-bd35:hover { border-color: rgba(var(--ink), .35) !important; }
+.hv-bd35w:hover { border-color: rgba(var(--ink), .35) !important; color: var(--text) !important; }
+.hv-bd20:hover { border-color: rgba(var(--ink), .2) !important; }
 .hv-white:hover { color: var(--text) !important; }
 .hv-accent:hover { color: var(--accent) !important; }
 .hv-amber:hover { color: var(--warn) !important; }
@@ -115,10 +178,11 @@ input { font-family: inherit; }
 
 /* Treemap tiles (wallet page): hover names the tile without moving it — the
    figures come up in the floating card #tip that app.js positions next to
-   the pointer. */
+   the pointer. Light ground darkens instead of brightening. */
 .tm-tile { transition: filter .12s ease; }
 .tm-tile:hover { filter: brightness(1.15); z-index: 5; }
-#tip { position: fixed; z-index: 60; pointer-events: none; display: none; max-width: 320px; background: rgba(11,11,10,.96); border: 1px solid rgba(234,230,220,.14); border-radius: var(--r-panel); padding: 12px 14px; box-shadow: 0 12px 32px rgba(0,0,0,.55); }
+:root[data-theme="light"] .tm-tile:hover { filter: brightness(.94); }
+#tip { position: fixed; z-index: 60; pointer-events: none; display: none; max-width: 320px; background: rgba(var(--bg-rgb), .96); border: 1px solid rgba(var(--ink), .14); border-radius: var(--r-panel); padding: 12px 14px; box-shadow: 0 12px 32px var(--shadow-55); }
 #tip.on { display: block; }
 
 /* Desktop-only is a decision here, not an oversight: .shell never goes below
@@ -129,8 +193,8 @@ input { font-family: inherit; }
 @media (max-width: 1279px) {
   .narrow-note {
     display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 80;
-    box-sizing: border-box; background: rgba(19,19,17,.97);
-    border-top: 1px solid rgba(234,230,220,.16); color: rgba(234,230,220,.72);
+    box-sizing: border-box; background: rgba(var(--bg-rgb), .97);
+    border-top: 1px solid rgba(var(--ink), .16); color: rgba(var(--ink), .72);
     font-family: var(--font-mono); font-size: 12px; line-height: 1.5;
     padding: 11px 16px; text-align: center;
   }

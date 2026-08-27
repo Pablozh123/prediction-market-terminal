@@ -1526,7 +1526,7 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("busiest cell Wed 10:00 UTC (1 trade)", risk)
         # 7 x 24 cells, three of them coloured, each with its count in the title.
         self.assertEqual(risk_html.count('height:16px; border-radius:4px; background:'), 7 * 24)
-        self.assertEqual(risk_html.count("background:rgba(110,155,200,"), 3)
+        self.assertEqual(risk_html.count("background:rgba(var(--info-rgb),"), 3)
         self.assertIn('title="Wed 10:00 UTC — 1 trade · $50.00"', risk_html)
         # Similar wallets: waiting state names the request; the answer lists
         # shared markets, sides, overlap bar, leaderboard PnL where on the
@@ -1587,8 +1587,8 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertEqual(html.count('class="tm-tile"'), 4)
         # Tiles: absolutely placed percent boxes; a lost row is red, a won one green.
         self.assertGreaterEqual(html.count("position:absolute; left:"), 4)
-        self.assertIn("background:rgba(217,95,82,", html)
-        self.assertIn("background:rgba(105,180,126,", html)
+        self.assertIn("background:rgba(var(--neg-rgb),", html)
+        self.assertIn("background:rgba(var(--pos-rgb),", html)
         geschlossen = _sichtbarer_text(self.ausgabe["live"]["wallet_treemap_closed"])
         self.assertIn("2 tiles", geschlossen)
         offen = self.ausgabe["live"]["wallet_treemap_open"]

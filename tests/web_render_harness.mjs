@@ -81,7 +81,7 @@ function neuesT() {
     changeStyle: () => M,
     marketView: (m) => ({
       title: m.title, meta: m.venue + ' · ' + m.cat, sparkPoints: m.spark ? spark(m.spark) : '',
-      color: '#69B47E', priceLabel: m.yes + '¢', changeLabel: '+' + m.chg + '¢',
+      color: 'var(--pos)', priceLabel: m.yes + '¢', changeLabel: '+' + m.chg + '¢',
       changeStyle: M, volLabel: money(m.vol), ends: m.ends, act: ''
     }),
     marketExtraOf(m) { return this.marketExtra[m.id] || { spread: null, age: null, endsDays: null }; },
