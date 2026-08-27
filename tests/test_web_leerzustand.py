@@ -1112,15 +1112,22 @@ class WebLeerzustandTest(unittest.TestCase):
         text = _sichtbarer_text(html)
         # Echter Median (0.5 und 10 → 5.25), als Kachel und als Referenzlinie.
         self.assertIn("MEDIAN LATENCY 5.25 min n = 2 events with a reaction", text)
-        # Ein Diagramm, nicht zwei: Reaktion und Konvergenz teilen sich eine
-        # Achse, sonst standen zwei Messungen desselben Ereignisses auf zwei
-        # verschiedenen Skalen nebeneinander und lasen sich als zwei Befunde.
-        self.assertIn("FIRST REACTION AND CONVERGENCE PER EVENT · n 2", text)
+        # Ein Diagramm, EINE Zeile je Ereignis: Punkt = erste Bewegung,
+        # Linienende = ausgepreist. Zwei Zeilen je Ereignis machten die Karte
+        # doppelt so hoch wie der Rest der Seite.
+        self.assertIn("FIRST REACTION → FULLY PRICED IN · n 2", text)
         self.assertIn("median first reaction 5.25 min", text)
         self.assertNotIn("MINUTES TO CONVERGENCE PER EVENT", text)
-        self.assertIn("pale bar = first &gt; 1-point move off baseline, solid = fully priced in", text)
-        self.assertIn("reaction · harness_fast 0.5", text)
-        self.assertIn("converged · harness_fast 30", text)
+        self.assertIn(
+            "dot = first &gt; 1-point move off the pre-drop baseline (either direction), "
+            "line end = durably priced on the side that won · green = resolved YES, blue = resolved NO",
+            text,
+        )
+        # Je Ereignis genau eine Zeile: Label plus Konvergenz-Minuten rechts.
+        self.assertIn("harness_fast 30 min", text)
+        self.assertIn("harness_slow 600 min", text)
+        # Der Klartext steht VOR dem Bild und sagt, wo die Uhren starten.
+        self.assertIn("Both clocks start when the broadcast starts — not when the words are said", text)
         self.assertIn("EXCLUDED EVENTS · 1", text)
         self.assertIn("harness_excluded excluded · ambiguous mapping between content and market", text)
         self.assertIn(

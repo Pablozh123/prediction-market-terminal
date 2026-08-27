@@ -2537,11 +2537,11 @@ function mentionsExtrasHtml(payload) {
       punkte
     });
   };
-  // Ein Diagramm statt zwei. Reaktion und Konvergenz sind zwei Messungen
-  // desselben Ereignisses; nebeneinander in getrennten Karten lasen sie sich
-  // wie zwei Befunde auf zwoelf Faellen. Auf einer gemeinsamen Achse ist die
-  // Aussage sichtbar: zwischen dem ersten Zucken und dem Ausgepreistsein
-  // liegt das handelbare Fenster.
+  // Ein Diagramm, EINE Zeile je Ereignis: Reaktion und Konvergenz sind zwei
+  // Messungen desselben Ereignisses, also eine Spanne auf einer Achse —
+  // Punkt = erste Bewegung, Linienende = ausgepreist, die Spanne dazwischen
+  // ist das handelbare Fenster. Zwei Zeilen je Ereignis (24 Balken) machten
+  // die Karte doppelt so hoch wie noetig und lasen sich wie zwei Befunde.
   // Nur Faelle, die BEIDE Zahlen tragen — eine fehlende Konvergenz als 0 zu
   // zeichnen laese sie wie sofortiges Einpreisen aussehen. Fehlt einer, faellt
   // der Fall aus diesem Diagramm und das n im Titel sagt es.
@@ -2550,24 +2550,32 @@ function mentionsExtrasHtml(payload) {
   const beide = faelle.filter(vollstaendig)
     .map((f) => ({
       label: String(f.event || '—'),
-      werte: [+f.minuten_bis_erste_reaktion, +f.minuten_bis_konvergenz],
-      art: 'summe'
+      von: +f.minuten_bis_erste_reaktion,
+      bis: +f.minuten_bis_konvergenz,
+      wert: +f.minuten_bis_erste_reaktion,
+      farbe: String(f.korrekt_aufgeloestes_outcome || '') === 'YES' ? '#C8F542' : '#4F8EF7',
+      text: fmtZahl(+f.minuten_bis_konvergenz) + ' min'
     }))
-    .sort((a, b) => a.werte[0] - b.werte[0]);
-  const medReaktion = beide.length ? medianVon(beide.map((p) => p.werte[0])) : null;
+    .sort((a, b) => a.bis - b.bis);
+  const medReaktion = beide.length ? medianVon(beide.map((p) => p.von)) : null;
   const paar = beide.length
     ? diagramm({
-      titel: 'FIRST REACTION AND CONVERGENCE PER EVENT · n ' + beide.length,
-      einheit: 'minutes after the content drop · pale bar = first > 1-point move off baseline, solid = fully priced in · dashed line = median first reaction ' + fmtZahl(medReaktion),
+      titel: 'FIRST REACTION → FULLY PRICED IN · n ' + beide.length,
+      einheit: 'minutes after broadcast start · dot = first > 1-point move off the pre-drop baseline (either direction), line end = durably priced on the side that won · green = resolved YES, blue = resolved NO',
       referenz: medReaktion,
       referenz_label: 'median first reaction ' + fmtZahl(medReaktion) + ' min',
-      gruppen: ['reaction', 'converged'],
       punkte: beide
     })
     : '';
   const reaktion = paar || balken('minuten_bis_erste_reaktion', 'MINUTES TO FIRST REACTION (> 1-POINT MOVE) PER EVENT');
+  // Der Klartext VOR dem Bild: was die beiden Uhren messen und wo sie
+  // starten — ohne das las sich "first reaction 86.7 min" als Markt, der
+  // eine gefallene Aussage verschlief.
+  const lead = '<div style="margin-top:14px; font-size:12.5px; color:rgba(255,255,255,.7); line-height:1.6; max-width:860px">'
+    + 'Twelve broadcasts, each with a market on whether something would be said. Both clocks start when the broadcast starts — not when the words are said. '
+    + 'The dot is the first time the price moved at all; the end of the line is when it had durably settled on the side that later won. The span between them is the tradeable window.</div>';
   const charts = reaktion
-    ? '<div style="margin-top:14px">' + reaktion + '</div>'
+    ? lead + '<div style="margin-top:10px">' + reaktion + '</div>'
     : hinweisKarte('No reaction or convergence minutes in this payload — mentions_latenz.json carries them per event under faelle[].minuten_bis_erste_reaktion and minuten_bis_konvergenz.');
   // YES- und NO-Faelle messen verschiedene Mechanismen (Reaktion auf eine
   // gefallene Aussage vs. Zerfall der Resthoffnung ohne Ereignis) — die
