@@ -192,6 +192,12 @@ class Terminal {
     // wallet: one entry per analysed address — { herkunft: 'loading' | 'live'
     // | 'fehler', data, fehler, status, retryAfter }.
     this.liveData = { leaderboard: null, cross: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {}, riskBook: {}, walletSimilar: {} };
+    // Venue-weite Suche (/api/search): die Palette filtert sonst nur die
+    // geladenen Top-Volumen-Maerkte — alles ausserhalb davon fand sie nie.
+    // q traegt die Anfrage, zu der die Treffer gehoeren; status ist
+    // 'idle' | 'laedt' | 'ok' | 'fehler'.
+    this.searchRemote = { q: '', markets: [], wallets: [], status: 'idle', fehler: '' };
+    this._suchTimer = null;
 
     this._acts = [];
     this._inps = [];
@@ -339,6 +345,53 @@ class Terminal {
   openMarket(id) {
     this.setState({ detail: { kind: 'market', id }, searchOpen: false });
     this.fetchMarketHistory(id);
+  }
+
+  // Ein Suchtreffer von /api/search, der nicht im geladenen Universum steht:
+  // erst einreihen (das Detail-Overlay liest aus this.markets), dann oeffnen.
+  openRemoteMarket(m) {
+    if (!this.markets.find((x) => x.id === m.id)) {
+      this.markets.push(m);
+      this.marketExtra[m.id] = m._extra;
+    }
+    this.setState({ detail: { kind: 'market', id: m.id }, searchOpen: false, searchQuery: '' });
+    this.fetchMarketHistory(m.id);
+  }
+
+  // Venue-weite Suche, entprellt. Die lokale Filterung der Palette bleibt
+  // sofort sichtbar; die Treffer aus /api/search kommen nach, sobald die
+  // Antwort da ist, und nur wenn die Anfrage noch die aktuelle ist.
+  sucheRemote(roh) {
+    const q = String(roh || '').trim();
+    clearTimeout(this._suchTimer);
+    // Adressen sind eine Aktion, keine Suche; unter zwei Zeichen antwortet
+    // der Endpunkt ohnehin leer.
+    if (q.length < 2 || /^0x[0-9a-fA-F]*$/.test(q)) {
+      this.searchRemote = { q: '', markets: [], wallets: [], status: 'idle', fehler: '' };
+      return;
+    }
+    this._suchTimer = setTimeout(() => { this.sucheRemoteJetzt(q); }, 250);
+  }
+
+  async sucheRemoteJetzt(q) {
+    this.searchRemote = { q, markets: [], wallets: [], status: 'laedt', fehler: '' };
+    this.render();
+    try {
+      const r = await apiGet('/api/search?q=' + encodeURIComponent(q) + '&limit=12');
+      if (this.state.searchQuery.trim() !== q) return;
+      const { mapMarket } = await import('./util.js');
+      this.searchRemote = {
+        q,
+        markets: (r.markets || []).map((row, i) => mapMarket(row, i)),
+        wallets: r.wallets || [],
+        status: 'ok',
+        fehler: ''
+      };
+    } catch (err) {
+      if (this.state.searchQuery.trim() !== q) return;
+      this.searchRemote = { q, markets: [], wallets: [], status: 'fehler', fehler: String(err && err.message ? err.message : err) };
+    }
+    this.render();
   }
 
   async fetchMarketHistory(id) {

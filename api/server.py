@@ -56,6 +56,8 @@ Paper-Copy-Desk unter /api/copy/*, der lokale Papierbuecher schreibt):
     GET  /api/health
     GET  /api/overview
     GET  /api/markets?query=&category=&limit=250
+    GET  /api/search?q=&limit=12   (Volltext ueber den ganzen Polymarket-Bestand
+                                    plus Profile; das Universum steuert Kalshi bei)
     GET  /api/tape?limit=250&min_cash=0
     GET  /api/leaderboard?limit=100&period=ALL&order_by=PNL
     GET  /api/wallet/{wallet}      (0x + 40 hex; the whole wallet page, ~6 upstream calls,
@@ -472,6 +474,50 @@ def markets(
     # Mit ``raw``, ``description`` und den Token-Blobs wog die Antwort fuer
     # 250 Zeilen ueber ein Megabyte, alle 30 Sekunden.
     return {"rows": apv.market_records(df, limit), "total": total, "as_of": md.now_utc_label()}
+
+
+@app.get("/api/search")
+def search(q: str = "", limit: int = Query(12, le=25)) -> dict[str, Any]:
+    """Volltextsuche: Gamma public-search (ganzer Polymarket-Bestand, aktive
+    Events, Profile) plus Titeltreffer aus dem gecachten Universum (bringt
+    Kalshi mit). Die Suchleiste im Frontend filtert sonst nur die geladenen
+    Top-Volumen-Maerkte — alles ausserhalb davon fand sie nie."""
+
+    text = q.strip()
+    if len(text) < 2:
+        return {"markets": [], "wallets": [], "as_of": md.now_utc_label()}
+
+    def _run() -> dict[str, Any]:
+        markets_df, profiles = md.search_polymarket(text, limit_per_type=limit)
+        rows = apv.market_records(markets_df, limit)
+        try:
+            universe = load_universe(1000)
+        except Exception:
+            universe = pd.DataFrame()
+        if not universe.empty and "title" in universe.columns:
+            mask = universe["title"].astype(str).str.contains(text, case=False, regex=False, na=False)
+            uni_rows = apv.market_records(universe[mask], limit)
+        else:
+            uni_rows = []
+        # Universum zuerst (traegt Kalshi und die frischeren Volumenfelder),
+        # dann die reinen Gamma-Treffer; Dedupe ueber market_key.
+        seen: set[str] = set()
+        merged: list[dict[str, Any]] = []
+        for row in uni_rows + rows:
+            key = str(row.get("market_key") or row.get("ticker") or "")
+            if key and key in seen:
+                continue
+            seen.add(key)
+            merged.append(row)
+            if len(merged) >= limit:
+                break
+        return {"markets": merged, "wallets": profiles[:limit]}
+
+    try:
+        payload = cached(f"search_{text.casefold()}_{limit}", _run, ttl=60.0)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"search unavailable: {exc}")
+    return {**payload, "as_of": md.now_utc_label()}
 
 
 @app.get("/api/tape")

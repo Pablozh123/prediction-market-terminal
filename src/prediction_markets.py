@@ -346,6 +346,45 @@ def get_polymarket_markets_by_event_slugs(slugs: list[str]) -> list[dict[str, An
     return rows
 
 
+def search_polymarket(query: str, limit_per_type: int = 12) -> tuple[pd.DataFrame, list[dict[str, Any]]]:
+    """Volltextsuche ueber den gesamten Polymarket-Bestand (Gamma public-search).
+
+    Anders als ``get_polymarket_markets`` (Top-Volumen-Seiten) durchsucht der
+    Endpunkt alle aktiven Events plus Profile. Rueckgabe: (normalisierte
+    Markt-Tabelle, Profile als Liste mit ``name``/``wallet``).
+    """
+
+    text = str(query or "").strip()
+    if not text:
+        return pd.DataFrame(), []
+    data = _get_json(
+        f"{POLY_GAMMA}/public-search",
+        params={
+            "q": text,
+            "limit_per_type": max(1, min(int(limit_per_type), 25)),
+            "events_status": "active",
+            "search_profiles": "true",
+        },
+    )
+    payload = data if isinstance(data, dict) else {}
+    normalized: list[dict[str, Any]] = []
+    for event in payload.get("events") or []:
+        if not isinstance(event, dict):
+            continue
+        for market in event.get("markets") or []:
+            if isinstance(market, dict) and not market.get("closed"):
+                normalized.append(_normalize_polymarket_market(market, parent_event=event))
+    profiles: list[dict[str, Any]] = []
+    for profile in payload.get("profiles") or []:
+        if not isinstance(profile, dict):
+            continue
+        wallet = str(profile.get("proxyWallet") or profile.get("wallet") or "").strip()
+        name = str(profile.get("name") or profile.get("pseudonym") or "").strip()
+        if wallet and name:
+            profiles.append({"name": name, "wallet": wallet})
+    return _finalize_polymarket_markets(normalized), profiles
+
+
 def market_category_frame(condition_ids: list[str]) -> pd.DataFrame:
     """market_key -> category plus the parent event title, for classification.
 

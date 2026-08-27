@@ -242,21 +242,44 @@ export function renderSearch(T) {
       act: ''
     });
   }
-  const searchMarkets = T.markets.filter((m) => !q || m.title.toLowerCase().indexOf(q) >= 0).slice(0, 5).map((m) => ({
+  const marketRow = (m) => ({
     tag: 'MARKET', title: m.title, meta: m.venue + ' · ' + m.cat, value: m.yes + '¢',
     tagStyle: M + '; font-size:10.5px; letter-spacing:.12em; color:var(--on-accent); background:var(--accent); border-radius:4px; padding:3px 6px',
-    act: T.act(() => T.setState({ detail: { kind: 'market', id: m.id }, searchOpen: false, searchQuery: '' }))
-  }));
+    act: T.act(() => T.openRemoteMarket(m))
+  });
+  const lokaleMaerkte = T.markets.filter((m) => !q || m.title.toLowerCase().indexOf(q) >= 0).slice(0, 5);
+  // Venue-weite Treffer aus /api/search: nur wenn sie zur aktuellen Anfrage
+  // gehoeren, und ohne die schon lokal gezeigten Zeilen zu doppeln.
+  const remote = T.searchRemote && T.searchRemote.q === rawQuery ? T.searchRemote : null;
+  const lokaleIds = {};
+  lokaleMaerkte.forEach((m) => { lokaleIds[m.id] = true; });
+  const remoteMaerkte = remote ? remote.markets.filter((m) => !lokaleIds[m.id]).slice(0, 7) : [];
+  const searchMarkets = lokaleMaerkte.concat(remoteMaerkte).map(marketRow);
   const searchTraders = T.traders.filter((t) => !q || t.name.toLowerCase().indexOf(q) >= 0).slice(0, 3).map((t) => ({
     tag: 'WALLET', title: t.name, meta: t.wallet + (t.score != null ? ' · smart score ' + t.score : ''), value: money(t.pnl),
     tagStyle: M + '; font-size:10.5px; letter-spacing:.12em; color:var(--on-accent); background:var(--info); border-radius:4px; padding:3px 6px',
     act: T.act(() => { T.setState({ searchOpen: false, searchQuery: '' }); T.openWallet(t.name); })
   }));
-  const results = walletActions.concat(searchMarkets, searchTraders);
+  const bekannteNamen = {};
+  T.traders.forEach((t) => { bekannteNamen[t.name.toLowerCase()] = true; });
+  const remoteWallets = remote ? remote.wallets.filter((w) => !bekannteNamen[String(w.name || '').toLowerCase()]).slice(0, 3).map((w) => ({
+    tag: 'WALLET', title: w.name, meta: w.wallet + ' · Polymarket profile — opens the wallet page', value: '→',
+    tagStyle: M + '; font-size:10.5px; letter-spacing:.12em; color:var(--on-accent); background:var(--info); border-radius:4px; padding:3px 6px',
+    act: T.act(() => { if (T.analyseWallet) T.analyseWallet(w.wallet); else T.setState({ searchOpen: false, searchQuery: '' }); })
+  })) : [];
+  const results = walletActions.concat(searchMarkets, searchTraders, remoteWallets);
+  // Statuszeile der venue-weiten Suche fuer die Fusszeile.
+  const sr = T.searchRemote || {};
+  let remoteHinweis = '';
+  if (q.length >= 2 && !/^0x[0-9a-fA-F]*$/.test(rawQuery)) {
+    if (sr.status === 'laedt' || (sr.status === 'ok' && sr.q !== rawQuery)) remoteHinweis = 'searching all of Polymarket…';
+    else if (sr.status === 'fehler') remoteHinweis = 'venue-wide search unavailable (' + sr.fehler + ') — showing the loaded top-volume markets only';
+    else if (remote && sr.status === 'ok') remoteHinweis = 'includes venue-wide Polymarket search (/api/search)';
+  }
 
   return '<div ' + T.act(() => T.setState({ searchOpen: false }), { plain: true }) + ' data-bg style="position:fixed; inset:0; background:var(--scrim); display:flex; align-items:flex-start; justify-content:center; padding-top:14vh; z-index:50">'
     + '<div data-stop role="dialog" aria-modal="true" aria-label="Search markets, wallets and categories" style="width:620px; background:var(--panel); border:1px solid rgba(var(--ink),.14); border-radius:14px; overflow:hidden; box-shadow:0 30px 80px var(--shadow-60)">'
-    + '<input value="' + esc(s.searchQuery) + '" ' + T.inp((e) => T.setState({ searchQuery: e.target.value }), 'searchQuery') + ' placeholder="Search markets, wallets, categories — or paste a 0x… address to analyse it" style="width:100%; box-sizing:border-box; background:transparent; border:none; border-bottom:1px solid rgba(var(--ink),.35); padding:17px 20px; ' + M + '; font-size:14px; color:var(--text)" autofocus />'
+    + '<input value="' + esc(s.searchQuery) + '" ' + T.inp((e) => { T.sucheRemote(e.target.value); T.setState({ searchQuery: e.target.value }); }, 'searchQuery') + ' placeholder="Search markets, wallets, categories — or paste a 0x… address to analyse it" style="width:100%; box-sizing:border-box; background:transparent; border:none; border-bottom:1px solid rgba(var(--ink),.35); padding:17px 20px; ' + M + '; font-size:14px; color:var(--text)" autofocus />'
     + '<div style="max-height:380px; overflow-y:auto">'
     // The first row is marked (data-result) and lightly highlighted: Enter
     // opens it (app.js keydown), so the palette works without the mouse.
@@ -271,6 +294,7 @@ export function renderSearch(T) {
     + '</div>'
     + '<div style="padding:10px 20px; ' + M + '; font-size:11px; color:rgba(var(--ink),.55); display:flex; gap:16px">'
     + '<span>ESC to close</span>' + (results.length ? '<span>ENTER opens the first result, ARROW KEYS walk them</span>' : '') + '<span role="status">' + results.length + ' results'
-    + (!T.markets.length && !T.traders.length ? ' — nothing loaded to search: markets come from /api/markets, wallets from the leaderboard' : '') + '</span></div>'
+    + (remoteHinweis ? ' — ' + esc(remoteHinweis) : '')
+    + (!T.markets.length && !T.traders.length && !remoteMaerkte.length ? ' — nothing loaded to search: markets come from /api/markets, wallets from the leaderboard' : '') + '</span></div>'
     + '</div></div>';
 }
