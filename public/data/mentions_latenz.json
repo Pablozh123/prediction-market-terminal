@@ -7,34 +7,37 @@
    "n": 12,
    "median_minuten_bis_erste_reaktion": 0.2,
    "median_minuten_bis_konvergenz": 260.7,
-   "median_stunden_im_handelbaren_fenster": 1.8
+   "median_stunden_im_handelbaren_fenster": 1.8,
+   "median_sekunden_bis_erste_reaktion": 11.5
   },
   "je_outcome": {
    "YES": {
     "n": 5,
     "median_minuten_bis_erste_reaktion": 0.1,
     "median_minuten_bis_konvergenz": 300.2,
-    "median_stunden_im_handelbaren_fenster": 1.5
+    "median_stunden_im_handelbaren_fenster": 1.5,
+    "median_sekunden_bis_erste_reaktion": 9
    },
    "NO": {
     "n": 7,
     "median_minuten_bis_erste_reaktion": 4.0,
     "median_minuten_bis_konvergenz": 221.2,
-    "median_stunden_im_handelbaren_fenster": 2.0
+    "median_stunden_im_handelbaren_fenster": 2.0,
+    "median_sekunden_bis_erste_reaktion": 242
    }
   }
  },
  "quelle": {
   "methode": "t0 is the start of the transmission (the content drop); price series of the YES token at fidelity=1 (minute grid). Baseline = median price of the 60 minutes before t0. First reaction = first minute at or after t0 whose price stands more than 1 point (0.01) away from that baseline, in either direction — it is a price move, not proof that anything was said. Convergence = first time the price durably stays past 0.9 (resolved YES) or below 0.1 (resolved NO) until the series ends. Tradeable window = hours after t0 in which the price stayed strictly between 0.1 and 0.9, measured on the price series independently of the reaction threshold — it can start before the first reaction (jre_vance_2221: window 0.08 h against a reaction-to-convergence span of 0.03 h) and is not convergence minus reaction.",
-  "datengrundlage": "12 curated status-ok cases plus one documented exclusion from the thesis file data/results/mentions_latency.csv. Each case carries its drop timestamp (t0) and Polymarket condition id, so the rows can be checked against the venue's public price history; the minute-grid price series themselves live in the thesis repository's raw cache and are not republished here. The Mentions example in kategorie_karte.json (median 0.2 / 260.7 min) is the median of exactly these 12 cases — the exact pooled reaction median is 0.15 min (mean of the two middle values 0.1 and 0.2), published rounded to one decimal.",
+  "datengrundlage": "12 curated status-ok cases plus one documented exclusion from the thesis file data/results/mentions_latency.csv. Each case carries its drop timestamp (t0), Polymarket condition id, and the exact second gaps (sekunden_*): reaction/convergence epoch of the minute-grid price point minus the curated drop epoch — the minute values are these gaps rounded to 0.1 min, which is why e.g. 11.5 s median (exact) and 0.15 min (rounded pooled median, published as 0.2 in kategorie_karte.json) coexist. The minute-grid price series live in the thesis repository's raw cache and are not republished here.",
   "einschraenkungen": [
    "Convergence contains the time until the resolution-relevant statement inside the broadcast: a word said in minute 90 makes convergence at least 90 minutes without the market being slow. Every convergence figure is an upper bound on reaction speed, not a reaction time.",
    "YES and NO cases measure different mechanisms. YES reacts to an utterance that happened (median first reaction 0.1 min). A NO market has no triggering event: its first 1-point move (median 4.0 min) is drift, and it can only converge once the broadcast is (almost) over. The pooled medians mix both; compare per outcome.",
    "A first reaction counts any move of more than 1 point off the pre-drop baseline, in either direction: in 6 of the 12 cases the first move went AWAY from the outcome that later resolved (flagged per case as erste_reaktion_zum_outcome=false). Do not read a many-minute first reaction as 'the condition was met and the market was slow' — every first reaction above one minute in this sample belongs to a NO market, where the resolving utterance never happened at all.",
    "The three slowest first reactions (7.2, 10.3 and 86.7 min) all sit on cases whose drop timestamp is only hour-precise (scheduled start of the broadcast), so part of those minutes can be t0 imprecision rather than market behaviour.",
+   "Second-level figures are exact timestamp arithmetic, not tick-level latency: the price series has one point per minute (fidelity=1), so a reaction of '7 s' means the first minute-grid point after t0 already stood more than 1 point off baseline — the true first trade can lie anywhere inside that minute. Several drop timestamps are additionally only hour-precise.",
    "The 1-point threshold has no placebo baseline: how often such a move occurs in a quiet window of comparable books was not counter-tested, so in thin books a 'first reaction' can be noise.",
    "n = 12 hand-picked events, not a random sample; selection favours broadcasts with a clean, documentable drop timestamp.",
-   "fidelity=1: values of 0.0 and 0.1 minutes sit at the measurement resolution.",
    "Frozen snapshot of 2026-08-07 — the generator lives in the thesis repository, not here, and mentions events keep happening weekly; nothing after that date is measured. All 12 rows, the medians and the resolved outcomes were re-verified against the thesis raw price cache on 2026-08-27; each resolved outcome matches the final price of its own market series."
   ],
   "dokumentation_ergaenzt_utc": "2026-08-20",
@@ -50,7 +53,9 @@
    "status": "ok",
    "erste_reaktion_zum_outcome": false,
    "drop_ts_utc": "2026-01-16T17:00:00Z",
-   "condition_id": "0xb3dbb0f2e1df15cc820e0cde749eb112bf160994ec53a8ac57dceff9dbe5007e"
+   "condition_id": "0xb3dbb0f2e1df15cc820e0cde749eb112bf160994ec53a8ac57dceff9dbe5007e",
+   "sekunden_bis_erste_reaktion": 430,
+   "sekunden_bis_konvergenz": 22572
   },
   {
    "event": "baier_interview",
@@ -61,7 +66,9 @@
    "status": "ok",
    "erste_reaktion_zum_outcome": true,
    "drop_ts_utc": "2026-05-15T22:00:00Z",
-   "condition_id": "0x4382d7a5908ea9779dbc0daef377eaf77125757a913efc59f3a41b4647f7366c"
+   "condition_id": "0x4382d7a5908ea9779dbc0daef377eaf77125757a913efc59f3a41b4647f7366c",
+   "sekunden_bis_erste_reaktion": 7,
+   "sekunden_bis_konvergenz": 78911
   },
   {
    "event": "netflix_earnings",
@@ -72,7 +79,9 @@
    "status": "ok",
    "erste_reaktion_zum_outcome": true,
    "drop_ts_utc": "2026-01-20T21:42:36Z",
-   "condition_id": "0x3afaa6c9c9487ab0eff39abb4e93be2647afcb4069e1ce8e6af5cca37de14438"
+   "condition_id": "0x3afaa6c9c9487ab0eff39abb4e93be2647afcb4069e1ce8e6af5cca37de14438",
+   "sekunden_bis_erste_reaktion": 33,
+   "sekunden_bis_konvergenz": 7416
   },
   {
    "event": "cnbc_kernen",
@@ -83,7 +92,9 @@
    "status": "ok",
    "erste_reaktion_zum_outcome": false,
    "drop_ts_utc": "2026-01-21T20:00:00Z",
-   "condition_id": "0xe867ba2fa5fe6b2a6353eea0cd9398a9d03a9a952fbe274d5048db8789498cae"
+   "condition_id": "0xe867ba2fa5fe6b2a6353eea0cd9398a9d03a9a952fbe274d5048db8789498cae",
+   "sekunden_bis_erste_reaktion": 617,
+   "sekunden_bis_konvergenz": 13275
   },
   {
    "event": "panthers_visit",
@@ -94,7 +105,9 @@
    "status": "ok",
    "erste_reaktion_zum_outcome": false,
    "drop_ts_utc": "2026-01-15T21:21:00Z",
-   "condition_id": "0x288a6193d8f99f6cd90b4bd68f91a958cca08c87c2201193f73928ab52ba0172"
+   "condition_id": "0x288a6193d8f99f6cd90b4bd68f91a958cca08c87c2201193f73928ab52ba0172",
+   "sekunden_bis_erste_reaktion": 14,
+   "sekunden_bis_konvergenz": 18014
   },
   {
    "event": "pgl_final",
@@ -105,7 +118,9 @@
    "status": "ok",
    "erste_reaktion_zum_outcome": true,
    "drop_ts_utc": "2026-04-11T14:00:00Z",
-   "condition_id": "0x83b5e51c5158709d5f068d7314978388b969cfcb06005d0952ba04eacf6078c9"
+   "condition_id": "0x83b5e51c5158709d5f068d7314978388b969cfcb06005d0952ba04eacf6078c9",
+   "sekunden_bis_erste_reaktion": 5202,
+   "sekunden_bis_konvergenz": 294711
   },
   {
    "event": "inauguration",
@@ -116,7 +131,9 @@
    "status": "ok",
    "erste_reaktion_zum_outcome": true,
    "drop_ts_utc": "2025-01-20T17:10:00Z",
-   "condition_id": "0xec062773d9bcb38e22d673402ea20e895c764e0f85d8691c541fa896812c1948"
+   "condition_id": "0xec062773d9bcb38e22d673402ea20e895c764e0f85d8691c541fa896812c1948",
+   "sekunden_bis_erste_reaktion": 3,
+   "sekunden_bis_konvergenz": 1803
   },
   {
    "event": "powell_june",
@@ -127,7 +144,9 @@
    "status": "ok",
    "erste_reaktion_zum_outcome": false,
    "drop_ts_utc": "2025-06-18T18:30:00Z",
-   "condition_id": "0xa864970637119a0bd5033afd3347fcf4998578831e1fcae13c47a26e1c8ba960"
+   "condition_id": "0xa864970637119a0bd5033afd3347fcf4998578831e1fcae13c47a26e1c8ba960",
+   "sekunden_bis_erste_reaktion": 8,
+   "sekunden_bis_konvergenz": 18127
   },
   {
    "event": "jre_trump_2219",
@@ -138,7 +157,9 @@
    "status": "ok",
    "erste_reaktion_zum_outcome": false,
    "drop_ts_utc": "2024-10-26T01:50:00Z",
-   "condition_id": "0x61a4709e69c966e531dd99d43b7e61dde4ee686e365ba9e242453b1ff33c3722"
+   "condition_id": "0x61a4709e69c966e531dd99d43b7e61dde4ee686e365ba9e242453b1ff33c3722",
+   "sekunden_bis_erste_reaktion": 2,
+   "sekunden_bis_konvergenz": 1202
   },
   {
    "event": "jre_vance_2221",
@@ -149,7 +170,9 @@
    "status": "ok",
    "erste_reaktion_zum_outcome": true,
    "drop_ts_utc": "2024-10-31T17:00:00Z",
-   "condition_id": "0x65f670cf6f0bbac44a2fa0fdb0df8a6841af0f5cc2a72ff11add4870d5319198"
+   "condition_id": "0x65f670cf6f0bbac44a2fa0fdb0df8a6841af0f5cc2a72ff11add4870d5319198",
+   "sekunden_bis_erste_reaktion": 242,
+   "sekunden_bis_konvergenz": 362
   },
   {
    "event": "southpark_s27e5",
@@ -160,7 +183,9 @@
    "status": "ok",
    "erste_reaktion_zum_outcome": false,
    "drop_ts_utc": "2025-09-25T02:00:00Z",
-   "condition_id": "0x0223472ec2eb0c8bf6cdbc2bd3669adc87cdf2a58ce144cf90c2fe7bdea2ca2f"
+   "condition_id": "0x0223472ec2eb0c8bf6cdbc2bd3669adc87cdf2a58ce144cf90c2fe7bdea2ca2f",
+   "sekunden_bis_erste_reaktion": 5,
+   "sekunden_bis_konvergenz": 423
   },
   {
    "event": "southpark_s27e6",
@@ -171,7 +196,9 @@
    "status": "ok",
    "erste_reaktion_zum_outcome": true,
    "drop_ts_utc": "2025-10-16T02:00:00Z",
-   "condition_id": "0x7ed7e68430cd942146f8ca5182f1640b1c226ae39cc8da355b36a00947306023"
+   "condition_id": "0x7ed7e68430cd942146f8ca5182f1640b1c226ae39cc8da355b36a00947306023",
+   "sekunden_bis_erste_reaktion": 9,
+   "sekunden_bis_konvergenz": 57663
   }
  ],
  "ausschluesse": [

@@ -1130,14 +1130,14 @@ class WebLeerzustandTest(unittest.TestCase):
     def test_mentions_latency_diagramm_und_ausschluesse(self) -> None:
         html = self.ausgabe["live"]["research_mentions_latency"]
         text = _sichtbarer_text(html)
-        # Kachelwert in menschlicher Einheit, der exakte Minutenwert steht
-        # in der Notiz — nicht umgekehrt.
-        self.assertIn("MEDIAN LATENCY 5.3 min exact 5.25 min on the 1-minute grid · n = 2 events", text)
+        # Median und FASTEST in exakten Sekunden (Fixture ohne sekunden_*
+        # faellt auf Minuten*60 zurueck: 30 s und 600 s, Median 315 s).
+        self.assertIn("MEDIAN LATENCY 315 s gap drop → first deviating minute-grid point · n = 2 events", text)
         # Ein Diagramm, EINE Zeile je Ereignis: Punkt = erste Bewegung,
         # Linienende = ausgepreist. Zwei Zeilen je Ereignis machten die Karte
         # doppelt so hoch wie der Rest der Seite.
         self.assertIn("FIRST REACTION → FULLY PRICED IN · n 2", text)
-        self.assertIn("median first reaction 5.25 min", text)
+        self.assertIn("median first reaction 315 s (dashed line)", text)
         self.assertNotIn("MINUTES TO CONVERGENCE PER EVENT", text)
         # Log-Zeitachse mit Klartext-Ticks; unter dem Minutenraster wird
         # geklemmt statt Sekunden vorzutaeuschen.
@@ -1165,7 +1165,7 @@ class WebLeerzustandTest(unittest.TestCase):
         # traegt das Flag, Kachel und Tabelle muessen es zeigen, sonst liest
         # sich "10 min" als Markt, der eine gefallene Aussage verschlief.
         self.assertIn("SLOWEST 10 min first reaction · resolved NO · first move went the wrong way", text)
-        self.assertIn("FASTEST &lt; 1 min first reaction · resolved YES", text)
+        self.assertIn("FASTEST 30 s first reaction · resolved YES", text)
         # Das handelbare Fenster ist NICHT Konvergenz minus Reaktion — der
         # Lesetext muss das sagen (cnbc_kernen/jre_vance beweisen es).
         self.assertIn("not simply convergence minus reaction", text)
@@ -1181,8 +1181,8 @@ class WebLeerzustandTest(unittest.TestCase):
         # Tabelle mit Outcome und Status je Zeile, alle Zeilen.
         self.assertIn("MENTIONS EVENTS · 3 OF 3", text)
         self.assertIn("RESOLVED STATUS", text)
-        self.assertIn("harness_fast &lt; 1 min 30 min 0.5 YES ok", text)
-        self.assertIn("harness_slow 10 min (away) 10 h 9.8 NO ok", text)
+        self.assertIn("harness_fast 30 s 30 min 0.5 YES ok", text)
+        self.assertIn("harness_slow 600 s (away) 10 h 9.8 NO ok", text)
         self.assertIn("harness_none — — — NO no_reaction", text)
         # Leerzustand nennt die Datei.
         leer = _sichtbarer_text(self.ausgabe["leer"]["research_mentions_latency"])

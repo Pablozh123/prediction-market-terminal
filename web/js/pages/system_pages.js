@@ -795,7 +795,7 @@ function buildStudyTable(T, tab, payload) {
       // Jede Zeile traegt auch das aufgeloeste Outcome und den Status, wie
       // die Datei sie fuehrt.
       return studyTableHtml(T, 'MENTIONS EVENTS · ' + payload.faelle.length + ' OF ' + payload.faelle.length, '1fr 130px 130px 120px 110px 100px', ['EVENT','FIRST REACTION','CONVERGENCE','WINDOW (H)','RESOLVED','STATUS'],
-        payload.faelle.map((f) => [String(f.event), f.minuten_bis_erste_reaktion != null ? dauerText(f.minuten_bis_erste_reaktion) + (f.erste_reaktion_zum_outcome === false ? ' (away)' : '') : '—', f.minuten_bis_konvergenz != null ? dauerText(f.minuten_bis_konvergenz) : '—', String(f.stunden_im_handelbaren_fenster != null ? f.stunden_im_handelbaren_fenster : '—'), String(f.korrekt_aufgeloestes_outcome || '—'), String(f.status || '—')]));
+        payload.faelle.map((f) => [String(f.event), reaktionsSekunden(f) != null ? fmtZahl(reaktionsSekunden(f)) + ' s' + (f.erste_reaktion_zum_outcome === false ? ' (away)' : '') : '—', f.minuten_bis_konvergenz != null ? dauerText(f.minuten_bis_konvergenz) : '—', String(f.stunden_im_handelbaren_fenster != null ? f.stunden_im_handelbaren_fenster : '—'), String(f.korrekt_aufgeloestes_outcome || '—'), String(f.status || '—')]));
     }
     if (tab === 5 && payload.trades) {
       // Alle Trades, nicht zwoelf; Feldwerte auf Englisch uebersetzt.
@@ -841,12 +841,13 @@ function buildStudyStats(tab, payload) {
       ];
     }
     if (tab === 2 && payload.faelle && payload.faelle.length) {
-      const mitReaktion = payload.faelle.filter((f) => f.minuten_bis_erste_reaktion != null && !isNaN(+f.minuten_bis_erste_reaktion))
-        .sort((a, b) => +a.minuten_bis_erste_reaktion - +b.minuten_bis_erste_reaktion);
-      const reactions = mitReaktion.map((f) => +f.minuten_bis_erste_reaktion);
-      // Echter Median (bei gerader Anzahl das Mittel der beiden mittleren),
-      // derselbe wie die Referenzlinie im Diagramm darunter.
-      const median = medianVon(reactions);
+      // Median und FASTEST in exakten Sekunden (Zeitstempel-Differenz),
+      // nicht in gerundeten Minuten — die Rundung auf 0.1 min machte aus
+      // 7 s und 33 s dieselbe Zahl.
+      const mitReaktion = payload.faelle.filter((f) => reaktionsSekunden(f) != null)
+        .sort((a, b) => reaktionsSekunden(a) - reaktionsSekunden(b));
+      const sek = mitReaktion.map(reaktionsSekunden);
+      const medianSek = medianVon(sek);
       const none = payload.faelle.filter((f) => f.minuten_bis_erste_reaktion == null).length;
       // Die Extremwerte tragen ihr Outcome: der langsamste Fall ist ein
       // NO-Markt, dessen erste Bewegung Drift war — ohne das Label laese
@@ -854,9 +855,9 @@ function buildStudyStats(tab, payload) {
       const extremNote = (f) => 'first reaction · resolved ' + String(f.korrekt_aufgeloestes_outcome || '—')
         + (f.erste_reaktion_zum_outcome === false ? ' · first move went the wrong way' : '');
       return [
-        { label: 'MEDIAN LATENCY', value: median != null ? dauerText(median) : '—', note: 'exact ' + (median != null ? fmtZahl(median) : '—') + ' min on the 1-minute grid · n = ' + reactions.length + ' events · first move > 1 point off the pre-drop baseline' },
-        { label: 'FASTEST', value: reactions.length ? dauerText(reactions[0]) : '—', note: mitReaktion.length ? extremNote(mitReaktion[0]) : 'first reaction' },
-        { label: 'SLOWEST', value: reactions.length ? dauerText(reactions[reactions.length - 1]) : '—', note: mitReaktion.length ? extremNote(mitReaktion[mitReaktion.length - 1]) : 'first reaction' },
+        { label: 'MEDIAN LATENCY', value: medianSek != null ? fmtZahl(medianSek) + ' s' : '—', note: 'gap drop → first deviating minute-grid point · n = ' + sek.length + ' events · first move > 1 point off the pre-drop baseline' },
+        { label: 'FASTEST', value: sek.length ? fmtZahl(sek[0]) + ' s' : '—', note: mitReaktion.length ? extremNote(mitReaktion[0]) : 'first reaction' },
+        { label: 'SLOWEST', value: mitReaktion.length ? dauerText(mitReaktion[mitReaktion.length - 1].minuten_bis_erste_reaktion) : '—', note: mitReaktion.length ? extremNote(mitReaktion[mitReaktion.length - 1]) : 'first reaction' },
         { label: 'NO REACTION', value: String(none), note: 'never moved > 1 point' }
       ];
     }
@@ -2517,6 +2518,15 @@ function hinweisKarte(text) {
 // Dauer in menschlicher Einheit. Unter einer Minute sagt die Anzeige
 // "< 1 min" statt Sekunden: das Preisraster ist fidelity=1 (ein Punkt je
 // Minute), Sekundenwerte waeren Praezision, die die Messung nicht hat.
+// Exakter Sekundenabstand Drop -> erster abweichender Rasterpunkt; das
+// Payload traegt ihn als sekunden_bis_erste_reaktion, alte Nutzlasten
+// fallen auf Minuten*60 zurueck.
+function reaktionsSekunden(f) {
+  if (f && f.sekunden_bis_erste_reaktion != null && !isNaN(+f.sekunden_bis_erste_reaktion)) return +f.sekunden_bis_erste_reaktion;
+  if (f && f.minuten_bis_erste_reaktion != null && !isNaN(+f.minuten_bis_erste_reaktion)) return Math.round(+f.minuten_bis_erste_reaktion * 60);
+  return null;
+}
+
 function dauerText(minuten) {
   const m = +minuten;
   if (minuten == null || isNaN(m)) return '—';
@@ -2565,6 +2575,7 @@ function mentionsExtrasHtml(payload) {
       label: String(f.event || '—'),
       von: +f.minuten_bis_erste_reaktion,
       bis: +f.minuten_bis_konvergenz,
+      sek: reaktionsSekunden(f),
       outcome: String(f.korrekt_aufgeloestes_outcome || '—'),
       weg: f.erste_reaktion_zum_outcome === false,
       fenster: f.stunden_im_handelbaren_fenster
@@ -2596,7 +2607,7 @@ function mentionsExtrasHtml(payload) {
     let y = TOP + 10;
     beide.forEach((p) => {
       const xa = x(p.von), xb = x(p.bis);
-      svg += '<g><title>' + esc(p.label + ' — first reaction ' + fmtZahl(p.von) + ' min'
+      svg += '<g><title>' + esc(p.label + ' — first reaction ' + (p.sek != null ? fmtZahl(p.sek) + ' s' : fmtZahl(p.von) + ' min')
         + (p.weg ? ' (moved away from the outcome)' : '') + ', fully priced in ' + fmtZahl(p.bis) + ' min'
         + (p.fenster != null ? ', tradeable window ' + fmtZahl(p.fenster) + ' h' : '') + ', resolved ' + p.outcome) + '</title>'
         + '<text x="' + LX + '" y="' + (y + 4) + '" style="fill:rgba(var(--ink),.72)" font-size="11" font-family="JetBrains Mono, monospace" text-anchor="end">' + esc(p.label) + '</text>'
@@ -2606,9 +2617,10 @@ function mentionsExtrasHtml(payload) {
         + '<text x="' + (PR + 8) + '" y="' + (y + 4) + '" style="fill:rgba(var(--ink),.75)" font-size="11" font-family="JetBrains Mono, monospace">' + esc(dauerText(p.bis) + ' · ' + p.outcome) + '</text></g>';
       y += ZH;
     });
-    const medText = medReaktion == null ? '' : (medReaktion < 1
-      ? ' · median first reaction &lt; 1 min (' + fmtZahl(medReaktion) + ' min on the minute grid)'
-      : ' · median first reaction ' + fmtZahl(medReaktion) + ' min (dashed line)');
+    const medSek = medianVon(beide.map((p) => p.sek).filter((s) => s != null && !isNaN(+s)));
+    const medText = medSek != null
+      ? ' · median first reaction ' + fmtZahl(medSek) + ' s' + (medReaktion != null && medReaktion > 1 ? ' (dashed line)' : '')
+      : (medReaktion == null ? '' : ' · median first reaction ' + fmtZahl(medReaktion) + ' min' + (medReaktion > 1 ? ' (dashed line)' : ''));
     return '<div style="' + KARTE + '; padding:14px 16px 10px">'
       + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(var(--ink),.5); margin-bottom:4px">'
       + 'FIRST REACTION → FULLY PRICED IN · n ' + beide.length
@@ -2634,7 +2646,7 @@ function mentionsExtrasHtml(payload) {
     ? '<div style="' + KARTE + '; padding:14px 16px">'
       + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:var(--info)">RESOLVED ' + esc(name) + ' · n ' + num(o.n) + '</div>'
       + '<div style="' + M + '; font-size:12.5px; color:rgba(var(--ink),.85); margin-top:8px; line-height:1.8">'
-      + 'median first reaction ' + esc(dauerText(o.median_minuten_bis_erste_reaktion)) + '<br>'
+      + 'median first reaction ' + (o.median_sekunden_bis_erste_reaktion != null ? fmtZahl(o.median_sekunden_bis_erste_reaktion) + ' s' : esc(dauerText(o.median_minuten_bis_erste_reaktion))) + '<br>'
       + 'median convergence ' + esc(dauerText(o.median_minuten_bis_konvergenz)) + '<br>'
       + 'median tradeable window ' + fmtZahl(o.median_stunden_im_handelbaren_fenster) + ' h</div>'
       + '<div style="font-size:11.5px; color:rgba(var(--ink),.6); margin-top:8px; line-height:1.5">' + esc(deutung) + '</div></div>'
@@ -2650,7 +2662,7 @@ function mentionsExtrasHtml(payload) {
     + '<div style="font-size:12.5px; color:rgba(var(--ink),.65); margin-top:8px; line-height:1.6; max-width:860px">'
     + 'First reaction is the first minute the price stands more than 1 point away from its pre-drop baseline (the median of the 60 minutes before the drop) — in either direction, so it is a price move, not proof the market heard anything; rows marked (away) moved away from the outcome that later resolved. It is measured from the start of the transmission, not from the moment of the resolving statement: a first reaction of several minutes on a NO market is drift while nothing was said, not a market slow to react to a met condition. Convergence is the time until the price durably stayed past 0.9 (YES) or below 0.1 (NO), as measured by the daily run'
     + (payload.hinweis ? ' — the published note reads: "' + esc(payload.hinweis) + '"' : '')
-    + '. The RESOLVED column shows the outcome the market settled to. The tradeable window is the hours after the drop in which the price stayed strictly between 0.1 and 0.9 — measured on the price series itself, so it can start before the first 1-point reaction and is not simply convergence minus reaction. The chart uses a log time axis so minutes and days fit on one line; durations under one minute are shown as "&lt; 1 min" rather than in seconds, because the price series has one point per minute and second-level values would be precision the data does not have.'
+    + '. The RESOLVED column shows the outcome the market settled to. The tradeable window is the hours after the drop in which the price stayed strictly between 0.1 and 0.9 — measured on the price series itself, so it can start before the first 1-point reaction and is not simply convergence minus reaction. The chart uses a log time axis so minutes and days fit on one line. The FIRST REACTION column gives the exact second gap between the curated drop timestamp and the first minute-grid price point that deviated — read it with its grain: the series has one point per minute and several drop times are only hour-precise, so "7 s" means the first grid point after t0 already stood off baseline, not that the first trade came 7 seconds in.'
     + '</div></div>';
   const ausschlussHtml = ausschluesse.length
     ? '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:12px; overflow:hidden">'
