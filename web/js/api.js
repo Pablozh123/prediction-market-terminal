@@ -51,9 +51,11 @@ const TIMEOUT_MS = 45000;
 // /api/risk pages a day of prints and looks up market categories on a cold
 // cache — around 90 s. With the general 45 s cap the first click always
 // failed and the second one hit the warm cache; the screen looked flaky when
-// it was only slow. Only this route gets the longer leash.
+// it was only slow. Only these routes get the longer leash. /api/backtest
+// gehoert dazu, seit der Fetch das ganze Fenster in Zeitscheiben abdeckt:
+// bei hyperaktiven Wallets sind das Dutzende Upstream-Seiten.
 const TIMEOUT_LANG_MS = 150000;
-const LANGSAME_PFADE = ['/api/risk'];
+const LANGSAME_PFADE = ['/api/risk', '/api/backtest'];
 
 export function timeoutFuer(url) {
   const pfad = String(url || '').split('?')[0];

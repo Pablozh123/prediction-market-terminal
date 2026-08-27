@@ -314,6 +314,38 @@ def get_polymarket_markets_by_condition_ids(condition_ids: list[str]) -> list[di
     return rows
 
 
+def get_polymarket_markets_by_event_slugs(slugs: list[str]) -> list[dict[str, Any]]:
+    """Raw Gamma market payloads fuer ganze Events (batched ueber ``slug``).
+
+    Sport-Untermaerkte fehlen in ``/markets?condition_ids=`` regelmaessig
+    (die Abfrage kommt leer zurueck, obwohl der Markt existiert). Ueber das
+    Elternereignis liefert ``/events?slug=`` dieselben Maerkte samt
+    ``outcomePrices``/``closed``/``clobTokenIds`` — der Backtester braucht
+    das, um Positionen aufzuloesen statt sie ewig "open at cost" zu tragen.
+    """
+
+    seen: set[str] = set()
+    ids: list[str] = []
+    for value in slugs:
+        text = str(value or "").strip()
+        if text and text not in seen:
+            seen.add(text)
+            ids.append(text)
+    rows: list[dict[str, Any]] = []
+    batch_size = 20
+    for start in range(0, len(ids), batch_size):
+        batch = ids[start : start + batch_size]
+        try:
+            data = _get_json(f"{POLY_GAMMA}/events", params={"slug": batch, "limit": len(batch)})
+        except MarketDataError:
+            continue
+        for event in data if isinstance(data, list) else data.get("data", []):
+            if not isinstance(event, dict):
+                continue
+            rows.extend(market for market in event.get("markets") or [] if isinstance(market, dict))
+    return rows
+
+
 def market_category_frame(condition_ids: list[str]) -> pd.DataFrame:
     """market_key -> category plus the parent event title, for classification.
 
@@ -2079,10 +2111,16 @@ def get_polymarket_resolved_positions(user: str, per_side: int = 500) -> tuple[p
     return union, capped
 
 
-def get_polymarket_activity(user: str, limit: int = 250, offset: int = 0) -> pd.DataFrame:
+def get_polymarket_activity(user: str, limit: int = 250, offset: int = 0, end: int | None = None) -> pd.DataFrame:
     if not user:
         return pd.DataFrame()
-    data = _get_json(f"{POLY_DATA}/activity", params={"user": user, "limit": limit, "offset": offset})
+    params: dict[str, Any] = {"user": user, "limit": limit, "offset": offset}
+    # ``end`` (Unix-Sekunden, inklusiv) erlaubt Zeitfenster-Pagination: die
+    # API deckelt offset+limit, aber ein neues Fenster ab dem aeltesten
+    # gesehenen Zeitstempel setzt den Offset wieder auf null.
+    if end is not None:
+        params["end"] = int(end)
+    data = _get_json(f"{POLY_DATA}/activity", params=params)
     df = pd.DataFrame(data if isinstance(data, list) else data.get("data", []))
     if df.empty:
         return pd.DataFrame()
@@ -2119,6 +2157,7 @@ def get_polymarket_activity(user: str, limit: int = 250, offset: int = 0) -> pd.
         "market_key",
         "asset",
         "slug",
+        "event_slug",
         "url",
         "transactionHash",
     ]

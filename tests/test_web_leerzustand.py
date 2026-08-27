@@ -930,9 +930,11 @@ class WebLeerzustandTest(unittest.TestCase):
         app_js = (WURZEL / "web" / "js" / "app.js").read_text(encoding="utf-8")
         self.assertNotIn("setTimeout(async () =>", app_js)
         self.assertIn("err.status === 429", app_js)
-        # Der lange Timeout gilt nur fuer /api/risk.
+        # Der lange Timeout gilt nur fuer die beiden teuren Pfade: /api/risk
+        # (Tagesausschnitt des Tapes) und /api/backtest (Zeitscheiben ueber
+        # das ganze Fenster, bei aktiven Wallets Dutzende Upstream-Seiten).
         api_js = (WURZEL / "web" / "js" / "api.js").read_text(encoding="utf-8")
-        self.assertIn("LANGSAME_PFADE = ['/api/risk']", api_js)
+        self.assertIn("LANGSAME_PFADE = ['/api/risk', '/api/backtest']", api_js)
         self.assertIn("TIMEOUT_LANG_MS = 150000", api_js)
         self.assertIn("TIMEOUT_MS = 45000", api_js)
         risk = _sichtbarer_text(self.ausgabe["live"]["risk_loading"])
