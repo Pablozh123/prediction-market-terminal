@@ -26,7 +26,7 @@ const SEITEN = {
 };
 
 function neuesT() {
-  const M = "font-family:'JetBrains Mono',monospace";
+  const M = "font-family:'IBM Plex Mono',monospace";
   return {
     state: {
       page: 'overview', tapeMin: 2500, tapeTracked: false, marketCat: 'All',
@@ -81,7 +81,7 @@ function neuesT() {
     changeStyle: () => M,
     marketView: (m) => ({
       title: m.title, meta: m.venue + ' · ' + m.cat, sparkPoints: m.spark ? spark(m.spark) : '',
-      color: '#C8F542', priceLabel: m.yes + '¢', changeLabel: '+' + m.chg + '¢',
+      color: '#69B47E', priceLabel: m.yes + '¢', changeLabel: '+' + m.chg + '¢',
       changeStyle: M, volLabel: money(m.vol), ends: m.ends, act: ''
     }),
     marketExtraOf(m) { return this.marketExtra[m.id] || { spread: null, age: null, endsDays: null }; },

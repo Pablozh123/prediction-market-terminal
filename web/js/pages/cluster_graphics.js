@@ -12,13 +12,13 @@
 
 import { esc } from '../util.js';
 
-const M = "font-family:'JetBrains Mono',monospace";
-const CARD = 'background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px';
+const M = "font-family:'IBM Plex Mono',monospace";
+const CARD = 'background:#131311; border:1px solid rgba(234,230,220,.09); border-radius:6px';
 
 // Cluster-Palette. Farben sind gut unterscheidbar und halten auf Dunkel.
 const CLUSTER_COLORS = [
-  '#C8F542', '#4F8EF7', '#F5A623', '#FF7A7A', '#7DE2D1',
-  '#C792EA', '#FFD166', '#8FD694', '#F78FB3', '#9AB0FF'
+  '#D9A648', '#6E9BC8', '#DE7E36', '#DE8A7A', '#86BDB2',
+  '#AC93C6', '#D4B878', '#8FD694', '#F78FB3', '#93A5C6'
 ];
 
 const farbeVon = (i) => CLUSTER_COLORS[i % CLUSTER_COLORS.length];
@@ -34,8 +34,8 @@ export function clusterFarbe(graph, id) {
 function kopfzeile(g) {
   const k = g.kennzahl || {};
   const chip = (label, wert) =>
-    '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.14); '
-    + 'border-radius:5px; padding:4px 9px; white-space:nowrap">' + esc(label) + ' <span style="color:#fff">'
+    '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.6); border:1px solid rgba(234,230,220,.14); '
+    + 'border-radius:4px; padding:4px 9px; white-space:nowrap">' + esc(label) + ' <span style="color:#EAE6DC">'
     + esc(String(wert)) + '</span></div>';
   return '<div style="display:flex; gap:7px; flex-wrap:wrap; margin-top:10px">'
     + chip('WALLETS', k.wallets != null ? k.wallets : '—')
@@ -73,7 +73,7 @@ function graphSvg(g) {
     const a = knoten[e.a], b = knoten[e.b];
     if (!a || !b) return '';
     const gleich = a.cluster === b.cluster;
-    const farbe = gleich ? farbeVon(clusterIndex.get(a.cluster) || 0) : 'rgba(255,255,255,.5)';
+    const farbe = gleich ? farbeVon(clusterIndex.get(a.cluster) || 0) : 'rgba(234,230,220,.5)';
     const staerke = 1.0 + 2.4 * ((e.geteilt || 1) / maxGeteilt);
     return '<line x1="' + X(a.x).toFixed(1) + '" y1="' + Y(a.y).toFixed(1) + '" x2="' + X(b.x).toFixed(1)
       + '" y2="' + Y(b.y).toFixed(1) + '" stroke="' + farbe + '" stroke-opacity="'
@@ -95,11 +95,11 @@ function graphSvg(g) {
     const links = cx > W / 2;
     const label = beschriften.has(i)
       ? '<text x="' + (links ? (cx - r - 5).toFixed(1) : (cx + r + 5).toFixed(1)) + '" y="' + (cy + 3.5).toFixed(1)
-        + '" text-anchor="' + (links ? 'end' : 'start') + '" font-size="11" font-family="JetBrains Mono, monospace" '
-        + 'fill="rgba(255,255,255,.78)">' + esc(n.kurz || '') + '</text>'
+        + '" text-anchor="' + (links ? 'end' : 'start') + '" font-size="11" font-family="IBM Plex Mono, monospace" '
+        + 'fill="rgba(234,230,220,.78)">' + esc(n.kurz || '') + '</text>'
       : '';
     return '<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="' + r.toFixed(1)
-      + '" fill="' + farbe + '" fill-opacity=".9" stroke="#0A0D0F" stroke-width="1.2">'
+      + '" fill="' + farbe + '" fill-opacity=".9" stroke="#0B0B0A" stroke-width="1.2">'
       + '<title>' + esc(n.kurz + ' · ' + n.maerkte + ' markets · ' + n.trades + ' trades') + '</title></circle>' + label;
   }).join('');
 
@@ -110,7 +110,7 @@ function graphSvg(g) {
 
 function hinweisKarte(text, farbe) {
   return '<div style="' + CARD + '; padding:20px 22px; margin-bottom:16px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#4F8EF7">CO-TRADING STRUCTURE</div>'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#6E9BC8">CO-TRADING STRUCTURE</div>'
     + '<div style="font-size:13.5px; color:' + farbe + '; margin-top:10px; line-height:1.6; max-width:720px">'
     + esc(text) + '</div></div>';
 }
@@ -124,13 +124,13 @@ export function renderClusterGraphics(live) {
     return hinweisKarte(
       'Loading the whale tape and building the network. The first run pages about a day of '
       + 'prints and looks up the market categories, so this takes a moment.',
-      'rgba(255,255,255,.6)');
+      'rgba(234,230,220,.6)');
   }
   if (live._quelle === 'fehler') {
     return hinweisKarte(
       'The risk endpoint did not answer: ' + (live._fehler || 'unknown error')
       + '. Nothing is shown rather than a stale or invented network.',
-      '#F5A623');
+      '#DE7E36');
   }
   const g = live.graph;
   if (!g || !g.knoten || !g.knoten.length) {
@@ -138,19 +138,19 @@ export function renderClusterGraphics(live) {
       'No co-trading cluster in the current window. That is a result, not a gap: once sports and '
       + 'crypto are excluded, the wallets left in the insider-prone markets do not repeatedly meet '
       + 'each other.',
-      'rgba(255,255,255,.7)');
+      'rgba(234,230,220,.7)');
   }
 
   return '<div style="' + CARD + '; padding:18px 20px; margin-bottom:14px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#4F8EF7">CO-TRADING STRUCTURE</div>'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#6E9BC8">CO-TRADING STRUCTURE</div>'
     + '<div style="font-size:17px; font-weight:600; margin-top:6px">Wallets that keep meeting in the same markets</div>'
     + kopfzeile(g)
-    + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.62); margin-top:10px; line-height:1.6">'
+    + '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.62); margin-top:10px; line-height:1.6">'
     + 'RULE · ' + esc(g.regel || 'not stated')
     + (g.fenster ? '<br>WINDOW · ' + esc(g.fenster) : '')
     + '<br>SCOPE · insider-prone markets only, sports crypto and weather excluded</div>'
     + '<div style="margin-top:14px">' + graphSvg(g) + '</div>'
-    + '<div style="font-size:12px; color:rgba(255,255,255,.62); margin-top:8px; line-height:1.5">'
+    + '<div style="font-size:12px; color:rgba(234,230,220,.62); margin-top:8px; line-height:1.5">'
     + 'Each dot is one wallet, sized by the money it moved · a line means the two bought the same side of the same markets, thicker = more shared markets · colours are the groups detailed below.'
     + '</div></div>';
 }

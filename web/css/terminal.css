@@ -1,24 +1,56 @@
-/* Market Intel terminal — base styles ported from the design reference.
-   Colors, spacing and type sizes are design tokens; do not tweak casually. */
+/* Market Intel terminal — base styles.
+   The :root block below is the palette of record. The inline styles the JS
+   emits carry the same literal values (style attributes are built as strings;
+   SVG presentation attributes cannot read var()), so a colour change happens
+   here first and is then applied to the JS literals in the same commit.
+   Do not tweak either side casually.
 
-html, body { margin: 0; background: #0A0D0F; color: #fff; }
-a { color: #C8F542; text-decoration: none; }
-a:hover { color: #E2FF8A; }
+   Direction: professional terminal on a warm near-black — amber carries
+   interaction and selection, green/red are reserved for signed values,
+   orange is attention. No neon, no decorative motion. */
+
+:root {
+  /* surfaces */
+  --bg: #0B0B0A;            /* page and shell */
+  --panel: #131311;         /* cards, inputs, table headers */
+  --panel-hover: #1A1A17;   /* row and element hover */
+  --edge: #2A2A26;          /* scrollbar thumb, strong dividers */
+  /* text — warm off-white; tiers use rgba(234,230,220,α) */
+  --text: #EAE6DC;
+  /* roles */
+  --accent: #D9A648;        /* interactive: links, active nav, buttons, selection */
+  --accent-bright: #E5C079; /* link hover */
+  --accent-bg-hover: #E2B45C;
+  --pos: #69B47E;           /* signed values up, BUY, live */
+  --neg: #D95F52;           /* signed values down, SELL, errors */
+  --neg-soft: #DE8A7A;
+  --warn: #DE7E36;          /* attention: flags, waiting, high severity */
+  --info: #6E9BC8;          /* neutral reference lines, third series */
+  /* shape */
+  --r-control: 4px;         /* buttons, chips, inputs */
+  --r-panel: 6px;           /* cards, overlays, tooltips */
+  /* type */
+  --font-ui: 'IBM Plex Sans', -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+}
+
+html, body { margin: 0; background: var(--bg); color: var(--text); }
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--accent-bright); }
 * { box-sizing: content-box; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-track { background: #0A0D0F; }
-::-webkit-scrollbar-thumb { background: #232A32; border-radius: 5px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--edge); border-radius: 4px; }
 
-@keyframes livePulse { 0%,100% { opacity: 1 } 50% { opacity: .3 } }
-@keyframes rowIn { from { opacity: 0 } to { opacity: 1 } }
-@keyframes panelIn { from { opacity: 0; transform: translateX(16px) } to { opacity: 1; transform: translateX(0) } }
+/* The detail drawer slides in once per open — state reveal, not decoration. */
+@keyframes panelIn { from { opacity: 0; transform: translateX(10px) } to { opacity: 1; transform: translateX(0) } }
 
-body { font-family: 'Inter', -apple-system, sans-serif; }
+body { font-family: var(--font-ui); }
 
-.shell { display: flex; height: 100vh; width: 100%; min-width: 1280px; overflow: hidden; background: #0A0D0F; color: #fff; }
-.sidebar { width: 264px; box-sizing: border-box; flex: none; border-right: 1px solid rgba(255,255,255,.09); display: flex; flex-direction: column; padding: 20px 14px 16px; overflow-y: auto; }
+.shell { display: flex; height: 100vh; width: 100%; min-width: 1280px; overflow: hidden; background: var(--bg); color: var(--text); }
+.sidebar { width: 264px; box-sizing: border-box; flex: none; border-right: 1px solid rgba(234,230,220,.09); display: flex; flex-direction: column; padding: 20px 14px 16px; overflow-y: auto; }
 .maincol { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.topbar { display: flex; align-items: center; justify-content: space-between; padding: 13px 24px; border-bottom: 1px solid rgba(255,255,255,.09); flex: none; }
+.topbar { display: flex; align-items: center; justify-content: space-between; padding: 13px 24px; border-bottom: 1px solid rgba(234,230,220,.09); flex: none; }
 .content-wrap { flex: 1; min-height: 0; display: flex; position: relative; }
 .content { flex: 1; min-width: 1010px; overflow-y: auto; }
 
@@ -26,13 +58,13 @@ input { font-family: inherit; }
 
 /* Focus. Every control used to set `outline:none` inline, so a keyboard user
    moving through the page saw nothing move — the ring is the only thing
-   telling them where they are. Lime on the darkest surface is 15.4:1, and
+   telling them where they are. Amber on the darkest surface is 8.7:1, and
    :focus-visible keeps it off the mouse. Do not reintroduce `outline:none`;
    if a ring crops badly, give the element room, not an override. */
 :focus-visible {
-  outline: 2px solid #C8F542;
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: 3px;
+  border-radius: var(--r-control);
 }
 
 /* The sidebar entries are links now; they keep the terminal's flat look. */
@@ -44,10 +76,10 @@ input { font-family: inherit; }
    with display:none — that would take it out of the tab order entirely. */
 .skip {
   position: fixed; left: 8px; top: -60px; z-index: 100;
-  background: #C8F542; color: #0A0D0F; padding: 9px 14px; border-radius: 8px;
+  background: var(--accent); color: var(--bg); padding: 9px 14px; border-radius: var(--r-control);
   font-size: 13px; font-weight: 600; text-decoration: none; transition: top .12s ease;
 }
-.skip:focus { top: 8px; color: #0A0D0F; }
+.skip:focus { top: 8px; color: var(--bg); }
 
 /* <main> takes focus from the skip link but is not a control: no ring. */
 #main:focus, #main:focus-visible { outline: none; }
@@ -55,9 +87,8 @@ input { font-family: inherit; }
 /* h1/h2 are the document outline; the look stays the design's. */
 .content h1, .content h2 { font-weight: inherit; }
 
-/* Motion is decoration here: the live dot pulses forever, rows and the detail
-   panel slide in, treemap tiles lift. None of it carries meaning, so anyone
-   who has asked their system for less simply gets the end state. */
+/* The one remaining animation is the drawer's state reveal; anyone who has
+   asked their system for less simply gets the end state. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: .001ms !important;
@@ -69,24 +100,25 @@ input { font-family: inherit; }
 
 /* Hover utilities — the reference uses per-element hover styles; these classes
    reproduce every hover pattern it contains. */
-.hv-el:hover { background: #161C22 !important; }
-.hv-panel:hover { background: #10151A !important; }
-.hv-bd22:hover { border-color: rgba(255,255,255,.22) !important; }
-.hv-bd30:hover { border-color: rgba(255,255,255,.3) !important; color: #fff !important; }
-.hv-bd32:hover { border-color: rgba(255,255,255,.32) !important; color: #fff !important; }
-.hv-bd35:hover { border-color: rgba(255,255,255,.35) !important; }
-.hv-bd35w:hover { border-color: rgba(255,255,255,.35) !important; color: #fff !important; }
-.hv-bd20:hover { border-color: rgba(255,255,255,.2) !important; }
-.hv-white:hover { color: #fff !important; }
-.hv-lime:hover { color: #C8F542 !important; }
-.hv-amber:hover { color: #F5A623 !important; }
-.hv-limebg:hover { background: #D7FF63 !important; }
+.hv-el:hover { background: var(--panel-hover) !important; }
+.hv-panel:hover { background: var(--panel) !important; }
+.hv-bd22:hover { border-color: rgba(234,230,220,.22) !important; }
+.hv-bd30:hover { border-color: rgba(234,230,220,.3) !important; color: var(--text) !important; }
+.hv-bd32:hover { border-color: rgba(234,230,220,.32) !important; color: var(--text) !important; }
+.hv-bd35:hover { border-color: rgba(234,230,220,.35) !important; }
+.hv-bd35w:hover { border-color: rgba(234,230,220,.35) !important; color: var(--text) !important; }
+.hv-bd20:hover { border-color: rgba(234,230,220,.2) !important; }
+.hv-white:hover { color: var(--text) !important; }
+.hv-accent:hover { color: var(--accent) !important; }
+.hv-amber:hover { color: var(--warn) !important; }
+.hv-accentbg:hover { background: var(--accent-bg-hover) !important; }
 
-/* Treemap tiles (wallet page): lift on hover; the figures come up in the
-   floating card #tip that app.js positions next to the pointer. */
-.tm-tile { transition: transform .12s ease, box-shadow .12s ease; }
-.tm-tile:hover { transform: scale(1.03); z-index: 5; box-shadow: 0 10px 28px rgba(0,0,0,.5); }
-#tip { position: fixed; z-index: 60; pointer-events: none; display: none; max-width: 320px; background: rgba(8,10,12,.96); border: 1px solid rgba(255,255,255,.14); border-radius: 10px; padding: 12px 14px; box-shadow: 0 12px 32px rgba(0,0,0,.55); }
+/* Treemap tiles (wallet page): hover names the tile without moving it — the
+   figures come up in the floating card #tip that app.js positions next to
+   the pointer. */
+.tm-tile { transition: filter .12s ease; }
+.tm-tile:hover { filter: brightness(1.15); z-index: 5; }
+#tip { position: fixed; z-index: 60; pointer-events: none; display: none; max-width: 320px; background: rgba(11,11,10,.96); border: 1px solid rgba(234,230,220,.14); border-radius: var(--r-panel); padding: 12px 14px; box-shadow: 0 12px 32px rgba(0,0,0,.55); }
 #tip.on { display: block; }
 
 /* Desktop-only is a decision here, not an oversight: .shell never goes below
@@ -97,10 +129,10 @@ input { font-family: inherit; }
 @media (max-width: 1279px) {
   .narrow-note {
     display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 80;
-    box-sizing: border-box; background: rgba(16,21,26,.97);
-    border-top: 1px solid rgba(255,255,255,.16); color: rgba(255,255,255,.72);
-    font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.5;
+    box-sizing: border-box; background: rgba(19,19,17,.97);
+    border-top: 1px solid rgba(234,230,220,.16); color: rgba(234,230,220,.72);
+    font-family: var(--font-mono); font-size: 12px; line-height: 1.5;
     padding: 11px 16px; text-align: center;
   }
-  .narrow-note b { color: #C8F542; font-weight: 500; }
+  .narrow-note b { color: var(--accent); font-weight: 500; }
 }

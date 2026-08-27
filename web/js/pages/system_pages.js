@@ -6,8 +6,8 @@ import { esc, num, herkunftSatz, leerZeile } from '../util.js';
 import { stepKurve, diagramm, linien, kalibrierung, fmtZahl, SERIEN_FARBEN } from '../charts.js';
 import { renderMicrostructure } from './microstructure_page.js';
 
-const M = "font-family:'JetBrains Mono',monospace";
-const LBL9 = M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.6); margin-bottom:6px';
+const M = "font-family:'IBM Plex Mono',monospace";
+const LBL9 = M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(234,230,220,.6); margin-bottom:6px';
 
 function filterGroup(label, chipsHtml) {
   return '<div><div style="' + LBL9 + '">' + label + '</div><div style="display:flex; gap:6px; flex-wrap:wrap">' + chipsHtml + '</div></div>';
@@ -26,15 +26,15 @@ const RESEARCH_DATEI = [
 // Bernstein, Rot) und ihren gedaempften Varianten; jede Achse aus
 // public/data/postmortems.json hat einen Eintrag, sonst faellt sie auf Grau.
 const ACHSEN_FARBE = {
-  'Rule understanding': '#F5A623',
-  'Execution': '#FF7A7A',
-  'Microstructure': '#4F8EF7',
-  'Data': '#7DE2D1',
-  'Infrastructure': '#C792EA',
-  'Risk discipline': '#FF4545',
-  'Engineering maturity': '#9AB0FF',
-  'Evaluation': '#C8F542',
-  'Detection latency': '#FFD166',
+  'Rule understanding': '#DE7E36',
+  'Execution': '#DE8A7A',
+  'Microstructure': '#6E9BC8',
+  'Data': '#86BDB2',
+  'Infrastructure': '#AC93C6',
+  'Risk discipline': '#D95F52',
+  'Engineering maturity': '#93A5C6',
+  'Evaluation': '#D9A648',
+  'Detection latency': '#D4B878',
 };
 
 // Zeitstrahl der Vorfaelle. Die Seite hatte bisher keine einzige Zahl und
@@ -57,7 +57,7 @@ function vorfallZeitstrahl(eintraege) {
   const punkte = mitDatum.map((e) => {
     const t = tag(String(e.datum));
     const stapel = (proTag[t] = (proTag[t] || 0) + 1) - 1;
-    const farbe = ACHSEN_FARBE[e.achse] || '#95A0AB';
+    const farbe = ACHSEN_FARBE[e.achse] || '#98978E';
     const cy = BASIS - 10 - stapel * 13;
     return '<circle cx="' + x(t).toFixed(1) + '" cy="' + cy + '" r="5" fill="' + farbe + '" fill-opacity=".9">'
       + '<title>' + esc(String(e.datum) + ' · ' + (e.achse || '') + ' · ' + (e.titel || '')) + '</title></circle>'
@@ -66,15 +66,15 @@ function vorfallZeitstrahl(eintraege) {
   }).join('');
 
   const marken = [min, max].map((t, i) =>
-    '<text x="' + x(t).toFixed(1) + '" y="' + (BASIS + 16) + '" fill="rgba(255,255,255,.6)" font-size="10.5" '
-    + 'font-family="JetBrains Mono, monospace" text-anchor="' + (i === 0 ? 'start' : 'end') + '">'
+    '<text x="' + x(t).toFixed(1) + '" y="' + (BASIS + 16) + '" fill="rgba(234,230,220,.6)" font-size="10.5" '
+    + 'font-family="IBM Plex Mono, monospace" text-anchor="' + (i === 0 ? 'start' : 'end') + '">'
     + new Date(t * 86400000).toISOString().slice(0, 10) + '</text>').join('');
 
   return '<div style="' + KARTE + '; padding:14px 16px 8px; margin-top:14px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(255,255,255,.6); margin-bottom:2px">'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(234,230,220,.6); margin-bottom:2px">'
     + 'WHEN THEY HAPPENED · ' + (spanne + 1) + ' DAYS, ' + mitDatum.length + ' INCIDENTS · COLOUR IS THE AXIS</div>'
     + '<svg width="100%" viewBox="0 0 640 80" role="img" aria-label="Incident timeline">'
-    + '<line x1="' + L + '" y1="' + BASIS + '" x2="' + R + '" y2="' + BASIS + '" stroke="rgba(255,255,255,.14)" stroke-width="1" />'
+    + '<line x1="' + L + '" y1="' + BASIS + '" x2="' + R + '" y2="' + BASIS + '" stroke="rgba(234,230,220,.14)" stroke-width="1" />'
     + punkte + marken + '</svg></div>';
 }
 
@@ -83,52 +83,52 @@ function renderPostmortems(payload) {
   const eintraege = (payload && payload.eintraege) || [];
   if (!eintraege.length) {
     return '<div style="padding:26px 24px">'
-      + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:22px 24px; max-width:720px">'
+      + '<div style="background:#131311; border:1px solid rgba(234,230,220,.09); border-radius:6px; padding:22px 24px; max-width:720px">'
       + '<div style="font-size:16px; font-weight:600">No incidents published</div>'
-      + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:10px; line-height:1.6">'
+      + '<div style="font-size:13px; color:rgba(234,230,220,.55); margin-top:10px; line-height:1.6">'
       + 'This page reads <span style="' + M + '">public/data/postmortems.json</span>.</div></div></div>';
   }
 
   const achsen = {};
   eintraege.forEach((e) => { achsen[e.achse] = (achsen[e.achse] || 0) + 1; });
   const chips = Object.entries(achsen).sort((a, b) => b[1] - a[1]).map(([achse, n]) =>
-    '<div style="' + M + '; font-size:11px; color:' + (ACHSEN_FARBE[achse] || '#95A0AB')
-    + '; border:1px solid ' + (ACHSEN_FARBE[achse] || '#95A0AB') + '44; border-radius:5px; padding:4px 9px">'
+    '<div style="' + M + '; font-size:11px; color:' + (ACHSEN_FARBE[achse] || '#98978E')
+    + '; border:1px solid ' + (ACHSEN_FARBE[achse] || '#98978E') + '44; border-radius:4px; padding:4px 9px">'
     + esc(achse.toUpperCase()) + ' ' + n + '</div>').join('');
 
   const feld = (label, wert, farbe) =>
     '<div style="margin-top:11px">'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(255,255,255,.55)">' + label + '</div>'
-    + '<div style="font-size:12.5px; color:' + (farbe || 'rgba(255,255,255,.72)') + '; margin-top:4px; line-height:1.6">'
+    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(234,230,220,.55)">' + label + '</div>'
+    + '<div style="font-size:12.5px; color:' + (farbe || 'rgba(234,230,220,.72)') + '; margin-top:4px; line-height:1.6">'
     + esc(wert || '—') + '</div></div>';
 
   const karten = eintraege.slice().sort((a, b) => String(b.datum).localeCompare(String(a.datum))).map((e) => {
-    const farbe = ACHSEN_FARBE[e.achse] || '#95A0AB';
-    return '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-left:2px solid ' + farbe
-      + '; border-radius:10px; padding:16px 18px">'
+    const farbe = ACHSEN_FARBE[e.achse] || '#98978E';
+    return '<div style="background:#131311; border:1px solid rgba(234,230,220,.09); border-left:2px solid ' + farbe
+      + '; border-radius:6px; padding:16px 18px">'
       + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap">'
       + '<div style="font-size:14.5px; font-weight:600; flex:1; min-width:220px">' + esc(e.titel) + '</div>'
       + '<div style="' + M + '; font-size:11px; color:' + farbe + '">' + esc(e.achse || '') + '</div></div>'
-      + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); margin-top:5px">'
+      + '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.6); margin-top:5px">'
       + esc(e.datum) + (e.profil ? ' · ' + esc(e.profil) : '') + '</div>'
       + feld('WHAT HAPPENED', e.was_passierte)
-      + feld('WHAT IT COST', e.auswirkung, '#FF7A7A')
-      + feld('WHAT CHANGED', e.fix, '#C8F542')
+      + feld('WHAT IT COST', e.auswirkung, '#DE8A7A')
+      + feld('WHAT CHANGED', e.fix, '#D9A648')
       // "PR #12" und "commit 8af07d6" verweisen ins Schwester-Repo, Pfade
       // unter docs/research/ ins Terminal-Repo — als Links, wo ableitbar.
       + (e.referenz
-        ? '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55); margin-top:11px; '
-          + 'border-top:1px solid rgba(255,255,255,.06); padding-top:9px">' + referenzLinksHtml(e.referenz) + '</div>'
+        ? '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.55); margin-top:11px; '
+          + 'border-top:1px solid rgba(234,230,220,.06); padding-top:9px">' + referenzLinksHtml(e.referenz) + '</div>'
         : '')
       + '</div>';
   }).join('');
 
   return '<div style="padding:20px 24px 36px">'
-    + '<div style="font-size:13.5px; color:rgba(255,255,255,.6); line-height:1.6; max-width:820px">'
+    + '<div style="font-size:13.5px; color:rgba(234,230,220,.6); line-height:1.6; max-width:820px">'
     + esc((payload && payload.hinweis) || '')
     + '</div>'
     + '<div style="display:flex; gap:7px; flex-wrap:wrap; margin-top:12px">'
-    + '<div style="' + M + '; font-size:11px; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:5px; padding:4px 9px">'
+    + '<div style="' + M + '; font-size:11px; color:#EAE6DC; border:1px solid rgba(234,230,220,.2); border-radius:4px; padding:4px 9px">'
     + eintraege.length + ' INCIDENTS</div>' + chips + '</div>'
     + vorfallZeitstrahl(eintraege)
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); gap:14px; margin-top:16px">'
@@ -146,12 +146,12 @@ function renderFieldNotes(payload) {
   const kopf = '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px">'
     + '<div style="max-width:720px">'
     + '<div style="font-size:20px; font-weight:600">Field notes — what the tape taught us</div>'
-    + '<div style="font-size:13.5px; color:rgba(255,255,255,.6); margin-top:8px; line-height:1.5">'
+    + '<div style="font-size:13.5px; color:rgba(234,230,220,.6); margin-top:8px; line-height:1.5">'
     + esc((payload && payload.hinweis) || 'Curated observations from watching the tape: what happened, the mechanism behind it, and what follows from it. Notes, not measurements — each one names its evidence or says it has none.')
     + '</div></div>'
     + '<div style="display:flex; gap:8px">'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; color:#0A0D0F; background:#4F8EF7">' + esc(kennung) + '</div>'
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.14); border-radius:6px; padding:5px 10px; white-space:nowrap">' + esc(stempel) + '</div>'
+    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; color:#0B0B0A; background:#6E9BC8">' + esc(kennung) + '</div>'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(234,230,220,.6); border:1px solid rgba(234,230,220,.14); border-radius:4px; padding:5px 10px; white-space:nowrap">' + esc(stempel) + '</div>'
     + '</div></div>';
 
   if (!payload) {
@@ -164,9 +164,9 @@ function renderFieldNotes(payload) {
   }
   if (!notes.length) {
     return '<div style="padding:22px 24px">' + kopf
-      + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:22px 24px; max-width:720px; margin-top:16px">'
+      + '<div style="background:#131311; border:1px solid rgba(234,230,220,.09); border-radius:6px; padding:22px 24px; max-width:720px; margin-top:16px">'
       + '<div style="font-size:16px; font-weight:600">No field notes published yet</div>'
-      + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:10px; line-height:1.6">'
+      + '<div style="font-size:13px; color:rgba(234,230,220,.55); margin-top:10px; line-height:1.6">'
       + 'This page reads <span style="' + M + '">public/data/field_notes.json</span>. The file is there but its '
       + '<span style="' + M + '">notes</span> list is empty, so there is nothing to show — and nothing is invented to fill the space.'
       + '</div></div></div>';
@@ -174,32 +174,32 @@ function renderFieldNotes(payload) {
 
   const feld = (label, wert, farbe) => (wert
     ? '<div style="margin-top:11px">'
-      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(255,255,255,.55)">' + label + '</div>'
-      + '<div style="font-size:12.5px; color:' + (farbe || 'rgba(255,255,255,.72)') + '; margin-top:4px; line-height:1.6">'
+      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(234,230,220,.55)">' + label + '</div>'
+      + '<div style="font-size:12.5px; color:' + (farbe || 'rgba(234,230,220,.72)') + '; margin-top:4px; line-height:1.6">'
       + esc(wert) + '</div></div>'
     : '');
 
   const venues = {};
   notes.forEach((n) => { const v = String(n.venue || 'unknown venue'); venues[v] = (venues[v] || 0) + 1; });
   const chips = Object.entries(venues).sort((a, b) => b[1] - a[1]).map(([v, n]) =>
-    '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.18); border-radius:5px; padding:4px 9px">'
+    '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.6); border:1px solid rgba(234,230,220,.18); border-radius:4px; padding:4px 9px">'
     + esc(v.toUpperCase()) + ' ' + n + '</div>').join('');
 
   const karten = notes.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).map((n) =>
-    '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-left:2px solid #4F8EF7; border-radius:10px; padding:16px 18px">'
+    '<div style="background:#131311; border:1px solid rgba(234,230,220,.09); border-left:2px solid #6E9BC8; border-radius:6px; padding:16px 18px">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap">'
     + '<div style="font-size:14.5px; font-weight:600; flex:1; min-width:220px">' + esc(n.title || '—') + '</div>'
-    + '<div style="' + M + '; font-size:11px; color:#4F8EF7">' + esc(n.venue || '') + '</div></div>'
-    + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); margin-top:5px">'
+    + '<div style="' + M + '; font-size:11px; color:#6E9BC8">' + esc(n.venue || '') + '</div></div>'
+    + '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.6); margin-top:5px">'
     + esc(n.date || '—') + (n.market ? ' · ' + esc(n.market) : '') + '</div>'
     + feld('OBSERVATION', n.observation)
-    + feld('MECHANISM', n.mechanism, '#F5A623')
-    + feld('CONSEQUENCE', n.consequence, '#C8F542')
+    + feld('MECHANISM', n.mechanism, '#DE7E36')
+    + feld('CONSEQUENCE', n.consequence, '#D9A648')
     + (n.evidence
-      ? '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55); margin-top:11px; '
-        + 'border-top:1px solid rgba(255,255,255,.06); padding-top:9px">EVIDENCE · ' + referenzLinksHtml(n.evidence) + '</div>'
-      : '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.5); margin-top:11px; '
-        + 'border-top:1px solid rgba(255,255,255,.06); padding-top:9px">NO EVIDENCE ATTACHED · an observation, not a finding</div>')
+      ? '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.55); margin-top:11px; '
+        + 'border-top:1px solid rgba(234,230,220,.06); padding-top:9px">EVIDENCE · ' + referenzLinksHtml(n.evidence) + '</div>'
+      : '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.5); margin-top:11px; '
+        + 'border-top:1px solid rgba(234,230,220,.06); padding-top:9px">NO EVIDENCE ATTACHED · an observation, not a finding</div>')
     + '</div>'
   ).join('');
 
@@ -208,22 +208,22 @@ function renderFieldNotes(payload) {
   // faengt man vorne an oder gar nicht. Der Index nennt je Notiz Datum, Venue,
   // Titel und ob Belege dranhaengen; danach weiss man, welche man liest.
   const belegt = notes.filter((n) => n.evidence).length;
-  const index = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; overflow:hidden">'
-    + '<div style="padding:10px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); display:flex; align-items:baseline; justify-content:space-between; gap:14px">'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:#4F8EF7">WHAT IS IN HERE</div>'
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6)">' + belegt + ' of ' + notes.length + ' carry evidence</div></div>'
+  const index = '<div style="border:1px solid rgba(234,230,220,.09); border-radius:6px; margin-top:14px; overflow:hidden">'
+    + '<div style="padding:10px 16px; background:#131311; border-bottom:1px solid rgba(234,230,220,.09); display:flex; align-items:baseline; justify-content:space-between; gap:14px">'
+    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:#6E9BC8">WHAT IS IN HERE</div>'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(234,230,220,.6)">' + belegt + ' of ' + notes.length + ' carry evidence</div></div>'
     + notes.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).map((n) =>
-      '<div style="display:grid; grid-template-columns:78px 104px 1fr 122px; gap:12px; align-items:baseline; padding:8px 16px; border-bottom:1px solid rgba(255,255,255,.06)">'
-      + '<div style="' + M + '; font-size:11.5px; color:rgba(255,255,255,.6)">' + esc(n.date || '—') + '</div>'
-      + '<div style="' + M + '; font-size:11.5px; color:#4F8EF7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(n.venue || '—') + '</div>'
+      '<div style="display:grid; grid-template-columns:78px 104px 1fr 122px; gap:12px; align-items:baseline; padding:8px 16px; border-bottom:1px solid rgba(234,230,220,.06)">'
+      + '<div style="' + M + '; font-size:11.5px; color:rgba(234,230,220,.6)">' + esc(n.date || '—') + '</div>'
+      + '<div style="' + M + '; font-size:11.5px; color:#6E9BC8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(n.venue || '—') + '</div>'
       + '<div style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(n.title || '') + '">' + esc(n.title || '—') + '</div>'
-      + '<div style="' + M + '; font-size:10.5px; text-align:right; color:' + (n.evidence ? '#C8F542' : 'rgba(255,255,255,.6)') + '">'
+      + '<div style="' + M + '; font-size:10.5px; text-align:right; color:' + (n.evidence ? '#D9A648' : 'rgba(234,230,220,.6)') + '">'
       + (n.evidence ? 'EVIDENCE' : 'NO EVIDENCE') + '</div></div>').join('')
     + '</div>';
 
   return '<div style="padding:22px 24px 36px">' + kopf
     + '<div style="display:flex; gap:7px; flex-wrap:wrap; margin-top:12px">'
-    + '<div style="' + M + '; font-size:11px; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:5px; padding:4px 9px">'
+    + '<div style="' + M + '; font-size:11px; color:#EAE6DC; border:1px solid rgba(234,230,220,.2); border-radius:4px; padding:4px 9px">'
     + notes.length + ' NOTE' + (notes.length === 1 ? '' : 'S') + '</div>' + chips + '</div>'
     + index
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); gap:14px; margin-top:16px">'
@@ -302,20 +302,20 @@ function fensterText(zeile) {
 // ("not loaded"), which stay true while loading.
 function ladeStudieHtml(study, datei) {
   return '<div style="padding:26px 24px">'
-    + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:22px 24px; max-width:720px">'
+    + '<div style="background:#131311; border:1px solid rgba(234,230,220,.09); border-radius:6px; padding:22px 24px; max-width:720px">'
     + '<div style="font-size:16px; font-weight:600">' + esc(study.title) + '</div>'
     + '<div style="display:flex; align-items:center; gap:10px; margin-top:12px">'
-    + '<span style="width:7px; height:7px; border-radius:50%; background:#F5A623; display:inline-block; animation:livePulse 1.2s ease-in-out infinite"></span>'
-    + '<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:#F5A623">loading public/data/' + esc(datei || 'the study payload') + '</span></div>'
-    + '<div style="font-size:12.5px; color:rgba(255,255,255,.5); margin-top:10px; line-height:1.6">The page fills in when the payload answers; nothing is shown before, and no figure is a placeholder.</div>'
+    + '<span style="width:7px; height:7px; border-radius:50%; background:#DE7E36; display:inline-block"></span>'
+    + '<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:#DE7E36">loading public/data/' + esc(datei || 'the study payload') + '</span></div>'
+    + '<div style="font-size:12.5px; color:rgba(234,230,220,.5); margin-top:10px; line-height:1.6">The page fills in when the payload answers; nothing is shown before, and no figure is a placeholder.</div>'
     + '</div></div>';
 }
 
 function fehlendeStudieHtml(study, datei) {
   return '<div style="padding:26px 24px">'
-    + '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:22px 24px; max-width:720px">'
+    + '<div style="background:#131311; border:1px solid rgba(234,230,220,.09); border-radius:6px; padding:22px 24px; max-width:720px">'
     + '<div style="font-size:16px; font-weight:600">' + esc(study.title) + '</div>'
-    + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:10px; line-height:1.6">'
+    + '<div style="font-size:13px; color:rgba(234,230,220,.55); margin-top:10px; line-height:1.6">'
     + 'No published data for this study yet. It reads '
     + '<span style="' + M + '">public/data/' + esc(datei || 'the study payload') + '</span>, '
     + 'which the daily run writes. Nothing is shown here rather than a placeholder, '
@@ -394,11 +394,11 @@ export function renderAlerts(T) {
   let body = '';
   if (s.alertTab === 'signals') {
     body = '<div>'
-      + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); padding:14px 24px 0">showing signals over ' + s.thMove + '¢ moves, prints above $' + num(s.thWhale) + ', spreads under ' + s.thSpread + '¢, resolving within ' + s.thEnding + ' h' + (live && live.as_of ? ' · snapshot ' + esc(live.as_of) : '') + '</div>'
+      + '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.6); padding:14px 24px 0">showing signals over ' + s.thMove + '¢ moves, prints above $' + num(s.thWhale) + ', spreads under ' + s.thSpread + '¢, resolving within ' + s.thEnding + ' h' + (live && live.as_of ? ' · snapshot ' + esc(live.as_of) : '') + '</div>'
       // Der Schnitt gehoert danebengeschrieben. Eine Tabelle, die 60 von 300
       // Zeilen zeigt und das verschweigt, liest sich wie der ganze Scan.
       + (zaehlung && live.shown_limit && gesamtTreffer > live.shown_limit
-        ? '<div style="' + M + '; font-size:11px; color:#F5A623; padding:6px 24px 0">'
+        ? '<div style="' + M + '; font-size:11px; color:#DE7E36; padding:6px 24px 0">'
           + 'showing the top ' + live.shown_limit + ' of ' + num(gesamtTreffer) + ' signals in this scan, ranked by severity'
           // Welche Art der Schnitt komplett verschluckt. Ohne den Zusatz
           // widerspricht die Regelkarte scheinbar der Tabelle: sie meldet
@@ -408,62 +408,62 @@ export function renderAlerts(T) {
             : '')
           + '</div>'
         : '')
-      + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin:12px 24px; overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:92px 170px 1fr 110px 120px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">'
+      + '<div style="border:1px solid rgba(234,230,220,.09); border-radius:6px; margin:12px 24px; overflow:hidden">'
+      + '<div style="display:grid; grid-template-columns:92px 170px 1fr 110px 120px; gap:10px; padding:9px 16px; background:#131311; border-bottom:1px solid rgba(234,230,220,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(234,230,220,.6)">'
       + '<div>TIME</div><div>SIGNAL</div><div>MARKET</div><div style="text-align:right">READING</div><div style="text-align:right">VENUE</div></div>'
       + (ausgeblendet
-        ? '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); padding:6px 24px 0">'
+        ? '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.6); padding:6px 24px 0">'
           + num(ausgeblendet) + ' signal' + (ausgeblendet === 1 ? '' : 's') + ' hidden by the rule switches</div>'
         : '')
       + (feed.length ? '' : leerZeile(feedAll.length ? 'No signal matches these filters.' : alarmSatz))
       + feed.map((a) =>
-        '<div style="display:grid; grid-template-columns:92px 170px 1fr 110px 120px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06)">'
-        + '<div style="' + M + '; font-size:12px; color:rgba(255,255,255,.55)">' + esc(a.time) + '</div>'
-        + '<div style="' + M + '; font-size:10.5px; letter-spacing:.1em; color:#C8F542">' + esc(a.rule) + '</div>'
+        '<div style="display:grid; grid-template-columns:92px 170px 1fr 110px 120px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(234,230,220,.06)">'
+        + '<div style="' + M + '; font-size:12px; color:rgba(234,230,220,.55)">' + esc(a.time) + '</div>'
+        + '<div style="' + M + '; font-size:10.5px; letter-spacing:.1em; color:#D9A648">' + esc(a.rule) + '</div>'
         + '<div style="font-size:13px; padding-right:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(a.market) + '">' + esc(a.market) + '</div>'
         + '<div style="' + M + '; font-size:12.5px; text-align:right">' + esc(a.value) + '</div>'
-        + '<div style="' + M + '; font-size:11.5px; text-align:right; color:rgba(255,255,255,.6)">' + esc(a.venue) + '</div></div>'
+        + '<div style="' + M + '; font-size:11.5px; text-align:right; color:rgba(234,230,220,.6)">' + esc(a.venue) + '</div></div>'
       ).join('')
       + '</div></div>';
   } else if (s.alertTab === 'rules') {
     body = '<div style="padding:16px 24px; display:grid; grid-template-columns:repeat(3,1fr); gap:14px">'
       + rules.map((a) => {
         const on = !!s.alertsOn[a.key];
-        return '<div ' + T.act(() => T.setState({ alertsOn: Object.assign({}, s.alertsOn, { [a.key]: !on }) })) + ' style="border-radius:12px; padding:15px 17px; cursor:pointer; background:#10151A; border:1px solid ' + (on ? 'rgba(200,245,66,.35)' : 'rgba(255,255,255,.09)') + '">'
+        return '<div ' + T.act(() => T.setState({ alertsOn: Object.assign({}, s.alertsOn, { [a.key]: !on }) })) + ' style="border-radius:6px; padding:15px 17px; cursor:pointer; background:#131311; border:1px solid ' + (on ? 'rgba(217,166,72,.35)' : 'rgba(234,230,220,.09)') + '">'
           + '<div style="display:flex; align-items:center; justify-content:space-between; gap:12px">'
           + '<div style="font-size:14.5px; font-weight:600">' + a.name + '</div>'
-          + '<div style="width:38px; height:21px; flex:none; border-radius:11px; padding:2px; display:flex; background:' + (on ? '#C8F542' : 'rgba(255,255,255,.14)') + '; justify-content:' + (on ? 'flex-end' : 'flex-start') + '">'
-          + '<div style="width:17px; height:17px; border-radius:50%; background:' + (on ? '#0A0D0F' : 'rgba(255,255,255,.55)') + '"></div></div></div>'
-          + '<div style="font-size:12.5px; color:rgba(255,255,255,.55); margin-top:8px; line-height:1.45">' + a.desc + '</div>'
-          + '<div style="' + M + '; font-size:10.5px; margin-top:12px; color:rgba(255,255,255,.6)">' + esc(trefferText(a.key, on)) + '</div></div>';
+          + '<div style="width:38px; height:21px; flex:none; border-radius:6px; padding:2px; display:flex; background:' + (on ? '#D9A648' : 'rgba(234,230,220,.14)') + '; justify-content:' + (on ? 'flex-end' : 'flex-start') + '">'
+          + '<div style="width:17px; height:17px; border-radius:50%; background:' + (on ? '#0B0B0A' : 'rgba(234,230,220,.55)') + '"></div></div></div>'
+          + '<div style="font-size:12.5px; color:rgba(234,230,220,.55); margin-top:8px; line-height:1.45">' + a.desc + '</div>'
+          + '<div style="' + M + '; font-size:10.5px; margin-top:12px; color:rgba(234,230,220,.6)">' + esc(trefferText(a.key, on)) + '</div></div>';
       }).join('')
       + '</div>';
   } else if (live && live.deliveries) {
     const dv = live.deliveries;
-    body = '<div style="margin:16px 24px; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:22px; background:#10151A">'
-      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55)">DELIVERY LOG</div>'
-      + '<div style="font-size:13px; color:rgba(255,255,255,.6); margin-top:10px; line-height:1.5; max-width:640px">' + esc(dv.note || 'No delivery log available.') + '</div>'
-      + (dv.last_scan_at ? '<div style="' + M + '; font-size:11.5px; color:rgba(255,255,255,.6); margin-top:12px">last scan ' + esc(dv.last_scan_at) + ' · ' + esc(String(dv.last_hits)) + ' hits · ' + esc(String(dv.last_sent)) + ' sent</div>' : '')
+    body = '<div style="margin:16px 24px; border:1px solid rgba(234,230,220,.09); border-radius:6px; padding:22px; background:#131311">'
+      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(234,230,220,.55)">DELIVERY LOG</div>'
+      + '<div style="font-size:13px; color:rgba(234,230,220,.6); margin-top:10px; line-height:1.5; max-width:640px">' + esc(dv.note || 'No delivery log available.') + '</div>'
+      + (dv.last_scan_at ? '<div style="' + M + '; font-size:11.5px; color:rgba(234,230,220,.6); margin-top:12px">last scan ' + esc(dv.last_scan_at) + ' · ' + esc(String(dv.last_hits)) + ' hits · ' + esc(String(dv.last_sent)) + ' sent</div>' : '')
       + '</div>';
   } else {
     // Ein Zustellprotokoll ist ein Nachweis. Sechs erfundene Zeilen mit
     // Uhrzeit, Kanal und Status behaupten Versand, den es nie gab.
-    body = '<div style="margin:16px 24px; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:22px; background:#10151A">'
-      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55)">DELIVERY LOG</div>'
-      + '<div style="font-size:13px; color:rgba(255,255,255,.6); margin-top:10px; line-height:1.5; max-width:640px">'
+    body = '<div style="margin:16px 24px; border:1px solid rgba(234,230,220,.09); border-radius:6px; padding:22px; background:#131311">'
+      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(234,230,220,.55)">DELIVERY LOG</div>'
+      + '<div style="font-size:13px; color:rgba(234,230,220,.6); margin-top:10px; line-height:1.5; max-width:640px">'
       + esc(alarmSatz) + '</div></div>';
   }
 
   return '<div>'
-    + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(255,255,255,.09)">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.18em; color:#C8F542">ALERTS</div>'
-    + '<h1 style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin:5px 0 0; font-weight:400">Tell me when this happens</h1>'
+    + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(234,230,220,.09)">'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.18em; color:#D9A648">ALERTS</div>'
+    + '<h1 style="font-size:21px; line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">Tell me when this happens</h1>'
     // Frueher stand hier "Switch one on and it also goes to Telegram". Der
     // Versand haengt am Scanner-Skript und an dessen Konfiguration, nicht an
     // diesen Schaltern — die entscheiden, was diese Seite zeigt.
-    + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:9px; max-width:700px">The thresholds below are sent to the scan. The switches decide which of its signal types this page shows; Telegram delivery is configured on the scanner, not here.</div></div>'
+    + '<div style="font-size:13px; color:rgba(234,230,220,.55); margin-top:9px; max-width:700px">The thresholds below are sent to the scan. The switches decide which of its signal types this page shows; Telegram delivery is configured on the scanner, not here.</div></div>'
     + '<div style="padding:16px 24px 0; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px 18px">'
-    + '<div><div style="' + LBL9 + '">SEARCH</div><input value="' + esc(s.alertQuery) + '" ' + T.inp((e) => T.setState({ alertQuery: e.target.value }), 'alertQuery') + ' placeholder="market, wallet, category…" style="width:100%; box-sizing:border-box; background:#10151A; border:1px solid rgba(255,255,255,.35); border-radius:7px; padding:8px 10px; ' + M + '; font-size:11.5px; color:#fff" /></div>'
+    + '<div><div style="' + LBL9 + '">SEARCH</div><input value="' + esc(s.alertQuery) + '" ' + T.inp((e) => T.setState({ alertQuery: e.target.value }), 'alertQuery') + ' placeholder="market, wallet, category…" style="width:100%; box-sizing:border-box; background:#131311; border:1px solid rgba(234,230,220,.35); border-radius:4px; padding:8px 10px; ' + M + '; font-size:11.5px; color:#EAE6DC" /></div>'
     + filterGroup('PLATFORM', [['all','All'],['Polymarket','Polymarket'],['Kalshi','Kalshi']].map((o) => T.opt(o[1], s.alertPlatform === o[0], { alertPlatform: o[0] })).join(''))
     + filterGroup('SIGNAL TYPE', [['all','All'],['WHALE PRINT','Whale prints'],['FAST MOVER','Fast movers'],['VOLUME ANOMALY','Volume']].map((o) => T.opt(o[1], s.alertType === o[0], { alertType: o[0] })).join(''))
     + filterGroup('SCOPE', [['all','Everything'],['watched','Watched only']].map((o) => T.opt(o[1], s.alertScope === o[0], { alertScope: o[0] })).join(''))
@@ -478,7 +478,7 @@ export function renderAlerts(T) {
     // Die Holder-Schwelle bleibt ohne Wirkung, solange der Endpunkt die
     // Regel nicht auswertet. Der Regler sagt es, statt Wirkung vorzutaeuschen.
     + filterGroup('TOP HOLDER OVER'
-      + (holderInaktiv ? ' <span style="color:#F5A623">· not evaluated</span>' : ''),
+      + (holderInaktiv ? ' <span style="color:#DE7E36">· not evaluated</span>' : ''),
       [25, 40, 60, 80].map((v) => T.opt(v + '%', s.thHolder === v, { thHolder: v })).join(''))
     + '</div>'
     + '<div style="display:flex; gap:6px; padding:16px 24px 0; flex-wrap:wrap">'
@@ -503,7 +503,7 @@ export function renderResearch(T) {
   // jeder Studie und schoben deren eigenen Titel unter die Falz. Der
   // Brotkrumen sagt, wo man ist; den Pitch traegt die Startseite.
   const header = '<div style="padding:16px 24px 0">'
-    + '<h1 style="' + M + '; font-size:11px; letter-spacing:.18em; color:#4F8EF7; margin:0; font-weight:400">RESEARCH · ' + esc(String(study.tab || '').toUpperCase()) + '</h1></div>';
+    + '<h1 style="' + M + '; font-size:11px; letter-spacing:.18em; color:#6E9BC8; margin:0; font-weight:400">RESEARCH · ' + esc(String(study.tab || '').toUpperCase()) + '</h1></div>';
 
   if (s.researchTab === 3) {
     return '<div>' + header + renderLiveRuns(T, payload) + '</div>';
@@ -564,24 +564,24 @@ export function renderResearch(T) {
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px">'
     + '<div style="max-width:640px">'
     + '<div style="font-size:20px; font-weight:600">' + esc(study.title) + '</div>'
-    + '<div style="font-size:13.5px; color:rgba(255,255,255,.6); margin-top:8px; line-height:1.5">' + esc(note) + '</div></div>'
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.14); border-radius:6px; padding:6px 10px; white-space:nowrap">' + esc(stamp) + '</div></div>'
+    + '<div style="font-size:13.5px; color:rgba(234,230,220,.6); margin-top:8px; line-height:1.5">' + esc(note) + '</div></div>'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(234,230,220,.6); border:1px solid rgba(234,230,220,.14); border-radius:4px; padding:6px 10px; white-space:nowrap">' + esc(stamp) + '</div></div>'
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:18px">'
     + stats.map((x) =>
-      '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:10px; padding:14px 16px">'
-      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(255,255,255,.6)">' + esc(x.label) + '</div>'
+      '<div style="background:#131311; border:1px solid rgba(234,230,220,.09); border-radius:6px; padding:14px 16px">'
+      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(234,230,220,.6)">' + esc(x.label) + '</div>'
       + '<div style="' + M + '; font-size:21px; margin-top:7px">' + esc(x.value) + '</div>'
-      + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); margin-top:4px">' + esc(x.note) + '</div></div>'
+      + '<div style="' + M + '; font-size:10.5px; color:rgba(234,230,220,.6); margin-top:4px">' + esc(x.note) + '</div></div>'
     ).join('')
     + '</div>'
-    + (pts ? '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; padding:16px 18px">'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55); margin-bottom:12px">' + esc(chartLabel) + '</div>'
+    + (pts ? '<div style="background:#131311; border:1px solid rgba(234,230,220,.09); border-radius:6px; margin-top:14px; padding:16px 18px">'
+    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(234,230,220,.55); margin-bottom:12px">' + esc(chartLabel) + '</div>'
     + '<svg width="100%" height="220" viewBox="0 0 900 220" preserveAspectRatio="none" role="img" aria-label="' + esc(chartLabel) + '">'
-    + '<line x1="0" y1="20" x2="900" y2="20" stroke="rgba(255,255,255,.07)" />'
-    + '<line x1="0" y1="75" x2="900" y2="75" stroke="rgba(255,255,255,.07)" />'
-    + '<line x1="0" y1="130" x2="900" y2="130" stroke="rgba(255,255,255,.07)" />'
-    + '<line x1="0" y1="210" x2="900" y2="210" stroke="rgba(255,255,255,.14)" />'
-    + '<polyline points="' + pts + '" fill="none" stroke="#4F8EF7" stroke-width="2" /></svg></div>' : '')
+    + '<line x1="0" y1="20" x2="900" y2="20" stroke="rgba(234,230,220,.07)" />'
+    + '<line x1="0" y1="75" x2="900" y2="75" stroke="rgba(234,230,220,.07)" />'
+    + '<line x1="0" y1="130" x2="900" y2="130" stroke="rgba(234,230,220,.07)" />'
+    + '<line x1="0" y1="210" x2="900" y2="210" stroke="rgba(234,230,220,.14)" />'
+    + '<polyline points="' + pts + '" fill="none" stroke="#6E9BC8" stroke-width="2" /></svg></div>' : '')
     // Je Studie ihre Diagramme und Zusatzbloecke (Mentions latency, Pilot,
     // Pipeline forward), am Slug aufgehaengt statt am Index.
     + studienExtrasHtml(studienSlug(study), payload)
@@ -600,7 +600,7 @@ function studienSlug(study) {
 // api/server.py und ein reiner Dateiserver gleichermassen ausliefern. "Read
 // the method" springt auf die Methodik-Studie und ist dort selbst nicht da.
 function studienKnoepfe(T, tab) {
-  const KNOPF = 'font-size:13px; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:10px 16px; cursor:pointer; text-decoration:none; display:inline-block';
+  const KNOPF = 'font-size:13px; color:#EAE6DC; border:1px solid rgba(234,230,220,.2); border-radius:4px; padding:10px 16px; cursor:pointer; text-decoration:none; display:inline-block';
   const datei = RESEARCH_DATEI[tab];
   const methodik = T.studies.findIndex((st) => studienSlug(st) === 'methodology');
   const teile = [];
@@ -625,31 +625,31 @@ function studienKnoepfe(T, tab) {
 function pilotAuswertungHtml(payload) {
   const a = payload && payload.auswertung;
   if (!a || !a.trades || !a.trades.gesamt) return '';
-  const karte = 'background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px';
+  const karte = 'background:#131311; border:1px solid rgba(234,230,220,.09); border-radius:6px';
   const rt = a.regeltreue || {};
   const punkte = (rt.punkte || []).map((p) => {
-    const farbe = p.erfuellt ? '#C8F542' : '#F5A623';
+    const farbe = p.erfuellt ? '#D9A648' : '#DE7E36';
     const zeichen = p.erfuellt ? '✓' : '!';
-    return '<div style="display:grid; grid-template-columns:18px 1fr auto; gap:12px; align-items:baseline; padding:10px 16px; border-bottom:1px solid rgba(255,255,255,.05)">'
+    return '<div style="display:grid; grid-template-columns:18px 1fr auto; gap:12px; align-items:baseline; padding:10px 16px; border-bottom:1px solid rgba(234,230,220,.05)">'
       + '<div style="' + M + '; font-size:13px; color:' + farbe + '">' + zeichen + '</div>'
-      + '<div><div style="font-size:12.5px; color:rgba(255,255,255,.8)">' + esc(p.regel) + '</div>'
-      + (p.hinweis ? '<div style="font-size:11.5px; color:#F5A623; margin-top:4px; line-height:1.5">' + esc(p.hinweis) + '</div>' : '')
+      + '<div><div style="font-size:12.5px; color:rgba(234,230,220,.8)">' + esc(p.regel) + '</div>'
+      + (p.hinweis ? '<div style="font-size:11.5px; color:#DE7E36; margin-top:4px; line-height:1.5">' + esc(p.hinweis) + '</div>' : '')
       + '</div>'
-      + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55); text-align:right; white-space:nowrap">'
-      + esc(p.ist || '') + (p.soll ? ' <span style="color:rgba(255,255,255,.55)">vs ' + esc(p.soll) + '</span>' : '')
+      + '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.55); text-align:right; white-space:nowrap">'
+      + esc(p.ist || '') + (p.soll ? ' <span style="color:rgba(234,230,220,.55)">vs ' + esc(p.soll) + '</span>' : '')
       + '</div></div>';
   }).join('');
 
   return '<div style="' + karte + '; margin-top:14px; padding:18px 20px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#4F8EF7">WHAT THE TEST MEASURED</div>'
-    + '<div style="font-size:14.5px; color:#fff; margin-top:10px; line-height:1.6; max-width:760px">' + esc(a.befund || '') + '</div>'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#6E9BC8">WHAT THE TEST MEASURED</div>'
+    + '<div style="font-size:14.5px; color:#EAE6DC; margin-top:10px; line-height:1.6; max-width:760px">' + esc(a.befund || '') + '</div>'
     + (a.offener_ausgang
-      ? '<div style="font-size:13px; color:#F5A623; margin-top:12px; line-height:1.6; max-width:760px; '
-        + 'border-left:2px solid rgba(245,166,35,.4); padding-left:12px">' + esc(a.offener_ausgang) + '</div>'
+      ? '<div style="font-size:13px; color:#DE7E36; margin-top:12px; line-height:1.6; max-width:760px; '
+        + 'border-left:2px solid rgba(222,126,54,.4); padding-left:12px">' + esc(a.offener_ausgang) + '</div>'
       : '')
     + (punkte
-      ? '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:rgba(255,255,255,.6); margin:18px 0 8px">RULE ADHERENCE</div>'
-        + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:10px; overflow:hidden">' + punkte + '</div>'
+      ? '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:rgba(234,230,220,.6); margin:18px 0 8px">RULE ADHERENCE</div>'
+        + '<div style="border:1px solid rgba(234,230,220,.09); border-radius:6px; overflow:hidden">' + punkte + '</div>'
       : '')
     + '</div>';
 }
@@ -718,14 +718,14 @@ function pipelineHeadlineHtml(payload) {
     einheit: 'decision checks',
     punkte: z.gruende.map(([text, n]) => ({ label: text, wert: n, art: 'kosten' }))
   });
-  return '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; padding:18px 20px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#4F8EF7">WHAT THE FORWARD TEST FOUND</div>'
-    + '<div style="font-size:15px; color:#fff; margin-top:10px; line-height:1.6; max-width:820px">'
+  return '<div style="background:#131311; border:1px solid rgba(234,230,220,.09); border-radius:6px; margin-top:14px; padding:18px 20px">'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#6E9BC8">WHAT THE FORWARD TEST FOUND</div>'
+    + '<div style="font-size:15px; color:#EAE6DC; margin-top:10px; line-height:1.6; max-width:820px">'
     + 'Almost nothing was tradable: of ' + num(z.gesamt) + ' decision checks, only ' + num(z.gekauft) + ' ended in a paper buy ('
     + (anteil < 10 ? anteil.toFixed(1) : Math.round(anteil)) + '%)'
     + (top ? ' — most common stopper: ' + esc(top[0].charAt(0).toLowerCase() + top[0].slice(1)) + ' (' + num(top[1]) + ' of ' + num(z.keine) + ' no-trades, ' + Math.round((top[1] / Math.max(1, z.keine)) * 100) + '%)' : '')
     + '.</div>'
-    + '<div style="font-size:12px; color:rgba(255,255,255,.5); margin-top:8px; line-height:1.5">Counted over ' + esc(quelle) + ' in pipeline_forward.json. No equity curve on purpose: the log carries decisions and best book prices only — no fills, no wallet data, no return claim. What the same pipeline did with real money is on the Live runs page.</div>'
+    + '<div style="font-size:12px; color:rgba(234,230,220,.5); margin-top:8px; line-height:1.5">Counted over ' + esc(quelle) + ' in pipeline_forward.json. No equity curve on purpose: the log carries decisions and best book prices only — no fills, no wallet data, no return claim. What the same pipeline did with real money is on the Live runs page.</div>'
     + (chart ? '<div style="margin-top:14px">' + chart + '</div>' : '')
     + '</div>';
 }
@@ -733,44 +733,44 @@ function pipelineHeadlineHtml(payload) {
 function pipelineRegelnHtml(payload) {
   const { eintraege } = pipelineEintraege(payload);
   if (!eintraege.length) return '';
-  const karte = 'background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px';
+  const karte = 'background:#131311; border:1px solid rgba(234,230,220,.09); border-radius:6px';
 
   const regel = (titel, text) =>
-    '<div style="padding:12px 16px; border-bottom:1px solid rgba(255,255,255,.05)">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.12em; color:#4F8EF7">' + esc(titel) + '</div>'
-    + '<div style="font-size:12.5px; color:rgba(255,255,255,.75); margin-top:6px; line-height:1.6">' + esc(text) + '</div></div>';
+    '<div style="padding:12px 16px; border-bottom:1px solid rgba(234,230,220,.05)">'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.12em; color:#6E9BC8">' + esc(titel) + '</div>'
+    + '<div style="font-size:12.5px; color:rgba(234,230,220,.75); margin-top:6px; line-height:1.6">' + esc(text) + '</div></div>';
 
   return '<div style="' + karte + '; margin-top:14px; padding:18px 20px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#4F8EF7">HOW THE PIPELINE DECIDES</div>'
-    + '<div style="font-size:13.5px; color:rgba(255,255,255,.65); margin-top:10px; line-height:1.6; max-width:760px">'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#6E9BC8">HOW THE PIPELINE DECIDES</div>'
+    + '<div style="font-size:13.5px; color:rgba(234,230,220,.65); margin-top:10px; line-height:1.6; max-width:760px">'
     + 'These are word-count markets: will a speaker say a given word often enough during an episode, call or speech. '
     + 'The pipeline follows the live transcript and counts. It never predicts what will be said, it acts only on what has already been said. '
     + 'One run is one broadcast; every market it checks becomes one row in the log, buy or no-trade.</div>'
-    + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:10px; overflow:hidden; margin-top:14px">'
+    + '<div style="border:1px solid rgba(234,230,220,.09); border-radius:6px; overflow:hidden; margin-top:14px">'
     + regel('BUY YES', 'Only once the live count has already passed the market threshold, so the outcome is settled in fact, and only while the price including fee stays under the run cap. Above the cap there is no margin left in a decided outcome.')
     + regel('BUY NO', 'Only after the full transcript, when the final count stayed far enough below the threshold, and only at a lower cap than YES. Betting on absence breaks on a single missed word, so it needs the bigger cushion.')
     + regel('OTHERWISE NOTHING', 'Every other case is a no-trade, and each entry carries the reason that stopped it. The thresholds themselves are shown per entry, not fixed here.')
     + '</div>'
-    + '<div style="font-size:12px; color:rgba(255,255,255,.5); margin-top:12px; line-height:1.5; max-width:760px">'
+    + '<div style="font-size:12px; color:rgba(234,230,220,.5); margin-top:12px; line-height:1.5; max-width:760px">'
     + 'Reading the run table below: EXTRACTED $ is the dollar value the run&#39;s buys actually captured of what its already-decided outcomes offered within the caps; QUOTE is that share — 100% means it caught everything its own rules allowed.</div>'
     + '</div>';
 }
 
 function studyTableHtml(T, label, cols, head, rows) {
-  const headStyle = 'display:grid; grid-template-columns:' + cols + '; gap:14px; padding:9px 18px; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.6)';
-  return '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; overflow:hidden">'
-    + '<div style="padding:11px 18px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:#4F8EF7">' + esc(label) + '</div>'
+  const headStyle = 'display:grid; grid-template-columns:' + cols + '; gap:14px; padding:9px 18px; border-bottom:1px solid rgba(234,230,220,.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(234,230,220,.6)';
+  return '<div style="border:1px solid rgba(234,230,220,.09); border-radius:6px; margin-top:14px; overflow:hidden">'
+    + '<div style="padding:11px 18px; background:#131311; border-bottom:1px solid rgba(234,230,220,.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:#6E9BC8">' + esc(label) + '</div>'
     + '<div style="' + headStyle + '">'
     + head.map((h, i) => '<div style="' + (i === 0 ? '' : 'text-align:right') + '">' + esc(h) + '</div>').join('')
     + '</div>'
     + rows.map((row) =>
-      '<div style="display:grid; grid-template-columns:' + cols + '; gap:14px; align-items:center; padding:11px 18px; border-bottom:1px solid rgba(255,255,255,.06)">'
+      '<div style="display:grid; grid-template-columns:' + cols + '; gap:14px; align-items:center; padding:11px 18px; border-bottom:1px solid rgba(234,230,220,.06)">'
       + row.map((cell, i) => {
         const first = i === 0;
         const cs = String(cell);
         const neg = cs.charAt(0) === '-' && cs.indexOf('$') > 0;
         const pos = cs.charAt(0) === '+' && cs.indexOf('$') > 0;
-        const style = (first ? 'font-family:Inter,sans-serif; font-size:13px' : M + '; font-size:12.5px; text-align:right') + '; color:' + (neg ? '#FF4545' : pos ? '#C8F542' : first ? '#ffffff' : 'rgba(255,255,255,.7)') + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis';
+        const style = (first ? 'font-family:IBM Plex Sans,sans-serif; font-size:13px' : M + '; font-size:12.5px; text-align:right') + '; color:' + (neg ? '#D95F52' : pos ? '#69B47E' : first ? '#EAE6DC' : 'rgba(234,230,220,.7)') + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis';
         return '<div style="' + style + '" title="' + esc(cs) + '">' + esc(cs) + '</div>';
       }).join('')
       + '</div>'
@@ -1019,7 +1019,7 @@ function befundVon(zeilen) {
 const OFFEN_DUENN = 20;
 
 function renderCategoryEfficiency(T, payload, study) {
-  const karte = 'background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px';
+  const karte = 'background:#131311; border:1px solid rgba(234,230,220,.09); border-radius:6px';
   const stamp = payload && payload.stand_utc ? String(payload.stand_utc).slice(0, 16).replace('T', ' ') + ' UTC' : study.stamp;
 
   // Kopf: Titel und EINE Zeile Stichprobe. Der lange Absatz aus der Nutzlast
@@ -1028,8 +1028,8 @@ function renderCategoryEfficiency(T, payload, study) {
   const kopf = (unterzeile) => '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px">'
     + '<div style="max-width:760px">'
     + '<div style="font-size:20px; font-weight:600">' + esc(study.title) + '</div>'
-    + '<div style="' + M + '; font-size:11.5px; color:rgba(255,255,255,.6); margin-top:8px; line-height:1.5">' + unterzeile + '</div></div>'
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.14); border-radius:6px; padding:6px 10px; white-space:nowrap">' + esc(stamp) + '</div></div>';
+    + '<div style="' + M + '; font-size:11.5px; color:rgba(234,230,220,.6); margin-top:8px; line-height:1.5">' + unterzeile + '</div></div>'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(234,230,220,.6); border:1px solid rgba(234,230,220,.14); border-radius:4px; padding:6px 10px; white-space:nowrap">' + esc(stamp) + '</div></div>';
 
   if (!payload) {
     return fehlendeStudieHtml(study, RESEARCH_DATEI[1]);
@@ -1043,7 +1043,7 @@ function renderCategoryEfficiency(T, payload, study) {
     return '<div style="padding:22px 24px">' + kopf(esc(study.note))
       + '<div style="' + karte + '; padding:22px 24px; max-width:720px; margin-top:16px">'
       + '<div style="font-size:16px; font-weight:600">No categories in the published file</div>'
-      + '<div style="font-size:13px; color:rgba(255,255,255,.55); margin-top:10px; line-height:1.6">'
+      + '<div style="font-size:13px; color:rgba(234,230,220,.55); margin-top:10px; line-height:1.6">'
       + 'This page reads <span style="' + M + '">public/data/kategorie_karte.json</span>. The file is there but its '
       + '<span style="' + M + '">kategorien</span> list is empty, so nothing is drawn — and nothing is invented to fill the space.'
       + '</div></div></div>';
@@ -1075,10 +1075,10 @@ function renderCategoryEfficiency(T, payload, study) {
   const fallDec = b ? b.faller.z.entschiedenT7 : null;
   const befundHtml = b
     ? '<div style="' + karte + '; padding:18px 20px; margin-top:16px">'
-      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:#C8F542">THE FINDING</div>'
+      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:#D9A648">THE FINDING</div>'
       + '<div style="font-size:17px; font-weight:600; margin-top:9px; line-height:1.35; max-width:900px">'
       + 'Most of the gap between categories is settled questions, not sharper pricing.</div>'
-      + '<div style="font-size:13px; color:rgba(255,255,255,.6); margin-top:9px; line-height:1.6; max-width:900px">'
+      + '<div style="font-size:13px; color:rgba(234,230,220,.6); margin-top:9px; line-height:1.6; max-width:900px">'
       + 'Scored on every price, ' + esc(b.bester.name) + ' (' + f3(horizontVon(b.bester, 7).brier) + ') '
       + (b.faktor ? 'looks ' + b.faktor.toFixed(1) + '× better than ' : 'leads ')
       + esc(b.schlechtester.name) + ' (' + f3(horizontVon(b.schlechtester, 7).brier) + '). '
@@ -1092,10 +1092,10 @@ function renderCategoryEfficiency(T, payload, study) {
 
   // ---- Kennzahlen
   const kpi = (label, wert, hinweis) =>
-    '<div style="' + karte + '; border-radius:10px; padding:14px 16px">'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(255,255,255,.6)">' + esc(label) + '</div>'
+    '<div style="' + karte + '; border-radius:6px; padding:14px 16px">'
+    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(234,230,220,.6)">' + esc(label) + '</div>'
     + '<div style="' + M + '; font-size:21px; margin-top:7px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(wert) + '</div>'
-    + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); margin-top:4px">' + esc(hinweis) + '</div></div>';
+    + '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.6); margin-top:4px">' + esc(hinweis) + '</div></div>';
 
   // Die mittlere Kachel traegt immer die Spanne des vergleichbaren Briers —
   // auf offenen Preisen, wo die Datei sie hergibt, sonst auf allen. Die
@@ -1133,7 +1133,7 @@ function renderCategoryEfficiency(T, payload, study) {
       von: Math.min(h.brier, wert),
       bis: Math.max(h.brier, wert),
       wert,
-      farbe: duenn ? 'rgba(255,255,255,.5)' : (wert >= 0.2 ? '#F5A623' : '#4F8EF7'),
+      farbe: duenn ? 'rgba(234,230,220,.5)' : (wert >= 0.2 ? '#DE7E36' : '#6E9BC8'),
       text: f3(wert) + '  n ' + (h.nOffen != null ? num(h.nOffen) : (h.n != null ? num(h.n) : '—')) + (duenn ? ' thin' : '')
     };
   });
@@ -1147,40 +1147,40 @@ function renderCategoryEfficiency(T, payload, study) {
       titel: 'BRIER AT T-7 BY CATEGORY',
       einheit: '0 = perfect, 0.25 = always saying 50%',
       punkte: rangfolge.map((z) => ({ label: z.name + ' · n ' + (horizontVon(z, 7).n != null ? num(horizontVon(z, 7).n) : '—'), wert: horizontVon(z, 7).brier, art: 'summe' }))
-    }) || '<div style="' + karte + '; padding:16px 18px; ' + M + '; font-size:11.5px; color:rgba(255,255,255,.6)">'
+    }) || '<div style="' + karte + '; padding:16px 18px; ' + M + '; font-size:11.5px; color:rgba(234,230,220,.6)">'
       + 'No Brier score at T-7 in the payload — no chart is drawn.</div>') + '</div>';
 
   // ---- Kompakte Tabelle, auf offenen Preisen sortiert. Alle Horizonte und
   // Trefferquoten stehen im Klappfeld darunter.
   const tabSpalten = '1fr 118px 108px 96px 92px 116px';
-  const tabKopf = '<div style="display:grid; grid-template-columns:' + tabSpalten + '; gap:12px; padding:9px 18px; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.6)">'
+  const tabKopf = '<div style="display:grid; grid-template-columns:' + tabSpalten + '; gap:12px; padding:9px 18px; border-bottom:1px solid rgba(234,230,220,.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(234,230,220,.6)">'
     + '<div>CATEGORY</div>'
     + '<div style="text-align:right">' + (hatOffenT7 ? 'OPEN BRIER' : 'BRIER T-7') + '</div>'
     + '<div style="text-align:right">' + (hatOffenT7 ? 'ALL PRICES' : 'HIT RATE') + '</div>'
     + '<div style="text-align:right">DECIDED</div><div style="text-align:right">MARKETS</div>'
     + '<div style="text-align:right">MEDIAN VOLUME</div></div>';
-  const tabelle = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; overflow:hidden">'
-    + '<div style="padding:11px 18px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); display:flex; align-items:baseline; justify-content:space-between; gap:16px">'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:#4F8EF7">'
+  const tabelle = '<div style="border:1px solid rgba(234,230,220,.09); border-radius:6px; margin-top:14px; overflow:hidden">'
+    + '<div style="padding:11px 18px; background:#131311; border-bottom:1px solid rgba(234,230,220,.09); display:flex; align-items:baseline; justify-content:space-between; gap:16px">'
+    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:#6E9BC8">'
     + (hatOffenT7 ? 'RANKED ON OPEN PRICES AT T-7' : 'RANKED ON BRIER AT T-7') + '</div>'
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6)">every horizon and hit rate → in the panel below</div></div>'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(234,230,220,.6)">every horizon and hit rate → in the panel below</div></div>'
     + tabKopf
     + rangfolge.map((z) => {
       const h = horizontVon(z, 7);
       const wert = hatOffenT7 ? h.brierOffen : h.brier;
       const duenn = h.nOffen != null && h.nOffen < OFFEN_DUENN;
       const balken = Math.round(Math.min(wert / 0.26, 1) * 92);
-      return '<div style="display:grid; grid-template-columns:' + tabSpalten + '; gap:12px; align-items:center; padding:9px 18px; border-bottom:1px solid rgba(255,255,255,.06)">'
+      return '<div style="display:grid; grid-template-columns:' + tabSpalten + '; gap:12px; align-items:center; padding:9px 18px; border-bottom:1px solid rgba(234,230,220,.06)">'
         + '<div style="display:flex; align-items:center; gap:10px; min-width:0">'
-        + '<div style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:' + (duenn ? 'rgba(255,255,255,.6)' : '#fff') + '" title="' + esc(z.name) + '">' + esc(z.name) + '</div>'
-        + '<div style="height:6px; flex:none; width:' + balken + 'px; border-radius:3px; background:' + (duenn ? 'rgba(255,255,255,.25)' : (wert >= 0.2 ? '#F5A623' : '#4F8EF7')) + '; opacity:.85"></div>'
-        + (duenn ? '<div style="' + M + '; font-size:10.5px; letter-spacing:.08em; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.16); border-radius:4px; padding:1px 5px; white-space:nowrap">THIN n ' + num(h.nOffen) + '</div>' : '')
+        + '<div style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:' + (duenn ? 'rgba(234,230,220,.6)' : '#EAE6DC') + '" title="' + esc(z.name) + '">' + esc(z.name) + '</div>'
+        + '<div style="height:6px; flex:none; width:' + balken + 'px; border-radius:4px; background:' + (duenn ? 'rgba(234,230,220,.25)' : (wert >= 0.2 ? '#DE7E36' : '#6E9BC8')) + '; opacity:.85"></div>'
+        + (duenn ? '<div style="' + M + '; font-size:10.5px; letter-spacing:.08em; color:rgba(234,230,220,.6); border:1px solid rgba(234,230,220,.16); border-radius:4px; padding:1px 5px; white-space:nowrap">THIN n ' + num(h.nOffen) + '</div>' : '')
         + '</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (duenn ? 'rgba(255,255,255,.6)' : 'rgba(255,255,255,.92)') + '">' + f3(wert) + '</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(255,255,255,.6)">' + (hatOffenT7 ? f3(h.brier) : (h.treffer != null ? Math.round(h.treffer * 100) + '%' : '—')) + '</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(255,255,255,.6)">' + (z.entschiedenT7 != null ? Math.round(z.entschiedenT7 * 100) + '%' : '—') + '</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(255,255,255,.6)">' + (z.maerkte != null ? num(z.maerkte) : '—') + '</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:12px; color:rgba(255,255,255,.6)">' + (z.medianVol != null ? '$' + num(Math.round(z.medianVol)) : '—') + '</div>'
+        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (duenn ? 'rgba(234,230,220,.6)' : 'rgba(234,230,220,.92)') + '">' + f3(wert) + '</div>'
+        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(234,230,220,.6)">' + (hatOffenT7 ? f3(h.brier) : (h.treffer != null ? Math.round(h.treffer * 100) + '%' : '—')) + '</div>'
+        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(234,230,220,.6)">' + (z.entschiedenT7 != null ? Math.round(z.entschiedenT7 * 100) + '%' : '—') + '</div>'
+        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(234,230,220,.6)">' + (z.maerkte != null ? num(z.maerkte) : '—') + '</div>'
+        + '<div style="text-align:right; ' + M + '; font-size:12px; color:rgba(234,230,220,.6)">' + (z.medianVol != null ? '$' + num(Math.round(z.medianVol)) : '—') + '</div>'
         + '</div>';
     }).join('')
     + '</div>';
@@ -1210,18 +1210,18 @@ function renderCategoryEfficiency(T, payload, study) {
   }).filter(Boolean);
 
   const vollSpalten = '1fr ' + alleTage.map(() => '118px').join(' ');
-  const vollKopf = '<div style="display:grid; grid-template-columns:' + vollSpalten + '; gap:12px; padding:9px 18px; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.6)">'
+  const vollKopf = '<div style="display:grid; grid-template-columns:' + vollSpalten + '; gap:12px; padding:9px 18px; border-bottom:1px solid rgba(234,230,220,.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(234,230,220,.6)">'
     + '<div>CATEGORY</div>'
     + alleTage.map((t) => '<div style="text-align:right">T-' + t + ' BRIER · HIT · N</div>').join('') + '</div>';
   const zelle = (h) => {
-    if (!h || h.brier == null) return '<div style="text-align:right; ' + M + '; font-size:12px; color:rgba(255,255,255,.5)">—</div>';
+    if (!h || h.brier == null) return '<div style="text-align:right; ' + M + '; font-size:12px; color:rgba(234,230,220,.5)">—</div>';
     return '<div style="text-align:right; ' + M + '">'
-      + '<div style="font-size:12.5px; color:rgba(255,255,255,.85)">' + f3(h.brier) + '</div>'
-      + '<div style="font-size:11px; color:rgba(255,255,255,.6); margin-top:2px">' + (h.treffer != null ? Math.round(h.treffer * 100) + '%' : '—') + ' · n ' + (h.n != null ? num(h.n) : '—') + '</div></div>';
+      + '<div style="font-size:12.5px; color:rgba(234,230,220,.85)">' + f3(h.brier) + '</div>'
+      + '<div style="font-size:11px; color:rgba(234,230,220,.6); margin-top:2px">' + (h.treffer != null ? Math.round(h.treffer * 100) + '%' : '—') + ' · n ' + (h.n != null ? num(h.n) : '—') + '</div></div>';
   };
-  const vollTabelle = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:10px; margin-top:12px; overflow:hidden">'
+  const vollTabelle = '<div style="border:1px solid rgba(234,230,220,.09); border-radius:6px; margin-top:12px; overflow:hidden">'
     + vollKopf
-    + zeilen.map((z) => '<div style="display:grid; grid-template-columns:' + vollSpalten + '; gap:12px; align-items:center; padding:9px 18px; border-bottom:1px solid rgba(255,255,255,.06)">'
+    + zeilen.map((z) => '<div style="display:grid; grid-template-columns:' + vollSpalten + '; gap:12px; align-items:center; padding:9px 18px; border-bottom:1px solid rgba(234,230,220,.06)">'
       + '<div style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(z.name) + '">' + esc(z.name) + '</div>'
       + alleTage.map((t) => zelle(horizontVon(z, t))).join('')
       + '</div>').join('')
@@ -1230,23 +1230,23 @@ function renderCategoryEfficiency(T, payload, study) {
   // Der Titel verspricht nur, was drin ist: ohne Kalibrierungsbins heisst das
   // Feld nicht "& CALIBRATION".
   const horizontHtml = '<details style="margin-top:12px; ' + karte + '; padding:0 18px">'
-    + '<summary style="cursor:pointer; padding:12px 0; ' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.6); list-style:none">ALL HORIZONS &amp; HIT RATES'
+    + '<summary style="cursor:pointer; padding:12px 0; ' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(234,230,220,.6); list-style:none">ALL HORIZONS &amp; HIT RATES'
     + (kalib.length ? ', PLUS CALIBRATION' : '') + ' ▸</summary>'
     + '<div style="padding-bottom:14px">'
     + vollTabelle
     + (linienHtml ? '<div style="margin-top:12px">' + linienHtml + '</div>' : '')
     + (kalib.length
-      ? '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:#4F8EF7; margin:16px 0 8px">CALIBRATION AT T-' + (zeilen.find((z) => z.bins.length) || {}).kalibrierungTage + ' · PREDICTED VS REALISED</div>'
-        + '<div style="font-size:12px; color:rgba(255,255,255,.6); margin-bottom:10px; line-height:1.5">A dot on the diagonal means the price was right on average in that bin; dot size follows n, the bar is the 95% interval of the realised share, amber when it misses the prediction.</div>'
+      ? '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:#6E9BC8; margin:16px 0 8px">CALIBRATION AT T-' + (zeilen.find((z) => z.bins.length) || {}).kalibrierungTage + ' · PREDICTED VS REALISED</div>'
+        + '<div style="font-size:12px; color:rgba(234,230,220,.6); margin-bottom:10px; line-height:1.5">A dot on the diagonal means the price was right on average in that bin; dot size follows n, the bar is the 95% interval of the realised share, amber when it misses the prediction.</div>'
         + '<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px">' + kalib.join('') + '</div>'
-      : '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); margin-top:12px">No calibration bins in this payload — kategorie_karte.json carries them under kategorien[].kalibrierung.</div>')
+      : '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.6); margin-top:12px">No calibration bins in this payload — kategorie_karte.json carries them under kategorien[].kalibrierung.</div>')
     + '</div></details>';
 
   // ---- Klappfeld 2: Einpreisungs-Logik je Kategorie (unveraendert).
   const q = payload.quelle && typeof payload.quelle === 'object' ? payload.quelle : null;
   const absatz = (titel, text) => (text
-    ? '<div style="margin-top:10px"><div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(255,255,255,.55)">' + titel + '</div>'
-      + '<div style="font-size:12.5px; color:rgba(255,255,255,.7); margin-top:4px; line-height:1.6">' + esc(text) + '</div></div>'
+    ? '<div style="margin-top:10px"><div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(234,230,220,.55)">' + titel + '</div>'
+      + '<div style="font-size:12.5px; color:rgba(234,230,220,.7); margin-top:4px; line-height:1.6">' + esc(text) + '</div></div>'
     : '');
   const messlogik = q && q.messlogik && typeof q.messlogik === 'object' ? q.messlogik : null;
   let messlogikHtml = '';
@@ -1259,9 +1259,9 @@ function renderCategoryEfficiency(T, payload, study) {
       const typZeile = zeile && zeile.typen.length
         ? zeile.typen.map((t) => t.typ + ' n ' + (t.n != null ? num(t.n) : '—') + (t.brierT1 != null ? ' (Brier T-1 ' + t.brierT1.toFixed(3) + ')' : '')).join(' · ')
         : '';
-      return '<div style="margin-top:14px; padding-top:12px; border-top:1px solid rgba(255,255,255,.07)">'
+      return '<div style="margin-top:14px; padding-top:12px; border-top:1px solid rgba(234,230,220,.07)">'
         + '<div style="font-size:13px; font-weight:600">' + esc(name) + '</div>'
-        + (typZeile ? '<div style="' + M + '; font-size:11px; color:#4F8EF7; margin-top:4px">' + esc(typZeile) + '</div>' : '')
+        + (typZeile ? '<div style="' + M + '; font-size:11px; color:#6E9BC8; margin-top:4px">' + esc(typZeile) + '</div>' : '')
         + absatz('ANCHOR OF THE HORIZONS', m.anker)
         + absatz('WHAT REPRICES IT', m.einpreisung)
         + absatz('NOT MEASURED HERE', m.nicht_gemessen)
@@ -1269,9 +1269,9 @@ function renderCategoryEfficiency(T, payload, study) {
         + '</div>';
     };
     messlogikHtml = '<details style="margin-top:10px; ' + karte + '; padding:0 18px">'
-      + '<summary style="cursor:pointer; padding:12px 0; ' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.6); list-style:none">PRICING-IN LOGIC BY CATEGORY ▸</summary>'
+      + '<summary style="cursor:pointer; padding:12px 0; ' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(234,230,220,.6); list-style:none">PRICING-IN LOGIC BY CATEGORY ▸</summary>'
       + '<div style="padding-bottom:14px">'
-      + '<div style="font-size:12px; color:rgba(255,255,255,.6); line-height:1.5">These horizons measure forecast quality, never pricing-in speed: in-play moves and news reactions happen between T-1 and the decision and are invisible above. Per category: what the horizons anchor to, which real-world events reprice it, what stays unmeasured, and where an event-anchored latency study would take its t0 from. The blue line is the sample&#39;s pricing-mechanism mix.</div>'
+      + '<div style="font-size:12px; color:rgba(234,230,220,.6); line-height:1.5">These horizons measure forecast quality, never pricing-in speed: in-play moves and news reactions happen between T-1 and the decision and are invisible above. Per category: what the horizons anchor to, which real-world events reprice it, what stays unmeasured, and where an event-anchored latency study would take its t0 from. The blue line is the sample&#39;s pricing-mechanism mix.</div>'
       + namen.map(block).join('')
       + '</div></details>';
   }
@@ -1282,22 +1282,22 @@ function renderCategoryEfficiency(T, payload, study) {
   const langerHinweis = payload.hinweis ? String(payload.hinweis) : '';
   const methodeHtml = q || snap || langerHinweis
     ? '<details style="margin-top:10px; ' + karte + '; padding:0 18px">'
-      + '<summary style="cursor:pointer; padding:12px 0; ' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.6); list-style:none">METHOD, SAMPLE &amp; WHAT IT CANNOT SHOW ▸</summary>'
+      + '<summary style="cursor:pointer; padding:12px 0; ' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(234,230,220,.6); list-style:none">METHOD, SAMPLE &amp; WHAT IT CANNOT SHOW ▸</summary>'
       + '<div style="padding-bottom:14px">'
-      + (langerHinweis ? '<div style="font-size:12.5px; color:rgba(255,255,255,.7); line-height:1.65; max-width:900px">' + esc(langerHinweis) + '</div>' : '')
+      + (langerHinweis ? '<div style="font-size:12.5px; color:rgba(234,230,220,.7); line-height:1.65; max-width:900px">' + esc(langerHinweis) + '</div>' : '')
       + (q ? absatz('WHAT WAS MEASURED', q.methode) + absatz('HOW MARKETS WERE CATEGORISED', q.kategorisierung) : '')
       + (q && q.datenfenster ? absatz('DATA WINDOW', 'events with an end date from ' + String(q.datenfenster.end_date_min || '').slice(0, 10) + ', fetched ' + String(q.datenfenster.abgerufen_utc || '').slice(0, 16).replace('T', ' ') + ' UTC · ' + num(q.datenfenster.events_gesichtet || 0) + ' events scanned · ' + q.datenfenster.reihenfolge) : '')
       + (q && q.auswahl ? absatz('SAMPLE SELECTION', 'at most ' + q.auswahl.max_per_event + ' markets per event, ' + q.auswahl.max_per_category_long_lived + ' long-lived and ' + q.auswahl.max_per_category_short_lived + ' short-lived markets per category, minimum volume $' + num(q.auswahl.min_volume_usd) + ', categories under ' + q.auswahl.min_markets_per_category + ' markets fold into Other') : '')
       + (q && q.preise ? absatz('PRICE SERIES', 'hourly: ' + q.preise.hourly + ' · daily: ' + q.preise.daily) : '')
       + (q && Array.isArray(q.einschraenkungen) && q.einschraenkungen.length
-        ? '<div style="margin-top:10px"><div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(255,255,255,.55)">WHAT IT CANNOT SHOW</div>'
-          + '<ul style="margin:4px 0 0 18px; padding:0; font-size:12.5px; color:rgba(255,255,255,.7); line-height:1.6">'
+        ? '<div style="margin-top:10px"><div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(234,230,220,.55)">WHAT IT CANNOT SHOW</div>'
+          + '<ul style="margin:4px 0 0 18px; padding:0; font-size:12.5px; color:rgba(234,230,220,.7); line-height:1.6">'
           + q.einschraenkungen.map((e) => '<li>' + esc(e) + '</li>').join('') + '</ul></div>'
         : '')
       + (snap
-        ? '<div style="margin-top:12px"><div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(255,255,255,.55)">THESIS FIGURES THIS TABLE REPLACES' + (snap.stand_utc ? ' · ' + esc(String(snap.stand_utc).slice(0, 10)) : '') + '</div>'
-          + (snap.hinweis ? '<div style="font-size:12px; color:rgba(255,255,255,.6); margin-top:4px; line-height:1.5">' + esc(snap.hinweis) + '</div>' : '')
-          + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); margin-top:6px; line-height:1.7">'
+        ? '<div style="margin-top:12px"><div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(234,230,220,.55)">THESIS FIGURES THIS TABLE REPLACES' + (snap.stand_utc ? ' · ' + esc(String(snap.stand_utc).slice(0, 10)) : '') + '</div>'
+          + (snap.hinweis ? '<div style="font-size:12px; color:rgba(234,230,220,.6); margin-top:4px; line-height:1.5">' + esc(snap.hinweis) + '</div>' : '')
+          + '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.6); margin-top:6px; line-height:1.7">'
           + snap.kategorien.map((k) => esc(String(k.kategorie)) + ': Brier T-7 ' + (k.brier_t7 != null ? (+k.brier_t7).toFixed(3) : '—') + ' (n ' + (k.n_t7 != null ? k.n_t7 : '—') + ') · T-1 ' + (k.brier_t1 != null ? (+k.brier_t1).toFixed(3) : '—') + ' · ' + (k.n_maerkte != null ? k.n_maerkte : '—') + ' markets').join('<br>')
           + '</div></div>'
         : '')
@@ -1372,13 +1372,13 @@ function renderLiveRuns(T, payload) {
       label: 'NET PNL (WALLET, AS OF ' + frisch.stand + ')',
       value: (frisch.netto >= 0 ? '+$' : '-$') + num(Math.abs(frisch.netto).toFixed(0)),
       sub: 'cash truth from the on-chain wallet',
-      color: frisch.netto >= 0 ? '#C8F542' : '#FF4545'
+      color: frisch.netto >= 0 ? '#69B47E' : '#D95F52'
     };
     if (agg.wallet_netto_usd != null) return {
       label: 'NET PNL (WALLET' + (walletStand ? ', AS OF ' + walletStand : '') + ')',
       value: (+agg.wallet_netto_usd >= 0 ? '+$' : '-$') + num(Math.abs(+agg.wallet_netto_usd).toFixed(0)),
       sub: 'cash truth from the on-chain wallet',
-      color: +agg.wallet_netto_usd >= 0 ? '#C8F542' : '#FF4545'
+      color: +agg.wallet_netto_usd >= 0 ? '#69B47E' : '#D95F52'
     };
     return {
       label: 'NET PNL (FROM RUN LOGS)',
@@ -1386,33 +1386,33 @@ function renderLiveRuns(T, payload) {
         ? (agg.realisierter_pnl_usd >= 0 ? '+$' : '-$') + num(Math.abs(+agg.realisierter_pnl_usd).toFixed(0))
         : '—',
       sub: 'no wallet reconciliation yet',
-      color: agg.realisierter_pnl_usd >= 0 ? '#C8F542' : '#FF4545'
+      color: agg.realisierter_pnl_usd >= 0 ? '#69B47E' : '#D95F52'
     };
   })();
   // Die Stake-Kachel zeigt, was die Wallet fuer Bot-Maerkte ausgab — die
   // Zahl, die zum Guthaben passt. Die Log-Summe stand hier mit Preisdeckel-
   // Annahme daneben und widersprach dem Wallet-Auszug.
   const stakeKachel = frisch && frisch.kaeufe != null
-    ? { label: 'TOTAL STAKE (WALLET)', value: '$' + num((+frisch.kaeufe).toFixed(0)), sub: 'buys from the wallet, bot markets · as of ' + frisch.stand, color: '#ffffff' }
+    ? { label: 'TOTAL STAKE (WALLET)', value: '$' + num((+frisch.kaeufe).toFixed(0)), sub: 'buys from the wallet, bot markets · as of ' + frisch.stand, color: '#EAE6DC' }
     : agg && agg.wallet_kaeufe_usd != null
-      ? { label: 'TOTAL STAKE (WALLET)', value: '$' + num((+agg.wallet_kaeufe_usd).toFixed(0)), sub: 'buys from the wallet statement' + (walletStand ? ' · as of ' + walletStand : ''), color: '#ffffff' }
-      : { label: 'TOTAL STAKE', value: agg ? '$' + num((+agg.einsatz_usd).toFixed(0)) : '—', sub: 'from run logs · no wallet reconciliation yet', color: '#ffffff' };
+      ? { label: 'TOTAL STAKE (WALLET)', value: '$' + num((+agg.wallet_kaeufe_usd).toFixed(0)), sub: 'buys from the wallet statement' + (walletStand ? ' · as of ' + walletStand : ''), color: '#EAE6DC' }
+      : { label: 'TOTAL STAKE', value: agg ? '$' + num((+agg.einsatz_usd).toFixed(0)) : '—', sub: 'from run logs · no wallet reconciliation yet', color: '#EAE6DC' };
   const kpis = agg ? [
-    { label: 'RUNS', value: String(agg.n_runs), sub: 'one run = one episode or event', color: '#ffffff' },
-    { label: 'BETS', value: num(agg.n_wetten), sub: agg.gewonnen + 'W · ' + agg.verloren + 'L · ' + agg.offen + ' open', color: '#ffffff' },
+    { label: 'RUNS', value: String(agg.n_runs), sub: 'one run = one episode or event', color: '#EAE6DC' },
+    { label: 'BETS', value: num(agg.n_wetten), sub: agg.gewonnen + 'W · ' + agg.verloren + 'L · ' + agg.offen + ' open', color: '#EAE6DC' },
     stakeKachel,
     nettoKachel,
-    { label: 'FIRST TAKER', value: firstTaker.value, sub: firstTaker.sub, color: '#ffffff' },
-    { label: 'OPEN STAKE', value: '$' + num((+agg.offener_einsatz_usd).toFixed(0)), sub: 'in unresolved markets', color: '#ffffff' }
+    { label: 'FIRST TAKER', value: firstTaker.value, sub: firstTaker.sub, color: '#EAE6DC' },
+    { label: 'OPEN STAKE', value: '$' + num((+agg.offener_einsatz_usd).toFixed(0)), sub: 'in unresolved markets', color: '#EAE6DC' }
   ] : [
     // Kein Rueckfall auf 64 Laeufe, 1.208 Wetten und eine Trefferquote von
     // 54 Prozent. Die Zahlen stehen in runs.json oder nirgends.
-    { label: 'RUNS', value: '—', sub: 'runs.json not loaded', color: '#ffffff' },
-    { label: 'BETS', value: '—', sub: 'runs.json not loaded', color: '#ffffff' },
-    { label: 'TOTAL STAKE', value: '—', sub: 'runs.json not loaded', color: '#ffffff' },
-    { label: 'NET PNL', value: '—', sub: 'runs.json not loaded', color: '#ffffff' },
-    { label: 'FIRST TAKER', value: '—', sub: 'runs.json not loaded', color: '#ffffff' },
-    { label: 'OPEN STAKE', value: '—', sub: 'runs.json not loaded', color: '#ffffff' }
+    { label: 'RUNS', value: '—', sub: 'runs.json not loaded', color: '#EAE6DC' },
+    { label: 'BETS', value: '—', sub: 'runs.json not loaded', color: '#EAE6DC' },
+    { label: 'TOTAL STAKE', value: '—', sub: 'runs.json not loaded', color: '#EAE6DC' },
+    { label: 'NET PNL', value: '—', sub: 'runs.json not loaded', color: '#EAE6DC' },
+    { label: 'FIRST TAKER', value: '—', sub: 'runs.json not loaded', color: '#EAE6DC' },
+    { label: 'OPEN STAKE', value: '—', sub: 'runs.json not loaded', color: '#EAE6DC' }
   ];
   const laufSatz = herkunftSatz(
     payload ? { quelle: payload._quelle === 'fehler' ? 'fehler' : 'leer', fehler: payload._fehler } : null,
@@ -1567,43 +1567,43 @@ function renderLiveRuns(T, payload) {
       // Der Erklaertext steht im zugeklappten WHAT THIS TABLE IS des
       // Tabellenabschnitts — hier nur noch im Rueckfall ohne Ledger.
       + (!ledger
-        ? '<div style="font-size:12.5px; color:rgba(255,255,255,.5); line-height:1.5; max-width:820px; margin-bottom:14px">Race chips compare each fill against the public taker tape of that market: how many other trades hit between the drop and our fill, and how long until the next trader after us. The anchor is the bot\'s logged fill time — chain timestamps can differ by a few seconds.</div>'
+        ? '<div style="font-size:12.5px; color:rgba(234,230,220,.5); line-height:1.5; max-width:820px; margin-bottom:14px">Race chips compare each fill against the public taker tape of that market: how many other trades hit between the drop and our fill, and how long until the next trader after us. The anchor is the bot\'s logged fill time — chain timestamps can differ by a few seconds.</div>'
         : '')
       + (alleKarten.length ? '' : leerZeile(laufSatz))
       + (!ledger && cards.length
-        ? '<div style="' + M + '; font-size:11px; letter-spacing:.12em; color:rgba(255,255,255,.5); margin-bottom:10px">RUNS WITH FILLS · ' + cards.length
-          + ' <span style="color:rgba(255,255,255,.55); letter-spacing:0">· newest first</span></div>'
+        ? '<div style="' + M + '; font-size:11px; letter-spacing:.12em; color:rgba(234,230,220,.5); margin-bottom:10px">RUNS WITH FILLS · ' + cards.length
+          + ' <span style="color:rgba(234,230,220,.55); letter-spacing:0">· newest first</span></div>'
           + '<div style="display:flex; flex-direction:column; gap:12px">'
           + cards.map((r) => {
-            const statusStyle = M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; ' + (r.status === 'RESOLVED' ? 'color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.18)' : r.status === 'OPEN' ? 'color:#F5A623; border:1px solid rgba(245,166,35,.4)' : 'color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.12)');
-            return '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:16px 18px">'
+            const statusStyle = M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; ' + (r.status === 'RESOLVED' ? 'color:rgba(234,230,220,.6); border:1px solid rgba(234,230,220,.18)' : r.status === 'OPEN' ? 'color:#DE7E36; border:1px solid rgba(222,126,54,.4)' : 'color:rgba(234,230,220,.6); border:1px solid rgba(234,230,220,.12)');
+            return '<div style="background:#131311; border:1px solid rgba(234,230,220,.09); border-radius:6px; padding:16px 18px">'
               + '<div style="display:flex; gap:7px; flex-wrap:wrap">'
-              + '<div style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; color:#4F8EF7; border:1px solid rgba(79,142,247,.4)">' + esc(r.profile) + '</div>'
-              + '<div style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; color:#4F8EF7; border:1px solid rgba(79,142,247,.4)">' + esc(r.mode) + '</div>'
+              + '<div style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; color:#6E9BC8; border:1px solid rgba(110,155,200,.4)">' + esc(r.profile) + '</div>'
+              + '<div style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; color:#6E9BC8; border:1px solid rgba(110,155,200,.4)">' + esc(r.mode) + '</div>'
               + '<div style="' + statusStyle + '">' + esc(r.status) + '</div></div>'
               + '<div style="font-size:15px; font-weight:600; margin-top:11px">' + esc(r.title)
-              + (r.url ? ' <a href="' + esc(r.url) + '" target="_blank" rel="noopener" style="' + M + '; font-size:11px; color:#4F8EF7; text-decoration:none">event ↗</a>' : '')
+              + (r.url ? ' <a href="' + esc(r.url) + '" target="_blank" rel="noopener" style="' + M + '; font-size:11px; color:#6E9BC8; text-decoration:none">event ↗</a>' : '')
               + '</div>'
               + '<div style="display:flex; gap:7px; flex-wrap:wrap; margin-top:10px">'
-              + r.chips.map((c) => '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.65); background:#161C22; border:1px solid rgba(255,255,255,.09); border-radius:5px; padding:4px 9px">' + esc(c) + '</div>').join('')
+              + r.chips.map((c) => '<div style="' + M + '; font-size:10.5px; color:rgba(234,230,220,.65); background:#1A1A17; border:1px solid rgba(234,230,220,.09); border-radius:4px; padding:4px 9px">' + esc(c) + '</div>').join('')
               + '</div>'
-              + '<div style="margin-top:12px; border-top:1px solid rgba(255,255,255,.07)">' + laufWettenHtml(r) + '</div>'
-              + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); margin-top:10px">' + esc(r.footer) + '</div>'
-              + (r.missed ? '<div style="' + M + '; font-size:11px; color:#F5A623; margin-top:7px">' + esc(r.missed) + '</div>' : '')
+              + '<div style="margin-top:12px; border-top:1px solid rgba(234,230,220,.07)">' + laufWettenHtml(r) + '</div>'
+              + '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.6); margin-top:10px">' + esc(r.footer) + '</div>'
+              + (r.missed ? '<div style="' + M + '; font-size:11px; color:#DE7E36; margin-top:7px">' + esc(r.missed) + '</div>' : '')
               + '</div>';
           }).join('')
           + '</div>'
         : '')
       + (ohneFills.length && !ledger
-        ? '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; overflow:hidden">'
-          + '<div style="padding:10px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:11px; letter-spacing:.12em; color:rgba(255,255,255,.5)">RUNS WITHOUT A FILL · ' + ohneFills.length
-          + ' <span style="color:rgba(255,255,255,.55); letter-spacing:0">· the decision layer ran and placed nothing — one line per run, newest first</span></div>'
+        ? '<div style="border:1px solid rgba(234,230,220,.09); border-radius:6px; margin-top:14px; overflow:hidden">'
+          + '<div style="padding:10px 16px; background:#131311; border-bottom:1px solid rgba(234,230,220,.09); ' + M + '; font-size:11px; letter-spacing:.12em; color:rgba(234,230,220,.5)">RUNS WITHOUT A FILL · ' + ohneFills.length
+          + ' <span style="color:rgba(234,230,220,.55); letter-spacing:0">· the decision layer ran and placed nothing — one line per run, newest first</span></div>'
           + ohneFills.map((r) =>
-            '<div style="display:flex; align-items:center; gap:10px; padding:9px 16px; border-bottom:1px solid rgba(255,255,255,.05)">'
-            + '<div style="' + M + '; font-size:10.5px; letter-spacing:.08em; color:#4F8EF7; border:1px solid rgba(79,142,247,.35); border-radius:4px; padding:2px 7px; white-space:nowrap">' + esc(r.profile) + '</div>'
-            + '<div style="font-size:12.5px; color:rgba(255,255,255,.75); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1" title="' + esc(r.title) + '">' + esc(r.title) + '</div>'
-            + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); white-space:nowrap">' + esc(r.chips.filter((c) => /decisions|priced/.test(c)).join(' · ') || '—') + '</div>'
-            + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.55); white-space:nowrap">' + esc(r.mode.toLowerCase()) + ' · no fills</div>'
+            '<div style="display:flex; align-items:center; gap:10px; padding:9px 16px; border-bottom:1px solid rgba(234,230,220,.05)">'
+            + '<div style="' + M + '; font-size:10.5px; letter-spacing:.08em; color:#6E9BC8; border:1px solid rgba(110,155,200,.35); border-radius:4px; padding:2px 7px; white-space:nowrap">' + esc(r.profile) + '</div>'
+            + '<div style="font-size:12.5px; color:rgba(234,230,220,.75); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1" title="' + esc(r.title) + '">' + esc(r.title) + '</div>'
+            + '<div style="' + M + '; font-size:10.5px; color:rgba(234,230,220,.6); white-space:nowrap">' + esc(r.chips.filter((c) => /decisions|priced/.test(c)).join(' · ') || '—') + '</div>'
+            + '<div style="' + M + '; font-size:10.5px; color:rgba(234,230,220,.55); white-space:nowrap">' + esc(r.mode.toLowerCase()) + ' · no fills</div>'
             + '</div>').join('')
           + '</div>'
         : '')
@@ -1617,24 +1617,24 @@ function renderLiveRuns(T, payload) {
     const decayHtml = timingDecayLinienHtml(payload);
     const repSpalten = '80px 1fr 90px 90px 100px 118px 106px 96px 96px';
     body = repricingHtml + decayHtml
-      + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; overflow:hidden">'
-      + '<div style="padding:11px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:#4F8EF7">TIMING AND REPRICING PER FILL · ' + timingRows.length + ' FILLS</div>'
-      + '<div style="display:grid; grid-template-columns:' + repSpalten + '; gap:10px; padding:9px 16px; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">'
+      + '<div style="border:1px solid rgba(234,230,220,.09); border-radius:6px; margin-top:14px; overflow:hidden">'
+      + '<div style="padding:11px 16px; background:#131311; border-bottom:1px solid rgba(234,230,220,.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:#6E9BC8">TIMING AND REPRICING PER FILL · ' + timingRows.length + ' FILLS</div>'
+      + '<div style="display:grid; grid-template-columns:' + repSpalten + '; gap:10px; padding:9px 16px; border-bottom:1px solid rgba(234,230,220,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(234,230,220,.6)">'
       + '<div>RUN</div><div>MARKET</div><div style="text-align:right">DROP</div><div style="text-align:right">FILL</div><div style="text-align:right">LATENCY</div><div style="text-align:right">TRADES BEFORE US</div><div style="text-align:right">NEXT TRADER</div><div style="text-align:right">REPRICE 30 S</div><div style="text-align:right">REPRICE 900 S</div></div>'
       + (timingRows.length ? '' : leerZeile(laufSatz))
       + timingRows.map((t) => {
         const latLabel = t.lat == null ? '—' : t.lat >= 1000 ? (t.lat / 1000).toFixed(1) + ' s' : t.lat + ' ms';
-        const latStyle = 'text-align:right; ' + M + '; font-size:12px; color:' + (t.lat == null ? 'rgba(255,255,255,.5)' : t.lat <= 800 ? '#C8F542' : t.lat <= 1500 ? '#F5A623' : '#FF4545');
+        const latStyle = 'text-align:right; ' + M + '; font-size:12px; color:' + (t.lat == null ? 'rgba(234,230,220,.5)' : t.lat <= 800 ? '#69B47E' : t.lat <= 1500 ? '#DE7E36' : '#D95F52');
         const repLabel = (v) => (v == null ? '—' : (v >= 0 ? '+' : '') + v + '¢');
-        const repStyle = (v) => 'text-align:right; ' + M + '; font-size:12px; color:' + (v != null && v >= 5 ? '#C8F542' : v != null && v <= -5 ? '#FF4545' : 'rgba(255,255,255,.6)');
-        return '<div style="display:grid; grid-template-columns:' + repSpalten + '; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:12px">'
-          + '<div style="color:rgba(255,255,255,.55)">' + esc(t.run) + '</div>'
-          + '<div style="font-family:\'Inter\',sans-serif; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(t.market) + '">' + esc(t.market) + '</div>'
-          + '<div style="text-align:right; color:rgba(255,255,255,.55)">' + esc(t.drop) + '</div>'
-          + '<div style="text-align:right; color:rgba(255,255,255,.55)">' + esc(t.fill) + '</div>'
+        const repStyle = (v) => 'text-align:right; ' + M + '; font-size:12px; color:' + (v != null && v >= 5 ? '#69B47E' : v != null && v <= -5 ? '#D95F52' : 'rgba(234,230,220,.6)');
+        return '<div style="display:grid; grid-template-columns:' + repSpalten + '; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(234,230,220,.06); ' + M + '; font-size:12px">'
+          + '<div style="color:rgba(234,230,220,.55)">' + esc(t.run) + '</div>'
+          + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(t.market) + '">' + esc(t.market) + '</div>'
+          + '<div style="text-align:right; color:rgba(234,230,220,.55)">' + esc(t.drop) + '</div>'
+          + '<div style="text-align:right; color:rgba(234,230,220,.55)">' + esc(t.fill) + '</div>'
           + '<div style="' + latStyle + '">' + latLabel + '</div>'
-          + '<div style="text-align:right; color:rgba(255,255,255,.7)">' + esc(String(t.before)) + '</div>'
-          + '<div style="text-align:right; color:rgba(255,255,255,.7)">' + esc(t.next) + '</div>'
+          + '<div style="text-align:right; color:rgba(234,230,220,.7)">' + esc(String(t.before)) + '</div>'
+          + '<div style="text-align:right; color:rgba(234,230,220,.7)">' + esc(t.next) + '</div>'
           + '<div style="' + repStyle(t.rep) + '">' + repLabel(t.rep) + '</div>'
           + '<div style="' + repStyle(t.rep900) + '">' + repLabel(t.rep900) + '</div></div>';
       }).join('')
@@ -1652,43 +1652,43 @@ function renderLiveRuns(T, payload) {
       : null;
     const simRows = liveSims || [];
     body = '<div style="margin-top:14px">'
-      + '<div style="font-size:12.5px; color:rgba(255,255,255,.55); line-height:1.5; max-width:820px">Replays the same runs with a different stake rule each time — same entries, same fills, only the size changes. Caps and the per-run budget stay as they were on the day.' + (liveSims ? ' Only resolved bets with a valid fill price count; bankroll $100, no compounding.' : '') + ' Every figure in this tab is a simulation on log-estimated fills — not cash; the cash figure is the wallet-reconciled net in the tiles above.</div>'
-      + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:1fr 110px 96px 96px 96px 104px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">'
+      + '<div style="font-size:12.5px; color:rgba(234,230,220,.55); line-height:1.5; max-width:820px">Replays the same runs with a different stake rule each time — same entries, same fills, only the size changes. Caps and the per-run budget stay as they were on the day.' + (liveSims ? ' Only resolved bets with a valid fill price count; bankroll $100, no compounding.' : '') + ' Every figure in this tab is a simulation on log-estimated fills — not cash; the cash figure is the wallet-reconciled net in the tiles above.</div>'
+      + '<div style="border:1px solid rgba(234,230,220,.09); border-radius:6px; margin-top:14px; overflow:hidden">'
+      + '<div style="display:grid; grid-template-columns:1fr 110px 96px 96px 96px 104px; gap:10px; padding:9px 16px; background:#131311; border-bottom:1px solid rgba(234,230,220,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(234,230,220,.6)">'
       + '<div>STAKE RULE</div><div style="text-align:right">NET</div><div style="text-align:right">ROI</div><div style="text-align:right">MAX DD</div><div style="text-align:right">HIT RATE</div><div style="text-align:right">BETS PLACED</div></div>'
       + (simRows.length ? '' : leerZeile(laufSatz))
       + simRows.slice().sort((a, b) => b.roi - a.roi).map((r, i) =>
-        '<div style="display:grid; grid-template-columns:1fr 110px 96px 96px 96px 104px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06); background:' + (i === 0 ? 'rgba(200,245,66,.06)' : 'transparent') + '">'
-        + '<div style="font-size:12.5px; color:' + (i === 0 ? '#C8F542' : '#ffffff') + '">' + esc(r.name) + '</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (r.net >= 0 ? '#C8F542' : '#FF4545') + '">' + (r.net >= 0 ? '+$' : '-$') + num(Math.abs(r.net).toFixed(0)) + '</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (r.roi >= 0 ? '#C8F542' : '#FF4545') + '">' + (r.roi >= 0 ? '+' : '') + r.roi.toFixed(1) + '%</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(255,255,255,.6)">' + (r.dd != null ? r.dd.toFixed(1) + '%' : '—') + '</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(255,255,255,.6)">' + (r.hit != null ? r.hit + '%' : '—') + '</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(255,255,255,.6)">' + num(r.bets) + '</div></div>'
+        '<div style="display:grid; grid-template-columns:1fr 110px 96px 96px 96px 104px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(234,230,220,.06); background:' + (i === 0 ? 'rgba(217,166,72,.06)' : 'transparent') + '">'
+        + '<div style="font-size:12.5px; color:' + (i === 0 ? '#D9A648' : '#EAE6DC') + '">' + esc(r.name) + '</div>'
+        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (r.net >= 0 ? '#69B47E' : '#D95F52') + '">' + (r.net >= 0 ? '+$' : '-$') + num(Math.abs(r.net).toFixed(0)) + '</div>'
+        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (r.roi >= 0 ? '#69B47E' : '#D95F52') + '">' + (r.roi >= 0 ? '+' : '') + r.roi.toFixed(1) + '%</div>'
+        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(234,230,220,.6)">' + (r.dd != null ? r.dd.toFixed(1) + '%' : '—') + '</div>'
+        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(234,230,220,.6)">' + (r.hit != null ? r.hit + '%' : '—') + '</div>'
+        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(234,230,220,.6)">' + num(r.bets) + '</div></div>'
       ).join('')
       + '</div>'
       + (liveSims && extras.timing_decay && extras.timing_decay.length
-        ? '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; overflow:hidden">'
-          + '<div style="padding:11px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:#4F8EF7">SAME MODEL, DELAYED ENTRY — PNL DECAY BY DELAY</div>'
-          + '<div style="display:grid; grid-template-columns:1fr 110px 130px 120px 130px 130px; gap:10px; padding:9px 16px; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">'
+        ? '<div style="border:1px solid rgba(234,230,220,.09); border-radius:6px; margin-top:14px; overflow:hidden">'
+          + '<div style="padding:11px 16px; background:#131311; border-bottom:1px solid rgba(234,230,220,.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:#6E9BC8">SAME MODEL, DELAYED ENTRY — PNL DECAY BY DELAY</div>'
+          + '<div style="display:grid; grid-template-columns:1fr 110px 130px 120px 130px 130px; gap:10px; padding:9px 16px; border-bottom:1px solid rgba(234,230,220,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(234,230,220,.6)">'
           + '<div>DELAY</div><div style="text-align:right">BETS</div><div style="text-align:right">FOREIGN REF</div><div style="text-align:right">PRICED OUT</div><div style="text-align:right">SIM PNL</div><div style="text-align:right">VS INSTANT</div></div>'
           + extras.timing_decay.map((t) =>
-            '<div style="display:grid; grid-template-columns:1fr 110px 130px 120px 130px 130px; gap:10px; align-items:center; padding:10px 16px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:12px">'
-            + '<div style="font-family:\'Inter\',sans-serif; font-size:12.5px">+' + t.delay_s + ' s</div>'
-            + '<div style="text-align:right; color:rgba(255,255,255,.6)">' + t.n_bets + '</div>'
-            + '<div style="text-align:right; color:rgba(255,255,255,.6)">' + t.n_foreign_ref + '</div>'
-            + '<div style="text-align:right; color:rgba(255,255,255,.6)">' + t.n_priced_out + '</div>'
-            + '<div style="text-align:right; color:' + (t.sim_pnl_usd >= 0 ? '#C8F542' : '#FF4545') + '">' + (t.sim_pnl_usd >= 0 ? '+$' : '-$') + Math.abs(t.sim_pnl_usd).toFixed(2) + '</div>'
-            + '<div style="text-align:right; color:' + (t.pnl_delta_usd >= 0 ? 'rgba(255,255,255,.6)' : '#FF4545') + '">' + (t.pnl_delta_usd >= 0 ? '+$' : '-$') + Math.abs(t.pnl_delta_usd).toFixed(2) + '</div></div>'
+            '<div style="display:grid; grid-template-columns:1fr 110px 130px 120px 130px 130px; gap:10px; align-items:center; padding:10px 16px; border-bottom:1px solid rgba(234,230,220,.06); ' + M + '; font-size:12px">'
+            + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:12.5px">+' + t.delay_s + ' s</div>'
+            + '<div style="text-align:right; color:rgba(234,230,220,.6)">' + t.n_bets + '</div>'
+            + '<div style="text-align:right; color:rgba(234,230,220,.6)">' + t.n_foreign_ref + '</div>'
+            + '<div style="text-align:right; color:rgba(234,230,220,.6)">' + t.n_priced_out + '</div>'
+            + '<div style="text-align:right; color:' + (t.sim_pnl_usd >= 0 ? '#69B47E' : '#D95F52') + '">' + (t.sim_pnl_usd >= 0 ? '+$' : '-$') + Math.abs(t.sim_pnl_usd).toFixed(2) + '</div>'
+            + '<div style="text-align:right; color:' + (t.pnl_delta_usd >= 0 ? 'rgba(234,230,220,.6)' : '#D95F52') + '">' + (t.pnl_delta_usd >= 0 ? '+$' : '-$') + Math.abs(t.pnl_delta_usd).toFixed(2) + '</div></div>'
           ).join('')
           + '</div>'
         // Hier liefen zwei Zufallskurven mit eingebautem Aufwaertsdrift unter
         // der Ueberschrift FLAT $25 VERSUS THE BEST RULE. Eine gemalte Kurve
         // ist eine Behauptung; ohne timing_decay in der Nutzlast gibt es
         // keine.
-        : '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; padding:16px 18px">'
-          + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55); margin-bottom:10px">DELAYED ENTRY</div>'
-          + '<div style="font-size:12.5px; color:rgba(255,255,255,.5); line-height:1.5">'
+        : '<div style="background:#131311; border:1px solid rgba(234,230,220,.09); border-radius:6px; margin-top:14px; padding:16px 18px">'
+          + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(234,230,220,.55); margin-bottom:10px">DELAYED ENTRY</div>'
+          + '<div style="font-size:12.5px; color:rgba(234,230,220,.5); line-height:1.5">'
           + 'No delay series in this payload — runs.json carries it under extras.timing_decay.</div></div>')
       + '</div>';
   } else if (s.liveTab === 'calib') {
@@ -1708,39 +1708,39 @@ function renderLiveRuns(T, payload) {
       punkte: calibRows.map((c) => ({ vorhergesagt: (+c.paid) / 100, realisiert: (+c.settled) / 100, n: +c.n || 0 }))
     });
     body = '<div style="margin-top:14px">'
-      + '<div style="font-size:12.5px; color:rgba(255,255,255,.55); line-height:1.5; max-width:820px">Entry price against what actually happened. A perfectly calibrated entry sits on the diagonal — above it means we paid too much.' + esc(calibNote) + '</div>'
+      + '<div style="font-size:12.5px; color:rgba(234,230,220,.55); line-height:1.5; max-width:820px">Entry price against what actually happened. A perfectly calibrated entry sits on the diagonal — above it means we paid too much.' + esc(calibNote) + '</div>'
       + (calibChart ? '<div style="margin-top:14px; max-width:420px">' + calibChart + '</div>' : '')
-      + '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px; gap:10px; padding:9px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">'
+      + '<div style="border:1px solid rgba(234,230,220,.09); border-radius:6px; margin-top:14px; overflow:hidden">'
+      + '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px; gap:10px; padding:9px 16px; background:#131311; border-bottom:1px solid rgba(234,230,220,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(234,230,220,.6)">'
       + '<div>ENTRY PRICE BAND</div><div style="text-align:right">BETS</div><div style="text-align:right">PAID</div><div style="text-align:right">SETTLED</div><div style="text-align:right">GAP</div></div>'
       + (calibRows.length ? '' : leerZeile(laufSatz))
       + calibRows.map((c) => {
         const gap = c.settled - c.paid;
-        return '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:12.5px">'
-          + '<div style="font-family:\'Inter\',sans-serif; font-size:13px">' + c.band + '</div>'
-          + '<div style="text-align:right; color:rgba(255,255,255,.6)">' + num(c.n) + '</div>'
+        return '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(234,230,220,.06); ' + M + '; font-size:12.5px">'
+          + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:13px">' + c.band + '</div>'
+          + '<div style="text-align:right; color:rgba(234,230,220,.6)">' + num(c.n) + '</div>'
           + '<div style="text-align:right">' + c.paid + '¢</div>'
           + '<div style="text-align:right">' + c.settled + '¢</div>'
-          + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (gap >= 0 ? '#C8F542' : '#FF4545') + '">' + (gap >= 0 ? '+' : '') + gap + '¢</div></div>';
+          + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (gap >= 0 ? '#69B47E' : '#D95F52') + '">' + (gap >= 0 ? '+' : '') + gap + '¢</div></div>';
       }).join('')
       + '</div></div>';
   } else {
     const extras = payload && payload.extras;
     const monthRows = extras && extras.monthly ? extras.monthly : [];
-    body = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; overflow:hidden">'
-      + '<div style="padding:11px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:#4F8EF7">MONTH BY MONTH</div>'
-      + '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px 100px; gap:10px; padding:9px 16px; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">'
+    body = '<div style="border:1px solid rgba(234,230,220,.09); border-radius:6px; margin-top:14px; overflow:hidden">'
+      + '<div style="padding:11px 16px; background:#131311; border-bottom:1px solid rgba(234,230,220,.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:#6E9BC8">MONTH BY MONTH</div>'
+      + '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px 100px; gap:10px; padding:9px 16px; border-bottom:1px solid rgba(234,230,220,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(234,230,220,.6)">'
       + '<div>MONTH</div><div style="text-align:right">RUNS</div><div style="text-align:right">BETS</div><div style="text-align:right">STAKE</div><div style="text-align:right">NET</div><div style="text-align:right">ROI</div></div>'
       + (monthRows.length ? '' : leerZeile(laufSatz))
       + monthRows.map((t) => {
         const roi = (t.net / t.stake) * 100;
-        return '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px 100px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:12.5px">'
-          + '<div style="font-family:\'Inter\',sans-serif; font-size:13px">' + t.month + '</div>'
-          + '<div style="text-align:right; color:rgba(255,255,255,.6)">' + t.runs + '</div>'
-          + '<div style="text-align:right; color:rgba(255,255,255,.6)">' + num(t.bets) + '</div>'
-          + '<div style="text-align:right; color:rgba(255,255,255,.6)">$' + num(t.stake) + '</div>'
-          + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (t.net >= 0 ? '#C8F542' : '#FF4545') + '">' + (t.net >= 0 ? '+$' : '-$') + num(Math.abs(t.net)) + '</div>'
-          + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (roi >= 0 ? '#C8F542' : '#FF4545') + '">' + (roi >= 0 ? '+' : '') + roi.toFixed(1) + '%</div></div>';
+        return '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px 100px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(234,230,220,.06); ' + M + '; font-size:12.5px">'
+          + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:13px">' + t.month + '</div>'
+          + '<div style="text-align:right; color:rgba(234,230,220,.6)">' + t.runs + '</div>'
+          + '<div style="text-align:right; color:rgba(234,230,220,.6)">' + num(t.bets) + '</div>'
+          + '<div style="text-align:right; color:rgba(234,230,220,.6)">$' + num(t.stake) + '</div>'
+          + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (t.net >= 0 ? '#69B47E' : '#D95F52') + '">' + (t.net >= 0 ? '+$' : '-$') + num(Math.abs(t.net)) + '</div>'
+          + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (roi >= 0 ? '#69B47E' : '#D95F52') + '">' + (roi >= 0 ? '+' : '') + roi.toFixed(1) + '%</div></div>';
       }).join('')
       + '</div>';
   }
@@ -1749,23 +1749,23 @@ function renderLiveRuns(T, payload) {
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px">'
     + '<div style="max-width:660px">'
     + '<div style="font-size:20px; font-weight:600">Our own bot runs</div>'
-    + '<div style="font-size:13.5px; color:rgba(255,255,255,.6); margin-top:8px; line-height:1.5">' + esc(payload && payload.hinweis ? payload.hinweis : 'Bets, reaction times and realized results of the research bot on mentions markets. One run is one episode or event.') + '</div></div>'
+    + '<div style="font-size:13.5px; color:rgba(234,230,220,.6); margin-top:8px; line-height:1.5">' + esc(payload && payload.hinweis ? payload.hinweis : 'Bets, reaction times and realized results of the research bot on mentions markets. One run is one episode or event.') + '</div></div>'
     + '<div style="display:flex; gap:8px">'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; color:#0A0D0F; background:#C8F542">' + esc(payload && payload.kennzeichnung ? String(payload.kennzeichnung).toUpperCase() : 'LIVE / DESCRIPTIVE') + '</div>'
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.14); border-radius:6px; padding:5px 10px; white-space:nowrap">' + esc(stamp) + '</div>'
+    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; color:#0B0B0A; background:#D9A648">' + esc(payload && payload.kennzeichnung ? String(payload.kennzeichnung).toUpperCase() : 'LIVE / DESCRIPTIVE') + '</div>'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(234,230,220,.6); border:1px solid rgba(234,230,220,.14); border-radius:4px; padding:5px 10px; white-space:nowrap">' + esc(stamp) + '</div>'
     + '</div></div>'
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; margin-top:18px">'
     + kpis.map((k) =>
-      '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:10px; padding:14px 16px">'
-      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(255,255,255,.6)">' + esc(k.label) + '</div>'
+      '<div style="background:#131311; border:1px solid rgba(234,230,220,.09); border-radius:6px; padding:14px 16px">'
+      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(234,230,220,.6)">' + esc(k.label) + '</div>'
       + '<div style="' + M + '; font-size:21px; margin-top:7px; color:' + k.color + '; white-space:nowrap">' + esc(k.value) + '</div>'
-      + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); margin-top:4px">' + esc(k.sub) + '</div></div>'
+      + '<div style="' + M + '; font-size:10.5px; color:rgba(234,230,220,.6); margin-top:4px">' + esc(k.sub) + '</div></div>'
     ).join('')
     + '</div>'
     // Die Adresse, ueber die jeder jede Zahl der Seite nachrechnen kann —
     // der aufklappbare LOG-VS-WALLET-Block, der hier stand, erklaerte eine
     // zweite Zahlenwelt, die die Seite nicht mehr zeigt.
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); margin-top:10px; line-height:1.6">'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(234,230,220,.6); margin-top:10px; line-height:1.6">'
     + 'Wallet ' + walletLinkHtml() + ' · the headline figures come from the public Polymarket Data API for this address — anyone can rerun the check.'
     + '</div>'
     // Die versprochene Kurve der Seite: kumulierte PnL je Lauf, aus den
@@ -1790,7 +1790,7 @@ function archivKnopf(T, slug, label) {
     T.setState({ page: 'research', researchTab: idx, detail: null });
     try { history.pushState(null, '', '#research/' + slug); } catch (e) { /* file:// */ }
     T.fetchPageData('research');
-  }) + ' class="hv-bd35" style="font-size:12.5px; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:8px 14px; cursor:pointer; display:inline-block">' + esc(label) + '</div>';
+  }) + ' class="hv-bd35" style="font-size:12.5px; color:#EAE6DC; border:1px solid rgba(234,230,220,.2); border-radius:4px; padding:8px 14px; cursor:pointer; display:inline-block">' + esc(label) + '</div>';
 }
 
 // Forward paper log, zusammengefasst auf der Live-runs-Seite: dieselbe
@@ -1800,14 +1800,14 @@ function archivKnopf(T, slug, label) {
 // Return-Claim; die volle Archivseite haengt am Slug pipeline-forward.
 function paperLogHtml(T) {
   const pf = T.liveData && T.liveData.research ? T.liveData.research['Pipeline forward'] : null;
-  const karte = 'background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; padding:18px 20px';
-  const kopf = '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#4F8EF7">FORWARD PAPER LOG · SAME PIPELINE, NO MONEY</div>';
+  const karte = 'background:#131311; border:1px solid rgba(234,230,220,.09); border-radius:6px; margin-top:14px; padding:18px 20px';
+  const kopf = '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#6E9BC8">FORWARD PAPER LOG · SAME PIPELINE, NO MONEY</div>';
   if (!pf || pf._quelle === 'fehler') {
     const satz = pf && pf._quelle === 'fehler'
       ? 'pipeline_forward.json did not answer: ' + String(pf._fehler || 'no answer')
       : 'reading pipeline_forward.json…';
     return '<div style="' + karte + '">' + kopf
-      + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55); margin-top:8px">' + esc(satz) + '</div></div>';
+      + '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.55); margin-top:8px">' + esc(satz) + '</div></div>';
   }
   const laeufe = Array.isArray(pf.laeufe) ? pf.laeufe : [];
   const stand = pf.stand_utc ? String(pf.stand_utc).slice(0, 10) : '';
@@ -1816,25 +1816,25 @@ function paperLogHtml(T) {
   const zeilen = laeufe.map((l) => {
     const quote = l.extraktionsquote != null ? Math.round(+l.extraktionsquote * 100) + '%' : '—';
     const gekauft = l.extraktion_gekauft_usd != null ? '$' + num(Math.round(+l.extraktion_gekauft_usd)) : '—';
-    return '<div style="display:grid; grid-template-columns:1fr 110px 110px 130px; gap:10px; align-items:center; padding:9px 16px; border-bottom:1px solid rgba(255,255,255,.06); ' + M + '; font-size:12px">'
-      + '<div style="font-family:\'Inter\',sans-serif; font-size:13px">' + esc(String(l.profil || '—')) + '</div>'
-      + '<div style="text-align:right; color:rgba(255,255,255,.6)">' + num(+l.n_eintraege || 0) + '</div>'
+    return '<div style="display:grid; grid-template-columns:1fr 110px 110px 130px; gap:10px; align-items:center; padding:9px 16px; border-bottom:1px solid rgba(234,230,220,.06); ' + M + '; font-size:12px">'
+      + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:13px">' + esc(String(l.profil || '—')) + '</div>'
+      + '<div style="text-align:right; color:rgba(234,230,220,.6)">' + num(+l.n_eintraege || 0) + '</div>'
       + '<div style="text-align:right">' + num(+l.n_kaeufe || 0) + '</div>'
-      + '<div style="text-align:right; color:rgba(255,255,255,.6)">' + esc(gekauft) + ' · ' + esc(quote) + '</div></div>';
+      + '<div style="text-align:right; color:rgba(234,230,220,.6)">' + esc(gekauft) + ' · ' + esc(quote) + '</div></div>';
   }).join('');
   return '<div style="' + karte + '">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap">' + kopf
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.55)">' + num(laeufe.length) + ' paper runs · ' + num(entscheidungen) + ' decisions · ' + num(kaeufe) + ' paper buys' + (stand ? ' · ' + esc(stand) : '') + '</div></div>'
-    + '<div style="font-size:12.5px; color:rgba(255,255,255,.6); margin-top:8px; line-height:1.55; max-width:820px">The same word-count pipeline in watch mode: it reads the live transcript and logs, per market, whether its rules would have allowed a bet — mostly they would not. Decisions and best book prices only, no fills, no wallet data, no return claim. What the same pipeline did with real money is the record above.</div>'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(234,230,220,.55)">' + num(laeufe.length) + ' paper runs · ' + num(entscheidungen) + ' decisions · ' + num(kaeufe) + ' paper buys' + (stand ? ' · ' + esc(stand) : '') + '</div></div>'
+    + '<div style="font-size:12.5px; color:rgba(234,230,220,.6); margin-top:8px; line-height:1.55; max-width:820px">The same word-count pipeline in watch mode: it reads the live transcript and logs, per market, whether its rules would have allowed a bet — mostly they would not. Decisions and best book prices only, no fills, no wallet data, no return claim. What the same pipeline did with real money is the record above.</div>'
     + (zeilen
-      ? '<div style="border:1px solid rgba(255,255,255,.09); border-radius:10px; margin-top:12px; overflow:hidden">'
-        + '<div style="display:grid; grid-template-columns:1fr 110px 110px 130px; gap:10px; padding:8px 16px; background:#0A0D0F; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">'
+      ? '<div style="border:1px solid rgba(234,230,220,.09); border-radius:6px; margin-top:12px; overflow:hidden">'
+        + '<div style="display:grid; grid-template-columns:1fr 110px 110px 130px; gap:10px; padding:8px 16px; background:#0B0B0A; border-bottom:1px solid rgba(234,230,220,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(234,230,220,.6)">'
         + '<div>RUN PROFILE</div><div style="text-align:right">DECISIONS</div><div style="text-align:right">PAPER BUYS</div><div style="text-align:right">EXTRACTION</div></div>'
         + zeilen + '</div>'
       : '<div style="margin-top:10px">' + leerZeile('pipeline_forward.json carries no runs.') + '</div>')
     + '<div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap">'
     + archivKnopf(T, 'pipeline-forward', 'Open the full paper log')
-    + '<a href="./data/pipeline_forward.json" download="pipeline_forward.json" class="hv-bd35" style="font-size:12.5px; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:8px 14px; text-decoration:none; display:inline-block">Download the data</a>'
+    + '<a href="./data/pipeline_forward.json" download="pipeline_forward.json" class="hv-bd35" style="font-size:12.5px; color:#EAE6DC; border:1px solid rgba(234,230,220,.2); border-radius:4px; padding:8px 14px; text-decoration:none; display:inline-block">Download the data</a>'
     + '</div></div>';
 }
 
@@ -1844,8 +1844,8 @@ function paperLogHtml(T) {
 // Slug review-queue (app.js BEGLEITER laedt queue.json mit).
 function queueArchivHtml(T) {
   const q = T.liveData && T.liveData.research ? T.liveData.research['Review queue'] : null;
-  const karte = 'background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; padding:16px 18px';
-  const kopf = '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#4F8EF7">HUMAN VERIFICATION QUEUE · ARCHIVED</div>';
+  const karte = 'background:#131311; border:1px solid rgba(234,230,220,.09); border-radius:6px; margin-top:14px; padding:16px 18px';
+  const kopf = '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#6E9BC8">HUMAN VERIFICATION QUEUE · ARCHIVED</div>';
   const zahl = q
     ? (q._quelle === 'fehler'
       ? 'queue.json did not answer: ' + String(q._fehler || 'no answer')
@@ -1854,11 +1854,11 @@ function queueArchivHtml(T) {
     : 'reading queue.json…';
   return '<div style="' + karte + '">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap">' + kopf
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.55)">' + esc(zahl) + '</div></div>'
-    + '<div style="font-size:12.5px; color:rgba(255,255,255,.6); margin-top:8px; line-height:1.55; max-width:820px">Cases the daily run flagged for a human to check, ranked by how much the automated read and the market disagree. The queue froze 2026-07-14 and the daily run ended 2026-08-07 — a closed record, kept verifiable, not an ongoing process.</div>'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(234,230,220,.55)">' + esc(zahl) + '</div></div>'
+    + '<div style="font-size:12.5px; color:rgba(234,230,220,.6); margin-top:8px; line-height:1.55; max-width:820px">Cases the daily run flagged for a human to check, ranked by how much the automated read and the market disagree. The queue froze 2026-07-14 and the daily run ended 2026-08-07 — a closed record, kept verifiable, not an ongoing process.</div>'
     + '<div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap">'
     + archivKnopf(T, 'review-queue', 'Open the archived queue')
-    + '<a href="./data/queue.json" download="queue.json" class="hv-bd35" style="font-size:12.5px; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:8px 14px; text-decoration:none; display:inline-block">Download the data</a>'
+    + '<a href="./data/queue.json" download="queue.json" class="hv-bd35" style="font-size:12.5px; color:#EAE6DC; border:1px solid rgba(234,230,220,.2); border-radius:4px; padding:8px 14px; text-decoration:none; display:inline-block">Download the data</a>'
     + '</div></div>';
 }
 
@@ -1894,8 +1894,8 @@ const LIVE_RUN_WALLET = '0x29afe1bf37700768a640a08f1b35dad5f202f88d';
 // market terms.
 function walletLinkHtml(adresse) {
   const a = String(adresse || LIVE_RUN_WALLET);
-  return '<a href="https://polygonscan.com/address/' + esc(a) + '" target="_blank" rel="noopener" style="color:#4F8EF7; text-decoration:none" title="view on-chain on Polygonscan">' + esc(a) + ' ↗</a>'
-    + ' · <a href="https://polymarket.com/profile/' + esc(a) + '" target="_blank" rel="noopener" style="color:#4F8EF7; text-decoration:none">Polymarket profile ↗</a>';
+  return '<a href="https://polygonscan.com/address/' + esc(a) + '" target="_blank" rel="noopener" style="color:#6E9BC8; text-decoration:none" title="view on-chain on Polygonscan">' + esc(a) + ' ↗</a>'
+    + ' · <a href="https://polymarket.com/profile/' + esc(a) + '" target="_blank" rel="noopener" style="color:#6E9BC8; text-decoration:none">Polymarket profile ↗</a>';
 }
 
 // Drop sources as they appear in runs.json (drop_quelle), in plain words.
@@ -2037,30 +2037,30 @@ function walletLedgerVon(T, payload) {
   return null;
 }
 
-const LEDGER_TYP_FARBE = { bot: '#4F8EF7', discretionary: '#F5A623', pilot: '#C8F542' };
+const LEDGER_TYP_FARBE = { bot: '#6E9BC8', discretionary: '#DE7E36', pilot: '#D9A648' };
 
 function ledgerTypChip(typ) {
-  const farbe = LEDGER_TYP_FARBE[typ] || '#95A0AB';
+  const farbe = LEDGER_TYP_FARBE[typ] || '#98978E';
   return '<span style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:2px 7px; color:' + farbe + '; border:1px solid ' + farbe + '66; white-space:nowrap">' + esc(String(typ || '—').toUpperCase()) + '</span>';
 }
 
 // Chip for a run that placed nothing and left no wallet trace — muted, so
 // the money rows stand out against the process rows in the same table.
 function noFillChip() {
-  return '<span style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:2px 7px; color:rgba(255,255,255,.5); border:1px solid rgba(255,255,255,.22); white-space:nowrap">NO FILLS</span>';
+  return '<span style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:2px 7px; color:rgba(234,230,220,.5); border:1px solid rgba(234,230,220,.22); white-space:nowrap">NO FILLS</span>';
 }
 
 // The bet rows of a run (market, side, limit, fill, stake, log result) —
 // shared by the fallback cards and the run detail inside a table row.
 function laufWettenHtml(k) {
   return k.bets.map((b) =>
-    '<div style="display:grid; grid-template-columns:1fr 62px 78px 78px 80px 92px; gap:10px; align-items:center; padding:9px 0; border-bottom:1px solid rgba(255,255,255,.05); ' + M + '; font-size:11.5px">'
-    + '<div style="font-family:\'Inter\',sans-serif; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(b.market) + '">' + esc(b.market) + '</div>'
-    + '<div style="' + M + '; font-size:11.5px; color:' + (b.side === 'Yes' ? '#C8F542' : '#4F8EF7') + '">' + b.side + '</div>'
-    + '<div style="text-align:right; color:rgba(255,255,255,.55)">limit ' + b.limit + '</div>'
-    + '<div style="text-align:right; color:rgba(255,255,255,.55)">fill ' + b.fill + '</div>'
+    '<div style="display:grid; grid-template-columns:1fr 62px 78px 78px 80px 92px; gap:10px; align-items:center; padding:9px 0; border-bottom:1px solid rgba(234,230,220,.05); ' + M + '; font-size:11.5px">'
+    + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(b.market) + '">' + esc(b.market) + '</div>'
+    + '<div style="' + M + '; font-size:11.5px; color:' + (b.side === 'Yes' ? '#D9A648' : '#6E9BC8') + '">' + b.side + '</div>'
+    + '<div style="text-align:right; color:rgba(234,230,220,.55)">limit ' + b.limit + '</div>'
+    + '<div style="text-align:right; color:rgba(234,230,220,.55)">fill ' + b.fill + '</div>'
     + '<div style="text-align:right">' + b.stake + '</div>'
-    + '<div style="text-align:right; ' + M + '; font-size:12px; color:' + (b.result.charAt(0) === '+' ? '#C8F542' : b.result === 'open' ? 'rgba(255,255,255,.5)' : '#FF4545') + '">' + b.result + '</div></div>'
+    + '<div style="text-align:right; ' + M + '; font-size:12px; color:' + (b.result.charAt(0) === '+' ? '#69B47E' : b.result === 'open' ? 'rgba(234,230,220,.5)' : '#D95F52') + '">' + b.result + '</div></div>'
   ).join('');
 }
 
@@ -2071,15 +2071,15 @@ function laufWettenHtml(k) {
 function laufDetailHtml(k) {
   const geldMit = (v) => (v == null ? '—' : (+v >= 0 ? '+$' : '-$') + Math.abs(+v).toFixed(2));
   return '<div style="margin:6px 0 2px">'
-    + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); margin-bottom:6px">' + esc('run ' + k.profil + (k.title ? ' · ' + k.title : '') + ' · ' + k.mode.toLowerCase() + ' · ' + k.status.toLowerCase()) + '</div>'
+    + '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.6); margin-bottom:6px">' + esc('run ' + k.profil + (k.title ? ' · ' + k.title : '') + ' · ' + k.mode.toLowerCase() + ' · ' + k.status.toLowerCase()) + '</div>'
     + (k.chips.length
       ? '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:4px">'
-        + k.chips.map((c) => '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); background:#161C22; border:1px solid rgba(255,255,255,.09); border-radius:5px; padding:3px 8px">' + esc(c) + '</div>').join('')
+        + k.chips.map((c) => '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.6); background:#1A1A17; border:1px solid rgba(234,230,220,.09); border-radius:4px; padding:3px 8px">' + esc(c) + '</div>').join('')
         + '</div>'
       : '')
     + laufWettenHtml(k)
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); margin-top:8px">' + esc('Stake $' + k.einsatzLog.toFixed(2) + ' — the wallet figure is the PNL column of this row') + '</div>'
-    + (k.missed ? '<div style="' + M + '; font-size:10.5px; color:#F5A623; margin-top:5px">' + esc(k.missed) + '</div>' : '')
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(234,230,220,.6); margin-top:8px">' + esc('Stake $' + k.einsatzLog.toFixed(2) + ' — the wallet figure is the PNL column of this row') + '</div>'
+    + (k.missed ? '<div style="' + M + '; font-size:10.5px; color:#DE7E36; margin-top:5px">' + esc(k.missed) + '</div>' : '')
     + '</div>';
 }
 
@@ -2091,7 +2091,7 @@ function ledgerGeld(v, vorzeichen) {
 }
 
 function ledgerFarbe(v) {
-  return v == null || isNaN(+v) ? 'rgba(255,255,255,.5)' : +v >= 0 ? '#C8F542' : '#FF4545';
+  return v == null || isNaN(+v) ? 'rgba(234,230,220,.5)' : +v >= 0 ? '#69B47E' : '#D95F52';
 }
 
 // "1 sell", "6 sells" — the KPI sub-lines count things.
@@ -2110,7 +2110,7 @@ function ledgerNotizHtml(text) {
   let m;
   while ((m = muster.exec(roh)) !== null) {
     raus += esc(roh.slice(letzte, m.index));
-    raus += '<a href="' + esc(m[0]) + '" target="_blank" rel="noopener" style="color:#4F8EF7; text-decoration:none">' + esc(m[0].replace(/^https?:\/\//, '')) + ' ↗</a>';
+    raus += '<a href="' + esc(m[0]) + '" target="_blank" rel="noopener" style="color:#6E9BC8; text-decoration:none">' + esc(m[0].replace(/^https?:\/\//, '')) + ' ↗</a>';
     letzte = m.index + m[0].length;
   }
   return raus + esc(roh.slice(letzte));
@@ -2120,17 +2120,17 @@ function ledgerNotizHtml(text) {
 // stake, PnL as the API states it, status, and which log it belongs to.
 function ledgerMarktZeile(m) {
   const status = String(m.status || '—');
-  const statusFarbe = status === 'won' ? '#C8F542' : (status === 'lost' || status === 'worthless') ? '#FF4545' : 'rgba(255,255,255,.55)';
+  const statusFarbe = status === 'won' ? '#69B47E' : (status === 'lost' || status === 'worthless') ? '#D95F52' : 'rgba(234,230,220,.55)';
   const zuordnung = String(m.zuordnung || '');
-  return '<div style="display:grid; grid-template-columns:1fr 44px 70px 70px 84px 92px 78px 110px; gap:8px; align-items:center; padding:7px 0; border-top:1px solid rgba(255,255,255,.05); ' + M + '; font-size:11px">'
-    + '<div style="font-family:\'Inter\',sans-serif; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(m.titel || '') + '">' + esc(m.titel || '—') + '</div>'
-    + '<div style="color:' + (String(m.seite).toLowerCase() === 'yes' ? '#C8F542' : '#4F8EF7') + '">' + esc(m.seite || '—') + '</div>'
-    + '<div style="text-align:right; color:rgba(255,255,255,.55)">' + (m.avg_preis != null ? 'avg ' + (+m.avg_preis).toFixed(2) : '—') + '</div>'
-    + '<div style="text-align:right; color:rgba(255,255,255,.55)">' + (m.shares != null ? num((+m.shares).toFixed(0)) + ' sh' : '—') + '</div>'
+  return '<div style="display:grid; grid-template-columns:1fr 44px 70px 70px 84px 92px 78px 110px; gap:8px; align-items:center; padding:7px 0; border-top:1px solid rgba(234,230,220,.05); ' + M + '; font-size:11px">'
+    + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(m.titel || '') + '">' + esc(m.titel || '—') + '</div>'
+    + '<div style="color:' + (String(m.seite).toLowerCase() === 'yes' ? '#D9A648' : '#6E9BC8') + '">' + esc(m.seite || '—') + '</div>'
+    + '<div style="text-align:right; color:rgba(234,230,220,.55)">' + (m.avg_preis != null ? 'avg ' + (+m.avg_preis).toFixed(2) : '—') + '</div>'
+    + '<div style="text-align:right; color:rgba(234,230,220,.55)">' + (m.shares != null ? num((+m.shares).toFixed(0)) + ' sh' : '—') + '</div>'
     + '<div style="text-align:right">' + ledgerGeld(m.einsatz_usd, false) + '</div>'
     + '<div style="text-align:right; color:' + ledgerFarbe(m.pnl_usd) + '" title="' + esc(m.pnl_art || '') + '">' + ledgerGeld(m.pnl_usd, true) + '</div>'
     + '<div style="color:' + statusFarbe + '">' + esc(status) + '</div>'
-    + '<div style="color:rgba(255,255,255,.6); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(zuordnung + (m.run_profil ? ' · ' + m.run_profil : '')) + '">' + esc(zuordnung + (m.run_profil ? ' · ' + m.run_profil : '')) + '</div>'
+    + '<div style="color:rgba(234,230,220,.6); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(zuordnung + (m.run_profil ? ' · ' + m.run_profil : '')) + '">' + esc(zuordnung + (m.run_profil ? ' · ' + m.run_profil : '')) + '</div>'
     + '</div>';
 }
 
@@ -2142,8 +2142,8 @@ function ledgerMarktZeile(m) {
 // same event by hand) are noted on that event instead of listed twice.
 // Without the file: the honest line naming it.
 function walletLedgerHtml(T, payload, ohneFills, karten) {
-  const KOPF = '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:#4F8EF7">ALL EVENTS · RUNS AND WALLET</div>';
-  const karte = 'background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px';
+  const KOPF = '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:#6E9BC8">ALL EVENTS · RUNS AND WALLET</div>';
+  const karte = 'background:#131311; border:1px solid rgba(234,230,220,.09); border-radius:6px';
   const ledger = walletLedgerVon(T, payload);
   if (!ledger || !ledger.aggregat || !Array.isArray(ledger.events)) {
     const satz = LEDGER.laedt
@@ -2152,7 +2152,7 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
         + (LEDGER.fehler ? ' (' + LEDGER.fehler + ')' : '')
         + '. scripts/wallet_ledger.py rebuilds it read-only from the public Polymarket Data API for wallet ' + LIVE_RUN_WALLET + '.';
     return '<div style="margin-top:22px">' + KOPF
-      + '<div style="' + karte + '; margin-top:8px; padding:14px 18px; ' + M + '; font-size:11px; color:rgba(255,255,255,.6); line-height:1.6">' + esc(satz) + '</div></div>';
+      + '<div style="' + karte + '; margin-top:8px; padding:14px 18px; ' + M + '; font-size:11px; color:rgba(234,230,220,.6); line-height:1.6">' + esc(satz) + '</div></div>';
   }
   const agg = ledger.aggregat;
   const events = ledger.events.slice().sort((a, b) => String(b.von_utc || '').localeCompare(String(a.von_utc || '')));
@@ -2180,7 +2180,7 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
       + (pos.worthless ? ' (' + pos.worthless + ' expired worthless)' : '') + (pos.flat ? ' · ' + pos.flat + ' flat' : '') + (pos.open ? ' · ' + pos.open + ' open' : ''));
   }
   if (agg.closed_positions_capped) metaTeile.push('closed feed capped at 50 per tail');
-  const metaZeile = '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55); margin-top:8px; line-height:1.7">Whole wallet: ' + esc(metaTeile.join(' · ')) + '</div>';
+  const metaZeile = '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.55); margin-top:8px; line-height:1.7">Whole wallet: ' + esc(metaTeile.join(' · ')) + '</div>';
 
   const spalten = '92px 1fr 118px 64px 96px 96px 150px';
   // Laeufe ohne Fill: eine eigene Zeile nur, wenn kein Wallet-Event denselben
@@ -2219,35 +2219,35 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
     // Bot-Maerkte stehen als Wetten mit Limit/Fill/Latenz im Laufdetail.
     const maerkte = karte ? alleMaerkte.filter((m) => String(m.zuordnung || '') !== 'bot') : alleMaerkte;
     // data-key: app.js keeps open <details> across re-renders by this key.
-    return '<details data-key="ledger:' + esc(String(e.event_slug || e.titel || '')) + '" style="border-bottom:1px solid rgba(255,255,255,.06)">'
+    return '<details data-key="ledger:' + esc(String(e.event_slug || e.titel || '')) + '" style="border-bottom:1px solid rgba(234,230,220,.06)">'
       + '<summary style="display:grid; grid-template-columns:' + spalten + '; gap:10px; align-items:center; padding:10px 16px; cursor:pointer; list-style:none">'
-      + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55); white-space:nowrap" title="' + esc(zeitraum) + '">' + esc(datum) + '</div>'
+      + '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.55); white-space:nowrap" title="' + esc(zeitraum) + '">' + esc(datum) + '</div>'
       + '<div style="font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(e.titel || e.event_slug || '') + '">'
-      + (e.url ? '<a href="' + esc(e.url) + '" target="_blank" rel="noopener" style="color:#fff; text-decoration:none" title="' + esc((e.titel || e.event_slug || '') + ' — open the event on Polymarket') + '">' + esc(e.titel || e.event_slug || '—') + ' <span style="' + M + '; font-size:11px; color:#4F8EF7">↗</span></a>' : esc(e.titel || e.event_slug || '—'))
-      + (e.run_profil ? ' <span style="' + M + '; font-size:11px; color:rgba(255,255,255,.6)">' + esc(e.run_profil) + '</span>' : '')
+      + (e.url ? '<a href="' + esc(e.url) + '" target="_blank" rel="noopener" style="color:#EAE6DC; text-decoration:none" title="' + esc((e.titel || e.event_slug || '') + ' — open the event on Polymarket') + '">' + esc(e.titel || e.event_slug || '—') + ' <span style="' + M + '; font-size:11px; color:#6E9BC8">↗</span></a>' : esc(e.titel || e.event_slug || '—'))
+      + (e.run_profil ? ' <span style="' + M + '; font-size:11px; color:rgba(234,230,220,.6)">' + esc(e.run_profil) + '</span>' : '')
       + '</div>'
       + '<div style="display:flex; gap:4px; align-items:center; flex-wrap:wrap">' + ledgerTypChip(typ)
-      + (mixRest ? '<span style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6)">+ ' + esc(mixRest) + '</span>' : '') + '</div>'
-      + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:rgba(255,255,255,.7)">' + num(e.n_maerkte != null ? e.n_maerkte : alleMaerkte.length) + '</div>'
+      + (mixRest ? '<span style="' + M + '; font-size:10.5px; color:rgba(234,230,220,.6)">+ ' + esc(mixRest) + '</span>' : '') + '</div>'
+      + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:rgba(234,230,220,.7)">' + num(e.n_maerkte != null ? e.n_maerkte : alleMaerkte.length) + '</div>'
       + '<div style="text-align:right; ' + M + '; font-size:11.5px">' + ledgerGeld(e.einsatz_usd, false) + '</div>'
       + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:' + ledgerFarbe(e.pnl_usd != null ? e.pnl_usd : e.netto_cash_usd) + '" title="' + esc('API realised PnL ' + ledgerGeld(e.pnl_usd, true) + ' · cash flow ' + ledgerGeld(e.netto_cash_usd, true)) + '">' + ledgerGeld(e.pnl_usd != null ? e.pnl_usd : e.netto_cash_usd, true) + '</div>'
-      + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(e.status_text || '') + '">' + esc(e.status_text || '—') + '</div>'
+      + '<div style="' + M + '; font-size:10.5px; color:rgba(234,230,220,.6); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(e.status_text || '') + '">' + esc(e.status_text || '—') + '</div>'
       + '</summary>'
       + '<div style="padding:4px 16px 12px 108px">'
-      + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); margin-bottom:4px">'
+      + '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.6); margin-bottom:4px">'
       + esc(zeitraum + ' · ' + ledgerZahlwort(e.n_trades, 'trade', 'trades') + ' · ' + ledgerZahlwort(e.n_einloesungen, 'redemption', 'redemptions') + ' · cash flow ' + ledgerGeld(e.netto_cash_usd, true) + (e.pnl_usd != null ? ' · API realised PnL ' + ledgerGeld(e.pnl_usd, true) : ''))
       + '</div>'
       + (lauf
-        ? '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); margin-bottom:4px">'
+        ? '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.6); margin-bottom:4px">'
           + esc('The bot ran on this event and placed nothing (' + (entscheidungenVon(lauf) || 'no decisions logged') + ') — these trades were placed by hand.')
           + '</div>'
         : '')
       + (karte ? laufDetailHtml(karte) : '')
       + (karte && maerkte.length
-        ? '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); margin:8px 0 2px">PLACED BY HAND ON THE SAME EVENT</div>'
+        ? '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.6); margin:8px 0 2px">PLACED BY HAND ON THE SAME EVENT</div>'
         : '')
       + maerkte.map(ledgerMarktZeile).join('')
-      + (notes.length ? '<div style="font-size:11.5px; color:rgba(255,255,255,.55); margin-top:8px; line-height:1.5">' + notes.map((n) => ledgerNotizHtml(n)).join('<br>') + '</div>' : '')
+      + (notes.length ? '<div style="font-size:11.5px; color:rgba(234,230,220,.55); margin-top:8px; line-height:1.5">' + notes.map((n) => ledgerNotizHtml(n)).join('<br>') + '</div>' : '')
       + '</div></details>';
   };
 
@@ -2266,26 +2266,26 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
     const statusText = [st.won ? st.won + ' won' : '', st.lost ? st.lost + ' lost' : '', st.worthless ? st.worthless + ' worthless' : '', st.flat ? st.flat + ' flat' : '', st.open ? st.open + ' open' : ''].filter(Boolean).join(' · ');
     const zeit = pilotEvents.reduce((a, e) => (String(e.von_utc || '') > a ? String(e.von_utc || '') : a), '');
     const pnl = summe('pnl_usd');
-    const html = '<details data-key="ledger:pilot-group" style="border-bottom:1px solid rgba(255,255,255,.06)">'
+    const html = '<details data-key="ledger:pilot-group" style="border-bottom:1px solid rgba(234,230,220,.06)">'
       + '<summary style="display:grid; grid-template-columns:' + spalten + '; gap:10px; align-items:center; padding:10px 16px; cursor:pointer; list-style:none">'
-      + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55); white-space:nowrap">' + esc(zeit.slice(0, 10) || '—') + '</div>'
-      + '<div style="font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">Pre-registered pilot — ' + pilotEvents.length + ' small event' + (pilotEvents.length === 1 ? '' : 's') + ' <span style="' + M + '; font-size:11px; color:rgba(255,255,255,.6)">click for each one</span></div>'
+      + '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.55); white-space:nowrap">' + esc(zeit.slice(0, 10) || '—') + '</div>'
+      + '<div style="font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">Pre-registered pilot — ' + pilotEvents.length + ' small event' + (pilotEvents.length === 1 ? '' : 's') + ' <span style="' + M + '; font-size:11px; color:rgba(234,230,220,.6)">click for each one</span></div>'
       + '<div style="display:flex; gap:4px; align-items:center">' + ledgerTypChip('pilot') + '</div>'
-      + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:rgba(255,255,255,.7)">' + num(maerkteN) + '</div>'
+      + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:rgba(234,230,220,.7)">' + num(maerkteN) + '</div>'
       + '<div style="text-align:right; ' + M + '; font-size:11.5px">' + ledgerGeld(summe('einsatz_usd'), false) + '</div>'
       + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:' + ledgerFarbe(pnl) + '" title="' + esc('sum of API realised PnL ' + ledgerGeld(pnl, true) + ' · sum of cash flow ' + ledgerGeld(summe('netto_cash_usd'), true)) + '">' + ledgerGeld(pnl, true) + '</div>'
-      + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(statusText) + '">' + esc(statusText || '—') + '</div>'
+      + '<div style="' + M + '; font-size:10.5px; color:rgba(234,230,220,.6); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(statusText) + '">' + esc(statusText || '—') + '</div>'
       + '</summary>'
       + '<div style="padding:4px 16px 12px 108px">'
       + pilotEvents.map((e) =>
-        '<div style="display:grid; grid-template-columns:76px 1fr 96px 96px 130px; gap:8px; align-items:center; padding:7px 0; border-top:1px solid rgba(255,255,255,.05); ' + M + '; font-size:11px">'
-        + '<div style="color:rgba(255,255,255,.6); white-space:nowrap">' + esc(String(e.von_utc || '').slice(0, 10) || '—') + '</div>'
-        + '<div style="font-family:\'Inter\',sans-serif; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(e.titel || e.event_slug || '') + '">'
-        + (e.url ? '<a href="' + esc(e.url) + '" target="_blank" rel="noopener" style="color:#fff; text-decoration:none">' + esc(e.titel || e.event_slug || '—') + ' <span style="' + M + '; font-size:11px; color:#4F8EF7">↗</span></a>' : esc(e.titel || e.event_slug || '—'))
+        '<div style="display:grid; grid-template-columns:76px 1fr 96px 96px 130px; gap:8px; align-items:center; padding:7px 0; border-top:1px solid rgba(234,230,220,.05); ' + M + '; font-size:11px">'
+        + '<div style="color:rgba(234,230,220,.6); white-space:nowrap">' + esc(String(e.von_utc || '').slice(0, 10) || '—') + '</div>'
+        + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(e.titel || e.event_slug || '') + '">'
+        + (e.url ? '<a href="' + esc(e.url) + '" target="_blank" rel="noopener" style="color:#EAE6DC; text-decoration:none">' + esc(e.titel || e.event_slug || '—') + ' <span style="' + M + '; font-size:11px; color:#6E9BC8">↗</span></a>' : esc(e.titel || e.event_slug || '—'))
         + '</div>'
         + '<div style="text-align:right">' + ledgerGeld(e.einsatz_usd, false) + '</div>'
         + '<div style="text-align:right; color:' + ledgerFarbe(e.pnl_usd != null ? e.pnl_usd : e.netto_cash_usd) + '">' + ledgerGeld(e.pnl_usd != null ? e.pnl_usd : e.netto_cash_usd, true) + '</div>'
-        + '<div style="color:rgba(255,255,255,.55); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(e.status_text || '—') + '</div>'
+        + '<div style="color:rgba(234,230,220,.55); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(e.status_text || '—') + '</div>'
         + '</div>').join('')
       + '</div></details>';
     return { zeit, html };
@@ -2294,31 +2294,31 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
   // Eine Zeile je Lauf ohne Fill und ohne Wallet-Event: das Prozessprotokoll
   // neben den Geldzeilen, damit alles unterhalb der Karten in einer Tabelle
   // steht.
-  const laufZeile = (r) => '<div style="display:grid; grid-template-columns:' + spalten + '; gap:10px; align-items:center; padding:10px 16px; border-bottom:1px solid rgba(255,255,255,.06)">'
-    + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); white-space:nowrap">' + esc(String(r.zeit || '').slice(0, 10) || '—') + '</div>'
-    + '<div style="font-size:12.5px; color:rgba(255,255,255,.7); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(r.title) + '">'
-    + (r.url ? '<a href="' + esc(r.url) + '" target="_blank" rel="noopener" style="color:rgba(255,255,255,.7); text-decoration:none">' + esc(r.title) + ' <span style="' + M + '; font-size:11px; color:#4F8EF7">↗</span></a>' : esc(r.title))
-    + ' <span style="' + M + '; font-size:11px; color:rgba(255,255,255,.55)">' + esc(r.profil) + '</span></div>'
+  const laufZeile = (r) => '<div style="display:grid; grid-template-columns:' + spalten + '; gap:10px; align-items:center; padding:10px 16px; border-bottom:1px solid rgba(234,230,220,.06)">'
+    + '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.6); white-space:nowrap">' + esc(String(r.zeit || '').slice(0, 10) || '—') + '</div>'
+    + '<div style="font-size:12.5px; color:rgba(234,230,220,.7); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(r.title) + '">'
+    + (r.url ? '<a href="' + esc(r.url) + '" target="_blank" rel="noopener" style="color:rgba(234,230,220,.7); text-decoration:none">' + esc(r.title) + ' <span style="' + M + '; font-size:11px; color:#6E9BC8">↗</span></a>' : esc(r.title))
+    + ' <span style="' + M + '; font-size:11px; color:rgba(234,230,220,.55)">' + esc(r.profil) + '</span></div>'
     + '<div style="display:flex; gap:4px; align-items:center">' + noFillChip() + '</div>'
-    + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:rgba(255,255,255,.55)">—</div>'
-    + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:rgba(255,255,255,.55)">—</div>'
-    + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:rgba(255,255,255,.55)">—</div>'
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(entscheidungenVon(r)) + '">' + esc((entscheidungenVon(r) ? entscheidungenVon(r) + ' · ' : '') + 'placed nothing') + '</div>'
+    + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:rgba(234,230,220,.55)">—</div>'
+    + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:rgba(234,230,220,.55)">—</div>'
+    + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:rgba(234,230,220,.55)">—</div>'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(234,230,220,.6); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(entscheidungenVon(r)) + '">' + esc((entscheidungenVon(r) ? entscheidungenVon(r) + ' · ' : '') + 'placed nothing') + '</div>'
     + '</div>';
 
   // Ein Fill-Lauf ohne Ledger-Event: eigene aufklappbare Bot-Zeile, Zahlen
   // aus dem Log und so beschriftet.
-  const karteZeile = (k) => '<details data-key="ledger:run:' + esc(k.profil) + '" style="border-bottom:1px solid rgba(255,255,255,.06)">'
+  const karteZeile = (k) => '<details data-key="ledger:run:' + esc(k.profil) + '" style="border-bottom:1px solid rgba(234,230,220,.06)">'
     + '<summary style="display:grid; grid-template-columns:' + spalten + '; gap:10px; align-items:center; padding:10px 16px; cursor:pointer; list-style:none">'
-    + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.55); white-space:nowrap">' + esc(String(k.zeit || '').slice(0, 10) || '—') + '</div>'
+    + '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.55); white-space:nowrap">' + esc(String(k.zeit || '').slice(0, 10) || '—') + '</div>'
     + '<div style="font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(k.title) + '">'
-    + (k.url ? '<a href="' + esc(k.url) + '" target="_blank" rel="noopener" style="color:#fff; text-decoration:none">' + esc(k.title) + ' <span style="' + M + '; font-size:11px; color:#4F8EF7">↗</span></a>' : esc(k.title))
-    + ' <span style="' + M + '; font-size:11px; color:rgba(255,255,255,.6)">' + esc(k.profil) + '</span></div>'
+    + (k.url ? '<a href="' + esc(k.url) + '" target="_blank" rel="noopener" style="color:#EAE6DC; text-decoration:none">' + esc(k.title) + ' <span style="' + M + '; font-size:11px; color:#6E9BC8">↗</span></a>' : esc(k.title))
+    + ' <span style="' + M + '; font-size:11px; color:rgba(234,230,220,.6)">' + esc(k.profil) + '</span></div>'
     + '<div style="display:flex; gap:4px; align-items:center">' + ledgerTypChip('bot') + '</div>'
-    + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:rgba(255,255,255,.7)">' + num(k.bets.length) + '</div>'
+    + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:rgba(234,230,220,.7)">' + num(k.bets.length) + '</div>'
     + '<div style="text-align:right; ' + M + '; font-size:11.5px" title="from the run log — not yet in the wallet statement">' + ledgerGeld(k.einsatzLog, false) + '</div>'
     + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:' + ledgerFarbe(k.pnlLog) + '" title="from the run log — not yet in the wallet statement">' + ledgerGeld(k.pnlLog, true) + '</div>'
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); white-space:nowrap">' + esc(k.status.toLowerCase() + ' · from the run log') + '</div>'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(234,230,220,.6); white-space:nowrap">' + esc(k.status.toLowerCase() + ' · from the run log') + '</div>'
     + '</summary>'
     + '<div style="padding:4px 16px 12px 108px">' + laufDetailHtml(k) + '</div></details>';
 
@@ -2334,15 +2334,15 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
     + (laeufe.length ? ' + ' + laeufe.length + ' RUN' + (laeufe.length === 1 ? '' : 'S') + ' WITHOUT A TRADE' : '')
     + (kartenOhneEvent.length ? ' + ' + kartenOhneEvent.length + ' RUN' + (kartenOhneEvent.length === 1 ? '' : 'S') + ' NOT IN THE LEDGER' : '')
     + ' · NEWEST FIRST';
-  const tabelle = '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:12px; overflow:hidden">'
-    + '<div style="padding:10px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:11px; letter-spacing:.12em; color:rgba(255,255,255,.5)">'
-    + kopfzeile + ' <span style="color:rgba(255,255,255,.55); letter-spacing:0">· click a row for its markets — bot rows open to the full run detail</span></div>'
-    + '<div style="display:grid; grid-template-columns:' + spalten + '; gap:10px; padding:8px 16px; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(255,255,255,.6)">'
+  const tabelle = '<div style="border:1px solid rgba(234,230,220,.09); border-radius:6px; margin-top:12px; overflow:hidden">'
+    + '<div style="padding:10px 16px; background:#131311; border-bottom:1px solid rgba(234,230,220,.09); ' + M + '; font-size:11px; letter-spacing:.12em; color:rgba(234,230,220,.5)">'
+    + kopfzeile + ' <span style="color:rgba(234,230,220,.55); letter-spacing:0">· click a row for its markets — bot rows open to the full run detail</span></div>'
+    + '<div style="display:grid; grid-template-columns:' + spalten + '; gap:10px; padding:8px 16px; border-bottom:1px solid rgba(234,230,220,.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(234,230,220,.6)">'
     + '<div>DATE</div><div>EVENT</div><div>TYPE</div><div style="text-align:right">MARKETS</div><div style="text-align:right">STAKE</div><div style="text-align:right">PNL</div><div>STATUS</div></div>'
     + (eintraege.length ? zeilen : leerZeile('The ledger holds no events — wallet_ledger.json lists none for this wallet.'))
     + '</div>';
 
-  const legende = '<div style="font-size:11.5px; color:rgba(255,255,255,.5); margin-top:10px; line-height:1.6">'
+  const legende = '<div style="font-size:11.5px; color:rgba(234,230,220,.5); margin-top:10px; line-height:1.6">'
     + ledgerTypChip('bot') + ' market and side appear in a runs.json run log — open the row for the full run detail (latency, decisions, every bet) · '
     + ledgerTypChip('discretionary') + ' placed by hand, in no run log · '
     + ledgerTypChip('pilot') + ' one of the pre-registered pilot trades of 2026-07-22 (rules frozen 2026-07-18)'
@@ -2354,8 +2354,8 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
   // zugeklappt: wer wissen will, wie die Tabelle gebaut ist, klappt auf —
   // die Seite selbst bleibt eine Kachelreihe und eine Tabelle.
   const erklaerung = '<details data-key="ledger-was" style="' + karte + '; margin-top:10px; padding:0 16px">'
-    + '<summary style="cursor:pointer; padding:11px 0; list-style:none; ' + M + '; font-size:11px; letter-spacing:.14em; color:rgba(255,255,255,.5)">WHAT THIS TABLE IS &amp; HOW TO READ THE RUN DETAIL ▸</summary>'
-    + '<div style="padding-bottom:12px; font-size:12.5px; color:rgba(255,255,255,.6); line-height:1.6">'
+    + '<summary style="cursor:pointer; padding:11px 0; list-style:none; ' + M + '; font-size:11px; letter-spacing:.14em; color:rgba(234,230,220,.5)">WHAT THIS TABLE IS &amp; HOW TO READ THE RUN DETAIL ▸</summary>'
+    + '<div style="padding-bottom:12px; font-size:12.5px; color:rgba(234,230,220,.6); line-height:1.6">'
     + esc(ledger.hinweis || '')
     + '<div style="margin-top:8px">Race chips in an opened bot row compare each fill against the public taker tape of that market: how many other trades hit between the drop and our fill, and how long until the next trader after us. The anchor is the bot\'s logged fill time — chain timestamps can differ by a few seconds.</div>'
     + '</div></details>';
@@ -2363,14 +2363,14 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
   return '<div style="margin-top:22px">'
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap">'
     + '<div style="max-width:860px">' + KOPF + metaZeile
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); margin-top:5px">Wallet ' + walletLinkHtml(ledger.wallet)
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(234,230,220,.6); margin-top:5px">Wallet ' + walletLinkHtml(ledger.wallet)
     + (agg.erste_aktivitaet_utc ? ' · first activity ' + esc(String(agg.erste_aktivitaet_utc).slice(0, 10)) : '')
     + (agg.letzte_aktivitaet_utc ? ' · last activity ' + esc(String(agg.letzte_aktivitaet_utc).slice(0, 10)) : '')
-    + ' · <a href="./data/wallet_ledger.json" download="wallet_ledger.json" style="color:#4F8EF7; text-decoration:none">download the ledger</a></div>'
+    + ' · <a href="./data/wallet_ledger.json" download="wallet_ledger.json" style="color:#6E9BC8; text-decoration:none">download the ledger</a></div>'
     + '</div>'
     + '<div style="display:flex; gap:8px; align-items:center">'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; color:#0A0D0F; background:#C8F542">' + esc(String(ledger.kennzeichnung || 'wallet/public-api').toUpperCase()) + '</div>'
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.14); border-radius:6px; padding:5px 10px; white-space:nowrap">as of ' + esc(stand) + '</div>'
+    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; color:#0B0B0A; background:#D9A648">' + esc(String(ledger.kennzeichnung || 'wallet/public-api').toUpperCase()) + '</div>'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(234,230,220,.6); border:1px solid rgba(234,230,220,.14); border-radius:4px; padding:5px 10px; white-space:nowrap">as of ' + esc(stand) + '</div>'
     + '</div></div>'
     + erklaerung
     + tabelle + legende
@@ -2397,18 +2397,18 @@ function repricingKurvenHtml(payload) {
         titel: (kurzFrage(e.frage) + ' · ' + String(e.seite || '')).toUpperCase(),
         einheit: String(r.profil || ''),
         hinweis: meta.join(' · ') || (punkte.length + ' points'),
-        farbe: '#4F8EF7',
+        farbe: '#6E9BC8',
         punkte
       }));
     });
   });
   if (!kurven.length) {
-    return '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:14px; padding:14px 18px; ' + M + '; font-size:11px; color:rgba(255,255,255,.6)">'
+    return '<div style="background:#131311; border:1px solid rgba(234,230,220,.09); border-radius:6px; margin-top:14px; padding:14px 18px; ' + M + '; font-size:11px; color:rgba(234,230,220,.6)">'
       + 'No repricing paths in this payload — runs.json carries them per run under repricing[].punkte.</div>';
   }
   return '<div style="margin-top:14px">'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:#4F8EF7; margin-bottom:4px">REPRICING AFTER THE DROP · ' + kurven.length + (kurven.length === 1 ? ' BET' : ' BETS') + '</div>'
-    + '<div style="font-size:12px; color:rgba(255,255,255,.5); margin-bottom:10px; line-height:1.5">Price of the traded side against seconds after the drop, from the public tape; the caption names when our fill landed and when the market had priced the outcome in.</div>'
+    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:#6E9BC8; margin-bottom:4px">REPRICING AFTER THE DROP · ' + kurven.length + (kurven.length === 1 ? ' BET' : ' BETS') + '</div>'
+    + '<div style="font-size:12px; color:rgba(234,230,220,.5); margin-bottom:10px; line-height:1.5">Price of the traded side against seconds after the drop, from the public tape; the caption names when our fill landed and when the market had priced the outcome in.</div>'
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:12px">' + kurven.join('') + '</div>'
     + '</div>';
 }
@@ -2425,7 +2425,7 @@ function timingDecayLinienHtml(payload) {
     hinweis: decay[0].n_bets != null ? 'n ' + decay[0].n_bets + ' bets at +0 s' : '',
     x: decay.map((t) => '+' + t.delay_s + ' s'),
     serien: [
-      { name: 'simulated PnL (USD)', farbe: '#C8F542', werte: decay.map((t) => (typeof t.sim_pnl_usd === 'number' ? t.sim_pnl_usd : null)) }
+      { name: 'simulated PnL (USD)', farbe: '#D9A648', werte: decay.map((t) => (typeof t.sim_pnl_usd === 'number' ? t.sim_pnl_usd : null)) }
     ]
   });
   return chart ? '<div style="margin-top:14px">' + chart + '</div>' : '';
@@ -2437,9 +2437,9 @@ export function renderSettings(T) {
   const stepRow = (label, valueLabel, down, up) =>
     '<div><div style="' + LBL9 + '">' + label + '</div>'
     + '<div style="display:flex; align-items:center; gap:6px">'
-    + '<div ' + T.act(down) + ' class="hv-bd35w" style="width:28px; height:32px; flex:none; border:1px solid rgba(255,255,255,.16); border-radius:7px; display:flex; align-items:center; justify-content:center; ' + M + '; font-size:14px; color:rgba(255,255,255,.7); cursor:pointer">−</div>'
-    + '<div style="flex:1; background:#10151A; border:1px solid rgba(255,255,255,.16); border-radius:7px; padding:7px 8px; ' + M + '; font-size:12.5px; text-align:center">' + esc(valueLabel) + '</div>'
-    + '<div ' + T.act(up) + ' class="hv-bd35w" style="width:28px; height:32px; flex:none; border:1px solid rgba(255,255,255,.16); border-radius:7px; display:flex; align-items:center; justify-content:center; ' + M + '; font-size:14px; color:rgba(255,255,255,.7); cursor:pointer">+</div></div></div>';
+    + '<div ' + T.act(down) + ' class="hv-bd35w" style="width:28px; height:32px; flex:none; border:1px solid rgba(234,230,220,.16); border-radius:4px; display:flex; align-items:center; justify-content:center; ' + M + '; font-size:14px; color:rgba(234,230,220,.7); cursor:pointer">−</div>'
+    + '<div style="flex:1; background:#131311; border:1px solid rgba(234,230,220,.16); border-radius:4px; padding:7px 8px; ' + M + '; font-size:12.5px; text-align:center">' + esc(valueLabel) + '</div>'
+    + '<div ' + T.act(up) + ' class="hv-bd35w" style="width:28px; height:32px; flex:none; border:1px solid rgba(234,230,220,.16); border-radius:4px; display:flex; align-items:center; justify-content:center; ' + M + '; font-size:14px; color:rgba(234,230,220,.7); cursor:pointer">+</div></div></div>';
 
   const settingRows = [
     // Der Wert stand hier als "chat 4711 · verified" — eine erfundene
@@ -2453,38 +2453,38 @@ export function renderSettings(T) {
   ];
 
   return '<div>'
-    + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(255,255,255,.09)">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.18em; color:#C8F542">SETTINGS</div>'
-    + '<h1 style="font-family:\'Instrument Serif\',serif; font-size:30px; line-height:1.1; margin:5px 0 0; font-weight:400">How much data, and where it goes</h1></div>'
+    + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(234,230,220,.09)">'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.18em; color:#D9A648">SETTINGS</div>'
+    + '<h1 style="font-size:21px; line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">How much data, and where it goes</h1></div>'
     + '<div style="padding:20px 24px 0; max-width:1000px">'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:#C8F542; margin-bottom:12px">HOW MUCH DATA TO PULL</div>'
+    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:#D9A648; margin-bottom:12px">HOW MUCH DATA TO PULL</div>'
     + '<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px">'
     + stepRow('MARKETS PER PULL', num(s.setMarketSample), () => T.setState({ setMarketSample: Math.max(50, s.setMarketSample - 50) }), () => T.setState({ setMarketSample: Math.min(2000, s.setMarketSample + 50) }))
     + stepRow('TRADES PER PULL', num(s.setTradeSample), () => T.setState({ setTradeSample: Math.max(50, s.setTradeSample - 50) }), () => T.setState({ setTradeSample: Math.min(2000, s.setTradeSample + 50) }))
     + stepRow('WHALE THRESHOLD', '$' + num(s.setWhale), () => T.setState({ setWhale: Math.max(500, s.setWhale - 500) }), () => T.setState({ setWhale: s.setWhale + 500 }))
     + '</div>'
-    + '<div style="font-size:11.5px; color:rgba(255,255,255,.6); margin-top:9px; line-height:1.5">Bigger samples mean slower pages. The whale threshold decides what counts as a large print everywhere in the terminal.</div>'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:#C8F542; margin:22px 0 12px">BACKTESTER DEFAULTS</div>'
+    + '<div style="font-size:11.5px; color:rgba(234,230,220,.6); margin-top:9px; line-height:1.5">Bigger samples mean slower pages. The whale threshold decides what counts as a large print everywhere in the terminal.</div>'
+    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:#D9A648; margin:22px 0 12px">BACKTESTER DEFAULTS</div>'
     + '<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px">'
     + stepRow('BANKROLL', '$' + num(s.setBankroll), () => T.setState({ setBankroll: Math.max(100, s.setBankroll - 500) }), () => T.setState({ setBankroll: s.setBankroll + 500 }))
     + stepRow('FEE (BPS)', s.setFee + ' bps', () => T.setState({ setFee: Math.max(0, s.setFee - 5) }), () => T.setState({ setFee: s.setFee + 5 }))
     + stepRow('SLIPPAGE (BPS)', s.setSlip + ' bps', () => T.setState({ setSlip: Math.max(0, s.setSlip - 5) }), () => T.setState({ setSlip: s.setSlip + 5 }))
     + '</div>'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:#C8F542; margin:22px 0 12px">SWITCHES</div>'
+    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:#D9A648; margin:22px 0 12px">SWITCHES</div>'
     + '</div>'
     + '<div style="padding:20px 24px; display:grid; grid-template-columns:repeat(2,1fr); gap:16px; max-width:1000px">'
     + settingRows.map((o) => {
       const on = !!s.settingsOn[o.key];
-      return '<div style="background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:16px 18px">'
+      return '<div style="background:#131311; border:1px solid rgba(234,230,220,.09); border-radius:6px; padding:16px 18px">'
         + '<div style="display:flex; align-items:center; justify-content:space-between; gap:14px">'
         + '<div><div style="font-size:14.5px; font-weight:600">' + o.name + '</div>'
-        + '<div style="font-size:12.5px; color:rgba(255,255,255,.55); margin-top:6px; line-height:1.45">' + o.desc + '</div></div>'
-        + '<div ' + T.act(() => T.setState({ settingsOn: Object.assign({}, s.settingsOn, { [o.key]: !on }) })) + ' style="width:38px; height:21px; flex:none; border-radius:11px; padding:2px; display:flex; cursor:pointer; background:' + (on ? '#C8F542' : 'rgba(255,255,255,.14)') + '; justify-content:' + (on ? 'flex-end' : 'flex-start') + '">'
-        + '<div style="width:17px; height:17px; border-radius:50%; background:' + (on ? '#0A0D0F' : 'rgba(255,255,255,.55)') + '"></div></div></div>'
-        + '<div style="' + M + '; font-size:11px; color:rgba(255,255,255,.6); margin-top:12px">' + o.value + '</div></div>';
+        + '<div style="font-size:12.5px; color:rgba(234,230,220,.55); margin-top:6px; line-height:1.45">' + o.desc + '</div></div>'
+        + '<div ' + T.act(() => T.setState({ settingsOn: Object.assign({}, s.settingsOn, { [o.key]: !on }) })) + ' style="width:38px; height:21px; flex:none; border-radius:6px; padding:2px; display:flex; cursor:pointer; background:' + (on ? '#D9A648' : 'rgba(234,230,220,.14)') + '; justify-content:' + (on ? 'flex-end' : 'flex-start') + '">'
+        + '<div style="width:17px; height:17px; border-radius:50%; background:' + (on ? '#0B0B0A' : 'rgba(234,230,220,.55)') + '"></div></div></div>'
+        + '<div style="' + M + '; font-size:11px; color:rgba(234,230,220,.6); margin-top:12px">' + o.value + '</div></div>';
     }).join('')
     + '</div>'
-    + '<div style="padding:0 24px 30px; ' + M + '; font-size:10.5px; color:rgba(255,255,255,.55); line-height:1.7; max-width:760px">Research tool only — no investment advice, no order placement, no venue affiliation. Public Polymarket and Kalshi data, provided as-is. Settings are locked to allowlisted accounts on a public deployment.</div>'
+    + '<div style="padding:0 24px 30px; ' + M + '; font-size:10.5px; color:rgba(234,230,220,.55); line-height:1.7; max-width:760px">Research tool only — no investment advice, no order placement, no venue affiliation. Public Polymarket and Kalshi data, provided as-is. Settings are locked to allowlisted accounts on a public deployment.</div>'
     + '</div>';
 }
 
@@ -2501,10 +2501,10 @@ function studienExtrasHtml(slug, payload) {
   return '';
 }
 
-const KARTE = 'background:#10151A; border:1px solid rgba(255,255,255,.09); border-radius:12px';
+const KARTE = 'background:#131311; border:1px solid rgba(234,230,220,.09); border-radius:6px';
 
 function hinweisKarte(text) {
-  return '<div style="' + KARTE + '; margin-top:14px; padding:14px 18px; ' + M + '; font-size:11px; color:rgba(255,255,255,.6); line-height:1.6">' + esc(text) + '</div>';
+  return '<div style="' + KARTE + '; margin-top:14px; padding:14px 18px; ' + M + '; font-size:11px; color:rgba(234,230,220,.6); line-height:1.6">' + esc(text) + '</div>';
 }
 
 // ---- mentions latency: two bar charts with a median line, the exclusions,
@@ -2569,12 +2569,12 @@ function mentionsExtrasHtml(payload) {
   const jeOutcome = agg && agg.je_outcome && typeof agg.je_outcome === 'object' ? agg.je_outcome : null;
   const splitKachel = (name, o, deutung) => (o && o.n != null
     ? '<div style="' + KARTE + '; padding:14px 16px">'
-      + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#4F8EF7">RESOLVED ' + esc(name) + ' · n ' + num(o.n) + '</div>'
-      + '<div style="' + M + '; font-size:12.5px; color:rgba(255,255,255,.85); margin-top:8px; line-height:1.8">'
+      + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#6E9BC8">RESOLVED ' + esc(name) + ' · n ' + num(o.n) + '</div>'
+      + '<div style="' + M + '; font-size:12.5px; color:rgba(234,230,220,.85); margin-top:8px; line-height:1.8">'
       + 'median first reaction ' + fmtZahl(o.median_minuten_bis_erste_reaktion) + ' min<br>'
       + 'median convergence ' + fmtZahl(o.median_minuten_bis_konvergenz) + ' min<br>'
       + 'median tradeable window ' + fmtZahl(o.median_stunden_im_handelbaren_fenster) + ' h</div>'
-      + '<div style="font-size:11.5px; color:rgba(255,255,255,.6); margin-top:8px; line-height:1.5">' + esc(deutung) + '</div></div>'
+      + '<div style="font-size:11.5px; color:rgba(234,230,220,.6); margin-top:8px; line-height:1.5">' + esc(deutung) + '</div></div>'
     : '');
   const split = jeOutcome
     ? '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px; margin-top:12px">'
@@ -2583,37 +2583,37 @@ function mentionsExtrasHtml(payload) {
       + '</div>'
     : '';
   const methode = '<div style="' + KARTE + '; margin-top:12px; padding:14px 18px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#4F8EF7">HOW TO READ IT</div>'
-    + '<div style="font-size:12.5px; color:rgba(255,255,255,.65); margin-top:8px; line-height:1.6; max-width:860px">'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#6E9BC8">HOW TO READ IT</div>'
+    + '<div style="font-size:12.5px; color:rgba(234,230,220,.65); margin-top:8px; line-height:1.6; max-width:860px">'
     + 'First reaction is the first move of at least 2¢ after the content went live; convergence is the time until the price had settled on the outcome that later resolved, as measured by the daily run'
     + (payload.hinweis ? ' — the published note reads: "' + esc(payload.hinweis) + '"' : '')
     + '. The RESOLVED column shows the outcome the market settled to. The tradeable window is the hours after the drop in which that outcome was still priced below certainty — measured on the price series itself, so it can start before the first 2¢ reaction and is not simply convergence minus reaction. The chart uses a linear axis — one slow event stretches the scale, so read the median line, not the longest bar.'
     + '</div></div>';
   const ausschlussHtml = ausschluesse.length
-    ? '<div style="border:1px solid rgba(255,255,255,.09); border-radius:12px; margin-top:12px; overflow:hidden">'
-      + '<div style="padding:10px 16px; background:#10151A; border-bottom:1px solid rgba(255,255,255,.09); ' + M + '; font-size:11px; letter-spacing:.12em; color:#F5A623">EXCLUDED EVENTS · ' + ausschluesse.length + ' <span style="color:rgba(255,255,255,.55); letter-spacing:0">· listed, not counted in the medians</span></div>'
+    ? '<div style="border:1px solid rgba(234,230,220,.09); border-radius:6px; margin-top:12px; overflow:hidden">'
+      + '<div style="padding:10px 16px; background:#131311; border-bottom:1px solid rgba(234,230,220,.09); ' + M + '; font-size:11px; letter-spacing:.12em; color:#DE7E36">EXCLUDED EVENTS · ' + ausschluesse.length + ' <span style="color:rgba(234,230,220,.55); letter-spacing:0">· listed, not counted in the medians</span></div>'
       + ausschluesse.map((a) =>
-        '<div style="display:grid; grid-template-columns:1fr auto; gap:12px; padding:9px 16px; border-bottom:1px solid rgba(255,255,255,.05)">'
-        + '<div style="' + M + '; font-size:12px; color:rgba(255,255,255,.75)">' + esc(String((a && a.event) || '—')) + '</div>'
-        + '<div style="' + M + '; font-size:11px; color:#F5A623">' + esc(ausschlussText(a && a.status)) + '</div></div>').join('')
+        '<div style="display:grid; grid-template-columns:1fr auto; gap:12px; padding:9px 16px; border-bottom:1px solid rgba(234,230,220,.05)">'
+        + '<div style="' + M + '; font-size:12px; color:rgba(234,230,220,.75)">' + esc(String((a && a.event) || '—')) + '</div>'
+        + '<div style="' + M + '; font-size:11px; color:#DE7E36">' + esc(ausschlussText(a && a.status)) + '</div></div>').join('')
       + '</div>'
     : hinweisKarte('No exclusions listed in mentions_latenz.json (ausschluesse is empty).');
   // Methode, Datengrundlage und Grenzen, zugeklappt — direkt aus der Datei,
   // damit die Seite nichts behauptet, was die Nutzlast nicht traegt.
   const quelle = payload.quelle && typeof payload.quelle === 'object' ? payload.quelle : null;
   const quelleAbsatz = (titel, text) => (text
-    ? '<div style="margin-top:10px"><div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(255,255,255,.55)">' + titel + '</div>'
-      + '<div style="font-size:12.5px; color:rgba(255,255,255,.7); margin-top:4px; line-height:1.6">' + esc(text) + '</div></div>'
+    ? '<div style="margin-top:10px"><div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(234,230,220,.55)">' + titel + '</div>'
+      + '<div style="font-size:12.5px; color:rgba(234,230,220,.7); margin-top:4px; line-height:1.6">' + esc(text) + '</div></div>'
     : '');
   const quelleHtml = quelle
     ? '<details style="margin-top:12px; ' + KARTE + '; padding:0 18px">'
-      + '<summary style="cursor:pointer; padding:12px 0; ' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(255,255,255,.55); list-style:none">METHOD, SAMPLE &amp; WHAT IT CANNOT SHOW ▸</summary>'
+      + '<summary style="cursor:pointer; padding:12px 0; ' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(234,230,220,.55); list-style:none">METHOD, SAMPLE &amp; WHAT IT CANNOT SHOW ▸</summary>'
       + '<div style="padding-bottom:14px">'
       + quelleAbsatz('WHAT WAS MEASURED', quelle.methode)
       + quelleAbsatz('DATA BASIS', quelle.datengrundlage)
       + (Array.isArray(quelle.einschraenkungen) && quelle.einschraenkungen.length
-        ? '<div style="margin-top:10px"><div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(255,255,255,.55)">WHAT IT CANNOT SHOW</div>'
-          + '<ul style="margin:4px 0 0 18px; padding:0; font-size:12.5px; color:rgba(255,255,255,.7); line-height:1.6">'
+        ? '<div style="margin-top:10px"><div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(234,230,220,.55)">WHAT IT CANNOT SHOW</div>'
+          + '<ul style="margin:4px 0 0 18px; padding:0; font-size:12.5px; color:rgba(234,230,220,.7); line-height:1.6">'
           + quelle.einschraenkungen.map((e) => '<li>' + esc(String(e)) + '</li>').join('') + '</ul></div>'
         : '')
       + '</div></details>'
@@ -2740,8 +2740,8 @@ function pilotExtrasHtml(payload) {
     if (chart) {
       const summe = signale ? Object.values(signale).reduce((a, v) => a + (+v || 0), 0) : 0;
       teile.push('<div style="' + KARTE + '; margin-top:14px; padding:14px 18px">'
-        + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#4F8EF7">READ-ONLY WATCHER · WHAT THE SCAN THREW OUT</div>'
-        + '<div style="font-size:12.5px; color:rgba(255,255,255,.6); margin-top:8px; line-height:1.6; max-width:860px">'
+        + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#6E9BC8">READ-ONLY WATCHER · WHAT THE SCAN THREW OUT</div>'
+        + '<div style="font-size:12.5px; color:rgba(234,230,220,.6); margin-top:8px; line-height:1.6; max-width:860px">'
         + (stat && stat.maerkte != null ? num(stat.maerkte) + ' markets scanned' : 'markets scanned: not in the file')
         + (signale ? ' · ' + num(summe) + ' rule matches (' + Object.entries(signale).map(([k, v]) => num(v) + ' ' + watcherText(k)).join(', ') + ')' : '')
         + '. Signals are rule matches, not recommendations; each rejection reason is a pre-registered gate.</div>'
@@ -2799,9 +2799,9 @@ function renderMethodology(T, payload, study) {
 
   const abschnitt = (titel, text) =>
     '<div style="' + KARTE + '; padding:16px 18px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#4F8EF7">' + esc(titel) + '</div>'
-    + (KERNSATZ[titel] ? '<div style="font-size:13.5px; color:#fff; font-weight:500; margin-top:7px; line-height:1.45">' + esc(KERNSATZ[titel]) + '</div>' : '')
-    + '<div style="font-size:13px; color:rgba(255,255,255,.72); margin-top:8px; line-height:1.65">' + text + '</div></div>';
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:#6E9BC8">' + esc(titel) + '</div>'
+    + (KERNSATZ[titel] ? '<div style="font-size:13.5px; color:#EAE6DC; font-weight:500; margin-top:7px; line-height:1.45">' + esc(KERNSATZ[titel]) + '</div>' : '')
+    + '<div style="font-size:13px; color:rgba(234,230,220,.72); margin-top:8px; line-height:1.65">' + text + '</div></div>';
   const mono = (t) => '<span style="' + M + '">' + esc(t) + '</span>';
 
   const sektionen = [
@@ -2823,29 +2823,29 @@ function renderMethodology(T, payload, study) {
       'Pre-registered means: hypothesis, primary metric, success threshold, cohort and exclusion rules are fixed before the first look at the outcome period, and externally time-stamped. Results are published in both directions — a failure and an insufficient sample are both citable results — and every analysis outside the pre-registered primary test is marked exploratory. The pilot froze its rules before the first trade and reports its own deviation from the frozen text (stake halved) as a deviation; the track-record validation is drafted for AsPredicted and listed as pending until submitted.'),
     abschnitt('AGENT LAYER GUARDRAILS',
       'Agents read exclusively through the MCP read layer: four read-only tools, at most 50 rows per response, wallet addresses masked. The skeptic can only lower a case\'s priority (deduction between -0.3 and 0), never raise it; recommendations come from a fixed whitelist (watch, check source, escalate to a human); a redaction gate aborts a publish that contains wallet-address patterns or key-like strings; and the default backend is a deterministic mock with no network access — productive LLM mode is an explicit flag. '
-      + '<span style="color:#F5A623">' + esc(backendSatz) + '</span>')
+      + '<span style="color:#DE7E36">' + esc(backendSatz) + '</span>')
   ];
 
   return '<div style="padding:22px 24px">'
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px">'
     + '<div style="max-width:720px">'
     + '<div style="font-size:20px; font-weight:600">' + esc(study.title) + '</div>'
-    + '<div style="font-size:13.5px; color:rgba(255,255,255,.6); margin-top:8px; line-height:1.5">' + esc(note) + '</div></div>'
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.14); border-radius:6px; padding:6px 10px; white-space:nowrap">' + esc(stamp) + '</div></div>'
+    + '<div style="font-size:13.5px; color:rgba(234,230,220,.6); margin-top:8px; line-height:1.5">' + esc(note) + '</div></div>'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(234,230,220,.6); border:1px solid rgba(234,230,220,.14); border-radius:4px; padding:6px 10px; white-space:nowrap">' + esc(stamp) + '</div></div>'
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:18px">'
     + stats.map((x) =>
-      '<div style="' + KARTE + '; border-radius:10px; padding:14px 16px">'
-      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(255,255,255,.6)">' + esc(x.label) + '</div>'
+      '<div style="' + KARTE + '; border-radius:6px; padding:14px 16px">'
+      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(234,230,220,.6)">' + esc(x.label) + '</div>'
       + '<div style="' + M + '; font-size:21px; margin-top:7px">' + esc(x.value) + '</div>'
-      + '<div style="' + M + '; font-size:10.5px; color:rgba(255,255,255,.6); margin-top:4px">' + esc(x.note) + '</div></div>'
+      + '<div style="' + M + '; font-size:10.5px; color:rgba(234,230,220,.6); margin-top:4px">' + esc(x.note) + '</div></div>'
     ).join('')
     + '</div>'
     + (payload ? '' : '<div style="margin-top:12px">' + leerZeile(herkunftSatz(null, 'public/data/audit.json')) + '</div>')
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:#4F8EF7; margin:20px 0 10px">HOW THE STUDIES ARE MEASURED</div>'
+    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:#6E9BC8; margin:20px 0 10px">HOW THE STUDIES ARE MEASURED</div>'
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(380px, 1fr)); gap:12px">' + sektionen.join('') + '</div>'
     + queueArchivHtml(T)
     + '<div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap">'
-    + '<a href="' + ONE_PAGER_URL + '" target="_blank" rel="noopener" class="hv-bd35" style="font-size:13px; color:#fff; border:1px solid rgba(255,255,255,.2); border-radius:8px; padding:10px 16px; text-decoration:none; display:inline-block">Read the full one-pager ↗</a>'
+    + '<a href="' + ONE_PAGER_URL + '" target="_blank" rel="noopener" class="hv-bd35" style="font-size:13px; color:#EAE6DC; border:1px solid rgba(234,230,220,.2); border-radius:4px; padding:10px 16px; text-decoration:none; display:inline-block">Read the full one-pager ↗</a>'
     + '</div>'
     + studienKnoepfe(T, T.studies.findIndex((st) => studienSlug(st) === 'methodology'))
     + '</div>';
@@ -2864,7 +2864,7 @@ export function referenzLinksHtml(text) {
   let raus = '';
   let letzte = 0;
   let m;
-  const link = (href, label) => '<a href="' + esc(href) + '" target="_blank" rel="noopener" style="color:#4F8EF7; text-decoration:none">' + esc(label) + ' ↗</a>';
+  const link = (href, label) => '<a href="' + esc(href) + '" target="_blank" rel="noopener" style="color:#6E9BC8; text-decoration:none">' + esc(label) + ' ↗</a>';
   while ((m = muster.exec(roh)) !== null) {
     raus += esc(roh.slice(letzte, m.index));
     if (m[1]) raus += link(SISTER_REPO + '/pull/' + m[2], m[1]);

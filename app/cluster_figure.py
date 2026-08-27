@@ -19,23 +19,23 @@ from __future__ import annotations
 import math
 from typing import Any, Mapping
 
-BG = "#0A0D0F"
-PANEL = "#10151A"
-TEXT = "#ffffff"
-AKZENT = "#4F8EF7"
+BG = "#0B0B0A"
+PANEL = "#131311"
+TEXT = "#EAE6DC"
+AKZENT = "#6E9BC8"
 # Volltonwerte statt rgba(): SVG 1.1 kennt rgba() nicht. Browser schlucken
 # es, Word und Inkscape nicht zwingend, und diese Datei soll in einer
 # schriftlichen Arbeit landen. Die Werte entsprechen Weiss bei 55 bzw. 38
 # Prozent ueber dem Panelton.
-RAHMEN = "#2A3138"
-GEDAEMPFT = "#9AA0A6"
-LEISE = "#6E757C"
-MONO = "JetBrains Mono, DejaVu Sans Mono, monospace"
-SANS = "Inter, Segoe UI, Helvetica, Arial, sans-serif"
+RAHMEN = "#33322C"
+GEDAEMPFT = "#9C998F"
+LEISE = "#75726A"
+MONO = "IBM Plex Mono, DejaVu Sans Mono, monospace"
+SANS = "IBM Plex Sans, Segoe UI, Helvetica, Arial, sans-serif"
 
 CLUSTER_FARBEN = (
-    "#C8F542", "#4F8EF7", "#F5A623", "#FF7A7A", "#7DE2D1",
-    "#C792EA", "#FFD166", "#8FD694", "#F78FB3", "#9AB0FF",
+    "#D9A648", "#6E9BC8", "#DE7E36", "#DE8A7A", "#86BDB2",
+    "#AC93C6", "#D4B878", "#69B47E", "#C98A9E", "#93A5C6",
 )
 
 
@@ -110,7 +110,7 @@ def _netzwerk(graph: Mapping[str, Any], x0: float, y0: float, w: float, h: float
     for e in kanten:
         a, b = knoten[e["a"]], knoten[e["b"]]
         gleich = a.get("cluster") == b.get("cluster")
-        farbe = _farbe(cluster_index.get(a.get("cluster"), 0)) if gleich else "#ffffff"
+        farbe = _farbe(cluster_index.get(a.get("cluster"), 0)) if gleich else "#EAE6DC"
         breite = 0.8 + 2.2 * (int(e.get("geteilt") or 1) / max_geteilt)
         teile.append(
             f'<line x1="{X(a["x"]):.1f}" y1="{Y(a["y"]):.1f}" x2="{X(b["x"]):.1f}" '
@@ -185,11 +185,11 @@ def _matrix(matrix: Mapping[str, Any], x0: float, y0: float, w: float) -> tuple[
                 deckung = 0.28 + 0.72 * math.sqrt(float(wert) / max_wert)
                 teile.append(
                     f'<rect x="{x:.1f}" y="{y:.1f}" width="{zell_b:.1f}" height="{zell_h}" '
-                    f'rx="2.5" fill="#C8F542" fill-opacity="{deckung:.2f}" />')
+                    f'rx="2.5" fill="#D9A648" fill-opacity="{deckung:.2f}" />')
             else:
                 teile.append(
                     f'<rect x="{x:.1f}" y="{y:.1f}" width="{zell_b:.1f}" height="{zell_h}" '
-                    f'rx="2.5" fill="#ffffff" fill-opacity="0.045" />')
+                    f'rx="2.5" fill="#EAE6DC" fill-opacity="0.045" />')
     hoehe = kopf_h + len(wallets) * (zell_h + luecke) + 6
     teile.append(_text(x0 + label_w, y0 + hoehe + 12,
                        "filled = wallet took that side · shade = notional",
@@ -285,7 +285,7 @@ def build_svg(payload: Mapping[str, Any], *, breite: int = 1400) -> str:
                        farbe=GEDAEMPFT, familie=SANS))
         t.append(_text(rx + spalte_w - 60, ly_leg + j * 15,
                        f'{mk.get("seite", "")} · {mk.get("wallets", "")}w',
-                       groesse=9.5, farbe="#C8F542"))
+                       groesse=9.5, farbe="#D9A648"))
 
     t.append("</svg>")
     return "".join(t)
