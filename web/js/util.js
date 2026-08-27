@@ -179,6 +179,9 @@ export function mapTrade(r) {
   const ago = mins < 1 ? 'just now' : mins < 60 ? mins + ' min ago' : Math.round(mins / 60) + ' h ago';
   return {
     ago, mins,
+    // Roher Zeitstempel als stabiler Schluessel: "ago" wandert mit jeder
+    // Antwort, der Print selbst bleibt derselbe.
+    ts: r.time ? String(r.time) : '',
     // Kalshi publishes no wallet identities: its rows carry the literal
     // "Not public". That is no wallet, so it must not become one in the
     // grouping on Whale flow — it stays a dash and the page says why.

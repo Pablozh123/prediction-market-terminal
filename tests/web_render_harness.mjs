@@ -66,7 +66,7 @@ function neuesT() {
     crossPairs: [], studies: STUDIEN,
     herkunft: { markets: null, tape: null, traders: null, risks: null, cross: null },
     // Landing payloads (Overview): null until loaded, like in app.js.
-    landing: { micro: null, runs: null, notes: null, herkunft: { micro: null, runs: null, notes: null } },
+    landing: { micro: null, runs: null, notes: null, ledger: null, herkunft: { micro: null, runs: null, notes: null, ledger: null } },
     liveData: { leaderboard: null, cross: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {}, riskBook: {}, walletSimilar: {} },
     num, money, esc, spark,
     seriesPoints: (v, w, h) => seriesPoints(v, w, h),
@@ -137,6 +137,16 @@ function landingNutzlast() {
     },
     runs: []
   };
+  // Wallet-Ledger, 10 Tage frischer als der Abgleich in runs.json: die
+  // Landung muss die Bot-Scheibe UND den Cashflow des ganzen Wallets von
+  // hier nehmen, nicht die eingefrorene Zahl aus runs.json.
+  const ledger = {
+    _quelle: 'statisch', stand_utc: '2026-08-17T11:42:04+00:00', kennzeichnung: 'live/descriptive',
+    aggregat: {
+      netto_cashflow_usd: 469.25, kaeufe_usd: 1474.53, rueckfluss_usd: 1943.78,
+      nach_typ: { bot: { events: 8, maerkte: 24, einsatz_usd: 1039.01, netto_cash_usd: 417.77 } }
+    }
+  };
   const notes = {
     _quelle: 'statisch', stand_utc: '2026-08-17T00:00:00+00:00', kennzeichnung: 'curated/field-notes',
     notes: [
@@ -149,8 +159,8 @@ function landingNutzlast() {
     ]
   };
   return {
-    micro, runs, notes,
-    herkunft: { micro: { quelle: 'statisch' }, runs: { quelle: 'statisch' }, notes: { quelle: 'statisch' } }
+    micro, runs, notes, ledger,
+    herkunft: { micro: { quelle: 'statisch' }, runs: { quelle: 'statisch' }, notes: { quelle: 'statisch' }, ledger: { quelle: 'statisch' } }
   };
 }
 

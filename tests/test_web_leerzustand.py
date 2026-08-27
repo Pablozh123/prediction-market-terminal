@@ -660,14 +660,34 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertNotIn("studies (", leer)
         self.assertEqual(json.loads(self.ausgabe["leer"]["_verdict_counts"])["total"], 0)
 
+    def test_tape_live_panel_zeigt_nur_gelieferte_prints(self) -> None:
+        # Das Hero-Panel "The tape, live" listet die Prints aus dem 30-s-Poll.
+        # Beim Erst-Render traegt keine Zeile die Einblend-Klasse (kein
+        # Lade-Schauspiel); ohne Tape gibt es kein Panel und keine Buehne.
+        html = self.ausgabe["live"]["overview"]
+        text = _sichtbarer_text(html)
+        self.assertIn("THE TAPE, LIVE · PRINTS ≥ $2.5K", text)
+        self.assertIn("Example question", text)
+        self.assertIn("full tape →", text)
+        self.assertIn("refreshes every 30 s · read-only", text)
+        self.assertNotIn("tape-in", html)
+        leer = self.ausgabe["leer"]["overview"]
+        self.assertNotIn("THE TAPE, LIVE", leer)
+
     def test_live_runs_streifen_eine_pnl_zahl(self) -> None:
-        # Eine PnL-Zelle mit der Wallet-Zahl (+$175.09 mit Abgleichsdatum) und
-        # die Wallet-Kaeufe als Stake — die Log-Schaetzung steht nicht mehr auf
-        # der Landung, auch nicht in einer Unterzeile.
+        # Die Wallet-Zellen nehmen den frischeren Wallet-Ledger, nicht den
+        # eingefrorenen Abgleich aus runs.json: die Bot-Scheibe als PnL, das
+        # ganze Wallet als Cashflow (buys → back). Die Sichttiefe-Zelle ist
+        # weg — sie brauchte den Methodenteil, um verstanden zu werden.
         text = _sichtbarer_text(self.ausgabe["live"]["overview"])
-        self.assertIn("NET PNL (WALLET) +$175.09", text)
-        self.assertIn("on-chain wallet · reconciled 2026-07-18", text)
-        self.assertIn("wallet buys $493", text)
+        self.assertIn("NET PNL (WALLET · BOT) +$417.77", text)
+        self.assertIn("bot trades in the wallet ledger · 2026-08-17", text)
+        self.assertIn("wallet buys $1,039", text)
+        self.assertIn("WALLET · ALL ACTIVITY +$469.25", text)
+        self.assertIn("net cashflow · buys $1,475 → back $1,944 · 2026-08-17", text)
+        self.assertNotIn("+$175.09", text)                 # die eingefrorene Zahl
+        self.assertNotIn("VISIBLE DEPTH", text)
+        self.assertNotIn("stake was", text)
         self.assertNotIn("log estimate", text)
         self.assertNotIn("LOG-RECONSTRUCTED PNL", text)
         self.assertIn("RUNS · BETS 21 · 27", text)

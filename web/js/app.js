@@ -159,7 +159,7 @@ class Terminal {
     // Research landing payloads (static JSON under ./data, also served by
     // /api/research/*): the verdict board, the live-runs strip and the field
     // notes on the Overview. Each key is null until its request answered.
-    this.landing = { micro: null, runs: null, notes: null, herkunft: { micro: null, runs: null, notes: null } };
+    this.landing = { micro: null, runs: null, notes: null, ledger: null, herkunft: { micro: null, runs: null, notes: null, ledger: null } };
     // Zweites Adresssegment aufloesen: #research/microstructure soll die
     // Studie oeffnen, nicht die erste in der Liste.
     const segmente = (location.hash || '').replace('#', '').split('/');
@@ -707,7 +707,10 @@ class Terminal {
     const quellen = [
       ['micro', '/api/research/microstructure'],
       ['runs', '/api/research/live-runs'],
-      ['notes', '/api/research/field-notes']
+      ['notes', '/api/research/field-notes'],
+      // Der Wallet-Ledger ist regelmaessig frischer als der Abgleich in
+      // runs.json; die Landung bevorzugt ihn fuer die Wallet-Zellen.
+      ['ledger', '/api/research/wallet-ledger']
     ];
     await Promise.all(quellen.map(async ([key, pfad]) => {
       try {

@@ -108,6 +108,13 @@ a:hover { color: var(--accent-bright); }
 /* The detail drawer slides in once per open — state reveal, not decoration. */
 @keyframes panelIn { from { opacity: 0; transform: translateX(10px) } to { opacity: 1; transform: translateX(0) } }
 
+/* The tape, live (overview hero): a print slides in exactly when it arrived
+   with the latest poll. The first render marks nothing as new, so the
+   landing never plays a load show — motion here always means the market
+   just did something. */
+@keyframes tapeIn { from { opacity: 0; transform: translateY(-5px) } to { opacity: 1; transform: none } }
+.tape-in { animation: tapeIn .3s ease-out both; }
+
 body { font-family: var(--font-ui); }
 
 .shell { display: flex; height: 100vh; width: 100%; min-width: 1280px; overflow: hidden; background: var(--bg); color: var(--text); }
