@@ -9,14 +9,27 @@
 <meta name="robots" content="index,follow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="icon" type="image/svg+xml" href="./favicon.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16.png">
 <link rel="shortcut icon" href="./favicon.ico">
 <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
 <link rel="manifest" href="./site.webmanifest">
-<meta name="theme-color" content="#0A0D0F">
+<meta name="theme-color" content="#0B0B0A">
+<script>
+// Theme before first paint, so a stored light choice never flashes dark.
+// Stored choice wins; first visit follows the system preference.
+(function () {
+  var t = 'dark';
+  try { t = localStorage.getItem('mi-theme') || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'); } catch (e) { /* private mode */ }
+  document.documentElement.dataset.theme = t;
+  if (t === 'light') {
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.content = '#F4F1EA';
+  }
+}());
+</script>
 <link rel="stylesheet" href="./css/terminal.css">
 </head>
 <body>
