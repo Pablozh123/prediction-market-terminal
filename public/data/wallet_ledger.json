@@ -1,6 +1,6 @@
 {
  "hinweis": "Every trade and redemption of the trading wallet on Polymarket, grouped by event, rebuilt read-only from the public Polymarket Data API (/activity, /positions, /closed-positions in both sort directions). Anyone can rerun scripts/wallet_ledger.py for this address and get the same file. Type: bot = market and side appear in a runs.json run log; pilot = one of the pre-registered pilot trades in pilot.json; discretionary = placed by hand, in no run log. Dollar figures are sums over the API rows; realised PnL per market is the API's realizedPnl and can differ from the cash flow of an event. Deposits are not in the Data API. A record of process, not a return claim.",
- "stand_utc": "2026-08-17T11:42:04+00:00",
+ "stand_utc": "2026-08-27T19:10:28+00:00",
  "wallet": "0x29afe1bf37700768a640a08f1b35dad5f202f88d",
  "kennzeichnung": "wallet/public-api",
  "regeln": {
@@ -10,12 +10,12 @@
  },
  "quellen": {
   "data_api": "https://data-api.polymarket.com",
-  "activity_rows": 125,
+  "activity_rows": 127,
   "positions_rows": 10,
-  "closed_positions_desc_rows": 44,
-  "closed_positions_asc_rows": 44,
-  "trades_rows": 77,
-  "gamma_event_titles": 29,
+  "closed_positions_desc_rows": 45,
+  "closed_positions_asc_rows": 45,
+  "trades_rows": 79,
+  "gamma_event_titles": 30,
   "gamma_pilot_condition_ids": 20
  },
  "abgleich": {
@@ -28,36 +28,36 @@
  "aggregat": {
   "einzahlungen_usd": 300.0,
   "einzahlungen_hinweis": "declared by the wallet owner; verifiable on-chain via the wallet's USDC transfers, not derivable from the public Data API",
-  "kaeufe_usd": 1474.53,
-  "verkaeufe_usd": 268.82,
+  "kaeufe_usd": 1524.53,
+  "verkaeufe_usd": 279.33,
   "einloesungen_usd": 1674.95,
-  "rueckfluss_usd": 1943.78,
-  "netto_cashflow_usd": 469.25,
-  "realisierter_pnl_api_usd": 553.54,
-  "n_events": 29,
-  "n_maerkte": 54,
-  "n_trades": 83,
-  "n_kaeufe": 77,
-  "n_verkaeufe": 6,
+  "rueckfluss_usd": 1954.29,
+  "netto_cashflow_usd": 429.76,
+  "realisierter_pnl_api_usd": 514.05,
+  "n_events": 30,
+  "n_maerkte": 55,
+  "n_trades": 85,
+  "n_kaeufe": 78,
+  "n_verkaeufe": 7,
   "n_einloesungen": 42,
   "n_activity_ignoriert": 0,
   "positionen": {
    "won": 36,
-   "lost": 7,
+   "lost": 8,
    "flat": 1,
    "worthless": 10,
    "open": 0,
    "unknown": 0
   },
   "positionen_gewonnen": 36,
-  "positionen_verloren": 17,
+  "positionen_verloren": 18,
   "positionen_wertlos": 10,
   "positionen_offen": 0,
   "positionen_flat": 1,
   "positionen_ohne_activity": 0,
   "closed_positions_capped": false,
   "erste_aktivitaet_utc": "2026-07-03T10:32:34Z",
-  "letzte_aktivitaet_utc": "2026-08-11T17:03:24Z",
+  "letzte_aktivitaet_utc": "2026-08-27T15:01:31Z",
   "nach_typ": {
    "bot": {
     "events": 8,
@@ -66,10 +66,10 @@
     "netto_cash_usd": 417.77
    },
    "discretionary": {
-    "events": 3,
-    "maerkte": 10,
-    "einsatz_usd": 335.35,
-    "netto_cash_usd": 62.59
+    "events": 4,
+    "maerkte": 11,
+    "einsatz_usd": 385.35,
+    "netto_cash_usd": 23.1
    },
    "pilot": {
     "events": 18,
@@ -80,6 +80,61 @@
   }
  },
  "events": [
+  {
+   "event_slug": "iran-charges-hormuz-fees-byptptpt-20260625175035466",
+   "titel": "Iran charges Hormuz fees by...?",
+   "titel_quelle": "gamma",
+   "url": "https://polymarket.com/event/iran-charges-hormuz-fees-byptptpt-20260625175035466",
+   "typ": "discretionary",
+   "typ_mix": "",
+   "run_profil": "",
+   "run_im_log": false,
+   "von_utc": "2026-08-17T18:50:48Z",
+   "bis_utc": "2026-08-27T15:01:31Z",
+   "n_maerkte": 1,
+   "n_trades": 2,
+   "n_kaeufe": 1,
+   "n_verkaeufe": 1,
+   "n_einloesungen": 0,
+   "einsatz_usd": 50.0,
+   "verkaeufe_usd": 10.51,
+   "einloesungen_usd": 0.0,
+   "netto_cash_usd": -39.49,
+   "pnl_usd": -39.49,
+   "status": {
+    "won": 0,
+    "lost": 1,
+    "flat": 0,
+    "worthless": 0,
+    "open": 0,
+    "unknown": 0
+   },
+   "status_text": "1 lost",
+   "notes": [],
+   "maerkte": [
+    {
+     "titel": "Iran charges Hormuz fees by August 31?",
+     "seite": "Yes",
+     "condition_id": "0xceb73b756d1dffbb60452a86efbca93efea9453a6f5078b2c8fd49dda3f5ccee",
+     "slug": "iran-charges-hormuz-fees-by-august-31-20260625175039062-177",
+     "zuordnung": "discretionary",
+     "run_profil": "",
+     "avg_preis": 0.17,
+     "shares": 294.12,
+     "einsatz_usd": 50.0,
+     "verkauft_usd": 10.51,
+     "eingeloest_usd": 0.0,
+     "netto_cash_usd": -39.49,
+     "pnl_usd": -39.49,
+     "pnl_art": "realised (API realizedPnl)",
+     "status": "lost",
+     "n_trades": 2,
+     "n_einloesungen": 0,
+     "erster_trade_utc": "2026-08-17T18:50:48Z",
+     "letzter_trade_utc": "2026-08-27T15:01:31Z"
+    }
+   ]
+  },
   {
    "event_slug": "what-will-be-said-during-the-third-episode-of-president-curtis-season-1-20260804193637080",
    "titel": "What will be said during the third episode of President Curtis: Season 1?",
