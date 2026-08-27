@@ -160,6 +160,38 @@ function sectionHead(label, right, color) {
     + '<div style="display:flex; align-items:center; gap:14px">' + (right || '') + '</div></div>';
 }
 
+// ---- The tape, live (landing hero) ----------------------------------------
+// The most recent large prints from the 30 s poll, on the landing. A row
+// animates only when its print arrived with the latest answer — the first
+// render marks nothing as new, so the landing never plays a load show, and
+// motion happens exactly when the market did something. Without live tape
+// (file host, sleeping API) the head stays one column; nothing is staged.
+function tapeLivePanel(T) {
+  const rows = (T.tape || []).slice(0, 8);
+  if (!rows.length) return '';
+  const schluessel = (t) => [t.ts || '', t.walletAddress || t.wallet, t.marketKey, t.side, t.size].join('|');
+  const erste = !(T._tapeGesehen instanceof Set);
+  const gesehen = erste ? new Set() : T._tapeGesehen;
+  const zeilen = rows.map((t) => {
+    const neu = !erste && !gesehen.has(schluessel(t));
+    const kauf = String(t.side).indexOf('BUY') === 0;
+    return '<div' + (neu ? ' class="tape-in"' : '') + ' style="display:grid; grid-template-columns:64px minmax(0,1fr) 96px 64px; gap:8px; align-items:baseline; padding:6px 0; border-bottom:1px solid rgba(var(--ink),.06)">'
+      + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.5); white-space:nowrap">' + esc(t.ago) + '</div>'
+      + '<div style="font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(t.market) + '">' + esc(t.market) + '</div>'
+      + '<div style="' + M + '; font-size:10.5px; color:' + (kauf ? 'var(--pos)' : 'var(--neg)') + '; text-align:right; white-space:nowrap">' + esc(t.side) + ' ' + esc(t.price || '') + '</div>'
+      + '<div style="' + M + '; font-size:11px; text-align:right">' + money(t.size) + '</div></div>';
+  }).join('');
+  // Merken, was diese Antwort zeigte — der naechste Poll animiert nur Neues.
+  T._tapeGesehen = new Set(rows.map(schluessel));
+  return '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:14px 18px 6px">'
+    + '<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:4px">'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.16em; color:var(--accent)">THE TAPE, LIVE · PRINTS ≥ $2.5K</div>'
+    + '<div ' + T.act(() => T.go('flow')) + ' class="hv-accent" style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.55); cursor:pointer; white-space:nowrap">full tape →</div></div>'
+    + zeilen
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.5); padding:8px 0 6px">Polymarket + Kalshi · refreshes every 30 s · read-only</div>'
+    + '</div>';
+}
+
 export function renderOverview(T) {
   const s = T.state;
   const landing = T.landing || { micro: null, runs: null, notes: null, herkunft: {} };
@@ -205,11 +237,11 @@ export function renderOverview(T) {
 
   // ---- live-runs strip ----------------------------------------------------
   const agg = runs && runs.aggregat ? runs.aggregat : null;
-  // Wallet-Zahlen ueberall (frischeste Quelle zuerst — der Ledger aus
-  // extras, sonst der kuratierte Abgleich). Die Log-Rekonstruktion steht
-  // nicht mehr auf der Landung; sie erscheint nur als benannter Rueckfall,
-  // wenn es noch keine Wallet-Zahl gibt.
-  const ledger = runs && runs.extras && runs.extras.wallet_ledger;
+  // Wallet-Zahlen ueberall (frischeste Quelle zuerst — der direkt geladene
+  // Wallet-Ledger, sonst der aus extras, sonst der kuratierte Abgleich).
+  // Die Log-Rekonstruktion steht nicht mehr auf der Landung; sie erscheint
+  // nur als benannter Rueckfall, wenn es noch keine Wallet-Zahl gibt.
+  const ledger = landing.ledger || (runs && runs.extras && runs.extras.wallet_ledger) || null;
   const ledgerBot = ledger && ledger.aggregat && ledger.aggregat.nach_typ ? ledger.aggregat.nach_typ.bot : null;
   const ledgerStand = ledger && ledger.stand_utc ? String(ledger.stand_utc).slice(0, 10) : '';
   const abgleichStand = agg && agg.wallet_abgleich_stand ? String(agg.wallet_abgleich_stand) : '';
@@ -223,9 +255,21 @@ export function renderOverview(T) {
     ? +ledgerBot.einsatz_usd
     : agg && agg.wallet_kaeufe_usd != null ? +agg.wallet_kaeufe_usd : null;
   const pnlZelle = walletNetto
-    ? kpiCell('NET PNL (WALLET)', signedMoney(walletNetto.wert),
-      'on-chain wallet' + (walletNetto.stand ? ' · reconciled ' + esc(walletNetto.stand) : ''), true, walletNetto.wert)
+    ? kpiCell('NET PNL (WALLET · BOT)', signedMoney(walletNetto.wert),
+      (ledgerFrischer ? 'bot trades in the wallet ledger' : 'on-chain wallet, reconciled')
+      + (walletNetto.stand ? ' · ' + esc(walletNetto.stand) : ''), true, walletNetto.wert)
     : kpiCell('NET PNL (FROM RUN LOGS)', agg && agg.realisierter_pnl_usd != null ? signedMoney(agg.realisierter_pnl_usd) : '—', 'no wallet reconciliation yet', true, agg && agg.realisierter_pnl_usd);
+  // Die vierte Zelle: das ganze Wallet als Cashflow — was hineinging und was
+  // zurueckkam, ueber alle Aktivitaet (Bot, Pilot, diskretionaer). Das ist
+  // die Zahl, die man neben dem Kontostand wiedererkennt. Die fruehere
+  // Sichttiefe-Zelle brauchte den Methodenteil, um verstanden zu werden;
+  // sie steht weiter im Live-runs-Bericht.
+  const la = ledger && ledger.aggregat ? ledger.aggregat : null;
+  const flussZelle = la && la.netto_cashflow_usd != null
+    ? kpiCell('WALLET · ALL ACTIVITY', signedMoney(+la.netto_cashflow_usd),
+      'net cashflow · buys $' + num((+la.kaeufe_usd || 0).toFixed(0)) + ' → back $' + num((+la.rueckfluss_usd || 0).toFixed(0))
+      + (ledgerStand ? ' · ' + esc(ledgerStand) : ''), false, +la.netto_cashflow_usd)
+    : kpiCell('WALLET · ALL ACTIVITY', '—', 'wallet_ledger.json not loaded yet', false);
   const runsStrip = agg
     ? '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid rgba(var(--ink),.09)">'
       + kpiCell('RUNS · BETS', num(agg.n_runs != null ? agg.n_runs : '—') + ' · ' + num(agg.n_wetten != null ? agg.n_wetten : '—'),
@@ -233,7 +277,7 @@ export function renderOverview(T) {
         + (runs && runs.stand_utc ? ' · payload ' + esc(stempel(runs.stand_utc)) : ''), true)
       + kpiCell('WON · LOST', num(agg.gewonnen != null ? agg.gewonnen : '—') + ' · ' + num(agg.verloren != null ? agg.verloren : '—'), (agg.offen ? num(agg.offen) + ' open' : 'none open') + ' · no profitability claim', true)
       + pnlZelle
-      + kpiCell('VISIBLE DEPTH AT ENTRY', agg.sichtbare_tiefe_usd != null ? '$' + num((+agg.sichtbare_tiefe_usd).toFixed(0)) : '—', agg.einsatz_zu_sichtbarer_tiefe_pct != null ? 'stake was ' + (+agg.einsatz_zu_sichtbarer_tiefe_pct).toFixed(1) + '% of visible depth' : '', false)
+      + flussZelle
       + '</div>'
     : leerZeile(landingLeerSatz(hk.runs, 'runs.json'));
 
@@ -273,8 +317,13 @@ export function renderOverview(T) {
     + pfadKarte(goStudy(runsIdx), 'TESTED STRATEGY', 'var(--accent)', 'Researched, then run with real money: every bet, its latency and the on-chain wallet that proves it.')
     + pfadKarte(T.act(() => T.go('markets')), 'ANALYSIS TOOL', 'var(--info)', 'Live screens on Polymarket & Kalshi: markets, tape, whale flow, cross-venue, risk.')
     + '</div>';
+  // Rechts neben dem Titel, sobald der 30-s-Poll Prints liefert: das Band,
+  // wie es gerade laeuft. Ohne lebende Antwort bleibt der Kopf einspaltig.
+  const tapePanel = tapeLivePanel(T);
   return '<div>'
     + '<div style="padding:24px 24px 20px; border-bottom:1px solid rgba(var(--ink),.09)">'
+    + '<div style="display:grid; grid-template-columns:minmax(0,1fr)' + (tapePanel ? ' minmax(400px,500px)' : '') + '; gap:28px; align-items:start">'
+    + '<div>'
     + '<h1 style="font-size:26px; line-height:1.2; margin:0; font-weight:600; letter-spacing:-0.015em">Prediction-market microstructure, <em style="color:var(--accent)">measured on self-recorded books.</em></h1>'
     + '<div style="font-size:14px; color:rgba(var(--ink),.66); margin-top:8px; max-width:760px">' + esc(subline) + '</div>'
     + pfade
@@ -282,6 +331,8 @@ export function renderOverview(T) {
     + '<a href="' + REPO_URL + '" target="_blank" rel="noopener">GitHub repository →</a>'
     + '<a href="' + ONE_PAGER_URL + '" target="_blank" rel="noopener">One-pager (docs/research/ONE_PAGER.md) →</a>'
     + (pilotIdx >= 0 ? '<span ' + goStudy(pilotIdx) + ' class="hv-accent" style="color:rgba(var(--ink),.55); cursor:pointer; display:inline-block; padding:5px 0">Pre-registered pilot →</span>' : '')
+    + '</div></div>'
+    + tapePanel
     + '</div></div>'
 
     // Die getestete Strategie zuerst — sie ist das Argument der Seite; die
