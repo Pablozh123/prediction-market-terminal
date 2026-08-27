@@ -1830,12 +1830,20 @@ def backtest_payload(result: Any) -> dict[str, Any]:
                 key: int(_num(value, 0.0) or 0)
                 for key, value in (stats.get("skip_reasons") or {}).items()
             },
+            # Bewusst nicht gefolgte Trades (Folge-Schwelle, fremde
+            # Verkaeufe) — getrennt von den echten Fehlschlaegen.
+            "filtered_trades": int(_num(stats.get("filtered_trades"), 0.0) or 0),
             # Auto-Fit: was die Engine gemessen und ggf. angewendet hat —
-            # Hoechstzahl gleichzeitig offener Quell-Positionen und der
-            # daraus abgeleitete Einsatz je Copy.
+            # Modus (Folge-Schwelle oder geschrumpfter Einsatz), Einsatz je
+            # Copy, Schwelle, gefolgte Positionen und das rohe Tempo der
+            # Wallet (Hoechstzahl gleichzeitig offener Positionen).
             "auto_fit": {
                 "applied": bool((stats.get("auto_fit") or {}).get("applied", False)),
+                "mode": _text((stats.get("auto_fit") or {}).get("mode")) or None,
                 "stake": _num((stats.get("auto_fit") or {}).get("stake")),
+                "follow_threshold": _num((stats.get("auto_fit") or {}).get("follow_threshold")),
+                "followed_positions": int(_num((stats.get("auto_fit") or {}).get("followed_positions"), 0.0) or 0),
+                "capacity": int(_num((stats.get("auto_fit") or {}).get("capacity"), 0.0) or 0),
                 "peak_concurrent": int(_num((stats.get("auto_fit") or {}).get("peak_concurrent"), 0.0) or 0),
             },
         },

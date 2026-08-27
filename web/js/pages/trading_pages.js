@@ -125,11 +125,15 @@ export function renderBacktester(T) {
     reasons.other ? num(reasons.other) + ' other' : ''
   ].filter(Boolean).join(' · ') : '';
   const bankrollBound = reasons ? (reasons.out_of_cash + reasons.exposure_cap) : 0;
-  // Auto-Fit-Ergebnis der Engine: was sie gemessen (Hoechstzahl gleichzeitig
-  // offener Quell-Positionen) und ggf. als Einsatz angewendet hat.
+  const filteredN = st ? +st.filtered_trades || 0 : 0;
+  // Auto-Fit-Ergebnis der Engine: entweder eine Folge-Schwelle (den
+  // groessten Einstiegen der Wallet beim eingestellten Einsatz folgen)
+  // oder ein geschrumpfter Einsatz (allem folgen, kleiner kopieren).
   const autoFit = st && st.auto_fit ? st.auto_fit : null;
-  const autoFitText = autoFit && autoFit.applied && autoFit.stake != null
-    ? 'auto-fit $' + (+autoFit.stake).toFixed(2) + ' per copy (wallet peaks at ' + num(autoFit.peak_concurrent) + ' open positions)'
+  const autoFitText = autoFit && autoFit.applied
+    ? (autoFit.mode === 'threshold'
+      ? 'auto-fit: following the wallet\'s ' + num(autoFit.followed_positions) + ' largest entries (≥ $' + num(Math.round(+autoFit.follow_threshold)) + ') at $' + (+autoFit.stake).toFixed(2) + ' per copy'
+      : 'auto-fit $' + (+autoFit.stake).toFixed(2) + ' per copy (wallet peaks at ' + num(autoFit.peak_concurrent) + ' open positions)')
     : '';
 
   const shortWallet = s.btWallet.trim().length > 12 ? s.btWallet.trim().slice(0, 6) + '…' + s.btWallet.trim().slice(-4) : s.btWallet.trim();
@@ -146,7 +150,7 @@ export function renderBacktester(T) {
     { label: 'TOTAL P&L', value: (totalPnl >= 0 ? '+' : '-') + '$' + Math.abs(totalPnl).toFixed(0), sub: benchPnl === null ? 'no benchmark' : (totalPnl - benchPnl >= 0 ? '+' : '-') + '$' + Math.abs(totalPnl - benchPnl).toFixed(0) + ' vs flat-bet', pos: totalPnl >= 0 },
     { label: 'WIN RATE', value: Math.round((winsN / Math.max(1, copied)) * 100) + '%', sub: winsN + 'W / ' + lossesN + 'L', pos: null },
     { label: 'MAX DRAWDOWN', value: ddPct.toFixed(1) + '%', sub: 'from the running peak', pos: false },
-    { label: 'TRADES COPIED', value: num(copied), sub: num(Math.max(0, skippedN)) + ' skipped', pos: null },
+    { label: 'TRADES COPIED', value: num(copied), sub: num(Math.max(0, skippedN)) + ' skipped' + (filteredN ? ' · ' + num(filteredN) + ' filtered' : ''), pos: null },
     { label: 'FEES PAID', value: '$' + feesPaid.toFixed(2), sub: '$' + openValue.toFixed(0) + ' still open', pos: null }
   ] : [];
 
@@ -289,9 +293,13 @@ export function renderBacktester(T) {
         + '</div>'
         + '<div style="font-size:11.5px; color:rgba(var(--ink),.6); margin-top:7px; line-height:1.5">'
         + (s.btAutoFit
-          ? 'The engine measures how many positions the wallet holds open at once and sizes each copy so the whole flow fits into bankroll and exposure cap. The applied stake is named in the result.'
-          : 'The stake above is used as set. If the wallet\'s pace outruns it, the result names the skipped share and the fitting stake.')
-        + '</div></div>'
+          ? 'The engine measures the wallet\'s pace and adapts by itself: if the whole flow does not fit the bankroll at your stake, it follows only the wallet\'s largest entries (smaller ones are marked "filtered", not failed); when no threshold separates them, it shrinks the stake instead. What was applied is named in the result.'
+          : 'The stake above is used as set. If the wallet\'s pace outruns it, the result names the skipped share and what auto-fit would do.')
+        + '</div>'
+        + (!s.btAutoFit
+          ? '<div style="margin-top:10px">' + stepRow('MIN TRADE TO COPY ($, 0 = ALL)', '$' + num(s.btMinNotional), { btMinNotional: Math.max(0, s.btMinNotional - 25) }, { btMinNotional: s.btMinNotional + 25 }) + '</div>'
+          : '')
+        + '</div>'
       : '')
     + '<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px">'
     + stepRow('CAP PER TRADE', '$' + s.btCap, { btCap: Math.max(10, s.btCap - 50) }, { btCap: s.btCap + 50 })
@@ -380,14 +388,26 @@ export function renderBacktester(T) {
       + '.'
       + (bankrollBound > skippedN / 2
         ? (autoFit && autoFit.applied
-          // Auto-Fit lief und der Einsatz steht schon am Minimum: mehr
-          // Anpassung gibt es nicht, jetzt hilft nur mehr Bankroll.
-          ? ' Auto-fit already sized each copy at $' + (+autoFit.stake).toFixed(2) + ' — the minimum — but the wallet peaks at ' + num(autoFit.peak_concurrent) + ' open positions, more than $' + num(s.btBankroll) + ' can hold even at that stake. Only a larger bankroll follows this wallet fully.'
+          // Auto-Fit lief bereits: die verbleibenden Skips sind der Teil
+          // des Flows, den diese Bankroll grundsaetzlich nicht halten kann.
+          ? ' Auto-fit ' + (autoFit.mode === 'threshold'
+            ? 'already narrowed the follow set to the wallet\'s ' + num(autoFit.followed_positions) + ' largest entries'
+            : 'already sized each copy down to $' + (+autoFit.stake).toFixed(2))
+            + ', but the wallet peaks at ' + num(autoFit.peak_concurrent) + ' open positions — the remaining skips are the flow beyond what $' + num(s.btBankroll) + ' can hold. Only a larger bankroll follows this wallet fully.'
           : ' The bankroll cannot follow this wallet\'s pace at this stake: with $' + num(s.btBankroll) + ' and about $' + Math.round(stake) + ' per copy, at most ' + Math.max(1, Math.floor(bank * s.btExposure / 100 / Math.max(1, stake))) + ' copies can be open at once.'
             + (autoFit && autoFit.stake != null
-              ? ' Auto-fit would size each copy at $' + (+autoFit.stake).toFixed(2) + ' (wallet peaks at ' + num(autoFit.peak_concurrent) + ' open positions) — switch it on next to the stake and re-run.'
+              ? ' Auto-fit would follow the wallet\'s largest entries at your stake (it measured a peak of ' + num(autoFit.peak_concurrent) + ' open positions) — switch it on next to the stake and re-run.'
               : ' Lower the stake, raise the bankroll, or raise the exposure cap to copy more of the flow.'))
         : ' The trade log below marks each one.')
+      + '</div>' : '')
+
+    // Gefilterte Trades sind eine bewusste Auswahl, kein Versagen — eine
+    // neutrale Zeile statt einer Warnung.
+    + (filteredN > 0 ? '<div style="border:1px solid rgba(var(--ink),.12); border-radius:6px; padding:11px 15px; margin-top:12px; font-size:12px; color:rgba(var(--ink),.6); line-height:1.5">'
+      + num(filteredN) + ' of the wallet\'s trades were deliberately not followed ("filtered" in the trade log): '
+      + (autoFit && autoFit.applied && autoFit.mode === 'threshold'
+        ? 'entries below the $' + num(Math.round(+autoFit.follow_threshold)) + ' threshold auto-fit chose so the followed flow fits the bankroll, plus sells of positions that were never followed.'
+        : 'sells of positions that were never followed' + (s.btMinNotional > 0 ? ', plus entries below your $' + num(s.btMinNotional) + ' follow threshold.' : '.'))
       + '</div>' : '')
 
     + '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; padding:16px 18px">'

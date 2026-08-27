@@ -93,11 +93,29 @@ class ReplayTests(unittest.TestCase):
         self.assertAlmostEqual(positions["tok-yes"]["shares"], 30.0, places=6)
         self.assertAlmostEqual(positions["tok-yes"]["cost_basis"], 15.0, places=6)
 
-    def test_sell_without_position_is_skipped(self):
+    def test_sell_without_position_is_filtered(self):
+        # Kein Fehlschlag: die Position wurde nie gefolgt, der Verkauf
+        # betrifft die Kopie nicht — "filtered" statt "skipped".
         trades = frame([trade("2026-05-01", "SELL", 0.50, 100.0)])
         ledger, positions = bt.replay(trades, config())
-        self.assertEqual(ledger.iloc[0]["status"], "skipped")
+        self.assertEqual(ledger.iloc[0]["status"], "filtered")
+        self.assertIn("not followed", ledger.iloc[0]["note"])
         self.assertEqual(positions, {})
+
+    def test_follow_threshold_filters_small_entries(self):
+        trades = frame(
+            [
+                trade("2026-05-01", "BUY", 0.50, 100.0, asset="klein", market_key="c1"),   # notional 50
+                trade("2026-05-02", "BUY", 0.50, 400.0, asset="gross", market_key="c2"),   # notional 200
+                trade("2026-05-03", "SELL", 0.60, 100.0, asset="klein", market_key="c1"),
+            ]
+        )
+        ledger, positions = bt.replay(trades, config(min_follow_notional=100.0))
+        self.assertEqual(list(ledger["status"]), ["filtered", "copied", "filtered"])
+        self.assertIn("below the follow threshold", ledger.iloc[0]["note"])
+        self.assertIn("not followed", ledger.iloc[2]["note"])
+        self.assertIn("gross", positions)
+        self.assertNotIn("klein", positions)
 
     def test_percent_sizing_uses_equity(self):
         trades = frame([trade("2026-05-01", "BUY", 0.50, 100.0)])
@@ -634,14 +652,15 @@ class RunBacktestTests(unittest.TestCase):
         # Bankroll 30, 10% Gebuehr: Kauf 1 kostet 25+2.50, Kauf 2 nimmt den
         # Kassenrest, Kauf 3 ist "out of cash" (die Gebuehren haben die Kasse
         # unter den Exposure-Spielraum gedrueckt); der Verkauf trifft keine
-        # kopierte Position.
+        # kopierte Position und zaehlt als "filtered", nicht als Fehlschlag.
         ledger, positions = bt.replay(trades, config(bankroll=30.0, fee_bps=1000.0))
         curve = bt.equity_curve(ledger, pd.Timestamp("2026-05-01", tz="UTC"), pd.Timestamp("2026-05-10", tz="UTC"), 30.0)
         stats = bt.compute_stats(ledger, bt._empty_positions(), curve, 30.0)
         self.assertEqual(stats["skip_reasons"]["out_of_cash"], 1)
-        self.assertEqual(stats["skip_reasons"]["no_position"], 1)
+        self.assertEqual(stats["skip_reasons"]["no_position"], 0)
         self.assertEqual(stats["skip_reasons"]["exposure_cap"], 0)
-        self.assertEqual(stats["skipped_trades"], 2)
+        self.assertEqual(stats["skipped_trades"], 1)
+        self.assertEqual(stats["filtered_trades"], 1)
 
     def test_source_peak_concurrency_counts_open_positions(self):
         trades = frame(
@@ -703,6 +722,52 @@ class RunBacktestTests(unittest.TestCase):
         # Ohne Fit laeuft die Bankroll voll: 4 Kopien, der Rest am Deckel.
         self.assertEqual(result.stats["copied_trades"], 4)
         self.assertEqual(result.stats["skip_reasons"]["exposure_cap"], 6)
+
+    def test_auto_fit_follows_the_largest_entries_at_the_set_stake(self):
+        # Drei grosse Einstiege (notional 500) neben sieben kleinen (5), alle
+        # gleichzeitig offen. Budget 100 bei Einsatz 25 -> Kapazitaet 3:
+        # Auto-Fit setzt die Folge-Schwelle auf 500 und kopiert die drei
+        # grossen beim EINGESTELLTEN Einsatz, statt den Einsatz auf Staub zu
+        # schrumpfen. Die kleinen sind "filtered", nicht "skipped".
+        rows = [
+            trade(f"2026-05-{tag:02d}", "BUY", 0.50, 1000.0, asset=f"gross-{tag}", market_key=f"g-{tag}")
+            for tag in range(1, 4)
+        ] + [
+            trade(f"2026-05-{tag:02d}", "BUY", 0.50, 10.0, asset=f"klein-{tag}", market_key=f"k-{tag}")
+            for tag in range(4, 11)
+        ]
+        activity = pd.DataFrame(rows)
+
+        def fetch_activity(wallet, limit=500, offset=0):
+            return activity if offset == 0 else pd.DataFrame()
+
+        result = bt.run_backtest(
+            config(bankroll=100.0, stake_value=25.0, auto_fit=True),
+            fetch_activity=fetch_activity,
+            fetch_markets_by_ids=lambda ids: [],
+            now=pd.Timestamp("2026-06-10", tz="UTC"),
+        )
+        fit = result.stats["auto_fit"]
+        self.assertTrue(fit["applied"])
+        self.assertEqual(fit["mode"], "threshold")
+        self.assertAlmostEqual(fit["follow_threshold"], 500.0, places=6)
+        self.assertEqual(fit["followed_positions"], 3)
+        self.assertAlmostEqual(fit["stake"], 25.0, places=6)
+        self.assertEqual(result.stats["copied_trades"], 3)
+        self.assertEqual(result.stats["filtered_trades"], 7)
+        self.assertEqual(result.stats["skipped_trades"], 0)
+
+    def test_fit_follow_threshold_binary_search(self):
+        t0 = pd.Timestamp("2026-05-01", tz="UTC")
+        intervals = [(t0, None, float(n)) for n in (5, 10, 50, 200, 500)]
+        # Kapazitaet 2: nur die zwei groessten Einstiege passen -> Schwelle 200.
+        self.assertAlmostEqual(bt._fit_follow_threshold(intervals, 2), 200.0, places=6)
+        # Alles passt -> Schwelle 0.
+        self.assertEqual(bt._fit_follow_threshold(intervals, 5), 0.0)
+        # Selbst der groesste Einstieg allein passt nicht -> None.
+        self.assertIsNone(bt._fit_follow_threshold([(t0, None, 50.0)] * 3, 0))
+        gleich = [(t0, None, 50.0), (t0, None, 50.0), (t0, None, 50.0)]
+        self.assertIsNone(bt._fit_follow_threshold(gleich, 2))
 
     def test_auto_fit_leaves_self_sizing_modes_alone(self):
         result = bt.run_backtest(

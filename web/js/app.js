@@ -110,6 +110,9 @@ class Terminal {
       // dass Bankroll und Exposure-Deckel dem Tempo folgen koennen. Was
       // angewendet wurde, steht im Ergebnis; abschaltbar neben dem Einsatz.
       btAutoFit: true,
+      // Manuelle Folge-Schwelle (nur bei Auto-Fit aus): Quell-Trades unter
+      // diesem Notional werden nicht kopiert, sondern als "filtered" gefuehrt.
+      btMinNotional: 0,
       btStakeFixed: 25,
       btStakePct: 2,
       btStakeMult: 1,
@@ -1015,6 +1018,7 @@ class Terminal {
       strategy: s.btStrategy,
       sizing_mode: s.btSizing,
       auto_fit: !!s.btAutoFit,
+      min_notional: s.btMinNotional,
       stake_fixed: s.btStakeFixed,
       stake_pct: s.btStakePct,
       stake_mult: s.btStakeMult,
