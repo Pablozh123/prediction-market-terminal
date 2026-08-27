@@ -1448,17 +1448,18 @@ class Terminal {
     setInterval(() => {
       if (this.state.page === 'copy' && !this.state.copyBusy && this.liveData.copy && this.liveData.copy._quelle === 'live') this.copyReload(true);
     }, 30000);
-    // Die Live-runs-Seite liest ihre Nutzlasten alle 60 s neu, solange sie
-    // offen ist: runs.json und der Wallet-Ledger aendern sich durch die
-    // Publish-Laeufe, und ein einmal geladener Stand blieb sonst bis zum
-    // Seiten-Reload stehen. Offene <details> ueberleben den Render, weil
-    // app.js sie ueber data-key wiederherstellt.
+    // Die Seiten mit lebenden Nutzlasten (Live runs, Pilot) lesen alle 60 s
+    // neu, solange sie offen sind: runs.json, pilot.json und der Wallet-
+    // Ledger aendern sich durch die Publish-Laeufe, und ein einmal geladener
+    // Stand blieb sonst bis zum Seiten-Reload stehen. Offene <details>
+    // ueberleben den Render, weil app.js sie ueber data-key wiederherstellt.
+    const REFRESH_STUDIEN = { 'Live runs': ['Live runs', 'Pipeline forward'], 'Pilot': ['Pilot'] };
     setInterval(() => {
       if (this.state.page !== 'research') return;
       const studie = this.studies[this.state.researchTab];
-      if (!studie || studie.tab !== 'Live runs') return;
-      this.liveData.research['Live runs'] = null;
-      this.liveData.research['Pipeline forward'] = null;
+      const keys = studie && REFRESH_STUDIEN[studie.tab];
+      if (!keys) return;
+      keys.forEach((k) => { this.liveData.research[k] = null; });
       ledgerVerwerfen();
       this.fetchPageData('research');
     }, 60000);

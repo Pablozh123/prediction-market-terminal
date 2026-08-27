@@ -157,10 +157,14 @@ export function diagramm(dia) {
     y += ZEILE;
   });
 
+  // Gedeckelte Breite: das SVG skaliert seinen Inhalt mit. Ohne Deckel wuchs
+  // jede Zeile auf breiten Fenstern mit (958px Spalte = Faktor 1.5, Text
+  // 17px) und ein 20-Zeilen-Diagramm stand fast 1000px hoch neben den
+  // kompakten HTML-Tabellen.
   return '<div style="' + CARD + '; padding:14px 16px 10px">'
     + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(var(--ink),.5); margin-bottom:4px">'
     + esc(dia.titel || '') + (dia.einheit ? ' · ' + esc(dia.einheit) : '') + '</div>'
-    + '<svg width="100%" viewBox="0 0 ' + BREITE + ' ' + hoehe + '" role="img" aria-label="' + esc(dia.titel || 'chart') + '">'
+    + '<svg width="100%" viewBox="0 0 ' + BREITE + ' ' + hoehe + '" role="img" aria-label="' + esc(dia.titel || 'chart') + '" style="display:block; max-width:660px">'
     + achse(sk, dia, hoehe) + koerper + '</svg></div>';
 }
 

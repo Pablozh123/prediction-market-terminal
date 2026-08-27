@@ -995,13 +995,12 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertNotIn("LOG VS WALLET", leer)
 
     def test_live_runs_liest_ihre_daten_periodisch_neu(self) -> None:
-        # Die Seite liest runs.json und den Wallet-Ledger alle 60 s neu,
-        # solange sie offen ist. Dafuer wird der einmal-Cache der Research-
+        # Live runs und Pilot lesen ihre Nutzlasten alle 60 s neu, solange
+        # sie offen sind. Dafuer wird der einmal-Cache der Research-
         # Nutzlasten geleert und der Modul-Cache des Ledgers verworfen.
         app_js = (WURZEL / "web" / "js" / "app.js").read_text(encoding="utf-8")
         self.assertIn("ledgerVerwerfen()", app_js)
-        self.assertIn("this.liveData.research['Live runs'] = null", app_js)
-        self.assertIn("this.liveData.research['Pipeline forward'] = null", app_js)
+        self.assertIn("REFRESH_STUDIEN = { 'Live runs': ['Live runs', 'Pipeline forward'], 'Pilot': ['Pilot'] }", app_js)
         sys_js = (WURZEL / "web" / "js" / "pages" / "system_pages.js").read_text(encoding="utf-8")
         self.assertIn("export function ledgerVerwerfen", sys_js)
 
@@ -1242,9 +1241,17 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertNotIn("Protokoll", text)
         # Statische Kacheln: Einsatz aus den Trades, Abweichung benannt.
         self.assertIn("STAKE PER TRADE $5 protocol $10 · deviates from the frozen text", text)
-        self.assertIn("TRADES 20 20 still open", text)
+        # W/L und Netto-Cash aus dem Wallet-Ledger, nicht "still open" aus
+        # der Trade-Liste ohne Aufloesungen.
+        self.assertIn("TRADES 20 10W · 9L · 1 flat · wallet, worthless counts as lost", text)
+        self.assertIn("NET CASH (WALLET · PILOT) -$11 sells + redemptions - buys · as of 2026-08-27", text)
+        self.assertNotIn("still open", text)
+        self.assertIn("HOW IT ENDED · WALLET", text)
+        self.assertIn("All 20 positions have resolved: 10W · 9L · 1 flat (wallet, worthless counts as lost).", text)
+        self.assertIn("Net cash of the pilot: -$11.11 on $100 deployed", text)
         # Keine Serie: die ehrliche Zeile statt einer Kurve, dann Slippage.
         self.assertIn("PILOT EQUITY VS RULE ADHERENCE: no series", text)
+        self.assertIn("every position exited through resolution, the wallet outcome is in the card above", text)
         self.assertNotRegex(html, r'<polyline points="\s*\d')
         self.assertIn("SLIPPAGE PER TRADE · EXECUTION MINUS SIGNAL PRICE · n 20", text)
         self.assertIn("10 of 20 worse than signal · mean +0.50¢", text)

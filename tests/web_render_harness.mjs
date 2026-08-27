@@ -643,6 +643,17 @@ function mitDaten(T) {
       exit_grund: 'haelt bis zur Aufloesung (Protokoll)', bemerkung: 'automatisiert (V3): fill'
     });
   }
+  // Wallet-Ledger-Scheibe des Piloten (wie die Produktionszahlen: 10 won,
+  // 6 lost, 3 worthless, 1 flat): die Seite liest W/L und Netto-Cash daraus,
+  // nicht mehr aus der Trade-Liste ohne Aufloesungen.
+  const pilotLedgerMaerkte = [];
+  for (let i = 0; i < 20; i += 1) {
+    pilotLedgerMaerkte.push({
+      titel: 'Harness pilot market ' + (i + 1) + '?', seite: 'No', zuordnung: 'pilot', run_profil: '',
+      einsatz_usd: 5, pnl_usd: i < 10 ? 0.2 : -5,
+      status: i < 10 ? 'won' : (i < 16 ? 'lost' : (i < 19 ? 'worthless' : 'flat'))
+    });
+  }
   T.liveData.research['Pilot'] = {
     _quelle: 'live', stand_utc: '2026-08-07T04:33:12+00:00', hinweis: 'Harness pilot note.', kennzeichnung: 'pilot/preregistered',
     protokoll: { budget_usdc: 100, einsatz_je_trade_usdc: 10, regel_freeze_datum: '2026-07-18', handelsfenster_bis: '2026-08-01' },
@@ -650,7 +661,14 @@ function mitDaten(T) {
     watcher_statistik: { maerkte: 1992, arm2_bereits_abgelaufen: 1155, gekappt: 415 },
     signal_zaehler: { 'arm2:signal': 322, 'arm1:kandidat_referenz_pruefen': 1 },
     signale_neueste: [],
-    trades: pilotTrades
+    trades: pilotTrades,
+    extras: {
+      wallet_ledger: {
+        stand_utc: '2026-08-27T19:10:28+00:00',
+        aggregat: { nach_typ: { pilot: { events: 18, maerkte: 20, einsatz_usd: 100.16, netto_cash_usd: -11.11 } } },
+        events: [{ event_slug: 'harness-pilot-all', typ: 'pilot', maerkte: pilotLedgerMaerkte }]
+      }
+    }
   };
   // Pipeline forward: zwei Laeufe mit ihren Eintraegen (die Seite zaehlt
   // ueber alle Laeufe, nicht ueber die Spiegel-Liste oben), ein Kauf.
