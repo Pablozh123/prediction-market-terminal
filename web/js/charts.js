@@ -404,6 +404,90 @@ export function pnlZeitkurve(k) {
     + '</svg>';
 }
 
+/** Gespiegelte Zeitbalken: Zufluesse wachsen von der Nulllinie nach oben,
+ *  Abfluesse nach unten. Beide Seiten teilen denselben $-je-px-Massstab —
+ *  die Nulllinie sitzt dort, wo das Groessenverhaeltnis sie hinschiebt,
+ *  damit oben und unten optisch vergleichbar bleiben.
+ *
+ *  k: { titel, einheit, hinweis, legende (fertiges HTML),
+ *       bins: [{ oben, unten, zeit }],
+ *       xLabels: [{ i, text, anker }],
+ *       marken: [{ bin, oben: bool, text }] }
+ *  Unter zwei Bins oder ohne einen Dollar auf beiden Seiten: kein Diagramm.
+ */
+export function spiegelZeit(k) {
+  if (!k || !Array.isArray(k.bins) || k.bins.length < 2) return '';
+  const maxO = Math.max(0, ...k.bins.map((b) => +b.oben || 0));
+  const maxU = Math.max(0, ...k.bins.map((b) => +b.unten || 0));
+  if (maxO + maxU <= 0) return '';
+  const B = 900, H = 224;
+  const L = 12, R = B - 78, TOP = 16, BOT = H - 26;
+  const skala = (BOT - TOP) / (maxO + maxU);
+  const basis = TOP + maxO * skala;
+  const bw = (R - L) / k.bins.length;
+
+  let koerper = '';
+  k.bins.forEach((b, i) => {
+    const x = (L + i * bw + 1).toFixed(1);
+    const w = Math.max(1, bw - 2).toFixed(1);
+    const o = (+b.oben || 0) * skala;
+    const u = (+b.unten || 0) * skala;
+    const zeit = b.zeit ? b.zeit + ' · ' : '';
+    if (o > 0) {
+      koerper += '<rect x="' + x + '" y="' + (basis - o).toFixed(1) + '" width="' + w + '" height="' + Math.max(1.5, o).toFixed(1)
+        + '" rx="1.5" style="fill:var(--pos)" fill-opacity=".85"><title>' + esc(zeit + 'buys ' + kurzGeld(+b.oben)) + '</title></rect>';
+    }
+    if (u > 0) {
+      koerper += '<rect x="' + x + '" y="' + basis.toFixed(1) + '" width="' + w + '" height="' + Math.max(1.5, u).toFixed(1)
+        + '" rx="1.5" style="fill:var(--neg)" fill-opacity=".85"><title>' + esc(zeit + 'sells ' + kurzGeld(+b.unten)) + '</title></rect>';
+    }
+  });
+
+  // Nulllinie durchgezogen, die beiden Seitenmaxima als Ticks rechts.
+  let achsen = '<line x1="' + L + '" y1="' + basis.toFixed(1) + '" x2="' + R + '" y2="' + basis.toFixed(1)
+    + '" style="stroke:rgba(var(--ink),.28)" stroke-width="1" />';
+  const tickStil = 'font-size="10.5" font-family="IBM Plex Mono, monospace"';
+  if (maxO > 0) {
+    achsen += '<text x="' + (R + 8) + '" y="' + (TOP + 4) + '" style="fill:var(--pos)" ' + tickStil + '>' + esc(kurzGeld(maxO)) + '</text>'
+      + '<line x1="' + L + '" y1="' + TOP + '" x2="' + R + '" y2="' + TOP + '" style="stroke:rgba(var(--ink),.07)" stroke-width="1" />';
+  }
+  if (maxU > 0) {
+    achsen += '<text x="' + (R + 8) + '" y="' + (BOT + 4) + '" style="fill:var(--neg)" ' + tickStil + '>' + esc(kurzGeld(maxU)) + '</text>'
+      + '<line x1="' + L + '" y1="' + BOT + '" x2="' + R + '" y2="' + BOT + '" style="stroke:rgba(var(--ink),.07)" stroke-width="1" />';
+  }
+  achsen += '<text x="' + (R + 8) + '" y="' + (basis + 4).toFixed(1) + '" style="fill:rgba(var(--ink),.55)" ' + tickStil + '>0</text>';
+
+  let xLabels = '';
+  (Array.isArray(k.xLabels) ? k.xLabels : []).forEach((l) => {
+    if (l.i == null || l.i < 0 || l.i >= k.bins.length) return;
+    xLabels += '<text x="' + (L + (l.i + 0.5) * bw).toFixed(1) + '" y="' + (H - 9) + '" style="fill:rgba(var(--ink),.6)" font-size="10.5" '
+      + 'font-family="IBM Plex Mono, monospace" text-anchor="' + (l.anker || 'middle') + '">' + esc(String(l.text)) + '</text>';
+  });
+
+  // Marken sitzen knapp ausserhalb ihres Balkens, auf der Seite des Prints.
+  let marken = '';
+  (Array.isArray(k.marken) ? k.marken : []).forEach((m) => {
+    if (m.bin == null || m.bin < 0 || m.bin >= k.bins.length) return;
+    const b = k.bins[m.bin];
+    const cx = (L + (m.bin + 0.5) * bw).toFixed(1);
+    const cy = m.oben
+      ? Math.max(TOP - 6, basis - (+b.oben || 0) * skala - 7)
+      : Math.min(BOT + 6, basis + (+b.unten || 0) * skala + 7);
+    marken += '<circle cx="' + cx + '" cy="' + cy.toFixed(1) + '" r="3" style="fill:var(--warn); stroke:var(--panel)" stroke-width="1.5">'
+      + '<title>' + esc(m.text || '') + '</title></circle>';
+  });
+
+  return '<div style="' + CARD + '; padding:14px 16px 10px">'
+    + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:4px">'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(var(--ink),.5)">'
+    + esc(k.titel || '') + (k.einheit ? ' · ' + esc(k.einheit) : '') + '</div>'
+    + (k.hinweis ? '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.55)">' + esc(k.hinweis) + '</div>' : '')
+    + '</div>'
+    + (k.legende ? '<div style="display:flex; gap:12px; flex-wrap:wrap; margin:4px 0 6px">' + k.legende + '</div>' : '')
+    + '<svg width="100%" viewBox="0 0 ' + B + ' ' + H + '" role="img" aria-label="' + esc(k.titel || 'flow') + '">'
+    + achsen + koerper + marken + xLabels + '</svg></div>';
+}
+
 /** Treppenkurve fuer eine kumulierte Serie, ein Punkt je Schritt.
  *
  *  k: { titel, einheit, hinweis, punkte: [{ label, wert }] }. Unter zwei

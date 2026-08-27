@@ -4,6 +4,7 @@
 // or the panel says which payload is missing.
 
 import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, signedMoney, stempel, EINZAHLUNGEN_USD } from '../util.js';
+import { spiegelZeit, kurzGeld } from '../charts.js';
 import { studieAnker } from './microstructure_page.js';
 
 const M = "font-family:'IBM Plex Mono',monospace";
@@ -43,7 +44,14 @@ function marketRowHtml(v) {
     + '<div style="' + v.changeStyle + '">' + v.changeLabel + '</div>'
     + '<div style="' + M + '; font-size:12px; text-align:right; color:rgba(var(--ink),.55)">' + esc(v.spreadLabel || '—') + '</div>'
     + '<div style="' + M + '; font-size:12px; text-align:right; color:rgba(var(--ink),.55)">' + esc(v.liqLabel || '—') + '</div>'
-    + '<div style="' + M + '; font-size:13px; text-align:right">' + v.volLabel + '</div>'
+    // Unter der Volumenzahl ihr Anteil am groessten Volumen der Sicht, als
+    // 56px-Balken: die Standard-Sortierspalte wird so ohne Lesen scannbar.
+    + '<div style="text-align:right"><div style="' + M + '; font-size:13px">' + v.volLabel + '</div>'
+    + (v.volShare != null
+      ? '<div style="margin:4px 0 0 auto; width:56px; height:2px; border-radius:1px; background:rgba(var(--ink),.1)">'
+        + '<div style="width:' + v.volShare.toFixed(1) + '%; height:100%; border-radius:1px; background:rgba(var(--ink),.45)"></div></div>'
+      : '')
+    + '</div>'
     + '<div style="' + M + '; font-size:12px; text-align:right; color:rgba(var(--ink),.55)">' + esc(v.ends) + '</div></div>';
 }
 
@@ -514,6 +522,7 @@ export function renderMarkets(T) {
     return b.vol - a.vol;
   });
 
+  const maxVol = mRows.reduce((a, m) => Math.max(a, m.vol), 0);
   const badge = mActive.length ? M + '; font-size:11px; color:var(--on-accent); background:var(--accent); border-radius:4px; padding:1px 7px' : 'display:none';
   const chevron = M + '; font-size:16px; color:rgba(var(--ink),.5); transition:transform .18s ease; transform:rotate(' + (s.marketFiltersOpen ? '90deg' : '0deg') + ')';
 
@@ -586,13 +595,105 @@ export function renderMarkets(T) {
     + '<div ' + T.act(() => T.setState({ marketSort: 'ending' })) + ' aria-pressed="' + (s.marketSort === 'ending' ? 'true' : 'false') + '"' + ' style="text-align:right; cursor:pointer; padding:5px 0; color:' + (s.marketSort === 'ending' ? 'var(--accent)' : 'rgba(var(--ink),.6)') + '">RESOLVES</div></div>'
     + mRows.map((m) => marketRowHtml(Object.assign(T.marketView(m), {
       spreadLabel: mx(m).spread != null ? mx(m).spread + '¢' : '—',
-      liqLabel: m.liq ? money(m.liq) : '—'
+      liqLabel: m.liq ? money(m.liq) : '—',
+      volShare: maxVol > 0 && m.vol > 0 ? Math.max(2, (100 * m.vol) / maxVol) : null
     }))).join('')
     + (mRows.length === 0 ? '<div style="padding:60px; text-align:center; ' + M + '; font-size:12px; color:rgba(var(--ink),.55)">No market matches that filter.</div>' : '')
     + '</div>';
 }
 
 // ---------------------------------------------------------------- flow (live tape)
+
+// Prints ab dieser Groesse tragen eine Marke im Puls-Diagramm. Fest, nicht
+// der Filter-Mindestwert: der liegt bei $2.5K und wuerde jeden Balken markieren.
+const PULS_MARKE_USD = 50000;
+const PULS_MARKE_LABEL = '$50K';
+
+// Minuten als Achsenlabel: unter einer Stunde in Minuten, darueber in
+// Stunden mit einer Dezimalen, wo die Rundung sonst luegen wuerde (70 min
+// ist 1.2h, nicht 1h).
+function dauerLabel(mins) {
+  if (mins < 60) return Math.round(mins) + 'min';
+  const h = +(mins / 60).toFixed(1);
+  return (Number.isInteger(h) ? Math.round(h) : h) + 'h';
+}
+
+// Die gefilterten Prints in Zeit-Bins fuer das gespiegelte Puls-Diagramm.
+// Bin 0 ist der aelteste; die Schrittweite waechst mit dem Fenster, damit
+// hoechstens ~36 Balken entstehen. Prints ohne Zeitstempel (mins 999 aus
+// mapTrade) bleiben draussen — ein Balken ohne Zeit waere eine Erfindung.
+function tapePulsHtml(prints, buys, sells) {
+  const valid = prints.filter((t) => t.mins < 999);
+  if (valid.length < 3) return '';
+  const span = Math.max(5, ...valid.map((t) => t.mins));
+  const schritt = [5, 10, 15, 30, 60, 120, 240].find((sc) => Math.ceil((span + 1) / sc) <= 36) || 480;
+  const nBins = Math.ceil((span + 1) / schritt);
+  if (nBins < 2) return '';
+  const bins = Array.from({ length: nBins }, (_, i) => {
+    const bis = (nBins - 1 - i) * schritt;
+    // Bin-Grenzen in Minuten, solange die Schrittweite unter einer Stunde
+    // liegt — gerundete Stunden machten aus "125–120 min ago" ein "2h–2h ago".
+    const zeit = bis === 0 ? 'last ' + dauerLabel(schritt)
+      : schritt < 60 ? (bis + schritt) + '–' + bis + ' min ago'
+        : dauerLabel(bis + schritt) + '–' + dauerLabel(bis) + ' ago';
+    return { oben: 0, unten: 0, zeit };
+  });
+  const marken = [];
+  valid.forEach((t) => {
+    const i = Math.min(nBins - 1, Math.max(0, nBins - 1 - Math.floor(t.mins / schritt)));
+    const kauf = t.side.indexOf('BUY') === 0;
+    bins[i][kauf ? 'oben' : 'unten'] += t.size;
+    if (t.size >= PULS_MARKE_USD) marken.push({ bin: i, oben: kauf, text: t.market + ' · ' + t.side + ' · ' + money(t.size) });
+  });
+  const swatch = (farbe) => '<span style="display:inline-block; width:10px; height:10px; border-radius:2px; background:' + farbe + '"></span>';
+  const eintrag = (inhalt) => '<div style="display:flex; align-items:center; gap:6px; ' + M + '; font-size:11px; color:rgba(var(--ink),.65)">' + inhalt + '</div>';
+  const netto = buys - sells;
+  const legende = eintrag(swatch('var(--pos)') + 'buys ' + money(buys))
+    + eintrag(swatch('var(--neg)') + 'sells ' + money(sells))
+    + eintrag('net <span style="color:' + (netto >= 0 ? 'var(--pos)' : 'var(--neg)') + '">' + kurzGeld(netto, true) + '</span>')
+    + (marken.length ? eintrag('<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--warn)"></span>print ≥ ' + PULS_MARKE_LABEL) : '');
+  return spiegelZeit({
+    titel: 'FLOW PULSE',
+    hinweis: 'per ' + dauerLabel(schritt) + ' · filtered prints',
+    legende, bins, marken,
+    xLabels: [
+      { i: 0, text: '-' + dauerLabel(nBins * schritt), anker: 'start' },
+      { i: Math.floor((nBins - 1) / 2), text: '-' + dauerLabel(Math.ceil(nBins / 2) * schritt), anker: 'middle' },
+      { i: nBins - 1, text: 'now', anker: 'end' }
+    ]
+  });
+}
+
+// Wohin das Geld gerade fliesst: eine Zeile je Kategorie der gefilterten
+// Prints, Balkenlaenge nach Gesamtsumme, innen der Kauf/Verkauf-Anteil.
+function kategorieFlussHtml(prints) {
+  if (!prints.length) return '';
+  const je = {};
+  prints.forEach((t) => {
+    const c = t.category || 'Other';
+    const e = je[c] || (je[c] = { kauf: 0, verkauf: 0 });
+    e[t.side.indexOf('BUY') === 0 ? 'kauf' : 'verkauf'] += t.size;
+  });
+  const rows = Object.keys(je)
+    .map((c) => ({ cat: c, kauf: je[c].kauf, verkauf: je[c].verkauf, summe: je[c].kauf + je[c].verkauf }))
+    .sort((a, b) => b.summe - a.summe);
+  const max = rows[0].summe || 1;
+  const seg = (anteil, farbe) => (anteil > 0
+    ? '<div style="flex:' + anteil.toFixed(4) + '; height:7px; border-radius:2px; background:' + farbe + '; opacity:.85"></div>'
+    : '');
+  const zeilen = rows.map((r) => {
+    const breite = Math.max(2, (100 * r.summe) / max);
+    const kaufAnteil = r.summe ? Math.round((100 * r.kauf) / r.summe) : 0;
+    return '<div style="display:grid; grid-template-columns:104px 1fr 76px 66px; gap:10px; align-items:center; padding:8px 14px; border-bottom:1px solid rgba(var(--ink),.05)">'
+      + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.65); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(r.cat) + '">' + esc(r.cat.toUpperCase()) + '</div>'
+      + '<div style="min-width:0"><div style="display:flex; gap:2px; width:' + breite.toFixed(1) + '%" title="' + esc('buys ' + money(r.kauf) + ' · sells ' + money(r.verkauf)) + '">'
+      + seg(r.kauf, 'var(--pos)') + seg(r.verkauf, 'var(--neg)') + '</div></div>'
+      + '<div style="' + M + '; font-size:11.5px; text-align:right">' + kurzGeld(r.summe) + '</div>'
+      + '<div style="' + M + '; font-size:11px; text-align:right; color:rgba(var(--ink),.55)">' + kaufAnteil + '% buy</div></div>';
+  }).join('');
+  return insightPanel('WHERE THE MONEY FLOWS', 'filtered prints · buys vs sells', zeilen, '');
+}
+
 export function renderFlow(T) {
   const s = T.state;
   if (!T.tape.length) {
@@ -602,13 +703,26 @@ export function renderFlow(T) {
   const tapeFiltered = T.tapeFiltered();
   const tapeNotional = tapeFiltered.reduce((a, t) => a + t.size, 0);
   const tapeWallets = tapeFiltered.filter((t) => t.wallet !== '—').map((t) => t.wallet).filter((v, i, arr) => arr.indexOf(v) === i).length;
-  const tapeBiggest = tapeFiltered.reduce((a, t) => Math.max(a, t.size), 0);
-  const kpis = [
-    { label: 'PRINTS SHOWN', value: String(tapeFiltered.length) },
-    { label: 'TOTAL MOVED', value: money(tapeNotional) },
-    { label: 'WALLETS INVOLVED', value: String(tapeWallets) },
-    { label: 'BIGGEST PRINT', value: money(tapeBiggest) }
-  ];
+  const identifiziert = tapeFiltered.filter((t) => t.wallet !== '—').length;
+  const buys = tapeFiltered.filter((t) => t.side.indexOf('BUY') === 0).reduce((a, t) => a + t.size, 0);
+  const sells = tapeNotional - buys;
+  const groesster = tapeFiltered.reduce((a, t) => (t.size > (a ? a.size : -1) ? t : a), null);
+  const kurzTitel = (t) => (String(t).length > 38 ? String(t).slice(0, 37) + '…' : String(t));
+
+  // Neue Prints gleiten ein wie im Landing-Tape: animiert wird nur, was mit
+  // der letzten Poll-Antwort ankam. Der Seen-Satz haelt das volle Fenster,
+  // nicht die Filtersicht — ein Filterklick spielt keine Eintritte nach.
+  const schluessel = (t) => [t.ts || '', t.walletAddress || t.wallet, t.marketKey, t.side, t.size].join('|');
+  const erste = !(T._flowGesehen instanceof Set);
+  const gesehen = erste ? new Set() : T._flowGesehen;
+  T._flowGesehen = new Set(T.tape.map(schluessel));
+
+  const puls = tapePulsHtml(tapeFiltered, buys, sells);
+  const katFluss = kategorieFlussHtml(tapeFiltered);
+  const grafiken = puls || katFluss
+    ? '<div style="display:grid; grid-template-columns:' + (puls && katFluss ? 'minmax(0,1.65fr) minmax(0,1fr)' : '1fr') + '; gap:12px; padding:14px 24px; border-bottom:1px solid rgba(var(--ink),.09)">'
+      + puls + katFluss + '</div>'
+    : '';
 
   return '<div>'
     + '<div style="padding:20px 24px 14px; border-bottom:1px solid rgba(var(--ink),.09)">'
@@ -631,22 +745,28 @@ export function renderFlow(T) {
     + '</div></div>'
 
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid rgba(var(--ink),.09)">'
-    + kpis.map((k, i) =>
-      '<div style="padding:14px 24px' + (i < 3 ? '; border-right:1px solid rgba(var(--ink),.09)' : '') + '">'
-      + '<div style="' + HEAD_CELL + '">' + k.label + '</div>'
-      + '<div style="' + M + '; font-size:22px; margin-top:7px">' + k.value + '</div></div>'
-    ).join('')
+    + kpiCell('PRINTS SHOWN', num(tapeFiltered.length),
+      'of ' + num(T.tape.length) + ' in the tape window', true)
+    + kpiCell('TOTAL MOVED', money(tapeNotional),
+      tapeNotional ? Math.round((100 * buys) / tapeNotional) + '% buys · net ' + kurzGeld(buys - sells, true) : 'nothing passes the filters', true)
+    + kpiCell('WALLETS INVOLVED', num(tapeWallets),
+      tapeWallets ? num(identifiziert) + ' prints from identified wallets' : 'Kalshi publishes no wallet identities', true)
+    + kpiCell('BIGGEST PRINT', groesster ? money(groesster.size) : '—',
+      groesster ? esc(kurzTitel(groesster.market)) : 'no print passes the filters', false)
     + '</div>'
+
+    + grafiken
 
     + '<div style="display:grid; grid-template-columns:96px 160px 1fr 110px 84px 90px 110px 96px; padding:10px 24px; border-bottom:1px solid rgba(var(--ink),.09); background:var(--panel); position:sticky; top:0; z-index:3; ' + HEAD_CELL + '">'
     + '<div>TIME</div><div>WALLET</div><div>MARKET</div><div>CATEGORY</div><div>SIDE</div><div style="text-align:right">PRICE</div><div style="text-align:right">SIZE</div><div style="text-align:right">VENUE</div></div>'
     + (tapeFiltered.length ? '' : leerZeile('No print in the tape window passes the current filters (size, category, side).'))
     + tapeFiltered.map((t0) => {
       const t = T.tapeRowView(t0);
+      const neu = !erste && !gesehen.has(schluessel(t0));
       // Only a print of a loaded market opens the drawer; the other rows are
       // plain rows, not pointers that lead nowhere.
       const klickbar = t.act && t.clickable !== false;
-      return '<div ' + (klickbar ? t.act + ' class="hv-panel"' : '') + ' style="display:grid; grid-template-columns:96px 160px 1fr 110px 84px 90px 110px 96px; align-items:center; padding:12px 24px; border-bottom:1px solid rgba(var(--ink),.06); ' + M + '; font-size:12.5px; ' + (klickbar ? 'cursor:pointer; ' : '') + '">'
+      return '<div ' + (klickbar ? t.act + ' ' : '') + 'class="' + (klickbar ? 'hv-panel' : '') + (neu ? ' tape-in' : '') + '" style="display:grid; grid-template-columns:96px 160px 1fr 110px 84px 90px 110px 96px; align-items:center; padding:12px 24px; border-bottom:1px solid rgba(var(--ink),.06); ' + M + '; font-size:12.5px; ' + (klickbar ? 'cursor:pointer; ' : '') + '">'
         + '<div style="color:rgba(var(--ink),.55)">' + esc(t.ago) + '</div>'
         + '<div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(t.wallet) + '">' + esc(t.wallet) + '</div>'
         + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:12px" title="' + esc(t.market) + '">' + esc(t.market) + '</div>'
