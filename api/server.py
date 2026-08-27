@@ -12,13 +12,14 @@ Im Container: ``python -m uvicorn api.server:app --host 0.0.0.0 --port 8787``.
 Umgebung (alles optional, Voreinstellung = lokale Entwicklung):
 
     API_HOST / API_PORT        Bind-Adresse fuer ``python api/server.py`` (127.0.0.1:8787)
-    CORS_ORIGINS               Komma-Liste erlaubter Origins; ohne Angabe nur die
-                               beiden lokalen Adressen. Das Frontend kommt vom selben
-                               Origin und braucht keinen Eintrag.
-    CORS_ORIGIN_REGEX          Optionales Muster zusaetzlich zur Liste — fuer Hosts
-                               mit wechselnden Vorschau-Origins (Cloudflare Pages
-                               erzeugt je Branch eine eigene Subdomain), z. B.
-                               https://.*\\.prediction-market-terminal\\.pages\\.dev
+    CORS_ORIGINS               Komma-Liste erlaubter Origins; ohne Angabe die lokalen
+                               Adressen plus marketintel.dev (der dokumentierte
+                               Pages-Host dieser API). Das Frontend vom selben Origin
+                               braucht keinen Eintrag.
+    CORS_ORIGIN_REGEX          Muster zusaetzlich zur Liste; ohne Angabe die
+                               Vorschau-Domains dieses Projekts
+                               (https://<branch>.prediction-market-terminal.pages.dev).
+                               Die Variable ersetzt das Muster vollstaendig.
     RATE_LIMIT_PER_MIN         Deckel fuer /api/backtest und /api/risk je IP (6);
                                RATE_LIMIT_BURST Spitze davon (3); 0 schaltet ab.
     RATE_LIMIT_WALLET_PER_MIN  Eigener Deckel fuer /api/wallet je IP (12), Spitze
@@ -131,28 +132,37 @@ def _env_int(name: str, default: int) -> int:
 
 
 def _cors_origins() -> list[str]:
-    """Erlaubte Origins aus CORS_ORIGINS; ohne Angabe nur die lokalen Adressen.
+    """Erlaubte Origins aus CORS_ORIGINS; ohne Angabe lokale Entwicklung
+    plus die produktive statische Auslieferung des Projekts.
 
-    Das Frontend wird vom selben Origin ausgeliefert und braucht gar keinen
-    CORS-Eintrag. Die Liste dient Entwicklern, die web/ von einem anderen
-    Port aus bedienen, und darf deshalb ruhig eng sein.
+    marketintel.dev ist der dokumentierte Pages-Host dieser API (README,
+    split hosting) — dass er die eigene API rufen darf, ist ein Fakt des
+    Projekts, keine Konfiguration. Vorher scheiterte genau daran das Live-
+    Band: healthz antwortete, aber der Browser verwarf jede /api-Antwort
+    mangels CORS-Header, und die Seite meldete API NOT REACHABLE. Die API
+    bleibt read-only; die Schreibpfade des Copy-Desks schuetzt der
+    Admin-Token, nicht die Origin-Liste.
     """
 
     raw = os.environ.get("CORS_ORIGINS", "")
     origins = [o.strip() for o in raw.split(",") if o.strip()]
-    return origins or ["http://127.0.0.1:8787", "http://localhost:8787"]
+    return origins or [
+        "http://127.0.0.1:8787", "http://localhost:8787",
+        "https://marketintel.dev", "https://www.marketintel.dev",
+    ]
 
 
 def _cors_origin_regex() -> str | None:
-    """Optionales Origin-Muster aus CORS_ORIGIN_REGEX.
+    """Origin-Muster aus CORS_ORIGIN_REGEX; ohne Angabe die Vorschau-Domains.
 
     Die feste Liste reicht nicht fuer Hosts, deren Vorschau-Origins wechseln:
-    Cloudflare Pages erzeugt je Branch und je Commit eine eigene Subdomain.
-    Ohne Angabe gilt weiter nur die Liste — die Voreinstellung bleibt eng.
+    Cloudflare Pages erzeugt je Branch und je Commit eine eigene Subdomain
+    unter prediction-market-terminal.pages.dev — auch das ein Fakt des
+    Projekts. Die Umgebungsvariable ersetzt das Muster vollstaendig.
     """
 
     raw = os.environ.get("CORS_ORIGIN_REGEX", "").strip()
-    return raw or None
+    return raw or r"https://[a-z0-9-]+\.prediction-market-terminal\.pages\.dev"
 
 
 @asynccontextmanager
