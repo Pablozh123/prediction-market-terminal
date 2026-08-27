@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import inspect
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Callable
 
 import pandas as pd
@@ -109,6 +109,13 @@ class BacktestConfig:
     # default: the assumed edge is an estimate, and overbetting past the
     # optimum destroys growth asymmetrically.
     kelly_fraction: float = 0.25
+    #: Einsatz automatisch an das Tempo der Quell-Wallet anpassen: der
+    #: Einsatz je Copy wird so gewaehlt, dass die Hoechstzahl gleichzeitig
+    #: offener Quell-Positionen in Bankroll und Exposure-Deckel passt.
+    #: Wirkt nur bei SIZING_FIXED und SIZING_PERCENT; die uebrigen Modi
+    #: dimensionieren sich selbst. Was angewendet wurde, steht in
+    #: ``stats["auto_fit"]`` — nichts wird still veraendert.
+    auto_fit: bool = False
 
 
 @dataclass(frozen=True)
@@ -737,6 +744,87 @@ def _resolve_token_values(
     return token_values
 
 
+def source_peak_concurrency(
+    trades: pd.DataFrame,
+    token_values: dict[str, dict[str, Any]] | None = None,
+) -> int:
+    """Hoechstzahl gleichzeitig offener Positionen der QUELL-Wallet im Fenster.
+
+    Chronologischer Durchlauf ueber die Trades selbst: BUY oeffnet oder
+    erhoeht, SELL reduziert, und eine Position gilt als geschlossen, sobald
+    ihr Markt laut ``token_values`` aufgeloest ist. Das ist die Kennzahl,
+    an der eine Copy-Bankroll wirklich haengt: nicht wie VIEL die Wallet
+    handelt, sondern wie viele Positionen sie zugleich offen halten kann.
+    """
+
+    if trades is None or trades.empty:
+        return 0
+    shares: dict[str, float] = {}
+    pending: list[tuple[pd.Timestamp, str]] = []
+    peak = 0
+    for _, trade in trades.sort_values("time", ascending=True).iterrows():
+        now = pd.to_datetime(trade.get("time"), utc=True, errors="coerce")
+        while pending and pd.notna(now) and pending[0][0] <= now:
+            _, done = pending.pop(0)
+            shares.pop(done, None)
+        side = str(trade.get("side", "") or "").upper()
+        asset = str(trade.get("asset", "") or "")
+        size = float(trade.get("size", 0.0) or 0.0)
+        if not asset or size <= 0.0:
+            continue
+        if side == "BUY":
+            neu = asset not in shares
+            shares[asset] = shares.get(asset, 0.0) + size
+            if neu and token_values:
+                info = token_values.get(asset, {})
+                end_time = info.get("end_time")
+                if info.get("closed") and isinstance(end_time, pd.Timestamp) and pd.notna(end_time):
+                    resolve_time = end_time if pd.isna(now) or end_time >= now else now
+                    pending.append((resolve_time, asset))
+                    pending.sort(key=lambda item: item[0])
+            peak = max(peak, len(shares))
+        elif side == "SELL":
+            rest = shares.get(asset, 0.0) - size
+            if asset in shares:
+                if rest <= 1e-9:
+                    shares.pop(asset, None)
+                else:
+                    shares[asset] = rest
+    return peak
+
+
+def _auto_fit_config(
+    config: BacktestConfig,
+    peak: int,
+) -> tuple[BacktestConfig, dict[str, Any]]:
+    """Einsatz je Copy an das gemessene Tempo der Wallet anpassen.
+
+    Budget = Bankroll x Exposure-Deckel; davon je gleichzeitiger Position
+    ein Anteil, mit zehn Prozent Reserve fuer Gebuehren und Slippage (die
+    Kasse liegt durch bezahlte Gebuehren immer unter dem Exposure-Budget).
+    Unter den Mindesteinsatz geht der Fit nicht — dann sagt das Ergebnis
+    ehrlich, dass selbst der Mindesteinsatz dem Tempo nicht folgen kann.
+    """
+
+    info: dict[str, Any] = {"applied": False, "peak_concurrent": int(peak), "stake": None}
+    if peak <= 0:
+        return config, info
+    budget = float(config.bankroll) * max(0.0, min(float(config.max_exposure_pct), 100.0)) / 100.0
+    fitted = max(MIN_STAKE, min(float(config.max_stake), 0.9 * budget / peak))
+    info["stake"] = fitted
+    if not config.auto_fit:
+        return config, info
+    if config.sizing_mode == SIZING_FIXED:
+        info["applied"] = True
+        return replace(config, stake_value=fitted), info
+    if config.sizing_mode == SIZING_PERCENT and config.bankroll > 0:
+        pct = 100.0 * fitted / float(config.bankroll)
+        info["applied"] = True
+        info["percent"] = pct
+        return replace(config, stake_value=pct), info
+    return config, info
+
+
 def run_backtest(
     config: BacktestConfig,
     *,
@@ -769,7 +857,12 @@ def run_backtest(
     if token_values is None:
         token_values = _resolve_token_values(trades, fetch_markets_by_ids, fetch_markets_by_event_slugs, token_value_builder)
 
-    ledger, positions = replay(trades, config, token_values)
+    # Tempo der Quell-Wallet messen und, wenn verlangt, den Einsatz daran
+    # anpassen — der Replay laeuft dann mit dem angepassten Einsatz statt
+    # blind in Kasse-leer/Exposure-Deckel zu laufen.
+    peak = source_peak_concurrency(trades, token_values)
+    replay_config, auto_fit_info = _auto_fit_config(config, peak)
+    ledger, positions = replay(trades, replay_config, token_values)
     flat_config = BacktestConfig(
         wallet=config.wallet,
         days=config.days,
@@ -809,6 +902,7 @@ def run_backtest(
     stats = compute_stats(full_ledger, open_positions, curve, config.bankroll)
     flat_stats = compute_stats(flat_full, flat_open, flat_curve, config.bankroll)
     stats["window_truncated"] = bool(window_truncated)
+    stats["auto_fit"] = auto_fit_info
     effective_start = trades["time"].min() if trades is not None and not trades.empty else window_start
     stats["effective_start"] = effective_start if pd.notna(effective_start) else window_start
 

@@ -1624,6 +1624,9 @@ def backtest(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
         slippage_bps=float(body.get("slippage_bps", 15.0)),
         strategy=strategy,
         max_exposure_pct=float(body.get("exposure_pct", 100.0)),
+        # Einsatz automatisch an das Tempo der Wallet anpassen (Engine misst
+        # die Hoechstzahl gleichzeitig offener Quell-Positionen).
+        auto_fit=bool(body.get("auto_fit", False)),
     )
     key = "bt_" + "_".join(str(v) for v in dataclasses.astuple(config))
 

@@ -125,10 +125,17 @@ export function renderBacktester(T) {
     reasons.other ? num(reasons.other) + ' other' : ''
   ].filter(Boolean).join(' · ') : '';
   const bankrollBound = reasons ? (reasons.out_of_cash + reasons.exposure_cap) : 0;
+  // Auto-Fit-Ergebnis der Engine: was sie gemessen (Hoechstzahl gleichzeitig
+  // offener Quell-Positionen) und ggf. als Einsatz angewendet hat.
+  const autoFit = st && st.auto_fit ? st.auto_fit : null;
+  const autoFitText = autoFit && autoFit.applied && autoFit.stake != null
+    ? 'auto-fit $' + (+autoFit.stake).toFixed(2) + ' per copy (wallet peaks at ' + num(autoFit.peak_concurrent) + ' open positions)'
+    : '';
 
   const shortWallet = s.btWallet.trim().length > 12 ? s.btWallet.trim().slice(0, 6) + '…' + s.btWallet.trim().slice(-4) : s.btWallet.trim();
   const gebuehrText = s.btFeeModel === 'flat' ? 'fees ' + s.btFee + ' bps flat' : 'fees on the venue curve';
-  const runMeta = (s.btStrategy === 'copy' ? 'Copy' : 'Fade') + ' · last ' + s.btWindow + ' days · wallet ' + shortWallet + ' · ' + SIZING[s.btSizing] + ' · ' + gebuehrText + ' · slippage ' + s.btSlip + ' bps'
+  const runMeta = (s.btStrategy === 'copy' ? 'Copy' : 'Fade') + ' · last ' + s.btWindow + ' days · wallet ' + shortWallet + ' · ' + SIZING[s.btSizing]
+    + (autoFitText ? ' · ' + autoFitText : '') + ' · ' + gebuehrText + ' · slippage ' + s.btSlip + ' bps'
     + (live && live.stats && live.stats.window_truncated
       ? ' · window truncated at the engine\'s trade cap' + (live.stats.effective_start ? ' — data reaches back to ' + live.stats.effective_start : '')
       : '');
@@ -270,6 +277,22 @@ export function renderBacktester(T) {
     + '<div style="flex:1; background:var(--panel); border:1px solid rgba(var(--ink),.16); border-radius:4px; padding:8px 12px; ' + M + '; font-size:13px; text-align:center">' + esc(stakeValue) + '</div>'
     + '<div ' + T.act(bt(T, stakeUp)) + ' class="hv-bd35w" style="width:32px; height:34px; flex:none; border:1px solid rgba(var(--ink),.16); border-radius:4px; display:flex; align-items:center; justify-content:center; ' + M + '; font-size:15px; color:rgba(var(--ink),.7); cursor:pointer">+</div></div>'
     + '<div style="font-size:11.5px; color:rgba(var(--ink),.6); margin-top:7px; line-height:1.5">' + stakeHint + '</div></div>'
+    // Auto-Fit: die Engine misst die Hoechstzahl gleichzeitig offener
+    // Quell-Positionen und passt den Einsatz je Copy so an, dass Bankroll
+    // und Exposure-Deckel dem Tempo der Wallet folgen koennen. Nur bei
+    // Fixed $ und % of bankroll — die anderen Modi dimensionieren selbst.
+    + (s.btSizing === 'fixed' || s.btSizing === 'pct'
+      ? '<div style="margin-top:12px"><div style="' + LBL95 + '">AUTO-FIT STAKE TO THE WALLET\'S PACE</div>'
+        + '<div style="display:flex; gap:6px">'
+        + T.opt('Auto-fit on', !!s.btAutoFit, bt(T, { btAutoFit: true }))
+        + T.opt('Manual stake', !s.btAutoFit, bt(T, { btAutoFit: false }))
+        + '</div>'
+        + '<div style="font-size:11.5px; color:rgba(var(--ink),.6); margin-top:7px; line-height:1.5">'
+        + (s.btAutoFit
+          ? 'The engine measures how many positions the wallet holds open at once and sizes each copy so the whole flow fits into bankroll and exposure cap. The applied stake is named in the result.'
+          : 'The stake above is used as set. If the wallet\'s pace outruns it, the result names the skipped share and the fitting stake.')
+        + '</div></div>'
+      : '')
     + '<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px">'
     + stepRow('CAP PER TRADE', '$' + s.btCap, { btCap: Math.max(10, s.btCap - 50) }, { btCap: s.btCap + 50 })
     + stepRow('MAX BANKROLL IN OPEN COPIES', s.btExposure + '%', { btExposure: Math.max(5, s.btExposure - 5) }, { btExposure: Math.min(100, s.btExposure + 5) })
@@ -356,7 +379,14 @@ export function renderBacktester(T) {
       + (reasonText ? ' — ' + reasonText : '')
       + '.'
       + (bankrollBound > skippedN / 2
-        ? ' The bankroll cannot follow this wallet\'s pace at this stake: with $' + num(s.btBankroll) + ' and about $' + Math.round(stake) + ' per copy, at most ' + Math.max(1, Math.floor(bank * s.btExposure / 100 / Math.max(1, stake))) + ' copies can be open at once. Lower the stake, raise the bankroll, or raise the exposure cap to copy more of the flow.'
+        ? (autoFit && autoFit.applied
+          // Auto-Fit lief und der Einsatz steht schon am Minimum: mehr
+          // Anpassung gibt es nicht, jetzt hilft nur mehr Bankroll.
+          ? ' Auto-fit already sized each copy at $' + (+autoFit.stake).toFixed(2) + ' — the minimum — but the wallet peaks at ' + num(autoFit.peak_concurrent) + ' open positions, more than $' + num(s.btBankroll) + ' can hold even at that stake. Only a larger bankroll follows this wallet fully.'
+          : ' The bankroll cannot follow this wallet\'s pace at this stake: with $' + num(s.btBankroll) + ' and about $' + Math.round(stake) + ' per copy, at most ' + Math.max(1, Math.floor(bank * s.btExposure / 100 / Math.max(1, stake))) + ' copies can be open at once.'
+            + (autoFit && autoFit.stake != null
+              ? ' Auto-fit would size each copy at $' + (+autoFit.stake).toFixed(2) + ' (wallet peaks at ' + num(autoFit.peak_concurrent) + ' open positions) — switch it on next to the stake and re-run.'
+              : ' Lower the stake, raise the bankroll, or raise the exposure cap to copy more of the flow.'))
         : ' The trade log below marks each one.')
       + '</div>' : '')
 

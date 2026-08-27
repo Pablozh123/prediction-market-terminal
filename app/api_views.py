@@ -1830,6 +1830,14 @@ def backtest_payload(result: Any) -> dict[str, Any]:
                 key: int(_num(value, 0.0) or 0)
                 for key, value in (stats.get("skip_reasons") or {}).items()
             },
+            # Auto-Fit: was die Engine gemessen und ggf. angewendet hat —
+            # Hoechstzahl gleichzeitig offener Quell-Positionen und der
+            # daraus abgeleitete Einsatz je Copy.
+            "auto_fit": {
+                "applied": bool((stats.get("auto_fit") or {}).get("applied", False)),
+                "stake": _num((stats.get("auto_fit") or {}).get("stake")),
+                "peak_concurrent": int(_num((stats.get("auto_fit") or {}).get("peak_concurrent"), 0.0) or 0),
+            },
         },
         "benchmark_stats": {
             "total_pnl": _num((result.benchmark_stats or {}).get("total_pnl"), 0.0),
