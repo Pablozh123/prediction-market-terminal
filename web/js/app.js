@@ -10,6 +10,7 @@ import { renderBacktester, renderCopy, renderPortfolio } from './pages/trading_p
 import { renderAlerts, renderResearch, renderSettings } from './pages/system_pages.js';
 import { renderWallet, isFullAddress } from './pages/wallet_page.js';
 import { renderDetail, renderSearch } from './overlays.js';
+import { mountAmbient } from './ambient.js';
 
 // Every route stays reachable by hash. The sidebar lists a subset (see
 // renderSidebar): Settings, Tracked, Copy trade, Portfolio and Resolved are
@@ -1206,6 +1207,9 @@ class Terminal {
     document.getElementById('main').innerHTML = pageFn(this);
     document.getElementById('detail').innerHTML = renderDetail(this);
     document.getElementById('search').innerHTML = renderSearch(this);
+    // Der Fluss hinter dem Hero und das Band laufen ausserhalb des
+    // State-Renders weiter; hier docken sie nur am frischen DOM an.
+    mountAmbient();
 
     const seiteJetzt = this.state.page + '/' + (this.state.page === 'research' ? this.state.researchTab : '');
     if (main && offen.length && seiteJetzt === seiteVorher) {
