@@ -15,6 +15,10 @@ Umgebung (alles optional, Voreinstellung = lokale Entwicklung):
     CORS_ORIGINS               Komma-Liste erlaubter Origins; ohne Angabe nur die
                                beiden lokalen Adressen. Das Frontend kommt vom selben
                                Origin und braucht keinen Eintrag.
+    CORS_ORIGIN_REGEX          Optionales Muster zusaetzlich zur Liste — fuer Hosts
+                               mit wechselnden Vorschau-Origins (Cloudflare Pages
+                               erzeugt je Branch eine eigene Subdomain), z. B.
+                               https://.*\\.prediction-market-terminal\\.pages\\.dev
     RATE_LIMIT_PER_MIN         Deckel fuer /api/backtest und /api/risk je IP (6);
                                RATE_LIMIT_BURST Spitze davon (3); 0 schaltet ab.
     RATE_LIMIT_WALLET_PER_MIN  Eigener Deckel fuer /api/wallet je IP (12), Spitze
@@ -139,6 +143,18 @@ def _cors_origins() -> list[str]:
     return origins or ["http://127.0.0.1:8787", "http://localhost:8787"]
 
 
+def _cors_origin_regex() -> str | None:
+    """Optionales Origin-Muster aus CORS_ORIGIN_REGEX.
+
+    Die feste Liste reicht nicht fuer Hosts, deren Vorschau-Origins wechseln:
+    Cloudflare Pages erzeugt je Branch und je Commit eine eigene Subdomain.
+    Ohne Angabe gilt weiter nur die Liste — die Voreinstellung bleibt eng.
+    """
+
+    raw = os.environ.get("CORS_ORIGIN_REGEX", "").strip()
+    return raw or None
+
+
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
     # Flag-Sampler (RISK_LOG_INTERVAL_MIN), siehe weiter unten; die Funktion
@@ -153,6 +169,7 @@ app = FastAPI(title="Terminal API", version="0.2", lifespan=_lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins(),
+    allow_origin_regex=_cors_origin_regex(),
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )

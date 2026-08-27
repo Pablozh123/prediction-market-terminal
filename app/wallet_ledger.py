@@ -207,6 +207,7 @@ def build_ledger(
     event_titles: Mapping[str, str] | None = None,
     stand_utc: str | None = None,
     quellen: Mapping[str, Any] | None = None,
+    einzahlungen_usd: float | None = None,
 ) -> dict[str, Any]:
     """The published ledger: header, ``aggregat`` and ``events[]``."""
 
@@ -419,8 +420,16 @@ def build_ledger(
     n_positions_ohne_activity = sum(1 for k in list(closed_by) + list(open_by) if k not in seen_positions)
 
     aggregat = {
-        "einzahlungen_usd": None,
-        "einzahlungen_hinweis": "not derivable from the public Data API (needs an on-chain USDC transfer scan)",
+        # Einzahlungen sieht das oeffentliche Data API nicht. Der Betreiber
+        # kann sie deklarieren (per USDC-Transfers der Wallet on-chain
+        # nachpruefbar); der Hinweis sagt dann, woher die Zahl stammt.
+        "einzahlungen_usd": _r2(einzahlungen_usd) if einzahlungen_usd is not None else None,
+        "einzahlungen_hinweis": (
+            "declared by the wallet owner; verifiable on-chain via the wallet's USDC transfers, "
+            "not derivable from the public Data API"
+            if einzahlungen_usd is not None
+            else "not derivable from the public Data API (needs an on-chain USDC transfer scan)"
+        ),
         "kaeufe_usd": _r2(buys_usd),
         "verkaeufe_usd": _r2(sells_usd),
         "einloesungen_usd": _r2(redeems_usd),

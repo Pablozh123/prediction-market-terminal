@@ -109,7 +109,9 @@ python scripts/build_static_site.py     # writes dist/ = web/ + public/data/
 
 Upload `dist/` to any static host (Cloudflare Pages, GitHub Pages, Netlify). Trading pages then show their honest "API did not answer" state instead of numbers.
 
-**Split hosting (static site + PaaS API).** The static site can point at an API on another host: `python scripts/build_static_site.py --api-base https://api.example.org` (or env `API_BASE_URL`) fills `<meta name="api-base">` in `dist/index.html`. The repo ships a `railway.json` — connect the repo on Railway, it builds the Dockerfile and starts `python api/server.py`, which binds `0.0.0.0:$PORT` when `PORT` is set. Set `CORS_ORIGINS=https://example.org` on the API host so the static origin may call it.
+**Split hosting (static site + PaaS API).** The static site can point at an API on another host: `python scripts/build_static_site.py --api-base https://api.example.org` (or env `API_BASE_URL`) fills `<meta name="api-base">` in `dist/index.html`. The repo ships a `railway.json` — connect the repo on Railway, it builds the Dockerfile and starts `python api/server.py`, which binds `0.0.0.0:$PORT` when `PORT` is set. Set `CORS_ORIGINS=https://example.org` on the API host so the static origin may call it. Preview deployments get their own subdomain per branch (Cloudflare Pages does), so a fixed list cannot cover them — set `CORS_ORIGIN_REGEX='https://.*\.example\.pages\.dev'` as well and the previews see live data too.
+
+The wallet ledger refreshes itself: `.github/workflows/refresh-wallet-ledger.yml` rebuilds `public/data/wallet_ledger.json` from the public Data API every six hours and commits only real changes, so both hosts redeploy with fresh wallet figures on their own.
 
 ### Optional: Google sign-in for the Settings page
 

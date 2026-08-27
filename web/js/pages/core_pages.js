@@ -281,17 +281,23 @@ export function renderOverview(T) {
       (ledgerFrischer ? 'bot trades in the wallet ledger' : 'on-chain wallet, reconciled')
       + (walletNetto.stand ? ' · ' + esc(walletNetto.stand) : ''), true, walletNetto.wert)
     : kpiCell('NET PNL (FROM RUN LOGS)', agg && agg.realisierter_pnl_usd != null ? signedMoney(agg.realisierter_pnl_usd) : '—', 'no wallet reconciliation yet', true, agg && agg.realisierter_pnl_usd);
-  // Die vierte Zelle: das ganze Wallet als Cashflow — was hineinging und was
-  // zurueckkam, ueber alle Aktivitaet (Bot, Pilot, diskretionaer). Das ist
-  // die Zahl, die man neben dem Kontostand wiedererkennt. Die fruehere
-  // Sichttiefe-Zelle brauchte den Methodenteil, um verstanden zu werden;
-  // sie steht weiter im Live-runs-Bericht.
+  // Die vierte Zelle: das ganze Wallet als Rendite. Die Bezugsgroesse steht
+  // in der Zelle — auf Einzahlungen, sobald der Ledger sie kennt (das
+  // braucht den On-Chain-USDC-Scan; das oeffentliche Data API sieht sie
+  // nicht), bis dahin auf die kumulierten Kaeufe. Eine Prozentzahl ohne
+  // benannte Basis waere eine Behauptung. Die fruehere Sichttiefe-Zelle
+  // steht weiter im Live-runs-Bericht.
   const la = ledger && ledger.aggregat ? ledger.aggregat : null;
-  const flussZelle = la && la.netto_cashflow_usd != null
-    ? kpiCell('WALLET · ALL ACTIVITY', signedMoney(+la.netto_cashflow_usd),
-      'net cashflow · buys $' + num((+la.kaeufe_usd || 0).toFixed(0)) + ' → back $' + num((+la.rueckfluss_usd || 0).toFixed(0))
-      + (ledgerStand ? ' · ' + esc(ledgerStand) : ''), false, +la.netto_cashflow_usd)
-    : kpiCell('WALLET · ALL ACTIVITY', '—', 'wallet_ledger.json not loaded yet', false);
+  const einzahlungen = la && la.einzahlungen_usd != null ? +la.einzahlungen_usd : null;
+  const roiBasis = einzahlungen || (la ? +la.kaeufe_usd : 0) || 0;
+  let flussZelle = kpiCell('ROI (WALLET · ALL ACTIVITY)', '—', 'wallet_ledger.json not loaded yet', false);
+  if (la && la.netto_cashflow_usd != null && roiBasis > 0) {
+    const roi = (100 * +la.netto_cashflow_usd) / roiBasis;
+    flussZelle = kpiCell('ROI (WALLET · ALL ACTIVITY)', (roi >= 0 ? '+' : '') + roi.toFixed(1) + '%',
+      'net cashflow ' + signedMoney(+la.netto_cashflow_usd)
+      + (einzahlungen ? ' on deposits of $' + num(einzahlungen.toFixed(0)) : ' on buys of $' + num((+la.kaeufe_usd).toFixed(0)))
+      + (ledgerStand ? ' · ' + esc(ledgerStand) : ''), false, roi);
+  }
   const runsStrip = agg
     ? '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid rgba(var(--ink),.09)">'
       + kpiCell('RUNS · BETS', num(agg.n_runs != null ? agg.n_runs : '—') + ' · ' + num(agg.n_wetten != null ? agg.n_wetten : '—'),
