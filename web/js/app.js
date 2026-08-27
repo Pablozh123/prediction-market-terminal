@@ -7,7 +7,7 @@ import { apiGet, apiGetRaw, apiPost } from './api.js';
 import { renderOverview, renderMarkets, renderFlow, renderCross, renderResolved } from './pages/core_pages.js';
 import { renderTraders, renderWhale, renderRisk, renderTrack } from './pages/trader_pages.js';
 import { renderBacktester, renderCopy, renderPortfolio } from './pages/trading_pages.js';
-import { renderAlerts, renderResearch, renderSettings } from './pages/system_pages.js';
+import { renderAlerts, renderResearch, renderSettings, ledgerVerwerfen } from './pages/system_pages.js';
 import { renderWallet, isFullAddress } from './pages/wallet_page.js';
 import { renderDetail, renderSearch } from './overlays.js';
 import { mountAmbient } from './ambient.js';
@@ -1448,6 +1448,20 @@ class Terminal {
     setInterval(() => {
       if (this.state.page === 'copy' && !this.state.copyBusy && this.liveData.copy && this.liveData.copy._quelle === 'live') this.copyReload(true);
     }, 30000);
+    // Die Live-runs-Seite liest ihre Nutzlasten alle 60 s neu, solange sie
+    // offen ist: runs.json und der Wallet-Ledger aendern sich durch die
+    // Publish-Laeufe, und ein einmal geladener Stand blieb sonst bis zum
+    // Seiten-Reload stehen. Offene <details> ueberleben den Render, weil
+    // app.js sie ueber data-key wiederherstellt.
+    setInterval(() => {
+      if (this.state.page !== 'research') return;
+      const studie = this.studies[this.state.researchTab];
+      if (!studie || studie.tab !== 'Live runs') return;
+      this.liveData.research['Live runs'] = null;
+      this.liveData.research['Pipeline forward'] = null;
+      ledgerVerwerfen();
+      this.fetchPageData('research');
+    }, 60000);
     this.ladeLanding();
     this.fetchPageData(this.state.page);
     // The desk's badge in the sidebar (active traders) needs the answer even

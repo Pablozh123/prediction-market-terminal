@@ -1397,18 +1397,51 @@ function renderLiveRuns(T, payload) {
       color: agg.realisierter_pnl_usd >= 0 ? 'var(--pos)' : 'var(--neg)'
     };
   })();
-  // Die Stake-Kachel zeigt, was die Wallet fuer Bot-Maerkte ausgab — die
-  // Zahl, die zum Guthaben passt. Die Log-Summe stand hier mit Preisdeckel-
-  // Annahme daneben und widersprach dem Wallet-Auszug.
-  const stakeKachel = frisch && frisch.kaeufe != null
-    ? { label: 'TOTAL STAKE (WALLET)', value: '$' + num((+frisch.kaeufe).toFixed(0)), sub: 'buys from the wallet, bot markets · as of ' + frisch.stand, color: 'var(--text)' }
-    : agg && agg.wallet_kaeufe_usd != null
-      ? { label: 'TOTAL STAKE (WALLET)', value: '$' + num((+agg.wallet_kaeufe_usd).toFixed(0)), sub: 'buys from the wallet statement' + (walletStand ? ' · as of ' + walletStand : ''), color: 'var(--text)' }
-      : { label: 'TOTAL STAKE', value: agg ? '$' + num((+agg.einsatz_usd).toFixed(0)) : '—', sub: 'from run logs · no wallet reconciliation yet', color: 'var(--text)' };
+  // Statt der Stake-Summe die Rendite, dieselbe Rechnung wie auf der
+  // Overview: Netto-Cashflow des ganzen Wallets gegen die deklarierten
+  // Einzahlungen (on-chain nachpruefbar). Solange der Ledger keine
+  // Einzahlungen kennt, gegen die kumulierten Kaeufe, und die Kachel
+  // benennt ihre Basis.
+  const la = ledger && ledger.aggregat ? ledger.aggregat : null;
+  const einzahlungen = la && la.einzahlungen_usd != null ? +la.einzahlungen_usd : null;
+  const roiBasis = einzahlungen || (la && la.kaeufe_usd != null ? +la.kaeufe_usd : 0) || 0;
+  const roiKachel = (la && la.netto_cashflow_usd != null && roiBasis > 0)
+    ? (() => {
+      const roi = (100 * +la.netto_cashflow_usd) / roiBasis;
+      return {
+        label: 'ROI (WALLET · ALL ACTIVITY)',
+        value: (roi >= 0 ? '+' : '') + roi.toFixed(1) + '%',
+        sub: 'net cashflow ' + (+la.netto_cashflow_usd >= 0 ? '+$' : '-$') + num(Math.abs(+la.netto_cashflow_usd).toFixed(0))
+          + (einzahlungen ? ' on deposits of $' + num(einzahlungen.toFixed(0)) : ' on buys of $' + num((+la.kaeufe_usd).toFixed(0))),
+        color: roi >= 0 ? 'var(--pos)' : 'var(--neg)'
+      };
+    })()
+    : { label: 'ROI (WALLET)', value: '—', sub: 'wallet_ledger.json not loaded yet', color: 'var(--text)' };
+  // W und L wie auf der Overview aus dem Wallet-Ledger, nicht aus der
+  // Log-Rekonstruktion: gezaehlt werden die Bot-Maerkte des Wallets,
+  // wertlos ausgelaufene zaehlen als verloren. Mehrere Fills desselben
+  // Markts sind eine Wallet-Position, darum steht die Marktzahl dabei.
+  // Ohne Ledger bleibt die Log-Zaehlung als benannter Rueckfall.
+  let botPositionen = null;
+  if (ledger && Array.isArray(ledger.events)) {
+    const z = { n: 0, won: 0, lost: 0, open: 0 };
+    ledger.events.forEach((e) => (Array.isArray(e.maerkte) ? e.maerkte : []).forEach((m) => {
+      if (String(m.zuordnung || '') !== 'bot') return;
+      z.n += 1;
+      const st = String(m.status || '');
+      if (st === 'won') z.won += 1;
+      else if (st === 'lost' || st === 'worthless') z.lost += 1;
+      else if (st === 'open') z.open += 1;
+    }));
+    if (z.n) botPositionen = z;
+  }
+  const betsKachel = agg && botPositionen
+    ? { label: 'BETS', value: num(agg.n_wetten), sub: botPositionen.won + 'W · ' + botPositionen.lost + 'L · ' + botPositionen.open + ' open · ' + num(botPositionen.n) + ' bot markets in the wallet, worthless counts as lost', color: 'var(--text)' }
+    : { label: 'BETS', value: agg ? num(agg.n_wetten) : '—', sub: agg ? agg.gewonnen + 'W · ' + agg.verloren + 'L · ' + agg.offen + ' open · from run logs' : '', color: 'var(--text)' };
   const kpis = agg ? [
     { label: 'RUNS', value: String(agg.n_runs), sub: 'one run = one episode or event', color: 'var(--text)' },
-    { label: 'BETS', value: num(agg.n_wetten), sub: agg.gewonnen + 'W · ' + agg.verloren + 'L · ' + agg.offen + ' open', color: 'var(--text)' },
-    stakeKachel,
+    betsKachel,
+    roiKachel,
     nettoKachel,
     { label: 'FIRST TAKER', value: firstTaker.value, sub: firstTaker.sub, color: 'var(--text)' },
     { label: 'OPEN STAKE', value: '$' + num((+agg.offener_einsatz_usd).toFixed(0)), sub: 'in unresolved markets', color: 'var(--text)' }
@@ -1417,7 +1450,7 @@ function renderLiveRuns(T, payload) {
     // 54 Prozent. Die Zahlen stehen in runs.json oder nirgends.
     { label: 'RUNS', value: '—', sub: 'runs.json not loaded', color: 'var(--text)' },
     { label: 'BETS', value: '—', sub: 'runs.json not loaded', color: 'var(--text)' },
-    { label: 'TOTAL STAKE', value: '—', sub: 'runs.json not loaded', color: 'var(--text)' },
+    { label: 'ROI (WALLET)', value: '—', sub: 'runs.json not loaded', color: 'var(--text)' },
     { label: 'NET PNL', value: '—', sub: 'runs.json not loaded', color: 'var(--text)' },
     { label: 'FIRST TAKER', value: '—', sub: 'runs.json not loaded', color: 'var(--text)' },
     { label: 'OPEN STAKE', value: '—', sub: 'runs.json not loaded', color: 'var(--text)' }
@@ -2023,6 +2056,12 @@ export function firstTakerKpi(payload) {
 // fetched once, then every render reads it from here. When the API answers,
 // the ledger already sits in payload.extras.wallet_ledger and no fetch runs.
 const LEDGER = { daten: null, laedt: false, fehler: '' };
+
+// Fuer den 60-s-Refresh der Live-runs-Seite (app.js): den einmal geladenen
+// Ledger verwerfen, damit der naechste Render die Datei neu holt.
+export function ledgerVerwerfen() {
+  if (!LEDGER.laedt) { LEDGER.daten = null; LEDGER.fehler = ''; }
+}
 
 // The ledger for this render: from the runs payload's extras (API), else
 // from the module cache (static), else kick off the one fetch and return

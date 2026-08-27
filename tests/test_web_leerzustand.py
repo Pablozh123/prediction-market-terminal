@@ -964,8 +964,14 @@ class WebLeerzustandTest(unittest.TestCase):
         text = _sichtbarer_text(live)
         self.assertIn("NET PNL (WALLET, AS OF 2026-08-17) +$66", text)
         self.assertIn("cash truth from the on-chain wallet", text)
-        self.assertIn("TOTAL STAKE (WALLET) $61", text)
-        self.assertIn("buys from the wallet, bot markets · as of 2026-08-17", text)
+        # Statt der Stake-Summe die Rendite wie auf der Overview: Cashflow
+        # des ganzen Wallets gegen die benannte Basis (der Harness-Ledger
+        # kennt keine Einzahlungen, also gegen die Kaeufe).
+        self.assertIn("ROI (WALLET · ALL ACTIVITY) +33.3%", text)
+        self.assertIn("net cashflow +$59 on buys of $176", text)
+        self.assertNotIn("TOTAL STAKE", text)
+        # W und L aus dem Wallet-Ledger (Bot-Maerkte), nicht aus den Logs.
+        self.assertIn("BETS 2 2W · 0L · 0 open · 2 bot markets in the wallet, worthless counts as lost", text)
         self.assertNotIn("log estimate", text)
         self.assertNotIn("LOG-RECONSTRUCTED PNL", text)
         self.assertNotIn("LOG VS WALLET", text)
@@ -987,6 +993,17 @@ class WebLeerzustandTest(unittest.TestCase):
         leer = _sichtbarer_text(self.ausgabe["leer"]["runs_runs"])
         self.assertIn("NET PNL — runs.json not loaded", leer)
         self.assertNotIn("LOG VS WALLET", leer)
+
+    def test_live_runs_liest_ihre_daten_periodisch_neu(self) -> None:
+        # Die Seite liest runs.json und den Wallet-Ledger alle 60 s neu,
+        # solange sie offen ist. Dafuer wird der einmal-Cache der Research-
+        # Nutzlasten geleert und der Modul-Cache des Ledgers verworfen.
+        app_js = (WURZEL / "web" / "js" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("ledgerVerwerfen()", app_js)
+        self.assertIn("this.liveData.research['Live runs'] = null", app_js)
+        self.assertIn("this.liveData.research['Pipeline forward'] = null", app_js)
+        sys_js = (WURZEL / "web" / "js" / "pages" / "system_pages.js").read_text(encoding="utf-8")
+        self.assertIn("export function ledgerVerwerfen", sys_js)
 
     def test_live_runs_first_taker_aus_den_race_feldern(self) -> None:
         # Zwei Wetten mit Tape: eine mit null fremden Trades davor, eine mit
