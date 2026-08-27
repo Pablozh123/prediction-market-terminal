@@ -1,0 +1,22 @@
+# Cloudflare Pages Cache-Regeln. Ohne sie liefert Pages JS/CSS mit
+# max-age=14400 aus: nach einem Deploy zeigten Browser bis zu vier Stunden
+# den alten Stand ("Aenderungen sind live, ich sehe nichts"). Die Dateien
+# tragen keine Versions-Hashes im Namen (ES-Module importieren einander
+# relativ), also muss der Browser revalidieren: mit ETag kostet das ein
+# 304 pro Datei, nie einen veralteten Screen.
+/
+  Cache-Control: public, max-age=0, must-revalidate
+
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/js/*
+  Cache-Control: public, max-age=0, must-revalidate
+
+/css/*
+  Cache-Control: public, max-age=0, must-revalidate
+
+# Publizierte Forschungsdaten: fuenf Minuten sind frisch genug und sparen
+# die Revalidierung auf jedem Seitenwechsel.
+/data/*
+  Cache-Control: public, max-age=300, must-revalidate
