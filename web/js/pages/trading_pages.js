@@ -111,6 +111,21 @@ export function renderBacktester(T) {
   })) : []).sort((a, b) => b.eq - a.eq);
   const bestVariant = simVariants[0] || null;
 
+  // Achsen aus der Kurve selbst: bei einem abgeschnittenen Fenster beginnt
+  // sie an der Datenkante (Stundenaufloesung), nicht am angefragten Starttag.
+  const curveVon = live && live.curve_start ? live.curve_start.replace('T', ' ') + ' UTC' : s.btWindow + 'd ago';
+  const curveMitte = live && live.curve_start ? '' : Math.round(s.btWindow / 2) + 'd ago';
+  // Gemessene Skip-Gruende aus der Engine; null solange kein Lauf da ist.
+  const reasons = st && st.skip_reasons ? st.skip_reasons : null;
+  const reasonText = reasons ? [
+    reasons.out_of_cash ? num(reasons.out_of_cash) + ' out of cash' : '',
+    reasons.exposure_cap ? num(reasons.exposure_cap) + ' at the exposure cap (' + s.btExposure + '%)' : '',
+    reasons.no_position ? num(reasons.no_position) + ' sells of positions never held' : '',
+    reasons.bad_data ? num(reasons.bad_data) + ' unusable rows' : '',
+    reasons.other ? num(reasons.other) + ' other' : ''
+  ].filter(Boolean).join(' · ') : '';
+  const bankrollBound = reasons ? (reasons.out_of_cash + reasons.exposure_cap) : 0;
+
   const shortWallet = s.btWallet.trim().length > 12 ? s.btWallet.trim().slice(0, 6) + '…' + s.btWallet.trim().slice(-4) : s.btWallet.trim();
   const gebuehrText = s.btFeeModel === 'flat' ? 'fees ' + s.btFee + ' bps flat' : 'fees on the venue curve';
   const runMeta = (s.btStrategy === 'copy' ? 'Copy' : 'Fade') + ' · last ' + s.btWindow + ' days · wallet ' + shortWallet + ' · ' + SIZING[s.btSizing] + ' · ' + gebuehrText + ' · slippage ' + s.btSlip + ' bps'
@@ -221,7 +236,7 @@ export function renderBacktester(T) {
       + '<line x1="0" y1="190" x2="900" y2="190" style="stroke:rgba(var(--ink),.07)" />'
       + '<polyline points="' + ddPts + '" fill="none" style="stroke:var(--neg)" stroke-width="2" /></svg>'
       + '<div style="display:flex; justify-content:space-between; ' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:8px">'
-      + '<span>' + s.btWindow + 'd ago</span><span>worst: ' + (ddPct === null ? '—' : ddPct.toFixed(1) + '%') + '</span><span>today</span></div></div>';
+      + '<span>' + esc(curveVon) + '</span><span>worst: ' + (ddPct === null ? '—' : ddPct.toFixed(1) + '%') + '</span><span>today</span></div></div>';
   }
 
   const advChevron = M + '; font-size:16px; color:rgba(var(--ink),.5); transition:transform .18s ease; transform:rotate(' + (s.advancedOpen ? '90deg' : '0deg') + ')';
@@ -337,7 +352,13 @@ export function renderBacktester(T) {
     // Exposure-Deckel, 30 Prozent Kasse leer, 10 Prozent fremde Verkaeufe —
     // drei feste Anteile, die die Engine nie gemeldet hat. Der Grund je Zeile
     // steht im Trade log; hier nur die gemessene Summe.
-    + (skippedN > copied ? '<div style="border:1px solid rgba(var(--warn-rgb),.3); background:rgba(var(--warn-rgb),.07); border-radius:6px; padding:12px 15px; margin-top:12px; font-size:12.5px; color:var(--warn); line-height:1.5">More skipped than copied: ' + num(skippedN) + ' of the wallet\'s trades were not mirrored. A skip happens when the exposure cap (' + s.btExposure + '%) is full, when the cash runs out, or when the wallet sells a position you never held — the trade log below marks each one. Raise the exposure cap or lower the stake to copy more of the flow.</div>' : '')
+    + (skippedN > copied ? '<div style="border:1px solid rgba(var(--warn-rgb),.3); background:rgba(var(--warn-rgb),.07); border-radius:6px; padding:12px 15px; margin-top:12px; font-size:12.5px; color:var(--warn); line-height:1.5">More skipped than copied: ' + num(skippedN) + ' of the wallet\'s trades were not mirrored'
+      + (reasonText ? ' — ' + reasonText : '')
+      + '.'
+      + (bankrollBound > skippedN / 2
+        ? ' The bankroll cannot follow this wallet\'s pace at this stake: with $' + num(s.btBankroll) + ' and about $' + Math.round(stake) + ' per copy, at most ' + Math.max(1, Math.floor(bank * s.btExposure / 100 / Math.max(1, stake))) + ' copies can be open at once. Lower the stake, raise the bankroll, or raise the exposure cap to copy more of the flow.'
+        : ' The trade log below marks each one.')
+      + '</div>' : '')
 
     + '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; padding:16px 18px">'
     + '<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:10px">'
@@ -357,7 +378,7 @@ export function renderBacktester(T) {
         + '<polyline points="' + equityPts + '" fill="none" style="stroke:' + (ret >= 0 ? 'var(--pos)' : 'var(--neg)') + '" stroke-width="2" />'
     + '</svg>'
     + '<div style="display:flex; justify-content:space-between; ' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:8px">'
-    + '<span>' + s.btWindow + 'd ago</span><span>' + Math.round(s.btWindow / 2) + 'd ago</span><span>today</span></div></div>'
+    + '<span>' + esc(curveVon) + '</span><span>' + esc(curveMitte) + '</span><span>today</span></div></div>'
 
     + '<div style="display:flex; gap:6px; margin-top:16px">' + btTabs + '</div>'
     + tabBody

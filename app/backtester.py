@@ -487,12 +487,23 @@ def equity_curve(
     bankroll: float,
     final_unrealized: float = 0.0,
 ) -> pd.DataFrame:
-    """Daily equity series: bankroll + cumulative net realized; MTM lands on the last day."""
+    """Equity series: bankroll + cumulative net realized; MTM lands on the last point.
 
-    days = pd.date_range(window_start.normalize(), window_end.normalize(), freq="D", tz="UTC")
-    if days.empty:
-        days = pd.DatetimeIndex([window_end.normalize()], tz="UTC")
-    curve = pd.DataFrame({"time": days, "equity": float(bankroll)})
+    Die Aufloesung folgt der Spanne: bis sieben Tage stundenweise, darueber
+    taeglich. Vorher war die Kurve immer taeglich ueber das ANGEFRAGTE
+    Fenster — deckten die Daten nur zwei Tage ab, zeigte sie 28 erfundene
+    flache Tage und dann eine Stufe. Der Aufrufer uebergibt deshalb die
+    tatsaechlich abgedeckte Spanne (run_backtest: ab effective_start, wenn
+    das Fenster abgeschnitten ist).
+    """
+
+    span = window_end - window_start
+    freq = "h" if span <= pd.Timedelta(days=7) else "D"
+    anchor = (lambda ts: ts.floor("h")) if freq == "h" else (lambda ts: ts.normalize())
+    points = pd.date_range(anchor(window_start), anchor(window_end), freq=freq, tz="UTC")
+    if points.empty:
+        points = pd.DatetimeIndex([anchor(window_end)], tz="UTC")
+    curve = pd.DataFrame({"time": points, "equity": float(bankroll)})
     if ledger is not None and not ledger.empty:
         events = ledger[ledger["status"].isin(["copied", "settled"])].copy()
         if not events.empty:
@@ -501,10 +512,11 @@ def equity_curve(
             events["net"] = events["realized_pnl"].fillna(0.0) - events["fee"].fillna(0.0).where(
                 events["action"].eq("BUY"), 0.0
             )
-            daily = events.set_index("time")["net"].sort_index().cumsum().resample("D").last().ffill()
-            daily.index = daily.index.normalize()
+            # resample-Bins liegen auf denselben Grenzen wie date_range oben
+            # (Mitternacht bei "D", volle Stunde bei "h") — reindex passt.
+            verlauf = events.set_index("time")["net"].sort_index().cumsum().resample(freq).last().ffill()
             curve = curve.set_index("time")
-            curve["realized"] = daily.reindex(curve.index).ffill().fillna(0.0)
+            curve["realized"] = verlauf.reindex(curve.index).ffill().fillna(0.0)
             curve["equity"] = float(bankroll) + curve["realized"]
             curve = curve.drop(columns=["realized"]).reset_index()
     if final_unrealized:
@@ -537,11 +549,26 @@ def compute_stats(ledger: pd.DataFrame, open_positions: pd.DataFrame, curve: pd.
         "open_positions": 0,
         "open_value": 0.0,
     }
+    stats["skip_reasons"] = {"out_of_cash": 0, "exposure_cap": 0, "no_position": 0, "bad_data": 0, "other": 0}
     if ledger is not None and not ledger.empty:
         copied = ledger[ledger["status"].isin(["copied", "settled"])]
         skipped = ledger[ledger["status"].eq("skipped")]
         stats["copied_trades"] = int((copied["action"].isin(["BUY", "SELL"])).sum())
         stats["skipped_trades"] = int(len(skipped))
+        # Gemessene Skip-Gruende statt einer Pauschalzahl: die Oberflaeche
+        # soll sagen koennen, WARUM sie nicht mitging (Kasse leer und
+        # Exposure-Deckel sind Bankroll-Grenzen, keine Datenluecken).
+        for note in skipped["note"].fillna("").astype(str):
+            if "out of cash" in note:
+                stats["skip_reasons"]["out_of_cash"] += 1
+            elif "exposure cap" in note:
+                stats["skip_reasons"]["exposure_cap"] += 1
+            elif "no copied position" in note:
+                stats["skip_reasons"]["no_position"] += 1
+            elif "bad trade data" in note:
+                stats["skip_reasons"]["bad_data"] += 1
+            else:
+                stats["skip_reasons"]["other"] += 1
         stats["fees_paid"] = float(copied["fee"].fillna(0.0).sum())
         stats["volume_copied"] = float(copied.loc[copied["action"].eq("BUY"), "stake"].fillna(0.0).sum())
         closers = copied[copied["action"].isin(["SELL", "RESOLVE"])]
@@ -767,8 +794,16 @@ def run_backtest(
 
     unrealized = float(open_positions["unrealized_pnl"].sum()) if not open_positions.empty else 0.0
     flat_unrealized = float(flat_open["unrealized_pnl"].sum()) if not flat_open.empty else 0.0
-    curve = equity_curve(full_ledger, window_start, window_end, config.bankroll, unrealized)
-    flat_curve = equity_curve(flat_full, window_start, window_end, config.bankroll, flat_unrealized)
+    # Ist das Fenster abgeschnitten, beginnt die Kurve an der tatsaechlich
+    # abgedeckten Kante. Sonst behauptete der flache Vorlauf Wissen ueber
+    # Tage, aus denen kein einziger Trade geladen wurde.
+    curve_start = window_start
+    if window_truncated and trades is not None and not trades.empty:
+        oldest_trade = pd.to_datetime(trades["time"], utc=True, errors="coerce").min()
+        if pd.notna(oldest_trade) and oldest_trade > curve_start:
+            curve_start = oldest_trade
+    curve = equity_curve(full_ledger, curve_start, window_end, config.bankroll, unrealized)
+    flat_curve = equity_curve(flat_full, curve_start, window_end, config.bankroll, flat_unrealized)
     curve["benchmark"] = flat_curve["equity"].to_numpy()
 
     stats = compute_stats(full_ledger, open_positions, curve, config.bankroll)
