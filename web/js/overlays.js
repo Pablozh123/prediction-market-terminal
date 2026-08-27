@@ -2,7 +2,7 @@
 // Wallet details show scorecard fields (n, CI, verdict, snapshot) when the API
 // answered for that wallet; scores never render without their sample size.
 
-import { esc, money, num } from './util.js';
+import { esc, money, num, stempel } from './util.js';
 import { scorePartsOf } from './pages/trader_pages.js';
 import { isFullAddress } from './pages/wallet_page.js';
 
@@ -34,7 +34,10 @@ export function renderDetail(T) {
         { label: 'YES', value: m.yes + '¢', style: STAT_VAL },
         { label: 'CHANGE 1D', value: (m.chg >= 0 ? '+' : '') + m.chg + '¢', style: STAT_VAL + '; color:' + (m.chg >= 0 ? 'var(--pos)' : 'var(--neg)') },
         { label: 'VOLUME 24H', value: money(m.vol), style: STAT_VAL },
-        { label: 'LIQUIDITY', value: money(m.liq), style: STAT_VAL }
+        // Wie in der Markttabelle: keine gemeldete Liquiditaet ist ein
+        // Strich, nicht "$0" — eine Unbekannte darf nicht als gemessene
+        // Null auftreten.
+        { label: 'LIQUIDITY', value: m.liq ? money(m.liq) : '—', style: STAT_VAL }
       ],
       listLabel: 'LARGEST PRINTS · 24H',
       // Nur Prints dieses Marktes. Vorher wurde die Liste mit den ersten vier
@@ -51,7 +54,11 @@ export function renderDetail(T) {
       // Boerse — das Projekt setzt bewusst keine Venue-Links (Schweizer
       // Rechtslage). Ein Knopf ohne Wirkung waere schlimmer als keiner.
       primaryAction: '',
-      note: ''
+      // Woher die Zahlen stammen und worauf sie sich beziehen: dieselbe
+      // Poll-Antwort wie die Markttabelle, und zwar dieser eine Markt —
+      // die Event-Seite der Boerse summiert alle Maerkte des Events.
+      note: (T.state.liveAsOf ? 'figures as of ' + esc(stempel(T.state.liveAsOf)) + ' · ' : '')
+        + 'volume and liquidity cover this single market; the venue’s event page aggregates all markets of the event'
     };
   } else {
     // A leaderboard row by name, or any wallet by address (whale flow, risk
