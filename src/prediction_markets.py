@@ -234,7 +234,11 @@ def _normalize_polymarket_market(market: Mapping[str, Any], parent_event: Mappin
         "volume_24h": dollars(market.get("volume24hr")),
         "volume_1w": dollars(market.get("volume1wk")),
         "volume_1mo": dollars(market.get("volume1mo")),
-        "liquidity": dollars(_first_nonempty(market.get("liquidityNum"), market.get("liquidity"), parent_event.get("openInterest"))),
+        # Nur Markt-Level: der fruehere Rueckfall auf das Event-openInterest
+        # liess denselben Markt je nach Pfad (Liste ohne parent_event, Suche
+        # mit) zwei verschiedene Liquiditaeten zeigen — und Open Interest des
+        # ganzen Events ist ohnehin keine Liquiditaet dieses Marktes.
+        "liquidity": dollars(_first_nonempty(market.get("liquidityNum"), market.get("liquidity"))),
         "start_time": _safe_ts(_first_nonempty(market.get("startDateIso"), market.get("startDate"), parent_event.get("startDate"))),
         "end_time": _safe_ts(_first_nonempty(market.get("endDateIso"), market.get("endDate"), parent_event.get("endDate"))),
         "created_at": _safe_ts(_first_nonempty(market.get("createdAt"), parent_event.get("createdAt"))),
@@ -2617,6 +2621,14 @@ def get_kalshi_markets(
         yes_bid = cents(_first_nonempty(market.get("yes_bid_dollars"), market.get("yes_bid")))
         yes_ask = cents(_first_nonempty(market.get("yes_ask_dollars"), market.get("yes_ask")))
         last_price = cents(_first_nonempty(market.get("last_price_dollars"), market.get("last_price")))
+        # liquidity_dollars ist Dollar; das Legacy-Feld liquidity liefert
+        # Cents und stand ungeteilt ~100x zu hoch in der Spalte. Der fruehere
+        # dritte Rueckfall open_interest_fp zaehlt Kontrakte, keine Dollar,
+        # und faellt weg — lieber 0 als eine Zahl in der falschen Einheit.
+        liquidity_usd = _num(market.get("liquidity_dollars"))
+        if liquidity_usd is None:
+            legacy_liquidity_cents = _num(market.get("liquidity"))
+            liquidity_usd = legacy_liquidity_cents / 100.0 if legacy_liquidity_cents is not None else 0.0
         if yes_bid and yes_ask:
             yes_price = (yes_bid + yes_ask) / 2
         else:
@@ -2644,7 +2656,7 @@ def get_kalshi_markets(
                 "volume_24h": dollars(
                     _first_nonempty(market.get("volume_24h_fp"), market.get("volume_24h"), market.get("volume_24h_dollars"))
                 ),
-                "liquidity": dollars(_first_nonempty(market.get("liquidity_dollars"), market.get("liquidity"), market.get("open_interest_fp"))),
+                "liquidity": dollars(liquidity_usd),
                 "open_interest": dollars(_first_nonempty(market.get("open_interest_fp"), market.get("open_interest"))),
                 "end_time": _safe_ts(_first_nonempty(market.get("close_time"), market.get("expiration_time"))),
                 "image": "",
