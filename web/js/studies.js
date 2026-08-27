@@ -24,7 +24,7 @@ export const STUDIEN = [
     tab: 'Mentions latency',
     title: 'How fast mentions markets react',
     stamp: 'frozen 2026-08-07',
-    note: 'Time between a piece of content going live and the market moving more than two cents.',
+    note: 'Time between a piece of content going live and the market first standing more than one point off its pre-drop price.',
     chart: 'MINUTES TO FIRST MOVE'
   },
   // "rolling" war unwahr geworden: der letzte Publish ist vom 2026-08-07 und

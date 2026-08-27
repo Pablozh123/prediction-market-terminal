@@ -612,7 +612,7 @@ function mitDaten(T) {
     },
     faelle: [
       { event: 'harness_fast', minuten_bis_erste_reaktion: 0.5, minuten_bis_konvergenz: 30, stunden_im_handelbaren_fenster: 0.5, korrekt_aufgeloestes_outcome: 'YES', status: 'ok' },
-      { event: 'harness_slow', minuten_bis_erste_reaktion: 10, minuten_bis_konvergenz: 600, stunden_im_handelbaren_fenster: 9.8, korrekt_aufgeloestes_outcome: 'NO', status: 'ok' },
+      { event: 'harness_slow', minuten_bis_erste_reaktion: 10, minuten_bis_konvergenz: 600, stunden_im_handelbaren_fenster: 9.8, korrekt_aufgeloestes_outcome: 'NO', status: 'ok', erste_reaktion_zum_outcome: false },
       { event: 'harness_none', minuten_bis_erste_reaktion: null, minuten_bis_konvergenz: null, stunden_im_handelbaren_fenster: null, korrekt_aufgeloestes_outcome: 'NO', status: 'no_reaction' }
     ],
     ausschluesse: [{ event: 'harness_excluded', status: 'ausgeschlossen_zuordnungsambiguitaet' }]

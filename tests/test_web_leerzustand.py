@@ -1118,12 +1118,21 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("FIRST REACTION AND CONVERGENCE PER EVENT · n 2", text)
         self.assertIn("median first reaction 5.25 min", text)
         self.assertNotIn("MINUTES TO CONVERGENCE PER EVENT", text)
-        self.assertIn("pale bar = first ≥ 2¢ move, solid = fully priced in", text)
+        self.assertIn("pale bar = first &gt; 1-point move off baseline, solid = fully priced in", text)
         self.assertIn("reaction · harness_fast 0.5", text)
         self.assertIn("converged · harness_fast 30", text)
         self.assertIn("EXCLUDED EVENTS · 1", text)
         self.assertIn("harness_excluded excluded · ambiguous mapping between content and market", text)
-        self.assertIn("HOW TO READ IT First reaction is the first move of at least 2¢", text)
+        self.assertIn(
+            "HOW TO READ IT First reaction is the first minute the price stands "
+            "more than 1 point away from its pre-drop baseline",
+            text,
+        )
+        # Die erste Bewegung kann in die falsche Richtung gehen — der Fall
+        # traegt das Flag, Kachel und Tabelle muessen es zeigen, sonst liest
+        # sich "10 min" als Markt, der eine gefallene Aussage verschlief.
+        self.assertIn("SLOWEST 10 min first reaction · resolved NO · first move went the wrong way", text)
+        self.assertIn("FASTEST 0.5 min first reaction · resolved YES", text)
         # Das handelbare Fenster ist NICHT Konvergenz minus Reaktion — der
         # Lesetext muss das sagen (cnbc_kernen/jre_vance beweisen es).
         self.assertIn("not simply convergence minus reaction", text)
@@ -1140,6 +1149,7 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("MENTIONS EVENTS · 3 OF 3", text)
         self.assertIn("RESOLVED STATUS", text)
         self.assertIn("harness_fast 0.5 min 30 min 0.5 YES ok", text)
+        self.assertIn("harness_slow 10 min (away) 600 min 9.8 NO ok", text)
         self.assertIn("harness_none — — — NO no_reaction", text)
         # Leerzustand nennt die Datei.
         leer = _sichtbarer_text(self.ausgabe["leer"]["research_mentions_latency"])
