@@ -145,6 +145,8 @@ function landingNutzlast() {
     aggregat: {
       netto_cashflow_usd: 469.25, kaeufe_usd: 1474.53, rueckfluss_usd: 1943.78,
       einzahlungen_usd: 300,
+      positionen_gewonnen: 36, positionen_verloren: 18,
+      positionen: { won: 36, lost: 8, flat: 1, worthless: 10, open: 0 },
       nach_typ: { bot: { events: 8, maerkte: 24, einsatz_usd: 1039.01, netto_cash_usd: 417.77 } }
     }
   };
