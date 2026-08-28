@@ -4976,8 +4976,20 @@ def page_markets() -> None:
                 width="stretch",
                 height=220,
                 column_config={
-                    "volume": st.column_config.NumberColumn(format="$%.0f"),
-                    "median_prob": st.column_config.NumberColumn(format="%.3f"),
+                    "date": st.column_config.TextColumn("Date"),
+                    "markets": st.column_config.NumberColumn("Markets ending", format="%.0f"),
+                    # Hier stand ein einziger Schluessel "volume" mit einem
+                    # Dollarzeichen. Die Spalte heisst seit der Trennung nach
+                    # Einheit ``volume_usd`` bzw. ``volume_contracts``, also
+                    # traf der Schluessel nichts: beide Spalten liefen ohne
+                    # Konfiguration durch, die Kalshi-Stueckzahl stand unter
+                    # dem rohen Feldnamen neben dem Dollarbetrag, und das
+                    # Dollarzeichen haette bei einer Umbenennung auf der
+                    # Stueckzahl gelandet. Zwei Schluessel, zwei Einheiten.
+                    "volume_usd": st.column_config.NumberColumn("Polymarket volume", format="$%.0f"),
+                    "volume_contracts": st.column_config.NumberColumn("Kalshi volume (contracts)", format="%.0f"),
+                    "median_prob": st.column_config.NumberColumn("Median Yes", format="%.3f"),
+                    "more_count": st.column_config.NumberColumn("Not shown in cell", format="%.0f"),
                 },
             )
             st.dataframe(display, width="stretch", height=330, column_config=table_config)
