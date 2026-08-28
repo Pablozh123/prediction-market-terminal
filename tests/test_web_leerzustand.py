@@ -1464,7 +1464,7 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn('title="share of the flow done by the top wallet"', offen_html)
         # The toggle must not trigger the card action, and the open block
         # neither.
-        self.assertIn('<div data-stop data-act="0" class="hv-bd32"', html)
+        self.assertIn('<div data-stop data-act="0" class="hv-edge-strong"', html)
         self.assertIn('<div data-stop style="margin-top:12px; border-top:1px dashed', offen_html)
         # The older row renders as before: no side chip, no price, no invented
         # wallet or component.
@@ -1741,7 +1741,9 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("TRADING ACTIVITY · WEEKDAY × UTC HOUR n 3 trades", risk)
         self.assertIn("busiest cell Wed 10:00 UTC (1 trade)", risk)
         # 7 x 24 cells, three of them coloured, each with its count in the title.
-        self.assertEqual(risk_html.count('height:16px; border-radius:4px; background:'), 7 * 24)
+        self.assertEqual(
+            risk_html.count('height:16px; border-radius:var(--r-control); background:'), 7 * 24
+        )
         self.assertEqual(risk_html.count("background:rgba(var(--info-rgb),"), 3)
         self.assertIn('title="Wed 10:00 UTC — 1 trade · $50.00"', risk_html)
         # Similar wallets: waiting state names the request; the answer lists

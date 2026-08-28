@@ -237,16 +237,25 @@ class WebDiagrammTest(unittest.TestCase):
         """Ink-Stufen unter .55 bestehen auf dem hellen Grund kein AA.
 
         Gemessen mit --ink 0,0,0 auf --bg #F4F1EA: .55 ergibt 4.62:1, .50
-        nur 3.88:1. Neue Textknoten der Diagramme liegen deshalb bei .62
-        oder darueber.
+        nur 3.88:1. Die Diagrammtexte tragen deshalb Ink-Stufen, und die
+        schwaechste davon (--ink-4) ist genau die Untergrenze: .55 im
+        dunklen, .58 im hellen Thema. Roh geschriebene Alphas werden hier
+        weiterhin gelesen, damit eine neue Aufrufstelle die Leiter nicht
+        umgehen kann.
         """
 
+        # Die Werte stammen aus web/css/terminal.css, dunkles Thema.
+        stufe_je_token = {"--ink-1": 0.85, "--ink-2": 0.7, "--ink-3": 0.6, "--ink-4": 0.55}
         stufen = set()
         for seite in SEITEN_MIT_DIAGRAMM:
             html = self.ausgabe["live"][seite]
             for svg in re.findall(r"<svg.*?</svg>", html, flags=re.S):
                 for treffer in re.findall(r"<text[^>]*fill:rgba\(var\(--ink\),\s*(\.[0-9]+)\)", svg):
                     stufen.add(float(treffer))
+                for token in re.findall(r"<text[^>]*fill:var\((--[a-z0-9-]+)\)", svg):
+                    with self.subTest(token=token):
+                        self.assertIn(token, stufe_je_token, "Textknoten ausserhalb der Ink-Leiter")
+                    stufen.add(stufe_je_token.get(token, 0.0))
         self.assertTrue(stufen, "keine gemessenen Textstufen gefunden")
         for stufe in sorted(stufen):
             with self.subTest(stufe=stufe):

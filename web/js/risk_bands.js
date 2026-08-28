@@ -17,8 +17,8 @@
 // Hier geht es nur darum, was ein Leser zu sehen bekommt.
 
 import { esc } from './util.js';
+import { MONO as M } from './ui.js';
 
-const M = "font-family:'IBM Plex Mono',monospace";
 
 // Alphas gegen die Alpha-Leiter in docs/design/review_2026-08-28.md geprueft:
 // mit dem heutigen hellen --ink (reines Schwarz) liegt .66 bei 6.93:1 und
@@ -26,8 +26,8 @@ const M = "font-family:'IBM Plex Mono',monospace";
 // liegt bei 6.70:1 (dunkel) und 4.61:1 (hell). Alles ueber AA.
 export const TON_FARBE = {
   warn: 'var(--warn)',
-  muted: 'rgba(var(--ink),.72)',
-  quiet: 'rgba(var(--ink),.66)'
+  muted: 'var(--ink-2)',
+  quiet: 'var(--ink-3)'
 };
 
 // Rueckfalltabelle, wortgleich mit app/suspicion.py SCORE_BANDS.
@@ -89,8 +89,8 @@ export function bandChips(live) {
     const spanne = b.from === 0 ? 'UNDER ' + (b.to + 1) : b.to >= 100 ? b.from + '+' : b.from + '–' + b.to;
     const farbe = bandFarbe(b.tone);
     const rahmen = b.tone === 'warn' ? 'color:' + farbe + '; border:1px solid color-mix(in srgb, ' + farbe + ' 33%, transparent)'
-      : 'color:' + farbe + '; border:1px solid rgba(var(--ink),.16)';
-    return '<div title="' + esc(b.meaning) + '" style="' + M + '; font-size:11px; border-radius:4px; padding:4px 9px; ' + rahmen + '">'
+      : 'color:' + farbe + '; border:1px solid var(--line-1)';
+    return '<div title="' + esc(b.meaning) + '" style="' + M + '; font-size:var(--t-micro); border-radius:var(--r-control); padding:4px 9px; ' + rahmen + '">'
       + esc(spanne) + ' PTS · ' + esc(b.label) + '</div>';
   }).join('');
 }

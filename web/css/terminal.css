@@ -21,6 +21,29 @@
   /* text — warm off-white; tiers use rgba(var(--ink),α) */
   --text: #EAE6DC;
   --ink: 234, 230, 220;
+  /* Text tiers. Four, and only four: the JS used to carry fourteen text
+     alphas, nine of them inside a span of 0.23 with neighbours 0.02 apart —
+     a span nobody can read as a hierarchy. These four are ~1.35x apart in
+     contrast, which is the smallest step that stays legible as a step.
+     --ink-4 is the AA floor: nothing weaker than this may carry text.
+     The light theme gets its own alphas, not these. See the light block. */
+  --ink-1: rgba(var(--ink), .85);   /* 11.4:1 on --bg — emphasis inside body text */
+  --ink-2: rgba(var(--ink), .7);    /*  7.9:1 — secondary text, active labels */
+  --ink-3: rgba(var(--ink), .6);    /*  6.1:1 — the workhorse: labels, cells */
+  --ink-4: rgba(var(--ink), .55);   /*  5.2:1 — weakest tier that still passes AA */
+  /* Border tiers. Fifteen alphas collapsed to four; seven of the old ones
+     sat between .04 and .10, i.e. below the threshold where a hairline
+     changes at all. Same values in both themes: borders are not text.
+     The fourth tier is not in the review's draft and is here because the
+     count found a role, not just a number: every one of the twelve .35
+     borders sits on a text input or a file-download control, and those are
+     the one border in the app you are meant to see. Folding them into
+     --line-1 would have made every form field in the terminal look
+     disabled. */
+  --line-edge: rgba(var(--ink), .35); /* input and control edges */
+  --line-1: rgba(var(--ink), .16);  /* chip and button outlines */
+  --line-2: rgba(var(--ink), .09);  /* the default hairline: panels, rows */
+  --line-3: rgba(var(--ink), .06);  /* faintest rule inside a panel */
   /* roles */
   --accent: #D9A648;        /* interactive: links, active nav, buttons, selection */
   --accent-rgb: 217, 166, 72;
@@ -32,6 +55,12 @@
   --neg: #D95F52;           /* signed values down, SELL, errors */
   --neg-rgb: 217, 95, 82;
   --neg-soft: #DE8A7A;
+  /* The soft twin of --pos, mirroring --neg-soft above. It exists because
+     the weaker of two signed readings used to be drawn by taking opacity
+     off the strong one, and rgba(var(--pos-rgb),.75) composites to 2.97:1
+     on the light ground. A second stepped colour separates the two
+     strengths without going under AA: 9.12:1 dark, 4.56:1 light. */
+  --pos-soft: #8CC29A;
   --warn: #DE7E36;          /* attention: flags, waiting, high severity */
   --warn-rgb: 222, 126, 54;
   --info: #6E9BC8;          /* neutral reference lines, third series */
@@ -76,6 +105,23 @@
   /* type */
   --font-ui: 'IBM Plex Sans', -apple-system, sans-serif;
   --font-mono: 'IBM Plex Mono', monospace;
+  /* The type ladder. Six steps, because the JS carried twenty-one sizes and
+     twelve of them ran from 9.5px to 15px in half-pixel increments — 92 % of
+     all sizes inside a 5.5px band. Three of those steps (10.5, 11, 11.5)
+     held 591 declarations across one single pixel, which is a continuum, not
+     a hierarchy: no reader can name the difference, so it carries none.
+     Every step here is at least 12 % from its neighbour, which is about the
+     smallest ratio that still reads as a step at these sizes.
+     The floor rises rather than falls: nothing is below 11px afterwards, and
+     the 247 declarations that used to sit under it got bigger. --t-lead is
+     16px on purpose — that is the inherited default of this document, so
+     explicit and inherited text finally agree. */
+  --t-micro: 11px;    /* mono micro-labels, table heads, chips, counters */
+  --t-small: 12.5px;  /* dense cells and sub-lines */
+  --t-body: 14px;     /* prose and table cells */
+  --t-lead: 16px;     /* card titles and lead sentences */
+  --t-head: 21px;     /* page titles, and the figure of a KPI tile */
+  --t-hero: 26px;     /* the one figure a page is about */
 }
 
 /* Light: warm paper, same roles two to three shades darker so every pairing
@@ -92,8 +138,9 @@
    not in the low-alpha tiers, so nothing reads colder for it.
    Measured per route, share of text nodes failing AA: markets 58.7% -> 0.0,
    flow 47.7% -> 0.0, alerts 45.6% -> 0.0, live runs 60.3% -> 2.0,
-   whale 67.8% -> 7.4. What remains is the .5 and .45 call sites in the JS.
-   Do not restore a lifted --ink here without re-measuring. */
+   whale 67.8% -> 7.4. The .5 and .45 call sites that remained after that pass
+   are gone too; every text node of the rendered app now clears AA in both
+   themes. Do not restore a lifted --ink here without re-measuring. */
 :root[data-theme="light"] {
   color-scheme: light;
   --bg: #F4F1EA;
@@ -103,6 +150,23 @@
   --edge: #CCC7B9;
   --text: #201E19;
   --ink: 0, 0, 0;
+  /* Text tiers, light. Own alphas, and that is the whole point: the same α
+     buys different contrast on the two grounds. These four were solved for
+     the contrast of their dark twins against --bg, so a tier means the same
+     strength in both themes instead of the same number:
+       dark .85 = 11.44:1  ->  light .8  = 11.66:1
+       dark .70 =  7.94:1  ->  light .7  =  8.06:1
+       dark .60 =  6.05:1  ->  light .62 =  5.96:1
+       dark .55 =  5.23:1  ->  light .58 =  5.15:1
+     Worst case of the whole ladder is --ink-4 on --panel-hover: 4.99:1 light,
+     5.07:1 dark. The review's draft ladder (.90/.72/.64/.62) predates the
+     pure-black --ink above; measured against it, its tiers 3 and 4 land
+     0.46 apart in contrast, which is no tier at all. Re-measure before
+     touching these. */
+  --ink-1: rgba(var(--ink), .8);
+  --ink-2: rgba(var(--ink), .7);
+  --ink-3: rgba(var(--ink), .62);
+  --ink-4: rgba(var(--ink), .58);
   --accent: #8A651C;
   --accent-rgb: 138, 101, 28;
   --accent-bright: #6E5116;
@@ -118,6 +182,7 @@
   --neg: #B23B2E;
   --neg-rgb: 178, 59, 46;
   --neg-soft: #9C5C4F;
+  --pos-soft: #54755F;
   --warn: #A55914;
   --warn-rgb: 165, 89, 20;
   --info: #3E6796;
@@ -144,13 +209,13 @@
   --shadow-60: rgba(70, 62, 48, .28);
 }
 
-html, body { margin: 0; background: var(--bg); color: var(--text); }
+html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-ui); }
 a { color: var(--accent); text-decoration: none; }
 a:hover { color: var(--accent-bright); }
 * { box-sizing: content-box; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: var(--edge); border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: var(--edge); border-radius: var(--r-control); }
 
 /* The detail drawer slides in once per open — state reveal, not decoration. */
 @keyframes panelIn { from { opacity: 0; transform: translateX(10px) } to { opacity: 1; transform: translateX(0) } }
@@ -165,17 +230,15 @@ a:hover { color: var(--accent-bright); }
 /* Market wire (overview): the marquee itself is driven by ambient.js; here
    lives only the one-shot flash a price cell plays when the 30 s poll moved
    it. Reduced motion collapses both to their end state. */
-@keyframes wireUp { from { background: rgba(var(--pos-rgb), .3) } to { background: transparent } }
-@keyframes wireDn { from { background: rgba(var(--neg-rgb), .3) } to { background: transparent } }
-.wire-up { animation: wireUp .9s ease-out both; }
-.wire-dn { animation: wireDn .9s ease-out both; }
+@keyframes wireFlash { from { background: var(--wire-flash) } to { background: transparent } }
+.wire-up { --wire-flash: rgba(var(--pos-rgb), .3); animation: wireFlash .9s ease-out both; }
+.wire-dn { --wire-flash: rgba(var(--neg-rgb), .3); animation: wireFlash .9s ease-out both; }
 
-body { font-family: var(--font-ui); }
 
-.shell { display: flex; height: 100vh; width: 100%; min-width: 1280px; overflow: hidden; background: var(--bg); color: var(--text); }
-.sidebar { width: 264px; box-sizing: border-box; flex: none; border-right: 1px solid rgba(var(--ink), .09); display: flex; flex-direction: column; padding: 20px 14px 16px; overflow-y: auto; }
+.shell { display: flex; height: 100vh; width: 100%; min-width: 1280px; overflow: hidden; }
+.sidebar { width: 264px; box-sizing: border-box; flex: none; border-right: 1px solid var(--line-2); display: flex; flex-direction: column; padding: 20px 14px 16px; overflow-y: auto; }
 .maincol { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.topbar { display: flex; align-items: center; justify-content: space-between; padding: 13px 24px; border-bottom: 1px solid rgba(var(--ink), .09); flex: none; }
+.topbar { display: flex; align-items: center; justify-content: space-between; padding: 13px 24px; border-bottom: 1px solid var(--line-2); flex: none; }
 .content-wrap { flex: 1; min-height: 0; display: flex; position: relative; }
 .content { flex: 1; min-width: 1010px; overflow-y: auto; }
 
@@ -193,8 +256,7 @@ input { font-family: inherit; }
 }
 
 /* The sidebar entries are links now; they keep the terminal's flat look. */
-.sidebar a { color: inherit; text-decoration: none; }
-.sidebar a:hover { color: inherit; }
+.sidebar a, .sidebar a:hover { color: inherit; text-decoration: none; }
 
 /* Skip link: the sidebar is 24 tab stops deep and repeats on every route, so
    the first Tab offers a way past it. Off-screen until focused, never hidden
@@ -202,7 +264,7 @@ input { font-family: inherit; }
 .skip {
   position: fixed; left: 8px; top: -60px; z-index: 100;
   background: var(--accent); color: var(--on-accent); padding: 9px 14px; border-radius: var(--r-control);
-  font-size: 13px; font-weight: 600; text-decoration: none; transition: top .12s ease;
+  font-size: var(--t-body); font-weight: 600; text-decoration: none; transition: top .12s ease;
 }
 .skip:focus { top: 8px; color: var(--on-accent); }
 
@@ -236,16 +298,17 @@ input { font-family: inherit; }
   }
 }
 
-/* Hover utilities — the reference uses per-element hover styles; these classes
-   reproduce every hover pattern it contains. */
+/* Hover utilities. There were eleven of these, named after their alpha:
+   .hv-bd20 and .hv-bd22 differed by 0.02, .hv-bd30 and .hv-bd32 by 0.02, and
+   .hv-bd35w was .hv-bd35 plus the body of .hv-white. A name that spells out a
+   number is not a name — nobody can tell those pairs apart on screen, so they
+   carried no distinction. Three edge levels, and the text-brightening is its
+   own class again, to be combined where it is wanted. */
 .hv-el:hover { background: var(--panel-hover) !important; }
 .hv-panel:hover { background: var(--panel) !important; }
-.hv-bd22:hover { border-color: rgba(var(--ink), .22) !important; }
-.hv-bd30:hover { border-color: rgba(var(--ink), .3) !important; color: var(--text) !important; }
-.hv-bd32:hover { border-color: rgba(var(--ink), .32) !important; color: var(--text) !important; }
-.hv-bd35:hover { border-color: rgba(var(--ink), .35) !important; }
-.hv-bd35w:hover { border-color: rgba(var(--ink), .35) !important; color: var(--text) !important; }
-.hv-bd20:hover { border-color: rgba(var(--ink), .2) !important; }
+.hv-edge:hover { border-color: rgba(var(--ink), .22) !important; }
+.hv-edge-strong:hover { border-color: rgba(var(--ink), .32) !important; color: var(--text) !important; }
+.hv-edge-max:hover { border-color: rgba(var(--ink), .35) !important; }
 .hv-white:hover { color: var(--text) !important; }
 .hv-accent:hover { color: var(--accent) !important; }
 .hv-accentbg:hover { background: var(--accent-bg-hover) !important; }
@@ -265,7 +328,7 @@ input { font-family: inherit; }
 .tm-tile { transition: filter .12s ease; }
 .tm-tile:hover { filter: brightness(1.15); z-index: 5; }
 :root[data-theme="light"] .tm-tile:hover { filter: brightness(.94); }
-#tip { position: fixed; z-index: 60; pointer-events: none; display: none; max-width: 320px; background: rgba(var(--bg-rgb), .96); border: 1px solid rgba(var(--ink), .14); border-radius: var(--r-panel); padding: 12px 14px; box-shadow: 0 12px 32px var(--shadow-55); }
+#tip { position: fixed; z-index: 60; pointer-events: none; display: none; max-width: 320px; background: rgba(var(--bg-rgb), .96); border: 1px solid var(--line-1); border-radius: var(--r-panel); padding: 12px 14px; box-shadow: 0 12px 32px var(--shadow-55); }
 #tip.on { display: block; }
 
 /* Desktop-only is a decision here, not an oversight: .shell never goes below
@@ -277,8 +340,8 @@ input { font-family: inherit; }
   .narrow-note {
     display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 80;
     box-sizing: border-box; background: rgba(var(--bg-rgb), .97);
-    border-top: 1px solid rgba(var(--ink), .16); color: rgba(var(--ink), .72);
-    font-family: var(--font-mono); font-size: 12px; line-height: 1.5;
+    border-top: 1px solid var(--line-1); color: var(--ink-2);
+    font-family: var(--font-mono); font-size: var(--t-small); line-height: 1.5;
     padding: 11px 16px; text-align: center;
   }
   .narrow-note b { color: var(--accent); font-weight: 500; }
