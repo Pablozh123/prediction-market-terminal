@@ -11,15 +11,16 @@
 // selbst, denn ein Cluster-Bild ohne seine Regel ist nicht einzuordnen.
 
 import { esc } from '../util.js';
+import { SERIEN_FARBEN } from '../charts.js';
 
 const M = "font-family:'IBM Plex Mono',monospace";
 const CARD = 'background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px';
 
-// Cluster-Palette. Farben sind gut unterscheidbar und halten auf Dunkel.
-const CLUSTER_COLORS = [
-  'var(--accent)', 'var(--info)', 'var(--warn)', 'var(--neg-soft)', 'var(--cat-teal)',
-  'var(--cat-violet)', 'var(--cat-gold)', '#8FD694', '#F78FB3', 'var(--cat-blue2)'
-];
+// Cluster-Palette: die fuenf geprueften Serienplaetze aus terminal.css,
+// danach --warn und --muted als sechster und siebter Platz. Vorher standen
+// hier zwei Hex-Literale (#8FD694, #F78FB3), die dem Thema nicht folgten und
+// im hellen Thema als Neon auf Papier standen.
+const CLUSTER_COLORS = SERIEN_FARBEN.concat(['var(--warn)', 'var(--muted)']);
 
 const farbeVon = (i) => CLUSTER_COLORS[i % CLUSTER_COLORS.length];
 

@@ -162,15 +162,35 @@ export function diagramm(dia) {
   // 17px) und ein 20-Zeilen-Diagramm stand fast 1000px hoch neben den
   // kompakten HTML-Tabellen.
   return '<div style="' + CARD + '; padding:14px 16px 10px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(var(--ink),.5); margin-bottom:4px">'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(var(--ink),.62); margin-bottom:4px">'
     + esc(dia.titel || '') + (dia.einheit ? ' · ' + esc(dia.einheit) : '') + '</div>'
     + '<svg width="100%" viewBox="0 0 ' + BREITE + ' ' + hoehe + '" role="img" aria-label="' + esc(dia.titel || 'chart') + '" style="display:block; max-width:660px">'
     + achse(sk, dia, hoehe) + koerper + '</svg></div>';
 }
 
-// Serienfarben fuer Mehrlinien-Diagramme: die vier Grundfarben des Terminals
-// und ihre gedaempften Verwandten, wie ACHSEN_FARBE auf der Postmortem-Seite.
-export const SERIEN_FARBEN = ['var(--accent)', 'var(--info)', 'var(--pos)', 'var(--cat-violet)', 'var(--cat-teal)', 'var(--neg-soft)', 'var(--cat-gold)', 'var(--cat-blue2)', 'var(--muted)'];
+// Serienfarben fuer Mehrlinien-Diagramme: fuenf Plaetze in fester
+// Reihenfolge, definiert in terminal.css als --s1 bis --s5.
+//
+// Die alte Liste hatte neun Plaetze aus den Rollen- und --cat-Tokens und
+// vergab sie zyklisch. Gerechnet (nicht geschaetzt) fiel sie durch vier von
+// fuenf Pruefungen: --cat-violet und --info lagen unter Protanopie bei
+// Delta E 0.3, --cat-gold gegen --accent bei 5.4 fuer normalsichtige Leser,
+// sechs der neun lagen unter dem Buntheitsboden und lasen sich als Grau.
+// Dazu stand --pos auf Platz 3, obwohl terminal.css Gruen und Rot fuer
+// Vorzeichenwerte reserviert: in einem Vier-Serien-Diagramm hiess Gruen
+// gleichzeitig "Serie 3" und "positiv".
+//
+// Die fuenf neuen Plaetze bestehen alle fuenf Pruefungen in beiden Themes,
+// siehe den Kommentar an --s1 in terminal.css. Ueber fuenf Serien wird
+// nicht weiter zyklisch vergeben — zwei Serien mit derselben Farbe sind
+// keine Kodierung. serienFarbe() gibt dann null zurueck, und der Aufrufer
+// fasst zusammen oder teilt auf.
+export const SERIEN_FARBEN = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)', 'var(--s5)'];
+
+/** Farbe fuer Serie i, oder null jenseits der Plaetze (nicht zyklisch). */
+export function serienFarbe(i) {
+  return i >= 0 && i < SERIEN_FARBEN.length ? SERIEN_FARBEN[i] : null;
+}
 
 /** Mehrere Linien ueber einer gemeinsamen Kategorienachse.
  *
@@ -182,7 +202,12 @@ export const SERIEN_FARBEN = ['var(--accent)', 'var(--info)', 'var(--pos)', 'var
  */
 export function linien(k) {
   if (!k || !Array.isArray(k.x) || k.x.length < 2 || !Array.isArray(k.serien)) return '';
-  const serien = k.serien.filter((s) => s && Array.isArray(s.werte) && s.werte.some((w) => typeof w === 'number'));
+  const alleSerien = k.serien.filter((s) => s && Array.isArray(s.werte) && s.werte.some((w) => typeof w === 'number'));
+  // Keine zyklische Farbvergabe: ab Serie 6 gaebe es keine eigene Farbe
+  // mehr. Was nicht in die Plaetze passt, wird nicht heimlich in einer
+  // schon vergebenen Farbe gezeichnet, sondern gezaehlt und benannt.
+  const serien = alleSerien.slice(0, SERIEN_FARBEN.length);
+  const ueberzaehlig = alleSerien.length - serien.length;
   const gueltig = serien.reduce((a, s) => a + s.werte.filter((w) => typeof w === 'number').length, 0);
   if (!serien.length || gueltig < 2) return '';
   const B = 640, H = 230;
@@ -213,7 +238,7 @@ export function linien(k) {
   let pfade = '';
   let legende = '';
   serien.forEach((s, si) => {
-    const farbe = s.farbe || SERIEN_FARBEN[si % SERIEN_FARBEN.length];
+    const farbe = s.farbe || serienFarbe(si);
     let d = '';
     let offen = false;
     s.werte.forEach((w, i) => {
@@ -231,11 +256,16 @@ export function linien(k) {
 
   return '<div style="' + CARD + '; padding:14px 16px 10px">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:4px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(var(--ink),.5)">'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(var(--ink),.62)">'
     + esc(k.titel || '') + (k.einheit ? ' · ' + esc(k.einheit) : '') + '</div>'
-    + (k.hinweis ? '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.55)">' + esc(k.hinweis) + '</div>' : '')
+    + (k.hinweis ? '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.62)">' + esc(k.hinweis) + '</div>' : '')
     + '</div>'
-    + '<div style="display:flex; gap:12px; flex-wrap:wrap; margin:4px 0 6px">' + legende + '</div>'
+    + '<div style="display:flex; gap:12px; flex-wrap:wrap; margin:4px 0 6px">' + legende
+    + (ueberzaehlig > 0
+      ? '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.62)">+ ' + ueberzaehlig + ' further series not drawn — the palette has '
+        + SERIEN_FARBEN.length + ' slots and does not reuse one</div>'
+      : '')
+    + '</div>'
     + '<svg width="100%" viewBox="0 0 ' + B + ' ' + H + '" role="img" aria-label="' + esc(k.titel || 'lines') + '">'
     + raster + xLabels + pfade + '</svg></div>';
 }
@@ -280,7 +310,7 @@ export function kalibrierung(k) {
   const yMitte = S / 2;
   return '<div style="' + CARD + '; padding:12px 14px 8px">'
     + '<div style="' + M + '; font-size:11px; letter-spacing:.12em; color:rgba(var(--ink),.6)">' + esc(k.titel || '') + '</div>'
-    + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.55); margin-top:2px">' + esc(k.hinweis || ('n ' + gesamt + ' · ' + punkte.length + ' bins')) + '</div>'
+    + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.62); margin-top:2px">' + esc(k.hinweis || ('n ' + gesamt + ' · ' + punkte.length + ' bins')) + '</div>'
     + '<svg width="100%" viewBox="0 0 ' + S + ' ' + S + '" role="img" aria-label="' + esc(k.titel || 'calibration') + '" style="max-width:240px; display:block; margin:6px auto 0">'
     + '<rect x="' + PAD + '" y="' + PAD + '" width="' + (S - 2 * PAD) + '" height="' + (S - 2 * PAD) + '" fill="none" style="stroke:rgba(var(--ink),.1)" />'
     + '<line x1="' + PAD + '" y1="' + (S - PAD) + '" x2="' + (S - PAD) + '" y2="' + PAD + '" style="stroke:rgba(var(--ink),.3)" stroke-dasharray="3 3" />'
@@ -455,7 +485,7 @@ export function spiegelZeit(k) {
     achsen += '<text x="' + (R + 8) + '" y="' + (BOT + 4) + '" style="fill:var(--neg)" ' + tickStil + '>' + esc(kurzGeld(maxU)) + '</text>'
       + '<line x1="' + L + '" y1="' + BOT + '" x2="' + R + '" y2="' + BOT + '" style="stroke:rgba(var(--ink),.07)" stroke-width="1" />';
   }
-  achsen += '<text x="' + (R + 8) + '" y="' + (basis + 4).toFixed(1) + '" style="fill:rgba(var(--ink),.55)" ' + tickStil + '>0</text>';
+  achsen += '<text x="' + (R + 8) + '" y="' + (basis + 4).toFixed(1) + '" style="fill:rgba(var(--ink),.62)" ' + tickStil + '>0</text>';
 
   let xLabels = '';
   (Array.isArray(k.xLabels) ? k.xLabels : []).forEach((l) => {
@@ -479,9 +509,9 @@ export function spiegelZeit(k) {
 
   return '<div style="' + CARD + '; padding:14px 16px 10px">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:4px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(var(--ink),.5)">'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(var(--ink),.62)">'
     + esc(k.titel || '') + (k.einheit ? ' · ' + esc(k.einheit) : '') + '</div>'
-    + (k.hinweis ? '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.55)">' + esc(k.hinweis) + '</div>' : '')
+    + (k.hinweis ? '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.62)">' + esc(k.hinweis) + '</div>' : '')
     + '</div>'
     + (k.legende ? '<div style="display:flex; gap:12px; flex-wrap:wrap; margin:4px 0 6px">' + k.legende + '</div>' : '')
     + '<svg width="100%" viewBox="0 0 ' + B + ' ' + H + '" role="img" aria-label="' + esc(k.titel || 'flow') + '">'
@@ -534,9 +564,9 @@ export function stepKurve(k) {
 
   return '<div style="' + CARD + '; padding:14px 16px 10px">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:4px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(var(--ink),.5)">'
+    + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(var(--ink),.62)">'
     + esc(k.titel || '') + (k.einheit ? ' · ' + esc(k.einheit) : '') + '</div>'
-    + (k.hinweis ? '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.55)">' + esc(k.hinweis) + '</div>' : '')
+    + (k.hinweis ? '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.62)">' + esc(k.hinweis) + '</div>' : '')
     + '</div>'
     + '<svg width="100%" viewBox="0 0 ' + B + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="' + esc(k.titel || 'series') + '">'
     + nulllinie

@@ -42,6 +42,27 @@
   --cat-teal: #86BDB2;
   --cat-gold: #D4B878;
   --cat-blue2: #93A5C6;
+  /* Chart series slots. Five, in fixed order, never cycled — see
+     charts.js::SERIEN_FARBEN. They are NOT the --cat-* tokens: those were
+     picked by eye and fail the computable palette checks (two of them are
+     the same colour under protanopia, and one reads as gray). These were
+     stepped in OKLCH against the validator of the dataviz method until all
+     five checks pass, on both chart grounds and in both themes:
+       lightness band L 0.48-0.67 · chroma >= 0.10 · adjacent-pair CVD dE
+       >= 8 (min over protan/deutan) · normal-vision floor dE >= 15 ·
+       contrast >= 3:1 vs surface.
+     Dark, surface #131311: worst adjacent dE 10.6 (protan, s2 vs s1),
+     normal-vision floor 15.9. Same result against #0B0B0A.
+     Green and red are deliberately absent: this file reserves them for
+     signed values (line 9), which is exactly the rule the old series list
+     broke by putting --pos in slot 3. Five slots and no sixth because the
+     two reserved families leave too few hues that stay apart under
+     deuteranopia; a sixth series folds into "other" instead of cycling. */
+  --s1: #B58545;   /* amber   */
+  --s2: #2CA494;   /* teal    */
+  --s3: #855793;   /* violet  */
+  --s4: #6690CF;   /* blue    */
+  --s5: #A65A69;   /* rose    */
   /* overlay chrome */
   --scrim: rgba(8, 8, 7, .72);
   --shadow-25: rgba(0, 0, 0, .25);
@@ -106,6 +127,15 @@
   --cat-teal: #3B776B;
   --cat-gold: #826A2C;
   --cat-blue2: #596E90;
+  /* Chart series slots, light. Same five entities, own steps — a dark
+     palette flipped onto paper is not a light palette. Validator on
+     surface #FBFAF6: all five checks pass, worst adjacent dE 12.2
+     (deutan, s4 vs s3), normal-vision floor 18.2. Same against #F4F1EA. */
+  --s1: #826000;
+  --s2: #14938D;
+  --s3: #723D77;
+  --s4: #3D7DB1;
+  --s5: #7F3B59;
   --scrim: rgba(45, 42, 35, .45);
   --shadow-25: rgba(70, 62, 48, .14);
   --shadow-35: rgba(70, 62, 48, .18);

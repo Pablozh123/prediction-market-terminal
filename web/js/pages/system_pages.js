@@ -3,7 +3,7 @@
 // public/data/ when the API serves them, incl. their stand_utc stamp and note.
 
 import { esc, num, herkunftSatz, leerZeile, EINZAHLUNGEN_USD, offeneNichtDrin, stempelBlock } from '../util.js';
-import { stepKurve, diagramm, linien, kalibrierung, fmtZahl, SERIEN_FARBEN } from '../charts.js';
+import { stepKurve, diagramm, linien, kalibrierung, fmtZahl, serienFarbe } from '../charts.js';
 import { renderMicrostructure } from './microstructure_page.js';
 
 const M = "font-family:'IBM Plex Mono',monospace";
@@ -1262,7 +1262,7 @@ function renderCategoryEfficiency(T, payload, study) {
       hinweis: 'each point carries its own n — see the table',
       x: alleTage.map((t) => 'T-' + t),
       serien: zeilen.map((z, i) => ({
-        name: z.name, farbe: SERIEN_FARBEN[i % SERIEN_FARBEN.length],
+        name: z.name, farbe: serienFarbe(i),
         werte: alleTage.map((t) => { const h = horizontVon(z, t); return h && h.brier != null ? h.brier : null; })
       }))
     })
