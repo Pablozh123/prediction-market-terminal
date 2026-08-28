@@ -4,6 +4,7 @@ from unittest.mock import patch
 import pandas as pd
 
 from src import prediction_markets as md
+from tests.market_api_fixtures import offline_market_apis
 
 
 class ResolvedPositionsUnionTests(unittest.TestCase):
@@ -2305,3 +2306,86 @@ class KalshiCentUnitTests(unittest.TestCase):
         self.assertAlmostEqual(float(row["high"]), 0.60)
         self.assertAlmostEqual(float(row["low"]), 0.40)
         self.assertAlmostEqual(float(row["close"]), 0.58)
+
+
+class TraderFlowScoreContractTests(unittest.TestCase):
+    """Was ``trader_flow_scores`` zurueckgibt, ist ein Vertrag, kein Detail.
+
+    c18229a stellte vier Markt-Zaehler von ("title", nunique) auf
+    ("market_identity", nunique) um und ergaenzte die Ableitung
+    ``df["market_identity"] = market_identity(df)`` nur in zweien davon. Das
+    Tape, das die App hereinreicht, traegt die Spalte nicht -- jede der vier
+    Funktionen leitet sie selbst ab. Der KeyError riss deshalb page_search
+    (prediction_terminal.py:4077) und page_traders
+    (prediction_terminal.py:6208) ueber mehrere PRs mit, waehrend die CI
+    gruen blieb.
+
+    Die Regressionstests dazu liegen in tests/test_suspicion.py und zaehlen
+    Maerkte auf einem handgeschriebenen Tape. Hier laeuft die Aggregation
+    stattdessen gegen ein Tape in der echten Form und es steht fest, was die
+    beiden Seiten aus dem Ergebnis lesen.
+    """
+
+    #: prediction_terminal.py:6212 zieht ueber clean_table genau diese
+    #: Spalten aus dem Frame, bevor es sie an das Leaderboard mergt;
+    #: page_search mergt den ganzen Frame auf "wallet".
+    PAGE_COLUMNS = (
+        "wallet",
+        "recent_trades",
+        "recent_notional",
+        "avg_trade",
+        "largest_trade",
+        "markets",
+        "trades_per_hour",
+        "whale_score",
+        "bot_score",
+        "flow_trait",
+    )
+
+    #: Diese Spalten fuellen die Seiten mit fillna(0) auf und vergleichen sie
+    #: gegen Schwellen (apply_trader_trait_filters, option_metric_filter).
+    #: Als Text waeren beide Schritte still falsch statt laut kaputt.
+    NUMERIC_COLUMNS = (
+        "recent_trades",
+        "recent_notional",
+        "avg_trade",
+        "largest_trade",
+        "markets",
+        "trades_per_hour",
+        "whale_score",
+        "bot_score",
+    )
+
+    def _tape(self) -> pd.DataFrame:
+        """Das Tape in der Form, die load_polymarket_trades den Seiten gibt."""
+
+        with offline_market_apis():
+            return md.get_polymarket_trades(limit=50)
+
+    def test_the_tape_arrives_without_market_identity(self) -> None:
+        # Wachposten gegen einen stillen Zerfall dieser Klasse: liefert der
+        # Loader die Spalte eines Tages selbst mit, decken die Tests darunter
+        # die Ableitung nicht mehr ab, um die es hier geht.
+        tape = self._tape()
+        self.assertFalse(tape.empty)
+        self.assertNotIn("market_identity", tape.columns)
+
+    def test_every_column_the_pages_read_survives(self) -> None:
+        scores = md.trader_flow_scores(self._tape(), whale_threshold=2500.0)
+        self.assertFalse(scores.empty)
+        missing = [column for column in self.PAGE_COLUMNS if column not in scores.columns]
+        self.assertEqual(missing, [], f"Search und Traders lesen fehlende Spalten: {missing}")
+
+    def test_the_score_columns_come_back_numeric(self) -> None:
+        scores = md.trader_flow_scores(self._tape(), whale_threshold=2500.0)
+        not_numeric = [
+            column for column in self.NUMERIC_COLUMNS if not pd.api.types.is_numeric_dtype(scores[column])
+        ]
+        self.assertEqual(not_numeric, [])
+
+    def test_the_helper_column_does_not_leak_into_the_result(self) -> None:
+        # market_identity ist ein Rechenschritt, keine Ausgabe. page_search
+        # mergt den Frame ungefiltert auf "wallet" und zoege die Spalte
+        # sonst bis in die Tabelle der Seite.
+        scores = md.trader_flow_scores(self._tape(), whale_threshold=2500.0)
+        self.assertNotIn("market_identity", scores.columns)
