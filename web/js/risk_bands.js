@@ -90,7 +90,7 @@ export function bandChips(live) {
     const farbe = bandFarbe(b.tone);
     const rahmen = b.tone === 'warn' ? 'color:' + farbe + '; border:1px solid color-mix(in srgb, ' + farbe + ' 33%, transparent)'
       : 'color:' + farbe + '; border:1px solid var(--line-1)';
-    return '<div title="' + esc(b.meaning) + '" style="' + M + '; font-size:var(--t-micro); border-radius:var(--r-control); padding:4px 9px; ' + rahmen + '">'
+    return '<div title="' + esc(b.meaning) + '" style="' + M + '; font-size:var(--t-micro); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); ' + rahmen + '">'
       + esc(spanne) + ' PTS · ' + esc(b.label) + '</div>';
   }).join('');
 }

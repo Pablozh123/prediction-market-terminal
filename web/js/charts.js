@@ -163,8 +163,8 @@ export function diagramm(dia) {
   // jede Zeile auf breiten Fenstern mit (958px Spalte = Faktor 1.5, Text
   // 17px) und ein 20-Zeilen-Diagramm stand fast 1000px hoch neben den
   // kompakten HTML-Tabellen.
-  return '<div style="' + KARTE + '; padding:14px 16px 10px">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3); margin-bottom:4px">'
+  return '<div style="' + KARTE + '; padding:var(--sp-5) var(--sp-5) var(--sp-4)">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3); margin-bottom:var(--sp-2)">'
     + esc(dia.titel || '') + (dia.einheit ? ' · ' + esc(dia.einheit) : '') + '</div>'
     + '<svg width="100%" viewBox="0 0 ' + BREITE + ' ' + hoehe + '" role="img" aria-label="' + esc(dia.titel || 'chart') + '" style="display:block; max-width:660px">'
     + achse(sk, dia, hoehe) + koerper
@@ -259,18 +259,18 @@ export function linien(k) {
         + '<title>' + esc(s.name + ' · ' + k.x[i] + ' · ' + fmtZahl(w)) + '</title></circle>';
     });
     if (d) pfade += '<path d="' + d.trim() + '" fill="none" style="stroke:' + farbe + '" stroke-width="1.8" />';
-    legende += '<div style="display:flex; align-items:center; gap:6px; ' + M + '; font-size:var(--t-micro); color:var(--ink-3)">'
+    legende += '<div style="display:flex; align-items:center; gap:var(--sp-3); ' + M + '; font-size:var(--t-micro); color:var(--ink-3)">'
       + '<span style="display:inline-block; width:14px; height:3px; background:' + farbe + '; border-radius:2px"></span>'
       + esc(s.name) + '</div>';
   });
 
-  return '<div style="' + KARTE + '; padding:14px 16px 10px">'
-    + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:4px">'
+  return '<div style="' + KARTE + '; padding:var(--sp-5) var(--sp-5) var(--sp-4)">'
+    + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:var(--sp-5); flex-wrap:wrap; margin-bottom:var(--sp-2)">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3)">'
     + esc(k.titel || '') + (k.einheit ? ' · ' + esc(k.einheit) : '') + '</div>'
     + (k.hinweis ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + esc(k.hinweis) + '</div>' : '')
     + '</div>'
-    + '<div style="display:flex; gap:12px; flex-wrap:wrap; margin:4px 0 6px">' + legende
+    + '<div style="display:flex; gap:var(--sp-4); flex-wrap:wrap; margin:var(--sp-2) 0 var(--sp-3)">' + legende
     + (ueberzaehlig > 0
       ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">+ ' + ueberzaehlig + ' further series not drawn — the palette has '
         + SERIEN_FARBEN.length + ' slots and does not reuse one</div>'
@@ -318,10 +318,10 @@ export function kalibrierung(k) {
   // y-axis. The former "→ realised ↑" centred under the x-axis ran into
   // "predicted 1" at that width.
   const yMitte = S / 2;
-  return '<div style="' + KARTE + '; padding:12px 14px 8px">'
+  return '<div style="' + KARTE + '; padding:var(--sp-4) var(--sp-5) var(--sp-3)">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">' + esc(k.titel || '') + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:2px">' + esc(k.hinweis || ('n ' + gesamt + ' · ' + punkte.length + ' bins')) + '</div>'
-    + '<svg width="100%" viewBox="0 0 ' + S + ' ' + S + '" role="img" aria-label="' + esc(k.titel || 'calibration') + '" style="max-width:240px; display:block; margin:6px auto 0">'
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-1)">' + esc(k.hinweis || ('n ' + gesamt + ' · ' + punkte.length + ' bins')) + '</div>'
+    + '<svg width="100%" viewBox="0 0 ' + S + ' ' + S + '" role="img" aria-label="' + esc(k.titel || 'calibration') + '" style="max-width:240px; display:block; margin:var(--sp-3) auto 0">'
     + '<rect x="' + PAD + '" y="' + PAD + '" width="' + (S - 2 * PAD) + '" height="' + (S - 2 * PAD) + '" fill="none" style="stroke:rgba(var(--ink),.1)" />'
     + '<line x1="' + PAD + '" y1="' + (S - PAD) + '" x2="' + (S - PAD) + '" y2="' + PAD + '" style="stroke:rgba(var(--ink),.3)" stroke-dasharray="3 3" />'
     + '<path d="' + linie + '" fill="none" style="stroke:rgba(var(--ink),.25)" stroke-width="1" />'
@@ -517,13 +517,13 @@ export function spiegelZeit(k) {
       + '<title>' + esc(m.text || '') + '</title></circle>';
   });
 
-  return '<div style="' + KARTE + '; padding:14px 16px 10px">'
-    + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:4px">'
+  return '<div style="' + KARTE + '; padding:var(--sp-5) var(--sp-5) var(--sp-4)">'
+    + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:var(--sp-5); flex-wrap:wrap; margin-bottom:var(--sp-2)">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3)">'
     + esc(k.titel || '') + (k.einheit ? ' · ' + esc(k.einheit) : '') + '</div>'
     + (k.hinweis ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + esc(k.hinweis) + '</div>' : '')
     + '</div>'
-    + (k.legende ? '<div style="display:flex; gap:12px; flex-wrap:wrap; margin:4px 0 6px">' + k.legende + '</div>' : '')
+    + (k.legende ? '<div style="display:flex; gap:var(--sp-4); flex-wrap:wrap; margin:var(--sp-2) 0 var(--sp-3)">' + k.legende + '</div>' : '')
     + '<svg width="100%" viewBox="0 0 ' + B + ' ' + H + '" role="img" aria-label="' + esc(k.titel || 'flow') + '">'
     + achsen + koerper + marken + xLabels + '</svg></div>';
 }
@@ -572,8 +572,8 @@ export function stepKurve(k) {
     + '<text x="' + R + '" y="' + (H - 8) + '" style="fill:var(--ink-3)" font-size="11" '
     + 'font-family="IBM Plex Mono, monospace" text-anchor="end">' + esc(String(k.punkte[k.punkte.length - 1].label || '')) + '</text>';
 
-  return '<div style="' + KARTE + '; padding:14px 16px 10px">'
-    + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:4px">'
+  return '<div style="' + KARTE + '; padding:var(--sp-5) var(--sp-5) var(--sp-4)">'
+    + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:var(--sp-5); flex-wrap:wrap; margin-bottom:var(--sp-2)">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3)">'
     + esc(k.titel || '') + (k.einheit ? ' · ' + esc(k.einheit) : '') + '</div>'
     + (k.hinweis ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + esc(k.hinweis) + '</div>' : '')
@@ -609,13 +609,13 @@ const GITTER = 'style="stroke:rgba(var(--ink),.09)" stroke-width="1"';
 // Register-Markup weiter, nie zusammengesetzte Nutzerdaten.
 function karte(titel, einheit, hinweis, inhalt, fussnote, fussnoteHtml) {
   const fuss = (fussnote ? esc(fussnote) : '') + (fussnoteHtml ? (fussnote ? ' ' : '') + fussnoteHtml : '');
-  return '<div style="' + KARTE + '; padding:14px 16px 10px">'
-    + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:6px">'
+  return '<div style="' + KARTE + '; padding:var(--sp-5) var(--sp-5) var(--sp-4)">'
+    + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:var(--sp-5); flex-wrap:wrap; margin-bottom:var(--sp-3)">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3)">'
     + esc(titel || '') + (einheit ? ' · ' + esc(einheit) : '') + '</div>'
     + (hinweis ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + esc(hinweis) + '</div>' : '')
     + '</div>' + inhalt
-    + (fuss ? '<div style="font-size:var(--t-small); line-height:1.55; color:var(--ink-3); margin-top:8px; max-width:640px">' + fuss + '</div>' : '')
+    + (fuss ? '<div style="font-size:var(--t-small); line-height:1.55; color:var(--ink-3); margin-top:var(--sp-3); max-width:640px">' + fuss + '</div>' : '')
     + '</div>';
 }
 
@@ -851,10 +851,10 @@ export function histogramm(k) {
   });
 
   const grund = '<line x1="' + L + '" y1="' + BOT + '" x2="' + R + '" y2="' + BOT + '" style="stroke:rgba(var(--ink),.28)" stroke-width="1" />';
-  const swatch = (farbe, text) => '<div style="display:flex; align-items:center; gap:6px; ' + M + '; font-size:var(--t-micro); color:var(--ink-3)">'
+  const swatch = (farbe, text) => '<div style="display:flex; align-items:center; gap:var(--sp-3); ' + M + '; font-size:var(--t-micro); color:var(--ink-3)">'
     + '<span style="display:inline-block; width:10px; height:10px; border-radius:2px; background:' + farbe + '"></span>' + esc(text) + '</div>';
   const legende = k.hervorLabel
-    ? '<div style="display:flex; gap:14px; flex-wrap:wrap; margin:0 0 6px">'
+    ? '<div style="display:flex; gap:var(--sp-5); flex-wrap:wrap; margin:0 0 var(--sp-3)">'
       + swatch('var(--s4)', k.gesamtLabel || 'all') + swatch('var(--s1)', k.hervorLabel) + '</div>'
     : '';
   const svg = legende + '<svg width="100%" viewBox="0 0 ' + B + ' ' + H + '" role="img" aria-label="' + esc(k.titel || 'histogram')

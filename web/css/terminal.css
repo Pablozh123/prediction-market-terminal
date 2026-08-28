@@ -122,6 +122,33 @@
   --t-lead: 16px;     /* card titles and lead sentences */
   --t-head: 21px;     /* page titles, and the figure of a KPI tile */
   --t-hero: 26px;     /* the one figure a page is about */
+  /* The spacing ladder. Seven steps, because the JS carried 483 padding
+     shorthands in 133 different value chains, 87 of which occurred once or
+     twice, plus 361 gaps in 28 values and 605 margins in 36 — and no base
+     unit underneath any of it: every whole number from 1 to 18 appeared as a
+     padding component, so 9px sat next to 10px sat next to 11px with 150
+     call sites spread across two pixels. Nobody can see that difference, so
+     it carried no meaning; it only made two cards next to each other
+     different heights for no reason anyone could name.
+     Every step here is at least 1.33x its neighbour (2/4 and 4/8 are 2x),
+     which is roughly where a spacing difference starts to read as a
+     decision rather than as noise. Spacing needs a wider ratio than type:
+     a glyph is measured against its neighbours on the same line, a gap is
+     measured against nothing.
+     Where a value sat exactly between two steps (3, 6, 10, 14, 20 — 522
+     call sites) it went up, not down. PR #123 raised the type ladder and
+     deliberately left the padding alone, so since then every card has been
+     tighter than it was drawn; rounding the ties up puts the ratio back.
+     Values above the ladder are alignment, not rhythm, and stay numbers:
+     the 108px and 222px indents sit under a grid column of exactly that
+     width. */
+  --sp-1: 2px;    /* inside a badge or a chip: an inset, not a gap */
+  --sp-2: 4px;    /* a figure and the line under it */
+  --sp-3: 8px;    /* between things that belong to one another */
+  --sp-4: 12px;   /* inside a control, a dense cell, a table row */
+  --sp-5: 16px;   /* the inside of a card */
+  --sp-6: 24px;   /* the page gutter, and the space between sections */
+  --sp-7: 32px;   /* the foot of a page and the tail under a long table */
 }
 
 /* Light: warm paper, same roles two to three shades darker so every pairing
@@ -236,9 +263,9 @@ a:hover { color: var(--accent-bright); }
 
 
 .shell { display: flex; height: 100vh; width: 100%; min-width: 1280px; overflow: hidden; }
-.sidebar { width: 264px; box-sizing: border-box; flex: none; border-right: 1px solid var(--line-2); display: flex; flex-direction: column; padding: 20px 14px 16px; overflow-y: auto; }
+.sidebar { width: 264px; box-sizing: border-box; flex: none; border-right: 1px solid var(--line-2); display: flex; flex-direction: column; padding: var(--sp-6) var(--sp-5) var(--sp-5); overflow-y: auto; }
 .maincol { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.topbar { display: flex; align-items: center; justify-content: space-between; padding: 13px 24px; border-bottom: 1px solid var(--line-2); flex: none; }
+.topbar { display: flex; align-items: center; justify-content: space-between; padding: var(--sp-4) var(--sp-6); border-bottom: 1px solid var(--line-2); flex: none; }
 .content-wrap { flex: 1; min-height: 0; display: flex; position: relative; }
 .content { flex: 1; min-width: 1010px; overflow-y: auto; }
 
@@ -263,7 +290,7 @@ input { font-family: inherit; }
    with display:none — that would take it out of the tab order entirely. */
 .skip {
   position: fixed; left: 8px; top: -60px; z-index: 100;
-  background: var(--accent); color: var(--on-accent); padding: 9px 14px; border-radius: var(--r-control);
+  background: var(--accent); color: var(--on-accent); padding: var(--sp-3) var(--sp-5); border-radius: var(--r-control);
   font-size: var(--t-body); font-weight: 600; text-decoration: none; transition: top .12s ease;
 }
 .skip:focus { top: 8px; color: var(--on-accent); }
@@ -328,7 +355,7 @@ input { font-family: inherit; }
 .tm-tile { transition: filter .12s ease; }
 .tm-tile:hover { filter: brightness(1.15); z-index: 5; }
 :root[data-theme="light"] .tm-tile:hover { filter: brightness(.94); }
-#tip { position: fixed; z-index: 60; pointer-events: none; display: none; max-width: 320px; background: rgba(var(--bg-rgb), .96); border: 1px solid var(--line-1); border-radius: var(--r-panel); padding: 12px 14px; box-shadow: 0 12px 32px var(--shadow-55); }
+#tip { position: fixed; z-index: 60; pointer-events: none; display: none; max-width: 320px; background: rgba(var(--bg-rgb), .96); border: 1px solid var(--line-1); border-radius: var(--r-panel); padding: var(--sp-4) var(--sp-5); box-shadow: 0 12px 32px var(--shadow-55); }
 #tip.on { display: block; }
 
 /* Desktop-only is a decision here, not an oversight: .shell never goes below
@@ -342,7 +369,7 @@ input { font-family: inherit; }
     box-sizing: border-box; background: rgba(var(--bg-rgb), .97);
     border-top: 1px solid var(--line-1); color: var(--ink-2);
     font-family: var(--font-mono); font-size: var(--t-small); line-height: 1.5;
-    padding: 11px 16px; text-align: center;
+    padding: var(--sp-4) var(--sp-5); text-align: center;
   }
   .narrow-note b { color: var(--accent); font-weight: 500; }
 }

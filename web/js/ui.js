@@ -19,13 +19,13 @@ export const KARTE = 'background:var(--panel); border:1px solid var(--line-2); b
 // Das Mikrolabel ueber einer Zahl und in jedem Tabellenkopf.
 export const LABEL = MONO + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3)';
 // Dasselbe Label als eigener Block ueber einem Bedienelement.
-export const LABEL_BLOCK = LABEL + '; margin-bottom:6px';
-// Die Notizzeile im Fliesstext: gleiche Groesse, keine Sperrung, eigener
-// Zeilenabstand, weil sie umbricht.
+export const LABEL_BLOCK = LABEL + '; margin-bottom:var(--sp-3)';
+// Die kleine Mono-Zeile unter etwas: Notiz im Fliesstext und Unterzeile unter
+// einer Zahl waren zwei Konstanten, die sich nur im Zeilenabstand
+// unterschieden, mit der Begruendung, die Unterzeile sei einzeilig. Sie ist
+// es nicht: seit die vier Wallet-Kacheln durch kpi() laufen, traegt die
+// Unterzeile Herkunft und Nenner und bricht um. Ein Rezept.
 export const NOTIZ = MONO + '; font-size:var(--t-micro); color:var(--ink-3); line-height:1.6';
-// Die Unterzeile direkt unter einer Zahl. Sie ist einzeilig, deshalb kein
-// eigener Zeilenabstand.
-export const UNTERZEILE = MONO + '; font-size:var(--t-micro); color:var(--ink-3)';
 
 const TON_RAHMEN = {
   up: 'rgba(var(--pos-rgb),.35)',
@@ -54,30 +54,42 @@ const TON_FARBE = {
 //   trenner true = rechte Trennlinie (nur form 'band')
 //   kuerzen true = eine Zeile mit Auslassungspunkten statt Umbruch
 //   badge   fertiges Markup rechts neben dem Label
-//   polsterung nur fuer 'band': eigene Polsterung, wenn die Zelle mit der
-//              Rinne der Tabelle darunter fluchten muss statt mit sich selbst
+//
+// Die Polsterung des Bandes war bis zur Abstandsleiter eine Angabe: eine
+// Kennzahlenzeile ueber einer Tabelle nahm deren Rinne, damit das Label mit
+// dem Spaltenkopf darunter fluchtet, und die war auf der einen Seite 24px
+// und auf der anderen 20px. Auf der Leiter sind beide var(--sp-6); die
+// Angabe hatte damit nichts mehr zu unterscheiden und ist weg.
+//
+// min-width:0 steht fest an der Karte, nicht als Angabe: jede Karte dieser
+// Art sitzt in einem Raster, und ohne die Null nimmt eine Rasterzelle die
+// Mindestbreite ihres Inhalts an. Genau deshalb hatten vier der frueheren
+// Bauer sie einzeln gesetzt.
 export function kpi(o) {
   const band = o.form === 'band';
   const farbe = o.farbe || (o.ton ? TON_FARBE[o.ton] : null) || 'var(--text)';
   const rahmen = o.ton ? TON_RAHMEN[o.ton] : null;
   const huelle = band
-    ? 'padding:' + (o.polsterung || '16px 20px')
+    ? 'padding:var(--sp-5) var(--sp-6)'
       + (o.trenner ? '; border-right:1px solid var(--line-2)' : '')
-    : KARTE + '; padding:14px 16px' + (rahmen ? '; border-color:' + rahmen : '');
+    : KARTE + '; padding:var(--sp-5); min-width:0' + (rahmen ? '; border-color:' + rahmen : '');
   const kurz = o.kuerzen ? '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis' : '';
   const kopf = o.badge
-    ? '<div style="display:flex; justify-content:space-between; gap:8px; align-items:center">'
+    ? '<div style="display:flex; justify-content:space-between; gap:var(--sp-3); align-items:center">'
       + '<div style="' + LABEL + '">' + o.label + '</div>' + o.badge + '</div>'
     : '<div style="' + LABEL + '">' + o.label + '</div>';
   return '<div style="' + huelle + '">'
     + kopf
+    // Der Abstand zwischen Label und Zahl war 8px im Band und 7px in der
+    // Karte. Ein Pixel ist keine Unterscheidung, es war nur nie jemand da,
+    // der beide Zeilen nebeneinander gelesen haette. Eine Stufe.
     + '<div style="' + MONO + '; font-size:' + (o.gross ? 'var(--t-hero)' : 'var(--t-head)')
-    + '; margin-top:' + (band ? '8px' : '7px') + '; color:' + farbe + kurz + '">'
+    + '; margin-top:var(--sp-3); color:' + farbe + kurz + '">'
     + o.wert + '</div>'
     // kuerzen gilt nur fuer den Wert. Die Unterzeile darf umbrechen: sie
     // traegt Herkunft und Nenner, und ein abgeschnittenes "n 12 rows, 6 won"
     // ist schlimmer als eine zweite Zeile.
     + (o.sub == null ? ''
-      : '<div style="' + UNTERZEILE + '; margin-top:4px">' + o.sub + '</div>')
+      : '<div style="' + NOTIZ + '; margin-top:var(--sp-2)">' + o.sub + '</div>')
     + '</div>';
 }
