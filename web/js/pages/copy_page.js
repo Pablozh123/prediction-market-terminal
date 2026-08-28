@@ -594,7 +594,7 @@ export function renderCopy(T) {
     + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(var(--ink),.09)">'
     + '<div style="' + M + '; font-size:11px; letter-spacing:.18em; color:' + ACCENT + '">COPY TRADE · PAPER</div>'
     + '<h1 style="font-size:21px; line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">Follow traders with fake money</h1>'
-    // "Nothing is sent to a venue" stand hier als Prosa und ist jetzt der
+    // Der Vorbehalt zum Papierkonto stand hier als Prosa und ist jetzt der
     // Registereintrag paper_desk_only.
     + caveatZeile('paper_desk_only', {
       vorsatz: 'Every buy a followed wallet makes is scaled into that wallet\'s own sub-account and booked at the printed price. Equal start cash, equal settings, so the sub-accounts are the comparison.',

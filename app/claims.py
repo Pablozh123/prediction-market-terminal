@@ -23,6 +23,7 @@ against this file by the lint, so neither can drift.
 from __future__ import annotations
 
 import json
+import re
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -111,7 +112,7 @@ def surface_map(path: str | Path = CLAIMS_PATH) -> dict[str, list[str]]:
 
     This is the half of the register that was missing: it not only forbids
     wording, it names where each caveat has to appear. Without it an entry
-    can stop being rendered and nothing notices — which is exactly how
+    can stop being rendered and nothing notices, which is exactly how
     leaderboard_caveat, wallet_reader_caveat, screen_not_proof and
     backtest_modeled ended up with no reader at all.
     """
@@ -197,6 +198,22 @@ def registered_texts(path: str | Path = CLAIMS_PATH) -> tuple[str, ...]:
             if text:
                 out.append(text)
     return tuple(out)
+
+
+#: How a surface asks the register for a text: caveat/caveatZeile/caveatText
+#: in the frontend, disclaimer() in Python. One pattern for both, so the
+#: rendering check does not depend on which language the surface is in.
+CAVEAT_CALL_RE = re.compile(r"(?:caveatZeile|caveatText|caveat|disclaimer)\(\s*['\"]([A-Za-z0-9_]+)['\"]")
+
+
+def caveat_calls(text: str) -> list[tuple[int, str]]:
+    """(line number, disclaimer key) for every register lookup in ``text``."""
+
+    hits: list[tuple[int, str]] = []
+    for number, line in enumerate(str(text or "").splitlines(), start=1):
+        for match in CAVEAT_CALL_RE.finditer(line):
+            hits.append((number, match.group(1)))
+    return hits
 
 
 def find_unregistered_caveats(text: str, path: str | Path = CLAIMS_PATH

@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 import pandas as pd
 
 from app import api_views as apv
+from app import claims
 
 
 class LeaderboardRowsTests(unittest.TestCase):
@@ -1528,3 +1529,26 @@ class AlertReadingUnitsTests(unittest.TestCase):
         self.assertEqual(werte["TIGHT SPREAD"], "2.0¢")
         self.assertEqual(werte["WHALE PRINT"], "$12,000")
 
+
+class ClaimsPayloadTests(unittest.TestCase):
+    """/api/claims liefert das Register, das die Oberflaeche rendert."""
+
+    def test_payload_carries_both_languages_and_surfaces(self) -> None:
+        payload = apv.claims_payload()
+        self.assertEqual(payload["source"], "data/claims.yaml")
+        self.assertTrue(payload["updated"])
+        eintrag = payload["disclaimers"]["screen_not_proof"]
+        self.assertIn("research leads", eintrag["en"])
+        self.assertTrue(eintrag["de"])
+        # Welche Datei den Eintrag zeigen muss, ist Teil der Aussage.
+        self.assertIn("web/js/pages/trader_pages.js", eintrag["surfaces"])
+
+    def test_language_filter_returns_one_text(self) -> None:
+        payload = apv.claims_payload("de")
+        eintrag = payload["disclaimers"]["wallet_reader_caveat"]
+        self.assertEqual(set(eintrag) - {"surfaces"}, {"text"})
+        self.assertIn("nur lesend", eintrag["text"])
+
+    def test_risk_disclaimer_is_the_register_entry_not_a_second_copy(self) -> None:
+        payload = apv.risk_payload(pd.DataFrame(), pd.DataFrame())
+        self.assertEqual(payload["disclaimer"], claims.disclaimer("screen_not_proof", "en"))

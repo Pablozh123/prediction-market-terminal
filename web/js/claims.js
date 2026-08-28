@@ -1,7 +1,7 @@
 // Der einzige Weg, auf dem ein Vorbehalt in die Oberflaeche kommt.
 //
 // Bis hierher war jeder Disclaimer im Frontend handgeschriebene Prosa, und
-// data/claims.yaml hatte keinen einzigen Leser in web/ — das Register, auf
+// data/claims.yaml hatte keinen einzigen Leser in web/: das Register, auf
 // dem die Projektregel aufbaut, hat also nichts gespeist und nichts gedeckt.
 // Jetzt fragt eine Seite ihren Vorbehalt unter seinem Schluessel ab:
 //

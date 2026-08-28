@@ -1081,7 +1081,7 @@ export function renderRisk(T) {
     + '<h1 style="font-size:21px; line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">Trades that look like someone knew</h1></div>'
     + (live && live.as_of ? '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.55)">as of ' + esc(String(live.as_of)) + '</div>' : '')
     + '</div>'
-    // "research leads, not legal findings" stand hier und in
+    // Der Satz zur Beweiskraft eines Flags stand hier und noch einmal in
     // api_views.risk_payload; beide lesen jetzt screen_not_proof.
     + caveatZeile('screen_not_proof', {
       nachsatz: 'Sports odds, crypto &amp; market prices, and weather are excluded: game results, exchange prices and weather models cannot be traded on early.',

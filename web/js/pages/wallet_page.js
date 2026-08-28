@@ -120,9 +120,9 @@ function renderHeader(T) {
   return '<div style="padding:20px 24px 14px; border-bottom:1px solid rgba(var(--ink),.09)">'
     + '<div style="' + M + '; font-size:11px; letter-spacing:.18em; color:var(--accent)">WALLET</div>'
     + '<h1 style="font-size:21px; line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">One wallet, read from the public feed</h1>'
-    // "Read-only, nothing is placed" stand hier als Prosa; der Satz ist
-    // jetzt der Registereintrag wallet_reader_caveat, die Beschreibung
-    // davor gehoert weiter der Seite.
+    // Der Lese-Vorbehalt stand hier als Prosa; er ist jetzt der
+    // Registereintrag wallet_reader_caveat, die Beschreibung davor
+    // gehoert weiter der Seite.
     + caveatZeile('wallet_reader_caveat', {
       vorsatz: 'Paste a Polymarket proxy address. The page reads its resolved positions (both tails), open positions, the profile PnL curve and its trades from the public Data API, and prints the corrected track record next to the naive one, every figure with its sample size, interval and time stamp.',
       stil: 'font-size:13px; color:rgba(var(--ink),.55); margin-top:8px; max-width:800px; line-height:1.5'
