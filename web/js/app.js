@@ -847,7 +847,13 @@ class Terminal {
       + '?min_move=' + (s.thMove / 100).toFixed(4)
       + '&max_spread=' + (s.thSpread / 100).toFixed(4)
       + '&min_whale=' + s.thWhale
-      + '&ending_days=' + Math.max(1, Math.round(s.thEnding / 24));
+      + '&ending_days=' + Math.max(1, Math.round(s.thEnding / 24))
+      // Der Halter-Regler stand bis hierher nur im Frontend-Zustand und ging
+      // nirgends hin. Ob die Regel ueberhaupt laeuft, entscheidet die
+      // Einstellung alert_holder_checks auf dem Server; die Schwelle gehoert
+      // trotzdem hierher, sonst ist der Regler auch dann Zierde, wenn sie an
+      // ist.
+      + '&min_holder=' + (s.thHolder / 100).toFixed(2);
   }
 
   // Eine geaenderte Schwelle heisst: neu scannen. Ohne das Verwerfen liefert

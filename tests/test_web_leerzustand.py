@@ -326,6 +326,47 @@ class WebLeerzustandTest(unittest.TestCase):
         # Eine nicht ausgewertete Regel meldet keine Null.
         self.assertIn("not evaluated by this endpoint", live)
 
+    def test_das_zustellprotokoll_zeigt_was_rausging(self) -> None:
+        # Vorher stand hier ein Satz, dass es kein Protokoll gibt, plus zwei
+        # Zahlen des letzten Scans. Jetzt steht da, was tatsaechlich rausging,
+        # mit n, Intervall, Stichprobenurteil und Stand.
+        live = _sichtbarer_text(self.ausgabe["live"]["alerts_deliveries"])
+        self.assertIn("DELIVERY LOG", live)
+        self.assertIn("36 of 40", live)
+        self.assertIn("90.0%", live)
+        self.assertIn("95% CI", live)
+        self.assertIn("76.9", live)
+        self.assertIn("96.0", live)
+        self.assertIn("n=40", live)
+        self.assertIn("adequate", live)
+        self.assertIn("31 distinct", live)
+        self.assertIn("2026-08-28T15:00:00+00:00", live)
+        self.assertIn("40 rows", live)
+        # Der letzte Fehlversand steht da, statt nur nach stderr zu gehen.
+        self.assertIn("HTTP 429", live)
+        # Und die Treffer, die ueber dem Nachrichtenlimit lagen, sind kenntlich.
+        self.assertIn("37", live)
+
+    def test_ohne_protokoll_steht_keine_zustellzahl_da(self) -> None:
+        leer = _sichtbarer_text(self.ausgabe["leer"]["alerts_deliveries"])
+        self.assertIn("DELIVERY LOG", leer)
+        self.assertNotIn("95% CI", leer)
+        self.assertNotIn("attempts succeeded", leer)
+
+    def test_die_abgeschaltete_halterpruefung_nennt_ihren_schalter(self) -> None:
+        # "not evaluated by this endpoint" liest sich wie eine Eigenschaft des
+        # Endpunkts. Es ist ein Schalter, und der hat einen Namen.
+        live = _sichtbarer_text(self.ausgabe["live"]["alerts_rules"])
+        self.assertIn("not evaluated by this endpoint", live)
+        self.assertIn("alert_holder_checks = 0", live)
+        self.assertIn("threshold beside it changes nothing", live)
+
+    def test_der_halter_regler_erreicht_den_endpunkt(self) -> None:
+        # Der Regler "top holder over" stand im Frontend-Zustand und ging
+        # nirgends hin: der Alarm-Pfad trug ihn nicht.
+        quelltext = (WURZEL / "web" / "js" / "app.js").read_text(encoding="utf-8")
+        self.assertIn("min_holder=", quelltext)
+
     def test_abgeschnittene_signalliste_sagt_es(self) -> None:
         live = _sichtbarer_text(self.ausgabe["live"]["alerts"])
         self.assertIn("showing the top 60 of 125 signals", live)
@@ -2366,6 +2407,19 @@ class WebMethodikGrundsaetzeTest(unittest.TestCase):
             with self.subTest(key=key):
                 self.assertIn('data-caveat="' + key + '"', html)
                 self.assertIn(self.claims.disclaimer(key, "en"), text)
+
+    def test_eine_neue_zeile_des_publishers_verschwindet_nicht(self) -> None:
+        """Was der Publisher zusaetzlich schickt, muss sichtbar bleiben.
+
+        Der Streamlit-Pfad tat das seit PR #120 ueber
+        ``claims.unregistered_texts``; das Frontend rendert vier feste
+        Registerschluessel und las ``payload.disclaimer`` gar nicht. Eine
+        fuenfte Zeile aus dem taeglichen Lauf stand damit auf einer der
+        beiden Oberflaechen und auf der anderen nicht.
+        """
+
+        text = _sichtbarer_text(self.ausgabe["live"]["research_methodology"])
+        self.assertIn("Model outputs are cached for 24 hours before they enter a report.", text)
 
     def test_der_wortlaut_ist_der_der_publizierten_datei(self) -> None:
         # Ein Register, das die Formulierung nebenbei aendert, hat den Satz

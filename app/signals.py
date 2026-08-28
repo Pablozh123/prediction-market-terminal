@@ -319,8 +319,16 @@ def build_monitor_signals(
     return signals.sort_values(["severity", "time", "value"], ascending=[False, False, False]).reset_index(drop=True)
 
 
+#: Wie lange dieselbe Marktbeobachtung nach einer Zustellung ruht. Ein
+#: Marktsignal hat kein Ereignis, an dem seine Identitaet haengt: es beschreibt
+#: einen Zustand, den jeder Scan neu misst. Wie oft dieser Zustand gemeldet
+#: wird, ist deshalb eine Entscheidung des Scanners und steht hier als Zahl,
+#: nicht verborgen in einem Zeitstempel, den eine fremde API setzt.
+MARKET_SIGNAL_COOLDOWN_MINUTES = 60
+
+
 def signal_dedupe_key(row: Mapping[str, Any]) -> str:
-    """Identitaet eines Signals fuer den Zustell-Zustand des Scanners.
+    """Identitaet eines Signals fuer das Zustellprotokoll des Scanners.
 
     Der Schluessel bestand aus Art, Markt, Wallet und der Minute. Damit fielen
     zwei verschiedene Prints derselben Wallet im selben Markt und derselben
@@ -329,19 +337,38 @@ def signal_dedupe_key(row: Mapping[str, Any]) -> str:
     und nur der erste kam ins Ledger. Der gehandelte Ausgang gehoert hinein,
     und bei einem Print zusaetzlich der Trade selbst.
 
-    Fuer Marktsignale bleibt der Schluessel absichtlich grob: sie beschreiben
-    einen Marktzustand, der bei jedem Scan neu gemessen wird, und ein Wert im
-    Schluessel wuerde dieselbe Beobachtung bei jedem Tick erneut zustellen.
+    Bei einem Print ist die Zeit Teil des Ereignisses und bleibt im
+    Schluessel. Bei einem Marktsignal war sie es nie: ``_observed_at``
+    schreibt dort den ``updated_at`` des Marktes hinein, also den Zeitpunkt,
+    an dem die Venue ihren Datensatz zuletzt angefasst hat. Dieser Stempel
+    wandert unter einem aktiv umbepreisten Markt, und der Schluessel wanderte
+    mit. Gerechnet, bei Scan-Intervall 10 Minuten und unveraendertem 1h-Move
+    von 8 Cent:
+
+        Scan 14:25 -> updated_at 14:23:07 -> Schluessel ...|14:23 -> Alert 1
+        Scan 14:35 -> updated_at 14:34:51 -> Schluessel ...|14:34 -> Alert 2
+        Scan 14:45 -> updated_at 14:44:02 -> Schluessel ...|14:44 -> Alert 3
+
+    Drei Alerts und drei Ledger-Zeilen fuer eine unveraenderte Beobachtung,
+    waehrend der Nachbarmarkt mit demselben Move, den die Venue seit 09:12
+    nicht neu gestempelt hat, genau einen erzeugt: ueber die Zustellhaeufigkeit
+    entschied die Buchhaltung der Venue.
+
+    Deshalb traegt ein Marktsignal jetzt nur noch seine Identitaet (Art,
+    Markt, Ausgang). Wie oft diese Identitaet gemeldet werden darf, entscheidet
+    ``due_for_delivery`` ueber das Zustellprotokoll, also ueber die Zeitpunkte,
+    die der Scanner selbst geschrieben hat.
     """
 
+    art = _text(row.get("signal_type"))
     teile = [
-        _text(row.get("signal_type")),
+        art,
         _text(row.get("market_key")),
         _text(row.get("outcome")),
         _text(row.get("wallet")),
-        _text(row.get("time"))[:16],
     ]
-    if _text(row.get("signal_type")) in TRADE_SIGNAL_TYPES:
+    if art in TRADE_SIGNAL_TYPES:
+        teile.append(_text(row.get("time"))[:16])
         tx = _text(row.get("tx"))
         if tx:
             teile.append(tx)
@@ -351,6 +378,43 @@ def signal_dedupe_key(row: Mapping[str, Any]) -> str:
             notional = _text(row.get("notional"))
             teile.append(f"{_text(row.get('side'))}:{notional}@{_text(row.get('price'))}")
     return "|".join(teile)
+
+
+def delivery_cooldown_minutes(signal_type: Any) -> int:
+    """Ruhezeit einer Signalart nach einer Zustellung, in Minuten.
+
+    Ein Print ist ein einzelnes Ereignis: sein Schluessel wiederholt sich nur,
+    wenn es derselbe Trade ist, also gibt es fuer ihn genau eine Zustellung
+    und keine Ruhezeit (0). Ein Marktsignal beschreibt einen fortdauernden
+    Zustand und ruht ``MARKET_SIGNAL_COOLDOWN_MINUTES`` lang.
+    """
+
+    return 0 if _text(signal_type) in TRADE_SIGNAL_TYPES else int(MARKET_SIGNAL_COOLDOWN_MINUTES)
+
+
+def due_for_delivery(row: Mapping[str, Any], last_delivered_at: Any, now: Any = None) -> bool:
+    """Ob diese Zeile jetzt (wieder) zugestellt werden darf.
+
+    ``last_delivered_at`` ist der Zeitpunkt, zu dem derselbe Schluessel
+    zuletzt zugestellt wurde (aus dem Protokoll in ``app/ledger.py``), oder
+    None, wenn er noch nie zugestellt wurde. Reine Funktion, damit die Regel
+    ohne Datenbank pruefbar ist.
+    """
+
+    if last_delivered_at is None or (isinstance(last_delivered_at, str) and not last_delivered_at.strip()):
+        return True
+    ruhe = delivery_cooldown_minutes(row.get("signal_type"))
+    if ruhe <= 0:
+        return False
+    letzte = pd.to_datetime(last_delivered_at, utc=True, errors="coerce")
+    if pd.isna(letzte):
+        # Ein unlesbarer Stempel darf nicht dauerhaft blockieren; er ist
+        # kein Nachweis, dass etwas rausging.
+        return True
+    jetzt = pd.Timestamp.now(tz="UTC") if now is None else pd.Timestamp(now)
+    if jetzt.tzinfo is None:
+        jetzt = jetzt.tz_localize("UTC")
+    return (jetzt - letzte) >= pd.Timedelta(minutes=ruhe)
 
 
 def monitor_rule_matches(signals: pd.DataFrame, rule: dict[str, Any]) -> pd.DataFrame:

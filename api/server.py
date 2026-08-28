@@ -120,6 +120,7 @@ from app import app_settings as cfg
 from app import backtester as btr
 from app import claims as cl
 from app import cross_pairs
+from app import ledger
 from app import pilot_result
 from app import scorecard as sc
 from app import signals as sig
@@ -1436,12 +1437,39 @@ def _read_json_list(path: Path) -> list[Any]:
     return data if isinstance(data, list) else []
 
 
+def _delivery_aggregates() -> dict[str, Any] | None:
+    """Die Zahlen des Zustellprotokolls, oder None, wenn keines da ist.
+
+    Ein fehlendes oder unlesbares Protokoll gibt None zurueck; die Ansicht
+    sagt dann, dass sie nichts weiss, statt eine Null zu zeigen, die wie eine
+    gemessene Null aussieht.
+    """
+
+    pfad = ROOT / ledger.DEFAULT_LEDGER_PATH
+    if not pfad.exists():
+        return None
+    try:
+        conn = ledger.init_ledger(pfad)
+    except Exception:  # noqa: BLE001
+        return None
+    try:
+        return ledger.delivery_aggregates(conn)
+    except Exception:  # noqa: BLE001
+        return None
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
 @app.get("/api/alerts")
 def alerts(
     min_move: float = 0.03,
     max_spread: float = 0.07,
     min_whale: float = 0.0,
     ending_days: int = 7,
+    min_holder: float = 0.25,
 ) -> dict[str, Any]:
     settings = cfg.load_settings()
     whale_threshold = min_whale or float(settings.get("whale_threshold", 2500))
@@ -1450,11 +1478,14 @@ def alerts(
     if combined.empty and trades.empty:
         raise HTTPException(status_code=503, detail="no market data available")
 
-    # Welche Regeln dieser Endpunkt gar nicht auswertet. Die Regelkarten
-    # bewerben sechs Regeln; ohne diesen Hinweis liest sich eine nicht
-    # gepruefte Regel wie eine gepruefte ohne Treffer.
-    holder_checks = 0
-    nicht_geprueft = ["HOLDER CONCENTRATION"] if holder_checks == 0 else []
+    # Die Halter-Pruefung lief hier fest auf 0 und wurde als "not evaluated by
+    # this endpoint" gemeldet -- das liest sich wie eine Eigenschaft des
+    # Endpunkts. Sie haengt an einer Einstellung, die es gibt, also laeuft sie
+    # jetzt, wenn die Einstellung sie einschaltet, und der Hinweis nennt den
+    # Schalter mit Namen und Wert, wenn sie aus ist. Jede Pruefung kostet
+    # einen zusaetzlichen Holder-Aufruf, deshalb bleibt der Standard 0.
+    holder = apv.holder_check_state(settings.get(apv.HOLDER_CHECK_SETTING, 0))
+    holder_threshold = min(0.95, max(0.05, float(min_holder or 0.25)))
 
     # Die lokal gespeicherte Watchlist, dieselbe Datei, die /api/track liest.
     # Hier stand eine leere Menge, also konnte kein "Watched market"-Signal
@@ -1472,32 +1503,31 @@ def alerts(
             max_spread=max_spread,
             min_whale_notional=whale_threshold,
             ending_days=ending_days,
-            holder_threshold=0.25,
-            holder_checks=holder_checks,
+            holder_threshold=holder_threshold,
+            holder_checks=holder["checks"],
             tracked_keys=tracked_keys,
+            fetch_holders=(lambda market_key: md.get_polymarket_holders(market_key)) if holder["enabled"] else None,
         )
         return {
             "signals": apv.alert_rows(signals),
             "rule_counts": apv.alert_rule_counts(signals),
-            "rules_not_evaluated": nicht_geprueft,
+            "rules_not_evaluated": holder["rules_not_evaluated"],
         }
 
     # Die Watchlist gehoert in den Cache-Schluessel: sonst liefert ein Treffer
     # aus der Zeit vor der Aenderung noch eine Minute lang die alte Liste.
     watch_sig = hashlib.sha1("|".join(sorted(tracked_keys)).encode("utf-8")).hexdigest()[:12]
-    key = f"alerts_{min_move}_{max_spread}_{whale_threshold}_{ending_days}_{watch_sig}"
+    key = (
+        f"alerts_{min_move}_{max_spread}_{whale_threshold}_{ending_days}"
+        f"_{holder['checks']}_{holder_threshold}_{watch_sig}"
+    )
     state_path = ROOT / "data" / "alert_scanner_state.json"
-    deliveries: dict[str, Any] = {"available": False, "note": "No delivery log on this machine — the alert scanner keeps only a dedupe state, not a send history."}
+    scanner_state: dict[str, Any] = {}
     if state_path.exists():
         try:
-            state = json.loads(state_path.read_text(encoding="utf-8"))
-            deliveries = {
-                "available": False,
-                "note": "The scanner keeps no per-message log; last scan shown from its dedupe state.",
-                "last_scan_at": state.get("last_scan_at"),
-                "last_hits": state.get("last_hits"),
-                "last_sent": state.get("last_sent"),
-            }
+            geladen = json.loads(state_path.read_text(encoding="utf-8"))
+            if isinstance(geladen, dict):
+                scanner_state = geladen
         except (OSError, json.JSONDecodeError):
             pass
     gebaut = cached(key, _build, ttl=60.0)
@@ -1505,8 +1535,9 @@ def alerts(
         "signals": gebaut["signals"],
         "rule_counts": gebaut["rule_counts"],
         "rules_not_evaluated": gebaut["rules_not_evaluated"],
+        "holder_check": holder,
         "shown_limit": apv.ALERT_ROW_LIMIT,
-        "deliveries": deliveries,
+        "deliveries": apv.alert_delivery_view(_delivery_aggregates(), scanner_state),
         "as_of": md.now_utc_label(),
     }
 

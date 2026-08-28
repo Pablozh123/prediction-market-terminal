@@ -71,6 +71,40 @@ export function caveatText(key, sprache) {
   return String(eintrag[gewuenscht] || eintrag[STANDARD_SPRACHE] || eintrag.de || eintrag.en || '');
 }
 
+// Ein Satz auf das reduziert, worauf ein Vergleich sich stuetzen darf.
+// Gleiches Verfahren wie app/claims.py::_comparable: Leerraum und
+// Gross-/Kleinschreibung, sonst nichts. Eine umformulierte Zusage ist eine
+// andere Zusage und muss sichtbar werden.
+function vergleichbar(text) {
+  return String(text == null ? '' : text).split(/\s+/).filter(Boolean).join(' ').toLowerCase();
+}
+
+/**
+ * Die Zeilen einer publizierten Nutzlast, die kein Registereintrag traegt.
+ *
+ * Gegenstueck zu app/claims.py::unregistered_texts, damit beide Oberflaechen
+ * dieselbe Antwort geben. Ohne sie rendert eine Seite vier feste Schluessel
+ * und laesst eine fuenfte, spaeter dazugeschriebene Zeile des Publishers
+ * lautlos verschwinden -- genau der Fall, gegen den das Register nicht
+ * schuetzen soll, sondern den es sichtbar machen soll.
+ */
+export function unregistrierteTexte(zeilen) {
+  const bekannt = new Set();
+  const eintraege = register.disclaimers || {};
+  Object.keys(eintraege).forEach((key) => {
+    ['de', 'en'].forEach((code) => {
+      const text = eintraege[key] && eintraege[key][code];
+      if (text) bekannt.add(vergleichbar(text));
+    });
+  });
+  const raus = [];
+  (Array.isArray(zeilen) ? zeilen : []).forEach((zeile) => {
+    const text = String(zeile == null ? '' : zeile).trim();
+    if (text && !bekannt.has(vergleichbar(text))) raus.push(text);
+  });
+  return raus;
+}
+
 /** Der Vorbehalt als Inline-Element, fuer einen Satz, der weiterlaeuft. */
 export function caveat(key, opts) {
   const text = caveatText(key, opts && opts.sprache);
