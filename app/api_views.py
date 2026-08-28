@@ -2076,6 +2076,26 @@ def money_label(value: float) -> str:
     return f"${value:.0f}"
 
 
+def watchlist_market_keys(watchlist: Any) -> set[str]:
+    """Die market_keys der lokal gespeicherten Watchlist.
+
+    ``build_monitor_signals`` erzeugt "Watched market"-Signale nur fuer die
+    Keys, die es hier bekommt. Der Alarm-Endpunkt uebergab eine leere Menge,
+    und damit lieferte der Filter SCOPE = "Watched only" der Seite immer
+    null Zeilen -- nicht weil nichts auf der Liste stand, sondern weil die
+    Liste nie gelesen wurde.
+    """
+
+    keys: set[str] = set()
+    for item in watchlist or []:
+        if not isinstance(item, Mapping):
+            continue
+        key = _text(item.get("market_key")).strip()
+        if key:
+            keys.add(key)
+    return keys
+
+
 def track_payload(
     followed: list[Any],
     watchlist: list[Any],
