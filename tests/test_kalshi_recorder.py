@@ -216,6 +216,28 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(kr.discover_markets(
             get_json=lambda p, q=None: {"events": [], "cursor": ""}, pages=1), [])
 
+    def test_quotes_without_the_dollar_fields_come_from_the_cent_fields(self):
+        # Ohne Rueckfall stand hier 0.00/0.00, und die Cross-Venue-Studie
+        # verwarf den Markt als "keine verwertbaren Quotes".
+        def get_json(path, params=None):
+            return event_page([{"ticker": "A", "volume_24h": 500,
+                                "open_interest": 40, "yes_bid": 61,
+                                "yes_ask": 63}])
+        row = kr.discover_markets(get_json=get_json, pages=1)[0]
+        self.assertAlmostEqual(row["yes_bid"], 0.61)
+        self.assertAlmostEqual(row["yes_ask"], 0.63)
+        self.assertEqual(row["volume_24h"], 500.0)
+        self.assertEqual(row["open_interest"], 40.0)
+
+    def test_the_dollar_fields_still_win_when_both_are_there(self):
+        def get_json(path, params=None):
+            return event_page([{"ticker": "A", "volume_24h_fp": "7",
+                                "volume_24h": 999, "yes_bid_dollars": "0.61",
+                                "yes_bid": 99}])
+        row = kr.discover_markets(get_json=get_json, pages=1)[0]
+        self.assertAlmostEqual(row["yes_bid"], 0.61)
+        self.assertEqual(row["volume_24h"], 7.0)
+
 
 class ShardTests(unittest.TestCase):
     """Kalshi shards trading from 2026-08-06. The field cannot be backfilled."""
