@@ -583,7 +583,8 @@ def tape(limit: int = Query(250, le=1000), min_cash: float = 0.0) -> dict[str, A
     quellen = apv.venue_sources(trades)
     if trades.empty:
         return {"rows": [], "total": 0, "sources": quellen,
-                "venues_missing": apv.missing_venues(quellen), "as_of": md.now_utc_label()}
+                "venues_missing": apv.missing_venues(quellen),
+                "categories": apv.category_coverage(pd.DataFrame()), "as_of": md.now_utc_label()}
     # Venue-balanciert statt reine Zeitreihenfolge: sonst verdraengen die
     # Kalshi-Mikro-Trades jeden Polymarket-Print aus dem Fenster.
     shown = apv.balanced_head(trades, limit)
@@ -592,14 +593,23 @@ def tape(limit: int = Query(250, le=1000), min_cash: float = 0.0) -> dict[str, A
     # Kontextmuster des Risk-Screens) bzw. das Kalshi-Serien-Praefix. Das
     # Universum ist ohnehin im Cache (das Frontend laedt es mit); faellt es
     # aus, bleibt das Tape ohne Universum-Treffer, aber nicht leer.
+    # Faellt das Universum aus, faellt jede Zeile auf die Titel-Heuristik
+    # zurueck. Das ergibt eine andere Kategorieverteilung, keine leere, und
+    # die Kategorieleiste, der Filter und "Where the money flows" haengen
+    # daran. Der Ausfall reist deshalb als ``categories`` mit, statt als
+    # Zeile auf einem stdout zu enden, das niemand liest.
     try:
         universe = load_universe(250)
+        kategorie_fehler = ""
     except Exception as exc:
         print(f"[warn] universe for tape categories: {exc}")
         universe = pd.DataFrame()
+        kategorie_fehler = f"{type(exc).__name__}: {exc}"
     shown = apv.tape_rows_with_category(shown, universe, TAPE_CLASSIFIER)
     return {"rows": df_records(shown, limit), "total": int(len(trades)), "sources": quellen,
-            "venues_missing": apv.missing_venues(quellen), "as_of": md.now_utc_label()}
+            "venues_missing": apv.missing_venues(quellen),
+            "categories": apv.category_coverage(universe, error=kategorie_fehler),
+            "as_of": md.now_utc_label()}
 
 
 @app.get("/api/leaderboard")

@@ -149,7 +149,10 @@ class Terminal {
       // Kopfzeile sagte "LIVE, POLYMARKET + KALSHI", egal was zurueckkam; ein
       // Ausfall auf einer Venue war von einer stillen Venue nicht zu
       // unterscheiden. /api/tape und /api/markets fuehren das jetzt mit.
-      live: 'waiting', liveAsOf: '', tapeAsOf: '', venuesMissing: []
+      // Dasselbe eine Ebene tiefer: ob die Kategorie eines Prints aus dem
+      // Marktuniversum kam oder nur aus seinem Titel. Ohne das Universum
+      // stimmt die Kategorieleiste des Tapes nicht mehr, ohne leer zu sein.
+      live: 'waiting', liveAsOf: '', tapeAsOf: '', venuesMissing: [], tapeCategories: {}
     };
     // Sub-tab from the address (#risk/log, #alerts/rules), if it names one.
     const startSegmente = (location.hash || '').replace('#', '').split('/');
@@ -742,7 +745,10 @@ class Terminal {
           if (v && fehlend.indexOf(v) < 0) fehlend.push(v);
         });
       });
-      this.setState({ live: 'live', liveAsOf: String(mk.as_of || ''), tapeAsOf: String(tp.as_of || mk.as_of || ''), venuesMissing: fehlend });
+      this.setState({
+        live: 'live', liveAsOf: String(mk.as_of || ''), tapeAsOf: String(tp.as_of || mk.as_of || ''),
+        venuesMissing: fehlend, tapeCategories: (tp && tp.categories) || {}
+      });
     } catch (err) {
       // Nach einem geglueckten Lauf bleibt der letzte Stand stehen, die
       // Kopfzeile sagt das bereits. Vorher gibt es nichts zu behalten.

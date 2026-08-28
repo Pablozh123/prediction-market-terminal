@@ -131,6 +131,29 @@ export function liveStatusLabel(live, venuesMissing) {
   return 'PARTIAL · ' + da.join(' + ').toUpperCase() + ' ONLY · ' + fehlend.join(' + ').toUpperCase() + ' NOT ANSWERING';
 }
 
+// Woher die Kategorie eines Prints stammt, wenn sie nicht aus dem
+// Marktuniversum kam. Leer, solange alles steht.
+//
+// Derselbe Fall wie oben, eine Ebene tiefer: /api/tape schlaegt die Kategorie
+// je Zeile im Marktuniversum nach und faellt ohne Treffer auf die
+// Titel-Heuristik zurueck. Faellt das ganze Universum aus, passiert das jeder
+// Zeile auf einmal, und Polymarket-Prints ohne Rohkategorie landen reihenweise
+// unter "Other". Die Kategorieleiste, der Kategoriefilter und "Where the money
+// flows" zeigen dann eine Aufteilung, die es so nicht gibt. Ein leeres Ergebnis
+// waere sichtbar gewesen; dieses hier ist es nicht, deshalb der Satz.
+export function categorySourceLabel(categories) {
+  const c = categories || {};
+  if (c.ok === false) {
+    return 'CATEGORIES FROM TITLES ONLY · THE MARKET LOOKUP DID NOT ANSWER · THE SPLIT BELOW IS COARSER THAN USUAL';
+  }
+  const fehlend = (c.venues_missing || []).map((v) => String(v || '').trim()).filter(Boolean);
+  if (fehlend.length) {
+    return 'CATEGORIES PARTIAL · ' + fehlend.join(' + ').toUpperCase()
+      + ' MISSING FROM THE MARKET LOOKUP · ITS PRINTS ARE LABELLED FROM TITLES ONLY';
+  }
+  return '';
+}
+
 // Ein Panel ohne Daten sagt, welche Quelle fehlt, und zeigt keine Zahl. Eine
 // leere Flaeche kostet nichts; eine erfundene Kennzahl kostet die
 // Glaubwuerdigkeit jeder echten Zahl daneben.

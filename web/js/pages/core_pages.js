@@ -3,7 +3,7 @@
 // instance (T). Nothing here invents a number: every figure names its payload
 // or the panel says which payload is missing.
 
-import { esc, money, num, volume, contracts, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, signedMoney, stempel, EINZAHLUNGEN_USD, offeneNichtDrin, tapeFenster, fensterSatz } from '../util.js';
+import { esc, money, num, volume, contracts, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, signedMoney, stempel, EINZAHLUNGEN_USD, offeneNichtDrin, tapeFenster, fensterSatz, categorySourceLabel } from '../util.js';
 import { caveatZeile } from '../claims.js';
 import { spiegelZeit, kurzGeld, histogramm } from '../charts.js';
 import { studieAnker } from './microstructure_page.js';
@@ -746,7 +746,7 @@ function tapePulsHtml(prints, buys, sells) {
 
 // Wohin das Geld gerade fliesst: eine Zeile je Kategorie der gefilterten
 // Prints, Balkenlaenge nach Gesamtsumme, innen der Kauf/Verkauf-Anteil.
-function kategorieFlussHtml(prints) {
+function kategorieFlussHtml(prints, kategorieHinweis) {
   if (!prints.length) return '';
   const je = {};
   prints.forEach((t) => {
@@ -771,7 +771,11 @@ function kategorieFlussHtml(prints) {
       + '<div style="' + M + '; font-size:var(--t-small); text-align:right">' + kurzGeld(r.summe) + '</div>'
       + '<div style="' + M + '; font-size:var(--t-micro); text-align:right; color:var(--ink-4)">' + kaufAnteil + '% buy</div></div>';
   }).join('');
-  return insightPanel('WHERE THE MONEY FLOWS', 'filtered prints · buys vs sells', zeilen, '');
+  // Die Aufteilung dieses Panels IST die Kategoriezuordnung. Kam sie nicht
+  // aus dem Marktuniversum, gehoert das in die Zeile, die das Panel erklaert,
+  // und nicht nur ueber die Filterleiste.
+  const unterzeile = 'filtered prints · buys vs sells' + (kategorieHinweis ? ' · ' + kategorieHinweis.toLowerCase() : '');
+  return insightPanel('WHERE THE MONEY FLOWS', unterzeile, zeilen, '');
 }
 
 export function renderFlow(T) {
@@ -799,7 +803,8 @@ export function renderFlow(T) {
 
   const fensterZeile = fensterSatz(tapeFenster(tapeFiltered));
   const puls = tapePulsHtml(tapeFiltered, buys, sells);
-  const katFluss = kategorieFlussHtml(tapeFiltered);
+  const kategorieHinweis = categorySourceLabel(s.tapeCategories);
+  const katFluss = kategorieFlussHtml(tapeFiltered, kategorieHinweis);
   const grafiken = puls || katFluss
     ? '<div style="display:grid; grid-template-columns:' + (puls && katFluss ? 'minmax(0,1.65fr) minmax(0,1fr)' : '1fr') + '; gap:12px; padding:14px 24px; border-bottom:1px solid var(--line-2)">'
       + puls + katFluss + '</div>'
@@ -814,7 +819,15 @@ export function renderFlow(T) {
     + asOfLine(s.tapeAsOf || s.liveAsOf)
     + '<input value="' + esc(s.tapeQuery) + '" ' + T.inp((e) => T.setState({ tapeQuery: e.target.value }), 'tapeQuery') + ' placeholder="market, wallet, trader…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:9px 12px; ' + M + '; font-size:var(--t-small); color:var(--text); width:250px" />'
     + '</div></div>'
-    + '<div style="margin-top:14px">' + filterGroup('CATEGORY', catChipRow(T, T.tape, 'category', 'tapeCat', s.tapeCat)) + '</div>'
+    + '<div style="margin-top:14px">' + filterGroup('CATEGORY', catChipRow(T, T.tape, 'category', 'tapeCat', s.tapeCat))
+    // Steht ueber der Kategorieleiste, weil sie das erste ist, was die Zeile
+    // betrifft: ohne das Marktuniversum sind die Chips grober und "Other"
+    // groesser, und beides waere sonst von einer echten Verteilung nicht zu
+    // unterscheiden.
+    + (kategorieHinweis
+      ? '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--warn); margin-top:8px">' + esc(kategorieHinweis) + '</div>'
+      : '')
+    + '</div>'
     + '<div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px 18px; margin-top:14px">'
     + filterGroup('MINIMUM SIZE', [
       T.chip('≥ $2.5K', s.tapeMin === 2500 && !s.tapeTracked, { tapeMin: 2500, tapeTracked: false }),

@@ -93,6 +93,35 @@ def missing_venues(sources: Any) -> list[str]:
             if isinstance(row, Mapping) and not row.get("ok")]
 
 
+def category_coverage(universe: Any, *, error: str = "") -> dict[str, Any]:
+    """Woraus die ``category`` einer Tape-Zeile stammt, und was daran gefehlt hat.
+
+    Die Kategorie eines Prints kommt in erster Linie aus dem Marktuniversum
+    (``tape_rows_with_category``). Faellt das Universum aus, faellt jede
+    Zeile auf die Titel-Heuristik zurueck: Polymarket-Prints ohne
+    Rohkategorie landen dann reihenweise unter "Other". Das ist kein leeres
+    Ergebnis, sondern ein anderes. Die Kategorieleiste des Tapes, der
+    Kategoriefilter und die Aufteilung in "Where the money flows" zeigen
+    danach eine Verteilung, die es so nicht gibt, und vorher stand darueber
+    nur eine Zeile auf stdout.
+
+    ``ok`` heisst: die Nachschlagetabelle stand. Ein leeres Universum ohne
+    Fehler ist erlaubt (nichts gelistet); ein Fehler ist es nicht.
+    ``venues_missing`` sind die Venues, die im Universum selbst gefehlt
+    haben, denn deren Maerkte fehlen dann in der Tabelle.
+    """
+
+    fehler = str(error or "")[:300]
+    markets = 0 if universe is None else int(len(universe))
+    return {
+        "ok": not fehler,
+        "source": "market universe",
+        "markets": markets,
+        "venues_missing": missing_venues(venue_sources(universe)),
+        "error": fehler,
+    }
+
+
 def claims_payload(lang: str | None = None) -> dict[str, Any]:
     """Das Caveat-Register als JSON, so wie /api/claims es ausliefert.
 

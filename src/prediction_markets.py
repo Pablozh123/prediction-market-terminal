@@ -412,28 +412,76 @@ def get_polymarket_markets(limit: int = 250, offset: int = 0, active_only: bool 
     return _finalize_polymarket_markets([_normalize_polymarket_market(market) for market in raw_rows])
 
 
+def _in_batches(values: Iterable[Any], batch_size: int = 20) -> list[tuple[list[str], int, int]]:
+    """Die Werte entdoppelt, in Reihenfolge, als ``(batch, nummer, gesamt)``.
+
+    ``gesamt`` ist die Zahl der Ids nach dem Entdoppeln, nicht die der
+    Batches: eine Fehlermeldung soll sagen, wie viele Nachschlagungen
+    ausgefallen sind, nicht wie viele Requests.
+    """
+
+    seen: set[str] = set()
+    ids: list[str] = []
+    for value in values:
+        text = str(value or "").strip()
+        if text and text not in seen:
+            seen.add(text)
+            ids.append(text)
+    size = max(1, int(batch_size))
+    return [(ids[start : start + size], start // size + 1, len(ids)) for start in range(0, len(ids), size)]
+
+
+def _batch_json(url: str, params: dict[str, Any], *, feed: str, batch: list[str], index: int, total: int) -> Any:
+    """Eine Batch-Abfrage, deren Ausfall nicht als leere Antwort durchgeht.
+
+    Hier stand ``except MarketDataError: continue``. Ein Batch von 20 Ids,
+    dessen Request scheitert, verschwand damit aus dem Ergebnis, und die
+    Liste kam kuerzer, aber vollstaendig aussehend zurueck. Der Aufrufer
+    kann die beiden Faelle nicht trennen: "diese 20 Maerkte gibt es nicht"
+    und "die Frage nach diesen 20 Maerkten ist nie angekommen" sehen von
+    aussen gleich aus, naemlich als fehlende Zeilen.
+
+    Was daraus wurde: der Backtester loest ueber diese Liste seine
+    Positionen auf. Fehlt ein Markt, bleibt die Position "open at cost",
+    ein Gewinner wird also mit null Ergebnis gebucht und ROI, Trefferquote
+    und Drawdown der ganzen Wallet fallen zu niedrig aus. Kein Fehler
+    irgendwo, nur eine andere Zahl.
+
+    Eine leere Antwort auf einen erfolgreichen Request bleibt erlaubt: fuer
+    Sport-Untermaerkte antwortet ``/markets?condition_ids=`` regelmaessig
+    leer, obwohl der Markt existiert, und genau dafuer gibt es den
+    Slug-Rueckweg. Nicht gefunden ist eine Aussage, nicht gefragt nicht.
+    """
+
+    try:
+        return _get_json(url, params=params)
+    except MarketDataError as exc:
+        raise MarketDataError(
+            f"{feed}: batch {index} failed with {len(batch)} of {total} ids unanswered: {exc}. "
+            f"Skipping the batch would return a shorter list that reads like a complete one, "
+            f"and every id in it would look like a market that does not exist."
+        ) from exc
+
+
 def get_polymarket_markets_by_condition_ids(condition_ids: list[str]) -> list[dict[str, Any]]:
     """Fetch raw Gamma market payloads for specific conditionIds (batched).
 
     Returns raw dicts (not normalized) because callers such as the backtester
     need ``clobTokenIds``/``outcomePrices`` index alignment to value a token.
+
+    Ein gescheiterter Batch bricht laut ab, siehe ``_batch_json``.
     """
 
-    seen: set[str] = set()
-    ids: list[str] = []
-    for value in condition_ids:
-        text = str(value or "").strip()
-        if text and text not in seen:
-            seen.add(text)
-            ids.append(text)
     rows: list[dict[str, Any]] = []
-    batch_size = 20
-    for start in range(0, len(ids), batch_size):
-        batch = ids[start : start + batch_size]
-        try:
-            data = _get_json(f"{POLY_GAMMA}/markets", params={"condition_ids": batch, "limit": len(batch)})
-        except MarketDataError:
-            continue
+    for batch, index, total in _in_batches(condition_ids):
+        data = _batch_json(
+            f"{POLY_GAMMA}/markets",
+            {"condition_ids": batch, "limit": len(batch)},
+            feed="polymarket markets by conditionId",
+            batch=batch,
+            index=index,
+            total=total,
+        )
         rows.extend(item for item in (data if isinstance(data, list) else data.get("data", [])) if isinstance(item, dict))
     return rows
 
@@ -446,23 +494,20 @@ def get_polymarket_markets_by_event_slugs(slugs: list[str]) -> list[dict[str, An
     Elternereignis liefert ``/events?slug=`` dieselben Maerkte samt
     ``outcomePrices``/``closed``/``clobTokenIds`` — der Backtester braucht
     das, um Positionen aufzuloesen statt sie ewig "open at cost" zu tragen.
+
+    Ein gescheiterter Batch bricht laut ab, siehe ``_batch_json``.
     """
 
-    seen: set[str] = set()
-    ids: list[str] = []
-    for value in slugs:
-        text = str(value or "").strip()
-        if text and text not in seen:
-            seen.add(text)
-            ids.append(text)
     rows: list[dict[str, Any]] = []
-    batch_size = 20
-    for start in range(0, len(ids), batch_size):
-        batch = ids[start : start + batch_size]
-        try:
-            data = _get_json(f"{POLY_GAMMA}/events", params={"slug": batch, "limit": len(batch)})
-        except MarketDataError:
-            continue
+    for batch, index, total in _in_batches(slugs):
+        data = _batch_json(
+            f"{POLY_GAMMA}/events",
+            {"slug": batch, "limit": len(batch)},
+            feed="polymarket events by slug",
+            batch=batch,
+            index=index,
+            total=total,
+        )
         for event in data if isinstance(data, list) else data.get("data", []):
             if not isinstance(event, dict):
                 continue
@@ -1092,6 +1137,124 @@ def get_polymarket_trades(
         "url",
     ]
     return df[[c for c in cols if c in df.columns]].sort_values("time", ascending=False).reset_index(drop=True)
+
+
+#: Unter diesem Schluessel reist der Zuschnitt einer Stichprobe am Frame mit.
+#: Gleiches Verfahren wie ``app.api_views.VENUE_SOURCES_ATTR``, andere Frage:
+#: dort geht es um die Venue, hier um das Fenster.
+SAMPLE_ATTR = "sample_coverage"
+
+
+def sample_coverage(frame: Any) -> dict[str, Any]:
+    """Der Zuschnitt-Vermerk eines Frames, oder ein leerer."""
+
+    attrs = getattr(frame, "attrs", None)
+    if not isinstance(attrs, Mapping):
+        return {}
+    record = attrs.get(SAMPLE_ATTR)
+    return dict(record) if isinstance(record, Mapping) else {}
+
+
+def sample_note(record: Any) -> str:
+    """Ein Satz, der die Stichprobe benennt, aus der eine Zahl stammt.
+
+    Ohne diesen Satz stand am Bildschirm eine Zahl ueber "die" Whale-Flows,
+    und der Zuschnitt (ab welchem Betrag, wie viele Seiten) war ein
+    Aufrufargument, das nirgends auftauchte. Das ist die stille Haelfte
+    desselben Problems: nicht falsch gerechnet, aber ueber etwas anderes
+    gerechnet, als die Bildunterschrift behauptet.
+
+    ``truncated_by_error`` ist der Teil, der wirklich weh tut: bricht die
+    Seitenschleife nach zwei von vier Seiten ab, haengt die Stichprobe
+    daran, wann der Fehler kam, und niemand sieht es.
+    """
+
+    daten = dict(record) if isinstance(record, Mapping) else sample_coverage(record)
+    if not daten:
+        return ""
+    teile: list[str] = []
+    floor = daten.get("min_cash")
+    if floor is not None:
+        teile.append(f"prints from ${float(floor):,.0f}")
+    gelesen = int(daten.get("pages_read") or 0)
+    verlangt = int(daten.get("pages_requested") or 0)
+    zeilen = int(daten.get("rows") or 0)
+    if verlangt:
+        teile.append(f"{gelesen} of up to {verlangt} pages, {zeilen:,} prints")
+    elif zeilen:
+        teile.append(f"{zeilen:,} prints")
+    satz = "Sample: " + ", ".join(teile) + "." if teile else ""
+    fehler = str(daten.get("error") or "").strip()
+    if daten.get("truncated_by_error"):
+        satz += (
+            f" The feed stopped answering after page {gelesen}, so this sample is shorter than the "
+            f"setting asks for and the counts below are drawn from less tape than usual: {fehler}"
+        )
+    elif verlangt and gelesen < verlangt:
+        satz += " The feed had nothing beyond that."
+    fehlend = [str(name).strip() for name in (daten.get("venues_missing") or []) if str(name).strip()]
+    if fehlend:
+        satz += f" {' and '.join(fehlend)} did not answer, so nothing below counts that venue."
+    return satz.strip()
+
+
+def paged_polymarket_trades(
+    min_cash: float,
+    pages: int = 4,
+    page_size: int = 500,
+    fetch: Any = None,
+) -> pd.DataFrame:
+    """Mehrere Seiten des Whale-Tapes, mit einem Vermerk ueber den Zuschnitt.
+
+    Die Seitenschleife stand im Monolithen und brach bei der ersten
+    ``MarketDataError`` mit ``break`` ab. Danach lief alles weiter: die
+    gelesenen Seiten wurden zusammengesetzt, die Seite rechnete darauf ihr
+    Co-Trading-Netz und schrieb "sampled tape" darunter. Wie viel Tape das
+    war, hing daran, auf welcher Seite der Fehler kam, und keine Zeile am
+    Bildschirm sagte das. Zwei Seiten statt vier heisst ein halb so tiefes
+    Netz, also weniger geteilte Maerkte je Wallet-Paar, also weniger
+    Cluster oberhalb der Schwelle ``min_shared``: die Seite zeigt dann
+    weniger Syndikate und sieht dabei aus wie eine ruhige Messung.
+
+    Gefangen wird weiter, denn eine halbe Stichprobe ist brauchbarer als
+    keine. Aber der Abbruch wandert in ``frame.attrs[SAMPLE_ATTR]`` und von
+    dort in die Bildunterschrift, genau wie die Venue-Herkunft in #125.
+
+    ``fetch`` ist der Seitenabruf und existiert, damit die Funktion netzfrei
+    geprueft werden kann; ohne Angabe ist es ``get_polymarket_trades``.
+    """
+
+    seiten = max(0, int(pages))
+    groesse = max(1, int(page_size))
+    hole = fetch or get_polymarket_trades
+    record: dict[str, Any] = {
+        "source": "polymarket_trades",
+        "min_cash": float(min_cash),
+        "pages_requested": seiten,
+        "page_size": groesse,
+        "pages_read": 0,
+        "rows": 0,
+        "truncated_by_error": False,
+        "error": "",
+    }
+    frames: list[pd.DataFrame] = []
+    for page in range(seiten):
+        try:
+            chunk = hole(limit=groesse, min_cash=min_cash, offset=page * groesse)
+        except MarketDataError as exc:
+            record["truncated_by_error"] = True
+            record["error"] = str(exc)[:300]
+            break
+        record["pages_read"] = page + 1
+        if chunk is None or chunk.empty:
+            break
+        frames.append(chunk)
+        if len(chunk) < groesse:
+            break
+    tape = pd.concat(frames, ignore_index=True, sort=False) if frames else pd.DataFrame()
+    record["rows"] = int(len(tape))
+    tape.attrs[SAMPLE_ATTR] = record
+    return tape
 
 
 def is_polymarket_wallet(value: Any) -> bool:
