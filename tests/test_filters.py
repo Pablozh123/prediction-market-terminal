@@ -168,5 +168,59 @@ class RobustnessTests(unittest.TestCase):
                 self.assertEqual(len(fn(markets(), *preset_args)), 2)
 
 
+class TradeDirectionTests(unittest.TestCase):
+    """``side`` bedeutet auf den beiden Venues nicht dasselbe.
+
+    Polymarket schreibt die Richtung hinein (BUY/SELL), Kalshi die genommene
+    Seite und zwar klein (yes/no). Ein Gleichheitstest gegen "BUY" warf
+    deshalb jeden Kalshi-Print aus der Auswahl (Whale flow) oder schrieb ihn
+    mit 0 in eine Kauf-/Verkaufssumme (Marktfluss).
+    """
+
+    def _tape(self) -> pd.DataFrame:
+        return pd.DataFrame([
+            {"platform": "Polymarket", "side": "BUY", "outcome": "Yes", "notional": 100.0},
+            {"platform": "Polymarket", "side": "SELL", "outcome": "No", "notional": 40.0},
+            {"platform": "Kalshi", "side": "yes", "outcome": "yes", "notional": 60.0},
+            {"platform": "Kalshi", "side": "no", "outcome": "no", "notional": 25.0},
+        ])
+
+    def test_a_kalshi_taker_print_is_a_buy_not_a_dropped_row(self) -> None:
+        self.assertEqual(flt.trade_direction("yes"), "BUY")
+        self.assertEqual(flt.trade_direction("no"), "BUY")
+        self.assertEqual(flt.trade_direction("BUY"), "BUY")
+        self.assertEqual(flt.trade_direction("sell"), "SELL")
+        self.assertEqual(flt.trade_direction(None), "BUY")
+
+    def test_filtering_for_buys_keeps_both_venues(self) -> None:
+        gekauft = flt.filter_trade_direction(self._tape(), "BUY")
+        self.assertEqual(len(gekauft), 3)
+        self.assertEqual(set(gekauft["platform"]), {"Polymarket", "Kalshi"})
+        # Vorher: eq("BUY") auf der rohen Spalte liess nur die eine
+        # Polymarket-Zeile stehen, die Kalshi-Prints verschwanden ohne Hinweis.
+        self.assertEqual(len(self._tape()[self._tape()["side"].str.upper().eq("BUY")]), 1)
+
+    def test_filtering_for_sells_keeps_only_real_sells(self) -> None:
+        verkauft = flt.filter_trade_direction(self._tape(), "SELL")
+        self.assertEqual(len(verkauft), 1)
+        self.assertEqual(verkauft.iloc[0]["platform"], "Polymarket")
+
+    def test_all_and_an_unknown_label_pass_everything_through(self) -> None:
+        self.assertEqual(len(flt.filter_trade_direction(self._tape(), "All")), 4)
+        self.assertEqual(len(flt.filter_trade_direction(self._tape(), "Kaufen")), 4)
+
+    def test_the_outcome_spelling_is_unified_across_venues(self) -> None:
+        self.assertEqual(flt.trade_outcome("yes"), "Yes")
+        self.assertEqual(flt.trade_outcome("NO"), "No")
+        # Mehrfachmaerkte tragen Teamnamen; die bleiben, wie sie kommen.
+        self.assertEqual(flt.trade_outcome("Chiefs"), "Chiefs")
+        self.assertEqual(flt.trade_outcome(""), "")
+
+    def test_the_direction_column_covers_a_frame_without_a_side(self) -> None:
+        ohne = pd.DataFrame([{"platform": "Kalshi", "notional": 5.0}])
+        self.assertEqual(list(flt.trade_direction_col(ohne)), ["BUY"])
+        self.assertTrue(flt.trade_direction_col(pd.DataFrame()).empty)
+
+
 if __name__ == "__main__":
     unittest.main()

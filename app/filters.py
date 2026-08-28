@@ -140,6 +140,69 @@ def numeric_col(df: pd.DataFrame, column: str, default: float = 0.0) -> pd.Serie
     return pd.to_numeric(df[column], errors="coerce").fillna(default)
 
 
+#: Richtung eines Prints. Nur "SELL" ist ein Verkauf, alles andere ein Kauf.
+TRADE_DIRECTIONS = ("BUY", "SELL")
+
+
+def trade_direction(side: Any) -> str:
+    """Kauf oder Verkauf eines Prints, venue-uebergreifend.
+
+    ``side`` bedeutet auf den beiden Venues nicht dasselbe. Polymarket
+    schreibt die Richtung hinein (``BUY``/``SELL``,
+    ``prediction_markets.get_polymarket_trades``); Kalshi schreibt die
+    genommene Seite hinein und zwar klein (``yes``/``no``,
+    ``get_kalshi_trades``: ``df["side"] = df.get("taker_side", "")``). Ein
+    Kalshi-Taker-Print ist immer ein Kauf der genannten Seite, es gibt in
+    diesem Feed keine Verkaeufe.
+
+    Ein Gleichheitstest gegen ``"BUY"``/``"SELL"`` laesst deshalb jeden
+    Kalshi-Print durchfallen: er wird aus der Auswahl geworfen (Whale flow)
+    oder mit 0 in eine Summe geschrieben (Marktfluss). Dieselbe Regel steht
+    im Web-Frontend als ``util.tradeDirection``.
+    """
+
+    return "SELL" if str(side or "").strip().upper() == "SELL" else "BUY"
+
+
+def trade_direction_col(df: pd.DataFrame) -> pd.Series:
+    """``trade_direction`` ueber eine ganze Trade-Tabelle."""
+
+    if df is None or df.empty:
+        return pd.Series(dtype="object")
+    side = df.get("side", pd.Series("", index=df.index))
+    return side.map(trade_direction).astype(str)
+
+
+def trade_outcome(outcome: Any) -> str:
+    """Ergebnisname eines Prints mit vereinheitlichter Schreibweise.
+
+    Kalshi schreibt ``yes``/``no`` klein, Polymarket ``Yes``/``No``. Namen aus
+    Mehrfachmaerkten (Teamnamen) bleiben, wie sie kommen. Spiegel von
+    ``util.tradeOutcome`` im Web-Frontend.
+    """
+
+    raw = str("" if outcome is None else outcome).strip()
+    if not raw:
+        return ""
+    lower = raw.lower()
+    if lower == "yes":
+        return "Yes"
+    if lower == "no":
+        return "No"
+    return raw
+
+
+def filter_trade_direction(df: pd.DataFrame, direction: str) -> pd.DataFrame:
+    """Prints einer Richtung, ``"All"`` laesst alles durch."""
+
+    if df is None or df.empty or direction == "All":
+        return df
+    wanted = str(direction).strip().upper()
+    if wanted not in TRADE_DIRECTIONS:
+        return df
+    return df[trade_direction_col(df).eq(wanted)]
+
+
 def bool_mask(values: Any, default: bool = False, index: pd.Index | None = None) -> pd.Series:
     """Return a warning-free boolean mask from a Series or scalar value."""
     if isinstance(values, pd.Series):

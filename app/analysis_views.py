@@ -119,6 +119,96 @@ def kategorie_points(karte: dict[str, Any]) -> list[dict[str, Any]]:
     return points
 
 
+def kategorie_horizont_rows(karte: dict[str, Any]) -> list[dict[str, Any]]:
+    """Eine Zeile je Kategorie und Horizont, alte und neue Nutzlast gleich.
+
+    Die veroeffentlichte ``kategorie_karte.json`` hatte zwei Formen. Die alte
+    traegt je Kategorie flach ``brier_t7``/``brier_t1``; die neue, die
+    ``category_efficiency.publish_payload`` schreibt, traegt eine Liste
+    ``horizonte`` mit dem Brier, seinem 95-Prozent-Intervall
+    (``brier_ci95``), n, dem Anteil bereits entschiedener Preise und dem
+    Brier auf den offenen Preisen.
+
+    Ohne das Intervall ist eine Rangfolge ueber ein Dutzend Kategorien und
+    fuenf Horizonte keine Aussage: der beste von sechzig Werten ist das
+    Minimum aus sechzig Ziehungen. Deshalb liest diese Funktion die neue Form,
+    wo sie da ist, und faellt sonst auf die flachen Spalten zurueck, statt
+    eine Tabelle mit lauter fehlenden Spalten zu erzeugen.
+    """
+
+    def _zahl(value: Any) -> float | None:
+        try:
+            if value is None or value == "":
+                return None
+            zahl = float(value)
+        except (TypeError, ValueError):
+            return None
+        return None if zahl != zahl else zahl
+
+    def _ganz(value: Any) -> int | None:
+        zahl = _zahl(value)
+        return None if zahl is None else int(zahl)
+
+    rows: list[dict[str, Any]] = []
+    for zeile in (karte or {}).get("kategorien", []) or []:
+        name = str(zeile.get("kategorie", "") or "")
+        if not name:
+            continue
+        horizonte = [h for h in (zeile.get("horizonte") or []) if h and h.get("horizont_tage") is not None]
+        if not horizonte:
+            horizonte = [
+                {"horizont_tage": 7, "brier": zeile.get("brier_t7"),
+                 "trefferquote": zeile.get("trefferquote_t7"), "n": zeile.get("n_t7")},
+                {"horizont_tage": 1, "brier": zeile.get("brier_t1"),
+                 "trefferquote": zeile.get("trefferquote_t1"), "n": zeile.get("n_t1")},
+            ]
+        for h in sorted(horizonte, key=lambda x: -int(x.get("horizont_tage", 0) or 0)):
+            ci = h.get("brier_ci95") if isinstance(h.get("brier_ci95"), (list, tuple)) else [None, None]
+            ci_low, ci_high = (_zahl(ci[0]), _zahl(ci[1])) if len(ci) == 2 else (None, None)
+            rows.append({
+                "kategorie": name,
+                "horizont_tage": int(h.get("horizont_tage", 0) or 0),
+                "brier": _zahl(h.get("brier")),
+                # Halbe Breite des Intervalls: die Zahl, die neben dem Brier
+                # entscheidet, ob zwei Kategorien ueberhaupt getrennt sind.
+                "brier_halbbreite": None if ci_low is None or ci_high is None else (ci_high - ci_low) / 2.0,
+                "brier_ci_low": ci_low,
+                "brier_ci_high": ci_high,
+                "trefferquote": _zahl(h.get("trefferquote")),
+                "n": _ganz(h.get("n")),
+                "anteil_entschieden": _zahl(h.get("anteil_entschieden")),
+                "brier_offen": _zahl(h.get("brier_offen")),
+                "n_offen": _ganz(h.get("n_offen")),
+                "n_maerkte": _ganz(zeile.get("n_maerkte")),
+                "median_volumen_usd": _zahl(zeile.get("median_volumen_usd")),
+            })
+    return rows
+
+
+def kategorie_zellen_satz(rows: list[dict[str, Any]]) -> str:
+    """Wie viele Zellen die Rangfolge gebildet haben, und was das bedeutet.
+
+    Leer, wenn nichts gescored wurde. Gleiche Aussage wie auf der
+    Web-Oberflaeche, damit beide Seiten denselben Vorbehalt tragen.
+    """
+
+    gescored = [r for r in rows if r.get("brier") is not None and (r.get("n") or 0) > 0]
+    if not gescored:
+        return ""
+    n = len(gescored)
+    mit_ci = any(r.get("brier_halbbreite") is not None for r in gescored)
+    satz = (
+        f"{n} category-by-horizon cells are scored here. The best of {n} cells is the smallest of "
+        f"{n} draws, so a leading Brier is not by itself a difference"
+    )
+    if mit_ci:
+        return satz + (
+            ". The interval column is the 95% interval around each cell; two cells whose "
+            "intervals overlap are not separated by this sample."
+        )
+    return satz + ". This payload carries no interval per cell, so no cell can be told apart from another."
+
+
 def mentions_bars(payload: dict[str, Any]) -> list[dict[str, Any]]:
     """Balkendaten je ok-Fall, absteigend nach handelbarem Fenster sortiert."""
 

@@ -22,12 +22,14 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from app import analysis_views as av
+from app import api_views as apv
 from app import microstructure_views as mv
 from app import app_settings as cfg
 from app import authz as az
 from app import backtester as btr
 from app import calibration as calib
 from app import copy_fidelity as cfy
+from app import cross_pairs as cp
 from app import copy_follow as ctf
 from app import notify
 from app import quant as qm
@@ -64,8 +66,10 @@ from app.filters import (
     bool_mask,
     copy_order_status_bucket,
     filter_text,
+    filter_trade_direction,
     numeric_col,
     option_metric_filter,
+    trade_direction_col,
 )
 
 
@@ -2897,7 +2901,12 @@ def wallet_positions_frame(open_positions: pd.DataFrame, closed_positions: pd.Da
     frames: list[pd.DataFrame] = []
     if not open_positions.empty:
         open_frame = open_positions.copy()
-        open_frame["status"] = "Open"
+        # Preis 0 und Wert 0 heisst: gegen die Wallet aufgeloest und nicht
+        # eingeloest. Als "Open" gefuehrt landete so eine Zeile im Aktiv-Filter
+        # und ihr Verlust in derselben Spalte wie ein Buchverlust.
+        open_frame["status"] = md.worthless_position_mask(open_frame).map(
+            {True: "Resolved, not redeemed", False: "Open"}
+        )
         open_frame["pnl"] = numeric_col(open_frame, "unrealized_pnl")
         open_frame["basis"] = numeric_col(open_frame, "size") * numeric_col(open_frame, "avg_price")
         open_frame["time"] = pd.to_datetime(open_frame.get("end_time"), utc=True, errors="coerce")
@@ -5078,7 +5087,14 @@ def page_markets() -> None:
     filtered = option_metric_filter(filtered, "liquidity", liquidity_preset, float(custom_liquidity))
     filtered = apply_end_date_filter(filtered, end_preset, int(custom_days))
     filtered = apply_market_age_filter(filtered, age_preset, int(custom_age_days))
-    filter_volume_col = "activity_volume" if "activity_volume" in filtered else "volume_24h"
+    # Der Filter heisst "24h volume" und muss den Tageswert lesen.
+    # ``activity_volume`` ist ein Mischwert: der Tageswert, wenn heute
+    # gehandelt wurde, sonst das Lebensvolumen. Ein Markt ohne Umsatz heute
+    # kam damit mit seinem Lebensvolumen durch die Schwelle "24h volume ueber
+    # 1k". Als Sortierschluessel bleibt der Mischwert brauchbar (er ordnet
+    # die Liste), als Schwelle und als Summe unter dieser Ueberschrift nicht.
+    filter_volume_col = "volume_24h"
+    sort_volume_col = "activity_volume" if "activity_volume" in filtered else "volume_24h"
     filtered = option_metric_filter(filtered, "volume_1h", volume_1h_preset, float(custom_volume_1h))
     filtered = option_metric_filter(filtered, filter_volume_col, volume_preset, float(custom_volume))
     filtered = apply_percent_delta_filter(filtered, "volume_delta_1h", volume_delta_1h_preset, float(custom_volume_delta_1h))
@@ -5103,7 +5119,7 @@ def page_markets() -> None:
 
     ascending = sort_by in {"spread", "end_time", "market_age_days"}
     if sort_by not in filtered:
-        sort_by = filter_volume_col
+        sort_by = sort_volume_col
     filtered = filtered.sort_values(sort_by, ascending=ascending, na_position="last").head(limit_rows).reset_index(drop=True)
 
     metric_cols = st.columns(5)
@@ -5118,6 +5134,8 @@ def page_markets() -> None:
         "24h volume",
         money(gefiltert_je_einheit.get(vu.USD, 0.0)),
         f"Kalshi {contracts(gefiltert_je_einheit.get(vu.CONTRACTS, 0.0))}",
+        help="The day's volume only. A market that did not trade today contributes nothing here; "
+        "its lifetime figure is a different column and is not summed into this one.",
     )
     metric_cols[3].metric("Median prob", cents(filtered["yes_price"].median() if "yes_price" in filtered and not filtered.empty else None))
     metric_cols[4].metric("Median spread", cents(filtered["spread"].median() if "spread" in filtered and not filtered.empty else None))
@@ -5430,6 +5448,15 @@ def page_markets() -> None:
                 elif market_wallet_risk.empty:
                     draw_empty("No scoreable wallets in this market's tape.")
                 else:
+                    # Derselbe Feldname wie auf dem Risk-Screen, aber ueber das
+                    # Tape genau dieses Marktes gerechnet und mit einer
+                    # anderen Schwelle. Die Zahl ist nicht die der
+                    # Suspicious-Seite und darf nicht so heissen.
+                    st.caption(
+                        "Flow shape in this market's own tape, scaled to 0-100. The insider screen "
+                        "scores the same wallets over a venue-wide sample with the shared screen "
+                        "threshold, so its number for the same wallet differs."
+                    )
                     for quick_idx, wallet_row in market_wallet_risk.head(5).iterrows():
                         wallet_value = str(wallet_row.get("wallet", "") or "").lower()
                         wallet_name = str(wallet_row.get("trader", "") or "") or short_addr(wallet_value)
@@ -5437,7 +5464,7 @@ def page_markets() -> None:
                         wcols = st.columns([2.6, 1, 0.9])
                         wcols[0].markdown(
                             f"<span class='small-note'>{html.escape(wallet_name[:20])}</span><br>"
-                            f"<span class='mono field-hint'>{money(wallet_row.get('notional', 0.0))} · risk {risk_value:.0f}</span>",
+                            f"<span class='mono field-hint'>{money(wallet_row.get('notional', 0.0))} · flow score {risk_value:.0f} (this market)</span>",
                             unsafe_allow_html=True,
                         )
                         wcols[1].button("Backtest", key=f"mq_bt_{quick_idx}", width="stretch", on_click=_pick_backtest, args=(wallet_value,))
@@ -5456,7 +5483,12 @@ REALIZED_EDGE_VERDICTS = {
 }
 
 
-def render_track_record(wallet: str, trades: pd.DataFrame | None = None, activity: pd.DataFrame | None = None) -> None:
+def render_track_record(
+    wallet: str,
+    trades: pd.DataFrame | None = None,
+    activity: pd.DataFrame | None = None,
+    worthless_n: int = 0,
+) -> None:
     """Verifiable track-record scorecard with a REAL win rate.
 
     Wins and losses come from the unioned resolved-position set (winner tail +
@@ -5485,11 +5517,25 @@ def render_track_record(wallet: str, trades: pd.DataFrame | None = None, activit
         )
         head = st.columns([1, 1.2, 1.2, 1.2])
         head[0].markdown(badge, unsafe_allow_html=True)
+        # Positionen, die gegen die Wallet aufgeloest und nie eingeloest
+        # wurden, tauchen im closed-positions-Feed nie auf, und es sind
+        # ausschliesslich Verluste. Jede Quote aus diesem Feed ist damit nach
+        # oben verzerrt; die Kachel stand bis hierher ohne diesen Hinweis da.
+        unredeemed_note = (
+            f" {worthless_n:,} position{'' if worthless_n == 1 else 's'} that resolved against this "
+            "wallet and were never redeemed never enter the closed-positions feed, so they are not in "
+            "this rate. They are losses only, which biases it upward."
+            if worthless_n
+            else ""
+        )
         head[1].metric(
             "Win rate (real)" if reliable else "Win rate (extremes)",
             pct(wr) if wr is not None else "-",
-            help="Netted per resolved market and NegRisk event, over the full winners+losers set." if reliable
-            else "This wallet has >50 wins AND >50 losses; the public feed caps each tail at ~50, so this covers the largest positions only.",
+            f"{worthless_n:,} unredeemed loss{'' if worthless_n == 1 else 'es'} not in it" if worthless_n else None,
+            delta_color="off",
+            help=("Netted per resolved market and NegRisk event, over the full winners+losers set." if reliable
+                  else "This wallet has >50 wins AND >50 losses; the public feed caps each tail at ~50, so this covers the largest positions only.")
+            + unredeemed_note,
         )
         head[2].metric(
             "Settled PnL",
@@ -5575,9 +5621,12 @@ def render_wallet_calibration(resolved: pd.DataFrame, capped: bool) -> None:
         return
     with st.expander(f"Entry calibration — was the price paid a good forecast? ({report['n']} resolved positions)", expanded=False):
         head = st.columns(5)
+        n_events = int(report.get("n_events", 0) or 0)
         head[0].metric(
             "Scored positions",
             f"{report['n']:,}",
+            f"{n_events:,} events" if n_events and n_events != report["n"] else None,
+            delta_color="off",
             help="Positions in markets that actually settled, with a usable entry price, scored 0/1 at settlement."
             + (
                 f" {report['n_unresolved']:,} further closed positions left markets that were still trading and "
@@ -5589,7 +5638,14 @@ def render_wallet_calibration(resolved: pd.DataFrame, capped: bool) -> None:
         head[1].metric(
             "Hit rate",
             pct(report["hit_rate"]),
-            help=f"95% Wilson interval {report['hit_low']:.1%} – {report['hit_high']:.1%}. Sample size is part of the claim.",
+            help=f"95% Wilson interval {report['hit_low']:.1%} – {report['hit_high']:.1%}. Sample size is part of the claim."
+            + (
+                f" Counted per position: {report['n']:,} positions over {n_events:,} events "
+                f"({report['repeat_factor']:.1f} legs per event). The realized-edge verdict above nets the legs "
+                "of one event to a single observation, so this interval is the tighter of the two."
+                if report.get("repeat_factor") and float(report["repeat_factor"]) >= 1.15
+                else ""
+            ),
         )
         head[2].metric("Avg entry price", pct(report["avg_entry"]), help="What the market charged on average — the break-even hit rate.")
         head[3].metric(
@@ -5644,9 +5700,32 @@ def render_wallet_calibration(resolved: pd.DataFrame, capped: bool) -> None:
                 "Points above the dashed line: entries settled true more often than the price implied (bought too cheap). "
                 "Marker size = positions in the bucket; whiskers = 95% Wilson interval."
             )
+            # n je Eimer stand bisher nur in der Markergroesse und im Hover.
+            # Eine Zahl, die man nicht ablesen kann, ist keine Angabe der
+            # Stichprobe.
+            bucket_view = buckets.assign(
+                hit_pct=buckets["hit_rate"] * 100,
+                forecast_pct=buckets["avg_forecast"] * 100,
+                edge_pp=buckets["edge"] * 100,
+            )
+            st.dataframe(
+                clean_table(bucket_view, ["bucket", "n", "events", "forecast_pct", "hit_pct", "edge_pp"]),
+                width="stretch",
+                hide_index=True,
+                column_config={
+                    "bucket": st.column_config.TextColumn("Entry band"),
+                    "n": st.column_config.NumberColumn("Positions", format="%d"),
+                    "events": st.column_config.NumberColumn("Events", format="%d", help="Legs of one NegRisk event settle together and are not independent draws."),
+                    "forecast_pct": st.column_config.NumberColumn("Avg entry", format="%.1f%%"),
+                    "hit_pct": st.column_config.NumberColumn("Resolved yes", format="%.1f%%"),
+                    "edge_pp": st.column_config.NumberColumn("Edge", format="%+.1f pp"),
+                },
+            )
+        # Snapshot-Zeitstempel: die veroeffentlichten Web-Nutzlasten tragen
+        # ``stand_utc``, dieses Panel rechnet live und trug bisher gar keinen.
         st.caption(
             f"{report['note']} Selection bias is inherent and intended: only markets this wallet chose are scored — "
-            "skill in its chosen spots, not general forecasting ability."
+            f"skill in its chosen spots, not general forecasting ability. Snapshot {md.now_utc_label()}."
         )
 
 
@@ -5734,20 +5813,53 @@ def render_wallet(wallet: str) -> None:
     cols[1].metric("Volume", money(summary["trade_notional"]))
     cols[2].metric("USDC Balance", money(cash_balance))
     active_position_value = float(summary["open_value"])
-    cols[3].metric("Active Positions", money(active_position_value), f"{len(open_positions):,} positions")
+    worthless_n = int(summary.get("worthless_count", 0) or 0)
+    cols[3].metric(
+        "Active Positions",
+        money(active_position_value),
+        f"{int(summary.get('open_count', len(open_positions))):,} positions",
+        help=(
+            f"{worthless_n:,} further positions resolved against this wallet and were never redeemed. "
+            "They sit in the /positions feed at price 0; their loss is settled, so they are not in this "
+            "value and not in the unrealised figure."
+            if worthless_n
+            else "Positions still trading, valued at the current price."
+        ),
+    )
     cols[4].metric(
         "Win Rate",
         "↓ see below",
         help="The raw feed win rate is ~100% for everyone (Polymarket's closed-positions feed is capped to top winners) — misleading. See the honest 'Verified track record' panel below.",
     )
-    cols[5].metric("Realized / Unrealized", f"{markdown_money(summary['realized_pnl'])} / {markdown_money(summary['unrealized_pnl'])}")
+    # Ein abgerechneter Verlust ist nicht unrealisiert. Positionen, die gegen
+    # die Wallet aufgeloest und nie eingeloest wurden, standen bis hierher in
+    # derselben Summe wie der Buchgewinn des offenen Buchs.
+    cols[5].metric(
+        "Realized / Unrealized",
+        f"{markdown_money(summary['realized_pnl'])} / {markdown_money(summary['unrealized_pnl'])}",
+        help=(
+            f"Plus {markdown_money(summary.get('worthless_pnl', 0.0))} from {worthless_n:,} positions that "
+            "resolved against this wallet and were never redeemed. That loss is settled, not unrealised, "
+            "and is reported apart rather than added to the open book."
+            if worthless_n
+            else "Unrealised covers open positions only."
+        ),
+    )
+    if worthless_n:
+        st.markdown(
+            f"<div class='field-hint'>RESOLVED, NOT REDEEMED: {worthless_n:,} positions worth "
+            f"{money(summary.get('worthless_cost', 0.0))} at cost resolved against this wallet and still "
+            "sit in the open-positions feed at price 0. Their loss is settled and is kept out of the "
+            "unrealised figure, the position value and the cost basis.</div>",
+            unsafe_allow_html=True,
+        )
     info_cols = st.columns(3)
     info_cols[0].metric("First Funding", money(first_activity_notional) if first_activity_notional else "-", short_addr(first_activity_tx) if first_activity_tx else "")
     if first_activity_tx.startswith("0x"):
         info_cols[0].link_button("Open first tx", f"https://polygonscan.com/tx/{first_activity_tx}", width="stretch")
     info_cols[1].metric("Account Created", account_created)
     info_cols[2].metric("Activity observations", f"{activity_observations:,}")
-    render_track_record(wallet, trades, activity)
+    render_track_record(wallet, trades, activity, worthless_n=worthless_n)
     if wallet.lower() in copy_active_wallets:
         with st.expander("Paper-Copytrading sub-account", expanded=False):
             render_copy_sub_account_metrics(wallet, copy_stats_map)
@@ -6551,6 +6663,17 @@ def page_traders() -> None:
         + " | "
         + display["wallet_short"].astype(str)
     )
+    # Vier der sechs Score-Bestandteile ruhen auf der oeffentlichen
+    # Leaderboard-Antwort auf einem Ersatzwert, der fuer jede Wallet
+    # derselbe ist (copy_trading.rank_traders_by_smart_score schreibt das in
+    # copy_score_imputed). Als Zahl gelesen sieht das aus wie eine Messung
+    # dieser Wallet. Dieselbe Lesart wie im Web-Frontend.
+    display["copy_rank_reason"] = [apv.score_parts_text(row) for _, row in display.iterrows()]
+    score_basis_note = (
+        apv.score_basis_note(apv.score_basis(apv.score_parts(display.iloc[0]), cohort_n=len(display)))
+        if len(display)
+        else ""
+    )
     display["win_rate_pct"] = pd.to_numeric(display.get("win_rate", pd.Series(dtype="float64")), errors="coerce") * 100
     display["account_age_display"] = pd.to_numeric(display.get("account_age_days", pd.Series(dtype="float64")), errors="coerce")
     trader_columns = [
@@ -6627,7 +6750,7 @@ def page_traders() -> None:
         "copy_rank": st.column_config.NumberColumn("Smart Rank", format="%d", width="small"),
         "copy_smart_score": st.column_config.ProgressColumn("Smart Score", min_value=0, max_value=100),
         "copy_grade": st.column_config.TextColumn("Grade", width="small"),
-        "copy_rank_reason": st.column_config.TextColumn("Score Factors", width="large"),
+        "copy_rank_reason": st.column_config.TextColumn("Score Factors", width="large", help="A component the public leaderboard feed cannot fill reads \"assumed\": the score uses a fixed placeholder there, the same one for every wallet."),
         "profile_url": st.column_config.LinkColumn("Profile", display_text="Open profile"),
         "x_url": st.column_config.LinkColumn("X", display_text="X"),
         "pnl": st.column_config.NumberColumn("Total PnL", format="$%.0f"),
@@ -6870,6 +6993,8 @@ def page_traders() -> None:
                             active_wallets=copy_active_wallets,
                             disabled=not bool(wallet_value),
                         )
+    if score_basis_note:
+        st.caption(score_basis_note)
     st.caption("Bot-like and whale scores are heuristics from the current recent-trade sample, not identity labels.")
     if selected_trader_action_row is not None:
         selected_wallet = str(selected_trader_action_row.get("wallet", "") or "")
@@ -7247,6 +7372,11 @@ def page_track() -> None:
     metrics[3].metric("Amount", money(tape["notional"].sum() if not tape.empty and "notional" in tape else 0.0))
     metrics[4].metric("Avg trade", money(tape["notional"].mean() if not tape.empty and "notional" in tape else 0.0))
     metrics[5].metric("Whale prints", f"{int((numeric_col(tape, 'notional') >= float(min_whale)).sum()) if not tape.empty else 0:,}")
+    # "Last synced" ist eine Uhrzeit, kein Fenster. Die Summen darueber gelten
+    # fuer die Spanne, die die geladenen Prints abdecken.
+    track_window = apv.tape_window_label(tape)
+    if track_window:
+        st.markdown(f"<div class='field-hint'>SUMMED OVER {html.escape(track_window)}</div>", unsafe_allow_html=True)
     render_filter_chips(
         [
             f"Selected wallets: {len(selected_wallets)}",
@@ -7330,7 +7460,11 @@ def live_market_flow(trades: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame()
     df = trades.copy()
     df["notional"] = pd.to_numeric(df.get("notional", 0.0), errors="coerce").fillna(0.0)
-    df["side_upper"] = df.get("side", "").astype(str).str.upper()
+    # Richtung nach derselben Regel wie im Web-Frontend: nur SELL ist ein
+    # Verkauf. Der Gleichheitstest auf "BUY" liess jeden Kalshi-Markt mit
+    # buy = sell = net = 0 dastehen, also mit einem Vorgabewert an der
+    # Stelle einer Messung.
+    df["direction"] = trade_direction_col(df)
     df["outcome_upper"] = df.get("outcome", "").astype(str).str.upper()
     if "market_key" not in df:
         df["market_key"] = df.get("ticker", df.get("title", ""))
@@ -7345,8 +7479,8 @@ def live_market_flow(trades: pd.DataFrame) -> pd.DataFrame:
             largest_trade=("notional", "max"),
             latest_trade=("time", "max"),
             unique_wallets=("wallet", lambda s: int(s.astype(str).nunique())),
-            buy_notional=("notional", lambda s: float(s[df.loc[s.index, "side_upper"].eq("BUY")].sum())),
-            sell_notional=("notional", lambda s: float(s[df.loc[s.index, "side_upper"].eq("SELL")].sum())),
+            buy_notional=("notional", lambda s: float(s[df.loc[s.index, "direction"].eq("BUY")].sum())),
+            sell_notional=("notional", lambda s: float(s[df.loc[s.index, "direction"].eq("SELL")].sum())),
             yes_notional=("notional", lambda s: float(s[df.loc[s.index, "outcome_upper"].eq("YES")].sum())),
             no_notional=("notional", lambda s: float(s[df.loc[s.index, "outcome_upper"].eq("NO")].sum())),
             market_key=("market_key", "first"),
@@ -7488,7 +7622,11 @@ def apply_whale_trade_presets(
     if filtered.empty:
         return filtered
     if side != "All" and "side" in filtered:
-        filtered = filtered[filtered["side"].astype(str).str.upper().eq(side)]
+        # "side" heisst auf den Venues nicht dasselbe: Polymarket schreibt
+        # die Richtung hinein, Kalshi die genommene Seite (yes/no, klein).
+        # Ein Gleichheitstest gegen BUY/SELL warf jeden Kalshi-Print aus der
+        # Auswahl, ohne dass die Chips es sagten.
+        filtered = filter_trade_direction(filtered, side)
     if maker_taker != "All":
         filtered = filtered[filtered["liquidity_role"].astype(str).eq(maker_taker)]
     price = numeric_col(filtered, "price")
@@ -7664,12 +7802,19 @@ def page_live_trades() -> None:
         trades = trades[trades.get("wallet", pd.Series("", index=trades.index)).astype(str).str.lower().isin(tracked_wallets)] if tracked_wallets else trades.iloc[0:0]
     trades = trades.sort_values("time", ascending=False).head(rows).reset_index(drop=True)
 
+    # Jede Summe darunter gilt fuer eine Spanne, und die haengt an der
+    # Aktivitaet: derselbe Zeilenschnitt kann Minuten oder Stunden abdecken.
+    # Ohne diesen Satz steht "Notional" ohne das Fenster da, ueber das es
+    # summiert wurde (dieselbe Angabe wie util.fensterSatz im Web-Frontend).
+    tape_window = apv.tape_window_label(trades)
     metrics = st.columns(5)
     metrics[0].metric("Trades", f"{len(trades):,}")
     metrics[1].metric("Notional", money(trades["notional"].sum() if "notional" in trades else 0))
     metrics[2].metric("Largest", money(trades["notional"].max() if "notional" in trades and not trades.empty else 0))
     metrics[3].metric("Markets", f"{trades['title'].nunique() if 'title' in trades else 0:,}")
     metrics[4].metric("Wallets", f"{trades['wallet'].nunique() if 'wallet' in trades else 0:,}")
+    if tape_window:
+        st.markdown(f"<div class='field-hint'>SUMMED OVER {html.escape(tape_window)}</div>", unsafe_allow_html=True)
     flow = live_market_flow(trades)
     live_chips: list[str] = []
     if query.strip():
@@ -8255,13 +8400,34 @@ def page_whale_flow() -> None:
     if trades.empty:
         draw_empty("No large trades match the current threshold.")
         return
+    whale_window = apv.tape_window_label(trades)
     cols = st.columns(6)
     cols[0].metric("Large prints", f"{len(trades):,}")
     cols[1].metric("Combined notional", money(trades["notional"].sum()))
     cols[2].metric("Largest print", money(trades["notional"].max()))
     cols[3].metric("Markets touched", f"{trades['title'].nunique():,}")
-    cols[4].metric("High insider events", f"{int((numeric_col(event_risk, 'event_insider_score') >= 70).sum()) if not event_risk.empty else 0:,}")
-    cols[5].metric("High insider wallets", f"{int((numeric_col(wallet_risk, 'wallet_insider_score') >= 70).sum()) if not wallet_risk.empty else 0:,}")
+    # Der Score traegt denselben Namen wie auf der Seite "Suspicious", steht
+    # aber auf einem anderen Tape: dort der Screen-Boden aus
+    # susp.screen_thresholds, hier die Filter dieser Seite. Verschiedene
+    # Stichproben bedeuten verschiedene Anteile und damit verschiedene Scores,
+    # und das muss dabeistehen.
+    tape_basis_note = (
+        f"Scored over this page's filtered tape ({len(trades):,} prints at or above "
+        f"{money(risk_base)}), not over the insider screen's own sample. The Suspicious page "
+        "uses the shared screen basis, so the same wallet can carry a different number there."
+    )
+    cols[4].metric(
+        "High insider events",
+        f"{int((numeric_col(event_risk, 'event_insider_score') >= 70).sum()) if not event_risk.empty else 0:,}",
+        help=tape_basis_note,
+    )
+    cols[5].metric(
+        "High insider wallets",
+        f"{int((numeric_col(wallet_risk, 'wallet_insider_score') >= 70).sum()) if not wallet_risk.empty else 0:,}",
+        help=tape_basis_note,
+    )
+    if whale_window:
+        st.markdown(f"<div class='field-hint'>SUMMED OVER {html.escape(whale_window)}</div>", unsafe_allow_html=True)
     left, right = st.columns([1.3, 1])
     with left:
         fig = px.scatter(
@@ -8321,7 +8487,10 @@ def page_whale_flow() -> None:
                 width="stretch",
                 height=390,
                 column_config={
-                    "wallet_insider_score": st.column_config.ProgressColumn("Insider", min_value=0, max_value=100),
+                    "wallet_insider_score": st.column_config.ProgressColumn(
+                        "Insider (this tape)", min_value=0, max_value=100,
+                        help="Flow shape in this page's filtered tape, scaled to 0-100. Nothing in it is validated against an outcome, and the Suspicious page scores the same wallet over a different sample.",
+                    ),
                     "notional": st.column_config.NumberColumn(format="$%.0f"),
                     "largest_trade": st.column_config.NumberColumn(format="$%.0f"),
                     "directional_share_pct": st.column_config.NumberColumn("Direction", format="%.0f%%"),
@@ -8547,6 +8716,10 @@ def page_cross_venue() -> None:
     if candidates.empty and query.strip():
         candidates = md.cross_venue_candidates(pm, ks, query="", min_similarity=min_similarity, max_pairs=max_pairs)
         fallback_used = not candidates.empty
+    # Die Mittelkurs-Luecke ist nicht handelbar: gekauft wird zum Brief,
+    # verkauft zum Geld, und beide Venues nehmen eine Gebuehr. Dieselbe
+    # Rechnung wie auf der Web-Oberflaeche (app/cross_pairs.basket_edge).
+    candidates = cp.with_basket_edge(candidates, pm, ks)
     if not candidates.empty:
         candidates = candidates[numeric_col(candidates, "abs_gap") >= float(min_gap_cents) / 100]
         candidates = candidates[numeric_col(candidates, "polymarket_volume_usd") >= float(min_pm_volume)]
@@ -8573,7 +8746,9 @@ def page_cross_venue() -> None:
     if int(min_pm_volume) > 0:
         cross_chips.append(f"Polymarket volume: >{money(min_pm_volume)}")
     if int(min_ks_volume) > 0:
-        cross_chips.append(f"Kalshi volume: >{money(min_ks_volume)}")
+        # Kontrakte, keine Dollar: money() haette hier ein Dollarzeichen
+        # vor eine Stueckzahl gesetzt (Beleg in app/venue_units.py).
+        cross_chips.append(f"Kalshi volume: >{contracts(min_ks_volume)}")
     if lower_filter != "Any":
         cross_chips.append(f"Lower yes: {lower_filter}")
     if int(min_price_pct) != int(cross_defaults["cross_min_price_pct"]) or int(max_price_pct) != int(cross_defaults["cross_max_price_pct"]):
@@ -8586,9 +8761,28 @@ def page_cross_venue() -> None:
         st.info("No pairs matched the current query on both venues, so broad cross-venue candidates are shown.")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Candidate pairs", f"{len(candidates):,}")
-    c2.metric("Largest gap", signed_cents(candidates["gap"].iloc[candidates["abs_gap"].idxmax()]))
+    c2.metric("Largest mid gap", signed_cents(candidates["gap"].iloc[candidates["abs_gap"].idxmax()]))
     c3.metric("Median similarity", f"{candidates['similarity'].median():.2f}")
-    c4.metric("Median abs gap", cents(candidates["abs_gap"].median()))
+    # Vierte Kachel: wie viele der gezeigten Paare nach beiden Gebuehrenkurven
+    # ueberhaupt etwas uebrig lassen. Vorher stand hier die zweite Lesart
+    # derselben Mittelkurs-Luecke.
+    net_edge = pd.to_numeric(candidates.get("net_edge_cents"), errors="coerce")
+    net_known = int(net_edge.notna().sum())
+    net_positive = int((net_edge > 0).sum())
+    c4.metric(
+        "Positive net of fees",
+        f"{net_positive:,} of {net_known:,}" if net_known else "-",
+        help="Both touch quotes on both venues, basket priced in both directions, both taker "
+        "fee curves subtracted (app/venue_fees.py). Pairs without a two-sided quote on both "
+        "venues carry no executable figure and are not counted.",
+    )
+    if net_known < len(candidates):
+        st.markdown(
+            f"<div class='field-hint'>{len(candidates) - net_known:,} of {len(candidates):,} pairs "
+            "quote only one side on at least one venue, so nothing executable can be priced for them. "
+            "The mid gap is not a tradable number: buying pays the ask and selling receives the bid.</div>",
+            unsafe_allow_html=True,
+        )
     fig = px.scatter(
         candidates,
         x="similarity",
@@ -8612,6 +8806,9 @@ def page_cross_venue() -> None:
             [
                 "similarity",
                 "gap",
+                "gross_edge_cents",
+                "net_edge_cents",
+                "edge_direction",
                 "lower_yes",
                 "higher_yes",
                 "polymarket_ticker",
@@ -8629,6 +8826,16 @@ def page_cross_venue() -> None:
         width="stretch",
         height=460,
         column_config={
+            "gap": st.column_config.TextColumn("Mid gap", help="Difference of the two mid prices. Nobody trades a mid."),
+            "gross_edge_cents": st.column_config.NumberColumn(
+                "Executable", format="%+.2f c",
+                help="What the basket actually captures: buy the ask on one venue, sell the bid on the other. Empty without a two-sided quote on both venues.",
+            ),
+            "net_edge_cents": st.column_config.NumberColumn(
+                "Net of fees", format="%+.2f c",
+                help="Executable minus both taker fee curves (app/venue_fees.py). Only this number may be read as an advantage.",
+            ),
+            "edge_direction": st.column_config.TextColumn("Direction"),
             "polymarket_volume_usd": st.column_config.NumberColumn("Polymarket volume", format="$%.0f"),
             # Kein Dollarzeichen: die Spalte zaehlt Kontrakte, und ein
             # Kontrakt ist erst bei Aufloesung einen Dollar wert.
@@ -8791,7 +8998,14 @@ def page_monitor() -> None:
     filters = st.expander("Monitor filters", expanded=True)
     with filters:
         f1, f2, f3, f4, f5, f6 = st.columns(6)
-        min_volume = f1.number_input("Min 24h volume", min_value=0, step=1000, key="monitor_min_volume")
+        # Nicht "24h": der Filter laeuft ueber signals.monitor_volume_col, und
+        # das ist activity_volume — der Tageswert, wenn heute gehandelt wurde,
+        # sonst das Lebensvolumen. Und die Spalte zaehlt auf Kalshi Kontrakte.
+        min_volume = f1.number_input(
+            "Min volume (venue unit)", min_value=0, step=1000, key="monitor_min_volume",
+            help="Runs over the market's activity volume: the day's figure where there is one, "
+            "the lifetime figure otherwise. Polymarket reports dollars, Kalshi contracts.",
+        )
         min_liquidity = f2.number_input("Min liquidity", min_value=0, step=1000, key="monitor_min_liquidity")
         min_move_cents = f3.number_input("Min 1h move (c)", min_value=0.0, step=0.5, key="monitor_min_move")
         max_spread_cents = f4.number_input("Max spread (c)", min_value=0.1, step=0.5, key="monitor_max_spread")
@@ -11327,7 +11541,24 @@ def _backtest_stat_cards(stats: dict[str, Any], benchmark: dict[str, Any]) -> No
             else "All of it settled: no position was still open at the end of the window."
         ),
     )
-    top[2].metric("Win rate", pct(stats["win_rate"]), f"{stats['wins']}W / {stats['losses']}L", delta_color="off")
+    # Der Nenner steht dabei. "Trades copied" darunter zaehlt auch die noch
+    # offenen Einstiege und ist nicht die Stichprobe dieser Quote; W und L
+    # summieren sich ausserdem nicht auf sie, weil eine Aufloesung mit
+    # genau 0.00 PnL weder Sieg noch Niederlage ist.
+    closed_n = int(stats.get("closed_trades", 0) or 0)
+    flat_n = max(0, closed_n - int(stats["wins"]) - int(stats["losses"]))
+    top[2].metric(
+        "Win rate",
+        pct(stats["win_rate"]),
+        f"{stats['wins']}W / {stats['losses']}L of {closed_n} closed",
+        delta_color="off",
+        help=(
+            f"{flat_n} of the {closed_n} closers settled at exactly 0.00 and count as neither, "
+            "so they sit in the denominator without being a win or a loss."
+            if flat_n
+            else "Closed copies only: every copied SELL and RESOLVE. Still-open entries are not in this sample."
+        ),
+    )
     bottom = st.columns(3)
     bottom[0].metric("Max drawdown", pct(stats["max_drawdown"]))
     bottom[1].metric("Trades copied", f"{stats['copied_trades']}", f"{stats['skipped_trades']} skipped", delta_color="off")
@@ -12877,14 +13108,50 @@ def page_kategorie_effizienz() -> None:
         render_publish_missing("kategorie_karte.json")
         render_analysis_footer()
         return
-    kategorien = karte.get("kategorien", [])
-    if kategorien:
-        st.markdown("#### Key figures per category")
-        frame = pd.DataFrame(kategorien)
-        st.dataframe(clean_table(frame, [
-            "kategorie", "brier_t7", "trefferquote_t7", "brier_t1",
-            "trefferquote_t1", "n_maerkte", "n_t7", "median_volumen_usd",
-        ]), width="stretch", hide_index=True)
+    # Eine Zeile je Kategorie UND Horizont, mit dem Intervall um den Brier.
+    # Vorher las diese Tabelle nur die flachen Spalten der alten Nutzlast
+    # (brier_t7, brier_t1); die neue Form von category_efficiency.publish_payload
+    # traegt sie gar nicht mehr, sodass hier eine Tabelle aus einer Spalte
+    # geblieben waere. Und ein blanker Brier ueber ein Dutzend Kategorien ist
+    # keine Rangfolge: das Intervall entscheidet, ob zwei Zellen getrennt sind.
+    horizont_rows = av.kategorie_horizont_rows(karte)
+    if horizont_rows:
+        st.markdown("#### Key figures per category and horizon")
+        frame = pd.DataFrame(horizont_rows)
+        frame = frame.assign(
+            trefferquote_pct=pd.to_numeric(frame["trefferquote"], errors="coerce") * 100,
+            entschieden_pct=pd.to_numeric(frame["anteil_entschieden"], errors="coerce") * 100,
+        )
+        st.dataframe(
+            clean_table(frame, [
+                "kategorie", "horizont_tage", "brier", "brier_halbbreite", "trefferquote_pct",
+                "n", "entschieden_pct", "brier_offen", "n_offen", "n_maerkte", "median_volumen_usd",
+            ]),
+            width="stretch",
+            hide_index=True,
+            column_config={
+                "kategorie": st.column_config.TextColumn("Category"),
+                "horizont_tage": st.column_config.NumberColumn("Horizon (d)", format="%d"),
+                "brier": st.column_config.NumberColumn("Brier", format="%.4f"),
+                "brier_halbbreite": st.column_config.NumberColumn(
+                    "+/- 95%", format="%.4f",
+                    help="Half-width of the 95% interval around this cell's Brier, from the spread of the per-market squared errors. Two cells whose intervals overlap are not separated by this sample.",
+                ),
+                "trefferquote_pct": st.column_config.NumberColumn("Hit rate", format="%.1f%%"),
+                "n": st.column_config.NumberColumn("n", format="%d"),
+                "entschieden_pct": st.column_config.NumberColumn(
+                    "Already decided", format="%.1f%%",
+                    help="Share of prices at this horizon that already sat at a settled end, so the Brier over them is not a forecast test.",
+                ),
+                "brier_offen": st.column_config.NumberColumn("Brier (open prices)", format="%.4f"),
+                "n_offen": st.column_config.NumberColumn("n open", format="%d"),
+                "n_maerkte": st.column_config.NumberColumn("Markets", format="%d"),
+                "median_volumen_usd": st.column_config.NumberColumn("Median volume", format="$%.0f"),
+            },
+        )
+        zellen_satz = av.kategorie_zellen_satz(horizont_rows)
+        if zellen_satz:
+            st.caption(zellen_satz)
     points = av.kategorie_points(karte)
     if points:
         fig = go.Figure()
