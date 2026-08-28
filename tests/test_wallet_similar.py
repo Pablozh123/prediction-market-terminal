@@ -139,6 +139,21 @@ class SimilarWalletsTests(unittest.TestCase):
         self.assertEqual(summary["settled"], 2)
         self.assertAlmostEqual(summary["value"], 55.0)
 
+    def test_a_row_the_feed_never_priced_is_neither_open_nor_settled(self) -> None:
+        # Vorher machte fillna(0.0) aus der preislosen Zeile eine
+        # abgerechnete: settled 2 statt 1.
+        frame = pd.DataFrame([
+            {"value": 55.0, "current_price": 0.55},
+            {"value": 0.0, "current_price": 0.0},
+            {"value": float("nan"), "current_price": float("nan")},
+        ])
+        with patch.object(md, "get_polymarket_positions", return_value=frame):
+            summary = ws.fetch_open_summary("0x" + "c" * 40)
+        self.assertEqual(summary["positions"], 1)
+        self.assertEqual(summary["settled"], 1)
+        self.assertEqual(summary["unpriced"], 1)
+        self.assertAlmostEqual(summary["value"], 55.0)
+
     def test_no_open_markets_gives_an_empty_honest_answer(self) -> None:
         out = ws.similar_wallets(ME, [], holders_fetcher=lambda k, n: [], summary_fetcher=lambda w: {})
         self.assertEqual(out["rows"], [])

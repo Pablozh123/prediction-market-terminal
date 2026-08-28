@@ -633,6 +633,24 @@ class PositionCountingTests(unittest.TestCase):
         self.assertEqual(runde["opened_at"], pd.Timestamp("2026-05-01", tz="UTC"))
         self.assertEqual(runde["closed_at"], pd.Timestamp("2026-05-03", tz="UTC"))
 
+    def test_a_faded_position_matches_its_own_exit(self):
+        # Der Positionsschluessel heisst beim Fade "fade:<token>", die BUY-
+        # Zeilen tragen aber das Token. Nannte die Abrechnung den Schluessel,
+        # fand der Ausstieg seinen Einstieg nicht und die Position blieb
+        # ewig offen.
+        trades = frame([trade("2026-05-01", "BUY", 0.50, 100.0)])
+        token_values = {"tok-yes": {"price": 0.0, "closed": True,
+                                    "end_time": pd.Timestamp("2026-05-10", tz="UTC")}}
+        ledger, positions = bt.replay(trades, config(strategy=bt.STRATEGY_FADE))
+        settlement, _ = bt.settle(positions, token_values, asof=pd.Timestamp("2026-06-01", tz="UTC"))
+        full = pd.concat([ledger, settlement], ignore_index=True)
+        rounds = bt.position_rounds(full)
+        self.assertEqual(len(rounds), 1)
+        self.assertTrue(bool(rounds.iloc[0]["closed"]))
+        # Die Gegenseite gewinnt, wenn die Quellseite auf 0 aufloest.
+        self.assertEqual(rounds.iloc[0]["result"], "win")
+        self.assertEqual(self._stats(full)["closed_trades"], 1)
+
     def test_skipped_and_filtered_rows_open_no_position(self):
         trades = frame([
             trade("2026-05-01", "BUY", 0.50, 10.0),          # unter der Schwelle
