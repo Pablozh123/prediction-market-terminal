@@ -64,6 +64,10 @@ export const REGISTER = {
       "de": "Nur ein Forschungswerkzeug: keine Anlageberatung, keine Orderausfuehrung, keine Verbindung zu einer Venue. Oeffentliche Polymarket- und Kalshi-Daten, ohne Gewaehr.",
       "en": "Research tool only: no investment advice, no order placement, no venue affiliation. Public Polymarket and Kalshi data, provided as-is."
     },
+    "no_signup_no_orders": {
+      "de": "Keine Anmeldung, keine Orders, reine Recherche.",
+      "en": "No signup, no orders placed, pure research."
+    },
     "site_footer_readonly": {
       "de": "Nur lesend. Keine Orders. Oeffentliche Polymarket- & Kalshi-Daten.",
       "en": "Read-only. No orders placed. Public Polymarket & Kalshi data."
@@ -76,9 +80,29 @@ export const REGISTER = {
       "de": "Nur Entscheidungen und beste Buchpreise: keine Fills, keine Wallet-Daten, keine Renditebehauptung.",
       "en": "Decisions and best book prices only: no fills, no wallet data, no return claim."
     },
+    "parity_not_arbitrage": {
+      "de": "Preisluecken sind Rechercheanlaesse, nicht zwangslaeufig Arbitrage. Aufloesungsregeln, Gebuehren, Settlement-Zeitpunkte und Zugangsbeschraenkungen koennen eine scheinbare Paritaet brechen.",
+      "en": "Price gaps are research leads, not guaranteed arbitrage. Resolution rules, fees, settlement timing, and access restrictions can break apparent parity."
+    },
     "verification_not_signal": {
       "de": "Empfehlungen sind Pruefschritte (beobachten, Quelle pruefen, an einen Menschen eskalieren), keine Kauf- oder Verkaufssignale.",
       "en": "Recommendations are verification steps (watch, check the source, escalate to a human), not buy or sell signals."
+    },
+    "daily_run_descriptive": {
+      "de": "Deskriptive Forschungsartefakte aus einem taeglichen, deterministischen Review-Lauf ueber oeffentliche Marktdaten.",
+      "en": "Descriptive research artifacts from a daily, deterministic review run over public market data."
+    },
+    "daily_run_no_advice": {
+      "de": "Keine Finanz- oder Anlageberatung. Keine Renditebehauptung. Pipeline-Eintraege sind beobachtend/Papier.",
+      "en": "No financial or investment advice. No return claim. Pipeline entries are observing/paper."
+    },
+    "daily_run_privacy": {
+      "de": "Keine Wallet-Adressen, keine Schluessel, keine Prompts. Audit nur als Hashes und Zaehler.",
+      "en": "No wallet addresses, no keys, no prompts. Audit as hashes and counters only."
+    },
+    "composite_range_not_ci": {
+      "de": "Die Spanne zeigt, wo der Score liegen koennte, wenn seine Platzhalter-Bestandteile gemessen waeren. Sie ist eine Spanne, kein Konfidenzintervall: der Composite steht fest, sobald seine Eingaben feststehen. Aufgeloeste Wetten je Wallet traegt dieser Feed nicht; die Trefferquote mit Stichprobengroesse und Wilson-Intervall steht auf der Seite der Wallet.",
+      "en": "The bar spans where the score could sit if its placeholder components were measured. It is a range, not a confidence interval: the composite is fixed once its inputs are. Resolved-bet counts are not in this feed; a wallet's own page carries its win rate with sample size and a Wilson interval."
     }
   }
 };

@@ -574,6 +574,10 @@ def leaderboard(
         "rows": rows,
         "total": len(rows),
         "as_of": md.now_utc_label(),
+        # Die beiden Volumenschwellen der Kohorte, gegen die der Score liest.
+        # Sie gehoeren in die Antwort, weil sie Eigenschaften der bewerteten
+        # Menge sind: das Frontend koennte sie nur schaetzen.
+        "score_scale": apv.leaderboard_scale(ranked),
         "note": "Win rate and resolved bets appear per wallet with sample size and CI — see /api/wallet/{wallet}.",
     }
 

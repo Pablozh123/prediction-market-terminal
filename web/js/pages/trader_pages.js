@@ -4,6 +4,7 @@ import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChi
 import { caveat, caveatZeile } from '../claims.js';
 import { scoreBand, bandChips, basisSatz } from '../risk_bands.js';
 import { renderClusterGraphics, clusterFarbe } from './cluster_graphics.js';
+import { punktwolke, histogramm, kurzGeld } from '../charts.js';
 
 const M = "font-family:'IBM Plex Mono',monospace";
 const LBL9 = M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.6); margin-bottom:6px';
@@ -49,7 +50,7 @@ function scorePartsHtml(t) {
       const titel = p.imputed
         ? ' title="' + esc(p.label + ': the public leaderboard feed carries no input for this component, so the score uses a fixed placeholder — the same one for every wallet') + '"'
         : '';
-      return '<span' + titel + ' style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.5); ' + rand + '; border-radius:4px; padding:1px 6px; white-space:nowrap">'
+      return '<span' + titel + ' style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.62); ' + rand + '; border-radius:4px; padding:1px 6px; white-space:nowrap">'
         + esc(p.label) + ' ' + wert + '</span>';
     }).join('')
     + '</div>';
@@ -67,6 +68,100 @@ export function scoreBasisSatz(rows) {
   return 'Score basis: ' + anteil + '% of the composite weight rests on figures the public leaderboard feed carries '
     + '(profit over volume, volume). The remaining ' + (100 - anteil) + '% (' + b.imputed.join(', ') + ') uses a fixed '
     + 'placeholder that is identical for every wallet, so it separates no wallet from another.' + n;
+}
+
+// Score gegen die Belege, die ihn tragen. Eine Punktwolke statt einer
+// Pille je Zeile, und sie loest zwei Dinge auf einmal.
+//
+// Erstens die Projektregel: jede Score-Anzeige traegt n, Intervall,
+// Sample-Abzeichen und Stichtag. Das Abzeichen in der Tabelle trug keins
+// davon. Die waagerechte Spanne je Punkt ist die Ungemessen-Spanne aus
+// api_views.score_interval, ausdruecklich kein Konfidenzintervall: der
+// Composite ist bei gegebenen Eingaben deterministisch. Sie sagt, wohin der
+// Score wandern koennte, wenn die Platzhalter Messungen waeren. Auf der
+// oeffentlichen Antwort sind das 55 Prozent des Gewichts, die Spannen
+// ueberlappen also quer durch die Rangliste, und genau das ist die Aussage:
+// ein Composite ohne Streuung ist keine Rangfolge.
+//
+// Zweitens die y-Achse. Sie traegt das gehandelte Volumen in Dollar,
+// logarithmisch. Aufgeloeste Wetten je Wallet waeren das bessere Mass fuer
+// "genug Faelle", aber die oeffentliche Leaderboard-Antwort traegt sie
+// nicht (get_polymarket_leaderboard liefert rank, trader, wallet, pnl,
+// volume und sonst nichts); sie brauchen einen Abruf je Wallet und stehen
+// deshalb auf der Wallet-Seite, mit n und Wilson-Intervall. Statt sie hier
+// zu schaetzen steht die Groesse da, die wirklich gemessen ist, und die
+// Fussnote sagt beides.
+//
+// Die gestrichelte Waagerechte ist die Saettigung des Volumen-Bestandteils
+// (95. Perzentil der bewerteten Menge, copy_trading._log_score): darueber
+// aendert mehr Volumen am Score nichts mehr. Die Senkrechten sind die
+// Notengrenzen, damit die Score-Achse ueberhaupt einen Bezugsrahmen hat.
+export function scoreWolkeHtml(T, rows) {
+  const punkte = (rows || [])
+    .filter((t) => t && typeof t.score === 'number' && t.score === t.score && +t.vol > 0)
+    .map((t) => ({
+      x: t.score,
+      y: +t.vol,
+      label: t.name,
+      band: Array.isArray(t.scoreCi) && t.scoreCi.length === 2 ? t.scoreCi : null,
+      tip: t.name + ' · score ' + t.score + (t.grade ? ' (' + t.grade + ')' : '')
+        + (Array.isArray(t.scoreCi) && t.scoreCi.length === 2
+          ? ' · unmeasured range ' + t.scoreCi[0] + ' to ' + t.scoreCi[1] : '')
+        + ' · volume ' + kurzGeld(+t.vol)
+    }));
+  if (punkte.length < 2) return '';
+  const lb = (T.liveData && T.liveData.leaderboard) || {};
+  const skala = lb.score_scale || {};
+  const badge = (rows.find((t) => t && t.sampleBadge) || {}).sampleBadge || null;
+  const stand = lb.as_of ? String(lb.as_of) : null;
+  const yRefs = [];
+  if (typeof skala.saturates_at === 'number' && skala.saturates_at > 0) {
+    yRefs.push({ wert: skala.saturates_at, label: 'volume component maxes out at ' + kurzGeld(skala.saturates_at) });
+  }
+  // Woraus der Score besteht, sagt der Basis-Satz direkt ueber dem
+  // Diagramm (scoreBasisSatz, Zwilling von api_views.score_basis_note):
+  // Anteil des gemessenen Gewichts, die geschaetzten Bestandteile, das
+  // Kohorten-n. Das steht hier bewusst nicht noch einmal in anderen Worten.
+  // Diese Fussnote traegt nur, was das Bild selbst hinzufuegt: das
+  // Sample-Abzeichen und den Stichtag als Seitenfakten, und den stehenden
+  // Vorbehalt zur Spanne aus dem Register.
+  const fussnote = [
+    badge && badge.quality ? 'Sample: ' + badge.quality + '.' : '',
+    stand ? 'Snapshot ' + stand + '.' : ''
+  ].filter(Boolean).join(' ');
+  return punktwolke({
+    titel: 'SCORE AGAINST THE EVIDENCE UNDER IT',
+    hinweis: punkte.length + ' scored wallets plotted',
+    xLabel: 'smart score (points out of 100)',
+    yLabel: 'volume traded (USD, log)',
+    xDomain: [0, 100],
+    yLog: true,
+    yTickText: (v) => kurzGeld(v),
+    xReferenzen: [
+      { wert: 40, label: 'watch' }, { wert: 55, label: 'C' },
+      { wert: 70, label: 'B' }, { wert: 85, label: 'A' }
+    ],
+    yReferenzen: yRefs,
+    punkte,
+    labelN: 5,
+    fussnote,
+    fussnoteHtml: caveat('composite_range_not_ci')
+  });
+}
+
+// Das Abzeichen selbst bleibt eine Zahl, aber es sagt beim Zeigen, wie viel
+// davon gemessen ist. Die Punktwolke darueber traegt dieselbe Spanne als
+// Bild; hier steht sie fuer die einzelne Zeile.
+export function scoreTitel(t) {
+  if (!t || t.score == null) return '';
+  const teile = [];
+  if (Array.isArray(t.scoreCi) && t.scoreCi.length === 2) {
+    teile.push('unmeasured range ' + t.scoreCi[0] + ' to ' + t.scoreCi[1]
+      + ' of 100: where the score could sit if the placeholder components were measured');
+  }
+  if (t.scoreN) teile.push('n = ' + t.scoreN + ' wallets ranked together');
+  if (t.sampleBadge && t.sampleBadge.quality) teile.push('sample: ' + t.sampleBadge.quality);
+  return teile.length ? ' title="' + esc(teile.join(' · ')) + '"' : '';
 }
 
 // ---------------------------------------------------------------- traders (leaderboard)
@@ -105,6 +200,9 @@ export function renderTraders(T) {
   const chevron = M + '; font-size:16px; color:rgba(var(--ink),.5); transition:transform .18s ease; transform:rotate(' + (s.traderFiltersOpen ? '90deg' : '0deg') + ')';
   const asOf = T.liveData.leaderboard && T.liveData.leaderboard.as_of ? ' · snapshot ' + T.liveData.leaderboard.as_of : '';
   const basisSatz = scoreBasisSatz(T.traders);
+  // Ueber alle gerankten Wallets, nicht ueber die gefilterte Sicht: die
+  // Wolke ist der Bezugsrahmen der Score-Spalte, kein Filterergebnis.
+  const scoreWolke = scoreWolkeHtml(T, T.traders);
   const grid = '44px 1fr 120px' + (hatWin ? ' 100px' : '') + (hatResolved ? ' 118px' : '') + ' 100px 92px';
   const rankTabs = [T.tab('Smart score', rank === 'score', { traderRank: 'score' }),
     T.tab('Profit', rank === 'pnl', { traderRank: 'pnl' }),
@@ -145,7 +243,8 @@ export function renderTraders(T) {
       + '</div>' : '')
     + '</div>'
     + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:12px">' + traderSorted.length + ' of ' + T.traders.length + ' wallets · all-time' + esc(asOf) + '</div>'
-    + (basisSatz ? '<div style="font-size:12px; color:rgba(var(--ink),.55); margin-top:8px; max-width:820px; line-height:1.6">' + esc(basisSatz) + '</div>' : '')
+    + (basisSatz ? '<div style="font-size:12px; color:rgba(var(--ink),.62); margin-top:8px; max-width:820px; line-height:1.6">' + esc(basisSatz) + '</div>' : '')
+    + (scoreWolke ? '<div style="margin-top:14px; max-width:700px">' + scoreWolke + '</div>' : '')
     + '</div>'
 
     + '<div style="display:grid; grid-template-columns:' + grid + '; padding:10px 24px; border-bottom:1px solid rgba(var(--ink),.09); background:var(--panel); ' + HEAD_CELL + '">'
@@ -168,7 +267,7 @@ export function renderTraders(T) {
         + (hatWin ? '<div style="' + M + '; font-size:13px; text-align:right">' + (t.win != null ? Math.round(t.win * 100) + '%' : '—') + '</div>' : '')
         + (hatResolved ? '<div style="' + M + '; font-size:12.5px; text-align:right; color:rgba(var(--ink),.55)">' + (t.resolved != null ? num(t.resolved) : '—') + '</div>' : '')
         + '<div style="' + M + '; font-size:13px; text-align:right">' + money(t.vol) + '</div>'
-        + '<div style="display:flex; justify-content:flex-end"><div style="' + scoreStyle + '">' + (score != null ? score : 'n/a') + '</div></div>'
+        + '<div style="display:flex; justify-content:flex-end"><div' + scoreTitel(t) + ' style="' + scoreStyle + '">' + (score != null ? score : 'n/a') + '</div></div>'
         + '</div>';
     }).join('')
     + '</div>';
@@ -768,6 +867,41 @@ export function renderRiskLog(T) {
 // zaehlen die Baender jetzt getroffene Pruefungen.
 const BAND = (score, T, roh) => scoreBand(score, T && T.liveData ? T.liveData.risk : null, roh);
 
+// Die Score-Verteilung des Screens. Der Trichter bleibt, er zaehlt drei
+// Stufen; das Histogramm sagt, welche Form dahinter liegt.
+//
+// Ohne sie ist "77 von 100" eine Zahl ohne Bezugsrahmen: liegt 77 am oberen
+// Rand eines dichten Feldes oder mitten drin? Die beiden Bandgrenzen stehen
+// als senkrechte Referenzen im Bild, die geflaggte Teilmenge als zweite Lage
+// in derselben Saeule, damit man sieht, wo die Karten herkommen.
+export function riskScoreVerteilung(live) {
+  const bins = live && Array.isArray(live.score_bins) ? live.score_bins : [];
+  const gefuellt = bins.filter((b) => b && (+b.anzahl || 0) > 0);
+  if (!gefuellt.length) return '';
+  const minScore = live && live.event_min_score != null ? Math.round(Number(live.event_min_score)) : 40;
+  const gesamt = bins.reduce((a, b) => a + (+b.anzahl || 0), 0);
+  const geflaggt = bins.reduce((a, b) => a + (+b.geflaggt || 0), 0);
+  return histogramm({
+    titel: 'WHERE THE SCORES SIT',
+    hinweis: num(gesamt) + ' markets scored',
+    xLabel: 'flow-pattern score (points out of 100)',
+    yLabel: 'markets screened',
+    bins: bins.map((b) => ({ von: +b.von, bis: +b.bis, anzahl: +b.anzahl || 0, geflaggt: +b.geflaggt || 0 })).map((b) => ({
+      von: b.von, bis: b.bis, anzahl: b.anzahl, hervor: b.geflaggt
+    })),
+    referenzen: [{ wert: minScore, label: 'flag ' + minScore }, { wert: 70, label: 'most patterns 70' }],
+    gesamtLabel: 'screened',
+    hervorLabel: 'flagged, gets a card',
+    zaehlEinheit: 'markets',
+    hoehe: 190,
+    // Kein zweiter Vorbehalt hier: screen_not_proof steht im Kopf dieser
+    // Seite, und derselbe Satz zweimal im selben Sichtfeld liest sich als
+    // zwei Aussagen.
+    fussnote: num(geflaggt) + ' of ' + num(gesamt) + ' scored markets cleared the flag threshold of '
+      + minScore + '/100 and appear as cards.'
+  });
+}
+
 export function riskEventCard(T, r0) {
   const r = T.riskCardView(r0);
   const s = T.state || {};
@@ -867,12 +1001,13 @@ export function renderRisk(T) {
     '<div style="flex:1; background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; gap:10px">'
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6)">' + label + '</div>'
     + '<div style="' + M + '; font-size:18px; color:' + (amber ? 'var(--warn)' : 'var(--text)') + '">' + (wert != null ? wert : '—') + '</div></div>';
+  const verteilung = riskScoreVerteilung(live);
   const trichter =
-    '<div style="display:flex; gap:14px; padding:14px 24px; border-bottom:1px solid rgba(var(--ink),.09)">'
+    '<div style="display:flex; gap:14px; padding:14px 24px' + (verteilung ? '' : '; border-bottom:1px solid rgba(var(--ink),.09)') + '">'
     + '<div style="flex:1; background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:14px 18px; display:flex; flex-direction:column; gap:9px">'
     + '<div style="display:flex; justify-content:space-between; align-items:baseline; gap:10px">'
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6)">THE SCREEN, AS A FUNNEL</div>'
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.45)">floor at ' + minScore + '/100</div></div>'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.62)">floor at ' + minScore + '/100</div></div>'
     + trichterZeile('SCREENED', screened, 'rgba(var(--ink),.72)', 'rgba(var(--ink),.18)', 'every market with whale flow in the window')
     + trichterZeile('FLAGGED ≥ ' + minScore, flagged, 'rgba(var(--ink),.72)', 'rgba(var(--ink),.5)', 'cleared the flag threshold — these get cards')
     + trichterZeile('AT 70 AND UP', hochEvents, 'var(--warn)', 'var(--warn)', 'tripped most of the checks')
@@ -881,7 +1016,13 @@ export function renderRisk(T) {
     + seitenKpi('WALLETS AT 70 AND UP', kp ? kp.high_risk_wallets : null, true)
     + seitenKpi('FRESH-WALLET CLUSTERS', kp ? kp.fresh_clusters : null, false)
     + seitenKpi('COORDINATED CLUSTERS', kp ? kp.coordinated_clusters : null, false)
-    + '</div></div>';
+    + '</div></div>'
+    // Unter dem Trichter, nicht daneben: der Trichter zaehlt drei Stufen,
+    // das Histogramm zeigt die Verteilung, aus der sie geschnitten sind.
+    + (verteilung
+      ? '<div style="padding:0 24px 14px; border-bottom:1px solid rgba(var(--ink),.09)">'
+        + '<div style="max-width:700px">' + verteilung + '</div></div>'
+      : '');
   const walletRows = live && live.wallets ? live.wallets : [];
 
   let body = '';
@@ -1165,7 +1306,7 @@ export function trackWatchRows(T) {
       if (m) return T.marketView(m);
       return {
         title: item.title, meta: (item.platform || '').toUpperCase() + ' · WATCHLIST',
-        sparkPoints: '', color: 'rgba(var(--ink),.3)', priceLabel: '—', changeLabel: '—',
+        color: 'rgba(var(--ink),.3)', priceLabel: '—', changeLabel: '—',
         changeStyle: M + '; font-size:13px; text-align:right; color:rgba(var(--ink),.6)',
         volLabel: '—', ends: '—', act: ''
       };
@@ -1208,10 +1349,9 @@ export function renderTrack(T) {
     + (watch.length ? '' : '<div style="' + M + '; font-size:11.5px; color:rgba(var(--ink),.6); padding:6px 0">'
       + esc(herkunftSatz(T.liveData.track ? { quelle: T.liveData.track._quelle === 'fehler' ? 'fehler' : 'leer', fehler: T.liveData.track._fehler } : null, '/api/track')) + '</div>')
     + watch.map((m) =>
-      '<div ' + m.act + ' class="hv-panel" style="display:grid; grid-template-columns:1fr 96px 88px 96px 108px; align-items:center; padding:12px 0; border-bottom:1px solid rgba(var(--ink),.06); cursor:pointer">'
+      '<div ' + m.act + ' class="hv-panel" style="display:grid; grid-template-columns:1fr 88px 96px 108px; align-items:center; padding:12px 0; border-bottom:1px solid rgba(var(--ink),.06); cursor:pointer">'
       + '<div><div style="font-size:13.5px">' + esc(m.title) + '</div>'
       + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); margin-top:3px">' + esc(m.meta) + '</div></div>'
-      + '<div style="display:flex; justify-content:flex-end"><svg width="78" height="26" viewBox="0 0 78 26" aria-hidden="true" focusable="false"><polyline points="' + m.sparkPoints + '" fill="none" style="stroke:' + m.color + '" stroke-width="1.6" /></svg></div>'
       + '<div style="' + M + '; font-size:15px; text-align:right">' + m.priceLabel + '</div>'
       + '<div style="' + m.changeStyle + '">' + m.changeLabel + '</div>'
       + '<div style="' + M + '; font-size:12px; text-align:right; color:rgba(var(--ink),.55)">' + esc(m.ends) + '</div></div>'

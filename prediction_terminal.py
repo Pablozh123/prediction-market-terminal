@@ -46,7 +46,6 @@ from app.format import (
     cents,
     contracts,
     markdown_money,
-    market_title_family_key,
     money,
     money_or_dash,
     pct,
@@ -80,6 +79,22 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+
+# Der einzige Weg, auf dem ein stehender Vorbehalt in diese Oberflaeche
+# kommt. Bis hierher trug der Monolith seine Disclaimer als Prosa, waehrend
+# das Web-Frontend dieselben Saetze schon aus data/claims.yaml las: zwei
+# Fassungen desselben Vorbehalts, und genau daraus sind in diesem Repo
+# mehrfach auseinandergedriftete Dubletten entstanden. Der Name traegt
+# absichtlich dasselbe caveat( wie im Frontend, damit
+# scripts/lint_claims.py beide Oberflaechen mit einer Regel liest.
+#
+# Die Seite besitzt weiter ihren beschreibenden Teil ("was diese Seite
+# tut"); der Vorbehalt daneben gehoert dem Register.
+def caveat(key: str, lang: str = "en") -> str:
+    """Registertext eines Vorbehalts (data/claims.yaml). Unbekannt = ''."""
+
+    return claims.disclaimer(key, lang)
 
 
 ACCENT = "#C8F542"
@@ -890,37 +905,6 @@ def inject_css() -> None:
 
 
 inject_css()
-
-
-def related_market_group(markets: pd.DataFrame, current: pd.Series, include_current: bool = True, limit: int = 20) -> pd.DataFrame:
-    if markets.empty:
-        return pd.DataFrame()
-    frame = markets.copy()
-    current_key = str(current.get("market_key", "") or "")
-    event_slug = str(current.get("event_slug", "") or "")
-    if event_slug and "event_slug" in frame:
-        related = frame[frame["event_slug"].astype(str).eq(event_slug)].copy()
-    else:
-        family = market_title_family_key(current.get("title", ""))
-        if not family or "title" not in frame:
-            return pd.DataFrame()
-        frame["_family_key"] = frame["title"].map(market_title_family_key)
-        related = frame[frame["_family_key"].eq(family)].drop(columns=["_family_key"], errors="ignore").copy()
-    if not include_current and current_key and "market_key" in related:
-        related = related[~related["market_key"].astype(str).eq(current_key)]
-    if related.empty:
-        return related
-    related["_end_sort"] = pd.to_datetime(related.get("end_time"), utc=True, errors="coerce")
-    if "activity_volume" not in related:
-        related["activity_volume"] = numeric_col(related, "volume_24h")
-    if "closed" not in related:
-        related["closed"] = False
-    return (
-        related.sort_values(["closed", "_end_sort", "activity_volume"], ascending=[True, True, False], na_position="last")
-        .drop(columns=["_end_sort"], errors="ignore")
-        .head(limit)
-        .reset_index(drop=True)
-    )
 
 
 def short_addr(value: str, width: int = 6) -> str:
@@ -2702,8 +2686,7 @@ with st.sidebar:
     )
     st.markdown(
         "<div class='sidebar-footnote' style='margin-top:0.9rem'>"
-        "Research tool only — no investment advice, no order placement, no venue affiliation. "
-        "Public Polymarket &amp; Kalshi data, provided as-is."
+        f"{html.escape(caveat('research_tool_only'))}"
         f"<br>Last render: {md.now_utc_label()}</div>",
         unsafe_allow_html=True,
     )
@@ -3563,12 +3546,12 @@ def trader_insight_metrics(
 
 def page_overview() -> None:
     st.markdown(
-        """
+        f"""
         <div class='hero'>
             <span class='hero-badge'><span class='live-dot'></span>Live · public on-chain data</span>
             <div class='hero-title'>Read the market <em>like the whales do.</em></div>
             <div class='hero-sub'>Whale prints, insider-risk screens, coordinated wallet clusters and copy-trade backtests —
-            one terminal for Polymarket and Kalshi. No signup, no orders placed, pure research.</div>
+            one terminal for Polymarket and Kalshi. {html.escape(caveat('no_signup_no_orders'))}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -4446,146 +4429,6 @@ def page_search() -> None:
                 st.dataframe(tracked_wallets, width="stretch", height=330)
 
 
-def render_related_markets(row: pd.Series, market_universe: pd.DataFrame | None = None) -> None:
-    if market_universe is None or market_universe.empty:
-        return
-    current_key = str(row.get("market_key", "") or "")
-    related = related_market_group(market_universe, row, include_current=True, limit=16)
-    if len(related) <= 1:
-        return
-    closed_related = pd.DataFrame()
-    if row.get("platform") == "Polymarket":
-        closed = safe_load("Resolved related markets", load_closed_markets, 250, default=pd.DataFrame())
-        if not closed.empty:
-            closed_related = related_market_group(closed, row, include_current=False, limit=40)
-
-    st.markdown("#### Related markets")
-    r1, r2, r3 = st.columns(3)
-    active_count = int((~bool_mask(related.get("closed", pd.Series(False, index=related.index)), False)).sum())
-    r1.metric("Related active", f"{active_count:,}")
-    r2.metric("Resolved siblings", f"{len(closed_related):,}")
-    # Eine Titel-Familie kann Maerkte beider Venues enthalten, und deren
-    # Volumenspalten stehen in verschiedenen Einheiten (app/venue_units.py).
-    gruppe_je_einheit = vu.volume_by_unit(related.get("platform", []),
-                                          numeric_col(related, "activity_volume"))
-    r3.metric("Group volume", money(gruppe_je_einheit.get(vu.USD, 0.0)),
-              f"Kalshi {contracts(gruppe_je_einheit.get(vu.CONTRACTS, 0.0))}")
-
-    preview = related.copy()
-    preview["selected"] = preview["market_key"].astype(str).eq(current_key)
-    preview["price"] = numeric_col(preview, "yes_price")
-    preview["end"] = pd.to_datetime(preview.get("end_time"), utc=True, errors="coerce").dt.strftime("%Y-%m-%d").fillna("-")
-    preview["status"] = bool_mask(preview.get("closed", pd.Series(False, index=preview.index)), False).map(lambda value: "Resolved" if bool(value) else "Active")
-    for chunk_start in range(0, len(preview.head(12)), 4):
-        cols = st.columns(4)
-        for col, (_, item) in zip(cols, preview.head(12).iloc[chunk_start : chunk_start + 4].iterrows()):
-            with col:
-                with st.container(border=True):
-                    st.caption(str(item.get("status", "Active")))
-                    st.markdown(f"**{str(item.get('title', '-'))[:75]}**")
-                    st.metric("Yes", cents(item.get("price")), signed_cents(item.get("change_1d", 0.0)))
-                    st.caption(f"End {item.get('end', '-')} | Vol {vu.format_volume(item.get('activity_volume', 0.0), item.get('platform'))}")
-                    if bool(item.get("selected", False)):
-                        st.caption("Current market")
-                    elif st.button("Inspect", key=f"related_inspect_{item.get('market_key')}", width="stretch"):
-                        st.session_state["markets_inspect_market_key"] = str(item.get("market_key", ""))
-                        st.rerun()
-                    if item.get("url"):
-                        st.link_button("Open venue", str(item.get("url")), width="stretch")
-
-    with st.expander("Related market table", expanded=False):
-        table = clean_table(
-            preview,
-            ["selected", "status", "title", "yes_price", "no_price", "spread", "activity_volume", "volume_1h", "liquidity", "end", "url", "market_key"],
-        )
-        st.dataframe(
-            table,
-            width="stretch",
-            height=260,
-            column_config={
-                "yes_price": st.column_config.NumberColumn("Yes", format="%.3f"),
-                "no_price": st.column_config.NumberColumn("No", format="%.3f"),
-                "spread": st.column_config.NumberColumn(format="%.3f"),
-                # Die Gruppe kann beide Venues mischen; ein Spaltenformat
-                # gilt fuer jede Zeile, also kein Dollarzeichen.
-                "activity_volume": st.column_config.NumberColumn("Volume (venue unit)", format="%.0f"),
-                "volume_1h": st.column_config.NumberColumn("Vol 1h (venue unit)", format="%.0f"),
-                "liquidity": st.column_config.NumberColumn(format="$%.0f"),
-                "url": st.column_config.LinkColumn("URL"),
-            },
-        )
-    if not closed_related.empty:
-        with st.expander("Resolved siblings", expanded=False):
-            closed_display = closed_related.copy()
-            closed_display["closed_date"] = pd.to_datetime(closed_display.get("closed_time"), utc=True, errors="coerce").dt.strftime("%Y-%m-%d").fillna("-")
-            st.dataframe(
-                clean_table(closed_display, ["closed_date", "title", "resolved_outcome", "final_yes_price", "volume", "url"]),
-                width="stretch",
-                height=220,
-                column_config={
-                    "final_yes_price": st.column_config.NumberColumn("Final Yes", format="%.3f"),
-                    "volume": st.column_config.NumberColumn(format="$%.0f"),
-                    "url": st.column_config.LinkColumn("URL"),
-                },
-            )
-
-
-def render_market_series_strip(row: pd.Series, market_universe: pd.DataFrame | None = None) -> None:
-    """Render a quick selector for sibling contracts of the same event."""
-
-    if market_universe is None or market_universe.empty:
-        return
-    current_key = str(row.get("market_key", "") or "")
-    related = related_market_group(market_universe, row, include_current=True, limit=8)
-    if len(related) <= 1:
-        return
-
-    closed_related = pd.DataFrame()
-    if row.get("platform") == "Polymarket":
-        closed = safe_load("Resolved related markets", load_closed_markets, 250, default=pd.DataFrame())
-        if not closed.empty:
-            closed_related = related_market_group(closed, row, include_current=False, limit=40)
-
-    strip_key = re.sub(r"[^a-zA-Z0-9]+", "_", current_key).strip("_")[:48] or "market"
-    show_resolved_key = f"show_resolved_series_{strip_key}"
-    st.markdown("#### Related contracts")
-    related_preview = related.head(6).copy()
-    cols = st.columns(len(related_preview) + (1 if not closed_related.empty else 0))
-    for idx, (_, item) in enumerate(related_preview.iterrows()):
-        item_key = str(item.get("market_key", "") or "")
-        end_time = pd.to_datetime(item.get("end_time"), utc=True, errors="coerce")
-        if pd.notna(end_time):
-            label = end_time.strftime("%b %d").replace(" 0", " ")
-        else:
-            label = str(item.get("title", "Contract"))[:18]
-        price_label = cents(item.get("yes_price"))
-        button_label = f"{label} {price_label}"
-        if item_key == current_key:
-            cols[idx].markdown(f"**{button_label}**")
-            cols[idx].caption("Current")
-        elif cols[idx].button(button_label, key=f"series_open_{strip_key}_{idx}", width="stretch"):
-            st.session_state["markets_inspect_market_key"] = item_key
-            st.rerun()
-    if not closed_related.empty:
-        resolved_col = cols[-1]
-        if resolved_col.button(f"+{len(closed_related)} resolved", key=f"series_resolved_{strip_key}", width="stretch"):
-            st.session_state[show_resolved_key] = not bool(st.session_state.get(show_resolved_key, False))
-            st.rerun()
-    if st.session_state.get(show_resolved_key, False) and not closed_related.empty:
-        closed_display = closed_related.copy()
-        closed_display["closed_date"] = pd.to_datetime(closed_display.get("closed_time"), utc=True, errors="coerce").dt.strftime("%Y-%m-%d").fillna("-")
-        st.dataframe(
-            clean_table(closed_display, ["closed_date", "title", "resolved_outcome", "final_yes_price", "volume", "url"]),
-            width="stretch",
-            height=220,
-            column_config={
-                "final_yes_price": st.column_config.NumberColumn("Final Yes", format="%.3f"),
-                "volume": st.column_config.NumberColumn(format="$%.0f"),
-                "url": st.column_config.LinkColumn("URL"),
-            },
-        )
-
-
 def page_markets() -> None:
     section_header("Markets", "Market scanner with saved views, quick filters, table/card/calendar modes, and a who's-trading panel per market.")
     pm, ks, combined = load_market_universe()
@@ -5358,7 +5201,7 @@ def render_track_record(
                 f"{edge_rep['n_events']:,}",
                 help=f"{edge_rep['n_positions']:,} resolved positions netted to {edge_rep['n_events']:,} independent events.",
             )
-            st.caption(f"{edge_rep['headline']} Past record, not a forecast.")
+            st.caption(f"{edge_rep['headline']} {caveat('past_not_forecast')}")
         attribution = trec.pnl_attribution(resolved)
         if attribution["structural_share"] is not None:
             st.divider()
@@ -6150,7 +5993,7 @@ def render_pnl_vs_skill(leaderboard: pd.DataFrame) -> None:
         st.caption(
             "Skill score corrects the four naive-leaderboard errors (leg inflation, winner-only PnL, wash volume, survivorship) "
             "and penalises one-hit concentration. Verdicts read the realized-edge CI against zero — most records, including "
-            "profitable ones, are not separable from chance on public data. Diagnostics, not advice."
+            f"profitable ones, are not separable from chance on public data. {caveat('diagnostic_not_advice')}"
         )
 
 
@@ -8654,7 +8497,7 @@ def page_cross_venue() -> None:
             st.session_state.watchlist.append(item)
             save_local_list("watchlist.json", st.session_state.watchlist)
             st.success("Kalshi leg added to watchlist.")
-    st.caption("Price gaps are research leads, not guaranteed arbitrage. Resolution rules, fees, settlement timing, and access restrictions can break apparent parity.")
+    st.caption(caveat("parity_not_arbitrage"))
 
 
 MONITOR_SIGNAL_TYPES = ["Fast mover", "Volume anomaly", "Whale print", "Tight spread", "Holder concentration", "Ending soon", "Watched market"]
@@ -10291,7 +10134,7 @@ def page_copy_trade() -> None:
         "Copy Trade",
         "Paper-only Swisstony copier with dynamic wallet-relative sizing and settlement recycling.",
     )
-    st.info("Paper mode only. This page observes public Polymarket wallet activity and does not place real orders.")
+    st.info(f"This page observes public Polymarket wallet activity. {caveat('paper_desk_only')}")
 
     controls = st.columns([1, 1, 1, 1, 1])
     if controls[0].button("Sync now", type="primary", width="stretch"):
@@ -12094,18 +11937,18 @@ def page_suspicious() -> None:
         "Markets and wallets whose flow trips the screen's checks — long-odds size, late timing, fresh-wallet clusters, one-sided pressure.",
         kicker="Suspicious · Risk screen",
     )
-    # Die Baender heissen nach der Zahl der angesprochenen Pruefungen, nicht
-    # nach einer Einschaetzung: "high" neben einer 0-100-Zahl las sich als
-    # Wahrscheinlichkeit fuer Insiderhandel, und die Zahl ist eine Punktesumme
-    # aus neun Flow-Merkmalen mit gesetzten Gewichten. Der stehende Vorbehalt
-    # kommt aus dem Register (data/claims.yaml insider_score_unvalidated).
+    # Beide Vorbehalte kommen aus dem Register; die Baender kommen aus
+    # app.suspicion und heissen nach der Zahl der angesprochenen Pruefungen.
+    # "high" neben einer 0-100-Zahl las sich als Wahrscheinlichkeit fuer
+    # Insiderhandel, und die Zahl ist eine Punktesumme aus neun
+    # Flow-Merkmalen mit gesetzten Gewichten.
     band_hinweis = " · ".join(
         f"{row['from']}–{row['to']} {row['label'].lower()}" for row in susp.score_band_table()
     )
     st.markdown(
-        "<div class='field-hint'>Best-effort screen on public trade data — research leads, not legal findings. "
+        f"<div class='field-hint'>{html.escape(caveat('screen_not_proof'))} "
         f"{html.escape(susp.SCORE_NAME.capitalize())}, 0–100 points: {html.escape(band_hinweis)}.<br>"
-        f"{html.escape(claims.disclaimer('insider_score_unvalidated', 'en'))}</div>",
+        f"{html.escape(caveat('insider_score_unvalidated'))}</div>",
         unsafe_allow_html=True,
     )
     # Dieselbe Definition wie jede andere Oberflaeche mit einem
@@ -12222,7 +12065,7 @@ def page_suspicious() -> None:
             "close to resolution, a favorable price move, and a wallet cluster or a fresh wallet. Fresh-wallet, timing and account-age "
             "bonuses and a category multiplier are applied on top. The caps are the weights, and they were chosen, not estimated. "
             f"Bands: {band_hinweis}.\n"
-            f"- **What has not been measured:** {claims.disclaimer('insider_score_unvalidated', 'en')} The one outcome this project "
+            f"- **What has not been measured:** {caveat('insider_score_unvalidated')} The one outcome this project "
             "does measure about the screen is a different quantity: whether the price of the flagged side was higher 30 min, 2 h and "
             "24 h after the flag, reported with n, a Wilson interval and a note on multiple comparisons (the flag log in the web "
             "frontend).\n"
@@ -12773,10 +12616,12 @@ def _esc(value: Any) -> str:
 
 def render_analysis_footer() -> None:
     st.divider()
+    # "Read-only" ist die Eigenschaft dieses Laufs und gehoert der Seite; die
+    # beiden Vorbehalte daneben sind die Grundsaetze, die bisher nur als Text
+    # in public/data/meta.json standen und jetzt im Register stehen.
     st.markdown(
-        "<div class='small-note'>Descriptive analysis from a daily, read-only "
-        "data run. No trading advice, no financial advice, no return "
-        "claims.</div>",
+        "<div class='small-note'>Read-only. "
+        f"{_esc(caveat('daily_run_descriptive'))} {_esc(caveat('daily_run_no_advice'))}</div>",
         unsafe_allow_html=True,
     )
 
@@ -13135,7 +12980,7 @@ def page_mentions_latenz() -> None:
 def page_pipeline_forward() -> None:
     section_header(
         "Pipeline Forward Test",
-        "Observing paper run of the decision pipeline -- no orders, no return claims.",
+        f"Observing paper run of the decision pipeline. {caveat('paper_log_no_return_claim')}",
         kicker="Daily research artifacts",
     )
     payload = load_publish_payload_cached("pipeline_forward.json")
@@ -13972,9 +13817,9 @@ def page_live_runs() -> None:
                 },
             )
             st.caption(
-                "Replay of the recorded bets under a different stake rule — a what-if on history, "
-                "not a forecast. Missed chances are listed per run above but cannot be simulated: "
-                "they never filled, so they have no recorded outcome."
+                "Replay of the recorded bets under a different stake rule, a what-if on history. "
+                f"{caveat('past_not_forecast')} Missed chances are listed per run above but cannot "
+                "be simulated: they never filled, so they have no recorded outcome."
             )
 
         with st.expander("Kelly & Bayes toolkit — size a live market by hand"):
@@ -14014,12 +13859,26 @@ def page_methodik() -> None:
         render_analysis_footer()
         return
     st.markdown("#### Principles")
-    disclaimer = meta.get("disclaimer") or []
-    if isinstance(disclaimer, dict):  # aeltere Publish-Version
-        disclaimer = list(disclaimer.values())
-    for text in disclaimer:
+    # Die vier Grundsaetze standen als Textzeilen in public/data/meta.json,
+    # geschrieben vom taeglichen Lauf in einem anderen Repo. Jetzt kommen sie
+    # aus dem Register, damit dieselbe Zusage im Web-Frontend und hier
+    # denselben Wortlaut hat. Was der Publisher darueber hinaus schickt,
+    # steht weiter darunter: eine Zeile, die das Register nicht kennt, soll
+    # sichtbar werden und nicht verschwinden.
+    for text in (
+        caveat("daily_run_descriptive"),
+        caveat("verification_not_signal"),
+        caveat("daily_run_no_advice"),
+        caveat("daily_run_privacy"),
+    ):
         with st.container(border=True):
-            st.caption(str(text))
+            st.caption(text)
+    published = meta.get("disclaimer") or []
+    if isinstance(published, dict):  # aeltere Publish-Version
+        published = list(published.values())
+    for text in claims.unregistered_texts(published):
+        with st.container(border=True):
+            st.caption(text)
     st.markdown("#### Guardrails of the agent run")
     st.markdown(
         "- Agents read exclusively through the MCP read layer: four read-only tools, "
