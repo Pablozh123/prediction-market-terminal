@@ -2913,7 +2913,9 @@ def wallet_positions_frame(open_positions: pd.DataFrame, closed_positions: pd.Da
                 md.POSITION_PRICE_KNOWN: "Open",
             }
         )
-        open_frame["pnl"] = numeric_col(open_frame, "unrealized_pnl")
+        # Ohne Preis gibt es kein Ergebnis. Ein ``fillna(0.0)`` haette der
+        # Zeile neben dem Wort "Price unknown" ein sauberes $0.00 gegeben.
+        open_frame["pnl"] = pd.to_numeric(open_frame.get("unrealized_pnl"), errors="coerce")
         open_frame["basis"] = numeric_col(open_frame, "size") * numeric_col(open_frame, "avg_price")
         open_frame["time"] = pd.to_datetime(open_frame.get("end_time"), utc=True, errors="coerce")
         frames.append(open_frame)
