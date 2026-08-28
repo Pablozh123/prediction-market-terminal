@@ -41,7 +41,7 @@ function scorePartsHtml(t) {
   return '<div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:4px">'
     + parts.map((p) => {
       const wert = p.imputed
-        ? '<span style="color:rgba(var(--ink),.45); font-style:italic">assumed</span>'
+        ? '<span style="color:rgba(var(--ink),.62); font-style:italic">assumed</span>'
         : '<span style="color:rgba(var(--ink),.8)">' + esc(p.value) + '</span>';
       const rand = p.imputed ? 'border:1px dashed rgba(var(--ink),.14)' : 'border:1px solid rgba(var(--ink),.1)';
       const titel = p.imputed
@@ -147,7 +147,7 @@ export function renderTraders(T) {
     + '<div style="text-align:right">VOLUME</div><div style="text-align:right">SCORE</div></div>'
     + traderSorted.map((t, i) => {
       const score = t.score;
-      const avatarStyle = 'width:28px; height:28px; flex:none; border-radius:4px; background:#1C232B; border:1px solid rgba(var(--ink),.09); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:12px; color:' + (score != null && score >= 80 ? 'var(--accent)' : 'rgba(var(--ink),.6)');
+      const avatarStyle = 'width:28px; height:28px; flex:none; border-radius:4px; background:var(--panel-hover); border:1px solid rgba(var(--ink),.09); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:12px; color:' + (score != null && score >= 80 ? 'var(--accent)' : 'rgba(var(--ink),.6)');
       const scoreStyle = M + '; font-size:12.5px; border-radius:4px; padding:3px 9px; ' + (score == null ? 'color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.12)' : score >= 80 ? 'color:var(--on-accent); background:var(--accent)' : score >= 60 ? 'color:rgba(var(--ink),.8); border:1px solid rgba(var(--ink),.2)' : 'color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35)');
       return '<div ' + T.act(() => T.openWallet(t.name)) + ' class="hv-panel" style="display:grid; grid-template-columns:' + grid + '; align-items:center; padding:13px 24px; border-bottom:1px solid rgba(var(--ink),.06); cursor:pointer">'
         + '<div style="' + M + '; font-size:13px; color:rgba(var(--ink),.6)">' + (i + 1) + '</div>'
