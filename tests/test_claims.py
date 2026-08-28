@@ -1,4 +1,5 @@
 import importlib.util
+import os
 import subprocess
 import sys
 import tempfile
@@ -288,6 +289,47 @@ class LintCaveatChecksTests(unittest.TestCase):
 
     def test_compiled_register_check_is_clean_in_the_repo(self):
         self.assertEqual(self.lint.lint_compiled_register(), [])
+
+
+class ClaimsRouteTests(unittest.TestCase):
+    """/api/claims: die Sprachwahl und der Pfad, aus dem gelesen wird."""
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            from api import server
+        except Exception as exc:  # fastapi fehlt lokal
+            raise unittest.SkipTest(f"api.server nicht importierbar: {exc}")
+        cls.server = server
+
+    def test_route_liefert_beide_sprachen(self):
+        payload = self.server.claims_register()
+        self.assertEqual(payload["source"], "data/claims.yaml")
+        self.assertEqual(len(payload["disclaimers"]), len(claims.disclaimer_keys()))
+        self.assertIn("de", payload["disclaimers"]["score_generic"])
+
+    def test_route_filtert_auf_eine_sprache(self):
+        payload = self.server.claims_register(lang="de")
+        self.assertEqual(payload["disclaimers"]["score_generic"]["text"],
+                         claims.disclaimer("score_generic", "de"))
+
+    def test_route_weist_eine_unbekannte_sprache_ab(self):
+        with self.assertRaises(Exception) as ctx:
+            self.server.claims_register(lang="fr")
+        self.assertEqual(getattr(ctx.exception, "status_code", None), 400)
+
+    def test_register_wird_unabhaengig_vom_arbeitsverzeichnis_gelesen(self):
+        # Der API-Prozess startet, wo der Host ihn startet. Mit dem frueheren
+        # relativen Pfad war die Antwort dort leer, und ein leerer Vorbehalt
+        # ist genau der Fehler, den dieses Modul verhindern soll.
+        alt = os.getcwd()
+        try:
+            os.chdir(tempfile.gettempdir())
+            claims.load_claims.__globals__["_CACHE"].clear()
+            payload = self.server.claims_register()
+        finally:
+            os.chdir(alt)
+        self.assertTrue(payload["disclaimers"]["screen_not_proof"]["en"])
 
 
 class LintScriptTests(unittest.TestCase):
