@@ -114,6 +114,11 @@ def simulate_sizing(
     ``sim_shares`` and ``sim_pnl`` (win pays shares × (1 − price), loss costs
     the stake — fills assumed at the recorded average fill price). The
     summary compares real vs. simulated totals over resolved bets only.
+
+    Bets left out of the replay are counted apart, because the two reasons
+    are not the same statement: ``n_open`` has no settlement yet, while
+    ``n_unpriced`` settled but carries no usable fill price, so there is no
+    entry to resize.
     """
 
     if mode not in SIM_MODES:
@@ -121,18 +126,25 @@ def simulate_sizing(
     if bets is None or bets.empty:
         empty = pd.DataFrame(columns=BET_COLUMNS + ["sim_stake", "sim_shares", "sim_pnl"])
         return empty, {
-            "mode": mode, "n_resolved": 0, "n_open": 0,
+            "mode": mode, "n_resolved": 0, "n_open": 0, "n_unpriced": 0,
             "real_stake": 0.0, "real_pnl": None, "real_roi_pct": None,
             "sim_stake": 0.0, "sim_pnl": None, "sim_roi_pct": None,
         }
     work = bets.copy()
-    resolved_mask = work["aufgeloest"].fillna(False).astype(bool) & work["gewonnen"].notna() & work["fill_preis"].notna()
+    # Zwei Gruende, eine Wette nicht zu simulieren, und sie heissen nicht
+    # gleich: sie ist noch offen, oder sie ist aufgeloest, traegt aber keinen
+    # brauchbaren Preis. Die Differenz "alle minus simulierbare" hiess
+    # frueher komplett ``n_open``, und die Seite meldete eine aufgeloeste
+    # Wette ohne Fillpreis als "still open".
+    settled_mask = work["aufgeloest"].fillna(False).astype(bool) & work["gewonnen"].notna()
+    resolved_mask = settled_mask & work["fill_preis"].notna()
     resolved = work[resolved_mask].copy()
-    n_open = int(len(work) - len(resolved))
+    n_open = int((~settled_mask).sum())
+    n_unpriced = int((settled_mask & ~work["fill_preis"].notna()).sum())
     if resolved.empty:
         empty = resolved.assign(sim_stake=pd.Series(dtype=float), sim_shares=pd.Series(dtype=float), sim_pnl=pd.Series(dtype=float))
         return empty, {
-            "mode": mode, "n_resolved": 0, "n_open": n_open,
+            "mode": mode, "n_resolved": 0, "n_open": n_open, "n_unpriced": n_unpriced,
             "real_stake": 0.0, "real_pnl": None, "real_roi_pct": None,
             "sim_stake": 0.0, "sim_pnl": None, "sim_roi_pct": None,
         }
@@ -161,6 +173,7 @@ def simulate_sizing(
         "mode": mode,
         "n_resolved": int(len(resolved)),
         "n_open": n_open,
+        "n_unpriced": n_unpriced,
         "real_stake": real_stake,
         "real_pnl": real_pnl,
         "real_roi_pct": (real_pnl / real_stake * 100.0) if real_pnl is not None and real_stake > 0 else None,

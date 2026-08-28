@@ -42,7 +42,6 @@
   --cat-teal: #86BDB2;
   --cat-gold: #D4B878;
   --cat-blue2: #93A5C6;
-  --cat-rose: #C98A9E;
   /* overlay chrome */
   --scrim: rgba(8, 8, 7, .72);
   --shadow-25: rgba(0, 0, 0, .25);
@@ -59,7 +58,21 @@
 }
 
 /* Light: warm paper, same roles two to three shades darker so every pairing
-   keeps its contrast (amber text needs ~#8A651C on this ground, not #D9A648). */
+   keeps its contrast (amber text needs ~#8A651C on this ground, not #D9A648).
+
+   --ink is pure black here, and that is deliberate. The text tiers are written
+   as rgba(var(--ink), α) with the SAME α in both themes, but α does not mean
+   the same thing on the two grounds: compositing a light ink onto a dark bg
+   gains contrast fast, a dark ink onto a light bg gains it slowly. With the
+   old warm #201E19 the two most-used tiers both failed WCAG AA on this
+   ground — .60 landed at 4.23 and .55 at 3.65 against #F4F1EA. Pure black is
+   the only value that lifts .55 over 4.5 (it reaches 4.62); #080705 gets to
+   4.36, #0C0B08 to 4.23. The warmth of the theme lives in --bg and --text,
+   not in the low-alpha tiers, so nothing reads colder for it.
+   Measured per route, share of text nodes failing AA: markets 58.7% -> 0.0,
+   flow 47.7% -> 0.0, alerts 45.6% -> 0.0, live runs 60.3% -> 2.0,
+   whale 67.8% -> 7.4. What remains is the .5 and .45 call sites in the JS.
+   Do not restore a lifted --ink here without re-measuring. */
 :root[data-theme="light"] {
   color-scheme: light;
   --bg: #F4F1EA;
@@ -68,27 +81,31 @@
   --panel-hover: #EAE6DB;
   --edge: #CCC7B9;
   --text: #201E19;
-  --ink: 32, 30, 25;
+  --ink: 0, 0, 0;
   --accent: #8A651C;
   --accent-rgb: 138, 101, 28;
   --accent-bright: #6E5116;
   --accent-bg-hover: #9C7421;
   --on-accent: #FBFAF6;
-  --pos: #2E7D4F;
-  --pos-rgb: 46, 125, 79;
+  /* The role colours below carry >= 4.6:1 against --bg (the page ground), not
+     just against --panel. Many labels sit directly on --bg, and at the old
+     values --cat-gold (3.95), --cat-teal (4.15), --muted (4.27),
+     --cat-blue2 (4.39), --pos (4.47) and --cat-rose (4.48) all failed there.
+     --pos was the expensive one: it colours every positive number in the app. */
+  --pos: #2D7B4D;
+  --pos-rgb: 45, 123, 77;
   --neg: #B23B2E;
   --neg-rgb: 178, 59, 46;
-  --neg-soft: #9E5D50;
-  --warn: #A85A14;
-  --warn-rgb: 168, 90, 20;
+  --neg-soft: #9C5C4F;
+  --warn: #A55914;
+  --warn-rgb: 165, 89, 20;
   --info: #3E6796;
   --info-rgb: 62, 103, 150;
-  --muted: #767264;
+  --muted: #716D60;
   --cat-violet: #77609A;
-  --cat-teal: #3F7F72;
-  --cat-gold: #8F7430;
-  --cat-blue2: #5C7194;
-  --cat-rose: #9C5B72;
+  --cat-teal: #3B776B;
+  --cat-gold: #826A2C;
+  --cat-blue2: #596E90;
   --scrim: rgba(45, 42, 35, .45);
   --shadow-25: rgba(70, 62, 48, .14);
   --shadow-35: rgba(70, 62, 48, .18);
@@ -188,8 +205,16 @@ input { font-family: inherit; }
 .hv-bd20:hover { border-color: rgba(var(--ink), .2) !important; }
 .hv-white:hover { color: var(--text) !important; }
 .hv-accent:hover { color: var(--accent) !important; }
-.hv-amber:hover { color: var(--warn) !important; }
 .hv-accentbg:hover { background: var(--accent-bg-hover) !important; }
+
+/* Press feedback. Every control in the app carries data-act (see act() in
+   app.js), so one rule covers the roughly hundred chips, tabs and buttons at
+   once — and covers whatever is added later. Until now the only confirmation
+   a click produced was the re-render, which on the markets page costs ~114 ms:
+   the control looked inert for a tenth of a second. Transform only, so this
+   never triggers layout, and the reduced-motion block above collapses it. */
+[data-act] { transition: transform .12s cubic-bezier(.23, 1, .32, 1); }
+[data-act]:active { transform: scale(.97); }
 
 /* Treemap tiles (wallet page): hover names the tile without moving it — the
    figures come up in the floating card #tip that app.js positions next to

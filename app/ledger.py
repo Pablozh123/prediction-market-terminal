@@ -29,6 +29,15 @@ Only signals that carry both a ``market_key`` and an ``outcome`` are
 resolvable; all other rows stay pending forever and are reported as
 ``not_resolvable`` in the aggregates.
 
+The modeled PnL buys the recorded outcome at the recorded emit price. A signal
+that reports the opposite pressure therefore cannot be scored by it: a whale
+print with ``side = SELL`` says someone left that outcome, and booking a
+settlement of that outcome as a win would credit the exit with the profit of
+an entry it never made. Such rows are written to the ledger in full (the
+payload keeps side, price and notional) but with an empty resolvable outcome,
+so they land in ``not_resolvable`` instead of in the hit rate. The rule is
+mechanical and applied at emit time, never after a settlement is known.
+
 The ledger assumes a single writer (the background scanner); readers may open
 the database concurrently thanks to WAL.
 """
@@ -215,6 +224,23 @@ def _clean_price(value: Any) -> float | None:
     return number
 
 
+def resolvable_outcome(row: Mapping[str, Any]) -> str:
+    """The outcome this row may be scored on, or "" when it may not be.
+
+    ``modeled_pnl_per_100`` buys the outcome at the emit price. A signal whose
+    recorded side is a sale reports the opposite pressure, so a settlement of
+    that outcome is not this signal's win: a whale selling Yes at 0.30 into a
+    market that settles Yes would otherwise be booked as +233 dollars per 100
+    staked. Sale rows keep their full payload but get no resolvable outcome
+    and are counted under ``not_resolvable``.
+    """
+
+    outcome = _clean_text(row.get("outcome"))
+    if not outcome:
+        return ""
+    return "" if _clean_text(row.get("side")).upper() == "SELL" else outcome
+
+
 def emit_signals(
     conn: sqlite3.Connection,
     signals_df: pd.DataFrame,
@@ -265,7 +291,7 @@ def emit_signals(
                     _clean_text(row.get("severity")),
                     _clean_text(row.get("platform")).lower(),
                     _clean_text(row.get("market_key")),
-                    _clean_text(row.get("outcome")),
+                    resolvable_outcome(row),
                     _clean_price(row.get("price")),
                     payload_json,
                     payload_hash,

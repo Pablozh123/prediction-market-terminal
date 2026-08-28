@@ -21,6 +21,7 @@ from typing import Any, Iterable, Mapping
 import pandas as pd
 import requests
 
+from app import venue_units as vu
 
 POLY_GAMMA = "https://gamma-api.polymarket.com"
 POLY_DATA = "https://data-api.polymarket.com"
@@ -173,6 +174,19 @@ def dollars(value: Any) -> float:
     return float(_num(value, 0.0) or 0.0)
 
 
+def count(value: Any) -> float:
+    """Parse API count fields: Stueckzahlen, keine Betraege.
+
+    Rechnerisch dasselbe wie ``dollars``, und genau deshalb steht es hier
+    getrennt. Kalshis ``volume_fp`` und ``open_interest_fp`` zaehlen
+    Kontrakte; wer sie durch ``dollars`` schickt, hat sie im naechsten
+    Lesevorgang als Betrag vor sich. Die Einheit gehoert an den Aufruf, nicht
+    in die Zahl.
+    """
+
+    return float(_num(value, 0.0) or 0.0)
+
+
 def cents(value: Any) -> float:
     parsed = _num(value, 0.0) or 0.0
     if parsed > 1.0:
@@ -235,6 +249,9 @@ def _normalize_polymarket_market(market: Mapping[str, Any], parent_event: Mappin
     )
     return {
         "platform": "Polymarket",
+        # Gamma rechnet in USDC, also in Dollar. Die Spalte sagt es mit, weil
+        # dieselbe Spalte auf Kalshi Kontrakte zaehlt (app/venue_units.py).
+        "volume_unit": vu.USD,
         "market_key": market.get("conditionId") or str(market.get("id", "")),
         "id": str(market.get("id", "")),
         "ticker": market.get("conditionId") or str(market.get("id", "")),
@@ -1993,6 +2010,19 @@ def filter_wallet_positions_by_status(positions: pd.DataFrame, status: Any) -> p
     return positions[positions["status"].astype(str).eq(value)].copy()
 
 
+def _calendar_day_volume(day_markets: pd.DataFrame) -> dict[str, float]:
+    """Tagesvolumen je Einheit: Polymarket in Dollar, Kalshi in Kontrakten."""
+
+    if day_markets is None or day_markets.empty:
+        return {"volume_usd": 0.0, "volume_contracts": 0.0}
+    je_einheit = vu.volume_by_unit(day_markets.get("platform", []),
+                                   day_markets["activity_volume"])
+    return {
+        "volume_usd": float(je_einheit.get(vu.USD, 0.0)),
+        "volume_contracts": float(je_einheit.get(vu.CONTRACTS, 0.0)),
+    }
+
+
 def market_calendar_days(
     markets: pd.DataFrame,
     month: Any | None = None,
@@ -2007,7 +2037,8 @@ def market_calendar_days(
         "weekday",
         "is_current_month",
         "markets",
-        "volume",
+        "volume_usd",
+        "volume_contracts",
         "median_prob",
         "top_markets",
         "more_count",
@@ -2062,7 +2093,12 @@ def market_calendar_days(
                 "weekday": int(current.weekday()),
                 "is_current_month": current.month == month_start.month,
                 "markets": int(len(day_markets)),
-                "volume": float(day_markets["activity_volume"].sum()) if not day_markets.empty else 0.0,
+                # Zwei Summen statt einer. Ein Tag kann Maerkte beider Venues
+                # tragen, und deren Volumenspalten stehen in verschiedenen
+                # Einheiten: Polymarket meldet Dollar, Kalshi zaehlt
+                # Kontrakte (Beleg in app/venue_units.py). Die frueher hier
+                # stehende Gesamtsumme war deshalb keine Groesse.
+                **_calendar_day_volume(day_markets),
                 "median_prob": float(day_markets["yes_price"].median()) if not day_markets.empty else float("nan"),
                 "top_markets": top_rows,
                 "more_count": max(0, int(len(day_markets) - len(top_rows))),
@@ -2684,6 +2720,20 @@ def get_kalshi_markets(
         normalized.append(
             {
                 "platform": "Kalshi",
+                # Volumen und Open Interest zaehlen hier KONTRAKTE, nicht
+                # Dollar. Gemessen am 2026-08-28 gegen die oeffentliche API:
+                # der Markt KXWTAMATCH-26AUG27VIDBAR-BAR meldete
+                # volume_fp = 896792.27, und die Summe von count_fp ueber
+                # alle 4399 Trades desselben Marktes ergab exakt dieselbe
+                # Zahl, waehrend sum(count_fp * Preis) bei 636041.30 lag.
+                # Dazu die Feldnamen: Dollar-Felder tragen das Suffix
+                # _dollars (liquidity_dollars, yes_bid_dollars,
+                # notional_value_dollars), Stueckzahlen tragen _fp. Die
+                # Spalte sagt ihre Einheit deshalb selbst; wer sie mit
+                # Polymarket-Dollar addiert, addiert Aepfel mit Birnen und
+                # ueberzeichnet Kalshi um den Faktor 1/p. Details und
+                # Herleitung in app/venue_units.py.
+                "volume_unit": vu.CONTRACTS,
                 "market_key": ticker,
                 "id": ticker,
                 "ticker": ticker,
@@ -2698,13 +2748,16 @@ def get_kalshi_markets(
                 "best_ask": yes_ask,
                 "spread": max(0.0, yes_ask - yes_bid) if yes_bid and yes_ask else None,
                 "last_price": last_price,
-                "volume": dollars(_first_nonempty(market.get("volume_fp"), market.get("volume"), market.get("volume_dollars"))),
-                "volume_1h": dollars(_first_nonempty(market.get("volume_1h_fp"), market.get("volume_1h"), market.get("volume_1h_dollars"))),
-                "volume_24h": dollars(
-                    _first_nonempty(market.get("volume_24h_fp"), market.get("volume_24h"), market.get("volume_24h_dollars"))
-                ),
+                # Kein Rueckfall mehr auf volume_dollars und Geschwister: die
+                # Felder gibt es auf keinem Kalshi-Host, sie waren die
+                # Vermutung, das Volumen koenne in Dollar kommen.
+                "volume": count(_first_nonempty(market.get("volume_fp"), market.get("volume"))),
+                "volume_1h": count(_first_nonempty(market.get("volume_1h_fp"), market.get("volume_1h"))),
+                "volume_24h": count(_first_nonempty(market.get("volume_24h_fp"), market.get("volume_24h"))),
+                # Liquiditaet ist die Ausnahme: liquidity_dollars traegt das
+                # Suffix und ist damit wirklich ein Betrag.
                 "liquidity": dollars(liquidity_usd),
-                "open_interest": dollars(_first_nonempty(market.get("open_interest_fp"), market.get("open_interest"))),
+                "open_interest": count(_first_nonempty(market.get("open_interest_fp"), market.get("open_interest"))),
                 "end_time": _safe_ts(_first_nonempty(market.get("close_time"), market.get("expiration_time"))),
                 "image": "",
                 "outcomes": ["Yes", "No"],
@@ -2764,8 +2817,9 @@ def get_kalshi_candlesticks(ticker: str, days: int = 30, period_interval: int = 
                 "high": _candlestick_price(row, "high"),
                 "low": _candlestick_price(row, "low"),
                 "close": _candlestick_price(row, "close"),
-                "volume": dollars(_first_nonempty(row.get("volume_fp"), row.get("volume"))),
-                "open_interest": dollars(_first_nonempty(row.get("open_interest_fp"), row.get("open_interest"))),
+                # Auch die Kerze zaehlt Kontrakte, nicht Dollar.
+                "volume": count(_first_nonempty(row.get("volume_fp"), row.get("volume"))),
+                "open_interest": count(_first_nonempty(row.get("open_interest_fp"), row.get("open_interest"))),
             }
         )
     df = pd.DataFrame(normalized)
@@ -3973,8 +4027,8 @@ def cross_venue_candidates(
                     "kalshi_title": k_row["title"],
                     "polymarket_yes": pm_price,
                     "kalshi_yes": ks_price,
-                    "polymarket_volume": p_row.get("activity_volume", p_row.get("volume_24h", 0)),
-                    "kalshi_volume": k_row.get("activity_volume", k_row.get("volume_24h", 0)),
+                    "polymarket_volume_usd": p_row.get("activity_volume", p_row.get("volume_24h", 0)),
+                    "kalshi_volume_contracts": k_row.get("activity_volume", k_row.get("volume_24h", 0)),
                     "polymarket_url": p_row.get("url", ""),
                     "kalshi_url": k_row.get("url", ""),
                 }

@@ -3,7 +3,7 @@
 // instance (T). Nothing here invents a number: every figure names its payload
 // or the panel says which payload is missing.
 
-import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, signedMoney, stempel, EINZAHLUNGEN_USD, offeneNichtDrin, tapeFenster, fensterSatz } from '../util.js';
+import { esc, money, num, volume, contracts, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, signedMoney, stempel, EINZAHLUNGEN_USD, offeneNichtDrin, tapeFenster, fensterSatz } from '../util.js';
 import { spiegelZeit, kurzGeld } from '../charts.js';
 import { studieAnker } from './microstructure_page.js';
 
@@ -332,7 +332,12 @@ export function renderOverview(T) {
     : leerZeile(landingLeerSatz(hk.notes, 'field_notes.json'));
 
   // ---- live data row (from the existing 30 s poll) -----------------------
-  const totalVol = T.markets.reduce((a, m) => a + m.vol, 0);
+  // Diese Zelle addierte alle m.vol zu einer Zahl mit Dollarzeichen. Auf
+  // Polymarket sind das Dollar, auf Kalshi Kontrakte (Beleg in
+  // app/venue_units.py), also war die Summe keine Groesse. Der Dollarwert
+  // steht jetzt allein fuer Polymarket, die Kalshi-Stueckzahl daneben.
+  const pmVolUsd = T.markets.filter((m) => m.venue === 'Polymarket').reduce((a, m) => a + m.vol, 0);
+  const ksVolContracts = T.markets.filter((m) => m.venue === 'Kalshi').reduce((a, m) => a + m.vol, 0);
   const pmCount = T.markets.filter((m) => m.venue === 'Polymarket').length;
   const ksCount = T.markets.length - pmCount;
   const whalePrints = T.tape.filter((t) => t.size >= s.setWhale).length;
@@ -343,7 +348,8 @@ export function renderOverview(T) {
   const hatTape = T.tape.length > 0;
   const liveRow = '<div style="display:grid; grid-template-columns:repeat(3,1fr); border-bottom:1px solid rgba(var(--ink),.09)">'
     + kpiCell('MARKETS TRACKED', hatMaerkte ? num(T.markets.length) : '—', hatMaerkte ? num(pmCount) + ' Polymarket · ' + num(ksCount) + ' Kalshi' : esc(marktSatz), true)
-    + kpiCell('VOLUME · 24H', hatMaerkte ? money(totalVol) : '—', hatMaerkte ? 'sum over the ' + num(T.markets.length) + ' markets in the sample' : esc(marktSatz), true)
+    + kpiCell('POLYMARKET VOLUME · 24H', hatMaerkte ? money(pmVolUsd) : '—',
+      hatMaerkte ? 'over ' + num(pmCount) + ' markets · Kalshi adds ' + contracts(ksVolContracts) + ', which is not a dollar figure' : esc(marktSatz), true)
     + kpiCell('PRINTS ≥ $2.5K · TAPE WINDOW', hatTape ? num(whalePrints) : '—', hatTape ? 'from ' + num(whaleWallets) + ' identified wallets' : esc(tapeSatz), false)
     + '</div>';
 
@@ -434,7 +440,10 @@ export function renderMarkets(T) {
   const mx = (m) => T.marketExtraOf(m);
 
   // ---- Einblicke aus dem geladenen Ausschnitt, alle Zeilen klickbar ------
-  const gesamtVol = T.markets.reduce((a, m) => a + m.vol, 0);
+  // Getrennt, aus demselben Grund wie oben: Dollar und Stueck sind nicht
+  // dieselbe Groesse und ergeben zusammen keine dritte.
+  const pmVolSample = T.markets.filter((m) => m.venue === 'Polymarket').reduce((a, m) => a + m.vol, 0);
+  const ksVolSample = T.markets.filter((m) => m.venue === 'Kalshi').reduce((a, m) => a + m.vol, 0);
   const pmAnzahl = T.markets.filter((m) => m.venue === 'Polymarket').length;
   const spreads = T.markets.map((m) => mx(m).spread).filter((v) => v != null).sort((a, b) => a - b);
   const spreadMedian = spreads.length ? (spreads.length % 2 ? spreads[(spreads.length - 1) / 2] : (spreads[spreads.length / 2 - 1] + spreads[spreads.length / 2]) / 2) : null;
@@ -450,7 +459,7 @@ export function renderMarkets(T) {
     + '<div style="' + M + '; font-size:11.5px; text-align:right">' + rechts + '</div></div>';
   const kpiStrip = '<div style="display:grid; grid-template-columns:repeat(4,1fr); border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; overflow:hidden; background:var(--panel)">'
     + kpiCell('MARKETS IN SAMPLE', num(T.markets.length), pmAnzahl + ' Polymarket · ' + (T.markets.length - pmAnzahl) + ' Kalshi', true)
-    + kpiCell('VOLUME 24H', money(gesamtVol), 'sum over the sample', true)
+    + kpiCell('POLYMARKET VOLUME 24H', money(pmVolSample), 'Kalshi trades in contracts: ' + contracts(ksVolSample), true)
     + kpiCell('BIGGEST 1D MOVE', topMover ? (topMover.chg >= 0 ? '+' : '') + topMover.chg + '¢' : '—',
       topMover ? esc(kurz(topMover.title)) : 'no market in the sample moved', true, topMover ? topMover.chg : null)
     + kpiCell('MEDIAN SPREAD', spreadMedian != null ? spreadMedian + '¢' : '—',
@@ -464,7 +473,7 @@ export function renderMarkets(T) {
       baldFaellig.map((m) => zeile(m, m.yes + '¢', esc(mx(m).endsDays <= 1 ? 'under 1 d' : 'in ' + mx(m).endsDays + ' d'))).join(''),
       'no market in the sample carries an end date')
     + insightPanel('COIN FLIPS', 'priced 40–60¢, the market is undecided · by volume',
-      unentschieden.map((m) => zeile(m, m.yes + '¢', money(m.vol))).join(''),
+      unentschieden.map((m) => zeile(m, m.yes + '¢', volume(m.vol, m.venue))).join(''),
       'no market in the sample is priced 40–60¢')
     + '</div>';
   let mRows = T.markets.slice();
@@ -489,7 +498,9 @@ export function renderMarkets(T) {
   }
   if (s.mVol !== 'all') {
     const v = { '10k': 10000, '100k': 100000, '1m': 1000000 }[s.mVol];
-    mRows = mRows.filter((m) => m.vol >= v); addChip('volume > $' + s.mVol, { mVol: 'all' });
+    // Ohne Dollarzeichen: die Schwelle laeuft gegen die Volumenspalte jeder
+    // Venue, und die zaehlt auf Kalshi Kontrakte statt Dollar.
+    mRows = mRows.filter((m) => m.vol >= v); addChip('volume > ' + s.mVol + ' (venue unit)', { mVol: 'all' });
   }
   // Date-based filters only judge rows whose date is known; a market without
   // an end date is neither "ending soon" nor "open ended".
@@ -522,7 +533,12 @@ export function renderMarkets(T) {
     return b.vol - a.vol;
   });
 
-  const maxVol = mRows.reduce((a, m) => Math.max(a, m.vol), 0);
+  // Der Anteilsbalken vergleicht nur innerhalb einer Einheit: gegen einen
+  // gemeinsamen Maximalwert saehe jeder Kalshi-Markt um 1/p zu gross aus.
+  const maxVolJeVenue = mRows.reduce((a, m) => {
+    a[m.venue] = Math.max(a[m.venue] || 0, m.vol);
+    return a;
+  }, {});
   const badge = mActive.length ? M + '; font-size:11px; color:var(--on-accent); background:var(--accent); border-radius:4px; padding:1px 7px' : 'display:none';
   const chevron = M + '; font-size:16px; color:rgba(var(--ink),.5); transition:transform .18s ease; transform:rotate(' + (s.marketFiltersOpen ? '90deg' : '0deg') + ')';
 
@@ -563,7 +579,11 @@ export function renderMarkets(T) {
       + filterGroup('PLATFORM', [['all','All'],['Polymarket','Polymarket'],['Kalshi','Kalshi']].map((o) => T.opt(o[1], s.mPlatform === o[0], { mPlatform: o[0] })).join(''))
       + filterGroup('PROBABILITY', [['all','All'],['5-95','5–95%'],['20-80','20–80%'],['80','>80%'],['95','>95%'],['99','>99%']].map((o) => T.opt(o[1], s.mProb === o[0], { mProb: o[0] })).join(''))
       + filterGroup('LIQUIDITY', [['all','All'],['1k','>$1k'],['10k','>$10k'],['100k','>$100k']].map((o) => T.opt(o[1], s.mLiq === o[0], { mLiq: o[0] })).join(''))
-      + filterGroup('VOLUME 24H', [['all','All'],['10k','>$10k'],['100k','>$100k'],['1m','>$1m']].map((o) => T.opt(o[1], s.mVol === o[0], { mVol: o[0] })).join(''))
+      // Ohne Dollarzeichen: die Schwelle laeuft gegen die Volumenspalte
+      // jeder Zeile, und die zaehlt auf Kalshi Kontrakte statt Dollar
+      // (app/venue_units.js-Gegenstueck in util.js). Liquiditaet darueber
+      // behaelt ihres, liquidity_dollars ist wirklich ein Betrag.
+      + filterGroup('VOLUME 24H (VENUE UNIT)', [['all','All'],['10k','>10k'],['100k','>100k'],['1m','>1m']].map((o) => T.opt(o[1], s.mVol === o[0], { mVol: o[0] })).join(''))
       + filterGroup('RESOLVES IN', [['all','All'],['1d','<1 day'],['7d','<7 days'],['30d','<30 days'],['open','Open ended']].map((o) => T.opt(o[1], s.mEnds === o[0], { mEnds: o[0] })).join(''))
       + filterGroup('MARKET AGE', [['all','All'],['1d','<1 day'],['7d','<7 days'],['30d','>30 days']].map((o) => T.opt(o[1], s.mAge === o[0], { mAge: o[0] })).join(''))
       + '<div style="grid-column:span 2"><div style="' + LBL9 + '">EXCLUDE CATEGORIES</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
@@ -596,7 +616,8 @@ export function renderMarkets(T) {
     + mRows.map((m) => marketRowHtml(Object.assign(T.marketView(m), {
       spreadLabel: mx(m).spread != null ? mx(m).spread + '¢' : '—',
       liqLabel: m.liq ? money(m.liq) : '—',
-      volShare: maxVol > 0 && m.vol > 0 ? Math.max(2, (100 * m.vol) / maxVol) : null
+      volShare: (maxVolJeVenue[m.venue] || 0) > 0 && m.vol > 0
+        ? Math.max(2, (100 * m.vol) / maxVolJeVenue[m.venue]) : null
     }))).join('')
     + (mRows.length === 0 ? '<div style="padding:60px; text-align:center; ' + M + '; font-size:12px; color:rgba(var(--ink),.55)">No market matches that filter.</div>' : '')
     + '</div>';
@@ -830,7 +851,7 @@ export function renderCross(T) {
     return '<div>' + seitenKopf('CROSS-VENUE', 'The same question, two prices', 'var(--info)') + body + '</div>';
   }
   // Local filters can only tighten what the server let through.
-  let cRows = T.crossPairs.filter((c) => Math.abs(c.pm - c.ks) >= s.crossMinGap && c.sim >= s.crossSim && c.pmVol >= s.crossPmVol && c.ksVol >= s.crossKsVol);
+  let cRows = T.crossPairs.filter((c) => Math.abs(c.pm - c.ks) >= s.crossMinGap && c.sim >= s.crossSim && c.pmVolUsd >= s.crossPmVol && c.ksVolContracts >= s.crossKsVol);
   cRows = cRows.filter((c) => c.pm >= s.crossMinPrice && c.pm <= s.crossMaxPrice && c.ks >= s.crossMinPrice && c.ks <= s.crossMaxPrice);
   if (s.crossQuery.trim()) {
     const cq = s.crossQuery.trim().toLowerCase();
@@ -857,7 +878,7 @@ export function renderCross(T) {
     s.crossSim > 0.5 ? ['similarity ≥ ' + s.crossSim.toFixed(2)] : [],
     s.crossMinGap > 0 ? ['gap ≥ ' + s.crossMinGap.toFixed(1) + '¢'] : [],
     s.crossPmVol > 0 ? ['Polymarket volume > $' + num(s.crossPmVol)] : [],
-    s.crossKsVol > 0 ? ['Kalshi volume > $' + num(s.crossKsVol)] : [],
+    s.crossKsVol > 0 ? ['Kalshi volume > ' + num(s.crossKsVol) + ' contracts'] : [],
     s.crossLower !== 'any' ? ['cheaper on ' + s.crossLower] : [],
     (s.crossMinPrice !== 0 || s.crossMaxPrice !== 100) ? ['yes price ' + s.crossMinPrice + '–' + s.crossMaxPrice + '¢'] : []
   );
@@ -890,7 +911,7 @@ export function renderCross(T) {
     + [['any','Any'],['Polymarket','Polymarket'],['Kalshi','Kalshi']].map((o) => T.opt(o[1], s.crossLower === o[0], { crossLower: o[0] })).join('')
     + '</div></div>'
     + stepGroup('MIN POLYMARKET VOLUME', s.crossPmVol ? '$' + num(s.crossPmVol) : 'any', () => T.setState({ crossPmVol: Math.max(0, s.crossPmVol - 250000) }), () => T.setState({ crossPmVol: s.crossPmVol + 250000 }))
-    + stepGroup('MIN KALSHI VOLUME', s.crossKsVol ? '$' + num(s.crossKsVol) : 'any', () => T.setState({ crossKsVol: Math.max(0, s.crossKsVol - 100000) }), () => T.setState({ crossKsVol: s.crossKsVol + 100000 }))
+    + stepGroup('MIN KALSHI VOLUME (CONTRACTS)', s.crossKsVol ? num(s.crossKsVol) : 'any', () => T.setState({ crossKsVol: Math.max(0, s.crossKsVol - 100000) }), () => T.setState({ crossKsVol: s.crossKsVol + 100000 }))
     + stepGroup('MIN YES PRICE', s.crossMinPrice + '¢', () => T.setState({ crossMinPrice: Math.max(0, s.crossMinPrice - 5) }), () => T.setState({ crossMinPrice: Math.min(s.crossMaxPrice, s.crossMinPrice + 5) }))
     + stepGroup('MAX YES PRICE', s.crossMaxPrice + '¢', () => T.setState({ crossMaxPrice: Math.max(s.crossMinPrice, s.crossMaxPrice - 5) }), () => T.setState({ crossMaxPrice: Math.min(100, s.crossMaxPrice + 5) }))
     + '</div>'
@@ -906,8 +927,11 @@ export function renderCross(T) {
     + '<div style="padding:14px 24px"><div style="' + HEAD_CELL + '">POSITIVE NET OF FEES</div><div style="' + M + '; font-size:22px; margin-top:7px; color:' + (netPositive ? 'var(--pos)' : 'rgba(var(--ink),.6)') + '">' + netPositive + ' of ' + netKnown + '</div></div>'
     + '</div>'
 
-    + '<div style="display:grid; grid-template-columns:1fr 118px 118px 96px 110px 118px; padding:10px 24px; border-bottom:1px solid rgba(var(--ink),.09); background:var(--panel); position:sticky; top:0; z-index:3; ' + HEAD_CELL + '">'
-    + '<div>EVENT</div><div style="text-align:right">POLYMARKET</div><div style="text-align:right">KALSHI</div><div style="text-align:right">GAP</div><div style="text-align:right">VOLUME 24H</div><div style="text-align:right">NET OF FEES</div></div>'
+    + '<div style="display:grid; grid-template-columns:1fr 104px 104px 84px 108px 124px 112px; padding:10px 24px; border-bottom:1px solid rgba(var(--ink),.09); background:var(--panel); position:sticky; top:0; z-index:3; ' + HEAD_CELL + '">'
+    // Ein Markt, zwei Volumina, zwei Einheiten. Die Summe der beiden stand
+    // hier als eine Zahl mit Dollarzeichen und war keine: Kalshis Volumen
+    // zaehlt Kontrakte (app/venue_units.py).
+    + '<div>EVENT</div><div style="text-align:right">POLYMARKET</div><div style="text-align:right">KALSHI</div><div style="text-align:right">GAP</div><div style="text-align:right">PM VOL 24H</div><div style="text-align:right">KALSHI VOL 24H</div><div style="text-align:right">NET OF FEES</div></div>'
     + cRows.map((c) => {
       const g = Math.abs(c.pm - c.ks);
       const gapStyle = M + '; font-size:14px; text-align:right; color:' + (g >= 5 ? 'var(--warn)' : g >= 3 ? 'var(--text)' : 'rgba(var(--ink),.5)');
@@ -916,13 +940,14 @@ export function renderCross(T) {
       // einzige Zahl der Tabelle, die als Vorteil gelesen werden darf.
       const netFarbe = c.net == null ? 'rgba(var(--ink),.45)' : c.net > 0 ? 'var(--pos)' : 'rgba(var(--ink),.5)';
       const netLabel = c.net == null ? '—' : (c.net > 0 ? '+' : '') + c.net.toFixed(1) + '¢';
-      return '<div style="display:grid; grid-template-columns:1fr 118px 118px 96px 110px 118px; align-items:center; padding:13px 24px; border-bottom:1px solid rgba(var(--ink),.06)">'
+      return '<div style="display:grid; grid-template-columns:1fr 104px 104px 84px 108px 124px 112px; align-items:center; padding:13px 24px; border-bottom:1px solid rgba(var(--ink),.06)">'
         + '<div style="padding-right:20px"><div style="font-size:13.5px; line-height:1.35">' + esc(c.event) + '</div>'
         + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); margin-top:3px">' + esc(c.cat) + ' · similarity ' + c.sim.toFixed(2) + '</div></div>'
         + '<div style="' + M + '; font-size:14px; text-align:right; color:var(--accent)">' + c.pm + '¢</div>'
         + '<div style="' + M + '; font-size:14px; text-align:right; color:var(--info)">' + c.ks + '¢</div>'
         + '<div style="' + gapStyle + '">' + g + '¢</div>'
-        + '<div style="' + M + '; font-size:12.5px; text-align:right; color:rgba(var(--ink),.6)">' + money(c.pmVol + c.ksVol) + '</div>'
+        + '<div style="' + M + '; font-size:12.5px; text-align:right; color:rgba(var(--ink),.6)">' + volume(c.pmVolUsd, 'Polymarket') + '</div>'
+        + '<div style="' + M + '; font-size:12.5px; text-align:right; color:rgba(var(--ink),.6)" title="Kalshi reports volume as a contract count; one contract settles for $1, so this is not a dollar figure">' + volume(c.ksVolContracts, 'Kalshi') + '</div>'
         + '<div style="' + M + '; font-size:13px; text-align:right; color:' + netFarbe + '" title="' + esc(c.net == null ? 'no two-sided quote on both venues' : (c.dir || '') + ' · executable ' + (c.gross == null ? '—' : c.gross.toFixed(1) + '¢') + ' minus a fee threshold of ' + (c.band == null ? '—' : c.band.toFixed(1) + '¢')) + '">' + netLabel + '</div></div>';
     }).join('')
     + (cRows.length === 0 ? '<div style="padding:60px; text-align:center; ' + M + '; font-size:12px; color:rgba(var(--ink),.55)">No pair passes the local filters; loosen a stepper above.</div>' : '')

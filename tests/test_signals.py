@@ -139,5 +139,145 @@ class ObservationTimeTests(unittest.TestCase):
         self.assertTrue(signals["time"].notna().all())
 
 
+class RuleThresholdScopeTests(unittest.TestCase):
+    """Eine Schwelle darf nur die Signalarten filtern, die ihr Feld fuehren.
+
+    Marktsignale tragen ``notional`` 0.0, Trade-Signale ``liquidity`` 0.0 --
+    beides per Konstruktion, nicht als Messung. Eine ungebundene Schwelle
+    loescht die jeweils andere Art daher restlos aus. Das Regelformular des
+    Monitors fuellt "Min notional" mit der Whale-Schwelle vor (Standard 2500),
+    also traf das jede mit den Standardwerten gespeicherte Regel.
+    """
+
+    def _frame(self):
+        gemeinsam = {
+            "severity": "warning",
+            "time": pd.Timestamp("2026-08-28 12:00:00", tz="UTC"),
+            "platform": "Polymarket",
+            "title": "Fed cuts in December",
+            "market_key": "0xcond",
+            "url": "https://example.com",
+        }
+        return pd.DataFrame([
+            dict(gemeinsam, signal_type="Fast mover", outcome="Yes", side="",
+                 price=0.40, value=0.08, reason="1h move +8.0c", volume=50_000.0,
+                 liquidity=40_000.0, spread=0.02, change_1h=0.08, notional=0.0,
+                 wallet="", trader=""),
+            dict(gemeinsam, signal_type="Whale print", outcome="Yes", side="BUY",
+                 price=0.40, value=9_000.0, reason="BUY $9,000", volume=0.0,
+                 liquidity=0.0, spread=None, change_1h=None, notional=9_000.0,
+                 wallet="0xwhale", trader="whale"),
+        ])
+
+    def test_notional_threshold_leaves_market_signals_alone(self):
+        # Vorher: 0 Treffer. Der Fast mover hat notional 0.0, weil ein
+        # Marktsignal kein Notional hat -- nicht, weil er klein waere.
+        regel = {"signal_type": "Fast mover", "min_notional": 2500.0, "min_move": 0.03}
+        treffer = sig.monitor_rule_matches(self._frame(), regel)
+        self.assertEqual(len(treffer), 1)
+        self.assertEqual(treffer.iloc[0]["signal_type"], "Fast mover")
+
+    def test_notional_threshold_still_filters_whale_prints(self):
+        regel = {"signal_type": "Whale print", "min_notional": 25_000.0}
+        self.assertEqual(sig.monitor_rule_match_count(self._frame(), regel), 0)
+        regel_klein = {"signal_type": "Whale print", "min_notional": 5_000.0}
+        self.assertEqual(sig.monitor_rule_match_count(self._frame(), regel_klein), 1)
+
+    def test_liquidity_threshold_leaves_whale_prints_alone(self):
+        # Vorher: 0 Treffer. Das Tape traegt keine Buchtiefe, also stand da
+        # 0.0 -- ein Print in einem Markt mit $40k Liquiditaet verschwand.
+        regel = {"signal_type": "Whale print", "min_liquidity": 1_000.0}
+        treffer = sig.monitor_rule_matches(self._frame(), regel)
+        self.assertEqual(len(treffer), 1)
+        self.assertEqual(treffer.iloc[0]["signal_type"], "Whale print")
+
+    def test_liquidity_threshold_still_filters_market_signals(self):
+        regel = {"signal_type": "Fast mover", "min_liquidity": 100_000.0}
+        self.assertEqual(sig.monitor_rule_match_count(self._frame(), regel), 0)
+
+    def test_the_default_form_rule_matches_both_kinds(self):
+        # Die Regel, die das Formular mit seinen Standardwerten speichert.
+        regel = {
+            "name": "Default", "signal_type": "Any", "platforms": ["Polymarket"],
+            "query": "", "min_notional": 2500.0, "min_move": 0.03,
+            "max_spread": 0.07, "min_liquidity": 0.0, "active": True,
+        }
+        arten = set(sig.monitor_rule_matches(self._frame(), regel)["signal_type"])
+        self.assertEqual(arten, {"Fast mover", "Whale print"})
+
+
+class WhalePrintSideTests(unittest.TestCase):
+    """Die genommene Seite gehoert als Feld in die Zeile, nicht nur in den Text."""
+
+    def test_the_traded_side_is_its_own_column(self):
+        trades = pd.DataFrame([
+            {"platform": "Polymarket", "time": pd.Timestamp("2026-08-28 12:00:00", tz="UTC"),
+             "trader": "whale", "wallet": "0xwhale", "side": "SELL", "outcome": "Yes",
+             "title": "Fed cuts in December", "price": 0.30, "size": 40_000.0,
+             "notional": 12_000.0, "market_key": "0xcond", "url": "https://example.com"},
+        ])
+        signals = sig.build_monitor_signals(
+            pd.DataFrame(), trades,
+            min_volume=0.0, min_liquidity=0.0, min_move=0.05, max_spread=0.01,
+            min_whale_notional=1_000.0, ending_days=0, holder_threshold=1.0,
+            holder_checks=0, tracked_keys=set(),
+        )
+        self.assertEqual(list(signals["signal_type"]), ["Whale print"])
+        self.assertEqual(signals.iloc[0]["side"], "SELL")
+
+
+class DedupeKeyTests(unittest.TestCase):
+    """Der Zustell-Schluessel muss zwei verschiedene Prints trennen.
+
+    Er bestand aus Art, Markt, Wallet und Minute. Ein Kauf von Yes ueber
+    9.000 Dollar und ein Kauf von No ueber 4.000 derselben Wallet im selben
+    Markt und derselben Minute trugen damit denselben Schluessel: nur der
+    erste ging raus, nur der erste kam ins Ledger.
+    """
+
+    ZEIT = pd.Timestamp("2026-08-28 14:03:12", tz="UTC")
+
+    def _print(self, outcome, notional, price, tx=""):
+        return {
+            "signal_type": "Whale print", "market_key": "0xcond", "wallet": "0xwhale",
+            "outcome": outcome, "time": self.ZEIT, "side": "BUY",
+            "notional": notional, "price": price, "tx": tx,
+        }
+
+    def test_two_outcomes_of_one_market_are_two_signals(self):
+        a = sig.signal_dedupe_key(self._print("Yes", 9_000.0, 0.40, "0xtx1"))
+        b = sig.signal_dedupe_key(self._print("No", 4_000.0, 0.61, "0xtx2"))
+        self.assertNotEqual(a, b)
+
+    def test_two_clips_in_the_same_minute_stay_apart_without_a_tx_hash(self):
+        # Kalshi liefert keinen Transaktions-Hash; dann trennen Seite,
+        # Groesse und Preis.
+        a = sig.signal_dedupe_key(self._print("Yes", 9_000.0, 0.40))
+        b = sig.signal_dedupe_key(self._print("Yes", 4_000.0, 0.41))
+        self.assertNotEqual(a, b)
+
+    def test_the_same_print_keeps_its_key_across_scans(self):
+        eins = self._print("Yes", 9_000.0, 0.40, "0xtx1")
+        self.assertEqual(sig.signal_dedupe_key(eins), sig.signal_dedupe_key(dict(eins)))
+
+    def test_a_market_signal_key_does_not_move_with_its_reading(self):
+        # Marktsignale beschreiben einen Zustand, der bei jedem Scan neu
+        # gemessen wird. Haenge der Wert im Schluessel, wuerde dieselbe
+        # Beobachtung bei jedem Tick erneut zugestellt.
+        basis = {"signal_type": "Fast mover", "market_key": "0xcond", "wallet": "",
+                 "outcome": "Yes", "time": self.ZEIT}
+        self.assertEqual(
+            sig.signal_dedupe_key(dict(basis, value=0.08)),
+            sig.signal_dedupe_key(dict(basis, value=0.09)),
+        )
+
+    def test_missing_fields_do_not_become_the_word_nan(self):
+        key = sig.signal_dedupe_key({"signal_type": "Whale print", "market_key": "0xc",
+                                     "wallet": float("nan"), "outcome": "Yes",
+                                     "time": self.ZEIT, "tx": float("nan"),
+                                     "side": "BUY", "notional": 100.0, "price": 0.5})
+        self.assertNotIn("nan", key)
+
+
 if __name__ == "__main__":
     unittest.main()
