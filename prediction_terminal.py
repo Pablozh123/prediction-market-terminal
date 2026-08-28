@@ -3785,12 +3785,11 @@ def page_overview() -> None:
         # Eine Summe ueber beide Venues war hier keine Groesse: Polymarket
         # meldet Dollar, Kalshi zaehlt Kontrakte (app/venue_units.py). Die
         # beiden stehen jetzt als zwei Posten nebeneinander.
-        ist_pm = combined.get("platform") == "Polymarket"
-        ist_ks = combined.get("platform") == "Kalshi"
+        ticker_je_einheit = vu.volume_by_unit(combined.get("platform", []), ticker_vol)
         ticker_items = [
             f"<span>MARKETS TRACKED <b>{len(combined):,}</b></span>",
-            f"<span>24H VOLUME POLYMARKET <b>{money(float(ticker_vol.where(ist_pm, 0.0).sum()))}</b></span>",
-            f"<span>24H VOLUME KALSHI <b>{contracts(float(ticker_vol.where(ist_ks, 0.0).sum()))}</b></span>",
+            f"<span>24H VOLUME POLYMARKET <b>{money(ticker_je_einheit.get(vu.USD, 0.0))}</b></span>",
+            f"<span>24H VOLUME KALSHI <b>{contracts(ticker_je_einheit.get(vu.CONTRACTS, 0.0))}</b></span>",
             f"<span>WHALE THRESHOLD <b>{money(float(min_whale))}</b></span>",
         ]
         ticker_moves = numeric_col(combined, "change_1d")
@@ -4078,16 +4077,11 @@ def page_overview() -> None:
             # konnte es damit nicht zeigen. Zwei Zahlen mit ihrer Einheit
             # sagen weniger und behaupten nichts Falsches.
             volume_col = "activity_volume" if "activity_volume" in combined else "volume_24h"
-            geladen = numeric_col(combined, volume_col)
+            je_einheit = vu.volume_by_unit(combined.get("platform", []),
+                                           numeric_col(combined, volume_col))
             venue_links, venue_rechts = st.columns(2)
-            venue_links.metric(
-                "Polymarket",
-                money(float(geladen.where(combined["platform"] == "Polymarket", 0.0).sum())),
-            )
-            venue_rechts.metric(
-                "Kalshi",
-                contracts(float(geladen.where(combined["platform"] == "Kalshi", 0.0).sum())),
-            )
+            venue_links.metric("Polymarket", money(je_einheit.get(vu.USD, 0.0)))
+            venue_rechts.metric("Kalshi", contracts(je_einheit.get(vu.CONTRACTS, 0.0)))
             st.caption(
                 "No shared bar: Polymarket reports dollar turnover, Kalshi reports "
                 "the number of contracts traded. A contract pays $1 at resolution "

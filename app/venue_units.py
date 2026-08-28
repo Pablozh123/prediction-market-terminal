@@ -138,13 +138,7 @@ def combined_volume(entries: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
     gemischte Summe kann er hier nicht mehr bekommen.
     """
 
-    je_einheit: dict[str, float] = {}
-    for entry in entries or ():
-        zahl = _as_float(entry.get("volume"))
-        if zahl is None:
-            continue
-        einheit = volume_unit(entry.get("platform"))
-        je_einheit[einheit] = je_einheit.get(einheit, 0.0) + zahl
+    je_einheit = _je_einheit(entries)
     if not je_einheit:
         return {"total": None, "unit": UNKNOWN, "by_unit": {}, "mixed": False}
     if len(je_einheit) == 1:
@@ -153,6 +147,36 @@ def combined_volume(entries: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
                 "mixed": False}
     return {"total": None, "unit": UNKNOWN, "by_unit": dict(je_einheit),
             "mixed": True}
+
+
+def volume_by_unit(platforms: Iterable[Any],
+                   volumes: Iterable[Any]) -> dict[str, float]:
+    """Volumen zweier paralleler Spalten nach Einheit getrennt aufsummiert.
+
+    Der Weg fuer Tabellen und Frames: ``platforms`` und ``volumes`` sind die
+    beiden Spalten, das Ergebnis ist ``{"usd": ..., "contracts": ...}`` mit
+    einem Eintrag je vorkommender Einheit. Eine Einheit ohne Zeilen fehlt,
+    denn nicht gemessen ist nicht null.
+
+    Wer eine Gesamtsumme braucht, bekommt sie hier absichtlich nicht: die
+    gaebe es nur, wenn alle Zeilen dieselbe Einheit haetten, und dafuer ist
+    ``combined_volume`` zustaendig.
+    """
+
+    return {einheit: summe for einheit, summe in _je_einheit(
+        {"platform": p, "volume": v} for p, v in zip(platforms, volumes)
+    ).items()}
+
+
+def _je_einheit(entries: Iterable[Mapping[str, Any]]) -> dict[str, float]:
+    summen: dict[str, float] = {}
+    for entry in entries or ():
+        zahl = _as_float(entry.get("volume"))
+        if zahl is None:
+            continue
+        einheit = volume_unit(entry.get("platform"))
+        summen[einheit] = summen.get(einheit, 0.0) + zahl
+    return summen
 
 
 def contracts_to_usd(count: Any, price: Any) -> float | None:

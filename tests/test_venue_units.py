@@ -209,6 +209,35 @@ class CombinedVolumeTests(unittest.TestCase):
         self.assertFalse(ergebnis["mixed"])
 
 
+class VolumeByUnitTests(unittest.TestCase):
+    """Der Weg fuer Frames: zwei Spalten rein, eine Summe je Einheit raus."""
+
+    def test_two_venues_stay_two_sums(self) -> None:
+        je_einheit = vu.volume_by_unit(
+            ["Polymarket", "Kalshi", "Polymarket", "Kalshi"],
+            [1000.0, 4_157_305.0, 250.0, 896_792.0],
+        )
+        self.assertAlmostEqual(je_einheit[vu.USD], 1250.0)
+        self.assertAlmostEqual(je_einheit[vu.CONTRACTS], 5_054_097.0)
+        self.assertNotIn("total", je_einheit)
+
+    def test_a_venue_without_rows_is_absent_not_zero(self) -> None:
+        je_einheit = vu.volume_by_unit(["Polymarket"], [500.0])
+        self.assertEqual(list(je_einheit), [vu.USD])
+        # Der Aufrufer entscheidet, ob er dafuer 0 oder einen Strich zeigt.
+        self.assertEqual(je_einheit.get(vu.CONTRACTS, 0.0), 0.0)
+
+    def test_unparsable_rows_are_skipped(self) -> None:
+        je_einheit = vu.volume_by_unit(
+            ["Polymarket", "Polymarket", "Kalshi"],
+            [100.0, None, "keine Zahl"],
+        )
+        self.assertEqual(je_einheit, {vu.USD: 100.0})
+
+    def test_empty_input_is_an_empty_answer(self) -> None:
+        self.assertEqual(vu.volume_by_unit([], []), {})
+
+
 class ContractsToUsdTests(unittest.TestCase):
     def test_a_real_price_converts(self) -> None:
         self.assertAlmostEqual(vu.contracts_to_usd(1000, 0.632), 632.0, places=6)
