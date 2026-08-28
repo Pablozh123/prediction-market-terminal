@@ -5567,12 +5567,22 @@ def render_wallet_calibration(resolved: pd.DataFrame, capped: bool) -> None:
     """
 
     frame = calib.resolution_frame(resolved)
-    report = calib.calibration_report(frame, capped=capped)
+    report = calib.calibration_report(frame, capped=capped, unresolved=calib.unresolved_exits(resolved))
     if not report["n"]:
         return
     with st.expander(f"Entry calibration — was the price paid a good forecast? ({report['n']} resolved positions)", expanded=False):
         head = st.columns(5)
-        head[0].metric("Scored positions", f"{report['n']:,}", help="Resolved positions with a usable entry price, scored 0/1 at settlement.")
+        head[0].metric(
+            "Scored positions",
+            f"{report['n']:,}",
+            help="Positions in markets that actually settled, with a usable entry price, scored 0/1 at settlement."
+            + (
+                f" {report['n_unresolved']:,} further closed positions left markets that were still trading and "
+                "carry no outcome, so they are excluded."
+                if report.get("n_unresolved")
+                else ""
+            ),
+        )
         head[1].metric(
             "Hit rate",
             pct(report["hit_rate"]),
@@ -9970,10 +9980,33 @@ def render_copy_command_center(
                         pct(net),
                         "config × execution",
                         delta_color="off",
-                        help="Combined effect: how much of a perfect scaled mirror the copy currently achieves.",
+                        help="Combined effect: how much of a perfect scaled mirror the copy achieves in SIZE. "
+                        "Both factors are notional only — neither prices the delay or the spread the copy crosses.",
                     )
                 else:
                     fid_cols[2].metric("Net mirror", "-", "needs fidelity data", delta_color="off")
+                # Was die beiden Kennzahlen nicht sehen: Verzoegerung und
+                # Preis. Der Paper-Book bucht zum Quellpreis, also ist die
+                # Slippage bauartbedingt null und darf nicht als gemessene
+                # Null durchgehen.
+                delay = cfy.latency_and_price_gap(orders, window_hours=24.0)
+                if delay["n"]:
+                    lat = (
+                        f"median {delay['median_latency_s']:.0f}s, p90 {delay['p90_latency_s']:.0f}s"
+                        if delay["median_latency_s"] is not None
+                        else "not recorded"
+                    )
+                    st.caption(
+                        f"What the two numbers above do not cover ({delay['n']} booked copies, 24h): "
+                        f"detection-to-booking delay {lat}. "
+                        + (
+                            "The paper book fills at the source's own price, so the curve carries no spread and no "
+                            f"delay cost. Crossing one cent on the {delay['copied_shares']:,.0f} copied shares would "
+                            f"have cost {money(delay['copied_shares'] / 100.0)} over the same window."
+                            if not delay["models_price_impact"]
+                            else f"Mean price gap against the source: {delay['mean_price_gap_cents']:+.2f} cents per share."
+                        )
+                    )
                 loss_lines: list[str] = []
                 for reason, amount in sorted(execution_report["lost_to_skips"].items(), key=lambda kv: -kv[1]):
                     loss_lines.append(f"{money(amount)} skipped ({reason})")
@@ -11277,7 +11310,20 @@ def _backtest_stat_cards(stats: dict[str, Any], benchmark: dict[str, Any]) -> No
     top = st.columns(3)
     top[0].metric("Final equity", money(stats["final_equity"]), f"{stats['roi'] * 100:+.1f}% ROI")
     bench_delta = stats["total_pnl"] - float(benchmark.get("total_pnl", 0.0) or 0.0)
-    top[1].metric("Total P&L", money(stats["total_pnl"]), f"{money(bench_delta)} vs flat-bet")
+    # Der offene Teil steht dabei: Positionen in Maerkten, die am Fensterende
+    # nicht entschieden waren, gehen zum letzten Preis in total_pnl ein.
+    unrealized = float(stats.get("unrealized_pnl", 0.0) or 0.0)
+    top[1].metric(
+        "Total P&L",
+        money(stats["total_pnl"]),
+        f"{money(bench_delta)} vs flat-bet",
+        help=(
+            f"{money(stats.get('realized_pnl', 0.0))} settled, {money(unrealized)} still unresolved "
+            f"across {int(stats.get('open_positions', 0) or 0)} open positions marked at the last price."
+            if abs(unrealized) >= 0.005
+            else "All of it settled: no position was still open at the end of the window."
+        ),
+    )
     top[2].metric("Win rate", pct(stats["win_rate"]), f"{stats['wins']}W / {stats['losses']}L", delta_color="off")
     bottom = st.columns(3)
     bottom[0].metric("Max drawdown", pct(stats["max_drawdown"]))
@@ -11770,13 +11816,27 @@ def page_backtester() -> None:
                         f"{money(best['final_equity'])} final equity ({float(best['roi']) * 100:+.1f}% ROI)</div>",
                         unsafe_allow_html=True,
                     )
+                    # Der Sieger ist das Maximum aus N Laeufen auf demselben
+                    # Fenster, auf dem er ausgewaehlt wurde. Ohne diesen Satz
+                    # liest sich die Zeile als erzielbares Ergebnis.
+                    variant_count = len(comparison)
+                    st.markdown(
+                        f"<div class='field-hint'>In-sample: the best of {variant_count} variants, ranked on the very "
+                        "window they were picked on, for a single wallet. The gap to the second row is the kind of "
+                        f"spread {variant_count} draws produce on their own — not evidence that this stake rule leads "
+                        "the next window.</div>",
+                        unsafe_allow_html=True,
+                    )
                     comparison_view = comparison.assign(
                         roi_pct=comparison["roi"] * 100,
                         dd_pct=comparison["max_drawdown"] * 100,
                         wr_pct=pd.to_numeric(comparison["win_rate"], errors="coerce") * 100,
                     )
                     st.dataframe(
-                        clean_table(comparison_view, ["strategy", "final_equity", "roi_pct", "dd_pct", "wr_pct", "copied_trades", "skipped_trades", "volume_copied"]),
+                        # "Closed" steht neben der Trefferquote, weil es ihr
+                        # Nenner ist: "Copied" zaehlt auch die noch offenen
+                        # Einstiege und ist nicht die Stichprobe der Quote.
+                        clean_table(comparison_view, ["strategy", "final_equity", "roi_pct", "dd_pct", "wr_pct", "closed_trades", "copied_trades", "skipped_trades", "volume_copied"]),
                         width="stretch",
                         height=320,
                         hide_index=True,
@@ -11786,6 +11846,7 @@ def page_backtester() -> None:
                             "roi_pct": st.column_config.NumberColumn("ROI", format="%+.1f%%"),
                             "dd_pct": st.column_config.NumberColumn("Max DD", format="%.1f%%"),
                             "wr_pct": st.column_config.NumberColumn("Win rate", format="%.0f%%"),
+                            "closed_trades": st.column_config.NumberColumn("Closed"),
                             "copied_trades": st.column_config.NumberColumn("Copied"),
                             "skipped_trades": st.column_config.NumberColumn("Skipped"),
                             "volume_copied": st.column_config.NumberColumn("Deployed", format="$%.0f"),

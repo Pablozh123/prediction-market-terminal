@@ -107,7 +107,10 @@ export function renderDetail(T) {
     // Score components as a labelled list in the note, not the raw reason
     // string next to the address.
     const parts = t ? scorePartsOf(t) : [];
-    if (parts.length) note = (note ? note + '<br>' : '') + 'score components: ' + parts.map((p) => esc(p.label) + ' ' + esc(p.value)).join(' · ');
+    // Ein geschaetzter Bestandteil zeigt auch hier keine Zahl: er ist fuer
+    // jede Wallet dieselbe Konstante (api_views.score_parts -> imputed).
+    if (parts.length) note = (note ? note + '<br>' : '') + 'score components: '
+      + parts.map((p) => esc(p.label) + ' ' + (p.imputed ? 'assumed' : esc(p.value))).join(' · ');
     // Tape-only wallets without an /api/wallet answer: the tiles carry what
     // the tape window shows for this wallet (prints, notional, biggest print,
     // markets) — no profit, no win rate, because nothing here measured them.

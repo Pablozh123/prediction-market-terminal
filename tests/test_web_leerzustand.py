@@ -586,8 +586,10 @@ class WebLeerzustandTest(unittest.TestCase):
         # Alle Horizonte und Trefferquoten: nichts geloescht, nur ins
         # Klappfeld verschoben.
         self.assertIn("ALL HORIZONS &amp; HIT RATES, PLUS CALIBRATION", text)
-        self.assertIn("T-30 BRIER · HIT · N", text)
+        self.assertIn("T-30 BRIER ±95% · HIT · N", text)
         self.assertIn("0.200 80% · n 150", text)
+        # Mehrfachvergleich steht neben der Rangfolge, nicht in einer Fussnote.
+        self.assertIn("category-by-horizon cells are scored here", text)
         # Einpreisungs-Logik je Kategorie: Anker, Treiber, blinder Fleck,
         # t0-Quelle — plus Mechanik-Mix und die messlogik-only-Kategorie
         # (Weather erklaert ihre eigene Stichprobenluecke).
@@ -849,7 +851,8 @@ class WebLeerzustandTest(unittest.TestCase):
         # Auch das Detailpanel und die Suche leaken den String nicht.
         detail = _sichtbarer_text(self.ausgabe["live"]["_detail_wallet"])
         self.assertNotIn("return 90, sharpe-proxy 60", detail)
-        self.assertIn("score components: return 90 · sharpe proxy 60 · volume 80", detail)
+        # Auch in der Schublade zeigt ein geschaetzter Bestandteil keine Zahl.
+        self.assertIn("score components: return 90 · sharpe proxy 60 · win assumed · volume 80", detail)
         suche = _sichtbarer_text(self.ausgabe["live"]["_suche"])
         self.assertNotIn("sharpe-proxy", suche)
 
@@ -1541,14 +1544,20 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("GRADE F · 27/100 BELOW SAMPLE GATE 4 DAYS ACTIVE", text)
         # KPI strip: every figure with its n / CI; the fact line below it.
         self.assertIn("SETTLED PNL +$210.00 n 12 resolved markets", text)
-        self.assertIn("CORRECTED WIN RATE 73% 8/11 events · 95% [43%, 91%]", text)
+        # Die Quote nennt ihre Luecke: nicht eingeloeste, gegen die Wallet
+        # aufgeloeste Positionen stehen nie im closed-positions-Feed, und es
+        # sind ausschliesslich Verluste — die Quote ist ohne sie nach oben
+        # verzerrt.
+        self.assertIn("CORRECTED WIN RATE 73% 8/11 events · 95% [43%, 91%] · 1 unredeemed loss not in it", text)
         self.assertIn("GRADE F score 27 / 100 · below sample gate", text)
         self.assertIn("SHARPE · DAILY $ 11.92 n 5 d · profile curve", text)
         self.assertIn("MAX DRAWDOWN $5.00 25.0% of peak · profile curve", text)
         self.assertIn("VOLUME TRADED $105 TRADES 3 AVG TRADE $35.00 DAYS ACTIVE 4 SINCE 2026-07-01", text)
         # Aside: portfolio, breakdown, core stats, buy/sell bar, edge.
-        self.assertIn("PORTFOLIO · OPEN $55.00 cost basis $50.00 unrealised +$5.00 positions 2", text)
-        self.assertIn("PNL BREAKDOWN settled (track record) +$210.00 realised (closed rows) +$210.00 unrealised (open) +$5.00 position value $55.00", text)
+        self.assertIn("PORTFOLIO · OPEN $55.00 cost basis $40.00 unrealised +$15.00 positions 2", text)
+        # Der aufgeloeste Verlust der nicht eingeloesten Position steht als
+        # eigene Zeile, nicht in "unrealised (open)".
+        self.assertIn("PNL BREAKDOWN settled (track record) +$210.00 realised (closed rows) +$210.00 unrealised (open) +$15.00 worthless (settled loss) -$10.00 position value $55.00", text)
         self.assertIn("CORE STATS avg trade $35.00 won / lost 9 / 3 open / resolved 2 / 12 buy / sell 2 / 1 trades / day 0.75 not redeemed 1", text)
         self.assertIn("BUY / SELL RATIO 66.7% buy 2 sell 1", text)
         self.assertIn("REALIZED EDGE 35.0¢ per $ 95% CI [12.0¢, 55.0¢] events 11 per share +5.0pp · thin CI excludes zero", text)
@@ -1595,7 +1604,12 @@ class WebLeerzustandTest(unittest.TestCase):
         pos_html = self.ausgabe["live"]["wallet_tab_positions"]
         pos = _sichtbarer_text(pos_html)
         self.assertIn("2 of 2 positions", pos)
-        self.assertIn("TOTAL EXPOSURE $55.00 value at current prices · 2 positions", pos)
+        # Exposure, Kostenbasis und Buchgewinn beschreiben nur die offene
+        # Zeile; die wertlose ist aufgeloest und steht mit ihrem
+        # realisierten Verlust in einer eigenen Kachel.
+        self.assertIn("TOTAL EXPOSURE $55.00 value at current prices · 1 open position", pos)
+        self.assertIn("UNREALISED +$15.00 value − cost · open only", pos)
+        self.assertIn("RESOLVED · NOT REDEEMED 1 -$10.00 settled loss", pos)
         self.assertIn("RESOLVED · NOT REDEEMED 1", pos)
         self.assertIn("resolved · not redeemed", pos)
         self.assertIn("SORT BY Value Unrealised Cost Ends", pos)
@@ -1918,6 +1932,108 @@ class WebLeerzustandTest(unittest.TestCase):
         # Cash events / positions carry a trader column and stay honest when empty.
         self.assertIn("No cash events reported by /api/copy", _sichtbarer_text(self.ausgabe["live"]["copy_cash"]))
         self.assertIn("No open paper positions reported by /api/copy", _sichtbarer_text(self.ausgabe["live"]["copy_positions"]))
+
+    def test_monatstabelle_rechnet_gegen_den_aufgeloesten_einsatz(self) -> None:
+        """Die Spalte hiess ROI und rechnete gegen ALLE Einsaetze des Monats.
+
+        Zwei Fehler in einer Zahl: der Zaehler zaehlt nur aufgeloeste Wetten,
+        der Nenner zaehlte auch die offenen, und "ROI" ist in diesem Projekt
+        die Wallet-Rendite gegen die einmalige Einzahlung, nicht eine
+        Einsatzrendite. $100 Einsatz mit $40 offen und +$18 aufgeloest
+        standen als +18.0 Prozent da; auf den aufgeloesten Einsatz sind es
+        +30.0 Prozent.
+        """
+
+        text = _sichtbarer_text(self.ausgabe["live"]["runs_record"])
+        self.assertIn("NET / SETTLED STAKE", text)
+        self.assertNotIn("MONTH RUNS BETS STAKE NET ROI", text)
+        self.assertIn("+30.0% of $60 · 2 open", text)
+        self.assertNotIn("+18.0%", text)
+        self.assertIn("open stake does not dilute it", text)
+        self.assertIn("measured against the one-time deposit", text)
+
+    def test_backtester_trefferquote_zaehlt_nur_geschlossene_kopien(self) -> None:
+        """Offene Kopien duerfen die Trefferquote nicht verduennen.
+
+        Die Kachel rechnete wins / copied_trades. copied_trades zaehlt alle
+        kopierten Zeilen, auch die noch offenen Einstiege: 35 Gewinne aus 60
+        geschlossenen Kopien bei 100 kopierten Zeilen ergaben 35 Prozent
+        statt 58. Die richtige Quote lag im Backend (stats.win_rate) bereit
+        und wurde nicht gelesen.
+        """
+
+        text = _sichtbarer_text(self.ausgabe["live"]["backtester_stats"])
+        self.assertIn("WIN RATE 58%", text)
+        self.assertNotIn("WIN RATE 35%", text)
+        # Mit n daneben, damit die Quote ihr Gewicht nennt.
+        self.assertIn("35W / 25L of 60 closed", text)
+
+    def test_tape_und_whale_nennen_die_summierte_spanne(self) -> None:
+        """Jede Summe ueber das Tape sagt, ueber welche Spanne sie geht.
+
+        Beide Venues bekommen gleich viele Zeilen (api_views.balanced_head),
+        Kalshi druckt aber um Groessenordnungen schneller — "TOTAL MOVED"
+        und "$ GROUPED · THIS WINDOW" standen ohne jede Angabe da, ueber
+        welchen Zeitraum sie laufen.
+        """
+
+        flow = _sichtbarer_text(self.ausgabe["live"]["flow"])
+        self.assertIn("SUMMED OVER Window:", flow)
+        self.assertIn("Kalshi", flow.split("SUMMED OVER")[1][:200])
+        self.assertIn("Polymarket", flow.split("SUMMED OVER")[1][:200])
+        whale = _sichtbarer_text(self.ausgabe["live"]["whale"])
+        self.assertIn("SUMMED OVER Window:", whale)
+
+    def test_leaderboard_zeigt_geschaetzte_score_teile_nicht_als_zahl(self) -> None:
+        """Ein Bestandteil ohne Eingabe im Feed erscheint als "assumed", nicht als Wert.
+
+        Der Feed traegt fuer die meisten Wallets keine Trefferquote, also
+        setzt der Score dort 50 ein — fuer jede Wallet dieselbe Zahl. Als
+        Zahl neben der Wallet las sich das wie eine Messung dieser Wallet.
+        """
+
+        text = _sichtbarer_text(self.ausgabe["live"]["traders"])
+        self.assertIn("win assumed", text)
+        self.assertNotIn("win 50", text)
+        # Die gemessenen Bestandteile behalten ihre Zahl.
+        self.assertIn("return 90", text)
+        self.assertIn("volume 80", text)
+        # Und die Seite sagt, worauf der Score ruht, samt Groesse der Menge.
+        self.assertIn("65% of the composite weight", text)
+        self.assertIn("n = 250 wallets ranked together", text)
+
+    def test_studienstempel_ueberlebt_die_publish_uhr(self) -> None:
+        """Der Stempel aus studies.js steht auf der Seite, nicht nur die Uhr.
+
+        study.stamp sagt, was die Studie IST ("frozen 2026-06-30",
+        "pre-registered 2026-05-02 · completed 2026-08-01", "archived"), und
+        aendert sich nicht, wenn jemand die Nutzlast neu schreibt.
+        payload.stand_utc sagt nur, wann zuletzt publiziert wurde. Vorher
+        stand in system_pages.js ueberall "stand_utc ? uhr : study.stamp",
+        und weil jede publizierte Nutzlast ein stand_utc traegt, gewann immer
+        die Uhr: kein einziger Stempel erreichte je die Seite. Die
+        Seitenleiste fuehrte die Studien unter STUDIES · FROZEN, waehrend
+        jede von ihnen ein Datum aus der Publish-Woche zeigte, und die beiden
+        archivierten sagten nirgends, dass sie archiviert sind.
+
+        Beide Angaben muessen stehen. Die Uhr allein ist kein Ersatz.
+        """
+
+        erwartet = {
+            "research_pilot": "pre-registered 2026-05-02",
+            "research_category_efficiency": "frozen 2026-06-30",
+            "research_mentions_latency": "frozen 2026-08-07",
+            "research_pipeline_forward": "archived",
+            "research_methodology": "version 4.2",
+            "research_microstructure": "rolling",
+            "runs_runs": "concluded 2026-08-07",
+        }
+        for seite, stempel in erwartet.items():
+            with self.subTest(seite=seite):
+                text = _sichtbarer_text(self.ausgabe["live"][seite])
+                self.assertIn(stempel, text)
+                # Und die Publish-Uhr geht dabei nicht verloren.
+                self.assertIn("published 2026-", text)
 
 
 if __name__ == "__main__":

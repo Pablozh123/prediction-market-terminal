@@ -316,6 +316,49 @@ class ZahlenKommenAusDenReportsTests(unittest.TestCase):
             self.assertGreaterEqual(bis, 0.0)
 
 
+class GebuehrenUnsicherheitTests(unittest.TestCase):
+    """Die Kostenmauer-Studie rechnet mit dem Sports-Satz, und der ist strittig.
+
+    Der groesste Kostenposten darf nicht als einzelner Messwert dastehen.
+    """
+
+    def _studie(self):
+        p = mr.build_payload(PROJEKT)
+        return next(s for s in p["studien"] if s["id"] == "imbalance-takeable")
+
+    def _kennzahlen(self):
+        return mr._extrakt_takeable(mr._lade(PROJEKT, "orderflow_rest-2026-07"))["kennzahlen"]
+
+    def test_gebuehr_traegt_beide_enden_der_quellenlage(self):
+        studie = self._studie()
+        k = self._kennzahlen()
+        self.assertTrue(k["gebuehr_strittig"])
+        # 3/5 des dokumentierten Satzes, die Gebuehr ist linear im Satz.
+        self.assertAlmostEqual(k["gebuehr_low"], round(k["fee"] * 0.6, 4), places=3)
+        self.assertGreater(k["netto_high"], k["netto_low"])
+        gebuehr = next(z for z in studie["zahlen"] if z["label"] == "Fee cost")
+        self.assertIn("disputed", gebuehr["hinweis"])
+        netto = next(z for z in studie["zahlen"] if z["label"] == "Net result")
+        self.assertIn("fee-rate dispute", netto["hinweis"])
+
+    def test_verdikt_haelt_an_beiden_enden(self):
+        k = self._kennzahlen()
+        # Auch beim niedrigeren Satz bleibt der Rundlauf ein Vielfaches des
+        # Vorteils — die Aussage haengt nicht am strittigen Wert.
+        self.assertLess(k["netto_high"], 0.0)
+        self.assertGreater(k["faktor_low"], 1.0)
+
+    def test_fussnote_behauptet_keine_sicherheit_mehr(self):
+        hinweis = self._studie()["details"]["hinweis"]
+        self.assertIn("5 percent", hinweis)
+        self.assertIn("3 percent", hinweis)
+
+    def test_grenze_nennt_den_streit(self):
+        grenzen = [i for i in self._studie()["interpretation"] if i["art"] == mr.GRENZE]
+        self.assertTrue(grenzen)
+        self.assertIn("fee rate is not settled", " ".join(i["text"] for i in grenzen))
+
+
 class FehlendeDateienTests(unittest.TestCase):
     def test_leeres_verzeichnis_bricht_nicht_ab(self):
         with TemporaryDirectory() as tmp:

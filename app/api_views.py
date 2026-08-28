@@ -365,12 +365,15 @@ def leaderboard_rows(leaderboard: pd.DataFrame, ranked: pd.DataFrame | None = No
         return []
     score_by_wallet: dict[str, dict[str, Any]] = {}
     if ranked is not None and not ranked.empty and "wallet" in ranked:
+        cohort_n = int(len(ranked))
         for _, row in ranked.iterrows():
+            parts = score_parts(row)
             score_by_wallet[_text(row.get("wallet")).lower()] = {
                 "score": _num(row.get("copy_smart_score")),
                 "grade": _text(row.get("copy_grade")),
                 "reason": _text(row.get("copy_rank_reason")),
-                "parts": score_parts(row),
+                "parts": parts,
+                "basis": score_basis(parts, cohort_n),
             }
     rows: list[dict[str, Any]] = []
     for _, row in leaderboard.iterrows():
@@ -390,6 +393,9 @@ def leaderboard_rows(leaderboard: pd.DataFrame, ranked: pd.DataFrame | None = No
             # Die Bestandteile des Scores als Liste, damit das Frontend sie
             # beschriftet zeigt statt den rohen Begruendungs-String zu leaken.
             "score_parts": smart.get("parts") or [],
+            # Worauf der Score ruht: welcher Anteil seines Gewichts gemessen
+            # ist und welcher aus einem Ersatzwert stammt.
+            "score_basis": smart.get("basis") or None,
         })
     return rows
 
@@ -407,12 +413,17 @@ SCORE_PART_COLUMNS = (
 
 
 def score_parts(row: Mapping[str, Any]) -> list[dict[str, Any]]:
-    """Score-Bestandteile einer Ranked-Zeile als ``[{label, value, weight}]``.
+    """Score-Bestandteile einer Ranked-Zeile als ``[{label, value, weight, imputed}]``.
 
     Nur Spalten, die wirklich da sind — fehlt eine, fehlt sie in der Liste,
-    statt als 0 zu erscheinen.
+    statt als 0 zu erscheinen. ``imputed`` sagt, ob der Wert aus echten
+    Eingaben stammt oder aus dem Ersatzwert, den
+    ``copy_trading.rank_traders_by_smart_score`` in ``copy_score_imputed``
+    vermerkt; ein Ersatzwert ist fuer jede Wallet dieselbe Konstante und darf
+    in der Oberflaeche nicht als Messung erscheinen.
     """
 
+    imputed_columns = {name.strip() for name in _text(row.get("copy_score_imputed")).split(",") if name.strip()}
     parts: list[dict[str, Any]] = []
     for column, label, weight in SCORE_PART_COLUMNS:
         try:
@@ -421,8 +432,36 @@ def score_parts(row: Mapping[str, Any]) -> list[dict[str, Any]]:
             value = None
         if value is None:
             continue
-        parts.append({"label": label, "value": round(value), "weight": weight})
+        parts.append({
+            "label": label,
+            "value": round(value),
+            "weight": weight,
+            "imputed": column in imputed_columns,
+        })
     return parts
+
+
+def score_basis(parts: list[dict[str, Any]], cohort_n: int = 0) -> dict[str, Any]:
+    """Wie viel Gewicht des Composite gemessen ist und wie viel geschaetzt.
+
+    Der Score bleibt der Score aus ``rank_traders_by_smart_score``; hier wird
+    nur benannt, worauf er ruht. Auf der oeffentlichen Leaderboard-Antwort
+    sind das 0.45 gemessen (Rendite und Volumen) gegen 0.55 geschaetzt.
+
+    ``cohort_n`` ist die Zahl der gemeinsam bewerteten Wallets. Das ist das n
+    dieses Scores: der Volumen-Bestandteil ist eine Log-Skala gegen das
+    95.-Perzentil derselben Menge (``copy_trading._log_score``), also haengt
+    er von der Groesse der Menge ab und ist keine wallet-eigene Messung.
+    """
+
+    measured = round(sum(float(p.get("weight") or 0.0) for p in parts if not p.get("imputed")), 4)
+    imputed = round(sum(float(p.get("weight") or 0.0) for p in parts if p.get("imputed")), 4)
+    return {
+        "measured_weight": measured,
+        "imputed_weight": imputed,
+        "imputed": [str(p.get("label")) for p in parts if p.get("imputed")],
+        "cohort_n": int(max(0, cohort_n)),
+    }
 
 
 #: Wie viele Trades der Wallet-Seite im Aktivitaetsblock stehen und wie viele
@@ -780,9 +819,11 @@ def _wallet_positions(positions: pd.DataFrame | None, as_of: str, requested: int
     if positions is None or positions.empty:
         return {"as_of": as_of, "rows": [], "n": 0, "shown": 0, "capped": False, "total_exposure": 0.0,
                 "total_cost": 0.0, "unrealized_pnl": 0.0, "worthless_n": 0,
+                "worthless_pnl": 0.0, "worthless_cost": 0.0,
                 "note": "No open positions in the public /positions feed."}
     rows: list[dict[str, Any]] = []
     exposure = cost = unreal = 0.0
+    worthless_pnl = worthless_cost = 0.0
     worthless = 0
     for _, row in positions.iterrows():
         size = _num(row.get("size"), 0.0) or 0.0
@@ -792,11 +833,19 @@ def _wallet_positions(positions: pd.DataFrame | None, as_of: str, requested: int
         pnl = _num(row.get("unrealized_pnl"), 0.0) or 0.0
         end_time = _iso(row.get("end_time"))
         resolved_worthless = cur <= 0.0 and value <= 0.0
+        # Eine wertlose Position ist gegen die Wallet aufgeloest und wurde nur
+        # nicht eingeloest — ihr Verlust ist realisiert und bewegt sich nie
+        # wieder. Bis hierher lief er in dieselbe Summe wie der Buchgewinn
+        # der offenen Positionen und stand auf der Seite unter "UNREALISED
+        # (open)". Beide Toepfe werden jetzt getrennt gefuehrt.
         if resolved_worthless:
             worthless += 1
-        exposure += value
-        cost += size * avg
-        unreal += pnl
+            worthless_pnl += pnl
+            worthless_cost += size * avg
+        else:
+            exposure += value
+            cost += size * avg
+            unreal += pnl
         rows.append({
             "title": _text(row.get("title")),
             "outcome": _text(row.get("outcome")),
@@ -820,12 +869,18 @@ def _wallet_positions(positions: pd.DataFrame | None, as_of: str, requested: int
         "n": len(rows),
         "shown": min(len(rows), WALLET_POSITIONS_SHOWN),
         "capped": len(rows) >= int(requested),
+        # Exposure, Kostenbasis und Buchgewinn nur ueber die wirklich offenen
+        # Zeilen; die wertlosen stehen mit eigener Summe daneben.
         "total_exposure": round(exposure, 2),
         "total_cost": round(cost, 2),
         "unrealized_pnl": round(unreal, 2),
         "worthless_n": worthless,
+        "worthless_pnl": round(worthless_pnl, 2),
+        "worthless_cost": round(worthless_cost, 2),
         "note": ("Value at the current price; positions at price 0 past their end date resolved against "
-                 "the wallet and were not redeemed ('worthless')."),
+                 "the wallet and were not redeemed ('worthless'). Their loss is settled, not unrealised, "
+                 "so it is reported separately and is not in 'unrealized_pnl', 'total_cost' or "
+                 "'total_exposure'."),
     }
 
 
@@ -1837,9 +1892,19 @@ def backtest_payload(result: Any) -> dict[str, Any]:
             "losses": int(_num(stats.get("losses"), 0.0) or 0),
             "max_drawdown": _num(stats.get("max_drawdown"), 0.0),
             "copied_trades": int(_num(stats.get("copied_trades"), 0.0) or 0),
+            # Der Nenner der Trefferquote: geschlossene Kopien (SELL und
+            # RESOLVE). Ohne ihn rechnete die Oberflaeche wins/copied_trades
+            # und liess jede noch offene Kopie die Quote druecken.
+            "closed_trades": int(_num(stats.get("closed_trades"), 0.0) or 0),
             "skipped_trades": int(_num(stats.get("skipped_trades"), 0.0) or 0),
             "fees_paid": _num(stats.get("fees_paid"), 0.0),
             "open_value": _num(stats.get("open_value"), 0.0),
+            # Wie viel des Gesamtergebnisses noch gar nicht entschieden ist:
+            # Positionen in Maerkten, die am Fensterende offen waren, gehen
+            # zum letzten Preis in total_pnl ein.
+            "realized_pnl": _num(stats.get("realized_pnl"), 0.0),
+            "unrealized_pnl": _num(stats.get("unrealized_pnl"), 0.0),
+            "open_positions": int(_num(stats.get("open_positions"), 0.0) or 0),
             "window_truncated": bool(stats.get("window_truncated", False)),
             # Bis wohin die Daten wirklich zurueckreichen. Bei einem
             # abgeschnittenen Fenster ist das die ehrliche Fensterkante.
@@ -1866,6 +1931,10 @@ def backtest_payload(result: Any) -> dict[str, Any]:
                 "followed_positions": int(_num((stats.get("auto_fit") or {}).get("followed_positions"), 0.0) or 0),
                 "capacity": int(_num((stats.get("auto_fit") or {}).get("capacity"), 0.0) or 0),
                 "peak_concurrent": int(_num((stats.get("auto_fit") or {}).get("peak_concurrent"), 0.0) or 0),
+                # Auto-Fit liest das ganze Fenster, bevor der erste Trade
+                # kopiert wird — die Seite muss das sagen duerfen.
+                "hindsight": bool((stats.get("auto_fit") or {}).get("hindsight", False)),
+                "note": _text((stats.get("auto_fit") or {}).get("note")),
             },
         },
         "benchmark_stats": {
@@ -1928,6 +1997,7 @@ def variants_payload(comparison: pd.DataFrame) -> list[dict[str, Any]]:
             "roi": _num(row.get("roi"), 0.0),
             "max_drawdown": _num(row.get("max_drawdown"), 0.0),
             "win_rate": _num(row.get("win_rate"), 0.0),
+            "closed_trades": int(_num(row.get("closed_trades"), 0.0) or 0),
             "copied_trades": int(_num(row.get("copied_trades"), 0.0) or 0),
             "skipped_trades": int(_num(row.get("skipped_trades"), 0.0) or 0),
         }
@@ -2120,15 +2190,31 @@ def live_runs_extras(payload: Mapping[str, Any], publish_dir: Path | None = None
             if len(ts) < 7:
                 continue
             month = ts[:7]
-            slot = monthly.setdefault(month, {"runs": set(), "bets": 0, "stake": 0.0, "net": 0.0})
+            slot = monthly.setdefault(
+                month, {"runs": set(), "bets": 0, "stake": 0.0, "net": 0.0, "settled_bets": 0, "settled_stake": 0.0})
             slot["runs"].add(_text(run.get("profil")))
             slot["bets"] += 1
-            slot["stake"] += _num(bet.get("einsatz_usd"), 0.0) or 0.0
+            einsatz = _num(bet.get("einsatz_usd"), 0.0) or 0.0
+            slot["stake"] += einsatz
+            # Der Zaehler zaehlt nur aufgeloeste Wetten, also darf der Nenner
+            # nicht die noch offenen mitzaehlen: sonst druecken offene
+            # Einsaetze jede Quote nach unten. ``settled_stake`` ist der
+            # Einsatz, zu dem es ueberhaupt ein Ergebnis gibt.
             if bet.get("aufgeloest"):
+                slot["settled_bets"] += 1
+                slot["settled_stake"] += einsatz
                 slot["net"] += _num(bet.get("pnl_usd"), 0.0) or 0.0
     if monthly:
         out["monthly"] = [
-            {"month": month, "runs": len(slot["runs"]), "bets": slot["bets"], "stake": round(slot["stake"], 2), "net": round(slot["net"], 2)}
+            {
+                "month": month,
+                "runs": len(slot["runs"]),
+                "bets": slot["bets"],
+                "stake": round(slot["stake"], 2),
+                "net": round(slot["net"], 2),
+                "settled_bets": slot["settled_bets"],
+                "settled_stake": round(slot["settled_stake"], 2),
+            }
             for month, slot in sorted(monthly.items(), reverse=True)
         ]
     # The wallet ledger (public/data/wallet_ledger.json, scripts/wallet_ledger.py)
@@ -2169,6 +2255,22 @@ def fidelity_block(orders: pd.DataFrame, portfolio: Mapping[str, Any], sizing: M
                 "orders": int(_num(execution.get("orders"), 0.0) or 0),
                 "lost_to_skips": {str(k): _num(v, 0.0) for k, v in (execution.get("lost_to_skips") or {}).items()},
                 "lost_to_clamps": _num(execution.get("lost_to_clamps"), 0.0),
+            }
+    except Exception:
+        pass
+    try:
+        # Beide Fidelity-Zahlen sind reine Notional-Zahlen. Verzoegerung und
+        # Preis gehoeren daneben, sonst liest sich "Net mirror" als Aussage
+        # ueber den ganzen Nachbau.
+        delay = cfy.latency_and_price_gap(orders, window_hours=24.0)
+        if delay.get("n"):
+            out["delay"] = {
+                "orders": int(_num(delay.get("n"), 0.0) or 0),
+                "median_latency_s": _num(delay.get("median_latency_s")),
+                "p90_latency_s": _num(delay.get("p90_latency_s")),
+                "mean_price_gap_cents": _num(delay.get("mean_price_gap_cents")),
+                "models_price_impact": bool(delay.get("models_price_impact")),
+                "copied_shares": _num(delay.get("copied_shares"), 0.0),
             }
     except Exception:
         pass

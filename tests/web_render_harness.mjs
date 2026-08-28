@@ -7,7 +7,7 @@
 // document. Die Seitenmodule sind reine Funktionen ueber ein T-Objekt, also
 // wird hier ein T gebaut, das dieselben Felder und Helfer bereitstellt.
 
-import { esc, money, num, spark, seriesPoints } from '../web/js/util.js';
+import { esc, money, num, seriesPoints } from '../web/js/util.js';
 import { STUDIEN } from '../web/js/studies.js';
 import { renderOverview, renderMarkets, renderFlow, renderCross, renderResolved, landingSubline, verdictCounts } from '../web/js/pages/core_pages.js';
 import { renderTraders, renderWhale, renderRisk, renderTrack } from '../web/js/pages/trader_pages.js';
@@ -68,7 +68,7 @@ function neuesT() {
     // Landing payloads (Overview): null until loaded, like in app.js.
     landing: { micro: null, runs: null, notes: null, ledger: null, herkunft: { micro: null, runs: null, notes: null, ledger: null } },
     liveData: { leaderboard: null, cross: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {}, riskBook: {}, walletSimilar: {} },
-    num, money, esc, spark,
+    num, money, esc,
     seriesPoints: (v, w, h) => seriesPoints(v, w, h),
     act: () => 'data-act="0"',
     inp: () => 'data-inp="0" data-key="k"',
@@ -80,7 +80,10 @@ function neuesT() {
     stepper: (l) => '<div>' + esc(l) + '</div>',
     changeStyle: () => M,
     marketView: (m) => ({
-      title: m.title, meta: m.venue + ' · ' + m.cat, sparkPoints: m.spark ? spark(m.spark) : '',
+      // Leer wie in app.js::marketView: die API liefert eine Tagesaenderung,
+      // keinen Intraday-Pfad. Der Harness bildet das Original ab, sonst
+      // prueft er einen Zustand, den die Anwendung nie erzeugt.
+      title: m.title, meta: m.venue + ' · ' + m.cat, sparkPoints: '',
       color: 'var(--pos)', priceLabel: m.yes + '¢', changeLabel: '+' + m.chg + '¢',
       changeStyle: M, volLabel: money(m.vol), ends: m.ends, act: ''
     }),
@@ -184,12 +187,12 @@ function mitDaten(T) {
   T.tape = [{
     ago: '2 min ago', mins: 2, wallet: 'w1', walletAddress: '0xabc',
     market: 'Example question', marketKey: 'm1', category: 'Macro',
-    side: 'BUY Yes', price: '62.0¢', size: 9000,
+    dir: 'BUY', outcome: 'Yes', side: 'BUY Yes', price: '62.0¢', size: 9000,
     venue: 'Polymarket', tracked: false
   }, {
     ago: '1 min ago', mins: 1, wallet: '—', walletAddress: '',
     market: 'KXBTC15M-26AUG17-1030-T115', marketKey: 'KXBTC15M-26AUG17-1030-T115', category: 'Crypto',
-    side: 'BUY Yes', price: '55.0¢', size: 3000,
+    dir: 'BUY', outcome: 'Yes', side: 'BUY Yes', price: '55.0¢', size: 3000,
     venue: 'Kalshi', tracked: false
   }];
   T.herkunft.tape = { quelle: 'live' };
@@ -199,7 +202,14 @@ function mitDaten(T) {
   T.traders = [{
     name: 'w1', wallet: '0xab…c', walletFull: '0xabc', pnl: 12000, win: null,
     resolved: null, vol: 90000, score: 71, grade: 'B', scoreN: null, scoreCi: null, sampleBadge: null,
-    scoreParts: [{ label: 'return', value: 90, weight: 0.35 }, { label: 'sharpe proxy', value: 60, weight: 0.2 }, { label: 'volume', value: 80, weight: 0.1 }],
+    // "win" traegt den Ersatzwert 50, den rank_traders_by_smart_score setzt,
+    // wenn der Feed keine Trefferquote hat (imputed: true). Er darf nicht als
+    // gemessene Zahl erscheinen.
+    scoreParts: [{ label: 'return', value: 90, weight: 0.35, imputed: false },
+      { label: 'sharpe proxy', value: 60, weight: 0.2, imputed: false },
+      { label: 'win', value: 50, weight: 0.1, imputed: true },
+      { label: 'volume', value: 80, weight: 0.1, imputed: false }],
+    scoreBasis: { measured_weight: 0.65, imputed_weight: 0.35, imputed: ['win'], cohort_n: 250 },
     tags: 'return 90, sharpe-proxy 60, drawdown-proxy 100, win 55, recency 50, volume 80'
   }];
   T.herkunft.traders = { quelle: 'live' };
@@ -558,6 +568,10 @@ function mitDaten(T) {
     // events — a mixed bot event, a discretionary one with the Curtis note,
     // a pilot one — and the aggregate the KPI row reads.
     extras: {
+      // Ein Monat mit $100 Einsatz, davon $40 in zwei noch offenen Wetten,
+      // und +$18 aus den drei aufgeloesten: 30 Prozent auf den aufgeloesten
+      // Einsatz, nicht 18 Prozent auf alles.
+      monthly: [{ month: '2026-07', runs: 2, bets: 5, stake: 100, net: 18, settled_bets: 3, settled_stake: 60 }],
       wallet_ledger: {
         hinweis: 'Harness ledger note.', stand_utc: '2026-08-17T01:02:03+00:00',
         wallet: '0x29afe1bf37700768a640a08f1b35dad5f202f88d', kennzeichnung: 'wallet/public-api',
@@ -754,7 +768,10 @@ function walletNutzlast() {
       by_category: [{ category: 'Politics', groups: 7, positions: 8, cost: 400.0, pnl: 160.0, edge: 0.4, ci_low: 0.1, ci_high: 0.6 }, { category: 'Sports', groups: 4, positions: 4, cost: 200.0, pnl: 50.0, edge: 0.25, ci_low: null, ci_high: null }]
     },
     open_positions: {
-      as_of: '2026-08-17 19:00 UTC', n: 2, shown: 2, capped: false, total_exposure: 55.0, total_cost: 50.0, unrealized_pnl: 5.0, worthless_n: 1,
+      // Eine offene Position (+15 Buchgewinn, 40 Kostenbasis) und eine
+      // wertlose (aufgeloester Verlust -10, 10 Kostenbasis). Der Verlust
+      // gehoert nicht in unrealized_pnl (api_views._wallet_positions).
+      as_of: '2026-08-17 19:00 UTC', n: 2, shown: 2, capped: false, total_exposure: 55.0, total_cost: 40.0, unrealized_pnl: 15.0, worthless_n: 1, worthless_pnl: -10.0, worthless_cost: 10.0,
       rows: [
         { title: 'Open harness market A?', outcome: 'Yes', size: 100.0, avg_price: 0.4, current_price: 0.55, value: 55.0, cost: 40.0, unrealized_pnl: 15.0, pnl_pct: 0.375, end_time: '2026-12-31T00:00:00Z', market_key: '0xopenA', url: 'https://polymarket.com/event/open-a', image: 'https://polymarket-upload.s3.us-east-2.amazonaws.com/harness-open-a.png', status: 'open' },
         { title: 'Resolved against, not redeemed?', outcome: 'No', size: 20.0, avg_price: 0.5, current_price: 0.0, value: 0.0, cost: 10.0, unrealized_pnl: -10.0, pnl_pct: -1.0, end_time: '2026-06-30T00:00:00Z', market_key: '0xworthless', url: '', status: 'worthless' }
@@ -840,6 +857,25 @@ function rendern(T) {
   // Reiter innerhalb einer Seite sind eigene Ansichten mit eigenen
   // Rueckfaellen. Sie werden hier einzeln durchgerendert.
   const varianten = [
+    // Ein Lauf mit offenen Kopien: 100 kopierte Zeilen, 60 davon geschlossen
+    // (35 gewonnen, 25 verloren), 40 noch offen. Die Trefferquote ist
+    // 35/60 = 58 Prozent, nicht 35/100.
+    ['backtester_stats', 'backtester', {}, null, (T) => {
+      // Nur im Live-Durchgang: im Leerzustand darf hier keine Kurve stehen.
+      if (!(T.herkunft.tape && T.herkunft.tape.quelle === 'live')) return null;
+      const alt = T.liveData.backtest;
+      T.liveData.backtest = {
+        stats: {
+          final_equity: 1050, roi: 0.05, total_pnl: 50, win_rate: 35 / 60,
+          wins: 35, losses: 25, closed_trades: 60, copied_trades: 100,
+          skipped_trades: 4, filtered_trades: 0, fees_paid: 3.2, open_value: 420,
+          max_drawdown: -0.08, window_truncated: false, effective_start: '',
+          skip_reasons: { out_of_cash: 2, exposure_cap: 2, no_position: 0, bad_data: 0, other: 0 }
+        },
+        equity: [1000, 1050], benchmark: [1000, 1010], drawdown: [0, -0.08], log: []
+      };
+      return () => { T.liveData.backtest = alt; };
+    }],
     ['backtester_advanced', 'backtester', { advancedOpen: true }],
     ['backtester_flat_fee', 'backtester', { advancedOpen: true, btFeeModel: 'flat' }],
     ['alerts_rules', 'alerts', { alertTab: 'rules' }],

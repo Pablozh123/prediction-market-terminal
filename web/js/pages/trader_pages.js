@@ -1,6 +1,6 @@
 // Leaderboard, Whale flow, Risk screen, Tracked — ported from the design reference.
 
-import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent } from '../util.js';
+import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, tapeFenster, fensterSatz } from '../util.js';
 import { renderClusterGraphics, clusterFarbe } from './cluster_graphics.js';
 
 const M = "font-family:'IBM Plex Mono',monospace";
@@ -16,22 +16,55 @@ function filterGroup(label, chipsHtml) {
 // "return 90, sharpe-proxy 60, …" string so no raw string reaches the page.
 export function scorePartsOf(t) {
   if (t && Array.isArray(t.scoreParts) && t.scoreParts.length) {
-    return t.scoreParts.map((p) => ({ label: String(p.label || ''), value: p.value != null ? String(p.value) : '—' }));
+    return t.scoreParts.map((p) => ({
+      label: String(p.label || ''),
+      value: p.value != null ? String(p.value) : '—',
+      imputed: !!p.imputed
+    }));
   }
   const raw = t && t.tags ? String(t.tags) : '';
   if (!raw) return [];
   return raw.split(',').map((teil) => {
     const m = teil.trim().match(/^([a-z][a-z -]*?)\s+(-?\d+(?:\.\d+)?)$/i);
-    return m ? { label: m[1].replace(/-/g, ' '), value: m[2] } : null;
+    return m ? { label: m[1].replace(/-/g, ' '), value: m[2], imputed: false } : null;
   }).filter(Boolean);
 }
 
+// Ein Bestandteil, den die Leaderboard-Antwort nicht belegen kann, zeigt
+// keine Zahl. Die oeffentliche Antwort traegt nur PnL und Volumen, also
+// faellt die Trefferquote auf 0.50 und die Aktualitaet auf 50 zurueck — fuer
+// jede Wallet dieselbe Konstante. Als Zahl daneben las sich das wie eine
+// Messung dieser Wallet.
 function scorePartsHtml(t) {
   const parts = scorePartsOf(t);
   if (!parts.length) return '';
   return '<div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:4px">'
-    + parts.map((p) => '<span style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.5); border:1px solid rgba(var(--ink),.1); border-radius:4px; padding:1px 6px; white-space:nowrap">' + esc(p.label) + ' <span style="color:rgba(var(--ink),.8)">' + esc(p.value) + '</span></span>').join('')
+    + parts.map((p) => {
+      const wert = p.imputed
+        ? '<span style="color:rgba(var(--ink),.62); font-style:italic">assumed</span>'
+        : '<span style="color:rgba(var(--ink),.8)">' + esc(p.value) + '</span>';
+      const rand = p.imputed ? 'border:1px dashed rgba(var(--ink),.14)' : 'border:1px solid rgba(var(--ink),.1)';
+      const titel = p.imputed
+        ? ' title="' + esc(p.label + ': the public leaderboard feed carries no input for this component, so the score uses a fixed placeholder — the same one for every wallet') + '"'
+        : '';
+      return '<span' + titel + ' style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.5); ' + rand + '; border-radius:4px; padding:1px 6px; white-space:nowrap">'
+        + esc(p.label) + ' ' + wert + '</span>';
+    }).join('')
     + '</div>';
+}
+
+// Ein Satz unter der Tabelle: wie viel Gewicht des Scores gemessen ist, was
+// geschaetzt wurde und gegen wie viele Wallets der Score gebildet wurde.
+export function scoreBasisSatz(rows) {
+  const mit = rows.filter((t) => t && t.scoreBasis && t.scoreBasis.imputed && t.scoreBasis.imputed.length);
+  if (!mit.length) return '';
+  const b = mit[0].scoreBasis;
+  const anteil = Math.round((b.measured_weight || 0) * 100);
+  const n = b.cohort_n ? ' n = ' + b.cohort_n + ' wallets ranked together; the volume component is a log scale against '
+    + 'that set, so it is a rank inside this cohort, not a property of the wallet.' : '';
+  return 'Score basis: ' + anteil + '% of the composite weight rests on figures the public leaderboard feed carries '
+    + '(profit over volume, volume). The remaining ' + (100 - anteil) + '% (' + b.imputed.join(', ') + ') uses a fixed '
+    + 'placeholder that is identical for every wallet, so it separates no wallet from another.' + n;
 }
 
 // ---------------------------------------------------------------- traders (leaderboard)
@@ -69,6 +102,7 @@ export function renderTraders(T) {
   const badge = tCount ? M + '; font-size:11px; color:var(--on-accent); background:var(--accent); border-radius:4px; padding:1px 7px' : 'display:none';
   const chevron = M + '; font-size:16px; color:rgba(var(--ink),.5); transition:transform .18s ease; transform:rotate(' + (s.traderFiltersOpen ? '90deg' : '0deg') + ')';
   const asOf = T.liveData.leaderboard && T.liveData.leaderboard.as_of ? ' · snapshot ' + T.liveData.leaderboard.as_of : '';
+  const basisSatz = scoreBasisSatz(T.traders);
   const grid = '44px 1fr 120px' + (hatWin ? ' 100px' : '') + (hatResolved ? ' 118px' : '') + ' 100px 92px';
   const rankTabs = [T.tab('Smart score', rank === 'score', { traderRank: 'score' }),
     T.tab('Profit', rank === 'pnl', { traderRank: 'pnl' }),
@@ -103,6 +137,7 @@ export function renderTraders(T) {
       + '</div>' : '')
     + '</div>'
     + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:12px">' + traderSorted.length + ' of ' + T.traders.length + ' wallets · all-time' + esc(asOf) + '</div>'
+    + (basisSatz ? '<div style="font-size:12px; color:rgba(var(--ink),.55); margin-top:8px; max-width:820px; line-height:1.6">' + esc(basisSatz) + '</div>' : '')
     + '</div>'
 
     + '<div style="display:grid; grid-template-columns:' + grid + '; padding:10px 24px; border-bottom:1px solid rgba(var(--ink),.09); background:var(--panel); ' + HEAD_CELL + '">'
@@ -112,7 +147,7 @@ export function renderTraders(T) {
     + '<div style="text-align:right">VOLUME</div><div style="text-align:right">SCORE</div></div>'
     + traderSorted.map((t, i) => {
       const score = t.score;
-      const avatarStyle = 'width:28px; height:28px; flex:none; border-radius:4px; background:#1C232B; border:1px solid rgba(var(--ink),.09); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:12px; color:' + (score != null && score >= 80 ? 'var(--accent)' : 'rgba(var(--ink),.6)');
+      const avatarStyle = 'width:28px; height:28px; flex:none; border-radius:4px; background:var(--panel-hover); border:1px solid rgba(var(--ink),.09); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:12px; color:' + (score != null && score >= 80 ? 'var(--accent)' : 'rgba(var(--ink),.6)');
       const scoreStyle = M + '; font-size:12.5px; border-radius:4px; padding:3px 9px; ' + (score == null ? 'color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.12)' : score >= 80 ? 'color:var(--on-accent); background:var(--accent)' : score >= 60 ? 'color:rgba(var(--ink),.8); border:1px solid rgba(var(--ink),.2)' : 'color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35)');
       return '<div ' + T.act(() => T.openWallet(t.name)) + ' class="hv-panel" style="display:grid; grid-template-columns:' + grid + '; align-items:center; padding:13px 24px; border-bottom:1px solid rgba(var(--ink),.06); cursor:pointer">'
         + '<div style="' + M + '; font-size:13px; color:rgba(var(--ink),.6)">' + (i + 1) + '</div>'
@@ -173,7 +208,7 @@ export function renderWhale(T) {
     });
     const size = +t.size || 0;
     w.prints++; w.total += size; w.biggest = Math.max(w.biggest, size);
-    if (String(t.side).indexOf('BUY') === 0) { w.buys++; w.buyDollar += size; } else { w.sells++; w.sellDollar += size; }
+    if ((t.dir || 'BUY') === 'BUY') { w.buys++; w.buyDollar += size; } else { w.sells++; w.sellDollar += size; }
     // Kategorie kommt vom Server (util.mapTrade); ohne Feld steht "Other".
     const cat = t.category || 'Other';
     w.cats[cat] = (w.cats[cat] || 0) + 1;
@@ -217,6 +252,7 @@ export function renderWhale(T) {
   const konzentrationSatz = topN === walletCount
     ? (walletCount === 1 ? 'One wallet accounts for all ' + money(total) + ' grouped here.' : 'All ' + walletCount + ' wallets shown hold the full ' + money(total) + ' grouped here.')
     : 'The top ' + topN + ' wallets hold ' + money(topDollar) + ' of ' + money(total) + ' grouped here (' + topShare + '%), across ' + walletCount + ' wallets.';
+  const fensterZeile = fensterSatz(tapeFenster(grouped));
   const ausschlussSatz = ohneWallet
     ? ' ' + ohneWallet + ' Kalshi print(s) are not shown here: Kalshi publishes no wallet identities, so they cannot be grouped.'
     : '';
@@ -255,6 +291,12 @@ export function renderWhale(T) {
     + kpi('BIGGEST SINGLE PRINT', money(biggest), '')
     + kpi('TOP CATEGORY BY $', esc(topCatLabel), esc(topCatShare), true)
     + '</div>'
+    // Ueber welche Spanne die Kennzahlen summiert wurden. Ohne sie liest
+    // sich "$ GROUPED · THIS WINDOW" wie eine Tagessumme, obwohl der
+    // oeffentliche Feed nur die juengsten Prints liefert und die Spanne mit
+    // der Aktivitaet schwankt.
+    + (fensterZeile ? '<div style="padding:9px 24px; border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:11px; color:rgba(var(--ink),.55)">'
+      + '<span style="letter-spacing:.14em; color:rgba(var(--ink),.6); margin-right:8px">SUMMED OVER</span>' + esc(fensterZeile) + '</div>' : '')
     + '<div style="padding:10px 24px; border-bottom:1px solid rgba(var(--ink),.09); font-size:12px; color:rgba(var(--ink),.55)"><span style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.6); margin-right:8px">CONCENTRATION</span>' + esc(konzentrationSatz) + '</div>'
     + '<div style="display:grid; grid-template-columns:' + GRID + '; gap:0 10px; padding:10px 24px; border-bottom:1px solid rgba(var(--ink),.09); background:var(--panel); ' + HEAD_CELL + '">'
     + '<div>WALLET · VENUE</div><div style="text-align:right">PRINTS</div><div style="text-align:right">TOTAL</div><div style="text-align:right">BIGGEST</div><div style="text-align:right">LEANING</div><div style="text-align:right">MARKETS</div><div>TOP MARKET</div><div style="text-align:right">MOSTLY IN</div><div style="text-align:right">LAST PRINT</div></div>'
@@ -324,7 +366,7 @@ export function riskSideChip(r) {
   const farbe = isSell ? 'var(--neg-soft)' : isNo ? 'var(--warn)' : 'var(--accent)';
   const total = r.notional_usd != null ? money(r.notional_usd) : String(r.notional || '');
   const anteil = r.side_share != null ? ' (' + Math.round(r.side_share * 100) + '%)' : '';
-  return '<span style="' + M + '; font-size:10.5px; letter-spacing:.06em; color:' + farbe + '; border:1px solid ' + farbe + '55; border-radius:4px; padding:2px 7px; white-space:nowrap">'
+  return '<span style="' + M + '; font-size:10.5px; letter-spacing:.06em; color:' + farbe + '; border:1px solid color-mix(in srgb, ' + farbe + ' 33%, transparent); border-radius:4px; padding:2px 7px; white-space:nowrap">'
     + esc(side) + ' ' + esc(money(r.side_notional || 0)) + ' of ' + esc(total) + esc(anteil) + '</span>';
 }
 
@@ -575,7 +617,7 @@ export function riskBookHtml(T, r) {
       const netz = b.net === 'YES' || b.net === 'NO' ? 'net ' + b.net : b.net === 'balanced' ? 'balanced' : 'flat';
       return '<div style="font-size:11.5px; line-height:1.45; color:rgba(var(--ink),.7)">' + kopf
         + '<span style="' + M + '; color:rgba(var(--ink),.85)">' + esc(b.short || b.wallet) + '</span> '
-        + '<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:' + BOOK_FARBE(b.relation) + '; border:1px solid ' + BOOK_FARBE(b.relation) + '55; border-radius:4px; padding:1px 6px; margin:0 4px">' + BOOK_WORT(b.relation) + ' · ' + esc(netz) + '</span>'
+        + '<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:' + BOOK_FARBE(b.relation) + '; border:1px solid color-mix(in srgb, ' + BOOK_FARBE(b.relation) + ' 33%, transparent); border-radius:4px; padding:1px 6px; margin:0 4px">' + BOOK_WORT(b.relation) + ' · ' + esc(netz) + '</span>'
         + esc(b.text || '') + '</div>';
     }).join('')
     + '</div>';

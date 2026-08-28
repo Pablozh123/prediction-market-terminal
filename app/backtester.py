@@ -18,6 +18,18 @@ Model:
   ``kelly_fraction`` × full Kelly of current equity (quarter-Kelly by default):
   the estimate is uncertain and platform/resolution risk lives outside the
   model, and past f* expected log growth falls off a cliff.
+
+Where hindsight enters (and where it does not):
+
+- The replay itself is forward-only. Resolutions settle at their own
+  ``end_time`` and never before, so a payout cannot fund a copy that happened
+  earlier.
+- ``auto_fit`` is the exception: it reads the whole window to pick a follow
+  threshold or a stake. That is hindsight by construction and is marked as
+  such in ``stats["auto_fit"]["hindsight"]``.
+- ``strategy_comparison`` ranks every sizing variant on the same window it was
+  chosen on. The top row is the maximum of N in-sample runs, not an
+  out-of-sample result.
 """
 
 from __future__ import annotations
@@ -50,6 +62,15 @@ FEE_MODEL_FLAT = "flat"
 FEE_MODELS = (FEE_MODEL_CURVE, FEE_MODEL_FLAT)
 
 MIN_STAKE = 1.0
+
+#: Auto-Fit waehlt Schwelle und Einsatz aus dem GANZEN Fenster, also aus
+#: Zahlen, die am Tag null noch nicht feststanden. Der Satz haengt an jedem
+#: Lauf, in dem er angewendet wurde. Englisch, weil die Oberflaechen es sind.
+AUTO_FIT_HINDSIGHT_NOTE = (
+    "Auto-fit picked this from the finished window: the wallet's peak concurrency and the "
+    "size distribution of its entries are only known at the end. A copier could not have set "
+    "it on day one, so read this as the setting that fit this window, not as an achievable result."
+)
 
 LEDGER_COLUMNS = [
     "time",
@@ -914,6 +935,14 @@ def _auto_fit_config(
 
     Nichts davon passiert still: was angewendet wurde, steht in
     ``stats["auto_fit"]`` und auf der Seite.
+
+    **Rueckschau.** Beide Hebel lesen das GANZE Fenster, bevor der erste Trade
+    kopiert wird: die Spitzen-Gleichzeitigkeit und die Verteilung der
+    Einstiegsgroessen stehen erst am Ende fest. Ein Copier haette diese
+    Schwelle am Tag null nicht waehlen koennen. Der Lauf ist damit keine
+    Vorwaerts-Rueckrechnung mehr, sondern die Frage "welche Schwelle haette
+    zu diesem Fenster gepasst" — und genau das steht als ``hindsight`` im
+    Ergebnis, damit die Seite es nicht als erzielbares Ergebnis ausgibt.
     """
 
     peak = _peak_concurrent(intervals)
@@ -925,6 +954,11 @@ def _auto_fit_config(
         "follow_threshold": None,
         "followed_positions": len(intervals),
         "capacity": None,
+        # Nur True, wenn tatsaechlich etwas angewendet wurde: die reine
+        # Messung des Tempos steht auch ohne Auto-Fit im Ergebnis und
+        # veraendert den Lauf nicht.
+        "hindsight": False,
+        "note": "",
     }
     if peak <= 0:
         return config, info
@@ -953,10 +987,18 @@ def _auto_fit_config(
             "stake": stake_user,
             "follow_threshold": float(threshold),
             "followed_positions": followed,
+            "hindsight": True,
+            "note": AUTO_FIT_HINDSIGHT_NOTE,
         })
         return replace(config, min_follow_notional=float(threshold)), info
     # Keine Schwelle trennt: Einsatz je Copy schrumpfen, allem folgen.
-    info.update({"applied": True, "mode": "stake", "stake": geschrumpft})
+    info.update({
+        "applied": True,
+        "mode": "stake",
+        "stake": geschrumpft,
+        "hindsight": True,
+        "note": AUTO_FIT_HINDSIGHT_NOTE,
+    })
     if config.sizing_mode == SIZING_PERCENT and config.bankroll > 0:
         return replace(config, stake_value=100.0 * geschrumpft / float(config.bankroll)), info
     return replace(config, stake_value=geschrumpft), info
@@ -1146,6 +1188,9 @@ def strategy_comparison(
                 "total_pnl": stats["total_pnl"],
                 "max_drawdown": stats["max_drawdown"],
                 "win_rate": stats["win_rate"],
+                # Der Nenner der Trefferquote gehoert in dieselbe Zeile:
+                # copied_trades zaehlt auch die noch offenen Einstiege.
+                "closed_trades": stats["closed_trades"],
                 "copied_trades": stats["copied_trades"],
                 "skipped_trades": stats["skipped_trades"],
                 "volume_copied": stats["volume_copied"],

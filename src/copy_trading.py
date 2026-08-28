@@ -2583,6 +2583,27 @@ def rank_traders_by_smart_score(
     else:
         ranked["copy_recency_score"] = 50.0
     ranked["copy_volume_score"] = _log_score(volume, floor=max(float(min_volume), 1.0)).round(1)
+    # Welche Bestandteile auf echten Eingaben ruhen und welche auf einem
+    # Ersatzwert. Die oeffentliche Leaderboard-Antwort traegt nur
+    # rank/trader/wallet/pnl/volume (prediction_markets.get_polymarket_leaderboard),
+    # also faellt dort die Trefferquote auf 0.50, der Stichprobenfaktor auf
+    # 0.25 und die Aktualitaet auf 50 zurueck: vier der sechs Bestandteile
+    # sind fuer jede Wallet dieselbe Konstante. Ohne diese Spalte erscheinen
+    # sie in der Oberflaeche als gemessene Zahl.
+    win_known = known_win_rate.loc[ranked.index]
+    sample_known = (closed_positions + open_positions + recent_trades) > 0
+    recency_known = (recent_trades > 0) | (recent_notional > 0) | (trades_per_hour > 0)
+    drawdown_known = win_known | (assets_value > 0) | (bot_score > 0)
+    imputed_flags = {
+        "copy_sharpe_proxy": ~(win_known & sample_known),
+        "copy_drawdown_proxy": ~drawdown_known,
+        "copy_win_score": ~win_known,
+        "copy_recency_score": ~recency_known,
+    }
+    ranked["copy_score_imputed"] = [
+        ",".join(name for name, flag in imputed_flags.items() if bool(flag.iloc[i]))
+        for i in range(len(ranked))
+    ]
     ranked["copy_smart_score"] = (
         ranked["copy_return_score"] * 0.35
         + ranked["copy_sharpe_proxy"] * 0.20

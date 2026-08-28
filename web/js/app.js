@@ -1,7 +1,7 @@
 // Market Intel terminal — vanilla JS port of the design reference.
 // One controller class; each workspace renders as an HTML string from state.
 
-import { num, money, volume, esc, spark, seriesPoints } from './util.js';
+import { num, money, volume, esc, seriesPoints, tapeMatches } from './util.js';
 import { STUDIEN } from './studies.js';
 import { apiGet, apiGetRaw, apiPost } from './api.js';
 import { renderOverview, renderMarkets, renderFlow, renderCross, renderResolved } from './pages/core_pages.js';
@@ -222,7 +222,6 @@ class Terminal {
   num(n) { return num(n); }
   money(n) { return money(n); }
   esc(v) { return esc(v); }
-  spark(a) { return spark(a); }
   seriesPoints(v, w, h) { return seriesPoints(v, w, h); }
 
   // ---- action / input registries (rebuilt every render) ----
@@ -471,22 +470,7 @@ class Terminal {
   // Unknown fields are null; no filter operates on a made-up default.
   marketExtraOf(m) { return this.marketExtra[m.id] || { spread: null, age: null, endsDays: null }; }
 
-  tapeFiltered() {
-    const s = this.state;
-    return this.tape.filter((t) => {
-      if (t.size < s.tapeMin) return false;
-      if (s.tapeTracked && !t.tracked) return false;
-      if (s.tapePlatform !== 'all' && t.venue !== s.tapePlatform) return false;
-      if (s.tapeSide !== 'all' && t.side.indexOf(s.tapeSide) !== 0) return false;
-      if (s.tapeOutcome !== 'all' && t.side.indexOf(s.tapeOutcome) < 0) return false;
-      if (s.tapeCat !== 'All' && (t.category || 'Other') !== s.tapeCat) return false;
-      if (s.tapeQuery.trim()) {
-        const tq = s.tapeQuery.trim().toLowerCase();
-        if (t.market.toLowerCase().indexOf(tq) < 0 && t.wallet.toLowerCase().indexOf(tq) < 0) return false;
-      }
-      return true;
-    });
-  }
+  tapeFiltered() { return this.tape.filter((t) => tapeMatches(t, this.state)); }
 
   // A row opens the market drawer only when that market is in the loaded
   // sample (top 250 by volume); otherwise it carries no handler and no
@@ -943,6 +927,10 @@ class Terminal {
       // Score components as a labelled list (api_views.score_parts); the raw
       // reason string is kept only as a fallback for older payloads.
       scoreParts: Array.isArray(r.score_parts) ? r.score_parts : [],
+      // Worauf der Score ruht (api_views.score_basis): gemessenes Gewicht,
+      // geschaetztes Gewicht, die Namen der geschaetzten Bestandteile und die
+      // Groesse der gemeinsam bewerteten Menge.
+      scoreBasis: r.score_basis || null,
       tags: String(r.tags || '')
     }));
   }
@@ -1506,7 +1494,13 @@ class Terminal {
     }, 15000);
     this.render();
     this.pollLive();
-    setInterval(() => this.pollLive(), 30000);
+    // Der Poll holt markets (~280 KB) und tape (~180 KB) und rendert danach
+    // die ganze Seite neu. In einem verborgenen Tab sieht das niemand, es
+    // kostet aber rund 55 MB je Stunde und auf der Marktseite alle 30 s einen
+    // Render von ~114 ms. Also: nur im sichtbaren Tab, und beim Zurueckkommen
+    // einmal sofort nachziehen, damit der Stand nicht veraltet wirkt.
+    setInterval(() => { if (!document.hidden) this.pollLive(); }, 30000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) this.pollLive(); });
     // The copy desk re-reads its books every 30 s while it is open (the
     // daemon writes between renders); not while an action is in flight, and
     // never mid-edit — the form values live in state and survive the render.
