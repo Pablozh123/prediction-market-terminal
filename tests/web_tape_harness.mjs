@@ -6,7 +6,7 @@
 // derselben side-Spalte die genommene Seite ("yes"/"no", klein geschrieben,
 // src/prediction_markets.get_kalshi_trades).
 
-import { mapTrade, tapeMatches, tradeDirection, tradeOutcome } from '../web/js/util.js';
+import { mapTrade, tapeMatches, tradeDirection, tradeOutcome, tapeFenster, fensterSatz, dauer } from '../web/js/util.js';
 
 const jetzt = new Date().toISOString();
 
@@ -60,5 +60,17 @@ const ausgabe = {
     out_name: tradeOutcome('November')
   }
 };
+
+// Das Beobachtungsfenster: beide Venues bekommen gleich viele Zeilen
+// (api_views.balanced_head), Kalshi druckt aber viel schneller. Hier deckt
+// Polymarket 6 Stunden ab und Kalshi 4 Minuten — dieselbe Zeilenzahl,
+// zwei voellig verschiedene Spannen.
+const minuten = [0, 360, 2, 4, 120];
+const fensterZeilen = zeilen.map((t, i) => ({ ...t, mins: minuten[i] }));
+ausgabe.fenster = tapeFenster(fensterZeilen);
+ausgabe.fenster_satz = fensterSatz(tapeFenster(fensterZeilen));
+ausgabe.fenster_leer = tapeFenster([]);
+ausgabe.fenster_ohne_zeit = tapeFenster([{ venue: 'Kalshi', mins: 999 }]);
+ausgabe.dauer = [dauer(0.4), dauer(42), dauer(360), dauer(4320)];
 
 process.stdout.write(JSON.stringify(ausgabe));

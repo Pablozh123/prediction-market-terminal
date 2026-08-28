@@ -1,6 +1,6 @@
 // Leaderboard, Whale flow, Risk screen, Tracked — ported from the design reference.
 
-import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent } from '../util.js';
+import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, tapeFenster, fensterSatz } from '../util.js';
 import { renderClusterGraphics, clusterFarbe } from './cluster_graphics.js';
 
 const M = "font-family:'IBM Plex Mono',monospace";
@@ -252,6 +252,7 @@ export function renderWhale(T) {
   const konzentrationSatz = topN === walletCount
     ? (walletCount === 1 ? 'One wallet accounts for all ' + money(total) + ' grouped here.' : 'All ' + walletCount + ' wallets shown hold the full ' + money(total) + ' grouped here.')
     : 'The top ' + topN + ' wallets hold ' + money(topDollar) + ' of ' + money(total) + ' grouped here (' + topShare + '%), across ' + walletCount + ' wallets.';
+  const fensterZeile = fensterSatz(tapeFenster(grouped));
   const ausschlussSatz = ohneWallet
     ? ' ' + ohneWallet + ' Kalshi print(s) are not shown here: Kalshi publishes no wallet identities, so they cannot be grouped.'
     : '';
@@ -290,6 +291,12 @@ export function renderWhale(T) {
     + kpi('BIGGEST SINGLE PRINT', money(biggest), '')
     + kpi('TOP CATEGORY BY $', esc(topCatLabel), esc(topCatShare), true)
     + '</div>'
+    // Ueber welche Spanne die Kennzahlen summiert wurden. Ohne sie liest
+    // sich "$ GROUPED · THIS WINDOW" wie eine Tagessumme, obwohl der
+    // oeffentliche Feed nur die juengsten Prints liefert und die Spanne mit
+    // der Aktivitaet schwankt.
+    + (fensterZeile ? '<div style="padding:9px 24px; border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:11px; color:rgba(var(--ink),.55)">'
+      + '<span style="letter-spacing:.14em; color:rgba(var(--ink),.6); margin-right:8px">SUMMED OVER</span>' + esc(fensterZeile) + '</div>' : '')
     + '<div style="padding:10px 24px; border-bottom:1px solid rgba(var(--ink),.09); font-size:12px; color:rgba(var(--ink),.55)"><span style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.6); margin-right:8px">CONCENTRATION</span>' + esc(konzentrationSatz) + '</div>'
     + '<div style="display:grid; grid-template-columns:' + GRID + '; gap:0 10px; padding:10px 24px; border-bottom:1px solid rgba(var(--ink),.09); background:var(--panel); ' + HEAD_CELL + '">'
     + '<div>WALLET · VENUE</div><div style="text-align:right">PRINTS</div><div style="text-align:right">TOTAL</div><div style="text-align:right">BIGGEST</div><div style="text-align:right">LEANING</div><div style="text-align:right">MARKETS</div><div>TOP MARKET</div><div style="text-align:right">MOSTLY IN</div><div style="text-align:right">LAST PRINT</div></div>'

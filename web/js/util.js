@@ -223,6 +223,48 @@ export function tapeMatches(t, s) {
   return true;
 }
 
+// Spanne, ueber die eine Menge von Prints summiert wurde, je Venue getrennt.
+//
+// Der oeffentliche Trade-Feed liefert die juengsten N Prints; wie lange die
+// abdecken, haengt an der Aktivitaet. Auf dem Tape kommt dazu, dass beide
+// Venues gleich viele Zeilen bekommen (api_views.balanced_head), damit die
+// Kalshi-Mikrotrades die Polymarket-Prints nicht verdraengen. Dieselbe
+// Zeilenzahl kann bei Kalshi Minuten und bei Polymarket Stunden bedeuten —
+// eine Summe "TOTAL MOVED" ueber beide ist ohne diese Angabe nicht
+// einzuordnen. Rueckgabe in Minuten; ohne verwertbare Zeit null.
+export function tapeFenster(prints) {
+  const gueltig = (prints || []).filter((t) => typeof t.mins === 'number' && t.mins < 999);
+  if (!gueltig.length) return null;
+  const spanne = (rows) => ({
+    prints: rows.length,
+    minuten: Math.max(...rows.map((t) => t.mins)) - Math.min(...rows.map((t) => t.mins))
+  });
+  const venues = {};
+  gueltig.forEach((t) => { (venues[t.venue || 'Polymarket'] || (venues[t.venue || 'Polymarket'] = [])).push(t); });
+  return {
+    ...spanne(gueltig),
+    jeVenue: Object.keys(venues).sort().map((v) => ({ venue: v, ...spanne(venues[v]) }))
+  };
+}
+
+// Eine Minutenzahl als kurze Dauer: 0 min, 42 min, 3.5 h, 2.1 d.
+export function dauer(minuten) {
+  const m = Math.max(0, +minuten || 0);
+  if (m < 1) return '<1 min';
+  if (m < 90) return Math.round(m) + ' min';
+  if (m < 60 * 36) return (m / 60).toFixed(1) + ' h';
+  return (m / 1440).toFixed(1) + ' d';
+}
+
+// Der Fenstersatz als Text. Nennt die Venues einzeln, sobald es mehr als
+// eine gibt, weil genau dort die Spannen auseinanderlaufen.
+export function fensterSatz(fenster) {
+  if (!fenster) return '';
+  const je = fenster.jeVenue.map((v) => v.venue + ' ' + dauer(v.minuten) + ' (' + v.prints + ')').join(' · ');
+  const kopf = 'Window: ' + dauer(fenster.minuten) + ' · ' + fenster.prints + ' prints';
+  return fenster.jeVenue.length > 1 ? kopf + ' — ' + je : kopf;
+}
+
 // Map one /api/tape row into the tape-row shape.
 export function mapTrade(r) {
   const t = r.time ? new Date(r.time) : null;

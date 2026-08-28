@@ -1909,6 +1909,22 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("No cash events reported by /api/copy", _sichtbarer_text(self.ausgabe["live"]["copy_cash"]))
         self.assertIn("No open paper positions reported by /api/copy", _sichtbarer_text(self.ausgabe["live"]["copy_positions"]))
 
+    def test_tape_und_whale_nennen_die_summierte_spanne(self) -> None:
+        """Jede Summe ueber das Tape sagt, ueber welche Spanne sie geht.
+
+        Beide Venues bekommen gleich viele Zeilen (api_views.balanced_head),
+        Kalshi druckt aber um Groessenordnungen schneller — "TOTAL MOVED"
+        und "$ GROUPED · THIS WINDOW" standen ohne jede Angabe da, ueber
+        welchen Zeitraum sie laufen.
+        """
+
+        flow = _sichtbarer_text(self.ausgabe["live"]["flow"])
+        self.assertIn("SUMMED OVER Window:", flow)
+        self.assertIn("Kalshi", flow.split("SUMMED OVER")[1][:200])
+        self.assertIn("Polymarket", flow.split("SUMMED OVER")[1][:200])
+        whale = _sichtbarer_text(self.ausgabe["live"]["whale"])
+        self.assertIn("SUMMED OVER Window:", whale)
+
     def test_leaderboard_zeigt_geschaetzte_score_teile_nicht_als_zahl(self) -> None:
         """Ein Bestandteil ohne Eingabe im Feed erscheint als "assumed", nicht als Wert.
 

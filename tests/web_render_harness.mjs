@@ -184,12 +184,12 @@ function mitDaten(T) {
   T.tape = [{
     ago: '2 min ago', mins: 2, wallet: 'w1', walletAddress: '0xabc',
     market: 'Example question', marketKey: 'm1', category: 'Macro',
-    side: 'BUY Yes', price: '62.0¢', size: 9000,
+    dir: 'BUY', outcome: 'Yes', side: 'BUY Yes', price: '62.0¢', size: 9000,
     venue: 'Polymarket', tracked: false
   }, {
     ago: '1 min ago', mins: 1, wallet: '—', walletAddress: '',
     market: 'KXBTC15M-26AUG17-1030-T115', marketKey: 'KXBTC15M-26AUG17-1030-T115', category: 'Crypto',
-    side: 'BUY Yes', price: '55.0¢', size: 3000,
+    dir: 'BUY', outcome: 'Yes', side: 'BUY Yes', price: '55.0¢', size: 3000,
     venue: 'Kalshi', tracked: false
   }];
   T.herkunft.tape = { quelle: 'live' };

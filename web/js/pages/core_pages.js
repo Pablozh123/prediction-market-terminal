@@ -3,7 +3,7 @@
 // instance (T). Nothing here invents a number: every figure names its payload
 // or the panel says which payload is missing.
 
-import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, signedMoney, stempel, EINZAHLUNGEN_USD } from '../util.js';
+import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, signedMoney, stempel, EINZAHLUNGEN_USD, tapeFenster, fensterSatz } from '../util.js';
 import { spiegelZeit, kurzGeld } from '../charts.js';
 import { studieAnker } from './microstructure_page.js';
 
@@ -717,6 +717,7 @@ export function renderFlow(T) {
   const gesehen = erste ? new Set() : T._flowGesehen;
   T._flowGesehen = new Set(T.tape.map(schluessel));
 
+  const fensterZeile = fensterSatz(tapeFenster(tapeFiltered));
   const puls = tapePulsHtml(tapeFiltered, buys, sells);
   const katFluss = kategorieFlussHtml(tapeFiltered);
   const grafiken = puls || katFluss
@@ -754,6 +755,12 @@ export function renderFlow(T) {
     + kpiCell('BIGGEST PRINT', groesster ? money(groesster.size) : '—',
       groesster ? esc(kurzTitel(groesster.market)) : 'no print passes the filters', false)
     + '</div>'
+
+    // Ueber welche Spanne diese vier Zahlen summiert wurden — und dass die
+    // Spanne je Venue verschieden ist, weil beide gleich viele Zeilen
+    // bekommen (api_views.balanced_head), Kalshi aber viel schneller druckt.
+    + (fensterZeile ? '<div style="padding:9px 24px; border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:11px; color:rgba(var(--ink),.55)">'
+      + '<span style="letter-spacing:.14em; color:rgba(var(--ink),.6); margin-right:8px">SUMMED OVER</span>' + esc(fensterZeile) + '</div>' : '')
 
     + grafiken
 

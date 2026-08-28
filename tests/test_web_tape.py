@@ -105,6 +105,34 @@ class WebTapeTest(unittest.TestCase):
     def test_platform_filter_trifft_kalshi(self) -> None:
         self.assertEqual(self.ausgabe["kalshi_only"], 2)
 
+    def test_fenster_nennt_die_spanne_je_venue(self) -> None:
+        """TOTAL MOVED und $ GROUPED sind Summen ueber eine Spanne, die nirgends stand.
+
+        Beide Venues bekommen gleich viele Zeilen (api_views.balanced_head),
+        aber Kalshis 15-Minuten-Kryptomaerkte drucken um Groessenordnungen
+        schneller. Im Harness deckt Polymarket 360 Minuten ab und Kalshi 2 —
+        dieselbe Zeilenzahl, zwei verschiedene Fenster. Eine Summe ueber
+        beide ohne diese Angabe laesst sich nicht einordnen.
+        """
+
+        fenster = self.ausgabe["fenster"]
+        self.assertEqual(fenster["prints"], 5)
+        self.assertEqual(fenster["minuten"], 360)
+        je = {v["venue"]: v for v in fenster["jeVenue"]}
+        self.assertEqual(je["Polymarket"]["minuten"], 360)
+        self.assertEqual(je["Kalshi"]["minuten"], 2)
+        satz = self.ausgabe["fenster_satz"]
+        self.assertIn("Window: 6.0 h · 5 prints", satz)
+        self.assertIn("Kalshi 2 min (2)", satz)
+        self.assertIn("Polymarket 6.0 h (3)", satz)
+
+    def test_fenster_ohne_zeit_erfindet_keine_spanne(self) -> None:
+        self.assertIsNone(self.ausgabe["fenster_leer"])
+        self.assertIsNone(self.ausgabe["fenster_ohne_zeit"])
+
+    def test_dauer_formatiert_ohne_falsche_genauigkeit(self) -> None:
+        self.assertEqual(self.ausgabe["dauer"], ["<1 min", "42 min", "6.0 h", "3.0 d"])
+
 
 if __name__ == "__main__":
     unittest.main()
