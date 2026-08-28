@@ -278,6 +278,15 @@ function mitDaten(T) {
     event_min_score: 40,
     events_below_min: 7,
     kpis: { events_screened: 9, events_flagged: 2, high_risk_events: 1, high_risk_wallets: 2, fresh_clusters: 1, coordinated_clusters: 1 },
+    // Die Verteilung aller gescorten Maerkte (api_views.risk_score_bins):
+    // neun Maerkte, zwei davon ueber der Flag-Schwelle 40.
+    score_bins: [
+      { von: 0, bis: 10, anzahl: 2, geflaggt: 0 }, { von: 10, bis: 20, anzahl: 3, geflaggt: 0 },
+      { von: 20, bis: 30, anzahl: 1, geflaggt: 0 }, { von: 30, bis: 40, anzahl: 1, geflaggt: 0 },
+      { von: 40, bis: 50, anzahl: 1, geflaggt: 1 }, { von: 50, bis: 60, anzahl: 0, geflaggt: 0 },
+      { von: 60, bis: 70, anzahl: 0, geflaggt: 0 }, { von: 70, bis: 80, anzahl: 1, geflaggt: 1 },
+      { von: 80, bis: 90, anzahl: 0, geflaggt: 0 }, { von: 90, bis: 100, anzahl: 0, geflaggt: 0 }
+    ],
     wallets: [{
       wallet: 'quietwhale', address: '0xdd10000000000000000000000000000000000001',
       context: 'Xi Jinping out before 2027?', score: 71,

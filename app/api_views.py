@@ -1602,6 +1602,46 @@ def risk_event_row(row: Any) -> dict[str, Any]:
     }
 
 
+#: Breite eines Bins der Score-Verteilung des Risk-Screens, in Punkten.
+RISK_SCORE_BIN = 10
+
+
+def risk_score_bins(event_scores: pd.DataFrame, threshold: float) -> list[dict[str, Any]]:
+    """Verteilung der Ereignis-Scores in Zehnerschritten, mit geflaggtem Anteil.
+
+    Der Trichter sagt, wie viele Maerkte gescreent, geflaggt und hoch
+    bewertet wurden. Was er nicht sagt: wo im Feld eine gezeigte Karte
+    liegt. "77 von 100" ohne die Verteilung dahinter ist eine Zahl ohne
+    Bezugsrahmen. Der Screen bewertet ohnehin jeden Markt mit einem Print,
+    die Verteilung ist also schon da und muss nur mitgeliefert werden.
+
+    ``geflaggt`` ist die Teilmenge ab der Flag-Schwelle. Bins ohne einen
+    einzigen Markt bleiben mit Anzahl 0 stehen, damit die x-Achse durchgehend
+    ist statt zu springen.
+    """
+
+    stufen = [(v, min(100, v + RISK_SCORE_BIN)) for v in range(0, 100, RISK_SCORE_BIN)]
+    if event_scores is None or event_scores.empty:
+        return []
+    werte: list[float] = []
+    for _, row in event_scores.iterrows():
+        wert = _num(row.get("event_insider_score") or row.get("event_risk_score"), 0.0) or 0.0
+        werte.append(float(max(0.0, min(100.0, wert))))
+    if not werte:
+        return []
+    raus: list[dict[str, Any]] = []
+    for von, bis in stufen:
+        # Oberster Bin schliesst die 100 ein, alle anderen sind halboffen.
+        drin = [w for w in werte if (von <= w < bis or (bis >= 100 and w == 100.0))]
+        raus.append({
+            "von": von,
+            "bis": bis,
+            "anzahl": len(drin),
+            "geflaggt": sum(1 for w in drin if w >= threshold),
+        })
+    return raus
+
+
 def risk_payload(
     wallet_scores: pd.DataFrame,
     event_scores: pd.DataFrame,
@@ -1665,6 +1705,9 @@ def risk_payload(
         # "N weitere Maerkte unter 40 — watch only" statt Null-Karten zu zeigen.
         "event_min_score": round(threshold),
         "events_below_min": events_below_min,
+        # Wo die gezeigten Karten im Feld liegen. Der Trichter zaehlt drei
+        # Stufen, die Verteilung zeigt die Form dahinter.
+        "score_bins": risk_score_bins(event_scores, threshold),
         "kpis": {
             # Alle gescorten Maerkte, nicht die Kartenanzahl: vorher stand hier
             # len(events) — mit 12 Karten log die Zahl, mit Floor erst recht.

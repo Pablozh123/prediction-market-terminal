@@ -1419,6 +1419,47 @@ class ScorePartsTests(unittest.TestCase):
         leer = apv.leaderboard_scale(pd.DataFrame())
         self.assertIsNone(leer["saturates_at"])
 
+class RiskScoreBinsTests(unittest.TestCase):
+    """Die Score-Verteilung des Screens: gezaehlt, nicht geschaetzt."""
+
+    def _frame(self, werte: list[float]) -> pd.DataFrame:
+        return pd.DataFrame([{"event_insider_score": w} for w in werte])
+
+    def test_bins_zaehlen_alle_gescorten_maerkte(self) -> None:
+        bins = apv.risk_score_bins(self._frame([0.0, 5.0, 39.9, 40.0, 72.0, 100.0]), 40.0)
+        self.assertEqual(len(bins), 10)
+        self.assertEqual(sum(b["anzahl"] for b in bins), 6)
+        nach_von = {b["von"]: b for b in bins}
+        self.assertEqual(nach_von[0]["anzahl"], 2)
+        self.assertEqual(nach_von[30]["anzahl"], 1)
+        self.assertEqual(nach_von[40]["anzahl"], 1)
+        self.assertEqual(nach_von[70]["anzahl"], 1)
+        # Die 100 faellt in den obersten Bin, nicht heraus.
+        self.assertEqual(nach_von[90]["anzahl"], 1)
+
+    def test_geflaggt_ist_die_teilmenge_ab_der_schwelle(self) -> None:
+        bins = apv.risk_score_bins(self._frame([10.0, 41.0, 44.0, 88.0]), 40.0)
+        nach_von = {b["von"]: b for b in bins}
+        self.assertEqual(nach_von[40]["anzahl"], 2)
+        self.assertEqual(nach_von[40]["geflaggt"], 2)
+        self.assertEqual(nach_von[10]["geflaggt"], 0)
+        self.assertEqual(sum(b["geflaggt"] for b in bins), 3)
+
+    def test_ohne_maerkte_keine_bins(self) -> None:
+        self.assertEqual(apv.risk_score_bins(pd.DataFrame(), 40.0), [])
+        self.assertEqual(apv.risk_score_bins(None, 40.0), [])
+
+    def test_payload_traegt_die_verteilung(self) -> None:
+        events = self._frame([12.0, 55.0])
+        events["title"] = ["A", "B"]
+        events["platform"] = ["Polymarket", "Polymarket"]
+        payload = apv.risk_payload(pd.DataFrame(), events, min_event_score=40.0)
+        bins = payload["score_bins"]
+        self.assertEqual(sum(b["anzahl"] for b in bins), 2)
+        self.assertEqual(sum(b["geflaggt"] for b in bins), 1)
+        # Die Summe der Bins ist genau das, was der Trichter als gescreent zaehlt.
+        self.assertEqual(sum(b["anzahl"] for b in bins), payload["kpis"]["events_screened"])
+
 class RiskEventRowTests(unittest.TestCase):
     """The event card carries side, price, wallets, window, link and components — or honest gaps."""
 

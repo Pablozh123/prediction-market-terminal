@@ -854,6 +854,39 @@ export function renderRiskLog(T) {
 // re-render keeps it.
 const BAND = (score) => score >= 70 ? ['HIGH', 'var(--warn)'] : score >= 55 ? ['MEDIUM', 'var(--warn)'] : score >= 40 ? ['ELEVATED', 'rgba(var(--ink),.7)'] : ['LOW', 'rgba(var(--ink),.6)'];
 
+// Die Score-Verteilung des Screens. Der Trichter bleibt, er zaehlt drei
+// Stufen; das Histogramm sagt, welche Form dahinter liegt.
+//
+// Ohne sie ist "77 von 100" eine Zahl ohne Bezugsrahmen: liegt 77 am oberen
+// Rand eines dichten Feldes oder mitten drin? Die beiden Bandgrenzen stehen
+// als senkrechte Referenzen im Bild, die geflaggte Teilmenge als zweite Lage
+// in derselben Saeule, damit man sieht, wo die Karten herkommen.
+export function riskScoreVerteilung(live) {
+  const bins = live && Array.isArray(live.score_bins) ? live.score_bins : [];
+  const gefuellt = bins.filter((b) => b && (+b.anzahl || 0) > 0);
+  if (!gefuellt.length) return '';
+  const minScore = live && live.event_min_score != null ? Math.round(Number(live.event_min_score)) : 40;
+  const gesamt = bins.reduce((a, b) => a + (+b.anzahl || 0), 0);
+  const geflaggt = bins.reduce((a, b) => a + (+b.geflaggt || 0), 0);
+  return histogramm({
+    titel: 'WHERE THE SCORES SIT',
+    hinweis: num(gesamt) + ' markets scored',
+    xLabel: 'insider-pattern score (points out of 100)',
+    yLabel: 'markets screened',
+    bins: bins.map((b) => ({ von: +b.von, bis: +b.bis, anzahl: +b.anzahl || 0, geflaggt: +b.geflaggt || 0 })).map((b) => ({
+      von: b.von, bis: b.bis, anzahl: b.anzahl, hervor: b.geflaggt
+    })),
+    referenzen: [{ wert: minScore, label: 'flag ' + minScore }, { wert: 70, label: 'high 70' }],
+    gesamtLabel: 'screened',
+    hervorLabel: 'flagged, gets a card',
+    zaehlEinheit: 'markets',
+    hoehe: 190,
+    fussnote: num(geflaggt) + ' of ' + num(gesamt) + ' scored markets cleared the flag threshold of '
+      + minScore + '/100 and appear as cards. The score is a behavioural screen over public trade data; '
+      + 'a flag is a review signal, not proof of wrongdoing.'
+  });
+}
+
 export function riskEventCard(T, r0) {
   const r = T.riskCardView(r0);
   const s = T.state || {};
@@ -950,8 +983,9 @@ export function renderRisk(T) {
     '<div style="flex:1; background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; gap:10px">'
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6)">' + label + '</div>'
     + '<div style="' + M + '; font-size:18px; color:' + (amber ? 'var(--warn)' : 'var(--text)') + '">' + (wert != null ? wert : '—') + '</div></div>';
+  const verteilung = riskScoreVerteilung(live);
   const trichter =
-    '<div style="display:flex; gap:14px; padding:14px 24px; border-bottom:1px solid rgba(var(--ink),.09)">'
+    '<div style="display:flex; gap:14px; padding:14px 24px' + (verteilung ? '' : '; border-bottom:1px solid rgba(var(--ink),.09)') + '">'
     + '<div style="flex:1; background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:14px 18px; display:flex; flex-direction:column; gap:9px">'
     + '<div style="display:flex; justify-content:space-between; align-items:baseline; gap:10px">'
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6)">THE SCREEN, AS A FUNNEL</div>'
@@ -964,7 +998,13 @@ export function renderRisk(T) {
     + seitenKpi('HIGH-RISK WALLETS', kp ? kp.high_risk_wallets : null, true)
     + seitenKpi('FRESH-WALLET CLUSTERS', kp ? kp.fresh_clusters : null, false)
     + seitenKpi('COORDINATED CLUSTERS', kp ? kp.coordinated_clusters : null, false)
-    + '</div></div>';
+    + '</div></div>'
+    // Unter dem Trichter, nicht daneben: der Trichter zaehlt drei Stufen,
+    // das Histogramm zeigt die Verteilung, aus der sie geschnitten sind.
+    + (verteilung
+      ? '<div style="padding:0 24px 14px; border-bottom:1px solid rgba(var(--ink),.09)">'
+        + '<div style="max-width:700px">' + verteilung + '</div></div>'
+      : '');
   const walletRows = live && live.wallets ? live.wallets : [];
 
   let body = '';

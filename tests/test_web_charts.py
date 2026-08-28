@@ -31,7 +31,7 @@ WURZEL = Path(__file__).resolve().parents[1]
 HARNESS = WURZEL / "tests" / "web_render_harness.mjs"
 
 #: Werkzeugseiten, die mit Nutzlast ein Diagramm zeichnen muessen.
-SEITEN_MIT_DIAGRAMM = ("traders", "wallet")
+SEITEN_MIT_DIAGRAMM = ("traders", "wallet", "risk")
 
 #: Je Seite die Achsenbeschriftungen, die im Klartext dastehen muessen.
 #: Dollar, Cent, Kontrakte und Wahrscheinlichkeiten stehen im Terminal
@@ -39,6 +39,7 @@ SEITEN_MIT_DIAGRAMM = ("traders", "wallet")
 ACHSEN_MIT_EINHEIT = {
     "traders": ["smart score (points out of 100)", "volume traded (USD, log)"],
     "wallet": ["at stake (USD)"],
+    "risk": ["insider-pattern score (points out of 100)", "markets screened"],
 }
 
 
@@ -133,6 +134,18 @@ class WebDiagrammTest(unittest.TestCase):
         self.assertIn("RESULT vs STAKE", treemap)
         # Und kein hartes Dunkel mehr hinter den Kacheln.
         self.assertNotIn("#0D1114", treemap)
+
+    def test_risk_zeigt_die_score_verteilung_mit_beiden_bandgrenzen(self) -> None:
+        """Der Trichter zaehlt drei Stufen, das Histogramm zeigt die Form."""
+
+        html = self.ausgabe["live"]["risk"]
+        self.assertIn("WHERE THE SCORES SIT", html)
+        self.assertIn("flag 40", html)
+        self.assertIn("high 70", html)
+        # Geflaggte Teilmenge als zweite Lage, mit Legende statt nur Farbe.
+        self.assertIn("flagged, gets a card", html)
+        self.assertIn("screened", html)
+        self.assertIn("a flag is a review signal, not proof of wrongdoing", html)
 
     def test_punktwolke_faerbt_keinen_text_mit_der_datenfarbe(self) -> None:
         """Text traegt Ink-Stufen, Marken tragen die Serienfarbe."""
