@@ -681,8 +681,11 @@ function riskBookEntry(T, r) {
 }
 
 const BOOK_FARBE = (rel) => rel === 'adds' || rel === 'new_bet' ? 'var(--accent)' : rel === 'reduces' || rel === 'hedge' || rel === 'exit' ? 'var(--warn)' : 'rgba(var(--ink),.6)';
-const BOOK_WORT = (rel) => rel === 'adds' ? 'ADDS TO BOOK' : rel === 'reduces' ? 'HEDGE / CLOSING' : rel === 'hedge' ? 'HEDGED BOTH SIDES' : rel === 'exit' ? 'EXIT' : rel === 'new_bet' ? 'NOT HELD NOW' : 'BOOK';
-const BOOK_KURZ = (rel) => rel === 'adds' ? 'adds' : rel === 'reduces' ? 'hedge / closing' : rel === 'hedge' ? 'hedged' : rel === 'exit' ? 'exit' : rel === 'new_bet' ? 'not held' : 'book';
+const BOOK_WORT = (rel) => rel === 'adds' ? 'ADDS TO BOOK' : rel === 'reduces' ? 'HEDGE / CLOSING' : rel === 'hedge' ? 'HEDGED BOTH SIDES' : rel === 'exit' ? 'EXIT' : rel === 'new_bet' ? 'NOT HELD NOW' : rel === 'unpriced' ? 'NOT PRICED' : 'BOOK';
+// "unpriced": the feed carried the rows but no price for them. That is not
+// "nothing held" — it is nothing readable, and it gets its own word so the
+// card cannot report a gap in the feed as an empty book.
+const BOOK_KURZ = (rel) => rel === 'adds' ? 'adds' : rel === 'reduces' ? 'hedge / closing' : rel === 'hedge' ? 'hedged' : rel === 'exit' ? 'exit' : rel === 'new_bet' ? 'not held' : rel === 'unpriced' ? 'not priced' : 'book';
 
 // One line for the closed card: "BOOK NOW 1 adds · 2 not held" — the
 // relation counts, coloured like the full lines. "reading…" / "not read"
@@ -721,7 +724,7 @@ export function riskBookHtml(T, r) {
   return '<div style="margin-top:8px; display:flex; flex-direction:column; gap:4px">'
     + books.map((b) => {
       if (!b.read) return '<div style="font-size:11.5px; color:rgba(var(--ink),.6)">' + kopf + esc(b.short || b.wallet) + ' not read (' + esc(b.error || 'no answer') + ')</div>';
-      const netz = b.net === 'YES' || b.net === 'NO' ? 'net ' + b.net : b.net === 'balanced' ? 'balanced' : 'flat';
+      const netz = b.net === 'YES' || b.net === 'NO' ? 'net ' + b.net : b.net === 'balanced' ? 'balanced' : b.relation === 'unpriced' ? 'no price' : 'flat';
       return '<div style="font-size:11.5px; line-height:1.45; color:rgba(var(--ink),.7)">' + kopf
         + '<span style="' + M + '; color:rgba(var(--ink),.85)">' + esc(b.short || b.wallet) + '</span> '
         + '<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:' + BOOK_FARBE(b.relation) + '; border:1px solid color-mix(in srgb, ' + BOOK_FARBE(b.relation) + ' 33%, transparent); border-radius:4px; padding:1px 6px; margin:0 4px">' + BOOK_WORT(b.relation) + ' · ' + esc(netz) + '</span>'
