@@ -45,8 +45,8 @@ export const REGISTER = {
       "en": "Raw PnL ranks mislead: legs inflate win rates and winner-only feeds hide losses. The per-wallet skill read corrects both."
     },
     "screen_not_proof": {
-      "de": "Verhaltens-Screen ueber oeffentliche Handelsdaten: Rechercheanlaesse, keine juristischen Feststellungen. Ein Flag ist ein Pruefsignal, kein Beweis fuer Fehlverhalten.",
-      "en": "A behavioural screen over public trade data: research leads, not legal findings. A flag is a review signal, not proof of wrongdoing."
+      "de": "Verhaltens-Screen nach bestem Bemuehen ueber oeffentliche Handelsdaten: Rechercheanlaesse, keine juristischen Feststellungen. Ein Flag ist ein Pruefsignal, kein Beweis fuer Fehlverhalten.",
+      "en": "A best-effort behavioural screen on public trade data: research leads, not legal findings. A flag is a review signal, not proof of wrongdoing."
     },
     "backtest_modeled": {
       "de": "Simulation zu historischen Preisen mit Fee- und Slippage-Annahmen. Modellierte Werte, keine realisierten Ergebnisse.",
