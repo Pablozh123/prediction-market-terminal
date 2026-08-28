@@ -52,6 +52,10 @@ BEKANNTE_NOTIZEN: tuple[tuple[str, str], ...] = (
 
 PILOT_NOTIZ = "Pre-registered small-stake pilot, rules frozen 2026-07-18; one of the 20 pilot trades of 2026-07-22."
 
+#: Prefix of ``pnl_art`` for rows whose PnL was taken from the wallet's own
+#: payments because the closed-positions feed contradicted itself.
+KASSEN_KORREKTUR = "realised from the wallet's own cash flow"
+
 
 # ----------------------------------------------------------------- helpers
 
@@ -174,16 +178,36 @@ def resolved_positions_union(closed_desc: Iterable[Mapping[str, Any]] | None,
 
 # ---------------------------------------------------------------- the ledger
 
-def _market_status(closed_row: Mapping[str, Any] | None, open_row: Mapping[str, Any] | None) -> tuple[str, float | None, str]:
-    """(status, pnl_usd, pnl_art) for one market from the two position feeds."""
+def _market_status(closed_row: Mapping[str, Any] | None, open_row: Mapping[str, Any] | None,
+                   kasse: Mapping[str, Any] | None = None) -> tuple[str, float | None, str]:
+    """(status, pnl_usd, pnl_art) for one market from the two position feeds.
+
+    ``kasse`` is the market's own cash flow as the activity feed recorded it
+    (``kauf_usd``, ``verkauf_usd``, ``einloesung_usd``). It settles a
+    contradiction the closed-positions feed produces for redeemed positions:
+    ``curPrice`` 1 means the outcome the wallet held settled at one dollar, and
+    a redemption paying one dollar per share confirms it, yet the feed still
+    reports ``realizedPnl = minus the whole stake``. Six of this wallet's 45
+    resolved rows look like that (for example "Will Anthropic have the #2 AI
+    model at the end of July 2026?": 5.3191 shares bought for $5.01, redeemed
+    for $5.32, feed says −$5.01). Where the feed contradicts itself the
+    wallet's own payments decide, because they are what actually moved.
+    """
 
     if closed_row is not None:
         pnl = _num(closed_row.get("realizedPnl"))
+        art = "realised (API realizedPnl)"
+        kauf = _num((kasse or {}).get("kauf_usd"))
+        verkauf = _num((kasse or {}).get("verkauf_usd"))
+        einloesung = _num((kasse or {}).get("einloesung_usd"))
+        if _num(closed_row.get("curPrice")) >= 1.0 and pnl < 0 and einloesung > 0 and kauf > 0:
+            pnl = verkauf + einloesung - kauf
+            art = KASSEN_KORREKTUR + " — the API's realizedPnl contradicts curPrice 1 and a full redemption"
         if pnl > 0:
-            return "won", pnl, "realised (API realizedPnl)"
+            return "won", pnl, art
         if pnl < 0:
-            return "lost", pnl, "realised (API realizedPnl)"
-        return "flat", pnl, "realised (API realizedPnl)"
+            return "lost", pnl, art
+        return "flat", pnl, art
     if open_row is not None:
         cur = _num(open_row.get("curPrice"))
         value = _num(open_row.get("currentValue"))
@@ -304,6 +328,9 @@ def build_ledger(
         for t in (TYP_BOT, TYP_DISKRETIONAER, TYP_PILOT)
     }
     realisiert_api = 0.0
+    wertlos_pnl = 0.0
+    offen_pnl = 0.0
+    n_korrigiert = 0
     out_events: list[dict[str, Any]] = []
     seen_positions: set[tuple[str, str]] = set()
     for slug, ev in events.items():
@@ -311,6 +338,7 @@ def build_ledger(
         maerkte_out: list[dict[str, Any]] = []
         zuordnungen: list[str] = []
         pnl_sum = 0.0
+        pnl_offen = 0.0
         pnl_known = False
         ev_status = {"won": 0, "lost": 0, "flat": 0, "worthless": 0, "open": 0, "unknown": 0}
         for key, mk in ev["maerkte"].items():
@@ -325,14 +353,21 @@ def build_ledger(
             elif key[0] in pilot["condition_ids"] or title in pilot["titles"]:
                 zuordnung = TYP_PILOT
             zuordnungen.append(zuordnung)
-            status, pnl, pnl_art = _market_status(closed_by.get(key), open_by.get(key))
+            status, pnl, pnl_art = _market_status(closed_by.get(key), open_by.get(key), mk)
             status_zaehler[status] += 1
             ev_status[status] += 1
+            if pnl_art.startswith(KASSEN_KORREKTUR):
+                n_korrigiert += 1
             if pnl is not None:
                 pnl_sum += pnl
                 pnl_known = True
                 if closed_by.get(key) is not None:
                     realisiert_api += pnl
+                elif status == "worthless":
+                    wertlos_pnl += pnl
+                elif status == "open":
+                    offen_pnl += pnl
+                    pnl_offen += pnl
             avg = mk["kauf_usd"] / mk["kauf_shares"] if mk["kauf_shares"] > 0 else None
             typ_zaehler[zuordnung]["maerkte"] += 1
             typ_zaehler[zuordnung]["einsatz_usd"] += mk["kauf_usd"]
@@ -408,6 +443,11 @@ def build_ledger(
             "einloesungen_usd": _r2(ev["einloesungen_usd"]),
             "netto_cash_usd": _r2(ev["verkaeufe_usd"] + ev["einloesungen_usd"] - ev["kaeufe_usd"]),
             "pnl_usd": _r2(pnl_sum) if pnl_known else None,
+            # Der unrealisierte Teil derselben Summe. ``pnl_usd`` mischt den
+            # abgerechneten PnL aufgeloester Maerkte mit dem Buchgewinn noch
+            # offener Positionen; ohne diese Zahl kann die Seite den Titel
+            # "API realised PnL" nicht ehrlich fuehren.
+            "pnl_offen_usd": _r2(pnl_offen) if ev_status["open"] else None,
             "status": ev_status,
             "status_text": status_text or "—",
             "notes": notes,
@@ -436,6 +476,18 @@ def build_ledger(
         "rueckfluss_usd": _r2(sells_usd + redeems_usd),
         "netto_cashflow_usd": _r2(sells_usd + redeems_usd - buys_usd),
         "realisierter_pnl_api_usd": _r2(realisiert_api),
+        # Der PnL der aufgeloesten, aber nie eingeloesten Positionen. Er steht
+        # NICHT in ``realisierter_pnl_api_usd``: die stehen im /positions-Feed
+        # und tauchen in /closed-positions nie auf. Es sind ausschliesslich
+        # Verluste, die Summe oben ist also nach oben verzerrt — bei dieser
+        # Wallet um 113,86 Dollar auf 55 Positionen. ``abgerechneter_pnl_usd``
+        # ist die Zahl, die sich nicht mehr bewegen kann.
+        "wertlos_pnl_usd": _r2(wertlos_pnl),
+        "abgerechneter_pnl_usd": _r2(realisiert_api + wertlos_pnl),
+        "offener_pnl_usd": _r2(offen_pnl),
+        # Zeilen, deren realizedPnl dem eigenen Zahlungsstrom widersprach und
+        # aus ihm neu gerechnet wurde (siehe ``_market_status``).
+        "positionen_kassenkorrigiert": n_korrigiert,
         "n_events": len(out_events),
         "n_maerkte": sum(e["n_maerkte"] for e in out_events),
         "n_trades": n_trades,
@@ -467,7 +519,11 @@ def build_ledger(
         "file. Type: bot = market and side appear in a runs.json run log; pilot = one of the pre-registered "
         "pilot trades in pilot.json; discretionary = placed by hand, in no run log. Dollar figures are sums "
         "over the API rows; realised PnL per market is the API's realizedPnl and can differ from the cash "
-        "flow of an event. Deposits are not in the Data API. A record of process, not a return claim."
+        "flow of an event. Where that field contradicts the settlement price and the redemption the wallet "
+        "received, the wallet's own payments decide (pnl_art says so per market). realisierter_pnl_api_usd "
+        "covers the closed-positions feed only; resolved positions that were never redeemed sit in /positions "
+        "and are exclusively losses, so abgerechneter_pnl_usd (realised + worthless) is the settled total. "
+        "Deposits are not in the Data API. A record of process, not a return claim."
     )
     return {
         "hinweis": hinweis,

@@ -770,7 +770,9 @@ def _wallet_edge(
     by_category: list[dict[str, Any]] = []
     if resolved is not None and not resolved.empty:
         df = resolved.copy()
-        df["cost"] = pd.to_numeric(df.get("total_bought"), errors="coerce").fillna(0.0)
+        # Dollar-Einsatz, nicht Stueckzahl: ``total_bought`` zaehlt Anteile,
+        # und die Kachel darueber heisst "Cent je Dollar".
+        df["cost"] = trec.stake_usd(df)
         df["payout"] = df["cost"] + pd.to_numeric(df.get("realized_pnl"), errors="coerce").fillna(0.0)
         df["group"] = df.apply(trec._event_key, axis=1)
         try:
@@ -888,10 +890,14 @@ def _wallet_closed(resolved: pd.DataFrame | None, capped: bool, worthless_n: int
                    coverage_note: str) -> dict[str, Any]:
     if resolved is None or resolved.empty:
         return {"as_of": as_of, "capped": bool(capped), "n": 0, "shown": 0, "won": 0, "lost": 0, "flat": 0,
-                "worthless_not_redeemed": int(worthless_n), "rows": [], "realized_pnl": 0.0, "note": coverage_note,
+                "worthless_not_redeemed": int(worthless_n), "pnl_from_cash_flow": 0,
+                "rows": [], "realized_pnl": 0.0, "note": coverage_note,
                 "source": "polymarket /closed-positions, both sort directions, ~50 rows per tail"}
     df = resolved.copy()
     df["_pnl"] = pd.to_numeric(df.get("realized_pnl"), errors="coerce").fillna(0.0)
+    # Zeilen, deren realizedPnl dem eigenen Zahlungsstrom widersprach und aus
+    # ihm neu gerechnet wurde (track_record.reconcile_resolved_with_activity).
+    aus_kasse = int((df.get("pnl_source", pd.Series("", index=df.index)).astype(str) == "cash_flow").sum())
     won = int((df["_pnl"] > 0).sum())
     lost = int((df["_pnl"] < 0).sum())
     flat = int(len(df) - won - lost)
@@ -921,9 +927,13 @@ def _wallet_closed(resolved: pd.DataFrame | None, capped: bool, worthless_n: int
         "lost": lost,
         "flat": flat,
         "worthless_not_redeemed": int(worthless_n),
+        "pnl_from_cash_flow": aus_kasse,
         "realized_pnl": round(float(df["_pnl"].sum()), 2),
         "rows": rows,
-        "note": coverage_note,
+        "note": coverage_note + (
+            f" {aus_kasse} row(s) carried a realizedPnl that contradicted the settlement price and the "
+            "redemption the wallet received; their PnL comes from the wallet's own payments instead."
+            if aus_kasse else ""),
         "source": "polymarket /closed-positions, both sort directions, ~50 rows per tail",
     }
 
@@ -1032,7 +1042,7 @@ def _wallet_risk_profile(resolved: pd.DataFrame | None, capped: bool, activity: 
     if resolved is not None and not resolved.empty:
         df = resolved.copy()
         df["_pnl"] = pd.to_numeric(df.get("realized_pnl"), errors="coerce").fillna(0.0)
-        df["_stake"] = pd.to_numeric(df.get("total_bought"), errors="coerce").fillna(0.0)
+        df["_stake"] = trec.stake_usd(df)
         df["_time"] = pd.to_datetime(df.get("time"), utc=True, errors="coerce")
         wins = df[df["_pnl"] > 0]
         losses = df[df["_pnl"] < 0]

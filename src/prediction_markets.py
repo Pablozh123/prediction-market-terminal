@@ -2178,8 +2178,14 @@ def get_polymarket_closed_positions(
     df["outcome"] = df.get("outcome", "")
     df["avg_price"] = pd.to_numeric(df.get("avgPrice", 0), errors="coerce").fillna(0.0)
     df["current_price"] = pd.to_numeric(df.get("curPrice", 0), errors="coerce").fillna(0.0)
+    # ``totalBought`` counts SHARES, not dollars. The feed proves it row by
+    # row: a fully lost position reports realizedPnl = -(totalBought x
+    # avgPrice) and a winner held to settlement reports totalBought x
+    # (1 - avgPrice). Anything that means "dollars at risk" has to use
+    # ``cost_usd``; ``total_bought`` keeps the API's name and the API's unit.
     df["total_bought"] = pd.to_numeric(df.get("totalBought", 0), errors="coerce").fillna(0.0)
     df["realized_pnl"] = pd.to_numeric(df.get("realizedPnl", 0), errors="coerce").fillna(0.0)
+    df["cost_usd"] = df["total_bought"] * df["avg_price"]
     df["time"] = pd.to_datetime(df.get("timestamp"), unit="s", utc=True, errors="coerce")
     df["market_key"] = df.get("conditionId", "")
     df["slug"] = df.get("slug", "")
@@ -2194,6 +2200,7 @@ def get_polymarket_closed_positions(
         "avg_price",
         "current_price",
         "total_bought",
+        "cost_usd",
         "realized_pnl",
         "market_key",
         "url",
@@ -3284,6 +3291,11 @@ def enrich_activity_counterparties(
 def whale_wallets(trades: pd.DataFrame) -> pd.DataFrame:
     if trades.empty or "wallet" not in trades:
         return pd.DataFrame()
+    # Maerkte werden ueber den Schluessel gezaehlt, nicht ueber den Titel:
+    # eine wiederkehrende Frage laeuft jede Woche unter einer neuen
+    # conditionId (siehe market_identity).
+    trades = trades.copy()
+    trades["market_identity"] = market_identity(trades)
     grouped = (
         trades.groupby(["wallet", "trader"], dropna=False)
         .agg(
@@ -3291,7 +3303,7 @@ def whale_wallets(trades: pd.DataFrame) -> pd.DataFrame:
             notional=("notional", "sum"),
             avg_trade=("notional", "mean"),
             latest_trade=("time", "max"),
-            markets=("title", pd.Series.nunique),
+            markets=("market_identity", pd.Series.nunique),
         )
         .reset_index()
         .sort_values("notional", ascending=False)
@@ -3312,7 +3324,7 @@ def whale_behavior_metrics(trades: pd.DataFrame, whale_threshold: float = 10_000
     df["price"] = pd.to_numeric(_df_col(df, "price", 0.0), errors="coerce").fillna(0.0).clip(lower=0.0)
     df["size"] = pd.to_numeric(_df_col(df, "size", 0.0), errors="coerce").fillna(0.0).clip(lower=0.0)
     df["notional"] = pd.to_numeric(_df_col(df, "notional", 0.0), errors="coerce").fillna(0.0).clip(lower=0.0)
-    df = df[df["wallet"].str.strip().ne("")]
+    df = df[identified_wallets(df["wallet"])]
     if df.empty:
         return pd.DataFrame()
 
@@ -3463,6 +3475,45 @@ def _price_move_features(df: pd.DataFrame, group_cols: list[str]) -> pd.DataFram
     return pd.DataFrame(rows, columns=columns)
 
 
+#: Kalshi publishes no trader identities: ``get_kalshi_trades`` stamps this
+#: literal into the wallet and trader columns. It is a placeholder, and a
+#: placeholder must never become a measurement - grouped by wallet, every
+#: Kalshi print on the tape collapses into one pseudo-trader carrying the
+#: pooled notional of the whole venue. On a mixed tape that pseudo-trader
+#: outscored every real address (71/100 "High" against 57 for a real wallet
+#: in the reproduction) and led the risk screen's wallet table.
+WALLET_NOT_PUBLIC = "Not public"
+
+
+def market_identity(frame: pd.DataFrame) -> pd.Series:
+    """One id per market for wallet-level grouping: the key, else the title.
+
+    Counting markets by title merges markets that only share a question.
+    Recurring series do exactly that: of the 45 resolved markets of the
+    reference wallet only 43 titles are distinct, because "Will 'Nvidia' be
+    said during the next episode of the All-In Podcast?" runs weekly under a
+    new conditionId. Grouped by title, two episodes look like one market, so
+    "single-market concentration" fires on a wallet that spread its flow
+    across two.
+    """
+
+    title = _df_col(frame, "title", "").fillna("").astype(str)
+    key = _df_col(frame, "market_key", "").fillna("").astype(str)
+    return key.where(key.str.strip().ne(""), title)
+
+
+def identified_wallets(values: pd.Series) -> pd.Series:
+    """Mask of rows that carry a real trader identity.
+
+    Empty, "nan", "none" and the ``WALLET_NOT_PUBLIC`` placeholder are not
+    identities. Every wallet-level count, score or cluster uses this, so no
+    surface can disagree about who counts as a wallet.
+    """
+
+    text = values.astype(str).str.strip().str.lower()
+    return ~text.isin({"", "nan", "none", "<na>", WALLET_NOT_PUBLIC.lower()})
+
+
 def _prepare_whale_risk_trades(trades: pd.DataFrame, now: Any | None = None) -> tuple[pd.DataFrame, pd.Timestamp]:
     current_time = pd.to_datetime(now, utc=True, errors="coerce") if now is not None else pd.Timestamp.now(tz="UTC")
     if pd.isna(current_time):
@@ -3497,11 +3548,11 @@ def whale_wallet_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_0
     df, _current_time = _prepare_whale_risk_trades(trades, now)
     if df.empty or "wallet" not in df:
         return pd.DataFrame()
-    df = df[df["wallet"].str.strip().ne("")]
-    df = df[df["wallet"].str.lower().ne("nan")]
+    df = df[identified_wallets(df["wallet"])]
     if df.empty:
         return pd.DataFrame()
     df["signed_notional"] = _direction_sign(df["side_upper"], df["outcome_upper"]) * df["notional"]
+    df["market_identity"] = market_identity(df)
 
     grouped = (
         df.groupby("wallet", dropna=False)
@@ -3511,7 +3562,7 @@ def whale_wallet_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_0
             notional=("notional", "sum"),
             avg_trade=("notional", "mean"),
             largest_trade=("notional", "max"),
-            markets=("title", pd.Series.nunique),
+            markets=("market_identity", pd.Series.nunique),
             first_seen=("time", "min"),
             latest_trade=("time", "max"),
             late_notional=("late_notional", "sum"),
@@ -3526,11 +3577,18 @@ def whale_wallet_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_0
     top_market = _dominant_bucket(
         df,
         ["wallet"],
-        "title",
+        "market_identity",
         bucket_name="top_market",
         share_name="top_market_share",
         notional_name="top_market_notional",
     )
+    # Der Schluessel gruppiert, der Titel steht auf der Karte.
+    if not top_market.empty:
+        beschriftung = (
+            df.drop_duplicates(subset=["market_identity"]).set_index("market_identity")["title"]
+        )
+        titel = top_market["top_market"].map(beschriftung)
+        top_market["top_market"] = titel.where(titel.fillna("").astype(str).str.strip().ne(""), top_market["top_market"])
     top_outcome = _dominant_bucket(
         df[df["outcome_upper"].isin(["YES", "NO"])],
         ["wallet"],
@@ -3634,6 +3692,7 @@ def whale_event_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_00
     if df.empty:
         return pd.DataFrame()
     df["signed_notional"] = _direction_sign(df["side_upper"], df["outcome_upper"]) * df["notional"]
+    df["market_identity"] = market_identity(df)
 
     grouped = (
         df.groupby(["platform", "title"], dropna=False)
@@ -3796,7 +3855,7 @@ def trader_flow_scores(trades: pd.DataFrame, whale_threshold: float = 2500) -> p
             recent_notional=("notional", "sum"),
             avg_trade=("notional", "mean"),
             largest_trade=("notional", "max"),
-            markets=("title", pd.Series.nunique),
+            markets=("market_identity", pd.Series.nunique),
             outcomes=("outcome", pd.Series.nunique),
             first_seen=("time", "min"),
             last_seen=("time", "max"),

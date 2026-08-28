@@ -19,6 +19,16 @@ class ResolvedPositionsUnionTests(unittest.TestCase):
         self.assertFalse(capped)
         self.assertIn(-300.0, list(df["realized_pnl"]))  # loser present
 
+    def test_cost_usd_converts_the_share_count_into_dollars(self) -> None:
+        # totalBought zaehlt Anteile: 100 Anteile zu 0.50 sind 50 Dollar
+        # Einsatz. Ohne diese Spalte rechnete jede "je Dollar"-Kennzahl
+        # gegen die Stueckzahl.
+        rows = [self._row("w1", 25.0)]
+        with patch("src.prediction_markets._get_json", side_effect=[rows, []]):
+            df, _capped = md.get_polymarket_resolved_positions("0xabc")
+        self.assertAlmostEqual(float(df.iloc[0]["total_bought"]), 100.0)
+        self.assertAlmostEqual(float(df.iloc[0]["cost_usd"]), 50.0)
+
     def test_capped_when_both_tails_hit_cap(self) -> None:
         winners = [self._row(f"w{i}", 100 + i) for i in range(md.CLOSED_POSITIONS_PAGE_CAP)]
         losers = [self._row(f"l{i}", -(100 + i)) for i in range(md.CLOSED_POSITIONS_PAGE_CAP)]

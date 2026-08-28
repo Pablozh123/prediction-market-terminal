@@ -3,6 +3,7 @@ import unittest
 import pandas as pd
 
 from app import suspicion as susp
+from src import prediction_markets as md
 
 
 def tape(rows):
@@ -17,6 +18,90 @@ def trade(wallet, title, outcome="Yes", notional=5000.0, time="2026-06-10T12:00:
         "notional": notional,
         "time": pd.Timestamp(time),
     }
+
+
+class PlatzhalterIstKeineWalletTests(unittest.TestCase):
+    """Kalshi veroeffentlicht keine Wallets und stempelt "Not public" ein.
+
+    Ueber die Wallet gruppiert faellt damit jeder Kalshi-Print der Venue in
+    einen einzigen Pseudo-Trader mit dem gebuendelten Volumen des ganzen
+    Bandes. Der stand mit 71/100 ("High") ueber jeder echten Adresse (57) an
+    der Spitze der Wallet-Tabelle des Risk-Screens.
+    """
+
+    def _mixed_tape(self):
+        base = pd.Timestamp("2026-08-28T12:00:00", tz="UTC")
+        rows = [{
+            "platform": "Kalshi", "time": base + pd.Timedelta(seconds=20 * i), "wallet": "Not public",
+            "trader": "Not public", "side": "yes", "outcome": "yes", "title": f"KXCEO-26AUG28-{i % 5}",
+            "market_key": f"KXCEO-26AUG28-{i % 5}", "price": 0.08, "size": 40000, "notional": 3200.0,
+            "end_time": base + pd.Timedelta(hours=10),
+        } for i in range(40)]
+        rows.append({
+            "platform": "Polymarket", "time": base, "wallet": "0x" + "1" * 40, "trader": "", "side": "BUY",
+            "outcome": "Yes", "title": "Will the CEO resign?", "market_key": "0xabc", "price": 0.1,
+            "size": 30000, "notional": 3000.0, "end_time": base + pd.Timedelta(hours=10),
+        })
+        return pd.DataFrame(rows)
+
+    def test_identified_wallets_rejects_the_placeholder(self) -> None:
+        mask = md.identified_wallets(pd.Series(["0xabc", "Not public", "not public", "", "nan", "NaN", "None"]))
+        self.assertEqual(list(mask), [True, False, False, False, False, False, False])
+
+    def test_the_pooled_venue_never_reaches_the_wallet_scores(self) -> None:
+        scores = md.whale_wallet_risk_scores(self._mixed_tape(), whale_threshold=2500.0)
+        self.assertEqual(list(scores["wallet"]), ["0x" + "1" * 40])
+
+    def test_fresh_wallet_clusters_ignore_it_too(self) -> None:
+        clusters = susp.fresh_wallet_clusters(self._mixed_tape(), whale_threshold=2500.0)
+        self.assertTrue(clusters.empty)
+
+
+class ZaehleinheitMarktTests(unittest.TestCase):
+    """Ein Markt ist ein Schluessel, kein Titel.
+
+    Die wiederkehrende Podcast-Frage laeuft jede Woche unter einer neuen
+    conditionId: von den 45 aufgeloesten Maerkten der Referenz-Wallet tragen
+    nur 43 verschiedene Titel. Ueber den Titel gruppiert sehen zwei Folgen
+    wie ein Markt aus, und "single-market concentration" schlaegt bei einer
+    Wallet an, die ihren Flow auf zwei verteilt hat.
+    """
+
+    def _tape(self):
+        base = pd.Timestamp("2026-08-28T12:00:00", tz="UTC")
+        titel = 'Will "Nvidia" be said during the next episode of the All-In Podcast?'
+        return pd.DataFrame([
+            {"platform": "Polymarket", "time": base, "wallet": "0x" + "1" * 40, "trader": "", "side": "BUY",
+             "outcome": "Yes", "title": titel, "market_key": "0xweek1", "price": 0.4, "size": 10000,
+             "notional": 4000.0, "end_time": base + pd.Timedelta(days=5)},
+            {"platform": "Polymarket", "time": base + pd.Timedelta(minutes=3), "wallet": "0x" + "1" * 40,
+             "trader": "", "side": "BUY", "outcome": "Yes", "title": titel, "market_key": "0xweek2",
+             "price": 0.4, "size": 10000, "notional": 4000.0, "end_time": base + pd.Timedelta(days=12)},
+        ])
+
+    def test_two_episodes_are_two_markets(self) -> None:
+        scores = md.whale_wallet_risk_scores(self._tape(), whale_threshold=2500.0)
+        row = scores.iloc[0]
+        self.assertEqual(int(row["markets"]), 2)
+        self.assertAlmostEqual(float(row["top_market_share"]), 0.5, places=6)
+        self.assertNotIn("single-market concentration", str(row["wallet_insider_flags"]))
+
+    def test_the_card_still_shows_the_question_not_the_key(self) -> None:
+        scores = md.whale_wallet_risk_scores(self._tape(), whale_threshold=2500.0)
+        self.assertIn("Nvidia", str(scores.iloc[0]["top_market"]))
+
+    def test_whale_wallets_counts_markets_by_key_too(self) -> None:
+        frame = pd.DataFrame([
+            {"wallet": "0xa", "trader": "a", "notional": 100.0, "time": pd.Timestamp("2026-08-28", tz="UTC"),
+             "title": "Q?", "market_key": "0x1"},
+            {"wallet": "0xa", "trader": "a", "notional": 200.0, "time": pd.Timestamp("2026-08-28", tz="UTC"),
+             "title": "Q?", "market_key": "0x2"},
+        ])
+        self.assertEqual(int(md.whale_wallets(frame).iloc[0]["markets"]), 2)
+
+    def test_market_identity_falls_back_to_the_title(self) -> None:
+        frame = pd.DataFrame([{"title": "A question", "market_key": ""}, {"title": "B", "market_key": "0xb"}])
+        self.assertEqual(list(md.market_identity(frame)), ["A question", "0xb"])
 
 
 class FreshWalletClusterTests(unittest.TestCase):

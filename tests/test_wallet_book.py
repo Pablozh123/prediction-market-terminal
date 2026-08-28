@@ -22,6 +22,43 @@ def _pos(outcome: str, size: float, avg: float = 0.5, cur: float = 0.5, cid: str
     return {"outcome": outcome, "size": size, "avgPrice": avg, "curPrice": cur, "currentValue": size * cur, "conditionId": cid}
 
 
+class SettledLeftoverTests(unittest.TestCase):
+    """Aufgeloeste, nie eingeloeste Anteile sind kein Buch.
+
+    Echte Zeile der Referenz-Wallet aus /positions (2026-08-28): 228.1766
+    Anteile NO in "Will Procter & Gamble say 'Fiscal' 10+ times during
+    earnings call?", curPrice 0, currentValue 0, endDate 2026-07-29. Die
+    Karte las daraus ein Netto-NO-Buch und beschrieb jeden YES-Kauf als
+    Absicherung gegen eine Position, die es nicht mehr gibt.
+    """
+
+    def test_dead_side_is_not_a_book(self) -> None:
+        book = wb.summarize_book([_pos("No", 228.1766, avg=0.0438, cur=0.0)])
+        self.assertEqual(book["no_shares"], 0)
+        self.assertEqual(book["net"], "none")
+        self.assertAlmostEqual(book["settled_shares"], 228.18, places=2)
+        self.assertEqual(book["settled_positions"], 1)
+
+    def test_live_side_survives_next_to_a_dead_one(self) -> None:
+        book = wb.summarize_book([_pos("Yes", 400, cur=0.62), _pos("No", 5000, cur=0.0)])
+        self.assertEqual(book["yes_shares"], 400)
+        self.assertEqual(book["no_shares"], 0)
+        self.assertEqual(book["net"], "YES")
+        self.assertEqual(book["settled_shares"], 5000)
+
+    def test_relation_names_the_leftover_instead_of_a_hedge(self) -> None:
+        book = wb.summarize_book([_pos("No", 228.1766, avg=0.0438, cur=0.0)])
+        rel = wb.relate_flow_to_book("YES BUYS", book)
+        self.assertEqual(rel["relation"], "new_bet")
+        self.assertIn("settled position left unredeemed", rel["text"])
+        self.assertNotIn("work against a NO book", rel["text"])
+
+    def test_row_without_a_price_stays_unknown_not_settled(self) -> None:
+        book = wb.summarize_book([{"outcome": "Yes", "size": 10}])
+        self.assertEqual(book["settled_positions"], 0)
+        self.assertEqual(book["yes_shares"], 10)
+
+
 class SummarizeBookTests(unittest.TestCase):
     def test_sums_each_side_and_reads_the_net(self) -> None:
         book = wb.summarize_book([_pos("Yes", 100, 0.6), _pos("No", 12000, 0.4), _pos("No", 500, 0.42)])

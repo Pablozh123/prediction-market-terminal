@@ -285,5 +285,71 @@ class EmptyAndHelperTests(unittest.TestCase):
         self.assertFalse(capped)
 
 
+# Echte Zeilen der Wallet, Feld fuer Feld aus dem oeffentlichen Feed
+# uebernommen (2026-08-28): der gehaltene Ausgang ist mit curPrice 1
+# aufgeloest und die Einloesung hat je Anteil einen Dollar gezahlt, aber
+# /closed-positions meldet minus den ganzen Einsatz.
+CID_A2 = "0x5a2f58c07be8f99012ca65766c9c727afecbe61d30914210f91d0cf704267b62"
+EVENT_A2 = "which-company-has-the-2-ai-model-end-of-july-style-control-on"
+TITEL_A2 = "Will Anthropic have the #2 AI model at the end of July 2026?"
+WIDERSPRUCH_ACTIVITY = [
+    _row("REDEEM", 1_785_533_852, CID_A2, TITEL_A2, "Yes", 5.319133, 5.319133, event=EVENT_A2),
+    _row("TRADE", 1_784_725_737, CID_A2, TITEL_A2, "Yes", 5.011975, 5.319133, price=0.94, event=EVENT_A2),
+]
+WIDERSPRUCH_CLOSED = [{
+    "proxyWallet": W, "conditionId": CID_A2, "avgPrice": 0.9422, "totalBought": 5.3191,
+    "realizedPnl": -5.0119, "curPrice": 1, "title": TITEL_A2, "slug": "s", "eventSlug": EVENT_A2,
+    "outcome": "Yes", "endDate": "2026-07-31", "timestamp": 1_785_533_802,
+}]
+
+
+class WidersprechendeSchlusszeileTests(unittest.TestCase):
+    """Eine eingeloeste Gewinnposition darf nicht als Totalverlust erscheinen."""
+
+    def _ledger(self):
+        return wl.build_ledger(WIDERSPRUCH_ACTIVITY, [], WIDERSPRUCH_CLOSED, [],
+                               stand_utc="2026-08-28T00:00:00+00:00")
+
+    def test_kassenstrom_schlaegt_widerspruechliches_realized_pnl(self) -> None:
+        markt = self._ledger()["events"][0]["maerkte"][0]
+        # Gekauft fuer 5.01, eingeloest fuer 5.32 -> plus 0.31, nicht minus 5.01.
+        self.assertEqual(markt["status"], "won")
+        self.assertAlmostEqual(markt["pnl_usd"], 0.31, places=2)
+        self.assertTrue(markt["pnl_art"].startswith(wl.KASSEN_KORREKTUR))
+
+    def test_korrektur_wird_gezaehlt_und_geht_in_die_summe(self) -> None:
+        agg = self._ledger()["aggregat"]
+        self.assertEqual(agg["positionen_kassenkorrigiert"], 1)
+        self.assertEqual(agg["positionen_gewonnen"], 1)
+        self.assertEqual(agg["positionen_verloren"], 0)
+        self.assertAlmostEqual(agg["realisierter_pnl_api_usd"], 0.31, places=2)
+        # Fuer eine vollstaendig abgerechnete Position ist der Netto-Cashflow
+        # die Probe: er kennt weder realizedPnl noch curPrice.
+        self.assertAlmostEqual(agg["netto_cashflow_usd"], agg["abgerechneter_pnl_usd"], places=2)
+
+    def test_kein_eingriff_ohne_beleg(self) -> None:
+        # Ohne Einloesung (Position vor der Aufloesung mit Verlust verkauft)
+        # bleibt realizedPnl stehen, auch wenn der Markt spaeter auf 1 ging.
+        ohne_redeem = [r for r in WIDERSPRUCH_ACTIVITY if r["type"] != "REDEEM"]
+        markt = wl.build_ledger(ohne_redeem, [], WIDERSPRUCH_CLOSED, [])["events"][0]["maerkte"][0]
+        self.assertEqual(markt["status"], "lost")
+        self.assertAlmostEqual(markt["pnl_usd"], -5.01, places=2)
+        self.assertEqual(markt["pnl_art"], "realised (API realizedPnl)")
+
+
+class AbgerechneterPnlTests(unittest.TestCase):
+    """Nicht eingeloeste, aufgeloeste Positionen fehlen im closed-Feed."""
+
+    def test_wertlose_verluste_stehen_neben_dem_api_wert(self) -> None:
+        agg = _build()["aggregat"]
+        # Extra: 20 Anteile zu 0.50 gekauft, wertlos ausgelaufen, nie eingeloest.
+        self.assertAlmostEqual(agg["wertlos_pnl_usd"], -10.0, places=2)
+        self.assertAlmostEqual(agg["abgerechneter_pnl_usd"],
+                               agg["realisierter_pnl_api_usd"] + agg["wertlos_pnl_usd"], places=2)
+        self.assertLess(agg["abgerechneter_pnl_usd"], agg["realisierter_pnl_api_usd"])
+        self.assertEqual(agg["offener_pnl_usd"], 0.0)
+        self.assertIn("abgerechneter_pnl_usd", _build()["hinweis"])
+
+
 if __name__ == "__main__":
     unittest.main()

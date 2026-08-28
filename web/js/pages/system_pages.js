@@ -2,7 +2,7 @@
 // design reference. Research tabs render the published JSON payloads from
 // public/data/ when the API serves them, incl. their stand_utc stamp and note.
 
-import { esc, num, herkunftSatz, leerZeile, EINZAHLUNGEN_USD, stempelBlock } from '../util.js';
+import { esc, num, herkunftSatz, leerZeile, EINZAHLUNGEN_USD, offeneNichtDrin, stempelBlock } from '../util.js';
 import { stepKurve, diagramm, linien, kalibrierung, fmtZahl, SERIEN_FARBEN } from '../charts.js';
 import { renderMicrostructure } from './microstructure_page.js';
 
@@ -1486,7 +1486,7 @@ function renderLiveRuns(T, payload) {
         label: 'ROI (WALLET · ALL ACTIVITY)',
         value: (roi >= 0 ? '+' : '') + roi.toFixed(1) + '%',
         sub: 'net cashflow ' + (+la.netto_cashflow_usd >= 0 ? '+$' : '-$') + num(Math.abs(+la.netto_cashflow_usd).toFixed(0))
-          + ' on the one-time deposit of $' + num(einzahlungen.toFixed(0)),
+          + ' on the one-time deposit of $' + num(einzahlungen.toFixed(0)) + offeneNichtDrin(la),
         color: roi >= 0 ? 'var(--pos)' : 'var(--neg)'
       };
     })()
@@ -2289,6 +2289,17 @@ function ledgerMarktZeile(m) {
     + '</div>';
 }
 
+// Die PnL-Zahl eines Events benennen. Sie summiert den abgerechneten PnL
+// aufgeloester Maerkte UND den Buchgewinn noch offener Positionen (die API
+// liefert dort cashPnl). "API realised PnL" war dafuer der falsche Name,
+// sobald ein Markt des Events noch laeuft.
+export function ledgerPnlSatz(e) {
+  const offen = e && e.pnl_offen_usd != null ? +e.pnl_offen_usd : 0;
+  if (!offen) return 'settled PnL ' + ledgerGeld(e ? e.pnl_usd : null, true);
+  return 'PnL ' + ledgerGeld(e.pnl_usd, true) + ', of which ' + ledgerGeld(offen, true)
+    + ' unrealised on open positions';
+}
+
 // The section: KPI row from aggregat, then ONE table for everything — every
 // wallet event (bot rows open to the full run detail: chips, bets, latency;
 // the pilot's many small events grouped into one expandable row) plus the
@@ -2385,12 +2396,12 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
       + (mixRest ? '<span style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6)">+ ' + esc(mixRest) + '</span>' : '') + '</div>'
       + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:rgba(var(--ink),.7)">' + num(e.n_maerkte != null ? e.n_maerkte : alleMaerkte.length) + '</div>'
       + '<div style="text-align:right; ' + M + '; font-size:11.5px">' + ledgerGeld(e.einsatz_usd, false) + '</div>'
-      + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:' + ledgerFarbe(e.pnl_usd != null ? e.pnl_usd : e.netto_cash_usd) + '" title="' + esc('API realised PnL ' + ledgerGeld(e.pnl_usd, true) + ' · cash flow ' + ledgerGeld(e.netto_cash_usd, true)) + '">' + ledgerGeld(e.pnl_usd != null ? e.pnl_usd : e.netto_cash_usd, true) + '</div>'
+      + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:' + ledgerFarbe(e.pnl_usd != null ? e.pnl_usd : e.netto_cash_usd) + '" title="' + esc(ledgerPnlSatz(e) + ' · cash flow ' + ledgerGeld(e.netto_cash_usd, true)) + '">' + ledgerGeld(e.pnl_usd != null ? e.pnl_usd : e.netto_cash_usd, true) + '</div>'
       + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(e.status_text || '') + '">' + esc(e.status_text || '—') + '</div>'
       + '</summary>'
       + '<div style="padding:4px 16px 12px 108px">'
       + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-bottom:4px">'
-      + esc(zeitraum + ' · ' + ledgerZahlwort(e.n_trades, 'trade', 'trades') + ' · ' + ledgerZahlwort(e.n_einloesungen, 'redemption', 'redemptions') + ' · cash flow ' + ledgerGeld(e.netto_cash_usd, true) + (e.pnl_usd != null ? ' · API realised PnL ' + ledgerGeld(e.pnl_usd, true) : ''))
+      + esc(zeitraum + ' · ' + ledgerZahlwort(e.n_trades, 'trade', 'trades') + ' · ' + ledgerZahlwort(e.n_einloesungen, 'redemption', 'redemptions') + ' · cash flow ' + ledgerGeld(e.netto_cash_usd, true) + (e.pnl_usd != null ? ' · ' + ledgerPnlSatz(e) : ''))
       + '</div>'
       + (lauf
         ? '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-bottom:4px">'
@@ -2428,7 +2439,7 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
       + '<div style="display:flex; gap:4px; align-items:center">' + ledgerTypChip('pilot') + '</div>'
       + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:rgba(var(--ink),.7)">' + num(maerkteN) + '</div>'
       + '<div style="text-align:right; ' + M + '; font-size:11.5px">' + ledgerGeld(summe('einsatz_usd'), false) + '</div>'
-      + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:' + ledgerFarbe(pnl) + '" title="' + esc('sum of API realised PnL ' + ledgerGeld(pnl, true) + ' · sum of cash flow ' + ledgerGeld(summe('netto_cash_usd'), true)) + '">' + ledgerGeld(pnl, true) + '</div>'
+      + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:' + ledgerFarbe(pnl) + '" title="' + esc('sum of ' + ledgerPnlSatz({ pnl_usd: pnl, pnl_offen_usd: summe('pnl_offen_usd') }) + ' · sum of cash flow ' + ledgerGeld(summe('netto_cash_usd'), true)) + '">' + ledgerGeld(pnl, true) + '</div>'
       + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(statusText) + '">' + esc(statusText || '—') + '</div>'
       + '</summary>'
       + '<div style="padding:4px 16px 12px 108px">'

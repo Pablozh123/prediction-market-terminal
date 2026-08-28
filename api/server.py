@@ -120,6 +120,7 @@ from app import cross_pairs
 from app import pilot_result
 from app import scorecard as sc
 from app import signals as sig
+from app import track_record as trec
 from app import venue_units as vu
 from app.analysis_views import load_publish_payload
 from src import prediction_markets as md
@@ -657,6 +658,19 @@ def build_wallet_detail(wallet: str) -> dict[str, Any]:
     except Exception as exc:
         print(f"[warn] activity {wallet}: {exc}")
 
+    # Zeilen, deren realizedPnl dem eigenen Zahlungsstrom widerspricht
+    # (curPrice 1 und volle Einloesung, trotzdem minus der ganze Einsatz),
+    # werden aus der Aktivitaet neu gerechnet - vor allen Bloecken, damit
+    # Track Record, Kalibrierung, Edge und die Closed-Tabelle dieselbe Zahl
+    # sehen. Ohne Aktivitaet bleibt alles, wie die API es liefert.
+    if not resolved.empty:
+        try:
+            resolved, korrigiert = trec.reconcile_resolved_with_activity(resolved, activity)
+            if korrigiert:
+                print(f"[info] {wallet}: {korrigiert} closed rows re-derived from the wallet's cash flow")
+        except Exception as exc:
+            print(f"[warn] resolved/activity reconciliation {wallet}: {exc}")
+
     def _resolved(_w: str):
         if resolved_error:
             raise RuntimeError(resolved_error)
@@ -923,9 +937,7 @@ def risk_screen_basis() -> tuple[pd.DataFrame, pd.DataFrame, float]:
 
     from app import suspicion as susp
 
-    settings = cfg.load_settings()
-    whale_threshold = float(settings.get("whale_threshold", 2500))
-    tape_floor = max(md.DISTRIBUTION_NOTIONAL_FLOOR, whale_threshold * 0.2)
+    whale_threshold, tape_floor = susp.screen_thresholds(cfg.load_settings())
     trades = load_tape(limit=1000, min_cash=tape_floor)
     if trades.empty:
         return pd.DataFrame(), pd.DataFrame(), whale_threshold
@@ -1164,6 +1176,11 @@ def risk_log_endpoint(limit: int = Query(100, ge=1, le=500), enrich: int = 0, si
         "count": len(rows),
         "enriched": enriched,
         "enrich_max": RISK_LOG_ENRICH_MAX,
+        # Die Einzelbewegungen waren da, die Quote nie: wer den Screen
+        # beurteilen wollte, musste gruene Zellen zaehlen. Sie steht jetzt
+        # mit n, 95-Prozent-Intervall, Sample-Badge, Stand und den
+        # weggelassenen Nennern daneben.
+        "scoreboard": risk_log.flag_scoreboard(rows, as_of=None, enrich_max=RISK_LOG_ENRICH_MAX) if enrich else None,
         "min_score": risk_log.min_score(),
         "dedupe_hours": risk_log.DEDUPE_HOURS,
         "sampler_interval_min": RISK_LOG_INTERVAL_MIN,

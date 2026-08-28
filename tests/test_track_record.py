@@ -197,5 +197,93 @@ class ActivityReconstructionTests(unittest.TestCase):
         self.assertTrue(tr.settled_from_activity(pd.DataFrame()).empty)
 
 
+class ReconcileWithActivityTests(unittest.TestCase):
+    """Eine eingeloeste Gewinnposition darf nicht als Totalverlust dastehen.
+
+    Echte Zeilen der Wallet 0x29af...f88d (2026-08-28): /closed-positions
+    meldet fuer "Will Anthropic have the #2 AI model at the end of July
+    2026?" avgPrice 0.9422, totalBought 5.3191, curPrice 1 und realizedPnl
+    -5.0119. Die Aktivitaet dazu: ein Kauf ueber $5.011975 und eine
+    Einloesung ueber $5.319133 - also plus 31 Cent. Die Seite zeigte den
+    Verlust und ihre eigene Kalibrierungskurve, die den Aufloesungspreis
+    liest, gleichzeitig einen Treffer.
+    """
+
+    CID = "0x5a2f58c07be8f99012ca65766c9c727afecbe61d30914210f91d0cf704267b62"
+
+    def _resolved(self, pnl=-5.0119, cur=1.0):
+        return pd.DataFrame([{
+            "market_key": self.CID, "outcome": "Yes", "title": "Anthropic #2",
+            "avg_price": 0.9422, "current_price": cur, "total_bought": 5.3191, "realized_pnl": pnl,
+        }])
+
+    def _activity(self, mit_redeem=True):
+        rows = [{"market_key": self.CID, "outcome": "Yes", "type": "TRADE", "side": "BUY", "notional": 5.011975}]
+        if mit_redeem:
+            rows.append({"market_key": self.CID, "outcome": "Yes", "type": "REDEEM", "side": "", "notional": 5.319133})
+        return pd.DataFrame(rows)
+
+    def test_cash_flow_replaces_the_contradictory_row(self):
+        frame, n = tr.reconcile_resolved_with_activity(self._resolved(), self._activity())
+        self.assertEqual(n, 1)
+        self.assertAlmostEqual(float(frame.iloc[0]["realized_pnl"]), 0.307158, places=5)
+        self.assertEqual(frame.iloc[0]["pnl_source"], "cash_flow")
+
+    def test_no_redemption_no_correction(self):
+        # Vor der Aufloesung mit Verlust verkauft: realizedPnl stimmt, auch
+        # wenn der Markt spaeter auf 1 ging.
+        frame, n = tr.reconcile_resolved_with_activity(self._resolved(), self._activity(mit_redeem=False))
+        self.assertEqual(n, 0)
+        self.assertAlmostEqual(float(frame.iloc[0]["realized_pnl"]), -5.0119, places=4)
+        self.assertEqual(frame.iloc[0]["pnl_source"], "api")
+
+    def test_untouched_when_the_feed_does_not_contradict_itself(self):
+        frame, n = tr.reconcile_resolved_with_activity(self._resolved(pnl=-5.0119, cur=0.0), self._activity())
+        self.assertEqual(n, 0)
+        self.assertAlmostEqual(float(frame.iloc[0]["realized_pnl"]), -5.0119, places=4)
+
+    def test_without_activity_nothing_is_invented(self):
+        frame, n = tr.reconcile_resolved_with_activity(self._resolved(), None)
+        self.assertEqual(n, 0)
+        self.assertEqual(frame.iloc[0]["pnl_source"], "api")
+        leer, n_leer = tr.reconcile_resolved_with_activity(pd.DataFrame(), self._activity())
+        self.assertEqual(n_leer, 0)
+        self.assertTrue(leer.empty)
+
+
+class StakeUsdTests(unittest.TestCase):
+    """``total_bought`` zaehlt Anteile; jede Dollar-Groesse muss umrechnen.
+
+    Beleg aus dem oeffentlichen Feed (2026-08-28, Wallet 0x29af...f88d):
+    'Will "Blue" be said during the next episode of the All-In Podcast?'
+    steht mit totalBought 179.809, avgPrice 0.6887 und realizedPnl 55.9739 -
+    und 179.809 x (1 - 0.6887) = 55.974. Die Zahl geht nur auf, wenn
+    totalBought Anteile sind: 179.809 Anteile fuer $123.83.
+    """
+
+    def test_shares_times_price_is_the_dollar_stake(self):
+        frame = closed([pos("blue", 55.9739, 179.809)])
+        frame["avg_price"] = 0.6887
+        self.assertAlmostEqual(float(tr.stake_usd(frame).iloc[0]), 123.83, places=2)
+
+    def test_cost_usd_column_wins_when_present(self):
+        frame = closed([pos("blue", 55.9739, 179.809)])
+        frame["avg_price"] = 0.6887
+        frame["cost_usd"] = 120.0
+        self.assertAlmostEqual(float(tr.stake_usd(frame).iloc[0]), 120.0, places=6)
+
+    def test_without_a_price_the_share_count_is_all_there_is(self):
+        frame = closed([pos("blue", 55.9739, 179.809)])
+        self.assertAlmostEqual(float(tr.stake_usd(frame).iloc[0]), 179.809, places=3)
+        self.assertTrue(tr.stake_usd(pd.DataFrame()).empty)
+
+    def test_market_return_is_pnl_per_dollar(self):
+        frame = closed([pos("m1", 50.0, 200.0)])
+        frame["avg_price"] = 0.5
+        rec = tr.market_records(frame)
+        self.assertAlmostEqual(float(rec.iloc[0]["volume"]), 100.0)
+        self.assertAlmostEqual(float(rec.iloc[0]["return"]), 0.5)
+
+
 if __name__ == "__main__":
     unittest.main()

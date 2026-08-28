@@ -23,11 +23,45 @@ import pandas as pd
 
 from app.filters import numeric_col
 from app.format import money, pct
+from src.prediction_markets import identified_wallets
 
 try:
     import networkx as nx
 except ImportError:  # pragma: no cover - networkx ships with the environment
     nx = None
+
+#: Whale-Schwelle, wenn die Einstellungen keine tragen.
+DEFAULT_WHALE_THRESHOLD = 2500.0
+
+
+def screen_thresholds(settings: Any = None) -> tuple[float, float]:
+    """(whale_threshold, tape_floor) fuer JEDE Oberflaeche mit Insider-Score.
+
+    Eine Definition, damit dieselbe Wallet nicht auf zwei Seiten zwei Zahlen
+    unter demselben Namen traegt. Der Screen im API-Server las das Tape ab
+    ``max(500, 20 % der Whale-Schwelle)``, die Streamlit-Seite "Suspicious"
+    ab der Whale-Schwelle selbst (2500) — verschiedene Boeden bedeuten
+    verschiedene Anteile (Long-Odds-Anteil, Marktkonzentration, Prints je
+    Stunde) und damit verschiedene Scores.
+
+    Der Boden ist derselbe, ab dem der Scorer Verteilungs-Signale voll
+    zaehlt (``md.DISTRIBUTION_NOTIONAL_FLOOR``): mit ``min_cash=0`` fressen
+    die Mikro-Prints das Fenster, mit der vollen Whale-Schwelle bleibt zu
+    wenig Tape uebrig, um Anteile zu messen.
+    """
+
+    from app import app_settings as cfg
+    from src import prediction_markets as md
+
+    data = settings if settings is not None else cfg.load_settings()
+    try:
+        whale = float((data or {}).get("whale_threshold", DEFAULT_WHALE_THRESHOLD))
+    except (TypeError, ValueError):
+        whale = DEFAULT_WHALE_THRESHOLD
+    if whale != whale or whale <= 0:
+        whale = DEFAULT_WHALE_THRESHOLD
+    return whale, max(float(md.DISTRIBUTION_NOTIONAL_FLOOR), whale * 0.2)
+
 
 RISK_BANDS = ((70, "High"), (55, "Medium"), (40, "Elevated"))
 WATCH_ONLY = "watch only"
@@ -251,7 +285,7 @@ def fresh_wallet_clusters(
         return pd.DataFrame(columns=columns)
     df = trades.copy()
     df["wallet"] = df["wallet"].astype(str).str.lower().str.strip()
-    df = df[df["wallet"].ne("") & df["wallet"].ne("nan")]
+    df = df[identified_wallets(df["wallet"])]
     if df.empty:
         return pd.DataFrame(columns=columns)
     # Clusters are wallet evidence — they must stay on the venue that produced
@@ -358,7 +392,7 @@ def dominant_context_map(trades: pd.DataFrame, market_categories: pd.DataFrame |
         return {}
     df = trades.copy()
     df["wallet"] = df["wallet"].astype(str).str.lower().str.strip()
-    df = df[df["wallet"].ne("") & df["wallet"].ne("nan")]
+    df = df[identified_wallets(df["wallet"])]
     if df.empty:
         return {}
     category_map, context_map = _category_context_maps(market_categories)
@@ -396,7 +430,7 @@ def coordinated_clusters(
         return pd.DataFrame(columns=columns)
     df = trades.copy()
     df["wallet"] = df["wallet"].astype(str).str.lower().str.strip()
-    df = df[df["wallet"].ne("") & df["wallet"].ne("nan")]
+    df = df[identified_wallets(df["wallet"])]
     df["time"] = pd.to_datetime(df["time"], utc=True, errors="coerce")
     df = df.dropna(subset=["time"])
     if df.empty:
@@ -509,7 +543,7 @@ def co_trading_network(
         return empty
     df = trades.copy()
     df["wallet"] = df["wallet"].astype(str).str.lower().str.strip()
-    df = df[df["wallet"].ne("") & df["wallet"].ne("nan")]
+    df = df[identified_wallets(df["wallet"])]
     if df.empty:
         return empty
     df["outcome_label"] = df.get("outcome", pd.Series("", index=df.index)).astype(str).str.upper().str.strip()
@@ -936,7 +970,7 @@ def apply_wallet_category_context(
         return wallet_risk
     df = trades.copy()
     df["wallet"] = df["wallet"].astype(str).str.lower().str.strip()
-    df = df[df["wallet"].ne("") & df["wallet"].ne("nan")]
+    df = df[identified_wallets(df["wallet"])]
     if df.empty:
         return wallet_risk
     category_map, context_map = _category_context_maps(market_categories)
@@ -1185,7 +1219,7 @@ def event_flow_details(
 
     fresh_set: set[str] | None = None
     if whale_threshold is not None:
-        with_wallet = df[df["_wallet"].ne("")]
+        with_wallet = df[identified_wallets(df["_wallet"])]
         if not with_wallet.empty:
             per_wallet = with_wallet.groupby("_wallet").agg(n=("_wallet", "size"), total=("_notional", "sum"))
             fresh_set = set(per_wallet[(per_wallet["n"] <= int(fresh_max_trades)) & (per_wallet["total"] >= float(whale_threshold))].index)
@@ -1228,7 +1262,7 @@ def event_flow_details(
                 print_offsets = [0.0] * int(len(ordered))
 
         top_wallets: list[dict[str, Any]] = []
-        with_wallet = group[group["_wallet"].ne("")]
+        with_wallet = group[identified_wallets(group["_wallet"])]
         if not with_wallet.empty:
             per_wallet = with_wallet.groupby("_wallet")["_notional"].sum().sort_values(ascending=False).head(int(top_n))
             for wallet, value in per_wallet.items():

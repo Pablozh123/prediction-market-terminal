@@ -183,7 +183,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  positions won {agg['positionen_gewonnen']} · lost {agg['positionen_verloren']} "
           f"(worthless {agg['positionen_wertlos']}) · flat {agg['positionen_flat']} · open {agg['positionen_offen']}"
           f" · closed feed capped: {agg['closed_positions_capped']}")
-    print(f"  window {agg['erste_aktivitaet_utc']} → {agg['letzte_aktivitaet_utc']}")
+    print(f"  window {agg['erste_aktivitaet_utc']} -> {agg['letzte_aktivitaet_utc']}")
     for typ, v in agg["nach_typ"].items():
         print(f"  {typ:14s} events {v['events']:3d} · markets {v['maerkte']:3d} · stake ${v['einsatz_usd']:,.2f} · net {v['netto_cash_usd']:+,.2f}")
     return 0

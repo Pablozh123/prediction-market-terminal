@@ -292,6 +292,35 @@ class RiskRowBasisTests(unittest.TestCase):
         # ... und die Wallet-Seite baut sich kein eigenes Tape mehr.
         self.assertNotIn("tape_df = load_tape(limit=1000, min_cash=0.0)", server)
 
+    def test_one_definition_of_the_screen_thresholds(self) -> None:
+        """Whale-Schwelle und Tape-Boden stehen an genau einer Stelle.
+
+        Die Streamlit-Seite "Suspicious" las das Tape ab der Whale-Schwelle
+        selbst (2500), der API-Screen ab 500 Dollar. Andere Boeden heissen
+        andere Anteile (Long-Odds, Marktkonzentration, Prints je Stunde) und
+        damit ein anderer Score fuer dieselbe Wallet unter demselben Namen.
+        """
+
+        from pathlib import Path as _Path
+
+        from app import suspicion as susp
+        from src import prediction_markets as md
+
+        whale, floor = susp.screen_thresholds({"whale_threshold": 2500})
+        self.assertAlmostEqual(whale, 2500.0)
+        self.assertAlmostEqual(floor, max(md.DISTRIBUTION_NOTIONAL_FLOOR, 2500 * 0.2))
+        # Eine hohe Schwelle hebt den Boden mit, eine unbrauchbare faellt auf
+        # den Standard zurueck statt auf null.
+        self.assertAlmostEqual(susp.screen_thresholds({"whale_threshold": 50_000})[1], 10_000.0)
+        self.assertAlmostEqual(susp.screen_thresholds({"whale_threshold": "x"})[0], susp.DEFAULT_WHALE_THRESHOLD)
+        self.assertAlmostEqual(susp.screen_thresholds({})[0], susp.DEFAULT_WHALE_THRESHOLD)
+
+        wurzel = _Path(__file__).resolve().parents[1]
+        for datei in ("api/server.py", "app/scorecard.py", "prediction_terminal.py"):
+            quelle = (wurzel / datei).read_text(encoding="utf-8")
+            self.assertIn("screen_thresholds(", quelle, datei)
+            self.assertNotIn('max(md.DISTRIBUTION_NOTIONAL_FLOOR, whale_threshold * 0.2)', quelle, datei)
+
 
 if __name__ == "__main__":
     unittest.main()
