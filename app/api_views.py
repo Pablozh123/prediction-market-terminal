@@ -1845,6 +1845,10 @@ def backtest_payload(result: Any) -> dict[str, Any]:
                 "followed_positions": int(_num((stats.get("auto_fit") or {}).get("followed_positions"), 0.0) or 0),
                 "capacity": int(_num((stats.get("auto_fit") or {}).get("capacity"), 0.0) or 0),
                 "peak_concurrent": int(_num((stats.get("auto_fit") or {}).get("peak_concurrent"), 0.0) or 0),
+                # Auto-Fit liest das ganze Fenster, bevor der erste Trade
+                # kopiert wird — die Seite muss das sagen duerfen.
+                "hindsight": bool((stats.get("auto_fit") or {}).get("hindsight", False)),
+                "note": _text((stats.get("auto_fit") or {}).get("note")),
             },
         },
         "benchmark_stats": {

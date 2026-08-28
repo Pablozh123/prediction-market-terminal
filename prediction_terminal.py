@@ -11705,6 +11705,17 @@ def page_backtester() -> None:
                         f"{money(best['final_equity'])} final equity ({float(best['roi']) * 100:+.1f}% ROI)</div>",
                         unsafe_allow_html=True,
                     )
+                    # Der Sieger ist das Maximum aus N Laeufen auf demselben
+                    # Fenster, auf dem er ausgewaehlt wurde. Ohne diesen Satz
+                    # liest sich die Zeile als erzielbares Ergebnis.
+                    variant_count = len(comparison)
+                    st.markdown(
+                        f"<div class='field-hint'>In-sample: the best of {variant_count} variants, ranked on the very "
+                        "window they were picked on, for a single wallet. The gap to the second row is the kind of "
+                        f"spread {variant_count} draws produce on their own — not evidence that this stake rule leads "
+                        "the next window.</div>",
+                        unsafe_allow_html=True,
+                    )
                     comparison_view = comparison.assign(
                         roi_pct=comparison["roi"] * 100,
                         dd_pct=comparison["max_drawdown"] * 100,

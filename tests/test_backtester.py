@@ -779,6 +779,67 @@ class RunBacktestTests(unittest.TestCase):
         self.assertFalse(result.stats["auto_fit"]["applied"])
         self.assertEqual(result.stats["auto_fit"]["peak_concurrent"], 10)
 
+    def test_applied_auto_fit_is_marked_as_hindsight(self):
+        # Schwelle und Einsatz werden aus dem GANZEN Fenster gewaehlt: die
+        # Spitzen-Gleichzeitigkeit steht erst am Ende fest. Der Lauf darf
+        # nicht als erzielbares Ergebnis durchgehen.
+        result = bt.run_backtest(
+            config(stake_value=250.0, auto_fit=True),
+            fetch_activity=self._zehn_positionen(),
+            fetch_markets_by_ids=lambda ids: [],
+            now=pd.Timestamp("2026-06-10", tz="UTC"),
+        )
+        fit = result.stats["auto_fit"]
+        self.assertTrue(fit["applied"])
+        self.assertTrue(fit["hindsight"])
+        self.assertIn("finished window", fit["note"])
+        self.assertIn("not as an achievable result", fit["note"])
+
+    def test_threshold_mode_is_marked_as_hindsight_too(self):
+        rows = [
+            trade(f"2026-05-{tag:02d}", "BUY", 0.50, 1000.0, asset=f"gross-{tag}", market_key=f"g-{tag}")
+            for tag in range(1, 4)
+        ] + [
+            trade(f"2026-05-{tag:02d}", "BUY", 0.50, 10.0, asset=f"klein-{tag}", market_key=f"k-{tag}")
+            for tag in range(4, 11)
+        ]
+        activity = pd.DataFrame(rows)
+
+        def fetch_activity(wallet, limit=500, offset=0):
+            return activity if offset == 0 else pd.DataFrame()
+
+        result = bt.run_backtest(
+            config(bankroll=100.0, stake_value=25.0, auto_fit=True),
+            fetch_activity=fetch_activity,
+            fetch_markets_by_ids=lambda ids: [],
+            now=pd.Timestamp("2026-06-10", tz="UTC"),
+        )
+        fit = result.stats["auto_fit"]
+        self.assertEqual(fit["mode"], "threshold")
+        self.assertTrue(fit["hindsight"])
+        self.assertTrue(fit["note"])
+
+    def test_measuring_the_pace_alone_is_not_hindsight(self):
+        # Ohne Auto-Fit veraendert die Messung den Lauf nicht, also gibt es
+        # auch nichts zu warnen.
+        result = bt.run_backtest(
+            config(stake_value=250.0, auto_fit=False),
+            fetch_activity=self._zehn_positionen(),
+            fetch_markets_by_ids=lambda ids: [],
+            now=pd.Timestamp("2026-06-10", tz="UTC"),
+        )
+        self.assertFalse(result.stats["auto_fit"]["hindsight"])
+        self.assertEqual(result.stats["auto_fit"]["note"], "")
+
+    def test_self_sizing_modes_carry_no_hindsight_flag(self):
+        result = bt.run_backtest(
+            config(sizing_mode=bt.SIZING_MIRROR, stake_value=10.0, auto_fit=True),
+            fetch_activity=self._zehn_positionen(),
+            fetch_markets_by_ids=lambda ids: [],
+            now=pd.Timestamp("2026-06-10", tz="UTC"),
+        )
+        self.assertFalse(result.stats["auto_fit"]["hindsight"])
+
     def test_event_slug_fallback_resolves_missing_markets(self):
         # /markets?condition_ids= kommt fuer Sport-Untermaerkte regelmaessig
         # leer zurueck; ueber das Elternereignis muss die Position trotzdem
