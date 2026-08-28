@@ -1,4 +1,5 @@
 import json
+import random
 import unittest
 
 import pandas as pd
@@ -121,6 +122,122 @@ class BaseRateTableTests(unittest.TestCase):
         self.assertEqual(int(table.iloc[0]["n"]), 1)
 
 
+class MultipleComparisonTests(unittest.TestCase):
+    """Five buckets tested at 95 percent each are five chances to be wrong.
+    On a universe priced exactly right, at least one band read "significant"
+    in 22 percent of runs."""
+
+    def _fair_universe(self, rng: random.Random) -> pd.DataFrame:
+        rows = []
+        for event in range(12):
+            for line in range(17):
+                price = rng.choice([0.30, 0.62, 0.84, 0.92, 0.965])
+                rows.append({"event_slug": f"e{event}", "market_key": f"m{event}-{line}",
+                             "price": price, "won": rng.random() < price})
+        return pd.DataFrame(rows)
+
+    def test_family_wise_error_stays_near_the_nominal_level(self) -> None:
+        rng = random.Random(3)
+        treffer = sum(
+            bool(brs.base_rate_table(self._fair_universe(rng))["significant"].any())
+            for _ in range(120)
+        )
+        self.assertLessEqual(treffer / 120, 0.10)
+
+    def test_the_family_size_is_reported(self) -> None:
+        table = brs.base_rate_table(self._fair_universe(random.Random(1)))
+        self.assertEqual(int(table.iloc[0]["family"]), len(table))
+
+    def test_the_adjusted_interval_is_the_wider_one(self) -> None:
+        rows = [{"event_slug": f"e{i}", "market_key": f"m{i}",
+                 "price": (0.35, 0.85, 0.92)[i % 3], "won": i % 7 != 0}
+                for i in range(120)]
+        table = brs.base_rate_table(pd.DataFrame(rows))
+        self.assertEqual(int(table.iloc[0]["family"]), 3)
+        for _, row in table.iterrows():
+            self.assertLess(row["ci_low_adj"], row["ci_low"])
+            self.assertGreater(row["ci_high_adj"], row["ci_high"])
+
+    def test_a_single_bucket_is_not_penalised(self) -> None:
+        rows = [{"event_slug": f"e{i}", "market_key": f"m{i}", "price": 0.85,
+                 "won": i % 7 != 0} for i in range(120)]
+        row = brs.base_rate_table(pd.DataFrame(rows)).iloc[0]
+        self.assertEqual(int(row["family"]), 1)
+        self.assertAlmostEqual(row["ci_low_adj"], row["ci_low"], places=4)
+
+    def test_a_real_mispricing_still_clears_the_wider_interval(self) -> None:
+        rng = random.Random(5)
+        rows = [{"event_slug": f"e{i // 17}", "market_key": f"m{i}", "price": 0.85,
+                 "won": rng.random() < 0.97} for i in range(1020)]
+        table = brs.base_rate_table(pd.DataFrame(rows))
+        self.assertTrue(bool(table["significant"].any()))
+
+
+class ClusterUnitTests(unittest.TestCase):
+    """One football match contributes about seventeen mutually exclusive lines
+    and exactly one draw. n is lines; events is the thing that varied."""
+
+    def test_events_are_counted_next_to_the_lines(self) -> None:
+        rows = [{"event_slug": "match-1", "market_key": f"m{i}", "price": 0.92,
+                 "won": i != 0} for i in range(17)]
+        row = brs.base_rate_table(pd.DataFrame(rows)).iloc[0]
+        self.assertEqual(int(row["n"]), 17)
+        self.assertEqual(int(row["markets"]), 17)
+        self.assertEqual(int(row["events"]), 1)
+
+    def test_a_single_event_is_never_significant(self) -> None:
+        """Seventeen lines of one match cannot carry a finding about a band."""
+        rows = [{"event_slug": "match-1", "market_key": f"m{i}", "price": 0.50,
+                 "won": True} for i in range(17)]
+        self.assertFalse(bool(brs.base_rate_table(pd.DataFrame(rows))["significant"].any()))
+
+    def test_without_event_slugs_events_falls_back_to_the_line_count(self) -> None:
+        rows = [{"market_key": f"m{i}", "price": 0.9, "won": True} for i in range(10)]
+        self.assertEqual(int(brs.base_rate_table(pd.DataFrame(rows)).iloc[0]["events"]), 10)
+
+
+class SelectionGapTests(unittest.TestCase):
+    """The picked lines against the ones left alone: two disjoint halves, so
+    the difference can carry an interval."""
+
+    def _universe(self, picked_rate: float, rest_rate: float, seed: int = 5) -> pd.DataFrame:
+        rng = random.Random(seed)
+        rows = []
+        for i in range(400):
+            gewaehlt = i % 4 == 0
+            rows.append({"event_slug": f"e{i // 17}", "token_id": f"t{i}", "price": 0.85,
+                         "won": rng.random() < (picked_rate if gewaehlt else rest_rate)})
+        return pd.DataFrame(rows)
+
+    def _picked(self, universe: pd.DataFrame) -> list[str]:
+        return [t for i, t in enumerate(universe["token_id"]) if i % 4 == 0]
+
+    def test_a_real_picking_edge_is_separable(self) -> None:
+        universe = self._universe(0.97, 0.85)
+        out = brs.selection_gap(universe, self._picked(universe))
+        self.assertEqual(out["n_picked"], 100)
+        self.assertEqual(out["n_rest"], 300)
+        self.assertGreater(out["selection_pp"], 0.0)
+        self.assertGreater(out["ci_low"], 0.0)
+        self.assertTrue(out["separable"])
+
+    def test_no_picking_edge_leaves_the_interval_across_zero(self) -> None:
+        universe = self._universe(0.85, 0.85, seed=11)
+        out = brs.selection_gap(universe, self._picked(universe))
+        self.assertLessEqual(out["ci_low"], 0.0)
+        self.assertGreaterEqual(out["ci_high"], 0.0)
+        self.assertFalse(out["separable"])
+
+    def test_an_empty_half_yields_no_comparison(self) -> None:
+        universe = self._universe(0.9, 0.9)
+        out = brs.selection_gap(universe, [])
+        self.assertEqual(out["n_picked"], 0)
+        self.assertIsNone(out["selection_pp"])
+
+    def test_missing_key_column_is_handled(self) -> None:
+        self.assertIsNone(brs.selection_gap(pd.DataFrame(), [])["selection_pp"])
+
+
 class ConvictionSplitTests(unittest.TestCase):
     def _frame(self, rows: list[tuple[float, bool, float]]) -> pd.DataFrame:
         return pd.DataFrame([
@@ -136,6 +253,18 @@ class ConvictionSplitTests(unittest.TestCase):
         halves = split.set_index("half")
         self.assertAlmostEqual(halves.loc["big", "realised"], 1.0)
         self.assertGreater(halves.loc["big", "gap_pp"], halves.loc["small", "gap_pp"])
+
+    def test_each_half_carries_its_interval(self) -> None:
+        """Two gap numbers without intervals invite a sizing story out of ten
+        lines, which is the mistake this module exists to catch one level up."""
+        small = [(0.90, i % 10 != 0, 5.0) for i in range(40)]
+        big = [(0.90, True, 5000.0) for _ in range(10)]
+        halves = brs.conviction_split(self._frame(small + big), quantile=0.8).set_index("half")
+        self.assertLess(halves.loc["big", "ci_low"], halves.loc["big", "realised"])
+        self.assertLessEqual(halves.loc["big", "ci_high"], 1.0)
+        # Zehn Linien schliessen den fairen Preis nicht aus.
+        self.assertLess(halves.loc["big", "ci_low"], 0.90)
+        self.assertEqual(int(halves.loc["big", "events"]), 10)
 
     def test_missing_stake_column_returns_empty(self) -> None:
         frame = pd.DataFrame([{"market_key": "a", "price": 0.9, "won": True}])
