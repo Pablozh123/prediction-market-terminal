@@ -195,6 +195,40 @@ class TapeVenueStatusTests(unittest.TestCase):
         self.assertTrue(quellen["Polymarket"]["ok"])
 
 
+class EmptyWithAReasonTests(unittest.TestCase):
+    """Eine leere Antwort auf einen gescheiterten Abruf traegt den Grund mit.
+
+    Der Rest desselben Musters: ``except Exception: print(...)`` und dann
+    eine wohlgeformte leere Antwort. Die Bestenliste las sich danach wie eine
+    Venue ohne Trader, und die Cross-Venue-Seite trug weiter ihre Notiz,
+    nichts habe die Aehnlichkeitsschranke genommen: eine Messung, wo ein
+    Abruf gescheitert ist.
+    """
+
+    def setUp(self) -> None:
+        from api import server
+
+        server._CACHE.clear()
+        self.server = server
+
+    def tearDown(self) -> None:
+        self.server._CACHE.clear()
+
+    def test_the_leaderboard_says_why_it_is_empty(self) -> None:
+        with patch("src.prediction_markets.get_polymarket_leaderboard",
+                   side_effect=md.MarketDataError("gamma down")):
+            payload = self.server.leaderboard(limit=10)
+        self.assertEqual(payload["rows"], [])
+        self.assertIn("gamma down", payload["error"])
+
+    def test_cross_venue_says_why_it_is_empty(self) -> None:
+        with patch("src.prediction_markets.get_polymarket_markets",
+                   side_effect=md.MarketDataError("gamma down")):
+            payload = self.server.cross(min_similarity=0.6, max_pairs=50)
+        self.assertEqual(payload["rows"], [])
+        self.assertIn("gamma down", payload["error"])
+
+
 class VenueSourceHelperTests(unittest.TestCase):
     def test_missing_venues_are_named(self) -> None:
         from app import api_views as apv

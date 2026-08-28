@@ -611,8 +611,11 @@ def leaderboard(
     try:
         lb = load_leaderboard(limit=limit, period=period, order_by=order_by)
     except Exception as exc:
+        # Keine Zeilen UND ein Grund. Ohne den Grund liest sich der Ausfall
+        # der Polymarket-Bestenliste wie eine Venue ohne Trader.
         print(f"[warn] leaderboard: {exc}")
-        return {"rows": [], "total": 0}
+        return {"rows": [], "total": 0, "error": f"{type(exc).__name__}: {exc}",
+                "as_of": md.now_utc_label()}
     ranked = load_ranked()
     rows = apv.leaderboard_rows(lb, ranked)
     return {
@@ -861,8 +864,10 @@ def cross(
         pm = cached("cross_pm", _pm, ttl=300.0)
         ks = cached("cross_ks", _ks, ttl=300.0)
     except Exception as exc:
+        # Die leere Antwort traegt sonst die Notiz "nichts hat die Schranke
+        # genommen", also eine Messung, wo ein Abruf gescheitert ist.
         print(f"[warn] cross venue universes: {exc}")
-        return leer
+        return {**leer, "error": f"{type(exc).__name__}: {exc}"}
     if pm.empty or ks.empty:
         return leer
     try:
@@ -892,7 +897,7 @@ def cross(
             candidates = candidates[mask]
     except Exception as exc:
         print(f"[warn] cross venue: {exc}")
-        return leer
+        return {**leer, "error": f"{type(exc).__name__}: {exc}"}
     categories = {}
     if "market_key" in pm.columns and "category" in pm.columns:
         categories = {
