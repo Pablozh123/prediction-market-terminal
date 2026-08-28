@@ -171,8 +171,22 @@ def main() -> int:
     print("\n=== SELEKTION: seine Luecke minus Universums-Luecke ===")
     print("positiv = er pickt bessere Linien als der Bandschnitt (nicht kopierbar ohne sein Modell)")
     print("nahe 0  = das Band ist fuer alle billig (kopierbar)")
+    print("ohne Intervall: seine Linien liegen IM Universum, die Differenz hat keinen sauberen Fehler")
     comparison = brs.compare_to_wallet(universe_table, wallet_table)
     print(comparison.to_string(index=False, float_format=lambda v: f"{v:,.4f}"))
+
+    # Dieselbe Frage auf disjunkten Haelften, damit die Differenz ein
+    # Intervall bekommt: seine Linien gegen die, die er liegen liess.
+    luecke = brs.selection_gap(universe, picked["token_id"])
+    if luecke.get("selection_pp") is not None:
+        print("\n=== SELEKTION auf disjunkten Haelften (mit Intervall) ===")
+        print(f"gewaehlt: {luecke['n_picked']} Linien aus {luecke.get('events_picked', 0)} Events, "
+              f"Luecke {luecke['picked_gap_pp']:+.2f} pp")
+        print(f"liegen gelassen: {luecke['n_rest']} Linien, Luecke {luecke['rest_gap_pp']:+.2f} pp")
+        print(f"Differenz {luecke['selection_pp']:+.2f} pp, 95-Prozent-Intervall "
+              f"[{luecke['ci_low']:+.2f}, {luecke['ci_high']:+.2f}] pp -> "
+              + ("vom Zufall unterscheidbar" if luecke["separable"]
+                 else "nicht vom Zufall unterscheidbar"))
 
     print("\n=== KONVIKTION: seine grossen gegen seine kleinen Einsaetze ===")
     print("Sein gemessener Edge kam aus der Groesse, nicht aus der blossen Auswahl.")

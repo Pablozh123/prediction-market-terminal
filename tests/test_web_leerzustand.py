@@ -258,6 +258,15 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertNotIn("WHO MOVES WITH WHOM", netz)
         # Die Knoten tragen ihr Wallet-Kuerzel im Bild.
         self.assertIn('>0x5111…cbe1</text>', netz_html)
+        # Das Cluster-Bild traegt seinen Nenner, seine Kontrolle und seinen
+        # Aufnahmezeitpunkt: dieselbe Regel zeichnet auch auf gemischten
+        # Wallet-Namen Inseln, und ohne diese Zahl liest sich jede Insel als
+        # Fund.
+        self.assertIn("WALLETS 2 / 300", netz)
+        self.assertIn("MEDIAN LIFT 5×", netz)
+        self.assertIn("CONTROL ·", netz)
+        self.assertIn("4 clusters over 846 links", netz)
+        self.assertIn("SNAPSHOT · 2026-08-28T09:00:00+00:00", netz)
         # Leere Fenster sagen, was gesucht und nicht gefunden wurde — nicht
         # "live · answered".
         self.assertIn("No fresh-wallet cluster in this window", _sichtbarer_text(self.ausgabe["live"]["risk_fresh_empty"]))
@@ -1694,7 +1703,10 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("Reading the top holders of the largest open markets", warten)
         daten_html = self.ausgabe["live"]["wallet_tab_similar_data"]
         daten = _sichtbarer_text(daten_html)
-        self.assertIn("SIMILAR WALLETS · TOP 2 as of 2026-08-18 15:00 UTC · 2 of 2 open markets checked · 7 wallets seen", daten)
+        # Nenner sind die gelesenen Maerkte, nicht die angefragten, und der
+        # Median sagt, wie viel Ueberschneidung hier ueblich ist.
+        self.assertIn("SIMILAR WALLETS · TOP 2 as of 2026-08-18 15:00 UTC · 2 of 3 open markets read (3 requested) "
+                      "· 7 wallets seen · median candidate shares 1", daten)
         self.assertIn("bee · 0xbbbb…bbbb 2 same side 2 / 2 12 · $4,201 100% +$1,500 $90.0k Analyse profile ↗", daten)
         self.assertIn("0xcccc…cccc 1 opposite 1 / 2 not read 50% not on board — Analyse profile ↗", daten)
         self.assertIn("Markets that did not answer: 0x1111111…: holders down", daten)

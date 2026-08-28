@@ -522,6 +522,69 @@ class RiskPayloadTests(unittest.TestCase):
         self.assertEqual(len(payload["events"]), 1)
         self.assertEqual(payload["events_below_min"], 0)
 
+    def test_cluster_kpis_start_unmeasured_not_at_zero(self) -> None:
+        """The cluster stage runs later and may never run at all. A hard 0 here
+        rendered in the KPI tile as a measured "no clusters found"; None draws
+        as an em dash, which is what an unmeasured number should look like."""
+        payload = apv.risk_payload(pd.DataFrame(), pd.DataFrame())
+        self.assertIsNone(payload["kpis"]["fresh_clusters"])
+        self.assertIsNone(payload["kpis"]["coordinated_clusters"])
+
+    def test_cluster_payload_fills_the_kpis_in_with_real_counts(self) -> None:
+        payload = apv.risk_payload(pd.DataFrame(), pd.DataFrame())
+        payload["kpis"].update(apv.cluster_payload(
+            pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+        ).pop("kpis_clusters"))
+        self.assertEqual(payload["kpis"]["fresh_clusters"], 0)
+        self.assertEqual(payload["kpis"]["coordinated_clusters"], 0)
+
+
+class NetworkGraphPayloadTests(unittest.TestCase):
+    """A cluster picture without its denominator, its control and its snapshot
+    time cannot be placed by anyone reading it."""
+
+    def _frames(self):
+        nodes = pd.DataFrame([
+            {"wallet": "0xa", "cluster_id": 1, "x": 0.0, "y": 0.0, "volume": 10_000.0,
+             "markets": 3, "trades": 5, "shared_markets": 2},
+            {"wallet": "0xb", "cluster_id": 1, "x": 1.0, "y": 1.0, "volume": 8_000.0,
+             "markets": 3, "trades": 4, "shared_markets": 2},
+        ])
+        edges = pd.DataFrame([{"wallet_a": "0xa", "wallet_b": "0xb", "shared_markets": 3,
+                               "pair_notional": 18_000.0, "expected_shared": 0.6, "lift": 5.0}])
+        return nodes, edges
+
+    def test_edges_carry_expectation_and_lift(self) -> None:
+        graph = apv.network_graph(*self._frames())
+        self.assertEqual(graph["kanten"][0]["erwartet"], 0.6)
+        self.assertEqual(graph["kanten"][0]["lift"], 5.0)
+        self.assertEqual(graph["kennzahl"]["lift_median"], 5.0)
+
+    def test_lift_that_cannot_be_computed_stays_none(self) -> None:
+        nodes, edges = self._frames()
+        edges.loc[0, "lift"] = float("nan")
+        graph = apv.network_graph(nodes, edges)
+        self.assertIsNone(graph["kanten"][0]["lift"])
+        self.assertNotIn("lift_median", graph["kennzahl"])
+
+    def test_denominator_control_and_snapshot_ride_along(self) -> None:
+        graph = apv.network_graph(
+            *self._frames(),
+            regel="same side of at least 2 markets",
+            wallets_im_tape=300,
+            nullmodell={"runs": 2, "cluster": 4, "kanten": 846},
+            stand_utc="2026-08-28T09:00:00+00:00")
+        self.assertEqual(graph["kennzahl"]["wallets"], 2)
+        self.assertEqual(graph["kennzahl"]["wallets_im_tape"], 300)
+        self.assertEqual(graph["nullmodell"]["cluster"], 4)
+        self.assertEqual(graph["stand_utc"], "2026-08-28T09:00:00+00:00")
+
+    def test_missing_context_is_left_out_rather_than_faked(self) -> None:
+        graph = apv.network_graph(*self._frames())
+        self.assertNotIn("nullmodell", graph)
+        self.assertNotIn("stand_utc", graph)
+        self.assertNotIn("wallets_im_tape", graph["kennzahl"])
+
 
 class AlertRowsTests(unittest.TestCase):
     def test_maps_signal_frame(self) -> None:

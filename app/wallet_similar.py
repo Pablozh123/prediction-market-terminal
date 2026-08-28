@@ -173,6 +173,19 @@ def similar_wallets(
             holders_by_market[key] = []
     tally = tally_overlaps(wallet, checked, holders_by_market)
     n_checked = len(checked)
+    # Nenner der Ueberschneidung sind die Maerkte, deren Holder-Liste wirklich
+    # gelesen wurde. Ein fehlgeschlagener Abruf kann keinen Treffer liefern;
+    # ihn trotzdem mitzuzaehlen drueckt jede Quote um die Fehlerrate. Bei sechs
+    # von zwoelf gescheiterten Abrufen zeigte ein Wallet, das in allen sechs
+    # lesbaren Maerkten sass, 50 Prozent statt 100.
+    n_read = sum(1 for m in checked if holders_by_market.get(str(m.get("market_key"))))
+    # Basisrate der Aehnlichkeit: wie viele Maerkte ein Kandidat ueblicherweise
+    # teilt. Ohne sie liest sich jede Zeile als Fund, obwohl die Holder-Listen
+    # nach Groesse sortiert sind und dieselben grossen Wallets ueberall stehen.
+    geteilt_alle = sorted((int(e["shared"]) for e in tally), reverse=True)
+    median_geteilt = (
+        float(geteilt_alle[len(geteilt_alle) // 2]) if geteilt_alle else 0.0
+    )
     out_rows: list[dict[str, Any]] = []
     for entry in tally[: max(0, int(top))]:
         addr = entry["wallet"]
@@ -188,7 +201,9 @@ def similar_wallets(
             "shared": entry["shared"],
             "same_side": entry["same_side"],
             "opposite_side": entry["opposite_side"],
-            "overlap": round(entry["shared"] / n_checked, 4) if n_checked else 0.0,
+            "overlap": round(entry["shared"] / n_read, 4) if n_read else 0.0,
+            # Wie weit ueber dem ueblichen Kandidaten diese Zeile liegt.
+            "shared_vs_median": round(entry["shared"] / median_geteilt, 2) if median_geteilt > 0 else None,
             "markets": entry["markets"],
             "their_positions": summary.get("positions"),
             "their_value": summary.get("value"),
@@ -205,12 +220,17 @@ def similar_wallets(
         "candidates": len(tally),
         "basis": {
             "markets_checked": n_checked,
+            # Der Nenner, gegen den die Quote gerechnet ist.
+            "markets_read": n_read,
             "markets_available": len(rows),
             "holders_per_token": int(holders_per_token),
             "top": int(top),
-            "note": (f"overlap among the top {holders_per_token} holders per outcome of this wallet's {n_checked} largest open markets "
-                     "(public /holders feed) — not every wallet that ever traded them; a wallet holding both sides counts once, as both-sided. "
-                     "PnL and volume only where the wallet is on the cached leaderboard; win rates are not read for other wallets."),
+            "median_shared": median_geteilt,
+            "note": (f"overlap among the top {holders_per_token} holders per outcome of this wallet's {n_checked} largest open markets, "
+                     f"counted against the {n_read} whose holder list was actually read (public /holders feed) — not every wallet that ever "
+                     "traded them; a wallet holding both sides counts once, as both-sided. That feed ranks holders by size, so the same large "
+                     f"wallets recur across markets: the median candidate here shares {median_geteilt:g}, which is the rate to read a row "
+                     "against. PnL and volume only where the wallet is on the cached leaderboard; win rates are not read for other wallets."),
             "errors": errors,
         },
     }

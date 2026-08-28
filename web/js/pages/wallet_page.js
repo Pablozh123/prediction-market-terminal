@@ -839,7 +839,7 @@ function renderSimilarTab(T, d) {
     const sides = (r.same_side ? r.same_side + ' same side' : '') + (r.same_side && r.opposite_side ? ' · ' : '') + (r.opposite_side ? r.opposite_side + ' opposite' : '');
     return row(cols,
       '<div style="min-width:0"><div style="' + M + '; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(r.wallet) + '">' + (r.name ? esc(r.name) + ' <span style="color:rgba(var(--ink),.6)">· ' + esc(r.short) + '</span>' : esc(r.short)) + '</div><div style="' + NOTE + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(sides || 'sides not readable') + '</div></div>'
-      + cell(num(r.shared) + ' <span style="color:rgba(var(--ink),.6)">/ ' + num(basis.markets_checked || 0) + '</span>', 'text-align:right')
+      + cell(num(r.shared) + ' <span style="color:rgba(var(--ink),.6)">/ ' + num(basis.markets_read != null ? basis.markets_read : (basis.markets_checked || 0)) + '</span>', 'text-align:right')
       + cell(r.summary_read && r.their_positions != null ? num(r.their_positions) + ' <span style="color:rgba(var(--ink),.6)">· ' + absDollars(r.their_value) + '</span>' : 'not read', 'text-align:right; color:' + (r.summary_read ? 'var(--text)' : 'rgba(var(--ink),.6)'))
       + cell(bar, '')
       + cell(r.on_leaderboard && r.lb_pnl != null ? dollars(r.lb_pnl) : 'not on board', 'text-align:right; color:' + (r.on_leaderboard && r.lb_pnl != null ? pnlColor(r.lb_pnl) : 'rgba(var(--ink),.6)'))
@@ -849,7 +849,15 @@ function renderSimilarTab(T, d) {
   }).join('');
   const table = tableWith(cols, head, body, rowsAll.length ? 'No wallet matches the search.' : 'No overlapping top holder found in the checked markets.', 1010);
   const errs = Array.isArray(basis.errors) && basis.errors.length ? '<div style="' + NOTE + '; margin-top:8px; color:var(--warn)">Markets that did not answer: ' + basis.errors.map((e) => esc(e)).join(' · ') + '</div>' : '';
-  const sub = 'as of ' + esc(data.as_of || '') + ' · ' + num(basis.markets_checked || 0) + ' of ' + num(basis.markets_available || 0) + ' open markets checked · ' + num(data.candidates || 0) + ' wallets seen';
+  // Gelesen statt nur angefragt: ein fehlgeschlagener Abruf kann keinen
+  // Treffer liefern und gehoert nicht in den Nenner. Der Median sagt, wie viel
+  // Ueberschneidung hier ueblich ist — die Holder-Listen sind nach Groesse
+  // sortiert, also stehen dieselben grossen Wallets ueberall.
+  const gelesen = basis.markets_read != null ? basis.markets_read : (basis.markets_checked || 0);
+  const sub = 'as of ' + esc(data.as_of || '') + ' · ' + num(gelesen) + ' of ' + num(basis.markets_available || 0)
+    + ' open markets read' + (basis.markets_checked && gelesen !== basis.markets_checked ? ' (' + num(basis.markets_checked) + ' requested)' : '')
+    + ' · ' + num(data.candidates || 0) + ' wallets seen'
+    + (basis.median_shared ? ' · median candidate shares ' + num(basis.median_shared) : '');
   return intro + card('SIMILAR WALLETS · TOP ' + num(rows.length) + (rowsAll.length !== rows.length ? ' OF ' + num(rowsAll.length) : ''), search + table + '<div style="' + NOTE + '; margin-top:8px">' + esc(basis.note || '') + '</div>' + errs, sub);
 }
 

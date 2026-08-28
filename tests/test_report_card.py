@@ -75,6 +75,21 @@ class VerdictStateTests(unittest.TestCase):
         self.assertEqual(state["state"], rcd.STATE_LUCK_RANGE)
         self.assertIn("NOT SEPARABLE FROM CHANCE", state["status"])
 
+    def test_missing_interval_is_not_read_as_including_zero(self):
+        """Without ci_low and ci_high the luck-range wording asserted that the
+        95 percent interval includes zero, over an interval that reads "n/a".
+        A missing measurement is reported as missing."""
+        state = rcd.verdict_state(make_card(ci=None, n_events=1, verdict="thin"))
+        self.assertEqual(state["state"], rcd.STATE_INSUFFICIENT)
+        self.assertNotIn("includes zero", state["status"])
+        self.assertNotIn("n/a", state["status"])
+        self.assertIn("no interval over 1 event", state["status"])
+
+    def test_only_one_side_of_the_interval_is_also_no_verdict(self):
+        card = make_card(ci=(0.01, 0.06))
+        card["realized_edge"]["ci_high"] = None
+        self.assertEqual(rcd.verdict_state(card)["state"], rcd.STATE_INSUFFICIENT)
+
     def test_negative_read_when_ci_below_zero(self):
         state = rcd.verdict_state(make_card(ci=(-0.06, -0.01), edge=-0.03, verdict="negative"))
         self.assertEqual(state["state"], rcd.STATE_NEGATIVE_READ)
