@@ -36,9 +36,17 @@ https://claude.ai/code/artifact/1559e64a-979d-4c14-a8aa-ec6e2ac8ac3f
    Maker-Taker-Graph), LBS/Yale (Insider-Flow, Sign-Randomisierung, 1,72M Konten).
 5. **Codebasis-Inventur** (Details in den Dateien selbst):
    - `app/suspicion.py:471` — Co-Trading-Graph + Louvain-Communities, fertig, aber nur auf
-     ~1 Tag Live-Tape; deshalb die dreistufige Lockerungs-Leiter in `api/server.py:868` (bekannte Schwäche).
+     ~1 Tag Live-Tape; deshalb die dreistufige Lockerungs-Leiter (`CO_TRADING_LADDER` und
+     `co_trading_ladder` in `api/server.py`, bekannte Schwäche). Die Leiter steht seit
+     PR #126 vollständig in der Nutzlast (`graph.regel_leiter`): je Sprosse die Regel im
+     Klartext, ob sie versucht wurde und was sie gefunden hat. Vorher nannte das Bild nur
+     die Sprosse, die getragen hat, und las sich damit als Ergebnis der strengsten Regel.
    - `app/onchain_flows.py` — getesteter USDC-Funding-Kernel (Protokoll- vs. externe Flüsse,
      Bridge-Erkennung, pUSD-Migration, Bilanz-Identität) — **nicht** an API/Frontend angeschlossen.
+     Dezimalstellen sind seit PR #126 je Kontrakt gepinnt; pUSD steht mit `None` in
+     `TOKEN_DECIMALS`, ein Transfer darüber wirft `UnknownTokenDecimals`. Wer die Stellen
+     am Token-Kontrakt nachgelesen hat, reicht sie als
+     `TOKEN_DECIMALS | {PUSD_CONTRACT: n}` durch.
    - `scripts/scan_erc1155_ledger.py` — einziger Code, der Positions-Transfers zwischen Wallets
      sieht (härtestes Cluster-Signal), nur Einmal-Skript.
    - Unterschätzter Endpoint: `/v1/market-positions` (`src/prediction_markets.py:2199`) —

@@ -76,7 +76,7 @@ and a research posture**. Details:
 | **Copy Trade** | Paper-copy command centre, daemon status, sub-accounts, honest PnL. |
 | **Whale Flow** | Large-print scanner, wallet aggregation, outcome bias, track actions. |
 | **Suspicious** | Insider risk screen (§4.2): category-aware event and wallet scores, fresh-wallet and coordinated clusters, and a Louvain co-trading network with click-to-isolate. |
-| **Cross-Venue** | Price-gap finder between the two venues. |
+| **Cross-Venue** | Price-gap finder between the two venues. Before any arithmetic, `app/cross_pairs.py::pair_verdict` asks whether the two titles ask the same question at all (direction, threshold, question type, resolution date); a pair that trips one of those carries no price, no gap and no spread and is counted separately instead. What survives is priced as an executable basket net of both fee curves, and the top rows are re-quoted against both order books so the number names the size it holds for. |
 | **Monitor** | Signal scanner (fast movers, volume anomaly, whale prints, tight spreads, holder concentration, endings, watched) plus saved alert rules and Telegram delivery. |
 | **Resolved** | Closed-market archive, accuracy, final yes prices, CSV export. |
 | **Portfolio** | Research portfolio, copy portfolio, exposure, cash events, paper history, watchlist. |
