@@ -12018,9 +12018,13 @@ def page_suspicious() -> None:
         "Score bands: &lt;40 low · 40–54 elevated · 55–69 medium · ≥70 high.</div>",
         unsafe_allow_html=True,
     )
-    whale_floor = max(float(min_whale), 1_000.0)
-    trades = safe_load("Polymarket whale tape", load_polymarket_trades, trade_limit, whale_floor, default=pd.DataFrame())
-    kalshi_tape = safe_load("Kalshi whale tape", load_kalshi_whale_tape, whale_floor, default=pd.DataFrame())
+    # Dieselbe Definition wie jede andere Oberflaeche mit einem
+    # Insider-Score (susp.screen_thresholds). Vorher las diese Seite das Tape
+    # erst ab der Whale-Schwelle selbst, der API-Screen ab 500 Dollar: andere
+    # Boeden, andere Anteile, andere Scores fuer dieselbe Wallet.
+    whale_floor, tape_floor = susp.screen_thresholds({"whale_threshold": float(min_whale)})
+    trades = safe_load("Polymarket whale tape", load_polymarket_trades, trade_limit, tape_floor, default=pd.DataFrame())
+    kalshi_tape = safe_load("Kalshi whale tape", load_kalshi_whale_tape, tape_floor, default=pd.DataFrame())
     kalshi_categories = (
         clean_table(kalshi_tape, ["market_key", "category"]).drop_duplicates(subset=["market_key"])
         if kalshi_tape is not None and not kalshi_tape.empty and "category" in kalshi_tape.columns

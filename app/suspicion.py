@@ -29,6 +29,39 @@ try:
 except ImportError:  # pragma: no cover - networkx ships with the environment
     nx = None
 
+#: Whale-Schwelle, wenn die Einstellungen keine tragen.
+DEFAULT_WHALE_THRESHOLD = 2500.0
+
+
+def screen_thresholds(settings: Any = None) -> tuple[float, float]:
+    """(whale_threshold, tape_floor) fuer JEDE Oberflaeche mit Insider-Score.
+
+    Eine Definition, damit dieselbe Wallet nicht auf zwei Seiten zwei Zahlen
+    unter demselben Namen traegt. Der Screen im API-Server las das Tape ab
+    ``max(500, 20 % der Whale-Schwelle)``, die Streamlit-Seite "Suspicious"
+    ab der Whale-Schwelle selbst (2500) — verschiedene Boeden bedeuten
+    verschiedene Anteile (Long-Odds-Anteil, Marktkonzentration, Prints je
+    Stunde) und damit verschiedene Scores.
+
+    Der Boden ist derselbe, ab dem der Scorer Verteilungs-Signale voll
+    zaehlt (``md.DISTRIBUTION_NOTIONAL_FLOOR``): mit ``min_cash=0`` fressen
+    die Mikro-Prints das Fenster, mit der vollen Whale-Schwelle bleibt zu
+    wenig Tape uebrig, um Anteile zu messen.
+    """
+
+    from app import app_settings as cfg
+    from src import prediction_markets as md
+
+    data = settings if settings is not None else cfg.load_settings()
+    try:
+        whale = float((data or {}).get("whale_threshold", DEFAULT_WHALE_THRESHOLD))
+    except (TypeError, ValueError):
+        whale = DEFAULT_WHALE_THRESHOLD
+    if whale != whale or whale <= 0:
+        whale = DEFAULT_WHALE_THRESHOLD
+    return whale, max(float(md.DISTRIBUTION_NOTIONAL_FLOOR), whale * 0.2)
+
+
 RISK_BANDS = ((70, "High"), (55, "Medium"), (40, "Elevated"))
 WATCH_ONLY = "watch only"
 

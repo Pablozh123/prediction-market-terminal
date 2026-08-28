@@ -102,8 +102,7 @@ def _default_risk_row_fetcher(wallet: str) -> Mapping[str, Any] | None:
     from app import suspicion as susp
     from src import prediction_markets as md
 
-    whale_threshold = float(cfg.load_settings().get("whale_threshold", 2500))
-    tape_floor = max(md.DISTRIBUTION_NOTIONAL_FLOOR, whale_threshold * 0.2)
+    whale_threshold, tape_floor = susp.screen_thresholds(cfg.load_settings())
     tape = md.get_polymarket_trades(limit=1000, min_cash=tape_floor)
     screened = susp.filter_insider_prone_trades(tape)
     base = screened if screened is not None else pd.DataFrame()

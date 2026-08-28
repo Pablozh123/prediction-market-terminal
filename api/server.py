@@ -912,9 +912,7 @@ def risk_screen_basis() -> tuple[pd.DataFrame, pd.DataFrame, float]:
 
     from app import suspicion as susp
 
-    settings = cfg.load_settings()
-    whale_threshold = float(settings.get("whale_threshold", 2500))
-    tape_floor = max(md.DISTRIBUTION_NOTIONAL_FLOOR, whale_threshold * 0.2)
+    whale_threshold, tape_floor = susp.screen_thresholds(cfg.load_settings())
     trades = load_tape(limit=1000, min_cash=tape_floor)
     if trades.empty:
         return pd.DataFrame(), pd.DataFrame(), whale_threshold
