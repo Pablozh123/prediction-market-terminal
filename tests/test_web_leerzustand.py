@@ -1468,6 +1468,21 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertEqual(int(je_slug["second-question"]["windows_n"]), 2)
         self.assertEqual(json.loads(self.ausgabe["leer"]["_collapse_queue"]), [])
 
+    def test_latenz_gilt_je_fill_nicht_je_lauf(self) -> None:
+        # Die Tabelle heisst "per fill", trug aber in jeder Zeile eines Laufs
+        # dessen erster_fill_s. Bei allin_july10 (drop 01:17:27, erster Fill
+        # nach 64 s) lag der letzte der sieben Fills einen Tag spaeter: 90.547
+        # s nach dem Drop, und die Zeile las trotzdem 64.0 s -- Faktor 1.415.
+        werte = json.loads(self.ausgabe["live"]["_fill_latenz"])
+        self.assertEqual(werte["erster"], 64)
+        self.assertEqual(werte["letzter"], 90547)
+        # Ohne Drop-Zeitstempel bleibt die Laufzahl, aber nur fuer die Zeile,
+        # fuer die sie gilt. Jede weitere bekommt einen Strich statt einer
+        # geerbten Zahl.
+        self.assertEqual(werte["ohne_drop_erster"], 42)
+        self.assertIsNone(werte["ohne_drop_spaeter"])
+        self.assertIsNone(werte["ohne_alles"])
+
     def test_category_efficiency_zeigt_horizonte_und_n(self) -> None:
         text = _sichtbarer_text(self.ausgabe["live"]["research_category_efficiency"])
         self.assertIn("Which categories price things well", text)

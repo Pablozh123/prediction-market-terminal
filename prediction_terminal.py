@@ -13770,14 +13770,19 @@ def page_live_runs() -> None:
             bets, sim_mode, bankroll=float(bankroll), fixed_stake=float(fixed_stake),
             kelly_edge_pt=float(edge_pt), kelly_fraction=float(kelly_frac),
         )
+        # Offen und "aufgeloest, aber ohne brauchbaren Fillpreis" sind zwei
+        # verschiedene Aussagen; die zweite lief frueher unter "still open".
+        sim_unpriced = int(sim_summary.get("n_unpriced", 0) or 0)
+        sim_unpriced_text = f" · {sim_unpriced} settled without a usable fill price" if sim_unpriced else ""
         if sim_summary["n_resolved"] == 0:
             st.info(
-                f"No resolved bets to simulate yet — {sim_summary['n_open']} bet(s) are still open. "
-                "This section fills in as runs resolve."
+                f"No resolved bets to simulate yet — {sim_summary['n_open']} bet(s) are still open"
+                f"{sim_unpriced_text}. This section fills in as runs resolve."
             )
         else:
             s1, s2, s3, s4 = st.columns(4)
-            s1.metric("Resolved bets", f"{sim_summary['n_resolved']}", f"{sim_summary['n_open']} open excluded", delta_color="off")
+            s1.metric("Resolved bets", f"{sim_summary['n_resolved']}",
+                      f"{sim_summary['n_open']} open excluded{sim_unpriced_text}", delta_color="off")
             s2.metric("Simulated stake", _run_usd(sim_summary["sim_stake"]),
                       f"real {_run_usd(sim_summary['real_stake'])}", delta_color="off")
             sim_pnl = sim_summary["sim_pnl"]

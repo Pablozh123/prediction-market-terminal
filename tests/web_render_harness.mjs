@@ -12,7 +12,7 @@ import { STUDIEN } from '../web/js/studies.js';
 import { renderOverview, renderMarkets, renderFlow, renderCross, renderResolved, landingSubline, verdictCounts } from '../web/js/pages/core_pages.js';
 import { renderTraders, renderWhale, renderRisk, renderTrack } from '../web/js/pages/trader_pages.js';
 import { renderBacktester, renderCopy, renderPortfolio } from '../web/js/pages/trading_pages.js';
-import { renderAlerts, renderResearch, renderSettings, collapseQueue } from '../web/js/pages/system_pages.js';
+import { renderAlerts, renderResearch, renderSettings, collapseQueue, fillLatenzS } from '../web/js/pages/system_pages.js';
 import { renderWallet } from '../web/js/pages/wallet_page.js';
 import { renderDetail, renderSearch } from '../web/js/overlays.js';
 
@@ -1236,6 +1236,24 @@ function rendern(T) {
   // -spanne. Ohne Nutzlast eine leere Liste.
   const faelle = T.liveData.research['Review queue'] ? T.liveData.research['Review queue'].faelle : null;
   raus['_collapse_queue'] = JSON.stringify(collapseQueue(faelle));
+  // Latenz je Fill, direkt aufgerufen: ein Lauf mit zwei Fills, der zweite
+  // einen Tag nach dem Drop. Die Laufzahl erster_fill_s gilt nur fuer den
+  // ersten; die zweite Zeile darf sie nicht erben.
+  const latenzLauf = {
+    profil: 'allin_july10', drop_erkannt_utc: '2026-07-10T01:17:27Z', erster_fill_s: 64.0,
+    wetten: [{ fill_ts_utc: '2026-07-10T01:18:31Z' }, { fill_ts_utc: '2026-07-11T02:26:34Z' }]
+  };
+  const ohneDrop = {
+    profil: 'kein_drop', erster_fill_s: 42.0,
+    wetten: [{ fill_ts_utc: '2026-07-10T01:18:31Z' }, { fill_ts_utc: '2026-07-10T02:18:31Z' }]
+  };
+  raus['_fill_latenz'] = JSON.stringify({
+    erster: fillLatenzS(latenzLauf, latenzLauf.wetten[0]),
+    letzter: fillLatenzS(latenzLauf, latenzLauf.wetten[1]),
+    ohne_drop_erster: fillLatenzS(ohneDrop, ohneDrop.wetten[0]),
+    ohne_drop_spaeter: fillLatenzS(ohneDrop, ohneDrop.wetten[1]),
+    ohne_alles: fillLatenzS({ wetten: [] }, {})
+  });
   return raus;
 }
 
