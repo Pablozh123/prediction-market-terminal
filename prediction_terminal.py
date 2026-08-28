@@ -28,6 +28,7 @@ from app import app_settings as cfg
 from app import authz as az
 from app import backtester as btr
 from app import calibration as calib
+from app import claims
 from app import copy_fidelity as cfy
 from app import cross_pairs as cp
 from app import copy_follow as ctf
@@ -149,7 +150,7 @@ WORKSPACE_HELP = {
     "Traders": "Leaderboard with win rates, podium, speed traders, and insider picks.",
     "Wallets": "Deep-dive one wallet — positions, activity, and PnL.",
     "Whale Flow": "Large prints: who is moving big money, and where.",
-    "Suspicious": "Insider-risk screen — unusual timing, fresh wallets, clusters.",
+    "Suspicious": "Flow-pattern screen — unusual timing, fresh wallets, clusters.",
     "Track": "Your tracked wallets and markets, with grades and records.",
     "Backtester": "Replay any trader's history with your own sizing rules.",
     "Copy Trade": "Paper copy-trading engine with live WebSocket detection.",
@@ -8191,12 +8192,12 @@ def page_whale_flow() -> None:
         "uses the shared screen basis, so the same wallet can carry a different number there."
     )
     cols[4].metric(
-        "High insider events",
+        "Events at 70+ pts",
         f"{int((numeric_col(event_risk, 'event_insider_score') >= 70).sum()) if not event_risk.empty else 0:,}",
         help=tape_basis_note,
     )
     cols[5].metric(
-        "High insider wallets",
+        "Wallets at 70+ pts",
         f"{int((numeric_col(wallet_risk, 'wallet_insider_score') >= 70).sum()) if not wallet_risk.empty else 0:,}",
         help=tape_basis_note,
     )
@@ -8262,7 +8263,7 @@ def page_whale_flow() -> None:
                 height=390,
                 column_config={
                     "wallet_insider_score": st.column_config.ProgressColumn(
-                        "Insider (this tape)", min_value=0, max_value=100,
+                        "Flow pattern (this tape)", min_value=0, max_value=100,
                         help="Flow shape in this page's filtered tape, scaled to 0-100. Nothing in it is validated against an outcome, and the Suspicious page scores the same wallet over a different sample.",
                     ),
                     "notional": st.column_config.NumberColumn(format="$%.0f"),
@@ -8276,7 +8277,7 @@ def page_whale_flow() -> None:
                 },
             )
 
-    st.markdown("<div class='field-hint'>Insider-risk scoring lives on the dedicated Suspicious screen now.</div>", unsafe_allow_html=True)
+    st.markdown("<div class='field-hint'>The full flow-pattern screen lives on the dedicated Suspicious page.</div>", unsafe_allow_html=True)
     tab_tape, tab_markets, tab_bias, tab_track = st.tabs(["Trade Tape", "Market Flow", "Outcome Bias", "Track Actions"])
     with tab_tape:
         st.markdown("### Trade tape")
@@ -8339,7 +8340,10 @@ def page_whale_flow() -> None:
                 width="stretch",
                 height=460,
                 column_config={
-                    "event_insider_score": st.column_config.ProgressColumn("Insider", min_value=0, max_value=100),
+                    "event_insider_score": st.column_config.ProgressColumn(
+                        "Flow pattern (this tape)", min_value=0, max_value=100,
+                        help="Points over nine flow features in this page's filtered tape, capped at 100. Nothing in it is validated against an outcome, and the Suspicious page scores the same market over a different sample.",
+                    ),
                     "notional": st.column_config.NumberColumn(format="$%.0f"),
                     "avg_trade": st.column_config.NumberColumn(format="$%.0f"),
                     "largest_trade": st.column_config.NumberColumn(format="$%.0f"),
@@ -12012,7 +12016,13 @@ def page_settings() -> None:
         st.rerun()
 
 
+# Farbe je INTERNEM Level. Das Level bleibt das Drahtformat (Filter,
+# Flag-Log); was auf dem Bildschirm steht, ist das Band aus
+# app.suspicion.score_band, das getroffene Pruefungen zaehlt statt eine
+# Einschaetzung zu behaupten.
 RISK_LEVEL_COLORS = {"High": RED, "Medium": AMBER, "Elevated": BLUE, "Low": MUTED}
+#: Ton aus app.suspicion.SCORE_BANDS -> Farbe dieser Oberflaeche.
+SCORE_BAND_COLORS = {"warn": AMBER, "muted": BLUE, "quiet": MUTED}
 CLUSTER_COLORS = [ACCENT, BLUE, AMBER, "#E879F9", "#34D399", "#F87171", "#60A5FA", "#FBBF24", "#A78BFA", "#F472B6"]
 
 
@@ -12081,12 +12091,21 @@ def load_market_categories_by_ids(market_keys: tuple[str, ...]) -> pd.DataFrame:
 def page_suspicious() -> None:
     section_header(
         "Suspicious",
-        "Markets and wallets with insider-like flow — long-odds size, late timing, fresh-wallet clusters, one-sided pressure.",
+        "Markets and wallets whose flow trips the screen's checks — long-odds size, late timing, fresh-wallet clusters, one-sided pressure.",
         kicker="Suspicious · Risk screen",
+    )
+    # Die Baender heissen nach der Zahl der angesprochenen Pruefungen, nicht
+    # nach einer Einschaetzung: "high" neben einer 0-100-Zahl las sich als
+    # Wahrscheinlichkeit fuer Insiderhandel, und die Zahl ist eine Punktesumme
+    # aus neun Flow-Merkmalen mit gesetzten Gewichten. Der stehende Vorbehalt
+    # kommt aus dem Register (data/claims.yaml insider_score_unvalidated).
+    band_hinweis = " · ".join(
+        f"{row['from']}–{row['to']} {row['label'].lower()}" for row in susp.score_band_table()
     )
     st.markdown(
         "<div class='field-hint'>Best-effort screen on public trade data — research leads, not legal findings. "
-        "Score bands: &lt;40 low · 40–54 elevated · 55–69 medium · ≥70 high.</div>",
+        f"{html.escape(susp.SCORE_NAME.capitalize())}, 0–100 points: {html.escape(band_hinweis)}.<br>"
+        f"{html.escape(claims.disclaimer('insider_score_unvalidated', 'en'))}</div>",
         unsafe_allow_html=True,
     )
     # Dieselbe Definition wie jede andere Oberflaeche mit einem
@@ -12185,8 +12204,10 @@ def page_suspicious() -> None:
     high_wallets = int((numeric_col(wallet_risk, "wallet_insider_score") >= 70).sum()) if not wallet_risk.empty else 0
     stat_cols = st.columns(5)
     stat_cols[0].metric("Events screened", f"{len(event_risk):,}", help="Markets with whale-sized prints in the current trade sample.")
-    stat_cols[1].metric("High-risk events", f"{high_events:,}", help="Events with a suspicion score of 70 or higher.")
-    stat_cols[2].metric("High-risk wallets", f"{high_wallets:,}", help="Wallets with a risk score of 70 or higher.")
+    stat_cols[1].metric("Events at 70+ pts", f"{high_events:,}",
+                        help="Markets whose flow tripped most of the screen's nine checks.")
+    stat_cols[2].metric("Wallets at 70+ pts", f"{high_wallets:,}",
+                        help="Wallets whose prints tripped most of the screen's nine checks.")
     stat_cols[3].metric(
         "Whale volume",
         money(numeric_col(event_risk, "notional").sum()),
@@ -12196,8 +12217,15 @@ def page_suspicious() -> None:
 
     with st.expander("How to read this page"):
         st.markdown(
-            "- **Score (0–100):** built from unusual size, big bets on long odds, flow close to resolution, one-sided pressure, "
-            "trade bursts, fresh wallets, coordinated timing and favorable price moves. Bands: <40 low · 40–54 elevated · 55–69 medium · ≥70 high.\n"
+            f"- **{susp.SCORE_NAME.capitalize()} (0–100 points):** nine flow features, each capped at a fixed number of points and "
+            "summed: unusual size, the biggest single print, money on long odds, concentration, one-sided pressure, trade bursts, flow "
+            "close to resolution, a favorable price move, and a wallet cluster or a fresh wallet. Fresh-wallet, timing and account-age "
+            "bonuses and a category multiplier are applied on top. The caps are the weights, and they were chosen, not estimated. "
+            f"Bands: {band_hinweis}.\n"
+            f"- **What has not been measured:** {claims.disclaimer('insider_score_unvalidated', 'en')} The one outcome this project "
+            "does measure about the screen is a different quantity: whether the price of the flagged side was higher 30 min, 2 h and "
+            "24 h after the flag, reported with n, a Wilson interval and a note on multiple comparisons (the flag log in the web "
+            "frontend).\n"
             "- **Sample first:** every number describes the *sampled whale prints* (recent trades above the threshold), not the whole market. "
             "Distribution claims — one-wallet share, one-sided flow, bursts — count toward the score only from 3 sampled prints upward "
             "and reach full weight at 5; a single print is always \"100% one wallet\" and means nothing.\n"
@@ -12274,8 +12302,12 @@ def page_suspicious() -> None:
             cols = st.columns(2)
             for offset, (col, (_, event)) in enumerate(zip(cols, event_rows[start : start + 2])):
                 level = str(event.get("event_insider_level", "Low") or "Low")
-                color = RISK_LEVEL_COLORS.get(level, MUTED)
                 score = float(event.get("event_insider_score", 0.0) or 0.0)
+                # Die Beschriftung zaehlt Pruefungen, die Farbe folgt dem Band
+                # und nicht mehr dem internen Level: sonst traegt dieselbe Zahl
+                # hier eine andere Aussage als im Web-Frontend.
+                band = susp.score_band(score)
+                color = SCORE_BAND_COLORS.get(band["tone"], RISK_LEVEL_COLORS.get(level, MUTED))
                 raw_score = float(event.get("event_score_raw", score) or score)
                 context_group = str(event.get("insider_context", "") or "")
                 context_note = str(event.get("context_note", "") or "")
@@ -12286,7 +12318,7 @@ def page_suspicious() -> None:
                 with col:
                     with st.container(border=True):
                         st.markdown(
-                            f"<span class='risk-badge' style='color:{color};border-color:{color}'>{score:.0f} · {level.upper()}</span> "
+                            f"<span class='risk-badge' style='color:{color};border-color:{color}'>{score:.0f} pts · {band['label']}</span> "
                             f"<strong>{html.escape(title[:90])}</strong>{raw_hint}",
                             unsafe_allow_html=True,
                         )
