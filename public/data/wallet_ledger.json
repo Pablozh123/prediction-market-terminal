@@ -1,6 +1,6 @@
 {
- "hinweis": "Every trade and redemption of the trading wallet on Polymarket, grouped by event, rebuilt read-only from the public Polymarket Data API (/activity, /positions, /closed-positions in both sort directions). Anyone can rerun scripts/wallet_ledger.py for this address and get the same file. Type: bot = market and side appear in a runs.json run log; pilot = one of the pre-registered pilot trades in pilot.json; discretionary = placed by hand, in no run log. Dollar figures are sums over the API rows; realised PnL per market is the API's realizedPnl and can differ from the cash flow of an event. Deposits are not in the Data API. A record of process, not a return claim.",
- "stand_utc": "2026-08-27T19:10:28+00:00",
+ "hinweis": "Every trade and redemption of the trading wallet on Polymarket, grouped by event, rebuilt read-only from the public Polymarket Data API (/activity, /positions, /closed-positions in both sort directions). Anyone can rerun scripts/wallet_ledger.py for this address and get the same file. Type: bot = market and side appear in a runs.json run log; pilot = one of the pre-registered pilot trades in pilot.json; discretionary = placed by hand, in no run log. Dollar figures are sums over the API rows; realised PnL per market is the API's realizedPnl and can differ from the cash flow of an event. Where that field contradicts the settlement price and the redemption the wallet received, the wallet's own payments decide (pnl_art says so per market). realisierter_pnl_api_usd covers the closed-positions feed only; resolved positions that were never redeemed sit in /positions and are exclusively losses, so abgerechneter_pnl_usd (realised + worthless) is the settled total. Deposits are not in the Data API. A record of process, not a return claim.",
+ "stand_utc": "2026-08-28T11:31:04+00:00",
  "wallet": "0x29afe1bf37700768a640a08f1b35dad5f202f88d",
  "kennzeichnung": "wallet/public-api",
  "regeln": {
@@ -19,9 +19,9 @@
   "gamma_pilot_condition_ids": 20
  },
  "abgleich": {
-  "runs_json_stand_utc": "2026-08-07T04:33:11+00:00",
-  "runs_json_n_runs": 21,
-  "pilot_json_stand_utc": "2026-08-07T04:33:12+00:00",
+  "runs_json_stand_utc": "2026-08-26T23:53:11+00:00",
+  "runs_json_n_runs": 23,
+  "pilot_json_stand_utc": "2026-08-26T23:53:12+00:00",
   "pilot_json_n_trades": 20,
   "pilot_condition_ids_aufgeloest": 20
  },
@@ -33,7 +33,11 @@
   "einloesungen_usd": 1674.95,
   "rueckfluss_usd": 1954.29,
   "netto_cashflow_usd": 429.76,
-  "realisierter_pnl_api_usd": 514.05,
+  "realisierter_pnl_api_usd": 545.56,
+  "wertlos_pnl_usd": -113.86,
+  "abgerechneter_pnl_usd": 431.7,
+  "offener_pnl_usd": 0.0,
+  "positionen_kassenkorrigiert": 6,
   "n_events": 30,
   "n_maerkte": 55,
   "n_trades": 85,
@@ -42,15 +46,15 @@
   "n_einloesungen": 42,
   "n_activity_ignoriert": 0,
   "positionen": {
-   "won": 36,
-   "lost": 8,
+   "won": 42,
+   "lost": 2,
    "flat": 1,
    "worthless": 10,
    "open": 0,
    "unknown": 0
   },
-  "positionen_gewonnen": 36,
-  "positionen_verloren": 18,
+  "positionen_gewonnen": 42,
+  "positionen_verloren": 12,
   "positionen_wertlos": 10,
   "positionen_offen": 0,
   "positionen_flat": 1,
@@ -101,6 +105,7 @@
    "einloesungen_usd": 0.0,
    "netto_cash_usd": -39.49,
    "pnl_usd": -39.49,
+   "pnl_offen_usd": null,
    "status": {
     "won": 0,
     "lost": 1,
@@ -156,6 +161,7 @@
    "einloesungen_usd": 0.0,
    "netto_cash_usd": 92.07,
    "pnl_usd": 92.52,
+   "pnl_offen_usd": null,
    "status": {
     "won": 2,
     "lost": 0,
@@ -297,6 +303,7 @@
    "einloesungen_usd": 0.0,
    "netto_cash_usd": -25.82,
    "pnl_usd": -25.0,
+   "pnl_offen_usd": null,
    "status": {
     "won": 0,
     "lost": 0,
@@ -375,6 +382,7 @@
    "einloesungen_usd": 206.95,
    "netto_cash_usd": 6.68,
    "pnl_usd": 6.68,
+   "pnl_offen_usd": null,
    "status": {
     "won": 2,
     "lost": 0,
@@ -453,6 +461,7 @@
    "einloesungen_usd": 25.12,
    "netto_cash_usd": -1.53,
    "pnl_usd": -1.19,
+   "pnl_offen_usd": null,
    "status": {
     "won": 1,
     "lost": 0,
@@ -531,6 +540,7 @@
    "einloesungen_usd": 510.81,
    "netto_cash_usd": 146.63,
    "pnl_usd": 147.34,
+   "pnl_offen_usd": null,
    "status": {
     "won": 6,
     "lost": 0,
@@ -712,6 +722,7 @@
    "einloesungen_usd": 133.83,
    "netto_cash_usd": 58.72,
    "pnl_usd": 58.72,
+   "pnl_offen_usd": null,
    "status": {
     "won": 2,
     "lost": 0,
@@ -788,6 +799,7 @@
    "einloesungen_usd": 119.42,
    "netto_cash_usd": 23.16,
    "pnl_usd": 23.16,
+   "pnl_offen_usd": null,
    "status": {
     "won": 2,
     "lost": 0,
@@ -864,6 +876,7 @@
    "einloesungen_usd": 5.15,
    "netto_cash_usd": 0.15,
    "pnl_usd": 0.15,
+   "pnl_offen_usd": null,
    "status": {
     "won": 1,
     "lost": 0,
@@ -921,6 +934,7 @@
    "einloesungen_usd": 5.15,
    "netto_cash_usd": 0.15,
    "pnl_usd": 0.15,
+   "pnl_offen_usd": null,
    "status": {
     "won": 1,
     "lost": 0,
@@ -978,6 +992,7 @@
    "einloesungen_usd": 5.43,
    "netto_cash_usd": 0.41,
    "pnl_usd": 0.0,
+   "pnl_offen_usd": null,
    "status": {
     "won": 0,
     "lost": 0,
@@ -1035,6 +1050,7 @@
    "einloesungen_usd": 5.26,
    "netto_cash_usd": 0.26,
    "pnl_usd": 0.26,
+   "pnl_offen_usd": null,
    "status": {
     "won": 1,
     "lost": 0,
@@ -1092,6 +1108,7 @@
    "einloesungen_usd": 5.15,
    "netto_cash_usd": 0.15,
    "pnl_usd": 0.15,
+   "pnl_offen_usd": null,
    "status": {
     "won": 1,
     "lost": 0,
@@ -1149,6 +1166,7 @@
    "einloesungen_usd": 5.18,
    "netto_cash_usd": 0.18,
    "pnl_usd": 0.18,
+   "pnl_offen_usd": null,
    "status": {
     "won": 1,
     "lost": 0,
@@ -1206,6 +1224,7 @@
    "einloesungen_usd": 5.39,
    "netto_cash_usd": 0.39,
    "pnl_usd": 0.39,
+   "pnl_offen_usd": null,
    "status": {
     "won": 1,
     "lost": 0,
@@ -1263,6 +1282,7 @@
    "einloesungen_usd": 0.0,
    "netto_cash_usd": -5.01,
    "pnl_usd": -5.0,
+   "pnl_offen_usd": null,
    "status": {
     "won": 0,
     "lost": 0,
@@ -1320,6 +1340,7 @@
    "einloesungen_usd": 5.21,
    "netto_cash_usd": 0.21,
    "pnl_usd": 0.21,
+   "pnl_offen_usd": null,
    "status": {
     "won": 1,
     "lost": 0,
@@ -1376,16 +1397,17 @@
    "verkaeufe_usd": 0.0,
    "einloesungen_usd": 10.4,
    "netto_cash_usd": 0.38,
-   "pnl_usd": -10.02,
+   "pnl_usd": 0.38,
+   "pnl_offen_usd": null,
    "status": {
-    "won": 0,
-    "lost": 2,
+    "won": 2,
+    "lost": 0,
     "flat": 0,
     "worthless": 0,
     "open": 0,
     "unknown": 0
    },
-   "status_text": "2 lost",
+   "status_text": "2 won",
    "notes": [
     "Pre-registered small-stake pilot, rules frozen 2026-07-18; one of the 20 pilot trades of 2026-07-22."
    ],
@@ -1403,9 +1425,9 @@
      "verkauft_usd": 0.0,
      "eingeloest_usd": 5.19,
      "netto_cash_usd": 0.18,
-     "pnl_usd": -5.01,
-     "pnl_art": "realised (API realizedPnl)",
-     "status": "lost",
+     "pnl_usd": 0.18,
+     "pnl_art": "realised from the wallet's own cash flow — the API's realizedPnl contradicts curPrice 1 and a full redemption",
+     "status": "won",
      "n_trades": 1,
      "n_einloesungen": 1,
      "erster_trade_utc": "2026-07-22T13:09:24Z",
@@ -1424,9 +1446,9 @@
      "verkauft_usd": 0.0,
      "eingeloest_usd": 5.21,
      "netto_cash_usd": 0.2,
-     "pnl_usd": -5.01,
-     "pnl_art": "realised (API realizedPnl)",
-     "status": "lost",
+     "pnl_usd": 0.2,
+     "pnl_art": "realised from the wallet's own cash flow — the API's realizedPnl contradicts curPrice 1 and a full redemption",
+     "status": "won",
      "n_trades": 1,
      "n_einloesungen": 1,
      "erster_trade_utc": "2026-07-22T13:09:27Z",
@@ -1454,16 +1476,17 @@
    "verkaeufe_usd": 0.0,
    "einloesungen_usd": 5.21,
    "netto_cash_usd": 0.2,
-   "pnl_usd": -5.01,
+   "pnl_usd": 0.2,
+   "pnl_offen_usd": null,
    "status": {
-    "won": 0,
-    "lost": 1,
+    "won": 1,
+    "lost": 0,
     "flat": 0,
     "worthless": 0,
     "open": 0,
     "unknown": 0
    },
-   "status_text": "1 lost",
+   "status_text": "1 won",
    "notes": [
     "Pre-registered small-stake pilot, rules frozen 2026-07-18; one of the 20 pilot trades of 2026-07-22."
    ],
@@ -1481,9 +1504,9 @@
      "verkauft_usd": 0.0,
      "eingeloest_usd": 5.21,
      "netto_cash_usd": 0.2,
-     "pnl_usd": -5.01,
-     "pnl_art": "realised (API realizedPnl)",
-     "status": "lost",
+     "pnl_usd": 0.2,
+     "pnl_art": "realised from the wallet's own cash flow — the API's realizedPnl contradicts curPrice 1 and a full redemption",
+     "status": "won",
      "n_trades": 1,
      "n_einloesungen": 1,
      "erster_trade_utc": "2026-07-22T13:09:00Z",
@@ -1511,16 +1534,17 @@
    "verkaeufe_usd": 0.0,
    "einloesungen_usd": 5.32,
    "netto_cash_usd": 0.31,
-   "pnl_usd": -5.01,
+   "pnl_usd": 0.31,
+   "pnl_offen_usd": null,
    "status": {
-    "won": 0,
-    "lost": 1,
+    "won": 1,
+    "lost": 0,
     "flat": 0,
     "worthless": 0,
     "open": 0,
     "unknown": 0
    },
-   "status_text": "1 lost",
+   "status_text": "1 won",
    "notes": [
     "Pre-registered small-stake pilot, rules frozen 2026-07-18; one of the 20 pilot trades of 2026-07-22."
    ],
@@ -1538,9 +1562,9 @@
      "verkauft_usd": 0.0,
      "eingeloest_usd": 5.32,
      "netto_cash_usd": 0.31,
-     "pnl_usd": -5.01,
-     "pnl_art": "realised (API realizedPnl)",
-     "status": "lost",
+     "pnl_usd": 0.31,
+     "pnl_art": "realised from the wallet's own cash flow — the API's realizedPnl contradicts curPrice 1 and a full redemption",
+     "status": "won",
      "n_trades": 1,
      "n_einloesungen": 1,
      "erster_trade_utc": "2026-07-22T13:08:57Z",
@@ -1568,16 +1592,17 @@
    "verkaeufe_usd": 0.0,
    "einloesungen_usd": 5.26,
    "netto_cash_usd": 0.25,
-   "pnl_usd": -5.01,
+   "pnl_usd": 0.25,
+   "pnl_offen_usd": null,
    "status": {
-    "won": 0,
-    "lost": 1,
+    "won": 1,
+    "lost": 0,
     "flat": 0,
     "worthless": 0,
     "open": 0,
     "unknown": 0
    },
-   "status_text": "1 lost",
+   "status_text": "1 won",
    "notes": [
     "Pre-registered small-stake pilot, rules frozen 2026-07-18; one of the 20 pilot trades of 2026-07-22."
    ],
@@ -1595,9 +1620,9 @@
      "verkauft_usd": 0.0,
      "eingeloest_usd": 5.26,
      "netto_cash_usd": 0.25,
-     "pnl_usd": -5.01,
-     "pnl_art": "realised (API realizedPnl)",
-     "status": "lost",
+     "pnl_usd": 0.25,
+     "pnl_art": "realised from the wallet's own cash flow — the API's realizedPnl contradicts curPrice 1 and a full redemption",
+     "status": "won",
      "n_trades": 1,
      "n_einloesungen": 1,
      "erster_trade_utc": "2026-07-22T13:08:55Z",
@@ -1626,6 +1651,7 @@
    "einloesungen_usd": 0.0,
    "netto_cash_usd": -5.0,
    "pnl_usd": -5.0,
+   "pnl_offen_usd": null,
    "status": {
     "won": 0,
     "lost": 0,
@@ -1682,16 +1708,17 @@
    "verkaeufe_usd": 0.0,
    "einloesungen_usd": 5.32,
    "netto_cash_usd": 0.31,
-   "pnl_usd": -5.02,
+   "pnl_usd": 0.31,
+   "pnl_offen_usd": null,
    "status": {
-    "won": 0,
-    "lost": 1,
+    "won": 1,
+    "lost": 0,
     "flat": 0,
     "worthless": 0,
     "open": 0,
     "unknown": 0
    },
-   "status_text": "1 lost",
+   "status_text": "1 won",
    "notes": [
     "Pre-registered small-stake pilot, rules frozen 2026-07-18; one of the 20 pilot trades of 2026-07-22."
    ],
@@ -1709,9 +1736,9 @@
      "verkauft_usd": 0.0,
      "eingeloest_usd": 5.32,
      "netto_cash_usd": 0.31,
-     "pnl_usd": -5.02,
-     "pnl_art": "realised (API realizedPnl)",
-     "status": "lost",
+     "pnl_usd": 0.31,
+     "pnl_art": "realised from the wallet's own cash flow — the API's realizedPnl contradicts curPrice 1 and a full redemption",
+     "status": "won",
      "n_trades": 1,
      "n_einloesungen": 1,
      "erster_trade_utc": "2026-07-22T13:08:22Z",
@@ -1740,6 +1767,7 @@
    "einloesungen_usd": 5.15,
    "netto_cash_usd": 0.15,
    "pnl_usd": 0.15,
+   "pnl_offen_usd": null,
    "status": {
     "won": 1,
     "lost": 0,
@@ -1797,6 +1825,7 @@
    "einloesungen_usd": 5.27,
    "netto_cash_usd": -4.76,
    "pnl_usd": -4.74,
+   "pnl_offen_usd": null,
    "status": {
     "won": 1,
     "lost": 0,
@@ -1875,6 +1904,7 @@
    "einloesungen_usd": 5.17,
    "netto_cash_usd": 0.16,
    "pnl_usd": 0.16,
+   "pnl_offen_usd": null,
    "status": {
     "won": 1,
     "lost": 0,
@@ -1932,6 +1962,7 @@
    "einloesungen_usd": 407.92,
    "netto_cash_usd": 119.84,
    "pnl_usd": 119.84,
+   "pnl_offen_usd": null,
    "status": {
     "won": 5,
     "lost": 1,
@@ -2092,6 +2123,7 @@
    "einloesungen_usd": 6.31,
    "netto_cash_usd": 1.9,
    "pnl_usd": 1.9,
+   "pnl_offen_usd": null,
    "status": {
     "won": 1,
     "lost": 0,
@@ -2147,6 +2179,7 @@
    "einloesungen_usd": 163.52,
    "netto_cash_usd": 48.25,
    "pnl_usd": 48.25,
+   "pnl_offen_usd": null,
    "status": {
     "won": 4,
     "lost": 0,
@@ -2265,6 +2298,7 @@
    "einloesungen_usd": 12.02,
    "netto_cash_usd": 10.45,
    "pnl_usd": 10.45,
+   "pnl_offen_usd": null,
    "status": {
     "won": 1,
     "lost": 0,
