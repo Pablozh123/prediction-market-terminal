@@ -517,6 +517,9 @@ class AktivitaetsFensterTests(unittest.TestCase):
         self.assertTrue(activity["error"])
         self.assertEqual(activity["n_rows"], 0)
         self.assertTrue(payload["identity"]["activity_error"])
+        # Und der Ausfall steht bei den Grenzen dieses Lesevorgangs, wo die
+        # Seite ihn ohnehin schon anzeigt.
+        self.assertIn("activity", payload["errors"])
 
     def test_the_intact_window_still_says_read(self) -> None:
         from api import server
