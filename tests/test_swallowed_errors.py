@@ -198,5 +198,93 @@ class KategorieHerkunftTests(unittest.TestCase):
         self.assertNotEqual(list(ohne["category"]), ["Politics"])
 
 
+class TapeEndpointTests(unittest.TestCase):
+    """``/api/tape`` sagt, woher die Kategorie jeder Zeile kam."""
+
+    def setUp(self) -> None:
+        from api import server
+
+        server._CACHE.clear()
+        self.server = server
+
+    def tearDown(self) -> None:
+        self.server._CACHE.clear()
+
+    def test_the_answer_carries_the_category_source(self) -> None:
+        with offline_market_apis():
+            payload = self.server.tape(limit=40, min_cash=0.0)
+        self.assertIn("categories", payload)
+        self.assertTrue(payload["categories"]["ok"])
+        self.assertGreater(payload["categories"]["markets"], 0)
+
+    def test_a_failed_universe_is_named_instead_of_printed(self) -> None:
+        # Vorher: eine Zeile auf stdout, danach jede Kategorie aus dem Titel.
+        # Die Zeilen bleiben stehen, aber die Antwort gibt zu, dass ihre
+        # Kategoriespalte aus einer anderen Quelle stammt als sonst.
+        from unittest.mock import patch
+
+        with offline_market_apis():
+            with patch.object(self.server, "load_universe", side_effect=RuntimeError("gamma down")):
+                payload = self.server.tape(limit=40, min_cash=0.0)
+        self.assertTrue(payload["rows"])
+        self.assertFalse(payload["categories"]["ok"])
+        self.assertIn("gamma down", payload["categories"]["error"])
+
+
+class DeepTapeTests(unittest.TestCase):
+    """Der tiefe Tape des Risk-Screens fuehrt seinen Abbruch mit.
+
+    Der Satz, den die Seite ohne diesen Vermerk schrieb, lautete: "No
+    co-trading cluster in the current window. That is a result, not a gap."
+    Er stimmt, solange das Fenster steht. Bricht die Seitenschleife nach
+    einer von acht Seiten ab, ist die leere Flaeche genau die Luecke, die
+    der Satz bestreitet.
+    """
+
+    def setUp(self) -> None:
+        from api import server
+
+        server._CACHE.clear()
+        self.server = server
+
+    def tearDown(self) -> None:
+        self.server._CACHE.clear()
+
+    def test_the_deep_tape_records_a_truncated_page_loop(self) -> None:
+        # Die Fixtures liefern eine kurze Seite, der Server fragt 1000 je
+        # Seite: die Schleife endet regulaer nach der ersten. Der Ausfall
+        # muss also die erste treffen, damit ueberhaupt einer eintritt.
+        with offline_market_apis(), failing_requests("/trades"):
+            tape = self.server.load_deep_tape(seiten=8, min_cash=1000.0)
+        record = md.sample_coverage(tape)
+        self.assertTrue(tape.empty)
+        self.assertTrue(record["truncated_by_error"])
+        self.assertEqual(record["pages_read"], 0)
+        self.assertIn("stopped answering after page 0", md.sample_note(record))
+
+    def test_the_risk_payload_names_the_truncation_next_to_the_empty_graph(self) -> None:
+        # Der Weg bis auf die Seite: ohne dieses Feld steht dort "No
+        # co-trading cluster in the current window. That is a result, not a
+        # gap", waehrend der Tape auf halber Strecke abgebrochen ist. Der
+        # Screen-Tape und der tiefe Tape lesen denselben Endpunkt, deshalb
+        # bricht hier nur der tiefe ab.
+        from unittest.mock import patch
+
+        with offline_market_apis():
+            with patch.object(self.server, "load_deep_tape", side_effect=lambda *a, **k: self._abgebrochen()):
+                payload = self.server.risk()
+        self.assertIn("cluster_sample", payload)
+        self.assertIn("stopped answering after page 2", payload["cluster_sample"]["note"])
+
+    def _abgebrochen(self) -> pd.DataFrame:
+        with offline_market_apis(), failing_requests("/trades", after=2):
+            return md.paged_polymarket_trades(1000.0, pages=8, page_size=24)
+
+    def test_an_intact_run_records_no_truncation(self) -> None:
+        with offline_market_apis():
+            tape = self.server.load_deep_tape(seiten=8, min_cash=1000.0)
+        self.assertFalse(md.sample_coverage(tape)["truncated_by_error"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -977,27 +977,29 @@ def load_deep_tape(seiten: int = 8, min_cash: float = 1000.0) -> pd.DataFrame:
     dieser Venue nur Minuten ab. In Minuten teilt niemand zwei Maerkte, das
     Netzwerk waere also leer, weil das Fenster zu kurz ist und nicht weil
     keine Struktur da ist. Acht Seiten ergeben rund einen Tag.
+
+    Genau das war das Problem an der alten Seitenschleife: sie brach bei der
+    ersten Stoerung mit ``print("[warn] ...")`` ab und lieferte, was bis
+    dahin da war. Vier von acht Seiten sind rund ein halber Tag, und der
+    Risk-Screen schrieb daneben weiter "No co-trading cluster in the current
+    window. That is a result, not a gap." Die Schleife steht deshalb jetzt in
+    ``md.paged_polymarket_trades`` und fuehrt ihren Abbruch am Frame mit.
     """
 
     def _load() -> pd.DataFrame:
-        teile: list[pd.DataFrame] = []
-        for seite in range(seiten):
-            try:
-                block = md.get_polymarket_trades(
-                    limit=1000, min_cash=min_cash, offset=seite * 1000)
-            except Exception as exc:
-                print(f"[warn] deep tape page {seite}: {exc}")
-                break
-            if block is None or block.empty:
-                break
-            teile.append(block)
-        if not teile:
-            return pd.DataFrame()
-        zusammen = pd.concat(teile, ignore_index=True, sort=False)
+        zusammen = md.paged_polymarket_trades(min_cash, pages=seiten, page_size=1000)
+        record = md.sample_coverage(zusammen)
+        if zusammen.empty:
+            leer = pd.DataFrame()
+            leer.attrs[md.SAMPLE_ATTR] = record
+            return leer
         schluessel = [s for s in ("transaction_hash", "wallet", "asset") if s in zusammen.columns]
         if schluessel:
             zusammen = zusammen.drop_duplicates(subset=schluessel, keep="first")
-        return zusammen.reset_index(drop=True)
+        zusammen = zusammen.reset_index(drop=True)
+        record["rows"] = int(len(zusammen))
+        zusammen.attrs[md.SAMPLE_ATTR] = record
+        return zusammen
 
     return cached(f"deep_tape_{seiten}_{min_cash}", _load, ttl=300.0)
 
@@ -1155,6 +1157,11 @@ def build_risk_payload() -> dict[str, Any]:
             # letzte Tausend Prints deckt auf dieser Venue rund eine Minute ab,
             # und in einer Minute teilt niemand mehr als einen Markt.
             netz_tape = load_deep_tape()
+            # Wie tief die Stichprobe wirklich war, gehoert neben das Bild.
+            # "Kein Cluster im aktuellen Fenster" ist ein Befund, solange das
+            # Fenster steht; bricht die Seitenschleife auf halber Strecke ab,
+            # ist es keiner mehr, und vorher war das nicht zu unterscheiden.
+            payload["cluster_sample"] = {"note": md.sample_note(md.sample_coverage(netz_tape)), "error": ""}
             # Kategorien mitgeben: ein Untermarkt heisst "Will FC Thun win on
             # 2026-08-06?" und traegt selbst kein Sportwort. Ohne den
             # Elterntitel landen ganze Spieltage als "General" im Screen.
@@ -1195,9 +1202,15 @@ def build_risk_payload() -> dict[str, Any]:
                     wallets_im_tape=int(netz_basis["wallet"].astype(str).nunique()),
                     stand_utc=datetime.now(timezone.utc).isoformat(timespec="seconds"))
                 payload["graph"]["fenster"] = apv.tape_window_label(netz_basis)
+                payload["graph"]["stichprobe"] = payload.get("cluster_sample", {}).get("note", "")
                 payload["matrix"] = apv.overlap_matrix(netz_basis, nodes)
         except Exception as exc:
+            # Vorher ging der ganze Block auf stdout und die Seite zeigte
+            # "kein Cluster gefunden". Ein abgestuerzter Rechenweg und ein
+            # leeres Ergebnis sahen gleich aus; jetzt trennt sie ein Feld.
             print(f"[warn] suspicion clusters: {exc}")
+            payload["cluster_sample"] = {"note": payload.get("cluster_sample", {}).get("note", ""),
+                                         "error": f"{type(exc).__name__}: {exc}"[:300]}
         return payload
 
     return cached("risk_payload", _build, ttl=300.0)

@@ -1076,6 +1076,12 @@ POLYMARKET_TRADE_FIELDS = (
     ("price",),
     ("side",),
     ("outcome",),
+    # Der Entdopplungsschluessel der gepagten Tapes ist
+    # (transaction_hash, wallet, asset). Faellt der Hash weg, ist er auf
+    # jeder Zeile "", und acht Seiten Tape fallen auf einen Print je Wallet
+    # und Asset zusammen: aus einem vielbeschaeftigten Tag wird ein ruhiger,
+    # das Co-Trading-Netz duennt aus, und nichts sagt warum.
+    ("transactionHash",),
 )
 
 
@@ -2157,6 +2163,18 @@ def market_quick_trade_ticket(row: Mapping[str, Any] | pd.Series, outcome: str =
     }
 
 
+#: Die Rangliste. ``proxyWallet`` ist das tragende Feld: sie ist der
+#: Schluessel, ueber den jeder Verbraucher die Zeile wieder findet. Faellt
+#: sie weg, tragen alle 250 Zeilen dieselbe leere Wallet, und jeder Join
+#: darauf (Smart Score, Peer-Vergleich, Wallet-Detail) trifft dieselbe eine.
+POLYMARKET_LEADERBOARD_FIELDS = (
+    ("proxyWallet",),
+    ("pnl",),
+    ("vol",),
+    ("rank",),
+)
+
+
 def get_polymarket_leaderboard(
     limit: int = 100,
     time_period: str = "ALL",
@@ -2164,7 +2182,9 @@ def get_polymarket_leaderboard(
 ) -> pd.DataFrame:
     params = {"limit": limit, "timePeriod": time_period, "orderBy": order_by}
     data = _get_json(f"{POLY_DATA}/v1/leaderboard", params=params)
-    df = pd.DataFrame(data if isinstance(data, list) else data.get("data", []))
+    rows = data if isinstance(data, list) else data.get("data", [])
+    require_fields(rows, POLYMARKET_LEADERBOARD_FIELDS, feed="Polymarket /v1/leaderboard")
+    df = pd.DataFrame(rows)
     if df.empty:
         return pd.DataFrame()
     df["platform"] = "Polymarket"
@@ -2357,11 +2377,56 @@ def market_calendar_days(
     return pd.DataFrame(rows, columns=columns)
 
 
+#: Die drei Wallet-Feeds tragen dieselbe Last wie das Tape und standen bis
+#: hierher ohne Wachposten. ``conditionId`` ist ueberall das gefaehrlichste
+#: Feld: es wird ueber ``df.get("conditionId", "")`` gelesen, faellt also
+#: nicht aus, sondern wird zur leeren Spalte. Jede Gruppierung sieht danach
+#: genau einen Markt, und ``get_polymarket_resolved_positions`` entdoppelt
+#: ueber (market_key, outcome) — aus rund hundert abgerechneten Positionen
+#: werden zwei, und Trefferquote, Brier und realisierter PnL der Wallet
+#: rechnen auf diesen zweien weiter, ohne dass irgendwo ein Fehler steht.
+POLYMARKET_POSITION_FIELDS = (
+    ("conditionId",),
+    ("asset",),
+    ("outcome",),
+    ("size", "amount"),
+    ("avgPrice",),
+)
+
+#: Abgerechnete Positionen. ``curPrice`` fehlt hier absichtlich: sein
+#: Wegfall laesst die Zeile als NaN aus der Kalibrierungskurve fallen
+#: (``unresolved_exits`` zaehlt sie), ist also bereits sichtbar. Die
+#: anderen vier werden still zu Nullen und Leerstrings.
+POLYMARKET_CLOSED_POSITION_FIELDS = (
+    ("conditionId",),
+    ("outcome",),
+    ("realizedPnl",),
+    ("totalBought",),
+    ("avgPrice",),
+)
+
+#: Die Aktivitaetsliste. ``usdcSize`` steht drin, weil ihr Wegfall nicht nur
+#: eine Luecke waere, sondern ein Einheitentausch: der Ausdruck las frueher
+#: ersatzweise ``size``, und das sind Anteile. Tausend Anteile eines
+#: Drei-Cent-Marktes sind dreissig Dollar und waeren als Tausend-Dollar-Print
+#: durch jeden Whale-Filter gelaufen.
+POLYMARKET_ACTIVITY_FIELDS = (
+    ("conditionId",),
+    ("timestamp",),
+    ("type",),
+    ("side",),
+    ("usdcSize",),
+    ("size",),
+)
+
+
 def get_polymarket_positions(user: str, limit: int = 250) -> pd.DataFrame:
     if not user:
         return pd.DataFrame()
     data = _get_json(f"{POLY_DATA}/positions", params={"user": user, "limit": limit})
-    df = pd.DataFrame(data if isinstance(data, list) else data.get("data", []))
+    rows = data if isinstance(data, list) else data.get("data", [])
+    require_fields(rows, POLYMARKET_POSITION_FIELDS, feed="Polymarket /positions")
+    df = pd.DataFrame(rows)
     if df.empty:
         return pd.DataFrame()
     df["platform"] = "Polymarket"
@@ -2420,7 +2485,9 @@ def get_polymarket_closed_positions(
         params["sortBy"] = sort_by
         params["sortDirection"] = "ASC" if str(sort_direction or "").upper() == "ASC" else "DESC"
     data = _get_json(f"{POLY_DATA}/closed-positions", params=params)
-    df = pd.DataFrame(data if isinstance(data, list) else data.get("data", []))
+    rows = data if isinstance(data, list) else data.get("data", [])
+    require_fields(rows, POLYMARKET_CLOSED_POSITION_FIELDS, feed="Polymarket /closed-positions")
+    df = pd.DataFrame(rows)
     if df.empty:
         return pd.DataFrame()
     df["platform"] = "Polymarket"
@@ -2503,12 +2570,19 @@ def get_polymarket_activity(user: str, limit: int = 250, offset: int = 0, end: i
     if end is not None:
         params["end"] = int(end)
     data = _get_json(f"{POLY_DATA}/activity", params=params)
-    df = pd.DataFrame(data if isinstance(data, list) else data.get("data", []))
+    rows = data if isinstance(data, list) else data.get("data", [])
+    require_fields(rows, POLYMARKET_ACTIVITY_FIELDS, feed="Polymarket /activity")
+    df = pd.DataFrame(rows)
     if df.empty:
         return pd.DataFrame()
     df["platform"] = "Polymarket"
     df["time"] = pd.to_datetime(df.get("timestamp"), unit="s", utc=True, errors="coerce")
-    df["notional"] = pd.to_numeric(df.get("usdcSize", df.get("size", 0)), errors="coerce").fillna(0.0)
+    # ``usdcSize`` sind Dollar, ``size`` sind Anteile. Hier stand
+    # ``df.get("usdcSize", df.get("size", 0))``: derselbe Ausdruck tauschte
+    # die Einheit, sobald das erste Feld wegfiel, und zwar lautlos. Der
+    # Rueckfall ist weg, das Feld ist oben Pflicht, und fehlt es in einer
+    # einzelnen Zeile, bleibt die Zeile ohne Betrag statt mit einem falschen.
+    df["notional"] = _erste_zahl(df, "usdcSize").fillna(0.0)
     df["price"] = pd.to_numeric(df.get("price", 0), errors="coerce").fillna(0.0)
     df["size"] = pd.to_numeric(df.get("size", 0), errors="coerce").fillna(0.0)
     df["title"] = df.get("title", "")

@@ -496,6 +496,22 @@ def _mit_umbenanntem_feld(quelle: Any, schluessel: str, alt: str, neu: str):
     return umbenannt
 
 
+#: Feeds, die mit einer blanken Liste antworten (Polymarket Data API).
+LISTEN_QUELLEN = {
+    "polymarket_trades": polymarket_trades,
+    "polymarket_activity": polymarket_activity,
+    "polymarket_positions": polymarket_positions,
+    "polymarket_closed_positions": polymarket_closed_positions,
+    "polymarket_leaderboard": polymarket_leaderboard,
+}
+
+#: Feeds, die die Zeilen in einen Umschlag legen: (Quelle, Schluessel).
+UMSCHLAG_QUELLEN = {
+    "kalshi_trades": (kalshi_trades, "trades"),
+    "kalshi_markets": (kalshi_markets, "markets"),
+}
+
+
 @contextmanager
 def renamed_field(venue: str, alt: str, neu: str):
     """Ein umbenanntes Feld in einer Venue-Antwort, sonst dasselbe Marktbild.
@@ -508,16 +524,13 @@ def renamed_field(venue: str, alt: str, neu: str):
     eine Warnung schluckt. Beide Enden sehen von aussen gleich aus: die
     Seite meldet weiter LIVE und zeigt eine Venue weniger.
 
-    ``venue`` ist ``kalshi_trades``, ``kalshi_markets`` oder
-    ``polymarket_trades``.
+    ``venue`` ist einer der Namen in ``LISTEN_QUELLEN`` bzw.
+    ``UMSCHLAG_QUELLEN``: die Polymarket-Feeds antworten mit einer blanken
+    Liste, die Kalshi-Feeds mit einem Umschlag um eine.
     """
 
-    quellen = {
-        "kalshi_trades": (kalshi_trades, "trades"),
-        "kalshi_markets": (kalshi_markets, "markets"),
-    }
-    if venue == "polymarket_trades":
-        original = polymarket_trades
+    if venue in LISTEN_QUELLEN:
+        original = LISTEN_QUELLEN[venue]
 
         def umbenannt_liste() -> list[dict[str, Any]]:
             return [
@@ -525,9 +538,10 @@ def renamed_field(venue: str, alt: str, neu: str):
                 for zeile in original()
             ]
 
-        with patch(f"{__name__}.polymarket_trades", umbenannt_liste):
+        with patch(f"{__name__}.{venue}", umbenannt_liste):
             yield
         return
+    quellen = UMSCHLAG_QUELLEN
     if venue not in quellen:
         raise AssertionError(f"unknown fixture venue: {venue}")
     quelle, schluessel = quellen[venue]

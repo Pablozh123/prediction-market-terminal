@@ -32,6 +32,7 @@ from unittest.mock import patch
 import pandas as pd
 
 from src import prediction_markets as md
+from tests.market_api_fixtures import CONDITION_IDS as FIXTURE_CONDITION_IDS
 from tests.market_api_fixtures import offline_market_apis, renamed_field
 
 
@@ -227,6 +228,87 @@ class EmptyWithAReasonTests(unittest.TestCase):
             payload = self.server.cross(min_similarity=0.6, max_pairs=50)
         self.assertEqual(payload["rows"], [])
         self.assertIn("gamma down", payload["error"])
+
+
+class WalletFeedFieldTests(unittest.TestCase):
+    """Dieselbe Pruefung auf den Wallet-Feeds, die sie bisher nicht hatten.
+
+    PR #125 hat ``require_fields`` auf die beiden Trade-Feeds und die
+    Kalshi-Marktliste gesetzt und unter "Offen" notiert, dass die anderen
+    Feeds ihn genauso brauchen. Diese Klasse holt das fuer die vier nach,
+    an denen die Wallet-Seite ihre Zahlen aufhaengt.
+    """
+
+    WALLET = "0x1111111111111111111111111111111111111111"
+
+    def test_the_resolved_union_is_intact_to_begin_with(self) -> None:
+        # Die Ausgangslage: drei abgerechnete Positionen unter drei
+        # conditionIds, davon zwei "Yes" und eine "No".
+        with offline_market_apis():
+            union, _capped = md.get_polymarket_resolved_positions(self.WALLET, per_side=50)
+        self.assertEqual(len(union), 3)
+        self.assertEqual(sorted(set(union["market_key"].astype(str))), sorted(FIXTURE_CONDITION_IDS))
+
+    def test_a_renamed_condition_id_collapses_the_resolved_set_and_now_fails_instead(self) -> None:
+        # Ohne Wachposten: jede Zeile market_key "", die Entdopplung laeuft
+        # ueber (market_key, outcome), also bleiben aus drei Positionen zwei
+        # uebrig — eine "Yes" und eine "No". Trefferquote, Brier und
+        # realisierter PnL der Wallet rechnen danach auf zweien weiter.
+        with offline_market_apis(), renamed_field("polymarket_closed_positions", "conditionId", "condition"):
+            with self.assertRaises(md.MarketDataError) as gefangen:
+                md.get_polymarket_resolved_positions(self.WALLET, per_side=50)
+        self.assertIn("conditionId", str(gefangen.exception))
+
+    def test_a_renamed_realized_pnl_fails_instead_of_booking_every_position_at_zero(self) -> None:
+        with offline_market_apis(), renamed_field("polymarket_closed_positions", "realizedPnl", "pnl_realized"):
+            with self.assertRaises(md.MarketDataError) as gefangen:
+                md.get_polymarket_closed_positions(self.WALLET)
+        self.assertIn("realizedPnl", str(gefangen.exception))
+
+    def test_a_renamed_condition_id_in_open_positions_fails(self) -> None:
+        with offline_market_apis(), renamed_field("polymarket_positions", "conditionId", "condition"):
+            with self.assertRaises(md.MarketDataError) as gefangen:
+                md.get_polymarket_positions(self.WALLET)
+        self.assertIn("conditionId", str(gefangen.exception))
+
+    def test_a_renamed_dollar_amount_in_activity_no_longer_swaps_the_unit(self) -> None:
+        # Der gefaehrlichste der vier: ``usdcSize`` sind Dollar, ``size``
+        # sind Anteile, und der alte Ausdruck nahm ersatzweise die Anteile.
+        # Tausend Anteile eines Drei-Cent-Marktes sind dreissig Dollar und
+        # waeren als Tausend-Dollar-Print durch jeden Whale-Filter gelaufen.
+        with offline_market_apis(), renamed_field("polymarket_activity", "usdcSize", "usdc_size"):
+            with self.assertRaises(md.MarketDataError) as gefangen:
+                md.get_polymarket_activity(self.WALLET)
+        self.assertIn("usdcSize", str(gefangen.exception))
+
+    def test_activity_notional_is_dollars_not_shares(self) -> None:
+        with offline_market_apis():
+            frame = md.get_polymarket_activity(self.WALLET)
+        self.assertFalse(frame.empty)
+        # notional = size * price, nie size allein.
+        erwartet = (frame["size"] * frame["price"]).round(6)
+        self.assertTrue((frame["notional"].round(6) == erwartet).all())
+
+    def test_a_renamed_leaderboard_wallet_fails_instead_of_pointing_every_row_at_one(self) -> None:
+        with offline_market_apis(), renamed_field("polymarket_leaderboard", "proxyWallet", "wallet_address"):
+            with self.assertRaises(md.MarketDataError) as gefangen:
+                md.get_polymarket_leaderboard(limit=10)
+        self.assertIn("proxyWallet", str(gefangen.exception))
+
+    def test_a_renamed_transaction_hash_fails_instead_of_deduping_the_tape_away(self) -> None:
+        # Der Entdopplungsschluessel der gepagten Tapes. Ohne Hash faellt
+        # jede Wallet auf einen Print je Asset zusammen.
+        with offline_market_apis(), renamed_field("polymarket_trades", "transactionHash", "txHash"):
+            with self.assertRaises(md.MarketDataError) as gefangen:
+                md.get_polymarket_trades(limit=24)
+        self.assertIn("transactionHash", str(gefangen.exception))
+
+    def test_an_empty_wallet_answer_is_not_a_schema_break(self) -> None:
+        # Eine Wallet ohne Positionen ist eine Aussage, kein Feldwegfall.
+        with patch("src.prediction_markets._get_json", return_value=[]):
+            self.assertTrue(md.get_polymarket_positions(self.WALLET).empty)
+            self.assertTrue(md.get_polymarket_activity(self.WALLET).empty)
+            self.assertTrue(md.get_polymarket_closed_positions(self.WALLET).empty)
 
 
 class VenueSourceHelperTests(unittest.TestCase):
