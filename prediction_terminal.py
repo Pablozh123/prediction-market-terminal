@@ -929,10 +929,15 @@ def signal_value_labels(signals: pd.DataFrame) -> pd.DataFrame:
     dem vollen Frame entsteht und nicht aus der Anzeigeauswahl.
     """
 
-    if signals is None or signals.empty or "value" not in signals:
+    if signals is None or signals.empty:
         return signals
-    out = signals.copy()
-    out["value"] = apv.signal_value_series(signals)
+    # Und die Platzhalter-Nullen raus, die keine Messung sind: ein
+    # Whale-Print fuehrt kein Marktvolumen und keine Buchtiefe, ein
+    # Marktsignal kein Notional (app/signals.py::UNAVAILABLE_FIELDS).
+    out = sig.blank_structural_placeholders(signals)
+    if "value" in out:
+        out = out.copy()
+        out["value"] = apv.signal_value_series(signals)
     return out
 
 
@@ -8873,7 +8878,16 @@ def page_monitor() -> None:
         # die Volumenspalte des Marktes unveraendert in die Signalzeile. Auf
         # Kalshi zaehlt sie Kontrakte (app/venue_units.py), also steht hier
         # kein Dollarzeichen. Liquiditaet ist die Ausnahme und bleibt Dollar.
-        "volume": st.column_config.NumberColumn("Volume (venue unit)", format="%.0f"),
+        #
+        # Und die Spalte ist ``activity_volume`` (sig.monitor_volume_col),
+        # also der Tageswert nur bei Handel am selben Tag und sonst das
+        # Lebensvolumen. "Volume" allein liest sich wie ein aktueller Umsatz.
+        "volume": st.column_config.NumberColumn(
+            "Activity volume (venue unit)", format="%.0f",
+            help="The market's activity volume: the day's figure where there is one, the lifetime "
+            "figure otherwise. Polymarket reports dollars, Kalshi contracts. Empty on a whale print, "
+            "which comes from the tape and carries no market volume.",
+        ),
         "liquidity": st.column_config.NumberColumn(format="$%.0f"),
         "spread": st.column_config.NumberColumn(format="%.4f"),
         "change_1h": st.column_config.NumberColumn(format="%+.4f"),
