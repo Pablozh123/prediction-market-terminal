@@ -180,11 +180,56 @@ export function isWalletAddress(v) {
   return /^0x[0-9a-fA-F]{6,}$/.test(String(v || '').trim());
 }
 
+// Richtung eines Prints als eigenes Feld. Polymarket liefert BUY/SELL,
+// Kalshi liefert in derselben Spalte die genommene Seite ("yes"/"no") —
+// dort ist jeder Print ein Kauf des Takers, also BUY.
+export function tradeDirection(side) {
+  return String(side || '').trim().toUpperCase() === 'SELL' ? 'SELL' : 'BUY';
+}
+
+// Ergebnisname eines Prints, Schreibweise vereinheitlicht. Kalshi schreibt
+// "yes"/"no" klein, Polymarket "Yes"/"No"; ohne diese Angleichung filtert
+// die Auswahl OUTCOME = Yes jeden Kalshi-Print weg, weil sie auf dem
+// zusammengesetzten Etikett "BUY yes" nach "Yes" sucht. Namen aus
+// Mehrfachmaerkten (Teamnamen) bleiben, wie sie kommen.
+export function tradeOutcome(outcome) {
+  const roh = String(outcome == null ? '' : outcome).trim();
+  if (!roh) return 'Yes';
+  const klein = roh.toLowerCase();
+  if (klein === 'yes') return 'Yes';
+  if (klein === 'no') return 'No';
+  return roh;
+}
+
+// Trifft ein Tape-Print die Filterauswahl der Live-Tape-Seite? Steht hier
+// und nicht in app.js, damit dieselbe Regel testbar ist, die die Seite und
+// jede Kennzahl darueber (TOTAL MOVED, FLOW PULSE, WHERE THE MONEY FLOWS)
+// benutzt.
+export function tapeMatches(t, s) {
+  if (t.size < s.tapeMin) return false;
+  if (s.tapeTracked && !t.tracked) return false;
+  if (s.tapePlatform !== 'all' && t.venue !== s.tapePlatform) return false;
+  // Richtung und Ergebnis als eigene Felder vergleichen (mapTrade). Vorher
+  // lief beides ueber indexOf auf dem Etikett "BUY yes": das liess
+  // OUTCOME = Yes jeden Kalshi-Print fallen (dort steht "yes" klein) und
+  // liess OUTCOME = No jeden Print eines Marktes mit "November" durch.
+  if (s.tapeSide !== 'all' && (t.dir || 'BUY') !== s.tapeSide) return false;
+  if (s.tapeOutcome !== 'all' && (t.outcome || '') !== s.tapeOutcome) return false;
+  if (s.tapeCat !== 'All' && (t.category || 'Other') !== s.tapeCat) return false;
+  if (String(s.tapeQuery || '').trim()) {
+    const tq = String(s.tapeQuery).trim().toLowerCase();
+    if (t.market.toLowerCase().indexOf(tq) < 0 && t.wallet.toLowerCase().indexOf(tq) < 0) return false;
+  }
+  return true;
+}
+
 // Map one /api/tape row into the tape-row shape.
 export function mapTrade(r) {
   const t = r.time ? new Date(r.time) : null;
   const mins = t && !isNaN(t) ? Math.max(0, Math.round((Date.now() - t) / 60000)) : 999;
   const ago = mins < 1 ? 'just now' : mins < 60 ? mins + ' min ago' : Math.round(mins / 60) + ' h ago';
+  const dir = tradeDirection(r.side);
+  const outcome = tradeOutcome(r.outcome);
   return {
     ago, mins,
     // Roher Zeitstempel als stabiler Schluessel: "ago" wandert mit jeder
@@ -204,7 +249,12 @@ export function mapTrade(r) {
     // "Other" — kein Nachschlagen ueber den Titel in den 250 geladenen
     // Maerkten mehr, das traf fast nie und machte alles zu "Other".
     category: r.category ? liveCat(r.category) : 'Other',
-    side: (String(r.side || 'BUY').toUpperCase() === 'SELL' ? 'SELL ' : 'BUY ') + (String(r.outcome || 'Yes')),
+    // Richtung und Ergebnis stehen einzeln da; "side" bleibt nur das
+    // Etikett fuer die Anzeige. Filter und Summen lesen dir/outcome, nicht
+    // Teilzeichenketten des Etiketts: "BUY November" enthaelt "No".
+    dir,
+    outcome,
+    side: dir + ' ' + outcome,
     price: ((+r.price || 0) * 100).toFixed(1) + '¢',
     size: +r.notional || Math.round((+r.size || 0) * (+r.price || 0)) || 0,
     venue: String(r.platform || 'Polymarket'),

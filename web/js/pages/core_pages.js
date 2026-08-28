@@ -641,7 +641,7 @@ function tapePulsHtml(prints, buys, sells) {
   const marken = [];
   valid.forEach((t) => {
     const i = Math.min(nBins - 1, Math.max(0, nBins - 1 - Math.floor(t.mins / schritt)));
-    const kauf = t.side.indexOf('BUY') === 0;
+    const kauf = (t.dir || 'BUY') === 'BUY';
     bins[i][kauf ? 'oben' : 'unten'] += t.size;
     if (t.size >= PULS_MARKE_USD) marken.push({ bin: i, oben: kauf, text: t.market + ' · ' + t.side + ' · ' + money(t.size) });
   });
@@ -672,7 +672,7 @@ function kategorieFlussHtml(prints) {
   prints.forEach((t) => {
     const c = t.category || 'Other';
     const e = je[c] || (je[c] = { kauf: 0, verkauf: 0 });
-    e[t.side.indexOf('BUY') === 0 ? 'kauf' : 'verkauf'] += t.size;
+    e[(t.dir || 'BUY') === 'BUY' ? 'kauf' : 'verkauf'] += t.size;
   });
   const rows = Object.keys(je)
     .map((c) => ({ cat: c, kauf: je[c].kauf, verkauf: je[c].verkauf, summe: je[c].kauf + je[c].verkauf }))
@@ -704,7 +704,7 @@ export function renderFlow(T) {
   const tapeNotional = tapeFiltered.reduce((a, t) => a + t.size, 0);
   const tapeWallets = tapeFiltered.filter((t) => t.wallet !== '—').map((t) => t.wallet).filter((v, i, arr) => arr.indexOf(v) === i).length;
   const identifiziert = tapeFiltered.filter((t) => t.wallet !== '—').length;
-  const buys = tapeFiltered.filter((t) => t.side.indexOf('BUY') === 0).reduce((a, t) => a + t.size, 0);
+  const buys = tapeFiltered.filter((t) => (t.dir || 'BUY') === 'BUY').reduce((a, t) => a + t.size, 0);
   const sells = tapeNotional - buys;
   const groesster = tapeFiltered.reduce((a, t) => (t.size > (a ? a.size : -1) ? t : a), null);
   const kurzTitel = (t) => (String(t).length > 38 ? String(t).slice(0, 37) + '…' : String(t));

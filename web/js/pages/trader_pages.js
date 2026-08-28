@@ -173,7 +173,7 @@ export function renderWhale(T) {
     });
     const size = +t.size || 0;
     w.prints++; w.total += size; w.biggest = Math.max(w.biggest, size);
-    if (String(t.side).indexOf('BUY') === 0) { w.buys++; w.buyDollar += size; } else { w.sells++; w.sellDollar += size; }
+    if ((t.dir || 'BUY') === 'BUY') { w.buys++; w.buyDollar += size; } else { w.sells++; w.sellDollar += size; }
     // Kategorie kommt vom Server (util.mapTrade); ohne Feld steht "Other".
     const cat = t.category || 'Other';
     w.cats[cat] = (w.cats[cat] || 0) + 1;
