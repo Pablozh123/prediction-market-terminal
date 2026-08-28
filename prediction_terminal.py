@@ -11235,7 +11235,20 @@ def _backtest_stat_cards(stats: dict[str, Any], benchmark: dict[str, Any]) -> No
     top = st.columns(3)
     top[0].metric("Final equity", money(stats["final_equity"]), f"{stats['roi'] * 100:+.1f}% ROI")
     bench_delta = stats["total_pnl"] - float(benchmark.get("total_pnl", 0.0) or 0.0)
-    top[1].metric("Total P&L", money(stats["total_pnl"]), f"{money(bench_delta)} vs flat-bet")
+    # Der offene Teil steht dabei: Positionen in Maerkten, die am Fensterende
+    # nicht entschieden waren, gehen zum letzten Preis in total_pnl ein.
+    unrealized = float(stats.get("unrealized_pnl", 0.0) or 0.0)
+    top[1].metric(
+        "Total P&L",
+        money(stats["total_pnl"]),
+        f"{money(bench_delta)} vs flat-bet",
+        help=(
+            f"{money(stats.get('realized_pnl', 0.0))} settled, {money(unrealized)} still unresolved "
+            f"across {int(stats.get('open_positions', 0) or 0)} open positions marked at the last price."
+            if abs(unrealized) >= 0.005
+            else "All of it settled: no position was still open at the end of the window."
+        ),
+    )
     top[2].metric("Win rate", pct(stats["win_rate"]), f"{stats['wins']}W / {stats['losses']}L", delta_color="off")
     bottom = st.columns(3)
     bottom[0].metric("Max drawdown", pct(stats["max_drawdown"]))

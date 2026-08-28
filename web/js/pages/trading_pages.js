@@ -148,7 +148,14 @@ export function renderBacktester(T) {
   // Ohne Lauf keine Kacheln: jede dieser Zahlen kaeme sonst aus dem Nichts.
   const statCards = st ? [
     { label: 'FINAL EQUITY', value: '$' + finalEq.toFixed(0), sub: (ret >= 0 ? '+' : '') + ret.toFixed(1) + '% ROI', pos: ret >= 0 },
-    { label: 'TOTAL P&L', value: (totalPnl >= 0 ? '+' : '-') + '$' + Math.abs(totalPnl).toFixed(0), sub: benchPnl === null ? 'no benchmark' : (totalPnl - benchPnl >= 0 ? '+' : '-') + '$' + Math.abs(totalPnl - benchPnl).toFixed(0) + ' vs flat-bet', pos: totalPnl >= 0 },
+    // Der Untertitel nennt den noch offenen Teil, sobald es einen gibt:
+    // Positionen in Maerkten, die am Fensterende nicht entschieden waren,
+    // stecken zum letzten Preis in dieser Zahl.
+    { label: 'TOTAL P&L', value: (totalPnl >= 0 ? '+' : '-') + '$' + Math.abs(totalPnl).toFixed(0),
+      sub: (st.unrealized_pnl != null && Math.abs(+st.unrealized_pnl) >= 0.5)
+        ? (+st.unrealized_pnl >= 0 ? '+' : '-') + '$' + Math.abs(+st.unrealized_pnl).toFixed(0) + ' of it still unresolved'
+        : (benchPnl === null ? 'no benchmark' : (totalPnl - benchPnl >= 0 ? '+' : '-') + '$' + Math.abs(totalPnl - benchPnl).toFixed(0) + ' vs flat-bet'),
+      pos: totalPnl >= 0 },
     { label: 'WIN RATE', value: Math.round((winsN / Math.max(1, copied)) * 100) + '%', sub: winsN + 'W / ' + lossesN + 'L', pos: null },
     { label: 'MAX DRAWDOWN', value: ddPct.toFixed(1) + '%', sub: 'from the running peak', pos: false },
     { label: 'TRADES COPIED', value: num(copied), sub: num(Math.max(0, skippedN)) + ' skipped' + (filteredN ? ' · ' + num(filteredN) + ' filtered' : ''), pos: null },

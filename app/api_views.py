@@ -1819,6 +1819,12 @@ def backtest_payload(result: Any) -> dict[str, Any]:
             "skipped_trades": int(_num(stats.get("skipped_trades"), 0.0) or 0),
             "fees_paid": _num(stats.get("fees_paid"), 0.0),
             "open_value": _num(stats.get("open_value"), 0.0),
+            # Wie viel des Gesamtergebnisses noch gar nicht entschieden ist:
+            # Positionen in Maerkten, die am Fensterende offen waren, gehen
+            # zum letzten Preis in total_pnl ein.
+            "realized_pnl": _num(stats.get("realized_pnl"), 0.0),
+            "unrealized_pnl": _num(stats.get("unrealized_pnl"), 0.0),
+            "open_positions": int(_num(stats.get("open_positions"), 0.0) or 0),
             "window_truncated": bool(stats.get("window_truncated", False)),
             # Bis wohin die Daten wirklich zurueckreichen. Bei einem
             # abgeschnittenen Fenster ist das die ehrliche Fensterkante.
