@@ -2973,26 +2973,56 @@ def overlap_matrix(
     }
 
 
+def _spannen_text(minuten: float) -> str:
+    """Eine Dauer in Minuten als kurzer Text (gleiche Stufen wie util.dauer)."""
+
+    if minuten < 1:
+        return f"{minuten * 60:.0f} s"
+    if minuten < 90:
+        return f"{minuten:.0f} min"
+    return f"{minuten / 60:.1f} h"
+
+
 def tape_window_label(trades: pd.DataFrame) -> str:
-    """Beobachtungsfenster eines Tapes als Text.
+    """Beobachtungsfenster eines Tapes als Text, je Venue aufgeschluesselt.
 
     Gehoert zu jedem Bild, das aus diesem Tape entsteht. Der oeffentliche
     Trade-Feed liefert die juengsten N Prints, und wie lange die abdecken,
     haengt an der Aktivitaet: mal Stunden, mal eine Minute. Ohne diese
     Angabe ist ein Cluster-Bild nicht einzuordnen.
+
+    Die Gesamtspanne allein reicht dafuer nicht. Wird das Tape mit einem
+    einzigen zeitlichen Schnitt beschnitten (``sort_values("time").head(n)``,
+    so machen es die Streamlit-Seiten), dann verdraengt die schnellere Venue
+    die langsamere: Kalshis 15-Minuten-Kryptomaerkte drucken hunderte
+    Mikro-Trades in Minuten, waehrend dieselbe Zeilenzahl auf Polymarket
+    Stunden abdeckt. Von 500 gezeigten Prints koennen so 492 von einer Venue
+    stammen und 8 von der anderen, und jede Summe darunter beschreibt dann
+    faktisch eine Venue. Die Zeile nennt deshalb die Prints je Venue und die
+    Spanne, die sie einzeln abdecken. Dieselbe Angabe fuehrt das Web-Frontend
+    unter ``util.fensterSatz``.
     """
 
     if trades is None or trades.empty or "time" not in trades.columns:
         return ""
-    zeiten = pd.to_datetime(trades["time"], utc=True, errors="coerce").dropna()
-    if zeiten.empty:
+    basis = pd.DataFrame({
+        "zeit": pd.to_datetime(trades["time"], utc=True, errors="coerce").to_numpy(),
+        "venue": (
+            trades["platform"].astype(str).str.strip().to_numpy()
+            if "platform" in trades.columns
+            else ["" for _ in range(len(trades))]
+        ),
+    })
+    basis = basis[basis["zeit"].notna()]
+    if basis.empty:
         return ""
-    von, bis = zeiten.min(), zeiten.max()
-    minuten = (bis - von).total_seconds() / 60.0
-    if minuten < 1:
-        spanne = f"{(bis - von).total_seconds():.0f} s"
-    elif minuten < 90:
-        spanne = f"{minuten:.0f} min"
-    else:
-        spanne = f"{minuten / 60:.1f} h"
-    return f"{von.strftime('%Y-%m-%d %H:%M')} to {bis.strftime('%H:%M')} UTC · {spanne} · {len(trades):,} prints"
+    von, bis = basis["zeit"].min(), basis["zeit"].max()
+    spanne = _spannen_text((bis - von).total_seconds() / 60.0)
+    kopf = f"{von.strftime('%Y-%m-%d %H:%M')} to {bis.strftime('%H:%M')} UTC · {spanne} · {len(trades):,} prints"
+    je_venue: list[str] = []
+    for venue, teil in sorted(basis[basis["venue"].ne("")].groupby("venue", sort=False)):
+        dauer = _spannen_text((teil["zeit"].max() - teil["zeit"].min()).total_seconds() / 60.0)
+        je_venue.append(f"{venue} {dauer} ({len(teil):,})")
+    if len(je_venue) < 2:
+        return kopf
+    return f"{kopf} — {' · '.join(je_venue)}"

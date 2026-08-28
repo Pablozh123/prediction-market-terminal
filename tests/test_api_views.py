@@ -1014,6 +1014,68 @@ class BalancedHeadTests(unittest.TestCase):
         self.assertEqual(len(apv.balanced_head(tape, 0)), 0)
 
 
+class TapeWindowLabelTests(unittest.TestCase):
+    """Die Spanne unter einer Tape-Summe muss die Venues einzeln nennen.
+
+    Die Streamlit-Seiten schneiden das Tape mit einem einzigen zeitlichen
+    ``head(rows)``. Das ist eine Entscheidung, keine Panne (eine Spanne fuer
+    alle Venues), aber sie hat eine Folge, die die alte Zeile verschwieg: die
+    schnellere Venue verdraengt die langsamere aus der Stichprobe. Das
+    Web-Frontend nennt die Venues seit jeher einzeln (``util.fensterSatz``).
+    """
+
+    @staticmethod
+    def _tape() -> pd.DataFrame:
+        # Beide Venues liefern 500 Prints; Kalshi deckt damit 12 Minuten ab,
+        # Polymarket 6 Stunden. Der zeitliche Schnitt auf 500 Zeilen laesst
+        # von Polymarket 8 Prints uebrig.
+        ks = pd.DataFrame({
+            "platform": "Kalshi",
+            "time": pd.date_range("2026-08-28 12:12:00", periods=500, freq="-1440ms", tz="UTC"),
+            "notional": 40.0,
+        })
+        pm = pd.DataFrame({
+            "platform": "Polymarket",
+            "time": pd.date_range("2026-08-28 12:12:00", periods=500, freq="-43200ms", tz="UTC"),
+            "notional": 5000.0,
+        })
+        return pd.concat([ks, pm], ignore_index=True).sort_values("time", ascending=False).head(500)
+
+    def test_die_zeile_nennt_prints_und_spanne_je_venue(self) -> None:
+        tape = self._tape()
+        anteile = tape["platform"].value_counts()
+        # Der Befund, den die Zeile sichtbar machen muss.
+        self.assertEqual(int(anteile["Kalshi"]), 483)
+        self.assertEqual(int(anteile["Polymarket"]), 17)
+
+        zeile = apv.tape_window_label(tape)
+        self.assertIn("500 prints", zeile)
+        self.assertIn("Kalshi 12 min (483)", zeile)
+        self.assertIn("Polymarket 12 min (17)", zeile)
+
+    def test_eine_venue_allein_bleibt_eine_zeile(self) -> None:
+        """Ohne zweite Venue gibt es nichts aufzuschluesseln."""
+
+        nur_kalshi = self._tape()
+        nur_kalshi = nur_kalshi[nur_kalshi["platform"].eq("Kalshi")]
+        zeile = apv.tape_window_label(nur_kalshi)
+        self.assertIn("483 prints", zeile)
+        self.assertNotIn("(483)", zeile)
+        self.assertNotIn("Polymarket", zeile)
+
+    def test_ohne_zeit_bleibt_die_zeile_leer(self) -> None:
+        """Kein Fenster ist besser als ein erfundenes."""
+
+        self.assertEqual(apv.tape_window_label(pd.DataFrame()), "")
+        self.assertEqual(
+            apv.tape_window_label(pd.DataFrame({"time": [None, None], "platform": ["Kalshi", "Polymarket"]})),
+            "",
+        )
+        # Ohne Venue-Spalte bleibt der Kopf, denn die Spanne stimmt weiterhin.
+        ohne_venue = apv.tape_window_label(pd.DataFrame({"time": ["2026-08-28T12:00:00Z", "2026-08-28T12:00:20Z"]}))
+        self.assertIn("20 s · 2 prints", ohne_venue)
+
+
 class TapeCategoryTests(unittest.TestCase):
     """Jeder Print traegt eine Kategorie: Universum zuerst, dann Titel-Heuristik, sonst Other."""
 
