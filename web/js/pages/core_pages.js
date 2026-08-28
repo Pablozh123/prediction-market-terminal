@@ -68,19 +68,30 @@ function insightPanel(titel, sub, rowsHtml, leerSatz) {
 // ---------------------------------------------------------------- overview (research landing)
 
 // Verdict vocabulary of public/data/microstructure.json (verdikt_art) as a
-// tag: label, colour. Anything unknown renders its raw value, uncoloured.
+// tag: label, colour, edge. Anything unknown renders its raw value, uncoloured.
+//
+// The ground is --panel and not a wash of the tag's own hue, and that is the
+// whole fix: a wash of the hue moves the ground toward the text, and on paper
+// the role colours have no headroom to give it. With the tint composited in
+// rather than measured against the page, CONFIRMED read 4.05:1, REFUTED
+// 3.86:1 and CONTROL 4.31:1. Thinning the wash does not rescue them -- at .04
+// the first two still fail -- because --accent, --neg-soft and --warn clear
+// the light ground by barely 0.1 to themselves. So the hue leaves the text's
+// ground and moves to the edge, where it says the same thing and costs
+// nothing. On --panel the four tags read 5.08 / 4.96 / 4.98 / 5.61 light and
+// 8.41 / 7.11 / 6.33 / 6.36 dark.
 const VERDICT_TAG = {
-  ja: { label: 'CONFIRMED', color: 'var(--accent)', bg: 'rgba(var(--accent-rgb),.12)' },
-  nein: { label: 'REFUTED', color: 'var(--neg-soft)', bg: 'rgba(var(--neg-rgb),.12)' },
-  offen: { label: 'NOT IDENTIFIED', color: 'var(--warn)', bg: 'rgba(var(--warn-rgb),.12)' },
-  kontrolle: { label: 'CONTROL', color: 'var(--info)', bg: 'rgba(var(--info-rgb),.14)' }
+  ja: { label: 'CONFIRMED', color: 'var(--accent)', rand: 'rgba(var(--accent-rgb),.35)' },
+  nein: { label: 'REFUTED', color: 'var(--neg-soft)', rand: 'rgba(var(--neg-rgb),.35)' },
+  offen: { label: 'NOT IDENTIFIED', color: 'var(--warn)', rand: 'rgba(var(--warn-rgb),.35)' },
+  kontrolle: { label: 'CONTROL', color: 'var(--info)', rand: 'rgba(var(--info-rgb),.35)' }
 };
 
 function verdictTag(art) {
   const v = VERDICT_TAG[String(art || '').toLowerCase()];
   const label = v ? v.label : String(art || '—').toUpperCase();
-  const style = M + '; font-size:var(--t-micro); letter-spacing:.12em; border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); white-space:nowrap; '
-    + (v ? 'color:' + v.color + '; background:' + v.bg : 'color:var(--ink-4); border:1px solid var(--line-1)');
+  const style = M + '; font-size:var(--t-micro); letter-spacing:.12em; border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); white-space:nowrap; background:var(--panel); '
+    + (v ? 'color:' + v.color + '; border:1px solid ' + v.rand : 'color:var(--ink-4); border:1px solid var(--line-1)');
   return '<span style="' + style + '">' + esc(label) + '</span>';
 }
 

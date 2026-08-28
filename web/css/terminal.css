@@ -355,6 +355,28 @@ input { font-family: inherit; }
 .tm-tile { transition: filter .12s ease; }
 .tm-tile:hover { filter: brightness(1.15); z-index: 5; }
 :root[data-theme="light"] .tm-tile:hover { filter: brightness(.94); }
+
+/* The label on a treemap tile brings its own ground.
+
+   The tile fill carries information — hue is the sign of the result, depth is
+   the result against the stake (treemap.js::pnlIntensity, .28 to .78 linear) —
+   so a label may not change it. But no single ink clears AA over that range.
+   Measured across the whole scale, both signs, both themes: the app's --text
+   falls to 3.07:1 on the strongest green of the dark theme, pure white to
+   3.83:1 there, and pure black to 1.50:1 on the weakest red. The window in
+   which white still passes ends at ratio .81 and the one in which black starts
+   passing opens at .79, so a per-tile ink flip would have to be threaded
+   through a gap of 0.02 that moves with the hue — that is not a rule, that is
+   a coincidence.
+
+   So the label gets a veil of the page colour instead: it darkens on the dark
+   theme and lightens on the light one, which is exactly the direction each
+   ground needs, and it leaves 55 % of the fill showing through. Worst case
+   over the whole scale: 6.85:1 for --text, 5.47:1 for --ink-1. The veil is the
+   page ground and not a shadow on purpose — var(--shadow-35) is what the
+   outcome chip used to carry, and on paper it darkened a tile that was already
+   heading for the ink, which is how that chip landed at 3.76:1. */
+.tm-label { background: rgba(var(--bg-rgb), .45); border-radius: var(--r-control); align-self: flex-start; }
 #tip { position: fixed; z-index: 60; pointer-events: none; display: none; max-width: 320px; background: rgba(var(--bg-rgb), .96); border: 1px solid var(--line-1); border-radius: var(--r-panel); padding: var(--sp-4) var(--sp-5); box-shadow: 0 12px 32px var(--shadow-55); }
 #tip.on { display: block; }
 
