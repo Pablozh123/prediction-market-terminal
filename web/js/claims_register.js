@@ -95,6 +95,10 @@ export const REGISTER = {
     "daily_run_privacy": {
       "de": "Keine Wallet-Adressen, keine Schluessel, keine Prompts. Audit nur als Hashes und Zaehler.",
       "en": "No wallet addresses, no keys, no prompts. Audit as hashes and counters only."
+    },
+    "composite_range_not_ci": {
+      "de": "Die Spanne zeigt, wo der Score liegen koennte, wenn seine Platzhalter-Bestandteile gemessen waeren. Sie ist eine Spanne, kein Konfidenzintervall: der Composite steht fest, sobald seine Eingaben feststehen. Aufgeloeste Wetten je Wallet traegt dieser Feed nicht; die Trefferquote mit Stichprobengroesse und Wilson-Intervall steht auf der Seite der Wallet.",
+      "en": "The bar spans where the score could sit if its placeholder components were measured. It is a range, not a confidence interval: the composite is fixed once its inputs are. Resolved-bet counts are not in this feed; a wallet's own page carries its win rate with sample size and a Wilson interval."
     }
   }
 };

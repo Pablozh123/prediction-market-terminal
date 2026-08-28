@@ -1387,6 +1387,203 @@ class ScorePartsTests(unittest.TestCase):
         self.assertEqual(apv.score_basis_note(None), "")
 
 
+    def test_score_interval_umschliesst_den_gezeigten_score(self) -> None:
+        """Die Spanne ist kein Konfidenzintervall, aber sie haelt den Score.
+
+        ``copy_smart_score`` ist exakt die gewichtete Summe der sechs
+        Bestandteile (``copy_trading.rank_traders_by_smart_score``). Setzt man
+        die geschaetzten auf 0 beziehungsweise 100, entstehen Unter- und
+        Obergrenze, und der gezeigte Score liegt konstruktionsbedingt
+        dazwischen.
+        """
+
+        row = {
+            "copy_return_score": 100.0, "copy_sharpe_proxy": 21.2, "copy_drawdown_proxy": 100.0,
+            "copy_win_score": 50.0, "copy_recency_score": 50.0, "copy_volume_score": 90.0,
+            "copy_score_imputed": "copy_sharpe_proxy,copy_drawdown_proxy,copy_win_score,copy_recency_score",
+        }
+        parts = apv.score_parts(row)
+        lo, hi = apv.score_interval(parts)
+        # gemessen: return 100 * 0.35 + volume 90 * 0.10 = 44.0
+        self.assertAlmostEqual(lo, 44.0)
+        # dazu 55 Prozent offenes Gewicht mal 100 Punkte
+        self.assertAlmostEqual(hi, 99.0)
+        score = (100.0 * 0.35 + 21.2 * 0.20 + 100.0 * 0.15
+                 + 50.0 * 0.10 + 50.0 * 0.10 + 90.0 * 0.10)
+        self.assertGreaterEqual(score, lo)
+        self.assertLessEqual(score, hi)
+        # Ohne Bestandteile keine erfundene Spanne.
+        self.assertIsNone(apv.score_interval([]))
+
+    def test_score_interval_ohne_platzhalter_ist_ein_punkt(self) -> None:
+        parts = [
+            {"label": "return", "value": 80, "weight": 0.5, "imputed": False},
+            {"label": "volume", "value": 40, "weight": 0.5, "imputed": False},
+        ]
+        self.assertEqual(apv.score_interval(parts), [60.0, 60.0])
+
+    def test_sample_badge_nennt_den_gemessenen_anteil(self) -> None:
+        self.assertIsNone(apv.score_sample_badge(None))
+        wenig = apv.score_sample_badge({"measured_weight": 0.45})
+        self.assertEqual(wenig["quality"], "mostly placeholder")
+        self.assertFalse(wenig["verdict_allowed"])
+        mittel = apv.score_sample_badge({"measured_weight": 0.65})
+        self.assertEqual(mittel["quality"], "part measured")
+        viel = apv.score_sample_badge({"measured_weight": 0.9})
+        self.assertEqual(viel["quality"], "measured")
+        self.assertTrue(viel["verdict_allowed"])
+
+    def test_leaderboard_rows_tragen_n_spanne_und_abzeichen(self) -> None:
+        lb = pd.DataFrame([{"trader": "Theo4", "wallet": "0xAAA1111111111111111111", "pnl": 1000.0, "volume": 50000.0}])
+        ranked = pd.DataFrame([{
+            "wallet": "0xaaa1111111111111111111", "copy_smart_score": 73.0, "copy_grade": "B",
+            "copy_return_score": 100.0, "copy_sharpe_proxy": 21.2, "copy_drawdown_proxy": 100.0,
+            "copy_win_score": 50.0, "copy_recency_score": 50.0, "copy_volume_score": 90.0,
+            "copy_score_imputed": "copy_sharpe_proxy,copy_drawdown_proxy,copy_win_score,copy_recency_score",
+        }])
+        row = apv.leaderboard_rows(lb, ranked)[0]
+        self.assertEqual(row["score_n"], 1)
+        self.assertEqual(row["score_ci"], [44.0, 99.0])
+        self.assertEqual(row["sample_badge"]["quality"], "mostly placeholder")
+        # Ohne Ranked-Treffer bleibt jedes der drei Felder leer statt geraten.
+        ohne = apv.leaderboard_rows(lb, None)[0]
+        self.assertIsNone(ohne["score_n"])
+        self.assertIsNone(ohne["score_ci"])
+        self.assertIsNone(ohne["sample_badge"])
+
+    def test_leaderboard_scale_nennt_boden_und_saettigung(self) -> None:
+        """Beide Schwellen sind Eigenschaften der Kohorte, nicht der Wallet."""
+
+        from src.copy_trading import ROI_MIN_VOLUME
+
+        ranked = pd.DataFrame({"volume": [1_000.0 * i for i in range(1, 101)]})
+        skala = apv.leaderboard_scale(ranked)
+        self.assertEqual(skala["gate_volume"], float(ROI_MIN_VOLUME))
+        self.assertAlmostEqual(skala["saturates_at"], float(ranked["volume"].quantile(0.95)))
+        # Ohne Menge keine erfundene Schwelle.
+        leer = apv.leaderboard_scale(pd.DataFrame())
+        self.assertIsNone(leer["saturates_at"])
+
+class RiskScoreBinsTests(unittest.TestCase):
+    """Die Score-Verteilung des Screens: gezaehlt, nicht geschaetzt."""
+
+    def _frame(self, werte: list[float]) -> pd.DataFrame:
+        return pd.DataFrame([{"event_insider_score": w} for w in werte])
+
+    def test_bins_zaehlen_alle_gescorten_maerkte(self) -> None:
+        bins = apv.risk_score_bins(self._frame([0.0, 5.0, 39.9, 40.0, 72.0, 100.0]), 40.0)
+        self.assertEqual(len(bins), 10)
+        self.assertEqual(sum(b["anzahl"] for b in bins), 6)
+        nach_von = {b["von"]: b for b in bins}
+        self.assertEqual(nach_von[0]["anzahl"], 2)
+        self.assertEqual(nach_von[30]["anzahl"], 1)
+        self.assertEqual(nach_von[40]["anzahl"], 1)
+        self.assertEqual(nach_von[70]["anzahl"], 1)
+        # Die 100 faellt in den obersten Bin, nicht heraus.
+        self.assertEqual(nach_von[90]["anzahl"], 1)
+
+    def test_geflaggt_ist_die_teilmenge_ab_der_schwelle(self) -> None:
+        bins = apv.risk_score_bins(self._frame([10.0, 41.0, 44.0, 88.0]), 40.0)
+        nach_von = {b["von"]: b for b in bins}
+        self.assertEqual(nach_von[40]["anzahl"], 2)
+        self.assertEqual(nach_von[40]["geflaggt"], 2)
+        self.assertEqual(nach_von[10]["geflaggt"], 0)
+        self.assertEqual(sum(b["geflaggt"] for b in bins), 3)
+
+    def test_ohne_maerkte_keine_bins(self) -> None:
+        self.assertEqual(apv.risk_score_bins(pd.DataFrame(), 40.0), [])
+        self.assertEqual(apv.risk_score_bins(None, 40.0), [])
+
+    def test_payload_traegt_die_verteilung(self) -> None:
+        events = self._frame([12.0, 55.0])
+        events["title"] = ["A", "B"]
+        events["platform"] = ["Polymarket", "Polymarket"]
+        payload = apv.risk_payload(pd.DataFrame(), events, min_event_score=40.0)
+        bins = payload["score_bins"]
+        self.assertEqual(sum(b["anzahl"] for b in bins), 2)
+        self.assertEqual(sum(b["geflaggt"] for b in bins), 1)
+        # Die Summe der Bins ist genau das, was der Trichter als gescreent zaehlt.
+        self.assertEqual(sum(b["anzahl"] for b in bins), payload["kpis"]["events_screened"])
+
+class TradePnlDistributionTests(unittest.TestCase):
+    """Die Verteilung der Trade-Ergebnisse und ihre Konzentration."""
+
+    def _ledger(self, werte: list[float]) -> pd.DataFrame:
+        rows = [{"status": "copied", "action": "SELL", "realized_pnl": w} for w in werte]
+        # Ein Kauf und ein uebersprungener Trade duerfen nicht mitzaehlen.
+        rows.append({"status": "copied", "action": "BUY", "realized_pnl": None})
+        rows.append({"status": "skipped", "action": "SELL", "realized_pnl": 999.0})
+        return pd.DataFrame(rows)
+
+    def test_zaehlt_nur_geschlossene_kopien(self) -> None:
+        v = apv.trade_pnl_distribution(self._ledger([1.0, -2.0, 3.0]))
+        self.assertEqual(v["n"], 3)
+        self.assertEqual(sum(b["anzahl"] for b in v["bins"]), 3)
+        self.assertEqual(v["best"], 3.0)
+        self.assertEqual(v["worst"], -2.0)
+        self.assertEqual(v["unit"], "USD")
+
+    def test_konzentration_ist_der_anteil_der_drei_groessten_gewinner(self) -> None:
+        v = apv.trade_pnl_distribution(self._ledger([10.0, 6.0, 4.0, 2.0, 3.0, -5.0]))
+        self.assertEqual(v["winners"], 5)
+        self.assertEqual(v["gross_win"], 25.0)
+        self.assertEqual(v["top3"], 20.0)
+        self.assertAlmostEqual(v["top3_share"], 0.8)
+
+    def test_ohne_gewinn_ist_der_anteil_nicht_definiert(self) -> None:
+        v = apv.trade_pnl_distribution(self._ledger([-1.0, -2.0]))
+        self.assertIsNone(v["top3_share"])
+        self.assertEqual(v["winners"], 0)
+
+    def test_ohne_geschlossene_kopie_kein_bild(self) -> None:
+        self.assertIsNone(apv.trade_pnl_distribution(None))
+        self.assertIsNone(apv.trade_pnl_distribution(pd.DataFrame()))
+        nur_kaeufe = pd.DataFrame([{"status": "copied", "action": "BUY", "realized_pnl": None}])
+        self.assertIsNone(apv.trade_pnl_distribution(nur_kaeufe))
+
+    def test_gleiche_werte_bekommen_trotzdem_eine_achsenbreite(self) -> None:
+        v = apv.trade_pnl_distribution(self._ledger([5.0, 5.0, 5.0]))
+        self.assertEqual(sum(b["anzahl"] for b in v["bins"]), 3)
+        self.assertLess(v["bins"][0]["von"], v["bins"][-1]["bis"])
+
+class LiveRunsWinRateTests(unittest.TestCase):
+    """25 zu 2 ohne Spanne ist die angreifbarste Zahl des Portfolios."""
+
+    def _ledger(self, stati: list[str]) -> dict:
+        return {"events": [{"maerkte": [{"zuordnung": "bot", "status": s} for s in stati]}]}
+
+    def test_ledger_gewinnt_gegen_das_lauf_aggregat(self) -> None:
+        payload = {"aggregat": {"gewonnen": 25, "verloren": 2}}
+        quote = apv.live_runs_win_rate(payload, self._ledger(["won", "won", "lost"]))
+        self.assertEqual(quote["source"], "wallet ledger")
+        self.assertEqual((quote["wins"], quote["losses"], quote["n"]), (2, 1, 3))
+
+    def test_wertlos_zaehlt_als_verloren_offen_zaehlt_gar_nicht(self) -> None:
+        quote = apv.live_runs_win_rate({}, self._ledger(["won", "worthless", "open", "open"]))
+        self.assertEqual((quote["wins"], quote["losses"], quote["n"]), (1, 1, 2))
+
+    def test_ohne_ledger_faellt_es_auf_die_lauf_logs_zurueck(self) -> None:
+        quote = apv.live_runs_win_rate({"aggregat": {"gewonnen": 25, "verloren": 2}}, None)
+        self.assertEqual(quote["source"], "run logs")
+        self.assertEqual(quote["n"], 27)
+        self.assertAlmostEqual(quote["p"], 25 / 27, places=4)
+
+    def test_die_spanne_ist_wilson_und_bleibt_in_null_bis_eins(self) -> None:
+        from app import quant
+
+        quote = apv.live_runs_win_rate({"aggregat": {"gewonnen": 25, "verloren": 2}}, None)
+        lo, hi = quant.wilson_interval(25, 27)
+        self.assertEqual(quote["ci95"], [round(lo, 4), round(hi, 4)])
+        # Genau der Punkt: die Normalapproximation liefe hier ueber 100 Prozent.
+        self.assertLessEqual(quote["ci95"][1], 1.0)
+        self.assertGreaterEqual(quote["ci95"][0], 0.0)
+        self.assertLess(quote["ci95"][0], quote["p"])
+
+    def test_ohne_aufgeloeste_wette_keine_quote(self) -> None:
+        self.assertIsNone(apv.live_runs_win_rate({}, None))
+        self.assertIsNone(apv.live_runs_win_rate({"aggregat": {"gewonnen": 0, "verloren": 0}}, None))
+        self.assertIsNone(apv.live_runs_win_rate({}, self._ledger(["open"])))
+
 class RiskEventRowTests(unittest.TestCase):
     """The event card carries side, price, wallets, window, link and components — or honest gaps."""
 
