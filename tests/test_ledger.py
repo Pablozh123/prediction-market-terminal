@@ -565,5 +565,98 @@ class ResolutionRunnerTests(unittest.TestCase):
             self.assertIn("last_run_at", status)
 
 
+class SellPrintScoringTests(unittest.TestCase):
+    """Ein Verkaufsdruck darf nicht als Kauf zum Emit-Preis verbucht werden.
+
+    ``modeled_pnl_per_100`` kauft den notierten Ausgang zum Emit-Preis. Ein
+    Whale print mit ``side = SELL`` meldet den Ausstieg aus genau diesem
+    Ausgang. Loest der Markt zugunsten des Ausgangs auf, schrieb das Ledger
+    frueher einen Treffer und +233.33 modellierte Dollar je 100 gesetzte gut:
+    der Ausstieg bekam den Gewinn eines Einstiegs, den er nie gemacht hat.
+    """
+
+    @staticmethod
+    def _whale(side, outcome="Yes", price=0.30):
+        return {
+            "signal_type": "Whale print",
+            "severity": "warning",
+            "time": pd.Timestamp("2026-07-16 09:30:00", tz="UTC"),
+            "platform": "Polymarket",
+            "title": "Fed cuts in December",
+            "category": "",
+            "outcome": outcome,
+            "side": side,
+            "price": price,
+            "value": 12_000.0,
+            "reason": f"{side} $12,000",
+            "volume": 0.0,
+            "liquidity": 0.0,
+            "spread": None,
+            "change_1h": None,
+            "market_key": condition_id("d"),
+            "wallet": "0xwhale",
+            "trader": "whale",
+            "notional": 12_000.0,
+            "url": "https://example.com/m",
+        }
+
+    def test_resolvable_outcome_drops_the_sold_side(self):
+        self.assertEqual(ledger.resolvable_outcome(self._whale("BUY")), "Yes")
+        self.assertEqual(ledger.resolvable_outcome(self._whale("SELL")), "")
+        self.assertEqual(ledger.resolvable_outcome(self._whale("sell")), "")
+        # Ein Marktsignal nimmt keine Seite und bleibt bewertbar.
+        self.assertEqual(ledger.resolvable_outcome(make_signal("Mover")), "Yes")
+
+    def test_a_sell_print_never_enters_the_hit_rate(self):
+        conn = ledger.init_ledger(":memory:")
+        try:
+            ledger.emit_signals(conn, pd.DataFrame([self._whale("SELL")]))
+            # Der Ausgang loest zugunsten der verkauften Seite auf.
+            resolutions = {
+                condition_id("d"): {
+                    "status": "resolved",
+                    "outcome_prices": {"yes": 1.0, "no": 0.0},
+                    "source": "gamma",
+                }
+            }
+            self.assertEqual(ledger.resolve_pending(conn, lambda keys: resolutions), 0)
+            zahlen = ledger.ledger_aggregates(conn)
+            self.assertEqual(zahlen["emitted"], 1)
+            self.assertEqual(zahlen["resolvable"], 0)
+            self.assertEqual(zahlen["not_resolvable"], 1)
+            self.assertEqual(zahlen["decisive"], 0)
+            self.assertIsNone(zahlen["hit_rate"])
+            self.assertEqual(zahlen["pnl_modeled_sum"], 0.0)
+            # Die Zeile bleibt vollstaendig im Ledger nachlesbar.
+            payload = json.loads(
+                conn.execute("SELECT payload_json FROM signals_emitted").fetchone()["payload_json"])
+            self.assertEqual(payload["side"], "SELL")
+            self.assertEqual(payload["outcome"], "Yes")
+            self.assertTrue(ledger.verify_chain(conn)[0])
+        finally:
+            conn.close()
+
+    def test_a_buy_print_is_scored_as_before(self):
+        conn = ledger.init_ledger(":memory:")
+        try:
+            ledger.emit_signals(conn, pd.DataFrame([self._whale("BUY")]))
+            resolutions = {
+                condition_id("d"): {
+                    "status": "resolved",
+                    "outcome_prices": {"yes": 1.0, "no": 0.0},
+                    "source": "gamma",
+                }
+            }
+            self.assertEqual(ledger.resolve_pending(conn, lambda keys: resolutions), 1)
+            zahlen = ledger.ledger_aggregates(conn)
+            self.assertEqual(zahlen["decisive"], 1)
+            self.assertEqual(zahlen["hit_rate"], 1.0)
+            # 100 * (1 - 0.30) / 0.30 = 233.33 -- die Zahl, die ein SELL frueher
+            # unverdient mitgenommen haette.
+            self.assertAlmostEqual(zahlen["pnl_modeled_sum"], 233.3333, places=3)
+        finally:
+            conn.close()
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -17,6 +17,29 @@ from app.filters import numeric_col
 from app.format import cents, money, pct, signed_cents
 
 
+#: Signalarten aus dem Trade-Tape. Nur sie tragen ein Notional und eine
+#: gehandelte Seite; Buchtiefe fuehrt das Tape nicht, ihre ``liquidity`` ist
+#: per Konstruktion 0.0.
+TRADE_SIGNAL_TYPES = ("Whale print",)
+
+#: Signalarten aus der Markttabelle. Sie tragen Liquiditaet und Spread, aber
+#: kein Notional: ``_append_market_signal`` setzt es auf 0.0.
+MARKET_SIGNAL_TYPES = (
+    "Volume anomaly",
+    "Fast mover",
+    "Tight spread",
+    "Ending soon",
+    "Watched market",
+    "Holder concentration",
+)
+
+#: Welche Arten eine Notional- bzw. Liquiditaets-Schwelle ueberhaupt
+#: beantworten koennen. Regeln binden ihre Schwellen daran (siehe
+#: ``monitor_rule_matches``).
+NOTIONAL_SIGNAL_TYPES = TRADE_SIGNAL_TYPES
+LIQUIDITY_SIGNAL_TYPES = MARKET_SIGNAL_TYPES
+
+
 def monitor_volume_col(df: pd.DataFrame) -> str:
     if "activity_volume" in df:
         return "activity_volume"
@@ -72,6 +95,9 @@ def _append_market_signal(
             "title": row.get("title", ""),
             "category": row.get("category", ""),
             "outcome": "Yes",
+            # Ein Marktsignal nimmt keine Seite; das Feld existiert, damit der
+            # Frame eine saubere Spalte hat und nicht NaN neben "BUY"/"SELL".
+            "side": "",
             "price": row.get("yes_price"),
             "value": value,
             "reason": reason,
@@ -200,6 +226,11 @@ def build_monitor_signals(
                     "title": row.get("title", ""),
                     "category": "",
                     "outcome": row.get("outcome", ""),
+                    # Die genommene Seite als eigenes Feld, nicht nur als Wort
+                    # im Begruendungstext: das Ledger modelliert einen KAUF zum
+                    # Emit-Preis, und ein Verkaufsdruck ist damit nicht
+                    # bewertbar (siehe app/ledger.py::emit_signals).
+                    "side": str(row.get("side", "") or ""),
                     "price": row.get("price"),
                     "value": row.get("notional", 0.0),
                     "reason": f"{row.get('side', '')} {money(row.get('notional', 0.0))}",
@@ -238,9 +269,17 @@ def monitor_rule_matches(signals: pd.DataFrame, rule: dict[str, Any]) -> pd.Data
         searchable = searchable + " " + filtered.get("trader", pd.Series("", index=filtered.index)).astype(str).str.lower()
         searchable = searchable + " " + filtered.get("reason", pd.Series("", index=filtered.index)).astype(str).str.lower()
         filtered = filtered[searchable.str.contains(re.escape(query), na=False)]
+    # Jede Schwelle gilt nur fuer die Signalarten, die das gemessene Feld
+    # ueberhaupt fuehren. Ohne diese Bindung loescht eine Schwelle die
+    # anderen Arten restlos aus, weil deren Feld per Konstruktion 0.0 ist
+    # (Marktsignale tragen notional 0.0, Trade-Signale liquidity 0.0) -- und
+    # das Regelformular fuellt "Min notional" mit der Whale-Schwelle vor.
     min_notional = float(rule.get("min_notional", 0.0) or 0.0)
     if min_notional:
-        filtered = filtered[numeric_col(filtered, "notional") >= min_notional]
+        filtered = filtered[
+            ~filtered["signal_type"].isin(NOTIONAL_SIGNAL_TYPES)
+            | (numeric_col(filtered, "notional") >= min_notional)
+        ]
     min_move = float(rule.get("min_move", 0.0) or 0.0)
     if min_move:
         filtered = filtered[(filtered["signal_type"].ne("Fast mover")) | (numeric_col(filtered, "value").abs() >= min_move)]
@@ -249,7 +288,10 @@ def monitor_rule_matches(signals: pd.DataFrame, rule: dict[str, Any]) -> pd.Data
         filtered = filtered[(filtered["signal_type"].ne("Tight spread")) | (numeric_col(filtered, "spread", 999.0) <= max_spread)]
     min_liquidity = float(rule.get("min_liquidity", 0.0) or 0.0)
     if min_liquidity:
-        filtered = filtered[numeric_col(filtered, "liquidity") >= min_liquidity]
+        filtered = filtered[
+            ~filtered["signal_type"].isin(LIQUIDITY_SIGNAL_TYPES)
+            | (numeric_col(filtered, "liquidity") >= min_liquidity)
+        ]
     return filtered.reset_index(drop=True)
 
 
