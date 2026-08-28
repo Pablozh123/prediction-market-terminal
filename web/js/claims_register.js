@@ -75,6 +75,10 @@ export const REGISTER = {
     "verification_not_signal": {
       "de": "Empfehlungen sind Pruefschritte (beobachten, Quelle pruefen, an einen Menschen eskalieren), keine Kauf- oder Verkaufssignale.",
       "en": "Recommendations are verification steps (watch, check the source, escalate to a human), not buy or sell signals."
+    },
+    "composite_range_not_ci": {
+      "de": "Die Spanne zeigt, wo der Score liegen koennte, wenn seine Platzhalter-Bestandteile gemessen waeren. Sie ist eine Spanne, kein Konfidenzintervall: der Composite steht fest, sobald seine Eingaben feststehen. Aufgeloeste Wetten je Wallet traegt dieser Feed nicht; die Trefferquote mit Stichprobengroesse und Wilson-Intervall steht auf der Seite der Wallet.",
+      "en": "The bar spans where the score could sit if its placeholder components were measured. It is a range, not a confidence interval: the composite is fixed once its inputs are. Resolved-bet counts are not in this feed; a wallet's own page carries its win rate with sample size and a Wilson interval."
     }
   }
 };

@@ -109,6 +109,20 @@ disclaimers:
     surfaces:
       - web/js/pages/system_pages.js
 
+  # Die waagerechte Spanne der Punktwolke auf der Bestenliste. Sie stand als
+  # Prosa unter dem Diagramm, und sie ist genau das, was dieses Register
+  # meint: ein Satz darueber, was eine Zahl NICHT ist. Der Composite ist bei
+  # gegebenen Eingaben deterministisch, also gibt es keine Stichproben-
+  # verteilung und kein Konfidenzintervall; was es gibt, ist die Spanne, die
+  # die Platzhalter offen lassen. Woraus der Score besteht, sagt weiterhin
+  # nur der Basis-Satz ueber dem Diagramm (api_views.score_basis_note und
+  # sein Zwilling scoreBasisSatz), damit es dafuer eine einzige Lesart gibt.
+  composite_range_not_ci:
+    de: "Die Spanne zeigt, wo der Score liegen koennte, wenn seine Platzhalter-Bestandteile gemessen waeren. Sie ist eine Spanne, kein Konfidenzintervall: der Composite steht fest, sobald seine Eingaben feststehen. Aufgeloeste Wetten je Wallet traegt dieser Feed nicht; die Trefferquote mit Stichprobengroesse und Wilson-Intervall steht auf der Seite der Wallet."
+    en: "The bar spans where the score could sit if its placeholder components were measured. It is a range, not a confidence interval: the composite is fixed once its inputs are. Resolved-bet counts are not in this feed; a wallet's own page carries its win rate with sample size and a Wilson interval."
+    surfaces:
+      - web/js/pages/trader_pages.js
+
 allowed_claims:
   - id: corrected-win-rate
     text: "Win rates are netted per resolved market and NegRisk event over the unioned winners-and-losers set."
@@ -177,6 +191,7 @@ caveat_markers:
   - marker: "does not predict"
   - marker: "not a promise"
   - marker: "provided as-is"
+  - marker: "not a confidence interval"
   - marker: "not proof"
     allow:
       # Mentions latency, method prose about one measured quantity: a price

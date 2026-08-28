@@ -89,7 +89,7 @@ function tile(label, value, sub, color) {
 
 // A table inside its own horizontal scroller: the page never scrolls sideways.
 function table(columns, rowsHtml, emptyText, minWidth) {
-  const head = '<div style="display:grid; grid-template-columns:' + columns + '; gap:0 10px; padding:9px 14px; background:#0D1114; border-bottom:1px solid rgba(var(--ink),.09); ' + HEAD_CELL + '">';
+  const head = '<div style="display:grid; grid-template-columns:' + columns + '; gap:0 10px; padding:9px 14px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); ' + HEAD_CELL + '">';
   return '<div style="overflow-x:auto; border:1px solid rgba(var(--ink),.09); border-radius:6px">'
     + '<div style="min-width:' + (minWidth || 720) + 'px">'
     + head + '__HEAD__</div>'
@@ -394,9 +394,95 @@ export function treemapItems(d, mode) {
   return out.filter((it) => it.value > 0);
 }
 
+// Positionen als sortierte Balken. Die Standardansicht, die Treemap sitzt
+// daneben als zweite.
+//
+// Warum der Wechsel: die Aufgabe dieser Zahlen ist ein Groessenvergleich,
+// und Flaeche ist die schwaechste Wahrnehmungsaufgabe dafuer. Die Treemap
+// hatte dazu keine Achse, keine Legende und keinen Schluessel fuer ihre
+// Farbintensitaet, und jede Kachel unter 56x34 Pixel blieb ohne Beschriftung.
+// Laenge auf einer gemeinsamen Grundlinie loest genau das.
+//
+// Gezeigt werden die groessten Einsaetze, nicht alle: bei bis zu 200
+// Positionen waere die Liste ein Bildlauf statt eines Vergleichs. Was nicht
+// abgebildet ist, wird gezaehlt und mit seiner Summe genannt, damit die
+// Auswahl nicht wie der ganze Bestand aussieht.
+const POSITIONEN_IM_BALKEN = 14;
+
+function kurzTitel(t, n) {
+  const s = String(t || '');
+  return s.length > n ? s.slice(0, n - 1) + '…' : s;
+}
+
+export function positionsBalken(T, d) {
+  const mode = T.state.walletTreemap || 'all';
+  const items = treemapItems(d, mode).slice().sort((a, b) => b.value - a.value);
+  const kopf = '<div style="' + LBL + '">POSITIONS BY SIZE</div>';
+  if (!items.length) {
+    // Dieselbe Ehrlichkeit wie in der Treemap: es steht dran, welcher der
+    // drei Faelle vorliegt, statt dass die Flaeche einfach fehlt.
+    return '<div style="' + CARD + '; padding:16px 18px; margin-top:14px">' + kopf
+      + '<div style="' + NOTE + '; margin-top:6px">Nothing to draw: '
+      + (mode === 'open' ? 'no open positions with a value'
+        : mode === 'closed' ? 'no resolved positions with a stake'
+          : 'no positions with a stake in either feed') + '.</div></div>';
+  }
+  const gezeigt = items.slice(0, POSITIONEN_IM_BALKEN);
+  const rest = items.slice(POSITIONEN_IM_BALKEN);
+  const restSumme = rest.reduce((a, it) => a + (Number(it.value) || 0), 0);
+  const gesamt = items.reduce((a, it) => a + (Number(it.value) || 0), 0);
+  const punkte = gezeigt.map((it) => {
+    const ret = it.stake > 0 ? it.pnl / it.stake : null;
+    return {
+      // 20 Zeichen plus " · YES": die Labelspalte von diagramm() ist 196
+      // Einheiten breit, ein Zeichen in 11.5px IBM Plex Mono misst rund 6.9.
+      // Bei 30 Zeichen stand der Anfang des laengsten Titels im Browser
+      // gemessen ausserhalb der Zeichenflaeche.
+      label: kurzTitel(it.title, 20) + ' · ' + String(it.outcome || '—').toUpperCase().slice(0, 3),
+      wert: Number(it.value) || 0,
+      // Laenge misst den Einsatz, Farbe traegt das Vorzeichen des Ergebnisses.
+      farbe: it.pnl >= 0 ? 'var(--pos)' : 'var(--neg)',
+      text: kurzGeld(Number(it.value) || 0) + '  ' + (it.pnl >= 0 ? '+' : '-') + kurzGeld(Math.abs(it.pnl)).slice(1),
+      tip: String(it.title || '') + ' · ' + String(it.outcome || '').toUpperCase()
+        + ' · ' + (it.kind === 'open' ? 'open' : 'closed')
+        + ' · at stake ' + kurzGeld(Number(it.value) || 0)
+        + ' · ' + (it.kind === 'open' ? 'unrealised ' : 'realised ') + kurzGeld(it.pnl, true)
+        + (ret != null ? ' (' + (ret >= 0 ? '+' : '') + (ret * 100).toFixed(0) + '%)' : '')
+    };
+  });
+  const chart = diagramm({
+    titel: 'POSITIONS BY SIZE',
+    einheit: 'dollars at stake',
+    xLabel: 'at stake (USD) · bar length = stake, colour = profit or loss',
+    punkte
+  });
+  if (!chart) return '';
+  const fuss = 'Bar length is money at stake in dollars (open positions: value at current prices, closed: dollars bought). '
+    + 'Colour is the sign of the result on that position, green up and red down; the number after the dollar amount is that result. '
+    + (rest.length
+      ? num(rest.length) + ' smaller position(s) are not drawn, ' + kurzGeld(restSumme) + ' of ' + kurzGeld(gesamt) + ' at stake in total. '
+      : 'All ' + num(items.length) + ' positions are drawn. ');
+  return '<div style="margin-top:14px">' + chart
+    + '<div style="' + NOTE + '; margin-top:8px; max-width:660px">' + esc(fuss) + '</div></div>';
+}
+
+// Der Schluessel zur Farbintensitaet der Treemap. Ohne ihn ist ein dunkleres
+// Gruen nur dunkler; mit ihm sagt es, wie gross das Ergebnis gegen den
+// Einsatz ist (treemap.pnlIntensity: 0.28 bis 0.78 linear ueber |PnL|/Einsatz,
+// gedeckelt bei 100 Prozent).
+function intensitaetsSchluessel() {
+  const stufe = (anteil, text) => '<div style="display:flex; align-items:center; gap:5px">'
+    + '<span style="display:inline-block; width:16px; height:10px; border-radius:2px; background:rgba(var(--pos-rgb),'
+    + pnlIntensity(anteil, 1).toFixed(2) + ')"></span>'
+    + '<span style="' + M + '; font-size:10px; color:rgba(var(--ink),.62)">' + text + '</span></div>';
+  return '<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:6px">'
+    + '<span style="' + M + '; font-size:10px; letter-spacing:.1em; color:rgba(var(--ink),.62)">RESULT vs STAKE</span>'
+    + stufe(0, '0%') + stufe(0.25, '25%') + stufe(0.5, '50%') + stufe(1, '100% or more')
+    + '<span style="' + M + '; font-size:10px; color:rgba(var(--ink),.62)">green up, red down</span></div>';
+}
+
 function renderTreemap(T, d) {
   const mode = T.state.walletTreemap || 'all';
-  const chip = (label, key) => (T.chip ? T.chip(label, mode === key, { walletTreemap: key }) : '<div>' + esc(label) + '</div>');
   const items = treemapItems(d, mode);
   const W = 1000;
   const H = 440;
@@ -405,8 +491,8 @@ function renderTreemap(T, d) {
   const cl = d.closed || {};
   const capped = (mode !== 'closed' && op.capped) || (mode !== 'open' && cl.capped);
   const head = '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:10px">'
-    + '<div><div style="' + LBL + '">POSITIONS TREEMAP</div><div style="' + NOTE + '; margin-top:3px">tile area = $ at stake (open: value at current prices · closed: $ bought) · colour = PnL, lime up, red down, deeper = larger relative to the stake</div></div>'
-    + '<div style="display:flex; gap:6px">' + chip('All', 'all') + chip('Open', 'open') + chip('Closed', 'closed') + '</div></div>';
+    + '<div><div style="' + LBL + '">POSITIONS TREEMAP</div><div style="' + NOTE + '; margin-top:3px">tile area = $ at stake (open: value at current prices · closed: $ bought)</div>'
+    + intensitaetsSchluessel() + '</div></div>';
   if (!rects.length) {
     return '<div style="' + CARD + '; padding:16px 18px; margin-top:14px">' + head + '<div style="' + NOTE + '">Nothing to tile: ' + (mode === 'open' ? 'no open positions with a value' : mode === 'closed' ? 'no resolved positions with a stake' : 'no positions with a stake in either feed') + '.</div></div>';
   }
@@ -451,7 +537,9 @@ function renderTreemap(T, d) {
   }).join('');
   const foot = '<div style="' + NOTE + '; margin-top:8px">' + num(rects.length) + ' tiles' + (capped ? ' · the feeds were capped, so the middle of the record is missing here too' : '') + ' · hover a tile for its figures, click it to open the market</div>';
   return '<div style="' + CARD + '; padding:16px 18px; margin-top:14px">' + head
-    + '<div style="position:relative; width:100%; height:' + H + 'px; border-radius:4px; overflow:hidden; background:#0D1114">' + tiles + '</div>' + foot + '</div>';
+    // Der Grund hinter den Kacheln war ein Hex-Literal und blieb im hellen
+    // Thema dunkel. Er folgt jetzt dem Thema wie alles andere.
+    + '<div style="position:relative; width:100%; height:' + H + 'px; border-radius:4px; overflow:hidden; background:var(--bg)">' + tiles + '</div>' + foot + '</div>';
 }
 
 function renderOverview(T, d) {
@@ -459,9 +547,25 @@ function renderOverview(T, d) {
   const cl = d.closed && Array.isArray(d.closed.rows) ? d.closed.rows : [];
   const topOpen = op.slice().sort((a, b) => (Number(b.unrealized_pnl) || 0) - (Number(a.unrealized_pnl) || 0))[0] || null;
   const topClosed = cl.slice().sort((a, b) => (Number(b.realized_pnl) || 0) - (Number(a.realized_pnl) || 0))[0] || null;
+  // Balken sind die Grundansicht, die Treemap die zweite. Beide lesen
+  // dieselben Positionen und denselben Alle/Offen/Geschlossen-Filter.
+  const ansicht = T.state.walletPosView === 'treemap' ? 'treemap' : 'bars';
+  const mode = T.state.walletTreemap || 'all';
+  const umschalter = T.chip
+    ? '<div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:14px">'
+      + '<div style="display:flex; align-items:center; gap:6px"><span style="' + LBL + '">POSITION VIEW</span>'
+      + T.chip('Bars', ansicht === 'bars', { walletPosView: 'bars' })
+      + T.chip('Treemap', ansicht === 'treemap', { walletPosView: 'treemap' }) + '</div>'
+      + '<div style="display:flex; align-items:center; gap:6px"><span style="' + LBL + '">SET</span>'
+      + T.chip('All', mode === 'all', { walletTreemap: 'all' })
+      + T.chip('Open', mode === 'open', { walletTreemap: 'open' })
+      + T.chip('Closed', mode === 'closed', { walletTreemap: 'closed' }) + '</div>'
+      + '</div>'
+    : '';
   return renderPnl(d)
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:14px; margin-top:14px">' + topCard('TOP OPEN · BY UNREALISED', topOpen, 'open') + topCard('TOP CLOSED · BY REALISED', topClosed, 'closed') + '</div>'
-    + renderTreemap(T, d);
+    + umschalter
+    + (ansicht === 'bars' ? positionsBalken(T, d) : renderTreemap(T, d));
 }
 
 function renderTrackRecord(d) {
@@ -588,7 +692,7 @@ function renderPnl(d) {
     + '</div></details>';
 
   return '<div style="' + CARD + '; padding:16px 18px; margin-top:14px">' + head + swap
-    + '<div style="margin-top:12px; border:1px solid rgba(var(--ink),.07); border-radius:6px; padding:10px 8px 4px; background:#0D1114">' + kurve + '</div>'
+    + '<div style="margin-top:12px; border:1px solid rgba(var(--ink),.07); border-radius:6px; padding:10px 8px 4px; background:var(--panel)">' + kurve + '</div>'
     + statsHtml + basis + '</div>';
 }
 

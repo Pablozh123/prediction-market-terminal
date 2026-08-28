@@ -395,6 +395,7 @@ def leaderboard_rows(leaderboard: pd.DataFrame, ranked: pd.DataFrame | None = No
                 "reason": _text(row.get("copy_rank_reason")),
                 "parts": parts,
                 "basis": score_basis(parts, cohort_n),
+                "interval": score_interval(parts),
             }
     rows: list[dict[str, Any]] = []
     for _, row in leaderboard.iterrows():
@@ -417,6 +418,13 @@ def leaderboard_rows(leaderboard: pd.DataFrame, ranked: pd.DataFrame | None = No
             # Worauf der Score ruht: welcher Anteil seines Gewichts gemessen
             # ist und welcher aus einem Ersatzwert stammt.
             "score_basis": smart.get("basis") or None,
+            # Das n dieses Scores ist die gemeinsam bewertete Menge, nicht
+            # eine Zahl aufgeloester Wetten: die kommt erst per Wallet aus
+            # /api/wallet/{wallet}. Die Spanne ist keine Konfidenz-, sondern
+            # die Ungemessen-Spanne (siehe score_interval).
+            "score_n": (smart.get("basis") or {}).get("cohort_n") or None,
+            "score_ci": smart.get("interval") or None,
+            "sample_badge": score_sample_badge(smart.get("basis")),
         })
     return rows
 
@@ -483,6 +491,88 @@ def score_basis(parts: list[dict[str, Any]], cohort_n: int = 0) -> dict[str, Any
         "imputed": [str(p.get("label")) for p in parts if p.get("imputed")],
         "cohort_n": int(max(0, cohort_n)),
     }
+
+
+def score_interval(parts: list[dict[str, Any]]) -> list[float] | None:
+    """Wie weit der Composite wandern koennte, wenn die Platzhalter Messungen waeren.
+
+    Das ist **kein** Konfidenzintervall: der Score ist bei gegebenen Eingaben
+    deterministisch, es gibt keine Stichprobenverteilung, aus der sich eine
+    ziehen liesse. Was es gibt, ist eine harte Spanne. ``copy_smart_score``
+    ist die gewichtete Summe von sechs Bestandteilen auf 0..100
+    (``copy_trading.rank_traders_by_smart_score``); die gemessenen liegen
+    fest, die geschaetzten koennten irgendwo zwischen 0 und 100 liegen. Also:
+
+        lo = Summe(gewicht * wert) ueber die gemessenen Bestandteile
+        hi = lo + 100 * Summe(gewicht) ueber die geschaetzten
+
+    Der gezeigte Score liegt konstruktionsbedingt in [lo, hi]. Auf der
+    oeffentlichen Leaderboard-Antwort sind 55 Prozent des Gewichts
+    geschaetzt, die Spanne ist also 55 Punkte breit, und genau das ist die
+    Aussage, die neben dem Abzeichen fehlte.
+
+    ``None``, wenn keine Bestandteile vorliegen: eine Spanne ohne Grundlage
+    waere schlimmer als keine.
+    """
+
+    if not parts:
+        return None
+    lo = 0.0
+    offen = 0.0
+    for part in parts:
+        weight = float(part.get("weight") or 0.0)
+        if part.get("imputed"):
+            offen += weight
+        else:
+            lo += weight * float(_num(part.get("value"), 0.0) or 0.0)
+    return [round(lo, 1), round(lo + 100.0 * offen, 1)]
+
+
+def score_sample_badge(basis: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """Sample-Abzeichen fuer den Composite: wie viel davon gemessen ist.
+
+    ``scorecard.sample_quality`` bewertet aufgeloeste Ereignisse; der Smart
+    Score hat keine, seine Schwaeche ist eine andere. Hier zaehlt der Anteil
+    des Gewichts, der auf Zahlen dieser Wallet ruht.
+    """
+
+    if not basis:
+        return None
+    measured = float(basis.get("measured_weight") or 0.0)
+    if measured >= 0.80:
+        quality = "measured"
+    elif measured >= 0.50:
+        quality = "part measured"
+    else:
+        quality = "mostly placeholder"
+    return {
+        "quality": quality,
+        "measured_weight": round(measured, 4),
+        "verdict_allowed": measured >= 0.80,
+    }
+
+
+def leaderboard_scale(ranked: pd.DataFrame | None) -> dict[str, Any]:
+    """Die beiden Schwellen, gegen die der Score das Volumen liest.
+
+    ``copy_volume_score`` ist ``_log_score(volume, floor=ROI_MIN_VOLUME)``:
+    unterhalb des Bodens wird eine Wallet gar nicht erst bewertet, ab dem
+    95. Perzentil der bewerteten Menge steht der Bestandteil auf 100 und
+    weiteres Volumen aendert nichts mehr. Beides sind Eigenschaften der
+    Kohorte, nicht der Wallet, und gehoeren deshalb in die Antwort statt in
+    eine Schaetzung im Frontend.
+    """
+
+    from src.copy_trading import ROI_MIN_VOLUME
+
+    out: dict[str, Any] = {"gate_volume": float(ROI_MIN_VOLUME), "saturates_at": None}
+    if ranked is None or ranked.empty or "volume" not in ranked:
+        return out
+    volume = pd.to_numeric(ranked["volume"], errors="coerce").dropna()
+    if volume.empty:
+        return out
+    out["saturates_at"] = float(volume.quantile(0.95))
+    return out
 
 
 #: Was anstelle einer Zahl steht, wenn ein Bestandteil auf einem Ersatzwert
@@ -1588,6 +1678,46 @@ def risk_event_row(row: Any) -> dict[str, Any]:
     }
 
 
+#: Breite eines Bins der Score-Verteilung des Risk-Screens, in Punkten.
+RISK_SCORE_BIN = 10
+
+
+def risk_score_bins(event_scores: pd.DataFrame, threshold: float) -> list[dict[str, Any]]:
+    """Verteilung der Ereignis-Scores in Zehnerschritten, mit geflaggtem Anteil.
+
+    Der Trichter sagt, wie viele Maerkte gescreent, geflaggt und hoch
+    bewertet wurden. Was er nicht sagt: wo im Feld eine gezeigte Karte
+    liegt. "77 von 100" ohne die Verteilung dahinter ist eine Zahl ohne
+    Bezugsrahmen. Der Screen bewertet ohnehin jeden Markt mit einem Print,
+    die Verteilung ist also schon da und muss nur mitgeliefert werden.
+
+    ``geflaggt`` ist die Teilmenge ab der Flag-Schwelle. Bins ohne einen
+    einzigen Markt bleiben mit Anzahl 0 stehen, damit die x-Achse durchgehend
+    ist statt zu springen.
+    """
+
+    stufen = [(v, min(100, v + RISK_SCORE_BIN)) for v in range(0, 100, RISK_SCORE_BIN)]
+    if event_scores is None or event_scores.empty:
+        return []
+    werte: list[float] = []
+    for _, row in event_scores.iterrows():
+        wert = _num(row.get("event_insider_score") or row.get("event_risk_score"), 0.0) or 0.0
+        werte.append(float(max(0.0, min(100.0, wert))))
+    if not werte:
+        return []
+    raus: list[dict[str, Any]] = []
+    for von, bis in stufen:
+        # Oberster Bin schliesst die 100 ein, alle anderen sind halboffen.
+        drin = [w for w in werte if (von <= w < bis or (bis >= 100 and w == 100.0))]
+        raus.append({
+            "von": von,
+            "bis": bis,
+            "anzahl": len(drin),
+            "geflaggt": sum(1 for w in drin if w >= threshold),
+        })
+    return raus
+
+
 def risk_payload(
     wallet_scores: pd.DataFrame,
     event_scores: pd.DataFrame,
@@ -1654,6 +1784,9 @@ def risk_payload(
         # "N weitere Maerkte unter 40 — watch only" statt Null-Karten zu zeigen.
         "event_min_score": round(threshold),
         "events_below_min": events_below_min,
+        # Wo die gezeigten Karten im Feld liegen. Der Trichter zaehlt drei
+        # Stufen, die Verteilung zeigt die Form dahinter.
+        "score_bins": risk_score_bins(event_scores, threshold),
         "kpis": {
             # Alle gescorten Maerkte, nicht die Kartenanzahl: vorher stand hier
             # len(events) — mit 12 Karten log die Zahl, mit Floor erst recht.
@@ -1979,6 +2112,61 @@ def copy_payload(
     }
 
 
+#: Wie viele Saeulen die Verteilung der Trade-Ergebnisse hoechstens bekommt.
+TRADE_PNL_BINS = 16
+
+
+def trade_pnl_distribution(ledger: pd.DataFrame | None) -> dict[str, Any] | None:
+    """Verteilung des Ergebnisses je geschlossener Kopie, plus Konzentration.
+
+    Sechs Statistikkarten und eine Equity-Kurve sagen, wie der Lauf endete.
+    Was sie nicht sagen: ob das Ergebnis von wenigen Trades getragen wird.
+    Eine Kurve, die aus drei Treffern besteht, sieht wie eine Kurve aus.
+
+    Gezaehlt wird ueber dieselbe Menge wie ``win_rate``: geschlossene Kopien
+    (SELL und RESOLVE) mit dem Status copied oder settled. ``top3_anteil``
+    ist der Anteil der drei groessten Gewinne an der Summe aller Gewinne,
+    also dieselbe Lesart wie PROFIT CONCENTRATION auf der Wallet-Seite.
+    Ohne geschlossene Kopie kommt ``None`` zurueck.
+    """
+
+    if ledger is None or ledger.empty or "status" not in ledger or "action" not in ledger:
+        return None
+    closers = ledger[ledger["status"].isin(["copied", "settled"]) & ledger["action"].isin(["SELL", "RESOLVE"])]
+    if closers.empty or "realized_pnl" not in closers:
+        return None
+    werte = pd.to_numeric(closers["realized_pnl"], errors="coerce").dropna().astype(float).tolist()
+    if not werte:
+        return None
+    tief, hoch = min(werte), max(werte)
+    if hoch == tief:
+        # Alle gleich: ein Bin um den Wert, damit die Achse eine Breite hat.
+        tief, hoch = tief - 1.0, hoch + 1.0
+    breite = (hoch - tief) / TRADE_PNL_BINS
+    bins: list[dict[str, Any]] = []
+    for i in range(TRADE_PNL_BINS):
+        von = tief + i * breite
+        bis = hoch if i == TRADE_PNL_BINS - 1 else tief + (i + 1) * breite
+        drin = [w for w in werte if (von <= w < bis or (i == TRADE_PNL_BINS - 1 and w == hoch))]
+        bins.append({"von": round(von, 4), "bis": round(bis, 4), "anzahl": len(drin)})
+    gewinne = sorted((w for w in werte if w > 0), reverse=True)
+    summe_gewinne = sum(gewinne)
+    top3 = sum(gewinne[:3])
+    return {
+        "unit": "USD",
+        "n": len(werte),
+        "bins": bins,
+        "best": round(max(werte), 2),
+        "worst": round(min(werte), 2),
+        "gross_win": round(summe_gewinne, 2),
+        "top3": round(top3, 2),
+        # None statt 0, wenn es keinen einzigen Gewinn gibt: ein Anteil ohne
+        # Grundgesamtheit ist keine 0 Prozent, er ist nicht definiert.
+        "top3_share": round(top3 / summe_gewinne, 4) if summe_gewinne > 0 else None,
+        "winners": len(gewinne),
+    }
+
+
 def backtest_payload(result: Any) -> dict[str, Any]:
     """`btr.BacktestResult` in die Backtester-Ansicht (inkl. Caveats)."""
 
@@ -2057,6 +2245,9 @@ def backtest_payload(result: Any) -> dict[str, Any]:
             payload["curve_end"] = zeiten.max().isoformat()[:16]
     ledger: pd.DataFrame = result.ledger
     if ledger is not None and not ledger.empty:
+        verteilung = trade_pnl_distribution(ledger)
+        if verteilung is not None:
+            payload["trade_pnl"] = verteilung
         payload["log"] = [
             {
                 "time": _text(row.get("time"))[5:16].replace("T", " "),
@@ -2346,7 +2537,68 @@ def live_runs_extras(payload: Mapping[str, Any], publish_dir: Path | None = None
     ledger = wallet_ledger_payload(publish_dir)
     if ledger is not None:
         out["wallet_ledger"] = ledger
+    quote = live_runs_win_rate(payload, ledger)
+    if quote is not None:
+        out["win_rate"] = quote
     return out
+
+
+def live_runs_win_rate(
+    payload: Mapping[str, Any],
+    ledger: Mapping[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Trefferquote der Live-Laeufe mit 95-Prozent-Wilson-Intervall.
+
+    "25 zu 2" ist die angreifbarste Zahl des Portfolios, solange keine
+    Spanne danebensteht: bei n = 27 laesst dieselbe Quote noch viel Raum.
+    Wilson statt Normalapproximation, weil die Quote nahe an 1 liegt, wo
+    die Normalspanne ueber 100 Prozent hinauslaeuft.
+
+    Quelle ist das Wallet-Ledger, wenn es Bot-Maerkte kennt (wertlos
+    ausgelaufene zaehlen als verloren, wie auf der Seite), sonst das
+    Lauf-Aggregat aus runs.json. Welche der beiden es war, steht in
+    ``source``: die zwei Zaehlungen sind nicht dasselbe, und die Seite sagt
+    ohnehin schon, welche sie zeigt. Offene Maerkte gehen in keinen der
+    beiden Nenner, ein Ergebnis, das es noch nicht gibt, ist kein Verlust.
+    """
+
+    from app import quant
+
+    wins = losses = None
+    source = ""
+    events = (ledger or {}).get("events") if isinstance(ledger, Mapping) else None
+    if isinstance(events, list):
+        gewonnen = verloren = 0
+        for event in events:
+            for markt in (event or {}).get("maerkte", []) or []:
+                if _text(markt.get("zuordnung")) != "bot":
+                    continue
+                status = _text(markt.get("status"))
+                if status == "won":
+                    gewonnen += 1
+                elif status in ("lost", "worthless"):
+                    verloren += 1
+        if gewonnen + verloren:
+            wins, losses, source = gewonnen, verloren, "wallet ledger"
+    if wins is None:
+        agg = payload.get("aggregat") if isinstance(payload, Mapping) else None
+        if isinstance(agg, Mapping):
+            gewonnen = int(_num(agg.get("gewonnen"), 0.0) or 0)
+            verloren = int(_num(agg.get("verloren"), 0.0) or 0)
+            if gewonnen + verloren:
+                wins, losses, source = gewonnen, verloren, "run logs"
+    if wins is None:
+        return None
+    n = wins + losses
+    lo, hi = quant.wilson_interval(int(wins), int(n))
+    return {
+        "source": source,
+        "wins": int(wins),
+        "losses": int(losses),
+        "n": int(n),
+        "p": round(wins / n, 4),
+        "ci95": [round(float(lo), 4), round(float(hi), 4)],
+    }
 
 
 #: Where the published payloads live; api/server.py reads the same directory.

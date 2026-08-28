@@ -4,7 +4,7 @@
 
 import { esc, num, herkunftSatz, leerZeile, EINZAHLUNGEN_USD, offeneNichtDrin, stempelBlock } from '../util.js';
 import { caveatZeile, registerStand } from '../claims.js';
-import { stepKurve, diagramm, linien, kalibrierung, fmtZahl, SERIEN_FARBEN } from '../charts.js';
+import { stepKurve, diagramm, linien, kalibrierung, fmtZahl, serienFarbe, intervallMarke } from '../charts.js';
 import { renderMicrostructure } from './microstructure_page.js';
 
 const M = "font-family:'IBM Plex Mono',monospace";
@@ -591,16 +591,14 @@ export function renderResearch(T) {
   if (!stats) {
     return '<div>' + header + fehlendeStudieHtml(study, RESEARCH_DATEI[s.researchTab]) + '</div>';
   }
-  const chartLabel = study.chart;
-  // Keine Zierkurve mehr, nirgends. Hier lief ein Zufallsgenerator mit
-  // eingebautem Aufwaertsdrift unter Ueberschriften wie FORWARD PAPER EQUITY
-  // und BRIER SCORE BY CATEGORY, auch dann, wenn echte Daten geladen waren.
-  // Die Begruendung stand seit der Pilot-Ausnahme daneben und galt immer
-  // schon fuer alle: eine gemalte Kurve ist eine Behauptung. Ein Diagramm
-  // gibt es erst, wenn eine echte Serie in der Nutzlast liegt.
-  const serie = payload && Array.isArray(payload.serie) && payload.serie.length > 1
-    ? payload.serie : null;
-  const pts = serie ? T.seriesPoints(serie, 900, 220) : '';
+  // Hier stand eine generische Studienkurve. Sie zeichnete vier Gitterlinien
+  // auf fest verdrahteten Hoehen (y = 20, 75, 130, 210), also in ungleichen
+  // Abstaenden, ohne Beschriftung, ohne Einheit, ohne Minimum und Maximum:
+  // keine Achse, sondern Striche, die wie eine aussehen. Dazu zerrte
+  // preserveAspectRatio="none" die Kurve auf die Containerbreite. Gerendert
+  // hat sie ohnehin nie, weil keine publizierte Nutzlast ein Feld `serie`
+  // traegt. Studien, die eine Kurve haben, zeichnen sie ueber die Formen aus
+  // charts.js, die eine echte Achse mitbringen.
 
   return '<div>' + header
     + '<div style="padding:22px 24px">'
@@ -619,14 +617,6 @@ export function renderResearch(T) {
       + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); margin-top:4px">' + esc(x.note) + '</div></div>'
     ).join('')
     + '</div>'
-    + (pts ? '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; padding:16px 18px">'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.55); margin-bottom:12px">' + esc(chartLabel) + '</div>'
-    + '<svg width="100%" height="220" viewBox="0 0 900 220" preserveAspectRatio="none" role="img" aria-label="' + esc(chartLabel) + '">'
-    + '<line x1="0" y1="20" x2="900" y2="20" style="stroke:rgba(var(--ink),.07)" />'
-    + '<line x1="0" y1="75" x2="900" y2="75" style="stroke:rgba(var(--ink),.07)" />'
-    + '<line x1="0" y1="130" x2="900" y2="130" style="stroke:rgba(var(--ink),.07)" />'
-    + '<line x1="0" y1="210" x2="900" y2="210" style="stroke:rgba(var(--ink),.14)" />'
-    + '<polyline points="' + pts + '" fill="none" style="stroke:var(--info)" stroke-width="2" /></svg></div>' : '')
     // Je Studie ihre Diagramme und Zusatzbloecke (Mentions latency, Pilot,
     // Pipeline forward), am Slug aufgehaengt statt am Index.
     + studienExtrasHtml(studienSlug(study), payload, pilotLedger)
@@ -1315,7 +1305,7 @@ function renderCategoryEfficiency(T, payload, study) {
       hinweis: 'each point carries its own n — see the table',
       x: alleTage.map((t) => 'T-' + t),
       serien: zeilen.map((z, i) => ({
-        name: z.name, farbe: SERIEN_FARBEN[i % SERIEN_FARBEN.length],
+        name: z.name, farbe: serienFarbe(i),
         werte: alleTage.map((t) => { const h = horizontVon(z, t); return h && h.brier != null ? h.brier : null; })
       }))
     })
@@ -1454,6 +1444,35 @@ function renderCategoryEfficiency(T, payload, study) {
 }
 
 // ---------------------------------------------------------------- live runs (research tab 3)
+// Die Trefferquote der Live-Laeufe mit ihrer Spanne.
+//
+// Bewusst kein Diagramm: bei n unter etwa fuenfzig ist die Spanne die
+// Information, nicht die Form. Eine nackte Quote von 93 Prozent aus 27
+// aufgeloesten Maerkten liest sich wie ein Koennen; die Wilson-Spanne sagt,
+// wie viel Raum dieselben Zahlen noch lassen. Gerechnet wird sie in
+// api_views.live_runs_win_rate ueber app/quant.wilson_interval, damit hier
+// keine zweite Formel entsteht.
+export function trefferquoteKachel(extras) {
+  const w = extras && extras.win_rate ? extras.win_rate : null;
+  if (!w || !w.n || !Array.isArray(w.ci95)) return null;
+  const pct = (v) => Math.round(v * 100) + '%';
+  const spanne = pct(w.ci95[0]) + ' to ' + pct(w.ci95[1]);
+  return {
+    label: 'WIN RATE',
+    value: pct(w.p),
+    sub: w.wins + 'W · ' + w.losses + 'L of ' + num(w.n) + ' settled · 95% ' + spanne + ' · ' + w.source,
+    color: 'var(--text)',
+    marke: intervallMarke({
+      wert: w.p,
+      ci: w.ci95,
+      domain: [0, 1],
+      breite: 200,
+      label: 'win rate ' + pct(w.p) + ', 95% Wilson interval ' + spanne + ', n ' + w.n,
+      ticks: [{ wert: 0, text: '0%' }, { wert: 0.5, text: '50%' }, { wert: 1, text: '100%' }]
+    })
+  };
+}
+
 function renderLiveRuns(T, payload) {
   const s = T.state;
   const agg = payload && payload.aggregat ? payload.aggregat : null;
@@ -1565,14 +1584,19 @@ function renderLiveRuns(T, payload) {
   const betsKachel = agg && botPositionen
     ? { label: 'BETS', value: num(agg.n_wetten), sub: botPositionen.won + 'W · ' + botPositionen.lost + 'L · ' + botPositionen.open + ' open · ' + num(botPositionen.n) + ' bot markets in the wallet, worthless counts as lost', color: 'var(--text)' }
     : { label: 'BETS', value: agg ? num(agg.n_wetten) : '—', sub: agg ? agg.gewonnen + 'W · ' + agg.verloren + 'L · ' + agg.offen + ' open · from run logs' : '', color: 'var(--text)' };
+  // Die Trefferquote steht direkt neben der Wettenzahl, weil sie ohne sie
+  // nichts bedeutet, und sie steht nur da, wenn die Antwort ihre Spanne
+  // mitliefert.
+  const wrKachel = trefferquoteKachel(payload && payload.extras);
   const kpis = agg ? [
     { label: 'RUNS', value: String(agg.n_runs), sub: 'one run = one episode or event', color: 'var(--text)' },
-    betsKachel,
+    betsKachel
+  ].concat(wrKachel ? [wrKachel] : []).concat([
     roiKachel,
     nettoKachel,
     { label: 'FIRST TAKER', value: firstTaker.value, sub: firstTaker.sub, color: 'var(--text)' },
     { label: 'OPEN STAKE', value: '$' + num((+agg.offener_einsatz_usd).toFixed(0)), sub: 'in unresolved markets', color: 'var(--text)' }
-  ] : [
+  ]) : [
     // Kein Rueckfall auf 64 Laeufe, 1.208 Wetten und eine Trefferquote von
     // 54 Prozent. Die Zahlen stehen in runs.json oder nirgends.
     { label: 'RUNS', value: '—', sub: 'runs.json not loaded', color: 'var(--text)' },
@@ -1944,7 +1968,11 @@ function renderLiveRuns(T, payload) {
       '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:14px 16px">'
       + '<div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(var(--ink),.6)">' + esc(k.label) + '</div>'
       + '<div style="' + M + '; font-size:21px; margin-top:7px; color:' + k.color + '; white-space:nowrap">' + esc(k.value) + '</div>'
-      + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); margin-top:4px">' + esc(k.sub) + '</div></div>'
+      + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); margin-top:4px">' + esc(k.sub) + '</div>'
+      // k.marke ist fertiges SVG (die Intervall-Marke), kein Text: sie darf
+      // nicht durch esc laufen.
+      + (k.marke ? '<div style="margin-top:6px">' + k.marke + '</div>' : '')
+      + '</div>'
     ).join('')
     + '</div>'
     // Die Adresse, ueber die jeder jede Zahl der Seite nachrechnen kann —
