@@ -22,12 +22,14 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from app import analysis_views as av
+from app import api_views as apv
 from app import microstructure_views as mv
 from app import app_settings as cfg
 from app import authz as az
 from app import backtester as btr
 from app import calibration as calib
 from app import copy_fidelity as cfy
+from app import cross_pairs as cp
 from app import copy_follow as ctf
 from app import notify
 from app import quant as qm
@@ -64,8 +66,10 @@ from app.filters import (
     bool_mask,
     copy_order_status_bucket,
     filter_text,
+    filter_trade_direction,
     numeric_col,
     option_metric_filter,
+    trade_direction_col,
 )
 
 
@@ -2897,7 +2901,12 @@ def wallet_positions_frame(open_positions: pd.DataFrame, closed_positions: pd.Da
     frames: list[pd.DataFrame] = []
     if not open_positions.empty:
         open_frame = open_positions.copy()
-        open_frame["status"] = "Open"
+        # Preis 0 und Wert 0 heisst: gegen die Wallet aufgeloest und nicht
+        # eingeloest. Als "Open" gefuehrt landete so eine Zeile im Aktiv-Filter
+        # und ihr Verlust in derselben Spalte wie ein Buchverlust.
+        open_frame["status"] = md.worthless_position_mask(open_frame).map(
+            {True: "Resolved, not redeemed", False: "Open"}
+        )
         open_frame["pnl"] = numeric_col(open_frame, "unrealized_pnl")
         open_frame["basis"] = numeric_col(open_frame, "size") * numeric_col(open_frame, "avg_price")
         open_frame["time"] = pd.to_datetime(open_frame.get("end_time"), utc=True, errors="coerce")
@@ -5734,13 +5743,46 @@ def render_wallet(wallet: str) -> None:
     cols[1].metric("Volume", money(summary["trade_notional"]))
     cols[2].metric("USDC Balance", money(cash_balance))
     active_position_value = float(summary["open_value"])
-    cols[3].metric("Active Positions", money(active_position_value), f"{len(open_positions):,} positions")
+    worthless_n = int(summary.get("worthless_count", 0) or 0)
+    cols[3].metric(
+        "Active Positions",
+        money(active_position_value),
+        f"{int(summary.get('open_count', len(open_positions))):,} positions",
+        help=(
+            f"{worthless_n:,} further positions resolved against this wallet and were never redeemed. "
+            "They sit in the /positions feed at price 0; their loss is settled, so they are not in this "
+            "value and not in the unrealised figure."
+            if worthless_n
+            else "Positions still trading, valued at the current price."
+        ),
+    )
     cols[4].metric(
         "Win Rate",
         "↓ see below",
         help="The raw feed win rate is ~100% for everyone (Polymarket's closed-positions feed is capped to top winners) — misleading. See the honest 'Verified track record' panel below.",
     )
-    cols[5].metric("Realized / Unrealized", f"{markdown_money(summary['realized_pnl'])} / {markdown_money(summary['unrealized_pnl'])}")
+    # Ein abgerechneter Verlust ist nicht unrealisiert. Positionen, die gegen
+    # die Wallet aufgeloest und nie eingeloest wurden, standen bis hierher in
+    # derselben Summe wie der Buchgewinn des offenen Buchs.
+    cols[5].metric(
+        "Realized / Unrealized",
+        f"{markdown_money(summary['realized_pnl'])} / {markdown_money(summary['unrealized_pnl'])}",
+        help=(
+            f"Plus {markdown_money(summary.get('worthless_pnl', 0.0))} from {worthless_n:,} positions that "
+            "resolved against this wallet and were never redeemed. That loss is settled, not unrealised, "
+            "and is reported apart rather than added to the open book."
+            if worthless_n
+            else "Unrealised covers open positions only."
+        ),
+    )
+    if worthless_n:
+        st.markdown(
+            f"<div class='field-hint'>RESOLVED, NOT REDEEMED: {worthless_n:,} positions worth "
+            f"{money(summary.get('worthless_cost', 0.0))} at cost resolved against this wallet and still "
+            "sit in the open-positions feed at price 0. Their loss is settled and is kept out of the "
+            "unrealised figure, the position value and the cost basis.</div>",
+            unsafe_allow_html=True,
+        )
     info_cols = st.columns(3)
     info_cols[0].metric("First Funding", money(first_activity_notional) if first_activity_notional else "-", short_addr(first_activity_tx) if first_activity_tx else "")
     if first_activity_tx.startswith("0x"):
@@ -6551,6 +6593,17 @@ def page_traders() -> None:
         + " | "
         + display["wallet_short"].astype(str)
     )
+    # Vier der sechs Score-Bestandteile ruhen auf der oeffentlichen
+    # Leaderboard-Antwort auf einem Ersatzwert, der fuer jede Wallet
+    # derselbe ist (copy_trading.rank_traders_by_smart_score schreibt das in
+    # copy_score_imputed). Als Zahl gelesen sieht das aus wie eine Messung
+    # dieser Wallet. Dieselbe Lesart wie im Web-Frontend.
+    display["copy_rank_reason"] = [apv.score_parts_text(row) for _, row in display.iterrows()]
+    score_basis_note = (
+        apv.score_basis_note(apv.score_basis(apv.score_parts(display.iloc[0]), cohort_n=len(display)))
+        if len(display)
+        else ""
+    )
     display["win_rate_pct"] = pd.to_numeric(display.get("win_rate", pd.Series(dtype="float64")), errors="coerce") * 100
     display["account_age_display"] = pd.to_numeric(display.get("account_age_days", pd.Series(dtype="float64")), errors="coerce")
     trader_columns = [
@@ -6627,7 +6680,7 @@ def page_traders() -> None:
         "copy_rank": st.column_config.NumberColumn("Smart Rank", format="%d", width="small"),
         "copy_smart_score": st.column_config.ProgressColumn("Smart Score", min_value=0, max_value=100),
         "copy_grade": st.column_config.TextColumn("Grade", width="small"),
-        "copy_rank_reason": st.column_config.TextColumn("Score Factors", width="large"),
+        "copy_rank_reason": st.column_config.TextColumn("Score Factors", width="large", help="A component the public leaderboard feed cannot fill reads \"assumed\": the score uses a fixed placeholder there, the same one for every wallet."),
         "profile_url": st.column_config.LinkColumn("Profile", display_text="Open profile"),
         "x_url": st.column_config.LinkColumn("X", display_text="X"),
         "pnl": st.column_config.NumberColumn("Total PnL", format="$%.0f"),
@@ -6870,6 +6923,8 @@ def page_traders() -> None:
                             active_wallets=copy_active_wallets,
                             disabled=not bool(wallet_value),
                         )
+    if score_basis_note:
+        st.caption(score_basis_note)
     st.caption("Bot-like and whale scores are heuristics from the current recent-trade sample, not identity labels.")
     if selected_trader_action_row is not None:
         selected_wallet = str(selected_trader_action_row.get("wallet", "") or "")
@@ -7330,7 +7385,11 @@ def live_market_flow(trades: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame()
     df = trades.copy()
     df["notional"] = pd.to_numeric(df.get("notional", 0.0), errors="coerce").fillna(0.0)
-    df["side_upper"] = df.get("side", "").astype(str).str.upper()
+    # Richtung nach derselben Regel wie im Web-Frontend: nur SELL ist ein
+    # Verkauf. Der Gleichheitstest auf "BUY" liess jeden Kalshi-Markt mit
+    # buy = sell = net = 0 dastehen, also mit einem Vorgabewert an der
+    # Stelle einer Messung.
+    df["direction"] = trade_direction_col(df)
     df["outcome_upper"] = df.get("outcome", "").astype(str).str.upper()
     if "market_key" not in df:
         df["market_key"] = df.get("ticker", df.get("title", ""))
@@ -7345,8 +7404,8 @@ def live_market_flow(trades: pd.DataFrame) -> pd.DataFrame:
             largest_trade=("notional", "max"),
             latest_trade=("time", "max"),
             unique_wallets=("wallet", lambda s: int(s.astype(str).nunique())),
-            buy_notional=("notional", lambda s: float(s[df.loc[s.index, "side_upper"].eq("BUY")].sum())),
-            sell_notional=("notional", lambda s: float(s[df.loc[s.index, "side_upper"].eq("SELL")].sum())),
+            buy_notional=("notional", lambda s: float(s[df.loc[s.index, "direction"].eq("BUY")].sum())),
+            sell_notional=("notional", lambda s: float(s[df.loc[s.index, "direction"].eq("SELL")].sum())),
             yes_notional=("notional", lambda s: float(s[df.loc[s.index, "outcome_upper"].eq("YES")].sum())),
             no_notional=("notional", lambda s: float(s[df.loc[s.index, "outcome_upper"].eq("NO")].sum())),
             market_key=("market_key", "first"),
@@ -7488,7 +7547,11 @@ def apply_whale_trade_presets(
     if filtered.empty:
         return filtered
     if side != "All" and "side" in filtered:
-        filtered = filtered[filtered["side"].astype(str).str.upper().eq(side)]
+        # "side" heisst auf den Venues nicht dasselbe: Polymarket schreibt
+        # die Richtung hinein, Kalshi die genommene Seite (yes/no, klein).
+        # Ein Gleichheitstest gegen BUY/SELL warf jeden Kalshi-Print aus der
+        # Auswahl, ohne dass die Chips es sagten.
+        filtered = filter_trade_direction(filtered, side)
     if maker_taker != "All":
         filtered = filtered[filtered["liquidity_role"].astype(str).eq(maker_taker)]
     price = numeric_col(filtered, "price")
@@ -8547,6 +8610,10 @@ def page_cross_venue() -> None:
     if candidates.empty and query.strip():
         candidates = md.cross_venue_candidates(pm, ks, query="", min_similarity=min_similarity, max_pairs=max_pairs)
         fallback_used = not candidates.empty
+    # Die Mittelkurs-Luecke ist nicht handelbar: gekauft wird zum Brief,
+    # verkauft zum Geld, und beide Venues nehmen eine Gebuehr. Dieselbe
+    # Rechnung wie auf der Web-Oberflaeche (app/cross_pairs.basket_edge).
+    candidates = cp.with_basket_edge(candidates, pm, ks)
     if not candidates.empty:
         candidates = candidates[numeric_col(candidates, "abs_gap") >= float(min_gap_cents) / 100]
         candidates = candidates[numeric_col(candidates, "polymarket_volume_usd") >= float(min_pm_volume)]
@@ -8573,7 +8640,9 @@ def page_cross_venue() -> None:
     if int(min_pm_volume) > 0:
         cross_chips.append(f"Polymarket volume: >{money(min_pm_volume)}")
     if int(min_ks_volume) > 0:
-        cross_chips.append(f"Kalshi volume: >{money(min_ks_volume)}")
+        # Kontrakte, keine Dollar: money() haette hier ein Dollarzeichen
+        # vor eine Stueckzahl gesetzt (Beleg in app/venue_units.py).
+        cross_chips.append(f"Kalshi volume: >{contracts(min_ks_volume)}")
     if lower_filter != "Any":
         cross_chips.append(f"Lower yes: {lower_filter}")
     if int(min_price_pct) != int(cross_defaults["cross_min_price_pct"]) or int(max_price_pct) != int(cross_defaults["cross_max_price_pct"]):
@@ -8586,9 +8655,28 @@ def page_cross_venue() -> None:
         st.info("No pairs matched the current query on both venues, so broad cross-venue candidates are shown.")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Candidate pairs", f"{len(candidates):,}")
-    c2.metric("Largest gap", signed_cents(candidates["gap"].iloc[candidates["abs_gap"].idxmax()]))
+    c2.metric("Largest mid gap", signed_cents(candidates["gap"].iloc[candidates["abs_gap"].idxmax()]))
     c3.metric("Median similarity", f"{candidates['similarity'].median():.2f}")
-    c4.metric("Median abs gap", cents(candidates["abs_gap"].median()))
+    # Vierte Kachel: wie viele der gezeigten Paare nach beiden Gebuehrenkurven
+    # ueberhaupt etwas uebrig lassen. Vorher stand hier die zweite Lesart
+    # derselben Mittelkurs-Luecke.
+    net_edge = pd.to_numeric(candidates.get("net_edge_cents"), errors="coerce")
+    net_known = int(net_edge.notna().sum())
+    net_positive = int((net_edge > 0).sum())
+    c4.metric(
+        "Positive net of fees",
+        f"{net_positive:,} of {net_known:,}" if net_known else "-",
+        help="Both touch quotes on both venues, basket priced in both directions, both taker "
+        "fee curves subtracted (app/venue_fees.py). Pairs without a two-sided quote on both "
+        "venues carry no executable figure and are not counted.",
+    )
+    if net_known < len(candidates):
+        st.markdown(
+            f"<div class='field-hint'>{len(candidates) - net_known:,} of {len(candidates):,} pairs "
+            "quote only one side on at least one venue, so nothing executable can be priced for them. "
+            "The mid gap is not a tradable number: buying pays the ask and selling receives the bid.</div>",
+            unsafe_allow_html=True,
+        )
     fig = px.scatter(
         candidates,
         x="similarity",
@@ -8612,6 +8700,9 @@ def page_cross_venue() -> None:
             [
                 "similarity",
                 "gap",
+                "gross_edge_cents",
+                "net_edge_cents",
+                "edge_direction",
                 "lower_yes",
                 "higher_yes",
                 "polymarket_ticker",
@@ -8629,6 +8720,16 @@ def page_cross_venue() -> None:
         width="stretch",
         height=460,
         column_config={
+            "gap": st.column_config.TextColumn("Mid gap", help="Difference of the two mid prices. Nobody trades a mid."),
+            "gross_edge_cents": st.column_config.NumberColumn(
+                "Executable", format="%+.2f c",
+                help="What the basket actually captures: buy the ask on one venue, sell the bid on the other. Empty without a two-sided quote on both venues.",
+            ),
+            "net_edge_cents": st.column_config.NumberColumn(
+                "Net of fees", format="%+.2f c",
+                help="Executable minus both taker fee curves (app/venue_fees.py). Only this number may be read as an advantage.",
+            ),
+            "edge_direction": st.column_config.TextColumn("Direction"),
             "polymarket_volume_usd": st.column_config.NumberColumn("Polymarket volume", format="$%.0f"),
             # Kein Dollarzeichen: die Spalte zaehlt Kontrakte, und ein
             # Kontrakt ist erst bei Aufloesung einen Dollar wert.

@@ -1517,6 +1517,60 @@ class WalletActivitySummaryTests(unittest.TestCase):
         self.assertEqual(summary["settlements"], 1)
 
 
+class WorthlessPositionTests(unittest.TestCase):
+    """Eine gegen die Wallet aufgeloeste, nie eingeloeste Position.
+
+    Sie bleibt im ``/positions``-Feed stehen, mit Preis 0 und Wert 0. Ihr
+    Verlust ist abgerechnet und bewegt sich nie wieder. ``wallet_summary``
+    zaehlte ihn in dieselbe Summe wie den Buchgewinn des offenen Buchs, und
+    ihre Kosten in den Wert des offenen Buchs. Die Web-Oberflaeche trennt
+    beides seit #107/#112 (app/api_views._wallet_positions); hier ist
+    dieselbe Regel fuer den Streamlit-Pfad.
+    """
+
+    def _positions(self) -> pd.DataFrame:
+        return pd.DataFrame([
+            # Offen: laeuft noch, Buchgewinn von +15.
+            {"size": 100.0, "avg_price": 0.35, "current_price": 0.50, "value": 50.0, "unrealized_pnl": 15.0},
+            # Gegen die Wallet aufgeloest, nie eingeloest: -10 abgerechnet.
+            {"size": 40.0, "avg_price": 0.25, "current_price": 0.0, "value": 0.0, "unrealized_pnl": -10.0},
+        ])
+
+    def test_a_settled_loss_does_not_sit_in_the_unrealised_figure(self) -> None:
+        summary = md.wallet_summary(self._positions(), pd.DataFrame(), pd.DataFrame())
+        # Vorher: 15 - 10 = +5 "unrealisiert" ueber beide Zeilen.
+        self.assertAlmostEqual(summary["unrealized_pnl"], 15.0)
+        self.assertAlmostEqual(summary["worthless_pnl"], -10.0)
+        self.assertEqual(summary["worthless_count"], 1)
+        self.assertEqual(summary["open_count"], 1)
+
+    def test_the_dead_position_is_out_of_value_and_cost_basis(self) -> None:
+        summary = md.wallet_summary(self._positions(), pd.DataFrame(), pd.DataFrame())
+        self.assertAlmostEqual(summary["open_value"], 50.0)
+        # 40 Anteile zu 0.25 sind 10 Dollar Einsatz, und die gehoeren nicht
+        # in die Kostenbasis des offenen Buchs.
+        self.assertAlmostEqual(summary["worthless_cost"], 10.0)
+
+    def test_a_book_without_dead_rows_is_unchanged(self) -> None:
+        offen = self._positions().iloc[0:1]
+        summary = md.wallet_summary(offen, pd.DataFrame(), pd.DataFrame())
+        self.assertAlmostEqual(summary["unrealized_pnl"], 15.0)
+        self.assertEqual(summary["worthless_count"], 0)
+        self.assertAlmostEqual(summary["worthless_pnl"], 0.0)
+
+    def test_a_frame_without_the_price_columns_marks_nothing_dead(self) -> None:
+        # Fehlende Spalte heisst "nicht erkennbar", nicht "wertlos".
+        ohne = pd.DataFrame([{"value": 25.0}])
+        self.assertFalse(bool(md.worthless_position_mask(ohne).any()))
+        self.assertTrue(md.worthless_position_mask(pd.DataFrame()).empty)
+
+    def test_the_predicate_is_the_one_the_web_surface_uses(self) -> None:
+        self.assertTrue(md.position_is_worthless(0.0, 0.0))
+        self.assertFalse(md.position_is_worthless(0.5, 50.0))
+        # Preis 0, aber noch ein Wert im Feed: keine tote Zeile.
+        self.assertFalse(md.position_is_worthless(0.0, 12.0))
+
+
 class TraderInsightTests(unittest.TestCase):
     def test_trader_insights_estimate_behavior_percentages_and_exposure(self) -> None:
         open_positions = pd.DataFrame([{"value": 25.0}])
