@@ -1571,6 +1571,126 @@ class WorthlessPositionTests(unittest.TestCase):
         self.assertFalse(md.position_is_worthless(0.0, 12.0))
 
 
+class UnknownPositionPriceTests(unittest.TestCase):
+    """Ein fehlender Preis ist keine gemessene Null.
+
+    ``/positions`` liefert fuer manche Zeilen keinen ``curPrice``. Bis hierher
+    machte ``fillna(0.0)`` daraus die Zahl 0, und die Zahl 0 heisst in diesem
+    Feed etwas ganz Bestimmtes: gegen die Wallet aufgeloest und nicht
+    eingeloest. Aus einer Datenluecke wurde damit ein abgerechneter Verlust.
+    Drei Faelle, drei Antworten: Preis liegt vor, Preis ist echt null, Preis
+    ist unbekannt.
+    """
+
+    def _positions(self) -> pd.DataFrame:
+        return pd.DataFrame([
+            {"size": 100.0, "avg_price": 0.35, "current_price": 0.50, "value": 50.0, "unrealized_pnl": 15.0},
+            # Echt null: der Feed hat einen Preis gemeldet, und der ist 0.
+            {"size": 40.0, "avg_price": 0.25, "current_price": 0.0, "value": 0.0, "unrealized_pnl": -10.0},
+            # Unbekannt: der Feed hat gar keinen Preis gemeldet.
+            {"size": 80.0, "avg_price": 0.50, "current_price": float("nan"), "value": float("nan"),
+             "unrealized_pnl": float("nan")},
+        ])
+
+    def test_three_states_instead_of_two(self) -> None:
+        self.assertEqual(md.position_price_state(0.5, 50.0), md.POSITION_PRICE_KNOWN)
+        self.assertEqual(md.position_price_state(0.0, 0.0), md.POSITION_PRICE_WORTHLESS)
+        self.assertEqual(md.position_price_state(None, None), md.POSITION_PRICE_UNKNOWN)
+        self.assertEqual(md.position_price_state(float("nan"), float("nan")), md.POSITION_PRICE_UNKNOWN)
+        # Preis fehlt, aber der Feed nennt noch einen Wert: das Geld ist
+        # bekannt, die Zeile laeuft.
+        self.assertEqual(md.position_price_state(None, 12.0), md.POSITION_PRICE_KNOWN)
+
+    def test_an_unknown_price_is_not_a_settled_loss(self) -> None:
+        self.assertFalse(md.position_is_worthless(None, None))
+        maske = md.worthless_position_mask(self._positions())
+        self.assertEqual(list(maske), [False, True, False])
+        self.assertEqual(list(md.unknown_price_mask(self._positions())), [False, False, True])
+
+    def test_wallet_summary_keeps_the_unknown_row_out_of_every_total(self) -> None:
+        summary = md.wallet_summary(self._positions(), pd.DataFrame(), pd.DataFrame())
+        # Vorher: 2 wertlose Zeilen, -50 abgerechneter Verlust, 50 Kosten.
+        self.assertEqual(summary["worthless_count"], 1)
+        self.assertAlmostEqual(summary["worthless_pnl"], -10.0)
+        self.assertAlmostEqual(summary["worthless_cost"], 10.0)
+        self.assertEqual(summary["unknown_price_count"], 1)
+        self.assertAlmostEqual(summary["unknown_price_cost"], 40.0)
+        # Weder im offenen Buch noch im Buchgewinn.
+        self.assertEqual(summary["open_count"], 1)
+        self.assertAlmostEqual(summary["open_value"], 50.0)
+        self.assertAlmostEqual(summary["unrealized_pnl"], 15.0)
+
+    def test_positions_feed_leaves_a_missing_price_missing(self) -> None:
+        rows = [
+            {"proxyWallet": "0xw", "title": "Preis da", "outcome": "Yes", "asset": "a1", "size": 100.0,
+             "avgPrice": 0.40, "curPrice": 0.60, "currentValue": 60.0, "conditionId": "c1", "slug": "s1"},
+            {"proxyWallet": "0xw", "title": "Preis fehlt", "outcome": "Yes", "asset": "a2", "size": 80.0,
+             "avgPrice": 0.50, "curPrice": None, "currentValue": None, "conditionId": "c2", "slug": "s2"},
+        ]
+        with patch("src.prediction_markets._get_json", return_value=rows):
+            df = md.get_polymarket_positions("0xw")
+        ohne = df[df["title"].eq("Preis fehlt")].iloc[0]
+        self.assertTrue(pd.isna(ohne["current_price"]))
+        self.assertTrue(pd.isna(ohne["value"]))
+        self.assertTrue(pd.isna(ohne["unrealized_pnl"]))
+        mit = df[df["title"].eq("Preis da")].iloc[0]
+        self.assertAlmostEqual(float(mit["current_price"]), 0.60)
+        self.assertAlmostEqual(float(mit["unrealized_pnl"]), 20.0)
+
+    def test_positions_feed_without_the_price_key_invents_nothing(self) -> None:
+        # Fehlt die Spalte im ganzen Feed, stand hier bisher der Skalar 0 und
+        # damit jede Zeile auf "wertlos".
+        rows = [{"proxyWallet": "0xw", "title": "Ohne Preisspalte", "outcome": "Yes", "asset": "a1",
+                 "size": 10.0, "avgPrice": 0.40, "conditionId": "c1", "slug": "s1"}]
+        with patch("src.prediction_markets._get_json", return_value=rows):
+            df = md.get_polymarket_positions("0xw")
+        self.assertTrue(pd.isna(df.iloc[0]["current_price"]))
+        self.assertFalse(bool(md.worthless_position_mask(df).any()))
+
+    def test_a_settled_zero_still_reads_as_settled(self) -> None:
+        rows = [{"proxyWallet": "0xw", "title": "Wertlos", "outcome": "Yes", "asset": "a1", "size": 40.0,
+                 "avgPrice": 0.25, "curPrice": 0.0, "currentValue": 0.0, "conditionId": "c1", "slug": "s1"}]
+        with patch("src.prediction_markets._get_json", return_value=rows):
+            df = md.get_polymarket_positions("0xw")
+        self.assertAlmostEqual(float(df.iloc[0]["current_price"]), 0.0)
+        self.assertTrue(bool(md.worthless_position_mask(df).all()))
+
+    def test_closed_positions_keep_a_missing_settlement_price_missing(self) -> None:
+        # Der Abrechnungspreis dieser Zeilen ist der Ausgang, den die
+        # Kalibrierungskurve liest. Eine 0 heisst dort "hat verloren".
+        rows = [
+            {"proxyWallet": "0xw", "title": "Abgerechnet", "outcome": "Yes", "avgPrice": 0.30,
+             "curPrice": 1.0, "totalBought": 100.0, "realizedPnl": 70.0, "timestamp": 1700000000,
+             "conditionId": "c1", "slug": "s1"},
+            {"proxyWallet": "0xw", "title": "Ohne Preis", "outcome": "Yes", "avgPrice": 0.30,
+             "curPrice": None, "totalBought": 100.0, "realizedPnl": 0.0, "timestamp": 1700000000,
+             "conditionId": "c2", "slug": "s2"},
+        ]
+        with patch("src.prediction_markets._get_json", return_value=rows):
+            df = md.get_polymarket_closed_positions("0xw")
+        ohne = df[df["title"].eq("Ohne Preis")].iloc[0]
+        self.assertTrue(pd.isna(ohne["current_price"]))
+
+    def test_a_missing_settlement_price_stays_off_the_calibration_curve(self) -> None:
+        from app import calibration
+
+        rows = [
+            {"proxyWallet": "0xw", "title": "Abgerechnet", "outcome": "Yes", "avgPrice": 0.30,
+             "curPrice": 1.0, "totalBought": 100.0, "realizedPnl": 70.0, "timestamp": 1700000000,
+             "conditionId": "c1", "slug": "s1"},
+            {"proxyWallet": "0xw", "title": "Ohne Preis", "outcome": "Yes", "avgPrice": 0.30,
+             "curPrice": None, "totalBought": 100.0, "realizedPnl": 0.0, "timestamp": 1700000000,
+             "conditionId": "c2", "slug": "s2"},
+        ]
+        with patch("src.prediction_markets._get_json", return_value=rows):
+            df = md.get_polymarket_closed_positions("0xw")
+        frame = calibration.resolution_frame(df)
+        # Vorher: zwei Zeilen, davon eine mit outcome 0.0 aus einer
+        # Datenluecke — eine erfundene Fehlprognose.
+        self.assertEqual(len(frame), 1)
+        self.assertAlmostEqual(float(frame.iloc[0]["outcome"]), 1.0)
+
+
 class TraderInsightTests(unittest.TestCase):
     def test_trader_insights_estimate_behavior_percentages_and_exposure(self) -> None:
         open_positions = pd.DataFrame([{"value": 25.0}])
