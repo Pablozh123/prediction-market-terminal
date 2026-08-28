@@ -1827,18 +1827,30 @@ function renderLiveRuns(T, payload) {
     body = '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; overflow:hidden">'
       + '<div style="padding:11px 16px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:var(--info)">MONTH BY MONTH</div>'
       + '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px 100px; gap:10px; padding:9px 16px; border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6)">'
-      + '<div>MONTH</div><div style="text-align:right">RUNS</div><div style="text-align:right">BETS</div><div style="text-align:right">STAKE</div><div style="text-align:right">NET</div><div style="text-align:right">ROI</div></div>'
+      + '<div>MONTH</div><div style="text-align:right">RUNS</div><div style="text-align:right">BETS</div><div style="text-align:right">STAKE</div><div style="text-align:right">NET</div><div style="text-align:right">NET / SETTLED STAKE</div></div>'
       + (monthRows.length ? '' : leerZeile(laufSatz))
       + monthRows.map((t) => {
-        const roi = (t.net / t.stake) * 100;
+        // Der Zaehler zaehlt nur aufgeloeste Wetten, also gehoert in den
+        // Nenner nur deren Einsatz. Vorher stand hier net / stake ueber
+        // ALLE Wetten des Monats, offene eingeschlossen — das drueckte jede
+        // Quote nach unten. Und die Spalte hiess ROI: die Wallet-Rendite
+        // dieses Projekts rechnet gegen die einmalige Einzahlung (siehe die
+        // Kachel ROI · WALLET), nicht gegen einen Einsatz.
+        const basis = +t.settled_stake || 0;
+        const quote = basis > 0 ? (t.net / basis) * 100 : null;
+        const offen = Math.max(0, (+t.bets || 0) - (+t.settled_bets || 0));
         return '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px 100px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(var(--ink),.06); ' + M + '; font-size:12.5px">'
           + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:13px">' + t.month + '</div>'
           + '<div style="text-align:right; color:rgba(var(--ink),.6)">' + t.runs + '</div>'
           + '<div style="text-align:right; color:rgba(var(--ink),.6)">' + num(t.bets) + '</div>'
           + '<div style="text-align:right; color:rgba(var(--ink),.6)">$' + num(t.stake) + '</div>'
           + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (t.net >= 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (t.net >= 0 ? '+$' : '-$') + num(Math.abs(t.net)) + '</div>'
-          + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (roi >= 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (roi >= 0 ? '+' : '') + roi.toFixed(1) + '%</div></div>';
+          + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (quote == null ? 'rgba(var(--ink),.5)' : quote >= 0 ? 'var(--pos)' : 'var(--neg)') + '">'
+          + (quote == null ? 'no bet settled' : (quote >= 0 ? '+' : '') + quote.toFixed(1) + '% <span style="font-size:10.5px; color:rgba(var(--ink),.45)">of $' + num(Math.round(basis)) + (offen ? ' · ' + offen + ' open' : '') + '</span>') + '</div></div>';
       }).join('')
+      + '<div style="padding:9px 16px; ' + M + '; font-size:10.5px; color:rgba(var(--ink),.5); line-height:1.6">'
+      + 'NET is the settled result of the bets placed that month; the last column divides it by the stake of the settled bets only, so open stake does not dilute it. '
+      + 'This is a return on stake, not the wallet return — the wallet return is measured against the one-time deposit and is shown as ROI · WALLET above.</div>'
       + '</div>';
   }
 

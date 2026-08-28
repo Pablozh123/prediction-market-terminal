@@ -3,7 +3,7 @@
 // instance (T). Nothing here invents a number: every figure names its payload
 // or the panel says which payload is missing.
 
-import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, signedMoney, stempel, EINZAHLUNGEN_USD } from '../util.js';
+import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, signedMoney, stempel, EINZAHLUNGEN_USD, tapeFenster, fensterSatz } from '../util.js';
 import { spiegelZeit, kurzGeld } from '../charts.js';
 import { studieAnker } from './microstructure_page.js';
 
@@ -641,7 +641,7 @@ function tapePulsHtml(prints, buys, sells) {
   const marken = [];
   valid.forEach((t) => {
     const i = Math.min(nBins - 1, Math.max(0, nBins - 1 - Math.floor(t.mins / schritt)));
-    const kauf = t.side.indexOf('BUY') === 0;
+    const kauf = (t.dir || 'BUY') === 'BUY';
     bins[i][kauf ? 'oben' : 'unten'] += t.size;
     if (t.size >= PULS_MARKE_USD) marken.push({ bin: i, oben: kauf, text: t.market + ' · ' + t.side + ' · ' + money(t.size) });
   });
@@ -672,7 +672,7 @@ function kategorieFlussHtml(prints) {
   prints.forEach((t) => {
     const c = t.category || 'Other';
     const e = je[c] || (je[c] = { kauf: 0, verkauf: 0 });
-    e[t.side.indexOf('BUY') === 0 ? 'kauf' : 'verkauf'] += t.size;
+    e[(t.dir || 'BUY') === 'BUY' ? 'kauf' : 'verkauf'] += t.size;
   });
   const rows = Object.keys(je)
     .map((c) => ({ cat: c, kauf: je[c].kauf, verkauf: je[c].verkauf, summe: je[c].kauf + je[c].verkauf }))
@@ -704,7 +704,7 @@ export function renderFlow(T) {
   const tapeNotional = tapeFiltered.reduce((a, t) => a + t.size, 0);
   const tapeWallets = tapeFiltered.filter((t) => t.wallet !== '—').map((t) => t.wallet).filter((v, i, arr) => arr.indexOf(v) === i).length;
   const identifiziert = tapeFiltered.filter((t) => t.wallet !== '—').length;
-  const buys = tapeFiltered.filter((t) => t.side.indexOf('BUY') === 0).reduce((a, t) => a + t.size, 0);
+  const buys = tapeFiltered.filter((t) => (t.dir || 'BUY') === 'BUY').reduce((a, t) => a + t.size, 0);
   const sells = tapeNotional - buys;
   const groesster = tapeFiltered.reduce((a, t) => (t.size > (a ? a.size : -1) ? t : a), null);
   const kurzTitel = (t) => (String(t).length > 38 ? String(t).slice(0, 37) + '…' : String(t));
@@ -717,6 +717,7 @@ export function renderFlow(T) {
   const gesehen = erste ? new Set() : T._flowGesehen;
   T._flowGesehen = new Set(T.tape.map(schluessel));
 
+  const fensterZeile = fensterSatz(tapeFenster(tapeFiltered));
   const puls = tapePulsHtml(tapeFiltered, buys, sells);
   const katFluss = kategorieFlussHtml(tapeFiltered);
   const grafiken = puls || katFluss
@@ -754,6 +755,12 @@ export function renderFlow(T) {
     + kpiCell('BIGGEST PRINT', groesster ? money(groesster.size) : '—',
       groesster ? esc(kurzTitel(groesster.market)) : 'no print passes the filters', false)
     + '</div>'
+
+    // Ueber welche Spanne diese vier Zahlen summiert wurden — und dass die
+    // Spanne je Venue verschieden ist, weil beide gleich viele Zeilen
+    // bekommen (api_views.balanced_head), Kalshi aber viel schneller druckt.
+    + (fensterZeile ? '<div style="padding:9px 24px; border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:11px; color:rgba(var(--ink),.55)">'
+      + '<span style="letter-spacing:.14em; color:rgba(var(--ink),.6); margin-right:8px">SUMMED OVER</span>' + esc(fensterZeile) + '</div>' : '')
 
     + grafiken
 
