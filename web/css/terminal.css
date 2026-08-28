@@ -21,6 +21,22 @@
   /* text — warm off-white; tiers use rgba(var(--ink),α) */
   --text: #EAE6DC;
   --ink: 234, 230, 220;
+  /* Text tiers. Four, and only four: the JS used to carry fourteen text
+     alphas, nine of them inside a span of 0.23 with neighbours 0.02 apart —
+     a span nobody can read as a hierarchy. These four are ~1.35x apart in
+     contrast, which is the smallest step that stays legible as a step.
+     --ink-4 is the AA floor: nothing weaker than this may carry text.
+     The light theme gets its own alphas, not these. See the light block. */
+  --ink-1: rgba(var(--ink), .85);   /* 11.4:1 on --bg — emphasis inside body text */
+  --ink-2: rgba(var(--ink), .7);    /*  7.9:1 — secondary text, active labels */
+  --ink-3: rgba(var(--ink), .6);    /*  6.1:1 — the workhorse: labels, cells */
+  --ink-4: rgba(var(--ink), .55);   /*  5.2:1 — weakest tier that still passes AA */
+  /* Border tiers. Fifteen alphas collapsed to three; seven of the old ones
+     sat between .04 and .10, i.e. below the threshold where a hairline
+     changes at all. Same values in both themes: borders are not text. */
+  --line-1: rgba(var(--ink), .16);  /* chip and control outlines */
+  --line-2: rgba(var(--ink), .09);  /* the default hairline: panels, rows */
+  --line-3: rgba(var(--ink), .06);  /* faintest rule inside a panel */
   /* roles */
   --accent: #D9A648;        /* interactive: links, active nav, buttons, selection */
   --accent-rgb: 217, 166, 72;
@@ -32,6 +48,12 @@
   --neg: #D95F52;           /* signed values down, SELL, errors */
   --neg-rgb: 217, 95, 82;
   --neg-soft: #DE8A7A;
+  /* The soft twin of --pos, mirroring --neg-soft above. It exists because
+     the weaker of two signed readings used to be drawn by taking opacity
+     off the strong one, and rgba(var(--pos-rgb),.75) composites to 2.97:1
+     on the light ground. A second stepped colour separates the two
+     strengths without going under AA: 9.12:1 dark, 4.56:1 light. */
+  --pos-soft: #8CC29A;
   --warn: #DE7E36;          /* attention: flags, waiting, high severity */
   --warn-rgb: 222, 126, 54;
   --info: #6E9BC8;          /* neutral reference lines, third series */
@@ -92,8 +114,9 @@
    not in the low-alpha tiers, so nothing reads colder for it.
    Measured per route, share of text nodes failing AA: markets 58.7% -> 0.0,
    flow 47.7% -> 0.0, alerts 45.6% -> 0.0, live runs 60.3% -> 2.0,
-   whale 67.8% -> 7.4. What remains is the .5 and .45 call sites in the JS.
-   Do not restore a lifted --ink here without re-measuring. */
+   whale 67.8% -> 7.4. The .5 and .45 call sites that remained after that pass
+   are gone too; every text node of the rendered app now clears AA in both
+   themes. Do not restore a lifted --ink here without re-measuring. */
 :root[data-theme="light"] {
   color-scheme: light;
   --bg: #F4F1EA;
@@ -103,6 +126,23 @@
   --edge: #CCC7B9;
   --text: #201E19;
   --ink: 0, 0, 0;
+  /* Text tiers, light. Own alphas, and that is the whole point: the same α
+     buys different contrast on the two grounds. These four were solved for
+     the contrast of their dark twins against --bg, so a tier means the same
+     strength in both themes instead of the same number:
+       dark .85 = 11.44:1  ->  light .8  = 11.66:1
+       dark .70 =  7.94:1  ->  light .7  =  8.06:1
+       dark .60 =  6.05:1  ->  light .62 =  5.96:1
+       dark .55 =  5.23:1  ->  light .58 =  5.15:1
+     Worst case of the whole ladder is --ink-4 on --panel-hover: 4.99:1 light,
+     5.07:1 dark. The review's draft ladder (.90/.72/.64/.62) predates the
+     pure-black --ink above; measured against it, its tiers 3 and 4 land
+     0.46 apart in contrast, which is no tier at all. Re-measure before
+     touching these. */
+  --ink-1: rgba(var(--ink), .8);
+  --ink-2: rgba(var(--ink), .7);
+  --ink-3: rgba(var(--ink), .62);
+  --ink-4: rgba(var(--ink), .58);
   --accent: #8A651C;
   --accent-rgb: 138, 101, 28;
   --accent-bright: #6E5116;
@@ -118,6 +158,7 @@
   --neg: #B23B2E;
   --neg-rgb: 178, 59, 46;
   --neg-soft: #9C5C4F;
+  --pos-soft: #54755F;
   --warn: #A55914;
   --warn-rgb: 165, 89, 20;
   --info: #3E6796;

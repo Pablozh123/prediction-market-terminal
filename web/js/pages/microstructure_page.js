@@ -31,7 +31,7 @@ function abschnitt(titel, inhalt, zusatz) {
   if (!inhalt) return '';
   return '<div style="' + HR + '">'
     + '<h4 style="' + M + '; font-size:11px; letter-spacing:.15em; color:var(--info); margin:0 0 12px; font-weight:400">'
-    + esc(titel) + (zusatz ? ' <span style="color:rgba(var(--ink),.5)">' + esc(zusatz) + '</span>' : '')
+    + esc(titel) + (zusatz ? ' <span style="color:var(--ink-4)">' + esc(zusatz) + '</span>' : '')
     + '</h4>' + inhalt + '</div>';
 }
 

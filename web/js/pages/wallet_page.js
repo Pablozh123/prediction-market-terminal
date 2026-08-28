@@ -652,7 +652,7 @@ function renderPnl(d) {
   const swap = settled
     ? '<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:10px; ' + M + '; font-size:10.5px; color:var(--warn)">'
       + '<span style="border:1px solid rgba(var(--warn-rgb),.45); border-radius:4px; padding:2px 7px; letter-spacing:.1em">PROFILE CURVE ' + (profileHasPoints ? 'FLAT' : 'MISSING') + '</span>'
-      + '<span style="color:rgba(var(--warn-rgb),.85)">' + (profileHasPoints && p.flat
+      + '<span style="color:var(--warn)">' + (profileHasPoints && p.flat
         ? 'one level (' + esc(kurzGeld(Number(p.points[p.points.length - 1].pnl), true)) + ') for ' + num(p.n_points) + ' points since ' + esc(String(p.first || '').slice(0, 10)) + ' — showing our settled curve instead'
         : 'user-pnl-api did not answer — showing our settled curve instead') + '</span>'
       + '<span style="color:rgba(var(--ink),.6)">details below ↓</span></div>'
@@ -875,7 +875,7 @@ function heatmapHtml(hm) {
   const head = '<div style="display:grid; grid-template-columns:34px repeat(24, minmax(0,1fr)); gap:3px; margin-bottom:4px">'
     + '<div></div>' + hours.map((h) => '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); text-align:center">' + (h % 3 === 0 ? h : '') + '</div>').join('') + '</div>';
   const rows = hm.counts.map((r, wd) => '<div style="display:grid; grid-template-columns:34px repeat(24, minmax(0,1fr)); gap:3px; margin-bottom:3px">'
-    + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.5); align-self:center">' + WEEKDAYS[wd] + '</div>'
+    + '<div style="' + M + '; font-size:11px; color:var(--ink-4); align-self:center">' + WEEKDAYS[wd] + '</div>'
     + r.map((v, h) => {
       const a = max > 0 ? v / max : 0;
       const bg = v > 0 ? 'rgba(var(--info-rgb),' + (0.18 + a * 0.72).toFixed(2) + ')' : 'rgba(var(--ink),.04)';

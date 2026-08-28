@@ -22,7 +22,7 @@ const BTN = M + "; font-size:11px; letter-spacing:.06em; border-radius:4px; padd
 const BTN_PRIMARY = BTN + '; color:var(--on-accent); background:' + ACCENT + '; font-weight:600';
 const BTN_GHOST = BTN + '; color:rgba(var(--ink),.75); border:1px solid rgba(var(--ink),.18)';
 const BTN_WARN = BTN + '; color:' + AMBER + '; border:1px solid rgba(var(--warn-rgb),.4)';
-const BTN_OFF = BTN + '; color:rgba(var(--ink),.5); border:1px solid rgba(var(--ink),.1); cursor:default';
+const BTN_OFF = BTN + '; color:var(--ink-4); border:1px solid rgba(var(--ink),.1); cursor:default';
 
 export const COPY_TABS = [
   ['traders', 'Traders'], ['orders', 'Orders'], ['positions', 'Positions'], ['perf', 'Performance'],
@@ -106,7 +106,7 @@ function traderRow(T, t, s, canWrite, busy) {
   const o = t.orders || {};
   const spark = t.equity_curve && t.equity_curve.length > 1
     ? '<svg width="90" height="26" viewBox="0 0 90 26" preserveAspectRatio="none" aria-hidden="true" focusable="false"><polyline points="' + T.seriesPoints(t.equity_curve, 90, 26) + '" fill="none" style="stroke:' + pnlColor(t.pnl) + '" stroke-width="1.5" /></svg>'
-    : '<span style="' + M + '; font-size:11px; color:rgba(var(--ink),.5)" title="one point per daemon pass, once a minute">' + (t.equity_curve && t.equity_curve.length === 1 ? '1 point' : 'no curve yet') + '</span>';
+    : '<span style="' + M + '; font-size:11px; color:var(--ink-4)" title="one point per daemon pass, once a minute">' + (t.equity_curve && t.equity_curve.length === 1 ? '1 point' : 'no curve yet') + '</span>';
   const state = t.active
     ? '<span style="' + M + '; font-size:11px; letter-spacing:.1em; color:' + ACCENT + '; border:1px solid rgba(var(--accent-rgb),.35); border-radius:4px; padding:2px 6px">ACTIVE</span>'
     : '<span style="' + M + '; font-size:11px; letter-spacing:.1em; color:' + AMBER + '; border:1px solid rgba(var(--warn-rgb),.35); border-radius:4px; padding:2px 6px">PAUSED</span>';
@@ -465,7 +465,7 @@ export function renderCopy(T) {
       + '<div>TIME</div><div>TRADER</div><div>MARKET</div><div style="text-align:right">KIND · SIDE</div><div style="text-align:right">THEY MOVED</div><div style="text-align:right">YOU MOVED</div><div style="text-align:right">STATUS</div></div>'
       + (rows.length ? '' : leerZeile(orders.length ? 'No order matches these filters.' : 'No paper orders reported by /api/copy yet.'))
       + rows.map((o) => {
-        const farbe = o.status === 'copied' || o.status === 'settled' ? POS : o.status === 'skipped' ? AMBER : 'rgba(var(--ink),.5)';
+        const farbe = o.status === 'copied' || o.status === 'settled' ? POS : o.status === 'skipped' ? AMBER : 'var(--ink-4)';
         const label = o.status === 'seed_observed' ? 'BASELINE' : String(o.status).toUpperCase();
         const k = kindOf(o);
         const seite = k === 'BUY' || k === 'SELL' ? k + ' ' + esc(o.outcome || String(o.side || '').split(' ').slice(1).join(' ')) : k;
@@ -511,7 +511,7 @@ export function renderCopy(T) {
       + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.55)">' + (filtered ? esc((filtered.label || shortW(filtered.wallet)).toUpperCase()) + ' — ' : 'ALL SUB-ACCOUNTS — ') + 'EQUITY VS CASH PUT IN</div>'
       + '<div style="display:flex; gap:14px; ' + M + '; font-size:10.5px">'
       + '<span style="display:flex; align-items:center; gap:6px"><span style="width:14px; height:2px; background:' + ACCENT + '; display:inline-block"></span>Paper equity</span>'
-      + '<span style="display:flex; align-items:center; gap:6px; color:rgba(var(--ink),.5)"><span style="width:14px; height:2px; background:rgba(var(--ink),.35); display:inline-block"></span>Cash put in ' + esc(usd(putIn, 0)) + '</span>'
+      + '<span style="display:flex; align-items:center; gap:6px; color:var(--ink-4)"><span style="width:14px; height:2px; background:rgba(var(--ink),.35); display:inline-block"></span>Cash put in ' + esc(usd(putIn, 0)) + '</span>'
       + '</div></div>'
       + (equityPts
         ? '<svg width="100%" height="240" viewBox="0 0 900 240" preserveAspectRatio="none" role="img" aria-label="Paper equity over time, against the benchmark">'
@@ -586,7 +586,7 @@ export function renderCopy(T) {
   const msg = s.copyMsg
     ? '<div style="margin:12px 24px 0; padding:9px 12px; border-radius:4px; ' + M + '; font-size:11.5px; display:flex; justify-content:space-between; gap:12px; '
       + (s.copyMsg.kind === 'err' ? 'color:' + RED + '; border:1px solid rgba(var(--neg-rgb),.35); background:rgba(var(--neg-rgb),.06)' : 'color:' + POS + '; border:1px solid rgba(var(--pos-rgb),.3); background:rgba(var(--pos-rgb),.05)') + '">'
-      + '<span>' + esc(s.copyMsg.text) + '</span><span ' + T.act(() => T.setState({ copyMsg: null })) + ' style="cursor:pointer; color:rgba(var(--ink),.5)">dismiss</span></div>'
+      + '<span>' + esc(s.copyMsg.text) + '</span><span ' + T.act(() => T.setState({ copyMsg: null })) + ' style="cursor:pointer; color:var(--ink-4)">dismiss</span></div>'
     : '';
   const access = live.write_access || {};
   const accessText = !access.mode ? '' : access.allowed ? (access.mode === 'token' ? 'WRITES · TOKEN' : 'WRITES · LOCAL') : 'READ-ONLY';
@@ -610,7 +610,7 @@ export function renderCopy(T) {
     + '<div style="' + M + '; font-size:11.5px; color:rgba(var(--ink),.6)">SCALE <span style="color:var(--text)">' + (+st.scale).toFixed(4) + '×</span></div>'
     + '<div style="' + M + '; font-size:11.5px; color:rgba(var(--ink),.6)">CASH LEFT <span style="color:var(--text)">' + esc(usd(st.cash)) + '</span></div>'
     + '<div style="' + M + '; font-size:11px; color:' + AMBER + '; border:1px solid rgba(var(--warn-rgb),.35); border-radius:4px; padding:3px 8px">AUTO TOP-UP ' + (st.auto_topup ? 'ON' : 'OFF') + '</div>'
-    + (accessText ? '<div style="' + M + '; font-size:11px; color:' + (access.allowed ? ACCENT : 'rgba(var(--ink),.5)') + '; border:1px solid rgba(var(--ink),.14); border-radius:4px; padding:3px 8px" title="' + esc(access.reason || '') + '">' + accessText + '</div>' : '')
+    + (accessText ? '<div style="' + M + '; font-size:11px; color:' + (access.allowed ? ACCENT : 'var(--ink-4)') + '; border:1px solid rgba(var(--ink),.14); border-radius:4px; padding:3px 8px" title="' + esc(access.reason || '') + '">' + accessText + '</div>' : '')
     + '</div>'
 
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid rgba(var(--ink),.09)">'

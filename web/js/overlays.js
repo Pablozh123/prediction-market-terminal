@@ -190,7 +190,7 @@ export function renderDetail(T) {
   return '<div role="dialog" aria-modal="true" aria-label="' + esc(v.title || v.kicker || 'Detail') + '" style="position:absolute; top:0; right:0; bottom:0; width:392px; box-sizing:border-box; border-left:1px solid rgba(var(--ink),.09); background:var(--bg); overflow-y:auto; z-index:20; box-shadow:-24px 0 48px var(--shadow-45); animation:panelIn .22s ease-out">'
     + '<div style="display:flex; align-items:center; justify-content:space-between; padding:13px 20px; border-bottom:1px solid rgba(var(--ink),.09); background:var(--panel); position:sticky; top:0">'
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.16em; color:' + v.accent + '">' + v.kicker + '</div>'
-    + '<div ' + T.act(() => T.setState({ detail: null })) + ' aria-label="Close" class="hv-white" style="' + M + '; font-size:14px; color:rgba(var(--ink),.5); cursor:pointer; line-height:1">✕</div></div>'
+    + '<div ' + T.act(() => T.setState({ detail: null })) + ' aria-label="Close" class="hv-white" style="' + M + '; font-size:14px; color:var(--ink-4); cursor:pointer; line-height:1">✕</div></div>'
     + '<div style="padding:20px">'
     + '<div style="font-size:19px; line-height:1.3">' + esc(v.title) + '</div>'
     + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:6px">' + esc(v.meta) + '</div>'

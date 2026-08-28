@@ -226,7 +226,7 @@ function renderFieldNotes(payload, study) {
     + (n.evidence
       ? '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.55); margin-top:11px; '
         + 'border-top:1px solid rgba(var(--ink),.06); padding-top:9px">EVIDENCE · ' + referenzLinksHtml(n.evidence) + '</div>'
-      : '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.5); margin-top:11px; '
+      : '<div style="' + M + '; font-size:11px; color:var(--ink-4); margin-top:11px; '
         + 'border-top:1px solid rgba(var(--ink),.06); padding-top:9px">NO EVIDENCE ATTACHED · an observation, not a finding</div>')
     + '</div>'
   ).join('');
@@ -335,7 +335,7 @@ function ladeStudieHtml(study, datei) {
     + '<div style="display:flex; align-items:center; gap:10px; margin-top:12px">'
     + '<span style="width:7px; height:7px; border-radius:50%; background:var(--warn); display:inline-block"></span>'
     + '<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:var(--warn)">loading public/data/' + esc(datei || 'the study payload') + '</span></div>'
-    + '<div style="font-size:12.5px; color:rgba(var(--ink),.5); margin-top:10px; line-height:1.6">The page fills in when the payload answers; nothing is shown before, and no figure is a placeholder.</div>'
+    + '<div style="font-size:12.5px; color:var(--ink-4); margin-top:10px; line-height:1.6">The page fills in when the payload answers; nothing is shown before, and no figure is a placeholder.</div>'
     + '</div></div>';
 }
 
@@ -796,7 +796,7 @@ function pipelineRegelnHtml(payload) {
     + regel('BUY NO', 'Only after the full transcript, when the final count stayed far enough below the threshold, and only at a lower cap than YES. Betting on absence breaks on a single missed word, so it needs the bigger cushion.')
     + regel('OTHERWISE NOTHING', 'Every other case is a no-trade, and each entry carries the reason that stopped it. The thresholds themselves are shown per entry, not fixed here.')
     + '</div>'
-    + '<div style="font-size:12px; color:rgba(var(--ink),.5); margin-top:12px; line-height:1.5; max-width:760px">'
+    + '<div style="font-size:12px; color:var(--ink-4); margin-top:12px; line-height:1.5; max-width:760px">'
     + 'Reading the run table below: EXTRACTED $ is the dollar value the run&#39;s buys actually captured of what its already-decided outcomes offered within the caps; QUOTE is that share — 100% means it caught everything its own rules allowed.</div>'
     + '</div>';
 }
@@ -1325,10 +1325,10 @@ function renderCategoryEfficiency(T, payload, study) {
     + '<div>CATEGORY</div>'
     + alleTage.map((t) => '<div style="text-align:right">T-' + t + ' BRIER ±95% · HIT · N</div>').join('') + '</div>';
   const zelle = (h) => {
-    if (!h || h.brier == null) return '<div style="text-align:right; ' + M + '; font-size:12px; color:rgba(var(--ink),.5)">—</div>';
+    if (!h || h.brier == null) return '<div style="text-align:right; ' + M + '; font-size:12px; color:var(--ink-4)">—</div>';
     return '<div style="text-align:right; ' + M + '">'
       + '<div style="font-size:12.5px; color:rgba(var(--ink),.85)">' + f3(h.brier)
-      + (h.brierCi ? '<span style="font-size:10.5px; color:rgba(var(--ink),.5)"> ±' + ((h.brierCi[1] - h.brierCi[0]) / 2).toFixed(3) + '</span>' : '')
+      + (h.brierCi ? '<span style="font-size:10.5px; color:var(--ink-4)"> ±' + ((h.brierCi[1] - h.brierCi[0]) / 2).toFixed(3) + '</span>' : '')
       + '</div>'
       + '<div style="font-size:11px; color:rgba(var(--ink),.6); margin-top:2px">' + (h.treffer != null ? Math.round(h.treffer * 100) + '%' : '—') + ' · n ' + (h.n != null ? num(h.n) : '—') + '</div></div>';
   };
@@ -1759,11 +1759,11 @@ function renderLiveRuns(T, payload) {
       // Der Erklaertext steht im zugeklappten WHAT THIS TABLE IS des
       // Tabellenabschnitts — hier nur noch im Rueckfall ohne Ledger.
       + (!ledger
-        ? '<div style="font-size:12.5px; color:rgba(var(--ink),.5); line-height:1.5; max-width:820px; margin-bottom:14px">Race chips compare each fill against the public taker tape of that market: how many other trades hit between the drop and our fill, and how long until the next trader after us. The anchor is the bot\'s logged fill time — chain timestamps can differ by a few seconds.</div>'
+        ? '<div style="font-size:12.5px; color:var(--ink-4); line-height:1.5; max-width:820px; margin-bottom:14px">Race chips compare each fill against the public taker tape of that market: how many other trades hit between the drop and our fill, and how long until the next trader after us. The anchor is the bot\'s logged fill time — chain timestamps can differ by a few seconds.</div>'
         : '')
       + (alleKarten.length ? '' : leerZeile(laufSatz))
       + (!ledger && cards.length
-        ? '<div style="' + M + '; font-size:11px; letter-spacing:.12em; color:rgba(var(--ink),.5); margin-bottom:10px">RUNS WITH FILLS · ' + cards.length
+        ? '<div style="' + M + '; font-size:11px; letter-spacing:.12em; color:var(--ink-4); margin-bottom:10px">RUNS WITH FILLS · ' + cards.length
           + ' <span style="color:rgba(var(--ink),.55); letter-spacing:0">· newest first</span></div>'
           + '<div style="display:flex; flex-direction:column; gap:12px">'
           + cards.map((r) => {
@@ -1788,7 +1788,7 @@ function renderLiveRuns(T, payload) {
         : '')
       + (ohneFills.length && !ledger
         ? '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; overflow:hidden">'
-          + '<div style="padding:10px 16px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:11px; letter-spacing:.12em; color:rgba(var(--ink),.5)">RUNS WITHOUT A FILL · ' + ohneFills.length
+          + '<div style="padding:10px 16px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:11px; letter-spacing:.12em; color:var(--ink-4)">RUNS WITHOUT A FILL · ' + ohneFills.length
           + ' <span style="color:rgba(var(--ink),.55); letter-spacing:0">· the decision layer ran and placed nothing — one line per run, newest first</span></div>'
           + ohneFills.map((r) =>
             '<div style="display:flex; align-items:center; gap:10px; padding:9px 16px; border-bottom:1px solid rgba(var(--ink),.05)">'
@@ -1821,7 +1821,7 @@ function renderLiveRuns(T, payload) {
         const latLabel = t.lat == null ? '—'
           : t.lat >= 120000 ? sekundenText(t.lat / 1000)
             : t.lat >= 1000 ? (t.lat / 1000).toFixed(1) + ' s' : t.lat + ' ms';
-        const latStyle = 'text-align:right; ' + M + '; font-size:12px; color:' + (t.lat == null ? 'rgba(var(--ink),.5)' : t.lat <= 800 ? 'var(--pos)' : t.lat <= 1500 ? 'var(--warn)' : 'var(--neg)');
+        const latStyle = 'text-align:right; ' + M + '; font-size:12px; color:' + (t.lat == null ? 'var(--ink-4)' : t.lat <= 800 ? 'var(--pos)' : t.lat <= 1500 ? 'var(--warn)' : 'var(--neg)');
         const repLabel = (v) => (v == null ? '—' : (v >= 0 ? '+' : '') + v + '¢');
         const repStyle = (v) => 'text-align:right; ' + M + '; font-size:12px; color:' + (v != null && v >= 5 ? 'var(--pos)' : v != null && v <= -5 ? 'var(--neg)' : 'rgba(var(--ink),.6)');
         return '<div style="display:grid; grid-template-columns:' + repSpalten + '; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(var(--ink),.06); ' + M + '; font-size:12px">'
@@ -1885,7 +1885,7 @@ function renderLiveRuns(T, payload) {
         // keine.
         : '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; padding:16px 18px">'
           + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.55); margin-bottom:10px">DELAYED ENTRY</div>'
-          + '<div style="font-size:12.5px; color:rgba(var(--ink),.5); line-height:1.5">'
+          + '<div style="font-size:12.5px; color:var(--ink-4); line-height:1.5">'
           + 'No delay series in this payload — runs.json carries it under extras.timing_decay.</div></div>')
       + '</div>';
   } else if (s.liveTab === 'calib') {
@@ -1945,10 +1945,10 @@ function renderLiveRuns(T, payload) {
           + '<div style="text-align:right; color:rgba(var(--ink),.6)">' + num(t.bets) + '</div>'
           + '<div style="text-align:right; color:rgba(var(--ink),.6)">$' + num(t.stake) + '</div>'
           + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (t.net >= 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (t.net >= 0 ? '+$' : '-$') + num(Math.abs(t.net)) + '</div>'
-          + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (quote == null ? 'rgba(var(--ink),.5)' : quote >= 0 ? 'var(--pos)' : 'var(--neg)') + '">'
-          + (quote == null ? 'no bet settled' : (quote >= 0 ? '+' : '') + quote.toFixed(1) + '% <span style="font-size:10.5px; color:rgba(var(--ink),.45)">of $' + num(Math.round(basis)) + (offen ? ' · ' + offen + ' open' : '') + '</span>') + '</div></div>';
+          + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (quote == null ? 'var(--ink-4)' : quote >= 0 ? 'var(--pos)' : 'var(--neg)') + '">'
+          + (quote == null ? 'no bet settled' : (quote >= 0 ? '+' : '') + quote.toFixed(1) + '% <span style="font-size:10.5px; color:var(--ink-4)">of $' + num(Math.round(basis)) + (offen ? ' · ' + offen + ' open' : '') + '</span>') + '</div></div>';
       }).join('')
-      + '<div style="padding:9px 16px; ' + M + '; font-size:10.5px; color:rgba(var(--ink),.5); line-height:1.6">'
+      + '<div style="padding:9px 16px; ' + M + '; font-size:10.5px; color:var(--ink-4); line-height:1.6">'
       + 'NET is the settled result of the bets placed that month; the last column divides it by the stake of the settled bets only, so open stake does not dilute it. '
       + 'This is a return on stake, not the wallet return — the wallet return is measured against the one-time deposit and is shown as ROI · WALLET above.</div>'
       + '</div>';
@@ -2289,7 +2289,7 @@ function ledgerTypChip(typ) {
 // Chip for a run that placed nothing and left no wallet trace — muted, so
 // the money rows stand out against the process rows in the same table.
 function noFillChip() {
-  return '<span style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:2px 7px; color:rgba(var(--ink),.5); border:1px solid rgba(var(--ink),.22); white-space:nowrap">NO FILLS</span>';
+  return '<span style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:2px 7px; color:var(--ink-4); border:1px solid rgba(var(--ink),.22); white-space:nowrap">NO FILLS</span>';
 }
 
 // The bet rows of a run (market, side, limit, fill, stake, log result) —
@@ -2302,7 +2302,7 @@ function laufWettenHtml(k) {
     + '<div style="text-align:right; color:rgba(var(--ink),.55)">limit ' + b.limit + '</div>'
     + '<div style="text-align:right; color:rgba(var(--ink),.55)">fill ' + b.fill + '</div>'
     + '<div style="text-align:right">' + b.stake + '</div>'
-    + '<div style="text-align:right; ' + M + '; font-size:12px; color:' + (b.result.charAt(0) === '+' ? 'var(--pos)' : b.result === 'open' ? 'rgba(var(--ink),.5)' : 'var(--neg)') + '">' + b.result + '</div></div>'
+    + '<div style="text-align:right; ' + M + '; font-size:12px; color:' + (b.result.charAt(0) === '+' ? 'var(--pos)' : b.result === 'open' ? 'var(--ink-4)' : 'var(--neg)') + '">' + b.result + '</div></div>'
   ).join('');
 }
 
@@ -2333,7 +2333,7 @@ function ledgerGeld(v, vorzeichen) {
 }
 
 function ledgerFarbe(v) {
-  return v == null || isNaN(+v) ? 'rgba(var(--ink),.5)' : +v >= 0 ? 'var(--pos)' : 'var(--neg)';
+  return v == null || isNaN(+v) ? 'var(--ink-4)' : +v >= 0 ? 'var(--pos)' : 'var(--neg)';
 }
 
 // "1 sell", "6 sells" — the KPI sub-lines count things.
@@ -2588,14 +2588,14 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
     + (kartenOhneEvent.length ? ' + ' + kartenOhneEvent.length + ' RUN' + (kartenOhneEvent.length === 1 ? '' : 'S') + ' NOT IN THE LEDGER' : '')
     + ' · NEWEST FIRST';
   const tabelle = '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:12px; overflow:hidden">'
-    + '<div style="padding:10px 16px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:11px; letter-spacing:.12em; color:rgba(var(--ink),.5)">'
+    + '<div style="padding:10px 16px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:11px; letter-spacing:.12em; color:var(--ink-4)">'
     + kopfzeile + ' <span style="color:rgba(var(--ink),.55); letter-spacing:0">· click a row for its markets — bot rows open to the full run detail</span></div>'
     + '<div style="display:grid; grid-template-columns:' + spalten + '; gap:10px; padding:8px 16px; border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6)">'
     + '<div>DATE</div><div>EVENT</div><div>TYPE</div><div style="text-align:right">MARKETS</div><div style="text-align:right">STAKE</div><div style="text-align:right">PNL</div><div>STATUS</div></div>'
     + (eintraege.length ? zeilen : leerZeile('The ledger holds no events — wallet_ledger.json lists none for this wallet.'))
     + '</div>';
 
-  const legende = '<div style="font-size:11.5px; color:rgba(var(--ink),.5); margin-top:10px; line-height:1.6">'
+  const legende = '<div style="font-size:11.5px; color:var(--ink-4); margin-top:10px; line-height:1.6">'
     + ledgerTypChip('bot') + ' market and side appear in a runs.json run log — open the row for the full run detail (latency, decisions, every bet) · '
     + ledgerTypChip('discretionary') + ' placed by hand, in no run log · '
     + ledgerTypChip('pilot') + ' one of the pre-registered pilot trades of 2026-07-22 (rules frozen 2026-07-18)'
@@ -2607,7 +2607,7 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
   // zugeklappt: wer wissen will, wie die Tabelle gebaut ist, klappt auf —
   // die Seite selbst bleibt eine Kachelreihe und eine Tabelle.
   const erklaerung = '<details data-key="ledger-was" style="' + karte + '; margin-top:10px; padding:0 16px">'
-    + '<summary style="cursor:pointer; padding:11px 0; list-style:none; ' + M + '; font-size:11px; letter-spacing:.14em; color:rgba(var(--ink),.5)">WHAT THIS TABLE IS &amp; HOW TO READ THE RUN DETAIL ▸</summary>'
+    + '<summary style="cursor:pointer; padding:11px 0; list-style:none; ' + M + '; font-size:11px; letter-spacing:.14em; color:var(--ink-4)">WHAT THIS TABLE IS &amp; HOW TO READ THE RUN DETAIL ▸</summary>'
     + '<div style="padding-bottom:12px; font-size:12.5px; color:rgba(var(--ink),.6); line-height:1.6">'
     + esc(ledger.hinweis || '')
     + '<div style="margin-top:8px">Race chips in an opened bot row compare each fill against the public taker tape of that market: how many other trades hit between the drop and our fill, and how long until the next trader after us. The anchor is the bot\'s logged fill time — chain timestamps can differ by a few seconds.</div>'
@@ -2661,7 +2661,7 @@ function repricingKurvenHtml(payload) {
   }
   return '<div style="margin-top:14px">'
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:var(--info); margin-bottom:4px">REPRICING AFTER THE DROP · ' + kurven.length + (kurven.length === 1 ? ' BET' : ' BETS') + '</div>'
-    + '<div style="font-size:12px; color:rgba(var(--ink),.5); margin-bottom:10px; line-height:1.5">Price of the traded side against seconds after the drop, from the public tape; the caption names when our fill landed and when the market had priced the outcome in.</div>'
+    + '<div style="font-size:12px; color:var(--ink-4); margin-bottom:10px; line-height:1.5">Price of the traded side against seconds after the drop, from the public tape; the caption names when our fill landed and when the market had priced the outcome in.</div>'
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:12px">' + kurven.join('') + '</div>'
     + '</div>';
 }
@@ -2875,7 +2875,7 @@ function mentionsExtrasHtml(payload) {
       ? ' · median first reaction ' + fmtZahl(medSek) + ' s' + (medReaktion != null && medReaktion > 1 ? ' (dashed line)' : '')
       : (medReaktion == null ? '' : ' · median first reaction ' + fmtZahl(medReaktion) + ' min' + (medReaktion > 1 ? ' (dashed line)' : ''));
     return '<div style="' + KARTE + '; padding:14px 16px 10px">'
-      + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(var(--ink),.5); margin-bottom:4px">'
+      + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:var(--ink-4); margin-bottom:4px">'
       + 'FIRST REACTION → FULLY PRICED IN · n ' + beide.length
       + ' · log time axis after broadcast start · dot = first &gt; 1-point move (values under the 1-minute grid sit at ≤1 min) · line end = durably priced on the winning side' + medText + '</div>'
       + '<svg width="100%" viewBox="0 0 640 ' + hoehe + '" role="img" aria-label="First reaction and convergence per event">' + svg + '</svg></div>';

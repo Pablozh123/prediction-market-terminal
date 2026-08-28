@@ -185,7 +185,7 @@ function tapeLivePanel(T) {
     const neu = !erste && !gesehen.has(schluessel(t));
     const kauf = String(t.side).indexOf('BUY') === 0;
     return '<div' + (neu ? ' class="tape-in"' : '') + ' style="display:grid; grid-template-columns:84px minmax(0,1fr) 110px 76px; gap:10px; align-items:baseline; padding:7px 24px; border-bottom:1px solid rgba(var(--ink),.06)">'
-      + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.5); white-space:nowrap">' + esc(t.ago) + '</div>'
+      + '<div style="' + M + '; font-size:10.5px; color:var(--ink-4); white-space:nowrap">' + esc(t.ago) + '</div>'
       + '<div style="font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(t.market) + '">' + esc(t.market) + '</div>'
       + '<div style="' + M + '; font-size:10.5px; color:' + (kauf ? 'var(--pos)' : 'var(--neg)') + '; text-align:right; white-space:nowrap">' + esc(t.side) + ' ' + esc(t.price || '') + '</div>'
       + '<div style="' + M + '; font-size:11px; text-align:right">' + money(t.size) + '</div></div>';
@@ -194,7 +194,7 @@ function tapeLivePanel(T) {
   T._tapeGesehen = new Set(rows.map(schluessel));
   return '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px; padding:14px 24px 8px; border-top:1px solid rgba(var(--ink),.06)">'
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.15em; color:rgba(var(--ink),.6)">THE TAPE, LIVE · PRINTS ≥ $2.5K</div>'
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.5)">refreshes every 30 s · read-only</div></div>'
+    + '<div style="' + M + '; font-size:10.5px; color:var(--ink-4)">refreshes every 30 s · read-only</div></div>'
     + zeilen;
 }
 
@@ -260,7 +260,7 @@ export function renderOverview(T) {
           + '<div>' + verdictTag(st.verdikt_art) + '</div>'
           + '<div style="text-align:right; min-width:0"><div style="' + M + '; font-size:14px">' + esc(kn.value) + (kn.unit ? ' <span style="font-size:11px; color:rgba(var(--ink),.6)">' + esc(kn.unit) + '</span>' : '') + '</div>'
           + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(kn.label + (nLabel ? ' · ' + nLabel : '')) + '">' + esc(kn.label) + (nLabel ? ' · ' + esc(nLabel) : '') + '</div></div>'
-          + '<div style="' + M + '; font-size:11px; text-align:right; color:rgba(var(--ink),.5)">' + esc(basis.fenster || '—') + '</div></div>';
+          + '<div style="' + M + '; font-size:11px; text-align:right; color:var(--ink-4)">' + esc(basis.fenster || '—') + '</div></div>';
       }).join('');
   } else {
     board = leerZeile(landingLeerSatz(hk.micro, 'microstructure.json'));
@@ -594,7 +594,7 @@ export function renderMarkets(T) {
     return a;
   }, {});
   const badge = mActive.length ? M + '; font-size:11px; color:var(--on-accent); background:var(--accent); border-radius:4px; padding:1px 7px' : 'display:none';
-  const chevron = M + '; font-size:16px; color:rgba(var(--ink),.5); transition:transform .18s ease; transform:rotate(' + (s.marketFiltersOpen ? '90deg' : '0deg') + ')';
+  const chevron = M + '; font-size:16px; color:var(--ink-4); transition:transform .18s ease; transform:rotate(' + (s.marketFiltersOpen ? '90deg' : '0deg') + ')';
 
   return '<div>'
     + '<div style="padding:20px 24px 14px; border-bottom:1px solid rgba(var(--ink),.09)">'
@@ -992,11 +992,11 @@ export function renderCross(T) {
     + '<div>EVENT</div><div style="text-align:right">POLYMARKET</div><div style="text-align:right">KALSHI</div><div style="text-align:right">GAP</div><div style="text-align:right">PM VOL 24H</div><div style="text-align:right">KALSHI VOL 24H</div><div style="text-align:right">NET OF FEES</div></div>'
     + cRows.map((c) => {
       const g = Math.abs(c.pm - c.ks);
-      const gapStyle = M + '; font-size:14px; text-align:right; color:' + (g >= 5 ? 'var(--warn)' : g >= 3 ? 'var(--text)' : 'rgba(var(--ink),.5)');
+      const gapStyle = M + '; font-size:14px; text-align:right; color:' + (g >= 5 ? 'var(--warn)' : g >= 3 ? 'var(--text)' : 'var(--ink-4)');
       // Die letzte Spalte hiess HELD FOR und war in jeder Zeile ein Strich:
       // der Server hat nie etwas anderes geliefert. Hier steht jetzt die
       // einzige Zahl der Tabelle, die als Vorteil gelesen werden darf.
-      const netFarbe = c.net == null ? 'rgba(var(--ink),.45)' : c.net > 0 ? 'var(--pos)' : 'rgba(var(--ink),.5)';
+      const netFarbe = c.net == null ? 'var(--ink-4)' : c.net > 0 ? 'var(--pos)' : 'var(--ink-4)';
       const netLabel = c.net == null ? '—' : (c.net > 0 ? '+' : '') + c.net.toFixed(1) + '¢';
       return '<div style="display:grid; grid-template-columns:1fr 104px 104px 84px 108px 124px 112px; align-items:center; padding:13px 24px; border-bottom:1px solid rgba(var(--ink),.06)">'
         + '<div style="padding-right:20px"><div style="font-size:13.5px; line-height:1.35">' + esc(c.event) + '</div>'

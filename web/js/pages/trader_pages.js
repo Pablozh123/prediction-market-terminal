@@ -196,7 +196,7 @@ export function renderTraders(T) {
   });
 
   const badge = tCount ? M + '; font-size:11px; color:var(--on-accent); background:var(--accent); border-radius:4px; padding:1px 7px' : 'display:none';
-  const chevron = M + '; font-size:16px; color:rgba(var(--ink),.5); transition:transform .18s ease; transform:rotate(' + (s.traderFiltersOpen ? '90deg' : '0deg') + ')';
+  const chevron = M + '; font-size:16px; color:var(--ink-4); transition:transform .18s ease; transform:rotate(' + (s.traderFiltersOpen ? '90deg' : '0deg') + ')';
   const asOf = T.liveData.leaderboard && T.liveData.leaderboard.as_of ? ' · snapshot ' + T.liveData.leaderboard.as_of : '';
   const basisSatz = scoreBasisSatz(T.traders);
   // Ueber alle gerankten Wallets, nicht ueber die gefilterte Sicht: die
@@ -412,7 +412,7 @@ export function renderWhale(T) {
       // bei 3.6:1 und damit unter der Lesbarkeitsschwelle. Jetzt trennt der
       // gedaempftere Farbton der Palette (var(--neg-soft)) die beiden Staerken, statt
       // Deckkraft wegzunehmen.
-      const leanColor = w.lean === 'BUYING' ? 'var(--pos)' : w.lean === 'SELLING' ? 'var(--neg)' : w.lean === 'MOSTLY BUYING' ? 'rgba(var(--pos-rgb),.75)' : 'var(--neg-soft)';
+      const leanColor = w.lean === 'BUYING' ? 'var(--pos)' : w.lean === 'SELLING' ? 'var(--neg)' : w.lean === 'MOSTLY BUYING' ? 'var(--pos-soft)' : 'var(--neg-soft)';
       const leanStyle = M + '; font-size:11px; letter-spacing:.08em; text-align:right; color:' + leanColor;
       const topMarketShare = w.total ? Math.round(w.topMarket.dollar / w.total * 100) : 0;
       // The drawer gets the address too: most of these wallets are not on
@@ -432,7 +432,7 @@ export function renderWhale(T) {
         + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:2px">' + money(w.topMarket.dollar) + ' · ' + topMarketShare + '% of this wallet</div></div>'
         + '<div style="text-align:right"><div style="' + M + '; font-size:11.5px; color:rgba(var(--ink),.75)">' + esc(w.cat) + '</div>'
         + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:2px">' + esc(w.catShare) + ' prints</div></div>'
-        + '<div style="' + M + '; font-size:11px; text-align:right; color:rgba(var(--ink),.5)">' + esc(w.lastAgo) + '</div></div>';
+        + '<div style="' + M + '; font-size:11px; text-align:right; color:var(--ink-4)">' + esc(w.lastAgo) + '</div></div>';
     }).join('')
     + '</div>';
 }
@@ -618,7 +618,7 @@ export function riskScoreBreakdown(components, score) {
     const anteil = Math.max(0, Math.min(1, Number(c.value) / max));
     const voll = anteil >= 0.66;
     const farbe = voll ? 'var(--warn)' : 'rgba(var(--ink),.55)';
-    const unter = [c.fact, c.rule].filter(Boolean).map((t) => esc(String(t))).join(' <span style="color:rgba(var(--ink),.5)">·</span> ')
+    const unter = [c.fact, c.rule].filter(Boolean).map((t) => esc(String(t))).join(' <span style="color:var(--ink-4)">·</span> ')
       + (c.weight_note ? ' <span style="color:var(--warn)">' + esc(c.weight_note) + '</span>' : '');
     return '<div style="padding:6px 0; border-bottom:1px solid rgba(var(--ink),.05)">'
       + '<div style="display:flex; align-items:center; gap:10px">'
@@ -626,18 +626,18 @@ export function riskScoreBreakdown(components, score) {
       + '<div style="flex:1; height:6px; border-radius:4px; background:rgba(var(--ink),.08); overflow:hidden"><div style="width:' + (anteil * 100).toFixed(1) + '%; height:6px; background:' + farbe + '"></div></div>'
       + '<div style="flex:0 0 64px; text-align:right; ' + M + '; font-size:11.5px; color:' + (voll ? 'var(--warn)' : 'rgba(var(--ink),.8)') + '">' + esc(String(c.value)) + '<span style="color:rgba(var(--ink),.55)">/' + esc(String(c.max)) + '</span></div>'
       + '</div>'
-      + (unter ? '<div style="font-size:11px; color:rgba(var(--ink),.5); margin-top:3px; padding-left:0; line-height:1.45">' + unter + '</div>' : '')
+      + (unter ? '<div style="font-size:11px; color:var(--ink-4); margin-top:3px; padding-left:0; line-height:1.45">' + unter + '</div>' : '')
       + '</div>';
   };
   const nichts = zero.length
     ? '<div style="font-size:11px; color:rgba(var(--ink),.6); padding:7px 0; line-height:1.5"><span style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.55)">NOT FOUND</span> '
-      + zero.map((c) => esc(String(c.label || c.key || '')).toLowerCase() + (c.fact ? ' <span style="color:rgba(var(--ink),.5)">(' + esc(String(c.fact)) + ')</span>' : '')).join(' · ') + '</div>'
+      + zero.map((c) => esc(String(c.label || c.key || '')).toLowerCase() + (c.fact ? ' <span style="color:var(--ink-4)">(' + esc(String(c.fact)) + ')</span>' : '')).join(' · ') + '</div>'
     : '';
   const kontext = ctx
     ? '<div style="display:flex; align-items:baseline; gap:10px; padding:7px 0; border-top:1px solid rgba(var(--ink),.05)">'
       + '<div style="flex:0 0 158px; font-size:12.5px; color:rgba(var(--ink),.85)">' + esc(String(ctx.label || 'Context')) + '</div>'
-      + '<div style="flex:1; font-size:11px; color:rgba(var(--ink),.5); line-height:1.45">' + esc(String(ctx.fact || '')) + (ctx.rule ? ' <span style="color:rgba(var(--ink),.5)">· ' + esc(String(ctx.rule)) + '</span>' : '') + '</div>'
-      + '<div style="flex:0 0 64px; text-align:right; ' + M + '; font-size:11.5px; color:' + (faktor > 1 ? 'var(--warn)' : faktor < 1 ? 'rgba(var(--ink),.5)' : 'rgba(var(--ink),.8)') + '">×' + esc(String(ctx.value)) + '</div></div>'
+      + '<div style="flex:1; font-size:11px; color:var(--ink-4); line-height:1.45">' + esc(String(ctx.fact || '')) + (ctx.rule ? ' <span style="color:var(--ink-4)">· ' + esc(String(ctx.rule)) + '</span>' : '') + '</div>'
+      + '<div style="flex:0 0 64px; text-align:right; ' + M + '; font-size:11.5px; color:' + (faktor > 1 ? 'var(--warn)' : faktor < 1 ? 'var(--ink-4)' : 'rgba(var(--ink),.8)') + '">×' + esc(String(ctx.value)) + '</div></div>'
     : '';
   // The arithmetic, checkable: parts × context = score. When the listed
   // parts do not reach the score (an older answer without every column),
@@ -700,7 +700,7 @@ export function riskBookSummary(T, r) {
   books.forEach((b) => { if (!b.read) { ungelesen += 1; return; } zaehler[b.relation || 'book'] = (zaehler[b.relation || 'book'] || 0) + 1; });
   const teile = Object.keys(zaehler).map((rel) => '<span style="' + M + '; font-size:10.5px; color:' + BOOK_FARBE(rel) + '">' + zaehler[rel] + ' ' + BOOK_KURZ(rel) + '</span>');
   if (ungelesen) teile.push('<span style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6)">' + ungelesen + ' not read</span>');
-  return '<div style="margin-top:8px; display:flex; align-items:center; gap:8px; flex-wrap:wrap">' + kopf + teile.join('<span style="color:rgba(var(--ink),.5)">·</span>') + '</div>';
+  return '<div style="margin-top:8px; display:flex; align-items:center; gap:8px; flex-wrap:wrap">' + kopf + teile.join('<span style="color:var(--ink-4)">·</span>') + '</div>';
 }
 
 // The book behind the flow, one line per wallet: what the top wallets hold in
@@ -746,9 +746,9 @@ function afterCell(after, key, label) {
   if (!after) return zelle('n/a');
   if (!p) return zelle('not yet');
   if (p.no_print) return zelle('no print');
-  const move = p.move_c == null ? '' : ' <span style="color:' + (p.move_c > 0 ? 'var(--accent)' : p.move_c < 0 ? 'var(--neg-soft)' : 'rgba(var(--ink),.5)') + '">' + (p.move_c > 0 ? '+' : '') + esc(String(p.move_c)) + '</span>';
+  const move = p.move_c == null ? '' : ' <span style="color:' + (p.move_c > 0 ? 'var(--accent)' : p.move_c < 0 ? 'var(--neg-soft)' : 'var(--ink-4)') + '">' + (p.move_c > 0 ? '+' : '') + esc(String(p.move_c)) + '</span>';
   const vorbei = p.already_past
-    ? '<span title="This horizon had already passed when the flag was written" style="color:rgba(var(--ink),.5)"> · before the flag was readable</span>'
+    ? '<span title="This horizon had already passed when the flag was written" style="color:var(--ink-4)"> · before the flag was readable</span>'
     : '';
   return zelle(cents(p.price) + move + vorbei, 'color:var(--text)');
 }
@@ -826,7 +826,7 @@ export function renderRiskLog(T) {
     + (live.as_of ? ' · as of ' + esc(String(live.as_of)) : '') + '</div>';
   return intro + kopf + flagScoreboardHtml(live.scoreboard) + '<div style="padding:12px 24px 18px; display:grid; gap:12px">'
     + rows.map((f) => {
-      const sevColor = f.sev === 'high' ? 'var(--warn)' : f.sev === 'medium' ? 'rgba(var(--ink),.72)' : 'rgba(var(--ink),.5)';
+      const sevColor = f.sev === 'high' ? 'var(--warn)' : f.sev === 'medium' ? 'rgba(var(--ink),.72)' : 'var(--ink-4)';
       const scoreStyle = M + '; font-size:16px; color:' + sevColor;
       const preis = { price_last: f.price_at_flag, price_outcome: f.price_outcome, price_min: f.price_min, price_max: f.price_max };
       const seite = { side: f.side, side_notional: f.side_notional, side_share: f.side_share, notional_usd: f.notional };
@@ -1313,7 +1313,7 @@ export function renderTrack(T) {
     + cards.map((w) => {
       const gradeStyle = M + '; font-size:12px; border-radius:4px; padding:2px 9px; ' + (w.grade === 'A' || w.grade === 'A+' ? 'color:var(--on-accent); background:var(--accent)' : w.grade === '—' ? 'color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.14)' : 'color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35)');
       const pnlText = typeof w.pnlRaw === 'number' && T.liveData.track ? (w.pnlRaw >= 0 ? '+' : '-') + money(Math.abs(w.pnlRaw)) : w.pnl;
-      const pnlStyle = M + '; font-size:14px; margin-top:3px; color:' + (String(pnlText).charAt(0) === '+' ? 'var(--pos)' : String(pnlText).charAt(0) === '-' ? 'var(--neg)' : 'rgba(var(--ink),.5)');
+      const pnlStyle = M + '; font-size:14px; margin-top:3px; color:' + (String(pnlText).charAt(0) === '+' ? 'var(--pos)' : String(pnlText).charAt(0) === '-' ? 'var(--neg)' : 'var(--ink-4)');
       return '<div ' + T.act(() => T.openWallet(w.openAs)) + ' class="hv-bd20" style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:15px 17px; cursor:pointer">'
         + '<div style="display:flex; align-items:center; justify-content:space-between">'
         + '<div style="font-size:15px">' + esc(w.name) + '</div>'

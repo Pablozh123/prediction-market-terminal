@@ -66,7 +66,7 @@ function laufStatusHtml(s, hatErgebnis) {
     return '<div style="margin-top:8px; ' + M + '; font-size:11px; color:var(--neg-soft)">' + esc(s.btError) + (hatErgebnis ? ' <span style="color:rgba(var(--ink),.6)">— the last result is kept below</span>' : '') + '</div>';
   }
   if (hatErgebnis && s.btDirty) {
-    return '<div style="margin-top:8px; ' + M + '; font-size:11px; color:rgba(var(--ink),.5)">settings changed since this run — press RUN to refresh</div>';
+    return '<div style="margin-top:8px; ' + M + '; font-size:11px; color:var(--ink-4)">settings changed since this run — press RUN to refresh</div>';
   }
   return '';
 }
@@ -266,15 +266,15 @@ export function renderBacktester(T) {
       + '<div>TIME</div><div>ACTION</div><div>STATUS</div><div>MARKET</div><div>SIDE</div><div style="text-align:right">TRADER $</div><div style="text-align:right">STAKE</div><div style="text-align:right">FILL</div><div style="text-align:right">FEE</div><div style="text-align:right">EQUITY</div></div>'
       + logRows.map((l) =>
         '<div style="display:grid; grid-template-columns:88px 74px 84px 1fr 60px 84px 78px 74px 84px 88px; gap:10px; align-items:center; padding:10px 16px; border-bottom:1px solid rgba(var(--ink),.06); ' + M + '; font-size:11.5px">'
-        + '<div style="color:rgba(var(--ink),.5)">' + esc(l.time) + '</div>'
+        + '<div style="color:var(--ink-4)">' + esc(l.time) + '</div>'
         + '<div style="' + M + '; font-size:11.5px; color:' + (l.action === 'BUY' ? 'var(--pos)' : 'var(--neg)') + '">' + esc(l.action) + '</div>'
         + '<div><span style="' + M + '; font-size:10.5px; letter-spacing:.08em; border-radius:4px; padding:2px 6px; ' + (l.status === 'skipped' ? 'color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35)' : 'color:rgba(var(--ink),.7); border:1px solid rgba(var(--ink),.18)') + '">' + esc(l.status) + '</span></div>'
         + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(l.market) + '</div>'
         + '<div style="color:rgba(var(--ink),.6)">' + esc(l.side) + '</div>'
-        + '<div style="text-align:right; color:rgba(var(--ink),.5)">' + esc(l.traderAmt) + '</div>'
+        + '<div style="text-align:right; color:var(--ink-4)">' + esc(l.traderAmt) + '</div>'
         + '<div style="text-align:right">' + esc(l.stake) + '</div>'
         + '<div style="text-align:right; color:rgba(var(--ink),.6)">' + esc(l.fill) + '</div>'
-        + '<div style="text-align:right; color:rgba(var(--ink),.5)">' + esc(l.fee) + '</div>'
+        + '<div style="text-align:right; color:var(--ink-4)">' + esc(l.fee) + '</div>'
         + '<div style="text-align:right">' + esc(l.equity) + '</div></div>'
       ).join('')
       // Der Knopf "Export trade log CSV" stand hier ohne Handler. Ein Knopf,
@@ -309,8 +309,8 @@ export function renderBacktester(T) {
       + '<span>' + esc(curveVon) + '</span><span>worst: ' + (ddPct === null ? '—' : ddPct.toFixed(1) + '%') + '</span><span>today</span></div></div>';
   }
 
-  const advChevron = M + '; font-size:16px; color:rgba(var(--ink),.5); transition:transform .18s ease; transform:rotate(' + (s.advancedOpen ? '90deg' : '0deg') + ')';
-  const simChevron = M + '; font-size:16px; color:rgba(var(--ink),.5); transition:transform .18s ease; transform:rotate(' + (s.sizingSimOpen ? '90deg' : '0deg') + ')';
+  const advChevron = M + '; font-size:16px; color:var(--ink-4); transition:transform .18s ease; transform:rotate(' + (s.advancedOpen ? '90deg' : '0deg') + ')';
+  const simChevron = M + '; font-size:16px; color:var(--ink-4); transition:transform .18s ease; transform:rotate(' + (s.sizingSimOpen ? '90deg' : '0deg') + ')';
 
   return '<div>'
     + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(var(--ink),.09)">'
@@ -423,7 +423,7 @@ export function renderBacktester(T) {
     // The only thing that starts a run. While one runs the button is inert
     // and says so; after a 429 it says how long to wait.
     + (s.btRun === 'running'
-      ? '<div style="font-size:13.5px; font-weight:600; text-align:center; color:rgba(var(--ink),.5); border:1px solid rgba(var(--ink),.16); border-radius:4px; padding:12px; cursor:default">running…</div>'
+      ? '<div style="font-size:13.5px; font-weight:600; text-align:center; color:var(--ink-4); border:1px solid rgba(var(--ink),.16); border-radius:4px; padding:12px; cursor:default">running…</div>'
       : s.btRun === 'error' && s.btError === 'rate-limited' && s.btRetryIn > 0
         ? '<div style="font-size:13.5px; font-weight:600; text-align:center; color:var(--warn); border:1px solid rgba(var(--warn-rgb),.4); border-radius:4px; padding:12px; cursor:default">rate-limited · retry in ' + s.btRetryIn + ' s</div>'
         : '<div ' + T.act(() => { T.setState({ btTab: 'log' }); T.runBacktest(); }) + ' class="hv-accentbg" style="font-size:13.5px; font-weight:600; text-align:center; color:var(--on-accent); background:var(--accent); border-radius:4px; padding:12px; cursor:pointer">RUN backtest →</div>')
@@ -491,7 +491,7 @@ export function renderBacktester(T) {
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.55)">EQUITY CURVE</div>'
     + '<div style="display:flex; gap:16px; ' + M + '; font-size:10.5px; flex-wrap:wrap">'
     + '<span style="display:flex; align-items:center; gap:6px"><span style="width:14px; height:2px; background:var(--accent); display:inline-block"></span>' + esc(shortWallet) + '</span>'
-    + '<span style="display:flex; align-items:center; gap:6px; color:rgba(var(--ink),.5)"><span style="width:14px; height:2px; background:var(--muted); display:inline-block"></span>Flat-bet benchmark</span>'
+    + '<span style="display:flex; align-items:center; gap:6px; color:var(--ink-4)"><span style="width:14px; height:2px; background:var(--muted); display:inline-block"></span>Flat-bet benchmark</span>'
     + (s.sizingSimOpen && bestVariant ? '<span style="display:flex; align-items:center; gap:6px; color:var(--warn)"><span style="width:14px; height:2px; background:var(--warn); display:inline-block"></span>Highest final equity: ' + esc(bestVariant.name) + '</span>' : '')
     + '</div></div>'
     + '<svg width="100%" height="270" viewBox="0 0 900 270" preserveAspectRatio="none" role="img" aria-label="Equity for the replayed wallet against your own sizing">'
@@ -513,7 +513,7 @@ export function renderBacktester(T) {
     + '<div ' + T.act(() => { T.setState({ sizingSimOpen: !s.sizingSimOpen, btDirty: !s.sizingSimOpen && !(live && live.variants) ? true : s.btDirty }); }) + ' class="hv-el" style="display:flex; align-items:center; justify-content:space-between; padding:13px 18px; background:var(--panel); cursor:pointer">'
     + '<div style="font-size:14px">Which sizing would have ended this window with the most equity?</div><div style="' + simChevron + '">›</div></div>'
     + (s.sizingSimOpen && !bestVariant
-      ? '<div style="padding:14px 18px; ' + M + '; font-size:11px; color:rgba(var(--ink),.5)">The variants are computed with the run — press RUN with this section open to include them.</div>'
+      ? '<div style="padding:14px 18px; ' + M + '; font-size:11px; color:var(--ink-4)">The variants are computed with the run — press RUN with this section open to include them.</div>'
       : '')
     + (s.sizingSimOpen && bestVariant ?
       '<div style="padding:16px 18px">'
@@ -531,7 +531,7 @@ export function renderBacktester(T) {
         + '<div style="text-align:right; ' + M + '; font-size:12.5px">$' + v.eq.toFixed(0) + '</div>'
         + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (v.roi >= 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (v.roi >= 0 ? '+' : '') + v.roi.toFixed(1) + '%</div>'
         + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(var(--ink),.6)">' + v.dd.toFixed(1) + '%</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(var(--ink),.6)">' + (v.closed ? Math.round(v.wr) + '% <span style="font-size:10.5px; color:rgba(var(--ink),.45)">n ' + num(v.closed) + '</span>' : '—') + '</div>'
+        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(var(--ink),.6)">' + (v.closed ? Math.round(v.wr) + '% <span style="font-size:10.5px; color:var(--ink-4)">n ' + num(v.closed) + '</span>' : '—') + '</div>'
         + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(var(--ink),.6)">' + num(v.copied) + '</div>'
         + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(var(--ink),.6)">' + num(Math.max(0, v.skipped)) + '</div></div>'
       ).join('')
