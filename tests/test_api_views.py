@@ -669,7 +669,8 @@ class BacktestPayloadTests(unittest.TestCase):
         result = _FakeResult(
             stats={"final_equity": 1120.0, "roi": 0.12, "total_pnl": 120.0, "win_rate": 0.6,
                    "wins": 6, "losses": 4, "max_drawdown": -0.08, "copied_trades": 10,
-                   "skipped_trades": 3, "fees_paid": 2.5, "open_value": 80.0, "window_truncated": True},
+                   "skipped_trades": 3, "fees_paid": 2.5, "open_value": 80.0, "window_truncated": True,
+                   "realized_pnl": 95.0, "unrealized_pnl": 25.0, "open_positions": 2},
             benchmark_stats={"total_pnl": 60.0},
             equity=pd.DataFrame({"equity": [1000.0, 1120.0], "benchmark": [1000.0, 1060.0], "drawdown": [0.0, -0.02]}),
             ledger=pd.DataFrame([
@@ -683,6 +684,12 @@ class BacktestPayloadTests(unittest.TestCase):
         self.assertEqual(payload["equity"], [1000.0, 1120.0])
         self.assertEqual(payload["log"][0]["action"], "BUY")
         self.assertEqual(payload["benchmark_stats"]["total_pnl"], 60.0)
+        # Der noch offene Teil des Ergebnisses muss mitreisen: 25 der 120
+        # Dollar stecken in Maerkten, die am Fensterende nicht entschieden
+        # waren, und stehen nur zum letzten Preis darin.
+        self.assertEqual(payload["stats"]["realized_pnl"], 95.0)
+        self.assertEqual(payload["stats"]["unrealized_pnl"], 25.0)
+        self.assertEqual(payload["stats"]["open_positions"], 2)
 
     def test_payload_carries_the_win_rate_denominator(self) -> None:
         """Die Trefferquote braucht ihren Nenner, sonst rechnet die Seite ihn falsch.

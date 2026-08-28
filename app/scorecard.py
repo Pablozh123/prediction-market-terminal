@@ -232,7 +232,9 @@ def wallet_scorecard(
     realized: dict[str, Any] | None = None
     try:
         frame = calib.resolution_frame(resolved)
-        calibration = calib.calibration_report(frame, capped=bool(capped))
+        calibration = calib.calibration_report(
+            frame, capped=bool(capped), unresolved=calib.unresolved_exits(resolved)
+        )
         realized = calib.realized_edge(frame, capped=bool(capped))
     except Exception as exc:  # noqa: BLE001
         errors["calibration"] = str(exc)

@@ -1891,6 +1891,12 @@ def backtest_payload(result: Any) -> dict[str, Any]:
             "skipped_trades": int(_num(stats.get("skipped_trades"), 0.0) or 0),
             "fees_paid": _num(stats.get("fees_paid"), 0.0),
             "open_value": _num(stats.get("open_value"), 0.0),
+            # Wie viel des Gesamtergebnisses noch gar nicht entschieden ist:
+            # Positionen in Maerkten, die am Fensterende offen waren, gehen
+            # zum letzten Preis in total_pnl ein.
+            "realized_pnl": _num(stats.get("realized_pnl"), 0.0),
+            "unrealized_pnl": _num(stats.get("unrealized_pnl"), 0.0),
+            "open_positions": int(_num(stats.get("open_positions"), 0.0) or 0),
             "window_truncated": bool(stats.get("window_truncated", False)),
             # Bis wohin die Daten wirklich zurueckreichen. Bei einem
             # abgeschnittenen Fenster ist das die ehrliche Fensterkante.
@@ -1917,6 +1923,10 @@ def backtest_payload(result: Any) -> dict[str, Any]:
                 "followed_positions": int(_num((stats.get("auto_fit") or {}).get("followed_positions"), 0.0) or 0),
                 "capacity": int(_num((stats.get("auto_fit") or {}).get("capacity"), 0.0) or 0),
                 "peak_concurrent": int(_num((stats.get("auto_fit") or {}).get("peak_concurrent"), 0.0) or 0),
+                # Auto-Fit liest das ganze Fenster, bevor der erste Trade
+                # kopiert wird — die Seite muss das sagen duerfen.
+                "hindsight": bool((stats.get("auto_fit") or {}).get("hindsight", False)),
+                "note": _text((stats.get("auto_fit") or {}).get("note")),
             },
         },
         "benchmark_stats": {
@@ -2237,6 +2247,22 @@ def fidelity_block(orders: pd.DataFrame, portfolio: Mapping[str, Any], sizing: M
                 "orders": int(_num(execution.get("orders"), 0.0) or 0),
                 "lost_to_skips": {str(k): _num(v, 0.0) for k, v in (execution.get("lost_to_skips") or {}).items()},
                 "lost_to_clamps": _num(execution.get("lost_to_clamps"), 0.0),
+            }
+    except Exception:
+        pass
+    try:
+        # Beide Fidelity-Zahlen sind reine Notional-Zahlen. Verzoegerung und
+        # Preis gehoeren daneben, sonst liest sich "Net mirror" als Aussage
+        # ueber den ganzen Nachbau.
+        delay = cfy.latency_and_price_gap(orders, window_hours=24.0)
+        if delay.get("n"):
+            out["delay"] = {
+                "orders": int(_num(delay.get("n"), 0.0) or 0),
+                "median_latency_s": _num(delay.get("median_latency_s")),
+                "p90_latency_s": _num(delay.get("p90_latency_s")),
+                "mean_price_gap_cents": _num(delay.get("mean_price_gap_cents")),
+                "models_price_impact": bool(delay.get("models_price_impact")),
+                "copied_shares": _num(delay.get("copied_shares"), 0.0),
             }
     except Exception:
         pass

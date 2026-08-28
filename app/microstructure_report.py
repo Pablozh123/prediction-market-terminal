@@ -30,6 +30,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
+from app import venue_fees as vf
+
 REPORT_DIR = Path("docs/research")
 
 # Verdikt-Arten. Steuert nur die Einfaerbung in der Oberflaeche.
@@ -285,6 +287,12 @@ def _latenz_punkte(signal: dict[str, Any]) -> list[dict[str, Any]]:
 def _extrakt_takeable(d: dict[str, Any]) -> dict[str, Any]:
     o = _kanon_zelle(d["signals"]["imbalance"])
     c = _kanon_zelle(d["signals"]["combo"])
+    # Die Gebuehr ist der groesste Kostenposten und haengt an einem Satz, der
+    # nicht eindeutig belegt ist. Beide Enden der Quellenlage stehen an der
+    # Zahl, statt eines davon als Messwert auszugeben.
+    fee_band = vf.fee_uncertainty_band(o["mean_fee_cost_cents"], d.get("category"))
+    cost_low = o["mean_cost_cents"] - (fee_band["high"] - fee_band["low"])
+    net_high = o["mean_net_cents"] + (fee_band["high"] - fee_band["low"])
     return {
         "basis": _basis(d, beobachtungen=o["n"]),
         "kennzahlen": {
@@ -293,15 +301,39 @@ def _extrakt_takeable(d: dict[str, Any]) -> dict[str, Any]:
             "net": o["mean_net_cents"], "positiv": o["net_positive_share"],
             "bester_gross": c["mean_gross_cents"],
             "faktor": o["mean_cost_cents"] / o["mean_gross_cents"] if o["mean_gross_cents"] else 0.0,
+            "gebuehr_strittig": bool(fee_band["disputed"]),
+            "gebuehr_low": _cents(fee_band["low"]),
+            "netto_low": _cents(o["mean_net_cents"]),
+            "netto_high": _cents(net_high),
+            "faktor_low": cost_low / o["mean_gross_cents"] if o["mean_gross_cents"] else 0.0,
         },
         "zahlen": [
             _zahl("Gross edge, imbalance", _cents(o["mean_gross_cents"]), "cents per firing"),
             _zahl("Gross edge, best cut", _cents(c["mean_gross_cents"]), "cents per firing"),
             _zahl("Spread cost", _cents(o["mean_spread_cost_cents"]), "cents"),
-            _zahl("Fee cost", _cents(o["mean_fee_cost_cents"]), "cents"),
+            _zahl(
+                "Fee cost",
+                _cents(o["mean_fee_cost_cents"]),
+                "cents",
+                (
+                    f"at the documented rate; the disputed lower rate puts the same firings at "
+                    f"{_cents(fee_band['low'])} cents"
+                    if fee_band["disputed"]
+                    else ""
+                ),
+            ),
             _zahl("Round trip total", _cents(o["mean_cost_cents"]), "cents"),
-            _zahl("Net result", _cents(o["mean_net_cents"]), "cents",
-                  "what is left after both cost legs"),
+            _zahl(
+                "Net result",
+                _cents(o["mean_net_cents"]),
+                "cents",
+                (
+                    f"what is left after both cost legs; {_cents(o['mean_net_cents'])} to "
+                    f"{_cents(net_high)} across the fee-rate dispute"
+                    if fee_band["disputed"]
+                    else "what is left after both cost legs"
+                ),
+            ),
             _zahl("Firings that end net positive", round(o["net_positive_share"] * 100, 1), "%"),
         ],
         "diagramm": {
@@ -321,10 +353,31 @@ def _extrakt_takeable(d: dict[str, Any]) -> dict[str, Any]:
             [
                 ["Gross edge", f"{o['mean_gross_cents']:+.4f}", "the price move the signal caught"],
                 ["Spread cost", f"-{o['mean_spread_cost_cents']:.4f}", "half the spread, paid to cross the book"],
-                ["Fee cost", f"-{o['mean_fee_cost_cents']:.4f}", "the venue fee for this market category"],
-                ["Net", f"{o['mean_net_cents']:+.4f}", "what a taker actually keeps"],
+                [
+                    "Fee cost",
+                    (
+                        f"-{o['mean_fee_cost_cents']:.4f} to -{fee_band['low']:.4f}"
+                        if fee_band["disputed"]
+                        else f"-{o['mean_fee_cost_cents']:.4f}"
+                    ),
+                    "the venue fee for this market category",
+                ],
+                [
+                    "Net",
+                    (
+                        f"{o['mean_net_cents']:+.4f} to {net_high:+.4f}"
+                        if fee_band["disputed"]
+                        else f"{o['mean_net_cents']:+.4f}"
+                    ),
+                    "what a taker actually keeps",
+                ],
             ],
-            "Costs come from the venue fee model in app/venue_fees.py, not from an assumption.",
+            "Costs come from the venue fee model in app/venue_fees.py. The fee rate itself is "
+            "the one input this study cannot pin down: the venue documentation says 5 percent, "
+            "secondary sources from the same period say 3 percent, and the fee is linear in the "
+            "rate, so both ends are carried on every fee figure above."
+            if fee_band["disputed"]
+            else "Costs come from the venue fee model in app/venue_fees.py, not from an assumption.",
         ),
     }
 
@@ -906,19 +959,26 @@ STUDIEN: tuple[Studie, ...] = (
             "gemessen": "What is left per firing after the two costs a taker cannot avoid: crossing the spread, and the venue fee.",
             "wie": "For each firing the price move is converted to cents per share. Then half the spread standing in the book at decision time is subtracted, and the fee schedule for that market's category on top. What remains is the net.",
             "daten": "The same eleven days (2026-07-18 to 07-28) and the same 205,835 firings as study 1, book imbalance, so the two are directly comparable.",
-            "entscheidung": "Takeable means the net stays above zero. Costs come from the venue fee model in the repository, not from a round-number assumption.",
+            "entscheidung": "Takeable means the net stays above zero. Costs come from the venue fee model in the repository, not from a round-number assumption. The rate that model is fed is the one input that is not settled: the venue documentation puts the general taker rate at 5 percent and secondary sources from the same period at 3 percent, so every fee figure is carried across both.",
         },
         einfach=lambda k: (
             f"The signal is worth {k['gross']:+.2f} cents per firing before costs. Crossing the spread costs "
             f"{k['spread']:.3f} cents and the venue fee another {k['fee']:.3f}, so the round trip takes "
             f"{k['cost']:.2f} cents, roughly {k['faktor']:.0f} times what the signal produces. "
             f"The net is {k['net']:+.2f} cents, and only {_pz(k['positiv'])} percent of firings end positive. "
-            f"Even the best cut of the signal only reaches {k['bester_gross']:+.2f} cents gross, nowhere near the wall."
+            + (
+                f"The fee rate is disputed; at the lower published rate the fee falls to {k['gebuehr_low']:.3f} "
+                f"cents and the net only improves to {k['netto_high']:+.2f}, still "
+                f"{k['faktor_low']:.0f} times the signal. "
+                if k.get("gebuehr_strittig")
+                else ""
+            )
+            + f"Even the best cut of the signal only reaches {k['bester_gross']:+.2f} cents gross, nowhere near the wall."
         ),
         interpretation=(
             (LESART, "Being right and making money are different questions, and this is the gap between them. Any analysis that stops at a hit rate has stopped one step too early."),
             (GEGENLESART, "This only condemns taking. A market maker does not pay the spread, they earn it, so the same information could still be worth something from the other side of the book. That is why the market-making studies follow."),
-            (GRENZE, "It assumes taking at the touch. A patient limit order would pay less, but then the fill is no longer certain, and an unfilled order earns nothing at all."),
+            (GRENZE, "It assumes taking at the touch. A patient limit order would pay less, but then the fill is no longer certain, and an unfilled order earns nothing at all. And the fee rate is not settled: documentation and secondary sources disagree by a factor that moves every fee figure here by 40 percent. The verdict survives both ends, but a narrower gross edge would not have."),
         ),
         quelle="orderflow_rest-2026-07",
         report="docs/research/orderflow_rest-2026-07.md",

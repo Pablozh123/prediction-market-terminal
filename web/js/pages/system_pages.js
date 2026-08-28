@@ -993,7 +993,11 @@ function kategorieZeilen(payload) {
       ? k.horizonte.filter((h) => h && h.horizont_tage != null).map((h) => ({
         tage: +h.horizont_tage, brier: zahl(h.brier), treffer: zahl(h.trefferquote),
         n: h.n == null ? null : +h.n, entschieden: zahl(h.anteil_entschieden),
-        brierOffen: zahl(h.brier_offen), nOffen: h.n_offen == null ? null : +h.n_offen
+        brierOffen: zahl(h.brier_offen), nOffen: h.n_offen == null ? null : +h.n_offen,
+        // Intervall um den Brier: ohne das ist eine Rangfolge ueber viele
+        // Zellen keine Aussage. Aeltere Dateien tragen es nicht.
+        brierCi: Array.isArray(h.brier_ci95) && h.brier_ci95[0] != null
+          ? [zahl(h.brier_ci95[0]), zahl(h.brier_ci95[1])] : null
       }))
       : [];
     if (!horizonte.length) {
@@ -1276,11 +1280,13 @@ function renderCategoryEfficiency(T, payload, study) {
   const vollSpalten = '1fr ' + alleTage.map(() => '118px').join(' ');
   const vollKopf = '<div style="display:grid; grid-template-columns:' + vollSpalten + '; gap:12px; padding:9px 18px; border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.6)">'
     + '<div>CATEGORY</div>'
-    + alleTage.map((t) => '<div style="text-align:right">T-' + t + ' BRIER · HIT · N</div>').join('') + '</div>';
+    + alleTage.map((t) => '<div style="text-align:right">T-' + t + ' BRIER ±95% · HIT · N</div>').join('') + '</div>';
   const zelle = (h) => {
     if (!h || h.brier == null) return '<div style="text-align:right; ' + M + '; font-size:12px; color:rgba(var(--ink),.5)">—</div>';
     return '<div style="text-align:right; ' + M + '">'
-      + '<div style="font-size:12.5px; color:rgba(var(--ink),.85)">' + f3(h.brier) + '</div>'
+      + '<div style="font-size:12.5px; color:rgba(var(--ink),.85)">' + f3(h.brier)
+      + (h.brierCi ? '<span style="font-size:10.5px; color:rgba(var(--ink),.5)"> ±' + ((h.brierCi[1] - h.brierCi[0]) / 2).toFixed(3) + '</span>' : '')
+      + '</div>'
       + '<div style="font-size:11px; color:rgba(var(--ink),.6); margin-top:2px">' + (h.treffer != null ? Math.round(h.treffer * 100) + '%' : '—') + ' · n ' + (h.n != null ? num(h.n) : '—') + '</div></div>';
   };
   const vollTabelle = '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:12px; overflow:hidden">'
@@ -1291,6 +1297,19 @@ function renderCategoryEfficiency(T, payload, study) {
       + '</div>').join('')
     + '</div>';
 
+  // Mehrfachvergleich: die Tabelle ist ein Gitter aus Kategorie x Horizont.
+  // Die beste Zelle ist das Minimum aus so vielen Ziehungen, also gehoert
+  // die Zahl der Zellen und der Hinweis auf die Intervalle daneben.
+  const zellenMitBrier = zeilen.reduce((a, z) => a + z.horizonte.filter((h) => h && h.brier != null).length, 0);
+  const hatBrierCi = zeilen.some((z) => z.horizonte.some((h) => h && h.brierCi));
+  const vergleichHtml = zellenMitBrier > 1
+    ? '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:10px; line-height:1.6">'
+      + zellenMitBrier + ' category-by-horizon cells are scored here. The best of ' + zellenMitBrier
+      + ' cells is the smallest of ' + zellenMitBrier + ' draws, so a leading Brier is not by itself a difference'
+      + (hatBrierCi ? ' — the ± figure is the 95% interval around each cell, and two cells whose intervals overlap are not separated by this sample.' : '.')
+      + '</div>'
+    : '';
+
   // Der Titel verspricht nur, was drin ist: ohne Kalibrierungsbins heisst das
   // Feld nicht "& CALIBRATION".
   const horizontHtml = '<details style="margin-top:12px; ' + karte + '; padding:0 18px">'
@@ -1298,6 +1317,7 @@ function renderCategoryEfficiency(T, payload, study) {
     + (kalib.length ? ', PLUS CALIBRATION' : '') + ' ▸</summary>'
     + '<div style="padding-bottom:14px">'
     + vollTabelle
+    + vergleichHtml
     + (linienHtml ? '<div style="margin-top:12px">' + linienHtml + '</div>' : '')
     + (kalib.length
       ? '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:var(--info); margin:16px 0 8px">CALIBRATION AT T-' + (zeilen.find((z) => z.bins.length) || {}).kalibrierungTage + ' · PREDICTED VS REALISED</div>'

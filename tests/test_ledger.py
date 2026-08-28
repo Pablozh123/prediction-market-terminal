@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 
 from app import ledger
+from app.quant import wilson_interval as quant_wilson
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -292,6 +293,69 @@ class ResolveTests(unittest.TestCase):
         self.assertIsNone(stats["hit_rate"])
         self.assertEqual(stats["pnl_modeled_sum"], 0.0)
         self.assertTrue(stats["chain_ok"])
+        self.assertEqual(stats["decisive_units"], 0)
+        self.assertIsNone(stats["hit_rate_units"])
+        self.assertEqual(stats["hit_rate_ci95"], [None, None])
+        self.assertIsNone(stats["repeat_factor"])
+
+    def test_units_equal_rows_when_every_market_fired_once(self):
+        self._resolve()
+        stats = ledger.ledger_aggregates(self.conn)
+        self.assertEqual(stats["decisive_units"], stats["decisive"])
+        self.assertAlmostEqual(stats["repeat_factor"], 1.0)
+        self.assertAlmostEqual(stats["hit_rate_units"], stats["hit_rate"])
+
+
+class RepeatedSignalTests(unittest.TestCase):
+    """Ein Markt loest viele Signale aus, aber nur EINE Aufloesung.
+
+    Fuenf Regeln auf demselben Markt und Ausgang, der Markt gewinnt: die
+    Trefferquote je Signalzeile steht bei 100 Prozent auf n=5, obwohl genau
+    ein Ausgang beobachtet wurde. Das Intervall muss an der Eins haengen.
+    """
+
+    def setUp(self):
+        self.conn = ledger.init_ledger(":memory:")
+        self.addCleanup(self.conn.close)
+        rows = [
+            make_signal("same market", market_key=condition_id("a"), outcome="Yes",
+                        price=0.25, signal_type=typ, value=float(i))
+            for i, typ in enumerate(
+                ["Fast mover", "Tight spread", "Volume anomaly", "Ending soon", "Watched market"]
+            )
+        ]
+        rows.append(make_signal("other market", market_key=condition_id("b"), outcome="Yes", price=0.5))
+        ledger.emit_signals(self.conn, pd.DataFrame(rows))
+        ledger.resolve_pending(
+            self.conn,
+            lambda keys: {
+                condition_id("a"): {"status": "resolved", "outcome_prices": {"yes": 1.0, "no": 0.0}, "source": "gamma"},
+                condition_id("b"): {"status": "resolved", "outcome_prices": {"yes": 0.0, "no": 1.0}, "source": "gamma"},
+            },
+        )
+
+    def test_signal_rows_and_independent_outcomes_are_reported_apart(self):
+        stats = ledger.ledger_aggregates(self.conn)
+        self.assertEqual(stats["decisive"], 6)
+        self.assertEqual(stats["decisive_units"], 2)
+        self.assertAlmostEqual(stats["repeat_factor"], 3.0)
+        # Je Signalzeile 5 von 6, je unabhaengigem Ausgang 1 von 2.
+        self.assertAlmostEqual(stats["hit_rate"], 5 / 6)
+        self.assertAlmostEqual(stats["hit_rate_units"], 0.5)
+
+    def test_interval_uses_the_independent_count(self):
+        stats = ledger.ledger_aggregates(self.conn)
+        low, high = stats["hit_rate_ci95"]
+        # Wilson auf 1/2, nicht auf 5/6: das Intervall deckt fast alles ab.
+        self.assertAlmostEqual((low, high), quant_wilson(1, 2))
+        self.assertLess(low, 0.2)
+        self.assertGreater(high, 0.8)
+
+    def test_units_carry_their_outcome(self):
+        units = dict(ledger.decisive_units(self.conn))
+        self.assertEqual(len(units), 2)
+        self.assertTrue(units[condition_id("a") + "|Yes"])
+        self.assertFalse(units[condition_id("b") + "|Yes"])
 
 
 class ResolutionMapTests(unittest.TestCase):

@@ -25,12 +25,49 @@ def monitor_volume_col(df: pd.DataFrame) -> str:
     return "volume"
 
 
-def _append_market_signal(rows: list[dict[str, Any]], row: pd.Series, signal_type: str, value: float, reason: str, severity: str = "info") -> None:
+def _observed_at(row: pd.Series, now: Any) -> Any:
+    """When the signal was observed.
+
+    First stamp the row actually carries, else the scan time. ``or`` alone is
+    not enough: in a frame that mixes venues the Kalshi rows get an
+    ``updated_at`` column full of NaN from the Polymarket rows, and NaN is
+    truthy, so the chain used to stop there and hand out NaT.
+    """
+
+    for column in ("updated_at", "created_at"):
+        value = row.get(column)
+        if value is None:
+            continue
+        try:
+            if bool(pd.isna(value)):
+                continue
+        except (TypeError, ValueError):
+            pass
+        if value != "":
+            return value
+    return now
+
+
+def _append_market_signal(
+    rows: list[dict[str, Any]],
+    row: pd.Series,
+    signal_type: str,
+    value: float,
+    reason: str,
+    severity: str = "info",
+    now: Any = None,
+) -> None:
     rows.append(
         {
             "signal_type": signal_type,
             "severity": severity,
-            "time": row.get("updated_at") or row.get("created_at") or row.get("end_time"),
+            # Wann das Signal beobachtet wurde. Die Kalshi-Zeilen fuehren
+            # weder updated_at noch created_at, und der frueher hier
+            # stehende Rueckfall auf end_time schrieb den SCHLUSSTERMIN des
+            # Marktes hinein: ein Signal von heute trug den Zeitstempel
+            # 2027, sortierte damit vor jedes frische Signal und landete so
+            # auch im Ledger. Ohne eigenen Stempel gilt die Scan-Zeit.
+            "time": _observed_at(row, now if now is not None else pd.Timestamp.now(tz="UTC")),
             "platform": row.get("platform", ""),
             "title": row.get("title", ""),
             "category": row.get("category", ""),
@@ -65,7 +102,19 @@ def build_monitor_signals(
     holder_checks: int,
     tracked_keys: set[str],
     fetch_holders: Callable[[str], pd.DataFrame] | None = None,
+    now: pd.Timestamp | None = None,
 ) -> pd.DataFrame:
+    """Signal rows for the monitor and the alert scanner.
+
+    ``now`` is the scan time. It is the observation stamp for every market
+    signal whose row carries no timestamp of its own (Kalshi rows carry
+    none), and it is the reference for the ending-soon window. Injectable so
+    tests do not depend on the wall clock.
+    """
+
+    now = pd.Timestamp.now(tz="UTC") if now is None else pd.Timestamp(now)
+    if now.tzinfo is None:
+        now = now.tz_localize("UTC")
     rows: list[dict[str, Any]] = []
     market_frame = markets.copy()
     if not market_frame.empty:
@@ -91,30 +140,30 @@ def build_monitor_signals(
                         float(row["_ratio"]),
                         f"1h volume {float(row['_ratio']):.1f}x the 24h baseline",
                         "warning",
+                        now=now,
                     )
         if "change_1h" in market_frame:
             movers = market_frame[numeric_col(market_frame, "change_1h").abs() >= float(min_move)]
             movers = movers.sort_values("change_1h", key=lambda series: series.abs(), ascending=False)
             for _, row in movers.head(120).iterrows():
                 value = float(row.get("change_1h") or 0.0)
-                _append_market_signal(rows, row, "Fast mover", value, f"1h move {signed_cents(value)}", "warning")
+                _append_market_signal(rows, row, "Fast mover", value, f"1h move {signed_cents(value)}", "warning", now=now)
         if "spread" in market_frame:
             tight = market_frame[numeric_col(market_frame, "spread", 999.0) <= float(max_spread)]
             tight = tight.sort_values(["spread", volume_col], ascending=[True, False])
             for _, row in tight.head(120).iterrows():
                 value = float(row.get("spread") or 0.0)
-                _append_market_signal(rows, row, "Tight spread", value, f"spread {cents(value)}")
+                _append_market_signal(rows, row, "Tight spread", value, f"spread {cents(value)}", now=now)
         if "end_time" in market_frame:
             end_time = pd.to_datetime(market_frame["end_time"], utc=True, errors="coerce")
-            now = pd.Timestamp.utcnow()
             soon = market_frame[end_time.notna() & (end_time >= now) & (end_time <= now + pd.Timedelta(days=int(ending_days)))]
             soon = soon.assign(_end_time=end_time.loc[soon.index]).sort_values("_end_time")
             for _, row in soon.head(120).iterrows():
-                _append_market_signal(rows, row, "Ending soon", float(row.get("yes_price") or 0.0), f"ends {row.get('end_time')}", "warning")
+                _append_market_signal(rows, row, "Ending soon", float(row.get("yes_price") or 0.0), f"ends {row.get('end_time')}", "warning", now=now)
         if tracked_keys:
             watched = market_frame[market_frame["market_key"].astype(str).isin(tracked_keys)]
             for _, row in watched.head(120).iterrows():
-                _append_market_signal(rows, row, "Watched market", float(row.get("yes_price") or 0.0), "on local watchlist")
+                _append_market_signal(rows, row, "Watched market", float(row.get("yes_price") or 0.0), "on local watchlist", now=now)
         if holder_checks > 0 and fetch_holders is not None:
             holder_candidates = market_frame[market_frame["platform"].eq("Polymarket")].sort_values(volume_col, ascending=False).head(int(holder_checks))
             for _, row in holder_candidates.iterrows():
@@ -137,6 +186,7 @@ def build_monitor_signals(
                         top_share,
                         f"top holder {pct(top_share)}; top 10 {pct(top10_share)}",
                         "warning",
+                        now=now,
                     )
     if not trades.empty:
         whale_trades = trades[numeric_col(trades, "notional") >= float(min_whale_notional)].sort_values("time", ascending=False)

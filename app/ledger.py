@@ -17,6 +17,13 @@ Counting rules (these are the public explanation of every aggregate):
   profitable.
 - Modeled PnL is frozen at the emit price (per 100 dollars staked). Later
   price moves never change a recorded row.
+- One market can produce many signals: several rule types fire on it, and the
+  same rule fires again on later scans. Those rows all settle on the SAME
+  outcome, so counting them as independent trials would shrink the interval
+  around the hit rate without any new information. The aggregates therefore
+  report both counts: ``decisive`` (signal rows) and ``decisive_units``
+  (distinct market plus outcome), and the confidence interval is computed on
+  the units.
 
 Only signals that carry both a ``market_key`` and an ``outcome`` are
 resolvable; all other rows stay pending forever and are reported as
@@ -38,6 +45,8 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 import pandas as pd
+
+from app.quant import wilson_interval
 
 METHODOLOGY_VERSION = "monitor-v1.0"
 DEFAULT_LEDGER_PATH = Path("data/signal_ledger.sqlite")
@@ -413,9 +422,41 @@ def verify_chain(conn: sqlite3.Connection) -> tuple[bool, int]:
     return True, checked
 
 
+def decisive_units(conn: sqlite3.Connection) -> list[tuple[str, bool]]:
+    """One row per independently settled outcome: (market_key|outcome, won).
+
+    Several rule types fire on the same market, and the same rule fires again
+    on later scans. All of those rows resolve against one settlement, so the
+    hit rate has as many independent observations as there are units, not as
+    there are signal rows. A unit counts as won when any of its rows resolved
+    won (they share a market and an outcome, so they cannot disagree unless
+    the source data changed between runs).
+    """
+
+    rows = conn.execute(
+        """
+        SELECT e.market_key || '|' || e.outcome AS unit,
+               MAX(CASE WHEN r.outcome_result = 'won' THEN 1 ELSE 0 END) AS won
+        FROM signals_resolved r
+        JOIN signals_emitted e ON e.id = r.signal_id
+        WHERE r.outcome_result IN ('won', 'lost')
+        GROUP BY unit
+        ORDER BY unit
+        """
+    ).fetchall()
+    return [(str(row["unit"]), bool(row["won"])) for row in rows]
+
+
 def ledger_aggregates(conn: sqlite3.Connection) -> dict[str, Any]:
     """Aggregate ledger counters. Invariant:
-    emitted = resolved + pending + not_resolvable."""
+    emitted = resolved + pending + not_resolvable.
+
+    Two hit rates, deliberately: ``hit_rate`` per signal row (how often an
+    alert that went out was on the right side) and ``hit_rate_units`` per
+    distinct market and outcome (how many independent calls that actually
+    was). ``hit_rate_ci95`` belongs to the second, because the first counts
+    the same settlement several times. ``repeat_factor`` is the ratio.
+    """
 
     emitted = int(conn.execute("SELECT COUNT(*) AS n FROM signals_emitted").fetchone()["n"])
     resolvable = int(
@@ -441,6 +482,10 @@ def ledger_aggregates(conn: sqlite3.Connection) -> dict[str, Any]:
         "SELECT SUM(pnl_modeled) AS total FROM signals_resolved WHERE outcome_result IN ('won', 'lost')"
     ).fetchone()
     bounds = conn.execute("SELECT MIN(emitted_at) AS first, MAX(emitted_at) AS last FROM signals_emitted").fetchone()
+    units = decisive_units(conn)
+    n_units = len(units)
+    unit_hits = sum(1 for _, won in units if won)
+    ci_low, ci_high = wilson_interval(unit_hits, n_units) if n_units else (None, None)
     chain_ok, chain_checked = verify_chain(conn)
     return {
         "emitted": emitted,
@@ -450,6 +495,15 @@ def ledger_aggregates(conn: sqlite3.Connection) -> dict[str, Any]:
         "pending": resolvable - resolved,
         "decisive": decisive,
         "hit_rate": (hits / decisive) if decisive else None,
+        # Unabhaengige Beobachtungen: je Markt und Ausgang eine. Das Intervall
+        # haengt an dieser Zahl, nicht an der Zahl der Signalzeilen.
+        "decisive_units": n_units,
+        "unit_hits": unit_hits,
+        "hit_rate_units": (unit_hits / n_units) if n_units else None,
+        "hit_rate_ci95": [ci_low, ci_high],
+        "repeat_factor": (decisive / n_units) if n_units else None,
+        # Summe ueber Signalzeilen, nicht ueber Aufloesungen: dieselbe
+        # Aufloesung steht so oft darin, wie sie Signale ausgeloest hat.
         "pnl_modeled_sum": float(pnl_sum_row["total"]) if pnl_sum_row["total"] is not None else 0.0,
         "first_emit": bounds["first"],
         "last_emit": bounds["last"],
