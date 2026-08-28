@@ -413,10 +413,18 @@ function mitDaten(T) {
   T.liveData.copy = {
     _quelle: 'live', as_of: '2026-08-07',
     status: { running: true, source: 'w1', scale: 1, cash: 990, auto_topup: false },
+    // Das Zahlenbeispiel des Copy-Desks: 1.000 eingezahlt, eine aufgeloeste
+    // Kopie hat 120 gekostet, eine offene steht 300 ueber Einstand. Die
+    // Schlagzeile las daraus "+180, +18,00 %" und verschwieg beides.
+    // Dazu die Orderzahlen: 100 Zeilen, 40 davon nur beobachtete Baseline,
+    // also 60, ueber die zu entscheiden war, und 50 gespiegelte.
     kpis: {
-      equity: 1000, contributions: 1000, pnl: 0, pnl_pct: 0, source_return_pct: 0,
-      mirrored: 1, total: 1, skipped: 0, fidelity: 100, config_fidelity: 100, exec_fidelity: 100,
-      cash: 990, unrealized: 0, open_positions: 0
+      equity: 1180, contributions: 1000, pnl: 180, pnl_pct: 18, source_return_pct: 0,
+      settled_pnl: -120, open_pnl: 300, settled_pct: -12, open_pct: 30,
+      pnl_reconciles: true, pnl_residual: 0,
+      mirrored: 50, actionable: 60, observed: 40, coverage_pct: 50 / 60 * 100,
+      total: 100, skipped: 10, fidelity: 83, config_fidelity: 100, exec_fidelity: 83,
+      cash: 990, unrealized: 300, open_positions: 1
     },
     orders: [
       { time: '12:00', market: 'Example question', side: 'BUY Yes', kind: 'BUY', outcome: 'Yes', explain: 'the source bought Yes; the copy scaled it into the sub-account', book: 'source book now: 100 YES / 12.0k NO → net NO', theirs: '$100', yours: '$10', status: 'copied', reason: 'buy_scaled', wallet: HARNESS_TRADER_A, at: '2026-08-07T12:00:00+00:00' },
@@ -428,12 +436,15 @@ function mitDaten(T) {
     traders: [
       { wallet: HARNESS_TRADER_A, label: 'w1', note: 'harness desk, slow trader', active: true, start_cash: 500, cash: 490, position_value: 10, equity: 500,
         contributions: 500, pnl: 0, pnl_pct: 0, realized_pnl: 0, unrealized_pnl: 0,
+        settled_pnl: 0, open_pnl: 0, settled_pct: 0, open_pct: 0, pnl_reconciles: true,
         orders: { copied: 1, skipped: 0, settled: 0, observed: 3, total: 4 }, open_positions: 1, last_copy_at: '2026-08-07T12:00:00+00:00',
         added_at: '2026-08-06T00:00:00+00:00', seeded_at: '2026-08-06T00:00:05+00:00', baseline_cutoff_ts: 1785000000,
         equity_curve: [500, 500, 500], profile_url: 'https://polymarket.com/profile/' + HARNESS_TRADER_A,
         source_equity: 52000, neutral_ratio: 500 / 52000 },
+      // Kein eingezahltes Kapital erfasst: kein Prozentwert, ein Strich.
       { wallet: HARNESS_TRADER_B, label: 'w2', note: '', active: false, start_cash: 500, cash: 500, position_value: 0, equity: 500,
-        contributions: 500, pnl: 0, pnl_pct: 0, realized_pnl: 0, unrealized_pnl: 0,
+        contributions: 0, pnl: 0, pnl_pct: null, realized_pnl: 0, unrealized_pnl: 0,
+        settled_pnl: 0, open_pnl: 0, settled_pct: null, open_pct: null, pnl_reconciles: true,
         orders: { copied: 0, skipped: 0, settled: 0, observed: 0, total: 0 }, open_positions: 0, last_copy_at: null,
         added_at: '2026-08-07T00:00:00+00:00', seeded_at: null, baseline_cutoff_ts: null,
         equity_curve: [], profile_url: 'https://polymarket.com/profile/' + HARNESS_TRADER_B, source_equity: null, neutral_ratio: null }

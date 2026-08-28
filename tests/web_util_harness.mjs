@@ -3,7 +3,7 @@
 // tests/test_web_util.py liest das und prueft die Einheiten: was unter
 // welcher Ueberschrift landet, entscheidet sich hier.
 
-import { mapMarket, mapTrade, money } from '../web/js/util.js';
+import { mapMarket, mapTrade, money, liveStatusLabel } from '../web/js/util.js';
 
 const ausgabe = {
   // Ein Markt, der heute nicht gehandelt wurde, aber ueber sein Leben 4.2m
@@ -28,6 +28,16 @@ const ausgabe = {
     side: 'BUY',
   }),
   geld: { null: money(0), tausend: money(1500), million: money(4200000) },
+  // Die Statuszeile der Kopfleiste. Sie stand fest verdrahtet auf beiden
+  // Venues, auch wenn nur eine geantwortet hatte.
+  statuszeile: {
+    beide: liveStatusLabel('live', []),
+    kalshi_fehlt: liveStatusLabel('live', ['Kalshi']),
+    polymarket_fehlt: liveStatusLabel('live', ['Polymarket']),
+    keine: liveStatusLabel('live', ['Polymarket', 'Kalshi']),
+    fehler: liveStatusLabel('error', ['Kalshi']),
+    wartet: liveStatusLabel('waiting', []),
+  },
 };
 
 process.stdout.write(JSON.stringify(ausgabe));
