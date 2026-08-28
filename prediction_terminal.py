@@ -1147,29 +1147,6 @@ def reset_monitor_filter_widgets(query: str = "", rows: int = 100, min_whale_not
         st.session_state[key] = value
 
 
-def alert_filter_defaults(query: str = "", rows: int = 100, min_whale_notional: int = 2500) -> dict[str, Any]:
-    return {
-        "alert_search": query,
-        "alert_platforms": ["Polymarket", "Kalshi"],
-        "alert_signal_types": list(MONITOR_SIGNAL_TYPES),
-        "alert_rows": _bounded_int(rows, 100, 25, 250),
-        "alert_hits_only": False,
-        "alert_min_volume": 0,
-        "alert_min_liquidity": 0,
-        "alert_min_move": 3.0,
-        "alert_max_spread": 7.0,
-        "alert_min_whale": max(0, int(min_whale_notional)),
-        "alert_ending_days": 7,
-        "alert_holder_checks": 3,
-        "alert_holder_threshold": 0.25,
-    }
-
-
-def reset_alert_filter_widgets(query: str = "", rows: int = 100, min_whale_notional: int = 2500) -> None:
-    for key, value in alert_filter_defaults(query, rows, min_whale_notional).items():
-        st.session_state[key] = value
-
-
 def resolved_filter_defaults(query: str = "", rows: int = 250) -> dict[str, Any]:
     return {
         "resolved_search": query,
@@ -1502,27 +1479,6 @@ def apply_monitor_filter_view_widgets(view: dict[str, Any]) -> None:
         "monitor_ending_days": _bounded_int(view.get("ending_days", defaults["monitor_ending_days"]), 7, 1, 3650),
         "monitor_holder_checks": _bounded_int(view.get("holder_checks", defaults["monitor_holder_checks"]), 6, 0, 20),
         "monitor_holder_threshold": _bounded_float(view.get("holder_threshold", defaults["monitor_holder_threshold"]), 0.25, 0.05, 0.80),
-    }
-    for key, value in values.items():
-        st.session_state[key] = value
-
-
-def apply_alert_filter_view_widgets(view: dict[str, Any]) -> None:
-    defaults = alert_filter_defaults()
-    values = {
-        "alert_search": str(view.get("query", defaults["alert_search"])),
-        "alert_platforms": _choice_list(view.get("platforms", defaults["alert_platforms"]), ["Polymarket", "Kalshi"], defaults["alert_platforms"]),
-        "alert_signal_types": _choice_list(view.get("signal_types", defaults["alert_signal_types"]), MONITOR_SIGNAL_TYPES, defaults["alert_signal_types"]),
-        "alert_rows": _bounded_int(view.get("rows", defaults["alert_rows"]), 100, 25, 250),
-        "alert_hits_only": bool(view.get("hits_only", defaults["alert_hits_only"])),
-        "alert_min_volume": int(_bounded_float(view.get("min_volume", defaults["alert_min_volume"]), 0.0, 0.0, 1_000_000_000.0)),
-        "alert_min_liquidity": int(_bounded_float(view.get("min_liquidity", defaults["alert_min_liquidity"]), 0.0, 0.0, 1_000_000_000.0)),
-        "alert_min_move": _bounded_float(view.get("min_move", defaults["alert_min_move"]), 3.0, 0.0, 100.0),
-        "alert_max_spread": _bounded_float(view.get("max_spread", defaults["alert_max_spread"]), 7.0, 0.1, 100.0),
-        "alert_min_whale": int(_bounded_float(view.get("min_whale", defaults["alert_min_whale"]), 0.0, 0.0, 1_000_000_000.0)),
-        "alert_ending_days": _bounded_int(view.get("ending_days", defaults["alert_ending_days"]), 7, 1, 3650),
-        "alert_holder_checks": _bounded_int(view.get("holder_checks", defaults["alert_holder_checks"]), 3, 0, 20),
-        "alert_holder_threshold": _bounded_float(view.get("holder_threshold", defaults["alert_holder_threshold"]), 0.25, 0.05, 0.80),
     }
     for key, value in values.items():
         st.session_state[key] = value
@@ -1902,8 +1858,6 @@ def init_state() -> None:
         st.session_state.saved_portfolio_filters = load_local_list("saved_portfolio_filters.json")
     if "recent_searches" not in st.session_state:
         st.session_state.recent_searches = load_local_list("recent_searches.json")
-    if "market_comments" not in st.session_state:
-        st.session_state.market_comments = load_local_market_comments()
     if "monitor_rules" not in st.session_state:
         st.session_state.monitor_rules = load_local_monitor_rules()
     if "paper_trade_history" not in st.session_state:
@@ -2037,23 +1991,6 @@ def wallet_activity_summary(activity: pd.DataFrame) -> dict[str, float]:
     }
 
 
-def load_local_market_comments() -> dict[str, list[dict[str, str]]]:
-    path = Path("data/market_comments.json")
-    if not path.exists():
-        return {}
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
-    except (OSError, json.JSONDecodeError):
-        return {}
-
-
-def save_local_market_comments(comments: dict[str, list[dict[str, str]]]) -> None:
-    path = Path("data/market_comments.json")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(comments, indent=2, sort_keys=True), encoding="utf-8")
-
-
 def load_local_monitor_rules() -> list[dict[str, Any]]:
     path = Path("data/monitor_rules.json")
     if not path.exists():
@@ -2161,19 +2098,9 @@ def load_polymarket_book(token_id: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     return md.get_polymarket_orderbook(token_id)
 
 
-@st.cache_data(ttl=45, show_spinner=False)
-def load_kalshi_book(ticker: str) -> tuple[pd.DataFrame, pd.DataFrame]:
-    return md.get_kalshi_orderbook(ticker)
-
-
 @st.cache_data(ttl=180, show_spinner=False)
 def load_holders(market_key: str) -> pd.DataFrame:
     return md.get_polymarket_holders(market_key, limit=80)
-
-
-@st.cache_data(ttl=180, show_spinner=False)
-def load_market_positions(market_key: str, status: str, sort_by: str, limit: int = 100) -> pd.DataFrame:
-    return md.get_polymarket_market_positions(market_key, status=status, sort_by=sort_by, limit=limit)
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -2867,27 +2794,6 @@ def combined_trade_table(poly_trades: pd.DataFrame, kalshi_trades: pd.DataFrame)
     return trades.sort_values("time", ascending=False).reset_index(drop=True)
 
 
-def market_top_traders(trades: pd.DataFrame) -> pd.DataFrame:
-    if trades.empty or "wallet" not in trades:
-        return pd.DataFrame()
-    grouped = (
-        trades.groupby(["wallet", "trader"], dropna=False)
-        .agg(
-            trades=("wallet", "size"),
-            notional=("notional", "sum"),
-            avg_trade=("notional", "mean"),
-            largest_trade=("notional", "max"),
-            latest_trade=("time", "max"),
-            buy_notional=("notional", lambda s: float(s[trades.loc[s.index, "side"].astype(str).str.upper().eq("BUY")].sum())),
-            sell_notional=("notional", lambda s: float(s[trades.loc[s.index, "side"].astype(str).str.upper().eq("SELL")].sum())),
-            outcomes=("outcome", lambda s: ", ".join(sorted({str(item) for item in s.dropna().head(4)}))),
-        )
-        .reset_index()
-        .sort_values("notional", ascending=False)
-    )
-    return grouped
-
-
 def wallet_identity(wallet: str, trades: pd.DataFrame) -> str:
     if not trades.empty and "trader" in trades:
         names = trades["trader"].dropna().astype(str)
@@ -3159,35 +3065,6 @@ def wallet_share_payload(wallet: str, name: str, summary: dict[str, Any], open_p
     return "\n".join(lines)
 
 
-def render_market_news(title: str, key: str) -> None:
-    query = st.text_input("News query", value=title, key=f"news_query_{key}")
-    news = safe_load("Market news", load_market_news, query, 20)
-    if news.empty:
-        draw_empty("No public news results returned for this query.")
-        return
-    st.dataframe(
-        clean_table(news, ["time", "source", "title", "url"]),
-        width="stretch",
-        height=430,
-        column_config={"url": st.column_config.LinkColumn("URL")},
-    )
-
-
-def render_market_comments(market_key: str, title: str) -> None:
-    key = str(market_key or title)
-    comments = st.session_state.market_comments.get(key, [])
-    if comments:
-        st.dataframe(pd.DataFrame(comments), width="stretch", height=240)
-    else:
-        draw_empty("No local comments yet.")
-    note = st.text_area("Add local comment", key=f"comment_text_{key}", height=110, placeholder="Write research notes, links, or thesis updates for this market.")
-    if st.button("Save comment", key=f"save_comment_{key}", width="content") and note.strip():
-        comments.append({"time": md.now_utc_label(), "comment": note.strip()})
-        st.session_state.market_comments[key] = comments
-        save_local_market_comments(st.session_state.market_comments)
-        st.rerun()
-
-
 def execute_research_trade(row: pd.Series, side: str, outcome: str, notional: float, price: float) -> None:
     if notional <= 0 or price <= 0:
         return
@@ -3380,25 +3257,6 @@ def render_research_trade_ticket(row: pd.Series, key_prefix: str = "ticket") -> 
         st.rerun()
 
 
-def render_market_quick_trade_bar(row: pd.Series, market_key: str, selected_outcome: str = "Yes") -> None:
-    st.markdown("#### Quick paper trade")
-    ticket_key = f"market_quick_trade_ticket_{market_key}"
-    quick_cols = st.columns([1, 1, 1.15, 1.2])
-    if quick_cols[0].button(f"YES {cents(row.get('yes_price'))}", key=f"quick_yes_{market_key}", width="stretch"):
-        st.session_state[ticket_key] = md.market_quick_trade_ticket(row, "Yes")
-        st.info("YES paper ticket staged below.")
-    if quick_cols[1].button(f"NO {cents(row.get('no_price'))}", key=f"quick_no_{market_key}", width="stretch"):
-        st.session_state[ticket_key] = md.market_quick_trade_ticket(row, "No")
-        st.info("NO paper ticket staged below.")
-    if quick_cols[2].button("TRADE NOW (paper)", type="primary", key=f"quick_trade_now_{market_key}", width="stretch"):
-        st.session_state[ticket_key] = md.market_quick_trade_ticket(row, selected_outcome)
-        st.info(f"{selected_outcome} paper ticket staged below.")
-    quick_cols[3].link_button("Open venue", row.get("url", "https://polymarket.com"), width="stretch")
-    if ticket_key in st.session_state:
-        with st.expander("Quick paper ticket", expanded=True):
-            render_research_trade_ticket(pd.Series(st.session_state[ticket_key]), key_prefix="market_quick_trade")
-
-
 def _history_window_config(label: str) -> tuple[int, pd.Timedelta | None, str, str]:
     mapping = {
         "1hr": (1, pd.Timedelta(hours=1), "1h", "5min"),
@@ -3517,52 +3375,6 @@ def render_featured_market(row: pd.Series, position_label: str = "") -> None:
             st.plotly_chart(fig, width="stretch", config=plot_config())
     with st.expander("Trade Now (paper)", expanded=False):
         render_research_trade_ticket(row)
-
-
-def render_price_history_chart(hist: pd.DataFrame, chart_type: str, candle_rule: str, y_col: str = "price", label: str = "Yes price") -> None:
-    if hist.empty:
-        draw_empty("No price history returned for this selection.")
-        return
-    if chart_type == "Candlestick":
-        candles = hist.set_index("time")[y_col].resample(candle_rule).ohlc().dropna().reset_index()
-        if candles.empty:
-            draw_empty("Not enough price points for candlesticks in this window.")
-            return
-        fig = go.Figure(
-            data=[
-                go.Candlestick(
-                    x=candles["time"],
-                    open=candles["open"],
-                    high=candles["high"],
-                    low=candles["low"],
-                    close=candles["close"],
-                    increasing_line_color=ACCENT,
-                    decreasing_line_color=RED,
-                    name=label,
-                )
-            ]
-        )
-        fig.update_layout(height=360, margin=dict(l=10, r=10, t=20, b=10), paper_bgcolor=BG, plot_bgcolor=BG, template="plotly_dark")
-        st.plotly_chart(fig, width="stretch", config=plot_config())
-        return
-    fig = px.line(hist, x="time", y=y_col, template="plotly_dark", labels={y_col: label})
-    fig.update_traces(line_color=ACCENT, line_width=2)
-    fig.update_layout(height=360, margin=dict(l=10, r=10, t=20, b=10), paper_bgcolor=BG, plot_bgcolor=BG)
-    st.plotly_chart(fig, width="stretch", config=plot_config())
-
-
-def _holder_outcome_label(holder: pd.Series, yes_asset: str, no_asset: str) -> str:
-    asset = str(holder.get("asset", ""))
-    if yes_asset and asset == yes_asset:
-        return "Yes"
-    if no_asset and asset == no_asset:
-        return "No"
-    index = str(holder.get("outcome_index", ""))
-    if index in {"0", "0.0"}:
-        return "Yes"
-    if index in {"1", "1.0"}:
-        return "No"
-    return "Unknown"
 
 
 def enrich_market_holders(holders: pd.DataFrame, trades: pd.DataFrame, yes_price: Any, no_price: Any) -> pd.DataFrame:
@@ -3693,40 +3505,6 @@ def holder_strength_summary(holders: pd.DataFrame) -> dict[str, Any]:
         "top_10_share": top_10_value / total_value if total_value else 0.0,
         "holder_count": int(len(frame)),
     }
-
-
-def render_holder_bubble_chart(display: pd.DataFrame, height: int = 330) -> None:
-    if display.empty:
-        draw_empty("No holders match the current bubble chart filter.")
-        return
-    bubble = display.head(150).copy()
-    for col, default in {"wallet": "", "trader": "", "shares": 0.0, "avg_price_est": pd.NA, "unrealized_pnl_est": pd.NA, "activity": "", "verified": False}.items():
-        if col not in bubble:
-            bubble[col] = default
-    bubble["wallet_short"] = bubble["wallet"].astype(str).map(short_addr)
-    fig = px.scatter(
-        bubble,
-        x="outcome",
-        y="value",
-        size="shares",
-        color="outcome",
-        hover_data=["trader", "wallet_short", "shares", "avg_price_est", "unrealized_pnl_est", "activity", "verified"],
-        template="plotly_dark",
-        color_discrete_map={"Yes": ACCENT, "No": RED, "Unknown": MUTED},
-    )
-    fig.update_layout(height=height, margin=dict(l=10, r=10, t=15, b=10), paper_bgcolor=BG, plot_bgcolor=BG)
-    st.plotly_chart(fig, width="stretch", config=plot_config())
-
-
-@st.dialog("Holder Bubble Chart", width="large")
-def render_holder_bubble_dialog(display: pd.DataFrame, title: str) -> None:
-    st.caption(title)
-    summary = holder_strength_summary(display)
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Dominant side", str(summary["dominant_side"]), pct(summary["dominant_share"]))
-    c2.metric("Top 10 share", pct(summary["top_10_share"]))
-    c3.metric("Displayed value", money(summary["total_value"]))
-    render_holder_bubble_chart(display, height=560)
 
 
 def trader_insight_metrics(
@@ -4808,7 +4586,7 @@ def render_market_series_strip(row: pd.Series, market_universe: pd.DataFrame | N
 
 
 def page_markets() -> None:
-    section_header("Markets", "Market scanner with saved views, quick filters, table/card/calendar modes, and full market drilldown.")
+    section_header("Markets", "Market scanner with saved views, quick filters, table/card/calendar modes, and a who's-trading panel per market.")
     pm, ks, combined = load_market_universe()
     if combined.empty:
         draw_empty("No market data returned.")
@@ -7499,10 +7277,6 @@ def whale_filter_row(label: str, options: list[str], key: str, help_text: str | 
     label_col, control_col = st.columns([1, 4])
     label_col.markdown(f"**{label}**")
     return control_col.radio(label, options, horizontal=True, key=key, label_visibility="collapsed", help=help_text)
-
-
-def whale_custom_number(label: str, key: str, value: float = 0.0, step: float = 1.0) -> float:
-    return st.number_input(label, min_value=0.0, value=float(value), step=float(step), key=key)
 
 
 def whale_pct_threshold(preset: str, custom_pct: float, defaults: dict[str, float] | None = None) -> float | None:
