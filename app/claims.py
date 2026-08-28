@@ -200,6 +200,38 @@ def registered_texts(path: str | Path = CLAIMS_PATH) -> tuple[str, ...]:
     return tuple(out)
 
 
+def _comparable(text: Any) -> str:
+    """One caveat sentence reduced to what a comparison may depend on."""
+
+    return " ".join(str(text or "").split()).casefold()
+
+
+def unregistered_texts(lines: Any, path: str | Path = CLAIMS_PATH) -> list[str]:
+    """The lines in ``lines`` that no register entry carries, in input order.
+
+    Some caveat wording does not come from the code base at all: the daily
+    review run publishes its principles as text inside public/data/meta.json,
+    a runtime file written in another repository. Those sentences are
+    registered here so the wording is reviewable, and the surface renders the
+    register. This function answers the other half of the question: what did
+    the publisher send that the register does not know about? Such a line is
+    still shown, so a sentence added upstream cannot disappear behind the
+    register, and a reworded one becomes visible instead of silently
+    replaced.
+
+    Whitespace and case are ignored, nothing else: a rewritten sentence is a
+    different sentence and must be seen as one.
+    """
+
+    known = {_comparable(text) for text in registered_texts(path)}
+    out: list[str] = []
+    for line in lines or []:
+        text = str(line or "").strip()
+        if text and _comparable(text) not in known:
+            out.append(text)
+    return out
+
+
 #: How a surface asks the register for a text: caveat/caveatZeile/caveatText
 #: in the frontend, disclaimer() in Python. One pattern for both, so the
 #: rendering check does not depend on which language the surface is in.
