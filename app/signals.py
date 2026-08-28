@@ -54,11 +54,60 @@ def _text(value: Any) -> str:
 
 
 def monitor_volume_col(df: pd.DataFrame) -> str:
+    """Die Volumenspalte, gegen die der Monitor filtert und die er mitfuehrt.
+
+    ``activity_volume`` ist ein Mischwert: der Tageswert, wenn der Markt heute
+    gehandelt wurde, sonst das Lebensvolumen. Als Schwelle und als Spalte
+    heisst das, dass ein Markt ohne Umsatz heute mit seinem Gesamtumsatz
+    antritt. Wer die Zahl anzeigt, muss sie so benennen; "24h" waere falsch.
+    """
+
     if "activity_volume" in df:
         return "activity_volume"
     if "volume_24h" in df:
         return "volume_24h"
     return "volume"
+
+
+#: Felder, die eine Signalart per Konstruktion nicht messen kann, mit dem
+#: Platzhalter, den ``build_monitor_signals`` dort einsetzt. Ein Trade-Signal
+#: kommt aus dem Tape und kennt weder Marktvolumen noch Buchtiefe; ein
+#: Marktsignal kommt aus der Markttabelle und hat kein Notional.
+UNAVAILABLE_FIELDS: dict[tuple[str, ...], tuple[str, ...]] = {
+    TRADE_SIGNAL_TYPES: ("volume", "liquidity"),
+    MARKET_SIGNAL_TYPES: ("notional",),
+}
+
+
+def blank_structural_placeholders(signals: pd.DataFrame) -> pd.DataFrame:
+    """Die Platzhalter-Nullen fuer die Anzeige leeren.
+
+    ``build_monitor_signals`` schreibt 0.0 in die Felder, die eine Signalart
+    nicht messen kann, damit der Frame saubere numerische Spalten hat. In
+    einer Tabelle ist diese Null nicht als Platzhalter zu erkennen: im Signal
+    Feed stand neben Marktsignalen mit echter Buchtiefe jeder Whale-Print mit
+    "Volume 0" und "Liquidity $0" da, als waere sein Markt leer, und wer nach
+    Liquiditaet sortierte, bekam alle Prints ans Ende gestellt. Die Schwellen
+    binden ihre Vergleiche laengst an die Signalart
+    (``monitor_rule_matches``); die Anzeige tat es nicht.
+
+    Rechnende Pfade rufen das nicht auf: die Nullen bleiben im Frame, den der
+    Scanner und das Ledger sehen.
+    """
+
+    if signals is None or signals.empty or "signal_type" not in signals:
+        return signals
+    out = signals.copy()
+    art = out["signal_type"].astype(str)
+    for arten, felder in UNAVAILABLE_FIELDS.items():
+        maske = art.isin(arten)
+        if not bool(maske.any()):
+            continue
+        for feld in felder:
+            if feld in out:
+                out[feld] = pd.to_numeric(out[feld], errors="coerce")
+                out.loc[maske, feld] = float("nan")
+    return out
 
 
 def _observed_at(row: pd.Series, now: Any) -> Any:

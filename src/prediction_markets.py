@@ -102,6 +102,23 @@ def _num(value: Any, default: float | None = None) -> float | None:
     return default
 
 
+def _erste_zahl(frame: pd.DataFrame, *namen: str) -> pd.Series:
+    """Die erste vorhandene der genannten Spalten als Zahl, sonst NaN.
+
+    ``DataFrame.get(name, default)`` wertet den Default sofort aus: fehlt die
+    Spalte im ganzen Feed, wird aus dem Default-Skalar 0 eine Spalte voller
+    Nullen, und eine Null ist in diesen Feeds eine Aussage (abgerechnet,
+    wertlos). Hier bleibt eine fehlende Zahl fehlend.
+    """
+
+    out = pd.Series(float("nan"), index=frame.index, dtype="float64")
+    for name in namen:
+        if name not in frame:
+            continue
+        out = out.where(out.notna(), pd.to_numeric(frame[name], errors="coerce"))
+    return out
+
+
 def _safe_ts(value: Any) -> pd.Timestamp | None:
     if value is None or value == "":
         return None
@@ -2125,8 +2142,13 @@ def get_polymarket_positions(user: str, limit: int = 250) -> pd.DataFrame:
     df["asset"] = df.get("asset", "")
     df["size"] = pd.to_numeric(df.get("size", df.get("amount", 0)), errors="coerce").fillna(0.0)
     df["avg_price"] = pd.to_numeric(df.get("avgPrice", 0), errors="coerce").fillna(0.0)
-    df["current_price"] = pd.to_numeric(df.get("curPrice", df.get("currentPrice", 0)), errors="coerce").fillna(0.0)
-    df["value"] = pd.to_numeric(df.get("currentValue", df.get("value", df["size"] * df["current_price"])), errors="coerce").fillna(0.0)
+    # Kein ``fillna(0.0)`` auf dem Preis. Preis 0 heisst in diesem Feed
+    # "gegen die Wallet aufgeloest und nicht eingeloest" (siehe
+    # ``position_price_state``); aus einer Datenluecke wurde damit ein
+    # abgerechneter Verlust. Fehlt der Preis, bleibt er fehlend.
+    df["current_price"] = _erste_zahl(df, "curPrice", "currentPrice")
+    gemeldeter_wert = _erste_zahl(df, "currentValue", "value")
+    df["value"] = gemeldeter_wert.where(gemeldeter_wert.notna(), df["size"] * df["current_price"])
     df["initial_value"] = df["size"] * df["avg_price"]
     df["unrealized_pnl"] = df["value"] - df["initial_value"]
     df["pnl_pct"] = df["unrealized_pnl"] / df["initial_value"].replace({0: pd.NA})
@@ -2177,7 +2199,12 @@ def get_polymarket_closed_positions(
     df["title"] = df.get("title", "")
     df["outcome"] = df.get("outcome", "")
     df["avg_price"] = pd.to_numeric(df.get("avgPrice", 0), errors="coerce").fillna(0.0)
-    df["current_price"] = pd.to_numeric(df.get("curPrice", 0), errors="coerce").fillna(0.0)
+    # Dieser Preis IST der Ausgang: ``app/calibration.py`` liest ihn als
+    # Abrechnung und wertet <= 0.02 als verloren. Ein ``fillna(0.0)`` machte
+    # aus jeder Zeile ohne Preis eine gezaehlte Fehlprognose. Ohne Preis
+    # bleibt die Zeile NaN und faellt aus der Kurve (``unresolved_exits``
+    # zaehlt sie).
+    df["current_price"] = _erste_zahl(df, "curPrice")
     # ``totalBought`` counts SHARES, not dollars. The feed proves it row by
     # row: a fully lost position reports realizedPnl = -(totalBought x
     # avgPrice) and a winner held to settlement reports totalBought x
@@ -3002,14 +3029,26 @@ def get_kalshi_orderbook(ticker: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     return normalize(yes_levels, "bid", yes_dollars), normalize(no_levels, "ask", no_dollars)
 
 
-def position_is_worthless(current_price: Any, value: Any) -> bool:
-    """Ist diese ``/positions``-Zeile gegen die Wallet aufgeloest und nicht eingeloest?
+#: Preis liegt vor und die Zeile laeuft (oder traegt noch Geld).
+POSITION_PRICE_KNOWN = "open"
+#: Preis ist echt null: gegen die Wallet aufgeloest, nicht eingeloest.
+POSITION_PRICE_WORTHLESS = "worthless"
+#: Der Feed hat fuer diese Zeile gar keinen Preis geliefert.
+POSITION_PRICE_UNKNOWN = "unknown"
+
+
+def position_price_state(current_price: Any, value: Any) -> str:
+    """Drei Faelle statt zwei: Preis vorhanden, Preis echt null, Preis unbekannt.
 
     Eine Position, die gegen die Wallet aufgeloest wurde, bleibt im
     ``/positions``-Feed stehen, bis jemand sie einloest — mit Preis 0 und Wert
-    0. Ihr Verlust ist abgerechnet und bewegt sich nie wieder. In derselben
-    Summe wie der Buchgewinn der offenen Positionen erscheint er als
-    unrealisiert, und ihre Kosten sitzen in der Kostenbasis des offenen Buchs.
+    0. Ihr Verlust ist abgerechnet und bewegt sich nie wieder. Der Feed
+    liefert aber auch Zeilen ganz ohne Preis, und die sahen bis hierher
+    genauso aus: ``fillna(0.0)`` machte aus der Luecke eine gemessene Null und
+    damit aus einer unbekannten Position einen abgerechneten Verlust.
+
+    Ist der Preis unbekannt, der Wert aber gemeldet, ist das Geld bekannt und
+    die Zeile zaehlt als laufend. Nur wenn beides fehlt, ist nichts messbar.
 
     Eine Definition fuer beide Oberflaechen: ``app/api_views.py::_wallet_positions``
     (Web) und ``wallet_summary`` (Streamlit) lesen dieselbe Regel.
@@ -3017,24 +3056,65 @@ def position_is_worthless(current_price: Any, value: Any) -> bool:
 
     price = _num(current_price)
     worth = _num(value)
-    return (price is None or price <= 0.0) and (worth is None or worth <= 0.0)
+    if price is None and worth is None:
+        return POSITION_PRICE_UNKNOWN
+    if (price is None or price <= 0.0) and (worth is None or worth <= 0.0):
+        return POSITION_PRICE_WORTHLESS
+    return POSITION_PRICE_KNOWN
 
 
-def worthless_position_mask(positions: pd.DataFrame) -> pd.Series:
-    """``position_is_worthless`` ueber eine ganze Positionstabelle."""
+def position_is_worthless(current_price: Any, value: Any) -> bool:
+    """Ist diese ``/positions``-Zeile gegen die Wallet aufgeloest und nicht eingeloest?
+
+    Nur der echt gemeldete Nullpreis. Eine Zeile ohne jede Preisangabe ist
+    ``POSITION_PRICE_UNKNOWN`` und keine Antwort auf diese Frage.
+    """
+
+    return position_price_state(current_price, value) == POSITION_PRICE_WORTHLESS
+
+
+def position_price_states(positions: pd.DataFrame) -> pd.Series:
+    """``position_price_state`` ueber eine ganze Positionstabelle."""
 
     if positions is None or positions.empty:
-        return pd.Series(dtype="bool")
+        return pd.Series(dtype="object")
 
     def _spalte(name: str) -> pd.Series:
         # ``DataFrame.get`` gibt bei fehlender Spalte den Skalar zurueck; ein
         # Skalar hat kein ``fillna``. Fehlt die Spalte, gibt es nichts zu
-        # erkennen, und keine Zeile ist wertlos.
+        # erkennen. "Nicht erkennbar" heisst hier ausdruecklich nicht
+        # "wertlos", sonst waere die alte Verwechslung nur verschoben.
         if name not in positions:
-            return pd.Series(1.0, index=positions.index, dtype="float64")
-        return pd.to_numeric(positions[name], errors="coerce").fillna(0.0)
+            return pd.Series(float("nan"), index=positions.index, dtype="float64")
+        return pd.to_numeric(positions[name], errors="coerce")
 
-    return (_spalte("current_price") <= 0.0) & (_spalte("value") <= 0.0)
+    preis = _spalte("current_price")
+    wert = _spalte("value")
+    fehlt_beides = preis.isna() & wert.isna()
+    hat_spalten = ("current_price" in positions) or ("value" in positions)
+    wertlos = (preis.isna() | (preis <= 0.0)) & (wert.isna() | (wert <= 0.0)) & ~fehlt_beides
+    zustand = pd.Series(POSITION_PRICE_KNOWN, index=positions.index, dtype="object")
+    zustand[wertlos] = POSITION_PRICE_WORTHLESS
+    # Fehlen beide Spalten im ganzen Rahmen, ist das kein Positionsfeed und
+    # keine Zeile wird als unbekannt gemeldet.
+    zustand[fehlt_beides & hat_spalten] = POSITION_PRICE_UNKNOWN
+    return zustand
+
+
+def worthless_position_mask(positions: pd.DataFrame) -> pd.Series:
+    """Zeilen mit echt gemeldetem Nullpreis (abgerechneter Verlust)."""
+
+    if positions is None or positions.empty:
+        return pd.Series(dtype="bool")
+    return position_price_states(positions).eq(POSITION_PRICE_WORTHLESS)
+
+
+def unknown_price_mask(positions: pd.DataFrame) -> pd.Series:
+    """Zeilen, fuer die der Feed weder Preis noch Wert geliefert hat."""
+
+    if positions is None or positions.empty:
+        return pd.Series(dtype="bool")
+    return position_price_states(positions).eq(POSITION_PRICE_UNKNOWN)
 
 
 def wallet_summary(open_positions: pd.DataFrame, closed_positions: pd.DataFrame, trades: pd.DataFrame) -> dict[str, Any]:
@@ -3043,18 +3123,33 @@ def wallet_summary(open_positions: pd.DataFrame, closed_positions: pd.DataFrame,
     # Wert des offenen Buchs; beides wird jetzt getrennt gefuehrt.
     worthless_pnl = worthless_cost = 0.0
     worthless_count = 0
+    unknown_count = 0
+    unknown_cost = 0.0
+
+    def _kosten(frame: pd.DataFrame) -> float:
+        return float(
+            (pd.to_numeric(frame.get("size", 0.0), errors="coerce").fillna(0.0)
+             * pd.to_numeric(frame.get("avg_price", 0.0), errors="coerce").fillna(0.0)).sum()
+        )
+
     if not open_positions.empty:
-        worthless = worthless_position_mask(open_positions)
+        zustand = position_price_states(open_positions)
+        worthless = zustand.eq(POSITION_PRICE_WORTHLESS)
         if bool(worthless.any()):
             worthless_count = int(worthless.sum())
             tote = open_positions[worthless]
             if "unrealized_pnl" in tote:
                 worthless_pnl = float(pd.to_numeric(tote["unrealized_pnl"], errors="coerce").fillna(0.0).sum())
-            worthless_cost = float(
-                (pd.to_numeric(tote.get("size", 0.0), errors="coerce").fillna(0.0)
-                 * pd.to_numeric(tote.get("avg_price", 0.0), errors="coerce").fillna(0.0)).sum()
-            )
-            open_positions = open_positions[~worthless]
+            worthless_cost = _kosten(tote)
+        # Ohne Preis ist die Zeile weder offen noch abgerechnet. Sie gehoert
+        # in keine der beiden Summen; nur ihr Einsatz ist bekannt, und der
+        # steht mit eigener Zahl daneben, damit die Luecke sichtbar bleibt.
+        unbekannt = zustand.eq(POSITION_PRICE_UNKNOWN)
+        if bool(unbekannt.any()):
+            unknown_count = int(unbekannt.sum())
+            unknown_cost = _kosten(open_positions[unbekannt])
+        if bool(worthless.any()) or bool(unbekannt.any()):
+            open_positions = open_positions[~(worthless | unbekannt)]
     open_value = float(open_positions["value"].sum()) if not open_positions.empty and "value" in open_positions else 0.0
     unrealized = (
         float(open_positions["unrealized_pnl"].sum())
@@ -3083,6 +3178,9 @@ def wallet_summary(open_positions: pd.DataFrame, closed_positions: pd.DataFrame,
         "worthless_count": worthless_count,
         "worthless_pnl": worthless_pnl,
         "worthless_cost": worthless_cost,
+        # Zeilen ohne Preis: nicht bewertbar, deshalb in keiner Summe oben.
+        "unknown_price_count": unknown_count,
+        "unknown_price_cost": unknown_cost,
         "closed_count": closed_count,
         "win_rate": wins / closed_count if closed_count else None,
         "trade_count": len(trades),
@@ -3906,6 +4004,10 @@ def trader_flow_scores(trades: pd.DataFrame, whale_threshold: float = 2500) -> p
     df = trades.copy()
     if "time" in df:
         df["time"] = pd.to_datetime(df["time"], utc=True, errors="coerce")
+    # Maerkte werden ueber den Schluessel gezaehlt, nicht ueber den Titel:
+    # eine wiederkehrende Frage laeuft jede Woche unter einer neuen
+    # conditionId (siehe market_identity).
+    df["market_identity"] = market_identity(df)
     grouped = (
         df.groupby(["wallet", "trader"], dropna=False)
         .agg(

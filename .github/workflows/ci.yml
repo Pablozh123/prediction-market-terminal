@@ -53,7 +53,15 @@ jobs:
           app/backtester.py
           app/suspicion.py
 
-      - name: Unit tests
+      # Carries the Streamlit page smoke (tests/test_app_smoke.py): every
+      # page of the monolith is rendered through AppTest against the
+      # fixtures in tests/market_api_fixtures.py. It used to sit behind
+      # RUN_APP_SMOKE, and in exactly that blind spot a KeyError took the
+      # Search and Traders pages down for several pull requests while this
+      # job stayed green. The check is hermetic now, so there is no reason
+      # left to gate it; tests/test_app_smoke.py::SmokeGateTests fails if
+      # anyone puts it back behind an env var.
+      - name: Unit tests (includes the Streamlit page smoke)
         run: python -m unittest discover -s tests -p "test_*.py"
 
       - name: Claims lint

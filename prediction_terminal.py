@@ -28,6 +28,7 @@ from app import app_settings as cfg
 from app import authz as az
 from app import backtester as btr
 from app import calibration as calib
+from app import claims
 from app import copy_fidelity as cfy
 from app import cross_pairs as cp
 from app import copy_follow as ctf
@@ -78,6 +79,22 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+
+# Der einzige Weg, auf dem ein stehender Vorbehalt in diese Oberflaeche
+# kommt. Bis hierher trug der Monolith seine Disclaimer als Prosa, waehrend
+# das Web-Frontend dieselben Saetze schon aus data/claims.yaml las: zwei
+# Fassungen desselben Vorbehalts, und genau daraus sind in diesem Repo
+# mehrfach auseinandergedriftete Dubletten entstanden. Der Name traegt
+# absichtlich dasselbe caveat( wie im Frontend, damit
+# scripts/lint_claims.py beide Oberflaechen mit einer Regel liest.
+#
+# Die Seite besitzt weiter ihren beschreibenden Teil ("was diese Seite
+# tut"); der Vorbehalt daneben gehoert dem Register.
+def caveat(key: str, lang: str = "en") -> str:
+    """Registertext eines Vorbehalts (data/claims.yaml). Unbekannt = ''."""
+
+    return claims.disclaimer(key, lang)
 
 
 ACCENT = "#C8F542"
@@ -148,7 +165,7 @@ WORKSPACE_HELP = {
     "Traders": "Leaderboard with win rates, podium, speed traders, and insider picks.",
     "Wallets": "Deep-dive one wallet — positions, activity, and PnL.",
     "Whale Flow": "Large prints: who is moving big money, and where.",
-    "Suspicious": "Insider-risk screen — unusual timing, fresh wallets, clusters.",
+    "Suspicious": "Flow-pattern screen — unusual timing, fresh wallets, clusters.",
     "Track": "Your tracked wallets and markets, with grades and records.",
     "Backtester": "Replay any trader's history with your own sizing rules.",
     "Copy Trade": "Paper copy-trading engine with live WebSocket detection.",
@@ -915,6 +932,41 @@ def clean_table(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     if df.empty:
         return df
     return df[[c for c in columns if c in df.columns]].copy()
+
+
+def signal_value_labels(signals: pd.DataFrame) -> pd.DataFrame:
+    """Signalzeilen mit einer ``value``-Spalte, die ihre Einheit nennt.
+
+    Die Spalte fuehrt je Signalart eine andere Groesse. Unter ``%.4f``
+    standen der Anteil des groessten Halters (0.6200), eine Preisbewegung
+    (0.0350), ein Volumenverhaeltnis (4.7000) und ein Notional (12500.0000)
+    im selben Format untereinander. Der Signal-Feed im Web-Frontend loest
+    das ueber ``api_views.signal_value_label`` auf; hier gilt dieselbe Regel
+    aus derselben Funktion. Aufruf vor ``clean_table``, damit das Etikett aus
+    dem vollen Frame entsteht und nicht aus der Anzeigeauswahl.
+    """
+
+    if signals is None or signals.empty:
+        return signals
+    # Und die Platzhalter-Nullen raus, die keine Messung sind: ein
+    # Whale-Print fuehrt kein Marktvolumen und keine Buchtiefe, ein
+    # Marktsignal kein Notional (app/signals.py::UNAVAILABLE_FIELDS).
+    out = sig.blank_structural_placeholders(signals)
+    if "value" in out:
+        out = out.copy()
+        out["value"] = apv.signal_value_series(signals)
+    return out
+
+
+#: Konfiguration der ``value``-Spalte, wenn sie durch ``signal_value_labels``
+#: gelaufen ist: Text, nicht Zahl, weil in ihr Dollar, Cent, Prozent und ein
+#: Verhaeltnis nebeneinander stehen.
+def signal_value_column_config() -> Any:
+    return st.column_config.TextColumn(
+        "Value",
+        help="Unit follows the signal type: whale prints in dollars, movers and spreads in cents, "
+        "holder concentration as a share of the market, a volume anomaly as a multiple of its baseline.",
+    )
 
 
 def dataframe_selected_row_index(event: Any) -> int | None:
@@ -2669,8 +2721,7 @@ with st.sidebar:
     )
     st.markdown(
         "<div class='sidebar-footnote' style='margin-top:0.9rem'>"
-        "Research tool only — no investment advice, no order placement, no venue affiliation. "
-        "Public Polymarket &amp; Kalshi data, provided as-is."
+        f"{html.escape(caveat('research_tool_only'))}"
         f"<br>Last render: {md.now_utc_label()}</div>",
         unsafe_allow_html=True,
     )
@@ -2689,20 +2740,22 @@ def render_metric_strip(pm: pd.DataFrame, ks: pd.DataFrame, trades: pd.DataFrame
     # Polymarket-Summe steht in Dollar, die Kalshi-Summe zaehlt Kontrakte
     # (Beleg in app/venue_units.py). Addiert ergaben sie keine Groesse, also
     # stehen sie jetzt getrennt.
-    pm_activity = 0.0
-    if not pm.empty:
-        volume_col = "activity_volume" if "activity_volume" in pm else "volume_24h"
-        pm_activity = float(pm[volume_col].fillna(0).sum())
-    ks_activity = 0.0
-    if not ks.empty:
-        volume_col = "activity_volume" if "activity_volume" in ks else "volume_24h"
-        ks_activity = float(ks[volume_col].fillna(0).sum())
+    #
+    # Summiert wird die Tagesspalte, nicht mehr der Mischwert
+    # ``activity_volume``. Der traegt den Tageswert nur bei Handel am selben
+    # Tag, sonst das Lebensvolumen, und eine Summe darueber ist keines von
+    # beidem. Auf derselben Seite standen so drei verschiedene
+    # Polymarket-Volumen: der Ticker (Tageswert), diese Kachel (Mischwert)
+    # und die Kachel "Venue volume" (Mischwert). Jetzt dieselbe Groesse aus
+    # derselben Funktion, die auch /api/overview liest.
+    pm_tag = apv.venue_volume_24h(pm)
+    ks_tag = apv.venue_volume_24h(ks)
     top_pnl = float(leaderboard["pnl"].max()) if not leaderboard.empty and "pnl" in leaderboard else 0.0
     whale_count = len(trades[trades["notional"] >= float(min_whale)]) if not trades.empty and "notional" in trades else 0
     cols = st.columns(5)
     cols[0].metric("Markets loaded", f"{len(pm) + len(ks):,}", f"{len(pm):,} PM / {len(ks):,} KS")
-    cols[1].metric("Polymarket activity", money(pm_activity))
-    cols[2].metric("Kalshi activity", contracts(ks_activity))
+    cols[1].metric("Polymarket 24h volume", money(pm_tag["usd"]), f"{int(pm_tag['traded_today']):,} of {int(pm_tag['markets']):,} traded today", delta_color="off")
+    cols[2].metric("Kalshi 24h volume", contracts(ks_tag["contracts"]), f"{int(ks_tag['traded_today']):,} of {int(ks_tag['markets']):,} traded today", delta_color="off")
     cols[3].metric("Whale prints", f"{whale_count:,}", f">= {money(min_whale)}")
     cols[4].metric("Top public PnL", money(top_pnl))
 
@@ -2715,11 +2768,17 @@ def market_tile(row: pd.Series) -> None:
         st.caption(f"{row.get('platform', '-')}: {row.get('category', '-')}")
         st.markdown(f"**{str(row.get('title', '-'))[:120]}**")
         change = row.get("change_1d") if row.get("platform") == "Polymarket" else None
+        # "Vol" stand ueber ``activity_volume``. Das ist der Tageswert nur
+        # dann, wenn heute gehandelt wurde, sonst das Lebensvolumen: eine
+        # Karte fuer einen Markt ohne Umsatz heute trug 4.2 Mio als
+        # aktuelle Zahl. Der Tageswert ist null, wenn nicht gehandelt wurde,
+        # und diese Null ist die Messung. Dieselbe Regel wie im Web
+        # (web/js/util.js::mapMarket trennt ``vol`` von ``volTotal``).
         st.markdown(
             f"""
             <div class="market-stats">
               <div class="market-stat"><span>Yes</span><strong>{cents(row.get("yes_price"))}</strong></div>
-              <div class="market-stat"><span>Vol</span><strong>{vu.format_volume(row.get("activity_volume", row.get("volume_24h")), row.get("platform"))}</strong></div>
+              <div class="market-stat"><span>Vol 24h</span><strong>{vu.format_volume(row.get("volume_24h"), row.get("platform"))}</strong></div>
               <div class="market-stat"><span>1d</span><strong>{signed_cents(change) if change is not None else "-"}</strong></div>
             </div>
             """,
@@ -2777,11 +2836,19 @@ def wallet_positions_frame(open_positions: pd.DataFrame, closed_positions: pd.Da
         open_frame = open_positions.copy()
         # Preis 0 und Wert 0 heisst: gegen die Wallet aufgeloest und nicht
         # eingeloest. Als "Open" gefuehrt landete so eine Zeile im Aktiv-Filter
-        # und ihr Verlust in derselben Spalte wie ein Buchverlust.
-        open_frame["status"] = md.worthless_position_mask(open_frame).map(
-            {True: "Resolved, not redeemed", False: "Open"}
+        # und ihr Verlust in derselben Spalte wie ein Buchverlust. Eine Zeile
+        # ganz ohne Preis ist ein dritter Fall und bekommt ein eigenes Wort,
+        # damit sie nicht als abgerechneter Verlust gelesen wird.
+        open_frame["status"] = md.position_price_states(open_frame).map(
+            {
+                md.POSITION_PRICE_WORTHLESS: "Resolved, not redeemed",
+                md.POSITION_PRICE_UNKNOWN: "Price unknown",
+                md.POSITION_PRICE_KNOWN: "Open",
+            }
         )
-        open_frame["pnl"] = numeric_col(open_frame, "unrealized_pnl")
+        # Ohne Preis gibt es kein Ergebnis. Ein ``fillna(0.0)`` haette der
+        # Zeile neben dem Wort "Price unknown" ein sauberes $0.00 gegeben.
+        open_frame["pnl"] = pd.to_numeric(open_frame.get("unrealized_pnl"), errors="coerce")
         open_frame["basis"] = numeric_col(open_frame, "size") * numeric_col(open_frame, "avg_price")
         open_frame["time"] = pd.to_datetime(open_frame.get("end_time"), utc=True, errors="coerce")
         frames.append(open_frame)
@@ -3530,12 +3597,12 @@ def trader_insight_metrics(
 
 def page_overview() -> None:
     st.markdown(
-        """
+        f"""
         <div class='hero'>
             <span class='hero-badge'><span class='live-dot'></span>Live · public on-chain data</span>
             <div class='hero-title'>Read the market <em>like the whales do.</em></div>
             <div class='hero-sub'>Whale prints, insider-risk screens, coordinated wallet clusters and copy-trade backtests —
-            one terminal for Polymarket and Kalshi. No signup, no orders placed, pure research.</div>
+            one terminal for Polymarket and Kalshi. {html.escape(caveat('no_signup_no_orders'))}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -3659,7 +3726,16 @@ def page_overview() -> None:
     overview_market_rows = controls[3].slider("Market cards", min_value=3, max_value=24, step=3, key="overview_market_rows")
     with st.expander("Overview filters", expanded=False):
         f1, f2, f3, f4 = st.columns(4)
-        overview_min_volume = f1.number_input("Min market volume", min_value=0, step=1000, key="overview_min_volume")
+        # Die Schwelle laeuft ueber signals.monitor_volume_col, und das ist
+        # ``activity_volume``: der Tageswert bei Handel am selben Tag, sonst
+        # das Lebensvolumen. Der Filter "24h volume" auf der Markets-Seite
+        # liest den Tageswert, dieser hier nicht, und ohne den Hinweis sehen
+        # die beiden Regler gleich aus.
+        overview_min_volume = f1.number_input(
+            "Min market volume (venue unit)", min_value=0, step=1000, key="overview_min_volume",
+            help="Runs over the market's activity volume: the day's figure where there is one, "
+            "the lifetime figure otherwise. Polymarket reports dollars, Kalshi contracts.",
+        )
         overview_min_liquidity = f2.number_input("Min liquidity", min_value=0, step=1000, key="overview_min_liquidity")
         overview_min_flow = f3.number_input("Min flow notional", min_value=0, step=500, key="overview_min_flow_notional")
         active_only = f4.checkbox("Active markets only", key="overview_active_only")
@@ -3824,6 +3900,15 @@ def page_overview() -> None:
     if top_markets.empty:
         draw_empty("No markets match the current filters.")
     else:
+        # Die Reihenfolge steht auf ``activity_volume``, und der faellt ohne
+        # Handel am selben Tag auf das Lebensvolumen zurueck. Eine Karte kann
+        # also weit oben stehen und "Vol 24h -" tragen: dann hat der Markt
+        # heute nicht gehandelt und rankt ueber seinen Gesamtumsatz. Das
+        # gehoert hingeschrieben, solange der Schluessel so bleibt.
+        st.caption(
+            "Ordered by activity volume: the day's turnover where a market traded today, its lifetime "
+            "turnover otherwise. A card at the top with no 24h volume ranks on its lifetime figure."
+        )
         for chunk_start in range(0, len(top_markets), 3):
             cols = st.columns(3)
             for col, (_, row) in zip(cols, top_markets.iloc[chunk_start : chunk_start + 3].iterrows()):
@@ -3833,7 +3918,7 @@ def page_overview() -> None:
     st.divider()
     left, right = st.columns([1.2, 1])
     with left:
-        st.markdown("### Venue volume")
+        st.markdown("### Venue volume · 24h")
         if combined.empty:
             draw_empty("Volume chart unavailable.")
         else:
@@ -3843,14 +3928,22 @@ def page_overview() -> None:
             # Balkenpaar zeigen soll, naemlich welche Venue groesser ist,
             # konnte es damit nicht zeigen. Zwei Zahlen mit ihrer Einheit
             # sagen weniger und behaupten nichts Falsches.
-            volume_col = "activity_volume" if "activity_volume" in combined else "volume_24h"
-            je_einheit = vu.volume_by_unit(combined.get("platform", []),
-                                           numeric_col(combined, volume_col))
+            #
+            # Und sie summieren jetzt die Tagesspalte statt des Mischwerts
+            # ``activity_volume``. Der traegt den Tageswert nur, wenn heute
+            # gehandelt wurde, sonst das Lebensvolumen: die Summe darueber
+            # war weder Tages- noch Lebensumsatz, stand aber auf derselben
+            # Seite wie der Ticker "24H VOLUME POLYMARKET" und war groesser
+            # als der. Dieselbe Groesse liefert /api/overview ans
+            # Web-Frontend (apv.venue_volume_24h).
+            je_einheit = apv.venue_volume_24h(combined)
             venue_links, venue_rechts = st.columns(2)
-            venue_links.metric("Polymarket", money(je_einheit.get(vu.USD, 0.0)))
-            venue_rechts.metric("Kalshi", contracts(je_einheit.get(vu.CONTRACTS, 0.0)))
+            venue_links.metric("Polymarket", money(je_einheit["usd"]))
+            venue_rechts.metric("Kalshi", contracts(je_einheit["contracts"]))
             st.caption(
-                "No shared bar: Polymarket reports dollar turnover, Kalshi reports "
+                f"Summed over the day's volume of {int(je_einheit['traded_today']):,} of "
+                f"{int(je_einheit['markets']):,} loaded markets — the rest did not trade today and "
+                "add nothing here. No shared bar: Polymarket reports dollar turnover, Kalshi reports "
                 "the number of contracts traded. A contract pays $1 at resolution "
                 "and trades at its price p, so a Kalshi bar on the same axis would "
                 "stand 1/p too tall."
@@ -4131,7 +4224,7 @@ def page_search() -> None:
         if alert_results.empty:
             draw_empty("No alert signals for this search.")
         else:
-            display = clean_table(alert_results, ["alert_source", "rule_name", "time", "signal_type", "platform", "reason", "title", "value", "notional", "wallet", "url"]).head(10)
+            display = clean_table(signal_value_labels(alert_results), ["alert_source", "rule_name", "time", "signal_type", "platform", "reason", "title", "value", "notional", "wallet", "url"]).head(10)
             if "wallet" in display:
                 display["wallet"] = display["wallet"].astype(str).map(short_addr)
             st.dataframe(
@@ -4140,7 +4233,7 @@ def page_search() -> None:
                 height=260,
                 column_config={
                     "time": st.column_config.DatetimeColumn(format="YYYY-MM-DD HH:mm"),
-                    "value": st.column_config.NumberColumn(format="%.4f"),
+                    "value": signal_value_column_config(),
                     "notional": st.column_config.NumberColumn(format="$%.0f"),
                     "url": st.column_config.LinkColumn("URL"),
                 },
@@ -4358,7 +4451,9 @@ def page_search() -> None:
                 file_name="search_alerts.csv",
                 mime="text/csv",
             )
-            display = clean_table(alert_results, alert_cols)
+            # Der CSV-Export oben behaelt die rohe Zahl; nur die Anzeige
+            # bekommt die Einheit dazu.
+            display = clean_table(signal_value_labels(alert_results), alert_cols)
             if "wallet" in display:
                 display["wallet"] = display["wallet"].astype(str).map(short_addr)
             st.dataframe(
@@ -4368,7 +4463,7 @@ def page_search() -> None:
                 column_config={
                     "time": st.column_config.DatetimeColumn(format="YYYY-MM-DD HH:mm"),
                     "price": st.column_config.NumberColumn(format="%.4f"),
-                    "value": st.column_config.NumberColumn(format="%.4f"),
+                    "value": signal_value_column_config(),
                     "notional": st.column_config.NumberColumn(format="$%.0f"),
                     "liquidity": st.column_config.NumberColumn(format="$%.0f"),
                     "spread": st.column_config.NumberColumn(format="%.4f"),
@@ -4976,8 +5071,20 @@ def page_markets() -> None:
                 width="stretch",
                 height=220,
                 column_config={
-                    "volume": st.column_config.NumberColumn(format="$%.0f"),
-                    "median_prob": st.column_config.NumberColumn(format="%.3f"),
+                    "date": st.column_config.TextColumn("Date"),
+                    "markets": st.column_config.NumberColumn("Markets ending", format="%.0f"),
+                    # Hier stand ein einziger Schluessel "volume" mit einem
+                    # Dollarzeichen. Die Spalte heisst seit der Trennung nach
+                    # Einheit ``volume_usd`` bzw. ``volume_contracts``, also
+                    # traf der Schluessel nichts: beide Spalten liefen ohne
+                    # Konfiguration durch, die Kalshi-Stueckzahl stand unter
+                    # dem rohen Feldnamen neben dem Dollarbetrag, und das
+                    # Dollarzeichen haette bei einer Umbenennung auf der
+                    # Stueckzahl gelandet. Zwei Schluessel, zwei Einheiten.
+                    "volume_usd": st.column_config.NumberColumn("Polymarket volume", format="$%.0f"),
+                    "volume_contracts": st.column_config.NumberColumn("Kalshi volume (contracts)", format="%.0f"),
+                    "median_prob": st.column_config.NumberColumn("Median Yes", format="%.3f"),
+                    "more_count": st.column_config.NumberColumn("Not shown in cell", format="%.0f"),
                 },
             )
             st.dataframe(display, width="stretch", height=330, column_config=table_config)
@@ -5185,7 +5292,7 @@ def render_track_record(
                 f"{edge_rep['n_events']:,}",
                 help=f"{edge_rep['n_positions']:,} resolved positions netted to {edge_rep['n_events']:,} independent events.",
             )
-            st.caption(f"{edge_rep['headline']} Past record, not a forecast.")
+            st.caption(f"{edge_rep['headline']} {caveat('past_not_forecast')}")
         attribution = trec.pnl_attribution(resolved)
         if attribution["structural_share"] is not None:
             st.divider()
@@ -5457,6 +5564,17 @@ def render_wallet(wallet: str) -> None:
             f"{money(summary.get('worthless_cost', 0.0))} at cost resolved against this wallet and still "
             "sit in the open-positions feed at price 0. Their loss is settled and is kept out of the "
             "unrealised figure, the position value and the cost basis.</div>",
+            unsafe_allow_html=True,
+        )
+    # Der dritte Fall: der Feed hat fuer diese Zeilen weder Preis noch Wert
+    # geliefert. Frueher wurden sie mit Preis 0 gefuehrt und damit wie ein
+    # abgerechneter Totalverlust gezaehlt.
+    unknown_n = int(summary.get("unknown_price_count", 0) or 0)
+    if unknown_n:
+        st.markdown(
+            f"<div class='field-hint'>PRICE UNKNOWN: the feed returned neither price nor value for "
+            f"{unknown_n:,} positions worth {money(summary.get('unknown_price_cost', 0.0))} at cost. "
+            "They are left out of every figure above rather than counted at zero.</div>",
             unsafe_allow_html=True,
         )
     info_cols = st.columns(3)
@@ -5977,7 +6095,7 @@ def render_pnl_vs_skill(leaderboard: pd.DataFrame) -> None:
         st.caption(
             "Skill score corrects the four naive-leaderboard errors (leg inflation, winner-only PnL, wash volume, survivorship) "
             "and penalises one-hit concentration. Verdicts read the realized-edge CI against zero — most records, including "
-            "profitable ones, are not separable from chance on public data. Diagnostics, not advice."
+            f"profitable ones, are not separable from chance on public data. {caveat('diagnostic_not_advice')}"
         )
 
 
@@ -8019,12 +8137,12 @@ def page_whale_flow() -> None:
         "uses the shared screen basis, so the same wallet can carry a different number there."
     )
     cols[4].metric(
-        "High insider events",
+        "Events at 70+ pts",
         f"{int((numeric_col(event_risk, 'event_insider_score') >= 70).sum()) if not event_risk.empty else 0:,}",
         help=tape_basis_note,
     )
     cols[5].metric(
-        "High insider wallets",
+        "Wallets at 70+ pts",
         f"{int((numeric_col(wallet_risk, 'wallet_insider_score') >= 70).sum()) if not wallet_risk.empty else 0:,}",
         help=tape_basis_note,
     )
@@ -8090,7 +8208,7 @@ def page_whale_flow() -> None:
                 height=390,
                 column_config={
                     "wallet_insider_score": st.column_config.ProgressColumn(
-                        "Insider (this tape)", min_value=0, max_value=100,
+                        "Flow pattern (this tape)", min_value=0, max_value=100,
                         help="Flow shape in this page's filtered tape, scaled to 0-100. Nothing in it is validated against an outcome, and the Suspicious page scores the same wallet over a different sample.",
                     ),
                     "notional": st.column_config.NumberColumn(format="$%.0f"),
@@ -8104,7 +8222,7 @@ def page_whale_flow() -> None:
                 },
             )
 
-    st.markdown("<div class='field-hint'>Insider-risk scoring lives on the dedicated Suspicious screen now.</div>", unsafe_allow_html=True)
+    st.markdown("<div class='field-hint'>The full flow-pattern screen lives on the dedicated Suspicious page.</div>", unsafe_allow_html=True)
     tab_tape, tab_markets, tab_bias, tab_track = st.tabs(["Trade Tape", "Market Flow", "Outcome Bias", "Track Actions"])
     with tab_tape:
         st.markdown("### Trade tape")
@@ -8167,7 +8285,10 @@ def page_whale_flow() -> None:
                 width="stretch",
                 height=460,
                 column_config={
-                    "event_insider_score": st.column_config.ProgressColumn("Insider", min_value=0, max_value=100),
+                    "event_insider_score": st.column_config.ProgressColumn(
+                        "Flow pattern (this tape)", min_value=0, max_value=100,
+                        help="Points over nine flow features in this page's filtered tape, capped at 100. Nothing in it is validated against an outcome, and the Suspicious page scores the same market over a different sample.",
+                    ),
                     "notional": st.column_config.NumberColumn(format="$%.0f"),
                     "avg_trade": st.column_config.NumberColumn(format="$%.0f"),
                     "largest_trade": st.column_config.NumberColumn(format="$%.0f"),
@@ -8478,7 +8599,7 @@ def page_cross_venue() -> None:
             st.session_state.watchlist.append(item)
             save_local_list("watchlist.json", st.session_state.watchlist)
             st.success("Kalshi leg added to watchlist.")
-    st.caption("Price gaps are research leads, not guaranteed arbitrage. Resolution rules, fees, settlement timing, and access restrictions can break apparent parity.")
+    st.caption(caveat("parity_not_arbitrage"))
 
 
 MONITOR_SIGNAL_TYPES = ["Fast mover", "Volume anomaly", "Whale print", "Tight spread", "Holder concentration", "Ending soon", "Watched market"]
@@ -8790,12 +8911,21 @@ def page_monitor() -> None:
     signal_config = {
         "time": st.column_config.DatetimeColumn(format="YYYY-MM-DD HH:mm"),
         "price": st.column_config.NumberColumn(format="%.4f"),
-        "value": st.column_config.NumberColumn(format="%.4f"),
+        "value": signal_value_column_config(),
         # Der Monitor laeuft ueber beide Venues, und app/signals.py traegt
         # die Volumenspalte des Marktes unveraendert in die Signalzeile. Auf
         # Kalshi zaehlt sie Kontrakte (app/venue_units.py), also steht hier
         # kein Dollarzeichen. Liquiditaet ist die Ausnahme und bleibt Dollar.
-        "volume": st.column_config.NumberColumn("Volume (venue unit)", format="%.0f"),
+        #
+        # Und die Spalte ist ``activity_volume`` (sig.monitor_volume_col),
+        # also der Tageswert nur bei Handel am selben Tag und sonst das
+        # Lebensvolumen. "Volume" allein liest sich wie ein aktueller Umsatz.
+        "volume": st.column_config.NumberColumn(
+            "Activity volume (venue unit)", format="%.0f",
+            help="The market's activity volume: the day's figure where there is one, the lifetime "
+            "figure otherwise. Polymarket reports dollars, Kalshi contracts. Empty on a whale print, "
+            "which comes from the tape and carries no market volume.",
+        ),
         "liquidity": st.column_config.NumberColumn(format="$%.0f"),
         "spread": st.column_config.NumberColumn(format="%.4f"),
         "change_1h": st.column_config.NumberColumn(format="%+.4f"),
@@ -8805,7 +8935,7 @@ def page_monitor() -> None:
         if signals.empty:
             draw_empty("No monitor signals match the current filters.")
         else:
-            display = clean_table(signals, signal_columns)
+            display = clean_table(signal_value_labels(signals), signal_columns)
             if "wallet" in display:
                 display["wallet"] = display["wallet"].astype(str).map(short_addr)
             st.dataframe(display, width="stretch", height=540, column_config=signal_config)
@@ -8815,7 +8945,7 @@ def page_monitor() -> None:
         else:
             st.download_button("Export alert hits CSV", alert_hits.to_csv(index=False).encode("utf-8"), file_name="monitor_alert_hits.csv", mime="text/csv")
             display = clean_table(
-                alert_hits,
+                signal_value_labels(alert_hits),
                 ["rule_name", "time", "signal_type", "platform", "reason", "title", "price", "value", "notional", "liquidity", "spread", "change_1h", "wallet", "url"],
             )
             if "wallet" in display:
@@ -8858,7 +8988,7 @@ def page_monitor() -> None:
         if movers.empty:
             draw_empty("No fast movers match the current thresholds.")
         else:
-            st.dataframe(clean_table(movers, signal_columns).head(80), width="stretch", height=460, column_config=signal_config)
+            st.dataframe(clean_table(signal_value_labels(movers), signal_columns).head(80), width="stretch", height=460, column_config=signal_config)
     with tab_whales:
         whales = signals[signals["signal_type"].eq("Whale print")] if not signals.empty else pd.DataFrame()
         if whales.empty:
@@ -8878,13 +9008,13 @@ def page_monitor() -> None:
         if spreads.empty:
             draw_empty("No tight spreads match the current thresholds.")
         else:
-            st.dataframe(clean_table(spreads, signal_columns).head(100), width="stretch", height=460, column_config=signal_config)
+            st.dataframe(clean_table(signal_value_labels(spreads), signal_columns).head(100), width="stretch", height=460, column_config=signal_config)
     with tab_holders:
         holder_risk = signals[signals["signal_type"].eq("Holder concentration")] if not signals.empty else pd.DataFrame()
         if holder_risk.empty:
             draw_empty("No holder concentration signals. Increase holder checks or lower the threshold.")
         else:
-            st.dataframe(clean_table(holder_risk, signal_columns).head(60), width="stretch", height=330, column_config=signal_config)
+            st.dataframe(clean_table(signal_value_labels(holder_risk), signal_columns).head(60), width="stretch", height=330, column_config=signal_config)
         if not pm.empty:
             st.markdown("### Manual holder check")
             options = [f"{i + 1}. {str(row.title)[:95]}" for i, row in pm.head(80).iterrows()]
@@ -8908,7 +9038,7 @@ def page_monitor() -> None:
         if ending.empty:
             draw_empty("No ending-soon markets match the current filters.")
         else:
-            st.dataframe(clean_table(ending, signal_columns).head(100), width="stretch", height=460, column_config=signal_config)
+            st.dataframe(clean_table(signal_value_labels(ending), signal_columns).head(100), width="stretch", height=460, column_config=signal_config)
     with tab_rules:
         st.markdown("### Saved alert rules")
         with st.form("monitor_rule_form"):
@@ -10115,7 +10245,7 @@ def page_copy_trade() -> None:
         "Copy Trade",
         "Paper-only Swisstony copier with dynamic wallet-relative sizing and settlement recycling.",
     )
-    st.info("Paper mode only. This page observes public Polymarket wallet activity and does not place real orders.")
+    st.info(f"This page observes public Polymarket wallet activity. {caveat('paper_desk_only')}")
 
     controls = st.columns([1, 1, 1, 1, 1])
     if controls[0].button("Sync now", type="primary", width="stretch"):
@@ -11143,22 +11273,24 @@ def _backtest_stat_cards(stats: dict[str, Any], benchmark: dict[str, Any]) -> No
             else "All of it settled: no position was still open at the end of the window."
         ),
     )
-    # Der Nenner steht dabei. "Trades copied" darunter zaehlt auch die noch
-    # offenen Einstiege und ist nicht die Stichprobe dieser Quote; W und L
-    # summieren sich ausserdem nicht auf sie, weil eine Aufloesung mit
-    # genau 0.00 PnL weder Sieg noch Niederlage ist.
+    # Der Nenner steht dabei, und er zaehlt Positionen. "Trades copied"
+    # darunter zaehlt auch die noch offenen Einstiege und ist nicht die
+    # Stichprobe dieser Quote.
     closed_n = int(stats.get("closed_trades", 0) or 0)
-    flat_n = max(0, closed_n - int(stats["wins"]) - int(stats["losses"]))
+    flat_n = int(stats.get("flat_trades", 0) or 0)
+    decided_n = int(stats.get("decided_trades", 0) or 0)
     top[2].metric(
         "Win rate",
         pct(stats["win_rate"]),
-        f"{stats['wins']}W / {stats['losses']}L of {closed_n} closed",
+        f"{stats['wins']}W / {stats['losses']}L of {decided_n} decided",
         delta_color="off",
         help=(
-            f"{flat_n} of the {closed_n} closers settled at exactly 0.00 and count as neither, "
-            "so they sit in the denominator without being a win or a loss."
+            f"One position counts once, however many tranches it was sold in. {closed_n} positions "
+            f"closed inside the window; {flat_n} of them came back at exactly their cost, decided "
+            "nothing, and are therefore out of this denominator."
             if flat_n
-            else "Closed copies only: every copied SELL and RESOLVE. Still-open entries are not in this sample."
+            else "One closed position counts once, however many tranches it was sold in. "
+                 "Positions still open at the end of the window are not in this sample."
         ),
     )
     bottom = st.columns(3)
@@ -11840,7 +11972,13 @@ def page_settings() -> None:
         st.rerun()
 
 
+# Farbe je INTERNEM Level. Das Level bleibt das Drahtformat (Filter,
+# Flag-Log); was auf dem Bildschirm steht, ist das Band aus
+# app.suspicion.score_band, das getroffene Pruefungen zaehlt statt eine
+# Einschaetzung zu behaupten.
 RISK_LEVEL_COLORS = {"High": RED, "Medium": AMBER, "Elevated": BLUE, "Low": MUTED}
+#: Ton aus app.suspicion.SCORE_BANDS -> Farbe dieser Oberflaeche.
+SCORE_BAND_COLORS = {"warn": AMBER, "muted": BLUE, "quiet": MUTED}
 CLUSTER_COLORS = [ACCENT, BLUE, AMBER, "#E879F9", "#34D399", "#F87171", "#60A5FA", "#FBBF24", "#A78BFA", "#F472B6"]
 
 
@@ -11909,12 +12047,21 @@ def load_market_categories_by_ids(market_keys: tuple[str, ...]) -> pd.DataFrame:
 def page_suspicious() -> None:
     section_header(
         "Suspicious",
-        "Markets and wallets with insider-like flow — long-odds size, late timing, fresh-wallet clusters, one-sided pressure.",
+        "Markets and wallets whose flow trips the screen's checks — long-odds size, late timing, fresh-wallet clusters, one-sided pressure.",
         kicker="Suspicious · Risk screen",
     )
+    # Beide Vorbehalte kommen aus dem Register; die Baender kommen aus
+    # app.suspicion und heissen nach der Zahl der angesprochenen Pruefungen.
+    # "high" neben einer 0-100-Zahl las sich als Wahrscheinlichkeit fuer
+    # Insiderhandel, und die Zahl ist eine Punktesumme aus neun
+    # Flow-Merkmalen mit gesetzten Gewichten.
+    band_hinweis = " · ".join(
+        f"{row['from']}–{row['to']} {row['label'].lower()}" for row in susp.score_band_table()
+    )
     st.markdown(
-        "<div class='field-hint'>Best-effort screen on public trade data — research leads, not legal findings. "
-        "Score bands: &lt;40 low · 40–54 elevated · 55–69 medium · ≥70 high.</div>",
+        f"<div class='field-hint'>{html.escape(caveat('screen_not_proof'))} "
+        f"{html.escape(susp.SCORE_NAME.capitalize())}, 0–100 points: {html.escape(band_hinweis)}.<br>"
+        f"{html.escape(caveat('insider_score_unvalidated'))}</div>",
         unsafe_allow_html=True,
     )
     # Dieselbe Definition wie jede andere Oberflaeche mit einem
@@ -12013,8 +12160,10 @@ def page_suspicious() -> None:
     high_wallets = int((numeric_col(wallet_risk, "wallet_insider_score") >= 70).sum()) if not wallet_risk.empty else 0
     stat_cols = st.columns(5)
     stat_cols[0].metric("Events screened", f"{len(event_risk):,}", help="Markets with whale-sized prints in the current trade sample.")
-    stat_cols[1].metric("High-risk events", f"{high_events:,}", help="Events with a suspicion score of 70 or higher.")
-    stat_cols[2].metric("High-risk wallets", f"{high_wallets:,}", help="Wallets with a risk score of 70 or higher.")
+    stat_cols[1].metric("Events at 70+ pts", f"{high_events:,}",
+                        help="Markets whose flow tripped most of the screen's nine checks.")
+    stat_cols[2].metric("Wallets at 70+ pts", f"{high_wallets:,}",
+                        help="Wallets whose prints tripped most of the screen's nine checks.")
     stat_cols[3].metric(
         "Whale volume",
         money(numeric_col(event_risk, "notional").sum()),
@@ -12024,8 +12173,15 @@ def page_suspicious() -> None:
 
     with st.expander("How to read this page"):
         st.markdown(
-            "- **Score (0–100):** built from unusual size, big bets on long odds, flow close to resolution, one-sided pressure, "
-            "trade bursts, fresh wallets, coordinated timing and favorable price moves. Bands: <40 low · 40–54 elevated · 55–69 medium · ≥70 high.\n"
+            f"- **{susp.SCORE_NAME.capitalize()} (0–100 points):** nine flow features, each capped at a fixed number of points and "
+            "summed: unusual size, the biggest single print, money on long odds, concentration, one-sided pressure, trade bursts, flow "
+            "close to resolution, a favorable price move, and a wallet cluster or a fresh wallet. Fresh-wallet, timing and account-age "
+            "bonuses and a category multiplier are applied on top. The caps are the weights, and they were chosen, not estimated. "
+            f"Bands: {band_hinweis}.\n"
+            f"- **What has not been measured:** {caveat('insider_score_unvalidated')} The one outcome this project "
+            "does measure about the screen is a different quantity: whether the price of the flagged side was higher 30 min, 2 h and "
+            "24 h after the flag, reported with n, a Wilson interval and a note on multiple comparisons (the flag log in the web "
+            "frontend).\n"
             "- **Sample first:** every number describes the *sampled whale prints* (recent trades above the threshold), not the whole market. "
             "Distribution claims — one-wallet share, one-sided flow, bursts — count toward the score only from 3 sampled prints upward "
             "and reach full weight at 5; a single print is always \"100% one wallet\" and means nothing.\n"
@@ -12102,8 +12258,12 @@ def page_suspicious() -> None:
             cols = st.columns(2)
             for offset, (col, (_, event)) in enumerate(zip(cols, event_rows[start : start + 2])):
                 level = str(event.get("event_insider_level", "Low") or "Low")
-                color = RISK_LEVEL_COLORS.get(level, MUTED)
                 score = float(event.get("event_insider_score", 0.0) or 0.0)
+                # Die Beschriftung zaehlt Pruefungen, die Farbe folgt dem Band
+                # und nicht mehr dem internen Level: sonst traegt dieselbe Zahl
+                # hier eine andere Aussage als im Web-Frontend.
+                band = susp.score_band(score)
+                color = SCORE_BAND_COLORS.get(band["tone"], RISK_LEVEL_COLORS.get(level, MUTED))
                 raw_score = float(event.get("event_score_raw", score) or score)
                 context_group = str(event.get("insider_context", "") or "")
                 context_note = str(event.get("context_note", "") or "")
@@ -12114,7 +12274,7 @@ def page_suspicious() -> None:
                 with col:
                     with st.container(border=True):
                         st.markdown(
-                            f"<span class='risk-badge' style='color:{color};border-color:{color}'>{score:.0f} · {level.upper()}</span> "
+                            f"<span class='risk-badge' style='color:{color};border-color:{color}'>{score:.0f} pts · {band['label']}</span> "
                             f"<strong>{html.escape(title[:90])}</strong>{raw_hint}",
                             unsafe_allow_html=True,
                         )
@@ -12569,10 +12729,12 @@ def _esc(value: Any) -> str:
 
 def render_analysis_footer() -> None:
     st.divider()
+    # "Read-only" ist die Eigenschaft dieses Laufs und gehoert der Seite; die
+    # beiden Vorbehalte daneben sind die Grundsaetze, die bisher nur als Text
+    # in public/data/meta.json standen und jetzt im Register stehen.
     st.markdown(
-        "<div class='small-note'>Descriptive analysis from a daily, read-only "
-        "data run. No trading advice, no financial advice, no return "
-        "claims.</div>",
+        "<div class='small-note'>Read-only. "
+        f"{_esc(caveat('daily_run_descriptive'))} {_esc(caveat('daily_run_no_advice'))}</div>",
         unsafe_allow_html=True,
     )
 
@@ -12931,7 +13093,7 @@ def page_mentions_latenz() -> None:
 def page_pipeline_forward() -> None:
     section_header(
         "Pipeline Forward Test",
-        "Observing paper run of the decision pipeline -- no orders, no return claims.",
+        f"Observing paper run of the decision pipeline. {caveat('paper_log_no_return_claim')}",
         kicker="Daily research artifacts",
     )
     payload = load_publish_payload_cached("pipeline_forward.json")
@@ -13768,9 +13930,9 @@ def page_live_runs() -> None:
                 },
             )
             st.caption(
-                "Replay of the recorded bets under a different stake rule — a what-if on history, "
-                "not a forecast. Missed chances are listed per run above but cannot be simulated: "
-                "they never filled, so they have no recorded outcome."
+                "Replay of the recorded bets under a different stake rule, a what-if on history. "
+                f"{caveat('past_not_forecast')} Missed chances are listed per run above but cannot "
+                "be simulated: they never filled, so they have no recorded outcome."
             )
 
         with st.expander("Kelly & Bayes toolkit — size a live market by hand"):
@@ -13810,12 +13972,26 @@ def page_methodik() -> None:
         render_analysis_footer()
         return
     st.markdown("#### Principles")
-    disclaimer = meta.get("disclaimer") or []
-    if isinstance(disclaimer, dict):  # aeltere Publish-Version
-        disclaimer = list(disclaimer.values())
-    for text in disclaimer:
+    # Die vier Grundsaetze standen als Textzeilen in public/data/meta.json,
+    # geschrieben vom taeglichen Lauf in einem anderen Repo. Jetzt kommen sie
+    # aus dem Register, damit dieselbe Zusage im Web-Frontend und hier
+    # denselben Wortlaut hat. Was der Publisher darueber hinaus schickt,
+    # steht weiter darunter: eine Zeile, die das Register nicht kennt, soll
+    # sichtbar werden und nicht verschwinden.
+    for text in (
+        caveat("daily_run_descriptive"),
+        caveat("verification_not_signal"),
+        caveat("daily_run_no_advice"),
+        caveat("daily_run_privacy"),
+    ):
         with st.container(border=True):
-            st.caption(str(text))
+            st.caption(text)
+    published = meta.get("disclaimer") or []
+    if isinstance(published, dict):  # aeltere Publish-Version
+        published = list(published.values())
+    for text in claims.unregistered_texts(published):
+        with st.container(border=True):
+            st.caption(text)
     st.markdown("#### Guardrails of the agent run")
     st.markdown(
         "- Agents read exclusively through the MCP read layer: four read-only tools, "

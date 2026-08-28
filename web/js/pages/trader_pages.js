@@ -2,6 +2,7 @@
 
 import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, tapeFenster, fensterSatz } from '../util.js';
 import { caveat, caveatZeile } from '../claims.js';
+import { scoreBand, bandChips, basisSatz, gemessenSatz } from '../risk_bands.js';
 import { renderClusterGraphics, clusterFarbe } from './cluster_graphics.js';
 import { punktwolke, histogramm, kurzGeld } from '../charts.js';
 import { MONO as M, LABEL_BLOCK, LABEL, NOTIZ } from '../ui.js';
@@ -855,7 +856,12 @@ export function renderRiskLog(T) {
 // score taken apart (riskScoreBreakdown: bars, facts, arithmetic) and the
 // per-wallet book lines. The open state lives in T.state.riskOpen[key] so a
 // re-render keeps it.
-const BAND = (score) => score >= 70 ? ['HIGH', 'var(--warn)'] : score >= 55 ? ['MEDIUM', 'var(--warn)'] : score >= 40 ? ['ELEVATED', 'var(--ink-2)'] : ['LOW', 'var(--ink-3)'];
+// Die Beschriftung des Bandes kommt aus ../risk_bands.js und damit aus
+// app/suspicion.py: HIGH / MEDIUM / ELEVATED / LOW stand neben einer Zahl von
+// 0 bis 100 und las sich als Wahrscheinlichkeit fuer Insiderhandel. Die Zahl
+// ist eine Punktesumme aus neun Flow-Merkmalen mit gesetzten Gewichten, also
+// zaehlen die Baender jetzt getroffene Pruefungen.
+const BAND = (score, T, roh) => scoreBand(score, T && T.liveData ? T.liveData.risk : null, roh);
 
 // Die Score-Verteilung des Screens. Der Trichter bleibt, er zaehlt drei
 // Stufen; das Histogramm sagt, welche Form dahinter liegt.
@@ -874,12 +880,12 @@ export function riskScoreVerteilung(live) {
   return histogramm({
     titel: 'WHERE THE SCORES SIT',
     hinweis: num(gesamt) + ' markets scored',
-    xLabel: 'insider-pattern score (points out of 100)',
+    xLabel: 'flow-pattern score (points out of 100)',
     yLabel: 'markets screened',
     bins: bins.map((b) => ({ von: +b.von, bis: +b.bis, anzahl: +b.anzahl || 0, geflaggt: +b.geflaggt || 0 })).map((b) => ({
       von: b.von, bis: b.bis, anzahl: b.anzahl, hervor: b.geflaggt
     })),
-    referenzen: [{ wert: minScore, label: 'flag ' + minScore }, { wert: 70, label: 'high 70' }],
+    referenzen: [{ wert: minScore, label: 'flag ' + minScore }, { wert: 70, label: 'most patterns 70' }],
     gesamtLabel: 'screened',
     hervorLabel: 'flagged, gets a card',
     zaehlEinheit: 'markets',
@@ -907,7 +913,7 @@ export function riskEventCard(T, r0) {
   const comps = Array.isArray(r0.components) ? r0.components : [];
   const hatDetails = !!(comps.length || riskBookEntry(T, r0));
   const score = Number(r.score) || 0;
-  const band = BAND(score);
+  const band = BAND(score, T, r0);
   const toggle = hatDetails
     ? '<div data-stop ' + T.act(() => T.setState({ riskOpen: Object.assign({}, s.riskOpen || {}, { [key]: !offen }) })) + ' class="hv-bd32" style="' + M + '; font-size:var(--t-micro); letter-spacing:.06em; color:' + (offen ? 'var(--text)' : 'var(--ink-3)') + '; border:1px solid ' + (offen ? 'var(--line-edge)' : 'var(--line-1)') + '; border-radius:var(--r-control); padding:4px 9px; cursor:pointer; white-space:nowrap; user-select:none">' + (offen ? 'Why ' + score + '? ▴' : 'Why ' + score + '? ▾') + '</div>'
     : '';
@@ -982,6 +988,10 @@ export function renderRisk(T) {
     '<div style="display:flex; align-items:center; gap:12px">'
     + '<div style="flex:0 0 158px; ' + M + '; font-size:var(--t-micro); letter-spacing:.08em; color:' + farbe + '">' + label + ' <span style="font-size:var(--t-body); color:' + (farbe === 'var(--warn)' ? 'var(--warn)' : 'var(--text)') + '">' + (wert != null ? wert : '—') + '</span></div>'
     + '<div style="flex:1; height:12px; border-radius:var(--r-control); background:rgba(var(--ink),.07); overflow:hidden"><div style="width:' + trichterBreite(wert).toFixed(1) + '%; height:12px; background:' + balkenFarbe + '"></div></div>'
+    // .5 lag im dunklen Thema bei 4.49:1 und damit knapp unter AA. Die
+    // Korrektur auf .62 ist hier zur Textstufe --ink-3 geworden (.60 dunkel,
+    // .62 hell): gemessen 6.05:1 dunkel und 5.96:1 hell, also weiterhin weit
+    // ueber der Schwelle (Alpha-Leiter in docs/design/review_2026-08-28.md).
     + '<div style="flex:0 0 210px; font-size:var(--t-micro); color:var(--ink-3)">' + satz + '</div>'
     + '</div>';
   const seitenKpi = (label, wert, amber) =>
@@ -997,10 +1007,10 @@ export function renderRisk(T) {
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">floor at ' + minScore + '/100</div></div>'
     + trichterZeile('SCREENED', screened, 'var(--ink-2)', 'rgba(var(--ink),.18)', 'every market with whale flow in the window')
     + trichterZeile('FLAGGED ≥ ' + minScore, flagged, 'var(--ink-2)', 'rgba(var(--ink),.5)', 'cleared the flag threshold — these get cards')
-    + trichterZeile('HIGH ≥ 70', hochEvents, 'var(--warn)', 'var(--warn)', 'strongest insider-like pattern')
+    + trichterZeile('AT 70 AND UP', hochEvents, 'var(--warn)', 'var(--warn)', 'tripped most of the checks')
     + '</div>'
     + '<div style="flex:0 0 280px; display:flex; flex-direction:column; gap:10px">'
-    + seitenKpi('HIGH-RISK WALLETS', kp ? kp.high_risk_wallets : null, true)
+    + seitenKpi('WALLETS AT 70 AND UP', kp ? kp.high_risk_wallets : null, true)
     + seitenKpi('FRESH-WALLET CLUSTERS', kp ? kp.fresh_clusters : null, false)
     + seitenKpi('COORDINATED CLUSTERS', kp ? kp.coordinated_clusters : null, false)
     + '</div></div>'
@@ -1026,13 +1036,13 @@ export function renderRisk(T) {
       + swatch('var(--warn)', 'price &amp; timing')
       + swatch('var(--accent)', 'wallet pattern')
       + '</div>'
-      + '<div style="font-size:var(--t-small); color:var(--ink-3)">ticks at 40 · 55 · 70 — low → elevated → medium → high · open <span style="' + M + '; font-size:var(--t-micro)">Why?</span> on a card for the full arithmetic</div>'
+      + '<div style="font-size:var(--t-small); color:var(--ink-3)">ticks at 40 · 55 · 70 points · open <span style="' + M + '; font-size:var(--t-micro)">Why?</span> on a card for the full arithmetic</div>'
       + '</div>';
     // The honest empty state: with the threshold in place, "no cards" most
     // often means "everything screened was unremarkable", and the page says
     // exactly that with the numbers, instead of a bare loading sentence.
     const leerSatz = T.risks.length
-      ? 'No event at this severity.'
+      ? 'No event in this band.'
       : (unterZahl > 0
         ? 'All ' + (live && live.kpis ? live.kpis.events_screened : unterZahl) + ' screened markets scored below the flag threshold (' + minScore + ') — nothing suspicious in this window.'
         : risikoSatz);
@@ -1042,9 +1052,11 @@ export function renderRisk(T) {
     body = '<div>'
       + legende
       + '<div style="display:flex; gap:6px; padding:14px 24px 0; flex-wrap:wrap">'
+      // Die Filter heissen nach der Punktspanne, die sie zeigen. "High" und
+      // "Watch" waren Einschaetzungen fuer eine Zahl, die keine traegt.
       + [T.tab('All', s.riskFilter === 'all', { riskFilter: 'all' }),
-         T.tab('High', s.riskFilter === 'high', { riskFilter: 'high' }),
-         T.tab('Watch', s.riskFilter === 'medium', { riskFilter: 'medium' })].join('')
+         T.tab('70 and up', s.riskFilter === 'high', { riskFilter: 'high' }),
+         T.tab('55–69', s.riskFilter === 'medium', { riskFilter: 'medium' })].join('')
       + '</div>'
       + (riskFiltered.length ? '' : leerZeile(leerSatz))
       + '<div style="padding:18px 24px; display:grid; grid-template-columns:repeat(2,1fr); gap:14px">'
@@ -1064,7 +1076,8 @@ export function renderRisk(T) {
     body = '<div>'
       + '<div style="padding:14px 24px 0; font-size:var(--t-small); color:var(--ink-3); line-height:1.55; max-width:860px">'
       + 'The flagged flow grouped by the wallet that placed it — the <span style="font-style:italic">who</span> behind the Events tab. '
-      + 'Same 0–100 score and bands as Events: how much this wallet\'s prints look like early knowledge (size, long odds, timing, account freshness). '
+      + 'Same 0–100 point total and the same bands as Events: how many of the screen\'s nine flow checks this wallet\'s prints tripped '
+      + '(size, long odds, timing, account freshness). '
       + 'The chips under each wallet say which patterns fired; <span style="' + M + '; font-size:var(--t-small)">watch only</span> means none did — the wallet is listed for size alone.'
       + '</div>'
       + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin:14px 24px; overflow:hidden">'
@@ -1072,7 +1085,7 @@ export function renderRisk(T) {
       + '<div>WALLET · WHY FLAGGED</div><div style="text-align:right">SCORE</div><div style="text-align:right">PRINTS</div><div style="text-align:right">NOTIONAL</div><div style="text-align:right">BIGGEST</div><div style="text-align:right">FIRST SEEN</div></div>'
       + (walletRows.length ? '' : leerZeile(antwortDa ? 'No wallet cleared the screen in this window — nothing in the flagged flow groups to a suspicious wallet.' : risikoSatz))
       + walletRows.map((w) => {
-        const band = BAND(Number(w.score) || 0);
+        const band = BAND(Number(w.score) || 0, T, w);
         const scoreStyle = M + '; font-size:var(--t-small); border-radius:var(--r-control); padding:3px 9px; ' + (w.score >= 70 ? 'color:var(--on-accent); background:var(--warn)' : w.score >= 55 ? 'color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35)' : 'color:var(--ink-2); border:1px solid var(--line-1)');
         const flags = Array.isArray(w.flags) ? w.flags : [];
         const flagChips = flags.map((f) => {
@@ -1222,13 +1235,24 @@ export function renderRisk(T) {
     // api_views.risk_payload; beide lesen jetzt screen_not_proof.
     + caveatZeile('screen_not_proof', {
       nachsatz: 'Sports odds, crypto &amp; market prices, and weather are excluded: game results, exchange prices and weather models cannot be traded on early.',
-      stil: 'font-size:var(--t-body); color:var(--ink-4); margin-top:10px; max-width:760px; line-height:1.5'
+      stil: 'font-size:var(--t-body); color:var(--ink-3); margin-top:10px; max-width:760px; line-height:1.5'
     })
+    // Was die Zahl ist, bevor die Baender sie benennen. Der stehende
+    // Vorbehalt kommt aus dem Register (insider_score_unvalidated), der Satz
+    // davor beschreibt die Rechnung und gehoert dieser Seite.
+    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:8px; max-width:760px; line-height:1.5">'
+    + '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.08em; color:var(--ink-2)">'
+    + esc(String((live && live.score_name) || 'flow-pattern score').toUpperCase()) + ' · 0–100</span> '
+    + esc(basisSatz(live)) + ' '
+    + caveat('insider_score_unvalidated')
+    // Und dann: was STATTDESSEN gemessen wird, mit dem Weg dorthin. Ein
+    // Vorbehalt, der nur sagt, was fehlt, laesst den Leser ohne Anhalt; der
+    // Flag-Log misst eine andere Groesse (folgte der Preis der geflaggten
+    // Seite?) und tut es mit n und Intervall.
+    + ' ' + esc(gemessenSatz(live))
+    + '</div>'
     + '<div style="display:flex; gap:7px; margin-top:12px; flex-wrap:wrap">'
-    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); border:1px solid var(--line-2); border-radius:var(--r-control); padding:4px 9px">UNDER 40 · LOW</div>'
-    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); border:1px solid var(--line-1); border-radius:var(--r-control); padding:4px 9px">40–54 · ELEVATED</div>'
-    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--warn); border:1px solid rgba(var(--warn-rgb),.3); border-radius:var(--r-control); padding:4px 9px">55–69 · MEDIUM</div>'
-    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--on-accent); background:var(--warn); border-radius:var(--r-control); padding:4px 9px">70 AND UP · HIGH</div>'
+    + bandChips(live)
     + '</div></div>'
 
     + trichter

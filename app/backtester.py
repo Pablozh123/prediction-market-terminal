@@ -216,6 +216,7 @@ def replay(
     trades: pd.DataFrame,
     config: BacktestConfig,
     token_values: dict[str, dict[str, Any]] | None = None,
+    asof: pd.Timestamp | None = None,
 ) -> tuple[pd.DataFrame, dict[str, dict[str, Any]]]:
     """Replay source trades chronologically. Returns (ledger, open positions by asset).
 
@@ -223,6 +224,13 @@ def replay(
     the window are settled at their resolution time inside the replay — the
     payout flows back into cash and frees exposure-cap room, exactly like in
     reality. Without it (legacy behavior), everything settles at the end.
+
+    ``asof`` is the end of the window. Resolutions run at their own due time,
+    not only when the wallet happens to trade again: without it, a resolution
+    that falls after the last trade of the window stayed pending and was
+    booked afterwards by ``settle``, which writes no running equity into the
+    row. Nothing due after ``asof`` is settled, so the window edge stays the
+    window edge.
     """
 
     cash = float(config.bankroll)
@@ -378,6 +386,11 @@ def replay(
                     "market_key": str(record.get("market_key", "") or ""),
                     "lookup_asset": asset,
                     "fade": fade,
+                    # Wann diese Position aufgemacht wurde. ``settle`` braucht
+                    # das, damit eine Auszahlung nicht vor ihrem eigenen Kauf
+                    # in der Kurve landet (Maerkte melden ein ``end_time``,
+                    # das vor dem Einstieg liegen kann).
+                    "opened_at": pd.to_datetime(trade.get("time"), utc=True, errors="coerce"),
                 },
             )
             position["shares"] += shares
@@ -437,6 +450,15 @@ def replay(
         else:
             log(trade.get("time"), side or "?", "skipped", record, note="unsupported side")
 
+    # Der letzte Trade ist kein Termin. Was danach und noch innerhalb des
+    # Fensters faellig wird, wird hier abgerechnet: zur eigenen
+    # Faelligkeit, nicht zum Fensterende und nicht erst, wenn die Wallet
+    # zufaellig wieder handelt. Alles nach ``asof`` bleibt offen.
+    # Die Reihenfolge bleibt dabei chronologisch: was hier noch offen ist,
+    # war beim letzten Trade noch nicht faellig.
+    if asof is not None:
+        settle_due(asof)
+
     ledger = pd.DataFrame(rows, columns=LEDGER_COLUMNS)
     return ledger, positions
 
@@ -480,6 +502,14 @@ def settle(
             event_time = end_time if isinstance(end_time, pd.Timestamp) and pd.notna(end_time) else asof
             if event_time > asof:
                 event_time = asof
+            # Kein Vorgriff: der gemeldete ``end_time`` eines Marktes kann
+            # vor dem Kauf liegen, und dann stand die Auszahlung in der
+            # Kurve, bevor die Position ueberhaupt existierte. ``replay``
+            # klammert dasselbe beim Einplanen (schedule_resolution); ohne
+            # diese Zeile galt es nur auf dem einen der beiden Wege.
+            opened_at = position.get("opened_at")
+            if isinstance(opened_at, pd.Timestamp) and pd.notna(opened_at) and event_time < opened_at:
+                event_time = opened_at
             rows.append(
                 {
                     "time": event_time,
@@ -495,7 +525,12 @@ def settle(
                     "realized_pnl": realized,
                     "equity_after": float("nan"),
                     "note": "market resolved",
-                    "asset": asset,
+                    # Das Token, nicht der Positionsschluessel. Beim Fade
+                    # heisst der Schluessel "fade:<token>", die BUY- und
+                    # SELL-Zeilen desselben Durchgangs tragen aber das
+                    # Token. ``position_rounds`` haette den Ausstieg sonst
+                    # nie seinem Einstieg zuordnen koennen.
+                    "asset": lookup_asset,
                     "market_key": base["market_key"],
                 }
             )
@@ -568,14 +603,141 @@ def equity_curve(
     return curve
 
 
+#: Restanteile unter dieser Schwelle gelten als zu. ``replay`` raeumt eine
+#: Position bei <= 1e-9 aus dem Buch; hier gilt dieselbe Grenze.
+SHARE_EPS = 1e-9
+
+#: Ein Ergebnis unter dieser Schwelle ist flach. Nicht Null selbst, damit
+#: eine Rundung auf dem letzten Bit nicht ueber Sieg oder Niederlage
+#: entscheidet.
+FLAT_EPS = 1e-9
+
+ROUND_COLUMNS = [
+    "asset",
+    "market_key",
+    "title",
+    "outcome",
+    "opened_at",
+    "closed_at",
+    "shares_bought",
+    "shares_closed",
+    "entries",
+    "exits",
+    "cost",
+    "realized_pnl",
+    "closed",
+    "result",
+]
+
+POSITION_RESULTS = ("win", "loss", "flat")
+
+
+def position_rounds(ledger: pd.DataFrame) -> pd.DataFrame:
+    """Eine Zeile je Position statt je Ausstiegsereignis.
+
+    Ein Durchgang beginnt mit dem ersten BUY auf ein Token, an dem nichts
+    mehr offen ist, und endet, sobald seine Anteile wieder bei null sind
+    (SELL bis auf den Rest, oder RESOLVE). Wird dasselbe Token spaeter erneut
+    gekauft, ist das ein zweiter Durchgang und nicht die Fortsetzung des
+    ersten.
+
+    Warum das hier steht: ``closed_trades`` war die Zahl der SELL- und
+    RESOLVE-Zeilen. Eine Position, die in drei Tranchen verkauft wurde,
+    zaehlte dreifach, in Zaehler UND Nenner der Trefferquote. Eine Wallet,
+    die ihre Gewinner stueckweise abbaut und ihre Verlierer in einem Stueck
+    fallen laesst, bekam davon eine Quote geschenkt, die niemand geworfen
+    hat. ``realized_pnl`` bleibt davon unberuehrt: Geld ist Geld, auch aus
+    dem Teilausstieg einer Position, die noch laeuft.
+    """
+
+    if ledger is None or ledger.empty:
+        return pd.DataFrame(columns=ROUND_COLUMNS)
+    frame = ledger[ledger["status"].isin(["copied", "settled"])].copy()
+    frame = frame[frame["action"].isin(["BUY", "SELL", "RESOLVE"])]
+    if frame.empty:
+        return pd.DataFrame(columns=ROUND_COLUMNS)
+    frame["time"] = pd.to_datetime(frame["time"], utc=True, errors="coerce")
+    frame = frame.sort_values("time", kind="stable")
+
+    offen: dict[str, dict[str, Any]] = {}
+    runden: list[dict[str, Any]] = []
+
+    def abschliessen(key: str) -> None:
+        runde = offen.pop(key, None)
+        if runde is None:
+            return
+        runde["closed"] = True
+        pnl = float(runde["realized_pnl"])
+        runde["result"] = "flat" if abs(pnl) <= FLAT_EPS else ("win" if pnl > 0.0 else "loss")
+        runden.append(runde)
+
+    for _, row in frame.iterrows():
+        key = str(row.get("asset", "") or "")
+        shares = float(row.get("shares", 0.0) or 0.0)
+        action = str(row.get("action", ""))
+        if action == "BUY":
+            if shares <= 0.0:
+                continue
+            runde = offen.get(key)
+            if runde is None:
+                runde = {
+                    "asset": key,
+                    "market_key": str(row.get("market_key", "") or ""),
+                    "title": str(row.get("title", "") or ""),
+                    "outcome": str(row.get("outcome", "") or ""),
+                    "opened_at": row.get("time"),
+                    "closed_at": pd.NaT,
+                    "shares_bought": 0.0,
+                    "shares_closed": 0.0,
+                    "entries": 0,
+                    "exits": 0,
+                    "cost": 0.0,
+                    "realized_pnl": 0.0,
+                    "closed": False,
+                    "result": "",
+                }
+                offen[key] = runde
+            runde["shares_bought"] += shares
+            runde["entries"] += 1
+            runde["cost"] += float(row.get("stake", 0.0) or 0.0)
+            continue
+        runde = offen.get(key)
+        if runde is None:
+            # Ausstieg ohne eigenen Einstieg im Ledger: nichts, was hier
+            # zu einer Position gehoert (der Kauf lag vor dem Fenster).
+            continue
+        runde["shares_closed"] += shares
+        runde["exits"] += 1
+        runde["realized_pnl"] += float(row.get("realized_pnl", 0.0) or 0.0)
+        runde["closed_at"] = row.get("time")
+        rest = runde["shares_bought"] - runde["shares_closed"]
+        if action == "RESOLVE" or rest <= max(SHARE_EPS, runde["shares_bought"] * SHARE_EPS):
+            abschliessen(key)
+
+    for runde in offen.values():
+        runde["closed"] = False
+        runde["result"] = ""
+        runden.append(runde)
+
+    out = pd.DataFrame(runden, columns=ROUND_COLUMNS)
+    if out.empty:
+        return out
+    return out.sort_values("opened_at", kind="stable").reset_index(drop=True)
+
+
 def compute_stats(ledger: pd.DataFrame, open_positions: pd.DataFrame, curve: pd.DataFrame, bankroll: float) -> dict[str, Any]:
     stats: dict[str, Any] = {
         "bankroll": float(bankroll),
         "copied_trades": 0,
         "skipped_trades": 0,
+        # Geschlossene POSITIONEN, nicht Ausstiegsereignisse (position_rounds).
         "closed_trades": 0,
         "wins": 0,
         "losses": 0,
+        # Aufloesungen, die genau die Kosten zurueckgaben: entschieden haben
+        # sie nichts, also stehen sie ausserhalb des Quotennenners.
+        "flat_trades": 0,
+        "decided_trades": 0,
         "win_rate": None,
         "realized_pnl": 0.0,
         "unrealized_pnl": 0.0,
@@ -618,20 +780,36 @@ def compute_stats(ledger: pd.DataFrame, open_positions: pd.DataFrame, curve: pd.
         stats["fees_paid"] = float(copied["fee"].fillna(0.0).sum())
         stats["volume_copied"] = float(copied.loc[copied["action"].eq("BUY"), "stake"].fillna(0.0).sum())
         closers = copied[copied["action"].isin(["SELL", "RESOLVE"])]
-        pnl = closers["realized_pnl"].fillna(0.0)
-        stats["closed_trades"] = int(len(closers))
-        stats["wins"] = int((pnl > 0).sum())
-        stats["losses"] = int((pnl < 0).sum())
-        if stats["closed_trades"]:
-            stats["win_rate"] = stats["wins"] / stats["closed_trades"]
-        gross_win = float(pnl[pnl > 0].sum())
-        gross_loss = float(-pnl[pnl < 0].sum())
+        # Jede Zaehlung unten laeuft ueber geschlossene Positionen. Vorher
+        # war es die Zahl der Ausstiegszeilen: drei Tranchen einer einzigen
+        # Position waren drei Trades und drei Siege, und eine Aufloesung zu
+        # genau null sass ohne Sieg und ohne Niederlage im Nenner.
+        runden = position_rounds(ledger)
+        geschlossen = runden[runden["closed"]] if not runden.empty else runden
+        ergebnis = geschlossen["realized_pnl"].fillna(0.0) if not geschlossen.empty else pd.Series(dtype="float64")
+        stats["closed_trades"] = int(len(geschlossen))
+        stats["wins"] = int((geschlossen["result"] == "win").sum()) if not geschlossen.empty else 0
+        stats["losses"] = int((geschlossen["result"] == "loss").sum()) if not geschlossen.empty else 0
+        stats["flat_trades"] = int((geschlossen["result"] == "flat").sum()) if not geschlossen.empty else 0
+        # Eine flache Position hat nichts entschieden. Sie im Nenner zu
+        # lassen zieht die Quote nach unten, ohne dass irgendetwas gegen die
+        # Strategie spricht; sie wegzulassen und zu verschweigen wuerde die
+        # Stichprobe schoenen. Also beides: raus aus dem Nenner, eigene Zahl.
+        stats["decided_trades"] = stats["wins"] + stats["losses"]
+        if stats["decided_trades"]:
+            stats["win_rate"] = stats["wins"] / stats["decided_trades"]
+        gross_win = float(ergebnis[ergebnis > 0].sum())
+        gross_loss = float(-ergebnis[ergebnis < 0].sum())
         if gross_loss > 0:
             stats["profit_factor"] = gross_win / gross_loss
         elif gross_win > 0:
             stats["profit_factor"] = float("inf")
-        stats["best_trade"] = float(pnl.max()) if len(pnl) else 0.0
-        stats["worst_trade"] = float(pnl.min()) if len(pnl) else 0.0
+        stats["best_trade"] = float(ergebnis.max()) if len(ergebnis) else 0.0
+        stats["worst_trade"] = float(ergebnis.min()) if len(ergebnis) else 0.0
+        # Das Geld bleibt ereignisbasiert: ein Teilausstieg aus einer noch
+        # laufenden Position ist gebuchtes Ergebnis, auch wenn die Position
+        # oben noch nicht als geschlossen zaehlt.
+        pnl = closers["realized_pnl"].fillna(0.0)
         buy_fees = float(copied.loc[copied["action"].eq("BUY"), "fee"].fillna(0.0).sum())
         stats["realized_pnl"] = float(pnl.sum()) - buy_fees
     if open_positions is not None and not open_positions.empty:
@@ -1041,7 +1219,7 @@ def run_backtest(
     # blind in Kasse-leer/Exposure-Deckel zu laufen.
     intervals = source_position_intervals(trades, token_values)
     replay_config, auto_fit_info = _auto_fit_config(config, intervals)
-    ledger, positions = replay(trades, replay_config, token_values)
+    ledger, positions = replay(trades, replay_config, token_values, asof=window_end)
     flat_config = BacktestConfig(
         wallet=config.wallet,
         days=config.days,
@@ -1056,7 +1234,7 @@ def run_backtest(
         flat_stake=config.flat_stake,
         strategy=config.strategy,
     )
-    flat_ledger, flat_positions = replay(trades, flat_config, token_values)
+    flat_ledger, flat_positions = replay(trades, flat_config, token_values, asof=window_end)
 
     settlement, open_positions = settle(positions, token_values, asof=window_end)
     flat_settlement, flat_open = settle(flat_positions, token_values, asof=window_end)
@@ -1172,7 +1350,7 @@ def strategy_comparison(
             max_exposure_pct=config.max_exposure_pct,
             trader_portfolio_value=config.trader_portfolio_value,
         )
-        ledger, positions = replay(trades, variant_config, resolved_token_values)
+        ledger, positions = replay(trades, variant_config, resolved_token_values, asof=window_end)
         settlement, open_positions = settle(positions, resolved_token_values, asof=window_end)
         full_ledger = pd.concat([ledger, settlement], ignore_index=True) if not settlement.empty else ledger
         unrealized = float(open_positions["unrealized_pnl"].sum()) if not open_positions.empty else 0.0
@@ -1190,7 +1368,11 @@ def strategy_comparison(
                 "win_rate": stats["win_rate"],
                 # Der Nenner der Trefferquote gehoert in dieselbe Zeile:
                 # copied_trades zaehlt auch die noch offenen Einstiege.
+                # closed_trades sind geschlossene Positionen, decided_trades
+                # davon die entschiedenen (der Nenner der Quote).
                 "closed_trades": stats["closed_trades"],
+                "decided_trades": stats["decided_trades"],
+                "flat_trades": stats["flat_trades"],
                 "copied_trades": stats["copied_trades"],
                 "skipped_trades": stats["skipped_trades"],
                 "volume_copied": stats["volume_copied"],

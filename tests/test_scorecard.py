@@ -4,6 +4,7 @@ import pandas as pd
 
 from app import calibration as calib
 from app import scorecard as sc
+from app import suspicion as susp
 from app.format import snapshot_label
 from src.prediction_markets import MarketDataError
 
@@ -79,7 +80,8 @@ class ScorecardShapeTests(unittest.TestCase):
         self.assertEqual(card["smart"], {"copy_smart_score": 71.0, "copy_grade": "B", "imputed_components": []})
         self.assertEqual(
             card["risk"],
-            {"wallet_insider_score": 44.0, "risk_level": "Medium", "flags": ["late burst"]},
+            {"wallet_insider_score": 44.0, "risk_level": "Medium",
+             "band": susp.score_band(44.0), "flags": ["late burst"]},
         )
         self.assertEqual(card["sample"]["n_resolved"], 32)
         self.assertNotEqual(snapshot_label(card["snapshot_at"]), "-")
@@ -215,7 +217,11 @@ class BlockMappingTests(unittest.TestCase):
     def test_risk_block_normalizes_flags_and_level(self):
         self.assertIsNone(sc._risk_block(None))
         block = sc._risk_block({"wallet_insider_score": 55.0, "wallet_risk_level": "High", "flags": "single flag"})
-        self.assertEqual(block, {"wallet_insider_score": 55.0, "risk_level": "High", "flags": ["single flag"]})
+        self.assertEqual(block, {"wallet_insider_score": 55.0, "risk_level": "High",
+                                 "band": susp.score_band(55.0), "flags": ["single flag"]})
+        # Das interne Level bleibt das Drahtformat; das Band ist, was eine
+        # Oberflaeche zeigen darf, und zaehlt getroffene Pruefungen.
+        self.assertEqual(block["band"]["label"], "MANY PATTERNS")
 
 
 class RiskRowBasisTests(unittest.TestCase):

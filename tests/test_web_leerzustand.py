@@ -230,13 +230,20 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("floor at 40/100", text)
         self.assertIn("SCREENED 9", text)
         self.assertIn("FLAGGED ≥ 40 2", text)
-        self.assertIn("HIGH ≥ 70 1", text)
+        self.assertIn("AT 70 AND UP 1", text)
         self.assertIn("cleared the flag threshold — these get cards", text)
         self.assertIn("SCORE COMPOSITION", text)
         self.assertIn("size of the money", text)
         self.assertIn("price &amp; timing", text)
         self.assertIn("wallet pattern", text)
-        self.assertIn("ticks at 40 · 55 · 70 — low → elevated → medium → high", text)
+        self.assertIn("ticks at 40 · 55 · 70 points", text)
+        # Der Kopf sagt, was die Zahl ist, was ueber sie NICHT gemessen wurde
+        # (Register) und wo die eine Groesse steht, die gemessen wird.
+        self.assertIn("9 flow features, each capped at a fixed number of points", text)
+        self.assertIn("no hit rate exists for it", text)
+        self.assertIn("The one outcome this screen does measure is on the Flag log tab", text)
+        self.assertIn("UNDER 40 PTS · FEW PATTERNS", text)
+        self.assertIn("70+ PTS · MOST PATTERNS", text)
         self.assertIn("7 more markets screened below 40/100 — watch only, no card.", text)
         # Ohne Antwort keine erfundene Zahl: Trichter mit "—", kein Zaehler.
         leer = _sichtbarer_text(self.ausgabe["leer"]["risk"])
@@ -253,11 +260,11 @@ class WebLeerzustandTest(unittest.TestCase):
         # Cluster mit WER (klickbare Wallets) und WO (geteilte Maerkte) —
         # die unlesbare Wallet-Markt-Matrix ist weg.
         wallets = _sichtbarer_text(self.ausgabe["live"]["risk_wallets"])
-        self.assertIn("Same 0–100 score and bands as Events", wallets)
+        self.assertIn("Same 0–100 point total and the same bands as Events", wallets)
         self.assertIn("long-odds big bet", wallets)
         self.assertIn("late-market flow", wallets)
         self.assertIn("watch only", wallets)
-        self.assertIn("71 HIGH", wallets)
+        self.assertIn("71 MOST PATTERNS", wallets)
         self.assertIn("$450", wallets)  # not "$0k"
         self.assertNotIn("CLUSTER", wallets.replace("FRESH-WALLET CLUSTERS", "").replace("COORDINATED CLUSTERS", ""))
         fresh = _sichtbarer_text(self.ausgabe["live"]["risk_fresh"])
@@ -1406,7 +1413,7 @@ class WebLeerzustandTest(unittest.TestCase):
         # components, the context note as a tooltip on the category; the
         # "Why this score" toggle opens them (state riskOpen, not <details>,
         # so the 30 s re-render keeps it open).
-        self.assertIn("TIMING 61 /100 MEDIUM Example question", text)
+        self.assertIn("TIMING 61 /100 MANY PATTERNS Example question", text)
         # Zwischen Kategorie-Zeile und Flow-Chip sitzt jetzt die
         # Kompositionsleiste: Familien-Punkte nach Kontext-Multiplikator
         # (6.0×1.1, 2.7×1.1, (9.8+5.0)×1.1) — die Luecke zum Score-Marker
@@ -1423,7 +1430,7 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertNotIn("One wallet dominates", text)
         self.assertNotIn("three wallets, one side", text.split("EVENT SCREEN")[0])
         self.assertIn("WINDOW 2 h Why 61? ▾", text)
-        self.assertIn("EVENT SCREEN 44 /100 ELEVATED KXFED-26SEP KALSHI", text)
+        self.assertIn("EVENT SCREEN 44 /100 SOME PATTERNS KXFED-26SEP KALSHI", text)
         # Open: the score taken apart — one row per scoring part with its
         # bar, points, what the tape showed and what full marks take; the
         # zero parts in one "not found" line; the context multiplier; the
@@ -2039,13 +2046,18 @@ class WebLeerzustandTest(unittest.TestCase):
         geschlossenen Kopien bei 100 kopierten Zeilen ergaben 35 Prozent
         statt 58. Die richtige Quote lag im Backend (stats.win_rate) bereit
         und wurde nicht gelesen.
+
+        Der Nenner sind inzwischen die ENTSCHIEDENEN Positionen: 63 sind zu,
+        3 davon kamen genau zu ihren Kosten zurueck und haben nichts
+        entschieden. Sie stehen daneben statt den Nenner zu fuellen.
         """
 
         text = _sichtbarer_text(self.ausgabe["live"]["backtester_stats"])
         self.assertIn("WIN RATE 58%", text)
         self.assertNotIn("WIN RATE 35%", text)
         # Mit n daneben, damit die Quote ihr Gewicht nennt.
-        self.assertIn("35W / 25L of 60 closed", text)
+        self.assertIn("35W / 25L of 60 decided positions", text)
+        self.assertIn("3 back at cost", text)
 
     def test_tape_und_whale_nennen_die_summierte_spanne(self) -> None:
         """Jede Summe ueber das Tape sagt, ueber welche Spanne sie geht.
@@ -2244,6 +2256,45 @@ class WebPostmortemsKopfTest(unittest.TestCase):
         self.assertIn("public/data/postmortems.json did not answer", text)
         self.assertIn("HTTP 503", text)
         self.assertNotIn("No incidents published", text)
+
+
+class WebMethodikGrundsaetzeTest(unittest.TestCase):
+    """Die Grundsaetze des taeglichen Laufs stehen auf der Methodikseite.
+
+    Sie reisen als vier Textzeilen in public/data/meta.json. PR #116 hat
+    einen davon unter die Spalte RECOMMENDATION geholt; die drei anderen
+    hatten im Frontend weiterhin keinen Leser und standen damit auf keiner
+    Seite. Jetzt kommen alle vier aus dem Register, im selben Wortlaut, den
+    das Streamlit-Terminal zeigt.
+    """
+
+    SCHLUESSEL = ("daily_run_descriptive", "verification_not_signal",
+                  "daily_run_no_advice", "daily_run_privacy")
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.ausgabe = _harness_ausgabe()
+        from app import claims as _claims
+        cls.claims = _claims
+
+    def test_jeder_grundsatz_steht_mit_seinem_schluessel_auf_der_seite(self) -> None:
+        html = self.ausgabe["live"]["research_methodology"]
+        text = _sichtbarer_text(html)
+        self.assertIn("PRINCIPLES OF THE DAILY RUN", text)
+        for key in self.SCHLUESSEL:
+            with self.subTest(key=key):
+                self.assertIn('data-caveat="' + key + '"', html)
+                self.assertIn(self.claims.disclaimer(key, "en"), text)
+
+    def test_der_wortlaut_ist_der_der_publizierten_datei(self) -> None:
+        # Ein Register, das die Formulierung nebenbei aendert, hat den Satz
+        # nicht uebernommen, sondern ersetzt.
+        wurzel = Path(__file__).resolve().parents[1]
+        payload = json.loads((wurzel / "public" / "data" / "meta.json").read_text(encoding="utf-8"))
+        text = _sichtbarer_text(self.ausgabe["live"]["research_methodology"])
+        for zeile in payload.get("disclaimer") or []:
+            with self.subTest(zeile=zeile[:40]):
+                self.assertIn(str(zeile), text)
 
 
 if __name__ == "__main__":

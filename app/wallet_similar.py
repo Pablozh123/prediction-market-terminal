@@ -21,6 +21,8 @@ import re
 from collections.abc import Callable, Iterable, Mapping
 from typing import Any
 
+import pandas as pd
+
 from src import prediction_markets as md
 
 _ADDRESS = re.compile(r"^0x[a-fA-F0-9]{40}$")
@@ -72,18 +74,21 @@ def fetch_open_summary(wallet: str, limit: int = 500) -> dict[str, Any]:
 
     frame = md.get_polymarket_positions(wallet, limit=limit)
     if frame is None or frame.empty:
-        return {"positions": 0, "value": 0.0, "settled": 0, "read": True}
-    value = frame["value"] if "value" in frame else None
-    price = frame["current_price"] if "current_price" in frame else None
-    if price is not None and value is not None:
-        tot = (price.fillna(0.0) <= 0) & (value.fillna(0.0) <= 0)
-    else:
-        tot = None
-    offen = frame[~tot] if tot is not None else frame
+        return {"positions": 0, "value": 0.0, "settled": 0, "unpriced": 0, "read": True}
+    # Dieselbe Regel wie ueberall sonst (src/prediction_markets.py). Das
+    # frueher hier stehende ``fillna(0.0)`` zaehlte jede Zeile, die der Feed
+    # nicht bepreist hat, als abgerechnet: dieselbe Verwechslung von
+    # fehlender Zahl und gemessener Null, eine Datei weiter.
+    tot = md.worthless_position_mask(frame)
+    ohne_preis = md.unknown_price_mask(frame)
+    offen = frame[~(tot | ohne_preis)]
     return {
         "positions": int(len(offen)),
-        "value": round(float(offen["value"].sum()), 2) if "value" in offen else 0.0,
-        "settled": int(tot.sum()) if tot is not None else 0,
+        "value": round(float(pd.to_numeric(offen["value"], errors="coerce").fillna(0.0).sum()), 2)
+        if "value" in offen else 0.0,
+        "settled": int(tot.sum()),
+        # Weder offen noch abgerechnet: der Feed hat nichts geliefert.
+        "unpriced": int(ohne_preis.sum()),
         "read": True,
     }
 

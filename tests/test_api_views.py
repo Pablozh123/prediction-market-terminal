@@ -10,6 +10,7 @@ import pandas as pd
 
 from app import api_views as apv
 from app import claims
+from app import suspicion as susp
 
 
 class LeaderboardRowsTests(unittest.TestCase):
@@ -409,6 +410,33 @@ class WalletPageBlocksTests(unittest.TestCase):
         self.assertTrue(payload["open_positions"]["capped"])
         self.assertEqual(payload["open_positions"]["n"], 10)
 
+    def test_a_row_the_feed_never_priced_is_not_a_settled_loss(self) -> None:
+        # Dritte Zeile: weder Preis noch Wert. Vorher machte der Default 0
+        # daraus eine gegen die Wallet aufgeloeste Position, also -25 als
+        # abgerechneten Verlust in worthless_pnl.
+        pos = pd.concat([_positions_fixture(), pd.DataFrame([{
+            "title": "Feed hat nichts geliefert?", "outcome": "Yes", "size": 50.0, "avg_price": 0.5,
+            "current_price": float("nan"), "value": float("nan"), "unrealized_pnl": float("nan"),
+            "pnl_pct": float("nan"), "end_time": pd.Timestamp("2026-12-31", tz="UTC"),
+            "market_key": "0xunpriced", "url": "https://polymarket.com/event/unpriced"},
+        ])], ignore_index=True)
+        payload = apv.wallet_detail({"wallet": "0xabc", "snapshot_at": "", "errors": {}}, pos, None, None,
+                                    positions_requested=50, as_of="x")
+        opened = payload["open_positions"]
+        self.assertEqual(opened["worthless_n"], 1)
+        self.assertAlmostEqual(opened["worthless_pnl"], -10.0)
+        self.assertEqual(opened["unpriced_n"], 1)
+        self.assertAlmostEqual(opened["unpriced_cost"], 25.0)
+        # In keiner der Summen: Exposure und Kostenbasis bleiben die der
+        # einen wirklich offenen Zeile.
+        self.assertAlmostEqual(opened["total_exposure"], 55.0)
+        self.assertAlmostEqual(opened["total_cost"], 40.0)
+        self.assertAlmostEqual(opened["unrealized_pnl"], 15.0)
+        unpriced = [r for r in opened["rows"] if r["market_key"] == "0xunpriced"][0]
+        self.assertEqual(unpriced["status"], "unknown")
+        self.assertIsNone(unpriced["current_price"])
+        self.assertIsNone(unpriced["value"])
+
 
 class RiskWalletAddressTests(unittest.TestCase):
     def test_wallet_rows_carry_the_full_address(self) -> None:
@@ -472,6 +500,38 @@ class RiskPayloadTests(unittest.TestCase):
         self.assertEqual(payload["kpis"]["high_risk_events"], 1)
         self.assertEqual(payload["events"][0]["kind"], "COORDINATED BURST")
         self.assertEqual(payload["wallets"][0]["score"], 84)
+
+    def test_payload_says_what_the_score_is_and_what_was_never_measured(self) -> None:
+        """Neben der 0-100-Zahl stand "High", was sich wie eine
+        Wahrscheinlichkeit fuer Insiderhandel liest. Die Antwort traegt jetzt
+        selbst, was die Zahl ist (neun Merkmale, feste Kappen, gesetzte
+        Gewichte), wie ihre Baender heissen und was ueber sie NICHT gemessen
+        wurde. Der Vorbehalt kommt aus dem Register, nicht aus dieser Datei."""
+        events = pd.DataFrame([
+            {"title": "Iraq win", "event_insider_score": 82.0, "event_insider_level": "High",
+             "event_insider_flags": ["coordinated burst"], "unique_wallets": 6,
+             "notional": 214000.0, "trades_per_hour": 12.0, "platform": "Polymarket"},
+        ])
+        wallets = pd.DataFrame([
+            {"wallet": "0x1234567890abcdef000000", "trader": "", "wallet_insider_score": 41.0,
+             "trade_count": 2, "notional": 38000.0, "first_seen": "2026-07-25", "top_market": "Fed cuts"},
+        ])
+        payload = apv.risk_payload(wallets, events)
+        self.assertEqual(payload["score_name"], susp.SCORE_NAME)
+        self.assertEqual(payload["score_bands"], susp.score_band_table())
+        self.assertEqual(len(payload["score_basis"]["features"]), 9)
+        self.assertIsNone(payload["score_validation"]["against_outcome"])
+        self.assertEqual(
+            payload["score_caveat"],
+            claims.disclaimer("insider_score_unvalidated", "en"),
+        )
+        # Jede Zeile traegt ihr Band mit, damit Karte und API nie zwei Namen
+        # fuer dieselbe Zahl fuehren.
+        self.assertEqual(payload["events"][0]["band"]["label"], "MOST PATTERNS")
+        self.assertEqual(payload["wallets"][0]["band"]["label"], "SOME PATTERNS")
+        # Das interne Level bleibt daneben stehen: Filter, Kartenfarbe und
+        # das Flag-Log haengen daran.
+        self.assertEqual(payload["events"][0]["sev"], "high")
 
     def test_events_below_the_flag_threshold_are_counted_not_shown(self) -> None:
         # Der Scorer bewertet JEDEN Markt mit einem Print im Tape; ohne Boden
@@ -784,6 +844,34 @@ class BacktestPayloadTests(unittest.TestCase):
         # Der frueher benutzte Nenner haette 35 Prozent ergeben.
         self.assertAlmostEqual(stats["wins"] / stats["copied_trades"], 0.35, places=4)
 
+    def test_the_payload_separates_decided_from_flat_positions(self) -> None:
+        result = _FakeResult(
+            stats={"final_equity": 1000.0, "roi": 0.0, "total_pnl": 0.0, "win_rate": 35 / 60,
+                   "wins": 35, "losses": 25, "closed_trades": 63, "decided_trades": 60,
+                   "flat_trades": 3, "copied_trades": 100, "skipped_trades": 0,
+                   "fees_paid": 0.0, "open_value": 400.0},
+            benchmark_stats={},
+            equity=pd.DataFrame({"equity": [1000.0, 1000.0]}),
+            ledger=pd.DataFrame(),
+        )
+        stats = apv.backtest_payload(result)["stats"]
+        self.assertEqual((stats["closed_trades"], stats["decided_trades"], stats["flat_trades"]), (63, 60, 3))
+
+    def test_a_row_without_a_running_equity_is_not_an_account_of_zero(self) -> None:
+        # Abrechnungen am Fensterrand tragen keinen laufenden Kontostand.
+        # Der Default 0.0 druckte dafuer "$0.00" ins Log.
+        result = _FakeResult(
+            stats={"final_equity": 1000.0, "roi": 0.0, "total_pnl": 0.0},
+            benchmark_stats={},
+            equity=pd.DataFrame({"equity": [1000.0]}),
+            ledger=pd.DataFrame([
+                {"time": "2026-07-30T14:19:00Z", "action": "RESOLVE", "status": "settled",
+                 "title": "Late market", "outcome": "Yes", "source_notional": 0.0, "stake": 25.0,
+                 "exec_price": 1.0, "fee": 0.0, "equity_after": float("nan")},
+            ]),
+        )
+        self.assertIsNone(apv.backtest_payload(result)["log"][0]["equity"])
+
 
 class PipelineTrimTests(unittest.TestCase):
     def test_slims_run_entries_and_drops_word_counters(self) -> None:
@@ -1014,6 +1102,68 @@ class BalancedHeadTests(unittest.TestCase):
         self.assertEqual(len(apv.balanced_head(tape, 0)), 0)
 
 
+class TapeWindowLabelTests(unittest.TestCase):
+    """Die Spanne unter einer Tape-Summe muss die Venues einzeln nennen.
+
+    Die Streamlit-Seiten schneiden das Tape mit einem einzigen zeitlichen
+    ``head(rows)``. Das ist eine Entscheidung, keine Panne (eine Spanne fuer
+    alle Venues), aber sie hat eine Folge, die die alte Zeile verschwieg: die
+    schnellere Venue verdraengt die langsamere aus der Stichprobe. Das
+    Web-Frontend nennt die Venues seit jeher einzeln (``util.fensterSatz``).
+    """
+
+    @staticmethod
+    def _tape() -> pd.DataFrame:
+        # Beide Venues liefern 500 Prints; Kalshi deckt damit 12 Minuten ab,
+        # Polymarket 6 Stunden. Der zeitliche Schnitt auf 500 Zeilen laesst
+        # von Polymarket 8 Prints uebrig.
+        ks = pd.DataFrame({
+            "platform": "Kalshi",
+            "time": pd.date_range("2026-08-28 12:12:00", periods=500, freq="-1440ms", tz="UTC"),
+            "notional": 40.0,
+        })
+        pm = pd.DataFrame({
+            "platform": "Polymarket",
+            "time": pd.date_range("2026-08-28 12:12:00", periods=500, freq="-43200ms", tz="UTC"),
+            "notional": 5000.0,
+        })
+        return pd.concat([ks, pm], ignore_index=True).sort_values("time", ascending=False).head(500)
+
+    def test_die_zeile_nennt_prints_und_spanne_je_venue(self) -> None:
+        tape = self._tape()
+        anteile = tape["platform"].value_counts()
+        # Der Befund, den die Zeile sichtbar machen muss.
+        self.assertEqual(int(anteile["Kalshi"]), 483)
+        self.assertEqual(int(anteile["Polymarket"]), 17)
+
+        zeile = apv.tape_window_label(tape)
+        self.assertIn("500 prints", zeile)
+        self.assertIn("Kalshi 12 min (483)", zeile)
+        self.assertIn("Polymarket 12 min (17)", zeile)
+
+    def test_eine_venue_allein_bleibt_eine_zeile(self) -> None:
+        """Ohne zweite Venue gibt es nichts aufzuschluesseln."""
+
+        nur_kalshi = self._tape()
+        nur_kalshi = nur_kalshi[nur_kalshi["platform"].eq("Kalshi")]
+        zeile = apv.tape_window_label(nur_kalshi)
+        self.assertIn("483 prints", zeile)
+        self.assertNotIn("(483)", zeile)
+        self.assertNotIn("Polymarket", zeile)
+
+    def test_ohne_zeit_bleibt_die_zeile_leer(self) -> None:
+        """Kein Fenster ist besser als ein erfundenes."""
+
+        self.assertEqual(apv.tape_window_label(pd.DataFrame()), "")
+        self.assertEqual(
+            apv.tape_window_label(pd.DataFrame({"time": [None, None], "platform": ["Kalshi", "Polymarket"]})),
+            "",
+        )
+        # Ohne Venue-Spalte bleibt der Kopf, denn die Spanne stimmt weiterhin.
+        ohne_venue = apv.tape_window_label(pd.DataFrame({"time": ["2026-08-28T12:00:00Z", "2026-08-28T12:00:20Z"]}))
+        self.assertIn("20 s · 2 prints", ohne_venue)
+
+
 class TapeCategoryTests(unittest.TestCase):
     """Jeder Print traegt eine Kategorie: Universum zuerst, dann Titel-Heuristik, sonst Other."""
 
@@ -1218,6 +1368,61 @@ class MarketRecordsTests(unittest.TestCase):
     def test_missing_columns_do_not_break(self) -> None:
         rows = apv.market_records(pd.DataFrame([{"title": "only a title", "platform": "Kalshi"}]))
         self.assertEqual(rows, [{"title": "only a title", "platform": "Kalshi"}])
+
+
+class VenueVolume24hTests(unittest.TestCase):
+    """Die Venue-Kacheln summieren den Tageswert, nicht den Mischwert.
+
+    ``activity_volume`` traegt den Tageswert nur, wenn heute gehandelt wurde,
+    sonst das Lebensvolumen. Eine Summe darueber ist weder Tagesumsatz noch
+    Lebensumsatz, stand aber auf der Uebersicht unter "Venue volume" neben
+    einem Ticker, der "24H VOLUME POLYMARKET" hiess und den Tageswert
+    zeigte. Zwei Zahlen fuer dieselbe Venue auf einer Seite.
+    """
+
+    @staticmethod
+    def _universum() -> pd.DataFrame:
+        # Ein Polymarket-Markt handelte heute (80k Dollar), einer nicht: der
+        # hat 4.2 Mio Lebensumsatz und faellt im Mischwert darauf zurueck.
+        # Auf Kalshi dasselbe Muster in Kontrakten.
+        return pd.DataFrame([
+            {"platform": "Polymarket", "volume_24h": 80_000.0, "volume": 900_000.0, "activity_volume": 80_000.0},
+            {"platform": "Polymarket", "volume_24h": 0.0, "volume": 4_200_000.0, "activity_volume": 4_200_000.0},
+            {"platform": "Kalshi", "volume_24h": 5_000.0, "volume": 30_000.0, "activity_volume": 5_000.0},
+            {"platform": "Kalshi", "volume_24h": 0.0, "volume": 620_000.0, "activity_volume": 620_000.0},
+        ])
+
+    def test_der_mischwert_haette_das_53_fache_gemeldet(self) -> None:
+        universum = self._universum()
+        mischwert = float(universum[universum["platform"].eq("Polymarket")]["activity_volume"].sum())
+        self.assertAlmostEqual(mischwert, 4_280_000.0)
+
+        summe = apv.venue_volume_24h(universum)
+        self.assertAlmostEqual(summe["usd"], 80_000.0)
+        self.assertAlmostEqual(summe["contracts"], 5_000.0)
+
+    def test_die_summe_nennt_ihren_nenner(self) -> None:
+        """Zwei von vier Maerkten tragen die Summe, zwei tragen null bei."""
+
+        summe = apv.venue_volume_24h(self._universum())
+        self.assertEqual(summe["markets"], 4)
+        self.assertEqual(summe["traded_today"], 2)
+
+    def test_leerer_und_spaltenloser_frame(self) -> None:
+        leer = apv.venue_volume_24h(pd.DataFrame())
+        self.assertEqual(leer, {"usd": 0.0, "contracts": 0.0, "markets": 0, "traded_today": 0})
+        # Ohne Tagesspalte gibt es keine Messung, und der Mischwert ist hier
+        # nicht der Rueckfall: null statt einer Zahl in der falschen Bedeutung.
+        ohne = apv.venue_volume_24h(pd.DataFrame([{"platform": "Polymarket", "activity_volume": 4_200_000.0}]))
+        self.assertEqual(ohne["usd"], 0.0)
+        self.assertEqual(ohne["markets"], 1)
+        self.assertEqual(ohne["traded_today"], 0)
+
+    def test_unbekannte_venue_landet_in_keiner_einheit(self) -> None:
+        summe = apv.venue_volume_24h(pd.DataFrame([{"platform": "Foobet", "volume_24h": 99_000.0}]))
+        self.assertEqual(summe["usd"], 0.0)
+        self.assertEqual(summe["contracts"], 0.0)
+        self.assertEqual(summe["traded_today"], 1)
 
 
 class CrossGateTests(unittest.TestCase):
@@ -1769,6 +1974,50 @@ class AlertReadingUnitsTests(unittest.TestCase):
         self.assertEqual(werte["FAST MOVER"], "+8.0¢")
         self.assertEqual(werte["TIGHT SPREAD"], "2.0¢")
         self.assertEqual(werte["WHALE PRINT"], "$12,000")
+
+    def test_die_regel_steht_als_eigene_funktion_fuer_beide_oberflaechen(self) -> None:
+        """Die Einheit haengt an der Signalart, nicht an der Oberflaeche.
+
+        Der Streamlit-Monolith zog dieselbe Spalte mit ``%.4f`` ueber alle
+        Arten. Damit standen im Signal-Feed untereinander: ``0.6200`` fuer 62
+        Prozent des groessten Halters, ``0.0350`` fuer 3.5 Cent Bewegung,
+        ``4.7000`` fuer das 4.7-fache Tagesvolumen und ``12500.0000`` fuer
+        12500 Dollar. Vier Groessen, ein Format, keine Einheit. Beide
+        Oberflaechen lesen jetzt diese Funktion.
+        """
+
+        faelle = [
+            (self._signal("Holder concentration", 0.62), "62%"),
+            (self._signal("Fast mover", 0.035), "+3.5¢"),
+            (self._signal("Volume anomaly", 4.7), "4.7x"),
+            (self._signal("Whale print", 12_500.0, notional=12_500.0), "$12,500"),
+            (self._signal("Tight spread", 0.02), "2.0¢"),
+            (self._signal("Ending soon", 0.41), "41.0¢"),
+        ]
+        for zeile, erwartet in faelle:
+            with self.subTest(art=zeile["signal_type"]):
+                self.assertEqual(apv.signal_value_label(zeile), erwartet)
+                # Und der Feed liest dieselbe Funktion, statt seine eigene
+                # Fassung der Regel zu fuehren.
+                self.assertEqual(apv.alert_rows(pd.DataFrame([zeile]))[0]["value"], erwartet)
+
+    def test_die_spalte_kommt_als_reihe_fuer_die_tabellen(self) -> None:
+        """``signal_value_series`` beschriftet einen ganzen Frame auf einmal.
+
+        Genau der Fall, an dem die nackte Zahl scheitert: vier Arten in einer
+        Tabelle, vier Einheiten in einer Spalte.
+        """
+
+        frame = pd.DataFrame([
+            self._signal("Holder concentration", 0.62),
+            self._signal("Fast mover", 0.035),
+            self._signal("Volume anomaly", 4.7),
+            self._signal("Whale print", 12_500.0, notional=12_500.0),
+        ])
+        reihe = apv.signal_value_series(frame)
+        self.assertEqual(list(reihe), ["62%", "+3.5¢", "4.7x", "$12,500"])
+        self.assertEqual(list(reihe.index), list(frame.index))
+        self.assertTrue(apv.signal_value_series(pd.DataFrame()).empty)
 
 
 class ClaimsPayloadTests(unittest.TestCase):

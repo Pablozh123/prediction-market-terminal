@@ -6,7 +6,8 @@
 // only thing the page invents is the layout.
 
 import { esc, money, num, signedMoney, stempel, leerBlock } from '../util.js';
-import { caveatZeile } from '../claims.js';
+import { caveat, caveatZeile } from '../claims.js';
+import { scoreBand } from '../risk_bands.js';
 import { diagramm, pnlZeitkurve, kurzGeld, fmtZahl } from '../charts.js';
 import { squarify, pnlIntensity } from '../treemap.js';
 import { MONO as M, KARTE, LABEL, NOTIZ } from '../ui.js';
@@ -902,11 +903,19 @@ function renderRiskTab(d) {
     : '';
   const rules = rp && rp.rules ? '<div style="' + NOTIZ + '; margin-top:10px; line-height:1.6">'
     + Object.entries(rp.rules).map((kv) => '<span style="color:var(--ink-3)">' + esc(kv[0].replace(/_/g, ' ')) + '</span>: ' + esc(kv[1])).join(' · ') + '</div>' : '';
-  const insider = d.risk && typeof d.risk === 'object' && d.risk.wallet_insider_score != null
-    ? '<div style="' + KARTE + '; padding:14px 16px; margin-top:14px"><div style="' + LABEL + '">INSIDER-RISK SCORE · FROM THE RISK SCREEN</div>'
-      + '<div style="display:flex; gap:14px; align-items:baseline; margin-top:6px"><div style="' + M + '; font-size:var(--t-head); color:' + (d.risk.wallet_insider_score >= 70 ? 'var(--warn)' : 'var(--text)') + '">' + Math.round(d.risk.wallet_insider_score) + '<span style="font-size:var(--t-small); color:var(--ink-3)"> /100</span></div>'
-      + (d.risk.risk_level ? '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; color:var(--ink-3)">' + esc(String(d.risk.risk_level).toUpperCase()) + '</span>' : '') + '</div>'
+  // Die Kachel hiess INSIDER-RISK SCORE und zeigte daneben das interne Level
+  // (HIGH/MEDIUM/ELEVATED/LOW). Zusammen las sich das wie eine
+  // Wahrscheinlichkeit fuer Insiderhandel. Es ist eine Punktesumme aus neun
+  // Flow-Merkmalen mit gesetzten Gewichten; Name und Band kommen jetzt aus
+  // ../risk_bands.js, der stehende Vorbehalt aus dem Register.
+  const insiderBand = d.risk && typeof d.risk === 'object' && d.risk.wallet_insider_score != null
+    ? scoreBand(d.risk.wallet_insider_score, null, d.risk) : null;
+  const insider = insiderBand
+    ? '<div style="' + KARTE + '; padding:14px 16px; margin-top:14px"><div style="' + LABEL + '">FLOW-PATTERN SCORE · FROM THE RISK SCREEN</div>'
+      + '<div style="display:flex; gap:14px; align-items:baseline; margin-top:6px"><div style="' + M + '; font-size:var(--t-head); color:' + (d.risk.wallet_insider_score >= 70 ? 'var(--warn)' : 'var(--text)') + '">' + Math.round(d.risk.wallet_insider_score) + '<span style="font-size:var(--t-small); color:var(--ink-3)"> /100 pts</span></div>'
+      + '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; color:' + insiderBand[1] + '">' + esc(insiderBand[0]) + '</span></div>'
       + (Array.isArray(d.risk.flags) && d.risk.flags.length ? '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px">' + d.risk.flags.map((f) => '<span style="' + M + '; font-size:var(--t-micro); color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35); border-radius:var(--r-control); padding:2px 7px">' + esc(f) + '</span>').join('') + '</div>' : '<div style="' + NOTIZ + '; margin-top:6px">no flags on this wallet in the current screen</div>')
+      + '<div style="' + NOTIZ + '; margin-top:8px; line-height:1.5">' + caveat('insider_score_unvalidated') + '</div>'
       + '</div>'
     : '';
   const head = card('RISK PROFILE · FROM THE RESOLVED ROWS',

@@ -1,9 +1,12 @@
 import unittest
+from pathlib import Path
 
 import pandas as pd
 
 from app import suspicion as susp
 from src import prediction_markets as md
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def tape(rows):
@@ -98,6 +101,24 @@ class ZaehleinheitMarktTests(unittest.TestCase):
              "title": "Q?", "market_key": "0x2"},
         ])
         self.assertEqual(int(md.whale_wallets(frame).iloc[0]["markets"]), 2)
+
+    def test_trader_flow_scores_counts_markets_by_key_too(self) -> None:
+        # Regression: trader_flow_scores aggregierte ueber market_identity,
+        # ohne die Spalte vorher abzuleiten. Der Aufruf endete in
+        # KeyError: Column(s) ['market_identity'] do not exist und riss die
+        # Seiten Search und Traders mit.
+        scores = md.trader_flow_scores(self._tape(), whale_threshold=2500.0)
+        self.assertEqual(int(scores.iloc[0]["markets"]), 2)
+
+    def test_every_market_counter_survives_a_tape_without_keys(self) -> None:
+        # Ohne market_key faellt market_identity auf den Titel zurueck. Jede
+        # Aggregation, die ueber market_identity zaehlt, muss diesen Fall
+        # tragen, statt an der fehlenden Spalte zu zerbrechen.
+        tape_ohne_key = self._tape().drop(columns=["market_key"])
+        self.assertEqual(int(md.whale_wallets(tape_ohne_key).iloc[0]["markets"]), 1)
+        self.assertEqual(int(md.trader_flow_scores(tape_ohne_key, whale_threshold=2500.0).iloc[0]["markets"]), 1)
+        self.assertEqual(int(md.whale_wallet_risk_scores(tape_ohne_key, whale_threshold=2500.0).iloc[0]["markets"]), 1)
+        self.assertFalse(md.whale_event_risk_scores(tape_ohne_key, whale_threshold=2500.0).empty)
 
     def test_market_identity_falls_back_to_the_title(self) -> None:
         frame = pd.DataFrame([{"title": "A question", "market_key": ""}, {"title": "B", "market_key": "0xb"}])
@@ -1207,3 +1228,122 @@ class EventComponentFactsTests(unittest.TestCase):
         parts = susp.event_components({"component_burst": 3.0})
         self.assertEqual(len(parts), 1)
         self.assertEqual(parts[0]["fact"], "0 prints at 0 an hour")
+
+
+class ScoreBeschriftungTests(unittest.TestCase):
+    """Die Beschriftung der 0-100-Zahl muss sagen, was die Zahl ist.
+
+    Neben einer Zahl von 0 bis 100 las sich "High" als Wahrscheinlichkeit
+    fuer Insiderhandel. Die Zahl ist die Summe von neun Flow-Merkmalen gegen
+    feste Punktkappen: die Kappen sind die Gewichte, die Gewichte sind
+    gesetzt und nicht geschaetzt, und gegen einen spaeter bestaetigten Fall
+    ist der Score nie gemessen worden. Diese Tests halten fest, dass die
+    Anzeige das selbst sagt und nicht wieder in Einschaetzungssprache faellt.
+    """
+
+    def test_baender_zaehlen_pruefungen_statt_wahrscheinlichkeit(self) -> None:
+        self.assertEqual(susp.score_band(0)["label"], "FEW PATTERNS")
+        self.assertEqual(susp.score_band(39.9)["label"], "FEW PATTERNS")
+        self.assertEqual(susp.score_band(40)["label"], "SOME PATTERNS")
+        self.assertEqual(susp.score_band(54)["label"], "SOME PATTERNS")
+        self.assertEqual(susp.score_band(55)["label"], "MANY PATTERNS")
+        self.assertEqual(susp.score_band(69)["label"], "MANY PATTERNS")
+        self.assertEqual(susp.score_band(70)["label"], "MOST PATTERNS")
+        self.assertEqual(susp.score_band(100)["label"], "MOST PATTERNS")
+
+    def test_keine_einschaetzungssprache_in_der_anzeige(self) -> None:
+        # Genau die Woerter, die den Befund ausgeloest haben. Sie duerfen im
+        # internen Level weiterleben (Drahtformat), nicht in der Anzeige.
+        verboten = {"high", "medium", "elevated", "low", "risk", "likely",
+                    "probability", "chance", "insider"}
+        for zeile in susp.score_band_table():
+            worte = set(zeile["label"].lower().replace("/", " ").split())
+            self.assertEqual(worte & verboten, set(), zeile["label"])
+        # Und die internen Level bleiben, was sie waren.
+        self.assertEqual([label for _, label in susp.RISK_BANDS], ["High", "Medium", "Elevated"])
+        self.assertEqual(susp.risk_level(70), "High")
+
+    def test_band_ist_total_und_faellt_nie_aus(self) -> None:
+        for wert in (None, "", "nonsense", float("nan"), -12):
+            self.assertEqual(susp.score_band(wert)["label"], "FEW PATTERNS", wert)
+
+    def test_bandtabelle_deckt_0_bis_100_lueckenlos_ab(self) -> None:
+        zeilen = susp.score_band_table()
+        self.assertEqual(zeilen[0]["from"], 0)
+        self.assertEqual(zeilen[-1]["to"], 100)
+        for vorher, nachher in zip(zeilen, zeilen[1:]):
+            self.assertEqual(nachher["from"], vorher["to"] + 1)
+        # Jede Punktzahl bekommt genau das Band, in dessen Spanne sie liegt.
+        for punkte in range(0, 101):
+            passend = [z for z in zeilen if z["from"] <= punkte <= z["to"]]
+            self.assertEqual(len(passend), 1, punkte)
+            self.assertEqual(susp.score_band(punkte)["label"], passend[0]["label"])
+
+    def test_basis_nennt_neun_merkmale_und_die_herkunft_der_gewichte(self) -> None:
+        basis = susp.score_basis()
+        self.assertEqual(len(basis["features"]), 9)
+        self.assertEqual(basis["scale"]["max"], 100)
+        self.assertEqual(basis["flag_floor"], 40)
+        # Die Kappen sind die Gewichte, und beide Summen liegen ueber 100:
+        # eine Zeile kann mehrere Merkmale ausreizen und trotzdem nicht 100
+        # erreichen. Steht so in der Basis, damit die Karte nicht "77 von den
+        # erreichbaren 77" rechnet.
+        self.assertEqual(sum(f["cap_event"] for f in basis["features"]), susp.SCORE_RAW_MAX)
+        self.assertEqual(sum(f["cap_wallet"] for f in basis["features"]), susp.SCORE_RAW_MAX)
+        self.assertIn("chosen, not estimated", basis["weights"])
+
+    def test_merkmale_decken_die_komponenten_der_karte_ab(self) -> None:
+        # Die Basis darf keine Merkmale erfinden, die der Scorer nicht hat:
+        # jeder Schluessel muss in EVENT_COMPONENTS vorkommen (dort mit
+        # component_-Praefix, plus price_move_score).
+        vorhanden = {key for key, _label, _cap, _misst in susp.EVENT_COMPONENTS}
+        for merkmal in susp.score_basis()["features"]:
+            kandidaten = {"component_" + merkmal["key"], merkmal["key"] + "_score"}
+            self.assertTrue(kandidaten & vorhanden, merkmal["key"])
+
+    def test_validierung_behauptet_keine_trefferquote(self) -> None:
+        pruefung = susp.score_validation()
+        # Kein Ergebnis, gegen das je gemessen wurde. Das bleibt None, bis die
+        # drei Punkte unter "missing" existieren.
+        self.assertIsNone(pruefung["against_outcome"])
+        self.assertEqual(len(pruefung["missing"]), 3)
+        # Was stattdessen gemessen wird, ist eine ANDERE Groesse und muss als
+        # solche benannt sein, sonst waere es dieselbe Verwechslung an neuer
+        # Stelle.
+        self.assertIn("price", pruefung["measured_instead"]["quantity"])
+        self.assertIn("flag_scoreboard", pruefung["measured_instead"]["source"])
+
+    def test_vorbehalt_kommt_aus_dem_register(self) -> None:
+        from app import claims
+
+        # Kein handgeschriebener Satz in irgendeiner Oberflaeche: der
+        # Vorbehalt steht im Register und nennt seine Flaechen, damit
+        # scripts/lint_claims.py merkt, wenn er aufhoert, gezeigt zu werden.
+        for sprache in ("de", "en"):
+            self.assertTrue(claims.disclaimer("insider_score_unvalidated", sprache))
+        self.assertIn("app/api_views.py", claims.surfaces("insider_score_unvalidated"))
+        self.assertIn("web/js/pages/trader_pages.js", claims.surfaces("insider_score_unvalidated"))
+
+
+class ScoreBandFrontendTests(unittest.TestCase):
+    """web/js/risk_bands.js muss dieselbe Tabelle fuehren wie app/suspicion.py.
+
+    Der Rueckfall im Browser greift, sobald eine Antwort fehlt oder aelter
+    ist. Fuehrt er andere Woerter, traegt dieselbe Zahl je nach Netzlage
+    zwei Namen, und genau das ist der Befund, den dieser Zweig schliesst.
+    """
+
+    def test_rueckfalltabelle_ist_wortgleich(self) -> None:
+        quelle = (REPO_ROOT / "web" / "js" / "risk_bands.js").read_text(encoding="utf-8")
+        for zeile in susp.score_band_table():
+            erwartet = ("{ from: %d, to: %d, label: '%s', tone: '%s'"
+                        % (zeile["from"], zeile["to"], zeile["label"], zeile["tone"]))
+            self.assertIn(erwartet, quelle, zeile["label"])
+
+    def test_seiten_beschriften_ueber_das_modul(self) -> None:
+        for datei in ("web/js/pages/trader_pages.js", "web/js/pages/wallet_page.js"):
+            quelle = (REPO_ROOT / datei).read_text(encoding="utf-8")
+            self.assertIn("risk_bands.js", quelle, datei)
+            # Kein eigenes Band mehr in der Seite: die alte Schwellenkette
+            # stand zweimal im Repo und konnte auseinanderlaufen.
+            self.assertNotIn("['HIGH', 'var(--warn)']", quelle, datei)
