@@ -815,9 +815,11 @@ def _wallet_positions(positions: pd.DataFrame | None, as_of: str, requested: int
     if positions is None or positions.empty:
         return {"as_of": as_of, "rows": [], "n": 0, "shown": 0, "capped": False, "total_exposure": 0.0,
                 "total_cost": 0.0, "unrealized_pnl": 0.0, "worthless_n": 0,
+                "worthless_pnl": 0.0, "worthless_cost": 0.0,
                 "note": "No open positions in the public /positions feed."}
     rows: list[dict[str, Any]] = []
     exposure = cost = unreal = 0.0
+    worthless_pnl = worthless_cost = 0.0
     worthless = 0
     for _, row in positions.iterrows():
         size = _num(row.get("size"), 0.0) or 0.0
@@ -827,11 +829,19 @@ def _wallet_positions(positions: pd.DataFrame | None, as_of: str, requested: int
         pnl = _num(row.get("unrealized_pnl"), 0.0) or 0.0
         end_time = _iso(row.get("end_time"))
         resolved_worthless = cur <= 0.0 and value <= 0.0
+        # Eine wertlose Position ist gegen die Wallet aufgeloest und wurde nur
+        # nicht eingeloest — ihr Verlust ist realisiert und bewegt sich nie
+        # wieder. Bis hierher lief er in dieselbe Summe wie der Buchgewinn
+        # der offenen Positionen und stand auf der Seite unter "UNREALISED
+        # (open)". Beide Toepfe werden jetzt getrennt gefuehrt.
         if resolved_worthless:
             worthless += 1
-        exposure += value
-        cost += size * avg
-        unreal += pnl
+            worthless_pnl += pnl
+            worthless_cost += size * avg
+        else:
+            exposure += value
+            cost += size * avg
+            unreal += pnl
         rows.append({
             "title": _text(row.get("title")),
             "outcome": _text(row.get("outcome")),
@@ -855,12 +865,18 @@ def _wallet_positions(positions: pd.DataFrame | None, as_of: str, requested: int
         "n": len(rows),
         "shown": min(len(rows), WALLET_POSITIONS_SHOWN),
         "capped": len(rows) >= int(requested),
+        # Exposure, Kostenbasis und Buchgewinn nur ueber die wirklich offenen
+        # Zeilen; die wertlosen stehen mit eigener Summe daneben.
         "total_exposure": round(exposure, 2),
         "total_cost": round(cost, 2),
         "unrealized_pnl": round(unreal, 2),
         "worthless_n": worthless,
+        "worthless_pnl": round(worthless_pnl, 2),
+        "worthless_cost": round(worthless_cost, 2),
         "note": ("Value at the current price; positions at price 0 past their end date resolved against "
-                 "the wallet and were not redeemed ('worthless')."),
+                 "the wallet and were not redeemed ('worthless'). Their loss is settled, not unrealised, "
+                 "so it is reported separately and is not in 'unrealized_pnl', 'total_cost' or "
+                 "'total_exposure'."),
     }
 
 

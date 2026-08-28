@@ -219,7 +219,18 @@ class WalletPageBlocksTests(unittest.TestCase):
         self.assertEqual(opened["rows"][1]["status"], "worthless")
         self.assertEqual(opened["rows"][1]["url"], "")                    # "…/event/" is a link to nothing
         self.assertAlmostEqual(opened["total_exposure"], 55.0)
-        self.assertAlmostEqual(opened["unrealized_pnl"], 5.0)
+        # Der Verlust der wertlosen Position ist aufgeloest, nicht
+        # unrealisiert: er lief bisher in dieselbe Summe (15 - 10 = 5) und
+        # stand auf der Seite unter "UNREALISED (open)". Jetzt zeigt die
+        # offene Position ihre +15 und der abgeschlossene Verlust steht mit
+        # -10 daneben.
+        self.assertAlmostEqual(opened["unrealized_pnl"], 15.0)
+        self.assertAlmostEqual(opened["worthless_pnl"], -10.0)
+        self.assertAlmostEqual(opened["worthless_cost"], 10.0)
+        # Kostenbasis und Exposure beschreiben ebenfalls nur die offenen
+        # Zeilen (100 x 0.40 = 40, ohne die 20 x 0.50 der wertlosen).
+        self.assertAlmostEqual(opened["total_cost"], 40.0)
+        self.assertIn("settled, not unrealised", opened["note"])
 
         closed = payload["closed"]
         self.assertEqual((closed["n"], closed["won"], closed["lost"], closed["flat"]), (12, 6, 6, 0))

@@ -1537,8 +1537,10 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("MAX DRAWDOWN $5.00 25.0% of peak · profile curve", text)
         self.assertIn("VOLUME TRADED $105 TRADES 3 AVG TRADE $35.00 DAYS ACTIVE 4 SINCE 2026-07-01", text)
         # Aside: portfolio, breakdown, core stats, buy/sell bar, edge.
-        self.assertIn("PORTFOLIO · OPEN $55.00 cost basis $50.00 unrealised +$5.00 positions 2", text)
-        self.assertIn("PNL BREAKDOWN settled (track record) +$210.00 realised (closed rows) +$210.00 unrealised (open) +$5.00 position value $55.00", text)
+        self.assertIn("PORTFOLIO · OPEN $55.00 cost basis $40.00 unrealised +$15.00 positions 2", text)
+        # Der aufgeloeste Verlust der nicht eingeloesten Position steht als
+        # eigene Zeile, nicht in "unrealised (open)".
+        self.assertIn("PNL BREAKDOWN settled (track record) +$210.00 realised (closed rows) +$210.00 unrealised (open) +$15.00 worthless (settled loss) -$10.00 position value $55.00", text)
         self.assertIn("CORE STATS avg trade $35.00 won / lost 9 / 3 open / resolved 2 / 12 buy / sell 2 / 1 trades / day 0.75 not redeemed 1", text)
         self.assertIn("BUY / SELL RATIO 66.7% buy 2 sell 1", text)
         self.assertIn("REALIZED EDGE 35.0¢ per $ 95% CI [12.0¢, 55.0¢] events 11 per share +5.0pp · thin CI excludes zero", text)
@@ -1585,7 +1587,12 @@ class WebLeerzustandTest(unittest.TestCase):
         pos_html = self.ausgabe["live"]["wallet_tab_positions"]
         pos = _sichtbarer_text(pos_html)
         self.assertIn("2 of 2 positions", pos)
-        self.assertIn("TOTAL EXPOSURE $55.00 value at current prices · 2 positions", pos)
+        # Exposure, Kostenbasis und Buchgewinn beschreiben nur die offene
+        # Zeile; die wertlose ist aufgeloest und steht mit ihrem
+        # realisierten Verlust in einer eigenen Kachel.
+        self.assertIn("TOTAL EXPOSURE $55.00 value at current prices · 1 open position", pos)
+        self.assertIn("UNREALISED +$15.00 value − cost · open only", pos)
+        self.assertIn("RESOLVED · NOT REDEEMED 1 -$10.00 settled loss", pos)
         self.assertIn("RESOLVED · NOT REDEEMED 1", pos)
         self.assertIn("resolved · not redeemed", pos)
         self.assertIn("SORT BY Value Unrealised Cost Ends", pos)

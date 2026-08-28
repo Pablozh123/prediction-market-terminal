@@ -758,7 +758,10 @@ function walletNutzlast() {
       by_category: [{ category: 'Politics', groups: 7, positions: 8, cost: 400.0, pnl: 160.0, edge: 0.4, ci_low: 0.1, ci_high: 0.6 }, { category: 'Sports', groups: 4, positions: 4, cost: 200.0, pnl: 50.0, edge: 0.25, ci_low: null, ci_high: null }]
     },
     open_positions: {
-      as_of: '2026-08-17 19:00 UTC', n: 2, shown: 2, capped: false, total_exposure: 55.0, total_cost: 50.0, unrealized_pnl: 5.0, worthless_n: 1,
+      // Eine offene Position (+15 Buchgewinn, 40 Kostenbasis) und eine
+      // wertlose (aufgeloester Verlust -10, 10 Kostenbasis). Der Verlust
+      // gehoert nicht in unrealized_pnl (api_views._wallet_positions).
+      as_of: '2026-08-17 19:00 UTC', n: 2, shown: 2, capped: false, total_exposure: 55.0, total_cost: 40.0, unrealized_pnl: 15.0, worthless_n: 1, worthless_pnl: -10.0, worthless_cost: 10.0,
       rows: [
         { title: 'Open harness market A?', outcome: 'Yes', size: 100.0, avg_price: 0.4, current_price: 0.55, value: 55.0, cost: 40.0, unrealized_pnl: 15.0, pnl_pct: 0.375, end_time: '2026-12-31T00:00:00Z', market_key: '0xopenA', url: 'https://polymarket.com/event/open-a', image: 'https://polymarket-upload.s3.us-east-2.amazonaws.com/harness-open-a.png', status: 'open' },
         { title: 'Resolved against, not redeemed?', outcome: 'No', size: 20.0, avg_price: 0.5, current_price: 0.0, value: 0.0, cost: 10.0, unrealized_pnl: -10.0, pnl_pct: -1.0, end_time: '2026-06-30T00:00:00Z', market_key: '0xworthless', url: '', status: 'worthless' }

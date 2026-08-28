@@ -310,6 +310,9 @@ function renderAside(d) {
     ['settled (track record)', tr ? dollars(tr.settled_pnl) : '—', tr ? pnlColor(tr.settled_pnl) : 'rgba(var(--ink),.6)'],
     ['realised (closed rows)', c && c.n ? dollars(c.realized_pnl) : '—', c && c.n ? pnlColor(c.realized_pnl) : 'rgba(var(--ink),.6)'],
     ['unrealised (open)', op && op.n ? dollars(op.unrealized_pnl) : '—', op && op.n ? pnlColor(op.unrealized_pnl) : 'rgba(var(--ink),.6)'],
+    // Aufgeloest, nur nicht eingeloest: ein realisierter Verlust, der in
+    // /positions steht und deshalb frueher unter "unrealised" mitlief.
+    ['worthless (settled loss)', op && op.worthless_n ? dollars(op.worthless_pnl || 0) : '—', op && op.worthless_n ? 'var(--warn)' : 'rgba(var(--ink),.6)'],
     ['position value', op && op.n ? absDollars(op.total_exposure) : '—']
   ], tr && tr.capped ? 'closed tails capped at ~50 each' : ''));
   cards.push(asideCard('CORE STATS', [
@@ -625,11 +628,19 @@ function renderOpenPositions(T, d) {
     + cell(dollars(r.unrealized_pnl), 'text-align:right; color:' + pnlColor(r.unrealized_pnl))
     + cell(r.end_time ? String(r.end_time).slice(0, 10) : '—', 'color:rgba(var(--ink),.55)')
     + cell(r.status === 'worthless' ? 'resolved · not redeemed' : 'open', 'color:' + (r.status === 'worthless' ? 'var(--warn)' : 'rgba(var(--ink),.65)')))).join('');
+  // Die drei Buch-Kacheln beschreiben die offenen Zeilen; die wertlosen
+  // sind aufgeloest und bekommen ihre eigene.
+  const openN = Math.max(0, (Number(op.n) || 0) - (Number(op.worthless_n) || 0));
   const totals = '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-bottom:12px">'
-    + tile('TOTAL EXPOSURE', absDollars(op.total_exposure), 'value at current prices · ' + num(op.n) + ' positions')
-    + tile('COST BASIS', absDollars(op.total_cost), 'shares × average price')
-    + tile('UNREALISED', dollars(op.unrealized_pnl), 'value − cost', pnlColor(op.unrealized_pnl))
-    + tile('RESOLVED · NOT REDEEMED', num(op.worthless_n || 0), 'at price 0 past end date', op.worthless_n ? 'var(--warn)' : null)
+    + tile('TOTAL EXPOSURE', absDollars(op.total_exposure), 'value at current prices · ' + num(openN) + ' open position' + (openN === 1 ? '' : 's'))
+    + tile('COST BASIS', absDollars(op.total_cost), 'shares × average price · open only')
+    + tile('UNREALISED', dollars(op.unrealized_pnl), 'value − cost · open only', pnlColor(op.unrealized_pnl))
+    // Der Verlust wertloser Positionen ist aufgeloest, nicht unrealisiert.
+    // Er lag bisher in derselben Summe wie der Buchgewinn der offenen
+    // Positionen und stand unter der Ueberschrift UNREALISED.
+    + tile('RESOLVED · NOT REDEEMED', num(op.worthless_n || 0),
+      op.worthless_n ? dollars(op.worthless_pnl || 0) + ' settled loss · at price 0 past end date' : 'at price 0 past end date',
+      op.worthless_n ? 'var(--warn)' : null)
     + '</div>';
   const count = '<div style="' + NOTE + '; margin-bottom:8px">' + num(rows.length) + ' of ' + num(op.n) + ' positions' + (op.capped ? ' · the /positions page was full — there may be more' : '') + '</div>';
   return card('OPEN POSITIONS', totals + sortBar + count + tableWith(cols, head, body, '', 900) + '<div style="' + NOTE + '; margin-top:8px">' + esc(op.note || '') + '</div>', 'as of ' + esc(op.as_of || ''));
