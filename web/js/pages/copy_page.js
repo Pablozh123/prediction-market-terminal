@@ -9,15 +9,13 @@
 
 import { esc, num, leerZeile } from '../util.js';
 import { caveatZeile } from '../claims.js';
+import { MONO as M, KARTE, LABEL_BLOCK } from '../ui.js';
 
-const M = "font-family:'IBM Plex Mono',monospace";
-const LBL9 = M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3); margin-bottom:6px';
 const ACCENT = 'var(--accent)';
 const POS = 'var(--pos)'; // gain green, always paired with RED
 const RED = 'var(--neg)', AMBER = 'var(--warn)', BLUE = 'var(--info)';
 const DIM = 'var(--ink-4)';
 const INPUT = 'width:100%; box-sizing:border-box; background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:8px 10px; ' + M + '; font-size:var(--t-small); color:var(--text)';
-const CARD = 'background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel)';
 const BTN = M + "; font-size:var(--t-micro); letter-spacing:.06em; border-radius:var(--r-control); padding:8px 14px; cursor:pointer; display:inline-block; user-select:none";
 const BTN_PRIMARY = BTN + '; color:var(--on-accent); background:' + ACCENT + '; font-weight:600';
 const BTN_GHOST = BTN + '; color:var(--ink-2); border:1px solid var(--line-1)';
@@ -69,7 +67,7 @@ function fmtStamp(iso) {
 }
 
 function field(label, inner) {
-  return '<div><div style="' + LBL9 + '">' + label + '</div>' + inner + '</div>';
+  return '<div><div style="' + LABEL_BLOCK + '">' + label + '</div>' + inner + '</div>';
 }
 
 function textInput(T, key, value, placeholder, onInput, extraStyle) {
@@ -91,7 +89,7 @@ function ohneDesk(live) {
     + '<div style="padding:20px 24px 16px; border-bottom:1px solid var(--line-2)">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.18em; color:' + ACCENT + '">COPY TRADE · PAPER</div>'
     + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">Follow traders with fake money</h1></div>'
-    + '<div style="padding:26px 24px"><div style="' + CARD + '; padding:22px 24px; max-width:760px">'
+    + '<div style="padding:26px 24px"><div style="' + KARTE + '; padding:22px 24px; max-width:760px">'
     + '<div style="font-size:var(--t-lead); font-weight:600">Nothing to show</div>'
     + '<div style="font-size:var(--t-body); color:' + DIM + '; margin-top:10px; line-height:1.65">' + grund + '</div>'
     + '</div></div></div>';
@@ -184,13 +182,13 @@ function followForm(T, s, live, canWrite) {
         + button(T, 'Use token', () => T.copySetToken(T.state.copyToken), BTN_PRIMARY)
         + '</div>'
       : '';
-    return '<div style="' + CARD + '; padding:16px 18px; margin:16px 24px 0">'
+    return '<div style="' + KARTE + '; padding:16px 18px; margin:16px 24px 0">'
       + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:' + AMBER + '">READ-ONLY FROM HERE</div>'
       + '<div style="font-size:var(--t-body); color:' + DIM + '; margin-top:8px; line-height:1.6">' + esc(access.reason || 'This copy of the site cannot write to the desk.')
       + (access.mode === 'locked' ? ' Open the site on the machine that runs api/server.py, or set <span style="' + M + '">COPY_ADMIN_TOKEN</span> there and paste it here.' : '') + '</div>'
       + tokenBox + '</div>';
   }
-  return '<div style="' + CARD + '; padding:16px 18px; margin:16px 24px 0">'
+  return '<div style="' + KARTE + '; padding:16px 18px; margin:16px 24px 0">'
     + '<div style="display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:' + ACCENT + '">FOLLOW A WALLET</div>'
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + esc(access.mode === 'token' ? 'writes with admin token' : 'writes allowed: local request') + '</div></div>'
@@ -229,7 +227,7 @@ function daemonBlock(T, live, canWrite, s) {
     syncLine = 'last pass ' + esc(ago(sync.finished_at)) + ': ' + a.wallets + ' wallet(s), ' + a.copied + ' copied, ' + a.skipped + ' skipped, ' + a.duplicates + ' already known'
       + (st.copied ? ', ' + st.copied + ' settlement(s)' : '') + (a.errors && a.errors.length ? ' — <span style="color:' + RED + '">' + esc(a.errors[0]) + '</span>' : '');
   }
-  return '<div style="' + CARD + '; padding:16px 18px; margin:14px 24px 0">'
+  return '<div style="' + KARTE + '; padding:16px 18px; margin:14px 24px 0">'
     + '<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap">'
     + '<span style="width:7px; height:7px; border-radius:50%; background:' + farbe + '; display:inline-block"></span>'
     + '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:' + farbe + '">' + text + '</span>'
@@ -334,7 +332,7 @@ function settingsTab(T, s, live, canWrite) {
   const hintHtml = (hint) => (hint ? '<div style="font-size:var(--t-micro); color:var(--ink-3); margin-top:5px; line-height:1.45">' + hint + '</div>' : '');
   const numField = (key, label, hint) => field(label, textInput(T, 'copySet_' + key, f[key], '', set(key)) + hintHtml(hint));
   const pctField = (key, label, hint) => field(label, textInput(T, 'copySetPct_' + key, pctInputValue(f[key]), '', setPct(key)) + hintHtml(hint));
-  const boolField = (key, label, hint) => '<div><div style="' + LBL9 + '">' + label + '</div><div style="display:flex; align-items:center; gap:10px; padding:6px 0">' + T.toggle(!!f[key], canWrite ? flip(key) : () => {}, label, !canWrite) + '<span style="' + M + '; font-size:var(--t-micro); color:' + DIM + '">' + (f[key] ? 'on' : 'off') + '</span></div>' + hintHtml(hint) + '</div>';
+  const boolField = (key, label, hint) => '<div><div style="' + LABEL_BLOCK + '">' + label + '</div><div style="display:flex; align-items:center; gap:10px; padding:6px 0">' + T.toggle(!!f[key], canWrite ? flip(key) : () => {}, label, !canWrite) + '<span style="' + M + '; font-size:var(--t-micro); color:' + DIM + '">' + (f[key] ? 'on' : 'off') + '</span></div>' + hintHtml(hint) + '</div>';
   const mode = sizingModeOf(f);
   const chooseMode = (m) => () => {
     if (!canWrite) return;
@@ -357,7 +355,7 @@ function settingsTab(T, s, live, canWrite) {
       ? pctField('copy_scale', '% OF HIS TRADE', 'Every order is this share of what he moved. 1 = his $1,000 becomes $10 here, regardless of either account size.')
       : '<div style="font-size:var(--t-small); color:var(--ink-4); line-height:1.5; grid-column:span 2">Every order is booked at his notional. Only sensible when your sub-account is about the size of his — otherwise the order cap and the cash throttle below clip almost every trade and the copy stops resembling him.</div>';
   return '<div style="padding:16px 24px">'
-    + '<div style="' + CARD + '; padding:18px 20px">'
+    + '<div style="' + KARTE + '; padding:18px 20px">'
     + '<div style="display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:12px">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-4)">SIZING MODE — THE SAME FOR EVERY TRADER</div>'
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">saved in copy_settings.json · the daemon reads it on every pass · live trading stays off</div></div>'
@@ -418,7 +416,7 @@ export function renderCopy(T) {
 
   const copyTabs = COPY_TABS.map((o) => T.tab(o[1], tab === o[0], { copyTab: o[0] })).join('');
   const traderChips = (tab === 'orders' || tab === 'positions' || tab === 'perf' || tab === 'cash') && traders.length > 1
-    ? '<div style="display:flex; gap:6px; padding:12px 24px 0; flex-wrap:wrap; align-items:center"><span style="' + LBL9 + '; margin:0 4px 0 0">TRADER</span>'
+    ? '<div style="display:flex; gap:6px; padding:12px 24px 0; flex-wrap:wrap; align-items:center"><span style="' + LABEL_BLOCK + '; margin:0 4px 0 0">TRADER</span>'
       + T.opt('All', filter === 'all', { copyTrader: 'all' })
       + traders.map((t) => T.opt(t.label || shortW(t.wallet), filter === t.wallet, { copyTrader: t.wallet })).join('')
       + '</div>'
@@ -447,12 +445,12 @@ export function renderCopy(T) {
     const kindStyle = (k) => k === 'BUY' ? POS : k === 'SELL' ? RED : k === 'MERGE' ? AMBER : k === 'REDEEM' || k === 'RESOLUTION' ? BLUE : 'var(--ink-3)';
     body = '<div>'
       + '<div style="padding:14px 24px 0; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px 18px">'
-      + '<div><div style="' + LBL9 + '">SEARCH</div><input value="' + esc(s.copyQuery) + '" ' + T.inp((e) => T.setState({ copyQuery: e.target.value }), 'copyQuery') + ' aria-label="Search the copy desk by market" placeholder="market…" style="' + INPUT + '" /></div>'
-      + '<div><div style="' + LBL9 + '">KIND</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
+      + '<div><div style="' + LABEL_BLOCK + '">SEARCH</div><input value="' + esc(s.copyQuery) + '" ' + T.inp((e) => T.setState({ copyQuery: e.target.value }), 'copyQuery') + ' aria-label="Search the copy desk by market" placeholder="market…" style="' + INPUT + '" /></div>'
+      + '<div><div style="' + LABEL_BLOCK + '">KIND</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
       + [['all', 'All'], ['BUY', 'Buys'], ['SELL', 'Sells'], ['MERGE', 'Merges'], ['SETTLE', 'Merges + settlements']].map((o) => T.opt(o[1], s.copySide === o[0], { copySide: o[0] })).join('') + '</div></div>'
-      + '<div><div style="' + LBL9 + '">STATUS</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
+      + '<div><div style="' + LABEL_BLOCK + '">STATUS</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
       + [['all', 'All'], ['copied', 'Copied'], ['settled', 'Settled'], ['seed_observed', 'Baseline'], ['skipped', 'Skipped']].map((o) => T.opt(o[1], s.copyStatus2 === o[0], { copyStatus2: o[0] })).join('') + '</div></div>'
-      + '<div><div style="' + LBL9 + '">MINIMUM SIZE THEY TRADED</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
+      + '<div><div style="' + LABEL_BLOCK + '">MINIMUM SIZE THEY TRADED</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
       + [['all', 'Any'], ['1000', '>$1k'], ['5000', '>$5k'], ['10000', '>$10k']].map((o) => T.opt(o[1], s.copyMin === o[0], { copyMin: o[0] })).join('') + '</div></div>'
       + '</div>'
       + '<div style="padding:10px 24px 0; font-size:var(--t-small); color:var(--ink-3); line-height:1.5">'
@@ -477,7 +475,7 @@ export function renderCopy(T) {
           + '<div style="' + grid + '; align-items:center">'
           + '<div style="' + M + '; font-size:var(--t-small); color:' + DIM + '" title="' + esc(o.at || '') + '">' + esc(o.time) + '</div>'
           + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(o.wallet || '') + '">' + esc(labelOf[o.wallet] || shortW(o.wallet) || '—') + '</div>'
-          + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(o.market) + '</div>'
+          + '<div style="font-family:var(--font-ui); font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(o.market) + '</div>'
           + '<div style="' + M + '; font-size:var(--t-small); text-align:right; color:' + kindStyle(k) + '">' + seite + '</div>'
           + '<div style="' + M + '; font-size:var(--t-small); text-align:right; color:' + DIM + '">' + esc(o.theirs) + '</div>'
           + '<div style="' + M + '; font-size:var(--t-small); text-align:right">' + esc(o.yours) + '</div>'
@@ -496,7 +494,7 @@ export function renderCopy(T) {
         '<div style="' + grid + '; align-items:center; padding:11px 16px; border-bottom:1px solid var(--line-3)">'
         + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(r[7] || '') + '">' + esc(labelOf[r[7]] || shortW(r[7]) || '—') + '</div>'
         + r.slice(0, 7).map((v, i) => {
-          const style = i === 0 ? "font-family:'IBM Plex Sans',sans-serif; font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" : M + '; font-size:var(--t-small); text-align:right; color:' + (i === 6 ? (String(v).charAt(0) === '+' ? POS : RED) : i === 1 ? (v === 'Yes' ? POS : BLUE) : 'var(--ink-2)');
+          const style = i === 0 ? "font-family:var(--font-ui); font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" : M + '; font-size:var(--t-small); text-align:right; color:' + (i === 6 ? (String(v).charAt(0) === '+' ? POS : RED) : i === 1 ? (v === 'Yes' ? POS : BLUE) : 'var(--ink-2)');
           return '<div style="' + style + '">' + esc(String(v)) + '</div>';
         }).join('')
         + '</div>'
@@ -506,7 +504,7 @@ export function renderCopy(T) {
     const putIn = filtered ? filtered.contributions : kp.contributions;
     const sourceName = firstActive ? (firstActive.label || shortW(firstActive.wallet)) : 'source wallet';
     body = '<div style="padding:16px 24px">'
-      + '<div style="' + CARD + '; padding:16px 18px">'
+      + '<div style="' + KARTE + '; padding:16px 18px">'
       + '<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:10px">'
       + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-4)">' + (filtered ? esc((filtered.label || shortW(filtered.wallet)).toUpperCase()) + ' — ' : 'ALL SUB-ACCOUNTS — ') + 'EQUITY VS CASH PUT IN</div>'
       + '<div style="display:flex; gap:14px; ' + M + '; font-size:var(--t-micro)">'
@@ -519,7 +517,7 @@ export function renderCopy(T) {
           + '<polyline points="' + equityPts + '" fill="none" style="stroke:' + ACCENT + '" stroke-width="2" /></svg>'
         : leerZeile('No equity curve yet — the daemon (or a sync pass) records one point per minute per trader.'))
       + '</div>'
-      + '<div style="' + CARD + '; padding:16px 18px; margin-top:14px">'
+      + '<div style="' + KARTE + '; padding:16px 18px; margin-top:14px">'
       + '<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:10px">'
       + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-4)">YOUR RETURN VERSUS THE SOURCE WALLET</div>'
       + '<div style="display:flex; gap:14px; ' + M + '; font-size:var(--t-micro)">'
@@ -569,7 +567,7 @@ export function renderCopy(T) {
         '<div style="' + grid + '; align-items:center; padding:11px 16px; border-bottom:1px solid var(--line-3)">'
         + '<div style="' + M + '; font-size:var(--t-small); color:var(--ink-2)">' + esc(String(r[0])) + '</div>'
         + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(r[4] || '') + '">' + esc(labelOf[r[4]] || shortW(r[4]) || '—') + '</div>'
-        + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:var(--t-small)">' + esc(String(r[1])) + '</div>'
+        + '<div style="font-family:var(--font-ui); font-size:var(--t-small)">' + esc(String(r[1])) + '</div>'
         + '<div style="' + M + '; font-size:var(--t-small); text-align:right; color:' + (String(r[2]).charAt(0) === '+' && r[2] !== '+$0.00' ? POS : 'var(--ink-2)') + '">' + esc(String(r[2])) + '</div>'
         + '<div style="' + M + '; font-size:var(--t-small); text-align:right; color:var(--ink-2)">' + esc(String(r[3] || '')) + '</div>'
         + '</div>'

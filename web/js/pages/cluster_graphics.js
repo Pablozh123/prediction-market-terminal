@@ -12,9 +12,7 @@
 
 import { esc } from '../util.js';
 import { SERIEN_FARBEN } from '../charts.js';
-
-const M = "font-family:'IBM Plex Mono',monospace";
-const CARD = 'background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel)';
+import { MONO as M, KARTE } from '../ui.js';
 
 // Cluster-Palette: die fuenf geprueften Serienplaetze aus terminal.css,
 // danach --warn und --muted als sechster und siebter Platz. Vorher standen
@@ -137,7 +135,7 @@ function graphSvg(g) {
 }
 
 function hinweisKarte(text, farbe) {
-  return '<div style="' + CARD + '; padding:20px 22px; margin-bottom:16px">'
+  return '<div style="' + KARTE + '; padding:20px 22px; margin-bottom:16px">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">CO-TRADING STRUCTURE</div>'
     + '<div style="font-size:var(--t-body); color:' + farbe + '; margin-top:10px; line-height:1.6; max-width:720px">'
     + esc(text) + '</div></div>';
@@ -169,7 +167,7 @@ export function renderClusterGraphics(live) {
       'var(--ink-2)');
   }
 
-  return '<div style="' + CARD + '; padding:18px 20px; margin-bottom:14px">'
+  return '<div style="' + KARTE + '; padding:18px 20px; margin-bottom:14px">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">CO-TRADING STRUCTURE</div>'
     + '<div style="font-size:var(--t-head); font-weight:600; margin-top:6px">Wallets that keep meeting in the same markets</div>'
     + kopfzeile(g)

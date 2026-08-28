@@ -7,11 +7,7 @@ import { esc, num, leerZeile } from '../util.js';
 import { caveatZeile } from '../claims.js';
 import { histogramm, kurzGeld } from '../charts.js';
 import { trackWatchRows } from './trader_pages.js';
-
-const M = "font-family:'IBM Plex Mono',monospace";
-const LBL9 = M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3); margin-bottom:6px';
-const LBL95 = M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3); margin-bottom:7px';
-const HEAD_CELL = M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3)';
+import { MONO as M, LABEL_BLOCK, LABEL } from '../ui.js';
 
 const SIZING = { fixed: 'Fixed $', pct: '% of bankroll', match: 'Match trader %', kelly: 'Kelly ¼' };
 
@@ -247,7 +243,7 @@ export function renderBacktester(T) {
   });
 
   const stepRow = (label, valueLabel, down, up) =>
-    '<div><div style="' + LBL95 + '">' + label + '</div>'
+    '<div><div style="' + LABEL_BLOCK + '">' + label + '</div>'
     + '<div style="display:flex; align-items:center; gap:6px">'
     + '<div ' + T.act(bt(T, down)) + ' style="width:28px; height:32px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-body); color:var(--ink-2); cursor:pointer">−</div>'
     + '<div style="flex:1; background:var(--panel); border:1px solid var(--line-1); border-radius:var(--r-control); padding:7px 8px; ' + M + '; font-size:var(--t-small); text-align:center">' + esc(valueLabel) + '</div>'
@@ -269,7 +265,7 @@ export function renderBacktester(T) {
         + '<div style="color:var(--ink-4)">' + esc(l.time) + '</div>'
         + '<div style="' + M + '; font-size:var(--t-small); color:' + (l.action === 'BUY' ? 'var(--pos)' : 'var(--neg)') + '">' + esc(l.action) + '</div>'
         + '<div><span style="' + M + '; font-size:var(--t-micro); letter-spacing:.08em; border-radius:var(--r-control); padding:2px 6px; ' + (l.status === 'skipped' ? 'color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35)' : 'color:var(--ink-2); border:1px solid var(--line-1)') + '">' + esc(l.status) + '</span></div>'
-        + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(l.market) + '</div>'
+        + '<div style="font-family:var(--font-ui); font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(l.market) + '</div>'
         + '<div style="color:var(--ink-3)">' + esc(l.side) + '</div>'
         + '<div style="text-align:right; color:var(--ink-4)">' + esc(l.traderAmt) + '</div>'
         + '<div style="text-align:right">' + esc(l.stake) + '</div>'
@@ -286,7 +282,7 @@ export function renderBacktester(T) {
       + '<div>MARKET</div><div>SIDE</div><div style="text-align:right">SHARES</div><div style="text-align:right">AVG FILL</div><div style="text-align:right">MARK</div><div style="text-align:right">COST</div><div style="text-align:right">VALUE</div><div style="text-align:right">UNREALISED</div></div>'
       + openRows.map((o) =>
         '<div style="display:grid; grid-template-columns:1fr 62px 78px 78px 78px 88px 88px 100px; gap:10px; align-items:center; padding:10px 16px; border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small)">'
-        + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(o.market) + '</div>'
+        + '<div style="font-family:var(--font-ui); font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(o.market) + '</div>'
         + '<div style="' + M + '; font-size:var(--t-small); color:' + (o.side === 'Yes' ? 'var(--accent)' : 'var(--info)') + '">' + esc(o.side) + '</div>'
         + '<div style="text-align:right; color:var(--ink-3)">' + o.shares + '</div>'
         + '<div style="text-align:right; color:var(--ink-3)">' + o.avg + '</div>'
@@ -340,7 +336,7 @@ export function renderBacktester(T) {
       '<div ' + T.act(bt(T, { btSizing: k })) + ' style="font-size:var(--t-small); text-align:center; border-radius:var(--r-control); padding:8px 6px; cursor:pointer; ' + (s.btSizing === k ? 'color:var(--on-accent); background:var(--accent); font-weight:600' : 'color:var(--ink-3); border:1px solid var(--line-1)') + '">' + SIZING[k] + '</div>'
     ).join('')
     + '</div>'
-    + '<div style="margin-top:12px"><div style="' + LBL95 + '">' + stakeLabel + '</div>'
+    + '<div style="margin-top:12px"><div style="' + LABEL_BLOCK + '">' + stakeLabel + '</div>'
     + '<div style="display:flex; align-items:center; gap:8px">'
     + '<div ' + T.act(bt(T, stakeDown)) + ' class="hv-bd35w" style="width:32px; height:34px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-lead); color:var(--ink-2); cursor:pointer">−</div>'
     + '<div style="flex:1; background:var(--panel); border:1px solid var(--line-1); border-radius:var(--r-control); padding:8px 12px; ' + M + '; font-size:var(--t-body); text-align:center">' + esc(stakeValue) + '</div>'
@@ -351,7 +347,7 @@ export function renderBacktester(T) {
     // und Exposure-Deckel dem Tempo der Wallet folgen koennen. Nur bei
     // Fixed $ und % of bankroll — die anderen Modi dimensionieren selbst.
     + (s.btSizing === 'fixed' || s.btSizing === 'pct'
-      ? '<div style="margin-top:12px"><div style="' + LBL95 + '">AUTO-FIT STAKE TO THE WALLET\'S PACE</div>'
+      ? '<div style="margin-top:12px"><div style="' + LABEL_BLOCK + '">AUTO-FIT STAKE TO THE WALLET\'S PACE</div>'
         + '<div style="display:flex; gap:6px">'
         + T.opt('Auto-fit on', !!s.btAutoFit, bt(T, { btAutoFit: true }))
         + T.opt('Manual stake', !s.btAutoFit, bt(T, { btAutoFit: false }))
@@ -391,7 +387,7 @@ export function renderBacktester(T) {
       + stepRow('BANKROLL', '$' + num(s.btBankroll), { btBankroll: Math.max(100, s.btBankroll - 500) }, { btBankroll: s.btBankroll + 500 })
       + '<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px">'
       + stepRow('SLIPPAGE (BPS)', s.btSlip + ' bps', { btSlip: Math.max(0, s.btSlip - 5) }, { btSlip: s.btSlip + 5 })
-      + '<div><div style="' + LBL95 + '">FEE MODEL</div>'
+      + '<div><div style="' + LABEL_BLOCK + '">FEE MODEL</div>'
       + '<div style="display:flex; gap:6px; margin-top:6px">'
       + T.opt('Venue curve', s.btFeeModel !== 'flat', { btFeeModel: 'curve' })
       + T.opt('Flat override', s.btFeeModel === 'flat', { btFeeModel: 'flat' })
@@ -415,7 +411,7 @@ export function renderBacktester(T) {
           + 'The model lives in app/venue_fees.py and the general rate applies, because a wallet history '
           + 'carries no category.'
           + '</div>')
-      + '<div><div style="' + LBL95 + '">BENCHMARK</div>'
+      + '<div><div style="' + LABEL_BLOCK + '">BENCHMARK</div>'
       + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:7px; line-height:1.5">The dashed line in the results is the same trades at a constant 2% of the starting bankroll per copy. The compare-wallet field was removed: the server never read it, and the table it fed derived the other wallet from ours by fixed multipliers.</div></div>'
       + '</div>' : '')
     + '</div>'
@@ -593,12 +589,12 @@ export function renderPortfolio(T) {
     const rows = baseRows.filter((r) => (s.portSource === 'all' || r[5] === s.portSource) && (s.portSide === 'all' || r[1] === s.portSide) && (!s.portLosers || r[4].charAt(0) === '-') && (!s.portQuery.trim() || r[0].toLowerCase().indexOf(s.portQuery.trim().toLowerCase()) >= 0));
     body = '<div>'
       + '<div style="padding:14px 24px 0; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px 18px">'
-      + '<div><div style="' + LBL9 + '">SEARCH</div><input value="' + esc(s.portQuery) + '" ' + T.inp((e) => T.setState({ portQuery: e.target.value }), 'portQuery') + ' placeholder="market or wallet…" style="width:100%; box-sizing:border-box; background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:8px 10px; ' + M + '; font-size:var(--t-small); color:var(--text)" /></div>'
-      + '<div><div style="' + LBL9 + '">SOURCE</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
+      + '<div><div style="' + LABEL_BLOCK + '">SEARCH</div><input value="' + esc(s.portQuery) + '" ' + T.inp((e) => T.setState({ portQuery: e.target.value }), 'portQuery') + ' placeholder="market or wallet…" style="width:100%; box-sizing:border-box; background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:8px 10px; ' + M + '; font-size:var(--t-small); color:var(--text)" /></div>'
+      + '<div><div style="' + LABEL_BLOCK + '">SOURCE</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
       + [['all','All'],['research','Research'],['copy','Copy trade']].map((o) => T.opt(o[1], s.portSource === o[0], { portSource: o[0] })).join('') + '</div></div>'
-      + '<div><div style="' + LBL9 + '">SIDE</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
+      + '<div><div style="' + LABEL_BLOCK + '">SIDE</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
       + [['all','All'],['YES','Yes'],['NO','No']].map((o) => T.opt(o[1], s.portSide === o[0], { portSide: o[0] })).join('') + '</div></div>'
-      + '<div><div style="' + LBL9 + '">SHOW</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
+      + '<div><div style="' + LABEL_BLOCK + '">SHOW</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
       + [['all','Everything'],['losers','Losing only']].map((o) => T.opt(o[1], (s.portLosers ? 'losers' : 'all') === o[0], { portLosers: o[0] === 'losers' })).join('') + '</div></div>'
       + '</div>'
       + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin:14px 24px; overflow:hidden">'
@@ -608,7 +604,7 @@ export function renderPortfolio(T) {
       + rows.map((r) =>
         '<div style="display:grid; grid-template-columns:1fr 76px 92px 92px 100px 100px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid var(--line-3)">'
         + r.map((v, i) => {
-          const style = i === 0 ? "font-family:'IBM Plex Sans',sans-serif; font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" : M + '; font-size:var(--t-small); text-align:right; color:' + (i === 4 ? (v.charAt(0) === '+' ? 'var(--pos)' : 'var(--neg)') : i === 1 ? (v === 'YES' ? 'var(--pos)' : 'var(--info)') : 'var(--ink-2)');
+          const style = i === 0 ? "font-family:var(--font-ui); font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" : M + '; font-size:var(--t-small); text-align:right; color:' + (i === 4 ? (v.charAt(0) === '+' ? 'var(--pos)' : 'var(--neg)') : i === 1 ? (v === 'YES' ? 'var(--pos)' : 'var(--info)') : 'var(--ink-2)');
           return '<div style="' + style + '">' + esc(String(v)) + '</div>';
         }).join('')
         + '</div>'
@@ -687,7 +683,7 @@ export function renderPortfolio(T) {
       + histRows.map((r) =>
         '<div style="display:grid; grid-template-columns:110px 1fr 78px 92px 92px 100px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid var(--line-3)">'
         + r.map((v, i) => {
-          const style = i === 1 ? "font-family:'IBM Plex Sans',sans-serif; font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" : M + '; font-size:var(--t-small); text-align:' + (i === 0 ? 'left' : 'right') + '; color:' + (i === 5 ? (v.charAt(0) === '+' ? 'var(--pos)' : 'var(--neg)') : i === 2 ? (v === 'YES' ? 'var(--pos)' : 'var(--info)') : 'var(--ink-2)');
+          const style = i === 1 ? "font-family:var(--font-ui); font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" : M + '; font-size:var(--t-small); text-align:' + (i === 0 ? 'left' : 'right') + '; color:' + (i === 5 ? (v.charAt(0) === '+' ? 'var(--pos)' : 'var(--neg)') : i === 2 ? (v === 'YES' ? 'var(--pos)' : 'var(--info)') : 'var(--ink-2)');
           return '<div style="' + style + '">' + esc(String(v)) + '</div>';
         }).join('')
         + '</div>'

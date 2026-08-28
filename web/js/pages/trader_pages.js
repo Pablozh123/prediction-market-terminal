@@ -4,13 +4,10 @@ import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChi
 import { caveat, caveatZeile } from '../claims.js';
 import { renderClusterGraphics, clusterFarbe } from './cluster_graphics.js';
 import { punktwolke, histogramm, kurzGeld } from '../charts.js';
-
-const M = "font-family:'IBM Plex Mono',monospace";
-const LBL9 = M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3); margin-bottom:6px';
-const HEAD_CELL = M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3)';
+import { MONO as M, LABEL_BLOCK, LABEL, NOTIZ } from '../ui.js';
 
 function filterGroup(label, chipsHtml) {
-  return '<div><div style="' + LBL9 + '">' + label + '</div><div style="display:flex; gap:6px; flex-wrap:wrap">' + chipsHtml + '</div></div>';
+  return '<div><div style="' + LABEL_BLOCK + '">' + label + '</div><div style="display:flex; gap:6px; flex-wrap:wrap">' + chipsHtml + '</div></div>';
 }
 
 // Score components as a compact labelled list. Prefers the structured
@@ -227,7 +224,7 @@ export function renderTraders(T) {
     })
 
     + '<div style="display:flex; align-items:center; gap:20px; margin-top:14px; flex-wrap:wrap">'
-    + '<div style="display:flex; align-items:center; gap:8px"><span style="' + LBL9.replace('; margin-bottom:6px', '') + '">RANK BY</span><div style="display:flex; gap:6px; flex-wrap:wrap">'
+    + '<div style="display:flex; align-items:center; gap:8px"><span style="' + LABEL_BLOCK.replace('; margin-bottom:6px', '') + '">RANK BY</span><div style="display:flex; gap:6px; flex-wrap:wrap">'
     + rankTabs + '</div></div>'
     + '</div>'
 
@@ -246,7 +243,7 @@ export function renderTraders(T) {
     + (scoreWolke ? '<div style="margin-top:14px; max-width:700px">' + scoreWolke + '</div>' : '')
     + '</div>'
 
-    + '<div style="display:grid; grid-template-columns:' + grid + '; padding:10px 24px; border-bottom:1px solid var(--line-2); background:var(--panel); ' + HEAD_CELL + '">'
+    + '<div style="display:grid; grid-template-columns:' + grid + '; padding:10px 24px; border-bottom:1px solid var(--line-2); background:var(--panel); ' + LABEL + '">'
     + '<div>#</div><div>WALLET · SCORE COMPONENTS</div><div style="text-align:right">PROFIT</div>'
     + (hatWin ? '<div style="text-align:right">WIN RATE</div>' : '')
     + (hatResolved ? '<div style="text-align:right">RESOLVED BETS</div>' : '')
@@ -300,7 +297,7 @@ export function renderWhale(T) {
   const grouped = T.tape.filter((t) => t.wallet !== '—' && (whaleCat === 'All' || (t.category || 'Other') === whaleCat));
   if (!grouped.length) {
     return '<div>' + seitenKopf('WHALE FLOW', 'Who is moving the big money', 'var(--accent)')
-      + '<div style="padding:14px 24px 0; display:flex; align-items:center; gap:8px; flex-wrap:wrap"><span style="' + LBL9.replace('; margin-bottom:6px', '') + '">CATEGORY</span>'
+      + '<div style="padding:14px 24px 0; display:flex; align-items:center; gap:8px; flex-wrap:wrap"><span style="' + LABEL_BLOCK.replace('; margin-bottom:6px', '') + '">CATEGORY</span>'
       + catChips.map((c) => T.chip(c.toUpperCase(), whaleCat === c, { whaleCat: c })).join('') + '</div>'
       + leerBlock('NO PRINTS IN THIS CATEGORY', 'No wallet-level print in the tape window carries the category ' + whaleCat + '. Pick another chip or All.') + '</div>';
   }
@@ -380,11 +377,11 @@ export function renderWhale(T) {
     + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">Who is moving the big money</h1>'
     + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:9px; max-width:760px">The same prints as the tape, grouped by wallet, so one wallet buying twenty times reads as one story instead of twenty rows. Every figure below is a sum over the prints in this tape window' + (whaleCat === 'All' ? '' : ' in the category ' + esc(whaleCat)) + '.' + esc(ausschlussSatz) + '</div>'
     + '<div style="display:flex; align-items:center; gap:8px; margin-top:12px; flex-wrap:wrap">'
-    + '<span style="' + LBL9.replace('; margin-bottom:6px', '') + '">CATEGORY</span>'
+    + '<span style="' + LABEL_BLOCK.replace('; margin-bottom:6px', '') + '">CATEGORY</span>'
     + catChips.map((c) => T.chip(c.toUpperCase(), whaleCat === c, { whaleCat: c })).join('')
     + '</div>'
     + '<div style="display:flex; align-items:center; gap:8px; margin-top:10px; flex-wrap:wrap">'
-    + '<span style="' + LBL9.replace('; margin-bottom:6px', '') + '">SORT BY</span>'
+    + '<span style="' + LABEL_BLOCK.replace('; margin-bottom:6px', '') + '">SORT BY</span>'
     + T.chip('Total $', sortKey === 'total', { whaleSort: 'total' })
     + T.chip('Biggest print', sortKey === 'biggest', { whaleSort: 'biggest' })
     + T.chip('Prints', sortKey === 'prints', { whaleSort: 'prints' })
@@ -404,7 +401,7 @@ export function renderWhale(T) {
     + (fensterZeile ? '<div style="padding:9px 24px; border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); color:var(--ink-4)">'
       + '<span style="letter-spacing:.14em; color:var(--ink-3); margin-right:8px">SUMMED OVER</span>' + esc(fensterZeile) + '</div>' : '')
     + '<div style="padding:10px 24px; border-bottom:1px solid var(--line-2); font-size:var(--t-small); color:var(--ink-4)"><span style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3); margin-right:8px">CONCENTRATION</span>' + esc(konzentrationSatz) + '</div>'
-    + '<div style="display:grid; grid-template-columns:' + GRID + '; gap:0 10px; padding:10px 24px; border-bottom:1px solid var(--line-2); background:var(--panel); ' + HEAD_CELL + '">'
+    + '<div style="display:grid; grid-template-columns:' + GRID + '; gap:0 10px; padding:10px 24px; border-bottom:1px solid var(--line-2); background:var(--panel); ' + LABEL + '">'
     + '<div>WALLET · VENUE</div><div style="text-align:right">PRINTS</div><div style="text-align:right">TOTAL</div><div style="text-align:right">BIGGEST</div><div style="text-align:right">LEANING</div><div style="text-align:right">MARKETS</div><div>TOP MARKET</div><div style="text-align:right">MOSTLY IN</div><div style="text-align:right">LAST PRINT</div></div>'
     + (rows.length ? '' : leerZeile('Every print in this window is anonymous — Kalshi publishes no wallet identity, so there is nothing to group by.'))
     + rows.map((w) => {
@@ -442,7 +439,6 @@ export function renderWhale(T) {
 // from /api/risk (api_views.risk_event_row) or /api/risk/log; a missing value
 // renders as "—" or "n/a", never as a default number.
 const CHIP = M + '; font-size:var(--t-micro); color:var(--ink-4); border:1px solid var(--line-2); border-radius:var(--r-control); padding:1px 6px; white-space:nowrap';
-const NOTE_R = M + '; font-size:var(--t-micro); color:var(--ink-3); line-height:1.6';
 const LINK = 'color:var(--accent); text-decoration:none; ' + M + '; font-size:var(--t-micro); letter-spacing:.06em';
 
 function cents(p) {
@@ -740,7 +736,7 @@ function marketLink(url) {
 // still pending. A horizon that had already elapsed when the sampler wrote the
 // flag says so: the move happened, but not while anyone could read the flag.
 function afterCell(after, key, label) {
-  const zelle = (inhalt, ton) => '<div><div style="' + HEAD_CELL + '">' + label + '</div>'
+  const zelle = (inhalt, ton) => '<div><div style="' + LABEL + '">' + label + '</div>'
     + '<div style="' + M + '; font-size:var(--t-small); ' + (ton || 'color:var(--ink-3)') + '; margin-top:2px">' + inhalt + '</div></div>';
   const p = after && after[key];
   if (!after) return zelle('n/a');
@@ -760,7 +756,7 @@ function afterCell(after, key, label) {
 // Stichprobenguete, den Stand und die weggelassenen Nenner.
 export function flagScoreboardHtml(sb) {
   if (!sb || !sb.horizons) return '';
-  const LABEL = { '30m': '+30 MIN', '2h': '+2 H', '24h': '+24 H' };
+  const HORIZONT = { '30m': '+30 MIN', '2h': '+2 H', '24h': '+24 H' };
   const zelle = (key) => {
     const h = sb.horizons[key];
     if (!h) return '';
@@ -771,7 +767,7 @@ export function flagScoreboardHtml(sb) {
     const badge = h.sample && h.sample.quality ? h.sample.quality : '';
     const farbe = badge === 'adequate' ? 'var(--text)' : 'var(--ink-3)';
     return '<div style="min-width:150px">'
-      + '<div style="' + HEAD_CELL + '">' + LABEL[key] + '</div>'
+      + '<div style="' + LABEL + '">' + HORIZONT[key] + '</div>'
       + '<div style="' + M + '; font-size:var(--t-head); margin-top:3px; color:' + farbe + '">' + quote + '</div>'
       + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:2px">'
       + h.hits + '/' + h.n_decisive + ' decisive · ' + esc(ci) + '</div>'
@@ -784,7 +780,7 @@ export function flagScoreboardHtml(sb) {
   return '<div style="margin:14px 24px 0; background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:14px 18px">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3)">FLAGGED SIDE HIGHER AFTERWARDS</div>'
     + '<div style="display:flex; gap:26px; flex-wrap:wrap; margin-top:10px">'
-    + Object.keys(LABEL).map(zelle).join('') + '</div>'
+    + Object.keys(HORIZONT).map(zelle).join('') + '</div>'
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:10px; line-height:1.6; max-width:860px">'
     + esc(sb.basis || '') + '</div>'
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:6px; line-height:1.6; max-width:860px">'
@@ -844,7 +840,7 @@ export function renderRiskLog(T) {
         + '<span style="' + CHIP + '">' + esc(windowLabel(f.window_start, f.window_end, f.window_minutes)) + '</span>'
         + '<span style="' + CHIP + '">' + (f.unique_wallets || 0) + ' wallet' + (f.unique_wallets === 1 ? '' : 's') + (f.prints ? ' · ' + f.prints + ' prints' : '') + '</span></div>'
         + (hatAfter ? '<div style="display:flex; gap:22px; margin-top:10px">' + afterCell(f.after, '30m', '+30 MIN') + afterCell(f.after, '2h', '+2 H') + afterCell(f.after, '24h', '+24 H')
-          + '<div><div style="' + HEAD_CELL + '">MEASURED ON</div><div style="' + M + '; font-size:var(--t-small); color:var(--ink-4); margin-top:2px">' + (f.after ? esc(f.price_outcome || 'flagged') + ' side, from last print' : (String(f.venue).toLowerCase() === 'kalshi' ? 'Kalshi: no history read' : 'no history / not in the enriched set')) + '</div></div></div>' : '')
+          + '<div><div style="' + LABEL + '">MEASURED ON</div><div style="' + M + '; font-size:var(--t-small); color:var(--ink-4); margin-top:2px">' + (f.after ? esc(f.price_outcome || 'flagged') + ' side, from last print' : (String(f.venue).toLowerCase() === 'kalshi' ? 'Kalshi: no history read' : 'no history / not in the enriched set')) + '</div></div></div>' : '')
         + '<div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:9px">' + riskWalletsHtml(f.top_wallets, f.unique_wallets) + '</div>'
         + riskBookHtml(T, { top_wallets: f.top_wallets, venue: f.venue, market_key: f.market_key, side: f.side })
         + '<div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:7px">' + riskComponentsHtml(f.components) + '</div>'
@@ -922,7 +918,7 @@ export function riskEventCard(T, r0) {
       + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">WHY ' + score + ' / 100 · WHAT EACH PART SAW</div>'
       + (flags.length ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">flags: ' + flags.map((f) => esc(String(f))).join(' · ') + '</div>' : '')
       + '</div>'
-      + (comps.length ? '<div style="margin-top:6px">' + riskScoreBreakdown(comps, score) + '</div>' : '<div style="' + NOTE_R + '; margin-top:6px">' + esc(r.detail || 'No component breakdown in this answer.') + '</div>')
+      + (comps.length ? '<div style="margin-top:6px">' + riskScoreBreakdown(comps, score) + '</div>' : '<div style="' + NOTIZ + '; margin-top:6px">' + esc(r.detail || 'No component breakdown in this answer.') + '</div>')
       + riskBookHtml(T, r0)
       + '</div>'
     : '';
@@ -1085,7 +1081,7 @@ export function renderRisk(T) {
             + (echt ? 'color:var(--warn); border:1px solid rgba(var(--warn-rgb),.3)' : 'color:var(--ink-3); border:1px solid var(--line-2)') + '">' + esc(f) + '</span>';
         }).join('');
         return '<div ' + T.act(() => T.openWallet(w.wallet, w.address)) + ' class="hv-panel" style="display:grid; grid-template-columns:' + GRID_W + '; gap:10px; align-items:center; padding:12px 16px; border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small); cursor:pointer">'
-          + '<div style="min-width:0"><div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:var(--t-body); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(w.address || w.wallet) + '">' + esc(w.wallet) + '</div>'
+          + '<div style="min-width:0"><div style="font-family:var(--font-ui); font-size:var(--t-body); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(w.address || w.wallet) + '">' + esc(w.wallet) + '</div>'
           + '<div style="font-size:var(--t-micro); color:var(--ink-3); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(w.context) + '">mostly in ' + esc(w.context) + '</div>'
           + (flagChips ? '<div style="display:flex; gap:4px; flex-wrap:wrap; margin-top:5px">' + flagChips + '</div>' : '')
           + '</div>'
@@ -1157,7 +1153,7 @@ export function renderRisk(T) {
           + '<div style="width:' + (anteil * 100).toFixed(1) + '%; height:7px; background:' + (c.same ? 'var(--warn)' : 'rgba(var(--ink),.45)') + '"></div></div>'
           + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); white-space:nowrap">' + esc(c.window) + '</div></div>';
         return '<div style="display:grid; grid-template-columns:' + GRID_T + '; gap:10px; align-items:center; padding:12px 16px; border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small)">'
-          + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:var(--t-body); min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(c.market) + '">' + esc(c.market) + '</div>'
+          + '<div style="font-family:var(--font-ui); font-size:var(--t-body); min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(c.market) + '">' + esc(c.market) + '</div>'
           + '<div style="text-align:right">' + c.wallets + '</div>'
           + balken
           + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:' + (c.same ? 'var(--warn)' : 'var(--ink-3)') + '">' + (c.same ? 'all on ' + esc(c.side || 'one side') : 'mixed') + '</div>'

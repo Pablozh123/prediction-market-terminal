@@ -7,15 +7,13 @@ import { esc, money, num, volume, contracts, herkunftSatz, leerBlock, leerZeile,
 import { caveatZeile } from '../claims.js';
 import { spiegelZeit, kurzGeld, histogramm } from '../charts.js';
 import { studieAnker } from './microstructure_page.js';
+import { MONO as M, LABEL_BLOCK, LABEL } from '../ui.js';
 
-const M = "font-family:'IBM Plex Mono',monospace";
-const LBL9 = M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3); margin-bottom:6px';
-const HEAD_CELL = M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3)';
 const REPO_URL = 'https://github.com/Pablozh123/prediction-market-terminal';
 const ONE_PAGER_URL = REPO_URL + '/blob/main/docs/research/ONE_PAGER.md';
 
 function filterGroup(label, chipsHtml) {
-  return '<div><div style="' + LBL9 + '">' + label + '</div><div style="display:flex; gap:6px; flex-wrap:wrap">' + chipsHtml + '</div></div>';
+  return '<div><div style="' + LABEL_BLOCK + '">' + label + '</div><div style="display:flex; gap:6px; flex-wrap:wrap">' + chipsHtml + '</div></div>';
 }
 
 // Category chip row shared by Markets, Live tape and Whale flow: only the
@@ -244,7 +242,7 @@ export function renderOverview(T) {
   const counts = verdictCounts(micro);
   let board;
   if (studien.length) {
-    board = '<div style="display:grid; grid-template-columns:36px 1fr 128px 190px 150px; padding:9px 24px; border-bottom:1px solid var(--line-2); ' + HEAD_CELL + '">'
+    board = '<div style="display:grid; grid-template-columns:36px 1fr 128px 190px 150px; padding:9px 24px; border-bottom:1px solid var(--line-2); ' + LABEL + '">'
       + '<div>#</div><div>QUESTION</div><div>VERDICT</div><div style="text-align:right">KEY NUMBER · N</div><div style="text-align:right">WINDOW</div></div>'
       + studien.map((st, i) => {
         const kn = keyNumber(st);
@@ -619,7 +617,7 @@ export function renderMarkets(T) {
     // VIEW (Cards / Calendar) and QUICK Saved / My positions are gone: the
     // first two had no renderer, the last two filtered on flags nothing sets.
     + '<div style="display:flex; align-items:center; gap:22px; margin-top:16px; flex-wrap:wrap">'
-    + '<div style="display:flex; align-items:center; gap:8px"><span style="' + LBL9.replace('; margin-bottom:6px', '') + '">QUICK</span>'
+    + '<div style="display:flex; align-items:center; gap:8px"><span style="' + LABEL_BLOCK.replace('; margin-bottom:6px', '') + '">QUICK</span>'
     + [['trending','By volume'],['ending','Ending soon'],['new','New']].map((o) => T.opt(o[1], s.mQuick === o[0], { mQuick: o[0] })).join('') + '</div>'
     + asOfLine(s.liveAsOf)
     + '</div>'
@@ -644,10 +642,10 @@ export function renderMarkets(T) {
       + filterGroup('VOLUME 24H (VENUE UNIT)', [['all','All'],['10k','>10k'],['100k','>100k'],['1m','>1m']].map((o) => T.opt(o[1], s.mVol === o[0], { mVol: o[0] })).join(''))
       + filterGroup('RESOLVES IN', [['all','All'],['1d','<1 day'],['7d','<7 days'],['30d','<30 days'],['open','Open ended']].map((o) => T.opt(o[1], s.mEnds === o[0], { mEnds: o[0] })).join(''))
       + filterGroup('MARKET AGE', [['all','All'],['1d','<1 day'],['7d','<7 days'],['30d','>30 days']].map((o) => T.opt(o[1], s.mAge === o[0], { mAge: o[0] })).join(''))
-      + '<div style="grid-column:span 2"><div style="' + LBL9 + '">EXCLUDE CATEGORIES</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
+      + '<div style="grid-column:span 2"><div style="' + LABEL_BLOCK + '">EXCLUDE CATEGORIES</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
       + cats.slice(1).map((c) => T.opt(c, s.mExclude.indexOf(c) >= 0, () => T.setState({ mExclude: s.mExclude.indexOf(c) >= 0 ? s.mExclude.filter((x) => x !== c) : s.mExclude.concat([c]) }))).join('')
       + '</div></div>'
-      + '<div style="grid-column:span 2"><div style="' + LBL9 + '">SORT BY</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
+      + '<div style="grid-column:span 2"><div style="' + LABEL_BLOCK + '">SORT BY</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
       + [['volume','Volume 24h'],['change','Biggest move'],['liquidity','Liquidity'],['ending','Ending soonest'],['newest','Newest']].map((o) => T.opt(o[1], s.marketSort === o[0], { marketSort: o[0] })).join('')
       + '</div></div>'
       + '</div>' : '')
@@ -663,7 +661,7 @@ export function renderMarkets(T) {
     // No TREND column: the API carries a one-day change, not an intraday
     // path, and a two-point line under "TREND 24H" read as a curve. SPREAD
     // und LIQUIDITY kommen aus denselben API-Zeilen (unbekannt bleibt —).
-    + '<div style="display:grid; grid-template-columns:' + MARKT_SPALTEN + '; align-items:center; padding:10px 24px; border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + HEAD_CELL + '">'
+    + '<div style="display:grid; grid-template-columns:' + MARKT_SPALTEN + '; align-items:center; padding:10px 24px; border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + LABEL + '">'
     + '<div>MARKET</div>'
     + '<div style="text-align:right">YES</div>'
     + '<div ' + T.act(() => T.setState({ marketSort: 'change' })) + ' aria-pressed="' + (s.marketSort === 'change' ? 'true' : 'false') + '"' + ' style="text-align:right; cursor:pointer; padding:5px 0; color:' + (s.marketSort === 'change' ? 'var(--accent)' : 'var(--ink-3)') + '">CHANGE 1D</div>'
@@ -843,7 +841,7 @@ export function renderFlow(T) {
 
     + grafiken
 
-    + '<div style="display:grid; grid-template-columns:96px 160px 1fr 110px 84px 90px 110px 96px; padding:10px 24px; border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + HEAD_CELL + '">'
+    + '<div style="display:grid; grid-template-columns:96px 160px 1fr 110px 84px 90px 110px 96px; padding:10px 24px; border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + LABEL + '">'
     + '<div>TIME</div><div>WALLET</div><div>MARKET</div><div>CATEGORY</div><div>SIDE</div><div style="text-align:right">PRICE</div><div style="text-align:right">SIZE</div><div style="text-align:right">VENUE</div></div>'
     + (tapeFiltered.length ? '' : leerZeile('No print in the tape window passes the current filters (size, category, side).'))
     + tapeFiltered.map((t0) => {
@@ -855,7 +853,7 @@ export function renderFlow(T) {
       return '<div ' + (klickbar ? t.act + ' ' : '') + 'class="' + (klickbar ? 'hv-panel' : '') + (neu ? ' tape-in' : '') + '" style="display:grid; grid-template-columns:96px 160px 1fr 110px 84px 90px 110px 96px; align-items:center; padding:12px 24px; border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small); ' + (klickbar ? 'cursor:pointer; ' : '') + '">'
         + '<div style="color:var(--ink-4)">' + esc(t.ago) + '</div>'
         + '<div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(t.wallet) + '">' + esc(t.wallet) + '</div>'
-        + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:var(--t-body); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:12px" title="' + esc(t.market) + '">' + esc(t.market) + '</div>'
+        + '<div style="font-family:var(--font-ui); font-size:var(--t-body); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:12px" title="' + esc(t.market) + '">' + esc(t.market) + '</div>'
         + '<div style="font-size:var(--t-micro); color:var(--ink-4)">' + esc(t.category || 'Other') + '</div>'
         + '<div style="' + t.sideStyle + '">' + esc(t.side) + '</div>'
         + '<div style="text-align:right">' + esc(t.price) + '</div>'
@@ -942,7 +940,7 @@ export function renderCross(T) {
   );
 
   const stepGroup = (label, valueLabel, onDown, onUp) =>
-    '<div><div style="' + LBL9 + '">' + label + '</div>'
+    '<div><div style="' + LABEL_BLOCK + '">' + label + '</div>'
     + '<div style="display:flex; align-items:center; gap:6px">'
     + '<div ' + T.act(onDown) + ' class="hv-bd35w" style="width:26px; height:30px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-body); color:var(--ink-2); cursor:pointer">−</div>'
     + '<div style="flex:1; background:var(--panel); border:1px solid var(--line-1); border-radius:var(--r-control); padding:6px 8px; ' + M + '; font-size:var(--t-small); text-align:center">' + esc(valueLabel) + '</div>'
@@ -965,7 +963,7 @@ export function renderCross(T) {
     + stepGroup('MIN SIMILARITY (GATE 0.50)', s.crossSim.toFixed(2), () => T.setState({ crossSim: Math.max(0.5, +(s.crossSim - 0.02).toFixed(2)) }), () => T.setState({ crossSim: Math.min(0.9, +(s.crossSim + 0.02).toFixed(2)) }))
     + stepGroup('MAX PAIRS', String(s.crossMaxPairs), () => T.setState({ crossMaxPairs: Math.max(10, s.crossMaxPairs - 10) }), () => T.setState({ crossMaxPairs: Math.min(150, s.crossMaxPairs + 10) }))
     + stepGroup('MIN GAP (¢)', s.crossMinGap.toFixed(1) + '¢', () => T.setState({ crossMinGap: Math.max(0, s.crossMinGap - 0.5) }), () => T.setState({ crossMinGap: s.crossMinGap + 0.5 }))
-    + '<div><div style="' + LBL9 + '">LOWER YES ON</div><div style="display:flex; gap:6px">'
+    + '<div><div style="' + LABEL_BLOCK + '">LOWER YES ON</div><div style="display:flex; gap:6px">'
     + [['any','Any'],['Polymarket','Polymarket'],['Kalshi','Kalshi']].map((o) => T.opt(o[1], s.crossLower === o[0], { crossLower: o[0] })).join('')
     + '</div></div>'
     + stepGroup('MIN POLYMARKET VOLUME', s.crossPmVol ? '$' + num(s.crossPmVol) : 'any', () => T.setState({ crossPmVol: Math.max(0, s.crossPmVol - 250000) }), () => T.setState({ crossPmVol: s.crossPmVol + 250000 }))
@@ -979,13 +977,13 @@ export function renderCross(T) {
     + '</div></div>'
 
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid var(--line-2)">'
-    + '<div style="padding:14px 24px; border-right:1px solid var(--line-2)"><div style="' + HEAD_CELL + '">PAIRS SHOWN</div><div style="' + M + '; font-size:var(--t-head); margin-top:7px">' + cRows.length + '</div></div>'
-    + '<div style="padding:14px 24px; border-right:1px solid var(--line-2)"><div style="' + HEAD_CELL + '">LARGEST GAP</div><div style="' + M + '; font-size:var(--t-head); margin-top:7px; color:var(--warn)">' + (gaps.length ? gaps[gaps.length - 1] + '¢' : '—') + '</div></div>'
-    + '<div style="padding:14px 24px; border-right:1px solid var(--line-2)"><div style="' + HEAD_CELL + '">MEDIAN SIMILARITY</div><div style="' + M + '; font-size:var(--t-head); margin-top:7px">' + (medianSim ? medianSim.toFixed(2) : '—') + '</div></div>'
-    + '<div style="padding:14px 24px"><div style="' + HEAD_CELL + '">POSITIVE NET OF FEES</div><div style="' + M + '; font-size:var(--t-head); margin-top:7px; color:' + (netPositive ? 'var(--pos)' : 'var(--ink-3)') + '">' + netPositive + ' of ' + netKnown + '</div></div>'
+    + '<div style="padding:14px 24px; border-right:1px solid var(--line-2)"><div style="' + LABEL + '">PAIRS SHOWN</div><div style="' + M + '; font-size:var(--t-head); margin-top:7px">' + cRows.length + '</div></div>'
+    + '<div style="padding:14px 24px; border-right:1px solid var(--line-2)"><div style="' + LABEL + '">LARGEST GAP</div><div style="' + M + '; font-size:var(--t-head); margin-top:7px; color:var(--warn)">' + (gaps.length ? gaps[gaps.length - 1] + '¢' : '—') + '</div></div>'
+    + '<div style="padding:14px 24px; border-right:1px solid var(--line-2)"><div style="' + LABEL + '">MEDIAN SIMILARITY</div><div style="' + M + '; font-size:var(--t-head); margin-top:7px">' + (medianSim ? medianSim.toFixed(2) : '—') + '</div></div>'
+    + '<div style="padding:14px 24px"><div style="' + LABEL + '">POSITIVE NET OF FEES</div><div style="' + M + '; font-size:var(--t-head); margin-top:7px; color:' + (netPositive ? 'var(--pos)' : 'var(--ink-3)') + '">' + netPositive + ' of ' + netKnown + '</div></div>'
     + '</div>'
 
-    + '<div style="display:grid; grid-template-columns:1fr 104px 104px 84px 108px 124px 112px; padding:10px 24px; border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + HEAD_CELL + '">'
+    + '<div style="display:grid; grid-template-columns:1fr 104px 104px 84px 108px 124px 112px; padding:10px 24px; border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + LABEL + '">'
     // Ein Markt, zwei Volumina, zwei Einheiten. Die Summe der beiden stand
     // hier als eine Zahl mit Dollarzeichen und war keine: Kalshis Volumen
     // zaehlt Kontrakte (app/venue_units.py).
@@ -1062,12 +1060,12 @@ export function renderResolved(T) {
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid var(--line-2)">'
     + kpis.map((k, i) =>
       '<div style="padding:14px 24px' + (i < 3 ? '; border-right:1px solid var(--line-2)' : '') + '">'
-      + '<div style="' + HEAD_CELL + '">' + k.label + '</div>'
+      + '<div style="' + LABEL + '">' + k.label + '</div>'
       + '<div style="' + M + '; font-size:var(--t-head); margin-top:7px; color:' + (k.amber ? 'var(--warn)' : 'var(--text)') + '">' + k.value + '</div></div>'
     ).join('')
     + '</div>'
 
-    + '<div style="display:grid; grid-template-columns:1fr 110px 118px 128px 110px 120px; padding:10px 24px; border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + HEAD_CELL + '">'
+    + '<div style="display:grid; grid-template-columns:1fr 110px 118px 128px 110px 120px; padding:10px 24px; border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + LABEL + '">'
     + '<div>MARKET</div><div style="text-align:right">ANSWER</div><div style="text-align:right">LAST PRICE</div><div style="text-align:right">CROWD OFF BY</div><div style="text-align:right">VOLUME</div><div style="text-align:right">SETTLED</div></div>'
     + resRows.map((r) => {
       const answerStyle = M + '; font-size:var(--t-micro); letter-spacing:.1em; border-radius:var(--r-control); padding:3px 10px; ' + (r.yes ? 'color:var(--on-accent); background:var(--accent)' : 'color:var(--neg-soft); border:1px solid rgba(var(--neg-rgb),.35)');

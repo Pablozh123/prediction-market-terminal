@@ -5,8 +5,8 @@
 import { esc, money, num, stempel, volume as volumeLabel } from './util.js';
 import { scorePartsOf } from './pages/trader_pages.js';
 import { isFullAddress } from './pages/wallet_page.js';
+import { MONO as M } from './ui.js';
 
-const M = "font-family:'IBM Plex Mono',monospace";
 const STAT_VAL = M + '; font-size:var(--t-head); margin-top:5px';
 
 export function renderDetail(T) {

@@ -6,12 +6,10 @@ import { esc, num, herkunftSatz, leerZeile, EINZAHLUNGEN_USD, offeneNichtDrin, s
 import { caveatZeile, registerStand } from '../claims.js';
 import { stepKurve, diagramm, linien, kalibrierung, fmtZahl, serienFarbe, intervallMarke } from '../charts.js';
 import { renderMicrostructure } from './microstructure_page.js';
-
-const M = "font-family:'IBM Plex Mono',monospace";
-const LBL9 = M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3); margin-bottom:6px';
+import { MONO as M, KARTE, LABEL_BLOCK } from '../ui.js';
 
 function filterGroup(label, chipsHtml) {
-  return '<div><div style="' + LBL9 + '">' + label + '</div><div style="display:flex; gap:6px; flex-wrap:wrap">' + chipsHtml + '</div></div>';
+  return '<div><div style="' + LABEL_BLOCK + '">' + label + '</div><div style="display:flex; gap:6px; flex-wrap:wrap">' + chipsHtml + '</div></div>';
 }
 
 // Welche publizierte Datei hinter welchem Research-Tab steht. Der Leerzustand
@@ -491,7 +489,7 @@ export function renderAlerts(T) {
     // diesen Schaltern — die entscheiden, was diese Seite zeigt.
     + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:9px; max-width:700px">The thresholds below are sent to the scan. The switches decide which of its signal types this page shows; Telegram delivery is configured on the scanner, not here.</div></div>'
     + '<div style="padding:16px 24px 0; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px 18px">'
-    + '<div><div style="' + LBL9 + '">SEARCH</div><input value="' + esc(s.alertQuery) + '" ' + T.inp((e) => T.setState({ alertQuery: e.target.value }), 'alertQuery') + ' placeholder="market, wallet, category…" style="width:100%; box-sizing:border-box; background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:8px 10px; ' + M + '; font-size:var(--t-small); color:var(--text)" /></div>'
+    + '<div><div style="' + LABEL_BLOCK + '">SEARCH</div><input value="' + esc(s.alertQuery) + '" ' + T.inp((e) => T.setState({ alertQuery: e.target.value }), 'alertQuery') + ' placeholder="market, wallet, category…" style="width:100%; box-sizing:border-box; background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:8px 10px; ' + M + '; font-size:var(--t-small); color:var(--text)" /></div>'
     + filterGroup('PLATFORM', [['all','All'],['Polymarket','Polymarket'],['Kalshi','Kalshi']].map((o) => T.opt(o[1], s.alertPlatform === o[0], { alertPlatform: o[0] })).join(''))
     + filterGroup('SIGNAL TYPE', [['all','All'],['WHALE PRINT','Whale prints'],['FAST MOVER','Fast movers'],['VOLUME ANOMALY','Volume']].map((o) => T.opt(o[1], s.alertType === o[0], { alertType: o[0] })).join(''))
     + filterGroup('SCOPE', [['all','Everything'],['watched','Watched only']].map((o) => T.opt(o[1], s.alertScope === o[0], { alertScope: o[0] })).join(''))
@@ -660,7 +658,7 @@ function studienKnoepfe(T, tab) {
 function pilotAuswertungHtml(payload, abgeschlossen) {
   const a = payload && payload.auswertung;
   if (!a || !a.trades || !a.trades.gesamt) return '';
-  const karte = 'background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel)';
+  const karte = KARTE;
   const rt = a.regeltreue || {};
   const punkte = (rt.punkte || []).map((p) => {
     const farbe = p.erfuellt ? 'var(--accent)' : 'var(--warn)';
@@ -778,7 +776,7 @@ function pipelineHeadlineHtml(payload) {
 function pipelineRegelnHtml(payload) {
   const { eintraege } = pipelineEintraege(payload);
   if (!eintraege.length) return '';
-  const karte = 'background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel)';
+  const karte = KARTE;
 
   const regel = (titel, text) =>
     '<div style="padding:12px 16px; border-bottom:1px solid var(--line-3)">'
@@ -818,7 +816,7 @@ function studyTableHtml(T, label, cols, head, rows) {
         const cs = String(cell);
         const neg = cs.charAt(0) === '-' && cs.indexOf('$') > 0;
         const pos = cs.charAt(0) === '+' && cs.indexOf('$') > 0;
-        const style = (first ? 'font-family:IBM Plex Sans,sans-serif; font-size:var(--t-small)' : M + '; font-size:var(--t-small); text-align:right') + '; color:' + (neg ? 'var(--neg)' : pos ? 'var(--pos)' : first ? 'var(--text)' : 'var(--ink-2)') + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis';
+        const style = (first ? 'font-family:var(--font-ui); font-size:var(--t-small)' : M + '; font-size:var(--t-small); text-align:right') + '; color:' + (neg ? 'var(--neg)' : pos ? 'var(--pos)' : first ? 'var(--text)' : 'var(--ink-2)') + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis';
         return '<div style="' + style + '" title="' + esc(cs) + '">' + esc(cs) + '</div>';
       }).join('')
       + '</div>'
@@ -1131,7 +1129,7 @@ function befundVon(zeilen) {
 const OFFEN_DUENN = 20;
 
 function renderCategoryEfficiency(T, payload, study) {
-  const karte = 'background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel)';
+  const karte = KARTE;
 
   // Kopf: Titel und EINE Zeile Stichprobe. Der lange Absatz aus der Nutzlast
   // (payload.hinweis) steht unveraendert im Methodenfeld weiter unten — er
@@ -1826,7 +1824,7 @@ function renderLiveRuns(T, payload) {
         const repStyle = (v) => 'text-align:right; ' + M + '; font-size:var(--t-small); color:' + (v != null && v >= 5 ? 'var(--pos)' : v != null && v <= -5 ? 'var(--neg)' : 'var(--ink-3)');
         return '<div style="display:grid; grid-template-columns:' + repSpalten + '; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small)">'
           + '<div style="color:var(--ink-4)">' + esc(t.run) + '</div>'
-          + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(t.market) + '">' + esc(t.market) + '</div>'
+          + '<div style="font-family:var(--font-ui); font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(t.market) + '">' + esc(t.market) + '</div>'
           + '<div style="text-align:right; color:var(--ink-4)">' + esc(t.drop) + '</div>'
           + '<div style="text-align:right; color:var(--ink-4)">' + esc(t.fill) + '</div>'
           + '<div style="' + latStyle + '">' + latLabel + '</div>'
@@ -1871,7 +1869,7 @@ function renderLiveRuns(T, payload) {
           + '<div>DELAY</div><div style="text-align:right">BETS</div><div style="text-align:right">FOREIGN REF</div><div style="text-align:right">PRICED OUT</div><div style="text-align:right">SIM PNL</div><div style="text-align:right">VS INSTANT</div></div>'
           + extras.timing_decay.map((t) =>
             '<div style="display:grid; grid-template-columns:1fr 110px 130px 120px 130px 130px; gap:10px; align-items:center; padding:10px 16px; border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small)">'
-            + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:var(--t-small)">+' + t.delay_s + ' s</div>'
+            + '<div style="font-family:var(--font-ui); font-size:var(--t-small)">+' + t.delay_s + ' s</div>'
             + '<div style="text-align:right; color:var(--ink-3)">' + t.n_bets + '</div>'
             + '<div style="text-align:right; color:var(--ink-3)">' + t.n_foreign_ref + '</div>'
             + '<div style="text-align:right; color:var(--ink-3)">' + t.n_priced_out + '</div>'
@@ -1914,7 +1912,7 @@ function renderLiveRuns(T, payload) {
       + calibRows.map((c) => {
         const gap = c.settled - c.paid;
         return '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small)">'
-          + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:var(--t-body)">' + c.band + '</div>'
+          + '<div style="font-family:var(--font-ui); font-size:var(--t-body)">' + c.band + '</div>'
           + '<div style="text-align:right; color:var(--ink-3)">' + num(c.n) + '</div>'
           + '<div style="text-align:right">' + c.paid + '¢</div>'
           + '<div style="text-align:right">' + c.settled + '¢</div>'
@@ -1940,7 +1938,7 @@ function renderLiveRuns(T, payload) {
         const quote = basis > 0 ? (t.net / basis) * 100 : null;
         const offen = Math.max(0, (+t.bets || 0) - (+t.settled_bets || 0));
         return '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px 100px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small)">'
-          + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:var(--t-body)">' + t.month + '</div>'
+          + '<div style="font-family:var(--font-ui); font-size:var(--t-body)">' + t.month + '</div>'
           + '<div style="text-align:right; color:var(--ink-3)">' + t.runs + '</div>'
           + '<div style="text-align:right; color:var(--ink-3)">' + num(t.bets) + '</div>'
           + '<div style="text-align:right; color:var(--ink-3)">$' + num(t.stake) + '</div>'
@@ -2013,7 +2011,7 @@ function archivKnopf(T, slug, label) {
 // Return-Claim; die volle Archivseite haengt am Slug pipeline-forward.
 function paperLogHtml(T) {
   const pf = T.liveData && T.liveData.research ? T.liveData.research['Pipeline forward'] : null;
-  const karte = 'background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:14px; padding:18px 20px';
+  const karte = KARTE + '; margin-top:14px; padding:18px 20px';
   const kopf = '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">FORWARD PAPER LOG · SAME PIPELINE, NO MONEY</div>';
   if (!pf || pf._quelle === 'fehler') {
     const satz = pf && pf._quelle === 'fehler'
@@ -2030,7 +2028,7 @@ function paperLogHtml(T) {
     const quote = l.extraktionsquote != null ? Math.round(+l.extraktionsquote * 100) + '%' : '—';
     const gekauft = l.extraktion_gekauft_usd != null ? '$' + num(Math.round(+l.extraktion_gekauft_usd)) : '—';
     return '<div style="display:grid; grid-template-columns:1fr 110px 110px 130px; gap:10px; align-items:center; padding:9px 16px; border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small)">'
-      + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:var(--t-body)">' + esc(String(l.profil || '—')) + '</div>'
+      + '<div style="font-family:var(--font-ui); font-size:var(--t-body)">' + esc(String(l.profil || '—')) + '</div>'
       + '<div style="text-align:right; color:var(--ink-3)">' + num(+l.n_eintraege || 0) + '</div>'
       + '<div style="text-align:right">' + num(+l.n_kaeufe || 0) + '</div>'
       + '<div style="text-align:right; color:var(--ink-3)">' + esc(gekauft) + ' · ' + esc(quote) + '</div></div>';
@@ -2063,7 +2061,7 @@ function paperLogHtml(T) {
 // Slug review-queue (app.js BEGLEITER laedt queue.json mit).
 function queueArchivHtml(T) {
   const q = T.liveData && T.liveData.research ? T.liveData.research['Review queue'] : null;
-  const karte = 'background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:14px; padding:16px 18px';
+  const karte = KARTE + '; margin-top:14px; padding:16px 18px';
   const kopf = '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">HUMAN VERIFICATION QUEUE · ARCHIVED</div>';
   const zahl = q
     ? (q._quelle === 'fehler'
@@ -2297,7 +2295,7 @@ function noFillChip() {
 function laufWettenHtml(k) {
   return k.bets.map((b) =>
     '<div style="display:grid; grid-template-columns:1fr 62px 78px 78px 80px 92px; gap:10px; align-items:center; padding:9px 0; border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small)">'
-    + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(b.market) + '">' + esc(b.market) + '</div>'
+    + '<div style="font-family:var(--font-ui); font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(b.market) + '">' + esc(b.market) + '</div>'
     + '<div style="' + M + '; font-size:var(--t-small); color:' + (b.side === 'Yes' ? 'var(--accent)' : 'var(--info)') + '">' + b.side + '</div>'
     + '<div style="text-align:right; color:var(--ink-4)">limit ' + b.limit + '</div>'
     + '<div style="text-align:right; color:var(--ink-4)">fill ' + b.fill + '</div>'
@@ -2365,7 +2363,7 @@ function ledgerMarktZeile(m) {
   const statusFarbe = status === 'won' ? 'var(--pos)' : (status === 'lost' || status === 'worthless') ? 'var(--neg)' : 'var(--ink-4)';
   const zuordnung = String(m.zuordnung || '');
   return '<div style="display:grid; grid-template-columns:1fr 44px 70px 70px 84px 92px 78px 110px; gap:8px; align-items:center; padding:7px 0; border-top:1px solid var(--line-3); ' + M + '; font-size:var(--t-micro)">'
-    + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(m.titel || '') + '">' + esc(m.titel || '—') + '</div>'
+    + '<div style="font-family:var(--font-ui); font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(m.titel || '') + '">' + esc(m.titel || '—') + '</div>'
     + '<div style="color:' + (String(m.seite).toLowerCase() === 'yes' ? 'var(--accent)' : 'var(--info)') + '">' + esc(m.seite || '—') + '</div>'
     + '<div style="text-align:right; color:var(--ink-4)">' + (m.avg_preis != null ? 'avg ' + (+m.avg_preis).toFixed(2) : '—') + '</div>'
     + '<div style="text-align:right; color:var(--ink-4)">' + (m.shares != null ? num((+m.shares).toFixed(0)) + ' sh' : '—') + '</div>'
@@ -2396,7 +2394,7 @@ export function ledgerPnlSatz(e) {
 // Without the file: the honest line naming it.
 function walletLedgerHtml(T, payload, ohneFills, karten) {
   const KOPF = '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">ALL EVENTS · RUNS AND WALLET</div>';
-  const karte = 'background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel)';
+  const karte = KARTE;
   const ledger = walletLedgerVon(T, payload);
   if (!ledger || !ledger.aggregat || !Array.isArray(ledger.events)) {
     const satz = LEDGER.laedt
@@ -2533,7 +2531,7 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
       + pilotEvents.map((e) =>
         '<div style="display:grid; grid-template-columns:76px 1fr 96px 96px 130px; gap:8px; align-items:center; padding:7px 0; border-top:1px solid var(--line-3); ' + M + '; font-size:var(--t-micro)">'
         + '<div style="color:var(--ink-3); white-space:nowrap">' + esc(String(e.von_utc || '').slice(0, 10) || '—') + '</div>'
-        + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(e.titel || e.event_slug || '') + '">'
+        + '<div style="font-family:var(--font-ui); font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(e.titel || e.event_slug || '') + '">'
         + (e.url ? '<a href="' + esc(e.url) + '" target="_blank" rel="noopener" style="color:var(--text); text-decoration:none">' + esc(e.titel || e.event_slug || '—') + ' <span style="' + M + '; font-size:var(--t-micro); color:var(--info)">↗</span></a>' : esc(e.titel || e.event_slug || '—'))
         + '</div>'
         + '<div style="text-align:right">' + ledgerGeld(e.einsatz_usd, false) + '</div>'
@@ -2688,7 +2686,7 @@ function timingDecayLinienHtml(payload) {
 export function renderSettings(T) {
   const s = T.state;
   const stepRow = (label, valueLabel, down, up) =>
-    '<div><div style="' + LBL9 + '">' + label + '</div>'
+    '<div><div style="' + LABEL_BLOCK + '">' + label + '</div>'
     + '<div style="display:flex; align-items:center; gap:6px">'
     + '<div ' + T.act(down) + ' class="hv-bd35w" style="width:28px; height:32px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-body); color:var(--ink-2); cursor:pointer">−</div>'
     + '<div style="flex:1; background:var(--panel); border:1px solid var(--line-1); border-radius:var(--r-control); padding:7px 8px; ' + M + '; font-size:var(--t-small); text-align:center">' + esc(valueLabel) + '</div>'
@@ -2761,8 +2759,6 @@ function studienExtrasHtml(slug, payload, ledger) {
   if (slug === 'pipeline-forward') return pipelineHeadlineHtml(payload) + pipelineRegelnHtml(payload);
   return '';
 }
-
-const KARTE = 'background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel)';
 
 function hinweisKarte(text) {
   return '<div style="' + KARTE + '; margin-top:14px; padding:14px 18px; ' + M + '; font-size:var(--t-micro); color:var(--ink-3); line-height:1.6">' + esc(text) + '</div>';

@@ -12,9 +12,8 @@
 
 import { esc, stempelBlock } from '../util.js';
 import { diagramm, fmtZahl } from '../charts.js';
+import { MONO as M, KARTE } from '../ui.js';
 
-const M = "font-family:'IBM Plex Mono',monospace";
-const CARD = 'background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel)';
 const MUTED = 'color:var(--ink-4)';
 const HR = 'border-top:1px solid var(--line-3); margin-top:20px; padding-top:18px';
 
@@ -69,7 +68,7 @@ function deutungBlock(interpretation) {
 
 function zahlenBlock(zahlen) {
   if (!zahlen || !zahlen.length) return '';
-  return '<div style="' + CARD + '; padding:6px 0">'
+  return '<div style="' + KARTE + '; padding:6px 0">'
     + zahlen.map((z) =>
       '<div style="display:grid; grid-template-columns:1fr auto; gap:14px; align-items:baseline; padding:9px 16px; border-bottom:1px solid var(--line-3)">'
       + '<div><div style="font-size:var(--t-small); color:var(--ink-1)">' + esc(z.label) + '</div>'
@@ -154,7 +153,7 @@ function methodeBlock(s) {
   // data-key: die App merkt sich geoeffnete <details> ueber Re-Renders; die
   // zwoelf Karten tragen denselben Summary-Text, also braucht jede ihre ID.
   // Ein Feld je Studie, nicht zwei: die Rohzeilen sitzen darin ganz unten.
-  return '<details data-key="method:' + esc(String(s.id || '')) + '" style="' + CARD + '; margin-top:14px; overflow:hidden">'
+  return '<details data-key="method:' + esc(String(s.id || '')) + '" style="' + KARTE + '; margin-top:14px; overflow:hidden">'
     + '<summary style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; color:var(--ink-3); '
     + 'padding:13px 16px; cursor:pointer; list-style:none">▸ METHOD, HOW TO READ IT'
     + (roh ? ' &amp; THE RAW ROWS' : '')
@@ -228,7 +227,7 @@ function studieKarte(s, i) {
   const zahlenUndDiagramm = '<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:12px; margin-top:16px">'
     + diagramm(s.diagramm) + zahlenBlock(s.zahlen) + '</div>';
 
-  return '<div id="' + esc(studieAnker(s, i)) + '" style="' + CARD + '; padding:22px 24px; margin-bottom:18px; scroll-margin-top:16px">'
+  return '<div id="' + esc(studieAnker(s, i)) + '" style="' + KARTE + '; padding:22px 24px; margin-bottom:18px; scroll-margin-top:16px">'
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:18px; flex-wrap:wrap">'
     + '<div style="flex:1; min-width:260px">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.16em; color:var(--ink-4)">STUDY '
@@ -253,7 +252,7 @@ function studieKarte(s, i) {
 function kopf(payload, study) {
   const z = payload.zaehler || {};
   const kachel = (wert, text, farbe) =>
-    '<div style="' + CARD + '; padding:13px 16px; min-width:118px">'
+    '<div style="' + KARTE + '; padding:13px 16px; min-width:118px">'
     + '<div style="' + M + '; font-size:var(--t-head); color:' + farbe + '">' + esc(String(wert)) + '</div>'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3); margin-top:5px">'
     + esc(text) + '</div></div>';
@@ -285,7 +284,7 @@ function kopf(payload, study) {
 export function renderMicrostructure(payload, study) {
   if (!payload || !Array.isArray(payload.studien) || !payload.studien.length) {
     return '<div style="padding:26px 24px">'
-      + '<div style="' + CARD + '; padding:22px 24px; max-width:720px">'
+      + '<div style="' + KARTE + '; padding:22px 24px; max-width:720px">'
       + '<div style="font-size:var(--t-lead); font-weight:600">No study data published yet</div>'
       + '<div style="font-size:var(--t-body); ' + MUTED + '; margin-top:9px; line-height:1.6">The file '
       + '<span style="' + M + '">public/data/microstructure.json</span> is missing. Build it with '

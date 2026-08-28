@@ -12,6 +12,7 @@ import { renderAlerts, renderResearch, renderSettings, ledgerVerwerfen } from '.
 import { renderWallet, isFullAddress } from './pages/wallet_page.js';
 import { renderDetail, renderSearch } from './overlays.js';
 import { mountAmbient } from './ambient.js';
+import { MONO as M } from './ui.js';
 
 // Every route stays reachable by hash. The sidebar lists a subset (see
 // renderSidebar): Settings, Tracked, Copy trade, Portfolio and Resolved are
@@ -1426,8 +1427,7 @@ class Terminal {
     // the card that is not in the attribute.
     let tipEl = document.getElementById('tip');
     if (!tipEl) { tipEl = document.createElement('div'); tipEl.id = 'tip'; document.body.appendChild(tipEl); }
-    const M = "font-family:'IBM Plex Mono',monospace";
-    const tipMove = (e) => {
+        const tipMove = (e) => {
       const pad = 14;
       const w = tipEl.offsetWidth || 280;
       const h = tipEl.offsetHeight || 120;
@@ -1447,7 +1447,7 @@ class Terminal {
       const farbe = tip.pnl === 'down' ? 'var(--neg)' : 'var(--pos)';
       tipEl.innerHTML = '<div style="display:flex; gap:10px; align-items:flex-start">'
         + (tip.image ? '<img src="' + esc(tip.image) + '" alt="" style="width:40px; height:40px; border-radius:var(--r-control); object-fit:cover; flex:none; background:rgba(var(--ink),.06)" />' : '')
-        + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:var(--t-small); font-weight:600; line-height:1.35; color:var(--text)">' + esc(tip.title || '') + '</div></div>'
+        + '<div style="font-family:var(--font-ui); font-size:var(--t-small); font-weight:600; line-height:1.35; color:var(--text)">' + esc(tip.title || '') + '</div></div>'
         + '<div style="margin-top:9px; display:flex; flex-direction:column; gap:3px">'
         + tip.rows.map((r) => '<div style="display:flex; justify-content:space-between; gap:14px; font-size:var(--t-small)"><span style="color:var(--ink-4)">' + esc(String(r[0])) + '</span><span style="' + M + '; color:' + (/^(unrealised|realised)$/.test(String(r[0])) ? farbe : 'var(--text)') + '; text-align:right">' + esc(String(r[1])) + '</span></div>').join('')
         + '</div>';

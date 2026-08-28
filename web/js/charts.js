@@ -7,9 +7,7 @@
 // String zurueck, und der Aufrufer zeigt seinen Leerzustand.
 
 import { esc } from './util.js';
-
-const M = "font-family:'IBM Plex Mono',monospace";
-const CARD = 'background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel)';
+import { MONO as M, KARTE } from './ui.js';
 
 const BALKEN_FARBE = { gewinn: 'var(--pos)', kosten: 'var(--neg)', summe: 'var(--info)' };
 
@@ -165,7 +163,7 @@ export function diagramm(dia) {
   // jede Zeile auf breiten Fenstern mit (958px Spalte = Faktor 1.5, Text
   // 17px) und ein 20-Zeilen-Diagramm stand fast 1000px hoch neben den
   // kompakten HTML-Tabellen.
-  return '<div style="' + CARD + '; padding:14px 16px 10px">'
+  return '<div style="' + KARTE + '; padding:14px 16px 10px">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3); margin-bottom:4px">'
     + esc(dia.titel || '') + (dia.einheit ? ' · ' + esc(dia.einheit) : '') + '</div>'
     + '<svg width="100%" viewBox="0 0 ' + BREITE + ' ' + hoehe + '" role="img" aria-label="' + esc(dia.titel || 'chart') + '" style="display:block; max-width:660px">'
@@ -266,7 +264,7 @@ export function linien(k) {
       + esc(s.name) + '</div>';
   });
 
-  return '<div style="' + CARD + '; padding:14px 16px 10px">'
+  return '<div style="' + KARTE + '; padding:14px 16px 10px">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:4px">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3)">'
     + esc(k.titel || '') + (k.einheit ? ' · ' + esc(k.einheit) : '') + '</div>'
@@ -320,7 +318,7 @@ export function kalibrierung(k) {
   // y-axis. The former "→ realised ↑" centred under the x-axis ran into
   // "predicted 1" at that width.
   const yMitte = S / 2;
-  return '<div style="' + CARD + '; padding:12px 14px 8px">'
+  return '<div style="' + KARTE + '; padding:12px 14px 8px">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">' + esc(k.titel || '') + '</div>'
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:2px">' + esc(k.hinweis || ('n ' + gesamt + ' · ' + punkte.length + ' bins')) + '</div>'
     + '<svg width="100%" viewBox="0 0 ' + S + ' ' + S + '" role="img" aria-label="' + esc(k.titel || 'calibration') + '" style="max-width:240px; display:block; margin:6px auto 0">'
@@ -519,7 +517,7 @@ export function spiegelZeit(k) {
       + '<title>' + esc(m.text || '') + '</title></circle>';
   });
 
-  return '<div style="' + CARD + '; padding:14px 16px 10px">'
+  return '<div style="' + KARTE + '; padding:14px 16px 10px">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:4px">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3)">'
     + esc(k.titel || '') + (k.einheit ? ' · ' + esc(k.einheit) : '') + '</div>'
@@ -574,7 +572,7 @@ export function stepKurve(k) {
     + '<text x="' + R + '" y="' + (H - 8) + '" style="fill:var(--ink-3)" font-size="11" '
     + 'font-family="IBM Plex Mono, monospace" text-anchor="end">' + esc(String(k.punkte[k.punkte.length - 1].label || '')) + '</text>';
 
-  return '<div style="' + CARD + '; padding:14px 16px 10px">'
+  return '<div style="' + KARTE + '; padding:14px 16px 10px">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:4px">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3)">'
     + esc(k.titel || '') + (k.einheit ? ' · ' + esc(k.einheit) : '') + '</div>'
@@ -611,7 +609,7 @@ const GITTER = 'style="stroke:rgba(var(--ink),.09)" stroke-width="1"';
 // Register-Markup weiter, nie zusammengesetzte Nutzerdaten.
 function karte(titel, einheit, hinweis, inhalt, fussnote, fussnoteHtml) {
   const fuss = (fussnote ? esc(fussnote) : '') + (fussnoteHtml ? (fussnote ? ' ' : '') + fussnoteHtml : '');
-  return '<div style="' + CARD + '; padding:14px 16px 10px">'
+  return '<div style="' + KARTE + '; padding:14px 16px 10px">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:6px">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3)">'
     + esc(titel || '') + (einheit ? ' · ' + esc(einheit) : '') + '</div>'
