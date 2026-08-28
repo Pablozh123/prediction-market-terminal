@@ -219,7 +219,18 @@ class WalletPageBlocksTests(unittest.TestCase):
         self.assertEqual(opened["rows"][1]["status"], "worthless")
         self.assertEqual(opened["rows"][1]["url"], "")                    # "…/event/" is a link to nothing
         self.assertAlmostEqual(opened["total_exposure"], 55.0)
-        self.assertAlmostEqual(opened["unrealized_pnl"], 5.0)
+        # Der Verlust der wertlosen Position ist aufgeloest, nicht
+        # unrealisiert: er lief bisher in dieselbe Summe (15 - 10 = 5) und
+        # stand auf der Seite unter "UNREALISED (open)". Jetzt zeigt die
+        # offene Position ihre +15 und der abgeschlossene Verlust steht mit
+        # -10 daneben.
+        self.assertAlmostEqual(opened["unrealized_pnl"], 15.0)
+        self.assertAlmostEqual(opened["worthless_pnl"], -10.0)
+        self.assertAlmostEqual(opened["worthless_cost"], 10.0)
+        # Kostenbasis und Exposure beschreiben ebenfalls nur die offenen
+        # Zeilen (100 x 0.40 = 40, ohne die 20 x 0.50 der wertlosen).
+        self.assertAlmostEqual(opened["total_cost"], 40.0)
+        self.assertIn("settled, not unrealised", opened["note"])
 
         closed = payload["closed"]
         self.assertEqual((closed["n"], closed["won"], closed["lost"], closed["flat"]), (12, 6, 6, 0))
@@ -673,6 +684,31 @@ class BacktestPayloadTests(unittest.TestCase):
         self.assertEqual(payload["log"][0]["action"], "BUY")
         self.assertEqual(payload["benchmark_stats"]["total_pnl"], 60.0)
 
+    def test_payload_carries_the_win_rate_denominator(self) -> None:
+        """Die Trefferquote braucht ihren Nenner, sonst rechnet die Seite ihn falsch.
+
+        Die Kachel rechnete wins / copied_trades. copied_trades zaehlt alle
+        kopierten BUY- und SELL-Zeilen, also auch die noch offenen Einstiege:
+        100 Kopien, 60 davon geschlossen (35 gewonnen), 40 noch offen ergaben
+        35 Prozent statt der gemessenen 58.3 Prozent. Der Nenner steht in
+        stats["closed_trades"] und muss mitgeliefert werden.
+        """
+
+        result = _FakeResult(
+            stats={"final_equity": 1000.0, "roi": 0.0, "total_pnl": 0.0, "win_rate": 35 / 60,
+                   "wins": 35, "losses": 25, "max_drawdown": 0.0, "copied_trades": 100,
+                   "closed_trades": 60, "skipped_trades": 0, "fees_paid": 0.0, "open_value": 400.0},
+            benchmark_stats={},
+            equity=pd.DataFrame({"equity": [1000.0, 1000.0]}),
+            ledger=pd.DataFrame(),
+        )
+        stats = apv.backtest_payload(result)["stats"]
+        self.assertEqual(stats["closed_trades"], 60)
+        self.assertEqual(stats["copied_trades"], 100)
+        self.assertAlmostEqual(stats["wins"] / stats["closed_trades"], 0.5833, places=4)
+        # Der frueher benutzte Nenner haette 35 Prozent ergeben.
+        self.assertAlmostEqual(stats["wins"] / stats["copied_trades"], 0.35, places=4)
+
 
 class PipelineTrimTests(unittest.TestCase):
     def test_slims_run_entries_and_drops_word_counters(self) -> None:
@@ -765,6 +801,33 @@ class LiveRunsExtrasTests(unittest.TestCase):
         self.assertEqual(extras["monthly"][0]["bets"], 2)
         self.assertAlmostEqual(extras["monthly"][0]["net"], 0.0, places=2)
 
+    def test_monthly_carries_the_settled_stake_as_its_own_basis(self) -> None:
+        """Der Zaehler zaehlt nur aufgeloeste Wetten, der Nenner muss das auch.
+
+        Die Monatstabelle rechnete net / stake ueber alle Wetten des Monats,
+        offene eingeschlossen. Ein Monat mit $100 Einsatz, davon $40 in noch
+        offenen Wetten, und +$18 aus den aufgeloesten stand mit +18.0 Prozent
+        da; auf den aufgeloesten Einsatz gerechnet sind es +30.0 Prozent.
+        """
+
+        wetten = [
+            {"einsatz_usd": 60.0, "aufgeloest": True, "gewonnen": True, "pnl_usd": 18.0,
+             "fill_ts_utc": "2026-07-10T12:00:00Z", "seite": "YES", "entscheidungs_preis": 0.5,
+             "avg_fill_preis": 0.5, "shares": 120.0, "frage": "Says A"},
+            {"einsatz_usd": 40.0, "aufgeloest": False, "pnl_usd": None,
+             "fill_ts_utc": "2026-07-11T12:00:00Z", "seite": "YES", "entscheidungs_preis": 0.5,
+             "avg_fill_preis": 0.5, "shares": 80.0, "frage": "Says B"},
+        ]
+        monat = apv.live_runs_extras({"runs": [{"profil": "p", "wetten": wetten}]})["monthly"][0]
+        self.assertEqual(monat["bets"], 2)
+        self.assertEqual(monat["settled_bets"], 1)
+        self.assertAlmostEqual(monat["stake"], 100.0)
+        self.assertAlmostEqual(monat["settled_stake"], 60.0)
+        self.assertAlmostEqual(monat["net"], 18.0)
+        self.assertAlmostEqual(monat["net"] / monat["settled_stake"], 0.30, places=4)
+        # Der frueher benutzte Nenner haette 18 Prozent ergeben.
+        self.assertAlmostEqual(monat["net"] / monat["stake"], 0.18, places=4)
+
     def test_wallet_ledger_rides_along_when_published(self) -> None:
         """extras.wallet_ledger is the published file, or absent when there is none."""
         import json
@@ -821,10 +884,14 @@ class ClusterPayloadTests(unittest.TestCase):
 class VariantsPayloadTests(unittest.TestCase):
     def test_maps_comparison_frame(self) -> None:
         frame = pd.DataFrame([{"strategy": "Fixed $25", "final_equity": 1100.0, "roi": 0.1,
-                               "max_drawdown": -0.05, "win_rate": 0.6, "copied_trades": 10, "skipped_trades": 2}])
+                               "max_drawdown": -0.05, "win_rate": 0.6, "closed_trades": 5,
+                               "copied_trades": 10, "skipped_trades": 2}])
         rows = apv.variants_payload(frame)
         self.assertEqual(rows[0]["name"], "Fixed $25")
         self.assertEqual(rows[0]["final_equity"], 1100.0)
+        # Das n der Trefferquote reist mit: COPIED ist keine Stichprobe.
+        self.assertEqual(rows[0]["closed_trades"], 5)
+        self.assertEqual(apv.variants_payload(frame.drop(columns=["closed_trades"]))[0]["closed_trades"], 0)
 
 
 if __name__ == "__main__":
@@ -1025,6 +1092,7 @@ class MarketRecordsTests(unittest.TestCase):
                 "market_key": "0xcond1", "ticker": "0xcond1", "slug": "fed-cuts", "title": "Fed cuts rates",
                 "platform": "Polymarket", "category": "Economics", "filter_category": "Finance",
                 "yes_price": 0.62, "change_1d": 0.03, "volume_24h": 120000.0, "liquidity": 40000.0,
+                "volume": 4200000.0, "activity_volume": 120000.0,
                 "end_time": pd.Timestamp("2026-12-31", tz="UTC"), "url": "https://polymarket.com/event/x",
                 "spread": 0.02, "market_age_days": 40.2,
                 # Ballast, der nicht in die Antwort darf:
@@ -1053,6 +1121,10 @@ class MarketRecordsTests(unittest.TestCase):
             self.assertIn(feld, first)
         self.assertEqual(first["yes_price"], 0.62)
         self.assertTrue(str(first["end_time"]).startswith("2026-12-31"))
+        # Tages- und Lebensvolumen fahren getrennt mit: das Frontend darf das
+        # eine nicht als das andere ausweisen.
+        self.assertEqual(first["volume_24h"], 120000.0)
+        self.assertEqual(first["volume"], 4200000.0)
         # Kompakt: zwei Zeilen unter einem Kilobyte, statt der 8k Ballast oben.
         import json
         self.assertLess(len(json.dumps(rows)), 1200)
@@ -1110,6 +1182,26 @@ class CrossGateTests(unittest.TestCase):
         self.assertIn("min_similarity = max(float(min_similarity), apv.CROSS_MIN_SIMILARITY)", server)
         self.assertIn('"candidates_before_gate"', server)
 
+    def test_the_row_carries_the_edge_net_of_both_fee_curves(self) -> None:
+        frame = self._candidates()
+        frame.loc[0, "gross_edge_cents"] = 4.0
+        frame.loc[0, "fee_band_cents"] = 2.7155
+        frame.loc[0, "net_edge_cents"] = 1.2845
+        frame.loc[0, "edge_direction"] = "buy Polymarket, sell Kalshi"
+        row = apv.cross_rows(frame)[0]
+        self.assertEqual(row["gross"], 4.0)
+        self.assertEqual(row["band"], 2.7155)
+        self.assertEqual(row["net"], 1.2845)
+        self.assertEqual(row["dir"], "buy Polymarket, sell Kalshi")
+
+    def test_a_pair_without_quotes_reports_no_edge_rather_than_zero(self) -> None:
+        # Ohne beidseitige Quote gibt es keine Spanne zu rechnen. Null waere
+        # hier eine Messung, und gemessen wurde nichts.
+        row = apv.cross_rows(self._candidates())[0]
+        self.assertIsNone(row["gross"])
+        self.assertIsNone(row["net"])
+        self.assertEqual(row["dir"], "")
+
 
 class ScorePartsTests(unittest.TestCase):
     def test_leaderboard_rows_carry_labelled_score_parts(self) -> None:
@@ -1131,8 +1223,49 @@ class ScorePartsTests(unittest.TestCase):
 
     def test_score_parts_skips_missing_columns(self) -> None:
         parts = apv.score_parts({"copy_return_score": 12.6, "copy_win_score": None})
-        self.assertEqual(parts, [{"label": "return", "value": 13, "weight": 0.35}])
+        self.assertEqual(parts, [{"label": "return", "value": 13, "weight": 0.35, "imputed": False}])
         self.assertEqual(apv.score_parts({}), [])
+
+    def test_score_parts_marken_ersatzwerte_als_nicht_gemessen(self) -> None:
+        """Ein Bestandteil ohne Eingabe im Feed ist fuer jede Wallet dieselbe Konstante.
+
+        Die oeffentliche Leaderboard-Antwort traegt nur pnl und volume
+        (prediction_markets.get_polymarket_leaderboard), also setzt
+        rank_traders_by_smart_score win/recency/drawdown/sharpe auf einen
+        Ersatzwert und vermerkt das in copy_score_imputed. Die Oberflaeche
+        darf diese Zahlen nicht als Messung zeigen.
+        """
+
+        row = {
+            "copy_return_score": 100.0, "copy_sharpe_proxy": 21.2, "copy_drawdown_proxy": 100.0,
+            "copy_win_score": 50.0, "copy_recency_score": 50.0, "copy_volume_score": 90.0,
+            "copy_score_imputed": "copy_sharpe_proxy,copy_drawdown_proxy,copy_win_score,copy_recency_score",
+        }
+        parts = apv.score_parts(row)
+        geschaetzt = {p["label"] for p in parts if p["imputed"]}
+        self.assertEqual(geschaetzt, {"sharpe proxy", "drawdown proxy", "win", "recency"})
+        gemessen = {p["label"] for p in parts if not p["imputed"]}
+        self.assertEqual(gemessen, {"return", "volume"})
+
+        basis = apv.score_basis(parts, cohort_n=250)
+        self.assertAlmostEqual(basis["measured_weight"], 0.45)
+        self.assertAlmostEqual(basis["imputed_weight"], 0.55)
+        self.assertEqual(basis["cohort_n"], 250)
+        self.assertEqual(basis["imputed"], ["sharpe proxy", "drawdown proxy", "win", "recency"])
+
+    def test_leaderboard_rows_tragen_die_score_basis(self) -> None:
+        lb = pd.DataFrame([{"trader": "Theo4", "wallet": "0xAAA1111111111111111111", "pnl": 1000.0, "volume": 50000.0}])
+        ranked = pd.DataFrame([{
+            "wallet": "0xaaa1111111111111111111", "copy_smart_score": 73.0, "copy_grade": "B",
+            "copy_return_score": 100.0, "copy_sharpe_proxy": 21.2, "copy_drawdown_proxy": 100.0,
+            "copy_win_score": 50.0, "copy_recency_score": 50.0, "copy_volume_score": 90.0,
+            "copy_score_imputed": "copy_sharpe_proxy,copy_drawdown_proxy,copy_win_score,copy_recency_score",
+        }])
+        basis = apv.leaderboard_rows(lb, ranked)[0]["score_basis"]
+        self.assertAlmostEqual(basis["measured_weight"], 0.45)
+        self.assertEqual(basis["cohort_n"], 1)
+        # Eine Zeile ohne Ranked-Treffer traegt keine erfundene Basis.
+        self.assertIsNone(apv.leaderboard_rows(lb, None)[0]["score_basis"])
 
 
 class RiskEventRowTests(unittest.TestCase):

@@ -3,7 +3,7 @@
 // instance (T). Nothing here invents a number: every figure names its payload
 // or the panel says which payload is missing.
 
-import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, signedMoney, stempel, EINZAHLUNGEN_USD } from '../util.js';
+import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, signedMoney, stempel, EINZAHLUNGEN_USD, tapeFenster, fensterSatz } from '../util.js';
 import { spiegelZeit, kurzGeld } from '../charts.js';
 import { studieAnker } from './microstructure_page.js';
 
@@ -641,7 +641,7 @@ function tapePulsHtml(prints, buys, sells) {
   const marken = [];
   valid.forEach((t) => {
     const i = Math.min(nBins - 1, Math.max(0, nBins - 1 - Math.floor(t.mins / schritt)));
-    const kauf = t.side.indexOf('BUY') === 0;
+    const kauf = (t.dir || 'BUY') === 'BUY';
     bins[i][kauf ? 'oben' : 'unten'] += t.size;
     if (t.size >= PULS_MARKE_USD) marken.push({ bin: i, oben: kauf, text: t.market + ' · ' + t.side + ' · ' + money(t.size) });
   });
@@ -672,7 +672,7 @@ function kategorieFlussHtml(prints) {
   prints.forEach((t) => {
     const c = t.category || 'Other';
     const e = je[c] || (je[c] = { kauf: 0, verkauf: 0 });
-    e[t.side.indexOf('BUY') === 0 ? 'kauf' : 'verkauf'] += t.size;
+    e[(t.dir || 'BUY') === 'BUY' ? 'kauf' : 'verkauf'] += t.size;
   });
   const rows = Object.keys(je)
     .map((c) => ({ cat: c, kauf: je[c].kauf, verkauf: je[c].verkauf, summe: je[c].kauf + je[c].verkauf }))
@@ -704,7 +704,7 @@ export function renderFlow(T) {
   const tapeNotional = tapeFiltered.reduce((a, t) => a + t.size, 0);
   const tapeWallets = tapeFiltered.filter((t) => t.wallet !== '—').map((t) => t.wallet).filter((v, i, arr) => arr.indexOf(v) === i).length;
   const identifiziert = tapeFiltered.filter((t) => t.wallet !== '—').length;
-  const buys = tapeFiltered.filter((t) => t.side.indexOf('BUY') === 0).reduce((a, t) => a + t.size, 0);
+  const buys = tapeFiltered.filter((t) => (t.dir || 'BUY') === 'BUY').reduce((a, t) => a + t.size, 0);
   const sells = tapeNotional - buys;
   const groesster = tapeFiltered.reduce((a, t) => (t.size > (a ? a.size : -1) ? t : a), null);
   const kurzTitel = (t) => (String(t).length > 38 ? String(t).slice(0, 37) + '…' : String(t));
@@ -717,6 +717,7 @@ export function renderFlow(T) {
   const gesehen = erste ? new Set() : T._flowGesehen;
   T._flowGesehen = new Set(T.tape.map(schluessel));
 
+  const fensterZeile = fensterSatz(tapeFenster(tapeFiltered));
   const puls = tapePulsHtml(tapeFiltered, buys, sells);
   const katFluss = kategorieFlussHtml(tapeFiltered);
   const grafiken = puls || katFluss
@@ -754,6 +755,12 @@ export function renderFlow(T) {
     + kpiCell('BIGGEST PRINT', groesster ? money(groesster.size) : '—',
       groesster ? esc(kurzTitel(groesster.market)) : 'no print passes the filters', false)
     + '</div>'
+
+    // Ueber welche Spanne diese vier Zahlen summiert wurden — und dass die
+    // Spanne je Venue verschieden ist, weil beide gleich viele Zeilen
+    // bekommen (api_views.balanced_head), Kalshi aber viel schneller druckt.
+    + (fensterZeile ? '<div style="padding:9px 24px; border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:11px; color:rgba(var(--ink),.55)">'
+      + '<span style="letter-spacing:.14em; color:rgba(var(--ink),.6); margin-right:8px">SUMMED OVER</span>' + esc(fensterZeile) + '</div>' : '')
 
     + grafiken
 
@@ -832,7 +839,12 @@ export function renderCross(T) {
   if (s.crossLower !== 'any') cRows = cRows.filter((c) => (c.pm < c.ks ? 'Polymarket' : 'Kalshi') === s.crossLower);
   cRows = cRows.sort((a, b) => Math.abs(b.pm - b.ks) - Math.abs(a.pm - a.ks)).slice(0, s.crossMaxPairs);
   const gaps = cRows.map((c) => Math.abs(c.pm - c.ks)).sort((a, b) => a - b);
-  const medianGap = gaps.length ? gaps[Math.floor(gaps.length / 2)] : 0;
+  // Die Luecke zwischen zwei Mittelkursen ist keine Spanne, die man nehmen
+  // kann: gekauft wird zum Brief, verkauft zum Geld, und beide Venues
+  // nehmen eine Gebuehr. Wie viele Paare danach ueberhaupt noch etwas
+  // uebrig lassen, ist die einzige Zahl hier, die ueber Geld spricht.
+  const netKnown = cRows.filter((c) => c.net != null).length;
+  const netPositive = cRows.filter((c) => c.net != null && c.net > 0).length;
   const sims = cRows.map((c) => c.sim).sort((a, b) => a - b);
   const medianSim = sims.length ? sims[Math.floor(sims.length / 2)] : 0;
   const cl = T.liveData.cross || {};
@@ -868,7 +880,7 @@ export function renderCross(T) {
     + '<input value="' + esc(s.crossQuery) + '" ' + T.inp((e) => T.setState({ crossQuery: e.target.value }), 'crossQuery') + ' placeholder="bitcoin, fed, election…" style="background:var(--panel); border:1px solid rgba(var(--ink),.35); border-radius:4px; padding:9px 12px; ' + M + '; font-size:12.5px; color:var(--text); width:230px" />'
     + '<div ' + T.act(() => T.setState({ crossQuery: '', crossSim: 0.5, crossMaxPairs: 50, crossMinGap: 0, crossLower: 'any', crossPmVol: 0, crossKsVol: 0, crossMinPrice: 0, crossMaxPrice: 100 })) + ' class="hv-bd32" style="font-size:12.5px; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.16); border-radius:4px; padding:9px 13px; cursor:pointer">Reset filters</div>'
     + '</div></div>'
-    + '<div style="font-size:13px; color:rgba(var(--ink),.55); margin-top:10px; max-width:760px">Matched by title similarity, not by ticker. ' + esc(gateNote) + '. A gap is not free money — fees, settlement rules and resolution sources differ between the two venues, and two matched titles can still be two different questions (studies 08 and 11).</div>'
+    + '<div style="font-size:13px; color:rgba(var(--ink),.55); margin-top:10px; max-width:760px">Matched by title similarity, not by ticker. ' + esc(gateNote) + '. GAP is the distance between the two mid prices, and nobody trades a mid. NET OF FEES prices the basket that would capture it (buy the yes side at the ask, buy the other side at the other venue&#39;s ask) and subtracts both venues&#39; taker fee curves. Settlement rules and resolution sources still differ, and two matched titles can still be two different questions (studies 08 and 11).</div>'
 
     + '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; padding:16px; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:16px 18px">'
     + stepGroup('MIN SIMILARITY (GATE 0.50)', s.crossSim.toFixed(2), () => T.setState({ crossSim: Math.max(0.5, +(s.crossSim - 0.02).toFixed(2)) }), () => T.setState({ crossSim: Math.min(0.9, +(s.crossSim + 0.02).toFixed(2)) }))
@@ -891,14 +903,19 @@ export function renderCross(T) {
     + '<div style="padding:14px 24px; border-right:1px solid rgba(var(--ink),.09)"><div style="' + HEAD_CELL + '">PAIRS SHOWN</div><div style="' + M + '; font-size:22px; margin-top:7px">' + cRows.length + '</div></div>'
     + '<div style="padding:14px 24px; border-right:1px solid rgba(var(--ink),.09)"><div style="' + HEAD_CELL + '">LARGEST GAP</div><div style="' + M + '; font-size:22px; margin-top:7px; color:var(--warn)">' + (gaps.length ? gaps[gaps.length - 1] + '¢' : '—') + '</div></div>'
     + '<div style="padding:14px 24px; border-right:1px solid rgba(var(--ink),.09)"><div style="' + HEAD_CELL + '">MEDIAN SIMILARITY</div><div style="' + M + '; font-size:22px; margin-top:7px">' + (medianSim ? medianSim.toFixed(2) : '—') + '</div></div>'
-    + '<div style="padding:14px 24px"><div style="' + HEAD_CELL + '">MEDIAN GAP</div><div style="' + M + '; font-size:22px; margin-top:7px">' + (medianGap ? medianGap + '¢' : '—') + '</div></div>'
+    + '<div style="padding:14px 24px"><div style="' + HEAD_CELL + '">POSITIVE NET OF FEES</div><div style="' + M + '; font-size:22px; margin-top:7px; color:' + (netPositive ? 'var(--pos)' : 'rgba(var(--ink),.6)') + '">' + netPositive + ' of ' + netKnown + '</div></div>'
     + '</div>'
 
     + '<div style="display:grid; grid-template-columns:1fr 118px 118px 96px 110px 118px; padding:10px 24px; border-bottom:1px solid rgba(var(--ink),.09); background:var(--panel); position:sticky; top:0; z-index:3; ' + HEAD_CELL + '">'
-    + '<div>EVENT</div><div style="text-align:right">POLYMARKET</div><div style="text-align:right">KALSHI</div><div style="text-align:right">GAP</div><div style="text-align:right">VOLUME 24H</div><div style="text-align:right">HELD FOR</div></div>'
+    + '<div>EVENT</div><div style="text-align:right">POLYMARKET</div><div style="text-align:right">KALSHI</div><div style="text-align:right">GAP</div><div style="text-align:right">VOLUME 24H</div><div style="text-align:right">NET OF FEES</div></div>'
     + cRows.map((c) => {
       const g = Math.abs(c.pm - c.ks);
       const gapStyle = M + '; font-size:14px; text-align:right; color:' + (g >= 5 ? 'var(--warn)' : g >= 3 ? 'var(--text)' : 'rgba(var(--ink),.5)');
+      // Die letzte Spalte hiess HELD FOR und war in jeder Zeile ein Strich:
+      // der Server hat nie etwas anderes geliefert. Hier steht jetzt die
+      // einzige Zahl der Tabelle, die als Vorteil gelesen werden darf.
+      const netFarbe = c.net == null ? 'rgba(var(--ink),.45)' : c.net > 0 ? 'var(--pos)' : 'rgba(var(--ink),.5)';
+      const netLabel = c.net == null ? '—' : (c.net > 0 ? '+' : '') + c.net.toFixed(1) + '¢';
       return '<div style="display:grid; grid-template-columns:1fr 118px 118px 96px 110px 118px; align-items:center; padding:13px 24px; border-bottom:1px solid rgba(var(--ink),.06)">'
         + '<div style="padding-right:20px"><div style="font-size:13.5px; line-height:1.35">' + esc(c.event) + '</div>'
         + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); margin-top:3px">' + esc(c.cat) + ' · similarity ' + c.sim.toFixed(2) + '</div></div>'
@@ -906,7 +923,7 @@ export function renderCross(T) {
         + '<div style="' + M + '; font-size:14px; text-align:right; color:var(--info)">' + c.ks + '¢</div>'
         + '<div style="' + gapStyle + '">' + g + '¢</div>'
         + '<div style="' + M + '; font-size:12.5px; text-align:right; color:rgba(var(--ink),.6)">' + money(c.pmVol + c.ksVol) + '</div>'
-        + '<div style="' + M + '; font-size:12px; text-align:right; color:rgba(var(--ink),.6)">' + esc(c.held) + '</div></div>';
+        + '<div style="' + M + '; font-size:13px; text-align:right; color:' + netFarbe + '" title="' + esc(c.net == null ? 'no two-sided quote on both venues' : (c.dir || '') + ' · executable ' + (c.gross == null ? '—' : c.gross.toFixed(1) + '¢') + ' minus a fee threshold of ' + (c.band == null ? '—' : c.band.toFixed(1) + '¢')) + '">' + netLabel + '</div></div>';
     }).join('')
     + (cRows.length === 0 ? '<div style="padding:60px; text-align:center; ' + M + '; font-size:12px; color:rgba(var(--ink),.55)">No pair passes the local filters; loosen a stepper above.</div>' : '')
     + '</div>';

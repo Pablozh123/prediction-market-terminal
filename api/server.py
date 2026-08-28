@@ -614,10 +614,15 @@ def build_wallet_detail(wallet: str) -> dict[str, Any]:
         return match.iloc[0].to_dict() if not match.empty else None
 
     def _risk_row(w: str):
-        tape_df = load_tape(limit=1000, min_cash=0.0)
-        if tape_df.empty:
+        # Dieselbe Basis und dieselbe Schwelle wie der Risk-Screen
+        # (risk_screen_basis). Vorher las diese Seite ein Tape ohne
+        # Mindestbetrag und ohne Kontextfilter und rechnete mit der
+        # Standard-Schwelle 10.000 statt der eingestellten 2.500 — dieselbe
+        # Wallet trug hier und auf dem Screen zwei verschiedene Zahlen.
+        _roh, base, whale_threshold = risk_screen_basis()
+        if base.empty:
             return None
-        scores = md.whale_wallet_risk_scores(tape_df)
+        scores = md.whale_wallet_risk_scores(base, whale_threshold=whale_threshold)
         if scores is None or scores.empty or "wallet" not in scores:
             return None
         match = scores[scores["wallet"].astype(str).str.lower() == w.lower()]
@@ -762,7 +767,15 @@ def cross(
             if page.empty:
                 break
             frames.append(page)
-        return pd.concat(frames, ignore_index=True, sort=False) if frames else pd.DataFrame()
+        if not frames:
+            return pd.DataFrame()
+        # Gamma sortiert nach 24h-Volumen, und diese Ordnung bewegt sich
+        # zwischen den fuenf Aufrufen: derselbe Markt kann auf zwei Seiten
+        # stehen und stuende dann zweimal in der Paarliste.
+        zusammen = pd.concat(frames, ignore_index=True, sort=False)
+        if "market_key" in zusammen.columns:
+            zusammen = zusammen.drop_duplicates(subset=["market_key"], keep="first").reset_index(drop=True)
+        return zusammen
 
     def _ks() -> pd.DataFrame:
         return md.get_kalshi_markets(limit=1000)
@@ -877,6 +890,38 @@ def _tape_categories(trades: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame()
 
 
+def risk_screen_basis() -> tuple[pd.DataFrame, pd.DataFrame, float]:
+    """(Roh-Tape, gescreenter Basis-Tape, Whale-Schwelle) fuer den Insider-Score.
+
+    EINE Definition fuer jede Oberflaeche, die einen Insider-Score zeigt. Die
+    Wallet-Seite rechnete ihn bis hierher ueber ein anderes Tape (kein
+    Mindestbetrag, kein Kontextfilter) und mit der Standard-Schwelle von
+    10.000 statt der eingestellten — dieselbe Wallet trug auf dem Risk-Screen
+    und auf ihrer eigenen Seite zwei verschiedene Zahlen unter demselben
+    Namen.
+
+    Mit ``min_cash=0`` fressen die Mikro-Prints das Fenster: 1000 Prints jeder
+    Groesse decken auf dieser Venue Minuten ab, und fast jeder gescorte
+    "Markt" war ein einzelner Kleinstbetrag. Der Boden ist derselbe, ab dem
+    der Scorer Verteilungs-Signale voll zaehlt (distribution_size_floor) —
+    dieselben 1000 Prints tragen dann Stunden relevanten Flows statt Staub.
+    Sport, Wetter und Krypto-Kursmaerkte fallen ganz raus
+    (susp.EXCLUDED_CONTEXTS); ein leerer Screen ist die ehrliche Antwort,
+    kein Rueckfall auf das rohe Tape.
+    """
+
+    from app import suspicion as susp
+
+    settings = cfg.load_settings()
+    whale_threshold = float(settings.get("whale_threshold", 2500))
+    tape_floor = max(md.DISTRIBUTION_NOTIONAL_FLOOR, whale_threshold * 0.2)
+    trades = load_tape(limit=1000, min_cash=tape_floor)
+    if trades.empty:
+        return pd.DataFrame(), pd.DataFrame(), whale_threshold
+    screened = susp.filter_insider_prone_trades(trades)
+    return trades, (screened if screened is not None else pd.DataFrame()), whale_threshold
+
+
 def build_risk_payload() -> dict[str, Any]:
     """Der komplette Risk-Screen (Events, Wallets, Cluster, Netzwerk), 300 s gecacht.
 
@@ -887,25 +932,11 @@ def build_risk_payload() -> dict[str, Any]:
 
     from app import suspicion as susp
 
-    settings = cfg.load_settings()
-    whale_threshold = float(settings.get("whale_threshold", 2500))
-    # Mit min_cash=0 fressen die Mikro-Prints das Fenster: 1000 Prints jeder
-    # Groesse decken auf dieser Venue Minuten ab, und fast jeder gescorte
-    # "Markt" war ein einzelner Kleinstbetrag. Der Boden ist derselbe, ab dem
-    # der Scorer Verteilungs-Signale voll zaehlt (distribution_size_floor) —
-    # dieselben 1000 Prints tragen dann Stunden relevanten Flows statt Staub.
-    tape_floor = max(md.DISTRIBUTION_NOTIONAL_FLOOR, whale_threshold * 0.2)
-    trades = load_tape(limit=1000, min_cash=tape_floor)
+    trades, base, whale_threshold = risk_screen_basis()
     if trades.empty:
         raise LookupError("no trade tape available")
 
     def _build() -> dict[str, Any]:
-        # Sports, weather and crypto/market prices are excluded from the
-        # screen entirely (susp.EXCLUDED_CONTEXTS). No fallback to the raw
-        # tape: when the last thousand prints are all 15-minute crypto
-        # markets the honest answer is an empty screen, not a crypto screen.
-        screened = susp.filter_insider_prone_trades(trades)
-        base = screened if screened is not None else pd.DataFrame()
         wallet_scores = md.whale_wallet_risk_scores(base, whale_threshold=whale_threshold)
         event_scores = md.whale_event_risk_scores(base, whale_threshold=whale_threshold)
         fresh = pd.DataFrame()

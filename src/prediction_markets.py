@@ -180,6 +180,29 @@ def cents(value: Any) -> float:
     return max(0.0, min(parsed, 1.0))
 
 
+def kalshi_price(dollar_value: Any, cent_value: Any, default: float | None = 0.0) -> float | None:
+    """Kalshi-Preis in (0, 1): das ``*_dollars``-Feld direkt, sonst Cents/100.
+
+    ``cents`` raet die Einheit an der Groesse ab. Fuer Polymarkets
+    Dezimalpreise stimmt das, am Rand von Kalshis Cent-Leiter nicht: ein
+    ``yes_bid`` von 1 ist ein Cent, ist aber nicht groesser als 1.0 und
+    ueberlebt deshalb ungeteilt. Der Longshot bei 1 Cent liest sich dann als
+    Gewissheit bei 100 Prozent, und die Cross-Venue-Luecke gegen dieselbe
+    Frage auf Polymarket ist 99 Cent gross statt null.
+
+    Welches Feld gemeint ist, weiss der Aufrufer, nicht die Zahl: deshalb
+    nimmt diese Funktion beide Felder entgegen statt zu raten.
+    """
+
+    value = _num(dollar_value)
+    if value is None:
+        cent = _num(cent_value)
+        if cent is None:
+            return default
+        value = cent / 100.0
+    return max(0.0, min(float(value), 1.0))
+
+
 def _outcome_price(market: dict[str, Any], index: int = 0) -> float | None:
     prices = _as_list(market.get("outcomePrices"))
     if len(prices) > index:
@@ -260,6 +283,23 @@ def _finalize_polymarket_markets(normalized: list[dict[str, Any]]) -> pd.DataFra
     if not df.empty:
         df["activity_volume"] = df["volume_24h"].where(df["volume_24h"].fillna(0) > 0, df["volume"])
         df = df.sort_values(["activity_volume", "volume"], ascending=False).reset_index(drop=True)
+        # Gamma wird seitenweise nach 24h-Volumen abgefragt, und diese Ordnung
+        # bewegt sich zwischen zwei Aufrufen. Ein Markt, der waehrenddessen
+        # eine Seite nach hinten rutscht, kommt zweimal zurueck: einmal als
+        # Zeile 100 der ersten Seite, einmal als Zeile 1 der zweiten. Ohne
+        # diesen Schnitt zaehlt ihn jede Summe darueber doppelt.
+        df = _dedupe_markets(df)
+    return df
+
+
+def _dedupe_markets(df: pd.DataFrame) -> pd.DataFrame:
+    """Ein Markt, eine Zeile. Schluessel ist ``market_key``, sonst ``id``."""
+
+    for key in ("market_key", "id", "ticker"):
+        if key in df.columns:
+            schluessel = df[key].astype(str)
+            if schluessel.str.strip().ne("").all():
+                return df.drop_duplicates(subset=[key], keep="first").reset_index(drop=True)
     return df
 
 
@@ -2618,9 +2658,9 @@ def get_kalshi_markets(
     rows = data.get("markets", []) if isinstance(data, dict) else []
     normalized: list[dict[str, Any]] = []
     for market in rows:
-        yes_bid = cents(_first_nonempty(market.get("yes_bid_dollars"), market.get("yes_bid")))
-        yes_ask = cents(_first_nonempty(market.get("yes_ask_dollars"), market.get("yes_ask")))
-        last_price = cents(_first_nonempty(market.get("last_price_dollars"), market.get("last_price")))
+        yes_bid = kalshi_price(market.get("yes_bid_dollars"), market.get("yes_bid"))
+        yes_ask = kalshi_price(market.get("yes_ask_dollars"), market.get("yes_ask"))
+        last_price = kalshi_price(market.get("last_price_dollars"), market.get("last_price"))
         # liquidity_dollars ist Dollar; das Legacy-Feld liquidity liefert
         # Cents und stand ungeteilt ~100x zu hoch in der Spalte. Der fruehere
         # dritte Rueckfall open_interest_fp zaehlt Kontrakte, keine Dollar,
@@ -2671,12 +2711,23 @@ def get_kalshi_markets(
     if not df.empty:
         df["activity_volume"] = df["volume_24h"].where(df["volume_24h"].fillna(0) > 0, df["volume"])
         df = df.sort_values(["activity_volume", "volume"], ascending=False).reset_index(drop=True)
+        # Eine Ticker-Abfrage kann denselben Markt mehrfach nennen; jede
+        # Summe darueber zaehlte ihn dann doppelt.
+        df = _dedupe_markets(df)
     return df
 
 
 def _candlestick_price(row: dict[str, Any], field: str) -> float | None:
+    """Ein Kerzenpreis in (0, 1).
+
+    Ohne ``*_dollars`` liefert die Kerze Cents, und der frueher hier
+    stehende rohe ``_num`` schob sie ungeteilt in die Spalte: eine
+    Kalshi-Kerze lief von 45 bis 60, waehrend dieselbe Achse fuer
+    Polymarket 0.45 bis 0.60 zeigte.
+    """
+
     price = row.get("price") if isinstance(row.get("price"), dict) else {}
-    return _num(_first_nonempty(price.get(f"{field}_dollars"), price.get(field)))
+    return kalshi_price(price.get(f"{field}_dollars"), price.get(field), default=None)
 
 
 def get_kalshi_candlesticks(ticker: str, days: int = 30, period_interval: int = 60) -> pd.DataFrame:
@@ -2847,16 +2898,35 @@ def get_kalshi_orderbook(ticker: str) -> tuple[pd.DataFrame, pd.DataFrame]:
         return empty.copy(), empty.copy()
     book = data.get("orderbook_fp") or data.get("orderbook") or {}
 
-    def normalize(levels: list[Any], side: str) -> pd.DataFrame:
+    def ladder(seite: str) -> tuple[list[Any], bool]:
+        """Die Leiter einer Seite plus die Einheit, in der sie notiert.
+
+        Nur der Feldname sagt die Einheit: ``yes_dollars`` ist Dollar,
+        ``yes`` ist Cents. Vorher wurde ausschliesslich ``yes_dollars``
+        gelesen, und ein Buch in der dokumentierten Cent-Form kam als leer
+        zurueck: keine Tiefe, kein Spread, ein stiller Nullwert statt einer
+        Leiter mit tausend Kontrakten.
+        """
+
+        in_dollars = book.get(f"{seite}_dollars")
+        if in_dollars:
+            return list(in_dollars), True
+        return list(book.get(seite) or []), False
+
+    def normalize(levels: list[Any], side: str, in_dollars: bool) -> pd.DataFrame:
         rows: list[dict[str, float | str]] = []
         for level in levels or []:
             if isinstance(level, dict):
-                price = cents(_first_nonempty(level.get("price"), level.get("price_dollars")))
+                price = kalshi_price(level.get("price_dollars"), level.get("price"), default=None)
                 size = dollars(_first_nonempty(level.get("size"), level.get("count"), level.get("count_fp")))
-            elif isinstance(level, list) and len(level) >= 2:
-                price = cents(level[0])
+            elif isinstance(level, (list, tuple)) and len(level) >= 2:
+                roh = level[0]
+                price = kalshi_price(roh if in_dollars else None,
+                                     None if in_dollars else roh, default=None)
                 size = dollars(level[1])
             else:
+                continue
+            if price is None:
                 continue
             if side == "ask":
                 price = 1 - price
@@ -2866,7 +2936,9 @@ def get_kalshi_orderbook(ticker: str) -> tuple[pd.DataFrame, pd.DataFrame]:
             df = df.sort_values("price", ascending=(side == "ask")).reset_index(drop=True)
         return df
 
-    return normalize(book.get("yes_dollars", []), "bid"), normalize(book.get("no_dollars", []), "ask")
+    yes_levels, yes_dollars = ladder("yes")
+    no_levels, no_dollars = ladder("no")
+    return normalize(yes_levels, "bid", yes_dollars), normalize(no_levels, "ask", no_dollars)
 
 
 def wallet_summary(open_positions: pd.DataFrame, closed_positions: pd.DataFrame, trades: pd.DataFrame) -> dict[str, Any]:

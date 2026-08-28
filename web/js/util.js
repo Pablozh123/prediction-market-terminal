@@ -163,7 +163,15 @@ export function mapMarket(r, i) {
     venue: String(r.platform || 'Polymarket'),
     cat: liveCat(r.filter_category || r.category),
     yes, chg,
-    vol: +r.volume_24h || +r.activity_volume || 0,
+    // Nur der Tageswert. Der frühere Rueckfall auf activity_volume (24h,
+    // sonst Gesamtvolumen) setzte das Lebensvolumen unter die Ueberschrift
+    // VOLUME 24H: ein Markt ohne Handel am Tag stand dort mit $4.2m und kam
+    // durch den Filter "24h-Volumen > $1m". Ohne Handel ist der Tageswert
+    // null, und null ist hier die Messung.
+    vol: +r.volume_24h || 0,
+    // Das Lebensvolumen als eigene Zahl, damit es nicht als Tageswert
+    // auftritt und trotzdem nicht verloren geht.
+    volTotal: +r.volume || +r.activity_volume || 0,
     liq: +r.liquidity || 0,
     ends: ends.label,
     url: r.url || '',
@@ -181,11 +189,98 @@ export function isWalletAddress(v) {
   return /^0x[0-9a-fA-F]{6,}$/.test(String(v || '').trim());
 }
 
+// Richtung eines Prints als eigenes Feld. Polymarket liefert BUY/SELL,
+// Kalshi liefert in derselben Spalte die genommene Seite ("yes"/"no") —
+// dort ist jeder Print ein Kauf des Takers, also BUY.
+export function tradeDirection(side) {
+  return String(side || '').trim().toUpperCase() === 'SELL' ? 'SELL' : 'BUY';
+}
+
+// Ergebnisname eines Prints, Schreibweise vereinheitlicht. Kalshi schreibt
+// "yes"/"no" klein, Polymarket "Yes"/"No"; ohne diese Angleichung filtert
+// die Auswahl OUTCOME = Yes jeden Kalshi-Print weg, weil sie auf dem
+// zusammengesetzten Etikett "BUY yes" nach "Yes" sucht. Namen aus
+// Mehrfachmaerkten (Teamnamen) bleiben, wie sie kommen.
+export function tradeOutcome(outcome) {
+  const roh = String(outcome == null ? '' : outcome).trim();
+  if (!roh) return 'Yes';
+  const klein = roh.toLowerCase();
+  if (klein === 'yes') return 'Yes';
+  if (klein === 'no') return 'No';
+  return roh;
+}
+
+// Trifft ein Tape-Print die Filterauswahl der Live-Tape-Seite? Steht hier
+// und nicht in app.js, damit dieselbe Regel testbar ist, die die Seite und
+// jede Kennzahl darueber (TOTAL MOVED, FLOW PULSE, WHERE THE MONEY FLOWS)
+// benutzt.
+export function tapeMatches(t, s) {
+  if (t.size < s.tapeMin) return false;
+  if (s.tapeTracked && !t.tracked) return false;
+  if (s.tapePlatform !== 'all' && t.venue !== s.tapePlatform) return false;
+  // Richtung und Ergebnis als eigene Felder vergleichen (mapTrade). Vorher
+  // lief beides ueber indexOf auf dem Etikett "BUY yes": das liess
+  // OUTCOME = Yes jeden Kalshi-Print fallen (dort steht "yes" klein) und
+  // liess OUTCOME = No jeden Print eines Marktes mit "November" durch.
+  if (s.tapeSide !== 'all' && (t.dir || 'BUY') !== s.tapeSide) return false;
+  if (s.tapeOutcome !== 'all' && (t.outcome || '') !== s.tapeOutcome) return false;
+  if (s.tapeCat !== 'All' && (t.category || 'Other') !== s.tapeCat) return false;
+  if (String(s.tapeQuery || '').trim()) {
+    const tq = String(s.tapeQuery).trim().toLowerCase();
+    if (t.market.toLowerCase().indexOf(tq) < 0 && t.wallet.toLowerCase().indexOf(tq) < 0) return false;
+  }
+  return true;
+}
+
+// Spanne, ueber die eine Menge von Prints summiert wurde, je Venue getrennt.
+//
+// Der oeffentliche Trade-Feed liefert die juengsten N Prints; wie lange die
+// abdecken, haengt an der Aktivitaet. Auf dem Tape kommt dazu, dass beide
+// Venues gleich viele Zeilen bekommen (api_views.balanced_head), damit die
+// Kalshi-Mikrotrades die Polymarket-Prints nicht verdraengen. Dieselbe
+// Zeilenzahl kann bei Kalshi Minuten und bei Polymarket Stunden bedeuten —
+// eine Summe "TOTAL MOVED" ueber beide ist ohne diese Angabe nicht
+// einzuordnen. Rueckgabe in Minuten; ohne verwertbare Zeit null.
+export function tapeFenster(prints) {
+  const gueltig = (prints || []).filter((t) => typeof t.mins === 'number' && t.mins < 999);
+  if (!gueltig.length) return null;
+  const spanne = (rows) => ({
+    prints: rows.length,
+    minuten: Math.max(...rows.map((t) => t.mins)) - Math.min(...rows.map((t) => t.mins))
+  });
+  const venues = {};
+  gueltig.forEach((t) => { (venues[t.venue || 'Polymarket'] || (venues[t.venue || 'Polymarket'] = [])).push(t); });
+  return {
+    ...spanne(gueltig),
+    jeVenue: Object.keys(venues).sort().map((v) => ({ venue: v, ...spanne(venues[v]) }))
+  };
+}
+
+// Eine Minutenzahl als kurze Dauer: 0 min, 42 min, 3.5 h, 2.1 d.
+export function dauer(minuten) {
+  const m = Math.max(0, +minuten || 0);
+  if (m < 1) return '<1 min';
+  if (m < 90) return Math.round(m) + ' min';
+  if (m < 60 * 36) return (m / 60).toFixed(1) + ' h';
+  return (m / 1440).toFixed(1) + ' d';
+}
+
+// Der Fenstersatz als Text. Nennt die Venues einzeln, sobald es mehr als
+// eine gibt, weil genau dort die Spannen auseinanderlaufen.
+export function fensterSatz(fenster) {
+  if (!fenster) return '';
+  const je = fenster.jeVenue.map((v) => v.venue + ' ' + dauer(v.minuten) + ' (' + v.prints + ')').join(' · ');
+  const kopf = 'Window: ' + dauer(fenster.minuten) + ' · ' + fenster.prints + ' prints';
+  return fenster.jeVenue.length > 1 ? kopf + ' — ' + je : kopf;
+}
+
 // Map one /api/tape row into the tape-row shape.
 export function mapTrade(r) {
   const t = r.time ? new Date(r.time) : null;
   const mins = t && !isNaN(t) ? Math.max(0, Math.round((Date.now() - t) / 60000)) : 999;
   const ago = mins < 1 ? 'just now' : mins < 60 ? mins + ' min ago' : Math.round(mins / 60) + ' h ago';
+  const dir = tradeDirection(r.side);
+  const outcome = tradeOutcome(r.outcome);
   return {
     ago, mins,
     // Roher Zeitstempel als stabiler Schluessel: "ago" wandert mit jeder
@@ -205,7 +300,12 @@ export function mapTrade(r) {
     // "Other" — kein Nachschlagen ueber den Titel in den 250 geladenen
     // Maerkten mehr, das traf fast nie und machte alles zu "Other".
     category: r.category ? liveCat(r.category) : 'Other',
-    side: (String(r.side || 'BUY').toUpperCase() === 'SELL' ? 'SELL ' : 'BUY ') + (String(r.outcome || 'Yes')),
+    // Richtung und Ergebnis stehen einzeln da; "side" bleibt nur das
+    // Etikett fuer die Anzeige. Filter und Summen lesen dir/outcome, nicht
+    // Teilzeichenketten des Etiketts: "BUY November" enthaelt "No".
+    dir,
+    outcome,
+    side: dir + ' ' + outcome,
     price: ((+r.price || 0) * 100).toFixed(1) + '¢',
     size: +r.notional || Math.round((+r.size || 0) * (+r.price || 0)) || 0,
     venue: String(r.platform || 'Polymarket'),
