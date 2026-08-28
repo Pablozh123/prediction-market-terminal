@@ -44,6 +44,53 @@ RESEARCH_FILES = {
 }
 
 
+#: Unter diesem Schluessel reist die Venue-Herkunft am Frame mit.
+VENUE_SOURCES_ATTR = "venue_sources"
+
+
+def venue_source(venue: str, *, ok: bool, rows: int = 0, error: str = "") -> dict[str, Any]:
+    """Was eine Venue auf eine Anfrage geliefert hat, als eine Zeile.
+
+    ``ok`` heisst: die Antwort war lesbar. ``rows`` null bei ``ok`` ist eine
+    Aussage (nichts gehandelt), ``rows`` null bei ``ok = False`` ist eine
+    Luecke. Diese beiden auseinanderzuhalten ist der ganze Zweck: vorher sah
+    eine ausgefallene Venue von aussen aus wie eine stille.
+    """
+
+    return {"venue": str(venue), "ok": bool(ok), "rows": int(rows),
+            "error": str(error or "")[:300]}
+
+
+def with_venue_sources(frame: pd.DataFrame, sources: list[dict[str, Any]]) -> pd.DataFrame:
+    """Die Herkunftszeilen an den Frame heften, damit sie den Cache ueberleben.
+
+    ``load_tape`` und ``load_universe`` geben einen Frame zurueck und werden
+    an acht Stellen so gerufen; die Herkunft am Frame zu fuehren aendert
+    keine dieser Signaturen. ``DataFrame.attrs`` ist genau dafuer da.
+    """
+
+    if frame is None:
+        return frame
+    frame.attrs[VENUE_SOURCES_ATTR] = list(sources or [])
+    return frame
+
+
+def venue_sources(frame: Any) -> list[dict[str, Any]]:
+    """Die Herkunftszeilen eines Frames, oder eine leere Liste."""
+
+    attrs = getattr(frame, "attrs", None)
+    if not isinstance(attrs, Mapping):
+        return []
+    return list(attrs.get(VENUE_SOURCES_ATTR) or [])
+
+
+def missing_venues(sources: Any) -> list[str]:
+    """Die Venues, die auf diese Anfrage nicht lesbar geantwortet haben."""
+
+    return [str(row.get("venue") or "") for row in (sources or [])
+            if isinstance(row, Mapping) and not row.get("ok")]
+
+
 def claims_payload(lang: str | None = None) -> dict[str, Any]:
     """Das Caveat-Register als JSON, so wie /api/claims es ausliefert.
 

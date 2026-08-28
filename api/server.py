@@ -296,25 +296,48 @@ def df_records(df: pd.DataFrame, limit: int | None = None) -> list[dict[str, Any
     return json.loads(df.to_json(orient="records", date_format="iso"))
 
 
+def _venue_frame(venue: str, fetch, sources: list[dict[str, Any]]) -> pd.DataFrame:
+    """Eine Venue holen und ihr Ergebnis vermerken, statt es zu verschlucken.
+
+    Vorher stand hier ``except Exception: print("[warn] ...")``. Die Zeile
+    ging auf stdout eines Servers, den niemand liest, und die Antwort trug
+    danach eine Venue weniger, ohne dass irgendetwas an ihr das sagte. Die
+    Kopfzeile der Seite meldete weiter "LIVE, POLYMARKET + KALSHI": eine
+    halbe Antwort, die sich als ganze ausgibt.
+
+    Gefangen wird weiter, denn eine ausgefallene Venue soll die andere nicht
+    mitnehmen. Aber der Ausfall wandert jetzt in ``sources`` und von dort in
+    die Antwort, und die Oberflaeche kann ihn benennen.
+    """
+
+    try:
+        frame = fetch()
+    except Exception as exc:
+        print(f"[warn] {venue}: {exc}")
+        sources.append(apv.venue_source(venue, ok=False, error=f"{type(exc).__name__}: {exc}"))
+        return pd.DataFrame()
+    frame = pd.DataFrame() if frame is None else frame
+    sources.append(apv.venue_source(venue, ok=True, rows=int(len(frame))))
+    return frame
+
+
 def load_universe(limit: int = 250) -> pd.DataFrame:
     def _load() -> pd.DataFrame:
         frames = []
+        sources: list[dict[str, Any]] = []
         for name, fn in (("Polymarket", md.get_polymarket_markets), ("Kalshi", md.get_kalshi_markets)):
-            try:
-                frame = fn(limit=limit)
-                if not frame.empty:
-                    frames.append(frame.dropna(axis=1, how="all"))
-            except Exception as exc:
-                print(f"[warn] {name} markets: {exc}")
+            frame = _venue_frame(name, lambda fn=fn: fn(limit=limit), sources)
+            if not frame.empty:
+                frames.append(frame.dropna(axis=1, how="all"))
         if not frames:
-            return pd.DataFrame()
+            return apv.with_venue_sources(pd.DataFrame(), sources)
         combined = pd.concat(frames, ignore_index=True, sort=False)
         combined = md.add_market_filter_metrics(combined)
         # Titelmuster des Tape-Klassifizierers auch fuers Universum: die
         # Rohkategorien sind fast leer (Kalshi-Parlays, Esports, Einzelspiele
         # sagen alle "Other"), die Marktseite bekam dadurch kaum Kategorien
         # zum Auswaehlen. Laeuft einmal je Cache-Fuellung, nicht je Request.
-        return apv.enrich_filter_categories(combined, TAPE_CLASSIFIER)
+        return apv.with_venue_sources(apv.enrich_filter_categories(combined, TAPE_CLASSIFIER), sources)
 
     return cached(f"universe_{limit}", _load)
 
@@ -322,13 +345,9 @@ def load_universe(limit: int = 250) -> pd.DataFrame:
 def load_tape(limit: int = 250, min_cash: float = 0.0) -> pd.DataFrame:
     def _load() -> pd.DataFrame:
         frames = []
-        try:
-            pm = md.get_polymarket_trades(limit=limit, min_cash=min_cash)
-            if not pm.empty:
-                frames.append(pm)
-        except Exception as exc:
-            print(f"[warn] polymarket trades: {exc}")
-        try:
+        sources: list[dict[str, Any]] = []
+
+        def _kalshi() -> pd.DataFrame:
             # Kalshi kennt keinen Cash-Filter; die 15-Minuten-Kryptomaerkte
             # drucken tausend Mikro-Trades in Sekunden. Bei einem Mindestbetrag
             # deshalb das ganze Fenster holen und hier filtern, sonst waere die
@@ -336,20 +355,25 @@ def load_tape(limit: int = 250, min_cash: float = 0.0) -> pd.DataFrame:
             ks = md.get_kalshi_trades(limit=1000 if min_cash > 0 else limit)
             if not ks.empty and min_cash > 0 and "notional" in ks.columns:
                 ks = ks[pd.to_numeric(ks["notional"], errors="coerce").fillna(0.0) >= float(min_cash)]
-            if not ks.empty:
-                # The feed carries tickers only (KXRTCOMPARE-INS26AUG24-INS);
-                # one memoised markets lookup gives every consumer — tape,
-                # risk cards, flag log — the question instead.
-                ks = md.enrich_kalshi_tape(ks.head(limit))
-                frames.append(ks)
-        except Exception as exc:
-            print(f"[warn] kalshi trades: {exc}")
+            if ks.empty:
+                return ks
+            # The feed carries tickers only (KXRTCOMPARE-INS26AUG24-INS);
+            # one memoised markets lookup gives every consumer — tape,
+            # risk cards, flag log — the question instead.
+            return md.enrich_kalshi_tape(ks.head(limit))
+
+        pm = _venue_frame("Polymarket", lambda: md.get_polymarket_trades(limit=limit, min_cash=min_cash), sources)
+        if not pm.empty:
+            frames.append(pm)
+        ks = _venue_frame("Kalshi", _kalshi, sources)
+        if not ks.empty:
+            frames.append(ks)
         if not frames:
-            return pd.DataFrame()
+            return apv.with_venue_sources(pd.DataFrame(), sources)
         trades = pd.concat(frames, ignore_index=True, sort=False)
         if "time" in trades.columns:
             trades = trades.sort_values("time", ascending=False)
-        return trades
+        return apv.with_venue_sources(trades, sources)
 
     return cached(f"tape_{limit}_{min_cash}", _load, ttl=45.0)
 
@@ -394,8 +418,10 @@ def health() -> dict[str, Any]:
 @app.get("/api/overview")
 def overview(limit: int = Query(250, le=1000)) -> dict[str, Any]:
     combined = load_universe(limit)
+    quellen = apv.venue_sources(combined)
     if combined.empty:
-        return {"kpis": {}, "movers": [], "anomalies": [], "ending_soon": []}
+        return {"kpis": {}, "movers": [], "anomalies": [], "ending_soon": [],
+                "sources": quellen, "venues_missing": apv.missing_venues(quellen)}
 
     def col(name: str) -> pd.Series:
         return pd.to_numeric(combined.get(name), errors="coerce").fillna(0.0)
@@ -451,6 +477,10 @@ def overview(limit: int = Query(250, le=1000)) -> dict[str, Any]:
         "movers": df_records(movers[cols]),
         "anomalies": df_records(anomalies[cols]),
         "ending_soon": df_records(ending[cols]),
+        # Die Venue-Kennzahlen daneben stehen je Einheit getrennt; ohne diese
+        # Zeile saehe eine ausgefallene Venue aus wie eine mit null Umsatz.
+        "sources": quellen,
+        "venues_missing": apv.missing_venues(quellen),
         "as_of": md.now_utc_label(),
     }
 
@@ -464,8 +494,10 @@ def markets(
     limit: int = Query(250, le=1000),
 ) -> dict[str, Any]:
     combined = load_universe(max(limit, 250))
+    quellen = apv.venue_sources(combined)
     if combined.empty:
-        return {"rows": [], "total": 0, "as_of": md.now_utc_label()}
+        return {"rows": [], "total": 0, "sources": quellen,
+                "venues_missing": apv.missing_venues(quellen), "as_of": md.now_utc_label()}
     df = combined
     if query.strip():
         mask = df.get("title", pd.Series(dtype=str)).astype(str).str.contains(query.strip(), case=False, na=False)
@@ -494,7 +526,8 @@ def markets(
     # Schlanke Zeilen: nur die Felder, die das Frontend liest (apv.MARKET_FIELDS).
     # Mit ``raw``, ``description`` und den Token-Blobs wog die Antwort fuer
     # 250 Zeilen ueber ein Megabyte, alle 30 Sekunden.
-    return {"rows": apv.market_records(df, limit), "total": total, "as_of": md.now_utc_label()}
+    return {"rows": apv.market_records(df, limit), "total": total, "sources": quellen,
+            "venues_missing": apv.missing_venues(quellen), "as_of": md.now_utc_label()}
 
 
 @app.get("/api/search")
@@ -544,8 +577,13 @@ def search(q: str = "", limit: int = Query(12, le=25)) -> dict[str, Any]:
 @app.get("/api/tape")
 def tape(limit: int = Query(250, le=1000), min_cash: float = 0.0) -> dict[str, Any]:
     trades = load_tape(limit=limit, min_cash=min_cash)
+    # Welche Venue geantwortet hat, reist mit. Eine Antwort ohne Kalshi ist
+    # ein anderer Zustand als eine Antwort, in der Kalshi nichts gedruckt
+    # hat, und nur die Antwort selbst kann die beiden auseinanderhalten.
+    quellen = apv.venue_sources(trades)
     if trades.empty:
-        return {"rows": [], "total": 0, "as_of": md.now_utc_label()}
+        return {"rows": [], "total": 0, "sources": quellen,
+                "venues_missing": apv.missing_venues(quellen), "as_of": md.now_utc_label()}
     # Venue-balanciert statt reine Zeitreihenfolge: sonst verdraengen die
     # Kalshi-Mikro-Trades jeden Polymarket-Print aus dem Fenster.
     shown = apv.balanced_head(trades, limit)
@@ -560,7 +598,8 @@ def tape(limit: int = Query(250, le=1000), min_cash: float = 0.0) -> dict[str, A
         print(f"[warn] universe for tape categories: {exc}")
         universe = pd.DataFrame()
     shown = apv.tape_rows_with_category(shown, universe, TAPE_CLASSIFIER)
-    return {"rows": df_records(shown, limit), "total": int(len(trades)), "as_of": md.now_utc_label()}
+    return {"rows": df_records(shown, limit), "total": int(len(trades)), "sources": quellen,
+            "venues_missing": apv.missing_venues(quellen), "as_of": md.now_utc_label()}
 
 
 @app.get("/api/leaderboard")

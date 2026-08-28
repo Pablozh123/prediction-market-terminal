@@ -78,3 +78,19 @@ class WebUtilAbbildungTests(unittest.TestCase):
         self.assertEqual(self.ausgabe["geld"]["null"], "$0")
         self.assertEqual(self.ausgabe["geld"]["tausend"], "$1.5k")
         self.assertEqual(self.ausgabe["geld"]["million"], "$4.20m")
+
+    def test_die_kopfzeile_behauptet_keine_venue_die_nicht_geantwortet_hat(self) -> None:
+        # Die Zeile stand fest auf "LIVE, POLYMARKET + KALSHI". Faengt
+        # /api/tape einen Parserfehler auf einer Venue ab, damit die andere
+        # nicht mit ausfaellt, war die halbe Antwort von einer ganzen nicht
+        # zu unterscheiden.
+        zeile = self.ausgabe["statuszeile"]
+        self.assertEqual(zeile["beide"], "LIVE · POLYMARKET + KALSHI")
+        self.assertNotIn("KALSHI", zeile["kalshi_fehlt"].split("ONLY")[0])
+        self.assertIn("POLYMARKET ONLY", zeile["kalshi_fehlt"])
+        self.assertIn("KALSHI NOT ANSWERING", zeile["kalshi_fehlt"])
+        self.assertIn("KALSHI ONLY", zeile["polymarket_fehlt"])
+        self.assertIn("NO VENUE ANSWERING", zeile["keine"])
+        # Die anderen Zustaende bleiben, wie sie waren.
+        self.assertEqual(zeile["fehler"], "API OFFLINE · LAST KNOWN STATE")
+        self.assertEqual(zeile["wartet"], "WAITING FOR API")
