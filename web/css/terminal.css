@@ -122,6 +122,33 @@
   --t-lead: 16px;     /* card titles and lead sentences */
   --t-head: 21px;     /* page titles, and the figure of a KPI tile */
   --t-hero: 26px;     /* the one figure a page is about */
+  /* The spacing ladder. Seven steps, because the JS carried 483 padding
+     shorthands in 133 different value chains, 87 of which occurred once or
+     twice, plus 361 gaps in 28 values and 605 margins in 36 — and no base
+     unit underneath any of it: every whole number from 1 to 18 appeared as a
+     padding component, so 9px sat next to 10px sat next to 11px with 150
+     call sites spread across two pixels. Nobody can see that difference, so
+     it carried no meaning; it only made two cards next to each other
+     different heights for no reason anyone could name.
+     Every step here is at least 1.33x its neighbour (2/4 and 4/8 are 2x),
+     which is roughly where a spacing difference starts to read as a
+     decision rather than as noise. Spacing needs a wider ratio than type:
+     a glyph is measured against its neighbours on the same line, a gap is
+     measured against nothing.
+     Where a value sat exactly between two steps (3, 6, 10, 14, 20 — 522
+     call sites) it went up, not down. PR #123 raised the type ladder and
+     deliberately left the padding alone, so since then every card has been
+     tighter than it was drawn; rounding the ties up puts the ratio back.
+     Values above the ladder are alignment, not rhythm, and stay numbers:
+     the 108px and 222px indents sit under a grid column of exactly that
+     width. */
+  --sp-1: 2px;    /* inside a badge or a chip: an inset, not a gap */
+  --sp-2: 4px;    /* a figure and the line under it */
+  --sp-3: 8px;    /* between things that belong to one another */
+  --sp-4: 12px;   /* inside a control, a dense cell, a table row */
+  --sp-5: 16px;   /* the inside of a card */
+  --sp-6: 24px;   /* the page gutter, and the space between sections */
+  --sp-7: 32px;   /* the foot of a page and the tail under a long table */
 }
 
 /* Light: warm paper, same roles two to three shades darker so every pairing
