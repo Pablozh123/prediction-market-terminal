@@ -191,7 +191,7 @@ a:hover { color: var(--accent-bright); }
 * { box-sizing: content-box; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: var(--edge); border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: var(--edge); border-radius: var(--r-control); }
 
 /* The detail drawer slides in once per open — state reveal, not decoration. */
 @keyframes panelIn { from { opacity: 0; transform: translateX(10px) } to { opacity: 1; transform: translateX(0) } }

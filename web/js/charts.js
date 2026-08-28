@@ -9,7 +9,7 @@
 import { esc } from './util.js';
 
 const M = "font-family:'IBM Plex Mono',monospace";
-const CARD = 'background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px';
+const CARD = 'background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:var(--r-panel)';
 
 const BALKEN_FARBE = { gewinn: 'var(--pos)', kosten: 'var(--neg)', summe: 'var(--info)' };
 

@@ -196,13 +196,13 @@ export function renderDetail(T) {
     + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:6px">' + esc(v.meta) + '</div>'
     + '<div style="display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-top:18px">'
     + v.stats.map((st) =>
-      '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:11px 13px">'
+      '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:var(--r-panel); padding:11px 13px">'
       + '<div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(var(--ink),.6)">' + st.label + '</div>'
       + '<div style="' + st.style + '">' + st.value + '</div></div>'
     ).join('')
     + '</div>'
-    + (v.note ? '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); line-height:1.7; margin-top:12px; border:1px solid rgba(var(--ink),.09); border-radius:4px; padding:9px 11px; background:var(--panel)">' + v.note + '</div>' : '')
-    + '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:14px; margin-top:14px">'
+    + (v.note ? '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); line-height:1.7; margin-top:12px; border:1px solid rgba(var(--ink),.09); border-radius:var(--r-control); padding:9px 11px; background:var(--panel)">' + v.note + '</div>' : '')
+    + '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:var(--r-panel); padding:14px; margin-top:14px">'
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.6); margin-bottom:10px">' + v.chartLabel + '</div>'
     + (v.chartPoints
       ? '<svg width="100%" height="150" viewBox="0 0 340 150" preserveAspectRatio="none" role="img" aria-label="' + esc(v.chartLabel || 'chart') + '">'
@@ -227,9 +227,9 @@ export function renderDetail(T) {
     // Ein Knopf wird nur gezeichnet, wenn ein Handler daran haengt.
     + (v.primaryAction && v.primaryAct
       ? '<div style="display:flex; flex-direction:column; gap:8px; margin-top:20px">'
-        + '<div ' + v.primaryAct + ' class="hv-accentbg" style="font-size:13px; font-weight:600; text-align:center; color:var(--on-accent); background:var(--accent); border-radius:4px; padding:11px; cursor:pointer">' + esc(v.primaryAction) + '</div>'
+        + '<div ' + v.primaryAct + ' class="hv-accentbg" style="font-size:13px; font-weight:600; text-align:center; color:var(--on-accent); background:var(--accent); border-radius:var(--r-control); padding:11px; cursor:pointer">' + esc(v.primaryAction) + '</div>'
         + (v.secondaryAction && v.secondaryAct
-          ? '<div ' + v.secondaryAct + ' class="hv-bd32" style="font-size:12.5px; text-align:center; color:rgba(var(--ink),.7); border:1px solid rgba(var(--ink),.16); border-radius:4px; padding:10px; cursor:pointer">' + esc(v.secondaryAction) + '</div>'
+          ? '<div ' + v.secondaryAct + ' class="hv-bd32" style="font-size:12.5px; text-align:center; color:rgba(var(--ink),.7); border:1px solid rgba(var(--ink),.16); border-radius:var(--r-control); padding:10px; cursor:pointer">' + esc(v.secondaryAction) + '</div>'
           : '')
         + '</div>'
       : '')
@@ -274,17 +274,17 @@ export function renderSearch(T) {
   if (isFullAddress(rawQuery)) {
     walletActions.push({
       tag: 'ANALYSE', title: 'Analyse wallet ' + rawQuery.slice(0, 6) + '…' + rawQuery.slice(-4), meta: rawQuery + ' · opens the wallet page (#wallet/<address>)', value: '→',
-      tagStyle: M + '; font-size:10.5px; letter-spacing:.12em; color:var(--on-accent); background:var(--accent); border-radius:4px; padding:3px 6px',
+      tagStyle: M + '; font-size:10.5px; letter-spacing:.12em; color:var(--on-accent); background:var(--accent); border-radius:var(--r-control); padding:3px 6px',
       act: T.act(() => { if (T.analyseWallet) T.analyseWallet(rawQuery); else T.setState({ searchOpen: false, searchQuery: '' }); })
     });
   } else if (/^0x[0-9a-fA-F]*$/.test(rawQuery) && rawQuery.length > 2) {
     walletActions.push({
       tag: 'WALLET', title: 'Paste the full address to analyse a wallet', meta: '0x followed by 40 hex characters — ' + rawQuery.length + ' of 42 so far', value: '',
-      tagStyle: M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.2); border-radius:4px; padding:3px 6px',
+      tagStyle: M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.2); border-radius:var(--r-control); padding:3px 6px',
       act: ''
     });
   }
-  const grauTag = M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.7); border:1px solid rgba(var(--ink),.22); border-radius:4px; padding:3px 6px';
+  const grauTag = M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.7); border:1px solid rgba(var(--ink),.22); border-radius:var(--r-control); padding:3px 6px';
   // Seiten und Reiter: bei leerer Anfrage die Schnellnavigation, sonst jede
   // Seite, deren Name, Beschreibung oder Stichwoerter die Anfrage enthalten.
   const seitenTreffer = SEITEN
@@ -320,7 +320,7 @@ export function renderSearch(T) {
     }));
   const marketRow = (m) => ({
     tag: 'MARKET', title: m.title, meta: m.venue + ' · ' + m.cat, value: m.yes + '¢',
-    tagStyle: M + '; font-size:10.5px; letter-spacing:.12em; color:var(--on-accent); background:var(--accent); border-radius:4px; padding:3px 6px',
+    tagStyle: M + '; font-size:10.5px; letter-spacing:.12em; color:var(--on-accent); background:var(--accent); border-radius:var(--r-control); padding:3px 6px',
     act: T.act(() => T.openRemoteMarket(m))
   });
   const lokaleMaerkte = T.markets.filter((m) => !q || m.title.toLowerCase().indexOf(q) >= 0).slice(0, 5);
@@ -333,14 +333,14 @@ export function renderSearch(T) {
   const searchMarkets = lokaleMaerkte.concat(remoteMaerkte).map(marketRow);
   const searchTraders = T.traders.filter((t) => !q || t.name.toLowerCase().indexOf(q) >= 0).slice(0, 3).map((t) => ({
     tag: 'WALLET', title: t.name, meta: t.wallet + (t.score != null ? ' · smart score ' + t.score : ''), value: money(t.pnl),
-    tagStyle: M + '; font-size:10.5px; letter-spacing:.12em; color:var(--on-accent); background:var(--info); border-radius:4px; padding:3px 6px',
+    tagStyle: M + '; font-size:10.5px; letter-spacing:.12em; color:var(--on-accent); background:var(--info); border-radius:var(--r-control); padding:3px 6px',
     act: T.act(() => { T.setState({ searchOpen: false, searchQuery: '' }); T.openWallet(t.name); })
   }));
   const bekannteNamen = {};
   T.traders.forEach((t) => { bekannteNamen[t.name.toLowerCase()] = true; });
   const remoteWallets = remote ? remote.wallets.filter((w) => !bekannteNamen[String(w.name || '').toLowerCase()]).slice(0, 3).map((w) => ({
     tag: 'WALLET', title: w.name, meta: w.wallet + ' · Polymarket profile — opens the wallet page', value: '→',
-    tagStyle: M + '; font-size:10.5px; letter-spacing:.12em; color:var(--on-accent); background:var(--info); border-radius:4px; padding:3px 6px',
+    tagStyle: M + '; font-size:10.5px; letter-spacing:.12em; color:var(--on-accent); background:var(--info); border-radius:var(--r-control); padding:3px 6px',
     act: T.act(() => { if (T.analyseWallet) T.analyseWallet(w.wallet); else T.setState({ searchOpen: false, searchQuery: '' }); })
   })) : [];
   // Volltext-Handlung: die Anfrage als Filter auf den Markt-Screen legen —

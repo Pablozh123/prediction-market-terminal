@@ -116,7 +116,7 @@ export function herkunftSatz(herkunft, endpunkt) {
 export function leerBlock(titel, satz) {
   const M = "font-family:'IBM Plex Mono',monospace";
   return '<div style="padding:26px 24px">'
-    + '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:20px 22px; max-width:760px">'
+    + '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:var(--r-panel); padding:20px 22px; max-width:760px">'
     + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:var(--warn)">' + esc(titel) + '</div>'
     + '<div style="font-size:13px; color:rgba(var(--ink),.6); margin-top:9px; line-height:1.6">' + esc(satz) + '</div>'
     + '</div></div>';
@@ -352,7 +352,7 @@ export function stempelBlock(study, payload, polster) {
   const fest = study && study.stamp ? String(study.stamp) : '';
   const uhr = publishZeit(payload);
   const chip = MONO + '; font-size:10.5px; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.14);'
-    + ' border-radius:4px; padding:' + (polster || '6px 10px') + '; white-space:nowrap';
+    + ' border-radius:var(--r-control); padding:' + (polster || '6px 10px') + '; white-space:nowrap';
   if (!fest && !uhr) return '';
   if (!fest) return '<div style="' + chip + '">' + esc(uhr) + '</div>';
   return '<div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px">'

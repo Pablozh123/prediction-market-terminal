@@ -60,7 +60,7 @@ function marketRowHtml(v) {
 // clickable rows (each opens its market), and an honest line when the
 // loaded sample has nothing that qualifies.
 function insightPanel(titel, sub, rowsHtml, leerSatz) {
-  return '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; overflow:hidden">'
+  return '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:var(--r-panel); overflow:hidden">'
     + '<div style="padding:9px 14px; border-bottom:1px solid rgba(var(--ink),.08)"><h2 style="' + M + '; font-size:11px; letter-spacing:.13em; color:var(--accent); margin:0; display:inline">' + titel + '</h2>'
     + (sub ? ' <span style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.55); letter-spacing:0">· ' + sub + '</span>' : '') + '</div>'
     + (rowsHtml || '<div style="padding:12px 14px; ' + M + '; font-size:10.5px; color:rgba(var(--ink),.55)">' + esc(leerSatz) + '</div>')
@@ -81,7 +81,7 @@ const VERDICT_TAG = {
 function verdictTag(art) {
   const v = VERDICT_TAG[String(art || '').toLowerCase()];
   const label = v ? v.label : String(art || '—').toUpperCase();
-  const style = M + '; font-size:10.5px; letter-spacing:.12em; border-radius:4px; padding:3px 8px; white-space:nowrap; '
+  const style = M + '; font-size:10.5px; letter-spacing:.12em; border-radius:var(--r-control); padding:3px 8px; white-space:nowrap; '
     + (v ? 'color:' + v.color + '; background:' + v.bg : 'color:rgba(var(--ink),.55); border:1px solid rgba(var(--ink),.16)');
   return '<span style="' + style + '">' + esc(label) + '</span>';
 }
@@ -417,7 +417,7 @@ export function renderOverview(T) {
 // One of the two entry cards under the landing title; act is empty when the
 // target study is not in the list, the card then renders without a cursor.
 function pfadKarte(act, label, farbe, satz) {
-  return '<div ' + act + (act ? ' class="hv-panel"' : '') + ' style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:14px 16px' + (act ? '; cursor:pointer' : '') + '">'
+  return '<div ' + act + (act ? ' class="hv-panel"' : '') + ' style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:var(--r-panel); padding:14px 16px' + (act ? '; cursor:pointer' : '') + '">'
     + '<div style="' + M + '; font-size:11px; letter-spacing:.16em; color:' + farbe + '">' + label + ' →</div>'
     + '<div style="font-size:12.5px; color:rgba(var(--ink),.6); margin-top:6px; line-height:1.5">' + satz + '</div></div>';
 }
@@ -511,7 +511,7 @@ export function renderMarkets(T) {
     + '<div style="' + M + '; font-size:11.5px; text-align:right; color:rgba(var(--ink),.55)">' + mitte + '</div>'
     + '<div style="' + M + '; font-size:11.5px; text-align:right">' + rechts + '</div></div>';
   const preisChart = preisVerteilung(T.markets);
-  const kpiStrip = '<div style="display:grid; grid-template-columns:repeat(4,1fr); border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; overflow:hidden; background:var(--panel)">'
+  const kpiStrip = '<div style="display:grid; grid-template-columns:repeat(4,1fr); border:1px solid rgba(var(--ink),.09); border-radius:var(--r-panel); margin-top:14px; overflow:hidden; background:var(--panel)">'
     + kpiCell('MARKETS IN SAMPLE', num(T.markets.length), pmAnzahl + ' Polymarket · ' + (T.markets.length - pmAnzahl) + ' Kalshi', true)
     + kpiCell('POLYMARKET VOLUME 24H', money(pmVolSample), 'Kalshi trades in contracts: ' + contracts(ksVolSample), true)
     + kpiCell('BIGGEST 1D MOVE', topMover ? (topMover.chg >= 0 ? '+' : '') + topMover.chg + '¢' : '—',
@@ -593,7 +593,7 @@ export function renderMarkets(T) {
     a[m.venue] = Math.max(a[m.venue] || 0, m.vol);
     return a;
   }, {});
-  const badge = mActive.length ? M + '; font-size:11px; color:var(--on-accent); background:var(--accent); border-radius:4px; padding:1px 7px' : 'display:none';
+  const badge = mActive.length ? M + '; font-size:11px; color:var(--on-accent); background:var(--accent); border-radius:var(--r-control); padding:1px 7px' : 'display:none';
   const chevron = M + '; font-size:16px; color:var(--ink-4); transition:transform .18s ease; transform:rotate(' + (s.marketFiltersOpen ? '90deg' : '0deg') + ')';
 
   return '<div>'
@@ -602,8 +602,8 @@ export function renderMarkets(T) {
     + '<div><div style="' + M + '; font-size:11px; letter-spacing:.18em; color:var(--accent)">MARKETS</div>'
     + '<h1 style="font-size:21px; line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">Every market, one table</h1></div>'
     + '<div style="display:flex; align-items:center; gap:10px">'
-    + '<input value="' + esc(s.marketQuery) + '" ' + T.inp((e) => T.setState({ marketQuery: e.target.value }), 'marketQuery') + ' placeholder="Search markets…" style="background:var(--panel); border:1px solid rgba(var(--ink),.35); border-radius:4px; padding:9px 12px; ' + M + '; font-size:12.5px; color:var(--text); width:230px" />'
-    + '<div ' + T.act(() => T.setState({ mPlatform: 'all', mStatus: 'active', mProb: 'all', mLiq: 'all', mVol: 'all', mEnds: 'all', mAge: 'all', mExclude: [], marketCat: 'All', marketQuery: '', mQuick: 'trending', marketSort: 'volume' })) + ' class="hv-bd32" style="font-size:12.5px; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.16); border-radius:4px; padding:9px 13px; cursor:pointer">Reset filters</div>'
+    + '<input value="' + esc(s.marketQuery) + '" ' + T.inp((e) => T.setState({ marketQuery: e.target.value }), 'marketQuery') + ' placeholder="Search markets…" style="background:var(--panel); border:1px solid rgba(var(--ink),.35); border-radius:var(--r-control); padding:9px 12px; ' + M + '; font-size:12.5px; color:var(--text); width:230px" />'
+    + '<div ' + T.act(() => T.setState({ mPlatform: 'all', mStatus: 'active', mProb: 'all', mLiq: 'all', mVol: 'all', mEnds: 'all', mAge: 'all', mExclude: [], marketCat: 'All', marketQuery: '', mQuick: 'trending', marketSort: 'volume' })) + ' class="hv-bd32" style="font-size:12.5px; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.16); border-radius:var(--r-control); padding:9px 13px; cursor:pointer">Reset filters</div>'
     + '</div></div>'
 
     // Der Ueberblick zuerst: vier Kennzahlen des Ausschnitts und drei
@@ -628,7 +628,7 @@ export function renderMarkets(T) {
     + cats.map((c) => T.chip((c.toUpperCase() + ' ' + (c === 'All' ? T.markets.length : catAnzahl[c] || 0)), s.marketCat === c, { marketCat: c })).join('')
     + '</div>'
 
-    + '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; overflow:hidden">'
+    + '<div style="border:1px solid rgba(var(--ink),.09); border-radius:var(--r-panel); margin-top:14px; overflow:hidden">'
     + '<div ' + T.act(() => T.setState({ marketFiltersOpen: !s.marketFiltersOpen })) + ' class="hv-el" style="display:flex; align-items:center; justify-content:space-between; padding:11px 15px; background:var(--panel); cursor:pointer">'
     + '<div style="display:flex; align-items:center; gap:10px"><div style="font-size:13px">All filters</div><div style="' + badge + '">' + mActive.length + '</div></div>'
     + '<div style="' + chevron + '">›</div></div>'
@@ -656,7 +656,7 @@ export function renderMarkets(T) {
     + '<div style="display:flex; align-items:center; gap:8px; margin-top:12px; flex-wrap:wrap">'
     + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6)">' + mRows.length + ' of ' + T.markets.length + ' markets</div>'
     + mActive.map((c) =>
-      '<div ' + T.act(() => T.setState(c.reset)) + ' class="hv-bd30" style="' + M + '; font-size:11px; color:rgba(var(--ink),.7); border:1px solid rgba(var(--ink),.14); background:var(--panel-hover); border-radius:4px; padding:3px 9px; cursor:pointer">' + esc(c.label) + ' ✕</div>'
+      '<div ' + T.act(() => T.setState(c.reset)) + ' class="hv-bd30" style="' + M + '; font-size:11px; color:rgba(var(--ink),.7); border:1px solid rgba(var(--ink),.14); background:var(--panel-hover); border-radius:var(--r-control); padding:3px 9px; cursor:pointer">' + esc(c.label) + ' ✕</div>'
     ).join('')
     + '</div></div>'
 
@@ -811,7 +811,7 @@ export function renderFlow(T) {
     + '<h1 style="font-size:21px; line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">Every large print as it lands</h1></div>'
     + '<div style="display:flex; align-items:center; gap:12px">'
     + asOfLine(s.tapeAsOf || s.liveAsOf)
-    + '<input value="' + esc(s.tapeQuery) + '" ' + T.inp((e) => T.setState({ tapeQuery: e.target.value }), 'tapeQuery') + ' placeholder="market, wallet, trader…" style="background:var(--panel); border:1px solid rgba(var(--ink),.35); border-radius:4px; padding:9px 12px; ' + M + '; font-size:12.5px; color:var(--text); width:250px" />'
+    + '<input value="' + esc(s.tapeQuery) + '" ' + T.inp((e) => T.setState({ tapeQuery: e.target.value }), 'tapeQuery') + ' placeholder="market, wallet, trader…" style="background:var(--panel); border:1px solid rgba(var(--ink),.35); border-radius:var(--r-control); padding:9px 12px; ' + M + '; font-size:12.5px; color:var(--text); width:250px" />'
     + '</div></div>'
     + '<div style="margin-top:14px">' + filterGroup('CATEGORY', catChipRow(T, T.tape, 'category', 'tapeCat', s.tapeCat)) + '</div>'
     + '<div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px 18px; margin-top:14px">'
@@ -873,7 +873,7 @@ export const CROSS_GATE_TEXT = 'similarity ≥ 0.5, volume on both venues';
 function crossGateBlock(T) {
   const microIdx = T.studies.findIndex((st) => st.tab === 'Microstructure');
   return '<div style="padding:26px 24px">'
-    + '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:20px 22px; max-width:760px">'
+    + '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:var(--r-panel); padding:20px 22px; max-width:760px">'
     + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:var(--warn)">NO PAIR CLEARS THE GATE</div>'
     + '<div style="font-size:13px; color:rgba(var(--ink),.6); margin-top:9px; line-height:1.6">No cross-venue pair clears the match gate right now (' + CROSS_GATE_TEXT + '). '
     + 'See studies 08 and 11: the two 79¢/64¢ \'edges\' were mismatched questions.</div>'
@@ -892,7 +892,7 @@ export function renderCross(T) {
     let body;
     if (!hk) {
       body = '<div style="padding:26px 24px">'
-        + '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:20px 22px; max-width:760px">'
+        + '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:var(--r-panel); padding:20px 22px; max-width:760px">'
         + '<div style="display:flex; align-items:center; gap:10px">'
         + '<span style="width:7px; height:7px; border-radius:50%; background:var(--warn); display:inline-block"></span>'
         + '<div style="' + M + '; font-size:11px; letter-spacing:.12em; color:var(--warn)">MATCHING PAIRS ACROSS VENUES…</div></div>'
@@ -902,7 +902,7 @@ export function renderCross(T) {
         + '</div></div>';
     } else if (hk.quelle === 'fehler') {
       body = leerBlock('NO PAIRS', herkunftSatz(hk, '/api/cross'))
-        + (T.neuLaden ? '<div style="padding:0 24px 24px"><div ' + T.act(() => T.neuLaden('cross', 'cross')) + ' class="hv-bd32" style="display:inline-block; ' + M + '; font-size:11px; color:rgba(var(--ink),.7); border:1px solid rgba(var(--ink),.16); border-radius:4px; padding:6px 12px; cursor:pointer">Try again</div></div>' : '');
+        + (T.neuLaden ? '<div style="padding:0 24px 24px"><div ' + T.act(() => T.neuLaden('cross', 'cross')) + ' class="hv-bd32" style="display:inline-block; ' + M + '; font-size:11px; color:rgba(var(--ink),.7); border:1px solid rgba(var(--ink),.16); border-radius:var(--r-control); padding:6px 12px; cursor:pointer">Try again</div></div>' : '');
     } else {
       body = crossGateBlock(T);
     }
@@ -944,9 +944,9 @@ export function renderCross(T) {
   const stepGroup = (label, valueLabel, onDown, onUp) =>
     '<div><div style="' + LBL9 + '">' + label + '</div>'
     + '<div style="display:flex; align-items:center; gap:6px">'
-    + '<div ' + T.act(onDown) + ' class="hv-bd35w" style="width:26px; height:30px; flex:none; border:1px solid rgba(var(--ink),.16); border-radius:4px; display:flex; align-items:center; justify-content:center; ' + M + '; font-size:13px; color:rgba(var(--ink),.7); cursor:pointer">−</div>'
-    + '<div style="flex:1; background:var(--panel); border:1px solid rgba(var(--ink),.16); border-radius:4px; padding:6px 8px; ' + M + '; font-size:12px; text-align:center">' + esc(valueLabel) + '</div>'
-    + '<div ' + T.act(onUp) + ' class="hv-bd35w" style="width:26px; height:30px; flex:none; border:1px solid rgba(var(--ink),.16); border-radius:4px; display:flex; align-items:center; justify-content:center; ' + M + '; font-size:13px; color:rgba(var(--ink),.7); cursor:pointer">+</div>'
+    + '<div ' + T.act(onDown) + ' class="hv-bd35w" style="width:26px; height:30px; flex:none; border:1px solid rgba(var(--ink),.16); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:13px; color:rgba(var(--ink),.7); cursor:pointer">−</div>'
+    + '<div style="flex:1; background:var(--panel); border:1px solid rgba(var(--ink),.16); border-radius:var(--r-control); padding:6px 8px; ' + M + '; font-size:12px; text-align:center">' + esc(valueLabel) + '</div>'
+    + '<div ' + T.act(onUp) + ' class="hv-bd35w" style="width:26px; height:30px; flex:none; border:1px solid rgba(var(--ink),.16); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:13px; color:rgba(var(--ink),.7); cursor:pointer">+</div>'
     + '</div></div>';
 
   return '<div>'
@@ -956,12 +956,12 @@ export function renderCross(T) {
     + '<h1 style="font-size:21px; line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">The same question, two prices</h1></div>'
     + '<div style="display:flex; align-items:center; gap:10px">'
     + asOfLine(cl.as_of)
-    + '<input value="' + esc(s.crossQuery) + '" ' + T.inp((e) => T.setState({ crossQuery: e.target.value }), 'crossQuery') + ' placeholder="bitcoin, fed, election…" style="background:var(--panel); border:1px solid rgba(var(--ink),.35); border-radius:4px; padding:9px 12px; ' + M + '; font-size:12.5px; color:var(--text); width:230px" />'
-    + '<div ' + T.act(() => T.setState({ crossQuery: '', crossSim: 0.5, crossMaxPairs: 50, crossMinGap: 0, crossLower: 'any', crossPmVol: 0, crossKsVol: 0, crossMinPrice: 0, crossMaxPrice: 100 })) + ' class="hv-bd32" style="font-size:12.5px; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.16); border-radius:4px; padding:9px 13px; cursor:pointer">Reset filters</div>'
+    + '<input value="' + esc(s.crossQuery) + '" ' + T.inp((e) => T.setState({ crossQuery: e.target.value }), 'crossQuery') + ' placeholder="bitcoin, fed, election…" style="background:var(--panel); border:1px solid rgba(var(--ink),.35); border-radius:var(--r-control); padding:9px 12px; ' + M + '; font-size:12.5px; color:var(--text); width:230px" />'
+    + '<div ' + T.act(() => T.setState({ crossQuery: '', crossSim: 0.5, crossMaxPairs: 50, crossMinGap: 0, crossLower: 'any', crossPmVol: 0, crossKsVol: 0, crossMinPrice: 0, crossMaxPrice: 100 })) + ' class="hv-bd32" style="font-size:12.5px; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.16); border-radius:var(--r-control); padding:9px 13px; cursor:pointer">Reset filters</div>'
     + '</div></div>'
     + '<div style="font-size:13px; color:rgba(var(--ink),.55); margin-top:10px; max-width:760px">Matched by title similarity, not by ticker. ' + esc(gateNote) + '. GAP is the distance between the two mid prices, and nobody trades a mid. NET OF FEES prices the basket that would capture it (buy the yes side at the ask, buy the other side at the other venue&#39;s ask) and subtracts both venues&#39; taker fee curves. Settlement rules and resolution sources still differ, and two matched titles can still be two different questions (studies 08 and 11).</div>'
 
-    + '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; padding:16px; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:16px 18px">'
+    + '<div style="border:1px solid rgba(var(--ink),.09); border-radius:var(--r-panel); margin-top:14px; padding:16px; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:16px 18px">'
     + stepGroup('MIN SIMILARITY (GATE 0.50)', s.crossSim.toFixed(2), () => T.setState({ crossSim: Math.max(0.5, +(s.crossSim - 0.02).toFixed(2)) }), () => T.setState({ crossSim: Math.min(0.9, +(s.crossSim + 0.02).toFixed(2)) }))
     + stepGroup('MAX PAIRS', String(s.crossMaxPairs), () => T.setState({ crossMaxPairs: Math.max(10, s.crossMaxPairs - 10) }), () => T.setState({ crossMaxPairs: Math.min(150, s.crossMaxPairs + 10) }))
     + stepGroup('MIN GAP (¢)', s.crossMinGap.toFixed(1) + '¢', () => T.setState({ crossMinGap: Math.max(0, s.crossMinGap - 0.5) }), () => T.setState({ crossMinGap: s.crossMinGap + 0.5 }))
@@ -975,7 +975,7 @@ export function renderCross(T) {
     + '</div>'
 
     + '<div style="display:flex; align-items:center; gap:8px; margin-top:12px; flex-wrap:wrap">'
-    + activeChips.map((c) => '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.7); border:1px solid rgba(var(--ink),.14); background:var(--panel-hover); border-radius:4px; padding:3px 9px">' + esc(c) + '</div>').join('')
+    + activeChips.map((c) => '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.7); border:1px solid rgba(var(--ink),.14); background:var(--panel-hover); border-radius:var(--r-control); padding:3px 9px">' + esc(c) + '</div>').join('')
     + '</div></div>'
 
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid rgba(var(--ink),.09)">'
@@ -1049,7 +1049,7 @@ export function renderResolved(T) {
     + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:20px">'
     + '<div><div style="' + M + '; font-size:11px; letter-spacing:.18em; color:var(--accent)">RESOLVED</div>'
     + '<h1 style="font-size:21px; line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">How the last questions ended</h1></div>'
-    + '<input value="' + esc(s.resQuery) + '" ' + T.inp((e) => T.setState({ resQuery: e.target.value }), 'resQuery') + ' placeholder="Search resolved markets…" style="background:var(--panel); border:1px solid rgba(var(--ink),.35); border-radius:4px; padding:9px 12px; ' + M + '; font-size:12.5px; color:var(--text); width:250px" />'
+    + '<input value="' + esc(s.resQuery) + '" ' + T.inp((e) => T.setState({ resQuery: e.target.value }), 'resQuery') + ' placeholder="Search resolved markets…" style="background:var(--panel); border:1px solid rgba(var(--ink),.35); border-radius:var(--r-control); padding:9px 12px; ' + M + '; font-size:12.5px; color:var(--text); width:250px" />'
     + '</div>'
     + '<div style="font-size:13px; color:rgba(var(--ink),.55); margin-top:10px; max-width:700px">The last price before settlement next to the answer. The gap between the two is what the crowd got wrong.</div>'
     + '<div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px 18px; margin-top:14px">'
@@ -1070,7 +1070,7 @@ export function renderResolved(T) {
     + '<div style="display:grid; grid-template-columns:1fr 110px 118px 128px 110px 120px; padding:10px 24px; border-bottom:1px solid rgba(var(--ink),.09); background:var(--panel); position:sticky; top:0; z-index:3; ' + HEAD_CELL + '">'
     + '<div>MARKET</div><div style="text-align:right">ANSWER</div><div style="text-align:right">LAST PRICE</div><div style="text-align:right">CROWD OFF BY</div><div style="text-align:right">VOLUME</div><div style="text-align:right">SETTLED</div></div>'
     + resRows.map((r) => {
-      const answerStyle = M + '; font-size:11px; letter-spacing:.1em; border-radius:4px; padding:3px 10px; ' + (r.yes ? 'color:var(--on-accent); background:var(--accent)' : 'color:var(--neg-soft); border:1px solid rgba(var(--neg-rgb),.35)');
+      const answerStyle = M + '; font-size:11px; letter-spacing:.1em; border-radius:var(--r-control); padding:3px 10px; ' + (r.yes ? 'color:var(--on-accent); background:var(--accent)' : 'color:var(--neg-soft); border:1px solid rgba(var(--neg-rgb),.35)');
       const errStyle = M + '; font-size:14px; text-align:right; color:' + (r.err >= 50 ? 'var(--neg)' : r.err >= 25 ? 'var(--warn)' : 'rgba(var(--ink),.6)');
       return '<div style="display:grid; grid-template-columns:1fr 110px 118px 128px 110px 120px; align-items:center; padding:13px 24px; border-bottom:1px solid rgba(var(--ink),.06)">'
         + '<div style="padding-right:20px"><div style="font-size:13.5px; line-height:1.35">' + esc(r.title) + '</div>'

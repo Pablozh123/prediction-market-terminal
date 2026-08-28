@@ -11,7 +11,7 @@ import { diagramm, pnlZeitkurve, kurzGeld, fmtZahl } from '../charts.js';
 import { squarify, pnlIntensity } from '../treemap.js';
 
 const M = "font-family:'IBM Plex Mono',monospace";
-const CARD = 'background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px';
+const CARD = 'background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:var(--r-panel)';
 const LBL = M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.6)';
 const HEAD_CELL = M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.6)';
 const NOTE = M + '; font-size:10.5px; color:rgba(var(--ink),.6); line-height:1.6';
@@ -90,7 +90,7 @@ function tile(label, value, sub, color) {
 // A table inside its own horizontal scroller: the page never scrolls sideways.
 function table(columns, rowsHtml, emptyText, minWidth) {
   const head = '<div style="display:grid; grid-template-columns:' + columns + '; gap:0 10px; padding:9px 14px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); ' + HEAD_CELL + '">';
-  return '<div style="overflow-x:auto; border:1px solid rgba(var(--ink),.09); border-radius:6px">'
+  return '<div style="overflow-x:auto; border:1px solid rgba(var(--ink),.09); border-radius:var(--r-panel)">'
     + '<div style="min-width:' + (minWidth || 720) + 'px">'
     + head + '__HEAD__</div>'
     + (rowsHtml || '<div style="' + NOTE + '; padding:16px 14px">' + esc(emptyText || 'Nothing to list.') + '</div>')
@@ -112,11 +112,11 @@ function renderHeader(T) {
   const input = String(s.walletInput || '');
   const valid = isFullAddress(input);
   const looksLike = /^0x/i.test(input.trim()) && !valid;
-  const btnStyle = 'font-size:12.5px; font-weight:600; border-radius:4px; padding:9px 14px; cursor:pointer; white-space:nowrap; '
+  const btnStyle = 'font-size:12.5px; font-weight:600; border-radius:var(--r-control); padding:9px 14px; cursor:pointer; white-space:nowrap; '
     + (valid ? 'color:var(--on-accent); background:var(--accent)' : 'color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.14)');
   const analyse = () => { if (T.analyseWallet) T.analyseWallet(input.trim()); };
   const recent = Array.isArray(s.walletRecent) ? s.walletRecent.filter((a) => a !== EXAMPLE_WALLET) : [];
-  const chip = (addr, label, title) => '<div ' + T.act(() => { if (T.analyseWallet) T.analyseWallet(addr); }) + ' class="hv-bd32" title="' + esc(title || addr) + '" style="' + M + '; font-size:10.5px; letter-spacing:.04em; border-radius:4px; padding:4px 9px; cursor:pointer; color:rgba(var(--ink),.62); border:1px solid rgba(var(--ink),.16); white-space:nowrap">' + esc(label) + '</div>';
+  const chip = (addr, label, title) => '<div ' + T.act(() => { if (T.analyseWallet) T.analyseWallet(addr); }) + ' class="hv-bd32" title="' + esc(title || addr) + '" style="' + M + '; font-size:10.5px; letter-spacing:.04em; border-radius:var(--r-control); padding:4px 9px; cursor:pointer; color:rgba(var(--ink),.62); border:1px solid rgba(var(--ink),.16); white-space:nowrap">' + esc(label) + '</div>';
   return '<div style="padding:20px 24px 14px; border-bottom:1px solid rgba(var(--ink),.09)">'
     + '<div style="' + M + '; font-size:11px; letter-spacing:.18em; color:var(--accent)">WALLET</div>'
     + '<h1 style="font-size:21px; line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">One wallet, read from the public feed</h1>'
@@ -129,7 +129,7 @@ function renderHeader(T) {
     })
     + '<div style="display:flex; align-items:center; gap:10px; margin-top:14px; flex-wrap:wrap">'
     + '<input value="' + esc(input) + '" ' + T.inp((e) => { T.state.walletInput = e.target.value; T.render(); }, 'walletInput')
-    + ' placeholder="0x… (40 hex characters)" aria-label="Wallet address to analyse" spellcheck="false" style="flex:1; min-width:280px; max-width:520px; box-sizing:border-box; background:var(--panel); border:1px solid ' + (looksLike ? 'rgba(var(--warn-rgb),.5)' : 'rgba(var(--ink),.35)') + '; border-radius:4px; padding:10px 12px; ' + M + '; font-size:12.5px; color:var(--text)" />'
+    + ' placeholder="0x… (40 hex characters)" aria-label="Wallet address to analyse" spellcheck="false" style="flex:1; min-width:280px; max-width:520px; box-sizing:border-box; background:var(--panel); border:1px solid ' + (looksLike ? 'rgba(var(--warn-rgb),.5)' : 'rgba(var(--ink),.35)') + '; border-radius:var(--r-control); padding:10px 12px; ' + M + '; font-size:12.5px; color:var(--text)" />'
     + '<div ' + T.act(analyse) + (valid ? ' class="hv-accentbg"' : '') + ' style="' + btnStyle + '">Analyse →</div>'
     + '</div>'
     + (looksLike ? '<div style="' + M + '; font-size:10.5px; color:var(--warn); margin-top:6px">Not a full address yet — a Polymarket wallet is 0x followed by 40 hex characters.</div>' : '')
@@ -162,7 +162,7 @@ function renderError(T, addr, entry) {
     + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:var(--warn)">' + esc(title) + '</div>'
     + '<div style="font-size:13px; color:rgba(var(--ink),.6); margin-top:9px; line-height:1.6">' + esc(text) + '</div>'
     + '<div style="display:flex; gap:8px; margin-top:12px">'
-    + '<div ' + T.act(() => { if (T.fetchWallet) T.fetchWallet(addr, true); }) + ' class="hv-bd32" style="' + M + '; font-size:11px; color:rgba(var(--ink),.7); border:1px solid rgba(var(--ink),.16); border-radius:4px; padding:5px 10px; cursor:pointer">Try again</div>'
+    + '<div ' + T.act(() => { if (T.fetchWallet) T.fetchWallet(addr, true); }) + ' class="hv-bd32" style="' + M + '; font-size:11px; color:rgba(var(--ink),.7); border:1px solid rgba(var(--ink),.16); border-radius:var(--r-control); padding:5px 10px; cursor:pointer">Try again</div>'
     + '</div></div></div>';
 }
 
@@ -186,7 +186,7 @@ function renderIdentity(T, d) {
   const id = d.identity || {};
   const addr = id.address || T.state.walletAddr;
   const tr = d.track_record || null;
-  const btn = (label, fn, primary, title) => '<div ' + T.act(fn) + ' class="' + (primary ? 'hv-accentbg' : 'hv-bd32') + '" title="' + esc(title || '') + '" style="' + M + '; font-size:11px; letter-spacing:.04em; border-radius:4px; padding:6px 11px; cursor:pointer; white-space:nowrap; ' + (primary ? 'color:var(--on-accent); background:var(--accent); font-weight:600' : 'color:rgba(var(--ink),.72); border:1px solid rgba(var(--ink),.16)') + '">' + label + '</div>';
+  const btn = (label, fn, primary, title) => '<div ' + T.act(fn) + ' class="' + (primary ? 'hv-accentbg' : 'hv-bd32') + '" title="' + esc(title || '') + '" style="' + M + '; font-size:11px; letter-spacing:.04em; border-radius:var(--r-control); padding:6px 11px; cursor:pointer; white-space:nowrap; ' + (primary ? 'color:var(--on-accent); background:var(--accent); font-weight:600' : 'color:rgba(var(--ink),.72); border:1px solid rgba(var(--ink),.16)') + '">' + label + '</div>';
   const follow = () => {
     // Prefill the copy desk's follow form and open it. Nothing is followed
     // until the button on that page is pressed.
@@ -200,10 +200,10 @@ function renderIdentity(T, d) {
     try { history.pushState(null, '', '#backtester'); } catch (e) { /* file:// */ }
   };
   const tags = [];
-  if (tr && tr.grade) tags.push('<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:' + (tr.grade === 'A' || tr.grade === 'B' ? 'var(--accent)' : tr.grade === 'F' ? 'var(--warn)' : 'rgba(var(--ink),.75)') + '; border:1px solid rgba(var(--ink),.16); border-radius:4px; padding:2px 7px">GRADE ' + esc(tr.grade) + (tr.score != null ? ' · ' + tr.score + '/100' : '') + '</span>');
-  if (tr && tr.survivorship_gate && !tr.survivorship_gate.ok) tags.push('<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35); border-radius:4px; padding:2px 7px">BELOW SAMPLE GATE</span>');
-  if (tr && tr.wash_flag && tr.wash_flag.flag) tags.push('<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35); border-radius:4px; padding:2px 7px">WASH / FARMER FLAG</span>');
-  if (id.days_active != null) tags.push('<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.12); border-radius:4px; padding:2px 7px">' + id.days_active + (id.activity_truncated ? '+' : '') + ' DAYS ACTIVE</span>');
+  if (tr && tr.grade) tags.push('<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:' + (tr.grade === 'A' || tr.grade === 'B' ? 'var(--accent)' : tr.grade === 'F' ? 'var(--warn)' : 'rgba(var(--ink),.75)') + '; border:1px solid rgba(var(--ink),.16); border-radius:var(--r-control); padding:2px 7px">GRADE ' + esc(tr.grade) + (tr.score != null ? ' · ' + tr.score + '/100' : '') + '</span>');
+  if (tr && tr.survivorship_gate && !tr.survivorship_gate.ok) tags.push('<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35); border-radius:var(--r-control); padding:2px 7px">BELOW SAMPLE GATE</span>');
+  if (tr && tr.wash_flag && tr.wash_flag.flag) tags.push('<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35); border-radius:var(--r-control); padding:2px 7px">WASH / FARMER FLAG</span>');
+  if (id.days_active != null) tags.push('<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.12); border-radius:var(--r-control); padding:2px 7px">' + id.days_active + (id.activity_truncated ? '+' : '') + ' DAYS ACTIVE</span>');
   return '<div style="' + CARD + '; padding:16px 18px; position:relative; overflow:hidden">'
     + '<div style="position:absolute; left:-40px; top:-60px; width:180px; height:180px; border-radius:50%; background:radial-gradient(closest-side, rgba(var(--accent-rgb),.10), rgba(var(--accent-rgb),0)); pointer-events:none"></div>'
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; position:relative">'
@@ -219,8 +219,8 @@ function renderIdentity(T, d) {
     + '<div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end">'
     + btn('Follow on the copy desk →', follow, true, 'prefills the follow form of the paper copy desk with this address')
     + btn('Replay this wallet in the backtester →', replay, false, '')
-    + (id.profile_url ? '<a href="' + esc(id.profile_url) + '" target="_blank" rel="noopener" class="hv-bd32" style="' + M + '; font-size:11px; color:rgba(var(--ink),.72); border:1px solid rgba(var(--ink),.16); border-radius:4px; padding:6px 11px; text-decoration:none; white-space:nowrap">Polymarket profile ↗</a>' : '')
-    + (id.polygonscan_url ? '<a href="' + esc(id.polygonscan_url) + '" target="_blank" rel="noopener" class="hv-bd32" style="' + M + '; font-size:11px; color:rgba(var(--ink),.72); border:1px solid rgba(var(--ink),.16); border-radius:4px; padding:6px 11px; text-decoration:none; white-space:nowrap">Polygonscan ↗</a>' : '')
+    + (id.profile_url ? '<a href="' + esc(id.profile_url) + '" target="_blank" rel="noopener" class="hv-bd32" style="' + M + '; font-size:11px; color:rgba(var(--ink),.72); border:1px solid rgba(var(--ink),.16); border-radius:var(--r-control); padding:6px 11px; text-decoration:none; white-space:nowrap">Polymarket profile ↗</a>' : '')
+    + (id.polygonscan_url ? '<a href="' + esc(id.polygonscan_url) + '" target="_blank" rel="noopener" class="hv-bd32" style="' + M + '; font-size:11px; color:rgba(var(--ink),.72); border:1px solid rgba(var(--ink),.16); border-radius:var(--r-control); padding:6px 11px; text-decoration:none; white-space:nowrap">Polygonscan ↗</a>' : '')
     + '</div>'
     + '<div style="' + NOTE + '">as of ' + esc(d.as_of || stempel(d.snapshot_at)) + ' · cached 300 s</div>'
     + '</div></div></div>';
@@ -232,7 +232,7 @@ function renderIdentity(T, d) {
 function kpiTile(label, value, sub, tone) {
   const border = tone === 'up' ? 'rgba(var(--pos-rgb),.35)' : tone === 'down' ? 'rgba(var(--neg-rgb),.35)' : tone === 'warn' ? 'rgba(var(--warn-rgb),.4)' : 'rgba(var(--info-rgb),.3)';
   const color = tone === 'up' ? 'var(--pos)' : tone === 'down' ? 'var(--neg)' : tone === 'warn' ? 'var(--warn)' : 'var(--text)';
-  return '<div style="border:1px solid ' + border + '; border-radius:6px; padding:12px 14px; min-height:62px; min-width:0; background:rgba(var(--ink),.015)">'
+  return '<div style="border:1px solid ' + border + '; border-radius:var(--r-panel); padding:12px 14px; min-height:62px; min-width:0; background:rgba(var(--ink),.015)">'
     + '<div style="' + LBL + '">' + label + '</div>'
     + '<div style="' + M + '; font-size:21px; margin-top:5px; color:' + color + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + value + '</div>'
     + (sub ? '<div style="' + NOTE + '; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + sub + '</div>' : '') + '</div>';
@@ -345,7 +345,7 @@ function renderAside(d) {
   cards.push('<div style="' + CARD + '; padding:12px 14px">'
     + '<div style="' + LBL + '; margin-bottom:8px">BUY / SELL RATIO</div>'
     + '<div style="' + M + '; font-size:20px">' + (share == null ? '—' : pct(share, 1)) + '</div>'
-    + '<div style="height:6px; border-radius:4px; background:rgba(var(--neg-rgb),.35); margin-top:8px; overflow:hidden"><div style="width:' + (share == null ? 0 : Math.round(share * 100)) + '%; height:6px; background:var(--accent)"></div></div>'
+    + '<div style="height:6px; border-radius:var(--r-control); background:rgba(var(--neg-rgb),.35); margin-top:8px; overflow:hidden"><div style="width:' + (share == null ? 0 : Math.round(share * 100)) + '%; height:6px; background:var(--accent)"></div></div>'
     + '<div style="display:flex; justify-content:space-between; ' + M + '; font-size:10.5px; color:rgba(var(--ink),.55); margin-top:6px"><span>buy ' + num(buyN) + '</span><span>sell ' + num(sellN) + '</span></div>'
     + (share == null ? '<div style="' + NOTE + '; margin-top:6px">no trades in the activity window</div>' : '')
     + '</div>');
@@ -364,7 +364,7 @@ function topCard(label, r, kind) {
   const ret = stake > 0 ? pnl / stake : null;
   return '<div style="' + CARD + '; padding:14px 16px; min-width:0">'
     + '<div style="display:flex; justify-content:space-between; gap:8px; align-items:baseline"><div style="' + LBL + '">' + label + '</div>'
-    + '<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:' + (String(r.outcome).toLowerCase() === 'yes' ? 'var(--accent)' : 'var(--neg-soft)') + '; border:1px solid rgba(var(--ink),.14); border-radius:4px; padding:1px 6px">' + esc(String(r.outcome || '—').toUpperCase()) + '</span></div>'
+    + '<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:' + (String(r.outcome).toLowerCase() === 'yes' ? 'var(--accent)' : 'var(--neg-soft)') + '; border:1px solid rgba(var(--ink),.14); border-radius:var(--r-control); padding:1px 6px">' + esc(String(r.outcome || '—').toUpperCase()) + '</span></div>'
     + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:13px; margin-top:8px; line-height:1.4; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden">' + link(r.url, r.title) + '</div>'
     + '<div style="' + M + '; font-size:18px; margin-top:8px; color:' + pnlColor(pnl) + '">' + (ret == null ? dollars(pnl) : (ret >= 0 ? '+' : '') + (ret * 100).toFixed(0) + '%') + '</div>'
     + '<div style="' + NOTE + '; margin-top:2px">' + absDollars(stake) + ' → ' + absDollars(now) + ' · ' + dollars(pnl) + (kind === 'open' ? ' unrealised' : ' realised') + '</div>'
@@ -525,11 +525,11 @@ function renderTreemap(T, d) {
     const tip = { title: String(it.title || ''), image: String(it.image || ''), pnl: up ? 'up' : 'down', rows };
     const inner = tiny ? ''
       : '<div style="display:flex; justify-content:space-between; gap:4px; align-items:flex-start">'
-        + (showImg ? '<img src="' + esc(it.image) + '" alt="" loading="lazy" style="width:' + (wide ? 34 : 26) + 'px; height:' + (wide ? 34 : 26) + 'px; border-radius:4px; object-fit:cover; flex:none; background:var(--shadow-25)" />' : '')
-        + '<span style="' + M + '; font-size:10.5px; letter-spacing:.06em; color:rgba(var(--ink),.9); background:var(--shadow-35); border-radius:4px; padding:1px 4px; flex:none; margin-left:auto">' + esc(String(it.outcome || '').toUpperCase().slice(0, 3)) + (it.kind === 'closed' ? ' ✓' : '') + '</span></div>'
+        + (showImg ? '<img src="' + esc(it.image) + '" alt="" loading="lazy" style="width:' + (wide ? 34 : 26) + 'px; height:' + (wide ? 34 : 26) + 'px; border-radius:var(--r-control); object-fit:cover; flex:none; background:var(--shadow-25)" />' : '')
+        + '<span style="' + M + '; font-size:10.5px; letter-spacing:.06em; color:rgba(var(--ink),.9); background:var(--shadow-35); border-radius:var(--r-control); padding:1px 4px; flex:none; margin-left:auto">' + esc(String(it.outcome || '').toUpperCase().slice(0, 3)) + (it.kind === 'closed' ? ' ✓' : '') + '</span></div>'
         + (wide ? '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:11px; font-weight:600; line-height:1.3; color:var(--text); margin-top:5px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden">' + esc(it.title || '') + '</div>' : '')
         + '<div style="' + M + '; font-size:' + (wide ? '12px' : '10px') + '; color:var(--text); margin-top:auto">' + absDollars(it.value) + (wide && ret != null ? ' <span style="color:rgba(var(--ink),.8)">' + (ret >= 0 ? '+' : '') + (ret * 100).toFixed(0) + '%</span>' : '') + '</div>';
-    const style = 'position:absolute; left:' + ((rc.x / W) * 100).toFixed(3) + '%; top:' + ((rc.y / H) * 100).toFixed(3) + '%; width:' + wPct.toFixed(3) + '%; height:' + hPct.toFixed(3) + '%; box-sizing:border-box; padding:' + (tiny ? '0' : '6px 7px') + '; border:1px solid var(--bg); border-radius:4px; background:' + bg + '; display:flex; flex-direction:column; overflow:hidden; text-decoration:none; color:inherit';
+    const style = 'position:absolute; left:' + ((rc.x / W) * 100).toFixed(3) + '%; top:' + ((rc.y / H) * 100).toFixed(3) + '%; width:' + wPct.toFixed(3) + '%; height:' + hPct.toFixed(3) + '%; box-sizing:border-box; padding:' + (tiny ? '0' : '6px 7px') + '; border:1px solid var(--bg); border-radius:var(--r-control); background:' + bg + '; display:flex; flex-direction:column; overflow:hidden; text-decoration:none; color:inherit';
     const attrs = 'class="tm-tile" data-tip="' + esc(JSON.stringify(tip)) + '" style="' + style + '"';
     return it.url
       ? '<a data-stop href="' + esc(it.url) + '" target="_blank" rel="noopener" ' + attrs + '>' + inner + '</a>'
@@ -539,7 +539,7 @@ function renderTreemap(T, d) {
   return '<div style="' + CARD + '; padding:16px 18px; margin-top:14px">' + head
     // Der Grund hinter den Kacheln war ein Hex-Literal und blieb im hellen
     // Thema dunkel. Er folgt jetzt dem Thema wie alles andere.
-    + '<div style="position:relative; width:100%; height:' + H + 'px; border-radius:4px; overflow:hidden; background:var(--bg)">' + tiles + '</div>' + foot + '</div>';
+    + '<div style="position:relative; width:100%; height:' + H + 'px; border-radius:var(--r-control); overflow:hidden; background:var(--bg)">' + tiles + '</div>' + foot + '</div>';
 }
 
 function renderOverview(T, d) {
@@ -605,10 +605,10 @@ function renderTrackRecord(d) {
   const parts = Array.isArray(tr.score_components) && tr.score_components.length
     ? '<div style="margin-top:14px"><div style="' + LBL + '">SCORE ' + (tr.score != null ? tr.score : '—') + ' / 100 · GRADE ' + esc(tr.grade || '—') + ' · COMPONENTS</div>'
       + '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:6px">'
-      + tr.score_components.map((c) => '<span style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.55); border:1px solid rgba(var(--ink),.12); border-radius:4px; padding:2px 7px">' + esc(c.label) + ' <span style="color:rgba(var(--ink),.85)">' + (typeof c.value === 'number' ? (c.value >= 0 ? '' : '') + fmtZahl(c.value) : '—') + '</span>' + (c.max ? ' / ' + c.max : '') + '</span>').join('')
+      + tr.score_components.map((c) => '<span style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.55); border:1px solid rgba(var(--ink),.12); border-radius:var(--r-control); padding:2px 7px">' + esc(c.label) + ' <span style="color:rgba(var(--ink),.85)">' + (typeof c.value === 'number' ? (c.value >= 0 ? '' : '') + fmtZahl(c.value) : '—') + '</span>' + (c.max ? ' / ' + c.max : '') + '</span>').join('')
       + '</div></div>' : '';
   const flags = Array.isArray(tr.flags) && tr.flags.length
-    ? '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:12px">' + tr.flags.map((f) => '<span style="' + M + '; font-size:10.5px; color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35); border-radius:4px; padding:2px 7px">' + esc(f) + '</span>').join('') + '</div>'
+    ? '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:12px">' + tr.flags.map((f) => '<span style="' + M + '; font-size:10.5px; color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35); border-radius:var(--r-control); padding:2px 7px">' + esc(f) + '</span>').join('') + '</div>'
     : '<div style="' + NOTE + '; margin-top:12px">No flags: sample gate passed, no wash pattern, no one-hit concentration.</div>';
   const cov = '<div style="' + NOTE + '; margin-top:10px">' + esc(tr.coverage_note || '') + (tr.capped ? ' Both tails hit the ~50-row cap: the middle of the record is unreachable, and win rate, edge and PnL describe the extremes only.' : '') + '</div>';
   return card('TRACK RECORD · NAIVE VS CORRECTED', rates + factsHtml + top3 + parts + flags + cov, 'as of ' + esc(tr.as_of || '') + ' · ' + esc(tr.source || '') + (tr.capped ? ' · CAPPED' : ''));
@@ -651,7 +651,7 @@ function renderPnl(d) {
     + '</div>';
   const swap = settled
     ? '<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:10px; ' + M + '; font-size:10.5px; color:var(--warn)">'
-      + '<span style="border:1px solid rgba(var(--warn-rgb),.45); border-radius:4px; padding:2px 7px; letter-spacing:.1em">PROFILE CURVE ' + (profileHasPoints ? 'FLAT' : 'MISSING') + '</span>'
+      + '<span style="border:1px solid rgba(var(--warn-rgb),.45); border-radius:var(--r-control); padding:2px 7px; letter-spacing:.1em">PROFILE CURVE ' + (profileHasPoints ? 'FLAT' : 'MISSING') + '</span>'
       + '<span style="color:var(--warn)">' + (profileHasPoints && p.flat
         ? 'one level (' + esc(kurzGeld(Number(p.points[p.points.length - 1].pnl), true)) + ') for ' + num(p.n_points) + ' points since ' + esc(String(p.first || '').slice(0, 10)) + ' — showing our settled curve instead'
         : 'user-pnl-api did not answer — showing our settled curve instead') + '</span>'
@@ -666,7 +666,7 @@ function renderPnl(d) {
   // Six tiles, one figure each, one short line under it. The definitions and
   // the sample caveats live in the collapsed basis block underneath.
   const down = st ? Number(st.losing_days) || 0 : 0;
-  const stTile = (label, value, sub, tone) => '<div style="border:1px solid rgba(var(--ink),.08); border-radius:6px; padding:10px 12px; min-width:0; background:rgba(var(--ink),.015)">'
+  const stTile = (label, value, sub, tone) => '<div style="border:1px solid rgba(var(--ink),.08); border-radius:var(--r-panel); padding:10px 12px; min-width:0; background:rgba(var(--ink),.015)">'
     + '<div style="' + LBL + '">' + label + '</div>'
     + '<div style="' + M + '; font-size:17px; margin-top:4px; color:' + (tone || 'var(--text)') + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + value + '</div>'
     + '<div style="' + NOTE + '; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + sub + '</div></div>';
@@ -686,13 +686,13 @@ function renderPnl(d) {
   if (settled && profileHasPoints) basisRows.push(['Profile curve', p.note || '']);
   if (settled && !profileHasPoints) basisRows.push(['Profile curve', 'user-pnl-api.polymarket.com did not answer for this wallet.']);
   basisRows.push(['Ratios', 'Daily PnL in dollars (one point per day, differenced), no capital base, annualised on 365 days; n is the number of daily changes. Sharpe = mean / sd. Sortino = mean / downside RMS over all days (target 0), shown only with 3+ losing days. Calmar = annualised mean daily PnL / max drawdown. Max drawdown = deepest fall from a running peak, % of that peak.']);
-  const basis = '<details style="margin-top:10px"><summary style="' + NOTE + '; cursor:pointer; list-style:none; display:inline-flex; align-items:center; gap:6px"><span style="border:1px solid rgba(var(--ink),.14); border-radius:4px; padding:1px 7px; letter-spacing:.1em">BASIS · DEFINITIONS</span><span>as of ' + esc(p.as_of || '') + '</span></summary>'
+  const basis = '<details style="margin-top:10px"><summary style="' + NOTE + '; cursor:pointer; list-style:none; display:inline-flex; align-items:center; gap:6px"><span style="border:1px solid rgba(var(--ink),.14); border-radius:var(--r-control); padding:1px 7px; letter-spacing:.1em">BASIS · DEFINITIONS</span><span>as of ' + esc(p.as_of || '') + '</span></summary>'
     + '<div style="margin-top:8px; display:grid; grid-template-columns:110px 1fr; gap:6px 12px">'
     + basisRows.map((r) => '<div style="' + LBL + '; padding-top:2px">' + esc(r[0]).toUpperCase() + '</div><div style="' + NOTE + '">' + esc(r[1]) + '</div>').join('')
     + '</div></details>';
 
   return '<div style="' + CARD + '; padding:16px 18px; margin-top:14px">' + head + swap
-    + '<div style="margin-top:12px; border:1px solid rgba(var(--ink),.07); border-radius:6px; padding:10px 8px 4px; background:var(--panel)">' + kurve + '</div>'
+    + '<div style="margin-top:12px; border:1px solid rgba(var(--ink),.07); border-radius:var(--r-panel); padding:10px 8px 4px; background:var(--panel)">' + kurve + '</div>'
     + statsHtml + basis + '</div>';
 }
 
@@ -856,7 +856,7 @@ function riskCard(label, value, sub, tone, partial) {
   const color = tone === 'up' ? 'var(--pos)' : tone === 'down' ? 'var(--neg)' : tone === 'warn' ? 'var(--warn)' : 'var(--text)';
   return '<div style="' + CARD + '; border-color:' + border + '; padding:14px 16px; min-width:0">'
     + '<div style="display:flex; justify-content:space-between; gap:8px; align-items:center"><div style="' + LBL + '">' + label + '</div>'
-    + (partial ? '<span title="the closed set is capped at ~50 rows per tail — these figures describe the biggest winners and losers only" style="' + M + '; font-size:10.5px; letter-spacing:.1em; color:var(--warn); border:1px solid rgba(var(--warn-rgb),.45); border-radius:4px; padding:1px 6px">~PARTIAL</span>' : '') + '</div>'
+    + (partial ? '<span title="the closed set is capped at ~50 rows per tail — these figures describe the biggest winners and losers only" style="' + M + '; font-size:10.5px; letter-spacing:.1em; color:var(--warn); border:1px solid rgba(var(--warn-rgb),.45); border-radius:var(--r-control); padding:1px 6px">~PARTIAL</span>' : '') + '</div>'
     + '<div style="' + M + '; font-size:24px; margin-top:8px; color:' + color + '">' + value + '</div>'
     + (sub ? '<div style="' + NOTE + '; margin-top:4px">' + sub + '</div>' : '') + '</div>';
 }
@@ -880,7 +880,7 @@ function heatmapHtml(hm) {
       const a = max > 0 ? v / max : 0;
       const bg = v > 0 ? 'rgba(var(--info-rgb),' + (0.18 + a * 0.72).toFixed(2) + ')' : 'rgba(var(--ink),.04)';
       const usd = hm.notional && hm.notional[wd] ? hm.notional[wd][h] : 0;
-      return '<div title="' + esc(WEEKDAYS[wd] + ' ' + String(h).padStart(2, '0') + ':00 UTC — ' + v + ' trade' + (v === 1 ? '' : 's') + (v ? ' · ' + absDollars(usd) : '')) + '" style="height:16px; border-radius:4px; background:' + bg + '"></div>';
+      return '<div title="' + esc(WEEKDAYS[wd] + ' ' + String(h).padStart(2, '0') + ':00 UTC — ' + v + ' trade' + (v === 1 ? '' : 's') + (v ? ' · ' + absDollars(usd) : '')) + '" style="height:16px; border-radius:var(--r-control); background:' + bg + '"></div>';
     }).join('') + '</div>').join('');
   const busiest = hm.busiest ? WEEKDAYS[hm.busiest.weekday] + ' ' + String(hm.busiest.hour).padStart(2, '0') + ':00 UTC (' + hm.busiest.trades + (hm.busiest.trades === 1 ? ' trade)' : ' trades)') : '—';
   return head + rows
@@ -910,7 +910,7 @@ function renderRiskTab(d) {
     ? '<div style="' + CARD + '; padding:14px 16px; margin-top:14px"><div style="' + LBL + '">INSIDER-RISK SCORE · FROM THE RISK SCREEN</div>'
       + '<div style="display:flex; gap:14px; align-items:baseline; margin-top:6px"><div style="' + M + '; font-size:22px; color:' + (d.risk.wallet_insider_score >= 70 ? 'var(--warn)' : 'var(--text)') + '">' + Math.round(d.risk.wallet_insider_score) + '<span style="font-size:12px; color:rgba(var(--ink),.6)"> /100</span></div>'
       + (d.risk.risk_level ? '<span style="' + M + '; font-size:10.5px; letter-spacing:.1em; color:rgba(var(--ink),.6)">' + esc(String(d.risk.risk_level).toUpperCase()) + '</span>' : '') + '</div>'
-      + (Array.isArray(d.risk.flags) && d.risk.flags.length ? '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px">' + d.risk.flags.map((f) => '<span style="' + M + '; font-size:10.5px; color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35); border-radius:4px; padding:2px 7px">' + esc(f) + '</span>').join('') + '</div>' : '<div style="' + NOTE + '; margin-top:6px">no flags on this wallet in the current screen</div>')
+      + (Array.isArray(d.risk.flags) && d.risk.flags.length ? '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px">' + d.risk.flags.map((f) => '<span style="' + M + '; font-size:10.5px; color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35); border-radius:var(--r-control); padding:2px 7px">' + esc(f) + '</span>').join('') + '</div>' : '<div style="' + NOTE + '; margin-top:6px">no flags on this wallet in the current screen</div>')
       + '</div>'
     : '';
   const head = card('RISK PROFILE · FROM THE RESOLVED ROWS',
@@ -927,14 +927,14 @@ function renderSimilarTab(T, d) {
   if (typeof T.fetchWalletSimilar === 'function') T.fetchWalletSimilar(addr);
   const entry = T.liveData && T.liveData.walletSimilar ? T.liveData.walletSimilar[addr] : null;
   const intro = '<div style="' + CARD + '; padding:14px 16px; margin-top:14px; display:flex; gap:12px; align-items:flex-start">'
-    + '<div style="width:34px; height:34px; flex:none; border-radius:4px; border:1px solid rgba(var(--info-rgb),.4); display:flex; align-items:center; justify-content:center; color:var(--info); ' + M + '; font-size:13px">≡</div>'
+    + '<div style="width:34px; height:34px; flex:none; border-radius:var(--r-control); border:1px solid rgba(var(--info-rgb),.4); display:flex; align-items:center; justify-content:center; color:var(--info); ' + M + '; font-size:13px">≡</div>'
     + '<div><div style="font-size:14px">Similar wallets</div><div style="' + NOTE + '; margin-top:3px">Wallets among the top holders of this wallet\'s largest open markets, sorted by how many of those markets they share — same side or opposite side. Read from the public /holders feed when this tab is opened.</div></div></div>';
   if (!entry || entry.herkunft === 'loading') {
     return intro + card('SIMILAR WALLETS', '<div style="' + NOTE + '">Reading the top holders of the largest open markets — up to ~22 public API calls, a few seconds…</div>');
   }
   if (entry.herkunft === 'fehler') {
     return intro + card('SIMILAR WALLETS', '<div style="' + NOTE + '; color:var(--warn)">/api/wallet/' + esc(shortAddr(addr)) + '/similar did not answer: ' + esc(entry.fehler || 'unknown error') + '.</div>'
-      + '<div style="margin-top:10px"><div ' + T.act(() => { if (T.fetchWalletSimilar) T.fetchWalletSimilar(addr, true); }) + ' class="hv-bd32" style="' + M + '; font-size:11px; color:rgba(var(--ink),.7); border:1px solid rgba(var(--ink),.16); border-radius:4px; padding:5px 10px; cursor:pointer; display:inline-block">Try again</div></div>');
+      + '<div style="margin-top:10px"><div ' + T.act(() => { if (T.fetchWalletSimilar) T.fetchWalletSimilar(addr, true); }) + ' class="hv-bd32" style="' + M + '; font-size:11px; color:rgba(var(--ink),.7); border:1px solid rgba(var(--ink),.16); border-radius:var(--r-control); padding:5px 10px; cursor:pointer; display:inline-block">Try again</div></div>');
   }
   const data = entry.data || {};
   const basis = data.basis || {};
@@ -942,11 +942,11 @@ function renderSimilarTab(T, d) {
   const rowsAll = Array.isArray(data.rows) ? data.rows : [];
   const rows = q ? rowsAll.filter((r) => String(r.wallet).indexOf(q) >= 0 || String(r.name || '').toLowerCase().indexOf(q) >= 0) : rowsAll;
   const search = '<input value="' + esc(T.state.walletSimilarQuery || '') + '" ' + T.inp((e) => { T.state.walletSimilarQuery = e.target.value; T.render(); }, 'walletSimilarQuery')
-    + ' placeholder="search wallet address or name…" spellcheck="false" style="width:100%; box-sizing:border-box; background:var(--panel); border:1px solid rgba(var(--ink),.35); border-radius:4px; padding:9px 12px; ' + M + '; font-size:12px; color:var(--text); margin-bottom:12px" />';
+    + ' placeholder="search wallet address or name…" spellcheck="false" style="width:100%; box-sizing:border-box; background:var(--panel); border:1px solid rgba(var(--ink),.35); border-radius:var(--r-control); padding:9px 12px; ' + M + '; font-size:12px; color:var(--text); margin-bottom:12px" />';
   const cols = 'minmax(220px, 2fr) 110px 150px 150px 120px 90px 170px';
   const head = '<div>WALLET</div><div style="text-align:right">SHARED MARKETS</div><div style="text-align:right">THEIR OPEN POSITIONS</div><div>OVERLAP</div><div style="text-align:right">LEADERBOARD PNL</div><div style="text-align:right">VOLUME</div><div style="text-align:right">VIEW</div>';
   const body = rows.map((r) => {
-    const bar = '<div style="display:flex; align-items:center; gap:8px"><div style="flex:1; height:5px; background:rgba(var(--ink),.08); border-radius:4px; overflow:hidden"><div style="width:' + Math.round((r.overlap || 0) * 100) + '%; height:5px; background:var(--info)"></div></div><span style="' + M + '; font-size:11.5px">' + Math.round((r.overlap || 0) * 100) + '%</span></div>';
+    const bar = '<div style="display:flex; align-items:center; gap:8px"><div style="flex:1; height:5px; background:rgba(var(--ink),.08); border-radius:var(--r-control); overflow:hidden"><div style="width:' + Math.round((r.overlap || 0) * 100) + '%; height:5px; background:var(--info)"></div></div><span style="' + M + '; font-size:11.5px">' + Math.round((r.overlap || 0) * 100) + '%</span></div>';
     const sides = (r.same_side ? r.same_side + ' same side' : '') + (r.same_side && r.opposite_side ? ' · ' : '') + (r.opposite_side ? r.opposite_side + ' opposite' : '');
     return row(cols,
       '<div style="min-width:0"><div style="' + M + '; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(r.wallet) + '">' + (r.name ? esc(r.name) + ' <span style="color:rgba(var(--ink),.6)">· ' + esc(r.short) + '</span>' : esc(r.short)) + '</div><div style="' + NOTE + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(sides || 'sides not readable') + '</div></div>'
@@ -955,7 +955,7 @@ function renderSimilarTab(T, d) {
       + cell(bar, '')
       + cell(r.on_leaderboard && r.lb_pnl != null ? dollars(r.lb_pnl) : 'not on board', 'text-align:right; color:' + (r.on_leaderboard && r.lb_pnl != null ? pnlColor(r.lb_pnl) : 'rgba(var(--ink),.6)'))
       + cell(r.on_leaderboard && r.lb_volume != null ? money(r.lb_volume) : '—', 'text-align:right; color:rgba(var(--ink),.65)')
-      + cell('<span ' + T.act(() => { if (T.analyseWallet) T.analyseWallet(r.wallet); }) + ' class="hv-bd32" style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.75); border:1px solid rgba(var(--ink),.16); border-radius:4px; padding:3px 8px; cursor:pointer">Analyse</span> '
+      + cell('<span ' + T.act(() => { if (T.analyseWallet) T.analyseWallet(r.wallet); }) + ' class="hv-bd32" style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.75); border:1px solid rgba(var(--ink),.16); border-radius:var(--r-control); padding:3px 8px; cursor:pointer">Analyse</span> '
         + (r.profile_url ? '<a href="' + esc(r.profile_url) + '" target="_blank" rel="noopener" data-stop style="' + M + '; font-size:10.5px; color:var(--info); text-decoration:none; margin-left:6px">profile ↗</a>' : ''), 'text-align:right'));
   }).join('');
   const table = tableWith(cols, head, body, rowsAll.length ? 'No wallet matches the search.' : 'No overlapping top holder found in the checked markets.', 1010);

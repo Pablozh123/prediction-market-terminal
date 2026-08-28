@@ -14,7 +14,7 @@ import { esc } from '../util.js';
 import { SERIEN_FARBEN } from '../charts.js';
 
 const M = "font-family:'IBM Plex Mono',monospace";
-const CARD = 'background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px';
+const CARD = 'background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:var(--r-panel)';
 
 // Cluster-Palette: die fuenf geprueften Serienplaetze aus terminal.css,
 // danach --warn und --muted als sechster und siebter Platz. Vorher standen
@@ -36,7 +36,7 @@ function kopfzeile(g) {
   const k = g.kennzahl || {};
   const chip = (label, wert) =>
     '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.14); '
-    + 'border-radius:4px; padding:4px 9px; white-space:nowrap">' + esc(label) + ' <span style="color:var(--text)">'
+    + 'border-radius:var(--r-control); padding:4px 9px; white-space:nowrap">' + esc(label) + ' <span style="color:var(--text)">'
     + esc(String(wert)) + '</span></div>';
   // WALLETS traegt seinen Nenner mit: 41 von 300 gescreenten ist eine andere
   // Aussage als 41 von 41. LIFT ist die Kante gegen ihre Basisrate — bei 1.0

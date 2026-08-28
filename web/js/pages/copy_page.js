@@ -16,9 +16,9 @@ const ACCENT = 'var(--accent)';
 const POS = 'var(--pos)'; // gain green, always paired with RED
 const RED = 'var(--neg)', AMBER = 'var(--warn)', BLUE = 'var(--info)';
 const DIM = 'rgba(var(--ink),.55)';
-const INPUT = 'width:100%; box-sizing:border-box; background:var(--panel); border:1px solid rgba(var(--ink),.35); border-radius:4px; padding:8px 10px; ' + M + '; font-size:11.5px; color:var(--text)';
-const CARD = 'background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px';
-const BTN = M + "; font-size:11px; letter-spacing:.06em; border-radius:4px; padding:8px 14px; cursor:pointer; display:inline-block; user-select:none";
+const INPUT = 'width:100%; box-sizing:border-box; background:var(--panel); border:1px solid rgba(var(--ink),.35); border-radius:var(--r-control); padding:8px 10px; ' + M + '; font-size:11.5px; color:var(--text)';
+const CARD = 'background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:var(--r-panel)';
+const BTN = M + "; font-size:11px; letter-spacing:.06em; border-radius:var(--r-control); padding:8px 14px; cursor:pointer; display:inline-block; user-select:none";
 const BTN_PRIMARY = BTN + '; color:var(--on-accent); background:' + ACCENT + '; font-weight:600';
 const BTN_GHOST = BTN + '; color:rgba(var(--ink),.75); border:1px solid rgba(var(--ink),.18)';
 const BTN_WARN = BTN + '; color:' + AMBER + '; border:1px solid rgba(var(--warn-rgb),.4)';
@@ -108,8 +108,8 @@ function traderRow(T, t, s, canWrite, busy) {
     ? '<svg width="90" height="26" viewBox="0 0 90 26" preserveAspectRatio="none" aria-hidden="true" focusable="false"><polyline points="' + T.seriesPoints(t.equity_curve, 90, 26) + '" fill="none" style="stroke:' + pnlColor(t.pnl) + '" stroke-width="1.5" /></svg>'
     : '<span style="' + M + '; font-size:11px; color:var(--ink-4)" title="one point per daemon pass, once a minute">' + (t.equity_curve && t.equity_curve.length === 1 ? '1 point' : 'no curve yet') + '</span>';
   const state = t.active
-    ? '<span style="' + M + '; font-size:11px; letter-spacing:.1em; color:' + ACCENT + '; border:1px solid rgba(var(--accent-rgb),.35); border-radius:4px; padding:2px 6px">ACTIVE</span>'
-    : '<span style="' + M + '; font-size:11px; letter-spacing:.1em; color:' + AMBER + '; border:1px solid rgba(var(--warn-rgb),.35); border-radius:4px; padding:2px 6px">PAUSED</span>';
+    ? '<span style="' + M + '; font-size:11px; letter-spacing:.1em; color:' + ACCENT + '; border:1px solid rgba(var(--accent-rgb),.35); border-radius:var(--r-control); padding:2px 6px">ACTIVE</span>'
+    : '<span style="' + M + '; font-size:11px; letter-spacing:.1em; color:' + AMBER + '; border:1px solid rgba(var(--warn-rgb),.35); border-radius:var(--r-control); padding:2px 6px">PAUSED</span>';
   const seeded = t.seeded_at
     ? '<span title="baseline seeded ' + esc(fmtStamp(t.seeded_at)) + ' — trades before it are observed, not copied" style="color:rgba(var(--ink),.6)">baseline ' + esc(ago(t.seeded_at)) + '</span>'
     : '<span title="no baseline yet: the first daemon pass mirrors the wallet\'s positions and sets the cutoff" style="color:' + AMBER + '">not seeded yet</span>';
@@ -254,7 +254,7 @@ function tradersTab(T, s, live, canWrite) {
   const busy = s.copyBusy;
   const head = 'display:grid; grid-template-columns:minmax(180px,1.6fr) 74px 90px 90px 110px 96px 70px 96px 92px minmax(200px,1.4fr); gap:10px; padding:9px 16px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6)';
   return followForm(T, s, live, canWrite)
-    + '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin:14px 24px 0; overflow:hidden">'
+    + '<div style="border:1px solid rgba(var(--ink),.09); border-radius:var(--r-panel); margin:14px 24px 0; overflow:hidden">'
     + '<div style="overflow-x:auto"><div style="min-width:1180px">'
     + '<div style="' + head + '">'
     + '<div>TRADER</div><div>STATE</div><div style="text-align:right">START</div><div style="text-align:right">CASH</div><div style="text-align:right">EQUITY</div><div style="text-align:right">PAPER PNL</div><div style="text-align:right">COPIED / SKIP</div><div style="text-align:right">OPEN</div><div style="text-align:right">EQUITY CURVE</div><div style="text-align:right">' + (canWrite ? 'ACTIONS' : '') + '</div></div>'
@@ -344,7 +344,7 @@ function settingsTab(T, s, live, canWrite) {
   };
   const modeCard = (m, title, line) => {
     const on = mode === m;
-    return '<div ' + T.act(chooseMode(m)) + ' style="flex:1; min-width:200px; border:1px solid ' + (on ? ACCENT : 'rgba(var(--ink),.14)') + '; background:' + (on ? 'rgba(var(--accent-rgb),.08)' : 'transparent') + '; border-radius:6px; padding:12px 14px; cursor:' + (canWrite ? 'pointer' : 'default') + '">'
+    return '<div ' + T.act(chooseMode(m)) + ' style="flex:1; min-width:200px; border:1px solid ' + (on ? ACCENT : 'rgba(var(--ink),.14)') + '; background:' + (on ? 'rgba(var(--accent-rgb),.08)' : 'transparent') + '; border-radius:var(--r-panel); padding:12px 14px; cursor:' + (canWrite ? 'pointer' : 'default') + '">'
       + '<div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:' + (on ? ACCENT : 'rgba(var(--ink),.75)') + '">' + (on ? '● ' : '○ ') + title + '</div>'
       + '<div style="font-size:11.5px; color:rgba(var(--ink),.55); margin-top:6px; line-height:1.45">' + line + '</div></div>';
   };
@@ -367,7 +367,7 @@ function settingsTab(T, s, live, canWrite) {
     + modeCard('one', 'DOLLAR FOR DOLLAR', 'He bets $1,000 → you bet $1,000. 1:1 on notional; only makes sense with a sub-account about his size.')
     + '</div>'
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.6); margin-bottom:8px">WHAT A $1,000 BET OF HIS BECOMES HERE, PER ACTIVE TRADER</div>'
-    + '<div style="display:flex; flex-direction:column; gap:5px; margin-bottom:18px; padding:10px 12px; border:1px solid rgba(var(--ink),.08); border-radius:4px">' + sizingExampleRows(live.traders, f, mode) + '</div>'
+    + '<div style="display:flex; flex-direction:column; gap:5px; margin-bottom:18px; padding:10px 12px; border:1px solid rgba(var(--ink),.08); border-radius:var(--r-control)">' + sizingExampleRows(live.traders, f, mode) + '</div>'
     + '<div style="' + grid + '">'
     + modeFields
     + '</div>'
@@ -460,7 +460,7 @@ export function renderCopy(T) {
       + '<span style="' + M + '; color:' + AMBER + '">MERGE</span> = the source handed equal YES + NO shares back for $1 each — closes both sides, no direction. '
       + '<span style="' + M + '; color:' + BLUE + '">REDEEM / RESOLUTION</span> = the market settled. Every row says what it was and what the source holds in that market now.'
       + '</div>'
-      + '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin:14px 24px; overflow:hidden">'
+      + '<div style="border:1px solid rgba(var(--ink),.09); border-radius:var(--r-panel); margin:14px 24px; overflow:hidden">'
       + '<div style="' + grid + '; padding:9px 16px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6)">'
       + '<div>TIME</div><div>TRADER</div><div>MARKET</div><div style="text-align:right">KIND · SIDE</div><div style="text-align:right">THEY MOVED</div><div style="text-align:right">YOU MOVED</div><div style="text-align:right">STATUS</div></div>'
       + (rows.length ? '' : leerZeile(orders.length ? 'No order matches these filters.' : 'No paper orders reported by /api/copy yet.'))
@@ -488,7 +488,7 @@ export function renderCopy(T) {
       + '</div></div>';
   } else if (tab === 'positions') {
     const grid = 'display:grid; grid-template-columns:120px 1fr 62px 78px 78px 78px 88px 100px; gap:10px';
-    body = '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin:14px 24px; overflow:hidden">'
+    body = '<div style="border:1px solid rgba(var(--ink),.09); border-radius:var(--r-panel); margin:14px 24px; overflow:hidden">'
       + '<div style="' + grid + '; padding:9px 16px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6)">'
       + '<div>TRADER</div><div>MARKET</div><div style="text-align:right">SIDE</div><div style="text-align:right">SHARES</div><div style="text-align:right">AVG FILL</div><div style="text-align:right">MARK</div><div style="text-align:right">VALUE</div><div style="text-align:right">UNREALISED</div></div>'
       + (positions.length ? '' : leerZeile('No open paper positions reported by /api/copy.'))
@@ -561,7 +561,7 @@ export function renderCopy(T) {
       + '<div style="display:flex; flex-direction:column; gap:11px">' + gapCosts + '</div></div></div>';
   } else {
     const grid = 'display:grid; grid-template-columns:110px 120px 1fr 120px 120px; gap:10px';
-    body = '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin:14px 24px; overflow:hidden">'
+    body = '<div style="border:1px solid rgba(var(--ink),.09); border-radius:var(--r-panel); margin:14px 24px; overflow:hidden">'
       + '<div style="' + grid + '; padding:9px 16px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6)">'
       + '<div>DATE</div><div>TRADER</div><div>WHAT HAPPENED</div><div style="text-align:right">AMOUNT</div><div style="text-align:right">CASH AFTER</div></div>'
       + (cashRows.length ? '' : leerZeile('No cash events reported by /api/copy. Start cash is not an event; top-ups are.'))
@@ -584,7 +584,7 @@ export function renderCopy(T) {
   const activeCount = live.active_count != null ? live.active_count : traders.filter((t) => t.active).length;
   const totals = live.totals || { equity: kp.equity, contributions: kp.contributions };
   const msg = s.copyMsg
-    ? '<div style="margin:12px 24px 0; padding:9px 12px; border-radius:4px; ' + M + '; font-size:11.5px; display:flex; justify-content:space-between; gap:12px; '
+    ? '<div style="margin:12px 24px 0; padding:9px 12px; border-radius:var(--r-control); ' + M + '; font-size:11.5px; display:flex; justify-content:space-between; gap:12px; '
       + (s.copyMsg.kind === 'err' ? 'color:' + RED + '; border:1px solid rgba(var(--neg-rgb),.35); background:rgba(var(--neg-rgb),.06)' : 'color:' + POS + '; border:1px solid rgba(var(--pos-rgb),.3); background:rgba(var(--pos-rgb),.05)') + '">'
       + '<span>' + esc(s.copyMsg.text) + '</span><span ' + T.act(() => T.setState({ copyMsg: null })) + ' style="cursor:pointer; color:var(--ink-4)">dismiss</span></div>'
     : '';
@@ -609,8 +609,8 @@ export function renderCopy(T) {
     + '<div style="' + M + '; font-size:11.5px; color:rgba(var(--ink),.6)">SOURCE <span style="color:var(--text)">' + esc(st.source) + '</span></div>'
     + '<div style="' + M + '; font-size:11.5px; color:rgba(var(--ink),.6)">SCALE <span style="color:var(--text)">' + (+st.scale).toFixed(4) + '×</span></div>'
     + '<div style="' + M + '; font-size:11.5px; color:rgba(var(--ink),.6)">CASH LEFT <span style="color:var(--text)">' + esc(usd(st.cash)) + '</span></div>'
-    + '<div style="' + M + '; font-size:11px; color:' + AMBER + '; border:1px solid rgba(var(--warn-rgb),.35); border-radius:4px; padding:3px 8px">AUTO TOP-UP ' + (st.auto_topup ? 'ON' : 'OFF') + '</div>'
-    + (accessText ? '<div style="' + M + '; font-size:11px; color:' + (access.allowed ? ACCENT : 'var(--ink-4)') + '; border:1px solid rgba(var(--ink),.14); border-radius:4px; padding:3px 8px" title="' + esc(access.reason || '') + '">' + accessText + '</div>' : '')
+    + '<div style="' + M + '; font-size:11px; color:' + AMBER + '; border:1px solid rgba(var(--warn-rgb),.35); border-radius:var(--r-control); padding:3px 8px">AUTO TOP-UP ' + (st.auto_topup ? 'ON' : 'OFF') + '</div>'
+    + (accessText ? '<div style="' + M + '; font-size:11px; color:' + (access.allowed ? ACCENT : 'var(--ink-4)') + '; border:1px solid rgba(var(--ink),.14); border-radius:var(--r-control); padding:3px 8px" title="' + esc(access.reason || '') + '">' + accessText + '</div>' : '')
     + '</div>'
 
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid rgba(var(--ink),.09)">'

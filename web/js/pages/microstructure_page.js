@@ -14,7 +14,7 @@ import { esc, stempelBlock } from '../util.js';
 import { diagramm, fmtZahl } from '../charts.js';
 
 const M = "font-family:'IBM Plex Mono',monospace";
-const CARD = 'background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px';
+const CARD = 'background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:var(--r-panel)';
 const MUTED = 'color:rgba(var(--ink),.55)';
 const HR = 'border-top:1px solid rgba(var(--ink),.07); margin-top:20px; padding-top:18px';
 
@@ -41,7 +41,7 @@ function abschnitt(titel, inhalt, zusatz) {
 function analyseBlock(analyse) {
   if (!analyse || !analyse.length) return '';
   return '<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:1px; '
-    + 'background:rgba(var(--ink),.07); border:1px solid rgba(var(--ink),.07); border-radius:6px; overflow:hidden">'
+    + 'background:rgba(var(--ink),.07); border:1px solid rgba(var(--ink),.07); border-radius:var(--r-panel); overflow:hidden">'
     + analyse.map((a) =>
       '<div style="background:var(--panel); padding:14px 16px">'
       + '<div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6)">'
@@ -104,7 +104,7 @@ function detailBlock(details, id) {
   return '<div style="margin-top:16px">'
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(var(--ink),.55)">'
     + esc(details.titel) + ' · ' + details.zeilen.length + ' rows</div>'
-    + '<div style="overflow-x:auto; border:1px solid rgba(var(--ink),.07); border-radius:4px; margin-top:8px">'
+    + '<div style="overflow-x:auto; border:1px solid rgba(var(--ink),.07); border-radius:var(--r-control); margin-top:8px">'
     + '<table style="width:100%; border-collapse:collapse"><thead><tr>' + kopf + '</tr></thead>'
     + '<tbody>' + koerper + '</tbody></table></div>'
     + (details.hinweis
@@ -134,7 +134,7 @@ function quelleLinks(s) {
   const link = (pfad, text) =>
     '<a href="https://github.com/Pablozh123/prediction-market-terminal/blob/main/' + esc(pfad)
     + '" target="_blank" rel="noopener" style="' + M + '; font-size:10.5px; color:var(--info); text-decoration:none; '
-    + 'border:1px solid rgba(var(--info-rgb),.35); border-radius:4px; padding:5px 9px">' + esc(text) + ' ↗</a>';
+    + 'border:1px solid rgba(var(--info-rgb),.35); border-radius:var(--r-control); padding:5px 9px">' + esc(text) + ' ↗</a>';
   return '<div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">'
     + link(s.report, 'FULL REPORT') + link(s.modul, 'SOURCE MODULE') + '</div>';
 }
@@ -215,7 +215,7 @@ function sprungliste(studien) {
     + studien.map((s, i) => {
       const farbe = VERDIKT_FARBE[s.verdikt_art] || 'var(--muted)';
       return '<a href="#' + esc(studieAnker(s, i)) + '" style="' + M + '; font-size:11px; color:rgba(var(--ink),.7); text-decoration:none; '
-        + 'border:1px solid rgba(var(--ink),.14); border-left:2px solid ' + farbe + '; border-radius:4px; padding:4px 8px; white-space:nowrap">'
+        + 'border:1px solid rgba(var(--ink),.14); border-left:2px solid ' + farbe + '; border-radius:var(--r-control); padding:4px 8px; white-space:nowrap">'
         + esc(kurzLabel(s, i)) + '</a>';
     }).join('')
     + '</div>';
@@ -236,7 +236,7 @@ function studieKarte(s, i) {
     + '<h3 style="font-size:19px; font-weight:600; margin-top:6px; line-height:1.35">' + esc(s.frage) + '</h3>'
     + '</div>'
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:' + farbe
-    + '; border:1px solid color-mix(in srgb, ' + farbe + ' 33%, transparent); border-radius:4px; padding:6px 10px; white-space:nowrap">' + marke + '</div>'
+    + '; border:1px solid color-mix(in srgb, ' + farbe + ' 33%, transparent); border-radius:var(--r-control); padding:6px 10px; white-space:nowrap">' + marke + '</div>'
     + '</div>'
     + '<div style="font-size:14.5px; color:' + farbe + '; margin-top:12px; line-height:1.5; font-weight:500; max-width:760px">'
     + esc(s.verdikt) + '</div>'

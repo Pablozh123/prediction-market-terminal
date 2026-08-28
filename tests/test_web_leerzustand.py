@@ -1719,7 +1719,9 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("TRADING ACTIVITY · WEEKDAY × UTC HOUR n 3 trades", risk)
         self.assertIn("busiest cell Wed 10:00 UTC (1 trade)", risk)
         # 7 x 24 cells, three of them coloured, each with its count in the title.
-        self.assertEqual(risk_html.count('height:16px; border-radius:4px; background:'), 7 * 24)
+        self.assertEqual(
+            risk_html.count('height:16px; border-radius:var(--r-control); background:'), 7 * 24
+        )
         self.assertEqual(risk_html.count("background:rgba(var(--info-rgb),"), 3)
         self.assertIn('title="Wed 10:00 UTC — 1 trade · $50.00"', risk_html)
         # Similar wallets: waiting state names the request; the answer lists
