@@ -7,7 +7,7 @@
 // document. Die Seitenmodule sind reine Funktionen ueber ein T-Objekt, also
 // wird hier ein T gebaut, das dieselben Felder und Helfer bereitstellt.
 
-import { esc, money, num, spark, seriesPoints } from '../web/js/util.js';
+import { esc, money, num, seriesPoints } from '../web/js/util.js';
 import { STUDIEN } from '../web/js/studies.js';
 import { renderOverview, renderMarkets, renderFlow, renderCross, renderResolved, landingSubline, verdictCounts } from '../web/js/pages/core_pages.js';
 import { renderTraders, renderWhale, renderRisk, renderTrack } from '../web/js/pages/trader_pages.js';
@@ -68,7 +68,7 @@ function neuesT() {
     // Landing payloads (Overview): null until loaded, like in app.js.
     landing: { micro: null, runs: null, notes: null, ledger: null, herkunft: { micro: null, runs: null, notes: null, ledger: null } },
     liveData: { leaderboard: null, cross: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {}, riskBook: {}, walletSimilar: {} },
-    num, money, esc, spark,
+    num, money, esc,
     seriesPoints: (v, w, h) => seriesPoints(v, w, h),
     act: () => 'data-act="0"',
     inp: () => 'data-inp="0" data-key="k"',
@@ -80,7 +80,10 @@ function neuesT() {
     stepper: (l) => '<div>' + esc(l) + '</div>',
     changeStyle: () => M,
     marketView: (m) => ({
-      title: m.title, meta: m.venue + ' · ' + m.cat, sparkPoints: m.spark ? spark(m.spark) : '',
+      // Leer wie in app.js::marketView: die API liefert eine Tagesaenderung,
+      // keinen Intraday-Pfad. Der Harness bildet das Original ab, sonst
+      // prueft er einen Zustand, den die Anwendung nie erzeugt.
+      title: m.title, meta: m.venue + ' · ' + m.cat, sparkPoints: '',
       color: 'var(--pos)', priceLabel: m.yes + '¢', changeLabel: '+' + m.chg + '¢',
       changeStyle: M, volLabel: money(m.vol), ends: m.ends, act: ''
     }),
