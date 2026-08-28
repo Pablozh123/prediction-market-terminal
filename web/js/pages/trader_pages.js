@@ -2,6 +2,7 @@
 
 import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, tapeFenster, fensterSatz } from '../util.js';
 import { renderClusterGraphics, clusterFarbe } from './cluster_graphics.js';
+import { punktwolke, histogramm, kurzGeld } from '../charts.js';
 
 const M = "font-family:'IBM Plex Mono',monospace";
 const LBL9 = M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.6); margin-bottom:6px';
@@ -67,6 +68,100 @@ export function scoreBasisSatz(rows) {
     + 'placeholder that is identical for every wallet, so it separates no wallet from another.' + n;
 }
 
+// Score gegen die Belege, die ihn tragen. Eine Punktwolke statt einer
+// Pille je Zeile, und sie loest zwei Dinge auf einmal.
+//
+// Erstens die Projektregel: jede Score-Anzeige traegt n, Intervall,
+// Sample-Abzeichen und Stichtag. Das Abzeichen in der Tabelle trug keins
+// davon. Die waagerechte Spanne je Punkt ist die Ungemessen-Spanne aus
+// api_views.score_interval, ausdruecklich kein Konfidenzintervall: der
+// Composite ist bei gegebenen Eingaben deterministisch. Sie sagt, wohin der
+// Score wandern koennte, wenn die Platzhalter Messungen waeren. Auf der
+// oeffentlichen Antwort sind das 55 Prozent des Gewichts, die Spannen
+// ueberlappen also quer durch die Rangliste, und genau das ist die Aussage:
+// ein Composite ohne Streuung ist keine Rangfolge.
+//
+// Zweitens die y-Achse. Sie traegt das gehandelte Volumen in Dollar,
+// logarithmisch. Aufgeloeste Wetten je Wallet waeren das bessere Mass fuer
+// "genug Faelle", aber die oeffentliche Leaderboard-Antwort traegt sie
+// nicht (get_polymarket_leaderboard liefert rank, trader, wallet, pnl,
+// volume und sonst nichts); sie brauchen einen Abruf je Wallet und stehen
+// deshalb auf der Wallet-Seite, mit n und Wilson-Intervall. Statt sie hier
+// zu schaetzen steht die Groesse da, die wirklich gemessen ist, und die
+// Fussnote sagt beides.
+//
+// Die gestrichelte Waagerechte ist die Saettigung des Volumen-Bestandteils
+// (95. Perzentil der bewerteten Menge, copy_trading._log_score): darueber
+// aendert mehr Volumen am Score nichts mehr. Die Senkrechten sind die
+// Notengrenzen, damit die Score-Achse ueberhaupt einen Bezugsrahmen hat.
+export function scoreWolkeHtml(T, rows) {
+  const punkte = (rows || [])
+    .filter((t) => t && typeof t.score === 'number' && t.score === t.score && +t.vol > 0)
+    .map((t) => ({
+      x: t.score,
+      y: +t.vol,
+      label: t.name,
+      band: Array.isArray(t.scoreCi) && t.scoreCi.length === 2 ? t.scoreCi : null,
+      tip: t.name + ' · score ' + t.score + (t.grade ? ' (' + t.grade + ')' : '')
+        + (Array.isArray(t.scoreCi) && t.scoreCi.length === 2
+          ? ' · unmeasured range ' + t.scoreCi[0] + ' to ' + t.scoreCi[1] : '')
+        + ' · volume ' + kurzGeld(+t.vol)
+    }));
+  if (punkte.length < 2) return '';
+  const lb = (T.liveData && T.liveData.leaderboard) || {};
+  const skala = lb.score_scale || {};
+  const basis = (rows.find((t) => t && t.scoreBasis) || {}).scoreBasis || null;
+  const badge = (rows.find((t) => t && t.sampleBadge) || {}).sampleBadge || null;
+  const n = basis && basis.cohort_n ? basis.cohort_n : null;
+  const gemessen = basis ? Math.round((basis.measured_weight || 0) * 100) : null;
+  const stand = lb.as_of ? String(lb.as_of) : null;
+  const yRefs = [];
+  if (typeof skala.saturates_at === 'number' && skala.saturates_at > 0) {
+    yRefs.push({ wert: skala.saturates_at, label: 'volume component maxes out at ' + kurzGeld(skala.saturates_at) });
+  }
+  const fussnote = [
+    'Horizontal bar: how far the score could move if the placeholder components were measured'
+      + (gemessen != null ? ' (' + gemessen + '% of the composite weight is measured, ' + (100 - gemessen) + '% is a constant that is the same for every wallet)' : '')
+      + '. It is a range, not a confidence interval: the composite is deterministic once its inputs are fixed.',
+    n != null ? 'n = ' + num(n) + ' wallets scored together.' : '',
+    badge && badge.quality ? 'Sample: ' + badge.quality + '.' : '',
+    'Resolved-bet counts are not in this feed; open a wallet for its win rate with n and a Wilson interval.',
+    stand ? 'Snapshot ' + stand + '.' : ''
+  ].filter(Boolean).join(' ');
+  return punktwolke({
+    titel: 'SCORE AGAINST THE EVIDENCE UNDER IT',
+    hinweis: punkte.length + ' scored wallets',
+    xLabel: 'smart score (points out of 100)',
+    yLabel: 'volume traded (USD, log)',
+    xDomain: [0, 100],
+    yLog: true,
+    yTickText: (v) => kurzGeld(v),
+    xReferenzen: [
+      { wert: 40, label: 'watch' }, { wert: 55, label: 'C' },
+      { wert: 70, label: 'B' }, { wert: 85, label: 'A' }
+    ],
+    yReferenzen: yRefs,
+    punkte,
+    labelN: 5,
+    fussnote
+  });
+}
+
+// Das Abzeichen selbst bleibt eine Zahl, aber es sagt beim Zeigen, wie viel
+// davon gemessen ist. Die Punktwolke darueber traegt dieselbe Spanne als
+// Bild; hier steht sie fuer die einzelne Zeile.
+export function scoreTitel(t) {
+  if (!t || t.score == null) return '';
+  const teile = [];
+  if (Array.isArray(t.scoreCi) && t.scoreCi.length === 2) {
+    teile.push('unmeasured range ' + t.scoreCi[0] + ' to ' + t.scoreCi[1]
+      + ' of 100: where the score could sit if the placeholder components were measured');
+  }
+  if (t.scoreN) teile.push('n = ' + t.scoreN + ' wallets scored together');
+  if (t.sampleBadge && t.sampleBadge.quality) teile.push('sample: ' + t.sampleBadge.quality);
+  return teile.length ? ' title="' + esc(teile.join(' · ')) + '"' : '';
+}
+
 // ---------------------------------------------------------------- traders (leaderboard)
 export function renderTraders(T) {
   const s = T.state;
@@ -103,6 +198,9 @@ export function renderTraders(T) {
   const chevron = M + '; font-size:16px; color:rgba(var(--ink),.5); transition:transform .18s ease; transform:rotate(' + (s.traderFiltersOpen ? '90deg' : '0deg') + ')';
   const asOf = T.liveData.leaderboard && T.liveData.leaderboard.as_of ? ' · snapshot ' + T.liveData.leaderboard.as_of : '';
   const basisSatz = scoreBasisSatz(T.traders);
+  // Ueber alle gerankten Wallets, nicht ueber die gefilterte Sicht: die
+  // Wolke ist der Bezugsrahmen der Score-Spalte, kein Filterergebnis.
+  const scoreWolke = scoreWolkeHtml(T, T.traders);
   const grid = '44px 1fr 120px' + (hatWin ? ' 100px' : '') + (hatResolved ? ' 118px' : '') + ' 100px 92px';
   const rankTabs = [T.tab('Smart score', rank === 'score', { traderRank: 'score' }),
     T.tab('Profit', rank === 'pnl', { traderRank: 'pnl' }),
@@ -137,7 +235,8 @@ export function renderTraders(T) {
       + '</div>' : '')
     + '</div>'
     + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:12px">' + traderSorted.length + ' of ' + T.traders.length + ' wallets · all-time' + esc(asOf) + '</div>'
-    + (basisSatz ? '<div style="font-size:12px; color:rgba(var(--ink),.55); margin-top:8px; max-width:820px; line-height:1.6">' + esc(basisSatz) + '</div>' : '')
+    + (basisSatz ? '<div style="font-size:12px; color:rgba(var(--ink),.62); margin-top:8px; max-width:820px; line-height:1.6">' + esc(basisSatz) + '</div>' : '')
+    + (scoreWolke ? '<div style="margin-top:14px; max-width:700px">' + scoreWolke + '</div>' : '')
     + '</div>'
 
     + '<div style="display:grid; grid-template-columns:' + grid + '; padding:10px 24px; border-bottom:1px solid rgba(var(--ink),.09); background:var(--panel); ' + HEAD_CELL + '">'
@@ -160,7 +259,7 @@ export function renderTraders(T) {
         + (hatWin ? '<div style="' + M + '; font-size:13px; text-align:right">' + (t.win != null ? Math.round(t.win * 100) + '%' : '—') + '</div>' : '')
         + (hatResolved ? '<div style="' + M + '; font-size:12.5px; text-align:right; color:rgba(var(--ink),.55)">' + (t.resolved != null ? num(t.resolved) : '—') + '</div>' : '')
         + '<div style="' + M + '; font-size:13px; text-align:right">' + money(t.vol) + '</div>'
-        + '<div style="display:flex; justify-content:flex-end"><div style="' + scoreStyle + '">' + (score != null ? score : 'n/a') + '</div></div>'
+        + '<div style="display:flex; justify-content:flex-end"><div' + scoreTitel(t) + ' style="' + scoreStyle + '">' + (score != null ? score : 'n/a') + '</div></div>'
         + '</div>';
     }).join('')
     + '</div>';

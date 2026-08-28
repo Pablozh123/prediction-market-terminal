@@ -374,6 +374,7 @@ def leaderboard_rows(leaderboard: pd.DataFrame, ranked: pd.DataFrame | None = No
                 "reason": _text(row.get("copy_rank_reason")),
                 "parts": parts,
                 "basis": score_basis(parts, cohort_n),
+                "interval": score_interval(parts),
             }
     rows: list[dict[str, Any]] = []
     for _, row in leaderboard.iterrows():
@@ -396,6 +397,13 @@ def leaderboard_rows(leaderboard: pd.DataFrame, ranked: pd.DataFrame | None = No
             # Worauf der Score ruht: welcher Anteil seines Gewichts gemessen
             # ist und welcher aus einem Ersatzwert stammt.
             "score_basis": smart.get("basis") or None,
+            # Das n dieses Scores ist die gemeinsam bewertete Menge, nicht
+            # eine Zahl aufgeloester Wetten: die kommt erst per Wallet aus
+            # /api/wallet/{wallet}. Die Spanne ist keine Konfidenz-, sondern
+            # die Ungemessen-Spanne (siehe score_interval).
+            "score_n": (smart.get("basis") or {}).get("cohort_n") or None,
+            "score_ci": smart.get("interval") or None,
+            "sample_badge": score_sample_badge(smart.get("basis")),
         })
     return rows
 
@@ -462,6 +470,88 @@ def score_basis(parts: list[dict[str, Any]], cohort_n: int = 0) -> dict[str, Any
         "imputed": [str(p.get("label")) for p in parts if p.get("imputed")],
         "cohort_n": int(max(0, cohort_n)),
     }
+
+
+def score_interval(parts: list[dict[str, Any]]) -> list[float] | None:
+    """Wie weit der Composite wandern koennte, wenn die Platzhalter Messungen waeren.
+
+    Das ist **kein** Konfidenzintervall: der Score ist bei gegebenen Eingaben
+    deterministisch, es gibt keine Stichprobenverteilung, aus der sich eine
+    ziehen liesse. Was es gibt, ist eine harte Spanne. ``copy_smart_score``
+    ist die gewichtete Summe von sechs Bestandteilen auf 0..100
+    (``copy_trading.rank_traders_by_smart_score``); die gemessenen liegen
+    fest, die geschaetzten koennten irgendwo zwischen 0 und 100 liegen. Also:
+
+        lo = Summe(gewicht * wert) ueber die gemessenen Bestandteile
+        hi = lo + 100 * Summe(gewicht) ueber die geschaetzten
+
+    Der gezeigte Score liegt konstruktionsbedingt in [lo, hi]. Auf der
+    oeffentlichen Leaderboard-Antwort sind 55 Prozent des Gewichts
+    geschaetzt, die Spanne ist also 55 Punkte breit — und genau das ist die
+    Aussage, die neben dem Abzeichen fehlte.
+
+    ``None``, wenn keine Bestandteile vorliegen: eine Spanne ohne Grundlage
+    waere schlimmer als keine.
+    """
+
+    if not parts:
+        return None
+    lo = 0.0
+    offen = 0.0
+    for part in parts:
+        weight = float(part.get("weight") or 0.0)
+        if part.get("imputed"):
+            offen += weight
+        else:
+            lo += weight * float(_num(part.get("value"), 0.0) or 0.0)
+    return [round(lo, 1), round(lo + 100.0 * offen, 1)]
+
+
+def score_sample_badge(basis: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """Sample-Abzeichen fuer den Composite: wie viel davon gemessen ist.
+
+    ``scorecard.sample_quality`` bewertet aufgeloeste Ereignisse; der Smart
+    Score hat keine, seine Schwaeche ist eine andere. Hier zaehlt der Anteil
+    des Gewichts, der auf Zahlen dieser Wallet ruht.
+    """
+
+    if not basis:
+        return None
+    measured = float(basis.get("measured_weight") or 0.0)
+    if measured >= 0.80:
+        quality = "measured"
+    elif measured >= 0.50:
+        quality = "part measured"
+    else:
+        quality = "mostly placeholder"
+    return {
+        "quality": quality,
+        "measured_weight": round(measured, 4),
+        "verdict_allowed": measured >= 0.80,
+    }
+
+
+def leaderboard_scale(ranked: pd.DataFrame | None) -> dict[str, Any]:
+    """Die beiden Schwellen, gegen die der Score das Volumen liest.
+
+    ``copy_volume_score`` ist ``_log_score(volume, floor=ROI_MIN_VOLUME)``:
+    unterhalb des Bodens wird eine Wallet gar nicht erst bewertet, ab dem
+    95. Perzentil der bewerteten Menge steht der Bestandteil auf 100 und
+    weiteres Volumen aendert nichts mehr. Beides sind Eigenschaften der
+    Kohorte, nicht der Wallet, und gehoeren deshalb in die Antwort statt in
+    eine Schaetzung im Frontend.
+    """
+
+    from src.copy_trading import ROI_MIN_VOLUME
+
+    out: dict[str, Any] = {"gate_volume": float(ROI_MIN_VOLUME), "saturates_at": None}
+    if ranked is None or ranked.empty or "volume" not in ranked:
+        return out
+    volume = pd.to_numeric(ranked["volume"], errors="coerce").dropna()
+    if volume.empty:
+        return out
+    out["saturates_at"] = float(volume.quantile(0.95))
+    return out
 
 
 #: Wie viele Trades der Wallet-Seite im Aktivitaetsblock stehen und wie viele

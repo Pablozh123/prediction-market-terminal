@@ -199,9 +199,25 @@ function mitDaten(T) {
   // Leaderboard row as /api/leaderboard delivers it: no win rate, no resolved
   // count (those come per wallet), a smart score with its components, and
   // the raw reason string that must NOT reach the page.
+  // Die Punktwolke braucht mehr als einen bewerteten Punkt und die Kohorten-
+  // Skala aus der Antwort; beides steht hier, damit der Leerdurchgang zeigen
+  // kann, dass ohne Nutzlast kein Diagramm entsteht.
+  T.liveData.leaderboard = {
+    _quelle: 'live', as_of: '2026-08-07',
+    score_scale: { gate_volume: 1000, saturates_at: 5000000 }
+  };
   T.traders = [{
+    name: 'w2', wallet: '0xde…f', walletFull: '0xdef', pnl: 40000, win: null,
+    resolved: null, vol: 2400000, score: 58, grade: 'C',
+    scoreN: 250, scoreCi: [41.5, 76.5], sampleBadge: { quality: 'part measured', measured_weight: 0.65 },
+    scoreParts: [{ label: 'return', value: 70, weight: 0.35, imputed: false },
+      { label: 'win', value: 50, weight: 0.1, imputed: true }],
+    scoreBasis: { measured_weight: 0.65, imputed_weight: 0.35, imputed: ['win'], cohort_n: 250 },
+    tags: ''
+  }, {
     name: 'w1', wallet: '0xab…c', walletFull: '0xabc', pnl: 12000, win: null,
-    resolved: null, vol: 90000, score: 71, grade: 'B', scoreN: null, scoreCi: null, sampleBadge: null,
+    resolved: null, vol: 90000, score: 71, grade: 'B',
+    scoreN: 250, scoreCi: [52.5, 87.5], sampleBadge: { quality: 'part measured', measured_weight: 0.65 },
     // "win" traegt den Ersatzwert 50, den rank_traders_by_smart_score setzt,
     // wenn der Feed keine Trefferquote hat (imputed: true). Er darf nicht als
     // gemessene Zahl erscheinen.
@@ -213,7 +229,6 @@ function mitDaten(T) {
     tags: 'return 90, sharpe-proxy 60, drawdown-proxy 100, win 55, recency 50, volume 80'
   }];
   T.herkunft.traders = { quelle: 'live' };
-  T.liveData.leaderboard = { _quelle: 'live', rows: [], as_of: '2026-08-07' };
   // Two event rows: one in the richer shape of api_views.risk_event_row
   // (side, prices, window, top wallets, components, link) and one older row
   // without those fields, which must still render without invented values.

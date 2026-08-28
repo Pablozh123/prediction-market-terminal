@@ -1342,6 +1342,83 @@ class ScorePartsTests(unittest.TestCase):
         self.assertIsNone(apv.leaderboard_rows(lb, None)[0]["score_basis"])
 
 
+    def test_score_interval_umschliesst_den_gezeigten_score(self) -> None:
+        """Die Spanne ist kein Konfidenzintervall, aber sie haelt den Score.
+
+        ``copy_smart_score`` ist exakt die gewichtete Summe der sechs
+        Bestandteile (``copy_trading.rank_traders_by_smart_score``). Setzt man
+        die geschaetzten auf 0 beziehungsweise 100, entstehen Unter- und
+        Obergrenze, und der gezeigte Score liegt konstruktionsbedingt
+        dazwischen.
+        """
+
+        row = {
+            "copy_return_score": 100.0, "copy_sharpe_proxy": 21.2, "copy_drawdown_proxy": 100.0,
+            "copy_win_score": 50.0, "copy_recency_score": 50.0, "copy_volume_score": 90.0,
+            "copy_score_imputed": "copy_sharpe_proxy,copy_drawdown_proxy,copy_win_score,copy_recency_score",
+        }
+        parts = apv.score_parts(row)
+        lo, hi = apv.score_interval(parts)
+        # gemessen: return 100 * 0.35 + volume 90 * 0.10 = 44.0
+        self.assertAlmostEqual(lo, 44.0)
+        # dazu 55 Prozent offenes Gewicht mal 100 Punkte
+        self.assertAlmostEqual(hi, 99.0)
+        score = (100.0 * 0.35 + 21.2 * 0.20 + 100.0 * 0.15
+                 + 50.0 * 0.10 + 50.0 * 0.10 + 90.0 * 0.10)
+        self.assertGreaterEqual(score, lo)
+        self.assertLessEqual(score, hi)
+        # Ohne Bestandteile keine erfundene Spanne.
+        self.assertIsNone(apv.score_interval([]))
+
+    def test_score_interval_ohne_platzhalter_ist_ein_punkt(self) -> None:
+        parts = [
+            {"label": "return", "value": 80, "weight": 0.5, "imputed": False},
+            {"label": "volume", "value": 40, "weight": 0.5, "imputed": False},
+        ]
+        self.assertEqual(apv.score_interval(parts), [60.0, 60.0])
+
+    def test_sample_badge_nennt_den_gemessenen_anteil(self) -> None:
+        self.assertIsNone(apv.score_sample_badge(None))
+        wenig = apv.score_sample_badge({"measured_weight": 0.45})
+        self.assertEqual(wenig["quality"], "mostly placeholder")
+        self.assertFalse(wenig["verdict_allowed"])
+        mittel = apv.score_sample_badge({"measured_weight": 0.65})
+        self.assertEqual(mittel["quality"], "part measured")
+        viel = apv.score_sample_badge({"measured_weight": 0.9})
+        self.assertEqual(viel["quality"], "measured")
+        self.assertTrue(viel["verdict_allowed"])
+
+    def test_leaderboard_rows_tragen_n_spanne_und_abzeichen(self) -> None:
+        lb = pd.DataFrame([{"trader": "Theo4", "wallet": "0xAAA1111111111111111111", "pnl": 1000.0, "volume": 50000.0}])
+        ranked = pd.DataFrame([{
+            "wallet": "0xaaa1111111111111111111", "copy_smart_score": 73.0, "copy_grade": "B",
+            "copy_return_score": 100.0, "copy_sharpe_proxy": 21.2, "copy_drawdown_proxy": 100.0,
+            "copy_win_score": 50.0, "copy_recency_score": 50.0, "copy_volume_score": 90.0,
+            "copy_score_imputed": "copy_sharpe_proxy,copy_drawdown_proxy,copy_win_score,copy_recency_score",
+        }])
+        row = apv.leaderboard_rows(lb, ranked)[0]
+        self.assertEqual(row["score_n"], 1)
+        self.assertEqual(row["score_ci"], [44.0, 99.0])
+        self.assertEqual(row["sample_badge"]["quality"], "mostly placeholder")
+        # Ohne Ranked-Treffer bleibt jedes der drei Felder leer statt geraten.
+        ohne = apv.leaderboard_rows(lb, None)[0]
+        self.assertIsNone(ohne["score_n"])
+        self.assertIsNone(ohne["score_ci"])
+        self.assertIsNone(ohne["sample_badge"])
+
+    def test_leaderboard_scale_nennt_boden_und_saettigung(self) -> None:
+        """Beide Schwellen sind Eigenschaften der Kohorte, nicht der Wallet."""
+
+        from src.copy_trading import ROI_MIN_VOLUME
+
+        ranked = pd.DataFrame({"volume": [1_000.0 * i for i in range(1, 101)]})
+        skala = apv.leaderboard_scale(ranked)
+        self.assertEqual(skala["gate_volume"], float(ROI_MIN_VOLUME))
+        self.assertAlmostEqual(skala["saturates_at"], float(ranked["volume"].quantile(0.95)))
+        # Ohne Menge keine erfundene Schwelle.
+        leer = apv.leaderboard_scale(pd.DataFrame())
+        self.assertIsNone(leer["saturates_at"])
+
 class RiskEventRowTests(unittest.TestCase):
     """The event card carries side, price, wallets, window, link and components — or honest gaps."""
 
