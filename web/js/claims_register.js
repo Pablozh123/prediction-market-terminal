@@ -48,6 +48,10 @@ export const REGISTER = {
       "de": "Verhaltens-Screen nach bestem Bemuehen ueber oeffentliche Handelsdaten: Rechercheanlaesse, keine juristischen Feststellungen. Ein Flag ist ein Pruefsignal, kein Beweis fuer Fehlverhalten.",
       "en": "A best-effort behavioural screen on public trade data: research leads, not legal findings. A flag is a review signal, not proof of wrongdoing."
     },
+    "insider_score_unvalidated": {
+      "de": "Punktesumme aus neun Flow-Merkmalen mit gesetzten Gewichten, keine Wahrscheinlichkeit fuer Insiderhandel. Der Score wurde nie gegen bestaetigte Faelle gemessen, es gibt fuer ihn also keine Trefferquote.",
+      "en": "A points total over nine flow features with hand-set weights, not a probability of insider trading. The score has never been measured against established cases, so no hit rate exists for it."
+    },
     "backtest_modeled": {
       "de": "Simulation zu historischen Preisen mit Fee- und Slippage-Annahmen. Modellierte Werte, keine realisierten Ergebnisse.",
       "en": "A simulation at historical prices with fee and slippage assumptions. Modeled values, not realized results."

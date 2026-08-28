@@ -1,7 +1,8 @@
 // Leaderboard, Whale flow, Risk screen, Tracked — ported from the design reference.
 
 import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, tapeFenster, fensterSatz } from '../util.js';
-import { caveatZeile } from '../claims.js';
+import { caveat, caveatZeile } from '../claims.js';
+import { scoreBand, bandChips, basisSatz } from '../risk_bands.js';
 import { renderClusterGraphics, clusterFarbe } from './cluster_graphics.js';
 
 const M = "font-family:'IBM Plex Mono',monospace";
@@ -760,7 +761,12 @@ export function renderRiskLog(T) {
 // score taken apart (riskScoreBreakdown: bars, facts, arithmetic) and the
 // per-wallet book lines. The open state lives in T.state.riskOpen[key] so a
 // re-render keeps it.
-const BAND = (score) => score >= 70 ? ['HIGH', 'var(--warn)'] : score >= 55 ? ['MEDIUM', 'var(--warn)'] : score >= 40 ? ['ELEVATED', 'rgba(var(--ink),.7)'] : ['LOW', 'rgba(var(--ink),.6)'];
+// Die Beschriftung des Bandes kommt aus ../risk_bands.js und damit aus
+// app/suspicion.py: HIGH / MEDIUM / ELEVATED / LOW stand neben einer Zahl von
+// 0 bis 100 und las sich als Wahrscheinlichkeit fuer Insiderhandel. Die Zahl
+// ist eine Punktesumme aus neun Flow-Merkmalen mit gesetzten Gewichten, also
+// zaehlen die Baender jetzt getroffene Pruefungen.
+const BAND = (score, T, roh) => scoreBand(score, T && T.liveData ? T.liveData.risk : null, roh);
 
 export function riskEventCard(T, r0) {
   const r = T.riskCardView(r0);
@@ -777,7 +783,7 @@ export function riskEventCard(T, r0) {
   const comps = Array.isArray(r0.components) ? r0.components : [];
   const hatDetails = !!(comps.length || riskBookEntry(T, r0));
   const score = Number(r.score) || 0;
-  const band = BAND(score);
+  const band = BAND(score, T, r0);
   const toggle = hatDetails
     ? '<div data-stop ' + T.act(() => T.setState({ riskOpen: Object.assign({}, s.riskOpen || {}, { [key]: !offen }) })) + ' class="hv-bd32" style="' + M + '; font-size:10.5px; letter-spacing:.06em; color:' + (offen ? 'var(--text)' : 'rgba(var(--ink),.6)') + '; border:1px solid rgba(var(--ink),' + (offen ? '.3' : '.14') + '); border-radius:4px; padding:4px 9px; cursor:pointer; white-space:nowrap; user-select:none">' + (offen ? 'Why ' + score + '? ▴' : 'Why ' + score + '? ▾') + '</div>'
     : '';
@@ -866,10 +872,10 @@ export function renderRisk(T) {
     + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.45)">floor at ' + minScore + '/100</div></div>'
     + trichterZeile('SCREENED', screened, 'rgba(var(--ink),.72)', 'rgba(var(--ink),.18)', 'every market with whale flow in the window')
     + trichterZeile('FLAGGED ≥ ' + minScore, flagged, 'rgba(var(--ink),.72)', 'rgba(var(--ink),.5)', 'cleared the flag threshold — these get cards')
-    + trichterZeile('HIGH ≥ 70', hochEvents, 'var(--warn)', 'var(--warn)', 'strongest insider-like pattern')
+    + trichterZeile('AT 70 AND UP', hochEvents, 'var(--warn)', 'var(--warn)', 'tripped most of the checks')
     + '</div>'
     + '<div style="flex:0 0 280px; display:flex; flex-direction:column; gap:10px">'
-    + seitenKpi('HIGH-RISK WALLETS', kp ? kp.high_risk_wallets : null, true)
+    + seitenKpi('WALLETS AT 70 AND UP', kp ? kp.high_risk_wallets : null, true)
     + seitenKpi('FRESH-WALLET CLUSTERS', kp ? kp.fresh_clusters : null, false)
     + seitenKpi('COORDINATED CLUSTERS', kp ? kp.coordinated_clusters : null, false)
     + '</div></div>';
@@ -889,13 +895,13 @@ export function renderRisk(T) {
       + swatch('var(--warn)', 'price &amp; timing')
       + swatch('var(--accent)', 'wallet pattern')
       + '</div>'
-      + '<div style="font-size:11.5px; color:rgba(var(--ink),.5)">ticks at 40 · 55 · 70 — low → elevated → medium → high · open <span style="' + M + '; font-size:11px">Why?</span> on a card for the full arithmetic</div>'
+      + '<div style="font-size:11.5px; color:rgba(var(--ink),.66)">ticks at 40 · 55 · 70 points · open <span style="' + M + '; font-size:11px">Why?</span> on a card for the full arithmetic</div>'
       + '</div>';
     // The honest empty state: with the threshold in place, "no cards" most
     // often means "everything screened was unremarkable", and the page says
     // exactly that with the numbers, instead of a bare loading sentence.
     const leerSatz = T.risks.length
-      ? 'No event at this severity.'
+      ? 'No event in this band.'
       : (unterZahl > 0
         ? 'All ' + (live && live.kpis ? live.kpis.events_screened : unterZahl) + ' screened markets scored below the flag threshold (' + minScore + ') — nothing suspicious in this window.'
         : risikoSatz);
@@ -905,9 +911,11 @@ export function renderRisk(T) {
     body = '<div>'
       + legende
       + '<div style="display:flex; gap:6px; padding:14px 24px 0; flex-wrap:wrap">'
+      // Die Filter heissen nach der Punktspanne, die sie zeigen. "High" und
+      // "Watch" waren Einschaetzungen fuer eine Zahl, die keine traegt.
       + [T.tab('All', s.riskFilter === 'all', { riskFilter: 'all' }),
-         T.tab('High', s.riskFilter === 'high', { riskFilter: 'high' }),
-         T.tab('Watch', s.riskFilter === 'medium', { riskFilter: 'medium' })].join('')
+         T.tab('70 and up', s.riskFilter === 'high', { riskFilter: 'high' }),
+         T.tab('55–69', s.riskFilter === 'medium', { riskFilter: 'medium' })].join('')
       + '</div>'
       + (riskFiltered.length ? '' : leerZeile(leerSatz))
       + '<div style="padding:18px 24px; display:grid; grid-template-columns:repeat(2,1fr); gap:14px">'
@@ -927,7 +935,8 @@ export function renderRisk(T) {
     body = '<div>'
       + '<div style="padding:14px 24px 0; font-size:12.5px; color:rgba(var(--ink),.62); line-height:1.55; max-width:860px">'
       + 'The flagged flow grouped by the wallet that placed it — the <span style="font-style:italic">who</span> behind the Events tab. '
-      + 'Same 0–100 score and bands as Events: how much this wallet\'s prints look like early knowledge (size, long odds, timing, account freshness). '
+      + 'Same 0–100 point total and the same bands as Events: how many of the screen\'s nine flow checks this wallet\'s prints tripped '
+      + '(size, long odds, timing, account freshness). '
       + 'The chips under each wallet say which patterns fired; <span style="' + M + '; font-size:11.5px">watch only</span> means none did — the wallet is listed for size alone.'
       + '</div>'
       + '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin:14px 24px; overflow:hidden">'
@@ -935,7 +944,7 @@ export function renderRisk(T) {
       + '<div>WALLET · WHY FLAGGED</div><div style="text-align:right">SCORE</div><div style="text-align:right">PRINTS</div><div style="text-align:right">NOTIONAL</div><div style="text-align:right">BIGGEST</div><div style="text-align:right">FIRST SEEN</div></div>'
       + (walletRows.length ? '' : leerZeile(antwortDa ? 'No wallet cleared the screen in this window — nothing in the flagged flow groups to a suspicious wallet.' : risikoSatz))
       + walletRows.map((w) => {
-        const band = BAND(Number(w.score) || 0);
+        const band = BAND(Number(w.score) || 0, T, w);
         const scoreStyle = M + '; font-size:12px; border-radius:4px; padding:3px 9px; ' + (w.score >= 70 ? 'color:var(--on-accent); background:var(--warn)' : w.score >= 55 ? 'color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35)' : 'color:rgba(var(--ink),.7); border:1px solid rgba(var(--ink),.18)');
         const flags = Array.isArray(w.flags) ? w.flags : [];
         const flagChips = flags.map((f) => {
@@ -1085,13 +1094,19 @@ export function renderRisk(T) {
     // api_views.risk_payload; beide lesen jetzt screen_not_proof.
     + caveatZeile('screen_not_proof', {
       nachsatz: 'Sports odds, crypto &amp; market prices, and weather are excluded: game results, exchange prices and weather models cannot be traded on early.',
-      stil: 'font-size:13px; color:rgba(var(--ink),.55); margin-top:10px; max-width:760px; line-height:1.5'
+      stil: 'font-size:13px; color:rgba(var(--ink),.66); margin-top:10px; max-width:760px; line-height:1.5'
     })
+    // Was die Zahl ist, bevor die Baender sie benennen. Der stehende
+    // Vorbehalt kommt aus dem Register (insider_score_unvalidated), der Satz
+    // davor beschreibt die Rechnung und gehoert dieser Seite.
+    + '<div style="font-size:13px; color:rgba(var(--ink),.66); margin-top:8px; max-width:760px; line-height:1.5">'
+    + '<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:rgba(var(--ink),.72)">'
+    + esc(String((live && live.score_name) || 'flow-pattern score').toUpperCase()) + ' · 0–100</span> '
+    + esc(basisSatz(live)) + ' '
+    + caveat('insider_score_unvalidated')
+    + '</div>'
     + '<div style="display:flex; gap:7px; margin-top:12px; flex-wrap:wrap">'
-    + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.12); border-radius:4px; padding:4px 9px">UNDER 40 · LOW</div>'
-    + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.18); border-radius:4px; padding:4px 9px">40–54 · ELEVATED</div>'
-    + '<div style="' + M + '; font-size:11px; color:var(--warn); border:1px solid rgba(var(--warn-rgb),.3); border-radius:4px; padding:4px 9px">55–69 · MEDIUM</div>'
-    + '<div style="' + M + '; font-size:11px; color:var(--on-accent); background:var(--warn); border-radius:4px; padding:4px 9px">70 AND UP · HIGH</div>'
+    + bandChips(live)
     + '</div></div>'
 
     + trichter

@@ -66,6 +66,17 @@ disclaimers:
     surfaces:
       - web/js/pages/trader_pages.js
       - app/api_views.py
+  # The risk screen's 0-100 number. "High" next to it read as a probability
+  # of insider trading; it is a points total over nine flow features whose
+  # weights were chosen by hand and never checked against a case that was
+  # later established. The bands say how many checks fired (app.suspicion
+  # SCORE_BANDS); this entry is the standing sentence that goes with them.
+  insider_score_unvalidated:
+    de: "Punktesumme aus neun Flow-Merkmalen mit gesetzten Gewichten, keine Wahrscheinlichkeit fuer Insiderhandel. Der Score wurde nie gegen bestaetigte Faelle gemessen, es gibt fuer ihn also keine Trefferquote."
+    en: "A points total over nine flow features with hand-set weights, not a probability of insider trading. The score has never been measured against established cases, so no hit rate exists for it."
+    surfaces:
+      - web/js/pages/trader_pages.js
+      - app/api_views.py
   backtest_modeled:
     de: "Simulation zu historischen Preisen mit Fee- und Slippage-Annahmen. Modellierte Werte, keine realisierten Ergebnisse."
     en: "A simulation at historical prices with fee and slippage assumptions. Modeled values, not realized results."

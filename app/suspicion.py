@@ -66,6 +66,173 @@ def screen_thresholds(settings: Any = None) -> tuple[float, float]:
 RISK_BANDS = ((70, "High"), (55, "Medium"), (40, "Elevated"))
 WATCH_ONLY = "watch only"
 
+# --------------------------------------------------------------------------
+# What the number IS, said once, for every surface that shows it.
+#
+# ``RISK_BANDS`` above is the INTERNAL level vocabulary. It is the wire
+# format: ``event_insider_level`` / ``wallet_insider_level`` carry it, the
+# API maps it to ``sev``, the flag log stores it, and the frontend filters
+# on it. It stays as it is.
+#
+# What follows is the DISPLAY vocabulary, and it is a different thing on
+# purpose. "High" next to a number between 0 and 100 reads as a probability
+# of insider trading, and the number is nothing of the kind: it is the sum
+# of nine flow features against fixed point caps, with weights that were
+# chosen rather than estimated, and it has never been measured against a
+# single confirmed case. The bands below therefore count how much of the
+# screen's checklist a row tripped, which is what the arithmetic does.
+# --------------------------------------------------------------------------
+
+#: How the number is named wherever it is shown.
+SCORE_NAME = "flow-pattern score"
+#: The unit. Points against fixed caps, not percent and not probability.
+SCORE_UNIT = "pattern points"
+#: Points at or above which the screen keeps a row (api_views, risk_log).
+FLAG_FLOOR = 40.0
+#: Raw sum of all caps before the clip to 100. Both surfaces reach 110, so a
+#: row can max out several features and still not reach 100 on the others.
+SCORE_RAW_MAX = 110.0
+
+#: (floor, label, tone, what the band means). Ordered high to low; the labels
+#: say how many of the checks fired, never how likely anything is.
+SCORE_BANDS = (
+    (70.0, "MOST PATTERNS", "warn", "tripped most of the screen's checks"),
+    (55.0, "MANY PATTERNS", "warn", "tripped many of them"),
+    (40.0, "SOME PATTERNS", "muted", "cleared the flag floor: gets a card and a log row"),
+    (0.0, "FEW PATTERNS", "quiet", "below the flag floor: counted, not shown as a card"),
+)
+
+#: The nine features the scorer sums, with the caps each one is worth. The
+#: caps ARE the weights, and they were set by hand: nothing in this repo
+#: fitted them, and no column anywhere joins them to an outcome.
+#: (key, name, what goes in, event cap, wallet cap)
+SCORE_FEATURES = (
+    ("notional", "Size of the flow",
+     "dollars traded in the window; full marks at 40x the whale threshold (event) or 20x (wallet)", 15.0, 15.0),
+    ("largest", "Biggest single print",
+     "the largest single trade; full marks at 5x the whale threshold", 10.0, 10.0),
+    ("long_odds", "Long-odds money",
+     "share of the flow placed at 20 cents or below, plus its dollar size", 10.0, 15.0),
+    ("concentration", "Concentration",
+     "share of the flow done by the top wallet (event) or sitting in the top market (wallet)", 15.0, 15.0),
+    ("direction", "One-sided flow",
+     "net YES-versus-NO pressure; counts from 55 percent, full marks at 100", 10.0, 10.0),
+    ("burst", "Speed",
+     "prints per hour in the window; full marks at 30", 15.0, 10.0),
+    ("late", "Late in the market",
+     "share of the flow inside the market's last 48 hours", 15.0, 15.0),
+    ("price_move", "Price moved their way",
+     "first-to-last price change in the flow's direction; full marks at 15 cents", 10.0, 10.0),
+    ("cluster", "Several wallets, or a fresh one",
+     "3 or more wallets at 10+ prints an hour (event); a barely-seen wallet placing a 2x print (wallet)", 10.0, 10.0),
+)
+
+#: Bonuses and multipliers applied AFTER the nine features, in this module.
+SCORE_ADJUSTMENTS = (
+    ("fresh-wallet cluster", "up to +10 points when several barely-seen wallets take the same side"),
+    ("coordinated timing", "up to +10 points when wallets hit one side within minutes"),
+    ("account age", "up to +10 points when a top wallet's real on-chain age is days, not months"),
+    ("context multiplier", "x0.5 to x1.15 by market subject; sports, weather and asset prices are dropped entirely"),
+)
+
+
+def score_band(score: Any) -> dict[str, Any]:
+    """Display band of a score: ``{floor, label, tone, meaning}``.
+
+    Deliberately NOT ``risk_level``: that one answers "which internal level
+    is this" and returns High/Medium/Elevated/Low, which is the wire format.
+    This one answers "what may the screen call it in front of a reader".
+    """
+
+    try:
+        value = float(score or 0.0)
+    except (TypeError, ValueError):
+        value = 0.0
+    if value != value:  # NaN
+        value = 0.0
+    for floor, label, tone, meaning in SCORE_BANDS:
+        if value >= floor:
+            return {"floor": floor, "label": label, "tone": tone, "meaning": meaning}
+    last = SCORE_BANDS[-1]
+    return {"floor": last[0], "label": last[1], "tone": last[2], "meaning": last[3]}
+
+
+def score_band_table() -> list[dict[str, Any]]:
+    """The bands as a legend: ``{from, to, label, tone, meaning}``, low to high."""
+
+    rows: list[dict[str, Any]] = []
+    ordered = sorted(SCORE_BANDS, key=lambda row: row[0])
+    for index, (floor, label, tone, meaning) in enumerate(ordered):
+        upper = ordered[index + 1][0] - 1 if index + 1 < len(ordered) else 100.0
+        rows.append({
+            "from": round(floor), "to": round(upper),
+            "label": label, "tone": tone, "meaning": meaning,
+        })
+    return rows
+
+
+def score_basis() -> dict[str, Any]:
+    """Everything a surface needs to describe the score truthfully.
+
+    One dict, so no page has to restate the arithmetic in its own words and
+    then drift from it. The standing caveat is NOT in here: it lives in
+    data/claims.yaml under ``insider_score_unvalidated`` and is rendered
+    through the register, like every other caveat in this code base.
+    """
+
+    return {
+        "name": SCORE_NAME,
+        "unit": SCORE_UNIT,
+        "scale": {"min": 0, "max": 100, "raw_max": SCORE_RAW_MAX, "clipped_at": 100},
+        "flag_floor": round(FLAG_FLOOR),
+        "weights": (
+            "The caps below are the weights, and they were chosen, not estimated. "
+            "No step in this repository fits them to anything."
+        ),
+        "features": [
+            {"key": key, "name": name, "reads": reads,
+             "cap_event": cap_event, "cap_wallet": cap_wallet}
+            for key, name, reads, cap_event, cap_wallet in SCORE_FEATURES
+        ],
+        "adjustments": [{"name": name, "effect": effect} for name, effect in SCORE_ADJUSTMENTS],
+        "bands": score_band_table(),
+    }
+
+
+#: What would have to exist before a hit rate could be put next to the score.
+#: Written down so the gap is a task, not a shrug.
+SCORE_VALIDATION_MISSING = (
+    "a labelled set of markets where insider trading was later established "
+    "(regulator finding, venue statement, court record), joined to the tape by market key",
+    "the flag log running long enough on a host that keeps it: the screen scores "
+    "every market in every window, so a usable denominator needs months, not a session",
+    "a pre-registered rule for what counts as a hit before the counting starts, "
+    "and a correction for the fact that every market is tested against every rule",
+)
+
+
+def score_validation() -> dict[str, Any]:
+    """What was measured about this score, and what was not.
+
+    ``against_outcome`` is ``None`` and stays ``None`` until the three items
+    in ``SCORE_VALIDATION_MISSING`` exist. ``measured_instead`` points at the
+    one thing the repository does measure about the screen, which is a
+    different quantity and must never be shown as if it were this one.
+    """
+
+    return {
+        "against_outcome": None,
+        "measured_instead": {
+            "quantity": "price of the flagged side at +30 min, +2 h and +24 h after the flag",
+            "source": "/api/risk/log?enrich=1 (app.risk_log.flag_scoreboard)",
+            "reads": (
+                "whether the price followed the flagged side, over the flags this host happened "
+                "to log; it says nothing about who knew what"
+            ),
+        },
+        "missing": list(SCORE_VALIDATION_MISSING),
+    }
+
 # Insider-plausibility context: in some market categories there is nothing to
 # "know" early (game results, weather models, public asset prices) — big flow
 # there is high-roller action, not insider trading. In others the outcome is
