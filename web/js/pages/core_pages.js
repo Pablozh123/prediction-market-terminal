@@ -4,7 +4,7 @@
 // or the panel says which payload is missing.
 
 import { esc, money, num, volume, contracts, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, signedMoney, stempel, EINZAHLUNGEN_USD, offeneNichtDrin, tapeFenster, fensterSatz } from '../util.js';
-import { spiegelZeit, kurzGeld } from '../charts.js';
+import { spiegelZeit, kurzGeld, histogramm } from '../charts.js';
 import { studieAnker } from './microstructure_page.js';
 
 const M = "font-family:'IBM Plex Mono',monospace";
@@ -424,6 +424,52 @@ function kpiCell(label, value, sub, borderRight, signed) {
 }
 
 // ---------------------------------------------------------------- markets
+// Die Preisverteilung des geladenen Ausschnitts.
+//
+// Die Kachelzeile nennt Median-Spread und groessten Tagesmove; die Form
+// dahinter sieht niemand. Sie beantwortet die erste Frage, die ein Bestand
+// von Prediction Markets aufwirft: sind die Maerkte entschieden oder offen?
+// Ein Feld, das sich an den Raendern stapelt, besteht groesstenteils aus
+// Maerkten, in denen nichts mehr zu holen ist.
+//
+// Einheit ist Cent, nicht Dollar: der YES-Preis ist die Chance dieser Seite
+// in Hundertsteln und auf beiden Boersen dieselbe Groesse. Volumen waere es
+// nicht, deshalb steht es nicht in diesem Bild.
+const PREIS_BIN = 5;
+
+export function preisVerteilung(maerkte) {
+  const preise = (maerkte || [])
+    .map((m) => Number(m && m.yes))
+    .filter((v) => v === v && v >= 0 && v <= 100);
+  if (preise.length < 5) return '';
+  const bins = [];
+  for (let von = 0; von < 100; von += PREIS_BIN) {
+    const bis = von + PREIS_BIN;
+    bins.push({
+      von,
+      bis,
+      anzahl: preise.filter((v) => (v >= von && v < bis) || (bis >= 100 && v === 100)).length
+    });
+  }
+  const entschieden = preise.filter((v) => v < 5 || v > 95).length;
+  const offen = preise.filter((v) => v >= 40 && v <= 60).length;
+  const anteil = (n) => Math.round((n / preise.length) * 100);
+  return histogramm({
+    titel: 'WHAT THE SAMPLE BELIEVES',
+    hinweis: num(preise.length) + ' markets with a quoted yes price',
+    xLabel: 'yes price (cents)',
+    yLabel: 'markets in the sample',
+    bins,
+    referenzen: [{ wert: 50, label: '50¢' }],
+    zaehlEinheit: 'markets',
+    xTickText: (v) => v + '¢',
+    hoehe: 180,
+    fussnote: anteil(entschieden) + '% of the sample trades outside 5 to 95 cents, so the crowd treats it as settled; '
+      + anteil(offen) + '% sits between 40 and 60 cents. The yes price is the share price of that side in cents and '
+      + 'means the same thing on both venues, unlike volume, which Polymarket reports in dollars and Kalshi counts in contracts.'
+  });
+}
+
 export function renderMarkets(T) {
   const s = T.state;
   if (!T.markets.length) {
@@ -457,6 +503,7 @@ export function renderMarkets(T) {
     + '<div style="font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(m.title) + '">' + esc(m.title) + '</div>'
     + '<div style="' + M + '; font-size:11.5px; text-align:right; color:rgba(var(--ink),.55)">' + mitte + '</div>'
     + '<div style="' + M + '; font-size:11.5px; text-align:right">' + rechts + '</div></div>';
+  const preisChart = preisVerteilung(T.markets);
   const kpiStrip = '<div style="display:grid; grid-template-columns:repeat(4,1fr); border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; overflow:hidden; background:var(--panel)">'
     + kpiCell('MARKETS IN SAMPLE', num(T.markets.length), pmAnzahl + ' Polymarket · ' + (T.markets.length - pmAnzahl) + ' Kalshi', true)
     + kpiCell('POLYMARKET VOLUME 24H', money(pmVolSample), 'Kalshi trades in contracts: ' + contracts(ksVolSample), true)
@@ -556,6 +603,10 @@ export function renderMarkets(T) {
     // Einblick-Panels (Movers, naechste Aufloesungen, 40–60¢), jede Zeile
     // oeffnet ihren Markt. Alles aus den geladenen Zeilen, nichts erfunden.
     + kpiStrip
+    // Direkt unter der Kachelzeile: die Verteilung, aus der die Kacheln ihre
+    // Kennzahlen ziehen. Ueber dem ganzen geladenen Ausschnitt, nicht ueber
+    // der gefilterten Tabelle, sonst waere es ein Filterergebnis.
+    + (preisChart ? '<div style="margin-top:12px; max-width:700px">' + preisChart + '</div>' : '')
     + einblicke
 
     // VIEW (Cards / Calendar) and QUICK Saved / My positions are gone: the

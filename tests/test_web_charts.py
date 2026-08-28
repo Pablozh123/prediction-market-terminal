@@ -31,7 +31,7 @@ WURZEL = Path(__file__).resolve().parents[1]
 HARNESS = WURZEL / "tests" / "web_render_harness.mjs"
 
 #: Werkzeugseiten, die mit Nutzlast ein Diagramm zeichnen muessen.
-SEITEN_MIT_DIAGRAMM = ("traders", "wallet", "risk")
+SEITEN_MIT_DIAGRAMM = ("traders", "wallet", "risk", "markets_verteilung")
 
 #: Je Seite die Achsenbeschriftungen, die im Klartext dastehen muessen.
 #: Dollar, Cent, Kontrakte und Wahrscheinlichkeiten stehen im Terminal
@@ -40,6 +40,7 @@ ACHSEN_MIT_EINHEIT = {
     "traders": ["smart score (points out of 100)", "volume traded (USD, log)"],
     "wallet": ["at stake (USD)"],
     "risk": ["insider-pattern score (points out of 100)", "markets screened"],
+    "markets_verteilung": ["yes price (cents)", "markets in the sample"],
 }
 
 
@@ -146,6 +147,22 @@ class WebDiagrammTest(unittest.TestCase):
         self.assertIn("flagged, gets a card", html)
         self.assertIn("screened", html)
         self.assertIn("a flag is a review signal, not proof of wrongdoing", html)
+
+    def test_markets_zeigt_die_preisverteilung_in_cent(self) -> None:
+        """Cent, nicht Dollar, und ausdruecklich nicht das Volumen.
+
+        Der YES-Preis ist auf beiden Boersen dieselbe Groesse. Das Volumen
+        ist es nicht (Polymarket meldet Dollar, Kalshi zaehlt Kontrakte,
+        app/venue_units.py), deshalb steht es nicht in diesem Bild, und die
+        Fussnote sagt warum.
+        """
+
+        html = self.ausgabe["live"]["markets_verteilung"]
+        self.assertIn("WHAT THE SAMPLE BELIEVES", html)
+        self.assertIn("yes price (cents)", html)
+        self.assertIn("Kalshi counts in contracts", html)
+        # Ein einzelner Markt ergibt kein Histogramm.
+        self.assertNotIn("WHAT THE SAMPLE BELIEVES", self.ausgabe["live"]["markets"])
 
     def test_punktwolke_faerbt_keinen_text_mit_der_datenfarbe(self) -> None:
         """Text traegt Ink-Stufen, Marken tragen die Serienfarbe."""

@@ -897,6 +897,22 @@ function rendern(T) {
   // Reiter innerhalb einer Seite sind eigene Ansichten mit eigenen
   // Rueckfaellen. Sie werden hier einzeln durchgerendert.
   const varianten = [
+    // Ein groesserer Marktausschnitt, damit die Preisverteilung ueberhaupt
+    // etwas zu verteilen hat. Die eine Beispielzeile der Grundnutzlast ist
+    // absichtlich zu duenn dafuer: aus einem Punkt entsteht kein Histogramm,
+    // und der Test darueber prueft genau das.
+    ['markets_verteilung', 'markets', {}, null, (T) => {
+      if (!(T.herkunft.markets && T.herkunft.markets.quelle === 'live')) return null;
+      const alt = { markets: T.markets, extra: T.marketExtra };
+      const preise = [2, 3, 8, 14, 22, 31, 44, 48, 51, 53, 57, 66, 74, 82, 91, 96, 97, 99];
+      T.markets = preise.map((yes, i) => ({
+        id: 'mv' + i, title: 'Sample market ' + i + '?', venue: i % 3 === 0 ? 'Kalshi' : 'Polymarket',
+        cat: 'Macro', yes, chg: 0, vol: 1000 * (i + 1), liq: 500 * (i + 1), ends: 'Dec 2026', url: ''
+      }));
+      T.marketExtra = {};
+      T.markets.forEach((m) => { T.marketExtra[m.id] = { spread: 2, age: 10, endsDays: 30 }; });
+      return () => { T.markets = alt.markets; T.marketExtra = alt.extra; };
+    }],
     // Ein Lauf mit offenen Kopien: 100 kopierte Zeilen, 60 davon geschlossen
     // (35 gewonnen, 25 verloren), 40 noch offen. Die Trefferquote ist
     // 35/60 = 58 Prozent, nicht 35/100.
