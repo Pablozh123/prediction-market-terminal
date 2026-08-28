@@ -34,6 +34,9 @@ export function renderDetail(T) {
         { label: 'YES', value: m.yes + '¢', style: STAT_VAL },
         { label: 'CHANGE 1D', value: (m.chg >= 0 ? '+' : '') + m.chg + '¢', style: STAT_VAL + '; color:' + (m.chg >= 0 ? 'var(--pos)' : 'var(--neg)') },
         { label: 'VOLUME 24H', value: money(m.vol), style: STAT_VAL },
+        // Getrennt ausgewiesen, nicht als Rueckfall in die Zeile darueber:
+        // Tagesumsatz und Lebensumsatz sind zwei Messungen.
+        { label: 'VOLUME TOTAL', value: m.volTotal ? money(m.volTotal) : '—', style: STAT_VAL },
         // Wie in der Markttabelle: keine gemeldete Liquiditaet ist ein
         // Strich, nicht "$0" — eine Unbekannte darf nicht als gemessene
         // Null auftreten.

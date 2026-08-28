@@ -1025,6 +1025,7 @@ class MarketRecordsTests(unittest.TestCase):
                 "market_key": "0xcond1", "ticker": "0xcond1", "slug": "fed-cuts", "title": "Fed cuts rates",
                 "platform": "Polymarket", "category": "Economics", "filter_category": "Finance",
                 "yes_price": 0.62, "change_1d": 0.03, "volume_24h": 120000.0, "liquidity": 40000.0,
+                "volume": 4200000.0, "activity_volume": 120000.0,
                 "end_time": pd.Timestamp("2026-12-31", tz="UTC"), "url": "https://polymarket.com/event/x",
                 "spread": 0.02, "market_age_days": 40.2,
                 # Ballast, der nicht in die Antwort darf:
@@ -1053,6 +1054,10 @@ class MarketRecordsTests(unittest.TestCase):
             self.assertIn(feld, first)
         self.assertEqual(first["yes_price"], 0.62)
         self.assertTrue(str(first["end_time"]).startswith("2026-12-31"))
+        # Tages- und Lebensvolumen fahren getrennt mit: das Frontend darf das
+        # eine nicht als das andere ausweisen.
+        self.assertEqual(first["volume_24h"], 120000.0)
+        self.assertEqual(first["volume"], 4200000.0)
         # Kompakt: zwei Zeilen unter einem Kilobyte, statt der 8k Ballast oben.
         import json
         self.assertLess(len(json.dumps(rows)), 1200)

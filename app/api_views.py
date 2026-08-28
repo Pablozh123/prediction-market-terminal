@@ -143,7 +143,11 @@ MARKET_FIELDS = (
     "spread",
     "change_1d",
     "volume_24h",
+    # ``activity_volume`` ist ein Hybrid (24h, sonst Gesamtvolumen) und taugt
+    # nur zum Sortieren. Das Frontend zeigt daneben das echte Gesamtvolumen,
+    # damit unter der Ueberschrift "Volume 24h" nur der Tageswert steht.
     "activity_volume",
+    "volume",
     "liquidity",
     "end_time",
     "market_age_days",

@@ -162,7 +162,15 @@ export function mapMarket(r, i) {
     venue: String(r.platform || 'Polymarket'),
     cat: liveCat(r.filter_category || r.category),
     yes, chg,
-    vol: +r.volume_24h || +r.activity_volume || 0,
+    // Nur der Tageswert. Der frühere Rueckfall auf activity_volume (24h,
+    // sonst Gesamtvolumen) setzte das Lebensvolumen unter die Ueberschrift
+    // VOLUME 24H: ein Markt ohne Handel am Tag stand dort mit $4.2m und kam
+    // durch den Filter "24h-Volumen > $1m". Ohne Handel ist der Tageswert
+    // null, und null ist hier die Messung.
+    vol: +r.volume_24h || 0,
+    // Das Lebensvolumen als eigene Zahl, damit es nicht als Tageswert
+    // auftritt und trotzdem nicht verloren geht.
+    volTotal: +r.volume || +r.activity_volume || 0,
     liq: +r.liquidity || 0,
     ends: ends.label,
     url: r.url || '',
