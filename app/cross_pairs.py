@@ -683,15 +683,17 @@ def _touch(levels: Any, best: str) -> tuple[float | None, float | None]:
 
     if levels is None or getattr(levels, "empty", True):
         return None, 0.0
-    preise = pd.to_numeric(levels.get("price"), errors="coerce")
-    groessen = pd.to_numeric(levels.get("size"), errors="coerce")
+    if "price" not in getattr(levels, "columns", ()):
+        return None, 0.0
+    preise = pd.to_numeric(levels["price"], errors="coerce")
+    groessen = (pd.to_numeric(levels["size"], errors="coerce")
+                if "size" in levels.columns else None)
     gueltig = preise.notna()
     if not bool(gueltig.any()):
         return None, 0.0
     position = (preise[gueltig].idxmax() if best == "max" else preise[gueltig].idxmin())
-    groesse = groessen.get(position)
     try:
-        groesse = float(groesse)
+        groesse = float(groessen.get(position)) if groessen is not None else 0.0
     except (TypeError, ValueError):
         groesse = 0.0
     return _quote(preise.get(position)), (groesse if groesse == groesse else 0.0)
@@ -749,11 +751,11 @@ def with_book_depth(
             return None, False
         try:
             bids, asks = leser(schluessel)
+            bid_preis, bid_groesse = _touch(bids, "max")
+            ask_preis, ask_groesse = _touch(asks, "min")
         except Exception as exc:  # noqa: BLE001 - ein Buch weniger ist kein Ausfall
             print(f"[warn] cross depth {schluessel}: {exc}")
             return None, False
-        bid_preis, bid_groesse = _touch(bids, "max")
-        ask_preis, ask_groesse = _touch(asks, "min")
         return {"bid": bid_preis, "ask": ask_preis,
                 "bid_size": bid_groesse, "ask_size": ask_groesse}, True
 

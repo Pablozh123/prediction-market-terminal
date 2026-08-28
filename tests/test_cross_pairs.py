@@ -329,6 +329,20 @@ class BookDepthTests(unittest.TestCase):
         self.assertAlmostEqual(row["gross_edge_cents"], -1.0, places=4)
         self.assertLess(row["net_edge_cents"], 0.0)
 
+    def test_a_book_in_an_unexpected_shape_leaves_the_row_unmeasured(self) -> None:
+        # Ein Buch ohne Groessenspalte ist keine gemessene Tiefe, und ein
+        # Leser, der wirft, auch nicht. Beides darf die Zeile kosten, aber
+        # nicht die Antwort verfaelschen.
+        cand, pm, ks = self._paar()
+        ohne_groesse = (pd.DataFrame([{"price": 0.61}]), pd.DataFrame([{"price": 0.63}]))
+        out = cross_pairs.with_book_depth(
+            cand, pm, ks,
+            pm_book=lambda token: ohne_groesse,
+            ks_book=lambda ticker: _book(0.67, 500.0, 0.69, 500.0))
+        row = out.iloc[0]
+        self.assertTrue(bool(row["depth_checked"]))
+        self.assertEqual(row["size_shares"], 0.0)
+
     def test_nothing_happens_without_a_reader(self) -> None:
         cand, pm, ks = self._paar()
         out = cross_pairs.with_book_depth(cand, pm, ks)
