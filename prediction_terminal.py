@@ -28,6 +28,7 @@ from app import app_settings as cfg
 from app import authz as az
 from app import backtester as btr
 from app import calibration as calib
+from app import claims
 from app import copy_fidelity as cfy
 from app import cross_pairs as cp
 from app import copy_follow as ctf
@@ -45,7 +46,6 @@ from app.format import (
     cents,
     contracts,
     markdown_money,
-    market_title_family_key,
     money,
     money_or_dash,
     pct,
@@ -79,6 +79,22 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+
+# Der einzige Weg, auf dem ein stehender Vorbehalt in diese Oberflaeche
+# kommt. Bis hierher trug der Monolith seine Disclaimer als Prosa, waehrend
+# das Web-Frontend dieselben Saetze schon aus data/claims.yaml las: zwei
+# Fassungen desselben Vorbehalts, und genau daraus sind in diesem Repo
+# mehrfach auseinandergedriftete Dubletten entstanden. Der Name traegt
+# absichtlich dasselbe caveat( wie im Frontend, damit
+# scripts/lint_claims.py beide Oberflaechen mit einer Regel liest.
+#
+# Die Seite besitzt weiter ihren beschreibenden Teil ("was diese Seite
+# tut"); der Vorbehalt daneben gehoert dem Register.
+def caveat(key: str, lang: str = "en") -> str:
+    """Registertext eines Vorbehalts (data/claims.yaml). Unbekannt = ''."""
+
+    return claims.disclaimer(key, lang)
 
 
 ACCENT = "#C8F542"
@@ -891,37 +907,6 @@ def inject_css() -> None:
 inject_css()
 
 
-def related_market_group(markets: pd.DataFrame, current: pd.Series, include_current: bool = True, limit: int = 20) -> pd.DataFrame:
-    if markets.empty:
-        return pd.DataFrame()
-    frame = markets.copy()
-    current_key = str(current.get("market_key", "") or "")
-    event_slug = str(current.get("event_slug", "") or "")
-    if event_slug and "event_slug" in frame:
-        related = frame[frame["event_slug"].astype(str).eq(event_slug)].copy()
-    else:
-        family = market_title_family_key(current.get("title", ""))
-        if not family or "title" not in frame:
-            return pd.DataFrame()
-        frame["_family_key"] = frame["title"].map(market_title_family_key)
-        related = frame[frame["_family_key"].eq(family)].drop(columns=["_family_key"], errors="ignore").copy()
-    if not include_current and current_key and "market_key" in related:
-        related = related[~related["market_key"].astype(str).eq(current_key)]
-    if related.empty:
-        return related
-    related["_end_sort"] = pd.to_datetime(related.get("end_time"), utc=True, errors="coerce")
-    if "activity_volume" not in related:
-        related["activity_volume"] = numeric_col(related, "volume_24h")
-    if "closed" not in related:
-        related["closed"] = False
-    return (
-        related.sort_values(["closed", "_end_sort", "activity_volume"], ascending=[True, True, False], na_position="last")
-        .drop(columns=["_end_sort"], errors="ignore")
-        .head(limit)
-        .reset_index(drop=True)
-    )
-
-
 def short_addr(value: str, width: int = 6) -> str:
     if not value:
         return "-"
@@ -1144,29 +1129,6 @@ def monitor_filter_defaults(query: str = "", rows: int = 100, min_whale_notional
 
 def reset_monitor_filter_widgets(query: str = "", rows: int = 100, min_whale_notional: int = 2500) -> None:
     for key, value in monitor_filter_defaults(query, rows, min_whale_notional).items():
-        st.session_state[key] = value
-
-
-def alert_filter_defaults(query: str = "", rows: int = 100, min_whale_notional: int = 2500) -> dict[str, Any]:
-    return {
-        "alert_search": query,
-        "alert_platforms": ["Polymarket", "Kalshi"],
-        "alert_signal_types": list(MONITOR_SIGNAL_TYPES),
-        "alert_rows": _bounded_int(rows, 100, 25, 250),
-        "alert_hits_only": False,
-        "alert_min_volume": 0,
-        "alert_min_liquidity": 0,
-        "alert_min_move": 3.0,
-        "alert_max_spread": 7.0,
-        "alert_min_whale": max(0, int(min_whale_notional)),
-        "alert_ending_days": 7,
-        "alert_holder_checks": 3,
-        "alert_holder_threshold": 0.25,
-    }
-
-
-def reset_alert_filter_widgets(query: str = "", rows: int = 100, min_whale_notional: int = 2500) -> None:
-    for key, value in alert_filter_defaults(query, rows, min_whale_notional).items():
         st.session_state[key] = value
 
 
@@ -1502,27 +1464,6 @@ def apply_monitor_filter_view_widgets(view: dict[str, Any]) -> None:
         "monitor_ending_days": _bounded_int(view.get("ending_days", defaults["monitor_ending_days"]), 7, 1, 3650),
         "monitor_holder_checks": _bounded_int(view.get("holder_checks", defaults["monitor_holder_checks"]), 6, 0, 20),
         "monitor_holder_threshold": _bounded_float(view.get("holder_threshold", defaults["monitor_holder_threshold"]), 0.25, 0.05, 0.80),
-    }
-    for key, value in values.items():
-        st.session_state[key] = value
-
-
-def apply_alert_filter_view_widgets(view: dict[str, Any]) -> None:
-    defaults = alert_filter_defaults()
-    values = {
-        "alert_search": str(view.get("query", defaults["alert_search"])),
-        "alert_platforms": _choice_list(view.get("platforms", defaults["alert_platforms"]), ["Polymarket", "Kalshi"], defaults["alert_platforms"]),
-        "alert_signal_types": _choice_list(view.get("signal_types", defaults["alert_signal_types"]), MONITOR_SIGNAL_TYPES, defaults["alert_signal_types"]),
-        "alert_rows": _bounded_int(view.get("rows", defaults["alert_rows"]), 100, 25, 250),
-        "alert_hits_only": bool(view.get("hits_only", defaults["alert_hits_only"])),
-        "alert_min_volume": int(_bounded_float(view.get("min_volume", defaults["alert_min_volume"]), 0.0, 0.0, 1_000_000_000.0)),
-        "alert_min_liquidity": int(_bounded_float(view.get("min_liquidity", defaults["alert_min_liquidity"]), 0.0, 0.0, 1_000_000_000.0)),
-        "alert_min_move": _bounded_float(view.get("min_move", defaults["alert_min_move"]), 3.0, 0.0, 100.0),
-        "alert_max_spread": _bounded_float(view.get("max_spread", defaults["alert_max_spread"]), 7.0, 0.1, 100.0),
-        "alert_min_whale": int(_bounded_float(view.get("min_whale", defaults["alert_min_whale"]), 0.0, 0.0, 1_000_000_000.0)),
-        "alert_ending_days": _bounded_int(view.get("ending_days", defaults["alert_ending_days"]), 7, 1, 3650),
-        "alert_holder_checks": _bounded_int(view.get("holder_checks", defaults["alert_holder_checks"]), 3, 0, 20),
-        "alert_holder_threshold": _bounded_float(view.get("holder_threshold", defaults["alert_holder_threshold"]), 0.25, 0.05, 0.80),
     }
     for key, value in values.items():
         st.session_state[key] = value
@@ -1902,8 +1843,6 @@ def init_state() -> None:
         st.session_state.saved_portfolio_filters = load_local_list("saved_portfolio_filters.json")
     if "recent_searches" not in st.session_state:
         st.session_state.recent_searches = load_local_list("recent_searches.json")
-    if "market_comments" not in st.session_state:
-        st.session_state.market_comments = load_local_market_comments()
     if "monitor_rules" not in st.session_state:
         st.session_state.monitor_rules = load_local_monitor_rules()
     if "paper_trade_history" not in st.session_state:
@@ -2037,23 +1976,6 @@ def wallet_activity_summary(activity: pd.DataFrame) -> dict[str, float]:
     }
 
 
-def load_local_market_comments() -> dict[str, list[dict[str, str]]]:
-    path = Path("data/market_comments.json")
-    if not path.exists():
-        return {}
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
-    except (OSError, json.JSONDecodeError):
-        return {}
-
-
-def save_local_market_comments(comments: dict[str, list[dict[str, str]]]) -> None:
-    path = Path("data/market_comments.json")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(comments, indent=2, sort_keys=True), encoding="utf-8")
-
-
 def load_local_monitor_rules() -> list[dict[str, Any]]:
     path = Path("data/monitor_rules.json")
     if not path.exists():
@@ -2161,19 +2083,9 @@ def load_polymarket_book(token_id: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     return md.get_polymarket_orderbook(token_id)
 
 
-@st.cache_data(ttl=45, show_spinner=False)
-def load_kalshi_book(ticker: str) -> tuple[pd.DataFrame, pd.DataFrame]:
-    return md.get_kalshi_orderbook(ticker)
-
-
 @st.cache_data(ttl=180, show_spinner=False)
 def load_holders(market_key: str) -> pd.DataFrame:
     return md.get_polymarket_holders(market_key, limit=80)
-
-
-@st.cache_data(ttl=180, show_spinner=False)
-def load_market_positions(market_key: str, status: str, sort_by: str, limit: int = 100) -> pd.DataFrame:
-    return md.get_polymarket_market_positions(market_key, status=status, sort_by=sort_by, limit=limit)
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -2774,8 +2686,7 @@ with st.sidebar:
     )
     st.markdown(
         "<div class='sidebar-footnote' style='margin-top:0.9rem'>"
-        "Research tool only — no investment advice, no order placement, no venue affiliation. "
-        "Public Polymarket &amp; Kalshi data, provided as-is."
+        f"{html.escape(caveat('research_tool_only'))}"
         f"<br>Last render: {md.now_utc_label()}</div>",
         unsafe_allow_html=True,
     )
@@ -2865,27 +2776,6 @@ def combined_trade_table(poly_trades: pd.DataFrame, kalshi_trades: pd.DataFrame)
     trades = pd.concat(rows, ignore_index=True, sort=False)
     trades = filter_text(trades, global_query)
     return trades.sort_values("time", ascending=False).reset_index(drop=True)
-
-
-def market_top_traders(trades: pd.DataFrame) -> pd.DataFrame:
-    if trades.empty or "wallet" not in trades:
-        return pd.DataFrame()
-    grouped = (
-        trades.groupby(["wallet", "trader"], dropna=False)
-        .agg(
-            trades=("wallet", "size"),
-            notional=("notional", "sum"),
-            avg_trade=("notional", "mean"),
-            largest_trade=("notional", "max"),
-            latest_trade=("time", "max"),
-            buy_notional=("notional", lambda s: float(s[trades.loc[s.index, "side"].astype(str).str.upper().eq("BUY")].sum())),
-            sell_notional=("notional", lambda s: float(s[trades.loc[s.index, "side"].astype(str).str.upper().eq("SELL")].sum())),
-            outcomes=("outcome", lambda s: ", ".join(sorted({str(item) for item in s.dropna().head(4)}))),
-        )
-        .reset_index()
-        .sort_values("notional", ascending=False)
-    )
-    return grouped
 
 
 def wallet_identity(wallet: str, trades: pd.DataFrame) -> str:
@@ -3167,35 +3057,6 @@ def wallet_share_payload(wallet: str, name: str, summary: dict[str, Any], open_p
     return "\n".join(lines)
 
 
-def render_market_news(title: str, key: str) -> None:
-    query = st.text_input("News query", value=title, key=f"news_query_{key}")
-    news = safe_load("Market news", load_market_news, query, 20)
-    if news.empty:
-        draw_empty("No public news results returned for this query.")
-        return
-    st.dataframe(
-        clean_table(news, ["time", "source", "title", "url"]),
-        width="stretch",
-        height=430,
-        column_config={"url": st.column_config.LinkColumn("URL")},
-    )
-
-
-def render_market_comments(market_key: str, title: str) -> None:
-    key = str(market_key or title)
-    comments = st.session_state.market_comments.get(key, [])
-    if comments:
-        st.dataframe(pd.DataFrame(comments), width="stretch", height=240)
-    else:
-        draw_empty("No local comments yet.")
-    note = st.text_area("Add local comment", key=f"comment_text_{key}", height=110, placeholder="Write research notes, links, or thesis updates for this market.")
-    if st.button("Save comment", key=f"save_comment_{key}", width="content") and note.strip():
-        comments.append({"time": md.now_utc_label(), "comment": note.strip()})
-        st.session_state.market_comments[key] = comments
-        save_local_market_comments(st.session_state.market_comments)
-        st.rerun()
-
-
 def execute_research_trade(row: pd.Series, side: str, outcome: str, notional: float, price: float) -> None:
     if notional <= 0 or price <= 0:
         return
@@ -3388,25 +3249,6 @@ def render_research_trade_ticket(row: pd.Series, key_prefix: str = "ticket") -> 
         st.rerun()
 
 
-def render_market_quick_trade_bar(row: pd.Series, market_key: str, selected_outcome: str = "Yes") -> None:
-    st.markdown("#### Quick paper trade")
-    ticket_key = f"market_quick_trade_ticket_{market_key}"
-    quick_cols = st.columns([1, 1, 1.15, 1.2])
-    if quick_cols[0].button(f"YES {cents(row.get('yes_price'))}", key=f"quick_yes_{market_key}", width="stretch"):
-        st.session_state[ticket_key] = md.market_quick_trade_ticket(row, "Yes")
-        st.info("YES paper ticket staged below.")
-    if quick_cols[1].button(f"NO {cents(row.get('no_price'))}", key=f"quick_no_{market_key}", width="stretch"):
-        st.session_state[ticket_key] = md.market_quick_trade_ticket(row, "No")
-        st.info("NO paper ticket staged below.")
-    if quick_cols[2].button("TRADE NOW (paper)", type="primary", key=f"quick_trade_now_{market_key}", width="stretch"):
-        st.session_state[ticket_key] = md.market_quick_trade_ticket(row, selected_outcome)
-        st.info(f"{selected_outcome} paper ticket staged below.")
-    quick_cols[3].link_button("Open venue", row.get("url", "https://polymarket.com"), width="stretch")
-    if ticket_key in st.session_state:
-        with st.expander("Quick paper ticket", expanded=True):
-            render_research_trade_ticket(pd.Series(st.session_state[ticket_key]), key_prefix="market_quick_trade")
-
-
 def _history_window_config(label: str) -> tuple[int, pd.Timedelta | None, str, str]:
     mapping = {
         "1hr": (1, pd.Timedelta(hours=1), "1h", "5min"),
@@ -3525,52 +3367,6 @@ def render_featured_market(row: pd.Series, position_label: str = "") -> None:
             st.plotly_chart(fig, width="stretch", config=plot_config())
     with st.expander("Trade Now (paper)", expanded=False):
         render_research_trade_ticket(row)
-
-
-def render_price_history_chart(hist: pd.DataFrame, chart_type: str, candle_rule: str, y_col: str = "price", label: str = "Yes price") -> None:
-    if hist.empty:
-        draw_empty("No price history returned for this selection.")
-        return
-    if chart_type == "Candlestick":
-        candles = hist.set_index("time")[y_col].resample(candle_rule).ohlc().dropna().reset_index()
-        if candles.empty:
-            draw_empty("Not enough price points for candlesticks in this window.")
-            return
-        fig = go.Figure(
-            data=[
-                go.Candlestick(
-                    x=candles["time"],
-                    open=candles["open"],
-                    high=candles["high"],
-                    low=candles["low"],
-                    close=candles["close"],
-                    increasing_line_color=ACCENT,
-                    decreasing_line_color=RED,
-                    name=label,
-                )
-            ]
-        )
-        fig.update_layout(height=360, margin=dict(l=10, r=10, t=20, b=10), paper_bgcolor=BG, plot_bgcolor=BG, template="plotly_dark")
-        st.plotly_chart(fig, width="stretch", config=plot_config())
-        return
-    fig = px.line(hist, x="time", y=y_col, template="plotly_dark", labels={y_col: label})
-    fig.update_traces(line_color=ACCENT, line_width=2)
-    fig.update_layout(height=360, margin=dict(l=10, r=10, t=20, b=10), paper_bgcolor=BG, plot_bgcolor=BG)
-    st.plotly_chart(fig, width="stretch", config=plot_config())
-
-
-def _holder_outcome_label(holder: pd.Series, yes_asset: str, no_asset: str) -> str:
-    asset = str(holder.get("asset", ""))
-    if yes_asset and asset == yes_asset:
-        return "Yes"
-    if no_asset and asset == no_asset:
-        return "No"
-    index = str(holder.get("outcome_index", ""))
-    if index in {"0", "0.0"}:
-        return "Yes"
-    if index in {"1", "1.0"}:
-        return "No"
-    return "Unknown"
 
 
 def enrich_market_holders(holders: pd.DataFrame, trades: pd.DataFrame, yes_price: Any, no_price: Any) -> pd.DataFrame:
@@ -3703,40 +3499,6 @@ def holder_strength_summary(holders: pd.DataFrame) -> dict[str, Any]:
     }
 
 
-def render_holder_bubble_chart(display: pd.DataFrame, height: int = 330) -> None:
-    if display.empty:
-        draw_empty("No holders match the current bubble chart filter.")
-        return
-    bubble = display.head(150).copy()
-    for col, default in {"wallet": "", "trader": "", "shares": 0.0, "avg_price_est": pd.NA, "unrealized_pnl_est": pd.NA, "activity": "", "verified": False}.items():
-        if col not in bubble:
-            bubble[col] = default
-    bubble["wallet_short"] = bubble["wallet"].astype(str).map(short_addr)
-    fig = px.scatter(
-        bubble,
-        x="outcome",
-        y="value",
-        size="shares",
-        color="outcome",
-        hover_data=["trader", "wallet_short", "shares", "avg_price_est", "unrealized_pnl_est", "activity", "verified"],
-        template="plotly_dark",
-        color_discrete_map={"Yes": ACCENT, "No": RED, "Unknown": MUTED},
-    )
-    fig.update_layout(height=height, margin=dict(l=10, r=10, t=15, b=10), paper_bgcolor=BG, plot_bgcolor=BG)
-    st.plotly_chart(fig, width="stretch", config=plot_config())
-
-
-@st.dialog("Holder Bubble Chart", width="large")
-def render_holder_bubble_dialog(display: pd.DataFrame, title: str) -> None:
-    st.caption(title)
-    summary = holder_strength_summary(display)
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Dominant side", str(summary["dominant_side"]), pct(summary["dominant_share"]))
-    c2.metric("Top 10 share", pct(summary["top_10_share"]))
-    c3.metric("Displayed value", money(summary["total_value"]))
-    render_holder_bubble_chart(display, height=560)
-
-
 def trader_insight_metrics(
     open_positions: pd.DataFrame,
     closed_positions: pd.DataFrame,
@@ -3792,12 +3554,12 @@ def trader_insight_metrics(
 
 def page_overview() -> None:
     st.markdown(
-        """
+        f"""
         <div class='hero'>
             <span class='hero-badge'><span class='live-dot'></span>Live · public on-chain data</span>
             <div class='hero-title'>Read the market <em>like the whales do.</em></div>
             <div class='hero-sub'>Whale prints, insider-risk screens, coordinated wallet clusters and copy-trade backtests —
-            one terminal for Polymarket and Kalshi. No signup, no orders placed, pure research.</div>
+            one terminal for Polymarket and Kalshi. {html.escape(caveat('no_signup_no_orders'))}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -4675,148 +4437,8 @@ def page_search() -> None:
                 st.dataframe(tracked_wallets, width="stretch", height=330)
 
 
-def render_related_markets(row: pd.Series, market_universe: pd.DataFrame | None = None) -> None:
-    if market_universe is None or market_universe.empty:
-        return
-    current_key = str(row.get("market_key", "") or "")
-    related = related_market_group(market_universe, row, include_current=True, limit=16)
-    if len(related) <= 1:
-        return
-    closed_related = pd.DataFrame()
-    if row.get("platform") == "Polymarket":
-        closed = safe_load("Resolved related markets", load_closed_markets, 250, default=pd.DataFrame())
-        if not closed.empty:
-            closed_related = related_market_group(closed, row, include_current=False, limit=40)
-
-    st.markdown("#### Related markets")
-    r1, r2, r3 = st.columns(3)
-    active_count = int((~bool_mask(related.get("closed", pd.Series(False, index=related.index)), False)).sum())
-    r1.metric("Related active", f"{active_count:,}")
-    r2.metric("Resolved siblings", f"{len(closed_related):,}")
-    # Eine Titel-Familie kann Maerkte beider Venues enthalten, und deren
-    # Volumenspalten stehen in verschiedenen Einheiten (app/venue_units.py).
-    gruppe_je_einheit = vu.volume_by_unit(related.get("platform", []),
-                                          numeric_col(related, "activity_volume"))
-    r3.metric("Group volume", money(gruppe_je_einheit.get(vu.USD, 0.0)),
-              f"Kalshi {contracts(gruppe_je_einheit.get(vu.CONTRACTS, 0.0))}")
-
-    preview = related.copy()
-    preview["selected"] = preview["market_key"].astype(str).eq(current_key)
-    preview["price"] = numeric_col(preview, "yes_price")
-    preview["end"] = pd.to_datetime(preview.get("end_time"), utc=True, errors="coerce").dt.strftime("%Y-%m-%d").fillna("-")
-    preview["status"] = bool_mask(preview.get("closed", pd.Series(False, index=preview.index)), False).map(lambda value: "Resolved" if bool(value) else "Active")
-    for chunk_start in range(0, len(preview.head(12)), 4):
-        cols = st.columns(4)
-        for col, (_, item) in zip(cols, preview.head(12).iloc[chunk_start : chunk_start + 4].iterrows()):
-            with col:
-                with st.container(border=True):
-                    st.caption(str(item.get("status", "Active")))
-                    st.markdown(f"**{str(item.get('title', '-'))[:75]}**")
-                    st.metric("Yes", cents(item.get("price")), signed_cents(item.get("change_1d", 0.0)))
-                    st.caption(f"End {item.get('end', '-')} | Vol {vu.format_volume(item.get('activity_volume', 0.0), item.get('platform'))}")
-                    if bool(item.get("selected", False)):
-                        st.caption("Current market")
-                    elif st.button("Inspect", key=f"related_inspect_{item.get('market_key')}", width="stretch"):
-                        st.session_state["markets_inspect_market_key"] = str(item.get("market_key", ""))
-                        st.rerun()
-                    if item.get("url"):
-                        st.link_button("Open venue", str(item.get("url")), width="stretch")
-
-    with st.expander("Related market table", expanded=False):
-        table = clean_table(
-            preview,
-            ["selected", "status", "title", "yes_price", "no_price", "spread", "activity_volume", "volume_1h", "liquidity", "end", "url", "market_key"],
-        )
-        st.dataframe(
-            table,
-            width="stretch",
-            height=260,
-            column_config={
-                "yes_price": st.column_config.NumberColumn("Yes", format="%.3f"),
-                "no_price": st.column_config.NumberColumn("No", format="%.3f"),
-                "spread": st.column_config.NumberColumn(format="%.3f"),
-                # Die Gruppe kann beide Venues mischen; ein Spaltenformat
-                # gilt fuer jede Zeile, also kein Dollarzeichen.
-                "activity_volume": st.column_config.NumberColumn("Volume (venue unit)", format="%.0f"),
-                "volume_1h": st.column_config.NumberColumn("Vol 1h (venue unit)", format="%.0f"),
-                "liquidity": st.column_config.NumberColumn(format="$%.0f"),
-                "url": st.column_config.LinkColumn("URL"),
-            },
-        )
-    if not closed_related.empty:
-        with st.expander("Resolved siblings", expanded=False):
-            closed_display = closed_related.copy()
-            closed_display["closed_date"] = pd.to_datetime(closed_display.get("closed_time"), utc=True, errors="coerce").dt.strftime("%Y-%m-%d").fillna("-")
-            st.dataframe(
-                clean_table(closed_display, ["closed_date", "title", "resolved_outcome", "final_yes_price", "volume", "url"]),
-                width="stretch",
-                height=220,
-                column_config={
-                    "final_yes_price": st.column_config.NumberColumn("Final Yes", format="%.3f"),
-                    "volume": st.column_config.NumberColumn(format="$%.0f"),
-                    "url": st.column_config.LinkColumn("URL"),
-                },
-            )
-
-
-def render_market_series_strip(row: pd.Series, market_universe: pd.DataFrame | None = None) -> None:
-    """Render a quick selector for sibling contracts of the same event."""
-
-    if market_universe is None or market_universe.empty:
-        return
-    current_key = str(row.get("market_key", "") or "")
-    related = related_market_group(market_universe, row, include_current=True, limit=8)
-    if len(related) <= 1:
-        return
-
-    closed_related = pd.DataFrame()
-    if row.get("platform") == "Polymarket":
-        closed = safe_load("Resolved related markets", load_closed_markets, 250, default=pd.DataFrame())
-        if not closed.empty:
-            closed_related = related_market_group(closed, row, include_current=False, limit=40)
-
-    strip_key = re.sub(r"[^a-zA-Z0-9]+", "_", current_key).strip("_")[:48] or "market"
-    show_resolved_key = f"show_resolved_series_{strip_key}"
-    st.markdown("#### Related contracts")
-    related_preview = related.head(6).copy()
-    cols = st.columns(len(related_preview) + (1 if not closed_related.empty else 0))
-    for idx, (_, item) in enumerate(related_preview.iterrows()):
-        item_key = str(item.get("market_key", "") or "")
-        end_time = pd.to_datetime(item.get("end_time"), utc=True, errors="coerce")
-        if pd.notna(end_time):
-            label = end_time.strftime("%b %d").replace(" 0", " ")
-        else:
-            label = str(item.get("title", "Contract"))[:18]
-        price_label = cents(item.get("yes_price"))
-        button_label = f"{label} {price_label}"
-        if item_key == current_key:
-            cols[idx].markdown(f"**{button_label}**")
-            cols[idx].caption("Current")
-        elif cols[idx].button(button_label, key=f"series_open_{strip_key}_{idx}", width="stretch"):
-            st.session_state["markets_inspect_market_key"] = item_key
-            st.rerun()
-    if not closed_related.empty:
-        resolved_col = cols[-1]
-        if resolved_col.button(f"+{len(closed_related)} resolved", key=f"series_resolved_{strip_key}", width="stretch"):
-            st.session_state[show_resolved_key] = not bool(st.session_state.get(show_resolved_key, False))
-            st.rerun()
-    if st.session_state.get(show_resolved_key, False) and not closed_related.empty:
-        closed_display = closed_related.copy()
-        closed_display["closed_date"] = pd.to_datetime(closed_display.get("closed_time"), utc=True, errors="coerce").dt.strftime("%Y-%m-%d").fillna("-")
-        st.dataframe(
-            clean_table(closed_display, ["closed_date", "title", "resolved_outcome", "final_yes_price", "volume", "url"]),
-            width="stretch",
-            height=220,
-            column_config={
-                "final_yes_price": st.column_config.NumberColumn("Final Yes", format="%.3f"),
-                "volume": st.column_config.NumberColumn(format="$%.0f"),
-                "url": st.column_config.LinkColumn("URL"),
-            },
-        )
-
-
 def page_markets() -> None:
-    section_header("Markets", "Market scanner with saved views, quick filters, table/card/calendar modes, and full market drilldown.")
+    section_header("Markets", "Market scanner with saved views, quick filters, table/card/calendar modes, and a who's-trading panel per market.")
     pm, ks, combined = load_market_universe()
     if combined.empty:
         draw_empty("No market data returned.")
@@ -5587,7 +5209,7 @@ def render_track_record(
                 f"{edge_rep['n_events']:,}",
                 help=f"{edge_rep['n_positions']:,} resolved positions netted to {edge_rep['n_events']:,} independent events.",
             )
-            st.caption(f"{edge_rep['headline']} Past record, not a forecast.")
+            st.caption(f"{edge_rep['headline']} {caveat('past_not_forecast')}")
         attribution = trec.pnl_attribution(resolved)
         if attribution["structural_share"] is not None:
             st.divider()
@@ -6390,7 +6012,7 @@ def render_pnl_vs_skill(leaderboard: pd.DataFrame) -> None:
         st.caption(
             "Skill score corrects the four naive-leaderboard errors (leg inflation, winner-only PnL, wash volume, survivorship) "
             "and penalises one-hit concentration. Verdicts read the realized-edge CI against zero — most records, including "
-            "profitable ones, are not separable from chance on public data. Diagnostics, not advice."
+            f"profitable ones, are not separable from chance on public data. {caveat('diagnostic_not_advice')}"
         )
 
 
@@ -7518,10 +7140,6 @@ def whale_filter_row(label: str, options: list[str], key: str, help_text: str | 
     label_col, control_col = st.columns([1, 4])
     label_col.markdown(f"**{label}**")
     return control_col.radio(label, options, horizontal=True, key=key, label_visibility="collapsed", help=help_text)
-
-
-def whale_custom_number(label: str, key: str, value: float = 0.0, step: float = 1.0) -> float:
-    return st.number_input(label, min_value=0.0, value=float(value), step=float(step), key=key)
 
 
 def whale_pct_threshold(preset: str, custom_pct: float, defaults: dict[str, float] | None = None) -> float | None:
@@ -8895,7 +8513,7 @@ def page_cross_venue() -> None:
             st.session_state.watchlist.append(item)
             save_local_list("watchlist.json", st.session_state.watchlist)
             st.success("Kalshi leg added to watchlist.")
-    st.caption("Price gaps are research leads, not guaranteed arbitrage. Resolution rules, fees, settlement timing, and access restrictions can break apparent parity.")
+    st.caption(caveat("parity_not_arbitrage"))
 
 
 MONITOR_SIGNAL_TYPES = ["Fast mover", "Volume anomaly", "Whale print", "Tight spread", "Holder concentration", "Ending soon", "Watched market"]
@@ -10532,7 +10150,7 @@ def page_copy_trade() -> None:
         "Copy Trade",
         "Paper-only Swisstony copier with dynamic wallet-relative sizing and settlement recycling.",
     )
-    st.info("Paper mode only. This page observes public Polymarket wallet activity and does not place real orders.")
+    st.info(f"This page observes public Polymarket wallet activity. {caveat('paper_desk_only')}")
 
     controls = st.columns([1, 1, 1, 1, 1])
     if controls[0].button("Sync now", type="primary", width="stretch"):
@@ -12331,8 +11949,10 @@ def page_suspicious() -> None:
         "Markets and wallets with insider-like flow — long-odds size, late timing, fresh-wallet clusters, one-sided pressure.",
         kicker="Suspicious · Risk screen",
     )
+    # Nur der Vorbehalt kommt aus dem Register; die Score-Baender daneben
+    # sind eine Beschriftung des Scores und bleiben unveraendert.
     st.markdown(
-        "<div class='field-hint'>Best-effort screen on public trade data — research leads, not legal findings. "
+        f"<div class='field-hint'>{html.escape(caveat('screen_not_proof'))} "
         "Score bands: &lt;40 low · 40–54 elevated · 55–69 medium · ≥70 high.</div>",
         unsafe_allow_html=True,
     )
@@ -12988,10 +12608,12 @@ def _esc(value: Any) -> str:
 
 def render_analysis_footer() -> None:
     st.divider()
+    # "Read-only" ist die Eigenschaft dieses Laufs und gehoert der Seite; die
+    # beiden Vorbehalte daneben sind die Grundsaetze, die bisher nur als Text
+    # in public/data/meta.json standen und jetzt im Register stehen.
     st.markdown(
-        "<div class='small-note'>Descriptive analysis from a daily, read-only "
-        "data run. No trading advice, no financial advice, no return "
-        "claims.</div>",
+        "<div class='small-note'>Read-only. "
+        f"{_esc(caveat('daily_run_descriptive'))} {_esc(caveat('daily_run_no_advice'))}</div>",
         unsafe_allow_html=True,
     )
 
@@ -13350,7 +12972,7 @@ def page_mentions_latenz() -> None:
 def page_pipeline_forward() -> None:
     section_header(
         "Pipeline Forward Test",
-        "Observing paper run of the decision pipeline -- no orders, no return claims.",
+        f"Observing paper run of the decision pipeline. {caveat('paper_log_no_return_claim')}",
         kicker="Daily research artifacts",
     )
     payload = load_publish_payload_cached("pipeline_forward.json")
@@ -14187,9 +13809,9 @@ def page_live_runs() -> None:
                 },
             )
             st.caption(
-                "Replay of the recorded bets under a different stake rule — a what-if on history, "
-                "not a forecast. Missed chances are listed per run above but cannot be simulated: "
-                "they never filled, so they have no recorded outcome."
+                "Replay of the recorded bets under a different stake rule, a what-if on history. "
+                f"{caveat('past_not_forecast')} Missed chances are listed per run above but cannot "
+                "be simulated: they never filled, so they have no recorded outcome."
             )
 
         with st.expander("Kelly & Bayes toolkit — size a live market by hand"):
@@ -14229,12 +13851,26 @@ def page_methodik() -> None:
         render_analysis_footer()
         return
     st.markdown("#### Principles")
-    disclaimer = meta.get("disclaimer") or []
-    if isinstance(disclaimer, dict):  # aeltere Publish-Version
-        disclaimer = list(disclaimer.values())
-    for text in disclaimer:
+    # Die vier Grundsaetze standen als Textzeilen in public/data/meta.json,
+    # geschrieben vom taeglichen Lauf in einem anderen Repo. Jetzt kommen sie
+    # aus dem Register, damit dieselbe Zusage im Web-Frontend und hier
+    # denselben Wortlaut hat. Was der Publisher darueber hinaus schickt,
+    # steht weiter darunter: eine Zeile, die das Register nicht kennt, soll
+    # sichtbar werden und nicht verschwinden.
+    for text in (
+        caveat("daily_run_descriptive"),
+        caveat("verification_not_signal"),
+        caveat("daily_run_no_advice"),
+        caveat("daily_run_privacy"),
+    ):
         with st.container(border=True):
-            st.caption(str(text))
+            st.caption(text)
+    published = meta.get("disclaimer") or []
+    if isinstance(published, dict):  # aeltere Publish-Version
+        published = list(published.values())
+    for text in claims.unregistered_texts(published):
+        with st.container(border=True):
+            st.caption(text)
     st.markdown("#### Guardrails of the agent run")
     st.markdown(
         "- Agents read exclusively through the MCP read layer: four read-only tools, "

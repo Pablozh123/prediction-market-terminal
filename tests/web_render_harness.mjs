@@ -57,7 +57,7 @@ function neuesT() {
       btExposure: 50, btBankroll: 1000, btFee: 20, btSlip: 15, btCompare: '', btTab: 'log',
       btFeeModel: 'curve',
       advancedOpen: false, sizingSimOpen: false, researchTab: 0, liveTab: 'runs',
-      walletAddr: '', walletInput: '', walletRecent: [], walletPosSort: 'value', walletTab: 'overview', walletTreemap: 'all', walletSimilarQuery: '',
+      walletAddr: '', walletInput: '', walletRecent: [], walletPosSort: 'value', walletTab: 'overview', walletTreemap: 'all', walletPosView: 'bars', walletSimilarQuery: '',
       alertsOn: { movers: true, volume: true, whales: true, spreads: false, holders: false, endings: true },
       settingsOn: { telegram: true, autotop: false, kalshi: true, sports: false, cache: true, admin: true },
       clock: '00:00', live: 'waiting', liveAsOf: '', tapeAsOf: ''
@@ -199,9 +199,25 @@ function mitDaten(T) {
   // Leaderboard row as /api/leaderboard delivers it: no win rate, no resolved
   // count (those come per wallet), a smart score with its components, and
   // the raw reason string that must NOT reach the page.
+  // Die Punktwolke braucht mehr als einen bewerteten Punkt und die Kohorten-
+  // Skala aus der Antwort; beides steht hier, damit der Leerdurchgang zeigen
+  // kann, dass ohne Nutzlast kein Diagramm entsteht.
+  T.liveData.leaderboard = {
+    _quelle: 'live', as_of: '2026-08-07',
+    score_scale: { gate_volume: 1000, saturates_at: 5000000 }
+  };
   T.traders = [{
+    name: 'w2', wallet: '0xde…f', walletFull: '0xdef', pnl: 40000, win: null,
+    resolved: null, vol: 2400000, score: 58, grade: 'C',
+    scoreN: 250, scoreCi: [41.5, 76.5], sampleBadge: { quality: 'part measured', measured_weight: 0.65 },
+    scoreParts: [{ label: 'return', value: 70, weight: 0.35, imputed: false },
+      { label: 'win', value: 50, weight: 0.1, imputed: true }],
+    scoreBasis: { measured_weight: 0.65, imputed_weight: 0.35, imputed: ['win'], cohort_n: 250 },
+    tags: ''
+  }, {
     name: 'w1', wallet: '0xab…c', walletFull: '0xabc', pnl: 12000, win: null,
-    resolved: null, vol: 90000, score: 71, grade: 'B', scoreN: null, scoreCi: null, sampleBadge: null,
+    resolved: null, vol: 90000, score: 71, grade: 'B',
+    scoreN: 250, scoreCi: [52.5, 87.5], sampleBadge: { quality: 'part measured', measured_weight: 0.65 },
     // "win" traegt den Ersatzwert 50, den rank_traders_by_smart_score setzt,
     // wenn der Feed keine Trefferquote hat (imputed: true). Er darf nicht als
     // gemessene Zahl erscheinen.
@@ -213,7 +229,6 @@ function mitDaten(T) {
     tags: 'return 90, sharpe-proxy 60, drawdown-proxy 100, win 55, recency 50, volume 80'
   }];
   T.herkunft.traders = { quelle: 'live' };
-  T.liveData.leaderboard = { _quelle: 'live', rows: [], as_of: '2026-08-07' };
   // Two event rows: one in the richer shape of api_views.risk_event_row
   // (side, prices, window, top wallets, components, link) and one older row
   // without those fields, which must still render without invented values.
@@ -263,6 +278,15 @@ function mitDaten(T) {
     event_min_score: 40,
     events_below_min: 7,
     kpis: { events_screened: 9, events_flagged: 2, high_risk_events: 1, high_risk_wallets: 2, fresh_clusters: 1, coordinated_clusters: 1 },
+    // Die Verteilung aller gescorten Maerkte (api_views.risk_score_bins):
+    // neun Maerkte, zwei davon ueber der Flag-Schwelle 40.
+    score_bins: [
+      { von: 0, bis: 10, anzahl: 2, geflaggt: 0 }, { von: 10, bis: 20, anzahl: 3, geflaggt: 0 },
+      { von: 20, bis: 30, anzahl: 1, geflaggt: 0 }, { von: 30, bis: 40, anzahl: 1, geflaggt: 0 },
+      { von: 40, bis: 50, anzahl: 1, geflaggt: 1 }, { von: 50, bis: 60, anzahl: 0, geflaggt: 0 },
+      { von: 60, bis: 70, anzahl: 0, geflaggt: 0 }, { von: 70, bis: 80, anzahl: 1, geflaggt: 1 },
+      { von: 80, bis: 90, anzahl: 0, geflaggt: 0 }, { von: 90, bis: 100, anzahl: 0, geflaggt: 0 }
+    ],
     wallets: [{
       wallet: 'quietwhale', address: '0xdd10000000000000000000000000000000000001',
       context: 'Xi Jinping out before 2027?', score: 71,
@@ -588,6 +612,10 @@ function mitDaten(T) {
       // und +$18 aus den drei aufgeloesten: 30 Prozent auf den aufgeloesten
       // Einsatz, nicht 18 Prozent auf alles.
       monthly: [{ month: '2026-07', runs: 2, bets: 5, stake: 100, net: 18, settled_bets: 3, settled_stake: 60 }],
+      // Trefferquote mit 95-Prozent-Wilson-Spanne, wie
+      // api_views.live_runs_win_rate sie rechnet: 2 von 3 Bot-Maerkten des
+      // Ledgers gewonnen (worthless zaehlt als verloren).
+      win_rate: { source: 'wallet ledger', wins: 2, losses: 1, n: 3, p: 0.6667, ci95: [0.2077, 0.9385] },
       wallet_ledger: {
         hinweis: 'Harness ledger note.', stand_utc: '2026-08-17T01:02:03+00:00',
         wallet: '0x29afe1bf37700768a640a08f1b35dad5f202f88d', kennzeichnung: 'wallet/public-api',
@@ -873,6 +901,22 @@ function rendern(T) {
   // Reiter innerhalb einer Seite sind eigene Ansichten mit eigenen
   // Rueckfaellen. Sie werden hier einzeln durchgerendert.
   const varianten = [
+    // Ein groesserer Marktausschnitt, damit die Preisverteilung ueberhaupt
+    // etwas zu verteilen hat. Die eine Beispielzeile der Grundnutzlast ist
+    // absichtlich zu duenn dafuer: aus einem Punkt entsteht kein Histogramm,
+    // und der Test darueber prueft genau das.
+    ['markets_verteilung', 'markets', {}, null, (T) => {
+      if (!(T.herkunft.markets && T.herkunft.markets.quelle === 'live')) return null;
+      const alt = { markets: T.markets, extra: T.marketExtra };
+      const preise = [2, 3, 8, 14, 22, 31, 44, 48, 51, 53, 57, 66, 74, 82, 91, 96, 97, 99];
+      T.markets = preise.map((yes, i) => ({
+        id: 'mv' + i, title: 'Sample market ' + i + '?', venue: i % 3 === 0 ? 'Kalshi' : 'Polymarket',
+        cat: 'Macro', yes, chg: 0, vol: 1000 * (i + 1), liq: 500 * (i + 1), ends: 'Dec 2026', url: ''
+      }));
+      T.marketExtra = {};
+      T.markets.forEach((m) => { T.marketExtra[m.id] = { spread: 2, age: 10, endsDays: 30 }; });
+      return () => { T.markets = alt.markets; T.marketExtra = alt.extra; };
+    }],
     // Ein Lauf mit offenen Kopien: 100 kopierte Zeilen, 60 davon geschlossen
     // (35 gewonnen, 25 verloren), 40 noch offen. Die Trefferquote ist
     // 35/60 = 58 Prozent, nicht 35/100.
@@ -889,7 +933,19 @@ function rendern(T) {
           max_drawdown: -0.08, window_truncated: false, effective_start: '',
           skip_reasons: { out_of_cash: 2, exposure_cap: 2, no_position: 0, bad_data: 0, other: 0 }
         },
-        equity: [1000, 1050], benchmark: [1000, 1010], drawdown: [0, -0.08], log: []
+        equity: [1000, 1050], benchmark: [1000, 1010], drawdown: [0, -0.08], log: [],
+        // api_views.trade_pnl_distribution ueber 60 geschlossene Kopien:
+        // die drei groessten Gewinner tragen 45 von 120 Dollar Bruttogewinn.
+        trade_pnl: {
+          unit: 'USD', n: 60, best: 18.5, worst: -12.25, gross_win: 120, top3: 45,
+          top3_share: 0.375, winners: 35,
+          bins: [
+            { von: -12.25, bis: -8, anzahl: 4 }, { von: -8, bis: -4, anzahl: 9 },
+            { von: -4, bis: 0, anzahl: 12 }, { von: 0, bis: 4, anzahl: 18 },
+            { von: 4, bis: 8, anzahl: 10 }, { von: 8, bis: 12, anzahl: 4 },
+            { von: 12, bis: 18.5, anzahl: 3 }
+          ]
+        }
       };
       return () => { T.liveData.backtest = alt; };
     }],
@@ -1129,8 +1185,9 @@ function rendern(T) {
     ['wallet_tab_positions', 'wallet', { walletTab: 'positions' }],
     ['wallet_tab_trades', 'wallet', { walletTab: 'trades' }],
     ['wallet_tab_categories', 'wallet', { walletTab: 'categories' }],
-    ['wallet_treemap_closed', 'wallet', { walletTreemap: 'closed' }],
-    ['wallet_treemap_open', 'wallet', { walletTreemap: 'open' }],
+    ['wallet_treemap_closed', 'wallet', { walletPosView: 'treemap', walletTreemap: 'closed' }],
+    ['wallet_treemap_alle', 'wallet', { walletPosView: 'treemap' }],
+    ['wallet_treemap_open', 'wallet', { walletPosView: 'treemap', walletTreemap: 'open' }],
     ['wallet_tab_risk', 'wallet', { walletTab: 'risk' }],
     ['wallet_tab_similar', 'wallet', { walletTab: 'similar' }],
     ['wallet_tab_similar_data', 'wallet', { walletTab: 'similar' }, null, (T) => {

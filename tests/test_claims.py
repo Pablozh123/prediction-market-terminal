@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import os
 import subprocess
 import sys
@@ -330,6 +331,105 @@ class ClaimsRouteTests(unittest.TestCase):
         finally:
             os.chdir(alt)
         self.assertTrue(payload["disclaimers"]["screen_not_proof"]["en"])
+
+
+class BothSurfacesAreBoundTests(unittest.TestCase):
+    """Der Lint bindet beide Oberflaechen, nicht nur die veroeffentlichte.
+
+    Nach PR #116 las das Web-Frontend seine Vorbehalte aus dem Register,
+    waehrend der Streamlit-Monolith ein Dutzend eigene Disclaimer als Prosa
+    trug, mehrere davon eine zweite Fassung desselben Satzes. Eine Regel,
+    die nur eine von zwei Oberflaechen liest, ist genau der Zustand, aus dem
+    solche Dubletten entstehen.
+    """
+
+    MONOLITH = REPO_ROOT / "prediction_terminal.py"
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location(
+            "lint_claims_beide", REPO_ROOT / "scripts" / "lint_claims.py")
+        modul = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(modul)
+        cls.lint = modul
+
+    def test_the_monolith_is_inside_the_caveat_scope(self):
+        self.assertIn("prediction_terminal.py", self.lint.CAVEAT_SOURCES)
+        gefunden = self.lint.collect_files(
+            self.lint.CAVEAT_SOURCES,
+            excluded=self.lint.EXCLUDED | self.lint.CAVEAT_EXCLUDED,
+        )
+        self.assertIn(Path("prediction_terminal.py"), [Path(p.as_posix()) for p in gefunden])
+
+    def test_the_monolith_writes_no_standing_caveat_by_hand(self):
+        text = self.MONOLITH.read_text(encoding="utf-8")
+        befunde = claims.find_unregistered_caveats(text)
+        self.assertEqual(
+            befunde, [],
+            msg="handgeschriebener Vorbehalt im Monolithen: "
+                + "; ".join(f"Zeile {n} ({m})" for n, m, _ in befunde))
+
+    def test_the_monolith_renders_the_entries_that_name_it(self):
+        text = self.MONOLITH.read_text(encoding="utf-8")
+        gerendert = {key for _, key in claims.caveat_calls(text)}
+        self.assertTrue(gerendert, "der Monolith ruft das Register gar nicht auf")
+        bekannt = set(claims.disclaimer_keys())
+        for key in sorted(gerendert):
+            with self.subTest(key=key):
+                self.assertIn(key, bekannt)
+        for key in claims.surface_map().get("prediction_terminal.py", []):
+            with self.subTest(key=key):
+                self.assertIn(key, gerendert)
+
+    def test_the_duplicated_sentences_now_have_one_wording(self):
+        """Saetze, die vorher in beiden Oberflaechen verschieden lauteten."""
+
+        monolith = set(
+            key for _, key in claims.caveat_calls(self.MONOLITH.read_text(encoding="utf-8")))
+        for key in ("research_tool_only", "screen_not_proof", "paper_desk_only",
+                    "paper_log_no_return_claim"):
+            with self.subTest(key=key):
+                flaechen = claims.surfaces(key)
+                self.assertIn("prediction_terminal.py", flaechen)
+                self.assertTrue([f for f in flaechen if f != "prediction_terminal.py"],
+                                f"{key} steht nur noch auf einer Flaeche")
+                self.assertIn(key, monolith)
+
+
+class MetaJsonPrinciplesTests(unittest.TestCase):
+    """Die Grundsaetze aus public/data/meta.json stehen im Register.
+
+    Sie reisen als Textzeilen in einer laufzeitgenerierten Datei, die ein
+    anderes Repo schreibt: Produkt-Copy, die in diesem Repo nie ein Review
+    gesehen hat. PR #116 hat einen der vier Saetze uebernommen, die drei
+    anderen hatten danach immer noch keinen Leser.
+    """
+
+    def test_every_published_principle_is_registered(self):
+        payload = json.loads((REPO_ROOT / "public" / "data" / "meta.json").read_text(encoding="utf-8"))
+        zeilen = payload.get("disclaimer") or []
+        self.assertTrue(zeilen, "meta.json fuehrt keine disclaimer-Zeilen mehr")
+        self.assertEqual(claims.unregistered_texts(zeilen), [])
+
+    def test_each_principle_names_both_surfaces(self):
+        for key in ("daily_run_descriptive", "verification_not_signal",
+                    "daily_run_no_advice", "daily_run_privacy"):
+            with self.subTest(key=key):
+                flaechen = claims.surfaces(key)
+                self.assertIn("prediction_terminal.py", flaechen)
+                self.assertIn("web/js/pages/system_pages.js", flaechen)
+
+    def test_unregistered_texts_keeps_what_the_publisher_adds(self):
+        registriert = claims.disclaimer("daily_run_privacy", "en")
+        zeilen = ["  " + registriert.upper() + " ", "Something the register does not know.", "", None]
+        self.assertEqual(claims.unregistered_texts(zeilen),
+                         ["Something the register does not know."])
+
+    def test_unregistered_texts_sees_a_reworded_sentence(self):
+        # Kein Fuzzy-Vergleich: eine umformulierte Zusage ist eine andere
+        # Zusage und muss sichtbar werden, nicht stillschweigend ersetzt.
+        umformuliert = claims.disclaimer("daily_run_privacy", "en").replace("no keys", "no key material")
+        self.assertEqual(claims.unregistered_texts([umformuliert]), [umformuliert])
 
 
 class LintScriptTests(unittest.TestCase):

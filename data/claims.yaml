@@ -37,9 +37,13 @@ disclaimers:
   diagnostic_not_advice:
     de: "Diagnose des bisherigen Records, keine Handlungsempfehlung."
     en: "A diagnostic of the past record, not a recommendation to act."
+    surfaces:
+      - prediction_terminal.py
   past_not_forecast:
     de: "Beschreibt abgeschlossene Trades, keine Prognose kuenftiger Ergebnisse."
     en: "Describes settled trades; it does not project future results."
+    surfaces:
+      - prediction_terminal.py
   thin_sample:
     de: "Stichprobe zu klein fuer ein Urteil. Die Zahl bleibt sichtbar, ist aber nur ein Hinweis."
     en: "Sample too small for a verdict. The number stays visible but reads as a hint only."
@@ -66,6 +70,7 @@ disclaimers:
     surfaces:
       - web/js/pages/trader_pages.js
       - app/api_views.py
+      - prediction_terminal.py
   backtest_modeled:
     de: "Simulation zu historischen Preisen mit Fee- und Slippage-Annahmen. Modellierte Werte, keine realisierten Ergebnisse."
     en: "A simulation at historical prices with fee and slippage assumptions. Modeled values, not realized results."
@@ -81,6 +86,15 @@ disclaimers:
     en: "Research tool only: no investment advice, no order placement, no venue affiliation. Public Polymarket and Kalshi data, provided as-is."
     surfaces:
       - web/js/pages/system_pages.js
+      - prediction_terminal.py
+  # Die Kurzform im Hero der Startseite des Streamlit-Terminals. Sie stand
+  # dort handgeschrieben und sagte dasselbe wie research_tool_only in drei
+  # Worten; als eigener Eintrag driftet sie nicht mehr gegen die Langform.
+  no_signup_no_orders:
+    de: "Keine Anmeldung, keine Orders, reine Recherche."
+    en: "No signup, no orders placed, pure research."
+    surfaces:
+      - prediction_terminal.py
   # The short form under the sidebar. Same statement, sidebar width; the long
   # form would wrap over five lines in a 264px column.
   site_footer_readonly:
@@ -94,12 +108,22 @@ disclaimers:
     en: "Paper desk: every order is booked in a local paper book at the printed price. Nothing is sent to a venue."
     surfaces:
       - web/js/pages/copy_page.js
-  # The forward paper log: stood twice, almost identically, in system_pages.js.
+      - prediction_terminal.py
+  # The forward paper log: stood twice, almost identically, in system_pages.js,
+  # and a third time in the Streamlit page header.
   paper_log_no_return_claim:
     de: "Nur Entscheidungen und beste Buchpreise: keine Fills, keine Wallet-Daten, keine Renditebehauptung."
     en: "Decisions and best book prices only: no fills, no wallet data, no return claim."
     surfaces:
       - web/js/pages/system_pages.js
+      - prediction_terminal.py
+  # Cross-Venue: eine Preisluecke zwischen zwei Venues ist ein
+  # Rechercheanlass. Stand handgeschrieben unter der Paritaets-Tabelle.
+  parity_not_arbitrage:
+    de: "Preisluecken sind Rechercheanlaesse, nicht zwangslaeufig Arbitrage. Aufloesungsregeln, Gebuehren, Settlement-Zeitpunkte und Zugangsbeschraenkungen koennen eine scheinbare Paritaet brechen."
+    en: "Price gaps are research leads, not guaranteed arbitrage. Resolution rules, fees, settlement timing, and access restrictions can break apparent parity."
+    surfaces:
+      - prediction_terminal.py
   # The review queue prints a column headed RECOMMENDATION. This sentence
   # travels in public/data/meta.json and never reached a page; it is the
   # register's job to put it next to that column.
@@ -108,6 +132,46 @@ disclaimers:
     en: "Recommendations are verification steps (watch, check the source, escalate to a human), not buy or sell signals."
     surfaces:
       - web/js/pages/system_pages.js
+      - prediction_terminal.py
+  # Die vier Grundsaetze des taeglichen Review-Laufs. Sie reisten als
+  # Textzeilen in public/data/meta.json, einer laufzeitgenerierten Datei aus
+  # dem Thesis-Repo: Produkt-Copy, die in diesem Repo nie ein Review gesehen
+  # hat. Satz zwei ist verification_not_signal (PR #116), die drei anderen
+  # stehen jetzt hier. Der englische Text ist woertlich der der Datei, damit
+  # page_methodik eine abweichende Publisher-Fassung als Zusatzzeile zeigen
+  # kann statt sie stillschweigend zu ersetzen.
+  daily_run_descriptive:
+    de: "Deskriptive Forschungsartefakte aus einem taeglichen, deterministischen Review-Lauf ueber oeffentliche Marktdaten."
+    en: "Descriptive research artifacts from a daily, deterministic review run over public market data."
+    surfaces:
+      - web/js/pages/system_pages.js
+      - prediction_terminal.py
+  daily_run_no_advice:
+    de: "Keine Finanz- oder Anlageberatung. Keine Renditebehauptung. Pipeline-Eintraege sind beobachtend/Papier."
+    en: "No financial or investment advice. No return claim. Pipeline entries are observing/paper."
+    surfaces:
+      - web/js/pages/system_pages.js
+      - prediction_terminal.py
+  daily_run_privacy:
+    de: "Keine Wallet-Adressen, keine Schluessel, keine Prompts. Audit nur als Hashes und Zaehler."
+    en: "No wallet addresses, no keys, no prompts. Audit as hashes and counters only."
+    surfaces:
+      - web/js/pages/system_pages.js
+      - prediction_terminal.py
+
+  # Die waagerechte Spanne der Punktwolke auf der Bestenliste. Sie stand als
+  # Prosa unter dem Diagramm, und sie ist genau das, was dieses Register
+  # meint: ein Satz darueber, was eine Zahl NICHT ist. Der Composite ist bei
+  # gegebenen Eingaben deterministisch, also gibt es keine Stichproben-
+  # verteilung und kein Konfidenzintervall; was es gibt, ist die Spanne, die
+  # die Platzhalter offen lassen. Woraus der Score besteht, sagt weiterhin
+  # nur der Basis-Satz ueber dem Diagramm (api_views.score_basis_note und
+  # sein Zwilling scoreBasisSatz), damit es dafuer eine einzige Lesart gibt.
+  composite_range_not_ci:
+    de: "Die Spanne zeigt, wo der Score liegen koennte, wenn seine Platzhalter-Bestandteile gemessen waeren. Sie ist eine Spanne, kein Konfidenzintervall: der Composite steht fest, sobald seine Eingaben feststehen. Aufgeloeste Wetten je Wallet traegt dieser Feed nicht; die Trefferquote mit Stichprobengroesse und Wilson-Intervall steht auf der Seite der Wallet."
+    en: "The bar spans where the score could sit if its placeholder components were measured. It is a range, not a confidence interval: the composite is fixed once its inputs are. Resolved-bet counts are not in this feed; a wallet's own page carries its win rate with sample size and a Wilson interval."
+    surfaces:
+      - web/js/pages/trader_pages.js
 
 allowed_claims:
   - id: corrected-win-rate
@@ -171,12 +235,24 @@ caveat_markers:
   - marker: "no orders placed"
   - marker: "nothing is placed"
   - marker: "nothing is sent to a venue"
+  # Dieselbe Aussage in der Formulierung, in der sie im Streamlit-Terminal
+  # stand ("Paper mode only ... and does not place real orders"). Ohne den
+  # Marker war die zweite Fassung derselben Zusage fuer den Lint unsichtbar.
+  - marker: "does not place real orders"
   - marker: "not legal findings"
   - marker: "no return claim"
   - marker: "not a forecast"
+    allow:
+      # Kategorie-Effizienz, Methodenprosa zu einer gemessenen Groesse: sass
+      # ein Preis zum Messzeitpunkt schon am aufgeloesten Ende, ist der
+      # Brier ueber diese Zeilen kein Prognosetest. Das ist eine Eigenschaft
+      # dieser Messung und gehoert in den Hilfetext, der sie definiert, nicht
+      # in das Register der stehenden Vorbehalte.
+      - "not a forecast test"
   - marker: "does not predict"
   - marker: "not a promise"
   - marker: "provided as-is"
+  - marker: "not a confidence interval"
   - marker: "not proof"
     allow:
       # Mentions latency, method prose about one measured quantity: a price
