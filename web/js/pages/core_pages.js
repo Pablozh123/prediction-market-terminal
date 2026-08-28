@@ -37,7 +37,7 @@ const MARKT_SPALTEN = '1fr 64px 90px 76px 96px 104px 96px';
 function marketRowHtml(v) {
   return '<div ' + v.act + ' class="hv-panel" style="display:grid; grid-template-columns:' + MARKT_SPALTEN + '; align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-3); cursor:pointer">'
     + '<div style="padding-right:var(--sp-6)">'
-    + '<div style="font-size:var(--t-body); line-height:1.35">' + esc(v.title) + '</div>'
+    + '<div style="font-size:var(--t-body); line-height:var(--lh-tight)">' + esc(v.title) + '</div>'
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2)">' + esc(v.meta) + '</div></div>'
     + '<div style="' + M + '; font-size:var(--t-lead); text-align:right">' + v.priceLabel + '</div>'
     + '<div style="' + v.changeStyle + '">' + v.changeLabel + '</div>'
@@ -59,8 +59,8 @@ function marketRowHtml(v) {
 // loaded sample has nothing that qualifies.
 function insightPanel(titel, sub, rowsHtml, leerSatz) {
   return '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); overflow:hidden">'
-    + '<div style="padding:var(--sp-3) var(--sp-5); border-bottom:1px solid var(--line-2)"><h2 style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--accent); margin:0; display:inline">' + titel + '</h2>'
-    + (sub ? ' <span style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); letter-spacing:0">· ' + sub + '</span>' : '') + '</div>'
+    + '<div style="padding:var(--sp-3) var(--sp-5); border-bottom:1px solid var(--line-2)"><h2 style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--accent); margin:0; display:inline">' + titel + '</h2>'
+    + (sub ? ' <span style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); letter-spacing:var(--ls-flat)">· ' + sub + '</span>' : '') + '</div>'
     + (rowsHtml || '<div style="padding:var(--sp-4) var(--sp-5); ' + M + '; font-size:var(--t-micro); color:var(--ink-4)">' + esc(leerSatz) + '</div>')
     + '</div>';
 }
@@ -68,19 +68,30 @@ function insightPanel(titel, sub, rowsHtml, leerSatz) {
 // ---------------------------------------------------------------- overview (research landing)
 
 // Verdict vocabulary of public/data/microstructure.json (verdikt_art) as a
-// tag: label, colour. Anything unknown renders its raw value, uncoloured.
+// tag: label, colour, edge. Anything unknown renders its raw value, uncoloured.
+//
+// The ground is --panel and not a wash of the tag's own hue, and that is the
+// whole fix: a wash of the hue moves the ground toward the text, and on paper
+// the role colours have no headroom to give it. With the tint composited in
+// rather than measured against the page, CONFIRMED read 4.05:1, REFUTED
+// 3.86:1 and CONTROL 4.31:1. Thinning the wash does not rescue them -- at .04
+// the first two still fail -- because --accent, --neg-soft and --warn clear
+// the light ground by barely 0.1 to themselves. So the hue leaves the text's
+// ground and moves to the edge, where it says the same thing and costs
+// nothing. On --panel the four tags read 5.08 / 4.96 / 4.98 / 5.61 light and
+// 8.41 / 7.11 / 6.33 / 6.36 dark.
 const VERDICT_TAG = {
-  ja: { label: 'CONFIRMED', color: 'var(--accent)', bg: 'rgba(var(--accent-rgb),.12)' },
-  nein: { label: 'REFUTED', color: 'var(--neg-soft)', bg: 'rgba(var(--neg-rgb),.12)' },
-  offen: { label: 'NOT IDENTIFIED', color: 'var(--warn)', bg: 'rgba(var(--warn-rgb),.12)' },
-  kontrolle: { label: 'CONTROL', color: 'var(--info)', bg: 'rgba(var(--info-rgb),.14)' }
+  ja: { label: 'CONFIRMED', color: 'var(--accent)', rand: 'rgba(var(--accent-rgb),.35)' },
+  nein: { label: 'REFUTED', color: 'var(--neg-soft)', rand: 'rgba(var(--neg-rgb),.35)' },
+  offen: { label: 'NOT IDENTIFIED', color: 'var(--warn)', rand: 'rgba(var(--warn-rgb),.35)' },
+  kontrolle: { label: 'CONTROL', color: 'var(--info)', rand: 'rgba(var(--info-rgb),.35)' }
 };
 
 function verdictTag(art) {
   const v = VERDICT_TAG[String(art || '').toLowerCase()];
   const label = v ? v.label : String(art || '—').toUpperCase();
-  const style = M + '; font-size:var(--t-micro); letter-spacing:.12em; border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); white-space:nowrap; '
-    + (v ? 'color:' + v.color + '; background:' + v.bg : 'color:var(--ink-4); border:1px solid var(--line-1)');
+  const style = M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); white-space:nowrap; background:var(--panel); '
+    + (v ? 'color:' + v.color + '; border:1px solid ' + v.rand : 'color:var(--ink-4); border:1px solid var(--line-1)');
   return '<span style="' + style + '">' + esc(label) + '</span>';
 }
 
@@ -163,7 +174,7 @@ function landingLeerSatz(herkunft, datei) {
 
 function sectionHead(label, right, color) {
   return '<div style="display:flex; align-items:center; justify-content:space-between; gap:var(--sp-4); padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-2); background:var(--panel)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.16em; color:' + (color || 'var(--accent)') + '">' + label + '</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:' + (color || 'var(--accent)') + '">' + label + '</div>'
     + '<div style="display:flex; align-items:center; gap:var(--sp-5)">' + (right || '') + '</div></div>';
 }
 
@@ -191,7 +202,7 @@ function tapeLivePanel(T) {
   // Merken, was diese Antwort zeigte — der naechste Poll animiert nur Neues.
   T._tapeGesehen = new Set(rows.map(schluessel));
   return '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:var(--sp-4); padding:var(--sp-5) var(--sp-6) var(--sp-3); border-top:1px solid var(--line-3)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.15em; color:var(--ink-3)">THE TAPE, LIVE · PRINTS ≥ $2.5K</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">THE TAPE, LIVE · PRINTS ≥ $2.5K</div>'
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4)">refreshes every 30 s · read-only</div></div>'
     + zeilen;
 }
@@ -252,7 +263,7 @@ export function renderOverview(T) {
         // nicht zum Seitenanfang: gleicher Anker wie die Sprungliste dort.
         return '<div ' + goStudy(microIdx, studieAnker(st, i)) + ' class="hv-panel" style="display:grid; grid-template-columns:36px 1fr 128px 190px 150px; align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-3); cursor:pointer">'
           + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + String(i + 1).padStart(2, '0') + '</div>'
-          + '<div style="padding-right:var(--sp-5); min-width:0"><div style="font-size:var(--t-body); line-height:1.35">' + esc(st.frage || st.id || '—') + '</div>'
+          + '<div style="padding-right:var(--sp-5); min-width:0"><div style="font-size:var(--t-body); line-height:var(--lh-tight)">' + esc(st.frage || st.id || '—') + '</div>'
           // Truncated lines carry the full text as a tooltip.
           + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(String(st.verdikt || '')) + '">' + esc(String(st.verdikt || '').split('. ')[0]) + '</div></div>'
           + '<div>' + verdictTag(st.verdikt_art) + '</div>'
@@ -325,7 +336,7 @@ export function renderOverview(T) {
     ? noteList.map((n) =>
       '<div ' + goStudy(notesIdx) + ' class="hv-panel" style="display:grid; grid-template-columns:96px 1fr 120px; gap:var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-3); cursor:pointer">'
       + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + esc(String(n.date || '').slice(0, 10)) + '</div>'
-      + '<div style="font-size:var(--t-body); line-height:1.35">' + esc(n.title || '—') + '</div>'
+      + '<div style="font-size:var(--t-body); line-height:var(--lh-tight)">' + esc(n.title || '—') + '</div>'
       + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); text-align:right">' + esc(n.venue || '') + '</div></div>'
     ).join('')
     : leerZeile(landingLeerSatz(hk.notes, 'field_notes.json'));
@@ -371,7 +382,7 @@ export function renderOverview(T) {
     + '<canvas id="river-cv" aria-hidden="true" style="position:absolute; inset:0; width:100%; height:100%"></canvas>'
     + '<div aria-hidden="true" style="position:absolute; inset:0; pointer-events:none; background:linear-gradient(90deg, rgba(var(--bg-rgb),.92) 0%, rgba(var(--bg-rgb),.62) 40%, rgba(var(--bg-rgb),.12) 68%, rgba(var(--bg-rgb),0) 100%)"></div>'
     + '<div style="position:relative; max-width:640px">'
-    + '<h1 style="font-size:var(--t-hero); line-height:1.2; margin:0; font-weight:600; letter-spacing:-0.015em">Prediction-market microstructure, <em style="color:var(--accent)">measured on self-recorded books.</em></h1>'
+    + '<h1 style="font-size:var(--t-hero); line-height:var(--lh-solid); margin:0; font-weight:600; letter-spacing:var(--ls-flat)">Prediction-market microstructure, <em style="color:var(--accent)">measured on self-recorded books.</em></h1>'
     + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-3); max-width:760px">' + esc(subline) + '</div>'
     + pfade
     + '<div style="display:flex; gap:var(--sp-5); margin-top:var(--sp-5); flex-wrap:wrap; ' + M + '; font-size:var(--t-micro)">'
@@ -407,7 +418,7 @@ export function renderOverview(T) {
     // einem Satz, was die Zahlen darueber sind und was sie nicht sind.
     + caveatZeile('score_generic', {
       vorsatz: 'Public data only · live blocks refresh every 30 seconds · research payloads are frozen files under ./data ·',
-      stil: 'padding:var(--sp-6); text-align:center; ' + M + '; font-size:var(--t-micro); color:var(--ink-4); line-height:1.7'
+      stil: 'padding:var(--sp-6); text-align:center; ' + M + '; font-size:var(--t-micro); color:var(--ink-4); line-height:var(--lh-prose)'
     })
     + '</div>';
 }
@@ -416,8 +427,8 @@ export function renderOverview(T) {
 // target study is not in the list, the card then renders without a cursor.
 function pfadKarte(act, label, farbe, satz) {
   return '<div ' + act + (act ? ' class="hv-panel"' : '') + ' style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-5)' + (act ? '; cursor:pointer' : '') + '">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.16em; color:' + farbe + '">' + label + ' →</div>'
-    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.5">' + satz + '</div></div>';
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:' + farbe + '">' + label + ' →</div>'
+    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-snug)">' + satz + '</div></div>';
 }
 
 function kpiCell(label, value, sub, borderRight, signed) {
@@ -597,8 +608,8 @@ export function renderMarkets(T) {
   return '<div>'
     + '<div style="padding:var(--sp-6) var(--sp-6) var(--sp-5); border-bottom:1px solid var(--line-2)">'
     + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:var(--sp-6)">'
-    + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.18em; color:var(--accent)">MARKETS</div>'
-    + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:-0.01em">Every market, one table</h1></div>'
+    + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-max); color:var(--accent)">MARKETS</div>'
+    + '<h1 style="font-size:var(--t-head); line-height:var(--lh-tight); margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:var(--ls-flat)">Every market, one table</h1></div>'
     + '<div style="display:flex; align-items:center; gap:var(--sp-4)">'
     + '<input value="' + esc(s.marketQuery) + '" ' + T.inp((e) => T.setState({ marketQuery: e.target.value }), 'marketQuery') + ' placeholder="Search markets…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); width:230px" />'
     + '<div ' + T.act(() => T.setState({ mPlatform: 'all', mStatus: 'active', mProb: 'all', mLiq: 'all', mVol: 'all', mEnds: 'all', mAge: 'all', mExclude: [], marketCat: 'All', marketQuery: '', mQuick: 'trending', marketSort: 'volume' })) + ' class="hv-edge-strong" style="font-size:var(--t-small); color:var(--ink-3); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); cursor:pointer">Reset filters</div>'
@@ -810,8 +821,8 @@ export function renderFlow(T) {
   return '<div>'
     + '<div style="padding:var(--sp-6) var(--sp-6) var(--sp-5); border-bottom:1px solid var(--line-2)">'
     + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:var(--sp-6)">'
-    + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.18em; color:var(--accent)">LIVE TAPE</div>'
-    + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:-0.01em">Every large print as it lands</h1></div>'
+    + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-max); color:var(--accent)">LIVE TAPE</div>'
+    + '<h1 style="font-size:var(--t-head); line-height:var(--lh-tight); margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:var(--ls-flat)">Every large print as it lands</h1></div>'
     + '<div style="display:flex; align-items:center; gap:var(--sp-4)">'
     + asOfLine(s.tapeAsOf || s.liveAsOf)
     + '<input value="' + esc(s.tapeQuery) + '" ' + T.inp((e) => T.setState({ tapeQuery: e.target.value }), 'tapeQuery') + ' placeholder="market, wallet, trader…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); width:250px" />'
@@ -822,7 +833,7 @@ export function renderFlow(T) {
     // groesser, und beides waere sonst von einer echten Verteilung nicht zu
     // unterscheiden.
     + (kategorieHinweis
-      ? '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--warn); margin-top:var(--sp-3)">' + esc(kategorieHinweis) + '</div>'
+      ? '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--warn); margin-top:var(--sp-3)">' + esc(kategorieHinweis) + '</div>'
       : '')
     + '</div>'
     + '<div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:var(--sp-5); margin-top:var(--sp-5)">'
@@ -850,7 +861,7 @@ export function renderFlow(T) {
     // Spanne je Venue verschieden ist, weil beide gleich viele Zeilen
     // bekommen (api_views.balanced_head), Kalshi aber viel schneller druckt.
     + (fensterZeile ? '<div style="padding:var(--sp-3) var(--sp-6); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); color:var(--ink-4)">'
-      + '<span style="letter-spacing:.14em; color:var(--ink-3); margin-right:var(--sp-3)">SUMMED OVER</span>' + esc(fensterZeile) + '</div>' : '')
+      + '<span style="letter-spacing:var(--ls-caps-strong); color:var(--ink-3); margin-right:var(--sp-3)">SUMMED OVER</span>' + esc(fensterZeile) + '</div>' : '')
 
     + grafiken
 
@@ -909,13 +920,13 @@ function crossSuppressedBlock(sup) {
     .join(', ');
   const beispiele = (sup.examples || []).slice(0, 3);
   return '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); padding:var(--sp-5)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--warn)">MATCHED BUT NOT PRICED · ' + num(sup.total) + '</div>'
-    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.6">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--warn)">MATCHED BUT NOT PRICED · ' + num(sup.total) + '</div>'
+    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-prose)">'
     + esc(gruende) + '. Two titles can share every word and still be two questions: “above $120,000” against “below $120,000” scores 0.78 on the matcher. '
     + 'A basket across a pair like that pays 2.00 in one state and 0.00 in the other, so its spread is a sign error, not an opportunity. These pairs carry no price, no gap and no spread here.</div>'
     + (beispiele.length
       ? '<div style="margin-top:var(--sp-3)">' + beispiele.map((b) =>
-        '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-2); line-height:1.5">'
+        '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-2); line-height:var(--lh-snug)">'
         + esc(String(b.event || '').slice(0, 64)) + ' ↔ ' + esc(String(b.other || '').slice(0, 64))
         + '<br>' + esc(b.why || '') + '</div>').join('') + '</div>'
       : '')
@@ -926,8 +937,8 @@ function crossGateBlock(T) {
   const microIdx = T.studies.findIndex((st) => st.tab === 'Microstructure');
   return '<div style="padding:var(--sp-6)">'
     + '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-6); max-width:760px">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--warn)">NO PAIR CLEARS THE GATE</div>'
-    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.6">No cross-venue pair clears the match gate right now (' + CROSS_GATE_TEXT + '). '
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--warn)">NO PAIR CLEARS THE GATE</div>'
+    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-prose)">No cross-venue pair clears the match gate right now (' + CROSS_GATE_TEXT + '). '
     + 'See studies 08 and 11: the two 79¢/64¢ \'edges\' were mismatched questions.</div>'
     + (microIdx >= 0 && T.goStudy
       ? '<div ' + T.act(() => T.goStudy(microIdx)) + ' class="hv-accent" style="' + M + '; font-size:var(--t-micro); color:var(--info); margin-top:var(--sp-4); cursor:pointer">Open the microstructure report (#research/microstructure) →</div>'
@@ -947,10 +958,10 @@ export function renderCross(T) {
         + '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-6); max-width:760px">'
         + '<div style="display:flex; align-items:center; gap:var(--sp-4)">'
         + '<span style="width:7px; height:7px; border-radius:50%; background:var(--warn); display:inline-block"></span>'
-        + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--warn)">MATCHING PAIRS ACROSS VENUES…</div></div>'
+        + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--warn)">MATCHING PAIRS ACROSS VENUES…</div></div>'
         // Ohne Dauer liest sich der pulsierende Punkt wie eine kaputte Seite.
         // Er ist keine: der erste Aufruf blaettert beide Boersen durch.
-        + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-3); line-height:1.6">This is a live scan, not a stored file: /api/cross pages both venues and scores every title pair, which takes up to a minute on a cold cache. The gate then keeps only ' + CROSS_GATE_TEXT + '. If it fails you will see the error and a retry here, not this spinner.</div>'
+        + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-3); line-height:var(--lh-prose)">This is a live scan, not a stored file: /api/cross pages both venues and scores every title pair, which takes up to a minute on a cold cache. The gate then keeps only ' + CROSS_GATE_TEXT + '. If it fails you will see the error and a retry here, not this spinner.</div>'
         + '</div></div>';
     } else if (hk.quelle === 'fehler') {
       body = leerBlock('NO PAIRS', herkunftSatz(hk, '/api/cross'))
@@ -1004,8 +1015,8 @@ export function renderCross(T) {
   return '<div>'
     + '<div style="padding:var(--sp-6) var(--sp-6) var(--sp-5); border-bottom:1px solid var(--line-2)">'
     + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:var(--sp-6)">'
-    + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.18em; color:var(--info)">CROSS-VENUE</div>'
-    + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:-0.01em">The same question, two prices</h1></div>'
+    + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-max); color:var(--info)">CROSS-VENUE</div>'
+    + '<h1 style="font-size:var(--t-head); line-height:var(--lh-tight); margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:var(--ls-flat)">The same question, two prices</h1></div>'
     + '<div style="display:flex; align-items:center; gap:var(--sp-4)">'
     + asOfLine(cl.as_of)
     + '<input value="' + esc(s.crossQuery) + '" ' + T.inp((e) => T.setState({ crossQuery: e.target.value }), 'crossQuery') + ' placeholder="bitcoin, fed, election…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); width:230px" />'
@@ -1053,7 +1064,7 @@ export function renderCross(T) {
       const netLabel = c.net == null ? '—' : (c.net > 0 ? '+' : '') + c.net.toFixed(1) + '¢';
       const sizeLabel = crossSizeLabel(c);
       return '<div style="display:grid; grid-template-columns:1fr 104px 104px 84px 108px 124px 112px; align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-3)">'
-        + '<div style="padding-right:var(--sp-6)"><div style="font-size:var(--t-body); line-height:1.35">' + esc(c.event) + '</div>'
+        + '<div style="padding-right:var(--sp-6)"><div style="font-size:var(--t-body); line-height:var(--lh-tight)">' + esc(c.event) + '</div>'
         + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2)">' + esc(c.cat) + ' · similarity ' + c.sim.toFixed(2) + '</div></div>'
         + '<div style="' + M + '; font-size:var(--t-body); text-align:right; color:var(--accent)">' + c.pm + '¢</div>'
         + '<div style="' + M + '; font-size:var(--t-body); text-align:right; color:var(--info)">' + c.ks + '¢</div>'
@@ -1065,7 +1076,7 @@ export function renderCross(T) {
         // Eine Spanne fuer drei Kontrakte ist kein Geschaeft ueber hundert.
         // Ohne diese Zeile stand die Zahl fuer eine Groesse da, die niemand
         // nachgeschlagen hatte.
-        + (sizeLabel ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-1); line-height:1.3">' + esc(sizeLabel) + '</div>' : '')
+        + (sizeLabel ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-1); line-height:var(--lh-tight)">' + esc(sizeLabel) + '</div>' : '')
         + '</div></div>';
     }).join('')
     + (cRows.length === 0 ? '<div style="padding:var(--sp-7); text-align:center; ' + M + '; font-size:var(--t-small); color:var(--ink-4)">No pair passes the local filters; loosen a stepper above.</div>' : '')
@@ -1107,8 +1118,8 @@ export function renderResolved(T) {
   return '<div>'
     + '<div style="padding:var(--sp-6) var(--sp-6) var(--sp-5); border-bottom:1px solid var(--line-2)">'
     + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:var(--sp-6)">'
-    + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.18em; color:var(--accent)">RESOLVED</div>'
-    + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:-0.01em">How the last questions ended</h1></div>'
+    + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-max); color:var(--accent)">RESOLVED</div>'
+    + '<h1 style="font-size:var(--t-head); line-height:var(--lh-tight); margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:var(--ls-flat)">How the last questions ended</h1></div>'
     + '<input value="' + esc(s.resQuery) + '" ' + T.inp((e) => T.setState({ resQuery: e.target.value }), 'resQuery') + ' placeholder="Search resolved markets…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); width:250px" />'
     + '</div>'
     + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-4); max-width:700px">The last price before settlement next to the answer. The gap between the two is what the crowd got wrong.</div>'
@@ -1129,10 +1140,10 @@ export function renderResolved(T) {
     + '<div style="display:grid; grid-template-columns:1fr 110px 118px 128px 110px 120px; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + LABEL + '">'
     + '<div>MARKET</div><div style="text-align:right">ANSWER</div><div style="text-align:right">LAST PRICE</div><div style="text-align:right">CROWD OFF BY</div><div style="text-align:right">VOLUME</div><div style="text-align:right">SETTLED</div></div>'
     + resRows.map((r) => {
-      const answerStyle = M + '; font-size:var(--t-micro); letter-spacing:.1em; border-radius:var(--r-control); padding:var(--sp-2) var(--sp-4); ' + (r.yes ? 'color:var(--on-accent); background:var(--accent)' : 'color:var(--neg-soft); border:1px solid rgba(var(--neg-rgb),.35)');
+      const answerStyle = M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-4); ' + (r.yes ? 'color:var(--on-accent); background:var(--accent)' : 'color:var(--neg-soft); border:1px solid rgba(var(--neg-rgb),.35)');
       const errStyle = M + '; font-size:var(--t-body); text-align:right; color:' + (r.err >= 50 ? 'var(--neg)' : r.err >= 25 ? 'var(--warn)' : 'var(--ink-3)');
       return '<div style="display:grid; grid-template-columns:1fr 110px 118px 128px 110px 120px; align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-3)">'
-        + '<div style="padding-right:var(--sp-6)"><div style="font-size:var(--t-body); line-height:1.35">' + esc(r.title) + '</div>'
+        + '<div style="padding-right:var(--sp-6)"><div style="font-size:var(--t-body); line-height:var(--lh-tight)">' + esc(r.title) + '</div>'
         + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2)">' + esc(r.meta) + '</div></div>'
         + '<div style="display:flex; justify-content:flex-end"><div style="' + answerStyle + '">' + (r.yes ? 'YES' : 'NO') + '</div></div>'
         + '<div style="' + M + '; font-size:var(--t-body); text-align:right">' + r.last + '¢</div>'

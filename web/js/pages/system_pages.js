@@ -70,7 +70,7 @@ function vorfallZeitstrahl(eintraege) {
     + new Date(t * 86400000).toISOString().slice(0, 10) + '</text>').join('');
 
   return '<div style="' + KARTE + '; padding:var(--sp-5) var(--sp-5) var(--sp-3); margin-top:var(--sp-5)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3); margin-bottom:var(--sp-1)">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3); margin-bottom:var(--sp-1)">'
     + 'WHEN THEY HAPPENED · ' + (spanne + 1) + ' DAYS, ' + mitDatum.length + ' INCIDENTS · COLOUR IS THE AXIS</div>'
     + '<svg width="100%" viewBox="0 0 640 80" role="img" aria-label="Incident timeline">'
     + '<line x1="' + L + '" y1="' + BASIS + '" x2="' + R + '" y2="' + BASIS + '" style="stroke:rgba(var(--ink),.14)" stroke-width="1" />'
@@ -93,11 +93,11 @@ function renderPostmortems(payload, study) {
   const kopf = '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:var(--sp-6)">'
     + '<div style="max-width:720px">'
     + '<h2 style="font-size:var(--t-head); font-weight:600">' + esc((study && study.title) || 'Post-mortems') + '</h2>'
-    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.6">'
+    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-prose)">'
     + esc((payload && payload.hinweis) || (study && study.note) || '')
     + '</div></div>'
     + '<div style="display:flex; gap:var(--sp-3)">'
-    + (kennung ? '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); color:var(--on-accent); background:var(--info)">' + esc(kennung) + '</div>' : '')
+    + (kennung ? '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); color:var(--on-accent); background:var(--info)">' + esc(kennung) + '</div>' : '')
     + stempelBlock(study, payload)
     + '</div></div>';
 
@@ -112,7 +112,7 @@ function renderPostmortems(payload, study) {
     return '<div style="padding:var(--sp-6) var(--sp-6) var(--sp-7)">' + kopf
       + '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-6); max-width:720px; margin-top:var(--sp-5)">'
       + '<h3 style="font-size:var(--t-lead); font-weight:600">No incidents published</h3>'
-      + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-4); line-height:1.6">'
+      + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-4); line-height:var(--lh-prose)">'
       + 'This page reads <span style="' + M + '">public/data/postmortems.json</span>. The file answered and its '
       + '<span style="' + M + '">eintraege</span> list is empty, so there is nothing to show.</div></div></div>';
   }
@@ -129,8 +129,8 @@ function renderPostmortems(payload, study) {
 
   const feld = (label, wert, farbe) =>
     '<div style="margin-top:var(--sp-4)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-4)">' + label + '</div>'
-    + '<div style="font-size:var(--t-small); color:' + (farbe || 'var(--ink-2)') + '; margin-top:var(--sp-2); line-height:1.6">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4)">' + label + '</div>'
+    + '<div style="font-size:var(--t-small); color:' + (farbe || 'var(--ink-2)') + '; margin-top:var(--sp-2); line-height:var(--lh-prose)">'
     + esc(wert || '—') + '</div></div>';
 
   const karten = eintraege.slice().sort((a, b) => String(b.datum).localeCompare(String(a.datum))).map((e) => {
@@ -172,11 +172,11 @@ function renderFieldNotes(payload, study) {
   const kopf = '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:var(--sp-6)">'
     + '<div style="max-width:720px">'
     + '<h2 style="font-size:var(--t-head); font-weight:600">' + esc((study && study.title) || 'Field notes') + '</h2>'
-    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.5">'
+    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-snug)">'
     + esc((payload && payload.hinweis) || 'Curated observations from watching the tape: what happened, the mechanism behind it, and what follows from it. Notes, not measurements — each one names its evidence or says it has none.')
     + '</div></div>'
     + '<div style="display:flex; gap:var(--sp-3)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); color:var(--on-accent); background:var(--info)">' + esc(kennung) + '</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); color:var(--on-accent); background:var(--info)">' + esc(kennung) + '</div>'
     + stempelBlock(study, payload)
     + '</div></div>';
 
@@ -192,7 +192,7 @@ function renderFieldNotes(payload, study) {
     return '<div style="padding:var(--sp-6)">' + kopf
       + '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-6); max-width:720px; margin-top:var(--sp-5)">'
       + '<div style="font-size:var(--t-lead); font-weight:600">No field notes published yet</div>'
-      + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-4); line-height:1.6">'
+      + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-4); line-height:var(--lh-prose)">'
       + 'This page reads <span style="' + M + '">public/data/field_notes.json</span>. The file is there but its '
       + '<span style="' + M + '">notes</span> list is empty, so there is nothing to show — and nothing is invented to fill the space.'
       + '</div></div></div>';
@@ -200,8 +200,8 @@ function renderFieldNotes(payload, study) {
 
   const feld = (label, wert, farbe) => (wert
     ? '<div style="margin-top:var(--sp-4)">'
-      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-4)">' + label + '</div>'
-      + '<div style="font-size:var(--t-small); color:' + (farbe || 'var(--ink-2)') + '; margin-top:var(--sp-2); line-height:1.6">'
+      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4)">' + label + '</div>'
+      + '<div style="font-size:var(--t-small); color:' + (farbe || 'var(--ink-2)') + '; margin-top:var(--sp-2); line-height:var(--lh-prose)">'
       + esc(wert) + '</div></div>'
     : '');
 
@@ -236,7 +236,7 @@ function renderFieldNotes(payload, study) {
   const belegt = notes.filter((n) => n.evidence).length;
   const index = '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); overflow:hidden">'
     + '<div style="padding:var(--sp-4) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); display:flex; align-items:baseline; justify-content:space-between; gap:var(--sp-5)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">WHAT IS IN HERE</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--info)">WHAT IS IN HERE</div>'
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + belegt + ' of ' + notes.length + ' carry evidence</div></div>'
     + notes.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).map((n) =>
       '<div style="display:grid; grid-template-columns:78px 104px 1fr 122px; gap:var(--sp-4); align-items:baseline; padding:var(--sp-3) var(--sp-5); border-bottom:1px solid var(--line-3)">'
@@ -332,8 +332,8 @@ function ladeStudieHtml(study, datei) {
     + '<h2 style="font-size:var(--t-lead); font-weight:600">' + esc(study.title) + '</h2>'
     + '<div style="display:flex; align-items:center; gap:var(--sp-4); margin-top:var(--sp-4)">'
     + '<span style="width:7px; height:7px; border-radius:50%; background:var(--warn); display:inline-block"></span>'
-    + '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.08em; color:var(--warn)">loading public/data/' + esc(datei || 'the study payload') + '</span></div>'
-    + '<div style="font-size:var(--t-small); color:var(--ink-4); margin-top:var(--sp-4); line-height:1.6">The page fills in when the payload answers; nothing is shown before, and no figure is a placeholder.</div>'
+    + '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); color:var(--warn)">loading public/data/' + esc(datei || 'the study payload') + '</span></div>'
+    + '<div style="font-size:var(--t-small); color:var(--ink-4); margin-top:var(--sp-4); line-height:var(--lh-prose)">The page fills in when the payload answers; nothing is shown before, and no figure is a placeholder.</div>'
     + '</div></div>';
 }
 
@@ -341,7 +341,7 @@ function fehlendeStudieHtml(study, datei) {
   return '<div style="padding:var(--sp-6)">'
     + '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-6); max-width:720px">'
     + '<h2 style="font-size:var(--t-lead); font-weight:600">' + esc(study.title) + '</h2>'
-    + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-4); line-height:1.6">'
+    + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-4); line-height:var(--lh-prose)">'
     + 'No published data for this study yet. It reads '
     + '<span style="' + M + '">public/data/' + esc(datei || 'the study payload') + '</span>, '
     + 'which the daily run writes. Nothing is shown here rather than a placeholder, '
@@ -440,7 +440,7 @@ export function renderAlerts(T) {
           + '</div>'
         : '')
       + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin:var(--sp-4) var(--sp-6); overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:92px 170px 1fr 110px 120px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">'
+      + '<div style="display:grid; grid-template-columns:92px 170px 1fr 110px 120px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
       + '<div>TIME</div><div>SIGNAL</div><div>MARKET</div><div style="text-align:right">READING</div><div style="text-align:right">VENUE</div></div>'
       + (ausgeblendet
         ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); padding:var(--sp-3) var(--sp-6) 0">'
@@ -450,7 +450,7 @@ export function renderAlerts(T) {
       + feed.map((a) =>
         '<div style="display:grid; grid-template-columns:92px 170px 1fr 110px 120px; gap:var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3)">'
         + '<div style="' + M + '; font-size:var(--t-small); color:var(--ink-4)">' + esc(a.time) + '</div>'
-        + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; color:var(--accent)">' + esc(a.rule) + '</div>'
+        + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); color:var(--accent)">' + esc(a.rule) + '</div>'
         + '<div style="font-size:var(--t-body); padding-right:var(--sp-5); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(a.market) + '">' + esc(a.market) + '</div>'
         + '<div style="' + M + '; font-size:var(--t-small); text-align:right">' + esc(a.value) + '</div>'
         + '<div style="' + M + '; font-size:var(--t-small); text-align:right; color:var(--ink-3)">' + esc(a.venue) + '</div></div>'
@@ -465,10 +465,10 @@ export function renderAlerts(T) {
           + '<div style="font-size:var(--t-lead); font-weight:600">' + a.name + '</div>'
           + '<div style="width:38px; height:21px; flex:none; border-radius:var(--r-panel); padding:var(--sp-1); display:flex; background:' + (on ? 'var(--accent)' : 'rgba(var(--ink),.14)') + '; justify-content:' + (on ? 'flex-end' : 'flex-start') + '">'
           + '<div style="width:17px; height:17px; border-radius:50%; background:' + (on ? 'var(--on-accent)' : 'var(--ink-4)') + '"></div></div></div>'
-          + '<div style="font-size:var(--t-small); color:var(--ink-4); margin-top:var(--sp-3); line-height:1.45">' + a.desc + '</div>'
+          + '<div style="font-size:var(--t-small); color:var(--ink-4); margin-top:var(--sp-3); line-height:var(--lh-snug)">' + a.desc + '</div>'
           + '<div style="' + M + '; font-size:var(--t-micro); margin-top:var(--sp-4); color:var(--ink-3)">' + esc(trefferText(a.key, on)) + '</div>'
           + (a.key === 'holders' && holderSchalter && !holderSchalter.enabled
-            ? '<div style="font-size:var(--t-small); margin-top:var(--sp-3); color:var(--ink-4); line-height:1.45">' + esc(holderSchalter.note) + '</div>'
+            ? '<div style="font-size:var(--t-small); margin-top:var(--sp-3); color:var(--ink-4); line-height:var(--lh-snug)">' + esc(holderSchalter.note) + '</div>'
             : '')
           + '</div>';
       }).join('')
@@ -480,7 +480,7 @@ export function renderAlerts(T) {
     const dv = live.deliveries;
     const proz = (v) => (v == null ? '—' : (v * 100).toFixed(1) + '%');
     const feld = (label, wert) =>
-      '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-4)">' + esc(label) + '</div>'
+      '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4)">' + esc(label) + '</div>'
       + '<div style="' + M + '; font-size:var(--t-small); color:var(--ink-2); margin-top:var(--sp-2)">' + wert + '</div></div>';
     const spanne = dv.ci95 && dv.ci95[0] != null
       ? '95% CI ' + proz(dv.ci95[0]) + '–' + proz(dv.ci95[1])
@@ -489,8 +489,8 @@ export function renderAlerts(T) {
       ? '—'
       : (dv.chain_ok ? 'verified, ' + num(dv.chain_checked) + ' rows' : 'BROKEN at row ' + num(dv.chain_checked));
     body = '<div style="margin:var(--sp-5) var(--sp-6); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-6); background:var(--panel)">'
-      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-4)">DELIVERY LOG</div>'
-      + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-4); line-height:1.5; max-width:640px">' + esc(dv.note || 'No delivery log available.') + '</div>'
+      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4)">DELIVERY LOG</div>'
+      + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-4); line-height:var(--lh-snug); max-width:640px">' + esc(dv.note || 'No delivery log available.') + '</div>'
       + (dv.available
         ? '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:var(--sp-5); margin-top:var(--sp-6)">'
           + feld('DELIVERED', esc(num(dv.sent) + ' of ' + num(dv.attempts)) + ' · ' + esc(proz(dv.rate)))
@@ -515,15 +515,15 @@ export function renderAlerts(T) {
     // Ein Zustellprotokoll ist ein Nachweis. Sechs erfundene Zeilen mit
     // Uhrzeit, Kanal und Status behaupten Versand, den es nie gab.
     body = '<div style="margin:var(--sp-5) var(--sp-6); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-6); background:var(--panel)">'
-      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-4)">DELIVERY LOG</div>'
-      + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-4); line-height:1.5; max-width:640px">'
+      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4)">DELIVERY LOG</div>'
+      + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-4); line-height:var(--lh-snug); max-width:640px">'
       + esc(alarmSatz) + '</div></div>';
   }
 
   return '<div>'
     + '<div style="padding:var(--sp-6) var(--sp-6) var(--sp-5); border-bottom:1px solid var(--line-2)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.18em; color:var(--accent)">ALERTS</div>'
-    + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:-0.01em">Tell me when this happens</h1>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-max); color:var(--accent)">ALERTS</div>'
+    + '<h1 style="font-size:var(--t-head); line-height:var(--lh-tight); margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:var(--ls-flat)">Tell me when this happens</h1>'
     // Frueher stand hier "Switch one on and it also goes to Telegram". Der
     // Versand haengt am Scanner-Skript und an dessen Konfiguration, nicht an
     // diesen Schaltern — die entscheiden, was diese Seite zeigt.
@@ -582,7 +582,7 @@ export function renderResearch(T) {
   // jeder Studie und schoben deren eigenen Titel unter die Falz. Der
   // Brotkrumen sagt, wo man ist; den Pitch traegt die Startseite.
   const header = '<div style="padding:var(--sp-5) var(--sp-6) 0">'
-    + '<h1 style="' + M + '; font-size:var(--t-micro); letter-spacing:.18em; color:var(--info); margin:0; font-weight:400">RESEARCH · ' + esc(String(study.tab || '').toUpperCase()) + '</h1></div>';
+    + '<h1 style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-max); color:var(--info); margin:0; font-weight:400">RESEARCH · ' + esc(String(study.tab || '').toUpperCase()) + '</h1></div>';
 
   if (s.researchTab === 3) {
     return '<div>' + header + renderLiveRuns(T, payload) + '</div>';
@@ -643,7 +643,7 @@ export function renderResearch(T) {
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:var(--sp-6)">'
     + '<div style="max-width:640px">'
     + '<h2 style="font-size:var(--t-head); font-weight:600">' + esc(study.title) + '</h2>'
-    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.5">' + esc(note) + '</div></div>'
+    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-snug)">' + esc(note) + '</div></div>'
     + stempelBlock(study, payload) + '</div>'
     // So viele Spalten wie Kacheln: der Pilot traegt mit der Wallet-Kachel
     // fuenf, die uebrigen Studien weiter ihre drei oder vier.
@@ -701,7 +701,7 @@ function pilotAuswertungHtml(payload, abgeschlossen) {
     return '<div style="display:grid; grid-template-columns:18px 1fr auto; gap:var(--sp-4); align-items:baseline; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3)">'
       + '<div style="' + M + '; font-size:var(--t-body); color:' + farbe + '">' + zeichen + '</div>'
       + '<div><div style="font-size:var(--t-small); color:var(--ink-1)">' + esc(p.regel) + '</div>'
-      + (p.hinweis ? '<div style="font-size:var(--t-small); color:var(--warn); margin-top:var(--sp-2); line-height:1.5">' + esc(p.hinweis) + '</div>' : '')
+      + (p.hinweis ? '<div style="font-size:var(--t-small); color:var(--warn); margin-top:var(--sp-2); line-height:var(--lh-snug)">' + esc(p.hinweis) + '</div>' : '')
       + '</div>'
       + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); text-align:right; white-space:nowrap">'
       + esc(p.ist || '') + (p.soll ? ' <span style="color:var(--ink-4)">vs ' + esc(p.soll) + '</span>' : '')
@@ -709,17 +709,17 @@ function pilotAuswertungHtml(payload, abgeschlossen) {
   }).join('');
 
   return '<div style="' + karte + '; margin-top:var(--sp-5); padding:var(--sp-5) var(--sp-6)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">WHAT THE TEST MEASURED</div>'
-    + '<div style="font-size:var(--t-lead); color:var(--text); margin-top:var(--sp-4); line-height:1.6; max-width:760px">' + esc(a.befund || '') + '</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--info)">WHAT THE TEST MEASURED</div>'
+    + '<div style="font-size:var(--t-lead); color:var(--text); margin-top:var(--sp-4); line-height:var(--lh-prose); max-width:760px">' + esc(a.befund || '') + '</div>'
     // Der servergerechnete Satz "N positions are still open" stammt aus der
     // Trade-Liste ohne Aufloesungen; sobald das Wallet abgerechnet hat,
     // steht der Ausgang in der Karte HOW IT ENDED und der Satz entfaellt.
     + (a.offener_ausgang && !abgeschlossen
-      ? '<div style="font-size:var(--t-body); color:var(--warn); margin-top:var(--sp-4); line-height:1.6; max-width:760px; '
+      ? '<div style="font-size:var(--t-body); color:var(--warn); margin-top:var(--sp-4); line-height:var(--lh-prose); max-width:760px; '
         + 'border-left:2px solid rgba(var(--warn-rgb),.4); padding-left:var(--sp-4)">' + esc(a.offener_ausgang) + '</div>'
       : '')
     + (punkte
-      ? '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3); margin:var(--sp-5) 0 var(--sp-3)">RULE ADHERENCE</div>'
+      ? '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3); margin:var(--sp-5) 0 var(--sp-3)">RULE ADHERENCE</div>'
         + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); overflow:hidden">' + punkte + '</div>'
       : '')
     + '</div>';
@@ -790,8 +790,8 @@ function pipelineHeadlineHtml(payload) {
     punkte: z.gruende.map(([text, n]) => ({ label: text, wert: n, art: 'kosten' }))
   });
   return '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); padding:var(--sp-5) var(--sp-6)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">WHAT THE FORWARD TEST FOUND</div>'
-    + '<div style="font-size:var(--t-lead); color:var(--text); margin-top:var(--sp-4); line-height:1.6; max-width:820px">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--info)">WHAT THE FORWARD TEST FOUND</div>'
+    + '<div style="font-size:var(--t-lead); color:var(--text); margin-top:var(--sp-4); line-height:var(--lh-prose); max-width:820px">'
     + 'Almost nothing was tradable: of ' + num(z.gesamt) + ' decision checks, only ' + num(z.gekauft) + ' ended in a paper buy ('
     + (anteil < 10 ? anteil.toFixed(1) : Math.round(anteil)) + '%)'
     + (top ? ' — most common stopper: ' + esc(top[0].charAt(0).toLowerCase() + top[0].slice(1)) + ' (' + num(top[1]) + ' of ' + num(z.keine) + ' no-trades, ' + Math.round((top[1] / Math.max(1, z.keine)) * 100) + '%)' : '')
@@ -802,7 +802,7 @@ function pipelineHeadlineHtml(payload) {
       // .5 statt .6 ergab im hellen Thema 3.88:1 und im dunklen 4.49:1,
       // beides unter AA. Ein Vorbehalt darf nicht die blasseste Zeile der
       // Seite sein; gemessen 6.05 dunkel und 5.54 hell.
-      stil: 'font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.5'
+      stil: 'font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-snug)'
     })
     + (chart ? '<div style="margin-top:var(--sp-5)">' + chart + '</div>' : '')
     + '</div>';
@@ -815,12 +815,12 @@ function pipelineRegelnHtml(payload) {
 
   const regel = (titel, text) =>
     '<div style="padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--info)">' + esc(titel) + '</div>'
-    + '<div style="font-size:var(--t-small); color:var(--ink-2); margin-top:var(--sp-3); line-height:1.6">' + esc(text) + '</div></div>';
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--info)">' + esc(titel) + '</div>'
+    + '<div style="font-size:var(--t-small); color:var(--ink-2); margin-top:var(--sp-3); line-height:var(--lh-prose)">' + esc(text) + '</div></div>';
 
   return '<div style="' + karte + '; margin-top:var(--sp-5); padding:var(--sp-5) var(--sp-6)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">HOW THE PIPELINE DECIDES</div>'
-    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-4); line-height:1.6; max-width:760px">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--info)">HOW THE PIPELINE DECIDES</div>'
+    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-4); line-height:var(--lh-prose); max-width:760px">'
     + 'These are word-count markets: will a speaker say a given word often enough during an episode, call or speech. '
     + 'The pipeline follows the live transcript and counts. It never predicts what will be said, it acts only on what has already been said. '
     + 'One run is one broadcast; every market it checks becomes one row in the log, buy or no-trade.</div>'
@@ -829,7 +829,7 @@ function pipelineRegelnHtml(payload) {
     + regel('BUY NO', 'Only after the full transcript, when the final count stayed far enough below the threshold, and only at a lower cap than YES. Betting on absence breaks on a single missed word, so it needs the bigger cushion.')
     + regel('OTHERWISE NOTHING', 'Every other case is a no-trade, and each entry carries the reason that stopped it. The thresholds themselves are shown per entry, not fixed here.')
     + '</div>'
-    + '<div style="font-size:var(--t-small); color:var(--ink-4); margin-top:var(--sp-4); line-height:1.5; max-width:760px">'
+    + '<div style="font-size:var(--t-small); color:var(--ink-4); margin-top:var(--sp-4); line-height:var(--lh-snug); max-width:760px">'
     + 'Reading the run table below: EXTRACTED $ is the dollar value the run&#39;s buys actually captured of what its already-decided outcomes offered within the caps; QUOTE is that share — 100% means it caught everything its own rules allowed.</div>'
     + '</div>';
 }
@@ -838,9 +838,9 @@ function studyTableHtml(T, label, cols, head, rows) {
   // Kompakte Zeilen wie in den Live-runs- und Ledger-Tabellen: die alten
   // 11px/18px-Polster und 13px-Zellen machten jede Studientabelle im
   // Vergleich zum Rest der Seite auffallend gross.
-  const headStyle = 'display:grid; grid-template-columns:' + cols + '; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3)';
+  const headStyle = 'display:grid; grid-template-columns:' + cols + '; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)';
   return '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); overflow:hidden">'
-    + '<div style="padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">' + esc(label) + '</div>'
+    + '<div style="padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--info)">' + esc(label) + '</div>'
     + '<div style="' + headStyle + '">'
     + head.map((h, i) => '<div style="' + (i === 0 ? '' : 'text-align:right') + '">' + esc(h) + '</div>').join('')
     + '</div>'
@@ -875,7 +875,7 @@ function buildStudyTable(T, tab, payload) {
         // stand bisher ungenutzt in public/data/meta.json. Jetzt steht es
         // unter der Spalte, aus dem Register.
         + caveatZeile('verification_not_signal', {
-          stil: 'font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); max-width:760px; line-height:1.5'
+          stil: 'font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); max-width:760px; line-height:var(--lh-snug)'
         });
     }
     if (tab === 2 && payload.faelle) {
@@ -1172,7 +1172,7 @@ function renderCategoryEfficiency(T, payload, study) {
   const kopf = (unterzeile) => '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:var(--sp-6)">'
     + '<div style="max-width:760px">'
     + '<h2 style="font-size:var(--t-head); font-weight:600">' + esc(study.title) + '</h2>'
-    + '<div style="' + M + '; font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.5">' + unterzeile + '</div></div>'
+    + '<div style="' + M + '; font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-snug)">' + unterzeile + '</div></div>'
     + stempelBlock(study, payload) + '</div>';
 
   if (!payload) {
@@ -1187,7 +1187,7 @@ function renderCategoryEfficiency(T, payload, study) {
     return '<div style="padding:var(--sp-6)">' + kopf(esc(study.note))
       + '<div style="' + karte + '; padding:var(--sp-6); max-width:720px; margin-top:var(--sp-5)">'
       + '<div style="font-size:var(--t-lead); font-weight:600">No categories in the published file</div>'
-      + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-4); line-height:1.6">'
+      + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-4); line-height:var(--lh-prose)">'
       + 'This page reads <span style="' + M + '">public/data/kategorie_karte.json</span>. The file is there but its '
       + '<span style="' + M + '">kategorien</span> list is empty, so nothing is drawn — and nothing is invented to fill the space.'
       + '</div></div></div>';
@@ -1219,10 +1219,10 @@ function renderCategoryEfficiency(T, payload, study) {
   const fallDec = b ? b.faller.z.entschiedenT7 : null;
   const befundHtml = b
     ? '<div style="' + karte + '; padding:var(--sp-5) var(--sp-6); margin-top:var(--sp-5)">'
-      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--accent)">THE FINDING</div>'
-      + '<div style="font-size:var(--t-head); font-weight:600; margin-top:var(--sp-3); line-height:1.35; max-width:900px">'
+      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--accent)">THE FINDING</div>'
+      + '<div style="font-size:var(--t-head); font-weight:600; margin-top:var(--sp-3); line-height:var(--lh-tight); max-width:900px">'
       + 'Most of the gap between categories is settled questions, not sharper pricing.</div>'
-      + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.6; max-width:900px">'
+      + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-prose); max-width:900px">'
       + 'Scored on every price, ' + esc(b.bester.name) + ' (' + f3(horizontVon(b.bester, 7).brier) + ') '
       + (b.faktor ? 'looks ' + b.faktor.toFixed(1) + '× better than ' : 'leads ')
       + esc(b.schlechtester.name) + ' (' + f3(horizontVon(b.schlechtester, 7).brier) + '). '
@@ -1294,7 +1294,7 @@ function renderCategoryEfficiency(T, payload, study) {
   // ---- Kompakte Tabelle, auf offenen Preisen sortiert. Alle Horizonte und
   // Trefferquoten stehen im Klappfeld darunter.
   const tabSpalten = '1fr 118px 108px 96px 92px 116px';
-  const tabKopf = '<div style="display:grid; grid-template-columns:' + tabSpalten + '; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3)">'
+  const tabKopf = '<div style="display:grid; grid-template-columns:' + tabSpalten + '; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
     + '<div>CATEGORY</div>'
     + '<div style="text-align:right">' + (hatOffenT7 ? 'OPEN BRIER' : 'BRIER T-7') + '</div>'
     + '<div style="text-align:right">' + (hatOffenT7 ? 'ALL PRICES' : 'HIT RATE') + '</div>'
@@ -1302,7 +1302,7 @@ function renderCategoryEfficiency(T, payload, study) {
     + '<div style="text-align:right">MEDIAN VOLUME</div></div>';
   const tabelle = '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); overflow:hidden">'
     + '<div style="padding:var(--sp-4) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); display:flex; align-items:baseline; justify-content:space-between; gap:var(--sp-5)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--info)">'
     + (hatOffenT7 ? 'RANKED ON OPEN PRICES AT T-7' : 'RANKED ON BRIER AT T-7') + '</div>'
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">every horizon and hit rate → in the panel below</div></div>'
     + tabKopf
@@ -1315,7 +1315,7 @@ function renderCategoryEfficiency(T, payload, study) {
         + '<div style="display:flex; align-items:center; gap:var(--sp-4); min-width:0">'
         + '<div style="font-size:var(--t-body); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:' + (duenn ? 'var(--ink-3)' : 'var(--text)') + '" title="' + esc(z.name) + '">' + esc(z.name) + '</div>'
         + '<div style="height:6px; flex:none; width:' + balken + 'px; border-radius:var(--r-control); background:' + (duenn ? 'rgba(var(--ink),.25)' : (wert >= 0.2 ? 'var(--warn)' : 'var(--info)')) + '; opacity:.85"></div>'
-        + (duenn ? '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.08em; color:var(--ink-3); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-2); white-space:nowrap">THIN n ' + num(h.nOffen) + '</div>' : '')
+        + (duenn ? '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); color:var(--ink-3); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-2); white-space:nowrap">THIN n ' + num(h.nOffen) + '</div>' : '')
         + '</div>'
         + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:' + (duenn ? 'var(--ink-3)' : 'var(--ink-1)') + '">' + f3(wert) + '</div>'
         + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-3)">' + (hatOffenT7 ? f3(h.brier) : (h.treffer != null ? Math.round(h.treffer * 100) + '%' : '—')) + '</div>'
@@ -1351,7 +1351,7 @@ function renderCategoryEfficiency(T, payload, study) {
   }).filter(Boolean);
 
   const vollSpalten = '1fr ' + alleTage.map(() => '118px').join(' ');
-  const vollKopf = '<div style="display:grid; grid-template-columns:' + vollSpalten + '; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3)">'
+  const vollKopf = '<div style="display:grid; grid-template-columns:' + vollSpalten + '; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
     + '<div>CATEGORY</div>'
     + alleTage.map((t) => '<div style="text-align:right">T-' + t + ' BRIER ±95% · HIT · N</div>').join('') + '</div>';
   const zelle = (h) => {
@@ -1376,7 +1376,7 @@ function renderCategoryEfficiency(T, payload, study) {
   const zellenMitBrier = zeilen.reduce((a, z) => a + z.horizonte.filter((h) => h && h.brier != null).length, 0);
   const hatBrierCi = zeilen.some((z) => z.horizonte.some((h) => h && h.brierCi));
   const vergleichHtml = zellenMitBrier > 1
-    ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-4); line-height:1.6">'
+    ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-4); line-height:var(--lh-prose)">'
       + zellenMitBrier + ' category-by-horizon cells are scored here. The best of ' + zellenMitBrier
       + ' cells is the smallest of ' + zellenMitBrier + ' draws, so a leading Brier is not by itself a difference'
       + (hatBrierCi ? ' — the ± figure is the 95% interval around each cell, and two cells whose intervals overlap are not separated by this sample.' : '.')
@@ -1386,15 +1386,15 @@ function renderCategoryEfficiency(T, payload, study) {
   // Der Titel verspricht nur, was drin ist: ohne Kalibrierungsbins heisst das
   // Feld nicht "& CALIBRATION".
   const horizontHtml = '<details style="margin-top:var(--sp-4); ' + karte + '; padding:0 var(--sp-5)">'
-    + '<summary style="cursor:pointer; padding:var(--sp-4) 0; ' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3); list-style:none">ALL HORIZONS &amp; HIT RATES'
+    + '<summary style="cursor:pointer; padding:var(--sp-4) 0; ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3); list-style:none">ALL HORIZONS &amp; HIT RATES'
     + (kalib.length ? ', PLUS CALIBRATION' : '') + ' ▸</summary>'
     + '<div style="padding-bottom:var(--sp-5)">'
     + vollTabelle
     + vergleichHtml
     + (linienHtml ? '<div style="margin-top:var(--sp-4)">' + linienHtml + '</div>' : '')
     + (kalib.length
-      ? '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info); margin:var(--sp-5) 0 var(--sp-3)">CALIBRATION AT T-' + (zeilen.find((z) => z.bins.length) || {}).kalibrierungTage + ' · PREDICTED VS REALISED</div>'
-        + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-bottom:var(--sp-4); line-height:1.5">A dot on the diagonal means the price was right on average in that bin; dot size follows n, the bar is the 95% interval of the realised share, amber when it misses the prediction.</div>'
+      ? '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--info); margin:var(--sp-5) 0 var(--sp-3)">CALIBRATION AT T-' + (zeilen.find((z) => z.bins.length) || {}).kalibrierungTage + ' · PREDICTED VS REALISED</div>'
+        + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-bottom:var(--sp-4); line-height:var(--lh-snug)">A dot on the diagonal means the price was right on average in that bin; dot size follows n, the bar is the 95% interval of the realised share, amber when it misses the prediction.</div>'
         + '<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:var(--sp-4)">' + kalib.join('') + '</div>'
       : '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-4)">No calibration bins in this payload — kategorie_karte.json carries them under kategorien[].kalibrierung.</div>')
     + '</div></details>';
@@ -1402,8 +1402,8 @@ function renderCategoryEfficiency(T, payload, study) {
   // ---- Klappfeld 2: Einpreisungs-Logik je Kategorie (unveraendert).
   const q = payload.quelle && typeof payload.quelle === 'object' ? payload.quelle : null;
   const absatz = (titel, text) => (text
-    ? '<div style="margin-top:var(--sp-4)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-4)">' + titel + '</div>'
-      + '<div style="font-size:var(--t-small); color:var(--ink-2); margin-top:var(--sp-2); line-height:1.6">' + esc(text) + '</div></div>'
+    ? '<div style="margin-top:var(--sp-4)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4)">' + titel + '</div>'
+      + '<div style="font-size:var(--t-small); color:var(--ink-2); margin-top:var(--sp-2); line-height:var(--lh-prose)">' + esc(text) + '</div></div>'
     : '');
   const messlogik = q && q.messlogik && typeof q.messlogik === 'object' ? q.messlogik : null;
   let messlogikHtml = '';
@@ -1426,9 +1426,9 @@ function renderCategoryEfficiency(T, payload, study) {
         + '</div>';
     };
     messlogikHtml = '<details style="margin-top:var(--sp-4); ' + karte + '; padding:0 var(--sp-5)">'
-      + '<summary style="cursor:pointer; padding:var(--sp-4) 0; ' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3); list-style:none">PRICING-IN LOGIC BY CATEGORY ▸</summary>'
+      + '<summary style="cursor:pointer; padding:var(--sp-4) 0; ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3); list-style:none">PRICING-IN LOGIC BY CATEGORY ▸</summary>'
       + '<div style="padding-bottom:var(--sp-5)">'
-      + '<div style="font-size:var(--t-small); color:var(--ink-3); line-height:1.5">These horizons measure forecast quality, never pricing-in speed: in-play moves and news reactions happen between T-1 and the decision and are invisible above. Per category: what the horizons anchor to, which real-world events reprice it, what stays unmeasured, and where an event-anchored latency study would take its t0 from. The blue line is the sample&#39;s pricing-mechanism mix.</div>'
+      + '<div style="font-size:var(--t-small); color:var(--ink-3); line-height:var(--lh-snug)">These horizons measure forecast quality, never pricing-in speed: in-play moves and news reactions happen between T-1 and the decision and are invisible above. Per category: what the horizons anchor to, which real-world events reprice it, what stays unmeasured, and where an event-anchored latency study would take its t0 from. The blue line is the sample&#39;s pricing-mechanism mix.</div>'
       + namen.map(block).join('')
       + '</div></details>';
   }
@@ -1439,22 +1439,22 @@ function renderCategoryEfficiency(T, payload, study) {
   const langerHinweis = payload.hinweis ? String(payload.hinweis) : '';
   const methodeHtml = q || snap || langerHinweis
     ? '<details style="margin-top:var(--sp-4); ' + karte + '; padding:0 var(--sp-5)">'
-      + '<summary style="cursor:pointer; padding:var(--sp-4) 0; ' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3); list-style:none">METHOD, SAMPLE &amp; WHAT IT CANNOT SHOW ▸</summary>'
+      + '<summary style="cursor:pointer; padding:var(--sp-4) 0; ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3); list-style:none">METHOD, SAMPLE &amp; WHAT IT CANNOT SHOW ▸</summary>'
       + '<div style="padding-bottom:var(--sp-5)">'
-      + (langerHinweis ? '<div style="font-size:var(--t-small); color:var(--ink-2); line-height:1.65; max-width:900px">' + esc(langerHinweis) + '</div>' : '')
+      + (langerHinweis ? '<div style="font-size:var(--t-small); color:var(--ink-2); line-height:var(--lh-prose); max-width:900px">' + esc(langerHinweis) + '</div>' : '')
       + (q ? absatz('WHAT WAS MEASURED', q.methode) + absatz('HOW MARKETS WERE CATEGORISED', q.kategorisierung) : '')
       + (q && q.datenfenster ? absatz('DATA WINDOW', 'events with an end date from ' + String(q.datenfenster.end_date_min || '').slice(0, 10) + ', fetched ' + String(q.datenfenster.abgerufen_utc || '').slice(0, 16).replace('T', ' ') + ' UTC · ' + num(q.datenfenster.events_gesichtet || 0) + ' events scanned · ' + q.datenfenster.reihenfolge) : '')
       + (q && q.auswahl ? absatz('SAMPLE SELECTION', 'at most ' + q.auswahl.max_per_event + ' markets per event, ' + q.auswahl.max_per_category_long_lived + ' long-lived and ' + q.auswahl.max_per_category_short_lived + ' short-lived markets per category, minimum volume $' + num(q.auswahl.min_volume_usd) + ', categories under ' + q.auswahl.min_markets_per_category + ' markets fold into Other') : '')
       + (q && q.preise ? absatz('PRICE SERIES', 'hourly: ' + q.preise.hourly + ' · daily: ' + q.preise.daily) : '')
       + (q && Array.isArray(q.einschraenkungen) && q.einschraenkungen.length
-        ? '<div style="margin-top:var(--sp-4)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-4)">WHAT IT CANNOT SHOW</div>'
-          + '<ul style="margin:var(--sp-2) 0 0 var(--sp-5); padding:0; font-size:var(--t-small); color:var(--ink-2); line-height:1.6">'
+        ? '<div style="margin-top:var(--sp-4)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4)">WHAT IT CANNOT SHOW</div>'
+          + '<ul style="margin:var(--sp-2) 0 0 var(--sp-5); padding:0; font-size:var(--t-small); color:var(--ink-2); line-height:var(--lh-prose)">'
           + q.einschraenkungen.map((e) => '<li>' + esc(e) + '</li>').join('') + '</ul></div>'
         : '')
       + (snap
-        ? '<div style="margin-top:var(--sp-4)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-4)">THESIS FIGURES THIS TABLE REPLACES' + (snap.stand_utc ? ' · ' + esc(String(snap.stand_utc).slice(0, 10)) : '') + '</div>'
-          + (snap.hinweis ? '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-2); line-height:1.5">' + esc(snap.hinweis) + '</div>' : '')
-          + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.7">'
+        ? '<div style="margin-top:var(--sp-4)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4)">THESIS FIGURES THIS TABLE REPLACES' + (snap.stand_utc ? ' · ' + esc(String(snap.stand_utc).slice(0, 10)) : '') + '</div>'
+          + (snap.hinweis ? '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-2); line-height:var(--lh-snug)">' + esc(snap.hinweis) + '</div>' : '')
+          + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-prose)">'
           + snap.kategorien.map((k) => esc(String(k.kategorie)) + ': Brier T-7 ' + (k.brier_t7 != null ? (+k.brier_t7).toFixed(3) : '—') + ' (n ' + (k.n_t7 != null ? k.n_t7 : '—') + ') · T-1 ' + (k.brier_t1 != null ? (+k.brier_t1).toFixed(3) : '—') + ' · ' + (k.n_maerkte != null ? k.n_maerkte : '—') + ' markets').join('<br>')
           + '</div></div>'
         : '')
@@ -1789,19 +1789,19 @@ function renderLiveRuns(T, payload) {
       // Der Erklaertext steht im zugeklappten WHAT THIS TABLE IS des
       // Tabellenabschnitts — hier nur noch im Rueckfall ohne Ledger.
       + (!ledger
-        ? '<div style="font-size:var(--t-small); color:var(--ink-4); line-height:1.5; max-width:820px; margin-bottom:var(--sp-5)">Race chips compare each fill against the public taker tape of that market: how many other trades hit between the drop and our fill, and how long until the next trader after us. The anchor is the bot\'s logged fill time — chain timestamps can differ by a few seconds.</div>'
+        ? '<div style="font-size:var(--t-small); color:var(--ink-4); line-height:var(--lh-snug); max-width:820px; margin-bottom:var(--sp-5)">Race chips compare each fill against the public taker tape of that market: how many other trades hit between the drop and our fill, and how long until the next trader after us. The anchor is the bot\'s logged fill time — chain timestamps can differ by a few seconds.</div>'
         : '')
       + (alleKarten.length ? '' : leerZeile(laufSatz))
       + (!ledger && cards.length
-        ? '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-4); margin-bottom:var(--sp-4)">RUNS WITH FILLS · ' + cards.length
-          + ' <span style="color:var(--ink-4); letter-spacing:0">· newest first</span></div>'
+        ? '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4); margin-bottom:var(--sp-4)">RUNS WITH FILLS · ' + cards.length
+          + ' <span style="color:var(--ink-4); letter-spacing:var(--ls-flat)">· newest first</span></div>'
           + '<div style="display:flex; flex-direction:column; gap:var(--sp-4)">'
           + cards.map((r) => {
-            const statusStyle = M + '; font-size:var(--t-micro); letter-spacing:.1em; border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); ' + (r.status === 'RESOLVED' ? 'color:var(--ink-3); border:1px solid var(--line-1)' : r.status === 'OPEN' ? 'color:var(--warn); border:1px solid rgba(var(--warn-rgb),.4)' : 'color:var(--ink-3); border:1px solid var(--line-2)');
+            const statusStyle = M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); ' + (r.status === 'RESOLVED' ? 'color:var(--ink-3); border:1px solid var(--line-1)' : r.status === 'OPEN' ? 'color:var(--warn); border:1px solid rgba(var(--warn-rgb),.4)' : 'color:var(--ink-3); border:1px solid var(--line-2)');
             return '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-5)">'
               + '<div style="display:flex; gap:var(--sp-3); flex-wrap:wrap">'
-              + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); color:var(--info); border:1px solid rgba(var(--info-rgb),.4)">' + esc(r.profile) + '</div>'
-              + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); color:var(--info); border:1px solid rgba(var(--info-rgb),.4)">' + esc(r.mode) + '</div>'
+              + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); color:var(--info); border:1px solid rgba(var(--info-rgb),.4)">' + esc(r.profile) + '</div>'
+              + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); color:var(--info); border:1px solid rgba(var(--info-rgb),.4)">' + esc(r.mode) + '</div>'
               + '<div style="' + statusStyle + '">' + esc(r.status) + '</div></div>'
               + '<h3 style="font-size:var(--t-lead); font-weight:600; margin-top:var(--sp-4)">' + esc(r.title)
               + (r.url ? ' <a href="' + esc(r.url) + '" target="_blank" rel="noopener" style="' + M + '; font-size:var(--t-micro); color:var(--info); text-decoration:none">event ↗</a>' : '')
@@ -1818,11 +1818,11 @@ function renderLiveRuns(T, payload) {
         : '')
       + (ohneFills.length && !ledger
         ? '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); overflow:hidden">'
-          + '<div style="padding:var(--sp-4) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-4)">RUNS WITHOUT A FILL · ' + ohneFills.length
-          + ' <span style="color:var(--ink-4); letter-spacing:0">· the decision layer ran and placed nothing — one line per run, newest first</span></div>'
+          + '<div style="padding:var(--sp-4) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4)">RUNS WITHOUT A FILL · ' + ohneFills.length
+          + ' <span style="color:var(--ink-4); letter-spacing:var(--ls-flat)">· the decision layer ran and placed nothing — one line per run, newest first</span></div>'
           + ohneFills.map((r) =>
             '<div style="display:flex; align-items:center; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); border-bottom:1px solid var(--line-3)">'
-            + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.08em; color:var(--info); border:1px solid rgba(var(--info-rgb),.35); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3); white-space:nowrap">' + esc(r.profile) + '</div>'
+            + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); color:var(--info); border:1px solid rgba(var(--info-rgb),.35); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3); white-space:nowrap">' + esc(r.profile) + '</div>'
             + '<div style="font-size:var(--t-small); color:var(--ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1" title="' + esc(r.title) + '">' + esc(r.title) + '</div>'
             + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); white-space:nowrap">' + esc(r.chips.filter((c) => /decisions|priced/.test(c)).join(' · ') || '—') + '</div>'
             + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); white-space:nowrap">' + esc(r.mode.toLowerCase()) + ' · no fills</div>'
@@ -1840,8 +1840,8 @@ function renderLiveRuns(T, payload) {
     const repSpalten = '80px 1fr 90px 90px 100px 118px 106px 96px 96px';
     body = repricingHtml + decayHtml
       + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); overflow:hidden">'
-      + '<div style="padding:var(--sp-4) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">TIMING AND REPRICING PER FILL · ' + timingRows.length + ' FILLS</div>'
-      + '<div style="display:grid; grid-template-columns:' + repSpalten + '; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">'
+      + '<div style="padding:var(--sp-4) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--info)">TIMING AND REPRICING PER FILL · ' + timingRows.length + ' FILLS</div>'
+      + '<div style="display:grid; grid-template-columns:' + repSpalten + '; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
       + '<div>RUN</div><div>MARKET</div><div style="text-align:right">DROP</div><div style="text-align:right">FILL</div><div style="text-align:right">LATENCY</div><div style="text-align:right">TRADES BEFORE US</div><div style="text-align:right">NEXT TRADER</div><div style="text-align:right">REPRICE 30 S</div><div style="text-align:right">REPRICE 900 S</div></div>'
       + (timingRows.length ? '' : leerZeile(laufSatz))
       + timingRows.map((t) => {
@@ -1879,9 +1879,9 @@ function renderLiveRuns(T, payload) {
       : null;
     const simRows = liveSims || [];
     body = '<div style="margin-top:var(--sp-5)">'
-      + '<div style="font-size:var(--t-small); color:var(--ink-4); line-height:1.5; max-width:820px">Replays the same runs with a different stake rule each time — same entries, same fills, only the size changes. Caps and the per-run budget stay as they were on the day.' + (liveSims ? ' Only resolved bets with a valid fill price count; bankroll $100, no compounding.' : '') + ' Every figure in this tab is a simulation on log-estimated fills — not cash; the cash figure is the wallet-reconciled net in the tiles above.</div>'
+      + '<div style="font-size:var(--t-small); color:var(--ink-4); line-height:var(--lh-snug); max-width:820px">Replays the same runs with a different stake rule each time — same entries, same fills, only the size changes. Caps and the per-run budget stay as they were on the day.' + (liveSims ? ' Only resolved bets with a valid fill price count; bankroll $100, no compounding.' : '') + ' Every figure in this tab is a simulation on log-estimated fills — not cash; the cash figure is the wallet-reconciled net in the tiles above.</div>'
       + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:1fr 110px 96px 96px 96px 104px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">'
+      + '<div style="display:grid; grid-template-columns:1fr 110px 96px 96px 96px 104px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
       + '<div>STAKE RULE</div><div style="text-align:right">NET</div><div style="text-align:right">ROI</div><div style="text-align:right">MAX DD</div><div style="text-align:right">HIT RATE</div><div style="text-align:right">BETS PLACED</div></div>'
       + (simRows.length ? '' : leerZeile(laufSatz))
       + simRows.slice().sort((a, b) => b.roi - a.roi).map((r, i) =>
@@ -1906,8 +1906,8 @@ function renderLiveRuns(T, payload) {
       + '</div>'
       + (liveSims && extras.timing_decay && extras.timing_decay.length
         ? '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); overflow:hidden">'
-          + '<div style="padding:var(--sp-4) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">SAME MODEL, DELAYED ENTRY — PNL DECAY BY DELAY</div>'
-          + '<div style="display:grid; grid-template-columns:1fr 110px 130px 120px 130px 130px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">'
+          + '<div style="padding:var(--sp-4) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--info)">SAME MODEL, DELAYED ENTRY — PNL DECAY BY DELAY</div>'
+          + '<div style="display:grid; grid-template-columns:1fr 110px 130px 120px 130px 130px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
           + '<div>DELAY</div><div style="text-align:right">BETS</div><div style="text-align:right">FOREIGN REF</div><div style="text-align:right">PRICED OUT</div><div style="text-align:right">SIM PNL</div><div style="text-align:right">VS INSTANT</div></div>'
           + extras.timing_decay.map((t) =>
             '<div style="display:grid; grid-template-columns:1fr 110px 130px 120px 130px 130px; gap:var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small)">'
@@ -1924,8 +1924,8 @@ function renderLiveRuns(T, payload) {
         // ist eine Behauptung; ohne timing_decay in der Nutzlast gibt es
         // keine.
         : '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); padding:var(--sp-5)">'
-          + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-4); margin-bottom:var(--sp-4)">DELAYED ENTRY</div>'
-          + '<div style="font-size:var(--t-small); color:var(--ink-4); line-height:1.5">'
+          + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4); margin-bottom:var(--sp-4)">DELAYED ENTRY</div>'
+          + '<div style="font-size:var(--t-small); color:var(--ink-4); line-height:var(--lh-snug)">'
           + 'No delay series in this payload — runs.json carries it under extras.timing_decay.</div></div>')
       + '</div>';
   } else if (s.liveTab === 'calib') {
@@ -1945,10 +1945,10 @@ function renderLiveRuns(T, payload) {
       punkte: calibRows.map((c) => ({ vorhergesagt: (+c.paid) / 100, realisiert: (+c.settled) / 100, n: +c.n || 0 }))
     });
     body = '<div style="margin-top:var(--sp-5)">'
-      + '<div style="font-size:var(--t-small); color:var(--ink-4); line-height:1.5; max-width:820px">Entry price against what actually happened. A perfectly calibrated entry sits on the diagonal — above it means we paid too much.' + esc(calibNote) + '</div>'
+      + '<div style="font-size:var(--t-small); color:var(--ink-4); line-height:var(--lh-snug); max-width:820px">Entry price against what actually happened. A perfectly calibrated entry sits on the diagonal — above it means we paid too much.' + esc(calibNote) + '</div>'
       + (calibChart ? '<div style="margin-top:var(--sp-5); max-width:420px">' + calibChart + '</div>' : '')
       + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">'
+      + '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
       + '<div>ENTRY PRICE BAND</div><div style="text-align:right">BETS</div><div style="text-align:right">PAID</div><div style="text-align:right">SETTLED</div><div style="text-align:right">GAP</div></div>'
       + (calibRows.length ? '' : leerZeile(laufSatz))
       + calibRows.map((c) => {
@@ -1965,8 +1965,8 @@ function renderLiveRuns(T, payload) {
     const extras = payload && payload.extras;
     const monthRows = extras && extras.monthly ? extras.monthly : [];
     body = '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); overflow:hidden">'
-      + '<div style="padding:var(--sp-4) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">MONTH BY MONTH</div>'
-      + '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px 100px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">'
+      + '<div style="padding:var(--sp-4) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--info)">MONTH BY MONTH</div>'
+      + '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px 100px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
       + '<div>MONTH</div><div style="text-align:right">RUNS</div><div style="text-align:right">BETS</div><div style="text-align:right">STAKE</div><div style="text-align:right">NET</div><div style="text-align:right">NET / SETTLED STAKE</div></div>'
       + (monthRows.length ? '' : leerZeile(laufSatz))
       + monthRows.map((t) => {
@@ -1988,7 +1988,7 @@ function renderLiveRuns(T, payload) {
           + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:' + (quote == null ? 'var(--ink-4)' : quote >= 0 ? 'var(--pos)' : 'var(--neg)') + '">'
           + (quote == null ? 'no bet settled' : (quote >= 0 ? '+' : '') + quote.toFixed(1) + '% <span style="font-size:var(--t-micro); color:var(--ink-4)">of $' + num(Math.round(basis)) + (offen ? ' · ' + offen + ' open' : '') + '</span>') + '</div></div>';
       }).join('')
-      + '<div style="padding:var(--sp-3) var(--sp-5); ' + M + '; font-size:var(--t-micro); color:var(--ink-4); line-height:1.6">'
+      + '<div style="padding:var(--sp-3) var(--sp-5); ' + M + '; font-size:var(--t-micro); color:var(--ink-4); line-height:var(--lh-prose)">'
       + 'NET is the settled result of the bets placed that month; the last column divides it by the stake of the settled bets only, so open stake does not dilute it. '
       + 'This is a return on stake, not the wallet return — the wallet return is measured against the one-time deposit and is shown as ROI · WALLET above.</div>'
       + '</div>';
@@ -1998,9 +1998,9 @@ function renderLiveRuns(T, payload) {
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:var(--sp-6)">'
     + '<div style="max-width:660px">'
     + '<h2 style="font-size:var(--t-head); font-weight:600">Our own bot runs</h2>'
-    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.5">' + esc(payload && payload.hinweis ? payload.hinweis : 'Bets, reaction times and realized results of the research bot on mentions markets. One run is one episode or event.') + '</div></div>'
+    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-snug)">' + esc(payload && payload.hinweis ? payload.hinweis : 'Bets, reaction times and realized results of the research bot on mentions markets. One run is one episode or event.') + '</div></div>'
     + '<div style="display:flex; gap:var(--sp-3)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); color:var(--on-accent); background:var(--accent)">' + esc(payload && payload.kennzeichnung ? String(payload.kennzeichnung).toUpperCase() : 'LIVE / DESCRIPTIVE') + '</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); color:var(--on-accent); background:var(--accent)">' + esc(payload && payload.kennzeichnung ? String(payload.kennzeichnung).toUpperCase() : 'LIVE / DESCRIPTIVE') + '</div>'
     + stempelBlock(T.studies[3], payload)
     + '</div></div>'
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:var(--sp-4); margin-top:var(--sp-5)">'
@@ -2014,7 +2014,7 @@ function renderLiveRuns(T, payload) {
     // Die Adresse, ueber die jeder jede Zahl der Seite nachrechnen kann —
     // der aufklappbare LOG-VS-WALLET-Block, der hier stand, erklaerte eine
     // zweite Zahlenwelt, die die Seite nicht mehr zeigt.
-    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-4); line-height:1.6">'
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-4); line-height:var(--lh-prose)">'
     + 'Wallet ' + walletLinkHtml() + ' · the headline figures come from the public Polymarket Data API for this address — anyone can rerun the check.'
     + '</div>'
     // Die versprochene Kurve der Seite: kumulierte PnL je Lauf, aus den
@@ -2050,7 +2050,7 @@ function archivKnopf(T, slug, label) {
 function paperLogHtml(T) {
   const pf = T.liveData && T.liveData.research ? T.liveData.research['Pipeline forward'] : null;
   const karte = KARTE + '; margin-top:var(--sp-5); padding:var(--sp-5) var(--sp-6)';
-  const kopf = '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">FORWARD PAPER LOG · SAME PIPELINE, NO MONEY</div>';
+  const kopf = '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--info)">FORWARD PAPER LOG · SAME PIPELINE, NO MONEY</div>';
   if (!pf || pf._quelle === 'fehler') {
     const satz = pf && pf._quelle === 'fehler'
       ? 'pipeline_forward.json did not answer: ' + String(pf._fehler || 'no answer')
@@ -2079,11 +2079,11 @@ function paperLogHtml(T) {
     + caveatZeile('paper_log_no_return_claim', {
       vorsatz: 'The same word-count pipeline in watch mode: it reads the live transcript and logs, per market, whether its rules would have allowed a bet; mostly they would not.',
       nachsatz: 'What the same pipeline did with real money is the record above.',
-      stil: 'font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.55; max-width:820px'
+      stil: 'font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-prose); max-width:820px'
     })
     + (zeilen
       ? '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-4); overflow:hidden">'
-        + '<div style="display:grid; grid-template-columns:1fr 110px 110px 130px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--bg); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">'
+        + '<div style="display:grid; grid-template-columns:1fr 110px 110px 130px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--bg); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
         + '<div>RUN PROFILE</div><div style="text-align:right">DECISIONS</div><div style="text-align:right">PAPER BUYS</div><div style="text-align:right">EXTRACTION</div></div>'
         + zeilen + '</div>'
       : '<div style="margin-top:var(--sp-4)">' + leerZeile('pipeline_forward.json carries no runs.') + '</div>')
@@ -2100,7 +2100,7 @@ function paperLogHtml(T) {
 function queueArchivHtml(T) {
   const q = T.liveData && T.liveData.research ? T.liveData.research['Review queue'] : null;
   const karte = KARTE + '; margin-top:var(--sp-5); padding:var(--sp-5)';
-  const kopf = '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">HUMAN VERIFICATION QUEUE · ARCHIVED</div>';
+  const kopf = '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--info)">HUMAN VERIFICATION QUEUE · ARCHIVED</div>';
   const zahl = q
     ? (q._quelle === 'fehler'
       ? 'queue.json did not answer: ' + String(q._fehler || 'no answer')
@@ -2110,7 +2110,7 @@ function queueArchivHtml(T) {
   return '<div style="' + karte + '">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:var(--sp-4); flex-wrap:wrap">' + kopf
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4)">' + esc(zahl) + '</div></div>'
-    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.55; max-width:820px">Cases the daily run flagged for a human to check, ranked by how much the automated read and the market disagree. The queue froze 2026-07-14 and the daily run ended 2026-08-07 — a closed record, kept verifiable, not an ongoing process.</div>'
+    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-prose); max-width:820px">Cases the daily run flagged for a human to check, ranked by how much the automated read and the market disagree. The queue froze 2026-07-14 and the daily run ended 2026-08-07 — a closed record, kept verifiable, not an ongoing process.</div>'
     + '<div style="display:flex; gap:var(--sp-4); margin-top:var(--sp-4); flex-wrap:wrap">'
     + archivKnopf(T, 'review-queue', 'Open the archived queue')
     + '<a href="./data/queue.json" download="queue.json" class="hv-edge-max" style="font-size:var(--t-small); color:var(--text); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-5); text-decoration:none; display:inline-block">Download the data</a>'
@@ -2319,13 +2319,13 @@ const LEDGER_TYP_FARBE = { bot: 'var(--info)', discretionary: 'var(--warn)', pil
 
 function ledgerTypChip(typ) {
   const farbe = LEDGER_TYP_FARBE[typ] || 'var(--muted)';
-  return '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3); color:' + farbe + '; border:1px solid color-mix(in srgb, ' + farbe + ' 40%, transparent); white-space:nowrap">' + esc(String(typ || '—').toUpperCase()) + '</span>';
+  return '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3); color:' + farbe + '; border:1px solid color-mix(in srgb, ' + farbe + ' 40%, transparent); white-space:nowrap">' + esc(String(typ || '—').toUpperCase()) + '</span>';
 }
 
 // Chip for a run that placed nothing and left no wallet trace — muted, so
 // the money rows stand out against the process rows in the same table.
 function noFillChip() {
-  return '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3); color:var(--ink-4); border:1px solid var(--line-1); white-space:nowrap">NO FILLS</span>';
+  return '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3); color:var(--ink-4); border:1px solid var(--line-1); white-space:nowrap">NO FILLS</span>';
 }
 
 // The bet rows of a run (market, side, limit, fill, stake, log result) —
@@ -2431,7 +2431,7 @@ export function ledgerPnlSatz(e) {
 // same event by hand) are noted on that event instead of listed twice.
 // Without the file: the honest line naming it.
 function walletLedgerHtml(T, payload, ohneFills, karten) {
-  const KOPF = '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">ALL EVENTS · RUNS AND WALLET</div>';
+  const KOPF = '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--info)">ALL EVENTS · RUNS AND WALLET</div>';
   const karte = KARTE;
   const ledger = walletLedgerVon(T, payload);
   if (!ledger || !ledger.aggregat || !Array.isArray(ledger.events)) {
@@ -2441,7 +2441,7 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
         + (LEDGER.fehler ? ' (' + LEDGER.fehler + ')' : '')
         + '. scripts/wallet_ledger.py rebuilds it read-only from the public Polymarket Data API for wallet ' + LIVE_RUN_WALLET + '.';
     return '<div style="margin-top:var(--sp-6)">' + KOPF
-      + '<div style="' + karte + '; margin-top:var(--sp-3); padding:var(--sp-5); ' + M + '; font-size:var(--t-micro); color:var(--ink-3); line-height:1.6">' + esc(satz) + '</div></div>';
+      + '<div style="' + karte + '; margin-top:var(--sp-3); padding:var(--sp-5); ' + M + '; font-size:var(--t-micro); color:var(--ink-3); line-height:var(--lh-prose)">' + esc(satz) + '</div></div>';
   }
   const agg = ledger.aggregat;
   const events = ledger.events.slice().sort((a, b) => String(b.von_utc || '').localeCompare(String(a.von_utc || '')));
@@ -2469,7 +2469,7 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
       + (pos.worthless ? ' (' + pos.worthless + ' expired worthless)' : '') + (pos.flat ? ' · ' + pos.flat + ' flat' : '') + (pos.open ? ' · ' + pos.open + ' open' : ''));
   }
   if (agg.closed_positions_capped) metaTeile.push('closed feed capped at 50 per tail');
-  const metaZeile = '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-3); line-height:1.7">Whole wallet: ' + esc(metaTeile.join(' · ')) + '</div>';
+  const metaZeile = '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-3); line-height:var(--lh-prose)">Whole wallet: ' + esc(metaTeile.join(' · ')) + '</div>';
 
   const spalten = '92px 1fr 118px 64px 96px 96px 150px';
   // Laeufe ohne Fill: eine eigene Zeile nur, wenn kein Wallet-Event denselben
@@ -2539,7 +2539,7 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
         ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin:var(--sp-3) 0 var(--sp-1)">PLACED BY HAND ON THE SAME EVENT</div>'
         : '')
       + maerkte.map(ledgerMarktZeile).join('')
-      + (notes.length ? '<div style="font-size:var(--t-small); color:var(--ink-4); margin-top:var(--sp-3); line-height:1.5">' + notes.map((n) => ledgerNotizHtml(n)).join('<br>') + '</div>' : '')
+      + (notes.length ? '<div style="font-size:var(--t-small); color:var(--ink-4); margin-top:var(--sp-3); line-height:var(--lh-snug)">' + notes.map((n) => ledgerNotizHtml(n)).join('<br>') + '</div>' : '')
       + '</div></details>';
   };
 
@@ -2633,14 +2633,14 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
     + (kartenOhneEvent.length ? ' + ' + kartenOhneEvent.length + ' RUN' + (kartenOhneEvent.length === 1 ? '' : 'S') + ' NOT IN THE LEDGER' : '')
     + ' · NEWEST FIRST';
   const tabelle = '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-4); overflow:hidden">'
-    + '<div style="padding:var(--sp-4) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-4)">'
-    + kopfzeile + ' <span style="color:var(--ink-4); letter-spacing:0">· click a row for its markets — bot rows open to the full run detail</span></div>'
-    + '<div style="display:grid; grid-template-columns:' + spalten + '; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">'
+    + '<div style="padding:var(--sp-4) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4)">'
+    + kopfzeile + ' <span style="color:var(--ink-4); letter-spacing:var(--ls-flat)">· click a row for its markets — bot rows open to the full run detail</span></div>'
+    + '<div style="display:grid; grid-template-columns:' + spalten + '; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
     + '<div>DATE</div><div>EVENT</div><div>TYPE</div><div style="text-align:right">MARKETS</div><div style="text-align:right">STAKE</div><div style="text-align:right">PNL</div><div>STATUS</div></div>'
     + (eintraege.length ? zeilen : leerZeile('The ledger holds no events — wallet_ledger.json lists none for this wallet.'))
     + '</div>';
 
-  const legende = '<div style="font-size:var(--t-small); color:var(--ink-4); margin-top:var(--sp-4); line-height:1.6">'
+  const legende = '<div style="font-size:var(--t-small); color:var(--ink-4); margin-top:var(--sp-4); line-height:var(--lh-prose)">'
     + ledgerTypChip('bot') + ' market and side appear in a runs.json run log — open the row for the full run detail (latency, decisions, every bet) · '
     + ledgerTypChip('discretionary') + ' placed by hand, in no run log · '
     + ledgerTypChip('pilot') + ' one of the pre-registered pilot trades of 2026-07-22 (rules frozen 2026-07-18)'
@@ -2652,8 +2652,8 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
   // zugeklappt: wer wissen will, wie die Tabelle gebaut ist, klappt auf —
   // die Seite selbst bleibt eine Kachelreihe und eine Tabelle.
   const erklaerung = '<details data-key="ledger-was" style="' + karte + '; margin-top:var(--sp-4); padding:0 var(--sp-5)">'
-    + '<summary style="cursor:pointer; padding:var(--sp-4) 0; list-style:none; ' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-4)">WHAT THIS TABLE IS &amp; HOW TO READ THE RUN DETAIL ▸</summary>'
-    + '<div style="padding-bottom:var(--sp-4); font-size:var(--t-small); color:var(--ink-3); line-height:1.6">'
+    + '<summary style="cursor:pointer; padding:var(--sp-4) 0; list-style:none; ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4)">WHAT THIS TABLE IS &amp; HOW TO READ THE RUN DETAIL ▸</summary>'
+    + '<div style="padding-bottom:var(--sp-4); font-size:var(--t-small); color:var(--ink-3); line-height:var(--lh-prose)">'
     + esc(ledger.hinweis || '')
     + '<div style="margin-top:var(--sp-3)">Race chips in an opened bot row compare each fill against the public taker tape of that market: how many other trades hit between the drop and our fill, and how long until the next trader after us. The anchor is the bot\'s logged fill time — chain timestamps can differ by a few seconds.</div>'
     + '</div></details>';
@@ -2667,7 +2667,7 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
     + ' · <a href="./data/wallet_ledger.json" download="wallet_ledger.json" style="color:var(--info); text-decoration:none">download the ledger</a></div>'
     + '</div>'
     + '<div style="display:flex; gap:var(--sp-3); align-items:center">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); color:var(--on-accent); background:var(--accent)">' + esc(String(ledger.kennzeichnung || 'wallet/public-api').toUpperCase()) + '</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); color:var(--on-accent); background:var(--accent)">' + esc(String(ledger.kennzeichnung || 'wallet/public-api').toUpperCase()) + '</div>'
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-4); white-space:nowrap">as of ' + esc(stand) + '</div>'
     + '</div></div>'
     + erklaerung
@@ -2705,8 +2705,8 @@ function repricingKurvenHtml(payload) {
       + 'No repricing paths in this payload — runs.json carries them per run under repricing[].punkte.</div>';
   }
   return '<div style="margin-top:var(--sp-5)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info); margin-bottom:var(--sp-2)">REPRICING AFTER THE DROP · ' + kurven.length + (kurven.length === 1 ? ' BET' : ' BETS') + '</div>'
-    + '<div style="font-size:var(--t-small); color:var(--ink-4); margin-bottom:var(--sp-4); line-height:1.5">Price of the traded side against seconds after the drop, from the public tape; the caption names when our fill landed and when the market had priced the outcome in.</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--info); margin-bottom:var(--sp-2)">REPRICING AFTER THE DROP · ' + kurven.length + (kurven.length === 1 ? ' BET' : ' BETS') + '</div>'
+    + '<div style="font-size:var(--t-small); color:var(--ink-4); margin-bottom:var(--sp-4); line-height:var(--lh-snug)">Price of the traded side against seconds after the drop, from the public tape; the caption names when our fill landed and when the market had priced the outcome in.</div>'
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:var(--sp-4)">' + kurven.join('') + '</div>'
     + '</div>';
 }
@@ -2752,23 +2752,23 @@ export function renderSettings(T) {
 
   return '<div>'
     + '<div style="padding:var(--sp-6) var(--sp-6) var(--sp-5); border-bottom:1px solid var(--line-2)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.18em; color:var(--accent)">SETTINGS</div>'
-    + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:-0.01em">How much data, and where it goes</h1></div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-max); color:var(--accent)">SETTINGS</div>'
+    + '<h1 style="font-size:var(--t-head); line-height:var(--lh-tight); margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:var(--ls-flat)">How much data, and where it goes</h1></div>'
     + '<div style="padding:var(--sp-6) var(--sp-6) 0; max-width:1000px">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--accent); margin-bottom:var(--sp-4)">HOW MUCH DATA TO PULL</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--accent); margin-bottom:var(--sp-4)">HOW MUCH DATA TO PULL</div>'
     + '<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:var(--sp-5)">'
     + stepRow('MARKETS PER PULL', num(s.setMarketSample), () => T.setState({ setMarketSample: Math.max(50, s.setMarketSample - 50) }), () => T.setState({ setMarketSample: Math.min(2000, s.setMarketSample + 50) }))
     + stepRow('TRADES PER PULL', num(s.setTradeSample), () => T.setState({ setTradeSample: Math.max(50, s.setTradeSample - 50) }), () => T.setState({ setTradeSample: Math.min(2000, s.setTradeSample + 50) }))
     + stepRow('WHALE THRESHOLD', '$' + num(s.setWhale), () => T.setState({ setWhale: Math.max(500, s.setWhale - 500) }), () => T.setState({ setWhale: s.setWhale + 500 }))
     + '</div>'
-    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.5">Bigger samples mean slower pages. The whale threshold decides what counts as a large print everywhere in the terminal.</div>'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--accent); margin:var(--sp-6) 0 var(--sp-4)">BACKTESTER DEFAULTS</div>'
+    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-snug)">Bigger samples mean slower pages. The whale threshold decides what counts as a large print everywhere in the terminal.</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--accent); margin:var(--sp-6) 0 var(--sp-4)">BACKTESTER DEFAULTS</div>'
     + '<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:var(--sp-5)">'
     + stepRow('BANKROLL', '$' + num(s.setBankroll), () => T.setState({ setBankroll: Math.max(100, s.setBankroll - 500) }), () => T.setState({ setBankroll: s.setBankroll + 500 }))
     + stepRow('FEE (BPS)', s.setFee + ' bps', () => T.setState({ setFee: Math.max(0, s.setFee - 5) }), () => T.setState({ setFee: s.setFee + 5 }))
     + stepRow('SLIPPAGE (BPS)', s.setSlip + ' bps', () => T.setState({ setSlip: Math.max(0, s.setSlip - 5) }), () => T.setState({ setSlip: s.setSlip + 5 }))
     + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--accent); margin:var(--sp-6) 0 var(--sp-4)">SWITCHES</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--accent); margin:var(--sp-6) 0 var(--sp-4)">SWITCHES</div>'
     + '</div>'
     + '<div style="padding:var(--sp-6); display:grid; grid-template-columns:repeat(2,1fr); gap:var(--sp-5); max-width:1000px">'
     + settingRows.map((o) => {
@@ -2776,7 +2776,7 @@ export function renderSettings(T) {
       return '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-5)">'
         + '<div style="display:flex; align-items:center; justify-content:space-between; gap:var(--sp-5)">'
         + '<div><div style="font-size:var(--t-lead); font-weight:600">' + o.name + '</div>'
-        + '<div style="font-size:var(--t-small); color:var(--ink-4); margin-top:var(--sp-3); line-height:1.45">' + o.desc + '</div></div>'
+        + '<div style="font-size:var(--t-small); color:var(--ink-4); margin-top:var(--sp-3); line-height:var(--lh-snug)">' + o.desc + '</div></div>'
         + '<div ' + T.act(() => T.setState({ settingsOn: Object.assign({}, s.settingsOn, { [o.key]: !on }) })) + ' style="width:38px; height:21px; flex:none; border-radius:var(--r-panel); padding:var(--sp-1); display:flex; cursor:pointer; background:' + (on ? 'var(--accent)' : 'rgba(var(--ink),.14)') + '; justify-content:' + (on ? 'flex-end' : 'flex-start') + '">'
         + '<div style="width:17px; height:17px; border-radius:50%; background:' + (on ? 'var(--on-accent)' : 'var(--ink-4)') + '"></div></div></div>'
         + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-4)">' + o.value + '</div></div>';
@@ -2788,7 +2788,7 @@ export function renderSettings(T) {
     // ohne Stichtag.
     + caveatZeile('research_tool_only', {
       nachsatz: 'Settings are locked to allowlisted accounts on a public deployment.',
-      stil: 'padding:0 var(--sp-6) var(--sp-3); ' + M + '; font-size:var(--t-micro); color:var(--ink-4); line-height:1.7; max-width:760px'
+      stil: 'padding:0 var(--sp-6) var(--sp-3); ' + M + '; font-size:var(--t-micro); color:var(--ink-4); line-height:var(--lh-prose); max-width:760px'
     })
     + registerZeile()
     + '</div>';
@@ -2808,7 +2808,7 @@ function studienExtrasHtml(slug, payload, ledger) {
 }
 
 function hinweisKarte(text) {
-  return '<div style="' + KARTE + '; margin-top:var(--sp-5); padding:var(--sp-5); ' + M + '; font-size:var(--t-micro); color:var(--ink-3); line-height:1.6">' + esc(text) + '</div>';
+  return '<div style="' + KARTE + '; margin-top:var(--sp-5); padding:var(--sp-5); ' + M + '; font-size:var(--t-micro); color:var(--ink-3); line-height:var(--lh-prose)">' + esc(text) + '</div>';
 }
 
 // Dauer in menschlicher Einheit. Unter einer Minute sagt die Anzeige
@@ -2918,7 +2918,7 @@ function mentionsExtrasHtml(payload) {
       ? ' · median first reaction ' + fmtZahl(medSek) + ' s' + (medReaktion != null && medReaktion > 1 ? ' (dashed line)' : '')
       : (medReaktion == null ? '' : ' · median first reaction ' + fmtZahl(medReaktion) + ' min' + (medReaktion > 1 ? ' (dashed line)' : ''));
     return '<div style="' + KARTE + '; padding:var(--sp-5) var(--sp-5) var(--sp-4)">'
-      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-4); margin-bottom:var(--sp-2)">'
+      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4); margin-bottom:var(--sp-2)">'
       + 'FIRST REACTION → FULLY PRICED IN · n ' + beide.length
       + ' · log time axis after broadcast start · dot = first &gt; 1-point move (values under the 1-minute grid sit at ≤1 min) · line end = durably priced on the winning side' + medText + '</div>'
       + '<svg width="100%" viewBox="0 0 640 ' + hoehe + '" role="img" aria-label="First reaction and convergence per event">' + svg + '</svg></div>';
@@ -2927,7 +2927,7 @@ function mentionsExtrasHtml(payload) {
   // Der Klartext VOR dem Bild: was die beiden Uhren messen und wo sie
   // starten — ohne das las sich "first reaction 86.7 min" als Markt, der
   // eine gefallene Aussage verschlief.
-  const lead = '<div style="margin-top:var(--sp-5); font-size:var(--t-small); color:var(--ink-2); line-height:1.6; max-width:860px">'
+  const lead = '<div style="margin-top:var(--sp-5); font-size:var(--t-small); color:var(--ink-2); line-height:var(--lh-prose); max-width:860px">'
     + 'Twelve broadcasts, each with a market on whether something would be said. Both clocks start when the broadcast starts — not when the words are said. '
     + 'The dot is the first time the price moved at all; the end of the line is when it had durably settled on the side that later won. The span between them is the tradeable window.</div>';
   const charts = reaktion
@@ -2940,12 +2940,12 @@ function mentionsExtrasHtml(payload) {
   const jeOutcome = agg && agg.je_outcome && typeof agg.je_outcome === 'object' ? agg.je_outcome : null;
   const splitKachel = (name, o, deutung) => (o && o.n != null
     ? '<div style="' + KARTE + '; padding:var(--sp-5)">'
-      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">RESOLVED ' + esc(name) + ' · n ' + num(o.n) + '</div>'
-      + '<div style="' + M + '; font-size:var(--t-small); color:var(--ink-1); margin-top:var(--sp-3); line-height:1.8">'
+      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--info)">RESOLVED ' + esc(name) + ' · n ' + num(o.n) + '</div>'
+      + '<div style="' + M + '; font-size:var(--t-small); color:var(--ink-1); margin-top:var(--sp-3); line-height:var(--lh-prose)">'
       + 'median first reaction ' + (o.median_sekunden_bis_erste_reaktion != null ? fmtZahl(o.median_sekunden_bis_erste_reaktion) + ' s' : esc(dauerText(o.median_minuten_bis_erste_reaktion))) + '<br>'
       + 'median convergence ' + esc(dauerText(o.median_minuten_bis_konvergenz)) + '<br>'
       + 'median tradeable window ' + fmtZahl(o.median_stunden_im_handelbaren_fenster) + ' h</div>'
-      + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.5">' + esc(deutung) + '</div></div>'
+      + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-snug)">' + esc(deutung) + '</div></div>'
     : '');
   const split = jeOutcome
     ? '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:var(--sp-4); margin-top:var(--sp-4)">'
@@ -2954,15 +2954,15 @@ function mentionsExtrasHtml(payload) {
       + '</div>'
     : '';
   const methode = '<div style="' + KARTE + '; margin-top:var(--sp-4); padding:var(--sp-5)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">HOW TO READ IT</div>'
-    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.6; max-width:860px">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--info)">HOW TO READ IT</div>'
+    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-prose); max-width:860px">'
     + 'First reaction is the first minute the price stands more than 1 point away from its pre-drop baseline (the median of the 60 minutes before the drop) — in either direction, so it is a price move, not proof the market heard anything; rows marked (away) moved away from the outcome that later resolved. It is measured from the start of the transmission, not from the moment of the resolving statement: a first reaction of several minutes on a NO market is drift while nothing was said, not a market slow to react to a met condition. Convergence is the time until the price durably stayed past 0.9 (YES) or below 0.1 (NO), as measured by the daily run'
     + (payload.hinweis ? ' — the published note reads: "' + esc(payload.hinweis) + '"' : '')
     + '. The RESOLVED column shows the outcome the market settled to. The tradeable window is the hours after the drop in which the price stayed strictly between 0.1 and 0.9 — measured on the price series itself, so it can start before the first 1-point reaction and is not simply convergence minus reaction. The chart uses a log time axis so minutes and days fit on one line. The FIRST REACTION column gives the exact second gap between the curated drop timestamp and the first minute-grid price point that deviated — read it with its grain: the series has one point per minute and several drop times are only hour-precise, so "7 s" means the first grid point after t0 already stood off baseline, not that the first trade came 7 seconds in.'
     + '</div></div>';
   const ausschlussHtml = ausschluesse.length
     ? '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-4); overflow:hidden">'
-      + '<div style="padding:var(--sp-4) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--warn)">EXCLUDED EVENTS · ' + ausschluesse.length + ' <span style="color:var(--ink-4); letter-spacing:0">· listed, not counted in the medians</span></div>'
+      + '<div style="padding:var(--sp-4) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--warn)">EXCLUDED EVENTS · ' + ausschluesse.length + ' <span style="color:var(--ink-4); letter-spacing:var(--ls-flat)">· listed, not counted in the medians</span></div>'
       + ausschluesse.map((a) =>
         '<div style="display:grid; grid-template-columns:1fr auto; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); border-bottom:1px solid var(--line-3)">'
         + '<div style="' + M + '; font-size:var(--t-small); color:var(--ink-2)">' + esc(String((a && a.event) || '—')) + '</div>'
@@ -2973,18 +2973,18 @@ function mentionsExtrasHtml(payload) {
   // damit die Seite nichts behauptet, was die Nutzlast nicht traegt.
   const quelle = payload.quelle && typeof payload.quelle === 'object' ? payload.quelle : null;
   const quelleAbsatz = (titel, text) => (text
-    ? '<div style="margin-top:var(--sp-4)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-4)">' + titel + '</div>'
-      + '<div style="font-size:var(--t-small); color:var(--ink-2); margin-top:var(--sp-2); line-height:1.6">' + esc(text) + '</div></div>'
+    ? '<div style="margin-top:var(--sp-4)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4)">' + titel + '</div>'
+      + '<div style="font-size:var(--t-small); color:var(--ink-2); margin-top:var(--sp-2); line-height:var(--lh-prose)">' + esc(text) + '</div></div>'
     : '');
   const quelleHtml = quelle
     ? '<details style="margin-top:var(--sp-4); ' + KARTE + '; padding:0 var(--sp-5)">'
-      + '<summary style="cursor:pointer; padding:var(--sp-4) 0; ' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-4); list-style:none">METHOD, SAMPLE &amp; WHAT IT CANNOT SHOW ▸</summary>'
+      + '<summary style="cursor:pointer; padding:var(--sp-4) 0; ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4); list-style:none">METHOD, SAMPLE &amp; WHAT IT CANNOT SHOW ▸</summary>'
       + '<div style="padding-bottom:var(--sp-5)">'
       + quelleAbsatz('WHAT WAS MEASURED', quelle.methode)
       + quelleAbsatz('DATA BASIS', quelle.datengrundlage)
       + (Array.isArray(quelle.einschraenkungen) && quelle.einschraenkungen.length
-        ? '<div style="margin-top:var(--sp-4)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-4)">WHAT IT CANNOT SHOW</div>'
-          + '<ul style="margin:var(--sp-2) 0 0 var(--sp-5); padding:0; font-size:var(--t-small); color:var(--ink-2); line-height:1.6">'
+        ? '<div style="margin-top:var(--sp-4)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4)">WHAT IT CANNOT SHOW</div>'
+          + '<ul style="margin:var(--sp-2) 0 0 var(--sp-5); padding:0; font-size:var(--t-small); color:var(--ink-2); line-height:var(--lh-prose)">'
           + quelle.einschraenkungen.map((e) => '<li>' + esc(String(e)) + '</li>').join('') + '</ul></div>'
         : '')
       + '</div></details>'
@@ -3067,8 +3067,8 @@ function pilotExtrasHtml(payload, ledger) {
   const abgeschlossen = wl && wl.settled;
   if (abgeschlossen) {
     teile.push('<div style="' + KARTE + '; margin-top:var(--sp-5); padding:var(--sp-5)">'
-      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--accent)">HOW IT ENDED · WALLET</div>'
-      + '<div style="font-size:var(--t-body); color:var(--text); margin-top:var(--sp-3); line-height:1.6; max-width:760px">'
+      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--accent)">HOW IT ENDED · WALLET</div>'
+      + '<div style="font-size:var(--t-body); color:var(--text); margin-top:var(--sp-3); line-height:var(--lh-prose); max-width:760px">'
       + 'All ' + wl.pos.n + ' positions have resolved: ' + esc(pilotWlText(wl.pos)) + ' (wallet, worthless counts as lost).'
       + (wl.netto != null
         ? ' Net cash of the pilot: ' + (wl.netto >= 0 ? '+$' : '-$') + Math.abs(wl.netto).toFixed(2)
@@ -3131,8 +3131,8 @@ function pilotExtrasHtml(payload, ledger) {
     if (chart) {
       const summe = signale ? Object.values(signale).reduce((a, v) => a + (+v || 0), 0) : 0;
       teile.push('<div style="' + KARTE + '; margin-top:var(--sp-5); padding:var(--sp-5)">'
-        + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">READ-ONLY WATCHER · WHAT THE SCAN THREW OUT</div>'
-        + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.6; max-width:860px">'
+        + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--info)">READ-ONLY WATCHER · WHAT THE SCAN THREW OUT</div>'
+        + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-prose); max-width:860px">'
         + (stat && stat.maerkte != null ? num(stat.maerkte) + ' markets scanned' : 'markets scanned: not in the file')
         + (signale ? ' · ' + num(summe) + ' rule matches (' + Object.entries(signale).map(([k, v]) => num(v) + ' ' + watcherText(k)).join(', ') + ')' : '')
         // Der Vorbehalt kam aus dem Register, seit der Marker auch die
@@ -3180,14 +3180,14 @@ const KERNSATZ = {
 // scripts/lint_claims.py jeden Aufruf sieht.
 function grundsaetzeHtml(payload) {
   const karte = (inhalt) =>
-    '<div style="' + KARTE + '; padding:var(--sp-5); font-size:var(--t-body); color:var(--ink-2); line-height:1.6">' + inhalt + '</div>';
+    '<div style="' + KARTE + '; padding:var(--sp-5); font-size:var(--t-body); color:var(--ink-2); line-height:var(--lh-prose)">' + inhalt + '</div>';
   // Was der Publisher darueber hinaus schickt, steht daneben. Der
   // Streamlit-Pfad tut das seit PR #120; hier wurden vier feste Schluessel
   // gerendert und die Nutzlast gar nicht gelesen, also verschwand eine
   // fuenfte, spaeter dazugeschriebene Zeile auf dieser Oberflaeche.
   const publiziert = payload && Array.isArray(payload.disclaimer) ? payload.disclaimer : [];
   const zusatz = unregistrierteTexte(publiziert);
-  return '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info); margin:var(--sp-6) 0 var(--sp-4)">PRINCIPLES OF THE DAILY RUN</div>'
+  return '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--info); margin:var(--sp-6) 0 var(--sp-4)">PRINCIPLES OF THE DAILY RUN</div>'
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:var(--sp-4)">'
     + karte(caveat('daily_run_descriptive'))
     + karte(caveat('verification_not_signal'))
@@ -3217,9 +3217,9 @@ function renderMethodology(T, payload, study) {
 
   const abschnitt = (titel, text) =>
     '<div style="' + KARTE + '; padding:var(--sp-5)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">' + esc(titel) + '</div>'
-    + (KERNSATZ[titel] ? '<div style="font-size:var(--t-body); color:var(--text); font-weight:500; margin-top:var(--sp-3); line-height:1.45">' + esc(KERNSATZ[titel]) + '</div>' : '')
-    + '<div style="font-size:var(--t-body); color:var(--ink-2); margin-top:var(--sp-3); line-height:1.65">' + text + '</div></div>';
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--info)">' + esc(titel) + '</div>'
+    + (KERNSATZ[titel] ? '<div style="font-size:var(--t-body); color:var(--text); font-weight:500; margin-top:var(--sp-3); line-height:var(--lh-snug)">' + esc(KERNSATZ[titel]) + '</div>' : '')
+    + '<div style="font-size:var(--t-body); color:var(--ink-2); margin-top:var(--sp-3); line-height:var(--lh-prose)">' + text + '</div></div>';
   const mono = (t) => '<span style="' + M + '">' + esc(t) + '</span>';
 
   const sektionen = [
@@ -3248,14 +3248,14 @@ function renderMethodology(T, payload, study) {
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:var(--sp-6)">'
     + '<div style="max-width:720px">'
     + '<h2 style="font-size:var(--t-head); font-weight:600">' + esc(study.title) + '</h2>'
-    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.5">' + esc(note) + '</div></div>'
+    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-snug)">' + esc(note) + '</div></div>'
     + stempelBlock(study, payload) + '</div>'
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); gap:var(--sp-4); margin-top:var(--sp-5)">'
     + stats.map((x) => kpi({ label: esc(x.label), wert: esc(x.value), sub: esc(x.note) })).join('')
     + '</div>'
     + (payload ? '' : '<div style="margin-top:var(--sp-4)">' + leerZeile(herkunftSatz(null, 'public/data/audit.json')) + '</div>')
     + grundsaetzeHtml(payload)
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info); margin:var(--sp-6) 0 var(--sp-4)">HOW THE STUDIES ARE MEASURED</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--info); margin:var(--sp-6) 0 var(--sp-4)">HOW THE STUDIES ARE MEASURED</div>'
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(380px, 1fr)); gap:var(--sp-4)">' + sektionen.join('') + '</div>'
     + queueArchivHtml(T)
     + '<div style="display:flex; gap:var(--sp-4); margin-top:var(--sp-5); flex-wrap:wrap">'

@@ -123,7 +123,7 @@ export function caveatZeile(key, opts) {
   const vorsatz = o.vorsatz ? String(o.vorsatz) : '';
   const nachsatz = o.nachsatz ? String(o.nachsatz) : '';
   if (!text && !vorsatz && !nachsatz) return '';
-  const stil = o.stil || 'font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-3); max-width:760px; line-height:1.5';
+  const stil = o.stil || 'font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-3); max-width:760px; line-height:var(--lh-snug)';
   // vorsatz und nachsatz kommen aus dem Modul selbst und duerfen Markup
   // enthalten (Links, <span> in Mono); der Registertext wird immer maskiert.
   return '<div' + (text ? ' data-caveat="' + esc(key) + '"' : '') + ' style="' + stil + '">'

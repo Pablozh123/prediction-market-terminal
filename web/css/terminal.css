@@ -122,6 +122,41 @@
   --t-lead: 16px;     /* card titles and lead sentences */
   --t-head: 21px;     /* page titles, and the figure of a KPI tile */
   --t-hero: 26px;     /* the one figure a page is about */
+  /* The tracking ladder. Four steps, because the JS carried 260 letter-spacing
+     declarations in fourteen values, five of them (.12 .13 .14 .15 .16em)
+     inside a span of 0.04em with 167 call sites between them. At --t-micro,
+     where nearly all of them sit, 0.01em is 0.11px of space between two
+     letters: the whole span from .12 to .16 is 0.44px per gap, so those five
+     values could not be telling anyone anything apart.
+     Every step here is at least 0.04em from its neighbour, which at 11px is
+     about half a pixel per gap and the point where a label starts to read as
+     deliberately tracked rather than merely set.
+     The negative step is gone rather than kept. Seventeen headings ran
+     -0.01em and one hero -0.015em; at --t-head that is 0.21px per gap, and
+     across the longest title on the site it adds up to under ten pixels of
+     line width -- an amount nobody can attribute to tracking. A step that
+     cannot be seen is the finding this ladder is undoing, so display type
+     sets flat like everything else. */
+  --ls-flat: 0;             /* running text, and a run inside a tracked label */
+  --ls-caps: .08em;         /* buttons, chips, links: caps that stay compact */
+  --ls-caps-strong: .14em;  /* the micro-label in caps: the workhorse */
+  --ls-caps-max: .18em;     /* a section eyebrow, and the one row of dots */
+  /* The leading ladder. Four steps, because the JS carried 181 line-height
+     declarations in fifteen values, one of them in px. 1.5 and 1.6 alone held
+     107 of them, 0.067 apart.
+     Every step here is at least 1.10x its neighbour -- a finer ratio than the
+     12 % of the type ladder and much finer than the 1.33x of the spacing one,
+     and that is not an inconsistency: leading accumulates. Type is judged
+     against the glyph beside it and a gap against nothing, but the third line
+     of a paragraph sits three steps down, so 10 % of leading is already a
+     third of a line of displacement by then.
+     --lh-snug takes both 1.45 and 1.5, --lh-prose both 1.55 and 1.6: the file
+     did keep a real distinction between a dense block and a paragraph, and
+     the ladder keeps it. What it drops is the second spelling of each. */
+  --lh-solid: 1.15;   /* a figure or a single glyph in its own box */
+  --lh-tight: 1.3;    /* headings and two-line clamped titles */
+  --lh-snug: 1.45;    /* dense blocks, table cells, sub-lines */
+  --lh-prose: 1.6;    /* paragraphs, notes, anything meant to be read */
   /* The spacing ladder. Seven steps, because the JS carried 483 padding
      shorthands in 133 different value chains, 87 of which occurred once or
      twice, plus 361 gaps in 28 values and 605 margins in 36 — and no base
@@ -355,6 +390,30 @@ input { font-family: inherit; }
 .tm-tile { transition: filter .12s ease; }
 .tm-tile:hover { filter: brightness(1.15); z-index: 5; }
 :root[data-theme="light"] .tm-tile:hover { filter: brightness(.94); }
+
+/* The label on a treemap tile brings its own ground.
+
+   The tile fill carries information — hue is the sign of the result, depth is
+   the result against the stake (treemap.js::pnlIntensity, .28 to .78 linear) —
+   so a label may not change it. But no single ink clears AA over that range.
+   Measured across the whole scale, both signs, both themes: the app's --text
+   falls to 3.07:1 on the strongest green of the dark theme, pure white to
+   3.83:1 there, and pure black to 1.50:1 on the weakest red. On green, white
+   holds AA up to ratio .849 and black only starts passing at .816, so a
+   per-tile ink flip would have to be threaded through a window 0.033 wide; on
+   red there is no flip to make at all, because white holds to the end of the
+   scale and black never passes anywhere on it. A threshold that has to be
+   re-derived per hue and then hit within three hundredths is not a rule, it is
+   a coincidence.
+
+   So the label gets a veil of the page colour instead: it darkens on the dark
+   theme and lightens on the light one, which is exactly the direction each
+   ground needs, and it leaves 55 % of the fill showing through. Worst case
+   over the whole scale: 6.85:1 for --text, 5.47:1 for --ink-1. The veil is the
+   page ground and not a shadow on purpose — var(--shadow-35) is what the
+   outcome chip used to carry, and on paper it darkened a tile that was already
+   heading for the ink, which is how that chip landed at 3.76:1. */
+.tm-label { background: rgba(var(--bg-rgb), .45); border-radius: var(--r-control); align-self: flex-start; }
 #tip { position: fixed; z-index: 60; pointer-events: none; display: none; max-width: 320px; background: rgba(var(--bg-rgb), .96); border: 1px solid var(--line-1); border-radius: var(--r-panel); padding: var(--sp-4) var(--sp-5); box-shadow: 0 12px 32px var(--shadow-55); }
 #tip.on { display: block; }
 
@@ -368,7 +427,7 @@ input { font-family: inherit; }
     display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 80;
     box-sizing: border-box; background: rgba(var(--bg-rgb), .97);
     border-top: 1px solid var(--line-1); color: var(--ink-2);
-    font-family: var(--font-mono); font-size: var(--t-small); line-height: 1.5;
+    font-family: var(--font-mono); font-size: var(--t-small); line-height:var(--lh-snug);
     padding: var(--sp-4) var(--sp-5); text-align: center;
   }
   .narrow-note b { color: var(--accent); font-weight: 500; }

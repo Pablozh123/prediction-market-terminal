@@ -16,7 +16,7 @@ const POS = 'var(--pos)'; // gain green, always paired with RED
 const RED = 'var(--neg)', AMBER = 'var(--warn)', BLUE = 'var(--info)';
 const DIM = 'var(--ink-4)';
 const INPUT = 'width:100%; box-sizing:border-box; background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text)';
-const BTN = M + "; font-size:var(--t-micro); letter-spacing:.06em; border-radius:var(--r-control); padding:var(--sp-3) var(--sp-5); cursor:pointer; display:inline-block; user-select:none";
+const BTN = M + "; font-size:var(--t-micro); letter-spacing:var(--ls-caps); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-5); cursor:pointer; display:inline-block; user-select:none";
 const BTN_PRIMARY = BTN + '; color:var(--on-accent); background:' + ACCENT + '; font-weight:600';
 const BTN_GHOST = BTN + '; color:var(--ink-2); border:1px solid var(--line-1)';
 const BTN_WARN = BTN + '; color:' + AMBER + '; border:1px solid rgba(var(--warn-rgb),.4)';
@@ -108,11 +108,11 @@ function ohneDesk(live) {
     : 'Waiting for /api/copy. The desk reads <span style="' + M + '">data/copy_trading.sqlite</span> through the API; until it answers there is nothing to show.';
   return '<div>'
     + '<div style="padding:var(--sp-6) var(--sp-6) var(--sp-5); border-bottom:1px solid var(--line-2)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.18em; color:' + ACCENT + '">COPY TRADE · PAPER</div>'
-    + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:-0.01em">Follow traders with fake money</h1></div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-max); color:' + ACCENT + '">COPY TRADE · PAPER</div>'
+    + '<h1 style="font-size:var(--t-head); line-height:var(--lh-tight); margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:var(--ls-flat)">Follow traders with fake money</h1></div>'
     + '<div style="padding:var(--sp-6)"><div style="' + KARTE + '; padding:var(--sp-6); max-width:760px">'
     + '<div style="font-size:var(--t-lead); font-weight:600">Nothing to show</div>'
-    + '<div style="font-size:var(--t-body); color:' + DIM + '; margin-top:var(--sp-4); line-height:1.65">' + grund + '</div>'
+    + '<div style="font-size:var(--t-body); color:' + DIM + '; margin-top:var(--sp-4); line-height:var(--lh-prose)">' + grund + '</div>'
     + '</div></div></div>';
 }
 
@@ -127,8 +127,8 @@ function traderRow(T, t, s, canWrite, busy) {
     ? '<svg width="90" height="26" viewBox="0 0 90 26" preserveAspectRatio="none" aria-hidden="true" focusable="false"><polyline points="' + T.seriesPoints(t.equity_curve, 90, 26) + '" fill="none" style="stroke:' + pnlColor(t.pnl) + '" stroke-width="1.5" /></svg>'
     : '<span style="' + M + '; font-size:var(--t-micro); color:var(--ink-4)" title="one point per daemon pass, once a minute">' + (t.equity_curve && t.equity_curve.length === 1 ? '1 point' : 'no curve yet') + '</span>';
   const state = t.active
-    ? '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; color:' + ACCENT + '; border:1px solid rgba(var(--accent-rgb),.35); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">ACTIVE</span>'
-    : '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; color:' + AMBER + '; border:1px solid rgba(var(--warn-rgb),.35); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">PAUSED</span>';
+    ? '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); color:' + ACCENT + '; border:1px solid rgba(var(--accent-rgb),.35); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">ACTIVE</span>'
+    : '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); color:' + AMBER + '; border:1px solid rgba(var(--warn-rgb),.35); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">PAUSED</span>';
   const seeded = t.seeded_at
     ? '<span title="baseline seeded ' + esc(fmtStamp(t.seeded_at)) + ' — trades before it are observed, not copied" style="color:var(--ink-3)">baseline ' + esc(ago(t.seeded_at)) + '</span>'
     : '<span title="no baseline yet: the first daemon pass mirrors the wallet\'s positions and sets the cutoff" style="color:' + AMBER + '">not seeded yet</span>';
@@ -194,7 +194,7 @@ function traderRow(T, t, s, canWrite, busy) {
     html += '<div style="display:grid; grid-template-columns:160px auto 1fr; gap:var(--sp-4); align-items:end; padding:var(--sp-4) var(--sp-5) var(--sp-5); background:rgba(var(--ink),.02); border-bottom:1px solid var(--line-3)">'
       + field('TOP UP $', textInput(T, 'copyTopupAmount', s.copyTopup.amount, '500', (ev) => { T.state.copyTopup.amount = ev.target.value; }))
       + button(T, 'Add paper cash', () => T.copyTopUp(t.wallet), BTN_PRIMARY)
-      + '<div style="font-size:var(--t-small); color:var(--ink-3); line-height:1.5">Booked as a cash event and counted as put in, so it can never read as profit. Off by default for the daemon (auto top-up).</div>'
+      + '<div style="font-size:var(--t-small); color:var(--ink-3); line-height:var(--lh-snug)">Booked as a cash event and counted as put in, so it can never read as profit. Off by default for the daemon (auto top-up).</div>'
       + '</div>';
   }
   return html;
@@ -212,14 +212,14 @@ function followForm(T, s, live, canWrite) {
         + '</div>'
       : '';
     return '<div style="' + KARTE + '; padding:var(--sp-5); margin:var(--sp-5) var(--sp-6) 0">'
-      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:' + AMBER + '">READ-ONLY FROM HERE</div>'
-      + '<div style="font-size:var(--t-body); color:' + DIM + '; margin-top:var(--sp-3); line-height:1.6">' + esc(access.reason || 'This copy of the site cannot write to the desk.')
+      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:' + AMBER + '">READ-ONLY FROM HERE</div>'
+      + '<div style="font-size:var(--t-body); color:' + DIM + '; margin-top:var(--sp-3); line-height:var(--lh-prose)">' + esc(access.reason || 'This copy of the site cannot write to the desk.')
       + (access.mode === 'locked' ? ' Open the site on the machine that runs api/server.py, or set <span style="' + M + '">COPY_ADMIN_TOKEN</span> there and paste it here.' : '') + '</div>'
       + tokenBox + '</div>';
   }
   return '<div style="' + KARTE + '; padding:var(--sp-5); margin:var(--sp-5) var(--sp-6) 0">'
     + '<div style="display:flex; justify-content:space-between; align-items:baseline; gap:var(--sp-4); flex-wrap:wrap">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:' + ACCENT + '">FOLLOW A WALLET</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:' + ACCENT + '">FOLLOW A WALLET</div>'
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + esc(access.mode === 'token' ? 'writes with admin token' : 'writes allowed: local request') + '</div></div>'
     + '<div style="display:grid; grid-template-columns:2.2fr 1.2fr 0.8fr 2fr auto; gap:var(--sp-4); align-items:end; margin-top:var(--sp-4)">'
     + field('POLYMARKET WALLET · 0x… / profile URL / exact handle', textInput(T, 'copyFormWallet', f.wallet, '0x… or swisstony', (ev) => { T.state.copyForm.wallet = ev.target.value; }))
@@ -228,7 +228,7 @@ function followForm(T, s, live, canWrite) {
     + field('NOTE — domain, cadence, thesis', textInput(T, 'copyFormNote', f.note, 'e.g. elections only, ~5 trades/week', (ev) => { T.state.copyForm.note = ev.target.value; }))
     + (busy ? '<div style="' + BTN_OFF + '">following…</div>' : button(T, 'Follow wallet', () => T.copyFollow(), BTN_PRIMARY, 'opens a sub-account with this start cash and seeds the baseline now'))
     + '</div>'
-    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-4); line-height:1.55">'
+    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-4); line-height:var(--lh-prose)">'
     + 'On follow the wallet\'s open positions are mirrored and its recent trades recorded as <span style="' + M + '">observed</span>; only what it does from that moment on is copied, into its own sub-account with the same settings as every other trader. Equal start cash keeps the traders comparable.'
     + '</div>'
     + '</div>';
@@ -264,14 +264,14 @@ function daemonBlock(T, live, canWrite, s) {
   return '<div style="' + KARTE + '; padding:var(--sp-5); margin:var(--sp-5) var(--sp-6) 0">'
     + '<div style="display:flex; align-items:center; gap:var(--sp-4); flex-wrap:wrap">'
     + '<span style="width:7px; height:7px; border-radius:50%; background:' + farbe + '; display:inline-block"></span>'
-    + '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:' + farbe + '">' + text + '</span>'
+    + '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:' + farbe + '">' + text + '</span>'
     + '<span style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + facts.join(' · ') + '</span>'
     + '<span style="flex:1"></span>'
     + (canWrite ? (syncBusy ? '<div style="' + BTN_OFF + '">sync running…</div>' : button(T, 'Run one sync pass', () => T.copySync(), BTN_GHOST, 'one API + settlement pass over the active traders, in the background')) : '')
     + '</div>'
     + (d.reason ? '<div style="font-size:var(--t-small); color:' + DIM + '; margin-top:var(--sp-3)">' + esc(d.reason) + '</div>' : '')
     + (syncLine ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-3)">' + syncLine + '</div>' : '')
-    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-4); line-height:1.6">'
+    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-4); line-height:var(--lh-prose)">'
     + 'The daemon copies continuously (WebSocket + API, settlements every 90 s) and reads the traders and settings from this desk on every pass. '
     + (d.in_process
       ? 'Here it runs inside the API process (COPY_DAEMON=1) and restarts with it; the books sit on the host\'s volume. '
@@ -284,7 +284,7 @@ function daemonBlock(T, live, canWrite, s) {
 function tradersTab(T, s, live, canWrite) {
   const traders = live.traders || [];
   const busy = s.copyBusy;
-  const head = 'display:grid; grid-template-columns:minmax(180px,1.6fr) 74px 90px 90px 110px 96px 70px 96px 92px minmax(200px,1.4fr); gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)';
+  const head = 'display:grid; grid-template-columns:minmax(180px,1.6fr) 74px 90px 90px 110px 96px 70px 96px 92px minmax(200px,1.4fr); gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)';
   return followForm(T, s, live, canWrite)
     + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin:var(--sp-5) var(--sp-6) 0; overflow:hidden">'
     + '<div style="overflow-x:auto"><div style="min-width:1180px">'
@@ -349,7 +349,7 @@ function sizingExampleRows(traders, f, mode) {
       const clipped = eq > 0 && cap > 0 ? ' — the order cap (' + pctInputValue(cap) + ' % of ' + usd(eq, 0) + ' = ' + usd(eq * cap, 2) + ') and the cash throttle will clip most of it' : '';
       text = 'his $1,000 bet → $1,000 here, dollar for dollar' + clipped;
     }
-    return '<div style="font-size:var(--t-small); line-height:1.5; color:var(--ink-2)"><span style="' + M + '; color:var(--ink-1)">' + esc(t.label || shortW(t.wallet)) + '</span> — ' + text + '</div>';
+    return '<div style="font-size:var(--t-small); line-height:var(--lh-snug); color:var(--ink-2)"><span style="' + M + '; color:var(--ink-1)">' + esc(t.label || shortW(t.wallet)) + '</span> — ' + text + '</div>';
   }).join('');
 }
 
@@ -363,7 +363,7 @@ function settingsTab(T, s, live, canWrite) {
   // Percent fields: the input shows 5 for a stored 0.05 and writes 0.05 back.
   const setPct = (key) => (ev) => { const next = Object.assign({}, T.state.copySettings || saved); const v = parseFloat(String(ev.target.value).replace(',', '.')); next[key] = isFinite(v) ? String(v / 100) : ev.target.value; T.state.copySettings = next; };
   const flip = (key) => () => { const next = Object.assign({}, T.state.copySettings || saved); next[key] = !next[key]; T.setState({ copySettings: next }); };
-  const hintHtml = (hint) => (hint ? '<div style="font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2); line-height:1.45">' + hint + '</div>' : '');
+  const hintHtml = (hint) => (hint ? '<div style="font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2); line-height:var(--lh-snug)">' + hint + '</div>' : '');
   const numField = (key, label, hint) => field(label, textInput(T, 'copySet_' + key, f[key], '', set(key)) + hintHtml(hint));
   const pctField = (key, label, hint) => field(label, textInput(T, 'copySetPct_' + key, pctInputValue(f[key]), '', setPct(key)) + hintHtml(hint));
   const boolField = (key, label, hint) => '<div><div style="' + LABEL_BLOCK + '">' + label + '</div><div style="display:flex; align-items:center; gap:var(--sp-4); padding:var(--sp-3) 0">' + T.toggle(!!f[key], canWrite ? flip(key) : () => {}, label, !canWrite) + '<span style="' + M + '; font-size:var(--t-micro); color:' + DIM + '">' + (f[key] ? 'on' : 'off') + '</span></div>' + hintHtml(hint) + '</div>';
@@ -377,8 +377,8 @@ function settingsTab(T, s, live, canWrite) {
   const modeCard = (m, title, line) => {
     const on = mode === m;
     return '<div ' + T.act(chooseMode(m)) + ' style="flex:1; min-width:200px; border:1px solid ' + (on ? ACCENT : 'var(--line-1)') + '; background:' + (on ? 'rgba(var(--accent-rgb),.08)' : 'transparent') + '; border-radius:var(--r-panel); padding:var(--sp-4) var(--sp-5); cursor:' + (canWrite ? 'pointer' : 'default') + '">'
-      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:' + (on ? ACCENT : 'var(--ink-2)') + '">' + (on ? '● ' : '○ ') + title + '</div>'
-      + '<div style="font-size:var(--t-small); color:var(--ink-4); margin-top:var(--sp-3); line-height:1.45">' + line + '</div></div>';
+      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:' + (on ? ACCENT : 'var(--ink-2)') + '">' + (on ? '● ' : '○ ') + title + '</div>'
+      + '<div style="font-size:var(--t-small); color:var(--ink-4); margin-top:var(--sp-3); line-height:var(--lh-snug)">' + line + '</div></div>';
   };
   const grid = 'display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:var(--sp-5) var(--sp-6)';
   const modeFields = mode === 'share'
@@ -387,23 +387,23 @@ function settingsTab(T, s, live, canWrite) {
       + boolField('dynamic_order_cap_from_tony', 'LET THE ORDER CAP FOLLOW HIS LARGEST POSITION', 'A source that puts 20 % into one market gets a 20 % per-order cap here too, so his conviction bets are not clipped by the base cap below.')
     : mode === 'fixed'
       ? pctField('copy_scale', '% OF HIS TRADE', 'Every order is this share of what he moved. 1 = his $1,000 becomes $10 here, regardless of either account size.')
-      : '<div style="font-size:var(--t-small); color:var(--ink-4); line-height:1.5; grid-column:span 2">Every order is booked at his notional. Only sensible when your sub-account is about the size of his — otherwise the order cap and the cash throttle below clip almost every trade and the copy stops resembling him.</div>';
+      : '<div style="font-size:var(--t-small); color:var(--ink-4); line-height:var(--lh-snug); grid-column:span 2">Every order is booked at his notional. Only sensible when your sub-account is about the size of his — otherwise the order cap and the cash throttle below clip almost every trade and the copy stops resembling him.</div>';
   return '<div style="padding:var(--sp-5) var(--sp-6)">'
     + '<div style="' + KARTE + '; padding:var(--sp-5) var(--sp-6)">'
     + '<div style="display:flex; justify-content:space-between; align-items:baseline; gap:var(--sp-4); flex-wrap:wrap; margin-bottom:var(--sp-4)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-4)">SIZING MODE — THE SAME FOR EVERY TRADER</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4)">SIZING MODE — THE SAME FOR EVERY TRADER</div>'
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">saved in copy_settings.json · the daemon reads it on every pass · live trading stays off</div></div>'
     + '<div style="display:flex; gap:var(--sp-4); flex-wrap:wrap; margin-bottom:var(--sp-5)">'
     + modeCard('share', 'SAME SHARE OF ACCOUNT', 'He bets $1,000 = 1 % of his account → you bet 1 % of your sub-account. Order = his notional × (your equity ÷ his equity) × multiplier. The faithful scaled mirror.')
     + modeCard('fixed', 'FIXED % OF HIS TRADE', 'Every order is a fixed fraction of what he moved, e.g. 1 %. Simple, but ignores how big the bet was for him.')
     + modeCard('one', 'DOLLAR FOR DOLLAR', 'He bets $1,000 → you bet $1,000. 1:1 on notional; only makes sense with a sub-account about his size.')
     + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3); margin-bottom:var(--sp-3)">WHAT A $1,000 BET OF HIS BECOMES HERE, PER ACTIVE TRADER</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3); margin-bottom:var(--sp-3)">WHAT A $1,000 BET OF HIS BECOMES HERE, PER ACTIVE TRADER</div>'
     + '<div style="display:flex; flex-direction:column; gap:var(--sp-2); margin-bottom:var(--sp-5); padding:var(--sp-4); border:1px solid var(--line-2); border-radius:var(--r-control)">' + sizingExampleRows(live.traders, f, mode) + '</div>'
     + '<div style="' + grid + '">'
     + modeFields
     + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3); margin:var(--sp-6) 0 var(--sp-4)">LIMITS AND CASH — APPLY IN EVERY MODE</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3); margin:var(--sp-6) 0 var(--sp-4)">LIMITS AND CASH — APPLY IN EVERY MODE</div>'
     + '<div style="' + grid + '">'
     + pctField('max_order_equity_pct', 'MAX PER ORDER · % OF YOUR EQUITY', 'Cap per order. 5 = at most 5 % of the sub-account in one order.')
     + pctField('cash_throttle_pct', 'CASH THROTTLE · % OF REMAINING CASH', 'One order may spend at most this share of the cash left; 25 keeps a drought from starving later trades. 0 = off.')
@@ -487,13 +487,13 @@ export function renderCopy(T) {
       + '<div><div style="' + LABEL_BLOCK + '">MINIMUM SIZE THEY TRADED</div><div style="display:flex; gap:var(--sp-3); flex-wrap:wrap">'
       + [['all', 'Any'], ['1000', '>$1k'], ['5000', '>$5k'], ['10000', '>$10k']].map((o) => T.opt(o[1], s.copyMin === o[0], { copyMin: o[0] })).join('') + '</div></div>'
       + '</div>'
-      + '<div style="padding:var(--sp-4) var(--sp-6) 0; font-size:var(--t-small); color:var(--ink-3); line-height:1.5">'
+      + '<div style="padding:var(--sp-4) var(--sp-6) 0; font-size:var(--t-small); color:var(--ink-3); line-height:var(--lh-snug)">'
       + '<span style="' + M + '; color:' + POS + '">BUY</span> / <span style="' + M + '; color:' + RED + '">SELL</span> are the source\'s trades, scaled into the sub-account. '
       + '<span style="' + M + '; color:' + AMBER + '">MERGE</span> = the source handed equal YES + NO shares back for $1 each — closes both sides, no direction. '
       + '<span style="' + M + '; color:' + BLUE + '">REDEEM / RESOLUTION</span> = the market settled. Every row says what it was and what the source holds in that market now.'
       + '</div>'
       + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin:var(--sp-5) var(--sp-6); overflow:hidden">'
-      + '<div style="' + grid + '; padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">'
+      + '<div style="' + grid + '; padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
       + '<div>TIME</div><div>TRADER</div><div>MARKET</div><div style="text-align:right">KIND · SIDE</div><div style="text-align:right">THEY MOVED</div><div style="text-align:right">YOU MOVED</div><div style="text-align:right">STATUS</div></div>'
       + (rows.length ? '' : leerZeile(orders.length ? 'No order matches these filters.' : 'No paper orders reported by /api/copy yet.'))
       + rows.map((o) => {
@@ -516,14 +516,14 @@ export function renderCopy(T) {
           + '<div style="' + M + '; font-size:var(--t-micro); text-align:right; color:' + farbe + '" title="' + esc(o.reason || '') + '">' + esc(label) + '</div></div>'
           // 222px ist keine Abstandsstufe, sondern die Summe der Spalten
           // links davon: die Begruendungszeile beginnt unter dem Markt.
-          + (teile.length ? '<div style="font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2); padding-left:222px; line-height:1.45">' + teile.join(' · ') + '</div>' : '')
+          + (teile.length ? '<div style="font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2); padding-left:222px; line-height:var(--lh-snug)">' + teile.join(' · ') + '</div>' : '')
           + '</div>';
       }).join('')
       + '</div></div>';
   } else if (tab === 'positions') {
     const grid = 'display:grid; grid-template-columns:120px 1fr 62px 78px 78px 78px 88px 100px; gap:var(--sp-4)';
     body = '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin:var(--sp-5) var(--sp-6); overflow:hidden">'
-      + '<div style="' + grid + '; padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">'
+      + '<div style="' + grid + '; padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
       + '<div>TRADER</div><div>MARKET</div><div style="text-align:right">SIDE</div><div style="text-align:right">SHARES</div><div style="text-align:right">AVG FILL</div><div style="text-align:right">MARK</div><div style="text-align:right">VALUE</div><div style="text-align:right">UNREALISED</div></div>'
       + (positions.length ? '' : leerZeile('No open paper positions reported by /api/copy.'))
       + positions.map((r) =>
@@ -542,7 +542,7 @@ export function renderCopy(T) {
     body = '<div style="padding:var(--sp-5) var(--sp-6)">'
       + '<div style="' + KARTE + '; padding:var(--sp-5)">'
       + '<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:var(--sp-4); flex-wrap:wrap; gap:var(--sp-4)">'
-      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-4)">' + (filtered ? esc((filtered.label || shortW(filtered.wallet)).toUpperCase()) + ' — ' : 'ALL SUB-ACCOUNTS — ') + 'EQUITY VS CASH PUT IN</div>'
+      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4)">' + (filtered ? esc((filtered.label || shortW(filtered.wallet)).toUpperCase()) + ' — ' : 'ALL SUB-ACCOUNTS — ') + 'EQUITY VS CASH PUT IN</div>'
       + '<div style="display:flex; gap:var(--sp-5); ' + M + '; font-size:var(--t-micro)">'
       + '<span style="display:flex; align-items:center; gap:var(--sp-3)"><span style="width:14px; height:2px; background:' + ACCENT + '; display:inline-block"></span>Paper equity</span>'
       + '<span style="display:flex; align-items:center; gap:var(--sp-3); color:var(--ink-4)"><span style="width:14px; height:2px; background:rgba(var(--ink),.35); display:inline-block"></span>Cash put in ' + esc(usd(putIn, 0)) + '</span>'
@@ -555,7 +555,7 @@ export function renderCopy(T) {
       + '</div>'
       + '<div style="' + KARTE + '; padding:var(--sp-5); margin-top:var(--sp-5)">'
       + '<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:var(--sp-4); flex-wrap:wrap; gap:var(--sp-4)">'
-      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-4)">YOUR RETURN VERSUS THE SOURCE WALLET</div>'
+      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4)">YOUR RETURN VERSUS THE SOURCE WALLET</div>'
       + '<div style="display:flex; gap:var(--sp-5); ' + M + '; font-size:var(--t-micro)">'
       + '<span style="display:flex; align-items:center; gap:var(--sp-3)"><span style="width:14px; height:2px; background:' + ACCENT + '; display:inline-block"></span>You</span>'
       + '<span style="display:flex; align-items:center; gap:var(--sp-3); color:' + BLUE + '"><span style="width:14px; height:2px; background:' + BLUE + '; display:inline-block"></span>' + esc(sourceName) + ' (official PnL, 1 month)</span>'
@@ -588,18 +588,18 @@ export function renderCopy(T) {
     const entscheidbar = kp.actionable != null ? kp.actionable : kp.total;
     const throttleShare = entscheidbar ? Math.round((kp.skipped / entscheidbar) * 100) : null;
     body = '<div style="padding:var(--sp-5) var(--sp-6); display:grid; grid-template-columns:1fr 1fr; gap:var(--sp-5)">'
-      + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-4); margin-bottom:var(--sp-5)">WHERE THE COPY DRIFTS (ALL TRADERS)</div>'
+      + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4); margin-bottom:var(--sp-5)">WHERE THE COPY DRIFTS (ALL TRADERS)</div>'
       + '<div style="display:flex; flex-direction:column; gap:var(--sp-5)">'
       + fidelityBar('Settings vs a neutral mirror', kp.config_fidelity + '%', Math.min(100, kp.config_fidelity), ACCENT)
       + fidelityBar('Filled vs what you wanted', kp.exec_fidelity + '%', Math.min(100, kp.exec_fidelity), ACCENT)
       + fidelityBar('Orders skipped', throttleShare == null ? '— no orders yet' : throttleShare + '% of orders', throttleShare == null ? 0 : Math.min(100, throttleShare), AMBER, AMBER)
       + '</div></div>'
-      + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-4); margin-bottom:var(--sp-5)">WHAT THE GAP COSTS</div>'
+      + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4); margin-bottom:var(--sp-5)">WHAT THE GAP COSTS</div>'
       + '<div style="display:flex; flex-direction:column; gap:var(--sp-4)">' + gapCosts + '</div></div></div>';
   } else {
     const grid = 'display:grid; grid-template-columns:110px 120px 1fr 120px 120px; gap:var(--sp-4)';
     body = '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin:var(--sp-5) var(--sp-6); overflow:hidden">'
-      + '<div style="' + grid + '; padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">'
+      + '<div style="' + grid + '; padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
       + '<div>DATE</div><div>TRADER</div><div>WHAT HAPPENED</div><div style="text-align:right">AMOUNT</div><div style="text-align:right">CASH AFTER</div></div>'
       + (cashRows.length ? '' : leerZeile('No cash events reported by /api/copy. Start cash is not an event; top-ups are.'))
       + cashRows.map((r) =>
@@ -629,19 +629,19 @@ export function renderCopy(T) {
   const accessText = !access.mode ? '' : access.allowed ? (access.mode === 'token' ? 'WRITES · TOKEN' : 'WRITES · LOCAL') : 'READ-ONLY';
   return '<div>'
     + '<div style="padding:var(--sp-6) var(--sp-6) var(--sp-5); border-bottom:1px solid var(--line-2)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.18em; color:' + ACCENT + '">COPY TRADE · PAPER</div>'
-    + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:-0.01em">Follow traders with fake money</h1>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-max); color:' + ACCENT + '">COPY TRADE · PAPER</div>'
+    + '<h1 style="font-size:var(--t-head); line-height:var(--lh-tight); margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:var(--ls-flat)">Follow traders with fake money</h1>'
     // Der Vorbehalt zum Papierkonto stand hier als Prosa und ist jetzt der
     // Registereintrag paper_desk_only.
     + caveatZeile('paper_desk_only', {
       vorsatz: 'Every buy a followed wallet makes is scaled into that wallet\'s own sub-account and booked at the printed price. Equal start cash, equal settings, so the sub-accounts are the comparison.',
-      stil: 'font-size:var(--t-body); color:' + DIM + '; margin-top:var(--sp-3); max-width:760px; line-height:1.5'
+      stil: 'font-size:var(--t-body); color:' + DIM + '; margin-top:var(--sp-3); max-width:760px; line-height:var(--lh-snug)'
     }) + '</div>'
 
     + '<div style="display:flex; align-items:center; gap:var(--sp-6); padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-2); background:var(--panel); flex-wrap:wrap">'
     + '<div style="display:flex; align-items:center; gap:var(--sp-3)" title="' + esc((live.daemon && live.daemon.reason) || '') + '">'
     + '<span style="width:7px; height:7px; border-radius:50%; background:' + daemonFarbe + '; display:inline-block"></span>'
-    + '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:' + daemonFarbe + '">' + daemonText + '</span></div>'
+    + '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:' + daemonFarbe + '">' + daemonText + '</span></div>'
     + '<div style="' + M + '; font-size:var(--t-small); color:var(--ink-3)">FOLLOWING <span style="color:var(--text)">' + activeCount + ' active</span>' + (traders.length > activeCount ? ' <span style="color:' + AMBER + '">' + (traders.length - activeCount) + ' paused</span>' : '') + '</div>'
     + '<div style="' + M + '; font-size:var(--t-small); color:var(--ink-3)">SOURCE <span style="color:var(--text)">' + esc(st.source) + '</span></div>'
     + '<div style="' + M + '; font-size:var(--t-small); color:var(--ink-3)">SCALE <span style="color:var(--text)">' + (+st.scale).toFixed(4) + '×</span></div>'
@@ -651,13 +651,13 @@ export function renderCopy(T) {
     + '</div>'
 
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid var(--line-2)">'
-    + '<div style="padding:var(--sp-5) var(--sp-6); border-right:1px solid var(--line-2)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3)">ALL SUB-ACCOUNTS · EQUITY</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3)">' + esc(usd(totals.equity)) + '</div><div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2)">' + esc(usd(totals.contributions)) + ' put in</div></div>'
+    + '<div style="padding:var(--sp-5) var(--sp-6); border-right:1px solid var(--line-2)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">ALL SUB-ACCOUNTS · EQUITY</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3)">' + esc(usd(totals.equity)) + '</div><div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2)">' + esc(usd(totals.contributions)) + ' put in</div></div>'
     // Die Kachel nannte eine Zahl fuer beides. Gebucht ist Geld, das eine
     // Aufloesung oder ein Verkauf zurueckgegeben hat; bewertet ist eine
     // Marke auf Positionen, die noch nichts entschieden haben (im
     // Standardpfad zum zuletzt gedruckten Preis der Quelle). Beide Zeilen
     // rechnen gegen dasselbe eingezahlte Kapital und addieren sich deshalb.
-    + '<div style="padding:var(--sp-5) var(--sp-6); border-right:1px solid var(--line-2)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3)">PROFIT ON PAPER · SETTLED VS MARKED</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3); color:' + pnlColor(kp.pnl) + '">' + esc(signedUsd(kp.pnl)) + ' <span style="font-size:var(--t-body); color:var(--ink-3)">' + esc(pctLabel(kp.pnl_pct)) + '</span></div>'
+    + '<div style="padding:var(--sp-5) var(--sp-6); border-right:1px solid var(--line-2)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">PROFIT ON PAPER · SETTLED VS MARKED</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3); color:' + pnlColor(kp.pnl) + '">' + esc(signedUsd(kp.pnl)) + ' <span style="font-size:var(--t-body); color:var(--ink-3)">' + esc(pctLabel(kp.pnl_pct)) + '</span></div>'
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); margin-top:var(--sp-2)">' + esc(splitSatz(kp)) + '</div>'
     + (kp.pnl_reconciles === false ? '<div style="' + M + '; font-size:var(--t-micro); color:' + AMBER + '; margin-top:var(--sp-2)">the two halves do not add up to the equity change (' + esc(signedUsd(kp.pnl_residual)) + ' unaccounted), so this is not a breakdown</div>' : '')
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2)">'
@@ -667,10 +667,10 @@ export function renderCopy(T) {
     // jede Zeile. Eine kopierte Order, die aufgeloest wurde, fiel damit aus
     // dem Zaehler und blieb im Nenner, und die Baseline-Zeilen (Bestand der
     // Quelle beim Anlegen) standen nur im Nenner.
-    + '<div style="padding:var(--sp-5) var(--sp-6); border-right:1px solid var(--line-2)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3)">ORDERS MIRRORED</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3)">' + kp.mirrored + ' <span style="font-size:var(--t-lead); color:var(--ink-3)">/ ' + (kp.actionable != null ? kp.actionable : kp.total) + '</span></div><div style="' + M + '; font-size:var(--t-micro); color:' + AMBER + '; margin-top:var(--sp-2)">' + kp.skipped + ' skipped</div>'
+    + '<div style="padding:var(--sp-5) var(--sp-6); border-right:1px solid var(--line-2)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">ORDERS MIRRORED</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3)">' + kp.mirrored + ' <span style="font-size:var(--t-lead); color:var(--ink-3)">/ ' + (kp.actionable != null ? kp.actionable : kp.total) + '</span></div><div style="' + M + '; font-size:var(--t-micro); color:' + AMBER + '; margin-top:var(--sp-2)">' + kp.skipped + ' skipped</div>'
     + (kp.observed ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-2)">' + kp.observed + ' baseline rows, never ours to mirror</div>' : '')
     + '</div>'
-    + '<div style="padding:var(--sp-5) var(--sp-6)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3)">HOW CLOSE TO THE SOURCE</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3)">' + kp.fidelity + '%</div><div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2)">config ' + kp.config_fidelity + '% · execution ' + kp.exec_fidelity + '%</div></div>'
+    + '<div style="padding:var(--sp-5) var(--sp-6)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">HOW CLOSE TO THE SOURCE</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3)">' + kp.fidelity + '%</div><div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2)">config ' + kp.config_fidelity + '% · execution ' + kp.exec_fidelity + '%</div></div>'
     + '</div>'
 
     + '<div style="display:flex; align-items:center; gap:var(--sp-3); padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-2); flex-wrap:wrap">'

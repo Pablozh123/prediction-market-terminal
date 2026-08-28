@@ -77,7 +77,6 @@ function neuesT() {
     chip: (l) => '<div>' + esc(l) + '</div>',
     tab: (l) => '<div>' + esc(l) + '</div>',
     toggle: () => '<div></div>',
-    stepper: (l) => '<div>' + esc(l) + '</div>',
     changeStyle: () => M,
     marketView: (m) => ({
       // Leer wie in app.js::marketView: die API liefert eine Tagesaenderung,
