@@ -4,6 +4,7 @@
 // or the panel says which payload is missing.
 
 import { esc, money, num, volume, contracts, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, signedMoney, stempel, EINZAHLUNGEN_USD, offeneNichtDrin, tapeFenster, fensterSatz } from '../util.js';
+import { caveatZeile } from '../claims.js';
 import { spiegelZeit, kurzGeld } from '../charts.js';
 import { studieAnker } from './microstructure_page.js';
 
@@ -403,7 +404,13 @@ export function renderOverview(T) {
     // Das Tape als Streifen im Live-Block — dieselben Prints wie im Poll,
     // neue Zeilen gleiten ein, sobald sie ankommen.
     + tapeLivePanel(T)
-    + '<div style="padding:22px 24px; text-align:center; ' + M + '; font-size:11px; color:rgba(var(--ink),.55)">Public data only · live blocks refresh every 30 seconds · research payloads are frozen files under ./data</div>'
+    // Die Startseite ist die Flaeche, die ein Fremder zuerst sieht, und sie
+    // trug bis hierher keinen einzigen Vorbehalt. score_generic sagt in
+    // einem Satz, was die Zahlen darueber sind und was sie nicht sind.
+    + caveatZeile('score_generic', {
+      vorsatz: 'Public data only \u00b7 live blocks refresh every 30 seconds \u00b7 research payloads are frozen files under ./data \u00b7',
+      stil: 'padding:22px 24px; text-align:center; ' + M + '; font-size:11px; color:rgba(var(--ink),.55); line-height:1.7'
+    })
     + '</div>';
 }
 

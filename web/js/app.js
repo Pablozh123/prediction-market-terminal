@@ -3,6 +3,7 @@
 
 import { num, money, volume, esc, seriesPoints, tapeMatches } from './util.js';
 import { STUDIEN } from './studies.js';
+import { caveatZeile, registerAktualisieren } from './claims.js';
 import { apiGet, apiGetRaw, apiPost } from './api.js';
 import { renderOverview, renderMarkets, renderFlow, renderCross, renderResolved } from './pages/core_pages.js';
 import { renderTraders, renderWhale, renderRisk, renderTrack } from './pages/trader_pages.js';
@@ -655,7 +656,7 @@ class Terminal {
       + groupHtml
       + '<div style="margin-top:auto; padding-top:16px; border-top:1px solid rgba(var(--ink),.09)">'
       + '<div style="' + foot + '"><a href="' + REPO_URL + '" target="_blank" rel="noopener">github.com/Pablozh123/prediction-market-terminal</a></div>'
-      + '<div style="' + foot + '; margin-top:6px">Read-only. No orders placed. Public Polymarket &amp; Kalshi data.</div>'
+      + caveatZeile('site_footer_readonly', { stil: foot + '; margin-top:6px' })
       // Die Adresse oeffnet die On-Chain-Ansicht auf Polygonscan; zur Seite
       // mit jeder Wette fuehrt daneben der eigene Live-runs-Link. Vorher
       // sprang der Klick auf die Adresse nur intern auf die Studienseite und
@@ -774,6 +775,22 @@ class Terminal {
       }
     }));
     this.render();
+  }
+
+  // Das Caveat-Register von /api/claims. Die Oberflaeche traegt eine
+  // kompilierte Fassung mit sich (web/js/claims_register.js), also steht
+  // jeder Vorbehalt schon vor dieser Anfrage; sie holt nur eine neuere
+  // Fassung nach. Das ist nicht theoretisch: Frontend (Pages) und API
+  // (Railway) werden getrennt ausgeliefert, ein Registereintrag kann also auf
+  // der API neuer sein als im ausgelieferten Bundle. Schlaegt sie fehl,
+  // bleibt der eingebaute Stand stehen und die Seite sagt nichts anderes.
+  async ladeRegister() {
+    try {
+      const antwort = await apiGet('/api/claims');
+      if (registerAktualisieren(antwort)) this.render();
+    } catch (err) {
+      // Kein Zustand, keine Meldung: der eingebaute Stand ist vollstaendig.
+    }
   }
 
   // Herkunft je Datenblock. Frueher entschieden Laengen-Guards: eine korrekt
@@ -1523,6 +1540,7 @@ class Terminal {
       this.fetchPageData('research');
     }, 60000);
     this.ladeLanding();
+    this.ladeRegister();
     this.fetchPageData(this.state.page);
     // The desk's badge in the sidebar (active traders) needs the answer even
     // when the page opened elsewhere — only where this browser is its admin.

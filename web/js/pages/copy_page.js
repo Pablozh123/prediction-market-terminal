@@ -8,6 +8,7 @@
 // copySaveSettings, copySync, copyTopUp, copyReload) live in app.js.
 
 import { esc, num, leerZeile } from '../util.js';
+import { caveatZeile } from '../claims.js';
 
 const M = "font-family:'IBM Plex Mono',monospace";
 const LBL9 = M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.6); margin-bottom:6px';
@@ -593,7 +594,12 @@ export function renderCopy(T) {
     + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(var(--ink),.09)">'
     + '<div style="' + M + '; font-size:11px; letter-spacing:.18em; color:' + ACCENT + '">COPY TRADE · PAPER</div>'
     + '<h1 style="font-size:21px; line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">Follow traders with fake money</h1>'
-    + '<div style="font-size:13px; color:' + DIM + '; margin-top:9px; max-width:760px">Every buy a followed wallet makes is scaled into that wallet\'s own sub-account and booked at the printed price. Equal start cash, equal settings — the sub-accounts are the comparison. Nothing is sent to a venue.</div></div>'
+    // "Nothing is sent to a venue" stand hier als Prosa und ist jetzt der
+    // Registereintrag paper_desk_only.
+    + caveatZeile('paper_desk_only', {
+      vorsatz: 'Every buy a followed wallet makes is scaled into that wallet\'s own sub-account and booked at the printed price. Equal start cash, equal settings, so the sub-accounts are the comparison.',
+      stil: 'font-size:13px; color:' + DIM + '; margin-top:9px; max-width:760px; line-height:1.5'
+    }) + '</div>'
 
     + '<div style="display:flex; align-items:center; gap:26px; padding:13px 24px; border-bottom:1px solid rgba(var(--ink),.09); background:var(--panel); flex-wrap:wrap">'
     + '<div style="display:flex; align-items:center; gap:8px" title="' + esc((live.daemon && live.daemon.reason) || '') + '">'

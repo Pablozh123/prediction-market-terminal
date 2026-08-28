@@ -3,6 +3,7 @@
 // public/data/ when the API serves them, incl. their stand_utc stamp and note.
 
 import { esc, num, herkunftSatz, leerZeile, EINZAHLUNGEN_USD, offeneNichtDrin, stempelBlock } from '../util.js';
+import { caveatZeile, registerStand } from '../claims.js';
 import { stepKurve, diagramm, linien, kalibrierung, fmtZahl, SERIEN_FARBEN } from '../charts.js';
 import { renderMicrostructure } from './microstructure_page.js';
 
@@ -489,6 +490,19 @@ export function renderAlerts(T) {
     + '</div>';
 }
 
+// Woher die Vorbehalte dieser Oberflaeche kommen und wie alt sie sind.
+// "compiled" heisst: aus data/claims.yaml in web/js/claims_register.js
+// uebersetzt und mit der Seite ausgeliefert; "/api/claims" heisst, die API
+// hatte eine neuere Fassung und sie wurde uebernommen.
+function registerZeile() {
+  const stand = registerStand();
+  if (!stand.eintraege) return '';
+  const quelle = stand.quelle === 'api' ? 'from /api/claims' : 'compiled from data/claims.yaml';
+  return '<div style="padding:0 24px 30px; ' + M + '; font-size:10px; color:rgba(var(--ink),.55)">'
+    + 'caveat register v' + esc(stand.version) + (stand.updated ? ' \u00b7 ' + esc(stand.updated) : '')
+    + ' \u00b7 ' + esc(quelle) + ' \u00b7 ' + esc(stand.eintraege) + ' entries</div>';
+}
+
 // ---------------------------------------------------------------- research
 export function renderResearch(T) {
   const s = T.state;
@@ -733,7 +747,11 @@ function pipelineHeadlineHtml(payload) {
     + (anteil < 10 ? anteil.toFixed(1) : Math.round(anteil)) + '%)'
     + (top ? ' — most common stopper: ' + esc(top[0].charAt(0).toLowerCase() + top[0].slice(1)) + ' (' + num(top[1]) + ' of ' + num(z.keine) + ' no-trades, ' + Math.round((top[1] / Math.max(1, z.keine)) * 100) + '%)' : '')
     + '.</div>'
-    + '<div style="font-size:12px; color:rgba(var(--ink),.5); margin-top:8px; line-height:1.5">Counted over ' + esc(quelle) + ' in pipeline_forward.json. No equity curve on purpose: the log carries decisions and best book prices only — no fills, no wallet data, no return claim. What the same pipeline did with real money is on the Live runs page.</div>'
+    + caveatZeile('paper_log_no_return_claim', {
+      vorsatz: 'Counted over ' + esc(quelle) + ' in pipeline_forward.json. No equity curve on purpose.',
+      nachsatz: 'What the same pipeline did with real money is on the Live runs page.',
+      stil: 'font-size:12px; color:rgba(var(--ink),.5); margin-top:8px; line-height:1.5'
+    })
     + (chart ? '<div style="margin-top:14px">' + chart + '</div>' : '')
     + '</div>';
 }
@@ -800,7 +818,13 @@ function buildStudyTable(T, tab, payload) {
       // stecken. Der gezeigte Fall ist der mit der hoechsten Prioritaet.
       const maerkte = collapseQueue(payload.faelle);
       return studyTableHtml(T, 'OPEN CASES · ONE ROW PER MARKET, HIGHEST-PRIORITY WINDOW SHOWN', '110px 1fr 200px 90px 100px 140px', ['CASE','MARKET','WINDOWS','BAND','DISCOUNT','RECOMMENDATION'],
-        maerkte.slice(0, 12).map((f) => [String(f.id), String(f.markt_slug || ''), fensterText(f), String(f.score_band || ''), String(f.skeptic_abschlag != null ? f.skeptic_abschlag : '—'), String(f.empfehlung || '')]));
+        maerkte.slice(0, 12).map((f) => [String(f.id), String(f.markt_slug || ''), fensterText(f), String(f.score_band || ''), String(f.skeptic_abschlag != null ? f.skeptic_abschlag : '—'), String(f.empfehlung || '')]))
+        // Die Spalte heisst RECOMMENDATION, und was damit gemeint ist,
+        // stand bisher ungenutzt in public/data/meta.json. Jetzt steht es
+        // unter der Spalte, aus dem Register.
+        + caveatZeile('verification_not_signal', {
+          stil: 'font-size:12px; color:rgba(var(--ink),.6); margin-top:8px; max-width:760px; line-height:1.5'
+        });
     }
     if (tab === 2 && payload.faelle) {
       // Jede Zeile traegt auch das aufgeloeste Outcome und den Status, wie
@@ -1957,7 +1981,13 @@ function paperLogHtml(T) {
   return '<div style="' + karte + '">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap">' + kopf
     + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.55)">' + num(laeufe.length) + ' paper runs · ' + num(entscheidungen) + ' decisions · ' + num(kaeufe) + ' paper buys' + (stand ? ' · ' + esc(stand) : '') + '</div></div>'
-    + '<div style="font-size:12.5px; color:rgba(var(--ink),.6); margin-top:8px; line-height:1.55; max-width:820px">The same word-count pipeline in watch mode: it reads the live transcript and logs, per market, whether its rules would have allowed a bet — mostly they would not. Decisions and best book prices only, no fills, no wallet data, no return claim. What the same pipeline did with real money is the record above.</div>'
+    // Derselbe Vorbehalt wie im Aufmacher der Pipeline-forward-Seite,
+    // vorher zweimal getippt und beim zweiten Mal leicht anders.
+    + caveatZeile('paper_log_no_return_claim', {
+      vorsatz: 'The same word-count pipeline in watch mode: it reads the live transcript and logs, per market, whether its rules would have allowed a bet; mostly they would not.',
+      nachsatz: 'What the same pipeline did with real money is the record above.',
+      stil: 'font-size:12.5px; color:rgba(var(--ink),.6); margin-top:8px; line-height:1.55; max-width:820px'
+    })
     + (zeilen
       ? '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:12px; overflow:hidden">'
         + '<div style="display:grid; grid-template-columns:1fr 110px 110px 130px; gap:10px; padding:8px 16px; background:var(--bg); border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6)">'
@@ -2650,7 +2680,15 @@ export function renderSettings(T) {
         + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:12px">' + o.value + '</div></div>';
     }).join('')
     + '</div>'
-    + '<div style="padding:0 24px 30px; ' + M + '; font-size:10.5px; color:rgba(var(--ink),.55); line-height:1.7; max-width:760px">Research tool only — no investment advice, no order placement, no venue affiliation. Public Polymarket and Kalshi data, provided as-is. Settings are locked to allowlisted accounts on a public deployment.</div>'
+    // Der laengste Vorbehalt des Hauses stand hier als Prosa. Jetzt
+    // research_tool_only aus dem Register, mit dem Stand des Registers
+    // darunter: ein Vorbehalt ohne Datum ist so viel wert wie eine Zahl
+    // ohne Stichtag.
+    + caveatZeile('research_tool_only', {
+      nachsatz: 'Settings are locked to allowlisted accounts on a public deployment.',
+      stil: 'padding:0 24px 8px; ' + M + '; font-size:10.5px; color:rgba(var(--ink),.55); line-height:1.7; max-width:760px'
+    })
+    + registerZeile()
     + '</div>';
 }
 

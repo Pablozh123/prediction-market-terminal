@@ -1,6 +1,7 @@
 // Leaderboard, Whale flow, Risk screen, Tracked — ported from the design reference.
 
 import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, tapeFenster, fensterSatz } from '../util.js';
+import { caveatZeile } from '../claims.js';
 import { renderClusterGraphics, clusterFarbe } from './cluster_graphics.js';
 
 const M = "font-family:'IBM Plex Mono',monospace";
@@ -119,7 +120,13 @@ export function renderTraders(T) {
     + '<input value="' + esc(s.traderQuery) + '" ' + T.inp((e) => T.setState({ traderQuery: e.target.value }), 'traderQuery') + ' placeholder="Search name or wallet…" style="background:var(--panel); border:1px solid rgba(var(--ink),.35); border-radius:4px; padding:9px 12px; ' + M + '; font-size:12.5px; color:var(--text); width:230px" />'
     + '<div ' + T.act(() => T.setState({ traderQuery: '', tPnl: 'all', tVol: 'all', traderRank: 'pnl' })) + ' class="hv-bd32" style="font-size:12.5px; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.16); border-radius:4px; padding:9px 13px; cursor:pointer">Reset filters</div>'
     + '</div></div>'
-    + '<div style="font-size:13px; color:rgba(var(--ink),.55); margin-top:10px; max-width:760px">Ranked from the public Polymarket all-time leaderboard. The smart score is a weighted composite of the components listed under each wallet; win rate and resolved-bet counts are computed per wallet with sample size and confidence interval — open a wallet to see them.</div>'
+    // Der Vorbehalt gegen rohe PnL-Raenge stand als leaderboard_caveat im
+    // Register und war auf keiner Seite zu sehen; die Beschreibung davor
+    // bleibt Sache dieser Seite.
+    + caveatZeile('leaderboard_caveat', {
+      vorsatz: 'Ranked from the public Polymarket all-time leaderboard. The smart score is a weighted composite of the components listed under each wallet; win rate and resolved-bet counts are computed per wallet with sample size and confidence interval, so open a wallet to see them.',
+      stil: 'font-size:13px; color:rgba(var(--ink),.55); margin-top:10px; max-width:760px; line-height:1.5'
+    })
 
     + '<div style="display:flex; align-items:center; gap:20px; margin-top:14px; flex-wrap:wrap">'
     + '<div style="display:flex; align-items:center; gap:8px"><span style="' + LBL9.replace('; margin-bottom:6px', '') + '">RANK BY</span><div style="display:flex; gap:6px; flex-wrap:wrap">'
@@ -1074,7 +1081,12 @@ export function renderRisk(T) {
     + '<h1 style="font-size:21px; line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">Trades that look like someone knew</h1></div>'
     + (live && live.as_of ? '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.55)">as of ' + esc(String(live.as_of)) + '</div>' : '')
     + '</div>'
-    + '<div style="font-size:13px; color:rgba(var(--ink),.55); margin-top:10px; max-width:760px">Best-effort screen on public trade data — research leads, not legal findings. Sports odds, crypto &amp; market prices, and weather are excluded: game results, exchange prices and weather models cannot be traded on early.</div>'
+    // "research leads, not legal findings" stand hier und in
+    // api_views.risk_payload; beide lesen jetzt screen_not_proof.
+    + caveatZeile('screen_not_proof', {
+      nachsatz: 'Sports odds, crypto &amp; market prices, and weather are excluded: game results, exchange prices and weather models cannot be traded on early.',
+      stil: 'font-size:13px; color:rgba(var(--ink),.55); margin-top:10px; max-width:760px; line-height:1.5'
+    })
     + '<div style="display:flex; gap:7px; margin-top:12px; flex-wrap:wrap">'
     + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.12); border-radius:4px; padding:4px 9px">UNDER 40 · LOW</div>'
     + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.18); border-radius:4px; padding:4px 9px">40–54 · ELEVATED</div>'
