@@ -1531,7 +1531,11 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("GRADE F · 27/100 BELOW SAMPLE GATE 4 DAYS ACTIVE", text)
         # KPI strip: every figure with its n / CI; the fact line below it.
         self.assertIn("SETTLED PNL +$210.00 n 12 resolved markets", text)
-        self.assertIn("CORRECTED WIN RATE 73% 8/11 events · 95% [43%, 91%]", text)
+        # Die Quote nennt ihre Luecke: nicht eingeloeste, gegen die Wallet
+        # aufgeloeste Positionen stehen nie im closed-positions-Feed, und es
+        # sind ausschliesslich Verluste — die Quote ist ohne sie nach oben
+        # verzerrt.
+        self.assertIn("CORRECTED WIN RATE 73% 8/11 events · 95% [43%, 91%] · 1 unredeemed loss not in it", text)
         self.assertIn("GRADE F score 27 / 100 · below sample gate", text)
         self.assertIn("SHARPE · DAILY $ 11.92 n 5 d · profile curve", text)
         self.assertIn("MAX DRAWDOWN $5.00 25.0% of peak · profile curve", text)

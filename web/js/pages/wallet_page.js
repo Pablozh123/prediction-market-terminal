@@ -263,9 +263,18 @@ function renderKpis(d) {
   const id = d.identity || {};
   const corr = tr && tr.corrected ? tr.corrected : null;
   const capNote = tr && tr.capped ? ' · capped' : '';
+  // Positionen, die gegen die Wallet aufgeloest und nie eingeloest wurden,
+  // bleiben in /positions und tauchen im closed-positions-Feed nie auf. Jede
+  // Quote aus diesem Feed laesst sie also weg — und es sind ausschliesslich
+  // Verluste, die Quote ist damit nach oben verzerrt. Die Kachel nannte das
+  // nicht; die Zahl stand allein neben ihrem CI.
+  const nichtEingeloest = d.open_positions ? (Number(d.open_positions.worthless_n) || 0) : 0;
+  const wertlosNote = nichtEingeloest
+    ? ' · ' + num(nichtEingeloest) + ' unredeemed loss' + (nichtEingeloest === 1 ? '' : 'es') + ' not in it'
+    : '';
   const tiles = [
     kpiTile('SETTLED PNL', tr ? dollars(tr.settled_pnl) : '—', tr ? 'n ' + num(tr.per_market ? tr.per_market.n : 0) + ' resolved markets' + capNote : 'no track record', tr ? (tr.settled_pnl < 0 ? 'down' : 'up') : 'neutral'),
-    kpiTile('CORRECTED WIN RATE', corr && corr.win_rate != null ? pct(corr.win_rate) : '—', corr && corr.n ? corr.wins + '/' + corr.n + ' events · 95% ' + ci(corr.ci95) + capNote : 'no resolved events', corr && corr.win_rate != null ? (corr.win_rate >= 0.5 ? 'up' : 'down') : 'neutral'),
+    kpiTile('CORRECTED WIN RATE', corr && corr.win_rate != null ? pct(corr.win_rate) : '—', corr && corr.n ? corr.wins + '/' + corr.n + ' events · 95% ' + ci(corr.ci95) + capNote + wertlosNote : 'no resolved events', corr && corr.win_rate != null ? (corr.win_rate >= 0.5 ? 'up' : 'down') : 'neutral'),
     kpiTile('GRADE', tr && tr.grade ? esc(tr.grade) : '—', tr && tr.score != null ? 'score ' + tr.score + ' / 100' + (tr.survivorship_gate && !tr.survivorship_gate.ok ? ' · below sample gate' : '') : '', tr && tr.grade ? (tr.grade === 'A' || tr.grade === 'B' ? 'up' : tr.grade === 'F' ? 'warn' : 'neutral') : 'neutral'),
     kpiTile('SHARPE · DAILY $', st && st.sharpe != null ? ratio(st.sharpe) : '—', st ? (flat ? 'flat curve · no daily change' : 'n ' + st.n_days + ' d · ' + basis) : 'no PnL curve', st && st.sharpe != null ? (st.sharpe >= 0 ? 'up' : 'down') : 'neutral'),
     kpiTile('MAX DRAWDOWN', st ? absDollars(st.max_drawdown) : '—', st ? (flat ? 'flat curve · never moved' : pct(st.max_drawdown_pct, 1) + ' of peak · ' + basis) : 'no PnL curve', st && st.max_drawdown > 0 ? 'down' : 'neutral')
