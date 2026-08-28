@@ -32,7 +32,7 @@ from typing import Any
 import pandas as pd
 
 from app import quant
-from app.track_record import _event_key
+from app.track_record import _event_key, stake_usd
 
 RESOLUTION_COLUMNS = ["forecast", "outcome", "stake", "title", "time", "market_key", "event_key"]
 
@@ -111,7 +111,9 @@ def resolution_frame(resolved: pd.DataFrame) -> pd.DataFrame:
         {
             "forecast": entry,
             "outcome": won.astype(float),
-            "stake": _numeric(df, "total_bought").fillna(0.0),
+            # Dollars, nicht Anteile: ``total_bought`` ist die Stueckzahl
+            # (siehe track_record.stake_usd), und der Wert heisst hier stake.
+            "stake": stake_usd(df).fillna(0.0),
             "title": df.get("title", pd.Series("", index=df.index)).astype(str),
             "time": pd.to_datetime(df.get("time"), utc=True, errors="coerce"),
             "market_key": df.get("market_key", pd.Series("", index=df.index)).astype(str),

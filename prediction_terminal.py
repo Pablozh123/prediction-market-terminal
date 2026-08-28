@@ -2894,14 +2894,17 @@ def wallet_positions_frame(open_positions: pd.DataFrame, closed_positions: pd.Da
         closed_frame = closed_positions.copy()
         closed_frame["status"] = "Closed"
         closed_frame["pnl"] = numeric_col(closed_frame, "realized_pnl")
-        closed_frame["basis"] = numeric_col(closed_frame, "total_bought")
-        avg_price = numeric_col(closed_frame, "avg_price").replace({0: pd.NA})
+        # ``total_bought`` ist die Stueckzahl (trec.stake_usd), nicht der
+        # Einsatz. Als "basis" stand sie in derselben Spalte wie die offenen
+        # Zeilen, die dort Dollar fuehren; "size" teilte Anteile noch einmal
+        # durch den Preis, und "value" addierte Anteile und Dollar.
+        closed_frame["basis"] = trec.stake_usd(closed_frame)
         if "size" not in closed_frame:
-            closed_frame["size"] = (numeric_col(closed_frame, "total_bought") / avg_price).fillna(0.0)
+            closed_frame["size"] = numeric_col(closed_frame, "total_bought")
         if "value" not in closed_frame:
-            closed_frame["value"] = numeric_col(closed_frame, "total_bought") + numeric_col(closed_frame, "realized_pnl")
+            closed_frame["value"] = closed_frame["basis"] + numeric_col(closed_frame, "realized_pnl")
         if "pnl_pct" not in closed_frame:
-            closed_frame["pnl_pct"] = numeric_col(closed_frame, "realized_pnl") / numeric_col(closed_frame, "total_bought").replace({0: pd.NA})
+            closed_frame["pnl_pct"] = numeric_col(closed_frame, "realized_pnl") / closed_frame["basis"].replace({0: pd.NA})
         frames.append(closed_frame)
     if not frames:
         return pd.DataFrame()

@@ -2142,8 +2142,14 @@ def get_polymarket_closed_positions(
     df["outcome"] = df.get("outcome", "")
     df["avg_price"] = pd.to_numeric(df.get("avgPrice", 0), errors="coerce").fillna(0.0)
     df["current_price"] = pd.to_numeric(df.get("curPrice", 0), errors="coerce").fillna(0.0)
+    # ``totalBought`` counts SHARES, not dollars. The feed proves it row by
+    # row: a fully lost position reports realizedPnl = -(totalBought x
+    # avgPrice) and a winner held to settlement reports totalBought x
+    # (1 - avgPrice). Anything that means "dollars at risk" has to use
+    # ``cost_usd``; ``total_bought`` keeps the API's name and the API's unit.
     df["total_bought"] = pd.to_numeric(df.get("totalBought", 0), errors="coerce").fillna(0.0)
     df["realized_pnl"] = pd.to_numeric(df.get("realizedPnl", 0), errors="coerce").fillna(0.0)
+    df["cost_usd"] = df["total_bought"] * df["avg_price"]
     df["time"] = pd.to_datetime(df.get("timestamp"), unit="s", utc=True, errors="coerce")
     df["market_key"] = df.get("conditionId", "")
     df["slug"] = df.get("slug", "")
@@ -2158,6 +2164,7 @@ def get_polymarket_closed_positions(
         "avg_price",
         "current_price",
         "total_bought",
+        "cost_usd",
         "realized_pnl",
         "market_key",
         "url",

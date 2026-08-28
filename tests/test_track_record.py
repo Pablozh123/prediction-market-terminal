@@ -197,5 +197,39 @@ class ActivityReconstructionTests(unittest.TestCase):
         self.assertTrue(tr.settled_from_activity(pd.DataFrame()).empty)
 
 
+class StakeUsdTests(unittest.TestCase):
+    """``total_bought`` zaehlt Anteile; jede Dollar-Groesse muss umrechnen.
+
+    Beleg aus dem oeffentlichen Feed (2026-08-28, Wallet 0x29af...f88d):
+    'Will "Blue" be said during the next episode of the All-In Podcast?'
+    steht mit totalBought 179.809, avgPrice 0.6887 und realizedPnl 55.9739 -
+    und 179.809 x (1 - 0.6887) = 55.974. Die Zahl geht nur auf, wenn
+    totalBought Anteile sind: 179.809 Anteile fuer $123.83.
+    """
+
+    def test_shares_times_price_is_the_dollar_stake(self):
+        frame = closed([pos("blue", 55.9739, 179.809)])
+        frame["avg_price"] = 0.6887
+        self.assertAlmostEqual(float(tr.stake_usd(frame).iloc[0]), 123.83, places=2)
+
+    def test_cost_usd_column_wins_when_present(self):
+        frame = closed([pos("blue", 55.9739, 179.809)])
+        frame["avg_price"] = 0.6887
+        frame["cost_usd"] = 120.0
+        self.assertAlmostEqual(float(tr.stake_usd(frame).iloc[0]), 120.0, places=6)
+
+    def test_without_a_price_the_share_count_is_all_there_is(self):
+        frame = closed([pos("blue", 55.9739, 179.809)])
+        self.assertAlmostEqual(float(tr.stake_usd(frame).iloc[0]), 179.809, places=3)
+        self.assertTrue(tr.stake_usd(pd.DataFrame()).empty)
+
+    def test_market_return_is_pnl_per_dollar(self):
+        frame = closed([pos("m1", 50.0, 200.0)])
+        frame["avg_price"] = 0.5
+        rec = tr.market_records(frame)
+        self.assertAlmostEqual(float(rec.iloc[0]["volume"]), 100.0)
+        self.assertAlmostEqual(float(rec.iloc[0]["return"]), 0.5)
+
+
 if __name__ == "__main__":
     unittest.main()

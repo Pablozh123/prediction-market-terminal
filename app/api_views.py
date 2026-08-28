@@ -770,7 +770,9 @@ def _wallet_edge(
     by_category: list[dict[str, Any]] = []
     if resolved is not None and not resolved.empty:
         df = resolved.copy()
-        df["cost"] = pd.to_numeric(df.get("total_bought"), errors="coerce").fillna(0.0)
+        # Dollar-Einsatz, nicht Stueckzahl: ``total_bought`` zaehlt Anteile,
+        # und die Kachel darueber heisst "Cent je Dollar".
+        df["cost"] = trec.stake_usd(df)
         df["payout"] = df["cost"] + pd.to_numeric(df.get("realized_pnl"), errors="coerce").fillna(0.0)
         df["group"] = df.apply(trec._event_key, axis=1)
         try:
@@ -1032,7 +1034,7 @@ def _wallet_risk_profile(resolved: pd.DataFrame | None, capped: bool, activity: 
     if resolved is not None and not resolved.empty:
         df = resolved.copy()
         df["_pnl"] = pd.to_numeric(df.get("realized_pnl"), errors="coerce").fillna(0.0)
-        df["_stake"] = pd.to_numeric(df.get("total_bought"), errors="coerce").fillna(0.0)
+        df["_stake"] = trec.stake_usd(df)
         df["_time"] = pd.to_datetime(df.get("time"), utc=True, errors="coerce")
         wins = df[df["_pnl"] > 0]
         losses = df[df["_pnl"] < 0]

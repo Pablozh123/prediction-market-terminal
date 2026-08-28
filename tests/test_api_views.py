@@ -63,7 +63,11 @@ class WalletDetailTests(unittest.TestCase):
 
 
 def _resolved_fixture(n: int) -> pd.DataFrame:
-    """n resolved markets: even indices won (+$40 on $50), odd lost (-$50); markets 1 and 2 share one NegRisk event."""
+    """n resolved markets: even indices won (+$40 on $50), odd lost (-$50); markets 1 and 2 share one NegRisk event.
+
+    ``total_bought`` carries the API's unit: SHARES. 100 shares at an average
+    of 0.50 are $50 at risk, so a total loss is -$50.
+    """
 
     rows = []
     for i in range(n):
@@ -73,7 +77,7 @@ def _resolved_fixture(n: int) -> pd.DataFrame:
             "outcome": "Yes",
             "avg_price": 0.5,
             "current_price": 1.0 if won else 0.0,
-            "total_bought": 50.0,
+            "total_bought": 100.0,
             "realized_pnl": 40.0 if won else -50.0,
             "time": pd.Timestamp("2026-06-01", tz="UTC") + pd.Timedelta(i, unit="D"),
             "market_key": f"0xc{i}",

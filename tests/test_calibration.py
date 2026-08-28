@@ -11,7 +11,8 @@ def resolved_frame(rows):
     return frame
 
 
-def row(title, avg_price, current_price, realized_pnl, total_bought=50.0, time="2026-06-01", market_key="c1"):
+def row(title, avg_price, current_price, realized_pnl, total_bought=100.0, time="2026-06-01", market_key="c1"):
+    """``total_bought`` is the API's unit: SHARES. Dollars at risk = shares x avg_price."""
     return [title, avg_price, current_price, realized_pnl, total_bought, pd.Timestamp(time, tz="UTC"), market_key]
 
 
@@ -69,10 +70,11 @@ class CalibrationReportTests(unittest.TestCase):
         return calib.resolution_frame(
             resolved_frame(
                 [
-                    row("a", 0.40, 1.0, 60.0, total_bought=40.0),
-                    row("b", 0.60, 0.0, -60.0, total_bought=60.0),
-                    row("c", 0.25, 1.0, 75.0, total_bought=25.0),
-                    row("d", 0.70, 1.0, 30.0, total_bought=35.0),
+                    # Anteile, nicht Dollar: 100 x 0.40 = 40 Dollar Einsatz usw.
+                    row("a", 0.40, 1.0, 60.0, total_bought=100.0),
+                    row("b", 0.60, 0.0, -60.0, total_bought=100.0),
+                    row("c", 0.25, 1.0, 75.0, total_bought=100.0),
+                    row("d", 0.70, 1.0, 30.0, total_bought=50.0),
                 ]
             )
         )

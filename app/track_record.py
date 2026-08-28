@@ -48,6 +48,37 @@ def _numeric(frame: pd.DataFrame, column: str, default: float = 0.0) -> pd.Serie
     return pd.to_numeric(frame[column], errors="coerce").fillna(default)
 
 
+def stake_usd(frame: pd.DataFrame) -> pd.Series:
+    """Dollars a wallet put at risk per resolved row.
+
+    Polymarket's ``totalBought`` (column ``total_bought``) counts SHARES, not
+    dollars: a fully lost row reports ``realizedPnl = -(totalBought x
+    avgPrice)``, a winner held to settlement ``totalBought x (1 - avgPrice)``.
+    Reading it as dollars turns every per-dollar figure into a per-share one -
+    on the reference wallet the realised edge came out at 22.2 cents per
+    dollar instead of 36.5, because the denominator was 2313.73 shares where
+    $1408.24 belonged.
+
+    ``cost_usd`` is the right column and is produced by
+    ``get_polymarket_closed_positions``; older frames (and fixtures) without
+    it fall back to ``total_bought x avg_price``, and only a frame without a
+    price at all falls back to the raw share count.
+    """
+
+    if frame is None or len(frame) == 0:
+        return pd.Series(dtype="float64")
+    if "cost_usd" in frame:
+        cost = _numeric(frame, "cost_usd")
+        if cost.gt(0).any():
+            return cost
+    shares = _numeric(frame, "total_bought")
+    if "avg_price" not in frame:
+        return shares
+    price = _numeric(frame, "avg_price")
+    cost = shares * price
+    return cost.where(price > 0, shares)
+
+
 def _event_key(row: pd.Series) -> str:
     """Group key for NegRisk events: the event slug from the market url, else the market key.
 
@@ -78,7 +109,7 @@ def market_records(closed_positions: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame(columns=columns)
     df = closed_positions.copy()
     df["_pnl"] = _numeric(df, "realized_pnl")
-    df["_vol"] = _numeric(df, "total_bought")
+    df["_vol"] = stake_usd(df)
     df["_key"] = df.get("market_key", pd.Series("", index=df.index)).astype(str)
     df.loc[df["_key"].str.strip().eq(""), "_key"] = df.get("title", pd.Series("", index=df.index)).astype(str)
     if "time" in df:
@@ -109,7 +140,7 @@ def event_records(closed_positions: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame(columns=columns)
     df = closed_positions.copy()
     df["_pnl"] = _numeric(df, "realized_pnl")
-    df["_vol"] = _numeric(df, "total_bought")
+    df["_vol"] = stake_usd(df)
     df["_event"] = df.apply(_event_key, axis=1)
     grouped = df.groupby("_event", dropna=False).agg(
         net_pnl=("_pnl", "sum"),
