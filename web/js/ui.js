@@ -20,12 +20,12 @@ export const KARTE = 'background:var(--panel); border:1px solid var(--line-2); b
 export const LABEL = MONO + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3)';
 // Dasselbe Label als eigener Block ueber einem Bedienelement.
 export const LABEL_BLOCK = LABEL + '; margin-bottom:var(--sp-3)';
-// Die Notizzeile im Fliesstext: gleiche Groesse, keine Sperrung, eigener
-// Zeilenabstand, weil sie umbricht.
+// Die kleine Mono-Zeile unter etwas: Notiz im Fliesstext und Unterzeile unter
+// einer Zahl waren zwei Konstanten, die sich nur im Zeilenabstand
+// unterschieden, mit der Begruendung, die Unterzeile sei einzeilig. Sie ist
+// es nicht: seit die vier Wallet-Kacheln durch kpi() laufen, traegt die
+// Unterzeile Herkunft und Nenner und bricht um. Ein Rezept.
 export const NOTIZ = MONO + '; font-size:var(--t-micro); color:var(--ink-3); line-height:1.6';
-// Die Unterzeile direkt unter einer Zahl. Sie ist einzeilig, deshalb kein
-// eigener Zeilenabstand.
-export const UNTERZEILE = MONO + '; font-size:var(--t-micro); color:var(--ink-3)';
 
 const TON_RAHMEN = {
   up: 'rgba(var(--pos-rgb),.35)',
@@ -60,6 +60,11 @@ const TON_FARBE = {
 // dem Spaltenkopf darunter fluchtet, und die war auf der einen Seite 24px
 // und auf der anderen 20px. Auf der Leiter sind beide var(--sp-6); die
 // Angabe hatte damit nichts mehr zu unterscheiden und ist weg.
+//
+// min-width:0 steht fest an der Karte, nicht als Angabe: jede Karte dieser
+// Art sitzt in einem Raster, und ohne die Null nimmt eine Rasterzelle die
+// Mindestbreite ihres Inhalts an. Genau deshalb hatten vier der frueheren
+// Bauer sie einzeln gesetzt.
 export function kpi(o) {
   const band = o.form === 'band';
   const farbe = o.farbe || (o.ton ? TON_FARBE[o.ton] : null) || 'var(--text)';
@@ -67,7 +72,7 @@ export function kpi(o) {
   const huelle = band
     ? 'padding:var(--sp-5) var(--sp-6)'
       + (o.trenner ? '; border-right:1px solid var(--line-2)' : '')
-    : KARTE + '; padding:var(--sp-5)' + (rahmen ? '; border-color:' + rahmen : '');
+    : KARTE + '; padding:var(--sp-5); min-width:0' + (rahmen ? '; border-color:' + rahmen : '');
   const kurz = o.kuerzen ? '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis' : '';
   const kopf = o.badge
     ? '<div style="display:flex; justify-content:space-between; gap:var(--sp-3); align-items:center">'
@@ -85,6 +90,6 @@ export function kpi(o) {
     // traegt Herkunft und Nenner, und ein abgeschnittenes "n 12 rows, 6 won"
     // ist schlimmer als eine zweite Zeile.
     + (o.sub == null ? ''
-      : '<div style="' + UNTERZEILE + '; margin-top:var(--sp-2)">' + o.sub + '</div>')
+      : '<div style="' + NOTIZ + '; margin-top:var(--sp-2)">' + o.sub + '</div>')
     + '</div>';
 }

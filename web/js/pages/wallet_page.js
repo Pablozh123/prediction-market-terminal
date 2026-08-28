@@ -10,7 +10,7 @@ import { caveat, caveatZeile } from '../claims.js';
 import { scoreBand } from '../risk_bands.js';
 import { diagramm, pnlZeitkurve, kurzGeld, fmtZahl } from '../charts.js';
 import { squarify, pnlIntensity } from '../treemap.js';
-import { MONO as M, KARTE, LABEL, NOTIZ } from '../ui.js';
+import { MONO as M, KARTE, LABEL, NOTIZ, kpi } from '../ui.js';
 
 const CELL = M + '; font-size:var(--t-small)';
 
@@ -77,11 +77,12 @@ function card(title, body, sub) {
     + body + '</div>';
 }
 
+// Die Zahlenkachel dieser Seite. Sie war einer von vier Bauern fuer dieselbe
+// Kachel (tile, kpiTile, stTile, riskCard), und keine zwei waren sich ueber
+// Polsterung, Flaeche und die Abstaende darin einig. Jetzt sind alle vier
+// nur noch Uebersetzungen ihrer Aufrufform auf ui.js::kpi.
 function tile(label, value, sub, color) {
-  return '<div style="' + KARTE + '; padding:var(--sp-4) var(--sp-5); min-width:0">'
-    + '<div style="' + LABEL + '">' + label + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-head); margin-top:var(--sp-2); color:' + (color || 'var(--text)') + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + value + '</div>'
-    + (sub ? '<div style="' + NOTIZ + '; margin-top:var(--sp-2)">' + sub + '</div>' : '') + '</div>';
+  return kpi({ label, wert: value, sub: sub || null, farbe: color || null, kuerzen: true });
 }
 
 // A table inside its own horizontal scroller: the page never scrolls sideways.
@@ -226,13 +227,15 @@ function renderIdentity(T, d) {
 // The KPI strip: five tiles with a tinted border (lime for a positive
 // figure, red for a negative one, blue for neutral), then a thin fact line
 // with the activity counts. Every figure keeps its n / CI / window note.
+// 'neutral' heisst hier der blaue Rahmen, also kpi()s Ton 'info'. Die
+// Unterzeile wird nicht mehr abgeschnitten: sie traegt n, Intervall und
+// Fenster, und "8/11 events · 95% [43%, 91%] · 1 unredee…" war der
+// gemessene Zustand.
 function kpiTile(label, value, sub, tone) {
-  const border = tone === 'up' ? 'rgba(var(--pos-rgb),.35)' : tone === 'down' ? 'rgba(var(--neg-rgb),.35)' : tone === 'warn' ? 'rgba(var(--warn-rgb),.4)' : 'rgba(var(--info-rgb),.3)';
-  const color = tone === 'up' ? 'var(--pos)' : tone === 'down' ? 'var(--neg)' : tone === 'warn' ? 'var(--warn)' : 'var(--text)';
-  return '<div style="border:1px solid ' + border + '; border-radius:var(--r-panel); padding:var(--sp-4) var(--sp-5); min-height:62px; min-width:0; background:rgba(var(--ink),.015)">'
-    + '<div style="' + LABEL + '">' + label + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-head); margin-top:var(--sp-2); color:' + color + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + value + '</div>'
-    + (sub ? '<div style="' + NOTIZ + '; margin-top:var(--sp-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + sub + '</div>' : '') + '</div>';
+  return kpi({
+    label, wert: value, sub: sub || null, kuerzen: true,
+    ton: tone === 'neutral' ? 'info' : tone
+  });
 }
 
 // Which PnL series carries information: the profile curve from user-pnl-api
@@ -663,10 +666,10 @@ function renderPnl(d) {
   // Six tiles, one figure each, one short line under it. The definitions and
   // the sample caveats live in the collapsed basis block underneath.
   const down = st ? Number(st.losing_days) || 0 : 0;
-  const stTile = (label, value, sub, tone) => '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-4); min-width:0; background:rgba(var(--ink),.015)">'
-    + '<div style="' + LABEL + '">' + label + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-head); margin-top:var(--sp-2); color:' + (tone || 'var(--text)') + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + value + '</div>'
-    + '<div style="' + NOTIZ + '; margin-top:var(--sp-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + sub + '</div></div>';
+  // tone ist hier eine Farbe, kein Tonname: die Kachel faerbt nur die Zahl
+  // und behaelt den Rahmen der Karte.
+  const stTile = (label, value, sub, tone) =>
+    kpi({ label, wert: value, sub, farbe: tone || null, kuerzen: true });
   const statsHtml = st ? '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:var(--sp-3); margin-top:var(--sp-4)">'
     + stTile('SHARPE', ratio(st.sharpe), flat ? 'flat curve' : 'n ' + num(st.n_days) + ' d · $/day', st.sharpe != null ? (st.sharpe >= 0 ? 'var(--pos)' : 'var(--neg)') : 'var(--ink-3)')
     + stTile('SORTINO', ratio(st.sortino), flat ? 'flat curve' : st.sortino == null ? (down + ' down day' + (down === 1 ? '' : 's') + ' · needs 3') : 'downside only · ' + num(down) + ' down d', st.sortino != null ? (st.sortino >= 0 ? 'var(--pos)' : 'var(--neg)') : 'var(--ink-3)')
@@ -848,14 +851,16 @@ function renderLimits(d) {
 }
 
 // ---- risk tab: profit factor, risk/reward, streaks, conviction, heatmap ----
+// 'neutral' heisst hier der Rahmen der Karte selbst, also gar kein Ton.
 function riskCard(label, value, sub, tone, partial) {
-  const border = tone === 'up' ? 'rgba(var(--pos-rgb),.35)' : tone === 'down' ? 'rgba(var(--neg-rgb),.35)' : tone === 'warn' ? 'rgba(var(--warn-rgb),.4)' : 'var(--line-2)';
-  const color = tone === 'up' ? 'var(--pos)' : tone === 'down' ? 'var(--neg)' : tone === 'warn' ? 'var(--warn)' : 'var(--text)';
-  return '<div style="' + KARTE + '; border-color:' + border + '; padding:var(--sp-5); min-width:0">'
-    + '<div style="display:flex; justify-content:space-between; gap:var(--sp-3); align-items:center"><div style="' + LABEL + '">' + label + '</div>'
-    + (partial ? '<span title="the closed set is capped at ~50 rows per tail — these figures describe the biggest winners and losers only" style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; color:var(--warn); border:1px solid rgba(var(--warn-rgb),.45); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">~PARTIAL</span>' : '') + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3); color:' + color + '">' + value + '</div>'
-    + (sub ? '<div style="' + NOTIZ + '; margin-top:var(--sp-2)">' + sub + '</div>' : '') + '</div>';
+  const abzeichen = partial
+    ? '<span title="the closed set is capped at ~50 rows per tail — these figures describe the biggest winners and losers only" style="'
+      + M + '; font-size:var(--t-micro); letter-spacing:.1em; color:var(--warn); border:1px solid rgba(var(--warn-rgb),.45); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">~PARTIAL</span>'
+    : null;
+  return kpi({
+    label, wert: value, sub: sub || null, gross: true, badge: abzeichen,
+    ton: tone === 'neutral' ? null : tone
+  });
 }
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
