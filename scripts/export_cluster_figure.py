@@ -16,6 +16,7 @@ import argparse
 import json
 import sys
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -68,10 +69,11 @@ def payload_direkt(seiten: int) -> dict:
          dict(window_minutes=None, min_shared=2)),
     )
     regel, nodes, edges = leiter[-1][0], None, None
+    regel_kwargs: dict[str, object] = dict(leiter[-1][1])
     for beschreibung, kwargs in leiter:
         nodes, edges = susp.co_trading_network(basis, max_wallets=300, **kwargs)
         if not nodes.empty:
-            regel = beschreibung
+            regel, regel_kwargs = beschreibung, dict(kwargs)
             break
     if nodes is None or nodes.empty:
         return {"graph": {}, "matrix": {}}
@@ -80,8 +82,19 @@ def payload_direkt(seiten: int) -> dict:
         modularitaet = susp.network_modularity(nodes, edges)
     except Exception:
         modularitaet = None
-    graph = apv.network_graph(susp.cluster_layout(nodes), edges,
-                              regel=regel, modularitaet=modularitaet)
+    # Die Kontrolle gehoert in genau diese Datei: sie ist die Fassung, die in
+    # einer schriftlichen Arbeit landet, und ein Inselbild ohne die Angabe,
+    # was dieselbe Regel auf gemischten Daten findet, behauptet zu viel.
+    try:
+        nullmodell = susp.null_model_reference(basis, runs=3, max_wallets=300, **regel_kwargs)
+    except Exception as exc:
+        print(f"[warn] Nullmodell nicht gerechnet ({exc})")
+        nullmodell = None
+    graph = apv.network_graph(
+        susp.cluster_layout(nodes), edges,
+        regel=regel, modularitaet=modularitaet, nullmodell=nullmodell,
+        wallets_im_tape=int(basis["wallet"].astype(str).nunique()),
+        stand_utc=datetime.now(timezone.utc).isoformat(timespec="seconds"))
     graph["fenster"] = apv.tape_window_label(basis)
     return {"graph": graph, "matrix": apv.overlap_matrix(basis, nodes)}
 

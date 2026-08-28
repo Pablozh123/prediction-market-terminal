@@ -12397,9 +12397,16 @@ def page_suspicious() -> None:
         return
     network_mod = susp.network_modularity(network_nodes, network_edges)
     modularity_label = f" · modularity {network_mod:.2f}" if network_mod is not None else ""
+    # Median-Lift: geteilte Maerkte gegen die Zahl, die zwei gleich aktive
+    # Wallets ohne jede Absprache teilen. Bei 1.0 ist die Verbindung nichts
+    # als die Basisrate zweier vielbeschaeftigter Adressen.
+    lift_werte = pd.to_numeric(network_edges.get("lift"), errors="coerce").dropna() if not network_edges.empty else pd.Series(dtype=float)
+    lift_label = f" · median lift {float(lift_werte.median()):.2f}× the chance rate" if not lift_werte.empty else ""
+    wallets_im_tape = int(network_tape["wallet"].astype(str).nunique()) if "wallet" in network_tape else len(network_nodes)
     st.markdown(
         f"<div class='small-note'>Louvain community detection over the sampled tape (trades ≥ \\$1k, {len(network_tape):,} prints) · "
-        f"{len(network_nodes):,} wallets · {network_nodes['cluster_id'].nunique():,} clusters · {len(network_edges):,} edges{modularity_label}</div>",
+        f"{len(network_nodes):,} of {wallets_im_tape:,} wallets · {network_nodes['cluster_id'].nunique():,} clusters · "
+        f"{len(network_edges):,} edges{modularity_label}{lift_label}</div>",
         unsafe_allow_html=True,
     )
     if network_min_shared < 3:
