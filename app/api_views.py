@@ -2743,10 +2743,16 @@ def live_runs_extras(payload: Mapping[str, Any], publish_dir: Path | None = None
     bets = rsim.bets_frame(dict(payload))
     if bets is not None and not bets.empty:
         sims = []
+        # Die Tabelle sortiert nach ROI und hebt die erste Zeile als beste
+        # Regel hervor. Ein ``continue`` hier machte aus "die beste von drei"
+        # still "die beste von zwei", und die fehlende Regel sah aus wie eine,
+        # die nie angeboten wurde. Der Ausfall bleibt also in der Nutzlast.
+        sims_failed: list[dict[str, str]] = []
         for mode, label in ((rsim.SIM_AS_EXECUTED, "As executed"), (rsim.SIM_FIXED, "Flat $5 per bet"), (rsim.SIM_KELLY, "Kelly ¼ on +10pt edge")):
             try:
                 _, summary = rsim.simulate_sizing(bets, mode, bankroll=100.0, fixed_stake=5.0, kelly_edge_pt=10.0, kelly_fraction=0.25)
-            except Exception:
+            except Exception as exc:  # noqa: BLE001
+                sims_failed.append({"name": label, "error": f"{type(exc).__name__}: {exc}"[:200]})
                 continue
             sims.append({
                 "name": label,
@@ -2757,6 +2763,8 @@ def live_runs_extras(payload: Mapping[str, Any], publish_dir: Path | None = None
             })
         if sims:
             out["sims"] = sims
+        if sims_failed:
+            out["sims_failed"] = sims_failed
         try:
             report = calib.calibration_report(rsim.bot_resolution_frame(bets), capped=False)
             buckets = report.get("buckets")

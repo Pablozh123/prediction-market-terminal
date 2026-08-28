@@ -276,14 +276,61 @@ class DeepTapeTests(unittest.TestCase):
         self.assertIn("cluster_sample", payload)
         self.assertIn("stopped answering after page 2", payload["cluster_sample"]["note"])
 
-    def _abgebrochen(self) -> pd.DataFrame:
-        with offline_market_apis(), failing_requests("/trades", after=2):
-            return md.paged_polymarket_trades(1000.0, pages=8, page_size=24)
-
     def test_an_intact_run_records_no_truncation(self) -> None:
         with offline_market_apis():
             tape = self.server.load_deep_tape(seiten=8, min_cash=1000.0)
         self.assertFalse(md.sample_coverage(tape)["truncated_by_error"])
+
+    def _abgebrochen(self) -> pd.DataFrame:
+        with offline_market_apis(), failing_requests("/trades", after=2):
+            return md.paged_polymarket_trades(1000.0, pages=8, page_size=24)
+
+
+class SizingVergleichTests(unittest.TestCase):
+    """Eine Einsatzregel, die nicht rechnet, faellt nicht aus der Tabelle.
+
+    Die Tabelle sortiert nach ROI und hebt die erste Zeile hervor. Faellt
+    eine der drei Regeln still weg, heisst die erste Zeile weiter "beste
+    Regel", nur eben die beste von zwei, und die fehlende sieht aus wie eine,
+    die nie angeboten wurde.
+    """
+
+    def _lauf(self) -> dict:
+        return {
+            "runs": [{
+                "profil": "fixture",
+                "wetten": [
+                    {"fill_ts_utc": "2026-08-01T10:00:00Z", "einsatz_usd": 5.0, "fill_price": 0.4,
+                     "modell_p": 0.55, "resolved": True, "gewonnen": True, "netto_usd": 7.5},
+                    {"fill_ts_utc": "2026-08-02T10:00:00Z", "einsatz_usd": 5.0, "fill_price": 0.6,
+                     "modell_p": 0.5, "resolved": True, "gewonnen": False, "netto_usd": -5.0},
+                ],
+            }],
+        }
+
+    def test_a_failing_sizing_rule_is_named_instead_of_dropped(self) -> None:
+        from unittest.mock import patch
+
+        from app import run_sim as rsim
+
+        echt = rsim.simulate_sizing
+
+        def stolpert(bets, mode, **kwargs):
+            if mode == rsim.SIM_KELLY:
+                raise ValueError("kelly needs a model probability")
+            return echt(bets, mode, **kwargs)
+
+        with patch.object(rsim, "simulate_sizing", stolpert):
+            extras = apv.live_runs_extras(self._lauf())
+        namen = [row["name"] for row in extras.get("sims", [])]
+        self.assertNotIn("Kelly ¼ on +10pt edge", namen)
+        gescheitert = [row["name"] for row in extras.get("sims_failed", [])]
+        self.assertEqual(gescheitert, ["Kelly ¼ on +10pt edge"])
+        self.assertIn("kelly needs a model probability", extras["sims_failed"][0]["error"])
+
+    def test_an_intact_run_reports_no_failures(self) -> None:
+        extras = apv.live_runs_extras(self._lauf())
+        self.assertNotIn("sims_failed", extras)
 
 
 if __name__ == "__main__":
