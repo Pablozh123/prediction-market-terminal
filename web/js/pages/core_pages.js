@@ -7,8 +7,11 @@ import { esc, money, num, volume, contracts, herkunftSatz, leerBlock, leerZeile,
 import { caveatZeile } from '../claims.js';
 import { spiegelZeit, kurzGeld, histogramm } from '../charts.js';
 import { studieAnker } from './microstructure_page.js';
-import { MONO as M, LABEL_BLOCK, LABEL } from '../ui.js';
+import { MONO as M, LABEL_BLOCK, LABEL, kpi } from '../ui.js';
 
+// Kennzahlenzeilen ueber einer Tabelle nehmen die Rinne der Tabelle, nicht
+// die eigene: die Beschriftung soll mit dem Spaltenkopf darunter fluchten.
+const TABELLEN_BAND = '14px 24px';
 const REPO_URL = 'https://github.com/Pablozh123/prediction-market-terminal';
 const ONE_PAGER_URL = REPO_URL + '/blob/main/docs/research/ONE_PAGER.md';
 
@@ -421,11 +424,11 @@ function pfadKarte(act, label, farbe, satz) {
 }
 
 function kpiCell(label, value, sub, borderRight, signed) {
-  const color = signed == null ? 'var(--text)' : (+signed >= 0 ? 'var(--pos)' : 'var(--neg)');
-  return '<div style="padding:16px 20px' + (borderRight ? '; border-right:1px solid var(--line-2)' : '') + '">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3)">' + label + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-hero); margin-top:8px; color:' + color + '">' + value + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:4px">' + sub + '</div></div>';
+  return kpi({
+    form: 'band', label, wert: value, sub: sub == null ? '' : sub, gross: true,
+    trenner: borderRight,
+    farbe: signed == null ? 'var(--text)' : (+signed >= 0 ? 'var(--pos)' : 'var(--neg)')
+  });
 }
 
 // ---------------------------------------------------------------- markets
@@ -977,10 +980,10 @@ export function renderCross(T) {
     + '</div></div>'
 
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid var(--line-2)">'
-    + '<div style="padding:14px 24px; border-right:1px solid var(--line-2)"><div style="' + LABEL + '">PAIRS SHOWN</div><div style="' + M + '; font-size:var(--t-head); margin-top:7px">' + cRows.length + '</div></div>'
-    + '<div style="padding:14px 24px; border-right:1px solid var(--line-2)"><div style="' + LABEL + '">LARGEST GAP</div><div style="' + M + '; font-size:var(--t-head); margin-top:7px; color:var(--warn)">' + (gaps.length ? gaps[gaps.length - 1] + '¢' : '—') + '</div></div>'
-    + '<div style="padding:14px 24px; border-right:1px solid var(--line-2)"><div style="' + LABEL + '">MEDIAN SIMILARITY</div><div style="' + M + '; font-size:var(--t-head); margin-top:7px">' + (medianSim ? medianSim.toFixed(2) : '—') + '</div></div>'
-    + '<div style="padding:14px 24px"><div style="' + LABEL + '">POSITIVE NET OF FEES</div><div style="' + M + '; font-size:var(--t-head); margin-top:7px; color:' + (netPositive ? 'var(--pos)' : 'var(--ink-3)') + '">' + netPositive + ' of ' + netKnown + '</div></div>'
+    + kpi({ form: 'band', polsterung: TABELLEN_BAND, trenner: true, label: 'PAIRS SHOWN', wert: cRows.length })
+    + kpi({ form: 'band', polsterung: TABELLEN_BAND, trenner: true, label: 'LARGEST GAP', farbe: 'var(--warn)', wert: (gaps.length ? gaps[gaps.length - 1] + '¢' : '—') })
+    + kpi({ form: 'band', polsterung: TABELLEN_BAND, trenner: true, label: 'MEDIAN SIMILARITY', wert: (medianSim ? medianSim.toFixed(2) : '—') })
+    + kpi({ form: 'band', polsterung: TABELLEN_BAND, label: 'POSITIVE NET OF FEES', farbe: netPositive ? 'var(--pos)' : 'var(--ink-3)', wert: netPositive + ' of ' + netKnown })
     + '</div>'
 
     + '<div style="display:grid; grid-template-columns:1fr 104px 104px 84px 108px 124px 112px; padding:10px 24px; border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + LABEL + '">'
@@ -1058,11 +1061,10 @@ export function renderResolved(T) {
     + '</div></div>'
 
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid var(--line-2)">'
-    + kpis.map((k, i) =>
-      '<div style="padding:14px 24px' + (i < 3 ? '; border-right:1px solid var(--line-2)' : '') + '">'
-      + '<div style="' + LABEL + '">' + k.label + '</div>'
-      + '<div style="' + M + '; font-size:var(--t-head); margin-top:7px; color:' + (k.amber ? 'var(--warn)' : 'var(--text)') + '">' + k.value + '</div></div>'
-    ).join('')
+    + kpis.map((k, i) => kpi({
+      form: 'band', polsterung: TABELLEN_BAND, trenner: i < 3,
+      label: k.label, wert: k.value, farbe: k.amber ? 'var(--warn)' : 'var(--text)'
+    })).join('')
     + '</div>'
 
     + '<div style="display:grid; grid-template-columns:1fr 110px 118px 128px 110px 120px; padding:10px 24px; border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + LABEL + '">'

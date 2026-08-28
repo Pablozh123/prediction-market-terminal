@@ -7,7 +7,7 @@ import { esc, num, leerZeile } from '../util.js';
 import { caveatZeile } from '../claims.js';
 import { histogramm, kurzGeld } from '../charts.js';
 import { trackWatchRows } from './trader_pages.js';
-import { MONO as M, LABEL_BLOCK, LABEL } from '../ui.js';
+import { MONO as M, LABEL_BLOCK, LABEL, kpi } from '../ui.js';
 
 const SIZING = { fixed: 'Fixed $', pct: '% of bankroll', match: 'Match trader %', kelly: 'Kelly ¼' };
 
@@ -443,12 +443,10 @@ export function renderBacktester(T) {
     + (st ? ''
 
     + '<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:14px">'
-    + statCards.map((c) =>
-      '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:14px 16px">'
-      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3)">' + c.label + '</div>'
-      + '<div style="' + M + '; font-size:var(--t-head); margin-top:7px; color:' + (c.pos === true ? 'var(--pos)' : c.pos === false ? 'var(--neg)' : 'var(--text)') + '">' + c.value + '</div>'
-      + '<div style="' + M + '; font-size:var(--t-micro); margin-top:5px; color:var(--ink-3)">' + c.sub + '</div></div>'
-    ).join('')
+    + statCards.map((c) => kpi({
+      label: c.label, wert: c.value, sub: c.sub,
+      farbe: c.pos === true ? 'var(--pos)' : c.pos === false ? 'var(--neg)' : 'var(--text)'
+    })).join('')
     + '</div>'
     // Direkt unter den Kacheln: dieselbe Menge geschlossener Kopien, aber
     // als Verteilung statt als Quote. Ohne sie steht nicht da, ob das

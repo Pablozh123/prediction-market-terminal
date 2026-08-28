@@ -6,7 +6,7 @@ import { esc, num, herkunftSatz, leerZeile, EINZAHLUNGEN_USD, offeneNichtDrin, s
 import { caveat, caveatZeile, registerStand } from '../claims.js';
 import { stepKurve, diagramm, linien, kalibrierung, fmtZahl, serienFarbe, intervallMarke } from '../charts.js';
 import { renderMicrostructure } from './microstructure_page.js';
-import { MONO as M, KARTE, LABEL_BLOCK } from '../ui.js';
+import { MONO as M, KARTE, LABEL_BLOCK, kpi } from '../ui.js';
 
 function filterGroup(label, chipsHtml) {
   return '<div><div style="' + LABEL_BLOCK + '">' + label + '</div><div style="display:flex; gap:6px; flex-wrap:wrap">' + chipsHtml + '</div></div>';
@@ -608,12 +608,7 @@ export function renderResearch(T) {
     // So viele Spalten wie Kacheln: der Pilot traegt mit der Wallet-Kachel
     // fuenf, die uebrigen Studien weiter ihre drei oder vier.
     + '<div style="display:grid; grid-template-columns:repeat(' + stats.length + ',1fr); gap:12px; margin-top:18px">'
-    + stats.map((x) =>
-      '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:14px 16px">'
-      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3)">' + esc(x.label) + '</div>'
-      + '<div style="' + M + '; font-size:var(--t-head); margin-top:7px">' + esc(x.value) + '</div>'
-      + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:4px">' + esc(x.note) + '</div></div>'
-    ).join('')
+    + stats.map((x) => kpi({ label: esc(x.label), wert: esc(x.value), sub: esc(x.note) })).join('')
     + '</div>'
     // Je Studie ihre Diagramme und Zusatzbloecke (Mentions latency, Pilot,
     // Pipeline forward), am Slug aufgehaengt statt am Index.
@@ -1200,11 +1195,8 @@ function renderCategoryEfficiency(T, payload, study) {
     : '';
 
   // ---- Kennzahlen
-  const kpi = (label, wert, hinweis) =>
-    '<div style="' + karte + '; border-radius:var(--r-panel); padding:14px 16px">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3)">' + esc(label) + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-head); margin-top:7px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(wert) + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:4px">' + esc(hinweis) + '</div></div>';
+  const kachel = (label, wert, hinweis) =>
+    kpi({ label: esc(label), wert: esc(wert), sub: esc(hinweis), kuerzen: true });
 
   // Die mittlere Kachel traegt immer die Spanne des vergleichbaren Briers —
   // auf offenen Preisen, wo die Datei sie hergibt, sonst auf allen. Die
@@ -1216,17 +1208,17 @@ function renderCategoryEfficiency(T, payload, study) {
   const nT7Werte = rangfolge.map((z) => horizontVon(z, 7).n).filter((v) => v != null);
   const spanne = hatOffenT7 && offenWerte.length ? offenWerte : alleWerte;
   const kpis = [
-    kpi('MARKETS IN SAMPLE', gesamt ? num(gesamt) : '—',
+    kachel('MARKETS IN SAMPLE', gesamt ? num(gesamt) : '—',
       gesamt ? (nT7 ? num(nT7) + ' of them priced at T-7' : 'no T-7 count published') : 'no market counts in the file'),
     spanne.length
-      ? kpi(hatOffenT7 ? 'OPEN-PRICE BRIER AT T-7' : 'BRIER AT T-7',
+      ? kachel(hatOffenT7 ? 'OPEN-PRICE BRIER AT T-7' : 'BRIER AT T-7',
         f3(Math.min(...spanne)) + ' – ' + f3(Math.max(...spanne)),
         'the whole spread across ' + zeilen.length + ' categories')
-      : kpi('CATEGORIES', String(zeilen.length), 'no Brier at T-7 in the file'),
+      : kachel('CATEGORIES', String(zeilen.length), 'no Brier at T-7 in the file'),
     decWerte.length
-      ? kpi('ALREADY DECIDED AT T-7', Math.round(Math.min(...decWerte) * 100) + '% – ' + Math.round(Math.max(...decWerte) * 100) + '%',
+      ? kachel('ALREADY DECIDED AT T-7', Math.round(Math.min(...decWerte) * 100) + '% – ' + Math.round(Math.max(...decWerte) * 100) + '%',
         'share trading outside 5–95 cents')
-      : kpi('CATEGORIES', String(zeilen.length),
+      : kachel('CATEGORIES', String(zeilen.length),
         nT7Werte.length ? 'T-7 samples from ' + num(Math.min(...nT7Werte)) + ' to ' + num(Math.max(...nT7Werte)) : 'no decided share published')
   ].join('');
 
@@ -1962,16 +1954,12 @@ function renderLiveRuns(T, payload) {
     + stempelBlock(T.studies[3], payload, '5px 10px')
     + '</div></div>'
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; margin-top:18px">'
-    + kpis.map((k) =>
-      '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:14px 16px">'
-      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3)">' + esc(k.label) + '</div>'
-      + '<div style="' + M + '; font-size:var(--t-head); margin-top:7px; color:' + k.color + '; white-space:nowrap">' + esc(k.value) + '</div>'
-      + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:4px">' + esc(k.sub) + '</div>'
+    + kpis.map((k) => kpi({
+      label: esc(k.label), wert: esc(k.value), farbe: k.color, kuerzen: true,
       // k.marke ist fertiges SVG (die Intervall-Marke), kein Text: sie darf
-      // nicht durch esc laufen.
-      + (k.marke ? '<div style="margin-top:6px">' + k.marke + '</div>' : '')
-      + '</div>'
-    ).join('')
+      // nicht durch esc laufen und haengt unter der Unterzeile.
+      sub: esc(k.sub) + (k.marke ? '</div><div style="margin-top:6px">' + k.marke : '')
+    })).join('')
     + '</div>'
     // Die Adresse, ueber die jeder jede Zahl der Seite nachrechnen kann —
     // der aufklappbare LOG-VS-WALLET-Block, der hier stand, erklaerte eine
@@ -3194,12 +3182,7 @@ function renderMethodology(T, payload, study) {
     + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:8px; line-height:1.5">' + esc(note) + '</div></div>'
     + stempelBlock(study, payload) + '</div>'
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:18px">'
-    + stats.map((x) =>
-      '<div style="' + KARTE + '; border-radius:var(--r-panel); padding:14px 16px">'
-      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3)">' + esc(x.label) + '</div>'
-      + '<div style="' + M + '; font-size:var(--t-head); margin-top:7px">' + esc(x.value) + '</div>'
-      + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:4px">' + esc(x.note) + '</div></div>'
-    ).join('')
+    + stats.map((x) => kpi({ label: esc(x.label), wert: esc(x.value), sub: esc(x.note) })).join('')
     + '</div>'
     + (payload ? '' : '<div style="margin-top:12px">' + leerZeile(herkunftSatz(null, 'public/data/audit.json')) + '</div>')
     + grundsaetzeHtml()

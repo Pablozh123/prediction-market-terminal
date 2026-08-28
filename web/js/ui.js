@@ -20,8 +20,12 @@ export const KARTE = 'background:var(--panel); border:1px solid var(--line-2); b
 export const LABEL = MONO + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3)';
 // Dasselbe Label als eigener Block ueber einem Bedienelement.
 export const LABEL_BLOCK = LABEL + '; margin-bottom:6px';
-// Die Unterzeile unter einer Zahl: gleiche Groesse, keine Sperrung.
+// Die Notizzeile im Fliesstext: gleiche Groesse, keine Sperrung, eigener
+// Zeilenabstand, weil sie umbricht.
 export const NOTIZ = MONO + '; font-size:var(--t-micro); color:var(--ink-3); line-height:1.6';
+// Die Unterzeile direkt unter einer Zahl. Sie ist einzeilig, deshalb kein
+// eigener Zeilenabstand.
+export const UNTERZEILE = MONO + '; font-size:var(--t-micro); color:var(--ink-3)';
 
 const TON_RAHMEN = {
   up: 'rgba(var(--pos-rgb),.35)',
@@ -42,24 +46,24 @@ const TON_FARBE = {
 //
 // Alles andere ist eine Angabe, keine Variante:
 //   label   Text des Mikrolabels (bereits maskiert)
-//   wert    die Zahl selbst (bereits maskiert); null wird zum Strich
-//   sub     Unterzeile, faellt weg wenn leer
+//   wert    die Zahl selbst (bereits maskiert)
+//   sub     Unterzeile; null laesst sie ganz weg, '' haelt den Platz
 //   farbe   Farbe des Wertes; schlaegt ton
 //   ton     'up' | 'down' | 'warn' | 'info' -- faerbt Wert und Rahmen
 //   gross   true = --t-hero statt --t-head (die eine Zahl einer Seite)
 //   trenner true = rechte Trennlinie (nur form 'band')
 //   kuerzen true = eine Zeile mit Auslassungspunkten statt Umbruch
 //   badge   fertiges Markup rechts neben dem Label
-//   minHoehe CSS-Laenge, wenn die Kachel eine Mindesthoehe braucht
+//   polsterung nur fuer 'band': eigene Polsterung, wenn die Zelle mit der
+//              Rinne der Tabelle darunter fluchten muss statt mit sich selbst
 export function kpi(o) {
   const band = o.form === 'band';
   const farbe = o.farbe || (o.ton ? TON_FARBE[o.ton] : null) || 'var(--text)';
   const rahmen = o.ton ? TON_RAHMEN[o.ton] : null;
   const huelle = band
-    ? 'padding:16px 20px; min-width:0' + (o.trenner ? '; border-right:1px solid var(--line-2)' : '')
-    : KARTE + '; padding:14px 16px; min-width:0'
-      + (rahmen ? '; border-color:' + rahmen : '')
-      + (o.minHoehe ? '; min-height:' + o.minHoehe : '');
+    ? 'padding:' + (o.polsterung || '16px 20px')
+      + (o.trenner ? '; border-right:1px solid var(--line-2)' : '')
+    : KARTE + '; padding:14px 16px' + (rahmen ? '; border-color:' + rahmen : '');
   const kurz = o.kuerzen ? '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis' : '';
   const kopf = o.badge
     ? '<div style="display:flex; justify-content:space-between; gap:8px; align-items:center">'
@@ -69,8 +73,11 @@ export function kpi(o) {
     + kopf
     + '<div style="' + MONO + '; font-size:' + (o.gross ? 'var(--t-hero)' : 'var(--t-head)')
     + '; margin-top:' + (band ? '8px' : '7px') + '; color:' + farbe + kurz + '">'
-    + (o.wert == null || o.wert === '' ? '—' : o.wert) + '</div>'
-    + (o.sub ? '<div style="' + NOTIZ + '; margin-top:4px' + kurz + '">' + o.sub + '</div>' : '')
-    + (o.marke || '')
+    + o.wert + '</div>'
+    // kuerzen gilt nur fuer den Wert. Die Unterzeile darf umbrechen: sie
+    // traegt Herkunft und Nenner, und ein abgeschnittenes "n 12 rows, 6 won"
+    // ist schlimmer als eine zweite Zeile.
+    + (o.sub == null ? ''
+      : '<div style="' + UNTERZEILE + '; margin-top:4px">' + o.sub + '</div>')
     + '</div>';
 }

@@ -5,7 +5,7 @@ import { caveat, caveatZeile } from '../claims.js';
 import { scoreBand, bandChips, basisSatz, gemessenSatz } from '../risk_bands.js';
 import { renderClusterGraphics, clusterFarbe } from './cluster_graphics.js';
 import { punktwolke, histogramm, kurzGeld } from '../charts.js';
-import { MONO as M, LABEL_BLOCK, LABEL, NOTIZ } from '../ui.js';
+import { MONO as M, LABEL_BLOCK, LABEL, NOTIZ, kpi } from '../ui.js';
 
 function filterGroup(label, chipsHtml) {
   return '<div><div style="' + LABEL_BLOCK + '">' + label + '</div><div style="display:flex; gap:6px; flex-wrap:wrap">' + chipsHtml + '</div></div>';
@@ -360,12 +360,10 @@ export function renderWhale(T) {
   const ausschlussSatz = ohneWallet
     ? ' ' + ohneWallet + ' Kalshi print(s) are not shown here: Kalshi publishes no wallet identities, so they cannot be grouped.'
     : '';
-  const kpi = (label, value, sub, last) =>
-    '<div style="padding:14px 20px' + (last ? '' : '; border-right:1px solid var(--line-2)') + '">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3)">' + label + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-hero); margin-top:7px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + value + '</div>'
-    + (sub ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:3px">' + sub + '</div>' : '')
-    + '</div>';
+  const bandZelle = (label, value, sub, last) => kpi({
+    form: 'band', label, wert: value, sub: sub || null,
+    gross: true, kuerzen: true, trenner: !last
+  });
   // Die Spaltensummen lagen ueber der Breite des Inhaltsbereichs (1040 px
   // Minimum gegen 958 px Platz), also schob die Tabelle die Seite seitwaerts.
   // Die flexiblen Spalten bekommen kleinere Mindestbreiten; ueberlange Titel
@@ -389,11 +387,11 @@ export function renderWhale(T) {
     + '<span style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-left:6px">' + (walletCount > SHOW ? 'top ' + SHOW + ' of ' + num(walletCount) + ' wallets' : num(walletCount) + ' wallet' + (walletCount === 1 ? '' : 's')) + ' · ' + num(grouped.length) + ' print' + (grouped.length === 1 ? '' : 's') + ' grouped</span>'
     + '</div></div>'
     + '<div style="display:grid; grid-template-columns:repeat(5,1fr); border-bottom:1px solid var(--line-2)">'
-    + kpi('WALLETS PRINTING BIG', num(walletCount), '')
-    + kpi('PRINTS GROUPED', num(grouped.length), ohneWallet ? num(ohneWallet) + ' without a wallet left out' : '')
-    + kpi('$ GROUPED · THIS WINDOW', money(total), '')
-    + kpi('BIGGEST SINGLE PRINT', money(biggest), '')
-    + kpi('TOP CATEGORY BY $', esc(topCatLabel), esc(topCatShare), true)
+    + bandZelle('WALLETS PRINTING BIG', num(walletCount), '')
+    + bandZelle('PRINTS GROUPED', num(grouped.length), ohneWallet ? num(ohneWallet) + ' without a wallet left out' : '')
+    + bandZelle('$ GROUPED · THIS WINDOW', money(total), '')
+    + bandZelle('BIGGEST SINGLE PRINT', money(biggest), '')
+    + bandZelle('TOP CATEGORY BY $', esc(topCatLabel), esc(topCatShare), true)
     + '</div>'
     // Ueber welche Spanne die Kennzahlen summiert wurden. Ohne sie liest
     // sich "$ GROUPED · THIS WINDOW" wie eine Tagessumme, obwohl der
