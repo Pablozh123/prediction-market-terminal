@@ -8443,6 +8443,16 @@ def page_cross_venue() -> None:
     # verkauft zum Geld, und beide Venues nehmen eine Gebuehr. Dieselbe
     # Rechnung wie auf der Web-Oberflaeche (app/cross_pairs.basket_edge).
     candidates = cp.with_basket_edge(candidates, pm, ks)
+    # Vor jeder Zahl die Vorfrage: stellen die beiden Seiten dieselbe Frage?
+    # "Above $120,000" und "below $120,000" teilen jedes andere Wort und
+    # bekommen 0.78 Aehnlichkeit. Der Korb darueber zahlt 2.00 im einen und
+    # 0.00 im anderen Ausgang, ist also keine Absicherung, und zwischen zwei
+    # verschiedenen Fragen ist auch die Mittelkurs-Luecke keine Aussage.
+    verworfene_paare = pd.DataFrame()
+    if not candidates.empty and "pair_verdict" in candidates.columns:
+        verworfen = candidates["pair_verdict"].astype(str).ne(cp.PAIR_UNVERIFIED)
+        verworfene_paare = candidates[verworfen]
+        candidates = candidates[~verworfen]
     if not candidates.empty:
         candidates = candidates[numeric_col(candidates, "abs_gap") >= float(min_gap_cents) / 100]
         candidates = candidates[numeric_col(candidates, "polymarket_volume_usd") >= float(min_pm_volume)]
@@ -8477,6 +8487,16 @@ def page_cross_venue() -> None:
     if int(min_price_pct) != int(cross_defaults["cross_min_price_pct"]) or int(max_price_pct) != int(cross_defaults["cross_max_price_pct"]):
         cross_chips.append(f"Yes price: {int(min_price_pct)}%-{int(max_price_pct)}%")
     render_filter_chips(cross_chips)
+    if not verworfene_paare.empty:
+        gruende = "; ".join(
+            str(grund) for grund in verworfene_paare["pair_reasons"].head(3) if str(grund).strip())
+        st.markdown(
+            f"<div class='field-hint'>{len(verworfene_paare):,} matched pair"
+            f"{'' if len(verworfene_paare) == 1 else 's'} carry no numbers at all: the two sides "
+            "ask in opposite directions, name different thresholds or resolve on different dates. "
+            f"{html.escape(gruende)}</div>",
+            unsafe_allow_html=True,
+        )
     if candidates.empty:
         draw_empty("No cross-venue candidates matched. Try a broader query or lower the similarity threshold.")
         return
@@ -9728,15 +9748,27 @@ def render_copy_command_center(
     contributions = safe_load("Paper contributions", ct.total_contributions, default=0.0)
     if not contributions:
         contributions = _copy_target_start_cash(settings)
-    pnl_vs_contributions = float(snapshot.equity) - float(contributions)
-    roi_value = pnl_vs_contributions / contributions if contributions else 0.0
+    # Gebucht und bewertet getrennt, mit demselben Nenner (app/copy_follow.py).
+    # Dieselbe Rechnung wie im Web-Desk, damit die beiden Oberflaechen ueber
+    # denselben Buechern nicht zwei verschiedene Zahlen zeigen.
+    pnl_split = ctf.pnl_split(
+        contributions=contributions,
+        realized_pnl=snapshot.realized_pnl,
+        unrealized_pnl=snapshot.unrealized_pnl,
+        equity=snapshot.equity,
+    )
+    roi_value = (pnl_split["total_pct"] / 100.0) if pnl_split["total_pct"] is not None else None
+    settled_roi = (pnl_split["settled_pct"] / 100.0) if pnl_split["settled_pct"] is not None else None
+    open_roi = (pnl_split["open_pct"] / 100.0) if pnl_split["open_pct"] is not None else None
     copied_count = int((orders["status"] == "copied").sum()) if not orders.empty and "status" in orders else 0
     settled_count = int((orders["status"] == "settled").sum()) if not orders.empty and "status" in orders else 0
     skipped_count = int((orders["status"] == "skipped").sum()) if not orders.empty and "status" in orders else 0
     baseline_count = int((orders["status"] == "seed_observed").sum()) if not orders.empty and "status" in orders else 0
     below_min_count = int((orders["reason"] == "below_min_copy_notional").sum()) if not orders.empty and "reason" in orders else 0
-    actionable = copied_count + settled_count + skipped_count
-    coverage = (copied_count + settled_count) / actionable if actionable else 0.0
+    deckung = ctf.mirror_coverage(copied=copied_count, settled=settled_count,
+                                  skipped=skipped_count, observed=baseline_count)
+    actionable = deckung["actionable"]
+    coverage = (deckung["coverage_pct"] / 100.0) if deckung["coverage_pct"] is not None else None
     latency = copy_order_latency_stats(orders)
     last_sync = daemon_status.get("last_sync_at") or meta.get("tony_seeded_at")
 
@@ -9806,10 +9838,29 @@ def render_copy_command_center(
     paper_cols[0].metric(
         "Paper Equity",
         money(snapshot.equity),
-        pct(roi_value),
-        help="Cash + marked open positions. Delta = PnL relative to ALL contributed cash (start + top-ups).",
+        pct(roi_value) if roi_value is not None else "-",
+        help=(
+            "Cash + marked open positions. Delta = total return on ALL contributed cash "
+            "(start + top-ups). It carries both halves at once; the tile beside it splits them."
+        ),
     )
-    paper_cols[1].metric("Paper PnL", money(total_pnl), f"Realized {money(snapshot.realized_pnl)}")
+    # Zwei Zahlen statt einer: gebucht ist Geld, das eine Aufloesung oder ein
+    # Verkauf zurueckgegeben hat, bewertet ist eine Marke auf Positionen, die
+    # noch nichts entschieden haben (ohne den Live-Schalter oben zum zuletzt
+    # bekannten Preis). Als eine Zahl gelesen steht ein Tisch, der gebucht im
+    # Minus ist, als Gewinner da.
+    paper_cols[1].metric(
+        "Paper PnL",
+        money(total_pnl),
+        f"Settled {money(snapshot.realized_pnl)} · marked {money(snapshot.unrealized_pnl)}",
+        delta_color="off",
+        help=(
+            "Settled = realised by a resolution or a sell. Marked = open positions against their "
+            "cost, at the last known price unless live midpoints are switched on above. "
+            f"Against contributed cash: settled {pct(settled_roi) if settled_roi is not None else '-'}, "
+            f"marked {pct(open_roi) if open_roi is not None else '-'}."
+        ),
+    )
     paper_cols[2].metric(
         "Contributions",
         money(contributions),
@@ -9820,7 +9871,15 @@ def render_copy_command_center(
     paper_cols[3].metric("Cash", money(snapshot.cash))
     paper_cols[4].metric("Open Value", money(snapshot.position_value), f"{len(positions):,} positions")
     paper_cols[5].metric("Copied", f"{copied_count:,}", f"{settled_count:,} settled")
-    paper_cols[6].metric("Coverage", pct(coverage), f"{skipped_count:,} skips")
+    # Nenner ist, worueber zu entscheiden war (kopiert, aufgeloest,
+    # uebersprungen); die Baseline-Zeilen sind der Bestand der Quelle beim
+    # Anlegen und standen nie zur Entscheidung.
+    paper_cols[6].metric(
+        "Coverage",
+        pct(coverage) if coverage is not None else "-",
+        f"{deckung['mirrored']:,} of {actionable:,} · {skipped_count:,} skips",
+        delta_color="off",
+    )
     paper_cols[7].metric("Latency", _duration_label(latency.get("median")), f"P90 {_duration_label(latency.get('p90'))}")
     if bool(settings.auto_top_up_enabled):
         st.warning(

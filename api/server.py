@@ -296,25 +296,48 @@ def df_records(df: pd.DataFrame, limit: int | None = None) -> list[dict[str, Any
     return json.loads(df.to_json(orient="records", date_format="iso"))
 
 
+def _venue_frame(venue: str, fetch, sources: list[dict[str, Any]]) -> pd.DataFrame:
+    """Eine Venue holen und ihr Ergebnis vermerken, statt es zu verschlucken.
+
+    Vorher stand hier ``except Exception: print("[warn] ...")``. Die Zeile
+    ging auf stdout eines Servers, den niemand liest, und die Antwort trug
+    danach eine Venue weniger, ohne dass irgendetwas an ihr das sagte. Die
+    Kopfzeile der Seite meldete weiter "LIVE, POLYMARKET + KALSHI": eine
+    halbe Antwort, die sich als ganze ausgibt.
+
+    Gefangen wird weiter, denn eine ausgefallene Venue soll die andere nicht
+    mitnehmen. Aber der Ausfall wandert jetzt in ``sources`` und von dort in
+    die Antwort, und die Oberflaeche kann ihn benennen.
+    """
+
+    try:
+        frame = fetch()
+    except Exception as exc:
+        print(f"[warn] {venue}: {exc}")
+        sources.append(apv.venue_source(venue, ok=False, error=f"{type(exc).__name__}: {exc}"))
+        return pd.DataFrame()
+    frame = pd.DataFrame() if frame is None else frame
+    sources.append(apv.venue_source(venue, ok=True, rows=int(len(frame))))
+    return frame
+
+
 def load_universe(limit: int = 250) -> pd.DataFrame:
     def _load() -> pd.DataFrame:
         frames = []
+        sources: list[dict[str, Any]] = []
         for name, fn in (("Polymarket", md.get_polymarket_markets), ("Kalshi", md.get_kalshi_markets)):
-            try:
-                frame = fn(limit=limit)
-                if not frame.empty:
-                    frames.append(frame.dropna(axis=1, how="all"))
-            except Exception as exc:
-                print(f"[warn] {name} markets: {exc}")
+            frame = _venue_frame(name, lambda fn=fn: fn(limit=limit), sources)
+            if not frame.empty:
+                frames.append(frame.dropna(axis=1, how="all"))
         if not frames:
-            return pd.DataFrame()
+            return apv.with_venue_sources(pd.DataFrame(), sources)
         combined = pd.concat(frames, ignore_index=True, sort=False)
         combined = md.add_market_filter_metrics(combined)
         # Titelmuster des Tape-Klassifizierers auch fuers Universum: die
         # Rohkategorien sind fast leer (Kalshi-Parlays, Esports, Einzelspiele
         # sagen alle "Other"), die Marktseite bekam dadurch kaum Kategorien
         # zum Auswaehlen. Laeuft einmal je Cache-Fuellung, nicht je Request.
-        return apv.enrich_filter_categories(combined, TAPE_CLASSIFIER)
+        return apv.with_venue_sources(apv.enrich_filter_categories(combined, TAPE_CLASSIFIER), sources)
 
     return cached(f"universe_{limit}", _load)
 
@@ -322,13 +345,9 @@ def load_universe(limit: int = 250) -> pd.DataFrame:
 def load_tape(limit: int = 250, min_cash: float = 0.0) -> pd.DataFrame:
     def _load() -> pd.DataFrame:
         frames = []
-        try:
-            pm = md.get_polymarket_trades(limit=limit, min_cash=min_cash)
-            if not pm.empty:
-                frames.append(pm)
-        except Exception as exc:
-            print(f"[warn] polymarket trades: {exc}")
-        try:
+        sources: list[dict[str, Any]] = []
+
+        def _kalshi() -> pd.DataFrame:
             # Kalshi kennt keinen Cash-Filter; die 15-Minuten-Kryptomaerkte
             # drucken tausend Mikro-Trades in Sekunden. Bei einem Mindestbetrag
             # deshalb das ganze Fenster holen und hier filtern, sonst waere die
@@ -336,20 +355,25 @@ def load_tape(limit: int = 250, min_cash: float = 0.0) -> pd.DataFrame:
             ks = md.get_kalshi_trades(limit=1000 if min_cash > 0 else limit)
             if not ks.empty and min_cash > 0 and "notional" in ks.columns:
                 ks = ks[pd.to_numeric(ks["notional"], errors="coerce").fillna(0.0) >= float(min_cash)]
-            if not ks.empty:
-                # The feed carries tickers only (KXRTCOMPARE-INS26AUG24-INS);
-                # one memoised markets lookup gives every consumer — tape,
-                # risk cards, flag log — the question instead.
-                ks = md.enrich_kalshi_tape(ks.head(limit))
-                frames.append(ks)
-        except Exception as exc:
-            print(f"[warn] kalshi trades: {exc}")
+            if ks.empty:
+                return ks
+            # The feed carries tickers only (KXRTCOMPARE-INS26AUG24-INS);
+            # one memoised markets lookup gives every consumer — tape,
+            # risk cards, flag log — the question instead.
+            return md.enrich_kalshi_tape(ks.head(limit))
+
+        pm = _venue_frame("Polymarket", lambda: md.get_polymarket_trades(limit=limit, min_cash=min_cash), sources)
+        if not pm.empty:
+            frames.append(pm)
+        ks = _venue_frame("Kalshi", _kalshi, sources)
+        if not ks.empty:
+            frames.append(ks)
         if not frames:
-            return pd.DataFrame()
+            return apv.with_venue_sources(pd.DataFrame(), sources)
         trades = pd.concat(frames, ignore_index=True, sort=False)
         if "time" in trades.columns:
             trades = trades.sort_values("time", ascending=False)
-        return trades
+        return apv.with_venue_sources(trades, sources)
 
     return cached(f"tape_{limit}_{min_cash}", _load, ttl=45.0)
 
@@ -394,8 +418,10 @@ def health() -> dict[str, Any]:
 @app.get("/api/overview")
 def overview(limit: int = Query(250, le=1000)) -> dict[str, Any]:
     combined = load_universe(limit)
+    quellen = apv.venue_sources(combined)
     if combined.empty:
-        return {"kpis": {}, "movers": [], "anomalies": [], "ending_soon": []}
+        return {"kpis": {}, "movers": [], "anomalies": [], "ending_soon": [],
+                "sources": quellen, "venues_missing": apv.missing_venues(quellen)}
 
     def col(name: str) -> pd.Series:
         return pd.to_numeric(combined.get(name), errors="coerce").fillna(0.0)
@@ -451,6 +477,10 @@ def overview(limit: int = Query(250, le=1000)) -> dict[str, Any]:
         "movers": df_records(movers[cols]),
         "anomalies": df_records(anomalies[cols]),
         "ending_soon": df_records(ending[cols]),
+        # Die Venue-Kennzahlen daneben stehen je Einheit getrennt; ohne diese
+        # Zeile saehe eine ausgefallene Venue aus wie eine mit null Umsatz.
+        "sources": quellen,
+        "venues_missing": apv.missing_venues(quellen),
         "as_of": md.now_utc_label(),
     }
 
@@ -464,8 +494,10 @@ def markets(
     limit: int = Query(250, le=1000),
 ) -> dict[str, Any]:
     combined = load_universe(max(limit, 250))
+    quellen = apv.venue_sources(combined)
     if combined.empty:
-        return {"rows": [], "total": 0, "as_of": md.now_utc_label()}
+        return {"rows": [], "total": 0, "sources": quellen,
+                "venues_missing": apv.missing_venues(quellen), "as_of": md.now_utc_label()}
     df = combined
     if query.strip():
         mask = df.get("title", pd.Series(dtype=str)).astype(str).str.contains(query.strip(), case=False, na=False)
@@ -494,7 +526,8 @@ def markets(
     # Schlanke Zeilen: nur die Felder, die das Frontend liest (apv.MARKET_FIELDS).
     # Mit ``raw``, ``description`` und den Token-Blobs wog die Antwort fuer
     # 250 Zeilen ueber ein Megabyte, alle 30 Sekunden.
-    return {"rows": apv.market_records(df, limit), "total": total, "as_of": md.now_utc_label()}
+    return {"rows": apv.market_records(df, limit), "total": total, "sources": quellen,
+            "venues_missing": apv.missing_venues(quellen), "as_of": md.now_utc_label()}
 
 
 @app.get("/api/search")
@@ -544,8 +577,13 @@ def search(q: str = "", limit: int = Query(12, le=25)) -> dict[str, Any]:
 @app.get("/api/tape")
 def tape(limit: int = Query(250, le=1000), min_cash: float = 0.0) -> dict[str, Any]:
     trades = load_tape(limit=limit, min_cash=min_cash)
+    # Welche Venue geantwortet hat, reist mit. Eine Antwort ohne Kalshi ist
+    # ein anderer Zustand als eine Antwort, in der Kalshi nichts gedruckt
+    # hat, und nur die Antwort selbst kann die beiden auseinanderhalten.
+    quellen = apv.venue_sources(trades)
     if trades.empty:
-        return {"rows": [], "total": 0, "as_of": md.now_utc_label()}
+        return {"rows": [], "total": 0, "sources": quellen,
+                "venues_missing": apv.missing_venues(quellen), "as_of": md.now_utc_label()}
     # Venue-balanciert statt reine Zeitreihenfolge: sonst verdraengen die
     # Kalshi-Mikro-Trades jeden Polymarket-Print aus dem Fenster.
     shown = apv.balanced_head(trades, limit)
@@ -560,7 +598,8 @@ def tape(limit: int = Query(250, le=1000), min_cash: float = 0.0) -> dict[str, A
         print(f"[warn] universe for tape categories: {exc}")
         universe = pd.DataFrame()
     shown = apv.tape_rows_with_category(shown, universe, TAPE_CLASSIFIER)
-    return {"rows": df_records(shown, limit), "total": int(len(trades)), "as_of": md.now_utc_label()}
+    return {"rows": df_records(shown, limit), "total": int(len(trades)), "sources": quellen,
+            "venues_missing": apv.missing_venues(quellen), "as_of": md.now_utc_label()}
 
 
 @app.get("/api/leaderboard")
@@ -572,8 +611,11 @@ def leaderboard(
     try:
         lb = load_leaderboard(limit=limit, period=period, order_by=order_by)
     except Exception as exc:
+        # Keine Zeilen UND ein Grund. Ohne den Grund liest sich der Ausfall
+        # der Polymarket-Bestenliste wie eine Venue ohne Trader.
         print(f"[warn] leaderboard: {exc}")
-        return {"rows": [], "total": 0}
+        return {"rows": [], "total": 0, "error": f"{type(exc).__name__}: {exc}",
+                "as_of": md.now_utc_label()}
     ranked = load_ranked()
     rows = apv.leaderboard_rows(lb, ranked)
     return {
@@ -777,8 +819,16 @@ CROSS_CANDIDATE_FLOOR = 0.2
 CROSS_GATE_NOTE = (
     "Only pairs with title similarity >= {sim:.2f} and volume on both venues are shown. "
     "Matched by title similarity — pairs are not verified to resolve identically "
-    "(studies 08 and 11 in the microstructure report show two matched pairs that were different questions)."
+    "(studies 08 and 11 in the microstructure report show two matched pairs that were different questions). "
+    "A pair whose two sides ask in opposite directions, name different thresholds or resolve on "
+    "different dates carries no numbers at all and is counted under 'suppressed' instead."
 )
+
+#: Wie viele Zeilen je Aufruf gegen die Buecher neu quotiert werden. Zwei
+#: Abfragen je Zeile, und der Endpunkt blaettert ohnehin schon beide Boersen
+#: durch; nachgeschlagen werden die Zeilen mit der groessten Netto-Spanne,
+#: also die, auf die jemand reagieren wuerde.
+CROSS_DEPTH_ROWS = 12
 
 
 @app.get("/api/cross")
@@ -822,20 +872,30 @@ def cross(
         pm = cached("cross_pm", _pm, ttl=300.0)
         ks = cached("cross_ks", _ks, ttl=300.0)
     except Exception as exc:
+        # Die leere Antwort traegt sonst die Notiz "nichts hat die Schranke
+        # genommen", also eine Messung, wo ein Abruf gescheitert ist.
         print(f"[warn] cross venue universes: {exc}")
-        return leer
+        return {**leer, "error": f"{type(exc).__name__}: {exc}"}
     if pm.empty or ks.empty:
         return leer
     try:
-        candidates = cached(
+        # Mit den verworfenen Paaren: was der Paar-Check aussortiert, wird
+        # gezaehlt und benannt statt stillschweigend weggelassen.
+        alle = cached(
             f"cross_cand_{min_similarity}_{max_pairs}",
             cross_pairs.deep_cross_candidates,
             pm,
             ks,
             min_similarity,
             max_pairs,
+            True,
             ttl=300.0,
         )
+        if alle is None or alle.empty or "pair_verdict" not in alle.columns:
+            candidates, verworfen = (alle if alle is not None else pd.DataFrame()), pd.DataFrame()
+        else:
+            geprueft = alle["pair_verdict"].astype(str).eq(cross_pairs.PAIR_UNVERIFIED)
+            candidates, verworfen = alle[geprueft], alle[~geprueft]
         # Wie viele Paare der Matcher unterhalb der Schranke ueberhaupt
         # findet — damit die Seite "N of M candidates clear the gate" sagen
         # kann statt nur "nothing". Gleicher Matcher, lockere Schranke.
@@ -849,11 +909,16 @@ def cross(
             ttl=300.0,
         )
         if query.strip():
-            mask = candidates["polymarket_title"].str.contains(query.strip(), case=False, na=False) | candidates["kalshi_title"].str.contains(query.strip(), case=False, na=False)
-            candidates = candidates[mask]
+            def _treffer(frame: pd.DataFrame) -> pd.DataFrame:
+                if frame is None or frame.empty:
+                    return frame
+                maske = (frame["polymarket_title"].str.contains(query.strip(), case=False, na=False)
+                         | frame["kalshi_title"].str.contains(query.strip(), case=False, na=False))
+                return frame[maske]
+            candidates, verworfen = _treffer(candidates), _treffer(verworfen)
     except Exception as exc:
         print(f"[warn] cross venue: {exc}")
-        return leer
+        return {**leer, "error": f"{type(exc).__name__}: {exc}"}
     categories = {}
     if "market_key" in pm.columns and "category" in pm.columns:
         categories = {
@@ -861,11 +926,34 @@ def cross(
             for key, cat in zip(pm["market_key"], pm["category"])
             if key is not None and cat
         }
+    # Erst die Schranke, dann die Buecher: nachgeschlagen wird nur, was auch
+    # angezeigt wird. Ohne diesen Schritt stand die Spanne fuer 100 Stueck
+    # da, weil 100 der Clip der Gebuehrenkurve ist und nicht, weil jemand
+    # nachgesehen haette, ob 100 Stueck an der Quote liegen.
+    if candidates is not None and not candidates.empty:
+        candidates = candidates[apv.cross_gate_mask(
+            candidates, min_similarity=min_similarity, require_volume=True)]
+        try:
+            candidates = cached(
+                f"cross_depth_{min_similarity}_{max_pairs}_{query.strip().lower()}",
+                cross_pairs.with_book_depth,
+                candidates,
+                pm,
+                ks,
+                pm_book=md.get_polymarket_orderbook,
+                ks_book=md.get_kalshi_orderbook,
+                max_rows=CROSS_DEPTH_ROWS,
+                ttl=120.0,
+            )
+        except Exception as exc:
+            print(f"[warn] cross depth: {exc}")
     rows = apv.cross_rows(candidates, categories, min_similarity=min_similarity, require_volume=True)
     return {
         "rows": rows,
         "total": len(rows),
         "candidates_before_gate": int(len(vor_schranke)) if vor_schranke is not None else int(len(candidates)),
+        "suppressed": apv.cross_suppressed(verworfen),
+        "depth_rows": CROSS_DEPTH_ROWS,
         "gate": gate,
         "as_of": md.now_utc_label(),
         "note": CROSS_GATE_NOTE.format(sim=min_similarity),
@@ -926,6 +1014,64 @@ def _tape_categories(trades: pd.DataFrame) -> pd.DataFrame:
     except Exception as exc:
         print(f"[warn] market categories: {exc}")
         return pd.DataFrame()
+
+
+#: Kantenregel fuer den Co-Trading-Graphen, von streng nach locker. Die
+#: Leiter existiert, weil die strenge Regel auf einem Tagesband oft nichts
+#: findet und ein leeres Bild keine Antwort ist. Sie ist damit aber Teil des
+#: Befunds: ein Graph unter der untersten Sprosse sagt etwas anderes als
+#: derselbe Graph unter der obersten. Deshalb steht die ganze Leiter in der
+#: Nutzlast und nicht nur die Sprosse, die getragen hat.
+CO_TRADING_LADDER: tuple[tuple[str, dict[str, Any]], ...] = (
+    ("same side of at least 3 markets within 5 minutes, $10k paired notional",
+     dict(window_minutes=5.0, min_shared=3, min_pair_notional=10_000.0)),
+    ("same side of at least 2 markets within 5 minutes",
+     dict(window_minutes=5.0, min_shared=2)),
+    ("same side of at least 2 markets anywhere in the window, no simultaneity required",
+     dict(window_minutes=None, min_shared=2)),
+)
+
+
+def co_trading_ladder(
+    basis: pd.DataFrame,
+    max_wallets: int = 300,
+    leiter: tuple[tuple[str, dict[str, Any]], ...] = CO_TRADING_LADDER,
+) -> tuple[pd.DataFrame, pd.DataFrame, list[dict[str, Any]]]:
+    """Die Leiter ablaufen und offenlegen, welche Sprosse getragen hat.
+
+    Zurueck kommen Knoten, Kanten und die Leiter selbst: je Sprosse die
+    Regel im Klartext, ihre Parameter, ob sie ueberhaupt versucht wurde und
+    was sie gefunden hat. Eine nicht versuchte Sprosse ist etwas anderes als
+    eine, die nichts gefunden hat, und beides ist etwas anderes als die, die
+    das Bild erzeugt hat — ohne diese Unterscheidung liest sich jede Grafik
+    als Ergebnis der strengsten Regel.
+    """
+
+    from app import suspicion as susp
+
+    nodes, edges = pd.DataFrame(), pd.DataFrame()
+    sprossen: list[dict[str, Any]] = []
+    fertig = False
+    for beschreibung, kwargs in leiter:
+        sprosse: dict[str, Any] = {
+            "regel": beschreibung,
+            "parameter": dict(kwargs),
+            "versucht": not fertig,
+            "wallets": None,
+            "kanten": None,
+            "gewaehlt": False,
+        }
+        if not fertig:
+            treffer_nodes, treffer_edges = susp.co_trading_network(
+                basis, max_wallets=max_wallets, **kwargs)
+            sprosse["wallets"] = int(len(treffer_nodes))
+            sprosse["kanten"] = int(len(treffer_edges))
+            if not treffer_nodes.empty:
+                nodes, edges = treffer_nodes, treffer_edges
+                sprosse["gewaehlt"] = True
+                fertig = True
+        sprossen.append(sprosse)
+    return nodes, edges, sprossen
 
 
 def risk_screen_basis() -> tuple[pd.DataFrame, pd.DataFrame, float]:
@@ -1007,26 +1153,10 @@ def build_risk_payload() -> dict[str, Any]:
             if netz_basis is None or netz_basis.empty:
                 netz_basis = base
 
-            # Regelleiter von streng nach locker. Welche Stufe gegriffen hat,
-            # geht mit in die Nutzlast: die Grafik ist nur so viel wert wie
-            # die Regel, die unter ihr steht, und die faellt hier nachweislich
-            # oft auf die unterste Stufe.
-            LEITER = (
-                ("same side of at least 3 markets within 5 minutes, $10k paired notional",
-                 dict(window_minutes=5.0, min_shared=3, min_pair_notional=10_000.0)),
-                ("same side of at least 2 markets within 5 minutes",
-                 dict(window_minutes=5.0, min_shared=2)),
-                ("same side of at least 2 markets anywhere in the window, no simultaneity required",
-                 dict(window_minutes=None, min_shared=2)),
-            )
-            regel = LEITER[-1][0]
-            regel_kwargs: dict[str, Any] = dict(LEITER[-1][1])
-            nodes, edges = pd.DataFrame(), pd.DataFrame()
-            for beschreibung, kwargs in LEITER:
-                nodes, edges = susp.co_trading_network(netz_basis, max_wallets=300, **kwargs)
-                if not nodes.empty:
-                    regel, regel_kwargs = beschreibung, dict(kwargs)
-                    break
+            nodes, edges, sprossen = co_trading_ladder(netz_basis)
+            gewaehlt = next((s for s in sprossen if s["gewaehlt"]), sprossen[-1])
+            regel = gewaehlt["regel"]
+            regel_kwargs: dict[str, Any] = dict(gewaehlt["parameter"])
 
             payload.update(apv.cluster_payload(
                 fresh, coord, nodes, edges,
@@ -1050,7 +1180,8 @@ def build_risk_payload() -> dict[str, Any]:
                     nullmodell = None
                 payload["graph"] = apv.network_graph(
                     susp.cluster_layout(nodes), edges,
-                    regel=regel, modularitaet=modularitaet, nullmodell=nullmodell,
+                    regel=regel, leiter=sprossen, modularitaet=modularitaet,
+                    nullmodell=nullmodell,
                     wallets_im_tape=int(netz_basis["wallet"].astype(str).nunique()),
                     stand_utc=datetime.now(timezone.utc).isoformat(timespec="seconds"))
                 payload["graph"]["fenster"] = apv.tape_window_label(netz_basis)

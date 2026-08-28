@@ -1,5 +1,6 @@
 // Shared formatting and mapping helpers, ported from the design reference.
 
+import { MONO as M } from './ui.js';
 // Owner-declared one-time deposit into the live-run wallet, verifiable
 // on-chain via the wallet's USDC transfers. The public Data API cannot see
 // deposits, so the figure travels with the pipeline (WALLET_DEPOSITS_USD in
@@ -17,10 +18,6 @@ export function offeneNichtDrin(aggregat) {
   if (!offen) return '';
   return ' · ' + offen + ' open position' + (offen === 1 ? '' : 's') + ' not in it';
 }
-
-// Die Mono-Familie als Modulkonstante; die Helfer weiter unten binden sie
-// sonst jeder fuer sich neu.
-const MONO = "font-family:'IBM Plex Mono',monospace";
 
 export function num(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
 
@@ -110,33 +107,54 @@ export function herkunftSatz(herkunft, endpunkt) {
   return 'Waiting for ' + endpunkt + '. Nothing is shown until it answers.';
 }
 
+// Alle Venues, die das Terminal liest. Die Kopfzeile nannte sie fest
+// verdrahtet ("LIVE · POLYMARKET + KALSHI") und behauptete damit beide, auch
+// wenn nur eine geantwortet hatte.
+export const VENUES = ['Polymarket', 'Kalshi'];
+
+// Die Statuszeile der Kopfleiste. Sie nennt die Venues, die geantwortet
+// haben, und benennt die fehlende, statt beide zu behaupten.
+//
+// Der Fall, um den es geht: /api/tape faengt einen Parserfehler auf einer
+// Venue ab, damit die andere nicht mit ausfaellt, und liefert eine halbe
+// Antwort. Ohne diese Zeile war die halbe Antwort von einer ganzen nicht zu
+// unterscheiden, und die Seite meldete LIVE auf beiden Venues, waehrend die
+// Haelfte der Prints fehlte.
+export function liveStatusLabel(live, venuesMissing) {
+  if (live === 'error') return 'API OFFLINE · LAST KNOWN STATE';
+  if (live === 'offline') return 'API NOT REACHABLE · RESEARCH FROM PUBLISHED FILES';
+  if (live !== 'live') return 'WAITING FOR API';
+  const fehlend = (venuesMissing || []).map((v) => String(v || '').trim()).filter(Boolean);
+  if (!fehlend.length) return 'LIVE · ' + VENUES.join(' + ').toUpperCase();
+  const da = VENUES.filter((v) => fehlend.indexOf(v) < 0);
+  if (!da.length) return 'NO VENUE ANSWERING · ' + fehlend.join(' + ').toUpperCase() + ' FAILED';
+  return 'PARTIAL · ' + da.join(' + ').toUpperCase() + ' ONLY · ' + fehlend.join(' + ').toUpperCase() + ' NOT ANSWERING';
+}
+
 // Ein Panel ohne Daten sagt, welche Quelle fehlt, und zeigt keine Zahl. Eine
 // leere Flaeche kostet nichts; eine erfundene Kennzahl kostet die
 // Glaubwuerdigkeit jeder echten Zahl daneben.
 export function leerBlock(titel, satz) {
-  const M = "font-family:'IBM Plex Mono',monospace";
-  return '<div style="padding:26px 24px">'
-    + '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:20px 22px; max-width:760px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:var(--warn)">' + esc(titel) + '</div>'
-    + '<div style="font-size:13px; color:rgba(var(--ink),.6); margin-top:9px; line-height:1.6">' + esc(satz) + '</div>'
+    return '<div style="padding:26px 24px">'
+    + '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:20px 22px; max-width:760px">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--warn)">' + esc(titel) + '</div>'
+    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:9px; line-height:1.6">' + esc(satz) + '</div>'
     + '</div></div>';
 }
 
 // Der Seitenkopf allein, damit eine Seite ohne Daten trotzdem sagt, welche
 // Seite sie ist, und darunter warum sie leer ist.
 export function seitenKopf(kicker, titel, farbe) {
-  const M = "font-family:'IBM Plex Mono',monospace";
-  return '<div style="padding:20px 24px 14px; border-bottom:1px solid rgba(var(--ink),.09)">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.18em; color:' + farbe + '">' + esc(kicker) + '</div>'
-    + '<h1 style="font-size:21px; line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">'
+    return '<div style="padding:20px 24px 14px; border-bottom:1px solid var(--line-2)">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.18em; color:' + farbe + '">' + esc(kicker) + '</div>'
+    + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">'
     + esc(titel) + '</h1></div>';
 }
 
 // Eine Zeile dort, wo sonst Zeilen stehen wuerden. Kurz, weil sie mitten in
 // einer Liste sitzt und nicht deren Platz einnehmen soll.
 export function leerZeile(satz) {
-  const M = "font-family:'IBM Plex Mono',monospace";
-  return '<div style="padding:22px 20px; ' + M + '; font-size:11.5px; color:rgba(var(--ink),.6); line-height:1.6">'
+    return '<div style="padding:22px 20px; ' + M + '; font-size:var(--t-small); color:var(--ink-3); line-height:1.6">'
     + esc(satz) + '</div>';
 }
 
@@ -351,13 +369,13 @@ export function publishZeit(payload) {
 export function stempelBlock(study, payload, polster) {
   const fest = study && study.stamp ? String(study.stamp) : '';
   const uhr = publishZeit(payload);
-  const chip = MONO + '; font-size:10.5px; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.14);'
-    + ' border-radius:4px; padding:' + (polster || '6px 10px') + '; white-space:nowrap';
+  const chip = M + '; font-size:var(--t-micro); color:var(--ink-3); border:1px solid var(--line-1);'
+    + ' border-radius:var(--r-control); padding:' + (polster || '6px 10px') + '; white-space:nowrap';
   if (!fest && !uhr) return '';
   if (!fest) return '<div style="' + chip + '">' + esc(uhr) + '</div>';
   return '<div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px">'
     + '<div style="' + chip + '">' + esc(fest) + '</div>'
-    + (uhr ? '<div style="' + MONO + '; font-size:10.5px; color:rgba(var(--ink),.55); white-space:nowrap">published ' + esc(uhr) + '</div>' : '')
+    + (uhr ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); white-space:nowrap">published ' + esc(uhr) + '</div>' : '')
     + '</div>';
 }
 

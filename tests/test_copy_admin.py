@@ -246,6 +246,40 @@ class OverviewTests(unittest.TestCase):
         self.assertIsNone(a["source_equity"])
         self.assertIsNone(a["neutral_ratio"])
 
+    def test_each_row_splits_its_return_into_settled_and_marked(self) -> None:
+        # Die Trader-Zeile zeigte einen Prozentwert, in dem gebuchtes
+        # Ergebnis und Bewertung offener Positionen zusammenfielen. Hier
+        # steht eine offene Position zum Einstand, also ist beides null,
+        # aber beide Haelften muessen als eigene Zahl dastehen, sonst kann
+        # die Zeile den Unterschied nie zeigen.
+        ca.follow(WALLET_A, label="A", start_cash=1000, db_path=self.db, seed=False)
+        conn = ct.connect(self.db)
+        try:
+            ct.apply_paper_trade(conn, _trade("0xa1", 1780000000), ct.CopySettings(target_wallet=WALLET_A))
+            conn.commit()
+        finally:
+            conn.close()
+        row = {r["wallet"]: r for r in ca.traders_overview(db_path=self.db)}[WALLET_A]
+        self.assertAlmostEqual(row["settled_pnl"], row["realized_pnl"])
+        self.assertAlmostEqual(row["open_pnl"], row["unrealized_pnl"])
+        self.assertAlmostEqual(row["settled_pct"] + row["open_pct"], row["pnl_pct"], places=6)
+        self.assertTrue(row["pnl_reconciles"])
+
+    def test_a_trader_without_contributions_reports_no_percentage(self) -> None:
+        # Der Nenner war null und das Ergebnis stand als 0,00 Prozent da:
+        # eine gemessene Null, wo nichts eingezahlt und nichts gemessen war.
+        ca.follow(WALLET_A, label="A", start_cash=1000, db_path=self.db, seed=False)
+        conn = ct.connect(self.db)
+        try:
+            conn.execute("UPDATE traders SET start_cash = 0 WHERE wallet = ?", (WALLET_A,))
+            conn.commit()
+        finally:
+            conn.close()
+        row = {r["wallet"]: r for r in ca.traders_overview(db_path=self.db)}[WALLET_A]
+        self.assertAlmostEqual(row["contributions"], 0.0)
+        self.assertIsNone(row["pnl_pct"])
+        self.assertIsNone(row["settled_pct"])
+
     def test_source_equity_and_neutral_ratio_come_from_the_sizing_stats(self) -> None:
         ca.follow(WALLET_A, label="A", start_cash=500, db_path=self.db, seed=False)
         conn = ct.connect(self.db)

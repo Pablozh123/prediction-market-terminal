@@ -6,12 +6,10 @@ import { esc, num, herkunftSatz, leerZeile, EINZAHLUNGEN_USD, offeneNichtDrin, s
 import { caveat, caveatZeile, registerStand } from '../claims.js';
 import { stepKurve, diagramm, linien, kalibrierung, fmtZahl, serienFarbe, intervallMarke } from '../charts.js';
 import { renderMicrostructure } from './microstructure_page.js';
-
-const M = "font-family:'IBM Plex Mono',monospace";
-const LBL9 = M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.6); margin-bottom:6px';
+import { MONO as M, KARTE, LABEL_BLOCK, kpi } from '../ui.js';
 
 function filterGroup(label, chipsHtml) {
-  return '<div><div style="' + LBL9 + '">' + label + '</div><div style="display:flex; gap:6px; flex-wrap:wrap">' + chipsHtml + '</div></div>';
+  return '<div><div style="' + LABEL_BLOCK + '">' + label + '</div><div style="display:flex; gap:6px; flex-wrap:wrap">' + chipsHtml + '</div></div>';
 }
 
 // Welche publizierte Datei hinter welchem Research-Tab steht. Der Leerzustand
@@ -67,12 +65,12 @@ function vorfallZeitstrahl(eintraege) {
   }).join('');
 
   const marken = [min, max].map((t, i) =>
-    '<text x="' + x(t).toFixed(1) + '" y="' + (BASIS + 16) + '" style="fill:rgba(var(--ink),.6)" font-size="10.5" '
+    '<text x="' + x(t).toFixed(1) + '" y="' + (BASIS + 16) + '" style="fill:var(--ink-3)" font-size="10.5" '
     + 'font-family="IBM Plex Mono, monospace" text-anchor="' + (i === 0 ? 'start' : 'end') + '">'
     + new Date(t * 86400000).toISOString().slice(0, 10) + '</text>').join('');
 
   return '<div style="' + KARTE + '; padding:14px 16px 8px; margin-top:14px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(var(--ink),.6); margin-bottom:2px">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3); margin-bottom:2px">'
     + 'WHEN THEY HAPPENED · ' + (spanne + 1) + ' DAYS, ' + mitDatum.length + ' INCIDENTS · COLOUR IS THE AXIS</div>'
     + '<svg width="100%" viewBox="0 0 640 80" role="img" aria-label="Incident timeline">'
     + '<line x1="' + L + '" y1="' + BASIS + '" x2="' + R + '" y2="' + BASIS + '" style="stroke:rgba(var(--ink),.14)" stroke-width="1" />'
@@ -94,12 +92,12 @@ function renderPostmortems(payload, study) {
   const kennung = payload && payload.kennzeichnung ? String(payload.kennzeichnung).toUpperCase() : '';
   const kopf = '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px">'
     + '<div style="max-width:720px">'
-    + '<h2 style="font-size:20px; font-weight:600">' + esc((study && study.title) || 'Post-mortems') + '</h2>'
-    + '<div style="font-size:13.5px; color:rgba(var(--ink),.6); margin-top:8px; line-height:1.6">'
+    + '<h2 style="font-size:var(--t-head); font-weight:600">' + esc((study && study.title) || 'Post-mortems') + '</h2>'
+    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:8px; line-height:1.6">'
     + esc((payload && payload.hinweis) || (study && study.note) || '')
     + '</div></div>'
     + '<div style="display:flex; gap:8px">'
-    + (kennung ? '<div style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; color:var(--on-accent); background:var(--info)">' + esc(kennung) + '</div>' : '')
+    + (kennung ? '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; border-radius:var(--r-control); padding:3px 8px; color:var(--on-accent); background:var(--info)">' + esc(kennung) + '</div>' : '')
     + stempelBlock(study, payload, '5px 10px')
     + '</div></div>';
 
@@ -112,9 +110,9 @@ function renderPostmortems(payload, study) {
   }
   if (!eintraege.length) {
     return '<div style="padding:20px 24px 36px">' + kopf
-      + '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:22px 24px; max-width:720px; margin-top:16px">'
-      + '<h3 style="font-size:16px; font-weight:600">No incidents published</h3>'
-      + '<div style="font-size:13px; color:rgba(var(--ink),.55); margin-top:10px; line-height:1.6">'
+      + '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:22px 24px; max-width:720px; margin-top:16px">'
+      + '<h3 style="font-size:var(--t-lead); font-weight:600">No incidents published</h3>'
+      + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:10px; line-height:1.6">'
       + 'This page reads <span style="' + M + '">public/data/postmortems.json</span>. The file answered and its '
       + '<span style="' + M + '">eintraege</span> list is empty, so there is nothing to show.</div></div></div>';
   }
@@ -122,27 +120,27 @@ function renderPostmortems(payload, study) {
   const achsen = {};
   eintraege.forEach((e) => { achsen[e.achse] = (achsen[e.achse] || 0) + 1; });
   const chips = Object.entries(achsen).sort((a, b) => b[1] - a[1]).map(([achse, n]) =>
-    '<div style="' + M + '; font-size:11px; color:' + (ACHSEN_FARBE[achse] || 'var(--muted)')
+    '<div style="' + M + '; font-size:var(--t-micro); color:' + (ACHSEN_FARBE[achse] || 'var(--muted)')
     // color-mix, not a hex alpha suffix: every value here is a var(--token),
     // and 'var(--muted)44' is not a colour — the parser dropped the whole
     // shorthand and the border simply did not exist.
-    + '; border:1px solid color-mix(in srgb, ' + (ACHSEN_FARBE[achse] || 'var(--muted)') + ' 27%, transparent); border-radius:4px; padding:4px 9px">'
+    + '; border:1px solid color-mix(in srgb, ' + (ACHSEN_FARBE[achse] || 'var(--muted)') + ' 27%, transparent); border-radius:var(--r-control); padding:4px 9px">'
     + esc(achse.toUpperCase()) + ' ' + n + '</div>').join('');
 
   const feld = (label, wert, farbe) =>
     '<div style="margin-top:11px">'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(var(--ink),.55)">' + label + '</div>'
-    + '<div style="font-size:12.5px; color:' + (farbe || 'rgba(var(--ink),.72)') + '; margin-top:4px; line-height:1.6">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-4)">' + label + '</div>'
+    + '<div style="font-size:var(--t-small); color:' + (farbe || 'var(--ink-2)') + '; margin-top:4px; line-height:1.6">'
     + esc(wert || '—') + '</div></div>';
 
   const karten = eintraege.slice().sort((a, b) => String(b.datum).localeCompare(String(a.datum))).map((e) => {
     const farbe = ACHSEN_FARBE[e.achse] || 'var(--muted)';
-    return '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-left:2px solid ' + farbe
-      + '; border-radius:6px; padding:16px 18px">'
+    return '<div style="background:var(--panel); border:1px solid var(--line-2); border-left:2px solid ' + farbe
+      + '; border-radius:var(--r-panel); padding:16px 18px">'
       + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap">'
-      + '<h3 style="font-size:14.5px; font-weight:600; flex:1; min-width:220px">' + esc(e.titel) + '</h3>'
-      + '<div style="' + M + '; font-size:11px; color:' + farbe + '">' + esc(e.achse || '') + '</div></div>'
-      + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:5px">'
+      + '<h3 style="font-size:var(--t-lead); font-weight:600; flex:1; min-width:220px">' + esc(e.titel) + '</h3>'
+      + '<div style="' + M + '; font-size:var(--t-micro); color:' + farbe + '">' + esc(e.achse || '') + '</div></div>'
+      + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:5px">'
       + esc(e.datum) + (e.profil ? ' · ' + esc(e.profil) : '') + '</div>'
       + feld('WHAT HAPPENED', e.was_passierte)
       + feld('WHAT IT COST', e.auswirkung, 'var(--neg-soft)')
@@ -150,15 +148,15 @@ function renderPostmortems(payload, study) {
       // "PR #12" und "commit 8af07d6" verweisen ins Schwester-Repo, Pfade
       // unter docs/research/ ins Terminal-Repo — als Links, wo ableitbar.
       + (e.referenz
-        ? '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.55); margin-top:11px; '
-          + 'border-top:1px solid rgba(var(--ink),.06); padding-top:9px">' + referenzLinksHtml(e.referenz) + '</div>'
+        ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:11px; '
+          + 'border-top:1px solid var(--line-3); padding-top:9px">' + referenzLinksHtml(e.referenz) + '</div>'
         : '')
       + '</div>';
   }).join('');
 
   return '<div style="padding:20px 24px 36px">' + kopf
     + '<div style="display:flex; gap:7px; flex-wrap:wrap; margin-top:12px">'
-    + '<div style="' + M + '; font-size:11px; color:var(--text); border:1px solid rgba(var(--ink),.2); border-radius:4px; padding:4px 9px">'
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--text); border:1px solid var(--line-1); border-radius:var(--r-control); padding:4px 9px">'
     + eintraege.length + ' INCIDENT' + (eintraege.length === 1 ? '' : 'S') + '</div>' + chips + '</div>'
     + vorfallZeitstrahl(eintraege)
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); gap:14px; margin-top:16px">'
@@ -173,12 +171,12 @@ function renderFieldNotes(payload, study) {
   const kennung = payload && payload.kennzeichnung ? String(payload.kennzeichnung).toUpperCase() : 'CURATED';
   const kopf = '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px">'
     + '<div style="max-width:720px">'
-    + '<h2 style="font-size:20px; font-weight:600">' + esc((study && study.title) || 'Field notes') + '</h2>'
-    + '<div style="font-size:13.5px; color:rgba(var(--ink),.6); margin-top:8px; line-height:1.5">'
+    + '<h2 style="font-size:var(--t-head); font-weight:600">' + esc((study && study.title) || 'Field notes') + '</h2>'
+    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:8px; line-height:1.5">'
     + esc((payload && payload.hinweis) || 'Curated observations from watching the tape: what happened, the mechanism behind it, and what follows from it. Notes, not measurements — each one names its evidence or says it has none.')
     + '</div></div>'
     + '<div style="display:flex; gap:8px">'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; color:var(--on-accent); background:var(--info)">' + esc(kennung) + '</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; border-radius:var(--r-control); padding:3px 8px; color:var(--on-accent); background:var(--info)">' + esc(kennung) + '</div>'
     + stempelBlock(study, payload, '5px 10px')
     + '</div></div>';
 
@@ -192,9 +190,9 @@ function renderFieldNotes(payload, study) {
   }
   if (!notes.length) {
     return '<div style="padding:22px 24px">' + kopf
-      + '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:22px 24px; max-width:720px; margin-top:16px">'
-      + '<div style="font-size:16px; font-weight:600">No field notes published yet</div>'
-      + '<div style="font-size:13px; color:rgba(var(--ink),.55); margin-top:10px; line-height:1.6">'
+      + '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:22px 24px; max-width:720px; margin-top:16px">'
+      + '<div style="font-size:var(--t-lead); font-weight:600">No field notes published yet</div>'
+      + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:10px; line-height:1.6">'
       + 'This page reads <span style="' + M + '">public/data/field_notes.json</span>. The file is there but its '
       + '<span style="' + M + '">notes</span> list is empty, so there is nothing to show — and nothing is invented to fill the space.'
       + '</div></div></div>';
@@ -202,32 +200,32 @@ function renderFieldNotes(payload, study) {
 
   const feld = (label, wert, farbe) => (wert
     ? '<div style="margin-top:11px">'
-      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(var(--ink),.55)">' + label + '</div>'
-      + '<div style="font-size:12.5px; color:' + (farbe || 'rgba(var(--ink),.72)') + '; margin-top:4px; line-height:1.6">'
+      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-4)">' + label + '</div>'
+      + '<div style="font-size:var(--t-small); color:' + (farbe || 'var(--ink-2)') + '; margin-top:4px; line-height:1.6">'
       + esc(wert) + '</div></div>'
     : '');
 
   const venues = {};
   notes.forEach((n) => { const v = String(n.venue || 'unknown venue'); venues[v] = (venues[v] || 0) + 1; });
   const chips = Object.entries(venues).sort((a, b) => b[1] - a[1]).map(([v, n]) =>
-    '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.18); border-radius:4px; padding:4px 9px">'
+    '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); border:1px solid var(--line-1); border-radius:var(--r-control); padding:4px 9px">'
     + esc(v.toUpperCase()) + ' ' + n + '</div>').join('');
 
   const karten = notes.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).map((n) =>
-    '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-left:2px solid var(--info); border-radius:6px; padding:16px 18px">'
+    '<div style="background:var(--panel); border:1px solid var(--line-2); border-left:2px solid var(--info); border-radius:var(--r-panel); padding:16px 18px">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap">'
-    + '<h3 style="font-size:14.5px; font-weight:600; flex:1; min-width:220px">' + esc(n.title || '—') + '</h3>'
-    + '<div style="' + M + '; font-size:11px; color:var(--info)">' + esc(n.venue || '') + '</div></div>'
-    + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:5px">'
+    + '<h3 style="font-size:var(--t-lead); font-weight:600; flex:1; min-width:220px">' + esc(n.title || '—') + '</h3>'
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--info)">' + esc(n.venue || '') + '</div></div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:5px">'
     + esc(n.date || '—') + (n.market ? ' · ' + esc(n.market) : '') + '</div>'
     + feld('OBSERVATION', n.observation)
     + feld('MECHANISM', n.mechanism, 'var(--warn)')
     + feld('CONSEQUENCE', n.consequence, 'var(--accent)')
     + (n.evidence
-      ? '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.55); margin-top:11px; '
-        + 'border-top:1px solid rgba(var(--ink),.06); padding-top:9px">EVIDENCE · ' + referenzLinksHtml(n.evidence) + '</div>'
-      : '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.5); margin-top:11px; '
-        + 'border-top:1px solid rgba(var(--ink),.06); padding-top:9px">NO EVIDENCE ATTACHED · an observation, not a finding</div>')
+      ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:11px; '
+        + 'border-top:1px solid var(--line-3); padding-top:9px">EVIDENCE · ' + referenzLinksHtml(n.evidence) + '</div>'
+      : '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:11px; '
+        + 'border-top:1px solid var(--line-3); padding-top:9px">NO EVIDENCE ATTACHED · an observation, not a finding</div>')
     + '</div>'
   ).join('');
 
@@ -236,23 +234,23 @@ function renderFieldNotes(payload, study) {
   // faengt man vorne an oder gar nicht. Der Index nennt je Notiz Datum, Venue,
   // Titel und ob Belege dranhaengen; danach weiss man, welche man liest.
   const belegt = notes.filter((n) => n.evidence).length;
-  const index = '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; overflow:hidden">'
-    + '<div style="padding:10px 16px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); display:flex; align-items:baseline; justify-content:space-between; gap:14px">'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:var(--info)">WHAT IS IN HERE</div>'
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6)">' + belegt + ' of ' + notes.length + ' carry evidence</div></div>'
+  const index = '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:14px; overflow:hidden">'
+    + '<div style="padding:10px 16px; background:var(--panel); border-bottom:1px solid var(--line-2); display:flex; align-items:baseline; justify-content:space-between; gap:14px">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">WHAT IS IN HERE</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + belegt + ' of ' + notes.length + ' carry evidence</div></div>'
     + notes.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).map((n) =>
-      '<div style="display:grid; grid-template-columns:78px 104px 1fr 122px; gap:12px; align-items:baseline; padding:8px 16px; border-bottom:1px solid rgba(var(--ink),.06)">'
-      + '<div style="' + M + '; font-size:11.5px; color:rgba(var(--ink),.6)">' + esc(n.date || '—') + '</div>'
-      + '<div style="' + M + '; font-size:11.5px; color:var(--info); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(n.venue || '—') + '</div>'
-      + '<div style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(n.title || '') + '">' + esc(n.title || '—') + '</div>'
-      + '<div style="' + M + '; font-size:10.5px; text-align:right; color:' + (n.evidence ? 'var(--accent)' : 'rgba(var(--ink),.6)') + '">'
+      '<div style="display:grid; grid-template-columns:78px 104px 1fr 122px; gap:12px; align-items:baseline; padding:8px 16px; border-bottom:1px solid var(--line-3)">'
+      + '<div style="' + M + '; font-size:var(--t-small); color:var(--ink-3)">' + esc(n.date || '—') + '</div>'
+      + '<div style="' + M + '; font-size:var(--t-small); color:var(--info); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(n.venue || '—') + '</div>'
+      + '<div style="font-size:var(--t-body); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(n.title || '') + '">' + esc(n.title || '—') + '</div>'
+      + '<div style="' + M + '; font-size:var(--t-micro); text-align:right; color:' + (n.evidence ? 'var(--accent)' : 'var(--ink-3)') + '">'
       + (n.evidence ? 'EVIDENCE' : 'NO EVIDENCE') + '</div></div>').join('')
     + '</div>';
 
   return '<div style="padding:22px 24px 36px">' + kopf
     + '<div style="display:flex; gap:7px; flex-wrap:wrap; margin-top:12px">'
-    + '<div style="' + M + '; font-size:11px; color:var(--text); border:1px solid rgba(var(--ink),.2); border-radius:4px; padding:4px 9px">'
-    + notes.length + ' NOTE' + (notes.length === 1 ? '' : 'S') + '</div>' + chips + '</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--text); border:1px solid var(--line-1); border-radius:var(--r-control); padding:4px 9px">'
+    + notes.length + ' NOTIZ' + (notes.length === 1 ? '' : 'S') + '</div>' + chips + '</div>'
     + index
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); gap:14px; margin-top:16px">'
     + karten + '</div></div>';
@@ -330,20 +328,20 @@ function fensterText(zeile) {
 // ("not loaded"), which stay true while loading.
 function ladeStudieHtml(study, datei) {
   return '<div style="padding:26px 24px">'
-    + '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:22px 24px; max-width:720px">'
-    + '<h2 style="font-size:16px; font-weight:600">' + esc(study.title) + '</h2>'
+    + '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:22px 24px; max-width:720px">'
+    + '<h2 style="font-size:var(--t-lead); font-weight:600">' + esc(study.title) + '</h2>'
     + '<div style="display:flex; align-items:center; gap:10px; margin-top:12px">'
     + '<span style="width:7px; height:7px; border-radius:50%; background:var(--warn); display:inline-block"></span>'
-    + '<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:var(--warn)">loading public/data/' + esc(datei || 'the study payload') + '</span></div>'
-    + '<div style="font-size:12.5px; color:rgba(var(--ink),.5); margin-top:10px; line-height:1.6">The page fills in when the payload answers; nothing is shown before, and no figure is a placeholder.</div>'
+    + '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.08em; color:var(--warn)">loading public/data/' + esc(datei || 'the study payload') + '</span></div>'
+    + '<div style="font-size:var(--t-small); color:var(--ink-4); margin-top:10px; line-height:1.6">The page fills in when the payload answers; nothing is shown before, and no figure is a placeholder.</div>'
     + '</div></div>';
 }
 
 function fehlendeStudieHtml(study, datei) {
   return '<div style="padding:26px 24px">'
-    + '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:22px 24px; max-width:720px">'
-    + '<h2 style="font-size:16px; font-weight:600">' + esc(study.title) + '</h2>'
-    + '<div style="font-size:13px; color:rgba(var(--ink),.55); margin-top:10px; line-height:1.6">'
+    + '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:22px 24px; max-width:720px">'
+    + '<h2 style="font-size:var(--t-lead); font-weight:600">' + esc(study.title) + '</h2>'
+    + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:10px; line-height:1.6">'
     + 'No published data for this study yet. It reads '
     + '<span style="' + M + '">public/data/' + esc(datei || 'the study payload') + '</span>, '
     + 'which the daily run writes. Nothing is shown here rather than a placeholder, '
@@ -422,11 +420,11 @@ export function renderAlerts(T) {
   let body = '';
   if (s.alertTab === 'signals') {
     body = '<div>'
-      + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); padding:14px 24px 0">showing signals over ' + s.thMove + '¢ moves, prints above $' + num(s.thWhale) + ', spreads under ' + s.thSpread + '¢, resolving within ' + s.thEnding + ' h' + (live && live.as_of ? ' · snapshot ' + esc(live.as_of) : '') + '</div>'
+      + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); padding:14px 24px 0">showing signals over ' + s.thMove + '¢ moves, prints above $' + num(s.thWhale) + ', spreads under ' + s.thSpread + '¢, resolving within ' + s.thEnding + ' h' + (live && live.as_of ? ' · snapshot ' + esc(live.as_of) : '') + '</div>'
       // Der Schnitt gehoert danebengeschrieben. Eine Tabelle, die 60 von 300
       // Zeilen zeigt und das verschweigt, liest sich wie der ganze Scan.
       + (zaehlung && live.shown_limit && gesamtTreffer > live.shown_limit
-        ? '<div style="' + M + '; font-size:11px; color:var(--warn); padding:6px 24px 0">'
+        ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--warn); padding:6px 24px 0">'
           + 'showing the top ' + live.shown_limit + ' of ' + num(gesamtTreffer) + ' signals in this scan, ranked by severity'
           // Welche Art der Schnitt komplett verschluckt. Ohne den Zusatz
           // widerspricht die Regelkarte scheinbar der Tabelle: sie meldet
@@ -436,62 +434,62 @@ export function renderAlerts(T) {
             : '')
           + '</div>'
         : '')
-      + '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin:12px 24px; overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:92px 170px 1fr 110px 120px; gap:10px; padding:9px 16px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6)">'
+      + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin:12px 24px; overflow:hidden">'
+      + '<div style="display:grid; grid-template-columns:92px 170px 1fr 110px 120px; gap:10px; padding:9px 16px; background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">'
       + '<div>TIME</div><div>SIGNAL</div><div>MARKET</div><div style="text-align:right">READING</div><div style="text-align:right">VENUE</div></div>'
       + (ausgeblendet
-        ? '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); padding:6px 24px 0">'
+        ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); padding:6px 24px 0">'
           + num(ausgeblendet) + ' signal' + (ausgeblendet === 1 ? '' : 's') + ' hidden by the rule switches</div>'
         : '')
       + (feed.length ? '' : leerZeile(feedAll.length ? 'No signal matches these filters.' : alarmSatz))
       + feed.map((a) =>
-        '<div style="display:grid; grid-template-columns:92px 170px 1fr 110px 120px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(var(--ink),.06)">'
-        + '<div style="' + M + '; font-size:12px; color:rgba(var(--ink),.55)">' + esc(a.time) + '</div>'
-        + '<div style="' + M + '; font-size:10.5px; letter-spacing:.1em; color:var(--accent)">' + esc(a.rule) + '</div>'
-        + '<div style="font-size:13px; padding-right:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(a.market) + '">' + esc(a.market) + '</div>'
-        + '<div style="' + M + '; font-size:12.5px; text-align:right">' + esc(a.value) + '</div>'
-        + '<div style="' + M + '; font-size:11.5px; text-align:right; color:rgba(var(--ink),.6)">' + esc(a.venue) + '</div></div>'
+        '<div style="display:grid; grid-template-columns:92px 170px 1fr 110px 120px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid var(--line-3)">'
+        + '<div style="' + M + '; font-size:var(--t-small); color:var(--ink-4)">' + esc(a.time) + '</div>'
+        + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; color:var(--accent)">' + esc(a.rule) + '</div>'
+        + '<div style="font-size:var(--t-body); padding-right:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(a.market) + '">' + esc(a.market) + '</div>'
+        + '<div style="' + M + '; font-size:var(--t-small); text-align:right">' + esc(a.value) + '</div>'
+        + '<div style="' + M + '; font-size:var(--t-small); text-align:right; color:var(--ink-3)">' + esc(a.venue) + '</div></div>'
       ).join('')
       + '</div></div>';
   } else if (s.alertTab === 'rules') {
     body = '<div style="padding:16px 24px; display:grid; grid-template-columns:repeat(3,1fr); gap:14px">'
       + rules.map((a) => {
         const on = !!s.alertsOn[a.key];
-        return '<div ' + T.act(() => T.setState({ alertsOn: Object.assign({}, s.alertsOn, { [a.key]: !on }) })) + ' style="border-radius:6px; padding:15px 17px; cursor:pointer; background:var(--panel); border:1px solid ' + (on ? 'rgba(var(--accent-rgb),.35)' : 'rgba(var(--ink),.09)') + '">'
+        return '<div ' + T.act(() => T.setState({ alertsOn: Object.assign({}, s.alertsOn, { [a.key]: !on }) })) + ' style="border-radius:var(--r-panel); padding:15px 17px; cursor:pointer; background:var(--panel); border:1px solid ' + (on ? 'rgba(var(--accent-rgb),.35)' : 'rgba(var(--ink),.09)') + '">'
           + '<div style="display:flex; align-items:center; justify-content:space-between; gap:12px">'
-          + '<div style="font-size:14.5px; font-weight:600">' + a.name + '</div>'
-          + '<div style="width:38px; height:21px; flex:none; border-radius:6px; padding:2px; display:flex; background:' + (on ? 'var(--accent)' : 'rgba(var(--ink),.14)') + '; justify-content:' + (on ? 'flex-end' : 'flex-start') + '">'
-          + '<div style="width:17px; height:17px; border-radius:50%; background:' + (on ? 'var(--on-accent)' : 'rgba(var(--ink),.55)') + '"></div></div></div>'
-          + '<div style="font-size:12.5px; color:rgba(var(--ink),.55); margin-top:8px; line-height:1.45">' + a.desc + '</div>'
-          + '<div style="' + M + '; font-size:10.5px; margin-top:12px; color:rgba(var(--ink),.6)">' + esc(trefferText(a.key, on)) + '</div></div>';
+          + '<div style="font-size:var(--t-lead); font-weight:600">' + a.name + '</div>'
+          + '<div style="width:38px; height:21px; flex:none; border-radius:var(--r-panel); padding:2px; display:flex; background:' + (on ? 'var(--accent)' : 'rgba(var(--ink),.14)') + '; justify-content:' + (on ? 'flex-end' : 'flex-start') + '">'
+          + '<div style="width:17px; height:17px; border-radius:50%; background:' + (on ? 'var(--on-accent)' : 'var(--ink-4)') + '"></div></div></div>'
+          + '<div style="font-size:var(--t-small); color:var(--ink-4); margin-top:8px; line-height:1.45">' + a.desc + '</div>'
+          + '<div style="' + M + '; font-size:var(--t-micro); margin-top:12px; color:var(--ink-3)">' + esc(trefferText(a.key, on)) + '</div></div>';
       }).join('')
       + '</div>';
   } else if (live && live.deliveries) {
     const dv = live.deliveries;
-    body = '<div style="margin:16px 24px; border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:22px; background:var(--panel)">'
-      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.55)">DELIVERY LOG</div>'
-      + '<div style="font-size:13px; color:rgba(var(--ink),.6); margin-top:10px; line-height:1.5; max-width:640px">' + esc(dv.note || 'No delivery log available.') + '</div>'
-      + (dv.last_scan_at ? '<div style="' + M + '; font-size:11.5px; color:rgba(var(--ink),.6); margin-top:12px">last scan ' + esc(dv.last_scan_at) + ' · ' + esc(String(dv.last_hits)) + ' hits · ' + esc(String(dv.last_sent)) + ' sent</div>' : '')
+    body = '<div style="margin:16px 24px; border:1px solid var(--line-2); border-radius:var(--r-panel); padding:22px; background:var(--panel)">'
+      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-4)">DELIVERY LOG</div>'
+      + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:10px; line-height:1.5; max-width:640px">' + esc(dv.note || 'No delivery log available.') + '</div>'
+      + (dv.last_scan_at ? '<div style="' + M + '; font-size:var(--t-small); color:var(--ink-3); margin-top:12px">last scan ' + esc(dv.last_scan_at) + ' · ' + esc(String(dv.last_hits)) + ' hits · ' + esc(String(dv.last_sent)) + ' sent</div>' : '')
       + '</div>';
   } else {
     // Ein Zustellprotokoll ist ein Nachweis. Sechs erfundene Zeilen mit
     // Uhrzeit, Kanal und Status behaupten Versand, den es nie gab.
-    body = '<div style="margin:16px 24px; border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:22px; background:var(--panel)">'
-      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.55)">DELIVERY LOG</div>'
-      + '<div style="font-size:13px; color:rgba(var(--ink),.6); margin-top:10px; line-height:1.5; max-width:640px">'
+    body = '<div style="margin:16px 24px; border:1px solid var(--line-2); border-radius:var(--r-panel); padding:22px; background:var(--panel)">'
+      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-4)">DELIVERY LOG</div>'
+      + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:10px; line-height:1.5; max-width:640px">'
       + esc(alarmSatz) + '</div></div>';
   }
 
   return '<div>'
-    + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(var(--ink),.09)">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.18em; color:var(--accent)">ALERTS</div>'
-    + '<h1 style="font-size:21px; line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">Tell me when this happens</h1>'
+    + '<div style="padding:20px 24px 16px; border-bottom:1px solid var(--line-2)">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.18em; color:var(--accent)">ALERTS</div>'
+    + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">Tell me when this happens</h1>'
     // Frueher stand hier "Switch one on and it also goes to Telegram". Der
     // Versand haengt am Scanner-Skript und an dessen Konfiguration, nicht an
     // diesen Schaltern — die entscheiden, was diese Seite zeigt.
-    + '<div style="font-size:13px; color:rgba(var(--ink),.55); margin-top:9px; max-width:700px">The thresholds below are sent to the scan. The switches decide which of its signal types this page shows; Telegram delivery is configured on the scanner, not here.</div></div>'
+    + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:9px; max-width:700px">The thresholds below are sent to the scan. The switches decide which of its signal types this page shows; Telegram delivery is configured on the scanner, not here.</div></div>'
     + '<div style="padding:16px 24px 0; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px 18px">'
-    + '<div><div style="' + LBL9 + '">SEARCH</div><input value="' + esc(s.alertQuery) + '" ' + T.inp((e) => T.setState({ alertQuery: e.target.value }), 'alertQuery') + ' placeholder="market, wallet, category…" style="width:100%; box-sizing:border-box; background:var(--panel); border:1px solid rgba(var(--ink),.35); border-radius:4px; padding:8px 10px; ' + M + '; font-size:11.5px; color:var(--text)" /></div>'
+    + '<div><div style="' + LABEL_BLOCK + '">SEARCH</div><input value="' + esc(s.alertQuery) + '" ' + T.inp((e) => T.setState({ alertQuery: e.target.value }), 'alertQuery') + ' placeholder="market, wallet, category…" style="width:100%; box-sizing:border-box; background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:8px 10px; ' + M + '; font-size:var(--t-small); color:var(--text)" /></div>'
     + filterGroup('PLATFORM', [['all','All'],['Polymarket','Polymarket'],['Kalshi','Kalshi']].map((o) => T.opt(o[1], s.alertPlatform === o[0], { alertPlatform: o[0] })).join(''))
     + filterGroup('SIGNAL TYPE', [['all','All'],['WHALE PRINT','Whale prints'],['FAST MOVER','Fast movers'],['VOLUME ANOMALY','Volume']].map((o) => T.opt(o[1], s.alertType === o[0], { alertType: o[0] })).join(''))
     + filterGroup('SCOPE', [['all','Everything'],['watched','Watched only']].map((o) => T.opt(o[1], s.alertScope === o[0], { alertScope: o[0] })).join(''))
@@ -524,7 +522,7 @@ function registerZeile() {
   const stand = registerStand();
   if (!stand.eintraege) return '';
   const quelle = stand.quelle === 'api' ? 'from /api/claims' : 'compiled from data/claims.yaml';
-  return '<div style="padding:0 24px 30px; ' + M + '; font-size:10px; color:rgba(var(--ink),.55)">'
+  return '<div style="padding:0 24px 30px; ' + M + '; font-size:var(--t-micro); color:var(--ink-4)">'
     + 'caveat register v' + esc(stand.version) + (stand.updated ? ' · ' + esc(stand.updated) : '')
     + ' · ' + esc(quelle) + ' · ' + esc(stand.eintraege) + ' entries</div>';
 }
@@ -544,7 +542,7 @@ export function renderResearch(T) {
   // jeder Studie und schoben deren eigenen Titel unter die Falz. Der
   // Brotkrumen sagt, wo man ist; den Pitch traegt die Startseite.
   const header = '<div style="padding:16px 24px 0">'
-    + '<h1 style="' + M + '; font-size:11px; letter-spacing:.18em; color:var(--info); margin:0; font-weight:400">RESEARCH · ' + esc(String(study.tab || '').toUpperCase()) + '</h1></div>';
+    + '<h1 style="' + M + '; font-size:var(--t-micro); letter-spacing:.18em; color:var(--info); margin:0; font-weight:400">RESEARCH · ' + esc(String(study.tab || '').toUpperCase()) + '</h1></div>';
 
   if (s.researchTab === 3) {
     return '<div>' + header + renderLiveRuns(T, payload) + '</div>';
@@ -604,18 +602,13 @@ export function renderResearch(T) {
     + '<div style="padding:22px 24px">'
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px">'
     + '<div style="max-width:640px">'
-    + '<h2 style="font-size:20px; font-weight:600">' + esc(study.title) + '</h2>'
-    + '<div style="font-size:13.5px; color:rgba(var(--ink),.6); margin-top:8px; line-height:1.5">' + esc(note) + '</div></div>'
+    + '<h2 style="font-size:var(--t-head); font-weight:600">' + esc(study.title) + '</h2>'
+    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:8px; line-height:1.5">' + esc(note) + '</div></div>'
     + stempelBlock(study, payload) + '</div>'
     // So viele Spalten wie Kacheln: der Pilot traegt mit der Wallet-Kachel
     // fuenf, die uebrigen Studien weiter ihre drei oder vier.
     + '<div style="display:grid; grid-template-columns:repeat(' + stats.length + ',1fr); gap:12px; margin-top:18px">'
-    + stats.map((x) =>
-      '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:14px 16px">'
-      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(var(--ink),.6)">' + esc(x.label) + '</div>'
-      + '<div style="' + M + '; font-size:21px; margin-top:7px">' + esc(x.value) + '</div>'
-      + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); margin-top:4px">' + esc(x.note) + '</div></div>'
-    ).join('')
+    + stats.map((x) => kpi({ label: esc(x.label), wert: esc(x.value), sub: esc(x.note) })).join('')
     + '</div>'
     // Je Studie ihre Diagramme und Zusatzbloecke (Mentions latency, Pilot,
     // Pipeline forward), am Slug aufgehaengt statt am Index.
@@ -635,12 +628,12 @@ function studienSlug(study) {
 // api/server.py und ein reiner Dateiserver gleichermassen ausliefern. "Read
 // the method" springt auf die Methodik-Studie und ist dort selbst nicht da.
 function studienKnoepfe(T, tab) {
-  const KNOPF = 'font-size:13px; color:var(--text); border:1px solid rgba(var(--ink),.2); border-radius:4px; padding:10px 16px; cursor:pointer; text-decoration:none; display:inline-block';
+  const KNOPF = 'font-size:var(--t-body); color:var(--text); border:1px solid var(--line-1); border-radius:var(--r-control); padding:10px 16px; cursor:pointer; text-decoration:none; display:inline-block';
   const datei = RESEARCH_DATEI[tab];
   const methodik = T.studies.findIndex((st) => studienSlug(st) === 'methodology');
   const teile = [];
   if (datei) {
-    teile.push('<a href="./data/' + esc(datei) + '" download="' + esc(datei) + '" class="hv-bd35" style="' + KNOPF + '">Download the data</a>');
+    teile.push('<a href="./data/' + esc(datei) + '" download="' + esc(datei) + '" class="hv-edge-max" style="' + KNOPF + '">Download the data</a>');
   }
   if (methodik >= 0 && methodik !== tab) {
     // goStudy sets the address and fetches; the harness T has no such method.
@@ -649,7 +642,7 @@ function studienKnoepfe(T, tab) {
       T.setState({ page: 'research', researchTab: methodik, detail: null });
       try { history.pushState(null, '', '#research/methodology'); } catch (e) { /* file:// */ }
       T.fetchPageData('research');
-    }) + ' class="hv-bd35" style="' + KNOPF + '">Read the method</div>');
+    }) + ' class="hv-edge-max" style="' + KNOPF + '">Read the method</div>');
   }
   if (!teile.length) return '';
   return '<div style="display:flex; gap:10px; margin-top:14px">' + teile.join('') + '</div>';
@@ -660,34 +653,34 @@ function studienKnoepfe(T, tab) {
 function pilotAuswertungHtml(payload, abgeschlossen) {
   const a = payload && payload.auswertung;
   if (!a || !a.trades || !a.trades.gesamt) return '';
-  const karte = 'background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px';
+  const karte = KARTE;
   const rt = a.regeltreue || {};
   const punkte = (rt.punkte || []).map((p) => {
     const farbe = p.erfuellt ? 'var(--accent)' : 'var(--warn)';
     const zeichen = p.erfuellt ? '✓' : '!';
-    return '<div style="display:grid; grid-template-columns:18px 1fr auto; gap:12px; align-items:baseline; padding:10px 16px; border-bottom:1px solid rgba(var(--ink),.05)">'
-      + '<div style="' + M + '; font-size:13px; color:' + farbe + '">' + zeichen + '</div>'
-      + '<div><div style="font-size:12.5px; color:rgba(var(--ink),.8)">' + esc(p.regel) + '</div>'
-      + (p.hinweis ? '<div style="font-size:11.5px; color:var(--warn); margin-top:4px; line-height:1.5">' + esc(p.hinweis) + '</div>' : '')
+    return '<div style="display:grid; grid-template-columns:18px 1fr auto; gap:12px; align-items:baseline; padding:10px 16px; border-bottom:1px solid var(--line-3)">'
+      + '<div style="' + M + '; font-size:var(--t-body); color:' + farbe + '">' + zeichen + '</div>'
+      + '<div><div style="font-size:var(--t-small); color:var(--ink-1)">' + esc(p.regel) + '</div>'
+      + (p.hinweis ? '<div style="font-size:var(--t-small); color:var(--warn); margin-top:4px; line-height:1.5">' + esc(p.hinweis) + '</div>' : '')
       + '</div>'
-      + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.55); text-align:right; white-space:nowrap">'
-      + esc(p.ist || '') + (p.soll ? ' <span style="color:rgba(var(--ink),.55)">vs ' + esc(p.soll) + '</span>' : '')
+      + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); text-align:right; white-space:nowrap">'
+      + esc(p.ist || '') + (p.soll ? ' <span style="color:var(--ink-4)">vs ' + esc(p.soll) + '</span>' : '')
       + '</div></div>';
   }).join('');
 
   return '<div style="' + karte + '; margin-top:14px; padding:18px 20px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:var(--info)">WHAT THE TEST MEASURED</div>'
-    + '<div style="font-size:14.5px; color:var(--text); margin-top:10px; line-height:1.6; max-width:760px">' + esc(a.befund || '') + '</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">WHAT THE TEST MEASURED</div>'
+    + '<div style="font-size:var(--t-lead); color:var(--text); margin-top:10px; line-height:1.6; max-width:760px">' + esc(a.befund || '') + '</div>'
     // Der servergerechnete Satz "N positions are still open" stammt aus der
     // Trade-Liste ohne Aufloesungen; sobald das Wallet abgerechnet hat,
     // steht der Ausgang in der Karte HOW IT ENDED und der Satz entfaellt.
     + (a.offener_ausgang && !abgeschlossen
-      ? '<div style="font-size:13px; color:var(--warn); margin-top:12px; line-height:1.6; max-width:760px; '
+      ? '<div style="font-size:var(--t-body); color:var(--warn); margin-top:12px; line-height:1.6; max-width:760px; '
         + 'border-left:2px solid rgba(var(--warn-rgb),.4); padding-left:12px">' + esc(a.offener_ausgang) + '</div>'
       : '')
     + (punkte
-      ? '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:rgba(var(--ink),.6); margin:18px 0 8px">RULE ADHERENCE</div>'
-        + '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; overflow:hidden">' + punkte + '</div>'
+      ? '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3); margin:18px 0 8px">RULE ADHERENCE</div>'
+        + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); overflow:hidden">' + punkte + '</div>'
       : '')
     + '</div>';
 }
@@ -756,9 +749,9 @@ function pipelineHeadlineHtml(payload) {
     einheit: 'decision checks',
     punkte: z.gruende.map(([text, n]) => ({ label: text, wert: n, art: 'kosten' }))
   });
-  return '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; padding:18px 20px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:var(--info)">WHAT THE FORWARD TEST FOUND</div>'
-    + '<div style="font-size:15px; color:var(--text); margin-top:10px; line-height:1.6; max-width:820px">'
+  return '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:14px; padding:18px 20px">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">WHAT THE FORWARD TEST FOUND</div>'
+    + '<div style="font-size:var(--t-lead); color:var(--text); margin-top:10px; line-height:1.6; max-width:820px">'
     + 'Almost nothing was tradable: of ' + num(z.gesamt) + ' decision checks, only ' + num(z.gekauft) + ' ended in a paper buy ('
     + (anteil < 10 ? anteil.toFixed(1) : Math.round(anteil)) + '%)'
     + (top ? ' — most common stopper: ' + esc(top[0].charAt(0).toLowerCase() + top[0].slice(1)) + ' (' + num(top[1]) + ' of ' + num(z.keine) + ' no-trades, ' + Math.round((top[1] / Math.max(1, z.keine)) * 100) + '%)' : '')
@@ -769,7 +762,7 @@ function pipelineHeadlineHtml(payload) {
       // .5 statt .6 ergab im hellen Thema 3.88:1 und im dunklen 4.49:1,
       // beides unter AA. Ein Vorbehalt darf nicht die blasseste Zeile der
       // Seite sein; gemessen 6.05 dunkel und 5.54 hell.
-      stil: 'font-size:12px; color:rgba(var(--ink),.6); margin-top:8px; line-height:1.5'
+      stil: 'font-size:var(--t-small); color:var(--ink-3); margin-top:8px; line-height:1.5'
     })
     + (chart ? '<div style="margin-top:14px">' + chart + '</div>' : '')
     + '</div>';
@@ -778,25 +771,25 @@ function pipelineHeadlineHtml(payload) {
 function pipelineRegelnHtml(payload) {
   const { eintraege } = pipelineEintraege(payload);
   if (!eintraege.length) return '';
-  const karte = 'background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px';
+  const karte = KARTE;
 
   const regel = (titel, text) =>
-    '<div style="padding:12px 16px; border-bottom:1px solid rgba(var(--ink),.05)">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.12em; color:var(--info)">' + esc(titel) + '</div>'
-    + '<div style="font-size:12.5px; color:rgba(var(--ink),.75); margin-top:6px; line-height:1.6">' + esc(text) + '</div></div>';
+    '<div style="padding:12px 16px; border-bottom:1px solid var(--line-3)">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--info)">' + esc(titel) + '</div>'
+    + '<div style="font-size:var(--t-small); color:var(--ink-2); margin-top:6px; line-height:1.6">' + esc(text) + '</div></div>';
 
   return '<div style="' + karte + '; margin-top:14px; padding:18px 20px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:var(--info)">HOW THE PIPELINE DECIDES</div>'
-    + '<div style="font-size:13.5px; color:rgba(var(--ink),.65); margin-top:10px; line-height:1.6; max-width:760px">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">HOW THE PIPELINE DECIDES</div>'
+    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:10px; line-height:1.6; max-width:760px">'
     + 'These are word-count markets: will a speaker say a given word often enough during an episode, call or speech. '
     + 'The pipeline follows the live transcript and counts. It never predicts what will be said, it acts only on what has already been said. '
     + 'One run is one broadcast; every market it checks becomes one row in the log, buy or no-trade.</div>'
-    + '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; overflow:hidden; margin-top:14px">'
+    + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); overflow:hidden; margin-top:14px">'
     + regel('BUY YES', 'Only once the live count has already passed the market threshold, so the outcome is settled in fact, and only while the price including fee stays under the run cap. Above the cap there is no margin left in a decided outcome.')
     + regel('BUY NO', 'Only after the full transcript, when the final count stayed far enough below the threshold, and only at a lower cap than YES. Betting on absence breaks on a single missed word, so it needs the bigger cushion.')
     + regel('OTHERWISE NOTHING', 'Every other case is a no-trade, and each entry carries the reason that stopped it. The thresholds themselves are shown per entry, not fixed here.')
     + '</div>'
-    + '<div style="font-size:12px; color:rgba(var(--ink),.5); margin-top:12px; line-height:1.5; max-width:760px">'
+    + '<div style="font-size:var(--t-small); color:var(--ink-4); margin-top:12px; line-height:1.5; max-width:760px">'
     + 'Reading the run table below: EXTRACTED $ is the dollar value the run&#39;s buys actually captured of what its already-decided outcomes offered within the caps; QUOTE is that share — 100% means it caught everything its own rules allowed.</div>'
     + '</div>';
 }
@@ -805,20 +798,20 @@ function studyTableHtml(T, label, cols, head, rows) {
   // Kompakte Zeilen wie in den Live-runs- und Ledger-Tabellen: die alten
   // 11px/18px-Polster und 13px-Zellen machten jede Studientabelle im
   // Vergleich zum Rest der Seite auffallend gross.
-  const headStyle = 'display:grid; grid-template-columns:' + cols + '; gap:10px; padding:7px 14px; border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:9.5px; letter-spacing:.13em; color:rgba(var(--ink),.6)';
-  return '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; overflow:hidden">'
-    + '<div style="padding:9px 14px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:var(--info)">' + esc(label) + '</div>'
+  const headStyle = 'display:grid; grid-template-columns:' + cols + '; gap:10px; padding:7px 14px; border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3)';
+  return '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:14px; overflow:hidden">'
+    + '<div style="padding:9px 14px; background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">' + esc(label) + '</div>'
     + '<div style="' + headStyle + '">'
     + head.map((h, i) => '<div style="' + (i === 0 ? '' : 'text-align:right') + '">' + esc(h) + '</div>').join('')
     + '</div>'
     + rows.map((row) =>
-      '<div style="display:grid; grid-template-columns:' + cols + '; gap:10px; align-items:center; padding:8px 14px; border-bottom:1px solid rgba(var(--ink),.06)">'
+      '<div style="display:grid; grid-template-columns:' + cols + '; gap:10px; align-items:center; padding:8px 14px; border-bottom:1px solid var(--line-3)">'
       + row.map((cell, i) => {
         const first = i === 0;
         const cs = String(cell);
         const neg = cs.charAt(0) === '-' && cs.indexOf('$') > 0;
         const pos = cs.charAt(0) === '+' && cs.indexOf('$') > 0;
-        const style = (first ? 'font-family:IBM Plex Sans,sans-serif; font-size:12.5px' : M + '; font-size:11.5px; text-align:right') + '; color:' + (neg ? 'var(--neg)' : pos ? 'var(--pos)' : first ? 'var(--text)' : 'rgba(var(--ink),.7)') + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis';
+        const style = (first ? 'font-family:var(--font-ui); font-size:var(--t-small)' : M + '; font-size:var(--t-small); text-align:right') + '; color:' + (neg ? 'var(--neg)' : pos ? 'var(--pos)' : first ? 'var(--text)' : 'var(--ink-2)') + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis';
         return '<div style="' + style + '" title="' + esc(cs) + '">' + esc(cs) + '</div>';
       }).join('')
       + '</div>'
@@ -842,7 +835,7 @@ function buildStudyTable(T, tab, payload) {
         // stand bisher ungenutzt in public/data/meta.json. Jetzt steht es
         // unter der Spalte, aus dem Register.
         + caveatZeile('verification_not_signal', {
-          stil: 'font-size:12px; color:rgba(var(--ink),.6); margin-top:8px; max-width:760px; line-height:1.5'
+          stil: 'font-size:var(--t-small); color:var(--ink-3); margin-top:8px; max-width:760px; line-height:1.5'
         });
     }
     if (tab === 2 && payload.faelle) {
@@ -854,7 +847,7 @@ function buildStudyTable(T, tab, payload) {
     if (tab === 5 && payload.trades) {
       // Alle Trades, nicht zwoelf; Feldwerte auf Englisch uebersetzt.
       const n = payload.trades.length;
-      return studyTableHtml(T, 'PILOT TRADES · ' + n + ' OF ' + n, '96px 1fr 60px 56px 76px 76px 76px 70px 190px', ['DATE','MARKET','ARM','SIDE','SIGNAL','FILL','SLIP','SIZE','EXIT'],
+      return studyTableHtml(T, 'PILOT TRADES · ' + n + ' OF ' + n, '96px 1fr 60px 56px 76px 76px 76px 70px 200px', ['DATE','MARKET','ARM','SIDE','SIGNAL','FILL','SLIP','SIZE','EXIT'],
         payload.trades.map((t) => [
           String(t.zeitstempel_utc || '').slice(0, 10), String(t.markt_frage || ''),
           pilotEnglisch(String(t.arm || '')), String(t.seite || '—'),
@@ -1131,15 +1124,15 @@ function befundVon(zeilen) {
 const OFFEN_DUENN = 20;
 
 function renderCategoryEfficiency(T, payload, study) {
-  const karte = 'background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px';
+  const karte = KARTE;
 
   // Kopf: Titel und EINE Zeile Stichprobe. Der lange Absatz aus der Nutzlast
   // (payload.hinweis) steht unveraendert im Methodenfeld weiter unten — er
   // wird verschoben, nicht gekuerzt.
   const kopf = (unterzeile) => '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px">'
     + '<div style="max-width:760px">'
-    + '<h2 style="font-size:20px; font-weight:600">' + esc(study.title) + '</h2>'
-    + '<div style="' + M + '; font-size:11.5px; color:rgba(var(--ink),.6); margin-top:8px; line-height:1.5">' + unterzeile + '</div></div>'
+    + '<h2 style="font-size:var(--t-head); font-weight:600">' + esc(study.title) + '</h2>'
+    + '<div style="' + M + '; font-size:var(--t-small); color:var(--ink-3); margin-top:8px; line-height:1.5">' + unterzeile + '</div></div>'
     + stempelBlock(study, payload) + '</div>';
 
   if (!payload) {
@@ -1153,8 +1146,8 @@ function renderCategoryEfficiency(T, payload, study) {
   if (!zeilen.length) {
     return '<div style="padding:22px 24px">' + kopf(esc(study.note))
       + '<div style="' + karte + '; padding:22px 24px; max-width:720px; margin-top:16px">'
-      + '<div style="font-size:16px; font-weight:600">No categories in the published file</div>'
-      + '<div style="font-size:13px; color:rgba(var(--ink),.55); margin-top:10px; line-height:1.6">'
+      + '<div style="font-size:var(--t-lead); font-weight:600">No categories in the published file</div>'
+      + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:10px; line-height:1.6">'
       + 'This page reads <span style="' + M + '">public/data/kategorie_karte.json</span>. The file is there but its '
       + '<span style="' + M + '">kategorien</span> list is empty, so nothing is drawn — and nothing is invented to fill the space.'
       + '</div></div></div>';
@@ -1186,10 +1179,10 @@ function renderCategoryEfficiency(T, payload, study) {
   const fallDec = b ? b.faller.z.entschiedenT7 : null;
   const befundHtml = b
     ? '<div style="' + karte + '; padding:18px 20px; margin-top:16px">'
-      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:var(--accent)">THE FINDING</div>'
-      + '<div style="font-size:17px; font-weight:600; margin-top:9px; line-height:1.35; max-width:900px">'
+      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--accent)">THE FINDING</div>'
+      + '<div style="font-size:var(--t-head); font-weight:600; margin-top:9px; line-height:1.35; max-width:900px">'
       + 'Most of the gap between categories is settled questions, not sharper pricing.</div>'
-      + '<div style="font-size:13px; color:rgba(var(--ink),.6); margin-top:9px; line-height:1.6; max-width:900px">'
+      + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:9px; line-height:1.6; max-width:900px">'
       + 'Scored on every price, ' + esc(b.bester.name) + ' (' + f3(horizontVon(b.bester, 7).brier) + ') '
       + (b.faktor ? 'looks ' + b.faktor.toFixed(1) + '× better than ' : 'leads ')
       + esc(b.schlechtester.name) + ' (' + f3(horizontVon(b.schlechtester, 7).brier) + '). '
@@ -1202,11 +1195,8 @@ function renderCategoryEfficiency(T, payload, study) {
     : '';
 
   // ---- Kennzahlen
-  const kpi = (label, wert, hinweis) =>
-    '<div style="' + karte + '; border-radius:6px; padding:14px 16px">'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(var(--ink),.6)">' + esc(label) + '</div>'
-    + '<div style="' + M + '; font-size:21px; margin-top:7px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(wert) + '</div>'
-    + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:4px">' + esc(hinweis) + '</div></div>';
+  const kachel = (label, wert, hinweis) =>
+    kpi({ label: esc(label), wert: esc(wert), sub: esc(hinweis), kuerzen: true });
 
   // Die mittlere Kachel traegt immer die Spanne des vergleichbaren Briers —
   // auf offenen Preisen, wo die Datei sie hergibt, sonst auf allen. Die
@@ -1218,17 +1208,17 @@ function renderCategoryEfficiency(T, payload, study) {
   const nT7Werte = rangfolge.map((z) => horizontVon(z, 7).n).filter((v) => v != null);
   const spanne = hatOffenT7 && offenWerte.length ? offenWerte : alleWerte;
   const kpis = [
-    kpi('MARKETS IN SAMPLE', gesamt ? num(gesamt) : '—',
+    kachel('MARKETS IN SAMPLE', gesamt ? num(gesamt) : '—',
       gesamt ? (nT7 ? num(nT7) + ' of them priced at T-7' : 'no T-7 count published') : 'no market counts in the file'),
     spanne.length
-      ? kpi(hatOffenT7 ? 'OPEN-PRICE BRIER AT T-7' : 'BRIER AT T-7',
+      ? kachel(hatOffenT7 ? 'OPEN-PRICE BRIER AT T-7' : 'BRIER AT T-7',
         f3(Math.min(...spanne)) + ' – ' + f3(Math.max(...spanne)),
         'the whole spread across ' + zeilen.length + ' categories')
-      : kpi('CATEGORIES', String(zeilen.length), 'no Brier at T-7 in the file'),
+      : kachel('CATEGORIES', String(zeilen.length), 'no Brier at T-7 in the file'),
     decWerte.length
-      ? kpi('ALREADY DECIDED AT T-7', Math.round(Math.min(...decWerte) * 100) + '% – ' + Math.round(Math.max(...decWerte) * 100) + '%',
+      ? kachel('ALREADY DECIDED AT T-7', Math.round(Math.min(...decWerte) * 100) + '% – ' + Math.round(Math.max(...decWerte) * 100) + '%',
         'share trading outside 5–95 cents')
-      : kpi('CATEGORIES', String(zeilen.length),
+      : kachel('CATEGORIES', String(zeilen.length),
         nT7Werte.length ? 'T-7 samples from ' + num(Math.min(...nT7Werte)) + ' to ' + num(Math.max(...nT7Werte)) : 'no decided share published')
   ].join('');
 
@@ -1258,40 +1248,40 @@ function renderCategoryEfficiency(T, payload, study) {
       titel: 'BRIER AT T-7 BY CATEGORY',
       einheit: '0 = perfect, 0.25 = always saying 50%',
       punkte: rangfolge.map((z) => ({ label: z.name + ' · n ' + (horizontVon(z, 7).n != null ? num(horizontVon(z, 7).n) : '—'), wert: horizontVon(z, 7).brier, art: 'summe' }))
-    }) || '<div style="' + karte + '; padding:16px 18px; ' + M + '; font-size:11.5px; color:rgba(var(--ink),.6)">'
+    }) || '<div style="' + karte + '; padding:16px 18px; ' + M + '; font-size:var(--t-small); color:var(--ink-3)">'
       + 'No Brier score at T-7 in the payload — no chart is drawn.</div>') + '</div>';
 
   // ---- Kompakte Tabelle, auf offenen Preisen sortiert. Alle Horizonte und
   // Trefferquoten stehen im Klappfeld darunter.
   const tabSpalten = '1fr 118px 108px 96px 92px 116px';
-  const tabKopf = '<div style="display:grid; grid-template-columns:' + tabSpalten + '; gap:12px; padding:9px 18px; border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.6)">'
+  const tabKopf = '<div style="display:grid; grid-template-columns:' + tabSpalten + '; gap:12px; padding:9px 18px; border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3)">'
     + '<div>CATEGORY</div>'
     + '<div style="text-align:right">' + (hatOffenT7 ? 'OPEN BRIER' : 'BRIER T-7') + '</div>'
     + '<div style="text-align:right">' + (hatOffenT7 ? 'ALL PRICES' : 'HIT RATE') + '</div>'
     + '<div style="text-align:right">DECIDED</div><div style="text-align:right">MARKETS</div>'
     + '<div style="text-align:right">MEDIAN VOLUME</div></div>';
-  const tabelle = '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; overflow:hidden">'
-    + '<div style="padding:11px 18px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); display:flex; align-items:baseline; justify-content:space-between; gap:16px">'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:var(--info)">'
+  const tabelle = '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:14px; overflow:hidden">'
+    + '<div style="padding:11px 18px; background:var(--panel); border-bottom:1px solid var(--line-2); display:flex; align-items:baseline; justify-content:space-between; gap:16px">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">'
     + (hatOffenT7 ? 'RANKED ON OPEN PRICES AT T-7' : 'RANKED ON BRIER AT T-7') + '</div>'
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6)">every horizon and hit rate → in the panel below</div></div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">every horizon and hit rate → in the panel below</div></div>'
     + tabKopf
     + rangfolge.map((z) => {
       const h = horizontVon(z, 7);
       const wert = hatOffenT7 ? h.brierOffen : h.brier;
       const duenn = h.nOffen != null && h.nOffen < OFFEN_DUENN;
       const balken = Math.round(Math.min(wert / 0.26, 1) * 92);
-      return '<div style="display:grid; grid-template-columns:' + tabSpalten + '; gap:12px; align-items:center; padding:9px 18px; border-bottom:1px solid rgba(var(--ink),.06)">'
+      return '<div style="display:grid; grid-template-columns:' + tabSpalten + '; gap:12px; align-items:center; padding:9px 18px; border-bottom:1px solid var(--line-3)">'
         + '<div style="display:flex; align-items:center; gap:10px; min-width:0">'
-        + '<div style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:' + (duenn ? 'rgba(var(--ink),.6)' : 'var(--text)') + '" title="' + esc(z.name) + '">' + esc(z.name) + '</div>'
-        + '<div style="height:6px; flex:none; width:' + balken + 'px; border-radius:4px; background:' + (duenn ? 'rgba(var(--ink),.25)' : (wert >= 0.2 ? 'var(--warn)' : 'var(--info)')) + '; opacity:.85"></div>'
-        + (duenn ? '<div style="' + M + '; font-size:10.5px; letter-spacing:.08em; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.16); border-radius:4px; padding:1px 5px; white-space:nowrap">THIN n ' + num(h.nOffen) + '</div>' : '')
+        + '<div style="font-size:var(--t-body); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:' + (duenn ? 'var(--ink-3)' : 'var(--text)') + '" title="' + esc(z.name) + '">' + esc(z.name) + '</div>'
+        + '<div style="height:6px; flex:none; width:' + balken + 'px; border-radius:var(--r-control); background:' + (duenn ? 'rgba(var(--ink),.25)' : (wert >= 0.2 ? 'var(--warn)' : 'var(--info)')) + '; opacity:.85"></div>'
+        + (duenn ? '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.08em; color:var(--ink-3); border:1px solid var(--line-1); border-radius:var(--r-control); padding:1px 5px; white-space:nowrap">THIN n ' + num(h.nOffen) + '</div>' : '')
         + '</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (duenn ? 'rgba(var(--ink),.6)' : 'rgba(var(--ink),.92)') + '">' + f3(wert) + '</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(var(--ink),.6)">' + (hatOffenT7 ? f3(h.brier) : (h.treffer != null ? Math.round(h.treffer * 100) + '%' : '—')) + '</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(var(--ink),.6)">' + (z.entschiedenT7 != null ? Math.round(z.entschiedenT7 * 100) + '%' : '—') + '</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(var(--ink),.6)">' + (z.maerkte != null ? num(z.maerkte) : '—') + '</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:12px; color:rgba(var(--ink),.6)">' + (z.medianVol != null ? '$' + num(Math.round(z.medianVol)) : '—') + '</div>'
+        + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:' + (duenn ? 'var(--ink-3)' : 'var(--ink-1)') + '">' + f3(wert) + '</div>'
+        + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-3)">' + (hatOffenT7 ? f3(h.brier) : (h.treffer != null ? Math.round(h.treffer * 100) + '%' : '—')) + '</div>'
+        + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-3)">' + (z.entschiedenT7 != null ? Math.round(z.entschiedenT7 * 100) + '%' : '—') + '</div>'
+        + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-3)">' + (z.maerkte != null ? num(z.maerkte) : '—') + '</div>'
+        + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-3)">' + (z.medianVol != null ? '$' + num(Math.round(z.medianVol)) : '—') + '</div>'
         + '</div>';
     }).join('')
     + '</div>';
@@ -1321,21 +1311,21 @@ function renderCategoryEfficiency(T, payload, study) {
   }).filter(Boolean);
 
   const vollSpalten = '1fr ' + alleTage.map(() => '118px').join(' ');
-  const vollKopf = '<div style="display:grid; grid-template-columns:' + vollSpalten + '; gap:12px; padding:9px 18px; border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.6)">'
+  const vollKopf = '<div style="display:grid; grid-template-columns:' + vollSpalten + '; gap:12px; padding:9px 18px; border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3)">'
     + '<div>CATEGORY</div>'
     + alleTage.map((t) => '<div style="text-align:right">T-' + t + ' BRIER ±95% · HIT · N</div>').join('') + '</div>';
   const zelle = (h) => {
-    if (!h || h.brier == null) return '<div style="text-align:right; ' + M + '; font-size:12px; color:rgba(var(--ink),.5)">—</div>';
+    if (!h || h.brier == null) return '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-4)">—</div>';
     return '<div style="text-align:right; ' + M + '">'
-      + '<div style="font-size:12.5px; color:rgba(var(--ink),.85)">' + f3(h.brier)
-      + (h.brierCi ? '<span style="font-size:10.5px; color:rgba(var(--ink),.5)"> ±' + ((h.brierCi[1] - h.brierCi[0]) / 2).toFixed(3) + '</span>' : '')
+      + '<div style="font-size:var(--t-small); color:var(--ink-1)">' + f3(h.brier)
+      + (h.brierCi ? '<span style="font-size:var(--t-micro); color:var(--ink-4)"> ±' + ((h.brierCi[1] - h.brierCi[0]) / 2).toFixed(3) + '</span>' : '')
       + '</div>'
-      + '<div style="font-size:11px; color:rgba(var(--ink),.6); margin-top:2px">' + (h.treffer != null ? Math.round(h.treffer * 100) + '%' : '—') + ' · n ' + (h.n != null ? num(h.n) : '—') + '</div></div>';
+      + '<div style="font-size:var(--t-micro); color:var(--ink-3); margin-top:2px">' + (h.treffer != null ? Math.round(h.treffer * 100) + '%' : '—') + ' · n ' + (h.n != null ? num(h.n) : '—') + '</div></div>';
   };
-  const vollTabelle = '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:12px; overflow:hidden">'
+  const vollTabelle = '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:12px; overflow:hidden">'
     + vollKopf
-    + zeilen.map((z) => '<div style="display:grid; grid-template-columns:' + vollSpalten + '; gap:12px; align-items:center; padding:9px 18px; border-bottom:1px solid rgba(var(--ink),.06)">'
-      + '<div style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(z.name) + '">' + esc(z.name) + '</div>'
+    + zeilen.map((z) => '<div style="display:grid; grid-template-columns:' + vollSpalten + '; gap:12px; align-items:center; padding:9px 18px; border-bottom:1px solid var(--line-3)">'
+      + '<div style="font-size:var(--t-body); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(z.name) + '">' + esc(z.name) + '</div>'
       + alleTage.map((t) => zelle(horizontVon(z, t))).join('')
       + '</div>').join('')
     + '</div>';
@@ -1346,7 +1336,7 @@ function renderCategoryEfficiency(T, payload, study) {
   const zellenMitBrier = zeilen.reduce((a, z) => a + z.horizonte.filter((h) => h && h.brier != null).length, 0);
   const hatBrierCi = zeilen.some((z) => z.horizonte.some((h) => h && h.brierCi));
   const vergleichHtml = zellenMitBrier > 1
-    ? '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:10px; line-height:1.6">'
+    ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:10px; line-height:1.6">'
       + zellenMitBrier + ' category-by-horizon cells are scored here. The best of ' + zellenMitBrier
       + ' cells is the smallest of ' + zellenMitBrier + ' draws, so a leading Brier is not by itself a difference'
       + (hatBrierCi ? ' — the ± figure is the 95% interval around each cell, and two cells whose intervals overlap are not separated by this sample.' : '.')
@@ -1356,24 +1346,24 @@ function renderCategoryEfficiency(T, payload, study) {
   // Der Titel verspricht nur, was drin ist: ohne Kalibrierungsbins heisst das
   // Feld nicht "& CALIBRATION".
   const horizontHtml = '<details style="margin-top:12px; ' + karte + '; padding:0 18px">'
-    + '<summary style="cursor:pointer; padding:12px 0; ' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.6); list-style:none">ALL HORIZONS &amp; HIT RATES'
+    + '<summary style="cursor:pointer; padding:12px 0; ' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3); list-style:none">ALL HORIZONS &amp; HIT RATES'
     + (kalib.length ? ', PLUS CALIBRATION' : '') + ' ▸</summary>'
     + '<div style="padding-bottom:14px">'
     + vollTabelle
     + vergleichHtml
     + (linienHtml ? '<div style="margin-top:12px">' + linienHtml + '</div>' : '')
     + (kalib.length
-      ? '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:var(--info); margin:16px 0 8px">CALIBRATION AT T-' + (zeilen.find((z) => z.bins.length) || {}).kalibrierungTage + ' · PREDICTED VS REALISED</div>'
-        + '<div style="font-size:12px; color:rgba(var(--ink),.6); margin-bottom:10px; line-height:1.5">A dot on the diagonal means the price was right on average in that bin; dot size follows n, the bar is the 95% interval of the realised share, amber when it misses the prediction.</div>'
+      ? '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info); margin:16px 0 8px">CALIBRATION AT T-' + (zeilen.find((z) => z.bins.length) || {}).kalibrierungTage + ' · PREDICTED VS REALISED</div>'
+        + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-bottom:10px; line-height:1.5">A dot on the diagonal means the price was right on average in that bin; dot size follows n, the bar is the 95% interval of the realised share, amber when it misses the prediction.</div>'
         + '<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px">' + kalib.join('') + '</div>'
-      : '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:12px">No calibration bins in this payload — kategorie_karte.json carries them under kategorien[].kalibrierung.</div>')
+      : '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:12px">No calibration bins in this payload — kategorie_karte.json carries them under kategorien[].kalibrierung.</div>')
     + '</div></details>';
 
   // ---- Klappfeld 2: Einpreisungs-Logik je Kategorie (unveraendert).
   const q = payload.quelle && typeof payload.quelle === 'object' ? payload.quelle : null;
   const absatz = (titel, text) => (text
-    ? '<div style="margin-top:10px"><div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(var(--ink),.55)">' + titel + '</div>'
-      + '<div style="font-size:12.5px; color:rgba(var(--ink),.7); margin-top:4px; line-height:1.6">' + esc(text) + '</div></div>'
+    ? '<div style="margin-top:10px"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-4)">' + titel + '</div>'
+      + '<div style="font-size:var(--t-small); color:var(--ink-2); margin-top:4px; line-height:1.6">' + esc(text) + '</div></div>'
     : '');
   const messlogik = q && q.messlogik && typeof q.messlogik === 'object' ? q.messlogik : null;
   let messlogikHtml = '';
@@ -1386,9 +1376,9 @@ function renderCategoryEfficiency(T, payload, study) {
       const typZeile = zeile && zeile.typen.length
         ? zeile.typen.map((t) => t.typ + ' n ' + (t.n != null ? num(t.n) : '—') + (t.brierT1 != null ? ' (Brier T-1 ' + t.brierT1.toFixed(3) + ')' : '')).join(' · ')
         : '';
-      return '<div style="margin-top:14px; padding-top:12px; border-top:1px solid rgba(var(--ink),.07)">'
-        + '<div style="font-size:13px; font-weight:600">' + esc(name) + '</div>'
-        + (typZeile ? '<div style="' + M + '; font-size:11px; color:var(--info); margin-top:4px">' + esc(typZeile) + '</div>' : '')
+      return '<div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--line-3)">'
+        + '<div style="font-size:var(--t-body); font-weight:600">' + esc(name) + '</div>'
+        + (typZeile ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--info); margin-top:4px">' + esc(typZeile) + '</div>' : '')
         + absatz('ANCHOR OF THE HORIZONS', m.anker)
         + absatz('WHAT REPRICES IT', m.einpreisung)
         + absatz('NOT MEASURED HERE', m.nicht_gemessen)
@@ -1396,9 +1386,9 @@ function renderCategoryEfficiency(T, payload, study) {
         + '</div>';
     };
     messlogikHtml = '<details style="margin-top:10px; ' + karte + '; padding:0 18px">'
-      + '<summary style="cursor:pointer; padding:12px 0; ' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.6); list-style:none">PRICING-IN LOGIC BY CATEGORY ▸</summary>'
+      + '<summary style="cursor:pointer; padding:12px 0; ' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3); list-style:none">PRICING-IN LOGIC BY CATEGORY ▸</summary>'
       + '<div style="padding-bottom:14px">'
-      + '<div style="font-size:12px; color:rgba(var(--ink),.6); line-height:1.5">These horizons measure forecast quality, never pricing-in speed: in-play moves and news reactions happen between T-1 and the decision and are invisible above. Per category: what the horizons anchor to, which real-world events reprice it, what stays unmeasured, and where an event-anchored latency study would take its t0 from. The blue line is the sample&#39;s pricing-mechanism mix.</div>'
+      + '<div style="font-size:var(--t-small); color:var(--ink-3); line-height:1.5">These horizons measure forecast quality, never pricing-in speed: in-play moves and news reactions happen between T-1 and the decision and are invisible above. Per category: what the horizons anchor to, which real-world events reprice it, what stays unmeasured, and where an event-anchored latency study would take its t0 from. The blue line is the sample&#39;s pricing-mechanism mix.</div>'
       + namen.map(block).join('')
       + '</div></details>';
   }
@@ -1409,22 +1399,22 @@ function renderCategoryEfficiency(T, payload, study) {
   const langerHinweis = payload.hinweis ? String(payload.hinweis) : '';
   const methodeHtml = q || snap || langerHinweis
     ? '<details style="margin-top:10px; ' + karte + '; padding:0 18px">'
-      + '<summary style="cursor:pointer; padding:12px 0; ' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.6); list-style:none">METHOD, SAMPLE &amp; WHAT IT CANNOT SHOW ▸</summary>'
+      + '<summary style="cursor:pointer; padding:12px 0; ' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3); list-style:none">METHOD, SAMPLE &amp; WHAT IT CANNOT SHOW ▸</summary>'
       + '<div style="padding-bottom:14px">'
-      + (langerHinweis ? '<div style="font-size:12.5px; color:rgba(var(--ink),.7); line-height:1.65; max-width:900px">' + esc(langerHinweis) + '</div>' : '')
+      + (langerHinweis ? '<div style="font-size:var(--t-small); color:var(--ink-2); line-height:1.65; max-width:900px">' + esc(langerHinweis) + '</div>' : '')
       + (q ? absatz('WHAT WAS MEASURED', q.methode) + absatz('HOW MARKETS WERE CATEGORISED', q.kategorisierung) : '')
       + (q && q.datenfenster ? absatz('DATA WINDOW', 'events with an end date from ' + String(q.datenfenster.end_date_min || '').slice(0, 10) + ', fetched ' + String(q.datenfenster.abgerufen_utc || '').slice(0, 16).replace('T', ' ') + ' UTC · ' + num(q.datenfenster.events_gesichtet || 0) + ' events scanned · ' + q.datenfenster.reihenfolge) : '')
       + (q && q.auswahl ? absatz('SAMPLE SELECTION', 'at most ' + q.auswahl.max_per_event + ' markets per event, ' + q.auswahl.max_per_category_long_lived + ' long-lived and ' + q.auswahl.max_per_category_short_lived + ' short-lived markets per category, minimum volume $' + num(q.auswahl.min_volume_usd) + ', categories under ' + q.auswahl.min_markets_per_category + ' markets fold into Other') : '')
       + (q && q.preise ? absatz('PRICE SERIES', 'hourly: ' + q.preise.hourly + ' · daily: ' + q.preise.daily) : '')
       + (q && Array.isArray(q.einschraenkungen) && q.einschraenkungen.length
-        ? '<div style="margin-top:10px"><div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(var(--ink),.55)">WHAT IT CANNOT SHOW</div>'
-          + '<ul style="margin:4px 0 0 18px; padding:0; font-size:12.5px; color:rgba(var(--ink),.7); line-height:1.6">'
+        ? '<div style="margin-top:10px"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-4)">WHAT IT CANNOT SHOW</div>'
+          + '<ul style="margin:4px 0 0 18px; padding:0; font-size:var(--t-small); color:var(--ink-2); line-height:1.6">'
           + q.einschraenkungen.map((e) => '<li>' + esc(e) + '</li>').join('') + '</ul></div>'
         : '')
       + (snap
-        ? '<div style="margin-top:12px"><div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(var(--ink),.55)">THESIS FIGURES THIS TABLE REPLACES' + (snap.stand_utc ? ' · ' + esc(String(snap.stand_utc).slice(0, 10)) : '') + '</div>'
-          + (snap.hinweis ? '<div style="font-size:12px; color:rgba(var(--ink),.6); margin-top:4px; line-height:1.5">' + esc(snap.hinweis) + '</div>' : '')
-          + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:6px; line-height:1.7">'
+        ? '<div style="margin-top:12px"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-4)">THESIS FIGURES THIS TABLE REPLACES' + (snap.stand_utc ? ' · ' + esc(String(snap.stand_utc).slice(0, 10)) : '') + '</div>'
+          + (snap.hinweis ? '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:4px; line-height:1.5">' + esc(snap.hinweis) + '</div>' : '')
+          + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:6px; line-height:1.7">'
           + snap.kategorien.map((k) => esc(String(k.kategorie)) + ': Brier T-7 ' + (k.brier_t7 != null ? (+k.brier_t7).toFixed(3) : '—') + ' (n ' + (k.n_t7 != null ? k.n_t7 : '—') + ') · T-1 ' + (k.brier_t1 != null ? (+k.brier_t1).toFixed(3) : '—') + ' · ' + (k.n_maerkte != null ? k.n_maerkte : '—') + ' markets').join('<br>')
           + '</div></div>'
         : '')
@@ -1759,43 +1749,43 @@ function renderLiveRuns(T, payload) {
       // Der Erklaertext steht im zugeklappten WHAT THIS TABLE IS des
       // Tabellenabschnitts — hier nur noch im Rueckfall ohne Ledger.
       + (!ledger
-        ? '<div style="font-size:12.5px; color:rgba(var(--ink),.5); line-height:1.5; max-width:820px; margin-bottom:14px">Race chips compare each fill against the public taker tape of that market: how many other trades hit between the drop and our fill, and how long until the next trader after us. The anchor is the bot\'s logged fill time — chain timestamps can differ by a few seconds.</div>'
+        ? '<div style="font-size:var(--t-small); color:var(--ink-4); line-height:1.5; max-width:820px; margin-bottom:14px">Race chips compare each fill against the public taker tape of that market: how many other trades hit between the drop and our fill, and how long until the next trader after us. The anchor is the bot\'s logged fill time — chain timestamps can differ by a few seconds.</div>'
         : '')
       + (alleKarten.length ? '' : leerZeile(laufSatz))
       + (!ledger && cards.length
-        ? '<div style="' + M + '; font-size:11px; letter-spacing:.12em; color:rgba(var(--ink),.5); margin-bottom:10px">RUNS WITH FILLS · ' + cards.length
-          + ' <span style="color:rgba(var(--ink),.55); letter-spacing:0">· newest first</span></div>'
+        ? '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-4); margin-bottom:10px">RUNS WITH FILLS · ' + cards.length
+          + ' <span style="color:var(--ink-4); letter-spacing:0">· newest first</span></div>'
           + '<div style="display:flex; flex-direction:column; gap:12px">'
           + cards.map((r) => {
-            const statusStyle = M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; ' + (r.status === 'RESOLVED' ? 'color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.18)' : r.status === 'OPEN' ? 'color:var(--warn); border:1px solid rgba(var(--warn-rgb),.4)' : 'color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.12)');
-            return '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:16px 18px">'
+            const statusStyle = M + '; font-size:var(--t-micro); letter-spacing:.1em; border-radius:var(--r-control); padding:3px 8px; ' + (r.status === 'RESOLVED' ? 'color:var(--ink-3); border:1px solid var(--line-1)' : r.status === 'OPEN' ? 'color:var(--warn); border:1px solid rgba(var(--warn-rgb),.4)' : 'color:var(--ink-3); border:1px solid var(--line-2)');
+            return '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:16px 18px">'
               + '<div style="display:flex; gap:7px; flex-wrap:wrap">'
-              + '<div style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; color:var(--info); border:1px solid rgba(var(--info-rgb),.4)">' + esc(r.profile) + '</div>'
-              + '<div style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; color:var(--info); border:1px solid rgba(var(--info-rgb),.4)">' + esc(r.mode) + '</div>'
+              + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; border-radius:var(--r-control); padding:3px 8px; color:var(--info); border:1px solid rgba(var(--info-rgb),.4)">' + esc(r.profile) + '</div>'
+              + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; border-radius:var(--r-control); padding:3px 8px; color:var(--info); border:1px solid rgba(var(--info-rgb),.4)">' + esc(r.mode) + '</div>'
               + '<div style="' + statusStyle + '">' + esc(r.status) + '</div></div>'
-              + '<h3 style="font-size:15px; font-weight:600; margin-top:11px">' + esc(r.title)
-              + (r.url ? ' <a href="' + esc(r.url) + '" target="_blank" rel="noopener" style="' + M + '; font-size:11px; color:var(--info); text-decoration:none">event ↗</a>' : '')
+              + '<h3 style="font-size:var(--t-lead); font-weight:600; margin-top:11px">' + esc(r.title)
+              + (r.url ? ' <a href="' + esc(r.url) + '" target="_blank" rel="noopener" style="' + M + '; font-size:var(--t-micro); color:var(--info); text-decoration:none">event ↗</a>' : '')
               + '</h3>'
               + '<div style="display:flex; gap:7px; flex-wrap:wrap; margin-top:10px">'
-              + r.chips.map((c) => '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.65); background:var(--panel-hover); border:1px solid rgba(var(--ink),.09); border-radius:4px; padding:4px 9px">' + esc(c) + '</div>').join('')
+              + r.chips.map((c) => '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); background:var(--panel-hover); border:1px solid var(--line-2); border-radius:var(--r-control); padding:4px 9px">' + esc(c) + '</div>').join('')
               + '</div>'
-              + '<div style="margin-top:12px; border-top:1px solid rgba(var(--ink),.07)">' + laufWettenHtml(r) + '</div>'
-              + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:10px">' + esc(r.footer) + '</div>'
-              + (r.missed ? '<div style="' + M + '; font-size:11px; color:var(--warn); margin-top:7px">' + esc(r.missed) + '</div>' : '')
+              + '<div style="margin-top:12px; border-top:1px solid var(--line-3)">' + laufWettenHtml(r) + '</div>'
+              + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:10px">' + esc(r.footer) + '</div>'
+              + (r.missed ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--warn); margin-top:7px">' + esc(r.missed) + '</div>' : '')
               + '</div>';
           }).join('')
           + '</div>'
         : '')
       + (ohneFills.length && !ledger
-        ? '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; overflow:hidden">'
-          + '<div style="padding:10px 16px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:11px; letter-spacing:.12em; color:rgba(var(--ink),.5)">RUNS WITHOUT A FILL · ' + ohneFills.length
-          + ' <span style="color:rgba(var(--ink),.55); letter-spacing:0">· the decision layer ran and placed nothing — one line per run, newest first</span></div>'
+        ? '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:14px; overflow:hidden">'
+          + '<div style="padding:10px 16px; background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-4)">RUNS WITHOUT A FILL · ' + ohneFills.length
+          + ' <span style="color:var(--ink-4); letter-spacing:0">· the decision layer ran and placed nothing — one line per run, newest first</span></div>'
           + ohneFills.map((r) =>
-            '<div style="display:flex; align-items:center; gap:10px; padding:9px 16px; border-bottom:1px solid rgba(var(--ink),.05)">'
-            + '<div style="' + M + '; font-size:10.5px; letter-spacing:.08em; color:var(--info); border:1px solid rgba(var(--info-rgb),.35); border-radius:4px; padding:2px 7px; white-space:nowrap">' + esc(r.profile) + '</div>'
-            + '<div style="font-size:12.5px; color:rgba(var(--ink),.75); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1" title="' + esc(r.title) + '">' + esc(r.title) + '</div>'
-            + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); white-space:nowrap">' + esc(r.chips.filter((c) => /decisions|priced/.test(c)).join(' · ') || '—') + '</div>'
-            + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.55); white-space:nowrap">' + esc(r.mode.toLowerCase()) + ' · no fills</div>'
+            '<div style="display:flex; align-items:center; gap:10px; padding:9px 16px; border-bottom:1px solid var(--line-3)">'
+            + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.08em; color:var(--info); border:1px solid rgba(var(--info-rgb),.35); border-radius:var(--r-control); padding:2px 7px; white-space:nowrap">' + esc(r.profile) + '</div>'
+            + '<div style="font-size:var(--t-small); color:var(--ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1" title="' + esc(r.title) + '">' + esc(r.title) + '</div>'
+            + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); white-space:nowrap">' + esc(r.chips.filter((c) => /decisions|priced/.test(c)).join(' · ') || '—') + '</div>'
+            + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); white-space:nowrap">' + esc(r.mode.toLowerCase()) + ' · no fills</div>'
             + '</div>').join('')
           + '</div>'
         : '')
@@ -1809,9 +1799,9 @@ function renderLiveRuns(T, payload) {
     const decayHtml = timingDecayLinienHtml(payload);
     const repSpalten = '80px 1fr 90px 90px 100px 118px 106px 96px 96px';
     body = repricingHtml + decayHtml
-      + '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; overflow:hidden">'
-      + '<div style="padding:11px 16px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:var(--info)">TIMING AND REPRICING PER FILL · ' + timingRows.length + ' FILLS</div>'
-      + '<div style="display:grid; grid-template-columns:' + repSpalten + '; gap:10px; padding:9px 16px; border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6)">'
+      + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:14px; overflow:hidden">'
+      + '<div style="padding:11px 16px; background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">TIMING AND REPRICING PER FILL · ' + timingRows.length + ' FILLS</div>'
+      + '<div style="display:grid; grid-template-columns:' + repSpalten + '; gap:10px; padding:9px 16px; border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">'
       + '<div>RUN</div><div>MARKET</div><div style="text-align:right">DROP</div><div style="text-align:right">FILL</div><div style="text-align:right">LATENCY</div><div style="text-align:right">TRADES BEFORE US</div><div style="text-align:right">NEXT TRADER</div><div style="text-align:right">REPRICE 30 S</div><div style="text-align:right">REPRICE 900 S</div></div>'
       + (timingRows.length ? '' : leerZeile(laufSatz))
       + timingRows.map((t) => {
@@ -1821,17 +1811,17 @@ function renderLiveRuns(T, payload) {
         const latLabel = t.lat == null ? '—'
           : t.lat >= 120000 ? sekundenText(t.lat / 1000)
             : t.lat >= 1000 ? (t.lat / 1000).toFixed(1) + ' s' : t.lat + ' ms';
-        const latStyle = 'text-align:right; ' + M + '; font-size:12px; color:' + (t.lat == null ? 'rgba(var(--ink),.5)' : t.lat <= 800 ? 'var(--pos)' : t.lat <= 1500 ? 'var(--warn)' : 'var(--neg)');
+        const latStyle = 'text-align:right; ' + M + '; font-size:var(--t-small); color:' + (t.lat == null ? 'var(--ink-4)' : t.lat <= 800 ? 'var(--pos)' : t.lat <= 1500 ? 'var(--warn)' : 'var(--neg)');
         const repLabel = (v) => (v == null ? '—' : (v >= 0 ? '+' : '') + v + '¢');
-        const repStyle = (v) => 'text-align:right; ' + M + '; font-size:12px; color:' + (v != null && v >= 5 ? 'var(--pos)' : v != null && v <= -5 ? 'var(--neg)' : 'rgba(var(--ink),.6)');
-        return '<div style="display:grid; grid-template-columns:' + repSpalten + '; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(var(--ink),.06); ' + M + '; font-size:12px">'
-          + '<div style="color:rgba(var(--ink),.55)">' + esc(t.run) + '</div>'
-          + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(t.market) + '">' + esc(t.market) + '</div>'
-          + '<div style="text-align:right; color:rgba(var(--ink),.55)">' + esc(t.drop) + '</div>'
-          + '<div style="text-align:right; color:rgba(var(--ink),.55)">' + esc(t.fill) + '</div>'
+        const repStyle = (v) => 'text-align:right; ' + M + '; font-size:var(--t-small); color:' + (v != null && v >= 5 ? 'var(--pos)' : v != null && v <= -5 ? 'var(--neg)' : 'var(--ink-3)');
+        return '<div style="display:grid; grid-template-columns:' + repSpalten + '; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small)">'
+          + '<div style="color:var(--ink-4)">' + esc(t.run) + '</div>'
+          + '<div style="font-family:var(--font-ui); font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(t.market) + '">' + esc(t.market) + '</div>'
+          + '<div style="text-align:right; color:var(--ink-4)">' + esc(t.drop) + '</div>'
+          + '<div style="text-align:right; color:var(--ink-4)">' + esc(t.fill) + '</div>'
           + '<div style="' + latStyle + '">' + latLabel + '</div>'
-          + '<div style="text-align:right; color:rgba(var(--ink),.7)">' + esc(String(t.before)) + '</div>'
-          + '<div style="text-align:right; color:rgba(var(--ink),.7)">' + esc(t.next) + '</div>'
+          + '<div style="text-align:right; color:var(--ink-2)">' + esc(String(t.before)) + '</div>'
+          + '<div style="text-align:right; color:var(--ink-2)">' + esc(t.next) + '</div>'
           + '<div style="' + repStyle(t.rep) + '">' + repLabel(t.rep) + '</div>'
           + '<div style="' + repStyle(t.rep900) + '">' + repLabel(t.rep900) + '</div></div>';
       }).join('')
@@ -1849,43 +1839,43 @@ function renderLiveRuns(T, payload) {
       : null;
     const simRows = liveSims || [];
     body = '<div style="margin-top:14px">'
-      + '<div style="font-size:12.5px; color:rgba(var(--ink),.55); line-height:1.5; max-width:820px">Replays the same runs with a different stake rule each time — same entries, same fills, only the size changes. Caps and the per-run budget stay as they were on the day.' + (liveSims ? ' Only resolved bets with a valid fill price count; bankroll $100, no compounding.' : '') + ' Every figure in this tab is a simulation on log-estimated fills — not cash; the cash figure is the wallet-reconciled net in the tiles above.</div>'
-      + '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:1fr 110px 96px 96px 96px 104px; gap:10px; padding:9px 16px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6)">'
+      + '<div style="font-size:var(--t-small); color:var(--ink-4); line-height:1.5; max-width:820px">Replays the same runs with a different stake rule each time — same entries, same fills, only the size changes. Caps and the per-run budget stay as they were on the day.' + (liveSims ? ' Only resolved bets with a valid fill price count; bankroll $100, no compounding.' : '') + ' Every figure in this tab is a simulation on log-estimated fills — not cash; the cash figure is the wallet-reconciled net in the tiles above.</div>'
+      + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:14px; overflow:hidden">'
+      + '<div style="display:grid; grid-template-columns:1fr 110px 96px 96px 96px 104px; gap:10px; padding:9px 16px; background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">'
       + '<div>STAKE RULE</div><div style="text-align:right">NET</div><div style="text-align:right">ROI</div><div style="text-align:right">MAX DD</div><div style="text-align:right">HIT RATE</div><div style="text-align:right">BETS PLACED</div></div>'
       + (simRows.length ? '' : leerZeile(laufSatz))
       + simRows.slice().sort((a, b) => b.roi - a.roi).map((r, i) =>
-        '<div style="display:grid; grid-template-columns:1fr 110px 96px 96px 96px 104px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(var(--ink),.06); background:' + (i === 0 ? 'rgba(var(--accent-rgb),.06)' : 'transparent') + '">'
-        + '<div style="font-size:12.5px; color:' + (i === 0 ? 'var(--accent)' : 'var(--text)') + '">' + esc(r.name) + '</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (r.net >= 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (r.net >= 0 ? '+$' : '-$') + num(Math.abs(r.net).toFixed(0)) + '</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (r.roi >= 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (r.roi >= 0 ? '+' : '') + r.roi.toFixed(1) + '%</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(var(--ink),.6)">' + (r.dd != null ? r.dd.toFixed(1) + '%' : '—') + '</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(var(--ink),.6)">' + (r.hit != null ? r.hit + '%' : '—') + '</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(var(--ink),.6)">' + num(r.bets) + '</div></div>'
+        '<div style="display:grid; grid-template-columns:1fr 110px 96px 96px 96px 104px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid var(--line-3); background:' + (i === 0 ? 'rgba(var(--accent-rgb),.06)' : 'transparent') + '">'
+        + '<div style="font-size:var(--t-small); color:' + (i === 0 ? 'var(--accent)' : 'var(--text)') + '">' + esc(r.name) + '</div>'
+        + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:' + (r.net >= 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (r.net >= 0 ? '+$' : '-$') + num(Math.abs(r.net).toFixed(0)) + '</div>'
+        + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:' + (r.roi >= 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (r.roi >= 0 ? '+' : '') + r.roi.toFixed(1) + '%</div>'
+        + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-3)">' + (r.dd != null ? r.dd.toFixed(1) + '%' : '—') + '</div>'
+        + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-3)">' + (r.hit != null ? r.hit + '%' : '—') + '</div>'
+        + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-3)">' + num(r.bets) + '</div></div>'
       ).join('')
       + '</div>'
       + (liveSims && extras.timing_decay && extras.timing_decay.length
-        ? '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; overflow:hidden">'
-          + '<div style="padding:11px 16px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:var(--info)">SAME MODEL, DELAYED ENTRY — PNL DECAY BY DELAY</div>'
-          + '<div style="display:grid; grid-template-columns:1fr 110px 130px 120px 130px 130px; gap:10px; padding:9px 16px; border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6)">'
+        ? '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:14px; overflow:hidden">'
+          + '<div style="padding:11px 16px; background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">SAME MODEL, DELAYED ENTRY — PNL DECAY BY DELAY</div>'
+          + '<div style="display:grid; grid-template-columns:1fr 110px 130px 120px 130px 130px; gap:10px; padding:9px 16px; border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">'
           + '<div>DELAY</div><div style="text-align:right">BETS</div><div style="text-align:right">FOREIGN REF</div><div style="text-align:right">PRICED OUT</div><div style="text-align:right">SIM PNL</div><div style="text-align:right">VS INSTANT</div></div>'
           + extras.timing_decay.map((t) =>
-            '<div style="display:grid; grid-template-columns:1fr 110px 130px 120px 130px 130px; gap:10px; align-items:center; padding:10px 16px; border-bottom:1px solid rgba(var(--ink),.06); ' + M + '; font-size:12px">'
-            + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:12.5px">+' + t.delay_s + ' s</div>'
-            + '<div style="text-align:right; color:rgba(var(--ink),.6)">' + t.n_bets + '</div>'
-            + '<div style="text-align:right; color:rgba(var(--ink),.6)">' + t.n_foreign_ref + '</div>'
-            + '<div style="text-align:right; color:rgba(var(--ink),.6)">' + t.n_priced_out + '</div>'
+            '<div style="display:grid; grid-template-columns:1fr 110px 130px 120px 130px 130px; gap:10px; align-items:center; padding:10px 16px; border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small)">'
+            + '<div style="font-family:var(--font-ui); font-size:var(--t-small)">+' + t.delay_s + ' s</div>'
+            + '<div style="text-align:right; color:var(--ink-3)">' + t.n_bets + '</div>'
+            + '<div style="text-align:right; color:var(--ink-3)">' + t.n_foreign_ref + '</div>'
+            + '<div style="text-align:right; color:var(--ink-3)">' + t.n_priced_out + '</div>'
             + '<div style="text-align:right; color:' + (t.sim_pnl_usd >= 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (t.sim_pnl_usd >= 0 ? '+$' : '-$') + Math.abs(t.sim_pnl_usd).toFixed(2) + '</div>'
-            + '<div style="text-align:right; color:' + (t.pnl_delta_usd >= 0 ? 'rgba(var(--ink),.6)' : 'var(--neg)') + '">' + (t.pnl_delta_usd >= 0 ? '+$' : '-$') + Math.abs(t.pnl_delta_usd).toFixed(2) + '</div></div>'
+            + '<div style="text-align:right; color:' + (t.pnl_delta_usd >= 0 ? 'var(--ink-3)' : 'var(--neg)') + '">' + (t.pnl_delta_usd >= 0 ? '+$' : '-$') + Math.abs(t.pnl_delta_usd).toFixed(2) + '</div></div>'
           ).join('')
           + '</div>'
         // Hier liefen zwei Zufallskurven mit eingebautem Aufwaertsdrift unter
         // der Ueberschrift FLAT $25 VERSUS THE BEST RULE. Eine gemalte Kurve
         // ist eine Behauptung; ohne timing_decay in der Nutzlast gibt es
         // keine.
-        : '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; padding:16px 18px">'
-          + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.55); margin-bottom:10px">DELAYED ENTRY</div>'
-          + '<div style="font-size:12.5px; color:rgba(var(--ink),.5); line-height:1.5">'
+        : '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:14px; padding:16px 18px">'
+          + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-4); margin-bottom:10px">DELAYED ENTRY</div>'
+          + '<div style="font-size:var(--t-small); color:var(--ink-4); line-height:1.5">'
           + 'No delay series in this payload — runs.json carries it under extras.timing_decay.</div></div>')
       + '</div>';
   } else if (s.liveTab === 'calib') {
@@ -1905,28 +1895,28 @@ function renderLiveRuns(T, payload) {
       punkte: calibRows.map((c) => ({ vorhergesagt: (+c.paid) / 100, realisiert: (+c.settled) / 100, n: +c.n || 0 }))
     });
     body = '<div style="margin-top:14px">'
-      + '<div style="font-size:12.5px; color:rgba(var(--ink),.55); line-height:1.5; max-width:820px">Entry price against what actually happened. A perfectly calibrated entry sits on the diagonal — above it means we paid too much.' + esc(calibNote) + '</div>'
+      + '<div style="font-size:var(--t-small); color:var(--ink-4); line-height:1.5; max-width:820px">Entry price against what actually happened. A perfectly calibrated entry sits on the diagonal — above it means we paid too much.' + esc(calibNote) + '</div>'
       + (calibChart ? '<div style="margin-top:14px; max-width:420px">' + calibChart + '</div>' : '')
-      + '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px; gap:10px; padding:9px 16px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6)">'
+      + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:14px; overflow:hidden">'
+      + '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px; gap:10px; padding:9px 16px; background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">'
       + '<div>ENTRY PRICE BAND</div><div style="text-align:right">BETS</div><div style="text-align:right">PAID</div><div style="text-align:right">SETTLED</div><div style="text-align:right">GAP</div></div>'
       + (calibRows.length ? '' : leerZeile(laufSatz))
       + calibRows.map((c) => {
         const gap = c.settled - c.paid;
-        return '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(var(--ink),.06); ' + M + '; font-size:12.5px">'
-          + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:13px">' + c.band + '</div>'
-          + '<div style="text-align:right; color:rgba(var(--ink),.6)">' + num(c.n) + '</div>'
+        return '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small)">'
+          + '<div style="font-family:var(--font-ui); font-size:var(--t-body)">' + c.band + '</div>'
+          + '<div style="text-align:right; color:var(--ink-3)">' + num(c.n) + '</div>'
           + '<div style="text-align:right">' + c.paid + '¢</div>'
           + '<div style="text-align:right">' + c.settled + '¢</div>'
-          + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (gap >= 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (gap >= 0 ? '+' : '') + gap + '¢</div></div>';
+          + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:' + (gap >= 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (gap >= 0 ? '+' : '') + gap + '¢</div></div>';
       }).join('')
       + '</div></div>';
   } else {
     const extras = payload && payload.extras;
     const monthRows = extras && extras.monthly ? extras.monthly : [];
-    body = '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; overflow:hidden">'
-      + '<div style="padding:11px 16px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.14em; color:var(--info)">MONTH BY MONTH</div>'
-      + '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px 100px; gap:10px; padding:9px 16px; border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6)">'
+    body = '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:14px; overflow:hidden">'
+      + '<div style="padding:11px 16px; background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">MONTH BY MONTH</div>'
+      + '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px 100px; gap:10px; padding:9px 16px; border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">'
       + '<div>MONTH</div><div style="text-align:right">RUNS</div><div style="text-align:right">BETS</div><div style="text-align:right">STAKE</div><div style="text-align:right">NET</div><div style="text-align:right">NET / SETTLED STAKE</div></div>'
       + (monthRows.length ? '' : leerZeile(laufSatz))
       + monthRows.map((t) => {
@@ -1939,16 +1929,16 @@ function renderLiveRuns(T, payload) {
         const basis = +t.settled_stake || 0;
         const quote = basis > 0 ? (t.net / basis) * 100 : null;
         const offen = Math.max(0, (+t.bets || 0) - (+t.settled_bets || 0));
-        return '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px 100px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid rgba(var(--ink),.06); ' + M + '; font-size:12.5px">'
-          + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:13px">' + t.month + '</div>'
-          + '<div style="text-align:right; color:rgba(var(--ink),.6)">' + t.runs + '</div>'
-          + '<div style="text-align:right; color:rgba(var(--ink),.6)">' + num(t.bets) + '</div>'
-          + '<div style="text-align:right; color:rgba(var(--ink),.6)">$' + num(t.stake) + '</div>'
-          + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (t.net >= 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (t.net >= 0 ? '+$' : '-$') + num(Math.abs(t.net)) + '</div>'
-          + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (quote == null ? 'rgba(var(--ink),.5)' : quote >= 0 ? 'var(--pos)' : 'var(--neg)') + '">'
-          + (quote == null ? 'no bet settled' : (quote >= 0 ? '+' : '') + quote.toFixed(1) + '% <span style="font-size:10.5px; color:rgba(var(--ink),.45)">of $' + num(Math.round(basis)) + (offen ? ' · ' + offen + ' open' : '') + '</span>') + '</div></div>';
+        return '<div style="display:grid; grid-template-columns:1fr 90px 110px 110px 110px 100px; gap:10px; align-items:center; padding:11px 16px; border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small)">'
+          + '<div style="font-family:var(--font-ui); font-size:var(--t-body)">' + t.month + '</div>'
+          + '<div style="text-align:right; color:var(--ink-3)">' + t.runs + '</div>'
+          + '<div style="text-align:right; color:var(--ink-3)">' + num(t.bets) + '</div>'
+          + '<div style="text-align:right; color:var(--ink-3)">$' + num(t.stake) + '</div>'
+          + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:' + (t.net >= 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (t.net >= 0 ? '+$' : '-$') + num(Math.abs(t.net)) + '</div>'
+          + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:' + (quote == null ? 'var(--ink-4)' : quote >= 0 ? 'var(--pos)' : 'var(--neg)') + '">'
+          + (quote == null ? 'no bet settled' : (quote >= 0 ? '+' : '') + quote.toFixed(1) + '% <span style="font-size:var(--t-micro); color:var(--ink-4)">of $' + num(Math.round(basis)) + (offen ? ' · ' + offen + ' open' : '') + '</span>') + '</div></div>';
       }).join('')
-      + '<div style="padding:9px 16px; ' + M + '; font-size:10.5px; color:rgba(var(--ink),.5); line-height:1.6">'
+      + '<div style="padding:9px 16px; ' + M + '; font-size:var(--t-micro); color:var(--ink-4); line-height:1.6">'
       + 'NET is the settled result of the bets placed that month; the last column divides it by the stake of the settled bets only, so open stake does not dilute it. '
       + 'This is a return on stake, not the wallet return — the wallet return is measured against the one-time deposit and is shown as ROI · WALLET above.</div>'
       + '</div>';
@@ -1957,28 +1947,24 @@ function renderLiveRuns(T, payload) {
   return '<div style="padding:20px 24px 26px">'
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px">'
     + '<div style="max-width:660px">'
-    + '<h2 style="font-size:20px; font-weight:600">Our own bot runs</h2>'
-    + '<div style="font-size:13.5px; color:rgba(var(--ink),.6); margin-top:8px; line-height:1.5">' + esc(payload && payload.hinweis ? payload.hinweis : 'Bets, reaction times and realized results of the research bot on mentions markets. One run is one episode or event.') + '</div></div>'
+    + '<h2 style="font-size:var(--t-head); font-weight:600">Our own bot runs</h2>'
+    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:8px; line-height:1.5">' + esc(payload && payload.hinweis ? payload.hinweis : 'Bets, reaction times and realized results of the research bot on mentions markets. One run is one episode or event.') + '</div></div>'
     + '<div style="display:flex; gap:8px">'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; color:var(--on-accent); background:var(--accent)">' + esc(payload && payload.kennzeichnung ? String(payload.kennzeichnung).toUpperCase() : 'LIVE / DESCRIPTIVE') + '</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; border-radius:var(--r-control); padding:3px 8px; color:var(--on-accent); background:var(--accent)">' + esc(payload && payload.kennzeichnung ? String(payload.kennzeichnung).toUpperCase() : 'LIVE / DESCRIPTIVE') + '</div>'
     + stempelBlock(T.studies[3], payload, '5px 10px')
     + '</div></div>'
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; margin-top:18px">'
-    + kpis.map((k) =>
-      '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:14px 16px">'
-      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(var(--ink),.6)">' + esc(k.label) + '</div>'
-      + '<div style="' + M + '; font-size:21px; margin-top:7px; color:' + k.color + '; white-space:nowrap">' + esc(k.value) + '</div>'
-      + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); margin-top:4px">' + esc(k.sub) + '</div>'
+    + kpis.map((k) => kpi({
+      label: esc(k.label), wert: esc(k.value), farbe: k.color, kuerzen: true,
       // k.marke ist fertiges SVG (die Intervall-Marke), kein Text: sie darf
-      // nicht durch esc laufen.
-      + (k.marke ? '<div style="margin-top:6px">' + k.marke + '</div>' : '')
-      + '</div>'
-    ).join('')
+      // nicht durch esc laufen und haengt unter der Unterzeile.
+      sub: esc(k.sub) + (k.marke ? '</div><div style="margin-top:6px">' + k.marke : '')
+    })).join('')
     + '</div>'
     // Die Adresse, ueber die jeder jede Zahl der Seite nachrechnen kann —
     // der aufklappbare LOG-VS-WALLET-Block, der hier stand, erklaerte eine
     // zweite Zahlenwelt, die die Seite nicht mehr zeigt.
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); margin-top:10px; line-height:1.6">'
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:10px; line-height:1.6">'
     + 'Wallet ' + walletLinkHtml() + ' · the headline figures come from the public Polymarket Data API for this address — anyone can rerun the check.'
     + '</div>'
     // Die versprochene Kurve der Seite: kumulierte PnL je Lauf, aus den
@@ -2003,7 +1989,7 @@ function archivKnopf(T, slug, label) {
     T.setState({ page: 'research', researchTab: idx, detail: null });
     try { history.pushState(null, '', '#research/' + slug); } catch (e) { /* file:// */ }
     T.fetchPageData('research');
-  }) + ' class="hv-bd35" style="font-size:12.5px; color:var(--text); border:1px solid rgba(var(--ink),.2); border-radius:4px; padding:8px 14px; cursor:pointer; display:inline-block">' + esc(label) + '</div>';
+  }) + ' class="hv-edge-max" style="font-size:var(--t-small); color:var(--text); border:1px solid var(--line-1); border-radius:var(--r-control); padding:8px 14px; cursor:pointer; display:inline-block">' + esc(label) + '</div>';
 }
 
 // Forward paper log, zusammengefasst auf der Live-runs-Seite: dieselbe
@@ -2013,14 +1999,14 @@ function archivKnopf(T, slug, label) {
 // Return-Claim; die volle Archivseite haengt am Slug pipeline-forward.
 function paperLogHtml(T) {
   const pf = T.liveData && T.liveData.research ? T.liveData.research['Pipeline forward'] : null;
-  const karte = 'background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; padding:18px 20px';
-  const kopf = '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:var(--info)">FORWARD PAPER LOG · SAME PIPELINE, NO MONEY</div>';
+  const karte = KARTE + '; margin-top:14px; padding:18px 20px';
+  const kopf = '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">FORWARD PAPER LOG · SAME PIPELINE, NO MONEY</div>';
   if (!pf || pf._quelle === 'fehler') {
     const satz = pf && pf._quelle === 'fehler'
       ? 'pipeline_forward.json did not answer: ' + String(pf._fehler || 'no answer')
       : 'reading pipeline_forward.json…';
     return '<div style="' + karte + '">' + kopf
-      + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.55); margin-top:8px">' + esc(satz) + '</div></div>';
+      + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:8px">' + esc(satz) + '</div></div>';
   }
   const laeufe = Array.isArray(pf.laeufe) ? pf.laeufe : [];
   const stand = pf.stand_utc ? String(pf.stand_utc).slice(0, 10) : '';
@@ -2029,31 +2015,31 @@ function paperLogHtml(T) {
   const zeilen = laeufe.map((l) => {
     const quote = l.extraktionsquote != null ? Math.round(+l.extraktionsquote * 100) + '%' : '—';
     const gekauft = l.extraktion_gekauft_usd != null ? '$' + num(Math.round(+l.extraktion_gekauft_usd)) : '—';
-    return '<div style="display:grid; grid-template-columns:1fr 110px 110px 130px; gap:10px; align-items:center; padding:9px 16px; border-bottom:1px solid rgba(var(--ink),.06); ' + M + '; font-size:12px">'
-      + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:13px">' + esc(String(l.profil || '—')) + '</div>'
-      + '<div style="text-align:right; color:rgba(var(--ink),.6)">' + num(+l.n_eintraege || 0) + '</div>'
+    return '<div style="display:grid; grid-template-columns:1fr 110px 110px 130px; gap:10px; align-items:center; padding:9px 16px; border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small)">'
+      + '<div style="font-family:var(--font-ui); font-size:var(--t-body)">' + esc(String(l.profil || '—')) + '</div>'
+      + '<div style="text-align:right; color:var(--ink-3)">' + num(+l.n_eintraege || 0) + '</div>'
       + '<div style="text-align:right">' + num(+l.n_kaeufe || 0) + '</div>'
-      + '<div style="text-align:right; color:rgba(var(--ink),.6)">' + esc(gekauft) + ' · ' + esc(quote) + '</div></div>';
+      + '<div style="text-align:right; color:var(--ink-3)">' + esc(gekauft) + ' · ' + esc(quote) + '</div></div>';
   }).join('');
   return '<div style="' + karte + '">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap">' + kopf
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.55)">' + num(laeufe.length) + ' paper runs · ' + num(entscheidungen) + ' decisions · ' + num(kaeufe) + ' paper buys' + (stand ? ' · ' + esc(stand) : '') + '</div></div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4)">' + num(laeufe.length) + ' paper runs · ' + num(entscheidungen) + ' decisions · ' + num(kaeufe) + ' paper buys' + (stand ? ' · ' + esc(stand) : '') + '</div></div>'
     // Derselbe Vorbehalt wie im Aufmacher der Pipeline-forward-Seite,
     // vorher zweimal getippt und beim zweiten Mal leicht anders.
     + caveatZeile('paper_log_no_return_claim', {
       vorsatz: 'The same word-count pipeline in watch mode: it reads the live transcript and logs, per market, whether its rules would have allowed a bet; mostly they would not.',
       nachsatz: 'What the same pipeline did with real money is the record above.',
-      stil: 'font-size:12.5px; color:rgba(var(--ink),.6); margin-top:8px; line-height:1.55; max-width:820px'
+      stil: 'font-size:var(--t-small); color:var(--ink-3); margin-top:8px; line-height:1.55; max-width:820px'
     })
     + (zeilen
-      ? '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:12px; overflow:hidden">'
-        + '<div style="display:grid; grid-template-columns:1fr 110px 110px 130px; gap:10px; padding:8px 16px; background:var(--bg); border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6)">'
+      ? '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:12px; overflow:hidden">'
+        + '<div style="display:grid; grid-template-columns:1fr 110px 110px 130px; gap:10px; padding:8px 16px; background:var(--bg); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">'
         + '<div>RUN PROFILE</div><div style="text-align:right">DECISIONS</div><div style="text-align:right">PAPER BUYS</div><div style="text-align:right">EXTRACTION</div></div>'
         + zeilen + '</div>'
       : '<div style="margin-top:10px">' + leerZeile('pipeline_forward.json carries no runs.') + '</div>')
     + '<div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap">'
     + archivKnopf(T, 'pipeline-forward', 'Open the full paper log')
-    + '<a href="./data/pipeline_forward.json" download="pipeline_forward.json" class="hv-bd35" style="font-size:12.5px; color:var(--text); border:1px solid rgba(var(--ink),.2); border-radius:4px; padding:8px 14px; text-decoration:none; display:inline-block">Download the data</a>'
+    + '<a href="./data/pipeline_forward.json" download="pipeline_forward.json" class="hv-edge-max" style="font-size:var(--t-small); color:var(--text); border:1px solid var(--line-1); border-radius:var(--r-control); padding:8px 14px; text-decoration:none; display:inline-block">Download the data</a>'
     + '</div></div>';
 }
 
@@ -2063,8 +2049,8 @@ function paperLogHtml(T) {
 // Slug review-queue (app.js BEGLEITER laedt queue.json mit).
 function queueArchivHtml(T) {
   const q = T.liveData && T.liveData.research ? T.liveData.research['Review queue'] : null;
-  const karte = 'background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; padding:16px 18px';
-  const kopf = '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:var(--info)">HUMAN VERIFICATION QUEUE · ARCHIVED</div>';
+  const karte = KARTE + '; margin-top:14px; padding:16px 18px';
+  const kopf = '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">HUMAN VERIFICATION QUEUE · ARCHIVED</div>';
   const zahl = q
     ? (q._quelle === 'fehler'
       ? 'queue.json did not answer: ' + String(q._fehler || 'no answer')
@@ -2073,11 +2059,11 @@ function queueArchivHtml(T) {
     : 'reading queue.json…';
   return '<div style="' + karte + '">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap">' + kopf
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.55)">' + esc(zahl) + '</div></div>'
-    + '<div style="font-size:12.5px; color:rgba(var(--ink),.6); margin-top:8px; line-height:1.55; max-width:820px">Cases the daily run flagged for a human to check, ranked by how much the automated read and the market disagree. The queue froze 2026-07-14 and the daily run ended 2026-08-07 — a closed record, kept verifiable, not an ongoing process.</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4)">' + esc(zahl) + '</div></div>'
+    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:8px; line-height:1.55; max-width:820px">Cases the daily run flagged for a human to check, ranked by how much the automated read and the market disagree. The queue froze 2026-07-14 and the daily run ended 2026-08-07 — a closed record, kept verifiable, not an ongoing process.</div>'
     + '<div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap">'
     + archivKnopf(T, 'review-queue', 'Open the archived queue')
-    + '<a href="./data/queue.json" download="queue.json" class="hv-bd35" style="font-size:12.5px; color:var(--text); border:1px solid rgba(var(--ink),.2); border-radius:4px; padding:8px 14px; text-decoration:none; display:inline-block">Download the data</a>'
+    + '<a href="./data/queue.json" download="queue.json" class="hv-edge-max" style="font-size:var(--t-small); color:var(--text); border:1px solid var(--line-1); border-radius:var(--r-control); padding:8px 14px; text-decoration:none; display:inline-block">Download the data</a>'
     + '</div></div>';
 }
 
@@ -2283,26 +2269,26 @@ const LEDGER_TYP_FARBE = { bot: 'var(--info)', discretionary: 'var(--warn)', pil
 
 function ledgerTypChip(typ) {
   const farbe = LEDGER_TYP_FARBE[typ] || 'var(--muted)';
-  return '<span style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:2px 7px; color:' + farbe + '; border:1px solid color-mix(in srgb, ' + farbe + ' 40%, transparent); white-space:nowrap">' + esc(String(typ || '—').toUpperCase()) + '</span>';
+  return '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; border-radius:var(--r-control); padding:2px 7px; color:' + farbe + '; border:1px solid color-mix(in srgb, ' + farbe + ' 40%, transparent); white-space:nowrap">' + esc(String(typ || '—').toUpperCase()) + '</span>';
 }
 
 // Chip for a run that placed nothing and left no wallet trace — muted, so
 // the money rows stand out against the process rows in the same table.
 function noFillChip() {
-  return '<span style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:2px 7px; color:rgba(var(--ink),.5); border:1px solid rgba(var(--ink),.22); white-space:nowrap">NO FILLS</span>';
+  return '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; border-radius:var(--r-control); padding:2px 7px; color:var(--ink-4); border:1px solid var(--line-1); white-space:nowrap">NO FILLS</span>';
 }
 
 // The bet rows of a run (market, side, limit, fill, stake, log result) —
 // shared by the fallback cards and the run detail inside a table row.
 function laufWettenHtml(k) {
   return k.bets.map((b) =>
-    '<div style="display:grid; grid-template-columns:1fr 62px 78px 78px 80px 92px; gap:10px; align-items:center; padding:9px 0; border-bottom:1px solid rgba(var(--ink),.05); ' + M + '; font-size:11.5px">'
-    + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(b.market) + '">' + esc(b.market) + '</div>'
-    + '<div style="' + M + '; font-size:11.5px; color:' + (b.side === 'Yes' ? 'var(--accent)' : 'var(--info)') + '">' + b.side + '</div>'
-    + '<div style="text-align:right; color:rgba(var(--ink),.55)">limit ' + b.limit + '</div>'
-    + '<div style="text-align:right; color:rgba(var(--ink),.55)">fill ' + b.fill + '</div>'
+    '<div style="display:grid; grid-template-columns:1fr 62px 78px 78px 80px 92px; gap:10px; align-items:center; padding:9px 0; border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small)">'
+    + '<div style="font-family:var(--font-ui); font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(b.market) + '">' + esc(b.market) + '</div>'
+    + '<div style="' + M + '; font-size:var(--t-small); color:' + (b.side === 'Yes' ? 'var(--accent)' : 'var(--info)') + '">' + b.side + '</div>'
+    + '<div style="text-align:right; color:var(--ink-4)">limit ' + b.limit + '</div>'
+    + '<div style="text-align:right; color:var(--ink-4)">fill ' + b.fill + '</div>'
     + '<div style="text-align:right">' + b.stake + '</div>'
-    + '<div style="text-align:right; ' + M + '; font-size:12px; color:' + (b.result.charAt(0) === '+' ? 'var(--pos)' : b.result === 'open' ? 'rgba(var(--ink),.5)' : 'var(--neg)') + '">' + b.result + '</div></div>'
+    + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:' + (b.result.charAt(0) === '+' ? 'var(--pos)' : b.result === 'open' ? 'var(--ink-4)' : 'var(--neg)') + '">' + b.result + '</div></div>'
   ).join('');
 }
 
@@ -2313,15 +2299,15 @@ function laufWettenHtml(k) {
 function laufDetailHtml(k) {
   const geldMit = (v) => (v == null ? '—' : (+v >= 0 ? '+$' : '-$') + Math.abs(+v).toFixed(2));
   return '<div style="margin:6px 0 2px">'
-    + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-bottom:6px">' + esc('run ' + k.profil + (k.title ? ' · ' + k.title : '') + ' · ' + k.mode.toLowerCase() + ' · ' + k.status.toLowerCase()) + '</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-bottom:6px">' + esc('run ' + k.profil + (k.title ? ' · ' + k.title : '') + ' · ' + k.mode.toLowerCase() + ' · ' + k.status.toLowerCase()) + '</div>'
     + (k.chips.length
       ? '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:4px">'
-        + k.chips.map((c) => '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); background:var(--panel-hover); border:1px solid rgba(var(--ink),.09); border-radius:4px; padding:3px 8px">' + esc(c) + '</div>').join('')
+        + k.chips.map((c) => '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); background:var(--panel-hover); border:1px solid var(--line-2); border-radius:var(--r-control); padding:3px 8px">' + esc(c) + '</div>').join('')
         + '</div>'
       : '')
     + laufWettenHtml(k)
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); margin-top:8px">' + esc('Stake $' + k.einsatzLog.toFixed(2) + ' — the wallet figure is the PNL column of this row') + '</div>'
-    + (k.missed ? '<div style="' + M + '; font-size:10.5px; color:var(--warn); margin-top:5px">' + esc(k.missed) + '</div>' : '')
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:8px">' + esc('Stake $' + k.einsatzLog.toFixed(2) + ' — the wallet figure is the PNL column of this row') + '</div>'
+    + (k.missed ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--warn); margin-top:5px">' + esc(k.missed) + '</div>' : '')
     + '</div>';
 }
 
@@ -2333,7 +2319,7 @@ function ledgerGeld(v, vorzeichen) {
 }
 
 function ledgerFarbe(v) {
-  return v == null || isNaN(+v) ? 'rgba(var(--ink),.5)' : +v >= 0 ? 'var(--pos)' : 'var(--neg)';
+  return v == null || isNaN(+v) ? 'var(--ink-4)' : +v >= 0 ? 'var(--pos)' : 'var(--neg)';
 }
 
 // "1 sell", "6 sells" — the KPI sub-lines count things.
@@ -2362,17 +2348,17 @@ function ledgerNotizHtml(text) {
 // stake, PnL as the API states it, status, and which log it belongs to.
 function ledgerMarktZeile(m) {
   const status = String(m.status || '—');
-  const statusFarbe = status === 'won' ? 'var(--pos)' : (status === 'lost' || status === 'worthless') ? 'var(--neg)' : 'rgba(var(--ink),.55)';
+  const statusFarbe = status === 'won' ? 'var(--pos)' : (status === 'lost' || status === 'worthless') ? 'var(--neg)' : 'var(--ink-4)';
   const zuordnung = String(m.zuordnung || '');
-  return '<div style="display:grid; grid-template-columns:1fr 44px 70px 70px 84px 92px 78px 110px; gap:8px; align-items:center; padding:7px 0; border-top:1px solid rgba(var(--ink),.05); ' + M + '; font-size:11px">'
-    + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(m.titel || '') + '">' + esc(m.titel || '—') + '</div>'
+  return '<div style="display:grid; grid-template-columns:1fr 44px 70px 70px 84px 92px 78px 110px; gap:8px; align-items:center; padding:7px 0; border-top:1px solid var(--line-3); ' + M + '; font-size:var(--t-micro)">'
+    + '<div style="font-family:var(--font-ui); font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(m.titel || '') + '">' + esc(m.titel || '—') + '</div>'
     + '<div style="color:' + (String(m.seite).toLowerCase() === 'yes' ? 'var(--accent)' : 'var(--info)') + '">' + esc(m.seite || '—') + '</div>'
-    + '<div style="text-align:right; color:rgba(var(--ink),.55)">' + (m.avg_preis != null ? 'avg ' + (+m.avg_preis).toFixed(2) : '—') + '</div>'
-    + '<div style="text-align:right; color:rgba(var(--ink),.55)">' + (m.shares != null ? num((+m.shares).toFixed(0)) + ' sh' : '—') + '</div>'
+    + '<div style="text-align:right; color:var(--ink-4)">' + (m.avg_preis != null ? 'avg ' + (+m.avg_preis).toFixed(2) : '—') + '</div>'
+    + '<div style="text-align:right; color:var(--ink-4)">' + (m.shares != null ? num((+m.shares).toFixed(0)) + ' sh' : '—') + '</div>'
     + '<div style="text-align:right">' + ledgerGeld(m.einsatz_usd, false) + '</div>'
     + '<div style="text-align:right; color:' + ledgerFarbe(m.pnl_usd) + '" title="' + esc(m.pnl_art || '') + '">' + ledgerGeld(m.pnl_usd, true) + '</div>'
     + '<div style="color:' + statusFarbe + '">' + esc(status) + '</div>'
-    + '<div style="color:rgba(var(--ink),.6); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(zuordnung + (m.run_profil ? ' · ' + m.run_profil : '')) + '">' + esc(zuordnung + (m.run_profil ? ' · ' + m.run_profil : '')) + '</div>'
+    + '<div style="color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(zuordnung + (m.run_profil ? ' · ' + m.run_profil : '')) + '">' + esc(zuordnung + (m.run_profil ? ' · ' + m.run_profil : '')) + '</div>'
     + '</div>';
 }
 
@@ -2395,8 +2381,8 @@ export function ledgerPnlSatz(e) {
 // same event by hand) are noted on that event instead of listed twice.
 // Without the file: the honest line naming it.
 function walletLedgerHtml(T, payload, ohneFills, karten) {
-  const KOPF = '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:var(--info)">ALL EVENTS · RUNS AND WALLET</div>';
-  const karte = 'background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px';
+  const KOPF = '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">ALL EVENTS · RUNS AND WALLET</div>';
+  const karte = KARTE;
   const ledger = walletLedgerVon(T, payload);
   if (!ledger || !ledger.aggregat || !Array.isArray(ledger.events)) {
     const satz = LEDGER.laedt
@@ -2405,7 +2391,7 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
         + (LEDGER.fehler ? ' (' + LEDGER.fehler + ')' : '')
         + '. scripts/wallet_ledger.py rebuilds it read-only from the public Polymarket Data API for wallet ' + LIVE_RUN_WALLET + '.';
     return '<div style="margin-top:22px">' + KOPF
-      + '<div style="' + karte + '; margin-top:8px; padding:14px 18px; ' + M + '; font-size:11px; color:rgba(var(--ink),.6); line-height:1.6">' + esc(satz) + '</div></div>';
+      + '<div style="' + karte + '; margin-top:8px; padding:14px 18px; ' + M + '; font-size:var(--t-micro); color:var(--ink-3); line-height:1.6">' + esc(satz) + '</div></div>';
   }
   const agg = ledger.aggregat;
   const events = ledger.events.slice().sort((a, b) => String(b.von_utc || '').localeCompare(String(a.von_utc || '')));
@@ -2433,7 +2419,7 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
       + (pos.worthless ? ' (' + pos.worthless + ' expired worthless)' : '') + (pos.flat ? ' · ' + pos.flat + ' flat' : '') + (pos.open ? ' · ' + pos.open + ' open' : ''));
   }
   if (agg.closed_positions_capped) metaTeile.push('closed feed capped at 50 per tail');
-  const metaZeile = '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.55); margin-top:8px; line-height:1.7">Whole wallet: ' + esc(metaTeile.join(' · ')) + '</div>';
+  const metaZeile = '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:8px; line-height:1.7">Whole wallet: ' + esc(metaTeile.join(' · ')) + '</div>';
 
   const spalten = '92px 1fr 118px 64px 96px 96px 150px';
   // Laeufe ohne Fill: eine eigene Zeile nur, wenn kein Wallet-Event denselben
@@ -2472,35 +2458,35 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
     // Bot-Maerkte stehen als Wetten mit Limit/Fill/Latenz im Laufdetail.
     const maerkte = karte ? alleMaerkte.filter((m) => String(m.zuordnung || '') !== 'bot') : alleMaerkte;
     // data-key: app.js keeps open <details> across re-renders by this key.
-    return '<details data-key="ledger:' + esc(String(e.event_slug || e.titel || '')) + '" style="border-bottom:1px solid rgba(var(--ink),.06)">'
+    return '<details data-key="ledger:' + esc(String(e.event_slug || e.titel || '')) + '" style="border-bottom:1px solid var(--line-3)">'
       + '<summary style="display:grid; grid-template-columns:' + spalten + '; gap:10px; align-items:center; padding:10px 16px; cursor:pointer; list-style:none">'
-      + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.55); white-space:nowrap" title="' + esc(zeitraum) + '">' + esc(datum) + '</div>'
-      + '<div style="font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(e.titel || e.event_slug || '') + '">'
-      + (e.url ? '<a href="' + esc(e.url) + '" target="_blank" rel="noopener" style="color:var(--text); text-decoration:none" title="' + esc((e.titel || e.event_slug || '') + ' — open the event on Polymarket') + '">' + esc(e.titel || e.event_slug || '—') + ' <span style="' + M + '; font-size:11px; color:var(--info)">↗</span></a>' : esc(e.titel || e.event_slug || '—'))
-      + (e.run_profil ? ' <span style="' + M + '; font-size:11px; color:rgba(var(--ink),.6)">' + esc(e.run_profil) + '</span>' : '')
+      + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); white-space:nowrap" title="' + esc(zeitraum) + '">' + esc(datum) + '</div>'
+      + '<div style="font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(e.titel || e.event_slug || '') + '">'
+      + (e.url ? '<a href="' + esc(e.url) + '" target="_blank" rel="noopener" style="color:var(--text); text-decoration:none" title="' + esc((e.titel || e.event_slug || '') + ' — open the event on Polymarket') + '">' + esc(e.titel || e.event_slug || '—') + ' <span style="' + M + '; font-size:var(--t-micro); color:var(--info)">↗</span></a>' : esc(e.titel || e.event_slug || '—'))
+      + (e.run_profil ? ' <span style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + esc(e.run_profil) + '</span>' : '')
       + '</div>'
       + '<div style="display:flex; gap:4px; align-items:center; flex-wrap:wrap">' + ledgerTypChip(typ)
-      + (mixRest ? '<span style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6)">+ ' + esc(mixRest) + '</span>' : '') + '</div>'
-      + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:rgba(var(--ink),.7)">' + num(e.n_maerkte != null ? e.n_maerkte : alleMaerkte.length) + '</div>'
-      + '<div style="text-align:right; ' + M + '; font-size:11.5px">' + ledgerGeld(e.einsatz_usd, false) + '</div>'
-      + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:' + ledgerFarbe(e.pnl_usd != null ? e.pnl_usd : e.netto_cash_usd) + '" title="' + esc(ledgerPnlSatz(e) + ' · cash flow ' + ledgerGeld(e.netto_cash_usd, true)) + '">' + ledgerGeld(e.pnl_usd != null ? e.pnl_usd : e.netto_cash_usd, true) + '</div>'
-      + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(e.status_text || '') + '">' + esc(e.status_text || '—') + '</div>'
+      + (mixRest ? '<span style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">+ ' + esc(mixRest) + '</span>' : '') + '</div>'
+      + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-2)">' + num(e.n_maerkte != null ? e.n_maerkte : alleMaerkte.length) + '</div>'
+      + '<div style="text-align:right; ' + M + '; font-size:var(--t-small)">' + ledgerGeld(e.einsatz_usd, false) + '</div>'
+      + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:' + ledgerFarbe(e.pnl_usd != null ? e.pnl_usd : e.netto_cash_usd) + '" title="' + esc(ledgerPnlSatz(e) + ' · cash flow ' + ledgerGeld(e.netto_cash_usd, true)) + '">' + ledgerGeld(e.pnl_usd != null ? e.pnl_usd : e.netto_cash_usd, true) + '</div>'
+      + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(e.status_text || '') + '">' + esc(e.status_text || '—') + '</div>'
       + '</summary>'
       + '<div style="padding:4px 16px 12px 108px">'
-      + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-bottom:4px">'
+      + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-bottom:4px">'
       + esc(zeitraum + ' · ' + ledgerZahlwort(e.n_trades, 'trade', 'trades') + ' · ' + ledgerZahlwort(e.n_einloesungen, 'redemption', 'redemptions') + ' · cash flow ' + ledgerGeld(e.netto_cash_usd, true) + (e.pnl_usd != null ? ' · ' + ledgerPnlSatz(e) : ''))
       + '</div>'
       + (lauf
-        ? '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-bottom:4px">'
+        ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-bottom:4px">'
           + esc('The bot ran on this event and placed nothing (' + (entscheidungenVon(lauf) || 'no decisions logged') + ') — these trades were placed by hand.')
           + '</div>'
         : '')
       + (karte ? laufDetailHtml(karte) : '')
       + (karte && maerkte.length
-        ? '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin:8px 0 2px">PLACED BY HAND ON THE SAME EVENT</div>'
+        ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin:8px 0 2px">PLACED BY HAND ON THE SAME EVENT</div>'
         : '')
       + maerkte.map(ledgerMarktZeile).join('')
-      + (notes.length ? '<div style="font-size:11.5px; color:rgba(var(--ink),.55); margin-top:8px; line-height:1.5">' + notes.map((n) => ledgerNotizHtml(n)).join('<br>') + '</div>' : '')
+      + (notes.length ? '<div style="font-size:var(--t-small); color:var(--ink-4); margin-top:8px; line-height:1.5">' + notes.map((n) => ledgerNotizHtml(n)).join('<br>') + '</div>' : '')
       + '</div></details>';
   };
 
@@ -2519,26 +2505,26 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
     const statusText = [st.won ? st.won + ' won' : '', st.lost ? st.lost + ' lost' : '', st.worthless ? st.worthless + ' worthless' : '', st.flat ? st.flat + ' flat' : '', st.open ? st.open + ' open' : ''].filter(Boolean).join(' · ');
     const zeit = pilotEvents.reduce((a, e) => (String(e.von_utc || '') > a ? String(e.von_utc || '') : a), '');
     const pnl = summe('pnl_usd');
-    const html = '<details data-key="ledger:pilot-group" style="border-bottom:1px solid rgba(var(--ink),.06)">'
+    const html = '<details data-key="ledger:pilot-group" style="border-bottom:1px solid var(--line-3)">'
       + '<summary style="display:grid; grid-template-columns:' + spalten + '; gap:10px; align-items:center; padding:10px 16px; cursor:pointer; list-style:none">'
-      + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.55); white-space:nowrap">' + esc(zeit.slice(0, 10) || '—') + '</div>'
-      + '<div style="font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">Pre-registered pilot — ' + pilotEvents.length + ' small event' + (pilotEvents.length === 1 ? '' : 's') + ' <span style="' + M + '; font-size:11px; color:rgba(var(--ink),.6)">click for each one</span></div>'
+      + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); white-space:nowrap">' + esc(zeit.slice(0, 10) || '—') + '</div>'
+      + '<div style="font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">Pre-registered pilot — ' + pilotEvents.length + ' small event' + (pilotEvents.length === 1 ? '' : 's') + ' <span style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">click for each one</span></div>'
       + '<div style="display:flex; gap:4px; align-items:center">' + ledgerTypChip('pilot') + '</div>'
-      + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:rgba(var(--ink),.7)">' + num(maerkteN) + '</div>'
-      + '<div style="text-align:right; ' + M + '; font-size:11.5px">' + ledgerGeld(summe('einsatz_usd'), false) + '</div>'
-      + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:' + ledgerFarbe(pnl) + '" title="' + esc('sum of ' + ledgerPnlSatz({ pnl_usd: pnl, pnl_offen_usd: summe('pnl_offen_usd') }) + ' · sum of cash flow ' + ledgerGeld(summe('netto_cash_usd'), true)) + '">' + ledgerGeld(pnl, true) + '</div>'
-      + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(statusText) + '">' + esc(statusText || '—') + '</div>'
+      + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-2)">' + num(maerkteN) + '</div>'
+      + '<div style="text-align:right; ' + M + '; font-size:var(--t-small)">' + ledgerGeld(summe('einsatz_usd'), false) + '</div>'
+      + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:' + ledgerFarbe(pnl) + '" title="' + esc('sum of ' + ledgerPnlSatz({ pnl_usd: pnl, pnl_offen_usd: summe('pnl_offen_usd') }) + ' · sum of cash flow ' + ledgerGeld(summe('netto_cash_usd'), true)) + '">' + ledgerGeld(pnl, true) + '</div>'
+      + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(statusText) + '">' + esc(statusText || '—') + '</div>'
       + '</summary>'
       + '<div style="padding:4px 16px 12px 108px">'
       + pilotEvents.map((e) =>
-        '<div style="display:grid; grid-template-columns:76px 1fr 96px 96px 130px; gap:8px; align-items:center; padding:7px 0; border-top:1px solid rgba(var(--ink),.05); ' + M + '; font-size:11px">'
-        + '<div style="color:rgba(var(--ink),.6); white-space:nowrap">' + esc(String(e.von_utc || '').slice(0, 10) || '—') + '</div>'
-        + '<div style="font-family:\'IBM Plex Sans\',sans-serif; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(e.titel || e.event_slug || '') + '">'
-        + (e.url ? '<a href="' + esc(e.url) + '" target="_blank" rel="noopener" style="color:var(--text); text-decoration:none">' + esc(e.titel || e.event_slug || '—') + ' <span style="' + M + '; font-size:11px; color:var(--info)">↗</span></a>' : esc(e.titel || e.event_slug || '—'))
+        '<div style="display:grid; grid-template-columns:76px 1fr 96px 96px 130px; gap:8px; align-items:center; padding:7px 0; border-top:1px solid var(--line-3); ' + M + '; font-size:var(--t-micro)">'
+        + '<div style="color:var(--ink-3); white-space:nowrap">' + esc(String(e.von_utc || '').slice(0, 10) || '—') + '</div>'
+        + '<div style="font-family:var(--font-ui); font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(e.titel || e.event_slug || '') + '">'
+        + (e.url ? '<a href="' + esc(e.url) + '" target="_blank" rel="noopener" style="color:var(--text); text-decoration:none">' + esc(e.titel || e.event_slug || '—') + ' <span style="' + M + '; font-size:var(--t-micro); color:var(--info)">↗</span></a>' : esc(e.titel || e.event_slug || '—'))
         + '</div>'
         + '<div style="text-align:right">' + ledgerGeld(e.einsatz_usd, false) + '</div>'
         + '<div style="text-align:right; color:' + ledgerFarbe(e.pnl_usd != null ? e.pnl_usd : e.netto_cash_usd) + '">' + ledgerGeld(e.pnl_usd != null ? e.pnl_usd : e.netto_cash_usd, true) + '</div>'
-        + '<div style="color:rgba(var(--ink),.55); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(e.status_text || '—') + '</div>'
+        + '<div style="color:var(--ink-4); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(e.status_text || '—') + '</div>'
         + '</div>').join('')
       + '</div></details>';
     return { zeit, html };
@@ -2547,31 +2533,31 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
   // Eine Zeile je Lauf ohne Fill und ohne Wallet-Event: das Prozessprotokoll
   // neben den Geldzeilen, damit alles unterhalb der Karten in einer Tabelle
   // steht.
-  const laufZeile = (r) => '<div style="display:grid; grid-template-columns:' + spalten + '; gap:10px; align-items:center; padding:10px 16px; border-bottom:1px solid rgba(var(--ink),.06)">'
-    + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); white-space:nowrap">' + esc(String(r.zeit || '').slice(0, 10) || '—') + '</div>'
-    + '<div style="font-size:12.5px; color:rgba(var(--ink),.7); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(r.title) + '">'
-    + (r.url ? '<a href="' + esc(r.url) + '" target="_blank" rel="noopener" style="color:rgba(var(--ink),.7); text-decoration:none">' + esc(r.title) + ' <span style="' + M + '; font-size:11px; color:var(--info)">↗</span></a>' : esc(r.title))
-    + ' <span style="' + M + '; font-size:11px; color:rgba(var(--ink),.55)">' + esc(r.profil) + '</span></div>'
+  const laufZeile = (r) => '<div style="display:grid; grid-template-columns:' + spalten + '; gap:10px; align-items:center; padding:10px 16px; border-bottom:1px solid var(--line-3)">'
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); white-space:nowrap">' + esc(String(r.zeit || '').slice(0, 10) || '—') + '</div>'
+    + '<div style="font-size:var(--t-small); color:var(--ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(r.title) + '">'
+    + (r.url ? '<a href="' + esc(r.url) + '" target="_blank" rel="noopener" style="color:var(--ink-2); text-decoration:none">' + esc(r.title) + ' <span style="' + M + '; font-size:var(--t-micro); color:var(--info)">↗</span></a>' : esc(r.title))
+    + ' <span style="' + M + '; font-size:var(--t-micro); color:var(--ink-4)">' + esc(r.profil) + '</span></div>'
     + '<div style="display:flex; gap:4px; align-items:center">' + noFillChip() + '</div>'
-    + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:rgba(var(--ink),.55)">—</div>'
-    + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:rgba(var(--ink),.55)">—</div>'
-    + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:rgba(var(--ink),.55)">—</div>'
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(entscheidungenVon(r)) + '">' + esc((entscheidungenVon(r) ? entscheidungenVon(r) + ' · ' : '') + 'placed nothing') + '</div>'
+    + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-4)">—</div>'
+    + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-4)">—</div>'
+    + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-4)">—</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(entscheidungenVon(r)) + '">' + esc((entscheidungenVon(r) ? entscheidungenVon(r) + ' · ' : '') + 'placed nothing') + '</div>'
     + '</div>';
 
   // Ein Fill-Lauf ohne Ledger-Event: eigene aufklappbare Bot-Zeile, Zahlen
   // aus dem Log und so beschriftet.
-  const karteZeile = (k) => '<details data-key="ledger:run:' + esc(k.profil) + '" style="border-bottom:1px solid rgba(var(--ink),.06)">'
+  const karteZeile = (k) => '<details data-key="ledger:run:' + esc(k.profil) + '" style="border-bottom:1px solid var(--line-3)">'
     + '<summary style="display:grid; grid-template-columns:' + spalten + '; gap:10px; align-items:center; padding:10px 16px; cursor:pointer; list-style:none">'
-    + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.55); white-space:nowrap">' + esc(String(k.zeit || '').slice(0, 10) || '—') + '</div>'
-    + '<div style="font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(k.title) + '">'
-    + (k.url ? '<a href="' + esc(k.url) + '" target="_blank" rel="noopener" style="color:var(--text); text-decoration:none">' + esc(k.title) + ' <span style="' + M + '; font-size:11px; color:var(--info)">↗</span></a>' : esc(k.title))
-    + ' <span style="' + M + '; font-size:11px; color:rgba(var(--ink),.6)">' + esc(k.profil) + '</span></div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); white-space:nowrap">' + esc(String(k.zeit || '').slice(0, 10) || '—') + '</div>'
+    + '<div style="font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(k.title) + '">'
+    + (k.url ? '<a href="' + esc(k.url) + '" target="_blank" rel="noopener" style="color:var(--text); text-decoration:none">' + esc(k.title) + ' <span style="' + M + '; font-size:var(--t-micro); color:var(--info)">↗</span></a>' : esc(k.title))
+    + ' <span style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + esc(k.profil) + '</span></div>'
     + '<div style="display:flex; gap:4px; align-items:center">' + ledgerTypChip('bot') + '</div>'
-    + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:rgba(var(--ink),.7)">' + num(k.bets.length) + '</div>'
-    + '<div style="text-align:right; ' + M + '; font-size:11.5px" title="from the run log — not yet in the wallet statement">' + ledgerGeld(k.einsatzLog, false) + '</div>'
-    + '<div style="text-align:right; ' + M + '; font-size:11.5px; color:' + ledgerFarbe(k.pnlLog) + '" title="from the run log — not yet in the wallet statement">' + ledgerGeld(k.pnlLog, true) + '</div>'
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); white-space:nowrap">' + esc(k.status.toLowerCase() + ' · from the run log') + '</div>'
+    + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-2)">' + num(k.bets.length) + '</div>'
+    + '<div style="text-align:right; ' + M + '; font-size:var(--t-small)" title="from the run log — not yet in the wallet statement">' + ledgerGeld(k.einsatzLog, false) + '</div>'
+    + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:' + ledgerFarbe(k.pnlLog) + '" title="from the run log — not yet in the wallet statement">' + ledgerGeld(k.pnlLog, true) + '</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); white-space:nowrap">' + esc(k.status.toLowerCase() + ' · from the run log') + '</div>'
     + '</summary>'
     + '<div style="padding:4px 16px 12px 108px">' + laufDetailHtml(k) + '</div></details>';
 
@@ -2587,15 +2573,15 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
     + (laeufe.length ? ' + ' + laeufe.length + ' RUN' + (laeufe.length === 1 ? '' : 'S') + ' WITHOUT A TRADE' : '')
     + (kartenOhneEvent.length ? ' + ' + kartenOhneEvent.length + ' RUN' + (kartenOhneEvent.length === 1 ? '' : 'S') + ' NOT IN THE LEDGER' : '')
     + ' · NEWEST FIRST';
-  const tabelle = '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:12px; overflow:hidden">'
-    + '<div style="padding:10px 16px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:11px; letter-spacing:.12em; color:rgba(var(--ink),.5)">'
-    + kopfzeile + ' <span style="color:rgba(var(--ink),.55); letter-spacing:0">· click a row for its markets — bot rows open to the full run detail</span></div>'
-    + '<div style="display:grid; grid-template-columns:' + spalten + '; gap:10px; padding:8px 16px; border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6)">'
+  const tabelle = '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:12px; overflow:hidden">'
+    + '<div style="padding:10px 16px; background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-4)">'
+    + kopfzeile + ' <span style="color:var(--ink-4); letter-spacing:0">· click a row for its markets — bot rows open to the full run detail</span></div>'
+    + '<div style="display:grid; grid-template-columns:' + spalten + '; gap:10px; padding:8px 16px; border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">'
     + '<div>DATE</div><div>EVENT</div><div>TYPE</div><div style="text-align:right">MARKETS</div><div style="text-align:right">STAKE</div><div style="text-align:right">PNL</div><div>STATUS</div></div>'
     + (eintraege.length ? zeilen : leerZeile('The ledger holds no events — wallet_ledger.json lists none for this wallet.'))
     + '</div>';
 
-  const legende = '<div style="font-size:11.5px; color:rgba(var(--ink),.5); margin-top:10px; line-height:1.6">'
+  const legende = '<div style="font-size:var(--t-small); color:var(--ink-4); margin-top:10px; line-height:1.6">'
     + ledgerTypChip('bot') + ' market and side appear in a runs.json run log — open the row for the full run detail (latency, decisions, every bet) · '
     + ledgerTypChip('discretionary') + ' placed by hand, in no run log · '
     + ledgerTypChip('pilot') + ' one of the pre-registered pilot trades of 2026-07-22 (rules frozen 2026-07-18)'
@@ -2607,8 +2593,8 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
   // zugeklappt: wer wissen will, wie die Tabelle gebaut ist, klappt auf —
   // die Seite selbst bleibt eine Kachelreihe und eine Tabelle.
   const erklaerung = '<details data-key="ledger-was" style="' + karte + '; margin-top:10px; padding:0 16px">'
-    + '<summary style="cursor:pointer; padding:11px 0; list-style:none; ' + M + '; font-size:11px; letter-spacing:.14em; color:rgba(var(--ink),.5)">WHAT THIS TABLE IS &amp; HOW TO READ THE RUN DETAIL ▸</summary>'
-    + '<div style="padding-bottom:12px; font-size:12.5px; color:rgba(var(--ink),.6); line-height:1.6">'
+    + '<summary style="cursor:pointer; padding:11px 0; list-style:none; ' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-4)">WHAT THIS TABLE IS &amp; HOW TO READ THE RUN DETAIL ▸</summary>'
+    + '<div style="padding-bottom:12px; font-size:var(--t-small); color:var(--ink-3); line-height:1.6">'
     + esc(ledger.hinweis || '')
     + '<div style="margin-top:8px">Race chips in an opened bot row compare each fill against the public taker tape of that market: how many other trades hit between the drop and our fill, and how long until the next trader after us. The anchor is the bot\'s logged fill time — chain timestamps can differ by a few seconds.</div>'
     + '</div></details>';
@@ -2616,14 +2602,14 @@ function walletLedgerHtml(T, payload, ohneFills, karten) {
   return '<div style="margin-top:22px">'
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap">'
     + '<div style="max-width:860px">' + KOPF + metaZeile
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); margin-top:5px">Wallet ' + walletLinkHtml(ledger.wallet)
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:5px">Wallet ' + walletLinkHtml(ledger.wallet)
     + (agg.erste_aktivitaet_utc ? ' · first activity ' + esc(String(agg.erste_aktivitaet_utc).slice(0, 10)) : '')
     + (agg.letzte_aktivitaet_utc ? ' · last activity ' + esc(String(agg.letzte_aktivitaet_utc).slice(0, 10)) : '')
     + ' · <a href="./data/wallet_ledger.json" download="wallet_ledger.json" style="color:var(--info); text-decoration:none">download the ledger</a></div>'
     + '</div>'
     + '<div style="display:flex; gap:8px; align-items:center">'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; color:var(--on-accent); background:var(--accent)">' + esc(String(ledger.kennzeichnung || 'wallet/public-api').toUpperCase()) + '</div>'
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.14); border-radius:4px; padding:5px 10px; white-space:nowrap">as of ' + esc(stand) + '</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; border-radius:var(--r-control); padding:3px 8px; color:var(--on-accent); background:var(--accent)">' + esc(String(ledger.kennzeichnung || 'wallet/public-api').toUpperCase()) + '</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); border:1px solid var(--line-1); border-radius:var(--r-control); padding:5px 10px; white-space:nowrap">as of ' + esc(stand) + '</div>'
     + '</div></div>'
     + erklaerung
     + tabelle + legende
@@ -2656,12 +2642,12 @@ function repricingKurvenHtml(payload) {
     });
   });
   if (!kurven.length) {
-    return '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; padding:14px 18px; ' + M + '; font-size:11px; color:rgba(var(--ink),.6)">'
+    return '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:14px; padding:14px 18px; ' + M + '; font-size:var(--t-micro); color:var(--ink-3)">'
       + 'No repricing paths in this payload — runs.json carries them per run under repricing[].punkte.</div>';
   }
   return '<div style="margin-top:14px">'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:var(--info); margin-bottom:4px">REPRICING AFTER THE DROP · ' + kurven.length + (kurven.length === 1 ? ' BET' : ' BETS') + '</div>'
-    + '<div style="font-size:12px; color:rgba(var(--ink),.5); margin-bottom:10px; line-height:1.5">Price of the traded side against seconds after the drop, from the public tape; the caption names when our fill landed and when the market had priced the outcome in.</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info); margin-bottom:4px">REPRICING AFTER THE DROP · ' + kurven.length + (kurven.length === 1 ? ' BET' : ' BETS') + '</div>'
+    + '<div style="font-size:var(--t-small); color:var(--ink-4); margin-bottom:10px; line-height:1.5">Price of the traded side against seconds after the drop, from the public tape; the caption names when our fill landed and when the market had priced the outcome in.</div>'
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:12px">' + kurven.join('') + '</div>'
     + '</div>';
 }
@@ -2688,11 +2674,11 @@ function timingDecayLinienHtml(payload) {
 export function renderSettings(T) {
   const s = T.state;
   const stepRow = (label, valueLabel, down, up) =>
-    '<div><div style="' + LBL9 + '">' + label + '</div>'
+    '<div><div style="' + LABEL_BLOCK + '">' + label + '</div>'
     + '<div style="display:flex; align-items:center; gap:6px">'
-    + '<div ' + T.act(down) + ' class="hv-bd35w" style="width:28px; height:32px; flex:none; border:1px solid rgba(var(--ink),.16); border-radius:4px; display:flex; align-items:center; justify-content:center; ' + M + '; font-size:14px; color:rgba(var(--ink),.7); cursor:pointer">−</div>'
-    + '<div style="flex:1; background:var(--panel); border:1px solid rgba(var(--ink),.16); border-radius:4px; padding:7px 8px; ' + M + '; font-size:12.5px; text-align:center">' + esc(valueLabel) + '</div>'
-    + '<div ' + T.act(up) + ' class="hv-bd35w" style="width:28px; height:32px; flex:none; border:1px solid rgba(var(--ink),.16); border-radius:4px; display:flex; align-items:center; justify-content:center; ' + M + '; font-size:14px; color:rgba(var(--ink),.7); cursor:pointer">+</div></div></div>';
+    + '<div ' + T.act(down) + ' class="hv-edge-max hv-white" style="width:28px; height:32px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-body); color:var(--ink-2); cursor:pointer">−</div>'
+    + '<div style="flex:1; background:var(--panel); border:1px solid var(--line-1); border-radius:var(--r-control); padding:7px 8px; ' + M + '; font-size:var(--t-small); text-align:center">' + esc(valueLabel) + '</div>'
+    + '<div ' + T.act(up) + ' class="hv-edge-max hv-white" style="width:28px; height:32px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-body); color:var(--ink-2); cursor:pointer">+</div></div></div>';
 
   const settingRows = [
     // Der Wert stand hier als "chat 4711 · verified" — eine erfundene
@@ -2706,35 +2692,35 @@ export function renderSettings(T) {
   ];
 
   return '<div>'
-    + '<div style="padding:20px 24px 16px; border-bottom:1px solid rgba(var(--ink),.09)">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.18em; color:var(--accent)">SETTINGS</div>'
-    + '<h1 style="font-size:21px; line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">How much data, and where it goes</h1></div>'
+    + '<div style="padding:20px 24px 16px; border-bottom:1px solid var(--line-2)">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.18em; color:var(--accent)">SETTINGS</div>'
+    + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">How much data, and where it goes</h1></div>'
     + '<div style="padding:20px 24px 0; max-width:1000px">'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:var(--accent); margin-bottom:12px">HOW MUCH DATA TO PULL</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--accent); margin-bottom:12px">HOW MUCH DATA TO PULL</div>'
     + '<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px">'
     + stepRow('MARKETS PER PULL', num(s.setMarketSample), () => T.setState({ setMarketSample: Math.max(50, s.setMarketSample - 50) }), () => T.setState({ setMarketSample: Math.min(2000, s.setMarketSample + 50) }))
     + stepRow('TRADES PER PULL', num(s.setTradeSample), () => T.setState({ setTradeSample: Math.max(50, s.setTradeSample - 50) }), () => T.setState({ setTradeSample: Math.min(2000, s.setTradeSample + 50) }))
     + stepRow('WHALE THRESHOLD', '$' + num(s.setWhale), () => T.setState({ setWhale: Math.max(500, s.setWhale - 500) }), () => T.setState({ setWhale: s.setWhale + 500 }))
     + '</div>'
-    + '<div style="font-size:11.5px; color:rgba(var(--ink),.6); margin-top:9px; line-height:1.5">Bigger samples mean slower pages. The whale threshold decides what counts as a large print everywhere in the terminal.</div>'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:var(--accent); margin:22px 0 12px">BACKTESTER DEFAULTS</div>'
+    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:9px; line-height:1.5">Bigger samples mean slower pages. The whale threshold decides what counts as a large print everywhere in the terminal.</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--accent); margin:22px 0 12px">BACKTESTER DEFAULTS</div>'
     + '<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px">'
     + stepRow('BANKROLL', '$' + num(s.setBankroll), () => T.setState({ setBankroll: Math.max(100, s.setBankroll - 500) }), () => T.setState({ setBankroll: s.setBankroll + 500 }))
     + stepRow('FEE (BPS)', s.setFee + ' bps', () => T.setState({ setFee: Math.max(0, s.setFee - 5) }), () => T.setState({ setFee: s.setFee + 5 }))
     + stepRow('SLIPPAGE (BPS)', s.setSlip + ' bps', () => T.setState({ setSlip: Math.max(0, s.setSlip - 5) }), () => T.setState({ setSlip: s.setSlip + 5 }))
     + '</div>'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:var(--accent); margin:22px 0 12px">SWITCHES</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--accent); margin:22px 0 12px">SWITCHES</div>'
     + '</div>'
     + '<div style="padding:20px 24px; display:grid; grid-template-columns:repeat(2,1fr); gap:16px; max-width:1000px">'
     + settingRows.map((o) => {
       const on = !!s.settingsOn[o.key];
-      return '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:16px 18px">'
+      return '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:16px 18px">'
         + '<div style="display:flex; align-items:center; justify-content:space-between; gap:14px">'
-        + '<div><div style="font-size:14.5px; font-weight:600">' + o.name + '</div>'
-        + '<div style="font-size:12.5px; color:rgba(var(--ink),.55); margin-top:6px; line-height:1.45">' + o.desc + '</div></div>'
-        + '<div ' + T.act(() => T.setState({ settingsOn: Object.assign({}, s.settingsOn, { [o.key]: !on }) })) + ' style="width:38px; height:21px; flex:none; border-radius:6px; padding:2px; display:flex; cursor:pointer; background:' + (on ? 'var(--accent)' : 'rgba(var(--ink),.14)') + '; justify-content:' + (on ? 'flex-end' : 'flex-start') + '">'
-        + '<div style="width:17px; height:17px; border-radius:50%; background:' + (on ? 'var(--on-accent)' : 'rgba(var(--ink),.55)') + '"></div></div></div>'
-        + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:12px">' + o.value + '</div></div>';
+        + '<div><div style="font-size:var(--t-lead); font-weight:600">' + o.name + '</div>'
+        + '<div style="font-size:var(--t-small); color:var(--ink-4); margin-top:6px; line-height:1.45">' + o.desc + '</div></div>'
+        + '<div ' + T.act(() => T.setState({ settingsOn: Object.assign({}, s.settingsOn, { [o.key]: !on }) })) + ' style="width:38px; height:21px; flex:none; border-radius:var(--r-panel); padding:2px; display:flex; cursor:pointer; background:' + (on ? 'var(--accent)' : 'rgba(var(--ink),.14)') + '; justify-content:' + (on ? 'flex-end' : 'flex-start') + '">'
+        + '<div style="width:17px; height:17px; border-radius:50%; background:' + (on ? 'var(--on-accent)' : 'var(--ink-4)') + '"></div></div></div>'
+        + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:12px">' + o.value + '</div></div>';
     }).join('')
     + '</div>'
     // Der laengste Vorbehalt des Hauses stand hier als Prosa. Jetzt
@@ -2743,7 +2729,7 @@ export function renderSettings(T) {
     // ohne Stichtag.
     + caveatZeile('research_tool_only', {
       nachsatz: 'Settings are locked to allowlisted accounts on a public deployment.',
-      stil: 'padding:0 24px 8px; ' + M + '; font-size:10.5px; color:rgba(var(--ink),.55); line-height:1.7; max-width:760px'
+      stil: 'padding:0 24px 8px; ' + M + '; font-size:var(--t-micro); color:var(--ink-4); line-height:1.7; max-width:760px'
     })
     + registerZeile()
     + '</div>';
@@ -2762,10 +2748,8 @@ function studienExtrasHtml(slug, payload, ledger) {
   return '';
 }
 
-const KARTE = 'background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px';
-
 function hinweisKarte(text) {
-  return '<div style="' + KARTE + '; margin-top:14px; padding:14px 18px; ' + M + '; font-size:11px; color:rgba(var(--ink),.6); line-height:1.6">' + esc(text) + '</div>';
+  return '<div style="' + KARTE + '; margin-top:14px; padding:14px 18px; ' + M + '; font-size:var(--t-micro); color:var(--ink-3); line-height:1.6">' + esc(text) + '</div>';
 }
 
 // Dauer in menschlicher Einheit. Unter einer Minute sagt die Anzeige
@@ -2852,7 +2836,7 @@ function mentionsExtrasHtml(payload) {
       if (w > hi) return;
       const tx = x(w);
       svg += '<line x1="' + tx + '" y1="' + (TOP - 6) + '" x2="' + tx + '" y2="' + (hoehe - 20) + '" style="stroke:rgba(var(--ink),' + (w === 1 ? '.18' : '.08') + ')" stroke-width="1" />'
-        + '<text x="' + tx + '" y="' + (hoehe - 6) + '" style="fill:rgba(var(--ink),.55)" font-size="10.5" font-family="JetBrains Mono, monospace" text-anchor="middle">' + t + '</text>';
+        + '<text x="' + tx + '" y="' + (hoehe - 6) + '" style="fill:var(--ink-4)" font-size="10.5" font-family="JetBrains Mono, monospace" text-anchor="middle">' + t + '</text>';
     });
     if (medReaktion != null && medReaktion > 1) {
       svg += '<line x1="' + x(medReaktion) + '" y1="' + (TOP - 6) + '" x2="' + x(medReaktion) + '" y2="' + (hoehe - 20) + '" style="stroke:rgba(var(--ink),.35)" stroke-width="1" stroke-dasharray="4 4" />';
@@ -2863,11 +2847,11 @@ function mentionsExtrasHtml(payload) {
       svg += '<g><title>' + esc(p.label + ' — first reaction ' + (p.sek != null ? fmtZahl(p.sek) + ' s' : fmtZahl(p.von) + ' min')
         + (p.weg ? ' (moved away from the outcome)' : '') + ', fully priced in ' + fmtZahl(p.bis) + ' min'
         + (p.fenster != null ? ', tradeable window ' + fmtZahl(p.fenster) + ' h' : '') + ', resolved ' + p.outcome) + '</title>'
-        + '<text x="' + LX + '" y="' + (y + 4) + '" style="fill:rgba(var(--ink),.72)" font-size="11" font-family="JetBrains Mono, monospace" text-anchor="end">' + esc(p.label) + '</text>'
+        + '<text x="' + LX + '" y="' + (y + 4) + '" style="fill:var(--ink-2)" font-size="11" font-family="JetBrains Mono, monospace" text-anchor="end">' + esc(p.label) + '</text>'
         + '<line x1="' + xa + '" y1="' + y + '" x2="' + xb + '" y2="' + y + '" style="stroke:var(--info)" stroke-width="2" stroke-opacity=".5" />'
         + '<circle cx="' + xa + '" cy="' + y + '" r="4" style="fill:var(--info)" />'
         + '<line x1="' + xb + '" y1="' + (y - 5) + '" x2="' + xb + '" y2="' + (y + 5) + '" style="stroke:var(--info)" stroke-width="2" />'
-        + '<text x="' + (PR + 8) + '" y="' + (y + 4) + '" style="fill:rgba(var(--ink),.75)" font-size="11" font-family="JetBrains Mono, monospace">' + esc(dauerText(p.bis) + ' · ' + p.outcome) + '</text></g>';
+        + '<text x="' + (PR + 8) + '" y="' + (y + 4) + '" style="fill:var(--ink-2)" font-size="11" font-family="JetBrains Mono, monospace">' + esc(dauerText(p.bis) + ' · ' + p.outcome) + '</text></g>';
       y += ZH;
     });
     const medSek = medianVon(beide.map((p) => p.sek).filter((s) => s != null && !isNaN(+s)));
@@ -2875,7 +2859,7 @@ function mentionsExtrasHtml(payload) {
       ? ' · median first reaction ' + fmtZahl(medSek) + ' s' + (medReaktion != null && medReaktion > 1 ? ' (dashed line)' : '')
       : (medReaktion == null ? '' : ' · median first reaction ' + fmtZahl(medReaktion) + ' min' + (medReaktion > 1 ? ' (dashed line)' : ''));
     return '<div style="' + KARTE + '; padding:14px 16px 10px">'
-      + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(var(--ink),.5); margin-bottom:4px">'
+      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-4); margin-bottom:4px">'
       + 'FIRST REACTION → FULLY PRICED IN · n ' + beide.length
       + ' · log time axis after broadcast start · dot = first &gt; 1-point move (values under the 1-minute grid sit at ≤1 min) · line end = durably priced on the winning side' + medText + '</div>'
       + '<svg width="100%" viewBox="0 0 640 ' + hoehe + '" role="img" aria-label="First reaction and convergence per event">' + svg + '</svg></div>';
@@ -2884,7 +2868,7 @@ function mentionsExtrasHtml(payload) {
   // Der Klartext VOR dem Bild: was die beiden Uhren messen und wo sie
   // starten — ohne das las sich "first reaction 86.7 min" als Markt, der
   // eine gefallene Aussage verschlief.
-  const lead = '<div style="margin-top:14px; font-size:12.5px; color:rgba(var(--ink),.7); line-height:1.6; max-width:860px">'
+  const lead = '<div style="margin-top:14px; font-size:var(--t-small); color:var(--ink-2); line-height:1.6; max-width:860px">'
     + 'Twelve broadcasts, each with a market on whether something would be said. Both clocks start when the broadcast starts — not when the words are said. '
     + 'The dot is the first time the price moved at all; the end of the line is when it had durably settled on the side that later won. The span between them is the tradeable window.</div>';
   const charts = reaktion
@@ -2897,12 +2881,12 @@ function mentionsExtrasHtml(payload) {
   const jeOutcome = agg && agg.je_outcome && typeof agg.je_outcome === 'object' ? agg.je_outcome : null;
   const splitKachel = (name, o, deutung) => (o && o.n != null
     ? '<div style="' + KARTE + '; padding:14px 16px">'
-      + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:var(--info)">RESOLVED ' + esc(name) + ' · n ' + num(o.n) + '</div>'
-      + '<div style="' + M + '; font-size:12.5px; color:rgba(var(--ink),.85); margin-top:8px; line-height:1.8">'
+      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">RESOLVED ' + esc(name) + ' · n ' + num(o.n) + '</div>'
+      + '<div style="' + M + '; font-size:var(--t-small); color:var(--ink-1); margin-top:8px; line-height:1.8">'
       + 'median first reaction ' + (o.median_sekunden_bis_erste_reaktion != null ? fmtZahl(o.median_sekunden_bis_erste_reaktion) + ' s' : esc(dauerText(o.median_minuten_bis_erste_reaktion))) + '<br>'
       + 'median convergence ' + esc(dauerText(o.median_minuten_bis_konvergenz)) + '<br>'
       + 'median tradeable window ' + fmtZahl(o.median_stunden_im_handelbaren_fenster) + ' h</div>'
-      + '<div style="font-size:11.5px; color:rgba(var(--ink),.6); margin-top:8px; line-height:1.5">' + esc(deutung) + '</div></div>'
+      + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:8px; line-height:1.5">' + esc(deutung) + '</div></div>'
     : '');
   const split = jeOutcome
     ? '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px; margin-top:12px">'
@@ -2911,37 +2895,37 @@ function mentionsExtrasHtml(payload) {
       + '</div>'
     : '';
   const methode = '<div style="' + KARTE + '; margin-top:12px; padding:14px 18px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:var(--info)">HOW TO READ IT</div>'
-    + '<div style="font-size:12.5px; color:rgba(var(--ink),.65); margin-top:8px; line-height:1.6; max-width:860px">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">HOW TO READ IT</div>'
+    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:8px; line-height:1.6; max-width:860px">'
     + 'First reaction is the first minute the price stands more than 1 point away from its pre-drop baseline (the median of the 60 minutes before the drop) — in either direction, so it is a price move, not proof the market heard anything; rows marked (away) moved away from the outcome that later resolved. It is measured from the start of the transmission, not from the moment of the resolving statement: a first reaction of several minutes on a NO market is drift while nothing was said, not a market slow to react to a met condition. Convergence is the time until the price durably stayed past 0.9 (YES) or below 0.1 (NO), as measured by the daily run'
     + (payload.hinweis ? ' — the published note reads: "' + esc(payload.hinweis) + '"' : '')
     + '. The RESOLVED column shows the outcome the market settled to. The tradeable window is the hours after the drop in which the price stayed strictly between 0.1 and 0.9 — measured on the price series itself, so it can start before the first 1-point reaction and is not simply convergence minus reaction. The chart uses a log time axis so minutes and days fit on one line. The FIRST REACTION column gives the exact second gap between the curated drop timestamp and the first minute-grid price point that deviated — read it with its grain: the series has one point per minute and several drop times are only hour-precise, so "7 s" means the first grid point after t0 already stood off baseline, not that the first trade came 7 seconds in.'
     + '</div></div>';
   const ausschlussHtml = ausschluesse.length
-    ? '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:12px; overflow:hidden">'
-      + '<div style="padding:10px 16px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:11px; letter-spacing:.12em; color:var(--warn)">EXCLUDED EVENTS · ' + ausschluesse.length + ' <span style="color:rgba(var(--ink),.55); letter-spacing:0">· listed, not counted in the medians</span></div>'
+    ? '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:12px; overflow:hidden">'
+      + '<div style="padding:10px 16px; background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--warn)">EXCLUDED EVENTS · ' + ausschluesse.length + ' <span style="color:var(--ink-4); letter-spacing:0">· listed, not counted in the medians</span></div>'
       + ausschluesse.map((a) =>
-        '<div style="display:grid; grid-template-columns:1fr auto; gap:12px; padding:9px 16px; border-bottom:1px solid rgba(var(--ink),.05)">'
-        + '<div style="' + M + '; font-size:12px; color:rgba(var(--ink),.75)">' + esc(String((a && a.event) || '—')) + '</div>'
-        + '<div style="' + M + '; font-size:11px; color:var(--warn)">' + esc(ausschlussText(a && a.status)) + '</div></div>').join('')
+        '<div style="display:grid; grid-template-columns:1fr auto; gap:12px; padding:9px 16px; border-bottom:1px solid var(--line-3)">'
+        + '<div style="' + M + '; font-size:var(--t-small); color:var(--ink-2)">' + esc(String((a && a.event) || '—')) + '</div>'
+        + '<div style="' + M + '; font-size:var(--t-micro); color:var(--warn)">' + esc(ausschlussText(a && a.status)) + '</div></div>').join('')
       + '</div>'
     : hinweisKarte('No exclusions listed in mentions_latenz.json (ausschluesse is empty).');
   // Methode, Datengrundlage und Grenzen, zugeklappt — direkt aus der Datei,
   // damit die Seite nichts behauptet, was die Nutzlast nicht traegt.
   const quelle = payload.quelle && typeof payload.quelle === 'object' ? payload.quelle : null;
   const quelleAbsatz = (titel, text) => (text
-    ? '<div style="margin-top:10px"><div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(var(--ink),.55)">' + titel + '</div>'
-      + '<div style="font-size:12.5px; color:rgba(var(--ink),.7); margin-top:4px; line-height:1.6">' + esc(text) + '</div></div>'
+    ? '<div style="margin-top:10px"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-4)">' + titel + '</div>'
+      + '<div style="font-size:var(--t-small); color:var(--ink-2); margin-top:4px; line-height:1.6">' + esc(text) + '</div></div>'
     : '');
   const quelleHtml = quelle
     ? '<details style="margin-top:12px; ' + KARTE + '; padding:0 18px">'
-      + '<summary style="cursor:pointer; padding:12px 0; ' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.55); list-style:none">METHOD, SAMPLE &amp; WHAT IT CANNOT SHOW ▸</summary>'
+      + '<summary style="cursor:pointer; padding:12px 0; ' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-4); list-style:none">METHOD, SAMPLE &amp; WHAT IT CANNOT SHOW ▸</summary>'
       + '<div style="padding-bottom:14px">'
       + quelleAbsatz('WHAT WAS MEASURED', quelle.methode)
       + quelleAbsatz('DATA BASIS', quelle.datengrundlage)
       + (Array.isArray(quelle.einschraenkungen) && quelle.einschraenkungen.length
-        ? '<div style="margin-top:10px"><div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(var(--ink),.55)">WHAT IT CANNOT SHOW</div>'
-          + '<ul style="margin:4px 0 0 18px; padding:0; font-size:12.5px; color:rgba(var(--ink),.7); line-height:1.6">'
+        ? '<div style="margin-top:10px"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-4)">WHAT IT CANNOT SHOW</div>'
+          + '<ul style="margin:4px 0 0 18px; padding:0; font-size:var(--t-small); color:var(--ink-2); line-height:1.6">'
           + quelle.einschraenkungen.map((e) => '<li>' + esc(String(e)) + '</li>').join('') + '</ul></div>'
         : '')
       + '</div></details>'
@@ -3024,8 +3008,8 @@ function pilotExtrasHtml(payload, ledger) {
   const abgeschlossen = wl && wl.settled;
   if (abgeschlossen) {
     teile.push('<div style="' + KARTE + '; margin-top:14px; padding:16px 18px">'
-      + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:var(--accent)">HOW IT ENDED · WALLET</div>'
-      + '<div style="font-size:13.5px; color:var(--text); margin-top:8px; line-height:1.6; max-width:760px">'
+      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--accent)">HOW IT ENDED · WALLET</div>'
+      + '<div style="font-size:var(--t-body); color:var(--text); margin-top:8px; line-height:1.6; max-width:760px">'
       + 'All ' + wl.pos.n + ' positions have resolved: ' + esc(pilotWlText(wl.pos)) + ' (wallet, worthless counts as lost).'
       + (wl.netto != null
         ? ' Net cash of the pilot: ' + (wl.netto >= 0 ? '+$' : '-$') + Math.abs(wl.netto).toFixed(2)
@@ -3088,8 +3072,8 @@ function pilotExtrasHtml(payload, ledger) {
     if (chart) {
       const summe = signale ? Object.values(signale).reduce((a, v) => a + (+v || 0), 0) : 0;
       teile.push('<div style="' + KARTE + '; margin-top:14px; padding:14px 18px">'
-        + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:var(--info)">READ-ONLY WATCHER · WHAT THE SCAN THREW OUT</div>'
-        + '<div style="font-size:12.5px; color:rgba(var(--ink),.6); margin-top:8px; line-height:1.6; max-width:860px">'
+        + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">READ-ONLY WATCHER · WHAT THE SCAN THREW OUT</div>'
+        + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:8px; line-height:1.6; max-width:860px">'
         + (stat && stat.maerkte != null ? num(stat.maerkte) + ' markets scanned' : 'markets scanned: not in the file')
         + (signale ? ' · ' + num(summe) + ' rule matches (' + Object.entries(signale).map(([k, v]) => num(v) + ' ' + watcherText(k)).join(', ') + ')' : '')
         + '. Signals are rule matches, not recommendations; each rejection reason is a pre-registered gate.</div>'
@@ -3134,8 +3118,8 @@ const KERNSATZ = {
 // scripts/lint_claims.py jeden Aufruf sieht.
 function grundsaetzeHtml() {
   const karte = (inhalt) =>
-    '<div style="' + KARTE + '; padding:14px 16px; font-size:13px; color:rgba(var(--ink),.72); line-height:1.6">' + inhalt + '</div>';
-  return '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:var(--info); margin:20px 0 10px">PRINCIPLES OF THE DAILY RUN</div>'
+    '<div style="' + KARTE + '; padding:14px 16px; font-size:var(--t-body); color:var(--ink-2); line-height:1.6">' + inhalt + '</div>';
+  return '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info); margin:20px 0 10px">PRINCIPLES OF THE DAILY RUN</div>'
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:12px">'
     + karte(caveat('daily_run_descriptive'))
     + karte(caveat('verification_not_signal'))
@@ -3164,9 +3148,9 @@ function renderMethodology(T, payload, study) {
 
   const abschnitt = (titel, text) =>
     '<div style="' + KARTE + '; padding:16px 18px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:var(--info)">' + esc(titel) + '</div>'
-    + (KERNSATZ[titel] ? '<div style="font-size:13.5px; color:var(--text); font-weight:500; margin-top:7px; line-height:1.45">' + esc(KERNSATZ[titel]) + '</div>' : '')
-    + '<div style="font-size:13px; color:rgba(var(--ink),.72); margin-top:8px; line-height:1.65">' + text + '</div></div>';
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">' + esc(titel) + '</div>'
+    + (KERNSATZ[titel] ? '<div style="font-size:var(--t-body); color:var(--text); font-weight:500; margin-top:7px; line-height:1.45">' + esc(KERNSATZ[titel]) + '</div>' : '')
+    + '<div style="font-size:var(--t-body); color:var(--ink-2); margin-top:8px; line-height:1.65">' + text + '</div></div>';
   const mono = (t) => '<span style="' + M + '">' + esc(t) + '</span>';
 
   const sektionen = [
@@ -3194,24 +3178,19 @@ function renderMethodology(T, payload, study) {
   return '<div style="padding:22px 24px">'
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px">'
     + '<div style="max-width:720px">'
-    + '<h2 style="font-size:20px; font-weight:600">' + esc(study.title) + '</h2>'
-    + '<div style="font-size:13.5px; color:rgba(var(--ink),.6); margin-top:8px; line-height:1.5">' + esc(note) + '</div></div>'
+    + '<h2 style="font-size:var(--t-head); font-weight:600">' + esc(study.title) + '</h2>'
+    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:8px; line-height:1.5">' + esc(note) + '</div></div>'
     + stempelBlock(study, payload) + '</div>'
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:18px">'
-    + stats.map((x) =>
-      '<div style="' + KARTE + '; border-radius:6px; padding:14px 16px">'
-      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(var(--ink),.6)">' + esc(x.label) + '</div>'
-      + '<div style="' + M + '; font-size:21px; margin-top:7px">' + esc(x.value) + '</div>'
-      + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); margin-top:4px">' + esc(x.note) + '</div></div>'
-    ).join('')
+    + stats.map((x) => kpi({ label: esc(x.label), wert: esc(x.value), sub: esc(x.note) })).join('')
     + '</div>'
     + (payload ? '' : '<div style="margin-top:12px">' + leerZeile(herkunftSatz(null, 'public/data/audit.json')) + '</div>')
     + grundsaetzeHtml()
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:var(--info); margin:20px 0 10px">HOW THE STUDIES ARE MEASURED</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info); margin:20px 0 10px">HOW THE STUDIES ARE MEASURED</div>'
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(380px, 1fr)); gap:12px">' + sektionen.join('') + '</div>'
     + queueArchivHtml(T)
     + '<div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap">'
-    + '<a href="' + ONE_PAGER_URL + '" target="_blank" rel="noopener" class="hv-bd35" style="font-size:13px; color:var(--text); border:1px solid rgba(var(--ink),.2); border-radius:4px; padding:10px 16px; text-decoration:none; display:inline-block">Read the full one-pager ↗</a>'
+    + '<a href="' + ONE_PAGER_URL + '" target="_blank" rel="noopener" class="hv-edge-max" style="font-size:var(--t-body); color:var(--text); border:1px solid var(--line-1); border-radius:var(--r-control); padding:10px 16px; text-decoration:none; display:inline-block">Read the full one-pager ↗</a>'
     + '</div>'
     + studienKnoepfe(T, T.studies.findIndex((st) => studienSlug(st) === 'methodology'))
     + '</div>';

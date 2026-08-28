@@ -12,11 +12,13 @@ from __future__ import annotations
 import json
 import math
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, Sequence
 
 import pandas as pd
 
 from app import claims
+from app import copy_follow as cf
+from app import cross_pairs
 from app import perf_metrics as perf
 from app import quant
 from app import risk_log
@@ -42,6 +44,53 @@ RESEARCH_FILES = {
     # extras so the runs page needs no second request when the API answers.
     "wallet-ledger": "wallet_ledger",
 }
+
+
+#: Unter diesem Schluessel reist die Venue-Herkunft am Frame mit.
+VENUE_SOURCES_ATTR = "venue_sources"
+
+
+def venue_source(venue: str, *, ok: bool, rows: int = 0, error: str = "") -> dict[str, Any]:
+    """Was eine Venue auf eine Anfrage geliefert hat, als eine Zeile.
+
+    ``ok`` heisst: die Antwort war lesbar. ``rows`` null bei ``ok`` ist eine
+    Aussage (nichts gehandelt), ``rows`` null bei ``ok = False`` ist eine
+    Luecke. Diese beiden auseinanderzuhalten ist der ganze Zweck: vorher sah
+    eine ausgefallene Venue von aussen aus wie eine stille.
+    """
+
+    return {"venue": str(venue), "ok": bool(ok), "rows": int(rows),
+            "error": str(error or "")[:300]}
+
+
+def with_venue_sources(frame: pd.DataFrame, sources: list[dict[str, Any]]) -> pd.DataFrame:
+    """Die Herkunftszeilen an den Frame heften, damit sie den Cache ueberleben.
+
+    ``load_tape`` und ``load_universe`` geben einen Frame zurueck und werden
+    an acht Stellen so gerufen; die Herkunft am Frame zu fuehren aendert
+    keine dieser Signaturen. ``DataFrame.attrs`` ist genau dafuer da.
+    """
+
+    if frame is None:
+        return frame
+    frame.attrs[VENUE_SOURCES_ATTR] = list(sources or [])
+    return frame
+
+
+def venue_sources(frame: Any) -> list[dict[str, Any]]:
+    """Die Herkunftszeilen eines Frames, oder eine leere Liste."""
+
+    attrs = getattr(frame, "attrs", None)
+    if not isinstance(attrs, Mapping):
+        return []
+    return list(attrs.get(VENUE_SOURCES_ATTR) or [])
+
+
+def missing_venues(sources: Any) -> list[str]:
+    """Die Venues, die auf diese Anfrage nicht lesbar geantwortet haben."""
+
+    return [str(row.get("venue") or "") for row in (sources or [])
+            if isinstance(row, Mapping) and not row.get("ok")]
 
 
 def claims_payload(lang: str | None = None) -> dict[str, Any]:
@@ -1528,6 +1577,60 @@ def _strip_frames(block: Any) -> Any:
 CROSS_MIN_SIMILARITY = 0.5
 
 
+def cross_gate_mask(
+    candidates: pd.DataFrame,
+    *,
+    min_similarity: float = CROSS_MIN_SIMILARITY,
+    require_volume: bool = True,
+) -> pd.Series:
+    """Welche Kandidatenzeilen die Ehrlichkeits-Schranke passieren.
+
+    Eigene Funktion, weil zwei Stellen sie brauchen: der Mapper unten und
+    der Endpunkt, der nur fuer die durchgelassenen Zeilen die Buecher
+    abfragt. Zwei Kopien derselben Schranke waeren zwei Schranken.
+    """
+
+    if candidates is None or candidates.empty:
+        return pd.Series(dtype=bool)
+    similarity = pd.to_numeric(candidates.get("similarity"), errors="coerce").fillna(0.0)
+    maske = similarity >= float(min_similarity)
+    if require_volume:
+        pm_vol = pd.to_numeric(candidates.get("polymarket_volume_usd"), errors="coerce").fillna(0.0)
+        ks_vol = pd.to_numeric(candidates.get("kalshi_volume_contracts"), errors="coerce").fillna(0.0)
+        maske = maske & (pm_vol > 0) & (ks_vol > 0)
+    return maske
+
+
+def cross_suppressed(rejected: pd.DataFrame, limit: int = 6) -> dict[str, Any]:
+    """Was der Paar-Check aussortiert hat, mit Grund und ohne jede Zahl.
+
+    Ein weggelassenes Paar stillschweigend verschwinden zu lassen waere
+    dieselbe Unehrlichkeit von der anderen Seite: die Seite soll sagen
+    koennen, wie viele Kandidaten warum nicht gerechnet wurden. Preise
+    stehen hier bewusst nicht, denn zwischen zwei verschiedenen Fragen ist
+    auch die Luecke keine Aussage.
+    """
+
+    leer: dict[str, Any] = {"total": 0, "by_verdict": {}, "examples": []}
+    if rejected is None or rejected.empty or "pair_verdict" not in rejected.columns:
+        return leer
+    verdicts = rejected["pair_verdict"].astype(str)
+    beispiele = [
+        {
+            "event": _text(row.get("polymarket_title")),
+            "other": _text(row.get("kalshi_title")),
+            "verdict": _text(row.get("pair_verdict")),
+            "why": _text(row.get("pair_reasons")),
+        }
+        for _, row in rejected.head(limit).iterrows()
+    ]
+    return {
+        "total": int(len(rejected)),
+        "by_verdict": {str(k): int(v) for k, v in verdicts.value_counts().items()},
+        "examples": beispiele,
+    }
+
+
 def cross_rows(
     candidates: pd.DataFrame,
     categories: Mapping[str, str] | None = None,
@@ -1551,6 +1654,13 @@ def cross_rows(
     ``pmVolUsd`` sind Dollar, ``ksVolContracts`` sind Kontrakte. Die beiden
     hiessen einmal ``pmVol`` und ``ksVol``, und das Frontend hat sie addiert.
     Sie sind nicht addierbar (Beleg in ``app/venue_units.py``).
+
+    ``size`` ist die Stueckzahl, fuer die die Spanne gilt, und
+    ``depthChecked`` sagt, ob jemand nachgesehen hat: ohne Buchabfrage sind
+    es die 100 Stueck des Gebuehren-Clips, also eine Annahme ueber die
+    Spitze des Buchs. Ein Paar, das ``pair_verdict`` verworfen hat, kommt
+    hier gar nicht erst durch: zwischen zwei verschiedenen Fragen ist auch
+    die Luecke keine Aussage.
     """
 
     if candidates is None or candidates.empty:
@@ -1569,6 +1679,12 @@ def cross_rows(
         ks_vol = _num(row.get("kalshi_volume_contracts"), 0.0) or 0.0
         if require_volume and (pm_vol <= 0 or ks_vol <= 0):
             continue
+        # Zweiter Riegel an der Nutzlastgrenze: der Paarer laesst eine
+        # verworfene Zeile nur mit include_rejected heraus, und die gehoert
+        # in die Zaehlung (cross_suppressed), nicht in die Tabelle.
+        verdict = _text(row.get("pair_verdict")) or cross_pairs.PAIR_UNVERIFIED
+        if verdict != cross_pairs.PAIR_UNVERIFIED:
+            continue
         pm_key = _text(row.get("polymarket_market_key"))
         rows.append({
             "event": _text(row.get("polymarket_title")) or _text(row.get("kalshi_title")),
@@ -1586,6 +1702,10 @@ def cross_rows(
             "band": _num(row.get("fee_band_cents")),
             "net": _num(row.get("net_edge_cents")),
             "dir": _text(row.get("edge_direction")),
+            # Fuer wie viele Stueck die drei Zahlen darueber gelten, und ob
+            # das gemessen oder angenommen ist.
+            "size": _num(row.get("size_shares")),
+            "depthChecked": bool(row.get("depth_checked")),
             "pm_url": _text(row.get("polymarket_url")),
             "ks_url": _text(row.get("kalshi_url")),
         })
@@ -2090,7 +2210,7 @@ def copy_payload(
     """
 
     order_rows: list[dict[str, Any]] = []
-    copied = skipped = 0
+    copied = skipped = settled_orders = observed_orders = 0
     total_orders = 0
     books = _source_book_index(source_positions)
     if orders is not None and not orders.empty:
@@ -2099,6 +2219,10 @@ def copy_payload(
             status_all = orders["status"].astype(str)
             copied = int(status_all.eq("copied").sum())
             skipped = int(status_all.eq("skipped").sum())
+            # Eine kopierte Order wechselt beim Aufloesen auf ``settled``.
+            # Ohne diese Zeile fiel sie aus dem Zaehler und blieb im Nenner.
+            settled_orders = int(status_all.eq("settled").sum())
+            observed_orders = int(status_all.eq("seed_observed").sum())
         for _, row in orders.head(200).iterrows():
             status = _text(row.get("status")) or "copied"
             time_label = _text(row.get("source_time") or row.get("created_at"))
@@ -2178,9 +2302,23 @@ def copy_payload(
     equity = _num(portfolio.get("equity"), 0.0) or 0.0
     cash = _num(portfolio.get("cash"), 0.0) or 0.0
     contributions = _num(contributions, 0.0) or 0.0
-    pnl = equity - contributions
+    # Gebucht und bewertet getrennt (app/copy_follow.py): ``pnl`` allein ist
+    # eine Zahl, in der ein realisierter Verlust und eine Marke auf noch
+    # nicht entschiedenen Positionen dasselbe Vorzeichen bekommen.
+    split = cf.pnl_split(
+        contributions=contributions,
+        realized_pnl=portfolio.get("realized_pnl"),
+        unrealized_pnl=portfolio.get("unrealized_pnl"),
+        equity=equity,
+    )
+    pnl = split["total_pnl"]
+    # Zaehler und Nenner ueber derselben Menge: gespiegelt sind kopierte UND
+    # aufgeloeste Zeilen, zu entscheiden war ueber diese plus die
+    # uebersprungenen. Die Baseline-Zeilen standen nur im Nenner.
+    deckung = cf.mirror_coverage(copied=copied, settled=settled_orders,
+                                 skipped=skipped, observed=observed_orders)
     total = total_orders
-    fidelity = round(copied / total * 100) if total else 100
+    fidelity = round(deckung["coverage_pct"]) if deckung["coverage_pct"] is not None else 100
     scale = _num((sizing or {}).get("effective_copy_scale"), 1.0) or 1.0
     return {
         "status": {
@@ -2194,9 +2332,21 @@ def copy_payload(
             "equity": equity,
             "contributions": contributions,
             "pnl": pnl,
-            "pnl_pct": (pnl / contributions * 100) if contributions else 0.0,
+            "pnl_pct": split["total_pct"],
+            # Die beiden Haelften derselben Schlagzeile. Sie teilen sich den
+            # Nenner (das eingezahlte Kapital) und addieren sich deshalb zu
+            # pnl_pct; ``pnl_reconciles`` sagt, ob die Buecher das hergeben.
+            "settled_pnl": split["settled_pnl"],
+            "open_pnl": split["open_pnl"],
+            "settled_pct": split["settled_pct"],
+            "open_pct": split["open_pct"],
+            "pnl_reconciles": split["reconciles"],
+            "pnl_residual": split["residual"],
             "source_return_pct": 0.0,
-            "mirrored": copied,
+            "mirrored": deckung["mirrored"],
+            "actionable": deckung["actionable"],
+            "observed": deckung["observed"],
+            "coverage_pct": deckung["coverage_pct"],
             "total": total,
             "skipped": skipped,
             "fidelity": fidelity,
@@ -2869,6 +3019,7 @@ def network_graph(
     edges: pd.DataFrame,
     *,
     regel: str = "",
+    leiter: Sequence[Mapping[str, Any]] | None = None,
     modularitaet: float | None = None,
     nullmodell: Mapping[str, Any] | None = None,
     wallets_im_tape: int | None = None,
@@ -2884,6 +3035,13 @@ def network_graph(
     gehoert in die Nutzlast und nicht in einen festen Text im Frontend: die
     Regel faellt auf eine lockerere zurueck, wenn die strenge nichts findet,
     und ein Bild, das die falsche Regel behauptet, ist wertlos.
+
+    ``leiter`` ist diese Ruecknahme im Klartext: alle Sprossen von streng nach
+    locker, je Sprosse ihre Parameter, ob sie versucht wurde und was sie
+    gefunden hat. Nur die gewaehlte Sprosse zu nennen sagt zwar die Wahrheit
+    ueber das Bild, verschweigt aber, dass zwei strengere Regeln vorher nichts
+    gefunden haben — und genau das ist der Befund. Nicht versucht ist dabei
+    etwas anderes als nichts gefunden.
 
     Drei Angaben gehen mit, weil das Bild ohne sie nicht einzuordnen ist:
     ``wallets_im_tape`` als Nenner (41 von 300 gescreenten Wallets sind eine
@@ -2962,6 +3120,23 @@ def network_graph(
         ergebnis["kennzahl"]["wallets_im_tape"] = int(wallets_im_tape)
     if regel:
         ergebnis["regel"] = regel
+    if leiter:
+        ergebnis["regel_leiter"] = [
+            {
+                "regel": _text(sprosse.get("regel")),
+                "parameter": {str(k): v for k, v in (sprosse.get("parameter") or {}).items()},
+                "versucht": bool(sprosse.get("versucht")),
+                # Nicht versucht heisst None, nicht null: null waere die
+                # Aussage "diese Regel hat nichts gefunden", und das hat
+                # niemand geprueft.
+                "wallets": (None if sprosse.get("wallets") is None
+                            else int(sprosse["wallets"])),
+                "kanten": (None if sprosse.get("kanten") is None
+                           else int(sprosse["kanten"])),
+                "gewaehlt": bool(sprosse.get("gewaehlt")),
+            }
+            for sprosse in leiter
+        ]
     if modularitaet is not None:
         ergebnis["kennzahl"]["modularitaet"] = round(float(modularitaet), 3)
     if nullmodell:

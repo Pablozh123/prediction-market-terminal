@@ -5,9 +5,9 @@
 import { esc, money, num, stempel, volume as volumeLabel } from './util.js';
 import { scorePartsOf } from './pages/trader_pages.js';
 import { isFullAddress } from './pages/wallet_page.js';
+import { MONO as M } from './ui.js';
 
-const M = "font-family:'IBM Plex Mono',monospace";
-const STAT_VAL = M + '; font-size:19px; margin-top:5px';
+const STAT_VAL = M + '; font-size:var(--t-head); margin-top:5px';
 
 export function renderDetail(T) {
   const d = T.state.detail;
@@ -52,7 +52,7 @@ export function renderDetail(T) {
         primary: t.wallet === '—' ? 'Anonymous (Kalshi)' : t.wallet,
         secondary: t.side + ' at ' + t.price + ' · ' + t.ago,
         value: money(t.size),
-        style: M + '; font-size:13px; color:' + (t.side.indexOf('BUY') === 0 ? 'var(--pos)' : 'var(--neg)')
+        style: M + '; font-size:var(--t-body); color:' + (t.side.indexOf('BUY') === 0 ? 'var(--pos)' : 'var(--neg)')
       })),
       // Keine Knoepfe: "Watch this market" hatte keinen Endpunkt (die
       // Watchlist wird nur gelesen), und "Open on <venue>" verlinkte auf die
@@ -144,7 +144,7 @@ export function renderDetail(T) {
       primary: x.market,
       secondary: x.side + ' at ' + x.price + ' · ' + x.ago,
       value: money(x.size),
-      style: M + '; font-size:13px; color:' + (String(x.side).indexOf('BUY') === 0 ? 'var(--pos)' : 'var(--neg)')
+      style: M + '; font-size:var(--t-body); color:' + (String(x.side).indexOf('BUY') === 0 ? 'var(--pos)' : 'var(--neg)')
     }));
     const curveWindow = wd && wd.pnl && wd.pnl.window ? String(wd.pnl.window).toUpperCase() : '';
     v = {
@@ -187,23 +187,23 @@ export function renderDetail(T) {
     };
   }
 
-  return '<div role="dialog" aria-modal="true" aria-label="' + esc(v.title || v.kicker || 'Detail') + '" style="position:absolute; top:0; right:0; bottom:0; width:392px; box-sizing:border-box; border-left:1px solid rgba(var(--ink),.09); background:var(--bg); overflow-y:auto; z-index:20; box-shadow:-24px 0 48px var(--shadow-45); animation:panelIn .22s ease-out">'
-    + '<div style="display:flex; align-items:center; justify-content:space-between; padding:13px 20px; border-bottom:1px solid rgba(var(--ink),.09); background:var(--panel); position:sticky; top:0">'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.16em; color:' + v.accent + '">' + v.kicker + '</div>'
-    + '<div ' + T.act(() => T.setState({ detail: null })) + ' aria-label="Close" class="hv-white" style="' + M + '; font-size:14px; color:rgba(var(--ink),.5); cursor:pointer; line-height:1">✕</div></div>'
+  return '<div role="dialog" aria-modal="true" aria-label="' + esc(v.title || v.kicker || 'Detail') + '" style="position:absolute; top:0; right:0; bottom:0; width:392px; box-sizing:border-box; border-left:1px solid var(--line-2); background:var(--bg); overflow-y:auto; z-index:20; box-shadow:-24px 0 48px var(--shadow-45); animation:panelIn .22s ease-out">'
+    + '<div style="display:flex; align-items:center; justify-content:space-between; padding:13px 20px; border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.16em; color:' + v.accent + '">' + v.kicker + '</div>'
+    + '<div ' + T.act(() => T.setState({ detail: null })) + ' aria-label="Close" class="hv-white" style="' + M + '; font-size:var(--t-body); color:var(--ink-4); cursor:pointer; line-height:1">✕</div></div>'
     + '<div style="padding:20px">'
-    + '<div style="font-size:19px; line-height:1.3">' + esc(v.title) + '</div>'
-    + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:6px">' + esc(v.meta) + '</div>'
+    + '<div style="font-size:var(--t-head); line-height:1.3">' + esc(v.title) + '</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:6px">' + esc(v.meta) + '</div>'
     + '<div style="display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-top:18px">'
     + v.stats.map((st) =>
-      '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:11px 13px">'
-      + '<div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:rgba(var(--ink),.6)">' + st.label + '</div>'
+      '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:11px 13px">'
+      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3)">' + st.label + '</div>'
       + '<div style="' + st.style + '">' + st.value + '</div></div>'
     ).join('')
     + '</div>'
-    + (v.note ? '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); line-height:1.7; margin-top:12px; border:1px solid rgba(var(--ink),.09); border-radius:4px; padding:9px 11px; background:var(--panel)">' + v.note + '</div>' : '')
-    + '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:14px; margin-top:14px">'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.6); margin-bottom:10px">' + v.chartLabel + '</div>'
+    + (v.note ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); line-height:1.7; margin-top:12px; border:1px solid var(--line-2); border-radius:var(--r-control); padding:9px 11px; background:var(--panel)">' + v.note + '</div>' : '')
+    + '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:14px; margin-top:14px">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3); margin-bottom:10px">' + v.chartLabel + '</div>'
     + (v.chartPoints
       ? '<svg width="100%" height="150" viewBox="0 0 340 150" preserveAspectRatio="none" role="img" aria-label="' + esc(v.chartLabel || 'chart') + '">'
         + '<line x1="0" y1="25" x2="340" y2="25" style="stroke:rgba(var(--ink),.07)" />'
@@ -211,25 +211,25 @@ export function renderDetail(T) {
         + '<line x1="0" y1="115" x2="340" y2="115" style="stroke:rgba(var(--ink),.07)" />'
         + '<line x1="0" y1="145" x2="340" y2="145" style="stroke:rgba(var(--ink),.14)" />'
         + '<polyline points="' + v.chartPoints + '" fill="none" style="stroke:' + v.accent + '" stroke-width="2" /></svg>'
-        + '<div style="display:flex; justify-content:space-between; ' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:6px">'
+        + '<div style="display:flex; justify-content:space-between; ' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:6px">'
         + '<span>' + v.axisStart + '</span><span>now</span></div>'
-      : '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); line-height:1.6">' + esc(v.chartEmpty) + '</div>')
+      : '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); line-height:1.6">' + esc(v.chartEmpty) + '</div>')
     + '</div>'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.6); margin:20px 0 10px">' + v.listLabel + '</div>'
-    + (v.list.length ? '' : '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); line-height:1.6">' + esc(v.listEmpty) + '</div>')
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3); margin:20px 0 10px">' + v.listLabel + '</div>'
+    + (v.list.length ? '' : '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); line-height:1.6">' + esc(v.listEmpty) + '</div>')
     + v.list.map((it) =>
-      '<div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid rgba(var(--ink),.06)">'
+      '<div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid var(--line-3)">'
       + '<div style="min-width:0">'
-      + '<div style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(it.primary) + '">' + esc(it.primary) + '</div>'
-      + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); margin-top:3px">' + esc(it.secondary) + '</div></div>'
+      + '<div style="font-size:var(--t-body); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(it.primary) + '">' + esc(it.primary) + '</div>'
+      + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:3px">' + esc(it.secondary) + '</div></div>'
       + '<div style="' + it.style + '">' + it.value + '</div></div>'
     ).join('')
     // Ein Knopf wird nur gezeichnet, wenn ein Handler daran haengt.
     + (v.primaryAction && v.primaryAct
       ? '<div style="display:flex; flex-direction:column; gap:8px; margin-top:20px">'
-        + '<div ' + v.primaryAct + ' class="hv-accentbg" style="font-size:13px; font-weight:600; text-align:center; color:var(--on-accent); background:var(--accent); border-radius:4px; padding:11px; cursor:pointer">' + esc(v.primaryAction) + '</div>'
+        + '<div ' + v.primaryAct + ' class="hv-accentbg" style="font-size:var(--t-body); font-weight:600; text-align:center; color:var(--on-accent); background:var(--accent); border-radius:var(--r-control); padding:11px; cursor:pointer">' + esc(v.primaryAction) + '</div>'
         + (v.secondaryAction && v.secondaryAct
-          ? '<div ' + v.secondaryAct + ' class="hv-bd32" style="font-size:12.5px; text-align:center; color:rgba(var(--ink),.7); border:1px solid rgba(var(--ink),.16); border-radius:4px; padding:10px; cursor:pointer">' + esc(v.secondaryAction) + '</div>'
+          ? '<div ' + v.secondaryAct + ' class="hv-edge-strong" style="font-size:var(--t-small); text-align:center; color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:10px; cursor:pointer">' + esc(v.secondaryAction) + '</div>'
           : '')
         + '</div>'
       : '')
@@ -274,17 +274,17 @@ export function renderSearch(T) {
   if (isFullAddress(rawQuery)) {
     walletActions.push({
       tag: 'ANALYSE', title: 'Analyse wallet ' + rawQuery.slice(0, 6) + '…' + rawQuery.slice(-4), meta: rawQuery + ' · opens the wallet page (#wallet/<address>)', value: '→',
-      tagStyle: M + '; font-size:10.5px; letter-spacing:.12em; color:var(--on-accent); background:var(--accent); border-radius:4px; padding:3px 6px',
+      tagStyle: M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--on-accent); background:var(--accent); border-radius:var(--r-control); padding:3px 6px',
       act: T.act(() => { if (T.analyseWallet) T.analyseWallet(rawQuery); else T.setState({ searchOpen: false, searchQuery: '' }); })
     });
   } else if (/^0x[0-9a-fA-F]*$/.test(rawQuery) && rawQuery.length > 2) {
     walletActions.push({
       tag: 'WALLET', title: 'Paste the full address to analyse a wallet', meta: '0x followed by 40 hex characters — ' + rawQuery.length + ' of 42 so far', value: '',
-      tagStyle: M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.2); border-radius:4px; padding:3px 6px',
+      tagStyle: M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3); border:1px solid var(--line-1); border-radius:var(--r-control); padding:3px 6px',
       act: ''
     });
   }
-  const grauTag = M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.7); border:1px solid rgba(var(--ink),.22); border-radius:4px; padding:3px 6px';
+  const grauTag = M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:3px 6px';
   // Seiten und Reiter: bei leerer Anfrage die Schnellnavigation, sonst jede
   // Seite, deren Name, Beschreibung oder Stichwoerter die Anfrage enthalten.
   const seitenTreffer = SEITEN
@@ -320,7 +320,7 @@ export function renderSearch(T) {
     }));
   const marketRow = (m) => ({
     tag: 'MARKET', title: m.title, meta: m.venue + ' · ' + m.cat, value: m.yes + '¢',
-    tagStyle: M + '; font-size:10.5px; letter-spacing:.12em; color:var(--on-accent); background:var(--accent); border-radius:4px; padding:3px 6px',
+    tagStyle: M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--on-accent); background:var(--accent); border-radius:var(--r-control); padding:3px 6px',
     act: T.act(() => T.openRemoteMarket(m))
   });
   const lokaleMaerkte = T.markets.filter((m) => !q || m.title.toLowerCase().indexOf(q) >= 0).slice(0, 5);
@@ -333,14 +333,14 @@ export function renderSearch(T) {
   const searchMarkets = lokaleMaerkte.concat(remoteMaerkte).map(marketRow);
   const searchTraders = T.traders.filter((t) => !q || t.name.toLowerCase().indexOf(q) >= 0).slice(0, 3).map((t) => ({
     tag: 'WALLET', title: t.name, meta: t.wallet + (t.score != null ? ' · smart score ' + t.score : ''), value: money(t.pnl),
-    tagStyle: M + '; font-size:10.5px; letter-spacing:.12em; color:var(--on-accent); background:var(--info); border-radius:4px; padding:3px 6px',
+    tagStyle: M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--on-accent); background:var(--info); border-radius:var(--r-control); padding:3px 6px',
     act: T.act(() => { T.setState({ searchOpen: false, searchQuery: '' }); T.openWallet(t.name); })
   }));
   const bekannteNamen = {};
   T.traders.forEach((t) => { bekannteNamen[t.name.toLowerCase()] = true; });
   const remoteWallets = remote ? remote.wallets.filter((w) => !bekannteNamen[String(w.name || '').toLowerCase()]).slice(0, 3).map((w) => ({
     tag: 'WALLET', title: w.name, meta: w.wallet + ' · Polymarket profile — opens the wallet page', value: '→',
-    tagStyle: M + '; font-size:10.5px; letter-spacing:.12em; color:var(--on-accent); background:var(--info); border-radius:4px; padding:3px 6px',
+    tagStyle: M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--on-accent); background:var(--info); border-radius:var(--r-control); padding:3px 6px',
     act: T.act(() => { if (T.analyseWallet) T.analyseWallet(w.wallet); else T.setState({ searchOpen: false, searchQuery: '' }); })
   })) : [];
   // Volltext-Handlung: die Anfrage als Filter auf den Markt-Screen legen —
@@ -361,21 +361,21 @@ export function renderSearch(T) {
   }
 
   return '<div ' + T.act(() => T.setState({ searchOpen: false }), { plain: true }) + ' data-bg style="position:fixed; inset:0; background:var(--scrim); display:flex; align-items:flex-start; justify-content:center; padding-top:14vh; z-index:50">'
-    + '<div data-stop role="dialog" aria-modal="true" aria-label="Search markets, wallets and categories" style="width:620px; background:var(--panel); border:1px solid rgba(var(--ink),.14); border-radius:14px; overflow:hidden; box-shadow:0 30px 80px var(--shadow-60)">'
-    + '<input value="' + esc(s.searchQuery) + '" ' + T.inp((e) => { T.sucheRemote(e.target.value); T.setState({ searchQuery: e.target.value }); }, 'searchQuery') + ' placeholder="Search pages, studies, markets, wallets, categories — or paste a 0x… address" style="width:100%; box-sizing:border-box; background:transparent; border:none; border-bottom:1px solid rgba(var(--ink),.35); padding:17px 20px; ' + M + '; font-size:14px; color:var(--text)" autofocus />'
+    + '<div data-stop role="dialog" aria-modal="true" aria-label="Search markets, wallets and categories" style="width:620px; background:var(--panel); border:1px solid var(--line-1); border-radius:14px; overflow:hidden; box-shadow:0 30px 80px var(--shadow-60)">'
+    + '<input value="' + esc(s.searchQuery) + '" ' + T.inp((e) => { T.sucheRemote(e.target.value); T.setState({ searchQuery: e.target.value }); }, 'searchQuery') + ' placeholder="Search pages, studies, markets, wallets, categories — or paste a 0x… address" style="width:100%; box-sizing:border-box; background:transparent; border:none; border-bottom:1px solid var(--line-edge); padding:17px 20px; ' + M + '; font-size:var(--t-body); color:var(--text)" autofocus />'
     + '<div style="max-height:380px; overflow-y:auto">'
     // The first row is marked (data-result) and lightly highlighted: Enter
     // opens it (app.js keydown), so the palette works without the mouse.
     + results.map((r, i) =>
-      '<div ' + r.act + ' data-result="' + i + '" class="hv-el" style="display:flex; align-items:center; gap:12px; padding:12px 20px; border-bottom:1px solid rgba(var(--ink),.05); cursor:pointer' + (i === 0 ? '; background:var(--panel-hover)' : '') + '">'
+      '<div ' + r.act + ' data-result="' + i + '" class="hv-el" style="display:flex; align-items:center; gap:12px; padding:12px 20px; border-bottom:1px solid var(--line-3); cursor:pointer' + (i === 0 ? '; background:var(--panel-hover)' : '') + '">'
       + '<div style="' + r.tagStyle + '">' + r.tag + '</div>'
       + '<div style="flex:1; min-width:0">'
-      + '<div style="font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(r.title) + '">' + esc(r.title) + '</div>'
-      + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); margin-top:2px">' + esc(r.meta) + '</div></div>'
-      + '<div style="' + M + '; font-size:12.5px; color:rgba(var(--ink),.6)">' + r.value + '</div></div>'
+      + '<div style="font-size:var(--t-body); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(r.title) + '">' + esc(r.title) + '</div>'
+      + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:2px">' + esc(r.meta) + '</div></div>'
+      + '<div style="' + M + '; font-size:var(--t-small); color:var(--ink-3)">' + r.value + '</div></div>'
     ).join('')
     + '</div>'
-    + '<div style="padding:10px 20px; ' + M + '; font-size:11px; color:rgba(var(--ink),.55); display:flex; gap:16px">'
+    + '<div style="padding:10px 20px; ' + M + '; font-size:var(--t-micro); color:var(--ink-4); display:flex; gap:16px">'
     + '<span>ESC to close</span>' + (results.length ? '<span>ENTER opens the first result, ARROW KEYS walk them</span>' : '') + '<span role="status">' + results.length + ' results'
     + (remoteHinweis ? ' — ' + esc(remoteHinweis) : '')
     + (!T.markets.length && !T.traders.length && !remoteMaerkte.length ? ' — market rows need /api/markets, wallet rows the leaderboard; pages and studies are always searchable' : '') + '</span></div>'

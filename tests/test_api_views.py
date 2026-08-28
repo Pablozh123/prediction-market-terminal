@@ -10,6 +10,7 @@ import pandas as pd
 
 from app import api_views as apv
 from app import claims
+from app import cross_pairs
 from app import suspicion as susp
 
 
@@ -777,6 +778,46 @@ class CopyPayloadTests(unittest.TestCase):
         bare = apv.copy_payload(orders, pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), {"cash": 1000.0, "equity": 1000.0}, 1000.0, w, "x", {})
         self.assertEqual(bare["orders"][0]["book"], "")
 
+    def test_the_headline_percentage_splits_into_settled_and_marked(self) -> None:
+        # 1.000 Dollar eingezahlt. Eine Kopie ist aufgeloest und hat 120
+        # Dollar gekostet, eine zweite steht offen 300 Dollar ueber ihrem
+        # Einstand. Die Kachel las "+180 Dollar, +18,00 %" und verschwieg,
+        # dass gebucht 120 Dollar fehlen und die 300 Dollar eine Bewertung
+        # sind.
+        portfolio = {"cash": 480.0, "position_value": 700.0, "equity": 1180.0,
+                     "realized_pnl": -120.0, "unrealized_pnl": 300.0}
+        payload = apv.copy_payload(pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(),
+                                   portfolio, 1000.0, "0x" + "a" * 40, "x", {})
+        kpis = payload["kpis"]
+        self.assertAlmostEqual(kpis["pnl"], 180.0)
+        self.assertAlmostEqual(kpis["pnl_pct"], 18.0)
+        self.assertAlmostEqual(kpis["settled_pnl"], -120.0)
+        self.assertAlmostEqual(kpis["open_pnl"], 300.0)
+        self.assertAlmostEqual(kpis["settled_pct"], -12.0)
+        self.assertAlmostEqual(kpis["open_pct"], 30.0)
+        self.assertTrue(kpis["pnl_reconciles"])
+
+    def test_mirrored_counts_settled_copies_and_drops_the_baseline_rows(self) -> None:
+        # 100 Zeilen: 40 nur beobachtet, 30 kopiert und aufgeloest, 20
+        # kopiert und offen, 10 uebersprungen. Die Kachel las "20 / 100",
+        # weil der Zaehler nur copied zaehlte und der Nenner jede Zeile.
+        # Gespiegelt wurden 50 von 60 Zeilen, ueber die zu entscheiden war.
+        zeilen = []
+        for status, anzahl in (("seed_observed", 40), ("settled", 30), ("copied", 20), ("skipped", 10)):
+            for i in range(anzahl):
+                zeilen.append({"source_time": "2026-08-20T19:45:00Z", "title": f"{status}-{i}",
+                               "copy_side": "buy", "outcome": "Yes", "source_notional": 100.0,
+                               "copy_notional": 1.0, "status": status})
+        payload = apv.copy_payload(pd.DataFrame(zeilen), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(),
+                                   {"cash": 1000.0, "equity": 1000.0}, 1000.0, "0x" + "a" * 40, "x", {})
+        kpis = payload["kpis"]
+        self.assertEqual(kpis["mirrored"], 50)
+        self.assertEqual(kpis["actionable"], 60)
+        self.assertEqual(kpis["observed"], 40)
+        self.assertEqual(kpis["total"], 100)
+        self.assertEqual(kpis["skipped"], 10)
+        self.assertAlmostEqual(kpis["coverage_pct"], 50 / 60 * 100)
+
     def test_source_book_line_wording(self) -> None:
         self.assertEqual(apv.source_book_line({"yes": 0.0, "no": 0.0}), "source book now: flat in this market")
         self.assertEqual(apv.source_book_line({"yes": 950.0, "no": 1000.0}), "source book now: 950 YES / 1.0k NO → balanced")
@@ -1481,6 +1522,53 @@ class CrossGateTests(unittest.TestCase):
         self.assertIsNone(row["gross"])
         self.assertIsNone(row["net"])
         self.assertEqual(row["dir"], "")
+
+    def test_the_row_says_for_how_many_shares_the_edge_holds(self) -> None:
+        frame = self._candidates()
+        frame.loc[0, "net_edge_cents"] = 1.2845
+        frame.loc[0, "size_shares"] = 3.0
+        frame.loc[0, "depth_checked"] = True
+        row = apv.cross_rows(frame)[0]
+        self.assertEqual(row["size"], 3.0)
+        self.assertTrue(row["depthChecked"])
+
+    def test_an_unmeasured_size_is_marked_as_unmeasured(self) -> None:
+        # Ohne Buchabfrage sind die 100 Stueck der Clip der Gebuehrenkurve,
+        # keine gemessene Tiefe. Die Zeile muss das sagen koennen.
+        row = apv.cross_rows(self._candidates())[0]
+        self.assertFalse(row["depthChecked"])
+
+    def test_a_rejected_pair_never_reaches_the_table(self) -> None:
+        frame = self._candidates()
+        frame.loc[0, "pair_verdict"] = cross_pairs.PAIR_OPPOSED
+        frame.loc[0, "pair_reasons"] = "opposite direction (threshold): above against below"
+        self.assertEqual([r["event"] for r in apv.cross_rows(frame)], ["exactly at the gate"])
+
+    def test_the_suppressed_block_counts_and_names_them(self) -> None:
+        verworfen = pd.DataFrame([
+            {"polymarket_title": "Bitcoin above $120,000", "kalshi_title": "Bitcoin below $120,000",
+             "pair_verdict": cross_pairs.PAIR_OPPOSED,
+             "pair_reasons": "opposite direction (threshold): above against below",
+             "polymarket_yes": 0.62, "kalshi_yes": 0.37, "net_edge_cents": 19.68},
+            {"polymarket_title": "Fed cuts in September", "kalshi_title": "Fed cuts in December",
+             "pair_verdict": cross_pairs.PAIR_DIFFERENT,
+             "pair_reasons": "resolution dates 84 days apart",
+             "polymarket_yes": 0.62, "kalshi_yes": 0.37, "net_edge_cents": 19.68},
+        ])
+        block = apv.cross_suppressed(verworfen)
+        self.assertEqual(block["total"], 2)
+        self.assertEqual(block["by_verdict"][cross_pairs.PAIR_OPPOSED], 1)
+        self.assertIn("above against below", block["examples"][0]["why"])
+        # Kein Preis, keine Spanne: zwischen zwei verschiedenen Fragen ist
+        # auch die Luecke keine Aussage.
+        self.assertNotIn("net", block["examples"][0])
+        self.assertEqual(apv.cross_suppressed(pd.DataFrame())["total"], 0)
+
+    def test_the_gate_mask_is_the_same_gate_the_mapper_applies(self) -> None:
+        maske = apv.cross_gate_mask(self._candidates())
+        durch = self._candidates()[maske]
+        self.assertEqual(list(durch["polymarket_title"]), ["kept", "exactly at the gate"])
+        self.assertTrue(apv.cross_gate_mask(pd.DataFrame()).empty)
 
 
 class ScorePartsTests(unittest.TestCase):
