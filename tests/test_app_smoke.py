@@ -122,6 +122,7 @@ def skip_gated_test_ids() -> set[str]:
             gated.add(test.id().removeprefix("tests."))
     return gated
 
+
 #: ``safe_load`` swallows a failing fetch and writes this into the page. On
 #: fixtures nothing may fail, so the phrase marks a parser that broke behind
 #: the fallback: the page still claims to be live and shows nothing.
@@ -185,11 +186,10 @@ class SmokeGateTests(unittest.TestCase):
             getattr(AppSmokeTests, "__unittest_skip__", False),
             "AppSmokeTests must not be skip-gated: it is the only end-to-end check of the monolith",
         )
-        for name in ("test_every_page_loads_without_exception",):
-            self.assertFalse(
-                getattr(getattr(AppSmokeTests, name), "__unittest_skip__", False),
-                f"{name} must not be skip-gated",
-            )
+        self.assertFalse(
+            getattr(AppSmokeTests.test_every_page_loads_without_exception, "__unittest_skip__", False),
+            "the page pass itself must not be skip-gated either",
+        )
 
     def test_every_navigable_page_is_in_the_smoke_list(self) -> None:
         # Eine neue Seite, die nicht in PAGE_SLUGS steht, waere ungeprueft.
@@ -209,7 +209,7 @@ class FixtureCoverageTests(unittest.TestCase):
 
     Auf leeren Antworten steigt fast jede Aggregation an ihrem
     ``if frame.empty``-Wachposten sofort aus. Ein Smoke gegen leere Fixtures
-    laedt 16 Seiten und beruehrt die Rechenwege nicht, an denen die Fehler
+    laedt jede Seite und beruehrt die Rechenwege nicht, an denen die Fehler
     sitzen. Dieser Test haelt das Marktbild gefuellt.
     """
 
