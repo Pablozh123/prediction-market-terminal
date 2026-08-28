@@ -928,7 +928,19 @@ function rendern(T) {
           max_drawdown: -0.08, window_truncated: false, effective_start: '',
           skip_reasons: { out_of_cash: 2, exposure_cap: 2, no_position: 0, bad_data: 0, other: 0 }
         },
-        equity: [1000, 1050], benchmark: [1000, 1010], drawdown: [0, -0.08], log: []
+        equity: [1000, 1050], benchmark: [1000, 1010], drawdown: [0, -0.08], log: [],
+        // api_views.trade_pnl_distribution ueber 60 geschlossene Kopien:
+        // die drei groessten Gewinner tragen 45 von 120 Dollar Bruttogewinn.
+        trade_pnl: {
+          unit: 'USD', n: 60, best: 18.5, worst: -12.25, gross_win: 120, top3: 45,
+          top3_share: 0.375, winners: 35,
+          bins: [
+            { von: -12.25, bis: -8, anzahl: 4 }, { von: -8, bis: -4, anzahl: 9 },
+            { von: -4, bis: 0, anzahl: 12 }, { von: 0, bis: 4, anzahl: 18 },
+            { von: 4, bis: 8, anzahl: 10 }, { von: 8, bis: 12, anzahl: 4 },
+            { von: 12, bis: 18.5, anzahl: 3 }
+          ]
+        }
       };
       return () => { T.liveData.backtest = alt; };
     }],

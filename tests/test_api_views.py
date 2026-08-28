@@ -1460,6 +1460,47 @@ class RiskScoreBinsTests(unittest.TestCase):
         # Die Summe der Bins ist genau das, was der Trichter als gescreent zaehlt.
         self.assertEqual(sum(b["anzahl"] for b in bins), payload["kpis"]["events_screened"])
 
+class TradePnlDistributionTests(unittest.TestCase):
+    """Die Verteilung der Trade-Ergebnisse und ihre Konzentration."""
+
+    def _ledger(self, werte: list[float]) -> pd.DataFrame:
+        rows = [{"status": "copied", "action": "SELL", "realized_pnl": w} for w in werte]
+        # Ein Kauf und ein uebersprungener Trade duerfen nicht mitzaehlen.
+        rows.append({"status": "copied", "action": "BUY", "realized_pnl": None})
+        rows.append({"status": "skipped", "action": "SELL", "realized_pnl": 999.0})
+        return pd.DataFrame(rows)
+
+    def test_zaehlt_nur_geschlossene_kopien(self) -> None:
+        v = apv.trade_pnl_distribution(self._ledger([1.0, -2.0, 3.0]))
+        self.assertEqual(v["n"], 3)
+        self.assertEqual(sum(b["anzahl"] for b in v["bins"]), 3)
+        self.assertEqual(v["best"], 3.0)
+        self.assertEqual(v["worst"], -2.0)
+        self.assertEqual(v["unit"], "USD")
+
+    def test_konzentration_ist_der_anteil_der_drei_groessten_gewinner(self) -> None:
+        v = apv.trade_pnl_distribution(self._ledger([10.0, 6.0, 4.0, 2.0, 3.0, -5.0]))
+        self.assertEqual(v["winners"], 5)
+        self.assertEqual(v["gross_win"], 25.0)
+        self.assertEqual(v["top3"], 20.0)
+        self.assertAlmostEqual(v["top3_share"], 0.8)
+
+    def test_ohne_gewinn_ist_der_anteil_nicht_definiert(self) -> None:
+        v = apv.trade_pnl_distribution(self._ledger([-1.0, -2.0]))
+        self.assertIsNone(v["top3_share"])
+        self.assertEqual(v["winners"], 0)
+
+    def test_ohne_geschlossene_kopie_kein_bild(self) -> None:
+        self.assertIsNone(apv.trade_pnl_distribution(None))
+        self.assertIsNone(apv.trade_pnl_distribution(pd.DataFrame()))
+        nur_kaeufe = pd.DataFrame([{"status": "copied", "action": "BUY", "realized_pnl": None}])
+        self.assertIsNone(apv.trade_pnl_distribution(nur_kaeufe))
+
+    def test_gleiche_werte_bekommen_trotzdem_eine_achsenbreite(self) -> None:
+        v = apv.trade_pnl_distribution(self._ledger([5.0, 5.0, 5.0]))
+        self.assertEqual(sum(b["anzahl"] for b in v["bins"]), 3)
+        self.assertLess(v["bins"][0]["von"], v["bins"][-1]["bis"])
+
 class RiskEventRowTests(unittest.TestCase):
     """The event card carries side, price, wallets, window, link and components — or honest gaps."""
 

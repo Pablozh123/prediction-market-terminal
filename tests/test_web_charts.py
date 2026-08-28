@@ -31,7 +31,7 @@ WURZEL = Path(__file__).resolve().parents[1]
 HARNESS = WURZEL / "tests" / "web_render_harness.mjs"
 
 #: Werkzeugseiten, die mit Nutzlast ein Diagramm zeichnen muessen.
-SEITEN_MIT_DIAGRAMM = ("traders", "wallet", "risk", "markets_verteilung")
+SEITEN_MIT_DIAGRAMM = ("traders", "wallet", "risk", "markets_verteilung", "backtester_stats")
 
 #: Je Seite die Achsenbeschriftungen, die im Klartext dastehen muessen.
 #: Dollar, Cent, Kontrakte und Wahrscheinlichkeiten stehen im Terminal
@@ -41,6 +41,7 @@ ACHSEN_MIT_EINHEIT = {
     "wallet": ["at stake (USD)"],
     "risk": ["insider-pattern score (points out of 100)", "markets screened"],
     "markets_verteilung": ["yes price (cents)", "markets in the sample"],
+    "backtester_stats": ["result per closed copy (USD)", "closed copies"],
 }
 
 
@@ -163,6 +164,18 @@ class WebDiagrammTest(unittest.TestCase):
         self.assertIn("Kalshi counts in contracts", html)
         # Ein einzelner Markt ergibt kein Histogramm.
         self.assertNotIn("WHAT THE SAMPLE BELIEVES", self.ausgabe["live"]["markets"])
+
+    def test_backtester_zeigt_verteilung_und_konzentration(self) -> None:
+        """Traegt das Ergebnis eine Reihe von Trades oder drei?"""
+
+        html = self.ausgabe["live"]["backtester_stats"]
+        self.assertIn("RESULT PER CLOSED COPY", html)
+        self.assertIn("break even", html)
+        self.assertIn("The three largest winners carry 38% of the gross profit", html)
+        # Modelliert, nicht realisiert: der Vorbehalt steht am Bild.
+        self.assertIn("modeled values, not realized results", html)
+        # Ohne Lauf kein Diagramm.
+        self.assertNotIn("RESULT PER CLOSED COPY", self.ausgabe["live"]["backtester"])
 
     def test_punktwolke_faerbt_keinen_text_mit_der_datenfarbe(self) -> None:
         """Text traegt Ink-Stufen, Marken tragen die Serienfarbe."""

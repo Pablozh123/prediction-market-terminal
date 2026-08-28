@@ -4,6 +4,7 @@
 // every figure comes from the API or the cell shows that it does not.
 
 import { esc, num, leerZeile } from '../util.js';
+import { histogramm, kurzGeld } from '../charts.js';
 import { trackWatchRows } from './trader_pages.js';
 
 const M = "font-family:'IBM Plex Mono',monospace";
@@ -70,6 +71,44 @@ function laufStatusHtml(s, hatErgebnis) {
 }
 
 // ---------------------------------------------------------------- backtester
+// Verteilung der Trade-Ergebnisse plus die Konzentrationszeile.
+//
+// Sechs Statistikkarten und eine Equity-Kurve sagen, wie der Lauf endete.
+// Die Frage, die ein Backtest aufwirft, beantwortet keine davon: traegt das
+// Ergebnis eine Reihe von Trades oder tragen es drei? Eine Kurve, die aus
+// drei Treffern besteht, sieht aus wie eine Kurve.
+//
+// Einheit ist Dollar je geschlossener Kopie, nicht Prozent und nicht Cent.
+// Die Nulllinie steht als Referenz im Bild, denn das Vorzeichen ist hier die
+// Aussage. Das Muster der Konzentrationszeile gibt es schon auf der
+// Wallet-Seite (PROFIT CONCENTRATION), es liest sich hier genauso.
+export function tradeVerteilung(live) {
+  const v = live && live.trade_pnl ? live.trade_pnl : null;
+  if (!v || !Array.isArray(v.bins) || !v.n) return '';
+  const bins = v.bins
+    .filter((b) => b && typeof b.von === 'number' && typeof b.bis === 'number')
+    .map((b) => ({ von: b.von, bis: b.bis, anzahl: +b.anzahl || 0 }));
+  if (!bins.length) return '';
+  const anteil = v.top3_share != null ? Math.round(v.top3_share * 100) : null;
+  const konzentration = anteil != null
+    ? 'The three largest winners carry ' + anteil + '% of the gross profit ('
+      + kurzGeld(v.top3) + ' of ' + kurzGeld(v.gross_win) + ' across ' + num(v.winners) + ' winning copies). '
+    : 'No copy closed in profit, so there is no profit to concentrate. ';
+  return histogramm({
+    titel: 'RESULT PER CLOSED COPY',
+    hinweis: num(v.n) + ' closed copies',
+    xLabel: 'result per closed copy (USD)',
+    yLabel: 'closed copies',
+    bins,
+    referenzen: [{ wert: 0, label: 'break even' }],
+    xTickText: (x) => kurzGeld(x, true),
+    zaehlEinheit: 'copies',
+    hoehe: 180,
+    fussnote: konzentration + 'Best ' + kurzGeld(v.best, true) + ', worst ' + kurzGeld(v.worst, true)
+      + '. A simulation at historical prices with fee and slippage assumptions: modeled values, not realized results.'
+  });
+}
+
 export function renderBacktester(T) {
   const s = T.state;
   const bank = s.btBankroll;
@@ -151,6 +190,7 @@ export function renderBacktester(T) {
       : '');
 
   // Ohne Lauf keine Kacheln: jede dieser Zahlen kaeme sonst aus dem Nichts.
+  const verteilungChart = st ? tradeVerteilung(live) : '';
   const statCards = st ? [
     { label: 'FINAL EQUITY', value: '$' + finalEq.toFixed(0), sub: (ret >= 0 ? '+' : '') + ret.toFixed(1) + '% ROI', pos: ret >= 0 },
     // Der Untertitel nennt den noch offenen Teil, sobald es einen gibt:
@@ -394,6 +434,10 @@ export function renderBacktester(T) {
       + '<div style="' + M + '; font-size:11px; margin-top:5px; color:rgba(var(--ink),.6)">' + c.sub + '</div></div>'
     ).join('')
     + '</div>'
+    // Direkt unter den Kacheln: dieselbe Menge geschlossener Kopien, aber
+    // als Verteilung statt als Quote. Ohne sie steht nicht da, ob das
+    // Ergebnis von drei Trades getragen wird.
+    + (verteilungChart ? '<div style="margin-top:12px; max-width:700px">' + verteilungChart + '</div>' : '')
 
     // Keine erfundene Aufteilung der Skips mehr: hier stand 60 Prozent
     // Exposure-Deckel, 30 Prozent Kasse leer, 10 Prozent fremde Verkaeufe —

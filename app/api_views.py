@@ -2033,6 +2033,61 @@ def copy_payload(
     }
 
 
+#: Wie viele Saeulen die Verteilung der Trade-Ergebnisse hoechstens bekommt.
+TRADE_PNL_BINS = 16
+
+
+def trade_pnl_distribution(ledger: pd.DataFrame | None) -> dict[str, Any] | None:
+    """Verteilung des Ergebnisses je geschlossener Kopie, plus Konzentration.
+
+    Sechs Statistikkarten und eine Equity-Kurve sagen, wie der Lauf endete.
+    Was sie nicht sagen: ob das Ergebnis von wenigen Trades getragen wird.
+    Eine Kurve, die aus drei Treffern besteht, sieht wie eine Kurve aus.
+
+    Gezaehlt wird ueber dieselbe Menge wie ``win_rate``: geschlossene Kopien
+    (SELL und RESOLVE) mit dem Status copied oder settled. ``top3_anteil``
+    ist der Anteil der drei groessten Gewinne an der Summe aller Gewinne,
+    also dieselbe Lesart wie PROFIT CONCENTRATION auf der Wallet-Seite.
+    Ohne geschlossene Kopie kommt ``None`` zurueck.
+    """
+
+    if ledger is None or ledger.empty or "status" not in ledger or "action" not in ledger:
+        return None
+    closers = ledger[ledger["status"].isin(["copied", "settled"]) & ledger["action"].isin(["SELL", "RESOLVE"])]
+    if closers.empty or "realized_pnl" not in closers:
+        return None
+    werte = pd.to_numeric(closers["realized_pnl"], errors="coerce").dropna().astype(float).tolist()
+    if not werte:
+        return None
+    tief, hoch = min(werte), max(werte)
+    if hoch == tief:
+        # Alle gleich: ein Bin um den Wert, damit die Achse eine Breite hat.
+        tief, hoch = tief - 1.0, hoch + 1.0
+    breite = (hoch - tief) / TRADE_PNL_BINS
+    bins: list[dict[str, Any]] = []
+    for i in range(TRADE_PNL_BINS):
+        von = tief + i * breite
+        bis = hoch if i == TRADE_PNL_BINS - 1 else tief + (i + 1) * breite
+        drin = [w for w in werte if (von <= w < bis or (i == TRADE_PNL_BINS - 1 and w == hoch))]
+        bins.append({"von": round(von, 4), "bis": round(bis, 4), "anzahl": len(drin)})
+    gewinne = sorted((w for w in werte if w > 0), reverse=True)
+    summe_gewinne = sum(gewinne)
+    top3 = sum(gewinne[:3])
+    return {
+        "unit": "USD",
+        "n": len(werte),
+        "bins": bins,
+        "best": round(max(werte), 2),
+        "worst": round(min(werte), 2),
+        "gross_win": round(summe_gewinne, 2),
+        "top3": round(top3, 2),
+        # None statt 0, wenn es keinen einzigen Gewinn gibt: ein Anteil ohne
+        # Grundgesamtheit ist keine 0 Prozent, er ist nicht definiert.
+        "top3_share": round(top3 / summe_gewinne, 4) if summe_gewinne > 0 else None,
+        "winners": len(gewinne),
+    }
+
+
 def backtest_payload(result: Any) -> dict[str, Any]:
     """`btr.BacktestResult` in die Backtester-Ansicht (inkl. Caveats)."""
 
@@ -2111,6 +2166,9 @@ def backtest_payload(result: Any) -> dict[str, Any]:
             payload["curve_end"] = zeiten.max().isoformat()[:16]
     ledger: pd.DataFrame = result.ledger
     if ledger is not None and not ledger.empty:
+        verteilung = trade_pnl_distribution(ledger)
+        if verteilung is not None:
+            payload["trade_pnl"] = verteilung
         payload["log"] = [
             {
                 "time": _text(row.get("time"))[5:16].replace("T", " "),
