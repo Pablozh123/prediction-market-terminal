@@ -199,9 +199,19 @@ class SmokeGateTests(unittest.TestCase):
     def test_no_test_is_skip_gated_without_being_declared_here(self) -> None:
         # Die Suite meldete konstant "skipped=3", und alle drei waren die
         # Seiten-Pruefungen. Eine Zahl im Abschlussbericht liest niemand als
-        # Warnung. Ab jetzt muss jeder dauerhaft abgeschaltete Test hier
-        # stehen, sonst faellt die Suite darueber.
-        self.assertEqual(OPT_IN_BY_DESIGN, skip_gated_test_ids())
+        # Warnung. Ab jetzt muss jeder abgeschaltete Test in
+        # OPT_IN_BY_DESIGN stehen, sonst faellt die Suite darueber.
+        #
+        # Geprueft wird die Teilmenge, nicht die Gleichheit: mit gesetztem
+        # RUN_APP_SMOKE laeuft der Live-Durchlauf und ist dann eben nicht
+        # abgeschaltet. Ein Eintrag, der gerade laeuft, ist kein Fehler; ein
+        # Skip, den niemand angemeldet hat, schon.
+        undeclared = skip_gated_test_ids() - OPT_IN_BY_DESIGN
+        self.assertEqual(
+            set(),
+            undeclared,
+            "skip-gated but not declared in OPT_IN_BY_DESIGN: a check nobody sees",
+        )
 
 
 class FixtureCoverageTests(unittest.TestCase):
