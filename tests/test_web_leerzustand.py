@@ -89,35 +89,52 @@ def _sichtbarer_text(html: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"<[^>]*>", " ", html)).strip()
 
 
+_AUSGABE: dict | None = None
+
+
+def _harness_ausgabe() -> dict:
+    """Der gerenderte Zustand beider Modi, einmal je Testlauf.
+
+    Mehrere Testklassen lesen dieselbe Ausgabe; der Harness rendert rund
+    hundert Seitenvarianten und soll das nicht je Klasse noch einmal tun.
+    """
+
+    global _AUSGABE
+    if _AUSGABE is not None:
+        return _AUSGABE
+    node = shutil.which("node")
+    if node is None:
+        # Lokal ohne Node ueberspringen, in der CI nicht: ein Test, der
+        # sich dort still ueberspringt, bewacht nichts. Die CI-Definition
+        # installiert Node, und wenn dieser Schritt je verschwindet, soll
+        # es hier auffallen statt in einer gruenen Zusammenfassung.
+        if os.environ.get("CI"):
+            raise AssertionError(
+                "node fehlt in der CI — der Render-Test der Weboberflaeche "
+                "kann nicht laufen (setup-node im Workflow pruefen)")
+        raise unittest.SkipTest("node ist nicht installiert")
+    lauf = subprocess.run(
+        [node, str(HARNESS)],
+        cwd=str(WURZEL),
+        capture_output=True,
+        text=True,
+        # Node schreibt UTF-8; ohne Angabe dekodiert Windows mit der
+        # Locale-Codepage und aus "·" wird Kauderwelsch.
+        encoding="utf-8",
+        timeout=120,
+    )
+    if lauf.returncode != 0:
+        raise AssertionError(f"Harness brach ab:\n{lauf.stderr}")
+    _AUSGABE = json.loads(lauf.stdout)
+    return _AUSGABE
+
+
 class WebLeerzustandTest(unittest.TestCase):
     ausgabe: dict
 
     @classmethod
     def setUpClass(cls) -> None:
-        node = shutil.which("node")
-        if node is None:
-            # Lokal ohne Node ueberspringen, in der CI nicht: ein Test, der
-            # sich dort still ueberspringt, bewacht nichts. Die CI-Definition
-            # installiert Node, und wenn dieser Schritt je verschwindet, soll
-            # es hier auffallen statt in einer gruenen Zusammenfassung.
-            if os.environ.get("CI"):
-                raise AssertionError(
-                    "node fehlt in der CI — der Render-Test der Weboberflaeche "
-                    "kann nicht laufen (setup-node im Workflow pruefen)")
-            raise unittest.SkipTest("node ist nicht installiert")
-        lauf = subprocess.run(
-            [node, str(HARNESS)],
-            cwd=str(WURZEL),
-            capture_output=True,
-            text=True,
-            # Node schreibt UTF-8; ohne Angabe dekodiert Windows mit der
-            # Locale-Codepage und aus "·" wird Kauderwelsch.
-            encoding="utf-8",
-            timeout=120,
-        )
-        if lauf.returncode != 0:
-            raise AssertionError(f"Harness brach ab:\n{lauf.stderr}")
-        cls.ausgabe = json.loads(lauf.stdout)
+        cls.ausgabe = _harness_ausgabe()
 
     def test_jede_seite_rendert(self) -> None:
         for modus in ("leer", "live"):
@@ -2079,6 +2096,10 @@ class WebLeerzustandTest(unittest.TestCase):
             "research_methodology": "version 4.2",
             "research_microstructure": "rolling",
             "runs_runs": "concluded 2026-08-07",
+            # Post-mortems hatte bis zu diesem PR keinen Kopf, in den ein
+            # Stempel gepasst haette, und damit als einzige Studienseite
+            # keinen.
+            "research_postmortems": "curated",
         }
         for seite, stempel in erwartet.items():
             with self.subTest(seite=seite):
@@ -2086,6 +2107,133 @@ class WebLeerzustandTest(unittest.TestCase):
                 self.assertIn(stempel, text)
                 # Und die Publish-Uhr geht dabei nicht verloren.
                 self.assertIn("published 2026-", text)
+
+
+class WebUeberschriftenTest(unittest.TestCase):
+    """Die Forschungsflaeche hat eine Gliederung, keine fetten divs.
+
+    Gemessen im Review vom 2026-08-28: ein einziges echtes Heading-Tag im
+    Forschungsteil von system_pages.js, dazu 14 fette Titel-divs, waehrend
+    das h1 jeder Studienroute der 11px-Augenbrauentext war. Ein Screenreader
+    bekam damit keine Ueberschriftenliste, ueber die er die Seite betreten
+    kann, und die Ueberschrift der Seite war ihr kleinster Text.
+    """
+
+    STUDIENROUTEN = (
+        "research", "research_pilot", "research_methodology", "research_microstructure",
+        "research_field_notes", "research_category_efficiency", "research_postmortems",
+        "research_mentions_latency", "research_pipeline_forward", "runs_runs",
+    )
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.ausgabe = _harness_ausgabe()
+
+    def _headings(self, html: str) -> list:
+        return [(m.group(1), re.sub(r"<[^>]*>", "", m.group(2)).strip())
+                for m in re.finditer(r"<h([1-6])[^>]*>(.*?)</h\1>", html, re.S)]
+
+    def test_jede_studienroute_hat_genau_ein_h1_und_einen_titel_als_h2(self) -> None:
+        for name in self.STUDIENROUTEN:
+            with self.subTest(seite=name):
+                stufen = self._headings(self.ausgabe["live"][name])
+                self.assertEqual([s for s, _ in stufen].count("1"), 1)
+                zweite = [text for stufe, text in stufen if stufe == "2"]
+                self.assertTrue(zweite, "kein h2 mit dem Studientitel")
+                # Das h1 ist der Brotkrumen, das h2 traegt den Studientitel.
+                self.assertNotEqual(zweite[0], stufen[0][1])
+
+    def test_studientitel_stehen_als_ueberschrift_nicht_als_div(self) -> None:
+        titel = {
+            "research_pilot": "Small-stake field test",
+            "research_category_efficiency": "Which categories price things well",
+            "research_methodology": "Method, guardrails and audit",
+            "research_postmortems": "What went wrong, and what changed because of it",
+            "research_field_notes": "Field notes",
+            "runs_runs": "Our own bot runs",
+        }
+        for seite, anfang in titel.items():
+            with self.subTest(seite=seite):
+                zweite = [text for stufe, text in self._headings(self.ausgabe["live"][seite]) if stufe == "2"]
+                self.assertTrue(any(text.startswith(anfang) for text in zweite),
+                                f"{anfang!r} steht nicht als h2: {zweite}")
+
+    def test_auch_der_ladezustand_hat_seinen_titel_als_ueberschrift(self) -> None:
+        # Im Leerzustand rendert jede Studienroute ihren Ladeblock. Auch der
+        # traegt den Studientitel, sonst haette die Route waehrend des Ladens
+        # ueberhaupt keine Ueberschrift.
+        stufen = self._headings(self.ausgabe["leer"]["research_pilot"])
+        self.assertIn("2", [s for s, _ in stufen])
+
+    def test_keine_ueberschrift_ohne_eigene_groesse(self) -> None:
+        # Die CSS-Regel setzt font-size:inherit fuer h1 bis h4, damit eine
+        # Befoerderung optisch nichts kostet. Eine Ueberschrift ohne eigene
+        # Groesse waere danach so gross wie ihr Absatz.
+        for datei in sorted((WURZEL / "web" / "js").rglob("*.js")):
+            quelle = datei.read_text(encoding="utf-8")
+            for treffer in re.finditer(r"<h([1-6])([^>]*)>", quelle):
+                with self.subTest(datei=datei.name, tag="h" + treffer.group(1)):
+                    self.assertIn("font-size", treffer.group(2))
+
+    def test_die_css_regel_deckt_h1_bis_h4(self) -> None:
+        css = (WURZEL / "web" / "css" / "terminal.css").read_text(encoding="utf-8")
+        regel = re.search(r"\.content h1[^{]*\{([^}]*)\}", css)
+        self.assertIsNotNone(regel)
+        kopf = css[:regel.end()]
+        for tag in ("h2", "h3", "h4"):
+            self.assertIn(".content " + tag, kopf)
+        for eigenschaft in ("font-size: inherit", "font-weight: inherit", "margin: 0"):
+            self.assertIn(eigenschaft, regel.group(1))
+
+    def test_microstructure_gibt_h2_nicht_mehr_an_11px_unterlabels(self) -> None:
+        quelle = (WURZEL / "web" / "js" / "pages" / "microstructure_page.js").read_text(encoding="utf-8")
+        self.assertIn("<h4 style=", quelle)
+        self.assertNotIn("<h2 style=\"' + M + '; font-size:11px", quelle)
+        stufen = [s for s, _ in self._headings(self.ausgabe["live"]["research_microstructure"])]
+        self.assertEqual(stufen.count("1"), 1)
+        self.assertEqual(stufen.count("2"), 1)
+        self.assertGreaterEqual(stufen.count("3"), 1)
+        self.assertGreaterEqual(stufen.count("4"), 1)
+
+
+class WebPostmortemsKopfTest(unittest.TestCase):
+    """Post-mortems hat einen Kopf, und der behauptet nur Belegtes."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.ausgabe = _harness_ausgabe()
+
+    def test_kopf_traegt_titel_kennzeichen_und_stempel(self) -> None:
+        html = self.ausgabe["live"]["research_postmortems"]
+        text = _sichtbarer_text(html)
+        self.assertIn("<h2 ", html)
+        self.assertIn("What went wrong, and what changed because of it", text)
+        self.assertIn("CURATED/POSTMORTEM", text)
+        # Registrierungsstempel und Publish-Uhr, untereinander wie ueberall.
+        self.assertIn("curated", text)
+        self.assertIn("published 2026-08-07 04:33 UTC", text)
+        self.assertIn("Harness postmortem note.", text)
+
+    def test_kein_datum_das_die_nutzlast_nicht_hergibt(self) -> None:
+        # Der teuerste Fehler der Stempelrunde war "concluded " + Publish-Uhr:
+        # ein erfundenes Enddatum. Auf dieser Seite darf jedes Datum nur aus
+        # der Nutzlast stammen (stand_utc oder das Datum eines Vorfalls), und
+        # kein Wort einen Zustand behaupten, den die Registrierung nicht
+        # kennt: ihr Stempel ist "curated".
+        text = _sichtbarer_text(self.ausgabe["live"]["research_postmortems"])
+        erlaubt = {"2026-08-07", "2026-07-18"}
+        gefunden = set(re.findall(r"\d{4}-\d{2}-\d{2}", text))
+        self.assertTrue(gefunden)
+        self.assertEqual(gefunden - erlaubt, set())
+        for wort in ("concluded", "completed", "pre-registered", "frozen"):
+            self.assertNotIn(wort, text)
+
+    def test_fehlgeschlagener_abruf_sieht_nicht_aus_wie_eine_leere_datei(self) -> None:
+        text = _sichtbarer_text(self.ausgabe["live"]["research_postmortems_fehler"])
+        self.assertIn("What went wrong, and what changed because of it", text)
+        self.assertIn("public/data/postmortems.json did not answer", text)
+        self.assertIn("HTTP 503", text)
+        self.assertNotIn("No incidents published", text)
 
 
 if __name__ == "__main__":
