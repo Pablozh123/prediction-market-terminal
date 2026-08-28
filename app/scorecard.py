@@ -89,10 +89,27 @@ def _default_smart_row_fetcher(wallet: str) -> Mapping[str, Any] | None:
 
 
 def _default_risk_row_fetcher(wallet: str) -> Mapping[str, Any] | None:
+    """Der Insider-Score einer Wallet aus derselben Basis wie der Risk-Screen.
+
+    Mindestbetrag, Kontextfilter und Whale-Schwelle sind dieselben, die der
+    Screen benutzt (api.server.risk_screen_basis): ohne sie trug dieselbe
+    Wallet auf zwei Seiten zwei verschiedene Zahlen unter demselben Namen.
+    Die Schwelle kommt aus den Einstellungen, nicht aus dem Standardwert der
+    Scorer-Signatur.
+    """
+
+    from app import app_settings as cfg
+    from app import suspicion as susp
     from src import prediction_markets as md
 
-    tape = md.get_polymarket_trades(limit=1000)
-    scores = md.whale_wallet_risk_scores(tape)
+    whale_threshold = float(cfg.load_settings().get("whale_threshold", 2500))
+    tape_floor = max(md.DISTRIBUTION_NOTIONAL_FLOOR, whale_threshold * 0.2)
+    tape = md.get_polymarket_trades(limit=1000, min_cash=tape_floor)
+    screened = susp.filter_insider_prone_trades(tape)
+    base = screened if screened is not None else pd.DataFrame()
+    if base.empty:
+        return None
+    scores = md.whale_wallet_risk_scores(base, whale_threshold=whale_threshold)
     if scores is None or scores.empty or "wallet" not in scores:
         return None
     match = scores[scores["wallet"].astype(str).str.lower() == wallet.lower()]

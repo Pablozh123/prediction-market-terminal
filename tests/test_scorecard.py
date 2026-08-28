@@ -218,5 +218,80 @@ class BlockMappingTests(unittest.TestCase):
         self.assertEqual(block, {"wallet_insider_score": 55.0, "risk_level": "High", "flags": ["single flag"]})
 
 
+class RiskRowBasisTests(unittest.TestCase):
+    """Insider-Score: eine Basis fuer Risk-Screen und Wallet-Seite.
+
+    Der Screen (api.server.risk_screen_basis) liest das Tape mit einem
+    Mindestbetrag, wirft Sport, Wetter und Krypto-Kursmaerkte ueber
+    ``suspicion.filter_insider_prone_trades`` raus und scort mit der
+    eingestellten Whale-Schwelle. Der Standard-Fetcher der Scorecard tat
+    nichts davon: kein Mindestbetrag, kein Kontextfilter und die
+    Standard-Schwelle 10.000 statt der eingestellten 2.500. Dieselbe Wallet
+    trug dadurch auf zwei Seiten zwei verschiedene Zahlen unter demselben
+    Namen.
+    """
+
+    def test_default_fetcher_uses_the_screen_floor_filter_and_threshold(self) -> None:
+        from app import app_settings as cfg
+        from app import suspicion as susp
+        from src import prediction_markets as md
+
+        gesehen: dict = {}
+
+        def fake_trades(limit=250, min_cash=0, **kwargs):
+            gesehen["limit"] = limit
+            gesehen["min_cash"] = min_cash
+            return pd.DataFrame([{
+                "platform": "Polymarket", "wallet": "0xabc", "notional": 5000.0,
+                "title": "Will the CEO resign?", "market_key": "0xc1", "side": "BUY",
+                "outcome": "Yes", "price": 0.4, "size": 12500.0,
+                "time": pd.Timestamp("2026-08-01", tz="UTC"),
+            }])
+
+        def fake_filter(trades, *args, **kwargs):
+            gesehen["gefiltert"] = True
+            return trades
+
+        def fake_scores(trades, whale_threshold=10_000.0, **kwargs):
+            gesehen["whale_threshold"] = whale_threshold
+            return pd.DataFrame([{"wallet": "0xabc", "wallet_insider_score": 61.0,
+                                  "wallet_insider_level": "Medium", "flags": []}])
+
+        alt_trades = md.get_polymarket_trades
+        alt_scores = md.whale_wallet_risk_scores
+        alt_settings = cfg.load_settings
+        alt_filter = susp.filter_insider_prone_trades
+        md.get_polymarket_trades = fake_trades
+        md.whale_wallet_risk_scores = fake_scores
+        susp.filter_insider_prone_trades = fake_filter
+        cfg.load_settings = lambda: {"whale_threshold": 2500}
+        try:
+            row = sc._default_risk_row_fetcher("0xABC")
+        finally:
+            md.get_polymarket_trades = alt_trades
+            md.whale_wallet_risk_scores = alt_scores
+            susp.filter_insider_prone_trades = alt_filter
+            cfg.load_settings = alt_settings
+
+        self.assertEqual(row["wallet_insider_score"], 61.0)
+        # Mindestbetrag wie im Screen: max(DISTRIBUTION_NOTIONAL_FLOOR, 20 Prozent der Schwelle).
+        self.assertAlmostEqual(gesehen["min_cash"], max(md.DISTRIBUTION_NOTIONAL_FLOOR, 2500 * 0.2))
+        self.assertTrue(gesehen["gefiltert"])
+        # Die eingestellte Schwelle, nicht der Standardwert der Signatur.
+        self.assertAlmostEqual(gesehen["whale_threshold"], 2500.0)
+
+    def test_server_wallet_page_and_risk_screen_share_one_basis(self) -> None:
+        """Die Wallet-Seite liest die Basis des Screens, nicht ihr eigenes Tape."""
+
+        from pathlib import Path
+
+        server = (Path(__file__).resolve().parents[1] / "api" / "server.py").read_text(encoding="utf-8")
+        self.assertIn("def risk_screen_basis()", server)
+        # Beide Aufrufer greifen auf dieselbe Funktion zu ...
+        self.assertGreaterEqual(server.count("risk_screen_basis()"), 2)
+        # ... und die Wallet-Seite baut sich kein eigenes Tape mehr.
+        self.assertNotIn("tape_df = load_tape(limit=1000, min_cash=0.0)", server)
+
+
 if __name__ == "__main__":
     unittest.main()
