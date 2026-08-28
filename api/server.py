@@ -762,7 +762,15 @@ def cross(
             if page.empty:
                 break
             frames.append(page)
-        return pd.concat(frames, ignore_index=True, sort=False) if frames else pd.DataFrame()
+        if not frames:
+            return pd.DataFrame()
+        # Gamma sortiert nach 24h-Volumen, und diese Ordnung bewegt sich
+        # zwischen den fuenf Aufrufen: derselbe Markt kann auf zwei Seiten
+        # stehen und stuende dann zweimal in der Paarliste.
+        zusammen = pd.concat(frames, ignore_index=True, sort=False)
+        if "market_key" in zusammen.columns:
+            zusammen = zusammen.drop_duplicates(subset=["market_key"], keep="first").reset_index(drop=True)
+        return zusammen
 
     def _ks() -> pd.DataFrame:
         return md.get_kalshi_markets(limit=1000)

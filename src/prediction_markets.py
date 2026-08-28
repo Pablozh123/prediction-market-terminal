@@ -283,6 +283,23 @@ def _finalize_polymarket_markets(normalized: list[dict[str, Any]]) -> pd.DataFra
     if not df.empty:
         df["activity_volume"] = df["volume_24h"].where(df["volume_24h"].fillna(0) > 0, df["volume"])
         df = df.sort_values(["activity_volume", "volume"], ascending=False).reset_index(drop=True)
+        # Gamma wird seitenweise nach 24h-Volumen abgefragt, und diese Ordnung
+        # bewegt sich zwischen zwei Aufrufen. Ein Markt, der waehrenddessen
+        # eine Seite nach hinten rutscht, kommt zweimal zurueck: einmal als
+        # Zeile 100 der ersten Seite, einmal als Zeile 1 der zweiten. Ohne
+        # diesen Schnitt zaehlt ihn jede Summe darueber doppelt.
+        df = _dedupe_markets(df)
+    return df
+
+
+def _dedupe_markets(df: pd.DataFrame) -> pd.DataFrame:
+    """Ein Markt, eine Zeile. Schluessel ist ``market_key``, sonst ``id``."""
+
+    for key in ("market_key", "id", "ticker"):
+        if key in df.columns:
+            schluessel = df[key].astype(str)
+            if schluessel.str.strip().ne("").all():
+                return df.drop_duplicates(subset=[key], keep="first").reset_index(drop=True)
     return df
 
 
@@ -2694,6 +2711,9 @@ def get_kalshi_markets(
     if not df.empty:
         df["activity_volume"] = df["volume_24h"].where(df["volume_24h"].fillna(0) > 0, df["volume"])
         df = df.sort_values(["activity_volume", "volume"], ascending=False).reset_index(drop=True)
+        # Eine Ticker-Abfrage kann denselben Markt mehrfach nennen; jede
+        # Summe darueber zaehlte ihn dann doppelt.
+        df = _dedupe_markets(df)
     return df
 
 

@@ -1999,6 +1999,42 @@ class SearchPolymarketTests(unittest.TestCase):
         fetch.assert_not_called()
 
 
+class MarketDedupeTests(unittest.TestCase):
+    """Ein Markt, eine Zeile: sonst zaehlt jede Summe darueber doppelt."""
+
+    def _market(self, cid: str, volume: float) -> dict:
+        return {"id": cid, "conditionId": cid, "question": f"Q {cid}", "slug": cid,
+                "outcomes": ["Yes", "No"], "outcomePrices": ["0.5", "0.5"],
+                "volume24hr": volume, "volumeNum": volume * 10, "liquidityNum": 1000.0}
+
+    def test_a_market_on_two_pages_is_counted_once(self) -> None:
+        # Gamma wird seitenweise nach 24h-Volumen abgefragt, und die Ordnung
+        # bewegt sich zwischen den Aufrufen: 0xdrift steht als letzte Zeile
+        # der ersten Seite und als erste der zweiten.
+        seite1 = [self._market(f"0x{i}", 1000 - i) for i in range(99)]
+        seite1.append(self._market("0xdrift", 500.0))
+        seite2 = [self._market("0xdrift", 500.0)]
+        seite2.extend(self._market(f"0xb{i}", 400 - i) for i in range(99))
+        with patch("src.prediction_markets._get_json", side_effect=[seite1, seite2]):
+            frame = md.get_polymarket_markets(limit=200)
+        self.assertEqual(int((frame["market_key"] == "0xdrift").sum()), 1)
+        self.assertEqual(len(frame), frame["market_key"].nunique())
+        # 199 statt 200 Zeilen, und die Volumensumme traegt 0xdrift einmal.
+        self.assertEqual(len(frame), 199)
+        self.assertAlmostEqual(float(frame["volume_24h"].sum()), 129398.0, places=4)
+
+    def test_a_kalshi_ticker_returned_twice_is_counted_once(self) -> None:
+        payload = {"markets": [
+            {"ticker": "KXFED-26JUN", "title": "Fed", "yes_bid": 61, "yes_ask": 63,
+             "volume_24h": 10, "volume": 10, "liquidity_dollars": 100.0},
+            {"ticker": "KXFED-26JUN", "title": "Fed", "yes_bid": 61, "yes_ask": 63,
+             "volume_24h": 10, "volume": 10, "liquidity_dollars": 100.0},
+        ]}
+        with patch("src.prediction_markets._get_json", return_value=payload):
+            frame = md.get_kalshi_markets()
+        self.assertEqual(len(frame), 1)
+
+
 class KalshiCentUnitTests(unittest.TestCase):
     """Kalshi liefert Cents; die Groesse allein verraet die Einheit nicht."""
 
