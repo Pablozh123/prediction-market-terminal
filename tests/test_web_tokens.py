@@ -31,6 +31,10 @@ LINIEN_STUFEN = ("--line-edge", "--line-1", "--line-2", "--line-3")
 TYPO_STUFEN = ("--t-micro", "--t-small", "--t-body", "--t-lead", "--t-head", "--t-hero")
 #: Die sieben Stufen der Abstandsleiter.
 ABSTAND_STUFEN = ("--sp-1", "--sp-2", "--sp-3", "--sp-4", "--sp-5", "--sp-6", "--sp-7")
+#: Die vier Stufen der Laufweite (letter-spacing).
+LAUFWEITE_STUFEN = ("--ls-flat", "--ls-caps", "--ls-caps-strong", "--ls-caps-max")
+#: Die vier Stufen des Durchschusses (line-height).
+DURCHSCHUSS_STUFEN = ("--lh-solid", "--lh-tight", "--lh-snug", "--lh-prose")
 
 #: Die Eigenschaften, die den Rhythmus tragen. `inset`, `top` und Geschwister
 #: stehen bewusst nicht dabei: das ist Position, kein Abstand.
@@ -45,6 +49,12 @@ ABSTAND_EIGENSCHAFTEN = (
 #: darunter beginnt. Eine Stufe daraus zu machen hiesse, die Ausrichtung an
 #: den Rhythmus zu verlieren.
 AUSRICHTUNG_PX = ("108px", "222px")
+
+#: Eine Zeilenhoehe bleibt eine Zahl, aus demselben Grund: der Kreis mit dem
+#: Fragezeichen im Wallet-Kopf ist 13px hoch, und die Zeilenhoehe zentriert
+#: sein eines Zeichen darin. Eine Stufe daraus zu machen hiesse, das Zeichen
+#: aus dem Kreis zu schieben.
+AUSRICHTUNG_DURCHSCHUSS = ("13px",)
 
 #: SVG-Praesentationsattribute koennen kein var() aufnehmen. Sie tragen ihre
 #: Groesse und Familie deshalb weiterhin als Zahl beziehungsweise als String,
@@ -71,7 +81,8 @@ class WebTokenTest(unittest.TestCase):
             with self.subTest(token=token):
                 self.assertIn(token + ":", dunkel)
                 self.assertIn(token + ":", hell)
-        for token in LINIEN_STUFEN + TYPO_STUFEN + ABSTAND_STUFEN:
+        for token in (LINIEN_STUFEN + TYPO_STUFEN + ABSTAND_STUFEN
+                      + LAUFWEITE_STUFEN + DURCHSCHUSS_STUFEN):
             with self.subTest(token=token):
                 self.assertIn(token + ":", dunkel)
 
@@ -169,12 +180,83 @@ class WebTokenTest(unittest.TestCase):
         """Ein Token ohne Aufrufstellen ist der Befund, nicht die Loesung."""
 
         gesamt = "\n".join(p.read_text(encoding="utf-8") for p in JS)
-        for token in INK_STUFEN + LINIEN_STUFEN + TYPO_STUFEN + ABSTAND_STUFEN:
+        for token in (INK_STUFEN + LINIEN_STUFEN + TYPO_STUFEN + ABSTAND_STUFEN
+                      + LAUFWEITE_STUFEN + DURCHSCHUSS_STUFEN):
             with self.subTest(token=token):
                 self.assertIn("var(" + token + ")", gesamt)
         for token in ("--r-control", "--r-panel", "--font-mono", "--font-ui"):
             with self.subTest(token=token):
                 self.assertIn("var(" + token + ")", gesamt)
+
+    def test_keine_rohe_laufweite_im_javascript(self) -> None:
+        """14 Laufweiten wurden vier Stufen; eine fuenfte faellt hier auf.
+
+        Fuenf der vierzehn (.12 .13 .14 .15 .16em) lagen innerhalb von 0.04em
+        und trugen zusammen 167 Angaben. Bei --t-micro, wo fast alle davon
+        sitzen, ist das 0.44px ueber die ganze Spanne: fuenf Schreibweisen
+        fuer einen Wert. Eine neue rohe Zahl faengt genau so wieder an.
+        """
+
+        muster = re.compile(r"letter-spacing\s*:\s*(?!var\(--ls-)([^;'\"}\n]+)")
+        for pfad in JS + [WURZEL / "web" / "css" / "terminal.css"]:
+            treffer = [m.group(1).strip()
+                       for m in muster.finditer(pfad.read_text(encoding="utf-8"))]
+            with self.subTest(datei=pfad.name):
+                self.assertEqual(treffer, [], f"{pfad.name}: {treffer[:4]}")
+
+    def test_kein_roher_durchschuss_im_javascript(self) -> None:
+        """15 Zeilenhoehen wurden vier Stufen; die eine Ausnahme steht oben.
+
+        1.5 und 1.6 allein trugen 107 der 181 Angaben, 0.067 auseinander.
+        Sie liegen auf verschiedenen Stufen, weil die Datei den Unterschied
+        zwischen einem dichten Block und einem Absatz wirklich gemacht hat;
+        was faellt, ist die zweite Schreibweise von jedem.
+        """
+
+        muster = re.compile(r"line-height\s*:\s*(?!var\(--lh-)([^;'\"}\n]+)")
+        for pfad in JS + [WURZEL / "web" / "css" / "terminal.css"]:
+            treffer = [m.group(1).strip()
+                       for m in muster.finditer(pfad.read_text(encoding="utf-8"))
+                       if m.group(1).strip() not in AUSRICHTUNG_DURCHSCHUSS]
+            with self.subTest(datei=pfad.name):
+                self.assertEqual(treffer, [], f"{pfad.name}: {treffer[:4]}")
+
+    def test_die_treemap_beschriftung_bringt_ihren_eigenen_grund_mit(self) -> None:
+        """Die Kachelfarbe traegt Information, die Schrift darauf braucht AA.
+
+        Ueber den ganzen Wertebereich der Skala gemessen gibt es keine Tinte,
+        die auf der blanken Kachel bestehen wuerde: --text faellt im dunklen
+        Thema auf 3.07:1, reines Weiss auf 3.83:1, reines Schwarz am anderen
+        Ende der Skala auf 1.50:1. Deshalb bringt die Beschriftung einen
+        eigenen Grund mit, und der ist die Seitenfarbe -- nicht ein Schatten,
+        der auf Papier in die falsche Richtung deckt und das Abzeichen dort
+        auf 3.76:1 gebracht hat.
+        """
+
+        self.assertIn(".tm-label", CSS)
+        self.assertIn("rgba(var(--bg-rgb), .45)", CSS)
+        wallet = (WURZEL / "web" / "js" / "pages" / "wallet_page.js").read_text(encoding="utf-8")
+        # Abzeichen, Titel und Wert: drei Textlaeufe auf der Kachel, drei Gruende.
+        self.assertEqual(wallet.count('class="tm-label"'), 3)
+        self.assertNotIn("var(--shadow-35)", wallet)
+
+    def test_das_verdikt_abzeichen_steht_nicht_auf_seinem_eigenen_ton(self) -> None:
+        """Eine Rollenfarbe als Schrift auf einer Toenung derselben Rolle.
+
+        Die Toenung schiebt den Grund auf die Schrift zu, und auf Papier haben
+        die Rollenfarben den Spielraum nicht: mit einkomponierter Toenung las
+        CONFIRMED 4.05:1, REFUTED 3.86:1, CONTROL 4.31:1. Duenner machen hilft
+        nicht -- bei .04 fallen die ersten beiden immer noch durch. Der Ton
+        gehoert deshalb an den Rand, nicht unter die Schrift.
+        """
+
+        kern = (WURZEL / "web" / "js" / "pages" / "core_pages.js").read_text(encoding="utf-8")
+        block = kern[kern.index("const VERDICT_TAG"):kern.index("export function verdictCounts")]
+        for ton in ("--accent-rgb", "--neg-rgb", "--warn-rgb", "--info-rgb"):
+            with self.subTest(ton=ton):
+                self.assertNotIn("background:rgba(var(" + ton, block)
+                self.assertNotIn("bg: 'rgba(var(" + ton, block)
+        self.assertIn("background:var(--panel)", block)
 
     def test_die_kennzahlenkachel_hat_genau_einen_bauer(self) -> None:
         """Elf Bauer wurden einer; vier Nachzuegler auf der Wallet-Seite auch.
