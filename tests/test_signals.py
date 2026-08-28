@@ -226,5 +226,58 @@ class WhalePrintSideTests(unittest.TestCase):
         self.assertEqual(signals.iloc[0]["side"], "SELL")
 
 
+class DedupeKeyTests(unittest.TestCase):
+    """Der Zustell-Schluessel muss zwei verschiedene Prints trennen.
+
+    Er bestand aus Art, Markt, Wallet und Minute. Ein Kauf von Yes ueber
+    9.000 Dollar und ein Kauf von No ueber 4.000 derselben Wallet im selben
+    Markt und derselben Minute trugen damit denselben Schluessel: nur der
+    erste ging raus, nur der erste kam ins Ledger.
+    """
+
+    ZEIT = pd.Timestamp("2026-08-28 14:03:12", tz="UTC")
+
+    def _print(self, outcome, notional, price, tx=""):
+        return {
+            "signal_type": "Whale print", "market_key": "0xcond", "wallet": "0xwhale",
+            "outcome": outcome, "time": self.ZEIT, "side": "BUY",
+            "notional": notional, "price": price, "tx": tx,
+        }
+
+    def test_two_outcomes_of_one_market_are_two_signals(self):
+        a = sig.signal_dedupe_key(self._print("Yes", 9_000.0, 0.40, "0xtx1"))
+        b = sig.signal_dedupe_key(self._print("No", 4_000.0, 0.61, "0xtx2"))
+        self.assertNotEqual(a, b)
+
+    def test_two_clips_in_the_same_minute_stay_apart_without_a_tx_hash(self):
+        # Kalshi liefert keinen Transaktions-Hash; dann trennen Seite,
+        # Groesse und Preis.
+        a = sig.signal_dedupe_key(self._print("Yes", 9_000.0, 0.40))
+        b = sig.signal_dedupe_key(self._print("Yes", 4_000.0, 0.41))
+        self.assertNotEqual(a, b)
+
+    def test_the_same_print_keeps_its_key_across_scans(self):
+        eins = self._print("Yes", 9_000.0, 0.40, "0xtx1")
+        self.assertEqual(sig.signal_dedupe_key(eins), sig.signal_dedupe_key(dict(eins)))
+
+    def test_a_market_signal_key_does_not_move_with_its_reading(self):
+        # Marktsignale beschreiben einen Zustand, der bei jedem Scan neu
+        # gemessen wird. Haenge der Wert im Schluessel, wuerde dieselbe
+        # Beobachtung bei jedem Tick erneut zugestellt.
+        basis = {"signal_type": "Fast mover", "market_key": "0xcond", "wallet": "",
+                 "outcome": "Yes", "time": self.ZEIT}
+        self.assertEqual(
+            sig.signal_dedupe_key(dict(basis, value=0.08)),
+            sig.signal_dedupe_key(dict(basis, value=0.09)),
+        )
+
+    def test_missing_fields_do_not_become_the_word_nan(self):
+        key = sig.signal_dedupe_key({"signal_type": "Whale print", "market_key": "0xc",
+                                     "wallet": float("nan"), "outcome": "Yes",
+                                     "time": self.ZEIT, "tx": float("nan"),
+                                     "side": "BUY", "notional": 100.0, "price": 0.5})
+        self.assertNotIn("nan", key)
+
+
 if __name__ == "__main__":
     unittest.main()

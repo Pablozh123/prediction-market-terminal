@@ -9,7 +9,7 @@ scanner can pass the raw API client or disable the check.
 from __future__ import annotations
 
 import re
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 import pandas as pd
 
@@ -38,6 +38,19 @@ MARKET_SIGNAL_TYPES = (
 #: ``monitor_rule_matches``).
 NOTIONAL_SIGNAL_TYPES = TRADE_SIGNAL_TYPES
 LIQUIDITY_SIGNAL_TYPES = MARKET_SIGNAL_TYPES
+
+
+def _text(value: Any) -> str:
+    """Zelleninhalt als Text; NaN und None werden leer, nicht "nan"."""
+
+    if value is None:
+        return ""
+    try:
+        if bool(pd.isna(value)):
+            return ""
+    except (TypeError, ValueError):
+        pass
+    return str(value).strip()
 
 
 def monitor_volume_col(df: pd.DataFrame) -> str:
@@ -98,6 +111,7 @@ def _append_market_signal(
             # Ein Marktsignal nimmt keine Seite; das Feld existiert, damit der
             # Frame eine saubere Spalte hat und nicht NaN neben "BUY"/"SELL".
             "side": "",
+            "tx": "",
             "price": row.get("yes_price"),
             "value": value,
             "reason": reason,
@@ -231,6 +245,10 @@ def build_monitor_signals(
                     # Emit-Preis, und ein Verkaufsdruck ist damit nicht
                     # bewertbar (siehe app/ledger.py::emit_signals).
                     "side": str(row.get("side", "") or ""),
+                    # Der Trade selbst, nicht nur sein Markt: der Scanner
+                    # erkennt daran zwei Clips derselben Wallet in derselben
+                    # Minute als zwei Ereignisse.
+                    "tx": _text(row.get("transaction_hash")),
                     "price": row.get("price"),
                     "value": row.get("notional", 0.0),
                     "reason": f"{row.get('side', '')} {money(row.get('notional', 0.0))}",
@@ -250,6 +268,40 @@ def build_monitor_signals(
     signals = pd.DataFrame(rows)
     signals["time"] = pd.to_datetime(signals["time"], utc=True, errors="coerce")
     return signals.sort_values(["severity", "time", "value"], ascending=[False, False, False]).reset_index(drop=True)
+
+
+def signal_dedupe_key(row: Mapping[str, Any]) -> str:
+    """Identitaet eines Signals fuer den Zustell-Zustand des Scanners.
+
+    Der Schluessel bestand aus Art, Markt, Wallet und der Minute. Damit fielen
+    zwei verschiedene Prints derselben Wallet im selben Markt und derselben
+    Minute zusammen: der Kauf von Yes ueber 9.000 Dollar und der Verkauf von
+    No ueber 4.000 trugen denselben Schluessel, also ging nur der erste raus
+    und nur der erste kam ins Ledger. Der gehandelte Ausgang gehoert hinein,
+    und bei einem Print zusaetzlich der Trade selbst.
+
+    Fuer Marktsignale bleibt der Schluessel absichtlich grob: sie beschreiben
+    einen Marktzustand, der bei jedem Scan neu gemessen wird, und ein Wert im
+    Schluessel wuerde dieselbe Beobachtung bei jedem Tick erneut zustellen.
+    """
+
+    teile = [
+        _text(row.get("signal_type")),
+        _text(row.get("market_key")),
+        _text(row.get("outcome")),
+        _text(row.get("wallet")),
+        _text(row.get("time"))[:16],
+    ]
+    if _text(row.get("signal_type")) in TRADE_SIGNAL_TYPES:
+        tx = _text(row.get("tx"))
+        if tx:
+            teile.append(tx)
+        else:
+            # Ohne Transaktions-Hash (Kalshi liefert keinen) trennen Seite,
+            # Groesse und Preis die Clips.
+            notional = _text(row.get("notional"))
+            teile.append(f"{_text(row.get('side'))}:{notional}@{_text(row.get('price'))}")
+    return "|".join(teile)
 
 
 def monitor_rule_matches(signals: pd.DataFrame, rule: dict[str, Any]) -> pd.DataFrame:
