@@ -84,16 +84,22 @@ def scan(wallet: str, start: int, end: int, chunk: int, pause: float) -> tuple[p
                 gaps.append((block, upper))
                 print(f"  [{label}] {block:,}-{upper:,}: FEHLGESCHLAGEN")
             elif logs:
-                frame = flows.decode_transfer_logs(logs)
+                # Per-contract decimals: the topic filter matches every ERC-20
+                # on the chain, so a foreign token decoded with USDC's exponent
+                # would enter the ledger inflated by orders of magnitude.
+                frame = flows.decode_transfer_logs(logs, flows.TOKEN_DECIMALS)
                 frames.append(frame)
                 total += len(frame)
                 print(f"  [{label}] {block:,}-{upper:,}: {len(frame)} Transfers (gesamt {total})")
             block = upper
             time.sleep(pause)
     if not frames:
-        return pd.DataFrame(columns=["block", "tx", "contract", "sender", "recipient", "amount"]), gaps
-    merged = pd.concat(frames, ignore_index=True).drop_duplicates(subset=["tx", "sender", "recipient", "amount"])
-    return merged.sort_values("block").reset_index(drop=True), gaps
+        return pd.DataFrame(columns=flows.TRANSFER_COLUMNS), gaps
+    # (tx, log_index) is the chain's own identity for a log. The in- and
+    # out-queries overlap on self-transfers, which this removes; two equal
+    # transfers inside one batched payout it keeps, because they are two.
+    merged = pd.concat(frames, ignore_index=True).drop_duplicates(subset=["tx", "log_index"])
+    return merged.sort_values(["block", "log_index"]).reset_index(drop=True), gaps
 
 
 def main() -> int:

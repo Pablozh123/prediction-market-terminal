@@ -10,6 +10,13 @@ caveat that matters for interpretation: a proxy wallet also receives USDC from
 market settlements and merges, which are *internal* to trading rather than
 external funding. Counterparty classification is therefore part of the result,
 not an afterthought, and the headline number is always a range.
+
+Two units questions decide whether any of this is money at all, and both are
+answered here rather than left to the caller: only collateral contracts are
+summed (a raw log scan returns every token that ever touched the wallet, and
+one foreign 18-decimal token read with USDC's 6 decimals is a twelve-order-of-
+magnitude error), and a transfer is identified by its log position rather than
+by its payload, so two equal transfers inside one batched payout stay two.
 """
 
 from __future__ import annotations
@@ -63,6 +70,23 @@ BRIDGE_ADDRESSES: frozenset[str] = frozenset({
     "0xc417fd8e9661c0d2120b64a04bb3278c17e99db1",  # ERC1967Proxy (deposits in)
 })
 
+# Addresses both lists claim. ``0xc417fd8e…`` is the case that motivated this:
+# it was read once as the pUSD reserve (trading mechanics, excluded from
+# funding) and once as the deposit proxy (funding, included). Both readings
+# come from the same generic ERC1967Proxy source, and a contract can genuinely
+# do both. Silently letting ``PROTOCOL_ADDRESSES`` win booked every deposit
+# through that route as protocol traffic, so ``deposits_external`` and
+# ``peak_external_exposure`` answered 0 for a wallet that had been funded.
+# These transfers now get their own bucket and the funding figure becomes the
+# range the module docstring always promised, instead of one of its two ends.
+AMBIGUOUS_ADDRESSES: frozenset[str] = PROTOCOL_ADDRESSES & BRIDGE_ADDRESSES
+
+#: Decimals per collateral contract. Both USDC deployments are 6 (verified via
+#: the token contracts). pUSD is carried but not pinned here: no source in this
+#: repo states its decimals, so its rows are flagged ``decimals_assumed`` and
+#: counted rather than quietly scaled by a guessed exponent.
+TOKEN_DECIMALS: dict[str, int] = {contract: USDC_DECIMALS for contract in USDC_CONTRACTS}
+
 
 def topic_address(address: str) -> str:
     """Left-pad a 20-byte address into a 32-byte log topic."""
@@ -76,66 +100,137 @@ def address_from_topic(topic: Any) -> str:
     return "0x" + text[-40:] if len(text) >= 40 else ""
 
 
-def decode_transfer_log(log: Mapping[str, Any], decimals: int = USDC_DECIMALS) -> dict[str, Any] | None:
-    """One ``eth_getLogs`` entry -> {block, tx, contract, sender, recipient, amount}.
+def _decimals_for(contract: str, decimals: int | Mapping[str, int]) -> int | None:
+    """Decimals for one contract, or None when the row must be dropped.
+
+    A scalar applies to every contract (the old behaviour, kept for callers that
+    fetched a single token). A mapping is the safe mode: a contract that is not
+    a known collateral contract returns None, because decoding a foreign token
+    with USDC's exponent turns 1 WETH into a $1,000,000,000,000 deposit.
+    """
+
+    if not isinstance(decimals, Mapping):
+        return int(decimals)
+    known = decimals.get(contract)
+    if known is not None:
+        return int(known)
+    return USDC_DECIMALS if contract in COLLATERAL_CONTRACTS else None
+
+
+def decode_transfer_log(
+    log: Mapping[str, Any], decimals: int | Mapping[str, int] = USDC_DECIMALS
+) -> dict[str, Any] | None:
+    """One ``eth_getLogs`` entry -> {block, log_index, tx, contract, …, amount}.
 
     Returns None for anything that is not a well-formed Transfer, so a malformed
-    entry drops out of the sample instead of poisoning a sum.
+    entry drops out of the sample instead of poisoning a sum. ``log_index`` rides
+    along because it is the only field that separates two identical transfers in
+    one transaction; without it a batched settlement paying the same amount twice
+    collapses into one row and the ledger silently loses half of it.
     """
 
     topics = list(log.get("topics") or [])
     if len(topics) < 3 or str(topics[0]).lower() != TRANSFER_TOPIC:
         return None
     raw = str(log.get("data") or "0x")
+    contract = str(log.get("address") or "").lower()
+    exponent = _decimals_for(contract, decimals)
+    if exponent is None:
+        return None
     try:
         value = int(raw, 16)
         block = int(str(log.get("blockNumber") or "0x0"), 16)
     except (TypeError, ValueError):
         return None
+    raw_index = log.get("logIndex", log.get("log_index"))
+    try:
+        log_index = int(str(raw_index), 16) if isinstance(raw_index, str) else int(raw_index)
+    except (TypeError, ValueError):
+        log_index = -1
     return {
         "block": block,
+        "log_index": log_index,
         "tx": str(log.get("transactionHash") or ""),
-        "contract": str(log.get("address") or "").lower(),
+        "contract": contract,
         "sender": address_from_topic(topics[1]),
         "recipient": address_from_topic(topics[2]),
-        "amount": value / (10 ** decimals),
+        "amount": value / (10 ** exponent),
+        "decimals_assumed": isinstance(decimals, Mapping) and contract not in decimals,
     }
 
 
-def decode_transfer_logs(logs: Iterable[Mapping[str, Any]], decimals: int = USDC_DECIMALS) -> pd.DataFrame:
+TRANSFER_COLUMNS = ["block", "log_index", "tx", "contract", "sender", "recipient",
+                    "amount", "decimals_assumed"]
+
+
+def decode_transfer_logs(
+    logs: Iterable[Mapping[str, Any]], decimals: int | Mapping[str, int] = USDC_DECIMALS
+) -> pd.DataFrame:
+    """Decode a batch of Transfer logs, de-duplicated by (tx, log_index).
+
+    The chain identifies a log by its transaction and its position inside it.
+    De-duplicating on the payload instead — the same sender, recipient and
+    amount — throws away genuine repeated transfers of a batched payout, so the
+    position is what decides here. Logs without a usable index (``log_index``
+    -1) fall back to the payload key, which is all that can be done for them.
+    """
+
     rows = [decoded for log in logs or [] if (decoded := decode_transfer_log(log, decimals)) is not None]
-    columns = ["block", "tx", "contract", "sender", "recipient", "amount"]
     if not rows:
-        return pd.DataFrame(columns=columns)
-    return pd.DataFrame(rows, columns=columns).drop_duplicates().reset_index(drop=True)
+        return pd.DataFrame(columns=TRANSFER_COLUMNS)
+    frame = pd.DataFrame(rows, columns=TRANSFER_COLUMNS)
+    indexed = frame[frame["log_index"] >= 0].drop_duplicates(subset=["tx", "log_index"])
+    unindexed = frame[frame["log_index"] < 0].drop_duplicates()
+    return pd.concat([indexed, unindexed], ignore_index=True).reset_index(drop=True)
 
 
 def classify_flows(transfers: pd.DataFrame, wallet: str,
-                   protocol: frozenset[str] = PROTOCOL_ADDRESSES) -> pd.DataFrame:
-    """Label each transfer as in/out and as protocol or external.
+                   protocol: frozenset[str] = PROTOCOL_ADDRESSES,
+                   contracts: Iterable[str] | None = COLLATERAL_CONTRACTS) -> pd.DataFrame:
+    """Label each transfer as in/out and as protocol, ambiguous or external.
 
     Protocol transfers are settlement and merge proceeds moving between the wallet
     and Polymarket's own contracts. Counting those as deposits would inflate
     funding by the entire trading volume, which is exactly the mistake that makes
     naive on-chain "deposit" figures useless.
 
-    Adds columns: direction (in/out), counterparty, is_protocol.
+    ``contracts`` restricts the frame to the collateral tokens whose unit is a
+    dollar. The raw scan asks the node for every Transfer that touches the
+    wallet, so without this filter an airdropped token lands in the same sum as
+    USDC and is read as money. Pass None to keep every contract.
+
+    Counterparties that both address lists claim (``AMBIGUOUS_ADDRESSES``) are
+    labelled ``ambiguous`` rather than resolved by list order: they are the
+    difference between the low and the high end of the funding range.
+
+    Adds columns: direction (in/out), counterparty, classification, is_protocol.
     """
 
-    columns = ["block", "tx", "contract", "sender", "recipient", "amount", "direction",
-               "counterparty", "is_protocol"]
+    columns = ["block", "log_index", "tx", "contract", "sender", "recipient", "amount",
+               "direction", "counterparty", "classification", "is_protocol"]
     if transfers is None or transfers.empty:
         return pd.DataFrame(columns=columns)
     target = str(wallet or "").lower()
     frame = transfers.copy()
-    frame["sender"] = frame["sender"].astype(str).str.lower()
-    frame["recipient"] = frame["recipient"].astype(str).str.lower()
+    if "log_index" not in frame:
+        frame["log_index"] = -1
+    for column in ("sender", "recipient", "contract"):
+        if column in frame:
+            frame[column] = frame[column].astype(str).str.lower()
+    if contracts is not None and "contract" in frame:
+        frame = frame[frame["contract"].isin({str(c).lower() for c in contracts})]
     frame = frame[(frame["sender"] == target) | (frame["recipient"] == target)]
     if frame.empty:
         return pd.DataFrame(columns=columns)
     frame["direction"] = frame["recipient"].eq(target).map({True: "in", False: "out"})
     frame["counterparty"] = frame["sender"].where(frame["direction"].eq("in"), frame["recipient"])
-    frame["is_protocol"] = frame["counterparty"].isin(protocol)
+    ambiguous = frame["counterparty"].isin(AMBIGUOUS_ADDRESSES)
+    frame["classification"] = "external"
+    frame.loc[frame["counterparty"].isin(protocol), "classification"] = "protocol"
+    frame.loc[ambiguous, "classification"] = "ambiguous"
+    # Kept for callers that only ask "is this trading mechanics": an ambiguous
+    # counterparty is not settled either way, so it is not claimed as protocol.
+    frame["is_protocol"] = frame["classification"].eq("protocol")
     return frame[columns].reset_index(drop=True)
 
 
@@ -149,20 +244,39 @@ def flow_summary(flows: pd.DataFrame) -> dict[str, float]:
     """
 
     keys = ["deposits_external", "withdrawals_external", "net_external",
-            "deposits_protocol", "withdrawals_protocol", "n_transfers"]
+            "deposits_protocol", "withdrawals_protocol",
+            "deposits_ambiguous", "withdrawals_ambiguous",
+            "net_external_low", "net_external_high", "n_transfers"]
     if flows is None or flows.empty:
         return dict.fromkeys(keys, 0.0)
     amount = pd.to_numeric(flows["amount"], errors="coerce").fillna(0.0)
     incoming = flows["direction"].eq("in")
-    protocol = flows["is_protocol"].astype(bool)
-    deposits = float(amount[incoming & ~protocol].sum())
-    withdrawals = float(amount[~incoming & ~protocol].sum())
+    if "classification" in flows:
+        label = flows["classification"].astype(str)
+    else:  # frames from an older classify_flows still carry only the flag
+        label = flows["is_protocol"].astype(bool).map({True: "protocol", False: "external"})
+    protocol = label.eq("protocol")
+    unclear = label.eq("ambiguous")
+    external = ~protocol & ~unclear
+    deposits = float(amount[incoming & external].sum())
+    withdrawals = float(amount[~incoming & external].sum())
+    deposits_unclear = float(amount[incoming & unclear].sum())
+    withdrawals_unclear = float(amount[~incoming & unclear].sum())
     return {
         "deposits_external": deposits,
         "withdrawals_external": withdrawals,
         "net_external": deposits - withdrawals,
         "deposits_protocol": float(amount[incoming & protocol].sum()),
         "withdrawals_protocol": float(amount[~incoming & protocol].sum()),
+        "deposits_ambiguous": deposits_unclear,
+        "withdrawals_ambiguous": withdrawals_unclear,
+        # The range the docstring promises, as the two consistent readings of
+        # the ambiguous counterparties: all of them protocol, or all of them
+        # external funding. Anything in between is a mixture nobody verified.
+        "net_external_low": min(deposits - withdrawals,
+                                deposits + deposits_unclear - withdrawals - withdrawals_unclear),
+        "net_external_high": max(deposits - withdrawals,
+                                 deposits + deposits_unclear - withdrawals - withdrawals_unclear),
         "n_transfers": float(len(flows)),
     }
 
@@ -198,20 +312,32 @@ def reconcile_ledger(total_in: float, total_out: float, ending_balance: float,
     }
 
 
-def peak_external_exposure(flows: pd.DataFrame) -> float:
+def peak_external_exposure(flows: pd.DataFrame, include_ambiguous: bool = False) -> float:
     """Largest cumulative net external funding ever outstanding, in block order.
 
     This is the tightest honest answer to "how much capital did this operation
     require": the high-water mark of money put in and not yet taken out. Total
     deposits overstate it whenever the operator recycled the same dollars.
+
+    ``include_ambiguous`` gives the other end of the range: with it, transfers
+    through counterparties that could be either funding or trading mechanics
+    count as funding. Reading only the default end reports zero capital for a
+    wallet funded exclusively through such a counterparty, which is how this
+    was wrong before.
     """
 
     if flows is None or flows.empty:
         return 0.0
-    external = flows[~flows["is_protocol"].astype(bool)].copy()
+    if "classification" in flows:
+        label = flows["classification"].astype(str)
+        keep = label.ne("protocol") if include_ambiguous else label.eq("external")
+    else:
+        keep = ~flows["is_protocol"].astype(bool)
+    external = flows[keep].copy()
     if external.empty:
         return 0.0
     external["signed"] = pd.to_numeric(external["amount"], errors="coerce").fillna(0.0)
     external.loc[external["direction"].ne("in"), "signed"] *= -1
-    ordered = external.sort_values("block")["signed"].cumsum()
+    sort_keys = [k for k in ("block", "log_index") if k in external.columns]
+    ordered = external.sort_values(sort_keys)["signed"].cumsum() if sort_keys else external["signed"].cumsum()
     return float(max(ordered.max(), 0.0))
