@@ -414,8 +414,23 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertNotIn("DEMO-DATEN", app_js)
         self.assertNotIn("API GETRENNT", app_js)
         self.assertNotIn("live: 'demo'", app_js)
-        self.assertIn("WAITING FOR API", app_js)
-        self.assertIn("API OFFLINE · LAST KNOWN STATE", app_js)
+        # Die Zustandstexte selbst stehen in util.js (liveStatusLabel), damit
+        # sie ohne Browser pruefbar sind; app.js ruft sie nur auf.
+        util_js = (WURZEL / "web" / "js" / "util.js").read_text(encoding="utf-8")
+        self.assertIn("liveStatusLabel(s.live, s.venuesMissing)", app_js)
+        self.assertIn("WAITING FOR API", util_js)
+        self.assertIn("API OFFLINE · LAST KNOWN STATE", util_js)
+
+    def test_die_kopfzeile_nennt_keine_venue_die_nicht_geantwortet_hat(self) -> None:
+        # "LIVE · POLYMARKET + KALSHI" stand fest im Text. Faengt /api/tape
+        # einen Parserfehler auf einer Venue ab, damit die andere nicht mit
+        # ausfaellt, war die halbe Antwort von einer ganzen nicht zu
+        # unterscheiden.
+        app_js = (WURZEL / "web" / "js" / "app.js").read_text(encoding="utf-8")
+        self.assertNotIn("'LIVE · POLYMARKET + KALSHI'", app_js)
+        util_js = (WURZEL / "web" / "js" / "util.js").read_text(encoding="utf-8")
+        self.assertIn("NOT ANSWERING", util_js)
+        self.assertIn("venues_missing", app_js)
 
     def test_forschungsknoepfe_tun_etwas(self) -> None:
         # "Download the data" ist ein Link auf die publizierte Datei der
@@ -1918,6 +1933,35 @@ class WebLeerzustandTest(unittest.TestCase):
         for knopf in ("Follow wallet", "Pause", "Resume", "Run one sync pass", "Refresh"):
             with self.subTest(knopf=knopf):
                 self.assertRegex(html, r'data-act="\d+"[^>]*>' + re.escape(knopf) + "<")
+
+    def test_copy_desk_headline_splits_settled_from_marked(self) -> None:
+        # Das Zahlenbeispiel aus dem Harness: 1.000 eingezahlt, eine
+        # aufgeloeste Kopie hat 120 gekostet, eine offene steht 300 ueber
+        # Einstand. Die Kachel las "+$180.00" und sonst nichts, also einen
+        # Gewinn fuer einen Tisch, der gebucht im Minus steht.
+        live = _sichtbarer_text(self.ausgabe["live"]["copy"])
+        self.assertIn("PROFIT ON PAPER · SETTLED VS MARKED", live)
+        self.assertIn("+$180.00", live)
+        self.assertIn("settled -$120.00 (-12.00%)", live)
+        self.assertIn("marked +$300.00 (+30.00%)", live)
+
+    def test_copy_desk_mirrored_denominator_covers_the_same_set(self) -> None:
+        # 100 Zeilen, davon 40 nur beobachtete Baseline. Die Kachel las
+        # "50 / 100", weil der Zaehler nur kopierte Zeilen zaehlte und der
+        # Nenner jede. Gespiegelt wurden 50 von 60 entscheidbaren.
+        live = _sichtbarer_text(self.ausgabe["live"]["copy"])
+        self.assertIn("ORDERS MIRRORED", live)
+        self.assertIn("50 / 60", live)
+        self.assertNotIn("50 / 100", live)
+        self.assertIn("40 baseline rows, never ours to mirror", live)
+
+    def test_copy_desk_trader_row_shows_both_halves_and_no_fake_zero(self) -> None:
+        live = _sichtbarer_text(self.ausgabe["live"]["copy"])
+        self.assertIn("PAPER PNL · SETTLED / MARKED", live)
+        self.assertIn("settled +0.00% · marked +0.00%", live)
+        # Trader w2 hat kein erfasstes eingezahltes Kapital: ein Strich,
+        # keine gemessene Null.
+        self.assertIn("settled — · marked —", live)
 
     def test_copy_desk_read_only_and_token_states(self) -> None:
         ro = _sichtbarer_text(self.ausgabe["live"]["copy_readonly"])

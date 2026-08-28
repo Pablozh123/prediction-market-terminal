@@ -46,6 +46,27 @@ function signedUsd(n, digits) {
 
 function pnlColor(v) { return (Number(v) || 0) >= 0 ? POS : RED; }
 
+// Ein Prozentwert, der auch null sein darf. Ohne eingezahltes Kapital gibt
+// es keine Rendite, und die frueheren "+0.00 %" lasen sich wie eine
+// gemessene Null.
+function pctLabel(v) {
+  if (v == null || !isFinite(Number(v))) return '—';
+  const n = Number(v);
+  return (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
+}
+
+// Gebucht und bewertet in einer Zeile. Die Schlagzeile des Copy-Desks war
+// equity minus Einzahlungen: darin steckt ein realisiertes Ergebnis (Geld,
+// das eine Aufloesung zurueckgegeben hat) und eine Marke auf Positionen, die
+// noch nichts entschieden haben. Ein Tisch, der gebucht 120 Dollar verloren
+// hat und dessen offene Positionen 300 Dollar ueber Einstand markiert sind,
+// stand als "+180, +18,00 %" da.
+function splitSatz(kp) {
+  if (kp == null) return '';
+  return 'settled ' + signedUsd(kp.settled_pnl) + ' (' + pctLabel(kp.settled_pct) + ')'
+    + ' · marked ' + signedUsd(kp.open_pnl) + ' (' + pctLabel(kp.open_pct) + ')';
+}
+
 // "12 min ago" from an ISO stamp; nothing when there is no stamp.
 function ago(iso) {
   if (!iso) return '';
@@ -147,7 +168,15 @@ function traderRow(T, t, s, canWrite, busy) {
     + '<div style="' + M + '; font-size:var(--t-small); text-align:right; color:' + DIM + '">' + usd(t.start_cash, 0) + '</div>'
     + '<div style="' + M + '; font-size:var(--t-small); text-align:right">' + usd(t.cash) + '</div>'
     + '<div style="' + M + '; font-size:var(--t-small); text-align:right">' + usd(t.equity) + '<div style="font-size:var(--t-micro); color:var(--ink-3)">' + usd(t.contributions, 0) + ' put in</div></div>'
-    + '<div style="' + M + '; font-size:var(--t-small); text-align:right; color:' + pnlColor(t.pnl) + '">' + signedUsd(t.pnl) + '<div style="font-size:var(--t-micro)">' + ((t.pnl_pct >= 0 ? '+' : '') + Number(t.pnl_pct || 0).toFixed(2)) + '%</div></div>'
+    // Gebucht und bewertet stehen nebeneinander. Eine Prozentzahl, die
+    // beides addiert, laesst einen Tisch, der gebucht im Minus steht, als
+    // Gewinner dastehen; beide Haelften teilen sich den Nenner (das in
+    // diesen Sub-Account eingezahlte Kapital) und addieren sich deshalb.
+    + '<div style="' + M + '; font-size:var(--t-small); text-align:right; color:' + pnlColor(t.pnl) + '" title="' + esc(splitSatz(t)) + '">' + signedUsd(t.pnl)
+    + '<div style="font-size:var(--t-micro)">' + esc(pctLabel(t.pnl_pct)) + '</div>'
+    + '<div style="font-size:var(--t-micro); color:var(--ink-4)">settled ' + esc(pctLabel(t.settled_pct)) + ' · marked ' + esc(pctLabel(t.open_pct)) + '</div>'
+    + (t.pnl_reconciles === false ? '<div style="font-size:var(--t-micro); color:' + AMBER + '">books do not add up</div>' : '')
+    + '</div>'
     + '<div style="' + M + '; font-size:var(--t-small); text-align:right" title="copied / skipped (observed baseline trades not counted)">' + (o.copied || 0) + ' <span style="color:' + AMBER + '">/ ' + (o.skipped || 0) + '</span></div>'
     + '<div style="' + M + '; font-size:var(--t-small); text-align:right">' + (t.open_positions || 0) + '<div style="font-size:var(--t-micro); color:var(--ink-3)">' + (t.last_copy_at ? 'last ' + esc(ago(t.last_copy_at)) : 'no copy yet') + '</div></div>'
     + '<div style="text-align:right">' + spark + '</div>'
@@ -255,7 +284,7 @@ function tradersTab(T, s, live, canWrite) {
     + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin:14px 24px 0; overflow:hidden">'
     + '<div style="overflow-x:auto"><div style="min-width:1180px">'
     + '<div style="' + head + '">'
-    + '<div>TRADER</div><div>STATE</div><div style="text-align:right">START</div><div style="text-align:right">CASH</div><div style="text-align:right">EQUITY</div><div style="text-align:right">PAPER PNL</div><div style="text-align:right">COPIED / SKIP</div><div style="text-align:right">OPEN</div><div style="text-align:right">EQUITY CURVE</div><div style="text-align:right">' + (canWrite ? 'ACTIONS' : '') + '</div></div>'
+    + '<div>TRADER</div><div>STATE</div><div style="text-align:right">START</div><div style="text-align:right">CASH</div><div style="text-align:right">EQUITY</div><div style="text-align:right">PAPER PNL · SETTLED / MARKED</div><div style="text-align:right">COPIED / SKIP</div><div style="text-align:right">OPEN</div><div style="text-align:right">EQUITY CURVE</div><div style="text-align:right">' + (canWrite ? 'ACTIONS' : '') + '</div></div>'
     + (traders.length ? traders.map((t) => traderRow(T, t, s, canWrite, busy)).join('') : leerZeile('No traders followed yet. Add the first wallet above — each one gets its own sub-account.'))
     + '</div></div></div>'
     + daemonBlock(T, live, canWrite, s);
@@ -547,7 +576,10 @@ export function renderCopy(T) {
     } else {
       gapCosts = leerZeile('No execution breakdown in this /api/copy answer — fidelity_detail is missing. Nothing is shown rather than an estimate.');
     }
-    const throttleShare = kp.total ? Math.round((kp.skipped / kp.total) * 100) : null;
+    // Anteil an dem, worueber zu entscheiden war, nicht an jeder Zeile: die
+    // Baseline-Zeilen sind kein uebersprungener Auftrag.
+    const entscheidbar = kp.actionable != null ? kp.actionable : kp.total;
+    const throttleShare = entscheidbar ? Math.round((kp.skipped / entscheidbar) * 100) : null;
     body = '<div style="padding:16px 24px; display:grid; grid-template-columns:1fr 1fr; gap:16px">'
       + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-4); margin-bottom:14px">WHERE THE COPY DRIFTS (ALL TRADERS)</div>'
       + '<div style="display:flex; flex-direction:column; gap:14px">'
@@ -613,9 +645,24 @@ export function renderCopy(T) {
 
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid var(--line-2)">'
     + '<div style="padding:16px 20px; border-right:1px solid var(--line-2)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3)">ALL SUB-ACCOUNTS · EQUITY</div><div style="' + M + '; font-size:var(--t-hero); margin-top:8px">' + esc(usd(totals.equity)) + '</div><div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:4px">' + esc(usd(totals.contributions)) + ' put in</div></div>'
-    + '<div style="padding:16px 20px; border-right:1px solid var(--line-2)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3)">PROFIT ON PAPER</div><div style="' + M + '; font-size:var(--t-hero); margin-top:8px; color:' + pnlColor(kp.pnl) + '">' + esc(signedUsd(kp.pnl)) + '</div><div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:4px">'
+    // Die Kachel nannte eine Zahl fuer beides. Gebucht ist Geld, das eine
+    // Aufloesung oder ein Verkauf zurueckgegeben hat; bewertet ist eine
+    // Marke auf Positionen, die noch nichts entschieden haben (im
+    // Standardpfad zum zuletzt gedruckten Preis der Quelle). Beide Zeilen
+    // rechnen gegen dasselbe eingezahlte Kapital und addieren sich deshalb.
+    + '<div style="padding:16px 20px; border-right:1px solid var(--line-2)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3)">PROFIT ON PAPER · SETTLED VS MARKED</div><div style="' + M + '; font-size:var(--t-hero); margin-top:8px; color:' + pnlColor(kp.pnl) + '">' + esc(signedUsd(kp.pnl)) + ' <span style="font-size:var(--t-body); color:var(--ink-3)">' + esc(pctLabel(kp.pnl_pct)) + '</span></div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); margin-top:4px">' + esc(splitSatz(kp)) + '</div>'
+    + (kp.pnl_reconciles === false ? '<div style="' + M + '; font-size:var(--t-micro); color:' + AMBER + '; margin-top:4px">the two halves do not add up to the equity change (' + esc(signedUsd(kp.pnl_residual)) + ' unaccounted), so this is not a breakdown</div>' : '')
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:4px">'
     + (kp.source_pnl_delta != null ? 'first source ' + (kp.source_pnl_delta >= 0 ? '+' : '-') + '$' + num(Math.abs(kp.source_pnl_delta).toFixed(0)) + ' same window' : 'source wallet return not loaded') + '</div></div>'
-    + '<div style="padding:16px 20px; border-right:1px solid var(--line-2)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3)">ORDERS MIRRORED</div><div style="' + M + '; font-size:var(--t-hero); margin-top:8px">' + kp.mirrored + ' <span style="font-size:var(--t-lead); color:var(--ink-3)">/ ' + kp.total + '</span></div><div style="' + M + '; font-size:var(--t-micro); color:' + AMBER + '; margin-top:4px">' + kp.skipped + ' skipped</div></div>'
+    // Nenner ist, worueber zu entscheiden war. Vorher stand hier
+    // kp.mirrored / kp.total: der Zaehler zaehlte nur ``copied``, der Nenner
+    // jede Zeile. Eine kopierte Order, die aufgeloest wurde, fiel damit aus
+    // dem Zaehler und blieb im Nenner, und die Baseline-Zeilen (Bestand der
+    // Quelle beim Anlegen) standen nur im Nenner.
+    + '<div style="padding:16px 20px; border-right:1px solid var(--line-2)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3)">ORDERS MIRRORED</div><div style="' + M + '; font-size:var(--t-hero); margin-top:8px">' + kp.mirrored + ' <span style="font-size:var(--t-lead); color:var(--ink-3)">/ ' + (kp.actionable != null ? kp.actionable : kp.total) + '</span></div><div style="' + M + '; font-size:var(--t-micro); color:' + AMBER + '; margin-top:4px">' + kp.skipped + ' skipped</div>'
+    + (kp.observed ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:3px">' + kp.observed + ' baseline rows, never ours to mirror</div>' : '')
+    + '</div>'
     + '<div style="padding:16px 20px"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3)">HOW CLOSE TO THE SOURCE</div><div style="' + M + '; font-size:var(--t-hero); margin-top:8px">' + kp.fidelity + '%</div><div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:4px">config ' + kp.config_fidelity + '% · execution ' + kp.exec_fidelity + '%</div></div>'
     + '</div>'
 

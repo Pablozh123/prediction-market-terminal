@@ -107,6 +107,30 @@ export function herkunftSatz(herkunft, endpunkt) {
   return 'Waiting for ' + endpunkt + '. Nothing is shown until it answers.';
 }
 
+// Alle Venues, die das Terminal liest. Die Kopfzeile nannte sie fest
+// verdrahtet ("LIVE · POLYMARKET + KALSHI") und behauptete damit beide, auch
+// wenn nur eine geantwortet hatte.
+export const VENUES = ['Polymarket', 'Kalshi'];
+
+// Die Statuszeile der Kopfleiste. Sie nennt die Venues, die geantwortet
+// haben, und benennt die fehlende, statt beide zu behaupten.
+//
+// Der Fall, um den es geht: /api/tape faengt einen Parserfehler auf einer
+// Venue ab, damit die andere nicht mit ausfaellt, und liefert eine halbe
+// Antwort. Ohne diese Zeile war die halbe Antwort von einer ganzen nicht zu
+// unterscheiden, und die Seite meldete LIVE auf beiden Venues, waehrend die
+// Haelfte der Prints fehlte.
+export function liveStatusLabel(live, venuesMissing) {
+  if (live === 'error') return 'API OFFLINE · LAST KNOWN STATE';
+  if (live === 'offline') return 'API NOT REACHABLE · RESEARCH FROM PUBLISHED FILES';
+  if (live !== 'live') return 'WAITING FOR API';
+  const fehlend = (venuesMissing || []).map((v) => String(v || '').trim()).filter(Boolean);
+  if (!fehlend.length) return 'LIVE · ' + VENUES.join(' + ').toUpperCase();
+  const da = VENUES.filter((v) => fehlend.indexOf(v) < 0);
+  if (!da.length) return 'NO VENUE ANSWERING · ' + fehlend.join(' + ').toUpperCase() + ' FAILED';
+  return 'PARTIAL · ' + da.join(' + ').toUpperCase() + ' ONLY · ' + fehlend.join(' + ').toUpperCase() + ' NOT ANSWERING';
+}
+
 // Ein Panel ohne Daten sagt, welche Quelle fehlt, und zeigt keine Zahl. Eine
 // leere Flaeche kostet nichts; eine erfundene Kennzahl kostet die
 // Glaubwuerdigkeit jeder echten Zahl daneben.

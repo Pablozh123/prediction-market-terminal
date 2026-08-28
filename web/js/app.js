@@ -1,7 +1,7 @@
 // Market Intel terminal — vanilla JS port of the design reference.
 // One controller class; each workspace renders as an HTML string from state.
 
-import { num, money, volume, esc, seriesPoints, tapeMatches } from './util.js';
+import { num, money, volume, esc, seriesPoints, tapeMatches, liveStatusLabel } from './util.js';
 import { STUDIEN } from './studies.js';
 import { caveatZeile, registerAktualisieren } from './claims.js';
 import { apiGet, apiGetRaw, apiPost } from './api.js';
@@ -145,7 +145,11 @@ class Terminal {
       // 'waiting' bis zur ersten Antwort, dann 'live' oder 'error'; 'offline'
       // wenn die erste Antwort ausblieb (reiner Dateihost, API schlaeft). Der
       // fruehere Wert 'demo' behauptete einen Demo-Datensatz, den es nicht gibt.
-      live: 'waiting', liveAsOf: '', tapeAsOf: ''
+      // Venues, die auf die letzte Runde nicht lesbar geantwortet haben. Die
+      // Kopfzeile sagte "LIVE, POLYMARKET + KALSHI", egal was zurueckkam; ein
+      // Ausfall auf einer Venue war von einer stillen Venue nicht zu
+      // unterscheiden. /api/tape und /api/markets fuehren das jetzt mit.
+      live: 'waiting', liveAsOf: '', tapeAsOf: '', venuesMissing: []
     };
     // Sub-tab from the address (#risk/log, #alerts/rules), if it names one.
     const startSegmente = (location.hash || '').replace('#', '').split('/');
@@ -676,10 +680,10 @@ class Terminal {
     // Dateihost oder schlafende API — die Forschungsseiten lesen dann die
     // publizierten Dateien). "Demo" gibt es nicht — es gibt keinen
     // Demo-Datensatz, den die Zeile ankuendigen koennte.
-    const liveLabel = s.live === 'live' ? 'LIVE · POLYMARKET + KALSHI'
-      : s.live === 'error' ? 'API OFFLINE · LAST KNOWN STATE'
-        : s.live === 'offline' ? 'API NOT REACHABLE · RESEARCH FROM PUBLISHED FILES'
-          : 'WAITING FOR API';
+    // Die Venues stehen nicht mehr fest im Text: liveStatusLabel nennt die,
+    // die geantwortet haben, und benennt eine ausgefallene. Eine Seite, die
+    // LIVE auf zwei Venues meldet und eine davon nicht zeigt, luegt.
+    const liveLabel = liveStatusLabel(s.live, s.venuesMissing);
     // "Sign in" und "Get alerts" standen rechts ohne Handler. Es gibt weder
     // eine Anmeldung noch eine Alarmzustellung, die von hier aus einzurichten
     // waere (die haengt am Scanner-Skript). Zwei Knoepfe, die nichts tun, sind
@@ -730,7 +734,15 @@ class Terminal {
       this.herkunft.markets = { quelle: this.markets.length ? 'live' : 'leer' };
       this.tape = (tp.rows || []).map((r) => mapTrade(r));
       this.herkunft.tape = { quelle: this.tape.length ? 'live' : 'leer' };
-      this.setState({ live: 'live', liveAsOf: String(mk.as_of || ''), tapeAsOf: String(tp.as_of || mk.as_of || '') });
+      // Beide Antworten fuehren, welche Venue lesbar geantwortet hat. Eine
+      // Venue, die in einer der beiden fehlt, fehlt fuer die Kopfzeile.
+      const fehlend = [];
+      [mk, tp].forEach((antwort) => {
+        ((antwort && antwort.venues_missing) || []).forEach((v) => {
+          if (v && fehlend.indexOf(v) < 0) fehlend.push(v);
+        });
+      });
+      this.setState({ live: 'live', liveAsOf: String(mk.as_of || ''), tapeAsOf: String(tp.as_of || mk.as_of || ''), venuesMissing: fehlend });
     } catch (err) {
       // Nach einem geglueckten Lauf bleibt der letzte Stand stehen, die
       // Kopfzeile sagt das bereits. Vorher gibt es nichts zu behalten.
