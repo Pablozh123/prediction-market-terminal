@@ -396,8 +396,10 @@ def overview(limit: int = Query(250, le=1000)) -> dict[str, Any]:
 
     vol24 = col("volume_24h")
     moves = col("change_1d")
-    pm_count = int((combined.get("platform") == "Polymarket").sum())
-    ks_count = int((combined.get("platform") == "Kalshi").sum())
+    ist_pm = combined.get("platform") == "Polymarket"
+    ist_ks = combined.get("platform") == "Kalshi"
+    pm_count = int(ist_pm.sum())
+    ks_count = int(ist_ks.sum())
 
     movers = combined.assign(_absmove=moves.abs()).sort_values("_absmove", ascending=False).head(8)
     baseline = (vol24 / 24.0).clip(lower=1.0)
@@ -423,7 +425,12 @@ def overview(limit: int = Query(250, le=1000)) -> dict[str, Any]:
             "markets_total": int(len(combined)),
             "markets_pm": pm_count,
             "markets_ks": ks_count,
-            "volume_24h": float(vol24.sum()),
+            # "volume_24h" stand hier als eine Summe ueber beide Venues, und
+            # die war keine Groesse: Polymarket meldet Dollar, Kalshi zaehlt
+            # Kontrakte (Beleg in app/venue_units.py). Zwei Felder, zwei
+            # Einheiten, im Namen genannt.
+            "volume_24h_usd_polymarket": float(vol24.where(ist_pm, 0.0).sum()),
+            "volume_24h_contracts_kalshi": float(vol24.where(ist_ks, 0.0).sum()),
             "resolving_72h": int(soon_mask.sum()),
             "top_public_pnl": top_pnl,
         },

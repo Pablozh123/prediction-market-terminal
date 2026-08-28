@@ -35,6 +35,7 @@ from app import run_sim as rsim
 from app import signals as sig
 from app import suspicion as susp
 from app import track_record as trec
+from app import venue_units as vu
 from src import copy_trading as ct
 from src import prediction_markets as md
 
@@ -2552,7 +2553,9 @@ def render_command_palette_dialog() -> None:
             platform = str(row.get("platform", "-"))
             price = cents(row.get("yes_price"))
             volume_col = "activity_volume" if "activity_volume" in row.index else "volume_24h"
-            volume = markdown_money(row.get(volume_col, 0.0))
+            # Nicht markdown_money: auf Kalshi zaehlt die Spalte Kontrakte
+            # und traegt dann kein Dollarzeichen (app/venue_units.py).
+            volume = vu.format_volume_markdown(row.get(volume_col, 0.0), platform)
             with st.container(border=True):
                 text_col, open_col, save_col = st.columns([3.4, 1, 1])
                 text_col.markdown(f"**{platform}**  \n{title}")
@@ -2808,7 +2811,7 @@ def market_tile(row: pd.Series) -> None:
             f"""
             <div class="market-stats">
               <div class="market-stat"><span>Yes</span><strong>{cents(row.get("yes_price"))}</strong></div>
-              <div class="market-stat"><span>Vol</span><strong>{money(row.get("activity_volume", row.get("volume_24h")))}</strong></div>
+              <div class="market-stat"><span>Vol</span><strong>{vu.format_volume(row.get("activity_volume", row.get("volume_24h")), row.get("platform"))}</strong></div>
               <div class="market-stat"><span>1d</span><strong>{signed_cents(change) if change is not None else "-"}</strong></div>
             </div>
             """,
@@ -3409,7 +3412,8 @@ def render_featured_market(row: pd.Series, position_label: str = "") -> None:
     # am Tag gehandelt wurde, sonst das Lebensvolumen. "Liq / OI" fasste zwei
     # Groessen in einer Zeile zusammen und schrieb ein Dollarzeichen vor
     # beide: Open Interest zaehlt Kontrakte, keine Dollar.
-    f1.metric("Vol 24h", money(row.get("volume_24h")))
+    # Auch hier haengt die Einheit an der Venue, nicht an der Spalte.
+    f1.metric("Vol 24h", vu.format_volume(row.get("volume_24h"), row.get("platform")))
     f2.metric("Liquidity", money_or_dash(row.get("liquidity")))
     f3.metric("1h", signed_cents(row.get("change_1h")) if pd.notna(row.get("change_1h", pd.NA)) else "-")
     f4.metric("24h", signed_cents(row.get("change_1d")) if pd.notna(row.get("change_1d", pd.NA)) else "-")
@@ -3778,9 +3782,15 @@ def page_overview() -> None:
         combined = add_market_filter_metrics(combined)
     if not combined.empty:
         ticker_vol = numeric_col(combined, "volume_24h")
+        # Eine Summe ueber beide Venues war hier keine Groesse: Polymarket
+        # meldet Dollar, Kalshi zaehlt Kontrakte (app/venue_units.py). Die
+        # beiden stehen jetzt als zwei Posten nebeneinander.
+        ist_pm = combined.get("platform") == "Polymarket"
+        ist_ks = combined.get("platform") == "Kalshi"
         ticker_items = [
             f"<span>MARKETS TRACKED <b>{len(combined):,}</b></span>",
-            f"<span>24H VOLUME <b>{money(float(ticker_vol.sum()))}</b></span>",
+            f"<span>24H VOLUME POLYMARKET <b>{money(float(ticker_vol.where(ist_pm, 0.0).sum()))}</b></span>",
+            f"<span>24H VOLUME KALSHI <b>{contracts(float(ticker_vol.where(ist_ks, 0.0).sum()))}</b></span>",
             f"<span>WHALE THRESHOLD <b>{money(float(min_whale))}</b></span>",
         ]
         ticker_moves = numeric_col(combined, "change_1d")
@@ -3947,7 +3957,9 @@ def page_overview() -> None:
     if exclude_categories:
         chips.append("Exclude: " + ", ".join(md.market_category_label(item) for item in exclude_categories[:3]) + ("..." if len(exclude_categories) > 3 else ""))
     if int(overview_min_volume) > 0:
-        chips.append(f"Volume >= {money(overview_min_volume)}")
+        # Ohne Dollarzeichen: die Schwelle wird gegen die Volumenspalte
+        # jeder Venue geprueft, und die zaehlt auf Kalshi Kontrakte.
+        chips.append(f"Volume >= {overview_min_volume:,.0f} (venue unit)")
     if int(overview_min_liquidity) > 0:
         chips.append(f"Liquidity >= {money(overview_min_liquidity)}")
     if int(overview_min_flow) > 0:
@@ -4059,19 +4071,29 @@ def page_overview() -> None:
         if combined.empty:
             draw_empty("Volume chart unavailable.")
         else:
+            # Hier standen zwei Balken auf einer Achse, und die trugen
+            # verschiedene Einheiten: Polymarket meldet Dollar, Kalshi zaehlt
+            # Kontrakte (Beleg in app/venue_units.py). Genau das, was ein
+            # Balkenpaar zeigen soll, naemlich welche Venue groesser ist,
+            # konnte es damit nicht zeigen. Zwei Zahlen mit ihrer Einheit
+            # sagen weniger und behaupten nichts Falsches.
             volume_col = "activity_volume" if "activity_volume" in combined else "volume_24h"
-            by_platform = combined.groupby("platform", as_index=False)[volume_col].sum()
-            fig = px.bar(
-                by_platform,
-                x="platform",
-                y=volume_col,
-                color="platform",
-                color_discrete_map={"Polymarket": ACCENT, "Kalshi": BLUE},
-                template="plotly_dark",
-                labels={volume_col: "loaded volume"},
+            geladen = numeric_col(combined, volume_col)
+            venue_links, venue_rechts = st.columns(2)
+            venue_links.metric(
+                "Polymarket",
+                money(float(geladen.where(combined["platform"] == "Polymarket", 0.0).sum())),
             )
-            fig.update_layout(height=330, margin=dict(l=10, r=10, t=20, b=10), paper_bgcolor=BG, plot_bgcolor=BG)
-            st.plotly_chart(fig, width="stretch", config=plot_config())
+            venue_rechts.metric(
+                "Kalshi",
+                contracts(float(geladen.where(combined["platform"] == "Kalshi", 0.0).sum())),
+            )
+            st.caption(
+                "No shared bar: Polymarket reports dollar turnover, Kalshi reports "
+                "the number of contracts traded. A contract pays $1 at resolution "
+                "and trades at its price p, so a Kalshi bar on the same axis would "
+                "stand 1/p too tall."
+            )
     with right:
         st.markdown("### Recent large flow")
         if trades.empty:
@@ -4312,8 +4334,11 @@ def page_search() -> None:
     market_cols = ["platform", "title", "category", "yes_price", "activity_volume", "volume_24h", "liquidity", "spread", "change_1h", "end_time", "url"]
     market_config = {
         "yes_price": st.column_config.NumberColumn(format="%.3f"),
-        "activity_volume": st.column_config.NumberColumn(format="$%.0f"),
-        "volume_24h": st.column_config.NumberColumn(format="$%.0f"),
+        # Die Tabelle mischt beide Venues; ein Spaltenformat gilt fuer alle
+        # Zeilen. Polymarket meldet Dollar, Kalshi Kontrakte, also steht hier
+        # kein Dollarzeichen und die Ueberschrift nennt den Vorbehalt.
+        "activity_volume": st.column_config.NumberColumn("Activity volume (venue unit)", format="%.0f"),
+        "volume_24h": st.column_config.NumberColumn("Volume 24h (venue unit)", format="%.0f"),
         "liquidity": st.column_config.NumberColumn(format="$%.0f"),
         "spread": st.column_config.NumberColumn(format="%.3f"),
         "change_1h": st.column_config.NumberColumn(format="%+.3f"),
@@ -8558,8 +8583,10 @@ def page_cross_venue() -> None:
         width="stretch",
         height=460,
         column_config={
-            "polymarket_volume_usd": st.column_config.NumberColumn(format="$%.0f"),
-            "kalshi_volume_contracts": st.column_config.NumberColumn(format="$%.0f"),
+            "polymarket_volume_usd": st.column_config.NumberColumn("Polymarket volume", format="$%.0f"),
+            # Kein Dollarzeichen: die Spalte zaehlt Kontrakte, und ein
+            # Kontrakt ist erst bei Aufloesung einen Dollar wert.
+            "kalshi_volume_contracts": st.column_config.NumberColumn("Kalshi volume (contracts)", format="%.0f"),
             "polymarket_url": st.column_config.LinkColumn("Polymarket"),
             "kalshi_url": st.column_config.LinkColumn("Kalshi"),
         },
@@ -8831,7 +8858,9 @@ def page_monitor() -> None:
     if watched_only:
         monitor_chips.append("Watched only")
     if int(min_volume) > 0:
-        monitor_chips.append(f"Volume >= {money(min_volume)}")
+        # Der Monitor laeuft ueber beide Venues, und die Volumenspalte zaehlt
+        # auf Kalshi Kontrakte statt Dollar (app/venue_units.py).
+        monitor_chips.append(f"Volume >= {int(min_volume):,} (venue unit)")
     if int(min_liquidity) > 0:
         monitor_chips.append(f"Liquidity >= {money(min_liquidity)}")
     if float(min_move_cents) > 0:

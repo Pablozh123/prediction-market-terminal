@@ -122,6 +122,12 @@ def format_volume(value: Any, platform: Any) -> str:
     return f"{zahl:,.0f}"
 
 
+def format_volume_markdown(value: Any, platform: Any) -> str:
+    """Wie ``format_volume``, aber das Dollarzeichen ist markdown-sicher."""
+
+    return format_volume(value, platform).replace("$", "\\$")
+
+
 def combined_volume(entries: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
     """Volumen mehrerer Venues zusammenfassen, ohne Einheiten zu mischen.
 
