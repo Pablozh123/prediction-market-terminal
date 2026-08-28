@@ -98,6 +98,23 @@
   /* type */
   --font-ui: 'IBM Plex Sans', -apple-system, sans-serif;
   --font-mono: 'IBM Plex Mono', monospace;
+  /* The type ladder. Six steps, because the JS carried twenty-one sizes and
+     twelve of them ran from 9.5px to 15px in half-pixel increments — 92 % of
+     all sizes inside a 5.5px band. Three of those steps (10.5, 11, 11.5)
+     held 591 declarations across one single pixel, which is a continuum, not
+     a hierarchy: no reader can name the difference, so it carries none.
+     Every step here is at least 12 % from its neighbour, which is about the
+     smallest ratio that still reads as a step at these sizes.
+     The floor rises rather than falls: nothing is below 11px afterwards, and
+     the 247 declarations that used to sit under it got bigger. --t-lead is
+     16px on purpose — that is the inherited default of this document, so
+     explicit and inherited text finally agree. */
+  --t-micro: 11px;    /* mono micro-labels, table heads, chips, counters */
+  --t-small: 12.5px;  /* dense cells and sub-lines */
+  --t-body: 14px;     /* prose and table cells */
+  --t-lead: 16px;     /* card titles and lead sentences */
+  --t-head: 21px;     /* page titles, and the figure of a KPI tile */
+  --t-hero: 26px;     /* the one figure a page is about */
 }
 
 /* Light: warm paper, same roles two to three shades darker so every pairing
@@ -243,7 +260,7 @@ input { font-family: inherit; }
 .skip {
   position: fixed; left: 8px; top: -60px; z-index: 100;
   background: var(--accent); color: var(--on-accent); padding: 9px 14px; border-radius: var(--r-control);
-  font-size: 13px; font-weight: 600; text-decoration: none; transition: top .12s ease;
+  font-size: var(--t-body); font-weight: 600; text-decoration: none; transition: top .12s ease;
 }
 .skip:focus { top: 8px; color: var(--on-accent); }
 
@@ -319,7 +336,7 @@ input { font-family: inherit; }
     display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 80;
     box-sizing: border-box; background: rgba(var(--bg-rgb), .97);
     border-top: 1px solid rgba(var(--ink), .16); color: rgba(var(--ink), .72);
-    font-family: var(--font-mono); font-size: 12px; line-height: 1.5;
+    font-family: var(--font-mono); font-size: var(--t-small); line-height: 1.5;
     padding: 11px 16px; text-align: center;
   }
   .narrow-note b { color: var(--accent); font-weight: 500; }

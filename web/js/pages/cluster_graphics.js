@@ -35,7 +35,7 @@ export function clusterFarbe(graph, id) {
 function kopfzeile(g) {
   const k = g.kennzahl || {};
   const chip = (label, wert) =>
-    '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.14); '
+    '<div style="' + M + '; font-size:var(--t-micro); color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.14); '
     + 'border-radius:var(--r-control); padding:4px 9px; white-space:nowrap">' + esc(label) + ' <span style="color:var(--text)">'
     + esc(String(wert)) + '</span></div>';
   // WALLETS traegt seinen Nenner mit: 41 von 300 gescreenten ist eine andere
@@ -66,7 +66,7 @@ function nullmodellZeile(g) {
       + (n.lift_median != null ? ' at a median lift of ' + esc(String(n.lift_median)) + '×' : '')
       + ' — read the picture against that, not against zero'
     : 'the same rule on a shuffled wallet column returns nothing';
-  return '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.55); margin-top:8px; line-height:1.6">'
+  return '<div style="' + M + '; font-size:var(--t-micro); color:rgba(var(--ink),.55); margin-top:8px; line-height:1.6">'
     + 'CONTROL · ' + wie + ' (' + esc(String(n.runs)) + ' shuffle' + (n.runs === 1 ? '' : 's') + ')</div>';
 }
 
@@ -138,8 +138,8 @@ function graphSvg(g) {
 
 function hinweisKarte(text, farbe) {
   return '<div style="' + CARD + '; padding:20px 22px; margin-bottom:16px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:var(--info)">CO-TRADING STRUCTURE</div>'
-    + '<div style="font-size:13.5px; color:' + farbe + '; margin-top:10px; line-height:1.6; max-width:720px">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">CO-TRADING STRUCTURE</div>'
+    + '<div style="font-size:var(--t-body); color:' + farbe + '; margin-top:10px; line-height:1.6; max-width:720px">'
     + esc(text) + '</div></div>';
 }
 
@@ -170,10 +170,10 @@ export function renderClusterGraphics(live) {
   }
 
   return '<div style="' + CARD + '; padding:18px 20px; margin-bottom:14px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.14em; color:var(--info)">CO-TRADING STRUCTURE</div>'
-    + '<div style="font-size:17px; font-weight:600; margin-top:6px">Wallets that keep meeting in the same markets</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">CO-TRADING STRUCTURE</div>'
+    + '<div style="font-size:var(--t-head); font-weight:600; margin-top:6px">Wallets that keep meeting in the same markets</div>'
     + kopfzeile(g)
-    + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.62); margin-top:10px; line-height:1.6">'
+    + '<div style="' + M + '; font-size:var(--t-micro); color:rgba(var(--ink),.62); margin-top:10px; line-height:1.6">'
     + 'RULE · ' + esc(g.regel || 'not stated')
     + (g.fenster ? '<br>WINDOW · ' + esc(g.fenster) : '')
     + '<br>SCOPE · insider-prone markets only, sports crypto and weather excluded'
@@ -181,7 +181,7 @@ export function renderClusterGraphics(live) {
     + '</div>'
     + nullmodellZeile(g)
     + '<div style="margin-top:14px">' + graphSvg(g) + '</div>'
-    + '<div style="font-size:12px; color:rgba(var(--ink),.62); margin-top:8px; line-height:1.5">'
+    + '<div style="font-size:var(--t-small); color:rgba(var(--ink),.62); margin-top:8px; line-height:1.5">'
     + 'Each dot is one wallet, sized by the money it moved · a line means the two bought the same side of the same markets, thicker = more shared markets · colours are the groups detailed below · hover a line for how far above the chance rate that pair sits.'
     + '</div></div>';
 }

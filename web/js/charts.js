@@ -166,7 +166,7 @@ export function diagramm(dia) {
   // 17px) und ein 20-Zeilen-Diagramm stand fast 1000px hoch neben den
   // kompakten HTML-Tabellen.
   return '<div style="' + CARD + '; padding:14px 16px 10px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(var(--ink),.62); margin-bottom:4px">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:rgba(var(--ink),.62); margin-bottom:4px">'
     + esc(dia.titel || '') + (dia.einheit ? ' · ' + esc(dia.einheit) : '') + '</div>'
     + '<svg width="100%" viewBox="0 0 ' + BREITE + ' ' + hoehe + '" role="img" aria-label="' + esc(dia.titel || 'chart') + '" style="display:block; max-width:660px">'
     + achse(sk, dia, hoehe) + koerper
@@ -261,20 +261,20 @@ export function linien(k) {
         + '<title>' + esc(s.name + ' · ' + k.x[i] + ' · ' + fmtZahl(w)) + '</title></circle>';
     });
     if (d) pfade += '<path d="' + d.trim() + '" fill="none" style="stroke:' + farbe + '" stroke-width="1.8" />';
-    legende += '<div style="display:flex; align-items:center; gap:6px; ' + M + '; font-size:11px; color:rgba(var(--ink),.65)">'
+    legende += '<div style="display:flex; align-items:center; gap:6px; ' + M + '; font-size:var(--t-micro); color:rgba(var(--ink),.65)">'
       + '<span style="display:inline-block; width:14px; height:3px; background:' + farbe + '; border-radius:2px"></span>'
       + esc(s.name) + '</div>';
   });
 
   return '<div style="' + CARD + '; padding:14px 16px 10px">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:4px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(var(--ink),.62)">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:rgba(var(--ink),.62)">'
     + esc(k.titel || '') + (k.einheit ? ' · ' + esc(k.einheit) : '') + '</div>'
-    + (k.hinweis ? '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.62)">' + esc(k.hinweis) + '</div>' : '')
+    + (k.hinweis ? '<div style="' + M + '; font-size:var(--t-micro); color:rgba(var(--ink),.62)">' + esc(k.hinweis) + '</div>' : '')
     + '</div>'
     + '<div style="display:flex; gap:12px; flex-wrap:wrap; margin:4px 0 6px">' + legende
     + (ueberzaehlig > 0
-      ? '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.62)">+ ' + ueberzaehlig + ' further series not drawn — the palette has '
+      ? '<div style="' + M + '; font-size:var(--t-micro); color:rgba(var(--ink),.62)">+ ' + ueberzaehlig + ' further series not drawn — the palette has '
         + SERIEN_FARBEN.length + ' slots and does not reuse one</div>'
       : '')
     + '</div>'
@@ -321,8 +321,8 @@ export function kalibrierung(k) {
   // "predicted 1" at that width.
   const yMitte = S / 2;
   return '<div style="' + CARD + '; padding:12px 14px 8px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.12em; color:rgba(var(--ink),.6)">' + esc(k.titel || '') + '</div>'
-    + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.62); margin-top:2px">' + esc(k.hinweis || ('n ' + gesamt + ' · ' + punkte.length + ' bins')) + '</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:rgba(var(--ink),.6)">' + esc(k.titel || '') + '</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); color:rgba(var(--ink),.62); margin-top:2px">' + esc(k.hinweis || ('n ' + gesamt + ' · ' + punkte.length + ' bins')) + '</div>'
     + '<svg width="100%" viewBox="0 0 ' + S + ' ' + S + '" role="img" aria-label="' + esc(k.titel || 'calibration') + '" style="max-width:240px; display:block; margin:6px auto 0">'
     + '<rect x="' + PAD + '" y="' + PAD + '" width="' + (S - 2 * PAD) + '" height="' + (S - 2 * PAD) + '" fill="none" style="stroke:rgba(var(--ink),.1)" />'
     + '<line x1="' + PAD + '" y1="' + (S - PAD) + '" x2="' + (S - PAD) + '" y2="' + PAD + '" style="stroke:rgba(var(--ink),.3)" stroke-dasharray="3 3" />'
@@ -521,9 +521,9 @@ export function spiegelZeit(k) {
 
   return '<div style="' + CARD + '; padding:14px 16px 10px">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:4px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(var(--ink),.62)">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:rgba(var(--ink),.62)">'
     + esc(k.titel || '') + (k.einheit ? ' · ' + esc(k.einheit) : '') + '</div>'
-    + (k.hinweis ? '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.62)">' + esc(k.hinweis) + '</div>' : '')
+    + (k.hinweis ? '<div style="' + M + '; font-size:var(--t-micro); color:rgba(var(--ink),.62)">' + esc(k.hinweis) + '</div>' : '')
     + '</div>'
     + (k.legende ? '<div style="display:flex; gap:12px; flex-wrap:wrap; margin:4px 0 6px">' + k.legende + '</div>' : '')
     + '<svg width="100%" viewBox="0 0 ' + B + ' ' + H + '" role="img" aria-label="' + esc(k.titel || 'flow') + '">'
@@ -576,9 +576,9 @@ export function stepKurve(k) {
 
   return '<div style="' + CARD + '; padding:14px 16px 10px">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:4px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(var(--ink),.62)">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:rgba(var(--ink),.62)">'
     + esc(k.titel || '') + (k.einheit ? ' · ' + esc(k.einheit) : '') + '</div>'
-    + (k.hinweis ? '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.62)">' + esc(k.hinweis) + '</div>' : '')
+    + (k.hinweis ? '<div style="' + M + '; font-size:var(--t-micro); color:rgba(var(--ink),.62)">' + esc(k.hinweis) + '</div>' : '')
     + '</div>'
     + '<svg width="100%" viewBox="0 0 ' + B + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="' + esc(k.titel || 'series') + '">'
     + nulllinie
@@ -613,11 +613,11 @@ function karte(titel, einheit, hinweis, inhalt, fussnote, fussnoteHtml) {
   const fuss = (fussnote ? esc(fussnote) : '') + (fussnoteHtml ? (fussnote ? ' ' : '') + fussnoteHtml : '');
   return '<div style="' + CARD + '; padding:14px 16px 10px">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:6px">'
-    + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(var(--ink),.62)">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:rgba(var(--ink),.62)">'
     + esc(titel || '') + (einheit ? ' · ' + esc(einheit) : '') + '</div>'
-    + (hinweis ? '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.62)">' + esc(hinweis) + '</div>' : '')
+    + (hinweis ? '<div style="' + M + '; font-size:var(--t-micro); color:rgba(var(--ink),.62)">' + esc(hinweis) + '</div>' : '')
     + '</div>' + inhalt
-    + (fuss ? '<div style="font-size:11.5px; line-height:1.55; color:rgba(var(--ink),.62); margin-top:8px; max-width:640px">' + fuss + '</div>' : '')
+    + (fuss ? '<div style="font-size:var(--t-small); line-height:1.55; color:rgba(var(--ink),.62); margin-top:8px; max-width:640px">' + fuss + '</div>' : '')
     + '</div>';
 }
 
@@ -853,7 +853,7 @@ export function histogramm(k) {
   });
 
   const grund = '<line x1="' + L + '" y1="' + BOT + '" x2="' + R + '" y2="' + BOT + '" style="stroke:rgba(var(--ink),.28)" stroke-width="1" />';
-  const swatch = (farbe, text) => '<div style="display:flex; align-items:center; gap:6px; ' + M + '; font-size:11px; color:rgba(var(--ink),.65)">'
+  const swatch = (farbe, text) => '<div style="display:flex; align-items:center; gap:6px; ' + M + '; font-size:var(--t-micro); color:rgba(var(--ink),.65)">'
     + '<span style="display:inline-block; width:10px; height:10px; border-radius:2px; background:' + farbe + '"></span>' + esc(text) + '</div>';
   const legende = k.hervorLabel
     ? '<div style="display:flex; gap:14px; flex-wrap:wrap; margin:0 0 6px">'
