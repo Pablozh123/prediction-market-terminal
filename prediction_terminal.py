@@ -5500,12 +5500,22 @@ def render_wallet_calibration(resolved: pd.DataFrame, capped: bool) -> None:
     """
 
     frame = calib.resolution_frame(resolved)
-    report = calib.calibration_report(frame, capped=capped)
+    report = calib.calibration_report(frame, capped=capped, unresolved=calib.unresolved_exits(resolved))
     if not report["n"]:
         return
     with st.expander(f"Entry calibration — was the price paid a good forecast? ({report['n']} resolved positions)", expanded=False):
         head = st.columns(5)
-        head[0].metric("Scored positions", f"{report['n']:,}", help="Resolved positions with a usable entry price, scored 0/1 at settlement.")
+        head[0].metric(
+            "Scored positions",
+            f"{report['n']:,}",
+            help="Positions in markets that actually settled, with a usable entry price, scored 0/1 at settlement."
+            + (
+                f" {report['n_unresolved']:,} further closed positions left markets that were still trading and "
+                "carry no outcome, so they are excluded."
+                if report.get("n_unresolved")
+                else ""
+            ),
+        )
         head[1].metric(
             "Hit rate",
             pct(report["hit_rate"]),

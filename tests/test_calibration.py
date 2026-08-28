@@ -24,11 +24,33 @@ class ResolutionFrameTests(unittest.TestCase):
         self.assertEqual(list(frame["outcome"]), [1.0, 0.0])
         self.assertEqual(list(frame["forecast"]), [0.40, 0.60])
 
-    def test_indecisive_price_falls_back_to_pnl_sign(self):
+    def test_unsettled_market_is_not_scored(self):
+        # A position closed by selling out of a still-trading market has a
+        # trading result, not an outcome. Scoring the +30 exit as "the 70%
+        # entry resolved YES" would put an open market on the curve.
         frame = calib.resolution_frame(
             resolved_frame([row("early exit win", 0.70, 0.5, 30.0), row("early exit loss", 0.30, 0.5, -10.0)])
         )
-        self.assertEqual(list(frame["outcome"]), [1.0, 0.0])
+        self.assertTrue(frame.empty)
+
+    def test_unresolved_exits_are_counted(self):
+        rows = resolved_frame(
+            [
+                row("settled win", 0.40, 1.0, 60.0),
+                row("early exit win", 0.70, 0.55, 30.0),
+                row("still holding", 0.42, 0.42, 0.0),
+                row("no entry price", 0.0, 0.61, 5.0),
+            ]
+        )
+        self.assertEqual(len(calib.resolution_frame(rows)), 1)
+        self.assertEqual(calib.unresolved_exits(rows), 2)
+        self.assertEqual(calib.unresolved_exits(pd.DataFrame()), 0)
+
+    def test_open_market_no_longer_reads_as_a_loss(self):
+        # realized_pnl 0 on an untouched open position used to score 0/1 as a
+        # loss at the entry price; now it is simply not a resolution.
+        frame = calib.resolution_frame(resolved_frame([row("open", 0.42, 0.42, 0.0)]))
+        self.assertTrue(frame.empty)
 
     def test_rows_without_entry_price_are_dropped(self):
         frame = calib.resolution_frame(
@@ -50,7 +72,7 @@ class CalibrationReportTests(unittest.TestCase):
                     row("a", 0.40, 1.0, 60.0, total_bought=40.0),
                     row("b", 0.60, 0.0, -60.0, total_bought=60.0),
                     row("c", 0.25, 1.0, 75.0, total_bought=25.0),
-                    row("d", 0.70, 0.5, 30.0, total_bought=35.0),
+                    row("d", 0.70, 1.0, 30.0, total_bought=35.0),
                 ]
             )
         )
@@ -64,11 +86,23 @@ class CalibrationReportTests(unittest.TestCase):
         self.assertAlmostEqual(report["brier_entry"], 0.343125, places=9)
         self.assertAlmostEqual(report["brier_baseline"], 0.1875, places=9)  # p̄(1−p̄) at 75% base rate
         self.assertAlmostEqual(report["stake_weighted_edge"], 17.25 / 160.0, places=9)
+        self.assertEqual(report["n_unresolved"], 0)
         self.assertLess(report["edge_low"], report["edge_per_share"])
         self.assertGreater(report["edge_high"], report["edge_per_share"])
         self.assertFalse(report["sample_ok"])
         self.assertIn("Small sample", report["note"])
         self.assertFalse(report["buckets"].empty)
+
+    def test_unresolved_count_is_reported_next_to_the_sample(self):
+        report = calib.calibration_report(self._frame(), unresolved=7)
+        self.assertEqual(report["n_unresolved"], 7)
+        self.assertIn("still trading", report["note"])
+
+    def test_only_unresolved_positions_report_an_honest_empty(self):
+        report = calib.calibration_report(pd.DataFrame(), unresolved=12)
+        self.assertEqual(report["n"], 0)
+        self.assertEqual(report["n_unresolved"], 12)
+        self.assertIn("still trading", report["note"])
 
     def test_capped_note_wins(self):
         report = calib.calibration_report(self._frame(), capped=True)
