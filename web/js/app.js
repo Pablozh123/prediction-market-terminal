@@ -337,8 +337,6 @@ class Terminal {
     return {
       title: m.title,
       meta: m.venue.toUpperCase() + ' · ' + m.cat.toUpperCase(),
-      // No sparkline: the API carries a one-day change, not an intraday path.
-      sparkPoints: '',
       color: m.chg >= 0 ? 'var(--pos)' : 'var(--neg)',
       priceLabel: m.yes + '¢',
       changeLabel: (m.chg >= 0 ? '+' : '') + m.chg + '¢',

@@ -551,16 +551,14 @@ export function renderResearch(T) {
   if (!stats) {
     return '<div>' + header + fehlendeStudieHtml(study, RESEARCH_DATEI[s.researchTab]) + '</div>';
   }
-  const chartLabel = study.chart;
-  // Keine Zierkurve mehr, nirgends. Hier lief ein Zufallsgenerator mit
-  // eingebautem Aufwaertsdrift unter Ueberschriften wie FORWARD PAPER EQUITY
-  // und BRIER SCORE BY CATEGORY, auch dann, wenn echte Daten geladen waren.
-  // Die Begruendung stand seit der Pilot-Ausnahme daneben und galt immer
-  // schon fuer alle: eine gemalte Kurve ist eine Behauptung. Ein Diagramm
-  // gibt es erst, wenn eine echte Serie in der Nutzlast liegt.
-  const serie = payload && Array.isArray(payload.serie) && payload.serie.length > 1
-    ? payload.serie : null;
-  const pts = serie ? T.seriesPoints(serie, 900, 220) : '';
+  // Hier stand eine generische Studienkurve. Sie zeichnete vier Gitterlinien
+  // auf fest verdrahteten Hoehen (y = 20, 75, 130, 210), also in ungleichen
+  // Abstaenden, ohne Beschriftung, ohne Einheit, ohne Minimum und Maximum:
+  // keine Achse, sondern Striche, die wie eine aussehen. Dazu zerrte
+  // preserveAspectRatio="none" die Kurve auf die Containerbreite. Gerendert
+  // hat sie ohnehin nie, weil keine publizierte Nutzlast ein Feld `serie`
+  // traegt. Studien, die eine Kurve haben, zeichnen sie ueber die Formen aus
+  // charts.js, die eine echte Achse mitbringen.
 
   return '<div>' + header
     + '<div style="padding:22px 24px">'
@@ -579,14 +577,6 @@ export function renderResearch(T) {
       + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); margin-top:4px">' + esc(x.note) + '</div></div>'
     ).join('')
     + '</div>'
-    + (pts ? '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; padding:16px 18px">'
-    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.55); margin-bottom:12px">' + esc(chartLabel) + '</div>'
-    + '<svg width="100%" height="220" viewBox="0 0 900 220" preserveAspectRatio="none" role="img" aria-label="' + esc(chartLabel) + '">'
-    + '<line x1="0" y1="20" x2="900" y2="20" style="stroke:rgba(var(--ink),.07)" />'
-    + '<line x1="0" y1="75" x2="900" y2="75" style="stroke:rgba(var(--ink),.07)" />'
-    + '<line x1="0" y1="130" x2="900" y2="130" style="stroke:rgba(var(--ink),.07)" />'
-    + '<line x1="0" y1="210" x2="900" y2="210" style="stroke:rgba(var(--ink),.14)" />'
-    + '<polyline points="' + pts + '" fill="none" style="stroke:var(--info)" stroke-width="2" /></svg></div>' : '')
     // Je Studie ihre Diagramme und Zusatzbloecke (Mentions latency, Pilot,
     // Pipeline forward), am Slug aufgehaengt statt am Index.
     + studienExtrasHtml(studienSlug(study), payload, pilotLedger)

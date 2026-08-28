@@ -1274,7 +1274,7 @@ export function trackWatchRows(T) {
       if (m) return T.marketView(m);
       return {
         title: item.title, meta: (item.platform || '').toUpperCase() + ' · WATCHLIST',
-        sparkPoints: '', color: 'rgba(var(--ink),.3)', priceLabel: '—', changeLabel: '—',
+        color: 'rgba(var(--ink),.3)', priceLabel: '—', changeLabel: '—',
         changeStyle: M + '; font-size:13px; text-align:right; color:rgba(var(--ink),.6)',
         volLabel: '—', ends: '—', act: ''
       };
@@ -1317,10 +1317,9 @@ export function renderTrack(T) {
     + (watch.length ? '' : '<div style="' + M + '; font-size:11.5px; color:rgba(var(--ink),.6); padding:6px 0">'
       + esc(herkunftSatz(T.liveData.track ? { quelle: T.liveData.track._quelle === 'fehler' ? 'fehler' : 'leer', fehler: T.liveData.track._fehler } : null, '/api/track')) + '</div>')
     + watch.map((m) =>
-      '<div ' + m.act + ' class="hv-panel" style="display:grid; grid-template-columns:1fr 96px 88px 96px 108px; align-items:center; padding:12px 0; border-bottom:1px solid rgba(var(--ink),.06); cursor:pointer">'
+      '<div ' + m.act + ' class="hv-panel" style="display:grid; grid-template-columns:1fr 88px 96px 108px; align-items:center; padding:12px 0; border-bottom:1px solid rgba(var(--ink),.06); cursor:pointer">'
       + '<div><div style="font-size:13.5px">' + esc(m.title) + '</div>'
       + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); margin-top:3px">' + esc(m.meta) + '</div></div>'
-      + '<div style="display:flex; justify-content:flex-end"><svg width="78" height="26" viewBox="0 0 78 26" aria-hidden="true" focusable="false"><polyline points="' + m.sparkPoints + '" fill="none" style="stroke:' + m.color + '" stroke-width="1.6" /></svg></div>'
       + '<div style="' + M + '; font-size:15px; text-align:right">' + m.priceLabel + '</div>'
       + '<div style="' + m.changeStyle + '">' + m.changeLabel + '</div>'
       + '<div style="' + M + '; font-size:12px; text-align:right; color:rgba(var(--ink),.55)">' + esc(m.ends) + '</div></div>'
