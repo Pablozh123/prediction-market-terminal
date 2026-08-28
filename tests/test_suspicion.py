@@ -90,6 +90,15 @@ class ZaehleinheitMarktTests(unittest.TestCase):
         scores = md.whale_wallet_risk_scores(self._tape(), whale_threshold=2500.0)
         self.assertIn("Nvidia", str(scores.iloc[0]["top_market"]))
 
+    def test_whale_wallets_counts_markets_by_key_too(self) -> None:
+        frame = pd.DataFrame([
+            {"wallet": "0xa", "trader": "a", "notional": 100.0, "time": pd.Timestamp("2026-08-28", tz="UTC"),
+             "title": "Q?", "market_key": "0x1"},
+            {"wallet": "0xa", "trader": "a", "notional": 200.0, "time": pd.Timestamp("2026-08-28", tz="UTC"),
+             "title": "Q?", "market_key": "0x2"},
+        ])
+        self.assertEqual(int(md.whale_wallets(frame).iloc[0]["markets"]), 2)
+
     def test_market_identity_falls_back_to_the_title(self) -> None:
         frame = pd.DataFrame([{"title": "A question", "market_key": ""}, {"title": "B", "market_key": "0xb"}])
         self.assertEqual(list(md.market_identity(frame)), ["A question", "0xb"])

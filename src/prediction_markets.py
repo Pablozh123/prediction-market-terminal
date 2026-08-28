@@ -3291,6 +3291,11 @@ def enrich_activity_counterparties(
 def whale_wallets(trades: pd.DataFrame) -> pd.DataFrame:
     if trades.empty or "wallet" not in trades:
         return pd.DataFrame()
+    # Maerkte werden ueber den Schluessel gezaehlt, nicht ueber den Titel:
+    # eine wiederkehrende Frage laeuft jede Woche unter einer neuen
+    # conditionId (siehe market_identity).
+    trades = trades.copy()
+    trades["market_identity"] = market_identity(trades)
     grouped = (
         trades.groupby(["wallet", "trader"], dropna=False)
         .agg(
