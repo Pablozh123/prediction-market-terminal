@@ -104,5 +104,81 @@ class PnlOverlayTests(unittest.TestCase):
         self.assertTrue(cf.pnl_overlay(pd.DataFrame(), source, 1.0).empty)
 
 
+class LatencyAndPriceGapTests(unittest.TestCase):
+    """Config- und Execution-Fidelity sind reine Notional-Zahlen.
+
+    Der Paper-Book bucht zum Quellpreis (src/copy_trading.py::_insert_order),
+    also ist die Slippage bauartbedingt null. Das darf nicht als gemessene
+    Null durchgehen, und die Verzoegerung steht ungenutzt daneben.
+    """
+
+    NOW = pd.Timestamp("2026-08-28 12:00:00", tz="UTC")
+
+    def _orders(self, rows):
+        return pd.DataFrame(rows)
+
+    def _row(self, *, delay_s=45.0, source_price=0.50, copy_price=None, side="BUY",
+             copy_size=200.0, status="copied", minutes_ago=30.0):
+        booked = self.NOW - pd.Timedelta(minutes=minutes_ago)
+        return {
+            "created_at": booked.isoformat(),
+            "source_time": (booked - pd.Timedelta(seconds=delay_s)).isoformat(),
+            "source_side": side,
+            "source_price": source_price,
+            "copy_price": source_price if copy_price is None else copy_price,
+            "copy_size": copy_size,
+            "status": status,
+        }
+
+    def test_paper_book_reports_zero_modelled_price_impact(self) -> None:
+        # Quellpreis 0.50, Kopie zum selben Preis: die Luecke ist genau null,
+        # und models_price_impact sagt, dass das eine Bauart ist.
+        report = cf.latency_and_price_gap(self._orders([self._row(), self._row()]), now=self.NOW)
+        self.assertEqual(report["n"], 2)
+        self.assertAlmostEqual(report["mean_price_gap_cents"], 0.0)
+        self.assertFalse(report["models_price_impact"])
+
+    def test_latency_percentiles_come_from_the_recorded_stamps(self) -> None:
+        rows = [self._row(delay_s=d) for d in (10.0, 20.0, 30.0, 40.0, 300.0)]
+        report = cf.latency_and_price_gap(self._orders(rows), now=self.NOW)
+        self.assertAlmostEqual(report["median_latency_s"], 30.0)
+        self.assertAlmostEqual(report["max_latency_s"], 300.0)
+        self.assertGreater(report["p90_latency_s"], 40.0)
+
+    def test_a_real_price_gap_would_be_reported_as_a_cost(self) -> None:
+        # Kaufen bei 0.54 statt 0.50 kostet 4 Cent je Anteil; verkaufen bei
+        # 0.46 statt 0.50 kostet ebenfalls 4. Gleiches Vorzeichen.
+        rows = [
+            self._row(source_price=0.50, copy_price=0.54, side="BUY"),
+            self._row(source_price=0.50, copy_price=0.46, side="SELL"),
+        ]
+        report = cf.latency_and_price_gap(self._orders(rows), now=self.NOW)
+        self.assertAlmostEqual(report["mean_price_gap_cents"], 4.0, places=9)
+        self.assertTrue(report["models_price_impact"])
+
+    def test_assumed_crossing_cost_scales_with_copied_shares(self) -> None:
+        rows = [self._row(copy_size=200.0), self._row(copy_size=300.0)]
+        report = cf.latency_and_price_gap(self._orders(rows), now=self.NOW, assumed_cross_cents=2.0)
+        self.assertAlmostEqual(report["copied_shares"], 500.0)
+        self.assertAlmostEqual(report["assumed_cross_cost_usd"], 10.0)
+        self.assertAlmostEqual(report["assumed_cross_cents"], 2.0)
+
+    def test_no_assumption_means_no_what_if_number(self) -> None:
+        report = cf.latency_and_price_gap(self._orders([self._row()]), now=self.NOW)
+        self.assertEqual(report["assumed_cross_cost_usd"], 0.0)
+
+    def test_skipped_orders_and_rows_outside_the_window_are_ignored(self) -> None:
+        rows = [
+            self._row(status="skipped"),
+            self._row(minutes_ago=60 * 48),
+            self._row(),
+        ]
+        self.assertEqual(cf.latency_and_price_gap(self._orders(rows), now=self.NOW)["n"], 1)
+
+    def test_empty_and_missing_columns_are_safe(self) -> None:
+        self.assertEqual(cf.latency_and_price_gap(pd.DataFrame(), now=self.NOW)["n"], 0)
+        self.assertEqual(cf.latency_and_price_gap(pd.DataFrame([{"x": 1}]), now=self.NOW)["n"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()

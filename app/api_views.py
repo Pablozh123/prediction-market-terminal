@@ -2156,6 +2156,22 @@ def fidelity_block(orders: pd.DataFrame, portfolio: Mapping[str, Any], sizing: M
     except Exception:
         pass
     try:
+        # Beide Fidelity-Zahlen sind reine Notional-Zahlen. Verzoegerung und
+        # Preis gehoeren daneben, sonst liest sich "Net mirror" als Aussage
+        # ueber den ganzen Nachbau.
+        delay = cfy.latency_and_price_gap(orders, window_hours=24.0)
+        if delay.get("n"):
+            out["delay"] = {
+                "orders": int(_num(delay.get("n"), 0.0) or 0),
+                "median_latency_s": _num(delay.get("median_latency_s")),
+                "p90_latency_s": _num(delay.get("p90_latency_s")),
+                "mean_price_gap_cents": _num(delay.get("mean_price_gap_cents")),
+                "models_price_impact": bool(delay.get("models_price_impact")),
+                "copied_shares": _num(delay.get("copied_shares"), 0.0),
+            }
+    except Exception:
+        pass
+    try:
         source_equity = _num(sizing.get("tony_visible_equity"))
         if source_equity:
             config = cfy.config_fidelity(

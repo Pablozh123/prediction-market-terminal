@@ -9905,10 +9905,33 @@ def render_copy_command_center(
                         pct(net),
                         "config × execution",
                         delta_color="off",
-                        help="Combined effect: how much of a perfect scaled mirror the copy currently achieves.",
+                        help="Combined effect: how much of a perfect scaled mirror the copy achieves in SIZE. "
+                        "Both factors are notional only — neither prices the delay or the spread the copy crosses.",
                     )
                 else:
                     fid_cols[2].metric("Net mirror", "-", "needs fidelity data", delta_color="off")
+                # Was die beiden Kennzahlen nicht sehen: Verzoegerung und
+                # Preis. Der Paper-Book bucht zum Quellpreis, also ist die
+                # Slippage bauartbedingt null und darf nicht als gemessene
+                # Null durchgehen.
+                delay = cfy.latency_and_price_gap(orders, window_hours=24.0)
+                if delay["n"]:
+                    lat = (
+                        f"median {delay['median_latency_s']:.0f}s, p90 {delay['p90_latency_s']:.0f}s"
+                        if delay["median_latency_s"] is not None
+                        else "not recorded"
+                    )
+                    st.caption(
+                        f"What the two numbers above do not cover ({delay['n']} booked copies, 24h): "
+                        f"detection-to-booking delay {lat}. "
+                        + (
+                            "The paper book fills at the source's own price, so the curve carries no spread and no "
+                            f"delay cost. Crossing one cent on the {delay['copied_shares']:,.0f} copied shares would "
+                            f"have cost {money(delay['copied_shares'] / 100.0)} over the same window."
+                            if not delay["models_price_impact"]
+                            else f"Mean price gap against the source: {delay['mean_price_gap_cents']:+.2f} cents per share."
+                        )
+                    )
                 loss_lines: list[str] = []
                 for reason, amount in sorted(execution_report["lost_to_skips"].items(), key=lambda kv: -kv[1]):
                     loss_lines.append(f"{money(amount)} skipped ({reason})")

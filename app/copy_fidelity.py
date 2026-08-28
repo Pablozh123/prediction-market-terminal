@@ -10,6 +10,16 @@ Streamlit-free. Two orthogonal factors, multiplied:
   configured scale wanted (cash droughts, per-order caps, min-notional and
   cash-throttle clamps). Computed from ``desired_notional`` vs
   ``copy_notional`` on recorded orders.
+
+Both are **notional only**. Neither says anything about the price the copy
+paid, and the paper book cannot: ``src.copy_trading._insert_order`` writes the
+source trade's own price into ``copy_price``, so every paper fill is booked at
+the price the source got, however many seconds later the copy was detected.
+The two multiplied ("net mirror") therefore reads 100 percent for a copy that
+crossed a four cent spread on every entry. ``latency_and_price_gap`` states
+that limit with the numbers the book does carry: the detection-to-booking
+latency actually recorded, the modelled price gap (structurally zero), and
+what one assumed crossing cost would have taken off the copied size.
 """
 
 from __future__ import annotations
@@ -115,6 +125,85 @@ def execution_fidelity(orders: pd.DataFrame, window_hours: float = 24.0, now: An
         "orders": int(len(frame)),
         "lost_to_skips": lost_to_skips,
         "lost_to_clamps": lost_to_clamps,
+    }
+
+
+def latency_and_price_gap(
+    orders: pd.DataFrame,
+    window_hours: float = 24.0,
+    now: Any | None = None,
+    assumed_cross_cents: float = 0.0,
+) -> dict[str, Any]:
+    """What the two fidelity numbers cannot see: delay, and the price paid.
+
+    Reads only rows that actually booked (``copied``/``settled``) inside the
+    window.
+
+    - ``median_latency_s`` / ``p90_latency_s`` — recorded gap between the
+      source trade's own timestamp and the moment the copy was booked. This is
+      measured, not assumed.
+    - ``mean_price_gap_cents`` — signed cost of the copy's price against the
+      source's, in cents per share (positive = worse for us). The paper book
+      copies the source price verbatim, so this is 0.0 by construction; the
+      figure exists so that stays visible instead of being read as "no
+      slippage happened".
+    - ``models_price_impact`` — False whenever every gap is zero, which is the
+      honest label for the paper book.
+    - ``assumed_cross_cost_usd`` — with ``assumed_cross_cents`` set, what
+      crossing that much on every copied share would have cost over the
+      window. Zero without an assumption; this is a what-if, not a
+      measurement, and ``assumed_cross_cents`` is echoed back so the page can
+      say so.
+    """
+
+    empty: dict[str, Any] = {
+        "n": 0,
+        "median_latency_s": None,
+        "p90_latency_s": None,
+        "max_latency_s": None,
+        "mean_price_gap_cents": None,
+        "models_price_impact": False,
+        "copied_shares": 0.0,
+        "assumed_cross_cents": max(0.0, float(assumed_cross_cents)),
+        "assumed_cross_cost_usd": 0.0,
+    }
+    if orders is None or orders.empty or "created_at" not in orders:
+        return empty
+    frame = orders.copy()
+    frame["_booked"] = pd.to_datetime(frame["created_at"], utc=True, errors="coerce")
+    frame = frame.dropna(subset=["_booked"])
+    current = pd.Timestamp.now(tz="UTC") if now is None else pd.Timestamp(now)
+    if current.tzinfo is None:
+        current = current.tz_localize("UTC")
+    frame = frame[frame["_booked"] >= current - pd.Timedelta(hours=float(window_hours))]
+    if "status" in frame:
+        frame = frame[frame["status"].isin(["copied", "settled"])]
+    if frame.empty:
+        return empty
+
+    latency = (frame["_booked"] - pd.to_datetime(frame.get("source_time"), utc=True, errors="coerce")).dt.total_seconds()
+    latency = latency[latency.notna() & (latency >= 0.0)]
+
+    source_price = pd.to_numeric(frame.get("source_price"), errors="coerce")
+    copy_price = pd.to_numeric(frame.get("copy_price"), errors="coerce")
+    # Teurer kaufen und billiger verkaufen sind beide Kosten, also gleiches
+    # Vorzeichen: positiv heisst schlechter als die Quelle.
+    sell = frame.get("source_side", pd.Series("", index=frame.index)).astype(str).str.upper().eq("SELL")
+    gap = (copy_price - source_price).where(~sell, source_price - copy_price) * 100.0
+    gap = gap[gap.notna() & source_price.gt(0.0) & copy_price.gt(0.0)]
+
+    shares = float(pd.to_numeric(frame.get("copy_size"), errors="coerce").fillna(0.0).clip(lower=0.0).sum())
+    cross = max(0.0, float(assumed_cross_cents))
+    return {
+        "n": int(len(frame)),
+        "median_latency_s": float(latency.median()) if len(latency) else None,
+        "p90_latency_s": float(latency.quantile(0.9)) if len(latency) else None,
+        "max_latency_s": float(latency.max()) if len(latency) else None,
+        "mean_price_gap_cents": float(gap.mean()) if len(gap) else None,
+        "models_price_impact": bool(len(gap) and float(gap.abs().max()) > 1e-9),
+        "copied_shares": shares,
+        "assumed_cross_cents": cross,
+        "assumed_cross_cost_usd": shares * cross / 100.0,
     }
 
 
