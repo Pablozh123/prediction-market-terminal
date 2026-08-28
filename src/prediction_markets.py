@@ -3906,6 +3906,10 @@ def trader_flow_scores(trades: pd.DataFrame, whale_threshold: float = 2500) -> p
     df = trades.copy()
     if "time" in df:
         df["time"] = pd.to_datetime(df["time"], utc=True, errors="coerce")
+    # Maerkte werden ueber den Schluessel gezaehlt, nicht ueber den Titel:
+    # eine wiederkehrende Frage laeuft jede Woche unter einer neuen
+    # conditionId (siehe market_identity).
+    df["market_identity"] = market_identity(df)
     grouped = (
         df.groupby(["wallet", "trader"], dropna=False)
         .agg(
