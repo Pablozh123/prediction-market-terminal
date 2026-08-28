@@ -328,9 +328,33 @@ class RunDashboardViewTests(unittest.TestCase):
         self.assertEqual(kpis["n_runs"], 3)
         self.assertEqual(kpis["realisierter_pnl_usd"], 1.05)
         self.assertEqual(kpis["roi_realisiert_pct"], 17.6)
+        self.assertEqual(kpis["basis"], "published")
         leer = av.run_kpis({})
         self.assertEqual(leer["n_wetten"], 0)
         self.assertIsNone(leer["roi_realisiert_pct"])
+        self.assertEqual(leer["basis"], "empty")
+
+    def test_run_kpis_without_an_aggregate_counts_the_runs(self):
+        # Ohne aggregat stand fuer jede Kopfzahl 0, und die Seite druckte
+        # "Runs 0" ueber die Karten der Laeufe, die die Nutzlast traegt.
+        ohne = {"runs": RUNS_PAYLOAD["runs"]}
+        kpis = av.run_kpis(ohne)
+        self.assertEqual(kpis["basis"], "recomputed")
+        self.assertEqual(kpis["n_runs"], len(RUNS_PAYLOAD["runs"]))
+        self.assertEqual(kpis["n_wetten"], 2)
+        self.assertEqual(kpis["gewonnen"], 1)
+        self.assertEqual(kpis["verloren"], 0)
+        self.assertEqual(kpis["offen"], 1)
+        self.assertEqual(kpis["einsatz_usd"], 108.36)
+        self.assertEqual(kpis["aufgeloester_einsatz_usd"], 5.97)
+        self.assertEqual(kpis["realisierter_payout_usd"], 7.02)
+        self.assertEqual(kpis["realisierter_pnl_usd"], 1.05)
+        self.assertEqual(kpis["roi_realisiert_pct"], 17.6)
+        self.assertEqual(kpis["offener_einsatz_usd"], 102.39)
+        # Die Wallet-Felder sind nicht aus Laufwerten rekonstruierbar und
+        # bleiben leer statt geraten.
+        self.assertIsNone(kpis["wallet_netto_usd"])
+        self.assertIsNone(kpis["wallet_abgleich_stand"])
 
     def test_run_latenz_rows(self):
         rows = av.run_latenz_rows(RUNS_PAYLOAD)

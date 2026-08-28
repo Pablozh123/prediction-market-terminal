@@ -13564,6 +13564,11 @@ def page_live_runs() -> None:
     st.markdown(_analysis_badge(kennzeichnung.upper(), ACCENT), unsafe_allow_html=True)
 
     kpis = av.run_kpis(payload)
+    if kpis.get("basis") == "recomputed":
+        st.caption(
+            "This payload carries no aggregate block. The header figures below "
+            "are recomputed from the runs themselves, not read from the publish."
+        )
     k1, k2, k3, k4, k5 = st.columns(5)
     k1.metric("Runs", f"{kpis['n_runs']}", help="Evaluated live runs (one run = one episode/event).")
     bilanz = f"{kpis['gewonnen']}W · {kpis['verloren']}L · {kpis['offen']} open"
@@ -13836,14 +13841,19 @@ def page_live_runs() -> None:
             bets, sim_mode, bankroll=float(bankroll), fixed_stake=float(fixed_stake),
             kelly_edge_pt=float(edge_pt), kelly_fraction=float(kelly_frac),
         )
+        # Offen und "aufgeloest, aber ohne brauchbaren Fillpreis" sind zwei
+        # verschiedene Aussagen; die zweite lief frueher unter "still open".
+        sim_unpriced = int(sim_summary.get("n_unpriced", 0) or 0)
+        sim_unpriced_text = f" · {sim_unpriced} settled without a usable fill price" if sim_unpriced else ""
         if sim_summary["n_resolved"] == 0:
             st.info(
-                f"No resolved bets to simulate yet — {sim_summary['n_open']} bet(s) are still open. "
-                "This section fills in as runs resolve."
+                f"No resolved bets to simulate yet — {sim_summary['n_open']} bet(s) are still open"
+                f"{sim_unpriced_text}. This section fills in as runs resolve."
             )
         else:
             s1, s2, s3, s4 = st.columns(4)
-            s1.metric("Resolved bets", f"{sim_summary['n_resolved']}", f"{sim_summary['n_open']} open excluded", delta_color="off")
+            s1.metric("Resolved bets", f"{sim_summary['n_resolved']}",
+                      f"{sim_summary['n_open']} open excluded{sim_unpriced_text}", delta_color="off")
             s2.metric("Simulated stake", _run_usd(sim_summary["sim_stake"]),
                       f"real {_run_usd(sim_summary['real_stake'])}", delta_color="off")
             sim_pnl = sim_summary["sim_pnl"]

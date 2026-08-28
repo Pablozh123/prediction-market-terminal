@@ -1657,7 +1657,7 @@ function renderLiveRuns(T, payload) {
       market: b.frage,
       drop: r.drop_erkannt_utc ? String(r.drop_erkannt_utc).slice(11, 19) : '—',
       fill: String(b.fill_ts_utc).slice(11, 19),
-      lat: r.erster_fill_s != null ? Math.round(+r.erster_fill_s * 1000) : null,
+      lat: (() => { const s = fillLatenzS(r, b); return s == null ? null : Math.round(s * 1000); })(),
       before: b.fremde_davor != null ? String(b.fremde_davor) : '—',
       next: b.verfolger_s != null ? '+' + (+b.verfolger_s).toFixed(1) + ' s' : '—',
       // runs.json traegt den Pfad als preis_nach_fill {"0","30",…,"900"};
@@ -1738,7 +1738,12 @@ function renderLiveRuns(T, payload) {
       + '<div>RUN</div><div>MARKET</div><div style="text-align:right">DROP</div><div style="text-align:right">FILL</div><div style="text-align:right">LATENCY</div><div style="text-align:right">TRADES BEFORE US</div><div style="text-align:right">NEXT TRADER</div><div style="text-align:right">REPRICE 30 S</div><div style="text-align:right">REPRICE 900 S</div></div>'
       + (timingRows.length ? '' : leerZeile(laufSatz))
       + timingRows.map((t) => {
-        const latLabel = t.lat == null ? '—' : t.lat >= 1000 ? (t.lat / 1000).toFixed(1) + ' s' : t.lat + ' ms';
+        // Ueber einer Sekunde in Sekunden, ueber zwei Minuten in Minuten oder
+        // Stunden: der spaeteste Fill eines Laufs liegt einen Tag nach dem
+        // Drop, und "90547.0 s" liest kein Mensch.
+        const latLabel = t.lat == null ? '—'
+          : t.lat >= 120000 ? sekundenText(t.lat / 1000)
+            : t.lat >= 1000 ? (t.lat / 1000).toFixed(1) + ' s' : t.lat + ' ms';
         const latStyle = 'text-align:right; ' + M + '; font-size:12px; color:' + (t.lat == null ? 'rgba(var(--ink),.5)' : t.lat <= 800 ? 'var(--pos)' : t.lat <= 1500 ? 'var(--warn)' : 'var(--neg)');
         const repLabel = (v) => (v == null ? '—' : (v >= 0 ? '+' : '') + v + '¢');
         const repStyle = (v) => 'text-align:right; ' + M + '; font-size:12px; color:' + (v != null && v >= 5 ? 'var(--pos)' : v != null && v <= -5 ? 'var(--neg)' : 'rgba(var(--ink),.6)');
@@ -2076,6 +2081,23 @@ function episodenUrl(r) {
   if (r.event_url) return String(r.event_url);
   if (r.event_slug) return 'https://polymarket.com/event/' + encodeURIComponent(String(r.event_slug));
   return '';
+}
+
+// Latenz EINES Fills in Sekunden: sein fill_ts_utc minus drop_erkannt_utc des
+// Laufs. Hier stand die Laufzahl erster_fill_s, und die gilt nur fuer den
+// FRUEHESTEN Fill des Laufs — in der Tabelle "pro Fill" trug damit jede Zeile
+// desselben Laufs dieselbe Zahl. Bei allin_july10 (drop 2026-07-10T01:17:27Z,
+// erster_fill_s 64) las die letzte von sieben Zeilen so 64.0 s, obwohl ihr
+// Fill am naechsten Tag lag: 90.547 s nach dem Drop, Faktor 1.415. Ohne
+// Drop-Zeitstempel bleibt erster_fill_s als Rueckfall, aber nur fuer die
+// Zeile, fuer die er gilt; alle anderen bekommen einen Strich.
+export function fillLatenzS(run, bet) {
+  const drop = Date.parse(String((run && run.drop_erkannt_utc) || ''));
+  const fill = Date.parse(String((bet && bet.fill_ts_utc) || ''));
+  if (!isNaN(drop) && !isNaN(fill)) return (fill - drop) / 1000;
+  if (!run || run.erster_fill_s == null || !bet || !bet.fill_ts_utc) return null;
+  const zeiten = (run.wetten || []).map((b) => String(b.fill_ts_utc || '')).filter(Boolean).sort();
+  return zeiten.length && String(bet.fill_ts_utc) === zeiten[0] ? +run.erster_fill_s : null;
 }
 
 // Cents between the price of the traded side t seconds after our fill and our

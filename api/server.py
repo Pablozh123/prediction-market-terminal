@@ -88,6 +88,7 @@ Datenverarbeitung, nur Orchestrierung plus JSON-Mapping (app/api_views.py).
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import json
 import math
 import os
@@ -1077,7 +1078,13 @@ def _flag_price_after(row: dict[str, Any]) -> dict[str, Any] | None:
 
     def _load() -> dict[str, Any] | None:
         history = md.get_polymarket_price_history(token_id, days=2, interval="5m", end_time=end_time)
-        return risk_log.price_after(history, start, row.get("price_at_flag"))
+        # Die Horizonte laufen ab dem letzten Print des geflaggten Flusses,
+        # lesbar wurde das Flag erst, als der Sampler es schrieb. Dazwischen
+        # liegt mindestens ein Sampler-Intervall, ein +30-min-Punkt kann also
+        # schon vorbei sein, bevor ihn jemand sehen konnte. price_after
+        # markiert diese Eintraege, statt sie wie frische zu zeigen.
+        return risk_log.price_after(
+            history, start, row.get("price_at_flag"), known_at=row.get("first_seen"))
 
     return cached(f"flag_after_{row.get('flag_id')}_{token_id}", _load, ttl=300.0)
 
@@ -1148,8 +1155,10 @@ def risk_log_endpoint(limit: int = Query(100, ge=1, le=500), enrich: int = 0, si
         "dedupe_hours": risk_log.DEDUPE_HOURS,
         "sampler_interval_min": RISK_LOG_INTERVAL_MIN,
         "note": ("Every event the screen flags (score >= min_score) is logged with side, price and wallets at that "
-                 "moment; 'after' is the price of the flagged side +30 min / +2 h / +24 h later (Polymarket only, "
-                 "null where the horizon has not passed or no history is available)."),
+                 "moment; 'after' is the price of the flagged side +30 min / +2 h / +24 h after the last print of "
+                 "the flagged flow (Polymarket only). A horizon is null while it has not passed, carries no_print "
+                 "when it passed without a trade, and already_past when it had elapsed before the sampler wrote "
+                 "the flag - that move is real but no reader could have acted on it."),
         "as_of": md.now_utc_label(),
     }
 
@@ -1186,6 +1195,17 @@ def start_risk_sampler() -> bool:
     return True
 
 
+def _read_json_list(path: Path) -> list[Any]:
+    """Eine lokal gespeicherte JSON-Liste, oder eine leere. Nie eine Ausnahme:
+    eine fehlende oder kaputte Liste darf einen Endpunkt nicht kippen."""
+
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    return data if isinstance(data, list) else []
+
+
 @app.get("/api/alerts")
 def alerts(
     min_move: float = 0.03,
@@ -1206,6 +1226,12 @@ def alerts(
     holder_checks = 0
     nicht_geprueft = ["HOLDER CONCENTRATION"] if holder_checks == 0 else []
 
+    # Die lokal gespeicherte Watchlist, dieselbe Datei, die /api/track liest.
+    # Hier stand eine leere Menge, also konnte kein "Watched market"-Signal
+    # entstehen und der Filter SCOPE = "Watched only" lieferte immer null
+    # Zeilen -- auch bei voller Liste.
+    tracked_keys = apv.watchlist_market_keys(_read_json_list(ROOT / "data" / "watchlist.json"))
+
     def _build() -> dict[str, Any]:
         signals = sig.build_monitor_signals(
             combined.copy(),
@@ -1218,7 +1244,7 @@ def alerts(
             ending_days=ending_days,
             holder_threshold=0.25,
             holder_checks=holder_checks,
-            tracked_keys=set(),
+            tracked_keys=tracked_keys,
         )
         return {
             "signals": apv.alert_rows(signals),
@@ -1226,7 +1252,10 @@ def alerts(
             "rules_not_evaluated": nicht_geprueft,
         }
 
-    key = f"alerts_{min_move}_{max_spread}_{whale_threshold}_{ending_days}"
+    # Die Watchlist gehoert in den Cache-Schluessel: sonst liefert ein Treffer
+    # aus der Zeit vor der Aenderung noch eine Minute lang die alte Liste.
+    watch_sig = hashlib.sha1("|".join(sorted(tracked_keys)).encode("utf-8")).hexdigest()[:12]
+    key = f"alerts_{min_move}_{max_spread}_{whale_threshold}_{ending_days}_{watch_sig}"
     state_path = ROOT / "data" / "alert_scanner_state.json"
     deliveries: dict[str, Any] = {"available": False, "note": "No delivery log on this machine — the alert scanner keeps only a dedupe state, not a send history."}
     if state_path.exists():
@@ -1582,18 +1611,8 @@ def resolved(limit: int = Query(250, le=500)) -> dict[str, Any]:
 
 @app.get("/api/track")
 def track() -> dict[str, Any]:
-    def _read_list(name: str) -> list[Any]:
-        path = ROOT / "data" / name
-        if not path.exists():
-            return []
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return []
-        return data if isinstance(data, list) else []
-
-    followed = _read_list("followed_wallets.json")
-    watchlist = _read_list("watchlist.json")
+    followed = _read_json_list(ROOT / "data" / "followed_wallets.json")
+    watchlist = _read_json_list(ROOT / "data" / "watchlist.json")
     try:
         ranked = load_ranked()
     except Exception:

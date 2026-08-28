@@ -1616,6 +1616,13 @@ def alert_rows(signals: pd.DataFrame) -> list[dict[str, Any]]:
             value = f"${notional:,.0f}" if notional else _text(row.get("reason"))[:24]
         elif signal_type in ("Whale print",):
             value = f"${raw_value:,.0f}"
+        # Nicht jede Zahl unter 1.0 ist ein Preis. Der Anteil des groessten
+        # Halters stand als "62.0¢" da, obwohl er 62 Prozent bedeutet, und
+        # das Volumenverhaeltnis stand ohne Einheit neben Cent-Werten.
+        elif signal_type == "Holder concentration":
+            value = f"{raw_value * 100:.0f}%"
+        elif signal_type == "Volume anomaly":
+            value = f"{raw_value:,.1f}x"
         elif abs(raw_value) <= 1.0:
             value = f"{raw_value * 100:+.1f}¢" if signal_type == "Fast mover" else f"{raw_value * 100:.1f}¢"
         else:
@@ -2082,6 +2089,26 @@ def money_label(value: float) -> str:
     if value >= 1_000:
         return f"${value / 1_000:.1f}k"
     return f"${value:.0f}"
+
+
+def watchlist_market_keys(watchlist: Any) -> set[str]:
+    """Die market_keys der lokal gespeicherten Watchlist.
+
+    ``build_monitor_signals`` erzeugt "Watched market"-Signale nur fuer die
+    Keys, die es hier bekommt. Der Alarm-Endpunkt uebergab eine leere Menge,
+    und damit lieferte der Filter SCOPE = "Watched only" der Seite immer
+    null Zeilen -- nicht weil nichts auf der Liste stand, sondern weil die
+    Liste nie gelesen wurde.
+    """
+
+    keys: set[str] = set()
+    for item in watchlist or []:
+        if not isinstance(item, Mapping):
+            continue
+        key = _text(item.get("market_key")).strip()
+        if key:
+            keys.add(key)
+    return keys
 
 
 def track_payload(

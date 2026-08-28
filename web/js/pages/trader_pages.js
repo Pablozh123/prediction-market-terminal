@@ -627,14 +627,24 @@ function marketLink(url) {
   return url ? '<a data-stop href="' + esc(url) + '" target="_blank" rel="noopener" title="Open the market" style="' + LINK + '">market ↗</a>' : '';
 }
 
-// The move after the flag: "+30 m 36¢ (+2.0)"; "not yet" when the horizon
-// has not passed, "n/a" when no history could be read.
+// The move after the flag: "+30 m 36¢ (+2.0)"; "n/a" when no history could be
+// read, "not yet" while the horizon is still ahead, "no print" when it passed
+// without a trade. Those last two used to share the "not yet" wording, so a
+// day-old flag in a market that never traded again claimed its +24 h point was
+// still pending. A horizon that had already elapsed when the sampler wrote the
+// flag says so: the move happened, but not while anyone could read the flag.
 function afterCell(after, key, label) {
+  const zelle = (inhalt, ton) => '<div><div style="' + HEAD_CELL + '">' + label + '</div>'
+    + '<div style="' + M + '; font-size:12px; ' + (ton || 'color:rgba(var(--ink),.6)') + '; margin-top:2px">' + inhalt + '</div></div>';
   const p = after && after[key];
-  if (!after) return '<div><div style="' + HEAD_CELL + '">' + label + '</div><div style="' + M + '; font-size:12px; color:rgba(var(--ink),.6); margin-top:2px">n/a</div></div>';
-  if (!p) return '<div><div style="' + HEAD_CELL + '">' + label + '</div><div style="' + M + '; font-size:12px; color:rgba(var(--ink),.6); margin-top:2px">not yet</div></div>';
+  if (!after) return zelle('n/a');
+  if (!p) return zelle('not yet');
+  if (p.no_print) return zelle('no print');
   const move = p.move_c == null ? '' : ' <span style="color:' + (p.move_c > 0 ? 'var(--accent)' : p.move_c < 0 ? 'var(--neg-soft)' : 'rgba(var(--ink),.5)') + '">' + (p.move_c > 0 ? '+' : '') + esc(String(p.move_c)) + '</span>';
-  return '<div><div style="' + HEAD_CELL + '">' + label + '</div><div style="' + M + '; font-size:12px; margin-top:2px">' + cents(p.price) + move + '</div></div>';
+  const vorbei = p.already_past
+    ? '<span title="This horizon had already passed when the flag was written" style="color:rgba(var(--ink),.5)"> · before the flag was readable</span>'
+    : '';
+  return zelle(cents(p.price) + move + vorbei, 'color:var(--text)');
 }
 
 // The flag log tab: rows newest first, with the price after the flag when
