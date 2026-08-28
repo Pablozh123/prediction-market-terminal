@@ -410,6 +410,33 @@ class WalletPageBlocksTests(unittest.TestCase):
         self.assertTrue(payload["open_positions"]["capped"])
         self.assertEqual(payload["open_positions"]["n"], 10)
 
+    def test_a_row_the_feed_never_priced_is_not_a_settled_loss(self) -> None:
+        # Dritte Zeile: weder Preis noch Wert. Vorher machte der Default 0
+        # daraus eine gegen die Wallet aufgeloeste Position, also -25 als
+        # abgerechneten Verlust in worthless_pnl.
+        pos = pd.concat([_positions_fixture(), pd.DataFrame([{
+            "title": "Feed hat nichts geliefert?", "outcome": "Yes", "size": 50.0, "avg_price": 0.5,
+            "current_price": float("nan"), "value": float("nan"), "unrealized_pnl": float("nan"),
+            "pnl_pct": float("nan"), "end_time": pd.Timestamp("2026-12-31", tz="UTC"),
+            "market_key": "0xunpriced", "url": "https://polymarket.com/event/unpriced"},
+        ])], ignore_index=True)
+        payload = apv.wallet_detail({"wallet": "0xabc", "snapshot_at": "", "errors": {}}, pos, None, None,
+                                    positions_requested=50, as_of="x")
+        opened = payload["open_positions"]
+        self.assertEqual(opened["worthless_n"], 1)
+        self.assertAlmostEqual(opened["worthless_pnl"], -10.0)
+        self.assertEqual(opened["unpriced_n"], 1)
+        self.assertAlmostEqual(opened["unpriced_cost"], 25.0)
+        # In keiner der Summen: Exposure und Kostenbasis bleiben die der
+        # einen wirklich offenen Zeile.
+        self.assertAlmostEqual(opened["total_exposure"], 55.0)
+        self.assertAlmostEqual(opened["total_cost"], 40.0)
+        self.assertAlmostEqual(opened["unrealized_pnl"], 15.0)
+        unpriced = [r for r in opened["rows"] if r["market_key"] == "0xunpriced"][0]
+        self.assertEqual(unpriced["status"], "unknown")
+        self.assertIsNone(unpriced["current_price"])
+        self.assertIsNone(unpriced["value"])
+
 
 class RiskWalletAddressTests(unittest.TestCase):
     def test_wallet_rows_carry_the_full_address(self) -> None:
@@ -816,6 +843,34 @@ class BacktestPayloadTests(unittest.TestCase):
         self.assertAlmostEqual(stats["wins"] / stats["closed_trades"], 0.5833, places=4)
         # Der frueher benutzte Nenner haette 35 Prozent ergeben.
         self.assertAlmostEqual(stats["wins"] / stats["copied_trades"], 0.35, places=4)
+
+    def test_the_payload_separates_decided_from_flat_positions(self) -> None:
+        result = _FakeResult(
+            stats={"final_equity": 1000.0, "roi": 0.0, "total_pnl": 0.0, "win_rate": 35 / 60,
+                   "wins": 35, "losses": 25, "closed_trades": 63, "decided_trades": 60,
+                   "flat_trades": 3, "copied_trades": 100, "skipped_trades": 0,
+                   "fees_paid": 0.0, "open_value": 400.0},
+            benchmark_stats={},
+            equity=pd.DataFrame({"equity": [1000.0, 1000.0]}),
+            ledger=pd.DataFrame(),
+        )
+        stats = apv.backtest_payload(result)["stats"]
+        self.assertEqual((stats["closed_trades"], stats["decided_trades"], stats["flat_trades"]), (63, 60, 3))
+
+    def test_a_row_without_a_running_equity_is_not_an_account_of_zero(self) -> None:
+        # Abrechnungen am Fensterrand tragen keinen laufenden Kontostand.
+        # Der Default 0.0 druckte dafuer "$0.00" ins Log.
+        result = _FakeResult(
+            stats={"final_equity": 1000.0, "roi": 0.0, "total_pnl": 0.0},
+            benchmark_stats={},
+            equity=pd.DataFrame({"equity": [1000.0]}),
+            ledger=pd.DataFrame([
+                {"time": "2026-07-30T14:19:00Z", "action": "RESOLVE", "status": "settled",
+                 "title": "Late market", "outcome": "Yes", "source_notional": 0.0, "stake": 25.0,
+                 "exec_price": 1.0, "fee": 0.0, "equity_after": float("nan")},
+            ]),
+        )
+        self.assertIsNone(apv.backtest_payload(result)["log"][0]["equity"])
 
 
 class PipelineTrimTests(unittest.TestCase):

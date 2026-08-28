@@ -134,11 +134,14 @@ export function renderBacktester(T) {
   const totalPnl = st ? +st.total_pnl : null;
   const benchPnl = st && live.benchmark_stats ? +live.benchmark_stats.total_pnl : null;
   const copied = st ? +st.copied_trades : null;
-  // Nenner der Trefferquote: geschlossene Kopien (SELL und RESOLVE), nicht
-  // alle kopierten Zeilen. Die Kacheln rechneten wins/copied — copied zaehlt
-  // auch die noch offenen Einstiege, also verduennte jede offene Position
-  // die Trefferquote nach unten.
+  // Nenner der Trefferquote: entschiedene POSITIONEN, nicht Ausstiegszeilen
+  // und erst recht nicht alle kopierten Zeilen. closed_trades zaehlte lange
+  // jeden Teilverkauf einzeln: eine in drei Tranchen abgebaute Position
+  // stand dreifach in Zaehler und Nenner. decided_trades sind die Positionen
+  // mit einem Ergebnis, flat_trades die, die genau ihre Kosten zurueckgaben.
   const closedN = st ? (+st.closed_trades || 0) : null;
+  const decidedN = st ? (+st.decided_trades || 0) : null;
+  const flatN = st ? (+st.flat_trades || 0) : 0;
   const skippedN = st ? +st.skipped_trades : null;
   const winsN = st ? +st.wins : null;
   const lossesN = st ? +st.losses : null;
@@ -154,7 +157,8 @@ export function renderBacktester(T) {
 
   const simVariants = (live && live.variants ? live.variants.map((v) => ({
     name: v.name, eq: +v.final_equity, roi: +v.roi * 100, dd: Math.abs(+v.max_drawdown) * 100,
-    wr: +v.win_rate * 100, closed: +v.closed_trades || 0, copied: +v.copied_trades, skipped: +v.skipped_trades
+    wr: +v.win_rate * 100, closed: +v.closed_trades || 0, decided: +v.decided_trades || 0,
+    copied: +v.copied_trades, skipped: +v.skipped_trades
   })) : []).sort((a, b) => b.eq - a.eq);
   const bestVariant = simVariants[0] || null;
 
@@ -204,10 +208,15 @@ export function renderBacktester(T) {
         ? (+st.unrealized_pnl >= 0 ? '+' : '-') + '$' + Math.abs(+st.unrealized_pnl).toFixed(0) + ' of it still unresolved'
         : (benchPnl === null ? 'no benchmark' : (totalPnl - benchPnl >= 0 ? '+' : '-') + '$' + Math.abs(totalPnl - benchPnl).toFixed(0) + ' vs flat-bet'),
       pos: totalPnl >= 0 },
-    // n dazu: ohne die Zahl der geschlossenen Kopien sagt die Quote nicht,
-    // wie viel sie wiegt — 3 von 4 und 300 von 400 lesen sich sonst gleich.
-    { label: 'WIN RATE', value: closedN ? Math.round((winsN / closedN) * 100) + '%' : '—',
-      sub: closedN ? winsN + 'W / ' + lossesN + 'L of ' + num(closedN) + ' closed' : 'no copy closed yet', pos: null },
+    // n dazu: ohne die Zahl der entschiedenen Positionen sagt die Quote
+    // nicht, wie viel sie wiegt: 3 von 4 und 300 von 400 lesen sich sonst
+    // gleich. Positionen, die genau ihre Kosten zurueckgaben, stehen daneben
+    // statt den Nenner zu fuellen.
+    { label: 'WIN RATE', value: decidedN ? Math.round((winsN / decidedN) * 100) + '%' : '—',
+      sub: decidedN
+        ? winsN + 'W / ' + lossesN + 'L of ' + num(decidedN) + ' decided positions'
+          + (flatN ? ' · ' + num(flatN) + ' back at cost' : '')
+        : (closedN ? num(closedN) + ' closed, none decided' : 'no position closed yet'), pos: null },
     { label: 'MAX DRAWDOWN', value: ddPct.toFixed(1) + '%', sub: 'from the running peak', pos: false },
     { label: 'TRADES COPIED', value: num(copied), sub: num(Math.max(0, skippedN)) + ' skipped' + (filteredN ? ' · ' + num(filteredN) + ' filtered' : ''), pos: null },
     { label: 'FEES PAID', value: '$' + feesPaid.toFixed(2), sub: '$' + openValue.toFixed(0) + ' still open', pos: null }
@@ -233,7 +242,9 @@ export function renderBacktester(T) {
     stake: +l.stake ? '$' + (+l.stake).toFixed(2) : '—',
     fill: +l.fill ? (+l.fill).toFixed(3) : '—',
     fee: +l.fee ? '$' + (+l.fee).toFixed(2) : '—',
-    equity: '$' + (+l.equity).toFixed(2)
+    // Kein Kontostand, kein Kontostand: eine Zeile ohne laufende
+    // Equity (Abrechnung am Fensterrand) druckte hier $0.00.
+    equity: l.equity == null ? '—' : '$' + (+l.equity).toFixed(2)
   }));
 
   const openRows = (live && live.open ? live.open : []).map((o) => {
@@ -531,7 +542,7 @@ export function renderBacktester(T) {
         + '<div style="text-align:right; ' + M + '; font-size:12.5px">$' + v.eq.toFixed(0) + '</div>'
         + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:' + (v.roi >= 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (v.roi >= 0 ? '+' : '') + v.roi.toFixed(1) + '%</div>'
         + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(var(--ink),.6)">' + v.dd.toFixed(1) + '%</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(var(--ink),.6)">' + (v.closed ? Math.round(v.wr) + '% <span style="font-size:10.5px; color:rgba(var(--ink),.45)">n ' + num(v.closed) + '</span>' : '—') + '</div>'
+        + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(var(--ink),.6)">' + (v.decided ? Math.round(v.wr) + '% <span style="font-size:10.5px; color:rgba(var(--ink),.45)">n ' + num(v.decided) + '</span>' : '—') + '</div>'
         + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(var(--ink),.6)">' + num(v.copied) + '</div>'
         + '<div style="text-align:right; ' + M + '; font-size:12.5px; color:rgba(var(--ink),.6)">' + num(Math.max(0, v.skipped)) + '</div></div>'
       ).join('')
