@@ -17,6 +17,7 @@ from typing import Any, Callable, Mapping
 import pandas as pd
 
 from app import claims
+from app import cross_pairs
 from app import perf_metrics as perf
 from app import quant
 from app import risk_log
@@ -1528,6 +1529,60 @@ def _strip_frames(block: Any) -> Any:
 CROSS_MIN_SIMILARITY = 0.5
 
 
+def cross_gate_mask(
+    candidates: pd.DataFrame,
+    *,
+    min_similarity: float = CROSS_MIN_SIMILARITY,
+    require_volume: bool = True,
+) -> pd.Series:
+    """Welche Kandidatenzeilen die Ehrlichkeits-Schranke passieren.
+
+    Eigene Funktion, weil zwei Stellen sie brauchen: der Mapper unten und
+    der Endpunkt, der nur fuer die durchgelassenen Zeilen die Buecher
+    abfragt. Zwei Kopien derselben Schranke waeren zwei Schranken.
+    """
+
+    if candidates is None or candidates.empty:
+        return pd.Series(dtype=bool)
+    similarity = pd.to_numeric(candidates.get("similarity"), errors="coerce").fillna(0.0)
+    maske = similarity >= float(min_similarity)
+    if require_volume:
+        pm_vol = pd.to_numeric(candidates.get("polymarket_volume_usd"), errors="coerce").fillna(0.0)
+        ks_vol = pd.to_numeric(candidates.get("kalshi_volume_contracts"), errors="coerce").fillna(0.0)
+        maske = maske & (pm_vol > 0) & (ks_vol > 0)
+    return maske
+
+
+def cross_suppressed(rejected: pd.DataFrame, limit: int = 6) -> dict[str, Any]:
+    """Was der Paar-Check aussortiert hat, mit Grund und ohne jede Zahl.
+
+    Ein weggelassenes Paar stillschweigend verschwinden zu lassen waere
+    dieselbe Unehrlichkeit von der anderen Seite: die Seite soll sagen
+    koennen, wie viele Kandidaten warum nicht gerechnet wurden. Preise
+    stehen hier bewusst nicht, denn zwischen zwei verschiedenen Fragen ist
+    auch die Luecke keine Aussage.
+    """
+
+    leer: dict[str, Any] = {"total": 0, "by_verdict": {}, "examples": []}
+    if rejected is None or rejected.empty or "pair_verdict" not in rejected.columns:
+        return leer
+    verdicts = rejected["pair_verdict"].astype(str)
+    beispiele = [
+        {
+            "event": _text(row.get("polymarket_title")),
+            "other": _text(row.get("kalshi_title")),
+            "verdict": _text(row.get("pair_verdict")),
+            "why": _text(row.get("pair_reasons")),
+        }
+        for _, row in rejected.head(limit).iterrows()
+    ]
+    return {
+        "total": int(len(rejected)),
+        "by_verdict": {str(k): int(v) for k, v in verdicts.value_counts().items()},
+        "examples": beispiele,
+    }
+
+
 def cross_rows(
     candidates: pd.DataFrame,
     categories: Mapping[str, str] | None = None,
@@ -1551,6 +1606,13 @@ def cross_rows(
     ``pmVolUsd`` sind Dollar, ``ksVolContracts`` sind Kontrakte. Die beiden
     hiessen einmal ``pmVol`` und ``ksVol``, und das Frontend hat sie addiert.
     Sie sind nicht addierbar (Beleg in ``app/venue_units.py``).
+
+    ``size`` ist die Stueckzahl, fuer die die Spanne gilt, und
+    ``depthChecked`` sagt, ob jemand nachgesehen hat: ohne Buchabfrage sind
+    es die 100 Stueck des Gebuehren-Clips, also eine Annahme ueber die
+    Spitze des Buchs. Ein Paar, das ``pair_verdict`` verworfen hat, kommt
+    hier gar nicht erst durch: zwischen zwei verschiedenen Fragen ist auch
+    die Luecke keine Aussage.
     """
 
     if candidates is None or candidates.empty:
@@ -1569,6 +1631,12 @@ def cross_rows(
         ks_vol = _num(row.get("kalshi_volume_contracts"), 0.0) or 0.0
         if require_volume and (pm_vol <= 0 or ks_vol <= 0):
             continue
+        # Zweiter Riegel an der Nutzlastgrenze: der Paarer laesst eine
+        # verworfene Zeile nur mit include_rejected heraus, und die gehoert
+        # in die Zaehlung (cross_suppressed), nicht in die Tabelle.
+        verdict = _text(row.get("pair_verdict")) or cross_pairs.PAIR_UNVERIFIED
+        if verdict != cross_pairs.PAIR_UNVERIFIED:
+            continue
         pm_key = _text(row.get("polymarket_market_key"))
         rows.append({
             "event": _text(row.get("polymarket_title")) or _text(row.get("kalshi_title")),
@@ -1586,6 +1654,10 @@ def cross_rows(
             "band": _num(row.get("fee_band_cents")),
             "net": _num(row.get("net_edge_cents")),
             "dir": _text(row.get("edge_direction")),
+            # Fuer wie viele Stueck die drei Zahlen darueber gelten, und ob
+            # das gemessen oder angenommen ist.
+            "size": _num(row.get("size_shares")),
+            "depthChecked": bool(row.get("depth_checked")),
             "pm_url": _text(row.get("polymarket_url")),
             "ks_url": _text(row.get("kalshi_url")),
         })

@@ -777,8 +777,16 @@ CROSS_CANDIDATE_FLOOR = 0.2
 CROSS_GATE_NOTE = (
     "Only pairs with title similarity >= {sim:.2f} and volume on both venues are shown. "
     "Matched by title similarity — pairs are not verified to resolve identically "
-    "(studies 08 and 11 in the microstructure report show two matched pairs that were different questions)."
+    "(studies 08 and 11 in the microstructure report show two matched pairs that were different questions). "
+    "A pair whose two sides ask in opposite directions, name different thresholds or resolve on "
+    "different dates carries no numbers at all and is counted under 'suppressed' instead."
 )
+
+#: Wie viele Zeilen je Aufruf gegen die Buecher neu quotiert werden. Zwei
+#: Abfragen je Zeile, und der Endpunkt blaettert ohnehin schon beide Boersen
+#: durch; nachgeschlagen werden die Zeilen mit der groessten Netto-Spanne,
+#: also die, auf die jemand reagieren wuerde.
+CROSS_DEPTH_ROWS = 12
 
 
 @app.get("/api/cross")
@@ -827,15 +835,23 @@ def cross(
     if pm.empty or ks.empty:
         return leer
     try:
-        candidates = cached(
+        # Mit den verworfenen Paaren: was der Paar-Check aussortiert, wird
+        # gezaehlt und benannt statt stillschweigend weggelassen.
+        alle = cached(
             f"cross_cand_{min_similarity}_{max_pairs}",
             cross_pairs.deep_cross_candidates,
             pm,
             ks,
             min_similarity,
             max_pairs,
+            True,
             ttl=300.0,
         )
+        if alle is None or alle.empty or "pair_verdict" not in alle.columns:
+            candidates, verworfen = (alle if alle is not None else pd.DataFrame()), pd.DataFrame()
+        else:
+            geprueft = alle["pair_verdict"].astype(str).eq(cross_pairs.PAIR_UNVERIFIED)
+            candidates, verworfen = alle[geprueft], alle[~geprueft]
         # Wie viele Paare der Matcher unterhalb der Schranke ueberhaupt
         # findet — damit die Seite "N of M candidates clear the gate" sagen
         # kann statt nur "nothing". Gleicher Matcher, lockere Schranke.
@@ -849,8 +865,13 @@ def cross(
             ttl=300.0,
         )
         if query.strip():
-            mask = candidates["polymarket_title"].str.contains(query.strip(), case=False, na=False) | candidates["kalshi_title"].str.contains(query.strip(), case=False, na=False)
-            candidates = candidates[mask]
+            def _treffer(frame: pd.DataFrame) -> pd.DataFrame:
+                if frame is None or frame.empty:
+                    return frame
+                maske = (frame["polymarket_title"].str.contains(query.strip(), case=False, na=False)
+                         | frame["kalshi_title"].str.contains(query.strip(), case=False, na=False))
+                return frame[maske]
+            candidates, verworfen = _treffer(candidates), _treffer(verworfen)
     except Exception as exc:
         print(f"[warn] cross venue: {exc}")
         return leer
@@ -861,11 +882,34 @@ def cross(
             for key, cat in zip(pm["market_key"], pm["category"])
             if key is not None and cat
         }
+    # Erst die Schranke, dann die Buecher: nachgeschlagen wird nur, was auch
+    # angezeigt wird. Ohne diesen Schritt stand die Spanne fuer 100 Stueck
+    # da, weil 100 der Clip der Gebuehrenkurve ist und nicht, weil jemand
+    # nachgesehen haette, ob 100 Stueck an der Quote liegen.
+    if candidates is not None and not candidates.empty:
+        candidates = candidates[apv.cross_gate_mask(
+            candidates, min_similarity=min_similarity, require_volume=True)]
+        try:
+            candidates = cached(
+                f"cross_depth_{min_similarity}_{max_pairs}_{query.strip().lower()}",
+                cross_pairs.with_book_depth,
+                candidates,
+                pm,
+                ks,
+                pm_book=md.get_polymarket_orderbook,
+                ks_book=md.get_kalshi_orderbook,
+                max_rows=CROSS_DEPTH_ROWS,
+                ttl=120.0,
+            )
+        except Exception as exc:
+            print(f"[warn] cross depth: {exc}")
     rows = apv.cross_rows(candidates, categories, min_similarity=min_similarity, require_volume=True)
     return {
         "rows": rows,
         "total": len(rows),
         "candidates_before_gate": int(len(vor_schranke)) if vor_schranke is not None else int(len(candidates)),
+        "suppressed": apv.cross_suppressed(verworfen),
+        "depth_rows": CROSS_DEPTH_ROWS,
         "gate": gate,
         "as_of": md.now_utc_label(),
         "note": CROSS_GATE_NOTE.format(sim=min_similarity),

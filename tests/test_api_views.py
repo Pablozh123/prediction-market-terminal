@@ -10,6 +10,7 @@ import pandas as pd
 
 from app import api_views as apv
 from app import claims
+from app import cross_pairs
 from app import suspicion as susp
 
 
@@ -1481,6 +1482,53 @@ class CrossGateTests(unittest.TestCase):
         self.assertIsNone(row["gross"])
         self.assertIsNone(row["net"])
         self.assertEqual(row["dir"], "")
+
+    def test_the_row_says_for_how_many_shares_the_edge_holds(self) -> None:
+        frame = self._candidates()
+        frame.loc[0, "net_edge_cents"] = 1.2845
+        frame.loc[0, "size_shares"] = 3.0
+        frame.loc[0, "depth_checked"] = True
+        row = apv.cross_rows(frame)[0]
+        self.assertEqual(row["size"], 3.0)
+        self.assertTrue(row["depthChecked"])
+
+    def test_an_unmeasured_size_is_marked_as_unmeasured(self) -> None:
+        # Ohne Buchabfrage sind die 100 Stueck der Clip der Gebuehrenkurve,
+        # keine gemessene Tiefe. Die Zeile muss das sagen koennen.
+        row = apv.cross_rows(self._candidates())[0]
+        self.assertFalse(row["depthChecked"])
+
+    def test_a_rejected_pair_never_reaches_the_table(self) -> None:
+        frame = self._candidates()
+        frame.loc[0, "pair_verdict"] = cross_pairs.PAIR_OPPOSED
+        frame.loc[0, "pair_reasons"] = "opposite direction (threshold): above against below"
+        self.assertEqual([r["event"] for r in apv.cross_rows(frame)], ["exactly at the gate"])
+
+    def test_the_suppressed_block_counts_and_names_them(self) -> None:
+        verworfen = pd.DataFrame([
+            {"polymarket_title": "Bitcoin above $120,000", "kalshi_title": "Bitcoin below $120,000",
+             "pair_verdict": cross_pairs.PAIR_OPPOSED,
+             "pair_reasons": "opposite direction (threshold): above against below",
+             "polymarket_yes": 0.62, "kalshi_yes": 0.37, "net_edge_cents": 19.68},
+            {"polymarket_title": "Fed cuts in September", "kalshi_title": "Fed cuts in December",
+             "pair_verdict": cross_pairs.PAIR_DIFFERENT,
+             "pair_reasons": "resolution dates 84 days apart",
+             "polymarket_yes": 0.62, "kalshi_yes": 0.37, "net_edge_cents": 19.68},
+        ])
+        block = apv.cross_suppressed(verworfen)
+        self.assertEqual(block["total"], 2)
+        self.assertEqual(block["by_verdict"][cross_pairs.PAIR_OPPOSED], 1)
+        self.assertIn("above against below", block["examples"][0]["why"])
+        # Kein Preis, keine Spanne: zwischen zwei verschiedenen Fragen ist
+        # auch die Luecke keine Aussage.
+        self.assertNotIn("net", block["examples"][0])
+        self.assertEqual(apv.cross_suppressed(pd.DataFrame())["total"], 0)
+
+    def test_the_gate_mask_is_the_same_gate_the_mapper_applies(self) -> None:
+        maske = apv.cross_gate_mask(self._candidates())
+        durch = self._candidates()[maske]
+        self.assertEqual(list(durch["polymarket_title"]), ["kept", "exactly at the gate"])
+        self.assertTrue(apv.cross_gate_mask(pd.DataFrame()).empty)
 
 
 class ScorePartsTests(unittest.TestCase):

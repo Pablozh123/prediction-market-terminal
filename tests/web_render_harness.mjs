@@ -381,9 +381,21 @@ function mitDaten(T) {
   // Mittelkurse 62/58, ausfuehrbar aber nur 2 Cent, und davon frisst die
   // Gebuehrenschwelle 2.7: die Zeile steht mit einer Luecke von 4 Cent und
   // einem negativen Netto da.
-  T.crossPairs = [{ event: 'Example question', cat: 'Macro', pm: 62, ks: 58, sim: 0.71, pmVolUsd: 1200000, ksVolContracts: 300000, gross: 2.0, band: 2.7, net: -0.7, dir: 'buy Kalshi, sell Polymarket' }];
+  // ``size``/``depthChecked``: die Spanne gilt fuer drei Stueck an der
+  // Spitze, nicht fuer die hundert des Gebuehren-Clips.
+  T.crossPairs = [{ event: 'Example question', cat: 'Macro', pm: 62, ks: 58, sim: 0.71, pmVolUsd: 1200000, ksVolContracts: 300000, gross: 2.0, band: 2.7, net: -0.7, dir: 'buy Kalshi, sell Polymarket', size: 3, depthChecked: true }];
   T.herkunft.cross = { quelle: 'live' };
-  T.liveData.cross = { _quelle: 'live', rows: T.crossPairs, candidates_before_gate: 9, gate: { min_similarity: 0.5, require_volume_both: true }, as_of: '2026-08-17 10:00 UTC' };
+  T.liveData.cross = {
+    _quelle: 'live', rows: T.crossPairs, candidates_before_gate: 9,
+    gate: { min_similarity: 0.5, require_volume_both: true }, as_of: '2026-08-17 10:00 UTC',
+    depth_rows: 12,
+    // Ein Paar, das der Paar-Check aussortiert hat: gezaehlt und benannt,
+    // aber ohne jede Zahl.
+    suppressed: {
+      total: 1, by_verdict: { opposed: 1 },
+      examples: [{ event: 'Bitcoin above $120,000', other: 'Bitcoin below $120,000', verdict: 'opposed', why: 'opposite direction (threshold): above against below' }]
+    }
+  };
   T.liveData.resolved = {
     _quelle: 'live',
     rows: [{ title: 'Settled question', meta: 'POLYMARKET · MACRO', yes: true, last: 91, err: 9, vol: '$1.2m', when: '2 d ago', hours: 6 }]
