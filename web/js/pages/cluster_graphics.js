@@ -14,7 +14,7 @@ import { esc } from '../util.js';
 import { SERIEN_FARBEN } from '../charts.js';
 
 const M = "font-family:'IBM Plex Mono',monospace";
-const CARD = 'background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:var(--r-panel)';
+const CARD = 'background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel)';
 
 // Cluster-Palette: die fuenf geprueften Serienplaetze aus terminal.css,
 // danach --warn und --muted als sechster und siebter Platz. Vorher standen
@@ -35,7 +35,7 @@ export function clusterFarbe(graph, id) {
 function kopfzeile(g) {
   const k = g.kennzahl || {};
   const chip = (label, wert) =>
-    '<div style="' + M + '; font-size:var(--t-micro); color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.14); '
+    '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); border:1px solid var(--line-1); '
     + 'border-radius:var(--r-control); padding:4px 9px; white-space:nowrap">' + esc(label) + ' <span style="color:var(--text)">'
     + esc(String(wert)) + '</span></div>';
   // WALLETS traegt seinen Nenner mit: 41 von 300 gescreenten ist eine andere
@@ -66,7 +66,7 @@ function nullmodellZeile(g) {
       + (n.lift_median != null ? ' at a median lift of ' + esc(String(n.lift_median)) + '×' : '')
       + ' — read the picture against that, not against zero'
     : 'the same rule on a shuffled wallet column returns nothing';
-  return '<div style="' + M + '; font-size:var(--t-micro); color:rgba(var(--ink),.55); margin-top:8px; line-height:1.6">'
+  return '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:8px; line-height:1.6">'
     + 'CONTROL · ' + wie + ' (' + esc(String(n.runs)) + ' shuffle' + (n.runs === 1 ? '' : 's') + ')</div>';
 }
 
@@ -124,7 +124,7 @@ function graphSvg(g) {
     const label = beschriften.has(i)
       ? '<text x="' + (links ? (cx - r - 5).toFixed(1) : (cx + r + 5).toFixed(1)) + '" y="' + (cy + 3.5).toFixed(1)
         + '" text-anchor="' + (links ? 'end' : 'start') + '" font-size="11" font-family="IBM Plex Mono, monospace" '
-        + 'style="fill:rgba(var(--ink),.78)">' + esc(n.kurz || '') + '</text>'
+        + 'style="fill:var(--ink-1)">' + esc(n.kurz || '') + '</text>'
       : '';
     return '<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="' + r.toFixed(1)
       + '" style="fill:' + farbe + '; stroke:var(--bg)" fill-opacity=".9" stroke-width="1.2">'
@@ -152,7 +152,7 @@ export function renderClusterGraphics(live) {
     return hinweisKarte(
       'Loading the whale tape and building the network. The first run pages about a day of '
       + 'prints and looks up the market categories, so this takes a moment.',
-      'rgba(var(--ink),.6)');
+      'var(--ink-3)');
   }
   if (live._quelle === 'fehler') {
     return hinweisKarte(
@@ -166,14 +166,14 @@ export function renderClusterGraphics(live) {
       'No co-trading cluster in the current window. That is a result, not a gap: once sports and '
       + 'crypto are excluded, the wallets left in the insider-prone markets do not repeatedly meet '
       + 'each other.',
-      'rgba(var(--ink),.7)');
+      'var(--ink-2)');
   }
 
   return '<div style="' + CARD + '; padding:18px 20px; margin-bottom:14px">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">CO-TRADING STRUCTURE</div>'
     + '<div style="font-size:var(--t-head); font-weight:600; margin-top:6px">Wallets that keep meeting in the same markets</div>'
     + kopfzeile(g)
-    + '<div style="' + M + '; font-size:var(--t-micro); color:rgba(var(--ink),.62); margin-top:10px; line-height:1.6">'
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:10px; line-height:1.6">'
     + 'RULE · ' + esc(g.regel || 'not stated')
     + (g.fenster ? '<br>WINDOW · ' + esc(g.fenster) : '')
     + '<br>SCOPE · insider-prone markets only, sports crypto and weather excluded'
@@ -181,7 +181,7 @@ export function renderClusterGraphics(live) {
     + '</div>'
     + nullmodellZeile(g)
     + '<div style="margin-top:14px">' + graphSvg(g) + '</div>'
-    + '<div style="font-size:var(--t-small); color:rgba(var(--ink),.62); margin-top:8px; line-height:1.5">'
+    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:8px; line-height:1.5">'
     + 'Each dot is one wallet, sized by the money it moved · a line means the two bought the same side of the same markets, thicker = more shared markets · colours are the groups detailed below · hover a line for how far above the chance rate that pair sits.'
     + '</div></div>';
 }

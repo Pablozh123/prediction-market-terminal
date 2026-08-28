@@ -116,9 +116,9 @@ export function herkunftSatz(herkunft, endpunkt) {
 export function leerBlock(titel, satz) {
   const M = "font-family:'IBM Plex Mono',monospace";
   return '<div style="padding:26px 24px">'
-    + '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:var(--r-panel); padding:20px 22px; max-width:760px">'
+    + '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:20px 22px; max-width:760px">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--warn)">' + esc(titel) + '</div>'
-    + '<div style="font-size:var(--t-body); color:rgba(var(--ink),.6); margin-top:9px; line-height:1.6">' + esc(satz) + '</div>'
+    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:9px; line-height:1.6">' + esc(satz) + '</div>'
     + '</div></div>';
 }
 
@@ -126,7 +126,7 @@ export function leerBlock(titel, satz) {
 // Seite sie ist, und darunter warum sie leer ist.
 export function seitenKopf(kicker, titel, farbe) {
   const M = "font-family:'IBM Plex Mono',monospace";
-  return '<div style="padding:20px 24px 14px; border-bottom:1px solid rgba(var(--ink),.09)">'
+  return '<div style="padding:20px 24px 14px; border-bottom:1px solid var(--line-2)">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.18em; color:' + farbe + '">' + esc(kicker) + '</div>'
     + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">'
     + esc(titel) + '</h1></div>';
@@ -136,7 +136,7 @@ export function seitenKopf(kicker, titel, farbe) {
 // einer Liste sitzt und nicht deren Platz einnehmen soll.
 export function leerZeile(satz) {
   const M = "font-family:'IBM Plex Mono',monospace";
-  return '<div style="padding:22px 20px; ' + M + '; font-size:var(--t-small); color:rgba(var(--ink),.6); line-height:1.6">'
+  return '<div style="padding:22px 20px; ' + M + '; font-size:var(--t-small); color:var(--ink-3); line-height:1.6">'
     + esc(satz) + '</div>';
 }
 
@@ -351,13 +351,13 @@ export function publishZeit(payload) {
 export function stempelBlock(study, payload, polster) {
   const fest = study && study.stamp ? String(study.stamp) : '';
   const uhr = publishZeit(payload);
-  const chip = MONO + '; font-size:var(--t-micro); color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.14);'
+  const chip = MONO + '; font-size:var(--t-micro); color:var(--ink-3); border:1px solid var(--line-1);'
     + ' border-radius:var(--r-control); padding:' + (polster || '6px 10px') + '; white-space:nowrap';
   if (!fest && !uhr) return '';
   if (!fest) return '<div style="' + chip + '">' + esc(uhr) + '</div>';
   return '<div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px">'
     + '<div style="' + chip + '">' + esc(fest) + '</div>'
-    + (uhr ? '<div style="' + MONO + '; font-size:var(--t-micro); color:rgba(var(--ink),.55); white-space:nowrap">published ' + esc(uhr) + '</div>' : '')
+    + (uhr ? '<div style="' + MONO + '; font-size:var(--t-micro); color:var(--ink-4); white-space:nowrap">published ' + esc(uhr) + '</div>' : '')
     + '</div>';
 }
 

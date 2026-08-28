@@ -9,7 +9,7 @@
 import { esc } from './util.js';
 
 const M = "font-family:'IBM Plex Mono',monospace";
-const CARD = 'background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:var(--r-panel)';
+const CARD = 'background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel)';
 
 const BALKEN_FARBE = { gewinn: 'var(--pos)', kosten: 'var(--neg)', summe: 'var(--info)' };
 
@@ -80,7 +80,7 @@ function achse(sk, dia, hoehe) {
     out += '<line x1="' + rx + '" y1="6" x2="' + rx + '" y2="' + (hoehe - 22)
       + '" style="stroke:rgba(var(--ink),.35)" stroke-width="1" stroke-dasharray="4 4" />';
     if (dia.referenz_label) {
-      out += '<text x="' + rx + '" y="' + (hoehe - 8) + '" style="fill:rgba(var(--ink),.6)" '
+      out += '<text x="' + rx + '" y="' + (hoehe - 8) + '" style="fill:var(--ink-3)" '
         + 'font-size="11" font-family="IBM Plex Mono, monospace" text-anchor="middle">'
         + esc(dia.referenz_label) + '</text>';
     }
@@ -89,7 +89,7 @@ function achse(sk, dia, hoehe) {
 }
 
 function labelText(text, y) {
-  return '<text x="' + LABEL_X + '" y="' + (y + 4) + '" style="fill:rgba(var(--ink),.72)" font-size="11.5" '
+  return '<text x="' + LABEL_X + '" y="' + (y + 4) + '" style="fill:var(--ink-2)" font-size="11.5" '
     + 'font-family="IBM Plex Mono, monospace" text-anchor="end">' + esc(text) + '</text>';
 }
 
@@ -117,7 +117,7 @@ export function diagramm(dia) {
         koerper += labelText(gruppen[i] + ' · ' + p.label, y);
         koerper += '<rect x="' + Math.min(x0, x1) + '" y="' + (y - 8) + '" width="' + Math.abs(x1 - x0)
           + '" height="16" rx="3" style="fill:' + farbe + '" fill-opacity="' + (i === 0 ? '.45' : '.95') + '" />';
-        koerper += wertText(fmtZahl(w), PLOT_R + 8, y, 'rgba(var(--ink),.75)');
+        koerper += wertText(fmtZahl(w), PLOT_R + 8, y, 'var(--ink-2)');
         y += ZEILE;
       });
       return;
@@ -141,7 +141,7 @@ export function diagramm(dia) {
       koerper += '<line x1="' + xb + '" y1="' + (y - 6) + '" x2="' + xb + '" y2="' + (y + 6)
         + '" style="stroke:' + farbe + '" stroke-width="2" />';
       koerper += '<circle cx="' + xm + '" cy="' + y + '" r="4.5" style="fill:' + farbe + '" />';
-      koerper += wertText(p.text || (fmtZahl(p.von) + ' … ' + fmtZahl(p.bis)), PLOT_R + 8, y, 'rgba(var(--ink),.75)');
+      koerper += wertText(p.text || (fmtZahl(p.von) + ' … ' + fmtZahl(p.bis)), PLOT_R + 8, y, 'var(--ink-2)');
     } else if (typeof p.wert === 'number') {
       // p.farbe schlaegt das Vorzeichen: ein Balken, dessen Laenge einen
       // Einsatz misst und dessen Farbe ein Ergebnis traegt, kann seine Farbe
@@ -156,7 +156,7 @@ export function diagramm(dia) {
       koerper += '<rect x="' + Math.min(x0, x1) + '" y="' + (y - 9) + '" width="' + Math.abs(x1 - x0)
         + '" height="18" rx="3" style="fill:' + farbe + '" fill-opacity=".92">'
         + '<title>' + esc(p.tip || (p.label + ' · ' + fmtZahl(p.wert))) + '</title></rect>';
-      koerper += wertText(p.text || fmtZahl(p.wert), PLOT_R + 8, y, 'rgba(var(--ink),.78)');
+      koerper += wertText(p.text || fmtZahl(p.wert), PLOT_R + 8, y, 'var(--ink-1)');
     }
     y += ZEILE;
   });
@@ -166,7 +166,7 @@ export function diagramm(dia) {
   // 17px) und ein 20-Zeilen-Diagramm stand fast 1000px hoch neben den
   // kompakten HTML-Tabellen.
   return '<div style="' + CARD + '; padding:14px 16px 10px">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:rgba(var(--ink),.62); margin-bottom:4px">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3); margin-bottom:4px">'
     + esc(dia.titel || '') + (dia.einheit ? ' · ' + esc(dia.einheit) : '') + '</div>'
     + '<svg width="100%" viewBox="0 0 ' + BREITE + ' ' + hoehe + '" role="img" aria-label="' + esc(dia.titel || 'chart') + '" style="display:block; max-width:660px">'
     + achse(sk, dia, hoehe) + koerper
@@ -174,7 +174,7 @@ export function diagramm(dia) {
     // hat: zwei zentrierte Beschriftungen auf derselben Grundlinie waeren
     // uebereinander gedruckt.
     + (dia.xLabel && !dia.referenz_label
-      ? '<text x="' + ((PLOT_L + PLOT_R) / 2) + '" y="' + (hoehe - 6) + '" style="fill:rgba(var(--ink),.62)" '
+      ? '<text x="' + ((PLOT_L + PLOT_R) / 2) + '" y="' + (hoehe - 6) + '" style="fill:var(--ink-3)" '
         + 'font-size="10.5" font-family="IBM Plex Mono, monospace" text-anchor="middle">' + esc(dia.xLabel) + '</text>'
       : '')
     + '</svg></div>';
@@ -239,12 +239,12 @@ export function linien(k) {
     const w = min + (max - min) * f;
     raster += '<line x1="' + L + '" y1="' + y(w).toFixed(1) + '" x2="' + R + '" y2="' + y(w).toFixed(1)
       + '" style="stroke:rgba(var(--ink),' + (f === 0 ? '.18' : '.07') + ')" stroke-width="1" />'
-      + '<text x="' + (L - 6) + '" y="' + (y(w) + 4).toFixed(1) + '" style="fill:rgba(var(--ink),.6)" font-size="11" '
+      + '<text x="' + (L - 6) + '" y="' + (y(w) + 4).toFixed(1) + '" style="fill:var(--ink-3)" font-size="11" '
       + 'font-family="IBM Plex Mono, monospace" text-anchor="end">' + esc(fmtZahl(Math.round(w * 1000) / 1000)) + '</text>';
   });
   let xLabels = '';
   k.x.forEach((label, i) => {
-    xLabels += '<text x="' + x(i).toFixed(1) + '" y="' + (H - 10) + '" style="fill:rgba(var(--ink),.6)" font-size="11" '
+    xLabels += '<text x="' + x(i).toFixed(1) + '" y="' + (H - 10) + '" style="fill:var(--ink-3)" font-size="11" '
       + 'font-family="IBM Plex Mono, monospace" text-anchor="middle">' + esc(String(label)) + '</text>';
   });
   let pfade = '';
@@ -261,20 +261,20 @@ export function linien(k) {
         + '<title>' + esc(s.name + ' · ' + k.x[i] + ' · ' + fmtZahl(w)) + '</title></circle>';
     });
     if (d) pfade += '<path d="' + d.trim() + '" fill="none" style="stroke:' + farbe + '" stroke-width="1.8" />';
-    legende += '<div style="display:flex; align-items:center; gap:6px; ' + M + '; font-size:var(--t-micro); color:rgba(var(--ink),.65)">'
+    legende += '<div style="display:flex; align-items:center; gap:6px; ' + M + '; font-size:var(--t-micro); color:var(--ink-3)">'
       + '<span style="display:inline-block; width:14px; height:3px; background:' + farbe + '; border-radius:2px"></span>'
       + esc(s.name) + '</div>';
   });
 
   return '<div style="' + CARD + '; padding:14px 16px 10px">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:4px">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:rgba(var(--ink),.62)">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3)">'
     + esc(k.titel || '') + (k.einheit ? ' · ' + esc(k.einheit) : '') + '</div>'
-    + (k.hinweis ? '<div style="' + M + '; font-size:var(--t-micro); color:rgba(var(--ink),.62)">' + esc(k.hinweis) + '</div>' : '')
+    + (k.hinweis ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + esc(k.hinweis) + '</div>' : '')
     + '</div>'
     + '<div style="display:flex; gap:12px; flex-wrap:wrap; margin:4px 0 6px">' + legende
     + (ueberzaehlig > 0
-      ? '<div style="' + M + '; font-size:var(--t-micro); color:rgba(var(--ink),.62)">+ ' + ueberzaehlig + ' further series not drawn — the palette has '
+      ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">+ ' + ueberzaehlig + ' further series not drawn — the palette has '
         + SERIEN_FARBEN.length + ' slots and does not reuse one</div>'
       : '')
     + '</div>'
@@ -313,7 +313,7 @@ export function kalibrierung(k) {
     marken += '<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="' + r.toFixed(1) + '" style="fill:' + farbe + '" fill-opacity=".9">'
       + '<title>' + esc('predicted ' + Math.round(p.vorhergesagt * 100) + '% · realised ' + Math.round(p.realisiert * 100) + '% · n ' + (p.n != null ? p.n : '—')) + '</title></circle>';
   });
-  const achse = 'style="fill:rgba(var(--ink),.6)" font-size="10.5" font-family="IBM Plex Mono, monospace"';
+  const achse = 'style="fill:var(--ink-3)" font-size="10.5" font-family="IBM Plex Mono, monospace"';
   // Axis lettering that survives the ~200 px small multiples of the category
   // page: the ticks "0" and "1" sit at the ends of each axis, "predicted"
   // alone in the middle under the x-axis, "realised" rotated along the
@@ -321,8 +321,8 @@ export function kalibrierung(k) {
   // "predicted 1" at that width.
   const yMitte = S / 2;
   return '<div style="' + CARD + '; padding:12px 14px 8px">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:rgba(var(--ink),.6)">' + esc(k.titel || '') + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-micro); color:rgba(var(--ink),.62); margin-top:2px">' + esc(k.hinweis || ('n ' + gesamt + ' · ' + punkte.length + ' bins')) + '</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">' + esc(k.titel || '') + '</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:2px">' + esc(k.hinweis || ('n ' + gesamt + ' · ' + punkte.length + ' bins')) + '</div>'
     + '<svg width="100%" viewBox="0 0 ' + S + ' ' + S + '" role="img" aria-label="' + esc(k.titel || 'calibration') + '" style="max-width:240px; display:block; margin:6px auto 0">'
     + '<rect x="' + PAD + '" y="' + PAD + '" width="' + (S - 2 * PAD) + '" height="' + (S - 2 * PAD) + '" fill="none" style="stroke:rgba(var(--ink),.1)" />'
     + '<line x1="' + PAD + '" y1="' + (S - PAD) + '" x2="' + (S - PAD) + '" y2="' + PAD + '" style="stroke:rgba(var(--ink),.3)" stroke-dasharray="3 3" />'
@@ -409,7 +409,7 @@ export function pnlZeitkurve(k) {
     const yy = y(tv);
     if (yy < TOP - 1 || yy > BOT + 1) return;
     gitter += '<line x1="' + L + '" y1="' + yy.toFixed(1) + '" x2="' + R + '" y2="' + yy.toFixed(1) + '" style="stroke:rgba(var(--ink),.07)" stroke-width="1" />'
-      + '<text x="' + (R + 8) + '" y="' + (yy + 3.5).toFixed(1) + '" style="fill:rgba(var(--ink),.6)" font-size="10.5" font-family="IBM Plex Mono, monospace">' + esc(kurzGeld(tv)) + '</text>';
+      + '<text x="' + (R + 8) + '" y="' + (yy + 3.5).toFixed(1) + '" style="fill:var(--ink-3)" font-size="10.5" font-family="IBM Plex Mono, monospace">' + esc(kurzGeld(tv)) + '</text>';
   });
   let nulllinie = '';
   if (min < 0 && max > 0) {
@@ -424,7 +424,7 @@ export function pnlZeitkurve(k) {
   for (let i = 0; i < nDatum; i += 1) {
     const ms = t0 + (spanne * i) / (nDatum - 1);
     const anker = i === 0 ? 'start' : i === nDatum - 1 ? 'end' : 'middle';
-    xLabels += '<text x="' + x(ms).toFixed(1) + '" y="' + (H - 9) + '" style="fill:rgba(var(--ink),.6)" font-size="10.5" '
+    xLabels += '<text x="' + x(ms).toFixed(1) + '" y="' + (H - 9) + '" style="fill:var(--ink-3)" font-size="10.5" '
       + 'font-family="IBM Plex Mono, monospace" text-anchor="' + anker + '">' + esc(datum(ms)) + '</text>';
   }
 
@@ -497,12 +497,12 @@ export function spiegelZeit(k) {
     achsen += '<text x="' + (R + 8) + '" y="' + (BOT + 4) + '" style="fill:var(--neg)" ' + tickStil + '>' + esc(kurzGeld(maxU)) + '</text>'
       + '<line x1="' + L + '" y1="' + BOT + '" x2="' + R + '" y2="' + BOT + '" style="stroke:rgba(var(--ink),.07)" stroke-width="1" />';
   }
-  achsen += '<text x="' + (R + 8) + '" y="' + (basis + 4).toFixed(1) + '" style="fill:rgba(var(--ink),.62)" ' + tickStil + '>0</text>';
+  achsen += '<text x="' + (R + 8) + '" y="' + (basis + 4).toFixed(1) + '" style="fill:var(--ink-3)" ' + tickStil + '>0</text>';
 
   let xLabels = '';
   (Array.isArray(k.xLabels) ? k.xLabels : []).forEach((l) => {
     if (l.i == null || l.i < 0 || l.i >= k.bins.length) return;
-    xLabels += '<text x="' + (L + (l.i + 0.5) * bw).toFixed(1) + '" y="' + (H - 9) + '" style="fill:rgba(var(--ink),.6)" font-size="10.5" '
+    xLabels += '<text x="' + (L + (l.i + 0.5) * bw).toFixed(1) + '" y="' + (H - 9) + '" style="fill:var(--ink-3)" font-size="10.5" '
       + 'font-family="IBM Plex Mono, monospace" text-anchor="' + (l.anker || 'middle') + '">' + esc(String(l.text)) + '</text>';
   });
 
@@ -521,9 +521,9 @@ export function spiegelZeit(k) {
 
   return '<div style="' + CARD + '; padding:14px 16px 10px">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:4px">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:rgba(var(--ink),.62)">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3)">'
     + esc(k.titel || '') + (k.einheit ? ' · ' + esc(k.einheit) : '') + '</div>'
-    + (k.hinweis ? '<div style="' + M + '; font-size:var(--t-micro); color:rgba(var(--ink),.62)">' + esc(k.hinweis) + '</div>' : '')
+    + (k.hinweis ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + esc(k.hinweis) + '</div>' : '')
     + '</div>'
     + (k.legende ? '<div style="display:flex; gap:12px; flex-wrap:wrap; margin:4px 0 6px">' + k.legende + '</div>' : '')
     + '<svg width="100%" viewBox="0 0 ' + B + ' ' + H + '" role="img" aria-label="' + esc(k.titel || 'flow') + '">'
@@ -569,16 +569,16 @@ export function stepKurve(k) {
 
   const endLabel = '<text x="' + (R + 8) + '" y="' + (y(letzte) + 4).toFixed(1) + '" style="fill:' + farbe
     + '" font-size="12" font-family="IBM Plex Mono, monospace">' + esc(fmtZahl(letzte)) + '</text>';
-  const xLabels = '<text x="' + L + '" y="' + (H - 8) + '" style="fill:rgba(var(--ink),.6)" font-size="11" '
+  const xLabels = '<text x="' + L + '" y="' + (H - 8) + '" style="fill:var(--ink-3)" font-size="11" '
     + 'font-family="IBM Plex Mono, monospace">' + esc(String(k.punkte[0].label || '')) + '</text>'
-    + '<text x="' + R + '" y="' + (H - 8) + '" style="fill:rgba(var(--ink),.6)" font-size="11" '
+    + '<text x="' + R + '" y="' + (H - 8) + '" style="fill:var(--ink-3)" font-size="11" '
     + 'font-family="IBM Plex Mono, monospace" text-anchor="end">' + esc(String(k.punkte[k.punkte.length - 1].label || '')) + '</text>';
 
   return '<div style="' + CARD + '; padding:14px 16px 10px">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:4px">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:rgba(var(--ink),.62)">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3)">'
     + esc(k.titel || '') + (k.einheit ? ' · ' + esc(k.einheit) : '') + '</div>'
-    + (k.hinweis ? '<div style="' + M + '; font-size:var(--t-micro); color:rgba(var(--ink),.62)">' + esc(k.hinweis) + '</div>' : '')
+    + (k.hinweis ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + esc(k.hinweis) + '</div>' : '')
     + '</div>'
     + '<svg width="100%" viewBox="0 0 ' + B + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="' + esc(k.titel || 'series') + '">'
     + nulllinie
@@ -598,8 +598,8 @@ export function stepKurve(k) {
 // Punkte tragen einen 2px-Ring in der Flaechenfarbe statt einer Kontur.
 
 const TICK = 'font-size="10.5" font-family="IBM Plex Mono, monospace"';
-const INK62 = 'style="fill:rgba(var(--ink),.62)"';
-const INK72 = 'style="fill:rgba(var(--ink),.72)"';
+const INK62 = 'style="fill:var(--ink-3)"';
+const INK72 = 'style="fill:var(--ink-2)"';
 const GITTER = 'style="stroke:rgba(var(--ink),.09)" stroke-width="1"';
 
 // fussnote ist Text und wird maskiert; fussnoteHtml ist fertiges Markup und
@@ -613,11 +613,11 @@ function karte(titel, einheit, hinweis, inhalt, fussnote, fussnoteHtml) {
   const fuss = (fussnote ? esc(fussnote) : '') + (fussnoteHtml ? (fussnote ? ' ' : '') + fussnoteHtml : '');
   return '<div style="' + CARD + '; padding:14px 16px 10px">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:6px">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:rgba(var(--ink),.62)">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3)">'
     + esc(titel || '') + (einheit ? ' · ' + esc(einheit) : '') + '</div>'
-    + (hinweis ? '<div style="' + M + '; font-size:var(--t-micro); color:rgba(var(--ink),.62)">' + esc(hinweis) + '</div>' : '')
+    + (hinweis ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + esc(hinweis) + '</div>' : '')
     + '</div>' + inhalt
-    + (fuss ? '<div style="font-size:var(--t-small); line-height:1.55; color:rgba(var(--ink),.62); margin-top:8px; max-width:640px">' + fuss + '</div>' : '')
+    + (fuss ? '<div style="font-size:var(--t-small); line-height:1.55; color:var(--ink-3); margin-top:8px; max-width:640px">' + fuss + '</div>' : '')
     + '</div>';
 }
 
@@ -853,7 +853,7 @@ export function histogramm(k) {
   });
 
   const grund = '<line x1="' + L + '" y1="' + BOT + '" x2="' + R + '" y2="' + BOT + '" style="stroke:rgba(var(--ink),.28)" stroke-width="1" />';
-  const swatch = (farbe, text) => '<div style="display:flex; align-items:center; gap:6px; ' + M + '; font-size:var(--t-micro); color:rgba(var(--ink),.65)">'
+  const swatch = (farbe, text) => '<div style="display:flex; align-items:center; gap:6px; ' + M + '; font-size:var(--t-micro); color:var(--ink-3)">'
     + '<span style="display:inline-block; width:10px; height:10px; border-radius:2px; background:' + farbe + '"></span>' + esc(text) + '</div>';
   const legende = k.hervorLabel
     ? '<div style="display:flex; gap:14px; flex-wrap:wrap; margin:0 0 6px">'

@@ -31,10 +31,17 @@
   --ink-2: rgba(var(--ink), .7);    /*  7.9:1 — secondary text, active labels */
   --ink-3: rgba(var(--ink), .6);    /*  6.1:1 — the workhorse: labels, cells */
   --ink-4: rgba(var(--ink), .55);   /*  5.2:1 — weakest tier that still passes AA */
-  /* Border tiers. Fifteen alphas collapsed to three; seven of the old ones
+  /* Border tiers. Fifteen alphas collapsed to four; seven of the old ones
      sat between .04 and .10, i.e. below the threshold where a hairline
-     changes at all. Same values in both themes: borders are not text. */
-  --line-1: rgba(var(--ink), .16);  /* chip and control outlines */
+     changes at all. Same values in both themes: borders are not text.
+     The fourth tier is not in the review's draft and is here because the
+     count found a role, not just a number: every one of the twelve .35
+     borders sits on a text input or a file-download control, and those are
+     the one border in the app you are meant to see. Folding them into
+     --line-1 would have made every form field in the terminal look
+     disabled. */
+  --line-edge: rgba(var(--ink), .35); /* input and control edges */
+  --line-1: rgba(var(--ink), .16);  /* chip and button outlines */
   --line-2: rgba(var(--ink), .09);  /* the default hairline: panels, rows */
   --line-3: rgba(var(--ink), .06);  /* faintest rule inside a panel */
   /* roles */
@@ -231,9 +238,9 @@ a:hover { color: var(--accent-bright); }
 body { font-family: var(--font-ui); }
 
 .shell { display: flex; height: 100vh; width: 100%; min-width: 1280px; overflow: hidden; background: var(--bg); color: var(--text); }
-.sidebar { width: 264px; box-sizing: border-box; flex: none; border-right: 1px solid rgba(var(--ink), .09); display: flex; flex-direction: column; padding: 20px 14px 16px; overflow-y: auto; }
+.sidebar { width: 264px; box-sizing: border-box; flex: none; border-right: 1px solid var(--line-2); display: flex; flex-direction: column; padding: 20px 14px 16px; overflow-y: auto; }
 .maincol { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.topbar { display: flex; align-items: center; justify-content: space-between; padding: 13px 24px; border-bottom: 1px solid rgba(var(--ink), .09); flex: none; }
+.topbar { display: flex; align-items: center; justify-content: space-between; padding: 13px 24px; border-bottom: 1px solid var(--line-2); flex: none; }
 .content-wrap { flex: 1; min-height: 0; display: flex; position: relative; }
 .content { flex: 1; min-width: 1010px; overflow-y: auto; }
 
@@ -323,7 +330,7 @@ input { font-family: inherit; }
 .tm-tile { transition: filter .12s ease; }
 .tm-tile:hover { filter: brightness(1.15); z-index: 5; }
 :root[data-theme="light"] .tm-tile:hover { filter: brightness(.94); }
-#tip { position: fixed; z-index: 60; pointer-events: none; display: none; max-width: 320px; background: rgba(var(--bg-rgb), .96); border: 1px solid rgba(var(--ink), .14); border-radius: var(--r-panel); padding: 12px 14px; box-shadow: 0 12px 32px var(--shadow-55); }
+#tip { position: fixed; z-index: 60; pointer-events: none; display: none; max-width: 320px; background: rgba(var(--bg-rgb), .96); border: 1px solid var(--line-1); border-radius: var(--r-panel); padding: 12px 14px; box-shadow: 0 12px 32px var(--shadow-55); }
 #tip.on { display: block; }
 
 /* Desktop-only is a decision here, not an oversight: .shell never goes below
@@ -335,7 +342,7 @@ input { font-family: inherit; }
   .narrow-note {
     display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 80;
     box-sizing: border-box; background: rgba(var(--bg-rgb), .97);
-    border-top: 1px solid rgba(var(--ink), .16); color: rgba(var(--ink), .72);
+    border-top: 1px solid var(--line-1); color: var(--ink-2);
     font-family: var(--font-mono); font-size: var(--t-small); line-height: 1.5;
     padding: 11px 16px; text-align: center;
   }
