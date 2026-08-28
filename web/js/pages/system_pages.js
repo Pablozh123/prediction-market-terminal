@@ -3,7 +3,7 @@
 // public/data/ when the API serves them, incl. their stand_utc stamp and note.
 
 import { esc, num, herkunftSatz, leerZeile, EINZAHLUNGEN_USD, offeneNichtDrin, stempelBlock } from '../util.js';
-import { caveatZeile, registerStand } from '../claims.js';
+import { caveat, caveatZeile, registerStand } from '../claims.js';
 import { stepKurve, diagramm, linien, kalibrierung, fmtZahl, serienFarbe, intervallMarke } from '../charts.js';
 import { renderMicrostructure } from './microstructure_page.js';
 
@@ -3126,6 +3126,24 @@ const KERNSATZ = {
   'AGENT LAYER GUARDRAILS': 'Read-only tools, capped rows, a skeptic that can only lower priority, mock backend by default.'
 };
 
+// Die vier Grundsaetze des taeglichen Laufs. Sie reisen als Textzeilen in
+// public/data/meta.json, geschrieben vom Lauf in einem anderen Repo, und drei
+// von ihnen hatten hier keinen Leser: sie standen auf keiner Seite. Jetzt
+// stehen sie im Register und damit im selben Wortlaut wie im Terminal. Die
+// Schluessel stehen einzeln da und nicht als Liste, damit
+// scripts/lint_claims.py jeden Aufruf sieht.
+function grundsaetzeHtml() {
+  const karte = (inhalt) =>
+    '<div style="' + KARTE + '; padding:14px 16px; font-size:13px; color:rgba(var(--ink),.72); line-height:1.6">' + inhalt + '</div>';
+  return '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:var(--info); margin:20px 0 10px">PRINCIPLES OF THE DAILY RUN</div>'
+    + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:12px">'
+    + karte(caveat('daily_run_descriptive'))
+    + karte(caveat('verification_not_signal'))
+    + karte(caveat('daily_run_no_advice'))
+    + karte(caveat('daily_run_privacy'))
+    + '</div>';
+}
+
 function renderMethodology(T, payload, study) {
   const note = payload && payload.hinweis ? payload.hinweis : study.note;
   const stats = buildStudyStats(7, payload) || [
@@ -3188,6 +3206,7 @@ function renderMethodology(T, payload, study) {
     ).join('')
     + '</div>'
     + (payload ? '' : '<div style="margin-top:12px">' + leerZeile(herkunftSatz(null, 'public/data/audit.json')) + '</div>')
+    + grundsaetzeHtml()
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:var(--info); margin:20px 0 10px">HOW THE STUDIES ARE MEASURED</div>'
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(380px, 1fr)); gap:12px">' + sektionen.join('') + '</div>'
     + queueArchivHtml(T)

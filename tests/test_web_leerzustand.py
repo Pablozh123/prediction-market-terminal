@@ -2244,5 +2244,44 @@ class WebPostmortemsKopfTest(unittest.TestCase):
         self.assertNotIn("No incidents published", text)
 
 
+class WebMethodikGrundsaetzeTest(unittest.TestCase):
+    """Die Grundsaetze des taeglichen Laufs stehen auf der Methodikseite.
+
+    Sie reisen als vier Textzeilen in public/data/meta.json. PR #116 hat
+    einen davon unter die Spalte RECOMMENDATION geholt; die drei anderen
+    hatten im Frontend weiterhin keinen Leser und standen damit auf keiner
+    Seite. Jetzt kommen alle vier aus dem Register, im selben Wortlaut, den
+    das Streamlit-Terminal zeigt.
+    """
+
+    SCHLUESSEL = ("daily_run_descriptive", "verification_not_signal",
+                  "daily_run_no_advice", "daily_run_privacy")
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.ausgabe = _harness_ausgabe()
+        from app import claims as _claims
+        cls.claims = _claims
+
+    def test_jeder_grundsatz_steht_mit_seinem_schluessel_auf_der_seite(self) -> None:
+        html = self.ausgabe["live"]["research_methodology"]
+        text = _sichtbarer_text(html)
+        self.assertIn("PRINCIPLES OF THE DAILY RUN", text)
+        for key in self.SCHLUESSEL:
+            with self.subTest(key=key):
+                self.assertIn('data-caveat="' + key + '"', html)
+                self.assertIn(self.claims.disclaimer(key, "en"), text)
+
+    def test_der_wortlaut_ist_der_der_publizierten_datei(self) -> None:
+        # Ein Register, das die Formulierung nebenbei aendert, hat den Satz
+        # nicht uebernommen, sondern ersetzt.
+        wurzel = Path(__file__).resolve().parents[1]
+        payload = json.loads((wurzel / "public" / "data" / "meta.json").read_text(encoding="utf-8"))
+        text = _sichtbarer_text(self.ausgabe["live"]["research_methodology"])
+        for zeile in payload.get("disclaimer") or []:
+            with self.subTest(zeile=zeile[:40]):
+                self.assertIn(str(zeile), text)
+
+
 if __name__ == "__main__":
     unittest.main()
