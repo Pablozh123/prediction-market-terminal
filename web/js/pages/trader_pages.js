@@ -2,7 +2,7 @@
 
 import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, tapeFenster, fensterSatz } from '../util.js';
 import { caveat, caveatZeile } from '../claims.js';
-import { scoreBand, bandChips, basisSatz } from '../risk_bands.js';
+import { scoreBand, bandChips, basisSatz, gemessenSatz } from '../risk_bands.js';
 import { renderClusterGraphics, clusterFarbe } from './cluster_graphics.js';
 import { punktwolke, histogramm, kurzGeld } from '../charts.js';
 
@@ -1248,6 +1248,11 @@ export function renderRisk(T) {
     + esc(String((live && live.score_name) || 'flow-pattern score').toUpperCase()) + ' · 0–100</span> '
     + esc(basisSatz(live)) + ' '
     + caveat('insider_score_unvalidated')
+    // Und dann: was STATTDESSEN gemessen wird, mit dem Weg dorthin. Ein
+    // Vorbehalt, der nur sagt, was fehlt, laesst den Leser ohne Anhalt; der
+    // Flag-Log misst eine andere Groesse (folgte der Preis der geflaggten
+    // Seite?) und tut es mit n und Intervall.
+    + ' ' + esc(gemessenSatz(live))
     + '</div>'
     + '<div style="display:flex; gap:7px; margin-top:12px; flex-wrap:wrap">'
     + bandChips(live)

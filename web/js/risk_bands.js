@@ -96,6 +96,24 @@ export function bandChips(live) {
 }
 
 /**
+ * Der Zeiger auf das, was UEBER den Screen tatsaechlich gemessen wird.
+ *
+ * Ein Vorbehalt, der nur sagt, was fehlt, laesst den Leser ohne Anhalt. Das
+ * Flag-Log misst eine andere Groesse als der Name des Scores nahelegt (folgte
+ * der Preis der geflaggten Seite?) und tut es mit n, Intervall und einem Wort
+ * zum Mehrfachvergleich. Die Groesse kommt aus score_validation der Antwort.
+ */
+export function gemessenSatz(live) {
+  const v = live && live.score_validation ? live.score_validation : null;
+  const groesse = v && v.measured_instead && v.measured_instead.quantity
+    ? v.measured_instead.quantity
+    : 'price of the flagged side at +30 min, +2 h and +24 h after the flag';
+  return 'The one outcome this screen does measure is on the Flag log tab, and it is a different '
+    + 'quantity: the ' + groesse + ', reported with n, a 95% interval and a note on how many '
+    + 'comparisons the flags come out of.';
+}
+
+/**
  * Eine Zeile darueber, was die Punkte sind: Merkmale, Kappen, Herkunft der
  * Gewichte. Kommt aus score_basis der Antwort; ohne Antwort steht der Satz,
  * der auch ohne Zahlen wahr ist.

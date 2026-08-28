@@ -237,6 +237,13 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("price &amp; timing", text)
         self.assertIn("wallet pattern", text)
         self.assertIn("ticks at 40 · 55 · 70 points", text)
+        # Der Kopf sagt, was die Zahl ist, was ueber sie NICHT gemessen wurde
+        # (Register) und wo die eine Groesse steht, die gemessen wird.
+        self.assertIn("9 flow features, each capped at a fixed number of points", text)
+        self.assertIn("no hit rate exists for it", text)
+        self.assertIn("The one outcome this screen does measure is on the Flag log tab", text)
+        self.assertIn("UNDER 40 PTS · FEW PATTERNS", text)
+        self.assertIn("70+ PTS · MOST PATTERNS", text)
         self.assertIn("7 more markets screened below 40/100 — watch only, no card.", text)
         # Ohne Antwort keine erfundene Zahl: Trichter mit "—", kein Zaehler.
         leer = _sichtbarer_text(self.ausgabe["leer"]["risk"])
