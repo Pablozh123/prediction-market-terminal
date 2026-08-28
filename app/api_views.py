@@ -16,6 +16,7 @@ from typing import Any, Callable, Mapping
 
 import pandas as pd
 
+from app import claims
 from app import perf_metrics as perf
 from app import quant
 from app import risk_log
@@ -39,6 +40,25 @@ RESEARCH_FILES = {
     # extras so the runs page needs no second request when the API answers.
     "wallet-ledger": "wallet_ledger",
 }
+
+
+def claims_payload(lang: str | None = None) -> dict[str, Any]:
+    """Das Caveat-Register als JSON, so wie /api/claims es ausliefert.
+
+    Die Oberflaeche traegt eine kompilierte Fassung des Registers mit sich
+    (web/js/claims_register.js), damit ein Vorbehalt vor der ersten Antwort
+    dasteht. Dieser Endpunkt ist die zweite Haelfte davon: eine Auslieferung,
+    die getrennt vom Frontend aktualisiert wird (Pages plus Railway), kann
+    hierueber eine neuere Fassung uebernehmen, und alles andere, was das
+    Register lesen will, muss dafuer nicht die YAML-Datei parsen.
+
+    ``surfaces`` reist mit: welche Datei welchen Eintrag zeigen muss, ist
+    Teil der Aussage des Registers und nicht nur Werkzeugwissen.
+    """
+
+    payload = claims.ui_register(lang)
+    payload["source"] = "data/claims.yaml"
+    return payload
 
 
 def _num(value: Any, default: float | None = None) -> float | None:
@@ -1566,7 +1586,10 @@ def risk_payload(
     high_events = sum(1 for e in events if e["sev"] == "high")
     high_wallets = sum(1 for w in wallets if w["score"] >= 70)
     return {
-        "disclaimer": "Best-effort screen on public trade data — research leads, not legal findings.",
+        # Aus dem Register, nicht aus dieser Datei: derselbe Satz steht auf
+        # der Risk-Seite, und zwei Fassungen desselben Vorbehalts sind eine
+        # Fassung zu viel (app/claims.py, data/claims.yaml screen_not_proof).
+        "disclaimer": claims.disclaimer("screen_not_proof", "en"),
         # Was der Screen gar nicht erst anschaut (susp.EXCLUDED_CONTEXTS):
         # Sportquoten, Wetter, Krypto/Marktpreise — dort gibt es nichts
         # frueher zu wissen, und die 15-Minuten-Kryptomaerkte waeren nur Rauschen.
