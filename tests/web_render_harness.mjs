@@ -612,6 +612,10 @@ function mitDaten(T) {
       // und +$18 aus den drei aufgeloesten: 30 Prozent auf den aufgeloesten
       // Einsatz, nicht 18 Prozent auf alles.
       monthly: [{ month: '2026-07', runs: 2, bets: 5, stake: 100, net: 18, settled_bets: 3, settled_stake: 60 }],
+      // Trefferquote mit 95-Prozent-Wilson-Spanne, wie
+      // api_views.live_runs_win_rate sie rechnet: 2 von 3 Bot-Maerkten des
+      // Ledgers gewonnen (worthless zaehlt als verloren).
+      win_rate: { source: 'wallet ledger', wins: 2, losses: 1, n: 3, p: 0.6667, ci95: [0.2077, 0.9385] },
       wallet_ledger: {
         hinweis: 'Harness ledger note.', stand_utc: '2026-08-17T01:02:03+00:00',
         wallet: '0x29afe1bf37700768a640a08f1b35dad5f202f88d', kennzeichnung: 'wallet/public-api',

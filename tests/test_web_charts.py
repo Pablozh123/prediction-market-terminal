@@ -177,6 +177,22 @@ class WebDiagrammTest(unittest.TestCase):
         # Ohne Lauf kein Diagramm.
         self.assertNotIn("RESULT PER CLOSED COPY", self.ausgabe["live"]["backtester"])
 
+    def test_live_runs_zeigt_die_trefferquote_mit_ihrer_spanne(self) -> None:
+        """Kein Diagramm, sondern eine Intervall-Marke.
+
+        Bei n unter etwa fuenfzig ist die Spanne die Information; eine
+        Verteilung ueber drei aufgeloeste Maerkte waere Zierrat.
+        """
+
+        html = self.ausgabe["live"]["runs_runs"]
+        self.assertIn("WIN RATE", html)
+        self.assertIn("95% 21% to 94%", html)
+        self.assertIn("wallet ledger", html)
+        # Die Marke traegt ihre Skala und ihren Text fuer Screenreader.
+        self.assertIn("win rate 67%, 95% Wilson interval 21% to 94%, n 3", html)
+        self.assertIn(">0%<", html)
+        self.assertIn(">100%<", html)
+
     def test_punktwolke_faerbt_keinen_text_mit_der_datenfarbe(self) -> None:
         """Text traegt Ink-Stufen, Marken tragen die Serienfarbe."""
 

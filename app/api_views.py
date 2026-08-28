@@ -2458,7 +2458,68 @@ def live_runs_extras(payload: Mapping[str, Any], publish_dir: Path | None = None
     ledger = wallet_ledger_payload(publish_dir)
     if ledger is not None:
         out["wallet_ledger"] = ledger
+    quote = live_runs_win_rate(payload, ledger)
+    if quote is not None:
+        out["win_rate"] = quote
     return out
+
+
+def live_runs_win_rate(
+    payload: Mapping[str, Any],
+    ledger: Mapping[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Trefferquote der Live-Laeufe mit 95-Prozent-Wilson-Intervall.
+
+    "25 zu 2" ist die angreifbarste Zahl des Portfolios, solange keine
+    Spanne danebensteht: bei n = 27 laesst dieselbe Quote noch viel Raum.
+    Wilson statt Normalapproximation, weil die Quote nahe an 1 liegt, wo
+    die Normalspanne ueber 100 Prozent hinauslaeuft.
+
+    Quelle ist das Wallet-Ledger, wenn es Bot-Maerkte kennt (wertlos
+    ausgelaufene zaehlen als verloren, wie auf der Seite), sonst das
+    Lauf-Aggregat aus runs.json. Welche der beiden es war, steht in
+    ``source``: die zwei Zaehlungen sind nicht dasselbe, und die Seite sagt
+    ohnehin schon, welche sie zeigt. Offene Maerkte gehen in keinen der
+    beiden Nenner, ein Ergebnis, das es noch nicht gibt, ist kein Verlust.
+    """
+
+    from app import quant
+
+    wins = losses = None
+    source = ""
+    events = (ledger or {}).get("events") if isinstance(ledger, Mapping) else None
+    if isinstance(events, list):
+        gewonnen = verloren = 0
+        for event in events:
+            for markt in (event or {}).get("maerkte", []) or []:
+                if _text(markt.get("zuordnung")) != "bot":
+                    continue
+                status = _text(markt.get("status"))
+                if status == "won":
+                    gewonnen += 1
+                elif status in ("lost", "worthless"):
+                    verloren += 1
+        if gewonnen + verloren:
+            wins, losses, source = gewonnen, verloren, "wallet ledger"
+    if wins is None:
+        agg = payload.get("aggregat") if isinstance(payload, Mapping) else None
+        if isinstance(agg, Mapping):
+            gewonnen = int(_num(agg.get("gewonnen"), 0.0) or 0)
+            verloren = int(_num(agg.get("verloren"), 0.0) or 0)
+            if gewonnen + verloren:
+                wins, losses, source = gewonnen, verloren, "run logs"
+    if wins is None:
+        return None
+    n = wins + losses
+    lo, hi = quant.wilson_interval(int(wins), int(n))
+    return {
+        "source": source,
+        "wins": int(wins),
+        "losses": int(losses),
+        "n": int(n),
+        "p": round(wins / n, 4),
+        "ci95": [round(float(lo), 4), round(float(hi), 4)],
+    }
 
 
 #: Where the published payloads live; api/server.py reads the same directory.

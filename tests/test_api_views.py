@@ -1501,6 +1501,44 @@ class TradePnlDistributionTests(unittest.TestCase):
         self.assertEqual(sum(b["anzahl"] for b in v["bins"]), 3)
         self.assertLess(v["bins"][0]["von"], v["bins"][-1]["bis"])
 
+class LiveRunsWinRateTests(unittest.TestCase):
+    """25 zu 2 ohne Spanne ist die angreifbarste Zahl des Portfolios."""
+
+    def _ledger(self, stati: list[str]) -> dict:
+        return {"events": [{"maerkte": [{"zuordnung": "bot", "status": s} for s in stati]}]}
+
+    def test_ledger_gewinnt_gegen_das_lauf_aggregat(self) -> None:
+        payload = {"aggregat": {"gewonnen": 25, "verloren": 2}}
+        quote = apv.live_runs_win_rate(payload, self._ledger(["won", "won", "lost"]))
+        self.assertEqual(quote["source"], "wallet ledger")
+        self.assertEqual((quote["wins"], quote["losses"], quote["n"]), (2, 1, 3))
+
+    def test_wertlos_zaehlt_als_verloren_offen_zaehlt_gar_nicht(self) -> None:
+        quote = apv.live_runs_win_rate({}, self._ledger(["won", "worthless", "open", "open"]))
+        self.assertEqual((quote["wins"], quote["losses"], quote["n"]), (1, 1, 2))
+
+    def test_ohne_ledger_faellt_es_auf_die_lauf_logs_zurueck(self) -> None:
+        quote = apv.live_runs_win_rate({"aggregat": {"gewonnen": 25, "verloren": 2}}, None)
+        self.assertEqual(quote["source"], "run logs")
+        self.assertEqual(quote["n"], 27)
+        self.assertAlmostEqual(quote["p"], 25 / 27, places=4)
+
+    def test_die_spanne_ist_wilson_und_bleibt_in_null_bis_eins(self) -> None:
+        from app import quant
+
+        quote = apv.live_runs_win_rate({"aggregat": {"gewonnen": 25, "verloren": 2}}, None)
+        lo, hi = quant.wilson_interval(25, 27)
+        self.assertEqual(quote["ci95"], [round(lo, 4), round(hi, 4)])
+        # Genau der Punkt: die Normalapproximation liefe hier ueber 100 Prozent.
+        self.assertLessEqual(quote["ci95"][1], 1.0)
+        self.assertGreaterEqual(quote["ci95"][0], 0.0)
+        self.assertLess(quote["ci95"][0], quote["p"])
+
+    def test_ohne_aufgeloeste_wette_keine_quote(self) -> None:
+        self.assertIsNone(apv.live_runs_win_rate({}, None))
+        self.assertIsNone(apv.live_runs_win_rate({"aggregat": {"gewonnen": 0, "verloren": 0}}, None))
+        self.assertIsNone(apv.live_runs_win_rate({}, self._ledger(["open"])))
+
 class RiskEventRowTests(unittest.TestCase):
     """The event card carries side, price, wallets, window, link and components — or honest gaps."""
 
