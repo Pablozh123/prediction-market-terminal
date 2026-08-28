@@ -292,13 +292,13 @@ class Terminal {
 
   // ---- shared UI atoms (styles verbatim from the reference) ----
   opt(label, active, patch) {
-    const style = "font-family:'IBM Plex Mono',monospace; font-size:var(--t-micro); border-radius:var(--r-control); padding:5px 9px; cursor:pointer; " + (active ? 'color:var(--on-accent); background:var(--accent); font-weight:600' : 'color:var(--ink-4); border:1px solid var(--line-1)');
+    const style = "font-family:var(--font-mono); font-size:var(--t-micro); border-radius:var(--r-control); padding:5px 9px; cursor:pointer; " + (active ? 'color:var(--on-accent); background:var(--accent); font-weight:600' : 'color:var(--ink-4); border:1px solid var(--line-1)');
     return '<div ' + this.act(typeof patch === 'function' ? patch : () => this.setState(patch))
       + ' aria-pressed="' + (active ? 'true' : 'false') + '" style="' + style + '">' + esc(label) + '</div>';
   }
 
   chip(label, active, patch) {
-    const style = "font-family:'IBM Plex Mono',monospace; font-size:var(--t-micro); letter-spacing:.06em; border-radius:var(--r-control); padding:5px 10px; cursor:pointer; " + (active ? 'color:var(--on-accent); background:var(--accent); font-weight:600' : 'color:var(--ink-4); border:1px solid var(--line-1)');
+    const style = "font-family:var(--font-mono); font-size:var(--t-micro); letter-spacing:.06em; border-radius:var(--r-control); padding:5px 10px; cursor:pointer; " + (active ? 'color:var(--on-accent); background:var(--accent); font-weight:600' : 'color:var(--ink-4); border:1px solid var(--line-1)');
     return '<div ' + this.act(typeof patch === 'function' ? patch : () => this.setState(patch))
       + ' aria-pressed="' + (active ? 'true' : 'false') + '" style="' + style + '">' + esc(label) + '</div>';
   }
@@ -323,8 +323,8 @@ class Terminal {
 
   stepper(valueLabel, onDown, onUp, size) {
     const s = size === 'lg';
-    const btn = 'width:' + (s ? 32 : 28) + 'px; height:' + (s ? 34 : 32) + 'px; flex:none; border:1px solid var(--line-1); border-radius:' + (s ? 8 : 7) + 'px; display:flex; align-items:center; justify-content:center; font-family:\'IBM Plex Mono\',monospace; font-size:' + (s ? 15 : 14) + 'px; color:var(--ink-2); cursor:pointer';
-    const val = 'flex:1; background:var(--panel); border:1px solid var(--line-1); border-radius:' + (s ? 8 : 7) + 'px; padding:' + (s ? '8px 12px' : '7px 8px') + '; font-family:\'IBM Plex Mono\',monospace; font-size:' + (s ? 13 : 12.5) + 'px; text-align:center';
+    const btn = 'width:' + (s ? 32 : 28) + 'px; height:' + (s ? 34 : 32) + 'px; flex:none; border:1px solid var(--line-1); border-radius:' + (s ? 8 : 7) + 'px; display:flex; align-items:center; justify-content:center; font-family:var(--font-mono); font-size:' + (s ? 15 : 14) + 'px; color:var(--ink-2); cursor:pointer';
+    const val = 'flex:1; background:var(--panel); border:1px solid var(--line-1); border-radius:' + (s ? 8 : 7) + 'px; padding:' + (s ? '8px 12px' : '7px 8px') + '; font-family:var(--font-mono); font-size:' + (s ? 13 : 12.5) + 'px; text-align:center';
     return '<div style="display:flex; align-items:center; gap:' + (s ? 8 : 6) + 'px">'
       + '<div ' + this.act(onDown) + ' class="hv-edge-max hv-white" style="' + btn + '">−</div>'
       + '<div style="' + val + '">' + esc(valueLabel) + '</div>'
@@ -332,7 +332,7 @@ class Terminal {
   }
 
   changeStyle(chg) {
-    return "font-family:'IBM Plex Mono',monospace; font-size:var(--t-body); text-align:right; color:" + (chg >= 0 ? 'var(--pos)' : 'var(--neg)');
+    return "font-family:var(--font-mono); font-size:var(--t-body); text-align:right; color:" + (chg >= 0 ? 'var(--pos)' : 'var(--neg)');
   }
 
   marketView(m) {
@@ -480,7 +480,7 @@ class Terminal {
     return {
       ago: t.ago, wallet: t.wallet, market: t.market, side: t.side, price: t.price,
       size: money(t.size), venue: t.venue, category: t.category || 'Other',
-      sideStyle: "font-family:'IBM Plex Mono',monospace; font-size:var(--t-small); color:" + (t.side.indexOf('BUY') === 0 ? 'var(--pos)' : 'var(--neg)'),
+      sideStyle: "font-family:var(--font-mono); font-size:var(--t-small); color:" + (t.side.indexOf('BUY') === 0 ? 'var(--pos)' : 'var(--neg)'),
       act: m ? this.act(() => this.openMarket(m.id)) : '',
       clickable: !!m
     };
@@ -491,8 +491,8 @@ class Terminal {
     return {
       kind: r.kind, score: r.score, market: r.market, detail: r.detail,
       wallets: r.wallets, notional: r.notional, window: r.window, venue: r.venue,
-      kindStyle: "font-family:'IBM Plex Mono',monospace; font-size:var(--t-micro); letter-spacing:.12em; color:" + (r.sev === 'high' ? 'var(--warn)' : r.sev === 'medium' ? 'var(--ink-3)' : 'var(--ink-3)'),
-      scoreStyle: "font-family:'IBM Plex Mono',monospace; font-size:var(--t-head); color:" + (r.sev === 'high' ? 'var(--warn)' : 'var(--ink-2)'),
+      kindStyle: "font-family:var(--font-mono); font-size:var(--t-micro); letter-spacing:.12em; color:" + (r.sev === 'high' ? 'var(--warn)' : r.sev === 'medium' ? 'var(--ink-3)' : 'var(--ink-3)'),
+      scoreStyle: "font-family:var(--font-mono); font-size:var(--t-head); color:" + (r.sev === 'high' ? 'var(--warn)' : 'var(--ink-2)'),
       // The card takes the focus but not the button role: it already holds the
       // market link and the WHY-this-score toggle, and a button around those
       // two announces as a button containing buttons.
@@ -506,7 +506,7 @@ class Terminal {
     const active = this.state.page === id;
     const style = 'display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 10px; border-radius:var(--r-control); cursor:pointer; margin-bottom:2px; border-left:2px solid ' + (active ? 'var(--accent)' : 'transparent') + '; background:' + (active ? 'rgba(var(--accent-rgb),.10)' : 'transparent');
     const labelStyle = 'font-size:var(--t-body); color:' + (active ? 'var(--text)' : 'var(--ink-3)') + '; font-weight:' + (active ? '600' : '400');
-    const badgeStyle = badge ? ("font-family:'IBM Plex Mono',monospace; font-size:var(--t-micro); padding:1px 6px; border-radius:var(--r-control); " + (badgeColor === 'amber' ? 'color:var(--warn); border:1px solid rgba(var(--warn-rgb),.4)' : 'color:var(--on-accent); background:var(--accent)')) : 'display:none';
+    const badgeStyle = badge ? ("font-family:var(--font-mono); font-size:var(--t-micro); padding:1px 6px; border-radius:var(--r-control); " + (badgeColor === 'amber' ? 'color:var(--warn); border:1px solid rgba(var(--warn-rgb),.4)' : 'color:var(--on-accent); background:var(--accent)')) : 'display:none';
     // A link, not a div: the router runs on the hash anyway, so the anchor
     // costs nothing and buys the tab stop, the link role, aria-current and
     // open-in-new-tab. go() still does the work — it resolves the deep
@@ -636,22 +636,22 @@ class Terminal {
     groups.push({ label: 'PAPER DESK', items: deskItems });
     const groupHtml = groups.map((g) =>
       '<div style="margin-bottom:14px">'
-      + '<div style="font-family:\'IBM Plex Mono\',monospace; font-size:var(--t-micro); letter-spacing:.18em; padding:0 6px 6px; color:var(--ink-4)">' + g.label + '</div>'
+      + '<div style="font-family:var(--font-mono); font-size:var(--t-micro); letter-spacing:.18em; padding:0 6px 6px; color:var(--ink-4)">' + g.label + '</div>'
       + g.items.join('') + '</div>'
     ).join('');
     // Footer: repository, the read-only statement, and the wallet the live
     // runs were placed from. The paper-equity box that stood here reported a
     // missing paper account on the public host — a box about a thing that
     // does not exist there.
-    const foot = "font-family:'IBM Plex Mono',monospace; font-size:var(--t-micro); line-height:1.7; color:var(--ink-3)";
+    const foot = "font-family:var(--font-mono); font-size:var(--t-micro); line-height:1.7; color:var(--ink-3)";
     const runsIdx = this.studies.findIndex((st) => st.tab === 'Live runs');
     return ''
       + '<div style="display:flex; align-items:center; gap:9px; padding:0 6px 18px">'
       + '<div style="width:10px; height:10px; background:var(--accent); transform:rotate(45deg)"></div>'
-      + '<div style="font-family:\'IBM Plex Mono\',monospace; font-size:var(--t-body); font-weight:600; letter-spacing:.1em; text-transform:uppercase">Market Intel</div></div>'
+      + '<div style="font-family:var(--font-mono); font-size:var(--t-body); font-weight:600; letter-spacing:.1em; text-transform:uppercase">Market Intel</div></div>'
       + '<div ' + this.act(() => this.setState({ searchOpen: true })) + ' class="hv-edge" style="display:flex; align-items:center; gap:8px; background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-control); padding:9px 10px; cursor:pointer; margin-bottom:18px">'
-      + '<div style="font-family:\'IBM Plex Mono\',monospace; font-size:var(--t-small); color:var(--ink-3); flex:1">Search</div>'
-      + '<div style="font-family:\'IBM Plex Mono\',monospace; font-size:var(--t-micro); color:var(--ink-4); border:1px solid var(--line-1); border-radius:var(--r-control); padding:0 5px">/</div></div>'
+      + '<div style="font-family:var(--font-mono); font-size:var(--t-small); color:var(--ink-3); flex:1">Search</div>'
+      + '<div style="font-family:var(--font-mono); font-size:var(--t-micro); color:var(--ink-4); border:1px solid var(--line-1); border-radius:var(--r-control); padding:0 5px">/</div></div>'
       + groupHtml
       + '<div style="margin-top:auto; padding-top:16px; border-top:1px solid var(--line-2)">'
       + '<div style="' + foot + '"><a href="' + REPO_URL + '" target="_blank" rel="noopener">github.com/Pablozh123/prediction-market-terminal</a></div>'
@@ -687,13 +687,13 @@ class Terminal {
     return ''
       + '<div style="display:flex; align-items:center; gap:10px">'
       + '<span style="width:7px; height:7px; border-radius:50%; background:' + liveDot + '; display:inline-block"></span>'
-      + '<span style="font-family:\'IBM Plex Mono\',monospace; font-size:var(--t-micro); letter-spacing:.16em; color:var(--ink-3)">' + liveLabel + ' · ' + s.clock + ' UTC</span></div>'
+      + '<span style="font-family:var(--font-mono); font-size:var(--t-micro); letter-spacing:.16em; color:var(--ink-3)">' + liveLabel + ' · ' + s.clock + ' UTC</span></div>'
       + '<div style="display:flex; align-items:center; gap:14px">'
-      + '<div style="font-family:\'IBM Plex Mono\',monospace; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-4)">MICROSTRUCTURE, MEASURED · READ-ONLY · NO ORDERS</div>'
+      + '<div style="font-family:var(--font-mono); font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-4)">MICROSTRUCTURE, MEASURED · READ-ONLY · NO ORDERS</div>'
       // The chip names the theme it switches TO, like every other control
       // here names its action. Colours are CSS custom properties, so the
       // flip repaints without a re-render; only this label needs state.
-      + '<div ' + this.act(() => this.toggleTheme()) + ' aria-label="Switch to ' + (s.theme === 'light' ? 'dark' : 'light') + ' theme" class="hv-edge-strong" style="font-family:\'IBM Plex Mono\',monospace; font-size:var(--t-micro); letter-spacing:.08em; border:1px solid var(--line-1); border-radius:var(--r-control); padding:4px 9px; cursor:pointer; color:var(--ink-2); user-select:none">'
+      + '<div ' + this.act(() => this.toggleTheme()) + ' aria-label="Switch to ' + (s.theme === 'light' ? 'dark' : 'light') + ' theme" class="hv-edge-strong" style="font-family:var(--font-mono); font-size:var(--t-micro); letter-spacing:.08em; border:1px solid var(--line-1); border-radius:var(--r-control); padding:4px 9px; cursor:pointer; color:var(--ink-2); user-select:none">'
       + (s.theme === 'light' ? 'DARK' : 'LIGHT') + '</div></div>';
   }
 
