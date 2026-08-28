@@ -525,8 +525,8 @@ function registerZeile() {
   if (!stand.eintraege) return '';
   const quelle = stand.quelle === 'api' ? 'from /api/claims' : 'compiled from data/claims.yaml';
   return '<div style="padding:0 24px 30px; ' + M + '; font-size:10px; color:rgba(var(--ink),.55)">'
-    + 'caveat register v' + esc(stand.version) + (stand.updated ? ' \u00b7 ' + esc(stand.updated) : '')
-    + ' \u00b7 ' + esc(quelle) + ' \u00b7 ' + esc(stand.eintraege) + ' entries</div>';
+    + 'caveat register v' + esc(stand.version) + (stand.updated ? ' · ' + esc(stand.updated) : '')
+    + ' · ' + esc(quelle) + ' · ' + esc(stand.eintraege) + ' entries</div>';
 }
 
 // ---------------------------------------------------------------- research
