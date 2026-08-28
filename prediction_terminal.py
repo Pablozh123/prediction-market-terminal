@@ -9921,6 +9921,17 @@ def render_copy_command_center(
             profile_cols[0].metric("Account Created", created_label)
             profile_cols[1].metric("Tony Equity Est.", money(dynamic_sizing.get("tony_visible_equity", 0.0)))
             profile_cols[2].metric("P95 Position", money(dynamic_sizing.get("tony_p95_market_position", 0.0)), pct(dynamic_sizing.get("tony_p95_market_position_pct")))
+            # Schlaegt der Abruf fehl, behaelt der Copier den letzten
+            # erfolgreichen Stand. Ohne diesen Satz stuenden die alten Zahlen
+            # unter derselben Ueberschrift wie frische.
+            stats_error = str(dynamic_sizing.get("tony_wallet_stats_error", "") or "")
+            if stats_error:
+                stats_at = str(dynamic_sizing.get("tony_wallet_stats_updated_at", "") or "")
+                st.caption(
+                    "Cash, equity and the position percentiles above are the last successful read"
+                    + (f" ({stats_at})" if stats_at else "")
+                    + f"; the current refresh did not go through: {stats_error}"
+                )
     with hero_right:
         with st.container(border=True):
             chart_head, chart_window = st.columns([1.2, 1])

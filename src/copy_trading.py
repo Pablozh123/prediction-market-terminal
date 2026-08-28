@@ -3769,12 +3769,33 @@ def _fetch_wallet_position_value(wallet: str) -> float:
 
 
 def _fetch_polygon_usdc_balance(wallet: str, rpc_url: str = POLYGON_RPC_URL) -> float:
+    """USDC der Wallet auf Polygon, ueber beide Kontrakte summiert.
+
+    Hier stand ``except Exception: continue``. Antwortete der RPC nicht, kam
+    0.0 zurueck, und zwar ohne Fehler: die Wallet-Seite schrieb "Cash balance
+    $0" ueber ein finanziertes Konto, und in ``fetch_tony_wallet_stats`` fiel
+    dieselbe Null in ``visible_equity``, womit jeder Prozentsatz einer
+    Position am sichtbaren Vermoegen zu gross wurde -- und genau die steuern
+    die Positionsgroesse des Copiers.
+
+    Eine Teilsumme waere derselbe Fehler in kleiner. Antwortet einer der
+    Kontrakte nicht, ist der Kassenstand unbekannt und wird als Fehler
+    gemeldet; die Aufrufer entscheiden dann, ob sie den letzten bekannten
+    Stand behalten oder einen Strich anzeigen.
+    """
+
     total = 0.0
+    fehler: list[str] = []
     for contract in POLYGON_USDC_CONTRACTS:
         try:
             total += _erc20_balance_of(rpc_url, contract, wallet, decimals=6)
-        except Exception:
-            continue
+        except Exception as exc:  # noqa: BLE001 - jede Transportstoerung zaehlt gleich
+            fehler.append(f"{contract[:10]}: {type(exc).__name__}: {exc}")
+    if fehler:
+        raise md.MarketDataError(
+            f"polygon USDC balance for {wallet[:10]}: {len(fehler)} of {len(POLYGON_USDC_CONTRACTS)} "
+            f"contract calls did not answer ({'; '.join(fehler)})"
+        )
     return total
 
 
@@ -3789,7 +3810,12 @@ def _erc20_balance_of(rpc_url: str, contract: str, wallet: str, decimals: int = 
         "eth_call",
         [{"to": contract, "data": "0x70a08231" + address}, "latest"],
     )
-    return int(str(result or "0x0"), 16) / (10**decimals)
+    # Eine leere Antwort ("0x") ist die Antwort eines Kontrakts ohne Guthaben
+    # und kein Transportfehler; sie darf den Aufruf nicht scheitern lassen.
+    roh = str(result or "0x0").strip()
+    if roh in {"", "0x", "0X"}:
+        return 0.0
+    return int(roh, 16) / (10**decimals)
 
 
 def _get_position(conn: sqlite3.Connection, wallet: str, asset: str) -> sqlite3.Row | None:

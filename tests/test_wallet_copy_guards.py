@@ -387,6 +387,52 @@ class KontoStatistikTests(unittest.TestCase):
         self.assertIsNone(unbekannt["exposure"])
 
 
+class KassenAbfrageTests(unittest.TestCase):
+    """Ein stummer RPC ist kein Kassenstand von null.
+
+    ``_fetch_polygon_usdc_balance`` summierte ueber beide USDC-Kontrakte und
+    hatte ``except Exception: continue`` je Kontrakt. Antwortete keiner, kam
+    0.0 zurueck, ohne Fehler: die Wallet-Seite schrieb "Cash balance $0", und
+    in ``fetch_tony_wallet_stats`` sank dasselbe Null in ``visible_equity``,
+    womit jeder Positions-Prozentsatz zu gross wurde, den die dynamische
+    Positionsgroesse liest.
+    """
+
+    WALLET = WALLETS[0]
+
+    def test_a_dead_rpc_raises_instead_of_answering_zero(self) -> None:
+        from src import prediction_markets as md
+
+        with patch("src.copy_trading._rpc_call", side_effect=RuntimeError("rpc unavailable")):
+            with self.assertRaises(md.MarketDataError) as ctx:
+                ct.fetch_polygon_usdc_balance(self.WALLET)
+        self.assertIn("did not answer", str(ctx.exception))
+
+    def test_one_dead_contract_of_two_is_also_unknown_not_partial(self) -> None:
+        from src import prediction_markets as md
+
+        antworten = {"n": 0}
+
+        def rpc(_url, _method, _params):
+            antworten["n"] += 1
+            if antworten["n"] == 1:
+                return hex(2_500_000_000)
+            raise RuntimeError("rpc unavailable")
+
+        with patch("src.copy_trading._rpc_call", side_effect=rpc):
+            with self.assertRaises(md.MarketDataError):
+                ct.fetch_polygon_usdc_balance(self.WALLET)
+
+    def test_an_answering_rpc_still_sums_both_contracts(self) -> None:
+        with patch("src.copy_trading._rpc_call", return_value=hex(1_250_000)):
+            gesamt = ct.fetch_polygon_usdc_balance(self.WALLET)
+        self.assertAlmostEqual(gesamt, 1.25 * len(ct.POLYGON_USDC_CONTRACTS))
+
+    def test_an_empty_result_is_a_zero_balance_not_a_failure(self) -> None:
+        with patch("src.copy_trading._rpc_call", return_value="0x"):
+            self.assertAlmostEqual(ct.fetch_polygon_usdc_balance(self.WALLET), 0.0)
+
+
 class GewinnerRandTests(unittest.TestCase):
     """Die Trefferquote der Bestenliste liest beide Enden, nicht nur eines.
 

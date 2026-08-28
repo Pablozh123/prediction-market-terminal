@@ -332,7 +332,7 @@ export function renderSearch(T) {
   const remoteMaerkte = remote ? remote.markets.filter((m) => !lokaleIds[m.id]).slice(0, 7) : [];
   const searchMarkets = lokaleMaerkte.concat(remoteMaerkte).map(marketRow);
   const searchTraders = T.traders.filter((t) => !q || t.name.toLowerCase().indexOf(q) >= 0).slice(0, 3).map((t) => ({
-    tag: 'WALLET', title: t.name, meta: t.wallet + (t.score != null ? ' · smart score ' + t.score : ''), value: money(t.pnl),
+    tag: 'WALLET', title: t.name, meta: t.wallet + (t.score != null ? ' · smart score ' + t.score : ''), value: t.pnl != null ? money(t.pnl) : '—',
     tagStyle: M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--on-accent); background:var(--info); border-radius:var(--r-control); padding:3px 6px',
     act: T.act(() => { T.setState({ searchOpen: false, searchQuery: '' }); T.openWallet(t.name); })
   }));
