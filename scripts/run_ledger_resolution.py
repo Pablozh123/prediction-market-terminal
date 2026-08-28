@@ -70,6 +70,15 @@ def resolve_once() -> tuple[int, bool]:
             "resolved": int(stats["resolved"]),
             "pending": int(stats["pending"]),
             "not_resolvable": int(stats["not_resolvable"]),
+            # Trefferquote nie ohne ihre Stichprobe: decisive zaehlt
+            # Signalzeilen, decisive_units die unabhaengigen Aufloesungen,
+            # und das Intervall haengt an den Units.
+            "decisive": int(stats["decisive"]),
+            "decisive_units": int(stats["decisive_units"]),
+            "hit_rate": stats["hit_rate"],
+            "hit_rate_units": stats["hit_rate_units"],
+            "hit_rate_ci95": stats["hit_rate_ci95"],
+            "repeat_factor": stats["repeat_factor"],
         }
     )
     return int(new_resolved), bool(stats["chain_ok"])
