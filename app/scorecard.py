@@ -107,7 +107,17 @@ def _smart_block(row: Mapping[str, Any] | None) -> dict[str, Any] | None:
     score = row.get("copy_smart_score")
     if score is None or (isinstance(score, float) and score != score):
         return None
-    return {"copy_smart_score": float(score), "copy_grade": str(row.get("copy_grade", "") or "")}
+    # Dieselbe Zahl UND dieselbe Einschraenkung wie auf dem Leaderboard: auf
+    # der oeffentlichen Leaderboard-Antwort ruhen vier der sechs Bestandteile
+    # auf einem Ersatzwert (copy_trading.rank_traders_by_smart_score setzt
+    # das in copy_score_imputed). Eine Oberflaeche, die den Score ohne diesen
+    # Hinweis zeigt, zeigt eine Konstante als Messung.
+    imputed = [name.strip() for name in str(row.get("copy_score_imputed") or "").split(",") if name.strip()]
+    return {
+        "copy_smart_score": float(score),
+        "copy_grade": str(row.get("copy_grade", "") or ""),
+        "imputed_components": imputed,
+    }
 
 
 def _risk_block(row: Mapping[str, Any] | None) -> dict[str, Any] | None:

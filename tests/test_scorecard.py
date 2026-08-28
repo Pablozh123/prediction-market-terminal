@@ -76,7 +76,7 @@ class ScorecardShapeTests(unittest.TestCase):
         self.assertEqual(card["calibration"]["n"], 32)
         self.assertEqual(card["realized_edge"]["n_events"], 32)
         self.assertIsNotNone(card["attribution"])
-        self.assertEqual(card["smart"], {"copy_smart_score": 71.0, "copy_grade": "B"})
+        self.assertEqual(card["smart"], {"copy_smart_score": 71.0, "copy_grade": "B", "imputed_components": []})
         self.assertEqual(
             card["risk"],
             {"wallet_insider_score": 44.0, "risk_level": "Medium", "flags": ["late burst"]},
@@ -140,7 +140,7 @@ class ScorecardPartialFailureTests(unittest.TestCase):
         self.assertIn("feed down", card["errors"]["resolved"])
         self.assertEqual(card["track"]["resolved_markets"], 0)
         self.assertEqual(card["sample"]["quality"], "insufficient")
-        self.assertEqual(card["smart"], {"copy_smart_score": 60.0, "copy_grade": "C"})
+        self.assertEqual(card["smart"], {"copy_smart_score": 60.0, "copy_grade": "C", "imputed_components": []})
 
     def test_smart_failure_keeps_resolved_parts(self):
         def broken_smart(wallet):
@@ -201,7 +201,15 @@ class BlockMappingTests(unittest.TestCase):
         self.assertIsNone(sc._smart_block({"copy_smart_score": float("nan")}))
         self.assertEqual(
             sc._smart_block({"copy_smart_score": 88, "copy_grade": "A", "extra": 1}),
-            {"copy_smart_score": 88.0, "copy_grade": "A"},
+            {"copy_smart_score": 88.0, "copy_grade": "A", "imputed_components": []},
+        )
+        # Die Ersatzwerte des Composite reisen mit: dieselbe Zahl UND
+        # dieselbe Einschraenkung wie auf dem Leaderboard.
+        self.assertEqual(
+            sc._smart_block({"copy_smart_score": 73, "copy_grade": "B",
+                             "copy_score_imputed": "copy_win_score,copy_recency_score"}),
+            {"copy_smart_score": 73.0, "copy_grade": "B",
+             "imputed_components": ["copy_win_score", "copy_recency_score"]},
         )
 
     def test_risk_block_normalizes_flags_and_level(self):

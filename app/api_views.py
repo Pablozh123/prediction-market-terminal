@@ -361,12 +361,15 @@ def leaderboard_rows(leaderboard: pd.DataFrame, ranked: pd.DataFrame | None = No
         return []
     score_by_wallet: dict[str, dict[str, Any]] = {}
     if ranked is not None and not ranked.empty and "wallet" in ranked:
+        cohort_n = int(len(ranked))
         for _, row in ranked.iterrows():
+            parts = score_parts(row)
             score_by_wallet[_text(row.get("wallet")).lower()] = {
                 "score": _num(row.get("copy_smart_score")),
                 "grade": _text(row.get("copy_grade")),
                 "reason": _text(row.get("copy_rank_reason")),
-                "parts": score_parts(row),
+                "parts": parts,
+                "basis": score_basis(parts, cohort_n),
             }
     rows: list[dict[str, Any]] = []
     for _, row in leaderboard.iterrows():
@@ -386,6 +389,9 @@ def leaderboard_rows(leaderboard: pd.DataFrame, ranked: pd.DataFrame | None = No
             # Die Bestandteile des Scores als Liste, damit das Frontend sie
             # beschriftet zeigt statt den rohen Begruendungs-String zu leaken.
             "score_parts": smart.get("parts") or [],
+            # Worauf der Score ruht: welcher Anteil seines Gewichts gemessen
+            # ist und welcher aus einem Ersatzwert stammt.
+            "score_basis": smart.get("basis") or None,
         })
     return rows
 
@@ -403,12 +409,17 @@ SCORE_PART_COLUMNS = (
 
 
 def score_parts(row: Mapping[str, Any]) -> list[dict[str, Any]]:
-    """Score-Bestandteile einer Ranked-Zeile als ``[{label, value, weight}]``.
+    """Score-Bestandteile einer Ranked-Zeile als ``[{label, value, weight, imputed}]``.
 
     Nur Spalten, die wirklich da sind — fehlt eine, fehlt sie in der Liste,
-    statt als 0 zu erscheinen.
+    statt als 0 zu erscheinen. ``imputed`` sagt, ob der Wert aus echten
+    Eingaben stammt oder aus dem Ersatzwert, den
+    ``copy_trading.rank_traders_by_smart_score`` in ``copy_score_imputed``
+    vermerkt; ein Ersatzwert ist fuer jede Wallet dieselbe Konstante und darf
+    in der Oberflaeche nicht als Messung erscheinen.
     """
 
+    imputed_columns = {name.strip() for name in _text(row.get("copy_score_imputed")).split(",") if name.strip()}
     parts: list[dict[str, Any]] = []
     for column, label, weight in SCORE_PART_COLUMNS:
         try:
@@ -417,8 +428,36 @@ def score_parts(row: Mapping[str, Any]) -> list[dict[str, Any]]:
             value = None
         if value is None:
             continue
-        parts.append({"label": label, "value": round(value), "weight": weight})
+        parts.append({
+            "label": label,
+            "value": round(value),
+            "weight": weight,
+            "imputed": column in imputed_columns,
+        })
     return parts
+
+
+def score_basis(parts: list[dict[str, Any]], cohort_n: int = 0) -> dict[str, Any]:
+    """Wie viel Gewicht des Composite gemessen ist und wie viel geschaetzt.
+
+    Der Score bleibt der Score aus ``rank_traders_by_smart_score``; hier wird
+    nur benannt, worauf er ruht. Auf der oeffentlichen Leaderboard-Antwort
+    sind das 0.45 gemessen (Rendite und Volumen) gegen 0.55 geschaetzt.
+
+    ``cohort_n`` ist die Zahl der gemeinsam bewerteten Wallets. Das ist das n
+    dieses Scores: der Volumen-Bestandteil ist eine Log-Skala gegen das
+    95.-Perzentil derselben Menge (``copy_trading._log_score``), also haengt
+    er von der Groesse der Menge ab und ist keine wallet-eigene Messung.
+    """
+
+    measured = round(sum(float(p.get("weight") or 0.0) for p in parts if not p.get("imputed")), 4)
+    imputed = round(sum(float(p.get("weight") or 0.0) for p in parts if p.get("imputed")), 4)
+    return {
+        "measured_weight": measured,
+        "imputed_weight": imputed,
+        "imputed": [str(p.get("label")) for p in parts if p.get("imputed")],
+        "cohort_n": int(max(0, cohort_n)),
+    }
 
 
 #: Wie viele Trades der Wallet-Seite im Aktivitaetsblock stehen und wie viele

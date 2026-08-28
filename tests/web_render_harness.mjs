@@ -199,7 +199,14 @@ function mitDaten(T) {
   T.traders = [{
     name: 'w1', wallet: '0xab…c', walletFull: '0xabc', pnl: 12000, win: null,
     resolved: null, vol: 90000, score: 71, grade: 'B', scoreN: null, scoreCi: null, sampleBadge: null,
-    scoreParts: [{ label: 'return', value: 90, weight: 0.35 }, { label: 'sharpe proxy', value: 60, weight: 0.2 }, { label: 'volume', value: 80, weight: 0.1 }],
+    // "win" traegt den Ersatzwert 50, den rank_traders_by_smart_score setzt,
+    // wenn der Feed keine Trefferquote hat (imputed: true). Er darf nicht als
+    // gemessene Zahl erscheinen.
+    scoreParts: [{ label: 'return', value: 90, weight: 0.35, imputed: false },
+      { label: 'sharpe proxy', value: 60, weight: 0.2, imputed: false },
+      { label: 'win', value: 50, weight: 0.1, imputed: true },
+      { label: 'volume', value: 80, weight: 0.1, imputed: false }],
+    scoreBasis: { measured_weight: 0.65, imputed_weight: 0.35, imputed: ['win'], cohort_n: 250 },
     tags: 'return 90, sharpe-proxy 60, drawdown-proxy 100, win 55, recency 50, volume 80'
   }];
   T.herkunft.traders = { quelle: 'live' };

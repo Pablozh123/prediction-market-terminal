@@ -1139,6 +1139,47 @@ class TraderDiscoveryTests(unittest.TestCase):
         self.assertGreaterEqual(float(ranked.iloc[0]["copy_smart_score"]), float(ranked.iloc[1]["copy_smart_score"]))
         self.assertIn("return", str(ranked.iloc[0]["copy_rank_reason"]))
 
+    def test_smart_score_marks_components_without_input_as_imputed(self) -> None:
+        """Auf der oeffentlichen Leaderboard-Antwort sind vier Bestandteile Konstanten.
+
+        get_polymarket_leaderboard liefert nur rank/trader/wallet/pnl/volume.
+        Ohne Trefferquote, Positionszahlen und Aktivitaet faellt der Score auf
+        Ersatzwerte zurueck: drawdown 100, win 50, recency 50, und der
+        Stichprobenfaktor 0.25 deckelt den Sharpe-Proxy bei 21.2. Das sind
+        fuer jede Wallet dieselben Zahlen — sie trennen keine Wallet von einer
+        anderen und muessen als geschaetzt gekennzeichnet sein.
+        """
+
+        feed = pd.DataFrame([
+            {"rank": 1, "trader": "alpha", "wallet": "0xa", "pnl": 900_000.0, "volume": 3_000_000.0},
+            {"rank": 2, "trader": "beta", "wallet": "0xb", "pnl": 20_000.0, "volume": 8_000_000.0},
+        ])
+        ranked = ct.rank_traders_by_smart_score(feed)
+
+        self.assertEqual(ranked["copy_drawdown_proxy"].tolist(), [100.0, 100.0])
+        self.assertEqual(ranked["copy_win_score"].tolist(), [50.0, 50.0])
+        self.assertEqual(ranked["copy_recency_score"].tolist(), [50.0, 50.0])
+        for eintrag in ranked["copy_score_imputed"].tolist():
+            self.assertEqual(
+                set(str(eintrag).split(",")),
+                {"copy_sharpe_proxy", "copy_drawdown_proxy", "copy_win_score", "copy_recency_score"})
+
+    def test_smart_score_keeps_enriched_components_measured(self) -> None:
+        """Mit echten Eingaben bleibt kein Bestandteil als geschaetzt markiert."""
+
+        angereichert = _leaderboard_df().assign(
+            recent_trades=[12, 3, 20, 1, 50],
+            recent_notional=[5000.0, 2000.0, 4000.0, 100.0, 10000.0],
+            trades_per_hour=[1.5, 0.2, 2.0, 0.1, 8.0],
+            positions_value=[2500.0, 80000.0, 0.0, 50.0, 5000.0],
+            cash_balance=[2500.0, 10000.0, 0.0, 50.0, 5000.0],
+            closed_positions=[40, 30, 20, 5, 100],
+            win_rate=[0.62, 0.55, 0.48, 0.30, 0.51],
+            bot_score=[10, 20, 5, 0, 95],
+        )
+        ranked = ct.rank_traders_by_smart_score(angereichert)
+        self.assertTrue((ranked["copy_score_imputed"] == "").all(), ranked["copy_score_imputed"].tolist())
+
     def test_rank_traders_by_smart_score_pushes_negative_returns_down_when_allowed(self) -> None:
         ranked = ct.rank_traders_by_smart_score(_leaderboard_df(), require_positive_roi=False, min_volume=1000.0)
 

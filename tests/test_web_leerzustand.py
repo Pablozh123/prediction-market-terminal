@@ -838,7 +838,8 @@ class WebLeerzustandTest(unittest.TestCase):
         # Auch das Detailpanel und die Suche leaken den String nicht.
         detail = _sichtbarer_text(self.ausgabe["live"]["_detail_wallet"])
         self.assertNotIn("return 90, sharpe-proxy 60", detail)
-        self.assertIn("score components: return 90 · sharpe proxy 60 · volume 80", detail)
+        # Auch in der Schublade zeigt ein geschaetzter Bestandteil keine Zahl.
+        self.assertIn("score components: return 90 · sharpe proxy 60 · win assumed · volume 80", detail)
         suche = _sichtbarer_text(self.ausgabe["live"]["_suche"])
         self.assertNotIn("sharpe-proxy", suche)
 
@@ -1907,6 +1908,24 @@ class WebLeerzustandTest(unittest.TestCase):
         # Cash events / positions carry a trader column and stay honest when empty.
         self.assertIn("No cash events reported by /api/copy", _sichtbarer_text(self.ausgabe["live"]["copy_cash"]))
         self.assertIn("No open paper positions reported by /api/copy", _sichtbarer_text(self.ausgabe["live"]["copy_positions"]))
+
+    def test_leaderboard_zeigt_geschaetzte_score_teile_nicht_als_zahl(self) -> None:
+        """Ein Bestandteil ohne Eingabe im Feed erscheint als "assumed", nicht als Wert.
+
+        Der Feed traegt fuer die meisten Wallets keine Trefferquote, also
+        setzt der Score dort 50 ein — fuer jede Wallet dieselbe Zahl. Als
+        Zahl neben der Wallet las sich das wie eine Messung dieser Wallet.
+        """
+
+        text = _sichtbarer_text(self.ausgabe["live"]["traders"])
+        self.assertIn("win assumed", text)
+        self.assertNotIn("win 50", text)
+        # Die gemessenen Bestandteile behalten ihre Zahl.
+        self.assertIn("return 90", text)
+        self.assertIn("volume 80", text)
+        # Und die Seite sagt, worauf der Score ruht, samt Groesse der Menge.
+        self.assertIn("65% of the composite weight", text)
+        self.assertIn("n = 250 wallets ranked together", text)
 
 
 if __name__ == "__main__":

@@ -1131,8 +1131,49 @@ class ScorePartsTests(unittest.TestCase):
 
     def test_score_parts_skips_missing_columns(self) -> None:
         parts = apv.score_parts({"copy_return_score": 12.6, "copy_win_score": None})
-        self.assertEqual(parts, [{"label": "return", "value": 13, "weight": 0.35}])
+        self.assertEqual(parts, [{"label": "return", "value": 13, "weight": 0.35, "imputed": False}])
         self.assertEqual(apv.score_parts({}), [])
+
+    def test_score_parts_marken_ersatzwerte_als_nicht_gemessen(self) -> None:
+        """Ein Bestandteil ohne Eingabe im Feed ist fuer jede Wallet dieselbe Konstante.
+
+        Die oeffentliche Leaderboard-Antwort traegt nur pnl und volume
+        (prediction_markets.get_polymarket_leaderboard), also setzt
+        rank_traders_by_smart_score win/recency/drawdown/sharpe auf einen
+        Ersatzwert und vermerkt das in copy_score_imputed. Die Oberflaeche
+        darf diese Zahlen nicht als Messung zeigen.
+        """
+
+        row = {
+            "copy_return_score": 100.0, "copy_sharpe_proxy": 21.2, "copy_drawdown_proxy": 100.0,
+            "copy_win_score": 50.0, "copy_recency_score": 50.0, "copy_volume_score": 90.0,
+            "copy_score_imputed": "copy_sharpe_proxy,copy_drawdown_proxy,copy_win_score,copy_recency_score",
+        }
+        parts = apv.score_parts(row)
+        geschaetzt = {p["label"] for p in parts if p["imputed"]}
+        self.assertEqual(geschaetzt, {"sharpe proxy", "drawdown proxy", "win", "recency"})
+        gemessen = {p["label"] for p in parts if not p["imputed"]}
+        self.assertEqual(gemessen, {"return", "volume"})
+
+        basis = apv.score_basis(parts, cohort_n=250)
+        self.assertAlmostEqual(basis["measured_weight"], 0.45)
+        self.assertAlmostEqual(basis["imputed_weight"], 0.55)
+        self.assertEqual(basis["cohort_n"], 250)
+        self.assertEqual(basis["imputed"], ["sharpe proxy", "drawdown proxy", "win", "recency"])
+
+    def test_leaderboard_rows_tragen_die_score_basis(self) -> None:
+        lb = pd.DataFrame([{"trader": "Theo4", "wallet": "0xAAA1111111111111111111", "pnl": 1000.0, "volume": 50000.0}])
+        ranked = pd.DataFrame([{
+            "wallet": "0xaaa1111111111111111111", "copy_smart_score": 73.0, "copy_grade": "B",
+            "copy_return_score": 100.0, "copy_sharpe_proxy": 21.2, "copy_drawdown_proxy": 100.0,
+            "copy_win_score": 50.0, "copy_recency_score": 50.0, "copy_volume_score": 90.0,
+            "copy_score_imputed": "copy_sharpe_proxy,copy_drawdown_proxy,copy_win_score,copy_recency_score",
+        }])
+        basis = apv.leaderboard_rows(lb, ranked)[0]["score_basis"]
+        self.assertAlmostEqual(basis["measured_weight"], 0.45)
+        self.assertEqual(basis["cohort_n"], 1)
+        # Eine Zeile ohne Ranked-Treffer traegt keine erfundene Basis.
+        self.assertIsNone(apv.leaderboard_rows(lb, None)[0]["score_basis"])
 
 
 class RiskEventRowTests(unittest.TestCase):

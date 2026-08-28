@@ -926,6 +926,10 @@ class Terminal {
       // Score components as a labelled list (api_views.score_parts); the raw
       // reason string is kept only as a fallback for older payloads.
       scoreParts: Array.isArray(r.score_parts) ? r.score_parts : [],
+      // Worauf der Score ruht (api_views.score_basis): gemessenes Gewicht,
+      // geschaetztes Gewicht, die Namen der geschaetzten Bestandteile und die
+      // Groesse der gemeinsam bewerteten Menge.
+      scoreBasis: r.score_basis || null,
       tags: String(r.tags || '')
     }));
   }

@@ -16,22 +16,55 @@ function filterGroup(label, chipsHtml) {
 // "return 90, sharpe-proxy 60, …" string so no raw string reaches the page.
 export function scorePartsOf(t) {
   if (t && Array.isArray(t.scoreParts) && t.scoreParts.length) {
-    return t.scoreParts.map((p) => ({ label: String(p.label || ''), value: p.value != null ? String(p.value) : '—' }));
+    return t.scoreParts.map((p) => ({
+      label: String(p.label || ''),
+      value: p.value != null ? String(p.value) : '—',
+      imputed: !!p.imputed
+    }));
   }
   const raw = t && t.tags ? String(t.tags) : '';
   if (!raw) return [];
   return raw.split(',').map((teil) => {
     const m = teil.trim().match(/^([a-z][a-z -]*?)\s+(-?\d+(?:\.\d+)?)$/i);
-    return m ? { label: m[1].replace(/-/g, ' '), value: m[2] } : null;
+    return m ? { label: m[1].replace(/-/g, ' '), value: m[2], imputed: false } : null;
   }).filter(Boolean);
 }
 
+// Ein Bestandteil, den die Leaderboard-Antwort nicht belegen kann, zeigt
+// keine Zahl. Die oeffentliche Antwort traegt nur PnL und Volumen, also
+// faellt die Trefferquote auf 0.50 und die Aktualitaet auf 50 zurueck — fuer
+// jede Wallet dieselbe Konstante. Als Zahl daneben las sich das wie eine
+// Messung dieser Wallet.
 function scorePartsHtml(t) {
   const parts = scorePartsOf(t);
   if (!parts.length) return '';
   return '<div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:4px">'
-    + parts.map((p) => '<span style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.5); border:1px solid rgba(var(--ink),.1); border-radius:4px; padding:1px 6px; white-space:nowrap">' + esc(p.label) + ' <span style="color:rgba(var(--ink),.8)">' + esc(p.value) + '</span></span>').join('')
+    + parts.map((p) => {
+      const wert = p.imputed
+        ? '<span style="color:rgba(var(--ink),.45); font-style:italic">assumed</span>'
+        : '<span style="color:rgba(var(--ink),.8)">' + esc(p.value) + '</span>';
+      const rand = p.imputed ? 'border:1px dashed rgba(var(--ink),.14)' : 'border:1px solid rgba(var(--ink),.1)';
+      const titel = p.imputed
+        ? ' title="' + esc(p.label + ': the public leaderboard feed carries no input for this component, so the score uses a fixed placeholder — the same one for every wallet') + '"'
+        : '';
+      return '<span' + titel + ' style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.5); ' + rand + '; border-radius:4px; padding:1px 6px; white-space:nowrap">'
+        + esc(p.label) + ' ' + wert + '</span>';
+    }).join('')
     + '</div>';
+}
+
+// Ein Satz unter der Tabelle: wie viel Gewicht des Scores gemessen ist, was
+// geschaetzt wurde und gegen wie viele Wallets der Score gebildet wurde.
+export function scoreBasisSatz(rows) {
+  const mit = rows.filter((t) => t && t.scoreBasis && t.scoreBasis.imputed && t.scoreBasis.imputed.length);
+  if (!mit.length) return '';
+  const b = mit[0].scoreBasis;
+  const anteil = Math.round((b.measured_weight || 0) * 100);
+  const n = b.cohort_n ? ' n = ' + b.cohort_n + ' wallets ranked together; the volume component is a log scale against '
+    + 'that set, so it is a rank inside this cohort, not a property of the wallet.' : '';
+  return 'Score basis: ' + anteil + '% of the composite weight rests on figures the public leaderboard feed carries '
+    + '(profit over volume, volume). The remaining ' + (100 - anteil) + '% (' + b.imputed.join(', ') + ') uses a fixed '
+    + 'placeholder that is identical for every wallet, so it separates no wallet from another.' + n;
 }
 
 // ---------------------------------------------------------------- traders (leaderboard)
@@ -69,6 +102,7 @@ export function renderTraders(T) {
   const badge = tCount ? M + '; font-size:11px; color:var(--on-accent); background:var(--accent); border-radius:4px; padding:1px 7px' : 'display:none';
   const chevron = M + '; font-size:16px; color:rgba(var(--ink),.5); transition:transform .18s ease; transform:rotate(' + (s.traderFiltersOpen ? '90deg' : '0deg') + ')';
   const asOf = T.liveData.leaderboard && T.liveData.leaderboard.as_of ? ' · snapshot ' + T.liveData.leaderboard.as_of : '';
+  const basisSatz = scoreBasisSatz(T.traders);
   const grid = '44px 1fr 120px' + (hatWin ? ' 100px' : '') + (hatResolved ? ' 118px' : '') + ' 100px 92px';
   const rankTabs = [T.tab('Smart score', rank === 'score', { traderRank: 'score' }),
     T.tab('Profit', rank === 'pnl', { traderRank: 'pnl' }),
@@ -103,6 +137,7 @@ export function renderTraders(T) {
       + '</div>' : '')
     + '</div>'
     + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:12px">' + traderSorted.length + ' of ' + T.traders.length + ' wallets · all-time' + esc(asOf) + '</div>'
+    + (basisSatz ? '<div style="font-size:12px; color:rgba(var(--ink),.55); margin-top:8px; max-width:820px; line-height:1.6">' + esc(basisSatz) + '</div>' : '')
     + '</div>'
 
     + '<div style="display:grid; grid-template-columns:' + grid + '; padding:10px 24px; border-bottom:1px solid rgba(var(--ink),.09); background:var(--panel); ' + HEAD_CELL + '">'
