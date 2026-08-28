@@ -180,6 +180,29 @@ def cents(value: Any) -> float:
     return max(0.0, min(parsed, 1.0))
 
 
+def kalshi_price(dollar_value: Any, cent_value: Any, default: float | None = 0.0) -> float | None:
+    """Kalshi-Preis in (0, 1): das ``*_dollars``-Feld direkt, sonst Cents/100.
+
+    ``cents`` raet die Einheit an der Groesse ab. Fuer Polymarkets
+    Dezimalpreise stimmt das, am Rand von Kalshis Cent-Leiter nicht: ein
+    ``yes_bid`` von 1 ist ein Cent, ist aber nicht groesser als 1.0 und
+    ueberlebt deshalb ungeteilt. Der Longshot bei 1 Cent liest sich dann als
+    Gewissheit bei 100 Prozent, und die Cross-Venue-Luecke gegen dieselbe
+    Frage auf Polymarket ist 99 Cent gross statt null.
+
+    Welches Feld gemeint ist, weiss der Aufrufer, nicht die Zahl: deshalb
+    nimmt diese Funktion beide Felder entgegen statt zu raten.
+    """
+
+    value = _num(dollar_value)
+    if value is None:
+        cent = _num(cent_value)
+        if cent is None:
+            return default
+        value = cent / 100.0
+    return max(0.0, min(float(value), 1.0))
+
+
 def _outcome_price(market: dict[str, Any], index: int = 0) -> float | None:
     prices = _as_list(market.get("outcomePrices"))
     if len(prices) > index:
@@ -2618,9 +2641,9 @@ def get_kalshi_markets(
     rows = data.get("markets", []) if isinstance(data, dict) else []
     normalized: list[dict[str, Any]] = []
     for market in rows:
-        yes_bid = cents(_first_nonempty(market.get("yes_bid_dollars"), market.get("yes_bid")))
-        yes_ask = cents(_first_nonempty(market.get("yes_ask_dollars"), market.get("yes_ask")))
-        last_price = cents(_first_nonempty(market.get("last_price_dollars"), market.get("last_price")))
+        yes_bid = kalshi_price(market.get("yes_bid_dollars"), market.get("yes_bid"))
+        yes_ask = kalshi_price(market.get("yes_ask_dollars"), market.get("yes_ask"))
+        last_price = kalshi_price(market.get("last_price_dollars"), market.get("last_price"))
         # liquidity_dollars ist Dollar; das Legacy-Feld liquidity liefert
         # Cents und stand ungeteilt ~100x zu hoch in der Spalte. Der fruehere
         # dritte Rueckfall open_interest_fp zaehlt Kontrakte, keine Dollar,
@@ -2675,8 +2698,16 @@ def get_kalshi_markets(
 
 
 def _candlestick_price(row: dict[str, Any], field: str) -> float | None:
+    """Ein Kerzenpreis in (0, 1).
+
+    Ohne ``*_dollars`` liefert die Kerze Cents, und der frueher hier
+    stehende rohe ``_num`` schob sie ungeteilt in die Spalte: eine
+    Kalshi-Kerze lief von 45 bis 60, waehrend dieselbe Achse fuer
+    Polymarket 0.45 bis 0.60 zeigte.
+    """
+
     price = row.get("price") if isinstance(row.get("price"), dict) else {}
-    return _num(_first_nonempty(price.get(f"{field}_dollars"), price.get(field)))
+    return kalshi_price(price.get(f"{field}_dollars"), price.get(field), default=None)
 
 
 def get_kalshi_candlesticks(ticker: str, days: int = 30, period_interval: int = 60) -> pd.DataFrame:

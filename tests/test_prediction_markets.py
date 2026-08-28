@@ -1997,3 +1997,53 @@ class SearchPolymarketTests(unittest.TestCase):
         self.assertTrue(markets.empty)
         self.assertEqual(profiles, [])
         fetch.assert_not_called()
+
+
+class KalshiCentUnitTests(unittest.TestCase):
+    """Kalshi liefert Cents; die Groesse allein verraet die Einheit nicht."""
+
+    def test_one_cent_is_not_one_dollar(self) -> None:
+        # cents() raet an der Groesse: 1 ist nicht groesser als 1.0 und
+        # ueberlebt ungeteilt. kalshi_price weiss, welches Feld gemeint ist.
+        self.assertEqual(md.cents(1), 1.0)
+        self.assertEqual(md.kalshi_price(None, 1), 0.01)
+
+    def test_dollar_field_wins_over_cent_field(self) -> None:
+        self.assertEqual(md.kalshi_price("0.55", 55), 0.55)
+        self.assertEqual(md.kalshi_price(None, 55), 0.55)
+
+    def test_missing_both_falls_back_to_default(self) -> None:
+        self.assertEqual(md.kalshi_price(None, None), 0.0)
+        self.assertIsNone(md.kalshi_price(None, None, default=None))
+
+    def test_price_stays_inside_the_unit_interval(self) -> None:
+        self.assertEqual(md.kalshi_price(None, 120), 1.0)
+        self.assertEqual(md.kalshi_price(None, -3), 0.0)
+
+    def test_longshot_market_without_dollar_fields_reads_as_one_cent(self) -> None:
+        payload = {"markets": [{
+            "ticker": "KXLONGSHOT-26DEC31", "title": "Longshot?",
+            "yes_bid": 1, "yes_ask": 2, "last_price": 1,
+            "liquidity_dollars": 500.0, "volume_24h": 10, "volume": 10,
+        }]}
+        with patch("src.prediction_markets._get_json", return_value=payload):
+            markets = md.get_kalshi_markets()
+        row = markets.iloc[0]
+        self.assertAlmostEqual(float(row["yes_price"]), 0.015)
+        self.assertAlmostEqual(float(row["best_bid"]), 0.01)
+        self.assertAlmostEqual(float(row["best_ask"]), 0.02)
+        self.assertAlmostEqual(float(row["spread"]), 0.01)
+
+    def test_candlestick_cents_become_probabilities(self) -> None:
+        payload = {"candlesticks": [{
+            "end_period_ts": 1700000000,
+            "price": {"open": 45, "high": 60, "low": 40, "close": 58},
+            "volume": 100, "open_interest": 50,
+        }]}
+        with patch("src.prediction_markets._get_json", return_value=payload):
+            candles = md.get_kalshi_candlesticks("KXFED-26JUN")
+        row = candles.iloc[0]
+        self.assertAlmostEqual(float(row["open"]), 0.45)
+        self.assertAlmostEqual(float(row["high"]), 0.60)
+        self.assertAlmostEqual(float(row["low"]), 0.40)
+        self.assertAlmostEqual(float(row["close"]), 0.58)
