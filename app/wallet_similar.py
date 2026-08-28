@@ -77,8 +77,8 @@ def fetch_open_summary(wallet: str, limit: int = 500) -> dict[str, Any]:
         return {"positions": 0, "value": 0.0, "settled": 0, "unpriced": 0, "read": True}
     # Dieselbe Regel wie ueberall sonst (src/prediction_markets.py). Das
     # frueher hier stehende ``fillna(0.0)`` zaehlte jede Zeile, die der Feed
-    # nicht bepreist hat, als abgerechnet — dieselbe Verwechslung von
-    # fehlender Zahl und gemessener Null.
+    # nicht bepreist hat, als abgerechnet: dieselbe Verwechslung von
+    # fehlender Zahl und gemessener Null, eine Datei weiter.
     tot = md.worthless_position_mask(frame)
     ohne_preis = md.unknown_price_mask(frame)
     offen = frame[~(tot | ohne_preis)]

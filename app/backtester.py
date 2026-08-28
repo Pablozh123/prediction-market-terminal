@@ -451,7 +451,7 @@ def replay(
             log(trade.get("time"), side or "?", "skipped", record, note="unsupported side")
 
     # Der letzte Trade ist kein Termin. Was danach und noch innerhalb des
-    # Fensters faellig wird, wird hier abgerechnet — zur eigenen
+    # Fensters faellig wird, wird hier abgerechnet: zur eigenen
     # Faelligkeit, nicht zum Fensterende und nicht erst, wenn die Wallet
     # zufaellig wieder handelt. Alles nach ``asof`` bleibt offen.
     # Die Reihenfolge bleibt dabei chronologisch: was hier noch offen ist,
@@ -528,7 +528,7 @@ def settle(
                     # Das Token, nicht der Positionsschluessel. Beim Fade
                     # heisst der Schluessel "fade:<token>", die BUY- und
                     # SELL-Zeilen desselben Durchgangs tragen aber das
-                    # Token — ``position_rounds`` haette den Ausstieg sonst
+                    # Token. ``position_rounds`` haette den Ausstieg sonst
                     # nie seinem Einstieg zuordnen koennen.
                     "asset": lookup_asset,
                     "market_key": base["market_key"],
@@ -643,7 +643,7 @@ def position_rounds(ledger: pd.DataFrame) -> pd.DataFrame:
 
     Warum das hier steht: ``closed_trades`` war die Zahl der SELL- und
     RESOLVE-Zeilen. Eine Position, die in drei Tranchen verkauft wurde,
-    zaehlte dreifach — in Zaehler UND Nenner der Trefferquote. Eine Wallet,
+    zaehlte dreifach, in Zaehler UND Nenner der Trefferquote. Eine Wallet,
     die ihre Gewinner stueckweise abbaut und ihre Verlierer in einem Stueck
     fallen laesst, bekam davon eine Quote geschenkt, die niemand geworfen
     hat. ``realized_pnl`` bleibt davon unberuehrt: Geld ist Geld, auch aus

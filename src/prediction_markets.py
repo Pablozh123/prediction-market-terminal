@@ -3082,7 +3082,7 @@ def position_price_states(positions: pd.DataFrame) -> pd.Series:
     def _spalte(name: str) -> pd.Series:
         # ``DataFrame.get`` gibt bei fehlender Spalte den Skalar zurueck; ein
         # Skalar hat kein ``fillna``. Fehlt die Spalte, gibt es nichts zu
-        # erkennen — und "nicht erkennbar" heisst hier ausdruecklich nicht
+        # erkennen. "Nicht erkennbar" heisst hier ausdruecklich nicht
         # "wertlos", sonst waere die alte Verwechslung nur verschoben.
         if name not in positions:
             return pd.Series(float("nan"), index=positions.index, dtype="float64")

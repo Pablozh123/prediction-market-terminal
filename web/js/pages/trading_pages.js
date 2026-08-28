@@ -136,7 +136,7 @@ export function renderBacktester(T) {
   const copied = st ? +st.copied_trades : null;
   // Nenner der Trefferquote: entschiedene POSITIONEN, nicht Ausstiegszeilen
   // und erst recht nicht alle kopierten Zeilen. closed_trades zaehlte lange
-  // jeden Teilverkauf einzeln — eine in drei Tranchen abgebaute Position
+  // jeden Teilverkauf einzeln: eine in drei Tranchen abgebaute Position
   // stand dreifach in Zaehler und Nenner. decided_trades sind die Positionen
   // mit einem Ergebnis, flat_trades die, die genau ihre Kosten zurueckgaben.
   const closedN = st ? (+st.closed_trades || 0) : null;
@@ -209,7 +209,7 @@ export function renderBacktester(T) {
         : (benchPnl === null ? 'no benchmark' : (totalPnl - benchPnl >= 0 ? '+' : '-') + '$' + Math.abs(totalPnl - benchPnl).toFixed(0) + ' vs flat-bet'),
       pos: totalPnl >= 0 },
     // n dazu: ohne die Zahl der entschiedenen Positionen sagt die Quote
-    // nicht, wie viel sie wiegt — 3 von 4 und 300 von 400 lesen sich sonst
+    // nicht, wie viel sie wiegt: 3 von 4 und 300 von 400 lesen sich sonst
     // gleich. Positionen, die genau ihre Kosten zurueckgaben, stehen daneben
     // statt den Nenner zu fuellen.
     { label: 'WIN RATE', value: decidedN ? Math.round((winsN / decidedN) * 100) + '%' : '—',

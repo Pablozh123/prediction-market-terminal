@@ -1686,7 +1686,7 @@ class UnknownPositionPriceTests(unittest.TestCase):
             df = md.get_polymarket_closed_positions("0xw")
         frame = calibration.resolution_frame(df)
         # Vorher: zwei Zeilen, davon eine mit outcome 0.0 aus einer
-        # Datenluecke — eine erfundene Fehlprognose.
+        # Datenluecke, also eine erfundene Fehlprognose.
         self.assertEqual(len(frame), 1)
         self.assertAlmostEqual(float(frame.iloc[0]["outcome"]), 1.0)
 
