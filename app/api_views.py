@@ -21,6 +21,7 @@ from app import quant
 from app import risk_log
 from app import suspicion as susp
 from app import track_record as trec
+from src import prediction_markets as md
 
 RESEARCH_FILES = {
     "review-queue": "queue",
@@ -464,6 +465,60 @@ def score_basis(parts: list[dict[str, Any]], cohort_n: int = 0) -> dict[str, Any
     }
 
 
+#: Was anstelle einer Zahl steht, wenn ein Bestandteil auf einem Ersatzwert
+#: ruht. Gleiche Lesart wie im Web-Frontend (``scorePartsHtml``).
+SCORE_IMPUTED_MARKER = "assumed"
+
+
+def score_parts_text(row: Mapping[str, Any]) -> str:
+    """Die Score-Bestandteile als eine Zeile, Ersatzwerte als Wort statt Zahl.
+
+    ``copy_rank_reason`` aus ``rank_traders_by_smart_score`` schreibt jeden
+    Bestandteil als Zahl, auch die vier, die auf der oeffentlichen
+    Leaderboard-Antwort fuer jede Wallet dieselbe Konstante sind. Als Zahl
+    gelesen trennt das keine Wallet von einer anderen und sieht doch wie eine
+    Messung aus. Hier steht an dieser Stelle ``assumed``, wie im
+    Web-Frontend.
+    """
+
+    parts = score_parts(row)
+    if not parts:
+        return ""
+    return ", ".join(
+        f"{p['label']} {SCORE_IMPUTED_MARKER}" if p.get("imputed") else f"{p['label']} {p['value']}"
+        for p in parts
+    )
+
+
+def score_basis_note(basis: Mapping[str, Any] | None) -> str:
+    """Ein Satz darunter: welcher Anteil des Composite gemessen ist.
+
+    Leer, solange kein Bestandteil auf einem Ersatzwert ruht — dann gibt es
+    nichts zu relativieren. Gleiche Aussage wie ``scoreBasisSatz`` im
+    Web-Frontend, damit beide Oberflaechen denselben Vorbehalt tragen.
+    """
+
+    if not basis:
+        return ""
+    imputed = [str(label) for label in (basis.get("imputed") or [])]
+    if not imputed:
+        return ""
+    measured_pct = round(float(basis.get("measured_weight") or 0.0) * 100)
+    cohort_n = int(basis.get("cohort_n") or 0)
+    note = (
+        f"Score basis: {measured_pct}% of the composite weight rests on figures the public "
+        "leaderboard feed carries (profit over volume, volume). The remaining "
+        f"{100 - measured_pct}% ({', '.join(imputed)}) uses a fixed placeholder that is identical "
+        "for every wallet, so it separates no wallet from another."
+    )
+    if cohort_n:
+        note += (
+            f" n = {cohort_n} wallets ranked together; the volume component is a log scale against "
+            "that set, so it is a rank inside this cohort, not a property of the wallet."
+        )
+    return note
+
+
 #: Wie viele Trades der Wallet-Seite im Aktivitaetsblock stehen und wie viele
 #: geschlossene Positionen in der Tabelle; der Rest wird gezaehlt, nicht gezeigt.
 WALLET_TRADES_SHOWN = 60
@@ -834,7 +889,8 @@ def _wallet_positions(positions: pd.DataFrame | None, as_of: str, requested: int
         value = _num(row.get("value"), 0.0) or 0.0
         pnl = _num(row.get("unrealized_pnl"), 0.0) or 0.0
         end_time = _iso(row.get("end_time"))
-        resolved_worthless = cur <= 0.0 and value <= 0.0
+        # Eine Definition fuer beide Oberflaechen (src/prediction_markets.py).
+        resolved_worthless = md.position_is_worthless(cur, value)
         # Eine wertlose Position ist gegen die Wallet aufgeloest und wurde nur
         # nicht eingeloest — ihr Verlust ist realisiert und bewegt sich nie
         # wieder. Bis hierher lief er in dieselbe Summe wie der Buchgewinn

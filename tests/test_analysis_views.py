@@ -384,6 +384,68 @@ class RunDashboardViewTests(unittest.TestCase):
         self.assertEqual(av.run_verpasste_rows({}), [])
 
 
+class KategorieHorizontRowsTests(unittest.TestCase):
+    """Die Streamlit-Seite las nur die flachen Spalten der alten Nutzlast.
+
+    ``category_efficiency.publish_payload`` schreibt seit #108 je Kategorie
+    eine Liste ``horizonte`` mit ``brier_ci95``; die flachen ``brier_t7``/
+    ``brier_t1`` sind darin nicht mehr enthalten. Die Tabelle waere auf eine
+    Spalte zusammengefallen, und ein blanker Brier ueber ein Dutzend
+    Kategorien ist ohnehin keine Rangfolge.
+    """
+
+    def _neu(self) -> dict:
+        return {"kategorien": [{
+            "kategorie": "Politics", "n_maerkte": 73, "median_volumen_usd": 1000.0,
+            "horizonte": [
+                {"horizont_tage": 1, "brier": 0.11, "trefferquote": 0.8, "n": 40,
+                 "brier_ci95": [0.09, 0.13], "anteil_entschieden": 0.3,
+                 "brier_offen": 0.15, "n_offen": 28},
+                {"horizont_tage": 7, "brier": 0.21, "trefferquote": 0.6, "n": 30,
+                 "brier_ci95": [0.17, 0.25], "anteil_entschieden": 0.1,
+                 "brier_offen": 0.22, "n_offen": 27},
+            ],
+        }]}
+
+    def test_the_new_payload_keeps_its_interval(self) -> None:
+        rows = av.kategorie_horizont_rows(self._neu())
+        self.assertEqual([r["horizont_tage"] for r in rows], [7, 1])
+        self.assertAlmostEqual(rows[0]["brier"], 0.21)
+        # Halbe Breite von [0.17, 0.25] sind 0.04.
+        self.assertAlmostEqual(rows[0]["brier_halbbreite"], 0.04)
+        self.assertEqual(rows[0]["n"], 30)
+        self.assertAlmostEqual(rows[0]["anteil_entschieden"], 0.1)
+        self.assertAlmostEqual(rows[0]["brier_offen"], 0.22)
+
+    def test_the_old_flat_payload_still_produces_rows(self) -> None:
+        alt = {"kategorien": [{
+            "kategorie": "Sport", "brier_t7": 0.30, "trefferquote_t7": 0.5,
+            "brier_t1": 0.12, "trefferquote_t1": 0.9, "n_t7": 12, "n_maerkte": 60,
+        }]}
+        rows = av.kategorie_horizont_rows(alt)
+        self.assertEqual(len(rows), 2)
+        self.assertAlmostEqual(rows[0]["brier"], 0.30)
+        self.assertEqual(rows[0]["n"], 12)
+        # Die alte Datei traegt kein Intervall, und keines wird erfunden.
+        self.assertIsNone(rows[0]["brier_halbbreite"])
+        self.assertIsNone(rows[1]["n"])
+
+    def test_the_cell_count_says_what_the_ranking_rests_on(self) -> None:
+        satz = av.kategorie_zellen_satz(av.kategorie_horizont_rows(self._neu()))
+        self.assertIn("2 category-by-horizon cells", satz)
+        self.assertIn("intervals overlap", satz)
+
+    def test_without_intervals_the_sentence_says_so(self) -> None:
+        alt = {"kategorien": [{"kategorie": "Sport", "brier_t7": 0.30, "n_t7": 12}]}
+        satz = av.kategorie_zellen_satz(av.kategorie_horizont_rows(alt))
+        self.assertIn("no interval per cell", satz)
+
+    def test_an_empty_or_broken_payload_produces_nothing(self) -> None:
+        self.assertEqual(av.kategorie_horizont_rows({}), [])
+        self.assertEqual(av.kategorie_horizont_rows({"kategorien": [{"kategorie": ""}]}), [])
+        self.assertEqual(av.kategorie_zellen_satz([]), "")
+
+
 if __name__ == "__main__":
     unittest.main()
 

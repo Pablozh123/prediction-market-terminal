@@ -124,5 +124,61 @@ class BasketEdgeTests(unittest.TestCase):
         self.assertAlmostEqual(row["gross_edge_cents"], 4.0, places=4)
 
 
+class WithBasketEdgeTests(unittest.TestCase):
+    """Die Streamlit-Seite paart ueber ``md.cross_venue_candidates``.
+
+    Dieser Matcher kennt eine Suchanfrage und liefert nur die Mittelkurse.
+    Ohne die Ergaenzung stand dort eine Mittelkurs-Luecke unter der
+    Ueberschrift GAP, waehrend die Web-Oberflaeche daneben schon die
+    ausfuehrbare und die Netto-Spanne zeigte.
+    """
+
+    def _paar(self):
+        pm = pd.DataFrame([_quoted("Will the Fed cut rates in September 2026?", "0xfed", 0.61, 0.63)])
+        ks = pd.DataFrame([_quoted("Fed cuts rates at the September 2026 meeting?", "KXFED", 0.67, 0.69)])
+        kandidaten = pd.DataFrame([{
+            "similarity": 0.8,
+            "gap": pm.iloc[0]["yes_price"] - ks.iloc[0]["yes_price"],
+            "abs_gap": abs(pm.iloc[0]["yes_price"] - ks.iloc[0]["yes_price"]),
+            "polymarket_market_key": "0xfed", "kalshi_market_key": "KXFED",
+            "polymarket_ticker": "", "kalshi_ticker": "KXFED",
+            "polymarket_title": "Will the Fed cut rates in September 2026?",
+            "kalshi_title": "Fed cuts rates at the September 2026 meeting?",
+        }])
+        return kandidaten, pm, ks
+
+    def test_the_mid_gap_is_not_the_executable_edge(self) -> None:
+        kandidaten, pm, ks = self._paar()
+        row = cross_pairs.with_basket_edge(kandidaten, pm, ks).iloc[0]
+        # 6 Cent zwischen den Mittelkursen, 4 davon ausfuehrbar (0.67 - 0.63),
+        # und die Gebuehren beider Venues gehen davon noch ab.
+        self.assertAlmostEqual(abs(row["gap"]) * 100, 6.0, places=4)
+        self.assertAlmostEqual(row["gross_edge_cents"], 4.0, places=4)
+        self.assertLess(row["net_edge_cents"], row["gross_edge_cents"])
+        self.assertEqual(row["edge_direction"], "buy Polymarket, sell Kalshi")
+
+    def test_a_pair_matched_only_by_title_still_finds_its_quotes(self) -> None:
+        kandidaten, pm, ks = self._paar()
+        kandidaten = kandidaten.assign(polymarket_market_key="", kalshi_market_key="", kalshi_ticker="")
+        row = cross_pairs.with_basket_edge(kandidaten, pm, ks).iloc[0]
+        self.assertAlmostEqual(row["gross_edge_cents"], 4.0, places=4)
+
+    def test_a_pair_without_quotes_carries_none_not_zero(self) -> None:
+        kandidaten, pm, ks = self._paar()
+        pm = pm.drop(columns=["best_bid", "best_ask"])
+        row = cross_pairs.with_basket_edge(kandidaten, pm, ks).iloc[0]
+        self.assertIsNone(row["gross_edge_cents"])
+        self.assertIsNone(row["net_edge_cents"])
+        self.assertEqual(row["edge_direction"], "")
+
+    def test_an_unknown_market_is_not_priced_from_another_row(self) -> None:
+        kandidaten, pm, ks = self._paar()
+        row = cross_pairs.with_basket_edge(kandidaten, pm.iloc[0:0], ks).iloc[0]
+        self.assertIsNone(row["net_edge_cents"])
+
+    def test_an_empty_candidate_table_passes_through(self) -> None:
+        self.assertTrue(cross_pairs.with_basket_edge(pd.DataFrame(), pd.DataFrame(), pd.DataFrame()).empty)
+
+
 if __name__ == "__main__":
     unittest.main()

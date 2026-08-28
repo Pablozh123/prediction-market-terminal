@@ -1341,6 +1341,50 @@ class ScorePartsTests(unittest.TestCase):
         # Eine Zeile ohne Ranked-Treffer traegt keine erfundene Basis.
         self.assertIsNone(apv.leaderboard_rows(lb, None)[0]["score_basis"])
 
+    def test_die_score_faktoren_als_text_nennen_den_ersatzwert(self) -> None:
+        """Beide Oberflaechen lesen dieselbe Zeile.
+
+        ``copy_rank_reason`` aus rank_traders_by_smart_score schreibt jeden
+        Bestandteil als Zahl, auch die vier, die auf der oeffentlichen
+        Leaderboard-Antwort fuer jede Wallet dieselbe Konstante sind. Die
+        Web-Oberflaeche zeigt dort seit #107 "assumed"; die Streamlit-Tabelle
+        zeigte weiter "win 50, recency 50" als waeren es Messungen.
+        """
+
+        row = {
+            "copy_return_score": 100.0, "copy_sharpe_proxy": 21.2, "copy_drawdown_proxy": 100.0,
+            "copy_win_score": 50.0, "copy_recency_score": 50.0, "copy_volume_score": 90.0,
+            "copy_score_imputed": "copy_sharpe_proxy,copy_drawdown_proxy,copy_win_score,copy_recency_score",
+        }
+        text = apv.score_parts_text(row)
+        self.assertEqual(
+            text,
+            "return 100, sharpe proxy assumed, drawdown proxy assumed, "
+            "win assumed, recency assumed, volume 90",
+        )
+        self.assertNotIn("win 50", text)
+        # Ohne Ersatzwerte steht ueberall eine Zahl.
+        gemessen = dict(row, copy_score_imputed="")
+        self.assertEqual(apv.score_parts_text(gemessen).count("assumed"), 0)
+        self.assertEqual(apv.score_parts_text({}), "")
+
+    def test_der_basis_satz_erscheint_nur_wenn_etwas_geschaetzt_ist(self) -> None:
+        parts = apv.score_parts({
+            "copy_return_score": 100.0, "copy_sharpe_proxy": 21.2, "copy_drawdown_proxy": 100.0,
+            "copy_win_score": 50.0, "copy_recency_score": 50.0, "copy_volume_score": 90.0,
+            "copy_score_imputed": "copy_sharpe_proxy,copy_drawdown_proxy,copy_win_score,copy_recency_score",
+        })
+        satz = apv.score_basis_note(apv.score_basis(parts, cohort_n=250))
+        self.assertIn("45%", satz)
+        self.assertIn("55%", satz)
+        self.assertIn("n = 250 wallets", satz)
+        # Nichts geschaetzt, nichts zu relativieren.
+        voll = apv.score_parts({
+            "copy_return_score": 100.0, "copy_volume_score": 90.0, "copy_score_imputed": "",
+        })
+        self.assertEqual(apv.score_basis_note(apv.score_basis(voll, cohort_n=250)), "")
+        self.assertEqual(apv.score_basis_note(None), "")
+
 
 class RiskEventRowTests(unittest.TestCase):
     """The event card carries side, price, wallets, window, link and components — or honest gaps."""

@@ -3002,7 +3002,59 @@ def get_kalshi_orderbook(ticker: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     return normalize(yes_levels, "bid", yes_dollars), normalize(no_levels, "ask", no_dollars)
 
 
+def position_is_worthless(current_price: Any, value: Any) -> bool:
+    """Ist diese ``/positions``-Zeile gegen die Wallet aufgeloest und nicht eingeloest?
+
+    Eine Position, die gegen die Wallet aufgeloest wurde, bleibt im
+    ``/positions``-Feed stehen, bis jemand sie einloest — mit Preis 0 und Wert
+    0. Ihr Verlust ist abgerechnet und bewegt sich nie wieder. In derselben
+    Summe wie der Buchgewinn der offenen Positionen erscheint er als
+    unrealisiert, und ihre Kosten sitzen in der Kostenbasis des offenen Buchs.
+
+    Eine Definition fuer beide Oberflaechen: ``app/api_views.py::_wallet_positions``
+    (Web) und ``wallet_summary`` (Streamlit) lesen dieselbe Regel.
+    """
+
+    price = _num(current_price)
+    worth = _num(value)
+    return (price is None or price <= 0.0) and (worth is None or worth <= 0.0)
+
+
+def worthless_position_mask(positions: pd.DataFrame) -> pd.Series:
+    """``position_is_worthless`` ueber eine ganze Positionstabelle."""
+
+    if positions is None or positions.empty:
+        return pd.Series(dtype="bool")
+
+    def _spalte(name: str) -> pd.Series:
+        # ``DataFrame.get`` gibt bei fehlender Spalte den Skalar zurueck; ein
+        # Skalar hat kein ``fillna``. Fehlt die Spalte, gibt es nichts zu
+        # erkennen, und keine Zeile ist wertlos.
+        if name not in positions:
+            return pd.Series(1.0, index=positions.index, dtype="float64")
+        return pd.to_numeric(positions[name], errors="coerce").fillna(0.0)
+
+    return (_spalte("current_price") <= 0.0) & (_spalte("value") <= 0.0)
+
+
 def wallet_summary(open_positions: pd.DataFrame, closed_positions: pd.DataFrame, trades: pd.DataFrame) -> dict[str, Any]:
+    # Aufgeloest-und-nicht-eingeloest ist kein offenes Buch. Diese Zeilen
+    # standen mit ihrem Verlust in ``unrealized_pnl`` und mit ihren Kosten im
+    # Wert des offenen Buchs; beides wird jetzt getrennt gefuehrt.
+    worthless_pnl = worthless_cost = 0.0
+    worthless_count = 0
+    if not open_positions.empty:
+        worthless = worthless_position_mask(open_positions)
+        if bool(worthless.any()):
+            worthless_count = int(worthless.sum())
+            tote = open_positions[worthless]
+            if "unrealized_pnl" in tote:
+                worthless_pnl = float(pd.to_numeric(tote["unrealized_pnl"], errors="coerce").fillna(0.0).sum())
+            worthless_cost = float(
+                (pd.to_numeric(tote.get("size", 0.0), errors="coerce").fillna(0.0)
+                 * pd.to_numeric(tote.get("avg_price", 0.0), errors="coerce").fillna(0.0)).sum()
+            )
+            open_positions = open_positions[~worthless]
     open_value = float(open_positions["value"].sum()) if not open_positions.empty and "value" in open_positions else 0.0
     unrealized = (
         float(open_positions["unrealized_pnl"].sum())
@@ -3025,6 +3077,12 @@ def wallet_summary(open_positions: pd.DataFrame, closed_positions: pd.DataFrame,
         "open_value": open_value,
         "unrealized_pnl": unrealized,
         "realized_pnl": realized,
+        "open_count": int(len(open_positions)),
+        # Gegen die Wallet aufgeloest, nie eingeloest: abgerechneter Verlust,
+        # nicht Buchverlust, und nicht Teil des offenen Buchs.
+        "worthless_count": worthless_count,
+        "worthless_pnl": worthless_pnl,
+        "worthless_cost": worthless_cost,
         "closed_count": closed_count,
         "win_rate": wins / closed_count if closed_count else None,
         "trade_count": len(trades),
