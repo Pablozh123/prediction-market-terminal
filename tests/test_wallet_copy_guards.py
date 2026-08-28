@@ -40,6 +40,7 @@ import pandas as pd
 from app import track_record as trec
 from src import copy_trading as ct
 from tests.market_api_fixtures import (
+    WALLETS,
     failing_requests,
     offline_market_apis,
 )
@@ -271,6 +272,216 @@ class VerkaufsSeiteTests(unittest.TestCase):
         out, korrigiert = trec.reconcile_resolved_with_activity(self.resolved, aktivitaet)
         self.assertEqual(korrigiert, 0)
         self.assertEqual(str(out.iloc[0]["pnl_source"]), "unverified")
+
+
+class KontoStatistikTests(unittest.TestCase):
+    """Ein abgebrochenes Fenster ist kein junges Konto, ein toter RPC keine leere Kasse."""
+
+    WALLET = WALLETS[0]
+
+    def setUp(self) -> None:
+        import prediction_terminal as pt
+
+        self.pt = pt
+        pt.load_wallet_account_stats.clear()
+
+    @staticmethod
+    def _volle_seite(alter_tage: float) -> pd.DataFrame:
+        """500 Zeilen, die juengste jetzt, die aelteste ``alter_tage`` alt."""
+
+        jetzt = pd.Timestamp.now(tz="UTC")
+        return pd.DataFrame(
+            {
+                "time": [jetzt - pd.Timedelta(days=alter_tage * index / 499) for index in range(500)],
+                "notional": [10.0] * 500,
+            }
+        )
+
+    def test_an_intact_window_measures_the_account_age(self) -> None:
+        with offline_market_apis(), patch("src.copy_trading.fetch_polygon_usdc_balance", return_value=4_200.0):
+            frame = self.pt.load_wallet_account_stats((self.WALLET,))
+        row = frame.iloc[0]
+        self.assertEqual(row["account_age_state"], self.pt.ACCOUNT_AGE_MEASURED)
+        self.assertIsNotNone(row["account_age_days"])
+        self.assertAlmostEqual(float(row["cash_balance"]), 4_200.0)
+        self.assertTrue(bool(row["cash_balance_read"]))
+
+    def test_a_broken_page_loop_no_longer_reports_a_young_account(self) -> None:
+        # Der Fall, aus dem "new account (3d)" wurde: Seite 1 kommt voll
+        # zurueck und reicht drei Tage zurueck, Seite 2 kommt nicht an. Der
+        # aelteste gelesene Eintrag ist dann drei Tage alt, das Konto nicht.
+        seiten = [self._volle_seite(3.0), ConnectionError("connection reset by peer")]
+
+        def hole(_wallet, limit=500, offset=0, **_kwargs):
+            eintrag = seiten[min(offset // 500, len(seiten) - 1)]
+            if isinstance(eintrag, Exception):
+                raise eintrag
+            return eintrag
+
+        with patch("src.prediction_markets.get_polymarket_activity", side_effect=hole), patch(
+            "src.copy_trading.fetch_polygon_usdc_balance", return_value=1.0
+        ):
+            frame = self.pt.load_wallet_account_stats((self.WALLET,))
+        row = frame.iloc[0]
+        self.assertEqual(row["account_age_state"], self.pt.ACCOUNT_AGE_UNKNOWN)
+        self.assertIsNone(row["account_age_days"])
+        self.assertTrue(pd.isna(row["oldest_activity_time"]))
+        self.assertIn("connection reset", str(row["activity_error"]))
+
+    def test_a_window_that_hit_the_page_cap_is_a_lower_bound_not_an_age(self) -> None:
+        with patch("src.prediction_markets.get_polymarket_activity", return_value=self._volle_seite(4.0)), patch(
+            "src.copy_trading.fetch_polygon_usdc_balance", return_value=1.0
+        ):
+            frame = self.pt.load_wallet_account_stats((self.WALLET,))
+        row = frame.iloc[0]
+        self.assertEqual(row["account_age_state"], self.pt.ACCOUNT_AGE_WINDOW_CAPPED)
+        self.assertIsNone(row["account_age_days"])
+        self.assertGreater(float(row["activity_window_days"]), 3.0)
+
+    def test_a_failed_balance_call_is_not_a_balance_of_zero(self) -> None:
+        with offline_market_apis(), patch(
+            "src.copy_trading.fetch_polygon_usdc_balance", side_effect=RuntimeError("rpc unavailable")
+        ):
+            frame = self.pt.load_wallet_account_stats((self.WALLET,))
+        row = frame.iloc[0]
+        self.assertTrue(pd.isna(row["cash_balance"]))
+        self.assertFalse(bool(row["cash_balance_read"]))
+        self.assertIn("rpc unavailable", str(row["cash_balance_error"]))
+
+    def test_an_unmeasured_age_earns_no_insider_points_and_no_flag(self) -> None:
+        from app import suspicion as susp
+
+        risk = pd.DataFrame(
+            [{"wallet": self.WALLET, "wallet_insider_score": 40.0, "wallet_insider_flags": ""}]
+        )
+        stats = pd.DataFrame(
+            [{"wallet": self.WALLET, "account_age_days": 3.0, "account_age_state": self.pt.ACCOUNT_AGE_UNKNOWN}]
+        )
+        out = susp.apply_account_age_bonus(risk, stats)
+        # Die Zahlen, die frueher hier standen: 50 Punkte und "new account (3d)".
+        self.assertAlmostEqual(float(out.iloc[0]["wallet_insider_score"]), 40.0)
+        self.assertNotIn("new account", str(out.iloc[0]["wallet_insider_flags"]))
+
+    def test_a_measured_young_account_still_earns_them(self) -> None:
+        from app import suspicion as susp
+
+        risk = pd.DataFrame(
+            [{"wallet": self.WALLET, "wallet_insider_score": 40.0, "wallet_insider_flags": ""}]
+        )
+        stats = pd.DataFrame(
+            [{"wallet": self.WALLET, "account_age_days": 3.0, "account_age_state": self.pt.ACCOUNT_AGE_MEASURED}]
+        )
+        out = susp.apply_account_age_bonus(risk, stats)
+        self.assertAlmostEqual(float(out.iloc[0]["wallet_insider_score"]), 50.0)
+        self.assertIn("new account (3d)", str(out.iloc[0]["wallet_insider_flags"]))
+
+    def test_an_unknown_balance_no_longer_reads_as_fully_exposed(self) -> None:
+        from src import prediction_markets as md
+
+        offen = pd.DataFrame([{"value": 5_000.0, "unrealized_pnl": 0.0, "initial_value": 5_000.0}])
+        leer = pd.DataFrame()
+        gemessen = md.trader_insight_metrics(offen, leer, leer, cash_balance=5_000.0)
+        unbekannt = md.trader_insight_metrics(offen, leer, leer, cash_balance=float("nan"))
+        self.assertAlmostEqual(float(gemessen["exposure"]), 0.5)
+        # Frueher: 1.0, also "100% exposed" aus einer nicht gelesenen Kasse.
+        self.assertIsNone(unbekannt["exposure"])
+
+
+class GewinnerRandTests(unittest.TestCase):
+    """Die Trefferquote der Bestenliste liest beide Enden, nicht nur eines.
+
+    Der Feed deckelt bei rund 50 Zeilen und sortiert ohne Zutun nach dem
+    groessten Gewinn. Hier antwortet er wie das Original: absteigend drei
+    Gewinner, aufsteigend drei Verlierer. Der Gewinner-Rand allein ergibt
+    3 von 3, also 100%; beide Enden ergeben 3 von 6, also 50%.
+    """
+
+    WALLET = WALLETS[0]
+
+    def setUp(self) -> None:
+        import prediction_terminal as pt
+
+        self.pt = pt
+        pt.load_wallet_win_rates.clear()
+
+    @staticmethod
+    def _zeile(index: int, pnl: float) -> dict:
+        return {
+            "proxyWallet": GewinnerRandTests.WALLET,
+            "conditionId": f"0x{index:064x}",
+            "title": f"Market {index}",
+            "outcome": "Yes",
+            "asset": str(index),
+            "avgPrice": 0.4,
+            "curPrice": 1.0 if pnl > 0 else 0.0,
+            "totalBought": 100.0,
+            "realizedPnl": pnl,
+            "timestamp": 1779900000 + index,
+            "slug": f"market-{index}",
+            "eventSlug": f"market-{index}",
+        }
+
+    def _sortierter_feed(self):
+        gewinner = [self._zeile(index, 500.0 - index * 100) for index in range(3)]
+        verlierer = [self._zeile(10 + index, -200.0 - index * 100) for index in range(3)]
+
+        def hole(url: str, params=None, **kwargs):
+            from tests.market_api_fixtures import FixtureResponse, fixture_get
+
+            if str(url).rstrip("/").endswith("/closed-positions"):
+                richtung = str((params or {}).get("sortDirection", "DESC")).upper()
+                return FixtureResponse(verlierer if richtung == "ASC" else gewinner)
+            return fixture_get(url, params=params, **kwargs)
+
+        return patch("requests.get", side_effect=hole)
+
+    def test_both_tails_are_read_so_the_rate_is_not_the_winner_tail(self) -> None:
+        with self._sortierter_feed():
+            frame = self.pt.load_wallet_win_rates((self.WALLET,))
+        row = frame.iloc[0]
+        # Die Zahlen, die frueher hier standen: Trefferquote 1.0 ueber 3
+        # Positionen und $1,200.00 realisiert, weil nur die absteigende Seite
+        # gelesen wurde. Beide Enden: 3 von 6 und $300.00.
+        self.assertAlmostEqual(float(row["win_rate"]), 0.5)
+        self.assertEqual(int(row["closed_positions"]), 6)
+        self.assertEqual(int(row["winning_positions"]), 3)
+        self.assertAlmostEqual(float(row["closed_realized_pnl"]), 300.0)
+        self.assertFalse(bool(row["win_rate_capped"]))
+
+
+class AktivitaetsFensterTests(unittest.TestCase):
+    """Ein gescheiterter Abruf behauptet keine Vollstaendigkeit mehr."""
+
+    WALLET = WALLETS[0]
+
+    def _payload(self):
+        from api import server
+
+        with patch.object(server, "load_ranked", return_value=pd.DataFrame()), patch.object(
+            server, "risk_screen_basis", return_value=(pd.DataFrame(), pd.DataFrame(), 2500.0)
+        ), patch.object(server, "load_leaderboard", return_value=pd.DataFrame()), failing_requests("/activity"):
+            return server.build_wallet_detail(self.WALLET)
+
+    def test_a_failed_activity_fetch_is_named_instead_of_claimed_complete(self) -> None:
+        payload = self._payload()
+        activity = payload["activity"]
+        # Frueher: window_truncated False, n_rows 0, kein Feld dazwischen --
+        # nicht zu unterscheiden von einer Wallet, die nichts getan hat.
+        self.assertEqual(activity["window_state"], "unreadable")
+        self.assertTrue(activity["error"])
+        self.assertEqual(activity["n_rows"], 0)
+        self.assertTrue(payload["identity"]["activity_error"])
+
+    def test_the_intact_window_still_says_read(self) -> None:
+        from api import server
+
+        with patch.object(server, "load_ranked", return_value=pd.DataFrame()), patch.object(
+            server, "risk_screen_basis", return_value=(pd.DataFrame(), pd.DataFrame(), 2500.0)
+        ), patch.object(server, "load_leaderboard", return_value=pd.DataFrame()), offline_market_apis():
+            payload = server.build_wallet_detail(self.WALLET)
+        self.assertEqual(payload["activity"]["window_state"], "read")
+        self.assertEqual(payload["activity"]["error"], "")
+        self.assertEqual(payload["identity"]["activity_error"], "")
 
 
 if __name__ == "__main__":  # pragma: no cover

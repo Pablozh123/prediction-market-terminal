@@ -718,10 +718,19 @@ def build_wallet_detail(wallet: str) -> dict[str, Any]:
 
     activity = pd.DataFrame()
     truncated = False
+    activity_error: str = ""
     try:
         activity, truncated = fetch_wallet_activity(wallet)
     except Exception as exc:
+        # Frueher blieb es bei der Zeile auf stdout, und weiter unten ging
+        # ``activity_truncated=False`` an die Ansicht: eine Behauptung von
+        # Vollstaendigkeit ueber einem Abruf, der nie angekommen ist. Die
+        # Seite las daraus null Trades, null Tage aktiv und ein leeres
+        # Fenster, also dasselbe Bild wie eine Wallet ohne jede Aktivitaet.
+        activity_error = f"{type(exc).__name__}: {exc}"
         print(f"[warn] activity {wallet}: {exc}")
+    if not activity.empty:
+        activity.attrs["window_truncated"] = bool(truncated)
 
     # Zeilen, deren realizedPnl dem eigenen Zahlungsstrom widerspricht
     # (curPrice 1 und volle Einloesung, trotzdem minus der ganze Einsatz),
@@ -730,7 +739,9 @@ def build_wallet_detail(wallet: str) -> dict[str, Any]:
     # sehen. Ohne Aktivitaet bleibt alles, wie die API es liefert.
     if not resolved.empty:
         try:
-            resolved, korrigiert = trec.reconcile_resolved_with_activity(resolved, activity)
+            resolved, korrigiert = trec.reconcile_resolved_with_activity(
+                resolved, activity, window_truncated=bool(truncated or activity_error)
+            )
             if korrigiert:
                 print(f"[info] {wallet}: {korrigiert} closed rows re-derived from the wallet's cash flow")
         except Exception as exc:
@@ -772,7 +783,7 @@ def build_wallet_detail(wallet: str) -> dict[str, Any]:
 
     return apv.wallet_detail(
         card, positions, pnl, activity,
-        resolved=resolved, resolved_capped=capped, activity_truncated=truncated,
+        resolved=resolved, resolved_capped=capped, activity_truncated=truncated, activity_error=activity_error,
         classify=TAPE_CLASSIFIER, pseudonym=pseudonym, as_of=md.now_utc_label(),
         pnl_window="All", positions_requested=WALLET_POSITIONS_LIMIT,
     )

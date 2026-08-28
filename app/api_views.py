@@ -799,6 +799,7 @@ def _wallet_identity(
     activity: pd.DataFrame | None,
     pseudonym: str,
     activity_truncated: bool,
+    activity_error: str = "",
 ) -> dict[str, Any]:
     first = last = ""
     days_active: float | None = None
@@ -826,6 +827,9 @@ def _wallet_identity(
         "days_active": days_active,
         "n_activity_rows": n_rows,
         "activity_truncated": bool(activity_truncated),
+        # Der Abruf selbst ist gescheitert: "seit" und "Tage aktiv" sind dann
+        # keine kleineren Zahlen, sondern gar keine.
+        "activity_error": str(activity_error or ""),
     }
 
 
@@ -1187,14 +1191,19 @@ def _wallet_closed(resolved: pd.DataFrame | None, capped: bool, worthless_n: int
                    coverage_note: str) -> dict[str, Any]:
     if resolved is None or resolved.empty:
         return {"as_of": as_of, "capped": bool(capped), "n": 0, "shown": 0, "won": 0, "lost": 0, "flat": 0,
-                "worthless_not_redeemed": int(worthless_n), "pnl_from_cash_flow": 0,
+                "worthless_not_redeemed": int(worthless_n), "pnl_from_cash_flow": 0, "pnl_unverified": 0,
                 "rows": [], "realized_pnl": 0.0, "note": coverage_note,
                 "source": "polymarket /closed-positions, both sort directions, ~50 rows per tail"}
     df = resolved.copy()
     df["_pnl"] = pd.to_numeric(df.get("realized_pnl"), errors="coerce").fillna(0.0)
     # Zeilen, deren realizedPnl dem eigenen Zahlungsstrom widersprach und aus
     # ihm neu gerechnet wurde (track_record.reconcile_resolved_with_activity).
-    aus_kasse = int((df.get("pnl_source", pd.Series("", index=df.index)).astype(str) == "cash_flow").sum())
+    quelle = df.get("pnl_source", pd.Series("", index=df.index)).astype(str)
+    aus_kasse = int((quelle == "cash_flow").sum())
+    # Zeilen mit demselben Widerspruch, ueber einem Fenster, das ihn nicht
+    # aufloesen kann. Sie tragen weiter die Zahl der API, und dass sie
+    # ungeprueft ist, gehoert daneben.
+    ungeprueft = int((quelle == "unverified").sum())
     won = int((df["_pnl"] > 0).sum())
     lost = int((df["_pnl"] < 0).sum())
     flat = int(len(df) - won - lost)
@@ -1225,18 +1234,33 @@ def _wallet_closed(resolved: pd.DataFrame | None, capped: bool, worthless_n: int
         "flat": flat,
         "worthless_not_redeemed": int(worthless_n),
         "pnl_from_cash_flow": aus_kasse,
+        "pnl_unverified": ungeprueft,
         "realized_pnl": round(float(df["_pnl"].sum()), 2),
         "rows": rows,
         "note": coverage_note + (
             f" {aus_kasse} row(s) carried a realizedPnl that contradicted the settlement price and the "
             "redemption the wallet received; their PnL comes from the wallet's own payments instead."
-            if aus_kasse else ""),
+            if aus_kasse else "") + (
+            f" {ungeprueft} row(s) carry the same contradiction over an activity window that is incomplete: "
+            "the sell leg may sit outside it, so they keep the feed's number and stay unverified."
+            if ungeprueft else ""),
         "source": "polymarket /closed-positions, both sort directions, ~50 rows per tail",
     }
 
 
-def _wallet_activity(activity: pd.DataFrame | None, truncated: bool, as_of: str) -> dict[str, Any]:
+def _wallet_activity(activity: pd.DataFrame | None, truncated: bool, as_of: str,
+                     error: str = "") -> dict[str, Any]:
+    """Das Aktivitaetsfenster mit drei Zustaenden statt zwei.
+
+    ``window_state`` ist "read" (ganz gelesen), "truncated" (am Seitendeckel
+    abgeschnitten) oder "unreadable" (der Abruf ist gescheitert). Der dritte
+    fehlte: ein fehlgeschlagener Abruf lieferte ``window_truncated=False`` und
+    null Zeilen, also dieselbe Antwort wie eine Wallet, die nichts getan hat.
+    """
+
+    zustand = "unreadable" if error else ("truncated" if truncated else "read")
     empty = {"as_of": as_of, "n_rows": 0, "n_trades": 0, "n_redeems": 0, "window_truncated": bool(truncated),
+             "window_state": zustand, "error": str(error or ""),
              "first": "", "last": "", "span_days": None, "trades": [], "shown": 0, "buy_n": 0, "sell_n": 0,
              "buy_notional": 0.0, "sell_notional": 0.0, "redeem_notional": 0.0, "net_cash_flow": 0.0,
              "volume_traded": 0.0, "avg_trade_size": None, "trades_per_day": None, "source": "polymarket /activity"}
@@ -1280,6 +1304,8 @@ def _wallet_activity(activity: pd.DataFrame | None, truncated: bool, as_of: str)
         "n_trades": n_trades,
         "n_redeems": int(df["_type"].eq("REDEEM").sum()),
         "window_truncated": bool(truncated),
+        "window_state": zustand,
+        "error": str(error or ""),
         "first": _iso(times.min()) if not times.empty else "",
         "last": _iso(times.max()) if not times.empty else "",
         "span_days": span_days,
@@ -1499,6 +1525,7 @@ def wallet_detail(
     resolved: pd.DataFrame | None = None,
     resolved_capped: bool | None = None,
     activity_truncated: bool = False,
+    activity_error: str = "",
     classify: Callable[[Any, Any], Any] | None = None,
     pseudonym: str = "",
     as_of: str = "",
@@ -1567,14 +1594,14 @@ def wallet_detail(
 
     realized = card.get("realized_edge") if isinstance(card.get("realized_edge"), Mapping) else None
     open_block = _wallet_positions(positions, stamp, positions_requested)
-    payload["identity"] = _wallet_identity(wallet, activity, pseudonym, activity_truncated)
+    payload["identity"] = _wallet_identity(wallet, activity, pseudonym, activity_truncated, activity_error)
     payload["track_record"] = _wallet_track_record(track, resolved, capped, stamp)
     payload["pnl"] = _wallet_pnl(pnl_points, stamp, pnl_window, resolved, capped)
     payload["edge"] = _wallet_edge(resolved, realized, capped, classify, stamp)
     payload["open_positions"] = open_block
     payload["closed"] = _wallet_closed(resolved, capped, open_block["worthless_n"], stamp,
                                        _text(track.get("coverage_note")) if track else "")
-    payload["activity"] = _wallet_activity(activity, activity_truncated, stamp)
+    payload["activity"] = _wallet_activity(activity, activity_truncated, stamp, activity_error)
     payload["risk_profile"] = _wallet_risk_profile(resolved, capped, activity, stamp)
     if activity_truncated and payload["risk_profile"]["heatmap"]["n"]:
         payload["risk_profile"]["heatmap"]["note"] += " — the window was truncated at the page cap"
