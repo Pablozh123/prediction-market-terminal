@@ -295,3 +295,94 @@ def price_after(history: pd.DataFrame, flag_time: Any, price_at_flag: float | No
             "move_c": round((price - base) * 100.0, 1) if base is not None else None,
         }
     return out
+
+
+#: Horizons the flag log measures, in the order the card shows them.
+HORIZONS = ("30m", "2h", "24h")
+
+#: Below this many measured flags a hit rate at one horizon is a hint, not a
+#: read; from ``VERDICT_FLAGS`` on it may be stated as one. Same ladder as
+#: ``scorecard.sample_quality`` uses for resolved events, so a reader meets
+#: one vocabulary: insufficient / developing / adequate.
+MIN_FLAGS = 10
+VERDICT_FLAGS = 30
+
+
+def _sample_badge(n: int) -> dict[str, Any]:
+    quality = "insufficient" if n < MIN_FLAGS else "developing" if n < VERDICT_FLAGS else "adequate"
+    return {"n": int(n), "quality": quality, "verdict_allowed": quality == "adequate"}
+
+
+def flag_scoreboard(rows: Iterable[dict[str, Any]], *, as_of: Any = None,
+                    enrich_max: int | None = None) -> dict[str, Any]:
+    """How often the flagged side was higher afterwards, per horizon.
+
+    The log showed the price move of every single flag and never added them
+    up, so the only way to judge the screen was to count green cells by eye -
+    and the cells on show are a selected subset (newest first, Polymarket
+    only, capped at ``enrich_max``). This states the ratio together with what
+    it rests on: n, a 95% Wilson interval, a sample badge, the snapshot time,
+    and the denominators that were left out.
+
+    A "hit" is narrow on purpose: the price of the side the screen named was
+    higher at the horizon than at the flag. It is not evidence that anyone
+    knew anything, and a flag whose price did not move counts as a tie, not
+    as a hit.
+    """
+
+    from app import quant
+
+    rows = [r for r in (rows or []) if isinstance(r, dict)]
+    total = len(rows)
+    venues: dict[str, int] = {}
+    for row in rows:
+        key = str(row.get("venue") or "unknown")
+        venues[key] = venues.get(key, 0) + 1
+    measured_ids: set[str] = set()
+    per_horizon: dict[str, Any] = {}
+    for label in HORIZONS:
+        hits = ties = 0
+        moves: list[float] = []
+        for row in rows:
+            after = row.get("after")
+            cell = after.get(label) if isinstance(after, dict) else None
+            move = _num(cell.get("move_c")) if isinstance(cell, dict) else None
+            if move is None:
+                continue
+            measured_ids.add(str(row.get("flag_id") or id(row)))
+            moves.append(float(move))
+            if move > 0:
+                hits += 1
+            elif move == 0:
+                ties += 1
+        decisive = len(moves) - ties
+        low, high = quant.wilson_interval(hits, decisive) if decisive else (None, None)
+        per_horizon[label] = {
+            "n": len(moves),
+            "n_decisive": decisive,
+            "hits": hits,
+            "ties": ties,
+            "hit_rate": round(hits / decisive, 4) if decisive else None,
+            "ci95": [round(low, 4), round(high, 4)] if low is not None else None,
+            "avg_move_c": round(sum(moves) / len(moves), 2) if moves else None,
+            "sample": _sample_badge(decisive),
+        }
+    return {
+        "as_of": _iso(_utc(as_of)),
+        "flags_total": total,
+        "flags_measured": len(measured_ids),
+        "flags_by_venue": venues,
+        "horizons": per_horizon,
+        "basis": (
+            "Hit = the price of the flagged side was higher at the horizon than at the flag; a flat price is a "
+            "tie and leaves the ratio, both counted. Measured flags are a selected subset, not a sample: only "
+            "Polymarket carries a readable price history"
+            + (f", and only the newest {int(enrich_max)} flags are looked up" if enrich_max else "")
+            + ". Rows whose horizon has not passed yet are not counted anywhere."
+        ),
+        "multiplicity": (
+            "Every market with a print in the tape is scored on every rule, and the screen re-runs every few "
+            "minutes, so the flags are the extreme tail of many comparisons. Read one hit rate as the tail's "
+            "behaviour, not as the accuracy of a single test."
+        ),
+    }

@@ -332,7 +332,20 @@ function mitDaten(T) {
       price_outcome: 'YES', price_at_flag: 0.4, price_min: 0.4, price_max: 0.4, notional: 12000, unique_wallets: 0, prints: 1,
       top_wallets: [], score: 44, sev: 'low', components: [],
       window_start: '2026-08-17T08:59:00Z', window_end: '2026-08-17T08:59:00Z', window_minutes: 0, token_id: '', after: null
-    }]
+    }],
+    // Die Quote ueber die gemessenen Flags, wie risk_log.flag_scoreboard sie
+    // fuer genau diese zwei Zeilen liefert.
+    scoreboard: {
+      as_of: '2026-08-17T10:30:00Z', flags_total: 2, flags_measured: 1,
+      flags_by_venue: { Polymarket: 1, Kalshi: 1 },
+      horizons: {
+        '30m': { n: 1, n_decisive: 1, hits: 1, ties: 0, hit_rate: 1.0, ci95: [0.2065, 1.0], avg_move_c: 3.0, sample: { n: 1, quality: 'insufficient', verdict_allowed: false } },
+        '2h': { n: 1, n_decisive: 1, hits: 0, ties: 0, hit_rate: 0.0, ci95: [0.0, 0.7935], avg_move_c: -3.0, sample: { n: 1, quality: 'insufficient', verdict_allowed: false } },
+        '24h': { n: 0, n_decisive: 0, hits: 0, ties: 0, hit_rate: null, ci95: null, avg_move_c: null, sample: { n: 0, quality: 'insufficient', verdict_allowed: false } }
+      },
+      basis: 'Hit = the price of the flagged side was higher at the horizon than at the flag; a flat price is a tie and leaves the ratio, both counted. Measured flags are a selected subset, not a sample: only Polymarket carries a readable price history, and only the newest 30 flags are looked up. Rows whose horizon has not passed yet are not counted anywhere.',
+      multiplicity: 'Every market with a print in the tape is scored on every rule, and the screen re-runs every few minutes, so the flags are the extreme tail of many comparisons. Read one hit rate as the tail\'s behaviour, not as the accuracy of a single test.'
+    }
   };
   // One pair that clears the server gate (sim >= 0.5, volume on both venues).
   // Mittelkurse 62/58, ausfuehrbar aber nur 2 Cent, und davon frisst die

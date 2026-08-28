@@ -637,6 +637,47 @@ function afterCell(after, key, label) {
   return '<div><div style="' + HEAD_CELL + '">' + label + '</div><div style="' + M + '; font-size:12px; margin-top:2px">' + cents(p.price) + move + '</div></div>';
 }
 
+// Die Quote ueber alle gemessenen Flags. Ohne sie stand auf der Seite nur
+// die Einzelbewegung je Flag, und wer den Screen beurteilen wollte, zaehlte
+// gruene Zellen — und zwar in einer Auswahl (juengste zuerst, nur
+// Polymarket). Die Kachel nennt n, das 95-Prozent-Intervall, die
+// Stichprobenguete, den Stand und die weggelassenen Nenner.
+export function flagScoreboardHtml(sb) {
+  if (!sb || !sb.horizons) return '';
+  const LABEL = { '30m': '+30 MIN', '2h': '+2 H', '24h': '+24 H' };
+  const zelle = (key) => {
+    const h = sb.horizons[key];
+    if (!h) return '';
+    const quote = h.hit_rate == null
+      ? '—'
+      : Math.round(h.hit_rate * 100) + '%';
+    const ci = h.ci95 ? '95% [' + Math.round(h.ci95[0] * 100) + '%, ' + Math.round(h.ci95[1] * 100) + '%]' : 'no interval';
+    const badge = h.sample && h.sample.quality ? h.sample.quality : '';
+    const farbe = badge === 'adequate' ? 'var(--text)' : 'rgba(var(--ink),.6)';
+    return '<div style="min-width:150px">'
+      + '<div style="' + HEAD_CELL + '">' + LABEL[key] + '</div>'
+      + '<div style="' + M + '; font-size:17px; margin-top:3px; color:' + farbe + '">' + quote + '</div>'
+      + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); margin-top:2px">'
+      + h.hits + '/' + h.n_decisive + ' decisive · ' + esc(ci) + '</div>'
+      + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6)">sample ' + esc(badge)
+      + (h.ties ? ' · ' + h.ties + ' flat' : '')
+      + (h.avg_move_c == null ? '' : ' · avg ' + (h.avg_move_c > 0 ? '+' : '') + h.avg_move_c + 'c') + '</div>'
+      + '</div>';
+  };
+  return '<div style="margin:14px 24px 0; background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:14px 18px">'
+    + '<div style="' + M + '; font-size:10.5px; letter-spacing:.14em; color:rgba(var(--ink),.6)">FLAGGED SIDE HIGHER AFTERWARDS</div>'
+    + '<div style="display:flex; gap:26px; flex-wrap:wrap; margin-top:10px">'
+    + Object.keys(LABEL).map(zelle).join('') + '</div>'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.55); margin-top:10px; line-height:1.6; max-width:860px">'
+    + esc(sb.basis || '') + '</div>'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.55); margin-top:6px; line-height:1.6; max-width:860px">'
+    + esc(sb.multiplicity || '') + '</div>'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.55); margin-top:6px">'
+    + esc(String(sb.flags_measured || 0)) + ' of ' + esc(String(sb.flags_total || 0)) + ' flags measured'
+    + (sb.as_of ? ' · as of ' + esc(utcShort(sb.as_of)) + ' UTC' : '') + '</div>'
+    + '</div>';
+}
+
 // The flag log tab: rows newest first, with the price after the flag when
 // the API could read it. Fetched only when the tab is opened.
 export function renderRiskLog(T) {
@@ -666,7 +707,7 @@ export function renderRiskLog(T) {
   const kopf = '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); padding:12px 24px 0">' + rows.length + ' flag' + (rows.length === 1 ? '' : 's')
     + (live.enriched != null ? ' · price after the flag read for ' + live.enriched + ' of the newest ' + Math.min(rows.length, live.enrich_max || 30) + ' Polymarket flags' : '')
     + (live.as_of ? ' · as of ' + esc(String(live.as_of)) : '') + '</div>';
-  return intro + kopf + '<div style="padding:12px 24px 18px; display:grid; gap:12px">'
+  return intro + kopf + flagScoreboardHtml(live.scoreboard) + '<div style="padding:12px 24px 18px; display:grid; gap:12px">'
     + rows.map((f) => {
       const sevColor = f.sev === 'high' ? 'var(--warn)' : f.sev === 'medium' ? 'rgba(var(--ink),.72)' : 'rgba(var(--ink),.5)';
       const scoreStyle = M + '; font-size:16px; color:' + sevColor;

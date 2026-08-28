@@ -1135,6 +1135,11 @@ def risk_log_endpoint(limit: int = Query(100, ge=1, le=500), enrich: int = 0, si
         "count": len(rows),
         "enriched": enriched,
         "enrich_max": RISK_LOG_ENRICH_MAX,
+        # Die Einzelbewegungen waren da, die Quote nie: wer den Screen
+        # beurteilen wollte, musste gruene Zellen zaehlen. Sie steht jetzt
+        # mit n, 95-Prozent-Intervall, Sample-Badge, Stand und den
+        # weggelassenen Nennern daneben.
+        "scoreboard": risk_log.flag_scoreboard(rows, as_of=None, enrich_max=RISK_LOG_ENRICH_MAX) if enrich else None,
         "min_score": risk_log.min_score(),
         "dedupe_hours": risk_log.DEDUPE_HOURS,
         "sampler_interval_min": RISK_LOG_INTERVAL_MIN,

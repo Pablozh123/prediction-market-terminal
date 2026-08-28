@@ -216,5 +216,53 @@ class PriceAfterTests(unittest.TestCase):
         self.assertIsNone(after["30m"]["move_c"])
 
 
+class FlagScoreboardTests(unittest.TestCase):
+    """Die Quote ueber die gemessenen Flags, mit n, CI, Badge und Stand."""
+
+    def _rows(self, moves, venue="Polymarket"):
+        return [
+            {"flag_id": f"f{i}", "venue": venue,
+             "after": {"30m": {"price": 0.5, "move_c": m} if m is not None else None, "2h": None, "24h": None}}
+            for i, m in enumerate(moves)
+        ]
+
+    def test_hits_ties_and_interval(self):
+        board = risk_log.flag_scoreboard(self._rows([3.0, 1.5, -2.0, 0.0, None]), as_of="2026-08-28T10:00:00Z")
+        h = board["horizons"]["30m"]
+        self.assertEqual(h["n"], 4)          # vier gemessene, eine ohne Kurs
+        self.assertEqual(h["ties"], 1)       # eine Bewegung von genau null
+        self.assertEqual(h["n_decisive"], 3)
+        self.assertEqual(h["hits"], 2)
+        self.assertAlmostEqual(h["hit_rate"], 2 / 3, places=4)
+        self.assertLess(h["ci95"][0], h["hit_rate"])
+        self.assertGreater(h["ci95"][1], h["hit_rate"])
+        self.assertAlmostEqual(h["avg_move_c"], round((3.0 + 1.5 - 2.0 + 0.0) / 4, 2), places=6)
+        self.assertEqual(board["as_of"], "2026-08-28T10:00:00Z")
+
+    def test_small_sample_is_labelled_not_stated_as_a_verdict(self):
+        board = risk_log.flag_scoreboard(self._rows([1.0, 2.0, 3.0]))
+        self.assertEqual(board["horizons"]["30m"]["sample"]["quality"], "insufficient")
+        self.assertFalse(board["horizons"]["30m"]["sample"]["verdict_allowed"])
+        big = risk_log.flag_scoreboard(self._rows([1.0] * 30))
+        self.assertEqual(big["horizons"]["30m"]["sample"]["quality"], "adequate")
+        self.assertTrue(big["horizons"]["30m"]["sample"]["verdict_allowed"])
+
+    def test_denominators_and_multiplicity_travel_with_the_ratio(self):
+        rows = self._rows([1.0, None]) + self._rows([None], venue="Kalshi")
+        board = risk_log.flag_scoreboard(rows, enrich_max=30)
+        self.assertEqual(board["flags_total"], 3)
+        self.assertEqual(board["flags_measured"], 1)
+        self.assertEqual(board["flags_by_venue"], {"Polymarket": 2, "Kalshi": 1})
+        self.assertIn("only the newest 30 flags", board["basis"])
+        self.assertIn("many comparisons", board["multiplicity"])
+
+    def test_nothing_measured_yields_no_number(self):
+        board = risk_log.flag_scoreboard([])
+        self.assertEqual(board["flags_total"], 0)
+        for label in risk_log.HORIZONS:
+            self.assertIsNone(board["horizons"][label]["hit_rate"])
+            self.assertIsNone(board["horizons"][label]["ci95"])
+
+
 if __name__ == "__main__":
     unittest.main()

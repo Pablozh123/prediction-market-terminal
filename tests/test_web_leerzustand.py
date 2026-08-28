@@ -1455,6 +1455,24 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("'/api/risk/log?limit=100&enrich=1'", app_js)
         self.assertIn("riskLog: null", app_js)
 
+    def test_flag_log_trefferquote_mit_n_ci_badge_und_stand(self) -> None:
+        # Die Einzelbewegungen standen da, die Quote nie: wer den Screen
+        # beurteilen wollte, zaehlte gruene Zellen in einer Auswahl.
+        text = _sichtbarer_text(self.ausgabe["live"]["risk_log"])
+        self.assertIn("FLAGGED SIDE HIGHER AFTERWARDS", text)
+        self.assertIn("1/1 decisive", text)
+        self.assertIn("95% [21%, 100%]", text)
+        self.assertIn("sample insufficient", text)
+        self.assertIn("1 of 2 flags measured", text)
+        self.assertIn("as of 17 Aug 10:30 UTC", text)
+        # Der Nenner und die Mehrfachvergleiche stehen daneben, nicht in einer
+        # Fussnote irgendwo anders.
+        self.assertIn("only Polymarket carries a readable price history", text)
+        self.assertIn("extreme tail of many comparisons", text)
+        # Ohne gemessene Flags keine Quote.
+        for zustand in ("risk_log_empty", "risk_log_loading", "risk_log_error"):
+            self.assertNotIn("FLAGGED SIDE HIGHER AFTERWARDS", _sichtbarer_text(self.ausgabe["live"][zustand]))
+
     def test_review_queue_ein_eintrag_je_markt(self) -> None:
         # Fuenf Faelle auf zwei Slugs -> zwei Zeilen; je Slug gewinnt die
         # hoechste Prioritaet, und die Fensterzahl steht daneben.
