@@ -1194,15 +1194,29 @@ def apply_account_age_bonus(
     max_age_days: float = 14.0,
     bonus: float = 10.0,
 ) -> pd.DataFrame:
-    """Bump wallet scores where the real on-chain account age is young; add a flag."""
+    """Bump wallet scores where the real on-chain account age is young; add a flag.
+
+    Nur ein gemessenes Alter zaehlt. Kam die Aktivitaet einer Wallet nicht
+    vollstaendig an -- abgebrochene Seitenschleife, oder jede Seite voll --,
+    dann ist der aelteste gelesene Eintrag eine untere Schranke fuer das
+    Alter und kein Kontostart. Auf so eine Schranke zehn Punkte zu addieren
+    und "new account (3d)" an eine jahrealte Adresse zu schreiben, waren zwei
+    erfundene Aussagen aus einer fehlenden. ``account_age_state`` trennt das;
+    fehlt die Spalte, gilt die Angabe wie bisher als gemessen.
+    """
 
     if wallet_risk is None or wallet_risk.empty:
         return wallet_risk
     if account_stats is None or account_stats.empty or "wallet" not in account_stats or "account_age_days" not in account_stats:
         return wallet_risk
-    ages = account_stats[["wallet", "account_age_days"]].copy()
+    spalten = ["wallet", "account_age_days"] + (["account_age_state"] if "account_age_state" in account_stats else [])
+    ages = account_stats[spalten].copy()
     ages["wallet"] = ages["wallet"].astype(str).str.lower().str.strip()
     ages["account_age_days"] = pd.to_numeric(ages["account_age_days"], errors="coerce")
+    if "account_age_state" in ages:
+        ungemessen = ages["account_age_state"].astype(str) != "measured"
+        ages.loc[ungemessen, "account_age_days"] = pd.NA
+        ages = ages.drop(columns=["account_age_state"])
     enriched = wallet_risk.copy()
     enriched["_wallet_key"] = enriched["wallet"].astype(str).str.lower().str.strip()
     enriched = enriched.merge(ages.rename(columns={"wallet": "_wallet_key"}), on="_wallet_key", how="left")

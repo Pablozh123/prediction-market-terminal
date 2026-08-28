@@ -956,10 +956,14 @@ class Terminal {
       name: String(r.name || r.pseudonym || '') || shortW(r.wallet || r.proxyWallet) || '—',
       wallet: shortW(r.wallet || r.proxyWallet),
       walletFull: String(r.wallet || r.proxyWallet || ''),
-      pnl: +r.pnl || 0,
+      // ``+r.pnl || 0`` machte aus einem fehlenden oder umbenannten Feld
+      // einen echten, plausiblen Nullgewinn -- waehrend win, resolved und
+      // score im selben Objekt daneben null korrekt durchreichen. Fehlt die
+      // Zahl, bleibt sie null, und die Zeile zeigt einen Strich.
+      pnl: r.pnl != null ? +r.pnl : null,
       win: r.win != null ? +r.win : null,
       resolved: r.resolved != null ? +r.resolved : null,
-      vol: +r.vol || +r.volume || 0,
+      vol: r.vol != null ? +r.vol : (r.volume != null ? +r.volume : null),
       score: r.score != null ? +r.score : null,
       grade: r.grade || null,
       scoreN: r.score_n != null ? +r.score_n : null,

@@ -188,7 +188,25 @@ def settled_from_activity(activity: pd.DataFrame) -> pd.DataFrame:
     return grouped[columns]
 
 
-def reconcile_resolved_with_activity(resolved: pd.DataFrame, activity: pd.DataFrame | None) -> tuple[pd.DataFrame, int]:
+#: Woran ein Aktivitaetsfenster erkennen laesst, dass es unvollstaendig ist.
+#: Die Frames tragen das seit PR #129 in ``attrs``; der Aufrufer darf es
+#: zusaetzlich als Argument setzen, wenn er es besser weiss.
+WINDOW_INCOMPLETE_ATTRS = ("window_truncated", "truncated_by_error", "read_error", "error")
+
+
+def _window_incomplete(activity: pd.DataFrame | None, flag: bool) -> bool:
+    if flag:
+        return True
+    attrs = getattr(activity, "attrs", None) or {}
+    return any(bool(attrs.get(name)) for name in WINDOW_INCOMPLETE_ATTRS)
+
+
+def reconcile_resolved_with_activity(
+    resolved: pd.DataFrame,
+    activity: pd.DataFrame | None,
+    *,
+    window_truncated: bool = False,
+) -> tuple[pd.DataFrame, int]:
     """Repair closed rows whose realizedPnl contradicts the settlement and the payout.
 
     ``/closed-positions`` reports ``realizedPnl = -(totalBought x avgPrice)``
@@ -202,24 +220,48 @@ def reconcile_resolved_with_activity(resolved: pd.DataFrame, activity: pd.DataFr
     settlement price, counted it as a win.
 
     Only rows that carry BOTH a buy and a redemption in the activity feed are
-    touched, and only when the feed contradicts itself, so a truncated
-    activity window can never invent a correction. The replacement is the
+    touched, and only when the feed contradicts itself. The replacement is the
     wallet's own cash flow for that market: sells + redemptions - buys.
 
+    Die Verkaufsseite war dabei ungeschuetzt. Kauf und Einloesung mussten im
+    Fenster stehen, der Verkauf ging mit null in dieselbe Rechnung ein, sobald
+    er ausserhalb lag, und das Ergebnis wurde als ``pnl_source="cash_flow"``
+    ausgewiesen, also als die verlaesslichere Zahl. 100 Anteile zu 50 Cent
+    gekauft, 60 davon zu 80 Cent verkauft, 40 zu einem Dollar eingeloest, sind
+    +38.00; ohne den Verkauf rechnet dieselbe Formel 0 + 40 - 50 = -10.00.
+    Ist das Fenster erkennbar unvollstaendig -- ``window_truncated``, oder
+    ``attrs`` des Frames sagen es --, wird deshalb nicht korrigiert: die
+    widerspruechliche Zeile behaelt den Wert der API und heisst
+    ``pnl_source="unverified"``.
+
     Returns (frame, corrected_rows); the frame gains ``pnl_source``
-    ("api" / "cash_flow") so a surface can say which rows were repaired.
+    ("api" / "cash_flow" / "unverified") so a surface can say which rows were
+    repaired and which could not be, plus ``attrs["pnl_reconciliation"]``
+    with the two counts.
     """
 
     if resolved is None or resolved.empty:
         return resolved, 0
     out = resolved.copy()
     out["pnl_source"] = "api"
+    out.attrs["pnl_reconciliation"] = {"corrected": 0, "withheld": 0, "window_incomplete": False}
     if activity is None or activity.empty or "market_key" not in activity:
         return out, 0
     settle = _numeric(out, "current_price")
     pnl = _numeric(out, "realized_pnl")
     verdaechtig = (settle >= 1.0) & (pnl < 0)
     if not bool(verdaechtig.any()):
+        return out, 0
+    if _window_incomplete(activity, window_truncated):
+        # Ohne vollstaendiges Fenster ist jede Neurechnung eine Vermutung
+        # ueber die fehlende Seite. Die Zeile behaelt die Zahl der API und
+        # sagt, dass der Widerspruch offen ist.
+        out.loc[verdaechtig, "pnl_source"] = "unverified"
+        out.attrs["pnl_reconciliation"] = {
+            "corrected": 0,
+            "withheld": int(verdaechtig.sum()),
+            "window_incomplete": True,
+        }
         return out, 0
 
     act = activity.copy()
@@ -243,6 +285,7 @@ def reconcile_resolved_with_activity(resolved: pd.DataFrame, activity: pd.DataFr
         out.at[idx, "realized_pnl"] = float(verkauf.get(key, 0.0)) + eingeloest - gekauft
         out.at[idx, "pnl_source"] = "cash_flow"
         korrigiert += 1
+    out.attrs["pnl_reconciliation"] = {"corrected": korrigiert, "withheld": 0, "window_incomplete": False}
     return out, korrigiert
 
 

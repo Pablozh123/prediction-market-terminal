@@ -202,6 +202,9 @@ function renderIdentity(T, d) {
   if (tr && tr.survivorship_gate && !tr.survivorship_gate.ok) tags.push('<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.08em; color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">BELOW SAMPLE GATE</span>');
   if (tr && tr.wash_flag && tr.wash_flag.flag) tags.push('<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.08em; color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">WASH / FARMER FLAG</span>');
   if (id.days_active != null) tags.push('<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.08em; color:var(--ink-3); border:1px solid var(--line-2); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">' + id.days_active + (id.activity_truncated ? '+' : '') + ' DAYS ACTIVE</span>');
+  // Der Abruf ist gescheitert. Ohne diese Marke sieht die Seite aus wie eine
+  // Wallet ohne Aktivitaet, und "0 activity rows read" waere eine Messung.
+  if (id.activity_error) tags.push('<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.08em; color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">ACTIVITY NOT READ</span>');
   return '<div style="' + KARTE + '; padding:var(--sp-5); position:relative; overflow:hidden">'
     + '<div style="position:absolute; left:-40px; top:-60px; width:180px; height:180px; border-radius:50%; background:radial-gradient(closest-side, rgba(var(--accent-rgb),.10), rgba(var(--accent-rgb),0)); pointer-events:none"></div>'
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:var(--sp-5); flex-wrap:wrap; position:relative">'
@@ -210,7 +213,9 @@ function renderIdentity(T, d) {
     + '<div style="min-width:0">'
     + '<div style="font-size:var(--t-head); line-height:1.2">' + esc(id.pseudonym || shortAddr(addr)) + '</div>'
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-2); word-break:break-all">' + esc(addr) + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2)">first activity ' + esc(when(id.first_activity)) + ' · last ' + esc(when(id.last_activity)) + ' · ' + (id.n_activity_rows != null ? num(id.n_activity_rows) + ' activity rows read' : 'activity not read') + '</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2)">' + (id.activity_error
+      ? 'the /activity feed did not answer: ' + esc(id.activity_error) + ' — first and last activity are unknown, not absent'
+      : 'first activity ' + esc(when(id.first_activity)) + ' · last ' + esc(when(id.last_activity)) + ' · ' + (id.n_activity_rows != null ? num(id.n_activity_rows) + ' activity rows read' : 'activity not read')) + '</div>'
     + (tags.length ? '<div style="display:flex; gap:var(--sp-3); flex-wrap:wrap; margin-top:var(--sp-3)">' + tags.join('') + '</div>' : '')
     + '</div></div>'
     + '<div style="display:flex; flex-direction:column; align-items:flex-end; gap:var(--sp-3)">'
@@ -288,7 +293,7 @@ function renderKpis(d) {
   ];
   const facts = [
     ['VOLUME TRADED', act && act.n_trades ? money(act.volume_traded) : '—'],
-    ['TRADES', act && act.n_trades ? num(act.n_trades) + (act.window_truncated ? ' · window truncated' : '') : 'no trades read'],
+    ['TRADES', act && act.n_trades ? num(act.n_trades) + (act.window_truncated ? ' · window truncated' : '') : (act && act.window_state === 'unreadable' ? 'feed did not answer' : 'no trades read')],
     ['AVG TRADE', act && act.avg_trade_size != null ? absDollars(act.avg_trade_size) : '—'],
     ['DAYS ACTIVE', id.days_active != null ? String(id.days_active) + (id.activity_truncated ? '+ (window truncated)' : '') : '—'],
     ['SINCE', id.first_activity ? String(id.first_activity).slice(0, 10) : '—']
@@ -338,7 +343,8 @@ function renderAside(d) {
     ['buy / sell', a && a.n_trades ? num(a.buy_n) + ' / ' + num(a.sell_n) : '—'],
     ['trades / day', a && a.trades_per_day != null ? fmtZahl(a.trades_per_day) : '—'],
     ['not redeemed', op ? num(op.worthless_n || 0) : '—', op && op.worthless_n ? 'var(--warn)' : 'var(--text)']
-  ], a && a.window_truncated ? 'activity window truncated' : ''));
+  ], a && a.window_state === 'unreadable' ? 'the activity feed did not answer — these rows are unknown, not zero'
+    : (a && a.window_truncated ? 'activity window truncated' : '')));
   const buyN = a ? Number(a.buy_n) || 0 : 0;
   const sellN = a ? Number(a.sell_n) || 0 : 0;
   const share = buyN + sellN > 0 ? buyN / (buyN + sellN) : null;
@@ -818,6 +824,13 @@ function renderCategoriesContext(d) {
 function renderTrades(d) {
   const a = d.activity || null;
   if (!a || !a.n_trades) {
+    // Gescheiterter Abruf und stille Wallet sahen hier gleich aus. Der eine
+    // Satz ist eine Messung, der andere nicht.
+    if (a && a.window_state === 'unreadable') {
+      return card('RECENT TRADES', '<div style="' + NOTIZ + '">The /activity feed did not answer for this wallet'
+        + (a.error ? ' (' + esc(a.error) + ')' : '') + '. No trade was read, which is not the same as no trade having happened.</div>',
+        'as of ' + esc(a.as_of || '') + ' · ACTIVITY NOT READ');
+    }
     return card('RECENT TRADES', '<div style="' + NOTIZ + '">No trades in the public /activity feed for this wallet' + (a && a.n_rows ? ' (' + num(a.n_rows) + ' rows read, none of type TRADE)' : '') + '.</div>', a ? 'as of ' + esc(a.as_of || '') : '');
   }
   const summary = '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:var(--sp-4); margin-bottom:var(--sp-4)">'

@@ -914,6 +914,17 @@ class WebLeerzustandTest(unittest.TestCase):
         suche = _sichtbarer_text(self.ausgabe["live"]["_suche"])
         self.assertNotIn("sharpe-proxy", suche)
 
+    def test_leaderboard_zeile_ohne_gewinnzahl_zeigt_keinen_nullgewinn(self) -> None:
+        # ``+r.pnl || 0`` in app.js machte aus einem fehlenden Feld einen
+        # echten, plausiblen Nullgewinn, waehrend win, resolved und score im
+        # selben Objekt null korrekt durchreichten. Die Zeile w3 hat weder
+        # Gewinn noch Volumen: beide Zellen sind ein Strich, und sie steht
+        # hinter den Zeilen mit gemessenem Gewinn.
+        text = _sichtbarer_text(self.ausgabe["live"]["traders_pnl_unknown"])
+        self.assertIn("w3", text)
+        self.assertRegex(text, r"w3\s+0x12…3\s+—\s+—")
+        self.assertLess(text.index("w1"), text.index("w3"))
+
     # ---- Markets: tote Ansichten weg, 1D statt 1H, kein Sparkline ----------
 
     def test_markets_ohne_tote_ansichten(self) -> None:
@@ -1845,6 +1856,19 @@ class WebLeerzustandTest(unittest.TestCase):
         trades = _sichtbarer_text(self.ausgabe["live"]["wallet_empty_trades"])
         self.assertIn("No trades in the public /activity feed", trades)
 
+    def test_wallet_seite_trennt_stille_wallet_von_stummem_feed(self) -> None:
+        # Ein gescheiterter Abruf der Aktivitaet und eine Wallet, die nichts
+        # getan hat, standen unter demselben Satz. Der Endpunkt trug dazu
+        # ``activity_truncated=False``, also eine Behauptung von
+        # Vollstaendigkeit ueber einem Abruf, der nie angekommen ist.
+        text = _sichtbarer_text(self.ausgabe["live"]["wallet_activity_unreadable"])
+        self.assertIn("The /activity feed did not answer for this wallet", text)
+        self.assertIn("not the same as no trade having happened", text)
+        self.assertIn("ACTIVITY NOT READ", text)
+        self.assertIn("first and last activity are unknown, not absent", text)
+        # Der Satz der stillen Wallet darf hier nicht stehen.
+        self.assertNotIn("No trades in the public /activity feed for this wallet.", text)
+
     def test_wallet_seite_flache_profilkurve_zeigt_die_settled_kurve(self) -> None:
         # Theo4-shaped answer: 630 identical profile points. The block swaps
         # to the settled curve summed from the closed rows, says why in an
@@ -1989,6 +2013,10 @@ class WebLeerzustandTest(unittest.TestCase):
         # In-flight and failed actions say so.
         self.assertIn("following…", _sichtbarer_text(self.ausgabe["live"]["copy_busy"]))
         self.assertIn("harness error line", _sichtbarer_text(self.ausgabe["live"]["copy_msg_err"]))
+        # Aufloesungen ohne gelesenen Ausgang sind weder gebucht noch
+        # verworfen; der Lauf saehe ohne diese Zahl vollstaendig aus.
+        unentschieden = _sichtbarer_text(self.ausgabe["live"]["copy_sync_undecided"])
+        self.assertIn("2 settlement(s) undecided: the resolved outcome was not read", unentschieden)
 
     def test_copy_desk_filters_settings_and_rows(self) -> None:
         # Trader filter: w2 has no orders, and the table says so instead of
