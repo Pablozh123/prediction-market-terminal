@@ -5448,6 +5448,15 @@ def page_markets() -> None:
                 elif market_wallet_risk.empty:
                     draw_empty("No scoreable wallets in this market's tape.")
                 else:
+                    # Derselbe Feldname wie auf dem Risk-Screen, aber ueber das
+                    # Tape genau dieses Marktes gerechnet und mit einer
+                    # anderen Schwelle. Die Zahl ist nicht die der
+                    # Suspicious-Seite und darf nicht so heissen.
+                    st.caption(
+                        "Flow shape in this market's own tape, scaled to 0-100. The insider screen "
+                        "scores the same wallets over a venue-wide sample with the shared screen "
+                        "threshold, so its number for the same wallet differs."
+                    )
                     for quick_idx, wallet_row in market_wallet_risk.head(5).iterrows():
                         wallet_value = str(wallet_row.get("wallet", "") or "").lower()
                         wallet_name = str(wallet_row.get("trader", "") or "") or short_addr(wallet_value)
@@ -5455,7 +5464,7 @@ def page_markets() -> None:
                         wcols = st.columns([2.6, 1, 0.9])
                         wcols[0].markdown(
                             f"<span class='small-note'>{html.escape(wallet_name[:20])}</span><br>"
-                            f"<span class='mono field-hint'>{money(wallet_row.get('notional', 0.0))} · risk {risk_value:.0f}</span>",
+                            f"<span class='mono field-hint'>{money(wallet_row.get('notional', 0.0))} · flow score {risk_value:.0f} (this market)</span>",
                             unsafe_allow_html=True,
                         )
                         wcols[1].button("Backtest", key=f"mq_bt_{quick_idx}", width="stretch", on_click=_pick_backtest, args=(wallet_value,))
@@ -8397,8 +8406,26 @@ def page_whale_flow() -> None:
     cols[1].metric("Combined notional", money(trades["notional"].sum()))
     cols[2].metric("Largest print", money(trades["notional"].max()))
     cols[3].metric("Markets touched", f"{trades['title'].nunique():,}")
-    cols[4].metric("High insider events", f"{int((numeric_col(event_risk, 'event_insider_score') >= 70).sum()) if not event_risk.empty else 0:,}")
-    cols[5].metric("High insider wallets", f"{int((numeric_col(wallet_risk, 'wallet_insider_score') >= 70).sum()) if not wallet_risk.empty else 0:,}")
+    # Der Score traegt denselben Namen wie auf der Seite "Suspicious", steht
+    # aber auf einem anderen Tape: dort der Screen-Boden aus
+    # susp.screen_thresholds, hier die Filter dieser Seite. Verschiedene
+    # Stichproben bedeuten verschiedene Anteile und damit verschiedene Scores,
+    # und das muss dabeistehen.
+    tape_basis_note = (
+        f"Scored over this page's filtered tape ({len(trades):,} prints at or above "
+        f"{money(risk_base)}), not over the insider screen's own sample. The Suspicious page "
+        "uses the shared screen basis, so the same wallet can carry a different number there."
+    )
+    cols[4].metric(
+        "High insider events",
+        f"{int((numeric_col(event_risk, 'event_insider_score') >= 70).sum()) if not event_risk.empty else 0:,}",
+        help=tape_basis_note,
+    )
+    cols[5].metric(
+        "High insider wallets",
+        f"{int((numeric_col(wallet_risk, 'wallet_insider_score') >= 70).sum()) if not wallet_risk.empty else 0:,}",
+        help=tape_basis_note,
+    )
     if whale_window:
         st.markdown(f"<div class='field-hint'>SUMMED OVER {html.escape(whale_window)}</div>", unsafe_allow_html=True)
     left, right = st.columns([1.3, 1])
@@ -8460,7 +8487,10 @@ def page_whale_flow() -> None:
                 width="stretch",
                 height=390,
                 column_config={
-                    "wallet_insider_score": st.column_config.ProgressColumn("Insider", min_value=0, max_value=100),
+                    "wallet_insider_score": st.column_config.ProgressColumn(
+                        "Insider (this tape)", min_value=0, max_value=100,
+                        help="Flow shape in this page's filtered tape, scaled to 0-100. Nothing in it is validated against an outcome, and the Suspicious page scores the same wallet over a different sample.",
+                    ),
                     "notional": st.column_config.NumberColumn(format="$%.0f"),
                     "largest_trade": st.column_config.NumberColumn(format="$%.0f"),
                     "directional_share_pct": st.column_config.NumberColumn("Direction", format="%.0f%%"),
@@ -13078,14 +13108,50 @@ def page_kategorie_effizienz() -> None:
         render_publish_missing("kategorie_karte.json")
         render_analysis_footer()
         return
-    kategorien = karte.get("kategorien", [])
-    if kategorien:
-        st.markdown("#### Key figures per category")
-        frame = pd.DataFrame(kategorien)
-        st.dataframe(clean_table(frame, [
-            "kategorie", "brier_t7", "trefferquote_t7", "brier_t1",
-            "trefferquote_t1", "n_maerkte", "n_t7", "median_volumen_usd",
-        ]), width="stretch", hide_index=True)
+    # Eine Zeile je Kategorie UND Horizont, mit dem Intervall um den Brier.
+    # Vorher las diese Tabelle nur die flachen Spalten der alten Nutzlast
+    # (brier_t7, brier_t1); die neue Form von category_efficiency.publish_payload
+    # traegt sie gar nicht mehr, sodass hier eine Tabelle aus einer Spalte
+    # geblieben waere. Und ein blanker Brier ueber ein Dutzend Kategorien ist
+    # keine Rangfolge: das Intervall entscheidet, ob zwei Zellen getrennt sind.
+    horizont_rows = av.kategorie_horizont_rows(karte)
+    if horizont_rows:
+        st.markdown("#### Key figures per category and horizon")
+        frame = pd.DataFrame(horizont_rows)
+        frame = frame.assign(
+            trefferquote_pct=pd.to_numeric(frame["trefferquote"], errors="coerce") * 100,
+            entschieden_pct=pd.to_numeric(frame["anteil_entschieden"], errors="coerce") * 100,
+        )
+        st.dataframe(
+            clean_table(frame, [
+                "kategorie", "horizont_tage", "brier", "brier_halbbreite", "trefferquote_pct",
+                "n", "entschieden_pct", "brier_offen", "n_offen", "n_maerkte", "median_volumen_usd",
+            ]),
+            width="stretch",
+            hide_index=True,
+            column_config={
+                "kategorie": st.column_config.TextColumn("Category"),
+                "horizont_tage": st.column_config.NumberColumn("Horizon (d)", format="%d"),
+                "brier": st.column_config.NumberColumn("Brier", format="%.4f"),
+                "brier_halbbreite": st.column_config.NumberColumn(
+                    "+/- 95%", format="%.4f",
+                    help="Half-width of the 95% interval around this cell's Brier, from the spread of the per-market squared errors. Two cells whose intervals overlap are not separated by this sample.",
+                ),
+                "trefferquote_pct": st.column_config.NumberColumn("Hit rate", format="%.1f%%"),
+                "n": st.column_config.NumberColumn("n", format="%d"),
+                "entschieden_pct": st.column_config.NumberColumn(
+                    "Already decided", format="%.1f%%",
+                    help="Share of prices at this horizon that already sat at a settled end, so the Brier over them is not a forecast test.",
+                ),
+                "brier_offen": st.column_config.NumberColumn("Brier (open prices)", format="%.4f"),
+                "n_offen": st.column_config.NumberColumn("n open", format="%d"),
+                "n_maerkte": st.column_config.NumberColumn("Markets", format="%d"),
+                "median_volumen_usd": st.column_config.NumberColumn("Median volume", format="$%.0f"),
+            },
+        )
+        zellen_satz = av.kategorie_zellen_satz(horizont_rows)
+        if zellen_satz:
+            st.caption(zellen_satz)
     points = av.kategorie_points(karte)
     if points:
         fig = go.Figure()
