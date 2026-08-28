@@ -2380,6 +2380,19 @@ class WebMethodikGrundsaetzeTest(unittest.TestCase):
                 self.assertIn('data-caveat="' + key + '"', html)
                 self.assertIn(self.claims.disclaimer(key, "en"), text)
 
+    def test_eine_neue_zeile_des_publishers_verschwindet_nicht(self) -> None:
+        """Was der Publisher zusaetzlich schickt, muss sichtbar bleiben.
+
+        Der Streamlit-Pfad tat das seit PR #120 ueber
+        ``claims.unregistered_texts``; das Frontend rendert vier feste
+        Registerschluessel und las ``payload.disclaimer`` gar nicht. Eine
+        fuenfte Zeile aus dem taeglichen Lauf stand damit auf einer der
+        beiden Oberflaechen und auf der anderen nicht.
+        """
+
+        text = _sichtbarer_text(self.ausgabe["live"]["research_methodology"])
+        self.assertIn("Model outputs are cached for 24 hours before they enter a report.", text)
+
     def test_der_wortlaut_ist_der_der_publizierten_datei(self) -> None:
         # Ein Register, das die Formulierung nebenbei aendert, hat den Satz
         # nicht uebernommen, sondern ersetzt.

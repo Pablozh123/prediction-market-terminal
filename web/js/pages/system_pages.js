@@ -3,7 +3,7 @@
 // public/data/ when the API serves them, incl. their stand_utc stamp and note.
 
 import { esc, num, herkunftSatz, leerZeile, EINZAHLUNGEN_USD, offeneNichtDrin, stempelBlock } from '../util.js';
-import { caveat, caveatZeile, registerStand } from '../claims.js';
+import { caveat, caveatZeile, registerStand, unregistrierteTexte } from '../claims.js';
 import { stepKurve, diagramm, linien, kalibrierung, fmtZahl, serienFarbe, intervallMarke } from '../charts.js';
 import { renderMicrostructure } from './microstructure_page.js';
 import { MONO as M, KARTE, LABEL_BLOCK, kpi } from '../ui.js';
@@ -3135,7 +3135,10 @@ function pilotExtrasHtml(payload, ledger) {
         + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.6; max-width:860px">'
         + (stat && stat.maerkte != null ? num(stat.maerkte) + ' markets scanned' : 'markets scanned: not in the file')
         + (signale ? ' · ' + num(summe) + ' rule matches (' + Object.entries(signale).map(([k, v]) => num(v) + ' ' + watcherText(k)).join(', ') + ')' : '')
-        + '. Signals are rule matches, not recommendations; each rejection reason is a pre-registered gate.</div>'
+        // Der Vorbehalt kam aus dem Register, seit der Marker auch die
+        // Mehrzahl kennt: derselbe Satz stand hier und im Monolithen in zwei
+        // Fassungen, und keine von beiden fiel dem Lint auf.
+        + '. ' + caveat('signals_not_recommendations') + ' Each rejection reason is a pre-registered gate.</div>'
         + '<div style="margin-top:var(--sp-4)">' + chart + '</div></div>');
     }
   } else {
@@ -3175,15 +3178,22 @@ const KERNSATZ = {
 // stehen sie im Register und damit im selben Wortlaut wie im Terminal. Die
 // Schluessel stehen einzeln da und nicht als Liste, damit
 // scripts/lint_claims.py jeden Aufruf sieht.
-function grundsaetzeHtml() {
+function grundsaetzeHtml(payload) {
   const karte = (inhalt) =>
     '<div style="' + KARTE + '; padding:var(--sp-5); font-size:var(--t-body); color:var(--ink-2); line-height:1.6">' + inhalt + '</div>';
+  // Was der Publisher darueber hinaus schickt, steht daneben. Der
+  // Streamlit-Pfad tut das seit PR #120; hier wurden vier feste Schluessel
+  // gerendert und die Nutzlast gar nicht gelesen, also verschwand eine
+  // fuenfte, spaeter dazugeschriebene Zeile auf dieser Oberflaeche.
+  const publiziert = payload && Array.isArray(payload.disclaimer) ? payload.disclaimer : [];
+  const zusatz = unregistrierteTexte(publiziert);
   return '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info); margin:var(--sp-6) 0 var(--sp-4)">PRINCIPLES OF THE DAILY RUN</div>'
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:var(--sp-4)">'
     + karte(caveat('daily_run_descriptive'))
     + karte(caveat('verification_not_signal'))
     + karte(caveat('daily_run_no_advice'))
     + karte(caveat('daily_run_privacy'))
+    + zusatz.map((zeile) => karte(esc(zeile))).join('')
     + '</div>';
 }
 
@@ -3244,7 +3254,7 @@ function renderMethodology(T, payload, study) {
     + stats.map((x) => kpi({ label: esc(x.label), wert: esc(x.value), sub: esc(x.note) })).join('')
     + '</div>'
     + (payload ? '' : '<div style="margin-top:var(--sp-4)">' + leerZeile(herkunftSatz(null, 'public/data/audit.json')) + '</div>')
-    + grundsaetzeHtml()
+    + grundsaetzeHtml(payload)
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info); margin:var(--sp-6) 0 var(--sp-4)">HOW THE STUDIES ARE MEASURED</div>'
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(380px, 1fr)); gap:var(--sp-4)">' + sektionen.join('') + '</div>'
     + queueArchivHtml(T)

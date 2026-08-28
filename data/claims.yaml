@@ -88,6 +88,7 @@ disclaimers:
     en: "A simulation at historical prices with fee and slippage assumptions. Modeled values, not realized results."
     surfaces:
       - web/js/pages/trading_pages.js
+      - prediction_terminal.py
   signal_ledger_caveat:
     de: "Deskriptiver Record der emittierten Alerts mit eingefrorenem Modell-PnL. Kein Qualitaetsversprechen fuer kuenftige Signale."
     en: "A descriptive record of emitted alerts with modeled PnL frozen at emit price. Not a quality promise for future signals."
@@ -185,6 +186,32 @@ disclaimers:
     surfaces:
       - web/js/pages/trader_pages.js
 
+  # Derselbe Satz stand in zwei Fassungen auf zwei Oberflaechen: "Signals are
+  # rule matches, not recommendations" im Web-Frontend, "Rule matches found by
+  # the read-only watcher (not recommendations)" im Monolithen. Der Lint sah
+  # keine von beiden, weil sein Marker "not a recommendation" hiess und beide
+  # Zeilen die Mehrzahl schreiben. Beide lesen jetzt diesen Eintrag, und die
+  # Mehrzahl steht als eigener Marker unten.
+  signals_not_recommendations:
+    de: "Regeltreffer eines nur lesenden Beobachters, keine Handlungsempfehlungen."
+    en: "Rule matches from a read-only watcher, not recommendations to act."
+    surfaces:
+      - web/js/pages/system_pages.js
+      - prediction_terminal.py
+
+  # Was ``activity_volume`` ist, stand dreimal im Monolithen und dreimal
+  # anders: an der Monitor-Spalte, am Overview-Volumen-Gate und unter
+  # TRENDING MARKETS. Die Zahl heisst nicht "24h", und wer sie zeigt, muss
+  # sagen, dass sie das nicht ist -- genau die Sorte Satz, fuer die es dieses
+  # Register gibt. Was die jeweilige Anzeige mit der Zahl TUT (sortieren,
+  # filtern) bleibt bei der Anzeige, ebenso die Einheit je Venue: das sagt,
+  # was die Zahl IST.
+  activity_volume_hybrid:
+    de: "Aktivitaetsvolumen ist der Tageswert, wenn ein Markt heute gehandelt wurde, sonst sein Lebensvolumen. Es ist damit keine 24h-Zahl: ein Markt ohne Umsatz heute tritt mit seinem Gesamtumsatz an."
+    en: "Activity volume is the day's figure where a market traded today and its lifetime figure otherwise. It is therefore not a 24h number: a market with no turnover today competes on its total."
+    surfaces:
+      - prediction_terminal.py
+
 allowed_claims:
   - id: corrected-win-rate
     text: "Win rates are netted per resolved market and NegRisk event over the unioned winners-and-losers set."
@@ -243,6 +270,9 @@ caveat_markers:
   - marker: "investment advice"
   - marker: "financial advice"
   - marker: "not a recommendation"
+  # Dieselbe Zusage in der Mehrzahl. Sie stand in zwei Fassungen auf zwei
+  # Oberflaechen und fiel durch, weil der Marker darueber im Singular steht.
+  - marker: "not recommendations"
   - marker: "no order placement"
   - marker: "no orders placed"
   - marker: "nothing is placed"

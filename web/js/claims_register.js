@@ -103,6 +103,14 @@ export const REGISTER = {
     "composite_range_not_ci": {
       "de": "Die Spanne zeigt, wo der Score liegen koennte, wenn seine Platzhalter-Bestandteile gemessen waeren. Sie ist eine Spanne, kein Konfidenzintervall: der Composite steht fest, sobald seine Eingaben feststehen. Aufgeloeste Wetten je Wallet traegt dieser Feed nicht; die Trefferquote mit Stichprobengroesse und Wilson-Intervall steht auf der Seite der Wallet.",
       "en": "The bar spans where the score could sit if its placeholder components were measured. It is a range, not a confidence interval: the composite is fixed once its inputs are. Resolved-bet counts are not in this feed; a wallet's own page carries its win rate with sample size and a Wilson interval."
+    },
+    "signals_not_recommendations": {
+      "de": "Regeltreffer eines nur lesenden Beobachters, keine Handlungsempfehlungen.",
+      "en": "Rule matches from a read-only watcher, not recommendations to act."
+    },
+    "activity_volume_hybrid": {
+      "de": "Aktivitaetsvolumen ist der Tageswert, wenn ein Markt heute gehandelt wurde, sonst sein Lebensvolumen. Es ist damit keine 24h-Zahl: ein Markt ohne Umsatz heute tritt mit seinem Gesamtumsatz an.",
+      "en": "Activity volume is the day's figure where a market traded today and its lifetime figure otherwise. It is therefore not a 24h number: a market with no turnover today competes on its total."
     }
   }
 };

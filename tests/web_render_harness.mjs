@@ -574,7 +574,16 @@ function mitDaten(T) {
   };
   T.liveData.research['Methodology'] = {
     _quelle: 'live', stand_utc: '2026-08-07T00:00:00+00:00', hinweis: 'Harness payload.',
-    n_eintraege: 3, prompt_hashes: ['a'], output_hashes: ['b'], backend_zaehler: { mock: 3 }
+    n_eintraege: 3, prompt_hashes: ['a'], output_hashes: ['b'], backend_zaehler: { mock: 3 },
+    // Wie public/data/meta.json: die vier registrierten Grundsaetze und eine
+    // fuenfte Zeile, die der Publisher spaeter dazu geschrieben hat.
+    disclaimer: [
+      'Descriptive research artifacts from a daily, deterministic review run over public market data.',
+      'Recommendations are verification steps (watch, check the source, escalate to a human), not buy or sell signals.',
+      'No financial or investment advice. No return claim. Pipeline entries are observing/paper.',
+      'No wallet addresses, no keys, no prompts. Audit as hashes and counters only.',
+      'Model outputs are cached for 24 hours before they enter a report.'
+    ]
   };
   // Eine Mikrostruktur-Studie mit allem, was die Karte zeigt: Diagramm mit
   // Intervallpunkt, Kennzahlen, Methode und Deutung hinter dem <details>.
