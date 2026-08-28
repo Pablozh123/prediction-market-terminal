@@ -28,6 +28,51 @@ def markdown_money(value: Any) -> str:
     return money(value).replace("$", "\\$")
 
 
+def money_or_dash(value: Any) -> str:
+    """Geldbetrag, aber eine fehlende Angabe bleibt ein Strich.
+
+    ``money`` macht aus None und NaN einen gemessenen Nullbetrag. Fuer eine
+    Kennzahl, die eine Venue schlicht nicht meldet (Kalshi-Liquiditaet zum
+    Beispiel), ist das die falsche Aussage: nicht gemeldet ist nicht null.
+    """
+
+    if value is None:
+        return "-"
+    try:
+        if pd.isna(value):
+            return "-"
+    except (TypeError, ValueError):
+        pass
+    try:
+        zahl = float(value)
+    except (TypeError, ValueError):
+        return "-"
+    return money(zahl)
+
+
+def contracts(value: Any) -> str:
+    """Stueckzahlen als Stueckzahlen, nie als Dollar.
+
+    Kalshis Open Interest und Volumen zaehlen Kontrakte. Ein Kontrakt zahlt
+    bei Aufloesung einen Dollar, gehandelt wird er zu seinem Preis, also ist
+    die Stueckzahl weder der eingesetzte noch der umgesetzte Betrag. Mit
+    einem Dollarzeichen davor ist sie beides angeblich.
+    """
+
+    if value is None:
+        return "-"
+    try:
+        if pd.isna(value):
+            return "-"
+    except (TypeError, ValueError):
+        pass
+    try:
+        zahl = float(value)
+    except (TypeError, ValueError):
+        return "-"
+    return f"{zahl:,.0f} contracts"
+
+
 def pct(value: Any) -> str:
     if value is None or pd.isna(value):
         return "-"
