@@ -5087,7 +5087,14 @@ def page_markets() -> None:
     filtered = option_metric_filter(filtered, "liquidity", liquidity_preset, float(custom_liquidity))
     filtered = apply_end_date_filter(filtered, end_preset, int(custom_days))
     filtered = apply_market_age_filter(filtered, age_preset, int(custom_age_days))
-    filter_volume_col = "activity_volume" if "activity_volume" in filtered else "volume_24h"
+    # Der Filter heisst "24h volume" und muss den Tageswert lesen.
+    # ``activity_volume`` ist ein Mischwert: der Tageswert, wenn heute
+    # gehandelt wurde, sonst das Lebensvolumen. Ein Markt ohne Umsatz heute
+    # kam damit mit seinem Lebensvolumen durch die Schwelle "24h volume ueber
+    # 1k". Als Sortierschluessel bleibt der Mischwert brauchbar (er ordnet
+    # die Liste), als Schwelle und als Summe unter dieser Ueberschrift nicht.
+    filter_volume_col = "volume_24h"
+    sort_volume_col = "activity_volume" if "activity_volume" in filtered else "volume_24h"
     filtered = option_metric_filter(filtered, "volume_1h", volume_1h_preset, float(custom_volume_1h))
     filtered = option_metric_filter(filtered, filter_volume_col, volume_preset, float(custom_volume))
     filtered = apply_percent_delta_filter(filtered, "volume_delta_1h", volume_delta_1h_preset, float(custom_volume_delta_1h))
@@ -5112,7 +5119,7 @@ def page_markets() -> None:
 
     ascending = sort_by in {"spread", "end_time", "market_age_days"}
     if sort_by not in filtered:
-        sort_by = filter_volume_col
+        sort_by = sort_volume_col
     filtered = filtered.sort_values(sort_by, ascending=ascending, na_position="last").head(limit_rows).reset_index(drop=True)
 
     metric_cols = st.columns(5)
@@ -5127,6 +5134,8 @@ def page_markets() -> None:
         "24h volume",
         money(gefiltert_je_einheit.get(vu.USD, 0.0)),
         f"Kalshi {contracts(gefiltert_je_einheit.get(vu.CONTRACTS, 0.0))}",
+        help="The day's volume only. A market that did not trade today contributes nothing here; "
+        "its lifetime figure is a different column and is not summed into this one.",
     )
     metric_cols[3].metric("Median prob", cents(filtered["yes_price"].median() if "yes_price" in filtered and not filtered.empty else None))
     metric_cols[4].metric("Median spread", cents(filtered["spread"].median() if "spread" in filtered and not filtered.empty else None))
@@ -5465,7 +5474,12 @@ REALIZED_EDGE_VERDICTS = {
 }
 
 
-def render_track_record(wallet: str, trades: pd.DataFrame | None = None, activity: pd.DataFrame | None = None) -> None:
+def render_track_record(
+    wallet: str,
+    trades: pd.DataFrame | None = None,
+    activity: pd.DataFrame | None = None,
+    worthless_n: int = 0,
+) -> None:
     """Verifiable track-record scorecard with a REAL win rate.
 
     Wins and losses come from the unioned resolved-position set (winner tail +
@@ -5494,11 +5508,25 @@ def render_track_record(wallet: str, trades: pd.DataFrame | None = None, activit
         )
         head = st.columns([1, 1.2, 1.2, 1.2])
         head[0].markdown(badge, unsafe_allow_html=True)
+        # Positionen, die gegen die Wallet aufgeloest und nie eingeloest
+        # wurden, tauchen im closed-positions-Feed nie auf, und es sind
+        # ausschliesslich Verluste. Jede Quote aus diesem Feed ist damit nach
+        # oben verzerrt; die Kachel stand bis hierher ohne diesen Hinweis da.
+        unredeemed_note = (
+            f" {worthless_n:,} position{'' if worthless_n == 1 else 's'} that resolved against this "
+            "wallet and were never redeemed never enter the closed-positions feed, so they are not in "
+            "this rate. They are losses only, which biases it upward."
+            if worthless_n
+            else ""
+        )
         head[1].metric(
             "Win rate (real)" if reliable else "Win rate (extremes)",
             pct(wr) if wr is not None else "-",
-            help="Netted per resolved market and NegRisk event, over the full winners+losers set." if reliable
-            else "This wallet has >50 wins AND >50 losses; the public feed caps each tail at ~50, so this covers the largest positions only.",
+            f"{worthless_n:,} unredeemed loss{'' if worthless_n == 1 else 'es'} not in it" if worthless_n else None,
+            delta_color="off",
+            help=("Netted per resolved market and NegRisk event, over the full winners+losers set." if reliable
+                  else "This wallet has >50 wins AND >50 losses; the public feed caps each tail at ~50, so this covers the largest positions only.")
+            + unredeemed_note,
         )
         head[2].metric(
             "Settled PnL",
@@ -5584,9 +5612,12 @@ def render_wallet_calibration(resolved: pd.DataFrame, capped: bool) -> None:
         return
     with st.expander(f"Entry calibration — was the price paid a good forecast? ({report['n']} resolved positions)", expanded=False):
         head = st.columns(5)
+        n_events = int(report.get("n_events", 0) or 0)
         head[0].metric(
             "Scored positions",
             f"{report['n']:,}",
+            f"{n_events:,} events" if n_events and n_events != report["n"] else None,
+            delta_color="off",
             help="Positions in markets that actually settled, with a usable entry price, scored 0/1 at settlement."
             + (
                 f" {report['n_unresolved']:,} further closed positions left markets that were still trading and "
@@ -5598,7 +5629,14 @@ def render_wallet_calibration(resolved: pd.DataFrame, capped: bool) -> None:
         head[1].metric(
             "Hit rate",
             pct(report["hit_rate"]),
-            help=f"95% Wilson interval {report['hit_low']:.1%} – {report['hit_high']:.1%}. Sample size is part of the claim.",
+            help=f"95% Wilson interval {report['hit_low']:.1%} – {report['hit_high']:.1%}. Sample size is part of the claim."
+            + (
+                f" Counted per position: {report['n']:,} positions over {n_events:,} events "
+                f"({report['repeat_factor']:.1f} legs per event). The realized-edge verdict above nets the legs "
+                "of one event to a single observation, so this interval is the tighter of the two."
+                if report.get("repeat_factor") and float(report["repeat_factor"]) >= 1.15
+                else ""
+            ),
         )
         head[2].metric("Avg entry price", pct(report["avg_entry"]), help="What the market charged on average — the break-even hit rate.")
         head[3].metric(
@@ -5653,9 +5691,32 @@ def render_wallet_calibration(resolved: pd.DataFrame, capped: bool) -> None:
                 "Points above the dashed line: entries settled true more often than the price implied (bought too cheap). "
                 "Marker size = positions in the bucket; whiskers = 95% Wilson interval."
             )
+            # n je Eimer stand bisher nur in der Markergroesse und im Hover.
+            # Eine Zahl, die man nicht ablesen kann, ist keine Angabe der
+            # Stichprobe.
+            bucket_view = buckets.assign(
+                hit_pct=buckets["hit_rate"] * 100,
+                forecast_pct=buckets["avg_forecast"] * 100,
+                edge_pp=buckets["edge"] * 100,
+            )
+            st.dataframe(
+                clean_table(bucket_view, ["bucket", "n", "events", "forecast_pct", "hit_pct", "edge_pp"]),
+                width="stretch",
+                hide_index=True,
+                column_config={
+                    "bucket": st.column_config.TextColumn("Entry band"),
+                    "n": st.column_config.NumberColumn("Positions", format="%d"),
+                    "events": st.column_config.NumberColumn("Events", format="%d", help="Legs of one NegRisk event settle together and are not independent draws."),
+                    "forecast_pct": st.column_config.NumberColumn("Avg entry", format="%.1f%%"),
+                    "hit_pct": st.column_config.NumberColumn("Resolved yes", format="%.1f%%"),
+                    "edge_pp": st.column_config.NumberColumn("Edge", format="%+.1f pp"),
+                },
+            )
+        # Snapshot-Zeitstempel: die veroeffentlichten Web-Nutzlasten tragen
+        # ``stand_utc``, dieses Panel rechnet live und trug bisher gar keinen.
         st.caption(
             f"{report['note']} Selection bias is inherent and intended: only markets this wallet chose are scored — "
-            "skill in its chosen spots, not general forecasting ability."
+            f"skill in its chosen spots, not general forecasting ability. Snapshot {md.now_utc_label()}."
         )
 
 
@@ -5789,7 +5850,7 @@ def render_wallet(wallet: str) -> None:
         info_cols[0].link_button("Open first tx", f"https://polygonscan.com/tx/{first_activity_tx}", width="stretch")
     info_cols[1].metric("Account Created", account_created)
     info_cols[2].metric("Activity observations", f"{activity_observations:,}")
-    render_track_record(wallet, trades, activity)
+    render_track_record(wallet, trades, activity, worthless_n=worthless_n)
     if wallet.lower() in copy_active_wallets:
         with st.expander("Paper-Copytrading sub-account", expanded=False):
             render_copy_sub_account_metrics(wallet, copy_stats_map)
@@ -7302,6 +7363,11 @@ def page_track() -> None:
     metrics[3].metric("Amount", money(tape["notional"].sum() if not tape.empty and "notional" in tape else 0.0))
     metrics[4].metric("Avg trade", money(tape["notional"].mean() if not tape.empty and "notional" in tape else 0.0))
     metrics[5].metric("Whale prints", f"{int((numeric_col(tape, 'notional') >= float(min_whale)).sum()) if not tape.empty else 0:,}")
+    # "Last synced" ist eine Uhrzeit, kein Fenster. Die Summen darueber gelten
+    # fuer die Spanne, die die geladenen Prints abdecken.
+    track_window = apv.tape_window_label(tape)
+    if track_window:
+        st.markdown(f"<div class='field-hint'>SUMMED OVER {html.escape(track_window)}</div>", unsafe_allow_html=True)
     render_filter_chips(
         [
             f"Selected wallets: {len(selected_wallets)}",
@@ -7727,12 +7793,19 @@ def page_live_trades() -> None:
         trades = trades[trades.get("wallet", pd.Series("", index=trades.index)).astype(str).str.lower().isin(tracked_wallets)] if tracked_wallets else trades.iloc[0:0]
     trades = trades.sort_values("time", ascending=False).head(rows).reset_index(drop=True)
 
+    # Jede Summe darunter gilt fuer eine Spanne, und die haengt an der
+    # Aktivitaet: derselbe Zeilenschnitt kann Minuten oder Stunden abdecken.
+    # Ohne diesen Satz steht "Notional" ohne das Fenster da, ueber das es
+    # summiert wurde (dieselbe Angabe wie util.fensterSatz im Web-Frontend).
+    tape_window = apv.tape_window_label(trades)
     metrics = st.columns(5)
     metrics[0].metric("Trades", f"{len(trades):,}")
     metrics[1].metric("Notional", money(trades["notional"].sum() if "notional" in trades else 0))
     metrics[2].metric("Largest", money(trades["notional"].max() if "notional" in trades and not trades.empty else 0))
     metrics[3].metric("Markets", f"{trades['title'].nunique() if 'title' in trades else 0:,}")
     metrics[4].metric("Wallets", f"{trades['wallet'].nunique() if 'wallet' in trades else 0:,}")
+    if tape_window:
+        st.markdown(f"<div class='field-hint'>SUMMED OVER {html.escape(tape_window)}</div>", unsafe_allow_html=True)
     flow = live_market_flow(trades)
     live_chips: list[str] = []
     if query.strip():
@@ -8318,6 +8391,7 @@ def page_whale_flow() -> None:
     if trades.empty:
         draw_empty("No large trades match the current threshold.")
         return
+    whale_window = apv.tape_window_label(trades)
     cols = st.columns(6)
     cols[0].metric("Large prints", f"{len(trades):,}")
     cols[1].metric("Combined notional", money(trades["notional"].sum()))
@@ -8325,6 +8399,8 @@ def page_whale_flow() -> None:
     cols[3].metric("Markets touched", f"{trades['title'].nunique():,}")
     cols[4].metric("High insider events", f"{int((numeric_col(event_risk, 'event_insider_score') >= 70).sum()) if not event_risk.empty else 0:,}")
     cols[5].metric("High insider wallets", f"{int((numeric_col(wallet_risk, 'wallet_insider_score') >= 70).sum()) if not wallet_risk.empty else 0:,}")
+    if whale_window:
+        st.markdown(f"<div class='field-hint'>SUMMED OVER {html.escape(whale_window)}</div>", unsafe_allow_html=True)
     left, right = st.columns([1.3, 1])
     with left:
         fig = px.scatter(
@@ -8892,7 +8968,14 @@ def page_monitor() -> None:
     filters = st.expander("Monitor filters", expanded=True)
     with filters:
         f1, f2, f3, f4, f5, f6 = st.columns(6)
-        min_volume = f1.number_input("Min 24h volume", min_value=0, step=1000, key="monitor_min_volume")
+        # Nicht "24h": der Filter laeuft ueber signals.monitor_volume_col, und
+        # das ist activity_volume — der Tageswert, wenn heute gehandelt wurde,
+        # sonst das Lebensvolumen. Und die Spalte zaehlt auf Kalshi Kontrakte.
+        min_volume = f1.number_input(
+            "Min volume (venue unit)", min_value=0, step=1000, key="monitor_min_volume",
+            help="Runs over the market's activity volume: the day's figure where there is one, "
+            "the lifetime figure otherwise. Polymarket reports dollars, Kalshi contracts.",
+        )
         min_liquidity = f2.number_input("Min liquidity", min_value=0, step=1000, key="monitor_min_liquidity")
         min_move_cents = f3.number_input("Min 1h move (c)", min_value=0.0, step=0.5, key="monitor_min_move")
         max_spread_cents = f4.number_input("Max spread (c)", min_value=0.1, step=0.5, key="monitor_max_spread")
@@ -11428,7 +11511,24 @@ def _backtest_stat_cards(stats: dict[str, Any], benchmark: dict[str, Any]) -> No
             else "All of it settled: no position was still open at the end of the window."
         ),
     )
-    top[2].metric("Win rate", pct(stats["win_rate"]), f"{stats['wins']}W / {stats['losses']}L", delta_color="off")
+    # Der Nenner steht dabei. "Trades copied" darunter zaehlt auch die noch
+    # offenen Einstiege und ist nicht die Stichprobe dieser Quote; W und L
+    # summieren sich ausserdem nicht auf sie, weil eine Aufloesung mit
+    # genau 0.00 PnL weder Sieg noch Niederlage ist.
+    closed_n = int(stats.get("closed_trades", 0) or 0)
+    flat_n = max(0, closed_n - int(stats["wins"]) - int(stats["losses"]))
+    top[2].metric(
+        "Win rate",
+        pct(stats["win_rate"]),
+        f"{stats['wins']}W / {stats['losses']}L of {closed_n} closed",
+        delta_color="off",
+        help=(
+            f"{flat_n} of the {closed_n} closers settled at exactly 0.00 and count as neither, "
+            "so they sit in the denominator without being a win or a loss."
+            if flat_n
+            else "Closed copies only: every copied SELL and RESOLVE. Still-open entries are not in this sample."
+        ),
+    )
     bottom = st.columns(3)
     bottom[0].metric("Max drawdown", pct(stats["max_drawdown"]))
     bottom[1].metric("Trades copied", f"{stats['copied_trades']}", f"{stats['skipped_trades']} skipped", delta_color="off")

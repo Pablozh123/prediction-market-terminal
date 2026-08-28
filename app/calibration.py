@@ -124,6 +124,49 @@ def resolution_frame(resolved: pd.DataFrame) -> pd.DataFrame:
     return out.reset_index(drop=True)[RESOLUTION_COLUMNS]
 
 
+def event_cluster(frame: pd.DataFrame) -> pd.Series:
+    """Der Schluessel, der die Beine eines Events zusammenfasst.
+
+    Dieselbe Regel wie in ``realized_edge``: ``event_key``, sonst
+    ``market_key``, sonst bleibt die Zeile ihre eigene Beobachtung. Steht
+    hier, damit die Trefferquote und die Kurve dieselbe Einheit zaehlen
+    koennen wie das Verdict darueber.
+    """
+
+    if frame is None or frame.empty:
+        return pd.Series(dtype="object")
+    cluster = frame.get("event_key", pd.Series("", index=frame.index)).astype(str)
+    fallback = frame.get("market_key", pd.Series("", index=frame.index)).astype(str)
+    cluster = cluster.where(cluster.str.strip().ne(""), fallback)
+    blank = cluster.str.strip().eq("")
+    cluster[blank] = [f"row:{i}" for i in frame.index[blank]]
+    return cluster
+
+
+def _buckets_with_events(frame: pd.DataFrame, cluster: pd.Series) -> pd.DataFrame:
+    """Die Kalibrierungstabelle plus die Zahl der Events je Eimer.
+
+    Die Markergroesse auf der Kurve traegt n; ohne die Eventzahl daneben
+    laesst sich nicht sehen, ob ein Eimer aus zwanzig Maerkten oder aus
+    vier Events mit je fuenf Beinen besteht.
+    """
+
+    buckets = quant.calibration_table(frame["forecast"], frame["outcome"], bins=5)
+    if buckets.empty:
+        return buckets
+    paare = pd.DataFrame({"forecast": pd.to_numeric(frame["forecast"], errors="coerce"), "cluster": cluster})
+    events: list[int] = []
+    for _, row in buckets.iterrows():
+        low, high = str(row["bucket"]).replace("%", "").split("–")
+        unten, oben = float(low) / 100.0, float(high) / 100.0
+        # Gleiche Grenzen wie ``pd.cut(..., include_lowest=True)``: rechts
+        # geschlossen, links offen, nur der unterste Eimer nimmt seine
+        # Untergrenze mit. Sonst zaehlt ein Eimer eine Zeile doppelt.
+        untere_maske = paare["forecast"] >= unten if unten <= 0 else paare["forecast"] > unten
+        events.append(int(paare[untere_maske & (paare["forecast"] <= oben)]["cluster"].nunique()))
+    return buckets.assign(events=events)
+
+
 def calibration_report(frame: pd.DataFrame, capped: bool = False, unresolved: int = 0) -> dict[str, Any]:
     """Scorecard over a ``resolution_frame``: hit rate vs. what entries implied.
 
@@ -154,6 +197,8 @@ def calibration_report(frame: pd.DataFrame, capped: bool = False, unresolved: in
         "buckets": pd.DataFrame(),
         "sample_ok": False,
         "capped": bool(capped),
+        "n_events": 0,
+        "repeat_factor": None,
         "n_unresolved": unresolved,
         "note": "No resolved positions with a usable entry price.",
     }
@@ -166,6 +211,14 @@ def calibration_report(frame: pd.DataFrame, capped: bool = False, unresolved: in
         return empty
 
     n = int(len(frame))
+    # Zwei Zaehleinheiten, und die Kachel muss beide nennen. Die Quote und ihr
+    # Wilson-Intervall zaehlen POSITIONEN; ``realized_edge`` direkt darueber
+    # nettet die Beine eines NegRisk-Events zu einer Beobachtung. Eine Wallet
+    # mit vier Beinen desselben Events liefert der Kurve vier Punkte und dem
+    # Verdict einen, also ist das Intervall der Quote zu eng.
+    cluster = event_cluster(frame)
+    n_events = int(cluster.nunique()) if len(cluster) else n
+    repeat_factor = (n / n_events) if n_events else None
     hits = int(frame["outcome"].sum())
     hit_rate = hits / n
     hit_low, hit_high = quant.wilson_interval(hits, n)
@@ -195,6 +248,12 @@ def calibration_report(frame: pd.DataFrame, capped: bool = False, unresolved: in
             f" {unresolved:,} further closed positions left markets that were still trading; "
             "they have a trading result but no outcome, so they are not on the curve."
         )
+    if repeat_factor is not None and repeat_factor >= 1.15:
+        note += (
+            f" The {n:,} positions come from {n_events:,} events ({repeat_factor:.1f} legs per event); "
+            "the rate and its interval count positions, so the interval is tighter than the number "
+            "of independent outcomes warrants."
+        )
 
     return {
         "n": n,
@@ -209,9 +268,11 @@ def calibration_report(frame: pd.DataFrame, capped: bool = False, unresolved: in
         "brier_entry": quant.brier_score(frame["forecast"], frame["outcome"]),
         "brier_baseline": hit_rate * (1.0 - hit_rate),
         "log_loss_entry": quant.log_loss(frame["forecast"], frame["outcome"]),
-        "buckets": quant.calibration_table(frame["forecast"], frame["outcome"], bins=5),
+        "buckets": _buckets_with_events(frame, cluster),
         "sample_ok": sample_ok,
         "capped": bool(capped),
+        "n_events": n_events,
+        "repeat_factor": repeat_factor,
         "n_unresolved": unresolved,
         "note": note,
     }
