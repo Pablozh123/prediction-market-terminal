@@ -70,31 +70,31 @@ function externalLink(url, text) {
 }
 
 function card(title, body, sub) {
-  return '<div style="' + KARTE + '; padding:16px 18px; margin-top:14px">'
-    + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:10px">'
+  return '<div style="' + KARTE + '; padding:var(--sp-5); margin-top:var(--sp-5)">'
+    + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:var(--sp-4); flex-wrap:wrap; margin-bottom:var(--sp-4)">'
     + '<div style="' + LABEL + '">' + title + '</div>'
     + (sub ? '<div style="' + NOTIZ + '">' + sub + '</div>' : '') + '</div>'
     + body + '</div>';
 }
 
 function tile(label, value, sub, color) {
-  return '<div style="' + KARTE + '; padding:12px 14px; min-width:0">'
+  return '<div style="' + KARTE + '; padding:var(--sp-4) var(--sp-5); min-width:0">'
     + '<div style="' + LABEL + '">' + label + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-head); margin-top:5px; color:' + (color || 'var(--text)') + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + value + '</div>'
-    + (sub ? '<div style="' + NOTIZ + '; margin-top:3px">' + sub + '</div>' : '') + '</div>';
+    + '<div style="' + M + '; font-size:var(--t-head); margin-top:var(--sp-2); color:' + (color || 'var(--text)') + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + value + '</div>'
+    + (sub ? '<div style="' + NOTIZ + '; margin-top:var(--sp-2)">' + sub + '</div>' : '') + '</div>';
 }
 
 // A table inside its own horizontal scroller: the page never scrolls sideways.
 function table(columns, rowsHtml, emptyText, minWidth) {
-  const head = '<div style="display:grid; grid-template-columns:' + columns + '; gap:0 10px; padding:9px 14px; background:var(--panel); border-bottom:1px solid var(--line-2); ' + LABEL + '">';
+  const head = '<div style="display:grid; grid-template-columns:' + columns + '; gap:0 var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + LABEL + '">';
   return '<div style="overflow-x:auto; border:1px solid var(--line-2); border-radius:var(--r-panel)">'
     + '<div style="min-width:' + (minWidth || 720) + 'px">'
     + head + '__HEAD__</div>'
-    + (rowsHtml || '<div style="' + NOTIZ + '; padding:16px 14px">' + esc(emptyText || 'Nothing to list.') + '</div>')
+    + (rowsHtml || '<div style="' + NOTIZ + '; padding:var(--sp-5)">' + esc(emptyText || 'Nothing to list.') + '</div>')
     + '</div></div>';
 }
 function row(columns, cellsHtml, extra) {
-  return '<div style="display:grid; grid-template-columns:' + columns + '; gap:0 10px; align-items:center; padding:9px 14px; border-bottom:1px solid var(--line-3); ' + (extra || '') + '">' + cellsHtml + '</div>';
+  return '<div style="display:grid; grid-template-columns:' + columns + '; gap:0 var(--sp-4); align-items:center; padding:var(--sp-3) var(--sp-5); border-bottom:1px solid var(--line-3); ' + (extra || '') + '">' + cellsHtml + '</div>';
 }
 function cell(text, style) {
   return '<div style="' + CELL + '; ' + (style || '') + '; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">' + text + '</div>';
@@ -109,30 +109,30 @@ function renderHeader(T) {
   const input = String(s.walletInput || '');
   const valid = isFullAddress(input);
   const looksLike = /^0x/i.test(input.trim()) && !valid;
-  const btnStyle = 'font-size:var(--t-small); font-weight:600; border-radius:var(--r-control); padding:9px 14px; cursor:pointer; white-space:nowrap; '
+  const btnStyle = 'font-size:var(--t-small); font-weight:600; border-radius:var(--r-control); padding:var(--sp-3) var(--sp-5); cursor:pointer; white-space:nowrap; '
     + (valid ? 'color:var(--on-accent); background:var(--accent)' : 'color:var(--ink-3); border:1px solid var(--line-1)');
   const analyse = () => { if (T.analyseWallet) T.analyseWallet(input.trim()); };
   const recent = Array.isArray(s.walletRecent) ? s.walletRecent.filter((a) => a !== EXAMPLE_WALLET) : [];
-  const chip = (addr, label, title) => '<div ' + T.act(() => { if (T.analyseWallet) T.analyseWallet(addr); }) + ' class="hv-edge-strong" title="' + esc(title || addr) + '" style="' + M + '; font-size:var(--t-micro); letter-spacing:.04em; border-radius:var(--r-control); padding:4px 9px; cursor:pointer; color:var(--ink-3); border:1px solid var(--line-1); white-space:nowrap">' + esc(label) + '</div>';
-  return '<div style="padding:20px 24px 14px; border-bottom:1px solid var(--line-2)">'
+  const chip = (addr, label, title) => '<div ' + T.act(() => { if (T.analyseWallet) T.analyseWallet(addr); }) + ' class="hv-edge-strong" title="' + esc(title || addr) + '" style="' + M + '; font-size:var(--t-micro); letter-spacing:.04em; border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); cursor:pointer; color:var(--ink-3); border:1px solid var(--line-1); white-space:nowrap">' + esc(label) + '</div>';
+  return '<div style="padding:var(--sp-6) var(--sp-6) var(--sp-5); border-bottom:1px solid var(--line-2)">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.18em; color:var(--accent)">WALLET</div>'
-    + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">One wallet, read from the public feed</h1>'
+    + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:-0.01em">One wallet, read from the public feed</h1>'
     // Der Lese-Vorbehalt stand hier als Prosa; er ist jetzt der
     // Registereintrag wallet_reader_caveat, die Beschreibung davor
     // gehoert weiter der Seite.
     + caveatZeile('wallet_reader_caveat', {
       vorsatz: 'Paste a Polymarket proxy address. The page reads its resolved positions (both tails), open positions, the profile PnL curve and its trades from the public Data API, and prints the corrected track record next to the naive one, every figure with its sample size, interval and time stamp.',
-      stil: 'font-size:var(--t-body); color:var(--ink-4); margin-top:8px; max-width:800px; line-height:1.5'
+      stil: 'font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-3); max-width:800px; line-height:1.5'
     })
-    + '<div style="display:flex; align-items:center; gap:10px; margin-top:14px; flex-wrap:wrap">'
+    + '<div style="display:flex; align-items:center; gap:var(--sp-4); margin-top:var(--sp-5); flex-wrap:wrap">'
     + '<input value="' + esc(input) + '" ' + T.inp((e) => { T.state.walletInput = e.target.value; T.render(); }, 'walletInput')
-    + ' placeholder="0x… (40 hex characters)" aria-label="Wallet address to analyse" spellcheck="false" style="flex:1; min-width:280px; max-width:520px; box-sizing:border-box; background:var(--panel); border:1px solid ' + (looksLike ? 'rgba(var(--warn-rgb),.5)' : 'var(--line-edge)') + '; border-radius:var(--r-control); padding:10px 12px; ' + M + '; font-size:var(--t-small); color:var(--text)" />'
+    + ' placeholder="0x… (40 hex characters)" aria-label="Wallet address to analyse" spellcheck="false" style="flex:1; min-width:280px; max-width:520px; box-sizing:border-box; background:var(--panel); border:1px solid ' + (looksLike ? 'rgba(var(--warn-rgb),.5)' : 'var(--line-edge)') + '; border-radius:var(--r-control); padding:var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text)" />'
     + '<div ' + T.act(analyse) + (valid ? ' class="hv-accentbg"' : '') + ' style="' + btnStyle + '">Analyse →</div>'
     + '</div>'
-    + (looksLike ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--warn); margin-top:6px">Not a full address yet — a Polymarket wallet is 0x followed by 40 hex characters.</div>' : '')
-    + '<div style="display:flex; align-items:center; gap:8px; margin-top:10px; flex-wrap:wrap">'
+    + (looksLike ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--warn); margin-top:var(--sp-3)">Not a full address yet — a Polymarket wallet is 0x followed by 40 hex characters.</div>' : '')
+    + '<div style="display:flex; align-items:center; gap:var(--sp-3); margin-top:var(--sp-4); flex-wrap:wrap">'
     + '<span style="' + LABEL + '">EXAMPLE</span>' + chip(EXAMPLE_WALLET, shortAddr(EXAMPLE_WALLET) + ' · live-run wallet', EXAMPLE_WALLET + ' — the wallet the small-stake live runs were placed from')
-    + (recent.length ? '<span style="' + LABEL + '; margin-left:10px">RECENT</span>' + recent.slice(0, 6).map((a) => chip(a, shortAddr(a))).join('') : '')
+    + (recent.length ? '<span style="' + LABEL + '; margin-left:var(--sp-4)">RECENT</span>' + recent.slice(0, 6).map((a) => chip(a, shortAddr(a))).join('') : '')
     + '</div></div>';
 }
 
@@ -154,12 +154,12 @@ function renderError(T, addr, entry) {
   else if (status === 404) { title = 'NO SUCH ROUTE'; text = '/api/wallet answered 404 — the API you are talking to does not know the wallet route (older deployment?).'; }
   else if (status === 429) { title = 'RATE-LIMITED'; text = 'The API is rate-limiting this address (HTTP 429)' + (entry.retryAfter ? ' — try again in ' + entry.retryAfter + ' s.' : '.') + ' The wallet route shares the per-IP budget of the risk screen and the backtester.'; }
   else if (/HTTP 5\d\d/.test(msg)) { title = 'API ERROR'; text = '/api/wallet failed on this address (' + msg + '). The upstream Data API may be slow or down; nothing is shown in its place.'; }
-  return '<div style="padding:26px 24px">'
-    + '<div style="' + KARTE + '; padding:20px 22px; max-width:760px">'
+  return '<div style="padding:var(--sp-6)">'
+    + '<div style="' + KARTE + '; padding:var(--sp-6); max-width:760px">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--warn)">' + esc(title) + '</div>'
-    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:9px; line-height:1.6">' + esc(text) + '</div>'
-    + '<div style="display:flex; gap:8px; margin-top:12px">'
-    + '<div ' + T.act(() => { if (T.fetchWallet) T.fetchWallet(addr, true); }) + ' class="hv-edge-strong" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:5px 10px; cursor:pointer">Try again</div>'
+    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.6">' + esc(text) + '</div>'
+    + '<div style="display:flex; gap:var(--sp-3); margin-top:var(--sp-4)">'
+    + '<div ' + T.act(() => { if (T.fetchWallet) T.fetchWallet(addr, true); }) + ' class="hv-edge-strong" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-4); cursor:pointer">Try again</div>'
     + '</div></div></div>';
 }
 
@@ -183,7 +183,7 @@ function renderIdentity(T, d) {
   const id = d.identity || {};
   const addr = id.address || T.state.walletAddr;
   const tr = d.track_record || null;
-  const btn = (label, fn, primary, title) => '<div ' + T.act(fn) + ' class="' + (primary ? 'hv-accentbg' : 'hv-edge-strong') + '" title="' + esc(title || '') + '" style="' + M + '; font-size:var(--t-micro); letter-spacing:.04em; border-radius:var(--r-control); padding:6px 11px; cursor:pointer; white-space:nowrap; ' + (primary ? 'color:var(--on-accent); background:var(--accent); font-weight:600' : 'color:var(--ink-2); border:1px solid var(--line-1)') + '">' + label + '</div>';
+  const btn = (label, fn, primary, title) => '<div ' + T.act(fn) + ' class="' + (primary ? 'hv-accentbg' : 'hv-edge-strong') + '" title="' + esc(title || '') + '" style="' + M + '; font-size:var(--t-micro); letter-spacing:.04em; border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); cursor:pointer; white-space:nowrap; ' + (primary ? 'color:var(--on-accent); background:var(--accent); font-weight:600' : 'color:var(--ink-2); border:1px solid var(--line-1)') + '">' + label + '</div>';
   const follow = () => {
     // Prefill the copy desk's follow form and open it. Nothing is followed
     // until the button on that page is pressed.
@@ -197,27 +197,27 @@ function renderIdentity(T, d) {
     try { history.pushState(null, '', '#backtester'); } catch (e) { /* file:// */ }
   };
   const tags = [];
-  if (tr && tr.grade) tags.push('<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.08em; color:' + (tr.grade === 'A' || tr.grade === 'B' ? 'var(--accent)' : tr.grade === 'F' ? 'var(--warn)' : 'var(--ink-2)') + '; border:1px solid var(--line-1); border-radius:var(--r-control); padding:2px 7px">GRADE ' + esc(tr.grade) + (tr.score != null ? ' · ' + tr.score + '/100' : '') + '</span>');
-  if (tr && tr.survivorship_gate && !tr.survivorship_gate.ok) tags.push('<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.08em; color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35); border-radius:var(--r-control); padding:2px 7px">BELOW SAMPLE GATE</span>');
-  if (tr && tr.wash_flag && tr.wash_flag.flag) tags.push('<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.08em; color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35); border-radius:var(--r-control); padding:2px 7px">WASH / FARMER FLAG</span>');
-  if (id.days_active != null) tags.push('<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.08em; color:var(--ink-3); border:1px solid var(--line-2); border-radius:var(--r-control); padding:2px 7px">' + id.days_active + (id.activity_truncated ? '+' : '') + ' DAYS ACTIVE</span>');
-  return '<div style="' + KARTE + '; padding:16px 18px; position:relative; overflow:hidden">'
+  if (tr && tr.grade) tags.push('<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.08em; color:' + (tr.grade === 'A' || tr.grade === 'B' ? 'var(--accent)' : tr.grade === 'F' ? 'var(--warn)' : 'var(--ink-2)') + '; border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">GRADE ' + esc(tr.grade) + (tr.score != null ? ' · ' + tr.score + '/100' : '') + '</span>');
+  if (tr && tr.survivorship_gate && !tr.survivorship_gate.ok) tags.push('<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.08em; color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">BELOW SAMPLE GATE</span>');
+  if (tr && tr.wash_flag && tr.wash_flag.flag) tags.push('<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.08em; color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">WASH / FARMER FLAG</span>');
+  if (id.days_active != null) tags.push('<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.08em; color:var(--ink-3); border:1px solid var(--line-2); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">' + id.days_active + (id.activity_truncated ? '+' : '') + ' DAYS ACTIVE</span>');
+  return '<div style="' + KARTE + '; padding:var(--sp-5); position:relative; overflow:hidden">'
     + '<div style="position:absolute; left:-40px; top:-60px; width:180px; height:180px; border-radius:50%; background:radial-gradient(closest-side, rgba(var(--accent-rgb),.10), rgba(var(--accent-rgb),0)); pointer-events:none"></div>'
-    + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; position:relative">'
-    + '<div style="display:flex; align-items:flex-start; gap:14px; min-width:0">'
+    + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:var(--sp-5); flex-wrap:wrap; position:relative">'
+    + '<div style="display:flex; align-items:flex-start; gap:var(--sp-5); min-width:0">'
     + '<div style="width:46px; height:46px; flex:none; border-radius:50%; background:linear-gradient(135deg, rgba(var(--accent-rgb),.35), rgba(var(--info-rgb),.35)); border:1px solid var(--line-1); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-lead); font-weight:600; color:var(--text)">' + esc(initials(id.pseudonym, addr)) + '</div>'
     + '<div style="min-width:0">'
     + '<div style="font-size:var(--t-head); line-height:1.2">' + esc(id.pseudonym || shortAddr(addr)) + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:4px; word-break:break-all">' + esc(addr) + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:5px">first activity ' + esc(when(id.first_activity)) + ' · last ' + esc(when(id.last_activity)) + ' · ' + (id.n_activity_rows != null ? num(id.n_activity_rows) + ' activity rows read' : 'activity not read') + '</div>'
-    + (tags.length ? '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px">' + tags.join('') + '</div>' : '')
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-2); word-break:break-all">' + esc(addr) + '</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2)">first activity ' + esc(when(id.first_activity)) + ' · last ' + esc(when(id.last_activity)) + ' · ' + (id.n_activity_rows != null ? num(id.n_activity_rows) + ' activity rows read' : 'activity not read') + '</div>'
+    + (tags.length ? '<div style="display:flex; gap:var(--sp-3); flex-wrap:wrap; margin-top:var(--sp-3)">' + tags.join('') + '</div>' : '')
     + '</div></div>'
-    + '<div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px">'
-    + '<div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end">'
+    + '<div style="display:flex; flex-direction:column; align-items:flex-end; gap:var(--sp-3)">'
+    + '<div style="display:flex; gap:var(--sp-3); flex-wrap:wrap; justify-content:flex-end">'
     + btn('Follow on the copy desk →', follow, true, 'prefills the follow form of the paper copy desk with this address')
     + btn('Replay this wallet in the backtester →', replay, false, '')
-    + (id.profile_url ? '<a href="' + esc(id.profile_url) + '" target="_blank" rel="noopener" class="hv-edge-strong" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:6px 11px; text-decoration:none; white-space:nowrap">Polymarket profile ↗</a>' : '')
-    + (id.polygonscan_url ? '<a href="' + esc(id.polygonscan_url) + '" target="_blank" rel="noopener" class="hv-edge-strong" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:6px 11px; text-decoration:none; white-space:nowrap">Polygonscan ↗</a>' : '')
+    + (id.profile_url ? '<a href="' + esc(id.profile_url) + '" target="_blank" rel="noopener" class="hv-edge-strong" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); text-decoration:none; white-space:nowrap">Polymarket profile ↗</a>' : '')
+    + (id.polygonscan_url ? '<a href="' + esc(id.polygonscan_url) + '" target="_blank" rel="noopener" class="hv-edge-strong" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); text-decoration:none; white-space:nowrap">Polygonscan ↗</a>' : '')
     + '</div>'
     + '<div style="' + NOTIZ + '">as of ' + esc(d.as_of || stempel(d.snapshot_at)) + ' · cached 300 s</div>'
     + '</div></div></div>';
@@ -229,10 +229,10 @@ function renderIdentity(T, d) {
 function kpiTile(label, value, sub, tone) {
   const border = tone === 'up' ? 'rgba(var(--pos-rgb),.35)' : tone === 'down' ? 'rgba(var(--neg-rgb),.35)' : tone === 'warn' ? 'rgba(var(--warn-rgb),.4)' : 'rgba(var(--info-rgb),.3)';
   const color = tone === 'up' ? 'var(--pos)' : tone === 'down' ? 'var(--neg)' : tone === 'warn' ? 'var(--warn)' : 'var(--text)';
-  return '<div style="border:1px solid ' + border + '; border-radius:var(--r-panel); padding:12px 14px; min-height:62px; min-width:0; background:rgba(var(--ink),.015)">'
+  return '<div style="border:1px solid ' + border + '; border-radius:var(--r-panel); padding:var(--sp-4) var(--sp-5); min-height:62px; min-width:0; background:rgba(var(--ink),.015)">'
     + '<div style="' + LABEL + '">' + label + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-head); margin-top:5px; color:' + color + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + value + '</div>'
-    + (sub ? '<div style="' + NOTIZ + '; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + sub + '</div>' : '') + '</div>';
+    + '<div style="' + M + '; font-size:var(--t-head); margin-top:var(--sp-2); color:' + color + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + value + '</div>'
+    + (sub ? '<div style="' + NOTIZ + '; margin-top:var(--sp-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + sub + '</div>' : '') + '</div>';
 }
 
 // Which PnL series carries information: the profile curve from user-pnl-api
@@ -290,20 +290,20 @@ function renderKpis(d) {
     ['DAYS ACTIVE', id.days_active != null ? String(id.days_active) + (id.activity_truncated ? '+ (window truncated)' : '') : '—'],
     ['SINCE', id.first_activity ? String(id.first_activity).slice(0, 10) : '—']
   ];
-  return '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:10px; margin-top:14px">' + tiles.join('') + '</div>'
-    + '<div style="display:flex; gap:18px; flex-wrap:wrap; margin-top:10px; padding:0 4px">'
+  return '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:var(--sp-4); margin-top:var(--sp-5)">' + tiles.join('') + '</div>'
+    + '<div style="display:flex; gap:var(--sp-5); flex-wrap:wrap; margin-top:var(--sp-4); padding:0 var(--sp-2)">'
     + facts.map((f) => '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4)"><span style="letter-spacing:.1em; color:var(--ink-3)">' + f[0] + '</span> <span style="color:var(--text)">' + f[1] + '</span></div>').join('')
     + '</div>';
 }
 
 // ---- left column: the stacked stat cards --------------------------------
 function asideCard(title, rows, sub) {
-  return '<div style="' + KARTE + '; padding:12px 14px">'
-    + '<div style="' + LABEL + '; margin-bottom:8px">' + title + '</div>'
+  return '<div style="' + KARTE + '; padding:var(--sp-4) var(--sp-5)">'
+    + '<div style="' + LABEL + '; margin-bottom:var(--sp-3)">' + title + '</div>'
     + rows.map((r) => (r.length === 1
-      ? '<div style="' + M + '; font-size:var(--t-head); margin:2px 0 4px; color:' + (r[0][1] || 'var(--text)') + '">' + r[0][0] + '</div>'
-      : '<div style="display:flex; justify-content:space-between; gap:8px; padding:3px 0; font-size:var(--t-small)"><span style="color:var(--ink-4)">' + r[0] + '</span><span style="' + M + '; color:' + (r[2] || 'var(--text)') + '">' + r[1] + '</span></div>')).join('')
-    + (sub ? '<div style="' + NOTIZ + '; margin-top:6px">' + sub + '</div>' : '')
+      ? '<div style="' + M + '; font-size:var(--t-head); margin:var(--sp-1) 0 var(--sp-2); color:' + (r[0][1] || 'var(--text)') + '">' + r[0][0] + '</div>'
+      : '<div style="display:flex; justify-content:space-between; gap:var(--sp-3); padding:var(--sp-2) 0; font-size:var(--t-small)"><span style="color:var(--ink-4)">' + r[0] + '</span><span style="' + M + '; color:' + (r[2] || 'var(--text)') + '">' + r[1] + '</span></div>')).join('')
+    + (sub ? '<div style="' + NOTIZ + '; margin-top:var(--sp-3)">' + sub + '</div>' : '')
     + '</div>';
 }
 
@@ -339,32 +339,32 @@ function renderAside(d) {
   const buyN = a ? Number(a.buy_n) || 0 : 0;
   const sellN = a ? Number(a.sell_n) || 0 : 0;
   const share = buyN + sellN > 0 ? buyN / (buyN + sellN) : null;
-  cards.push('<div style="' + KARTE + '; padding:12px 14px">'
-    + '<div style="' + LABEL + '; margin-bottom:8px">BUY / SELL RATIO</div>'
+  cards.push('<div style="' + KARTE + '; padding:var(--sp-4) var(--sp-5)">'
+    + '<div style="' + LABEL + '; margin-bottom:var(--sp-3)">BUY / SELL RATIO</div>'
     + '<div style="' + M + '; font-size:var(--t-head)">' + (share == null ? '—' : pct(share, 1)) + '</div>'
-    + '<div style="height:6px; border-radius:var(--r-control); background:rgba(var(--neg-rgb),.35); margin-top:8px; overflow:hidden"><div style="width:' + (share == null ? 0 : Math.round(share * 100)) + '%; height:6px; background:var(--accent)"></div></div>'
-    + '<div style="display:flex; justify-content:space-between; ' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:6px"><span>buy ' + num(buyN) + '</span><span>sell ' + num(sellN) + '</span></div>'
-    + (share == null ? '<div style="' + NOTIZ + '; margin-top:6px">no trades in the activity window</div>' : '')
+    + '<div style="height:6px; border-radius:var(--r-control); background:rgba(var(--neg-rgb),.35); margin-top:var(--sp-3); overflow:hidden"><div style="width:' + (share == null ? 0 : Math.round(share * 100)) + '%; height:6px; background:var(--accent)"></div></div>'
+    + '<div style="display:flex; justify-content:space-between; ' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-3)"><span>buy ' + num(buyN) + '</span><span>sell ' + num(sellN) + '</span></div>'
+    + (share == null ? '<div style="' + NOTIZ + '; margin-top:var(--sp-3)">no trades in the activity window</div>' : '')
     + '</div>');
   cards.push(asideCard('REALIZED EDGE', pd && pd.edge != null
     ? [[[(pd.edge * 100).toFixed(1) + '¢ per $', pnlColor(pd.edge)]], ['95% CI', pd.ci_low != null ? '[' + (pd.ci_low * 100).toFixed(1) + '¢, ' + (pd.ci_high * 100).toFixed(1) + '¢]' : 'n/a'], ['events', num(pd.groups)], ['per share', ps ? pp(ps.edge) + ' · ' + esc(String(ps.verdict || '')) : '—']]
     : [[['—']]], pd && pd.edge != null ? (pd.significant ? 'CI excludes zero' : 'CI includes zero') + (e && e.capped ? ' · capped tails' : '') : 'no resolved positions with a stake'));
-  return '<div style="display:flex; flex-direction:column; gap:10px">' + cards.join('') + '</div>';
+  return '<div style="display:flex; flex-direction:column; gap:var(--sp-4)">' + cards.join('') + '</div>';
 }
 
 // ---- overview: PnL curve, top open / top closed, treemap ---------------
 function topCard(label, r, kind) {
-  if (!r) return '<div style="' + KARTE + '; padding:14px 16px"><div style="' + LABEL + '">' + label + '</div><div style="' + NOTIZ + '; margin-top:8px">nothing to show</div></div>';
+  if (!r) return '<div style="' + KARTE + '; padding:var(--sp-5)"><div style="' + LABEL + '">' + label + '</div><div style="' + NOTIZ + '; margin-top:var(--sp-3)">nothing to show</div></div>';
   const pnl = kind === 'open' ? r.unrealized_pnl : r.realized_pnl;
   const stake = kind === 'open' ? r.cost : r.total_bought;
   const now = kind === 'open' ? r.value : (Number(r.total_bought) || 0) + (Number(r.realized_pnl) || 0);
   const ret = stake > 0 ? pnl / stake : null;
-  return '<div style="' + KARTE + '; padding:14px 16px; min-width:0">'
-    + '<div style="display:flex; justify-content:space-between; gap:8px; align-items:baseline"><div style="' + LABEL + '">' + label + '</div>'
-    + '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.08em; color:' + (String(r.outcome).toLowerCase() === 'yes' ? 'var(--accent)' : 'var(--neg-soft)') + '; border:1px solid var(--line-1); border-radius:var(--r-control); padding:1px 6px">' + esc(String(r.outcome || '—').toUpperCase()) + '</span></div>'
-    + '<div style="font-family:var(--font-ui); font-size:var(--t-body); margin-top:8px; line-height:1.4; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden">' + link(r.url, r.title) + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-head); margin-top:8px; color:' + pnlColor(pnl) + '">' + (ret == null ? dollars(pnl) : (ret >= 0 ? '+' : '') + (ret * 100).toFixed(0) + '%') + '</div>'
-    + '<div style="' + NOTIZ + '; margin-top:2px">' + absDollars(stake) + ' → ' + absDollars(now) + ' · ' + dollars(pnl) + (kind === 'open' ? ' unrealised' : ' realised') + '</div>'
+  return '<div style="' + KARTE + '; padding:var(--sp-5); min-width:0">'
+    + '<div style="display:flex; justify-content:space-between; gap:var(--sp-3); align-items:baseline"><div style="' + LABEL + '">' + label + '</div>'
+    + '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.08em; color:' + (String(r.outcome).toLowerCase() === 'yes' ? 'var(--accent)' : 'var(--neg-soft)') + '; border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">' + esc(String(r.outcome || '—').toUpperCase()) + '</span></div>'
+    + '<div style="font-family:var(--font-ui); font-size:var(--t-body); margin-top:var(--sp-3); line-height:1.4; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden">' + link(r.url, r.title) + '</div>'
+    + '<div style="' + M + '; font-size:var(--t-head); margin-top:var(--sp-3); color:' + pnlColor(pnl) + '">' + (ret == null ? dollars(pnl) : (ret >= 0 ? '+' : '') + (ret * 100).toFixed(0) + '%') + '</div>'
+    + '<div style="' + NOTIZ + '; margin-top:var(--sp-1)">' + absDollars(stake) + ' → ' + absDollars(now) + ' · ' + dollars(pnl) + (kind === 'open' ? ' unrealised' : ' realised') + '</div>'
     + '</div>';
 }
 
@@ -418,8 +418,8 @@ export function positionsBalken(T, d) {
   if (!items.length) {
     // Dieselbe Ehrlichkeit wie in der Treemap: es steht dran, welcher der
     // drei Faelle vorliegt, statt dass die Flaeche einfach fehlt.
-    return '<div style="' + KARTE + '; padding:16px 18px; margin-top:14px">' + kopf
-      + '<div style="' + NOTIZ + '; margin-top:6px">Nothing to draw: '
+    return '<div style="' + KARTE + '; padding:var(--sp-5); margin-top:var(--sp-5)">' + kopf
+      + '<div style="' + NOTIZ + '; margin-top:var(--sp-3)">Nothing to draw: '
       + (mode === 'open' ? 'no open positions with a value'
         : mode === 'closed' ? 'no resolved positions with a stake'
           : 'no positions with a stake in either feed') + '.</div></div>';
@@ -459,8 +459,8 @@ export function positionsBalken(T, d) {
     + (rest.length
       ? num(rest.length) + ' smaller position(s) are not drawn, ' + kurzGeld(restSumme) + ' of ' + kurzGeld(gesamt) + ' at stake in total. '
       : 'All ' + num(items.length) + ' positions are drawn. ');
-  return '<div style="margin-top:14px">' + chart
-    + '<div style="' + NOTIZ + '; margin-top:8px; max-width:660px">' + esc(fuss) + '</div></div>';
+  return '<div style="margin-top:var(--sp-5)">' + chart
+    + '<div style="' + NOTIZ + '; margin-top:var(--sp-3); max-width:660px">' + esc(fuss) + '</div></div>';
 }
 
 // Der Schluessel zur Farbintensitaet der Treemap. Ohne ihn ist ein dunkleres
@@ -468,11 +468,11 @@ export function positionsBalken(T, d) {
 // Einsatz ist (treemap.pnlIntensity: 0.28 bis 0.78 linear ueber |PnL|/Einsatz,
 // gedeckelt bei 100 Prozent).
 function intensitaetsSchluessel() {
-  const stufe = (anteil, text) => '<div style="display:flex; align-items:center; gap:5px">'
+  const stufe = (anteil, text) => '<div style="display:flex; align-items:center; gap:var(--sp-2)">'
     + '<span style="display:inline-block; width:16px; height:10px; border-radius:2px; background:rgba(var(--pos-rgb),'
     + pnlIntensity(anteil, 1).toFixed(2) + ')"></span>'
     + '<span style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + text + '</span></div>';
-  return '<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:6px">'
+  return '<div style="display:flex; align-items:center; gap:var(--sp-4); flex-wrap:wrap; margin-top:var(--sp-3)">'
     + '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; color:var(--ink-3)">RESULT vs STAKE</span>'
     + stufe(0, '0%') + stufe(0.25, '25%') + stufe(0.5, '50%') + stufe(1, '100% or more')
     + '<span style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">green up, red down</span></div>';
@@ -487,11 +487,11 @@ function renderTreemap(T, d) {
   const op = d.open_positions || {};
   const cl = d.closed || {};
   const capped = (mode !== 'closed' && op.capped) || (mode !== 'open' && cl.capped);
-  const head = '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:10px">'
-    + '<div><div style="' + LABEL + '">POSITIONS TREEMAP</div><div style="' + NOTIZ + '; margin-top:3px">tile area = $ at stake (open: value at current prices · closed: $ bought)</div>'
+  const head = '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:var(--sp-4); flex-wrap:wrap; margin-bottom:var(--sp-4)">'
+    + '<div><div style="' + LABEL + '">POSITIONS TREEMAP</div><div style="' + NOTIZ + '; margin-top:var(--sp-2)">tile area = $ at stake (open: value at current prices · closed: $ bought)</div>'
     + intensitaetsSchluessel() + '</div></div>';
   if (!rects.length) {
-    return '<div style="' + KARTE + '; padding:16px 18px; margin-top:14px">' + head + '<div style="' + NOTIZ + '">Nothing to tile: ' + (mode === 'open' ? 'no open positions with a value' : mode === 'closed' ? 'no resolved positions with a stake' : 'no positions with a stake in either feed') + '.</div></div>';
+    return '<div style="' + KARTE + '; padding:var(--sp-5); margin-top:var(--sp-5)">' + head + '<div style="' + NOTIZ + '">Nothing to tile: ' + (mode === 'open' ? 'no open positions with a value' : mode === 'closed' ? 'no resolved positions with a stake' : 'no positions with a stake in either feed') + '.</div></div>';
   }
   // Every tile carries its figures in data-tip (JSON: title, image, rows);
   // app.js shows them in a floating card on hover, whatever the tile size.
@@ -521,19 +521,19 @@ function renderTreemap(T, d) {
     if (it.kind === 'closed' && it.time) rows.push(['resolved', String(it.time).slice(0, 10)]);
     const tip = { title: String(it.title || ''), image: String(it.image || ''), pnl: up ? 'up' : 'down', rows };
     const inner = tiny ? ''
-      : '<div style="display:flex; justify-content:space-between; gap:4px; align-items:flex-start">'
+      : '<div style="display:flex; justify-content:space-between; gap:var(--sp-2); align-items:flex-start">'
         + (showImg ? '<img src="' + esc(it.image) + '" alt="" loading="lazy" style="width:' + (wide ? 34 : 26) + 'px; height:' + (wide ? 34 : 26) + 'px; border-radius:var(--r-control); object-fit:cover; flex:none; background:var(--shadow-25)" />' : '')
-        + '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.06em; color:var(--ink-1); background:var(--shadow-35); border-radius:var(--r-control); padding:1px 4px; flex:none; margin-left:auto">' + esc(String(it.outcome || '').toUpperCase().slice(0, 3)) + (it.kind === 'closed' ? ' ✓' : '') + '</span></div>'
-        + (wide ? '<div style="font-family:var(--font-ui); font-size:var(--t-micro); font-weight:600; line-height:1.3; color:var(--text); margin-top:5px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden">' + esc(it.title || '') + '</div>' : '')
+        + '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.06em; color:var(--ink-1); background:var(--shadow-35); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-2); flex:none; margin-left:auto">' + esc(String(it.outcome || '').toUpperCase().slice(0, 3)) + (it.kind === 'closed' ? ' ✓' : '') + '</span></div>'
+        + (wide ? '<div style="font-family:var(--font-ui); font-size:var(--t-micro); font-weight:600; line-height:1.3; color:var(--text); margin-top:var(--sp-2); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden">' + esc(it.title || '') + '</div>' : '')
         + '<div style="' + M + '; font-size:' + (wide ? 'var(--t-small)' : 'var(--t-micro)') + '; color:var(--text); margin-top:auto">' + absDollars(it.value) + (wide && ret != null ? ' <span style="color:var(--ink-1)">' + (ret >= 0 ? '+' : '') + (ret * 100).toFixed(0) + '%</span>' : '') + '</div>';
-    const style = 'position:absolute; left:' + ((rc.x / W) * 100).toFixed(3) + '%; top:' + ((rc.y / H) * 100).toFixed(3) + '%; width:' + wPct.toFixed(3) + '%; height:' + hPct.toFixed(3) + '%; box-sizing:border-box; padding:' + (tiny ? '0' : '6px 7px') + '; border:1px solid var(--bg); border-radius:var(--r-control); background:' + bg + '; display:flex; flex-direction:column; overflow:hidden; text-decoration:none; color:inherit';
+    const style = 'position:absolute; left:' + ((rc.x / W) * 100).toFixed(3) + '%; top:' + ((rc.y / H) * 100).toFixed(3) + '%; width:' + wPct.toFixed(3) + '%; height:' + hPct.toFixed(3) + '%; box-sizing:border-box; padding:' + (tiny ? '0' : 'var(--sp-3)') + '; border:1px solid var(--bg); border-radius:var(--r-control); background:' + bg + '; display:flex; flex-direction:column; overflow:hidden; text-decoration:none; color:inherit';
     const attrs = 'class="tm-tile" data-tip="' + esc(JSON.stringify(tip)) + '" style="' + style + '"';
     return it.url
       ? '<a data-stop href="' + esc(it.url) + '" target="_blank" rel="noopener" ' + attrs + '>' + inner + '</a>'
       : '<div ' + attrs + '>' + inner + '</div>';
   }).join('');
-  const foot = '<div style="' + NOTIZ + '; margin-top:8px">' + num(rects.length) + ' tiles' + (capped ? ' · the feeds were capped, so the middle of the record is missing here too' : '') + ' · hover a tile for its figures, click it to open the market</div>';
-  return '<div style="' + KARTE + '; padding:16px 18px; margin-top:14px">' + head
+  const foot = '<div style="' + NOTIZ + '; margin-top:var(--sp-3)">' + num(rects.length) + ' tiles' + (capped ? ' · the feeds were capped, so the middle of the record is missing here too' : '') + ' · hover a tile for its figures, click it to open the market</div>';
+  return '<div style="' + KARTE + '; padding:var(--sp-5); margin-top:var(--sp-5)">' + head
     // Der Grund hinter den Kacheln war ein Hex-Literal und blieb im hellen
     // Thema dunkel. Er folgt jetzt dem Thema wie alles andere.
     + '<div style="position:relative; width:100%; height:' + H + 'px; border-radius:var(--r-control); overflow:hidden; background:var(--bg)">' + tiles + '</div>' + foot + '</div>';
@@ -549,18 +549,18 @@ function renderOverview(T, d) {
   const ansicht = T.state.walletPosView === 'treemap' ? 'treemap' : 'bars';
   const mode = T.state.walletTreemap || 'all';
   const umschalter = T.chip
-    ? '<div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:14px">'
-      + '<div style="display:flex; align-items:center; gap:6px"><span style="' + LABEL + '">POSITION VIEW</span>'
+    ? '<div style="display:flex; align-items:center; gap:var(--sp-5); flex-wrap:wrap; margin-top:var(--sp-5)">'
+      + '<div style="display:flex; align-items:center; gap:var(--sp-3)"><span style="' + LABEL + '">POSITION VIEW</span>'
       + T.chip('Bars', ansicht === 'bars', { walletPosView: 'bars' })
       + T.chip('Treemap', ansicht === 'treemap', { walletPosView: 'treemap' }) + '</div>'
-      + '<div style="display:flex; align-items:center; gap:6px"><span style="' + LABEL + '">SET</span>'
+      + '<div style="display:flex; align-items:center; gap:var(--sp-3)"><span style="' + LABEL + '">SET</span>'
       + T.chip('All', mode === 'all', { walletTreemap: 'all' })
       + T.chip('Open', mode === 'open', { walletTreemap: 'open' })
       + T.chip('Closed', mode === 'closed', { walletTreemap: 'closed' }) + '</div>'
       + '</div>'
     : '';
   return renderPnl(d)
-    + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:14px; margin-top:14px">' + topCard('TOP OPEN · BY UNREALISED', topOpen, 'open') + topCard('TOP CLOSED · BY REALISED', topClosed, 'closed') + '</div>'
+    + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:var(--sp-5); margin-top:var(--sp-5)">' + topCard('TOP OPEN · BY UNREALISED', topOpen, 'open') + topCard('TOP CLOSED · BY REALISED', topClosed, 'closed') + '</div>'
     + umschalter
     + (ansicht === 'bars' ? positionsBalken(T, d) : renderTreemap(T, d));
 }
@@ -593,21 +593,21 @@ function renderTrackRecord(d) {
     ['RISK-ADJUSTED', ratio(tr.risk_adjusted), 'Sharpe-like on per-market returns'],
     ['EXIT WIN RATE', tr.exit_win_rate != null ? pct(tr.exit_win_rate) : '—', 'round trips in the activity window (cross-check)']
   ];
-  const factsHtml = '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:12px 16px; margin-top:14px">'
-    + facts.map((f) => '<div><div style="' + LABEL + '">' + f[0] + '</div><div style="' + M + '; font-size:var(--t-body); margin-top:3px; color:' + (f[0] === 'SETTLED PNL' ? pnlColor(tr.settled_pnl) : (f[1] === 'FLAGGED' || f[1] === 'not passed') ? 'var(--warn)' : 'var(--text)') + '">' + f[1] + '</div>'
-      + (f[2] ? '<div style="' + NOTIZ + '; margin-top:2px">' + esc(f[2]) + '</div>' : '') + '</div>').join('')
+  const factsHtml = '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:var(--sp-4) var(--sp-5); margin-top:var(--sp-5)">'
+    + facts.map((f) => '<div><div style="' + LABEL + '">' + f[0] + '</div><div style="' + M + '; font-size:var(--t-body); margin-top:var(--sp-2); color:' + (f[0] === 'SETTLED PNL' ? pnlColor(tr.settled_pnl) : (f[1] === 'FLAGGED' || f[1] === 'not passed') ? 'var(--warn)' : 'var(--text)') + '">' + f[1] + '</div>'
+      + (f[2] ? '<div style="' + NOTIZ + '; margin-top:var(--sp-1)">' + esc(f[2]) + '</div>' : '') + '</div>').join('')
     + '</div>';
   const top3 = Array.isArray(conc.top3) && conc.top3.length
-    ? '<div style="' + NOTIZ + '; margin-top:10px">Top-3 markets by profit: ' + conc.top3.map((m) => esc(m.title) + ' (' + dollars(m.pnl) + ', ' + pct(m.share) + ')').join(' · ') + '</div>' : '';
+    ? '<div style="' + NOTIZ + '; margin-top:var(--sp-4)">Top-3 markets by profit: ' + conc.top3.map((m) => esc(m.title) + ' (' + dollars(m.pnl) + ', ' + pct(m.share) + ')').join(' · ') + '</div>' : '';
   const parts = Array.isArray(tr.score_components) && tr.score_components.length
-    ? '<div style="margin-top:14px"><div style="' + LABEL + '">SCORE ' + (tr.score != null ? tr.score : '—') + ' / 100 · GRADE ' + esc(tr.grade || '—') + ' · COMPONENTS</div>'
-      + '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:6px">'
-      + tr.score_components.map((c) => '<span style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); border:1px solid var(--line-2); border-radius:var(--r-control); padding:2px 7px">' + esc(c.label) + ' <span style="color:var(--ink-1)">' + (typeof c.value === 'number' ? (c.value >= 0 ? '' : '') + fmtZahl(c.value) : '—') + '</span>' + (c.max ? ' / ' + c.max : '') + '</span>').join('')
+    ? '<div style="margin-top:var(--sp-5)"><div style="' + LABEL + '">SCORE ' + (tr.score != null ? tr.score : '—') + ' / 100 · GRADE ' + esc(tr.grade || '—') + ' · COMPONENTS</div>'
+      + '<div style="display:flex; gap:var(--sp-3); flex-wrap:wrap; margin-top:var(--sp-3)">'
+      + tr.score_components.map((c) => '<span style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); border:1px solid var(--line-2); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">' + esc(c.label) + ' <span style="color:var(--ink-1)">' + (typeof c.value === 'number' ? (c.value >= 0 ? '' : '') + fmtZahl(c.value) : '—') + '</span>' + (c.max ? ' / ' + c.max : '') + '</span>').join('')
       + '</div></div>' : '';
   const flags = Array.isArray(tr.flags) && tr.flags.length
-    ? '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:12px">' + tr.flags.map((f) => '<span style="' + M + '; font-size:var(--t-micro); color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35); border-radius:var(--r-control); padding:2px 7px">' + esc(f) + '</span>').join('') + '</div>'
-    : '<div style="' + NOTIZ + '; margin-top:12px">No flags: sample gate passed, no wash pattern, no one-hit concentration.</div>';
-  const cov = '<div style="' + NOTIZ + '; margin-top:10px">' + esc(tr.coverage_note || '') + (tr.capped ? ' Both tails hit the ~50-row cap: the middle of the record is unreachable, and win rate, edge and PnL describe the extremes only.' : '') + '</div>';
+    ? '<div style="display:flex; gap:var(--sp-3); flex-wrap:wrap; margin-top:var(--sp-4)">' + tr.flags.map((f) => '<span style="' + M + '; font-size:var(--t-micro); color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">' + esc(f) + '</span>').join('') + '</div>'
+    : '<div style="' + NOTIZ + '; margin-top:var(--sp-4)">No flags: sample gate passed, no wash pattern, no one-hit concentration.</div>';
+  const cov = '<div style="' + NOTIZ + '; margin-top:var(--sp-4)">' + esc(tr.coverage_note || '') + (tr.capped ? ' Both tails hit the ~50-row cap: the middle of the record is unreachable, and win rate, edge and PnL describe the extremes only.' : '') + '</div>';
   return card('TRACK RECORD · NAIVE VS CORRECTED', rates + factsHtml + top3 + parts + flags + cov, 'as of ' + esc(tr.as_of || '') + ' · ' + esc(tr.source || '') + (tr.capped ? ' · CAPPED' : ''));
 }
 
@@ -636,10 +636,10 @@ function renderPnl(d) {
   const headTip = settled
     ? 'Realised PnL of the closed rows, summed in the order they resolved. Not the curve polymarket.com shows — that one is flat for this wallet.'
     : 'The curve polymarket.com shows on the profile: user-pnl-api.polymarket.com, daily points, all time.';
-  const head = '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap">'
+  const head = '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:var(--sp-4); flex-wrap:wrap">'
     + '<div><div style="' + LABEL + '">' + (settled ? 'PNL TIMELINE · SETTLED CURVE' : 'PNL TIMELINE · PROFILE CURVE')
     + ' <span title="' + esc(headTip) + '" style="display:inline-block; width:13px; height:13px; line-height:13px; text-align:center; border-radius:50%; border:1px solid var(--line-1); color:var(--ink-4); font-size:var(--t-micro); letter-spacing:0; cursor:help; vertical-align:1px">i</span></div>'
-    + '<div style="' + NOTIZ + '; margin-top:4px">' + (settled
+    + '<div style="' + NOTIZ + '; margin-top:var(--sp-2)">' + (settled
       ? num(c.n_rows) + ' closed rows' + (c.capped ? ' · <span style="color:var(--warn)">capped tails</span>' : ' · complete set') + ' · ' + esc(first) + ' → ' + esc(lastDay)
       : num(c.n_points) + ' daily points · ' + esc(first) + ' → ' + esc(lastDay)) + '</div></div>'
     + '<div style="text-align:right"><div style="' + LABEL + '">' + (settled ? 'REALISED PNL' : 'CURRENT PNL') + '</div>'
@@ -647,13 +647,13 @@ function renderPnl(d) {
     + '<div style="' + NOTIZ + '">' + esc(dollars(lastVal)) + ' · ' + esc(lastDay) + '</div></div>'
     + '</div>';
   const swap = settled
-    ? '<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:10px; ' + M + '; font-size:var(--t-micro); color:var(--warn)">'
-      + '<span style="border:1px solid rgba(var(--warn-rgb),.45); border-radius:var(--r-control); padding:2px 7px; letter-spacing:.1em">PROFILE CURVE ' + (profileHasPoints ? 'FLAT' : 'MISSING') + '</span>'
+    ? '<div style="display:flex; align-items:center; gap:var(--sp-3); flex-wrap:wrap; margin-top:var(--sp-4); ' + M + '; font-size:var(--t-micro); color:var(--warn)">'
+      + '<span style="border:1px solid rgba(var(--warn-rgb),.45); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3); letter-spacing:.1em">PROFILE CURVE ' + (profileHasPoints ? 'FLAT' : 'MISSING') + '</span>'
       + '<span style="color:var(--warn)">' + (profileHasPoints && p.flat
         ? 'one level (' + esc(kurzGeld(Number(p.points[p.points.length - 1].pnl), true)) + ') for ' + num(p.n_points) + ' points since ' + esc(String(p.first || '').slice(0, 10)) + ' — showing our settled curve instead'
         : 'user-pnl-api did not answer — showing our settled curve instead') + '</span>'
       + '<span style="color:var(--ink-3)">details below ↓</span></div>'
-    : (flat ? '<div style="margin-top:10px; ' + M + '; font-size:var(--t-micro); color:var(--warn)">Flat: the profile curve never moved in ' + num(c.n_points) + ' points, and there are no closed rows to sum instead.</div>' : '');
+    : (flat ? '<div style="margin-top:var(--sp-4); ' + M + '; font-size:var(--t-micro); color:var(--warn)">Flat: the profile curve never moved in ' + num(c.n_points) + ' points, and there are no closed rows to sum instead.</div>' : '');
 
   const kurve = pnlZeitkurve({
     titel: settled ? 'cumulative realised PnL, settled rows' : 'cumulative PnL, profile curve',
@@ -663,18 +663,18 @@ function renderPnl(d) {
   // Six tiles, one figure each, one short line under it. The definitions and
   // the sample caveats live in the collapsed basis block underneath.
   const down = st ? Number(st.losing_days) || 0 : 0;
-  const stTile = (label, value, sub, tone) => '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); padding:10px 12px; min-width:0; background:rgba(var(--ink),.015)">'
+  const stTile = (label, value, sub, tone) => '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-4); min-width:0; background:rgba(var(--ink),.015)">'
     + '<div style="' + LABEL + '">' + label + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-head); margin-top:4px; color:' + (tone || 'var(--text)') + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + value + '</div>'
-    + '<div style="' + NOTIZ + '; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + sub + '</div></div>';
-  const statsHtml = st ? '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:8px; margin-top:12px">'
+    + '<div style="' + M + '; font-size:var(--t-head); margin-top:var(--sp-2); color:' + (tone || 'var(--text)') + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + value + '</div>'
+    + '<div style="' + NOTIZ + '; margin-top:var(--sp-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + sub + '</div></div>';
+  const statsHtml = st ? '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:var(--sp-3); margin-top:var(--sp-4)">'
     + stTile('SHARPE', ratio(st.sharpe), flat ? 'flat curve' : 'n ' + num(st.n_days) + ' d · $/day', st.sharpe != null ? (st.sharpe >= 0 ? 'var(--pos)' : 'var(--neg)') : 'var(--ink-3)')
     + stTile('SORTINO', ratio(st.sortino), flat ? 'flat curve' : st.sortino == null ? (down + ' down day' + (down === 1 ? '' : 's') + ' · needs 3') : 'downside only · ' + num(down) + ' down d', st.sortino != null ? (st.sortino >= 0 ? 'var(--pos)' : 'var(--neg)') : 'var(--ink-3)')
     + stTile('CALMAR', ratio(st.calmar), flat ? 'flat curve' : st.calmar == null ? 'never in drawdown' : 'annual PnL / max DD', st.calmar != null ? 'var(--text)' : 'var(--ink-3)')
     + stTile('MAX DRAWDOWN', absDollars(st.max_drawdown), flat ? 'never moved' : pct(st.max_drawdown_pct, 1) + ' of peak', st.max_drawdown > 0 ? 'var(--neg)' : 'var(--text)')
     + stTile('WIN DAYS', pct(st.win_day_rate), num(st.winning_days) + ' up · ' + num(st.losing_days) + ' down' + (flat ? ' · flat' : ''), st.win_day_rate != null ? (st.win_day_rate >= 0.5 ? 'var(--pos)' : 'var(--neg)') : 'var(--ink-3)')
     + stTile('BEST · WORST DAY', esc(kurzGeld(st.best_day, true)) + ' · ' + esc(kurzGeld(st.worst_day, true)), 'vol ' + esc(kurzGeld(st.daily_vol)) + ' / day')
-    + '</div>' : '<div style="' + NOTIZ + '; margin-top:10px">Curve present, statistics not computable (fewer than two daily points).</div>';
+    + '</div>' : '<div style="' + NOTIZ + '; margin-top:var(--sp-4)">Curve present, statistics not computable (fewer than two daily points).</div>';
 
   // Basis, collapsed: what the curve is, what the ratios are, the caveats.
   const basisRows = [];
@@ -683,13 +683,13 @@ function renderPnl(d) {
   if (settled && profileHasPoints) basisRows.push(['Profile curve', p.note || '']);
   if (settled && !profileHasPoints) basisRows.push(['Profile curve', 'user-pnl-api.polymarket.com did not answer for this wallet.']);
   basisRows.push(['Ratios', 'Daily PnL in dollars (one point per day, differenced), no capital base, annualised on 365 days; n is the number of daily changes. Sharpe = mean / sd. Sortino = mean / downside RMS over all days (target 0), shown only with 3+ losing days. Calmar = annualised mean daily PnL / max drawdown. Max drawdown = deepest fall from a running peak, % of that peak.']);
-  const basis = '<details style="margin-top:10px"><summary style="' + NOTIZ + '; cursor:pointer; list-style:none; display:inline-flex; align-items:center; gap:6px"><span style="border:1px solid var(--line-1); border-radius:var(--r-control); padding:1px 7px; letter-spacing:.1em">BASIS · DEFINITIONS</span><span>as of ' + esc(p.as_of || '') + '</span></summary>'
-    + '<div style="margin-top:8px; display:grid; grid-template-columns:110px 1fr; gap:6px 12px">'
-    + basisRows.map((r) => '<div style="' + LABEL + '; padding-top:2px">' + esc(r[0]).toUpperCase() + '</div><div style="' + NOTIZ + '">' + esc(r[1]) + '</div>').join('')
+  const basis = '<details style="margin-top:var(--sp-4)"><summary style="' + NOTIZ + '; cursor:pointer; list-style:none; display:inline-flex; align-items:center; gap:var(--sp-3)"><span style="border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3); letter-spacing:.1em">BASIS · DEFINITIONS</span><span>as of ' + esc(p.as_of || '') + '</span></summary>'
+    + '<div style="margin-top:var(--sp-3); display:grid; grid-template-columns:110px 1fr; gap:var(--sp-3) var(--sp-4)">'
+    + basisRows.map((r) => '<div style="' + LABEL + '; padding-top:var(--sp-1)">' + esc(r[0]).toUpperCase() + '</div><div style="' + NOTIZ + '">' + esc(r[1]) + '</div>').join('')
     + '</div></details>';
 
-  return '<div style="' + KARTE + '; padding:16px 18px; margin-top:14px">' + head + swap
-    + '<div style="margin-top:12px; border:1px solid var(--line-3); border-radius:var(--r-panel); padding:10px 8px 4px; background:var(--panel)">' + kurve + '</div>'
+  return '<div style="' + KARTE + '; padding:var(--sp-5); margin-top:var(--sp-5)">' + head + swap
+    + '<div style="margin-top:var(--sp-4); border:1px solid var(--line-3); border-radius:var(--r-panel); padding:var(--sp-4) var(--sp-3) var(--sp-2); background:var(--panel)">' + kurve + '</div>'
     + statsHtml + basis + '</div>';
 }
 
@@ -710,12 +710,12 @@ function renderEdge(d) {
   });
   const dia = diagramm({ titel: 'RETURN PER $ STAKED · 95% CI', einheit: 'cents per dollar', referenz: 0, referenz_label: 'break even', punkte });
   const verdictColor = ps && ps.verdict === 'positive' ? 'var(--pos)' : ps && ps.verdict === 'negative' ? 'var(--neg)' : 'var(--warn)';
-  const summary = '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px 16px; margin-top:12px">'
-    + '<div><div style="' + LABEL + '">EDGE PER $ · CLUSTER BOOTSTRAP</div><div style="' + M + '; font-size:var(--t-body); margin-top:3px; color:' + pnlColor(pd.edge) + '">' + (pd.edge * 100).toFixed(1) + '¢ per $</div><div style="' + NOTIZ + '; margin-top:2px">95% CI ' + (pd.ci_low != null ? '[' + (pd.ci_low * 100).toFixed(1) + '¢, ' + (pd.ci_high * 100).toFixed(1) + '¢]' : 'not computable') + ' · n ' + pd.groups + ' events · ' + (pd.significant ? 'excludes zero' : 'includes zero') + '</div></div>'
-    + (ps ? '<div><div style="' + LABEL + '">EDGE PER SHARE · ENTRY VS SETTLEMENT</div><div style="' + M + '; font-size:var(--t-body); margin-top:3px; color:' + verdictColor + '">' + pp(ps.edge) + ' · ' + esc(String(ps.verdict || '').toUpperCase()) + '</div><div style="' + NOTIZ + '; margin-top:2px">' + (ps.ci_low != null ? '95% CI [' + pp(ps.ci_low) + ', ' + pp(ps.ci_high) + '] · ' : '') + 'n ' + ps.n_events + ' events / ' + ps.n_positions + ' positions</div></div>' : '')
+  const summary = '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:var(--sp-4) var(--sp-5); margin-top:var(--sp-4)">'
+    + '<div><div style="' + LABEL + '">EDGE PER $ · CLUSTER BOOTSTRAP</div><div style="' + M + '; font-size:var(--t-body); margin-top:var(--sp-2); color:' + pnlColor(pd.edge) + '">' + (pd.edge * 100).toFixed(1) + '¢ per $</div><div style="' + NOTIZ + '; margin-top:var(--sp-1)">95% CI ' + (pd.ci_low != null ? '[' + (pd.ci_low * 100).toFixed(1) + '¢, ' + (pd.ci_high * 100).toFixed(1) + '¢]' : 'not computable') + ' · n ' + pd.groups + ' events · ' + (pd.significant ? 'excludes zero' : 'includes zero') + '</div></div>'
+    + (ps ? '<div><div style="' + LABEL + '">EDGE PER SHARE · ENTRY VS SETTLEMENT</div><div style="' + M + '; font-size:var(--t-body); margin-top:var(--sp-2); color:' + verdictColor + '">' + pp(ps.edge) + ' · ' + esc(String(ps.verdict || '').toUpperCase()) + '</div><div style="' + NOTIZ + '; margin-top:var(--sp-1)">' + (ps.ci_low != null ? '95% CI [' + pp(ps.ci_low) + ', ' + pp(ps.ci_high) + '] · ' : '') + 'n ' + ps.n_events + ' events / ' + ps.n_positions + ' positions</div></div>' : '')
     + '</div>'
-    + (ps && ps.headline ? '<div style="' + NOTIZ + '; margin-top:10px">' + esc(ps.headline) + '</div>' : '')
-    + '<div style="' + NOTIZ + '; margin-top:6px">' + esc(pd.method || '') + (e.capped ? ' Capped tails: the sample holds the biggest wins and losses only, so the edge is biased either way.' : '') + '</div>';
+    + (ps && ps.headline ? '<div style="' + NOTIZ + '; margin-top:var(--sp-4)">' + esc(ps.headline) + '</div>' : '')
+    + '<div style="' + NOTIZ + '; margin-top:var(--sp-3)">' + esc(pd.method || '') + (e.capped ? ' Capped tails: the sample holds the biggest wins and losses only, so the edge is biased either way.' : '') + '</div>';
   return card('REALIZED EDGE', dia + summary, 'as of ' + esc(e.as_of || '') + (e.capped ? ' · CAPPED' : ''));
 }
 
@@ -723,7 +723,7 @@ function renderOpenPositions(T, d) {
   const op = d.open_positions || null;
   const sortKey = T.state.walletPosSort || 'value';
   const chip = (label, key) => (T.chip ? T.chip(label, sortKey === key, { walletPosSort: key }) : '<div>' + esc(label) + '</div>');
-  const sortBar = '<div style="display:flex; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap"><span style="' + LABEL + '">SORT BY</span>' + chip('Value', 'value') + chip('Unrealised', 'pnl') + chip('Cost', 'cost') + chip('Ends', 'ends') + '</div>';
+  const sortBar = '<div style="display:flex; align-items:center; gap:var(--sp-3); margin-bottom:var(--sp-4); flex-wrap:wrap"><span style="' + LABEL + '">SORT BY</span>' + chip('Value', 'value') + chip('Unrealised', 'pnl') + chip('Cost', 'cost') + chip('Ends', 'ends') + '</div>';
   if (!op || !op.n) {
     return card('OPEN POSITIONS', '<div style="' + NOTIZ + '">' + esc(op && op.note ? op.note : 'No open positions in the public /positions feed.') + '</div>', op ? 'as of ' + esc(op.as_of || '') : '');
   }
@@ -748,7 +748,7 @@ function renderOpenPositions(T, d) {
   // Die drei Buch-Kacheln beschreiben die offenen Zeilen; die wertlosen
   // sind aufgeloest und bekommen ihre eigene.
   const openN = Math.max(0, (Number(op.n) || 0) - (Number(op.worthless_n) || 0));
-  const totals = '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-bottom:12px">'
+  const totals = '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:var(--sp-4); margin-bottom:var(--sp-4)">'
     + tile('TOTAL EXPOSURE', absDollars(op.total_exposure), 'value at current prices · ' + num(openN) + ' open position' + (openN === 1 ? '' : 's'))
     + tile('COST BASIS', absDollars(op.total_cost), 'shares × average price · open only')
     + tile('UNREALISED', dollars(op.unrealized_pnl), 'value − cost · open only', pnlColor(op.unrealized_pnl))
@@ -759,8 +759,8 @@ function renderOpenPositions(T, d) {
       op.worthless_n ? dollars(op.worthless_pnl || 0) + ' settled loss · at price 0 past end date' : 'at price 0 past end date',
       op.worthless_n ? 'var(--warn)' : null)
     + '</div>';
-  const count = '<div style="' + NOTIZ + '; margin-bottom:8px">' + num(rows.length) + ' of ' + num(op.n) + ' positions' + (op.capped ? ' · the /positions page was full — there may be more' : '') + '</div>';
-  return card('OPEN POSITIONS', totals + sortBar + count + tableWith(cols, head, body, '', 900) + '<div style="' + NOTIZ + '; margin-top:8px">' + esc(op.note || '') + '</div>', 'as of ' + esc(op.as_of || ''));
+  const count = '<div style="' + NOTIZ + '; margin-bottom:var(--sp-3)">' + num(rows.length) + ' of ' + num(op.n) + ' positions' + (op.capped ? ' · the /positions page was full — there may be more' : '') + '</div>';
+  return card('OPEN POSITIONS', totals + sortBar + count + tableWith(cols, head, body, '', 900) + '<div style="' + NOTIZ + '; margin-top:var(--sp-3)">' + esc(op.note || '') + '</div>', 'as of ' + esc(op.as_of || ''));
 }
 
 function renderClosed(d) {
@@ -768,7 +768,7 @@ function renderClosed(d) {
   if (!c || !c.n) {
     return card('CLOSED POSITIONS', '<div style="' + NOTIZ + '">' + esc(c && c.note ? c.note : 'No resolved positions in the closed-positions feed for this wallet.') + '</div>', c ? 'as of ' + esc(c.as_of || '') : '');
   }
-  const summary = '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:10px; margin-bottom:12px">'
+  const summary = '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:var(--sp-4); margin-bottom:var(--sp-4)">'
     + tile('RESOLVED', num(c.n), c.capped ? 'CAPPED — both tails at ~50' : 'complete set (both tails)', c.capped ? 'var(--warn)' : null)
     + tile('WON', num(c.won), 'realised PnL &gt; 0', 'var(--pos)')
     + tile('LOST', num(c.lost), 'realised PnL &lt; 0', 'var(--neg)')
@@ -787,8 +787,8 @@ function renderClosed(d) {
     + cell(dollars(r.realized_pnl), 'text-align:right; color:' + pnlColor(r.realized_pnl))
     + cell(esc(r.result || '—'), 'color:' + (r.result === 'won' ? 'var(--pos)' : r.result === 'lost' ? 'var(--neg)' : 'var(--ink-4)'))
     + cell(when(r.time), 'color:var(--ink-4)'))).join('');
-  const count = '<div style="' + NOTIZ + '; margin-bottom:8px">' + num(c.shown) + ' of ' + num(c.n) + ' resolved positions, largest |PnL| first' + (c.capped ? ' · capped: only the ~50 biggest winners and ~50 biggest losers are reachable' : '') + '</div>';
-  return card('CLOSED POSITIONS', summary + count + tableWith(cols, head, body, '', 900) + '<div style="' + NOTIZ + '; margin-top:8px">' + esc(c.note || '') + ' Source: ' + esc(c.source || '') + '</div>', 'as of ' + esc(c.as_of || '') + (c.capped ? ' · CAPPED' : ''));
+  const count = '<div style="' + NOTIZ + '; margin-bottom:var(--sp-3)">' + num(c.shown) + ' of ' + num(c.n) + ' resolved positions, largest |PnL| first' + (c.capped ? ' · capped: only the ~50 biggest winners and ~50 biggest losers are reachable' : '') + '</div>';
+  return card('CLOSED POSITIONS', summary + count + tableWith(cols, head, body, '', 900) + '<div style="' + NOTIZ + '; margin-top:var(--sp-3)">' + esc(c.note || '') + ' Source: ' + esc(c.source || '') + '</div>', 'as of ' + esc(c.as_of || '') + (c.capped ? ' · CAPPED' : ''));
 }
 
 function renderCategoriesContext(d) {
@@ -804,11 +804,11 @@ function renderCategoriesContext(d) {
     punkte: groups.map((g) => ({ label: g.group + ' · ' + g.trades + ' t', wert: +((g.share || 0) * 100).toFixed(1), art: g.insider_prone ? 'summe' : 'kosten' }))
   }) : '<div style="' + NOTIZ + '">No trades to classify.</div>';
   const ctxLine = ctx && ctx.insider_prone_share != null
-    ? '<div style="' + NOTIZ + '; margin-top:8px">' + pct(ctx.insider_prone_share) + ' of traded notional sits in insider-plausible groups (politics, awards, corporate/legal, general); ' + pct(ctx.excluded_share) + ' in the groups the risk screen excludes (sports odds, weather, crypto/market prices). n ' + num(ctx.n_trades) + ' trades.</div>'
+    ? '<div style="' + NOTIZ + '; margin-top:var(--sp-3)">' + pct(ctx.insider_prone_share) + ' of traded notional sits in insider-plausible groups (politics, awards, corporate/legal, general); ' + pct(ctx.excluded_share) + ' in the groups the risk screen excludes (sports odds, weather, crypto/market prices). n ' + num(ctx.n_trades) + ' trades.</div>'
     : '';
-  return '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(340px, 1fr)); gap:14px; margin-top:14px">'
-    + '<div style="' + KARTE + '; padding:16px 18px"><div style="' + LABEL + '; margin-bottom:10px">CATEGORIES · ' + (d.categories ? 'as of ' + esc(d.categories.as_of || '') : '') + '</div>' + catDia + '<div style="' + NOTIZ + '; margin-top:8px">' + esc(d.categories ? d.categories.note + ' Classifier: ' + d.categories.classifier : '') + '</div></div>'
-    + '<div style="' + KARTE + '; padding:16px 18px"><div style="' + LABEL + '; margin-bottom:10px">INSIDER CONTEXT · ' + (ctx ? 'as of ' + esc(ctx.as_of || '') : '') + '</div>' + ctxDia + ctxLine + '<div style="' + NOTIZ + '; margin-top:6px">' + esc(ctx ? ctx.note : '') + '</div></div>'
+  return '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(340px, 1fr)); gap:var(--sp-5); margin-top:var(--sp-5)">'
+    + '<div style="' + KARTE + '; padding:var(--sp-5)"><div style="' + LABEL + '; margin-bottom:var(--sp-4)">CATEGORIES · ' + (d.categories ? 'as of ' + esc(d.categories.as_of || '') : '') + '</div>' + catDia + '<div style="' + NOTIZ + '; margin-top:var(--sp-3)">' + esc(d.categories ? d.categories.note + ' Classifier: ' + d.categories.classifier : '') + '</div></div>'
+    + '<div style="' + KARTE + '; padding:var(--sp-5)"><div style="' + LABEL + '; margin-bottom:var(--sp-4)">INSIDER CONTEXT · ' + (ctx ? 'as of ' + esc(ctx.as_of || '') : '') + '</div>' + ctxDia + ctxLine + '<div style="' + NOTIZ + '; margin-top:var(--sp-3)">' + esc(ctx ? ctx.note : '') + '</div></div>'
     + '</div>';
 }
 
@@ -817,7 +817,7 @@ function renderTrades(d) {
   if (!a || !a.n_trades) {
     return card('RECENT TRADES', '<div style="' + NOTIZ + '">No trades in the public /activity feed for this wallet' + (a && a.n_rows ? ' (' + num(a.n_rows) + ' rows read, none of type TRADE)' : '') + '.</div>', a ? 'as of ' + esc(a.as_of || '') : '');
   }
-  const summary = '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:10px; margin-bottom:12px">'
+  const summary = '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:var(--sp-4); margin-bottom:var(--sp-4)">'
     + tile('TRADES READ', num(a.n_trades), num(a.n_rows) + ' activity rows · ' + num(a.n_redeems) + ' redemptions' + (a.window_truncated ? ' · WINDOW TRUNCATED' : ''), a.window_truncated ? 'var(--warn)' : null)
     + tile('BUY · SELL', num(a.buy_n) + ' · ' + num(a.sell_n), absDollars(a.buy_notional) + ' bought · ' + absDollars(a.sell_notional) + ' sold')
     + tile('AVG TRADE', a.avg_trade_size != null ? absDollars(a.avg_trade_size) : '—', 'notional per trade')
@@ -834,7 +834,7 @@ function renderTrades(d) {
     + cell(fmtZahl(t.size), 'text-align:right; color:var(--ink-3)')
     + cell(absDollars(t.notional), 'text-align:right')
     + cell(link(t.url, t.title), 'font-family:var(--font-ui); font-size:var(--t-small)'))).join('');
-  const count = '<div style="' + NOTIZ + '; margin-bottom:8px">' + num(a.shown) + ' of ' + num(a.n_trades) + ' trades, newest first' + (a.window_truncated ? ' · the activity window was cut at the page cap, older trades are not read here' : '') + '</div>';
+  const count = '<div style="' + NOTIZ + '; margin-bottom:var(--sp-3)">' + num(a.shown) + ' of ' + num(a.n_trades) + ' trades, newest first' + (a.window_truncated ? ' · the activity window was cut at the page cap, older trades are not read here' : '') + '</div>';
   return card('RECENT TRADES', summary + count + tableWith(cols, head, body, '', 900), 'as of ' + esc(a.as_of || '') + ' · ' + esc(a.source || '') + (a.window_truncated ? ' · WINDOW TRUNCATED' : ''));
 }
 
@@ -843,19 +843,19 @@ function renderLimits(d) {
   if (!lim.length) return '';
   const errs = d.errors && typeof d.errors === 'object' ? Object.entries(d.errors) : [];
   return card('LIMITS OF THIS READ',
-    '<ul style="margin:0; padding-left:18px; font-size:var(--t-small); color:var(--ink-3); line-height:1.65">' + lim.map((l) => '<li>' + esc(l) + '</li>').join('') + '</ul>'
-    + (errs.length ? '<div style="' + NOTIZ + '; margin-top:10px; color:var(--warn)">Parts that did not answer this time: ' + errs.map((e) => esc(e[0]) + ' (' + esc(e[1]) + ')').join(' · ') + '</div>' : ''));
+    '<ul style="margin:0; padding-left:var(--sp-5); font-size:var(--t-small); color:var(--ink-3); line-height:1.65">' + lim.map((l) => '<li>' + esc(l) + '</li>').join('') + '</ul>'
+    + (errs.length ? '<div style="' + NOTIZ + '; margin-top:var(--sp-4); color:var(--warn)">Parts that did not answer this time: ' + errs.map((e) => esc(e[0]) + ' (' + esc(e[1]) + ')').join(' · ') + '</div>' : ''));
 }
 
 // ---- risk tab: profit factor, risk/reward, streaks, conviction, heatmap ----
 function riskCard(label, value, sub, tone, partial) {
   const border = tone === 'up' ? 'rgba(var(--pos-rgb),.35)' : tone === 'down' ? 'rgba(var(--neg-rgb),.35)' : tone === 'warn' ? 'rgba(var(--warn-rgb),.4)' : 'var(--line-2)';
   const color = tone === 'up' ? 'var(--pos)' : tone === 'down' ? 'var(--neg)' : tone === 'warn' ? 'var(--warn)' : 'var(--text)';
-  return '<div style="' + KARTE + '; border-color:' + border + '; padding:14px 16px; min-width:0">'
-    + '<div style="display:flex; justify-content:space-between; gap:8px; align-items:center"><div style="' + LABEL + '">' + label + '</div>'
-    + (partial ? '<span title="the closed set is capped at ~50 rows per tail — these figures describe the biggest winners and losers only" style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; color:var(--warn); border:1px solid rgba(var(--warn-rgb),.45); border-radius:var(--r-control); padding:1px 6px">~PARTIAL</span>' : '') + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-hero); margin-top:8px; color:' + color + '">' + value + '</div>'
-    + (sub ? '<div style="' + NOTIZ + '; margin-top:4px">' + sub + '</div>' : '') + '</div>';
+  return '<div style="' + KARTE + '; border-color:' + border + '; padding:var(--sp-5); min-width:0">'
+    + '<div style="display:flex; justify-content:space-between; gap:var(--sp-3); align-items:center"><div style="' + LABEL + '">' + label + '</div>'
+    + (partial ? '<span title="the closed set is capped at ~50 rows per tail — these figures describe the biggest winners and losers only" style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; color:var(--warn); border:1px solid rgba(var(--warn-rgb),.45); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">~PARTIAL</span>' : '') + '</div>'
+    + '<div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3); color:' + color + '">' + value + '</div>'
+    + (sub ? '<div style="' + NOTIZ + '; margin-top:var(--sp-2)">' + sub + '</div>' : '') + '</div>';
 }
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -869,9 +869,9 @@ function heatmapHtml(hm) {
   let max = 0;
   hm.counts.forEach((r) => r.forEach((v) => { if (v > max) max = v; }));
   const hours = Array.from({ length: 24 }, (_, i) => i);
-  const head = '<div style="display:grid; grid-template-columns:34px repeat(24, minmax(0,1fr)); gap:3px; margin-bottom:4px">'
+  const head = '<div style="display:grid; grid-template-columns:34px repeat(24, minmax(0,1fr)); gap:var(--sp-2); margin-bottom:var(--sp-2)">'
     + '<div></div>' + hours.map((h) => '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); text-align:center">' + (h % 3 === 0 ? h : '') + '</div>').join('') + '</div>';
-  const rows = hm.counts.map((r, wd) => '<div style="display:grid; grid-template-columns:34px repeat(24, minmax(0,1fr)); gap:3px; margin-bottom:3px">'
+  const rows = hm.counts.map((r, wd) => '<div style="display:grid; grid-template-columns:34px repeat(24, minmax(0,1fr)); gap:var(--sp-2); margin-bottom:var(--sp-2)">'
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); align-self:center">' + WEEKDAYS[wd] + '</div>'
     + r.map((v, h) => {
       const a = max > 0 ? v / max : 0;
@@ -881,7 +881,7 @@ function heatmapHtml(hm) {
     }).join('') + '</div>').join('');
   const busiest = hm.busiest ? WEEKDAYS[hm.busiest.weekday] + ' ' + String(hm.busiest.hour).padStart(2, '0') + ':00 UTC (' + hm.busiest.trades + (hm.busiest.trades === 1 ? ' trade)' : ' trades)') : '—';
   return head + rows
-    + '<div style="' + NOTIZ + '; margin-top:8px">' + esc(hm.note || '') + ' · n ' + num(hm.n) + ' trades · busiest cell ' + esc(busiest) + '</div>';
+    + '<div style="' + NOTIZ + '; margin-top:var(--sp-3)">' + esc(hm.note || '') + ' · n ' + num(hm.n) + ' trades · busiest cell ' + esc(busiest) + '</div>';
 }
 
 function renderRiskTab(d) {
@@ -901,7 +901,7 @@ function renderRiskTab(d) {
         rp.conviction == null ? 'neutral' : rp.conviction >= 1.2 ? 'up' : rp.conviction >= 0.8 ? 'warn' : 'down', partial)
     ].join('')
     : '';
-  const rules = rp && rp.rules ? '<div style="' + NOTIZ + '; margin-top:10px; line-height:1.6">'
+  const rules = rp && rp.rules ? '<div style="' + NOTIZ + '; margin-top:var(--sp-4); line-height:1.6">'
     + Object.entries(rp.rules).map((kv) => '<span style="color:var(--ink-3)">' + esc(kv[0].replace(/_/g, ' ')) + '</span>: ' + esc(kv[1])).join(' · ') + '</div>' : '';
   // Die Kachel hiess INSIDER-RISK SCORE und zeigte daneben das interne Level
   // (HIGH/MEDIUM/ELEVATED/LOW). Zusammen las sich das wie eine
@@ -911,16 +911,16 @@ function renderRiskTab(d) {
   const insiderBand = d.risk && typeof d.risk === 'object' && d.risk.wallet_insider_score != null
     ? scoreBand(d.risk.wallet_insider_score, null, d.risk) : null;
   const insider = insiderBand
-    ? '<div style="' + KARTE + '; padding:14px 16px; margin-top:14px"><div style="' + LABEL + '">FLOW-PATTERN SCORE · FROM THE RISK SCREEN</div>'
-      + '<div style="display:flex; gap:14px; align-items:baseline; margin-top:6px"><div style="' + M + '; font-size:var(--t-head); color:' + (d.risk.wallet_insider_score >= 70 ? 'var(--warn)' : 'var(--text)') + '">' + Math.round(d.risk.wallet_insider_score) + '<span style="font-size:var(--t-small); color:var(--ink-3)"> /100 pts</span></div>'
+    ? '<div style="' + KARTE + '; padding:var(--sp-5); margin-top:var(--sp-5)"><div style="' + LABEL + '">FLOW-PATTERN SCORE · FROM THE RISK SCREEN</div>'
+      + '<div style="display:flex; gap:var(--sp-5); align-items:baseline; margin-top:var(--sp-3)"><div style="' + M + '; font-size:var(--t-head); color:' + (d.risk.wallet_insider_score >= 70 ? 'var(--warn)' : 'var(--text)') + '">' + Math.round(d.risk.wallet_insider_score) + '<span style="font-size:var(--t-small); color:var(--ink-3)"> /100 pts</span></div>'
       + '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; color:' + insiderBand[1] + '">' + esc(insiderBand[0]) + '</span></div>'
-      + (Array.isArray(d.risk.flags) && d.risk.flags.length ? '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px">' + d.risk.flags.map((f) => '<span style="' + M + '; font-size:var(--t-micro); color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35); border-radius:var(--r-control); padding:2px 7px">' + esc(f) + '</span>').join('') + '</div>' : '<div style="' + NOTIZ + '; margin-top:6px">no flags on this wallet in the current screen</div>')
-      + '<div style="' + NOTIZ + '; margin-top:8px; line-height:1.5">' + caveat('insider_score_unvalidated') + '</div>'
+      + (Array.isArray(d.risk.flags) && d.risk.flags.length ? '<div style="display:flex; gap:var(--sp-3); flex-wrap:wrap; margin-top:var(--sp-3)">' + d.risk.flags.map((f) => '<span style="' + M + '; font-size:var(--t-micro); color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">' + esc(f) + '</span>').join('') + '</div>' : '<div style="' + NOTIZ + '; margin-top:var(--sp-3)">no flags on this wallet in the current screen</div>')
+      + '<div style="' + NOTIZ + '; margin-top:var(--sp-3); line-height:1.5">' + caveat('insider_score_unvalidated') + '</div>'
       + '</div>'
     : '';
   const head = card('RISK PROFILE · FROM THE RESOLVED ROWS',
-    (cards ? '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:10px">' + cards + '</div>' : '<div style="' + NOTIZ + '">No resolved rows to read a profit factor, streaks or conviction from.</div>')
-    + (rp && rp.note ? '<div style="' + NOTIZ + '; margin-top:10px">' + esc(rp.note) + '</div>' : '') + rules,
+    (cards ? '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:var(--sp-4)">' + cards + '</div>' : '<div style="' + NOTIZ + '">No resolved rows to read a profit factor, streaks or conviction from.</div>')
+    + (rp && rp.note ? '<div style="' + NOTIZ + '; margin-top:var(--sp-4)">' + esc(rp.note) + '</div>' : '') + rules,
     rp ? 'as of ' + esc(rp.as_of || '') + (partial ? ' · PARTIAL (capped tails)' : '') : '');
   const clock = card('TRADING ACTIVITY · WEEKDAY × UTC HOUR', heatmapHtml(rp ? rp.heatmap : null), rp && rp.heatmap ? 'n ' + num(rp.heatmap.n) + ' trades' : '');
   return head + clock + insider;
@@ -931,15 +931,15 @@ function renderSimilarTab(T, d) {
   const addr = String(T.state.walletAddr || '').toLowerCase();
   if (typeof T.fetchWalletSimilar === 'function') T.fetchWalletSimilar(addr);
   const entry = T.liveData && T.liveData.walletSimilar ? T.liveData.walletSimilar[addr] : null;
-  const intro = '<div style="' + KARTE + '; padding:14px 16px; margin-top:14px; display:flex; gap:12px; align-items:flex-start">'
+  const intro = '<div style="' + KARTE + '; padding:var(--sp-5); margin-top:var(--sp-5); display:flex; gap:var(--sp-4); align-items:flex-start">'
     + '<div style="width:34px; height:34px; flex:none; border-radius:var(--r-control); border:1px solid rgba(var(--info-rgb),.4); display:flex; align-items:center; justify-content:center; color:var(--info); ' + M + '; font-size:var(--t-body)">≡</div>'
-    + '<div><div style="font-size:var(--t-body)">Similar wallets</div><div style="' + NOTIZ + '; margin-top:3px">Wallets among the top holders of this wallet\'s largest open markets, sorted by how many of those markets they share — same side or opposite side. Read from the public /holders feed when this tab is opened.</div></div></div>';
+    + '<div><div style="font-size:var(--t-body)">Similar wallets</div><div style="' + NOTIZ + '; margin-top:var(--sp-2)">Wallets among the top holders of this wallet\'s largest open markets, sorted by how many of those markets they share — same side or opposite side. Read from the public /holders feed when this tab is opened.</div></div></div>';
   if (!entry || entry.herkunft === 'loading') {
     return intro + card('SIMILAR WALLETS', '<div style="' + NOTIZ + '">Reading the top holders of the largest open markets — up to ~22 public API calls, a few seconds…</div>');
   }
   if (entry.herkunft === 'fehler') {
     return intro + card('SIMILAR WALLETS', '<div style="' + NOTIZ + '; color:var(--warn)">/api/wallet/' + esc(shortAddr(addr)) + '/similar did not answer: ' + esc(entry.fehler || 'unknown error') + '.</div>'
-      + '<div style="margin-top:10px"><div ' + T.act(() => { if (T.fetchWalletSimilar) T.fetchWalletSimilar(addr, true); }) + ' class="hv-edge-strong" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:5px 10px; cursor:pointer; display:inline-block">Try again</div></div>');
+      + '<div style="margin-top:var(--sp-4)"><div ' + T.act(() => { if (T.fetchWalletSimilar) T.fetchWalletSimilar(addr, true); }) + ' class="hv-edge-strong" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-4); cursor:pointer; display:inline-block">Try again</div></div>');
   }
   const data = entry.data || {};
   const basis = data.basis || {};
@@ -947,11 +947,11 @@ function renderSimilarTab(T, d) {
   const rowsAll = Array.isArray(data.rows) ? data.rows : [];
   const rows = q ? rowsAll.filter((r) => String(r.wallet).indexOf(q) >= 0 || String(r.name || '').toLowerCase().indexOf(q) >= 0) : rowsAll;
   const search = '<input value="' + esc(T.state.walletSimilarQuery || '') + '" ' + T.inp((e) => { T.state.walletSimilarQuery = e.target.value; T.render(); }, 'walletSimilarQuery')
-    + ' placeholder="search wallet address or name…" spellcheck="false" style="width:100%; box-sizing:border-box; background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:9px 12px; ' + M + '; font-size:var(--t-small); color:var(--text); margin-bottom:12px" />';
+    + ' placeholder="search wallet address or name…" spellcheck="false" style="width:100%; box-sizing:border-box; background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); margin-bottom:var(--sp-4)" />';
   const cols = 'minmax(220px, 2fr) 110px 150px 150px 120px 90px 170px';
   const head = '<div>WALLET</div><div style="text-align:right">SHARED MARKETS</div><div style="text-align:right">THEIR OPEN POSITIONS</div><div>OVERLAP</div><div style="text-align:right">LEADERBOARD PNL</div><div style="text-align:right">VOLUME</div><div style="text-align:right">VIEW</div>';
   const body = rows.map((r) => {
-    const bar = '<div style="display:flex; align-items:center; gap:8px"><div style="flex:1; height:5px; background:rgba(var(--ink),.08); border-radius:var(--r-control); overflow:hidden"><div style="width:' + Math.round((r.overlap || 0) * 100) + '%; height:5px; background:var(--info)"></div></div><span style="' + M + '; font-size:var(--t-small)">' + Math.round((r.overlap || 0) * 100) + '%</span></div>';
+    const bar = '<div style="display:flex; align-items:center; gap:var(--sp-3)"><div style="flex:1; height:5px; background:rgba(var(--ink),.08); border-radius:var(--r-control); overflow:hidden"><div style="width:' + Math.round((r.overlap || 0) * 100) + '%; height:5px; background:var(--info)"></div></div><span style="' + M + '; font-size:var(--t-small)">' + Math.round((r.overlap || 0) * 100) + '%</span></div>';
     const sides = (r.same_side ? r.same_side + ' same side' : '') + (r.same_side && r.opposite_side ? ' · ' : '') + (r.opposite_side ? r.opposite_side + ' opposite' : '');
     return row(cols,
       '<div style="min-width:0"><div style="' + M + '; font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(r.wallet) + '">' + (r.name ? esc(r.name) + ' <span style="color:var(--ink-3)">· ' + esc(r.short) + '</span>' : esc(r.short)) + '</div><div style="' + NOTIZ + '; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(sides || 'sides not readable') + '</div></div>'
@@ -960,11 +960,11 @@ function renderSimilarTab(T, d) {
       + cell(bar, '')
       + cell(r.on_leaderboard && r.lb_pnl != null ? dollars(r.lb_pnl) : 'not on board', 'text-align:right; color:' + (r.on_leaderboard && r.lb_pnl != null ? pnlColor(r.lb_pnl) : 'var(--ink-3)'))
       + cell(r.on_leaderboard && r.lb_volume != null ? money(r.lb_volume) : '—', 'text-align:right; color:var(--ink-3)')
-      + cell('<span ' + T.act(() => { if (T.analyseWallet) T.analyseWallet(r.wallet); }) + ' class="hv-edge-strong" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:3px 8px; cursor:pointer">Analyse</span> '
-        + (r.profile_url ? '<a href="' + esc(r.profile_url) + '" target="_blank" rel="noopener" data-stop style="' + M + '; font-size:var(--t-micro); color:var(--info); text-decoration:none; margin-left:6px">profile ↗</a>' : ''), 'text-align:right'));
+      + cell('<span ' + T.act(() => { if (T.analyseWallet) T.analyseWallet(r.wallet); }) + ' class="hv-edge-strong" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); cursor:pointer">Analyse</span> '
+        + (r.profile_url ? '<a href="' + esc(r.profile_url) + '" target="_blank" rel="noopener" data-stop style="' + M + '; font-size:var(--t-micro); color:var(--info); text-decoration:none; margin-left:var(--sp-3)">profile ↗</a>' : ''), 'text-align:right'));
   }).join('');
   const table = tableWith(cols, head, body, rowsAll.length ? 'No wallet matches the search.' : 'No overlapping top holder found in the checked markets.', 1010);
-  const errs = Array.isArray(basis.errors) && basis.errors.length ? '<div style="' + NOTIZ + '; margin-top:8px; color:var(--warn)">Markets that did not answer: ' + basis.errors.map((e) => esc(e)).join(' · ') + '</div>' : '';
+  const errs = Array.isArray(basis.errors) && basis.errors.length ? '<div style="' + NOTIZ + '; margin-top:var(--sp-3); color:var(--warn)">Markets that did not answer: ' + basis.errors.map((e) => esc(e)).join(' · ') + '</div>' : '';
   // Gelesen statt nur angefragt: ein fehlgeschlagener Abruf kann keinen
   // Treffer liefern und gehoert nicht in den Nenner. Der Median sagt, wie viel
   // Ueberschneidung hier ueblich ist — die Holder-Listen sind nach Groesse
@@ -974,7 +974,7 @@ function renderSimilarTab(T, d) {
     + ' open markets read' + (basis.markets_checked && gelesen !== basis.markets_checked ? ' (' + num(basis.markets_checked) + ' requested)' : '')
     + ' · ' + num(data.candidates || 0) + ' wallets seen'
     + (basis.median_shared ? ' · median candidate shares ' + num(basis.median_shared) : '');
-  return intro + card('SIMILAR WALLETS · TOP ' + num(rows.length) + (rowsAll.length !== rows.length ? ' OF ' + num(rowsAll.length) : ''), search + table + '<div style="' + NOTIZ + '; margin-top:8px">' + esc(basis.note || '') + '</div>' + errs, sub);
+  return intro + card('SIMILAR WALLETS · TOP ' + num(rows.length) + (rowsAll.length !== rows.length ? ' OF ' + num(rowsAll.length) : ''), search + table + '<div style="' + NOTIZ + '; margin-top:var(--sp-3)">' + esc(basis.note || '') + '</div>' + errs, sub);
 }
 
 // ---- page ------------------------------------------------------------------
@@ -992,7 +992,7 @@ export function renderWallet(T) {
     else {
       const d = entry.data;
       const tab = WALLET_TABS.some((t) => t[0] === s.walletTab) ? s.walletTab : 'overview';
-      const tabs = '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:2px">' + WALLET_TABS.map((t) => (T.tab ? T.tab(t[1], tab === t[0], { walletTab: t[0] }) : '<div>' + esc(t[1]) + '</div>')).join('') + '</div>';
+      const tabs = '<div style="display:flex; gap:var(--sp-3); flex-wrap:wrap; margin-bottom:var(--sp-1)">' + WALLET_TABS.map((t) => (T.tab ? T.tab(t[1], tab === t[0], { walletTab: t[0] }) : '<div>' + esc(t[1]) + '</div>')).join('') + '</div>';
       let main = '';
       if (tab === 'record') main = renderTrackRecord(d) + renderEdge(d);
       else if (tab === 'positions') main = renderOpenPositions(T, d) + renderClosed(d);
@@ -1004,10 +1004,10 @@ export function renderWallet(T) {
       // Left: the stacked stat cards (224px, wraps under the main column on
       // a narrow screen); right: the tabbed detail. Both read the same
       // payload, so the aside repeats what the tabs prove.
-      body = '<div style="padding:16px 24px 28px">'
+      body = '<div style="padding:var(--sp-5) var(--sp-6) var(--sp-7)">'
         + renderIdentity(T, d)
         + renderKpis(d)
-        + '<div style="display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap; margin-top:14px">'
+        + '<div style="display:flex; gap:var(--sp-5); align-items:flex-start; flex-wrap:wrap; margin-top:var(--sp-5)">'
         + '<div style="flex:0 0 224px; min-width:200px; max-width:100%">' + renderAside(d) + '</div>'
         + '<div style="flex:1 1 560px; min-width:0">' + tabs + main + '</div>'
         + '</div>'

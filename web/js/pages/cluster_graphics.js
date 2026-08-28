@@ -34,7 +34,7 @@ function kopfzeile(g) {
   const k = g.kennzahl || {};
   const chip = (label, wert) =>
     '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); border:1px solid var(--line-1); '
-    + 'border-radius:var(--r-control); padding:4px 9px; white-space:nowrap">' + esc(label) + ' <span style="color:var(--text)">'
+    + 'border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); white-space:nowrap">' + esc(label) + ' <span style="color:var(--text)">'
     + esc(String(wert)) + '</span></div>';
   // WALLETS traegt seinen Nenner mit: 41 von 300 gescreenten ist eine andere
   // Aussage als 41 von 41. LIFT ist die Kante gegen ihre Basisrate — bei 1.0
@@ -43,7 +43,7 @@ function kopfzeile(g) {
   const wallets = k.wallets != null
     ? (k.wallets_im_tape ? k.wallets + ' / ' + k.wallets_im_tape : String(k.wallets))
     : '—';
-  return '<div style="display:flex; gap:7px; flex-wrap:wrap; margin-top:10px">'
+  return '<div style="display:flex; gap:var(--sp-3); flex-wrap:wrap; margin-top:var(--sp-4)">'
     + chip('WALLETS', wallets)
     + chip('LINKS', k.kanten != null ? k.kanten : '—')
     + chip('CLUSTERS', k.cluster != null ? k.cluster : '—')
@@ -64,7 +64,7 @@ function nullmodellZeile(g) {
       + (n.lift_median != null ? ' at a median lift of ' + esc(String(n.lift_median)) + '×' : '')
       + ' — read the picture against that, not against zero'
     : 'the same rule on a shuffled wallet column returns nothing';
-  return '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:8px; line-height:1.6">'
+  return '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-3); line-height:1.6">'
     + 'CONTROL · ' + wie + ' (' + esc(String(n.runs)) + ' shuffle' + (n.runs === 1 ? '' : 's') + ')</div>';
 }
 
@@ -86,11 +86,11 @@ export function regelLeiterHtml(g) {
     // 3.84:1 dunkel und 3.29:1 hell, --ink-4 misst 5.23:1 und 5.15:1, und
     // der Abstand zur gewaehlten Sprosse (var(--text)) bleibt derselbe.
     const farbe = s.gewaehlt ? 'var(--text)' : 'var(--ink-4)';
-    return '<div style="color:' + farbe + '; margin-top:3px">'
+    return '<div style="color:' + farbe + '; margin-top:var(--sp-2)">'
       + (s.gewaehlt ? '▸ ' : '· ') + esc(s.regel) + ' — ' + esc(ergebnis)
       + (s.gewaehlt ? ' (this picture)' : '') + '</div>';
   };
-  return '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:8px; line-height:1.5">'
+  return '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-3); line-height:1.5">'
     + 'RULE LADDER, STRICT TO LOOSE'
     + leiter.map(zeile).join('')
     + '</div>';
@@ -165,9 +165,9 @@ function graphSvg(g) {
 }
 
 function hinweisKarte(text, farbe) {
-  return '<div style="' + KARTE + '; padding:20px 22px; margin-bottom:16px">'
+  return '<div style="' + KARTE + '; padding:var(--sp-6); margin-bottom:var(--sp-5)">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">CO-TRADING STRUCTURE</div>'
-    + '<div style="font-size:var(--t-body); color:' + farbe + '; margin-top:10px; line-height:1.6; max-width:720px">'
+    + '<div style="font-size:var(--t-body); color:' + farbe + '; margin-top:var(--sp-4); line-height:1.6; max-width:720px">'
     + esc(text) + '</div></div>';
 }
 
@@ -197,11 +197,11 @@ export function renderClusterGraphics(live) {
       'var(--ink-2)');
   }
 
-  return '<div style="' + KARTE + '; padding:18px 20px; margin-bottom:14px">'
+  return '<div style="' + KARTE + '; padding:var(--sp-5) var(--sp-6); margin-bottom:var(--sp-5)">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">CO-TRADING STRUCTURE</div>'
-    + '<div style="font-size:var(--t-head); font-weight:600; margin-top:6px">Wallets that keep meeting in the same markets</div>'
+    + '<div style="font-size:var(--t-head); font-weight:600; margin-top:var(--sp-3)">Wallets that keep meeting in the same markets</div>'
     + kopfzeile(g)
-    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:10px; line-height:1.6">'
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-4); line-height:1.6">'
     + 'RULE · ' + esc(g.regel || 'not stated')
     + (g.fenster ? '<br>WINDOW · ' + esc(g.fenster) : '')
     + '<br>SCOPE · insider-prone markets only, sports crypto and weather excluded'
@@ -209,8 +209,8 @@ export function renderClusterGraphics(live) {
     + '</div>'
     + regelLeiterHtml(g)
     + nullmodellZeile(g)
-    + '<div style="margin-top:14px">' + graphSvg(g) + '</div>'
-    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:8px; line-height:1.5">'
+    + '<div style="margin-top:var(--sp-5)">' + graphSvg(g) + '</div>'
+    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.5">'
     + 'Each dot is one wallet, sized by the money it moved · a line means the two bought the same side of the same markets, thicker = more shared markets · colours are the groups detailed below · hover a line for how far above the chance rate that pair sits.'
     + '</div></div>';
 }

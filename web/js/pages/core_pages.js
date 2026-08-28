@@ -9,21 +9,18 @@ import { spiegelZeit, kurzGeld, histogramm } from '../charts.js';
 import { studieAnker } from './microstructure_page.js';
 import { MONO as M, LABEL_BLOCK, LABEL, kpi } from '../ui.js';
 
-// Kennzahlenzeilen ueber einer Tabelle nehmen die Rinne der Tabelle, nicht
-// die eigene: die Beschriftung soll mit dem Spaltenkopf darunter fluchten.
-const TABELLEN_BAND = '14px 24px';
 const REPO_URL = 'https://github.com/Pablozh123/prediction-market-terminal';
 const ONE_PAGER_URL = REPO_URL + '/blob/main/docs/research/ONE_PAGER.md';
 
 function filterGroup(label, chipsHtml) {
-  return '<div><div style="' + LABEL_BLOCK + '">' + label + '</div><div style="display:flex; gap:6px; flex-wrap:wrap">' + chipsHtml + '</div></div>';
+  return '<div><div style="' + LABEL_BLOCK + '">' + label + '</div><div style="display:flex; gap:var(--sp-3); flex-wrap:wrap">' + chipsHtml + '</div></div>';
 }
 
 // Category chip row shared by Markets, Live tape and Whale flow: only the
 // categories present in the rows are offered, 'All' first.
 function catChipRow(T, rows, key, stateKey, current) {
   const cats = ['All'].concat(catChipsPresent(rows, key));
-  return '<div style="display:flex; gap:7px; flex-wrap:wrap">'
+  return '<div style="display:flex; gap:var(--sp-3); flex-wrap:wrap">'
     + cats.map((c) => T.chip(c.toUpperCase(), current === c, { [stateKey]: c })).join('')
     + '</div>';
 }
@@ -38,10 +35,10 @@ function asOfLine(iso) {
 const MARKT_SPALTEN = '1fr 64px 90px 76px 96px 104px 96px';
 
 function marketRowHtml(v) {
-  return '<div ' + v.act + ' class="hv-panel" style="display:grid; grid-template-columns:' + MARKT_SPALTEN + '; align-items:center; padding:13px 24px; border-bottom:1px solid var(--line-3); cursor:pointer">'
-    + '<div style="padding-right:20px">'
+  return '<div ' + v.act + ' class="hv-panel" style="display:grid; grid-template-columns:' + MARKT_SPALTEN + '; align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-3); cursor:pointer">'
+    + '<div style="padding-right:var(--sp-6)">'
     + '<div style="font-size:var(--t-body); line-height:1.35">' + esc(v.title) + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:3px">' + esc(v.meta) + '</div></div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2)">' + esc(v.meta) + '</div></div>'
     + '<div style="' + M + '; font-size:var(--t-lead); text-align:right">' + v.priceLabel + '</div>'
     + '<div style="' + v.changeStyle + '">' + v.changeLabel + '</div>'
     + '<div style="' + M + '; font-size:var(--t-small); text-align:right; color:var(--ink-4)">' + esc(v.spreadLabel || '—') + '</div>'
@@ -50,7 +47,7 @@ function marketRowHtml(v) {
     // 56px-Balken: die Standard-Sortierspalte wird so ohne Lesen scannbar.
     + '<div style="text-align:right"><div style="' + M + '; font-size:var(--t-body)">' + v.volLabel + '</div>'
     + (v.volShare != null
-      ? '<div style="margin:4px 0 0 auto; width:56px; height:2px; border-radius:1px; background:rgba(var(--ink),.1)">'
+      ? '<div style="margin:var(--sp-2) 0 0 auto; width:56px; height:2px; border-radius:1px; background:rgba(var(--ink),.1)">'
         + '<div style="width:' + v.volShare.toFixed(1) + '%; height:100%; border-radius:1px; background:rgba(var(--ink),.45)"></div></div>'
       : '')
     + '</div>'
@@ -62,9 +59,9 @@ function marketRowHtml(v) {
 // loaded sample has nothing that qualifies.
 function insightPanel(titel, sub, rowsHtml, leerSatz) {
   return '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); overflow:hidden">'
-    + '<div style="padding:9px 14px; border-bottom:1px solid var(--line-2)"><h2 style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--accent); margin:0; display:inline">' + titel + '</h2>'
+    + '<div style="padding:var(--sp-3) var(--sp-5); border-bottom:1px solid var(--line-2)"><h2 style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--accent); margin:0; display:inline">' + titel + '</h2>'
     + (sub ? ' <span style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); letter-spacing:0">· ' + sub + '</span>' : '') + '</div>'
-    + (rowsHtml || '<div style="padding:12px 14px; ' + M + '; font-size:var(--t-micro); color:var(--ink-4)">' + esc(leerSatz) + '</div>')
+    + (rowsHtml || '<div style="padding:var(--sp-4) var(--sp-5); ' + M + '; font-size:var(--t-micro); color:var(--ink-4)">' + esc(leerSatz) + '</div>')
     + '</div>';
 }
 
@@ -82,7 +79,7 @@ const VERDICT_TAG = {
 function verdictTag(art) {
   const v = VERDICT_TAG[String(art || '').toLowerCase()];
   const label = v ? v.label : String(art || '—').toUpperCase();
-  const style = M + '; font-size:var(--t-micro); letter-spacing:.12em; border-radius:var(--r-control); padding:3px 8px; white-space:nowrap; '
+  const style = M + '; font-size:var(--t-micro); letter-spacing:.12em; border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); white-space:nowrap; '
     + (v ? 'color:' + v.color + '; background:' + v.bg : 'color:var(--ink-4); border:1px solid var(--line-1)');
   return '<span style="' + style + '">' + esc(label) + '</span>';
 }
@@ -165,9 +162,9 @@ function landingLeerSatz(herkunft, datei) {
 }
 
 function sectionHead(label, right, color) {
-  return '<div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 24px; border-bottom:1px solid var(--line-2); background:var(--panel)">'
+  return '<div style="display:flex; align-items:center; justify-content:space-between; gap:var(--sp-4); padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-2); background:var(--panel)">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.16em; color:' + (color || 'var(--accent)') + '">' + label + '</div>'
-    + '<div style="display:flex; align-items:center; gap:14px">' + (right || '') + '</div></div>';
+    + '<div style="display:flex; align-items:center; gap:var(--sp-5)">' + (right || '') + '</div></div>';
 }
 
 // ---- The tape, live (landing hero) ----------------------------------------
@@ -185,7 +182,7 @@ function tapeLivePanel(T) {
   const zeilen = rows.map((t) => {
     const neu = !erste && !gesehen.has(schluessel(t));
     const kauf = String(t.side).indexOf('BUY') === 0;
-    return '<div' + (neu ? ' class="tape-in"' : '') + ' style="display:grid; grid-template-columns:84px minmax(0,1fr) 110px 76px; gap:10px; align-items:baseline; padding:7px 24px; border-bottom:1px solid var(--line-3)">'
+    return '<div' + (neu ? ' class="tape-in"' : '') + ' style="display:grid; grid-template-columns:84px minmax(0,1fr) 110px 76px; gap:var(--sp-4); align-items:baseline; padding:var(--sp-3) var(--sp-6); border-bottom:1px solid var(--line-3)">'
       + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); white-space:nowrap">' + esc(t.ago) + '</div>'
       + '<div style="font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(t.market) + '">' + esc(t.market) + '</div>'
       + '<div style="' + M + '; font-size:var(--t-micro); color:' + (kauf ? 'var(--pos)' : 'var(--neg)') + '; text-align:right; white-space:nowrap">' + esc(t.side) + ' ' + esc(t.price || '') + '</div>'
@@ -193,7 +190,7 @@ function tapeLivePanel(T) {
   }).join('');
   // Merken, was diese Antwort zeigte — der naechste Poll animiert nur Neues.
   T._tapeGesehen = new Set(rows.map(schluessel));
-  return '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px; padding:14px 24px 8px; border-top:1px solid var(--line-3)">'
+  return '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:var(--sp-4); padding:var(--sp-5) var(--sp-6) var(--sp-3); border-top:1px solid var(--line-3)">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.15em; color:var(--ink-3)">THE TAPE, LIVE · PRINTS ≥ $2.5K</div>'
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4)">refreshes every 30 s · read-only</div></div>'
     + zeilen;
@@ -213,15 +210,15 @@ function wireStrip(T) {
   const items = maerkte.map((m) => {
     const delta = vorher && vorher.has(m.id) ? m.yes - vorher.get(m.id) : 0;
     const blitz = delta > 0 ? ' class="wire-up"' : delta < 0 ? ' class="wire-dn"' : '';
-    return '<span style="display:inline-flex; align-items:baseline; gap:8px; padding:0 22px; border-right:1px solid var(--line-2)">'
+    return '<span style="display:inline-flex; align-items:baseline; gap:var(--sp-3); padding:0 var(--sp-6); border-right:1px solid var(--line-2)">'
       + '<span style="color:var(--ink-3)">' + esc(m.title) + '</span>'
-      + '<span' + blitz + ' style="font-weight:600; border-radius:3px; padding:0 4px">' + num(m.yes) + '¢</span>'
+      + '<span' + blitz + ' style="font-weight:600; border-radius:3px; padding:0 var(--sp-2)">' + num(m.yes) + '¢</span>'
       + (m.chg ? '<span style="color:' + (m.chg > 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (m.chg > 0 ? '+' : '−') + Math.abs(m.chg) + '</span>' : '')
       + '</span>';
   }).join('');
   T._wireVorher = new Map(maerkte.map((m) => [m.id, m.yes]));
   return '<div aria-hidden="true" style="border-bottom:1px solid var(--line-2); background:var(--panel); overflow:hidden; ' + M + '; font-size:var(--t-small)">'
-    + '<div id="wire-row" style="display:inline-flex; white-space:nowrap; padding:9px 0; will-change:transform">' + items + items + '</div></div>';
+    + '<div id="wire-row" style="display:inline-flex; white-space:nowrap; padding:var(--sp-3) 0; will-change:transform">' + items + items + '</div></div>';
 }
 
 export function renderOverview(T) {
@@ -237,7 +234,7 @@ export function renderOverview(T) {
   const pilotIdx = T.studies.findIndex((st) => st.tab === 'Pilot');
   const goStudy = (i, anker) => (i >= 0 && T.goStudy ? T.act(() => T.goStudy(i, anker)) : '');
   const link = (i, label, color) => (i >= 0
-    ? '<div ' + goStudy(i) + ' class="hv-accent" style="' + M + '; font-size:var(--t-micro); color:' + (color || 'var(--ink-3)') + '; cursor:pointer; padding:5px 0; white-space:nowrap">' + label + ' →</div>'
+    ? '<div ' + goStudy(i) + ' class="hv-accent" style="' + M + '; font-size:var(--t-micro); color:' + (color || 'var(--ink-3)') + '; cursor:pointer; padding:var(--sp-2) 0; white-space:nowrap">' + label + ' →</div>'
     : '');
 
   // ---- verdict board -----------------------------------------------------
@@ -245,7 +242,7 @@ export function renderOverview(T) {
   const counts = verdictCounts(micro);
   let board;
   if (studien.length) {
-    board = '<div style="display:grid; grid-template-columns:36px 1fr 128px 190px 150px; padding:9px 24px; border-bottom:1px solid var(--line-2); ' + LABEL + '">'
+    board = '<div style="display:grid; grid-template-columns:36px 1fr 128px 190px 150px; padding:var(--sp-3) var(--sp-6); border-bottom:1px solid var(--line-2); ' + LABEL + '">'
       + '<div>#</div><div>QUESTION</div><div>VERDICT</div><div style="text-align:right">KEY NUMBER · N</div><div style="text-align:right">WINDOW</div></div>'
       + studien.map((st, i) => {
         const kn = keyNumber(st);
@@ -253,14 +250,14 @@ export function renderOverview(T) {
         const nLabel = sampleLabel(basis);
         // Jede Zeile fuehrt direkt zu ihrer Karte auf der Microstructure-Seite,
         // nicht zum Seitenanfang: gleicher Anker wie die Sprungliste dort.
-        return '<div ' + goStudy(microIdx, studieAnker(st, i)) + ' class="hv-panel" style="display:grid; grid-template-columns:36px 1fr 128px 190px 150px; align-items:center; padding:11px 24px; border-bottom:1px solid var(--line-3); cursor:pointer">'
+        return '<div ' + goStudy(microIdx, studieAnker(st, i)) + ' class="hv-panel" style="display:grid; grid-template-columns:36px 1fr 128px 190px 150px; align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-3); cursor:pointer">'
           + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + String(i + 1).padStart(2, '0') + '</div>'
-          + '<div style="padding-right:16px; min-width:0"><div style="font-size:var(--t-body); line-height:1.35">' + esc(st.frage || st.id || '—') + '</div>'
+          + '<div style="padding-right:var(--sp-5); min-width:0"><div style="font-size:var(--t-body); line-height:1.35">' + esc(st.frage || st.id || '—') + '</div>'
           // Truncated lines carry the full text as a tooltip.
-          + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(String(st.verdikt || '')) + '">' + esc(String(st.verdikt || '').split('. ')[0]) + '</div></div>'
+          + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(String(st.verdikt || '')) + '">' + esc(String(st.verdikt || '').split('. ')[0]) + '</div></div>'
           + '<div>' + verdictTag(st.verdikt_art) + '</div>'
           + '<div style="text-align:right; min-width:0"><div style="' + M + '; font-size:var(--t-body)">' + esc(kn.value) + (kn.unit ? ' <span style="font-size:var(--t-micro); color:var(--ink-3)">' + esc(kn.unit) + '</span>' : '') + '</div>'
-          + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(kn.label + (nLabel ? ' · ' + nLabel : '')) + '">' + esc(kn.label) + (nLabel ? ' · ' + esc(nLabel) : '') + '</div></div>'
+          + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(kn.label + (nLabel ? ' · ' + nLabel : '')) + '">' + esc(kn.label) + (nLabel ? ' · ' + esc(nLabel) : '') + '</div></div>'
           + '<div style="' + M + '; font-size:var(--t-micro); text-align:right; color:var(--ink-4)">' + esc(basis.fenster || '—') + '</div></div>';
       }).join('');
   } else {
@@ -326,7 +323,7 @@ export function renderOverview(T) {
   const noteList = notes && Array.isArray(notes.notes) ? notes.notes.slice(0, 5) : [];
   const notesStrip = noteList.length
     ? noteList.map((n) =>
-      '<div ' + goStudy(notesIdx) + ' class="hv-panel" style="display:grid; grid-template-columns:96px 1fr 120px; gap:12px; align-items:center; padding:11px 24px; border-bottom:1px solid var(--line-3); cursor:pointer">'
+      '<div ' + goStudy(notesIdx) + ' class="hv-panel" style="display:grid; grid-template-columns:96px 1fr 120px; gap:var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-3); cursor:pointer">'
       + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + esc(String(n.date || '').slice(0, 10)) + '</div>'
       + '<div style="font-size:var(--t-body); line-height:1.35">' + esc(n.title || '—') + '</div>'
       + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); text-align:right">' + esc(n.venue || '') + '</div></div>'
@@ -360,7 +357,7 @@ export function renderOverview(T) {
   // links die getestete Strategie (Forschung, echte Laeufe, Bilanz), rechts
   // das Analysewerkzeug (Live-Screens). Wer die Seite oeffnet, sieht zuerst
   // diese Trennung, nicht eine Liste gleichrangiger Bloecke.
-  const pfade = '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px; margin-top:16px; max-width:860px">'
+  const pfade = '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:var(--sp-4); margin-top:var(--sp-5); max-width:860px">'
     + pfadKarte(goStudy(runsIdx), 'TESTED STRATEGY', 'var(--accent)', 'Researched, then run with real money: every bet, its latency and the on-chain wallet that proves it.')
     + pfadKarte(T.act(() => T.go('markets')), 'ANALYSIS TOOL', 'var(--info)', 'Live screens on Polymarket & Kalshi: markets, tape, whale flow, cross-venue, risk.')
     + '</div>';
@@ -370,17 +367,17 @@ export function renderOverview(T) {
   // (ambient.js malt in die Canvas; ohne Achsen und Zahlen ist er erkennbar
   // Zierde, keine Messung). Der Verlauf davor haelt die Headline lesbar.
   return '<div>'
-    + '<div style="padding:30px 24px 24px; border-bottom:1px solid var(--line-2); position:relative; overflow:hidden; min-height:300px; box-sizing:border-box; display:flex; align-items:center">'
+    + '<div style="padding:var(--sp-7) var(--sp-6) var(--sp-6); border-bottom:1px solid var(--line-2); position:relative; overflow:hidden; min-height:300px; box-sizing:border-box; display:flex; align-items:center">'
     + '<canvas id="river-cv" aria-hidden="true" style="position:absolute; inset:0; width:100%; height:100%"></canvas>'
     + '<div aria-hidden="true" style="position:absolute; inset:0; pointer-events:none; background:linear-gradient(90deg, rgba(var(--bg-rgb),.92) 0%, rgba(var(--bg-rgb),.62) 40%, rgba(var(--bg-rgb),.12) 68%, rgba(var(--bg-rgb),0) 100%)"></div>'
     + '<div style="position:relative; max-width:640px">'
     + '<h1 style="font-size:var(--t-hero); line-height:1.2; margin:0; font-weight:600; letter-spacing:-0.015em">Prediction-market microstructure, <em style="color:var(--accent)">measured on self-recorded books.</em></h1>'
-    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:8px; max-width:760px">' + esc(subline) + '</div>'
+    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-3); max-width:760px">' + esc(subline) + '</div>'
     + pfade
-    + '<div style="display:flex; gap:14px; margin-top:14px; flex-wrap:wrap; ' + M + '; font-size:var(--t-micro)">'
+    + '<div style="display:flex; gap:var(--sp-5); margin-top:var(--sp-5); flex-wrap:wrap; ' + M + '; font-size:var(--t-micro)">'
     + '<a href="' + REPO_URL + '" target="_blank" rel="noopener">GitHub repository →</a>'
     + '<a href="' + ONE_PAGER_URL + '" target="_blank" rel="noopener">One-pager (docs/research/ONE_PAGER.md) →</a>'
-    + (pilotIdx >= 0 ? '<span ' + goStudy(pilotIdx) + ' class="hv-accent" style="color:var(--ink-4); cursor:pointer; display:inline-block; padding:5px 0">Pre-registered pilot →</span>' : '')
+    + (pilotIdx >= 0 ? '<span ' + goStudy(pilotIdx) + ' class="hv-accent" style="color:var(--ink-4); cursor:pointer; display:inline-block; padding:var(--sp-2) 0">Pre-registered pilot →</span>' : '')
     + '</div></div>'
     + '</div>'
 
@@ -400,7 +397,7 @@ export function renderOverview(T) {
     + sectionHead('FIELD NOTES', link(notesIdx, 'ALL NOTES'), 'var(--info)')
     + notesStrip
 
-    + sectionHead('ANALYSIS TOOL · LIVE DATA', asOfLine(s.liveAsOf) + '<div ' + T.act(() => T.go('markets')) + ' class="hv-accent" style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); cursor:pointer; padding:5px 0">MARKETS →</div><div ' + T.act(() => T.go('flow')) + ' class="hv-accent" style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); cursor:pointer; padding:5px 0">TAPE →</div>')
+    + sectionHead('ANALYSIS TOOL · LIVE DATA', asOfLine(s.liveAsOf) + '<div ' + T.act(() => T.go('markets')) + ' class="hv-accent" style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); cursor:pointer; padding:var(--sp-2) 0">MARKETS →</div><div ' + T.act(() => T.go('flow')) + ' class="hv-accent" style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); cursor:pointer; padding:var(--sp-2) 0">TAPE →</div>')
     + liveRow
     // Das Tape als Streifen im Live-Block — dieselben Prints wie im Poll,
     // neue Zeilen gleiten ein, sobald sie ankommen.
@@ -410,7 +407,7 @@ export function renderOverview(T) {
     // einem Satz, was die Zahlen darueber sind und was sie nicht sind.
     + caveatZeile('score_generic', {
       vorsatz: 'Public data only · live blocks refresh every 30 seconds · research payloads are frozen files under ./data ·',
-      stil: 'padding:22px 24px; text-align:center; ' + M + '; font-size:var(--t-micro); color:var(--ink-4); line-height:1.7'
+      stil: 'padding:var(--sp-6); text-align:center; ' + M + '; font-size:var(--t-micro); color:var(--ink-4); line-height:1.7'
     })
     + '</div>';
 }
@@ -418,9 +415,9 @@ export function renderOverview(T) {
 // One of the two entry cards under the landing title; act is empty when the
 // target study is not in the list, the card then renders without a cursor.
 function pfadKarte(act, label, farbe, satz) {
-  return '<div ' + act + (act ? ' class="hv-panel"' : '') + ' style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:14px 16px' + (act ? '; cursor:pointer' : '') + '">'
+  return '<div ' + act + (act ? ' class="hv-panel"' : '') + ' style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-5)' + (act ? '; cursor:pointer' : '') + '">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.16em; color:' + farbe + '">' + label + ' →</div>'
-    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:6px; line-height:1.5">' + satz + '</div></div>';
+    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.5">' + satz + '</div></div>';
 }
 
 function kpiCell(label, value, sub, borderRight, signed) {
@@ -507,12 +504,12 @@ export function renderMarkets(T) {
   const topMover = movers[0] || null;
   const kurz = (t) => (String(t).length > 44 ? String(t).slice(0, 43) + '…' : String(t));
   const zeile = (m, mitte, rechts) =>
-    '<div ' + T.act(() => T.openMarket(m.id)) + ' class="hv-panel" style="display:grid; grid-template-columns:1fr 46px 78px; gap:8px; align-items:center; padding:8px 14px; border-bottom:1px solid var(--line-3); cursor:pointer">'
+    '<div ' + T.act(() => T.openMarket(m.id)) + ' class="hv-panel" style="display:grid; grid-template-columns:1fr 46px 78px; gap:var(--sp-3); align-items:center; padding:var(--sp-3) var(--sp-5); border-bottom:1px solid var(--line-3); cursor:pointer">'
     + '<div style="font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(m.title) + '">' + esc(m.title) + '</div>'
     + '<div style="' + M + '; font-size:var(--t-small); text-align:right; color:var(--ink-4)">' + mitte + '</div>'
     + '<div style="' + M + '; font-size:var(--t-small); text-align:right">' + rechts + '</div></div>';
   const preisChart = preisVerteilung(T.markets);
-  const kpiStrip = '<div style="display:grid; grid-template-columns:repeat(4,1fr); border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:14px; overflow:hidden; background:var(--panel)">'
+  const kpiStrip = '<div style="display:grid; grid-template-columns:repeat(4,1fr); border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); overflow:hidden; background:var(--panel)">'
     + kpiCell('MARKETS IN SAMPLE', num(T.markets.length), pmAnzahl + ' Polymarket · ' + (T.markets.length - pmAnzahl) + ' Kalshi', true)
     + kpiCell('POLYMARKET VOLUME 24H', money(pmVolSample), 'Kalshi trades in contracts: ' + contracts(ksVolSample), true)
     + kpiCell('BIGGEST 1D MOVE', topMover ? (topMover.chg >= 0 ? '+' : '') + topMover.chg + '¢' : '—',
@@ -520,7 +517,7 @@ export function renderMarkets(T) {
     + kpiCell('MEDIAN SPREAD', spreadMedian != null ? spreadMedian + '¢' : '—',
       spreads.length ? 'n = ' + num(spreads.length) + ' markets with a quoted spread' : 'no spreads in the sample', false)
     + '</div>';
-  const einblicke = '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px; margin-top:12px">'
+  const einblicke = '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:var(--sp-4); margin-top:var(--sp-4)">'
     + insightPanel('TOP MOVERS · 1D', 'yes price · change',
       movers.map((m) => zeile(m, m.yes + '¢', '<span style="color:' + (m.chg >= 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (m.chg >= 0 ? '+' : '') + m.chg + '¢</span>')).join(''),
       'no market in the sample moved in the last day')
@@ -594,17 +591,17 @@ export function renderMarkets(T) {
     a[m.venue] = Math.max(a[m.venue] || 0, m.vol);
     return a;
   }, {});
-  const badge = mActive.length ? M + '; font-size:var(--t-micro); color:var(--on-accent); background:var(--accent); border-radius:var(--r-control); padding:1px 7px' : 'display:none';
+  const badge = mActive.length ? M + '; font-size:var(--t-micro); color:var(--on-accent); background:var(--accent); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)' : 'display:none';
   const chevron = M + '; font-size:var(--t-lead); color:var(--ink-4); transition:transform .18s ease; transform:rotate(' + (s.marketFiltersOpen ? '90deg' : '0deg') + ')';
 
   return '<div>'
-    + '<div style="padding:20px 24px 14px; border-bottom:1px solid var(--line-2)">'
-    + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:20px">'
+    + '<div style="padding:var(--sp-6) var(--sp-6) var(--sp-5); border-bottom:1px solid var(--line-2)">'
+    + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:var(--sp-6)">'
     + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.18em; color:var(--accent)">MARKETS</div>'
-    + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">Every market, one table</h1></div>'
-    + '<div style="display:flex; align-items:center; gap:10px">'
-    + '<input value="' + esc(s.marketQuery) + '" ' + T.inp((e) => T.setState({ marketQuery: e.target.value }), 'marketQuery') + ' placeholder="Search markets…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:9px 12px; ' + M + '; font-size:var(--t-small); color:var(--text); width:230px" />'
-    + '<div ' + T.act(() => T.setState({ mPlatform: 'all', mStatus: 'active', mProb: 'all', mLiq: 'all', mVol: 'all', mEnds: 'all', mAge: 'all', mExclude: [], marketCat: 'All', marketQuery: '', mQuick: 'trending', marketSort: 'volume' })) + ' class="hv-edge-strong" style="font-size:var(--t-small); color:var(--ink-3); border:1px solid var(--line-1); border-radius:var(--r-control); padding:9px 13px; cursor:pointer">Reset filters</div>'
+    + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:-0.01em">Every market, one table</h1></div>'
+    + '<div style="display:flex; align-items:center; gap:var(--sp-4)">'
+    + '<input value="' + esc(s.marketQuery) + '" ' + T.inp((e) => T.setState({ marketQuery: e.target.value }), 'marketQuery') + ' placeholder="Search markets…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); width:230px" />'
+    + '<div ' + T.act(() => T.setState({ mPlatform: 'all', mStatus: 'active', mProb: 'all', mLiq: 'all', mVol: 'all', mEnds: 'all', mAge: 'all', mExclude: [], marketCat: 'All', marketQuery: '', mQuick: 'trending', marketSort: 'volume' })) + ' class="hv-edge-strong" style="font-size:var(--t-small); color:var(--ink-3); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); cursor:pointer">Reset filters</div>'
     + '</div></div>'
 
     // Der Ueberblick zuerst: vier Kennzahlen des Ausschnitts und drei
@@ -614,27 +611,27 @@ export function renderMarkets(T) {
     // Direkt unter der Kachelzeile: die Verteilung, aus der die Kacheln ihre
     // Kennzahlen ziehen. Ueber dem ganzen geladenen Ausschnitt, nicht ueber
     // der gefilterten Tabelle, sonst waere es ein Filterergebnis.
-    + (preisChart ? '<div style="margin-top:12px; max-width:700px">' + preisChart + '</div>' : '')
+    + (preisChart ? '<div style="margin-top:var(--sp-4); max-width:700px">' + preisChart + '</div>' : '')
     + einblicke
 
     // VIEW (Cards / Calendar) and QUICK Saved / My positions are gone: the
     // first two had no renderer, the last two filtered on flags nothing sets.
-    + '<div style="display:flex; align-items:center; gap:22px; margin-top:16px; flex-wrap:wrap">'
-    + '<div style="display:flex; align-items:center; gap:8px"><span style="' + LABEL_BLOCK.replace('; margin-bottom:6px', '') + '">QUICK</span>'
+    + '<div style="display:flex; align-items:center; gap:var(--sp-6); margin-top:var(--sp-5); flex-wrap:wrap">'
+    + '<div style="display:flex; align-items:center; gap:var(--sp-3)"><span style="' + LABEL_BLOCK.replace('; margin-bottom:var(--sp-3)', '') + '">QUICK</span>'
     + [['trending','By volume'],['ending','Ending soon'],['new','New']].map((o) => T.opt(o[1], s.mQuick === o[0], { mQuick: o[0] })).join('') + '</div>'
     + asOfLine(s.liveAsOf)
     + '</div>'
 
-    + '<div style="display:flex; gap:7px; margin-top:14px; flex-wrap:wrap">'
+    + '<div style="display:flex; gap:var(--sp-3); margin-top:var(--sp-5); flex-wrap:wrap">'
     + cats.map((c) => T.chip((c.toUpperCase() + ' ' + (c === 'All' ? T.markets.length : catAnzahl[c] || 0)), s.marketCat === c, { marketCat: c })).join('')
     + '</div>'
 
-    + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:14px; overflow:hidden">'
-    + '<div ' + T.act(() => T.setState({ marketFiltersOpen: !s.marketFiltersOpen })) + ' class="hv-el" style="display:flex; align-items:center; justify-content:space-between; padding:11px 15px; background:var(--panel); cursor:pointer">'
-    + '<div style="display:flex; align-items:center; gap:10px"><div style="font-size:var(--t-body)">All filters</div><div style="' + badge + '">' + mActive.length + '</div></div>'
+    + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); overflow:hidden">'
+    + '<div ' + T.act(() => T.setState({ marketFiltersOpen: !s.marketFiltersOpen })) + ' class="hv-el" style="display:flex; align-items:center; justify-content:space-between; padding:var(--sp-4) var(--sp-5); background:var(--panel); cursor:pointer">'
+    + '<div style="display:flex; align-items:center; gap:var(--sp-4)"><div style="font-size:var(--t-body)">All filters</div><div style="' + badge + '">' + mActive.length + '</div></div>'
     + '<div style="' + chevron + '">›</div></div>'
     + (s.marketFiltersOpen ?
-      '<div style="padding:16px; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:16px 20px">'
+      '<div style="padding:var(--sp-5); display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:var(--sp-5) var(--sp-6)">'
       + filterGroup('PLATFORM', [['all','All'],['Polymarket','Polymarket'],['Kalshi','Kalshi']].map((o) => T.opt(o[1], s.mPlatform === o[0], { mPlatform: o[0] })).join(''))
       + filterGroup('PROBABILITY', [['all','All'],['5-95','5–95%'],['20-80','20–80%'],['80','>80%'],['95','>95%'],['99','>99%']].map((o) => T.opt(o[1], s.mProb === o[0], { mProb: o[0] })).join(''))
       + filterGroup('LIQUIDITY', [['all','All'],['1k','>$1k'],['10k','>$10k'],['100k','>$100k']].map((o) => T.opt(o[1], s.mLiq === o[0], { mLiq: o[0] })).join(''))
@@ -645,40 +642,40 @@ export function renderMarkets(T) {
       + filterGroup('VOLUME 24H (VENUE UNIT)', [['all','All'],['10k','>10k'],['100k','>100k'],['1m','>1m']].map((o) => T.opt(o[1], s.mVol === o[0], { mVol: o[0] })).join(''))
       + filterGroup('RESOLVES IN', [['all','All'],['1d','<1 day'],['7d','<7 days'],['30d','<30 days'],['open','Open ended']].map((o) => T.opt(o[1], s.mEnds === o[0], { mEnds: o[0] })).join(''))
       + filterGroup('MARKET AGE', [['all','All'],['1d','<1 day'],['7d','<7 days'],['30d','>30 days']].map((o) => T.opt(o[1], s.mAge === o[0], { mAge: o[0] })).join(''))
-      + '<div style="grid-column:span 2"><div style="' + LABEL_BLOCK + '">EXCLUDE CATEGORIES</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
+      + '<div style="grid-column:span 2"><div style="' + LABEL_BLOCK + '">EXCLUDE CATEGORIES</div><div style="display:flex; gap:var(--sp-3); flex-wrap:wrap">'
       + cats.slice(1).map((c) => T.opt(c, s.mExclude.indexOf(c) >= 0, () => T.setState({ mExclude: s.mExclude.indexOf(c) >= 0 ? s.mExclude.filter((x) => x !== c) : s.mExclude.concat([c]) }))).join('')
       + '</div></div>'
-      + '<div style="grid-column:span 2"><div style="' + LABEL_BLOCK + '">SORT BY</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
+      + '<div style="grid-column:span 2"><div style="' + LABEL_BLOCK + '">SORT BY</div><div style="display:flex; gap:var(--sp-3); flex-wrap:wrap">'
       + [['volume','Volume 24h'],['change','Biggest move'],['liquidity','Liquidity'],['ending','Ending soonest'],['newest','Newest']].map((o) => T.opt(o[1], s.marketSort === o[0], { marketSort: o[0] })).join('')
       + '</div></div>'
       + '</div>' : '')
     + '</div>'
 
-    + '<div style="display:flex; align-items:center; gap:8px; margin-top:12px; flex-wrap:wrap">'
+    + '<div style="display:flex; align-items:center; gap:var(--sp-3); margin-top:var(--sp-4); flex-wrap:wrap">'
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + mRows.length + ' of ' + T.markets.length + ' markets</div>'
     + mActive.map((c) =>
-      '<div ' + T.act(() => T.setState(c.reset)) + ' class="hv-edge-strong" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); background:var(--panel-hover); border-radius:var(--r-control); padding:3px 9px; cursor:pointer">' + esc(c.label) + ' ✕</div>'
+      '<div ' + T.act(() => T.setState(c.reset)) + ' class="hv-edge-strong" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); background:var(--panel-hover); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); cursor:pointer">' + esc(c.label) + ' ✕</div>'
     ).join('')
     + '</div></div>'
 
     // No TREND column: the API carries a one-day change, not an intraday
     // path, and a two-point line under "TREND 24H" read as a curve. SPREAD
     // und LIQUIDITY kommen aus denselben API-Zeilen (unbekannt bleibt —).
-    + '<div style="display:grid; grid-template-columns:' + MARKT_SPALTEN + '; align-items:center; padding:10px 24px; border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + LABEL + '">'
+    + '<div style="display:grid; grid-template-columns:' + MARKT_SPALTEN + '; align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + LABEL + '">'
     + '<div>MARKET</div>'
     + '<div style="text-align:right">YES</div>'
-    + '<div ' + T.act(() => T.setState({ marketSort: 'change' })) + ' aria-pressed="' + (s.marketSort === 'change' ? 'true' : 'false') + '"' + ' style="text-align:right; cursor:pointer; padding:5px 0; color:' + (s.marketSort === 'change' ? 'var(--accent)' : 'var(--ink-3)') + '">CHANGE 1D</div>'
+    + '<div ' + T.act(() => T.setState({ marketSort: 'change' })) + ' aria-pressed="' + (s.marketSort === 'change' ? 'true' : 'false') + '"' + ' style="text-align:right; cursor:pointer; padding:var(--sp-2) 0; color:' + (s.marketSort === 'change' ? 'var(--accent)' : 'var(--ink-3)') + '">CHANGE 1D</div>'
     + '<div style="text-align:right">SPREAD</div>'
-    + '<div ' + T.act(() => T.setState({ marketSort: 'liquidity' })) + ' aria-pressed="' + (s.marketSort === 'liquidity' ? 'true' : 'false') + '"' + ' style="text-align:right; cursor:pointer; padding:5px 0; color:' + (s.marketSort === 'liquidity' ? 'var(--accent)' : 'var(--ink-3)') + '">LIQUIDITY</div>'
-    + '<div ' + T.act(() => T.setState({ marketSort: 'volume' })) + ' aria-pressed="' + (s.marketSort === 'volume' ? 'true' : 'false') + '"' + ' style="text-align:right; cursor:pointer; padding:5px 0; color:' + (s.marketSort === 'volume' ? 'var(--accent)' : 'var(--ink-3)') + '">VOLUME 24H</div>'
-    + '<div ' + T.act(() => T.setState({ marketSort: 'ending' })) + ' aria-pressed="' + (s.marketSort === 'ending' ? 'true' : 'false') + '"' + ' style="text-align:right; cursor:pointer; padding:5px 0; color:' + (s.marketSort === 'ending' ? 'var(--accent)' : 'var(--ink-3)') + '">RESOLVES</div></div>'
+    + '<div ' + T.act(() => T.setState({ marketSort: 'liquidity' })) + ' aria-pressed="' + (s.marketSort === 'liquidity' ? 'true' : 'false') + '"' + ' style="text-align:right; cursor:pointer; padding:var(--sp-2) 0; color:' + (s.marketSort === 'liquidity' ? 'var(--accent)' : 'var(--ink-3)') + '">LIQUIDITY</div>'
+    + '<div ' + T.act(() => T.setState({ marketSort: 'volume' })) + ' aria-pressed="' + (s.marketSort === 'volume' ? 'true' : 'false') + '"' + ' style="text-align:right; cursor:pointer; padding:var(--sp-2) 0; color:' + (s.marketSort === 'volume' ? 'var(--accent)' : 'var(--ink-3)') + '">VOLUME 24H</div>'
+    + '<div ' + T.act(() => T.setState({ marketSort: 'ending' })) + ' aria-pressed="' + (s.marketSort === 'ending' ? 'true' : 'false') + '"' + ' style="text-align:right; cursor:pointer; padding:var(--sp-2) 0; color:' + (s.marketSort === 'ending' ? 'var(--accent)' : 'var(--ink-3)') + '">RESOLVES</div></div>'
     + mRows.map((m) => marketRowHtml(Object.assign(T.marketView(m), {
       spreadLabel: mx(m).spread != null ? mx(m).spread + '¢' : '—',
       liqLabel: m.liq ? money(m.liq) : '—',
       volShare: (maxVolJeVenue[m.venue] || 0) > 0 && m.vol > 0
         ? Math.max(2, (100 * m.vol) / maxVolJeVenue[m.venue]) : null
     }))).join('')
-    + (mRows.length === 0 ? '<div style="padding:60px; text-align:center; ' + M + '; font-size:var(--t-small); color:var(--ink-4)">No market matches that filter.</div>' : '')
+    + (mRows.length === 0 ? '<div style="padding:var(--sp-7); text-align:center; ' + M + '; font-size:var(--t-small); color:var(--ink-4)">No market matches that filter.</div>' : '')
     + '</div>';
 }
 
@@ -726,7 +723,7 @@ function tapePulsHtml(prints, buys, sells) {
     if (t.size >= PULS_MARKE_USD) marken.push({ bin: i, oben: kauf, text: t.market + ' · ' + t.side + ' · ' + money(t.size) });
   });
   const swatch = (farbe) => '<span style="display:inline-block; width:10px; height:10px; border-radius:2px; background:' + farbe + '"></span>';
-  const eintrag = (inhalt) => '<div style="display:flex; align-items:center; gap:6px; ' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + inhalt + '</div>';
+  const eintrag = (inhalt) => '<div style="display:flex; align-items:center; gap:var(--sp-3); ' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + inhalt + '</div>';
   const netto = buys - sells;
   const legende = eintrag(swatch('var(--pos)') + 'buys ' + money(buys))
     + eintrag(swatch('var(--neg)') + 'sells ' + money(sells))
@@ -764,9 +761,9 @@ function kategorieFlussHtml(prints) {
   const zeilen = rows.map((r) => {
     const breite = Math.max(2, (100 * r.summe) / max);
     const kaufAnteil = r.summe ? Math.round((100 * r.kauf) / r.summe) : 0;
-    return '<div style="display:grid; grid-template-columns:104px 1fr 76px 66px; gap:10px; align-items:center; padding:8px 14px; border-bottom:1px solid var(--line-3)">'
+    return '<div style="display:grid; grid-template-columns:104px 1fr 76px 66px; gap:var(--sp-4); align-items:center; padding:var(--sp-3) var(--sp-5); border-bottom:1px solid var(--line-3)">'
       + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(r.cat) + '">' + esc(r.cat.toUpperCase()) + '</div>'
-      + '<div style="min-width:0"><div style="display:flex; gap:2px; width:' + breite.toFixed(1) + '%" title="' + esc('buys ' + money(r.kauf) + ' · sells ' + money(r.verkauf)) + '">'
+      + '<div style="min-width:0"><div style="display:flex; gap:var(--sp-1); width:' + breite.toFixed(1) + '%" title="' + esc('buys ' + money(r.kauf) + ' · sells ' + money(r.verkauf)) + '">'
       + seg(r.kauf, 'var(--pos)') + seg(r.verkauf, 'var(--neg)') + '</div></div>'
       + '<div style="' + M + '; font-size:var(--t-small); text-align:right">' + kurzGeld(r.summe) + '</div>'
       + '<div style="' + M + '; font-size:var(--t-micro); text-align:right; color:var(--ink-4)">' + kaufAnteil + '% buy</div></div>';
@@ -801,21 +798,21 @@ export function renderFlow(T) {
   const puls = tapePulsHtml(tapeFiltered, buys, sells);
   const katFluss = kategorieFlussHtml(tapeFiltered);
   const grafiken = puls || katFluss
-    ? '<div style="display:grid; grid-template-columns:' + (puls && katFluss ? 'minmax(0,1.65fr) minmax(0,1fr)' : '1fr') + '; gap:12px; padding:14px 24px; border-bottom:1px solid var(--line-2)">'
+    ? '<div style="display:grid; grid-template-columns:' + (puls && katFluss ? 'minmax(0,1.65fr) minmax(0,1fr)' : '1fr') + '; gap:var(--sp-4); padding:var(--sp-5) var(--sp-6); border-bottom:1px solid var(--line-2)">'
       + puls + katFluss + '</div>'
     : '';
 
   return '<div>'
-    + '<div style="padding:20px 24px 14px; border-bottom:1px solid var(--line-2)">'
-    + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:20px">'
+    + '<div style="padding:var(--sp-6) var(--sp-6) var(--sp-5); border-bottom:1px solid var(--line-2)">'
+    + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:var(--sp-6)">'
     + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.18em; color:var(--accent)">LIVE TAPE</div>'
-    + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">Every large print as it lands</h1></div>'
-    + '<div style="display:flex; align-items:center; gap:12px">'
+    + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:-0.01em">Every large print as it lands</h1></div>'
+    + '<div style="display:flex; align-items:center; gap:var(--sp-4)">'
     + asOfLine(s.tapeAsOf || s.liveAsOf)
-    + '<input value="' + esc(s.tapeQuery) + '" ' + T.inp((e) => T.setState({ tapeQuery: e.target.value }), 'tapeQuery') + ' placeholder="market, wallet, trader…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:9px 12px; ' + M + '; font-size:var(--t-small); color:var(--text); width:250px" />'
+    + '<input value="' + esc(s.tapeQuery) + '" ' + T.inp((e) => T.setState({ tapeQuery: e.target.value }), 'tapeQuery') + ' placeholder="market, wallet, trader…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); width:250px" />'
     + '</div></div>'
-    + '<div style="margin-top:14px">' + filterGroup('CATEGORY', catChipRow(T, T.tape, 'category', 'tapeCat', s.tapeCat)) + '</div>'
-    + '<div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px 18px; margin-top:14px">'
+    + '<div style="margin-top:var(--sp-5)">' + filterGroup('CATEGORY', catChipRow(T, T.tape, 'category', 'tapeCat', s.tapeCat)) + '</div>'
+    + '<div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:var(--sp-5); margin-top:var(--sp-5)">'
     + filterGroup('MINIMUM SIZE', [
       T.chip('≥ $2.5K', s.tapeMin === 2500 && !s.tapeTracked, { tapeMin: 2500, tapeTracked: false }),
       T.chip('≥ $10K', s.tapeMin === 10000 && !s.tapeTracked, { tapeMin: 10000, tapeTracked: false })
@@ -839,12 +836,12 @@ export function renderFlow(T) {
     // Ueber welche Spanne diese vier Zahlen summiert wurden — und dass die
     // Spanne je Venue verschieden ist, weil beide gleich viele Zeilen
     // bekommen (api_views.balanced_head), Kalshi aber viel schneller druckt.
-    + (fensterZeile ? '<div style="padding:9px 24px; border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); color:var(--ink-4)">'
-      + '<span style="letter-spacing:.14em; color:var(--ink-3); margin-right:8px">SUMMED OVER</span>' + esc(fensterZeile) + '</div>' : '')
+    + (fensterZeile ? '<div style="padding:var(--sp-3) var(--sp-6); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); color:var(--ink-4)">'
+      + '<span style="letter-spacing:.14em; color:var(--ink-3); margin-right:var(--sp-3)">SUMMED OVER</span>' + esc(fensterZeile) + '</div>' : '')
 
     + grafiken
 
-    + '<div style="display:grid; grid-template-columns:96px 160px 1fr 110px 84px 90px 110px 96px; padding:10px 24px; border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + LABEL + '">'
+    + '<div style="display:grid; grid-template-columns:96px 160px 1fr 110px 84px 90px 110px 96px; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + LABEL + '">'
     + '<div>TIME</div><div>WALLET</div><div>MARKET</div><div>CATEGORY</div><div>SIDE</div><div style="text-align:right">PRICE</div><div style="text-align:right">SIZE</div><div style="text-align:right">VENUE</div></div>'
     + (tapeFiltered.length ? '' : leerZeile('No print in the tape window passes the current filters (size, category, side).'))
     + tapeFiltered.map((t0) => {
@@ -853,10 +850,10 @@ export function renderFlow(T) {
       // Only a print of a loaded market opens the drawer; the other rows are
       // plain rows, not pointers that lead nowhere.
       const klickbar = t.act && t.clickable !== false;
-      return '<div ' + (klickbar ? t.act + ' ' : '') + 'class="' + (klickbar ? 'hv-panel' : '') + (neu ? ' tape-in' : '') + '" style="display:grid; grid-template-columns:96px 160px 1fr 110px 84px 90px 110px 96px; align-items:center; padding:12px 24px; border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small); ' + (klickbar ? 'cursor:pointer; ' : '') + '">'
+      return '<div ' + (klickbar ? t.act + ' ' : '') + 'class="' + (klickbar ? 'hv-panel' : '') + (neu ? ' tape-in' : '') + '" style="display:grid; grid-template-columns:96px 160px 1fr 110px 84px 90px 110px 96px; align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small); ' + (klickbar ? 'cursor:pointer; ' : '') + '">'
         + '<div style="color:var(--ink-4)">' + esc(t.ago) + '</div>'
         + '<div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(t.wallet) + '">' + esc(t.wallet) + '</div>'
-        + '<div style="font-family:var(--font-ui); font-size:var(--t-body); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:12px" title="' + esc(t.market) + '">' + esc(t.market) + '</div>'
+        + '<div style="font-family:var(--font-ui); font-size:var(--t-body); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:var(--sp-4)" title="' + esc(t.market) + '">' + esc(t.market) + '</div>'
         + '<div style="font-size:var(--t-micro); color:var(--ink-4)">' + esc(t.category || 'Other') + '</div>'
         + '<div style="' + t.sideStyle + '">' + esc(t.side) + '</div>'
         + '<div style="text-align:right">' + esc(t.price) + '</div>'
@@ -898,14 +895,14 @@ function crossSuppressedBlock(sup) {
     .map((k) => num(nach[k]) + ' ' + (CROSS_VERDICT_TEXT[k] || k))
     .join(', ');
   const beispiele = (sup.examples || []).slice(0, 3);
-  return '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:14px; padding:14px 16px">'
+  return '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); padding:var(--sp-5)">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--warn)">MATCHED BUT NOT PRICED · ' + num(sup.total) + '</div>'
-    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:7px; line-height:1.6">'
+    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.6">'
     + esc(gruende) + '. Two titles can share every word and still be two questions: “above $120,000” against “below $120,000” scores 0.78 on the matcher. '
     + 'A basket across a pair like that pays 2.00 in one state and 0.00 in the other, so its spread is a sign error, not an opportunity. These pairs carry no price, no gap and no spread here.</div>'
     + (beispiele.length
-      ? '<div style="margin-top:9px">' + beispiele.map((b) =>
-        '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:5px; line-height:1.5">'
+      ? '<div style="margin-top:var(--sp-3)">' + beispiele.map((b) =>
+        '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-2); line-height:1.5">'
         + esc(String(b.event || '').slice(0, 64)) + ' ↔ ' + esc(String(b.other || '').slice(0, 64))
         + '<br>' + esc(b.why || '') + '</div>').join('') + '</div>'
       : '')
@@ -914,14 +911,14 @@ function crossSuppressedBlock(sup) {
 
 function crossGateBlock(T) {
   const microIdx = T.studies.findIndex((st) => st.tab === 'Microstructure');
-  return '<div style="padding:26px 24px">'
-    + '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:20px 22px; max-width:760px">'
+  return '<div style="padding:var(--sp-6)">'
+    + '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-6); max-width:760px">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--warn)">NO PAIR CLEARS THE GATE</div>'
-    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:9px; line-height:1.6">No cross-venue pair clears the match gate right now (' + CROSS_GATE_TEXT + '). '
+    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.6">No cross-venue pair clears the match gate right now (' + CROSS_GATE_TEXT + '). '
     + 'See studies 08 and 11: the two 79¢/64¢ \'edges\' were mismatched questions.</div>'
     + (microIdx >= 0 && T.goStudy
-      ? '<div ' + T.act(() => T.goStudy(microIdx)) + ' class="hv-accent" style="' + M + '; font-size:var(--t-micro); color:var(--info); margin-top:12px; cursor:pointer">Open the microstructure report (#research/microstructure) →</div>'
-      : '<a href="#research/microstructure" style="' + M + '; font-size:var(--t-micro); display:inline-block; margin-top:12px">Open the microstructure report →</a>')
+      ? '<div ' + T.act(() => T.goStudy(microIdx)) + ' class="hv-accent" style="' + M + '; font-size:var(--t-micro); color:var(--info); margin-top:var(--sp-4); cursor:pointer">Open the microstructure report (#research/microstructure) →</div>'
+      : '<a href="#research/microstructure" style="' + M + '; font-size:var(--t-micro); display:inline-block; margin-top:var(--sp-4)">Open the microstructure report →</a>')
     + '</div></div>';
 }
 
@@ -933,18 +930,18 @@ export function renderCross(T) {
     // request answered and nothing passed the gate.
     let body;
     if (!hk) {
-      body = '<div style="padding:26px 24px">'
-        + '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:20px 22px; max-width:760px">'
-        + '<div style="display:flex; align-items:center; gap:10px">'
+      body = '<div style="padding:var(--sp-6)">'
+        + '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-6); max-width:760px">'
+        + '<div style="display:flex; align-items:center; gap:var(--sp-4)">'
         + '<span style="width:7px; height:7px; border-radius:50%; background:var(--warn); display:inline-block"></span>'
         + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--warn)">MATCHING PAIRS ACROSS VENUES…</div></div>'
         // Ohne Dauer liest sich der pulsierende Punkt wie eine kaputte Seite.
         // Er ist keine: der erste Aufruf blaettert beide Boersen durch.
-        + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:9px; line-height:1.6">This is a live scan, not a stored file: /api/cross pages both venues and scores every title pair, which takes up to a minute on a cold cache. The gate then keeps only ' + CROSS_GATE_TEXT + '. If it fails you will see the error and a retry here, not this spinner.</div>'
+        + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-3); line-height:1.6">This is a live scan, not a stored file: /api/cross pages both venues and scores every title pair, which takes up to a minute on a cold cache. The gate then keeps only ' + CROSS_GATE_TEXT + '. If it fails you will see the error and a retry here, not this spinner.</div>'
         + '</div></div>';
     } else if (hk.quelle === 'fehler') {
       body = leerBlock('NO PAIRS', herkunftSatz(hk, '/api/cross'))
-        + (T.neuLaden ? '<div style="padding:0 24px 24px"><div ' + T.act(() => T.neuLaden('cross', 'cross')) + ' class="hv-edge-strong" style="display:inline-block; ' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:6px 12px; cursor:pointer">Try again</div></div>' : '');
+        + (T.neuLaden ? '<div style="padding:0 var(--sp-6) var(--sp-6)"><div ' + T.act(() => T.neuLaden('cross', 'cross')) + ' class="hv-edge-strong" style="display:inline-block; ' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); cursor:pointer">Try again</div></div>' : '');
     } else {
       body = crossGateBlock(T);
     }
@@ -985,30 +982,30 @@ export function renderCross(T) {
 
   const stepGroup = (label, valueLabel, onDown, onUp) =>
     '<div><div style="' + LABEL_BLOCK + '">' + label + '</div>'
-    + '<div style="display:flex; align-items:center; gap:6px">'
+    + '<div style="display:flex; align-items:center; gap:var(--sp-3)">'
     + '<div ' + T.act(onDown) + ' class="hv-edge-max hv-white" style="width:26px; height:30px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-body); color:var(--ink-2); cursor:pointer">−</div>'
-    + '<div style="flex:1; background:var(--panel); border:1px solid var(--line-1); border-radius:var(--r-control); padding:6px 8px; ' + M + '; font-size:var(--t-small); text-align:center">' + esc(valueLabel) + '</div>'
+    + '<div style="flex:1; background:var(--panel); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-3); ' + M + '; font-size:var(--t-small); text-align:center">' + esc(valueLabel) + '</div>'
     + '<div ' + T.act(onUp) + ' class="hv-edge-max hv-white" style="width:26px; height:30px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-body); color:var(--ink-2); cursor:pointer">+</div>'
     + '</div></div>';
 
   return '<div>'
-    + '<div style="padding:20px 24px 14px; border-bottom:1px solid var(--line-2)">'
-    + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:20px">'
+    + '<div style="padding:var(--sp-6) var(--sp-6) var(--sp-5); border-bottom:1px solid var(--line-2)">'
+    + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:var(--sp-6)">'
     + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.18em; color:var(--info)">CROSS-VENUE</div>'
-    + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">The same question, two prices</h1></div>'
-    + '<div style="display:flex; align-items:center; gap:10px">'
+    + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:-0.01em">The same question, two prices</h1></div>'
+    + '<div style="display:flex; align-items:center; gap:var(--sp-4)">'
     + asOfLine(cl.as_of)
-    + '<input value="' + esc(s.crossQuery) + '" ' + T.inp((e) => T.setState({ crossQuery: e.target.value }), 'crossQuery') + ' placeholder="bitcoin, fed, election…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:9px 12px; ' + M + '; font-size:var(--t-small); color:var(--text); width:230px" />'
-    + '<div ' + T.act(() => T.setState({ crossQuery: '', crossSim: 0.5, crossMaxPairs: 50, crossMinGap: 0, crossLower: 'any', crossPmVol: 0, crossKsVol: 0, crossMinPrice: 0, crossMaxPrice: 100 })) + ' class="hv-edge-strong" style="font-size:var(--t-small); color:var(--ink-3); border:1px solid var(--line-1); border-radius:var(--r-control); padding:9px 13px; cursor:pointer">Reset filters</div>'
+    + '<input value="' + esc(s.crossQuery) + '" ' + T.inp((e) => T.setState({ crossQuery: e.target.value }), 'crossQuery') + ' placeholder="bitcoin, fed, election…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); width:230px" />'
+    + '<div ' + T.act(() => T.setState({ crossQuery: '', crossSim: 0.5, crossMaxPairs: 50, crossMinGap: 0, crossLower: 'any', crossPmVol: 0, crossKsVol: 0, crossMinPrice: 0, crossMaxPrice: 100 })) + ' class="hv-edge-strong" style="font-size:var(--t-small); color:var(--ink-3); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); cursor:pointer">Reset filters</div>'
     + '</div></div>'
-    + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:10px; max-width:760px">Matched by title similarity, not by ticker. ' + esc(gateNote) + '. GAP is the distance between the two mid prices, and nobody trades a mid. NET OF FEES prices the basket that would capture it (buy the yes side at the ask, buy the other side at the other venue&#39;s ask) and subtracts both venues&#39; taker fee curves. The top ' + num(cl.depth_rows || 12) + ' rows by net are re-quoted against both order books, so their number holds for the size shown beneath it; the rest price the touch at the fee clip of 100 and say so. Settlement rules and resolution sources still differ, and two matched titles can still be two different questions (studies 08 and 11).</div>'
+    + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-4); max-width:760px">Matched by title similarity, not by ticker. ' + esc(gateNote) + '. GAP is the distance between the two mid prices, and nobody trades a mid. NET OF FEES prices the basket that would capture it (buy the yes side at the ask, buy the other side at the other venue&#39;s ask) and subtracts both venues&#39; taker fee curves. The top ' + num(cl.depth_rows || 12) + ' rows by net are re-quoted against both order books, so their number holds for the size shown beneath it; the rest price the touch at the fee clip of 100 and say so. Settlement rules and resolution sources still differ, and two matched titles can still be two different questions (studies 08 and 11).</div>'
     + crossSuppressedBlock(cl.suppressed)
 
-    + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:14px; padding:16px; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:16px 18px">'
+    + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); padding:var(--sp-5); display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:var(--sp-5)">'
     + stepGroup('MIN SIMILARITY (GATE 0.50)', s.crossSim.toFixed(2), () => T.setState({ crossSim: Math.max(0.5, +(s.crossSim - 0.02).toFixed(2)) }), () => T.setState({ crossSim: Math.min(0.9, +(s.crossSim + 0.02).toFixed(2)) }))
     + stepGroup('MAX PAIRS', String(s.crossMaxPairs), () => T.setState({ crossMaxPairs: Math.max(10, s.crossMaxPairs - 10) }), () => T.setState({ crossMaxPairs: Math.min(150, s.crossMaxPairs + 10) }))
     + stepGroup('MIN GAP (¢)', s.crossMinGap.toFixed(1) + '¢', () => T.setState({ crossMinGap: Math.max(0, s.crossMinGap - 0.5) }), () => T.setState({ crossMinGap: s.crossMinGap + 0.5 }))
-    + '<div><div style="' + LABEL_BLOCK + '">LOWER YES ON</div><div style="display:flex; gap:6px">'
+    + '<div><div style="' + LABEL_BLOCK + '">LOWER YES ON</div><div style="display:flex; gap:var(--sp-3)">'
     + [['any','Any'],['Polymarket','Polymarket'],['Kalshi','Kalshi']].map((o) => T.opt(o[1], s.crossLower === o[0], { crossLower: o[0] })).join('')
     + '</div></div>'
     + stepGroup('MIN POLYMARKET VOLUME', s.crossPmVol ? '$' + num(s.crossPmVol) : 'any', () => T.setState({ crossPmVol: Math.max(0, s.crossPmVol - 250000) }), () => T.setState({ crossPmVol: s.crossPmVol + 250000 }))
@@ -1017,18 +1014,18 @@ export function renderCross(T) {
     + stepGroup('MAX YES PRICE', s.crossMaxPrice + '¢', () => T.setState({ crossMaxPrice: Math.max(s.crossMinPrice, s.crossMaxPrice - 5) }), () => T.setState({ crossMaxPrice: Math.min(100, s.crossMaxPrice + 5) }))
     + '</div>'
 
-    + '<div style="display:flex; align-items:center; gap:8px; margin-top:12px; flex-wrap:wrap">'
-    + activeChips.map((c) => '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); background:var(--panel-hover); border-radius:var(--r-control); padding:3px 9px">' + esc(c) + '</div>').join('')
+    + '<div style="display:flex; align-items:center; gap:var(--sp-3); margin-top:var(--sp-4); flex-wrap:wrap">'
+    + activeChips.map((c) => '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); background:var(--panel-hover); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3)">' + esc(c) + '</div>').join('')
     + '</div></div>'
 
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid var(--line-2)">'
-    + kpi({ form: 'band', polsterung: TABELLEN_BAND, trenner: true, label: 'PAIRS SHOWN', wert: cRows.length })
-    + kpi({ form: 'band', polsterung: TABELLEN_BAND, trenner: true, label: 'LARGEST GAP', farbe: 'var(--warn)', wert: (gaps.length ? gaps[gaps.length - 1] + '¢' : '—') })
-    + kpi({ form: 'band', polsterung: TABELLEN_BAND, trenner: true, label: 'MEDIAN SIMILARITY', wert: (medianSim ? medianSim.toFixed(2) : '—') })
-    + kpi({ form: 'band', polsterung: TABELLEN_BAND, label: 'POSITIVE NET OF FEES', farbe: netPositive ? 'var(--pos)' : 'var(--ink-3)', wert: netPositive + ' of ' + netKnown })
+    + kpi({ form: 'band', trenner: true, label: 'PAIRS SHOWN', wert: cRows.length })
+    + kpi({ form: 'band', trenner: true, label: 'LARGEST GAP', farbe: 'var(--warn)', wert: (gaps.length ? gaps[gaps.length - 1] + '¢' : '—') })
+    + kpi({ form: 'band', trenner: true, label: 'MEDIAN SIMILARITY', wert: (medianSim ? medianSim.toFixed(2) : '—') })
+    + kpi({ form: 'band', label: 'POSITIVE NET OF FEES', farbe: netPositive ? 'var(--pos)' : 'var(--ink-3)', wert: netPositive + ' of ' + netKnown })
     + '</div>'
 
-    + '<div style="display:grid; grid-template-columns:1fr 104px 104px 84px 108px 124px 112px; padding:10px 24px; border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + LABEL + '">'
+    + '<div style="display:grid; grid-template-columns:1fr 104px 104px 84px 108px 124px 112px; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + LABEL + '">'
     // Ein Markt, zwei Volumina, zwei Einheiten. Die Summe der beiden stand
     // hier als eine Zahl mit Dollarzeichen und war keine: Kalshis Volumen
     // zaehlt Kontrakte (app/venue_units.py).
@@ -1042,9 +1039,9 @@ export function renderCross(T) {
       const netFarbe = c.net == null ? 'var(--ink-4)' : c.net > 0 ? 'var(--pos)' : 'var(--ink-4)';
       const netLabel = c.net == null ? '—' : (c.net > 0 ? '+' : '') + c.net.toFixed(1) + '¢';
       const sizeLabel = crossSizeLabel(c);
-      return '<div style="display:grid; grid-template-columns:1fr 104px 104px 84px 108px 124px 112px; align-items:center; padding:13px 24px; border-bottom:1px solid var(--line-3)">'
-        + '<div style="padding-right:20px"><div style="font-size:var(--t-body); line-height:1.35">' + esc(c.event) + '</div>'
-        + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:3px">' + esc(c.cat) + ' · similarity ' + c.sim.toFixed(2) + '</div></div>'
+      return '<div style="display:grid; grid-template-columns:1fr 104px 104px 84px 108px 124px 112px; align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-3)">'
+        + '<div style="padding-right:var(--sp-6)"><div style="font-size:var(--t-body); line-height:1.35">' + esc(c.event) + '</div>'
+        + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2)">' + esc(c.cat) + ' · similarity ' + c.sim.toFixed(2) + '</div></div>'
         + '<div style="' + M + '; font-size:var(--t-body); text-align:right; color:var(--accent)">' + c.pm + '¢</div>'
         + '<div style="' + M + '; font-size:var(--t-body); text-align:right; color:var(--info)">' + c.ks + '¢</div>'
         + '<div style="' + gapStyle + '">' + g + '¢</div>'
@@ -1055,10 +1052,10 @@ export function renderCross(T) {
         // Eine Spanne fuer drei Kontrakte ist kein Geschaeft ueber hundert.
         // Ohne diese Zeile stand die Zahl fuer eine Groesse da, die niemand
         // nachgeschlagen hatte.
-        + (sizeLabel ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:2px; line-height:1.3">' + esc(sizeLabel) + '</div>' : '')
+        + (sizeLabel ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-1); line-height:1.3">' + esc(sizeLabel) + '</div>' : '')
         + '</div></div>';
     }).join('')
-    + (cRows.length === 0 ? '<div style="padding:60px; text-align:center; ' + M + '; font-size:var(--t-small); color:var(--ink-4)">No pair passes the local filters; loosen a stepper above.</div>' : '')
+    + (cRows.length === 0 ? '<div style="padding:var(--sp-7); text-align:center; ' + M + '; font-size:var(--t-small); color:var(--ink-4)">No pair passes the local filters; loosen a stepper above.</div>' : '')
     + '</div>';
 }
 
@@ -1095,14 +1092,14 @@ export function renderResolved(T) {
   ];
 
   return '<div>'
-    + '<div style="padding:20px 24px 14px; border-bottom:1px solid var(--line-2)">'
-    + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:20px">'
+    + '<div style="padding:var(--sp-6) var(--sp-6) var(--sp-5); border-bottom:1px solid var(--line-2)">'
+    + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:var(--sp-6)">'
     + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.18em; color:var(--accent)">RESOLVED</div>'
-    + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">How the last questions ended</h1></div>'
-    + '<input value="' + esc(s.resQuery) + '" ' + T.inp((e) => T.setState({ resQuery: e.target.value }), 'resQuery') + ' placeholder="Search resolved markets…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:9px 12px; ' + M + '; font-size:var(--t-small); color:var(--text); width:250px" />'
+    + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:-0.01em">How the last questions ended</h1></div>'
+    + '<input value="' + esc(s.resQuery) + '" ' + T.inp((e) => T.setState({ resQuery: e.target.value }), 'resQuery') + ' placeholder="Search resolved markets…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); width:250px" />'
     + '</div>'
-    + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:10px; max-width:700px">The last price before settlement next to the answer. The gap between the two is what the crowd got wrong.</div>'
-    + '<div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px 18px; margin-top:14px">'
+    + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-4); max-width:700px">The last price before settlement next to the answer. The gap between the two is what the crowd got wrong.</div>'
+    + '<div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:var(--sp-5); margin-top:var(--sp-5)">'
     + filterGroup('ANSWER', [['all','All'],['yes','Ended Yes'],['no','Ended No']].map((o) => T.opt(o[1], s.resAnswer === o[0], { resAnswer: o[0] })).join(''))
     + filterGroup('SETTLED WITHIN', [['all','All'],['24','24 hours'],['168','7 days']].map((o) => T.opt(o[1], s.resWindow === o[0], { resWindow: o[0] })).join(''))
     + filterGroup('CROWD WAS OFF BY', [['all','Any'],['25','25¢ or more'],['50','50¢ or more']].map((o) => T.opt(o[1], s.resError === o[0], { resError: o[0] })).join(''))
@@ -1111,19 +1108,19 @@ export function renderResolved(T) {
 
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid var(--line-2)">'
     + kpis.map((k, i) => kpi({
-      form: 'band', polsterung: TABELLEN_BAND, trenner: i < 3,
+      form: 'band', trenner: i < 3,
       label: k.label, wert: k.value, farbe: k.amber ? 'var(--warn)' : 'var(--text)'
     })).join('')
     + '</div>'
 
-    + '<div style="display:grid; grid-template-columns:1fr 110px 118px 128px 110px 120px; padding:10px 24px; border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + LABEL + '">'
+    + '<div style="display:grid; grid-template-columns:1fr 110px 118px 128px 110px 120px; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + LABEL + '">'
     + '<div>MARKET</div><div style="text-align:right">ANSWER</div><div style="text-align:right">LAST PRICE</div><div style="text-align:right">CROWD OFF BY</div><div style="text-align:right">VOLUME</div><div style="text-align:right">SETTLED</div></div>'
     + resRows.map((r) => {
-      const answerStyle = M + '; font-size:var(--t-micro); letter-spacing:.1em; border-radius:var(--r-control); padding:3px 10px; ' + (r.yes ? 'color:var(--on-accent); background:var(--accent)' : 'color:var(--neg-soft); border:1px solid rgba(var(--neg-rgb),.35)');
+      const answerStyle = M + '; font-size:var(--t-micro); letter-spacing:.1em; border-radius:var(--r-control); padding:var(--sp-2) var(--sp-4); ' + (r.yes ? 'color:var(--on-accent); background:var(--accent)' : 'color:var(--neg-soft); border:1px solid rgba(var(--neg-rgb),.35)');
       const errStyle = M + '; font-size:var(--t-body); text-align:right; color:' + (r.err >= 50 ? 'var(--neg)' : r.err >= 25 ? 'var(--warn)' : 'var(--ink-3)');
-      return '<div style="display:grid; grid-template-columns:1fr 110px 118px 128px 110px 120px; align-items:center; padding:13px 24px; border-bottom:1px solid var(--line-3)">'
-        + '<div style="padding-right:20px"><div style="font-size:var(--t-body); line-height:1.35">' + esc(r.title) + '</div>'
-        + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:3px">' + esc(r.meta) + '</div></div>'
+      return '<div style="display:grid; grid-template-columns:1fr 110px 118px 128px 110px 120px; align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-3)">'
+        + '<div style="padding-right:var(--sp-6)"><div style="font-size:var(--t-body); line-height:1.35">' + esc(r.title) + '</div>'
+        + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2)">' + esc(r.meta) + '</div></div>'
         + '<div style="display:flex; justify-content:flex-end"><div style="' + answerStyle + '">' + (r.yes ? 'YES' : 'NO') + '</div></div>'
         + '<div style="' + M + '; font-size:var(--t-body); text-align:right">' + r.last + '¢</div>'
         + '<div style="' + errStyle + '">' + r.err + '¢</div>'
