@@ -89,6 +89,28 @@ def _num(value) -> float:
     return out
 
 
+def _preis(dollar_value, cent_value) -> float:
+    """Preis in (0, 1) aus dem Feldpaar (``*_dollars``, Cents).
+
+    Ohne den Cent-Rueckfall liest sich ein Markt mit echter 61/63-Quote als
+    0.00/0.00, und die Cross-Venue-Studie verwirft das Paar mit "keine
+    verwertbaren Quotes". Das ist kein Nullergebnis, sondern ein
+    verschwundenes.
+    """
+    if dollar_value is not None and dollar_value != "":
+        return max(0.0, min(_num(dollar_value), 1.0))
+    if cent_value is None or cent_value == "":
+        return 0.0
+    return max(0.0, min(_num(cent_value) / 100.0, 1.0))
+
+
+def _menge(fp_value, legacy_value) -> float:
+    """Stueckzahl aus dem Feldpaar (``*_fp``, Legacy). Beide sind Kontrakte."""
+    if fp_value is not None and fp_value != "":
+        return _num(fp_value)
+    return _num(legacy_value)
+
+
 def is_parlay(ticker: str) -> bool:
     return str(ticker or "").startswith(PARLAY_PREFIX)
 
@@ -124,13 +146,19 @@ def discover_markets(get_json=_get_json, pages: int = DISCOVERY_PAGES,
                     "title": event.get("title", ""),
                     "subtitle": market.get("yes_sub_title")
                     or event.get("sub_title", ""),
-                    "volume_24h": _num(market.get("volume_24h_fp")),
-                    "open_interest": _num(market.get("open_interest_fp")),
+                    # Kontrakte, keine Dollar: nur zum Sortieren des
+                    # Universums, nie als Geldbetrag ausgewiesen.
+                    "volume_24h": _menge(market.get("volume_24h_fp"),
+                                         market.get("volume_24h")),
+                    "open_interest": _menge(market.get("open_interest_fp"),
+                                            market.get("open_interest")),
                     # Preise kommen aus derselben Abfrage mit; sie hier
                     # mitzunehmen erspart der Cross-Venue-Suche einen zweiten
                     # Durchlauf ueber tausende Maerkte.
-                    "yes_bid": _num(market.get("yes_bid_dollars")),
-                    "yes_ask": _num(market.get("yes_ask_dollars")),
+                    "yes_bid": _preis(market.get("yes_bid_dollars"),
+                                      market.get("yes_bid")),
+                    "yes_ask": _preis(market.get("yes_ask_dollars"),
+                                      market.get("yes_ask")),
                     # Kalshi verteilt den Handel ab dem 2026-08-06 auf mehrere
                     # Matching-Engines. Die Kennung ist heute schon da; wer sie
                     # jetzt nicht mitschreibt, kann sie spaeter nicht
@@ -154,8 +182,13 @@ def discover_markets(get_json=_get_json, pages: int = DISCOVERY_PAGES,
     return picked
 
 
-def _levels(raw: list, reflect: bool) -> list[tuple[float, float]]:
-    """Parse one side of the book, optionally reflecting NO bids into YES asks."""
+def _levels(raw: list, reflect: bool, in_dollars: bool = True) -> list[tuple[float, float]]:
+    """Parse one side of the book, optionally reflecting NO bids into YES asks.
+
+    ``in_dollars`` says which unit the ladder is quoted in. It is not a
+    cosmetic flag: reflecting a cent ladder gives 1 - 43 = -42, so the ask
+    side comes out negative and the spread with it.
+    """
     out: list[tuple[float, float]] = []
     for level in raw or []:
         try:
@@ -164,9 +197,23 @@ def _levels(raw: list, reflect: bool) -> list[tuple[float, float]]:
             continue
         if size <= 0:
             continue
+        if not in_dollars:
+            price = price / 100.0
         out.append((round(1.0 - price, 6) if reflect else round(price, 6), size))
     out.sort(key=lambda item: item[0], reverse=not reflect)
     return out
+
+
+def _ladder(book: dict, seite: str) -> tuple[list, bool]:
+    """Die Leiter einer Seite plus die Einheit, in der sie notiert.
+
+    Nur der Feldname sagt die Einheit: ``yes_dollars`` ist Dollar, ``yes``
+    ist Cents.
+    """
+    in_dollars = book.get(f"{seite}_dollars")
+    if in_dollars:
+        return in_dollars, True
+    return book.get(seite) or [], False
 
 
 def parse_orderbook(payload: dict, levels: int = BOOK_LEVELS
@@ -176,10 +223,17 @@ def parse_orderbook(payload: dict, levels: int = BOOK_LEVELS
     ``no_dollars`` holds bids to buy NO. A NO bid at price p is an offer to sell
     YES at 1 - p, so the ask side is the reflection of that list. Reading it as
     a raw ask ladder would invert every spread in every downstream study.
+
+    The cent ladder (``yes``/``no``) was already the fallback but was read as
+    if it were dollars: a 55/43 book became a bid at 55.00 and an ask at
+    -42.00, a spread of -97 and a top-of-book value of 114,600 dollars where
+    1,146 were resting.
     """
     book = (payload or {}).get("orderbook_fp") or (payload or {}).get("orderbook") or {}
-    bids = _levels(book.get("yes_dollars") or book.get("yes"), reflect=False)
-    asks = _levels(book.get("no_dollars") or book.get("no"), reflect=True)
+    yes_raw, yes_dollars = _ladder(book, "yes")
+    no_raw, no_dollars = _ladder(book, "no")
+    bids = _levels(yes_raw, reflect=False, in_dollars=yes_dollars)
+    asks = _levels(no_raw, reflect=True, in_dollars=no_dollars)
     return bids[:levels], asks[:levels]
 
 

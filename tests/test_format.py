@@ -34,6 +34,34 @@ class MoneyTests(unittest.TestCase):
         self.assertEqual(fmt.markdown_money(1_500), "\\$1.5k")
 
 
+class MoneyOrDashTests(unittest.TestCase):
+    """Nicht gemeldet ist nicht null."""
+
+    def test_a_missing_figure_is_a_dash(self) -> None:
+        self.assertEqual(fmt.money_or_dash(None), "-")
+        self.assertEqual(fmt.money_or_dash(float("nan")), "-")
+        self.assertEqual(fmt.money_or_dash("keine Angabe"), "-")
+
+    def test_a_reported_zero_stays_zero(self) -> None:
+        self.assertEqual(fmt.money_or_dash(0), "$0")
+        self.assertEqual(fmt.money_or_dash(40_000), "$40.0k")
+
+
+class ContractsTests(unittest.TestCase):
+    """Kalshis Open Interest zaehlt Kontrakte; ein Dollarzeichen davor luegt."""
+
+    def test_counts_are_labelled_as_counts(self) -> None:
+        self.assertEqual(fmt.contracts(12_000), "12,000 contracts")
+        self.assertEqual(fmt.contracts(0), "0 contracts")
+
+    def test_missing_counts_are_a_dash(self) -> None:
+        self.assertEqual(fmt.contracts(None), "-")
+        self.assertEqual(fmt.contracts(float("nan")), "-")
+
+    def test_a_count_never_reads_as_money(self) -> None:
+        self.assertNotIn("$", fmt.contracts(12_000))
+
+
 class ShareTests(unittest.TestCase):
     def test_percent_and_cents(self) -> None:
         self.assertEqual(fmt.pct(0.1234), "12.3%")

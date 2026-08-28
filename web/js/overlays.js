@@ -34,6 +34,9 @@ export function renderDetail(T) {
         { label: 'YES', value: m.yes + '¢', style: STAT_VAL },
         { label: 'CHANGE 1D', value: (m.chg >= 0 ? '+' : '') + m.chg + '¢', style: STAT_VAL + '; color:' + (m.chg >= 0 ? 'var(--pos)' : 'var(--neg)') },
         { label: 'VOLUME 24H', value: money(m.vol), style: STAT_VAL },
+        // Getrennt ausgewiesen, nicht als Rueckfall in die Zeile darueber:
+        // Tagesumsatz und Lebensumsatz sind zwei Messungen.
+        { label: 'VOLUME TOTAL', value: m.volTotal ? money(m.volTotal) : '—', style: STAT_VAL },
         // Wie in der Markttabelle: keine gemeldete Liquiditaet ist ein
         // Strich, nicht "$0" — eine Unbekannte darf nicht als gemessene
         // Null auftreten.
@@ -102,7 +105,10 @@ export function renderDetail(T) {
     // Score components as a labelled list in the note, not the raw reason
     // string next to the address.
     const parts = t ? scorePartsOf(t) : [];
-    if (parts.length) note = (note ? note + '<br>' : '') + 'score components: ' + parts.map((p) => esc(p.label) + ' ' + esc(p.value)).join(' · ');
+    // Ein geschaetzter Bestandteil zeigt auch hier keine Zahl: er ist fuer
+    // jede Wallet dieselbe Konstante (api_views.score_parts -> imputed).
+    if (parts.length) note = (note ? note + '<br>' : '') + 'score components: '
+      + parts.map((p) => esc(p.label) + ' ' + (p.imputed ? 'assumed' : esc(p.value))).join(' · ');
     // Tape-only wallets without an /api/wallet answer: the tiles carry what
     // the tape window shows for this wallet (prints, notional, biggest print,
     // markets) — no profit, no win rate, because nothing here measured them.

@@ -40,9 +40,11 @@ from src import prediction_markets as md
 
 from app.format import (
     cents,
+    contracts,
     markdown_money,
     market_title_family_key,
     money,
+    money_or_dash,
     pct,
     signed_cents,
 )
@@ -3403,10 +3405,17 @@ def render_featured_market(row: pd.Series, position_label: str = "") -> None:
     header_cols[2].caption(f"{row.get('platform', '-')} | {row.get('category', '-')}")
     st.markdown(f"**{row.get('title', '-')}**")
     f1, f2, f3, f4 = st.columns(4)
-    f1.metric("Vol 24h", money(row.get("activity_volume", row.get("volume_24h"))))
-    f2.metric("Liq / OI", money(row.get("liquidity") or row.get("open_interest")))
+    # "Vol 24h" stand ueber activity_volume, und das ist 24h nur dann, wenn
+    # am Tag gehandelt wurde, sonst das Lebensvolumen. "Liq / OI" fasste zwei
+    # Groessen in einer Zeile zusammen und schrieb ein Dollarzeichen vor
+    # beide: Open Interest zaehlt Kontrakte, keine Dollar.
+    f1.metric("Vol 24h", money(row.get("volume_24h")))
+    f2.metric("Liquidity", money_or_dash(row.get("liquidity")))
     f3.metric("1h", signed_cents(row.get("change_1h")) if pd.notna(row.get("change_1h", pd.NA)) else "-")
     f4.metric("24h", signed_cents(row.get("change_1d")) if pd.notna(row.get("change_1d", pd.NA)) else "-")
+    open_interest = row.get("open_interest")
+    if open_interest is not None and pd.notna(open_interest) and float(open_interest) > 0:
+        st.caption(f"Open interest {contracts(open_interest)} (Kalshi reports contracts, not dollars)")
     outcome_cols = st.columns([1, 1, 1, 1])
     if outcome_cols[0].button(f"Yes {pct(row.get('yes_price'))}", key=f"featured_yes_{row.get('market_key')}", width="stretch"):
         open_featured_market(row, "Yes")
@@ -11758,7 +11767,10 @@ def page_backtester() -> None:
                         wr_pct=pd.to_numeric(comparison["win_rate"], errors="coerce") * 100,
                     )
                     st.dataframe(
-                        clean_table(comparison_view, ["strategy", "final_equity", "roi_pct", "dd_pct", "wr_pct", "copied_trades", "skipped_trades", "volume_copied"]),
+                        # "Closed" steht neben der Trefferquote, weil es ihr
+                        # Nenner ist: "Copied" zaehlt auch die noch offenen
+                        # Einstiege und ist nicht die Stichprobe der Quote.
+                        clean_table(comparison_view, ["strategy", "final_equity", "roi_pct", "dd_pct", "wr_pct", "closed_trades", "copied_trades", "skipped_trades", "volume_copied"]),
                         width="stretch",
                         height=320,
                         hide_index=True,
@@ -11768,6 +11780,7 @@ def page_backtester() -> None:
                             "roi_pct": st.column_config.NumberColumn("ROI", format="%+.1f%%"),
                             "dd_pct": st.column_config.NumberColumn("Max DD", format="%.1f%%"),
                             "wr_pct": st.column_config.NumberColumn("Win rate", format="%.0f%%"),
+                            "closed_trades": st.column_config.NumberColumn("Closed"),
                             "copied_trades": st.column_config.NumberColumn("Copied"),
                             "skipped_trades": st.column_config.NumberColumn("Skipped"),
                             "volume_copied": st.column_config.NumberColumn("Deployed", format="$%.0f"),
