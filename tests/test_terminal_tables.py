@@ -1,4 +1,11 @@
-"""Jede ``column_config``-Angabe im Monolithen muss eine Spalte treffen, die es gibt.
+"""Quelltext-Wachen fuer die Anzeigeschicht des Streamlit-Monolithen.
+
+Diese Tests lesen ``prediction_terminal.py`` als Text, weil die Seiten nur mit
+laufender Streamlit-Sitzung aufrufbar waeren. Die gemessene Logik steht in
+``app/`` und wird dort geprueft; hier geht es allein darum, dass der Monolith
+die richtige Funktion und die richtige Spalte anfasst.
+
+Erster Anlass: jede ``column_config``-Angabe muss eine Spalte treffen, die es gibt.
 
 Anlass: die Kalendertabelle auf der Markets-Seite konfigurierte eine Spalte
 ``volume`` mit Dollarformat. Die Spalte hiess da schon ``volume_usd`` bzw.
@@ -246,6 +253,33 @@ class SignalWertSpalteTests(unittest.TestCase):
         # Sieben Anzeigen lesen die Signalspalte: Suche (zwei), Signal Feed,
         # Alert Hits, Fast Movers, Tight Spreads, Holder Risk, Ending Soon.
         self.assertGreaterEqual(quelle.count("signal_value_labels("), 8)
+
+
+class UebersichtVolumenTests(unittest.TestCase):
+    """Die Volumenkacheln der Uebersicht summieren den Tageswert.
+
+    ``activity_volume`` ist ein Mischwert: der Tageswert bei Handel am selben
+    Tag, sonst das Lebensvolumen. Auf der Uebersicht standen dadurch drei
+    verschiedene Polymarket-Volumen nebeneinander, der Ticker ueber dem
+    Tageswert und zwei Kacheln ueber dem Mischwert. Beide Kacheln lesen jetzt
+    ``api_views.venue_volume_24h``, dieselbe Funktion wie /api/overview.
+    """
+
+    def test_die_kacheln_lesen_die_geteilte_funktion(self) -> None:
+        quelle = MONOLITH.read_text(encoding="utf-8")
+        # Metrik-Streifen und Venue-Kachel, zusammen drei Aufrufe (pm, ks, combined).
+        self.assertGreaterEqual(quelle.count("apv.venue_volume_24h("), 3)
+
+    def test_die_marktkachel_zeigt_den_tageswert(self) -> None:
+        """Ein Markt ohne Handel heute trug 4.2 Mio unter der Ueberschrift "Vol"."""
+
+        quelle = MONOLITH.read_text(encoding="utf-8")
+        self.assertNotIn('row.get("activity_volume", row.get("volume_24h"))', quelle)
+        self.assertIn('<span>Vol 24h</span>', quelle)
+
+    def test_die_api_route_liest_dieselbe_funktion(self) -> None:
+        api = (WURZEL / "api" / "server.py").read_text(encoding="utf-8")
+        self.assertIn("apv.venue_volume_24h(combined)", api)
 
 
 if __name__ == "__main__":

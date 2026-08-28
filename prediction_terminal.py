@@ -2719,20 +2719,22 @@ def render_metric_strip(pm: pd.DataFrame, ks: pd.DataFrame, trades: pd.DataFrame
     # Polymarket-Summe steht in Dollar, die Kalshi-Summe zaehlt Kontrakte
     # (Beleg in app/venue_units.py). Addiert ergaben sie keine Groesse, also
     # stehen sie jetzt getrennt.
-    pm_activity = 0.0
-    if not pm.empty:
-        volume_col = "activity_volume" if "activity_volume" in pm else "volume_24h"
-        pm_activity = float(pm[volume_col].fillna(0).sum())
-    ks_activity = 0.0
-    if not ks.empty:
-        volume_col = "activity_volume" if "activity_volume" in ks else "volume_24h"
-        ks_activity = float(ks[volume_col].fillna(0).sum())
+    #
+    # Summiert wird die Tagesspalte, nicht mehr der Mischwert
+    # ``activity_volume``. Der traegt den Tageswert nur bei Handel am selben
+    # Tag, sonst das Lebensvolumen, und eine Summe darueber ist keines von
+    # beidem. Auf derselben Seite standen so drei verschiedene
+    # Polymarket-Volumen: der Ticker (Tageswert), diese Kachel (Mischwert)
+    # und die Kachel "Venue volume" (Mischwert). Jetzt dieselbe Groesse aus
+    # derselben Funktion, die auch /api/overview liest.
+    pm_tag = apv.venue_volume_24h(pm)
+    ks_tag = apv.venue_volume_24h(ks)
     top_pnl = float(leaderboard["pnl"].max()) if not leaderboard.empty and "pnl" in leaderboard else 0.0
     whale_count = len(trades[trades["notional"] >= float(min_whale)]) if not trades.empty and "notional" in trades else 0
     cols = st.columns(5)
     cols[0].metric("Markets loaded", f"{len(pm) + len(ks):,}", f"{len(pm):,} PM / {len(ks):,} KS")
-    cols[1].metric("Polymarket activity", money(pm_activity))
-    cols[2].metric("Kalshi activity", contracts(ks_activity))
+    cols[1].metric("Polymarket 24h volume", money(pm_tag["usd"]), f"{int(pm_tag['traded_today']):,} of {int(pm_tag['markets']):,} traded today", delta_color="off")
+    cols[2].metric("Kalshi 24h volume", contracts(ks_tag["contracts"]), f"{int(ks_tag['traded_today']):,} of {int(ks_tag['markets']):,} traded today", delta_color="off")
     cols[3].metric("Whale prints", f"{whale_count:,}", f">= {money(min_whale)}")
     cols[4].metric("Top public PnL", money(top_pnl))
 
@@ -2745,11 +2747,17 @@ def market_tile(row: pd.Series) -> None:
         st.caption(f"{row.get('platform', '-')}: {row.get('category', '-')}")
         st.markdown(f"**{str(row.get('title', '-'))[:120]}**")
         change = row.get("change_1d") if row.get("platform") == "Polymarket" else None
+        # "Vol" stand ueber ``activity_volume``. Das ist der Tageswert nur
+        # dann, wenn heute gehandelt wurde, sonst das Lebensvolumen: eine
+        # Karte fuer einen Markt ohne Umsatz heute trug 4.2 Mio als
+        # aktuelle Zahl. Der Tageswert ist null, wenn nicht gehandelt wurde,
+        # und diese Null ist die Messung. Dieselbe Regel wie im Web
+        # (web/js/util.js::mapMarket trennt ``vol`` von ``volTotal``).
         st.markdown(
             f"""
             <div class="market-stats">
               <div class="market-stat"><span>Yes</span><strong>{cents(row.get("yes_price"))}</strong></div>
-              <div class="market-stat"><span>Vol</span><strong>{vu.format_volume(row.get("activity_volume", row.get("volume_24h")), row.get("platform"))}</strong></div>
+              <div class="market-stat"><span>Vol 24h</span><strong>{vu.format_volume(row.get("volume_24h"), row.get("platform"))}</strong></div>
               <div class="market-stat"><span>1d</span><strong>{signed_cents(change) if change is not None else "-"}</strong></div>
             </div>
             """,
@@ -3689,7 +3697,16 @@ def page_overview() -> None:
     overview_market_rows = controls[3].slider("Market cards", min_value=3, max_value=24, step=3, key="overview_market_rows")
     with st.expander("Overview filters", expanded=False):
         f1, f2, f3, f4 = st.columns(4)
-        overview_min_volume = f1.number_input("Min market volume", min_value=0, step=1000, key="overview_min_volume")
+        # Die Schwelle laeuft ueber signals.monitor_volume_col, und das ist
+        # ``activity_volume``: der Tageswert bei Handel am selben Tag, sonst
+        # das Lebensvolumen. Der Filter "24h volume" auf der Markets-Seite
+        # liest den Tageswert, dieser hier nicht, und ohne den Hinweis sehen
+        # die beiden Regler gleich aus.
+        overview_min_volume = f1.number_input(
+            "Min market volume (venue unit)", min_value=0, step=1000, key="overview_min_volume",
+            help="Runs over the market's activity volume: the day's figure where there is one, "
+            "the lifetime figure otherwise. Polymarket reports dollars, Kalshi contracts.",
+        )
         overview_min_liquidity = f2.number_input("Min liquidity", min_value=0, step=1000, key="overview_min_liquidity")
         overview_min_flow = f3.number_input("Min flow notional", min_value=0, step=500, key="overview_min_flow_notional")
         active_only = f4.checkbox("Active markets only", key="overview_active_only")
@@ -3854,6 +3871,15 @@ def page_overview() -> None:
     if top_markets.empty:
         draw_empty("No markets match the current filters.")
     else:
+        # Die Reihenfolge steht auf ``activity_volume``, und der faellt ohne
+        # Handel am selben Tag auf das Lebensvolumen zurueck. Eine Karte kann
+        # also weit oben stehen und "Vol 24h -" tragen: dann hat der Markt
+        # heute nicht gehandelt und rankt ueber seinen Gesamtumsatz. Das
+        # gehoert hingeschrieben, solange der Schluessel so bleibt.
+        st.caption(
+            "Ordered by activity volume: the day's turnover where a market traded today, its lifetime "
+            "turnover otherwise. A card at the top with no 24h volume ranks on its lifetime figure."
+        )
         for chunk_start in range(0, len(top_markets), 3):
             cols = st.columns(3)
             for col, (_, row) in zip(cols, top_markets.iloc[chunk_start : chunk_start + 3].iterrows()):
@@ -3863,7 +3889,7 @@ def page_overview() -> None:
     st.divider()
     left, right = st.columns([1.2, 1])
     with left:
-        st.markdown("### Venue volume")
+        st.markdown("### Venue volume · 24h")
         if combined.empty:
             draw_empty("Volume chart unavailable.")
         else:
@@ -3873,14 +3899,22 @@ def page_overview() -> None:
             # Balkenpaar zeigen soll, naemlich welche Venue groesser ist,
             # konnte es damit nicht zeigen. Zwei Zahlen mit ihrer Einheit
             # sagen weniger und behaupten nichts Falsches.
-            volume_col = "activity_volume" if "activity_volume" in combined else "volume_24h"
-            je_einheit = vu.volume_by_unit(combined.get("platform", []),
-                                           numeric_col(combined, volume_col))
+            #
+            # Und sie summieren jetzt die Tagesspalte statt des Mischwerts
+            # ``activity_volume``. Der traegt den Tageswert nur, wenn heute
+            # gehandelt wurde, sonst das Lebensvolumen: die Summe darueber
+            # war weder Tages- noch Lebensumsatz, stand aber auf derselben
+            # Seite wie der Ticker "24H VOLUME POLYMARKET" und war groesser
+            # als der. Dieselbe Groesse liefert /api/overview ans
+            # Web-Frontend (apv.venue_volume_24h).
+            je_einheit = apv.venue_volume_24h(combined)
             venue_links, venue_rechts = st.columns(2)
-            venue_links.metric("Polymarket", money(je_einheit.get(vu.USD, 0.0)))
-            venue_rechts.metric("Kalshi", contracts(je_einheit.get(vu.CONTRACTS, 0.0)))
+            venue_links.metric("Polymarket", money(je_einheit["usd"]))
+            venue_rechts.metric("Kalshi", contracts(je_einheit["contracts"]))
             st.caption(
-                "No shared bar: Polymarket reports dollar turnover, Kalshi reports "
+                f"Summed over the day's volume of {int(je_einheit['traded_today']):,} of "
+                f"{int(je_einheit['markets']):,} loaded markets — the rest did not trade today and "
+                "add nothing here. No shared bar: Polymarket reports dollar turnover, Kalshi reports "
                 "the number of contracts traded. A contract pays $1 at resolution "
                 "and trades at its price p, so a Kalshi bar on the same axis would "
                 "stand 1/p too tall."

@@ -22,6 +22,7 @@ from app import quant
 from app import risk_log
 from app import suspicion as susp
 from app import track_record as trec
+from app import venue_units as vu
 from src import prediction_markets as md
 
 RESEARCH_FILES = {
@@ -194,6 +195,43 @@ def market_records(markets: pd.DataFrame, limit: int | None = None) -> list[dict
     if "category" in slim.columns:
         slim["category"] = [clean_category(v) for v in slim["category"].tolist()]
     return json.loads(slim.to_json(orient="records", date_format="iso"))
+
+
+def venue_volume_24h(markets: pd.DataFrame) -> dict[str, float | int]:
+    """Tagesvolumen je Venue-Einheit, plus die Zahl der Maerkte, die es tragen.
+
+    Zwei Fallen liegen hier nebeneinander, und beide sind schon einzeln
+    aufgeschlagen.
+
+    Die erste ist die Einheit: Polymarket meldet Dollar, Kalshi zaehlt
+    Kontrakte (Beleg in ``app/venue_units.py``), also gibt es keine
+    gemeinsame Summe und keinen gemeinsamen Balken.
+
+    Die zweite ist die Spalte. ``activity_volume`` ist ein Mischwert: der
+    Tageswert, wenn der Markt heute gehandelt wurde, sonst das Lebensvolumen
+    (``_finalize_polymarket_markets``). Summiert man ihn unter einer
+    Ueberschrift, die nach Umsatz klingt, entsteht eine Zahl, die weder
+    Tagesumsatz noch Lebensumsatz ist: ein Markt mit 4.2 Mio Dollar
+    Lebensumsatz und null Handel heute steht mit 4.2 Mio darin. Hier zaehlt
+    deshalb ``volume_24h``, und die Zahl der Maerkte mit Handel heute steht
+    daneben, damit die Summe ihren Nenner nennt.
+    """
+
+    leer: dict[str, float | int] = {"usd": 0.0, "contracts": 0.0, "markets": 0, "traded_today": 0}
+    if markets is None or markets.empty:
+        return leer
+    if "volume_24h" not in markets.columns:
+        # Keine Tagesspalte heisst nicht null Umsatz, sondern keine Messung.
+        # Der Mischwert waere hier der falsche Rueckfall.
+        return {**leer, "markets": int(len(markets))}
+    tages = pd.to_numeric(markets["volume_24h"], errors="coerce").fillna(0.0)
+    je_einheit = vu.volume_by_unit(markets.get("platform", []), tages)
+    return {
+        "usd": float(je_einheit.get(vu.USD, 0.0)),
+        "contracts": float(je_einheit.get(vu.CONTRACTS, 0.0)),
+        "markets": int(len(markets)),
+        "traded_today": int((tages > 0).sum()),
+    }
 
 
 def kalshi_series(ticker: Any) -> str:

@@ -1282,6 +1282,61 @@ class MarketRecordsTests(unittest.TestCase):
         self.assertEqual(rows, [{"title": "only a title", "platform": "Kalshi"}])
 
 
+class VenueVolume24hTests(unittest.TestCase):
+    """Die Venue-Kacheln summieren den Tageswert, nicht den Mischwert.
+
+    ``activity_volume`` traegt den Tageswert nur, wenn heute gehandelt wurde,
+    sonst das Lebensvolumen. Eine Summe darueber ist weder Tagesumsatz noch
+    Lebensumsatz, stand aber auf der Uebersicht unter "Venue volume" neben
+    einem Ticker, der "24H VOLUME POLYMARKET" hiess und den Tageswert
+    zeigte. Zwei Zahlen fuer dieselbe Venue auf einer Seite.
+    """
+
+    @staticmethod
+    def _universum() -> pd.DataFrame:
+        # Ein Polymarket-Markt handelte heute (80k Dollar), einer nicht: der
+        # hat 4.2 Mio Lebensumsatz und faellt im Mischwert darauf zurueck.
+        # Auf Kalshi dasselbe Muster in Kontrakten.
+        return pd.DataFrame([
+            {"platform": "Polymarket", "volume_24h": 80_000.0, "volume": 900_000.0, "activity_volume": 80_000.0},
+            {"platform": "Polymarket", "volume_24h": 0.0, "volume": 4_200_000.0, "activity_volume": 4_200_000.0},
+            {"platform": "Kalshi", "volume_24h": 5_000.0, "volume": 30_000.0, "activity_volume": 5_000.0},
+            {"platform": "Kalshi", "volume_24h": 0.0, "volume": 620_000.0, "activity_volume": 620_000.0},
+        ])
+
+    def test_der_mischwert_haette_das_53_fache_gemeldet(self) -> None:
+        universum = self._universum()
+        mischwert = float(universum[universum["platform"].eq("Polymarket")]["activity_volume"].sum())
+        self.assertAlmostEqual(mischwert, 4_280_000.0)
+
+        summe = apv.venue_volume_24h(universum)
+        self.assertAlmostEqual(summe["usd"], 80_000.0)
+        self.assertAlmostEqual(summe["contracts"], 5_000.0)
+
+    def test_die_summe_nennt_ihren_nenner(self) -> None:
+        """Zwei von vier Maerkten tragen die Summe, zwei tragen null bei."""
+
+        summe = apv.venue_volume_24h(self._universum())
+        self.assertEqual(summe["markets"], 4)
+        self.assertEqual(summe["traded_today"], 2)
+
+    def test_leerer_und_spaltenloser_frame(self) -> None:
+        leer = apv.venue_volume_24h(pd.DataFrame())
+        self.assertEqual(leer, {"usd": 0.0, "contracts": 0.0, "markets": 0, "traded_today": 0})
+        # Ohne Tagesspalte gibt es keine Messung, und der Mischwert ist hier
+        # nicht der Rueckfall: null statt einer Zahl in der falschen Bedeutung.
+        ohne = apv.venue_volume_24h(pd.DataFrame([{"platform": "Polymarket", "activity_volume": 4_200_000.0}]))
+        self.assertEqual(ohne["usd"], 0.0)
+        self.assertEqual(ohne["markets"], 1)
+        self.assertEqual(ohne["traded_today"], 0)
+
+    def test_unbekannte_venue_landet_in_keiner_einheit(self) -> None:
+        summe = apv.venue_volume_24h(pd.DataFrame([{"platform": "Foobet", "volume_24h": 99_000.0}]))
+        self.assertEqual(summe["usd"], 0.0)
+        self.assertEqual(summe["contracts"], 0.0)
+        self.assertEqual(summe["traded_today"], 1)
+
+
 class CrossGateTests(unittest.TestCase):
     """Cross-Venue-Paare: nur Aehnlichkeit >= 0.5 und Volumen auf beiden Seiten."""
 
