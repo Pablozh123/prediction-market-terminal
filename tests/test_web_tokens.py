@@ -147,8 +147,10 @@ class WebTokenTest(unittest.TestCase):
         app.js::stepper hat genau das getan -- Radius, Schriftgroesse und
         Polsterung mit `+ 'px'` angehaengt -- und ist deshalb weder beim
         Token-Durchgang von PR #123 noch beim Abstandsdurchgang durch eine
-        Textsuche gefunden worden. Beide Leitern lassen sich nur einhalten,
-        solange die Werte im String stehen und nicht daneben.
+        Textsuche gefunden worden. Die Methode selbst ist inzwischen geloescht
+        (sie hatte in der ganzen Historie keine Aufrufstelle), die Regel
+        bleibt: beide Leitern lassen sich nur einhalten, solange die Werte im
+        String stehen und nicht daneben.
         """
 
         muster = re.compile(

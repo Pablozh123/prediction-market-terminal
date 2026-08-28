@@ -328,23 +328,6 @@ class Terminal {
       + ' style="' + wrap + '"><div style="' + knob + '"></div></div>';
   }
 
-  // Der einzige Ort, an dem Radius, Schriftgroesse und Polsterung als Zahl in
-  // den String gerechnet wurden statt als Literal darin zu stehen -- deshalb
-  // hat ihn weder der Token-Durchgang von PR #123 noch die Abstandsleiter
-  // beim Suchen gefunden. Die beiden Groessen unterschieden sich um 1px im
-  // Radius, 1px beziehungsweise 0.5px in der Schrift und 2px im Abstand: das
-  // ist genau die Spanne, in der niemand einen Unterschied sieht. Was von
-  // "lg" bleibt, ist die Knopfflaeche und die Polsterung des Wertfeldes.
-  stepper(valueLabel, onDown, onUp, size) {
-    const s = size === 'lg';
-    const btn = 'width:' + (s ? 32 : 28) + 'px; height:' + (s ? 34 : 32) + 'px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; font-family:var(--font-mono); font-size:var(--t-body); color:var(--ink-2); cursor:pointer';
-    const val = 'flex:1; background:var(--panel); border:1px solid var(--line-1); border-radius:var(--r-control); padding:' + (s ? 'var(--sp-3) var(--sp-4)' : 'var(--sp-3)') + '; font-family:var(--font-mono); font-size:var(--t-small); text-align:center';
-    return '<div style="display:flex; align-items:center; gap:var(--sp-3)">'
-      + '<div ' + this.act(onDown) + ' class="hv-edge-max hv-white" style="' + btn + '">−</div>'
-      + '<div style="' + val + '">' + esc(valueLabel) + '</div>'
-      + '<div ' + this.act(onUp) + ' class="hv-edge-max hv-white" style="' + btn + '">+</div></div>';
-  }
-
   changeStyle(chg) {
     return "font-family:var(--font-mono); font-size:var(--t-body); text-align:right; color:" + (chg >= 0 ? 'var(--pos)' : 'var(--neg)');
   }
