@@ -1257,6 +1257,12 @@ def cross_rows(
     die Zeile die echte Markt-Kategorie statt eines Platzhalters traegt.
     Es bleiben nur Paare mit ``similarity >= min_similarity`` und — bei
     ``require_volume`` — mit Volumen groesser null auf beiden Venues.
+
+    ``gross``/``band``/``net`` sind Cent je Stueck und kommen aus
+    ``app/cross_pairs.py``: die ausfuehrbare Spanne (Brief gegen Geld, nicht
+    Mitte gegen Mitte), die Gebuehrenschwelle beider Venues und was danach
+    bleibt. Ohne beidseitige Quote bleiben sie ``None``, damit das Frontend
+    einen Strich zeigen kann statt einer gemessenen Null.
     """
 
     if candidates is None or candidates.empty:
@@ -1284,7 +1290,10 @@ def cross_rows(
             "pmVol": pm_vol,
             "ksVol": ks_vol,
             "sim": round(sim, 2),
-            "held": "—",
+            "gross": _num(row.get("gross_edge_cents")),
+            "band": _num(row.get("fee_band_cents")),
+            "net": _num(row.get("net_edge_cents")),
+            "dir": _text(row.get("edge_direction")),
             "pm_url": _text(row.get("polymarket_url")),
             "ks_url": _text(row.get("kalshi_url")),
         })

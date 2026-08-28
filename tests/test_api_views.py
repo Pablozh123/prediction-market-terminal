@@ -1115,6 +1115,26 @@ class CrossGateTests(unittest.TestCase):
         self.assertIn("min_similarity = max(float(min_similarity), apv.CROSS_MIN_SIMILARITY)", server)
         self.assertIn('"candidates_before_gate"', server)
 
+    def test_the_row_carries_the_edge_net_of_both_fee_curves(self) -> None:
+        frame = self._candidates()
+        frame.loc[0, "gross_edge_cents"] = 4.0
+        frame.loc[0, "fee_band_cents"] = 2.7155
+        frame.loc[0, "net_edge_cents"] = 1.2845
+        frame.loc[0, "edge_direction"] = "buy Polymarket, sell Kalshi"
+        row = apv.cross_rows(frame)[0]
+        self.assertEqual(row["gross"], 4.0)
+        self.assertEqual(row["band"], 2.7155)
+        self.assertEqual(row["net"], 1.2845)
+        self.assertEqual(row["dir"], "buy Polymarket, sell Kalshi")
+
+    def test_a_pair_without_quotes_reports_no_edge_rather_than_zero(self) -> None:
+        # Ohne beidseitige Quote gibt es keine Spanne zu rechnen. Null waere
+        # hier eine Messung, und gemessen wurde nichts.
+        row = apv.cross_rows(self._candidates())[0]
+        self.assertIsNone(row["gross"])
+        self.assertIsNone(row["net"])
+        self.assertEqual(row["dir"], "")
+
 
 class ScorePartsTests(unittest.TestCase):
     def test_leaderboard_rows_carry_labelled_score_parts(self) -> None:
