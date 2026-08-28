@@ -1651,9 +1651,12 @@ def apply_market_filter_view_widgets(view: dict[str, Any], categories: list[str]
         "markets_custom_liquidity": int(_bounded_float(view.get("custom_liquidity", defaults["markets_custom_liquidity"]), 0.0, 0.0, 1_000_000_000.0)),
         "markets_end_preset": _choice(view.get("end_preset", defaults["markets_end_preset"]), ["All", "Open", "Past due", "<1d", "<7d", "<30d", "Custom"], "Open"),
         "markets_custom_days": _bounded_int(view.get("custom_days", defaults["markets_custom_days"]), 30, 1, 10000),
-        "markets_volume_1h_preset": _choice(view.get("volume_1h_preset", defaults["markets_volume_1h_preset"]), ["All", ">$1k", ">$10k", ">$100k", "Custom"], "All"),
+        # Ohne Dollarzeichen, passend zu den Radio-Optionen weiter unten:
+        # eine gespeicherte Ansicht mit dem alten Label faellt auf "All"
+        # zurueck, statt einen Wert zu setzen, den das Widget nicht kennt.
+        "markets_volume_1h_preset": _choice(view.get("volume_1h_preset", defaults["markets_volume_1h_preset"]), ["All", ">1k", ">10k", ">100k", "Custom"], "All"),
         "markets_custom_volume_1h": int(_bounded_float(view.get("custom_volume_1h", defaults["markets_custom_volume_1h"]), 0.0, 0.0, 1_000_000_000.0)),
-        "markets_volume_preset": _choice(view.get("volume_preset", defaults["markets_volume_preset"]), ["All", ">$1k", ">$10k", ">$100k", "Custom"], "All"),
+        "markets_volume_preset": _choice(view.get("volume_preset", defaults["markets_volume_preset"]), ["All", ">1k", ">10k", ">100k", "Custom"], "All"),
         "markets_custom_volume": int(_bounded_float(view.get("custom_volume", defaults["markets_custom_volume"]), 0.0, 0.0, 1_000_000_000.0)),
         "markets_age_preset": _choice(view.get("age_preset", defaults["markets_age_preset"]), ["All", "<1d", "<7d", "<30d", ">365d", "Custom"], "All"),
         "markets_custom_age_days": _bounded_int(view.get("custom_age_days", defaults["markets_custom_age_days"]), 30, 1, 10000),
@@ -4670,7 +4673,12 @@ def render_related_markets(row: pd.Series, market_universe: pd.DataFrame | None 
     active_count = int((~bool_mask(related.get("closed", pd.Series(False, index=related.index)), False)).sum())
     r1.metric("Related active", f"{active_count:,}")
     r2.metric("Resolved siblings", f"{len(closed_related):,}")
-    r3.metric("Group volume", money(numeric_col(related, "activity_volume").sum()))
+    # Eine Titel-Familie kann Maerkte beider Venues enthalten, und deren
+    # Volumenspalten stehen in verschiedenen Einheiten (app/venue_units.py).
+    gruppe_je_einheit = vu.volume_by_unit(related.get("platform", []),
+                                          numeric_col(related, "activity_volume"))
+    r3.metric("Group volume", money(gruppe_je_einheit.get(vu.USD, 0.0)),
+              f"Kalshi {contracts(gruppe_je_einheit.get(vu.CONTRACTS, 0.0))}")
 
     preview = related.copy()
     preview["selected"] = preview["market_key"].astype(str).eq(current_key)
@@ -4685,7 +4693,7 @@ def render_related_markets(row: pd.Series, market_universe: pd.DataFrame | None 
                     st.caption(str(item.get("status", "Active")))
                     st.markdown(f"**{str(item.get('title', '-'))[:75]}**")
                     st.metric("Yes", cents(item.get("price")), signed_cents(item.get("change_1d", 0.0)))
-                    st.caption(f"End {item.get('end', '-')} | Vol {money(item.get('activity_volume', 0.0))}")
+                    st.caption(f"End {item.get('end', '-')} | Vol {vu.format_volume(item.get('activity_volume', 0.0), item.get('platform'))}")
                     if bool(item.get("selected", False)):
                         st.caption("Current market")
                     elif st.button("Inspect", key=f"related_inspect_{item.get('market_key')}", width="stretch"):
@@ -4707,8 +4715,10 @@ def render_related_markets(row: pd.Series, market_universe: pd.DataFrame | None 
                 "yes_price": st.column_config.NumberColumn("Yes", format="%.3f"),
                 "no_price": st.column_config.NumberColumn("No", format="%.3f"),
                 "spread": st.column_config.NumberColumn(format="%.3f"),
-                "activity_volume": st.column_config.NumberColumn("Volume", format="$%.0f"),
-                "volume_1h": st.column_config.NumberColumn("Vol 1h", format="$%.0f"),
+                # Die Gruppe kann beide Venues mischen; ein Spaltenformat
+                # gilt fuer jede Zeile, also kein Dollarzeichen.
+                "activity_volume": st.column_config.NumberColumn("Volume (venue unit)", format="%.0f"),
+                "volume_1h": st.column_config.NumberColumn("Vol 1h (venue unit)", format="%.0f"),
                 "liquidity": st.column_config.NumberColumn(format="$%.0f"),
                 "url": st.column_config.LinkColumn("URL"),
             },
@@ -4958,9 +4968,11 @@ def page_markets() -> None:
         custom_days = f8.number_input("Custom days to expiry", min_value=1, step=1, disabled=end_preset != "Custom", key="markets_custom_days")
 
         f9, f10, f11, f12 = st.columns(4)
-        volume_1h_preset = f9.radio("Vol 1h", ["All", ">$1k", ">$10k", ">$100k", "Custom"], horizontal=True, key="markets_volume_1h_preset")
+        # Ohne Dollarzeichen: die Schwelle laeuft gegen die Volumenspalte
+        # jeder Zeile, und die zaehlt auf Kalshi Kontrakte (venue_units).
+        volume_1h_preset = f9.radio("Vol 1h (venue unit)", ["All", ">1k", ">10k", ">100k", "Custom"], horizontal=True, key="markets_volume_1h_preset")
         custom_volume_1h = f9.number_input("Custom min 1h volume", min_value=0, step=1_000, disabled=volume_1h_preset != "Custom", key="markets_custom_volume_1h")
-        volume_preset = f10.radio("24h volume", ["All", ">$1k", ">$10k", ">$100k", "Custom"], horizontal=True, key="markets_volume_preset")
+        volume_preset = f10.radio("24h volume (venue unit)", ["All", ">1k", ">10k", ">100k", "Custom"], horizontal=True, key="markets_volume_preset")
         custom_volume = f10.number_input("Custom min 24h volume", min_value=0, step=1_000, disabled=volume_preset != "Custom", key="markets_custom_volume")
         age_preset = f11.radio("Market age", ["All", "<1d", "<7d", "<30d", ">365d", "Custom"], horizontal=True, key="markets_age_preset")
         custom_age_days = f11.number_input("Custom max market age (days)", min_value=1, step=1, disabled=age_preset != "Custom", key="markets_custom_age_days")
@@ -5129,9 +5141,9 @@ def page_markets() -> None:
     if age_preset != "All":
         chip_labels.append(f"Market age: {age_preset if age_preset != 'Custom' else '<' + str(custom_age_days) + 'd'}")
     if volume_1h_preset != "All":
-        chip_labels.append(f"Vol 1h: {volume_1h_preset if volume_1h_preset != 'Custom' else '>$' + f'{custom_volume_1h:,.0f}'}")
+        chip_labels.append(f"Vol 1h: {volume_1h_preset if volume_1h_preset != 'Custom' else '>' + f'{custom_volume_1h:,.0f}'} (venue unit)")
     if volume_preset != "All":
-        chip_labels.append(f"24h volume: {volume_preset if volume_preset != 'Custom' else '>$' + f'{custom_volume:,.0f}'}")
+        chip_labels.append(f"24h volume: {volume_preset if volume_preset != 'Custom' else '>' + f'{custom_volume:,.0f}'} (venue unit)")
     if volume_delta_1h_preset != "All":
         chip_labels.append(f"Vol delta 1h: {volume_delta_1h_preset if volume_delta_1h_preset != 'Custom' else '>' + f'{custom_volume_delta_1h:.0f}%'}")
     if volume_delta_24h_preset != "All":

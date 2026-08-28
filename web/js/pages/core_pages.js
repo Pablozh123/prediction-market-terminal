@@ -579,7 +579,11 @@ export function renderMarkets(T) {
       + filterGroup('PLATFORM', [['all','All'],['Polymarket','Polymarket'],['Kalshi','Kalshi']].map((o) => T.opt(o[1], s.mPlatform === o[0], { mPlatform: o[0] })).join(''))
       + filterGroup('PROBABILITY', [['all','All'],['5-95','5–95%'],['20-80','20–80%'],['80','>80%'],['95','>95%'],['99','>99%']].map((o) => T.opt(o[1], s.mProb === o[0], { mProb: o[0] })).join(''))
       + filterGroup('LIQUIDITY', [['all','All'],['1k','>$1k'],['10k','>$10k'],['100k','>$100k']].map((o) => T.opt(o[1], s.mLiq === o[0], { mLiq: o[0] })).join(''))
-      + filterGroup('VOLUME 24H', [['all','All'],['10k','>$10k'],['100k','>$100k'],['1m','>$1m']].map((o) => T.opt(o[1], s.mVol === o[0], { mVol: o[0] })).join(''))
+      // Ohne Dollarzeichen: die Schwelle laeuft gegen die Volumenspalte
+      // jeder Zeile, und die zaehlt auf Kalshi Kontrakte statt Dollar
+      // (app/venue_units.js-Gegenstueck in util.js). Liquiditaet darueber
+      // behaelt ihres, liquidity_dollars ist wirklich ein Betrag.
+      + filterGroup('VOLUME 24H (VENUE UNIT)', [['all','All'],['10k','>10k'],['100k','>100k'],['1m','>1m']].map((o) => T.opt(o[1], s.mVol === o[0], { mVol: o[0] })).join(''))
       + filterGroup('RESOLVES IN', [['all','All'],['1d','<1 day'],['7d','<7 days'],['30d','<30 days'],['open','Open ended']].map((o) => T.opt(o[1], s.mEnds === o[0], { mEnds: o[0] })).join(''))
       + filterGroup('MARKET AGE', [['all','All'],['1d','<1 day'],['7d','<7 days'],['30d','>30 days']].map((o) => T.opt(o[1], s.mAge === o[0], { mAge: o[0] })).join(''))
       + '<div style="grid-column:span 2"><div style="' + LBL9 + '">EXCLUDE CATEGORIES</div><div style="display:flex; gap:6px; flex-wrap:wrap">'
