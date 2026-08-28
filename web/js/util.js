@@ -8,6 +8,10 @@
 // silently fall back to the buy volume.
 export const EINZAHLUNGEN_USD = 300;
 
+// Die Mono-Familie als Modulkonstante; die Helfer weiter unten binden sie
+// sonst jeder fuer sich neu.
+const MONO = "font-family:'IBM Plex Mono',monospace";
+
 export function num(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
 
 export function money(n) {
@@ -272,6 +276,44 @@ export function fensterSatz(fenster) {
   const je = fenster.jeVenue.map((v) => v.venue + ' ' + dauer(v.minuten) + ' (' + v.prints + ')').join(' · ');
   const kopf = 'Window: ' + dauer(fenster.minuten) + ' · ' + fenster.prints + ' prints';
   return fenster.jeVenue.length > 1 ? kopf + ' — ' + je : kopf;
+}
+
+// Der Stempel einer Studie und die Publish-Uhr sind zwei verschiedene
+// Aussagen, und bis hierher hat die zweite die erste verschluckt.
+//
+// study.stamp aus studies.js sagt, was die Studie IST: "frozen 2026-06-30",
+// "pre-registered 2026-05-02 · completed 2026-08-01", "paper log · archived
+// 2026-08-07". Das ist eine Eigenschaft der Studie. Sie aendert sich nicht,
+// wenn jemand die Nutzlast neu schreibt. payload.stand_utc sagt nur, wann
+// zuletzt publiziert wurde.
+//
+// Vorher stand hier ueberall "stand_utc ? uhr : study.stamp". Jede publizierte
+// Nutzlast traegt ein stand_utc, also gewann immer die Uhr, und damit erschien
+// kein einziger Stempel aus studies.js je auf einer Seite: die
+// Praeregistrierung des Piloten stand nirgends, die Einfrierdaten standen
+// nirgends, und die beiden archivierten Studien sagten nicht, dass sie
+// archiviert sind, waehrend die Seitenleiste sie unter STUDIES · FROZEN
+// fuehrte. Bei einem Stueck, dessen Argument gerade die Vorregistrierung ist,
+// war das die teuerste Zeile der Datei.
+//
+// Jetzt stehen beide untereinander: der Stempel als Chip, die Uhr als Zeile
+// darunter. Fehlt eines von beiden, steht das andere allein.
+export function publishZeit(payload) {
+  return payload && payload.stand_utc
+    ? String(payload.stand_utc).slice(0, 16).replace('T', ' ') + ' UTC' : '';
+}
+
+export function stempelBlock(study, payload, polster) {
+  const fest = study && study.stamp ? String(study.stamp) : '';
+  const uhr = publishZeit(payload);
+  const chip = MONO + '; font-size:10.5px; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.14);'
+    + ' border-radius:4px; padding:' + (polster || '6px 10px') + '; white-space:nowrap';
+  if (!fest && !uhr) return '';
+  if (!fest) return '<div style="' + chip + '">' + esc(uhr) + '</div>';
+  return '<div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px">'
+    + '<div style="' + chip + '">' + esc(fest) + '</div>'
+    + (uhr ? '<div style="' + MONO + '; font-size:10.5px; color:rgba(var(--ink),.55); white-space:nowrap">published ' + esc(uhr) + '</div>' : '')
+    + '</div>';
 }
 
 // Map one /api/tape row into the tape-row shape.

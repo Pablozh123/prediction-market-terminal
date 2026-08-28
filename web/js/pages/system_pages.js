@@ -2,7 +2,7 @@
 // design reference. Research tabs render the published JSON payloads from
 // public/data/ when the API serves them, incl. their stand_utc stamp and note.
 
-import { esc, num, herkunftSatz, leerZeile, EINZAHLUNGEN_USD } from '../util.js';
+import { esc, num, herkunftSatz, leerZeile, EINZAHLUNGEN_USD, stempelBlock } from '../util.js';
 import { stepKurve, diagramm, linien, kalibrierung, fmtZahl, SERIEN_FARBEN } from '../charts.js';
 import { renderMicrostructure } from './microstructure_page.js';
 
@@ -141,11 +141,9 @@ function renderPostmortems(payload) {
 /** Field notes: kuratierte Beobachtungen vom Tape, je Notiz Datum, Venue,
  *  Markt, Titel, Beobachtung, Mechanismus, Folge und optional ein Beleg.
  *  Nur Struktur — jede Notiz kommt aus public/data/field_notes.json. */
-function renderFieldNotes(payload) {
+function renderFieldNotes(payload, study) {
   const notes = (payload && Array.isArray(payload.notes)) ? payload.notes : [];
   const kennung = payload && payload.kennzeichnung ? String(payload.kennzeichnung).toUpperCase() : 'CURATED';
-  const stempel = payload && payload.stand_utc
-    ? String(payload.stand_utc).slice(0, 16).replace('T', ' ') + ' UTC' : 'curated';
   const kopf = '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px">'
     + '<div style="max-width:720px">'
     + '<div style="font-size:20px; font-weight:600">Field notes — what the tape taught us</div>'
@@ -154,7 +152,7 @@ function renderFieldNotes(payload) {
     + '</div></div>'
     + '<div style="display:flex; gap:8px">'
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; color:var(--on-accent); background:var(--info)">' + esc(kennung) + '</div>'
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.14); border-radius:4px; padding:5px 10px; white-space:nowrap">' + esc(stempel) + '</div>'
+    + stempelBlock(study, payload, '5px 10px')
     + '</div></div>';
 
   if (!payload) {
@@ -520,13 +518,13 @@ export function renderResearch(T) {
   // Field notes haengen am Slug, nicht an der Position: die Liste waechst am
   // Ende, und ein Index wuerde beim naechsten Eintrag verrutschen.
   if (studienSlug(study) === 'field-notes') {
-    return '<div>' + header + renderFieldNotes(payload) + '</div>';
+    return '<div>' + header + renderFieldNotes(payload, study) + '</div>';
   }
 
   // Microstructure hat eine eigene Seite: zwoelf Studien, je Karte mit
   // Frage, Verdikt, Diagramm und Quelle. Nutzlast aus public/data.
   if (s.researchTab === 4) {
-    return '<div>' + header + renderMicrostructure(payload) + '</div>';
+    return '<div>' + header + renderMicrostructure(payload, study) + '</div>';
   }
   // Category efficiency: Kennzahlen, Balken je Horizont, Brier ueber den
   // Horizont, Kalibrierung je Kategorie und die Tabelle mit allen Horizonten.
@@ -539,7 +537,6 @@ export function renderResearch(T) {
     return '<div>' + header + renderMethodology(T, payload, study) + '</div>';
   }
 
-  const stamp = payload && payload.stand_utc ? String(payload.stand_utc).slice(0, 16).replace('T', ' ') + ' UTC' : study.stamp;
   const note = payload && payload.hinweis ? payload.hinweis : study.note;
   const table = buildStudyTable(T, s.researchTab, payload);
   // Ohne Nutzlast keine Zahlen. Die frueheren Demo-Werte widersprachen der
@@ -571,7 +568,7 @@ export function renderResearch(T) {
     + '<div style="max-width:640px">'
     + '<div style="font-size:20px; font-weight:600">' + esc(study.title) + '</div>'
     + '<div style="font-size:13.5px; color:rgba(var(--ink),.6); margin-top:8px; line-height:1.5">' + esc(note) + '</div></div>'
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.14); border-radius:4px; padding:6px 10px; white-space:nowrap">' + esc(stamp) + '</div></div>'
+    + stempelBlock(study, payload) + '</div>'
     // So viele Spalten wie Kacheln: der Pilot traegt mit der Wallet-Kachel
     // fuenf, die uebrigen Studien weiter ihre drei oder vier.
     + '<div style="display:grid; grid-template-columns:repeat(' + stats.length + ',1fr); gap:12px; margin-top:18px">'
@@ -1088,7 +1085,6 @@ const OFFEN_DUENN = 20;
 
 function renderCategoryEfficiency(T, payload, study) {
   const karte = 'background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px';
-  const stamp = payload && payload.stand_utc ? String(payload.stand_utc).slice(0, 16).replace('T', ' ') + ' UTC' : study.stamp;
 
   // Kopf: Titel und EINE Zeile Stichprobe. Der lange Absatz aus der Nutzlast
   // (payload.hinweis) steht unveraendert im Methodenfeld weiter unten — er
@@ -1097,7 +1093,7 @@ function renderCategoryEfficiency(T, payload, study) {
     + '<div style="max-width:760px">'
     + '<div style="font-size:20px; font-weight:600">' + esc(study.title) + '</div>'
     + '<div style="' + M + '; font-size:11.5px; color:rgba(var(--ink),.6); margin-top:8px; line-height:1.5">' + unterzeile + '</div></div>'
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.14); border-radius:4px; padding:6px 10px; white-space:nowrap">' + esc(stamp) + '</div></div>';
+    + stempelBlock(study, payload) + '</div>';
 
   if (!payload) {
     return fehlendeStudieHtml(study, RESEARCH_DATEI[1]);
@@ -1389,7 +1385,6 @@ function renderLiveRuns(T, payload) {
   const s = T.state;
   const agg = payload && payload.aggregat ? payload.aggregat : null;
   // Kein "rolling" mehr: der letzte Publish ist datiert, kein Einsatz offen.
-  const stamp = payload && payload.stand_utc ? 'concluded ' + String(payload.stand_utc).slice(0, 10) : 'concluded';
 
   // Zwei PnL-Zahlen, beide beschriftet: die aus den Logs rekonstruierte (die
   // Nutzlast nimmt den Preisdeckel an, wo die FAK-Antwort keinen Fillpreis
@@ -1864,7 +1859,7 @@ function renderLiveRuns(T, payload) {
     + '<div style="font-size:13.5px; color:rgba(var(--ink),.6); margin-top:8px; line-height:1.5">' + esc(payload && payload.hinweis ? payload.hinweis : 'Bets, reaction times and realized results of the research bot on mentions markets. One run is one episode or event.') + '</div></div>'
     + '<div style="display:flex; gap:8px">'
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; color:var(--on-accent); background:var(--accent)">' + esc(payload && payload.kennzeichnung ? String(payload.kennzeichnung).toUpperCase() : 'LIVE / DESCRIPTIVE') + '</div>'
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.14); border-radius:4px; padding:5px 10px; white-space:nowrap">' + esc(stamp) + '</div>'
+    + stempelBlock(T.studies[3], payload, '5px 10px')
     + '</div></div>'
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; margin-top:18px">'
     + kpis.map((k) =>
@@ -2984,7 +2979,6 @@ const KERNSATZ = {
 };
 
 function renderMethodology(T, payload, study) {
-  const stamp = payload && payload.stand_utc ? String(payload.stand_utc).slice(0, 16).replace('T', ' ') + ' UTC' : study.stamp;
   const note = payload && payload.hinweis ? payload.hinweis : study.note;
   const stats = buildStudyStats(7, payload) || [
     { label: 'AUDIT ENTRIES', value: '—', note: 'audit.json not loaded' },
@@ -3036,7 +3030,7 @@ function renderMethodology(T, payload, study) {
     + '<div style="max-width:720px">'
     + '<div style="font-size:20px; font-weight:600">' + esc(study.title) + '</div>'
     + '<div style="font-size:13.5px; color:rgba(var(--ink),.6); margin-top:8px; line-height:1.5">' + esc(note) + '</div></div>'
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.14); border-radius:4px; padding:6px 10px; white-space:nowrap">' + esc(stamp) + '</div></div>'
+    + stempelBlock(study, payload) + '</div>'
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:18px">'
     + stats.map((x) =>
       '<div style="' + KARTE + '; border-radius:6px; padding:14px 16px">'

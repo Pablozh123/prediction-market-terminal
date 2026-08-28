@@ -10,7 +10,7 @@
 // zugeklappt hinter einem <details>. Nichts davon ist gekuerzt — nur die
 // Reihenfolge folgt jetzt dem Leser: erst der Befund, dann die Pruefung.
 
-import { esc } from '../util.js';
+import { esc, stempelBlock } from '../util.js';
 import { diagramm, fmtZahl } from '../charts.js';
 
 const M = "font-family:'IBM Plex Mono',monospace";
@@ -250,11 +250,8 @@ function studieKarte(s, i) {
     + '</div>';
 }
 
-function kopf(payload) {
+function kopf(payload, study) {
   const z = payload.zaehler || {};
-  const stempel = payload.stand_utc
-    ? String(payload.stand_utc).slice(0, 16).replace('T', ' ') + ' UTC'
-    : 'rolling';
   const kachel = (wert, text, farbe) =>
     '<div style="' + CARD + '; padding:13px 16px; min-width:118px">'
     + '<div style="' + M + '; font-size:22px; color:' + farbe + '">' + esc(String(wert)) + '</div>'
@@ -267,8 +264,7 @@ function kopf(payload) {
     + '<h2 style="font-size:20px; font-weight:600; margin:0">Order books, recorded by this project</h2>'
     + '<div style="font-size:13.5px; ' + MUTED + '; margin-top:9px; line-height:1.6">'
     + esc(payload.einleitung || '') + '</div></div>'
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.14); '
-    + 'border-radius:4px; padding:6px 10px; white-space:nowrap">' + esc(stempel) + '</div></div>'
+    + stempelBlock(study, payload) + '</div>'
     // Verdiktzeile aus den Karten gezaehlt und die Sprungliste zu den Ankern.
     + verdiktZeile(payload.studien)
     + sprungliste(payload.studien)
@@ -286,7 +282,7 @@ function kopf(payload) {
     + '<div style="height:20px"></div></div>';
 }
 
-export function renderMicrostructure(payload) {
+export function renderMicrostructure(payload, study) {
   if (!payload || !Array.isArray(payload.studien) || !payload.studien.length) {
     return '<div style="padding:26px 24px">'
       + '<div style="' + CARD + '; padding:22px 24px; max-width:720px">'
@@ -301,7 +297,7 @@ export function renderMicrostructure(payload) {
       + '</div>'
     : '';
   return '<div style="padding:22px 24px 40px">'
-    + kopf(payload)
+    + kopf(payload, study)
     + fehlend
     + payload.studien.map(studieKarte).join('')
     + '</div>';
