@@ -28,6 +28,7 @@ from app import app_settings as cfg
 from app import authz as az
 from app import backtester as btr
 from app import calibration as calib
+from app import claims
 from app import copy_fidelity as cfy
 from app import cross_pairs as cp
 from app import copy_follow as ctf
@@ -78,6 +79,22 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+
+# Der einzige Weg, auf dem ein stehender Vorbehalt in diese Oberflaeche
+# kommt. Bis hierher trug der Monolith seine Disclaimer als Prosa, waehrend
+# das Web-Frontend dieselben Saetze schon aus data/claims.yaml las: zwei
+# Fassungen desselben Vorbehalts, und genau daraus sind in diesem Repo
+# mehrfach auseinandergedriftete Dubletten entstanden. Der Name traegt
+# absichtlich dasselbe caveat( wie im Frontend, damit
+# scripts/lint_claims.py beide Oberflaechen mit einer Regel liest.
+#
+# Die Seite besitzt weiter ihren beschreibenden Teil ("was diese Seite
+# tut"); der Vorbehalt daneben gehoert dem Register.
+def caveat(key: str, lang: str = "en") -> str:
+    """Registertext eines Vorbehalts (data/claims.yaml). Unbekannt = ''."""
+
+    return claims.disclaimer(key, lang)
 
 
 ACCENT = "#C8F542"
@@ -2669,8 +2686,7 @@ with st.sidebar:
     )
     st.markdown(
         "<div class='sidebar-footnote' style='margin-top:0.9rem'>"
-        "Research tool only — no investment advice, no order placement, no venue affiliation. "
-        "Public Polymarket &amp; Kalshi data, provided as-is."
+        f"{html.escape(caveat('research_tool_only'))}"
         f"<br>Last render: {md.now_utc_label()}</div>",
         unsafe_allow_html=True,
     )
@@ -3530,12 +3546,12 @@ def trader_insight_metrics(
 
 def page_overview() -> None:
     st.markdown(
-        """
+        f"""
         <div class='hero'>
             <span class='hero-badge'><span class='live-dot'></span>Live · public on-chain data</span>
             <div class='hero-title'>Read the market <em>like the whales do.</em></div>
             <div class='hero-sub'>Whale prints, insider-risk screens, coordinated wallet clusters and copy-trade backtests —
-            one terminal for Polymarket and Kalshi. No signup, no orders placed, pure research.</div>
+            one terminal for Polymarket and Kalshi. {html.escape(caveat('no_signup_no_orders'))}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -5185,7 +5201,7 @@ def render_track_record(
                 f"{edge_rep['n_events']:,}",
                 help=f"{edge_rep['n_positions']:,} resolved positions netted to {edge_rep['n_events']:,} independent events.",
             )
-            st.caption(f"{edge_rep['headline']} Past record, not a forecast.")
+            st.caption(f"{edge_rep['headline']} {caveat('past_not_forecast')}")
         attribution = trec.pnl_attribution(resolved)
         if attribution["structural_share"] is not None:
             st.divider()
@@ -5977,7 +5993,7 @@ def render_pnl_vs_skill(leaderboard: pd.DataFrame) -> None:
         st.caption(
             "Skill score corrects the four naive-leaderboard errors (leg inflation, winner-only PnL, wash volume, survivorship) "
             "and penalises one-hit concentration. Verdicts read the realized-edge CI against zero — most records, including "
-            "profitable ones, are not separable from chance on public data. Diagnostics, not advice."
+            f"profitable ones, are not separable from chance on public data. {caveat('diagnostic_not_advice')}"
         )
 
 
@@ -8478,7 +8494,7 @@ def page_cross_venue() -> None:
             st.session_state.watchlist.append(item)
             save_local_list("watchlist.json", st.session_state.watchlist)
             st.success("Kalshi leg added to watchlist.")
-    st.caption("Price gaps are research leads, not guaranteed arbitrage. Resolution rules, fees, settlement timing, and access restrictions can break apparent parity.")
+    st.caption(caveat("parity_not_arbitrage"))
 
 
 MONITOR_SIGNAL_TYPES = ["Fast mover", "Volume anomaly", "Whale print", "Tight spread", "Holder concentration", "Ending soon", "Watched market"]
@@ -10115,7 +10131,7 @@ def page_copy_trade() -> None:
         "Copy Trade",
         "Paper-only Swisstony copier with dynamic wallet-relative sizing and settlement recycling.",
     )
-    st.info("Paper mode only. This page observes public Polymarket wallet activity and does not place real orders.")
+    st.info(f"This page observes public Polymarket wallet activity. {caveat('paper_desk_only')}")
 
     controls = st.columns([1, 1, 1, 1, 1])
     if controls[0].button("Sync now", type="primary", width="stretch"):
@@ -11912,8 +11928,10 @@ def page_suspicious() -> None:
         "Markets and wallets with insider-like flow — long-odds size, late timing, fresh-wallet clusters, one-sided pressure.",
         kicker="Suspicious · Risk screen",
     )
+    # Nur der Vorbehalt kommt aus dem Register; die Score-Baender daneben
+    # sind eine Beschriftung des Scores und bleiben unveraendert.
     st.markdown(
-        "<div class='field-hint'>Best-effort screen on public trade data — research leads, not legal findings. "
+        f"<div class='field-hint'>{html.escape(caveat('screen_not_proof'))} "
         "Score bands: &lt;40 low · 40–54 elevated · 55–69 medium · ≥70 high.</div>",
         unsafe_allow_html=True,
     )
@@ -12569,10 +12587,12 @@ def _esc(value: Any) -> str:
 
 def render_analysis_footer() -> None:
     st.divider()
+    # "Read-only" ist die Eigenschaft dieses Laufs und gehoert der Seite; die
+    # beiden Vorbehalte daneben sind die Grundsaetze, die bisher nur als Text
+    # in public/data/meta.json standen und jetzt im Register stehen.
     st.markdown(
-        "<div class='small-note'>Descriptive analysis from a daily, read-only "
-        "data run. No trading advice, no financial advice, no return "
-        "claims.</div>",
+        "<div class='small-note'>Read-only. "
+        f"{_esc(caveat('daily_run_descriptive'))} {_esc(caveat('daily_run_no_advice'))}</div>",
         unsafe_allow_html=True,
     )
 
@@ -12931,7 +12951,7 @@ def page_mentions_latenz() -> None:
 def page_pipeline_forward() -> None:
     section_header(
         "Pipeline Forward Test",
-        "Observing paper run of the decision pipeline -- no orders, no return claims.",
+        f"Observing paper run of the decision pipeline. {caveat('paper_log_no_return_claim')}",
         kicker="Daily research artifacts",
     )
     payload = load_publish_payload_cached("pipeline_forward.json")
@@ -13768,9 +13788,9 @@ def page_live_runs() -> None:
                 },
             )
             st.caption(
-                "Replay of the recorded bets under a different stake rule — a what-if on history, "
-                "not a forecast. Missed chances are listed per run above but cannot be simulated: "
-                "they never filled, so they have no recorded outcome."
+                "Replay of the recorded bets under a different stake rule, a what-if on history. "
+                f"{caveat('past_not_forecast')} Missed chances are listed per run above but cannot "
+                "be simulated: they never filled, so they have no recorded outcome."
             )
 
         with st.expander("Kelly & Bayes toolkit — size a live market by hand"):
@@ -13810,12 +13830,26 @@ def page_methodik() -> None:
         render_analysis_footer()
         return
     st.markdown("#### Principles")
-    disclaimer = meta.get("disclaimer") or []
-    if isinstance(disclaimer, dict):  # aeltere Publish-Version
-        disclaimer = list(disclaimer.values())
-    for text in disclaimer:
+    # Die vier Grundsaetze standen als Textzeilen in public/data/meta.json,
+    # geschrieben vom taeglichen Lauf in einem anderen Repo. Jetzt kommen sie
+    # aus dem Register, damit dieselbe Zusage im Web-Frontend und hier
+    # denselben Wortlaut hat. Was der Publisher darueber hinaus schickt,
+    # steht weiter darunter: eine Zeile, die das Register nicht kennt, soll
+    # sichtbar werden und nicht verschwinden.
+    for text in (
+        caveat("daily_run_descriptive"),
+        caveat("verification_not_signal"),
+        caveat("daily_run_no_advice"),
+        caveat("daily_run_privacy"),
+    ):
         with st.container(border=True):
-            st.caption(str(text))
+            st.caption(text)
+    published = meta.get("disclaimer") or []
+    if isinstance(published, dict):  # aeltere Publish-Version
+        published = list(published.values())
+    for text in claims.unregistered_texts(published):
+        with st.container(border=True):
+            st.caption(text)
     st.markdown("#### Guardrails of the agent run")
     st.markdown(
         "- Agents read exclusively through the MCP read layer: four read-only tools, "

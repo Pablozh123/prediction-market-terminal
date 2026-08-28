@@ -6,7 +6,9 @@ Four checks, all against data/claims.yaml, all failing with exit 1:
 2. **Unregistered disclaimers.** A surface writes a standing caveat by hand
    instead of rendering a register entry. A register that only forbids
    wording but does not supply it is half a register: every hand-written
-   disclaimer is copy that no review ever checked against the rules.
+   disclaimer is copy that no review ever checked against the rules. Both
+   surfaces are in scope, the web frontend and the Streamlit monolith, so a
+   sentence cannot exist twice in two wordings with only one of them bound.
 3. **Entries that stopped being shown.** Every disclaimer that names its
    `surfaces` must actually be rendered there, and every caveat('<key>')
    must name an entry that exists. This is the check that would have caught
@@ -49,16 +51,18 @@ LINT_SOURCES = (
     "web/js/**/*.js",
 )
 
-# Where a caveat must come from the register rather than from prose. This is
-# the published web frontend plus the API payloads it and every other client
-# read. prediction_terminal.py is deliberately not in here yet: the Streamlit
-# monolith carries its own disclaimers and migrating them is its own change,
-# not a side effect of this one. Adding it later is one line, and the check
-# will then have something to say about roughly eight places.
+# Where a caveat must come from the register rather than from prose: both
+# surfaces of the product plus the API payloads every client reads. The
+# Streamlit monolith was outside this scope for one release and carried a
+# dozen hand-written disclaimers of its own, several of them a second,
+# drifting wording of a sentence the web frontend already read from the
+# register. A lint that binds one of two surfaces is how those duplicates
+# come about in the first place, so it now binds both.
 CAVEAT_SOURCES = (
     "web/index.html",
     "web/js/**/*.js",
     "app/api_views.py",
+    "prediction_terminal.py",
 )
 
 # Files that define or quote the forbidden list itself.
