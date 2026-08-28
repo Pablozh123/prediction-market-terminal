@@ -185,6 +185,6 @@ python scripts/smoke_routes.py
 python -m scripts.visual_smoke --base-url http://127.0.0.1:8503 --output-dir artifacts\visual_smoke --timeout-ms 45000
 ```
 
-The full Streamlit page smoke (network-dependent) runs with `RUN_APP_SMOKE=1 python -m unittest tests.test_app_smoke -v`.
+The Streamlit page smoke renders every page of the monolith through `AppTest` and is part of the unit run above, so it also runs in CI. It is hermetic: `requests` is routed to the fixtures in `tests/market_api_fixtures.py`, which deliver rows rather than empty responses so the aggregations actually run. `RUN_APP_SMOKE=1 python -m unittest tests.test_app_smoke -v` additionally repeats the same pass against the live public APIs, to catch schema drift on their side.
 
 Terminal UX smoke (Playwright, headless Chromium, not in CI): `python scripts/ux_smoke.py --base-url http://127.0.0.1:8790` against a running `api/server.py`, or `--static` against `python -m http.server -d dist 8791` after `scripts/build_static_site.py` — clicks every page, study, sub-tab, the palette, the drawer and the deep links; exits non-zero on console errors, failed requests, an address out of step with the page, lost `<details>` state or an anchor that did not scroll (`pip install playwright && playwright install chromium` once).

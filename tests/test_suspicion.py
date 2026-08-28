@@ -102,6 +102,24 @@ class ZaehleinheitMarktTests(unittest.TestCase):
         ])
         self.assertEqual(int(md.whale_wallets(frame).iloc[0]["markets"]), 2)
 
+    def test_trader_flow_scores_counts_markets_by_key_too(self) -> None:
+        # Regression: trader_flow_scores aggregierte ueber market_identity,
+        # ohne die Spalte vorher abzuleiten. Der Aufruf endete in
+        # KeyError: Column(s) ['market_identity'] do not exist und riss die
+        # Seiten Search und Traders mit.
+        scores = md.trader_flow_scores(self._tape(), whale_threshold=2500.0)
+        self.assertEqual(int(scores.iloc[0]["markets"]), 2)
+
+    def test_every_market_counter_survives_a_tape_without_keys(self) -> None:
+        # Ohne market_key faellt market_identity auf den Titel zurueck. Jede
+        # Aggregation, die ueber market_identity zaehlt, muss diesen Fall
+        # tragen, statt an der fehlenden Spalte zu zerbrechen.
+        tape_ohne_key = self._tape().drop(columns=["market_key"])
+        self.assertEqual(int(md.whale_wallets(tape_ohne_key).iloc[0]["markets"]), 1)
+        self.assertEqual(int(md.trader_flow_scores(tape_ohne_key, whale_threshold=2500.0).iloc[0]["markets"]), 1)
+        self.assertEqual(int(md.whale_wallet_risk_scores(tape_ohne_key, whale_threshold=2500.0).iloc[0]["markets"]), 1)
+        self.assertFalse(md.whale_event_risk_scores(tape_ohne_key, whale_threshold=2500.0).empty)
+
     def test_market_identity_falls_back_to_the_title(self) -> None:
         frame = pd.DataFrame([{"title": "A question", "market_key": ""}, {"title": "B", "market_key": "0xb"}])
         self.assertEqual(list(md.market_identity(frame)), ["A question", "0xb"])
