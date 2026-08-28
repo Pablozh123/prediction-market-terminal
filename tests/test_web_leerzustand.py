@@ -789,7 +789,11 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("track: renderTrack", app_js)
         # Fusszeile: Repo, Read-only-Satz, Live-run-Wallet.
         self.assertIn("github.com/Pablozh123/prediction-market-terminal", app_js)
-        self.assertIn("Read-only. No orders placed. Public Polymarket &amp; Kalshi data.", app_js)
+        # Der Read-only-Satz steht nicht mehr als Prosa in app.js, sondern
+        # kommt aus dem Register (data/claims.yaml site_footer_readonly).
+        # Dass er wortgleich ankommt, prueft tests/test_web_claims.py.
+        self.assertIn("caveatZeile('site_footer_readonly'", app_js)
+        self.assertNotIn("No orders placed. Public Polymarket", app_js)
         self.assertIn("0x29af…f88d", app_js)
         # Titel der Seite.
         index = (WURZEL / "web" / "index.html").read_text(encoding="utf-8")
