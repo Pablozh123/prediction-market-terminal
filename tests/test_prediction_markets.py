@@ -2034,6 +2034,35 @@ class KalshiCentUnitTests(unittest.TestCase):
         self.assertAlmostEqual(float(row["best_ask"]), 0.02)
         self.assertAlmostEqual(float(row["spread"]), 0.01)
 
+    def test_orderbook_in_the_documented_cent_shape_is_not_empty(self) -> None:
+        # Vorher wurde nur yes_dollars/no_dollars gelesen: ein Buch in der
+        # Cent-Form kam als leere Leiter zurueck, also Tiefe null.
+        payload = {"orderbook": {"yes": [[55, 1200], [54, 900]], "no": [[43, 800]]}}
+        with patch("src.prediction_markets._get_json", return_value=payload):
+            bids, asks = md.get_kalshi_orderbook("KXFED-26JUN")
+        self.assertEqual(len(bids), 2)
+        self.assertEqual(len(asks), 1)
+        self.assertAlmostEqual(float(bids.iloc[0]["price"]), 0.55)
+        self.assertAlmostEqual(float(bids.iloc[0]["notional"]), 660.0)
+        # Ein NO-Gebot zu 43 Cent ist ein YES-Angebot zu 57 Cent.
+        self.assertAlmostEqual(float(asks.iloc[0]["price"]), 0.57)
+
+    def test_orderbook_dollar_shape_keeps_working(self) -> None:
+        payload = {"orderbook_fp": {"yes_dollars": [["0.55", "1200"]],
+                                    "no_dollars": [["0.43", "800"]]}}
+        with patch("src.prediction_markets._get_json", return_value=payload):
+            bids, asks = md.get_kalshi_orderbook("KXFED-26JUN")
+        self.assertAlmostEqual(float(bids.iloc[0]["price"]), 0.55)
+        self.assertAlmostEqual(float(asks.iloc[0]["price"]), 0.57)
+
+    def test_orderbook_dict_levels_prefer_the_dollar_field(self) -> None:
+        payload = {"orderbook": {"yes": [{"price_dollars": "0.55", "price": 55, "count": 300}],
+                                 "no": []}}
+        with patch("src.prediction_markets._get_json", return_value=payload):
+            bids, _asks = md.get_kalshi_orderbook("KXFED-26JUN")
+        self.assertAlmostEqual(float(bids.iloc[0]["price"]), 0.55)
+        self.assertAlmostEqual(float(bids.iloc[0]["size"]), 300.0)
+
     def test_candlestick_cents_become_probabilities(self) -> None:
         payload = {"candlesticks": [{
             "end_period_ts": 1700000000,

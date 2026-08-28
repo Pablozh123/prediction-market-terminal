@@ -2878,16 +2878,35 @@ def get_kalshi_orderbook(ticker: str) -> tuple[pd.DataFrame, pd.DataFrame]:
         return empty.copy(), empty.copy()
     book = data.get("orderbook_fp") or data.get("orderbook") or {}
 
-    def normalize(levels: list[Any], side: str) -> pd.DataFrame:
+    def ladder(seite: str) -> tuple[list[Any], bool]:
+        """Die Leiter einer Seite plus die Einheit, in der sie notiert.
+
+        Nur der Feldname sagt die Einheit: ``yes_dollars`` ist Dollar,
+        ``yes`` ist Cents. Vorher wurde ausschliesslich ``yes_dollars``
+        gelesen, und ein Buch in der dokumentierten Cent-Form kam als leer
+        zurueck: keine Tiefe, kein Spread, ein stiller Nullwert statt einer
+        Leiter mit tausend Kontrakten.
+        """
+
+        in_dollars = book.get(f"{seite}_dollars")
+        if in_dollars:
+            return list(in_dollars), True
+        return list(book.get(seite) or []), False
+
+    def normalize(levels: list[Any], side: str, in_dollars: bool) -> pd.DataFrame:
         rows: list[dict[str, float | str]] = []
         for level in levels or []:
             if isinstance(level, dict):
-                price = cents(_first_nonempty(level.get("price"), level.get("price_dollars")))
+                price = kalshi_price(level.get("price_dollars"), level.get("price"), default=None)
                 size = dollars(_first_nonempty(level.get("size"), level.get("count"), level.get("count_fp")))
-            elif isinstance(level, list) and len(level) >= 2:
-                price = cents(level[0])
+            elif isinstance(level, (list, tuple)) and len(level) >= 2:
+                roh = level[0]
+                price = kalshi_price(roh if in_dollars else None,
+                                     None if in_dollars else roh, default=None)
                 size = dollars(level[1])
             else:
+                continue
+            if price is None:
                 continue
             if side == "ask":
                 price = 1 - price
@@ -2897,7 +2916,9 @@ def get_kalshi_orderbook(ticker: str) -> tuple[pd.DataFrame, pd.DataFrame]:
             df = df.sort_values("price", ascending=(side == "ask")).reset_index(drop=True)
         return df
 
-    return normalize(book.get("yes_dollars", []), "bid"), normalize(book.get("no_dollars", []), "ask")
+    yes_levels, yes_dollars = ladder("yes")
+    no_levels, no_dollars = ladder("no")
+    return normalize(yes_levels, "bid", yes_dollars), normalize(no_levels, "ask", no_dollars)
 
 
 def wallet_summary(open_positions: pd.DataFrame, closed_positions: pd.DataFrame, trades: pd.DataFrame) -> dict[str, Any]:
