@@ -28,6 +28,7 @@ from app import app_settings as cfg
 from app import authz as az
 from app import backtester as btr
 from app import calibration as calib
+from app import claims
 from app import copy_fidelity as cfy
 from app import cross_pairs as cp
 from app import copy_follow as ctf
@@ -78,6 +79,22 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+
+# Der einzige Weg, auf dem ein stehender Vorbehalt in diese Oberflaeche
+# kommt. Bis hierher trug der Monolith seine Disclaimer als Prosa, waehrend
+# das Web-Frontend dieselben Saetze schon aus data/claims.yaml las: zwei
+# Fassungen desselben Vorbehalts, und genau daraus sind in diesem Repo
+# mehrfach auseinandergedriftete Dubletten entstanden. Der Name traegt
+# absichtlich dasselbe caveat( wie im Frontend, damit
+# scripts/lint_claims.py beide Oberflaechen mit einer Regel liest.
+#
+# Die Seite besitzt weiter ihren beschreibenden Teil ("was diese Seite
+# tut"); der Vorbehalt daneben gehoert dem Register.
+def caveat(key: str, lang: str = "en") -> str:
+    """Registertext eines Vorbehalts (data/claims.yaml). Unbekannt = ''."""
+
+    return claims.disclaimer(key, lang)
 
 
 ACCENT = "#C8F542"
@@ -148,7 +165,7 @@ WORKSPACE_HELP = {
     "Traders": "Leaderboard with win rates, podium, speed traders, and insider picks.",
     "Wallets": "Deep-dive one wallet — positions, activity, and PnL.",
     "Whale Flow": "Large prints: who is moving big money, and where.",
-    "Suspicious": "Insider-risk screen — unusual timing, fresh wallets, clusters.",
+    "Suspicious": "Flow-pattern screen — unusual timing, fresh wallets, clusters.",
     "Track": "Your tracked wallets and markets, with grades and records.",
     "Backtester": "Replay any trader's history with your own sizing rules.",
     "Copy Trade": "Paper copy-trading engine with live WebSocket detection.",
@@ -2704,8 +2721,7 @@ with st.sidebar:
     )
     st.markdown(
         "<div class='sidebar-footnote' style='margin-top:0.9rem'>"
-        "Research tool only — no investment advice, no order placement, no venue affiliation. "
-        "Public Polymarket &amp; Kalshi data, provided as-is."
+        f"{html.escape(caveat('research_tool_only'))}"
         f"<br>Last render: {md.now_utc_label()}</div>",
         unsafe_allow_html=True,
     )
@@ -3573,12 +3589,12 @@ def trader_insight_metrics(
 
 def page_overview() -> None:
     st.markdown(
-        """
+        f"""
         <div class='hero'>
             <span class='hero-badge'><span class='live-dot'></span>Live · public on-chain data</span>
             <div class='hero-title'>Read the market <em>like the whales do.</em></div>
             <div class='hero-sub'>Whale prints, insider-risk screens, coordinated wallet clusters and copy-trade backtests —
-            one terminal for Polymarket and Kalshi. No signup, no orders placed, pure research.</div>
+            one terminal for Polymarket and Kalshi. {html.escape(caveat('no_signup_no_orders'))}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -5268,7 +5284,7 @@ def render_track_record(
                 f"{edge_rep['n_events']:,}",
                 help=f"{edge_rep['n_positions']:,} resolved positions netted to {edge_rep['n_events']:,} independent events.",
             )
-            st.caption(f"{edge_rep['headline']} Past record, not a forecast.")
+            st.caption(f"{edge_rep['headline']} {caveat('past_not_forecast')}")
         attribution = trec.pnl_attribution(resolved)
         if attribution["structural_share"] is not None:
             st.divider()
@@ -6060,7 +6076,7 @@ def render_pnl_vs_skill(leaderboard: pd.DataFrame) -> None:
         st.caption(
             "Skill score corrects the four naive-leaderboard errors (leg inflation, winner-only PnL, wash volume, survivorship) "
             "and penalises one-hit concentration. Verdicts read the realized-edge CI against zero — most records, including "
-            "profitable ones, are not separable from chance on public data. Diagnostics, not advice."
+            f"profitable ones, are not separable from chance on public data. {caveat('diagnostic_not_advice')}"
         )
 
 
@@ -8102,12 +8118,12 @@ def page_whale_flow() -> None:
         "uses the shared screen basis, so the same wallet can carry a different number there."
     )
     cols[4].metric(
-        "High insider events",
+        "Events at 70+ pts",
         f"{int((numeric_col(event_risk, 'event_insider_score') >= 70).sum()) if not event_risk.empty else 0:,}",
         help=tape_basis_note,
     )
     cols[5].metric(
-        "High insider wallets",
+        "Wallets at 70+ pts",
         f"{int((numeric_col(wallet_risk, 'wallet_insider_score') >= 70).sum()) if not wallet_risk.empty else 0:,}",
         help=tape_basis_note,
     )
@@ -8173,7 +8189,7 @@ def page_whale_flow() -> None:
                 height=390,
                 column_config={
                     "wallet_insider_score": st.column_config.ProgressColumn(
-                        "Insider (this tape)", min_value=0, max_value=100,
+                        "Flow pattern (this tape)", min_value=0, max_value=100,
                         help="Flow shape in this page's filtered tape, scaled to 0-100. Nothing in it is validated against an outcome, and the Suspicious page scores the same wallet over a different sample.",
                     ),
                     "notional": st.column_config.NumberColumn(format="$%.0f"),
@@ -8187,7 +8203,7 @@ def page_whale_flow() -> None:
                 },
             )
 
-    st.markdown("<div class='field-hint'>Insider-risk scoring lives on the dedicated Suspicious screen now.</div>", unsafe_allow_html=True)
+    st.markdown("<div class='field-hint'>The full flow-pattern screen lives on the dedicated Suspicious page.</div>", unsafe_allow_html=True)
     tab_tape, tab_markets, tab_bias, tab_track = st.tabs(["Trade Tape", "Market Flow", "Outcome Bias", "Track Actions"])
     with tab_tape:
         st.markdown("### Trade tape")
@@ -8250,7 +8266,10 @@ def page_whale_flow() -> None:
                 width="stretch",
                 height=460,
                 column_config={
-                    "event_insider_score": st.column_config.ProgressColumn("Insider", min_value=0, max_value=100),
+                    "event_insider_score": st.column_config.ProgressColumn(
+                        "Flow pattern (this tape)", min_value=0, max_value=100,
+                        help="Points over nine flow features in this page's filtered tape, capped at 100. Nothing in it is validated against an outcome, and the Suspicious page scores the same market over a different sample.",
+                    ),
                     "notional": st.column_config.NumberColumn(format="$%.0f"),
                     "avg_trade": st.column_config.NumberColumn(format="$%.0f"),
                     "largest_trade": st.column_config.NumberColumn(format="$%.0f"),
@@ -8561,7 +8580,7 @@ def page_cross_venue() -> None:
             st.session_state.watchlist.append(item)
             save_local_list("watchlist.json", st.session_state.watchlist)
             st.success("Kalshi leg added to watchlist.")
-    st.caption("Price gaps are research leads, not guaranteed arbitrage. Resolution rules, fees, settlement timing, and access restrictions can break apparent parity.")
+    st.caption(caveat("parity_not_arbitrage"))
 
 
 MONITOR_SIGNAL_TYPES = ["Fast mover", "Volume anomaly", "Whale print", "Tight spread", "Holder concentration", "Ending soon", "Watched market"]
@@ -10207,7 +10226,7 @@ def page_copy_trade() -> None:
         "Copy Trade",
         "Paper-only Swisstony copier with dynamic wallet-relative sizing and settlement recycling.",
     )
-    st.info("Paper mode only. This page observes public Polymarket wallet activity and does not place real orders.")
+    st.info(f"This page observes public Polymarket wallet activity. {caveat('paper_desk_only')}")
 
     controls = st.columns([1, 1, 1, 1, 1])
     if controls[0].button("Sync now", type="primary", width="stretch"):
@@ -11932,7 +11951,13 @@ def page_settings() -> None:
         st.rerun()
 
 
+# Farbe je INTERNEM Level. Das Level bleibt das Drahtformat (Filter,
+# Flag-Log); was auf dem Bildschirm steht, ist das Band aus
+# app.suspicion.score_band, das getroffene Pruefungen zaehlt statt eine
+# Einschaetzung zu behaupten.
 RISK_LEVEL_COLORS = {"High": RED, "Medium": AMBER, "Elevated": BLUE, "Low": MUTED}
+#: Ton aus app.suspicion.SCORE_BANDS -> Farbe dieser Oberflaeche.
+SCORE_BAND_COLORS = {"warn": AMBER, "muted": BLUE, "quiet": MUTED}
 CLUSTER_COLORS = [ACCENT, BLUE, AMBER, "#E879F9", "#34D399", "#F87171", "#60A5FA", "#FBBF24", "#A78BFA", "#F472B6"]
 
 
@@ -12001,12 +12026,21 @@ def load_market_categories_by_ids(market_keys: tuple[str, ...]) -> pd.DataFrame:
 def page_suspicious() -> None:
     section_header(
         "Suspicious",
-        "Markets and wallets with insider-like flow — long-odds size, late timing, fresh-wallet clusters, one-sided pressure.",
+        "Markets and wallets whose flow trips the screen's checks — long-odds size, late timing, fresh-wallet clusters, one-sided pressure.",
         kicker="Suspicious · Risk screen",
     )
+    # Beide Vorbehalte kommen aus dem Register; die Baender kommen aus
+    # app.suspicion und heissen nach der Zahl der angesprochenen Pruefungen.
+    # "high" neben einer 0-100-Zahl las sich als Wahrscheinlichkeit fuer
+    # Insiderhandel, und die Zahl ist eine Punktesumme aus neun
+    # Flow-Merkmalen mit gesetzten Gewichten.
+    band_hinweis = " · ".join(
+        f"{row['from']}–{row['to']} {row['label'].lower()}" for row in susp.score_band_table()
+    )
     st.markdown(
-        "<div class='field-hint'>Best-effort screen on public trade data — research leads, not legal findings. "
-        "Score bands: &lt;40 low · 40–54 elevated · 55–69 medium · ≥70 high.</div>",
+        f"<div class='field-hint'>{html.escape(caveat('screen_not_proof'))} "
+        f"{html.escape(susp.SCORE_NAME.capitalize())}, 0–100 points: {html.escape(band_hinweis)}.<br>"
+        f"{html.escape(caveat('insider_score_unvalidated'))}</div>",
         unsafe_allow_html=True,
     )
     # Dieselbe Definition wie jede andere Oberflaeche mit einem
@@ -12105,8 +12139,10 @@ def page_suspicious() -> None:
     high_wallets = int((numeric_col(wallet_risk, "wallet_insider_score") >= 70).sum()) if not wallet_risk.empty else 0
     stat_cols = st.columns(5)
     stat_cols[0].metric("Events screened", f"{len(event_risk):,}", help="Markets with whale-sized prints in the current trade sample.")
-    stat_cols[1].metric("High-risk events", f"{high_events:,}", help="Events with a suspicion score of 70 or higher.")
-    stat_cols[2].metric("High-risk wallets", f"{high_wallets:,}", help="Wallets with a risk score of 70 or higher.")
+    stat_cols[1].metric("Events at 70+ pts", f"{high_events:,}",
+                        help="Markets whose flow tripped most of the screen's nine checks.")
+    stat_cols[2].metric("Wallets at 70+ pts", f"{high_wallets:,}",
+                        help="Wallets whose prints tripped most of the screen's nine checks.")
     stat_cols[3].metric(
         "Whale volume",
         money(numeric_col(event_risk, "notional").sum()),
@@ -12116,8 +12152,15 @@ def page_suspicious() -> None:
 
     with st.expander("How to read this page"):
         st.markdown(
-            "- **Score (0–100):** built from unusual size, big bets on long odds, flow close to resolution, one-sided pressure, "
-            "trade bursts, fresh wallets, coordinated timing and favorable price moves. Bands: <40 low · 40–54 elevated · 55–69 medium · ≥70 high.\n"
+            f"- **{susp.SCORE_NAME.capitalize()} (0–100 points):** nine flow features, each capped at a fixed number of points and "
+            "summed: unusual size, the biggest single print, money on long odds, concentration, one-sided pressure, trade bursts, flow "
+            "close to resolution, a favorable price move, and a wallet cluster or a fresh wallet. Fresh-wallet, timing and account-age "
+            "bonuses and a category multiplier are applied on top. The caps are the weights, and they were chosen, not estimated. "
+            f"Bands: {band_hinweis}.\n"
+            f"- **What has not been measured:** {caveat('insider_score_unvalidated')} The one outcome this project "
+            "does measure about the screen is a different quantity: whether the price of the flagged side was higher 30 min, 2 h and "
+            "24 h after the flag, reported with n, a Wilson interval and a note on multiple comparisons (the flag log in the web "
+            "frontend).\n"
             "- **Sample first:** every number describes the *sampled whale prints* (recent trades above the threshold), not the whole market. "
             "Distribution claims — one-wallet share, one-sided flow, bursts — count toward the score only from 3 sampled prints upward "
             "and reach full weight at 5; a single print is always \"100% one wallet\" and means nothing.\n"
@@ -12194,8 +12237,12 @@ def page_suspicious() -> None:
             cols = st.columns(2)
             for offset, (col, (_, event)) in enumerate(zip(cols, event_rows[start : start + 2])):
                 level = str(event.get("event_insider_level", "Low") or "Low")
-                color = RISK_LEVEL_COLORS.get(level, MUTED)
                 score = float(event.get("event_insider_score", 0.0) or 0.0)
+                # Die Beschriftung zaehlt Pruefungen, die Farbe folgt dem Band
+                # und nicht mehr dem internen Level: sonst traegt dieselbe Zahl
+                # hier eine andere Aussage als im Web-Frontend.
+                band = susp.score_band(score)
+                color = SCORE_BAND_COLORS.get(band["tone"], RISK_LEVEL_COLORS.get(level, MUTED))
                 raw_score = float(event.get("event_score_raw", score) or score)
                 context_group = str(event.get("insider_context", "") or "")
                 context_note = str(event.get("context_note", "") or "")
@@ -12206,7 +12253,7 @@ def page_suspicious() -> None:
                 with col:
                     with st.container(border=True):
                         st.markdown(
-                            f"<span class='risk-badge' style='color:{color};border-color:{color}'>{score:.0f} · {level.upper()}</span> "
+                            f"<span class='risk-badge' style='color:{color};border-color:{color}'>{score:.0f} pts · {band['label']}</span> "
                             f"<strong>{html.escape(title[:90])}</strong>{raw_hint}",
                             unsafe_allow_html=True,
                         )
@@ -12661,10 +12708,12 @@ def _esc(value: Any) -> str:
 
 def render_analysis_footer() -> None:
     st.divider()
+    # "Read-only" ist die Eigenschaft dieses Laufs und gehoert der Seite; die
+    # beiden Vorbehalte daneben sind die Grundsaetze, die bisher nur als Text
+    # in public/data/meta.json standen und jetzt im Register stehen.
     st.markdown(
-        "<div class='small-note'>Descriptive analysis from a daily, read-only "
-        "data run. No trading advice, no financial advice, no return "
-        "claims.</div>",
+        "<div class='small-note'>Read-only. "
+        f"{_esc(caveat('daily_run_descriptive'))} {_esc(caveat('daily_run_no_advice'))}</div>",
         unsafe_allow_html=True,
     )
 
@@ -13023,7 +13072,7 @@ def page_mentions_latenz() -> None:
 def page_pipeline_forward() -> None:
     section_header(
         "Pipeline Forward Test",
-        "Observing paper run of the decision pipeline -- no orders, no return claims.",
+        f"Observing paper run of the decision pipeline. {caveat('paper_log_no_return_claim')}",
         kicker="Daily research artifacts",
     )
     payload = load_publish_payload_cached("pipeline_forward.json")
@@ -13860,9 +13909,9 @@ def page_live_runs() -> None:
                 },
             )
             st.caption(
-                "Replay of the recorded bets under a different stake rule — a what-if on history, "
-                "not a forecast. Missed chances are listed per run above but cannot be simulated: "
-                "they never filled, so they have no recorded outcome."
+                "Replay of the recorded bets under a different stake rule, a what-if on history. "
+                f"{caveat('past_not_forecast')} Missed chances are listed per run above but cannot "
+                "be simulated: they never filled, so they have no recorded outcome."
             )
 
         with st.expander("Kelly & Bayes toolkit — size a live market by hand"):
@@ -13902,12 +13951,26 @@ def page_methodik() -> None:
         render_analysis_footer()
         return
     st.markdown("#### Principles")
-    disclaimer = meta.get("disclaimer") or []
-    if isinstance(disclaimer, dict):  # aeltere Publish-Version
-        disclaimer = list(disclaimer.values())
-    for text in disclaimer:
+    # Die vier Grundsaetze standen als Textzeilen in public/data/meta.json,
+    # geschrieben vom taeglichen Lauf in einem anderen Repo. Jetzt kommen sie
+    # aus dem Register, damit dieselbe Zusage im Web-Frontend und hier
+    # denselben Wortlaut hat. Was der Publisher darueber hinaus schickt,
+    # steht weiter darunter: eine Zeile, die das Register nicht kennt, soll
+    # sichtbar werden und nicht verschwinden.
+    for text in (
+        caveat("daily_run_descriptive"),
+        caveat("verification_not_signal"),
+        caveat("daily_run_no_advice"),
+        caveat("daily_run_privacy"),
+    ):
         with st.container(border=True):
-            st.caption(str(text))
+            st.caption(text)
+    published = meta.get("disclaimer") or []
+    if isinstance(published, dict):  # aeltere Publish-Version
+        published = list(published.values())
+    for text in claims.unregistered_texts(published):
+        with st.container(border=True):
+            st.caption(text)
     st.markdown("#### Guardrails of the agent run")
     st.markdown(
         "- Agents read exclusively through the MCP read layer: four read-only tools, "

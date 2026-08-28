@@ -44,7 +44,7 @@ SEITEN_MIT_DIAGRAMM = ("traders", "wallet", "risk", "markets_verteilung", "backt
 ACHSEN_MIT_EINHEIT = {
     "traders": ["smart score (points out of 100)", "volume traded (USD, log)"],
     "wallet": ["at stake (USD)"],
-    "risk": ["insider-pattern score (points out of 100)", "markets screened"],
+    "risk": ["flow-pattern score (points out of 100)", "markets screened"],
     "markets_verteilung": ["yes price (cents)", "markets in the sample"],
     "backtester_stats": ["result per closed copy (USD)", "closed copies"],
 }
@@ -149,7 +149,11 @@ class WebDiagrammTest(unittest.TestCase):
         html = self.ausgabe["live"]["risk"]
         self.assertIn("WHERE THE SCORES SIT", html)
         self.assertIn("flag 40", html)
-        self.assertIn("high 70", html)
+        # Die Referenzlinie heisst nach dem Band, nicht nach einer
+        # Einschaetzung: "high 70" neben einer Punkteachse las sich als
+        # Wahrscheinlichkeit fuer Insiderhandel.
+        self.assertIn("most patterns 70", html)
+        self.assertNotIn("high 70", html)
         # Geflaggte Teilmenge als zweite Lage, mit Legende statt nur Farbe.
         self.assertIn("flagged, gets a card", html)
         self.assertIn("screened", html)

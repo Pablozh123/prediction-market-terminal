@@ -1166,6 +1166,7 @@ def risk_book(
 @app.get("/api/risk/log")
 def risk_log_endpoint(limit: int = Query(100, ge=1, le=500), enrich: int = 0, since: str | None = None) -> dict[str, Any]:
     from app import risk_log
+    from app import suspicion as susp
 
     rows = risk_log.read_flags(limit=limit, since=since)
     enriched = 0
@@ -1194,6 +1195,11 @@ def risk_log_endpoint(limit: int = Query(100, ge=1, le=500), enrich: int = 0, si
         # mit n, 95-Prozent-Intervall, Sample-Badge, Stand und den
         # weggelassenen Nennern daneben.
         "scoreboard": risk_log.flag_scoreboard(rows, as_of=None, enrich_max=RISK_LOG_ENRICH_MAX) if enrich else None,
+        # Dieselbe Beschriftung wie auf den Event-Karten (susp.SCORE_BANDS):
+        # ein Log-Eintrag mit 72 Punkten darf hier nicht anders heissen als
+        # dieselbe Zahl eine Registerkarte weiter.
+        "score_name": susp.SCORE_NAME,
+        "score_bands": susp.score_band_table(),
         "min_score": risk_log.min_score(),
         "dedupe_hours": risk_log.DEDUPE_HOURS,
         "sampler_interval_min": RISK_LOG_INTERVAL_MIN,

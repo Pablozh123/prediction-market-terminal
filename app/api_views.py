@@ -1683,6 +1683,10 @@ def risk_event_row(row: Any) -> dict[str, Any]:
     return {
         "kind": (_text(flags[0]).upper() if flags else "EVENT SCREEN"),
         "score": round(_num(row.get("event_insider_score") or row.get("event_risk_score"), 0.0) or 0.0),
+        # Die Beschriftung des Bandes kommt aus einer Quelle (susp.SCORE_BANDS)
+        # und zaehlt getroffene Pruefungen. "sev" darueber bleibt das interne
+        # Level, an dem Filter, Farben und das Flag-Log haengen.
+        "band": susp.score_band(row.get("event_insider_score") or row.get("event_risk_score")),
         "market": _text(row.get("title")),
         "market_key": market_key,
         "url": market_url(venue, market_key, _text(row.get("url")), _text(row.get("slug"))),
@@ -1800,6 +1804,7 @@ def risk_payload(
                 "address": _text(row.get("wallet")),
                 "context": _text(row.get("top_market"))[:60] or "—",
                 "score": round(score),
+                "band": susp.score_band(score),
                 "flags": flags,
                 "prints": int(_num(row.get("trade_count"), 0.0) or 0),
                 # money_label, not a k-rounder: a $450 wallet showed as "$0k".
@@ -1814,6 +1819,18 @@ def risk_payload(
         # der Risk-Seite, und zwei Fassungen desselben Vorbehalts sind eine
         # Fassung zu viel (app/claims.py, data/claims.yaml screen_not_proof).
         "disclaimer": claims.disclaimer("screen_not_proof", "en"),
+        # Wie die Zahl heissen darf, woraus sie besteht und was ueber sie
+        # gemessen wurde. Vorher stand neben einer 0-100-Zahl das Wort "High",
+        # was sich wie eine Wahrscheinlichkeit fuer Insiderhandel liest; die
+        # Zahl ist eine Punktesumme aus neun Flow-Merkmalen mit gesetzten
+        # Gewichten und ohne gemessene Trefferquote. Die Beschriftung sagt
+        # das jetzt selbst, statt es dem Leser zu ueberlassen.
+        "score_name": susp.SCORE_NAME,
+        "score_unit": susp.SCORE_UNIT,
+        "score_basis": susp.score_basis(),
+        "score_bands": susp.score_band_table(),
+        "score_validation": susp.score_validation(),
+        "score_caveat": claims.disclaimer("insider_score_unvalidated", "en"),
         # Was der Screen gar nicht erst anschaut (susp.EXCLUDED_CONTEXTS):
         # Sportquoten, Wetter, Krypto/Marktpreise — dort gibt es nichts
         # frueher zu wissen, und die 15-Minuten-Kryptomaerkte waeren nur Rauschen.
