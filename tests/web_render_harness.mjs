@@ -1011,6 +1011,11 @@ function rendern(T) {
     // Renderer oder mit falschem Index hier auffaellt.
     ['research_microstructure', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Microstructure') }],
     ['research_postmortems', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Postmortems') }],
+    // Derselbe Reiter mit fehlgeschlagenem Abruf: der Kopf steht, und die
+    // Seite sagt, dass die Datei nicht geantwortet hat, statt auszusehen
+    // wie eine leere Datei.
+    ['research_postmortems_fehler', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Postmortems') },
+      ['Postmortems', { _quelle: 'fehler', _fehler: 'HTTP 503' }]],
     ['research_field_notes', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Field notes') }],
     ['research_methodology', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Methodology') }],
     ['research_mentions_latency', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Mentions latency') }],

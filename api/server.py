@@ -78,6 +78,8 @@ Paper-Copy-Desk unter /api/copy/*, der lokale Papierbuecher schreibt):
     POST /api/copy/settings        (editierbare Untermenge von CopySettings)
     POST /api/copy/sync            (ein API+Settlement-Durchlauf im Hintergrund)
     GET  /api/copy/sync
+    GET  /api/claims?lang=de|en   (Caveat-Register aus data/claims.yaml; das
+                                    Frontend rendert seine Vorbehalte daraus)
     GET  /api/research/{name}
     POST /api/backtest
 
@@ -116,6 +118,7 @@ from api.ratelimit import RateLimited, TokenBucketLimiter, client_ip
 from app import api_views as apv
 from app import app_settings as cfg
 from app import backtester as btr
+from app import claims as cl
 from app import cross_pairs
 from app import pilot_result
 from app import scorecard as sc
@@ -1597,6 +1600,21 @@ def copy_sync_state() -> dict[str, Any]:
     from app import copy_admin as ca
 
     return ca.sync_state()
+
+
+@app.get("/api/claims")
+def claims_register(lang: str = "") -> dict[str, Any]:
+    """Das Caveat-Register aus data/claims.yaml.
+
+    Ohne ``lang`` beide Sprachen, sonst nur die verlangte. Kein Cache-Eintrag:
+    die Datei ist wenige Kilobyte gross und app.claims haelt sie ohnehin nach
+    Aenderungszeit vor.
+    """
+
+    code = str(lang or "").strip().lower()
+    if code and code not in cl.LANGS:
+        raise HTTPException(status_code=400, detail=f"unknown language '{lang}'")
+    return apv.claims_payload(code or None)
 
 
 @app.get("/api/research/{name}")

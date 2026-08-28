@@ -602,14 +602,22 @@ const INK62 = 'style="fill:rgba(var(--ink),.62)"';
 const INK72 = 'style="fill:rgba(var(--ink),.72)"';
 const GITTER = 'style="stroke:rgba(var(--ink),.09)" stroke-width="1"';
 
-function karte(titel, einheit, hinweis, inhalt, fussnote) {
+// fussnote ist Text und wird maskiert; fussnoteHtml ist fertiges Markup und
+// wird es nicht. Den zweiten Kanal gibt es fuer genau einen Zweck: ein
+// Vorbehalt kommt aus data/claims.yaml ueber claims.js::caveat und bringt
+// sein data-caveat="<schluessel>" mit, an dem scripts/lint_claims.py haengt.
+// Durch esc() gedreht waere aus dem Attribut Text geworden, und der Satz
+// stuende wieder unkontrolliert in der Seite. Aufrufer geben hier nur
+// Register-Markup weiter, nie zusammengesetzte Nutzerdaten.
+function karte(titel, einheit, hinweis, inhalt, fussnote, fussnoteHtml) {
+  const fuss = (fussnote ? esc(fussnote) : '') + (fussnoteHtml ? (fussnote ? ' ' : '') + fussnoteHtml : '');
   return '<div style="' + CARD + '; padding:14px 16px 10px">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:6px">'
     + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(var(--ink),.62)">'
     + esc(titel || '') + (einheit ? ' · ' + esc(einheit) : '') + '</div>'
     + (hinweis ? '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.62)">' + esc(hinweis) + '</div>' : '')
     + '</div>' + inhalt
-    + (fussnote ? '<div style="font-size:11.5px; line-height:1.55; color:rgba(var(--ink),.62); margin-top:8px; max-width:640px">' + esc(fussnote) + '</div>' : '')
+    + (fuss ? '<div style="font-size:11.5px; line-height:1.55; color:rgba(var(--ink),.62); margin-top:8px; max-width:640px">' + fuss + '</div>' : '')
     + '</div>';
 }
 
@@ -641,6 +649,7 @@ function logTicks(min, max) {
  *       yLog: bool,
  *       gate: { wert, text },      // Zone unterhalb wird schattiert
  *       xReferenzen: [{ wert, label }], yReferenzen: [{ wert, label }],
+ *       fussnoteHtml (fertiges Vorbehalts-Markup, siehe karte),
  *       punkte: [{ x, y, label, tip, band?: [lo, hi], hervor?: bool }],
  *       labelN }                   // wie viele Punkte direkt beschriftet werden
  *  Ohne Punkte kein Diagramm. Eine Serie, also keine Legende: der Titel
@@ -753,7 +762,7 @@ export function punktwolke(k) {
     + achsenTitel(k.xLabel, (L + R) / 2, H - 8, false)
     + achsenTitel(k.yLabel, 12, (TOP + BOT) / 2, true)
     + '</svg>';
-  return karte(k.titel, k.einheit, k.hinweis, svg, k.fussnote);
+  return karte(k.titel, k.einheit, k.hinweis, svg, k.fussnote, k.fussnoteHtml);
 }
 
 /** Histogramm: Saeulen ueber gleich breiten Bins, mit Referenzlinien.
@@ -762,7 +771,8 @@ export function punktwolke(k) {
  *       bins: [{ von, bis, anzahl, hervor? }],
  *       hervorLabel, gesamtLabel,          // Legende, sobald es zwei Lagen gibt
  *       referenzen: [{ wert, label }],     // senkrecht, in x-Einheiten
- *       xTickText, zaehlEinheit, hoehe }
+ *       xTickText, zaehlEinheit, hoehe,
+ *       fussnoteHtml (fertiges Vorbehalts-Markup, siehe karte) }
  *  Ohne einen Bin mit Inhalt kein Diagramm.
  */
 export function histogramm(k) {
@@ -855,7 +865,7 @@ export function histogramm(k) {
     + achsenTitel(k.xLabel, (L + R) / 2, H - 8, false)
     + achsenTitel(k.yLabel, 11, (TOP + BOT) / 2, true)
     + '</svg>';
-  return karte(k.titel, k.einheit, k.hinweis, svg, k.fussnote);
+  return karte(k.titel, k.einheit, k.hinweis, svg, k.fussnote, k.fussnoteHtml);
 }
 
 /** Intervall-Marke: ein Punkt mit seiner Spanne auf einer beschrifteten

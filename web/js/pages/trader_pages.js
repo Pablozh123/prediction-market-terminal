@@ -1,6 +1,7 @@
 // Leaderboard, Whale flow, Risk screen, Tracked — ported from the design reference.
 
 import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, tapeFenster, fensterSatz } from '../util.js';
+import { caveat, caveatZeile } from '../claims.js';
 import { renderClusterGraphics, clusterFarbe } from './cluster_graphics.js';
 import { punktwolke, histogramm, kurzGeld } from '../charts.js';
 
@@ -110,27 +111,26 @@ export function scoreWolkeHtml(T, rows) {
   if (punkte.length < 2) return '';
   const lb = (T.liveData && T.liveData.leaderboard) || {};
   const skala = lb.score_scale || {};
-  const basis = (rows.find((t) => t && t.scoreBasis) || {}).scoreBasis || null;
   const badge = (rows.find((t) => t && t.sampleBadge) || {}).sampleBadge || null;
-  const n = basis && basis.cohort_n ? basis.cohort_n : null;
-  const gemessen = basis ? Math.round((basis.measured_weight || 0) * 100) : null;
   const stand = lb.as_of ? String(lb.as_of) : null;
   const yRefs = [];
   if (typeof skala.saturates_at === 'number' && skala.saturates_at > 0) {
     yRefs.push({ wert: skala.saturates_at, label: 'volume component maxes out at ' + kurzGeld(skala.saturates_at) });
   }
+  // Woraus der Score besteht, sagt der Basis-Satz direkt ueber dem
+  // Diagramm (scoreBasisSatz, Zwilling von api_views.score_basis_note):
+  // Anteil des gemessenen Gewichts, die geschaetzten Bestandteile, das
+  // Kohorten-n. Das steht hier bewusst nicht noch einmal in anderen Worten.
+  // Diese Fussnote traegt nur, was das Bild selbst hinzufuegt: das
+  // Sample-Abzeichen und den Stichtag als Seitenfakten, und den stehenden
+  // Vorbehalt zur Spanne aus dem Register.
   const fussnote = [
-    'Horizontal bar: how far the score could move if the placeholder components were measured'
-      + (gemessen != null ? ' (' + gemessen + '% of the composite weight is measured, ' + (100 - gemessen) + '% is a constant that is the same for every wallet)' : '')
-      + '. It is a range, not a confidence interval: the composite is deterministic once its inputs are fixed.',
-    n != null ? 'n = ' + num(n) + ' wallets scored together.' : '',
     badge && badge.quality ? 'Sample: ' + badge.quality + '.' : '',
-    'Resolved-bet counts are not in this feed; open a wallet for its win rate with n and a Wilson interval.',
     stand ? 'Snapshot ' + stand + '.' : ''
   ].filter(Boolean).join(' ');
   return punktwolke({
     titel: 'SCORE AGAINST THE EVIDENCE UNDER IT',
-    hinweis: punkte.length + ' scored wallets',
+    hinweis: punkte.length + ' scored wallets plotted',
     xLabel: 'smart score (points out of 100)',
     yLabel: 'volume traded (USD, log)',
     xDomain: [0, 100],
@@ -143,7 +143,8 @@ export function scoreWolkeHtml(T, rows) {
     yReferenzen: yRefs,
     punkte,
     labelN: 5,
-    fussnote
+    fussnote,
+    fussnoteHtml: caveat('composite_range_not_ci')
   });
 }
 
@@ -157,7 +158,7 @@ export function scoreTitel(t) {
     teile.push('unmeasured range ' + t.scoreCi[0] + ' to ' + t.scoreCi[1]
       + ' of 100: where the score could sit if the placeholder components were measured');
   }
-  if (t.scoreN) teile.push('n = ' + t.scoreN + ' wallets scored together');
+  if (t.scoreN) teile.push('n = ' + t.scoreN + ' wallets ranked together');
   if (t.sampleBadge && t.sampleBadge.quality) teile.push('sample: ' + t.sampleBadge.quality);
   return teile.length ? ' title="' + esc(teile.join(' · ')) + '"' : '';
 }
@@ -217,7 +218,13 @@ export function renderTraders(T) {
     + '<input value="' + esc(s.traderQuery) + '" ' + T.inp((e) => T.setState({ traderQuery: e.target.value }), 'traderQuery') + ' placeholder="Search name or wallet…" style="background:var(--panel); border:1px solid rgba(var(--ink),.35); border-radius:4px; padding:9px 12px; ' + M + '; font-size:12.5px; color:var(--text); width:230px" />'
     + '<div ' + T.act(() => T.setState({ traderQuery: '', tPnl: 'all', tVol: 'all', traderRank: 'pnl' })) + ' class="hv-bd32" style="font-size:12.5px; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.16); border-radius:4px; padding:9px 13px; cursor:pointer">Reset filters</div>'
     + '</div></div>'
-    + '<div style="font-size:13px; color:rgba(var(--ink),.55); margin-top:10px; max-width:760px">Ranked from the public Polymarket all-time leaderboard. The smart score is a weighted composite of the components listed under each wallet; win rate and resolved-bet counts are computed per wallet with sample size and confidence interval — open a wallet to see them.</div>'
+    // Der Vorbehalt gegen rohe PnL-Raenge stand als leaderboard_caveat im
+    // Register und war auf keiner Seite zu sehen; die Beschreibung davor
+    // bleibt Sache dieser Seite.
+    + caveatZeile('leaderboard_caveat', {
+      vorsatz: 'Ranked from the public Polymarket all-time leaderboard. The smart score is a weighted composite of the components listed under each wallet; win rate and resolved-bet counts are computed per wallet with sample size and confidence interval, so open a wallet to see them.',
+      stil: 'font-size:13px; color:rgba(var(--ink),.55); margin-top:10px; max-width:760px; line-height:1.5'
+    })
 
     + '<div style="display:flex; align-items:center; gap:20px; margin-top:14px; flex-wrap:wrap">'
     + '<div style="display:flex; align-items:center; gap:8px"><span style="' + LBL9.replace('; margin-bottom:6px', '') + '">RANK BY</span><div style="display:flex; gap:6px; flex-wrap:wrap">'
@@ -881,9 +888,11 @@ export function riskScoreVerteilung(live) {
     hervorLabel: 'flagged, gets a card',
     zaehlEinheit: 'markets',
     hoehe: 190,
+    // Kein zweiter Vorbehalt hier: screen_not_proof steht im Kopf dieser
+    // Seite, und derselbe Satz zweimal im selben Sichtfeld liest sich als
+    // zwei Aussagen.
     fussnote: num(geflaggt) + ' of ' + num(gesamt) + ' scored markets cleared the flag threshold of '
-      + minScore + '/100 and appear as cards. The score is a behavioural screen over public trade data; '
-      + 'a flag is a review signal, not proof of wrongdoing.'
+      + minScore + '/100 and appear as cards.'
   });
 }
 
@@ -1213,7 +1222,12 @@ export function renderRisk(T) {
     + '<h1 style="font-size:21px; line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">Trades that look like someone knew</h1></div>'
     + (live && live.as_of ? '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.55)">as of ' + esc(String(live.as_of)) + '</div>' : '')
     + '</div>'
-    + '<div style="font-size:13px; color:rgba(var(--ink),.55); margin-top:10px; max-width:760px">Best-effort screen on public trade data — research leads, not legal findings. Sports odds, crypto &amp; market prices, and weather are excluded: game results, exchange prices and weather models cannot be traded on early.</div>'
+    // Der Satz zur Beweiskraft eines Flags stand hier und noch einmal in
+    // api_views.risk_payload; beide lesen jetzt screen_not_proof.
+    + caveatZeile('screen_not_proof', {
+      nachsatz: 'Sports odds, crypto &amp; market prices, and weather are excluded: game results, exchange prices and weather models cannot be traded on early.',
+      stil: 'font-size:13px; color:rgba(var(--ink),.55); margin-top:10px; max-width:760px; line-height:1.5'
+    })
     + '<div style="display:flex; gap:7px; margin-top:12px; flex-wrap:wrap">'
     + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.12); border-radius:4px; padding:4px 9px">UNDER 40 · LOW</div>'
     + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.18); border-radius:4px; padding:4px 9px">40–54 · ELEVATED</div>'

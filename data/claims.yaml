@@ -8,14 +8,32 @@
 #
 # Versioned in the repo on purpose (the one exception to the runtime-generated
 # data/ directory): changing claim language must be a reviewed diff.
+#
+# How a surface gets its caveat:
+#
+#   data/claims.yaml  ->  app/claims.py            (Python readers, /api/claims)
+#                     ->  scripts/publish_claims.py -> web/js/claims_register.js
+#                                                   -> web/js/claims.js caveat()
+#
+# The generated module is what the browser reads, so a caveat renders before
+# any request is made; /api/claims serves the same register to anything else
+# and lets a deployed frontend pick up a newer one. Both copies are checked
+# against this file by scripts/lint_claims.py.
 
 version: 1
-updated: 2026-07-16
+updated: 2026-08-28
 
+# `surfaces` names the files that must render the entry, as a caveat('<key>')
+# call. scripts/lint_claims.py fails when one of them does not, so an entry
+# cannot quietly stop being shown. Entries without `surfaces` are read by
+# Python callers (scoreline_view, report-card templates) rather than by a
+# page of their own.
 disclaimers:
   score_generic:
     de: "Kennzahl aus oeffentlichen On-Chain-Daten. Information, keine Anlageberatung."
     en: "Metric from public on-chain data. Information, not investment advice."
+    surfaces:
+      - web/js/pages/core_pages.js
   diagnostic_not_advice:
     de: "Diagnose des bisherigen Records, keine Handlungsempfehlung."
     en: "A diagnostic of the past record, not a recommendation to act."
@@ -28,21 +46,82 @@ disclaimers:
   modeled_not_realized:
     de: "Modellierter Wert, zum Emit-Zeitpunkt eingefroren; kein realisierter Gewinn."
     en: "Modeled value frozen at emit time; not realized profit."
+  # "Read-only, nothing is placed" stood hand-written in wallet_page.js; it is
+  # part of the entry now instead of being a second, unchecked sentence.
   wallet_reader_caveat:
-    de: "Liest ausschliesslich oeffentliche, aufgeloeste Polymarket-Positionen. Diagnose des bisherigen Records, keine Anlageberatung."
-    en: "Reads public resolved Polymarket positions only. A diagnostic of the past record, not investment advice."
+    de: "Liest ausschliesslich oeffentliche, aufgeloeste Polymarket-Positionen, nur lesend: es wird nichts platziert. Diagnose des bisherigen Records, keine Anlageberatung."
+    en: "Reads public resolved Polymarket positions only, read-only: nothing is placed. A diagnostic of the past record, not investment advice."
+    surfaces:
+      - web/js/pages/wallet_page.js
   leaderboard_caveat:
-    de: "Rohe PnL-Raenge fuehren in die Irre: Legs blaehen Win-Rates auf, Winner-only-Feeds verstecken Verluste. Der Skill-Read unten korrigiert beides."
-    en: "Raw PnL ranks mislead: legs inflate win rates and winner-only feeds hide losses. The skill read below corrects both."
+    de: "Rohe PnL-Raenge fuehren in die Irre: Legs blaehen Win-Rates auf, Winner-only-Feeds verstecken Verluste. Der Skill-Read je Wallet korrigiert beides."
+    en: "Raw PnL ranks mislead: legs inflate win rates and winner-only feeds hide losses. The per-wallet skill read corrects both."
+    surfaces:
+      - web/js/pages/trader_pages.js
+  # "research leads, not legal findings" stood hand-written in trader_pages.js
+  # and in api_views.risk_payload; both read this entry now.
   screen_not_proof:
-    de: "Verhaltens-Screen ueber oeffentliche Daten. Ein Flag ist ein Pruefsignal, kein Beweis fuer Fehlverhalten."
-    en: "A behavioural screen over public data. A flag is a review signal, not proof of wrongdoing."
+    de: "Verhaltens-Screen nach bestem Bemuehen ueber oeffentliche Handelsdaten: Rechercheanlaesse, keine juristischen Feststellungen. Ein Flag ist ein Pruefsignal, kein Beweis fuer Fehlverhalten."
+    en: "A best-effort behavioural screen on public trade data: research leads, not legal findings. A flag is a review signal, not proof of wrongdoing."
+    surfaces:
+      - web/js/pages/trader_pages.js
+      - app/api_views.py
   backtest_modeled:
     de: "Simulation zu historischen Preisen mit Fee- und Slippage-Annahmen. Modellierte Werte, keine realisierten Ergebnisse."
     en: "A simulation at historical prices with fee and slippage assumptions. Modeled values, not realized results."
+    surfaces:
+      - web/js/pages/trading_pages.js
   signal_ledger_caveat:
     de: "Deskriptiver Record der emittierten Alerts mit eingefrorenem Modell-PnL. Kein Qualitaetsversprechen fuer kuenftige Signale."
     en: "A descriptive record of emitted alerts with modeled PnL frozen at emit price. Not a quality promise for future signals."
+  # The long standing disclaimer of the whole product; stood hand-written in
+  # the Settings footer (system_pages.js).
+  research_tool_only:
+    de: "Nur ein Forschungswerkzeug: keine Anlageberatung, keine Orderausfuehrung, keine Verbindung zu einer Venue. Oeffentliche Polymarket- und Kalshi-Daten, ohne Gewaehr."
+    en: "Research tool only: no investment advice, no order placement, no venue affiliation. Public Polymarket and Kalshi data, provided as-is."
+    surfaces:
+      - web/js/pages/system_pages.js
+  # The short form under the sidebar. Same statement, sidebar width; the long
+  # form would wrap over five lines in a 264px column.
+  site_footer_readonly:
+    de: "Nur lesend. Keine Orders. Oeffentliche Polymarket- & Kalshi-Daten."
+    en: "Read-only. No orders placed. Public Polymarket & Kalshi data."
+    surfaces:
+      - web/js/app.js
+  # Copy desk: stood hand-written as "Nothing is sent to a venue."
+  paper_desk_only:
+    de: "Papierkonto: jede Order wird lokal zum gedruckten Preis gebucht. Nichts geht an eine Venue."
+    en: "Paper desk: every order is booked in a local paper book at the printed price. Nothing is sent to a venue."
+    surfaces:
+      - web/js/pages/copy_page.js
+  # The forward paper log: stood twice, almost identically, in system_pages.js.
+  paper_log_no_return_claim:
+    de: "Nur Entscheidungen und beste Buchpreise: keine Fills, keine Wallet-Daten, keine Renditebehauptung."
+    en: "Decisions and best book prices only: no fills, no wallet data, no return claim."
+    surfaces:
+      - web/js/pages/system_pages.js
+  # The review queue prints a column headed RECOMMENDATION. This sentence
+  # travels in public/data/meta.json and never reached a page; it is the
+  # register's job to put it next to that column.
+  verification_not_signal:
+    de: "Empfehlungen sind Pruefschritte (beobachten, Quelle pruefen, an einen Menschen eskalieren), keine Kauf- oder Verkaufssignale."
+    en: "Recommendations are verification steps (watch, check the source, escalate to a human), not buy or sell signals."
+    surfaces:
+      - web/js/pages/system_pages.js
+
+  # Die waagerechte Spanne der Punktwolke auf der Bestenliste. Sie stand als
+  # Prosa unter dem Diagramm, und sie ist genau das, was dieses Register
+  # meint: ein Satz darueber, was eine Zahl NICHT ist. Der Composite ist bei
+  # gegebenen Eingaben deterministisch, also gibt es keine Stichproben-
+  # verteilung und kein Konfidenzintervall; was es gibt, ist die Spanne, die
+  # die Platzhalter offen lassen. Woraus der Score besteht, sagt weiterhin
+  # nur der Basis-Satz ueber dem Diagramm (api_views.score_basis_note und
+  # sein Zwilling scoreBasisSatz), damit es dafuer eine einzige Lesart gibt.
+  composite_range_not_ci:
+    de: "Die Spanne zeigt, wo der Score liegen koennte, wenn seine Platzhalter-Bestandteile gemessen waeren. Sie ist eine Spanne, kein Konfidenzintervall: der Composite steht fest, sobald seine Eingaben feststehen. Aufgeloeste Wetten je Wallet traegt dieser Feed nicht; die Trefferquote mit Stichprobengroesse und Wilson-Intervall steht auf der Seite der Wallet."
+    en: "The bar spans where the score could sit if its placeholder components were measured. It is a range, not a confidence interval: the composite is fixed once its inputs are. Resolved-bet counts are not in this feed; a wallet's own page carries its win rate with sample size and a Wilson interval."
+    surfaces:
+      - web/js/pages/trader_pages.js
 
 allowed_claims:
   - id: corrected-win-rate
@@ -85,3 +164,39 @@ forbidden_phrases:
     reason: "Advice language: the product informs, it does not tell anyone to buy."
   - phrase: "you should copy"
     reason: "Advice language: the product informs, it does not tell anyone to copy a wallet."
+
+# Wording that marks a standing caveat: a sentence about what a figure is
+# NOT. Such a sentence belongs in `disclaimers` above and is rendered through
+# caveat('<key>'); written by hand into a surface it is a disclaimer nobody
+# reviews, and the register that is supposed to govern it does not know it
+# exists. scripts/lint_claims.py reports every occurrence outside the
+# generated register module.
+#
+# The list stays deliberately narrow. A marker that also matches ordinary
+# prose ("no orders yet" on the copy desk) would train everyone to ignore the
+# check. Where a marker legitimately appears inside method prose about one
+# measurement, the exception is registered here with its reason instead of
+# being silently excluded.
+caveat_markers:
+  - marker: "investment advice"
+  - marker: "financial advice"
+  - marker: "not a recommendation"
+  - marker: "no order placement"
+  - marker: "no orders placed"
+  - marker: "nothing is placed"
+  - marker: "nothing is sent to a venue"
+  - marker: "not legal findings"
+  - marker: "no return claim"
+  - marker: "not a forecast"
+  - marker: "does not predict"
+  - marker: "not a promise"
+  - marker: "provided as-is"
+  - marker: "not a confidence interval"
+  - marker: "not proof"
+    allow:
+      # Mentions latency, method prose about one measured quantity: a price
+      # move away from the pre-drop baseline is not evidence that the market
+      # heard the statement. That is a property of that measurement, not a
+      # standing caveat about the product, and it belongs in the paragraph
+      # that defines first reaction.
+      - "not proof the market heard anything"

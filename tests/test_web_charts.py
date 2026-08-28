@@ -24,8 +24,13 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import unittest
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from app import claims  # noqa: E402
 
 WURZEL = Path(__file__).resolve().parents[1]
 HARNESS = WURZEL / "tests" / "web_render_harness.mjs"
@@ -114,7 +119,8 @@ class WebDiagrammTest(unittest.TestCase):
         self.assertIn("n = 250 wallets", html)
         # Intervall, ausdruecklich nicht als Konfidenzintervall verkauft
         self.assertIn("unmeasured range", html)
-        self.assertIn("not a confidence interval", html)
+        self.assertIn('data-caveat="composite_range_not_ci"', html)
+        self.assertIn(claims.disclaimer("composite_range_not_ci", "en"), html)
         # Sample-Abzeichen
         self.assertIn("Sample: part measured", html)
         # Stichtag
@@ -147,7 +153,10 @@ class WebDiagrammTest(unittest.TestCase):
         # Geflaggte Teilmenge als zweite Lage, mit Legende statt nur Farbe.
         self.assertIn("flagged, gets a card", html)
         self.assertIn("screened", html)
-        self.assertIn("a flag is a review signal, not proof of wrongdoing", html)
+        # Der Screen-Vorbehalt steht im Kopf der Seite, aus dem Register,
+        # und genau einmal: nicht noch einmal unter dem Bild.
+        self.assertIn('data-caveat="screen_not_proof"', html)
+        self.assertEqual(html.count(claims.disclaimer("screen_not_proof", "en")), 1)
 
     def test_markets_zeigt_die_preisverteilung_in_cent(self) -> None:
         """Cent, nicht Dollar, und ausdruecklich nicht das Volumen.
@@ -173,7 +182,10 @@ class WebDiagrammTest(unittest.TestCase):
         self.assertIn("break even", html)
         self.assertIn("The three largest winners carry 38% of the gross profit", html)
         # Modelliert, nicht realisiert: der Vorbehalt steht am Bild.
-        self.assertIn("modeled values, not realized results", html)
+        # Wie beim Risk-Screen: der Vorbehalt gilt dem ganzen Lauf, steht
+        # im Kopf und dort nur einmal.
+        self.assertIn('data-caveat="backtest_modeled"', html)
+        self.assertEqual(html.count(claims.disclaimer("backtest_modeled", "en")), 1)
         # Ohne Lauf kein Diagramm.
         self.assertNotIn("RESULT PER CLOSED COPY", self.ausgabe["live"]["backtester"])
 
@@ -192,6 +204,22 @@ class WebDiagrammTest(unittest.TestCase):
         self.assertIn("win rate 67%, 95% Wilson interval 21% to 94%, n 3", html)
         self.assertIn(">0%<", html)
         self.assertIn(">100%<", html)
+
+    def test_der_score_aufbau_wird_genau_einmal_erklaert(self) -> None:
+        """Anteil und Kohorten-n stehen im Basis-Satz, nicht auch im Bild.
+
+        Der Basis-Satz ueber dem Diagramm (scoreBasisSatz, Zwilling von
+        api_views.score_basis_note) ist die eine Erklaerung. Stuende der
+        gemessene Anteil zusaetzlich unter dem Diagramm, gaebe es zwei
+        Lesarten derselben Groesse in zwei Formulierungen.
+        """
+
+        html = self.ausgabe["live"]["traders"]
+        text = re.sub(r"<[^>]*>", " ", re.sub(r"<title>.*?</title>", " ", html, flags=re.S))
+        self.assertEqual(text.count("of the composite weight rests on"), 1)
+        self.assertEqual(text.count("wallets ranked together"), 1)
+        # Und die Spanne wird nicht zusaetzlich in eigenen Worten erklaert.
+        self.assertNotIn("Horizontal bar:", text)
 
     def test_punktwolke_faerbt_keinen_text_mit_der_datenfarbe(self) -> None:
         """Text traegt Ink-Stufen, Marken tragen die Serienfarbe."""

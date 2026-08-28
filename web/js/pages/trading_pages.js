@@ -4,6 +4,7 @@
 // every figure comes from the API or the cell shows that it does not.
 
 import { esc, num, leerZeile } from '../util.js';
+import { caveatZeile } from '../claims.js';
 import { histogramm, kurzGeld } from '../charts.js';
 import { trackWatchRows } from './trader_pages.js';
 
@@ -104,8 +105,10 @@ export function tradeVerteilung(live) {
     xTickText: (x) => kurzGeld(x, true),
     zaehlEinheit: 'copies',
     hoehe: 180,
-    fussnote: konzentration + 'Best ' + kurzGeld(v.best, true) + ', worst ' + kurzGeld(v.worst, true)
-      + '. A simulation at historical prices with fee and slippage assumptions: modeled values, not realized results.'
+    // backtest_modeled steht im Kopf des Backtesters und gilt dem ganzen
+    // Lauf, nicht nur diesem Bild. Hier stand er als zweite, handgeschriebene
+    // Fassung desselben Satzes; jetzt steht er einmal, aus dem Register.
+    fussnote: konzentration + 'Best ' + kurzGeld(v.best, true) + ', worst ' + kurzGeld(v.worst, true) + '.'
   });
 }
 
@@ -314,7 +317,13 @@ export function renderBacktester(T) {
     + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:20px">'
     + '<div><div style="' + M + '; font-size:11px; letter-spacing:.18em; color:var(--accent)">BACKTESTER · PAPER SIM</div>'
     + '<h1 style="font-size:21px; line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">Replay a wallet with your own sizing</h1>'
-    + '<div style="font-size:13px; color:rgba(var(--ink),.55); margin-top:9px; max-width:680px">Every simulated fill is priced with fees and slippage, up to ninety days back.</div></div>'
+    // backtest_modeled stand im Register und auf keiner Seite: die Kopfzeile
+    // beschrieb die Simulation, sagte aber nirgends, dass ihre Zahlen
+    // modelliert und nicht realisiert sind.
+    + caveatZeile('backtest_modeled', {
+      vorsatz: 'Every simulated fill is priced with fees and slippage, up to ninety days back.',
+      stil: 'font-size:13px; color:rgba(var(--ink),.55); margin-top:9px; max-width:680px; line-height:1.5'
+    }) + '</div>'
     + '<div style="' + M + '; font-size:10.5px; color:var(--on-accent); background:var(--accent); border-radius:4px; padding:5px 10px">POLYMARKET</div>'
     + '</div></div>'
 
@@ -483,7 +492,7 @@ export function renderBacktester(T) {
     + '<div style="display:flex; gap:16px; ' + M + '; font-size:10.5px; flex-wrap:wrap">'
     + '<span style="display:flex; align-items:center; gap:6px"><span style="width:14px; height:2px; background:var(--accent); display:inline-block"></span>' + esc(shortWallet) + '</span>'
     + '<span style="display:flex; align-items:center; gap:6px; color:rgba(var(--ink),.5)"><span style="width:14px; height:2px; background:var(--muted); display:inline-block"></span>Flat-bet benchmark</span>'
-    + (s.sizingSimOpen && bestVariant ? '<span style="display:flex; align-items:center; gap:6px; color:var(--warn)"><span style="width:14px; height:2px; background:var(--warn); display:inline-block"></span>Best sizing: ' + esc(bestVariant.name) + '</span>' : '')
+    + (s.sizingSimOpen && bestVariant ? '<span style="display:flex; align-items:center; gap:6px; color:var(--warn)"><span style="width:14px; height:2px; background:var(--warn); display:inline-block"></span>Highest final equity: ' + esc(bestVariant.name) + '</span>' : '')
     + '</div></div>'
     + '<svg width="100%" height="270" viewBox="0 0 900 270" preserveAspectRatio="none" role="img" aria-label="Equity for the replayed wallet against your own sizing">'
     + '<line x1="0" y1="20" x2="900" y2="20" style="stroke:rgba(var(--ink),.07)" />'
@@ -502,14 +511,17 @@ export function renderBacktester(T) {
 
     + '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:16px; overflow:hidden">'
     + '<div ' + T.act(() => { T.setState({ sizingSimOpen: !s.sizingSimOpen, btDirty: !s.sizingSimOpen && !(live && live.variants) ? true : s.btDirty }); }) + ' class="hv-el" style="display:flex; align-items:center; justify-content:space-between; padding:13px 18px; background:var(--panel); cursor:pointer">'
-    + '<div style="font-size:14px">Which sizing would have been best for this wallet?</div><div style="' + simChevron + '">›</div></div>'
+    + '<div style="font-size:14px">Which sizing would have ended this window with the most equity?</div><div style="' + simChevron + '">›</div></div>'
     + (s.sizingSimOpen && !bestVariant
       ? '<div style="padding:14px 18px; ' + M + '; font-size:11px; color:rgba(var(--ink),.5)">The variants are computed with the run — press RUN with this section open to include them.</div>'
       : '')
     + (s.sizingSimOpen && bestVariant ?
       '<div style="padding:16px 18px">'
-      + '<div style="font-size:12.5px; color:rgba(var(--ink),.55); line-height:1.5">Replays the same window once per sizing rule — identical fees, slippage, cap and exposure limit. Only the stake rule changes. The winner is drawn into the chart above as the dotted amber line.</div>'
-      + '<div style="font-size:13px; margin-top:12px">Best for this wallet and window: <strong style="color:var(--warn)">' + esc(bestVariant.name) + '</strong> → $' + bestVariant.eq.toFixed(0) + ' final equity (' + (bestVariant.roi >= 0 ? '+' : '') + bestVariant.roi.toFixed(1) + '% ROI)</div>'
+      + caveatZeile('backtest_modeled', {
+        vorsatz: 'Replays the same window once per sizing rule, with identical fees, slippage, cap and exposure limit. Only the stake rule changes. The rule that ends with the most equity is drawn into the chart above as the dotted amber line; leading in this window is a fact about this window.',
+        stil: 'font-size:12.5px; color:rgba(var(--ink),.55); line-height:1.5'
+      })
+      + '<div style="font-size:13px; margin-top:12px">Highest final equity in this window: <strong style="color:var(--warn)">' + esc(bestVariant.name) + '</strong> → $' + bestVariant.eq.toFixed(0) + ' final equity (' + (bestVariant.roi >= 0 ? '+' : '') + bestVariant.roi.toFixed(1) + '% ROI)</div>'
       + '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; overflow:hidden">'
       + '<div style="display:grid; grid-template-columns:1fr 110px 96px 96px 96px 88px 88px; gap:10px; padding:9px 14px; background:var(--panel); border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6)">'
       + '<div>SIZING RULE</div><div style="text-align:right">FINAL EQUITY</div><div style="text-align:right">ROI</div><div style="text-align:right">MAX DD</div><div style="text-align:right">WIN RATE</div><div style="text-align:right">COPIED</div><div style="text-align:right">SKIPPED</div></div>'

@@ -209,8 +209,21 @@ input { font-family: inherit; }
 /* <main> takes focus from the skip link but is not a control: no ring. */
 #main:focus, #main:focus-visible { outline: none; }
 
-/* h1/h2 are the document outline; the look stays the design's. */
-.content h1, .content h2 { font-weight: inherit; }
+/* h1 to h4 are the document outline; the look stays the design's.
+
+   Every heading in this app sets its own size and margin inline, so
+   neutralising the user-agent defaults here is what makes a promotion free:
+   a title div that becomes an <h2> would otherwise grow by half and gain
+   0.83em of margin above and below. font-weight was already handled when the
+   research surface still had one real heading; size and margin were not, and
+   without them the outline could only be fixed at the cost of the layout.
+   Measured after the promotion, both themes: identical computed colour,
+   size, weight and box for every promoted node. */
+.content h1, .content h2, .content h3, .content h4 {
+  font-size: inherit;
+  font-weight: inherit;
+  margin: 0;
+}
 
 /* The one remaining animation is the drawer's state reveal; anyone who has
    asked their system for less simply gets the end state. */

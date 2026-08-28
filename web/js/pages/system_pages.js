@@ -3,6 +3,7 @@
 // public/data/ when the API serves them, incl. their stand_utc stamp and note.
 
 import { esc, num, herkunftSatz, leerZeile, EINZAHLUNGEN_USD, offeneNichtDrin, stempelBlock } from '../util.js';
+import { caveatZeile, registerStand } from '../claims.js';
 import { stepKurve, diagramm, linien, kalibrierung, fmtZahl, serienFarbe, intervallMarke } from '../charts.js';
 import { renderMicrostructure } from './microstructure_page.js';
 
@@ -78,15 +79,44 @@ function vorfallZeitstrahl(eintraege) {
     + punkte + marken + '</svg></div>';
 }
 
-/** Post-Mortems: neun Vorfaelle mit Ursache, Kosten, Fix und Codeverweis. */
-function renderPostmortems(payload) {
+/** Post-Mortems: neun Vorfaelle mit Ursache, Kosten, Fix und Codeverweis.
+ *
+ *  Die Seite war die einzige der Forschungsflaeche ohne Kopf: kein Titel,
+ *  kein Kennzeichen, kein Stempel, der erste sichtbare Text ein grauer
+ *  Absatz. Der Kopf ist der von Field notes, weil der dort das beste
+ *  Herkunftsmuster der Flaeche ist: Titel, Notiz, kennzeichnung und der
+ *  Stempel aus der Registrierung nebeneinander. stempelBlock schreibt
+ *  study.stamp ("curated") und darunter die Publish-Uhr aus stand_utc; keine
+ *  der beiden Angaben wird aus der anderen erfunden, und wo eine fehlt,
+ *  steht die andere allein. */
+function renderPostmortems(payload, study) {
   const eintraege = (payload && payload.eintraege) || [];
+  const kennung = payload && payload.kennzeichnung ? String(payload.kennzeichnung).toUpperCase() : '';
+  const kopf = '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px">'
+    + '<div style="max-width:720px">'
+    + '<h2 style="font-size:20px; font-weight:600">' + esc((study && study.title) || 'Post-mortems') + '</h2>'
+    + '<div style="font-size:13.5px; color:rgba(var(--ink),.6); margin-top:8px; line-height:1.6">'
+    + esc((payload && payload.hinweis) || (study && study.note) || '')
+    + '</div></div>'
+    + '<div style="display:flex; gap:8px">'
+    + (kennung ? '<div style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; color:var(--on-accent); background:var(--info)">' + esc(kennung) + '</div>' : '')
+    + stempelBlock(study, payload, '5px 10px')
+    + '</div></div>';
+
+  // Drei Zustaende, drei Antworten: keine Antwort, eine fehlgeschlagene und
+  // eine leere. Bis hierher sahen alle drei aus wie eine leere Datei.
+  if (!payload || payload._quelle === 'fehler') {
+    const herkunft = payload && payload._quelle === 'fehler' ? { quelle: 'fehler', fehler: payload._fehler } : null;
+    return '<div style="padding:20px 24px 36px">' + kopf
+      + '<div style="margin-top:16px">' + leerZeile(herkunftSatz(herkunft, 'public/data/postmortems.json')) + '</div></div>';
+  }
   if (!eintraege.length) {
-    return '<div style="padding:26px 24px">'
-      + '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:22px 24px; max-width:720px">'
-      + '<div style="font-size:16px; font-weight:600">No incidents published</div>'
+    return '<div style="padding:20px 24px 36px">' + kopf
+      + '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:22px 24px; max-width:720px; margin-top:16px">'
+      + '<h3 style="font-size:16px; font-weight:600">No incidents published</h3>'
       + '<div style="font-size:13px; color:rgba(var(--ink),.55); margin-top:10px; line-height:1.6">'
-      + 'This page reads <span style="' + M + '">public/data/postmortems.json</span>.</div></div></div>';
+      + 'This page reads <span style="' + M + '">public/data/postmortems.json</span>. The file answered and its '
+      + '<span style="' + M + '">eintraege</span> list is empty, so there is nothing to show.</div></div></div>';
   }
 
   const achsen = {};
@@ -110,7 +140,7 @@ function renderPostmortems(payload) {
     return '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-left:2px solid ' + farbe
       + '; border-radius:6px; padding:16px 18px">'
       + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap">'
-      + '<div style="font-size:14.5px; font-weight:600; flex:1; min-width:220px">' + esc(e.titel) + '</div>'
+      + '<h3 style="font-size:14.5px; font-weight:600; flex:1; min-width:220px">' + esc(e.titel) + '</h3>'
       + '<div style="' + M + '; font-size:11px; color:' + farbe + '">' + esc(e.achse || '') + '</div></div>'
       + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:5px">'
       + esc(e.datum) + (e.profil ? ' · ' + esc(e.profil) : '') + '</div>'
@@ -126,13 +156,10 @@ function renderPostmortems(payload) {
       + '</div>';
   }).join('');
 
-  return '<div style="padding:20px 24px 36px">'
-    + '<div style="font-size:13.5px; color:rgba(var(--ink),.6); line-height:1.6; max-width:820px">'
-    + esc((payload && payload.hinweis) || '')
-    + '</div>'
+  return '<div style="padding:20px 24px 36px">' + kopf
     + '<div style="display:flex; gap:7px; flex-wrap:wrap; margin-top:12px">'
     + '<div style="' + M + '; font-size:11px; color:var(--text); border:1px solid rgba(var(--ink),.2); border-radius:4px; padding:4px 9px">'
-    + eintraege.length + ' INCIDENTS</div>' + chips + '</div>'
+    + eintraege.length + ' INCIDENT' + (eintraege.length === 1 ? '' : 'S') + '</div>' + chips + '</div>'
     + vorfallZeitstrahl(eintraege)
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); gap:14px; margin-top:16px">'
     + karten + '</div></div>';
@@ -146,7 +173,7 @@ function renderFieldNotes(payload, study) {
   const kennung = payload && payload.kennzeichnung ? String(payload.kennzeichnung).toUpperCase() : 'CURATED';
   const kopf = '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px">'
     + '<div style="max-width:720px">'
-    + '<div style="font-size:20px; font-weight:600">Field notes — what the tape taught us</div>'
+    + '<h2 style="font-size:20px; font-weight:600">' + esc((study && study.title) || 'Field notes') + '</h2>'
     + '<div style="font-size:13.5px; color:rgba(var(--ink),.6); margin-top:8px; line-height:1.5">'
     + esc((payload && payload.hinweis) || 'Curated observations from watching the tape: what happened, the mechanism behind it, and what follows from it. Notes, not measurements — each one names its evidence or says it has none.')
     + '</div></div>'
@@ -189,7 +216,7 @@ function renderFieldNotes(payload, study) {
   const karten = notes.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).map((n) =>
     '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-left:2px solid var(--info); border-radius:6px; padding:16px 18px">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:14px; flex-wrap:wrap">'
-    + '<div style="font-size:14.5px; font-weight:600; flex:1; min-width:220px">' + esc(n.title || '—') + '</div>'
+    + '<h3 style="font-size:14.5px; font-weight:600; flex:1; min-width:220px">' + esc(n.title || '—') + '</h3>'
     + '<div style="' + M + '; font-size:11px; color:var(--info)">' + esc(n.venue || '') + '</div></div>'
     + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:5px">'
     + esc(n.date || '—') + (n.market ? ' · ' + esc(n.market) : '') + '</div>'
@@ -304,7 +331,7 @@ function fensterText(zeile) {
 function ladeStudieHtml(study, datei) {
   return '<div style="padding:26px 24px">'
     + '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:22px 24px; max-width:720px">'
-    + '<div style="font-size:16px; font-weight:600">' + esc(study.title) + '</div>'
+    + '<h2 style="font-size:16px; font-weight:600">' + esc(study.title) + '</h2>'
     + '<div style="display:flex; align-items:center; gap:10px; margin-top:12px">'
     + '<span style="width:7px; height:7px; border-radius:50%; background:var(--warn); display:inline-block"></span>'
     + '<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:var(--warn)">loading public/data/' + esc(datei || 'the study payload') + '</span></div>'
@@ -315,7 +342,7 @@ function ladeStudieHtml(study, datei) {
 function fehlendeStudieHtml(study, datei) {
   return '<div style="padding:26px 24px">'
     + '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:22px 24px; max-width:720px">'
-    + '<div style="font-size:16px; font-weight:600">' + esc(study.title) + '</div>'
+    + '<h2 style="font-size:16px; font-weight:600">' + esc(study.title) + '</h2>'
     + '<div style="font-size:13px; color:rgba(var(--ink),.55); margin-top:10px; line-height:1.6">'
     + 'No published data for this study yet. It reads '
     + '<span style="' + M + '">public/data/' + esc(datei || 'the study payload') + '</span>, '
@@ -489,6 +516,19 @@ export function renderAlerts(T) {
     + '</div>';
 }
 
+// Woher die Vorbehalte dieser Oberflaeche kommen und wie alt sie sind.
+// "compiled" heisst: aus data/claims.yaml in web/js/claims_register.js
+// uebersetzt und mit der Seite ausgeliefert; "/api/claims" heisst, die API
+// hatte eine neuere Fassung und sie wurde uebernommen.
+function registerZeile() {
+  const stand = registerStand();
+  if (!stand.eintraege) return '';
+  const quelle = stand.quelle === 'api' ? 'from /api/claims' : 'compiled from data/claims.yaml';
+  return '<div style="padding:0 24px 30px; ' + M + '; font-size:10px; color:rgba(var(--ink),.55)">'
+    + 'caveat register v' + esc(stand.version) + (stand.updated ? ' · ' + esc(stand.updated) : '')
+    + ' · ' + esc(quelle) + ' · ' + esc(stand.eintraege) + ' entries</div>';
+}
+
 // ---------------------------------------------------------------- research
 export function renderResearch(T) {
   const s = T.state;
@@ -513,7 +553,7 @@ export function renderResearch(T) {
     return '<div>' + header + ladeStudieHtml(study, RESEARCH_DATEI[s.researchTab]) + '</div>';
   }
   if (s.researchTab === 8) {
-    return '<div>' + header + renderPostmortems(payload) + '</div>';
+    return '<div>' + header + renderPostmortems(payload, study) + '</div>';
   }
   // Field notes haengen am Slug, nicht an der Position: die Liste waechst am
   // Ende, und ein Index wuerde beim naechsten Eintrag verrutschen.
@@ -564,7 +604,7 @@ export function renderResearch(T) {
     + '<div style="padding:22px 24px">'
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px">'
     + '<div style="max-width:640px">'
-    + '<div style="font-size:20px; font-weight:600">' + esc(study.title) + '</div>'
+    + '<h2 style="font-size:20px; font-weight:600">' + esc(study.title) + '</h2>'
     + '<div style="font-size:13.5px; color:rgba(var(--ink),.6); margin-top:8px; line-height:1.5">' + esc(note) + '</div></div>'
     + stempelBlock(study, payload) + '</div>'
     // So viele Spalten wie Kacheln: der Pilot traegt mit der Wallet-Kachel
@@ -723,7 +763,14 @@ function pipelineHeadlineHtml(payload) {
     + (anteil < 10 ? anteil.toFixed(1) : Math.round(anteil)) + '%)'
     + (top ? ' — most common stopper: ' + esc(top[0].charAt(0).toLowerCase() + top[0].slice(1)) + ' (' + num(top[1]) + ' of ' + num(z.keine) + ' no-trades, ' + Math.round((top[1] / Math.max(1, z.keine)) * 100) + '%)' : '')
     + '.</div>'
-    + '<div style="font-size:12px; color:rgba(var(--ink),.5); margin-top:8px; line-height:1.5">Counted over ' + esc(quelle) + ' in pipeline_forward.json. No equity curve on purpose: the log carries decisions and best book prices only — no fills, no wallet data, no return claim. What the same pipeline did with real money is on the Live runs page.</div>'
+    + caveatZeile('paper_log_no_return_claim', {
+      vorsatz: 'Counted over ' + esc(quelle) + ' in pipeline_forward.json. No equity curve on purpose.',
+      nachsatz: 'What the same pipeline did with real money is on the Live runs page.',
+      // .5 statt .6 ergab im hellen Thema 3.88:1 und im dunklen 4.49:1,
+      // beides unter AA. Ein Vorbehalt darf nicht die blasseste Zeile der
+      // Seite sein; gemessen 6.05 dunkel und 5.54 hell.
+      stil: 'font-size:12px; color:rgba(var(--ink),.6); margin-top:8px; line-height:1.5'
+    })
     + (chart ? '<div style="margin-top:14px">' + chart + '</div>' : '')
     + '</div>';
 }
@@ -790,7 +837,13 @@ function buildStudyTable(T, tab, payload) {
       // stecken. Der gezeigte Fall ist der mit der hoechsten Prioritaet.
       const maerkte = collapseQueue(payload.faelle);
       return studyTableHtml(T, 'OPEN CASES · ONE ROW PER MARKET, HIGHEST-PRIORITY WINDOW SHOWN', '110px 1fr 200px 90px 100px 140px', ['CASE','MARKET','WINDOWS','BAND','DISCOUNT','RECOMMENDATION'],
-        maerkte.slice(0, 12).map((f) => [String(f.id), String(f.markt_slug || ''), fensterText(f), String(f.score_band || ''), String(f.skeptic_abschlag != null ? f.skeptic_abschlag : '—'), String(f.empfehlung || '')]));
+        maerkte.slice(0, 12).map((f) => [String(f.id), String(f.markt_slug || ''), fensterText(f), String(f.score_band || ''), String(f.skeptic_abschlag != null ? f.skeptic_abschlag : '—'), String(f.empfehlung || '')]))
+        // Die Spalte heisst RECOMMENDATION, und was damit gemeint ist,
+        // stand bisher ungenutzt in public/data/meta.json. Jetzt steht es
+        // unter der Spalte, aus dem Register.
+        + caveatZeile('verification_not_signal', {
+          stil: 'font-size:12px; color:rgba(var(--ink),.6); margin-top:8px; max-width:760px; line-height:1.5'
+        });
     }
     if (tab === 2 && payload.faelle) {
       // Jede Zeile traegt auch das aufgeloeste Outcome und den Status, wie
@@ -1085,7 +1138,7 @@ function renderCategoryEfficiency(T, payload, study) {
   // wird verschoben, nicht gekuerzt.
   const kopf = (unterzeile) => '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px">'
     + '<div style="max-width:760px">'
-    + '<div style="font-size:20px; font-weight:600">' + esc(study.title) + '</div>'
+    + '<h2 style="font-size:20px; font-weight:600">' + esc(study.title) + '</h2>'
     + '<div style="' + M + '; font-size:11.5px; color:rgba(var(--ink),.6); margin-top:8px; line-height:1.5">' + unterzeile + '</div></div>'
     + stempelBlock(study, payload) + '</div>';
 
@@ -1720,9 +1773,9 @@ function renderLiveRuns(T, payload) {
               + '<div style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; color:var(--info); border:1px solid rgba(var(--info-rgb),.4)">' + esc(r.profile) + '</div>'
               + '<div style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; color:var(--info); border:1px solid rgba(var(--info-rgb),.4)">' + esc(r.mode) + '</div>'
               + '<div style="' + statusStyle + '">' + esc(r.status) + '</div></div>'
-              + '<div style="font-size:15px; font-weight:600; margin-top:11px">' + esc(r.title)
+              + '<h3 style="font-size:15px; font-weight:600; margin-top:11px">' + esc(r.title)
               + (r.url ? ' <a href="' + esc(r.url) + '" target="_blank" rel="noopener" style="' + M + '; font-size:11px; color:var(--info); text-decoration:none">event ↗</a>' : '')
-              + '</div>'
+              + '</h3>'
               + '<div style="display:flex; gap:7px; flex-wrap:wrap; margin-top:10px">'
               + r.chips.map((c) => '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.65); background:var(--panel-hover); border:1px solid rgba(var(--ink),.09); border-radius:4px; padding:4px 9px">' + esc(c) + '</div>').join('')
               + '</div>'
@@ -1904,7 +1957,7 @@ function renderLiveRuns(T, payload) {
   return '<div style="padding:20px 24px 26px">'
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px">'
     + '<div style="max-width:660px">'
-    + '<div style="font-size:20px; font-weight:600">Our own bot runs</div>'
+    + '<h2 style="font-size:20px; font-weight:600">Our own bot runs</h2>'
     + '<div style="font-size:13.5px; color:rgba(var(--ink),.6); margin-top:8px; line-height:1.5">' + esc(payload && payload.hinweis ? payload.hinweis : 'Bets, reaction times and realized results of the research bot on mentions markets. One run is one episode or event.') + '</div></div>'
     + '<div style="display:flex; gap:8px">'
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:3px 8px; color:var(--on-accent); background:var(--accent)">' + esc(payload && payload.kennzeichnung ? String(payload.kennzeichnung).toUpperCase() : 'LIVE / DESCRIPTIVE') + '</div>'
@@ -1985,7 +2038,13 @@ function paperLogHtml(T) {
   return '<div style="' + karte + '">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap">' + kopf
     + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.55)">' + num(laeufe.length) + ' paper runs · ' + num(entscheidungen) + ' decisions · ' + num(kaeufe) + ' paper buys' + (stand ? ' · ' + esc(stand) : '') + '</div></div>'
-    + '<div style="font-size:12.5px; color:rgba(var(--ink),.6); margin-top:8px; line-height:1.55; max-width:820px">The same word-count pipeline in watch mode: it reads the live transcript and logs, per market, whether its rules would have allowed a bet — mostly they would not. Decisions and best book prices only, no fills, no wallet data, no return claim. What the same pipeline did with real money is the record above.</div>'
+    // Derselbe Vorbehalt wie im Aufmacher der Pipeline-forward-Seite,
+    // vorher zweimal getippt und beim zweiten Mal leicht anders.
+    + caveatZeile('paper_log_no_return_claim', {
+      vorsatz: 'The same word-count pipeline in watch mode: it reads the live transcript and logs, per market, whether its rules would have allowed a bet; mostly they would not.',
+      nachsatz: 'What the same pipeline did with real money is the record above.',
+      stil: 'font-size:12.5px; color:rgba(var(--ink),.6); margin-top:8px; line-height:1.55; max-width:820px'
+    })
     + (zeilen
       ? '<div style="border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:12px; overflow:hidden">'
         + '<div style="display:grid; grid-template-columns:1fr 110px 110px 130px; gap:10px; padding:8px 16px; background:var(--bg); border-bottom:1px solid rgba(var(--ink),.09); ' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6)">'
@@ -2678,7 +2737,15 @@ export function renderSettings(T) {
         + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); margin-top:12px">' + o.value + '</div></div>';
     }).join('')
     + '</div>'
-    + '<div style="padding:0 24px 30px; ' + M + '; font-size:10.5px; color:rgba(var(--ink),.55); line-height:1.7; max-width:760px">Research tool only — no investment advice, no order placement, no venue affiliation. Public Polymarket and Kalshi data, provided as-is. Settings are locked to allowlisted accounts on a public deployment.</div>'
+    // Der laengste Vorbehalt des Hauses stand hier als Prosa. Jetzt
+    // research_tool_only aus dem Register, mit dem Stand des Registers
+    // darunter: ein Vorbehalt ohne Datum ist so viel wert wie eine Zahl
+    // ohne Stichtag.
+    + caveatZeile('research_tool_only', {
+      nachsatz: 'Settings are locked to allowlisted accounts on a public deployment.',
+      stil: 'padding:0 24px 8px; ' + M + '; font-size:10.5px; color:rgba(var(--ink),.55); line-height:1.7; max-width:760px'
+    })
+    + registerZeile()
     + '</div>';
 }
 
@@ -3109,7 +3176,7 @@ function renderMethodology(T, payload, study) {
   return '<div style="padding:22px 24px">'
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:24px">'
     + '<div style="max-width:720px">'
-    + '<div style="font-size:20px; font-weight:600">' + esc(study.title) + '</div>'
+    + '<h2 style="font-size:20px; font-weight:600">' + esc(study.title) + '</h2>'
     + '<div style="font-size:13.5px; color:rgba(var(--ink),.6); margin-top:8px; line-height:1.5">' + esc(note) + '</div></div>'
     + stempelBlock(study, payload) + '</div>'
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:18px">'
