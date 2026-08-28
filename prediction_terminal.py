@@ -45,7 +45,6 @@ from app.format import (
     cents,
     contracts,
     markdown_money,
-    market_title_family_key,
     money,
     money_or_dash,
     pct,
@@ -889,37 +888,6 @@ def inject_css() -> None:
 
 
 inject_css()
-
-
-def related_market_group(markets: pd.DataFrame, current: pd.Series, include_current: bool = True, limit: int = 20) -> pd.DataFrame:
-    if markets.empty:
-        return pd.DataFrame()
-    frame = markets.copy()
-    current_key = str(current.get("market_key", "") or "")
-    event_slug = str(current.get("event_slug", "") or "")
-    if event_slug and "event_slug" in frame:
-        related = frame[frame["event_slug"].astype(str).eq(event_slug)].copy()
-    else:
-        family = market_title_family_key(current.get("title", ""))
-        if not family or "title" not in frame:
-            return pd.DataFrame()
-        frame["_family_key"] = frame["title"].map(market_title_family_key)
-        related = frame[frame["_family_key"].eq(family)].drop(columns=["_family_key"], errors="ignore").copy()
-    if not include_current and current_key and "market_key" in related:
-        related = related[~related["market_key"].astype(str).eq(current_key)]
-    if related.empty:
-        return related
-    related["_end_sort"] = pd.to_datetime(related.get("end_time"), utc=True, errors="coerce")
-    if "activity_volume" not in related:
-        related["activity_volume"] = numeric_col(related, "volume_24h")
-    if "closed" not in related:
-        related["closed"] = False
-    return (
-        related.sort_values(["closed", "_end_sort", "activity_volume"], ascending=[True, True, False], na_position="last")
-        .drop(columns=["_end_sort"], errors="ignore")
-        .head(limit)
-        .reset_index(drop=True)
-    )
 
 
 def short_addr(value: str, width: int = 6) -> str:
@@ -4443,146 +4411,6 @@ def page_search() -> None:
                 draw_empty("No watched wallets match.")
             else:
                 st.dataframe(tracked_wallets, width="stretch", height=330)
-
-
-def render_related_markets(row: pd.Series, market_universe: pd.DataFrame | None = None) -> None:
-    if market_universe is None or market_universe.empty:
-        return
-    current_key = str(row.get("market_key", "") or "")
-    related = related_market_group(market_universe, row, include_current=True, limit=16)
-    if len(related) <= 1:
-        return
-    closed_related = pd.DataFrame()
-    if row.get("platform") == "Polymarket":
-        closed = safe_load("Resolved related markets", load_closed_markets, 250, default=pd.DataFrame())
-        if not closed.empty:
-            closed_related = related_market_group(closed, row, include_current=False, limit=40)
-
-    st.markdown("#### Related markets")
-    r1, r2, r3 = st.columns(3)
-    active_count = int((~bool_mask(related.get("closed", pd.Series(False, index=related.index)), False)).sum())
-    r1.metric("Related active", f"{active_count:,}")
-    r2.metric("Resolved siblings", f"{len(closed_related):,}")
-    # Eine Titel-Familie kann Maerkte beider Venues enthalten, und deren
-    # Volumenspalten stehen in verschiedenen Einheiten (app/venue_units.py).
-    gruppe_je_einheit = vu.volume_by_unit(related.get("platform", []),
-                                          numeric_col(related, "activity_volume"))
-    r3.metric("Group volume", money(gruppe_je_einheit.get(vu.USD, 0.0)),
-              f"Kalshi {contracts(gruppe_je_einheit.get(vu.CONTRACTS, 0.0))}")
-
-    preview = related.copy()
-    preview["selected"] = preview["market_key"].astype(str).eq(current_key)
-    preview["price"] = numeric_col(preview, "yes_price")
-    preview["end"] = pd.to_datetime(preview.get("end_time"), utc=True, errors="coerce").dt.strftime("%Y-%m-%d").fillna("-")
-    preview["status"] = bool_mask(preview.get("closed", pd.Series(False, index=preview.index)), False).map(lambda value: "Resolved" if bool(value) else "Active")
-    for chunk_start in range(0, len(preview.head(12)), 4):
-        cols = st.columns(4)
-        for col, (_, item) in zip(cols, preview.head(12).iloc[chunk_start : chunk_start + 4].iterrows()):
-            with col:
-                with st.container(border=True):
-                    st.caption(str(item.get("status", "Active")))
-                    st.markdown(f"**{str(item.get('title', '-'))[:75]}**")
-                    st.metric("Yes", cents(item.get("price")), signed_cents(item.get("change_1d", 0.0)))
-                    st.caption(f"End {item.get('end', '-')} | Vol {vu.format_volume(item.get('activity_volume', 0.0), item.get('platform'))}")
-                    if bool(item.get("selected", False)):
-                        st.caption("Current market")
-                    elif st.button("Inspect", key=f"related_inspect_{item.get('market_key')}", width="stretch"):
-                        st.session_state["markets_inspect_market_key"] = str(item.get("market_key", ""))
-                        st.rerun()
-                    if item.get("url"):
-                        st.link_button("Open venue", str(item.get("url")), width="stretch")
-
-    with st.expander("Related market table", expanded=False):
-        table = clean_table(
-            preview,
-            ["selected", "status", "title", "yes_price", "no_price", "spread", "activity_volume", "volume_1h", "liquidity", "end", "url", "market_key"],
-        )
-        st.dataframe(
-            table,
-            width="stretch",
-            height=260,
-            column_config={
-                "yes_price": st.column_config.NumberColumn("Yes", format="%.3f"),
-                "no_price": st.column_config.NumberColumn("No", format="%.3f"),
-                "spread": st.column_config.NumberColumn(format="%.3f"),
-                # Die Gruppe kann beide Venues mischen; ein Spaltenformat
-                # gilt fuer jede Zeile, also kein Dollarzeichen.
-                "activity_volume": st.column_config.NumberColumn("Volume (venue unit)", format="%.0f"),
-                "volume_1h": st.column_config.NumberColumn("Vol 1h (venue unit)", format="%.0f"),
-                "liquidity": st.column_config.NumberColumn(format="$%.0f"),
-                "url": st.column_config.LinkColumn("URL"),
-            },
-        )
-    if not closed_related.empty:
-        with st.expander("Resolved siblings", expanded=False):
-            closed_display = closed_related.copy()
-            closed_display["closed_date"] = pd.to_datetime(closed_display.get("closed_time"), utc=True, errors="coerce").dt.strftime("%Y-%m-%d").fillna("-")
-            st.dataframe(
-                clean_table(closed_display, ["closed_date", "title", "resolved_outcome", "final_yes_price", "volume", "url"]),
-                width="stretch",
-                height=220,
-                column_config={
-                    "final_yes_price": st.column_config.NumberColumn("Final Yes", format="%.3f"),
-                    "volume": st.column_config.NumberColumn(format="$%.0f"),
-                    "url": st.column_config.LinkColumn("URL"),
-                },
-            )
-
-
-def render_market_series_strip(row: pd.Series, market_universe: pd.DataFrame | None = None) -> None:
-    """Render a quick selector for sibling contracts of the same event."""
-
-    if market_universe is None or market_universe.empty:
-        return
-    current_key = str(row.get("market_key", "") or "")
-    related = related_market_group(market_universe, row, include_current=True, limit=8)
-    if len(related) <= 1:
-        return
-
-    closed_related = pd.DataFrame()
-    if row.get("platform") == "Polymarket":
-        closed = safe_load("Resolved related markets", load_closed_markets, 250, default=pd.DataFrame())
-        if not closed.empty:
-            closed_related = related_market_group(closed, row, include_current=False, limit=40)
-
-    strip_key = re.sub(r"[^a-zA-Z0-9]+", "_", current_key).strip("_")[:48] or "market"
-    show_resolved_key = f"show_resolved_series_{strip_key}"
-    st.markdown("#### Related contracts")
-    related_preview = related.head(6).copy()
-    cols = st.columns(len(related_preview) + (1 if not closed_related.empty else 0))
-    for idx, (_, item) in enumerate(related_preview.iterrows()):
-        item_key = str(item.get("market_key", "") or "")
-        end_time = pd.to_datetime(item.get("end_time"), utc=True, errors="coerce")
-        if pd.notna(end_time):
-            label = end_time.strftime("%b %d").replace(" 0", " ")
-        else:
-            label = str(item.get("title", "Contract"))[:18]
-        price_label = cents(item.get("yes_price"))
-        button_label = f"{label} {price_label}"
-        if item_key == current_key:
-            cols[idx].markdown(f"**{button_label}**")
-            cols[idx].caption("Current")
-        elif cols[idx].button(button_label, key=f"series_open_{strip_key}_{idx}", width="stretch"):
-            st.session_state["markets_inspect_market_key"] = item_key
-            st.rerun()
-    if not closed_related.empty:
-        resolved_col = cols[-1]
-        if resolved_col.button(f"+{len(closed_related)} resolved", key=f"series_resolved_{strip_key}", width="stretch"):
-            st.session_state[show_resolved_key] = not bool(st.session_state.get(show_resolved_key, False))
-            st.rerun()
-    if st.session_state.get(show_resolved_key, False) and not closed_related.empty:
-        closed_display = closed_related.copy()
-        closed_display["closed_date"] = pd.to_datetime(closed_display.get("closed_time"), utc=True, errors="coerce").dt.strftime("%Y-%m-%d").fillna("-")
-        st.dataframe(
-            clean_table(closed_display, ["closed_date", "title", "resolved_outcome", "final_yes_price", "volume", "url"]),
-            width="stretch",
-            height=220,
-            column_config={
-                "final_yes_price": st.column_config.NumberColumn("Final Yes", format="%.3f"),
-                "volume": st.column_config.NumberColumn(format="$%.0f"),
-                "url": st.column_config.LinkColumn("URL"),
-            },
-        )
 
 
 def page_markets() -> None:
