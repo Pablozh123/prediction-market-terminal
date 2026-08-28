@@ -1263,6 +1263,10 @@ def cross_rows(
     Mitte gegen Mitte), die Gebuehrenschwelle beider Venues und was danach
     bleibt. Ohne beidseitige Quote bleiben sie ``None``, damit das Frontend
     einen Strich zeigen kann statt einer gemessenen Null.
+
+    ``pmVolUsd`` sind Dollar, ``ksVolContracts`` sind Kontrakte. Die beiden
+    hiessen einmal ``pmVol`` und ``ksVol``, und das Frontend hat sie addiert.
+    Sie sind nicht addierbar (Beleg in ``app/venue_units.py``).
     """
 
     if candidates is None or candidates.empty:
@@ -1277,8 +1281,8 @@ def cross_rows(
         sim = _num(row.get("similarity"), 0.0) or 0.0
         if sim < float(min_similarity):
             continue
-        pm_vol = _num(row.get("polymarket_volume"), 0.0) or 0.0
-        ks_vol = _num(row.get("kalshi_volume"), 0.0) or 0.0
+        pm_vol = _num(row.get("polymarket_volume_usd"), 0.0) or 0.0
+        ks_vol = _num(row.get("kalshi_volume_contracts"), 0.0) or 0.0
         if require_volume and (pm_vol <= 0 or ks_vol <= 0):
             continue
         pm_key = _text(row.get("polymarket_market_key"))
@@ -1287,8 +1291,12 @@ def cross_rows(
             "cat": (_text(categories.get(pm_key)) or "PAIR").upper(),
             "pm": round(pm_yes * 100),
             "ks": round(ks_yes * 100),
-            "pmVol": pm_vol,
-            "ksVol": ks_vol,
+            # Zwei Schluessel, zwei Einheiten. Polymarket meldet Dollar,
+            # Kalshi Kontrakte; das Frontend darf sie nicht in eine Zahl
+            # legen, also stehen sie hier nicht unter einem gemeinsamen
+            # Namen (Beleg in app/venue_units.py).
+            "pmVolUsd": pm_vol,
+            "ksVolContracts": ks_vol,
             "sim": round(sim, 2),
             "gross": _num(row.get("gross_edge_cents")),
             "band": _num(row.get("fee_band_cents")),

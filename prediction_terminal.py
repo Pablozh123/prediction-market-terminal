@@ -8478,8 +8478,8 @@ def page_cross_venue() -> None:
         fallback_used = not candidates.empty
     if not candidates.empty:
         candidates = candidates[numeric_col(candidates, "abs_gap") >= float(min_gap_cents) / 100]
-        candidates = candidates[numeric_col(candidates, "polymarket_volume") >= float(min_pm_volume)]
-        candidates = candidates[numeric_col(candidates, "kalshi_volume") >= float(min_ks_volume)]
+        candidates = candidates[numeric_col(candidates, "polymarket_volume_usd") >= float(min_pm_volume)]
+        candidates = candidates[numeric_col(candidates, "kalshi_volume_contracts") >= float(min_ks_volume)]
         candidates = candidates[
             (numeric_col(candidates, "polymarket_yes") >= min_price)
             & (numeric_col(candidates, "polymarket_yes") <= max_price)
@@ -8549,8 +8549,8 @@ def page_cross_venue() -> None:
                 "kalshi_title",
                 "polymarket_yes",
                 "kalshi_yes",
-                "polymarket_volume",
-                "kalshi_volume",
+                "polymarket_volume_usd",
+                "kalshi_volume_contracts",
                 "polymarket_url",
                 "kalshi_url",
             ],
@@ -8558,8 +8558,8 @@ def page_cross_venue() -> None:
         width="stretch",
         height=460,
         column_config={
-            "polymarket_volume": st.column_config.NumberColumn(format="$%.0f"),
-            "kalshi_volume": st.column_config.NumberColumn(format="$%.0f"),
+            "polymarket_volume_usd": st.column_config.NumberColumn(format="$%.0f"),
+            "kalshi_volume_contracts": st.column_config.NumberColumn(format="$%.0f"),
             "polymarket_url": st.column_config.LinkColumn("Polymarket"),
             "kalshi_url": st.column_config.LinkColumn("Kalshi"),
         },

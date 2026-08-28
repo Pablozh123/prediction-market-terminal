@@ -331,7 +331,7 @@ function mitDaten(T) {
   // Mittelkurse 62/58, ausfuehrbar aber nur 2 Cent, und davon frisst die
   // Gebuehrenschwelle 2.7: die Zeile steht mit einer Luecke von 4 Cent und
   // einem negativen Netto da.
-  T.crossPairs = [{ event: 'Example question', cat: 'Macro', pm: 62, ks: 58, sim: 0.71, pmVol: 1200000, ksVol: 300000, gross: 2.0, band: 2.7, net: -0.7, dir: 'buy Kalshi, sell Polymarket' }];
+  T.crossPairs = [{ event: 'Example question', cat: 'Macro', pm: 62, ks: 58, sim: 0.71, pmVolUsd: 1200000, ksVolContracts: 300000, gross: 2.0, band: 2.7, net: -0.7, dir: 'buy Kalshi, sell Polymarket' }];
   T.herkunft.cross = { quelle: 'live' };
   T.liveData.cross = { _quelle: 'live', rows: T.crossPairs, candidates_before_gate: 9, gate: { min_similarity: 0.5, require_volume_both: true }, as_of: '2026-08-17 10:00 UTC' };
   T.liveData.resolved = {

@@ -3954,8 +3954,8 @@ def cross_venue_candidates(
                     "kalshi_title": k_row["title"],
                     "polymarket_yes": pm_price,
                     "kalshi_yes": ks_price,
-                    "polymarket_volume": p_row.get("activity_volume", p_row.get("volume_24h", 0)),
-                    "kalshi_volume": k_row.get("activity_volume", k_row.get("volume_24h", 0)),
+                    "polymarket_volume_usd": p_row.get("activity_volume", p_row.get("volume_24h", 0)),
+                    "kalshi_volume_contracts": k_row.get("activity_volume", k_row.get("volume_24h", 0)),
                     "polymarket_url": p_row.get("url", ""),
                     "kalshi_url": k_row.get("url", ""),
                 }

@@ -802,6 +802,17 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("1 of 9 candidate pairs clear the gate (similarity ≥ 0.5, volume on both venues)", live)
         self.assertIn("similarity 0.71", live)
         self.assertIn("GATE 0.50", live)
+        # Zwei Volumina, zwei Einheiten, zwei Spalten. Kalshis Volumen zaehlt
+        # Kontrakte (app/venue_units.py), also darf es weder ein
+        # Dollarzeichen tragen noch mit dem Polymarket-Betrag in einer Zahl
+        # aufgehen: $1.20m und 300k Kontrakte, nie die Summe $1.50m.
+        self.assertIn("PM VOL 24H", live)
+        self.assertIn("KALSHI VOL 24H", live)
+        self.assertIn("$1.20m", live)
+        self.assertIn("300k contracts", live)
+        self.assertNotIn("$1.50m", live)
+        # Auch die Filterschwelle behauptet keine Dollar mehr.
+        self.assertIn("MIN KALSHI VOLUME (CONTRACTS)", live)
         # Der Schieber faengt bei der Schranke an, nicht darunter.
         self.assertNotIn("0.30", live)
         # Ohne jede Antwort (leerer Harness): Ladezustand, keine Zeile.

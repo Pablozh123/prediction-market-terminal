@@ -1,7 +1,7 @@
 // Market Intel terminal — vanilla JS port of the design reference.
 // One controller class; each workspace renders as an HTML string from state.
 
-import { num, money, esc, spark, seriesPoints } from './util.js';
+import { num, money, volume, esc, spark, seriesPoints } from './util.js';
 import { STUDIEN } from './studies.js';
 import { apiGet, apiGetRaw, apiPost } from './api.js';
 import { renderOverview, renderMarkets, renderFlow, renderCross, renderResolved } from './pages/core_pages.js';
@@ -344,7 +344,9 @@ class Terminal {
       priceLabel: m.yes + '¢',
       changeLabel: (m.chg >= 0 ? '+' : '') + m.chg + '¢',
       changeStyle: this.changeStyle(m.chg),
-      volLabel: money(m.vol),
+      // Polymarket meldet Dollar, Kalshi Kontrakte. money() hat beides
+      // mit einem Dollarzeichen versehen (app/venue_units.py).
+      volLabel: volume(m.vol, m.venue),
       ends: m.ends,
       act: this.act(() => this.openMarket(m.id))
     };
