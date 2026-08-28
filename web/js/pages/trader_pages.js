@@ -214,7 +214,7 @@ export function renderTraders(T) {
     + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">Who is actually good at this</h1></div>'
     + '<div style="display:flex; align-items:center; gap:10px">'
     + '<input value="' + esc(s.traderQuery) + '" ' + T.inp((e) => T.setState({ traderQuery: e.target.value }), 'traderQuery') + ' placeholder="Search name or wallet…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:9px 12px; ' + M + '; font-size:var(--t-small); color:var(--text); width:230px" />'
-    + '<div ' + T.act(() => T.setState({ traderQuery: '', tPnl: 'all', tVol: 'all', traderRank: 'pnl' })) + ' class="hv-bd32" style="font-size:var(--t-small); color:var(--ink-3); border:1px solid var(--line-1); border-radius:var(--r-control); padding:9px 13px; cursor:pointer">Reset filters</div>'
+    + '<div ' + T.act(() => T.setState({ traderQuery: '', tPnl: 'all', tVol: 'all', traderRank: 'pnl' })) + ' class="hv-edge-strong" style="font-size:var(--t-small); color:var(--ink-3); border:1px solid var(--line-1); border-radius:var(--r-control); padding:9px 13px; cursor:pointer">Reset filters</div>'
     + '</div></div>'
     // Der Vorbehalt gegen rohe PnL-Raenge stand als leaderboard_caveat im
     // Register und war auf keiner Seite zu sehen; die Beschreibung davor
@@ -808,7 +808,7 @@ export function renderRiskLog(T) {
   if (live._quelle === 'fehler') {
     return intro + '<div style="display:flex; align-items:center; gap:12px; padding:16px 24px">'
       + '<span style="' + M + '; font-size:var(--t-micro); color:var(--neg-soft)">' + esc(herkunftSatz({ quelle: 'fehler', fehler: live._fehler }, '/api/risk/log')) + '</span>'
-      + (T.neuLaden ? '<div ' + T.act(() => T.neuLaden('riskLog', 'risk')) + ' class="hv-bd32" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:5px 10px; cursor:pointer; white-space:nowrap">Try again</div>' : '')
+      + (T.neuLaden ? '<div ' + T.act(() => T.neuLaden('riskLog', 'risk')) + ' class="hv-edge-strong" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:5px 10px; cursor:pointer; white-space:nowrap">Try again</div>' : '')
       + '</div>';
   }
   const rows = Array.isArray(live.rows) ? live.rows : [];
@@ -913,7 +913,7 @@ export function riskEventCard(T, r0) {
   const score = Number(r.score) || 0;
   const band = BAND(score, T, r0);
   const toggle = hatDetails
-    ? '<div data-stop ' + T.act(() => T.setState({ riskOpen: Object.assign({}, s.riskOpen || {}, { [key]: !offen }) })) + ' class="hv-bd32" style="' + M + '; font-size:var(--t-micro); letter-spacing:.06em; color:' + (offen ? 'var(--text)' : 'var(--ink-3)') + '; border:1px solid ' + (offen ? 'var(--line-edge)' : 'var(--line-1)') + '; border-radius:var(--r-control); padding:4px 9px; cursor:pointer; white-space:nowrap; user-select:none">' + (offen ? 'Why ' + score + '? ▴' : 'Why ' + score + '? ▾') + '</div>'
+    ? '<div data-stop ' + T.act(() => T.setState({ riskOpen: Object.assign({}, s.riskOpen || {}, { [key]: !offen }) })) + ' class="hv-edge-strong" style="' + M + '; font-size:var(--t-micro); letter-spacing:.06em; color:' + (offen ? 'var(--text)' : 'var(--ink-3)') + '; border:1px solid ' + (offen ? 'var(--line-edge)' : 'var(--line-1)') + '; border-radius:var(--r-control); padding:4px 9px; cursor:pointer; white-space:nowrap; user-select:none">' + (offen ? 'Why ' + score + '? ▴' : 'Why ' + score + '? ▾') + '</div>'
     : '';
   const flags = Array.isArray(r0.flags) && r0.flags.length ? r0.flags : (r.detail && !/^No individual flags/.test(r.detail) ? String(r.detail).split(' · ') : []);
   const details = offen && hatDetails
@@ -933,7 +933,7 @@ export function riskEventCard(T, r0) {
   const streifen = (preisSpalte || fensterSpalte)
     ? '<div style="display:flex; gap:14px; margin-top:10px">' + preisSpalte + fensterSpalte + '</div>'
     : '';
-  return '<div ' + (klickbar ? r.act + ' class="hv-bd20" ' : '') + 'data-bg style="background:var(--panel); border:1px solid ' + (r0.sev === 'high' ? 'rgba(var(--warn-rgb),.3)' : 'var(--line-2)') + '; border-radius:var(--r-panel); padding:16px 18px; ' + (klickbar ? 'cursor:pointer; ' : '') + '">'
+  return '<div ' + (klickbar ? r.act + ' class="hv-edge" ' : '') + 'data-bg style="background:var(--panel); border:1px solid ' + (r0.sev === 'high' ? 'rgba(var(--warn-rgb),.3)' : 'var(--line-2)') + '; border-radius:var(--r-panel); padding:16px 18px; ' + (klickbar ? 'cursor:pointer; ' : '') + '">'
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px">'
     + '<div style="' + r.kindStyle + '; padding-top:4px">' + esc(r.kind) + '</div>'
     + '<div style="text-align:right; flex:none"><div style="display:flex; align-items:baseline; gap:6px; justify-content:flex-end"><div style="' + r.scoreStyle + '">' + r.score + '</div>'
@@ -1200,7 +1200,7 @@ export function renderRisk(T) {
           + (mitglieder.length
             ? '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3); margin-top:11px">WHO</div>'
               + '<div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:5px">'
-              + mitglieder.map((mm) => '<span ' + T.act(() => T.openWallet(mm.kurz, mm.wallet)) + ' class="hv-bd32" style="' + M + '; font-size:var(--t-micro); color:var(--ink-1); border:1px solid var(--line-1); border-radius:var(--r-control); padding:3px 8px; cursor:pointer" title="open this wallet">' + esc(mm.kurz) + '</span>').join('')
+              + mitglieder.map((mm) => '<span ' + T.act(() => T.openWallet(mm.kurz, mm.wallet)) + ' class="hv-edge-strong" style="' + M + '; font-size:var(--t-micro); color:var(--ink-1); border:1px solid var(--line-1); border-radius:var(--r-control); padding:3px 8px; cursor:pointer" title="open this wallet">' + esc(mm.kurz) + '</span>').join('')
               + (rest > 0 ? '<span style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); padding:3px 2px">+ ' + rest + ' more</span>' : '')
               + '</div>'
             : '')
@@ -1266,7 +1266,7 @@ export function renderRisk(T) {
         // the backtester, so a 429 usually means "a few backtests just ran".
         ? '<div style="display:flex; align-items:center; gap:12px; padding:12px 24px; border-bottom:1px solid var(--line-2); background:var(--panel)">'
           + '<span style="' + M + '; font-size:var(--t-micro); color:var(--neg-soft)">' + esc(risikoSatz) + '</span>'
-          + '<div ' + T.act(() => T.neuLaden('risk', 'risk')) + ' class="hv-bd32" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:5px 10px; cursor:pointer; white-space:nowrap">Try again</div></div>'
+          + '<div ' + T.act(() => T.neuLaden('risk', 'risk')) + ' class="hv-edge-strong" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:5px 10px; cursor:pointer; white-space:nowrap">Try again</div></div>'
         : ''))
     + '<div style="display:flex; gap:6px; padding:16px 24px 0; flex-wrap:wrap">'
     + [['events','Events'],['wallets','Wallets'],['fresh','Fresh-wallet clusters'],['timing','Coordinated timing'],['network','Co-trading network']].map((o) => T.tab(o[1], s.riskView === o[0], { riskView: o[0] })).join('')
@@ -1332,7 +1332,7 @@ export function renderTrack(T) {
       const gradeStyle = M + '; font-size:var(--t-small); border-radius:var(--r-control); padding:2px 9px; ' + (w.grade === 'A' || w.grade === 'A+' ? 'color:var(--on-accent); background:var(--accent)' : w.grade === '—' ? 'color:var(--ink-3); border:1px solid var(--line-1)' : 'color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35)');
       const pnlText = typeof w.pnlRaw === 'number' && T.liveData.track ? (w.pnlRaw >= 0 ? '+' : '-') + money(Math.abs(w.pnlRaw)) : w.pnl;
       const pnlStyle = M + '; font-size:var(--t-body); margin-top:3px; color:' + (String(pnlText).charAt(0) === '+' ? 'var(--pos)' : String(pnlText).charAt(0) === '-' ? 'var(--neg)' : 'var(--ink-4)');
-      return '<div ' + T.act(() => T.openWallet(w.openAs)) + ' class="hv-bd20" style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:15px 17px; cursor:pointer">'
+      return '<div ' + T.act(() => T.openWallet(w.openAs)) + ' class="hv-edge" style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:15px 17px; cursor:pointer">'
         + '<div style="display:flex; align-items:center; justify-content:space-between">'
         + '<div style="font-size:var(--t-lead)">' + esc(w.name) + '</div>'
         + '<div style="' + gradeStyle + '">' + esc(w.grade) + '</div></div>'

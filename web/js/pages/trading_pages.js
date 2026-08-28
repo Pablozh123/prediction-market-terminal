@@ -349,9 +349,9 @@ export function renderBacktester(T) {
     + '</div>'
     + '<div style="margin-top:12px"><div style="' + LABEL_BLOCK + '">' + stakeLabel + '</div>'
     + '<div style="display:flex; align-items:center; gap:8px">'
-    + '<div ' + T.act(bt(T, stakeDown)) + ' class="hv-bd35w" style="width:32px; height:34px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-lead); color:var(--ink-2); cursor:pointer">−</div>'
+    + '<div ' + T.act(bt(T, stakeDown)) + ' class="hv-edge-max hv-white" style="width:32px; height:34px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-lead); color:var(--ink-2); cursor:pointer">−</div>'
     + '<div style="flex:1; background:var(--panel); border:1px solid var(--line-1); border-radius:var(--r-control); padding:8px 12px; ' + M + '; font-size:var(--t-body); text-align:center">' + esc(stakeValue) + '</div>'
-    + '<div ' + T.act(bt(T, stakeUp)) + ' class="hv-bd35w" style="width:32px; height:34px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-lead); color:var(--ink-2); cursor:pointer">+</div></div>'
+    + '<div ' + T.act(bt(T, stakeUp)) + ' class="hv-edge-max hv-white" style="width:32px; height:34px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-lead); color:var(--ink-2); cursor:pointer">+</div></div>'
     + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:7px; line-height:1.5">' + stakeHint + '</div></div>'
     // Auto-Fit: die Engine misst die Hoechstzahl gleichzeitig offener
     // Quell-Positionen und passt den Einsatz je Copy so an, dass Bankroll

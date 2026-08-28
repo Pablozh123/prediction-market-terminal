@@ -604,7 +604,7 @@ export function renderMarkets(T) {
     + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">Every market, one table</h1></div>'
     + '<div style="display:flex; align-items:center; gap:10px">'
     + '<input value="' + esc(s.marketQuery) + '" ' + T.inp((e) => T.setState({ marketQuery: e.target.value }), 'marketQuery') + ' placeholder="Search markets…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:9px 12px; ' + M + '; font-size:var(--t-small); color:var(--text); width:230px" />'
-    + '<div ' + T.act(() => T.setState({ mPlatform: 'all', mStatus: 'active', mProb: 'all', mLiq: 'all', mVol: 'all', mEnds: 'all', mAge: 'all', mExclude: [], marketCat: 'All', marketQuery: '', mQuick: 'trending', marketSort: 'volume' })) + ' class="hv-bd32" style="font-size:var(--t-small); color:var(--ink-3); border:1px solid var(--line-1); border-radius:var(--r-control); padding:9px 13px; cursor:pointer">Reset filters</div>'
+    + '<div ' + T.act(() => T.setState({ mPlatform: 'all', mStatus: 'active', mProb: 'all', mLiq: 'all', mVol: 'all', mEnds: 'all', mAge: 'all', mExclude: [], marketCat: 'All', marketQuery: '', mQuick: 'trending', marketSort: 'volume' })) + ' class="hv-edge-strong" style="font-size:var(--t-small); color:var(--ink-3); border:1px solid var(--line-1); border-radius:var(--r-control); padding:9px 13px; cursor:pointer">Reset filters</div>'
     + '</div></div>'
 
     // Der Ueberblick zuerst: vier Kennzahlen des Ausschnitts und drei
@@ -657,7 +657,7 @@ export function renderMarkets(T) {
     + '<div style="display:flex; align-items:center; gap:8px; margin-top:12px; flex-wrap:wrap">'
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + mRows.length + ' of ' + T.markets.length + ' markets</div>'
     + mActive.map((c) =>
-      '<div ' + T.act(() => T.setState(c.reset)) + ' class="hv-bd30" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); background:var(--panel-hover); border-radius:var(--r-control); padding:3px 9px; cursor:pointer">' + esc(c.label) + ' ✕</div>'
+      '<div ' + T.act(() => T.setState(c.reset)) + ' class="hv-edge-strong" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); background:var(--panel-hover); border-radius:var(--r-control); padding:3px 9px; cursor:pointer">' + esc(c.label) + ' ✕</div>'
     ).join('')
     + '</div></div>'
 
@@ -903,7 +903,7 @@ export function renderCross(T) {
         + '</div></div>';
     } else if (hk.quelle === 'fehler') {
       body = leerBlock('NO PAIRS', herkunftSatz(hk, '/api/cross'))
-        + (T.neuLaden ? '<div style="padding:0 24px 24px"><div ' + T.act(() => T.neuLaden('cross', 'cross')) + ' class="hv-bd32" style="display:inline-block; ' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:6px 12px; cursor:pointer">Try again</div></div>' : '');
+        + (T.neuLaden ? '<div style="padding:0 24px 24px"><div ' + T.act(() => T.neuLaden('cross', 'cross')) + ' class="hv-edge-strong" style="display:inline-block; ' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:6px 12px; cursor:pointer">Try again</div></div>' : '');
     } else {
       body = crossGateBlock(T);
     }
@@ -945,9 +945,9 @@ export function renderCross(T) {
   const stepGroup = (label, valueLabel, onDown, onUp) =>
     '<div><div style="' + LABEL_BLOCK + '">' + label + '</div>'
     + '<div style="display:flex; align-items:center; gap:6px">'
-    + '<div ' + T.act(onDown) + ' class="hv-bd35w" style="width:26px; height:30px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-body); color:var(--ink-2); cursor:pointer">−</div>'
+    + '<div ' + T.act(onDown) + ' class="hv-edge-max hv-white" style="width:26px; height:30px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-body); color:var(--ink-2); cursor:pointer">−</div>'
     + '<div style="flex:1; background:var(--panel); border:1px solid var(--line-1); border-radius:var(--r-control); padding:6px 8px; ' + M + '; font-size:var(--t-small); text-align:center">' + esc(valueLabel) + '</div>'
-    + '<div ' + T.act(onUp) + ' class="hv-bd35w" style="width:26px; height:30px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-body); color:var(--ink-2); cursor:pointer">+</div>'
+    + '<div ' + T.act(onUp) + ' class="hv-edge-max hv-white" style="width:26px; height:30px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-body); color:var(--ink-2); cursor:pointer">+</div>'
     + '</div></div>';
 
   return '<div>'
@@ -958,7 +958,7 @@ export function renderCross(T) {
     + '<div style="display:flex; align-items:center; gap:10px">'
     + asOfLine(cl.as_of)
     + '<input value="' + esc(s.crossQuery) + '" ' + T.inp((e) => T.setState({ crossQuery: e.target.value }), 'crossQuery') + ' placeholder="bitcoin, fed, election…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:9px 12px; ' + M + '; font-size:var(--t-small); color:var(--text); width:230px" />'
-    + '<div ' + T.act(() => T.setState({ crossQuery: '', crossSim: 0.5, crossMaxPairs: 50, crossMinGap: 0, crossLower: 'any', crossPmVol: 0, crossKsVol: 0, crossMinPrice: 0, crossMaxPrice: 100 })) + ' class="hv-bd32" style="font-size:var(--t-small); color:var(--ink-3); border:1px solid var(--line-1); border-radius:var(--r-control); padding:9px 13px; cursor:pointer">Reset filters</div>'
+    + '<div ' + T.act(() => T.setState({ crossQuery: '', crossSim: 0.5, crossMaxPairs: 50, crossMinGap: 0, crossLower: 'any', crossPmVol: 0, crossKsVol: 0, crossMinPrice: 0, crossMaxPrice: 100 })) + ' class="hv-edge-strong" style="font-size:var(--t-small); color:var(--ink-3); border:1px solid var(--line-1); border-radius:var(--r-control); padding:9px 13px; cursor:pointer">Reset filters</div>'
     + '</div></div>'
     + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:10px; max-width:760px">Matched by title similarity, not by ticker. ' + esc(gateNote) + '. GAP is the distance between the two mid prices, and nobody trades a mid. NET OF FEES prices the basket that would capture it (buy the yes side at the ask, buy the other side at the other venue&#39;s ask) and subtracts both venues&#39; taker fee curves. Settlement rules and resolution sources still differ, and two matched titles can still be two different questions (studies 08 and 11).</div>'
 

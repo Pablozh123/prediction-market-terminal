@@ -229,7 +229,7 @@ export function renderDetail(T) {
       ? '<div style="display:flex; flex-direction:column; gap:8px; margin-top:20px">'
         + '<div ' + v.primaryAct + ' class="hv-accentbg" style="font-size:var(--t-body); font-weight:600; text-align:center; color:var(--on-accent); background:var(--accent); border-radius:var(--r-control); padding:11px; cursor:pointer">' + esc(v.primaryAction) + '</div>'
         + (v.secondaryAction && v.secondaryAct
-          ? '<div ' + v.secondaryAct + ' class="hv-bd32" style="font-size:var(--t-small); text-align:center; color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:10px; cursor:pointer">' + esc(v.secondaryAction) + '</div>'
+          ? '<div ' + v.secondaryAct + ' class="hv-edge-strong" style="font-size:var(--t-small); text-align:center; color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:10px; cursor:pointer">' + esc(v.secondaryAction) + '</div>'
           : '')
         + '</div>'
       : '')

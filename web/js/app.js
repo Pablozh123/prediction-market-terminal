@@ -326,9 +326,9 @@ class Terminal {
     const btn = 'width:' + (s ? 32 : 28) + 'px; height:' + (s ? 34 : 32) + 'px; flex:none; border:1px solid var(--line-1); border-radius:' + (s ? 8 : 7) + 'px; display:flex; align-items:center; justify-content:center; font-family:\'IBM Plex Mono\',monospace; font-size:' + (s ? 15 : 14) + 'px; color:var(--ink-2); cursor:pointer';
     const val = 'flex:1; background:var(--panel); border:1px solid var(--line-1); border-radius:' + (s ? 8 : 7) + 'px; padding:' + (s ? '8px 12px' : '7px 8px') + '; font-family:\'IBM Plex Mono\',monospace; font-size:' + (s ? 13 : 12.5) + 'px; text-align:center';
     return '<div style="display:flex; align-items:center; gap:' + (s ? 8 : 6) + 'px">'
-      + '<div ' + this.act(onDown) + ' class="hv-bd35w" style="' + btn + '">−</div>'
+      + '<div ' + this.act(onDown) + ' class="hv-edge-max hv-white" style="' + btn + '">−</div>'
       + '<div style="' + val + '">' + esc(valueLabel) + '</div>'
-      + '<div ' + this.act(onUp) + ' class="hv-bd35w" style="' + btn + '">+</div></div>';
+      + '<div ' + this.act(onUp) + ' class="hv-edge-max hv-white" style="' + btn + '">+</div></div>';
   }
 
   changeStyle(chg) {
@@ -649,7 +649,7 @@ class Terminal {
       + '<div style="display:flex; align-items:center; gap:9px; padding:0 6px 18px">'
       + '<div style="width:10px; height:10px; background:var(--accent); transform:rotate(45deg)"></div>'
       + '<div style="font-family:\'IBM Plex Mono\',monospace; font-size:var(--t-body); font-weight:600; letter-spacing:.1em; text-transform:uppercase">Market Intel</div></div>'
-      + '<div ' + this.act(() => this.setState({ searchOpen: true })) + ' class="hv-bd22" style="display:flex; align-items:center; gap:8px; background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-control); padding:9px 10px; cursor:pointer; margin-bottom:18px">'
+      + '<div ' + this.act(() => this.setState({ searchOpen: true })) + ' class="hv-edge" style="display:flex; align-items:center; gap:8px; background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-control); padding:9px 10px; cursor:pointer; margin-bottom:18px">'
       + '<div style="font-family:\'IBM Plex Mono\',monospace; font-size:var(--t-small); color:var(--ink-3); flex:1">Search</div>'
       + '<div style="font-family:\'IBM Plex Mono\',monospace; font-size:var(--t-micro); color:var(--ink-4); border:1px solid var(--line-1); border-radius:var(--r-control); padding:0 5px">/</div></div>'
       + groupHtml
@@ -693,7 +693,7 @@ class Terminal {
       // The chip names the theme it switches TO, like every other control
       // here names its action. Colours are CSS custom properties, so the
       // flip repaints without a re-render; only this label needs state.
-      + '<div ' + this.act(() => this.toggleTheme()) + ' aria-label="Switch to ' + (s.theme === 'light' ? 'dark' : 'light') + ' theme" class="hv-bd30" style="font-family:\'IBM Plex Mono\',monospace; font-size:var(--t-micro); letter-spacing:.08em; border:1px solid var(--line-1); border-radius:var(--r-control); padding:4px 9px; cursor:pointer; color:var(--ink-2); user-select:none">'
+      + '<div ' + this.act(() => this.toggleTheme()) + ' aria-label="Switch to ' + (s.theme === 'light' ? 'dark' : 'light') + ' theme" class="hv-edge-strong" style="font-family:\'IBM Plex Mono\',monospace; font-size:var(--t-micro); letter-spacing:.08em; border:1px solid var(--line-1); border-radius:var(--r-control); padding:4px 9px; cursor:pointer; color:var(--ink-2); user-select:none">'
       + (s.theme === 'light' ? 'DARK' : 'LIGHT') + '</div></div>';
   }
 

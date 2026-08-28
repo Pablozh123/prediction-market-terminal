@@ -113,7 +113,7 @@ function renderHeader(T) {
     + (valid ? 'color:var(--on-accent); background:var(--accent)' : 'color:var(--ink-3); border:1px solid var(--line-1)');
   const analyse = () => { if (T.analyseWallet) T.analyseWallet(input.trim()); };
   const recent = Array.isArray(s.walletRecent) ? s.walletRecent.filter((a) => a !== EXAMPLE_WALLET) : [];
-  const chip = (addr, label, title) => '<div ' + T.act(() => { if (T.analyseWallet) T.analyseWallet(addr); }) + ' class="hv-bd32" title="' + esc(title || addr) + '" style="' + M + '; font-size:var(--t-micro); letter-spacing:.04em; border-radius:var(--r-control); padding:4px 9px; cursor:pointer; color:var(--ink-3); border:1px solid var(--line-1); white-space:nowrap">' + esc(label) + '</div>';
+  const chip = (addr, label, title) => '<div ' + T.act(() => { if (T.analyseWallet) T.analyseWallet(addr); }) + ' class="hv-edge-strong" title="' + esc(title || addr) + '" style="' + M + '; font-size:var(--t-micro); letter-spacing:.04em; border-radius:var(--r-control); padding:4px 9px; cursor:pointer; color:var(--ink-3); border:1px solid var(--line-1); white-space:nowrap">' + esc(label) + '</div>';
   return '<div style="padding:20px 24px 14px; border-bottom:1px solid var(--line-2)">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.18em; color:var(--accent)">WALLET</div>'
     + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:6px 0 0; font-weight:600; letter-spacing:-0.01em">One wallet, read from the public feed</h1>'
@@ -159,7 +159,7 @@ function renderError(T, addr, entry) {
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--warn)">' + esc(title) + '</div>'
     + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:9px; line-height:1.6">' + esc(text) + '</div>'
     + '<div style="display:flex; gap:8px; margin-top:12px">'
-    + '<div ' + T.act(() => { if (T.fetchWallet) T.fetchWallet(addr, true); }) + ' class="hv-bd32" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:5px 10px; cursor:pointer">Try again</div>'
+    + '<div ' + T.act(() => { if (T.fetchWallet) T.fetchWallet(addr, true); }) + ' class="hv-edge-strong" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:5px 10px; cursor:pointer">Try again</div>'
     + '</div></div></div>';
 }
 
@@ -183,7 +183,7 @@ function renderIdentity(T, d) {
   const id = d.identity || {};
   const addr = id.address || T.state.walletAddr;
   const tr = d.track_record || null;
-  const btn = (label, fn, primary, title) => '<div ' + T.act(fn) + ' class="' + (primary ? 'hv-accentbg' : 'hv-bd32') + '" title="' + esc(title || '') + '" style="' + M + '; font-size:var(--t-micro); letter-spacing:.04em; border-radius:var(--r-control); padding:6px 11px; cursor:pointer; white-space:nowrap; ' + (primary ? 'color:var(--on-accent); background:var(--accent); font-weight:600' : 'color:var(--ink-2); border:1px solid var(--line-1)') + '">' + label + '</div>';
+  const btn = (label, fn, primary, title) => '<div ' + T.act(fn) + ' class="' + (primary ? 'hv-accentbg' : 'hv-edge-strong') + '" title="' + esc(title || '') + '" style="' + M + '; font-size:var(--t-micro); letter-spacing:.04em; border-radius:var(--r-control); padding:6px 11px; cursor:pointer; white-space:nowrap; ' + (primary ? 'color:var(--on-accent); background:var(--accent); font-weight:600' : 'color:var(--ink-2); border:1px solid var(--line-1)') + '">' + label + '</div>';
   const follow = () => {
     // Prefill the copy desk's follow form and open it. Nothing is followed
     // until the button on that page is pressed.
@@ -216,8 +216,8 @@ function renderIdentity(T, d) {
     + '<div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end">'
     + btn('Follow on the copy desk →', follow, true, 'prefills the follow form of the paper copy desk with this address')
     + btn('Replay this wallet in the backtester →', replay, false, '')
-    + (id.profile_url ? '<a href="' + esc(id.profile_url) + '" target="_blank" rel="noopener" class="hv-bd32" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:6px 11px; text-decoration:none; white-space:nowrap">Polymarket profile ↗</a>' : '')
-    + (id.polygonscan_url ? '<a href="' + esc(id.polygonscan_url) + '" target="_blank" rel="noopener" class="hv-bd32" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:6px 11px; text-decoration:none; white-space:nowrap">Polygonscan ↗</a>' : '')
+    + (id.profile_url ? '<a href="' + esc(id.profile_url) + '" target="_blank" rel="noopener" class="hv-edge-strong" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:6px 11px; text-decoration:none; white-space:nowrap">Polymarket profile ↗</a>' : '')
+    + (id.polygonscan_url ? '<a href="' + esc(id.polygonscan_url) + '" target="_blank" rel="noopener" class="hv-edge-strong" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:6px 11px; text-decoration:none; white-space:nowrap">Polygonscan ↗</a>' : '')
     + '</div>'
     + '<div style="' + NOTIZ + '">as of ' + esc(d.as_of || stempel(d.snapshot_at)) + ' · cached 300 s</div>'
     + '</div></div></div>';
@@ -939,7 +939,7 @@ function renderSimilarTab(T, d) {
   }
   if (entry.herkunft === 'fehler') {
     return intro + card('SIMILAR WALLETS', '<div style="' + NOTIZ + '; color:var(--warn)">/api/wallet/' + esc(shortAddr(addr)) + '/similar did not answer: ' + esc(entry.fehler || 'unknown error') + '.</div>'
-      + '<div style="margin-top:10px"><div ' + T.act(() => { if (T.fetchWalletSimilar) T.fetchWalletSimilar(addr, true); }) + ' class="hv-bd32" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:5px 10px; cursor:pointer; display:inline-block">Try again</div></div>');
+      + '<div style="margin-top:10px"><div ' + T.act(() => { if (T.fetchWalletSimilar) T.fetchWalletSimilar(addr, true); }) + ' class="hv-edge-strong" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:5px 10px; cursor:pointer; display:inline-block">Try again</div></div>');
   }
   const data = entry.data || {};
   const basis = data.basis || {};
@@ -960,7 +960,7 @@ function renderSimilarTab(T, d) {
       + cell(bar, '')
       + cell(r.on_leaderboard && r.lb_pnl != null ? dollars(r.lb_pnl) : 'not on board', 'text-align:right; color:' + (r.on_leaderboard && r.lb_pnl != null ? pnlColor(r.lb_pnl) : 'var(--ink-3)'))
       + cell(r.on_leaderboard && r.lb_volume != null ? money(r.lb_volume) : '—', 'text-align:right; color:var(--ink-3)')
-      + cell('<span ' + T.act(() => { if (T.analyseWallet) T.analyseWallet(r.wallet); }) + ' class="hv-bd32" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:3px 8px; cursor:pointer">Analyse</span> '
+      + cell('<span ' + T.act(() => { if (T.analyseWallet) T.analyseWallet(r.wallet); }) + ' class="hv-edge-strong" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:3px 8px; cursor:pointer">Analyse</span> '
         + (r.profile_url ? '<a href="' + esc(r.profile_url) + '" target="_blank" rel="noopener" data-stop style="' + M + '; font-size:var(--t-micro); color:var(--info); text-decoration:none; margin-left:6px">profile ↗</a>' : ''), 'text-align:right'));
   }).join('');
   const table = tableWith(cols, head, body, rowsAll.length ? 'No wallet matches the search.' : 'No overlapping top holder found in the checked markets.', 1010);

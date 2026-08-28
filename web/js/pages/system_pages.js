@@ -633,7 +633,7 @@ function studienKnoepfe(T, tab) {
   const methodik = T.studies.findIndex((st) => studienSlug(st) === 'methodology');
   const teile = [];
   if (datei) {
-    teile.push('<a href="./data/' + esc(datei) + '" download="' + esc(datei) + '" class="hv-bd35" style="' + KNOPF + '">Download the data</a>');
+    teile.push('<a href="./data/' + esc(datei) + '" download="' + esc(datei) + '" class="hv-edge-max" style="' + KNOPF + '">Download the data</a>');
   }
   if (methodik >= 0 && methodik !== tab) {
     // goStudy sets the address and fetches; the harness T has no such method.
@@ -642,7 +642,7 @@ function studienKnoepfe(T, tab) {
       T.setState({ page: 'research', researchTab: methodik, detail: null });
       try { history.pushState(null, '', '#research/methodology'); } catch (e) { /* file:// */ }
       T.fetchPageData('research');
-    }) + ' class="hv-bd35" style="' + KNOPF + '">Read the method</div>');
+    }) + ' class="hv-edge-max" style="' + KNOPF + '">Read the method</div>');
   }
   if (!teile.length) return '';
   return '<div style="display:flex; gap:10px; margin-top:14px">' + teile.join('') + '</div>';
@@ -1989,7 +1989,7 @@ function archivKnopf(T, slug, label) {
     T.setState({ page: 'research', researchTab: idx, detail: null });
     try { history.pushState(null, '', '#research/' + slug); } catch (e) { /* file:// */ }
     T.fetchPageData('research');
-  }) + ' class="hv-bd35" style="font-size:var(--t-small); color:var(--text); border:1px solid var(--line-1); border-radius:var(--r-control); padding:8px 14px; cursor:pointer; display:inline-block">' + esc(label) + '</div>';
+  }) + ' class="hv-edge-max" style="font-size:var(--t-small); color:var(--text); border:1px solid var(--line-1); border-radius:var(--r-control); padding:8px 14px; cursor:pointer; display:inline-block">' + esc(label) + '</div>';
 }
 
 // Forward paper log, zusammengefasst auf der Live-runs-Seite: dieselbe
@@ -2039,7 +2039,7 @@ function paperLogHtml(T) {
       : '<div style="margin-top:10px">' + leerZeile('pipeline_forward.json carries no runs.') + '</div>')
     + '<div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap">'
     + archivKnopf(T, 'pipeline-forward', 'Open the full paper log')
-    + '<a href="./data/pipeline_forward.json" download="pipeline_forward.json" class="hv-bd35" style="font-size:var(--t-small); color:var(--text); border:1px solid var(--line-1); border-radius:var(--r-control); padding:8px 14px; text-decoration:none; display:inline-block">Download the data</a>'
+    + '<a href="./data/pipeline_forward.json" download="pipeline_forward.json" class="hv-edge-max" style="font-size:var(--t-small); color:var(--text); border:1px solid var(--line-1); border-radius:var(--r-control); padding:8px 14px; text-decoration:none; display:inline-block">Download the data</a>'
     + '</div></div>';
 }
 
@@ -2063,7 +2063,7 @@ function queueArchivHtml(T) {
     + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:8px; line-height:1.55; max-width:820px">Cases the daily run flagged for a human to check, ranked by how much the automated read and the market disagree. The queue froze 2026-07-14 and the daily run ended 2026-08-07 — a closed record, kept verifiable, not an ongoing process.</div>'
     + '<div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap">'
     + archivKnopf(T, 'review-queue', 'Open the archived queue')
-    + '<a href="./data/queue.json" download="queue.json" class="hv-bd35" style="font-size:var(--t-small); color:var(--text); border:1px solid var(--line-1); border-radius:var(--r-control); padding:8px 14px; text-decoration:none; display:inline-block">Download the data</a>'
+    + '<a href="./data/queue.json" download="queue.json" class="hv-edge-max" style="font-size:var(--t-small); color:var(--text); border:1px solid var(--line-1); border-radius:var(--r-control); padding:8px 14px; text-decoration:none; display:inline-block">Download the data</a>'
     + '</div></div>';
 }
 
@@ -2676,9 +2676,9 @@ export function renderSettings(T) {
   const stepRow = (label, valueLabel, down, up) =>
     '<div><div style="' + LABEL_BLOCK + '">' + label + '</div>'
     + '<div style="display:flex; align-items:center; gap:6px">'
-    + '<div ' + T.act(down) + ' class="hv-bd35w" style="width:28px; height:32px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-body); color:var(--ink-2); cursor:pointer">−</div>'
+    + '<div ' + T.act(down) + ' class="hv-edge-max hv-white" style="width:28px; height:32px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-body); color:var(--ink-2); cursor:pointer">−</div>'
     + '<div style="flex:1; background:var(--panel); border:1px solid var(--line-1); border-radius:var(--r-control); padding:7px 8px; ' + M + '; font-size:var(--t-small); text-align:center">' + esc(valueLabel) + '</div>'
-    + '<div ' + T.act(up) + ' class="hv-bd35w" style="width:28px; height:32px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-body); color:var(--ink-2); cursor:pointer">+</div></div></div>';
+    + '<div ' + T.act(up) + ' class="hv-edge-max hv-white" style="width:28px; height:32px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-body); color:var(--ink-2); cursor:pointer">+</div></div></div>';
 
   const settingRows = [
     // Der Wert stand hier als "chat 4711 · verified" — eine erfundene
@@ -3190,7 +3190,7 @@ function renderMethodology(T, payload, study) {
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(380px, 1fr)); gap:12px">' + sektionen.join('') + '</div>'
     + queueArchivHtml(T)
     + '<div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap">'
-    + '<a href="' + ONE_PAGER_URL + '" target="_blank" rel="noopener" class="hv-bd35" style="font-size:var(--t-body); color:var(--text); border:1px solid var(--line-1); border-radius:var(--r-control); padding:10px 16px; text-decoration:none; display:inline-block">Read the full one-pager ↗</a>'
+    + '<a href="' + ONE_PAGER_URL + '" target="_blank" rel="noopener" class="hv-edge-max" style="font-size:var(--t-body); color:var(--text); border:1px solid var(--line-1); border-radius:var(--r-control); padding:10px 16px; text-decoration:none; display:inline-block">Read the full one-pager ↗</a>'
     + '</div>'
     + studienKnoepfe(T, T.studies.findIndex((st) => studienSlug(st) === 'methodology'))
     + '</div>';

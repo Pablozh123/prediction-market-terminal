@@ -1449,7 +1449,7 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn('title="share of the flow done by the top wallet"', offen_html)
         # The toggle must not trigger the card action, and the open block
         # neither.
-        self.assertIn('<div data-stop data-act="0" class="hv-bd32"', html)
+        self.assertIn('<div data-stop data-act="0" class="hv-edge-strong"', html)
         self.assertIn('<div data-stop style="margin-top:12px; border-top:1px dashed', offen_html)
         # The older row renders as before: no side chip, no price, no invented
         # wallet or component.
