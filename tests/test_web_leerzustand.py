@@ -1474,6 +1474,9 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("1/1 decisive", text)
         self.assertIn("95% [21%, 100%]", text)
         self.assertIn("sample insufficient", text)
+        # Ein Horizont, der schon hinter dem lesbaren Moment lag, steht als
+        # solcher da und nicht in der Quote.
+        self.assertIn("1 past before readable", text)
         self.assertIn("1 of 2 flags measured", text)
         self.assertIn("as of 17 Aug 10:30 UTC", text)
         # Der Nenner und die Mehrfachvergleiche stehen daneben, nicht in einer

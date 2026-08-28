@@ -671,6 +671,7 @@ export function flagScoreboardHtml(sb) {
       + h.hits + '/' + h.n_decisive + ' decisive · ' + esc(ci) + '</div>'
       + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.6)">sample ' + esc(badge)
       + (h.ties ? ' · ' + h.ties + ' flat' : '')
+      + (h.already_past ? ' · ' + h.already_past + ' past before readable' : '')
       + (h.avg_move_c == null ? '' : ' · avg ' + (h.avg_move_c > 0 ? '+' : '') + h.avg_move_c + 'c') + '</div>'
       + '</div>';
   };

@@ -272,6 +272,29 @@ class FlagScoreboardTests(unittest.TestCase):
         self.assertAlmostEqual(h["avg_move_c"], round((3.0 + 1.5 - 2.0 + 0.0) / 4, 2), places=6)
         self.assertEqual(board["as_of"], "2026-08-28T10:00:00Z")
 
+    def test_horizons_already_past_at_flag_time_stay_out_of_the_ratio(self):
+        # price_after markiert Horizonte, die schon hinter dem Moment lagen,
+        # in dem der Flag ueberhaupt lesbar wurde. Die Bewegung ist echt,
+        # aber in einer Trefferquote waere sie Vorwissen.
+        rows = [
+            {"flag_id": "a", "venue": "Polymarket",
+             "after": {"30m": {"price": 0.6, "move_c": 9.0, "already_past": True}, "2h": None, "24h": None}},
+            {"flag_id": "b", "venue": "Polymarket",
+             "after": {"30m": {"price": 0.4, "move_c": -2.0}, "2h": None, "24h": None}},
+        ]
+        h = risk_log.flag_scoreboard(rows)["horizons"]["30m"]
+        self.assertEqual(h["already_past"], 1)
+        self.assertEqual(h["n"], 1)
+        self.assertEqual(h["hits"], 0)
+        self.assertAlmostEqual(h["hit_rate"], 0.0)
+
+    def test_a_horizon_without_a_print_is_not_a_measurement(self):
+        rows = [{"flag_id": "a", "venue": "Polymarket",
+                 "after": {"30m": {"price": None, "move_c": None, "no_print": True}, "2h": None, "24h": None}}]
+        h = risk_log.flag_scoreboard(rows)["horizons"]["30m"]
+        self.assertEqual(h["n"], 0)
+        self.assertIsNone(h["hit_rate"])
+
     def test_small_sample_is_labelled_not_stated_as_a_verdict(self):
         board = risk_log.flag_scoreboard(self._rows([1.0, 2.0, 3.0]))
         self.assertEqual(board["horizons"]["30m"]["sample"]["quality"], "insufficient")

@@ -366,7 +366,7 @@ def flag_scoreboard(rows: Iterable[dict[str, Any]], *, as_of: Any = None,
     measured_ids: set[str] = set()
     per_horizon: dict[str, Any] = {}
     for label in HORIZONS:
-        hits = ties = 0
+        hits = ties = past = 0
         moves: list[float] = []
         for row in rows:
             after = row.get("after")
@@ -375,6 +375,13 @@ def flag_scoreboard(rows: Iterable[dict[str, Any]], *, as_of: Any = None,
             if move is None:
                 continue
             measured_ids.add(str(row.get("flag_id") or id(row)))
+            # Der Horizont lag schon hinter dem Moment, in dem der Flag
+            # ueberhaupt lesbar wurde (price_after markiert das). Die
+            # Bewegung ist echt, aber niemand haette auf sie reagieren
+            # koennen - in einer Trefferquote waere sie Vorwissen.
+            if isinstance(cell, dict) and cell.get("already_past"):
+                past += 1
+                continue
             moves.append(float(move))
             if move > 0:
                 hits += 1
@@ -390,6 +397,7 @@ def flag_scoreboard(rows: Iterable[dict[str, Any]], *, as_of: Any = None,
             "hit_rate": round(hits / decisive, 4) if decisive else None,
             "ci95": [round(low, 4), round(high, 4)] if low is not None else None,
             "avg_move_c": round(sum(moves) / len(moves), 2) if moves else None,
+            "already_past": past,
             "sample": _sample_badge(decisive),
         }
     return {
@@ -403,7 +411,9 @@ def flag_scoreboard(rows: Iterable[dict[str, Any]], *, as_of: Any = None,
             "tie and leaves the ratio, both counted. Measured flags are a selected subset, not a sample: only "
             "Polymarket carries a readable price history"
             + (f", and only the newest {int(enrich_max)} flags are looked up" if enrich_max else "")
-            + ". Rows whose horizon has not passed yet are not counted anywhere."
+            + ". Rows whose horizon has not passed yet are not counted anywhere, and neither are horizons that "
+            "were already behind the moment the flag became readable - the move is real there, but no reader "
+            "could have acted on it."
         ),
         "multiplicity": (
             "Every market with a print in the tape is scored on every rule, and the screen re-runs every few "
