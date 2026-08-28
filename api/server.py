@@ -1312,7 +1312,9 @@ def risk_book(
         "flagged_side": flagged,
         "wallets": books,
         "dropped": max(0, len(addresses) - wb.MAX_WALLETS),
-        "note": "open positions in this market from the public Data API, read now — not at flag time",
+        "note": ("open positions in this market from the public Data API, read now — not at flag time; "
+                 "settled-but-unredeemed shares are reported as settled_shares and rows the feed did not "
+                 "price as unpriced_shares, neither of them as a book"),
         "as_of": md.now_utc_label(),
     }
 

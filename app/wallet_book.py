@@ -37,6 +37,22 @@ def _num(value: Any, default: float = 0.0) -> float:
     return out if out == out else default
 
 
+def _field(row: Mapping[str, Any], *names: str) -> Any:
+    """Erster Schluessel, der wirklich einen Wert traegt.
+
+    ``row.get("curPrice", row.get("current_price"))`` nimmt den camelCase-Wert
+    auch dann, wenn er ``null`` ist, und wirft die zweite Schreibweise weg.
+    Genau an dieser Stelle entscheidet sich, ob eine Zeile keinen Preis hat
+    oder ob der Preis nur unter dem anderen Namen steht.
+    """
+
+    for name in names:
+        value = row.get(name)
+        if value is not None:
+            return value
+    return None
+
+
 def _outcome_side(outcome: Any) -> str:
     text = str(outcome or "").strip().upper()
     if text in {"YES", "Y"}:
@@ -81,8 +97,14 @@ def summarize_book(rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
     into a live one — the reference wallet's ten leftover rows would read as
     "holds 228 NO now" in a market that settled on 2026-07-29. They are
     reported as ``settled_shares`` and kept out of the sides and the net.
-    Same test as the wallet page uses (price 0 and value 0), so both surfaces
-    call the same rows dead.
+
+    A row the feed never priced is not one of those. ``curPrice: null`` read
+    as 0.0 looked exactly like the measured zero and was counted as a
+    settled total loss, so a gap in the feed became a loss on the card. The state
+    comes from ``md.position_price_state`` — the same three-way predicate the
+    wallet page reads — and the third state gets its own numbers,
+    ``unpriced_shares`` and ``unpriced_positions``: in no side, in no net and
+    in no settled figure.
     """
 
     yes_shares = no_shares = yes_value = no_value = 0.0
@@ -90,22 +112,35 @@ def summarize_book(rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
     other = 0
     settled_shares = 0.0
     settled_n = 0
+    unpriced_shares = 0.0
+    unpriced_n = 0
     for row in rows or []:
         side = _outcome_side(row.get("outcome"))
-        shares = _num(row.get("size", row.get("shares")))
+        shares = _num(_field(row, "size", "shares"))
         if shares <= 0:
             continue
-        cur = _num(row.get("curPrice", row.get("current_price")))
-        value = _num(row.get("currentValue", row.get("value")))
-        if value <= 0:
-            value = shares * cur
-        # Nur wer einen Preis mitbringt, kann an ihm sterben: eine Zeile ohne
-        # Preisfeld ist unbekannt, nicht aufgeloest.
-        if ("curPrice" in row or "current_price" in row) and cur <= 0 and value <= 0:
+        # Erst der Zustand, dann die Zahlen: die Rohwerte gehen ungefiltert in
+        # das Praedikat, denn ein Ersatzwert 0.0 waere schon die Antwort, die
+        # hier erst gesucht wird.
+        roh_preis = _field(row, "curPrice", "current_price")
+        roh_wert = _field(row, "currentValue", "value")
+        zustand = md.position_price_state(roh_preis, roh_wert)
+        if zustand == md.POSITION_PRICE_WORTHLESS:
             settled_shares += shares
             settled_n += 1
             continue
-        avg = _num(row.get("avgPrice", row.get("avg_price")))
+        if zustand == md.POSITION_PRICE_UNKNOWN:
+            # Weder Buch noch abgerechnet: der Feed hat diese Zeile nicht
+            # bepreist. Sie steht mit eigener Zahl daneben, damit die Luecke
+            # sichtbar bleibt, statt eine der beiden Summen zu faerben.
+            unpriced_shares += shares
+            unpriced_n += 1
+            continue
+        cur = _num(roh_preis)
+        value = _num(roh_wert)
+        if value <= 0:
+            value = shares * cur
+        avg = _num(_field(row, "avgPrice", "avg_price"))
         if side == "YES":
             yes_shares += shares
             yes_value += value
@@ -135,17 +170,22 @@ def summarize_book(rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
         "other_outcomes": other,
         "settled_shares": round(settled_shares, 2),
         "settled_positions": settled_n,
+        "unpriced_shares": round(unpriced_shares, 2),
+        "unpriced_positions": unpriced_n,
     }
 
 
 def relate_flow_to_book(flagged_side: str, book: Mapping[str, Any]) -> dict[str, str]:
     """How the flagged flow ("YES buys", "NO sells", …) sits against the book.
 
-    Returns ``relation`` (one of new_bet, adds, reduces, hedge, exit, unknown)
-    and a one-line ``text`` for the card. "reduces"/"hedge": the flow works
-    against the larger side of the book — the wallet is closing or hedging,
-    not opening. "adds": same direction as the book. "new_bet": no position
-    left on either side (the flow *is* the position, or it was closed since).
+    Returns ``relation`` (one of new_bet, adds, reduces, hedge, exit,
+    unpriced, unknown) and a one-line ``text`` for the card.
+    "reduces"/"hedge": the flow works against the larger side of the book —
+    the wallet is closing or hedging, not opening. "adds": same direction as
+    the book. "new_bet": no position left on either side (the flow *is* the
+    position, or it was closed since). "unpriced": nothing priced is left,
+    but the feed did not price every row, so "nothing held" would be a claim
+    about rows nobody read.
     """
 
     side = str(flagged_side or "").strip().upper()
@@ -155,15 +195,29 @@ def relate_flow_to_book(flagged_side: str, book: Mapping[str, Any]) -> dict[str,
     no_s = _num(book.get("no_shares"))
     hold = f"holds {_fmt(yes_s)} YES / {_fmt(no_s)} NO now"
     # Aufgeloeste, nie eingeloeste Anteile stehen weiter im Feed. Sie sind
-    # kein Buch, aber sie erklaeren, warum hier nichts mehr steht.
+    # kein Buch, aber sie erklaeren, warum hier nichts mehr steht. Zeilen ohne
+    # Preis erklaeren das Gegenteil: dort steht moeglicherweise etwas, das der
+    # Feed nur nicht bepreist hat.
     settled = _num(book.get("settled_shares"))
-    tot = f" ({_fmt(settled)} shares of a settled position left unredeemed)" if settled > 0 else ""
+    unpriced = _num(book.get("unpriced_shares"))
+    noten = []
+    if settled > 0:
+        noten.append(f"{_fmt(settled)} shares of a settled position left unredeemed")
+    if unpriced > 0:
+        noten.append(f"{_fmt(unpriced)} shares in rows the feed did not price")
+    tot = f" ({'; '.join(noten)})" if noten else ""
     if not m:
         return {"relation": "unknown", "text": hold + tot + " — flagged side not readable"}
     outcome, action = m.group(1), m.group(2)
     buying = action == "BUYS"
     if net == "none":
-        leer = ("no open position left in this market" + tot) if settled > 0 else "no open position left in this market"
+        # Ohne Preis ist die Zeile weder Buch noch abgerechnet. "Nichts mehr
+        # offen" waere hier eine Aussage ueber Zeilen, die niemand lesen
+        # konnte, also sagt die Karte genau das.
+        if unpriced > 0:
+            return {"relation": "unpriced", "text": "no priced position left in this market" + tot
+                    + f" — the flagged {outcome} {action.lower()} cannot be related to a book the feed did not price"}
+        leer = "no open position left in this market" + tot
         if buying:
             return {"relation": "new_bet", "text": leer + " — the flagged " + outcome + " buys are not held (closed, merged or redeemed since), or the book is empty"}
         return {"relation": "exit", "text": leer + " — the flagged " + outcome + " sells closed it out"}
@@ -232,5 +286,6 @@ def market_books(market_key: str, wallets: Iterable[str], flagged_side: str = ""
         "dropped": dropped,
         "note": ("open positions in this market from the public Data API, read now — not at flag time; "
                  "shares of a position that already settled against the wallet and was never redeemed stay in "
-                 "that feed at price 0 and are reported as settled_shares, not as a book"),
+                 "that feed at price 0 and are reported as settled_shares, not as a book; rows the feed did "
+                 "not price at all are reported as unpriced_shares and count as neither"),
     }

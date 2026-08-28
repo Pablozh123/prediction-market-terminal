@@ -2055,6 +2055,12 @@ class WebLeerzustandTest(unittest.TestCase):
         fehler = _sichtbarer_text(self.ausgabe["live"]["risk_book_err"])
         self.assertIn("BOOK NOW not read (no answer within 45 s)", fehler)
         self.assertNotIn("net NO", fehler)
+        # Zeilen, die der Feed nicht bepreist hat, sind kein leeres Buch: die
+        # Karte nennt sie beim Namen, statt "nichts mehr offen" zu behaupten.
+        ohne_preis = _sichtbarer_text(self.ausgabe["live"]["risk_book_unpriced"])
+        self.assertIn("NOT PRICED · no price", ohne_preis)
+        self.assertIn("12.0k shares in rows the feed did not price", ohne_preis)
+        self.assertNotIn("NOT HELD NOW", ohne_preis)
         # Kalshi cards (no wallets) carry no book line at all.
         self.assertEqual(offen.count("WALLET BOOK NOW"), 2)
         self.assertEqual(buch.count("BOOK NOW"), 1)

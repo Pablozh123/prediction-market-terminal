@@ -56,7 +56,84 @@ class SettledLeftoverTests(unittest.TestCase):
     def test_row_without_a_price_stays_unknown_not_settled(self) -> None:
         book = wb.summarize_book([{"outcome": "Yes", "size": 10}])
         self.assertEqual(book["settled_positions"], 0)
-        self.assertEqual(book["yes_shares"], 10)
+        self.assertEqual(book["unpriced_positions"], 1)
+        self.assertEqual(book["unpriced_shares"], 10)
+        # Und auch keine Seite: ohne Preis ist nicht lesbar, ob die Zeile noch
+        # laeuft, und 10 YES zu behaupten waere dieselbe Erfindung wie 10
+        # abgerechnete Anteile.
+        self.assertEqual(book["yes_shares"], 0)
+
+
+class UnpricedRowTests(unittest.TestCase):
+    """Ein fehlender Preis ist keine gemessene Null.
+
+    Dieselbe Verwechslung, die PR #119 in src/prediction_markets.py behoben
+    hat, stand hier noch: ``_num`` macht aus ``curPrice: null`` eine 0.0, und
+    die Null heisst in diesem Feed "gegen die Wallet aufgeloest". Die alte
+    Abfrage sah nur den fehlenden Schluessel; eine vorhandene, leere Zahl lief
+    voll in ``settled_shares``. Geprueft wird gegen dieselbe Regel, die die
+    Wallet-Seite liest: ``md.position_price_state``.
+    """
+
+    def test_null_price_is_unpriced_not_settled(self) -> None:
+        book = wb.summarize_book([
+            {"outcome": "No", "size": 228.1766, "avgPrice": 0.0438, "curPrice": None, "currentValue": None},
+        ])
+        self.assertEqual(book["settled_positions"], 0)
+        self.assertEqual(book["settled_shares"], 0)
+        self.assertEqual(book["unpriced_positions"], 1)
+        self.assertAlmostEqual(book["unpriced_shares"], 228.18, places=2)
+        self.assertEqual(book["no_shares"], 0)
+        self.assertEqual(book["net"], "none")
+
+    def test_nan_price_is_unpriced_too(self) -> None:
+        book = wb.summarize_book([_pos("No", 500, cur=float("nan"))])
+        self.assertEqual(book["unpriced_positions"], 1)
+        self.assertEqual(book["settled_positions"], 0)
+
+    def test_measured_zero_is_still_a_settled_loss(self) -> None:
+        book = wb.summarize_book([_pos("No", 500, cur=0.0)])
+        self.assertEqual(book["settled_positions"], 1)
+        self.assertEqual(book["settled_shares"], 500)
+        self.assertEqual(book["unpriced_positions"], 0)
+
+    def test_value_without_a_price_still_counts_as_a_book(self) -> None:
+        # Preis fehlt, Geld steht da: die Zeile laeuft, nur der Kurs fehlt.
+        book = wb.summarize_book([
+            {"outcome": "Yes", "size": 200, "avgPrice": 0.5, "curPrice": None, "currentValue": 120.0},
+        ])
+        self.assertEqual(book["yes_shares"], 200)
+        self.assertEqual(book["yes_value"], 120.0)
+        self.assertEqual(book["unpriced_positions"], 0)
+
+    def test_second_spelling_survives_a_null_first_one(self) -> None:
+        book = wb.summarize_book([
+            {"outcome": "No", "size": 100, "curPrice": None, "current_price": 0.62, "currentValue": None, "value": 62.0},
+        ])
+        self.assertEqual(book["no_shares"], 100)
+        self.assertEqual(book["no_value"], 62.0)
+        self.assertEqual(book["unpriced_positions"], 0)
+
+    def test_relation_says_unpriced_instead_of_flat(self) -> None:
+        book = wb.summarize_book([{"outcome": "No", "size": 12000, "curPrice": None}])
+        rel = wb.relate_flow_to_book("YES buys", book)
+        self.assertEqual(rel["relation"], "unpriced")
+        self.assertIn("12.0k shares in rows the feed did not price", rel["text"])
+        self.assertNotIn("no open position left", rel["text"])
+
+    def test_unpriced_shares_are_named_next_to_a_live_book(self) -> None:
+        book = wb.summarize_book([_pos("No", 12000), {"outcome": "Yes", "size": 300, "curPrice": None}])
+        rel = wb.relate_flow_to_book("NO buys", book)
+        self.assertEqual(rel["relation"], "adds")
+        self.assertIn("holds 0 YES / 12.0k NO now", rel["text"])
+        self.assertIn("300 shares in rows the feed did not price", rel["text"])
+
+    def test_both_leftovers_are_named_in_one_line(self) -> None:
+        book = wb.summarize_book([_pos("No", 400, cur=0.0), {"outcome": "Yes", "size": 300, "curPrice": None}])
+        rel = wb.relate_flow_to_book("YES buys", book)
+        self.assertEqual(rel["relation"], "unpriced")
+        self.assertIn("400 shares of a settled position left unredeemed", rel["text"])
+        self.assertIn("300 shares in rows the feed did not price", rel["text"])
 
 
 class SummarizeBookTests(unittest.TestCase):
@@ -72,7 +149,7 @@ class SummarizeBookTests(unittest.TestCase):
         self.assertEqual(wb.summarize_book([_pos("Yes", 1000), _pos("No", 950)])["net"], "balanced")
         self.assertEqual(wb.summarize_book([])["net"], "none")
         # Zero-size rows and unknown outcomes do not count as a side.
-        book = wb.summarize_book([_pos("Yes", 0), {"outcome": "Maybe", "size": 10}])
+        book = wb.summarize_book([_pos("Yes", 0), _pos("Maybe", 10, cur=0.3)])
         self.assertEqual(book["net"], "none")
         self.assertEqual(book["other_outcomes"], 1)
 
@@ -121,6 +198,16 @@ class WalletBookTests(unittest.TestCase):
         params = get.call_args.kwargs["params"]
         self.assertEqual(params["user"], WALLET)
         self.assertEqual(params["market"], MARKET)
+
+    def test_unpriced_count_reaches_the_card(self) -> None:
+        rows = [{"outcome": "No", "size": 5000, "avgPrice": 0.4, "curPrice": None, "conditionId": MARKET}]
+        with patch("app.wallet_book.md._get_json", return_value=rows):
+            book = wb.wallet_book(WALLET, MARKET, "YES buys")
+        self.assertEqual(book["unpriced_positions"], 1)
+        self.assertEqual(book["unpriced_shares"], 5000)
+        self.assertEqual(book["settled_positions"], 0)
+        self.assertEqual(book["relation"], "unpriced")
+        self.assertIn("did not price", book["text"])
 
     def test_network_failure_is_reported_not_read(self) -> None:
         with patch("app.wallet_book.md._get_json", side_effect=md.MarketDataError("down")):
