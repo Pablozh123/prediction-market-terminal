@@ -22,11 +22,12 @@ export function esc(v) {
     .replace(/"/g, '&quot;');
 }
 
-export function spark(arr) {
-  const max = Math.max(...arr), min = Math.min(...arr);
-  const span = max - min || 1;
-  return arr.map((v, i) => (i * (78 / (arr.length - 1))).toFixed(1) + ',' + (3 + ((v - min) / span) * 20).toFixed(1)).join(' ');
-}
+// spark(arr) stand hier: eine zweite Punktefunktion fuer eine feste 78x26-Box,
+// ohne Guard fuer arr.length < 2 (bei einem Wert eine Division durch Null) und
+// ohne eine einzige Aufrufstelle. seriesPoints darunter tut dasselbe, nimmt
+// aber Breite und Hoehe als Argumente und faengt den Ein-Wert-Fall ab. Zwei
+// Funktionen fuer eine Aufgabe, von denen eine nie gerufen wird, sind eine
+// Falle: irgendwann ruft jemand die falsche.
 
 // Der Generator curve(seed, n, w, h, drift, vol) stand hier: ein
 // deterministischer Zufallspfad mit einstellbarem Aufwaertsdrift, der jede

@@ -93,7 +93,10 @@ function renderPostmortems(payload) {
   eintraege.forEach((e) => { achsen[e.achse] = (achsen[e.achse] || 0) + 1; });
   const chips = Object.entries(achsen).sort((a, b) => b[1] - a[1]).map(([achse, n]) =>
     '<div style="' + M + '; font-size:11px; color:' + (ACHSEN_FARBE[achse] || 'var(--muted)')
-    + '; border:1px solid ' + (ACHSEN_FARBE[achse] || 'var(--muted)') + '44; border-radius:4px; padding:4px 9px">'
+    // color-mix, not a hex alpha suffix: every value here is a var(--token),
+    // and 'var(--muted)44' is not a colour — the parser dropped the whole
+    // shorthand and the border simply did not exist.
+    + '; border:1px solid color-mix(in srgb, ' + (ACHSEN_FARBE[achse] || 'var(--muted)') + ' 27%, transparent); border-radius:4px; padding:4px 9px">'
     + esc(achse.toUpperCase()) + ' ' + n + '</div>').join('');
 
   const feld = (label, wert, farbe) =>
@@ -2144,7 +2147,7 @@ const LEDGER_TYP_FARBE = { bot: 'var(--info)', discretionary: 'var(--warn)', pil
 
 function ledgerTypChip(typ) {
   const farbe = LEDGER_TYP_FARBE[typ] || 'var(--muted)';
-  return '<span style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:2px 7px; color:' + farbe + '; border:1px solid ' + farbe + '66; white-space:nowrap">' + esc(String(typ || '—').toUpperCase()) + '</span>';
+  return '<span style="' + M + '; font-size:10.5px; letter-spacing:.1em; border-radius:4px; padding:2px 7px; color:' + farbe + '; border:1px solid color-mix(in srgb, ' + farbe + ' 40%, transparent); white-space:nowrap">' + esc(String(typ || '—').toUpperCase()) + '</span>';
 }
 
 // Chip for a run that placed nothing and left no wallet trace — muted, so

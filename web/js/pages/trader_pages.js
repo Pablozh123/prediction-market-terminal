@@ -324,7 +324,7 @@ export function riskSideChip(r) {
   const farbe = isSell ? 'var(--neg-soft)' : isNo ? 'var(--warn)' : 'var(--accent)';
   const total = r.notional_usd != null ? money(r.notional_usd) : String(r.notional || '');
   const anteil = r.side_share != null ? ' (' + Math.round(r.side_share * 100) + '%)' : '';
-  return '<span style="' + M + '; font-size:10.5px; letter-spacing:.06em; color:' + farbe + '; border:1px solid ' + farbe + '55; border-radius:4px; padding:2px 7px; white-space:nowrap">'
+  return '<span style="' + M + '; font-size:10.5px; letter-spacing:.06em; color:' + farbe + '; border:1px solid color-mix(in srgb, ' + farbe + ' 33%, transparent); border-radius:4px; padding:2px 7px; white-space:nowrap">'
     + esc(side) + ' ' + esc(money(r.side_notional || 0)) + ' of ' + esc(total) + esc(anteil) + '</span>';
 }
 
@@ -575,7 +575,7 @@ export function riskBookHtml(T, r) {
       const netz = b.net === 'YES' || b.net === 'NO' ? 'net ' + b.net : b.net === 'balanced' ? 'balanced' : 'flat';
       return '<div style="font-size:11.5px; line-height:1.45; color:rgba(var(--ink),.7)">' + kopf
         + '<span style="' + M + '; color:rgba(var(--ink),.85)">' + esc(b.short || b.wallet) + '</span> '
-        + '<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:' + BOOK_FARBE(b.relation) + '; border:1px solid ' + BOOK_FARBE(b.relation) + '55; border-radius:4px; padding:1px 6px; margin:0 4px">' + BOOK_WORT(b.relation) + ' · ' + esc(netz) + '</span>'
+        + '<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:' + BOOK_FARBE(b.relation) + '; border:1px solid color-mix(in srgb, ' + BOOK_FARBE(b.relation) + ' 33%, transparent); border-radius:4px; padding:1px 6px; margin:0 4px">' + BOOK_WORT(b.relation) + ' · ' + esc(netz) + '</span>'
         + esc(b.text || '') + '</div>';
     }).join('')
     + '</div>';

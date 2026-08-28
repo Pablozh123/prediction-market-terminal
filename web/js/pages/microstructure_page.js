@@ -56,7 +56,10 @@ function deutungBlock(interpretation) {
   if (!interpretation || !interpretation.length) return '';
   return interpretation.map((i) => {
     const farbe = DEUTUNG_FARBE[i.art] || 'var(--muted)';
-    return '<div style="border-left:2px solid ' + farbe + '66; padding:2px 0 2px 14px; margin-bottom:14px">'
+    // color-mix, not a hex alpha suffix: farbe is always a var(--token), and
+    // 'var(--accent)66' is not a colour — the shorthand was dropped and this
+    // verdict bar was never drawn at all.
+    return '<div style="border-left:2px solid color-mix(in srgb, ' + farbe + ' 40%, transparent); padding:2px 0 2px 14px; margin-bottom:14px">'
       + '<div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:' + farbe + '">'
       + esc(i.titel) + '</div>'
       + '<div style="font-size:13px; color:rgba(var(--ink),.72); margin-top:6px; line-height:1.65; max-width:720px">'
@@ -233,7 +236,7 @@ function studieKarte(s, i) {
     + '<div style="font-size:19px; font-weight:600; margin-top:6px; line-height:1.35">' + esc(s.frage) + '</div>'
     + '</div>'
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:' + farbe
-    + '; border:1px solid ' + farbe + '55; border-radius:4px; padding:6px 10px; white-space:nowrap">' + marke + '</div>'
+    + '; border:1px solid color-mix(in srgb, ' + farbe + ' 33%, transparent); border-radius:4px; padding:6px 10px; white-space:nowrap">' + marke + '</div>'
     + '</div>'
     + '<div style="font-size:14.5px; color:' + farbe + '; margin-top:12px; line-height:1.5; font-weight:500; max-width:760px">'
     + esc(s.verdikt) + '</div>'
