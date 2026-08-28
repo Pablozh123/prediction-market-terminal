@@ -17,6 +17,7 @@ from typing import Any, Callable, Mapping
 import pandas as pd
 
 from app import claims
+from app import copy_follow as cf
 from app import perf_metrics as perf
 from app import quant
 from app import risk_log
@@ -2137,7 +2138,7 @@ def copy_payload(
     """
 
     order_rows: list[dict[str, Any]] = []
-    copied = skipped = 0
+    copied = skipped = settled_orders = observed_orders = 0
     total_orders = 0
     books = _source_book_index(source_positions)
     if orders is not None and not orders.empty:
@@ -2146,6 +2147,10 @@ def copy_payload(
             status_all = orders["status"].astype(str)
             copied = int(status_all.eq("copied").sum())
             skipped = int(status_all.eq("skipped").sum())
+            # Eine kopierte Order wechselt beim Aufloesen auf ``settled``.
+            # Ohne diese Zeile fiel sie aus dem Zaehler und blieb im Nenner.
+            settled_orders = int(status_all.eq("settled").sum())
+            observed_orders = int(status_all.eq("seed_observed").sum())
         for _, row in orders.head(200).iterrows():
             status = _text(row.get("status")) or "copied"
             time_label = _text(row.get("source_time") or row.get("created_at"))
@@ -2225,9 +2230,23 @@ def copy_payload(
     equity = _num(portfolio.get("equity"), 0.0) or 0.0
     cash = _num(portfolio.get("cash"), 0.0) or 0.0
     contributions = _num(contributions, 0.0) or 0.0
-    pnl = equity - contributions
+    # Gebucht und bewertet getrennt (app/copy_follow.py): ``pnl`` allein ist
+    # eine Zahl, in der ein realisierter Verlust und eine Marke auf noch
+    # nicht entschiedenen Positionen dasselbe Vorzeichen bekommen.
+    split = cf.pnl_split(
+        contributions=contributions,
+        realized_pnl=portfolio.get("realized_pnl"),
+        unrealized_pnl=portfolio.get("unrealized_pnl"),
+        equity=equity,
+    )
+    pnl = split["total_pnl"]
+    # Zaehler und Nenner ueber derselben Menge: gespiegelt sind kopierte UND
+    # aufgeloeste Zeilen, zu entscheiden war ueber diese plus die
+    # uebersprungenen. Die Baseline-Zeilen standen nur im Nenner.
+    deckung = cf.mirror_coverage(copied=copied, settled=settled_orders,
+                                 skipped=skipped, observed=observed_orders)
     total = total_orders
-    fidelity = round(copied / total * 100) if total else 100
+    fidelity = round(deckung["coverage_pct"]) if deckung["coverage_pct"] is not None else 100
     scale = _num((sizing or {}).get("effective_copy_scale"), 1.0) or 1.0
     return {
         "status": {
@@ -2241,9 +2260,21 @@ def copy_payload(
             "equity": equity,
             "contributions": contributions,
             "pnl": pnl,
-            "pnl_pct": (pnl / contributions * 100) if contributions else 0.0,
+            "pnl_pct": split["total_pct"],
+            # Die beiden Haelften derselben Schlagzeile. Sie teilen sich den
+            # Nenner (das eingezahlte Kapital) und addieren sich deshalb zu
+            # pnl_pct; ``pnl_reconciles`` sagt, ob die Buecher das hergeben.
+            "settled_pnl": split["settled_pnl"],
+            "open_pnl": split["open_pnl"],
+            "settled_pct": split["settled_pct"],
+            "open_pct": split["open_pct"],
+            "pnl_reconciles": split["reconciles"],
+            "pnl_residual": split["residual"],
             "source_return_pct": 0.0,
-            "mirrored": copied,
+            "mirrored": deckung["mirrored"],
+            "actionable": deckung["actionable"],
+            "observed": deckung["observed"],
+            "coverage_pct": deckung["coverage_pct"],
             "total": total,
             "skipped": skipped,
             "fidelity": fidelity,
