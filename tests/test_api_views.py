@@ -778,6 +778,46 @@ class CopyPayloadTests(unittest.TestCase):
         bare = apv.copy_payload(orders, pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), {"cash": 1000.0, "equity": 1000.0}, 1000.0, w, "x", {})
         self.assertEqual(bare["orders"][0]["book"], "")
 
+    def test_the_headline_percentage_splits_into_settled_and_marked(self) -> None:
+        # 1.000 Dollar eingezahlt. Eine Kopie ist aufgeloest und hat 120
+        # Dollar gekostet, eine zweite steht offen 300 Dollar ueber ihrem
+        # Einstand. Die Kachel las "+180 Dollar, +18,00 %" und verschwieg,
+        # dass gebucht 120 Dollar fehlen und die 300 Dollar eine Bewertung
+        # sind.
+        portfolio = {"cash": 480.0, "position_value": 700.0, "equity": 1180.0,
+                     "realized_pnl": -120.0, "unrealized_pnl": 300.0}
+        payload = apv.copy_payload(pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(),
+                                   portfolio, 1000.0, "0x" + "a" * 40, "x", {})
+        kpis = payload["kpis"]
+        self.assertAlmostEqual(kpis["pnl"], 180.0)
+        self.assertAlmostEqual(kpis["pnl_pct"], 18.0)
+        self.assertAlmostEqual(kpis["settled_pnl"], -120.0)
+        self.assertAlmostEqual(kpis["open_pnl"], 300.0)
+        self.assertAlmostEqual(kpis["settled_pct"], -12.0)
+        self.assertAlmostEqual(kpis["open_pct"], 30.0)
+        self.assertTrue(kpis["pnl_reconciles"])
+
+    def test_mirrored_counts_settled_copies_and_drops_the_baseline_rows(self) -> None:
+        # 100 Zeilen: 40 nur beobachtet, 30 kopiert und aufgeloest, 20
+        # kopiert und offen, 10 uebersprungen. Die Kachel las "20 / 100",
+        # weil der Zaehler nur copied zaehlte und der Nenner jede Zeile.
+        # Gespiegelt wurden 50 von 60 Zeilen, ueber die zu entscheiden war.
+        zeilen = []
+        for status, anzahl in (("seed_observed", 40), ("settled", 30), ("copied", 20), ("skipped", 10)):
+            for i in range(anzahl):
+                zeilen.append({"source_time": "2026-08-20T19:45:00Z", "title": f"{status}-{i}",
+                               "copy_side": "buy", "outcome": "Yes", "source_notional": 100.0,
+                               "copy_notional": 1.0, "status": status})
+        payload = apv.copy_payload(pd.DataFrame(zeilen), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(),
+                                   {"cash": 1000.0, "equity": 1000.0}, 1000.0, "0x" + "a" * 40, "x", {})
+        kpis = payload["kpis"]
+        self.assertEqual(kpis["mirrored"], 50)
+        self.assertEqual(kpis["actionable"], 60)
+        self.assertEqual(kpis["observed"], 40)
+        self.assertEqual(kpis["total"], 100)
+        self.assertEqual(kpis["skipped"], 10)
+        self.assertAlmostEqual(kpis["coverage_pct"], 50 / 60 * 100)
+
     def test_source_book_line_wording(self) -> None:
         self.assertEqual(apv.source_book_line({"yes": 0.0, "no": 0.0}), "source book now: flat in this market")
         self.assertEqual(apv.source_book_line({"yes": 950.0, "no": 1000.0}), "source book now: 950 YES / 1.0k NO → balanced")

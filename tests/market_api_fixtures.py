@@ -448,3 +448,56 @@ def offline_market_apis():
 
     with patch("requests.get", side_effect=fixture_get), patch("requests.post", side_effect=fixture_post):
         yield
+
+
+def _mit_umbenanntem_feld(quelle: Any, schluessel: str, alt: str, neu: str):
+    """Dieselbe Nutzlast, ein Feldname getauscht."""
+
+    def umbenannt() -> dict[str, Any]:
+        daten = quelle()
+        daten[schluessel] = [
+            {(neu if name == alt else name): wert for name, wert in zeile.items()}
+            for zeile in daten.get(schluessel, [])
+        ]
+        return daten
+
+    return umbenannt
+
+
+@contextmanager
+def renamed_field(venue: str, alt: str, neu: str):
+    """Ein umbenanntes Feld in einer Venue-Antwort, sonst dasselbe Marktbild.
+
+    Der Ausfall, den kein Netzfehler erzeugt: die API antwortet mit 200 und
+    wohlgeformtem JSON, nur heisst eine Spalte anders. Ein Parser, der jedes
+    Feld ueber ``.get(name, default)`` liest, merkt davon nichts und liefert
+    eine Spalte voller Vorgabewerte; einer, der die Spalte rechnet, faellt
+    mit einem AttributeError um, den weiter oben ein ``except Exception`` in
+    eine Warnung schluckt. Beide Enden sehen von aussen gleich aus: die
+    Seite meldet weiter LIVE und zeigt eine Venue weniger.
+
+    ``venue`` ist ``kalshi_trades``, ``kalshi_markets`` oder
+    ``polymarket_trades``.
+    """
+
+    quellen = {
+        "kalshi_trades": (kalshi_trades, "trades"),
+        "kalshi_markets": (kalshi_markets, "markets"),
+    }
+    if venue == "polymarket_trades":
+        original = polymarket_trades
+
+        def umbenannt_liste() -> list[dict[str, Any]]:
+            return [
+                {(neu if name == alt else name): wert for name, wert in zeile.items()}
+                for zeile in original()
+            ]
+
+        with patch(f"{__name__}.polymarket_trades", umbenannt_liste):
+            yield
+        return
+    if venue not in quellen:
+        raise AssertionError(f"unknown fixture venue: {venue}")
+    quelle, schluessel = quellen[venue]
+    with patch(f"{__name__}.{venue}", _mit_umbenanntem_feld(quelle, schluessel, alt, neu)):
+        yield

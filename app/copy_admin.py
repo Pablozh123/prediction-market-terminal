@@ -31,6 +31,7 @@ from typing import Any, Callable, Mapping
 
 import pandas as pd
 
+from app import copy_follow as cf
 from src import copy_trading as ct
 from src import prediction_markets as md
 
@@ -366,6 +367,18 @@ def traders_overview(
             # sub-account equity / source equity — "his 1 % is your 1 %".
             source_equity = ct._get_wallet_float_stat(conn, wallet, "visible_equity", 0.0)
             neutral_ratio = (float(snap.equity) / source_equity) if source_equity > 0 and snap.equity > 0 else None
+            # Gebucht und bewertet getrennt: ``pnl`` ist die Summe aus einem
+            # realisierten Ergebnis und einer Marke auf Positionen, die noch
+            # nichts entschieden haben. Als ein Prozentwert gelesen laesst
+            # sie einen Tisch, der gebucht im Minus steht, als Gewinner
+            # dastehen. Beide Haelften teilen sich den Nenner (das in DIESE
+            # Sub-Account eingezahlte Kapital) und addieren sich deshalb.
+            split = cf.pnl_split(
+                contributions=contributions,
+                realized_pnl=snap.realized_pnl,
+                unrealized_pnl=snap.unrealized_pnl,
+                equity=snap.equity,
+            )
             rows.append({
                 "wallet": wallet,
                 "label": str(trader.get("label", "") or "") or wallet,
@@ -377,7 +390,12 @@ def traders_overview(
                 "equity": float(snap.equity),
                 "contributions": float(contributions),
                 "pnl": pnl,
-                "pnl_pct": (pnl / contributions * 100.0) if contributions else 0.0,
+                "pnl_pct": split["total_pct"],
+                "settled_pnl": split["settled_pnl"],
+                "open_pnl": split["open_pnl"],
+                "settled_pct": split["settled_pct"],
+                "open_pct": split["open_pct"],
+                "pnl_reconciles": split["reconciles"],
                 "realized_pnl": float(snap.realized_pnl),
                 "unrealized_pnl": float(snap.unrealized_pnl),
                 "orders": counts,

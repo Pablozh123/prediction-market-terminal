@@ -57,6 +57,52 @@ class MarketDataError(RuntimeError):
     """Raised when a market data request fails."""
 
 
+def require_fields(rows: Any, required: Iterable[Iterable[str]], *, feed: str) -> None:
+    """Ein tragendes Feld, das die Antwort nicht mehr fuehrt, bricht laut ab.
+
+    ``required`` sind Gruppen austauschbarer Feldnamen: eine Gruppe gilt als
+    erfuellt, sobald irgendeine Zeile eines ihrer Felder fuehrt. Kalshi
+    schreibt jeden Betrag in zwei Formen (``yes_price_dollars`` und die
+    Cent-Form ``yes_price``), deshalb sind es Gruppen und keine Namen.
+
+    Warum das hier steht und nicht im jeweiligen Parser: die Parser lesen
+    jedes Feld ueber ``frame.get(name, default)``. Faellt das Feld weg, kommt
+    kein Fehler zurueck, sondern ein Vorgabewert, und der laeuft je nach
+    Stelle auf zwei Arten ins Leere. Entweder er ist ein Skalar, wo eine
+    Spalte erwartet wird (``pd.to_numeric(0).fillna(0.0)`` wirft dann einen
+    AttributeError, den weiter oben ein ``except Exception`` in eine Zeile
+    auf stdout verwandelt), oder er wird stillschweigend zur ganzen Spalte:
+    market_key "" auf jedem Print, ein einziger Markt fuer jede Gruppierung,
+    keine Ausnahme, keine Warnung. Die zweite Variante ist die gefaehrliche,
+    weil nichts an ihr auffaellt.
+
+    Beide Enden sehen von aussen gleich aus: die Seite meldet weiter LIVE
+    und zeigt eine Venue weniger. Ein sichtbarer Fehler ist besser, also
+    wird hier geprueft, bevor irgendetwas gerechnet wird.
+
+    Eine leere Antwort ist kein Schema-Bruch: kein Markt und kein Trade
+    kommen vor, und daraus laesst sich ueber Feldnamen nichts schliessen.
+    """
+
+    zeilen = [row for row in (rows or []) if isinstance(row, Mapping)]
+    if not zeilen:
+        return
+    vorhanden: set[str] = set()
+    for row in zeilen:
+        vorhanden.update(str(name) for name in row.keys())
+    fehlend = [tuple(gruppe) for gruppe in required
+               if not vorhanden.intersection(str(name) for name in gruppe)]
+    if not fehlend:
+        return
+    namen = "; ".join(" or ".join(gruppe) for gruppe in fehlend)
+    gesehen = ", ".join(sorted(vorhanden)[:24]) or "none"
+    raise MarketDataError(
+        f"{feed}: the answer carries no {namen}. The feed renamed a field the "
+        f"tape's numbers hang on, so half the tape would come back empty and "
+        f"still read as live. Fields seen: {gesehen}"
+    )
+
+
 def _get_json(url: str, params: dict[str, Any] | None = None, timeout: int = 20) -> Any:
     try:
         response = requests.get(url, params=params, timeout=timeout, headers=HTTP_HEADERS)
@@ -970,6 +1016,24 @@ def orderbook_summary(bids: pd.DataFrame, asks: pd.DataFrame) -> dict[str, float
     }
 
 
+#: Dieselbe Liste fuer die andere Haelfte des Tapes. ``timestamp`` steht drin,
+#: weil der Parser es als einziges Feld direkt indiziert (``df["timestamp"]``)
+#: und ohne Wachposten mit einem KeyError abbricht statt mit einer Aussage;
+#: ``proxyWallet`` und ``conditionId`` stehen drin, weil ihr Wegfall gar nicht
+#: abbricht: jede Zeile bekaeme dieselbe leere Wallet und denselben leeren
+#: market_key, und jede Gruppierung saehe genau einen Trader in genau einem
+#: Markt.
+POLYMARKET_TRADE_FIELDS = (
+    ("proxyWallet",),
+    ("conditionId",),
+    ("timestamp",),
+    ("size",),
+    ("price",),
+    ("side",),
+    ("outcome",),
+)
+
+
 def get_polymarket_trades(
     limit: int = 250,
     min_cash: float = 0,
@@ -988,7 +1052,9 @@ def get_polymarket_trades(
     if market:
         params["market"] = market
     data = _get_json(f"{POLY_DATA}/trades", params=params)
-    df = pd.DataFrame(data if isinstance(data, list) else data.get("data", []))
+    rows = data if isinstance(data, list) else data.get("data", [])
+    require_fields(rows, POLYMARKET_TRADE_FIELDS, feed="Polymarket /trades")
+    df = pd.DataFrame(rows)
     if df.empty:
         return pd.DataFrame()
     df["platform"] = "Polymarket"
@@ -2712,6 +2778,11 @@ def kalshi_display_title(market: Mapping[str, Any], ticker: str = "") -> str:
     return title
 
 
+#: Ohne den Ticker hat ein Kalshi-Markt keinen Schluessel: jede Dedupe, jeder
+#: Join und jeder Link zeigen dann auf dieselbe leere Stelle.
+KALSHI_MARKET_FIELDS = (("ticker",),)
+
+
 def get_kalshi_markets(
     limit: int = 250, status: str = "open", cursor: str | None = None, tickers: Iterable[str] | None = None
 ) -> pd.DataFrame:
@@ -2726,6 +2797,7 @@ def get_kalshi_markets(
         params["cursor"] = cursor
     data = _get_json(f"{KALSHI_API}/markets", params=params)
     rows = data.get("markets", []) if isinstance(data, dict) else []
+    require_fields(rows, KALSHI_MARKET_FIELDS, feed="Kalshi /markets")
     normalized: list[dict[str, Any]] = []
     for market in rows:
         yes_bid = kalshi_price(market.get("yes_bid_dollars"), market.get("yes_bid"))
@@ -2855,12 +2927,42 @@ def get_kalshi_candlesticks(ticker: str, days: int = 30, period_interval: int = 
     return df.dropna(subset=["time"]).sort_values("time").reset_index(drop=True)
 
 
+#: Felder, ohne die eine Kalshi-Trade-Zeile keine Zahl und keine Identitaet
+#: mehr traegt. Gruppen, weil Kalshi jeden Betrag doppelt fuehrt: mit dem
+#: Suffix ``_dollars`` und in der dokumentierten Cent- bzw. Stueckform.
+KALSHI_TRADE_FIELDS = (
+    ("ticker",),
+    ("created_time",),
+    ("taker_side",),
+    ("yes_price_dollars", "yes_price"),
+    ("count_fp", "count"),
+)
+
+def _kalshi_price_column(df: pd.DataFrame, dollar_field: str, cent_field: str) -> pd.Series:
+    """Eine Preisspalte in (0, 1) aus der Dollar- oder der Cent-Form.
+
+    Dieselbe Regel wie in ``kalshi_price`` und ``get_kalshi_orderbook``, nur
+    ueber eine ganze Spalte. Vorher las der Trade-Feed als einziger Pfad
+    ausschliesslich ``yes_price_dollars``: ein Host, der die dokumentierte
+    Cent-Form liefert, buchte jeden Print zu 0 Dollar, und im Tape mit
+    Mindestbetrag fiel die Kalshi-Haelfte lautlos heraus. Genau dieser
+    Fehler stand einmal im Orderbuch und ist dort schon behoben.
+    """
+
+    leer = pd.Series(float("nan"), index=df.index, dtype="float64")
+    in_dollars = pd.to_numeric(df[dollar_field], errors="coerce") if dollar_field in df.columns else leer
+    in_cents = pd.to_numeric(df[cent_field], errors="coerce") / 100.0 if cent_field in df.columns else leer
+    return in_dollars.fillna(in_cents).clip(lower=0.0, upper=1.0).fillna(0.0)
+
+
 def get_kalshi_trades(limit: int = 250, ticker: str | None = None) -> pd.DataFrame:
     params: dict[str, Any] = {"limit": limit}
     if ticker:
         params["ticker"] = ticker
     data = _get_json(f"{KALSHI_API}/markets/trades", params=params)
-    df = pd.DataFrame(data.get("trades", []) if isinstance(data, dict) else [])
+    rows = data.get("trades", []) if isinstance(data, dict) else []
+    require_fields(rows, KALSHI_TRADE_FIELDS, feed="Kalshi /markets/trades")
+    df = pd.DataFrame(rows)
     if df.empty:
         return pd.DataFrame()
     df["platform"] = "Kalshi"
@@ -2868,13 +2970,18 @@ def get_kalshi_trades(limit: int = 250, ticker: str | None = None) -> pd.DataFra
     df["ticker"] = df.get("ticker", "")
     df["side"] = df.get("taker_side", "")
     df["outcome"] = df.get("taker_outcome_side", df["side"])
-    yes_price = pd.to_numeric(df.get("yes_price_dollars", 0), errors="coerce").fillna(0.0)
+    yes_price = _kalshi_price_column(df, "yes_price_dollars", "yes_price")
     # Price of the token the taker actually bought: a NO taker pays 1 - yes.
     # Using the YES price for NO prints understates notional (~6x on favorites)
     # and books 85c favorites as long-odds bets.
     is_no = df["outcome"].astype(str).str.strip().str.lower().eq("no")
     df["price"] = yes_price.where(~is_no, (1.0 - yes_price).clip(lower=0.0))
-    df["size"] = pd.to_numeric(df.get("count_fp", 0), errors="coerce").fillna(0.0)
+    # Stueckzahl, kein Betrag (app/venue_units.py): auch hier die zwei Formen,
+    # ``count_fp`` und das aeltere ``count``.
+    stueck = pd.to_numeric(df["count_fp"], errors="coerce") if "count_fp" in df.columns else pd.Series(float("nan"), index=df.index, dtype="float64")
+    if "count" in df.columns:
+        stueck = stueck.fillna(pd.to_numeric(df["count"], errors="coerce"))
+    df["size"] = stueck.fillna(0.0)
     df["notional"] = df["size"] * df["price"]
     df["title"] = df["ticker"]
     # The ticker IS the market key on this venue: every consumer that groups
