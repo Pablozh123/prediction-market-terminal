@@ -15,6 +15,11 @@ Honest limits (also stated on the page):
   ``get_polymarket_resolved_positions``); ``capped`` marks the extremes-only view.
 - Entry price only: later scaling, hedging or early exits are not modelled;
   every resolved position counts 0/1 at its average entry price.
+- Only rows whose market actually settled are scored. The public feed is
+  called ``/closed-positions``, and a POSITION closes when the wallet sells
+  out, not only when the MARKET resolves. Those early exits carry a live
+  price and no settlement, so they are counted and reported separately
+  instead of being scored (see ``unresolved_exits``).
 
 Streamlit-free, like the rest of ``app/``.
 """
@@ -40,6 +45,12 @@ MIN_SAMPLE = 20
 # verdict is "thin" rather than a false negative.
 MIN_VERDICT_EVENTS = 30
 
+# A token price this far out is a settled token, not a quote: Polymarket writes
+# 1 to the winner and 0 to the loser once a market resolves. Anything between
+# the two bands is a market that was still trading when the position closed.
+SETTLE_LOSS_CEILING = 0.02
+SETTLE_WIN_FLOOR = 0.98
+
 
 def _numeric(frame: pd.DataFrame, column: str) -> pd.Series:
     if column not in frame:
@@ -47,16 +58,46 @@ def _numeric(frame: pd.DataFrame, column: str) -> pd.Series:
     return pd.to_numeric(frame[column], errors="coerce")
 
 
+def _usable_entry(frame: pd.DataFrame) -> pd.Series:
+    entry = _numeric(frame, "avg_price")
+    return entry.notna() & (entry > 0.0) & (entry < 1.0)
+
+
+def _settled(frame: pd.DataFrame) -> pd.Series:
+    """Rows whose market settled: the token price sits at one of the two ends."""
+
+    settle = _numeric(frame, "current_price")
+    return settle.notna() & ((settle <= SETTLE_LOSS_CEILING) | (settle >= SETTLE_WIN_FLOOR))
+
+
+def unresolved_exits(resolved: pd.DataFrame) -> int:
+    """Closed positions with a usable entry price whose market never settled.
+
+    These are exits taken while the market was still trading. They have no
+    outcome to score a forecast against, so ``resolution_frame`` leaves them
+    out; the count exists so the page can say how many rows it dropped rather
+    than quietly shrinking the sample.
+    """
+
+    if resolved is None or resolved.empty:
+        return 0
+    return int((_usable_entry(resolved) & ~_settled(resolved)).sum())
+
+
 def resolution_frame(resolved: pd.DataFrame) -> pd.DataFrame:
     """(forecast, outcome) pairs from a resolved-positions frame.
 
     ``forecast`` is the average entry price of the side held; ``outcome`` is
     1.0 when that side settled as the winner. Settlement is read from
-    ``current_price`` when it is decisive (≤ 0.02 or ≥ 0.98, i.e. a resolved
-    token) and falls back to the sign of ``realized_pnl`` otherwise. Rows
-    without a usable entry price are dropped. ``event_key`` groups the legs of
-    one NegRisk event (their outcomes are mechanically correlated) so
-    ``realized_edge`` can net them to a single observation.
+    ``current_price`` and only counts when it is decisive (≤ 0.02 or ≥ 0.98,
+    i.e. a settled token). Rows without a usable entry price are dropped, and
+    so are rows whose market never settled — a position closed by selling out
+    of a still-trading market has a trading result, not an outcome, and
+    scoring it by the sign of ``realized_pnl`` would put a market that is
+    still open on a calibration curve. ``unresolved_exits`` counts what was
+    left out. ``event_key`` groups the legs of one NegRisk event (their
+    outcomes are mechanically correlated) so ``realized_edge`` can net them to
+    a single observation.
     """
 
     if resolved is None or resolved.empty:
@@ -64,9 +105,8 @@ def resolution_frame(resolved: pd.DataFrame) -> pd.DataFrame:
     df = resolved.copy()
     entry = _numeric(df, "avg_price")
     settle = _numeric(df, "current_price")
-    pnl = _numeric(df, "realized_pnl").fillna(0.0)
-    decisive = settle.notna() & ((settle <= 0.02) | (settle >= 0.98))
-    won = (settle >= 0.5).where(decisive, pnl > 0.0)
+    settled = _settled(df)
+    won = settle >= 0.5
     out = pd.DataFrame(
         {
             "forecast": entry,
@@ -78,11 +118,11 @@ def resolution_frame(resolved: pd.DataFrame) -> pd.DataFrame:
             "event_key": df.apply(_event_key, axis=1),
         }
     )
-    out = out[(out["forecast"] > 0.0) & (out["forecast"] < 1.0)]
+    out = out[(out["forecast"] > 0.0) & (out["forecast"] < 1.0) & settled]
     return out.reset_index(drop=True)[RESOLUTION_COLUMNS]
 
 
-def calibration_report(frame: pd.DataFrame, capped: bool = False) -> dict[str, Any]:
+def calibration_report(frame: pd.DataFrame, capped: bool = False, unresolved: int = 0) -> dict[str, Any]:
     """Scorecard over a ``resolution_frame``: hit rate vs. what entries implied.
 
     Keys: n, hit_rate, hit_low/hit_high (Wilson 95%), avg_entry,
@@ -90,9 +130,12 @@ def calibration_report(frame: pd.DataFrame, capped: bool = False) -> dict[str, A
     stake_weighted_edge (dollar-weighted, None without stakes), brier_entry,
     brier_baseline (always-predict-the-base-rate Brier, ``p̄(1−p̄)`` — beating
     it means entry prices carried real information about *these* outcomes),
-    log_loss_entry, buckets (calibration table), sample_ok, capped, note.
+    log_loss_entry, buckets (calibration table), sample_ok, capped,
+    n_unresolved (closed positions whose market never settled, from
+    ``unresolved_exits`` — they are excluded, and the page says so), note.
     """
 
+    unresolved = max(0, int(unresolved))
     empty: dict[str, Any] = {
         "n": 0,
         "hit_rate": None,
@@ -109,9 +152,15 @@ def calibration_report(frame: pd.DataFrame, capped: bool = False) -> dict[str, A
         "buckets": pd.DataFrame(),
         "sample_ok": False,
         "capped": bool(capped),
+        "n_unresolved": unresolved,
         "note": "No resolved positions with a usable entry price.",
     }
     if frame is None or frame.empty:
+        if unresolved:
+            empty["note"] = (
+                f"No settled positions to score: all {unresolved:,} closed positions with a usable "
+                "entry price left markets that were still trading, so none of them has an outcome."
+            )
         return empty
 
     n = int(len(frame))
@@ -139,6 +188,11 @@ def calibration_report(frame: pd.DataFrame, capped: bool = False) -> dict[str, A
         )
     else:
         note = "Complete resolved set from the public feed (winners and losers unioned)."
+    if unresolved:
+        note += (
+            f" {unresolved:,} further closed positions left markets that were still trading; "
+            "they have a trading result but no outcome, so they are not on the curve."
+        )
 
     return {
         "n": n,
@@ -156,6 +210,7 @@ def calibration_report(frame: pd.DataFrame, capped: bool = False) -> dict[str, A
         "buckets": quant.calibration_table(frame["forecast"], frame["outcome"], bins=5),
         "sample_ok": sample_ok,
         "capped": bool(capped),
+        "n_unresolved": unresolved,
         "note": note,
     }
 

@@ -139,6 +139,7 @@ export function renderBacktester(T) {
     ? (autoFit.mode === 'threshold'
       ? 'auto-fit: following the wallet\'s ' + num(autoFit.followed_positions) + ' largest entries (≥ $' + num(Math.round(+autoFit.follow_threshold)) + ') at $' + (+autoFit.stake).toFixed(2) + ' per copy'
       : 'auto-fit $' + (+autoFit.stake).toFixed(2) + ' per copy (wallet peaks at ' + num(autoFit.peak_concurrent) + ' open positions)')
+      + (autoFit.hindsight ? ', chosen with hindsight' : '')
     : '';
 
   const shortWallet = s.btWallet.trim().length > 12 ? s.btWallet.trim().slice(0, 6) + '…' + s.btWallet.trim().slice(-4) : s.btWallet.trim();
@@ -152,7 +153,14 @@ export function renderBacktester(T) {
   // Ohne Lauf keine Kacheln: jede dieser Zahlen kaeme sonst aus dem Nichts.
   const statCards = st ? [
     { label: 'FINAL EQUITY', value: '$' + finalEq.toFixed(0), sub: (ret >= 0 ? '+' : '') + ret.toFixed(1) + '% ROI', pos: ret >= 0 },
-    { label: 'TOTAL P&L', value: (totalPnl >= 0 ? '+' : '-') + '$' + Math.abs(totalPnl).toFixed(0), sub: benchPnl === null ? 'no benchmark' : (totalPnl - benchPnl >= 0 ? '+' : '-') + '$' + Math.abs(totalPnl - benchPnl).toFixed(0) + ' vs flat-bet', pos: totalPnl >= 0 },
+    // Der Untertitel nennt den noch offenen Teil, sobald es einen gibt:
+    // Positionen in Maerkten, die am Fensterende nicht entschieden waren,
+    // stecken zum letzten Preis in dieser Zahl.
+    { label: 'TOTAL P&L', value: (totalPnl >= 0 ? '+' : '-') + '$' + Math.abs(totalPnl).toFixed(0),
+      sub: (st.unrealized_pnl != null && Math.abs(+st.unrealized_pnl) >= 0.5)
+        ? (+st.unrealized_pnl >= 0 ? '+' : '-') + '$' + Math.abs(+st.unrealized_pnl).toFixed(0) + ' of it still unresolved'
+        : (benchPnl === null ? 'no benchmark' : (totalPnl - benchPnl >= 0 ? '+' : '-') + '$' + Math.abs(totalPnl - benchPnl).toFixed(0) + ' vs flat-bet'),
+      pos: totalPnl >= 0 },
     // n dazu: ohne die Zahl der geschlossenen Kopien sagt die Quote nicht,
     // wie viel sie wiegt — 3 von 4 und 300 von 400 lesen sich sonst gleich.
     { label: 'WIN RATE', value: closedN ? Math.round((winsN / closedN) * 100) + '%' : '—',
@@ -417,6 +425,13 @@ export function renderBacktester(T) {
         ? 'entries below the $' + num(Math.round(+autoFit.follow_threshold)) + ' threshold auto-fit chose so the followed flow fits the bankroll, plus sells of positions that were never followed.'
         : 'sells of positions that were never followed' + (s.btMinNotional > 0 ? ', plus entries below your $' + num(s.btMinNotional) + ' follow threshold.' : '.'))
       + '</div>' : '')
+
+    // Auto-Fit liest das ganze Fenster, bevor der erste Trade kopiert wird.
+    // Das gehoert neben das Ergebnis, nicht in eine Fussnote.
+    + (autoFit && autoFit.hindsight && autoFit.note
+      ? '<div style="border:1px solid rgba(var(--warn-rgb),.3); background:rgba(var(--warn-rgb),.07); border-radius:6px; padding:11px 15px; margin-top:12px; font-size:12px; color:var(--warn); line-height:1.5">'
+        + esc(autoFit.note) + '</div>'
+      : '')
 
     + '<div style="background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; margin-top:14px; padding:16px 18px">'
     + '<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:10px">'

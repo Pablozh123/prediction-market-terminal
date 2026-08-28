@@ -250,3 +250,54 @@ class BpsVergleichTests(unittest.TestCase):
 
     def test_ohne_einsatz_keine_bps(self):
         self.assertEqual(vf.taker_fee_bps("polymarket", 0.0, "politics"), 0.0)
+
+
+class RateDisputeTests(unittest.TestCase):
+    """Der allgemeine Taker-Satz ist nicht eindeutig belegt (Doku 5%, Sekundaerquellen 3%).
+
+    Jede Kostenzahl, die darauf beruht, muss beide Enden tragen; Kategorien mit
+    eigenem Satz sind nicht betroffen.
+    """
+
+    def test_general_rate_is_flagged_disputed(self):
+        band = vf.polymarket_rate_band("sports")
+        self.assertTrue(band["disputed"])
+        self.assertAlmostEqual(band["rate"], 0.05, places=9)
+        self.assertAlmostEqual(band["low"], 0.03, places=9)
+        self.assertAlmostEqual(band["high"], 0.05, places=9)
+        self.assertTrue(band["note"])
+
+    def test_unknown_category_falls_back_to_the_disputed_general_rate(self):
+        self.assertTrue(vf.polymarket_rate_band("does-not-exist")["disputed"])
+
+    def test_own_rate_categories_are_not_disputed(self):
+        for kategorie in ("politics", "crypto", "geopolitics"):
+            with self.subTest(kategorie=kategorie):
+                band = vf.polymarket_rate_band(kategorie)
+                self.assertFalse(band["disputed"])
+                self.assertEqual(band["low"], band["high"])
+                self.assertEqual(band["note"], "")
+
+    def test_fee_figure_scales_linearly_onto_the_lower_rate(self):
+        # 1.6474 Cent je Ausloesung beim dokumentierten Satz sind 0.9884 beim
+        # niedrigeren: die Gebuehr ist linear im Satz, also drei Fuenftel davon.
+        band = vf.fee_uncertainty_band(1.6474, "sports")
+        self.assertTrue(band["disputed"])
+        self.assertAlmostEqual(band["high"], 1.6474, places=9)
+        self.assertAlmostEqual(band["low"], 1.6474 * 0.6, places=9)
+
+    def test_band_matches_a_recomputed_fee_at_the_lower_rate(self):
+        niedrig = dict(vf.POLYMARKET_TAKER_RATES, sports=vf.POLYMARKET_DISPUTED_RATE_LOW)
+        dokumentiert = vf.polymarket_taker_fee(100.0, 0.5, "sports")
+        gerechnet = vf.polymarket_taker_fee(100.0, 0.5, "sports", rates=niedrig)
+        self.assertAlmostEqual(vf.fee_uncertainty_band(dokumentiert, "sports")["low"], gerechnet, places=12)
+
+    def test_undisputed_category_gets_a_zero_width_band(self):
+        band = vf.fee_uncertainty_band(2.0, "politics")
+        self.assertFalse(band["disputed"])
+        self.assertEqual((band["low"], band["high"]), (2.0, 2.0))
+
+    def test_kalshi_is_out_of_scope(self):
+        band = vf.fee_uncertainty_band(2.0, None, venue="kalshi")
+        self.assertFalse(band["disputed"])
+        self.assertEqual((band["low"], band["high"]), (2.0, 2.0))

@@ -51,6 +51,22 @@ POLYMARKET_TAKER_RATES: dict[str, float] = {
 }
 POLYMARKET_DEFAULT_CATEGORY = "other"
 
+#: Der allgemeine Taker-Satz ist nicht eindeutig belegt. Die Venue-Doku nennt
+#: 0.05 (siehe FEE_SOURCES), mehrere Sekundaerquellen aus demselben Zeitraum
+#: nennen 0.03. Solange das keine Primaerquelle aufloest, darf keine
+#: Kostenaussage einen der beiden Werte als sicher ausgeben. Die Gebuehr ist
+#: linear im Satz: jede daraus gerechnete Kostenzahl verschiebt sich um 40
+#: Prozent, wenn der niedrigere Satz stimmt. Betroffen sind genau die
+#: Kategorien, die auf dem allgemeinen Satz liegen.
+POLYMARKET_DISPUTED_RATE = 0.05
+POLYMARKET_DISPUTED_RATE_LOW = 0.03
+#: Verbraucher ist der englische Microstructure-Report, deshalb englisch.
+POLYMARKET_RATE_DISPUTE_NOTE = (
+    "The general Polymarket taker rate is not settled: the venue documentation says 5 percent, "
+    "secondary sources from the same period say 3 percent. Both ends are carried on every cost "
+    "figure that rests on it."
+)
+
 #: Makers pay nothing on Polymarket and receive a share of collected taker
 #: fees back as a daily rebate (documented range 15-25 percent by category).
 POLYMARKET_MAKER_REBATE_SHARE = 0.15
@@ -72,6 +88,53 @@ def polymarket_category_rate(category: str | None,
     if key in table:
         return table[key]
     return table.get(POLYMARKET_DEFAULT_CATEGORY, 0.05)
+
+
+def polymarket_rate_band(category: str | None = None,
+                         rates: dict[str, float] | None = None) -> dict:
+    """Satz plus Streitstand fuer eine Kategorie.
+
+    ``rate`` ist der dokumentierte Satz, ``low``/``high`` spannen auf, was die
+    Quellenlage hergibt. ``disputed`` ist nur dort True, wo der allgemeine
+    Satz gilt; Kategorien mit eigenem Satz (Krypto, Politik, Geopolitik) sind
+    davon nicht beruehrt und bekommen ein Band der Breite null.
+    """
+    rate = polymarket_category_rate(category, rates)
+    disputed = rates is None and abs(rate - POLYMARKET_DISPUTED_RATE) < 1e-12
+    low = POLYMARKET_DISPUTED_RATE_LOW if disputed else rate
+    return {
+        "rate": rate,
+        "low": low,
+        "high": rate,
+        "disputed": disputed,
+        "note": POLYMARKET_RATE_DISPUTE_NOTE if disputed else "",
+        "quelle": FEE_SOURCES["polymarket"],
+    }
+
+
+def fee_uncertainty_band(fee_value: float, category: str | None = None,
+                         venue: str = "polymarket") -> dict:
+    """Ein am dokumentierten Satz gerechneter Gebuehrenwert als Spanne.
+
+    Die Gebuehr ist linear im Satz (``shares * rate * p * (1 - p)``), also
+    laesst sich jede daraus abgeleitete Zahl — Cents je Anteil, Kosten je
+    Ausloesung, Jahressumme — exakt auf das andere Ende der Quellenlage
+    umrechnen, ohne die Rohdaten erneut zu lesen. ``disputed`` False heisst:
+    Band der Breite null, der Aufrufer zeigt schlicht den Wert.
+    """
+    if str(venue or "").strip().lower().startswith("kalshi"):
+        wert = float(fee_value)
+        return {"wert": wert, "low": wert, "high": wert, "disputed": False, "note": ""}
+    band = polymarket_rate_band(category)
+    wert = float(fee_value)
+    faktor = (band["low"] / band["rate"]) if band["rate"] else 1.0
+    return {
+        "wert": wert,
+        "low": wert * faktor,
+        "high": wert,
+        "disputed": bool(band["disputed"]),
+        "note": band["note"],
+    }
 
 
 def _variance(price: float) -> float:

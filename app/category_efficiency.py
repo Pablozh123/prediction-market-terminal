@@ -607,12 +607,35 @@ def _priced(obs: Sequence[Mapping[str, Any]], days: int) -> list[tuple[float, bo
     return out
 
 
+def _brier_ci95(paare: Sequence[tuple[float, bool]]) -> list[float | None]:
+    """95%-Intervall um den mittleren Brier, ueber die Einzelfehler.
+
+    Der Brier ist ein Mittelwert von n Einzelwerten in [0, 1], also traegt er
+    denselben Standardfehler wie jeder Mittelwert: ``sd / sqrt(n)``. Ohne das
+    Intervall liest sich eine Rangfolge ueber zwoelf Kategorien und fuenf
+    Horizonte als Befund, obwohl 60 Zellen aus demselben Ziehungsprozess
+    schon von sich aus auseinanderlaufen. Unter zwei Beobachtungen gibt es
+    keine Streuung zu schaetzen.
+    """
+
+    n = len(paare)
+    if n < 2:
+        return [None, None]
+    fehler = [_brier(p, w) for p, w in paare]
+    mittel = sum(fehler) / n
+    sd = statistics.stdev(fehler)
+    halb = 1.96 * sd / math.sqrt(n)
+    return [_round(max(0.0, mittel - halb)), _round(min(1.0, mittel + halb))]
+
+
 def _horizon_stats(obs: Sequence[Mapping[str, Any]], days: int) -> dict[str, Any]:
     priced = _priced(obs, days)
     n = len(priced)
     if not n:
-        return {"horizont_tage": int(days), "brier": None, "trefferquote": None, "n": 0,
-                "anteil_entschieden": None, "brier_offen": None, "trefferquote_offen": None, "n_offen": 0}
+        return {"horizont_tage": int(days), "brier": None, "brier_ci95": [None, None],
+                "trefferquote": None, "n": 0, "anteil_entschieden": None,
+                "brier_offen": None, "brier_offen_ci95": [None, None],
+                "trefferquote_offen": None, "n_offen": 0}
     brier = sum(_brier(p, w) for p, w in priced) / n
     hits = sum(1 for p, w in priced if _hit(p, w))
     low, high = quant.wilson_interval(hits, n)
@@ -624,11 +647,13 @@ def _horizon_stats(obs: Sequence[Mapping[str, Any]], days: int) -> dict[str, Any
     return {
         "horizont_tage": int(days),
         "brier": _round(brier),
+        "brier_ci95": _brier_ci95(priced),
         "trefferquote": _round(hits / n),
         "trefferquote_ci95": [_round(low), _round(high)],
         "n": n,
         "anteil_entschieden": _round((n - len(offen)) / n),
         "brier_offen": _round(sum(_brier(p, w) for p, w in offen) / len(offen)) if offen else None,
+        "brier_offen_ci95": _brier_ci95(offen),
         "trefferquote_offen": _round(sum(1 for p, w in offen if _hit(p, w)) / len(offen)) if offen else None,
         "n_offen": len(offen),
     }
@@ -827,12 +852,27 @@ def compose_payload(
 
 
 def sample_summary(kategorien: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    """Totals for the log line and the ``quelle`` block: markets and n per horizon."""
+    """Totals for the log line and the ``quelle`` block: markets and n per horizon.
+
+    ``n_vergleiche`` counts the scored category-by-horizon cells. It belongs
+    next to any "which category prices best" read: the best of sixty cells is
+    the maximum of sixty draws, and the gap to the runner-up is what that many
+    draws produce on their own. The per-cell intervals (``brier_ci95``) are
+    what settles whether a difference is one at all.
+    """
 
     total = sum(int(k.get("n_maerkte") or 0) for k in kategorien)
     per_horizon: dict[str, int] = {}
+    vergleiche = 0
     for k in kategorien:
         for h in k.get("horizonte") or []:
             key = f"T-{int(h.get('horizont_tage', 0))}"
             per_horizon[key] = per_horizon.get(key, 0) + int(h.get("n") or 0)
-    return {"n_maerkte": total, "n_kategorien": len(kategorien), "n_je_horizont": per_horizon}
+            if int(h.get("n") or 0) > 0:
+                vergleiche += 1
+    return {
+        "n_maerkte": total,
+        "n_kategorien": len(kategorien),
+        "n_je_horizont": per_horizon,
+        "n_vergleiche": vergleiche,
+    }

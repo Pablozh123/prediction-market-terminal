@@ -243,8 +243,9 @@ class TableTests(unittest.TestCase):
         self.assertIsNone(rows[0]["brier_t7"])
         self.assertEqual(rows[0]["n_t7"], 0)
         self.assertEqual(rows[0]["horizonte"][0], {
-            "horizont_tage": 7, "brier": None, "trefferquote": None, "n": 0, "anteil_entschieden": None,
-            "brier_offen": None, "trefferquote_offen": None, "n_offen": 0,
+            "horizont_tage": 7, "brier": None, "brier_ci95": [None, None], "trefferquote": None,
+            "n": 0, "anteil_entschieden": None, "brier_offen": None,
+            "brier_offen_ci95": [None, None], "trefferquote_offen": None, "n_offen": 0,
         })
 
     def test_open_subset_excludes_settled_prices(self) -> None:
@@ -359,7 +360,56 @@ class PayloadTests(unittest.TestCase):
     def test_sample_summary(self) -> None:
         rows = [{"n_maerkte": 3, "horizonte": [{"horizont_tage": 7, "n": 2}, {"horizont_tage": 1, "n": 3}]},
                 {"n_maerkte": 1, "horizonte": [{"horizont_tage": 7, "n": 1}, {"horizont_tage": 1, "n": 0}]}]
-        self.assertEqual(ce.sample_summary(rows), {"n_maerkte": 4, "n_kategorien": 2, "n_je_horizont": {"T-7": 3, "T-1": 3}})
+        self.assertEqual(
+            ce.sample_summary(rows),
+            # Drei besetzte Zellen: die leere T-1-Zelle zaehlt nicht als Vergleich.
+            {"n_maerkte": 4, "n_kategorien": 2, "n_je_horizont": {"T-7": 3, "T-1": 3}, "n_vergleiche": 3},
+        )
+
+
+class BrierIntervalTests(unittest.TestCase):
+    """Eine Rangfolge ueber zwoelf Kategorien und fuenf Horizonte ist ohne
+    Intervall keine Aussage: 60 Zellen laufen von sich aus auseinander."""
+
+    def _obs(self, prices_and_outcomes):
+        return [
+            {"category": "S", "won": won, "volume": 1, "prices": {7: preis}}
+            for preis, won in prices_and_outcomes
+        ]
+
+    def test_interval_brackets_the_brier(self) -> None:
+        obs = self._obs([(0.6, True), (0.4, False), (0.7, True), (0.3, False), (0.55, False)])
+        h7 = ce.category_table(obs, horizons=(7,))[0]["horizonte"][0]
+        low, high = h7["brier_ci95"]
+        self.assertIsNotNone(low)
+        self.assertLessEqual(low, h7["brier"])
+        self.assertGreaterEqual(high, h7["brier"])
+
+    def test_a_perfectly_uniform_bucket_has_a_zero_width_interval(self) -> None:
+        # Jeder Einzelfehler identisch (0.25) -> keine Streuung, kein Band.
+        obs = self._obs([(0.5, True), (0.5, False), (0.5, True), (0.5, False)])
+        h7 = ce.category_table(obs, horizons=(7,))[0]["horizonte"][0]
+        self.assertAlmostEqual(h7["brier"], 0.25, places=9)
+        self.assertEqual(h7["brier_ci95"], [0.25, 0.25])
+
+    def test_a_noisier_bucket_gets_a_wider_band(self) -> None:
+        ruhig = self._obs([(0.5, True), (0.5, False), (0.5, True), (0.5, False)])
+        unruhig = self._obs([(0.99, False), (0.01, True), (0.5, True), (0.5, False)])
+        breite = lambda rows: (lambda ci: ci[1] - ci[0])(  # noqa: E731 - nur hier gebraucht
+            ce.category_table(rows, horizons=(7,))[0]["horizonte"][0]["brier_ci95"]
+        )
+        self.assertGreater(breite(unruhig), breite(ruhig))
+
+    def test_single_observation_has_no_interval(self) -> None:
+        h7 = ce.category_table(self._obs([(0.6, True)]), horizons=(7,))[0]["horizonte"][0]
+        self.assertEqual(h7["brier_ci95"], [None, None])
+
+    def test_open_subset_carries_its_own_interval(self) -> None:
+        obs = self._obs([(0.99, True), (0.01, False), (0.6, True), (0.4, False), (0.55, True)])
+        h7 = ce.category_table(obs, horizons=(7,))[0]["horizonte"][0]
+        self.assertEqual(h7["n_offen"], 3)
+        self.assertIsNotNone(h7["brier_offen_ci95"][0])
+        self.assertLessEqual(h7["brier_offen_ci95"][0], h7["brier_offen"])
 
 
 if __name__ == "__main__":
