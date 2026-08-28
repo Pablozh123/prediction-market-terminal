@@ -83,6 +83,24 @@ class OrderbookTests(unittest.TestCase):
         bids, _ = kr.parse_orderbook(book(yes=yes), levels=3)
         self.assertEqual(len(bids), 3)
 
+    def test_the_cent_ladder_is_divided_before_it_is_reflected(self):
+        # Ohne die Division wird aus dem NO-Gebot 1 - 43 = -42: ein negativer
+        # Brief, ein Spread von -97 und ein Buchwert um Faktor 100 zu hoch.
+        bids, asks = kr.parse_orderbook(
+            {"orderbook": {"yes": [[55, 1200], [54, 900]], "no": [[43, 800]]}})
+        self.assertEqual(bids[0], (0.55, 1200.0))
+        self.assertEqual(asks[0], (0.57, 800.0))
+        self.assertLess(bids[0][0], asks[0][0])
+
+    def test_the_cent_ladder_prices_the_top_of_book_in_dollars(self):
+        row = kr.book_row("2026-08-28T00:00:00Z", {"ticker": "KXTEST-A"},
+                          {"orderbook": {"yes": [[55, 1200], [54, 900]],
+                                         "no": [[43, 800]]}})
+        self.assertEqual(row["best_bid"], 0.55)
+        self.assertEqual(row["best_ask"], 0.57)
+        self.assertEqual(row["spread"], 0.02)
+        self.assertEqual(row["bid_usd_top"], 1146.0)
+
 
 class BookRowTests(unittest.TestCase):
     def setUp(self):
@@ -197,6 +215,28 @@ class DiscoveryTests(unittest.TestCase):
     def test_an_empty_exchange_yields_no_markets(self):
         self.assertEqual(kr.discover_markets(
             get_json=lambda p, q=None: {"events": [], "cursor": ""}, pages=1), [])
+
+    def test_quotes_without_the_dollar_fields_come_from_the_cent_fields(self):
+        # Ohne Rueckfall stand hier 0.00/0.00, und die Cross-Venue-Studie
+        # verwarf den Markt als "keine verwertbaren Quotes".
+        def get_json(path, params=None):
+            return event_page([{"ticker": "A", "volume_24h": 500,
+                                "open_interest": 40, "yes_bid": 61,
+                                "yes_ask": 63}])
+        row = kr.discover_markets(get_json=get_json, pages=1)[0]
+        self.assertAlmostEqual(row["yes_bid"], 0.61)
+        self.assertAlmostEqual(row["yes_ask"], 0.63)
+        self.assertEqual(row["volume_24h"], 500.0)
+        self.assertEqual(row["open_interest"], 40.0)
+
+    def test_the_dollar_fields_still_win_when_both_are_there(self):
+        def get_json(path, params=None):
+            return event_page([{"ticker": "A", "volume_24h_fp": "7",
+                                "volume_24h": 999, "yes_bid_dollars": "0.61",
+                                "yes_bid": 99}])
+        row = kr.discover_markets(get_json=get_json, pages=1)[0]
+        self.assertAlmostEqual(row["yes_bid"], 0.61)
+        self.assertEqual(row["volume_24h"], 7.0)
 
 
 class ShardTests(unittest.TestCase):

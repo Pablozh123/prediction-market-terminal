@@ -1997,3 +1997,118 @@ class SearchPolymarketTests(unittest.TestCase):
         self.assertTrue(markets.empty)
         self.assertEqual(profiles, [])
         fetch.assert_not_called()
+
+
+class MarketDedupeTests(unittest.TestCase):
+    """Ein Markt, eine Zeile: sonst zaehlt jede Summe darueber doppelt."""
+
+    def _market(self, cid: str, volume: float) -> dict:
+        return {"id": cid, "conditionId": cid, "question": f"Q {cid}", "slug": cid,
+                "outcomes": ["Yes", "No"], "outcomePrices": ["0.5", "0.5"],
+                "volume24hr": volume, "volumeNum": volume * 10, "liquidityNum": 1000.0}
+
+    def test_a_market_on_two_pages_is_counted_once(self) -> None:
+        # Gamma wird seitenweise nach 24h-Volumen abgefragt, und die Ordnung
+        # bewegt sich zwischen den Aufrufen: 0xdrift steht als letzte Zeile
+        # der ersten Seite und als erste der zweiten.
+        seite1 = [self._market(f"0x{i}", 1000 - i) for i in range(99)]
+        seite1.append(self._market("0xdrift", 500.0))
+        seite2 = [self._market("0xdrift", 500.0)]
+        seite2.extend(self._market(f"0xb{i}", 400 - i) for i in range(99))
+        with patch("src.prediction_markets._get_json", side_effect=[seite1, seite2]):
+            frame = md.get_polymarket_markets(limit=200)
+        self.assertEqual(int((frame["market_key"] == "0xdrift").sum()), 1)
+        self.assertEqual(len(frame), frame["market_key"].nunique())
+        # 199 statt 200 Zeilen, und die Volumensumme traegt 0xdrift einmal.
+        self.assertEqual(len(frame), 199)
+        self.assertAlmostEqual(float(frame["volume_24h"].sum()), 129398.0, places=4)
+
+    def test_a_kalshi_ticker_returned_twice_is_counted_once(self) -> None:
+        payload = {"markets": [
+            {"ticker": "KXFED-26JUN", "title": "Fed", "yes_bid": 61, "yes_ask": 63,
+             "volume_24h": 10, "volume": 10, "liquidity_dollars": 100.0},
+            {"ticker": "KXFED-26JUN", "title": "Fed", "yes_bid": 61, "yes_ask": 63,
+             "volume_24h": 10, "volume": 10, "liquidity_dollars": 100.0},
+        ]}
+        with patch("src.prediction_markets._get_json", return_value=payload):
+            frame = md.get_kalshi_markets()
+        self.assertEqual(len(frame), 1)
+
+
+class KalshiCentUnitTests(unittest.TestCase):
+    """Kalshi liefert Cents; die Groesse allein verraet die Einheit nicht."""
+
+    def test_one_cent_is_not_one_dollar(self) -> None:
+        # cents() raet an der Groesse: 1 ist nicht groesser als 1.0 und
+        # ueberlebt ungeteilt. kalshi_price weiss, welches Feld gemeint ist.
+        self.assertEqual(md.cents(1), 1.0)
+        self.assertEqual(md.kalshi_price(None, 1), 0.01)
+
+    def test_dollar_field_wins_over_cent_field(self) -> None:
+        self.assertEqual(md.kalshi_price("0.55", 55), 0.55)
+        self.assertEqual(md.kalshi_price(None, 55), 0.55)
+
+    def test_missing_both_falls_back_to_default(self) -> None:
+        self.assertEqual(md.kalshi_price(None, None), 0.0)
+        self.assertIsNone(md.kalshi_price(None, None, default=None))
+
+    def test_price_stays_inside_the_unit_interval(self) -> None:
+        self.assertEqual(md.kalshi_price(None, 120), 1.0)
+        self.assertEqual(md.kalshi_price(None, -3), 0.0)
+
+    def test_longshot_market_without_dollar_fields_reads_as_one_cent(self) -> None:
+        payload = {"markets": [{
+            "ticker": "KXLONGSHOT-26DEC31", "title": "Longshot?",
+            "yes_bid": 1, "yes_ask": 2, "last_price": 1,
+            "liquidity_dollars": 500.0, "volume_24h": 10, "volume": 10,
+        }]}
+        with patch("src.prediction_markets._get_json", return_value=payload):
+            markets = md.get_kalshi_markets()
+        row = markets.iloc[0]
+        self.assertAlmostEqual(float(row["yes_price"]), 0.015)
+        self.assertAlmostEqual(float(row["best_bid"]), 0.01)
+        self.assertAlmostEqual(float(row["best_ask"]), 0.02)
+        self.assertAlmostEqual(float(row["spread"]), 0.01)
+
+    def test_orderbook_in_the_documented_cent_shape_is_not_empty(self) -> None:
+        # Vorher wurde nur yes_dollars/no_dollars gelesen: ein Buch in der
+        # Cent-Form kam als leere Leiter zurueck, also Tiefe null.
+        payload = {"orderbook": {"yes": [[55, 1200], [54, 900]], "no": [[43, 800]]}}
+        with patch("src.prediction_markets._get_json", return_value=payload):
+            bids, asks = md.get_kalshi_orderbook("KXFED-26JUN")
+        self.assertEqual(len(bids), 2)
+        self.assertEqual(len(asks), 1)
+        self.assertAlmostEqual(float(bids.iloc[0]["price"]), 0.55)
+        self.assertAlmostEqual(float(bids.iloc[0]["notional"]), 660.0)
+        # Ein NO-Gebot zu 43 Cent ist ein YES-Angebot zu 57 Cent.
+        self.assertAlmostEqual(float(asks.iloc[0]["price"]), 0.57)
+
+    def test_orderbook_dollar_shape_keeps_working(self) -> None:
+        payload = {"orderbook_fp": {"yes_dollars": [["0.55", "1200"]],
+                                    "no_dollars": [["0.43", "800"]]}}
+        with patch("src.prediction_markets._get_json", return_value=payload):
+            bids, asks = md.get_kalshi_orderbook("KXFED-26JUN")
+        self.assertAlmostEqual(float(bids.iloc[0]["price"]), 0.55)
+        self.assertAlmostEqual(float(asks.iloc[0]["price"]), 0.57)
+
+    def test_orderbook_dict_levels_prefer_the_dollar_field(self) -> None:
+        payload = {"orderbook": {"yes": [{"price_dollars": "0.55", "price": 55, "count": 300}],
+                                 "no": []}}
+        with patch("src.prediction_markets._get_json", return_value=payload):
+            bids, _asks = md.get_kalshi_orderbook("KXFED-26JUN")
+        self.assertAlmostEqual(float(bids.iloc[0]["price"]), 0.55)
+        self.assertAlmostEqual(float(bids.iloc[0]["size"]), 300.0)
+
+    def test_candlestick_cents_become_probabilities(self) -> None:
+        payload = {"candlesticks": [{
+            "end_period_ts": 1700000000,
+            "price": {"open": 45, "high": 60, "low": 40, "close": 58},
+            "volume": 100, "open_interest": 50,
+        }]}
+        with patch("src.prediction_markets._get_json", return_value=payload):
+            candles = md.get_kalshi_candlesticks("KXFED-26JUN")
+        row = candles.iloc[0]
+        self.assertAlmostEqual(float(row["open"]), 0.45)
+        self.assertAlmostEqual(float(row["high"]), 0.60)
+        self.assertAlmostEqual(float(row["low"]), 0.40)
+        self.assertAlmostEqual(float(row["close"]), 0.58)
