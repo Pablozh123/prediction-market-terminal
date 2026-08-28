@@ -194,7 +194,7 @@ export function diagramm(dia) {
 //
 // Die fuenf neuen Plaetze bestehen alle fuenf Pruefungen in beiden Themes,
 // siehe den Kommentar an --s1 in terminal.css. Ueber fuenf Serien wird
-// nicht weiter zyklisch vergeben — zwei Serien mit derselben Farbe sind
+// nicht weiter zyklisch vergeben: zwei Serien mit derselben Farbe sind
 // keine Kodierung. serienFarbe() gibt dann null zurueck, und der Aufrufer
 // fasst zusammen oder teilt auf.
 export const SERIEN_FARBEN = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)', 'var(--s5)'];
@@ -592,7 +592,7 @@ export function stepKurve(k) {
 //
 // Regeln, die hier ueberall gelten und nicht je Aufrufstelle neu entschieden
 // werden: jede Achse traegt ihre Beschriftung samt Einheit, Text traegt nie
-// die Datenfarbe (sondern eine Ink-Stufe ab .62 — .5 komponiert auf dem
+// die Datenfarbe (sondern eine Ink-Stufe ab .62, denn .5 komponiert auf dem
 // hellen Grund zu 3.88:1 und faellt durch AA), jede Marke traegt einen
 // Tooltip, Gitterlinien sind haarduenn und durchgezogen, und ueberlappende
 // Punkte tragen einen 2px-Ring in der Flaechenfarbe statt einer Kontur.
@@ -643,7 +643,7 @@ function logTicks(min, max) {
  *       xReferenzen: [{ wert, label }], yReferenzen: [{ wert, label }],
  *       punkte: [{ x, y, label, tip, band?: [lo, hi], hervor?: bool }],
  *       labelN }                   // wie viele Punkte direkt beschriftet werden
- *  Ohne Punkte kein Diagramm. Eine Serie, also keine Legende — der Titel
+ *  Ohne Punkte kein Diagramm. Eine Serie, also keine Legende: der Titel
  *  sagt, was gezeichnet ist.
  */
 export function punktwolke(k) {
@@ -703,7 +703,7 @@ export function punktwolke(k) {
         : '');
   }
   // Referenzlinien ohne Zone: eine Schwelle, die keine Flaeche einschliesst,
-  // wird als Linie gezeichnet — eine leere Schattierung waere Zierrat.
+  // wird als Linie gezeichnet, eine leere Schattierung waere Zierrat.
   yRefs.forEach((r) => {
     const ry = y(r.wert);
     if (ry < TOP - 1 || ry > BOT + 1) return;
@@ -732,7 +732,7 @@ export function punktwolke(k) {
       + '; stroke:var(--panel)" stroke-width="2"><title>' + esc(p.tip || p.label || '') + '</title></circle>';
   });
 
-  // Direktbeschriftung fuer wenige Punkte — nie fuer alle. Sie sitzt rechts
+  // Direktbeschriftung fuer wenige Punkte, nie fuer alle. Sie sitzt rechts
   // vom Punkt und klappt am rechten Rand nach links.
   let namen = '';
   const wieViele = k.labelN != null ? k.labelN : 5;
@@ -825,7 +825,11 @@ export function histogramm(k) {
   let xLabels = '';
   kanten.forEach((v, i) => {
     if (i % schritt !== 0 && i !== kanten.length - 1) return;
-    xLabels += '<text x="' + x(v).toFixed(1) + '" y="' + (BOT + 15) + '" ' + INK62 + ' ' + TICK + ' text-anchor="middle">'
+    // Die aeussersten beiden Marken haengen sonst zur Haelfte aus dem SVG:
+    // im Browser gemessen, die letzte Marke von RESULT PER CLOSED COPY
+    // stand zur Haelfte rechts ausserhalb der Zeichenflaeche.
+    const anker = i === 0 ? 'start' : i === kanten.length - 1 ? 'end' : 'middle';
+    xLabels += '<text x="' + x(v).toFixed(1) + '" y="' + (BOT + 15) + '" ' + INK62 + ' ' + TICK + ' text-anchor="' + anker + '">'
       + esc(binText(v)) + '</text>';
   });
 
@@ -855,7 +859,7 @@ export function histogramm(k) {
 }
 
 /** Intervall-Marke: ein Punkt mit seiner Spanne auf einer beschrifteten
- *  Leiste. Kein Diagramm — bei kleinem n ist die Spanne die Information,
+ *  Leiste. Kein Diagramm: bei kleinem n ist die Spanne die Information,
  *  nicht die Form.
  *
  *  k: { wert, ci: [lo, hi], domain: [min, max], ticks: [{ wert, text }],

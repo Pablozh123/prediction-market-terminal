@@ -48,7 +48,7 @@ function scorePartsHtml(t) {
       const titel = p.imputed
         ? ' title="' + esc(p.label + ': the public leaderboard feed carries no input for this component, so the score uses a fixed placeholder — the same one for every wallet') + '"'
         : '';
-      return '<span' + titel + ' style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.5); ' + rand + '; border-radius:4px; padding:1px 6px; white-space:nowrap">'
+      return '<span' + titel + ' style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.62); ' + rand + '; border-radius:4px; padding:1px 6px; white-space:nowrap">'
         + esc(p.label) + ' ' + wert + '</span>';
     }).join('')
     + '</div>';
@@ -977,7 +977,7 @@ export function renderRisk(T) {
     '<div style="display:flex; align-items:center; gap:12px">'
     + '<div style="flex:0 0 158px; ' + M + '; font-size:11px; letter-spacing:.08em; color:' + farbe + '">' + label + ' <span style="font-size:13px; color:' + (farbe === 'var(--warn)' ? 'var(--warn)' : 'var(--text)') + '">' + (wert != null ? wert : '—') + '</span></div>'
     + '<div style="flex:1; height:12px; border-radius:4px; background:rgba(var(--ink),.07); overflow:hidden"><div style="width:' + trichterBreite(wert).toFixed(1) + '%; height:12px; background:' + balkenFarbe + '"></div></div>'
-    + '<div style="flex:0 0 210px; font-size:11px; color:rgba(var(--ink),.5)">' + satz + '</div>'
+    + '<div style="flex:0 0 210px; font-size:11px; color:rgba(var(--ink),.62)">' + satz + '</div>'
     + '</div>';
   const seitenKpi = (label, wert, amber) =>
     '<div style="flex:1; background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; gap:10px">'
@@ -989,7 +989,7 @@ export function renderRisk(T) {
     + '<div style="flex:1; background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:14px 18px; display:flex; flex-direction:column; gap:9px">'
     + '<div style="display:flex; justify-content:space-between; align-items:baseline; gap:10px">'
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.12em; color:rgba(var(--ink),.6)">THE SCREEN, AS A FUNNEL</div>'
-    + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.45)">floor at ' + minScore + '/100</div></div>'
+    + '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.62)">floor at ' + minScore + '/100</div></div>'
     + trichterZeile('SCREENED', screened, 'rgba(var(--ink),.72)', 'rgba(var(--ink),.18)', 'every market with whale flow in the window')
     + trichterZeile('FLAGGED ≥ ' + minScore, flagged, 'rgba(var(--ink),.72)', 'rgba(var(--ink),.5)', 'cleared the flag threshold — these get cards')
     + trichterZeile('HIGH ≥ 70', hochEvents, 'var(--warn)', 'var(--warn)', 'strongest insider-like pattern')
@@ -1021,7 +1021,7 @@ export function renderRisk(T) {
       + swatch('var(--warn)', 'price &amp; timing')
       + swatch('var(--accent)', 'wallet pattern')
       + '</div>'
-      + '<div style="font-size:11.5px; color:rgba(var(--ink),.5)">ticks at 40 · 55 · 70 — low → elevated → medium → high · open <span style="' + M + '; font-size:11px">Why?</span> on a card for the full arithmetic</div>'
+      + '<div style="font-size:11.5px; color:rgba(var(--ink),.62)">ticks at 40 · 55 · 70 — low → elevated → medium → high · open <span style="' + M + '; font-size:11px">Why?</span> on a card for the full arithmetic</div>'
       + '</div>';
     // The honest empty state: with the threshold in place, "no cards" most
     // often means "everything screened was unremarkable", and the page says

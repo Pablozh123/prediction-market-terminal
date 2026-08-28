@@ -427,7 +427,11 @@ export function positionsBalken(T, d) {
   const punkte = gezeigt.map((it) => {
     const ret = it.stake > 0 ? it.pnl / it.stake : null;
     return {
-      label: kurzTitel(it.title, 30) + ' · ' + String(it.outcome || '—').toUpperCase().slice(0, 3),
+      // 20 Zeichen plus " · YES": die Labelspalte von diagramm() ist 196
+      // Einheiten breit, ein Zeichen in 11.5px IBM Plex Mono misst rund 6.9.
+      // Bei 30 Zeichen stand der Anfang des laengsten Titels im Browser
+      // gemessen ausserhalb der Zeichenflaeche.
+      label: kurzTitel(it.title, 20) + ' · ' + String(it.outcome || '—').toUpperCase().slice(0, 3),
       wert: Number(it.value) || 0,
       // Laenge misst den Einsatz, Farbe traegt das Vorzeichen des Ergebnisses.
       farbe: it.pnl >= 0 ? 'var(--pos)' : 'var(--neg)',

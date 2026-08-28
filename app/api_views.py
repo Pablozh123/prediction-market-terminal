@@ -487,7 +487,7 @@ def score_interval(parts: list[dict[str, Any]]) -> list[float] | None:
 
     Der gezeigte Score liegt konstruktionsbedingt in [lo, hi]. Auf der
     oeffentlichen Leaderboard-Antwort sind 55 Prozent des Gewichts
-    geschaetzt, die Spanne ist also 55 Punkte breit — und genau das ist die
+    geschaetzt, die Spanne ist also 55 Punkte breit, und genau das ist die
     Aussage, die neben dem Abzeichen fehlte.
 
     ``None``, wenn keine Bestandteile vorliegen: eine Spanne ohne Grundlage
