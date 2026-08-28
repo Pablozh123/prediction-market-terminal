@@ -331,6 +331,14 @@ function mitDaten(T) {
       spanne: { x: [0, 1], y: [0, 1] },
       kennzahl: { wallets: 2, wallets_im_tape: 300, kanten: 1, cluster: 1, modularitaet: 0.4, lift_median: 5.0 },
       regel: 'same side of at least 3 markets within 5 minutes, $10k paired notional',
+      // Die ganze Leiter, nicht nur die Sprosse, die getragen hat: hier
+      // greift die strengste, die beiden lockereren wurden gar nicht
+      // versucht (und stehen deshalb auf null, nicht auf 0).
+      regel_leiter: [
+        { regel: 'same side of at least 3 markets within 5 minutes, $10k paired notional', parameter: { window_minutes: 5, min_shared: 3, min_pair_notional: 10000 }, versucht: true, wallets: 2, kanten: 1, gewaehlt: true },
+        { regel: 'same side of at least 2 markets within 5 minutes', parameter: { window_minutes: 5, min_shared: 2 }, versucht: false, wallets: null, kanten: null, gewaehlt: false },
+        { regel: 'same side of at least 2 markets anywhere in the window, no simultaneity required', parameter: { window_minutes: null, min_shared: 2 }, versucht: false, wallets: null, kanten: null, gewaehlt: false }
+      ],
       fenster: '2026-08-21 12:00 to 01:42 UTC · 13.7 h · 563 prints',
       // Die Kontrolle: dieselbe Regel auf gemischten Wallet-Namen.
       nullmodell: { runs: 2, wallets: 63, kanten: 846, cluster: 4, lift_median: 1.4 },
@@ -381,9 +389,21 @@ function mitDaten(T) {
   // Mittelkurse 62/58, ausfuehrbar aber nur 2 Cent, und davon frisst die
   // Gebuehrenschwelle 2.7: die Zeile steht mit einer Luecke von 4 Cent und
   // einem negativen Netto da.
-  T.crossPairs = [{ event: 'Example question', cat: 'Macro', pm: 62, ks: 58, sim: 0.71, pmVolUsd: 1200000, ksVolContracts: 300000, gross: 2.0, band: 2.7, net: -0.7, dir: 'buy Kalshi, sell Polymarket' }];
+  // ``size``/``depthChecked``: die Spanne gilt fuer drei Stueck an der
+  // Spitze, nicht fuer die hundert des Gebuehren-Clips.
+  T.crossPairs = [{ event: 'Example question', cat: 'Macro', pm: 62, ks: 58, sim: 0.71, pmVolUsd: 1200000, ksVolContracts: 300000, gross: 2.0, band: 2.7, net: -0.7, dir: 'buy Kalshi, sell Polymarket', size: 3, depthChecked: true }];
   T.herkunft.cross = { quelle: 'live' };
-  T.liveData.cross = { _quelle: 'live', rows: T.crossPairs, candidates_before_gate: 9, gate: { min_similarity: 0.5, require_volume_both: true }, as_of: '2026-08-17 10:00 UTC' };
+  T.liveData.cross = {
+    _quelle: 'live', rows: T.crossPairs, candidates_before_gate: 9,
+    gate: { min_similarity: 0.5, require_volume_both: true }, as_of: '2026-08-17 10:00 UTC',
+    depth_rows: 12,
+    // Ein Paar, das der Paar-Check aussortiert hat: gezaehlt und benannt,
+    // aber ohne jede Zahl.
+    suppressed: {
+      total: 1, by_verdict: { opposed: 1 },
+      examples: [{ event: 'Bitcoin above $120,000', other: 'Bitcoin below $120,000', verdict: 'opposed', why: 'opposite direction (threshold): above against below' }]
+    }
+  };
   T.liveData.resolved = {
     _quelle: 'live',
     rows: [{ title: 'Settled question', meta: 'POLYMARKET · MACRO', yes: true, last: 91, err: 9, vol: '$1.2m', when: '2 d ago', hours: 6 }]

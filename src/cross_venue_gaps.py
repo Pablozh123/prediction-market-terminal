@@ -43,6 +43,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from app import cross_pairs as cp
 from app import venue_fees as vf
 from src import book_recorder as pm
 from src import kalshi_recorder as kx
@@ -110,31 +111,13 @@ def match_score(left: str, right: str) -> tuple[float, int]:
     return round(len(shared) / len(union), 4), len(shared)
 
 
-#: Was eine Frage eigentlich fragt, unabhaengig von der Formulierung. Die
-#: Pruefung laeuft ueber diese Gruppen statt ueber Einzelwoerter, weil
-#: "gewinnt die Nominierung" und "ist der Nominierte" dieselbe Frage sind,
-#: "gewinnt die Nominierung" und "tritt an" dagegen nicht.
-INTENT_WORDS = {
-    "outcome": {"win", "wins", "won", "winner", "winning", "nominee",
-                "nomination", "nominated", "host", "hosts", "hosting",
-                "champion", "elected"},
-    "participation": {"run", "runs", "running", "ran", "candidate", "enter",
-                      "announce", "declare"},
-    "margin": {"margin", "percent", "percentage", "points", "spread"},
-    "exit": {"concede", "withdraw", "resign", "drop", "suspend", "quit"},
-}
-
-#: Spannen-Muster ("6-9%") verraten einen Margen-Markt auch ohne das Wort.
-RANGE_PATTERN = re.compile(r"\d+\s*[-–]\s*\d+\s*%", re.IGNORECASE)
-
-
-def intents(title: str) -> set[str]:
-    """Which question types a title expresses."""
-    tokens = set(normalise(title))
-    found = {name for name, words in INTENT_WORDS.items() if tokens & words}
-    if RANGE_PATTERN.search(title or ""):
-        found.add("margin")
-    return found
+#: Was eine Frage eigentlich fragt, plus die Richtung, in der sie sie stellt:
+#: beides steht in ``app/cross_pairs.py``, weil die Web-Paarung dieselbe
+#: Vorfrage beantworten muss und zwei Definitionen davon zwei verschiedene
+#: Antworten auf dieselbe Frage waeren.
+INTENT_WORDS = cp.INTENT_WORDS
+RANGE_PATTERN = cp.RANGE_PATTERN
+intents = cp.intents
 
 
 def suspect_reasons(left: str, right: str) -> list[str]:
@@ -151,14 +134,14 @@ def suspect_reasons(left: str, right: str) -> list[str]:
     "win the nomination" and "the nominee" both express a result, so they are
     not flagged, while "run for the nomination" adds a participation question
     that the other side does not ask.
+
+    The check itself lives in ``app/cross_pairs.suspect_reasons`` and also
+    covers the third failure mode, the one this module used to be blind to: a
+    question and its inversion. "Above $120,000" against "below $120,000"
+    shares every other word, scores 0.78, and prices as a 20-cent edge that is
+    really the same bet placed twice.
     """
-    left_intents, right_intents = intents(left), intents(right)
-    difference = left_intents ^ right_intents
-    if not difference:
-        return []
-    return ["different question types: " + ", ".join(
-        sorted(left_intents) or ["none"]) + " against " + ", ".join(
-        sorted(right_intents) or ["none"])]
+    return cp.suspect_reasons(left, right)
 
 
 def days_until(value) -> float | None:

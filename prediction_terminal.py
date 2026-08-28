@@ -8443,6 +8443,16 @@ def page_cross_venue() -> None:
     # verkauft zum Geld, und beide Venues nehmen eine Gebuehr. Dieselbe
     # Rechnung wie auf der Web-Oberflaeche (app/cross_pairs.basket_edge).
     candidates = cp.with_basket_edge(candidates, pm, ks)
+    # Vor jeder Zahl die Vorfrage: stellen die beiden Seiten dieselbe Frage?
+    # "Above $120,000" und "below $120,000" teilen jedes andere Wort und
+    # bekommen 0.78 Aehnlichkeit. Der Korb darueber zahlt 2.00 im einen und
+    # 0.00 im anderen Ausgang, ist also keine Absicherung, und zwischen zwei
+    # verschiedenen Fragen ist auch die Mittelkurs-Luecke keine Aussage.
+    verworfene_paare = pd.DataFrame()
+    if not candidates.empty and "pair_verdict" in candidates.columns:
+        verworfen = candidates["pair_verdict"].astype(str).ne(cp.PAIR_UNVERIFIED)
+        verworfene_paare = candidates[verworfen]
+        candidates = candidates[~verworfen]
     if not candidates.empty:
         candidates = candidates[numeric_col(candidates, "abs_gap") >= float(min_gap_cents) / 100]
         candidates = candidates[numeric_col(candidates, "polymarket_volume_usd") >= float(min_pm_volume)]
@@ -8477,6 +8487,16 @@ def page_cross_venue() -> None:
     if int(min_price_pct) != int(cross_defaults["cross_min_price_pct"]) or int(max_price_pct) != int(cross_defaults["cross_max_price_pct"]):
         cross_chips.append(f"Yes price: {int(min_price_pct)}%-{int(max_price_pct)}%")
     render_filter_chips(cross_chips)
+    if not verworfene_paare.empty:
+        gruende = "; ".join(
+            str(grund) for grund in verworfene_paare["pair_reasons"].head(3) if str(grund).strip())
+        st.markdown(
+            f"<div class='field-hint'>{len(verworfene_paare):,} matched pair"
+            f"{'' if len(verworfene_paare) == 1 else 's'} carry no numbers at all: the two sides "
+            "ask in opposite directions, name different thresholds or resolve on different dates. "
+            f"{html.escape(gruende)}</div>",
+            unsafe_allow_html=True,
+        )
     if candidates.empty:
         draw_empty("No cross-venue candidates matched. Try a broader query or lower the similarity threshold.")
         return

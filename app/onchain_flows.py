@@ -17,6 +17,12 @@ summed (a raw log scan returns every token that ever touched the wallet, and
 one foreign 18-decimal token read with USDC's 6 decimals is a twelve-order-of-
 magnitude error), and a transfer is identified by its log position rather than
 by its payload, so two equal transfers inside one batched payout stay two.
+
+The exponent itself is pinned per contract and never defaulted. A collateral
+contract whose decimals nobody looked up stops the decode instead of being
+scaled by USDC's six: the same mistake that made a WETH transfer a
+$1,000,000,000,000 deposit was still open for pUSD, one flag away from the sum
+and read by nothing.
 """
 
 from __future__ import annotations
@@ -81,11 +87,32 @@ BRIDGE_ADDRESSES: frozenset[str] = frozenset({
 # range the module docstring always promised, instead of one of its two ends.
 AMBIGUOUS_ADDRESSES: frozenset[str] = PROTOCOL_ADDRESSES & BRIDGE_ADDRESSES
 
-#: Decimals per collateral contract. Both USDC deployments are 6 (verified via
-#: the token contracts). pUSD is carried but not pinned here: no source in this
-#: repo states its decimals, so its rows are flagged ``decimals_assumed`` and
-#: counted rather than quietly scaled by a guessed exponent.
-TOKEN_DECIMALS: dict[str, int] = {contract: USDC_DECIMALS for contract in USDC_CONTRACTS}
+class UnknownTokenDecimals(ValueError):
+    """A collateral contract whose exponent nobody pinned.
+
+    Raised rather than defaulted, because the default is what does the damage:
+    the same sum that reads USDC correctly turns one 18-decimal token into a
+    twelve-order-of-magnitude deposit. A loud stop costs one run; a quiet
+    exponent costs the whole ledger, and it looks right while it does.
+    """
+
+
+#: Decimals per collateral contract. Both USDC deployments are 6, verified at
+#: the token contracts. pUSD carries ``None``: it is collateral, but no source
+#: in this repo states its exponent, and a guess here is not a smaller error
+#: than a missing row. Decoding a pUSD transfer therefore raises
+#: ``UnknownTokenDecimals`` until a caller passes a verified exponent:
+#:
+#:     decode_transfer_logs(logs, TOKEN_DECIMALS | {PUSD_CONTRACT: 6})
+#:
+#: The flag it used to carry instead (``decimals_assumed``) was read by
+#: nobody: ``flow_summary`` and ``peak_external_exposure`` summed the amount
+#: either way, so a single 1.0 pUSD transfer at 18 decimals entered the ledger
+#: as a $1,000,000,000,000 deposit and as a $1,000,000,000,000 peak exposure.
+TOKEN_DECIMALS: dict[str, int | None] = {
+    **{contract: USDC_DECIMALS for contract in USDC_CONTRACTS},
+    PUSD_CONTRACT: None,
+}
 
 
 def topic_address(address: str) -> str:
@@ -100,25 +127,40 @@ def address_from_topic(topic: Any) -> str:
     return "0x" + text[-40:] if len(text) >= 40 else ""
 
 
-def _decimals_for(contract: str, decimals: int | Mapping[str, int]) -> int | None:
-    """Decimals for one contract, or None when the row must be dropped.
+def _decimals_for(contract: str, decimals: int | Mapping[str, int | None]) -> int | None:
+    """Decimals for one contract, None when the row must be dropped, or a raise.
 
-    A scalar applies to every contract (the old behaviour, kept for callers that
-    fetched a single token). A mapping is the safe mode: a contract that is not
-    a known collateral contract returns None, because decoding a foreign token
-    with USDC's exponent turns 1 WETH into a $1,000,000,000,000 deposit.
+    A scalar applies to every contract: the caller asserts one exponent for the
+    whole batch, which is right when the batch came from one token contract and
+    is recorded per row as ``decimals_assumed``.
+
+    A mapping is the safe mode and has three answers rather than two. A pinned
+    contract returns its exponent. A contract nobody claims is not money at
+    all and returns None, so it drops out of the frame instead of entering a
+    dollar sum: that is what keeps 1 WETH from reading as a $1,000,000,000,000
+    deposit. A collateral contract without a pinned exponent raises: its
+    transfers ARE money, so dropping them would silently shorten the ledger,
+    and scaling them by USDC's six would silently inflate it. Neither is an
+    answer, so there is none.
     """
 
     if not isinstance(decimals, Mapping):
         return int(decimals)
-    known = decimals.get(contract)
-    if known is not None:
-        return int(known)
-    return USDC_DECIMALS if contract in COLLATERAL_CONTRACTS else None
+    if contract in decimals:
+        exponent = decimals[contract]
+        if exponent is not None:
+            return int(exponent)
+    elif contract not in COLLATERAL_CONTRACTS:
+        return None
+    raise UnknownTokenDecimals(
+        f"decimals are not pinned for collateral contract {contract}: read them from the "
+        f"token contract and pass TOKEN_DECIMALS | {{'{contract}': <n>}}. Decoded with "
+        "USDC's six, one 18-decimal token enters the ledger as a $1,000,000,000,000 deposit."
+    )
 
 
 def decode_transfer_log(
-    log: Mapping[str, Any], decimals: int | Mapping[str, int] = USDC_DECIMALS
+    log: Mapping[str, Any], decimals: int | Mapping[str, int | None] = TOKEN_DECIMALS
 ) -> dict[str, Any] | None:
     """One ``eth_getLogs`` entry -> {block, log_index, tx, contract, …, amount}.
 
@@ -127,6 +169,12 @@ def decode_transfer_log(
     along because it is the only field that separates two identical transfers in
     one transaction; without it a batched settlement paying the same amount twice
     collapses into one row and the ledger silently loses half of it.
+
+    ``decimals`` defaults to the pinned per-contract table rather than to USDC's
+    six. The old default answered every contract on the chain with the same
+    exponent, which is right for exactly one of them, and the caller that got it
+    wrong had no way of noticing. Raises ``UnknownTokenDecimals`` for a
+    collateral contract whose exponent is not pinned.
     """
 
     topics = list(log.get("topics") or [])
@@ -155,7 +203,11 @@ def decode_transfer_log(
         "sender": address_from_topic(topics[1]),
         "recipient": address_from_topic(topics[2]),
         "amount": value / (10 ** exponent),
-        "decimals_assumed": isinstance(decimals, Mapping) and contract not in decimals,
+        # True heisst: der Exponent kam nicht aus der Kontrakt-Tabelle,
+        # sondern als eine Zahl fuer den ganzen Stapel. Frueher hiess das
+        # Feld "unbekannter Kontrakt, mit sechs gerechnet" — eine Warnung,
+        # die keine Summe gelesen hat.
+        "decimals_assumed": not isinstance(decimals, Mapping),
     }
 
 
@@ -164,7 +216,7 @@ TRANSFER_COLUMNS = ["block", "log_index", "tx", "contract", "sender", "recipient
 
 
 def decode_transfer_logs(
-    logs: Iterable[Mapping[str, Any]], decimals: int | Mapping[str, int] = USDC_DECIMALS
+    logs: Iterable[Mapping[str, Any]], decimals: int | Mapping[str, int | None] = TOKEN_DECIMALS
 ) -> pd.DataFrame:
     """Decode a batch of Transfer logs, de-duplicated by (tx, log_index).
 

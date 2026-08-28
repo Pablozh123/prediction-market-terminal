@@ -819,8 +819,16 @@ CROSS_CANDIDATE_FLOOR = 0.2
 CROSS_GATE_NOTE = (
     "Only pairs with title similarity >= {sim:.2f} and volume on both venues are shown. "
     "Matched by title similarity — pairs are not verified to resolve identically "
-    "(studies 08 and 11 in the microstructure report show two matched pairs that were different questions)."
+    "(studies 08 and 11 in the microstructure report show two matched pairs that were different questions). "
+    "A pair whose two sides ask in opposite directions, name different thresholds or resolve on "
+    "different dates carries no numbers at all and is counted under 'suppressed' instead."
 )
+
+#: Wie viele Zeilen je Aufruf gegen die Buecher neu quotiert werden. Zwei
+#: Abfragen je Zeile, und der Endpunkt blaettert ohnehin schon beide Boersen
+#: durch; nachgeschlagen werden die Zeilen mit der groessten Netto-Spanne,
+#: also die, auf die jemand reagieren wuerde.
+CROSS_DEPTH_ROWS = 12
 
 
 @app.get("/api/cross")
@@ -871,15 +879,23 @@ def cross(
     if pm.empty or ks.empty:
         return leer
     try:
-        candidates = cached(
+        # Mit den verworfenen Paaren: was der Paar-Check aussortiert, wird
+        # gezaehlt und benannt statt stillschweigend weggelassen.
+        alle = cached(
             f"cross_cand_{min_similarity}_{max_pairs}",
             cross_pairs.deep_cross_candidates,
             pm,
             ks,
             min_similarity,
             max_pairs,
+            True,
             ttl=300.0,
         )
+        if alle is None or alle.empty or "pair_verdict" not in alle.columns:
+            candidates, verworfen = (alle if alle is not None else pd.DataFrame()), pd.DataFrame()
+        else:
+            geprueft = alle["pair_verdict"].astype(str).eq(cross_pairs.PAIR_UNVERIFIED)
+            candidates, verworfen = alle[geprueft], alle[~geprueft]
         # Wie viele Paare der Matcher unterhalb der Schranke ueberhaupt
         # findet — damit die Seite "N of M candidates clear the gate" sagen
         # kann statt nur "nothing". Gleicher Matcher, lockere Schranke.
@@ -893,8 +909,13 @@ def cross(
             ttl=300.0,
         )
         if query.strip():
-            mask = candidates["polymarket_title"].str.contains(query.strip(), case=False, na=False) | candidates["kalshi_title"].str.contains(query.strip(), case=False, na=False)
-            candidates = candidates[mask]
+            def _treffer(frame: pd.DataFrame) -> pd.DataFrame:
+                if frame is None or frame.empty:
+                    return frame
+                maske = (frame["polymarket_title"].str.contains(query.strip(), case=False, na=False)
+                         | frame["kalshi_title"].str.contains(query.strip(), case=False, na=False))
+                return frame[maske]
+            candidates, verworfen = _treffer(candidates), _treffer(verworfen)
     except Exception as exc:
         print(f"[warn] cross venue: {exc}")
         return {**leer, "error": f"{type(exc).__name__}: {exc}"}
@@ -905,11 +926,34 @@ def cross(
             for key, cat in zip(pm["market_key"], pm["category"])
             if key is not None and cat
         }
+    # Erst die Schranke, dann die Buecher: nachgeschlagen wird nur, was auch
+    # angezeigt wird. Ohne diesen Schritt stand die Spanne fuer 100 Stueck
+    # da, weil 100 der Clip der Gebuehrenkurve ist und nicht, weil jemand
+    # nachgesehen haette, ob 100 Stueck an der Quote liegen.
+    if candidates is not None and not candidates.empty:
+        candidates = candidates[apv.cross_gate_mask(
+            candidates, min_similarity=min_similarity, require_volume=True)]
+        try:
+            candidates = cached(
+                f"cross_depth_{min_similarity}_{max_pairs}_{query.strip().lower()}",
+                cross_pairs.with_book_depth,
+                candidates,
+                pm,
+                ks,
+                pm_book=md.get_polymarket_orderbook,
+                ks_book=md.get_kalshi_orderbook,
+                max_rows=CROSS_DEPTH_ROWS,
+                ttl=120.0,
+            )
+        except Exception as exc:
+            print(f"[warn] cross depth: {exc}")
     rows = apv.cross_rows(candidates, categories, min_similarity=min_similarity, require_volume=True)
     return {
         "rows": rows,
         "total": len(rows),
         "candidates_before_gate": int(len(vor_schranke)) if vor_schranke is not None else int(len(candidates)),
+        "suppressed": apv.cross_suppressed(verworfen),
+        "depth_rows": CROSS_DEPTH_ROWS,
         "gate": gate,
         "as_of": md.now_utc_label(),
         "note": CROSS_GATE_NOTE.format(sim=min_similarity),
@@ -970,6 +1014,64 @@ def _tape_categories(trades: pd.DataFrame) -> pd.DataFrame:
     except Exception as exc:
         print(f"[warn] market categories: {exc}")
         return pd.DataFrame()
+
+
+#: Kantenregel fuer den Co-Trading-Graphen, von streng nach locker. Die
+#: Leiter existiert, weil die strenge Regel auf einem Tagesband oft nichts
+#: findet und ein leeres Bild keine Antwort ist. Sie ist damit aber Teil des
+#: Befunds: ein Graph unter der untersten Sprosse sagt etwas anderes als
+#: derselbe Graph unter der obersten. Deshalb steht die ganze Leiter in der
+#: Nutzlast und nicht nur die Sprosse, die getragen hat.
+CO_TRADING_LADDER: tuple[tuple[str, dict[str, Any]], ...] = (
+    ("same side of at least 3 markets within 5 minutes, $10k paired notional",
+     dict(window_minutes=5.0, min_shared=3, min_pair_notional=10_000.0)),
+    ("same side of at least 2 markets within 5 minutes",
+     dict(window_minutes=5.0, min_shared=2)),
+    ("same side of at least 2 markets anywhere in the window, no simultaneity required",
+     dict(window_minutes=None, min_shared=2)),
+)
+
+
+def co_trading_ladder(
+    basis: pd.DataFrame,
+    max_wallets: int = 300,
+    leiter: tuple[tuple[str, dict[str, Any]], ...] = CO_TRADING_LADDER,
+) -> tuple[pd.DataFrame, pd.DataFrame, list[dict[str, Any]]]:
+    """Die Leiter ablaufen und offenlegen, welche Sprosse getragen hat.
+
+    Zurueck kommen Knoten, Kanten und die Leiter selbst: je Sprosse die
+    Regel im Klartext, ihre Parameter, ob sie ueberhaupt versucht wurde und
+    was sie gefunden hat. Eine nicht versuchte Sprosse ist etwas anderes als
+    eine, die nichts gefunden hat, und beides ist etwas anderes als die, die
+    das Bild erzeugt hat — ohne diese Unterscheidung liest sich jede Grafik
+    als Ergebnis der strengsten Regel.
+    """
+
+    from app import suspicion as susp
+
+    nodes, edges = pd.DataFrame(), pd.DataFrame()
+    sprossen: list[dict[str, Any]] = []
+    fertig = False
+    for beschreibung, kwargs in leiter:
+        sprosse: dict[str, Any] = {
+            "regel": beschreibung,
+            "parameter": dict(kwargs),
+            "versucht": not fertig,
+            "wallets": None,
+            "kanten": None,
+            "gewaehlt": False,
+        }
+        if not fertig:
+            treffer_nodes, treffer_edges = susp.co_trading_network(
+                basis, max_wallets=max_wallets, **kwargs)
+            sprosse["wallets"] = int(len(treffer_nodes))
+            sprosse["kanten"] = int(len(treffer_edges))
+            if not treffer_nodes.empty:
+                nodes, edges = treffer_nodes, treffer_edges
+                sprosse["gewaehlt"] = True
+                fertig = True
+        sprossen.append(sprosse)
+    return nodes, edges, sprossen
 
 
 def risk_screen_basis() -> tuple[pd.DataFrame, pd.DataFrame, float]:
@@ -1051,26 +1153,10 @@ def build_risk_payload() -> dict[str, Any]:
             if netz_basis is None or netz_basis.empty:
                 netz_basis = base
 
-            # Regelleiter von streng nach locker. Welche Stufe gegriffen hat,
-            # geht mit in die Nutzlast: die Grafik ist nur so viel wert wie
-            # die Regel, die unter ihr steht, und die faellt hier nachweislich
-            # oft auf die unterste Stufe.
-            LEITER = (
-                ("same side of at least 3 markets within 5 minutes, $10k paired notional",
-                 dict(window_minutes=5.0, min_shared=3, min_pair_notional=10_000.0)),
-                ("same side of at least 2 markets within 5 minutes",
-                 dict(window_minutes=5.0, min_shared=2)),
-                ("same side of at least 2 markets anywhere in the window, no simultaneity required",
-                 dict(window_minutes=None, min_shared=2)),
-            )
-            regel = LEITER[-1][0]
-            regel_kwargs: dict[str, Any] = dict(LEITER[-1][1])
-            nodes, edges = pd.DataFrame(), pd.DataFrame()
-            for beschreibung, kwargs in LEITER:
-                nodes, edges = susp.co_trading_network(netz_basis, max_wallets=300, **kwargs)
-                if not nodes.empty:
-                    regel, regel_kwargs = beschreibung, dict(kwargs)
-                    break
+            nodes, edges, sprossen = co_trading_ladder(netz_basis)
+            gewaehlt = next((s for s in sprossen if s["gewaehlt"]), sprossen[-1])
+            regel = gewaehlt["regel"]
+            regel_kwargs: dict[str, Any] = dict(gewaehlt["parameter"])
 
             payload.update(apv.cluster_payload(
                 fresh, coord, nodes, edges,
@@ -1094,7 +1180,8 @@ def build_risk_payload() -> dict[str, Any]:
                     nullmodell = None
                 payload["graph"] = apv.network_graph(
                     susp.cluster_layout(nodes), edges,
-                    regel=regel, modularitaet=modularitaet, nullmodell=nullmodell,
+                    regel=regel, leiter=sprossen, modularitaet=modularitaet,
+                    nullmodell=nullmodell,
                     wallets_im_tape=int(netz_basis["wallet"].astype(str).nunique()),
                     stand_utc=datetime.now(timezone.utc).isoformat(timespec="seconds"))
                 payload["graph"]["fenster"] = apv.tape_window_label(netz_basis)

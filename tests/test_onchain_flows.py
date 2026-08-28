@@ -228,17 +228,51 @@ class TokenUnitTests(unittest.TestCase):
         self.assertAlmostEqual(float(frame["amount"].iloc[0]), 12.5)
         self.assertFalse(bool(frame["decimals_assumed"].iloc[0]))
 
-    def test_pusd_is_carried_but_flagged_as_assumed(self) -> None:
-        """Its decimals are not pinned in this repo, so the row says so."""
-        entry = log(OUTSIDER, WALLET, 1.0)
+    def _pusd(self, raw_units: int) -> dict:
+        entry = log(OUTSIDER, WALLET, 0.0)
         entry["address"] = ocf.PUSD_CONTRACT
-        frame = ocf.decode_transfer_logs([entry], ocf.TOKEN_DECIMALS)
-        self.assertEqual(len(frame), 1)
-        self.assertTrue(bool(frame["decimals_assumed"].iloc[0]))
+        entry["data"] = hex(raw_units)
+        return entry
+
+    def test_unpinned_collateral_decimals_stop_the_decode(self) -> None:
+        """Vorher: 1.0 pUSD wurde zu einer Einzahlung ueber eine Billion Dollar.
+
+        Fuehrt pUSD wie die meisten neueren ERC-20 achtzehn Dezimalstellen,
+        dann sind 10**18 Roheinheiten genau ein Token. Mit USDCs sechs
+        gerechnet standen daraus 1_000_000_000_000 Dollar im Ledger, in
+        ``deposits_external`` und in ``peak_external_exposure``. Die Zeile
+        trug ein Flag ``decimals_assumed``, und keine der beiden Summen hat
+        es je gelesen.
+        """
+
+        with self.assertRaises(ocf.UnknownTokenDecimals) as gefangen:
+            ocf.decode_transfer_logs([self._pusd(10 ** 18)], ocf.TOKEN_DECIMALS)
+        self.assertIn(ocf.PUSD_CONTRACT, str(gefangen.exception))
+
+    def test_a_verified_exponent_can_be_passed_in(self) -> None:
+        # Der Weg zurueck ist der Beleg, nicht die Vermutung: wer die
+        # Dezimalstellen am Kontrakt nachgelesen hat, reicht sie durch.
+        frame = ocf.decode_transfer_logs(
+            [self._pusd(10 ** 18)], {**ocf.TOKEN_DECIMALS, ocf.PUSD_CONTRACT: 18})
+        self.assertAlmostEqual(float(frame["amount"].iloc[0]), 1.0)
+
+    def test_every_collateral_contract_is_listed_in_the_decimals_table(self) -> None:
+        # Ein neuer Kollateral-Kontrakt ohne Eintrag faellt hier auf und
+        # nicht erst in einer Summe.
+        for contract in ocf.COLLATERAL_CONTRACTS:
+            self.assertIn(contract, ocf.TOKEN_DECIMALS)
+
+    def test_the_default_is_the_pinned_table_not_usdc_decimals(self) -> None:
+        # Ohne Argument beantwortete das Modul jeden Kontrakt der Kette mit
+        # sechs Stellen. Richtig war das fuer genau zwei davon.
+        self.assertTrue(ocf.decode_transfer_logs([self._foreign(10 ** 18)]).empty)
 
     def test_contract_filter_can_be_switched_off(self) -> None:
-        flows = ocf.classify_flows(
-            ocf.decode_transfer_logs([self._foreign(10 ** 6)]), WALLET, contracts=None)
+        # Skalarer Modus: der Aufrufer sagt zu, dass der ganze Stapel aus
+        # einem Kontrakt mit diesem Exponenten stammt.
+        frame = ocf.decode_transfer_logs([self._foreign(10 ** 6)], ocf.USDC_DECIMALS)
+        self.assertTrue(bool(frame["decimals_assumed"].iloc[0]))
+        flows = ocf.classify_flows(frame, WALLET, contracts=None)
         self.assertEqual(len(flows), 1)
 
 

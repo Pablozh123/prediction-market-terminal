@@ -871,6 +871,47 @@ export function renderFlow(T) {
 // The honesty gate as words, used by both the empty block and the caption.
 export const CROSS_GATE_TEXT = 'similarity ≥ 0.5, volume on both venues';
 
+// Warum ein Paar gar keine Zahl bekommt, in Worten. Die Schluessel kommen aus
+// app/cross_pairs.py; ein unbekannter faellt auf den Rohwert zurueck, statt
+// die Zeile verschwinden zu lassen.
+const CROSS_VERDICT_TEXT = {
+  opposed: 'ask in opposite directions',
+  different_question: 'ask different questions'
+};
+
+// Fuer wie viele Stueck die Netto-Spanne gilt, und ob das gemessen ist.
+// Ohne Buchabfrage sind es die 100 Stueck, auf denen die Gebuehrenkurven
+// ausgewertet werden: eine Annahme ueber die Spitze des Buchs, keine Tiefe.
+export function crossSizeLabel(c) {
+  if (!c) return '';
+  if (c.depthChecked) return c.size ? num(c.size) + ' at the touch' : 'no size at the touch';
+  return c.net == null ? '' : 'size not checked';
+}
+
+// Die Paare, die der Paar-Check aussortiert hat: gezaehlt, benannt, ohne
+// jede Zahl. Sie einfach wegzulassen waere dieselbe Unehrlichkeit von der
+// anderen Seite.
+function crossSuppressedBlock(sup) {
+  if (!sup || !sup.total) return '';
+  const nach = sup.by_verdict || {};
+  const gruende = Object.keys(nach)
+    .map((k) => num(nach[k]) + ' ' + (CROSS_VERDICT_TEXT[k] || k))
+    .join(', ');
+  const beispiele = (sup.examples || []).slice(0, 3);
+  return '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:14px; padding:14px 16px">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--warn)">MATCHED BUT NOT PRICED · ' + num(sup.total) + '</div>'
+    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:7px; line-height:1.6">'
+    + esc(gruende) + '. Two titles can share every word and still be two questions: “above $120,000” against “below $120,000” scores 0.78 on the matcher. '
+    + 'A basket across a pair like that pays 2.00 in one state and 0.00 in the other, so its spread is a sign error, not an opportunity. These pairs carry no price, no gap and no spread here.</div>'
+    + (beispiele.length
+      ? '<div style="margin-top:9px">' + beispiele.map((b) =>
+        '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:5px; line-height:1.5">'
+        + esc(String(b.event || '').slice(0, 64)) + ' ↔ ' + esc(String(b.other || '').slice(0, 64))
+        + '<br>' + esc(b.why || '') + '</div>').join('') + '</div>'
+      : '')
+    + '</div>';
+}
+
 function crossGateBlock(T) {
   const microIdx = T.studies.findIndex((st) => st.tab === 'Microstructure');
   return '<div style="padding:26px 24px">'
@@ -960,7 +1001,8 @@ export function renderCross(T) {
     + '<input value="' + esc(s.crossQuery) + '" ' + T.inp((e) => T.setState({ crossQuery: e.target.value }), 'crossQuery') + ' placeholder="bitcoin, fed, election…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:9px 12px; ' + M + '; font-size:var(--t-small); color:var(--text); width:230px" />'
     + '<div ' + T.act(() => T.setState({ crossQuery: '', crossSim: 0.5, crossMaxPairs: 50, crossMinGap: 0, crossLower: 'any', crossPmVol: 0, crossKsVol: 0, crossMinPrice: 0, crossMaxPrice: 100 })) + ' class="hv-edge-strong" style="font-size:var(--t-small); color:var(--ink-3); border:1px solid var(--line-1); border-radius:var(--r-control); padding:9px 13px; cursor:pointer">Reset filters</div>'
     + '</div></div>'
-    + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:10px; max-width:760px">Matched by title similarity, not by ticker. ' + esc(gateNote) + '. GAP is the distance between the two mid prices, and nobody trades a mid. NET OF FEES prices the basket that would capture it (buy the yes side at the ask, buy the other side at the other venue&#39;s ask) and subtracts both venues&#39; taker fee curves. Settlement rules and resolution sources still differ, and two matched titles can still be two different questions (studies 08 and 11).</div>'
+    + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:10px; max-width:760px">Matched by title similarity, not by ticker. ' + esc(gateNote) + '. GAP is the distance between the two mid prices, and nobody trades a mid. NET OF FEES prices the basket that would capture it (buy the yes side at the ask, buy the other side at the other venue&#39;s ask) and subtracts both venues&#39; taker fee curves. The top ' + num(cl.depth_rows || 12) + ' rows by net are re-quoted against both order books, so their number holds for the size shown beneath it; the rest price the touch at the fee clip of 100 and say so. Settlement rules and resolution sources still differ, and two matched titles can still be two different questions (studies 08 and 11).</div>'
+    + crossSuppressedBlock(cl.suppressed)
 
     + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:14px; padding:16px; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:16px 18px">'
     + stepGroup('MIN SIMILARITY (GATE 0.50)', s.crossSim.toFixed(2), () => T.setState({ crossSim: Math.max(0.5, +(s.crossSim - 0.02).toFixed(2)) }), () => T.setState({ crossSim: Math.min(0.9, +(s.crossSim + 0.02).toFixed(2)) }))
@@ -999,6 +1041,7 @@ export function renderCross(T) {
       // einzige Zahl der Tabelle, die als Vorteil gelesen werden darf.
       const netFarbe = c.net == null ? 'var(--ink-4)' : c.net > 0 ? 'var(--pos)' : 'var(--ink-4)';
       const netLabel = c.net == null ? '—' : (c.net > 0 ? '+' : '') + c.net.toFixed(1) + '¢';
+      const sizeLabel = crossSizeLabel(c);
       return '<div style="display:grid; grid-template-columns:1fr 104px 104px 84px 108px 124px 112px; align-items:center; padding:13px 24px; border-bottom:1px solid var(--line-3)">'
         + '<div style="padding-right:20px"><div style="font-size:var(--t-body); line-height:1.35">' + esc(c.event) + '</div>'
         + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:3px">' + esc(c.cat) + ' · similarity ' + c.sim.toFixed(2) + '</div></div>'
@@ -1007,7 +1050,13 @@ export function renderCross(T) {
         + '<div style="' + gapStyle + '">' + g + '¢</div>'
         + '<div style="' + M + '; font-size:var(--t-small); text-align:right; color:var(--ink-3)">' + volume(c.pmVolUsd, 'Polymarket') + '</div>'
         + '<div style="' + M + '; font-size:var(--t-small); text-align:right; color:var(--ink-3)" title="Kalshi reports volume as a contract count; one contract settles for $1, so this is not a dollar figure">' + volume(c.ksVolContracts, 'Kalshi') + '</div>'
-        + '<div style="' + M + '; font-size:var(--t-body); text-align:right; color:' + netFarbe + '" title="' + esc(c.net == null ? 'no two-sided quote on both venues' : (c.dir || '') + ' · executable ' + (c.gross == null ? '—' : c.gross.toFixed(1) + '¢') + ' minus a fee threshold of ' + (c.band == null ? '—' : c.band.toFixed(1) + '¢')) + '">' + netLabel + '</div></div>';
+        + '<div style="text-align:right" title="' + esc(c.net == null ? 'no two-sided quote on both venues' : (c.dir || '') + ' · executable ' + (c.gross == null ? '—' : c.gross.toFixed(1) + '¢') + ' minus a fee threshold of ' + (c.band == null ? '—' : c.band.toFixed(1) + '¢')) + '">'
+        + '<div style="' + M + '; font-size:var(--t-body); color:' + netFarbe + '">' + netLabel + '</div>'
+        // Eine Spanne fuer drei Kontrakte ist kein Geschaeft ueber hundert.
+        // Ohne diese Zeile stand die Zahl fuer eine Groesse da, die niemand
+        // nachgeschlagen hatte.
+        + (sizeLabel ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:2px; line-height:1.3">' + esc(sizeLabel) + '</div>' : '')
+        + '</div></div>';
     }).join('')
     + (cRows.length === 0 ? '<div style="padding:60px; text-align:center; ' + M + '; font-size:var(--t-small); color:var(--ink-4)">No pair passes the local filters; loosen a stepper above.</div>' : '')
     + '</div>';
