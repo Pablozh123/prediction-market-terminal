@@ -436,7 +436,7 @@ class CrossRowsTests(unittest.TestCase):
             {
                 "polymarket_title": "Fed cuts rates", "kalshi_title": "Fed cut",
                 "polymarket_yes": 0.62, "kalshi_yes": 0.60,
-                "polymarket_volume": 100000.0, "kalshi_volume": 40000.0,
+                "polymarket_volume_usd": 100000.0, "kalshi_volume_contracts": 40000.0,
                 "similarity": 0.71,
             },
             {"polymarket_title": "broken", "polymarket_yes": None, "kalshi_yes": 0.5},
@@ -1158,15 +1158,15 @@ class CrossGateTests(unittest.TestCase):
     def _candidates(self) -> pd.DataFrame:
         return pd.DataFrame([
             {"polymarket_title": "kept", "kalshi_title": "kept", "polymarket_yes": 0.62, "kalshi_yes": 0.58,
-             "polymarket_volume": 100000.0, "kalshi_volume": 40000.0, "similarity": 0.71},
+             "polymarket_volume_usd": 100000.0, "kalshi_volume_contracts": 40000.0, "similarity": 0.71},
             {"polymarket_title": "too dissimilar", "kalshi_title": "x", "polymarket_yes": 0.79, "kalshi_yes": 0.64,
-             "polymarket_volume": 100000.0, "kalshi_volume": 40000.0, "similarity": 0.44},
+             "polymarket_volume_usd": 100000.0, "kalshi_volume_contracts": 40000.0, "similarity": 0.44},
             {"polymarket_title": "no kalshi volume", "kalshi_title": "x", "polymarket_yes": 0.5, "kalshi_yes": 0.5,
-             "polymarket_volume": 100000.0, "kalshi_volume": 0.0, "similarity": 0.9},
+             "polymarket_volume_usd": 100000.0, "kalshi_volume_contracts": 0.0, "similarity": 0.9},
             {"polymarket_title": "no polymarket volume", "kalshi_title": "x", "polymarket_yes": 0.5, "kalshi_yes": 0.5,
-             "polymarket_volume": None, "kalshi_volume": 4000.0, "similarity": 0.9},
+             "polymarket_volume_usd": None, "kalshi_volume_contracts": 4000.0, "similarity": 0.9},
             {"polymarket_title": "exactly at the gate", "kalshi_title": "x", "polymarket_yes": 0.5, "kalshi_yes": 0.5,
-             "polymarket_volume": 1.0, "kalshi_volume": 1.0, "similarity": 0.5},
+             "polymarket_volume_usd": 1.0, "kalshi_volume_contracts": 1.0, "similarity": 0.5},
         ])
 
     def test_default_gate_keeps_only_similar_pairs_with_volume_on_both_venues(self) -> None:
