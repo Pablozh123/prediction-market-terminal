@@ -299,12 +299,15 @@ function mitDaten(T) {
         { wallet: '0x5111000000000000000000000000000000000cbe1', kurz: '0x5111…cbe1', x: 0.2, y: 0.4, cluster: 1, volumen: 41000, maerkte: 3, trades: 5, geteilt: 3 },
         { wallet: '0x0380000000000000000000000000000000000073d', kurz: '0x0380…073d', x: 0.8, y: 0.6, cluster: 1, volumen: 22000, maerkte: 3, trades: 4, geteilt: 3 }
       ],
-      kanten: [{ a: 0, b: 1, geteilt: 3, notional: 63800 }],
+      kanten: [{ a: 0, b: 1, geteilt: 3, notional: 63800, erwartet: 0.6, lift: 5.0 }],
       cluster: [{ id: 1, name: 'C-1', groesse: 2, volumen: 63800, volumen_label: '$63.8k' }],
       spanne: { x: [0, 1], y: [0, 1] },
-      kennzahl: { wallets: 2, kanten: 1, cluster: 1, modularitaet: 0.4 },
+      kennzahl: { wallets: 2, wallets_im_tape: 300, kanten: 1, cluster: 1, modularitaet: 0.4, lift_median: 5.0 },
       regel: 'same side of at least 3 markets within 5 minutes, $10k paired notional',
-      fenster: '2026-08-21 12:00 to 01:42 UTC · 13.7 h · 563 prints'
+      fenster: '2026-08-21 12:00 to 01:42 UTC · 13.7 h · 563 prints',
+      // Die Kontrolle: dieselbe Regel auf gemischten Wallet-Namen.
+      nullmodell: { runs: 2, wallets: 63, kanten: 846, cluster: 4, lift_median: 1.4 },
+      stand_utc: '2026-08-28T09:00:00+00:00'
     },
     matrix: {}
   };

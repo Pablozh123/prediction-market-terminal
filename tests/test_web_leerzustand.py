@@ -258,6 +258,15 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertNotIn("WHO MOVES WITH WHOM", netz)
         # Die Knoten tragen ihr Wallet-Kuerzel im Bild.
         self.assertIn('>0x5111…cbe1</text>', netz_html)
+        # Das Cluster-Bild traegt seinen Nenner, seine Kontrolle und seinen
+        # Aufnahmezeitpunkt: dieselbe Regel zeichnet auch auf gemischten
+        # Wallet-Namen Inseln, und ohne diese Zahl liest sich jede Insel als
+        # Fund.
+        self.assertIn("WALLETS 2 / 300", netz)
+        self.assertIn("MEDIAN LIFT 5×", netz)
+        self.assertIn("CONTROL ·", netz)
+        self.assertIn("4 clusters over 846 links", netz)
+        self.assertIn("SNAPSHOT · 2026-08-28T09:00:00+00:00", netz)
         # Leere Fenster sagen, was gesucht und nicht gefunden wurde — nicht
         # "live · answered".
         self.assertIn("No fresh-wallet cluster in this window", _sichtbarer_text(self.ausgabe["live"]["risk_fresh_empty"]))

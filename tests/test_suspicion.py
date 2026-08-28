@@ -398,6 +398,54 @@ class CoTradingNetworkTests(unittest.TestCase):
         self.assertAlmostEqual(float(windowed["pair_notional"].iloc[0]), 12_000.0)
         self.assertAlmostEqual(float(plain["pair_notional"].iloc[0]), 12_000.0)
 
+    def test_edges_carry_the_chance_rate_they_beat(self):
+        """Two wallets in the same two of two markets is not the same finding as
+        two wallets in the same two of two hundred. Without the expectation an
+        edge only says both wallets are busy."""
+        rows = []
+        for market in ("Market A", "Market B"):
+            for wallet in ("0xaaa", "0xbbb"):
+                rows.append(trade(wallet, market, "Yes", 5000.0))
+        # Zwei weitere Spalten im Universum, die keiner der beiden anfasst.
+        rows.append(trade("0xccc", "Market C", "Yes", 100.0))
+        rows.append(trade("0xddd", "Market D", "Yes", 100.0))
+        _nodes, edges = susp.co_trading_network(tape(rows), window_minutes=None, min_shared=2)
+        kante = edges.iloc[0]
+        # 2 Spalten mal 2 Spalten durch 4 Spalten im Universum = 1 erwartet.
+        self.assertAlmostEqual(float(kante["expected_shared"]), 1.0)
+        self.assertAlmostEqual(float(kante["lift"]), 2.0)
+
+    def test_busy_wallets_meet_at_the_base_rate(self):
+        """Everyone trading everything gives lift 1: the meeting is arithmetic."""
+        rows = []
+        for market in ("A", "B", "C", "D"):
+            for wallet in ("0xaaa", "0xbbb"):
+                rows.append(trade(wallet, market, "Yes", 5000.0))
+        _nodes, edges = susp.co_trading_network(tape(rows), window_minutes=None, min_shared=2)
+        self.assertAlmostEqual(float(edges.iloc[0]["lift"]), 1.0)
+
+    def test_null_model_reports_what_the_rule_finds_in_noise(self):
+        """The control the picture needs: the same rule on a shuffled wallet
+        column. It does not come back empty, which is the point."""
+        rows = []
+        for index in range(40):
+            for wallet in ("0xaaa", "0xbbb", "0xccc", "0xddd"):
+                rows.append(trade(wallet, f"Market {index}", "Yes", 1000.0))
+        referenz = susp.null_model_reference(tape(rows), runs=2, window_minutes=None,
+                                             min_shared=2)
+        self.assertEqual(referenz["runs"], 2)
+        self.assertGreaterEqual(referenz["kanten"], 1)
+        self.assertEqual(referenz["regel_kwargs"], {"window_minutes": None, "min_shared": 2})
+
+    def test_null_model_is_deterministic_for_a_seed(self):
+        rows = [trade(f"0x{i % 5}", f"Market {i % 7}", "Yes", 1000.0) for i in range(60)]
+        erst = susp.null_model_reference(tape(rows), runs=2, seed=7, window_minutes=None)
+        zweit = susp.null_model_reference(tape(rows), runs=2, seed=7, window_minutes=None)
+        self.assertEqual(erst, zweit)
+
+    def test_null_model_survives_an_empty_tape(self):
+        self.assertEqual(susp.null_model_reference(pd.DataFrame())["runs"], 0)
+
     def test_repeated_prints_no_longer_clear_the_strict_money_rung(self):
         rows = []
         for market in ("Market A", "Market B"):

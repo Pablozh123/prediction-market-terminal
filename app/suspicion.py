@@ -487,13 +487,23 @@ def co_trading_network(
     connected components; if networkx is unavailable, components are the
     fallback.
 
+    A raw count of shared markets is not evidence on its own: two wallets that
+    each touch half the board meet everywhere by arithmetic. Every edge
+    therefore carries ``expected_shared`` — how many hits the pair would share
+    if each had picked its markets independently, ``m_a * m_b / M`` over the
+    same market-and-side universe — and ``lift``, observed over expected. A
+    lift near 1 is the base rate of two busy wallets, not a syndicate. With a
+    time window active the expectation ignores the window and so overstates it,
+    which makes the reported lift the conservative end.
+
     Returns (nodes, edges):
     - nodes: wallet, cluster_id, cluster_size, shared_markets, volume, markets, trades
-    - edges: wallet_a, wallet_b, shared_markets, pair_notional
+    - edges: wallet_a, wallet_b, shared_markets, pair_notional, expected_shared, lift
     """
 
     node_columns = ["wallet", "cluster_id", "cluster_size", "shared_markets", "volume", "markets", "trades"]
-    edge_columns = ["wallet_a", "wallet_b", "shared_markets", "pair_notional"]
+    edge_columns = ["wallet_a", "wallet_b", "shared_markets", "pair_notional",
+                    "expected_shared", "lift"]
     empty = (pd.DataFrame(columns=node_columns), pd.DataFrame(columns=edge_columns))
     if trades is None or trades.empty or not {"wallet", "title"}.issubset(trades.columns):
         return empty
@@ -551,11 +561,27 @@ def co_trading_network(
                     pair_markets.setdefault(key, set()).add(str(title))
                     pair_notional[key] = pair_notional.get(key, 0.0) + float(wallets_here[i][1]) + float(wallets_here[j][1])
 
-    edge_rows = [
-        {"wallet_a": a, "wallet_b": b, "shared_markets": len(markets), "pair_notional": pair_notional.get((a, b), 0.0)}
-        for (a, b), markets in pair_markets.items()
-        if len(markets) >= int(min_shared) and pair_notional.get((a, b), 0.0) >= float(min_pair_notional)
-    ]
+    # Base rate of meeting at all: how many market-and-side columns each wallet
+    # stands in, against how many columns the tape has. Without it an edge only
+    # says "both are busy".
+    spalten = df.drop_duplicates(subset=["wallet", "title", "outcome_label"])
+    spalten_je_wallet = spalten.groupby("wallet").size().to_dict()
+    universum = int(df.groupby(["title", "outcome_label"], dropna=False).ngroups)
+
+    edge_rows = []
+    for (a, b), markets in pair_markets.items():
+        geteilt = len(markets)
+        if geteilt < int(min_shared) or pair_notional.get((a, b), 0.0) < float(min_pair_notional):
+            continue
+        erwartet = (spalten_je_wallet.get(a, 0) * spalten_je_wallet.get(b, 0) / universum) if universum else 0.0
+        edge_rows.append({
+            "wallet_a": a,
+            "wallet_b": b,
+            "shared_markets": geteilt,
+            "pair_notional": pair_notional.get((a, b), 0.0),
+            "expected_shared": round(float(erwartet), 4),
+            "lift": round(geteilt / erwartet, 3) if erwartet > 0 else float("nan"),
+        })
     if not edge_rows:
         return empty
     edges = pd.DataFrame(edge_rows, columns=edge_columns)
@@ -617,6 +643,68 @@ def co_trading_network(
     keep_wallets = set(nodes["wallet"])
     edges = edges[edges["wallet_a"].isin(keep_wallets) & edges["wallet_b"].isin(keep_wallets)].reset_index(drop=True)
     return nodes, edges
+
+
+def null_model_reference(
+    trades: pd.DataFrame,
+    *,
+    runs: int = 2,
+    seed: int = 42,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """What the same edge rule finds after the wallet column is shuffled.
+
+    The honest control for a cluster picture. Permuting which wallet made which
+    print keeps every market's crowd size and the shape of the per-wallet
+    activity, and destroys only who met whom. Whatever the rule still reports
+    on that tape is what it reports on nothing.
+
+    It reports plenty: on 60 wallets each picking 20 of 120 markets at random,
+    the default rule (same side of at least two markets) links all 60 into six
+    clusters over 926 edges. The number belongs next to the picture, not in a
+    comment.
+
+    Returns median wallets / edges / clusters / lift and the largest modularity
+    seen, plus ``runs`` and ``regel_kwargs`` so the control is reproducible.
+    """
+
+    leer = {"runs": 0, "wallets": 0, "kanten": 0, "cluster": 0,
+            "modularitaet": None, "lift_median": None, "regel_kwargs": dict(kwargs)}
+    if trades is None or trades.empty or "wallet" not in trades.columns:
+        return leer
+    wallets: list[int] = []
+    kanten: list[int] = []
+    cluster: list[int] = []
+    lifts: list[float] = []
+    modularitaeten: list[float] = []
+    for lauf in range(max(1, int(runs))):
+        gemischt = trades.copy()
+        gemischt["wallet"] = (
+            gemischt["wallet"].sample(frac=1.0, random_state=seed + lauf).to_numpy()
+        )
+        nodes, edges = co_trading_network(gemischt, **kwargs)
+        wallets.append(int(len(nodes)))
+        kanten.append(int(len(edges)))
+        cluster.append(int(nodes["cluster_id"].nunique()) if not nodes.empty else 0)
+        if not edges.empty and "lift" in edges:
+            werte = pd.to_numeric(edges["lift"], errors="coerce").dropna()
+            if not werte.empty:
+                lifts.append(float(werte.median()))
+        wert = network_modularity(nodes, edges)
+        if wert is not None:
+            modularitaeten.append(float(wert))
+    def mitte(werte: list[float]) -> float | None:
+        return float(pd.Series(werte).median()) if werte else None
+
+    return {
+        "runs": max(1, int(runs)),
+        "wallets": int(mitte(wallets) or 0),
+        "kanten": int(mitte(kanten) or 0),
+        "cluster": int(mitte(cluster) or 0),
+        "modularitaet": round(max(modularitaeten), 3) if modularitaeten else None,
+        "lift_median": round(mitte(lifts), 3) if lifts else None,
+        "regel_kwargs": dict(kwargs),
+    }
 
 
 def network_modularity(nodes: pd.DataFrame, edges: pd.DataFrame) -> float | None:

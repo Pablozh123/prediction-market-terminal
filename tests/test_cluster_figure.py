@@ -112,5 +112,41 @@ class SvgTests(unittest.TestCase):
         self.assertEqual(wurzel.get("width"), "900")
 
 
+class KontextTests(unittest.TestCase):
+    """Was die Figur ohne ihre Kontrolle und ihren Nenner behauptet."""
+
+    def _mit(self, **graph_extra):
+        payload = {"graph": dict(PAYLOAD["graph"], **graph_extra),
+                   "matrix": PAYLOAD["matrix"]}
+        return fig.build_svg(payload)
+
+    def test_nullmodell_steht_im_bild(self):
+        svg = self._mit(nullmodell={"runs": 2, "wallets": 63, "kanten": 846,
+                                    "cluster": 4, "lift_median": 1.4})
+        self.assertIn("CONTROL ·", svg)
+        self.assertIn("4 clusters over 846 links", svg)
+        self.assertIn("1.4x", svg)
+
+    def test_nullmodell_ohne_treffer_wird_auch_gesagt(self):
+        svg = self._mit(nullmodell={"runs": 3, "cluster": 0, "kanten": 0})
+        self.assertIn("returns nothing", svg)
+
+    def test_kopf_waechst_mit_seinen_zeilen(self):
+        """Zwei Zusatzzeilen duerfen nicht in die Tafeln darunter laufen."""
+        ohne = ET.fromstring(fig.build_svg(PAYLOAD))
+        mit = ET.fromstring(self._mit(stand_utc="2026-08-28T09:00:00+00:00",
+                                      nullmodell={"runs": 2, "cluster": 4, "kanten": 846}))
+        self.assertGreater(int(mit.get("height")), int(ohne.get("height")))
+
+    def test_wallets_chip_traegt_seinen_nenner(self):
+        svg = self._mit(kennzahl=dict(PAYLOAD["graph"]["kennzahl"],
+                                      wallets_im_tape=300, lift_median=2.8))
+        self.assertIn("WALLETS 4 / 300", svg)
+        self.assertIn("MEDIAN LIFT 2.8x", svg)
+
+    def test_snapshot_steht_im_bild(self):
+        self.assertIn("SNAPSHOT ·", self._mit(stand_utc="2026-08-28T09:00:00+00:00"))
+
+
 if __name__ == "__main__":
     unittest.main()
