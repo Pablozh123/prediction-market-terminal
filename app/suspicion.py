@@ -14,6 +14,7 @@ Everything here is a best-effort public-data screen, not a legal finding.
 
 from __future__ import annotations
 
+import hashlib
 import math
 import re
 from typing import Any
@@ -521,6 +522,12 @@ def co_trading_network(
         if use_window:
             records = group.sort_values("time")[["time", "wallet", "notional"]].to_records(index=False)
             left = 0
+            # Which prints of this market a pair actually met over. Adding the
+            # two notionals per co-print pair instead counted every print once
+            # per partner print: three prints a side turned $12k of real flow
+            # into $36k, which then cleared the "$10k paired notional" rung of
+            # the rule ladder that the flow never reached.
+            beteiligt: dict[tuple[str, str], set[int]] = {}
             for right in range(len(records)):
                 while records[right][0] - records[left][0] > window:
                     left += 1
@@ -530,7 +537,12 @@ def co_trading_network(
                         continue
                     key = (a, b) if a < b else (b, a)
                     pair_markets.setdefault(key, set()).add(str(title))
-                    pair_notional[key] = pair_notional.get(key, 0.0) + float(records[mid][2]) + float(records[right][2])
+                    treffer = beteiligt.setdefault(key, set())
+                    treffer.add(mid)
+                    treffer.add(right)
+            for key, treffer in beteiligt.items():
+                pair_notional[key] = pair_notional.get(key, 0.0) + sum(
+                    float(records[index][2]) for index in treffer)
         else:
             wallets_here = sorted(group.groupby("wallet")["notional"].sum().items())
             for i in range(len(wallets_here)):
@@ -628,12 +640,25 @@ def network_modularity(nodes: pd.DataFrame, edges: pd.DataFrame) -> float | None
         return None
 
 
+def _stable_fraction(text: str) -> float:
+    """A value in [0, 1) derived from ``text``, identical in every process."""
+
+    digest = hashlib.sha256(str(text).encode("utf-8")).digest()
+    return int.from_bytes(digest[:4], "big") / 2 ** 32
+
+
 def cluster_layout(nodes: pd.DataFrame) -> pd.DataFrame:
     """Organic island layout: cluster centers on a golden-angle spiral, members on
     a ring around each center with deterministic radial jitter.
 
     Bigger clusters get bigger rings; the spiral keeps islands from overlapping
-    without needing a force simulation, and everything is reproducible (no RNG).
+    without needing a force simulation.
+
+    The jitter is derived from a SHA-256 digest of the wallet, not from the
+    builtin ``hash``: string hashing is salted per interpreter process, so the
+    same tape produced a different picture on every run, the exported figure
+    never matched the page, and a figure in a written text could not be
+    regenerated. The digest makes the layout reproducible for real.
     """
 
     if nodes is None or nodes.empty:
@@ -664,7 +689,7 @@ def cluster_layout(nodes: pd.DataFrame) -> pd.DataFrame:
         for position, node_idx in enumerate(member_index):
             angle = (2 * math.pi * position) / max(count, 1)
             wallet = str(placed.at[node_idx, "wallet"])
-            jitter = 0.82 + 0.36 * ((hash(wallet) % 1000) / 1000.0)
+            jitter = 0.82 + 0.36 * (_stable_fraction(wallet))
             placed.at[node_idx, "x"] = center_x + radius * jitter * math.cos(angle)
             placed.at[node_idx, "y"] = center_y + radius * jitter * math.sin(angle)
     return placed

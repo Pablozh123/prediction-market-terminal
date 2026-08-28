@@ -370,6 +370,46 @@ class CoTradingNetworkTests(unittest.TestCase):
         distance = ((centers.iloc[0] - centers.iloc[1]) ** 2).sum() ** 0.5
         self.assertGreater(distance, 5.0)
 
+    def test_cluster_layout_is_reproducible_across_processes(self):
+        """The jitter used the salted builtin hash, so the same tape drew a
+        different picture on every run and the exported figure never matched
+        the page. The coordinates are pinned against a fixed digest instead."""
+        nodes = pd.DataFrame([
+            {"wallet": "0xaaa", "cluster_id": 1},
+            {"wallet": "0xbbb", "cluster_id": 1},
+            {"wallet": "0xccc", "cluster_id": 1},
+        ])
+        placed = susp.cluster_layout(nodes)
+        self.assertEqual([round(v, 4) for v in placed["x"]], [2.5317, -1.338, -1.1996])
+        self.assertAlmostEqual(susp._stable_fraction("0xaaa"), 0.71147, places=5)
+
+    def test_paired_notional_counts_every_print_once(self):
+        """Two wallets, two markets, three $1,000 prints each inside the window.
+        The pair really moved $12,000; adding both notionals per co-print pair
+        reported $36,000 and cleared a $10,000 rule rung it never reached."""
+        rows = []
+        for market in ("Market A", "Market B"):
+            for wallet in ("0xaaa", "0xbbb"):
+                for second in (0, 10, 20):
+                    rows.append(trade(wallet, market, "Yes", 1000.0,
+                                      f"2026-06-10T12:00:{second:02d}Z"))
+        _nodes, windowed = susp.co_trading_network(tape(rows), window_minutes=5.0, min_shared=2)
+        _nodes, plain = susp.co_trading_network(tape(rows), window_minutes=None, min_shared=2)
+        self.assertAlmostEqual(float(windowed["pair_notional"].iloc[0]), 12_000.0)
+        self.assertAlmostEqual(float(plain["pair_notional"].iloc[0]), 12_000.0)
+
+    def test_repeated_prints_no_longer_clear_the_strict_money_rung(self):
+        rows = []
+        for market in ("Market A", "Market B"):
+            for wallet in ("0xaaa", "0xbbb"):
+                for second in (0, 10, 20):
+                    rows.append(trade(wallet, market, "Yes", 500.0,
+                                      f"2026-06-10T12:00:{second:02d}Z"))
+        # $6,000 of real paired flow must not pass a $10,000 floor.
+        strict, _ = susp.co_trading_network(tape(rows), window_minutes=5.0, min_shared=2,
+                                            min_pair_notional=10_000.0)
+        self.assertTrue(strict.empty)
+
 
 class StoryAndDrilldownTests(unittest.TestCase):
     def test_event_story_mentions_key_patterns(self):
