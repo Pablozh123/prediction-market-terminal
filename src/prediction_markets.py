@@ -3265,7 +3265,7 @@ def whale_behavior_metrics(trades: pd.DataFrame, whale_threshold: float = 10_000
     df["price"] = pd.to_numeric(_df_col(df, "price", 0.0), errors="coerce").fillna(0.0).clip(lower=0.0)
     df["size"] = pd.to_numeric(_df_col(df, "size", 0.0), errors="coerce").fillna(0.0).clip(lower=0.0)
     df["notional"] = pd.to_numeric(_df_col(df, "notional", 0.0), errors="coerce").fillna(0.0).clip(lower=0.0)
-    df = df[df["wallet"].str.strip().ne("")]
+    df = df[identified_wallets(df["wallet"])]
     if df.empty:
         return pd.DataFrame()
 
@@ -3416,6 +3416,28 @@ def _price_move_features(df: pd.DataFrame, group_cols: list[str]) -> pd.DataFram
     return pd.DataFrame(rows, columns=columns)
 
 
+#: Kalshi publishes no trader identities: ``get_kalshi_trades`` stamps this
+#: literal into the wallet and trader columns. It is a placeholder, and a
+#: placeholder must never become a measurement - grouped by wallet, every
+#: Kalshi print on the tape collapses into one pseudo-trader carrying the
+#: pooled notional of the whole venue. On a mixed tape that pseudo-trader
+#: outscored every real address (71/100 "High" against 57 for a real wallet
+#: in the reproduction) and led the risk screen's wallet table.
+WALLET_NOT_PUBLIC = "Not public"
+
+
+def identified_wallets(values: pd.Series) -> pd.Series:
+    """Mask of rows that carry a real trader identity.
+
+    Empty, "nan", "none" and the ``WALLET_NOT_PUBLIC`` placeholder are not
+    identities. Every wallet-level count, score or cluster uses this, so no
+    surface can disagree about who counts as a wallet.
+    """
+
+    text = values.astype(str).str.strip().str.lower()
+    return ~text.isin({"", "nan", "none", "<na>", WALLET_NOT_PUBLIC.lower()})
+
+
 def _prepare_whale_risk_trades(trades: pd.DataFrame, now: Any | None = None) -> tuple[pd.DataFrame, pd.Timestamp]:
     current_time = pd.to_datetime(now, utc=True, errors="coerce") if now is not None else pd.Timestamp.now(tz="UTC")
     if pd.isna(current_time):
@@ -3450,8 +3472,7 @@ def whale_wallet_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_0
     df, _current_time = _prepare_whale_risk_trades(trades, now)
     if df.empty or "wallet" not in df:
         return pd.DataFrame()
-    df = df[df["wallet"].str.strip().ne("")]
-    df = df[df["wallet"].str.lower().ne("nan")]
+    df = df[identified_wallets(df["wallet"])]
     if df.empty:
         return pd.DataFrame()
     df["signed_notional"] = _direction_sign(df["side_upper"], df["outcome_upper"]) * df["notional"]
