@@ -10339,11 +10339,18 @@ def page_copy_trade() -> None:
                 if result.seeded:
                     st.success(f"Baseline created from Swisstony's current wallet state. Observed {result.processed} existing trades; future new trades will be paper-copied.")
                 else:
+                    undecided = settlement_result.undecided if settlement_result else 0
                     st.success(
                         f"Sync complete: {result.copied} copied, {result.skipped} skipped, {result.duplicates} duplicates. "
                         f"Settlements/redeems: {settlement_result.copied if settlement_result else 0} realized/recycled, "
                         f"{settlement_result.skipped if settlement_result else 0} skipped."
                     )
+                    if undecided:
+                        # Weder gebucht noch verworfen: der Ausgang war nicht zu lesen.
+                        st.warning(
+                            f"{undecided} settlement(s) left undecided: the resolved outcome could not be read, so the "
+                            "position stays open instead of being booked at a payout nobody confirmed."
+                        )
                 errors = list(result.errors)
                 if settlement_result is not None:
                     errors.extend(settlement_result.errors)

@@ -15,7 +15,7 @@ import sqlite3
 import threading
 import time
 from collections.abc import Iterable, Mapping
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -121,6 +121,10 @@ class SyncResult:
     copied: int = 0
     skipped: int = 0
     duplicates: int = 0
+    #: Aufloesungen, die weder gebucht noch verworfen wurden, weil der Ausgang
+    #: des Marktes nicht gelesen werden konnte. Sie stehen ausserhalb von
+    #: ``processed``: entschieden ist an ihnen nichts.
+    undecided: int = 0
     seeded: bool = False
     source: str = "api"
     logs_seen: int = 0
@@ -756,9 +760,92 @@ def fetch_source_activity(wallet: str, limit: int = 500, pages: int = 1) -> pd.D
     return pd.DataFrame(rows)
 
 
-def fetch_closed_position_assets(wallet: str, pages: int = 4, limit: int = 50) -> dict[str, set[str]]:
+@dataclass(frozen=True)
+class WinnerLookup(Mapping):
+    """Welche Token eines Marktes zu 1.00 abgerechnet haben, und wo keine Antwort kam.
+
+    Eine blosse ``dict[str, set[str]]`` kann zwei Zustaende nicht
+    unterscheiden: "fuer diesen Markt hat niemand gewonnen, den wir halten"
+    und "die Frage nach diesem Markt ist nie beantwortet worden". Beide sehen
+    wie ein fehlender Schluessel aus. ``_apply_redeem`` hat aus dem fehlenden
+    Schluessel geschlossen, es gebe keinen bekannten Verlierer, und die
+    Papier-Position zum Auszahlungspreis der Quelle abgerechnet: ein
+    einzelner fehlgeschlagener HTTP-Aufruf hat damit aus einem Totalverlust
+    eine volle Auszahlung gemacht.
+
+    Deshalb dieselbe Dreiwertigkeit wie bei ``position_price_state``:
+    vorhanden (``winners``), beantwortet aber ohne Gewinner, und
+    unbeantwortet (``unanswered``). Die Klasse ist eine ``Mapping``, damit
+    jede vorhandene Leseart (``.get``, ``.items()``, ``set.difference``)
+    unveraendert weiterlaeuft.
+    """
+
+    winners: Mapping[str, set[str]] = field(default_factory=dict)
+    #: Maerkte, deren eigene Abfrage nicht beantwortet wurde: der Request ist
+    #: gescheitert oder die Frage wurde wegen ``max_conditions`` nie gestellt.
+    unanswered: frozenset[str] = frozenset()
+    #: Die Seitenschleife ueber /closed-positions ist an einem Fehler
+    #: abgebrochen; die gelesene Menge ist kuerzer als die vorhandene.
+    truncated: bool = False
+    errors: tuple[str, ...] = ()
+
+    def __getitem__(self, key: str) -> set[str]:
+        return self.winners[key]
+
+    def __iter__(self):
+        return iter(self.winners)
+
+    def __len__(self) -> int:
+        return len(self.winners)
+
+    def outcome_known(self, condition: Any) -> bool:
+        """Ob der Ausgang dieses Marktes gelesen werden konnte.
+
+        Ein Gewinner-Token ist die klarste Antwort. Ohne ihn zaehlt, ob die
+        Frage ueberhaupt beantwortet wurde: ein geschlossener Markt ohne
+        Gewinner-Zeile ist eine Aussage, ein abgebrochener Request keine.
+        """
+
+        key = str(condition or "")
+        if self.winners.get(key):
+            return True
+        return key not in self.unanswered
+
+    def merged(self, extra: Mapping[str, set[str]]) -> WinnerLookup:
+        """Diese Auskunft plus eine zweite, ohne die Ausfaelle zu verlieren."""
+
+        winners = {str(key): set(value) for key, value in self.winners.items()}
+        _merge_winner_assets(winners, extra)
+        andere = extra if isinstance(extra, WinnerLookup) else WinnerLookup()
+        offen = (set(self.unanswered) | set(andere.unanswered)).difference(
+            key for key, value in winners.items() if value
+        )
+        return WinnerLookup(
+            winners=winners,
+            unanswered=frozenset(offen),
+            truncated=bool(self.truncated or andere.truncated),
+            errors=tuple(self.errors) + tuple(andere.errors),
+        )
+
+
+def _als_winner_lookup(mapping: Mapping[str, set[str]] | None) -> WinnerLookup:
+    """Eine gewoehnliche Zuordnung gilt als vollstaendig beantwortet.
+
+    Aufrufer (und Tests), die eine ``dict`` uebergeben, sagen damit nichts
+    ueber Ausfaelle aus; ohne gegenteilige Angabe bleibt es beim bisherigen
+    Verhalten.
+    """
+
+    if isinstance(mapping, WinnerLookup):
+        return mapping
+    return WinnerLookup(winners=dict(mapping or {}))
+
+
+def fetch_closed_position_assets(wallet: str, pages: int = 4, limit: int = 50) -> WinnerLookup:
     winners: dict[str, set[str]] = {}
     unresolved_conditions: set[str] = set()
+    errors: list[str] = []
+    truncated = False
     limit = max(1, min(int(limit), 50))
     for page in range(max(1, int(pages))):
         params = {"user": wallet, "limit": limit, "offset": page * limit}
@@ -766,7 +853,11 @@ def fetch_closed_position_assets(wallet: str, pages: int = 4, limit: int = 50) -
             response = requests.get(f"{md.POLY_DATA}/closed-positions", params=params, timeout=20, headers=md.HTTP_HEADERS)
             response.raise_for_status()
             data = response.json()
-        except (requests.RequestException, ValueError):
+        except (requests.RequestException, ValueError) as exc:
+            # Kein stilles ``break``: die Seiten danach sind ungelesen, und
+            # das ist etwas anderes als "es gibt keine weiteren".
+            truncated = True
+            errors.append(f"closed positions page {page + 1} for {wallet}: {exc}")
             break
         batch = data if isinstance(data, list) else data.get("data", [])
         if not batch:
@@ -781,37 +872,53 @@ def fetch_closed_position_assets(wallet: str, pages: int = 4, limit: int = 50) -
                 unresolved_conditions.add(condition)
         if len(batch) < limit:
             break
+    gelesen = WinnerLookup(winners=winners, truncated=truncated, errors=tuple(errors))
     missing = unresolved_conditions.difference(winners)
     if missing:
-        _merge_winner_assets(winners, fetch_closed_market_winner_assets(missing))
-    return winners
+        return gelesen.merged(fetch_closed_market_winner_assets(missing))
+    return gelesen
 
 
-def fetch_closed_market_winner_assets(condition_ids: Any, max_conditions: int = 250) -> dict[str, set[str]]:
+def fetch_closed_market_winner_assets(condition_ids: Any, max_conditions: int = 250) -> WinnerLookup:
     """Resolve closed-market winner token IDs directly from the CLOB market API.
 
     Wallet closed-position rows only identify a winner when that wallet held the
     winning token. For copy trading we also need loser-only expiries, so this
     fallback asks the market itself which token settled at 1.00.
+
+    Ein Markt, den diese Abfrage nicht beantwortet hat -- gescheiterter
+    Request oder nie gestellte Frage, weil ``max_conditions`` erreicht war --
+    steht in ``unanswered``. Ein Markt, der geantwortet hat und noch nicht
+    geschlossen ist, steht dort nicht: das ist eine Aussage.
     """
 
     winners: dict[str, set[str]] = {}
+    unanswered: set[str] = set()
+    errors: list[str] = []
     seen: set[str] = set()
     conditions = []
     for condition in condition_ids or []:
         value = str(condition or "").strip()
-        if value and value not in seen:
-            seen.add(value)
-            conditions.append(value)
+        if not value or value in seen:
+            continue
+        seen.add(value)
         if len(conditions) >= max_conditions:
-            break
+            # Ueber der Schranke wird nicht gefragt. Ungefragt ist nicht
+            # dasselbe wie beantwortet, also wird es mitgefuehrt.
+            unanswered.add(value)
+            continue
+        conditions.append(value)
+    if unanswered:
+        errors.append(f"{len(unanswered)} of {len(seen)} markets above the {max_conditions}-market cap were not asked")
 
     for condition in conditions:
         try:
             response = requests.get(f"{md.POLY_CLOB}/markets/{condition}", timeout=20, headers=md.HTTP_HEADERS)
             response.raise_for_status()
             market = response.json()
-        except (requests.RequestException, ValueError):
+        except (requests.RequestException, ValueError) as exc:
+            unanswered.add(condition)
+            errors.append(f"market {condition[:12]}: {exc}")
             continue
         if not isinstance(market, dict) or not bool(market.get("closed")):
             continue
@@ -824,7 +931,7 @@ def fetch_closed_market_winner_assets(condition_ids: Any, max_conditions: int = 
             is_winner = bool(token.get("winner")) or price >= 0.99
             if token_id and is_winner:
                 winners.setdefault(condition, set()).add(token_id)
-    return winners
+    return WinnerLookup(winners=winners, unanswered=frozenset(unanswered), errors=tuple(errors))
 
 
 def _merge_winner_assets(target: dict[str, set[str]], extra: Mapping[str, set[str]]) -> dict[str, set[str]]:
@@ -1284,13 +1391,15 @@ def sync_settlement_activity(
     conn = connect(db_path)
     try:
         backfill_position_metadata(conn, wallet, pages=metadata_pages, closed_pages=closed_pages)
-        winners_by_condition = fetch_closed_position_assets(wallet, pages=closed_pages)
+        winners_by_condition = _als_winner_lookup(fetch_closed_position_assets(wallet, pages=closed_pages))
         open_conditions = _open_paper_conditions(conn, wallet)
         missing_open_conditions = open_conditions.difference(winners_by_condition)
         if missing_open_conditions:
-            _merge_winner_assets(winners_by_condition, fetch_closed_market_winner_assets(missing_open_conditions))
-        processed = copied = skipped = duplicates = 0
-        errors: list[str] = []
+            winners_by_condition = winners_by_condition.merged(
+                fetch_closed_market_winner_assets(missing_open_conditions)
+            )
+        processed = copied = skipped = duplicates = undecided = 0
+        errors: list[str] = list(winners_by_condition.errors)
         reconciled = _reconcile_resolved_loser_positions(conn, winners_by_condition, wallet)
         processed += reconciled
         copied += reconciled
@@ -1311,6 +1420,17 @@ def sync_settlement_activity(
                         order, asset = _apply_redeem(conn, parsed, winners_by_condition)
                     else:
                         order, asset = _apply_merge(conn, parsed)
+                    if order.status == "undecided":
+                        # Nicht schreiben: eine gespeicherte Order gilt beim
+                        # naechsten Lauf als Duplikat, und die Position bliebe
+                        # fuer immer offen. Unentschieden heisst: spaeter noch
+                        # einmal fragen, und bis dahin sagen, dass es offen ist.
+                        undecided += 1
+                        errors.append(
+                            f"settlement not applied for market {str(parsed['market_key'])[:12]}: "
+                            "the resolved-outcome lookup did not answer"
+                        )
+                        continue
                     parsed["asset"] = asset
                     _insert_order(conn, parsed, order, source)
                     processed += 1
@@ -1325,7 +1445,8 @@ def sync_settlement_activity(
         copied += reconciled_winners
         _set_meta(conn, "settlement_last_sync_at", utc_now())
         conn.commit()
-        return SyncResult(processed=processed, copied=copied, skipped=skipped, duplicates=duplicates, source="settlement", errors=tuple(errors))
+        return SyncResult(processed=processed, copied=copied, skipped=skipped, duplicates=duplicates,
+                          undecided=undecided, source="settlement", errors=tuple(errors))
     finally:
         conn.close()
 
@@ -1966,6 +2087,7 @@ def aggregate_sync_results(results: Mapping[str, SyncResult] | list[SyncResult])
         copied=sum(r.copied for r in items),
         skipped=sum(r.skipped for r in items),
         duplicates=sum(r.duplicates for r in items),
+        undecided=sum(r.undecided for r in items),
         seeded=any(r.seeded for r in items),
         source=items[0].source,
         logs_seen=sum(r.logs_seen for r in items),
@@ -2882,12 +3004,28 @@ def _apply_redeem(
     parsed: dict[str, Any],
     winners_by_condition: Mapping[str, set[str]],
 ) -> tuple[PaperOrder, str]:
+    """Eine Einloesung der Quelle auf das Papierbuch anwenden.
+
+    Ohne bekannten Gewinner zahlt diese Funktion zum Auszahlungspreis der
+    Quelle aus. Das ist nur dann richtig, wenn die Frage nach dem Gewinner
+    gestellt und beantwortet wurde. Blieb sie unbeantwortet, waere eine
+    verlorene Position mit einem Dollar je Anteil abgerechnet worden, und
+    zwar ohne jede Fehlermeldung: aus einem Totalverlust wurde eine volle
+    Auszahlung. Ein unbekannter Ausgang wird deshalb weder als Gewinn noch
+    als Verlust gebucht, sondern bleibt unentschieden (Status ``undecided``);
+    die Order wird nicht geschrieben, damit der naechste Lauf es erneut
+    versucht, sobald die Auskunft wieder antwortet.
+    """
+
     wallet = parsed["source_wallet"]
     condition = parsed["market_key"]
-    winner_assets = set(winners_by_condition.get(condition, set()))
+    lookup = _als_winner_lookup(winners_by_condition)
+    winner_assets = set(lookup.get(condition, set()))
     candidates = _paper_positions_for_resolution(conn, wallet, condition, winner_assets)
     if not candidates:
         return PaperOrder(parsed["dedup_key"], "skipped", "redeem_no_paper_position", parsed["side"], parsed["source_notional"]), ""
+    if not winner_assets and not lookup.outcome_known(condition):
+        return PaperOrder(parsed["dedup_key"], "undecided", "redeem_outcome_unknown", parsed["side"], parsed["source_notional"]), ""
     if len(candidates) > 1 and not winner_assets:
         return PaperOrder(parsed["dedup_key"], "skipped", "redeem_unmatched_winner", parsed["side"], parsed["source_notional"]), ""
 

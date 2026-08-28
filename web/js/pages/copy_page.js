@@ -253,8 +253,13 @@ function daemonBlock(T, live, canWrite, s) {
   else if (sync.error) syncLine = '<span style="color:' + RED + '">last pass failed: ' + esc(sync.error) + '</span>';
   else if (sync.result && sync.result.api) {
     const a = sync.result.api, st = sync.result.settlement || {};
+    // st.undecided: Aufloesungen, deren Ausgang die Auskunft nicht beantwortet
+    // hat. Sie sind nicht gebucht, weder als Gewinn noch als Verlust, und die
+    // Position steht weiter offen. Ungenannt saehe der Lauf vollstaendig aus.
     syncLine = 'last pass ' + esc(ago(sync.finished_at)) + ': ' + a.wallets + ' wallet(s), ' + a.copied + ' copied, ' + a.skipped + ' skipped, ' + a.duplicates + ' already known'
-      + (st.copied ? ', ' + st.copied + ' settlement(s)' : '') + (a.errors && a.errors.length ? ' — <span style="color:' + RED + '">' + esc(a.errors[0]) + '</span>' : '');
+      + (st.copied ? ', ' + st.copied + ' settlement(s)' : '')
+      + (st.undecided ? ', <span style="color:' + AMBER + '">' + st.undecided + ' settlement(s) undecided: the resolved outcome was not read</span>' : '')
+      + (a.errors && a.errors.length ? ' — <span style="color:' + RED + '">' + esc(a.errors[0]) + '</span>' : '');
   }
   return '<div style="' + KARTE + '; padding:16px 18px; margin:14px 24px 0">'
     + '<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap">'
