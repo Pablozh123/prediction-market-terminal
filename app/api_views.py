@@ -1608,6 +1608,13 @@ def alert_rows(signals: pd.DataFrame) -> list[dict[str, Any]]:
             value = f"${notional:,.0f}" if notional else _text(row.get("reason"))[:24]
         elif signal_type in ("Whale print",):
             value = f"${raw_value:,.0f}"
+        # Nicht jede Zahl unter 1.0 ist ein Preis. Der Anteil des groessten
+        # Halters stand als "62.0¢" da, obwohl er 62 Prozent bedeutet, und
+        # das Volumenverhaeltnis stand ohne Einheit neben Cent-Werten.
+        elif signal_type == "Holder concentration":
+            value = f"{raw_value * 100:.0f}%"
+        elif signal_type == "Volume anomaly":
+            value = f"{raw_value:,.1f}x"
         elif abs(raw_value) <= 1.0:
             value = f"{raw_value * 100:+.1f}¢" if signal_type == "Fast mover" else f"{raw_value * 100:.1f}¢"
         else:

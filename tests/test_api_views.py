@@ -1421,3 +1421,43 @@ class WatchlistKeysTests(unittest.TestCase):
         )
         self.assertEqual([r for r in apv.alert_rows(ohne) if r["watched"]], [])
 
+
+class AlertReadingUnitsTests(unittest.TestCase):
+    """Nicht jede Zahl unter 1.0 in der READING-Spalte ist ein Preis."""
+
+    @staticmethod
+    def _signal(signal_type, value, **extra):
+        row = {
+            "signal_type": signal_type, "severity": "warning",
+            "time": pd.Timestamp("2026-08-28 12:00:00", tz="UTC"),
+            "platform": "Polymarket", "title": "Fed cuts in December",
+            "category": "Macro", "outcome": "Yes", "side": "", "price": 0.62,
+            "value": value, "reason": "", "volume": 100_000.0,
+            "liquidity": 40_000.0, "spread": 0.02, "change_1h": 0.0,
+            "market_key": "0xcond", "wallet": "", "trader": "", "notional": 0.0,
+            "url": "",
+        }
+        row.update(extra)
+        return row
+
+    def test_a_holder_share_is_a_share_not_a_price(self) -> None:
+        # 62 Prozent des Bestands standen als "62.0¢" in derselben Spalte wie
+        # echte Cent-Werte.
+        rows = apv.alert_rows(pd.DataFrame([self._signal("Holder concentration", 0.62)]))
+        self.assertEqual(rows[0]["value"], "62%")
+
+    def test_a_volume_ratio_carries_its_unit(self) -> None:
+        rows = apv.alert_rows(pd.DataFrame([self._signal("Volume anomaly", 3.5)]))
+        self.assertEqual(rows[0]["value"], "3.5x")
+
+    def test_prices_and_moves_keep_their_cents(self) -> None:
+        rows = apv.alert_rows(pd.DataFrame([
+            self._signal("Fast mover", 0.08),
+            self._signal("Tight spread", 0.02),
+            self._signal("Whale print", 12_000.0, notional=12_000.0, side="BUY"),
+        ]))
+        werte = {r["rule"]: r["value"] for r in rows}
+        self.assertEqual(werte["FAST MOVER"], "+8.0¢")
+        self.assertEqual(werte["TIGHT SPREAD"], "2.0¢")
+        self.assertEqual(werte["WHALE PRINT"], "$12,000")
+

@@ -13498,6 +13498,11 @@ def page_live_runs() -> None:
     st.markdown(_analysis_badge(kennzeichnung.upper(), ACCENT), unsafe_allow_html=True)
 
     kpis = av.run_kpis(payload)
+    if kpis.get("basis") == "recomputed":
+        st.caption(
+            "This payload carries no aggregate block. The header figures below "
+            "are recomputed from the runs themselves, not read from the publish."
+        )
     k1, k2, k3, k4, k5 = st.columns(5)
     k1.metric("Runs", f"{kpis['n_runs']}", help="Evaluated live runs (one run = one episode/event).")
     bilanz = f"{kpis['gewonnen']}W · {kpis['verloren']}L · {kpis['offen']} open"

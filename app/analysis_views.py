@@ -257,11 +257,56 @@ def format_sekunden(value: Any) -> str:
     return f"{seconds / 60.0:.0f} min"
 
 
+def _run_kpis_aus_laeufen(runs: list[dict[str, Any]]) -> dict[str, Any]:
+    """Kopfzahlen direkt aus den Laufwerten, wenn kein Aggregat vorliegt.
+
+    Ueber public/data/runs.json reproduziert das die publizierten Zahlen
+    exakt (23 Laeufe, 27 Wetten, 25W/2L, $1.172,23 Einsatz, +$288,67).
+    """
+
+    wetten = [w for run in runs for w in (run.get("wetten") or [])]
+    aufgeloest = [w for w in wetten if w.get("aufgeloest") and w.get("gewonnen") is not None]
+    einsatz = sum(float(w.get("einsatz_usd") or 0.0) for w in wetten)
+    aufgeloester_einsatz = sum(float(w.get("einsatz_usd") or 0.0) for w in aufgeloest)
+    payout = sum(float(w.get("payout_usd") or 0.0) for w in aufgeloest)
+    pnl = sum(float(w.get("pnl_usd") or 0.0) for w in aufgeloest)
+    return {
+        "n_runs": len(runs),
+        "n_wetten": len(wetten),
+        "gewonnen": sum(1 for w in aufgeloest if w.get("gewonnen")),
+        "verloren": sum(1 for w in aufgeloest if not w.get("gewonnen")),
+        "offen": len(wetten) - len(aufgeloest),
+        "einsatz_usd": round(einsatz, 2),
+        "aufgeloester_einsatz_usd": round(aufgeloester_einsatz, 2),
+        "realisierter_payout_usd": round(payout, 2),
+        "realisierter_pnl_usd": round(pnl, 2),
+        "roi_realisiert_pct": round(pnl / aufgeloester_einsatz * 100.0, 1) if aufgeloester_einsatz > 0 else None,
+        "offener_einsatz_usd": round(einsatz - aufgeloester_einsatz, 2),
+    }
+
+
 def run_kpis(payload: dict[str, Any]) -> dict[str, Any]:
-    """Aggregat-Kennzahlen mit Defaults fuer die Dashboard-Kopfzeile."""
+    """Aggregat-Kennzahlen mit Defaults fuer die Dashboard-Kopfzeile.
+
+    Ohne ``aggregat`` wurde hier fuer jede Zahl 0 zurueckgegeben, und die
+    Seite druckte "Runs 0" ueber die Karten von 23 Laeufen: ein Standardwert
+    in der Rolle einer Messung. Traegt die Nutzlast Laeufe, aber kein
+    Aggregat, werden die Kopfzahlen aus den Laeufen gerechnet und ``basis``
+    sagt, woher sie kommen.
+    """
 
     aggregat = payload.get("aggregat") or {}
+    runs = list(payload.get("runs") or [])
+    if not aggregat and runs:
+        return dict(
+            _run_kpis_aus_laeufen(runs),
+            wallet_netto_usd=None,
+            wallet_kaeufe_usd=None,
+            wallet_abgleich_stand=None,
+            basis="recomputed",
+        )
     return {
+        "basis": "published" if aggregat else "empty",
         "n_runs": int(aggregat.get("n_runs", 0) or 0),
         "n_wetten": int(aggregat.get("n_wetten", 0) or 0),
         "gewonnen": int(aggregat.get("gewonnen", 0) or 0),
