@@ -30,9 +30,9 @@ const DEUTUNG_FARBE = { lesart: 'var(--accent)', gegenlesart: 'var(--info)', gre
 function abschnitt(titel, inhalt, zusatz) {
   if (!inhalt) return '';
   return '<div style="' + HR + '">'
-    + '<h2 style="' + M + '; font-size:11px; letter-spacing:.15em; color:var(--info); margin:0 0 12px; font-weight:400">'
+    + '<h4 style="' + M + '; font-size:11px; letter-spacing:.15em; color:var(--info); margin:0 0 12px; font-weight:400">'
     + esc(titel) + (zusatz ? ' <span style="color:rgba(var(--ink),.5)">' + esc(zusatz) + '</span>' : '')
-    + '</h2>' + inhalt + '</div>';
+    + '</h4>' + inhalt + '</div>';
 }
 
 // fmtZahl und das Balken-/Intervalldiagramm leben jetzt in ../charts.js und
@@ -233,7 +233,7 @@ function studieKarte(s, i) {
     + '<div style="flex:1; min-width:260px">'
     + '<div style="' + M + '; font-size:11px; letter-spacing:.16em; color:rgba(var(--ink),.55)">STUDY '
     + String(i + 1).padStart(2, '0') + '</div>'
-    + '<div style="font-size:19px; font-weight:600; margin-top:6px; line-height:1.35">' + esc(s.frage) + '</div>'
+    + '<h3 style="font-size:19px; font-weight:600; margin-top:6px; line-height:1.35">' + esc(s.frage) + '</h3>'
     + '</div>'
     + '<div style="' + M + '; font-size:10.5px; letter-spacing:.13em; color:' + farbe
     + '; border:1px solid color-mix(in srgb, ' + farbe + ' 33%, transparent); border-radius:4px; padding:6px 10px; white-space:nowrap">' + marke + '</div>'
