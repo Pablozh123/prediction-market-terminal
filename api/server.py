@@ -124,7 +124,6 @@ from app import pilot_result
 from app import scorecard as sc
 from app import signals as sig
 from app import track_record as trec
-from app import venue_units as vu
 from app.analysis_views import load_publish_payload
 from src import prediction_markets as md
 
@@ -406,8 +405,10 @@ def overview(limit: int = Query(250, le=1000)) -> dict[str, Any]:
     pm_count = int((combined.get("platform") == "Polymarket").sum())
     ks_count = int((combined.get("platform") == "Kalshi").sum())
     # Getrennt nach Einheit, nicht summiert: Polymarket meldet Dollar, Kalshi
-    # zaehlt Kontrakte. Wie getrennt wird, entscheidet app/venue_units.py.
-    vol_je_einheit = vu.volume_by_unit(combined.get("platform", []), vol24)
+    # zaehlt Kontrakte. Und ueber der Tagesspalte, nicht ueber dem Mischwert.
+    # Beides entscheidet apv.venue_volume_24h, damit die Streamlit-Kachel
+    # "Venue volume" dieselbe Groesse zeigt wie diese Kennzahl.
+    vol_je_einheit = apv.venue_volume_24h(combined)
 
     movers = combined.assign(_absmove=moves.abs()).sort_values("_absmove", ascending=False).head(8)
     baseline = (vol24 / 24.0).clip(lower=1.0)
@@ -437,8 +438,13 @@ def overview(limit: int = Query(250, le=1000)) -> dict[str, Any]:
             # die war keine Groesse: Polymarket meldet Dollar, Kalshi zaehlt
             # Kontrakte (Beleg in app/venue_units.py). Zwei Felder, zwei
             # Einheiten, im Namen genannt.
-            "volume_24h_usd_polymarket": float(vol_je_einheit.get(vu.USD, 0.0)),
-            "volume_24h_contracts_kalshi": float(vol_je_einheit.get(vu.CONTRACTS, 0.0)),
+            "volume_24h_usd_polymarket": float(vol_je_einheit["usd"]),
+            "volume_24h_contracts_kalshi": float(vol_je_einheit["contracts"]),
+            # Der Nenner der beiden Summen: wie viele der geladenen Maerkte
+            # heute ueberhaupt gehandelt wurden. Ohne ihn liest sich eine
+            # Tagessumme ueber ein Universum, das grossteils still lag, wie
+            # ein Umsatz ueber alle.
+            "markets_traded_today": int(vol_je_einheit["traded_today"]),
             "resolving_72h": int(soon_mask.sum()),
             "top_public_pnl": top_pnl,
         },

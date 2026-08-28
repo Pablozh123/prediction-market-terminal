@@ -22,6 +22,7 @@ from app import quant
 from app import risk_log
 from app import suspicion as susp
 from app import track_record as trec
+from app import venue_units as vu
 from src import prediction_markets as md
 
 RESEARCH_FILES = {
@@ -194,6 +195,43 @@ def market_records(markets: pd.DataFrame, limit: int | None = None) -> list[dict
     if "category" in slim.columns:
         slim["category"] = [clean_category(v) for v in slim["category"].tolist()]
     return json.loads(slim.to_json(orient="records", date_format="iso"))
+
+
+def venue_volume_24h(markets: pd.DataFrame) -> dict[str, float | int]:
+    """Tagesvolumen je Venue-Einheit, plus die Zahl der Maerkte, die es tragen.
+
+    Zwei Fallen liegen hier nebeneinander, und beide sind schon einzeln
+    aufgeschlagen.
+
+    Die erste ist die Einheit: Polymarket meldet Dollar, Kalshi zaehlt
+    Kontrakte (Beleg in ``app/venue_units.py``), also gibt es keine
+    gemeinsame Summe und keinen gemeinsamen Balken.
+
+    Die zweite ist die Spalte. ``activity_volume`` ist ein Mischwert: der
+    Tageswert, wenn der Markt heute gehandelt wurde, sonst das Lebensvolumen
+    (``_finalize_polymarket_markets``). Summiert man ihn unter einer
+    Ueberschrift, die nach Umsatz klingt, entsteht eine Zahl, die weder
+    Tagesumsatz noch Lebensumsatz ist: ein Markt mit 4.2 Mio Dollar
+    Lebensumsatz und null Handel heute steht mit 4.2 Mio darin. Hier zaehlt
+    deshalb ``volume_24h``, und die Zahl der Maerkte mit Handel heute steht
+    daneben, damit die Summe ihren Nenner nennt.
+    """
+
+    leer: dict[str, float | int] = {"usd": 0.0, "contracts": 0.0, "markets": 0, "traded_today": 0}
+    if markets is None or markets.empty:
+        return leer
+    if "volume_24h" not in markets.columns:
+        # Keine Tagesspalte heisst nicht null Umsatz, sondern keine Messung.
+        # Der Mischwert waere hier der falsche Rueckfall.
+        return {**leer, "markets": int(len(markets))}
+    tages = pd.to_numeric(markets["volume_24h"], errors="coerce").fillna(0.0)
+    je_einheit = vu.volume_by_unit(markets.get("platform", []), tages)
+    return {
+        "usd": float(je_einheit.get(vu.USD, 0.0)),
+        "contracts": float(je_einheit.get(vu.CONTRACTS, 0.0)),
+        "markets": int(len(markets)),
+        "traded_today": int((tages > 0).sum()),
+    }
 
 
 def kalshi_series(ticker: Any) -> str:
@@ -1857,6 +1895,55 @@ def alert_rule_counts(signals: pd.DataFrame) -> dict[str, int]:
     return {str(art): int(anzahl) for art, anzahl in zaehlung.items()}
 
 
+def signal_value_label(row: Mapping[str, Any]) -> str:
+    """Die ``value``-Spalte einer Signalzeile mit der Einheit, die sie hat.
+
+    Die Spalte fuehrt je Signalart eine andere Groesse: ein Whale-Print traegt
+    Dollar, ein Fast Mover eine Preisaenderung, ein Tight Spread und ein
+    Ending Soon einen Preis in (0,1), eine Volumenanomalie ein Verhaeltnis und
+    eine Holder Concentration einen Anteil. Als nackte Zahl gerendert stehen
+    ``0.6200`` (62 Prozent des groessten Halters), ``0.0350`` (3.5 Cent
+    Bewegung), ``4.7000`` (das 4.7-fache Volumen) und ``12500.0000`` (Dollar)
+    in derselben Spalte und im selben Format nebeneinander, als waeren sie
+    vergleichbar. Sie sind es nicht, und diese Funktion ist die eine Stelle,
+    die das aufloest.
+    """
+
+    raw_value = _num(row.get("value"))
+    signal_type = _text(row.get("signal_type"))
+    if raw_value is None:
+        notional = _num(row.get("notional"))
+        return f"${notional:,.0f}" if notional else _text(row.get("reason"))[:24]
+    if signal_type in ("Whale print",):
+        return f"${raw_value:,.0f}"
+    # Nicht jede Zahl unter 1.0 ist ein Preis. Der Anteil des groessten
+    # Halters stand als "62.0¢" da, obwohl er 62 Prozent bedeutet, und
+    # das Volumenverhaeltnis stand ohne Einheit neben Cent-Werten.
+    if signal_type == "Holder concentration":
+        return f"{raw_value * 100:.0f}%"
+    if signal_type == "Volume anomaly":
+        return f"{raw_value:,.1f}x"
+    if abs(raw_value) <= 1.0:
+        return f"{raw_value * 100:+.1f}¢" if signal_type == "Fast mover" else f"{raw_value * 100:.1f}¢"
+    return f"{raw_value:,.1f}"
+
+
+def signal_value_series(signals: pd.DataFrame) -> pd.Series:
+    """``signal_value_label`` ueber einen ganzen Signal-Frame, als Textspalte.
+
+    Damit die Streamlit-Tabellen dieselbe Regel zeigen wie der Signal-Feed im
+    Web-Frontend, statt die Spalte mit ``%.4f`` ueber alle Arten zu ziehen.
+    """
+
+    if signals is None or signals.empty:
+        return pd.Series(dtype=str)
+    return pd.Series(
+        [signal_value_label(row) for _, row in signals.iterrows()],
+        index=signals.index,
+        dtype=object,
+    )
+
+
 def alert_rows(signals: pd.DataFrame) -> list[dict[str, Any]]:
     """`sig.build_monitor_signals`-Frame in die Signal-Feed-Zeilen."""
 
@@ -1869,24 +1956,7 @@ def alert_rows(signals: pd.DataFrame) -> list[dict[str, Any]]:
             time_label = time_label.split("T")[1][:5]
         elif " " in time_label:
             time_label = time_label.split(" ")[-1][:5]
-        raw_value = _num(row.get("value"))
-        signal_type = _text(row.get("signal_type"))
-        if raw_value is None:
-            notional = _num(row.get("notional"))
-            value = f"${notional:,.0f}" if notional else _text(row.get("reason"))[:24]
-        elif signal_type in ("Whale print",):
-            value = f"${raw_value:,.0f}"
-        # Nicht jede Zahl unter 1.0 ist ein Preis. Der Anteil des groessten
-        # Halters stand als "62.0¢" da, obwohl er 62 Prozent bedeutet, und
-        # das Volumenverhaeltnis stand ohne Einheit neben Cent-Werten.
-        elif signal_type == "Holder concentration":
-            value = f"{raw_value * 100:.0f}%"
-        elif signal_type == "Volume anomaly":
-            value = f"{raw_value:,.1f}x"
-        elif abs(raw_value) <= 1.0:
-            value = f"{raw_value * 100:+.1f}¢" if signal_type == "Fast mover" else f"{raw_value * 100:.1f}¢"
-        else:
-            value = f"{raw_value:,.1f}"
+        value = signal_value_label(row)
         rows.append({
             "time": time_label or "—",
             "rule": _text(row.get("signal_type")).upper(),
@@ -2982,26 +3052,56 @@ def overlap_matrix(
     }
 
 
+def _spannen_text(minuten: float) -> str:
+    """Eine Dauer in Minuten als kurzer Text (gleiche Stufen wie util.dauer)."""
+
+    if minuten < 1:
+        return f"{minuten * 60:.0f} s"
+    if minuten < 90:
+        return f"{minuten:.0f} min"
+    return f"{minuten / 60:.1f} h"
+
+
 def tape_window_label(trades: pd.DataFrame) -> str:
-    """Beobachtungsfenster eines Tapes als Text.
+    """Beobachtungsfenster eines Tapes als Text, je Venue aufgeschluesselt.
 
     Gehoert zu jedem Bild, das aus diesem Tape entsteht. Der oeffentliche
     Trade-Feed liefert die juengsten N Prints, und wie lange die abdecken,
     haengt an der Aktivitaet: mal Stunden, mal eine Minute. Ohne diese
     Angabe ist ein Cluster-Bild nicht einzuordnen.
+
+    Die Gesamtspanne allein reicht dafuer nicht. Wird das Tape mit einem
+    einzigen zeitlichen Schnitt beschnitten (``sort_values("time").head(n)``,
+    so machen es die Streamlit-Seiten), dann verdraengt die schnellere Venue
+    die langsamere: Kalshis 15-Minuten-Kryptomaerkte drucken hunderte
+    Mikro-Trades in Minuten, waehrend dieselbe Zeilenzahl auf Polymarket
+    Stunden abdeckt. Von 500 gezeigten Prints koennen so 492 von einer Venue
+    stammen und 8 von der anderen, und jede Summe darunter beschreibt dann
+    faktisch eine Venue. Die Zeile nennt deshalb die Prints je Venue und die
+    Spanne, die sie einzeln abdecken. Dieselbe Angabe fuehrt das Web-Frontend
+    unter ``util.fensterSatz``.
     """
 
     if trades is None or trades.empty or "time" not in trades.columns:
         return ""
-    zeiten = pd.to_datetime(trades["time"], utc=True, errors="coerce").dropna()
-    if zeiten.empty:
+    basis = pd.DataFrame({
+        "zeit": pd.to_datetime(trades["time"], utc=True, errors="coerce").to_numpy(),
+        "venue": (
+            trades["platform"].astype(str).str.strip().to_numpy()
+            if "platform" in trades.columns
+            else ["" for _ in range(len(trades))]
+        ),
+    })
+    basis = basis[basis["zeit"].notna()]
+    if basis.empty:
         return ""
-    von, bis = zeiten.min(), zeiten.max()
-    minuten = (bis - von).total_seconds() / 60.0
-    if minuten < 1:
-        spanne = f"{(bis - von).total_seconds():.0f} s"
-    elif minuten < 90:
-        spanne = f"{minuten:.0f} min"
-    else:
-        spanne = f"{minuten / 60:.1f} h"
-    return f"{von.strftime('%Y-%m-%d %H:%M')} to {bis.strftime('%H:%M')} UTC · {spanne} · {len(trades):,} prints"
+    von, bis = basis["zeit"].min(), basis["zeit"].max()
+    spanne = _spannen_text((bis - von).total_seconds() / 60.0)
+    kopf = f"{von.strftime('%Y-%m-%d %H:%M')} to {bis.strftime('%H:%M')} UTC · {spanne} · {len(trades):,} prints"
+    je_venue: list[str] = []
+    for venue, teil in sorted(basis[basis["venue"].ne("")].groupby("venue", sort=False)):
+        dauer = _spannen_text((teil["zeit"].max() - teil["zeit"].min()).total_seconds() / 60.0)
+        je_venue.append(f"{venue} {dauer} ({len(teil):,})")
+    if len(je_venue) < 2:
+        return kopf
+    return f"{kopf} — {' · '.join(je_venue)}"

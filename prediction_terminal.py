@@ -934,6 +934,41 @@ def clean_table(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     return df[[c for c in columns if c in df.columns]].copy()
 
 
+def signal_value_labels(signals: pd.DataFrame) -> pd.DataFrame:
+    """Signalzeilen mit einer ``value``-Spalte, die ihre Einheit nennt.
+
+    Die Spalte fuehrt je Signalart eine andere Groesse. Unter ``%.4f``
+    standen der Anteil des groessten Halters (0.6200), eine Preisbewegung
+    (0.0350), ein Volumenverhaeltnis (4.7000) und ein Notional (12500.0000)
+    im selben Format untereinander. Der Signal-Feed im Web-Frontend loest
+    das ueber ``api_views.signal_value_label`` auf; hier gilt dieselbe Regel
+    aus derselben Funktion. Aufruf vor ``clean_table``, damit das Etikett aus
+    dem vollen Frame entsteht und nicht aus der Anzeigeauswahl.
+    """
+
+    if signals is None or signals.empty:
+        return signals
+    # Und die Platzhalter-Nullen raus, die keine Messung sind: ein
+    # Whale-Print fuehrt kein Marktvolumen und keine Buchtiefe, ein
+    # Marktsignal kein Notional (app/signals.py::UNAVAILABLE_FIELDS).
+    out = sig.blank_structural_placeholders(signals)
+    if "value" in out:
+        out = out.copy()
+        out["value"] = apv.signal_value_series(signals)
+    return out
+
+
+#: Konfiguration der ``value``-Spalte, wenn sie durch ``signal_value_labels``
+#: gelaufen ist: Text, nicht Zahl, weil in ihr Dollar, Cent, Prozent und ein
+#: Verhaeltnis nebeneinander stehen.
+def signal_value_column_config() -> Any:
+    return st.column_config.TextColumn(
+        "Value",
+        help="Unit follows the signal type: whale prints in dollars, movers and spreads in cents, "
+        "holder concentration as a share of the market, a volume anomaly as a multiple of its baseline.",
+    )
+
+
 def dataframe_selected_row_index(event: Any) -> int | None:
     try:
         selection = getattr(event, "selection", None)
@@ -2705,20 +2740,22 @@ def render_metric_strip(pm: pd.DataFrame, ks: pd.DataFrame, trades: pd.DataFrame
     # Polymarket-Summe steht in Dollar, die Kalshi-Summe zaehlt Kontrakte
     # (Beleg in app/venue_units.py). Addiert ergaben sie keine Groesse, also
     # stehen sie jetzt getrennt.
-    pm_activity = 0.0
-    if not pm.empty:
-        volume_col = "activity_volume" if "activity_volume" in pm else "volume_24h"
-        pm_activity = float(pm[volume_col].fillna(0).sum())
-    ks_activity = 0.0
-    if not ks.empty:
-        volume_col = "activity_volume" if "activity_volume" in ks else "volume_24h"
-        ks_activity = float(ks[volume_col].fillna(0).sum())
+    #
+    # Summiert wird die Tagesspalte, nicht mehr der Mischwert
+    # ``activity_volume``. Der traegt den Tageswert nur bei Handel am selben
+    # Tag, sonst das Lebensvolumen, und eine Summe darueber ist keines von
+    # beidem. Auf derselben Seite standen so drei verschiedene
+    # Polymarket-Volumen: der Ticker (Tageswert), diese Kachel (Mischwert)
+    # und die Kachel "Venue volume" (Mischwert). Jetzt dieselbe Groesse aus
+    # derselben Funktion, die auch /api/overview liest.
+    pm_tag = apv.venue_volume_24h(pm)
+    ks_tag = apv.venue_volume_24h(ks)
     top_pnl = float(leaderboard["pnl"].max()) if not leaderboard.empty and "pnl" in leaderboard else 0.0
     whale_count = len(trades[trades["notional"] >= float(min_whale)]) if not trades.empty and "notional" in trades else 0
     cols = st.columns(5)
     cols[0].metric("Markets loaded", f"{len(pm) + len(ks):,}", f"{len(pm):,} PM / {len(ks):,} KS")
-    cols[1].metric("Polymarket activity", money(pm_activity))
-    cols[2].metric("Kalshi activity", contracts(ks_activity))
+    cols[1].metric("Polymarket 24h volume", money(pm_tag["usd"]), f"{int(pm_tag['traded_today']):,} of {int(pm_tag['markets']):,} traded today", delta_color="off")
+    cols[2].metric("Kalshi 24h volume", contracts(ks_tag["contracts"]), f"{int(ks_tag['traded_today']):,} of {int(ks_tag['markets']):,} traded today", delta_color="off")
     cols[3].metric("Whale prints", f"{whale_count:,}", f">= {money(min_whale)}")
     cols[4].metric("Top public PnL", money(top_pnl))
 
@@ -2731,11 +2768,17 @@ def market_tile(row: pd.Series) -> None:
         st.caption(f"{row.get('platform', '-')}: {row.get('category', '-')}")
         st.markdown(f"**{str(row.get('title', '-'))[:120]}**")
         change = row.get("change_1d") if row.get("platform") == "Polymarket" else None
+        # "Vol" stand ueber ``activity_volume``. Das ist der Tageswert nur
+        # dann, wenn heute gehandelt wurde, sonst das Lebensvolumen: eine
+        # Karte fuer einen Markt ohne Umsatz heute trug 4.2 Mio als
+        # aktuelle Zahl. Der Tageswert ist null, wenn nicht gehandelt wurde,
+        # und diese Null ist die Messung. Dieselbe Regel wie im Web
+        # (web/js/util.js::mapMarket trennt ``vol`` von ``volTotal``).
         st.markdown(
             f"""
             <div class="market-stats">
               <div class="market-stat"><span>Yes</span><strong>{cents(row.get("yes_price"))}</strong></div>
-              <div class="market-stat"><span>Vol</span><strong>{vu.format_volume(row.get("activity_volume", row.get("volume_24h")), row.get("platform"))}</strong></div>
+              <div class="market-stat"><span>Vol 24h</span><strong>{vu.format_volume(row.get("volume_24h"), row.get("platform"))}</strong></div>
               <div class="market-stat"><span>1d</span><strong>{signed_cents(change) if change is not None else "-"}</strong></div>
             </div>
             """,
@@ -3683,7 +3726,16 @@ def page_overview() -> None:
     overview_market_rows = controls[3].slider("Market cards", min_value=3, max_value=24, step=3, key="overview_market_rows")
     with st.expander("Overview filters", expanded=False):
         f1, f2, f3, f4 = st.columns(4)
-        overview_min_volume = f1.number_input("Min market volume", min_value=0, step=1000, key="overview_min_volume")
+        # Die Schwelle laeuft ueber signals.monitor_volume_col, und das ist
+        # ``activity_volume``: der Tageswert bei Handel am selben Tag, sonst
+        # das Lebensvolumen. Der Filter "24h volume" auf der Markets-Seite
+        # liest den Tageswert, dieser hier nicht, und ohne den Hinweis sehen
+        # die beiden Regler gleich aus.
+        overview_min_volume = f1.number_input(
+            "Min market volume (venue unit)", min_value=0, step=1000, key="overview_min_volume",
+            help="Runs over the market's activity volume: the day's figure where there is one, "
+            "the lifetime figure otherwise. Polymarket reports dollars, Kalshi contracts.",
+        )
         overview_min_liquidity = f2.number_input("Min liquidity", min_value=0, step=1000, key="overview_min_liquidity")
         overview_min_flow = f3.number_input("Min flow notional", min_value=0, step=500, key="overview_min_flow_notional")
         active_only = f4.checkbox("Active markets only", key="overview_active_only")
@@ -3848,6 +3900,15 @@ def page_overview() -> None:
     if top_markets.empty:
         draw_empty("No markets match the current filters.")
     else:
+        # Die Reihenfolge steht auf ``activity_volume``, und der faellt ohne
+        # Handel am selben Tag auf das Lebensvolumen zurueck. Eine Karte kann
+        # also weit oben stehen und "Vol 24h -" tragen: dann hat der Markt
+        # heute nicht gehandelt und rankt ueber seinen Gesamtumsatz. Das
+        # gehoert hingeschrieben, solange der Schluessel so bleibt.
+        st.caption(
+            "Ordered by activity volume: the day's turnover where a market traded today, its lifetime "
+            "turnover otherwise. A card at the top with no 24h volume ranks on its lifetime figure."
+        )
         for chunk_start in range(0, len(top_markets), 3):
             cols = st.columns(3)
             for col, (_, row) in zip(cols, top_markets.iloc[chunk_start : chunk_start + 3].iterrows()):
@@ -3857,7 +3918,7 @@ def page_overview() -> None:
     st.divider()
     left, right = st.columns([1.2, 1])
     with left:
-        st.markdown("### Venue volume")
+        st.markdown("### Venue volume · 24h")
         if combined.empty:
             draw_empty("Volume chart unavailable.")
         else:
@@ -3867,14 +3928,22 @@ def page_overview() -> None:
             # Balkenpaar zeigen soll, naemlich welche Venue groesser ist,
             # konnte es damit nicht zeigen. Zwei Zahlen mit ihrer Einheit
             # sagen weniger und behaupten nichts Falsches.
-            volume_col = "activity_volume" if "activity_volume" in combined else "volume_24h"
-            je_einheit = vu.volume_by_unit(combined.get("platform", []),
-                                           numeric_col(combined, volume_col))
+            #
+            # Und sie summieren jetzt die Tagesspalte statt des Mischwerts
+            # ``activity_volume``. Der traegt den Tageswert nur, wenn heute
+            # gehandelt wurde, sonst das Lebensvolumen: die Summe darueber
+            # war weder Tages- noch Lebensumsatz, stand aber auf derselben
+            # Seite wie der Ticker "24H VOLUME POLYMARKET" und war groesser
+            # als der. Dieselbe Groesse liefert /api/overview ans
+            # Web-Frontend (apv.venue_volume_24h).
+            je_einheit = apv.venue_volume_24h(combined)
             venue_links, venue_rechts = st.columns(2)
-            venue_links.metric("Polymarket", money(je_einheit.get(vu.USD, 0.0)))
-            venue_rechts.metric("Kalshi", contracts(je_einheit.get(vu.CONTRACTS, 0.0)))
+            venue_links.metric("Polymarket", money(je_einheit["usd"]))
+            venue_rechts.metric("Kalshi", contracts(je_einheit["contracts"]))
             st.caption(
-                "No shared bar: Polymarket reports dollar turnover, Kalshi reports "
+                f"Summed over the day's volume of {int(je_einheit['traded_today']):,} of "
+                f"{int(je_einheit['markets']):,} loaded markets — the rest did not trade today and "
+                "add nothing here. No shared bar: Polymarket reports dollar turnover, Kalshi reports "
                 "the number of contracts traded. A contract pays $1 at resolution "
                 "and trades at its price p, so a Kalshi bar on the same axis would "
                 "stand 1/p too tall."
@@ -4155,7 +4224,7 @@ def page_search() -> None:
         if alert_results.empty:
             draw_empty("No alert signals for this search.")
         else:
-            display = clean_table(alert_results, ["alert_source", "rule_name", "time", "signal_type", "platform", "reason", "title", "value", "notional", "wallet", "url"]).head(10)
+            display = clean_table(signal_value_labels(alert_results), ["alert_source", "rule_name", "time", "signal_type", "platform", "reason", "title", "value", "notional", "wallet", "url"]).head(10)
             if "wallet" in display:
                 display["wallet"] = display["wallet"].astype(str).map(short_addr)
             st.dataframe(
@@ -4164,7 +4233,7 @@ def page_search() -> None:
                 height=260,
                 column_config={
                     "time": st.column_config.DatetimeColumn(format="YYYY-MM-DD HH:mm"),
-                    "value": st.column_config.NumberColumn(format="%.4f"),
+                    "value": signal_value_column_config(),
                     "notional": st.column_config.NumberColumn(format="$%.0f"),
                     "url": st.column_config.LinkColumn("URL"),
                 },
@@ -4382,7 +4451,9 @@ def page_search() -> None:
                 file_name="search_alerts.csv",
                 mime="text/csv",
             )
-            display = clean_table(alert_results, alert_cols)
+            # Der CSV-Export oben behaelt die rohe Zahl; nur die Anzeige
+            # bekommt die Einheit dazu.
+            display = clean_table(signal_value_labels(alert_results), alert_cols)
             if "wallet" in display:
                 display["wallet"] = display["wallet"].astype(str).map(short_addr)
             st.dataframe(
@@ -4392,7 +4463,7 @@ def page_search() -> None:
                 column_config={
                     "time": st.column_config.DatetimeColumn(format="YYYY-MM-DD HH:mm"),
                     "price": st.column_config.NumberColumn(format="%.4f"),
-                    "value": st.column_config.NumberColumn(format="%.4f"),
+                    "value": signal_value_column_config(),
                     "notional": st.column_config.NumberColumn(format="$%.0f"),
                     "liquidity": st.column_config.NumberColumn(format="$%.0f"),
                     "spread": st.column_config.NumberColumn(format="%.4f"),
@@ -5000,8 +5071,20 @@ def page_markets() -> None:
                 width="stretch",
                 height=220,
                 column_config={
-                    "volume": st.column_config.NumberColumn(format="$%.0f"),
-                    "median_prob": st.column_config.NumberColumn(format="%.3f"),
+                    "date": st.column_config.TextColumn("Date"),
+                    "markets": st.column_config.NumberColumn("Markets ending", format="%.0f"),
+                    # Hier stand ein einziger Schluessel "volume" mit einem
+                    # Dollarzeichen. Die Spalte heisst seit der Trennung nach
+                    # Einheit ``volume_usd`` bzw. ``volume_contracts``, also
+                    # traf der Schluessel nichts: beide Spalten liefen ohne
+                    # Konfiguration durch, die Kalshi-Stueckzahl stand unter
+                    # dem rohen Feldnamen neben dem Dollarbetrag, und das
+                    # Dollarzeichen haette bei einer Umbenennung auf der
+                    # Stueckzahl gelandet. Zwei Schluessel, zwei Einheiten.
+                    "volume_usd": st.column_config.NumberColumn("Polymarket volume", format="$%.0f"),
+                    "volume_contracts": st.column_config.NumberColumn("Kalshi volume (contracts)", format="%.0f"),
+                    "median_prob": st.column_config.NumberColumn("Median Yes", format="%.3f"),
+                    "more_count": st.column_config.NumberColumn("Not shown in cell", format="%.0f"),
                 },
             )
             st.dataframe(display, width="stretch", height=330, column_config=table_config)
@@ -8828,12 +8911,21 @@ def page_monitor() -> None:
     signal_config = {
         "time": st.column_config.DatetimeColumn(format="YYYY-MM-DD HH:mm"),
         "price": st.column_config.NumberColumn(format="%.4f"),
-        "value": st.column_config.NumberColumn(format="%.4f"),
+        "value": signal_value_column_config(),
         # Der Monitor laeuft ueber beide Venues, und app/signals.py traegt
         # die Volumenspalte des Marktes unveraendert in die Signalzeile. Auf
         # Kalshi zaehlt sie Kontrakte (app/venue_units.py), also steht hier
         # kein Dollarzeichen. Liquiditaet ist die Ausnahme und bleibt Dollar.
-        "volume": st.column_config.NumberColumn("Volume (venue unit)", format="%.0f"),
+        #
+        # Und die Spalte ist ``activity_volume`` (sig.monitor_volume_col),
+        # also der Tageswert nur bei Handel am selben Tag und sonst das
+        # Lebensvolumen. "Volume" allein liest sich wie ein aktueller Umsatz.
+        "volume": st.column_config.NumberColumn(
+            "Activity volume (venue unit)", format="%.0f",
+            help="The market's activity volume: the day's figure where there is one, the lifetime "
+            "figure otherwise. Polymarket reports dollars, Kalshi contracts. Empty on a whale print, "
+            "which comes from the tape and carries no market volume.",
+        ),
         "liquidity": st.column_config.NumberColumn(format="$%.0f"),
         "spread": st.column_config.NumberColumn(format="%.4f"),
         "change_1h": st.column_config.NumberColumn(format="%+.4f"),
@@ -8843,7 +8935,7 @@ def page_monitor() -> None:
         if signals.empty:
             draw_empty("No monitor signals match the current filters.")
         else:
-            display = clean_table(signals, signal_columns)
+            display = clean_table(signal_value_labels(signals), signal_columns)
             if "wallet" in display:
                 display["wallet"] = display["wallet"].astype(str).map(short_addr)
             st.dataframe(display, width="stretch", height=540, column_config=signal_config)
@@ -8853,7 +8945,7 @@ def page_monitor() -> None:
         else:
             st.download_button("Export alert hits CSV", alert_hits.to_csv(index=False).encode("utf-8"), file_name="monitor_alert_hits.csv", mime="text/csv")
             display = clean_table(
-                alert_hits,
+                signal_value_labels(alert_hits),
                 ["rule_name", "time", "signal_type", "platform", "reason", "title", "price", "value", "notional", "liquidity", "spread", "change_1h", "wallet", "url"],
             )
             if "wallet" in display:
@@ -8896,7 +8988,7 @@ def page_monitor() -> None:
         if movers.empty:
             draw_empty("No fast movers match the current thresholds.")
         else:
-            st.dataframe(clean_table(movers, signal_columns).head(80), width="stretch", height=460, column_config=signal_config)
+            st.dataframe(clean_table(signal_value_labels(movers), signal_columns).head(80), width="stretch", height=460, column_config=signal_config)
     with tab_whales:
         whales = signals[signals["signal_type"].eq("Whale print")] if not signals.empty else pd.DataFrame()
         if whales.empty:
@@ -8916,13 +9008,13 @@ def page_monitor() -> None:
         if spreads.empty:
             draw_empty("No tight spreads match the current thresholds.")
         else:
-            st.dataframe(clean_table(spreads, signal_columns).head(100), width="stretch", height=460, column_config=signal_config)
+            st.dataframe(clean_table(signal_value_labels(spreads), signal_columns).head(100), width="stretch", height=460, column_config=signal_config)
     with tab_holders:
         holder_risk = signals[signals["signal_type"].eq("Holder concentration")] if not signals.empty else pd.DataFrame()
         if holder_risk.empty:
             draw_empty("No holder concentration signals. Increase holder checks or lower the threshold.")
         else:
-            st.dataframe(clean_table(holder_risk, signal_columns).head(60), width="stretch", height=330, column_config=signal_config)
+            st.dataframe(clean_table(signal_value_labels(holder_risk), signal_columns).head(60), width="stretch", height=330, column_config=signal_config)
         if not pm.empty:
             st.markdown("### Manual holder check")
             options = [f"{i + 1}. {str(row.title)[:95]}" for i, row in pm.head(80).iterrows()]
@@ -8946,7 +9038,7 @@ def page_monitor() -> None:
         if ending.empty:
             draw_empty("No ending-soon markets match the current filters.")
         else:
-            st.dataframe(clean_table(ending, signal_columns).head(100), width="stretch", height=460, column_config=signal_config)
+            st.dataframe(clean_table(signal_value_labels(ending), signal_columns).head(100), width="stretch", height=460, column_config=signal_config)
     with tab_rules:
         st.markdown("### Saved alert rules")
         with st.form("monitor_rule_form"):

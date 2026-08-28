@@ -279,5 +279,65 @@ class DedupeKeyTests(unittest.TestCase):
         self.assertNotIn("nan", key)
 
 
+class PlatzhalterNullenTests(unittest.TestCase):
+    """Eine Null, die "nicht messbar" bedeutet, darf nicht wie eine Messung aussehen.
+
+    ``build_monitor_signals`` fuellt die Felder, die eine Signalart nicht
+    fuehren kann, mit 0.0, damit der Frame saubere numerische Spalten hat.
+    In der Tabelle war das nicht zu erkennen: neben Marktsignalen mit echter
+    Buchtiefe stand jeder Whale-Print mit Volume 0 und Liquidity $0 da, als
+    waere sein Markt leer, und wer nach Liquiditaet sortierte, bekam alle
+    Prints ans Ende gestellt.
+    """
+
+    def _frame(self) -> pd.DataFrame:
+        return sig.build_monitor_signals(
+            pd.DataFrame([market("Fed cuts", 9_000.0, 60_000.0, change_1h=0.09)]),
+            pd.DataFrame([{
+                "platform": "Polymarket", "time": pd.Timestamp("2026-08-28 12:00", tz="UTC"),
+                "title": "Fed cuts", "side": "BUY", "outcome": "Yes", "price": 0.62,
+                "notional": 12_500.0, "wallet": "0xabc", "trader": "tony",
+                "market_key": "Fed cuts", "url": "", "transaction_hash": "0xtx",
+            }]),
+            min_volume=0.0, min_liquidity=0.0, min_move=0.05, max_spread=0.01,
+            min_whale_notional=1_000.0, ending_days=0, holder_threshold=1.0,
+            holder_checks=0, tracked_keys=set(),
+        )
+
+    def test_der_rohe_frame_behaelt_die_nullen(self):
+        """Scanner und Ledger sehen den Frame unveraendert."""
+
+        roh = self._frame()
+        print_zeile = roh[roh["signal_type"].eq("Whale print")].iloc[0]
+        markt_zeile = roh[roh["signal_type"].eq("Fast mover")].iloc[0]
+        self.assertEqual(float(print_zeile["volume"]), 0.0)
+        self.assertEqual(float(print_zeile["liquidity"]), 0.0)
+        self.assertEqual(float(markt_zeile["notional"]), 0.0)
+
+    def test_die_anzeige_laesst_die_felder_leer(self):
+        anzeige = sig.blank_structural_placeholders(self._frame())
+        print_zeile = anzeige[anzeige["signal_type"].eq("Whale print")].iloc[0]
+        markt_zeile = anzeige[anzeige["signal_type"].eq("Fast mover")].iloc[0]
+        self.assertTrue(pd.isna(print_zeile["volume"]))
+        self.assertTrue(pd.isna(print_zeile["liquidity"]))
+        self.assertTrue(pd.isna(markt_zeile["notional"]))
+        # Was gemessen ist, bleibt stehen.
+        self.assertEqual(float(print_zeile["notional"]), 12_500.0)
+        self.assertEqual(float(markt_zeile["volume"]), 60_000.0)
+        self.assertEqual(float(markt_zeile["liquidity"]), 50_000.0)
+
+    def test_leerer_frame_und_frame_ohne_art(self):
+        self.assertTrue(sig.blank_structural_placeholders(pd.DataFrame()).empty)
+        ohne = pd.DataFrame([{"volume": 0.0}])
+        self.assertEqual(float(sig.blank_structural_placeholders(ohne).iloc[0]["volume"]), 0.0)
+
+    def test_die_volumenspalte_ist_der_mischwert(self):
+        """Nicht "24h": ohne Handel heute steht das Lebensvolumen darin."""
+
+        frame = pd.DataFrame([{"activity_volume": 4_200_000.0, "volume_24h": 0.0}])
+        self.assertEqual(sig.monitor_volume_col(frame), "activity_volume")
+        self.assertEqual(sig.monitor_volume_col(pd.DataFrame([{"volume_24h": 1.0}])), "volume_24h")
+
+
 if __name__ == "__main__":
     unittest.main()

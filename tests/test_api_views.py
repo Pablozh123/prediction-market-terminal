@@ -1102,6 +1102,68 @@ class BalancedHeadTests(unittest.TestCase):
         self.assertEqual(len(apv.balanced_head(tape, 0)), 0)
 
 
+class TapeWindowLabelTests(unittest.TestCase):
+    """Die Spanne unter einer Tape-Summe muss die Venues einzeln nennen.
+
+    Die Streamlit-Seiten schneiden das Tape mit einem einzigen zeitlichen
+    ``head(rows)``. Das ist eine Entscheidung, keine Panne (eine Spanne fuer
+    alle Venues), aber sie hat eine Folge, die die alte Zeile verschwieg: die
+    schnellere Venue verdraengt die langsamere aus der Stichprobe. Das
+    Web-Frontend nennt die Venues seit jeher einzeln (``util.fensterSatz``).
+    """
+
+    @staticmethod
+    def _tape() -> pd.DataFrame:
+        # Beide Venues liefern 500 Prints; Kalshi deckt damit 12 Minuten ab,
+        # Polymarket 6 Stunden. Der zeitliche Schnitt auf 500 Zeilen laesst
+        # von Polymarket 8 Prints uebrig.
+        ks = pd.DataFrame({
+            "platform": "Kalshi",
+            "time": pd.date_range("2026-08-28 12:12:00", periods=500, freq="-1440ms", tz="UTC"),
+            "notional": 40.0,
+        })
+        pm = pd.DataFrame({
+            "platform": "Polymarket",
+            "time": pd.date_range("2026-08-28 12:12:00", periods=500, freq="-43200ms", tz="UTC"),
+            "notional": 5000.0,
+        })
+        return pd.concat([ks, pm], ignore_index=True).sort_values("time", ascending=False).head(500)
+
+    def test_die_zeile_nennt_prints_und_spanne_je_venue(self) -> None:
+        tape = self._tape()
+        anteile = tape["platform"].value_counts()
+        # Der Befund, den die Zeile sichtbar machen muss.
+        self.assertEqual(int(anteile["Kalshi"]), 483)
+        self.assertEqual(int(anteile["Polymarket"]), 17)
+
+        zeile = apv.tape_window_label(tape)
+        self.assertIn("500 prints", zeile)
+        self.assertIn("Kalshi 12 min (483)", zeile)
+        self.assertIn("Polymarket 12 min (17)", zeile)
+
+    def test_eine_venue_allein_bleibt_eine_zeile(self) -> None:
+        """Ohne zweite Venue gibt es nichts aufzuschluesseln."""
+
+        nur_kalshi = self._tape()
+        nur_kalshi = nur_kalshi[nur_kalshi["platform"].eq("Kalshi")]
+        zeile = apv.tape_window_label(nur_kalshi)
+        self.assertIn("483 prints", zeile)
+        self.assertNotIn("(483)", zeile)
+        self.assertNotIn("Polymarket", zeile)
+
+    def test_ohne_zeit_bleibt_die_zeile_leer(self) -> None:
+        """Kein Fenster ist besser als ein erfundenes."""
+
+        self.assertEqual(apv.tape_window_label(pd.DataFrame()), "")
+        self.assertEqual(
+            apv.tape_window_label(pd.DataFrame({"time": [None, None], "platform": ["Kalshi", "Polymarket"]})),
+            "",
+        )
+        # Ohne Venue-Spalte bleibt der Kopf, denn die Spanne stimmt weiterhin.
+        ohne_venue = apv.tape_window_label(pd.DataFrame({"time": ["2026-08-28T12:00:00Z", "2026-08-28T12:00:20Z"]}))
+        self.assertIn("20 s · 2 prints", ohne_venue)
+
+
 class TapeCategoryTests(unittest.TestCase):
     """Jeder Print traegt eine Kategorie: Universum zuerst, dann Titel-Heuristik, sonst Other."""
 
@@ -1306,6 +1368,61 @@ class MarketRecordsTests(unittest.TestCase):
     def test_missing_columns_do_not_break(self) -> None:
         rows = apv.market_records(pd.DataFrame([{"title": "only a title", "platform": "Kalshi"}]))
         self.assertEqual(rows, [{"title": "only a title", "platform": "Kalshi"}])
+
+
+class VenueVolume24hTests(unittest.TestCase):
+    """Die Venue-Kacheln summieren den Tageswert, nicht den Mischwert.
+
+    ``activity_volume`` traegt den Tageswert nur, wenn heute gehandelt wurde,
+    sonst das Lebensvolumen. Eine Summe darueber ist weder Tagesumsatz noch
+    Lebensumsatz, stand aber auf der Uebersicht unter "Venue volume" neben
+    einem Ticker, der "24H VOLUME POLYMARKET" hiess und den Tageswert
+    zeigte. Zwei Zahlen fuer dieselbe Venue auf einer Seite.
+    """
+
+    @staticmethod
+    def _universum() -> pd.DataFrame:
+        # Ein Polymarket-Markt handelte heute (80k Dollar), einer nicht: der
+        # hat 4.2 Mio Lebensumsatz und faellt im Mischwert darauf zurueck.
+        # Auf Kalshi dasselbe Muster in Kontrakten.
+        return pd.DataFrame([
+            {"platform": "Polymarket", "volume_24h": 80_000.0, "volume": 900_000.0, "activity_volume": 80_000.0},
+            {"platform": "Polymarket", "volume_24h": 0.0, "volume": 4_200_000.0, "activity_volume": 4_200_000.0},
+            {"platform": "Kalshi", "volume_24h": 5_000.0, "volume": 30_000.0, "activity_volume": 5_000.0},
+            {"platform": "Kalshi", "volume_24h": 0.0, "volume": 620_000.0, "activity_volume": 620_000.0},
+        ])
+
+    def test_der_mischwert_haette_das_53_fache_gemeldet(self) -> None:
+        universum = self._universum()
+        mischwert = float(universum[universum["platform"].eq("Polymarket")]["activity_volume"].sum())
+        self.assertAlmostEqual(mischwert, 4_280_000.0)
+
+        summe = apv.venue_volume_24h(universum)
+        self.assertAlmostEqual(summe["usd"], 80_000.0)
+        self.assertAlmostEqual(summe["contracts"], 5_000.0)
+
+    def test_die_summe_nennt_ihren_nenner(self) -> None:
+        """Zwei von vier Maerkten tragen die Summe, zwei tragen null bei."""
+
+        summe = apv.venue_volume_24h(self._universum())
+        self.assertEqual(summe["markets"], 4)
+        self.assertEqual(summe["traded_today"], 2)
+
+    def test_leerer_und_spaltenloser_frame(self) -> None:
+        leer = apv.venue_volume_24h(pd.DataFrame())
+        self.assertEqual(leer, {"usd": 0.0, "contracts": 0.0, "markets": 0, "traded_today": 0})
+        # Ohne Tagesspalte gibt es keine Messung, und der Mischwert ist hier
+        # nicht der Rueckfall: null statt einer Zahl in der falschen Bedeutung.
+        ohne = apv.venue_volume_24h(pd.DataFrame([{"platform": "Polymarket", "activity_volume": 4_200_000.0}]))
+        self.assertEqual(ohne["usd"], 0.0)
+        self.assertEqual(ohne["markets"], 1)
+        self.assertEqual(ohne["traded_today"], 0)
+
+    def test_unbekannte_venue_landet_in_keiner_einheit(self) -> None:
+        summe = apv.venue_volume_24h(pd.DataFrame([{"platform": "Foobet", "volume_24h": 99_000.0}]))
+        self.assertEqual(summe["usd"], 0.0)
+        self.assertEqual(summe["contracts"], 0.0)
+        self.assertEqual(summe["traded_today"], 1)
 
 
 class CrossGateTests(unittest.TestCase):
@@ -1857,6 +1974,50 @@ class AlertReadingUnitsTests(unittest.TestCase):
         self.assertEqual(werte["FAST MOVER"], "+8.0¢")
         self.assertEqual(werte["TIGHT SPREAD"], "2.0¢")
         self.assertEqual(werte["WHALE PRINT"], "$12,000")
+
+    def test_die_regel_steht_als_eigene_funktion_fuer_beide_oberflaechen(self) -> None:
+        """Die Einheit haengt an der Signalart, nicht an der Oberflaeche.
+
+        Der Streamlit-Monolith zog dieselbe Spalte mit ``%.4f`` ueber alle
+        Arten. Damit standen im Signal-Feed untereinander: ``0.6200`` fuer 62
+        Prozent des groessten Halters, ``0.0350`` fuer 3.5 Cent Bewegung,
+        ``4.7000`` fuer das 4.7-fache Tagesvolumen und ``12500.0000`` fuer
+        12500 Dollar. Vier Groessen, ein Format, keine Einheit. Beide
+        Oberflaechen lesen jetzt diese Funktion.
+        """
+
+        faelle = [
+            (self._signal("Holder concentration", 0.62), "62%"),
+            (self._signal("Fast mover", 0.035), "+3.5¢"),
+            (self._signal("Volume anomaly", 4.7), "4.7x"),
+            (self._signal("Whale print", 12_500.0, notional=12_500.0), "$12,500"),
+            (self._signal("Tight spread", 0.02), "2.0¢"),
+            (self._signal("Ending soon", 0.41), "41.0¢"),
+        ]
+        for zeile, erwartet in faelle:
+            with self.subTest(art=zeile["signal_type"]):
+                self.assertEqual(apv.signal_value_label(zeile), erwartet)
+                # Und der Feed liest dieselbe Funktion, statt seine eigene
+                # Fassung der Regel zu fuehren.
+                self.assertEqual(apv.alert_rows(pd.DataFrame([zeile]))[0]["value"], erwartet)
+
+    def test_die_spalte_kommt_als_reihe_fuer_die_tabellen(self) -> None:
+        """``signal_value_series`` beschriftet einen ganzen Frame auf einmal.
+
+        Genau der Fall, an dem die nackte Zahl scheitert: vier Arten in einer
+        Tabelle, vier Einheiten in einer Spalte.
+        """
+
+        frame = pd.DataFrame([
+            self._signal("Holder concentration", 0.62),
+            self._signal("Fast mover", 0.035),
+            self._signal("Volume anomaly", 4.7),
+            self._signal("Whale print", 12_500.0, notional=12_500.0),
+        ])
+        reihe = apv.signal_value_series(frame)
+        self.assertEqual(list(reihe), ["62%", "+3.5¢", "4.7x", "$12,500"])
+        self.assertEqual(list(reihe.index), list(frame.index))
+        self.assertTrue(apv.signal_value_series(pd.DataFrame()).empty)
 
 
 class ClaimsPayloadTests(unittest.TestCase):
