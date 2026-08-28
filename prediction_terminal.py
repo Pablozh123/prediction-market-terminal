@@ -3791,14 +3791,14 @@ def page_overview() -> None:
     with st.expander("Overview filters", expanded=False):
         f1, f2, f3, f4 = st.columns(4)
         # Die Schwelle laeuft ueber signals.monitor_volume_col, und das ist
-        # ``activity_volume``: der Tageswert bei Handel am selben Tag, sonst
-        # das Lebensvolumen. Der Filter "24h volume" auf der Markets-Seite
+        # ``activity_volume``. Der Filter "24h volume" auf der Markets-Seite
         # liest den Tageswert, dieser hier nicht, und ohne den Hinweis sehen
         # die beiden Regler gleich aus.
         overview_min_volume = f1.number_input(
             "Min market volume (venue unit)", min_value=0, step=1000, key="overview_min_volume",
-            help="Runs over the market's activity volume: the day's figure where there is one, "
-            "the lifetime figure otherwise. Polymarket reports dollars, Kalshi contracts.",
+            help="This threshold runs over the market's activity volume. "
+            + caveat("activity_volume_hybrid")
+            + " Polymarket reports dollars, Kalshi contracts.",
         )
         overview_min_liquidity = f2.number_input("Min liquidity", min_value=0, step=1000, key="overview_min_liquidity")
         overview_min_flow = f3.number_input("Min flow notional", min_value=0, step=500, key="overview_min_flow_notional")
@@ -3964,14 +3964,15 @@ def page_overview() -> None:
     if top_markets.empty:
         draw_empty("No markets match the current filters.")
     else:
-        # Die Reihenfolge steht auf ``activity_volume``, und der faellt ohne
-        # Handel am selben Tag auf das Lebensvolumen zurueck. Eine Karte kann
-        # also weit oben stehen und "Vol 24h -" tragen: dann hat der Markt
-        # heute nicht gehandelt und rankt ueber seinen Gesamtumsatz. Das
-        # gehoert hingeschrieben, solange der Schluessel so bleibt.
+        # Die Reihenfolge steht auf ``activity_volume``. Eine Karte kann also
+        # weit oben stehen und "Vol 24h -" tragen: dann hat der Markt heute
+        # nicht gehandelt und rankt ueber seinen Gesamtumsatz. Die Definition
+        # der Zahl kommt aus dem Register, die Folge fuer DIESE Liste steht
+        # daneben und gehoert dieser Liste.
         st.caption(
-            "Ordered by activity volume: the day's turnover where a market traded today, its lifetime "
-            "turnover otherwise. A card at the top with no 24h volume ranks on its lifetime figure."
+            "Ordered by activity volume. "
+            + caveat("activity_volume_hybrid")
+            + " A card at the top with no 24h volume ranks on its lifetime figure."
         )
         for chunk_start in range(0, len(top_markets), 3):
             cols = st.columns(3)
@@ -8854,12 +8855,14 @@ def page_monitor() -> None:
     with filters:
         f1, f2, f3, f4, f5, f6 = st.columns(6)
         # Nicht "24h": der Filter laeuft ueber signals.monitor_volume_col, und
-        # das ist activity_volume — der Tageswert, wenn heute gehandelt wurde,
-        # sonst das Lebensvolumen. Und die Spalte zaehlt auf Kalshi Kontrakte.
+        # das ist activity_volume. Was diese Zahl ist und was sie nicht ist,
+        # sagt das Register an genau einer Stelle; was DIESER Regler damit tut
+        # und in welcher Einheit die Venues melden, sagt die Seite.
         min_volume = f1.number_input(
             "Min volume (venue unit)", min_value=0, step=1000, key="monitor_min_volume",
-            help="Runs over the market's activity volume: the day's figure where there is one, "
-            "the lifetime figure otherwise. Polymarket reports dollars, Kalshi contracts.",
+            help="This threshold runs over the market's activity volume. "
+            + caveat("activity_volume_hybrid")
+            + " Polymarket reports dollars, Kalshi contracts.",
         )
         min_liquidity = f2.number_input("Min liquidity", min_value=0, step=1000, key="monitor_min_liquidity")
         min_move_cents = f3.number_input("Min 1h move (c)", min_value=0.0, step=0.5, key="monitor_min_move")
@@ -9054,8 +9057,8 @@ def page_monitor() -> None:
         # Lebensvolumen. "Volume" allein liest sich wie ein aktueller Umsatz.
         "volume": st.column_config.NumberColumn(
             "Activity volume (venue unit)", format="%.0f",
-            help="The market's activity volume: the day's figure where there is one, the lifetime "
-            "figure otherwise. Polymarket reports dollars, Kalshi contracts. Empty on a whale print, "
+            help=caveat("activity_volume_hybrid")
+            + " Polymarket reports dollars, Kalshi contracts. Empty on a whale print, "
             "which comes from the tape and carries no market volume.",
         ),
         "liquidity": st.column_config.NumberColumn(format="$%.0f"),
@@ -11664,7 +11667,11 @@ def _backtest_comparison_table(result: btr.BacktestResult, compare: btr.Backtest
 def page_backtester() -> None:
     section_header(
         "Backtester",
-        "Run the numbers before you risk the bankroll — every simulated fill is priced with fees and slippage.",
+        # Was die Seite tut, gehoert der Seite; was die Zahlen darunter NICHT
+        # sind, gehoert dem Register (PR #120, offener Punkt 1). Der alte Satz
+        # sagte "before you risk the bankroll" und stellte damit ein Handeln in
+        # Aussicht, das diese Seite gerade nicht vorbereitet.
+        f"Replay a wallet's entries over a past window. {caveat('backtest_modeled')}",
         kicker="Backtester · Paper sim",
     )
     st.markdown(
@@ -14584,7 +14591,9 @@ def page_pilot() -> None:
     )
     c4.metric(
         "Signals", ov["n_signale"],
-        help="Rule matches found by the read-only watcher (not recommendations).",
+        # Stand als Klammerzusatz im Tooltip und in einer zweiten Fassung im
+        # Web-Frontend; beide lesen jetzt denselben Eintrag.
+        help=caveat("signals_not_recommendations"),
     )
     c5.metric("Trades", ov["n_trades"])
 

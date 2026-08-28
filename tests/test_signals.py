@@ -279,6 +279,126 @@ class DedupeKeyTests(unittest.TestCase):
         self.assertNotIn("nan", key)
 
 
+class MarktsignalSchluesselWandertNichtTests(unittest.TestCase):
+    """Der Zustell-Schluessel eines Marktsignals darf nicht am Venue-Stempel haengen.
+
+    ``_observed_at`` stempelt ein Marktsignal mit dem ``updated_at`` des
+    Marktes, und der Schluessel trug diesen Stempel auf die Minute genau. Der
+    Wert wandert aber unter einem aktiv umbepreisten Markt, also wandert der
+    Schluessel mit, und dieselbe unveraenderte Beobachtung gilt bei jedem Scan
+    als neu.
+
+    Das gerechnete Beispiel (Scanner-Standardintervall 10 Minuten):
+
+    ==========  ==================  ====================  ==============
+    Scan (UTC)  updated_at (Gamma)  Schluessel-Minute     Zustellung
+    ==========  ==================  ====================  ==============
+    14:25:00    14:23:07            2026-08-28 14:23      1. Alert
+    14:35:00    14:34:51            2026-08-28 14:34      2. Alert
+    14:45:00    14:44:02            2026-08-28 14:44      3. Alert
+    ==========  ==================  ====================  ==============
+
+    Ein Markt mit unveraendertem 1h-Move von 8 Cent erzeugt in einer halben
+    Stunde drei Alerts und drei Ledger-Zeilen. Der Nachbarmarkt mit demselben
+    Move, den Gamma seit 09:12 nicht neu gestempelt hat, erzeugt genau einen.
+    Die Zustellhaeufigkeit entscheidet damit die Buchhaltung der Venue, nicht
+    der Scanner.
+    """
+
+    MOVE = 0.08
+
+    def _fast_mover(self, updated_at, scan_time):
+        signals = sig.build_monitor_signals(
+            pd.DataFrame([market("Fed cuts in March", 1_000.0, 24_000.0,
+                                 change_1h=self.MOVE, market_key="0xcond",
+                                 updated_at=updated_at)]),
+            pd.DataFrame(),
+            min_volume=0.0,
+            min_liquidity=0.0,
+            min_move=0.03,
+            max_spread=0.0,
+            min_whale_notional=1e12,
+            ending_days=0,
+            holder_threshold=1.0,
+            holder_checks=0,
+            tracked_keys=set(),
+            now=pd.Timestamp(scan_time, tz="UTC"),
+        )
+        movers = signals[signals["signal_type"] == "Fast mover"]
+        self.assertEqual(len(movers), 1)
+        return movers.iloc[0]
+
+    def test_drei_scans_eines_umbepreisten_marktes_bleiben_eine_zustellung(self):
+        schluessel = [
+            sig.signal_dedupe_key(self._fast_mover("2026-08-28T14:23:07Z", "2026-08-28 14:25:00")),
+            sig.signal_dedupe_key(self._fast_mover("2026-08-28T14:34:51Z", "2026-08-28 14:35:00")),
+            sig.signal_dedupe_key(self._fast_mover("2026-08-28T14:44:02Z", "2026-08-28 14:45:00")),
+        ]
+        self.assertEqual(len(set(schluessel)), 1, f"drei Schluessel fuer eine Beobachtung: {schluessel}")
+
+    def test_der_stille_nachbarmarkt_traegt_denselben_schluessel_wie_der_laute(self):
+        # Beide Maerkte melden denselben Move; nur ihr Venue-Stempel ist
+        # verschieden. Der Schluessel darf sie deshalb nicht verschieden
+        # oft zustellen -- er unterscheidet sie ueber den market_key.
+        laut = self._fast_mover("2026-08-28T14:44:02Z", "2026-08-28 14:45:00")
+        still = self._fast_mover("2026-08-28T09:12:00Z", "2026-08-28 14:45:00")
+        self.assertEqual(sig.signal_dedupe_key(laut), sig.signal_dedupe_key(still))
+
+    def test_zwei_maerkte_bleiben_zwei_zustellungen(self):
+        a = {"signal_type": "Fast mover", "market_key": "0xaaa", "outcome": "Yes", "wallet": "",
+             "time": pd.Timestamp("2026-08-28 14:23", tz="UTC")}
+        b = dict(a, market_key="0xbbb")
+        self.assertNotEqual(sig.signal_dedupe_key(a), sig.signal_dedupe_key(b))
+
+    def test_ein_print_behaelt_seine_eigene_zeit_im_schluessel(self):
+        # Nur Marktsignale verlieren den Stempel. Bei einem Print IST die Zeit
+        # Teil der Identitaet des Ereignisses.
+        basis = {"signal_type": "Whale print", "market_key": "0xcond", "wallet": "0xw",
+                 "outcome": "Yes", "side": "BUY", "notional": 9_000.0, "price": 0.4, "tx": ""}
+        frueh = dict(basis, time=pd.Timestamp("2026-08-28 14:03:12", tz="UTC"))
+        spaet = dict(basis, time=pd.Timestamp("2026-08-28 14:59:12", tz="UTC"))
+        self.assertNotEqual(sig.signal_dedupe_key(frueh), sig.signal_dedupe_key(spaet))
+
+
+class ZustellSperreTests(unittest.TestCase):
+    """Wie oft eine Beobachtung gemeldet wird, entscheidet der Scanner.
+
+    Der Schluessel sagt, WAS ein Signal ist; die Sperre sagt, WIE OFT es
+    rausgehen darf. Vorher steckte beides im selben Zeitstempel, und der kam
+    von der Venue.
+    """
+
+    JETZT = pd.Timestamp("2026-08-28 15:00:00", tz="UTC")
+    MARKT = {"signal_type": "Fast mover"}
+    PRINT = {"signal_type": "Whale print"}
+
+    def test_ein_print_hat_keine_ruhezeit_und_geht_genau_einmal(self):
+        self.assertEqual(sig.delivery_cooldown_minutes("Whale print"), 0)
+        self.assertTrue(sig.due_for_delivery(self.PRINT, None, self.JETZT))
+        self.assertFalse(sig.due_for_delivery(self.PRINT, "2020-01-01T00:00:00+00:00", self.JETZT))
+
+    def test_ein_marktsignal_ruht_eine_stunde(self):
+        self.assertEqual(sig.delivery_cooldown_minutes("Fast mover"), 60)
+        self.assertTrue(sig.due_for_delivery(self.MARKT, None, self.JETZT))
+        self.assertFalse(sig.due_for_delivery(self.MARKT, "2026-08-28T14:25:00+00:00", self.JETZT))
+        self.assertTrue(sig.due_for_delivery(self.MARKT, "2026-08-28T13:59:00+00:00", self.JETZT))
+
+    def test_drei_scans_in_einer_halben_stunde_ergeben_eine_zustellung(self):
+        # Dasselbe Beispiel wie oben, jetzt durch die Sperre gerechnet.
+        zugestellt = None
+        raus = []
+        for scan in ("2026-08-28 14:25:00", "2026-08-28 14:35:00", "2026-08-28 14:45:00"):
+            jetzt = pd.Timestamp(scan, tz="UTC")
+            if sig.due_for_delivery(self.MARKT, zugestellt, jetzt):
+                raus.append(scan)
+                zugestellt = jetzt.isoformat()
+        self.assertEqual(raus, ["2026-08-28 14:25:00"])
+
+    def test_ein_unlesbarer_stempel_blockiert_nicht(self):
+        self.assertTrue(sig.due_for_delivery(self.MARKT, "irgendwas", self.JETZT))
+        self.assertTrue(sig.due_for_delivery(self.MARKT, "", self.JETZT))
+
+
 class PlatzhalterNullenTests(unittest.TestCase):
     """Eine Null, die "nicht messbar" bedeutet, darf nicht wie eine Messung aussehen.
 

@@ -396,6 +396,101 @@ class BothSurfacesAreBoundTests(unittest.TestCase):
                 self.assertIn(key, monolith)
 
 
+class DiePluralformKamDurchTests(unittest.TestCase):
+    """Ein Marker im Singular laesst die Mehrzahl durch.
+
+    Derselbe Satz stand in zwei Fassungen auf zwei Oberflaechen -- die
+    Dublette, gegen die dieser Lint gebaut wurde:
+
+        web/js/pages/system_pages.js: "Signals are rule matches, not
+        recommendations; each rejection reason is a pre-registered gate."
+        prediction_terminal.py: "Rule matches found by the read-only watcher
+        (not recommendations)."
+
+    Der Marker hiess ``not a recommendation``, beide Zeilen schreiben ``not
+    recommendations``, und deshalb sah die Pruefung keine von beiden.
+    """
+
+    SATZ = "Signals are rule matches, not recommendations; the rest is prose."
+
+    def test_die_mehrzahl_wird_gefunden(self):
+        befunde = claims.find_unregistered_caveats(self.SATZ)
+        self.assertTrue(befunde, "die Mehrzahl 'not recommendations' faellt weiter durch")
+        self.assertIn("not recommendations", [marker for _, marker, _ in befunde])
+
+    def test_der_registrierte_satz_selbst_faellt_nicht_auf(self):
+        text = claims.disclaimer("signals_not_recommendations", "en")
+        self.assertTrue(text, "signals_not_recommendations fehlt im Register")
+        self.assertEqual(claims.find_unregistered_caveats(text), [])
+
+    def test_beide_oberflaechen_lesen_denselben_eintrag(self):
+        flaechen = claims.surfaces("signals_not_recommendations")
+        self.assertIn("prediction_terminal.py", flaechen)
+        self.assertIn("web/js/pages/system_pages.js", flaechen)
+
+
+class StehendeVorbehalteAusPR122Tests(unittest.TestCase):
+    """Vier Erklaerzeilen, gepruefte Entscheidung je Zeile.
+
+    Register, wo ein Satz ein stehender Vorbehalt ist: eine Aussage darueber,
+    was eine Zahl NICHT ist, die auf mehreren Flaechen wiederkehrt und
+    zwischen ihnen driften kann. Prosa, wo er beschreibt, was diese eine
+    Anzeige gerade tut oder in welcher Einheit sie rechnet.
+    """
+
+    MONOLITH = REPO_ROOT / "prediction_terminal.py"
+
+    def test_die_hybrid_definition_steht_einmal_im_register(self):
+        # "Der Tageswert, wenn heute gehandelt wurde, sonst das Lebensvolumen"
+        # stand dreimal in drei Formulierungen: Monitor-Spalte, Overview-Gate
+        # und die Sortier-Erklaerung unter TRENDING MARKETS.
+        text = claims.disclaimer("activity_volume_hybrid", "en")
+        self.assertTrue(text, "activity_volume_hybrid fehlt im Register")
+        self.assertIn("prediction_terminal.py", claims.surfaces("activity_volume_hybrid"))
+        monolith = self.MONOLITH.read_text(encoding="utf-8")
+        aufrufe = [key for _, key in claims.caveat_calls(monolith)]
+        self.assertGreaterEqual(
+            aufrufe.count("activity_volume_hybrid"), 3,
+            "die drei Stellen lesen den Eintrag nicht alle")
+
+    def test_die_drei_alten_formulierungen_stehen_nicht_mehr_da(self):
+        monolith = self.MONOLITH.read_text(encoding="utf-8")
+        for satz in (
+            "the day's figure where there is one",
+            "the day's turnover where a market traded today, its lifetime",
+        ):
+            with self.subTest(satz=satz):
+                self.assertNotIn(satz, monolith)
+
+    def test_der_backtester_kopf_liest_den_registereintrag(self):
+        monolith = self.MONOLITH.read_text(encoding="utf-8")
+        self.assertIn("prediction_terminal.py", claims.surfaces("backtest_modeled"))
+        self.assertIn("backtest_modeled", [key for _, key in claims.caveat_calls(monolith)])
+        self.assertNotIn("Run the numbers before you risk the bankroll", monolith)
+
+    def test_was_prosa_bleibt_bleibt_prosa(self):
+        # Zwei Zeilen sind KEIN stehender Vorbehalt und werden deshalb nicht
+        # registriert. Beide sagen, was eine Zahl IST, nicht was sie nicht ist:
+        #
+        # 1. Der Nenner-Satz unter "Venue volume 24h" nennt zwei gemessene
+        #    Zahlen (n von N geladenen Maerkten) und die Einheiten beider
+        #    Venues. Ein Registereintrag ist ein fester Satz, keine
+        #    Formatvorlage mit zwei Messwerten darin.
+        # 2. Der Hilfetext an der Value-Spalte ist eine Einheitenlegende je
+        #    Signalart. Er kann auch nicht gegen das Web-Frontend driften:
+        #    beide Oberflaechen bilden die Spalte ueber
+        #    api_views.signal_value_label.
+        monolith = self.MONOLITH.read_text(encoding="utf-8")
+        self.assertIn("loaded markets", monolith)
+        self.assertIn("Unit follows the signal type", monolith)
+        # Und sie duerfen keinen Marker ausloesen: waeren sie stehende
+        # Vorbehalte, wuerde der Lint sie melden.
+        for zeile in monolith.splitlines():
+            if "loaded markets" in zeile or "Unit follows the signal type" in zeile:
+                with self.subTest(zeile=zeile.strip()[:60]):
+                    self.assertEqual(claims.find_unregistered_caveats(zeile), [])
+
+
 class MetaJsonPrinciplesTests(unittest.TestCase):
     """Die Grundsaetze aus public/data/meta.json stehen im Register.
 

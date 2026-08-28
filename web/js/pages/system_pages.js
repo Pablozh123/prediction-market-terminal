@@ -3,7 +3,7 @@
 // public/data/ when the API serves them, incl. their stand_utc stamp and note.
 
 import { esc, num, herkunftSatz, leerZeile, EINZAHLUNGEN_USD, offeneNichtDrin, stempelBlock } from '../util.js';
-import { caveat, caveatZeile, registerStand } from '../claims.js';
+import { caveat, caveatZeile, registerStand, unregistrierteTexte } from '../claims.js';
 import { stepKurve, diagramm, linien, kalibrierung, fmtZahl, serienFarbe, intervallMarke } from '../charts.js';
 import { renderMicrostructure } from './microstructure_page.js';
 import { MONO as M, KARTE, LABEL_BLOCK, kpi } from '../ui.js';
@@ -378,6 +378,11 @@ export function renderAlerts(T) {
       .filter((art) => zaehlung[art] > 0 && gelieferteArten.indexOf(art) < 0)
       .map((art) => [art, zaehlung[art]])
     : [];
+  // Woran die Halter-Pruefung haengt. "not evaluated by this endpoint" liest
+  // sich wie eine Eigenschaft des Endpunkts; es ist ein Schalter, und er hat
+  // einen Namen und einen Wert. Ohne beides kann niemand entscheiden, ob die
+  // Regel gerade nichts findet oder gar nicht laeuft.
+  const holderSchalter = (live && live.holder_check) || null;
   const trefferText = (key, an) => {
     // Eine Regel, die der Endpunkt nicht auswertet, sagt das auch dann, wenn
     // der Schalter aus ist: sonst schaltet ein Leser sie ein und wartet auf
@@ -461,15 +466,50 @@ export function renderAlerts(T) {
           + '<div style="width:38px; height:21px; flex:none; border-radius:var(--r-panel); padding:var(--sp-1); display:flex; background:' + (on ? 'var(--accent)' : 'rgba(var(--ink),.14)') + '; justify-content:' + (on ? 'flex-end' : 'flex-start') + '">'
           + '<div style="width:17px; height:17px; border-radius:50%; background:' + (on ? 'var(--on-accent)' : 'var(--ink-4)') + '"></div></div></div>'
           + '<div style="font-size:var(--t-small); color:var(--ink-4); margin-top:var(--sp-3); line-height:var(--lh-snug)">' + a.desc + '</div>'
-          + '<div style="' + M + '; font-size:var(--t-micro); margin-top:var(--sp-4); color:var(--ink-3)">' + esc(trefferText(a.key, on)) + '</div></div>';
+          + '<div style="' + M + '; font-size:var(--t-micro); margin-top:var(--sp-4); color:var(--ink-3)">' + esc(trefferText(a.key, on)) + '</div>'
+          + (a.key === 'holders' && holderSchalter && !holderSchalter.enabled
+            ? '<div style="font-size:var(--t-small); margin-top:var(--sp-3); color:var(--ink-4); line-height:var(--lh-snug)">' + esc(holderSchalter.note) + '</div>'
+            : '')
+          + '</div>';
       }).join('')
       + '</div>';
   } else if (live && live.deliveries) {
+    // Was rausging, nicht was gemessen wurde. Die Quote traegt n, ein
+    // Wilson-Intervall, ein Stichprobenurteil und den Stand des Protokolls;
+    // ohne Zeilen im Protokoll steht hier keine Zahl, sondern der Grund.
     const dv = live.deliveries;
+    const proz = (v) => (v == null ? '—' : (v * 100).toFixed(1) + '%');
+    const feld = (label, wert) =>
+      '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4)">' + esc(label) + '</div>'
+      + '<div style="' + M + '; font-size:var(--t-small); color:var(--ink-2); margin-top:var(--sp-2)">' + wert + '</div></div>';
+    const spanne = dv.ci95 && dv.ci95[0] != null
+      ? '95% CI ' + proz(dv.ci95[0]) + '–' + proz(dv.ci95[1])
+      : 'no interval';
+    const kette = dv.chain_ok == null
+      ? '—'
+      : (dv.chain_ok ? 'verified, ' + num(dv.chain_checked) + ' rows' : 'BROKEN at row ' + num(dv.chain_checked));
     body = '<div style="margin:var(--sp-5) var(--sp-6); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-6); background:var(--panel)">'
       + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4)">DELIVERY LOG</div>'
       + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-4); line-height:var(--lh-snug); max-width:640px">' + esc(dv.note || 'No delivery log available.') + '</div>'
-      + (dv.last_scan_at ? '<div style="' + M + '; font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-4)">last scan ' + esc(dv.last_scan_at) + ' · ' + esc(String(dv.last_hits)) + ' hits · ' + esc(String(dv.last_sent)) + ' sent</div>' : '')
+      + (dv.available
+        ? '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:var(--sp-5); margin-top:var(--sp-6)">'
+          + feld('DELIVERED', esc(num(dv.sent) + ' of ' + num(dv.attempts)) + ' · ' + esc(proz(dv.rate)))
+          + feld('CONFIDENCE', esc(spanne) + ' · n=' + esc(String((dv.sample && dv.sample.n) || dv.attempts)) + ' ' + esc((dv.sample && dv.sample.quality) || ''))
+          + feld('SIGNALS', esc(num(dv.distinct_signals) + ' distinct'))
+          + feld('CHAIN', '<span style="color:' + (dv.chain_ok === false ? 'var(--warn)' : 'var(--ink-2)') + '">' + esc(kette) + '</span>')
+          + feld('WINDOW', esc((dv.first_delivery || '—') + ' → ' + (dv.last_delivery || '—')))
+          + feld('SNAPSHOT', esc(dv.as_of || '—'))
+          + '</div>'
+          + (dv.last_failure
+            ? '<div style="' + M + '; font-size:var(--t-small); color:var(--warn); margin-top:var(--sp-5)">last failure ' + esc(dv.last_failure.at) + ' · ' + esc(dv.last_failure.channel) + ' · ' + esc(dv.last_failure.detail) + '</div>'
+            : '')
+        : '')
+      + (dv.last_scan_at
+        ? '<div style="' + M + '; font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-5)">last scan ' + esc(dv.last_scan_at)
+          + ' · ' + esc(String(dv.last_hits)) + ' hits · ' + esc(String(dv.last_sent)) + ' sent'
+          + (dv.last_deferred ? ' · ' + esc(String(dv.last_deferred)) + ' over the message cap, not attempted' : '')
+          + '</div>'
+        : '')
       + '</div>';
   } else {
     // Ein Zustellprotokoll ist ein Nachweis. Sechs erfundene Zeilen mit
@@ -3095,7 +3135,10 @@ function pilotExtrasHtml(payload, ledger) {
         + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-prose); max-width:860px">'
         + (stat && stat.maerkte != null ? num(stat.maerkte) + ' markets scanned' : 'markets scanned: not in the file')
         + (signale ? ' · ' + num(summe) + ' rule matches (' + Object.entries(signale).map(([k, v]) => num(v) + ' ' + watcherText(k)).join(', ') + ')' : '')
-        + '. Signals are rule matches, not recommendations; each rejection reason is a pre-registered gate.</div>'
+        // Der Vorbehalt kam aus dem Register, seit der Marker auch die
+        // Mehrzahl kennt: derselbe Satz stand hier und im Monolithen in zwei
+        // Fassungen, und keine von beiden fiel dem Lint auf.
+        + '. ' + caveat('signals_not_recommendations') + ' Each rejection reason is a pre-registered gate.</div>'
         + '<div style="margin-top:var(--sp-4)">' + chart + '</div></div>');
     }
   } else {
@@ -3135,15 +3178,22 @@ const KERNSATZ = {
 // stehen sie im Register und damit im selben Wortlaut wie im Terminal. Die
 // Schluessel stehen einzeln da und nicht als Liste, damit
 // scripts/lint_claims.py jeden Aufruf sieht.
-function grundsaetzeHtml() {
+function grundsaetzeHtml(payload) {
   const karte = (inhalt) =>
     '<div style="' + KARTE + '; padding:var(--sp-5); font-size:var(--t-body); color:var(--ink-2); line-height:var(--lh-prose)">' + inhalt + '</div>';
+  // Was der Publisher darueber hinaus schickt, steht daneben. Der
+  // Streamlit-Pfad tut das seit PR #120; hier wurden vier feste Schluessel
+  // gerendert und die Nutzlast gar nicht gelesen, also verschwand eine
+  // fuenfte, spaeter dazugeschriebene Zeile auf dieser Oberflaeche.
+  const publiziert = payload && Array.isArray(payload.disclaimer) ? payload.disclaimer : [];
+  const zusatz = unregistrierteTexte(publiziert);
   return '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--info); margin:var(--sp-6) 0 var(--sp-4)">PRINCIPLES OF THE DAILY RUN</div>'
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:var(--sp-4)">'
     + karte(caveat('daily_run_descriptive'))
     + karte(caveat('verification_not_signal'))
     + karte(caveat('daily_run_no_advice'))
     + karte(caveat('daily_run_privacy'))
+    + zusatz.map((zeile) => karte(esc(zeile))).join('')
     + '</div>';
 }
 
@@ -3204,7 +3254,7 @@ function renderMethodology(T, payload, study) {
     + stats.map((x) => kpi({ label: esc(x.label), wert: esc(x.value), sub: esc(x.note) })).join('')
     + '</div>'
     + (payload ? '' : '<div style="margin-top:var(--sp-4)">' + leerZeile(herkunftSatz(null, 'public/data/audit.json')) + '</div>')
-    + grundsaetzeHtml()
+    + grundsaetzeHtml(payload)
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--info); margin:var(--sp-6) 0 var(--sp-4)">HOW THE STUDIES ARE MEASURED</div>'
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(380px, 1fr)); gap:var(--sp-4)">' + sektionen.join('') + '</div>'
     + queueArchivHtml(T)

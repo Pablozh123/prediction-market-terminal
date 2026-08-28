@@ -515,6 +515,173 @@ class ScannerLedgerIntegrationTests(unittest.TestCase):
             self.assertEqual(len(state["seen"]), 1)
 
 
+class ScannerDeliveryLogTests(unittest.TestCase):
+    """Der Scan schreibt auf, was rausging -- nicht nur, was er gemessen hat.
+
+    Vorher gab es dafuer zwei Zahlen im JSON-Zustand, ``last_hits`` und
+    ``last_sent``, die jeder Scan ueberschreibt. Ein Fehlversand ging nach
+    stderr und war weg.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.mod = load_scanner_module()
+
+    @staticmethod
+    def settings():
+        return {
+            "market_sample": 10,
+            "trade_sample": 10,
+            "alert_min_move_cents": 3.0,
+            "whale_threshold": 1000.0,
+            "alert_holder_checks": 0,
+            "telegram_bot_token": "token",
+            "telegram_chat_id": "-4711234567",
+        }
+
+    @staticmethod
+    def whale_trade(index=0):
+        return {
+            "platform": "Polymarket",
+            "time": pd.Timestamp("2026-07-16 10:00:00", tz="UTC"),
+            "title": f"Whale market {index}",
+            "outcome": "Yes",
+            "price": 0.42,
+            "notional": 50_000.0,
+            "side": "BUY",
+            "market_key": "0x" + f"{index:x}".rjust(64, "0"),
+            "wallet": "0x" + "1" * 40,
+            "trader": "Tester",
+            "transaction_hash": f"0xtx{index}",
+            "url": "https://example.com/t",
+        }
+
+    @staticmethod
+    def fast_mover(updated_at):
+        return {
+            "platform": "Polymarket",
+            "title": "Fed cuts in March",
+            "market_key": condition_id("f"),
+            "category": "Macro",
+            "yes_price": 0.55,
+            "volume_1h": 1_000.0,
+            "volume_24h": 24_000.0,
+            "activity_volume": 24_000.0,
+            "liquidity": 50_000.0,
+            "spread": 0.05,
+            "change_1h": 0.08,
+            "updated_at": updated_at,
+            "url": "https://example.com/m",
+        }
+
+    def run_scan(self, tmp, ledger_path, *, trades=None, markets=None, rule, ok=True,
+                 max_messages=10):
+        rules_path = Path(tmp) / "rules.json"
+        rules_path.write_text(json.dumps([rule]), encoding="utf-8")
+        gesendet = []
+
+        def fake_send(token, chat_id, text):
+            gesendet.append(text)
+            return (True, "ok") if ok else (False, "HTTP 429: Too Many Requests")
+
+        leer = pd.DataFrame()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(mock.patch.object(self.mod, "RULES_PATH", rules_path))
+            stack.enter_context(mock.patch.object(self.mod, "STATE_PATH", Path(tmp) / "state.json"))
+            stack.enter_context(mock.patch.object(self.mod, "LEDGER_DB_PATH", Path(ledger_path)))
+            stack.enter_context(mock.patch.object(self.mod, "MAX_MESSAGES_PER_SCAN", max_messages))
+            stack.enter_context(mock.patch.object(
+                self.mod.md, "get_polymarket_markets",
+                lambda limit=250, **kw: (pd.DataFrame(markets) if markets else leer.copy())))
+            stack.enter_context(mock.patch.object(
+                self.mod.md, "get_polymarket_trades",
+                lambda limit=250, **kw: (pd.DataFrame(trades) if trades else leer.copy())))
+            stack.enter_context(mock.patch.object(self.mod.notify, "send_telegram", fake_send))
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                hits, sent = self.mod.scan_once(self.settings())
+        state = json.loads((Path(tmp) / "state.json").read_text(encoding="utf-8"))
+        return hits, sent, gesendet, state, stderr.getvalue()
+
+    @staticmethod
+    def zustellungen(ledger_path):
+        conn = ledger.init_ledger(ledger_path)
+        try:
+            return ledger.delivery_rows(conn), ledger.delivery_aggregates(conn)
+        finally:
+            conn.close()
+
+    WHALE_RULE = {"name": "Whale watch", "signal_type": "Whale print", "active": True}
+    MOVER_RULE = {"name": "Movers", "signal_type": "Fast mover", "active": True}
+
+    def test_jede_zustellung_steht_im_protokoll(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pfad = Path(tmp) / "ledger.sqlite"
+            hits, sent, nachrichten, state, _ = self.run_scan(
+                tmp, pfad, trades=[self.whale_trade(i) for i in range(3)],
+                rule=self.WHALE_RULE, max_messages=2)
+            self.assertEqual((hits, sent), (3, 2))
+            zeilen, zahlen = self.zustellungen(pfad)
+            # Drei Treffer, zwei Versuche: der dritte lag ueber dem Cap und
+            # wurde nicht versucht, also steht er auch nicht als Zustellung da.
+            self.assertEqual(len(zeilen), 2)
+            self.assertEqual(zahlen["attempts"], 2)
+            self.assertEqual(zahlen["sent"], 2)
+            self.assertEqual(state["last_deferred"], 1)
+            self.assertEqual(state["last_attempted"], 2)
+            self.assertEqual(state["last_delivery_logged"], 2)
+            self.assertTrue(zahlen["chain_ok"])
+            for zeile in zeilen:
+                self.assertEqual(zeile["channel"], "telegram")
+                self.assertTrue(zeile["dedupe_key"])
+                self.assertNotIn("4711234567", zeile["target_fingerprint"])
+
+    def test_ein_fehlversand_steht_drin_und_wird_erneut_versucht(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pfad = Path(tmp) / "ledger.sqlite"
+            hits, sent, _, state, stderr = self.run_scan(
+                tmp, pfad, trades=[self.whale_trade(0)], rule=self.WHALE_RULE, ok=False)
+            self.assertEqual((hits, sent), (1, 0))
+            self.assertIn("HTTP 429", stderr)
+            zeilen, zahlen = self.zustellungen(pfad)
+            self.assertEqual(len(zeilen), 1)
+            self.assertEqual(zeilen[0]["status"], "failed")
+            self.assertIn("429", zeilen[0]["detail"])
+            self.assertEqual((zahlen["attempts"], zahlen["sent"], zahlen["failed"]), (1, 0, 1))
+            self.assertEqual(state["last_failed"], 1)
+            # Zweiter Scan: nie gelungen, also weiter faellig.
+            hits2, sent2, _, _, _ = self.run_scan(
+                tmp, pfad, trades=[self.whale_trade(0)], rule=self.WHALE_RULE, ok=True)
+            self.assertEqual((hits2, sent2), (1, 1))
+            zeilen2, zahlen2 = self.zustellungen(pfad)
+            self.assertEqual(len(zeilen2), 2)
+            self.assertEqual(zahlen2["sent"], 1)
+
+    def test_derselbe_print_geht_nach_erfolg_nicht_noch_einmal_raus(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pfad = Path(tmp) / "ledger.sqlite"
+            self.run_scan(tmp, pfad, trades=[self.whale_trade(0)], rule=self.WHALE_RULE)
+            _, sent2, _, _, _ = self.run_scan(tmp, pfad, trades=[self.whale_trade(0)], rule=self.WHALE_RULE)
+            self.assertEqual(sent2, 0)
+            zeilen, _ = self.zustellungen(pfad)
+            self.assertEqual(len(zeilen), 1)
+
+    def test_ein_umbepreister_markt_geht_innerhalb_der_ruhezeit_einmal_raus(self):
+        # Das gerechnete Beispiel aus app/signals.py: derselbe Fast mover,
+        # dreimal gescannt, dazwischen ein neuer updated_at der Venue.
+        with tempfile.TemporaryDirectory() as tmp:
+            pfad = Path(tmp) / "ledger.sqlite"
+            raus = 0
+            for stempel in ("2026-08-28T14:23:07Z", "2026-08-28T14:34:51Z", "2026-08-28T14:44:02Z"):
+                _, sent, _, _, _ = self.run_scan(
+                    tmp, pfad, markets=[self.fast_mover(stempel)], rule=self.MOVER_RULE)
+                raus += sent
+            self.assertEqual(raus, 1)
+            zeilen, zahlen = self.zustellungen(pfad)
+            self.assertEqual(len(zeilen), 1)
+            self.assertEqual(zahlen["distinct_signals"], 1)
+
+
 class ResolutionRunnerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -656,6 +823,175 @@ class SellPrintScoringTests(unittest.TestCase):
             self.assertAlmostEqual(zahlen["pnl_modeled_sum"], 233.3333, places=3)
         finally:
             conn.close()
+
+
+class DeliveryLogTests(unittest.TestCase):
+    """Was rausging, stand nirgends -- nur, was gemessen wurde.
+
+    Der Scanner fuehrte einen Dedupe-Zustand (``data/alert_scanner_state.json``)
+    mit den Feldern ``last_hits`` und ``last_sent``: zwei Skalare, die jeder
+    Scan ueberschreibt. Damit war "wie viele Alerts sind diese Woche
+    rausgegangen" nicht beantwortbar, ein fehlgeschlagener Versand ging nach
+    stderr und war weg, und die Trefferquote des Ledgers stand unter dem Satz
+    "how often an alert that went out was on the right side", obwohl das
+    Ledger die EMITTIERTEN Signale zaehlt.
+
+    Das gerechnete Beispiel: ``MAX_MESSAGES_PER_SCAN = 10``. Ein Scan mit 47
+    neuen Treffern schreibt 47 Ledger-Zeilen und verschickt hoechstens 10
+    Nachrichten. 37 der 47 Zeilen im Nenner der Quote sind nie irgendwo
+    angekommen, also 78,7 Prozent des Nenners.
+    """
+
+    ANGEKOMMEN = 10
+    EMITTIERT = 47
+
+    @contextlib.contextmanager
+    def _ledger(self):
+        conn = ledger.init_ledger(":memory:")
+        try:
+            yield conn
+        finally:
+            conn.close()
+
+    def _zustellung(self, key, status="sent", **extra):
+        row = {
+            "dedupe_key": key,
+            "channel": "telegram",
+            "target": "-4711234567",
+            "status": status,
+            "signal_type": "Fast mover",
+            "market_key": condition_id("a"),
+        }
+        row.update(extra)
+        return row
+
+    def test_eine_zustellung_haelt_zeit_kanal_und_status_fest(self):
+        with self._ledger() as conn:
+            geschrieben = ledger.record_deliveries(
+                conn, [self._zustellung("Fast mover|0xa|Yes|")], delivered_at="2026-08-28T14:25:00+00:00")
+            self.assertEqual(geschrieben, 1)
+            zeilen = ledger.delivery_rows(conn)
+            self.assertEqual(len(zeilen), 1)
+            self.assertEqual(zeilen[0]["channel"], "telegram")
+            self.assertEqual(zeilen[0]["status"], "sent")
+            self.assertEqual(zeilen[0]["delivered_at"], "2026-08-28T14:25:00+00:00")
+            self.assertEqual(zeilen[0]["dedupe_key"], "Fast mover|0xa|Yes|")
+
+    def test_das_ziel_steht_als_fingerabdruck_nicht_als_chat_id(self):
+        # Grundsatz des taeglichen Laufs: Audit nur als Hashes und Zaehler.
+        with self._ledger() as conn:
+            ledger.record_deliveries(conn, [self._zustellung("k1")])
+            gespeichert = ledger.delivery_rows(conn)[0]["target_fingerprint"]
+            self.assertNotIn("4711234567", gespeichert)
+            self.assertEqual(gespeichert, ledger.target_fingerprint("-4711234567"))
+            self.assertNotEqual(gespeichert, ledger.target_fingerprint("-4711234568"))
+
+    def test_ein_fehlversand_steht_als_fehlversand_und_zaehlt_nicht_als_zustellung(self):
+        with self._ledger() as conn:
+            ledger.record_deliveries(conn, [
+                self._zustellung("k1", status="failed", detail="HTTP 429: Too Many Requests"),
+                self._zustellung("k2"),
+            ])
+            zahlen = ledger.delivery_aggregates(conn)
+            self.assertEqual(zahlen["attempts"], 2)
+            self.assertEqual(zahlen["sent"], 1)
+            self.assertEqual(zahlen["failed"], 1)
+            # Ein Fehlversand setzt die Ruhezeit nicht: sonst schweigt der
+            # Alarm, weil Telegram einmal 429 gesagt hat.
+            self.assertEqual(ledger.last_delivery_times(conn), {"k2": ledger.delivery_rows(conn)[1]["delivered_at"]})
+
+    def test_die_kette_erkennt_eine_veraenderte_zustellzeile(self):
+        with self._ledger() as conn:
+            ledger.record_deliveries(conn, [self._zustellung("k1"), self._zustellung("k2"), self._zustellung("k3")])
+            ok, geprueft = ledger.verify_delivery_chain(conn)
+            self.assertTrue(ok)
+            self.assertEqual(geprueft, 3)
+            conn.execute("UPDATE signals_delivered SET status = 'sent' WHERE dedupe_key = 'k2' AND status = 'sent'")
+            conn.execute("UPDATE signals_delivered SET channel = 'email' WHERE dedupe_key = 'k2'")
+            conn.commit()
+            ok, geprueft = ledger.verify_delivery_chain(conn)
+            self.assertFalse(ok)
+            self.assertEqual(geprueft, 2)
+
+    def test_die_quote_traegt_n_intervall_stichprobenurteil_und_stand(self):
+        with self._ledger() as conn:
+            rows = [self._zustellung(f"k{i}") for i in range(9)]
+            rows.append(self._zustellung("k9", status="failed", detail="HTTP 400"))
+            ledger.record_deliveries(conn, rows)
+            zahlen = ledger.delivery_aggregates(conn)
+            self.assertEqual(zahlen["attempts"], 10)
+            self.assertAlmostEqual(zahlen["delivery_rate"], 0.9, places=6)
+            low, high = quant_wilson(9, 10)
+            self.assertAlmostEqual(zahlen["delivery_rate_ci95"][0], low, places=6)
+            self.assertAlmostEqual(zahlen["delivery_rate_ci95"][1], high, places=6)
+            self.assertEqual(zahlen["sample"]["n"], 10)
+            self.assertIn(zahlen["sample"]["quality"], ("insufficient", "developing", "adequate"))
+            self.assertTrue(zahlen["as_of"])
+            self.assertTrue(zahlen["chain_ok"])
+            self.assertEqual(zahlen["channels"]["telegram"]["attempts"], 10)
+            self.assertEqual(zahlen["channels"]["telegram"]["sent"], 9)
+
+    def test_emittiert_ist_nicht_zugestellt(self):
+        # Der Kern des Befunds, mit den Zahlen des Beispiels.
+        with self._ledger() as conn:
+            frame = pd.DataFrame([
+                make_signal(f"Market {i}", market_key=condition_id("a"), outcome=f"Yes{i}")
+                for i in range(self.EMITTIERT)
+            ])
+            self.assertEqual(ledger.emit_signals(conn, frame), self.EMITTIERT)
+            ledger.record_deliveries(conn, [
+                self._zustellung(f"Fast mover|{condition_id('a')}|Yes{i}|")
+                for i in range(self.ANGEKOMMEN)
+            ])
+            zahlen = ledger.ledger_aggregates(conn)
+            self.assertEqual(zahlen["emitted"], self.EMITTIERT)
+            self.assertEqual(zahlen["delivered_signals"], self.ANGEKOMMEN)
+            self.assertEqual(zahlen["emitted_not_delivered"], self.EMITTIERT - self.ANGEKOMMEN)
+
+    def test_die_trefferquote_der_zugestellten_alerts_zaehlt_nur_zugestellte(self):
+        # Zwei Maerkte, beide emittiert, beide aufgeloest: einer gewonnen, einer
+        # verloren. Zugestellt wurde nur der verlorene. Ueber alle emittierten
+        # Zeilen steht die Quote bei 50 Prozent, ueber die ausgelieferten bei 0.
+        with self._ledger() as conn:
+            gewonnen = make_signal("Won market", market_key=condition_id("b"), outcome="Yes", price=0.25)
+            verloren = make_signal("Lost market", market_key=condition_id("c"), outcome="Yes", price=0.40)
+            ledger.emit_signals(conn, pd.DataFrame([gewonnen, verloren]))
+            ledger.record_deliveries(conn, [self._zustellung(
+                sig_key := f"Fast mover|{condition_id('c')}|Yes|", market_key=condition_id("c"))])
+            self.assertTrue(sig_key)
+            resolutions = {
+                condition_id("b"): {"status": "resolved", "outcome_prices": {"yes": 1.0, "no": 0.0}, "source": "gamma"},
+                condition_id("c"): {"status": "resolved", "outcome_prices": {"yes": 0.0, "no": 1.0}, "source": "gamma"},
+            }
+            self.assertEqual(ledger.resolve_pending(conn, lambda keys: resolutions), 2)
+            zahlen = ledger.ledger_aggregates(conn)
+            self.assertEqual(zahlen["decisive_units"], 2)
+            self.assertAlmostEqual(zahlen["hit_rate_units"], 0.5, places=6)
+            self.assertEqual(zahlen["decisive_units_delivered"], 1)
+            self.assertEqual(zahlen["hit_rate_delivered_units"], 0.0)
+            self.assertEqual(zahlen["delivered_signals"], 1)
+            self.assertEqual(zahlen["emitted_not_delivered"], 1)
+            self.assertEqual(zahlen["delivery_unknown"], 0)
+
+    def test_zeilen_von_vor_dem_protokoll_gelten_nicht_als_unzugestellt(self):
+        with self._ledger() as conn:
+            ledger.emit_signals(conn, pd.DataFrame([make_signal("Alt", market_key=condition_id("d"))]))
+            conn.execute("UPDATE signals_emitted SET dedupe_key = ''")
+            conn.commit()
+            zahlen = ledger.ledger_aggregates(conn)
+            self.assertEqual(zahlen["delivery_unknown"], 1)
+            self.assertEqual(zahlen["emitted_not_delivered"], 0)
+            self.assertEqual(zahlen["delivered_signals"], 0)
+
+    def test_der_beste_versuch_faellt_nicht_ueber_ein_kaputtes_protokoll(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pfad = Path(tmp) / "nested" / "ledger.sqlite"
+            geschrieben, fehler = ledger.safe_record_deliveries([self._zustellung("k1")], pfad)
+            self.assertEqual(geschrieben, 1)
+            self.assertEqual(fehler, "")
+        geschrieben, fehler = ledger.safe_record_deliveries([self._zustellung("k1")], Path("."))
+        self.assertEqual(geschrieben, 0)
+        self.assertTrue(fehler)
 
 
 if __name__ == "__main__":
