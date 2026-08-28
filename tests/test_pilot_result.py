@@ -90,7 +90,7 @@ class SlippageTests(unittest.TestCase):
         r = pr.evaluate(_payload([
             _trade(slippage="", signalpreis="", ausfuehrungspreis=""),
         ]), heute=date(2026, 8, 4))
-        self.assertEqual(r["slippage"], {"n": 0})
+        self.assertEqual(r["slippage"], {"n": 0, "episoden": 0})
         self.assertIn("nothing to measure", r["befund"])
 
 
@@ -158,12 +158,151 @@ class EchtdatenTests(unittest.TestCase):
     def test_laeuft_auf_der_publizierten_datei(self):
         payload = json.loads(PILOT.read_text(encoding="utf-8"))
         r = pr.evaluate(payload, heute=date(2026, 8, 4))
-        self.assertIn(r["phase"], (pr.PHASE_LAEUFT, pr.PHASE_OFFEN, pr.PHASE_FERTIG))
+        self.assertIn(r["phase"], (pr.PHASE_LAEUFT, pr.PHASE_OFFEN,
+                                   pr.PHASE_UNGEKLAERT, pr.PHASE_FERTIG))
         self.assertTrue(r["befund"])
         self.assertGreaterEqual(r["trades"]["gesamt"], 0)
         if r["trades"]["gesamt"]:
             self.assertIn("slippage", r)
             self.assertIn("regeltreue", r)
+
+    @unittest.skipUnless(PILOT.exists(), "public/data/pilot.json fehlt")
+    def test_die_publizierte_datei_traegt_ihren_ausgang_nicht_ewig_als_offen(self):
+        """Die 20 Eintritte stammen alle vom 2026-07-22, Arm 2 nimmt hoechstens
+        21 Tage Restlaufzeit. Ab dem 2026-08-13 kann keine Position mehr offen
+        sein; leere Exit-Zellen sind dann ein fehlender Eintrag."""
+        payload = json.loads(PILOT.read_text(encoding="utf-8"))
+        if not (payload.get("trades") or []):
+            self.skipTest("keine Trades in der publizierten Datei")
+        spaet = pr.evaluate(payload, heute=date(2026, 9, 30))
+        if spaet["trades"]["offen"]:
+            self.assertEqual(spaet["phase"], pr.PHASE_UNGEKLAERT)
+            self.assertIn("was not written back", spaet["offener_ausgang"])
+
+
+class AusgangsfristTests(unittest.TestCase):
+    """Eine leere Exit-Zelle heisst nur so lange "offen", wie das Protokoll die
+    Position offen sein laesst. Danach ist sie ein fehlender Eintrag, und ein
+    Verlust saehe genauso aus."""
+
+    def _payload_mit_frist(self, tage=21.0):
+        return {"protokoll": {"budget_usdc": 100.0, "einsatz_je_trade_usdc": 5.0,
+                              "handelsfenster_bis": "2026-08-01"},
+                "watcher_parameter": {"arm2_max_restlaufzeit_tage": tage,
+                                      "arm2_min_preis": 0.9, "arm2_max_preis": 0.97},
+                "trades": [_trade()]}
+
+    def test_innerhalb_der_frist_bleibt_es_offen(self):
+        r = pr.evaluate(self._payload_mit_frist(), heute=date(2026, 8, 5))
+        self.assertEqual(r["phase"], pr.PHASE_OFFEN)
+        self.assertIn("still open", r["offener_ausgang"])
+
+    def test_nach_der_frist_ist_der_ausgang_ungeklaert(self):
+        r = pr.evaluate(self._payload_mit_frist(), heute=date(2026, 8, 28))
+        self.assertEqual(r["phase"], pr.PHASE_UNGEKLAERT)
+        self.assertEqual(r["phase_text"], "Entry window closed, outcome not recorded")
+        self.assertIn("a loss would look exactly like this", r["offener_ausgang"])
+        self.assertEqual(r["endpunkte"]["spaetester_ausgang"], "2026-08-12")
+
+    def test_eingetragene_exits_bleiben_abgeschlossen(self):
+        payload = self._payload_mit_frist()
+        payload["trades"] = [_trade(exit_preis="1.0")]
+        r = pr.evaluate(payload, heute=date(2026, 8, 28))
+        self.assertEqual(r["phase"], pr.PHASE_FERTIG)
+        self.assertNotIn("offener_ausgang", r)
+
+    def test_ohne_frist_greift_die_protokollvoreinstellung(self):
+        payload = self._payload_mit_frist()
+        payload.pop("watcher_parameter")
+        r = pr.evaluate(payload, heute=date(2026, 8, 28))
+        self.assertEqual(r["phase"], pr.PHASE_UNGEKLAERT)
+
+
+class ArmBandTests(unittest.TestCase):
+    """Arm 1 fadet eine bereits entschiedene Seite und hat keine Untergrenze.
+    Beide Arme gegen 0.90 bis 0.97 zu pruefen meldete jeden erlaubten
+    Arm-1-Trade als Protokollbruch."""
+
+    def _band_punkt(self, trades):
+        payload = {"protokoll": {"budget_usdc": 100.0, "handelsfenster_bis": "2026-08-01"},
+                   "watcher_parameter": {"arm1_max_entry_preis": 0.97,
+                                         "arm2_min_preis": 0.9, "arm2_max_preis": 0.97},
+                   "trades": trades}
+        r = pr.evaluate(payload, heute=date(2026, 8, 4))
+        return next(p for p in r["regeltreue"]["punkte"] if "band" in p["regel"])
+
+    def test_arm1_unter_090_ist_kein_protokollbruch(self):
+        punkt = self._band_punkt([_trade(arm="arm1", signalpreis="0.62",
+                                         signal_regel="arm1_referenz")])
+        self.assertTrue(punkt["erfuellt"])
+        self.assertEqual(punkt["abweichungen"], [])
+        self.assertIn("arm1 at most 0.97", punkt["regel"])
+
+    def test_arm1_ueber_seiner_obergrenze_faellt_auf(self):
+        punkt = self._band_punkt([_trade(arm="arm1", signalpreis="0.985",
+                                         signal_regel="arm1_referenz")])
+        self.assertFalse(punkt["erfuellt"])
+        self.assertEqual(punkt["abweichungen"], ["arm1 0.985"])
+
+    def test_arm2_behaelt_seine_untergrenze(self):
+        punkt = self._band_punkt([_trade(arm="arm2", signalpreis="0.80")])
+        self.assertFalse(punkt["erfuellt"])
+        self.assertEqual(punkt["abweichungen"], ["arm2 0.8"])
+
+    def test_beide_arme_werden_gegen_ihr_eigenes_band_geprueft(self):
+        punkt = self._band_punkt([
+            _trade(arm="arm1", signalpreis="0.62", signal_regel="arm1_referenz"),
+            _trade(arm="arm2", signalpreis="0.93"),
+        ])
+        self.assertTrue(punkt["erfuellt"])
+        self.assertIn("2 of 2 inside", punkt["ist"])
+
+
+class StichprobeTests(unittest.TestCase):
+    """Zwanzig Fills aus einem einzigen automatisierten Lauf sind zwanzig
+    Positionen und ein Moment."""
+
+    def test_mittelwert_traegt_intervall_und_episodenzahl(self):
+        trades = [_trade(slippage=str(v), zeitstempel_utc="2026-07-22T13:07:54Z")
+                  for v in ("0.01", "0.02", "0.03", "0.02")]
+        r = pr.evaluate({"protokoll": {"handelsfenster_bis": "2026-08-01"},
+                         "trades": trades}, heute=date(2026, 8, 4))
+        sl = r["slippage"]
+        self.assertEqual(sl["n"], 4)
+        self.assertEqual(sl["episoden"], 1)
+        self.assertIsNotNone(sl["ci_low"])
+        self.assertLess(sl["ci_low"], sl["mittel"])
+        self.assertGreater(sl["ci_high"], sl["mittel"])
+        self.assertIn("4 fills from 1 execution moment", r["befund"])
+        self.assertIn("not one independent draw per fill", r["befund"])
+        self.assertIn("95 percent interval", r["befund"])
+
+    def test_mehrere_momente_werden_gezaehlt(self):
+        trades = [_trade(slippage="0.01", zeitstempel_utc="2026-07-22T13:07:54Z"),
+                  _trade(slippage="0.03", zeitstempel_utc="2026-07-23T09:00:00Z")]
+        r = pr.evaluate({"protokoll": {"handelsfenster_bis": "2026-08-01"},
+                         "trades": trades}, heute=date(2026, 8, 4))
+        self.assertEqual(r["slippage"]["episoden"], 2)
+        self.assertNotIn("not one independent draw", r["befund"])
+
+    def test_ein_einziger_fill_bekommt_kein_intervall(self):
+        r = pr.evaluate(_payload([_trade()]), heute=date(2026, 8, 4))
+        self.assertIsNone(r["slippage"]["ci_low"])
+        self.assertIsNone(r["slippage"]["ci_high"])
+
+
+class EndpunktTests(unittest.TestCase):
+    def test_nennt_was_gemessen_ist_und_was_offen_bleibt(self):
+        r = pr.evaluate(_payload([_trade()], quelle="docs/protokoll.md"),
+                        heute=date(2026, 8, 4))
+        endpunkte = r["endpunkte"]
+        self.assertIn("execution friction", endpunkte["gemessen"])
+        self.assertIn("settled outcome", endpunkte["offen"])
+        self.assertEqual(endpunkte["protokoll_quelle"], "docs/protokoll.md")
+
+    def test_fehlende_protokollquelle_wird_benannt(self):
+        r = pr.evaluate(_payload([_trade()]), heute=date(2026, 8, 4))
+        self.assertEqual(r["endpunkte"]["protokoll_quelle"], "not stated")
 
 
 if __name__ == "__main__":
