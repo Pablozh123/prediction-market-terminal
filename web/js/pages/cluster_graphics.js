@@ -37,12 +37,36 @@ function kopfzeile(g) {
     '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.14); '
     + 'border-radius:4px; padding:4px 9px; white-space:nowrap">' + esc(label) + ' <span style="color:var(--text)">'
     + esc(String(wert)) + '</span></div>';
+  // WALLETS traegt seinen Nenner mit: 41 von 300 gescreenten ist eine andere
+  // Aussage als 41 von 41. LIFT ist die Kante gegen ihre Basisrate — bei 1.0
+  // treffen sich zwei Wallets genau so oft, wie zwei gleich aktive Wallets
+  // sich ohne jede Absprache treffen.
+  const wallets = k.wallets != null
+    ? (k.wallets_im_tape ? k.wallets + ' / ' + k.wallets_im_tape : String(k.wallets))
+    : '—';
   return '<div style="display:flex; gap:7px; flex-wrap:wrap; margin-top:10px">'
-    + chip('WALLETS', k.wallets != null ? k.wallets : '—')
+    + chip('WALLETS', wallets)
     + chip('LINKS', k.kanten != null ? k.kanten : '—')
     + chip('CLUSTERS', k.cluster != null ? k.cluster : '—')
+    + (k.lift_median != null ? chip('MEDIAN LIFT', k.lift_median + '×') : '')
     + (k.modularitaet != null ? chip('MODULARITY', k.modularitaet) : '')
     + '</div>';
+}
+
+/** Die Kontrolle unter dem Bild: dieselbe Regel auf gemischten Wallet-Namen.
+ *  Ohne sie liest sich jedes Insel-Bild als Fund, obwohl die Regel auch auf
+ *  Rauschen Inseln zeichnet. */
+function nullmodellZeile(g) {
+  const n = g.nullmodell;
+  if (!n || !n.runs) return '';
+  const wie = n.cluster > 0
+    ? 'the same rule on a shuffled wallet column still returns ' + esc(String(n.cluster))
+      + ' cluster' + (n.cluster === 1 ? '' : 's') + ' over ' + esc(String(n.kanten)) + ' links'
+      + (n.lift_median != null ? ' at a median lift of ' + esc(String(n.lift_median)) + '×' : '')
+      + ' — read the picture against that, not against zero'
+    : 'the same rule on a shuffled wallet column returns nothing';
+  return '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.55); margin-top:8px; line-height:1.6">'
+    + 'CONTROL · ' + wie + ' (' + esc(String(n.runs)) + ' shuffle' + (n.runs === 1 ? '' : 's') + ')</div>';
 }
 
 /** Netzwerkgraph: Inseln aus cluster_layout, Kanten nach geteilten Maerkten.
@@ -75,10 +99,13 @@ function graphSvg(g) {
     const gleich = a.cluster === b.cluster;
     const farbe = gleich ? farbeVon(clusterIndex.get(a.cluster) || 0) : 'rgba(var(--ink),.5)';
     const staerke = 1.0 + 2.4 * ((e.geteilt || 1) / maxGeteilt);
+    const basis = e.lift != null
+      ? ' · ' + e.lift + '× the ' + (e.erwartet != null ? e.erwartet : '?') + ' two equally busy wallets share by chance'
+      : '';
     return '<line x1="' + X(a.x).toFixed(1) + '" y1="' + Y(a.y).toFixed(1) + '" x2="' + X(b.x).toFixed(1)
       + '" y2="' + Y(b.y).toFixed(1) + '" style="stroke:' + farbe + '" stroke-opacity="'
       + (gleich ? '.55' : '.35') + '" stroke-width="' + staerke.toFixed(2) + '">'
-      + '<title>' + esc((a.kurz || '') + ' + ' + (b.kurz || '') + ' · ' + (e.geteilt || 1) + ' shared market' + ((e.geteilt || 1) === 1 ? '' : 's')) + '</title></line>';
+      + '<title>' + esc((a.kurz || '') + ' + ' + (b.kurz || '') + ' · ' + (e.geteilt || 1) + ' shared market' + ((e.geteilt || 1) === 1 ? '' : 's') + basis) + '</title></line>';
   }).join('');
 
   // Beschriftung: das Wallet-Kuerzel neben dem Punkt. Die alte Fassung liess
@@ -148,9 +175,12 @@ export function renderClusterGraphics(live) {
     + '<div style="' + M + '; font-size:11px; color:rgba(var(--ink),.62); margin-top:10px; line-height:1.6">'
     + 'RULE · ' + esc(g.regel || 'not stated')
     + (g.fenster ? '<br>WINDOW · ' + esc(g.fenster) : '')
-    + '<br>SCOPE · insider-prone markets only, sports crypto and weather excluded</div>'
+    + '<br>SCOPE · insider-prone markets only, sports crypto and weather excluded'
+    + (g.stand_utc ? '<br>SNAPSHOT · ' + esc(String(g.stand_utc)) : '')
+    + '</div>'
+    + nullmodellZeile(g)
     + '<div style="margin-top:14px">' + graphSvg(g) + '</div>'
     + '<div style="font-size:12px; color:rgba(var(--ink),.62); margin-top:8px; line-height:1.5">'
-    + 'Each dot is one wallet, sized by the money it moved · a line means the two bought the same side of the same markets, thicker = more shared markets · colours are the groups detailed below.'
+    + 'Each dot is one wallet, sized by the money it moved · a line means the two bought the same side of the same markets, thicker = more shared markets · colours are the groups detailed below · hover a line for how far above the chance rate that pair sits.'
     + '</div></div>';
 }

@@ -98,6 +98,7 @@ import threading
 import time
 from collections import OrderedDict
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -994,11 +995,12 @@ def build_risk_payload() -> dict[str, Any]:
                  dict(window_minutes=None, min_shared=2)),
             )
             regel = LEITER[-1][0]
-            nodes, edges = susp.co_trading_network(netz_basis, max_wallets=300)
+            regel_kwargs: dict[str, Any] = dict(LEITER[-1][1])
+            nodes, edges = pd.DataFrame(), pd.DataFrame()
             for beschreibung, kwargs in LEITER:
                 nodes, edges = susp.co_trading_network(netz_basis, max_wallets=300, **kwargs)
                 if not nodes.empty:
-                    regel = beschreibung
+                    regel, regel_kwargs = beschreibung, dict(kwargs)
                     break
 
             payload.update(apv.cluster_payload(
@@ -1012,9 +1014,20 @@ def build_risk_payload() -> dict[str, Any]:
                     modularitaet = susp.network_modularity(nodes, edges)
                 except Exception:
                     modularitaet = None
+                # Dieselbe Regel auf einer gemischten Wallet-Spalte: was sie
+                # dort noch findet, findet sie auf nichts. Darf die Antwort
+                # nicht kippen, die Kontrolle ist teurer als der Graph selbst.
+                try:
+                    nullmodell = susp.null_model_reference(
+                        netz_basis, runs=2, max_wallets=300, **regel_kwargs)
+                except Exception as exc:
+                    print(f"[warn] cluster null model: {exc}")
+                    nullmodell = None
                 payload["graph"] = apv.network_graph(
                     susp.cluster_layout(nodes), edges,
-                    regel=regel, modularitaet=modularitaet)
+                    regel=regel, modularitaet=modularitaet, nullmodell=nullmodell,
+                    wallets_im_tape=int(netz_basis["wallet"].astype(str).nunique()),
+                    stand_utc=datetime.now(timezone.utc).isoformat(timespec="seconds"))
                 payload["graph"]["fenster"] = apv.tape_window_label(netz_basis)
                 payload["matrix"] = apv.overlap_matrix(netz_basis, nodes)
         except Exception as exc:

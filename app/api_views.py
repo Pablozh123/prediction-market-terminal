@@ -1572,8 +1572,14 @@ def risk_payload(
             "events_flagged": events_screened - events_below_min,
             "high_risk_events": high_events,
             "high_risk_wallets": high_wallets,
-            "fresh_clusters": 0,
-            "coordinated_clusters": 0,
+            # None, not 0: the cluster stage runs after this payload and can
+            # fail (deep tape, category lookup) without taking the response
+            # down. A hard 0 rendered as a measured "no clusters found" in the
+            # KPI tile whenever it never ran. The frontend already draws null
+            # as an em dash, which is what an unmeasured number should look
+            # like. cluster_payload fills these in when it succeeds.
+            "fresh_clusters": None,
+            "coordinated_clusters": None,
         },
         "events": events,
         "wallets": wallets,
@@ -2412,6 +2418,9 @@ def network_graph(
     *,
     regel: str = "",
     modularitaet: float | None = None,
+    nullmodell: Mapping[str, Any] | None = None,
+    wallets_im_tape: int | None = None,
+    stand_utc: str = "",
 ) -> dict[str, Any]:
     """Den Co-Trading-Graphen zeichenfertig machen.
 
@@ -2423,6 +2432,11 @@ def network_graph(
     gehoert in die Nutzlast und nicht in einen festen Text im Frontend: die
     Regel faellt auf eine lockerere zurueck, wenn die strenge nichts findet,
     und ein Bild, das die falsche Regel behauptet, ist wertlos.
+
+    Drei Angaben gehen mit, weil das Bild ohne sie nicht einzuordnen ist:
+    ``wallets_im_tape`` als Nenner (41 von 300 gescreenten Wallets sind eine
+    andere Aussage als 41 von 41), ``nullmodell`` als Kontrolle derselben Regel
+    auf gemischten Daten, und ``stand_utc`` als Aufnahmezeitpunkt.
     """
 
     leer: dict[str, Any] = {"knoten": [], "kanten": [], "cluster": []}
@@ -2453,10 +2467,15 @@ def network_graph(
             b = index_je_wallet.get(_text(row.get("wallet_b")))
             if a is None or b is None:
                 continue
+            lift = _num(row.get("lift"))
             kanten.append({
                 "a": a, "b": b,
                 "geteilt": int(_num(row.get("shared_markets"), 0.0) or 0),
                 "notional": _num(row.get("pair_notional"), 0.0) or 0.0,
+                # Ueber der Basisrate oder nur beide viel unterwegs: ohne diese
+                # Zahl sagt eine Kante nur, dass zwei Wallets aktiv sind.
+                "erwartet": round(_num(row.get("expected_shared"), 0.0) or 0.0, 2),
+                "lift": round(lift, 2) if lift is not None else None,
             })
 
     cluster: list[dict[str, Any]] = []
@@ -2473,6 +2492,7 @@ def network_graph(
 
     xs = [k["x"] for k in knoten] or [0.0]
     ys = [k["y"] for k in knoten] or [0.0]
+    lifts = sorted(k["lift"] for k in kanten if k["lift"] is not None)
     ergebnis: dict[str, Any] = {
         "knoten": knoten,
         "kanten": kanten,
@@ -2484,10 +2504,18 @@ def network_graph(
             "cluster": len(cluster),
         },
     }
+    if lifts:
+        ergebnis["kennzahl"]["lift_median"] = round(lifts[len(lifts) // 2], 2)
+    if wallets_im_tape:
+        ergebnis["kennzahl"]["wallets_im_tape"] = int(wallets_im_tape)
     if regel:
         ergebnis["regel"] = regel
     if modularitaet is not None:
         ergebnis["kennzahl"]["modularitaet"] = round(float(modularitaet), 3)
+    if nullmodell:
+        ergebnis["nullmodell"] = dict(nullmodell)
+    if stand_utc:
+        ergebnis["stand_utc"] = str(stand_utc)
     return ergebnis
 
 

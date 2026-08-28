@@ -18,8 +18,10 @@ CLOB price history, this module parses, buckets and scores them.
 from __future__ import annotations
 
 import json
+import math
 import re
 from collections.abc import Iterable, Mapping, Sequence
+from statistics import NormalDist
 from typing import Any
 
 import pandas as pd
@@ -139,18 +141,51 @@ def price_at_lead_time(history: pd.DataFrame, end_time: Any, hours_before: float
     return float(value.iloc[-1]) if not value.empty else None
 
 
+#: Wie viele unabhaengige Events ein Bucket mindestens braucht, bevor sein
+#: Ergebnis "significant" heissen darf. Siebzehn Linien eines einzigen
+#: Fussballspiels sind siebzehn Zeilen und ein Ereignis: genau eine davon kann
+#: gewinnen, die uebrigen sechzehn folgen daraus.
+MIN_EVENTS_FOR_SIGNIFICANCE = 5
+
+
+def _bonferroni_z(familie: int, alpha: float = 0.05) -> float:
+    """z fuer ein zweiseitiges Intervall, das ``familie`` Tests mittraegt."""
+
+    familie = max(1, int(familie))
+    return float(NormalDist().inv_cdf(1.0 - alpha / (2.0 * familie)))
+
+
 def base_rate_table(
-    observations: pd.DataFrame, buckets: Sequence[float] = DEFAULT_PRICE_BUCKETS
+    observations: pd.DataFrame,
+    buckets: Sequence[float] = DEFAULT_PRICE_BUCKETS,
+    *,
+    alpha: float = 0.05,
 ) -> pd.DataFrame:
     """Implied vs realised rate per price bucket, with a Wilson interval.
 
     ``gap_pp`` is realised minus implied in percentage points: positive means the
     band paid out more often than its price said, i.e. buying it was cheap.
-    ``significant`` is True only when the whole interval sits off the implied
-    rate, so a band that merely looks cheap does not read as a finding.
+
+    Two things decide whether a row may be read as a finding, and both are
+    columns rather than assumptions.
+
+    ``events`` counts the distinct events behind the lines. The motivating
+    sample is football Exact Score: one match contributes about seventeen
+    mutually exclusive lines, and exactly one of them can win, so the other
+    sixteen follow from that single draw. A bucket with n = 170 and events = 10
+    is not 170 independent observations, and the table now says which it is.
+
+    ``significant`` is judged against a Bonferroni-widened interval over the
+    buckets actually tested, not against the nominal 95 percent. With the five
+    default buckets each tested at 95 percent, a universe priced exactly right
+    produced at least one "significant" band in 22 percent of runs. The nominal
+    interval stays in ``ci_low`` / ``ci_high``; the widened one that the flag
+    uses is in ``ci_low_adj`` / ``ci_high_adj``.
     """
 
-    columns = ["bucket", "n", "markets", "implied", "realised", "ci_low", "ci_high", "gap_pp", "significant"]
+    columns = ["bucket", "n", "markets", "events", "implied", "realised",
+               "ci_low", "ci_high", "ci_low_adj", "ci_high_adj",
+               "gap_pp", "significant", "family"]
     if observations is None or observations.empty:
         return pd.DataFrame(columns=columns)
     frame = observations.dropna(subset=["price"]).copy()
@@ -160,24 +195,36 @@ def base_rate_table(
         return pd.DataFrame(columns=columns)
     frame["won"] = frame["won"].astype(bool)
     frame["_bucket"] = pd.cut(frame["price"], list(buckets), include_lowest=True)
+    gruppen = list(frame.groupby("_bucket", observed=True))
+    familie = len(gruppen)
+    z_adj = _bonferroni_z(familie, alpha)
     rows: list[dict[str, Any]] = []
-    for bucket, group in frame.groupby("_bucket", observed=True):
+    for bucket, group in gruppen:
         n = len(group)
         hits = int(group["won"].sum())
         implied = float(group["price"].mean())
         realised = hits / n if n else 0.0
         low, high = quant.wilson_interval(hits, n)
+        low_adj, high_adj = quant.wilson_interval(hits, n, z=z_adj)
+        events = int(group["event_slug"].nunique()) if "event_slug" in group else n
         rows.append(
             {
                 "bucket": str(bucket),
                 "n": n,
                 "markets": int(group["market_key"].nunique()) if "market_key" in group else n,
+                "events": events,
                 "implied": implied,
                 "realised": realised,
                 "ci_low": low,
                 "ci_high": high,
+                "ci_low_adj": low_adj,
+                "ci_high_adj": high_adj,
                 "gap_pp": (realised - implied) * 100.0,
-                "significant": bool(low > implied or high < implied),
+                "significant": bool(
+                    events >= MIN_EVENTS_FOR_SIGNIFICANCE
+                    and (low_adj > implied or high_adj < implied)
+                ),
+                "family": familie,
             }
         )
     return pd.DataFrame(rows, columns=columns)
@@ -191,11 +238,16 @@ def conviction_split(
     A line-weighted comparison cannot see a sizing edge: if a wallet is right
     about *which* lines to load up on, every line still counts once. This splits
     on stake so the two halves can be read against the same universe base rate.
-    Returns one row per half with the same columns as ``base_rate_table`` plus
-    ``half`` and ``stake``.
+    Each half carries ``events`` and a Wilson interval on its realised rate.
+    Without them the two ``gap_pp`` numbers invite a sizing story out of ten
+    lines, which is the same mistake this module exists to catch one level up.
+
+    Returns one row per half with ``half``, ``stake``, ``n``, ``events``,
+    ``implied``, ``realised``, ``ci_low``, ``ci_high`` and ``gap_pp``.
     """
 
-    columns = ["half", "n", "stake", "implied", "realised", "gap_pp"]
+    columns = ["half", "n", "events", "stake", "implied", "realised",
+               "ci_low", "ci_high", "gap_pp"]
     if observations is None or observations.empty or stake_column not in observations:
         return pd.DataFrame(columns=columns)
     frame = observations.dropna(subset=["price", stake_column]).copy()
@@ -213,17 +265,80 @@ def conviction_split(
             continue
         implied = float(part["price"].mean())
         realised = float(part["won"].mean())
+        # Zwei Haelften sind zwei Tests, also traegt jede das gemeinsame
+        # Intervall der Familie mit.
+        low, high = quant.wilson_interval(int(part["won"].sum()), len(part),
+                                          z=_bonferroni_z(2))
         rows.append(
             {
                 "half": label,
                 "n": len(part),
+                "events": int(part["event_slug"].nunique()) if "event_slug" in part else len(part),
                 "stake": float(part[stake_column].sum()),
                 "implied": implied,
                 "realised": realised,
+                "ci_low": low,
+                "ci_high": high,
                 "gap_pp": (realised - implied) * 100.0,
             }
         )
     return pd.DataFrame(rows, columns=columns)
+
+
+def selection_gap(
+    universe: pd.DataFrame, picked_keys: Iterable[Any], key_column: str = "token_id"
+) -> dict[str, Any]:
+    """The wallet's lines against the lines it left alone, on disjoint halves.
+
+    ``compare_to_wallet`` subtracts two gaps whose samples overlap: the wallet's
+    lines are inside the universe, so the difference has no interval anyone can
+    write down. This splits the same universe into picked and not-picked, which
+    are disjoint, and reports the difference of the two realised-minus-implied
+    gaps with a 95 percent interval from the two independent halves.
+
+    A ``selection_pp`` interval that spans zero means the picking is not
+    separable from standing in the band.
+    """
+
+    leer = {"n_picked": 0, "n_rest": 0, "picked_gap_pp": None, "rest_gap_pp": None,
+            "selection_pp": None, "ci_low": None, "ci_high": None, "separable": False}
+    if universe is None or universe.empty or key_column not in universe:
+        return leer
+    frame = universe.dropna(subset=["price"]).copy()
+    frame["price"] = pd.to_numeric(frame["price"], errors="coerce")
+    frame = frame.dropna(subset=["price"])
+    if frame.empty:
+        return leer
+    frame["won"] = frame["won"].astype(bool)
+    schluessel = {str(k) for k in picked_keys}
+    gewaehlt = frame[frame[key_column].astype(str).isin(schluessel)]
+    rest = frame[~frame[key_column].astype(str).isin(schluessel)]
+    if gewaehlt.empty or rest.empty:
+        return dict(leer, n_picked=int(len(gewaehlt)), n_rest=int(len(rest)))
+
+    def luecke(teil: pd.DataFrame) -> tuple[float, float]:
+        realisiert = float(teil["won"].mean())
+        return realisiert - float(teil["price"].mean()), realisiert
+
+    picked_gap, picked_rate = luecke(gewaehlt)
+    rest_gap, rest_rate = luecke(rest)
+    differenz = picked_gap - rest_gap
+    streuung = math.sqrt(
+        picked_rate * (1 - picked_rate) / len(gewaehlt)
+        + rest_rate * (1 - rest_rate) / len(rest)
+    )
+    halb = 1.96 * streuung
+    return {
+        "n_picked": int(len(gewaehlt)),
+        "n_rest": int(len(rest)),
+        "events_picked": int(gewaehlt["event_slug"].nunique()) if "event_slug" in gewaehlt else int(len(gewaehlt)),
+        "picked_gap_pp": picked_gap * 100.0,
+        "rest_gap_pp": rest_gap * 100.0,
+        "selection_pp": differenz * 100.0,
+        "ci_low": (differenz - halb) * 100.0,
+        "ci_high": (differenz + halb) * 100.0,
+        "separable": bool((differenz - halb) > 0 or (differenz + halb) < 0),
+    }
 
 
 def compare_to_wallet(universe: pd.DataFrame, wallet: pd.DataFrame) -> pd.DataFrame:
@@ -231,9 +346,13 @@ def compare_to_wallet(universe: pd.DataFrame, wallet: pd.DataFrame) -> pd.DataFr
 
     The decisive column is ``selection_pp``: the wallet's gap minus the
     universe's gap in the same band. Near zero means the wallet is simply
-    standing in a mispriced band that anyone could have stood in. Clearly
-    positive means the wallet is picking better lines than the band average,
-    which is the part no one can copy without the same model.
+    standing in a mispriced band that anyone could have stood in.
+
+    ``selection_pp`` carries no interval here on purpose: the wallet's lines sit
+    *inside* the universe, so the two samples overlap and the difference of the
+    two gaps has no clean standard error. For a difference that can be given an
+    interval, use ``selection_gap``, which compares the picked lines against the
+    ones the wallet left alone.
     """
 
     if universe is None or universe.empty or wallet is None or wallet.empty:

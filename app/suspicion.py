@@ -14,6 +14,7 @@ Everything here is a best-effort public-data screen, not a legal finding.
 
 from __future__ import annotations
 
+import hashlib
 import math
 import re
 from typing import Any
@@ -486,13 +487,23 @@ def co_trading_network(
     connected components; if networkx is unavailable, components are the
     fallback.
 
+    A raw count of shared markets is not evidence on its own: two wallets that
+    each touch half the board meet everywhere by arithmetic. Every edge
+    therefore carries ``expected_shared`` — how many hits the pair would share
+    if each had picked its markets independently, ``m_a * m_b / M`` over the
+    same market-and-side universe — and ``lift``, observed over expected. A
+    lift near 1 is the base rate of two busy wallets, not a syndicate. With a
+    time window active the expectation ignores the window and so overstates it,
+    which makes the reported lift the conservative end.
+
     Returns (nodes, edges):
     - nodes: wallet, cluster_id, cluster_size, shared_markets, volume, markets, trades
-    - edges: wallet_a, wallet_b, shared_markets, pair_notional
+    - edges: wallet_a, wallet_b, shared_markets, pair_notional, expected_shared, lift
     """
 
     node_columns = ["wallet", "cluster_id", "cluster_size", "shared_markets", "volume", "markets", "trades"]
-    edge_columns = ["wallet_a", "wallet_b", "shared_markets", "pair_notional"]
+    edge_columns = ["wallet_a", "wallet_b", "shared_markets", "pair_notional",
+                    "expected_shared", "lift"]
     empty = (pd.DataFrame(columns=node_columns), pd.DataFrame(columns=edge_columns))
     if trades is None or trades.empty or not {"wallet", "title"}.issubset(trades.columns):
         return empty
@@ -521,6 +532,12 @@ def co_trading_network(
         if use_window:
             records = group.sort_values("time")[["time", "wallet", "notional"]].to_records(index=False)
             left = 0
+            # Which prints of this market a pair actually met over. Adding the
+            # two notionals per co-print pair instead counted every print once
+            # per partner print: three prints a side turned $12k of real flow
+            # into $36k, which then cleared the "$10k paired notional" rung of
+            # the rule ladder that the flow never reached.
+            beteiligt: dict[tuple[str, str], set[int]] = {}
             for right in range(len(records)):
                 while records[right][0] - records[left][0] > window:
                     left += 1
@@ -530,7 +547,12 @@ def co_trading_network(
                         continue
                     key = (a, b) if a < b else (b, a)
                     pair_markets.setdefault(key, set()).add(str(title))
-                    pair_notional[key] = pair_notional.get(key, 0.0) + float(records[mid][2]) + float(records[right][2])
+                    treffer = beteiligt.setdefault(key, set())
+                    treffer.add(mid)
+                    treffer.add(right)
+            for key, treffer in beteiligt.items():
+                pair_notional[key] = pair_notional.get(key, 0.0) + sum(
+                    float(records[index][2]) for index in treffer)
         else:
             wallets_here = sorted(group.groupby("wallet")["notional"].sum().items())
             for i in range(len(wallets_here)):
@@ -539,11 +561,27 @@ def co_trading_network(
                     pair_markets.setdefault(key, set()).add(str(title))
                     pair_notional[key] = pair_notional.get(key, 0.0) + float(wallets_here[i][1]) + float(wallets_here[j][1])
 
-    edge_rows = [
-        {"wallet_a": a, "wallet_b": b, "shared_markets": len(markets), "pair_notional": pair_notional.get((a, b), 0.0)}
-        for (a, b), markets in pair_markets.items()
-        if len(markets) >= int(min_shared) and pair_notional.get((a, b), 0.0) >= float(min_pair_notional)
-    ]
+    # Base rate of meeting at all: how many market-and-side columns each wallet
+    # stands in, against how many columns the tape has. Without it an edge only
+    # says "both are busy".
+    spalten = df.drop_duplicates(subset=["wallet", "title", "outcome_label"])
+    spalten_je_wallet = spalten.groupby("wallet").size().to_dict()
+    universum = int(df.groupby(["title", "outcome_label"], dropna=False).ngroups)
+
+    edge_rows = []
+    for (a, b), markets in pair_markets.items():
+        geteilt = len(markets)
+        if geteilt < int(min_shared) or pair_notional.get((a, b), 0.0) < float(min_pair_notional):
+            continue
+        erwartet = (spalten_je_wallet.get(a, 0) * spalten_je_wallet.get(b, 0) / universum) if universum else 0.0
+        edge_rows.append({
+            "wallet_a": a,
+            "wallet_b": b,
+            "shared_markets": geteilt,
+            "pair_notional": pair_notional.get((a, b), 0.0),
+            "expected_shared": round(float(erwartet), 4),
+            "lift": round(geteilt / erwartet, 3) if erwartet > 0 else float("nan"),
+        })
     if not edge_rows:
         return empty
     edges = pd.DataFrame(edge_rows, columns=edge_columns)
@@ -607,6 +645,68 @@ def co_trading_network(
     return nodes, edges
 
 
+def null_model_reference(
+    trades: pd.DataFrame,
+    *,
+    runs: int = 2,
+    seed: int = 42,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """What the same edge rule finds after the wallet column is shuffled.
+
+    The honest control for a cluster picture. Permuting which wallet made which
+    print keeps every market's crowd size and the shape of the per-wallet
+    activity, and destroys only who met whom. Whatever the rule still reports
+    on that tape is what it reports on nothing.
+
+    It reports plenty: on 60 wallets each picking 20 of 120 markets at random,
+    the default rule (same side of at least two markets) links all 60 into six
+    clusters over 926 edges. The number belongs next to the picture, not in a
+    comment.
+
+    Returns median wallets / edges / clusters / lift and the largest modularity
+    seen, plus ``runs`` and ``regel_kwargs`` so the control is reproducible.
+    """
+
+    leer = {"runs": 0, "wallets": 0, "kanten": 0, "cluster": 0,
+            "modularitaet": None, "lift_median": None, "regel_kwargs": dict(kwargs)}
+    if trades is None or trades.empty or "wallet" not in trades.columns:
+        return leer
+    wallets: list[int] = []
+    kanten: list[int] = []
+    cluster: list[int] = []
+    lifts: list[float] = []
+    modularitaeten: list[float] = []
+    for lauf in range(max(1, int(runs))):
+        gemischt = trades.copy()
+        gemischt["wallet"] = (
+            gemischt["wallet"].sample(frac=1.0, random_state=seed + lauf).to_numpy()
+        )
+        nodes, edges = co_trading_network(gemischt, **kwargs)
+        wallets.append(int(len(nodes)))
+        kanten.append(int(len(edges)))
+        cluster.append(int(nodes["cluster_id"].nunique()) if not nodes.empty else 0)
+        if not edges.empty and "lift" in edges:
+            werte = pd.to_numeric(edges["lift"], errors="coerce").dropna()
+            if not werte.empty:
+                lifts.append(float(werte.median()))
+        wert = network_modularity(nodes, edges)
+        if wert is not None:
+            modularitaeten.append(float(wert))
+    def mitte(werte: list[float]) -> float | None:
+        return float(pd.Series(werte).median()) if werte else None
+
+    return {
+        "runs": max(1, int(runs)),
+        "wallets": int(mitte(wallets) or 0),
+        "kanten": int(mitte(kanten) or 0),
+        "cluster": int(mitte(cluster) or 0),
+        "modularitaet": round(max(modularitaeten), 3) if modularitaeten else None,
+        "lift_median": round(mitte(lifts), 3) if lifts else None,
+        "regel_kwargs": dict(kwargs),
+    }
+
+
 def network_modularity(nodes: pd.DataFrame, edges: pd.DataFrame) -> float | None:
     """Weighted modularity of the detected partition (>0.3 ≈ meaningful structure)."""
 
@@ -628,12 +728,25 @@ def network_modularity(nodes: pd.DataFrame, edges: pd.DataFrame) -> float | None
         return None
 
 
+def _stable_fraction(text: str) -> float:
+    """A value in [0, 1) derived from ``text``, identical in every process."""
+
+    digest = hashlib.sha256(str(text).encode("utf-8")).digest()
+    return int.from_bytes(digest[:4], "big") / 2 ** 32
+
+
 def cluster_layout(nodes: pd.DataFrame) -> pd.DataFrame:
     """Organic island layout: cluster centers on a golden-angle spiral, members on
     a ring around each center with deterministic radial jitter.
 
     Bigger clusters get bigger rings; the spiral keeps islands from overlapping
-    without needing a force simulation, and everything is reproducible (no RNG).
+    without needing a force simulation.
+
+    The jitter is derived from a SHA-256 digest of the wallet, not from the
+    builtin ``hash``: string hashing is salted per interpreter process, so the
+    same tape produced a different picture on every run, the exported figure
+    never matched the page, and a figure in a written text could not be
+    regenerated. The digest makes the layout reproducible for real.
     """
 
     if nodes is None or nodes.empty:
@@ -664,7 +777,7 @@ def cluster_layout(nodes: pd.DataFrame) -> pd.DataFrame:
         for position, node_idx in enumerate(member_index):
             angle = (2 * math.pi * position) / max(count, 1)
             wallet = str(placed.at[node_idx, "wallet"])
-            jitter = 0.82 + 0.36 * ((hash(wallet) % 1000) / 1000.0)
+            jitter = 0.82 + 0.36 * (_stable_fraction(wallet))
             placed.at[node_idx, "x"] = center_x + radius * jitter * math.cos(angle)
             placed.at[node_idx, "y"] = center_y + radius * jitter * math.sin(angle)
     return placed

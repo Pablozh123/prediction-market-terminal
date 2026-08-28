@@ -197,6 +197,24 @@ def _matrix(matrix: Mapping[str, Any], x0: float, y0: float, w: float) -> tuple[
     return "".join(teile), hoehe + 20
 
 
+def _nullmodell_zeile(null: Mapping[str, Any]) -> str:
+    """Die Kontrollzeile: was dieselbe Regel auf gemischten Wallets findet.
+
+    Ein Inselbild ohne diese Angabe liest sich als Fund. Die Regel zeichnet
+    aber auch auf einer durchgemischten Wallet-Spalte Inseln, und wie viele,
+    entscheidet, ob das Bild ueberhaupt etwas zeigt.
+    """
+    cluster = int(null.get("cluster") or 0)
+    laeufe = int(null.get("runs") or 0)
+    if cluster <= 0:
+        return f"CONTROL · the same rule on a shuffled wallet column returns nothing ({laeufe} shuffles)"
+    teil = f'{cluster} cluster{"" if cluster == 1 else "s"} over {int(null.get("kanten") or 0)} links'
+    if null.get("lift_median") is not None:
+        teil += f' at a median lift of {null["lift_median"]}x'
+    return (f"CONTROL · the same rule on a shuffled wallet column still returns {teil} "
+            f"({laeufe} shuffles) — read this picture against that, not against zero")
+
+
 def build_svg(payload: Mapping[str, Any], *, breite: int = 1400) -> str:
     """Baut die vollstaendige Figur aus einem Risk-Payload."""
     graph = payload.get("graph") or {}
@@ -204,7 +222,18 @@ def build_svg(payload: Mapping[str, Any], *, breite: int = 1400) -> str:
     kennzahl = graph.get("kennzahl") or {}
 
     rand = 26.0
-    kopf_h = 128.0
+    # Die Fusszeilen des Kopfs stehen vor dem Layout fest, denn sie bestimmen,
+    # wie hoch der Kopf werden muss. Regel, Fenster, Umfang, Aufnahmezeitpunkt
+    # und die Nullmodell-Kontrolle gehoeren in dieses Bild, nicht daneben.
+    zeilen = [f'RULE · {graph.get("regel", "not stated")}']
+    if graph.get("fenster"):
+        zeilen.append(f'WINDOW · {graph["fenster"]}')
+    zeilen.append("SCOPE · insider-prone markets only, sports crypto and weather excluded")
+    if graph.get("stand_utc"):
+        zeilen.append(f'SNAPSHOT · {graph["stand_utc"]}')
+    if (graph.get("nullmodell") or {}).get("runs"):
+        zeilen.append(_nullmodell_zeile(graph["nullmodell"]))
+    kopf_h = 96.0 + len(zeilen) * 14.0 + 4.0
     spalte_w = (breite - 3 * rand) / 2
     panel_kopf = 62.0
     netz_h = 420.0
@@ -228,8 +257,15 @@ def build_svg(payload: Mapping[str, Any], *, breite: int = 1400) -> str:
     t.append(_text(rand, rand + 44, "Wallets that keep meeting in the same markets",
                    groesse=21, farbe=TEXT, familie=SANS, gewicht="600"))
 
-    chips = [("WALLETS", kennzahl.get("wallets")), ("LINKS", kennzahl.get("kanten")),
+    # WALLETS mit Nenner, LIFT als Basisrate der Kanten: eine Figur ohne beides
+    # laesst offen, ob die Inseln mehr sind als zwei viel beschaeftigte Wallets.
+    wallets = kennzahl.get("wallets")
+    if wallets is not None and kennzahl.get("wallets_im_tape"):
+        wallets = f'{wallets} / {kennzahl["wallets_im_tape"]}'
+    chips = [("WALLETS", wallets), ("LINKS", kennzahl.get("kanten")),
              ("CLUSTERS", kennzahl.get("cluster"))]
+    if kennzahl.get("lift_median") is not None:
+        chips.append(("MEDIAN LIFT", f'{kennzahl["lift_median"]}x'))
     if kennzahl.get("modularitaet") is not None:
         chips.append(("MODULARITY", kennzahl["modularitaet"]))
     if matrix.get("cluster"):
@@ -243,10 +279,6 @@ def build_svg(payload: Mapping[str, Any], *, breite: int = 1400) -> str:
         t.append(_text(cx + 6, rand + 71, beschriftung, groesse=10, farbe=GEDAEMPFT))
         cx += w + 7
 
-    zeilen = [f'RULE · {graph.get("regel", "not stated")}']
-    if graph.get("fenster"):
-        zeilen.append(f'WINDOW · {graph["fenster"]}')
-    zeilen.append("SCOPE · insider-prone markets only, sports crypto and weather excluded")
     for i, zeile in enumerate(zeilen):
         t.append(_text(rand, rand + 96 + i * 14, zeile, groesse=10, farbe=LEISE))
 

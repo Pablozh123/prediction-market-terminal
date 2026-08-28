@@ -125,6 +125,50 @@ class SimilarWalletsTests(unittest.TestCase):
         out = ws.similar_wallets(ME, [], holders_fetcher=lambda k, n: [], summary_fetcher=lambda w: {})
         self.assertEqual(out["rows"], [])
         self.assertEqual(out["basis"]["markets_checked"], 0)
+        self.assertEqual(out["basis"]["markets_read"], 0)
+
+
+class DenominatorTests(unittest.TestCase):
+    """A market whose holder list never arrived cannot hold a match, so it
+    cannot sit in the denominator either."""
+
+    def test_failed_reads_do_not_dilute_the_overlap(self) -> None:
+        def holders(key, limit):
+            if key == M1:
+                return _holders((W1, 0, 40, "bee"))
+            raise md.MarketDataError("holders down")
+
+        rows = [{"market_key": M1, "outcome": "Yes", "value": 300},
+                {"market_key": M2, "outcome": "Yes", "value": 200}]
+        out = ws.similar_wallets(ME, rows, holders_fetcher=holders,
+                                 summary_fetcher=lambda w: {"positions": 1, "value": 1.0, "read": True})
+        self.assertEqual(out["basis"]["markets_checked"], 2)
+        self.assertEqual(out["basis"]["markets_read"], 1)
+        # In dem einen lesbaren Markt sitzt das Wallet: 100 Prozent, nicht 50.
+        self.assertEqual(out["rows"][0]["shared"], 1)
+        self.assertEqual(out["rows"][0]["overlap"], 1.0)
+        self.assertIn("1 whose holder list was actually read", out["basis"]["note"])
+
+
+class BaseRateTests(unittest.TestCase):
+    """The holders feed ranks by size, so the same large wallets recur across
+    markets. A row means nothing without the rate an ordinary candidate hits."""
+
+    def test_median_candidate_overlap_is_reported(self) -> None:
+        def holders(key, limit):
+            if key == M1:
+                return _holders((W1, 0, 40, ""), (W2, 0, 20, ""))
+            return _holders((W1, 0, 30, ""))
+
+        rows = [{"market_key": M1, "outcome": "Yes", "value": 300},
+                {"market_key": M2, "outcome": "Yes", "value": 200}]
+        out = ws.similar_wallets(ME, rows, holders_fetcher=holders,
+                                 summary_fetcher=lambda w: {"positions": 1, "value": 1.0, "read": True})
+        self.assertEqual(out["basis"]["median_shared"], 1.0)
+        by_wallet = {r["wallet"]: r for r in out["rows"]}
+        self.assertEqual(by_wallet[W1]["shared_vs_median"], 2.0)
+        self.assertEqual(by_wallet[W2]["shared_vs_median"], 1.0)
+        self.assertIn("median candidate here shares 1", out["basis"]["note"])
 
 
 if __name__ == "__main__":

@@ -101,6 +101,19 @@ def verdict_state(scorecard: Mapping[str, Any]) -> dict[str, Any]:
     ci = _ci_text(edge)
     ci_low = edge.get("ci_low")
     ci_high = edge.get("ci_high")
+    if ci_low is None or ci_high is None:
+        # No interval was computable (a single event carries no spread). The
+        # luck_range wording below asserts that the interval includes zero,
+        # which is a statistical statement about an interval that does not
+        # exist. A missing measurement is reported as missing.
+        reason_en = f"no interval over {n_events} event{'' if n_events == 1 else 's'}, so chance cannot be ruled in or out"
+        reason_de = f"kein Intervall ueber {n_events} Event{'' if n_events == 1 else 's'}, Zufall ist damit weder aus- noch einzuschliessen"
+        return {
+            "state": STATE_INSUFFICIENT,
+            "status": f"NO VERDICT YET: {reason_en}.",
+            "status_de": f"NOCH KEIN URTEIL: {reason_de}.",
+            "evidence": [reason_en],
+        }
     if ci_low is not None and float(ci_low) > 0:
         evidence = [f"realized edge {_fmt_pp(edge.get('edge'))} pp, 95% CI {ci} pp over {n_events} events"]
         return {
