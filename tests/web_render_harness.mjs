@@ -1120,7 +1120,9 @@ function rendern(T) {
           { wallet: '0x' + 'c'.repeat(40), short: '0xcccc…cccc', name: '', shared: 1, same_side: 0, opposite_side: 1, overlap: 0.5, markets: [],
             their_positions: null, their_value: null, summary_read: false, lb_pnl: null, lb_volume: null, on_leaderboard: false, profile_url: 'https://polymarket.com/profile/0x' + 'c'.repeat(40) }
         ],
-        basis: { markets_checked: 2, markets_available: 2, holders_per_token: 20, top: 10, note: "overlap among the top 20 holders per outcome of this wallet's 2 largest open markets", errors: ['0x1111111…: holders down'] }
+        // markets_read < markets_checked: ein Abruf ist gescheitert, und der
+        // Nenner der Quote sind nur die gelesenen Maerkte.
+        basis: { markets_checked: 3, markets_read: 2, markets_available: 3, holders_per_token: 20, top: 10, median_shared: 1, note: "overlap among the top 20 holders per outcome of this wallet's 3 largest open markets", errors: ['0x1111111…: holders down'] }
       } };
       return () => { delete T.liveData.walletSimilar[WALLET_HARNESS_ADDR]; };
     }],

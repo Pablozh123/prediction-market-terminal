@@ -1656,7 +1656,10 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("Reading the top holders of the largest open markets", warten)
         daten_html = self.ausgabe["live"]["wallet_tab_similar_data"]
         daten = _sichtbarer_text(daten_html)
-        self.assertIn("SIMILAR WALLETS · TOP 2 as of 2026-08-18 15:00 UTC · 2 of 2 open markets checked · 7 wallets seen", daten)
+        # Nenner sind die gelesenen Maerkte, nicht die angefragten, und der
+        # Median sagt, wie viel Ueberschneidung hier ueblich ist.
+        self.assertIn("SIMILAR WALLETS · TOP 2 as of 2026-08-18 15:00 UTC · 2 of 3 open markets read (3 requested) "
+                      "· 7 wallets seen · median candidate shares 1", daten)
         self.assertIn("bee · 0xbbbb…bbbb 2 same side 2 / 2 12 · $4,201 100% +$1,500 $90.0k Analyse profile ↗", daten)
         self.assertIn("0xcccc…cccc 1 opposite 1 / 2 not read 50% not on board — Analyse profile ↗", daten)
         self.assertIn("Markets that did not answer: 0x1111111…: holders down", daten)
