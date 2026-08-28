@@ -2010,6 +2010,19 @@ def filter_wallet_positions_by_status(positions: pd.DataFrame, status: Any) -> p
     return positions[positions["status"].astype(str).eq(value)].copy()
 
 
+def _calendar_day_volume(day_markets: pd.DataFrame) -> dict[str, float]:
+    """Tagesvolumen je Einheit: Polymarket in Dollar, Kalshi in Kontrakten."""
+
+    if day_markets is None or day_markets.empty:
+        return {"volume_usd": 0.0, "volume_contracts": 0.0}
+    je_einheit = vu.volume_by_unit(day_markets.get("platform", []),
+                                   day_markets["activity_volume"])
+    return {
+        "volume_usd": float(je_einheit.get(vu.USD, 0.0)),
+        "volume_contracts": float(je_einheit.get(vu.CONTRACTS, 0.0)),
+    }
+
+
 def market_calendar_days(
     markets: pd.DataFrame,
     month: Any | None = None,
@@ -2024,7 +2037,8 @@ def market_calendar_days(
         "weekday",
         "is_current_month",
         "markets",
-        "volume",
+        "volume_usd",
+        "volume_contracts",
         "median_prob",
         "top_markets",
         "more_count",
@@ -2079,7 +2093,12 @@ def market_calendar_days(
                 "weekday": int(current.weekday()),
                 "is_current_month": current.month == month_start.month,
                 "markets": int(len(day_markets)),
-                "volume": float(day_markets["activity_volume"].sum()) if not day_markets.empty else 0.0,
+                # Zwei Summen statt einer. Ein Tag kann Maerkte beider Venues
+                # tragen, und deren Volumenspalten stehen in verschiedenen
+                # Einheiten: Polymarket meldet Dollar, Kalshi zaehlt
+                # Kontrakte (Beleg in app/venue_units.py). Die frueher hier
+                # stehende Gesamtsumme war deshalb keine Groesse.
+                **_calendar_day_volume(day_markets),
                 "median_prob": float(day_markets["yes_price"].median()) if not day_markets.empty else float("nan"),
                 "top_markets": top_rows,
                 "more_count": max(0, int(len(day_markets) - len(top_rows))),
