@@ -858,7 +858,10 @@ export function renderRisk(T) {
     '<div style="display:flex; align-items:center; gap:12px">'
     + '<div style="flex:0 0 158px; ' + M + '; font-size:11px; letter-spacing:.08em; color:' + farbe + '">' + label + ' <span style="font-size:13px; color:' + (farbe === 'var(--warn)' ? 'var(--warn)' : 'var(--text)') + '">' + (wert != null ? wert : '—') + '</span></div>'
     + '<div style="flex:1; height:12px; border-radius:4px; background:rgba(var(--ink),.07); overflow:hidden"><div style="width:' + trichterBreite(wert).toFixed(1) + '%; height:12px; background:' + balkenFarbe + '"></div></div>'
-    + '<div style="flex:0 0 210px; font-size:11px; color:rgba(var(--ink),.5)">' + satz + '</div>'
+    // .5 lag im dunklen Thema bei 4.49:1 und damit knapp unter AA; .62
+    // misst 6.40:1 dunkel und 5.96:1 hell (Alpha-Leiter in
+    // docs/design/review_2026-08-28.md).
+    + '<div style="flex:0 0 210px; font-size:11px; color:rgba(var(--ink),.62)">' + satz + '</div>'
     + '</div>';
   const seitenKpi = (label, wert, amber) =>
     '<div style="flex:1; background:var(--panel); border:1px solid rgba(var(--ink),.09); border-radius:6px; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; gap:10px">'
