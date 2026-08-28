@@ -1104,6 +1104,18 @@ function rendern(T) {
       T.liveData.copy = { _quelle: 'fehler', _fehler: 'HTTP 404' };
       return () => { T.liveData.copy = alt; };
     }],
+    // Ein Lauf, in dem eine Aufloesung unentschieden blieb: der Ausgang des
+    // Marktes war nicht zu lesen, also wurde weder Gewinn noch Verlust
+    // gebucht. Ungenannt saehe der Lauf vollstaendig aus.
+    ['copy_sync_undecided', 'copy', {}, null, (T) => {
+      const alt = T.liveData.copy;
+      if (alt) T.liveData.copy = Object.assign({}, alt, { sync: {
+        running: false, started_at: '2026-08-28T05:00:00Z', finished_at: '2026-08-28T05:00:12Z', error: null,
+        result: { api: { wallets: 2, copied: 3, skipped: 1, duplicates: 4, errors: [] },
+          settlement: { wallets: 2, copied: 1, skipped: 0, duplicates: 0, undecided: 2, errors: [] } }
+      } });
+      return () => { T.liveData.copy = alt; };
+    }],
     ['portfolio_exposure', 'portfolio', { portTab: 'exposure' }],
     // Live tape / Whale flow narrowed by a category chip: the harness tape
     // carries one Macro print (with wallet) and one Crypto print (Kalshi, no
@@ -1197,6 +1209,18 @@ function rendern(T) {
     // Wallet page states: no address chosen, request in flight, failed
     // (generic / 400 / 429), and the full answer sorted by unrealised PnL.
     // The empty run has no payload: 'wallet' there is the no-address page.
+    // Eine Bestenlisten-Zeile ohne Gewinn- und Volumenzahl. ``+r.pnl || 0``
+    // in app.js machte daraus einen echten, plausiblen Nullgewinn; die Zeile
+    // muss stattdessen einen Strich zeigen und darf nicht vor Zeilen mit
+    // gemessenem Gewinn stehen.
+    ['traders_pnl_unknown', 'traders', {}, null, (T) => {
+      const alt = T.traders;
+      T.traders = alt.concat([{
+        name: 'w3', wallet: '0x12…3', walletFull: '0x123', pnl: null, win: null,
+        resolved: null, vol: null, score: null, grade: null, scoreParts: [], tags: ''
+      }]);
+      return () => { T.traders = alt; };
+    }],
     ['wallet_none', 'wallet', { walletAddr: '', walletInput: '' }],
     ['wallet_partial_input', 'wallet', { walletAddr: '', walletInput: '0x29afe1' }],
     ['wallet_loading', 'wallet', { walletAddr: WALLET_HARNESS_ADDR, walletInput: WALLET_HARNESS_ADDR }, null, (T) => {
@@ -1218,6 +1242,25 @@ function rendern(T) {
       const alt = T.liveData.wallet[WALLET_HARNESS_ADDR];
       T.liveData.wallet[WALLET_HARNESS_ADDR] = { herkunft: 'fehler', fehler: 'HTTP 429', status: 429, retryAfter: 7 };
       return () => { if (alt) T.liveData.wallet[WALLET_HARNESS_ADDR] = alt; else delete T.liveData.wallet[WALLET_HARNESS_ADDR]; };
+    }],
+    // Der Abruf der Aktivitaet ist gescheitert. Die Seite darf daraus keine
+    // stille Wallet machen: null Trades sind hier keine Messung.
+    ['wallet_activity_unreadable', 'wallet', { walletTab: 'trades' }, null, (T) => {
+      const eintrag = T.liveData.wallet[WALLET_HARNESS_ADDR];
+      const alt = eintrag && eintrag.data ? eintrag.data : null;
+      if (alt) {
+        eintrag.data = Object.assign({}, alt, {
+          activity: Object.assign({}, alt.activity, {
+            n_rows: 0, n_trades: 0, trades: [], shown: 0, window_truncated: false,
+            window_state: 'unreadable', error: 'MarketDataError: connection reset by peer'
+          }),
+          identity: Object.assign({}, alt.identity, {
+            n_activity_rows: 0, days_active: null, first_activity: '', last_activity: '',
+            activity_truncated: false, activity_error: 'MarketDataError: connection reset by peer'
+          })
+        });
+      }
+      return () => { if (alt) T.liveData.wallet[WALLET_HARNESS_ADDR].data = alt; };
     }],
     ['wallet_sort_pnl', 'wallet', { walletTab: 'positions', walletPosSort: 'pnl' }],
     // The tabbed main column: each tab once, plus the treemap on closed only.

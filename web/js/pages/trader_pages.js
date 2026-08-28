@@ -185,12 +185,16 @@ export function renderTraders(T) {
   const hatWin = T.traders.some((t) => t.win != null);
   const hatResolved = T.traders.some((t) => t.resolved != null);
   const rank = (s.traderRank === 'win' && !hatWin) ? 'pnl' : s.traderRank;
+  // Absteigend, und eine unbekannte Zahl steht am Ende statt als Null in der
+  // Mitte: ein fehlender Gewinn ist kein Rang, den die Zeile verdient hat.
+  const absteigend = (x, y) => (x == null && y == null ? 0 : x == null ? 1 : y == null ? -1 : y - x);
+  const roi = (t) => (t.pnl == null ? null : t.pnl / (t.vol || 1));
   const traderSorted = tRows.sort((a, b) => {
     if (rank === 'win') return (b.win || 0) - (a.win || 0);
     if (rank === 'score') return (b.score == null ? -1 : b.score) - (a.score == null ? -1 : a.score);
-    if (rank === 'vol') return b.vol - a.vol;
-    if (rank === 'roi') return (b.pnl / (b.vol || 1)) - (a.pnl / (a.vol || 1));
-    return b.pnl - a.pnl;
+    if (rank === 'vol') return absteigend(a.vol, b.vol);
+    if (rank === 'roi') return absteigend(roi(a), roi(b));
+    return absteigend(a.pnl, b.pnl);
   });
 
   const badge = tCount ? M + '; font-size:var(--t-micro); color:var(--on-accent); background:var(--accent); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)' : 'display:none';
@@ -260,10 +264,10 @@ export function renderTraders(T) {
         + '<div style="min-width:0"><div style="font-size:var(--t-body)">' + esc(t.name) + '</div>'
         + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-1)">' + esc(t.wallet) + (t.grade ? ' · grade ' + esc(t.grade) : '') + '</div>'
         + scorePartsHtml(t) + '</div></div>'
-        + '<div style="' + M + '; font-size:var(--t-body); text-align:right; color:' + (t.pnl >= 0 ? 'var(--pos)' : 'var(--neg)') + '">' + money(t.pnl) + '</div>'
+        + '<div style="' + M + '; font-size:var(--t-body); text-align:right; color:' + (t.pnl == null ? 'var(--ink-3)' : (t.pnl >= 0 ? 'var(--pos)' : 'var(--neg)')) + '">' + (t.pnl != null ? money(t.pnl) : '—') + '</div>'
         + (hatWin ? '<div style="' + M + '; font-size:var(--t-body); text-align:right">' + (t.win != null ? Math.round(t.win * 100) + '%' : '—') + '</div>' : '')
         + (hatResolved ? '<div style="' + M + '; font-size:var(--t-small); text-align:right; color:var(--ink-4)">' + (t.resolved != null ? num(t.resolved) : '—') + '</div>' : '')
-        + '<div style="' + M + '; font-size:var(--t-body); text-align:right">' + money(t.vol) + '</div>'
+        + '<div style="' + M + '; font-size:var(--t-body); text-align:right">' + (t.vol != null ? money(t.vol) : '—') + '</div>'
         + '<div style="display:flex; justify-content:flex-end"><div' + scoreTitel(t) + ' style="' + scoreStyle + '">' + (score != null ? score : 'n/a') + '</div></div>'
         + '</div>';
     }).join('')
