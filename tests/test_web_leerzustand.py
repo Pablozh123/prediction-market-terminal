@@ -230,13 +230,20 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("floor at 40/100", text)
         self.assertIn("SCREENED 9", text)
         self.assertIn("FLAGGED ≥ 40 2", text)
-        self.assertIn("HIGH ≥ 70 1", text)
+        self.assertIn("AT 70 AND UP 1", text)
         self.assertIn("cleared the flag threshold — these get cards", text)
         self.assertIn("SCORE COMPOSITION", text)
         self.assertIn("size of the money", text)
         self.assertIn("price &amp; timing", text)
         self.assertIn("wallet pattern", text)
-        self.assertIn("ticks at 40 · 55 · 70 — low → elevated → medium → high", text)
+        self.assertIn("ticks at 40 · 55 · 70 points", text)
+        # Der Kopf sagt, was die Zahl ist, was ueber sie NICHT gemessen wurde
+        # (Register) und wo die eine Groesse steht, die gemessen wird.
+        self.assertIn("9 flow features, each capped at a fixed number of points", text)
+        self.assertIn("no hit rate exists for it", text)
+        self.assertIn("The one outcome this screen does measure is on the Flag log tab", text)
+        self.assertIn("UNDER 40 PTS · FEW PATTERNS", text)
+        self.assertIn("70+ PTS · MOST PATTERNS", text)
         self.assertIn("7 more markets screened below 40/100 — watch only, no card.", text)
         # Ohne Antwort keine erfundene Zahl: Trichter mit "—", kein Zaehler.
         leer = _sichtbarer_text(self.ausgabe["leer"]["risk"])
@@ -253,11 +260,11 @@ class WebLeerzustandTest(unittest.TestCase):
         # Cluster mit WER (klickbare Wallets) und WO (geteilte Maerkte) —
         # die unlesbare Wallet-Markt-Matrix ist weg.
         wallets = _sichtbarer_text(self.ausgabe["live"]["risk_wallets"])
-        self.assertIn("Same 0–100 score and bands as Events", wallets)
+        self.assertIn("Same 0–100 point total and the same bands as Events", wallets)
         self.assertIn("long-odds big bet", wallets)
         self.assertIn("late-market flow", wallets)
         self.assertIn("watch only", wallets)
-        self.assertIn("71 HIGH", wallets)
+        self.assertIn("71 MOST PATTERNS", wallets)
         self.assertIn("$450", wallets)  # not "$0k"
         self.assertNotIn("CLUSTER", wallets.replace("FRESH-WALLET CLUSTERS", "").replace("COORDINATED CLUSTERS", ""))
         fresh = _sichtbarer_text(self.ausgabe["live"]["risk_fresh"])
@@ -1406,7 +1413,7 @@ class WebLeerzustandTest(unittest.TestCase):
         # components, the context note as a tooltip on the category; the
         # "Why this score" toggle opens them (state riskOpen, not <details>,
         # so the 30 s re-render keeps it open).
-        self.assertIn("TIMING 61 /100 MEDIUM Example question", text)
+        self.assertIn("TIMING 61 /100 MANY PATTERNS Example question", text)
         # Zwischen Kategorie-Zeile und Flow-Chip sitzt jetzt die
         # Kompositionsleiste: Familien-Punkte nach Kontext-Multiplikator
         # (6.0×1.1, 2.7×1.1, (9.8+5.0)×1.1) — die Luecke zum Score-Marker
@@ -1423,7 +1430,7 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertNotIn("One wallet dominates", text)
         self.assertNotIn("three wallets, one side", text.split("EVENT SCREEN")[0])
         self.assertIn("WINDOW 2 h Why 61? ▾", text)
-        self.assertIn("EVENT SCREEN 44 /100 ELEVATED KXFED-26SEP KALSHI", text)
+        self.assertIn("EVENT SCREEN 44 /100 SOME PATTERNS KXFED-26SEP KALSHI", text)
         # Open: the score taken apart — one row per scoring part with its
         # bar, points, what the tape showed and what full marks take; the
         # zero parts in one "not found" line; the context multiplier; the

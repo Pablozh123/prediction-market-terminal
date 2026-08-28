@@ -320,5 +320,34 @@ class FlagScoreboardTests(unittest.TestCase):
             self.assertIsNone(board["horizons"][label]["ci95"])
 
 
+class FlagLogRouteBeschriftungTests(unittest.TestCase):
+    """Die Log-Karten zeigen dieselbe 0-100-Zahl wie die Event-Karten.
+
+    Sie muessen sie auch gleich nennen. Vorher las die eine Registerkarte
+    "HIGH" und die andere gar nichts; das Band gehoert deshalb in die
+    Antwort der Route und nicht in die Seite.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            from api import server
+        except Exception as exc:  # fastapi fehlt lokal
+            raise unittest.SkipTest(f"api.server nicht importierbar: {exc}")
+        cls.server = server
+
+    def test_route_liefert_die_baender_der_einen_quelle(self):
+        from app import suspicion as susp
+
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["RISK_LOG_DIR"] = tmp
+            try:
+                payload = self.server.risk_log_endpoint(limit=1)
+            finally:
+                os.environ.pop("RISK_LOG_DIR", None)
+        self.assertEqual(payload["score_name"], susp.SCORE_NAME)
+        self.assertEqual(payload["score_bands"], susp.score_band_table())
+
+
 if __name__ == "__main__":
     unittest.main()
