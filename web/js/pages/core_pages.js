@@ -3,7 +3,7 @@
 // instance (T). Nothing here invents a number: every figure names its payload
 // or the panel says which payload is missing.
 
-import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, signedMoney, stempel, EINZAHLUNGEN_USD, tapeFenster, fensterSatz } from '../util.js';
+import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, signedMoney, stempel, EINZAHLUNGEN_USD, offeneNichtDrin, tapeFenster, fensterSatz } from '../util.js';
 import { spiegelZeit, kurzGeld } from '../charts.js';
 import { studieAnker } from './microstructure_page.js';
 
@@ -299,7 +299,7 @@ export function renderOverview(T) {
     const roi = (100 * +la.netto_cashflow_usd) / einzahlungen;
     flussZelle = kpiCell('ROI (WALLET · ALL ACTIVITY)', (roi >= 0 ? '+' : '') + roi.toFixed(1) + '%',
       'net cashflow ' + signedMoney(+la.netto_cashflow_usd)
-      + ' on the one-time deposit of $' + num(einzahlungen.toFixed(0)), false, roi);
+      + ' on the one-time deposit of $' + num(einzahlungen.toFixed(0)) + offeneNichtDrin(la), false, roi);
   }
   const runsStrip = agg
     ? '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid rgba(var(--ink),.09)">'

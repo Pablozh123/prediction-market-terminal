@@ -133,6 +133,21 @@ class WebTapeTest(unittest.TestCase):
     def test_dauer_formatiert_ohne_falsche_genauigkeit(self) -> None:
         self.assertEqual(self.ausgabe["dauer"], ["<1 min", "42 min", "6.0 h", "3.0 d"])
 
+    def test_offene_positionen_stehen_nicht_im_cashflow(self) -> None:
+        """Der Wallet-ROI misst gegen die Einzahlung; offene Positionen stehen in keiner der beiden Zahlen."""
+
+        werte = self.ausgabe["offene_nicht_drin"]
+        self.assertEqual(werte["keine"], "")
+        self.assertEqual(werte["ohne_feld"], "")
+        self.assertEqual(werte["eine"], " · 1 open position not in it")
+        self.assertEqual(werte["mehrere"], " · 4 open positions not in it")
+
+    def test_event_pnl_nennt_den_unrealisierten_teil(self) -> None:
+        werte = self.ausgabe["ledger_pnl_satz"]
+        self.assertEqual(werte["abgerechnet"], "settled PnL +$45.97")
+        self.assertIn("unrealised on open positions", werte["gemischt"])
+        self.assertNotIn("realised PnL", werte["gemischt"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -8,6 +8,16 @@
 // silently fall back to the buy volume.
 export const EINZAHLUNGEN_USD = 300;
 
+// Der Wallet-ROI misst den Netto-Cashflow gegen die Einzahlung. Was noch in
+// offenen Positionen steckt, ist weder eingezahlt noch zurueckgeflossen und
+// steht deshalb in keiner der beiden Zahlen. Solange das Wallet offene
+// Positionen haelt, gehoert dieser Satz an die Kachel.
+export function offeneNichtDrin(aggregat) {
+  const offen = aggregat && aggregat.positionen ? +aggregat.positionen.open || 0 : 0;
+  if (!offen) return '';
+  return ' · ' + offen + ' open position' + (offen === 1 ? '' : 's') + ' not in it';
+}
+
 export function num(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
 
 export function money(n) {

@@ -7,6 +7,8 @@
 // src/prediction_markets.get_kalshi_trades).
 
 import { mapTrade, tapeMatches, tradeDirection, tradeOutcome, tapeFenster, fensterSatz, dauer } from '../web/js/util.js';
+import { offeneNichtDrin } from '../web/js/util.js';
+import { ledgerPnlSatz } from '../web/js/pages/system_pages.js';
 
 const jetzt = new Date().toISOString();
 
@@ -72,5 +74,22 @@ ausgabe.fenster_satz = fensterSatz(tapeFenster(fensterZeilen));
 ausgabe.fenster_leer = tapeFenster([]);
 ausgabe.fenster_ohne_zeit = tapeFenster([{ venue: 'Kalshi', mins: 999 }]);
 ausgabe.dauer = [dauer(0.4), dauer(42), dauer(360), dauer(4320)];
+
+// Zwei Beschriftungen, die eine Zahl vor einem falschen Namen schuetzen.
+// (1) Der Wallet-ROI misst den Netto-Cashflow gegen die Einzahlung; was in
+// offenen Positionen steckt, steht in keiner der beiden Zahlen.
+// (2) Der Event-PnL des Ledgers summiert abgerechnete Maerkte UND den
+// Buchgewinn offener Positionen — "API realised PnL" war dafuer der
+// falsche Name.
+ausgabe.offene_nicht_drin = {
+  keine: offeneNichtDrin({ positionen: { open: 0 } }),
+  eine: offeneNichtDrin({ positionen: { open: 1 } }),
+  mehrere: offeneNichtDrin({ positionen: { open: 4 } }),
+  ohne_feld: offeneNichtDrin(null)
+};
+ausgabe.ledger_pnl_satz = {
+  abgerechnet: ledgerPnlSatz({ pnl_usd: 45.97, pnl_offen_usd: null }),
+  gemischt: ledgerPnlSatz({ pnl_usd: 45.97, pnl_offen_usd: 12.5 })
+};
 
 process.stdout.write(JSON.stringify(ausgabe));
