@@ -896,21 +896,27 @@ def _wallet_positions(positions: pd.DataFrame | None, as_of: str, requested: int
     if positions is None or positions.empty:
         return {"as_of": as_of, "rows": [], "n": 0, "shown": 0, "capped": False, "total_exposure": 0.0,
                 "total_cost": 0.0, "unrealized_pnl": 0.0, "worthless_n": 0,
-                "worthless_pnl": 0.0, "worthless_cost": 0.0,
+                "worthless_pnl": 0.0, "worthless_cost": 0.0, "unpriced_n": 0, "unpriced_cost": 0.0,
                 "note": "No open positions in the public /positions feed."}
     rows: list[dict[str, Any]] = []
     exposure = cost = unreal = 0.0
     worthless_pnl = worthless_cost = 0.0
     worthless = 0
+    unpriced = 0
+    unpriced_cost = 0.0
     for _, row in positions.iterrows():
         size = _num(row.get("size"), 0.0) or 0.0
         avg = _num(row.get("avg_price"), 0.0) or 0.0
-        cur = _num(row.get("current_price"), 0.0) or 0.0
-        value = _num(row.get("value"), 0.0) or 0.0
-        pnl = _num(row.get("unrealized_pnl"), 0.0) or 0.0
+        # Kein Default 0 mehr: eine 0 heisst in diesem Feed "abgerechnet und
+        # nicht eingeloest", und genau dazu wurde jede Zeile, die der Feed
+        # nicht bepreist hat. Fehlt die Zahl, bleibt sie None.
+        cur = _num(row.get("current_price"))
+        value = _num(row.get("value"))
+        pnl = _num(row.get("unrealized_pnl"))
         end_time = _iso(row.get("end_time"))
         # Eine Definition fuer beide Oberflaechen (src/prediction_markets.py).
-        resolved_worthless = md.position_is_worthless(cur, value)
+        zustand = md.position_price_state(cur, value)
+        resolved_worthless = zustand == md.POSITION_PRICE_WORTHLESS
         # Eine wertlose Position ist gegen die Wallet aufgeloest und wurde nur
         # nicht eingeloest — ihr Verlust ist realisiert und bewegt sich nie
         # wieder. Bis hierher lief er in dieselbe Summe wie der Buchgewinn
@@ -918,29 +924,35 @@ def _wallet_positions(positions: pd.DataFrame | None, as_of: str, requested: int
         # (open)". Beide Toepfe werden jetzt getrennt gefuehrt.
         if resolved_worthless:
             worthless += 1
-            worthless_pnl += pnl
+            worthless_pnl += pnl or 0.0
             worthless_cost += size * avg
+        elif zustand == md.POSITION_PRICE_UNKNOWN:
+            # Weder offen noch abgerechnet: der Feed hat nichts geliefert.
+            # Diese Zeile geht in keine der Summen ein.
+            unpriced += 1
+            unpriced_cost += size * avg
         else:
-            exposure += value
+            exposure += value or 0.0
             cost += size * avg
-            unreal += pnl
+            unreal += pnl or 0.0
         rows.append({
             "title": _text(row.get("title")),
             "outcome": _text(row.get("outcome")),
             "size": round(size, 4),
             "avg_price": round(avg, 4),
-            "current_price": round(cur, 4),
-            "value": round(value, 2),
+            "current_price": None if cur is None else round(cur, 4),
+            "value": None if value is None else round(value, 2),
             "cost": round(size * avg, 2),
-            "unrealized_pnl": round(pnl, 2),
+            "unrealized_pnl": None if pnl is None else round(pnl, 2),
             "pnl_pct": _num(row.get("pnl_pct")),
             "end_time": end_time,
             "market_key": _text(row.get("market_key")),
             "url": market_url("Polymarket", _text(row.get("market_key")), _text(row.get("url"))),
             "image": _image_url(row.get("image")),
-            "status": "worthless" if resolved_worthless else "open",
+            "status": zustand,
         })
-    rows.sort(key=lambda r: -r["value"])
+    # Zeilen ohne Wert sortieren nach unten statt eine 0 zu erfinden.
+    rows.sort(key=lambda r: (r["value"] is None, -(r["value"] or 0.0)))
     return {
         "as_of": as_of,
         "rows": rows[:WALLET_POSITIONS_SHOWN],
@@ -955,10 +967,13 @@ def _wallet_positions(positions: pd.DataFrame | None, as_of: str, requested: int
         "worthless_n": worthless,
         "worthless_pnl": round(worthless_pnl, 2),
         "worthless_cost": round(worthless_cost, 2),
+        "unpriced_n": unpriced,
+        "unpriced_cost": round(unpriced_cost, 2),
         "note": ("Value at the current price; positions at price 0 past their end date resolved against "
                  "the wallet and were not redeemed ('worthless'). Their loss is settled, not unrealised, "
                  "so it is reported separately and is not in 'unrealized_pnl', 'total_cost' or "
-                 "'total_exposure'."),
+                 "'total_exposure'. Rows the feed returned no price and no value for carry status "
+                 "'unknown', count in 'unpriced_n', and are in none of these totals."),
     }
 
 

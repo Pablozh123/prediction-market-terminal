@@ -3073,7 +3073,7 @@ def position_is_worthless(current_price: Any, value: Any) -> bool:
     return position_price_state(current_price, value) == POSITION_PRICE_WORTHLESS
 
 
-def _position_price_states(positions: pd.DataFrame) -> pd.Series:
+def position_price_states(positions: pd.DataFrame) -> pd.Series:
     """``position_price_state`` ueber eine ganze Positionstabelle."""
 
     if positions is None or positions.empty:
@@ -3106,7 +3106,7 @@ def worthless_position_mask(positions: pd.DataFrame) -> pd.Series:
 
     if positions is None or positions.empty:
         return pd.Series(dtype="bool")
-    return _position_price_states(positions).eq(POSITION_PRICE_WORTHLESS)
+    return position_price_states(positions).eq(POSITION_PRICE_WORTHLESS)
 
 
 def unknown_price_mask(positions: pd.DataFrame) -> pd.Series:
@@ -3114,7 +3114,7 @@ def unknown_price_mask(positions: pd.DataFrame) -> pd.Series:
 
     if positions is None or positions.empty:
         return pd.Series(dtype="bool")
-    return _position_price_states(positions).eq(POSITION_PRICE_UNKNOWN)
+    return position_price_states(positions).eq(POSITION_PRICE_UNKNOWN)
 
 
 def wallet_summary(open_positions: pd.DataFrame, closed_positions: pd.DataFrame, trades: pd.DataFrame) -> dict[str, Any]:
@@ -3133,7 +3133,7 @@ def wallet_summary(open_positions: pd.DataFrame, closed_positions: pd.DataFrame,
         )
 
     if not open_positions.empty:
-        zustand = _position_price_states(open_positions)
+        zustand = position_price_states(open_positions)
         worthless = zustand.eq(POSITION_PRICE_WORTHLESS)
         if bool(worthless.any()):
             worthless_count = int(worthless.sum())

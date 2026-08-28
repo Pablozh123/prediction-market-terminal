@@ -2903,9 +2903,15 @@ def wallet_positions_frame(open_positions: pd.DataFrame, closed_positions: pd.Da
         open_frame = open_positions.copy()
         # Preis 0 und Wert 0 heisst: gegen die Wallet aufgeloest und nicht
         # eingeloest. Als "Open" gefuehrt landete so eine Zeile im Aktiv-Filter
-        # und ihr Verlust in derselben Spalte wie ein Buchverlust.
-        open_frame["status"] = md.worthless_position_mask(open_frame).map(
-            {True: "Resolved, not redeemed", False: "Open"}
+        # und ihr Verlust in derselben Spalte wie ein Buchverlust. Eine Zeile
+        # ganz ohne Preis ist ein dritter Fall und bekommt ein eigenes Wort,
+        # damit sie nicht als abgerechneter Verlust gelesen wird.
+        open_frame["status"] = md.position_price_states(open_frame).map(
+            {
+                md.POSITION_PRICE_WORTHLESS: "Resolved, not redeemed",
+                md.POSITION_PRICE_UNKNOWN: "Price unknown",
+                md.POSITION_PRICE_KNOWN: "Open",
+            }
         )
         open_frame["pnl"] = numeric_col(open_frame, "unrealized_pnl")
         open_frame["basis"] = numeric_col(open_frame, "size") * numeric_col(open_frame, "avg_price")
@@ -5851,6 +5857,17 @@ def render_wallet(wallet: str) -> None:
             f"{money(summary.get('worthless_cost', 0.0))} at cost resolved against this wallet and still "
             "sit in the open-positions feed at price 0. Their loss is settled and is kept out of the "
             "unrealised figure, the position value and the cost basis.</div>",
+            unsafe_allow_html=True,
+        )
+    # Der dritte Fall: der Feed hat fuer diese Zeilen weder Preis noch Wert
+    # geliefert. Frueher wurden sie mit Preis 0 gefuehrt und damit wie ein
+    # abgerechneter Totalverlust gezaehlt.
+    unknown_n = int(summary.get("unknown_price_count", 0) or 0)
+    if unknown_n:
+        st.markdown(
+            f"<div class='field-hint'>PRICE UNKNOWN: the feed returned neither price nor value for "
+            f"{unknown_n:,} positions worth {money(summary.get('unknown_price_cost', 0.0))} at cost. "
+            "They are left out of every figure above rather than counted at zero.</div>",
             unsafe_allow_html=True,
         )
     info_cols = st.columns(3)

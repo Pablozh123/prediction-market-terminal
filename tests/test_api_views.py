@@ -409,6 +409,33 @@ class WalletPageBlocksTests(unittest.TestCase):
         self.assertTrue(payload["open_positions"]["capped"])
         self.assertEqual(payload["open_positions"]["n"], 10)
 
+    def test_a_row_the_feed_never_priced_is_not_a_settled_loss(self) -> None:
+        # Dritte Zeile: weder Preis noch Wert. Vorher machte der Default 0
+        # daraus eine gegen die Wallet aufgeloeste Position, also -25 als
+        # abgerechneten Verlust in worthless_pnl.
+        pos = pd.concat([_positions_fixture(), pd.DataFrame([{
+            "title": "Feed hat nichts geliefert?", "outcome": "Yes", "size": 50.0, "avg_price": 0.5,
+            "current_price": float("nan"), "value": float("nan"), "unrealized_pnl": float("nan"),
+            "pnl_pct": float("nan"), "end_time": pd.Timestamp("2026-12-31", tz="UTC"),
+            "market_key": "0xunpriced", "url": "https://polymarket.com/event/unpriced"},
+        ])], ignore_index=True)
+        payload = apv.wallet_detail({"wallet": "0xabc", "snapshot_at": "", "errors": {}}, pos, None, None,
+                                    positions_requested=50, as_of="x")
+        opened = payload["open_positions"]
+        self.assertEqual(opened["worthless_n"], 1)
+        self.assertAlmostEqual(opened["worthless_pnl"], -10.0)
+        self.assertEqual(opened["unpriced_n"], 1)
+        self.assertAlmostEqual(opened["unpriced_cost"], 25.0)
+        # In keiner der Summen: Exposure und Kostenbasis bleiben die der
+        # einen wirklich offenen Zeile.
+        self.assertAlmostEqual(opened["total_exposure"], 55.0)
+        self.assertAlmostEqual(opened["total_cost"], 40.0)
+        self.assertAlmostEqual(opened["unrealized_pnl"], 15.0)
+        unpriced = [r for r in opened["rows"] if r["market_key"] == "0xunpriced"][0]
+        self.assertEqual(unpriced["status"], "unknown")
+        self.assertIsNone(unpriced["current_price"])
+        self.assertIsNone(unpriced["value"])
+
 
 class RiskWalletAddressTests(unittest.TestCase):
     def test_wallet_rows_carry_the_full_address(self) -> None:
