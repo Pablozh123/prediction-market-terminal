@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import math
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, Sequence
 
 import pandas as pd
 
@@ -2941,6 +2941,7 @@ def network_graph(
     edges: pd.DataFrame,
     *,
     regel: str = "",
+    leiter: Sequence[Mapping[str, Any]] | None = None,
     modularitaet: float | None = None,
     nullmodell: Mapping[str, Any] | None = None,
     wallets_im_tape: int | None = None,
@@ -2956,6 +2957,13 @@ def network_graph(
     gehoert in die Nutzlast und nicht in einen festen Text im Frontend: die
     Regel faellt auf eine lockerere zurueck, wenn die strenge nichts findet,
     und ein Bild, das die falsche Regel behauptet, ist wertlos.
+
+    ``leiter`` ist diese Ruecknahme im Klartext: alle Sprossen von streng nach
+    locker, je Sprosse ihre Parameter, ob sie versucht wurde und was sie
+    gefunden hat. Nur die gewaehlte Sprosse zu nennen sagt zwar die Wahrheit
+    ueber das Bild, verschweigt aber, dass zwei strengere Regeln vorher nichts
+    gefunden haben — und genau das ist der Befund. Nicht versucht ist dabei
+    etwas anderes als nichts gefunden.
 
     Drei Angaben gehen mit, weil das Bild ohne sie nicht einzuordnen ist:
     ``wallets_im_tape`` als Nenner (41 von 300 gescreenten Wallets sind eine
@@ -3034,6 +3042,23 @@ def network_graph(
         ergebnis["kennzahl"]["wallets_im_tape"] = int(wallets_im_tape)
     if regel:
         ergebnis["regel"] = regel
+    if leiter:
+        ergebnis["regel_leiter"] = [
+            {
+                "regel": _text(sprosse.get("regel")),
+                "parameter": {str(k): v for k, v in (sprosse.get("parameter") or {}).items()},
+                "versucht": bool(sprosse.get("versucht")),
+                # Nicht versucht heisst None, nicht null: null waere die
+                # Aussage "diese Regel hat nichts gefunden", und das hat
+                # niemand geprueft.
+                "wallets": (None if sprosse.get("wallets") is None
+                            else int(sprosse["wallets"])),
+                "kanten": (None if sprosse.get("kanten") is None
+                           else int(sprosse["kanten"])),
+                "gewaehlt": bool(sprosse.get("gewaehlt")),
+            }
+            for sprosse in leiter
+        ]
     if modularitaet is not None:
         ergebnis["kennzahl"]["modularitaet"] = round(float(modularitaet), 3)
     if nullmodell:

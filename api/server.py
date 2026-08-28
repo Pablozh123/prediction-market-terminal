@@ -972,6 +972,64 @@ def _tape_categories(trades: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame()
 
 
+#: Kantenregel fuer den Co-Trading-Graphen, von streng nach locker. Die
+#: Leiter existiert, weil die strenge Regel auf einem Tagesband oft nichts
+#: findet und ein leeres Bild keine Antwort ist. Sie ist damit aber Teil des
+#: Befunds: ein Graph unter der untersten Sprosse sagt etwas anderes als
+#: derselbe Graph unter der obersten. Deshalb steht die ganze Leiter in der
+#: Nutzlast und nicht nur die Sprosse, die getragen hat.
+CO_TRADING_LADDER: tuple[tuple[str, dict[str, Any]], ...] = (
+    ("same side of at least 3 markets within 5 minutes, $10k paired notional",
+     dict(window_minutes=5.0, min_shared=3, min_pair_notional=10_000.0)),
+    ("same side of at least 2 markets within 5 minutes",
+     dict(window_minutes=5.0, min_shared=2)),
+    ("same side of at least 2 markets anywhere in the window, no simultaneity required",
+     dict(window_minutes=None, min_shared=2)),
+)
+
+
+def co_trading_ladder(
+    basis: pd.DataFrame,
+    max_wallets: int = 300,
+    leiter: tuple[tuple[str, dict[str, Any]], ...] = CO_TRADING_LADDER,
+) -> tuple[pd.DataFrame, pd.DataFrame, list[dict[str, Any]]]:
+    """Die Leiter ablaufen und offenlegen, welche Sprosse getragen hat.
+
+    Zurueck kommen Knoten, Kanten und die Leiter selbst: je Sprosse die
+    Regel im Klartext, ihre Parameter, ob sie ueberhaupt versucht wurde und
+    was sie gefunden hat. Eine nicht versuchte Sprosse ist etwas anderes als
+    eine, die nichts gefunden hat, und beides ist etwas anderes als die, die
+    das Bild erzeugt hat — ohne diese Unterscheidung liest sich jede Grafik
+    als Ergebnis der strengsten Regel.
+    """
+
+    from app import suspicion as susp
+
+    nodes, edges = pd.DataFrame(), pd.DataFrame()
+    sprossen: list[dict[str, Any]] = []
+    fertig = False
+    for beschreibung, kwargs in leiter:
+        sprosse: dict[str, Any] = {
+            "regel": beschreibung,
+            "parameter": dict(kwargs),
+            "versucht": not fertig,
+            "wallets": None,
+            "kanten": None,
+            "gewaehlt": False,
+        }
+        if not fertig:
+            treffer_nodes, treffer_edges = susp.co_trading_network(
+                basis, max_wallets=max_wallets, **kwargs)
+            sprosse["wallets"] = int(len(treffer_nodes))
+            sprosse["kanten"] = int(len(treffer_edges))
+            if not treffer_nodes.empty:
+                nodes, edges = treffer_nodes, treffer_edges
+                sprosse["gewaehlt"] = True
+                fertig = True
+        sprossen.append(sprosse)
+    return nodes, edges, sprossen
+
+
 def risk_screen_basis() -> tuple[pd.DataFrame, pd.DataFrame, float]:
     """(Roh-Tape, gescreenter Basis-Tape, Whale-Schwelle) fuer den Insider-Score.
 
@@ -1051,26 +1109,10 @@ def build_risk_payload() -> dict[str, Any]:
             if netz_basis is None or netz_basis.empty:
                 netz_basis = base
 
-            # Regelleiter von streng nach locker. Welche Stufe gegriffen hat,
-            # geht mit in die Nutzlast: die Grafik ist nur so viel wert wie
-            # die Regel, die unter ihr steht, und die faellt hier nachweislich
-            # oft auf die unterste Stufe.
-            LEITER = (
-                ("same side of at least 3 markets within 5 minutes, $10k paired notional",
-                 dict(window_minutes=5.0, min_shared=3, min_pair_notional=10_000.0)),
-                ("same side of at least 2 markets within 5 minutes",
-                 dict(window_minutes=5.0, min_shared=2)),
-                ("same side of at least 2 markets anywhere in the window, no simultaneity required",
-                 dict(window_minutes=None, min_shared=2)),
-            )
-            regel = LEITER[-1][0]
-            regel_kwargs: dict[str, Any] = dict(LEITER[-1][1])
-            nodes, edges = pd.DataFrame(), pd.DataFrame()
-            for beschreibung, kwargs in LEITER:
-                nodes, edges = susp.co_trading_network(netz_basis, max_wallets=300, **kwargs)
-                if not nodes.empty:
-                    regel, regel_kwargs = beschreibung, dict(kwargs)
-                    break
+            nodes, edges, sprossen = co_trading_ladder(netz_basis)
+            gewaehlt = next((s for s in sprossen if s["gewaehlt"]), sprossen[-1])
+            regel = gewaehlt["regel"]
+            regel_kwargs: dict[str, Any] = dict(gewaehlt["parameter"])
 
             payload.update(apv.cluster_payload(
                 fresh, coord, nodes, edges,
@@ -1094,7 +1136,8 @@ def build_risk_payload() -> dict[str, Any]:
                     nullmodell = None
                 payload["graph"] = apv.network_graph(
                     susp.cluster_layout(nodes), edges,
-                    regel=regel, modularitaet=modularitaet, nullmodell=nullmodell,
+                    regel=regel, leiter=sprossen, modularitaet=modularitaet,
+                    nullmodell=nullmodell,
                     wallets_im_tape=int(netz_basis["wallet"].astype(str).nunique()),
                     stand_utc=datetime.now(timezone.utc).isoformat(timespec="seconds"))
                 payload["graph"]["fenster"] = apv.tape_window_label(netz_basis)

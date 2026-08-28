@@ -331,6 +331,14 @@ function mitDaten(T) {
       spanne: { x: [0, 1], y: [0, 1] },
       kennzahl: { wallets: 2, wallets_im_tape: 300, kanten: 1, cluster: 1, modularitaet: 0.4, lift_median: 5.0 },
       regel: 'same side of at least 3 markets within 5 minutes, $10k paired notional',
+      // Die ganze Leiter, nicht nur die Sprosse, die getragen hat: hier
+      // greift die strengste, die beiden lockereren wurden gar nicht
+      // versucht (und stehen deshalb auf null, nicht auf 0).
+      regel_leiter: [
+        { regel: 'same side of at least 3 markets within 5 minutes, $10k paired notional', parameter: { window_minutes: 5, min_shared: 3, min_pair_notional: 10000 }, versucht: true, wallets: 2, kanten: 1, gewaehlt: true },
+        { regel: 'same side of at least 2 markets within 5 minutes', parameter: { window_minutes: 5, min_shared: 2 }, versucht: false, wallets: null, kanten: null, gewaehlt: false },
+        { regel: 'same side of at least 2 markets anywhere in the window, no simultaneity required', parameter: { window_minutes: null, min_shared: 2 }, versucht: false, wallets: null, kanten: null, gewaehlt: false }
+      ],
       fenster: '2026-08-21 12:00 to 01:42 UTC · 13.7 h · 563 prints',
       // Die Kontrolle: dieselbe Regel auf gemischten Wallet-Namen.
       nullmodell: { runs: 2, wallets: 63, kanten: 846, cluster: 4, lift_median: 1.4 },

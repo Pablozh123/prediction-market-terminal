@@ -70,6 +70,31 @@ function nullmodellZeile(g) {
     + 'CONTROL · ' + wie + ' (' + esc(String(n.runs)) + ' shuffle' + (n.runs === 1 ? '' : 's') + ')</div>';
 }
 
+/** Die ganze Regelleiter, nicht nur die Sprosse, die getragen hat.
+ *
+ *  Die Regel faellt auf eine lockerere zurueck, wenn die strenge nichts
+ *  findet. Nur das Ergebnis zu nennen, sagt die Wahrheit ueber das Bild und
+ *  verschweigt den Befund: dass zwei strengere Regeln vorher leer ausgingen.
+ *  Nicht versucht steht dabei als solches da, denn eine ungetestete Regel ist
+ *  keine Regel, die nichts gefunden hat. */
+export function regelLeiterHtml(g) {
+  const leiter = (g && g.regel_leiter) || [];
+  if (!leiter.length) return '';
+  const zeile = (s) => {
+    const ergebnis = !s.versucht
+      ? 'not tried'
+      : (s.wallets ? s.wallets + ' wallets, ' + (s.kanten || 0) + ' links' : 'nothing');
+    const farbe = s.gewaehlt ? 'var(--text)' : 'rgba(var(--ink),.45)';
+    return '<div style="color:' + farbe + '; margin-top:3px">'
+      + (s.gewaehlt ? '▸ ' : '· ') + esc(s.regel) + ' — ' + esc(ergebnis)
+      + (s.gewaehlt ? ' (this picture)' : '') + '</div>';
+  };
+  return '<div style="' + M + '; font-size:10.5px; color:rgba(var(--ink),.55); margin-top:8px; line-height:1.5">'
+    + 'RULE LADDER, STRICT TO LOOSE'
+    + leiter.map(zeile).join('')
+    + '</div>';
+}
+
 /** Netzwerkgraph: Inseln aus cluster_layout, Kanten nach geteilten Maerkten.
  *  Knoten tragen ihr Wallet-Kuerzel als Beschriftung, solange das Bild das
  *  hergibt (bis 14 Knoten alle, darueber nur die groessten fuenf). */
@@ -179,6 +204,7 @@ export function renderClusterGraphics(live) {
     + '<br>SCOPE · insider-prone markets only, sports crypto and weather excluded'
     + (g.stand_utc ? '<br>SNAPSHOT · ' + esc(String(g.stand_utc)) : '')
     + '</div>'
+    + regelLeiterHtml(g)
     + nullmodellZeile(g)
     + '<div style="margin-top:14px">' + graphSvg(g) + '</div>'
     + '<div style="font-size:12px; color:rgba(var(--ink),.62); margin-top:8px; line-height:1.5">'
