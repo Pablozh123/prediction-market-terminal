@@ -93,6 +93,35 @@ def missing_venues(sources: Any) -> list[str]:
             if isinstance(row, Mapping) and not row.get("ok")]
 
 
+def category_coverage(universe: Any, *, error: str = "") -> dict[str, Any]:
+    """Woraus die ``category`` einer Tape-Zeile stammt, und was daran gefehlt hat.
+
+    Die Kategorie eines Prints kommt in erster Linie aus dem Marktuniversum
+    (``tape_rows_with_category``). Faellt das Universum aus, faellt jede
+    Zeile auf die Titel-Heuristik zurueck: Polymarket-Prints ohne
+    Rohkategorie landen dann reihenweise unter "Other". Das ist kein leeres
+    Ergebnis, sondern ein anderes. Die Kategorieleiste des Tapes, der
+    Kategoriefilter und die Aufteilung in "Where the money flows" zeigen
+    danach eine Verteilung, die es so nicht gibt, und vorher stand darueber
+    nur eine Zeile auf stdout.
+
+    ``ok`` heisst: die Nachschlagetabelle stand. Ein leeres Universum ohne
+    Fehler ist erlaubt (nichts gelistet); ein Fehler ist es nicht.
+    ``venues_missing`` sind die Venues, die im Universum selbst gefehlt
+    haben, denn deren Maerkte fehlen dann in der Tabelle.
+    """
+
+    fehler = str(error or "")[:300]
+    markets = 0 if universe is None else int(len(universe))
+    return {
+        "ok": not fehler,
+        "source": "market universe",
+        "markets": markets,
+        "venues_missing": missing_venues(venue_sources(universe)),
+        "error": fehler,
+    }
+
+
 def claims_payload(lang: str | None = None) -> dict[str, Any]:
     """Das Caveat-Register als JSON, so wie /api/claims es ausliefert.
 
@@ -2714,10 +2743,16 @@ def live_runs_extras(payload: Mapping[str, Any], publish_dir: Path | None = None
     bets = rsim.bets_frame(dict(payload))
     if bets is not None and not bets.empty:
         sims = []
+        # Die Tabelle sortiert nach ROI und hebt die erste Zeile als beste
+        # Regel hervor. Ein ``continue`` hier machte aus "die beste von drei"
+        # still "die beste von zwei", und die fehlende Regel sah aus wie eine,
+        # die nie angeboten wurde. Der Ausfall bleibt also in der Nutzlast.
+        sims_failed: list[dict[str, str]] = []
         for mode, label in ((rsim.SIM_AS_EXECUTED, "As executed"), (rsim.SIM_FIXED, "Flat $5 per bet"), (rsim.SIM_KELLY, "Kelly ¼ on +10pt edge")):
             try:
                 _, summary = rsim.simulate_sizing(bets, mode, bankroll=100.0, fixed_stake=5.0, kelly_edge_pt=10.0, kelly_fraction=0.25)
-            except Exception:
+            except Exception as exc:  # noqa: BLE001
+                sims_failed.append({"name": label, "error": f"{type(exc).__name__}: {exc}"[:200]})
                 continue
             sims.append({
                 "name": label,
@@ -2728,6 +2763,8 @@ def live_runs_extras(payload: Mapping[str, Any], publish_dir: Path | None = None
             })
         if sims:
             out["sims"] = sims
+        if sims_failed:
+            out["sims_failed"] = sims_failed
         try:
             report = calib.calibration_report(rsim.bot_resolution_frame(bets), capped=False)
             buckets = report.get("buckets")
