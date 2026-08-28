@@ -1970,6 +1970,104 @@ class RiskEventRowTests(unittest.TestCase):
         self.assertIn("components", payload["events"][0])
 
 
+class ZustellprotokollAnsichtTests(unittest.TestCase):
+    """Der Alarm-Endpunkt muss das Protokoll zeigen, nicht zwei Skalare.
+
+    Er las ``last_hits`` und ``last_sent`` aus dem Dedupe-Zustand und sagte
+    dazu ehrlich, dass es kein Protokoll gibt. Jetzt gibt es eines, und die
+    Kennzahl darueber traegt n, Intervall, Stichprobenurteil und Stand, wie
+    jede andere Kennzahl im Haus.
+    """
+
+    @staticmethod
+    def _zahlen(**extra):
+        basis = {
+            "as_of": "2026-08-28T15:00:00+00:00",
+            "attempts": 40, "sent": 36, "failed": 4, "distinct_signals": 31,
+            "delivery_rate": 0.9, "delivery_rate_ci95": [0.7694792561952611, 0.9604211124044252],
+            "sample": {"n": 40, "quality": "adequate", "verdict_allowed": True},
+            "channels": {"telegram": {"attempts": 40, "sent": 36}},
+            "first_delivery": "2026-08-21T09:00:00+00:00",
+            "last_delivery": "2026-08-28T14:25:00+00:00",
+            "last_failure": {"at": "2026-08-28T14:20:00+00:00", "channel": "telegram",
+                             "detail": "HTTP 429: Too Many Requests"},
+            "chain_ok": True, "chain_checked": 40,
+        }
+        basis.update(extra)
+        return basis
+
+    def test_ein_protokoll_mit_zeilen_meldet_sich_als_vorhanden(self) -> None:
+        ansicht = apv.alert_delivery_view(self._zahlen(), {"last_scan_at": "2026-08-28T14:25:00+00:00",
+                                                          "last_hits": 47, "last_deferred": 37})
+        self.assertTrue(ansicht["available"])
+        self.assertEqual(ansicht["attempts"], 40)
+        self.assertEqual(ansicht["sent"], 36)
+        self.assertEqual(ansicht["failed"], 4)
+        self.assertEqual(ansicht["sample"]["quality"], "adequate")
+        self.assertEqual(ansicht["ci95"], [0.7694792561952611, 0.9604211124044252])
+        self.assertEqual(ansicht["as_of"], "2026-08-28T15:00:00+00:00")
+        self.assertTrue(ansicht["chain_ok"])
+        self.assertEqual(ansicht["last_scan_at"], "2026-08-28T14:25:00+00:00")
+        self.assertEqual(ansicht["last_deferred"], 37)
+        self.assertIn("40", ansicht["note"])
+
+    def test_ein_leeres_protokoll_behauptet_keine_quote(self) -> None:
+        ansicht = apv.alert_delivery_view(self._zahlen(
+            attempts=0, sent=0, failed=0, distinct_signals=0, delivery_rate=None,
+            delivery_rate_ci95=[None, None],
+            sample={"n": 0, "quality": "insufficient", "verdict_allowed": False},
+            channels={}, first_delivery=None, last_delivery=None, last_failure=None,
+            chain_checked=0), None)
+        self.assertFalse(ansicht["available"])
+        self.assertIsNone(ansicht["rate"])
+        self.assertIsNone(ansicht["ci95"])
+        self.assertIn("nothing has been delivered", ansicht["note"].lower())
+
+    def test_ohne_datenbank_sagt_die_ansicht_das_und_erfindet_nichts(self) -> None:
+        ansicht = apv.alert_delivery_view(None, {"last_scan_at": "2026-08-28T14:25:00+00:00"})
+        self.assertFalse(ansicht["available"])
+        self.assertIsNone(ansicht["rate"])
+        self.assertEqual(ansicht["attempts"], 0)
+        self.assertIn("no delivery log", ansicht["note"].lower())
+        self.assertEqual(ansicht["last_scan_at"], "2026-08-28T14:25:00+00:00")
+
+    def test_eine_gebrochene_kette_wird_gemeldet_und_nicht_verschwiegen(self) -> None:
+        ansicht = apv.alert_delivery_view(self._zahlen(chain_ok=False, chain_checked=12), None)
+        self.assertFalse(ansicht["chain_ok"])
+        self.assertIn("chain", ansicht["note"].lower())
+
+
+class HolderPruefungIstAusTests(unittest.TestCase):
+    """Eine abgeschaltete Pruefung muss als abgeschaltet dastehen.
+
+    ``/api/alerts`` lief mit ``holder_checks = 0`` und nannte die Regel
+    "not evaluated by this endpoint": das liest sich wie eine Eigenschaft des
+    Endpunkts, nicht wie ein Schalter. Der Schalter existiert
+    (``alert_holder_checks`` in den Einstellungen), und der Schwellenregler auf
+    der Seite erreichte den Endpunkt ueberhaupt nicht.
+    """
+
+    def test_null_pruefungen_nennt_die_einstellung_und_ihren_wert(self) -> None:
+        zustand = apv.holder_check_state(0)
+        self.assertFalse(zustand["enabled"])
+        self.assertEqual(zustand["checks"], 0)
+        self.assertEqual(zustand["setting"], "alert_holder_checks")
+        self.assertIn("alert_holder_checks", zustand["note"])
+        self.assertIn("HOLDER CONCENTRATION", zustand["rules_not_evaluated"])
+
+    def test_eingeschaltet_meldet_die_zahl_der_geprueften_maerkte(self) -> None:
+        zustand = apv.holder_check_state(6)
+        self.assertTrue(zustand["enabled"])
+        self.assertEqual(zustand["checks"], 6)
+        self.assertEqual(zustand["rules_not_evaluated"], [])
+        self.assertIn("6", zustand["note"])
+
+    def test_ein_kaputter_wert_gilt_als_aus(self) -> None:
+        for wert in (None, "", "abc", -3):
+            with self.subTest(wert=wert):
+                self.assertFalse(apv.holder_check_state(wert)["enabled"])
+
+
 class WatchlistKeysTests(unittest.TestCase):
     """Der Alarm-Endpunkt muss die gespeicherte Watchlist lesen.
 

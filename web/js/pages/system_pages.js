@@ -378,6 +378,11 @@ export function renderAlerts(T) {
       .filter((art) => zaehlung[art] > 0 && gelieferteArten.indexOf(art) < 0)
       .map((art) => [art, zaehlung[art]])
     : [];
+  // Woran die Halter-Pruefung haengt. "not evaluated by this endpoint" liest
+  // sich wie eine Eigenschaft des Endpunkts; es ist ein Schalter, und er hat
+  // einen Namen und einen Wert. Ohne beides kann niemand entscheiden, ob die
+  // Regel gerade nichts findet oder gar nicht laeuft.
+  const holderSchalter = (live && live.holder_check) || null;
   const trefferText = (key, an) => {
     // Eine Regel, die der Endpunkt nicht auswertet, sagt das auch dann, wenn
     // der Schalter aus ist: sonst schaltet ein Leser sie ein und wartet auf
@@ -461,15 +466,50 @@ export function renderAlerts(T) {
           + '<div style="width:38px; height:21px; flex:none; border-radius:var(--r-panel); padding:var(--sp-1); display:flex; background:' + (on ? 'var(--accent)' : 'rgba(var(--ink),.14)') + '; justify-content:' + (on ? 'flex-end' : 'flex-start') + '">'
           + '<div style="width:17px; height:17px; border-radius:50%; background:' + (on ? 'var(--on-accent)' : 'var(--ink-4)') + '"></div></div></div>'
           + '<div style="font-size:var(--t-small); color:var(--ink-4); margin-top:var(--sp-3); line-height:1.45">' + a.desc + '</div>'
-          + '<div style="' + M + '; font-size:var(--t-micro); margin-top:var(--sp-4); color:var(--ink-3)">' + esc(trefferText(a.key, on)) + '</div></div>';
+          + '<div style="' + M + '; font-size:var(--t-micro); margin-top:var(--sp-4); color:var(--ink-3)">' + esc(trefferText(a.key, on)) + '</div>'
+          + (a.key === 'holders' && holderSchalter && !holderSchalter.enabled
+            ? '<div style="font-size:var(--t-small); margin-top:var(--sp-3); color:var(--ink-4); line-height:1.45">' + esc(holderSchalter.note) + '</div>'
+            : '')
+          + '</div>';
       }).join('')
       + '</div>';
   } else if (live && live.deliveries) {
+    // Was rausging, nicht was gemessen wurde. Die Quote traegt n, ein
+    // Wilson-Intervall, ein Stichprobenurteil und den Stand des Protokolls;
+    // ohne Zeilen im Protokoll steht hier keine Zahl, sondern der Grund.
     const dv = live.deliveries;
+    const proz = (v) => (v == null ? '—' : (v * 100).toFixed(1) + '%');
+    const feld = (label, wert) =>
+      '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-4)">' + esc(label) + '</div>'
+      + '<div style="' + M + '; font-size:var(--t-small); color:var(--ink-2); margin-top:var(--sp-2)">' + wert + '</div></div>';
+    const spanne = dv.ci95 && dv.ci95[0] != null
+      ? '95% CI ' + proz(dv.ci95[0]) + '–' + proz(dv.ci95[1])
+      : 'no interval';
+    const kette = dv.chain_ok == null
+      ? '—'
+      : (dv.chain_ok ? 'verified, ' + num(dv.chain_checked) + ' rows' : 'BROKEN at row ' + num(dv.chain_checked));
     body = '<div style="margin:var(--sp-5) var(--sp-6); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-6); background:var(--panel)">'
       + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-4)">DELIVERY LOG</div>'
       + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-4); line-height:1.5; max-width:640px">' + esc(dv.note || 'No delivery log available.') + '</div>'
-      + (dv.last_scan_at ? '<div style="' + M + '; font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-4)">last scan ' + esc(dv.last_scan_at) + ' · ' + esc(String(dv.last_hits)) + ' hits · ' + esc(String(dv.last_sent)) + ' sent</div>' : '')
+      + (dv.available
+        ? '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:var(--sp-5); margin-top:var(--sp-6)">'
+          + feld('DELIVERED', esc(num(dv.sent) + ' of ' + num(dv.attempts)) + ' · ' + esc(proz(dv.rate)))
+          + feld('CONFIDENCE', esc(spanne) + ' · n=' + esc(String((dv.sample && dv.sample.n) || dv.attempts)) + ' ' + esc((dv.sample && dv.sample.quality) || ''))
+          + feld('SIGNALS', esc(num(dv.distinct_signals) + ' distinct'))
+          + feld('CHAIN', '<span style="color:' + (dv.chain_ok === false ? 'var(--warn)' : 'var(--ink-2)') + '">' + esc(kette) + '</span>')
+          + feld('WINDOW', esc((dv.first_delivery || '—') + ' → ' + (dv.last_delivery || '—')))
+          + feld('SNAPSHOT', esc(dv.as_of || '—'))
+          + '</div>'
+          + (dv.last_failure
+            ? '<div style="' + M + '; font-size:var(--t-small); color:var(--warn); margin-top:var(--sp-5)">last failure ' + esc(dv.last_failure.at) + ' · ' + esc(dv.last_failure.channel) + ' · ' + esc(dv.last_failure.detail) + '</div>'
+            : '')
+        : '')
+      + (dv.last_scan_at
+        ? '<div style="' + M + '; font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-5)">last scan ' + esc(dv.last_scan_at)
+          + ' · ' + esc(String(dv.last_hits)) + ' hits · ' + esc(String(dv.last_sent)) + ' sent'
+          + (dv.last_deferred ? ' · ' + esc(String(dv.last_deferred)) + ' over the message cap, not attempted' : '')
+          + '</div>'
+        : '')
       + '</div>';
   } else {
     // Ein Zustellprotokoll ist ein Nachweis. Sechs erfundene Zeilen mit

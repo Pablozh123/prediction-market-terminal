@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS signals_emitted (
     platform TEXT NOT NULL DEFAULT '',
     market_key TEXT NOT NULL DEFAULT '',
     outcome TEXT NOT NULL DEFAULT '',
+    dedupe_key TEXT NOT NULL DEFAULT '',
     price_at_emit REAL,
     payload_json TEXT NOT NULL,
     payload_hash TEXT NOT NULL,
@@ -99,6 +100,23 @@ CREATE TABLE IF NOT EXISTS signals_resolved (
     pnl_modeled REAL,
     resolution_hash TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS signals_delivered (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    delivered_at TEXT NOT NULL,
+    channel TEXT NOT NULL DEFAULT '',
+    target_fingerprint TEXT NOT NULL DEFAULT '',
+    dedupe_key TEXT NOT NULL DEFAULT '',
+    signal_type TEXT NOT NULL DEFAULT '',
+    market_key TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT '',
+    detail TEXT NOT NULL DEFAULT '',
+    prev_hash TEXT NOT NULL,
+    row_hash TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_signals_delivered_key
+    ON signals_delivered (dedupe_key, status, delivered_at);
 """
 
 
@@ -199,8 +217,23 @@ def init_ledger(db_path: str | Path = DEFAULT_LEDGER_PATH) -> sqlite3.Connection
     conn.execute("PRAGMA busy_timeout = 30000")
     conn.execute("PRAGMA journal_mode = WAL")
     conn.executescript(_SCHEMA)
+    _migrate(conn)
     conn.commit()
     return conn
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Spalten nachziehen, die eine aeltere Datenbank noch nicht hat.
+
+    ``CREATE TABLE IF NOT EXISTS`` legt keine neue Spalte in einer schon
+    bestehenden Tabelle an. Die Bestandszeilen bekommen den Standardwert;
+    ``dedupe_key`` bleibt dort leer, und leer heisst hier ausdruecklich
+    "nicht bekannt", nicht "nicht zugestellt" (siehe ``ledger_aggregates``).
+    """
+
+    spalten = {str(row["name"]) for row in conn.execute("PRAGMA table_info(signals_emitted)")}
+    if "dedupe_key" not in spalten:
+        conn.execute("ALTER TABLE signals_emitted ADD COLUMN dedupe_key TEXT NOT NULL DEFAULT ''")
 
 
 def _clean_text(value: Any) -> str:
@@ -280,9 +313,9 @@ def emit_signals(
                 """
                 INSERT INTO signals_emitted (
                     emitted_at, methodology_version, signal_type, severity, platform,
-                    market_key, outcome, price_at_emit, payload_json, payload_hash,
+                    market_key, outcome, dedupe_key, price_at_emit, payload_json, payload_hash,
                     prev_hash, row_hash
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     emitted_at,
@@ -292,6 +325,11 @@ def emit_signals(
                     _clean_text(row.get("platform")).lower(),
                     _clean_text(row.get("market_key")),
                     resolvable_outcome(row),
+                    # Dieselbe Identitaet, unter der der Scanner zustellt.
+                    # Ohne sie laesst sich eine emittierte Zeile nicht gegen
+                    # das Zustellprotokoll halten, und genau das ist die
+                    # Frage, die die Trefferquote beantworten soll.
+                    _dedupe_key_for(payload),
                     _clean_price(row.get("price")),
                     payload_json,
                     payload_hash,
@@ -326,6 +364,273 @@ def safe_emit_signals(
             conn.close()
         except Exception:
             pass
+
+
+def _dedupe_key_for(payload: Mapping[str, Any]) -> str:
+    """Der Zustell-Schluessel einer Signalzeile, aus app/signals.py.
+
+    Lokaler Import: das Ledger ist das Protokoll der Signale, aber es soll
+    beim Laden nicht die halbe Signalkette mitziehen.
+    """
+
+    try:
+        from app.signals import signal_dedupe_key
+
+        return str(signal_dedupe_key(payload))
+    except Exception:  # noqa: BLE001 - ein fehlender Schluessel darf keine Zeile verhindern
+        return ""
+
+
+# --- Zustellprotokoll ---------------------------------------------------------
+# Bis hierher gab es nur einen Dedupe-Zustand: eine Liste von Schluesseln plus
+# ``last_hits`` und ``last_sent``, zwei Skalare, die jeder Scan ueberschreibt.
+# Damit war nicht nachpruefbar, ob ein Alert je ankam, ein Fehlversand ging
+# nach stderr und war weg, und die Trefferquote lief ueber die EMITTIERTEN
+# Zeilen, obwohl ihr Satz von den zugestellten sprach: bei
+# ``MAX_MESSAGES_PER_SCAN = 10`` schreibt ein Scan mit 47 neuen Treffern 47
+# Ledger-Zeilen und verschickt zehn Nachrichten.
+#
+# Das Protokoll haengt an derselben Kette wie die Emissionen und liegt in
+# derselben Datenbank: eine geloeschte oder nachtraeglich geschoente
+# Zustellzeile bricht ``verify_delivery_chain``.
+#
+# Das Ziel steht als Fingerabdruck darin, nicht als Chat-ID. Das ist der
+# Grundsatz, den der taegliche Lauf ohnehin ausspricht: Audit nur als Hashes
+# und Zaehler.
+
+#: Ab wie vielen Zustellversuchen eine Zustellquote als Lesart gilt. Dieselbe
+#: Leiter wie ``scorecard.sample_quality`` und ``risk_log``: insufficient /
+#: developing / adequate.
+MIN_DELIVERIES = 10
+VERDICT_DELIVERIES = 30
+
+DELIVERY_STATUS_SENT = "sent"
+
+
+def target_fingerprint(value: Any) -> str:
+    """Kurzer Hash eines Zustellziels. Leeres Ziel bleibt leer."""
+
+    text = _clean_text(value)
+    return "" if not text else _sha256(text)[:16]
+
+
+def delivery_row_hash(
+    prev_hash: str,
+    delivered_at: str,
+    channel: str,
+    target_fp: str,
+    dedupe_key: str,
+    status: str,
+) -> str:
+    return _sha256("|".join([prev_hash, delivered_at, channel, target_fp, dedupe_key, status]))
+
+
+def record_deliveries(
+    conn: sqlite3.Connection,
+    rows: Any,
+    delivered_at: str | None = None,
+) -> int:
+    """Zustellversuche anhaengen. Gibt die Zahl der geschriebenen Zeilen zurueck.
+
+    Jede Zeile ist ein VERSUCH, nicht ein Erfolg: ``status`` ist ``sent`` oder
+    ``failed``, und ein Fehlversand wird genauso festgehalten wie ein
+    gelungener. Sonst waere die Zustellquote per Konstruktion 100 Prozent.
+    """
+
+    zeilen = [row for row in (rows or []) if isinstance(row, Mapping)]
+    if not zeilen:
+        return 0
+    stempel = delivered_at or _utc_now_iso()
+    with conn:
+        last = conn.execute("SELECT row_hash FROM signals_delivered ORDER BY id DESC LIMIT 1").fetchone()
+        prev_hash = str(last["row_hash"]) if last is not None else GENESIS_HASH
+        written = 0
+        for row in zeilen:
+            zeitpunkt = _clean_text(row.get("delivered_at")) or stempel
+            channel = _clean_text(row.get("channel"))
+            fingerabdruck = target_fingerprint(row.get("target"))
+            key = _clean_text(row.get("dedupe_key"))
+            status = _clean_text(row.get("status")) or DELIVERY_STATUS_SENT
+            row_hash = delivery_row_hash(prev_hash, zeitpunkt, channel, fingerabdruck, key, status)
+            conn.execute(
+                """
+                INSERT INTO signals_delivered (
+                    delivered_at, channel, target_fingerprint, dedupe_key,
+                    signal_type, market_key, status, detail, prev_hash, row_hash
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    zeitpunkt,
+                    channel,
+                    fingerabdruck,
+                    key,
+                    _clean_text(row.get("signal_type")),
+                    _clean_text(row.get("market_key")),
+                    status,
+                    _clean_text(row.get("detail"))[:500],
+                    prev_hash,
+                    row_hash,
+                ),
+            )
+            prev_hash = row_hash
+            written += 1
+    return written
+
+
+def safe_record_deliveries(
+    rows: Any,
+    db_path: str | Path = DEFAULT_LEDGER_PATH,
+) -> tuple[int, str]:
+    """Best-effort-Protokoll fuer Hintergrundjobs: wirft nie."""
+
+    try:
+        conn = init_ledger(db_path)
+    except Exception as exc:  # noqa: BLE001 - Protokollieren darf den Scan nicht killen
+        return 0, f"delivery log open failed: {exc}"
+    try:
+        return record_deliveries(conn, rows), ""
+    except Exception as exc:  # noqa: BLE001
+        return 0, f"delivery log write failed: {exc}"
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def delivery_rows(conn: sqlite3.Connection, limit: int | None = None) -> list[dict[str, Any]]:
+    """Die Zustellzeilen in Schreibreihenfolge."""
+
+    sql = (
+        "SELECT id, delivered_at, channel, target_fingerprint, dedupe_key, signal_type, "
+        "market_key, status, detail FROM signals_delivered ORDER BY id"
+    )
+    if limit is not None:
+        sql += f" LIMIT {int(limit)}"
+    return [dict(row) for row in conn.execute(sql)]
+
+
+def last_delivery_times(conn: sqlite3.Connection, keys: Any = None) -> dict[str, str]:
+    """Je Schluessel der Zeitpunkt der letzten GELUNGENEN Zustellung.
+
+    Nur ``sent`` zaehlt: ein Fehlversand darf die Ruhezeit nicht setzen, sonst
+    schweigt ein Alarm, weil die Gegenstelle einmal 429 gesagt hat.
+    """
+
+    sql = (
+        "SELECT dedupe_key, MAX(delivered_at) AS last FROM signals_delivered "
+        "WHERE status = ? AND dedupe_key != '' GROUP BY dedupe_key"
+    )
+    zeilen = conn.execute(sql, (DELIVERY_STATUS_SENT,)).fetchall()
+    gewuenscht = None if keys is None else {str(key) for key in keys}
+    return {
+        str(row["dedupe_key"]): str(row["last"])
+        for row in zeilen
+        if gewuenscht is None or str(row["dedupe_key"]) in gewuenscht
+    }
+
+
+def verify_delivery_chain(conn: sqlite3.Connection) -> tuple[bool, int]:
+    """Die Zustellkette von Genesis an. Gibt (ok, geprueft) zurueck."""
+
+    prev_hash = GENESIS_HASH
+    checked = 0
+    for row in conn.execute(
+        """
+        SELECT delivered_at, channel, target_fingerprint, dedupe_key, status, prev_hash, row_hash
+        FROM signals_delivered ORDER BY id
+        """
+    ):
+        checked += 1
+        if str(row["prev_hash"]) != prev_hash:
+            return False, checked
+        erwartet = delivery_row_hash(
+            str(row["prev_hash"]),
+            str(row["delivered_at"]),
+            str(row["channel"]),
+            str(row["target_fingerprint"]),
+            str(row["dedupe_key"]),
+            str(row["status"]),
+        )
+        if erwartet != str(row["row_hash"]):
+            return False, checked
+        prev_hash = str(row["row_hash"])
+    return True, checked
+
+
+def _delivery_sample(n: int) -> dict[str, Any]:
+    quality = "insufficient" if n < MIN_DELIVERIES else "developing" if n < VERDICT_DELIVERIES else "adequate"
+    return {"n": int(n), "quality": quality, "verdict_allowed": quality == "adequate"}
+
+
+def delivery_aggregates(conn: sqlite3.Connection) -> dict[str, Any]:
+    """Was tatsaechlich rausging, mit n, Intervall, Stichprobenurteil und Stand.
+
+    ``delivery_rate`` ist der Anteil gelungener Versuche an allen Versuchen,
+    mit einem 95-Prozent-Wilson-Intervall ueber den Versuchen. Sie sagt, wie
+    zuverlaessig der Kanal war, nicht wie gut ein Signal war.
+    """
+
+    versuche = int(conn.execute("SELECT COUNT(*) AS n FROM signals_delivered").fetchone()["n"])
+    gesendet = int(
+        conn.execute(
+            "SELECT COUNT(*) AS n FROM signals_delivered WHERE status = ?", (DELIVERY_STATUS_SENT,)
+        ).fetchone()["n"]
+    )
+    kanaele: dict[str, dict[str, int]] = {}
+    for row in conn.execute(
+        """
+        SELECT channel,
+               COUNT(*) AS versuche,
+               SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) AS gesendet
+        FROM signals_delivered GROUP BY channel ORDER BY channel
+        """,
+        (DELIVERY_STATUS_SENT,),
+    ):
+        kanaele[str(row["channel"]) or "unknown"] = {
+            "attempts": int(row["versuche"]),
+            "sent": int(row["gesendet"] or 0),
+        }
+    grenzen = conn.execute(
+        "SELECT MIN(delivered_at) AS first, MAX(delivered_at) AS last FROM signals_delivered WHERE status = ?",
+        (DELIVERY_STATUS_SENT,),
+    ).fetchone()
+    eindeutig = int(
+        conn.execute(
+            "SELECT COUNT(DISTINCT dedupe_key) AS n FROM signals_delivered WHERE status = ? AND dedupe_key != ''",
+            (DELIVERY_STATUS_SENT,),
+        ).fetchone()["n"]
+    )
+    letzter_fehler = conn.execute(
+        "SELECT delivered_at, channel, detail FROM signals_delivered WHERE status != ? ORDER BY id DESC LIMIT 1",
+        (DELIVERY_STATUS_SENT,),
+    ).fetchone()
+    ci_low, ci_high = wilson_interval(gesendet, versuche) if versuche else (None, None)
+    chain_ok, chain_checked = verify_delivery_chain(conn)
+    return {
+        "as_of": _utc_now_iso(),
+        "attempts": versuche,
+        "sent": gesendet,
+        "failed": versuche - gesendet,
+        "distinct_signals": eindeutig,
+        "delivery_rate": (gesendet / versuche) if versuche else None,
+        "delivery_rate_ci95": [ci_low, ci_high],
+        "sample": _delivery_sample(versuche),
+        "channels": kanaele,
+        "first_delivery": grenzen["first"],
+        "last_delivery": grenzen["last"],
+        "last_failure": (
+            {
+                "at": str(letzter_fehler["delivered_at"]),
+                "channel": str(letzter_fehler["channel"]),
+                "detail": str(letzter_fehler["detail"]),
+            }
+            if letzter_fehler is not None
+            else None
+        ),
+        "chain_ok": chain_ok,
+        "chain_checked": chain_checked,
+    }
 
 
 def pending_market_keys(conn: sqlite3.Connection) -> list[str]:
@@ -473,15 +778,52 @@ def decisive_units(conn: sqlite3.Connection) -> list[tuple[str, bool]]:
     return [(str(row["unit"]), bool(row["won"])) for row in rows]
 
 
+def delivered_decisive_units(conn: sqlite3.Connection) -> list[tuple[str, bool]]:
+    """Wie ``decisive_units``, aber nur ueber Signale, die auch rausgingen.
+
+    Das ist der Nenner, unter dem der Satz "wie oft lag ein ausgelieferter
+    Alert richtig" ueberhaupt stimmt.
+    """
+
+    rows = conn.execute(
+        """
+        SELECT e.market_key || '|' || e.outcome AS unit,
+               MAX(CASE WHEN r.outcome_result = 'won' THEN 1 ELSE 0 END) AS won
+        FROM signals_resolved r
+        JOIN signals_emitted e ON e.id = r.signal_id
+        WHERE r.outcome_result IN ('won', 'lost')
+          AND e.dedupe_key != ''
+          AND EXISTS (
+              SELECT 1 FROM signals_delivered d
+              WHERE d.dedupe_key = e.dedupe_key AND d.status = ?
+          )
+        GROUP BY unit
+        ORDER BY unit
+        """,
+        (DELIVERY_STATUS_SENT,),
+    ).fetchall()
+    return [(str(row["unit"]), bool(row["won"])) for row in rows]
+
+
 def ledger_aggregates(conn: sqlite3.Connection) -> dict[str, Any]:
     """Aggregate ledger counters. Invariant:
     emitted = resolved + pending + not_resolvable.
 
-    Two hit rates, deliberately: ``hit_rate`` per signal row (how often an
-    alert that went out was on the right side) and ``hit_rate_units`` per
-    distinct market and outcome (how many independent calls that actually
-    was). ``hit_rate_ci95`` belongs to the second, because the first counts
-    the same settlement several times. ``repeat_factor`` is the ratio.
+    Two hit rates, deliberately: ``hit_rate`` per emitted signal row and
+    ``hit_rate_units`` per distinct market and outcome (how many independent
+    calls that actually was). ``hit_rate_ci95`` belongs to the second, because
+    the first counts the same settlement several times. ``repeat_factor`` is
+    the ratio.
+
+    Neither of the two is a statement about ALERTS THAT WENT OUT, and the old
+    wording here said it was. The scanner writes every new hit to the ledger
+    but sends at most ``MAX_MESSAGES_PER_SCAN`` messages per scan, so a scan
+    with 47 new hits emits 47 rows and delivers ten. ``delivered_signals`` and
+    ``emitted_not_delivered`` split the two counts, and
+    ``hit_rate_delivered_units`` is the one that may be read as "how often a
+    delivered alert was on the right side". Rows written before the delivery
+    log existed carry no ``dedupe_key``; they are reported separately as
+    ``delivery_unknown`` rather than being counted as undelivered.
     """
 
     emitted = int(conn.execute("SELECT COUNT(*) AS n FROM signals_emitted").fetchone()["n"])
@@ -513,6 +855,27 @@ def ledger_aggregates(conn: sqlite3.Connection) -> dict[str, Any]:
     unit_hits = sum(1 for _, won in units if won)
     ci_low, ci_high = wilson_interval(unit_hits, n_units) if n_units else (None, None)
     chain_ok, chain_checked = verify_chain(conn)
+    delivery_unknown = int(
+        conn.execute("SELECT COUNT(*) AS n FROM signals_emitted WHERE dedupe_key = ''").fetchone()["n"]
+    )
+    delivered_signals = int(
+        conn.execute(
+            """
+            SELECT COUNT(*) AS n FROM signals_emitted e
+            WHERE e.dedupe_key != '' AND EXISTS (
+                SELECT 1 FROM signals_delivered d
+                WHERE d.dedupe_key = e.dedupe_key AND d.status = ?
+            )
+            """,
+            (DELIVERY_STATUS_SENT,),
+        ).fetchone()["n"]
+    )
+    delivered_units = delivered_decisive_units(conn)
+    n_delivered_units = len(delivered_units)
+    delivered_unit_hits = sum(1 for _, won in delivered_units if won)
+    d_low, d_high = (
+        wilson_interval(delivered_unit_hits, n_delivered_units) if n_delivered_units else (None, None)
+    )
     return {
         "emitted": emitted,
         "resolvable": resolvable,
@@ -533,6 +896,17 @@ def ledger_aggregates(conn: sqlite3.Connection) -> dict[str, Any]:
         "pnl_modeled_sum": float(pnl_sum_row["total"]) if pnl_sum_row["total"] is not None else 0.0,
         "first_emit": bounds["first"],
         "last_emit": bounds["last"],
+        # Emittiert ist nicht zugestellt: der Scanner schreibt jeden neuen
+        # Treffer, verschickt aber hoechstens MAX_MESSAGES_PER_SCAN Nachrichten.
+        "delivered_signals": delivered_signals,
+        "emitted_not_delivered": max(0, emitted - delivery_unknown - delivered_signals),
+        "delivery_unknown": delivery_unknown,
+        "decisive_units_delivered": n_delivered_units,
+        "unit_hits_delivered": delivered_unit_hits,
+        "hit_rate_delivered_units": (
+            (delivered_unit_hits / n_delivered_units) if n_delivered_units else None
+        ),
+        "hit_rate_delivered_ci95": [d_low, d_high],
         "chain_ok": chain_ok,
         "chain_checked": chain_checked,
     }

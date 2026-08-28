@@ -422,6 +422,25 @@ function mitDaten(T) {
     // nicht ausgewertet — beide Faelle muessen sich in der Anzeige trennen.
     rule_counts: { 'WHALE PRINT': 5, 'FAST MOVER': 0, 'ENDING SOON': 120 },
     rules_not_evaluated: ['HOLDER CONCENTRATION'],
+    // Die Halter-Pruefung ist abgeschaltet, und der Schalter hat einen Namen.
+    holder_check: {
+      enabled: false, checks: 0, setting: 'alert_holder_checks',
+      rules_not_evaluated: ['HOLDER CONCENTRATION'],
+      note: 'Holder concentration is switched off in this deployment (alert_holder_checks = 0), so the rule is not evaluated and the threshold beside it changes nothing. Each check costs one extra holder call per market, which is why it is off by default.'
+    },
+    // Das Zustellprotokoll: was tatsaechlich rausging, mit n und Intervall.
+    deliveries: {
+      available: true, attempts: 40, sent: 36, failed: 4, distinct_signals: 31,
+      rate: 0.9, ci95: [0.7694792561952611, 0.9604211124044252],
+      sample: { n: 40, quality: 'adequate', verdict_allowed: true },
+      channels: { telegram: { attempts: 40, sent: 36 } },
+      first_delivery: '2026-08-21T09:00:00+00:00',
+      last_delivery: '2026-08-28T14:25:00+00:00',
+      last_failure: { at: '2026-08-28T14:20:00+00:00', channel: 'telegram', detail: 'HTTP 429: Too Many Requests' },
+      chain_ok: true, chain_checked: 40, as_of: '2026-08-28T15:00:00+00:00',
+      last_scan_at: '2026-08-28T14:25:00+00:00', last_hits: 47, last_sent: 10, last_deferred: 37,
+      note: '36 of 40 delivery attempts succeeded, over 31 distinct signals. Attempts only: a hit above the per-scan message cap was never tried and is not in the denominator.'
+    },
     shown_limit: 60
   };
   // Die Form von app/api_views.py copy_payload: Status und Kennzahlen da,

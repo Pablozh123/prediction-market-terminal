@@ -2093,6 +2093,128 @@ def signal_value_series(signals: pd.DataFrame) -> pd.Series:
     )
 
 
+#: Die Einstellung, an der die Halter-Pruefung des Alarm-Endpunkts haengt.
+HOLDER_CHECK_SETTING = "alert_holder_checks"
+
+
+def holder_check_state(checks: Any) -> dict[str, Any]:
+    """Ob die Halter-Pruefung laeuft, und wenn nicht, woran das liegt.
+
+    Der Endpunkt lief fest mit ``holder_checks = 0`` und meldete die Regel als
+    "not evaluated by this endpoint". Das liest sich wie eine Eigenschaft des
+    Endpunkts; tatsaechlich ist es ein Schalter, und er hat einen Namen. Wer
+    das nicht sagt, zeigt eine abgeschaltete Pruefung wie eine laufende ohne
+    Treffer -- und der Schwellenregler daneben wirkt, als taete er etwas.
+    """
+
+    try:
+        anzahl = int(checks)
+    except (TypeError, ValueError):
+        anzahl = 0
+    anzahl = max(0, anzahl)
+    an = anzahl > 0
+    return {
+        "enabled": an,
+        "checks": anzahl,
+        "setting": HOLDER_CHECK_SETTING,
+        "rules_not_evaluated": [] if an else ["HOLDER CONCENTRATION"],
+        "note": (
+            f"Holder concentration is checked on the {anzahl} highest-volume Polymarket markets of this scan "
+            f"({HOLDER_CHECK_SETTING} = {anzahl}); every other market in the feed is unchecked for it."
+            if an else
+            f"Holder concentration is switched off in this deployment ({HOLDER_CHECK_SETTING} = 0), so the rule "
+            "is not evaluated and the threshold beside it changes nothing. Each check costs one extra holder "
+            "call per market, which is why it is off by default."
+        ),
+    }
+
+
+def alert_delivery_view(aggregates: Mapping[str, Any] | None,
+                        scanner_state: Mapping[str, Any] | None) -> dict[str, Any]:
+    """Was der Scanner ausgeliefert hat, in der Form, die die Seite zeigt.
+
+    Vorher standen hier ``last_hits`` und ``last_sent`` aus dem Dedupe-Zustand:
+    zwei Zahlen, die jeder Scan ueberschreibt, plus der Hinweis, dass es kein
+    Protokoll gibt. Jetzt gibt es eines (``app/ledger.py``), und die Quote
+    darueber traegt n, ein Wilson-Intervall, ein Stichprobenurteil und den
+    Stand -- wie jede Kennzahl in diesem Haus.
+
+    Die Quote sagt, wie zuverlaessig der Kanal war, nicht wie gut ein Signal
+    war. Und sie zaehlt Versuche, nicht Treffer: ein Treffer ueber dem
+    Nachrichtenlimit wurde nicht versucht und steht deshalb nicht im Nenner.
+    """
+
+    zustand = scanner_state if isinstance(scanner_state, Mapping) else {}
+    letzter_scan = zustand.get("last_scan_at")
+    basis: dict[str, Any] = {
+        "available": False,
+        "attempts": 0,
+        "sent": 0,
+        "failed": 0,
+        "distinct_signals": 0,
+        "rate": None,
+        "ci95": None,
+        "sample": {"n": 0, "quality": "insufficient", "verdict_allowed": False},
+        "channels": {},
+        "first_delivery": None,
+        "last_delivery": None,
+        "last_failure": None,
+        "chain_ok": None,
+        "chain_checked": 0,
+        "as_of": None,
+        "last_scan_at": letzter_scan,
+        "last_hits": zustand.get("last_hits"),
+        "last_sent": zustand.get("last_sent"),
+        "last_deferred": zustand.get("last_deferred"),
+    }
+    if not isinstance(aggregates, Mapping):
+        basis["note"] = (
+            "No delivery log on this machine: the scanner has not written to "
+            "data/signal_ledger.sqlite here, so nothing can be said about what went out."
+        )
+        return basis
+
+    versuche = int(aggregates.get("attempts") or 0)
+    gesendet = int(aggregates.get("sent") or 0)
+    quote = aggregates.get("delivery_rate")
+    grenzen = aggregates.get("delivery_rate_ci95") or [None, None]
+    kette_ok = aggregates.get("chain_ok")
+    basis.update({
+        "available": versuche > 0,
+        "attempts": versuche,
+        "sent": gesendet,
+        "failed": int(aggregates.get("failed") or 0),
+        "distinct_signals": int(aggregates.get("distinct_signals") or 0),
+        "rate": float(quote) if quote is not None else None,
+        "ci95": list(grenzen) if grenzen and grenzen[0] is not None else None,
+        "sample": dict(aggregates.get("sample") or basis["sample"]),
+        "channels": dict(aggregates.get("channels") or {}),
+        "first_delivery": aggregates.get("first_delivery"),
+        "last_delivery": aggregates.get("last_delivery"),
+        "last_failure": aggregates.get("last_failure"),
+        "chain_ok": kette_ok,
+        "chain_checked": int(aggregates.get("chain_checked") or 0),
+        "as_of": aggregates.get("as_of"),
+    })
+    if kette_ok is False:
+        basis["note"] = (
+            f"The delivery chain does not verify: it breaks at row {basis['chain_checked']}. "
+            "Read no number on this page as a record until that is resolved."
+        )
+    elif versuche:
+        basis["note"] = (
+            f"{gesendet} of {versuche} delivery attempts succeeded, over "
+            f"{basis['distinct_signals']} distinct signals. Attempts only: a hit above the per-scan "
+            "message cap was never tried and is not in the denominator."
+        )
+    else:
+        basis["note"] = (
+            "The delivery log exists but nothing has been delivered yet: no scan has attempted a send "
+            "on this machine."
+        )
+    return basis
+
+
 def alert_rows(signals: pd.DataFrame) -> list[dict[str, Any]]:
     """`sig.build_monitor_signals`-Frame in die Signal-Feed-Zeilen."""
 
