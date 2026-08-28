@@ -801,6 +801,33 @@ class LiveRunsExtrasTests(unittest.TestCase):
         self.assertEqual(extras["monthly"][0]["bets"], 2)
         self.assertAlmostEqual(extras["monthly"][0]["net"], 0.0, places=2)
 
+    def test_monthly_carries_the_settled_stake_as_its_own_basis(self) -> None:
+        """Der Zaehler zaehlt nur aufgeloeste Wetten, der Nenner muss das auch.
+
+        Die Monatstabelle rechnete net / stake ueber alle Wetten des Monats,
+        offene eingeschlossen. Ein Monat mit $100 Einsatz, davon $40 in noch
+        offenen Wetten, und +$18 aus den aufgeloesten stand mit +18.0 Prozent
+        da; auf den aufgeloesten Einsatz gerechnet sind es +30.0 Prozent.
+        """
+
+        wetten = [
+            {"einsatz_usd": 60.0, "aufgeloest": True, "gewonnen": True, "pnl_usd": 18.0,
+             "fill_ts_utc": "2026-07-10T12:00:00Z", "seite": "YES", "entscheidungs_preis": 0.5,
+             "avg_fill_preis": 0.5, "shares": 120.0, "frage": "Says A"},
+            {"einsatz_usd": 40.0, "aufgeloest": False, "pnl_usd": None,
+             "fill_ts_utc": "2026-07-11T12:00:00Z", "seite": "YES", "entscheidungs_preis": 0.5,
+             "avg_fill_preis": 0.5, "shares": 80.0, "frage": "Says B"},
+        ]
+        monat = apv.live_runs_extras({"runs": [{"profil": "p", "wetten": wetten}]})["monthly"][0]
+        self.assertEqual(monat["bets"], 2)
+        self.assertEqual(monat["settled_bets"], 1)
+        self.assertAlmostEqual(monat["stake"], 100.0)
+        self.assertAlmostEqual(monat["settled_stake"], 60.0)
+        self.assertAlmostEqual(monat["net"], 18.0)
+        self.assertAlmostEqual(monat["net"] / monat["settled_stake"], 0.30, places=4)
+        # Der frueher benutzte Nenner haette 18 Prozent ergeben.
+        self.assertAlmostEqual(monat["net"] / monat["stake"], 0.18, places=4)
+
     def test_wallet_ledger_rides_along_when_published(self) -> None:
         """extras.wallet_ledger is the published file, or absent when there is none."""
         import json

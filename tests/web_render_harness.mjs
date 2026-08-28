@@ -562,6 +562,10 @@ function mitDaten(T) {
     // events — a mixed bot event, a discretionary one with the Curtis note,
     // a pilot one — and the aggregate the KPI row reads.
     extras: {
+      // Ein Monat mit $100 Einsatz, davon $40 in zwei noch offenen Wetten,
+      // und +$18 aus den drei aufgeloesten: 30 Prozent auf den aufgeloesten
+      // Einsatz, nicht 18 Prozent auf alles.
+      monthly: [{ month: '2026-07', runs: 2, bets: 5, stake: 100, net: 18, settled_bets: 3, settled_stake: 60 }],
       wallet_ledger: {
         hinweis: 'Harness ledger note.', stand_utc: '2026-08-17T01:02:03+00:00',
         wallet: '0x29afe1bf37700768a640a08f1b35dad5f202f88d', kennzeichnung: 'wallet/public-api',

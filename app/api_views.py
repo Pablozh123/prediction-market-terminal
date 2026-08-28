@@ -2159,15 +2159,31 @@ def live_runs_extras(payload: Mapping[str, Any], publish_dir: Path | None = None
             if len(ts) < 7:
                 continue
             month = ts[:7]
-            slot = monthly.setdefault(month, {"runs": set(), "bets": 0, "stake": 0.0, "net": 0.0})
+            slot = monthly.setdefault(
+                month, {"runs": set(), "bets": 0, "stake": 0.0, "net": 0.0, "settled_bets": 0, "settled_stake": 0.0})
             slot["runs"].add(_text(run.get("profil")))
             slot["bets"] += 1
-            slot["stake"] += _num(bet.get("einsatz_usd"), 0.0) or 0.0
+            einsatz = _num(bet.get("einsatz_usd"), 0.0) or 0.0
+            slot["stake"] += einsatz
+            # Der Zaehler zaehlt nur aufgeloeste Wetten, also darf der Nenner
+            # nicht die noch offenen mitzaehlen: sonst druecken offene
+            # Einsaetze jede Quote nach unten. ``settled_stake`` ist der
+            # Einsatz, zu dem es ueberhaupt ein Ergebnis gibt.
             if bet.get("aufgeloest"):
+                slot["settled_bets"] += 1
+                slot["settled_stake"] += einsatz
                 slot["net"] += _num(bet.get("pnl_usd"), 0.0) or 0.0
     if monthly:
         out["monthly"] = [
-            {"month": month, "runs": len(slot["runs"]), "bets": slot["bets"], "stake": round(slot["stake"], 2), "net": round(slot["net"], 2)}
+            {
+                "month": month,
+                "runs": len(slot["runs"]),
+                "bets": slot["bets"],
+                "stake": round(slot["stake"], 2),
+                "net": round(slot["net"], 2),
+                "settled_bets": slot["settled_bets"],
+                "settled_stake": round(slot["settled_stake"], 2),
+            }
             for month, slot in sorted(monthly.items(), reverse=True)
         ]
     # The wallet ledger (public/data/wallet_ledger.json, scripts/wallet_ledger.py)

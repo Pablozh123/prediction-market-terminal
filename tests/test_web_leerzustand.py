@@ -1916,6 +1916,25 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("No cash events reported by /api/copy", _sichtbarer_text(self.ausgabe["live"]["copy_cash"]))
         self.assertIn("No open paper positions reported by /api/copy", _sichtbarer_text(self.ausgabe["live"]["copy_positions"]))
 
+    def test_monatstabelle_rechnet_gegen_den_aufgeloesten_einsatz(self) -> None:
+        """Die Spalte hiess ROI und rechnete gegen ALLE Einsaetze des Monats.
+
+        Zwei Fehler in einer Zahl: der Zaehler zaehlt nur aufgeloeste Wetten,
+        der Nenner zaehlte auch die offenen, und "ROI" ist in diesem Projekt
+        die Wallet-Rendite gegen die einmalige Einzahlung, nicht eine
+        Einsatzrendite. $100 Einsatz mit $40 offen und +$18 aufgeloest
+        standen als +18.0 Prozent da; auf den aufgeloesten Einsatz sind es
+        +30.0 Prozent.
+        """
+
+        text = _sichtbarer_text(self.ausgabe["live"]["runs_record"])
+        self.assertIn("NET / SETTLED STAKE", text)
+        self.assertNotIn("MONTH RUNS BETS STAKE NET ROI", text)
+        self.assertIn("+30.0% of $60 · 2 open", text)
+        self.assertNotIn("+18.0%", text)
+        self.assertIn("open stake does not dilute it", text)
+        self.assertIn("measured against the one-time deposit", text)
+
     def test_backtester_trefferquote_zaehlt_nur_geschlossene_kopien(self) -> None:
         """Offene Kopien duerfen die Trefferquote nicht verduennen.
 
