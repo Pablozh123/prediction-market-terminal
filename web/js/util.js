@@ -8,6 +8,10 @@
 // silently fall back to the buy volume.
 export const EINZAHLUNGEN_USD = 300;
 
+// Die Mono-Familie als Modulkonstante; die Helfer weiter unten binden sie
+// sonst jeder fuer sich neu.
+const MONO = "font-family:'IBM Plex Mono',monospace";
+
 export function num(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
 
 export function money(n) {
@@ -16,17 +20,53 @@ export function money(n) {
   return '$' + n.toFixed(0);
 }
 
+// Volumen ist nicht auf beiden Venues dasselbe. Polymarket meldet Dollar,
+// Kalshi meldet die Zahl gehandelter Kontrakte: gemessen am 2026-08-28 war
+// volume_fp eines Kalshi-Marktes exakt die Summe der count_fp aller seiner
+// Trades, nicht die Summe aus count_fp mal Preis. Ein Kontrakt zahlt bei
+// Aufloesung einen Dollar und wird zu seinem Preis p gehandelt, also
+// ueberzeichnet die Stueckzahl den Umsatz um 1/p, bei 50 Cent also um das
+// Doppelte. Herleitung in app/venue_units.py.
+export const VOLUME_UNIT_USD = 'usd';
+export const VOLUME_UNIT_CONTRACTS = 'contracts';
+
+const VENUE_VOLUME_UNITS = { polymarket: VOLUME_UNIT_USD, kalshi: VOLUME_UNIT_CONTRACTS };
+
+export function volumeUnit(platform) {
+  return VENUE_VOLUME_UNITS[String(platform == null ? '' : platform).trim().toLowerCase()] || '';
+}
+
+// Stueckzahlen als Stueckzahlen. Nie mit einem Dollarzeichen davor, denn
+// dann behauptet die Zahl einen Betrag, den sie nicht misst.
+export function contracts(n) {
+  if (n == null || !isFinite(n)) return '—';
+  if (n >= 1000000) return (n / 1000000).toFixed(n >= 10000000 ? 1 : 2) + 'm contracts';
+  if (n >= 1000) return (n / 1000).toFixed(n >= 100000 ? 0 : 1) + 'k contracts';
+  return num(Math.round(n)) + ' contracts';
+}
+
+// Eine Volumenzahl in der Einheit, die sie tatsaechlich hat. Eine Venue ohne
+// bekannte Einheit bekommt die nackte Zahl statt einer geratenen.
+export function volume(n, platform) {
+  if (n == null || !isFinite(n)) return '—';
+  const unit = volumeUnit(platform);
+  if (unit === VOLUME_UNIT_USD) return money(n);
+  if (unit === VOLUME_UNIT_CONTRACTS) return contracts(n);
+  return num(Math.round(n));
+}
+
 export function esc(v) {
   return String(v == null ? '' : v)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
 
-export function spark(arr) {
-  const max = Math.max(...arr), min = Math.min(...arr);
-  const span = max - min || 1;
-  return arr.map((v, i) => (i * (78 / (arr.length - 1))).toFixed(1) + ',' + (3 + ((v - min) / span) * 20).toFixed(1)).join(' ');
-}
+// spark(arr) stand hier: eine zweite Punktefunktion fuer eine feste 78x26-Box,
+// ohne Guard fuer arr.length < 2 (bei einem Wert eine Division durch Null) und
+// ohne eine einzige Aufrufstelle. seriesPoints darunter tut dasselbe, nimmt
+// aber Breite und Hoehe als Argumente und faengt den Ein-Wert-Fall ab. Zwei
+// Funktionen fuer eine Aufgabe, von denen eine nie gerufen wird, sind eine
+// Falle: irgendwann ruft jemand die falsche.
 
 // Der Generator curve(seed, n, w, h, drift, vol) stand hier: ein
 // deterministischer Zufallspfad mit einstellbarem Aufwaertsdrift, der jede
@@ -271,6 +311,44 @@ export function fensterSatz(fenster) {
   const je = fenster.jeVenue.map((v) => v.venue + ' ' + dauer(v.minuten) + ' (' + v.prints + ')').join(' · ');
   const kopf = 'Window: ' + dauer(fenster.minuten) + ' · ' + fenster.prints + ' prints';
   return fenster.jeVenue.length > 1 ? kopf + ' — ' + je : kopf;
+}
+
+// Der Stempel einer Studie und die Publish-Uhr sind zwei verschiedene
+// Aussagen, und bis hierher hat die zweite die erste verschluckt.
+//
+// study.stamp aus studies.js sagt, was die Studie IST: "frozen 2026-06-30",
+// "pre-registered 2026-05-02 · completed 2026-08-01", "paper log · archived
+// 2026-08-07". Das ist eine Eigenschaft der Studie. Sie aendert sich nicht,
+// wenn jemand die Nutzlast neu schreibt. payload.stand_utc sagt nur, wann
+// zuletzt publiziert wurde.
+//
+// Vorher stand hier ueberall "stand_utc ? uhr : study.stamp". Jede publizierte
+// Nutzlast traegt ein stand_utc, also gewann immer die Uhr, und damit erschien
+// kein einziger Stempel aus studies.js je auf einer Seite: die
+// Praeregistrierung des Piloten stand nirgends, die Einfrierdaten standen
+// nirgends, und die beiden archivierten Studien sagten nicht, dass sie
+// archiviert sind, waehrend die Seitenleiste sie unter STUDIES · FROZEN
+// fuehrte. Bei einem Stueck, dessen Argument gerade die Vorregistrierung ist,
+// war das die teuerste Zeile der Datei.
+//
+// Jetzt stehen beide untereinander: der Stempel als Chip, die Uhr als Zeile
+// darunter. Fehlt eines von beiden, steht das andere allein.
+export function publishZeit(payload) {
+  return payload && payload.stand_utc
+    ? String(payload.stand_utc).slice(0, 16).replace('T', ' ') + ' UTC' : '';
+}
+
+export function stempelBlock(study, payload, polster) {
+  const fest = study && study.stamp ? String(study.stamp) : '';
+  const uhr = publishZeit(payload);
+  const chip = MONO + '; font-size:10.5px; color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.14);'
+    + ' border-radius:4px; padding:' + (polster || '6px 10px') + '; white-space:nowrap';
+  if (!fest && !uhr) return '';
+  if (!fest) return '<div style="' + chip + '">' + esc(uhr) + '</div>';
+  return '<div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px">'
+    + '<div style="' + chip + '">' + esc(fest) + '</div>'
+    + (uhr ? '<div style="' + MONO + '; font-size:10.5px; color:rgba(var(--ink),.55); white-space:nowrap">published ' + esc(uhr) + '</div>' : '')
+    + '</div>';
 }
 
 // Map one /api/tape row into the tape-row shape.

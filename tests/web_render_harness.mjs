@@ -7,12 +7,12 @@
 // document. Die Seitenmodule sind reine Funktionen ueber ein T-Objekt, also
 // wird hier ein T gebaut, das dieselben Felder und Helfer bereitstellt.
 
-import { esc, money, num, spark, seriesPoints } from '../web/js/util.js';
+import { esc, money, num, seriesPoints } from '../web/js/util.js';
 import { STUDIEN } from '../web/js/studies.js';
 import { renderOverview, renderMarkets, renderFlow, renderCross, renderResolved, landingSubline, verdictCounts } from '../web/js/pages/core_pages.js';
 import { renderTraders, renderWhale, renderRisk, renderTrack } from '../web/js/pages/trader_pages.js';
 import { renderBacktester, renderCopy, renderPortfolio } from '../web/js/pages/trading_pages.js';
-import { renderAlerts, renderResearch, renderSettings, collapseQueue } from '../web/js/pages/system_pages.js';
+import { renderAlerts, renderResearch, renderSettings, collapseQueue, fillLatenzS } from '../web/js/pages/system_pages.js';
 import { renderWallet } from '../web/js/pages/wallet_page.js';
 import { renderDetail, renderSearch } from '../web/js/overlays.js';
 
@@ -68,7 +68,7 @@ function neuesT() {
     // Landing payloads (Overview): null until loaded, like in app.js.
     landing: { micro: null, runs: null, notes: null, ledger: null, herkunft: { micro: null, runs: null, notes: null, ledger: null } },
     liveData: { leaderboard: null, cross: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {}, riskBook: {}, walletSimilar: {} },
-    num, money, esc, spark,
+    num, money, esc,
     seriesPoints: (v, w, h) => seriesPoints(v, w, h),
     act: () => 'data-act="0"',
     inp: () => 'data-inp="0" data-key="k"',
@@ -80,7 +80,10 @@ function neuesT() {
     stepper: (l) => '<div>' + esc(l) + '</div>',
     changeStyle: () => M,
     marketView: (m) => ({
-      title: m.title, meta: m.venue + ' · ' + m.cat, sparkPoints: m.spark ? spark(m.spark) : '',
+      // Leer wie in app.js::marketView: die API liefert eine Tagesaenderung,
+      // keinen Intraday-Pfad. Der Harness bildet das Original ab, sonst
+      // prueft er einen Zustand, den die Anwendung nie erzeugt.
+      title: m.title, meta: m.venue + ' · ' + m.cat, sparkPoints: '',
       color: 'var(--pos)', priceLabel: m.yes + '¢', changeLabel: '+' + m.chg + '¢',
       changeStyle: M, volLabel: money(m.vol), ends: m.ends, act: ''
     }),
@@ -341,7 +344,7 @@ function mitDaten(T) {
   // Mittelkurse 62/58, ausfuehrbar aber nur 2 Cent, und davon frisst die
   // Gebuehrenschwelle 2.7: die Zeile steht mit einer Luecke von 4 Cent und
   // einem negativen Netto da.
-  T.crossPairs = [{ event: 'Example question', cat: 'Macro', pm: 62, ks: 58, sim: 0.71, pmVol: 1200000, ksVol: 300000, gross: 2.0, band: 2.7, net: -0.7, dir: 'buy Kalshi, sell Polymarket' }];
+  T.crossPairs = [{ event: 'Example question', cat: 'Macro', pm: 62, ks: 58, sim: 0.71, pmVolUsd: 1200000, ksVolContracts: 300000, gross: 2.0, band: 2.7, net: -0.7, dir: 'buy Kalshi, sell Polymarket' }];
   T.herkunft.cross = { quelle: 'live' };
   T.liveData.cross = { _quelle: 'live', rows: T.crossPairs, candidates_before_gate: 9, gate: { min_similarity: 0.5, require_volume_both: true }, as_of: '2026-08-17 10:00 UTC' };
   T.liveData.resolved = {
@@ -1241,6 +1244,24 @@ function rendern(T) {
   // -spanne. Ohne Nutzlast eine leere Liste.
   const faelle = T.liveData.research['Review queue'] ? T.liveData.research['Review queue'].faelle : null;
   raus['_collapse_queue'] = JSON.stringify(collapseQueue(faelle));
+  // Latenz je Fill, direkt aufgerufen: ein Lauf mit zwei Fills, der zweite
+  // einen Tag nach dem Drop. Die Laufzahl erster_fill_s gilt nur fuer den
+  // ersten; die zweite Zeile darf sie nicht erben.
+  const latenzLauf = {
+    profil: 'allin_july10', drop_erkannt_utc: '2026-07-10T01:17:27Z', erster_fill_s: 64.0,
+    wetten: [{ fill_ts_utc: '2026-07-10T01:18:31Z' }, { fill_ts_utc: '2026-07-11T02:26:34Z' }]
+  };
+  const ohneDrop = {
+    profil: 'kein_drop', erster_fill_s: 42.0,
+    wetten: [{ fill_ts_utc: '2026-07-10T01:18:31Z' }, { fill_ts_utc: '2026-07-10T02:18:31Z' }]
+  };
+  raus['_fill_latenz'] = JSON.stringify({
+    erster: fillLatenzS(latenzLauf, latenzLauf.wetten[0]),
+    letzter: fillLatenzS(latenzLauf, latenzLauf.wetten[1]),
+    ohne_drop_erster: fillLatenzS(ohneDrop, ohneDrop.wetten[0]),
+    ohne_drop_spaeter: fillLatenzS(ohneDrop, ohneDrop.wetten[1]),
+    ohne_alles: fillLatenzS({ wetten: [] }, {})
+  });
   return raus;
 }
 

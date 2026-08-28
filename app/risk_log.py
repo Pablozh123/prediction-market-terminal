@@ -256,13 +256,32 @@ def read_flags(limit: int = 200, since: Any = None, *, path: Path | str | None =
     return rows
 
 
-def price_after(history: pd.DataFrame, flag_time: Any, price_at_flag: float | None, now: Any = None) -> dict[str, Any] | None:
+def price_after(
+    history: pd.DataFrame,
+    flag_time: Any,
+    price_at_flag: float | None,
+    now: Any = None,
+    known_at: Any = None,
+) -> dict[str, Any] | None:
     """Price +30 min / +2 h / +24 h after ``flag_time`` from a (time, price) frame.
 
-    A horizon that lies in the future is ``None`` ("not yet"); a horizon with no
-    print between the flag and the horizon is ``None`` too. Moves are in cents
-    of the same outcome the flag price refers to. Returns ``None`` when the
-    history is empty or the flag time unknown.
+    Three outcomes per horizon, and they must not be confused:
+
+    * ``None`` -- the horizon has not passed yet, so there is nothing to read.
+    * ``{"price": None, "move_c": None, "no_print": True}`` -- the horizon
+      passed, but nothing traded between the flag and it. This used to be
+      ``None`` as well, so a day-old flag in a market that never traded again
+      showed its +24 h cell as "not yet" -- a missing measurement dressed as a
+      pending one.
+    * a price and the move in cents of the same outcome the flag price refers to.
+
+    ``known_at`` is when the flag became readable (the sampler wrote it). The
+    horizons start at the last print of the flagged flow, which is earlier, so
+    a horizon can already have passed by the time anyone could see the flag.
+    Those entries are marked ``already_past``: the move is real, but no reader
+    could have acted on it, and it must not be read as a live one.
+
+    Returns ``None`` when the history is empty or the flag time is unknown.
     """
 
     if history is None or history.empty or "time" not in history.columns or "price" not in history.columns:
@@ -278,6 +297,9 @@ def price_after(history: pd.DataFrame, flag_time: Any, price_at_flag: float | No
     frame["price"] = pd.to_numeric(frame["price"], errors="coerce")
     frame = frame.dropna(subset=["time", "price"]).sort_values("time")
     after = frame[frame["time"] >= start]
+    sichtbar_ab = pd.to_datetime(known_at, utc=True, errors="coerce") if known_at is not None else None
+    if sichtbar_ab is not None and pd.isna(sichtbar_ab):
+        sichtbar_ab = None
     out: dict[str, Any] = {}
     base = _num(price_at_flag)
     for label, delta in (("30m", timedelta(minutes=30)), ("2h", timedelta(hours=2)), ("24h", timedelta(hours=24))):
@@ -287,11 +309,14 @@ def price_after(history: pd.DataFrame, flag_time: Any, price_at_flag: float | No
             continue
         window = after[after["time"] <= horizon]
         if window.empty:
-            out[label] = None
+            out[label] = {"price": None, "move_c": None, "no_print": True}
             continue
         price = float(window["price"].iloc[-1])
-        out[label] = {
+        eintrag: dict[str, Any] = {
             "price": round(price, 4),
             "move_c": round((price - base) * 100.0, 1) if base is not None else None,
         }
+        if sichtbar_ab is not None and horizon <= sichtbar_ab:
+            eintrag["already_past"] = True
+        out[label] = eintrag
     return out

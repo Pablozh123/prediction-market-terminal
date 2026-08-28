@@ -45,9 +45,9 @@ def load_json(path: Path, default):
         return default
 
 
-def signal_key(row: pd.Series) -> str:
-    time_part = str(row.get("time", ""))[:16]
-    return f"{row.get('signal_type', '')}|{row.get('market_key', '')}|{row.get('wallet', '')}|{time_part}"
+#: Identitaet eines Signals im Zustell-Zustand. Liegt in app/signals.py,
+#: damit sie pruefbar ist und die Seite dieselbe Regel benutzt.
+signal_key = sig.signal_dedupe_key
 
 
 def format_hit(row: pd.Series) -> str:

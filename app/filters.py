@@ -154,6 +154,11 @@ def option_metric_filter(df: pd.DataFrame, column: str, preset: str, custom_min:
     if df.empty or column not in df or preset == "All":
         return df
     values = numeric_col(df, column)
+    # Zwei Beschriftungen je Schwelle. Ein Filter ueber eine reine
+    # Dollarspalte (Wallet-Umsatz, PnL) darf sein Dollarzeichen behalten; ein
+    # Filter ueber eine Marktspalte, die auf Kalshi Kontrakte zaehlt, darf
+    # keines tragen (Beleg in app/venue_units.py). Die alten Schluessel
+    # bleiben stehen, damit eine gespeicherte Ansicht weiter aufloest.
     thresholds = {
         ">$100": 100.0,
         ">$1k": 1_000.0,
@@ -165,6 +170,13 @@ def option_metric_filter(df: pd.DataFrame, column: str, preset: str, custom_min:
         "> -$10k": -10_000.0,
         "> -$100k": -100_000.0,
         "> -$500k": -500_000.0,
+        ">100": 100.0,
+        ">1k": 1_000.0,
+        ">10k": 10_000.0,
+        ">100k": 100_000.0,
+        ">500k": 500_000.0,
+        ">1m": 1_000_000.0,
+        ">2m": 2_000_000.0,
     }
     threshold = float(custom_min or 0.0) if preset == "Custom" else thresholds.get(preset)
     if threshold is None:

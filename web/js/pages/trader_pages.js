@@ -41,7 +41,7 @@ function scorePartsHtml(t) {
   return '<div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:4px">'
     + parts.map((p) => {
       const wert = p.imputed
-        ? '<span style="color:rgba(var(--ink),.45); font-style:italic">assumed</span>'
+        ? '<span style="color:rgba(var(--ink),.62); font-style:italic">assumed</span>'
         : '<span style="color:rgba(var(--ink),.8)">' + esc(p.value) + '</span>';
       const rand = p.imputed ? 'border:1px dashed rgba(var(--ink),.14)' : 'border:1px solid rgba(var(--ink),.1)';
       const titel = p.imputed
@@ -147,7 +147,7 @@ export function renderTraders(T) {
     + '<div style="text-align:right">VOLUME</div><div style="text-align:right">SCORE</div></div>'
     + traderSorted.map((t, i) => {
       const score = t.score;
-      const avatarStyle = 'width:28px; height:28px; flex:none; border-radius:4px; background:#1C232B; border:1px solid rgba(var(--ink),.09); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:12px; color:' + (score != null && score >= 80 ? 'var(--accent)' : 'rgba(var(--ink),.6)');
+      const avatarStyle = 'width:28px; height:28px; flex:none; border-radius:4px; background:var(--panel-hover); border:1px solid rgba(var(--ink),.09); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:12px; color:' + (score != null && score >= 80 ? 'var(--accent)' : 'rgba(var(--ink),.6)');
       const scoreStyle = M + '; font-size:12.5px; border-radius:4px; padding:3px 9px; ' + (score == null ? 'color:rgba(var(--ink),.6); border:1px solid rgba(var(--ink),.12)' : score >= 80 ? 'color:var(--on-accent); background:var(--accent)' : score >= 60 ? 'color:rgba(var(--ink),.8); border:1px solid rgba(var(--ink),.2)' : 'color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35)');
       return '<div ' + T.act(() => T.openWallet(t.name)) + ' class="hv-panel" style="display:grid; grid-template-columns:' + grid + '; align-items:center; padding:13px 24px; border-bottom:1px solid rgba(var(--ink),.06); cursor:pointer">'
         + '<div style="' + M + '; font-size:13px; color:rgba(var(--ink),.6)">' + (i + 1) + '</div>'
@@ -366,7 +366,7 @@ export function riskSideChip(r) {
   const farbe = isSell ? 'var(--neg-soft)' : isNo ? 'var(--warn)' : 'var(--accent)';
   const total = r.notional_usd != null ? money(r.notional_usd) : String(r.notional || '');
   const anteil = r.side_share != null ? ' (' + Math.round(r.side_share * 100) + '%)' : '';
-  return '<span style="' + M + '; font-size:10.5px; letter-spacing:.06em; color:' + farbe + '; border:1px solid ' + farbe + '55; border-radius:4px; padding:2px 7px; white-space:nowrap">'
+  return '<span style="' + M + '; font-size:10.5px; letter-spacing:.06em; color:' + farbe + '; border:1px solid color-mix(in srgb, ' + farbe + ' 33%, transparent); border-radius:4px; padding:2px 7px; white-space:nowrap">'
     + esc(side) + ' ' + esc(money(r.side_notional || 0)) + ' of ' + esc(total) + esc(anteil) + '</span>';
 }
 
@@ -617,7 +617,7 @@ export function riskBookHtml(T, r) {
       const netz = b.net === 'YES' || b.net === 'NO' ? 'net ' + b.net : b.net === 'balanced' ? 'balanced' : 'flat';
       return '<div style="font-size:11.5px; line-height:1.45; color:rgba(var(--ink),.7)">' + kopf
         + '<span style="' + M + '; color:rgba(var(--ink),.85)">' + esc(b.short || b.wallet) + '</span> '
-        + '<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:' + BOOK_FARBE(b.relation) + '; border:1px solid ' + BOOK_FARBE(b.relation) + '55; border-radius:4px; padding:1px 6px; margin:0 4px">' + BOOK_WORT(b.relation) + ' · ' + esc(netz) + '</span>'
+        + '<span style="' + M + '; font-size:11px; letter-spacing:.08em; color:' + BOOK_FARBE(b.relation) + '; border:1px solid color-mix(in srgb, ' + BOOK_FARBE(b.relation) + ' 33%, transparent); border-radius:4px; padding:1px 6px; margin:0 4px">' + BOOK_WORT(b.relation) + ' · ' + esc(netz) + '</span>'
         + esc(b.text || '') + '</div>';
     }).join('')
     + '</div>';
@@ -627,14 +627,24 @@ function marketLink(url) {
   return url ? '<a data-stop href="' + esc(url) + '" target="_blank" rel="noopener" title="Open the market" style="' + LINK + '">market ↗</a>' : '';
 }
 
-// The move after the flag: "+30 m 36¢ (+2.0)"; "not yet" when the horizon
-// has not passed, "n/a" when no history could be read.
+// The move after the flag: "+30 m 36¢ (+2.0)"; "n/a" when no history could be
+// read, "not yet" while the horizon is still ahead, "no print" when it passed
+// without a trade. Those last two used to share the "not yet" wording, so a
+// day-old flag in a market that never traded again claimed its +24 h point was
+// still pending. A horizon that had already elapsed when the sampler wrote the
+// flag says so: the move happened, but not while anyone could read the flag.
 function afterCell(after, key, label) {
+  const zelle = (inhalt, ton) => '<div><div style="' + HEAD_CELL + '">' + label + '</div>'
+    + '<div style="' + M + '; font-size:12px; ' + (ton || 'color:rgba(var(--ink),.6)') + '; margin-top:2px">' + inhalt + '</div></div>';
   const p = after && after[key];
-  if (!after) return '<div><div style="' + HEAD_CELL + '">' + label + '</div><div style="' + M + '; font-size:12px; color:rgba(var(--ink),.6); margin-top:2px">n/a</div></div>';
-  if (!p) return '<div><div style="' + HEAD_CELL + '">' + label + '</div><div style="' + M + '; font-size:12px; color:rgba(var(--ink),.6); margin-top:2px">not yet</div></div>';
+  if (!after) return zelle('n/a');
+  if (!p) return zelle('not yet');
+  if (p.no_print) return zelle('no print');
   const move = p.move_c == null ? '' : ' <span style="color:' + (p.move_c > 0 ? 'var(--accent)' : p.move_c < 0 ? 'var(--neg-soft)' : 'rgba(var(--ink),.5)') + '">' + (p.move_c > 0 ? '+' : '') + esc(String(p.move_c)) + '</span>';
-  return '<div><div style="' + HEAD_CELL + '">' + label + '</div><div style="' + M + '; font-size:12px; margin-top:2px">' + cents(p.price) + move + '</div></div>';
+  const vorbei = p.already_past
+    ? '<span title="This horizon had already passed when the flag was written" style="color:rgba(var(--ink),.5)"> · before the flag was readable</span>'
+    : '';
+  return zelle(cents(p.price) + move + vorbei, 'color:var(--text)');
 }
 
 // The flag log tab: rows newest first, with the price after the flag when

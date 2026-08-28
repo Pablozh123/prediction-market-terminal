@@ -219,3 +219,54 @@ class TimingDecayWalletStakeTests(unittest.TestCase):
         erwartet = round(123.84 / 0.6888 * (1 - 0.6888), 2)
         self.assertAlmostEqual(round(float(basis["sim_pnl_usd"]), 2),
                                erwartet, places=1)
+
+
+class OpenVersusUnpricedTests(unittest.TestCase):
+    """Offen und "aufgeloest, aber ohne Preis" sind zwei Aussagen.
+
+    ``n_open`` war die Differenz "alle minus simulierbare" und trug damit
+    beides. Die Seite las daraus "1 bet(s) are still open" fuer eine Wette,
+    die laengst aufgeloest war und nur keinen brauchbaren Fillpreis trug.
+    """
+
+    @staticmethod
+    def _payload(wetten):
+        return {"runs": [{"profil": "lauf", "wetten": wetten}]}
+
+    def test_a_settled_bet_without_a_price_is_not_called_open(self):
+        bets = rs.bets_frame(self._payload([
+            {"frage": "kein Preis", "seite": "YES", "aufgeloest": True,
+             "gewonnen": True, "einsatz_usd": 5.0, "shares": 0.0, "pnl_usd": 4.0},
+        ]))
+        _, zusammenfassung = rs.simulate_sizing(bets)
+        self.assertEqual(zusammenfassung["n_resolved"], 0)
+        self.assertEqual(zusammenfassung["n_open"], 0)
+        self.assertEqual(zusammenfassung["n_unpriced"], 1)
+
+    def test_an_open_bet_stays_open(self):
+        bets = rs.bets_frame(self._payload([
+            {"frage": "offen", "seite": "YES", "entscheidungs_preis": 0.40,
+             "aufgeloest": False, "gewonnen": None, "einsatz_usd": 5.0, "shares": 12.5},
+        ]))
+        _, zusammenfassung = rs.simulate_sizing(bets)
+        self.assertEqual(zusammenfassung["n_open"], 1)
+        self.assertEqual(zusammenfassung["n_unpriced"], 0)
+
+    def test_both_kinds_are_counted_apart(self):
+        bets = rs.bets_frame(self._payload([
+            {"frage": "gewonnen", "seite": "YES", "entscheidungs_preis": 0.50,
+             "aufgeloest": True, "gewonnen": True, "einsatz_usd": 5.0,
+             "shares": 10.0, "pnl_usd": 5.0},
+            {"frage": "offen", "seite": "YES", "entscheidungs_preis": 0.40,
+             "aufgeloest": False, "gewonnen": None, "einsatz_usd": 5.0, "shares": 12.5},
+            {"frage": "kein Preis", "seite": "YES", "aufgeloest": True,
+             "gewonnen": False, "einsatz_usd": 5.0, "shares": 0.0, "pnl_usd": -5.0},
+        ]))
+        _, zusammenfassung = rs.simulate_sizing(bets)
+        self.assertEqual(zusammenfassung["n_resolved"], 1)
+        self.assertEqual(zusammenfassung["n_open"], 1)
+        self.assertEqual(zusammenfassung["n_unpriced"], 1)
+
+
+if __name__ == "__main__":
+    unittest.main()

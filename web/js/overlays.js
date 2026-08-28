@@ -2,7 +2,7 @@
 // Wallet details show scorecard fields (n, CI, verdict, snapshot) when the API
 // answered for that wallet; scores never render without their sample size.
 
-import { esc, money, num, stempel } from './util.js';
+import { esc, money, num, stempel, volume as volumeLabel } from './util.js';
 import { scorePartsOf } from './pages/trader_pages.js';
 import { isFullAddress } from './pages/wallet_page.js';
 
@@ -33,10 +33,12 @@ export function renderDetail(T) {
       stats: [
         { label: 'YES', value: m.yes + '¢', style: STAT_VAL },
         { label: 'CHANGE 1D', value: (m.chg >= 0 ? '+' : '') + m.chg + '¢', style: STAT_VAL + '; color:' + (m.chg >= 0 ? 'var(--pos)' : 'var(--neg)') },
-        { label: 'VOLUME 24H', value: money(m.vol), style: STAT_VAL },
+        // Die Einheit haengt an der Venue: Polymarket meldet Dollar, Kalshi
+        // die Zahl gehandelter Kontrakte (Beleg in app/venue_units.py).
+        { label: 'VOLUME 24H', value: volumeLabel(m.vol, m.venue), style: STAT_VAL },
         // Getrennt ausgewiesen, nicht als Rueckfall in die Zeile darueber:
         // Tagesumsatz und Lebensumsatz sind zwei Messungen.
-        { label: 'VOLUME TOTAL', value: m.volTotal ? money(m.volTotal) : '—', style: STAT_VAL },
+        { label: 'VOLUME TOTAL', value: m.volTotal ? volumeLabel(m.volTotal, m.venue) : '—', style: STAT_VAL },
         // Wie in der Markttabelle: keine gemeldete Liquiditaet ist ein
         // Strich, nicht "$0" — eine Unbekannte darf nicht als gemessene
         // Null auftreten.

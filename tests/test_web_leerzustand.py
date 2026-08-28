@@ -813,6 +813,17 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("1 of 9 candidate pairs clear the gate (similarity ≥ 0.5, volume on both venues)", live)
         self.assertIn("similarity 0.71", live)
         self.assertIn("GATE 0.50", live)
+        # Zwei Volumina, zwei Einheiten, zwei Spalten. Kalshis Volumen zaehlt
+        # Kontrakte (app/venue_units.py), also darf es weder ein
+        # Dollarzeichen tragen noch mit dem Polymarket-Betrag in einer Zahl
+        # aufgehen: $1.20m und 300k Kontrakte, nie die Summe $1.50m.
+        self.assertIn("PM VOL 24H", live)
+        self.assertIn("KALSHI VOL 24H", live)
+        self.assertIn("$1.20m", live)
+        self.assertIn("300k contracts", live)
+        self.assertNotIn("$1.50m", live)
+        # Auch die Filterschwelle behauptet keine Dollar mehr.
+        self.assertIn("MIN KALSHI VOLUME (CONTRACTS)", live)
         # Der Schieber faengt bei der Schranke an, nicht darunter.
         self.assertNotIn("0.30", live)
         # Ohne jede Antwort (leerer Harness): Ladezustand, keine Zeile.
@@ -1477,6 +1488,21 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertEqual(int(je_slug["second-question"]["windows_n"]), 2)
         self.assertEqual(json.loads(self.ausgabe["leer"]["_collapse_queue"]), [])
 
+    def test_latenz_gilt_je_fill_nicht_je_lauf(self) -> None:
+        # Die Tabelle heisst "per fill", trug aber in jeder Zeile eines Laufs
+        # dessen erster_fill_s. Bei allin_july10 (drop 01:17:27, erster Fill
+        # nach 64 s) lag der letzte der sieben Fills einen Tag spaeter: 90.547
+        # s nach dem Drop, und die Zeile las trotzdem 64.0 s -- Faktor 1.415.
+        werte = json.loads(self.ausgabe["live"]["_fill_latenz"])
+        self.assertEqual(werte["erster"], 64)
+        self.assertEqual(werte["letzter"], 90547)
+        # Ohne Drop-Zeitstempel bleibt die Laufzahl, aber nur fuer die Zeile,
+        # fuer die sie gilt. Jede weitere bekommt einen Strich statt einer
+        # geerbten Zahl.
+        self.assertEqual(werte["ohne_drop_erster"], 42)
+        self.assertIsNone(werte["ohne_drop_spaeter"])
+        self.assertIsNone(werte["ohne_alles"])
+
     def test_category_efficiency_zeigt_horizonte_und_n(self) -> None:
         text = _sichtbarer_text(self.ausgabe["live"]["research_category_efficiency"])
         self.assertIn("Which categories price things well", text)
@@ -2002,6 +2028,39 @@ class WebLeerzustandTest(unittest.TestCase):
         # Und die Seite sagt, worauf der Score ruht, samt Groesse der Menge.
         self.assertIn("65% of the composite weight", text)
         self.assertIn("n = 250 wallets ranked together", text)
+
+    def test_studienstempel_ueberlebt_die_publish_uhr(self) -> None:
+        """Der Stempel aus studies.js steht auf der Seite, nicht nur die Uhr.
+
+        study.stamp sagt, was die Studie IST ("frozen 2026-06-30",
+        "pre-registered 2026-05-02 · completed 2026-08-01", "archived"), und
+        aendert sich nicht, wenn jemand die Nutzlast neu schreibt.
+        payload.stand_utc sagt nur, wann zuletzt publiziert wurde. Vorher
+        stand in system_pages.js ueberall "stand_utc ? uhr : study.stamp",
+        und weil jede publizierte Nutzlast ein stand_utc traegt, gewann immer
+        die Uhr: kein einziger Stempel erreichte je die Seite. Die
+        Seitenleiste fuehrte die Studien unter STUDIES · FROZEN, waehrend
+        jede von ihnen ein Datum aus der Publish-Woche zeigte, und die beiden
+        archivierten sagten nirgends, dass sie archiviert sind.
+
+        Beide Angaben muessen stehen. Die Uhr allein ist kein Ersatz.
+        """
+
+        erwartet = {
+            "research_pilot": "pre-registered 2026-05-02",
+            "research_category_efficiency": "frozen 2026-06-30",
+            "research_mentions_latency": "frozen 2026-08-07",
+            "research_pipeline_forward": "archived",
+            "research_methodology": "version 4.2",
+            "research_microstructure": "rolling",
+            "runs_runs": "concluded 2026-08-07",
+        }
+        for seite, stempel in erwartet.items():
+            with self.subTest(seite=seite):
+                text = _sichtbarer_text(self.ausgabe["live"][seite])
+                self.assertIn(stempel, text)
+                # Und die Publish-Uhr geht dabei nicht verloren.
+                self.assertIn("published 2026-", text)
 
 
 if __name__ == "__main__":

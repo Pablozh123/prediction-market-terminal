@@ -90,6 +90,26 @@ class ThresholdFilterTests(unittest.TestCase):
         self.assertEqual(len(flt.option_metric_filter(markets(), "volume_24h", ">$100k")), 1)
         self.assertEqual(len(flt.option_metric_filter(markets(), "volume_24h", "Custom", 500.0)), 2)
 
+    def test_unit_free_labels_hit_the_same_thresholds(self) -> None:
+        # Ein Filter ueber eine Marktspalte darf kein Dollarzeichen zeigen:
+        # auf Kalshi zaehlt sie Kontrakte (app/venue_units.py). Beide
+        # Schreibweisen muessen dieselbe Schwelle treffen.
+        for mit, ohne in ((">$1k", ">1k"), (">$10k", ">10k"),
+                          (">$100k", ">100k"), (">$1m", ">1m")):
+            self.assertEqual(
+                len(flt.option_metric_filter(markets(), "volume_24h", ohne)),
+                len(flt.option_metric_filter(markets(), "volume_24h", mit)),
+                f"{ohne} und {mit} filtern verschieden",
+            )
+
+    def test_the_old_labels_still_resolve_for_saved_views(self) -> None:
+        # Eine gespeicherte Ansicht kann das alte Label tragen.
+        self.assertEqual(len(flt.option_metric_filter(markets(), "volume_24h", ">$100k")), 1)
+
+    def test_an_unknown_label_filters_nothing_rather_than_everything(self) -> None:
+        alle = len(markets())
+        self.assertEqual(len(flt.option_metric_filter(markets(), "volume_24h", ">17k")), alle)
+
     def test_probability_band(self) -> None:
         self.assertEqual(len(flt.apply_probability_filter(markets(), "20-80%", (0, 100))), 1)
         self.assertEqual(len(flt.apply_probability_filter(markets(), "Custom", (10.0, 20.0))), 1)

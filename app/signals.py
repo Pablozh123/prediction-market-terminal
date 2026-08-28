@@ -9,12 +9,48 @@ scanner can pass the raw API client or disable the check.
 from __future__ import annotations
 
 import re
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 import pandas as pd
 
 from app.filters import numeric_col
 from app.format import cents, money, pct, signed_cents
+
+
+#: Signalarten aus dem Trade-Tape. Nur sie tragen ein Notional und eine
+#: gehandelte Seite; Buchtiefe fuehrt das Tape nicht, ihre ``liquidity`` ist
+#: per Konstruktion 0.0.
+TRADE_SIGNAL_TYPES = ("Whale print",)
+
+#: Signalarten aus der Markttabelle. Sie tragen Liquiditaet und Spread, aber
+#: kein Notional: ``_append_market_signal`` setzt es auf 0.0.
+MARKET_SIGNAL_TYPES = (
+    "Volume anomaly",
+    "Fast mover",
+    "Tight spread",
+    "Ending soon",
+    "Watched market",
+    "Holder concentration",
+)
+
+#: Welche Arten eine Notional- bzw. Liquiditaets-Schwelle ueberhaupt
+#: beantworten koennen. Regeln binden ihre Schwellen daran (siehe
+#: ``monitor_rule_matches``).
+NOTIONAL_SIGNAL_TYPES = TRADE_SIGNAL_TYPES
+LIQUIDITY_SIGNAL_TYPES = MARKET_SIGNAL_TYPES
+
+
+def _text(value: Any) -> str:
+    """Zelleninhalt als Text; NaN und None werden leer, nicht "nan"."""
+
+    if value is None:
+        return ""
+    try:
+        if bool(pd.isna(value)):
+            return ""
+    except (TypeError, ValueError):
+        pass
+    return str(value).strip()
 
 
 def monitor_volume_col(df: pd.DataFrame) -> str:
@@ -72,6 +108,10 @@ def _append_market_signal(
             "title": row.get("title", ""),
             "category": row.get("category", ""),
             "outcome": "Yes",
+            # Ein Marktsignal nimmt keine Seite; das Feld existiert, damit der
+            # Frame eine saubere Spalte hat und nicht NaN neben "BUY"/"SELL".
+            "side": "",
+            "tx": "",
             "price": row.get("yes_price"),
             "value": value,
             "reason": reason,
@@ -200,6 +240,15 @@ def build_monitor_signals(
                     "title": row.get("title", ""),
                     "category": "",
                     "outcome": row.get("outcome", ""),
+                    # Die genommene Seite als eigenes Feld, nicht nur als Wort
+                    # im Begruendungstext: das Ledger modelliert einen KAUF zum
+                    # Emit-Preis, und ein Verkaufsdruck ist damit nicht
+                    # bewertbar (siehe app/ledger.py::emit_signals).
+                    "side": str(row.get("side", "") or ""),
+                    # Der Trade selbst, nicht nur sein Markt: der Scanner
+                    # erkennt daran zwei Clips derselben Wallet in derselben
+                    # Minute als zwei Ereignisse.
+                    "tx": _text(row.get("transaction_hash")),
                     "price": row.get("price"),
                     "value": row.get("notional", 0.0),
                     "reason": f"{row.get('side', '')} {money(row.get('notional', 0.0))}",
@@ -221,6 +270,40 @@ def build_monitor_signals(
     return signals.sort_values(["severity", "time", "value"], ascending=[False, False, False]).reset_index(drop=True)
 
 
+def signal_dedupe_key(row: Mapping[str, Any]) -> str:
+    """Identitaet eines Signals fuer den Zustell-Zustand des Scanners.
+
+    Der Schluessel bestand aus Art, Markt, Wallet und der Minute. Damit fielen
+    zwei verschiedene Prints derselben Wallet im selben Markt und derselben
+    Minute zusammen: der Kauf von Yes ueber 9.000 Dollar und der Verkauf von
+    No ueber 4.000 trugen denselben Schluessel, also ging nur der erste raus
+    und nur der erste kam ins Ledger. Der gehandelte Ausgang gehoert hinein,
+    und bei einem Print zusaetzlich der Trade selbst.
+
+    Fuer Marktsignale bleibt der Schluessel absichtlich grob: sie beschreiben
+    einen Marktzustand, der bei jedem Scan neu gemessen wird, und ein Wert im
+    Schluessel wuerde dieselbe Beobachtung bei jedem Tick erneut zustellen.
+    """
+
+    teile = [
+        _text(row.get("signal_type")),
+        _text(row.get("market_key")),
+        _text(row.get("outcome")),
+        _text(row.get("wallet")),
+        _text(row.get("time"))[:16],
+    ]
+    if _text(row.get("signal_type")) in TRADE_SIGNAL_TYPES:
+        tx = _text(row.get("tx"))
+        if tx:
+            teile.append(tx)
+        else:
+            # Ohne Transaktions-Hash (Kalshi liefert keinen) trennen Seite,
+            # Groesse und Preis die Clips.
+            notional = _text(row.get("notional"))
+            teile.append(f"{_text(row.get('side'))}:{notional}@{_text(row.get('price'))}")
+    return "|".join(teile)
+
+
 def monitor_rule_matches(signals: pd.DataFrame, rule: dict[str, Any]) -> pd.DataFrame:
     if signals.empty:
         return pd.DataFrame()
@@ -238,9 +321,17 @@ def monitor_rule_matches(signals: pd.DataFrame, rule: dict[str, Any]) -> pd.Data
         searchable = searchable + " " + filtered.get("trader", pd.Series("", index=filtered.index)).astype(str).str.lower()
         searchable = searchable + " " + filtered.get("reason", pd.Series("", index=filtered.index)).astype(str).str.lower()
         filtered = filtered[searchable.str.contains(re.escape(query), na=False)]
+    # Jede Schwelle gilt nur fuer die Signalarten, die das gemessene Feld
+    # ueberhaupt fuehren. Ohne diese Bindung loescht eine Schwelle die
+    # anderen Arten restlos aus, weil deren Feld per Konstruktion 0.0 ist
+    # (Marktsignale tragen notional 0.0, Trade-Signale liquidity 0.0) -- und
+    # das Regelformular fuellt "Min notional" mit der Whale-Schwelle vor.
     min_notional = float(rule.get("min_notional", 0.0) or 0.0)
     if min_notional:
-        filtered = filtered[numeric_col(filtered, "notional") >= min_notional]
+        filtered = filtered[
+            ~filtered["signal_type"].isin(NOTIONAL_SIGNAL_TYPES)
+            | (numeric_col(filtered, "notional") >= min_notional)
+        ]
     min_move = float(rule.get("min_move", 0.0) or 0.0)
     if min_move:
         filtered = filtered[(filtered["signal_type"].ne("Fast mover")) | (numeric_col(filtered, "value").abs() >= min_move)]
@@ -249,7 +340,10 @@ def monitor_rule_matches(signals: pd.DataFrame, rule: dict[str, Any]) -> pd.Data
         filtered = filtered[(filtered["signal_type"].ne("Tight spread")) | (numeric_col(filtered, "spread", 999.0) <= max_spread)]
     min_liquidity = float(rule.get("min_liquidity", 0.0) or 0.0)
     if min_liquidity:
-        filtered = filtered[numeric_col(filtered, "liquidity") >= min_liquidity]
+        filtered = filtered[
+            ~filtered["signal_type"].isin(LIQUIDITY_SIGNAL_TYPES)
+            | (numeric_col(filtered, "liquidity") >= min_liquidity)
+        ]
     return filtered.reset_index(drop=True)
 
 

@@ -977,6 +977,10 @@ class MarketFilterMetricTests(unittest.TestCase):
                 {"market_key": "low", "title": "Low volume", "platform": "Polymarket", "yes_price": 0.4, "activity_volume": 10, "end_time": "2026-05-29T12:00:00Z"},
                 {"market_key": "high", "title": "High volume", "platform": "Polymarket", "yes_price": 0.6, "activity_volume": 100, "end_time": "2026-05-29T18:00:00Z"},
                 {"market_key": "next", "title": "Next day", "platform": "Kalshi", "yes_price": 0.7, "activity_volume": 50, "end_time": "2026-05-30T18:00:00Z"},
+                # Derselbe Tag wie die beiden Polymarket-Maerkte, aber auf
+                # Kalshi: die Tageszelle darf 110 Dollar und 70 Kontrakte
+                # nicht zu 180 von irgendwas addieren.
+                {"market_key": "same_day_kalshi", "title": "Same day", "platform": "Kalshi", "yes_price": 0.5, "activity_volume": 70, "end_time": "2026-05-29T20:00:00Z"},
             ]
         )
 
@@ -985,10 +989,15 @@ class MarketFilterMetricTests(unittest.TestCase):
         self.assertEqual(len(calendar), 35)
         self.assertEqual(calendar.iloc[0]["date"], "2026-04-27")
         may_29 = calendar[calendar["date"].eq("2026-05-29")].iloc[0]
-        self.assertEqual(int(may_29["markets"]), 2)
-        self.assertAlmostEqual(float(may_29["volume"]), 110.0)
+        self.assertEqual(int(may_29["markets"]), 3)
+        # Zwei Summen, nicht eine: Polymarket meldet Dollar, Kalshi zaehlt
+        # Kontrakte (app/venue_units.py). Die frueher hier stehende Spalte
+        # "volume" addierte beides zu einer Zahl ohne Einheit.
+        self.assertAlmostEqual(float(may_29["volume_usd"]), 110.0)
+        self.assertAlmostEqual(float(may_29["volume_contracts"]), 70.0)
+        self.assertNotIn("volume", calendar.columns)
         self.assertEqual(may_29["top_markets"][0]["market_key"], "high")
-        self.assertEqual(int(may_29["more_count"]), 1)
+        self.assertEqual(int(may_29["more_count"]), 2)
 
     def test_related_markets_groups_by_event_slug(self) -> None:
         markets = pd.DataFrame(

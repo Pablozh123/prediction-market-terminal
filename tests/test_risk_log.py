@@ -205,10 +205,43 @@ class PriceAfterTests(unittest.TestCase):
         self.assertIsNone(risk_log.price_after(pd.DataFrame(), "2026-08-16T12:25:00Z", 0.34))
         self.assertIsNone(risk_log.price_after(None, "2026-08-16T12:25:00Z", 0.34))
         self.assertIsNone(risk_log.price_after(self._history(), "not a time", 0.34))
-        # History that ends before the flag: every horizon has no point.
+        # History that ends before the flag: every horizon passed without a
+        # print. Das ist etwas anderes als "noch nicht faellig" und darf in
+        # der Anzeige nicht dieselbe Zelle bekommen.
         early = self._history().head(3)
         after = risk_log.price_after(early, "2026-08-16T13:00:00Z", 0.34, now="2026-08-18T00:00:00Z")
-        self.assertEqual(after, {"30m": None, "2h": None, "24h": None})
+        leer = {"price": None, "move_c": None, "no_print": True}
+        self.assertEqual(after, {"30m": leer, "2h": leer, "24h": leer})
+
+    def test_a_passed_horizon_without_a_print_is_not_pending(self) -> None:
+        # Ein Flag von gestern in einem Markt, der seither nicht mehr
+        # gehandelt hat: die +24-h-Zelle las "not yet", obwohl der Horizont
+        # einen Tag vorbei war. Nur ein noch offener Horizont ist None.
+        history = self._history()
+        after = risk_log.price_after(history, "2026-08-16T12:25:00Z", 0.34, now="2026-08-16T13:00:00Z")
+        self.assertIsNone(after["2h"])
+        early = history.head(3)
+        vorbei = risk_log.price_after(early, "2026-08-16T13:00:00Z", 0.34, now="2026-08-18T00:00:00Z")
+        self.assertTrue(vorbei["24h"]["no_print"])
+        self.assertIsNone(vorbei["24h"]["price"])
+
+    def test_a_horizon_that_elapsed_before_the_flag_was_written_says_so(self) -> None:
+        # Die Horizonte laufen ab dem letzten Print des Flusses, lesbar wird
+        # das Flag erst mit dem Sampler-Lauf. Liegt der eine Stunde spaeter,
+        # war der +30-min-Punkt schon vorbei, bevor ihn jemand sehen konnte.
+        after = risk_log.price_after(
+            self._history(), "2026-08-16T12:25:00Z", 0.34,
+            now="2026-08-18T00:00:00Z", known_at="2026-08-16T13:25:00Z")
+        self.assertTrue(after["30m"]["already_past"])
+        self.assertNotIn("already_past", after["2h"])
+        self.assertNotIn("already_past", after["24h"])
+        # Der gemessene Wert bleibt unveraendert, nur die Einordnung kommt dazu.
+        self.assertAlmostEqual(after["30m"]["price"], 0.3455)
+
+    def test_without_known_at_nothing_is_marked(self) -> None:
+        after = risk_log.price_after(self._history(), "2026-08-16T12:25:00Z", 0.34, now="2026-08-18T00:00:00Z")
+        for label in ("30m", "2h", "24h"):
+            self.assertNotIn("already_past", after[label])
 
     def test_missing_flag_price_leaves_move_none(self) -> None:
         after = risk_log.price_after(self._history(), "2026-08-16T12:25:00Z", None, now="2026-08-18T00:00:00Z")

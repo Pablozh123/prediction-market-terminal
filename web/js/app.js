@@ -1,7 +1,7 @@
 // Market Intel terminal — vanilla JS port of the design reference.
 // One controller class; each workspace renders as an HTML string from state.
 
-import { num, money, esc, spark, seriesPoints, tapeMatches } from './util.js';
+import { num, money, volume, esc, seriesPoints, tapeMatches } from './util.js';
 import { STUDIEN } from './studies.js';
 import { apiGet, apiGetRaw, apiPost } from './api.js';
 import { renderOverview, renderMarkets, renderFlow, renderCross, renderResolved } from './pages/core_pages.js';
@@ -222,7 +222,6 @@ class Terminal {
   num(n) { return num(n); }
   money(n) { return money(n); }
   esc(v) { return esc(v); }
-  spark(a) { return spark(a); }
   seriesPoints(v, w, h) { return seriesPoints(v, w, h); }
 
   // ---- action / input registries (rebuilt every render) ----
@@ -344,7 +343,9 @@ class Terminal {
       priceLabel: m.yes + '¢',
       changeLabel: (m.chg >= 0 ? '+' : '') + m.chg + '¢',
       changeStyle: this.changeStyle(m.chg),
-      volLabel: money(m.vol),
+      // Polymarket meldet Dollar, Kalshi Kontrakte. money() hat beides
+      // mit einem Dollarzeichen versehen (app/venue_units.py).
+      volLabel: volume(m.vol, m.venue),
       ends: m.ends,
       act: this.act(() => this.openMarket(m.id))
     };
@@ -1493,7 +1494,13 @@ class Terminal {
     }, 15000);
     this.render();
     this.pollLive();
-    setInterval(() => this.pollLive(), 30000);
+    // Der Poll holt markets (~280 KB) und tape (~180 KB) und rendert danach
+    // die ganze Seite neu. In einem verborgenen Tab sieht das niemand, es
+    // kostet aber rund 55 MB je Stunde und auf der Marktseite alle 30 s einen
+    // Render von ~114 ms. Also: nur im sichtbaren Tab, und beim Zurueckkommen
+    // einmal sofort nachziehen, damit der Stand nicht veraltet wirkt.
+    setInterval(() => { if (!document.hidden) this.pollLive(); }, 30000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) this.pollLive(); });
     // The copy desk re-reads its books every 30 s while it is open (the
     // daemon writes between renders); not while an action is in flight, and
     // never mid-edit — the form values live in state and survive the render.
