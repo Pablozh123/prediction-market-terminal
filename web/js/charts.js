@@ -143,7 +143,10 @@ export function diagramm(dia) {
       koerper += '<circle cx="' + xm + '" cy="' + y + '" r="4.5" style="fill:' + farbe + '" />';
       koerper += wertText(p.text || (fmtZahl(p.von) + ' … ' + fmtZahl(p.bis)), PLOT_R + 8, y, 'rgba(var(--ink),.75)');
     } else if (typeof p.wert === 'number') {
-      const farbe = BALKEN_FARBE[p.art] || (p.wert < 0 ? 'var(--neg)' : 'var(--pos)');
+      // p.farbe schlaegt das Vorzeichen: ein Balken, dessen Laenge einen
+      // Einsatz misst und dessen Farbe ein Ergebnis traegt, kann seine Farbe
+      // nicht aus der eigenen Laenge holen.
+      const farbe = p.farbe || BALKEN_FARBE[p.art] || (p.wert < 0 ? 'var(--neg)' : 'var(--pos)');
       // Auf einer referenzverankerten Skala liegt die Null links ausserhalb;
       // der Balken beginnt dann an der Referenz, denn die Abweichung von ihr
       // ist die Aussage.
@@ -151,8 +154,9 @@ export function diagramm(dia) {
       const x0 = sk.x(anker);
       const x1 = sk.x(p.wert);
       koerper += '<rect x="' + Math.min(x0, x1) + '" y="' + (y - 9) + '" width="' + Math.abs(x1 - x0)
-        + '" height="18" rx="3" style="fill:' + farbe + '" fill-opacity=".92" />';
-      koerper += wertText(fmtZahl(p.wert), PLOT_R + 8, y, 'rgba(var(--ink),.78)');
+        + '" height="18" rx="3" style="fill:' + farbe + '" fill-opacity=".92">'
+        + '<title>' + esc(p.tip || (p.label + ' · ' + fmtZahl(p.wert))) + '</title></rect>';
+      koerper += wertText(p.text || fmtZahl(p.wert), PLOT_R + 8, y, 'rgba(var(--ink),.78)');
     }
     y += ZEILE;
   });
@@ -165,7 +169,15 @@ export function diagramm(dia) {
     + '<div style="' + M + '; font-size:11px; letter-spacing:.13em; color:rgba(var(--ink),.62); margin-bottom:4px">'
     + esc(dia.titel || '') + (dia.einheit ? ' · ' + esc(dia.einheit) : '') + '</div>'
     + '<svg width="100%" viewBox="0 0 ' + BREITE + ' ' + hoehe + '" role="img" aria-label="' + esc(dia.titel || 'chart') + '" style="display:block; max-width:660px">'
-    + achse(sk, dia, hoehe) + koerper + '</svg></div>';
+    + achse(sk, dia, hoehe) + koerper
+    // Achsenbeschriftung nur, wenn die Referenzmarke den Platz nicht schon
+    // hat: zwei zentrierte Beschriftungen auf derselben Grundlinie waeren
+    // uebereinander gedruckt.
+    + (dia.xLabel && !dia.referenz_label
+      ? '<text x="' + ((PLOT_L + PLOT_R) / 2) + '" y="' + (hoehe - 6) + '" style="fill:rgba(var(--ink),.62)" '
+        + 'font-size="10.5" font-family="IBM Plex Mono, monospace" text-anchor="middle">' + esc(dia.xLabel) + '</text>'
+      : '')
+    + '</svg></div>';
 }
 
 // Serienfarben fuer Mehrlinien-Diagramme: fuenf Plaetze in fester

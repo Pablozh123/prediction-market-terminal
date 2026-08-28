@@ -57,7 +57,7 @@ function neuesT() {
       btExposure: 50, btBankroll: 1000, btFee: 20, btSlip: 15, btCompare: '', btTab: 'log',
       btFeeModel: 'curve',
       advancedOpen: false, sizingSimOpen: false, researchTab: 0, liveTab: 'runs',
-      walletAddr: '', walletInput: '', walletRecent: [], walletPosSort: 'value', walletTab: 'overview', walletTreemap: 'all', walletSimilarQuery: '',
+      walletAddr: '', walletInput: '', walletRecent: [], walletPosSort: 'value', walletTab: 'overview', walletTreemap: 'all', walletPosView: 'bars', walletSimilarQuery: '',
       alertsOn: { movers: true, volume: true, whales: true, spreads: false, holders: false, endings: true },
       settingsOn: { telegram: true, autotop: false, kalshi: true, sports: false, cache: true, admin: true },
       clock: '00:00', live: 'waiting', liveAsOf: '', tapeAsOf: ''
@@ -1138,8 +1138,9 @@ function rendern(T) {
     ['wallet_tab_positions', 'wallet', { walletTab: 'positions' }],
     ['wallet_tab_trades', 'wallet', { walletTab: 'trades' }],
     ['wallet_tab_categories', 'wallet', { walletTab: 'categories' }],
-    ['wallet_treemap_closed', 'wallet', { walletTreemap: 'closed' }],
-    ['wallet_treemap_open', 'wallet', { walletTreemap: 'open' }],
+    ['wallet_treemap_closed', 'wallet', { walletPosView: 'treemap', walletTreemap: 'closed' }],
+    ['wallet_treemap_alle', 'wallet', { walletPosView: 'treemap' }],
+    ['wallet_treemap_open', 'wallet', { walletPosView: 'treemap', walletTreemap: 'open' }],
     ['wallet_tab_risk', 'wallet', { walletTab: 'risk' }],
     ['wallet_tab_similar', 'wallet', { walletTab: 'similar' }],
     ['wallet_tab_similar_data', 'wallet', { walletTab: 'similar' }, null, (T) => {

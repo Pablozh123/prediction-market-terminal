@@ -31,13 +31,14 @@ WURZEL = Path(__file__).resolve().parents[1]
 HARNESS = WURZEL / "tests" / "web_render_harness.mjs"
 
 #: Werkzeugseiten, die mit Nutzlast ein Diagramm zeichnen muessen.
-SEITEN_MIT_DIAGRAMM = ("traders",)
+SEITEN_MIT_DIAGRAMM = ("traders", "wallet")
 
 #: Je Seite die Achsenbeschriftungen, die im Klartext dastehen muessen.
 #: Dollar, Cent, Kontrakte und Wahrscheinlichkeiten stehen im Terminal
 #: nebeneinander; eine Achse ohne Einheit macht sie wieder gleich.
 ACHSEN_MIT_EINHEIT = {
     "traders": ["smart score (points out of 100)", "volume traded (USD, log)"],
+    "wallet": ["at stake (USD)"],
 }
 
 
@@ -115,6 +116,23 @@ class WebDiagrammTest(unittest.TestCase):
         self.assertIn("Sample: part measured", html)
         # Stichtag
         self.assertIn("Snapshot 2026-08-07", html)
+
+    def test_wallet_zeigt_positionen_als_balken_und_die_treemap_mit_schluessel(self) -> None:
+        """Laenge auf gemeinsamer Grundlinie statt Flaechenvergleich.
+
+        Die Treemap bleibt als zweite Ansicht, aber nur mit einem Schluessel
+        fuer ihre Farbintensitaet: ohne ihn ist ein dunkleres Gruen nur
+        dunkler.
+        """
+
+        balken = self.ausgabe["live"]["wallet"]
+        self.assertIn("POSITIONS BY SIZE", balken)
+        self.assertIn("bar length = stake, colour = profit or loss", balken)
+        treemap = self.ausgabe["live"]["wallet_treemap_alle"]
+        self.assertIn("POSITIONS TREEMAP", treemap)
+        self.assertIn("RESULT vs STAKE", treemap)
+        # Und kein hartes Dunkel mehr hinter den Kacheln.
+        self.assertNotIn("#0D1114", treemap)
 
     def test_punktwolke_faerbt_keinen_text_mit_der_datenfarbe(self) -> None:
         """Text traegt Ink-Stufen, Marken tragen die Serienfarbe."""

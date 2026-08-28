@@ -136,7 +136,7 @@ class Terminal {
       // Wallet page: the address being analysed (from #wallet/<addr> or the
       // input), the raw input, the addresses analysed this session (not
       // persisted), and the sort of the open-positions table.
-      walletAddr: '', walletInput: '', walletRecent: [], walletPosSort: 'value', walletTab: 'overview', walletTreemap: 'all', walletSimilarQuery: '',
+      walletAddr: '', walletInput: '', walletRecent: [], walletPosSort: 'value', walletTab: 'overview', walletTreemap: 'all', walletPosView: 'bars', walletSimilarQuery: '',
       alertsOn: { movers: true, volume: true, whales: true, spreads: false, holders: false, endings: true },
       settingsOn: { telegram: true, autotop: false, kalshi: true, sports: false, cache: true, admin: true },
       clock: this.utcClock(),

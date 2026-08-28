@@ -86,7 +86,11 @@ def _html_unescape(text: str) -> str:
 
 
 def _sichtbarer_text(html: str) -> str:
-    return re.sub(r"\s+", " ", re.sub(r"<[^>]*>", " ", html)).strip()
+    # <title> in einem SVG ist der Tooltip einer Marke, kein gezeichneter
+    # Text. Er wird erst beim Zeigen sichtbar und stuende sonst mitten in der
+    # Achsenbeschriftung, gegen die hier geprueft wird.
+    ohne_tooltip = re.sub(r"<title>.*?</title>", " ", html, flags=re.S)
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]*>", " ", ohne_tooltip)).strip()
 
 
 class WebLeerzustandTest(unittest.TestCase):
@@ -591,7 +595,9 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("BRIER BY HORIZON", text)
         self.assertRegex(neu, r'<path d="M\s*\d')             # Linien nur mit Daten
         self.assertIn("CALIBRATION AT T-7", text)
-        self.assertIn("predicted 3% · realised 5% · n 120", text)
+        # Die Zahlen je Bin sitzen im Tooltip der Marke, nicht im gezeichneten
+        # Text; _sichtbarer_text laesst <title> deshalb weg.
+        self.assertIn("predicted 3% · realised 5% · n 120", neu)
         # Alle Horizonte und Trefferquoten: nichts geloescht, nur ins
         # Klappfeld verschoben.
         self.assertIn("ALL HORIZONS &amp; HIT RATES, PLUS CALIBRATION", text)
@@ -1722,7 +1728,9 @@ class WebLeerzustandTest(unittest.TestCase):
         # the stake, colour from the PnL sign; each tile carries its figures
         # in the title. Closed only: the two closed rows. Open only: the two
         # open rows, the worthless one red.
-        html = self.ausgabe["live"]["wallet"]
+        # Die Treemap ist seit dem Diagramm-Durchgang die zweite Ansicht;
+        # die erste sind sortierte Balken (tests/test_web_charts.py).
+        html = self.ausgabe["live"]["wallet_treemap_alle"]
         text = _sichtbarer_text(html)
         self.assertIn("POSITIONS TREEMAP", text)
         self.assertIn("tile area = $ at stake", text)
@@ -1776,13 +1784,13 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("SHARPE · DAILY $ — no PnL curve", text)
         self.assertIn("No PnL curve — user-pnl-api.polymarket.com did not answer", text)
         self.assertIn("No open positions in the public /positions feed", text)
-        self.assertIn("Nothing to tile: no positions with a stake in either feed", text)
+        self.assertIn("Nothing to draw: no positions with a stake in either feed", text)
         self.assertIn("TOP OPEN · BY UNREALISED nothing to show", text)
         self.assertIn("REALIZED EDGE — no resolved positions with a stake", text)
         self.assertIn("Parts that did not answer this time: resolved (HTTP 502)", text)
         self.assertNotRegex(text, r"\d+%")
         self.assertNotRegex(self.ausgabe["live"]["wallet_empty_answer"], r'<path d="M\s*\d')
-        self.assertNotIn("position:absolute; left:", self.ausgabe["live"]["wallet_empty_answer"].split("POSITIONS TREEMAP")[-1])
+        self.assertNotIn("position:absolute; left:", self.ausgabe["live"]["wallet_empty_answer"].split("POSITIONS BY SIZE")[-1])
         record = _sichtbarer_text(self.ausgabe["live"]["wallet_empty_record"])
         self.assertIn("No track record in the answer", record)
         self.assertIn("No realized edge", record)
