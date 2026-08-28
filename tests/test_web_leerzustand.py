@@ -1909,6 +1909,22 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("No cash events reported by /api/copy", _sichtbarer_text(self.ausgabe["live"]["copy_cash"]))
         self.assertIn("No open paper positions reported by /api/copy", _sichtbarer_text(self.ausgabe["live"]["copy_positions"]))
 
+    def test_backtester_trefferquote_zaehlt_nur_geschlossene_kopien(self) -> None:
+        """Offene Kopien duerfen die Trefferquote nicht verduennen.
+
+        Die Kachel rechnete wins / copied_trades. copied_trades zaehlt alle
+        kopierten Zeilen, auch die noch offenen Einstiege: 35 Gewinne aus 60
+        geschlossenen Kopien bei 100 kopierten Zeilen ergaben 35 Prozent
+        statt 58. Die richtige Quote lag im Backend (stats.win_rate) bereit
+        und wurde nicht gelesen.
+        """
+
+        text = _sichtbarer_text(self.ausgabe["live"]["backtester_stats"])
+        self.assertIn("WIN RATE 58%", text)
+        self.assertNotIn("WIN RATE 35%", text)
+        # Mit n daneben, damit die Quote ihr Gewicht nennt.
+        self.assertIn("35W / 25L of 60 closed", text)
+
     def test_tape_und_whale_nennen_die_summierte_spanne(self) -> None:
         """Jede Summe ueber das Tape sagt, ueber welche Spanne sie geht.
 

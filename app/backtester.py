@@ -1146,6 +1146,9 @@ def strategy_comparison(
                 "total_pnl": stats["total_pnl"],
                 "max_drawdown": stats["max_drawdown"],
                 "win_rate": stats["win_rate"],
+                # Der Nenner der Trefferquote gehoert in dieselbe Zeile:
+                # copied_trades zaehlt auch die noch offenen Einstiege.
+                "closed_trades": stats["closed_trades"],
                 "copied_trades": stats["copied_trades"],
                 "skipped_trades": stats["skipped_trades"],
                 "volume_copied": stats["volume_copied"],

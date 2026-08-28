@@ -673,6 +673,31 @@ class BacktestPayloadTests(unittest.TestCase):
         self.assertEqual(payload["log"][0]["action"], "BUY")
         self.assertEqual(payload["benchmark_stats"]["total_pnl"], 60.0)
 
+    def test_payload_carries_the_win_rate_denominator(self) -> None:
+        """Die Trefferquote braucht ihren Nenner, sonst rechnet die Seite ihn falsch.
+
+        Die Kachel rechnete wins / copied_trades. copied_trades zaehlt alle
+        kopierten BUY- und SELL-Zeilen, also auch die noch offenen Einstiege:
+        100 Kopien, 60 davon geschlossen (35 gewonnen), 40 noch offen ergaben
+        35 Prozent statt der gemessenen 58.3 Prozent. Der Nenner steht in
+        stats["closed_trades"] und muss mitgeliefert werden.
+        """
+
+        result = _FakeResult(
+            stats={"final_equity": 1000.0, "roi": 0.0, "total_pnl": 0.0, "win_rate": 35 / 60,
+                   "wins": 35, "losses": 25, "max_drawdown": 0.0, "copied_trades": 100,
+                   "closed_trades": 60, "skipped_trades": 0, "fees_paid": 0.0, "open_value": 400.0},
+            benchmark_stats={},
+            equity=pd.DataFrame({"equity": [1000.0, 1000.0]}),
+            ledger=pd.DataFrame(),
+        )
+        stats = apv.backtest_payload(result)["stats"]
+        self.assertEqual(stats["closed_trades"], 60)
+        self.assertEqual(stats["copied_trades"], 100)
+        self.assertAlmostEqual(stats["wins"] / stats["closed_trades"], 0.5833, places=4)
+        # Der frueher benutzte Nenner haette 35 Prozent ergeben.
+        self.assertAlmostEqual(stats["wins"] / stats["copied_trades"], 0.35, places=4)
+
 
 class PipelineTrimTests(unittest.TestCase):
     def test_slims_run_entries_and_drops_word_counters(self) -> None:
@@ -821,10 +846,14 @@ class ClusterPayloadTests(unittest.TestCase):
 class VariantsPayloadTests(unittest.TestCase):
     def test_maps_comparison_frame(self) -> None:
         frame = pd.DataFrame([{"strategy": "Fixed $25", "final_equity": 1100.0, "roi": 0.1,
-                               "max_drawdown": -0.05, "win_rate": 0.6, "copied_trades": 10, "skipped_trades": 2}])
+                               "max_drawdown": -0.05, "win_rate": 0.6, "closed_trades": 5,
+                               "copied_trades": 10, "skipped_trades": 2}])
         rows = apv.variants_payload(frame)
         self.assertEqual(rows[0]["name"], "Fixed $25")
         self.assertEqual(rows[0]["final_equity"], 1100.0)
+        # Das n der Trefferquote reist mit: COPIED ist keine Stichprobe.
+        self.assertEqual(rows[0]["closed_trades"], 5)
+        self.assertEqual(apv.variants_payload(frame.drop(columns=["closed_trades"]))[0]["closed_trades"], 0)
 
 
 if __name__ == "__main__":

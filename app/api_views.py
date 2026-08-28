@@ -1855,6 +1855,10 @@ def backtest_payload(result: Any) -> dict[str, Any]:
             "losses": int(_num(stats.get("losses"), 0.0) or 0),
             "max_drawdown": _num(stats.get("max_drawdown"), 0.0),
             "copied_trades": int(_num(stats.get("copied_trades"), 0.0) or 0),
+            # Der Nenner der Trefferquote: geschlossene Kopien (SELL und
+            # RESOLVE). Ohne ihn rechnete die Oberflaeche wins/copied_trades
+            # und liess jede noch offene Kopie die Quote druecken.
+            "closed_trades": int(_num(stats.get("closed_trades"), 0.0) or 0),
             "skipped_trades": int(_num(stats.get("skipped_trades"), 0.0) or 0),
             "fees_paid": _num(stats.get("fees_paid"), 0.0),
             "open_value": _num(stats.get("open_value"), 0.0),
@@ -1946,6 +1950,7 @@ def variants_payload(comparison: pd.DataFrame) -> list[dict[str, Any]]:
             "roi": _num(row.get("roi"), 0.0),
             "max_drawdown": _num(row.get("max_drawdown"), 0.0),
             "win_rate": _num(row.get("win_rate"), 0.0),
+            "closed_trades": int(_num(row.get("closed_trades"), 0.0) or 0),
             "copied_trades": int(_num(row.get("copied_trades"), 0.0) or 0),
             "skipped_trades": int(_num(row.get("skipped_trades"), 0.0) or 0),
         }

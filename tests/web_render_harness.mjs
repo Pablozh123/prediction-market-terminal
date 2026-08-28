@@ -844,6 +844,25 @@ function rendern(T) {
   // Reiter innerhalb einer Seite sind eigene Ansichten mit eigenen
   // Rueckfaellen. Sie werden hier einzeln durchgerendert.
   const varianten = [
+    // Ein Lauf mit offenen Kopien: 100 kopierte Zeilen, 60 davon geschlossen
+    // (35 gewonnen, 25 verloren), 40 noch offen. Die Trefferquote ist
+    // 35/60 = 58 Prozent, nicht 35/100.
+    ['backtester_stats', 'backtester', {}, null, (T) => {
+      // Nur im Live-Durchgang: im Leerzustand darf hier keine Kurve stehen.
+      if (!(T.herkunft.tape && T.herkunft.tape.quelle === 'live')) return null;
+      const alt = T.liveData.backtest;
+      T.liveData.backtest = {
+        stats: {
+          final_equity: 1050, roi: 0.05, total_pnl: 50, win_rate: 35 / 60,
+          wins: 35, losses: 25, closed_trades: 60, copied_trades: 100,
+          skipped_trades: 4, filtered_trades: 0, fees_paid: 3.2, open_value: 420,
+          max_drawdown: -0.08, window_truncated: false, effective_start: '',
+          skip_reasons: { out_of_cash: 2, exposure_cap: 2, no_position: 0, bad_data: 0, other: 0 }
+        },
+        equity: [1000, 1050], benchmark: [1000, 1010], drawdown: [0, -0.08], log: []
+      };
+      return () => { T.liveData.backtest = alt; };
+    }],
     ['backtester_advanced', 'backtester', { advancedOpen: true }],
     ['backtester_flat_fee', 'backtester', { advancedOpen: true, btFeeModel: 'flat' }],
     ['alerts_rules', 'alerts', { alertTab: 'rules' }],
