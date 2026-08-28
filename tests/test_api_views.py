@@ -10,6 +10,7 @@ import pandas as pd
 
 from app import api_views as apv
 from app import claims
+from app import suspicion as susp
 
 
 class LeaderboardRowsTests(unittest.TestCase):
@@ -472,6 +473,38 @@ class RiskPayloadTests(unittest.TestCase):
         self.assertEqual(payload["kpis"]["high_risk_events"], 1)
         self.assertEqual(payload["events"][0]["kind"], "COORDINATED BURST")
         self.assertEqual(payload["wallets"][0]["score"], 84)
+
+    def test_payload_says_what_the_score_is_and_what_was_never_measured(self) -> None:
+        """Neben der 0-100-Zahl stand "High", was sich wie eine
+        Wahrscheinlichkeit fuer Insiderhandel liest. Die Antwort traegt jetzt
+        selbst, was die Zahl ist (neun Merkmale, feste Kappen, gesetzte
+        Gewichte), wie ihre Baender heissen und was ueber sie NICHT gemessen
+        wurde. Der Vorbehalt kommt aus dem Register, nicht aus dieser Datei."""
+        events = pd.DataFrame([
+            {"title": "Iraq win", "event_insider_score": 82.0, "event_insider_level": "High",
+             "event_insider_flags": ["coordinated burst"], "unique_wallets": 6,
+             "notional": 214000.0, "trades_per_hour": 12.0, "platform": "Polymarket"},
+        ])
+        wallets = pd.DataFrame([
+            {"wallet": "0x1234567890abcdef000000", "trader": "", "wallet_insider_score": 41.0,
+             "trade_count": 2, "notional": 38000.0, "first_seen": "2026-07-25", "top_market": "Fed cuts"},
+        ])
+        payload = apv.risk_payload(wallets, events)
+        self.assertEqual(payload["score_name"], susp.SCORE_NAME)
+        self.assertEqual(payload["score_bands"], susp.score_band_table())
+        self.assertEqual(len(payload["score_basis"]["features"]), 9)
+        self.assertIsNone(payload["score_validation"]["against_outcome"])
+        self.assertEqual(
+            payload["score_caveat"],
+            claims.disclaimer("insider_score_unvalidated", "en"),
+        )
+        # Jede Zeile traegt ihr Band mit, damit Karte und API nie zwei Namen
+        # fuer dieselbe Zahl fuehren.
+        self.assertEqual(payload["events"][0]["band"]["label"], "MOST PATTERNS")
+        self.assertEqual(payload["wallets"][0]["band"]["label"], "SOME PATTERNS")
+        # Das interne Level bleibt daneben stehen: Filter, Kartenfarbe und
+        # das Flag-Log haengen daran.
+        self.assertEqual(payload["events"][0]["sev"], "high")
 
     def test_events_below_the_flag_threshold_are_counted_not_shown(self) -> None:
         # Der Scorer bewertet JEDEN Markt mit einem Print im Tape; ohne Boden
