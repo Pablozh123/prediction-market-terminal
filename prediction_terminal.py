@@ -11558,22 +11558,24 @@ def _backtest_stat_cards(stats: dict[str, Any], benchmark: dict[str, Any]) -> No
             else "All of it settled: no position was still open at the end of the window."
         ),
     )
-    # Der Nenner steht dabei. "Trades copied" darunter zaehlt auch die noch
-    # offenen Einstiege und ist nicht die Stichprobe dieser Quote; W und L
-    # summieren sich ausserdem nicht auf sie, weil eine Aufloesung mit
-    # genau 0.00 PnL weder Sieg noch Niederlage ist.
+    # Der Nenner steht dabei, und er zaehlt Positionen. "Trades copied"
+    # darunter zaehlt auch die noch offenen Einstiege und ist nicht die
+    # Stichprobe dieser Quote.
     closed_n = int(stats.get("closed_trades", 0) or 0)
-    flat_n = max(0, closed_n - int(stats["wins"]) - int(stats["losses"]))
+    flat_n = int(stats.get("flat_trades", 0) or 0)
+    decided_n = int(stats.get("decided_trades", 0) or 0)
     top[2].metric(
         "Win rate",
         pct(stats["win_rate"]),
-        f"{stats['wins']}W / {stats['losses']}L of {closed_n} closed",
+        f"{stats['wins']}W / {stats['losses']}L of {decided_n} decided",
         delta_color="off",
         help=(
-            f"{flat_n} of the {closed_n} closers settled at exactly 0.00 and count as neither, "
-            "so they sit in the denominator without being a win or a loss."
+            f"One position counts once, however many tranches it was sold in. {closed_n} positions "
+            f"closed inside the window; {flat_n} of them came back at exactly their cost, decided "
+            "nothing, and are therefore out of this denominator."
             if flat_n
-            else "Closed copies only: every copied SELL and RESOLVE. Still-open entries are not in this sample."
+            else "One closed position counts once, however many tranches it was sold in. "
+                 "Positions still open at the end of the window are not in this sample."
         ),
     )
     bottom = st.columns(3)

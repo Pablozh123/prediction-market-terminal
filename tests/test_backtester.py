@@ -426,7 +426,148 @@ class CurveAndStatsTests(unittest.TestCase):
         stats = bt.compute_stats(bt._empty_ledger(), bt._empty_positions(), curve, 1000.0)
         self.assertEqual(stats["copied_trades"], 0)
         self.assertIsNone(stats["win_rate"])
+        self.assertEqual(stats["flat_trades"], 0)
+        self.assertEqual(stats["decided_trades"], 0)
         self.assertAlmostEqual(stats["final_equity"], 1000.0, places=6)
+
+
+class PositionCountingTests(unittest.TestCase):
+    """Der Nenner der Trefferquote zaehlt Positionen, nicht Ausstiegsereignisse.
+
+    ``closed_trades`` war die Zahl der SELL- und RESOLVE-Zeilen. Eine
+    Position, die in drei Tranchen verkauft wurde, stand damit dreifach in
+    Zaehler und Nenner: aus einer richtigen Entscheidung wurden drei. Und
+    eine Aufloesung, die genau die Kosten zurueckgab, sass ohne Sieg und ohne
+    Niederlage im Nenner und drueckte die Quote.
+    """
+
+    def _stats(self, ledger, open_positions=None):
+        curve = bt.equity_curve(
+            ledger, pd.Timestamp("2026-05-01", tz="UTC"), pd.Timestamp("2026-06-01", tz="UTC"), 1000.0
+        )
+        return bt.compute_stats(ledger, open_positions if open_positions is not None else bt._empty_positions(),
+                                curve, 1000.0)
+
+    def test_three_tranches_out_of_one_position_are_one_closed_position(self):
+        trades = frame([
+            trade("2026-05-01", "BUY", 0.50, 300.0),
+            trade("2026-05-02", "SELL", 0.60, 100.0),
+            trade("2026-05-03", "SELL", 0.60, 100.0),
+            trade("2026-05-04", "SELL", 0.60, 100.0),
+        ])
+        ledger, positions = bt.replay(trades, config())
+        self.assertEqual(positions, {})
+        stats = self._stats(ledger)
+        # Vorher: 3 geschlossene Trades, 3 Siege.
+        self.assertEqual(stats["closed_trades"], 1)
+        self.assertEqual(stats["wins"], 1)
+        self.assertEqual(stats["losses"], 0)
+        self.assertAlmostEqual(stats["win_rate"], 1.0, places=6)
+        # Das Geld bleibt, was es war: drei Teilverkaeufe zu je 1.666...
+        self.assertAlmostEqual(stats["realized_pnl"], 5.0, places=6)
+        # Und das beste "Trade"-Ergebnis ist das der Position, nicht das der
+        # groessten Tranche.
+        self.assertAlmostEqual(stats["best_trade"], 5.0, places=6)
+
+    def test_a_position_that_won_and_lost_on_the_way_out_nets_to_one_result(self):
+        trades = frame([
+            trade("2026-05-01", "BUY", 0.50, 200.0),
+            trade("2026-05-02", "SELL", 0.90, 100.0),
+            trade("2026-05-03", "SELL", 0.20, 100.0),
+        ])
+        ledger, _ = bt.replay(trades, config())
+        stats = self._stats(ledger)
+        # Vorher: ein Sieg und eine Niederlage aus einer einzigen Position,
+        # und ein profit_factor, der beide Seiten brutto gegeneinander
+        # stellte, obwohl sie derselbe Ausstieg sind.
+        self.assertEqual(stats["closed_trades"], 1)
+        self.assertEqual((stats["wins"], stats["losses"]), (1, 0))
+        self.assertAlmostEqual(stats["realized_pnl"], 2.5, places=6)
+        # Keine verlierende Position: der Faktor hat keinen Nenner (die
+        # bestehende Konvention dafuer ist inf). Vorher stand hier 20/15,
+        # als haetten sich zwei Positionen gegenuebergestanden.
+        self.assertEqual(stats["profit_factor"], float("inf"))
+
+    def test_a_flat_resolution_is_its_own_category_not_a_silent_loss(self):
+        trades = frame([
+            trade("2026-05-01", "BUY", 0.50, 100.0, asset="a1", market_key="c1"),
+            trade("2026-05-02", "BUY", 0.50, 100.0, asset="a2", market_key="c2"),
+        ])
+        token_values = {
+            "a1": {"price": 1.0, "closed": True, "end_time": pd.Timestamp("2026-05-10", tz="UTC")},
+            # Loest genau zum Einstiegspreis auf: weder Gewinn noch Verlust.
+            "a2": {"price": 0.5, "closed": True, "end_time": pd.Timestamp("2026-05-10", tz="UTC")},
+        }
+        ledger, positions = bt.replay(trades, config(), token_values)
+        settlement, open_positions = bt.settle(positions, token_values, asof=pd.Timestamp("2026-06-01", tz="UTC"))
+        full = pd.concat([ledger, settlement], ignore_index=True) if not settlement.empty else ledger
+        stats = self._stats(full, open_positions)
+        self.assertEqual(stats["closed_trades"], 2)
+        self.assertEqual(stats["wins"], 1)
+        self.assertEqual(stats["losses"], 0)
+        self.assertEqual(stats["flat_trades"], 1)
+        # Vorher: 1/2 = 50 Prozent, obwohl keine einzige Position verlor.
+        self.assertEqual(stats["decided_trades"], 1)
+        self.assertAlmostEqual(stats["win_rate"], 1.0, places=6)
+
+    def test_a_partly_sold_position_is_not_closed_yet(self):
+        trades = frame([
+            trade("2026-05-01", "BUY", 0.50, 200.0),
+            trade("2026-05-02", "SELL", 0.60, 100.0),
+        ])
+        ledger, positions = bt.replay(trades, config())
+        self.assertIn("tok-yes", positions)
+        settlement, open_positions = bt.settle(positions, {}, asof=pd.Timestamp("2026-06-01", tz="UTC"))
+        stats = self._stats(ledger, open_positions)
+        # Vorher: der Teilverkauf zaehlte als geschlossener Trade und als
+        # Sieg, obwohl die Haelfte der Position noch laeuft.
+        self.assertEqual(stats["closed_trades"], 0)
+        self.assertEqual((stats["wins"], stats["losses"]), (0, 0))
+        self.assertIsNone(stats["win_rate"])
+        # Das realisierte Geld des Teilausstiegs bleibt gezaehlt.
+        self.assertAlmostEqual(stats["realized_pnl"], 2.5, places=6)
+
+    def test_re_entering_the_same_token_is_two_positions(self):
+        trades = frame([
+            trade("2026-05-01", "BUY", 0.50, 100.0),
+            trade("2026-05-02", "SELL", 0.60, 100.0),
+            trade("2026-05-03", "BUY", 0.50, 100.0),
+            trade("2026-05-04", "SELL", 0.40, 100.0),
+        ])
+        ledger, positions = bt.replay(trades, config())
+        self.assertEqual(positions, {})
+        stats = self._stats(ledger)
+        self.assertEqual(stats["closed_trades"], 2)
+        self.assertEqual((stats["wins"], stats["losses"]), (1, 1))
+        self.assertAlmostEqual(stats["win_rate"], 0.5, places=6)
+
+    def test_position_rounds_name_the_market_and_the_result(self):
+        trades = frame([
+            trade("2026-05-01", "BUY", 0.50, 200.0),
+            trade("2026-05-02", "SELL", 0.60, 100.0),
+            trade("2026-05-03", "SELL", 0.60, 100.0),
+        ])
+        ledger, _ = bt.replay(trades, config())
+        rounds = bt.position_rounds(ledger)
+        self.assertEqual(len(rounds), 1)
+        runde = rounds.iloc[0]
+        self.assertEqual(runde["asset"], "tok-yes")
+        self.assertEqual(runde["market_key"], "cond-1")
+        self.assertTrue(bool(runde["closed"]))
+        self.assertEqual(runde["result"], "win")
+        self.assertEqual(runde["exits"], 2)
+        self.assertEqual(runde["opened_at"], pd.Timestamp("2026-05-01", tz="UTC"))
+        self.assertEqual(runde["closed_at"], pd.Timestamp("2026-05-03", tz="UTC"))
+
+    def test_skipped_and_filtered_rows_open_no_position(self):
+        trades = frame([
+            trade("2026-05-01", "BUY", 0.50, 10.0),          # unter der Schwelle
+            trade("2026-05-02", "SELL", 0.60, 10.0),         # nie gefolgt
+        ])
+        ledger, _ = bt.replay(trades, config(min_follow_notional=100.0))
+        self.assertTrue(bt.position_rounds(ledger).empty)
+        stats = self._stats(ledger)
+        self.assertEqual(stats["closed_trades"], 0)
 
 
 class FetchWindowTradesTests(unittest.TestCase):

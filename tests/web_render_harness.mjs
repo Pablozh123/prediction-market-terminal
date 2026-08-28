@@ -883,7 +883,8 @@ function rendern(T) {
       T.liveData.backtest = {
         stats: {
           final_equity: 1050, roi: 0.05, total_pnl: 50, win_rate: 35 / 60,
-          wins: 35, losses: 25, closed_trades: 60, copied_trades: 100,
+          wins: 35, losses: 25, closed_trades: 63, decided_trades: 60, flat_trades: 3,
+          copied_trades: 100,
           skipped_trades: 4, filtered_trades: 0, fees_paid: 3.2, open_value: 420,
           max_drawdown: -0.08, window_truncated: false, effective_start: '',
           skip_reasons: { out_of_cash: 2, exposure_cap: 2, no_position: 0, bad_data: 0, other: 0 }
