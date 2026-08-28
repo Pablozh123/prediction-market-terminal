@@ -811,6 +811,34 @@ class BacktestPayloadTests(unittest.TestCase):
         # Der frueher benutzte Nenner haette 35 Prozent ergeben.
         self.assertAlmostEqual(stats["wins"] / stats["copied_trades"], 0.35, places=4)
 
+    def test_the_payload_separates_decided_from_flat_positions(self) -> None:
+        result = _FakeResult(
+            stats={"final_equity": 1000.0, "roi": 0.0, "total_pnl": 0.0, "win_rate": 35 / 60,
+                   "wins": 35, "losses": 25, "closed_trades": 63, "decided_trades": 60,
+                   "flat_trades": 3, "copied_trades": 100, "skipped_trades": 0,
+                   "fees_paid": 0.0, "open_value": 400.0},
+            benchmark_stats={},
+            equity=pd.DataFrame({"equity": [1000.0, 1000.0]}),
+            ledger=pd.DataFrame(),
+        )
+        stats = apv.backtest_payload(result)["stats"]
+        self.assertEqual((stats["closed_trades"], stats["decided_trades"], stats["flat_trades"]), (63, 60, 3))
+
+    def test_a_row_without_a_running_equity_is_not_an_account_of_zero(self) -> None:
+        # Abrechnungen am Fensterrand tragen keinen laufenden Kontostand.
+        # Der Default 0.0 druckte dafuer "$0.00" ins Log.
+        result = _FakeResult(
+            stats={"final_equity": 1000.0, "roi": 0.0, "total_pnl": 0.0},
+            benchmark_stats={},
+            equity=pd.DataFrame({"equity": [1000.0]}),
+            ledger=pd.DataFrame([
+                {"time": "2026-07-30T14:19:00Z", "action": "RESOLVE", "status": "settled",
+                 "title": "Late market", "outcome": "Yes", "source_notional": 0.0, "stake": 25.0,
+                 "exec_price": 1.0, "fee": 0.0, "equity_after": float("nan")},
+            ]),
+        )
+        self.assertIsNone(apv.backtest_payload(result)["log"][0]["equity"])
+
 
 class PipelineTrimTests(unittest.TestCase):
     def test_slims_run_entries_and_drops_word_counters(self) -> None:

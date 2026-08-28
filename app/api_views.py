@@ -2086,7 +2086,11 @@ def backtest_payload(result: Any) -> dict[str, Any]:
                 "stake": _num(row.get("stake"), 0.0),
                 "fill": _num(row.get("exec_price"), 0.0),
                 "fee": _num(row.get("fee"), 0.0),
-                "equity": _num(row.get("equity_after"), 0.0),
+                # Zeilen, die erst am Fensterrand abgerechnet werden, fuehren
+                # keinen laufenden Kontostand. Der Default 0.0 machte daraus
+                # ein Konto von $0.00; null laesst die Oberflaeche einen
+                # Strich zeichnen.
+                "equity": _num(row.get("equity_after")),
             }
             for _, row in ledger.head(40).iterrows()
         ]

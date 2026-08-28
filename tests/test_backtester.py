@@ -209,6 +209,80 @@ class ReplayTests(unittest.TestCase):
         self.assertAlmostEqual(resolve_row["realized_pnl"], 800.0 - 400.0, places=6)
         self.assertAlmostEqual(ledger_free.iloc[2]["stake"], 400.0, places=6)  # full stake after recycling
 
+    def test_a_resolution_after_the_last_trade_settles_at_its_own_due_time(self):
+        """Abrechnungen greifen zur Faelligkeit, nicht erst beim naechsten Trade.
+
+        ``settle_due`` lief nur am Anfang jeder Trade-Zeile. Was nach dem
+        letzten Trade faellig wurde, blieb im Replay liegen und wurde erst
+        von ``settle`` nachgetragen: dieselbe Summe, aber ohne Kontostand in
+        der Zeile. Die Web-Oberflaeche macht aus dem fehlenden Wert eine
+        0.00, und im Streamlit-Log bleibt die Spalte leer.
+        """
+
+        trades = frame([trade("2026-05-01", "BUY", 0.50, 100.0)])
+        token_values = {
+            "tok-yes": {"price": 1.0, "closed": True, "end_time": pd.Timestamp("2026-05-20", tz="UTC")},
+        }
+        ledger, positions = bt.replay(trades, config(), token_values,
+                                      asof=pd.Timestamp("2026-06-30", tz="UTC"))
+        self.assertEqual(list(ledger["action"]), ["BUY", "RESOLVE"])
+        aufloesung = ledger.iloc[1]
+        self.assertEqual(str(aufloesung["time"]), str(pd.Timestamp("2026-05-20", tz="UTC")))
+        self.assertAlmostEqual(aufloesung["realized_pnl"], 25.0, places=6)
+        self.assertAlmostEqual(aufloesung["equity_after"], 1025.0, places=6)
+        self.assertEqual(positions, {})
+
+    def test_nothing_settles_past_the_window_edge(self):
+        """Kein Blick ueber den Fensterrand: faellig nach ``asof`` bleibt offen."""
+
+        trades = frame([trade("2026-05-01", "BUY", 0.50, 100.0)])
+        token_values = {
+            "tok-yes": {"price": 1.0, "closed": True, "end_time": pd.Timestamp("2026-07-15", tz="UTC")},
+        }
+        ledger, positions = bt.replay(trades, config(), token_values,
+                                      asof=pd.Timestamp("2026-06-30", tz="UTC"))
+        self.assertEqual(list(ledger["action"]), ["BUY"])
+        self.assertIn("tok-yes", positions)
+
+    def test_a_payout_never_lands_before_the_buy_that_paid_for_it(self):
+        """Der gemeldete ``end_time`` kann vor dem Kauf liegen.
+
+        ``schedule_resolution`` faengt das ab (Aufloesung fruehestens beim
+        Kauf), ``settle`` tat es nicht: die RESOLVE-Zeile stand mit dem
+        Marktende in der Kurve, also Wochen VOR dem Einstieg, den sie
+        bezahlt hat. Die Kurve stieg vor der Position und der gemeldete
+        Drawdown haengt daran.
+        """
+
+        trades = frame([
+            trade("2026-05-01", "BUY", 0.50, 800.0, asset="loser", market_key="c-loss"),
+            trade("2026-05-20", "BUY", 0.50, 800.0, asset="winner", market_key="c-win"),
+        ])
+        token_values = {
+            "loser": {"price": 0.0, "closed": True, "end_time": pd.Timestamp("2026-05-10", tz="UTC")},
+            # Marktende laut Feed VOR dem Kauf vom 20.05.
+            "winner": {"price": 1.0, "closed": True, "end_time": pd.Timestamp("2026-05-05", tz="UTC")},
+        }
+        cfg = config(stake_value=100.0, max_stake=100.0)
+        asof = pd.Timestamp("2026-06-01", tz="UTC")
+        # Ohne token_values im Replay plant nichts eine Aufloesung ein: beide
+        # Positionen gehen durch ``settle``, und genau dort fehlte die
+        # Klammer. (Der Weg ueber das Replay hat sie seit jeher.)
+        ledger, positions = bt.replay(trades, cfg)
+        settlement, open_positions = bt.settle(positions, token_values, asof=asof)
+        full = pd.concat([ledger, settlement], ignore_index=True) if not settlement.empty else ledger
+        full = full.sort_values("time", kind="stable").reset_index(drop=True)
+        kauf = full[full["action"].eq("BUY") & full["asset"].eq("winner")].iloc[0]["time"]
+        gewinn = full[full["action"].eq("RESOLVE") & full["asset"].eq("winner")].iloc[0]["time"]
+        self.assertGreaterEqual(gewinn, kauf)
+
+        curve = bt.equity_curve(full, pd.Timestamp("2026-05-01", tz="UTC"), asof, 1000.0)
+        stats = bt.compute_stats(full, open_positions, curve, 1000.0)
+        # Vorher stieg die Kurve am 05.05. auf 1100 (Auszahlung vor dem
+        # Kauf) und der Drawdown gegen diesen erfundenen Gipfel war
+        # -9.09%. Ohne den Vorgriff ist der Gipfel die Bankroll selbst.
+        self.assertAlmostEqual(stats["max_drawdown"], -0.10, places=6)
+
     def test_max_stake_caps_sizing(self):
         trades = frame([trade("2026-05-01", "BUY", 0.50, 1000.0)])
         ledger, _ = bt.replay(trades, config(sizing_mode=bt.SIZING_PERCENT, stake_value=50.0, max_stake=100.0))

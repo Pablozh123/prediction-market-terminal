@@ -200,7 +200,9 @@ export function renderBacktester(T) {
     stake: +l.stake ? '$' + (+l.stake).toFixed(2) : '—',
     fill: +l.fill ? (+l.fill).toFixed(3) : '—',
     fee: +l.fee ? '$' + (+l.fee).toFixed(2) : '—',
-    equity: '$' + (+l.equity).toFixed(2)
+    // Kein Kontostand, kein Kontostand: eine Zeile ohne laufende
+    // Equity (Abrechnung am Fensterrand) druckte hier $0.00.
+    equity: l.equity == null ? '—' : '$' + (+l.equity).toFixed(2)
   }));
 
   const openRows = (live && live.open ? live.open : []).map((o) => {

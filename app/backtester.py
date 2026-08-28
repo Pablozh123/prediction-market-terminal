@@ -216,6 +216,7 @@ def replay(
     trades: pd.DataFrame,
     config: BacktestConfig,
     token_values: dict[str, dict[str, Any]] | None = None,
+    asof: pd.Timestamp | None = None,
 ) -> tuple[pd.DataFrame, dict[str, dict[str, Any]]]:
     """Replay source trades chronologically. Returns (ledger, open positions by asset).
 
@@ -223,6 +224,13 @@ def replay(
     the window are settled at their resolution time inside the replay — the
     payout flows back into cash and frees exposure-cap room, exactly like in
     reality. Without it (legacy behavior), everything settles at the end.
+
+    ``asof`` is the end of the window. Resolutions run at their own due time,
+    not only when the wallet happens to trade again: without it, a resolution
+    that falls after the last trade of the window stayed pending and was
+    booked afterwards by ``settle``, which writes no running equity into the
+    row. Nothing due after ``asof`` is settled, so the window edge stays the
+    window edge.
     """
 
     cash = float(config.bankroll)
@@ -378,6 +386,11 @@ def replay(
                     "market_key": str(record.get("market_key", "") or ""),
                     "lookup_asset": asset,
                     "fade": fade,
+                    # Wann diese Position aufgemacht wurde. ``settle`` braucht
+                    # das, damit eine Auszahlung nicht vor ihrem eigenen Kauf
+                    # in der Kurve landet (Maerkte melden ein ``end_time``,
+                    # das vor dem Einstieg liegen kann).
+                    "opened_at": pd.to_datetime(trade.get("time"), utc=True, errors="coerce"),
                 },
             )
             position["shares"] += shares
@@ -437,6 +450,15 @@ def replay(
         else:
             log(trade.get("time"), side or "?", "skipped", record, note="unsupported side")
 
+    # Der letzte Trade ist kein Termin. Was danach und noch innerhalb des
+    # Fensters faellig wird, wird hier abgerechnet — zur eigenen
+    # Faelligkeit, nicht zum Fensterende und nicht erst, wenn die Wallet
+    # zufaellig wieder handelt. Alles nach ``asof`` bleibt offen.
+    # Die Reihenfolge bleibt dabei chronologisch: was hier noch offen ist,
+    # war beim letzten Trade noch nicht faellig.
+    if asof is not None:
+        settle_due(asof)
+
     ledger = pd.DataFrame(rows, columns=LEDGER_COLUMNS)
     return ledger, positions
 
@@ -480,6 +502,14 @@ def settle(
             event_time = end_time if isinstance(end_time, pd.Timestamp) and pd.notna(end_time) else asof
             if event_time > asof:
                 event_time = asof
+            # Kein Vorgriff: der gemeldete ``end_time`` eines Marktes kann
+            # vor dem Kauf liegen, und dann stand die Auszahlung in der
+            # Kurve, bevor die Position ueberhaupt existierte. ``replay``
+            # klammert dasselbe beim Einplanen (schedule_resolution); ohne
+            # diese Zeile galt es nur auf dem einen der beiden Wege.
+            opened_at = position.get("opened_at")
+            if isinstance(opened_at, pd.Timestamp) and pd.notna(opened_at) and event_time < opened_at:
+                event_time = opened_at
             rows.append(
                 {
                     "time": event_time,
@@ -495,7 +525,12 @@ def settle(
                     "realized_pnl": realized,
                     "equity_after": float("nan"),
                     "note": "market resolved",
-                    "asset": asset,
+                    # Das Token, nicht der Positionsschluessel. Beim Fade
+                    # heisst der Schluessel "fade:<token>", die BUY- und
+                    # SELL-Zeilen desselben Durchgangs tragen aber das
+                    # Token — ``position_rounds`` haette den Ausstieg sonst
+                    # nie seinem Einstieg zuordnen koennen.
+                    "asset": lookup_asset,
                     "market_key": base["market_key"],
                 }
             )
@@ -1184,7 +1219,7 @@ def run_backtest(
     # blind in Kasse-leer/Exposure-Deckel zu laufen.
     intervals = source_position_intervals(trades, token_values)
     replay_config, auto_fit_info = _auto_fit_config(config, intervals)
-    ledger, positions = replay(trades, replay_config, token_values)
+    ledger, positions = replay(trades, replay_config, token_values, asof=window_end)
     flat_config = BacktestConfig(
         wallet=config.wallet,
         days=config.days,
@@ -1199,7 +1234,7 @@ def run_backtest(
         flat_stake=config.flat_stake,
         strategy=config.strategy,
     )
-    flat_ledger, flat_positions = replay(trades, flat_config, token_values)
+    flat_ledger, flat_positions = replay(trades, flat_config, token_values, asof=window_end)
 
     settlement, open_positions = settle(positions, token_values, asof=window_end)
     flat_settlement, flat_open = settle(flat_positions, token_values, asof=window_end)
@@ -1315,7 +1350,7 @@ def strategy_comparison(
             max_exposure_pct=config.max_exposure_pct,
             trader_portfolio_value=config.trader_portfolio_value,
         )
-        ledger, positions = replay(trades, variant_config, resolved_token_values)
+        ledger, positions = replay(trades, variant_config, resolved_token_values, asof=window_end)
         settlement, open_positions = settle(positions, resolved_token_values, asof=window_end)
         full_ledger = pd.concat([ledger, settlement], ignore_index=True) if not settlement.empty else ledger
         unrealized = float(open_positions["unrealized_pnl"].sum()) if not open_positions.empty else 0.0
