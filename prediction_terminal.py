@@ -2144,36 +2144,85 @@ def load_wallet_position_values(wallets: tuple[str, ...], limit: int = 120) -> p
     return pd.DataFrame(rows)
 
 
+#: Wie vollstaendig das Aktivitaetsfenster einer Wallet gelesen wurde.
+#: "measured": die Schleife endete an einer kurzen Seite, das Konto beginnt
+#: wirklich dort. "window_capped": jede Seite war voll, der aelteste gelesene
+#: Eintrag ist eine untere Schranke, nicht der Kontostart. "unknown": eine
+#: Seite kam nicht an, ueber das Alter ist nichts gesagt.
+ACCOUNT_AGE_MEASURED = "measured"
+ACCOUNT_AGE_WINDOW_CAPPED = "window_capped"
+ACCOUNT_AGE_UNKNOWN = "unknown"
+
+
 @st.cache_data(ttl=900, show_spinner=False)
 def load_wallet_account_stats(wallets: tuple[str, ...], activity_pages: int = 3, include_balance: bool = True) -> pd.DataFrame:
+    """Kontoalter und USDC-Kasse je Wallet, mit dem Lesezustand daneben.
+
+    Beide Felder kamen frueher aus einem geschluckten Fehler zurueck, als
+    waeren sie gemessen. Ein Abbruch in der Seitenschleife liess den aeltesten
+    gelesenen Eintrag als Kontostart stehen: ``apply_account_age_bonus`` hat
+    darauf zehn Insider-Punkte addiert und "new account (3d)" an eine Adresse
+    geschrieben, die es seit Jahren gibt. Und ``except Exception: balance =
+    0.0`` machte aus einem nicht erreichbaren RPC einen Kassenstand von null.
+
+    Jetzt tragen die Zeilen ``account_age_state`` und ``cash_balance_read``:
+    ein unbekanntes Alter ist None statt jung, eine ungelesene Kasse ist NaN
+    statt null.
+    """
+
     rows: list[dict[str, Any]] = []
     now = pd.Timestamp.now(tz="UTC")
     for wallet in wallets:
         activity_frames: list[pd.DataFrame] = []
+        activity_error = ""
+        seiten_deckel = True
         for page in range(max(1, int(activity_pages))):
             try:
                 activity = md.get_polymarket_activity(wallet, limit=500, offset=page * 500)
-            except Exception:
+            except Exception as exc:
+                activity_error = f"{type(exc).__name__}: {exc}"
                 break
             if activity.empty:
+                seiten_deckel = False
                 break
             activity_frames.append(activity)
             if len(activity) < 500:
+                seiten_deckel = False
                 break
         activity = pd.concat(activity_frames, ignore_index=True) if activity_frames else pd.DataFrame()
         times = pd.to_datetime(activity.get("time", pd.Series(dtype="datetime64[ns, UTC]")), utc=True, errors="coerce").dropna()
         oldest = times.min() if not times.empty else pd.NaT
-        account_age_days = float((now - oldest).total_seconds() / 86_400) if pd.notna(oldest) else None
-        try:
-            balance = ct.fetch_polygon_usdc_balance(wallet) if include_balance else 0.0
-        except Exception:
-            balance = 0.0
+        if activity_error:
+            age_state = ACCOUNT_AGE_UNKNOWN
+        elif seiten_deckel:
+            age_state = ACCOUNT_AGE_WINDOW_CAPPED
+        else:
+            age_state = ACCOUNT_AGE_MEASURED
+        # Nur ein zu Ende gelesenes Fenster nennt den Kontostart. Sonst ist
+        # der aelteste gelesene Eintrag eine untere Schranke fuer das Alter,
+        # und eine untere Schranke darf nicht als Alter auftreten.
+        gelesene_spanne = float((now - oldest).total_seconds() / 86_400) if pd.notna(oldest) else None
+        account_age_days = gelesene_spanne if age_state == ACCOUNT_AGE_MEASURED else None
+        balance: float = float("nan")
+        balance_read = False
+        balance_error = ""
+        if include_balance:
+            try:
+                balance = float(ct.fetch_polygon_usdc_balance(wallet))
+                balance_read = True
+            except Exception as exc:
+                balance_error = f"{type(exc).__name__}: {exc}"
         rows.append(
             {
                 "wallet": wallet,
-                "cash_balance": float(balance),
-                "oldest_activity_time": oldest,
+                "cash_balance": balance,
+                "cash_balance_read": balance_read,
+                "cash_balance_error": balance_error,
+                "oldest_activity_time": oldest if age_state != ACCOUNT_AGE_UNKNOWN else pd.NaT,
                 "account_age_days": account_age_days,
+                "account_age_state": age_state,
+                "activity_window_days": gelesene_spanne,
+                "activity_error": activity_error,
                 "activity_observations": int(len(activity)),
             }
         )
@@ -2189,9 +2238,23 @@ def load_resolved_positions(wallet: str) -> tuple[pd.DataFrame, bool]:
 
 @st.cache_data(ttl=600, show_spinner=False)
 def load_wallet_win_rates(wallets: tuple[str, ...], limit: int = 120) -> pd.DataFrame:
+    """Trefferquote je Wallet ueber beide Enden des gedeckelten Feeds.
+
+    ``/closed-positions`` liefert hoechstens rund 50 Zeilen und sortiert ohne
+    Zutun nach dem groessten Gewinn. Diese Funktion las genau das: den
+    Gewinner-Rand, und meldete dessen Quote als die der Wallet. Auf der
+    Bestenliste stand deshalb eine Spalte WIN RATE nahe 100 Prozent, und die
+    Filter ">60%" und ">70%" liessen jede Wallet durch, was sie zu Filtern
+    ueber nichts machte -- die Falle, gegen die
+    ``get_polymarket_resolved_positions`` zwei Funktionen weiter schon
+    geschrieben war. Jetzt kommt die Menge aus beiden Sortierrichtungen, und
+    ``win_rate_capped`` sagt, wenn beide Enden am Deckel standen und die
+    Mitte damit unerreichbar ist.
+    """
+
     rows: list[dict[str, Any]] = []
     for wallet in wallets:
-        closed = md.get_polymarket_closed_positions(wallet, limit=limit)
+        closed, capped = md.get_polymarket_resolved_positions(wallet, per_side=limit)
         wins = int((closed["realized_pnl"] > 0).sum()) if not closed.empty and "realized_pnl" in closed else 0
         closed_count = int(len(closed))
         rows.append(
@@ -2201,6 +2264,7 @@ def load_wallet_win_rates(wallets: tuple[str, ...], limit: int = 120) -> pd.Data
                 "closed_positions": closed_count,
                 "winning_positions": wins,
                 "closed_realized_pnl": float(closed["realized_pnl"].sum()) if not closed.empty and "realized_pnl" in closed else 0.0,
+                "win_rate_capped": bool(capped),
             }
         )
     return pd.DataFrame(rows)
@@ -5468,10 +5532,17 @@ def render_wallet(wallet: str) -> None:
     wallet_key = re.sub(r"[^a-zA-Z0-9_]", "_", wallet.lower())
     account_stats = safe_load("Wallet account stats", load_wallet_account_stats, (wallet,), 3, True, default=pd.DataFrame())
     account_row = account_stats.iloc[0] if not account_stats.empty else pd.Series(dtype=object)
-    cash_balance = float(pd.to_numeric(pd.Series([account_row.get("cash_balance", 0.0)]), errors="coerce").fillna(0.0).iloc[0])
+    # Kein ``fillna(0.0)``: eine nicht gelesene Kasse ist kein Kassenstand von
+    # null. Der Wert bleibt NaN und wird als Strich angezeigt.
+    cash_balance = float(pd.to_numeric(pd.Series([account_row.get("cash_balance")]), errors="coerce").iloc[0])
+    cash_balance_read = bool(account_row.get("cash_balance_read", pd.notna(cash_balance)))
     activity_observations = int(pd.to_numeric(pd.Series([account_row.get("activity_observations", 0)]), errors="coerce").fillna(0).iloc[0])
+    account_age_state = str(account_row.get("account_age_state", ACCOUNT_AGE_MEASURED) or ACCOUNT_AGE_MEASURED)
     oldest_activity_time = pd.to_datetime(account_row.get("oldest_activity_time"), utc=True, errors="coerce")
     account_created = oldest_activity_time.strftime("%b %d, %Y") if pd.notna(oldest_activity_time) else "-"
+    if account_created != "-" and account_age_state != ACCOUNT_AGE_MEASURED:
+        # Der aelteste gelesene Eintrag, nicht der Kontostart.
+        account_created = f"{account_created} or earlier"
     first_activity = activity.sort_values("time", ascending=True).head(1) if not activity.empty and "time" in activity else pd.DataFrame()
     first_activity_row = first_activity.iloc[0] if not first_activity.empty else pd.Series(dtype=object)
     first_activity_tx = str(first_activity_row.get("transactionHash", "") or "")
@@ -5528,7 +5599,15 @@ def render_wallet(wallet: str) -> None:
     cols = st.columns(6)
     cols[0].metric("Total PnL", money(total_pnl))
     cols[1].metric("Volume", money(summary["trade_notional"]))
-    cols[2].metric("USDC Balance", money(cash_balance))
+    cols[2].metric(
+        "USDC Balance",
+        money_or_dash(cash_balance),
+        help=(
+            "On-chain USDC of the proxy wallet."
+            if cash_balance_read
+            else "The balance call did not answer. A dash means not read; it does not mean zero."
+        ),
+    )
     active_position_value = float(summary["open_value"])
     worthless_n = int(summary.get("worthless_count", 0) or 0)
     cols[3].metric(
@@ -6267,12 +6346,15 @@ def page_traders() -> None:
             leaderboard = leaderboard.merge(account_stats, on="wallet", how="left")
     if not leaderboard.empty:
         if "cash_balance" not in leaderboard:
-            leaderboard["cash_balance"] = 0.0
+            leaderboard["cash_balance"] = pd.NA
         if "account_age_days" not in leaderboard:
             leaderboard["account_age_days"] = pd.NA
         if "activity_observations" not in leaderboard:
             leaderboard["activity_observations"] = 0
-        leaderboard[["cash_balance", "activity_observations"]] = leaderboard[["cash_balance", "activity_observations"]].fillna(0)
+        # ``cash_balance`` bleibt leer, wo nichts gelesen wurde: eine Wallet
+        # ohne Enrichment und eine Wallet mit ausgefallener Kassenabfrage
+        # standen sonst beide als "$0" in der Spalte.
+        leaderboard["activity_observations"] = leaderboard["activity_observations"].fillna(0)
         leaderboard["assets_value"] = numeric_col(leaderboard, "positions_value") + numeric_col(leaderboard, "cash_balance")
         leaderboard = option_metric_filter(leaderboard, "assets_value", assets_preset, float(custom_assets))
         leaderboard = option_metric_filter(leaderboard, "cash_balance", balance_preset, float(custom_balance))
@@ -6359,9 +6441,22 @@ def page_traders() -> None:
     if enrich_positions:
         st.caption("Open-position values are fetched from public Polymarket wallet positions for the first 30 displayed leaderboard wallets.")
     if enrich_win_rates:
-        st.caption("Win rates are estimated from public closed positions for the first 30 displayed leaderboard wallets.")
+        # Welche Menge gezaehlt wird, gehoert neben die Quote: der Feed
+        # deckelt bei rund 50 Zeilen je Sortierrichtung, also sind es beide
+        # Raender und nicht die ganze Historie.
+        gedeckelt = int(pd.Series(leaderboard.get("win_rate_capped", pd.Series(dtype=bool))).fillna(False).astype(bool).sum())
+        st.caption(
+            "Win rates come from the public closed positions of the first 30 displayed leaderboard wallets, "
+            "read in both sort directions and unioned: the feed returns the biggest winners first and caps at "
+            "about 50 rows per direction, so the winner tail alone would read near 100%."
+            + (f" For {gedeckelt} wallet(s) both tails hit that cap, so their rate covers the extremes only." if gedeckelt else "")
+        )
     if account_stats_needed:
-        st.caption("Assets are open-position value plus fetched Polygon USDC balance. Account age is the oldest public activity observed in the loaded activity pages.")
+        st.caption(
+            "Assets are open-position value plus fetched Polygon USDC balance; a wallet whose balance call did not "
+            "answer keeps an empty cell instead of $0. Account age is the oldest public activity observed in the "
+            "loaded activity pages, and it is only reported when that window reached the wallet's first row."
+        )
     st.caption(
         "Smart Score follows the PolyHuntr-style structure: returns weighted highest, plus Sharpe proxy, drawdown proxy, win rate, recency, and volume."
     )
@@ -6699,11 +6794,13 @@ def page_traders() -> None:
                         st.caption(f"Rank #{rank_label} | {short_addr(str(row.get('wallet', '')))}")
                         st.markdown(f"**{row.get('trader', '-')}**")
                         st.metric("PnL", money(row.get("pnl", 0.0)))
+                        alter = row.get("account_age_days")
+                        alter_label = f"{int(alter)}d" if pd.notna(alter) else "-"
                         st.markdown(
                             f"Volume: **{money(row.get('volume', 0.0))}**  \n"
-                            f"Assets: **{money(row.get('assets_value', row.get('positions_value', 0.0)))}**  \n"
-                            f"Balance: **{money(row.get('cash_balance', 0.0))}**  \n"
-                            f"Account age: **{int(row.get('account_age_days')) if pd.notna(row.get('account_age_days')) else '-'}d**  \n"
+                            f"Assets: **{money_or_dash(row.get('assets_value', row.get('positions_value')))}**  \n"
+                            f"Balance: **{money_or_dash(row.get('cash_balance'))}**  \n"
+                            f"Account age: **{alter_label}**  \n"
                             f"Win rate: **{pct(row.get('win_rate'))}**  \n"
                             f"Positions: **{money(row.get('positions_value', 0.0))}**"
                         )
@@ -9827,6 +9924,17 @@ def render_copy_command_center(
             profile_cols[0].metric("Account Created", created_label)
             profile_cols[1].metric("Tony Equity Est.", money(dynamic_sizing.get("tony_visible_equity", 0.0)))
             profile_cols[2].metric("P95 Position", money(dynamic_sizing.get("tony_p95_market_position", 0.0)), pct(dynamic_sizing.get("tony_p95_market_position_pct")))
+            # Schlaegt der Abruf fehl, behaelt der Copier den letzten
+            # erfolgreichen Stand. Ohne diesen Satz stuenden die alten Zahlen
+            # unter derselben Ueberschrift wie frische.
+            stats_error = str(dynamic_sizing.get("tony_wallet_stats_error", "") or "")
+            if stats_error:
+                stats_at = str(dynamic_sizing.get("tony_wallet_stats_updated_at", "") or "")
+                st.caption(
+                    "Cash, equity and the position percentiles above are the last successful read"
+                    + (f" ({stats_at})" if stats_at else "")
+                    + f"; the current refresh did not go through: {stats_error}"
+                )
     with hero_right:
         with st.container(border=True):
             chart_head, chart_window = st.columns([1.2, 1])
@@ -10342,11 +10450,18 @@ def page_copy_trade() -> None:
                 if result.seeded:
                     st.success(f"Baseline created from Swisstony's current wallet state. Observed {result.processed} existing trades; future new trades will be paper-copied.")
                 else:
+                    undecided = settlement_result.undecided if settlement_result else 0
                     st.success(
                         f"Sync complete: {result.copied} copied, {result.skipped} skipped, {result.duplicates} duplicates. "
                         f"Settlements/redeems: {settlement_result.copied if settlement_result else 0} realized/recycled, "
                         f"{settlement_result.skipped if settlement_result else 0} skipped."
                     )
+                    if undecided:
+                        # Weder gebucht noch verworfen: der Ausgang war nicht zu lesen.
+                        st.warning(
+                            f"{undecided} settlement(s) left undecided: the resolved outcome could not be read, so the "
+                            "position stays open instead of being booked at a payout nobody confirmed."
+                        )
                 errors = list(result.errors)
                 if settlement_result is not None:
                     errors.extend(settlement_result.errors)
@@ -11656,12 +11771,24 @@ def page_backtester() -> None:
                 account_stats = safe_load("Trader cash estimate", load_wallet_account_stats, (wallet,), 3, True, default=pd.DataFrame())
                 positions_value = float(numeric_col(position_values, "positions_value").sum()) if position_values is not None and not position_values.empty else 0.0
                 cash_value = (
-                    float(pd.to_numeric(pd.Series([account_stats.iloc[0].get("cash_balance", 0.0)]), errors="coerce").fillna(0.0).iloc[0])
+                    float(pd.to_numeric(pd.Series([account_stats.iloc[0].get("cash_balance")]), errors="coerce").iloc[0])
                     if account_stats is not None and not account_stats.empty
-                    else 0.0
+                    else float("nan")
                 )
+                # Eine ungelesene Kasse mit null anzusetzen macht das
+                # Portfolio kleiner, als es ist, und jede daraus abgeleitete
+                # Positionsgroesse falsch. Ohne Kassenstand wird nicht
+                # geschaetzt, sondern gesagt, dass es nicht geht.
+                if pd.isna(cash_value):
+                    st.warning(
+                        "This trader's cash balance could not be read, so the portfolio size is unknown — "
+                        "pick Fixed $ or % of bankroll instead."
+                    )
+                    st.session_state.pop("backtest_request", None)
+                    valid = False
+                    cash_value = 0.0
                 trader_portfolio_value = positions_value + cash_value
-                if trader_portfolio_value <= 0:
+                if valid and trader_portfolio_value <= 0:
                     st.warning("Could not determine this trader's portfolio size — pick Fixed $ or % of bankroll instead.")
                     st.session_state.pop("backtest_request", None)
                     valid = False

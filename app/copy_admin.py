@@ -495,6 +495,9 @@ def _summarise(results: Mapping[str, ct.SyncResult]) -> dict[str, Any]:
         "copied": combined.copied,
         "skipped": combined.skipped,
         "duplicates": combined.duplicates,
+        # Aufloesungen, deren Ausgang nicht gelesen werden konnte. Sie sind
+        # weder gebucht noch verworfen, und genau das muss dastehen.
+        "undecided": combined.undecided,
         "seeded": combined.seeded,
         "errors": list(combined.errors),
         "per_wallet": {w: asdict(r) for w, r in results.items()},

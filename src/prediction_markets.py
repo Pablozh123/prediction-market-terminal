@@ -3547,7 +3547,11 @@ def trader_insight_metrics(
     if tape.empty and isinstance(activity, pd.DataFrame):
         tape = activity.copy()
     open_value = float(summary["open_value"])
-    denominator = open_value + max(float(cash_balance or 0.0), 0.0)
+    # Eine nicht gelesene Kasse (NaN) ist keine leere Kasse. Mit null im
+    # Nenner stand hier "100% exposed" fuer jede Wallet, deren Kassenabfrage
+    # nicht angekommen war; unbekannt bleibt jetzt unbekannt.
+    kasse = None if cash_balance is None or pd.isna(cash_balance) else float(cash_balance)
+    denominator = open_value + max(kasse, 0.0) if kasse is not None else 0.0
     exposure = open_value / denominator if denominator else None
     if tape.empty:
         return {
