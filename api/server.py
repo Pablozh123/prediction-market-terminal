@@ -119,6 +119,7 @@ from app import cross_pairs
 from app import pilot_result
 from app import scorecard as sc
 from app import signals as sig
+from app import track_record as trec
 from app import venue_units as vu
 from app.analysis_views import load_publish_payload
 from src import prediction_markets as md
@@ -655,6 +656,19 @@ def build_wallet_detail(wallet: str) -> dict[str, Any]:
         activity, truncated = fetch_wallet_activity(wallet)
     except Exception as exc:
         print(f"[warn] activity {wallet}: {exc}")
+
+    # Zeilen, deren realizedPnl dem eigenen Zahlungsstrom widerspricht
+    # (curPrice 1 und volle Einloesung, trotzdem minus der ganze Einsatz),
+    # werden aus der Aktivitaet neu gerechnet - vor allen Bloecken, damit
+    # Track Record, Kalibrierung, Edge und die Closed-Tabelle dieselbe Zahl
+    # sehen. Ohne Aktivitaet bleibt alles, wie die API es liefert.
+    if not resolved.empty:
+        try:
+            resolved, korrigiert = trec.reconcile_resolved_with_activity(resolved, activity)
+            if korrigiert:
+                print(f"[info] {wallet}: {korrigiert} closed rows re-derived from the wallet's cash flow")
+        except Exception as exc:
+            print(f"[warn] resolved/activity reconciliation {wallet}: {exc}")
 
     def _resolved(_w: str):
         if resolved_error:

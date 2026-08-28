@@ -188,6 +188,64 @@ def settled_from_activity(activity: pd.DataFrame) -> pd.DataFrame:
     return grouped[columns]
 
 
+def reconcile_resolved_with_activity(resolved: pd.DataFrame, activity: pd.DataFrame | None) -> tuple[pd.DataFrame, int]:
+    """Repair closed rows whose realizedPnl contradicts the settlement and the payout.
+
+    ``/closed-positions`` reports ``realizedPnl = -(totalBought x avgPrice)``
+    for some positions that were closed by redemption, even though
+    ``curPrice`` is 1 - the outcome the wallet held settled at one dollar -
+    and the wallet was paid one dollar per share. Six of the reference
+    wallet's 45 resolved rows look like that; "Will Anthropic have the #2 AI
+    model at the end of July 2026?" is one: 5.3191 shares for $5.01,
+    redeemed for $5.32, feed says -$5.01. The page then showed the position
+    as a total loss while its own calibration curve, which reads the
+    settlement price, counted it as a win.
+
+    Only rows that carry BOTH a buy and a redemption in the activity feed are
+    touched, and only when the feed contradicts itself, so a truncated
+    activity window can never invent a correction. The replacement is the
+    wallet's own cash flow for that market: sells + redemptions - buys.
+
+    Returns (frame, corrected_rows); the frame gains ``pnl_source``
+    ("api" / "cash_flow") so a surface can say which rows were repaired.
+    """
+
+    if resolved is None or resolved.empty:
+        return resolved, 0
+    out = resolved.copy()
+    out["pnl_source"] = "api"
+    if activity is None or activity.empty or "market_key" not in activity:
+        return out, 0
+    settle = _numeric(out, "current_price")
+    pnl = _numeric(out, "realized_pnl")
+    verdaechtig = (settle >= 1.0) & (pnl < 0)
+    if not bool(verdaechtig.any()):
+        return out, 0
+
+    act = activity.copy()
+    act["_key"] = act["market_key"].astype(str).str.lower()
+    act["_outcome"] = act.get("outcome", pd.Series("", index=act.index)).astype(str).str.upper().str.strip()
+    act["_usd"] = _numeric(act, "notional")
+    act["_side"] = act.get("side", pd.Series("", index=act.index)).astype(str).str.upper()
+    act["_type"] = act.get("type", pd.Series("", index=act.index)).astype(str).str.upper()
+    kauf = act[act["_type"].eq("TRADE") & act["_side"].eq("BUY")].groupby(["_key", "_outcome"])["_usd"].sum()
+    verkauf = act[act["_type"].eq("TRADE") & act["_side"].eq("SELL")].groupby(["_key", "_outcome"])["_usd"].sum()
+    einloesung = act[act["_type"].isin(["REDEEM", "MERGE"])].groupby(["_key", "_outcome"])["_usd"].sum()
+
+    korrigiert = 0
+    for idx in out.index[verdaechtig]:
+        key = (str(out.at[idx, "market_key"]).lower(),
+               str(out.at[idx, "outcome"] if "outcome" in out else "").upper().strip())
+        gekauft = float(kauf.get(key, 0.0))
+        eingeloest = float(einloesung.get(key, 0.0))
+        if gekauft <= 0 or eingeloest <= 0:
+            continue
+        out.at[idx, "realized_pnl"] = float(verkauf.get(key, 0.0)) + eingeloest - gekauft
+        out.at[idx, "pnl_source"] = "cash_flow"
+        korrigiert += 1
+    return out, korrigiert
+
+
 def pnl_attribution(closed_positions: pd.DataFrame) -> dict[str, Any]:
     """What is driving the profit: structure, one event, or breadth.
 
