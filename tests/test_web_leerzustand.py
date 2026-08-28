@@ -586,8 +586,10 @@ class WebLeerzustandTest(unittest.TestCase):
         # Alle Horizonte und Trefferquoten: nichts geloescht, nur ins
         # Klappfeld verschoben.
         self.assertIn("ALL HORIZONS &amp; HIT RATES, PLUS CALIBRATION", text)
-        self.assertIn("T-30 BRIER · HIT · N", text)
+        self.assertIn("T-30 BRIER ±95% · HIT · N", text)
         self.assertIn("0.200 80% · n 150", text)
+        # Mehrfachvergleich steht neben der Rangfolge, nicht in einer Fussnote.
+        self.assertIn("category-by-horizon cells are scored here", text)
         # Einpreisungs-Logik je Kategorie: Anker, Treiber, blinder Fleck,
         # t0-Quelle — plus Mechanik-Mix und die messlogik-only-Kategorie
         # (Weather erklaert ihre eigene Stichprobenluecke).
