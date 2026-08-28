@@ -158,6 +158,69 @@ def basket_edge(pm_row: dict[str, Any], ks_row: dict[str, Any],
     return bestes or leer
 
 
+#: Die drei Zahlen, die eine Mittelkurs-Luecke von einer handelbaren Spanne
+#: trennen, plus die Richtung, in der sie gilt.
+EDGE_COLUMNS = ("gross_edge_cents", "fee_band_cents", "net_edge_cents", "edge_direction")
+
+
+def _quote_index(frame: pd.DataFrame) -> dict[str, dict[str, Any]]:
+    """Nachschlagewerk Marktschluessel/Ticker/Titel -> Zeile mit Quotes."""
+
+    index: dict[str, dict[str, Any]] = {}
+    for row in _rows(frame):
+        for key in (row["market_key"], row["ticker"], row["title"].lower()):
+            if key and key not in index:
+                index[key] = row
+    return index
+
+
+def with_basket_edge(
+    candidates: pd.DataFrame,
+    polymarket_markets: pd.DataFrame,
+    kalshi_markets: pd.DataFrame,
+    shares: float = FEE_CLIP_SHARES,
+) -> pd.DataFrame:
+    """``basket_edge`` an eine fertige Paar-Tabelle anhaengen.
+
+    ``deep_cross_candidates`` rechnet die Spanne schon beim Paaren mit;
+    ``md.cross_venue_candidates`` paart nach einer Suchanfrage und liefert nur
+    die Mittelkurse. Ohne diese Ergaenzung steht dort eine Mittelkurs-Luecke
+    unter der Ueberschrift GAP und niemand handelt einen Mittelkurs. Die
+    Zeilen werden ueber Marktschluessel, Ticker oder Titel in die
+    Marktframes zurueckgeschlagen, weil nur dort die Quotes stehen.
+
+    Ein Paar ohne beidseitige Quote auf beiden Venues bekommt ``None`` und
+    keine Null: unbekannt ist nicht null.
+    """
+
+    if candidates is None or candidates.empty:
+        return candidates
+    pm_index = _quote_index(polymarket_markets) if polymarket_markets is not None else {}
+    ks_index = _quote_index(kalshi_markets) if kalshi_markets is not None else {}
+    leer = {"gross_edge_cents": None, "fee_band_cents": None,
+            "net_edge_cents": None, "edge_direction": ""}
+
+    def _lookup(index: dict[str, dict[str, Any]], row: Any, prefix: str) -> dict[str, Any] | None:
+        for feld, klein in ((f"{prefix}_market_key", False), (f"{prefix}_ticker", False),
+                            (f"{prefix}_title", True)):
+            key = str(row.get(feld, "") or "").strip()
+            if klein:
+                key = key.lower()
+            if key and key in index:
+                return index[key]
+        return None
+
+    edges: list[dict[str, Any]] = []
+    for _, row in candidates.iterrows():
+        pm_row = _lookup(pm_index, row, "polymarket")
+        ks_row = _lookup(ks_index, row, "kalshi")
+        edges.append(basket_edge(pm_row, ks_row, shares=shares) if pm_row and ks_row else dict(leer))
+    out = candidates.copy()
+    for column in EDGE_COLUMNS:
+        out[column] = [edge[column] for edge in edges]
+    return out
+
+
 def deep_cross_candidates(
     polymarket_markets: pd.DataFrame,
     kalshi_markets: pd.DataFrame,

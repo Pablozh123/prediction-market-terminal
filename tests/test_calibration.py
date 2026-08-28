@@ -196,5 +196,70 @@ class RealizedEdgeTests(unittest.TestCase):
         self.assertGreater(calib._t_quantile_975(1000), 1.96)
 
 
+class EventCountTests(unittest.TestCase):
+    """Die Quote zaehlt Positionen, das Verdict darueber zaehlt Events.
+
+    ``realized_edge`` nettet die Beine eines NegRisk-Events zu einer
+    Beobachtung, weil ihre Ausgaenge mechanisch korreliert sind. Die
+    Trefferquote, ihr Wilson-Intervall und die Eimer der Kurve taten das
+    nicht, und die Seite nannte den Unterschied nicht. Beide Zahlen stehen
+    jetzt in der Nutzlast.
+    """
+
+    def _legs(self) -> pd.DataFrame:
+        # Vier Beine eines Events plus zwei einzelne Maerkte.
+        rows = [
+            {"forecast": 0.20, "outcome": 1.0, "stake": 10.0, "title": "leg a", "time": pd.NaT,
+             "market_key": "m1", "event_key": "E1"},
+            {"forecast": 0.25, "outcome": 0.0, "stake": 10.0, "title": "leg b", "time": pd.NaT,
+             "market_key": "m2", "event_key": "E1"},
+            {"forecast": 0.30, "outcome": 0.0, "stake": 10.0, "title": "leg c", "time": pd.NaT,
+             "market_key": "m3", "event_key": "E1"},
+            {"forecast": 0.35, "outcome": 0.0, "stake": 10.0, "title": "leg d", "time": pd.NaT,
+             "market_key": "m4", "event_key": "E1"},
+            {"forecast": 0.60, "outcome": 1.0, "stake": 10.0, "title": "solo one", "time": pd.NaT,
+             "market_key": "m5", "event_key": "E2"},
+            {"forecast": 0.70, "outcome": 1.0, "stake": 10.0, "title": "solo two", "time": pd.NaT,
+             "market_key": "m6", "event_key": "E3"},
+        ]
+        return pd.DataFrame(rows)
+
+    def test_the_report_carries_both_counting_units(self) -> None:
+        report = calib.calibration_report(self._legs())
+        self.assertEqual(report["n"], 6)
+        self.assertEqual(report["n_events"], 3)
+        self.assertAlmostEqual(report["repeat_factor"], 2.0)
+        # Und sie stimmt mit dem Verdict darueber ueberein.
+        self.assertEqual(calib.realized_edge(self._legs())["n_events"], 3)
+
+    def test_the_note_says_the_interval_rests_on_positions(self) -> None:
+        note = calib.calibration_report(self._legs())["note"]
+        self.assertIn("6 positions come from 3 events", note)
+        self.assertIn("2.0 legs per event", note)
+
+    def test_a_wallet_without_repeated_legs_is_not_lectured(self) -> None:
+        einzeln = self._legs().iloc[4:].reset_index(drop=True)
+        report = calib.calibration_report(einzeln)
+        self.assertEqual(report["n"], report["n_events"])
+        self.assertAlmostEqual(report["repeat_factor"], 1.0)
+        self.assertNotIn("legs per event", report["note"])
+
+    def test_every_bucket_names_its_events(self) -> None:
+        buckets = calib.calibration_report(self._legs())["buckets"]
+        self.assertIn("events", buckets.columns)
+        # Der 20-40-Eimer haelt drei Positionen (0.25/0.30/0.35, 0.20 faellt
+        # in den Eimer darunter), aber nur ein Event.
+        zeile = buckets[buckets["bucket"].eq("20–40%")].iloc[0]
+        self.assertEqual(int(zeile["n"]), 3)
+        self.assertEqual(int(zeile["events"]), 1)
+        # Und die Summe ueber die Eimer bleibt die Zahl der Positionen.
+        self.assertEqual(int(buckets["n"].sum()), 6)
+
+    def test_an_empty_report_still_carries_the_keys(self) -> None:
+        leer = calib.calibration_report(pd.DataFrame())
+        self.assertEqual(leer["n_events"], 0)
+        self.assertIsNone(leer["repeat_factor"])
+
+
 if __name__ == "__main__":
     unittest.main()
