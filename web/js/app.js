@@ -305,7 +305,7 @@ class Terminal {
   }
 
   chip(label, active, patch) {
-    const style = "font-family:var(--font-mono); font-size:var(--t-micro); letter-spacing:.06em; border-radius:var(--r-control); padding:var(--sp-2) var(--sp-4); cursor:pointer; " + (active ? 'color:var(--on-accent); background:var(--accent); font-weight:600' : 'color:var(--ink-4); border:1px solid var(--line-1)');
+    const style = "font-family:var(--font-mono); font-size:var(--t-micro); letter-spacing:var(--ls-caps); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-4); cursor:pointer; " + (active ? 'color:var(--on-accent); background:var(--accent); font-weight:600' : 'color:var(--ink-4); border:1px solid var(--line-1)');
     return '<div ' + this.act(typeof patch === 'function' ? patch : () => this.setState(patch))
       + ' aria-pressed="' + (active ? 'true' : 'false') + '" style="' + style + '">' + esc(label) + '</div>';
   }
@@ -488,7 +488,7 @@ class Terminal {
     return {
       kind: r.kind, score: r.score, market: r.market, detail: r.detail,
       wallets: r.wallets, notional: r.notional, window: r.window, venue: r.venue,
-      kindStyle: "font-family:var(--font-mono); font-size:var(--t-micro); letter-spacing:.12em; color:" + (r.sev === 'high' ? 'var(--warn)' : r.sev === 'medium' ? 'var(--ink-3)' : 'var(--ink-3)'),
+      kindStyle: "font-family:var(--font-mono); font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:" + (r.sev === 'high' ? 'var(--warn)' : r.sev === 'medium' ? 'var(--ink-3)' : 'var(--ink-3)'),
       scoreStyle: "font-family:var(--font-mono); font-size:var(--t-head); color:" + (r.sev === 'high' ? 'var(--warn)' : 'var(--ink-2)'),
       // The card takes the focus but not the button role: it already holds the
       // market link and the WHY-this-score toggle, and a button around those
@@ -633,19 +633,19 @@ class Terminal {
     groups.push({ label: 'PAPER DESK', items: deskItems });
     const groupHtml = groups.map((g) =>
       '<div style="margin-bottom:var(--sp-5)">'
-      + '<div style="font-family:var(--font-mono); font-size:var(--t-micro); letter-spacing:.18em; padding:0 var(--sp-3) var(--sp-3); color:var(--ink-4)">' + g.label + '</div>'
+      + '<div style="font-family:var(--font-mono); font-size:var(--t-micro); letter-spacing:var(--ls-caps-max); padding:0 var(--sp-3) var(--sp-3); color:var(--ink-4)">' + g.label + '</div>'
       + g.items.join('') + '</div>'
     ).join('');
     // Footer: repository, the read-only statement, and the wallet the live
     // runs were placed from. The paper-equity box that stood here reported a
     // missing paper account on the public host — a box about a thing that
     // does not exist there.
-    const foot = "font-family:var(--font-mono); font-size:var(--t-micro); line-height:1.7; color:var(--ink-3)";
+    const foot = "font-family:var(--font-mono); font-size:var(--t-micro); line-height:var(--lh-prose); color:var(--ink-3)";
     const runsIdx = this.studies.findIndex((st) => st.tab === 'Live runs');
     return ''
       + '<div style="display:flex; align-items:center; gap:var(--sp-3); padding:0 var(--sp-3) var(--sp-5)">'
       + '<div style="width:10px; height:10px; background:var(--accent); transform:rotate(45deg)"></div>'
-      + '<div style="font-family:var(--font-mono); font-size:var(--t-body); font-weight:600; letter-spacing:.1em; text-transform:uppercase">Market Intel</div></div>'
+      + '<div style="font-family:var(--font-mono); font-size:var(--t-body); font-weight:600; letter-spacing:var(--ls-caps); text-transform:uppercase">Market Intel</div></div>'
       + '<div ' + this.act(() => this.setState({ searchOpen: true })) + ' class="hv-edge" style="display:flex; align-items:center; gap:var(--sp-3); background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); cursor:pointer; margin-bottom:var(--sp-5)">'
       + '<div style="font-family:var(--font-mono); font-size:var(--t-small); color:var(--ink-3); flex:1">Search</div>'
       + '<div style="font-family:var(--font-mono); font-size:var(--t-micro); color:var(--ink-4); border:1px solid var(--line-1); border-radius:var(--r-control); padding:0 var(--sp-2)">/</div></div>'
@@ -684,13 +684,13 @@ class Terminal {
     return ''
       + '<div style="display:flex; align-items:center; gap:var(--sp-4)">'
       + '<span style="width:7px; height:7px; border-radius:50%; background:' + liveDot + '; display:inline-block"></span>'
-      + '<span style="font-family:var(--font-mono); font-size:var(--t-micro); letter-spacing:.16em; color:var(--ink-3)">' + liveLabel + ' · ' + s.clock + ' UTC</span></div>'
+      + '<span style="font-family:var(--font-mono); font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">' + liveLabel + ' · ' + s.clock + ' UTC</span></div>'
       + '<div style="display:flex; align-items:center; gap:var(--sp-5)">'
-      + '<div style="font-family:var(--font-mono); font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-4)">MICROSTRUCTURE, MEASURED · READ-ONLY · NO ORDERS</div>'
+      + '<div style="font-family:var(--font-mono); font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4)">MICROSTRUCTURE, MEASURED · READ-ONLY · NO ORDERS</div>'
       // The chip names the theme it switches TO, like every other control
       // here names its action. Colours are CSS custom properties, so the
       // flip repaints without a re-render; only this label needs state.
-      + '<div ' + this.act(() => this.toggleTheme()) + ' aria-label="Switch to ' + (s.theme === 'light' ? 'dark' : 'light') + ' theme" class="hv-edge-strong" style="font-family:var(--font-mono); font-size:var(--t-micro); letter-spacing:.08em; border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); cursor:pointer; color:var(--ink-2); user-select:none">'
+      + '<div ' + this.act(() => this.toggleTheme()) + ' aria-label="Switch to ' + (s.theme === 'light' ? 'dark' : 'light') + ' theme" class="hv-edge-strong" style="font-family:var(--font-mono); font-size:var(--t-micro); letter-spacing:var(--ls-caps); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); cursor:pointer; color:var(--ink-2); user-select:none">'
       + (s.theme === 'light' ? 'DARK' : 'LIGHT') + '</div></div>';
   }
 
@@ -1455,7 +1455,7 @@ class Terminal {
       const farbe = tip.pnl === 'down' ? 'var(--neg)' : 'var(--pos)';
       tipEl.innerHTML = '<div style="display:flex; gap:var(--sp-4); align-items:flex-start">'
         + (tip.image ? '<img src="' + esc(tip.image) + '" alt="" style="width:40px; height:40px; border-radius:var(--r-control); object-fit:cover; flex:none; background:rgba(var(--ink),.06)" />' : '')
-        + '<div style="font-family:var(--font-ui); font-size:var(--t-small); font-weight:600; line-height:1.35; color:var(--text)">' + esc(tip.title || '') + '</div></div>'
+        + '<div style="font-family:var(--font-ui); font-size:var(--t-small); font-weight:600; line-height:var(--lh-tight); color:var(--text)">' + esc(tip.title || '') + '</div></div>'
         + '<div style="margin-top:var(--sp-3); display:flex; flex-direction:column; gap:var(--sp-2)">'
         + tip.rows.map((r) => '<div style="display:flex; justify-content:space-between; gap:var(--sp-5); font-size:var(--t-small)"><span style="color:var(--ink-4)">' + esc(String(r[0])) + '</span><span style="' + M + '; color:' + (/^(unrealised|realised)$/.test(String(r[0])) ? farbe : 'var(--text)') + '; text-align:right">' + esc(String(r[1])) + '</span></div>').join('')
         + '</div>';

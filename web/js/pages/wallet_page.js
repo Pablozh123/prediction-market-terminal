@@ -114,16 +114,16 @@ function renderHeader(T) {
     + (valid ? 'color:var(--on-accent); background:var(--accent)' : 'color:var(--ink-3); border:1px solid var(--line-1)');
   const analyse = () => { if (T.analyseWallet) T.analyseWallet(input.trim()); };
   const recent = Array.isArray(s.walletRecent) ? s.walletRecent.filter((a) => a !== EXAMPLE_WALLET) : [];
-  const chip = (addr, label, title) => '<div ' + T.act(() => { if (T.analyseWallet) T.analyseWallet(addr); }) + ' class="hv-edge-strong" title="' + esc(title || addr) + '" style="' + M + '; font-size:var(--t-micro); letter-spacing:.04em; border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); cursor:pointer; color:var(--ink-3); border:1px solid var(--line-1); white-space:nowrap">' + esc(label) + '</div>';
+  const chip = (addr, label, title) => '<div ' + T.act(() => { if (T.analyseWallet) T.analyseWallet(addr); }) + ' class="hv-edge-strong" title="' + esc(title || addr) + '" style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); cursor:pointer; color:var(--ink-3); border:1px solid var(--line-1); white-space:nowrap">' + esc(label) + '</div>';
   return '<div style="padding:var(--sp-6) var(--sp-6) var(--sp-5); border-bottom:1px solid var(--line-2)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.18em; color:var(--accent)">WALLET</div>'
-    + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:-0.01em">One wallet, read from the public feed</h1>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-max); color:var(--accent)">WALLET</div>'
+    + '<h1 style="font-size:var(--t-head); line-height:var(--lh-tight); margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:var(--ls-flat)">One wallet, read from the public feed</h1>'
     // Der Lese-Vorbehalt stand hier als Prosa; er ist jetzt der
     // Registereintrag wallet_reader_caveat, die Beschreibung davor
     // gehoert weiter der Seite.
     + caveatZeile('wallet_reader_caveat', {
       vorsatz: 'Paste a Polymarket proxy address. The page reads its resolved positions (both tails), open positions, the profile PnL curve and its trades from the public Data API, and prints the corrected track record next to the naive one, every figure with its sample size, interval and time stamp.',
-      stil: 'font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-3); max-width:800px; line-height:1.5'
+      stil: 'font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-3); max-width:800px; line-height:var(--lh-snug)'
     })
     + '<div style="display:flex; align-items:center; gap:var(--sp-4); margin-top:var(--sp-5); flex-wrap:wrap">'
     + '<input value="' + esc(input) + '" ' + T.inp((e) => { T.state.walletInput = e.target.value; T.render(); }, 'walletInput')
@@ -157,8 +157,8 @@ function renderError(T, addr, entry) {
   else if (/HTTP 5\d\d/.test(msg)) { title = 'API ERROR'; text = '/api/wallet failed on this address (' + msg + '). The upstream Data API may be slow or down; nothing is shown in its place.'; }
   return '<div style="padding:var(--sp-6)">'
     + '<div style="' + KARTE + '; padding:var(--sp-6); max-width:760px">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--warn)">' + esc(title) + '</div>'
-    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.6">' + esc(text) + '</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--warn)">' + esc(title) + '</div>'
+    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-prose)">' + esc(text) + '</div>'
     + '<div style="display:flex; gap:var(--sp-3); margin-top:var(--sp-4)">'
     + '<div ' + T.act(() => { if (T.fetchWallet) T.fetchWallet(addr, true); }) + ' class="hv-edge-strong" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-4); cursor:pointer">Try again</div>'
     + '</div></div></div>';
@@ -184,7 +184,7 @@ function renderIdentity(T, d) {
   const id = d.identity || {};
   const addr = id.address || T.state.walletAddr;
   const tr = d.track_record || null;
-  const btn = (label, fn, primary, title) => '<div ' + T.act(fn) + ' class="' + (primary ? 'hv-accentbg' : 'hv-edge-strong') + '" title="' + esc(title || '') + '" style="' + M + '; font-size:var(--t-micro); letter-spacing:.04em; border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); cursor:pointer; white-space:nowrap; ' + (primary ? 'color:var(--on-accent); background:var(--accent); font-weight:600' : 'color:var(--ink-2); border:1px solid var(--line-1)') + '">' + label + '</div>';
+  const btn = (label, fn, primary, title) => '<div ' + T.act(fn) + ' class="' + (primary ? 'hv-accentbg' : 'hv-edge-strong') + '" title="' + esc(title || '') + '" style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); cursor:pointer; white-space:nowrap; ' + (primary ? 'color:var(--on-accent); background:var(--accent); font-weight:600' : 'color:var(--ink-2); border:1px solid var(--line-1)') + '">' + label + '</div>';
   const follow = () => {
     // Prefill the copy desk's follow form and open it. Nothing is followed
     // until the button on that page is pressed.
@@ -198,17 +198,17 @@ function renderIdentity(T, d) {
     try { history.pushState(null, '', '#backtester'); } catch (e) { /* file:// */ }
   };
   const tags = [];
-  if (tr && tr.grade) tags.push('<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.08em; color:' + (tr.grade === 'A' || tr.grade === 'B' ? 'var(--accent)' : tr.grade === 'F' ? 'var(--warn)' : 'var(--ink-2)') + '; border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">GRADE ' + esc(tr.grade) + (tr.score != null ? ' · ' + tr.score + '/100' : '') + '</span>');
-  if (tr && tr.survivorship_gate && !tr.survivorship_gate.ok) tags.push('<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.08em; color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">BELOW SAMPLE GATE</span>');
-  if (tr && tr.wash_flag && tr.wash_flag.flag) tags.push('<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.08em; color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">WASH / FARMER FLAG</span>');
-  if (id.days_active != null) tags.push('<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.08em; color:var(--ink-3); border:1px solid var(--line-2); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">' + id.days_active + (id.activity_truncated ? '+' : '') + ' DAYS ACTIVE</span>');
+  if (tr && tr.grade) tags.push('<span style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); color:' + (tr.grade === 'A' || tr.grade === 'B' ? 'var(--accent)' : tr.grade === 'F' ? 'var(--warn)' : 'var(--ink-2)') + '; border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">GRADE ' + esc(tr.grade) + (tr.score != null ? ' · ' + tr.score + '/100' : '') + '</span>');
+  if (tr && tr.survivorship_gate && !tr.survivorship_gate.ok) tags.push('<span style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">BELOW SAMPLE GATE</span>');
+  if (tr && tr.wash_flag && tr.wash_flag.flag) tags.push('<span style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">WASH / FARMER FLAG</span>');
+  if (id.days_active != null) tags.push('<span style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); color:var(--ink-3); border:1px solid var(--line-2); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">' + id.days_active + (id.activity_truncated ? '+' : '') + ' DAYS ACTIVE</span>');
   return '<div style="' + KARTE + '; padding:var(--sp-5); position:relative; overflow:hidden">'
     + '<div style="position:absolute; left:-40px; top:-60px; width:180px; height:180px; border-radius:50%; background:radial-gradient(closest-side, rgba(var(--accent-rgb),.10), rgba(var(--accent-rgb),0)); pointer-events:none"></div>'
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:var(--sp-5); flex-wrap:wrap; position:relative">'
     + '<div style="display:flex; align-items:flex-start; gap:var(--sp-5); min-width:0">'
     + '<div style="width:46px; height:46px; flex:none; border-radius:50%; background:linear-gradient(135deg, rgba(var(--accent-rgb),.35), rgba(var(--info-rgb),.35)); border:1px solid var(--line-1); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-lead); font-weight:600; color:var(--text)">' + esc(initials(id.pseudonym, addr)) + '</div>'
     + '<div style="min-width:0">'
-    + '<div style="font-size:var(--t-head); line-height:1.2">' + esc(id.pseudonym || shortAddr(addr)) + '</div>'
+    + '<div style="font-size:var(--t-head); line-height:var(--lh-solid)">' + esc(id.pseudonym || shortAddr(addr)) + '</div>'
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-2); word-break:break-all">' + esc(addr) + '</div>'
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2)">first activity ' + esc(when(id.first_activity)) + ' · last ' + esc(when(id.last_activity)) + ' · ' + (id.n_activity_rows != null ? num(id.n_activity_rows) + ' activity rows read' : 'activity not read') + '</div>'
     + (tags.length ? '<div style="display:flex; gap:var(--sp-3); flex-wrap:wrap; margin-top:var(--sp-3)">' + tags.join('') + '</div>' : '')
@@ -295,7 +295,7 @@ function renderKpis(d) {
   ];
   return '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:var(--sp-4); margin-top:var(--sp-5)">' + tiles.join('') + '</div>'
     + '<div style="display:flex; gap:var(--sp-5); flex-wrap:wrap; margin-top:var(--sp-4); padding:0 var(--sp-2)">'
-    + facts.map((f) => '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4)"><span style="letter-spacing:.1em; color:var(--ink-3)">' + f[0] + '</span> <span style="color:var(--text)">' + f[1] + '</span></div>').join('')
+    + facts.map((f) => '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4)"><span style="letter-spacing:var(--ls-caps); color:var(--ink-3)">' + f[0] + '</span> <span style="color:var(--text)">' + f[1] + '</span></div>').join('')
     + '</div>';
 }
 
@@ -364,8 +364,8 @@ function topCard(label, r, kind) {
   const ret = stake > 0 ? pnl / stake : null;
   return '<div style="' + KARTE + '; padding:var(--sp-5); min-width:0">'
     + '<div style="display:flex; justify-content:space-between; gap:var(--sp-3); align-items:baseline"><div style="' + LABEL + '">' + label + '</div>'
-    + '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.08em; color:' + (String(r.outcome).toLowerCase() === 'yes' ? 'var(--accent)' : 'var(--neg-soft)') + '; border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">' + esc(String(r.outcome || '—').toUpperCase()) + '</span></div>'
-    + '<div style="font-family:var(--font-ui); font-size:var(--t-body); margin-top:var(--sp-3); line-height:1.4; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden">' + link(r.url, r.title) + '</div>'
+    + '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); color:' + (String(r.outcome).toLowerCase() === 'yes' ? 'var(--accent)' : 'var(--neg-soft)') + '; border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">' + esc(String(r.outcome || '—').toUpperCase()) + '</span></div>'
+    + '<div style="font-family:var(--font-ui); font-size:var(--t-body); margin-top:var(--sp-3); line-height:var(--lh-snug); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden">' + link(r.url, r.title) + '</div>'
     + '<div style="' + M + '; font-size:var(--t-head); margin-top:var(--sp-3); color:' + pnlColor(pnl) + '">' + (ret == null ? dollars(pnl) : (ret >= 0 ? '+' : '') + (ret * 100).toFixed(0) + '%') + '</div>'
     + '<div style="' + NOTIZ + '; margin-top:var(--sp-1)">' + absDollars(stake) + ' → ' + absDollars(now) + ' · ' + dollars(pnl) + (kind === 'open' ? ' unrealised' : ' realised') + '</div>'
     + '</div>';
@@ -476,7 +476,7 @@ function intensitaetsSchluessel() {
     + pnlIntensity(anteil, 1).toFixed(2) + ')"></span>'
     + '<span style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + text + '</span></div>';
   return '<div style="display:flex; align-items:center; gap:var(--sp-4); flex-wrap:wrap; margin-top:var(--sp-3)">'
-    + '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; color:var(--ink-3)">RESULT vs STAKE</span>'
+    + '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); color:var(--ink-3)">RESULT vs STAKE</span>'
     + stufe(0, '0%') + stufe(0.25, '25%') + stufe(0.5, '50%') + stufe(1, '100% or more')
     + '<span style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">green up, red down</span></div>';
 }
@@ -526,8 +526,8 @@ function renderTreemap(T, d) {
     const inner = tiny ? ''
       : '<div style="display:flex; justify-content:space-between; gap:var(--sp-2); align-items:flex-start">'
         + (showImg ? '<img src="' + esc(it.image) + '" alt="" loading="lazy" style="width:' + (wide ? 34 : 26) + 'px; height:' + (wide ? 34 : 26) + 'px; border-radius:var(--r-control); object-fit:cover; flex:none; background:var(--shadow-25)" />' : '')
-        + '<span class="tm-label" style="' + M + '; font-size:var(--t-micro); letter-spacing:.06em; color:var(--ink-1); padding:var(--sp-1) var(--sp-2); flex:none; margin-left:auto">' + esc(String(it.outcome || '').toUpperCase().slice(0, 3)) + (it.kind === 'closed' ? ' ✓' : '') + '</span></div>'
-        + (wide ? '<div class="tm-label" style="font-family:var(--font-ui); font-size:var(--t-micro); font-weight:600; line-height:1.3; color:var(--text); margin-top:var(--sp-2); padding:0 var(--sp-1); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden">' + esc(it.title || '') + '</div>' : '')
+        + '<span class="tm-label" style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); color:var(--ink-1); padding:var(--sp-1) var(--sp-2); flex:none; margin-left:auto">' + esc(String(it.outcome || '').toUpperCase().slice(0, 3)) + (it.kind === 'closed' ? ' ✓' : '') + '</span></div>'
+        + (wide ? '<div class="tm-label" style="font-family:var(--font-ui); font-size:var(--t-micro); font-weight:600; line-height:var(--lh-tight); color:var(--text); margin-top:var(--sp-2); padding:0 var(--sp-1); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden">' + esc(it.title || '') + '</div>' : '')
         + '<div class="tm-label" style="' + M + '; font-size:' + (wide ? 'var(--t-small)' : 'var(--t-micro)') + '; color:var(--text); padding:0 var(--sp-1); margin-top:auto">' + absDollars(it.value) + (wide && ret != null ? ' <span style="color:var(--ink-1)">' + (ret >= 0 ? '+' : '') + (ret * 100).toFixed(0) + '%</span>' : '') + '</div>';
     const style = 'position:absolute; left:' + ((rc.x / W) * 100).toFixed(3) + '%; top:' + ((rc.y / H) * 100).toFixed(3) + '%; width:' + wPct.toFixed(3) + '%; height:' + hPct.toFixed(3) + '%; box-sizing:border-box; padding:' + (tiny ? '0' : 'var(--sp-3)') + '; border:1px solid var(--bg); border-radius:var(--r-control); background:' + bg + '; display:flex; flex-direction:column; overflow:hidden; text-decoration:none; color:inherit';
     const attrs = 'class="tm-tile" data-tip="' + esc(JSON.stringify(tip)) + '" style="' + style + '"';
@@ -641,17 +641,17 @@ function renderPnl(d) {
     : 'The curve polymarket.com shows on the profile: user-pnl-api.polymarket.com, daily points, all time.';
   const head = '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:var(--sp-4); flex-wrap:wrap">'
     + '<div><div style="' + LABEL + '">' + (settled ? 'PNL TIMELINE · SETTLED CURVE' : 'PNL TIMELINE · PROFILE CURVE')
-    + ' <span title="' + esc(headTip) + '" style="display:inline-block; width:13px; height:13px; line-height:13px; text-align:center; border-radius:50%; border:1px solid var(--line-1); color:var(--ink-4); font-size:var(--t-micro); letter-spacing:0; cursor:help; vertical-align:1px">i</span></div>'
+    + ' <span title="' + esc(headTip) + '" style="display:inline-block; width:13px; height:13px; line-height:13px; text-align:center; border-radius:50%; border:1px solid var(--line-1); color:var(--ink-4); font-size:var(--t-micro); letter-spacing:var(--ls-flat); cursor:help; vertical-align:1px">i</span></div>'
     + '<div style="' + NOTIZ + '; margin-top:var(--sp-2)">' + (settled
       ? num(c.n_rows) + ' closed rows' + (c.capped ? ' · <span style="color:var(--warn)">capped tails</span>' : ' · complete set') + ' · ' + esc(first) + ' → ' + esc(lastDay)
       : num(c.n_points) + ' daily points · ' + esc(first) + ' → ' + esc(lastDay)) + '</div></div>'
     + '<div style="text-align:right"><div style="' + LABEL + '">' + (settled ? 'REALISED PNL' : 'CURRENT PNL') + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-hero); font-weight:600; line-height:1.15; color:' + pnlColor(lastVal) + '">' + esc(kurzGeld(lastVal, true)) + '</div>'
+    + '<div style="' + M + '; font-size:var(--t-hero); font-weight:600; line-height:var(--lh-solid); color:' + pnlColor(lastVal) + '">' + esc(kurzGeld(lastVal, true)) + '</div>'
     + '<div style="' + NOTIZ + '">' + esc(dollars(lastVal)) + ' · ' + esc(lastDay) + '</div></div>'
     + '</div>';
   const swap = settled
     ? '<div style="display:flex; align-items:center; gap:var(--sp-3); flex-wrap:wrap; margin-top:var(--sp-4); ' + M + '; font-size:var(--t-micro); color:var(--warn)">'
-      + '<span style="border:1px solid rgba(var(--warn-rgb),.45); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3); letter-spacing:.1em">PROFILE CURVE ' + (profileHasPoints ? 'FLAT' : 'MISSING') + '</span>'
+      + '<span style="border:1px solid rgba(var(--warn-rgb),.45); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3); letter-spacing:var(--ls-caps)">PROFILE CURVE ' + (profileHasPoints ? 'FLAT' : 'MISSING') + '</span>'
       + '<span style="color:var(--warn)">' + (profileHasPoints && p.flat
         ? 'one level (' + esc(kurzGeld(Number(p.points[p.points.length - 1].pnl), true)) + ') for ' + num(p.n_points) + ' points since ' + esc(String(p.first || '').slice(0, 10)) + ' — showing our settled curve instead'
         : 'user-pnl-api did not answer — showing our settled curve instead') + '</span>'
@@ -686,7 +686,7 @@ function renderPnl(d) {
   if (settled && profileHasPoints) basisRows.push(['Profile curve', p.note || '']);
   if (settled && !profileHasPoints) basisRows.push(['Profile curve', 'user-pnl-api.polymarket.com did not answer for this wallet.']);
   basisRows.push(['Ratios', 'Daily PnL in dollars (one point per day, differenced), no capital base, annualised on 365 days; n is the number of daily changes. Sharpe = mean / sd. Sortino = mean / downside RMS over all days (target 0), shown only with 3+ losing days. Calmar = annualised mean daily PnL / max drawdown. Max drawdown = deepest fall from a running peak, % of that peak.']);
-  const basis = '<details style="margin-top:var(--sp-4)"><summary style="' + NOTIZ + '; cursor:pointer; list-style:none; display:inline-flex; align-items:center; gap:var(--sp-3)"><span style="border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3); letter-spacing:.1em">BASIS · DEFINITIONS</span><span>as of ' + esc(p.as_of || '') + '</span></summary>'
+  const basis = '<details style="margin-top:var(--sp-4)"><summary style="' + NOTIZ + '; cursor:pointer; list-style:none; display:inline-flex; align-items:center; gap:var(--sp-3)"><span style="border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3); letter-spacing:var(--ls-caps)">BASIS · DEFINITIONS</span><span>as of ' + esc(p.as_of || '') + '</span></summary>'
     + '<div style="margin-top:var(--sp-3); display:grid; grid-template-columns:110px 1fr; gap:var(--sp-3) var(--sp-4)">'
     + basisRows.map((r) => '<div style="' + LABEL + '; padding-top:var(--sp-1)">' + esc(r[0]).toUpperCase() + '</div><div style="' + NOTIZ + '">' + esc(r[1]) + '</div>').join('')
     + '</div></details>';
@@ -846,7 +846,7 @@ function renderLimits(d) {
   if (!lim.length) return '';
   const errs = d.errors && typeof d.errors === 'object' ? Object.entries(d.errors) : [];
   return card('LIMITS OF THIS READ',
-    '<ul style="margin:0; padding-left:var(--sp-5); font-size:var(--t-small); color:var(--ink-3); line-height:1.65">' + lim.map((l) => '<li>' + esc(l) + '</li>').join('') + '</ul>'
+    '<ul style="margin:0; padding-left:var(--sp-5); font-size:var(--t-small); color:var(--ink-3); line-height:var(--lh-prose)">' + lim.map((l) => '<li>' + esc(l) + '</li>').join('') + '</ul>'
     + (errs.length ? '<div style="' + NOTIZ + '; margin-top:var(--sp-4); color:var(--warn)">Parts that did not answer this time: ' + errs.map((e) => esc(e[0]) + ' (' + esc(e[1]) + ')').join(' · ') + '</div>' : ''));
 }
 
@@ -855,7 +855,7 @@ function renderLimits(d) {
 function riskCard(label, value, sub, tone, partial) {
   const abzeichen = partial
     ? '<span title="the closed set is capped at ~50 rows per tail — these figures describe the biggest winners and losers only" style="'
-      + M + '; font-size:var(--t-micro); letter-spacing:.1em; color:var(--warn); border:1px solid rgba(var(--warn-rgb),.45); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">~PARTIAL</span>'
+      + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); color:var(--warn); border:1px solid rgba(var(--warn-rgb),.45); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">~PARTIAL</span>'
     : null;
   return kpi({
     label, wert: value, sub: sub || null, gross: true, badge: abzeichen,
@@ -906,7 +906,7 @@ function renderRiskTab(d) {
         rp.conviction == null ? 'neutral' : rp.conviction >= 1.2 ? 'up' : rp.conviction >= 0.8 ? 'warn' : 'down', partial)
     ].join('')
     : '';
-  const rules = rp && rp.rules ? '<div style="' + NOTIZ + '; margin-top:var(--sp-4); line-height:1.6">'
+  const rules = rp && rp.rules ? '<div style="' + NOTIZ + '; margin-top:var(--sp-4); line-height:var(--lh-prose)">'
     + Object.entries(rp.rules).map((kv) => '<span style="color:var(--ink-3)">' + esc(kv[0].replace(/_/g, ' ')) + '</span>: ' + esc(kv[1])).join(' · ') + '</div>' : '';
   // Die Kachel hiess INSIDER-RISK SCORE und zeigte daneben das interne Level
   // (HIGH/MEDIUM/ELEVATED/LOW). Zusammen las sich das wie eine
@@ -918,9 +918,9 @@ function renderRiskTab(d) {
   const insider = insiderBand
     ? '<div style="' + KARTE + '; padding:var(--sp-5); margin-top:var(--sp-5)"><div style="' + LABEL + '">FLOW-PATTERN SCORE · FROM THE RISK SCREEN</div>'
       + '<div style="display:flex; gap:var(--sp-5); align-items:baseline; margin-top:var(--sp-3)"><div style="' + M + '; font-size:var(--t-head); color:' + (d.risk.wallet_insider_score >= 70 ? 'var(--warn)' : 'var(--text)') + '">' + Math.round(d.risk.wallet_insider_score) + '<span style="font-size:var(--t-small); color:var(--ink-3)"> /100 pts</span></div>'
-      + '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; color:' + insiderBand[1] + '">' + esc(insiderBand[0]) + '</span></div>'
+      + '<span style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); color:' + insiderBand[1] + '">' + esc(insiderBand[0]) + '</span></div>'
       + (Array.isArray(d.risk.flags) && d.risk.flags.length ? '<div style="display:flex; gap:var(--sp-3); flex-wrap:wrap; margin-top:var(--sp-3)">' + d.risk.flags.map((f) => '<span style="' + M + '; font-size:var(--t-micro); color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">' + esc(f) + '</span>').join('') + '</div>' : '<div style="' + NOTIZ + '; margin-top:var(--sp-3)">no flags on this wallet in the current screen</div>')
-      + '<div style="' + NOTIZ + '; margin-top:var(--sp-3); line-height:1.5">' + caveat('insider_score_unvalidated') + '</div>'
+      + '<div style="' + NOTIZ + '; margin-top:var(--sp-3); line-height:var(--lh-snug)">' + caveat('insider_score_unvalidated') + '</div>'
       + '</div>'
     : '';
   const head = card('RISK PROFILE · FROM THE RESOLVED ROWS',

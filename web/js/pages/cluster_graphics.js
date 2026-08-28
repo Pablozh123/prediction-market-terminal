@@ -64,7 +64,7 @@ function nullmodellZeile(g) {
       + (n.lift_median != null ? ' at a median lift of ' + esc(String(n.lift_median)) + '×' : '')
       + ' — read the picture against that, not against zero'
     : 'the same rule on a shuffled wallet column returns nothing';
-  return '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-3); line-height:1.6">'
+  return '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-3); line-height:var(--lh-prose)">'
     + 'CONTROL · ' + wie + ' (' + esc(String(n.runs)) + ' shuffle' + (n.runs === 1 ? '' : 's') + ')</div>';
 }
 
@@ -90,7 +90,7 @@ export function regelLeiterHtml(g) {
       + (s.gewaehlt ? '▸ ' : '· ') + esc(s.regel) + ' — ' + esc(ergebnis)
       + (s.gewaehlt ? ' (this picture)' : '') + '</div>';
   };
-  return '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-3); line-height:1.5">'
+  return '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-3); line-height:var(--lh-snug)">'
     + 'RULE LADDER, STRICT TO LOOSE'
     + leiter.map(zeile).join('')
     + '</div>';
@@ -166,8 +166,8 @@ function graphSvg(g) {
 
 function hinweisKarte(text, farbe) {
   return '<div style="' + KARTE + '; padding:var(--sp-6); margin-bottom:var(--sp-5)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">CO-TRADING STRUCTURE</div>'
-    + '<div style="font-size:var(--t-body); color:' + farbe + '; margin-top:var(--sp-4); line-height:1.6; max-width:720px">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--info)">CO-TRADING STRUCTURE</div>'
+    + '<div style="font-size:var(--t-body); color:' + farbe + '; margin-top:var(--sp-4); line-height:var(--lh-prose); max-width:720px">'
     + esc(text) + '</div></div>';
 }
 
@@ -209,10 +209,10 @@ export function renderClusterGraphics(live) {
   }
 
   return '<div style="' + KARTE + '; padding:var(--sp-5) var(--sp-6); margin-bottom:var(--sp-5)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--info)">CO-TRADING STRUCTURE</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--info)">CO-TRADING STRUCTURE</div>'
     + '<div style="font-size:var(--t-head); font-weight:600; margin-top:var(--sp-3)">Wallets that keep meeting in the same markets</div>'
     + kopfzeile(g)
-    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-4); line-height:1.6">'
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-4); line-height:var(--lh-prose)">'
     + 'RULE · ' + esc(g.regel || 'not stated')
     + (g.fenster ? '<br>WINDOW · ' + esc(g.fenster) : '')
     + (g.stichprobe ? '<br>SAMPLE · ' + esc(g.stichprobe) : '')
@@ -222,7 +222,7 @@ export function renderClusterGraphics(live) {
     + regelLeiterHtml(g)
     + nullmodellZeile(g)
     + '<div style="margin-top:var(--sp-5)">' + graphSvg(g) + '</div>'
-    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.5">'
+    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-snug)">'
     + 'Each dot is one wallet, sized by the money it moved · a line means the two bought the same side of the same markets, thicker = more shared markets · colours are the groups detailed below · hover a line for how far above the chance rate that pair sits.'
     + '</div></div>';
 }

@@ -164,7 +164,7 @@ export function diagramm(dia) {
   // 17px) und ein 20-Zeilen-Diagramm stand fast 1000px hoch neben den
   // kompakten HTML-Tabellen.
   return '<div style="' + KARTE + '; padding:var(--sp-5) var(--sp-5) var(--sp-4)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3); margin-bottom:var(--sp-2)">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3); margin-bottom:var(--sp-2)">'
     + esc(dia.titel || '') + (dia.einheit ? ' · ' + esc(dia.einheit) : '') + '</div>'
     + '<svg width="100%" viewBox="0 0 ' + BREITE + ' ' + hoehe + '" role="img" aria-label="' + esc(dia.titel || 'chart') + '" style="display:block; max-width:660px">'
     + achse(sk, dia, hoehe) + koerper
@@ -266,7 +266,7 @@ export function linien(k) {
 
   return '<div style="' + KARTE + '; padding:var(--sp-5) var(--sp-5) var(--sp-4)">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:var(--sp-5); flex-wrap:wrap; margin-bottom:var(--sp-2)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3)">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
     + esc(k.titel || '') + (k.einheit ? ' · ' + esc(k.einheit) : '') + '</div>'
     + (k.hinweis ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + esc(k.hinweis) + '</div>' : '')
     + '</div>'
@@ -319,7 +319,7 @@ export function kalibrierung(k) {
   // "predicted 1" at that width.
   const yMitte = S / 2;
   return '<div style="' + KARTE + '; padding:var(--sp-4) var(--sp-5) var(--sp-3)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">' + esc(k.titel || '') + '</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">' + esc(k.titel || '') + '</div>'
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-1)">' + esc(k.hinweis || ('n ' + gesamt + ' · ' + punkte.length + ' bins')) + '</div>'
     + '<svg width="100%" viewBox="0 0 ' + S + ' ' + S + '" role="img" aria-label="' + esc(k.titel || 'calibration') + '" style="max-width:240px; display:block; margin:var(--sp-3) auto 0">'
     + '<rect x="' + PAD + '" y="' + PAD + '" width="' + (S - 2 * PAD) + '" height="' + (S - 2 * PAD) + '" fill="none" style="stroke:rgba(var(--ink),.1)" />'
@@ -519,7 +519,7 @@ export function spiegelZeit(k) {
 
   return '<div style="' + KARTE + '; padding:var(--sp-5) var(--sp-5) var(--sp-4)">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:var(--sp-5); flex-wrap:wrap; margin-bottom:var(--sp-2)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3)">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
     + esc(k.titel || '') + (k.einheit ? ' · ' + esc(k.einheit) : '') + '</div>'
     + (k.hinweis ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + esc(k.hinweis) + '</div>' : '')
     + '</div>'
@@ -574,7 +574,7 @@ export function stepKurve(k) {
 
   return '<div style="' + KARTE + '; padding:var(--sp-5) var(--sp-5) var(--sp-4)">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:var(--sp-5); flex-wrap:wrap; margin-bottom:var(--sp-2)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3)">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
     + esc(k.titel || '') + (k.einheit ? ' · ' + esc(k.einheit) : '') + '</div>'
     + (k.hinweis ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + esc(k.hinweis) + '</div>' : '')
     + '</div>'
@@ -611,11 +611,11 @@ function karte(titel, einheit, hinweis, inhalt, fussnote, fussnoteHtml) {
   const fuss = (fussnote ? esc(fussnote) : '') + (fussnoteHtml ? (fussnote ? ' ' : '') + fussnoteHtml : '');
   return '<div style="' + KARTE + '; padding:var(--sp-5) var(--sp-5) var(--sp-4)">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:var(--sp-5); flex-wrap:wrap; margin-bottom:var(--sp-3)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3)">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
     + esc(titel || '') + (einheit ? ' · ' + esc(einheit) : '') + '</div>'
     + (hinweis ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + esc(hinweis) + '</div>' : '')
     + '</div>' + inhalt
-    + (fuss ? '<div style="font-size:var(--t-small); line-height:1.55; color:var(--ink-3); margin-top:var(--sp-3); max-width:640px">' + fuss + '</div>' : '')
+    + (fuss ? '<div style="font-size:var(--t-small); line-height:var(--lh-prose); color:var(--ink-3); margin-top:var(--sp-3); max-width:640px">' + fuss + '</div>' : '')
     + '</div>';
 }
 

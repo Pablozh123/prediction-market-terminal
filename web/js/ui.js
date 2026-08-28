@@ -17,7 +17,7 @@ export const UI = 'font-family:var(--font-ui)';
 export const KARTE = 'background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel)';
 
 // Das Mikrolabel ueber einer Zahl und in jedem Tabellenkopf.
-export const LABEL = MONO + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3)';
+export const LABEL = MONO + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)';
 // Dasselbe Label als eigener Block ueber einem Bedienelement.
 export const LABEL_BLOCK = LABEL + '; margin-bottom:var(--sp-3)';
 // Die kleine Mono-Zeile unter etwas: Notiz im Fliesstext und Unterzeile unter
@@ -25,7 +25,7 @@ export const LABEL_BLOCK = LABEL + '; margin-bottom:var(--sp-3)';
 // unterschieden, mit der Begruendung, die Unterzeile sei einzeilig. Sie ist
 // es nicht: seit die vier Wallet-Kacheln durch kpi() laufen, traegt die
 // Unterzeile Herkunft und Nenner und bricht um. Ein Rezept.
-export const NOTIZ = MONO + '; font-size:var(--t-micro); color:var(--ink-3); line-height:1.6';
+export const NOTIZ = MONO + '; font-size:var(--t-micro); color:var(--ink-3); line-height:var(--lh-prose)';
 
 const TON_RAHMEN = {
   up: 'rgba(var(--pos-rgb),.35)',

@@ -160,8 +160,8 @@ export function categorySourceLabel(categories) {
 export function leerBlock(titel, satz) {
     return '<div style="padding:var(--sp-6)">'
     + '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-6); max-width:760px">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--warn)">' + esc(titel) + '</div>'
-    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.6">' + esc(satz) + '</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--warn)">' + esc(titel) + '</div>'
+    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-prose)">' + esc(satz) + '</div>'
     + '</div></div>';
 }
 
@@ -169,15 +169,15 @@ export function leerBlock(titel, satz) {
 // Seite sie ist, und darunter warum sie leer ist.
 export function seitenKopf(kicker, titel, farbe) {
     return '<div style="padding:var(--sp-6) var(--sp-6) var(--sp-5); border-bottom:1px solid var(--line-2)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.18em; color:' + farbe + '">' + esc(kicker) + '</div>'
-    + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:-0.01em">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-max); color:' + farbe + '">' + esc(kicker) + '</div>'
+    + '<h1 style="font-size:var(--t-head); line-height:var(--lh-tight); margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:var(--ls-flat)">'
     + esc(titel) + '</h1></div>';
 }
 
 // Eine Zeile dort, wo sonst Zeilen stehen wuerden. Kurz, weil sie mitten in
 // einer Liste sitzt und nicht deren Platz einnehmen soll.
 export function leerZeile(satz) {
-    return '<div style="padding:var(--sp-6); ' + M + '; font-size:var(--t-small); color:var(--ink-3); line-height:1.6">'
+    return '<div style="padding:var(--sp-6); ' + M + '; font-size:var(--t-small); color:var(--ink-3); line-height:var(--lh-prose)">'
     + esc(satz) + '</div>';
 }
 

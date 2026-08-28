@@ -38,8 +38,8 @@ function ohneBacktestHtml(s) {
   }
   return '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-6); margin-top:var(--sp-5); max-width:760px">'
     + '<div style="font-size:var(--t-lead); font-weight:600; color:' + (running ? 'var(--warn)' : err ? 'var(--neg-soft)' : 'var(--text)') + '">' + kopf + '</div>'
-    + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-4); line-height:1.65">' + text + '</div>'
-    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-4); line-height:1.6">'
+    + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-4); line-height:var(--lh-prose)">' + text + '</div>'
+    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-4); line-height:var(--lh-prose)">'
     + 'Nothing is estimated here. This panel used to fill itself from a generator when the '
     + 'backend was silent, which produced an equity curve that responded to every slider and '
     + 'meant nothing.'
@@ -269,13 +269,13 @@ export function renderBacktester(T) {
   let tabBody = '';
   if (s.btTab === 'log') {
     tabBody = '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-4); overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:88px 74px 84px 1fr 60px 84px 78px 74px 84px 88px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">'
+      + '<div style="display:grid; grid-template-columns:88px 74px 84px 1fr 60px 84px 78px 74px 84px 88px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
       + '<div>TIME</div><div>ACTION</div><div>STATUS</div><div>MARKET</div><div>SIDE</div><div style="text-align:right">TRADER $</div><div style="text-align:right">STAKE</div><div style="text-align:right">FILL</div><div style="text-align:right">FEE</div><div style="text-align:right">EQUITY</div></div>'
       + logRows.map((l) =>
         '<div style="display:grid; grid-template-columns:88px 74px 84px 1fr 60px 84px 78px 74px 84px 88px; gap:var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small)">'
         + '<div style="color:var(--ink-4)">' + esc(l.time) + '</div>'
         + '<div style="' + M + '; font-size:var(--t-small); color:' + (l.action === 'BUY' ? 'var(--pos)' : 'var(--neg)') + '">' + esc(l.action) + '</div>'
-        + '<div><span style="' + M + '; font-size:var(--t-micro); letter-spacing:.08em; border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3); ' + (l.status === 'skipped' ? 'color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35)' : 'color:var(--ink-2); border:1px solid var(--line-1)') + '">' + esc(l.status) + '</span></div>'
+        + '<div><span style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3); ' + (l.status === 'skipped' ? 'color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35)' : 'color:var(--ink-2); border:1px solid var(--line-1)') + '">' + esc(l.status) + '</span></div>'
         + '<div style="font-family:var(--font-ui); font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(l.market) + '</div>'
         + '<div style="color:var(--ink-3)">' + esc(l.side) + '</div>'
         + '<div style="text-align:right; color:var(--ink-4)">' + esc(l.traderAmt) + '</div>'
@@ -289,7 +289,7 @@ export function renderBacktester(T) {
       + '</div>';
   } else if (s.btTab === 'open') {
     tabBody = '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-4); overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:1fr 62px 78px 78px 78px 88px 88px 100px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">'
+      + '<div style="display:grid; grid-template-columns:1fr 62px 78px 78px 78px 88px 88px 100px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
       + '<div>MARKET</div><div>SIDE</div><div style="text-align:right">SHARES</div><div style="text-align:right">AVG FILL</div><div style="text-align:right">MARK</div><div style="text-align:right">COST</div><div style="text-align:right">VALUE</div><div style="text-align:right">UNREALISED</div></div>'
       + openRows.map((o) =>
         '<div style="display:grid; grid-template-columns:1fr 62px 78px 78px 78px 88px 88px 100px; gap:var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small)">'
@@ -305,7 +305,7 @@ export function renderBacktester(T) {
       + '</div>';
   } else if (s.btTab === 'dd') {
     tabBody = '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-4); padding:var(--sp-5)">'
-      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-4); margin-bottom:var(--sp-4)">DRAWDOWN FROM THE RUNNING PEAK</div>'
+      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4); margin-bottom:var(--sp-4)">DRAWDOWN FROM THE RUNNING PEAK</div>'
       + '<svg width="100%" height="220" viewBox="0 0 900 220" preserveAspectRatio="none" role="img" aria-label="Drawdown from the running peak">'
       + '<line x1="0" y1="10" x2="900" y2="10" style="stroke:rgba(var(--ink),.14)" />'
       + '<line x1="0" y1="70" x2="900" y2="70" style="stroke:rgba(var(--ink),.07)" />'
@@ -322,14 +322,14 @@ export function renderBacktester(T) {
   return '<div>'
     + '<div style="padding:var(--sp-6) var(--sp-6) var(--sp-5); border-bottom:1px solid var(--line-2)">'
     + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:var(--sp-6)">'
-    + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.18em; color:var(--accent)">BACKTESTER · PAPER SIM</div>'
-    + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:-0.01em">Replay a wallet with your own sizing</h1>'
+    + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-max); color:var(--accent)">BACKTESTER · PAPER SIM</div>'
+    + '<h1 style="font-size:var(--t-head); line-height:var(--lh-tight); margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:var(--ls-flat)">Replay a wallet with your own sizing</h1>'
     // backtest_modeled stand im Register und auf keiner Seite: die Kopfzeile
     // beschrieb die Simulation, sagte aber nirgends, dass ihre Zahlen
     // modelliert und nicht realisiert sind.
     + caveatZeile('backtest_modeled', {
       vorsatz: 'Every simulated fill is priced with fees and slippage, up to ninety days back.',
-      stil: 'font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-3); max-width:680px; line-height:1.5'
+      stil: 'font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-3); max-width:680px; line-height:var(--lh-snug)'
     }) + '</div>'
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--on-accent); background:var(--accent); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-4)">POLYMARKET</div>'
     + '</div></div>'
@@ -337,11 +337,11 @@ export function renderBacktester(T) {
     + '<div style="display:grid; grid-template-columns:352px 1fr">'
     + '<div style="border-right:1px solid var(--line-2); padding:var(--sp-5) var(--sp-6); display:flex; flex-direction:column; gap:var(--sp-6)">'
 
-    + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.16em; color:var(--accent); margin-bottom:var(--sp-3)">01 · WALLET TO REPLAY</div>'
+    + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--accent); margin-bottom:var(--sp-3)">01 · WALLET TO REPLAY</div>'
     + '<input value="' + esc(s.btWallet) + '" ' + T.inp((e) => { T.state.btWallet = e.target.value; if (T.liveData.backtest) T.state.btDirty = true; }, 'btWallet') + ' aria-label="Wallet address to replay" placeholder="0x…" style="width:100%; box-sizing:border-box; background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text)" />'
-    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.5">Any public Polymarket address — the default is one with a long public trade history, chosen so a first run has something to replay. Take one from the leaderboard to compare.</div></div>'
+    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-snug)">Any public Polymarket address — the default is one with a long public trade history, chosen so a first run has something to replay. Take one from the leaderboard to compare.</div></div>'
 
-    + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.16em; color:var(--accent); margin-bottom:var(--sp-3)">02 · STAKE PER COPY</div>'
+    + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--accent); margin-bottom:var(--sp-3)">02 · STAKE PER COPY</div>'
     + '<div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--sp-3)">'
     + Object.keys(SIZING).map((k) =>
       '<div ' + T.act(bt(T, { btSizing: k })) + ' style="font-size:var(--t-small); text-align:center; border-radius:var(--r-control); padding:var(--sp-3); cursor:pointer; ' + (s.btSizing === k ? 'color:var(--on-accent); background:var(--accent); font-weight:600' : 'color:var(--ink-3); border:1px solid var(--line-1)') + '">' + SIZING[k] + '</div>'
@@ -352,7 +352,7 @@ export function renderBacktester(T) {
     + '<div ' + T.act(bt(T, stakeDown)) + ' class="hv-edge-max hv-white" style="width:32px; height:34px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-lead); color:var(--ink-2); cursor:pointer">−</div>'
     + '<div style="flex:1; background:var(--panel); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-body); text-align:center">' + esc(stakeValue) + '</div>'
     + '<div ' + T.act(bt(T, stakeUp)) + ' class="hv-edge-max hv-white" style="width:32px; height:34px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-lead); color:var(--ink-2); cursor:pointer">+</div></div>'
-    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.5">' + stakeHint + '</div></div>'
+    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-snug)">' + stakeHint + '</div></div>'
     // Auto-Fit: die Engine misst die Hoechstzahl gleichzeitig offener
     // Quell-Positionen und passt den Einsatz je Copy so an, dass Bankroll
     // und Exposure-Deckel dem Tempo der Wallet folgen koennen. Nur bei
@@ -363,7 +363,7 @@ export function renderBacktester(T) {
         + T.opt('Auto-fit on', !!s.btAutoFit, bt(T, { btAutoFit: true }))
         + T.opt('Manual stake', !s.btAutoFit, bt(T, { btAutoFit: false }))
         + '</div>'
-        + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.5">'
+        + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-snug)">'
         + (s.btAutoFit
           ? 'The engine measures the wallet\'s pace and adapts by itself: if the whole flow does not fit the bankroll at your stake, it follows only the wallet\'s largest entries (smaller ones are marked "filtered", not failed); when no threshold separates them, it shrinks the stake instead. What was applied is named in the result.'
           : 'The stake above is used as set. If the wallet\'s pace outruns it, the result names the skipped share and what auto-fit would do.')
@@ -377,18 +377,18 @@ export function renderBacktester(T) {
     + stepRow('CAP PER TRADE', '$' + s.btCap, { btCap: Math.max(10, s.btCap - 50) }, { btCap: s.btCap + 50 })
     + stepRow('MAX BANKROLL IN OPEN COPIES', s.btExposure + '%', { btExposure: Math.max(5, s.btExposure - 5) }, { btExposure: Math.min(100, s.btExposure + 5) })
     + '</div>'
-    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.5">New copies are skipped while open copies already tie up that share of the bankroll. Sells free the room up again.</div></div>'
+    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-snug)">New copies are skipped while open copies already tie up that share of the bankroll. Sells free the room up again.</div></div>'
 
-    + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.16em; color:var(--accent); margin-bottom:var(--sp-3)">03 · TIME WINDOW</div>'
+    + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--accent); margin-bottom:var(--sp-3)">03 · TIME WINDOW</div>'
     + '<div style="display:flex; gap:var(--sp-3)">'
     + [T.tab('7d', s.btWindow === 7, bt(T, { btWindow: 7 })), T.tab('30d', s.btWindow === 30, bt(T, { btWindow: 30 })), T.tab('90d', s.btWindow === 90, bt(T, { btWindow: 90 }))].join('')
     + '</div></div>'
 
-    + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.16em; color:var(--accent); margin-bottom:var(--sp-3)">04 · STRATEGY</div>'
+    + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--accent); margin-bottom:var(--sp-3)">04 · STRATEGY</div>'
     + '<div style="display:flex; gap:var(--sp-3)">'
     + [T.tab('Copy', s.btStrategy === 'copy', bt(T, { btStrategy: 'copy' })), T.tab('Fade', s.btStrategy === 'fade', bt(T, { btStrategy: 'fade' }))].join('')
     + '</div>'
-    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.5">' + (s.btStrategy === 'copy' ? 'Mirror every trade the wallet makes, at the same price.' : 'Fade takes the opposite side of every trade the wallet makes.') + '</div></div>'
+    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-snug)">' + (s.btStrategy === 'copy' ? 'Mirror every trade the wallet makes, at the same price.' : 'Fade takes the opposite side of every trade the wallet makes.') + '</div></div>'
 
     + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); overflow:hidden">'
     + '<div ' + T.act(() => T.setState({ advancedOpen: !s.advancedOpen })) + ' class="hv-el" style="display:flex; align-items:center; justify-content:space-between; padding:var(--sp-4) var(--sp-5); background:var(--panel); cursor:pointer">'
@@ -412,18 +412,18 @@ export function renderBacktester(T) {
       + (s.btFeeModel === 'flat'
         ? '<div style="display:flex; flex-direction:column; gap:var(--sp-3)">'
           + stepRow('FLAT FEE (BPS)', s.btFee + ' bps', { btFee: Math.max(0, s.btFee - 5) }, { btFee: s.btFee + 5 })
-          + '<div style="font-size:var(--t-micro); color:var(--warn); line-height:1.5">'
+          + '<div style="font-size:var(--t-micro); color:var(--warn); line-height:var(--lh-snug)">'
           + 'A flat rate cannot match the venue: Polymarket charges about 250 bps at a price of 0.50 '
           + 'and about 50 bps at 0.90. Anything near 20 bps understates the real cost by a wide margin.'
           + '</div></div>'
-        : '<div style="font-size:var(--t-small); color:var(--ink-3); line-height:1.5">'
+        : '<div style="font-size:var(--t-small); color:var(--ink-3); line-height:var(--lh-snug)">'
           + 'Polymarket charges the taker fee on the variance of the price, so it peaks in the middle '
           + 'of the book: about 250 bps at 0.50 and about 50 bps at 0.90, at the general category rate. '
           + 'The model lives in app/venue_fees.py and the general rate applies, because a wallet history '
           + 'carries no category.'
           + '</div>')
       + '<div><div style="' + LABEL_BLOCK + '">BENCHMARK</div>'
-      + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:1.5">The dashed line in the results is the same trades at a constant 2% of the starting bankroll per copy. The compare-wallet field was removed: the server never read it, and the table it fed derived the other wallet from ours by fixed multipliers.</div></div>'
+      + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-snug)">The dashed line in the results is the same trades at a constant 2% of the starting bankroll per copy. The compare-wallet field was removed: the server never read it, and the table it fed derived the other wallet from ours by fixed multipliers.</div></div>'
       + '</div>' : '')
     + '</div>'
 
@@ -457,7 +457,7 @@ export function renderBacktester(T) {
     // Exposure-Deckel, 30 Prozent Kasse leer, 10 Prozent fremde Verkaeufe —
     // drei feste Anteile, die die Engine nie gemeldet hat. Der Grund je Zeile
     // steht im Trade log; hier nur die gemessene Summe.
-    + (skippedN > copied ? '<div style="border:1px solid rgba(var(--warn-rgb),.3); background:rgba(var(--warn-rgb),.07); border-radius:var(--r-panel); padding:var(--sp-4) var(--sp-5); margin-top:var(--sp-4); font-size:var(--t-small); color:var(--warn); line-height:1.5">More skipped than copied: ' + num(skippedN) + ' of the wallet\'s trades were not mirrored'
+    + (skippedN > copied ? '<div style="border:1px solid rgba(var(--warn-rgb),.3); background:rgba(var(--warn-rgb),.07); border-radius:var(--r-panel); padding:var(--sp-4) var(--sp-5); margin-top:var(--sp-4); font-size:var(--t-small); color:var(--warn); line-height:var(--lh-snug)">More skipped than copied: ' + num(skippedN) + ' of the wallet\'s trades were not mirrored'
       + (reasonText ? ' — ' + reasonText : '')
       + '.'
       + (bankrollBound > skippedN / 2
@@ -477,7 +477,7 @@ export function renderBacktester(T) {
 
     // Gefilterte Trades sind eine bewusste Auswahl, kein Versagen — eine
     // neutrale Zeile statt einer Warnung.
-    + (filteredN > 0 ? '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-4) var(--sp-5); margin-top:var(--sp-4); font-size:var(--t-small); color:var(--ink-3); line-height:1.5">'
+    + (filteredN > 0 ? '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-4) var(--sp-5); margin-top:var(--sp-4); font-size:var(--t-small); color:var(--ink-3); line-height:var(--lh-snug)">'
       + num(filteredN) + ' of the wallet\'s trades were deliberately not followed ("filtered" in the trade log): '
       + (autoFit && autoFit.applied && autoFit.mode === 'threshold'
         ? 'entries below the $' + num(Math.round(+autoFit.follow_threshold)) + ' threshold auto-fit chose so the followed flow fits the bankroll, plus sells of positions that were never followed.'
@@ -487,13 +487,13 @@ export function renderBacktester(T) {
     // Auto-Fit liest das ganze Fenster, bevor der erste Trade kopiert wird.
     // Das gehoert neben das Ergebnis, nicht in eine Fussnote.
     + (autoFit && autoFit.hindsight && autoFit.note
-      ? '<div style="border:1px solid rgba(var(--warn-rgb),.3); background:rgba(var(--warn-rgb),.07); border-radius:var(--r-panel); padding:var(--sp-4) var(--sp-5); margin-top:var(--sp-4); font-size:var(--t-small); color:var(--warn); line-height:1.5">'
+      ? '<div style="border:1px solid rgba(var(--warn-rgb),.3); background:rgba(var(--warn-rgb),.07); border-radius:var(--r-panel); padding:var(--sp-4) var(--sp-5); margin-top:var(--sp-4); font-size:var(--t-small); color:var(--warn); line-height:var(--lh-snug)">'
         + esc(autoFit.note) + '</div>'
       : '')
 
     + '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); padding:var(--sp-5)">'
     + '<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:var(--sp-4); flex-wrap:wrap; gap:var(--sp-4)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-4)">EQUITY CURVE</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4)">EQUITY CURVE</div>'
     + '<div style="display:flex; gap:var(--sp-5); ' + M + '; font-size:var(--t-micro); flex-wrap:wrap">'
     + '<span style="display:flex; align-items:center; gap:var(--sp-3)"><span style="width:14px; height:2px; background:var(--accent); display:inline-block"></span>' + esc(shortWallet) + '</span>'
     + '<span style="display:flex; align-items:center; gap:var(--sp-3); color:var(--ink-4)"><span style="width:14px; height:2px; background:var(--muted); display:inline-block"></span>Flat-bet benchmark</span>'
@@ -524,11 +524,11 @@ export function renderBacktester(T) {
       '<div style="padding:var(--sp-5)">'
       + caveatZeile('backtest_modeled', {
         vorsatz: 'Replays the same window once per sizing rule, with identical fees, slippage, cap and exposure limit. Only the stake rule changes. The rule that ends with the most equity is drawn into the chart above as the dotted amber line; leading in this window is a fact about this window.',
-        stil: 'font-size:var(--t-small); color:var(--ink-4); line-height:1.5'
+        stil: 'font-size:var(--t-small); color:var(--ink-4); line-height:var(--lh-snug)'
       })
       + '<div style="font-size:var(--t-body); margin-top:var(--sp-4)">Highest final equity in this window: <strong style="color:var(--warn)">' + esc(bestVariant.name) + '</strong> → $' + bestVariant.eq.toFixed(0) + ' final equity (' + (bestVariant.roi >= 0 ? '+' : '') + bestVariant.roi.toFixed(1) + '% ROI)</div>'
       + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:1fr 110px 96px 96px 96px 88px 88px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">'
+      + '<div style="display:grid; grid-template-columns:1fr 110px 96px 96px 96px 88px 88px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
       + '<div>SIZING RULE</div><div style="text-align:right">FINAL EQUITY</div><div style="text-align:right">ROI</div><div style="text-align:right">MAX DD</div><div style="text-align:right">WIN RATE</div><div style="text-align:right">COPIED</div><div style="text-align:right">SKIPPED</div></div>'
       + simVariants.map((v, i) =>
         '<div style="display:grid; grid-template-columns:1fr 110px 96px 96px 96px 88px 88px; gap:var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3); background:' + (i === 0 ? 'rgba(var(--warn-rgb),.07)' : 'transparent') + '">'
@@ -553,13 +553,13 @@ export function renderBacktester(T) {
 function ohnePapierDatenHtml(titel, kicker, grund) {
   return '<div>'
     + '<div style="padding:var(--sp-6) var(--sp-6) var(--sp-5); border-bottom:1px solid var(--line-2)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.18em; color:var(--accent)">' + kicker + '</div>'
-    + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:-0.01em">' + titel + '</h1></div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-max); color:var(--accent)">' + kicker + '</div>'
+    + '<h1 style="font-size:var(--t-head); line-height:var(--lh-tight); margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:var(--ls-flat)">' + titel + '</h1></div>'
     + '<div style="padding:var(--sp-6)">'
     + '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-6); max-width:760px">'
     + '<div style="font-size:var(--t-lead); font-weight:600">Nothing to show</div>'
-    + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-4); line-height:1.65">' + grund + '</div>'
-    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-4); line-height:1.6">'
+    + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-4); line-height:var(--lh-prose)">' + grund + '</div>'
+    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-4); line-height:var(--lh-prose)">'
     + 'This page used to fill itself with fixtures when the backend was silent, including a cash '
     + 'balance, a profit figure and a real wallet address as the source. None of that was measured.'
     + '</div></div></div></div>';
@@ -607,7 +607,7 @@ export function renderPortfolio(T) {
       + [['all','Everything'],['losers','Losing only']].map((o) => T.opt(o[1], (s.portLosers ? 'losers' : 'all') === o[0], { portLosers: o[0] === 'losers' })).join('') + '</div></div>'
       + '</div>'
       + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin:var(--sp-5) var(--sp-6); overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:1fr 76px 92px 92px 100px 100px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">'
+      + '<div style="display:grid; grid-template-columns:1fr 76px 92px 92px 100px 100px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
       + '<div>MARKET</div><div style="text-align:right">SIDE</div><div style="text-align:right">ENTRY</div><div style="text-align:right">NOW</div><div style="text-align:right">PROFIT</div><div style="text-align:right">SOURCE</div></div>'
       + (rows.length ? '' : leerZeile(baseRows.length ? 'No position matches these filters.' : 'No open positions in the paper book reported by /api/copy.'))
       + rows.map((r) =>
@@ -622,12 +622,12 @@ export function renderPortfolio(T) {
   } else if (s.portTab === 'copy') {
     body = '<div style="padding:var(--sp-5) var(--sp-6)">'
       + '<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:var(--sp-4)">'
-      + '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-5)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3)">COPY EQUITY</div><div style="' + M + '; font-size:var(--t-head); margin-top:var(--sp-3)">$' + num((+kp.equity).toFixed(2)) + '</div></div>'
-      + '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-5)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3)">RESEARCH CASH</div><div style="' + M + '; font-size:var(--t-head); margin-top:var(--sp-3)">$' + (+kp.cash).toFixed(2) + '</div></div>'
-      + '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-5)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-3)">EVERYTHING TOGETHER</div><div style="' + M + '; font-size:var(--t-head); margin-top:var(--sp-3); color:var(--accent)">$' + num(((+kp.equity) + (+kp.cash)).toFixed(2)) + '</div></div>'
+      + '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-5)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">COPY EQUITY</div><div style="' + M + '; font-size:var(--t-head); margin-top:var(--sp-3)">$' + num((+kp.equity).toFixed(2)) + '</div></div>'
+      + '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-5)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">RESEARCH CASH</div><div style="' + M + '; font-size:var(--t-head); margin-top:var(--sp-3)">$' + (+kp.cash).toFixed(2) + '</div></div>'
+      + '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-5)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">EVERYTHING TOGETHER</div><div style="' + M + '; font-size:var(--t-head); margin-top:var(--sp-3); color:var(--accent)">$' + num(((+kp.equity) + (+kp.cash)).toFixed(2)) + '</div></div>'
       + '</div>'
       + '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-5); margin-top:var(--sp-5)">'
-      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-4); margin-bottom:var(--sp-4)">COMBINED EQUITY</div>'
+      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4); margin-bottom:var(--sp-4)">COMBINED EQUITY</div>'
       + '<svg width="100%" height="220" viewBox="0 0 900 220" preserveAspectRatio="none" role="img" aria-label="Combined equity">'
       + '<line x1="0" y1="20" x2="900" y2="20" style="stroke:rgba(var(--ink),.07)" />'
       + '<line x1="0" y1="90" x2="900" y2="90" style="stroke:rgba(var(--ink),.07)" />'
@@ -665,7 +665,7 @@ export function renderPortfolio(T) {
     }
     const keinBuch = 'No open positions in the paper book reported by /api/copy — nothing to break down.';
     body = '<div style="padding:var(--sp-5) var(--sp-6); display:grid; grid-template-columns:1fr 1fr; gap:var(--sp-6)">'
-      + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-4); margin-bottom:var(--sp-5)">BY CATEGORY</div>'
+      + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4); margin-bottom:var(--sp-5)">BY CATEGORY</div>'
       + '<div style="display:flex; flex-direction:column; gap:var(--sp-5)">'
       + (alloc.length ? '' : leerZeile(keinBuch))
       + alloc.map((a) =>
@@ -673,7 +673,7 @@ export function renderPortfolio(T) {
         + '<div style="height:8px; background:rgba(var(--ink),.07); border-radius:2px"><div style="width:' + a.pct + '%; height:8px; background:' + a.color + '; border-radius:2px"></div></div></div>'
       ).join('')
       + '</div></div>'
-      + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-4); margin-bottom:var(--sp-5)">CONCENTRATION</div>'
+      + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4); margin-bottom:var(--sp-5)">CONCENTRATION</div>'
       + '<div style="display:flex; flex-direction:column; gap:var(--sp-4)">'
       + (conc
         ? '<div style="display:flex; justify-content:space-between; font-size:var(--t-body)"><span style="color:var(--ink-2)">Biggest single position</span><span style="' + M + '">' + conc.biggest + '</span></div>'
@@ -686,7 +686,7 @@ export function renderPortfolio(T) {
   } else if (s.portTab === 'history') {
     const histRows = liveHistRows || [];
     body = '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin:var(--sp-5) var(--sp-6); overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:110px 1fr 78px 92px 92px 100px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">'
+      + '<div style="display:grid; grid-template-columns:110px 1fr 78px 92px 92px 100px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
       + '<div>DATE</div><div>MARKET</div><div style="text-align:right">SIDE</div><div style="text-align:right">ENTRY</div><div style="text-align:right">EXIT</div><div style="text-align:right">RESULT</div></div>'
       + (histRows.length ? '' : leerZeile('No settled paper trades reported by /api/copy yet.'))
       + histRows.map((r) =>
@@ -713,18 +713,18 @@ export function renderPortfolio(T) {
 
   return '<div>'
     + '<div style="padding:var(--sp-6) var(--sp-6) var(--sp-5); border-bottom:1px solid var(--line-2)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.18em; color:var(--accent)">PORTFOLIO · PAPER</div>'
-    + '<h1 style="font-size:var(--t-head); line-height:1.25; margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:-0.01em">What you would be holding</h1></div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-max); color:var(--accent)">PORTFOLIO · PAPER</div>'
+    + '<h1 style="font-size:var(--t-head); line-height:var(--lh-tight); margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:var(--ls-flat)">What you would be holding</h1></div>'
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid var(--line-2)">'
-    + '<div style="padding:var(--sp-5) var(--sp-6); border-right:1px solid var(--line-2)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3)">VALUE NOW</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3)">$' + num((+kp.equity).toFixed(2)) + '</div></div>'
+    + '<div style="padding:var(--sp-5) var(--sp-6); border-right:1px solid var(--line-2)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">VALUE NOW</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3)">$' + num((+kp.equity).toFixed(2)) + '</div></div>'
     // Keine Rueckfallwerte in der Kennzahlenzeile: hier standen 14 offene
     // Positionen, +$28.60 unrealisiert und $312.40 freie Kasse, sobald das
     // Feld in der Antwort fehlte. Ein fehlendes Feld ist jetzt ein Strich.
     // Und das Vorzeichen des Unrealisierten kommt aus der Zahl, nicht aus dem
     // Template — vorher stand "+$" fest davor, in Gruen, auch bei Verlust.
-    + '<div style="padding:var(--sp-5) var(--sp-6); border-right:1px solid var(--line-2)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3)">OPEN POSITIONS</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3)">' + (kp.open_positions != null ? num(kp.open_positions) : '—') + '</div></div>'
-    + '<div style="padding:var(--sp-5) var(--sp-6); border-right:1px solid var(--line-2)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3)">UNREALISED</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3); color:' + (kp.unrealized == null ? 'var(--ink-3)' : +kp.unrealized >= 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (kp.unrealized != null ? (+kp.unrealized >= 0 ? '+' : '-') + '$' + Math.abs(+kp.unrealized).toFixed(2) : '—') + '</div></div>'
-    + '<div style="padding:var(--sp-5) var(--sp-6)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:.14em; color:var(--ink-3)">CASH FREE</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3)">' + (kp.cash != null ? '$' + (+kp.cash).toFixed(2) : '—') + '</div></div>'
+    + '<div style="padding:var(--sp-5) var(--sp-6); border-right:1px solid var(--line-2)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">OPEN POSITIONS</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3)">' + (kp.open_positions != null ? num(kp.open_positions) : '—') + '</div></div>'
+    + '<div style="padding:var(--sp-5) var(--sp-6); border-right:1px solid var(--line-2)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">UNREALISED</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3); color:' + (kp.unrealized == null ? 'var(--ink-3)' : +kp.unrealized >= 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (kp.unrealized != null ? (+kp.unrealized >= 0 ? '+' : '-') + '$' + Math.abs(+kp.unrealized).toFixed(2) : '—') + '</div></div>'
+    + '<div style="padding:var(--sp-5) var(--sp-6)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">CASH FREE</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3)">' + (kp.cash != null ? '$' + (+kp.cash).toFixed(2) : '—') + '</div></div>'
     + '</div>'
     + '<div style="display:flex; gap:var(--sp-3); padding:var(--sp-5) var(--sp-6) 0; flex-wrap:wrap">' + portTabs + '</div>'
     + body

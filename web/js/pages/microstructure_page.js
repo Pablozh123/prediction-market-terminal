@@ -29,7 +29,7 @@ const DEUTUNG_FARBE = { lesart: 'var(--accent)', gegenlesart: 'var(--info)', gre
 function abschnitt(titel, inhalt, zusatz) {
   if (!inhalt) return '';
   return '<div style="' + HR + '">'
-    + '<h4 style="' + M + '; font-size:var(--t-micro); letter-spacing:.15em; color:var(--info); margin:0 0 var(--sp-4); font-weight:400">'
+    + '<h4 style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--info); margin:0 0 var(--sp-4); font-weight:400">'
     + esc(titel) + (zusatz ? ' <span style="color:var(--ink-4)">' + esc(zusatz) + '</span>' : '')
     + '</h4>' + inhalt + '</div>';
 }
@@ -43,9 +43,9 @@ function analyseBlock(analyse) {
     + 'background:rgba(var(--ink),.07); border:1px solid var(--line-3); border-radius:var(--r-panel); overflow:hidden">'
     + analyse.map((a) =>
       '<div style="background:var(--panel); padding:var(--sp-5)">'
-      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3)">'
+      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
       + esc(a.titel) + '</div>'
-      + '<div style="font-size:var(--t-small); color:var(--ink-1); margin-top:var(--sp-3); line-height:1.6">'
+      + '<div style="font-size:var(--t-small); color:var(--ink-1); margin-top:var(--sp-3); line-height:var(--lh-prose)">'
       + esc(a.text) + '</div></div>'
     ).join('')
     + '</div>';
@@ -59,9 +59,9 @@ function deutungBlock(interpretation) {
     // 'var(--accent)66' is not a colour — the shorthand was dropped and this
     // verdict bar was never drawn at all.
     return '<div style="border-left:2px solid color-mix(in srgb, ' + farbe + ' 40%, transparent); padding:var(--sp-1) 0 var(--sp-1) var(--sp-5); margin-bottom:var(--sp-5)">'
-      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:' + farbe + '">'
+      + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:' + farbe + '">'
       + esc(i.titel) + '</div>'
-      + '<div style="font-size:var(--t-body); color:var(--ink-2); margin-top:var(--sp-3); line-height:1.65; max-width:720px">'
+      + '<div style="font-size:var(--t-body); color:var(--ink-2); margin-top:var(--sp-3); line-height:var(--lh-prose); max-width:720px">'
       + esc(i.text) + '</div></div>';
   }).join('');
 }
@@ -72,7 +72,7 @@ function zahlenBlock(zahlen) {
     + zahlen.map((z) =>
       '<div style="display:grid; grid-template-columns:1fr auto; gap:var(--sp-5); align-items:baseline; padding:var(--sp-3) var(--sp-5); border-bottom:1px solid var(--line-3)">'
       + '<div><div style="font-size:var(--t-small); color:var(--ink-1)">' + esc(z.label) + '</div>'
-      + (z.hinweis ? '<div style="font-size:var(--t-micro); ' + MUTED + '; margin-top:var(--sp-2); line-height:1.45">' + esc(z.hinweis) + '</div>' : '')
+      + (z.hinweis ? '<div style="font-size:var(--t-micro); ' + MUTED + '; margin-top:var(--sp-2); line-height:var(--lh-snug)">' + esc(z.hinweis) + '</div>' : '')
       + '</div>'
       + '<div style="' + M + '; font-size:var(--t-body); color:var(--text); white-space:nowrap">' + esc(fmtZahl(z.wert))
       + (z.einheit ? ' <span style="font-size:var(--t-micro); color:var(--ink-3)">' + esc(z.einheit) + '</span>' : '')
@@ -85,7 +85,7 @@ function zahlenBlock(zahlen) {
 function detailBlock(details, id) {
   if (!details || !details.zeilen || !details.zeilen.length) return '';
   const kopf = details.spalten.map((c, i) =>
-    '<th style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; color:var(--ink-3); '
+    '<th style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); color:var(--ink-3); '
     + 'text-align:' + (i === 0 ? 'left' : 'right') + '; padding:var(--sp-3) var(--sp-4); white-space:nowrap; '
     + 'border-bottom:1px solid var(--line-2)">' + esc(c) + '</th>').join('');
   const koerper = details.zeilen.map((zeile) =>
@@ -101,13 +101,13 @@ function detailBlock(details, id) {
   // Tueren auf einer Seite — und eine zugeklappte Tuer kostet trotzdem eine
   // Zeile Chrom, ein Label und eine Entscheidung.
   return '<div style="margin-top:var(--sp-5)">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:var(--ink-4)">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4)">'
     + esc(details.titel) + ' · ' + details.zeilen.length + ' rows</div>'
     + '<div style="overflow-x:auto; border:1px solid var(--line-3); border-radius:var(--r-control); margin-top:var(--sp-3)">'
     + '<table style="width:100%; border-collapse:collapse"><thead><tr>' + kopf + '</tr></thead>'
     + '<tbody>' + koerper + '</tbody></table></div>'
     + (details.hinweis
-      ? '<div style="font-size:var(--t-small); ' + MUTED + '; padding:var(--sp-3) var(--sp-1) 0; line-height:1.55">' + esc(details.hinweis) + '</div>'
+      ? '<div style="font-size:var(--t-small); ' + MUTED + '; padding:var(--sp-3) var(--sp-1) 0; line-height:var(--lh-prose)">' + esc(details.hinweis) + '</div>'
       : '')
     + '</div>';
 }
@@ -145,7 +145,7 @@ function methodeBlock(s) {
   const roh = s.details && s.details.zeilen && s.details.zeilen.length ? detailBlock(s.details, s.id) : '';
   const inhalt = abschnitt('WHAT WAS ANALYSED', analyseBlock(s.analyse))
     + abschnitt('WHAT THE NUMBERS SAY',
-      '<div style="font-size:var(--t-body); color:var(--ink-2); line-height:1.7; max-width:760px">'
+      '<div style="font-size:var(--t-body); color:var(--ink-2); line-height:var(--lh-prose); max-width:760px">'
       + esc(s.einfach) + '</div>')
     + abschnitt('HOW TO READ IT', deutungBlock(s.interpretation))
     + roh;
@@ -154,7 +154,7 @@ function methodeBlock(s) {
   // zwoelf Karten tragen denselben Summary-Text, also braucht jede ihre ID.
   // Ein Feld je Studie, nicht zwei: die Rohzeilen sitzen darin ganz unten.
   return '<details data-key="method:' + esc(String(s.id || '')) + '" style="' + KARTE + '; margin-top:var(--sp-5); overflow:hidden">'
-    + '<summary style="' + M + '; font-size:var(--t-micro); letter-spacing:.1em; color:var(--ink-3); '
+    + '<summary style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); color:var(--ink-3); '
     + 'padding:var(--sp-4) var(--sp-5); cursor:pointer; list-style:none">▸ METHOD, HOW TO READ IT'
     + (roh ? ' &amp; THE RAW ROWS' : '')
     + ' <span style="color:var(--ink-4)">· what was analysed, what else fits the numbers'
@@ -230,14 +230,14 @@ function studieKarte(s, i) {
   return '<div id="' + esc(studieAnker(s, i)) + '" style="' + KARTE + '; padding:var(--sp-6); margin-bottom:var(--sp-5); scroll-margin-top:16px">'
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:var(--sp-5); flex-wrap:wrap">'
     + '<div style="flex:1; min-width:260px">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.16em; color:var(--ink-4)">STUDY '
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4)">STUDY '
     + String(i + 1).padStart(2, '0') + '</div>'
-    + '<h3 style="font-size:var(--t-head); font-weight:600; margin-top:var(--sp-3); line-height:1.35">' + esc(s.frage) + '</h3>'
+    + '<h3 style="font-size:var(--t-head); font-weight:600; margin-top:var(--sp-3); line-height:var(--lh-tight)">' + esc(s.frage) + '</h3>'
     + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.13em; color:' + farbe
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:' + farbe
     + '; border:1px solid color-mix(in srgb, ' + farbe + ' 33%, transparent); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); white-space:nowrap">' + marke + '</div>'
     + '</div>'
-    + '<div style="font-size:var(--t-lead); color:' + farbe + '; margin-top:var(--sp-4); line-height:1.5; font-weight:500; max-width:760px">'
+    + '<div style="font-size:var(--t-lead); color:' + farbe + '; margin-top:var(--sp-4); line-height:var(--lh-snug); font-weight:500; max-width:760px">'
     + esc(s.verdikt) + '</div>'
 
     // Befund zuerst: Diagramm und Kennzahlen direkt unter dem Verdikt.
@@ -254,14 +254,14 @@ function kopf(payload, study) {
   const kachel = (wert, text, farbe) =>
     '<div style="' + KARTE + '; padding:var(--sp-4) var(--sp-5); min-width:118px">'
     + '<div style="' + M + '; font-size:var(--t-head); color:' + farbe + '">' + esc(String(wert)) + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:.12em; color:var(--ink-3); margin-top:var(--sp-2)">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3); margin-top:var(--sp-2)">'
     + esc(text) + '</div></div>';
 
   return '<div style="padding:var(--sp-1) 0 0">'
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:var(--sp-6); flex-wrap:wrap">'
     + '<div style="max-width:760px">'
     + '<h2 style="font-size:var(--t-head); font-weight:600; margin:0">Order books, recorded by this project</h2>'
-    + '<div style="font-size:var(--t-body); ' + MUTED + '; margin-top:var(--sp-3); line-height:1.6">'
+    + '<div style="font-size:var(--t-body); ' + MUTED + '; margin-top:var(--sp-3); line-height:var(--lh-prose)">'
     + esc(payload.einleitung || '') + '</div></div>'
     + stempelBlock(study, payload) + '</div>'
     // Verdiktzeile aus den Karten gezaehlt und die Sprungliste zu den Ankern.
@@ -275,7 +275,7 @@ function kopf(payload, study) {
     + (z.kontrolle ? kachel(z.kontrolle, 'CONTROL', 'var(--cat-teal)') : '')
     + '</div>'
     + (payload.hinweis
-      ? '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-5); line-height:1.55; max-width:760px; '
+      ? '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-5); line-height:var(--lh-prose); max-width:760px; '
         + 'border-left:2px solid var(--line-1); padding-left:var(--sp-4)">' + esc(payload.hinweis) + '</div>'
       : '')
     + '<div style="height:20px"></div></div>';
@@ -286,7 +286,7 @@ export function renderMicrostructure(payload, study) {
     return '<div style="padding:var(--sp-6)">'
       + '<div style="' + KARTE + '; padding:var(--sp-6); max-width:720px">'
       + '<div style="font-size:var(--t-lead); font-weight:600">No study data published yet</div>'
-      + '<div style="font-size:var(--t-body); ' + MUTED + '; margin-top:var(--sp-3); line-height:1.6">The file '
+      + '<div style="font-size:var(--t-body); ' + MUTED + '; margin-top:var(--sp-3); line-height:var(--lh-prose)">The file '
       + '<span style="' + M + '">public/data/microstructure.json</span> is missing. Build it with '
       + '<span style="' + M + '">python scripts/publish_microstructure.py</span>.</div></div></div>';
   }
