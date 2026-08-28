@@ -1853,6 +1853,16 @@ function renderLiveRuns(T, payload) {
         + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-3)">' + (r.hit != null ? r.hit + '%' : '—') + '</div>'
         + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-3)">' + num(r.bets) + '</div></div>'
       ).join('')
+      // Eine Regel, die nicht gerechnet werden konnte, fehlte hier bisher
+      // wortlos. Die erste Zeile heisst dann weiter "beste Regel", nur eben
+      // die beste von zweien statt von dreien.
+      + ((extras && extras.sims_failed && extras.sims_failed.length)
+        ? extras.sims_failed.map((f) =>
+          '<div style="display:grid; grid-template-columns:1fr 502px; gap:var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3)">'
+          + '<div style="font-size:var(--t-small); color:var(--warn)">' + esc(f.name) + '</div>'
+          + '<div style="text-align:right; ' + M + '; font-size:var(--t-micro); color:var(--warn)">NOT COMPUTED · ' + esc(f.error || 'unknown error') + '</div></div>'
+        ).join('')
+        : '')
       + '</div>'
       + (liveSims && extras.timing_decay && extras.timing_decay.length
         ? '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); overflow:hidden">'

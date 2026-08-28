@@ -1170,6 +1170,16 @@ function rendern(T) {
     ['risk_book_err', 'risk', {}, null, (T) => {
       T.liveData.riskBook[HARNESS_CONDITION] = { herkunft: 'fehler', fehler: 'no answer within 45 s' };
     }],
+    // A wallet whose rows the feed carried but did not price: neither a book
+    // nor a settled loss. The card names the shares instead of reporting the
+    // gap as an empty market.
+    ['risk_book_unpriced', 'risk', { riskOpen: { [HARNESS_CONDITION]: true } }, null, (T) => {
+      const alt = T.liveData.riskBook[HARNESS_CONDITION];
+      T.liveData.riskBook[HARNESS_CONDITION] = { herkunft: 'live', data: { market_key: HARNESS_CONDITION, flagged_side: 'NO buys', wallets: [
+        { wallet: '0xbbb2000000000000000000000000000000000002', short: '0xbbb2…0002', read: true, positions: 1, yes_shares: 0, no_shares: 0, yes_value: 0, no_value: 0, net: 'none', net_shares: 0, settled_shares: 0, settled_positions: 0, unpriced_shares: 12000, unpriced_positions: 1, relation: 'unpriced', text: 'no priced position left in this market (12.0k shares in rows the feed did not price) — the flagged NO buys cannot be related to a book the feed did not price' }
+      ], dropped: 0, note: 'read now' } };
+      return () => { T.liveData.riskBook[HARNESS_CONDITION] = alt; };
+    }],
     ['risk_log_loading', 'risk', { riskView: 'log' }, null, (T) => {
       const alt = T.liveData.riskLog;
       T.liveData.riskLog = null;

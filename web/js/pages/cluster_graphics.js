@@ -188,12 +188,23 @@ export function renderClusterGraphics(live) {
       + '. Nothing is shown rather than a stale or invented network.',
       'var(--warn)');
   }
+  // Der Satz unten ("das ist ein Befund, keine Luecke") gilt nur, solange
+  // die Stichprobe steht. Brach die Seitenschleife des Tapes ab oder ist der
+  // Rechenweg gestuerzt, ist die leere Flaeche genau die Luecke, die der Satz
+  // bestreitet. Beides steht jetzt in der Antwort, also wird es gesagt.
+  const stichprobe = live.cluster_sample || {};
+  if (stichprobe.error) {
+    return hinweisKarte(
+      'The cluster computation did not finish: ' + stichprobe.error
+      + '. This is an empty panel because the step failed, not because no wallets meet.',
+      'var(--warn)');
+  }
   const g = live.graph;
   if (!g || !g.knoten || !g.knoten.length) {
     return hinweisKarte(
       'No co-trading cluster in the current window. That is a result, not a gap: once sports and '
       + 'crypto are excluded, the wallets left in the insider-prone markets do not repeatedly meet '
-      + 'each other.',
+      + 'each other.' + (stichprobe.note ? ' ' + stichprobe.note : ''),
       'var(--ink-2)');
   }
 
@@ -204,6 +215,7 @@ export function renderClusterGraphics(live) {
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-4); line-height:1.6">'
     + 'RULE · ' + esc(g.regel || 'not stated')
     + (g.fenster ? '<br>WINDOW · ' + esc(g.fenster) : '')
+    + (g.stichprobe ? '<br>SAMPLE · ' + esc(g.stichprobe) : '')
     + '<br>SCOPE · insider-prone markets only, sports crypto and weather excluded'
     + (g.stand_utc ? '<br>SNAPSHOT · ' + esc(String(g.stand_utc)) : '')
     + '</div>'

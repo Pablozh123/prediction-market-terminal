@@ -5112,14 +5112,17 @@ def page_markets() -> None:
         if head_cols[2].button("Clear", key="markets_quickview_clear", width="stretch"):
             st.session_state.pop("markets_inspect_market_key", None)
             st.rerun()
-        quick_tape = safe_load("Deep whale tape", load_deep_whale_tape, 1000.0, default=pd.DataFrame())
+        quick_tape = safe_load("Deep whale tape", load_deep_whale_tape, WHALE_TAPE_MIN_CASH, default=pd.DataFrame())
+        quick_note = whale_sample_note(quick_tape)
         market_trades = (
             quick_tape[quick_tape["market_key"].astype(str).eq(requested_key)]
             if quick_tape is not None and not quick_tape.empty and "market_key" in quick_tape
             else pd.DataFrame()
         )
+        if quick_note:
+            st.markdown(f"<div class='field-hint'>{html.escape(quick_note)}</div>", unsafe_allow_html=True)
         if market_trades.empty:
-            draw_empty("No whale-sized prints (≥ $1k) in this market within the recent tape sample.")
+            draw_empty("No prints of that size in this market within the sample above.")
         else:
             known_wallets = market_trades["wallet"].astype(str).str.strip().str.lower()
             known_wallet_count = int(known_wallets[known_wallets.ne("") & known_wallets.ne("nan")].nunique())
@@ -6500,7 +6503,8 @@ def page_traders() -> None:
         "whale_score": st.column_config.ProgressColumn(min_value=0, max_value=100),
         "bot_score": st.column_config.ProgressColumn(min_value=0, max_value=100),
     }
-    leaderboard_tape = safe_load("Deep whale tape", load_deep_whale_tape, 1000.0, default=pd.DataFrame())
+    leaderboard_tape = safe_load("Deep whale tape", load_deep_whale_tape, WHALE_TAPE_MIN_CASH, default=pd.DataFrame())
+    leaderboard_note = whale_sample_note(leaderboard_tape)
     trader_context_map: dict[str, str] = (
         susp.dominant_context_map(leaderboard_tape) if leaderboard_tape is not None and not leaderboard_tape.empty else {}
     )
@@ -6516,14 +6520,25 @@ def page_traders() -> None:
                 default="All",
                 key="traders_context_focus",
                 label_visibility="collapsed",
-                help="Category = dominant context of the trader's recent whale flow. Traders without recent whale prints only appear under All.",
+                help=(
+                    "Category = dominant context of the trader's recent whale flow. Traders without recent "
+                    "whale prints only appear under All. " + leaderboard_note
+                ),
             )
             or "All"
+        )
+        # Die Schwelle und die Tiefe der Stichprobe stehen hier, nicht nur im
+        # Aufruf: welcher Trader ueberhaupt eine Kategorie bekommt, haengt an
+        # beidem, und ein Abbruch der Seitenschleife aendert die Auswahl.
+        st.markdown(
+            f"<div class='field-hint'>{html.escape(leaderboard_note)}</div>",
+            unsafe_allow_html=True,
         )
     if context_choice != "All":
         display = display[display["_context"] == context_choice].reset_index(drop=True)
         st.markdown(
-            "<div class='field-hint'>Filtered by the dominant category of each trader's recent whale flow (sampled tape) — not their full history.</div>",
+            "<div class='field-hint'>Filtered by the dominant category of each trader's recent whale flow, "
+            "not their full history.</div>",
             unsafe_allow_html=True,
         )
     podium = display.head(3)
@@ -12045,6 +12060,13 @@ def _suspicious_select_event(title: str) -> None:
     st.session_state["susp_selected"] = title
 
 
+#: Ab welchem Betrag ein Print als Whale-Print in die Stichprobe des
+#: Co-Trading-Netzes, der Traderliste und der Marktvorschau geht. Stand
+#: dreimal als 1000.0 im Aufruf und in keiner Bildunterschrift; jetzt eine
+#: Konstante, die ``whale_sample_note`` mitliest und ausschreibt.
+WHALE_TAPE_MIN_CASH = 1000.0
+
+
 @st.cache_data(ttl=600, show_spinner=False)
 def load_kalshi_whale_tape(min_cash: float, limit: int = 500) -> pd.DataFrame:
     """Kalshi whale prints (>= min_cash) enriched with market titles, categories and end times.
@@ -12052,12 +12074,18 @@ def load_kalshi_whale_tape(min_cash: float, limit: int = 500) -> pd.DataFrame:
     Kalshi publishes no wallet identities — wallet/trader are blanked so wallet-level
     scoring and clustering skip these rows while event-level signals (size, late flow,
     long odds, one-sided pressure) keep them.
+
+    Faellt Kalshi aus, kommt weiter ein leerer Frame zurueck, aber er traegt
+    den Ausfall in ``attrs``: eine Venue, die nichts gedruckt hat, und eine,
+    die nicht geantwortet hat, sind zwei verschiedene Zustaende.
     """
 
     try:
         tape = md.get_kalshi_trades(limit=int(limit))
-    except md.MarketDataError:
-        return pd.DataFrame()
+    except md.MarketDataError as exc:
+        leer = pd.DataFrame()
+        leer.attrs[md.SAMPLE_ATTR] = {"venues_missing": ["Kalshi"], "error": str(exc)[:300]}
+        return leer
     if tape is None or tape.empty:
         return pd.DataFrame()
     tape = tape[numeric_col(tape, "notional") >= float(min_cash)].copy()
@@ -12071,29 +12099,47 @@ def load_kalshi_whale_tape(min_cash: float, limit: int = 500) -> pd.DataFrame:
 
 @st.cache_data(ttl=600, show_spinner=False)
 def load_deep_whale_tape(min_cash: float, pages: int = 4, page_size: int = 500) -> pd.DataFrame:
-    """Paginated whale tape (trades >= min_cash) for the co-trading network — deeper than one page."""
+    """Paginated whale tape (trades >= min_cash) for the co-trading network — deeper than one page.
 
-    frames: list[pd.DataFrame] = []
-    for page in range(int(pages)):
-        try:
-            chunk = md.get_polymarket_trades(limit=page_size, min_cash=min_cash, offset=page * page_size)
-        except md.MarketDataError:
-            break
-        if chunk is None or chunk.empty:
-            break
-        frames.append(chunk)
-        if len(chunk) < page_size:
-            break
+    Die Seitenschleife liegt in ``md.paged_polymarket_trades``, damit sie
+    ohne Streamlit geprueft werden kann und damit ihr Abbruch einen Vermerk
+    hinterlaesst statt nur eine kuerzere Tabelle. Der Vermerk reist am Frame
+    mit und wird von ``whale_sample_note`` in die Bildunterschrift gehoben.
+    """
+
+    tape = md.paged_polymarket_trades(min_cash, pages=pages, page_size=page_size)
+    record = dict(md.sample_coverage(tape))
+    frames = [tape] if tape is not None and not tape.empty else []
     kalshi = load_kalshi_whale_tape(min_cash)
+    record["venues_missing"] = list(md.sample_coverage(kalshi).get("venues_missing") or [])
     if kalshi is not None and not kalshi.empty:
         frames.append(kalshi)
     if not frames:
-        return pd.DataFrame()
+        leer = pd.DataFrame()
+        leer.attrs[md.SAMPLE_ATTR] = record
+        return leer
     tape = pd.concat(frames, ignore_index=True, sort=False)
     dedup_cols = [col for col in ("transaction_hash", "asset", "side", "size", "wallet") if col in tape.columns]
     if dedup_cols:
         tape = tape.drop_duplicates(subset=dedup_cols, keep="first")
-    return tape.reset_index(drop=True)
+    tape = tape.reset_index(drop=True)
+    record["rows"] = int(len(tape))
+    tape.attrs[md.SAMPLE_ATTR] = record
+    return tape
+
+
+def whale_sample_note(tape: Any, min_cash: float = WHALE_TAPE_MIN_CASH) -> str:
+    """Der Satz unter jeder Zahl, die aus dem Whale-Tape stammt.
+
+    Er nennt die Abrufschwelle, die Tiefe der Stichprobe und einen Abbruch,
+    falls es einen gab. Faellt der Vermerk unterwegs weg (der Cache gibt
+    eine Kopie zurueck), bleibt wenigstens die Schwelle stehen, denn sie ist
+    ein Argument und kein Messergebnis.
+    """
+
+    record = md.sample_coverage(tape) or {"min_cash": float(min_cash)}
+    record.setdefault("min_cash", float(min_cash))
+    return md.sample_note(record)
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -12176,9 +12222,18 @@ def page_suspicious() -> None:
     market_categories = (
         pd.concat(frames, ignore_index=True).drop_duplicates(subset=["market_key"], keep="first") if frames else pd.DataFrame()
     )
-    network_tape = safe_load("Deep whale tape", load_deep_whale_tape, 1000.0, default=pd.DataFrame())
+    network_tape = safe_load("Deep whale tape", load_deep_whale_tape, WHALE_TAPE_MIN_CASH, default=pd.DataFrame())
+    # Die Bildunterschrift des Netzes nannte fest "trades >= $1k". Kam der
+    # tiefe Abruf leer zurueck, rechnete das Netz auf dem Seiten-Tape mit
+    # seinem eigenen, anderen Boden weiter und die Zeile behauptete trotzdem
+    # die 1000. Der Satz kommt jetzt aus dem, was wirklich geladen wurde.
+    network_note = whale_sample_note(network_tape)
     if network_tape is None or network_tape.empty:
         network_tape = trades
+        network_note = (
+            f"Sample: the deep whale tape came back empty, so the network runs on this page's own tape "
+            f"from ${float(tape_floor):,.0f} instead of the usual ${WHALE_TAPE_MIN_CASH:,.0f}."
+        )
     # The network must respect the same exclusions as the rest of the screen:
     # correlated sports betting would otherwise dominate the cluster graph.
     network_tape = susp.filter_insider_prone_trades(network_tape, market_categories)
@@ -12517,6 +12572,11 @@ def page_suspicious() -> None:
     quick_cols[2].button("Track", key="susp_track", width="stretch", on_click=_pick_track, args=(str(selected_wallet).lower(),))
 
     st.markdown("<div class='step-label'>Whale clusters (co-trading network)</div>", unsafe_allow_html=True)
+    # Der Zuschnitt steht vor dem Ergebnis, auch wenn das Ergebnis leer ist:
+    # "keine Cluster" heisst etwas anderes, wenn die Stichprobe halb so tief
+    # ist wie sonst, und genau das war vorher nirgends zu sehen.
+    if network_note:
+        st.markdown(f"<div class='field-hint'>{html.escape(network_note)}</div>", unsafe_allow_html=True)
     if network_nodes.empty:
         draw_empty("No co-trading clusters in the current tape — no wallets hit the same side of multiple markets within minutes of each other.")
         return
@@ -12529,7 +12589,7 @@ def page_suspicious() -> None:
     lift_label = f" · median lift {float(lift_werte.median()):.2f}× the chance rate" if not lift_werte.empty else ""
     wallets_im_tape = int(network_tape["wallet"].astype(str).nunique()) if "wallet" in network_tape else len(network_nodes)
     st.markdown(
-        f"<div class='small-note'>Louvain community detection over the sampled tape (trades ≥ \\$1k, {len(network_tape):,} prints) · "
+        f"<div class='small-note'>Louvain community detection over the sampled tape ({len(network_tape):,} prints) · "
         f"{len(network_nodes):,} of {wallets_im_tape:,} wallets · {network_nodes['cluster_id'].nunique():,} clusters · "
         f"{len(network_edges):,} edges{modularity_label}{lift_label}</div>",
         unsafe_allow_html=True,

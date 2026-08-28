@@ -29,6 +29,8 @@ from typing import Any
 from unittest.mock import patch
 from urllib.parse import urlparse
 
+import requests
+
 WALLETS = [
     "0x1111111111111111111111111111111111111111",
     "0x2222222222222222222222222222222222222222",
@@ -450,6 +452,36 @@ def offline_market_apis():
         yield
 
 
+@contextmanager
+def failing_requests(pfad: str, *, after: int = 0, message: str = "connection reset by peer"):
+    """Ab dem ``after``-ten Treffer auf ``pfad`` scheitert der Request, sonst Fixture.
+
+    Der zweite Ausfall neben dem umbenannten Feld: die Antwort kommt gar
+    nicht. Interessant ist er dort, wo eine Anfrage in mehrere zerlegt wird,
+    also bei den Batch-Nachschlagungen (20 Ids je Request) und bei der
+    Seitenschleife des Whale-Tapes. Faellt dort einer von mehreren Requests
+    aus, ist die Frage nicht, ob etwas fehlt, sondern ob man es sieht:
+    ``continue`` bzw. ``break`` liefern eine kuerzere Liste, die von einer
+    vollstaendigen nicht zu unterscheiden ist.
+
+    ``after=0`` laesst jeden Treffer scheitern, ``after=2`` die ersten zwei
+    durch. ``pfad`` wird gegen das Ende des URL-Pfads geprueft, also
+    ``"/markets"``, ``"/events"``, ``"/trades"``.
+    """
+
+    zaehler = {"n": 0}
+
+    def get(url: str, params: Any = None, **kwargs: Any) -> FixtureResponse:
+        if urlparse(str(url)).path.rstrip("/").endswith(pfad):
+            zaehler["n"] += 1
+            if zaehler["n"] > int(after):
+                raise requests.RequestException(message)
+        return fixture_get(url, params=params, **kwargs)
+
+    with patch("requests.get", side_effect=get), patch("requests.post", side_effect=fixture_post):
+        yield
+
+
 def _mit_umbenanntem_feld(quelle: Any, schluessel: str, alt: str, neu: str):
     """Dieselbe Nutzlast, ein Feldname getauscht."""
 
@@ -464,6 +496,22 @@ def _mit_umbenanntem_feld(quelle: Any, schluessel: str, alt: str, neu: str):
     return umbenannt
 
 
+#: Feeds, die mit einer blanken Liste antworten (Polymarket Data API).
+LISTEN_QUELLEN = {
+    "polymarket_trades": polymarket_trades,
+    "polymarket_activity": polymarket_activity,
+    "polymarket_positions": polymarket_positions,
+    "polymarket_closed_positions": polymarket_closed_positions,
+    "polymarket_leaderboard": polymarket_leaderboard,
+}
+
+#: Feeds, die die Zeilen in einen Umschlag legen: (Quelle, Schluessel).
+UMSCHLAG_QUELLEN = {
+    "kalshi_trades": (kalshi_trades, "trades"),
+    "kalshi_markets": (kalshi_markets, "markets"),
+}
+
+
 @contextmanager
 def renamed_field(venue: str, alt: str, neu: str):
     """Ein umbenanntes Feld in einer Venue-Antwort, sonst dasselbe Marktbild.
@@ -476,16 +524,13 @@ def renamed_field(venue: str, alt: str, neu: str):
     eine Warnung schluckt. Beide Enden sehen von aussen gleich aus: die
     Seite meldet weiter LIVE und zeigt eine Venue weniger.
 
-    ``venue`` ist ``kalshi_trades``, ``kalshi_markets`` oder
-    ``polymarket_trades``.
+    ``venue`` ist einer der Namen in ``LISTEN_QUELLEN`` bzw.
+    ``UMSCHLAG_QUELLEN``: die Polymarket-Feeds antworten mit einer blanken
+    Liste, die Kalshi-Feeds mit einem Umschlag um eine.
     """
 
-    quellen = {
-        "kalshi_trades": (kalshi_trades, "trades"),
-        "kalshi_markets": (kalshi_markets, "markets"),
-    }
-    if venue == "polymarket_trades":
-        original = polymarket_trades
+    if venue in LISTEN_QUELLEN:
+        original = LISTEN_QUELLEN[venue]
 
         def umbenannt_liste() -> list[dict[str, Any]]:
             return [
@@ -493,9 +538,10 @@ def renamed_field(venue: str, alt: str, neu: str):
                 for zeile in original()
             ]
 
-        with patch(f"{__name__}.polymarket_trades", umbenannt_liste):
+        with patch(f"{__name__}.{venue}", umbenannt_liste):
             yield
         return
+    quellen = UMSCHLAG_QUELLEN
     if venue not in quellen:
         raise AssertionError(f"unknown fixture venue: {venue}")
     quelle, schluessel = quellen[venue]
