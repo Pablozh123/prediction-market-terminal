@@ -20,6 +20,41 @@ export function money(n) {
   return '$' + n.toFixed(0);
 }
 
+// Volumen ist nicht auf beiden Venues dasselbe. Polymarket meldet Dollar,
+// Kalshi meldet die Zahl gehandelter Kontrakte: gemessen am 2026-08-28 war
+// volume_fp eines Kalshi-Marktes exakt die Summe der count_fp aller seiner
+// Trades, nicht die Summe aus count_fp mal Preis. Ein Kontrakt zahlt bei
+// Aufloesung einen Dollar und wird zu seinem Preis p gehandelt, also
+// ueberzeichnet die Stueckzahl den Umsatz um 1/p, bei 50 Cent also um das
+// Doppelte. Herleitung in app/venue_units.py.
+export const VOLUME_UNIT_USD = 'usd';
+export const VOLUME_UNIT_CONTRACTS = 'contracts';
+
+const VENUE_VOLUME_UNITS = { polymarket: VOLUME_UNIT_USD, kalshi: VOLUME_UNIT_CONTRACTS };
+
+export function volumeUnit(platform) {
+  return VENUE_VOLUME_UNITS[String(platform == null ? '' : platform).trim().toLowerCase()] || '';
+}
+
+// Stueckzahlen als Stueckzahlen. Nie mit einem Dollarzeichen davor, denn
+// dann behauptet die Zahl einen Betrag, den sie nicht misst.
+export function contracts(n) {
+  if (n == null || !isFinite(n)) return '—';
+  if (n >= 1000000) return (n / 1000000).toFixed(n >= 10000000 ? 1 : 2) + 'm contracts';
+  if (n >= 1000) return (n / 1000).toFixed(n >= 100000 ? 0 : 1) + 'k contracts';
+  return num(Math.round(n)) + ' contracts';
+}
+
+// Eine Volumenzahl in der Einheit, die sie tatsaechlich hat. Eine Venue ohne
+// bekannte Einheit bekommt die nackte Zahl statt einer geratenen.
+export function volume(n, platform) {
+  if (n == null || !isFinite(n)) return '—';
+  const unit = volumeUnit(platform);
+  if (unit === VOLUME_UNIT_USD) return money(n);
+  if (unit === VOLUME_UNIT_CONTRACTS) return contracts(n);
+  return num(Math.round(n));
+}
+
 export function esc(v) {
   return String(v == null ? '' : v)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')

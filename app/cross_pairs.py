@@ -26,6 +26,11 @@ verschiedene Zahlen, und nur die letzte ist eine Aussage ueber Geld:
 
 Ohne beidseitige Quote auf beiden Venues bleiben die letzten beiden ``None``.
 Unbekannt ist nicht null.
+
+Das Volumen der beiden Seiten steht in zwei verschiedenen Einheiten und
+deshalb in zwei verschieden benannten Spalten: ``polymarket_volume_usd`` sind
+Dollar, ``kalshi_volume_contracts`` sind Kontrakte. Eine Summe ueber beide
+gibt es nicht (Beleg und Begruendung in ``app/venue_units.py``).
 """
 
 from __future__ import annotations
@@ -214,8 +219,12 @@ def deep_cross_candidates(
             "polymarket_ask": pm_row["ask"],
             "kalshi_bid": ks_row["bid"],
             "kalshi_ask": ks_row["ask"],
-            "polymarket_volume": pm_row["volume"],
-            "kalshi_volume": ks_row["volume"],
+            # Zwei Spalten, zwei Einheiten, und der Name sagt welche.
+            # Polymarket meldet Dollar, Kalshi Kontrakte (Beleg in
+            # app/venue_units.py). Diese beiden Zahlen duerfen nicht
+            # addiert werden, und genau das stand hier vorher.
+            "polymarket_volume_usd": pm_row["volume"],
+            "kalshi_volume_contracts": ks_row["volume"],
             "polymarket_url": pm_row["url"],
             "kalshi_url": ks_row["url"],
             **basket_edge(pm_row, ks_row),
