@@ -61,12 +61,31 @@ def fetch_market_holders(market_key: str, limit: int = DEFAULT_HOLDERS_PER_TOKEN
 
 
 def fetch_open_summary(wallet: str, limit: int = 500) -> dict[str, Any]:
-    """Count and value of a wallet's open positions now (one Data API read)."""
+    """Count and value of a wallet's open positions now (one Data API read).
+
+    ``/positions`` keeps a position that resolved against the wallet until
+    someone redeems it (price 0, value 0). Those rows are settled, not open;
+    counting them inflates "positions" for exactly the wallets that never
+    clean up. They are reported as ``settled`` instead — the value column
+    already reads 0 for them, so only the count was ever wrong.
+    """
 
     frame = md.get_polymarket_positions(wallet, limit=limit)
     if frame is None or frame.empty:
-        return {"positions": 0, "value": 0.0, "read": True}
-    return {"positions": int(len(frame)), "value": round(float(frame["value"].sum()), 2) if "value" in frame else 0.0, "read": True}
+        return {"positions": 0, "value": 0.0, "settled": 0, "read": True}
+    value = frame["value"] if "value" in frame else None
+    price = frame["current_price"] if "current_price" in frame else None
+    if price is not None and value is not None:
+        tot = (price.fillna(0.0) <= 0) & (value.fillna(0.0) <= 0)
+    else:
+        tot = None
+    offen = frame[~tot] if tot is not None else frame
+    return {
+        "positions": int(len(offen)),
+        "value": round(float(offen["value"].sum()), 2) if "value" in offen else 0.0,
+        "settled": int(tot.sum()) if tot is not None else 0,
+        "read": True,
+    }
 
 
 def tally_overlaps(
@@ -173,6 +192,7 @@ def similar_wallets(
             "markets": entry["markets"],
             "their_positions": summary.get("positions"),
             "their_value": summary.get("value"),
+            "their_settled": summary.get("settled"),
             "summary_read": bool(summary.get("read")),
             "lb_pnl": _num(lb.get("pnl")) if lb and lb.get("pnl") is not None else None,
             "lb_volume": _num(lb.get("volume", lb.get("vol"))) if lb and (lb.get("volume") is not None or lb.get("vol") is not None) else None,

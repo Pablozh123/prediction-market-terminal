@@ -73,19 +73,38 @@ def fetch_market_positions(wallet: str, market_key: str, limit: int = 100) -> li
 
 
 def summarize_book(rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
-    """Shares and value per side of one market, plus the net reading."""
+    """Shares and value per side of one market, plus the net reading.
+
+    A position that resolved against the wallet stays in ``/positions``
+    forever when nobody redeems it: size unchanged, ``curPrice`` 0,
+    ``currentValue`` 0. Counting those shares as a book turns a dead side
+    into a live one — the reference wallet's ten leftover rows would read as
+    "holds 228 NO now" in a market that settled on 2026-07-29. They are
+    reported as ``settled_shares`` and kept out of the sides and the net.
+    Same test as the wallet page uses (price 0 and value 0), so both surfaces
+    call the same rows dead.
+    """
 
     yes_shares = no_shares = yes_value = no_value = 0.0
     yes_avg_num = no_avg_num = 0.0
     other = 0
+    settled_shares = 0.0
+    settled_n = 0
     for row in rows or []:
         side = _outcome_side(row.get("outcome"))
         shares = _num(row.get("size", row.get("shares")))
         if shares <= 0:
             continue
+        cur = _num(row.get("curPrice", row.get("current_price")))
         value = _num(row.get("currentValue", row.get("value")))
         if value <= 0:
-            value = shares * _num(row.get("curPrice", row.get("current_price")))
+            value = shares * cur
+        # Nur wer einen Preis mitbringt, kann an ihm sterben: eine Zeile ohne
+        # Preisfeld ist unbekannt, nicht aufgeloest.
+        if ("curPrice" in row or "current_price" in row) and cur <= 0 and value <= 0:
+            settled_shares += shares
+            settled_n += 1
+            continue
         avg = _num(row.get("avgPrice", row.get("avg_price")))
         if side == "YES":
             yes_shares += shares
@@ -114,6 +133,8 @@ def summarize_book(rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
         "net": net,
         "net_shares": round(abs(yes_shares - no_shares), 2),
         "other_outcomes": other,
+        "settled_shares": round(settled_shares, 2),
+        "settled_positions": settled_n,
     }
 
 
@@ -133,25 +154,30 @@ def relate_flow_to_book(flagged_side: str, book: Mapping[str, Any]) -> dict[str,
     yes_s = _num(book.get("yes_shares"))
     no_s = _num(book.get("no_shares"))
     hold = f"holds {_fmt(yes_s)} YES / {_fmt(no_s)} NO now"
+    # Aufgeloeste, nie eingeloeste Anteile stehen weiter im Feed. Sie sind
+    # kein Buch, aber sie erklaeren, warum hier nichts mehr steht.
+    settled = _num(book.get("settled_shares"))
+    tot = f" ({_fmt(settled)} shares of a settled position left unredeemed)" if settled > 0 else ""
     if not m:
-        return {"relation": "unknown", "text": hold + " — flagged side not readable"}
+        return {"relation": "unknown", "text": hold + tot + " — flagged side not readable"}
     outcome, action = m.group(1), m.group(2)
     buying = action == "BUYS"
     if net == "none":
+        leer = ("no open position left in this market" + tot) if settled > 0 else "no open position left in this market"
         if buying:
-            return {"relation": "new_bet", "text": "no open position left in this market — the flagged " + outcome + " buys are not held (closed, merged or redeemed since), or the book is empty"}
-        return {"relation": "exit", "text": "no open position left — the flagged " + outcome + " sells closed it out"}
+            return {"relation": "new_bet", "text": leer + " — the flagged " + outcome + " buys are not held (closed, merged or redeemed since), or the book is empty"}
+        return {"relation": "exit", "text": leer + " — the flagged " + outcome + " sells closed it out"}
     if net == "balanced":
-        return {"relation": "hedge", "text": hold + " — both sides held in about equal size: a hedge or a merge in progress, not a directional bet"}
+        return {"relation": "hedge", "text": hold + tot + " — both sides held in about equal size: a hedge or a merge in progress, not a directional bet"}
     # net is YES or NO
     if buying:
         if outcome == net:
-            return {"relation": "adds", "text": hold + f" — net {net}; the flagged {outcome} buys add to that side"}
-        return {"relation": "reduces", "text": hold + f" — net {net}; the flagged {outcome} buys work against a {net} book (hedge / closing / merging), not a new {outcome} bet"}
+            return {"relation": "adds", "text": hold + tot + f" — net {net}; the flagged {outcome} buys add to that side"}
+        return {"relation": "reduces", "text": hold + tot + f" — net {net}; the flagged {outcome} buys work against a {net} book (hedge / closing / merging), not a new {outcome} bet"}
     # selling
     if outcome == net:
-        return {"relation": "exit", "text": hold + f" — net {net}; the flagged {outcome} sells reduce that position (taking profit / exiting)"}
-    return {"relation": "reduces", "text": hold + f" — net {net}; selling the smaller {outcome} side leaves the {net} book as it is"}
+        return {"relation": "exit", "text": hold + tot + f" — net {net}; the flagged {outcome} sells reduce that position (taking profit / exiting)"}
+    return {"relation": "reduces", "text": hold + tot + f" — net {net}; selling the smaller {outcome} side leaves the {net} book as it is"}
 
 
 def _fmt(shares: float) -> str:
@@ -204,5 +230,7 @@ def market_books(market_key: str, wallets: Iterable[str], flagged_side: str = ""
         "flagged_side": str(flagged_side or ""),
         "wallets": books,
         "dropped": dropped,
-        "note": "open positions in this market from the public Data API, read now — not at flag time",
+        "note": ("open positions in this market from the public Data API, read now — not at flag time; "
+                 "shares of a position that already settled against the wallet and was never redeemed stay in "
+                 "that feed at price 0 and are reported as settled_shares, not as a book"),
     }

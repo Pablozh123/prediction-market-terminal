@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
+
+import pandas as pd
 
 from app import wallet_similar as ws
 from src import prediction_markets as md
@@ -120,6 +123,21 @@ class SimilarWalletsTests(unittest.TestCase):
                                  holders_fetcher=lambda k, n: _holders((W1, 0, 3, "")), summary_fetcher=summary)
         self.assertFalse(out["rows"][0]["summary_read"])
         self.assertIsNone(out["rows"][0]["their_positions"])
+
+    def test_settled_leftovers_are_not_counted_as_open_positions(self) -> None:
+        # /positions behaelt eine gegen die Wallet aufgeloeste Position, bis
+        # jemand sie einloest: Preis 0, Wert 0. Zehn solcher Zeilen machten
+        # aus einer Wallet ohne offene Position eine mit zehn.
+        frame = pd.DataFrame([
+            {"value": 55.0, "current_price": 0.55},
+            {"value": 0.0, "current_price": 0.0},
+            {"value": 0.0, "current_price": 0.0},
+        ])
+        with patch.object(md, "get_polymarket_positions", return_value=frame):
+            summary = ws.fetch_open_summary("0x" + "c" * 40)
+        self.assertEqual(summary["positions"], 1)
+        self.assertEqual(summary["settled"], 2)
+        self.assertAlmostEqual(summary["value"], 55.0)
 
     def test_no_open_markets_gives_an_empty_honest_answer(self) -> None:
         out = ws.similar_wallets(ME, [], holders_fetcher=lambda k, n: [], summary_fetcher=lambda w: {})
