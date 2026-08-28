@@ -1770,6 +1770,50 @@ class AlertReadingUnitsTests(unittest.TestCase):
         self.assertEqual(werte["TIGHT SPREAD"], "2.0¢")
         self.assertEqual(werte["WHALE PRINT"], "$12,000")
 
+    def test_die_regel_steht_als_eigene_funktion_fuer_beide_oberflaechen(self) -> None:
+        """Die Einheit haengt an der Signalart, nicht an der Oberflaeche.
+
+        Der Streamlit-Monolith zog dieselbe Spalte mit ``%.4f`` ueber alle
+        Arten. Damit standen im Signal-Feed untereinander: ``0.6200`` fuer 62
+        Prozent des groessten Halters, ``0.0350`` fuer 3.5 Cent Bewegung,
+        ``4.7000`` fuer das 4.7-fache Tagesvolumen und ``12500.0000`` fuer
+        12500 Dollar. Vier Groessen, ein Format, keine Einheit. Beide
+        Oberflaechen lesen jetzt diese Funktion.
+        """
+
+        faelle = [
+            (self._signal("Holder concentration", 0.62), "62%"),
+            (self._signal("Fast mover", 0.035), "+3.5¢"),
+            (self._signal("Volume anomaly", 4.7), "4.7x"),
+            (self._signal("Whale print", 12_500.0, notional=12_500.0), "$12,500"),
+            (self._signal("Tight spread", 0.02), "2.0¢"),
+            (self._signal("Ending soon", 0.41), "41.0¢"),
+        ]
+        for zeile, erwartet in faelle:
+            with self.subTest(art=zeile["signal_type"]):
+                self.assertEqual(apv.signal_value_label(zeile), erwartet)
+                # Und der Feed liest dieselbe Funktion, statt seine eigene
+                # Fassung der Regel zu fuehren.
+                self.assertEqual(apv.alert_rows(pd.DataFrame([zeile]))[0]["value"], erwartet)
+
+    def test_die_spalte_kommt_als_reihe_fuer_die_tabellen(self) -> None:
+        """``signal_value_series`` beschriftet einen ganzen Frame auf einmal.
+
+        Genau der Fall, an dem die nackte Zahl scheitert: vier Arten in einer
+        Tabelle, vier Einheiten in einer Spalte.
+        """
+
+        frame = pd.DataFrame([
+            self._signal("Holder concentration", 0.62),
+            self._signal("Fast mover", 0.035),
+            self._signal("Volume anomaly", 4.7),
+            self._signal("Whale print", 12_500.0, notional=12_500.0),
+        ])
+        reihe = apv.signal_value_series(frame)
+        self.assertEqual(list(reihe), ["62%", "+3.5¢", "4.7x", "$12,500"])
+        self.assertEqual(list(reihe.index), list(frame.index))
+        self.assertTrue(apv.signal_value_series(pd.DataFrame()).empty)
+
 
 class ClaimsPayloadTests(unittest.TestCase):
     """/api/claims liefert das Register, das die Oberflaeche rendert."""

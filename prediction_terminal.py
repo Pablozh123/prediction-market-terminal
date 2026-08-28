@@ -917,6 +917,36 @@ def clean_table(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
     return df[[c for c in columns if c in df.columns]].copy()
 
 
+def signal_value_labels(signals: pd.DataFrame) -> pd.DataFrame:
+    """Signalzeilen mit einer ``value``-Spalte, die ihre Einheit nennt.
+
+    Die Spalte fuehrt je Signalart eine andere Groesse. Unter ``%.4f``
+    standen der Anteil des groessten Halters (0.6200), eine Preisbewegung
+    (0.0350), ein Volumenverhaeltnis (4.7000) und ein Notional (12500.0000)
+    im selben Format untereinander. Der Signal-Feed im Web-Frontend loest
+    das ueber ``api_views.signal_value_label`` auf; hier gilt dieselbe Regel
+    aus derselben Funktion. Aufruf vor ``clean_table``, damit das Etikett aus
+    dem vollen Frame entsteht und nicht aus der Anzeigeauswahl.
+    """
+
+    if signals is None or signals.empty or "value" not in signals:
+        return signals
+    out = signals.copy()
+    out["value"] = apv.signal_value_series(signals)
+    return out
+
+
+#: Konfiguration der ``value``-Spalte, wenn sie durch ``signal_value_labels``
+#: gelaufen ist: Text, nicht Zahl, weil in ihr Dollar, Cent, Prozent und ein
+#: Verhaeltnis nebeneinander stehen.
+def signal_value_column_config() -> Any:
+    return st.column_config.TextColumn(
+        "Value",
+        help="Unit follows the signal type: whale prints in dollars, movers and spreads in cents, "
+        "holder concentration as a share of the market, a volume anomaly as a multiple of its baseline.",
+    )
+
+
 def dataframe_selected_row_index(event: Any) -> int | None:
     try:
         selection = getattr(event, "selection", None)
@@ -4131,7 +4161,7 @@ def page_search() -> None:
         if alert_results.empty:
             draw_empty("No alert signals for this search.")
         else:
-            display = clean_table(alert_results, ["alert_source", "rule_name", "time", "signal_type", "platform", "reason", "title", "value", "notional", "wallet", "url"]).head(10)
+            display = clean_table(signal_value_labels(alert_results), ["alert_source", "rule_name", "time", "signal_type", "platform", "reason", "title", "value", "notional", "wallet", "url"]).head(10)
             if "wallet" in display:
                 display["wallet"] = display["wallet"].astype(str).map(short_addr)
             st.dataframe(
@@ -4140,7 +4170,7 @@ def page_search() -> None:
                 height=260,
                 column_config={
                     "time": st.column_config.DatetimeColumn(format="YYYY-MM-DD HH:mm"),
-                    "value": st.column_config.NumberColumn(format="%.4f"),
+                    "value": signal_value_column_config(),
                     "notional": st.column_config.NumberColumn(format="$%.0f"),
                     "url": st.column_config.LinkColumn("URL"),
                 },
@@ -4358,7 +4388,9 @@ def page_search() -> None:
                 file_name="search_alerts.csv",
                 mime="text/csv",
             )
-            display = clean_table(alert_results, alert_cols)
+            # Der CSV-Export oben behaelt die rohe Zahl; nur die Anzeige
+            # bekommt die Einheit dazu.
+            display = clean_table(signal_value_labels(alert_results), alert_cols)
             if "wallet" in display:
                 display["wallet"] = display["wallet"].astype(str).map(short_addr)
             st.dataframe(
@@ -4368,7 +4400,7 @@ def page_search() -> None:
                 column_config={
                     "time": st.column_config.DatetimeColumn(format="YYYY-MM-DD HH:mm"),
                     "price": st.column_config.NumberColumn(format="%.4f"),
-                    "value": st.column_config.NumberColumn(format="%.4f"),
+                    "value": signal_value_column_config(),
                     "notional": st.column_config.NumberColumn(format="$%.0f"),
                     "liquidity": st.column_config.NumberColumn(format="$%.0f"),
                     "spread": st.column_config.NumberColumn(format="%.4f"),
@@ -8802,7 +8834,7 @@ def page_monitor() -> None:
     signal_config = {
         "time": st.column_config.DatetimeColumn(format="YYYY-MM-DD HH:mm"),
         "price": st.column_config.NumberColumn(format="%.4f"),
-        "value": st.column_config.NumberColumn(format="%.4f"),
+        "value": signal_value_column_config(),
         # Der Monitor laeuft ueber beide Venues, und app/signals.py traegt
         # die Volumenspalte des Marktes unveraendert in die Signalzeile. Auf
         # Kalshi zaehlt sie Kontrakte (app/venue_units.py), also steht hier
@@ -8817,7 +8849,7 @@ def page_monitor() -> None:
         if signals.empty:
             draw_empty("No monitor signals match the current filters.")
         else:
-            display = clean_table(signals, signal_columns)
+            display = clean_table(signal_value_labels(signals), signal_columns)
             if "wallet" in display:
                 display["wallet"] = display["wallet"].astype(str).map(short_addr)
             st.dataframe(display, width="stretch", height=540, column_config=signal_config)
@@ -8827,7 +8859,7 @@ def page_monitor() -> None:
         else:
             st.download_button("Export alert hits CSV", alert_hits.to_csv(index=False).encode("utf-8"), file_name="monitor_alert_hits.csv", mime="text/csv")
             display = clean_table(
-                alert_hits,
+                signal_value_labels(alert_hits),
                 ["rule_name", "time", "signal_type", "platform", "reason", "title", "price", "value", "notional", "liquidity", "spread", "change_1h", "wallet", "url"],
             )
             if "wallet" in display:
@@ -8870,7 +8902,7 @@ def page_monitor() -> None:
         if movers.empty:
             draw_empty("No fast movers match the current thresholds.")
         else:
-            st.dataframe(clean_table(movers, signal_columns).head(80), width="stretch", height=460, column_config=signal_config)
+            st.dataframe(clean_table(signal_value_labels(movers), signal_columns).head(80), width="stretch", height=460, column_config=signal_config)
     with tab_whales:
         whales = signals[signals["signal_type"].eq("Whale print")] if not signals.empty else pd.DataFrame()
         if whales.empty:
@@ -8890,13 +8922,13 @@ def page_monitor() -> None:
         if spreads.empty:
             draw_empty("No tight spreads match the current thresholds.")
         else:
-            st.dataframe(clean_table(spreads, signal_columns).head(100), width="stretch", height=460, column_config=signal_config)
+            st.dataframe(clean_table(signal_value_labels(spreads), signal_columns).head(100), width="stretch", height=460, column_config=signal_config)
     with tab_holders:
         holder_risk = signals[signals["signal_type"].eq("Holder concentration")] if not signals.empty else pd.DataFrame()
         if holder_risk.empty:
             draw_empty("No holder concentration signals. Increase holder checks or lower the threshold.")
         else:
-            st.dataframe(clean_table(holder_risk, signal_columns).head(60), width="stretch", height=330, column_config=signal_config)
+            st.dataframe(clean_table(signal_value_labels(holder_risk), signal_columns).head(60), width="stretch", height=330, column_config=signal_config)
         if not pm.empty:
             st.markdown("### Manual holder check")
             options = [f"{i + 1}. {str(row.title)[:95]}" for i, row in pm.head(80).iterrows()]
@@ -8920,7 +8952,7 @@ def page_monitor() -> None:
         if ending.empty:
             draw_empty("No ending-soon markets match the current filters.")
         else:
-            st.dataframe(clean_table(ending, signal_columns).head(100), width="stretch", height=460, column_config=signal_config)
+            st.dataframe(clean_table(signal_value_labels(ending), signal_columns).head(100), width="stretch", height=460, column_config=signal_config)
     with tab_rules:
         st.markdown("### Saved alert rules")
         with st.form("monitor_rule_form"):

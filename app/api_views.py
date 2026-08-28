@@ -1825,6 +1825,55 @@ def alert_rule_counts(signals: pd.DataFrame) -> dict[str, int]:
     return {str(art): int(anzahl) for art, anzahl in zaehlung.items()}
 
 
+def signal_value_label(row: Mapping[str, Any]) -> str:
+    """Die ``value``-Spalte einer Signalzeile mit der Einheit, die sie hat.
+
+    Die Spalte fuehrt je Signalart eine andere Groesse: ein Whale-Print traegt
+    Dollar, ein Fast Mover eine Preisaenderung, ein Tight Spread und ein
+    Ending Soon einen Preis in (0,1), eine Volumenanomalie ein Verhaeltnis und
+    eine Holder Concentration einen Anteil. Als nackte Zahl gerendert stehen
+    ``0.6200`` (62 Prozent des groessten Halters), ``0.0350`` (3.5 Cent
+    Bewegung), ``4.7000`` (das 4.7-fache Volumen) und ``12500.0000`` (Dollar)
+    in derselben Spalte und im selben Format nebeneinander, als waeren sie
+    vergleichbar. Sie sind es nicht, und diese Funktion ist die eine Stelle,
+    die das aufloest.
+    """
+
+    raw_value = _num(row.get("value"))
+    signal_type = _text(row.get("signal_type"))
+    if raw_value is None:
+        notional = _num(row.get("notional"))
+        return f"${notional:,.0f}" if notional else _text(row.get("reason"))[:24]
+    if signal_type in ("Whale print",):
+        return f"${raw_value:,.0f}"
+    # Nicht jede Zahl unter 1.0 ist ein Preis. Der Anteil des groessten
+    # Halters stand als "62.0¢" da, obwohl er 62 Prozent bedeutet, und
+    # das Volumenverhaeltnis stand ohne Einheit neben Cent-Werten.
+    if signal_type == "Holder concentration":
+        return f"{raw_value * 100:.0f}%"
+    if signal_type == "Volume anomaly":
+        return f"{raw_value:,.1f}x"
+    if abs(raw_value) <= 1.0:
+        return f"{raw_value * 100:+.1f}¢" if signal_type == "Fast mover" else f"{raw_value * 100:.1f}¢"
+    return f"{raw_value:,.1f}"
+
+
+def signal_value_series(signals: pd.DataFrame) -> pd.Series:
+    """``signal_value_label`` ueber einen ganzen Signal-Frame, als Textspalte.
+
+    Damit die Streamlit-Tabellen dieselbe Regel zeigen wie der Signal-Feed im
+    Web-Frontend, statt die Spalte mit ``%.4f`` ueber alle Arten zu ziehen.
+    """
+
+    if signals is None or signals.empty:
+        return pd.Series(dtype=str)
+    return pd.Series(
+        [signal_value_label(row) for _, row in signals.iterrows()],
+        index=signals.index,
+        dtype=object,
+    )
+
+
 def alert_rows(signals: pd.DataFrame) -> list[dict[str, Any]]:
     """`sig.build_monitor_signals`-Frame in die Signal-Feed-Zeilen."""
 
@@ -1837,24 +1886,7 @@ def alert_rows(signals: pd.DataFrame) -> list[dict[str, Any]]:
             time_label = time_label.split("T")[1][:5]
         elif " " in time_label:
             time_label = time_label.split(" ")[-1][:5]
-        raw_value = _num(row.get("value"))
-        signal_type = _text(row.get("signal_type"))
-        if raw_value is None:
-            notional = _num(row.get("notional"))
-            value = f"${notional:,.0f}" if notional else _text(row.get("reason"))[:24]
-        elif signal_type in ("Whale print",):
-            value = f"${raw_value:,.0f}"
-        # Nicht jede Zahl unter 1.0 ist ein Preis. Der Anteil des groessten
-        # Halters stand als "62.0¢" da, obwohl er 62 Prozent bedeutet, und
-        # das Volumenverhaeltnis stand ohne Einheit neben Cent-Werten.
-        elif signal_type == "Holder concentration":
-            value = f"{raw_value * 100:.0f}%"
-        elif signal_type == "Volume anomaly":
-            value = f"{raw_value:,.1f}x"
-        elif abs(raw_value) <= 1.0:
-            value = f"{raw_value * 100:+.1f}¢" if signal_type == "Fast mover" else f"{raw_value * 100:.1f}¢"
-        else:
-            value = f"{raw_value:,.1f}"
+        value = signal_value_label(row)
         rows.append({
             "time": time_label or "—",
             "rule": _text(row.get("signal_type")).upper(),
