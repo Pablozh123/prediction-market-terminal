@@ -195,6 +195,10 @@ class PairVerdictTests(unittest.TestCase):
         self.assertEqual(cross_pairs.strikes("Will Rubio win the 2028 election?"), set())
         self.assertEqual(cross_pairs.strikes("Bitcoin above $68.2k"), {("usd", 68200.0)})
         self.assertEqual(cross_pairs.strikes("$68,200 or above"), {("usd", 68200.0)})
+        # Dieselbe Schwelle in drei Schreibweisen darf nicht als drei
+        # verschiedene Fragen durchgehen.
+        self.assertEqual(cross_pairs.strikes("$1.5 million"), cross_pairs.strikes("$1,500,000"))
+        self.assertEqual(cross_pairs.question_reasons("above $1.5m", "above $1,500,000"), [])
 
 
 class BasketEdgeTests(unittest.TestCase):

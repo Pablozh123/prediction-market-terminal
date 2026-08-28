@@ -144,9 +144,13 @@ RANGE_PATTERN = re.compile(r"\d+\s*[-–]\s*\d+\s*%")
 #: Schwellen, also Geldbetraege und Prozentwerte. Nur was ein $ oder ein %
 #: traegt, zaehlt: eine nackte Zahl im Titel ist meistens ein Datum, und ein
 #: Vergleich ueber Datumszahlen wuerde jedes zweite echte Paar wegwerfen.
+#: Die laengeren Einheiten stehen zuerst, sonst nimmt die Alternative "m" das
+#: "m" aus "million" und laesst den Rest stehen.
 _STRIKE_RE = re.compile(
-    r"\$\s*(\d[\d,]*(?:\.\d+)?)\s*(k|m|mn|bn|b)?\b|(\d[\d,]*(?:\.\d+)?)\s*%")
-_STRIKE_FACTORS = {"k": 1e3, "m": 1e6, "mn": 1e6, "b": 1e9, "bn": 1e9}
+    r"\$\s*(\d[\d,]*(?:\.\d+)?)\s*(trillion|billion|million|mn|bn|k|m|b)?\b"
+    r"|(\d[\d,]*(?:\.\d+)?)\s*%", re.IGNORECASE)
+_STRIKE_FACTORS = {"k": 1e3, "m": 1e6, "mn": 1e6, "million": 1e6,
+                   "b": 1e9, "bn": 1e9, "billion": 1e9, "trillion": 1e12}
 
 #: Wie weit die beiden Aufloesungstermine auseinanderliegen duerfen. Dieselbe
 #: Frage schliesst auf beiden Venues selten auf die Minute gleich (Kalshi
