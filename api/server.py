@@ -1069,7 +1069,13 @@ def _flag_price_after(row: dict[str, Any]) -> dict[str, Any] | None:
 
     def _load() -> dict[str, Any] | None:
         history = md.get_polymarket_price_history(token_id, days=2, interval="5m", end_time=end_time)
-        return risk_log.price_after(history, start, row.get("price_at_flag"))
+        # Die Horizonte laufen ab dem letzten Print des geflaggten Flusses,
+        # lesbar wurde das Flag erst, als der Sampler es schrieb. Dazwischen
+        # liegt mindestens ein Sampler-Intervall, ein +30-min-Punkt kann also
+        # schon vorbei sein, bevor ihn jemand sehen konnte. price_after
+        # markiert diese Eintraege, statt sie wie frische zu zeigen.
+        return risk_log.price_after(
+            history, start, row.get("price_at_flag"), known_at=row.get("first_seen"))
 
     return cached(f"flag_after_{row.get('flag_id')}_{token_id}", _load, ttl=300.0)
 
@@ -1140,8 +1146,10 @@ def risk_log_endpoint(limit: int = Query(100, ge=1, le=500), enrich: int = 0, si
         "dedupe_hours": risk_log.DEDUPE_HOURS,
         "sampler_interval_min": RISK_LOG_INTERVAL_MIN,
         "note": ("Every event the screen flags (score >= min_score) is logged with side, price and wallets at that "
-                 "moment; 'after' is the price of the flagged side +30 min / +2 h / +24 h later (Polymarket only, "
-                 "null where the horizon has not passed or no history is available)."),
+                 "moment; 'after' is the price of the flagged side +30 min / +2 h / +24 h after the last print of "
+                 "the flagged flow (Polymarket only). A horizon is null while it has not passed, carries no_print "
+                 "when it passed without a trade, and already_past when it had elapsed before the sampler wrote "
+                 "the flag - that move is real but no reader could have acted on it."),
         "as_of": md.now_utc_label(),
     }
 
