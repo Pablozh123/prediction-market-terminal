@@ -1476,7 +1476,10 @@ class WebLeerzustandTest(unittest.TestCase):
         # The toggle must not trigger the card action, and the open block
         # neither.
         self.assertIn('<div data-stop data-act="0" class="hv-edge-strong"', html)
-        self.assertIn('<div data-stop style="margin-top:12px; border-top:1px dashed', offen_html)
+        # Gezaehlt wird das data-stop, nicht der Abstand; der Abstand stand
+        # hier nur als Pixelwert, weil er einer war. Seit der Abstandsleiter
+        # ist er eine Stufe.
+        self.assertIn('<div data-stop style="margin-top:var(--sp-4); border-top:1px dashed', offen_html)
         # The older row renders as before: no side chip, no price, no invented
         # wallet or component.
         self.assertIn("KXFED-26SEP", text)
