@@ -29,6 +29,8 @@ from typing import Any
 from unittest.mock import patch
 from urllib.parse import urlparse
 
+import requests
+
 WALLETS = [
     "0x1111111111111111111111111111111111111111",
     "0x2222222222222222222222222222222222222222",
@@ -447,6 +449,36 @@ def offline_market_apis():
     """
 
     with patch("requests.get", side_effect=fixture_get), patch("requests.post", side_effect=fixture_post):
+        yield
+
+
+@contextmanager
+def failing_requests(pfad: str, *, after: int = 0, message: str = "connection reset by peer"):
+    """Ab dem ``after``-ten Treffer auf ``pfad`` scheitert der Request, sonst Fixture.
+
+    Der zweite Ausfall neben dem umbenannten Feld: die Antwort kommt gar
+    nicht. Interessant ist er dort, wo eine Anfrage in mehrere zerlegt wird,
+    also bei den Batch-Nachschlagungen (20 Ids je Request) und bei der
+    Seitenschleife des Whale-Tapes. Faellt dort einer von mehreren Requests
+    aus, ist die Frage nicht, ob etwas fehlt, sondern ob man es sieht:
+    ``continue`` bzw. ``break`` liefern eine kuerzere Liste, die von einer
+    vollstaendigen nicht zu unterscheiden ist.
+
+    ``after=0`` laesst jeden Treffer scheitern, ``after=2`` die ersten zwei
+    durch. ``pfad`` wird gegen das Ende des URL-Pfads geprueft, also
+    ``"/markets"``, ``"/events"``, ``"/trades"``.
+    """
+
+    zaehler = {"n": 0}
+
+    def get(url: str, params: Any = None, **kwargs: Any) -> FixtureResponse:
+        if urlparse(str(url)).path.rstrip("/").endswith(pfad):
+            zaehler["n"] += 1
+            if zaehler["n"] > int(after):
+                raise requests.RequestException(message)
+        return fixture_get(url, params=params, **kwargs)
+
+    with patch("requests.get", side_effect=get), patch("requests.post", side_effect=fixture_post):
         yield
 
 
