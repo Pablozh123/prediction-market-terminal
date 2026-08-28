@@ -154,8 +154,13 @@ def discover_markets(get_json=_get_json, pages: int = DISCOVERY_PAGES,
     return picked
 
 
-def _levels(raw: list, reflect: bool) -> list[tuple[float, float]]:
-    """Parse one side of the book, optionally reflecting NO bids into YES asks."""
+def _levels(raw: list, reflect: bool, in_dollars: bool = True) -> list[tuple[float, float]]:
+    """Parse one side of the book, optionally reflecting NO bids into YES asks.
+
+    ``in_dollars`` says which unit the ladder is quoted in. It is not a
+    cosmetic flag: reflecting a cent ladder gives 1 - 43 = -42, so the ask
+    side comes out negative and the spread with it.
+    """
     out: list[tuple[float, float]] = []
     for level in raw or []:
         try:
@@ -164,9 +169,23 @@ def _levels(raw: list, reflect: bool) -> list[tuple[float, float]]:
             continue
         if size <= 0:
             continue
+        if not in_dollars:
+            price = price / 100.0
         out.append((round(1.0 - price, 6) if reflect else round(price, 6), size))
     out.sort(key=lambda item: item[0], reverse=not reflect)
     return out
+
+
+def _ladder(book: dict, seite: str) -> tuple[list, bool]:
+    """Die Leiter einer Seite plus die Einheit, in der sie notiert.
+
+    Nur der Feldname sagt die Einheit: ``yes_dollars`` ist Dollar, ``yes``
+    ist Cents.
+    """
+    in_dollars = book.get(f"{seite}_dollars")
+    if in_dollars:
+        return in_dollars, True
+    return book.get(seite) or [], False
 
 
 def parse_orderbook(payload: dict, levels: int = BOOK_LEVELS
@@ -176,10 +195,17 @@ def parse_orderbook(payload: dict, levels: int = BOOK_LEVELS
     ``no_dollars`` holds bids to buy NO. A NO bid at price p is an offer to sell
     YES at 1 - p, so the ask side is the reflection of that list. Reading it as
     a raw ask ladder would invert every spread in every downstream study.
+
+    The cent ladder (``yes``/``no``) was already the fallback but was read as
+    if it were dollars: a 55/43 book became a bid at 55.00 and an ask at
+    -42.00, a spread of -97 and a top-of-book value of 114,600 dollars where
+    1,146 were resting.
     """
     book = (payload or {}).get("orderbook_fp") or (payload or {}).get("orderbook") or {}
-    bids = _levels(book.get("yes_dollars") or book.get("yes"), reflect=False)
-    asks = _levels(book.get("no_dollars") or book.get("no"), reflect=True)
+    yes_raw, yes_dollars = _ladder(book, "yes")
+    no_raw, no_dollars = _ladder(book, "no")
+    bids = _levels(yes_raw, reflect=False, in_dollars=yes_dollars)
+    asks = _levels(no_raw, reflect=True, in_dollars=no_dollars)
     return bids[:levels], asks[:levels]
 
 

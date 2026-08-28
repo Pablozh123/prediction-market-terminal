@@ -83,6 +83,24 @@ class OrderbookTests(unittest.TestCase):
         bids, _ = kr.parse_orderbook(book(yes=yes), levels=3)
         self.assertEqual(len(bids), 3)
 
+    def test_the_cent_ladder_is_divided_before_it_is_reflected(self):
+        # Ohne die Division wird aus dem NO-Gebot 1 - 43 = -42: ein negativer
+        # Brief, ein Spread von -97 und ein Buchwert um Faktor 100 zu hoch.
+        bids, asks = kr.parse_orderbook(
+            {"orderbook": {"yes": [[55, 1200], [54, 900]], "no": [[43, 800]]}})
+        self.assertEqual(bids[0], (0.55, 1200.0))
+        self.assertEqual(asks[0], (0.57, 800.0))
+        self.assertLess(bids[0][0], asks[0][0])
+
+    def test_the_cent_ladder_prices_the_top_of_book_in_dollars(self):
+        row = kr.book_row("2026-08-28T00:00:00Z", {"ticker": "KXTEST-A"},
+                          {"orderbook": {"yes": [[55, 1200], [54, 900]],
+                                         "no": [[43, 800]]}})
+        self.assertEqual(row["best_bid"], 0.55)
+        self.assertEqual(row["best_ask"], 0.57)
+        self.assertEqual(row["spread"], 0.02)
+        self.assertEqual(row["bid_usd_top"], 1146.0)
+
 
 class BookRowTests(unittest.TestCase):
     def setUp(self):
