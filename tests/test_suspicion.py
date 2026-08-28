@@ -57,6 +57,44 @@ class PlatzhalterIstKeineWalletTests(unittest.TestCase):
         self.assertTrue(clusters.empty)
 
 
+class ZaehleinheitMarktTests(unittest.TestCase):
+    """Ein Markt ist ein Schluessel, kein Titel.
+
+    Die wiederkehrende Podcast-Frage laeuft jede Woche unter einer neuen
+    conditionId: von den 45 aufgeloesten Maerkten der Referenz-Wallet tragen
+    nur 43 verschiedene Titel. Ueber den Titel gruppiert sehen zwei Folgen
+    wie ein Markt aus, und "single-market concentration" schlaegt bei einer
+    Wallet an, die ihren Flow auf zwei verteilt hat.
+    """
+
+    def _tape(self):
+        base = pd.Timestamp("2026-08-28T12:00:00", tz="UTC")
+        titel = 'Will "Nvidia" be said during the next episode of the All-In Podcast?'
+        return pd.DataFrame([
+            {"platform": "Polymarket", "time": base, "wallet": "0x" + "1" * 40, "trader": "", "side": "BUY",
+             "outcome": "Yes", "title": titel, "market_key": "0xweek1", "price": 0.4, "size": 10000,
+             "notional": 4000.0, "end_time": base + pd.Timedelta(days=5)},
+            {"platform": "Polymarket", "time": base + pd.Timedelta(minutes=3), "wallet": "0x" + "1" * 40,
+             "trader": "", "side": "BUY", "outcome": "Yes", "title": titel, "market_key": "0xweek2",
+             "price": 0.4, "size": 10000, "notional": 4000.0, "end_time": base + pd.Timedelta(days=12)},
+        ])
+
+    def test_two_episodes_are_two_markets(self) -> None:
+        scores = md.whale_wallet_risk_scores(self._tape(), whale_threshold=2500.0)
+        row = scores.iloc[0]
+        self.assertEqual(int(row["markets"]), 2)
+        self.assertAlmostEqual(float(row["top_market_share"]), 0.5, places=6)
+        self.assertNotIn("single-market concentration", str(row["wallet_insider_flags"]))
+
+    def test_the_card_still_shows_the_question_not_the_key(self) -> None:
+        scores = md.whale_wallet_risk_scores(self._tape(), whale_threshold=2500.0)
+        self.assertIn("Nvidia", str(scores.iloc[0]["top_market"]))
+
+    def test_market_identity_falls_back_to_the_title(self) -> None:
+        frame = pd.DataFrame([{"title": "A question", "market_key": ""}, {"title": "B", "market_key": "0xb"}])
+        self.assertEqual(list(md.market_identity(frame)), ["A question", "0xb"])
+
+
 class FreshWalletClusterTests(unittest.TestCase):
     def test_cluster_of_fresh_wallets_same_side_is_detected(self):
         trades = tape(

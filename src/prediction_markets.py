@@ -3244,7 +3244,7 @@ def whale_wallets(trades: pd.DataFrame) -> pd.DataFrame:
             notional=("notional", "sum"),
             avg_trade=("notional", "mean"),
             latest_trade=("time", "max"),
-            markets=("title", pd.Series.nunique),
+            markets=("market_identity", pd.Series.nunique),
         )
         .reset_index()
         .sort_values("notional", ascending=False)
@@ -3426,6 +3426,23 @@ def _price_move_features(df: pd.DataFrame, group_cols: list[str]) -> pd.DataFram
 WALLET_NOT_PUBLIC = "Not public"
 
 
+def market_identity(frame: pd.DataFrame) -> pd.Series:
+    """One id per market for wallet-level grouping: the key, else the title.
+
+    Counting markets by title merges markets that only share a question.
+    Recurring series do exactly that: of the 45 resolved markets of the
+    reference wallet only 43 titles are distinct, because "Will 'Nvidia' be
+    said during the next episode of the All-In Podcast?" runs weekly under a
+    new conditionId. Grouped by title, two episodes look like one market, so
+    "single-market concentration" fires on a wallet that spread its flow
+    across two.
+    """
+
+    title = _df_col(frame, "title", "").fillna("").astype(str)
+    key = _df_col(frame, "market_key", "").fillna("").astype(str)
+    return key.where(key.str.strip().ne(""), title)
+
+
 def identified_wallets(values: pd.Series) -> pd.Series:
     """Mask of rows that carry a real trader identity.
 
@@ -3476,6 +3493,7 @@ def whale_wallet_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_0
     if df.empty:
         return pd.DataFrame()
     df["signed_notional"] = _direction_sign(df["side_upper"], df["outcome_upper"]) * df["notional"]
+    df["market_identity"] = market_identity(df)
 
     grouped = (
         df.groupby("wallet", dropna=False)
@@ -3485,7 +3503,7 @@ def whale_wallet_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_0
             notional=("notional", "sum"),
             avg_trade=("notional", "mean"),
             largest_trade=("notional", "max"),
-            markets=("title", pd.Series.nunique),
+            markets=("market_identity", pd.Series.nunique),
             first_seen=("time", "min"),
             latest_trade=("time", "max"),
             late_notional=("late_notional", "sum"),
@@ -3500,11 +3518,18 @@ def whale_wallet_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_0
     top_market = _dominant_bucket(
         df,
         ["wallet"],
-        "title",
+        "market_identity",
         bucket_name="top_market",
         share_name="top_market_share",
         notional_name="top_market_notional",
     )
+    # Der Schluessel gruppiert, der Titel steht auf der Karte.
+    if not top_market.empty:
+        beschriftung = (
+            df.drop_duplicates(subset=["market_identity"]).set_index("market_identity")["title"]
+        )
+        titel = top_market["top_market"].map(beschriftung)
+        top_market["top_market"] = titel.where(titel.fillna("").astype(str).str.strip().ne(""), top_market["top_market"])
     top_outcome = _dominant_bucket(
         df[df["outcome_upper"].isin(["YES", "NO"])],
         ["wallet"],
@@ -3608,6 +3633,7 @@ def whale_event_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_00
     if df.empty:
         return pd.DataFrame()
     df["signed_notional"] = _direction_sign(df["side_upper"], df["outcome_upper"]) * df["notional"]
+    df["market_identity"] = market_identity(df)
 
     grouped = (
         df.groupby(["platform", "title"], dropna=False)
@@ -3770,7 +3796,7 @@ def trader_flow_scores(trades: pd.DataFrame, whale_threshold: float = 2500) -> p
             recent_notional=("notional", "sum"),
             avg_trade=("notional", "mean"),
             largest_trade=("notional", "max"),
-            markets=("title", pd.Series.nunique),
+            markets=("market_identity", pd.Series.nunique),
             outcomes=("outcome", pd.Series.nunique),
             first_seen=("time", "min"),
             last_seen=("time", "max"),
