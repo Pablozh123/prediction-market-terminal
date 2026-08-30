@@ -862,6 +862,48 @@ def wallet_flows(wallet: str) -> dict[str, Any]:
         raise HTTPException(status_code=503, detail=str(exc))
 
 
+@app.get("/api/wallet/{wallet}/entity", dependencies=[Depends(wallet_route_limit)])
+def wallet_entity(wallet: str) -> dict[str, Any]:
+    """Die Entity einer Wallet aus dem lokalen Graphen (Wallet-Graph Phase 2).
+
+    Liest nur die vom Scan-Runner (scripts/run_entity_scan.py) abgeleitete
+    Datenbank, macht selbst keine Chain-Abrufe. Drei Antworten, sauber
+    getrennt: kein Graph vorhanden (dieser Host verknuepft nicht), Wallet
+    nicht gescannt (nicht untersucht ist kein Befund) und die Entity samt
+    Kanten und Belegen. Stufe-2-Kandidaten heissen auch so; der Satz aus dem
+    Claims-Register steht an jeder Antwort mit Inhalt.
+    """
+
+    from app import claims
+    from app import entity_graph as eg
+
+    wallet = wallet.strip().lower()
+    if not WALLET_ADDRESS.match(wallet):
+        raise HTTPException(status_code=400, detail="expected a Polymarket wallet address (0x + 40 hex characters)")
+
+    def _build() -> dict[str, Any]:
+        pfad = Path(os.environ.get("ENTITY_GRAPH_PATH", "").strip() or eg.DEFAULT_GRAPH_PATH)
+        if not pfad.exists():
+            return {"wallet": wallet, "available": False, "scanned": False,
+                    "note": "no entity graph on this host; run scripts/run_entity_scan.py",
+                    "as_of": md.now_utc_label()}
+        conn = eg.connect(pfad)
+        try:
+            payload = eg.entity_view(conn, wallet)
+            payload["stats"] = eg.graph_stats(conn)
+        finally:
+            conn.close()
+        payload["available"] = True
+        payload["caveat"] = claims.disclaimer("screen_not_proof", "en")
+        payload["as_of"] = md.now_utc_label()
+        return payload
+
+    try:
+        return cached(f"wallet_entity_{wallet}", _build, ttl=300.0)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"entity graph unavailable: {exc}")
+
+
 @app.get("/api/wallet/{wallet}/similar", dependencies=[Depends(wallet_route_limit)])
 def wallet_similar(wallet: str) -> dict[str, Any]:
     """Wallets among the top holders of this wallet's largest open markets.

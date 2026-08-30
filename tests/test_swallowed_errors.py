@@ -242,10 +242,27 @@ class DeepTapeTests(unittest.TestCase):
     """
 
     def setUp(self) -> None:
+        import os
+        import tempfile
+        from pathlib import Path
+        from unittest import mock
+
         from api import server
 
         server._CACHE.clear()
         self.server = server
+        # Der tiefe Tape liest seit Phase 1 den persistenten Trade-Store des
+        # Rechners mit (ts.extend_tape in load_deep_tape). Auf einem Rechner
+        # mit gefuelltem data/trade_store.sqlite fuellte der die leeren
+        # Live-Frames wieder auf, und die Abbruch-Zusagen dieser Klasse waren
+        # nicht mehr pruefbar - auf CI (ohne Store-Datei) blieb alles gruen,
+        # lokal nicht. Die Tests zeigen deshalb auf eine Datei, die es nicht
+        # gibt, und sehen den Server so, wie ihn ein Host ohne Store sieht.
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        env = mock.patch.dict(os.environ, {"TRADE_STORE_PATH": str(Path(tmp.name) / "missing.sqlite")})
+        env.start()
+        self.addCleanup(env.stop)
 
     def tearDown(self) -> None:
         self.server._CACHE.clear()

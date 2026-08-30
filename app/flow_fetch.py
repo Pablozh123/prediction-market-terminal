@@ -36,6 +36,10 @@ from app import onchain_flows as ocf
 API_URL = "https://api.etherscan.io/v2/api"
 POLYGON_CHAIN_ID = 137
 PAGE_SIZE = 10_000
+#: Polymarket-Positionstoken (ERC-1155). Ein Transfer von Wallet zu Wallet an
+#: den Exchange-Kontrakten vorbei ist das haerteste Verknuepfungssignal des
+#: Wallet-Graphen: normale Trades laufen nie direkt zwischen zwei Konten.
+CONDITIONAL_TOKENS = "0x4d97dcd97ec945f40cf65f87097ace5ea0476045"
 #: Pages per contract before the walk stops. Four pages are 40k transfers per
 #: contract — generous for a normal wallet, a fraction of a market maker. The
 #: budget exists so the route has a worst case; ``complete`` says when it hit.
@@ -84,6 +88,7 @@ def fetch_contract_transfers(
     pause: float = 0.2,
     retries: int = 3,
     get: Callable[[Mapping[str, Any]], Any] | None = None,
+    action: str = "tokentx",
 ) -> tuple[list[dict], bool]:
     """One contract's transfers for one wallet, oldest first, budget-capped.
 
@@ -102,7 +107,7 @@ def fetch_contract_transfers(
     pages = 0
     while pages < max(1, int(page_budget)):
         params = {
-            "chainid": POLYGON_CHAIN_ID, "module": "account", "action": "tokentx",
+            "chainid": POLYGON_CHAIN_ID, "module": "account", "action": str(action),
             "address": wallet, "contractaddress": contract, "startblock": block,
             "endblock": 99_999_999, "page": 1, "offset": int(page_size), "sort": "asc",
             "apikey": api_key,
@@ -129,7 +134,11 @@ def fetch_contract_transfers(
             return rows, True
         fresh = 0
         for row in result:
-            marker = (row.get("hash"), row.get("from"), row.get("to"), row.get("value"))
+            # ERC-20-Zeilen tragen "value", ERC-1155-Zeilen tokenID/tokenValue;
+            # der Marker nimmt, was die Zeile hat, sonst kollabieren zwei
+            # 1155-Transfers derselben Transaktion zu einem.
+            wert = row.get("value", (row.get("tokenID"), row.get("tokenValue")))
+            marker = (row.get("hash"), row.get("from"), row.get("to"), wert)
             if marker in seen:
                 continue
             seen.add(marker)
@@ -174,7 +183,65 @@ def to_transfer_frame(rows: Iterable[Mapping[str, Any]]) -> pd.DataFrame:
     return out.drop_duplicates(subset=["tx", "sender", "recipient", "amount"]).reset_index(drop=True)
 
 
-def wallet_flow_report(
+def to_position_frame(rows: Iterable[Mapping[str, Any]]) -> pd.DataFrame:
+    """ERC-1155-Zeilen (token1155tx) -> Frame mit Anteilen und Zeitstempeln.
+
+    ``shares`` sind Positionsanteile (tokenValue, 6 Dezimalstellen); ein
+    Anteil zahlt hoechstens einen Dollar, die Summe ist also eine Obergrenze
+    des Dollarwerts, kein Betrag.
+    """
+
+    columns = ["block", "tx", "contract", "sender", "recipient", "token_id", "shares", "timestamp"]
+    rows = list(rows or [])
+    if not rows:
+        return pd.DataFrame(columns=columns)
+    frame = pd.DataFrame(rows)
+    out = pd.DataFrame({
+        "block": pd.to_numeric(frame.get("blockNumber"), errors="coerce").fillna(0).astype("int64"),
+        "tx": frame.get("hash", "").astype(str),
+        "contract": frame.get("contractAddress", "").astype(str).str.lower(),
+        "sender": frame.get("from", "").astype(str).str.lower(),
+        "recipient": frame.get("to", "").astype(str).str.lower(),
+        "token_id": frame.get("tokenID", "").astype(str),
+        "shares": pd.to_numeric(frame.get("tokenValue"), errors="coerce").fillna(0.0) / 1_000_000.0,
+        "timestamp": pd.to_datetime(pd.to_numeric(frame.get("timeStamp"), errors="coerce"),
+                                    unit="s", utc=True, errors="coerce"),
+    })
+    return out.drop_duplicates(subset=["tx", "sender", "recipient", "token_id", "shares"]).reset_index(drop=True)
+
+
+def fetch_position_transfers(
+    wallet: str,
+    api_key: str,
+    *,
+    page_budget: int = DEFAULT_PAGE_BUDGET,
+    page_size: int = PAGE_SIZE,
+    pause: float = 0.2,
+    get: Callable[[Mapping[str, Any]], Any] | None = None,
+) -> tuple[pd.DataFrame, bool]:
+    """Direkte Positions-Transfers einer Wallet, an den Exchanges vorbei.
+
+    Walk ueber ``token1155tx`` am Conditional-Tokens-Kontrakt, dann faellt
+    alles weg, dessen Gegenpartei ein Protokoll-Kontrakt ist: Splits, Merges
+    und Boersen-Fills sind Handelsmechanik. Was uebrig bleibt, sind Transfers
+    von Wallet zu Wallet, und genau die gibt es im normalen Handel nicht.
+    """
+
+    rows, complete = fetch_contract_transfers(
+        wallet, api_key, CONDITIONAL_TOKENS,
+        page_budget=page_budget, page_size=page_size, pause=pause, get=get,
+        action="token1155tx",
+    )
+    frame = to_position_frame(rows)
+    if frame.empty:
+        return frame, complete
+    ziel = str(wallet or "").strip().lower()
+    gegen = frame["sender"].where(frame["recipient"].eq(ziel), frame["recipient"])
+    behalten = ~gegen.isin(ocf.PROTOCOL_ADDRESSES) & ~gegen.isin(ocf.BRIDGE_ADDRESSES)
+    return frame[behalten].reset_index(drop=True), complete
+
+
+def fetch_classified_flows(
     wallet: str,
     api_key: str,
     *,
@@ -182,15 +249,15 @@ def wallet_flow_report(
     page_budget: int = DEFAULT_PAGE_BUDGET,
     page_size: int = PAGE_SIZE,
     pause: float = 0.2,
-    top_counterparties: int = 12,
     get: Callable[[Mapping[str, Any]], Any] | None = None,
-) -> dict[str, Any]:
-    """Classified flows, funding summary and peak exposure for one wallet.
+) -> tuple[pd.DataFrame, bool, list[dict[str, Any]]]:
+    """Alle Collateral-Transfers einer Wallet, klassifiziert und mit Zeiten.
 
-    The summary keys are those of ``ocf.flow_summary``; on an incomplete walk
-    every one of them is a lower bound and ``complete`` is False. The peak
-    figures come as the (low, high) pair around the ambiguous counterparties,
-    exactly as the flows module defines them.
+    (frame, complete, per_contract): der Frame ist ``ocf.classify_flows``
+    plus ``timestamp``-Spalte, also genau das, was Flows-Route und
+    Entity-Scan beide brauchen; ``complete`` sagt, ob jeder Kontrakt-Walk
+    durchlief. Beide Konsumenten teilen sich diese eine Stelle, damit sie
+    nie ueber verschieden geschnittene Historien reden.
     """
 
     wallet = str(wallet or "").strip().lower()
@@ -218,11 +285,38 @@ def wallet_flow_report(
         # One transaction can carry several transfers, so tx alone is not a
         # unique key; the merge uses the full transfer identity.
         classified = classified.merge(stamps, on=["tx", "sender", "recipient", "amount"], how="left")
+    return classified, complete, per_contract
+
+
+def wallet_flow_report(
+    wallet: str,
+    api_key: str,
+    *,
+    contracts: Iterable[str] = ocf.COLLATERAL_CONTRACTS,
+    page_budget: int = DEFAULT_PAGE_BUDGET,
+    page_size: int = PAGE_SIZE,
+    pause: float = 0.2,
+    top_counterparties: int = 12,
+    get: Callable[[Mapping[str, Any]], Any] | None = None,
+) -> dict[str, Any]:
+    """Classified flows, funding summary and peak exposure for one wallet.
+
+    The summary keys are those of ``ocf.flow_summary``; on an incomplete walk
+    every one of them is a lower bound and ``complete`` is False. The peak
+    figures come as the (low, high) pair around the ambiguous counterparties,
+    exactly as the flows module defines them.
+    """
+
+    classified, complete, per_contract = fetch_classified_flows(
+        wallet, api_key, contracts=contracts,
+        page_budget=page_budget, page_size=page_size, pause=pause, get=get,
+    )
+    wallet = str(wallet or "").strip().lower()
     summary = ocf.flow_summary(classified)
 
     first_transfer = None
-    if not transfers.empty and transfers["timestamp"].notna().any():
-        first_transfer = transfers["timestamp"].min().isoformat()
+    if not classified.empty and "timestamp" in classified.columns and classified["timestamp"].notna().any():
+        first_transfer = classified["timestamp"].min().isoformat()
 
     counterparties: list[dict[str, Any]] = []
     if not classified.empty:
