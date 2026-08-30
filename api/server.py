@@ -862,6 +862,39 @@ def wallet_flows(wallet: str) -> dict[str, Any]:
         raise HTTPException(status_code=503, detail=str(exc))
 
 
+def _entity_behavior(wallet: str, mitglieder: list[str]) -> dict[str, Any]:
+    """Stufe-3-Verhalten der Entity aus dem lokalen Tape-Store; fail-soft leer.
+
+    Verhalten wird angezeigt und fuehrt nie zusammen (Wallet-Graph Phase 3):
+    die Kanten der Entity kommen aus On-Chain-Belegen, dieser Block sagt nur,
+    wie sich die beteiligten Konten im gespeicherten Band verhalten. Die
+    Wallet-Menge filtert das Ergebnis, nicht das Band, denn der
+    Komplementaer-Partner einer Entity-Wallet steht oft ausserhalb der Entity.
+    """
+
+    from app import behavior as bhv
+
+    leer = {"available": False, "fingerprints": [], "complementary_pairs": [],
+            "note": "no trade store on this host, so no behaviour read"}
+    try:
+        ziel = ts.store_path()
+        if not ziel.exists():
+            return leer
+        conn = ts.connect(ziel)
+        try:
+            fenster = ts.load_window(conn, days=ts.window_days())
+        finally:
+            conn.close()
+        report = bhv.behavior_report(fenster, wallets=set(mitglieder) | {wallet})
+    except Exception as exc:
+        print(f"[warn] entity behavior: {exc}")
+        return leer
+    report["available"] = True
+    report["note"] = ("Tier 3 behaviour patterns from the stored tape: shown next to the "
+                      "entity, never used to merge accounts.")
+    return report
+
+
 @app.get("/api/wallet/{wallet}/entity", dependencies=[Depends(wallet_route_limit)])
 def wallet_entity(wallet: str) -> dict[str, Any]:
     """Die Entity einer Wallet aus dem lokalen Graphen (Wallet-Graph Phase 2).
@@ -893,6 +926,8 @@ def wallet_entity(wallet: str) -> dict[str, Any]:
             payload["stats"] = eg.graph_stats(conn)
         finally:
             conn.close()
+        if payload.get("scanned"):
+            payload["behavior"] = _entity_behavior(wallet, payload.get("entity_wallets") or [wallet])
         payload["available"] = True
         payload["caveat"] = claims.disclaimer("screen_not_proof", "en")
         payload["as_of"] = md.now_utc_label()

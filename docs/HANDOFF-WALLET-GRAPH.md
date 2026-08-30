@@ -186,6 +186,33 @@ Funding-Graph und Entity-Aufloesung sind gebaut (Branch
   Muster-Beleg (gleiches Ziel), kein Geldstrom; ob das Gebuehren-, Test- oder
   Operator-Verkehr ist, muesste ein Scan der Zieladresse selbst zeigen.
 
+## Stand Phase 3 (2026-08-30)
+
+Der Verhaltens-Layer ist gebaut (Stufe 3: wird angezeigt, fuehrt nie zusammen):
+
+- `app/behavior.py` — zwei Detektoren ueber dem Tape-Frame, bewusst OHNE neuen
+  0-100-Score (Lektion insider_score_unvalidated): `order_splitting_fingerprints`
+  (dichtester Burst je Wallet und Marktseite, Theo-Muster; Standard 8 Prints je
+  60 s) und `complementary_books` (Paare wiederholt zeitnah auf Gegenseiten
+  desselben Buchs, Wash-Verdacht als "verhaelt sich wie"). Die Columbia-Methode
+  (gerichtete Zyklen im Maker-Taker-Graphen) braucht die Gegenpartei je Fill,
+  die das oeffentliche Band nicht traegt; das Paar-Muster ist die ehrliche
+  Naeherung. Kappung auf die groessten Wallets, `focus_wallets` ueberleben sie.
+- `GET /api/wallet/{wallet}/entity` traegt fuer gescannte Wallets einen
+  `behavior`-Block aus dem Store-Fenster (Ergebnis gefiltert auf die Entity,
+  Band ungefiltert, damit Partner ausserhalb der Entity sichtbar bleiben).
+- `scripts/run_cluster_probe.py` — der Iran-Test als Werkzeug: benannte
+  Wallet-Menge (`--wallet`/`--file`), Handelshistorie je Wallet ueber die
+  Data-API (`/trades?user=`, auch fuer Zeitraeume vor dem eigenen Store),
+  dann strenge UND lockerste Co-Trading-Regel, beide Detektoren, optional
+  `--onchain` (Funding/Positionen in eine eigene Probe-DB). Ausgabe: welche
+  Signalklassen auf der Menge feuern.
+- Erster Live-Lauf (die zwei Wallets mit der gemeinsamen Auszahlungs-Kante):
+  kein Co-Trading, keine Komplementaer-Paare, aber ein sauberer
+  Order-Splitting-Fingerprint (24 Prints in 24 s auf einem Sportmarkt, klares
+  Bot-Muster). Die Signalklassen trennen also wirklich.
+- Tests: `tests/test_behavior.py`, `tests/test_cluster_probe.py`, Route-Test.
+
 ## Offene Punkte
 
 - Betriebsentscheidung Ingest-Host: dieser Rechner kann lokal sammeln (geplante Task
@@ -200,7 +227,14 @@ Funding-Graph und Entity-Aufloesung sind gebaut (Branch
 - Goldsky-Subgraphs (`pnl`, `activity`) als zweite Ingest-Quelle: noch offen.
 - Beobachten: `_tape_categories` schlaegt bei breiterem Tape mehr Maerkte nach
   (gebatcht + fail-soft, aber Kaltstart von /api/risk wird traeger).
-- Phase 3 (Verhaltens-Layer: Fingerprints, Wash-Zyklen, Entity-Insider-Score,
-  Iran-Test) und Phase 4 (Produktflaeche: Seite "Wallet-Graph", Wallet-Tab
-  "Verknuepft") stehen aus; die Entity-Route ist der Unterbau fuer den Tab.
+- Iran-Test konkret fahren: dafuer fehlt die veroeffentlichte Adressliste des
+  Rings (Recherche laeuft); sobald sie da ist, ist es ein Aufruf von
+  `run_cluster_probe.py --file ring.txt --onchain`.
+- Bewusst offen im Verhaltens-Layer: Timing-Korrelation als eigener Detektor
+  (das Co-Trading-Fenster deckt die Haelfte ab) und echte Wash-ZYKLEN nach
+  Columbia (brauchen Maker-Taker-Zuordnung je Fill, die das oeffentliche Band
+  nicht hergibt; moeglicher Weg: OrderFilled-Logs on-chain je Markt).
+- Phase 4 (Produktflaeche: Seite "Wallet-Graph", Wallet-Tab "Verknuepft",
+  Cluster-Alerts) steht aus; Entity-Route samt Verhaltens-Block ist der
+  fertige Unterbau.
 - Optional: Arkham-API-Labels als Anreicherung (Buy), Bubblemaps-iFrame als Sanity-Check.
