@@ -15,11 +15,13 @@ late looks new, and the "sample-fresh large wallet" signal fires on age it
 cannot know. With the store, "first seen" means first print since ingest began,
 which only ever gets more right as the store grows.
 
-Size: a whale print is one short row (~250 bytes). At the usual tape floor the
-venue prints a few thousand rows a day, so a year of tape is on the order of
-a few hundred MB at worst and usually far less. The store lives on the local
-disk next to the other SQLite files, NOT on the deployment's small volume; the
-API treats a missing store as "no store" and falls back to the live tape.
+Size, measured rather than guessed: a stored print costs ~850 bytes including
+indexes (3,000 prints came to 2.5 MB). At the $500 screen floor the venue
+printed at a pace of roughly 20-30k rows a day when this landed, which is a
+few tens of MB per day and single-digit GB per year. That is nothing on a
+local disk and out of the question on the deployment's 500 MB volume — so the
+store lives locally next to the other SQLite files, and the API treats a
+missing store as "no store" and falls back to the live tape.
 
 Writer model: one writer (the ingest job in ``scripts/run_tape_ingest.py``,
 guarded by ``app.proc_lock``), any number of readers via WAL — the same
