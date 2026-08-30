@@ -180,9 +180,11 @@ Funding-Graph und Entity-Aufloesung sind gebaut (Branch
   (ab 3 Scans), ist nur Kandidat; in einem kleinen Scan-Set kann der Degree-Cap
   nie greifen, und geteilte Infrastruktur sieht dann exakt wie gemeinsame
   Kontrolle aus.
-- Nach dem Fix bleibt ein echter Rechercheanlass: zwei der drei Top-Wallets
-  zahlen an dasselbe externe Ziel (`0x115f48dc2a...`) aus (Stufe-1-Kante mit
-  Tx-Belegen im Graphen).
+- Nach dem Fix bleibt eine Stufe-1-Kante: zwei der drei Top-Wallets zahlen an
+  dasselbe externe Ziel (`0x115f48dc2a731aa16251c6d6e1befc42f92accc9`) aus,
+  mit Tx-Belegen im Graphen. Einordnung: zusammen nur rund $108, also ein
+  Muster-Beleg (gleiches Ziel), kein Geldstrom; ob das Gebuehren-, Test- oder
+  Operator-Verkehr ist, muesste ein Scan der Zieladresse selbst zeigen.
 
 ## Offene Punkte
 

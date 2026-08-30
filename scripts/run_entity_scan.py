@@ -7,6 +7,13 @@ zwei Quellen, kombinierbar:
     python scripts/run_entity_scan.py --wallet 0xabc... --wallet 0xdef...
     python scripts/run_entity_scan.py --top-store 25      # groesste Wallets im Tape-Store
     python scripts/run_entity_scan.py --top-store 25 --rescan-days 30
+    python scripts/run_entity_scan.py --loop --top-store 50   # geplante Task, taeglich
+
+Im Loop-Modus (geplante Task ``MarketIntelEntityScan``) laeuft alle
+``--interval-hours`` (Standard 24) ein Durchgang; die Rescan-Drossel sorgt
+dafuer, dass dabei nur neue oder alt gewordene Wallets wirklich gescannt
+werden. Anhalten: Datei data/entity_scan.stop anlegen. Einzelinstanz via
+app/proc_lock, denn der Kanten-Rebuild vertraegt keinen zweiten Schreiber.
 
 Je Wallet wird die Collateral-Historie (USDC/pUSD, begrenzt via Seitenbudget)
 geholt und klassifiziert (app/flow_fetch + app/onchain_flows), dazu direkte
@@ -31,7 +38,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app import entity_graph as eg  # noqa: E402
 from app import flow_fetch as ff  # noqa: E402
+from app import proc_lock  # noqa: E402
 from src import trade_store as ts  # noqa: E402
+
+STOP_PATH = Path("data") / "entity_scan.stop"
+LOCK_NAME = "entity_scan.lock"
 
 
 def top_store_wallets(n: int) -> list[str]:
@@ -81,6 +92,10 @@ def main() -> int:
     parser.add_argument("--degree-cap", type=int, default=eg.DEFAULT_DEGREE_CAP,
                         help="Ab so vielen Wallets je Gegenpartei nur noch Kandidat (Standard 4).")
     parser.add_argument("--db", default=str(eg.DEFAULT_GRAPH_PATH), help="Pfad der Graph-Datenbank.")
+    parser.add_argument("--loop", action="store_true",
+                        help="Endlosschleife: alle --interval-hours ein Durchgang (fuer die geplante Task).")
+    parser.add_argument("--interval-hours", type=float, default=24.0,
+                        help="Stunden zwischen Durchgaengen im Loop (Standard 24).")
     args = parser.parse_args()
 
     api_key = ff.load_api_key()
@@ -88,14 +103,58 @@ def main() -> int:
         print("Kein API-Key gefunden (ETHERSCAN_API_KEY in .env oder Umgebung).", file=sys.stderr)
         return 1
 
+    # Einzelinstanz fuer BEIDE Modi: rebuild_edges loescht und schreibt den
+    # ganzen Kantenbestand, ein zweiter Schreiber mitten darin hinterlaesst
+    # einen halben Graphen. Laeuft die geplante Task, sagt ein manueller
+    # Start das klar, statt still hineinzuschreiben.
+    try:
+        lock = proc_lock.acquire(Path(args.db).parent, name=LOCK_NAME)
+    except proc_lock.AlreadyRunning as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    try:
+        if not args.loop:
+            return run_pass(args, api_key)
+        print(f"[entity-scan] loop every {args.interval_hours:g} h; stop file: {STOP_PATH}", flush=True)
+        while True:
+            if STOP_PATH.exists():
+                STOP_PATH.unlink(missing_ok=True)
+                print("[entity-scan] stop file found, exiting")
+                return 0
+            try:
+                run_pass(args, api_key)
+            except Exception as exc:  # noqa: BLE001 - ein Durchgang darf die Task nicht kippen
+                print(f"[warn] entity scan pass failed: {exc}", file=sys.stderr, flush=True)
+            rest = max(60.0, float(args.interval_hours) * 3600.0)
+            while rest > 0:
+                if STOP_PATH.exists():
+                    STOP_PATH.unlink(missing_ok=True)
+                    print("[entity-scan] stop file found, exiting")
+                    return 0
+                schritt = min(15.0, rest)
+                time.sleep(schritt)
+                rest -= schritt
+    finally:
+        proc_lock.release(lock)
+
+
+def run_pass(args, api_key: str) -> int:
+    """Ein kompletter Durchgang: Ziele bestimmen, scannen, Graph neu ableiten.
+
+    Keine Ziele sind im Loop kein Fehler: direkt nach dem Anmelden ist der
+    Tape-Store oft noch leer, weil der Ingest-Task gerade erst anlaeuft.
+    Der naechste Durchgang findet ihn gefuellt vor.
+    """
+
     ziele: list[str] = []
     for wallet in list(args.wallet) + top_store_wallets(args.top_store):
         sauber = str(wallet).strip().lower()
         if sauber and sauber not in ziele:
             ziele.append(sauber)
     if not ziele:
-        print("Keine Ziele: --wallet angeben oder --top-store nutzen (Tape-Store noetig).", file=sys.stderr)
-        return 1
+        print("Keine Ziele: --wallet angeben oder --top-store nutzen (Tape-Store noetig).",
+              file=sys.stderr, flush=True)
+        return 0 if args.loop else 1
 
     conn = eg.connect(Path(args.db))
     try:
