@@ -10,7 +10,10 @@ darauf, als waere es die einzige.
 
 from __future__ import annotations
 
+import tempfile
+import time
 import unittest
+from pathlib import Path
 
 import pandas as pd
 
@@ -109,6 +112,64 @@ class GraphPayloadTests(unittest.TestCase):
 
     def test_without_a_ladder_the_key_stays_out_of_the_payload(self) -> None:
         self.assertNotIn("regel_leiter", self._graph(None))
+
+
+class StoreTapeTests(unittest.TestCase):
+    """``load_store_tape``: der Store traegt das Bild nur, wenn er es tragen kann.
+
+    Drei Wachposten, jeder gegen ein stilles Falschbild: keine Datei (Deploy-
+    Host), zu wenig Fenster (das Live-Band waere tiefer) und ein stehender
+    Ingest (ein eingefrorenes Band saehe sonst aktuell aus). Nur wenn alle
+    drei durchlassen, kommt ein Frame mit Store-Stichprobenvermerk zurueck.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp = Path(self._tmp.name)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _store(self, hours: int, end_offset_s: int = 0) -> Path:
+        from app import tape_store as ts
+
+        now = int(time.time()) - end_offset_s
+        rows = [
+            {
+                "transaction_hash": f"0xt{i}", "wallet": WALLET_A if i % 2 else WALLET_B,
+                "asset": f"a{i}", "timestamp": now - i * 3600, "notional": 50_000.0,
+                "title": f"Market {i % 5}", "outcome": "Yes", "side": "BUY",
+                "price": 0.5, "size": 1.0, "market_key": f"m{i % 5}",
+                "trader": "", "slug": "", "url": "",
+            }
+            for i in range(hours)
+        ]
+        path = self.tmp / "tape.sqlite"
+        conn = ts.connect(path)
+        try:
+            ts.insert_tape(conn, pd.DataFrame(rows))
+        finally:
+            conn.close()
+        return path
+
+    def test_a_missing_store_is_an_empty_frame(self) -> None:
+        self.assertTrue(server.load_store_tape(self.tmp / "missing.sqlite").empty)
+
+    def test_a_deep_fresh_store_carries_the_basis_and_names_its_window(self) -> None:
+        from src import prediction_markets as md
+
+        frame = server.load_store_tape(self._store(hours=72))
+        self.assertFalse(frame.empty)
+        record = md.sample_coverage(frame)
+        self.assertEqual(record["source"], "tape_store")
+        self.assertIn("days of stored tape", md.sample_note(record))
+
+    def test_a_thin_store_defers_to_the_live_tape(self) -> None:
+        self.assertTrue(server.load_store_tape(self._store(hours=24)).empty)
+
+    def test_a_stale_store_defers_instead_of_freezing_the_screen(self) -> None:
+        stale = self._store(hours=72, end_offset_s=2 * 86400)
+        self.assertTrue(server.load_store_tape(stale).empty)
 
 
 if __name__ == "__main__":

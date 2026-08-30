@@ -700,7 +700,11 @@ def build_wallet_detail(wallet: str) -> dict[str, Any]:
         _roh, base, whale_threshold = risk_screen_basis()
         if base.empty:
             return None
-        scores = md.whale_wallet_risk_scores(base, whale_threshold=whale_threshold)
+        # Mit derselben First-Seen-Map wie der Risk-Screen, sonst truege
+        # dieselbe Wallet dort und hier wieder zwei verschiedene Zahlen.
+        scores = md.whale_wallet_risk_scores(
+            base, whale_threshold=whale_threshold,
+            known_since=store_known_since(base["wallet"].astype(str)) if "wallet" in base else {})
         if scores is None or scores.empty or "wallet" not in scores:
             return None
         match = scores[scores["wallet"].astype(str).str.lower() == w.lower()]
@@ -801,6 +805,13 @@ def build_wallet_detail(wallet: str) -> dict[str, Any]:
         if text:
             fehler[name] = text
     payload["errors"] = fehler
+    # Erster gespeicherter Print aus dem Tape-Store: eine Untergrenze des
+    # Alters, kein Geburtsdatum. None heisst nur, dass der Store die Wallet
+    # (noch) nicht gesehen hat — nicht, dass sie neu ist.
+    erster = store_known_since([wallet]).get(wallet.lower())
+    payload["store_first_seen"] = (
+        datetime.fromtimestamp(int(erster), tz=timezone.utc).isoformat(timespec="seconds")
+        if erster else None)
     return payload
 
 
@@ -810,6 +821,44 @@ def wallet_detail(wallet: str) -> dict[str, Any]:
     if not WALLET_ADDRESS.match(wallet):
         raise HTTPException(status_code=400, detail="expected a Polymarket wallet address (0x + 40 hex characters)")
     return cached(f"wallet_page_{wallet.lower()}", build_wallet_detail, wallet.lower(), ttl=WALLET_CACHE_TTL)
+
+
+@app.get("/api/wallet/{wallet}/flows", dependencies=[Depends(expensive_route_limit)])
+def wallet_flows(wallet: str) -> dict[str, Any]:
+    """On-Chain-Geldfluesse der Wallet: app/onchain_flows hinter einer Route.
+
+    Der Kern (Protokoll- vs. externe Fluesse, Funding-Spanne, Peak-Exposure)
+    war fertig und getestet, aber nur per Einmal-Skript erreichbar. Hier
+    liest ihn ein begrenzter Etherscan-Walk (app/flow_fetch): Antwort in
+    Sekunden, und ``complete`` sagt, ob die Historie ganz gelesen wurde —
+    eine gekappte Summe ist eine Untergrenze und heisst auch so. Ohne
+    konfigurierten Key antwortet die Route 503, statt so zu tun, als gaebe
+    es keine Fluesse. Eine Stunde Cache: die Chain-Historie einer Wallet
+    aendert sich rueckwirkend nicht.
+    """
+
+    from app import flow_fetch as ff
+
+    wallet = wallet.strip().lower()
+    if not WALLET_ADDRESS.match(wallet):
+        raise HTTPException(status_code=400, detail="expected a Polymarket wallet address (0x + 40 hex characters)")
+
+    def _build() -> dict[str, Any]:
+        api_key = ff.load_api_key(ROOT)
+        if not api_key:
+            raise ff.FlowFetchError("no Etherscan API key configured (ETHERSCAN_API_KEY)")
+        report = ff.wallet_flow_report(wallet, api_key)
+        erster = store_known_since([wallet]).get(wallet)
+        report["store_first_seen"] = (
+            datetime.fromtimestamp(int(erster), tz=timezone.utc).isoformat(timespec="seconds")
+            if erster else None)
+        report["as_of"] = md.now_utc_label()
+        return report
+
+    try:
+        return cached(f"wallet_flows_{wallet}", _build, ttl=3600.0)
+    except ff.FlowFetchError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
 
 
 @app.get("/api/wallet/{wallet}/similar", dependencies=[Depends(wallet_route_limit)])
@@ -1030,6 +1079,99 @@ def load_deep_tape(seiten: int = 8, min_cash: float = 1000.0) -> pd.DataFrame:
     return cached(f"deep_tape_{seiten}_{min_cash}", _load, ttl=300.0)
 
 
+# --- Persistenter Tape-Store (Wallet-Graph Phase 1) --------------------------
+# Der Ingest-Job (scripts/run_tape_ingest.py) sammelt das Whale-Band lokal in
+# SQLite. Liegt genug davon vor, rechnet der Co-Trading-Graph ueber Wochen
+# statt ueber den einen Tag, den der Live-Feed hergibt — die Regel-Leiter
+# muss dann seltener lockern. Auf dem Deploy-Host existiert die Datei nicht,
+# und alles hier faellt leise auf das Live-Band zurueck.
+TAPE_STORE_PATH = Path(os.environ.get("TAPE_STORE_PATH", "").strip() or (ROOT / "data" / "tape_store.sqlite"))
+#: Unter diesem Fenster hat das Live-Band mehr Tiefe als der Store.
+TAPE_STORE_MIN_DAYS = _env_float("TAPE_STORE_MIN_DAYS", 2.0)
+#: Juengster Print aelter als das: der Ingest steht, das Band ist eingefroren.
+TAPE_STORE_MAX_AGE_H = _env_float("TAPE_STORE_MAX_AGE_H", 6.0)
+#: Obergrenze des Graph-Fensters; mehr Wochen heisst irgendwann nur mehr Rauschen.
+TAPE_STORE_WINDOW_DAYS = _env_float("TAPE_STORE_WINDOW_DAYS", 14.0)
+
+
+def load_store_tape(path: Path | None = None) -> pd.DataFrame:
+    """Graph-Basis aus dem persistenten Tape-Store, oder ein leerer Frame.
+
+    Leer heisst der Reihe nach: keine Store-Datei, Fenster unter
+    ``TAPE_STORE_MIN_DAYS`` oder juengster Print aelter als
+    ``TAPE_STORE_MAX_AGE_H`` Stunden. Der letzte Fall ist der wichtige: ein
+    stehender Ingest wuerde sonst ein eingefrorenes Band liefern, das genau
+    so aussieht wie ein aktuelles. Der Aufrufer faellt dann auf
+    ``load_deep_tape`` zurueck, und die Stichproben-Notiz im Payload sagt,
+    welche Quelle das Bild wirklich traegt.
+    """
+
+    store_path = Path(path) if path is not None else TAPE_STORE_PATH
+
+    def _load() -> pd.DataFrame:
+        from app import suspicion as susp
+        from app import tape_store as tsm
+
+        if not store_path.exists():
+            return pd.DataFrame()
+        _whale, floor = susp.screen_thresholds(cfg.load_settings())
+        try:
+            conn = tsm.connect(store_path)
+            try:
+                cov = tsm.coverage(conn)
+                newest = cov.get("newest_ts")
+                if not newest or cov["window_days"] < TAPE_STORE_MIN_DAYS:
+                    return pd.DataFrame()
+                alter_h = (time.time() - float(newest)) / 3600.0
+                if alter_h > TAPE_STORE_MAX_AGE_H:
+                    print(f"[warn] tape store stale: newest print {alter_h:.1f}h old, using the live tape")
+                    return pd.DataFrame()
+                # Unter dem Ingest-Boden macht der Store keine Vollstaendig-
+                # keitszusage; die Notiz nennt deshalb den hoeheren der beiden.
+                effective_floor = max(float(floor), float(cov["ingest_floor"]))
+                fenster = min(float(cov["window_days"]), TAPE_STORE_WINDOW_DAYS)
+                frame = tsm.load_tape_window(conn, days=fenster, min_cash=effective_floor)
+            finally:
+                conn.close()
+        except Exception as exc:
+            print(f"[warn] tape store: {exc}")
+            return pd.DataFrame()
+        if frame.empty:
+            return frame
+        frame.attrs[md.SAMPLE_ATTR] = {
+            "source": "tape_store",
+            "min_cash": effective_floor,
+            "rows": int(len(frame)),
+            "window_days": round(fenster, 1),
+        }
+        return frame
+
+    return cached(f"store_tape_{store_path}", _load, ttl=300.0)
+
+
+def store_known_since(wallets: Any) -> dict[str, int]:
+    """Erster gespeicherter Print je Wallet aus dem Tape-Store; fail-soft leer.
+
+    Untergrenze des Alters, kein Geburtsdatum: der Store kennt eine Wallet
+    erst, seit der Ingest laeuft. Fuer das Frische-Signal reicht genau diese
+    Richtung (siehe ``md.whale_wallet_risk_scores``).
+    """
+
+    try:
+        from app import tape_store as tsm
+
+        if not TAPE_STORE_PATH.exists():
+            return {}
+        conn = tsm.connect(TAPE_STORE_PATH)
+        try:
+            return tsm.first_seen_map(conn, wallets)
+        finally:
+            conn.close()
+    except Exception as exc:
+        print(f"[warn] tape store first-seen: {exc}")
+        return {}
+
+
 def _tape_categories(trades: pd.DataFrame) -> pd.DataFrame:
     """Kategorien und Elterntitel fuer die Maerkte eines Tapes.
 
@@ -1157,7 +1299,13 @@ def build_risk_payload() -> dict[str, Any]:
         raise LookupError("no trade tape available")
 
     def _build() -> dict[str, Any]:
-        wallet_scores = md.whale_wallet_risk_scores(base, whale_threshold=whale_threshold)
+        # Echter First-Seen aus dem Tape-Store: eine Wallet, die der Store
+        # schon vor diesem Fenster kannte, ist nicht "sample-fresh", egal wie
+        # spaet sie im Ein-Tages-Band auftaucht. Ohne Store bleibt die Map
+        # leer und das Signal rechnet wie bisher.
+        bekannt = store_known_since(base["wallet"].astype(str)) if "wallet" in base else {}
+        wallet_scores = md.whale_wallet_risk_scores(
+            base, whale_threshold=whale_threshold, known_since=bekannt)
         event_scores = md.whale_event_risk_scores(base, whale_threshold=whale_threshold)
         fresh = pd.DataFrame()
         coord = pd.DataFrame()
@@ -1181,8 +1329,12 @@ def build_risk_payload() -> dict[str, Any]:
         try:
             # Der Netzwerk-Tape geht bewusst tiefer als der Screen-Tape: das
             # letzte Tausend Prints deckt auf dieser Venue rund eine Minute ab,
-            # und in einer Minute teilt niemand mehr als einen Markt.
-            netz_tape = load_deep_tape()
+            # und in einer Minute teilt niemand mehr als einen Markt. Haelt der
+            # persistente Store genug Fenster, traegt er das Bild (Wochen statt
+            # ein Tag); die Stichproben-Notiz sagt, welche Quelle es war.
+            netz_tape = load_store_tape()
+            if netz_tape.empty:
+                netz_tape = load_deep_tape()
             # Wie tief die Stichprobe wirklich war, gehoert neben das Bild.
             # "Kein Cluster im aktuellen Fenster" ist ein Befund, solange das
             # Fenster steht; bricht die Seitenschleife auf halber Strecke ab,

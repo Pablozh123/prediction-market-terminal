@@ -52,7 +52,7 @@ https://claude.ai/code/artifact/1559e64a-979d-4c14-a8aa-ec6e2ac8ac3f
    - Unterschätzter Endpoint: `/v1/market-positions` (`src/prediction_markets.py:2199`) —
      komplette Teilnehmerliste pro Markt mit PnL.
    - **Strukturelle Schwäche: keine Persistenz** (kein Trades-/Wallets-/Kanten-Store;
-     Railway-Volume nur 500 MB).
+     Railway-Volume nur 500 MB). Behoben in Phase 1, siehe "Stand der Umsetzung".
 
 ## Der Vorschlag („Wallet-Graph")
 
@@ -88,8 +88,42 @@ Keine Deanonymisierung (Konten verknüpfen, keine Personen identifizieren).
 
 Kosten: $0–50/Monat. Kalshi bleibt außen vor (keine öffentlichen Wallets).
 
+## Stand der Umsetzung (2026-08-30)
+
+**Phase 1 (Persistenz) ist umgesetzt** (Branch `claude/wallet-graph-phase1-persistence`):
+
+- `app/tape_store.py`: persistenter Whale-Tape-Store, SQLite/WAL unter
+  `data/tape_store.sqlite` (lokal, nicht auf dem Deploy-Volume). Dedupliziert auf
+  (tx, wallet, asset), fuehrt Wallet-First/Last-Seen idempotent mit und protokolliert
+  jeden Ingest-Lauf (Seiten, Boden, Abbrueche), damit der Store sagen kann, wovon er
+  eine Stichprobe ist.
+- `scripts/run_tape_ingest.py`: fortlaufender Ingest im 10-Minuten-Takt (proc_lock,
+  Stop-Datei `data/tape_ingest.stop`), Boden ist der Screen-Boden aus
+  `suspicion.screen_thresholds`. Als geplante Task `MarketIntelTapeIngest` in
+  `scripts/install_autostart.ps1` registrierbar.
+- `api/server.py::load_store_tape`: haelt der Store mindestens 2 Tage Fenster und ist
+  der juengste Print unter 6 Stunden alt, traegt er die Co-Trading-Basis (bis 14 Tage),
+  sonst weiter das Live-Band. Die Stichproben-Notiz im Payload nennt die Quelle
+  ("N days of stored tape"). Die Regel-Leiter bleibt vorerst stehen; die lockeren
+  Sprossen fliegen erst raus, wenn der Store verlaesslich Wochen haelt.
+- `app/flow_fetch.py` + Route `GET /api/wallet/{wallet}/flows`: der getestete
+  Funding-Kernel aus `onchain_flows.py` haengt jetzt an der API. Begrenzter
+  Etherscan-V2-Walk (Budget je Kontrakt, `complete`-Flag, gekappte Summen heissen
+  Untergrenzen), liefert Funding-Spanne, Peak-Exposure, Top-Gegenparteien und das
+  on-chain First-Transfer-Datum. Braucht `ETHERSCAN_API_KEY`, sonst 503.
+- Echter First-Seen: `md.whale_wallet_risk_scores` nimmt `known_since` (First-Seen-Map
+  aus dem Store). Eine Wallet, die der Store schon vor dem Tagesfenster kannte, ist
+  nicht mehr "sample-fresh"; Risk-Screen und Wallet-Seite nutzen dieselbe Map.
+  Wallet-Detail traegt zusaetzlich `store_first_seen`.
+
 ## Offene Punkte
 
-- Freigabe für Phase 1 (Detailplanung: Schema, Ingest-Kadenz, Speicherbudget) steht aus.
-- Entscheidung Ingest-Host: lokaler Rechner (geplante Task) vs. separater Worker.
+- Geplante Task `MarketIntelTapeIngest` registrieren (User-Aktion:
+  `scripts/install_autostart.ps1` auf dem Rechner, der sammeln soll; ein Rechner
+  reicht, jeder sammelt sonst in seinen eigenen lokalen Store).
+- Goldsky-Subgraphs (`pnl`, `activity`) als zweite Ingest-Quelle: noch offen; das
+  Run-Protokoll des Stores hat dafuer bereits eine `source`-Spalte.
+- Phase 2 (Funding-Graph und Entity-Aufloesung) ist die naechste Ausbaustufe;
+  Schema-Vorschlag steht oben unter Ausbaustufen.
+- Entscheidung Ingest-Host langfristig: lokaler Rechner (geplante Task) vs. separater Worker.
 - Optional: Arkham-API-Labels als Anreicherung (Buy), Bubblemaps-iFrame als Sanity-Check.

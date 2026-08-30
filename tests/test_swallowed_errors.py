@@ -144,6 +144,15 @@ class SeitenschleifeTests(unittest.TestCase):
         note = md.sample_note({"min_cash": 1000.0, "venues_missing": ["Kalshi"]})
         self.assertIn("Kalshi did not answer", note)
 
+    def test_stored_tape_names_its_window_instead_of_pages(self) -> None:
+        # Ein Fenster aus dem persistenten Tape-Store hat keine Seiten; ohne
+        # die Tage im Satz saehe das Bild aus, als kaeme es vom Live-Band.
+        note = md.sample_note({"source": "tape_store", "min_cash": 1000.0,
+                               "rows": 45210, "window_days": 7.0})
+        self.assertIn("$1,000", note)
+        self.assertIn("7.0 days of stored tape", note)
+        self.assertIn("45,210 prints", note)
+
     def test_the_first_page_failing_leaves_an_empty_frame_that_says_why(self) -> None:
         with offline_market_apis(), failing_requests("/trades"):
             tape = md.paged_polymarket_trades(1000.0, pages=4, page_size=24)
