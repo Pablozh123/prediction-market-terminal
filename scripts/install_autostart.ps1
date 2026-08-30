@@ -3,7 +3,7 @@
 #   MarketIntelCopyDaemon      - paper copy-trading daemon (scripts/run_copy_trader.py)
 #   MarketIntelAlertScanner    - background alert scanner (scripts/run_alert_scanner.py)
 #   MarketIntelLedgerResolution- daily signal-ledger resolution join (scripts/run_ledger_resolution.py)
-#   MarketIntelTapeIngest      - persistent whale-tape ingest (scripts/run_tape_ingest.py)
+#   MarketIntelTradeIngest     - persistent whale-tape ingest (scripts/run_trade_ingest.py)
 # Remove again with scripts/uninstall_autostart.ps1. No admin rights required.
 
 $ErrorActionPreference = "Stop"
@@ -15,7 +15,7 @@ $tasks = @(
     @{ Name = "MarketIntelCopyDaemon";       Args = "scripts\run_copy_trader.py" },
     @{ Name = "MarketIntelAlertScanner";     Args = "scripts\run_alert_scanner.py" },
     @{ Name = "MarketIntelLedgerResolution"; Args = "scripts\run_ledger_resolution.py" },
-    @{ Name = "MarketIntelTapeIngest";       Args = "scripts\run_tape_ingest.py" }
+    @{ Name = "MarketIntelTradeIngest";      Args = "scripts\run_trade_ingest.py" }
 )
 
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME

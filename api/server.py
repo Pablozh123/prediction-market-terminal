@@ -127,6 +127,7 @@ from app import signals as sig
 from app import track_record as trec
 from app.analysis_views import load_publish_payload
 from src import prediction_markets as md
+from src import trade_store as ts
 
 
 def _env_float(name: str, default: float) -> float:
@@ -1059,116 +1060,58 @@ def load_deep_tape(seiten: int = 8, min_cash: float = 1000.0) -> pd.DataFrame:
     Risk-Screen schrieb daneben weiter "No co-trading cluster in the current
     window. That is a result, not a gap." Die Schleife steht deshalb jetzt in
     ``md.paged_polymarket_trades`` und fuehrt ihren Abbruch am Frame mit.
+
+    Ein Tag ist trotzdem zu kurz, um Struktur zu sehen, die sich ueber
+    Wochen aufbaut — deshalb faellt die Regelleiter so oft auf die unterste
+    Sprosse. Liegt der persistente Speicher (src/trade_store.py, gefuellt
+    von scripts/run_trade_ingest.py) vor, wird das Live-Band deshalb um
+    dessen Fenster erweitert; die ``store_*``-Felder im Zuschnitt-Vermerk
+    sagen, wie viel davon kam. Ohne Speicherdatei ist dieser Schritt ein
+    Durchlauf ohne Wirkung.
     """
 
     def _load() -> pd.DataFrame:
         zusammen = md.paged_polymarket_trades(min_cash, pages=seiten, page_size=1000)
         record = md.sample_coverage(zusammen)
         if zusammen.empty:
-            leer = pd.DataFrame()
-            leer.attrs[md.SAMPLE_ATTR] = record
-            return leer
-        schluessel = [s for s in ("transaction_hash", "wallet", "asset") if s in zusammen.columns]
-        if schluessel:
-            zusammen = zusammen.drop_duplicates(subset=schluessel, keep="first")
-        zusammen = zusammen.reset_index(drop=True)
-        record["rows"] = int(len(zusammen))
-        zusammen.attrs[md.SAMPLE_ATTR] = record
-        return zusammen
+            zusammen = pd.DataFrame()
+            zusammen.attrs[md.SAMPLE_ATTR] = record
+        else:
+            schluessel = [s for s in ("transaction_hash", "wallet", "asset") if s in zusammen.columns]
+            if schluessel:
+                zusammen = zusammen.drop_duplicates(subset=schluessel, keep="first")
+            zusammen = zusammen.reset_index(drop=True)
+            record["rows"] = int(len(zusammen))
+            zusammen.attrs[md.SAMPLE_ATTR] = record
+            # TRADE_STORE_RECORD=1: was ohnehin geholt wurde, dem Speicher
+            # geben — so waechst er auch auf dem API-Host, Standard aus.
+            ts.maybe_record(zusammen)
+        return ts.extend_tape(zusammen, min_cash=min_cash)
 
     return cached(f"deep_tape_{seiten}_{min_cash}", _load, ttl=300.0)
 
 
-# --- Persistenter Tape-Store (Wallet-Graph Phase 1) --------------------------
-# Der Ingest-Job (scripts/run_tape_ingest.py) sammelt das Whale-Band lokal in
-# SQLite. Liegt genug davon vor, rechnet der Co-Trading-Graph ueber Wochen
-# statt ueber den einen Tag, den der Live-Feed hergibt — die Regel-Leiter
-# muss dann seltener lockern. Auf dem Deploy-Host existiert die Datei nicht,
-# und alles hier faellt leise auf das Live-Band zurueck.
-TAPE_STORE_PATH = Path(os.environ.get("TAPE_STORE_PATH", "").strip() or (ROOT / "data" / "tape_store.sqlite"))
-#: Unter diesem Fenster hat das Live-Band mehr Tiefe als der Store.
-TAPE_STORE_MIN_DAYS = _env_float("TAPE_STORE_MIN_DAYS", 2.0)
-#: Juengster Print aelter als das: der Ingest steht, das Band ist eingefroren.
-TAPE_STORE_MAX_AGE_H = _env_float("TAPE_STORE_MAX_AGE_H", 6.0)
-#: Obergrenze des Graph-Fensters; mehr Wochen heisst irgendwann nur mehr Rauschen.
-TAPE_STORE_WINDOW_DAYS = _env_float("TAPE_STORE_WINDOW_DAYS", 14.0)
-
-
-def load_store_tape(path: Path | None = None) -> pd.DataFrame:
-    """Graph-Basis aus dem persistenten Tape-Store, oder ein leerer Frame.
-
-    Leer heisst der Reihe nach: keine Store-Datei, Fenster unter
-    ``TAPE_STORE_MIN_DAYS`` oder juengster Print aelter als
-    ``TAPE_STORE_MAX_AGE_H`` Stunden. Der letzte Fall ist der wichtige: ein
-    stehender Ingest wuerde sonst ein eingefrorenes Band liefern, das genau
-    so aussieht wie ein aktuelles. Der Aufrufer faellt dann auf
-    ``load_deep_tape`` zurueck, und die Stichproben-Notiz im Payload sagt,
-    welche Quelle das Bild wirklich traegt.
-    """
-
-    store_path = Path(path) if path is not None else TAPE_STORE_PATH
-
-    def _load() -> pd.DataFrame:
-        from app import suspicion as susp
-        from app import tape_store as tsm
-
-        if not store_path.exists():
-            return pd.DataFrame()
-        _whale, floor = susp.screen_thresholds(cfg.load_settings())
-        try:
-            conn = tsm.connect(store_path)
-            try:
-                cov = tsm.coverage(conn)
-                newest = cov.get("newest_ts")
-                if not newest or cov["window_days"] < TAPE_STORE_MIN_DAYS:
-                    return pd.DataFrame()
-                alter_h = (time.time() - float(newest)) / 3600.0
-                if alter_h > TAPE_STORE_MAX_AGE_H:
-                    print(f"[warn] tape store stale: newest print {alter_h:.1f}h old, using the live tape")
-                    return pd.DataFrame()
-                # Unter dem Ingest-Boden macht der Store keine Vollstaendig-
-                # keitszusage; die Notiz nennt deshalb den hoeheren der beiden.
-                effective_floor = max(float(floor), float(cov["ingest_floor"]))
-                fenster = min(float(cov["window_days"]), TAPE_STORE_WINDOW_DAYS)
-                frame = tsm.load_tape_window(conn, days=fenster, min_cash=effective_floor)
-            finally:
-                conn.close()
-        except Exception as exc:
-            print(f"[warn] tape store: {exc}")
-            return pd.DataFrame()
-        if frame.empty:
-            return frame
-        frame.attrs[md.SAMPLE_ATTR] = {
-            "source": "tape_store",
-            "min_cash": effective_floor,
-            "rows": int(len(frame)),
-            "window_days": round(fenster, 1),
-        }
-        return frame
-
-    return cached(f"store_tape_{store_path}", _load, ttl=300.0)
-
-
 def store_known_since(wallets: Any) -> dict[str, int]:
-    """Erster gespeicherter Print je Wallet aus dem Tape-Store; fail-soft leer.
+    """Erster gespeicherter Print je Wallet aus dem Trade-Store; fail-soft leer.
 
     Untergrenze des Alters, kein Geburtsdatum: der Store kennt eine Wallet
-    erst, seit der Ingest laeuft. Fuer das Frische-Signal reicht genau diese
-    Richtung (siehe ``md.whale_wallet_risk_scores``).
+    erst, seit der Ingest laeuft, und ``prune`` loescht nur Prints, nie die
+    First-Seen-Tabelle. Fuer das Frische-Signal reicht genau diese Richtung
+    (siehe ``md.whale_wallet_risk_scores``): wen der Store schon vor dem
+    Tagesfenster kannte, der ist bewiesenermassen nicht neu.
     """
 
     try:
-        from app import tape_store as tsm
-
-        if not TAPE_STORE_PATH.exists():
+        ziel = ts.store_path()
+        if not ziel.exists():
             return {}
-        conn = tsm.connect(TAPE_STORE_PATH)
+        conn = ts.connect(ziel)
         try:
-            return tsm.first_seen_map(conn, wallets)
+            return ts.first_seen_map(conn, wallets)
         finally:
             conn.close()
     except Exception as exc:
-        print(f"[warn] tape store first-seen: {exc}")
+        print(f"[warn] trade store first-seen: {exc}")
         return {}
 
 
@@ -1329,17 +1272,19 @@ def build_risk_payload() -> dict[str, Any]:
         try:
             # Der Netzwerk-Tape geht bewusst tiefer als der Screen-Tape: das
             # letzte Tausend Prints deckt auf dieser Venue rund eine Minute ab,
-            # und in einer Minute teilt niemand mehr als einen Markt. Haelt der
-            # persistente Store genug Fenster, traegt er das Bild (Wochen statt
-            # ein Tag); die Stichproben-Notiz sagt, welche Quelle es war.
-            netz_tape = load_store_tape()
-            if netz_tape.empty:
-                netz_tape = load_deep_tape()
+            # und in einer Minute teilt niemand mehr als einen Markt. Liegt
+            # der persistente Trade-Store vor, hat load_deep_tape das Band
+            # bereits um dessen Fenster erweitert (ts.extend_tape).
+            netz_tape = load_deep_tape()
             # Wie tief die Stichprobe wirklich war, gehoert neben das Bild.
             # "Kein Cluster im aktuellen Fenster" ist ein Befund, solange das
             # Fenster steht; bricht die Seitenschleife auf halber Strecke ab,
             # ist es keiner mehr, und vorher war das nicht zu unterscheiden.
-            payload["cluster_sample"] = {"note": md.sample_note(md.sample_coverage(netz_tape)), "error": ""}
+            vermerk = md.sample_coverage(netz_tape)
+            payload["cluster_sample"] = {
+                "note": " ".join(teil for teil in (md.sample_note(vermerk), ts.store_note(vermerk)) if teil),
+                "error": "",
+            }
             # Kategorien mitgeben: ein Untermarkt heisst "Will FC Thun win on
             # 2026-08-06?" und traegt selbst kein Sportwort. Ohne den
             # Elterntitel landen ganze Spieltage als "General" im Screen.

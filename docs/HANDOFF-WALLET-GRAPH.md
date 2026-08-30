@@ -90,40 +90,63 @@ Kosten: $0–50/Monat. Kalshi bleibt außen vor (keine öffentlichen Wallets).
 
 ## Stand der Umsetzung (2026-08-30)
 
-**Phase 1 (Persistenz) ist umgesetzt** (Branch `claude/wallet-graph-phase1-persistence`):
+Phase 1 wurde parallel auf beiden Rechnern gebaut; der Merge behielt den Store von
+main (`src/trade_store.py`) und traegt die Stuecke des PR-Zweigs nach, die dort
+fehlten. Ergebnis:
 
-- `app/tape_store.py`: persistenter Whale-Tape-Store, SQLite/WAL unter
-  `data/tape_store.sqlite` (lokal, nicht auf dem Deploy-Volume). Dedupliziert auf
-  (tx, wallet, asset), fuehrt Wallet-First/Last-Seen idempotent mit und protokolliert
-  jeden Ingest-Lauf (Seiten, Boden, Abbrueche), damit der Store sagen kann, wovon er
-  eine Stichprobe ist.
-- `scripts/run_tape_ingest.py`: fortlaufender Ingest im 10-Minuten-Takt (proc_lock,
-  Stop-Datei `data/tape_ingest.stop`), Boden ist der Screen-Boden aus
-  `suspicion.screen_thresholds`. Als geplante Task `MarketIntelTapeIngest` in
+- `src/trade_store.py` — SQLite-Speicher (WAL, Dedup-Schluessel wie `load_deep_tape`:
+  `transaction_hash, wallet, asset`), Lesefenster `TRADE_STORE_WINDOW_DAYS` (Standard
+  14 Tage), `extend_tape` reichert das Live-Band des Risk-Screens an, `store_note`
+  liefert den zweiten Satz der Bildunterschrift (Prints, Tage-mit-Daten, letzter
+  Ingest, Dedup-Summe; bei mehr als einem Tag Ingest-Stillstand benennt er die
+  Luecke zwischen Speicherfenster und Live-Band). Ohne Datei aendert sich nichts,
+  fail-soft in jede Richtung. Neu dazu: `wallets`-Tabelle (First/Last-Seen je
+  Wallet, MIN/MAX-idempotent, uebersteht `prune`) und `first_seen_map`.
+- `scripts/run_trade_ingest.py` — Runner (Schleife alle 15 min, `--once`, Stop-Datei
+  `data/trade_ingest.stop`, Aufbewahrung 45 Tage via `prune`, Einzelinstanz via
+  `app/proc_lock`). Als geplante Task `MarketIntelTradeIngest` in
   `scripts/install_autostart.ps1` registrierbar.
-- `api/server.py::load_store_tape`: haelt der Store mindestens 2 Tage Fenster und ist
-  der juengste Print unter 6 Stunden alt, traegt er die Co-Trading-Basis (bis 14 Tage),
-  sonst weiter das Live-Band. Die Stichproben-Notiz im Payload nennt die Quelle
-  ("N days of stored tape"). Die Regel-Leiter bleibt vorerst stehen; die lockeren
-  Sprossen fliegen erst raus, wenn der Store verlaesslich Wochen haelt.
-- `app/flow_fetch.py` + Route `GET /api/wallet/{wallet}/flows`: der getestete
+- `api/server.py` — `load_deep_tape` vereinigt Live-Band + Speicherfenster;
+  `TRADE_STORE_RECORD=1` laesst den API-Prozess seine ohnehin geholten Seiten
+  eintragen (Standard aus). Die Regelleiter bleibt unveraendert und berichtet
+  ehrlich weiter; die lockeren Sprossen fliegen erst raus, wenn der Store
+  verlaesslich Wochen haelt.
+- `app/flow_fetch.py` + Route `GET /api/wallet/{wallet}/flows` — der getestete
   Funding-Kernel aus `onchain_flows.py` haengt jetzt an der API. Begrenzter
   Etherscan-V2-Walk (Budget je Kontrakt, `complete`-Flag, gekappte Summen heissen
   Untergrenzen), liefert Funding-Spanne, Peak-Exposure, Top-Gegenparteien und das
   on-chain First-Transfer-Datum. Braucht `ETHERSCAN_API_KEY`, sonst 503.
-- Echter First-Seen: `md.whale_wallet_risk_scores` nimmt `known_since` (First-Seen-Map
-  aus dem Store). Eine Wallet, die der Store schon vor dem Tagesfenster kannte, ist
-  nicht mehr "sample-fresh"; Risk-Screen und Wallet-Seite nutzen dieselbe Map.
-  Wallet-Detail traegt zusaetzlich `store_first_seen`.
+- Echter First-Seen: `md.whale_wallet_risk_scores` nimmt `known_since`
+  (First-Seen-Map aus dem Store, via `store_known_since` in `api/server.py`).
+  Eine Wallet, die der Store schon vor dem Tagesfenster kannte, ist nicht mehr
+  "sample-fresh"; Risk-Screen und Wallet-Seite nutzen dieselbe Map, und das
+  Etikett nutzt dieselbe Maske wie die Punkte. Wallet-Detail traegt zusaetzlich
+  `store_first_seen`.
+
+**Betriebsbefunde:**
+
+- Heimrechner (anderer PC): Der Provider (Salt) blockt `*.polymarket.com` per DNS
+  (NXDOMAIN vom Router; 1.1.1.1/8.8.8.8 loesen normal auf, Schweizer
+  Geldspiel-Blockliste). Der lokale Runner braucht dort einen anderen Resolver,
+  ODER man laesst den Store auf Railway wachsen: `TRADE_STORE_RECORD=1` +
+  `TRADE_STORE_PATH=/data/trade_store.sqlite` (Volume!) + `RISK_LOG_INTERVAL_MIN>0`,
+  dann fuettert der Flag-Sampler den Store im Vorbeigehen. ~1-2 MB/Tag bei
+  $1k-Floor, 45 Tage unter 100 MB, passt ins 500-MB-Volume.
+- Dieser Rechner: kein DNS-Block, der Live-Smoke des Ingest lief direkt gegen den
+  Feed (3000 Prints ab $500 in einem Pass, zweiter Pass fand korrekt 0 Neue).
+  Gemessene Zeilengroesse ~850 Bytes inkl. Indizes.
 
 ## Offene Punkte
 
-- Geplante Task `MarketIntelTapeIngest` registrieren (User-Aktion:
-  `scripts/install_autostart.ps1` auf dem Rechner, der sammeln soll; ein Rechner
-  reicht, jeder sammelt sonst in seinen eigenen lokalen Store).
-- Goldsky-Subgraphs (`pnl`, `activity`) als zweite Ingest-Quelle: noch offen; das
-  Run-Protokoll des Stores hat dafuer bereits eine `source`-Spalte.
+- Betriebsentscheidung Ingest-Host: dieser Rechner kann lokal sammeln (geplante Task
+  `MarketIntelTradeIngest` via `scripts/install_autostart.ps1` registrieren,
+  User-Aktion); auf dem Heimrechner nur mit anderem Resolver, sonst Railway.
+  Ein Sammler reicht, jeder Rechner sammelt sonst in seinen eigenen lokalen Store.
+- Nach ~2 Wochen Bestand: pruefen, ob die strengen Leiter-Sprossen jetzt tragen; dann
+  die lockeren Sprossen loeschen.
+- Goldsky-Subgraphs (`pnl`, `activity`) als zweite Ingest-Quelle: noch offen.
+- Beobachten: `_tape_categories` schlaegt bei breiterem Tape mehr Maerkte nach
+  (gebatcht + fail-soft, aber Kaltstart von /api/risk wird traeger).
 - Phase 2 (Funding-Graph und Entity-Aufloesung) ist die naechste Ausbaustufe;
   Schema-Vorschlag steht oben unter Ausbaustufen.
-- Entscheidung Ingest-Host langfristig: lokaler Rechner (geplante Task) vs. separater Worker.
 - Optional: Arkham-API-Labels als Anreicherung (Buy), Bubblemaps-iFrame als Sanity-Check.

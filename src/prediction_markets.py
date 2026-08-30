@@ -1185,14 +1185,7 @@ def sample_note(record: Any) -> str:
     gelesen = int(daten.get("pages_read") or 0)
     verlangt = int(daten.get("pages_requested") or 0)
     zeilen = int(daten.get("rows") or 0)
-    # Ein Fenster aus dem persistenten Tape-Store hat keine Seiten; seine
-    # Tiefe ist das Fenster selbst, und die gehoert in denselben Satz wie
-    # sonst die Seitenzahl — dieselbe Zahl, ohne die das Bild wieder so
-    # aussaehe, als kaeme es aus dem Live-Band.
-    tage = daten.get("window_days")
-    if tage:
-        teile.append(f"{float(tage):.1f} days of stored tape, {zeilen:,} prints")
-    elif verlangt:
+    if verlangt:
         teile.append(f"{gelesen} of up to {verlangt} pages, {zeilen:,} prints")
     elif zeilen:
         teile.append(f"{zeilen:,} prints")
