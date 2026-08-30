@@ -14,13 +14,14 @@ import { renderTraders, renderWhale, renderRisk, renderTrack } from '../web/js/p
 import { renderBacktester, renderCopy, renderPortfolio } from '../web/js/pages/trading_pages.js';
 import { renderAlerts, renderResearch, renderSettings, collapseQueue, fillLatenzS } from '../web/js/pages/system_pages.js';
 import { renderWallet } from '../web/js/pages/wallet_page.js';
+import { renderGraph } from '../web/js/pages/graph_page.js';
 import { renderDetail, renderSearch } from '../web/js/overlays.js';
 
 const SEITEN = {
   overview: renderOverview, markets: renderMarkets, flow: renderFlow,
   cross: renderCross, resolved: renderResolved,
   traders: renderTraders, whale: renderWhale, risk: renderRisk, track: renderTrack,
-  wallet: renderWallet,
+  wallet: renderWallet, graph: renderGraph,
   backtester: renderBacktester, copy: renderCopy, portfolio: renderPortfolio,
   alerts: renderAlerts, research: renderResearch, settings: renderSettings
 };
@@ -67,7 +68,7 @@ function neuesT() {
     herkunft: { markets: null, tape: null, traders: null, risks: null, cross: null },
     // Landing payloads (Overview): null until loaded, like in app.js.
     landing: { micro: null, runs: null, notes: null, ledger: null, herkunft: { micro: null, runs: null, notes: null, ledger: null } },
-    liveData: { leaderboard: null, cross: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {}, riskBook: {}, walletSimilar: {} },
+    liveData: { leaderboard: null, cross: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {}, riskBook: {}, walletSimilar: {}, walletEntity: {}, graph: null },
     num, money, esc,
     seriesPoints: (v, w, h) => seriesPoints(v, w, h),
     act: () => 'data-act="0"',
@@ -106,7 +107,10 @@ function neuesT() {
     openWallet: () => {},
     openMarket: () => {},
     fetchRiskBook: () => {},
-    fetchWalletSimilar: () => {}
+    fetchWalletSimilar: () => {},
+    fetchWalletEntity: () => {},
+    fetchGraph: () => {},
+    openWalletTab: () => {}
   };
 }
 
@@ -1402,6 +1406,48 @@ function rendern(T) {
         limits: ['Harness limit line.']
       } };
       return () => { if (alt) T.liveData.wallet[WALLET_HARNESS_ADDR] = alt; else delete T.liveData.wallet[WALLET_HARNESS_ADDR]; };
+    }],
+    // Wallet graph page with a real entity, a candidate and a behaviour block.
+    ['graph_data', 'graph', {}, null, (T) => {
+      const wa = '0x' + 'a'.repeat(40);
+      const wb = '0x' + 'b'.repeat(40);
+      const funder = '0x' + 'f'.repeat(40);
+      const router = '0x' + '4'.repeat(40);
+      T.liveData.graph = {
+        available: true, as_of: '2026-08-30 12:00 UTC',
+        caveat: 'A best-effort behavioural screen on public trade data: research leads, not legal findings.',
+        stats: { scans: 12, hard_edges: 1, candidate_edges: 3, multi_wallet_entities: 1 },
+        entities: [{ entity_id: 'entity:' + wa, wallets: [wa, wb], edges: [
+          { wallet_a: wa, wallet_b: wb, typ: 'shared_funder', konfidenz: 0.8, first_seen: '2026-07-01T00:00:00Z',
+            evidenz: { shared_counterparties: [{ counterparty: funder, direction: 'in', counterparty_wallets: 2, transfers: 22, amount: 0.48, tx_sample: ['0xabc123abc123abc'] }] } }
+        ] }],
+        entities_capped: false,
+        candidates: [{ counterparty: router, direction: 'out', wallets: [wa, wb], wallet_count: 6, narrow_pairs: 1 }],
+        candidates_capped: false,
+        scans: [{ wallet: wa, scanned_at: '2026-08-30T10:00:00Z', complete: true }],
+        behavior: { available: true, note: 'Tier 3 behaviour patterns from the stored tape: shown next to the entities, never used to merge accounts.',
+          fingerprints: [{ wallet: wa, burst_prints: 24, burst_seconds: 24, burst_market: 'FC Utrecht vs. PSV: O/U 3.5' }],
+          complementary_pairs: [{ wallet_a: wa, wallet_b: wb, events: 8, markets: 2 }] }
+      };
+      return () => { T.liveData.graph = null; };
+    }],
+    ['graph_unavailable', 'graph', {}, null, (T) => {
+      T.liveData.graph = { available: false, note: 'no entity graph on this host; run scripts/run_entity_scan.py', as_of: '2026-08-30 12:00 UTC' };
+      return () => { T.liveData.graph = null; };
+    }],
+    ['wallet_tab_linked', 'wallet', { walletTab: 'linked' }, null, (T) => {
+      const wb = '0x' + 'b'.repeat(40);
+      const funder = '0x' + 'f'.repeat(40);
+      T.liveData.walletEntity[WALLET_HARNESS_ADDR] = { herkunft: 'live', data: {
+        wallet: WALLET_HARNESS_ADDR, available: true, scanned: true,
+        entity_id: 'entity:' + WALLET_HARNESS_ADDR, entity_wallets: [WALLET_HARNESS_ADDR, wb],
+        caveat: 'A best-effort behavioural screen on public trade data: research leads, not legal findings.',
+        linked_wallets: [{ wallet: wb, typ: 'shared_funder', stufe: 1, konfidenz: 0.8, first_seen: '2026-07-01T00:00:00Z',
+          evidenz: { shared_counterparties: [{ counterparty: funder, direction: 'in', counterparty_wallets: 2, transfers: 22, amount: 0.48, tx_sample: ['0xabc'] }] } }],
+        candidates: [], edges: [],
+        behavior: { available: true, fingerprints: [], complementary_pairs: [] }
+      } };
+      return () => { delete T.liveData.walletEntity[WALLET_HARNESS_ADDR]; };
     }]
   ];
   varianten.forEach(([name, seite, zustand, nutzlast, vorbereiten]) => {

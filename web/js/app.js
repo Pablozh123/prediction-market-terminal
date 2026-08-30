@@ -10,6 +10,7 @@ import { renderTraders, renderWhale, renderRisk, renderTrack } from './pages/tra
 import { renderBacktester, renderCopy, renderPortfolio } from './pages/trading_pages.js';
 import { renderAlerts, renderResearch, renderSettings, ledgerVerwerfen } from './pages/system_pages.js';
 import { renderWallet, isFullAddress } from './pages/wallet_page.js';
+import { renderGraph } from './pages/graph_page.js';
 import { renderDetail, renderSearch } from './overlays.js';
 import { mountAmbient } from './ambient.js';
 import { MONO as M } from './ui.js';
@@ -22,7 +23,7 @@ const PAGES = {
   overview: renderOverview, markets: renderMarkets, flow: renderFlow,
   cross: renderCross, resolved: renderResolved,
   traders: renderTraders, whale: renderWhale, risk: renderRisk, track: renderTrack,
-  wallet: renderWallet,
+  wallet: renderWallet, graph: renderGraph,
   backtester: renderBacktester, copy: renderCopy, portfolio: renderPortfolio,
   alerts: renderAlerts, research: renderResearch, settings: renderSettings
 };
@@ -208,7 +209,7 @@ class Terminal {
     // when its tab is opened — null until then.
     // wallet: one entry per analysed address — { herkunft: 'loading' | 'live'
     // | 'fehler', data, fehler, status, retryAfter }.
-    this.liveData = { leaderboard: null, cross: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {}, riskBook: {}, walletSimilar: {} };
+    this.liveData = { leaderboard: null, cross: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {}, riskBook: {}, walletSimilar: {}, walletEntity: {}, graph: null };
     // Venue-weite Suche (/api/search): die Palette filtert sonst nur die
     // geladenen Top-Volumen-Maerkte — alles ausserhalb davon fand sie nie.
     // q traegt die Anfrage, zu der die Treffer gehoeren; status ist
@@ -616,6 +617,7 @@ class Terminal {
         this.navItem('cross', 'Cross-venue'),
         this.navItem('traders', 'Leaderboard'),
         this.navItem('wallet', 'Wallet'),
+        this.navItem('graph', 'Wallet graph'),
         this.navItem('risk', 'Risk screen', hoheRisiken ? String(hoheRisiken) : '', 'amber'),
         this.navItem('alerts', 'Alerts'),
         this.navItem('backtester', 'Backtester')
@@ -917,6 +919,8 @@ class Terminal {
       await this.holen('track', '/api/track');
     } else if (page === 'wallet') {
       if (this.state.walletAddr) await this.fetchWallet(this.state.walletAddr, false);
+    } else if (page === 'graph') {
+      this.fetchGraph(false);
     } else if (page === 'research') {
       const key = this.studies[this.state.researchTab].tab;
       // Begleiter-Nutzlasten der zusammengelegten Seiten: Live runs fasst das
@@ -998,6 +1002,44 @@ class Terminal {
     apiGet('/api/wallet/' + key + '/similar')
       .then((antwort) => { this.liveData.walletSimilar[key] = { herkunft: 'live', data: antwort && typeof antwort === 'object' ? antwort : { rows: [] } }; })
       .catch((err) => { this.liveData.walletSimilar[key] = { herkunft: 'fehler', fehler: String(err && err.message ? err.message : err), status: err && err.status ? err.status : null }; })
+      .then(() => this.render());
+  }
+
+  // Wallet graph (/api/graph): the locally derived entity graph. Asked for
+  // when the page is opened, once; a manual retry re-reads. Kept in liveData
+  // like the other per-endpoint payloads, so an empty or error state names
+  // its source instead of showing a blank area.
+  fetchGraph(force) {
+    if (this.liveData.graph && !force) return;
+    this.liveData.graph = { _quelle: 'loading' };
+    apiGet('/api/graph')
+      .then((antwort) => { this.liveData.graph = antwort && typeof antwort === 'object' ? antwort : { available: false, note: 'empty answer' }; })
+      .catch((err) => { this.liveData.graph = { _quelle: 'fehler', _fehler: String(err && err.message ? err.message : err) }; })
+      .then(() => this.render());
+  }
+
+  // Open the Wallet page on a given tab for an address — used by the graph
+  // page, where every wallet chip leads to its own linked view.
+  openWalletTab(addr, tab) {
+    const full = String(addr || '').toLowerCase();
+    if (!isFullAddress(full)) return;
+    this.setState({ page: 'wallet', walletAddr: full, walletInput: full, walletTab: tab || 'overview', detail: null });
+    this.state.walletRecent = [full].concat((this.state.walletRecent || []).filter((a) => a !== full)).slice(0, 6);
+    this.adresseSetzen('wallet/' + full);
+    this.fetchWallet(full, false);
+  }
+
+  // One wallet's entity (/api/wallet/<addr>/entity): the linked view of the
+  // Wallet page. Local graph only, no chain calls; asked for when the Linked
+  // tab is opened, once per address, "Try again" forces a re-read.
+  fetchWalletEntity(addr, force) {
+    const key = String(addr || '').toLowerCase();
+    if (!isFullAddress(key)) return;
+    if (this.liveData.walletEntity[key] && !force) return;
+    this.liveData.walletEntity[key] = { herkunft: 'loading' };
+    apiGet('/api/wallet/' + key + '/entity')
+      .then((antwort) => { this.liveData.walletEntity[key] = { herkunft: 'live', data: antwort && typeof antwort === 'object' ? antwort : {} }; })
+      .catch((err) => { this.liveData.walletEntity[key] = { herkunft: 'fehler', fehler: String(err && err.message ? err.message : err) }; })
       .then(() => this.render());
   }
 

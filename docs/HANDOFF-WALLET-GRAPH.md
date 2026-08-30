@@ -241,15 +241,67 @@ Findungs-Haelfte: ob der Risk-Screen die Wallets ohne Vorwissen nach oben
 gespuelt haette (Fresh-Wallet- und Konzentrations-Flags existieren; der
 Rueckblick-Test braucht historisches Band aus der Ereigniswoche).
 
+## Stand Phase 4 (2026-08-30) und ein Modell-Fix
+
+Beim Bau der Produktflaeche fiel ein Datenqualitaetsproblem auf, das erst
+behoben wurde, weil eine Seite auf Blob-Daten wertlos waere:
+
+- **Modell-Fix (`app/entity_graph.py`)**: Ein erster Task-Lauf ueber die 50
+  groessten Wallets verkettete 47 davon zu einer "Entity". Ursache doppelt:
+  (a) hunderte Deposit-Router mit je vier bedienten Wallets lagen knapp unter
+  dem absoluten Cap von 4 und verbanden sich transitiv; (b) einzelne
+  Market-Maker tauschen direkt mit dem halben Scan-Satz Positionen. Zwei
+  Schranken loesen das: geteilte Gegenparteien fuehren nur noch bis
+  `DEFAULT_MAX_SHARED_WALLETS` (Standard 2, der Operator-Fall) hart zusammen,
+  darueber sind sie Kandidat; und eine Wallet mit mehr als
+  `DEFAULT_HUB_HARD_DEGREE` (8) harten Partnern gilt selbst als Infrastruktur
+  (`hub_wallets`) und verschmilzt keine Entity. Gegenprobe am sauberen
+  Iran-Set: die echte 2-Wallet-Entity (whopperlover/Skoobidoobnj) bleibt, die
+  Relay-Router werden Kandidaten, 0 Hubs. Die alte Whole-Set-Sonderregel ist
+  damit ueberfluessig und entfernt.
+- **Zielmenge (`scripts/run_entity_scan.py --flagged N`)**: Die groessten
+  Wallets sind die falsche Population (Market-Maker). Der Plan sagt "nur
+  auffaellige Wallets". `--flagged` waehlt die hoechsten Insider-Scores aus
+  dem Tape-Store (dieselbe Rechnung wie der Risk-Screen). Die geplante Task
+  `MarketIntelEntityScan` laeuft jetzt `--loop --flagged 40`.
+- **`GET /api/graph`** (`app/entity_graph.py::graph_overview`): der ganze
+  Graph in einer Payload - Entities (mit harten Kanten und Belegen),
+  Kandidaten je Gegenpartei aggregiert, Verhalten ueber den Store, alles mit
+  `screen_not_proof`-Caveat. Liest nur lokale Bestaende, keine Chain-Abrufe.
+- **Frontend (`web/js/pages/graph_page.js`, Nav "Wallet graph")**: drei
+  Bloecke streng nach Evidenz getrennt (Entities / Kandidaten / Verhalten),
+  jede Wallet klickbar in ihre Linked-Ansicht. Dazu Wallet-Tab **"Linked"**
+  (`renderLinkedTab` in `web/js/pages/wallet_page.js`, liest
+  `/api/wallet/{wallet}/entity`): Entity, Kandidaten und Verhalten je Wallet.
+- **Erster sauberer Live-Lauf** (12 auffaellige Wallets, Score >= 45): 1 Entity
+  aus 7 Wallets ueber paarweise geteilte Funder/Withdrawal-Endpunkte, 9 harte
+  Kanten, 56 Kandidaten (die Relay-Router `0x4cd00e38`, `0x115f48dc` beruehren
+  8/7 Wallets und stehen korrekt unter Kandidaten). Der Verhaltens-Block zeigt
+  zwei der Entity-Wallets auf komplementaeren Buechern - korroborierendes
+  Stufe-3-Signal. Kein Blob mehr; die Seite im Browser gegen diesen Graphen
+  geprueft (keine Konsolenfehler, Formulierung durchgehend "verknuepft/verhaelt
+  sich wie").
+- Tests: `app/entity_graph`-Modellschranken (`test_entity_graph.py`), Web-Render
+  (`test_web_leerzustand.py` deckt die neue Seite und den Tab mit ab).
+
+**WICHTIGE offene Grenze (aus diesem Lauf):** Die 7-Wallet-Entity haengt daran,
+dass ein geteilter Funder genau ZWEI der gescannten Wallets bedient. Gemessen
+wird aber nur der Grad IM Scan-Set, nicht der globale Grad der Gegenpartei on-
+chain. Ein kleiner Router, der global tausende Konten bedient, aber zufaellig
+nur zwei der zwoelf geflaggten, sieht dann aus wie eine private Operator-Quelle.
+Der saubere Fix ist ein zusaetzlicher Etherscan-Call je Kandidaten-Funder (wie
+viele verschiedene Adressen hat er je bedient); bis dahin ist eine Entity aus
+2-Wallet-Shared-Funder-Ketten ein starker Rechercheanlass, aber kein Beweis.
+
 ## Offene Punkte
 
-- Betriebsentscheidung Ingest-Host: dieser Rechner kann lokal sammeln (geplante Task
-  `MarketIntelTradeIngest` via `scripts/install_autostart.ps1` registrieren,
-  User-Aktion); auf dem Heimrechner nur mit anderem Resolver, sonst Railway.
-  Ein Sammler reicht, jeder Rechner sammelt sonst in seinen eigenen lokalen Store.
-- Entity-Scan regelmaessig fahren (z.B. woechentlich `--top-store 50` plus die
-  Flag-Wallets des Risk-Screens); noch keine geplante Task, bewusst: erst sehen,
-  was die ersten Laeufe an Kanten liefern und ob `degree_cap=4` traegt.
+- **Globaler Gegenpartei-Grad** (siehe oben): der wichtigste naechste Schritt
+  fuer die Entity-Qualitaet. Ein Funder/Withdrawal-Ziel, das global viele
+  Adressen bedient, ist Infrastruktur, auch wenn es im Scan-Set nur zwei
+  beruehrt; bis dahin die 2-Wallet-Shared-Funder-Ketten mit Vorsicht lesen.
+- Betriebsentscheidung Ingest-Host: dieser Rechner kann lokal sammeln (Tasks
+  `MarketIntelTradeIngest` und `MarketIntelEntityScan` laufen); auf dem
+  Heimrechner nur mit anderem Resolver, sonst Railway. Ein Sammler reicht.
 - Nach ~2 Wochen Bestand: pruefen, ob die strengen Leiter-Sprossen jetzt tragen; dann
   die lockeren Sprossen loeschen.
 - Goldsky-Subgraphs (`pnl`, `activity`) als zweite Ingest-Quelle: noch offen.
@@ -257,17 +309,10 @@ Rueckblick-Test braucht historisches Band aus der Ereigniswoche).
   (gebatcht + fail-soft, aber Kaltstart von /api/risk wird traeger).
 - Iran-Test, Findungs-Haelfte: Rueckblick ueber das Band der Ereigniswoche
   (Feb 2026), ob Fresh-Wallet- und Konzentrations-Flags den Ring ohne
-  Vorwissen markiert haetten. Die Verknuepfungs-Haelfte ist gelaufen, siehe
-  "Stand Phase 3".
-- Kuratierte Infra-Liste fuer die Kandidaten-Ableitung: Relay/Relayer-Adressen
-  (`0xf70da978...`, `0x4cd00e38...`) verbinden JEDEN und dominieren sonst jede
-  Kandidatenliste; die Whole-Set-Regel faengt sie heute nur ab, solange sie
-  das ganze Scan-Set beruehren.
+  Vorwissen markiert haetten.
 - Bewusst offen im Verhaltens-Layer: Timing-Korrelation als eigener Detektor
-  (das Co-Trading-Fenster deckt die Haelfte ab) und echte Wash-ZYKLEN nach
-  Columbia (brauchen Maker-Taker-Zuordnung je Fill, die das oeffentliche Band
-  nicht hergibt; moeglicher Weg: OrderFilled-Logs on-chain je Markt).
-- Phase 4 (Produktflaeche: Seite "Wallet-Graph", Wallet-Tab "Verknuepft",
-  Cluster-Alerts) steht aus; Entity-Route samt Verhaltens-Block ist der
-  fertige Unterbau.
+  und echte Wash-ZYKLEN nach Columbia (brauchen Maker-Taker-Zuordnung je Fill,
+  die das oeffentliche Band nicht hergibt; moeglicher Weg: OrderFilled-Logs).
+- Noch offen aus dem Produktvorschlag: Cluster-Alerts (Telegram/Ledger-Infra
+  existiert) und Copy-Desk auf Entity-Ebene ("Entity folgen").
 - Optional: Arkham-API-Labels als Anreicherung (Buy), Bubblemaps-iFrame als Sanity-Check.

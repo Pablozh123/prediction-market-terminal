@@ -862,14 +862,14 @@ def wallet_flows(wallet: str) -> dict[str, Any]:
         raise HTTPException(status_code=503, detail=str(exc))
 
 
-def _entity_behavior(wallet: str, mitglieder: list[str]) -> dict[str, Any]:
-    """Stufe-3-Verhalten der Entity aus dem lokalen Tape-Store; fail-soft leer.
+def _store_behavior(wallets: list[str] | None = None) -> dict[str, Any]:
+    """Stufe-3-Verhalten aus dem lokalen Tape-Store; fail-soft leer.
 
-    Verhalten wird angezeigt und fuehrt nie zusammen (Wallet-Graph Phase 3):
-    die Kanten der Entity kommen aus On-Chain-Belegen, dieser Block sagt nur,
-    wie sich die beteiligten Konten im gespeicherten Band verhalten. Die
-    Wallet-Menge filtert das Ergebnis, nicht das Band, denn der
-    Komplementaer-Partner einer Entity-Wallet steht oft ausserhalb der Entity.
+    Verhalten wird angezeigt und fuehrt nie zusammen (Wallet-Graph Phase 3).
+    Mit ``wallets`` filtert die Menge das ERGEBNIS, nicht das Band (der
+    Komplementaer-Partner einer Entity-Wallet steht oft ausserhalb der
+    Entity); ohne Menge kommt der Blick ueber das ganze gespeicherte Fenster,
+    gekappt auf die groessten Wallets, wie die Detektoren es ausweisen.
     """
 
     from app import behavior as bhv
@@ -885,14 +885,51 @@ def _entity_behavior(wallet: str, mitglieder: list[str]) -> dict[str, Any]:
             fenster = ts.load_window(conn, days=ts.window_days())
         finally:
             conn.close()
-        report = bhv.behavior_report(fenster, wallets=set(mitglieder) | {wallet})
+        report = bhv.behavior_report(fenster, wallets=wallets)
     except Exception as exc:
-        print(f"[warn] entity behavior: {exc}")
+        print(f"[warn] store behavior: {exc}")
         return leer
     report["available"] = True
     report["note"] = ("Tier 3 behaviour patterns from the stored tape: shown next to the "
-                      "entity, never used to merge accounts.")
+                      "entities, never used to merge accounts.")
     return report
+
+
+@app.get("/api/graph", dependencies=[Depends(wallet_route_limit)])
+def graph_page() -> dict[str, Any]:
+    """Die Wallet-Graph-Seite: Entities, Kandidaten und Verhalten in einer Antwort.
+
+    Liest nur die lokal abgeleiteten Bestaende (Entity-Graph und Tape-Store),
+    macht selbst keine Chain- oder Feed-Abrufe. Auf einem Host ohne die
+    Dateien sagt die Antwort das, statt eine leere Flaeche zu zeigen, die
+    wie "keine Verknuepfungen" aussieht.
+    """
+
+    from app import claims
+    from app import entity_graph as eg
+
+    def _build() -> dict[str, Any]:
+        pfad = Path(os.environ.get("ENTITY_GRAPH_PATH", "").strip() or eg.DEFAULT_GRAPH_PATH)
+        if not pfad.exists():
+            return {"available": False,
+                    "note": "no entity graph on this host; run scripts/run_entity_scan.py",
+                    "behavior": _store_behavior(),
+                    "as_of": md.now_utc_label()}
+        conn = eg.connect(pfad)
+        try:
+            payload = eg.graph_overview(conn)
+        finally:
+            conn.close()
+        payload["available"] = True
+        payload["behavior"] = _store_behavior()
+        payload["caveat"] = claims.disclaimer("screen_not_proof", "en")
+        payload["as_of"] = md.now_utc_label()
+        return payload
+
+    try:
+        return cached("graph_overview", _build, ttl=300.0)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"entity graph unavailable: {exc}")
 
 
 @app.get("/api/wallet/{wallet}/entity", dependencies=[Depends(wallet_route_limit)])
@@ -927,7 +964,7 @@ def wallet_entity(wallet: str) -> dict[str, Any]:
         finally:
             conn.close()
         if payload.get("scanned"):
-            payload["behavior"] = _entity_behavior(wallet, payload.get("entity_wallets") or [wallet])
+            payload["behavior"] = _store_behavior(list(payload.get("entity_wallets") or []) + [wallet])
         payload["available"] = True
         payload["caveat"] = claims.disclaimer("screen_not_proof", "en")
         payload["as_of"] = md.now_utc_label()

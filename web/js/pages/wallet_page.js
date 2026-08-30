@@ -167,7 +167,8 @@ function renderError(T, addr, entry) {
 // ---- sections --------------------------------------------------------------
 export const WALLET_TABS = [
   ['overview', 'Overview'], ['record', 'Track record'], ['positions', 'Positions'],
-  ['trades', 'Trades'], ['categories', 'Categories'], ['risk', 'Risk'], ['similar', 'Similar wallets']
+  ['trades', 'Trades'], ['categories', 'Categories'], ['risk', 'Risk'],
+  ['similar', 'Similar wallets'], ['linked', 'Linked']
 ];
 
 function initials(name, addr) {
@@ -944,6 +945,92 @@ function renderRiskTab(d) {
   return head + clock + insider;
 }
 
+// ---- linked: the wallet's entity from the local graph ---------------------
+const EDGE_SENTENCE = {
+  direct_transfer: 'direct transfer between the wallets',
+  position_transfer: 'position token moved wallet-to-wallet',
+  shared_funder: 'same external funding source',
+  shared_withdrawal: 'same external withdrawal target'
+};
+
+function linkChip(T, addr) {
+  const a = String(addr || '');
+  return '<span ' + T.act(() => { if (T.openWalletTab) T.openWalletTab(a, 'linked'); }) + ' class="hv-edge-strong" style="' + M + '; font-size:var(--t-small); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3); color:var(--ink-1); cursor:pointer" title="' + esc(a) + '">' + esc(shortAddr(a)) + '</span>';
+}
+
+function edgeLine(edge) {
+  const parts = edge.evidenz && Array.isArray(edge.evidenz.shared_counterparties) ? edge.evidenz.shared_counterparties : null;
+  let ev;
+  if (parts && parts.length) {
+    ev = parts.map((p) => (p.direction === 'in' ? 'funder ' : 'target ') + '<a href="https://polygonscan.com/address/' + esc(p.counterparty) + '" target="_blank" rel="noopener" style="color:var(--ink-3); text-decoration:underline dotted" title="' + esc(p.counterparty) + '">' + esc(shortAddr(p.counterparty)) + ' ↗</a>').join(' · ');
+  } else {
+    const tx = edge.evidenz && Array.isArray(edge.evidenz.tx_sample) ? edge.evidenz.tx_sample : [];
+    const n = edge.evidenz && edge.evidenz.transfers != null ? edge.evidenz.transfers : tx.length;
+    ev = num(n) + ' transfer' + (Number(n) === 1 ? '' : 's') + (tx.length ? ' · <span style="' + M + '; font-size:var(--t-micro); color:var(--ink-4)">' + esc(String(tx[0]).slice(0, 14)) + '…</span>' : '');
+  }
+  return '<div style="display:flex; gap:var(--sp-3); align-items:baseline; padding:var(--sp-2) 0; border-top:1px solid var(--line-3)">'
+    + '<span style="' + M + '; font-size:var(--t-small)">' + linkChip({ act: () => 'data-act="0"', openWalletTab: null }, edge.wallet) + '</span>'
+    + '<span style="' + M + '; font-size:var(--t-micro); color:var(--accent); white-space:nowrap">' + esc(EDGE_SENTENCE[edge.typ] || edge.typ) + '</span>'
+    + '<span style="' + NOTIZ + '">' + ev + '</span></div>';
+}
+
+function renderLinkedTab(T, d) {
+  const addr = String(T.state.walletAddr || '').toLowerCase();
+  if (typeof T.fetchWalletEntity === 'function') T.fetchWalletEntity(addr);
+  const entry = T.liveData && T.liveData.walletEntity ? T.liveData.walletEntity[addr] : null;
+  const intro = '<div style="' + KARTE + '; padding:var(--sp-5); margin-top:var(--sp-5); display:flex; gap:var(--sp-4); align-items:flex-start">'
+    + '<div style="width:34px; height:34px; flex:none; border-radius:var(--r-control); border:1px solid rgba(var(--accent-rgb),.4); display:flex; align-items:center; justify-content:center; color:var(--accent); ' + M + '; font-size:var(--t-body)">⬡</div>'
+    + '<div><div style="font-size:var(--t-body)">Linked accounts</div><div style="' + NOTIZ + '; margin-top:var(--sp-2)">Accounts joined to this one by hard on-chain evidence (direct transfers, shared funders, position moves), plus exchange-like counterparties shown as candidates. Read from the local entity graph — no persons are identified.</div></div></div>';
+  if (!entry || entry.herkunft === 'loading') {
+    return intro + card('LINKED', '<div style="' + NOTIZ + '">Reading the local entity graph…</div>');
+  }
+  if (entry.herkunft === 'fehler') {
+    return intro + card('LINKED', '<div style="' + NOTIZ + '; color:var(--warn)">/api/wallet/' + esc(shortAddr(addr)) + '/entity did not answer: ' + esc(entry.fehler || 'unknown error') + '.</div>'
+      + '<div style="margin-top:var(--sp-4)"><div ' + T.act(() => { if (T.fetchWalletEntity) T.fetchWalletEntity(addr, true); }) + ' class="hv-edge-strong" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-4); cursor:pointer; display:inline-block">Try again</div></div>');
+  }
+  const g = entry.data || {};
+  if (!g.available) {
+    return intro + card('NO GRAPH ON THIS HOST', '<div style="' + NOTIZ + '">' + esc(g.note || 'This host does not carry an entity graph.') + '</div>');
+  }
+  if (!g.scanned) {
+    return intro + card('NOT SCANNED', '<div style="' + NOTIZ + '">This wallet has not been scanned into the graph yet, so there is nothing to link it by. Not scanned is not the same as standing alone.</div>');
+  }
+  const linked = Array.isArray(g.linked_wallets) ? g.linked_wallets : [];
+  const cands = Array.isArray(g.candidates) ? g.candidates : [];
+  const members = Array.isArray(g.entity_wallets) ? g.entity_wallets : [addr];
+  const others = members.filter((w) => String(w).toLowerCase() !== addr);
+  const entityBody = others.length
+    ? '<div style="' + NOTIZ + '; margin-bottom:var(--sp-3)">This wallet shares an entity with ' + others.length + ' other' + (others.length === 1 ? '' : 's') + ', joined transitively by hard evidence:</div>'
+      + '<div style="display:flex; flex-wrap:wrap; gap:var(--sp-2); margin-bottom:var(--sp-4)">' + members.map((w) => linkChip(T, w)).join('') + '</div>'
+      + linked.map((e) => edgeLine(e)).join('')
+    : '<div style="' + NOTIZ + '">This wallet stands on its own: no other scanned wallet is joined to it by hard evidence. That is a result, not a missing read.</div>';
+  const entityCard = card('ENTITY', entityBody, others.length ? members.length + ' wallets' : 'stands alone');
+  const candBody = cands.length
+    ? cands.map((c) => {
+      const parts = c.evidenz && Array.isArray(c.evidenz.shared_counterparties) ? c.evidenz.shared_counterparties : [];
+      const cp = parts[0] || {};
+      return '<div style="padding:var(--sp-3) 0; border-top:1px solid var(--line-3); display:flex; gap:var(--sp-3); align-items:baseline; flex-wrap:wrap">'
+        + '<span style="' + M + '; font-size:var(--t-small)">' + linkChip(T, c.wallet) + '</span>'
+        + '<span style="' + NOTIZ + '">shares ' + (cp.direction === 'out' ? 'a withdrawal target' : 'a funding source') + (cp.counterparty ? ' (<a href="https://polygonscan.com/address/' + esc(cp.counterparty) + '" target="_blank" rel="noopener" style="color:var(--ink-3); text-decoration:underline dotted">' + esc(shortAddr(cp.counterparty)) + ' ↗</a>)' : '') + ' that touches ' + (cp.counterparty_wallets || 'several') + ' wallets — behaves like an exchange, shown not merged</span></div>';
+    }).join('')
+    : '<div style="' + NOTIZ + '">No exchange-like counterparty ties this wallet to others.</div>';
+  const candCard = card('CANDIDATES', candBody, 'shared counterparties · shown, never merged');
+  const b = g.behavior || {};
+  let behaviorCard = '';
+  if (b.available) {
+    const fps = Array.isArray(b.fingerprints) ? b.fingerprints : [];
+    const pairs = Array.isArray(b.complementary_pairs) ? b.complementary_pairs : [];
+    const fpb = fps.length ? fps.map((f) => '<div style="' + NOTIZ + '; padding:var(--sp-2) 0; border-top:1px solid var(--line-3)">' + linkChip(T, f.wallet) + ' — <b style="color:var(--ink-1)">' + num(f.burst_prints) + '</b> prints in ' + num(Math.round(f.burst_seconds)) + 's on ' + esc(String(f.burst_market || '').slice(0, 44)) + '</div>').join('') : '<div style="' + NOTIZ + '">No order-splitting bursts.</div>';
+    const prb = pairs.length ? pairs.map((p) => '<div style="' + NOTIZ + '; padding:var(--sp-2) 0; border-top:1px solid var(--line-3)">' + linkChip(T, p.wallet_a) + ' vs ' + linkChip(T, p.wallet_b) + ' — <b style="color:var(--ink-1)">' + num(p.events) + '</b> opposite-side events</div>').join('') : '<div style="' + NOTIZ + '">No complementary-book pairs.</div>';
+    behaviorCard = card('BEHAVIOUR · TIER 3',
+      '<div style="' + LABEL + '; margin-bottom:var(--sp-2)">ORDER-SPLITTING</div>' + fpb
+      + '<div style="' + LABEL + '; margin:var(--sp-4) 0 var(--sp-2)">COMPLEMENTARY BOOKS</div>' + prb,
+      'shown next to the entity, never used to merge accounts');
+  }
+  return intro + entityCard + candCard + behaviorCard
+    + (g.caveat ? '<div style="' + NOTIZ + '; margin-top:var(--sp-5); max-width:80ch">' + esc(g.caveat) + '</div>' : '');
+}
+
 // ---- similar wallets: top holders of the same markets ---------------------
 function renderSimilarTab(T, d) {
   const addr = String(T.state.walletAddr || '').toLowerCase();
@@ -1018,6 +1105,7 @@ export function renderWallet(T) {
       else if (tab === 'categories') main = renderCategoriesContext(d);
       else if (tab === 'risk') main = renderRiskTab(d);
       else if (tab === 'similar') main = renderSimilarTab(T, d);
+      else if (tab === 'linked') main = renderLinkedTab(T, d);
       else main = renderOverview(T, d);
       // Left: the stacked stat cards (224px, wraps under the main column on
       // a narrow screen); right: the tabbed detail. Both read the same
