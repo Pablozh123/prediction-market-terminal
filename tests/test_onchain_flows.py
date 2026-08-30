@@ -90,6 +90,18 @@ class ClassifyTests(unittest.TestCase):
         self.assertTrue(ocf.classify_flows(pd.DataFrame(), WALLET).empty)
         self.assertEqual(ocf.flow_summary(pd.DataFrame())["net_external"], 0.0)
 
+    def test_the_2026_exchange_deployments_are_protocol_not_funding(self) -> None:
+        # Der Entity-Scan las den Settlement-Flow dreier Whale-Wallets in
+        # 0xe2222d… als gemeinsames Auszahlungsziel, und die Funding-Summe
+        # buchte dieselben Transfers als externe Auszahlungen: die neueren
+        # Exchange-Deployments fehlten in der Protokoll-Liste, obwohl
+        # src/copy_trading.py sie laengst als Boersen kannte.
+        for exchange in ("0xe111180000d2663c0091e4f400237545b87b996b",
+                         "0xe2222d279d744050d28e00520010520000310f59"):
+            flows = ocf.classify_flows(
+                ocf.decode_transfer_logs([log(WALLET, exchange, 50_000.0)]), WALLET)
+            self.assertEqual(list(flows["classification"]), ["protocol"])
+
 
 class ReconcileTests(unittest.TestCase):
     def test_a_complete_ledger_reconciles(self) -> None:

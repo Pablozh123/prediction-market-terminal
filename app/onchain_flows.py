@@ -59,6 +59,13 @@ COLLATERAL_CONTRACTS: tuple[str, ...] = USDC_CONTRACTS + (PUSD_CONTRACT,)
 PROTOCOL_ADDRESSES: frozenset[str] = frozenset({
     "0x4bfb41d5b3570defd03c39a9a4d8de6bd8b8982e",  # CTF Exchange
     "0xc5d563a36ae78145c45a50134d48a1215220f80a",  # NegRisk CTF Exchange
+    # The two newer exchange deployments the live order stream fills against
+    # (src/copy_trading.py knows them as POLYMARKET_EXCHANGE_ADDRESSES).
+    # Found the hard way: the entity scan read the settlement flow of three
+    # heavyweight wallets into 0xe2222d… as a shared withdrawal target, and
+    # the funding summary booked the same transfers as external withdrawals.
+    "0xe111180000d2663c0091e4f400237545b87b996b",  # Exchange (2026 deployment)
+    "0xe2222d279d744050d28e00520010520000310f59",  # Exchange (2026 deployment)
     "0x4d97dcd97ec945f40cf65f87097ace5ea0476045",  # Conditional Tokens
     "0x3a3bd7bb9528e159577f7c2e685cc81a765002e2",  # WrappedCollateral (settlement payouts)
     "0xd91e80cf2e7be2e162c6513ced06f1dd0da35296",  # NegRisk Adapter
