@@ -1,6 +1,6 @@
 # Removes the Scheduled Tasks registered by scripts/install_autostart.ps1.
 
-foreach ($name in "MarketIntelTerminal", "MarketIntelCopyDaemon", "MarketIntelAlertScanner", "MarketIntelLedgerResolution", "MarketIntelTradeIngest") {
+foreach ($name in "MarketIntelTerminal", "MarketIntelCopyDaemon", "MarketIntelAlertScanner", "MarketIntelLedgerResolution", "MarketIntelTradeIngest", "MarketIntelEntityScan") {
     try {
         Unregister-ScheduledTask -TaskName $name -Confirm:$false -ErrorAction Stop
         Write-Output "removed $name"

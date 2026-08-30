@@ -4,6 +4,7 @@
 #   MarketIntelAlertScanner    - background alert scanner (scripts/run_alert_scanner.py)
 #   MarketIntelLedgerResolution- daily signal-ledger resolution join (scripts/run_ledger_resolution.py)
 #   MarketIntelTradeIngest     - persistent whale-tape ingest (scripts/run_trade_ingest.py)
+#   MarketIntelEntityScan      - daily wallet-graph entity scan (scripts/run_entity_scan.py)
 # Remove again with scripts/uninstall_autostart.ps1. No admin rights required.
 
 $ErrorActionPreference = "Stop"
@@ -15,7 +16,8 @@ $tasks = @(
     @{ Name = "MarketIntelCopyDaemon";       Args = "scripts\run_copy_trader.py" },
     @{ Name = "MarketIntelAlertScanner";     Args = "scripts\run_alert_scanner.py" },
     @{ Name = "MarketIntelLedgerResolution"; Args = "scripts\run_ledger_resolution.py" },
-    @{ Name = "MarketIntelTradeIngest";      Args = "scripts\run_trade_ingest.py" }
+    @{ Name = "MarketIntelTradeIngest";      Args = "scripts\run_trade_ingest.py" },
+    @{ Name = "MarketIntelEntityScan";       Args = "scripts\run_entity_scan.py --loop --top-store 50" }
 )
 
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
