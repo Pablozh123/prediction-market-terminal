@@ -138,20 +138,40 @@ class EntityGraphTests(unittest.TestCase):
         self.assertTrue(nach_wallet[W_B]["evidenz"]["shared_counterparties"][0]["narrow_window"])
         self.assertAlmostEqual(nach_wallet[W_C]["konfidenz"], eg.KONFIDENZ[eg.TYP_SHARED_HUB])
 
-    def test_a_counterparty_linking_the_whole_scan_set_is_a_candidate(self) -> None:
-        # Der erste Live-Lauf: drei gescannte Wallets, ein gemeinsames
-        # Auszahlungsziel, und der Degree-Cap kann in einem 3er-Set nie
-        # greifen. Eine Adresse, die JEDE gescannte Wallet verbindet, ist
-        # von geteilter Infrastruktur nicht zu unterscheiden - Kandidat,
-        # bis ein breiterer Scan sie entlastet.
+    def test_three_wallets_at_one_counterparty_is_a_candidate_not_a_merge(self) -> None:
+        # Ab drei bedienten Wallets ist eine geteilte Gegenpartei auf Polygon
+        # fast immer ein Deposit-Router oder eine Boersen-Hotwallet, nicht ein
+        # Operator, der genau diese drei kontrolliert. Der Standard-Cap ist 2
+        # (der Operator-Fall); drei sind Kandidat, nie Merge.
         for wallet in (W_A, W_B, W_C):
             eg.record_scan(self.conn, wallet, _flows([
                 {"counterparty": FUNDER, "direction": "out"}]))
-        self._rebuild(degree_cap=4)
+        self._rebuild()
         ansicht = eg.entity_view(self.conn, W_A)
         self.assertEqual(ansicht["entity_wallets"], [W_A])
         self.assertEqual(ansicht["linked_wallets"], [])
         self.assertEqual({k["typ"] for k in ansicht["candidates"]}, {eg.TYP_SHARED_HUB})
+
+    def test_a_high_degree_wallet_does_not_merge_the_whole_set(self) -> None:
+        # Eine Market-Maker-Wallet, die mit vielen Konten direkt Geld bewegt,
+        # ist selbst Infrastruktur: ihre harten Kanten bleiben sichtbar, aber
+        # sie verschmelzen den halben Scan-Satz nicht zu einer Entity. Ohne
+        # diese Schranke zog ein einziger Hub-Knoten 45 der 50 groessten
+        # Wallets in eine "Entity".
+        partner = ["0x" + f"{i:040x}" for i in range(1, 7)]
+        for w in partner:
+            eg.record_scan(self.conn, w, _flows([]))
+        # W_A bewegt direkt Geld an sechs gescannte Wallets: harter Grad 6.
+        eg.record_scan(self.conn, W_A, _flows([
+            {"counterparty": p, "direction": "out", "tx": f"0xhub{i}"}
+            for i, p in enumerate(partner)]))
+        eg.rebuild_edges(self.conn)
+        eg.assign_entities(self.conn, hub_hard_degree=4)
+        ansicht = eg.entity_view(self.conn, W_A)
+        # Die Kanten stehen weiter da (der Transfer ist echt), aber keine Entity.
+        self.assertTrue(ansicht["linked_wallets"])
+        self.assertEqual(ansicht["entity_wallets"], [W_A])
+        self.assertIn(W_A, eg.hub_wallets(self.conn, hub_hard_degree=4))
 
     def test_a_pair_collects_evidence_across_shared_counterparties(self) -> None:
         zweiter_funder = "0x" + "9" * 40
