@@ -2,12 +2,19 @@
 
 Selektiv mit Absicht: gescannt wird nie "alle", sondern eine benannte Liste,
 denn jeder Scan sind ein paar Dutzend Etherscan-Seiten. Ziele kommen aus
-zwei Quellen, kombinierbar:
+drei Quellen, kombinierbar:
 
     python scripts/run_entity_scan.py --wallet 0xabc... --wallet 0xdef...
-    python scripts/run_entity_scan.py --top-store 25      # groesste Wallets im Tape-Store
-    python scripts/run_entity_scan.py --top-store 25 --rescan-days 30
-    python scripts/run_entity_scan.py --loop --top-store 50   # geplante Task, taeglich
+    python scripts/run_entity_scan.py --flagged 30       # auffaelligste Wallets (Insider-Score)
+    python scripts/run_entity_scan.py --top-store 25     # groesste Wallets (meist Market-Maker)
+    python scripts/run_entity_scan.py --loop --flagged 30   # geplante Task, taeglich
+
+``--flagged`` ist die richtige Zielmenge: der Plan sagt "nur auffaellige
+Wallets". Die groessten Wallets (``--top-store``) sind Market-Maker und
+Profis, die erwartbar alle miteinander und ueber gemeinsame Infrastruktur
+handeln - ein erster Lauf ueber die Top 50 machte 36 davon zu Hub-Knoten und
+verschmolz keine echte Entity. Der Insider-Score hebt frische, konzentrierte
+Konten heraus, deren Verknuepfung etwas bedeutet.
 
 Im Loop-Modus (geplante Task ``MarketIntelEntityScan``) laeuft alle
 ``--interval-hours`` (Standard 24) ein Durchgang; die Rescan-Drossel sorgt
@@ -62,6 +69,41 @@ def top_store_wallets(n: int) -> list[str]:
     return [w for w in summen.sort_values(ascending=False).head(int(n)).index if w]
 
 
+def flagged_wallets(n: int, min_score: float = 55.0) -> list[str]:
+    """Die auffaelligsten Wallets aus dem Tape-Store, nach Insider-Score.
+
+    Das ist die richtige Zielmenge fuer die Entity-Aufloesung: der Plan sagt
+    "nur auffaellige Wallets". Die groessten Wallets sind Market-Maker und
+    Profis, die erwartbar alle miteinander und ueber gemeinsame Infrastruktur
+    handeln - ein erster Lauf ueber die Top 50 verkettete fast den ganzen
+    Satz zu Hubs. Der Insider-Score (dieselbe Rechnung wie der Risk-Screen)
+    hebt stattdessen frische, konzentrierte, einseitige Konten heraus, und
+    genau die sind es, deren Verknuepfung etwas bedeutet.
+    """
+
+    from src import prediction_markets as md
+
+    pfad = ts.store_path()
+    if n <= 0 or not pfad.exists():
+        return []
+    conn = ts.connect(pfad)
+    try:
+        fenster = ts.load_window(conn, days=ts.window_days())
+    finally:
+        conn.close()
+    if fenster.empty:
+        return []
+    try:
+        scores = md.whale_wallet_risk_scores(fenster)
+    except Exception as exc:  # noqa: BLE001 - keine Ziele ist besser als ein Absturz
+        print(f"[warn] insider scores: {exc}", file=sys.stderr)
+        return []
+    if scores is None or scores.empty or "wallet" not in scores:
+        return []
+    treffer = scores[scores["wallet_insider_score"] >= float(min_score)]
+    return [str(w).lower() for w in treffer["wallet"].head(int(n)) if str(w).strip()]
+
+
 def scan_wallet(conn, wallet: str, api_key: str, pages: int, pause: float) -> str:
     """Eine Wallet scannen und festhalten; gibt die Log-Zeile zurueck."""
 
@@ -80,8 +122,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Link conspicuous wallets over on-chain evidence.")
     parser.add_argument("--wallet", action="append", default=[],
                         help="Wallet-Adresse; mehrfach angebbar.")
+    parser.add_argument("--flagged", type=int, default=0,
+                        help="Die N auffaelligsten Wallets (Insider-Score) aus dem Tape-Store scannen. "
+                             "Die richtige Zielmenge fuer die Entity-Aufloesung.")
+    parser.add_argument("--min-score", type=float, default=55.0,
+                        help="Mindest-Insider-Score fuer --flagged (Standard 55, das 'Elevated'-Band).")
     parser.add_argument("--top-store", type=int, default=0,
-                        help="Zusaetzlich die N groessten Wallets aus dem Tape-Store scannen.")
+                        help="Die N groessten Wallets (Notional) aus dem Tape-Store scannen. "
+                             "Meist Market-Maker; fuer Entities schlechter als --flagged.")
     parser.add_argument("--pages", type=int, default=6,
                         help="Etherscan-Seitenbudget je Kontrakt und Wallet (Standard 6).")
     parser.add_argument("--pause", type=float, default=0.25,
@@ -89,8 +137,8 @@ def main() -> int:
     parser.add_argument("--rescan-days", type=float, default=7.0,
                         help="Wallets, deren Scan juenger ist, werden uebersprungen (Standard 7).")
     parser.add_argument("--force", action="store_true", help="Auch frisch gescannte Wallets erneut scannen.")
-    parser.add_argument("--degree-cap", type=int, default=eg.DEFAULT_DEGREE_CAP,
-                        help="Ab so vielen Wallets je Gegenpartei nur noch Kandidat (Standard 4).")
+    parser.add_argument("--degree-cap", type=int, default=eg.DEFAULT_MAX_SHARED_WALLETS,
+                        help="Bis zu so vielen Wallets je Gegenpartei noch harte Kante (Standard 2).")
     parser.add_argument("--db", default=str(eg.DEFAULT_GRAPH_PATH), help="Pfad der Graph-Datenbank.")
     parser.add_argument("--loop", action="store_true",
                         help="Endlosschleife: alle --interval-hours ein Durchgang (fuer die geplante Task).")
@@ -147,12 +195,15 @@ def run_pass(args, api_key: str) -> int:
     """
 
     ziele: list[str] = []
-    for wallet in list(args.wallet) + top_store_wallets(args.top_store):
+    quellen = (list(args.wallet)
+               + flagged_wallets(args.flagged, args.min_score)
+               + top_store_wallets(args.top_store))
+    for wallet in quellen:
         sauber = str(wallet).strip().lower()
         if sauber and sauber not in ziele:
             ziele.append(sauber)
     if not ziele:
-        print("Keine Ziele: --wallet angeben oder --top-store nutzen (Tape-Store noetig).",
+        print("Keine Ziele: --wallet, --flagged oder --top-store nutzen (Tape-Store noetig).",
               file=sys.stderr, flush=True)
         return 0 if args.loop else 1
 

@@ -17,7 +17,7 @@ $tasks = @(
     @{ Name = "MarketIntelAlertScanner";     Args = "scripts\run_alert_scanner.py" },
     @{ Name = "MarketIntelLedgerResolution"; Args = "scripts\run_ledger_resolution.py" },
     @{ Name = "MarketIntelTradeIngest";      Args = "scripts\run_trade_ingest.py" },
-    @{ Name = "MarketIntelEntityScan";       Args = "scripts\run_entity_scan.py --loop --top-store 50" }
+    @{ Name = "MarketIntelEntityScan";       Args = "scripts\run_entity_scan.py --loop --flagged 40" }
 )
 
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME

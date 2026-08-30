@@ -64,9 +64,18 @@ TYP_SHARED_HUB = "shared_hub_candidate"
 STUFE_HART = 1
 STUFE_KANDIDAT = 2
 
-#: Ab so vielen verbundenen Wallets verhaelt sich eine Gegenpartei wie eine
-#: Boerse und verbindet niemanden mehr (Stufe 2 statt Stufe 1).
-DEFAULT_DEGREE_CAP = 4
+#: Bis zu so vielen Wallets an einer geteilten Gegenpartei fuehrt der Fund
+#: hart zusammen; darueber ist es Infrastruktur (Stufe 2, Kandidat). Zwei ist
+#: der Operator-Fall (eine private Quelle speist genau zwei Konten, wie Theos
+#: gemeinsame Kraken-Finanzierung von Paaren); drei und mehr sind auf Polygon
+#: fast immer ein Deposit-Router oder eine Boersen-Hotwallet, denn jedes Konto
+#: bekommt ohnehin eine eigene, aus einer Factory erzeugte Deposit-Adresse.
+#: Ein erster Live-Lauf ueber die 50 groessten Wallets verkettete sonst 47 zu
+#: einer "Entity", weil hunderte Router mit je vier Wallets knapp unter einem
+#: absoluten Cap von 4 lagen und sich transitiv verbanden.
+DEFAULT_MAX_SHARED_WALLETS = 2
+#: Rueckwaerts-kompatibler Name; einige Aufrufer reichen ihn als Argument.
+DEFAULT_DEGREE_CAP = DEFAULT_MAX_SHARED_WALLETS
 #: Kandidaten, deren Finanzierungen naeher als dieses Fenster beieinander
 #: liegen, bekommen mehr Konfidenz: "gleiche Hotwallet in engem Zeitfenster".
 NARROW_WINDOW_HOURS = 48.0
@@ -79,6 +88,15 @@ KONFIDENZ = {
     TYP_SHARED_HUB: 0.3,
 }
 KONFIDENZ_HUB_ENGES_FENSTER = 0.5
+
+#: Ab so vielen harten Partnern gilt eine Wallet selbst als Infrastruktur
+#: (Market-Maker, Relayer): ihre Kanten bleiben in der Liste, aber sie fuehren
+#: keine Entity mehr zusammen. Ohne diese Schranke zieht ein einziger
+#: Market-Maker, der mit 33 der 50 groessten Wallets Positionen tauscht, fast
+#: den ganzen Scan-Satz zu einer "Entity" - hoher Grad ist dann ein Beleg fuer
+#: das Gegenteil von gemeinsamer Kontrolle. Bei einer sauberen Zielmenge
+#: (auffaellige, frische Wallets) greift die Schranke fast nie.
+DEFAULT_HUB_HARD_DEGREE = 8
 
 #: Wie viele Tx-Hashes eine Kante als Beleg mitfuehrt. Mehr waere fuer die
 #: Payload nur Ballast; die vollstaendige Liste liefert jederzeit ein
@@ -280,7 +298,7 @@ def _min_iso(*values: str) -> str:
 
 def rebuild_edges(
     conn: sqlite3.Connection,
-    degree_cap: int = DEFAULT_DEGREE_CAP,
+    degree_cap: int = DEFAULT_MAX_SHARED_WALLETS,
     narrow_window_hours: float = NARROW_WINDOW_HOURS,
 ) -> dict[str, int]:
     """Alle Kanten aus den Link-Tabellen neu ableiten. Idempotent.
@@ -340,20 +358,17 @@ def rebuild_edges(
     # Gemeinsame externe Gegenparteien, je Richtung. Zwei Entscheidungen,
     # beide in den Belegen nachlesbar:
     #
-    # 1. Der Grad trennt Stufe 1 von Stufe 2 - und zwar in beide Richtungen.
-    #    Mehr Wallets als ``degree_cap`` heisst "verhaelt sich wie eine
-    #    Boerse". Aber auch eine Gegenpartei, die JEDE gescannte Wallet
-    #    verbindet, ist nur Kandidat, sobald mindestens drei gescannt sind:
-    #    in einem kleinen Scan-Set kann der Cap nie greifen, und der erste
-    #    Live-Lauf (drei Top-Wallets, ein gemeinsames Auszahlungsziel, eine
-    #    "Entity") zeigte, dass geteilte Infrastruktur dann exakt wie
-    #    gemeinsame Kontrolle aussieht. Erst ein breiterer Scan, in dem die
-    #    Adresse eben NICHT alle verbindet, macht daraus Stufe 1.
+    # 1. Die Zahl der bedienten Wallets trennt Stufe 1 von Stufe 2. Bis
+    #    ``degree_cap`` (Standard 2) fuehrt der geteilte Fund hart zusammen -
+    #    das ist der Operator-Fall, eine private Quelle speist genau zwei
+    #    Konten. Darueber ist es auf Polygon fast immer ein Deposit-Router
+    #    oder eine Boersen-Hotwallet und wird Kandidat. Der fruehere absolute
+    #    Cap von 4 liess hunderte Router (je vier Wallets) knapp darunter
+    #    durch, die sich transitiv zu einer 47-Wallet-"Entity" verbanden.
     #
     # 2. Ein Paar kann mehrere Gegenparteien teilen; die Belege werden je
     #    Paar GESAMMELT statt ueberschrieben. Drei geteilte Ziele sind ein
     #    staerkerer Befund als eines, und vorher ueberlebte nur das letzte.
-    scans_count = len(gescannt)
     paare: dict[tuple[str, str, str], dict[str, Any]] = {}
     for richtung, typ in (("in", TYP_SHARED_FUNDER), ("out", TYP_SHARED_WITHDRAWAL)):
         gruppen: dict[str, list[tuple[str, int, float, str, str, str]]] = {}
@@ -367,8 +382,7 @@ def rebuild_edges(
         for gegen, mitglieder in gruppen.items():
             if len(mitglieder) < 2:
                 continue
-            hub = (len(mitglieder) > int(degree_cap)
-                   or (scans_count >= 3 and len(mitglieder) >= scans_count))
+            hub = len(mitglieder) > int(degree_cap)
             for i in range(len(mitglieder)):
                 for j in range(i + 1, len(mitglieder)):
                     a, b = mitglieder[i], mitglieder[j]
@@ -413,16 +427,40 @@ def _windows_close(first_a: str, first_b: str, hours: float) -> bool:
     return abs((a - b).total_seconds()) <= float(hours) * 3600.0
 
 
-def assign_entities(conn: sqlite3.Connection) -> dict[str, int]:
-    """Union-Find ueber die Stufe-1-Kanten; Kandidaten fuehren nie zusammen.
+def hub_wallets(conn: sqlite3.Connection, hub_hard_degree: int = DEFAULT_HUB_HARD_DEGREE) -> set[str]:
+    """Wallets mit so vielen harten Partnern, dass sie selbst Infrastruktur sind.
+
+    Der harte Grad zaehlt ueber die Stufe-1-Kanten. Eine Wallet oberhalb der
+    Schwelle ist ein Market-Maker- oder Relayer-Verdacht: sie hat mit sehr
+    vielen Konten direkt Geld oder Positionen bewegt, und das ist kein
+    Syndikat, sondern ihr Geschaeft.
+    """
+
+    grad: dict[str, int] = {}
+    for a, b in conn.execute("SELECT wallet_a, wallet_b FROM edges WHERE stufe = ?", (STUFE_HART,)):
+        grad[a] = grad.get(a, 0) + 1
+        grad[b] = grad.get(b, 0) + 1
+    return {wallet for wallet, n in grad.items() if n > int(hub_hard_degree)}
+
+
+def assign_entities(conn: sqlite3.Connection,
+                    hub_hard_degree: int = DEFAULT_HUB_HARD_DEGREE) -> dict[str, int]:
+    """Union-Find ueber die Stufe-1-Kanten; Kandidaten und Hubs fuehren nie zusammen.
 
     Entity-Ids sind deterministisch (die lexikografisch kleinste Wallet der
     Komponente): zwei Rebuilds ueber denselben Daten ergeben dieselben Ids,
     und ein Diff zweier Staende zeigt echte Aenderungen statt neuer Nummern.
     Jede gescannte Wallet bekommt eine Entity, notfalls ihre eigene: "steht
     fuer sich" ist ein Befund, kein Fehlen.
+
+    Eine Kante ueber eine Hub-Wallet (``hub_wallets``) fuehrt NICHT zusammen:
+    die Kante bleibt in der Liste (der Transfer ist echt passiert), aber ein
+    Market-Maker, der mit dem halben Scan-Satz handelt, darf ihn nicht zu
+    einer Entity verschmelzen. Bei einer sauberen Zielmenge ist die Menge der
+    Hubs leer und der Schritt ohne Wirkung.
     """
 
+    hubs = hub_wallets(conn, hub_hard_degree)
     eltern: dict[str, str] = {}
 
     def _find(x: str) -> str:
@@ -441,6 +479,8 @@ def assign_entities(conn: sqlite3.Connection) -> dict[str, int]:
     for a, b in conn.execute("SELECT wallet_a, wallet_b FROM edges WHERE stufe = ?", (STUFE_HART,)):
         eltern.setdefault(a, a)
         eltern.setdefault(b, b)
+        if a in hubs or b in hubs:
+            continue
         _union(a, b)
 
     conn.execute("DELETE FROM wallet_entity")
@@ -453,7 +493,8 @@ def assign_entities(conn: sqlite3.Connection) -> dict[str, int]:
     verbunden = conn.execute(
         "SELECT COUNT(*) FROM (SELECT entity_id FROM wallet_entity GROUP BY entity_id HAVING COUNT(*) > 1)"
     ).fetchone()[0]
-    return {"wallets": len(eltern), "entities": int(entities), "multi_wallet_entities": int(verbunden)}
+    return {"wallets": len(eltern), "entities": int(entities),
+            "multi_wallet_entities": int(verbunden), "hub_wallets": len(hubs)}
 
 
 def entity_view(conn: sqlite3.Connection, wallet: str) -> dict[str, Any]:
@@ -505,6 +546,94 @@ def entity_view(conn: sqlite3.Connection, wallet: str) -> dict[str, Any]:
         "linked_wallets": [k for k in kanten if k["stufe"] == STUFE_HART],
         "candidates": [k for k in kanten if k["stufe"] == STUFE_KANDIDAT],
         "edges": kanten,
+    }
+
+
+def graph_overview(
+    conn: sqlite3.Connection,
+    max_entities: int = 25,
+    max_candidates: int = 25,
+) -> dict[str, Any]:
+    """Der ganze Graph als eine Payload: die Produktflaeche liest nur das hier.
+
+    Drei Bloecke, streng nach Evidenz getrennt: ``entities`` (nur die mit
+    mehr als einer Wallet, samt ihrer harten Kanten und Belegen),
+    ``candidates`` (Stufe-2-Beobachtungen, je GEGENPARTEI aggregiert: eine
+    Adresse, die sechs Wallets beruehrt, ist EIN Befund, nicht fuenfzehn
+    Paar-Zeilen) und ``scans`` (was ueberhaupt untersucht wurde, denn ohne
+    den Nenner liest sich jede Liste als Gesamtbild). Kappungen stehen als
+    ``*_capped`` in der Antwort, nicht im Kleingedruckten.
+    """
+
+    mitglieder: dict[str, list[str]] = {}
+    for entity_id, wallet in conn.execute(
+            "SELECT entity_id, wallet FROM wallet_entity ORDER BY entity_id, wallet"):
+        mitglieder.setdefault(entity_id, []).append(wallet)
+    mehrfach = sorted(
+        ((eid, wallets) for eid, wallets in mitglieder.items() if len(wallets) > 1),
+        key=lambda item: (-len(item[1]), item[0]))
+
+    harte_kanten: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for a, b, typ, konfidenz, evidenz, first_seen in conn.execute(
+            "SELECT wallet_a, wallet_b, typ, konfidenz, evidenz, first_seen FROM edges"
+            " WHERE stufe = ? ORDER BY konfidenz DESC, typ", (STUFE_HART,)):
+        try:
+            belege = json.loads(evidenz or "{}")
+        except json.JSONDecodeError:
+            belege = {}
+        harte_kanten.setdefault((a, b), []).append({
+            "wallet_a": a, "wallet_b": b, "typ": typ,
+            "konfidenz": float(konfidenz), "first_seen": first_seen,
+            "evidenz": belege,
+        })
+
+    entities = []
+    for entity_id, wallets in mehrfach[:max(0, int(max_entities))]:
+        menge = set(wallets)
+        kanten = [kante for (a, b), liste in harte_kanten.items()
+                  if a in menge and b in menge for kante in liste]
+        entities.append({"entity_id": entity_id, "wallets": wallets, "edges": kanten})
+
+    # Kandidaten je Gegenpartei zusammenziehen. Die Kanten tragen die
+    # Paar-Sicht; die Seite braucht die Adress-Sicht: wer beruehrt wie viele.
+    spannen: dict[tuple[str, str], dict[str, Any]] = {}
+    for a, b, evidenz in conn.execute(
+            "SELECT wallet_a, wallet_b, evidenz FROM edges WHERE stufe = ?", (STUFE_KANDIDAT,)):
+        try:
+            belege = json.loads(evidenz or "{}")
+        except json.JSONDecodeError:
+            continue
+        for teil in belege.get("shared_counterparties", []):
+            key = (str(teil.get("counterparty", "")), str(teil.get("direction", "")))
+            slot = spannen.setdefault(key, {"wallets": set(), "narrow_pairs": 0, "amount": 0.0})
+            slot["wallets"].update([a, b])
+            slot["narrow_pairs"] += 1 if teil.get("narrow_window") else 0
+            slot["amount"] = max(slot["amount"], float(teil.get("amount") or 0.0))
+    candidates = sorted(
+        (
+            {
+                "counterparty": gegen, "direction": richtung,
+                "wallets": sorted(slot["wallets"]),
+                "wallet_count": len(slot["wallets"]),
+                "narrow_pairs": int(slot["narrow_pairs"]),
+            }
+            for (gegen, richtung), slot in spannen.items()
+        ),
+        key=lambda item: (-item["wallet_count"], item["counterparty"]))
+
+    scans = [
+        {"wallet": wallet, "scanned_at": scanned_at, "complete": bool(complete)}
+        for wallet, scanned_at, complete in conn.execute(
+            "SELECT wallet, scanned_at, complete FROM scans ORDER BY scanned_at DESC")
+    ]
+
+    return {
+        "stats": graph_stats(conn),
+        "entities": entities,
+        "entities_capped": len(mehrfach) > int(max_entities),
+        "candidates": candidates[:max(0, int(max_candidates))],
+        "candidates_capped": len(candidates) > int(max_candidates),
+        "scans": scans,
     }
 
 
