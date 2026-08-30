@@ -182,6 +182,9 @@ async def _lifespan(_app: FastAPI):
     start_risk_sampler()
     # Copy daemon in-process (COPY_DAEMON=1), see the paper copy desk section.
     start_copy_daemon()
+    # Entity-Scan-Worker (ENTITY_SCAN_INTERVAL_H), fuer den Deploy-Host mit
+    # Volume: dort gibt es keinen Taskplaner fuer den Wallet-Graphen.
+    start_entity_scan_worker()
     yield
 
 
@@ -1633,6 +1636,55 @@ def start_risk_sampler() -> bool:
     _SAMPLER_STARTED.set()
     thread = threading.Thread(
         target=_risk_sampler_loop, args=(RISK_LOG_INTERVAL_MIN * 60.0,), name="risk-flag-sampler", daemon=True)
+    thread.start()
+    return True
+
+
+# --- Entity-Scan-Worker (Wallet-Graph auf dem Deploy-Host) -------------------
+#: > 0 startet den Entity-Scan als Worker-Thread im API-Prozess, alle N
+#: Stunden ein Durchgang. Fuer den Deploy-Host gedacht: dort gibt es keinen
+#: Taskplaner, die Graph-Datei liegt auf dem Volume (ENTITY_GRAPH_PATH), und
+#: der API-Prozess ist der einzige, der dauerhaft laeuft - dasselbe Muster
+#: wie Flag-Sampler und Copy-Daemon. Lokal bleibt der Schalter aus; dort
+#: scannt die geplante Task MarketIntelEntityScan, und zwei Schreiber auf
+#: demselben Graphen gibt es so nie.
+ENTITY_SCAN_INTERVAL_H = max(0.0, _env_float("ENTITY_SCAN_INTERVAL_H", 0.0))
+#: Wie viele auffaellige Wallets (Insider-Score, aus dem Tape-Store) je
+#: Durchgang anstehen; die Rescan-Drossel im Scan haelt das billig.
+ENTITY_SCAN_FLAGGED = max(1, _env_int("ENTITY_SCAN_FLAGGED", 40))
+_ENTITY_SCAN_STARTED = threading.Event()
+
+
+def _entity_scan_loop(interval_s: float) -> None:
+    from app import entity_graph as eg
+    from app import entity_scan as esc
+    from app import flow_fetch as ff
+
+    print(f"[entity-scan] worker every {interval_s / 3600.0:g} h, flagged {ENTITY_SCAN_FLAGGED}")
+    while True:
+        try:
+            api_key = ff.load_api_key(ROOT)
+            if not api_key:
+                # Ohne Key kann der Durchgang nichts; der Worker bleibt am
+                # Leben, denn der Key kann mit dem naechsten Deploy kommen.
+                print("[warn] entity scan worker: no ETHERSCAN_API_KEY configured")
+            else:
+                pfad = Path(os.environ.get("ENTITY_GRAPH_PATH", "").strip() or eg.DEFAULT_GRAPH_PATH)
+                esc.scan_pass(pfad, api_key, flagged=ENTITY_SCAN_FLAGGED)
+        except Exception as exc:
+            print(f"[warn] entity scan worker: {exc}")
+        time.sleep(max(600.0, interval_s))
+
+
+def start_entity_scan_worker() -> bool:
+    """Startet den Scan-Worker genau einmal; False, wenn aus oder gestartet."""
+
+    if ENTITY_SCAN_INTERVAL_H <= 0 or _ENTITY_SCAN_STARTED.is_set():
+        return False
+    _ENTITY_SCAN_STARTED.set()
+    thread = threading.Thread(
+        target=_entity_scan_loop, args=(ENTITY_SCAN_INTERVAL_H * 3600.0,),
+        name="entity-scan-worker", daemon=True)
     thread.start()
     return True
 

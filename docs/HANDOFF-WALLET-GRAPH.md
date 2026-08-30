@@ -293,6 +293,41 @@ Der saubere Fix ist ein zusaetzlicher Etherscan-Call je Kandidaten-Funder (wie
 viele verschiedene Adressen hat er je bedient); bis dahin ist eine Entity aus
 2-Wallet-Shared-Funder-Ketten ein starker Rechercheanlass, aber kein Beweis.
 
+## Wallet-Graph auf der oeffentlichen Seite (2026-08-30, "Weg 1")
+
+Entscheidung: die Graph-Datei lebt auf dem Railway-Volume, und der Scan laeuft
+dort im API-Prozess (auf Railway gibt es keinen Taskplaner; Worker-Thread ist
+dasselbe Muster wie Flag-Sampler und Copy-Daemon). Umsetzung:
+
+- `app/entity_scan.py` - die Scan-Runde als Bibliothek (Zielwahl `flagged`/
+  `top_store`/benannt, Rescan-Drossel, Rebuild); `scripts/run_entity_scan.py`
+  ist nur noch der CLI-Mantel (Lock, Stop-Datei, Schleife) darum.
+- `api/server.py::start_entity_scan_worker` - `ENTITY_SCAN_INTERVAL_H > 0`
+  startet den Scan als Worker-Thread im API-Prozess (Standard aus, lokal
+  scannt weiter die geplante Task; so hat der Graph je Host genau einen
+  Schreiber). `ENTITY_SCAN_FLAGGED` (Standard 40) setzt die Zielmenge.
+- Der 404 auf der oeffentlichen Seite war ein Deploy-Versatz (Frontend neu,
+  API noch alt); der "NO GRAPH ON THIS HOST"-Zustand danach ist der Zustand
+  ohne diese Env-Variablen.
+
+**User-Aktion auf Railway** (Volume auf `/data` gemountet vorausgesetzt),
+Variablen setzen und neu deployen:
+
+    ETHERSCAN_API_KEY=<key>            (read-only, wie lokal)
+    TRADE_STORE_PATH=/data/trade_store.sqlite
+    TRADE_STORE_RECORD=1
+    RISK_LOG_INTERVAL_MIN=10           (Flag-Sampler fuettert den Store im Vorbeigehen)
+    RISK_LOG_DIR=/data/risk_flags
+    ENTITY_GRAPH_PATH=/data/entity_graph.sqlite
+    ENTITY_SCAN_INTERVAL_H=24
+    ENTITY_SCAN_FLAGGED=40
+
+Ablaufkette danach: Sampler fuellt den Trade-Store, ab genug Fenster liefert
+der Store auffaellige Wallets, der Worker scannt sie taeglich, `/api/graph`
+und der Linked-Tab zeigen den Bestand. Der erste sichtbare Graph braucht also
+ein bis zwei Tage Store-Aufbau. Platz: Store <100 MB (prune 45 Tage) + Graph
+wenige MB, passt ins 500-MB-Volume.
+
 ## Offene Punkte
 
 - **Globaler Gegenpartei-Grad** (siehe oben): der wichtigste naechste Schritt
