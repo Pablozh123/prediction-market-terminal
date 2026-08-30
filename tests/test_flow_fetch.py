@@ -123,6 +123,47 @@ class ReportTests(unittest.TestCase):
             ff.wallet_flow_report(WALLET, "", get=self._get)
 
 
+class PositionTransferTests(unittest.TestCase):
+    """Direkte ERC-1155-Transfers: der Walk fragt token1155tx und behaelt
+    nur Gegenparteien, die kein Protokoll- oder Bridge-Kontrakt sind."""
+
+    def test_the_walk_asks_for_erc1155_and_drops_protocol_counterparties(self) -> None:
+        actions: list[str] = []
+
+        def get(params):
+            actions.append(str(params["action"]))
+            rows = [
+                {"hash": "0xp1", "from": EXTERN, "to": WALLET, "tokenID": "7",
+                 "tokenValue": "2000000", "blockNumber": "10", "timeStamp": "1600000000",
+                 "contractAddress": ff.CONDITIONAL_TOKENS},
+                {"hash": "0xp2", "from": PROTOKOLL, "to": WALLET, "tokenID": "8",
+                 "tokenValue": "5000000", "blockNumber": "11", "timeStamp": "1600000100",
+                 "contractAddress": ff.CONDITIONAL_TOKENS},
+            ]
+            return {"result": [r for r in rows if int(r["blockNumber"]) >= int(params["startblock"])]}
+
+        frame, complete = ff.fetch_position_transfers(WALLET, "key", pause=0.0, get=get)
+        self.assertTrue(complete)
+        self.assertEqual(set(actions), {"token1155tx"})
+        self.assertEqual(list(frame["sender"]), [EXTERN])
+        self.assertAlmostEqual(float(frame.iloc[0]["shares"]), 2.0)
+
+    def test_two_position_transfers_in_one_tx_stay_two_rows(self) -> None:
+        def get(params):
+            rows = [
+                {"hash": "0xsame", "from": EXTERN, "to": WALLET, "tokenID": "7",
+                 "tokenValue": "1000000", "blockNumber": "10", "timeStamp": "1600000000",
+                 "contractAddress": ff.CONDITIONAL_TOKENS},
+                {"hash": "0xsame", "from": EXTERN, "to": WALLET, "tokenID": "8",
+                 "tokenValue": "1000000", "blockNumber": "10", "timeStamp": "1600000000",
+                 "contractAddress": ff.CONDITIONAL_TOKENS},
+            ]
+            return {"result": rows if int(params["startblock"]) <= 10 else []}
+
+        frame, _complete = ff.fetch_position_transfers(WALLET, "key", pause=0.0, get=get)
+        self.assertEqual(len(frame), 2)
+
+
 class ApiKeyTests(unittest.TestCase):
     def test_the_dotenv_fallback_reads_the_key_without_logging_it(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -136,17 +136,69 @@ fehlten. Ergebnis:
   Feed (3000 Prints ab $500 in einem Pass, zweiter Pass fand korrekt 0 Neue).
   Gemessene Zeilengroesse ~850 Bytes inkl. Indizes.
 
+## Stand Phase 2 (2026-08-30)
+
+Funding-Graph und Entity-Aufloesung sind gebaut (Branch
+`claude/wallet-graph-phase2-entities`):
+
+- `app/entity_graph.py` — eigener Store `data/entity_graph.sqlite` (WAL) mit
+  `scans` / `funding_links` / `position_links` / `edges(typ, stufe, konfidenz,
+  evidenz, first_seen)` / `wallet_entity`. Stufe 1 (direkte Collateral-Transfers
+  zwischen gescannten Wallets, gemeinsamer externer Funder, gemeinsames
+  Auszahlungsziel, direkte ERC-1155-Positionstransfers) fuehrt per Union-Find
+  zusammen; Stufe 2 (Gegenpartei verhaelt sich wie eine Boerse, `degree_cap`
+  Standard 4; engeres 48-h-Fenster hebt nur die Konfidenz) bleibt
+  Kandidatenliste und merged nie. Jede Kante traegt Belege (Tx-Hashes,
+  Betraege, Zeitfenster); Entity-Ids sind deterministisch (kleinste Wallet
+  der Komponente); `rebuild_edges`/`assign_entities` sind idempotent, der
+  Graph ist eine Ableitung der Link-Tabellen, keine zweite Wahrheit.
+- `app/flow_fetch.py` — erweitert um `fetch_classified_flows` (gemeinsamer
+  Kern fuer Flows-Route und Entity-Scan) und `fetch_position_transfers`
+  (token1155tx am Conditional-Tokens-Kontrakt, Protokoll- und
+  Bridge-Gegenparteien fallen raus: uebrig bleiben Transfers von Wallet zu
+  Wallet, die es im normalen Handel nicht gibt).
+- `scripts/run_entity_scan.py` — selektiver Runner: `--wallet` und/oder
+  `--top-store N` (groesste Wallets im Tape-Store-Fenster), Seitenbudget je
+  Kontrakt, Rescan-Drossel, danach kompletter Rebuild. Read-only.
+- `GET /api/wallet/{wallet}/entity` — liest nur den lokalen Graphen (keine
+  Chain-Abrufe), unterscheidet "kein Graph auf diesem Host", "nicht
+  gescannt" und die Entity samt `linked_wallets` (Stufe 1) und `candidates`
+  (Stufe 2); jede Antwort mit Inhalt traegt den `screen_not_proof`-Satz aus
+  dem Claims-Register. Keine Deanonymisierung: verknuepft werden Konten
+  ueber belegte Transfers, nie Personen.
+- Tests: `tests/test_entity_graph.py` (Stufen-Vertrag, Idempotenz, Route).
+
+**Befunde der ersten Live-Laeufe (3 groesste Tape-Store-Wallets, Budget 2 Seiten):**
+
+- Der erste Lauf verband alle drei Wallets ueber EIN gemeinsames Auszahlungsziel zu
+  einer Entity. Die Adresse war `0xe2222d27...`, ein neueres
+  Polymarket-Exchange-Deployment, das `src/copy_trading.py` laengst kannte,
+  `app/onchain_flows.py::PROTOCOL_ADDRESSES` aber nicht: Settlement-Verkehr wurde
+  als externes Funding gebucht (betraf auch die Funding-Summen der Flows-Route).
+  Beide 2026er-Exchange-Adressen stehen jetzt in der Protokoll-Liste.
+- Daraus abgeleitete Regel: eine Gegenpartei, die JEDE gescannte Wallet verbindet
+  (ab 3 Scans), ist nur Kandidat; in einem kleinen Scan-Set kann der Degree-Cap
+  nie greifen, und geteilte Infrastruktur sieht dann exakt wie gemeinsame
+  Kontrolle aus.
+- Nach dem Fix bleibt ein echter Rechercheanlass: zwei der drei Top-Wallets
+  zahlen an dasselbe externe Ziel (`0x115f48dc2a...`) aus (Stufe-1-Kante mit
+  Tx-Belegen im Graphen).
+
 ## Offene Punkte
 
 - Betriebsentscheidung Ingest-Host: dieser Rechner kann lokal sammeln (geplante Task
   `MarketIntelTradeIngest` via `scripts/install_autostart.ps1` registrieren,
   User-Aktion); auf dem Heimrechner nur mit anderem Resolver, sonst Railway.
   Ein Sammler reicht, jeder Rechner sammelt sonst in seinen eigenen lokalen Store.
+- Entity-Scan regelmaessig fahren (z.B. woechentlich `--top-store 50` plus die
+  Flag-Wallets des Risk-Screens); noch keine geplante Task, bewusst: erst sehen,
+  was die ersten Laeufe an Kanten liefern und ob `degree_cap=4` traegt.
 - Nach ~2 Wochen Bestand: pruefen, ob die strengen Leiter-Sprossen jetzt tragen; dann
   die lockeren Sprossen loeschen.
 - Goldsky-Subgraphs (`pnl`, `activity`) als zweite Ingest-Quelle: noch offen.
 - Beobachten: `_tape_categories` schlaegt bei breiterem Tape mehr Maerkte nach
   (gebatcht + fail-soft, aber Kaltstart von /api/risk wird traeger).
-- Phase 2 (Funding-Graph und Entity-Aufloesung) ist die naechste Ausbaustufe;
-  Schema-Vorschlag steht oben unter Ausbaustufen.
+- Phase 3 (Verhaltens-Layer: Fingerprints, Wash-Zyklen, Entity-Insider-Score,
+  Iran-Test) und Phase 4 (Produktflaeche: Seite "Wallet-Graph", Wallet-Tab
+  "Verknuepft") stehen aus; die Entity-Route ist der Unterbau fuer den Tab.
 - Optional: Arkham-API-Labels als Anreicherung (Buy), Bubblemaps-iFrame als Sanity-Check.
