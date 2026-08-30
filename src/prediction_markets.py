@@ -4043,10 +4043,19 @@ def _prepare_whale_risk_trades(trades: pd.DataFrame, now: Any | None = None) -> 
     return df, current_time
 
 
-def whale_wallet_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_000.0, now: Any | None = None) -> pd.DataFrame:
+def whale_wallet_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_000.0, now: Any | None = None,
+                             known_since: Mapping[str, int] | None = None) -> pd.DataFrame:
     """Score wallet-level insider-like flow signals from the current public trade tape.
 
     The score is a best-effort public-data screen, not proof of illegal insider trading.
+
+    ``known_since`` maps lowercased wallets to the unix second the persistent
+    tape store first saw them. Inside a one-day tape every wallet that entered
+    the window late looks new, so "sample-fresh" was scoring the shape of the
+    sample, not the wallet. A wallet the store already knew before this window
+    began is provably not fresh and neither scores nor carries the flag; a
+    wallet the store meets for the first time stays a candidate, because a
+    store first-seen is a floor on age, never a birthday.
     """
 
     df, _current_time = _prepare_whale_risk_trades(trades, now)
@@ -4150,7 +4159,16 @@ def whale_wallet_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_0
     tape_end = df["time"].max()
     tape_mid = tape_start + (tape_end - tape_start) / 2 if pd.notna(tape_start) and pd.notna(tape_end) else pd.NaT
     seen_late = grouped["first_seen"] >= tape_mid if pd.notna(tape_mid) else pd.Series(False, index=grouped.index)
+    if known_since and pd.notna(tape_start):
+        # Der Store kennt die Wallet seit vor diesem Fenster: nicht frisch,
+        # egal wie spaet ihr erster Print IM Fenster liegt. NaT-Vergleiche
+        # sind False, eine dem Store unbekannte Wallet bleibt also Kandidat.
+        store_seen = pd.to_datetime(
+            pd.to_numeric(grouped["wallet"].astype(str).str.lower().map(known_since), errors="coerce"),
+            unit="s", utc=True, errors="coerce")
+        seen_late &= ~(store_seen < tape_start)
     fresh_mask = (grouped["trade_count"] <= 2) & (grouped["largest_trade"] >= whale_base * 2) & seen_late
+    grouped["sample_fresh"] = fresh_mask
     fresh_score = fresh_mask.astype(float) * 10
     grouped["wallet_insider_score"] = (
         scale_score
@@ -4174,7 +4192,11 @@ def whale_wallet_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_0
                 (float(row.get("directional_share", 0.0) or 0.0) >= 0.8, "one-sided flow"),
                 (float(row.get("trades_per_hour", 0.0) or 0.0) >= 20, "fast burst"),
                 (float(row.get("price_move", 0.0) or 0.0) >= 0.05, "favorable price move"),
-                (int(row.get("trade_count", 0) or 0) <= 2 and float(row.get("largest_trade", 0.0) or 0.0) >= whale_base * 2, "sample-fresh large wallet"),
+                # Dieselbe Maske wie die Punkte: Groessensprung UND spaeter
+                # erster Auftritt UND dem Store nicht laenger bekannt. Vorher
+                # trug das Etikett nur die Groessenhaelfte der Regel und
+                # stand damit auch an Wallets, die keinen Frische-Punkt bekamen.
+                (bool(row.get("sample_fresh")), "sample-fresh large wallet"),
                 (float(row.get("largest_trade", 0.0) or 0.0) >= whale_base * 5, "large print"),
             ],
         ),

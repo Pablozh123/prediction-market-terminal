@@ -70,6 +70,11 @@ CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS wallets (
+    wallet     TEXT PRIMARY KEY,
+    first_seen INTEGER NOT NULL,
+    last_seen  INTEGER NOT NULL
+);
 """
 
 
@@ -159,9 +164,46 @@ def record_tape(conn: sqlite3.Connection, frame: pd.DataFrame) -> int:
         list(df.itertuples(index=False, name=None)),
     )
     neu = conn.total_changes - vorher
+    # First/Last-Seen je Wallet, idempotent (MIN/MAX): Ueberlappung zwischen
+    # Zyklen ist der Normalfall und darf die Werte nie verschieben. Die
+    # Tabelle ueberlebt ``prune`` mit Absicht — ein First-Seen ist eine
+    # Untergrenze des Wallet-Alters und wird durch das Loeschen alter Prints
+    # nicht falsch, nur durch das Vergessen.
+    spanne = df.groupby(df["wallet"].str.lower())["timestamp"].agg(["min", "max"])
+    conn.executemany(
+        "INSERT INTO wallets (wallet, first_seen, last_seen) VALUES (?, ?, ?) "
+        "ON CONFLICT(wallet) DO UPDATE SET "
+        "first_seen = MIN(first_seen, excluded.first_seen), "
+        "last_seen = MAX(last_seen, excluded.last_seen)",
+        [(str(wallet), int(zeile["min"]), int(zeile["max"])) for wallet, zeile in spanne.iterrows()],
+    )
     _set_meta(conn, "last_ingest_utc", datetime.now(timezone.utc).isoformat(timespec="seconds"))
     conn.commit()
     return int(neu)
+
+
+def first_seen_map(conn: sqlite3.Connection, wallets: Any | None = None) -> dict[str, int]:
+    """Wallet -> erster gespeicherter Print (Unix-Sekunden), Schluessel klein.
+
+    "First seen" heisst: zuerst gesehen, seit der Ingest laeuft — eine
+    Untergrenze des Alters, kein Geburtsdatum. Genau die Richtung, die das
+    Frische-Signal braucht: wen der Store seit Wochen kennt, der ist
+    bewiesenermassen nicht neu; wen er heute zum ersten Mal sieht, der kann
+    trotzdem alt sein und bleibt Kandidat.
+    """
+
+    if wallets is None:
+        cursor = conn.execute("SELECT wallet, first_seen FROM wallets")
+        return {str(w): int(ts) for w, ts in cursor.fetchall()}
+    schluessel = sorted({str(w).strip().lower() for w in wallets if str(w).strip()})
+    ergebnis: dict[str, int] = {}
+    for start in range(0, len(schluessel), 500):
+        stueck = schluessel[start:start + 500]
+        marken = ",".join("?" for _ in stueck)
+        cursor = conn.execute(
+            f"SELECT wallet, first_seen FROM wallets WHERE wallet IN ({marken})", stueck)
+        ergebnis.update({str(w): int(ts) for w, ts in cursor.fetchall()})
+    return ergebnis
 
 
 def load_window(
@@ -231,6 +273,12 @@ def store_stats(conn: sqlite3.Connection) -> dict[str, Any]:
 def prune(conn: sqlite3.Connection, keep_days: float = 45.0) -> int:
     """Prints aelter als ``keep_days`` loeschen. Gibt die Zahl der geloeschten
     Zeilen zurueck; der Platz wird von SQLite wiederverwendet, nicht freigegeben.
+
+    Die ``wallets``-Tabelle bleibt mit Absicht stehen: ein First-Seen ist eine
+    Untergrenze des Wallet-Alters, und die wird durch das Loeschen alter
+    Prints nicht falsch. Loeschte prune sie mit, saehe jede Wallet nach
+    ``keep_days`` wieder wie ein Neuzugang aus, und das Frische-Signal
+    bekaeme genau die Fehlalarme zurueck, die der Store ihm nimmt.
     """
 
     grenze = int(datetime.now(timezone.utc).timestamp() - float(keep_days) * 86_400)
@@ -287,7 +335,31 @@ def store_note(record: Any) -> str:
         teile += f" Combined tape after dedup: {gesamt:,} prints."
     if daten.get("store_rows_capped"):
         teile += " The store window was cut at its row cap, so the oldest days are missing."
+    # Ein stehender Ingest hinterlaesst eine Luecke, die keine der beiden
+    # Quellen benennt: das Live-Band reicht rund einen Tag zurueck, das
+    # Speicherfenster endet beim letzten Ingest. Erst ab etwa einem Tag
+    # Stillstand klaffen die beiden auseinander — und genau dann muss der
+    # Satz unter dem Bild das sagen, sonst liest sich die Luecke als ruhige
+    # Zeit.
+    alter_h = _ingest_age_hours(letzte)
+    if alter_h is not None and alter_h >= 24.0:
+        teile += (f" The last ingest is {alter_h / 24.0:.1f} days back and the live band reaches"
+                  " about one day: the tape in between is missing from this picture.")
     return teile
+
+
+def _ingest_age_hours(stamp: str) -> float | None:
+    """Stunden seit einem ISO-Zeitstempel, oder None bei Unlesbarem."""
+
+    if not stamp:
+        return None
+    try:
+        dann = datetime.fromisoformat(stamp)
+    except ValueError:
+        return None
+    if dann.tzinfo is None:
+        dann = dann.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - dann).total_seconds() / 3600.0
 
 
 def extend_tape(

@@ -29,10 +29,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src import prediction_markets as md
-from src import trade_store as ts
+from app import proc_lock  # noqa: E402
+from src import prediction_markets as md  # noqa: E402
+from src import trade_store as ts  # noqa: E402
 
 STOP_PATH = Path("data") / "trade_ingest.stop"
+LOCK_NAME = "trade_ingest.lock"
 
 
 def run_cycle(min_cash: float, pages: int, keep_days: float) -> None:
@@ -77,25 +79,37 @@ def main() -> int:
                         help="Aufbewahrung in Tagen (Standard 45)")
     args = parser.parse_args()
 
-    if args.once:
-        run_cycle(args.min_cash, args.pages, args.keep_days)
-        return 0
-
-    print(f"[ingest] loop every {args.interval_min:g} min; stop file: {STOP_PATH}")
-    while True:
-        if STOP_PATH.exists():
-            print("[ingest] stop file found, exiting")
+    # Einzelinstanz wie bei den Recordern: als geplante Task gestartet ist
+    # ein zweiter manueller Start keine Hypothese mehr. Der Store selbst
+    # vertraegt zwei Schreiber (INSERT OR IGNORE), aber zwei Runner heissen
+    # doppelte Feed-Abrufe und verschraenkte Log- und Prune-Zyklen.
+    try:
+        lock = proc_lock.acquire(ts.store_path().parent, name=LOCK_NAME)
+    except proc_lock.AlreadyRunning as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    try:
+        if args.once:
+            run_cycle(args.min_cash, args.pages, args.keep_days)
             return 0
-        run_cycle(args.min_cash, args.pages, args.keep_days)
-        # In kleinen Schritten schlafen, damit die Stop-Datei zeitnah wirkt.
-        rest = max(60.0, args.interval_min * 60.0)
-        while rest > 0:
+
+        print(f"[ingest] loop every {args.interval_min:g} min; stop file: {STOP_PATH}")
+        while True:
             if STOP_PATH.exists():
                 print("[ingest] stop file found, exiting")
                 return 0
-            schritt = min(15.0, rest)
-            time.sleep(schritt)
-            rest -= schritt
+            run_cycle(args.min_cash, args.pages, args.keep_days)
+            # In kleinen Schritten schlafen, damit die Stop-Datei zeitnah wirkt.
+            rest = max(60.0, args.interval_min * 60.0)
+            while rest > 0:
+                if STOP_PATH.exists():
+                    print("[ingest] stop file found, exiting")
+                    return 0
+                schritt = min(15.0, rest)
+                time.sleep(schritt)
+                rest -= schritt
+    finally:
+        proc_lock.release(lock)
 
 
 if __name__ == "__main__":

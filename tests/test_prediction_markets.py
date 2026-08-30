@@ -2010,6 +2010,44 @@ class WhaleRiskAuditRegressionTests(unittest.TestCase):
         self.assertNotIn("sample-fresh large wallet", flags["0xold"])
         self.assertIn("sample-fresh large wallet", flags["0xnew"])
 
+    def test_a_wallet_the_store_already_knew_is_not_sample_fresh(self):
+        # Im Ein-Tages-Band sieht jede spaet eintretende Wallet neu aus. Der
+        # persistente Tape-Store kennt "0xnew" aber seit Wochen: kein
+        # Frische-Punkt und kein Etikett. "0xunknown" hat der Store noch nie
+        # gesehen und bleibt Kandidat — ein Store-First-Seen ist eine
+        # Untergrenze des Alters, kein Geburtsdatum.
+        rows = [
+            self._trade("0xbg", "mB", 0.5, 1000.0, time="2026-06-10T00:00:00Z"),
+            self._trade("0xbg", "mB", 0.5, 1000.0, time="2026-06-10T23:00:00Z"),
+            self._trade("0xnew", "mC", 0.5, 5000.0, time="2026-06-10T22:00:00Z"),
+            self._trade("0xunknown", "mD", 0.5, 5000.0, time="2026-06-10T22:00:00Z"),
+        ]
+        vor_dem_fenster = int(pd.Timestamp("2026-05-01T00:00:00Z").timestamp())
+        scored = md.whale_wallet_risk_scores(
+            pd.DataFrame(rows), whale_threshold=1000.0,
+            known_since={"0xnew": vor_dem_fenster})
+        flags = dict(zip(scored["wallet"], scored["wallet_insider_flags"].astype(str)))
+        fresh = dict(zip(scored["wallet"], scored["sample_fresh"]))
+        self.assertNotIn("sample-fresh large wallet", flags["0xnew"])
+        self.assertFalse(bool(fresh["0xnew"]))
+        self.assertIn("sample-fresh large wallet", flags["0xunknown"])
+        self.assertTrue(bool(fresh["0xunknown"]))
+
+    def test_a_store_first_seen_inside_the_window_changes_nothing(self):
+        # Der Store hat die Wallet erst IM Fenster kennengelernt: das ist
+        # dieselbe Information wie das Band selbst und darf nichts entlasten.
+        rows = [
+            self._trade("0xbg", "mB", 0.5, 1000.0, time="2026-06-10T00:00:00Z"),
+            self._trade("0xbg", "mB", 0.5, 1000.0, time="2026-06-10T23:00:00Z"),
+            self._trade("0xnew", "mC", 0.5, 5000.0, time="2026-06-10T22:00:00Z"),
+        ]
+        im_fenster = int(pd.Timestamp("2026-06-10T22:00:00Z").timestamp())
+        scored = md.whale_wallet_risk_scores(
+            pd.DataFrame(rows), whale_threshold=1000.0,
+            known_since={"0xnew": im_fenster})
+        flags = dict(zip(scored["wallet"], scored["wallet_insider_flags"].astype(str)))
+        self.assertIn("sample-fresh large wallet", flags["0xnew"])
+
 
 class KalshiTradePricingTests(unittest.TestCase):
     def test_no_taker_priced_at_one_minus_yes(self):

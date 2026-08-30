@@ -200,6 +200,68 @@ class NoteTests(unittest.TestCase):
         self.assertIn("row cap", satz)
 
 
+class FirstSeenTests(unittest.TestCase):
+    """Die First-Seen-Tabelle: Untergrenze des Wallet-Alters, prune-fest.
+
+    Im Ein-Tages-Band sieht jede spaet eintretende Wallet neu aus; der Store
+    ist die einzige Stelle, die "kannten wir schon vorher" belegen kann
+    (``md.whale_wallet_risk_scores`` nimmt die Map als ``known_since``).
+    Deshalb darf weder Ueberlappung zwischen Zyklen noch prune die Werte
+    verschieben — sonst wandern die Fehlalarme zurueck, die sie abstellt.
+    """
+
+    def setUp(self) -> None:
+        tmp = TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.conn = ts.connect(Path(tmp.name) / "store.sqlite")
+        self.addCleanup(self.conn.close)
+
+    def test_first_seen_survives_overlapping_ingests_in_any_order(self) -> None:
+        jetzt = int(pd.Timestamp.utcnow().timestamp())
+        spaet = _tape(1, start_ts=jetzt)
+        frueh = _tape(1, start_ts=jetzt - 10 * 86_400)
+        frueh["transaction_hash"] = ["0xearly"]
+        ts.record_tape(self.conn, spaet)
+        ts.record_tape(self.conn, frueh)
+        ts.record_tape(self.conn, spaet)
+        self.assertEqual(ts.first_seen_map(self.conn, [WALLET_A])[WALLET_A], jetzt - 10 * 86_400)
+
+    def test_prune_forgets_old_prints_but_not_old_acquaintances(self) -> None:
+        jetzt = int(pd.Timestamp.utcnow().timestamp())
+        alt = _tape(1, start_ts=jetzt - 90 * 86_400)
+        ts.record_tape(self.conn, alt)
+        neu = _tape(1, start_ts=jetzt)
+        neu["transaction_hash"] = ["0xfresh"]
+        ts.record_tape(self.conn, neu)
+        self.assertEqual(ts.prune(self.conn, keep_days=45.0), 1)
+        # Der Print ist weg, das Kennenlernen nicht: die Wallet bleibt alt.
+        self.assertEqual(ts.first_seen_map(self.conn, [WALLET_A])[WALLET_A], jetzt - 90 * 86_400)
+
+    def test_the_map_lowercases_and_limits_to_the_asked_wallets(self) -> None:
+        tape = _tape(2)
+        tape["wallet"] = ["0xAbC" + "0" * 37, "0xDeF" + "0" * 37]
+        ts.record_tape(self.conn, tape)
+        treffer = ts.first_seen_map(self.conn, ["0xABC" + "0" * 37])
+        self.assertEqual(list(treffer), ["0xabc" + "0" * 37])
+        self.assertEqual(len(ts.first_seen_map(self.conn)), 2)
+
+
+class StaleIngestNoteTests(unittest.TestCase):
+    def test_an_ingest_older_than_the_live_band_names_the_gap(self) -> None:
+        vor_drei_tagen = (pd.Timestamp.utcnow() - pd.Timedelta(days=3)).isoformat()
+        satz = ts.store_note({"store_rows": 10, "store_window_days": 14.0,
+                              "store_days_with_data": 5,
+                              "store_last_ingest_utc": vor_drei_tagen})
+        self.assertIn("the tape in between is missing", satz)
+
+    def test_a_fresh_ingest_needs_no_gap_warning(self) -> None:
+        gerade = pd.Timestamp.utcnow().isoformat()
+        satz = ts.store_note({"store_rows": 10, "store_window_days": 14.0,
+                              "store_days_with_data": 5,
+                              "store_last_ingest_utc": gerade})
+        self.assertNotIn("missing from this picture", satz)
+
+
 class MaybeRecordTests(unittest.TestCase):
     def test_off_by_default_nothing_is_written(self) -> None:
         with TemporaryDirectory() as tmp:

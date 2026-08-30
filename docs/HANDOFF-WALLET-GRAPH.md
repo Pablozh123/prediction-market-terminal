@@ -52,7 +52,7 @@ https://claude.ai/code/artifact/1559e64a-979d-4c14-a8aa-ec6e2ac8ac3f
    - Unterschätzter Endpoint: `/v1/market-positions` (`src/prediction_markets.py:2199`) —
      komplette Teilnehmerliste pro Markt mit PnL.
    - **Strukturelle Schwäche: keine Persistenz** (kein Trades-/Wallets-/Kanten-Store;
-     Railway-Volume nur 500 MB).
+     Railway-Volume nur 500 MB). Behoben in Phase 1, siehe "Stand der Umsetzung".
 
 ## Der Vorschlag („Wallet-Graph")
 
@@ -90,34 +90,63 @@ Kosten: $0–50/Monat. Kalshi bleibt außen vor (keine öffentlichen Wallets).
 
 ## Stand der Umsetzung (2026-08-30)
 
-Phase 1 (Persistenz) ist gebaut:
+Phase 1 wurde parallel auf beiden Rechnern gebaut; der Merge behielt den Store von
+main (`src/trade_store.py`) und traegt die Stuecke des PR-Zweigs nach, die dort
+fehlten. Ergebnis:
 
-- `src/trade_store.py` — SQLite-Speicher (WAL, Dedup-Schlüssel wie `load_deep_tape`:
-  `transaction_hash, wallet, asset`), Lesefenster `TRADE_STORE_WINDOW_DAYS` (Standard 14 Tage),
-  `extend_tape` reichert das Live-Band des Risk-Screens an, `store_note` liefert den zweiten
-  Satz der Bildunterschrift (Prints, Tage-mit-Daten, letzter Ingest, Dedup-Summe). Ohne
-  Datei ändert sich nichts — fail-soft in jede Richtung.
+- `src/trade_store.py` — SQLite-Speicher (WAL, Dedup-Schluessel wie `load_deep_tape`:
+  `transaction_hash, wallet, asset`), Lesefenster `TRADE_STORE_WINDOW_DAYS` (Standard
+  14 Tage), `extend_tape` reichert das Live-Band des Risk-Screens an, `store_note`
+  liefert den zweiten Satz der Bildunterschrift (Prints, Tage-mit-Daten, letzter
+  Ingest, Dedup-Summe; bei mehr als einem Tag Ingest-Stillstand benennt er die
+  Luecke zwischen Speicherfenster und Live-Band). Ohne Datei aendert sich nichts,
+  fail-soft in jede Richtung. Neu dazu: `wallets`-Tabelle (First/Last-Seen je
+  Wallet, MIN/MAX-idempotent, uebersteht `prune`) und `first_seen_map`.
 - `scripts/run_trade_ingest.py` — Runner (Schleife alle 15 min, `--once`, Stop-Datei
-  `data/trade_ingest.stop`, Aufbewahrung 45 Tage via `prune`).
+  `data/trade_ingest.stop`, Aufbewahrung 45 Tage via `prune`, Einzelinstanz via
+  `app/proc_lock`). Als geplante Task `MarketIntelTradeIngest` in
+  `scripts/install_autostart.ps1` registrierbar.
 - `api/server.py` — `load_deep_tape` vereinigt Live-Band + Speicherfenster;
-  `TRADE_STORE_RECORD=1` lässt den API-Prozess seine ohnehin geholten Seiten eintragen
-  (Standard aus). Die Regelleiter bleibt unverändert und berichtet ehrlich weiter.
-- Tests: `tests/test_trade_store.py`; volle Suite grün (2.337 Tests).
+  `TRADE_STORE_RECORD=1` laesst den API-Prozess seine ohnehin geholten Seiten
+  eintragen (Standard aus). Die Regelleiter bleibt unveraendert und berichtet
+  ehrlich weiter; die lockeren Sprossen fliegen erst raus, wenn der Store
+  verlaesslich Wochen haelt.
+- `app/flow_fetch.py` + Route `GET /api/wallet/{wallet}/flows` — der getestete
+  Funding-Kernel aus `onchain_flows.py` haengt jetzt an der API. Begrenzter
+  Etherscan-V2-Walk (Budget je Kontrakt, `complete`-Flag, gekappte Summen heissen
+  Untergrenzen), liefert Funding-Spanne, Peak-Exposure, Top-Gegenparteien und das
+  on-chain First-Transfer-Datum. Braucht `ETHERSCAN_API_KEY`, sonst 503.
+- Echter First-Seen: `md.whale_wallet_risk_scores` nimmt `known_since`
+  (First-Seen-Map aus dem Store, via `store_known_since` in `api/server.py`).
+  Eine Wallet, die der Store schon vor dem Tagesfenster kannte, ist nicht mehr
+  "sample-fresh"; Risk-Screen und Wallet-Seite nutzen dieselbe Map, und das
+  Etikett nutzt dieselbe Maske wie die Punkte. Wallet-Detail traegt zusaetzlich
+  `store_first_seen`.
 
-**Betriebsbefund:** Auf dem Heimrechner blockt der Provider (Salt) `*.polymarket.com`
-per DNS (NXDOMAIN vom Router; 1.1.1.1/8.8.8.8 lösen normal auf — Schweizer
-Geldspiel-Blockliste). Der lokale Ingest-Runner braucht daher einen anderen Resolver,
-ODER man lässt den Store auf Railway wachsen: `TRADE_STORE_RECORD=1` +
-`TRADE_STORE_PATH=/data/trade_store.sqlite` (Volume!) + `RISK_LOG_INTERVAL_MIN>0`,
-dann füttert der Flag-Sampler den Store im Vorbeigehen. ~1–2 MB/Tag bei $1k-Floor,
-45 Tage ≈ unter 100 MB — passt ins 500-MB-Volume.
+**Betriebsbefunde:**
+
+- Heimrechner (anderer PC): Der Provider (Salt) blockt `*.polymarket.com` per DNS
+  (NXDOMAIN vom Router; 1.1.1.1/8.8.8.8 loesen normal auf, Schweizer
+  Geldspiel-Blockliste). Der lokale Runner braucht dort einen anderen Resolver,
+  ODER man laesst den Store auf Railway wachsen: `TRADE_STORE_RECORD=1` +
+  `TRADE_STORE_PATH=/data/trade_store.sqlite` (Volume!) + `RISK_LOG_INTERVAL_MIN>0`,
+  dann fuettert der Flag-Sampler den Store im Vorbeigehen. ~1-2 MB/Tag bei
+  $1k-Floor, 45 Tage unter 100 MB, passt ins 500-MB-Volume.
+- Dieser Rechner: kein DNS-Block, der Live-Smoke des Ingest lief direkt gegen den
+  Feed (3000 Prints ab $500 in einem Pass, zweiter Pass fand korrekt 0 Neue).
+  Gemessene Zeilengroesse ~850 Bytes inkl. Indizes.
 
 ## Offene Punkte
 
-- Betriebsentscheidung: Ingest via Railway (Env-Variablen setzen + `railway up`) oder
-  lokal mit öffentlichem DNS. Railway ist der Weg des geringsten Widerstands.
-- Nach ~2 Wochen Bestand: prüfen, ob die strengen Leiter-Sprossen jetzt tragen; dann
-  Phase 2 (Funding-Graph & Entity-Auflösung, `entities`/`wallet_entity`/`edges`).
-- Beobachten: `_tape_categories` schlägt bei breiterem Tape mehr Märkte nach
-  (gebatcht + fail-soft, aber Kaltstart von /api/risk wird träger).
+- Betriebsentscheidung Ingest-Host: dieser Rechner kann lokal sammeln (geplante Task
+  `MarketIntelTradeIngest` via `scripts/install_autostart.ps1` registrieren,
+  User-Aktion); auf dem Heimrechner nur mit anderem Resolver, sonst Railway.
+  Ein Sammler reicht, jeder Rechner sammelt sonst in seinen eigenen lokalen Store.
+- Nach ~2 Wochen Bestand: pruefen, ob die strengen Leiter-Sprossen jetzt tragen; dann
+  die lockeren Sprossen loeschen.
+- Goldsky-Subgraphs (`pnl`, `activity`) als zweite Ingest-Quelle: noch offen.
+- Beobachten: `_tape_categories` schlaegt bei breiterem Tape mehr Maerkte nach
+  (gebatcht + fail-soft, aber Kaltstart von /api/risk wird traeger).
+- Phase 2 (Funding-Graph und Entity-Aufloesung) ist die naechste Ausbaustufe;
+  Schema-Vorschlag steht oben unter Ausbaustufen.
 - Optional: Arkham-API-Labels als Anreicherung (Buy), Bubblemaps-iFrame als Sanity-Check.
