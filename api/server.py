@@ -127,6 +127,7 @@ from app import signals as sig
 from app import track_record as trec
 from app.analysis_views import load_publish_payload
 from src import prediction_markets as md
+from src import trade_store as ts
 
 
 def _env_float(name: str, default: float) -> float:
@@ -1010,22 +1011,33 @@ def load_deep_tape(seiten: int = 8, min_cash: float = 1000.0) -> pd.DataFrame:
     Risk-Screen schrieb daneben weiter "No co-trading cluster in the current
     window. That is a result, not a gap." Die Schleife steht deshalb jetzt in
     ``md.paged_polymarket_trades`` und fuehrt ihren Abbruch am Frame mit.
+
+    Ein Tag ist trotzdem zu kurz, um Struktur zu sehen, die sich ueber
+    Wochen aufbaut — deshalb faellt die Regelleiter so oft auf die unterste
+    Sprosse. Liegt der persistente Speicher (src/trade_store.py, gefuellt
+    von scripts/run_trade_ingest.py) vor, wird das Live-Band deshalb um
+    dessen Fenster erweitert; die ``store_*``-Felder im Zuschnitt-Vermerk
+    sagen, wie viel davon kam. Ohne Speicherdatei ist dieser Schritt ein
+    Durchlauf ohne Wirkung.
     """
 
     def _load() -> pd.DataFrame:
         zusammen = md.paged_polymarket_trades(min_cash, pages=seiten, page_size=1000)
         record = md.sample_coverage(zusammen)
         if zusammen.empty:
-            leer = pd.DataFrame()
-            leer.attrs[md.SAMPLE_ATTR] = record
-            return leer
-        schluessel = [s for s in ("transaction_hash", "wallet", "asset") if s in zusammen.columns]
-        if schluessel:
-            zusammen = zusammen.drop_duplicates(subset=schluessel, keep="first")
-        zusammen = zusammen.reset_index(drop=True)
-        record["rows"] = int(len(zusammen))
-        zusammen.attrs[md.SAMPLE_ATTR] = record
-        return zusammen
+            zusammen = pd.DataFrame()
+            zusammen.attrs[md.SAMPLE_ATTR] = record
+        else:
+            schluessel = [s for s in ("transaction_hash", "wallet", "asset") if s in zusammen.columns]
+            if schluessel:
+                zusammen = zusammen.drop_duplicates(subset=schluessel, keep="first")
+            zusammen = zusammen.reset_index(drop=True)
+            record["rows"] = int(len(zusammen))
+            zusammen.attrs[md.SAMPLE_ATTR] = record
+            # TRADE_STORE_RECORD=1: was ohnehin geholt wurde, dem Speicher
+            # geben — so waechst er auch auf dem API-Host, Standard aus.
+            ts.maybe_record(zusammen)
+        return ts.extend_tape(zusammen, min_cash=min_cash)
 
     return cached(f"deep_tape_{seiten}_{min_cash}", _load, ttl=300.0)
 
@@ -1187,7 +1199,11 @@ def build_risk_payload() -> dict[str, Any]:
             # "Kein Cluster im aktuellen Fenster" ist ein Befund, solange das
             # Fenster steht; bricht die Seitenschleife auf halber Strecke ab,
             # ist es keiner mehr, und vorher war das nicht zu unterscheiden.
-            payload["cluster_sample"] = {"note": md.sample_note(md.sample_coverage(netz_tape)), "error": ""}
+            vermerk = md.sample_coverage(netz_tape)
+            payload["cluster_sample"] = {
+                "note": " ".join(teil for teil in (md.sample_note(vermerk), ts.store_note(vermerk)) if teil),
+                "error": "",
+            }
             # Kategorien mitgeben: ein Untermarkt heisst "Will FC Thun win on
             # 2026-08-06?" und traegt selbst kein Sportwort. Ohne den
             # Elterntitel landen ganze Spieltage als "General" im Screen.

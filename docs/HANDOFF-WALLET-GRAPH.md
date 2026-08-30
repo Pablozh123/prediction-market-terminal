@@ -88,8 +88,36 @@ Keine Deanonymisierung (Konten verknüpfen, keine Personen identifizieren).
 
 Kosten: $0–50/Monat. Kalshi bleibt außen vor (keine öffentlichen Wallets).
 
+## Stand der Umsetzung (2026-08-30)
+
+Phase 1 (Persistenz) ist gebaut:
+
+- `src/trade_store.py` — SQLite-Speicher (WAL, Dedup-Schlüssel wie `load_deep_tape`:
+  `transaction_hash, wallet, asset`), Lesefenster `TRADE_STORE_WINDOW_DAYS` (Standard 14 Tage),
+  `extend_tape` reichert das Live-Band des Risk-Screens an, `store_note` liefert den zweiten
+  Satz der Bildunterschrift (Prints, Tage-mit-Daten, letzter Ingest, Dedup-Summe). Ohne
+  Datei ändert sich nichts — fail-soft in jede Richtung.
+- `scripts/run_trade_ingest.py` — Runner (Schleife alle 15 min, `--once`, Stop-Datei
+  `data/trade_ingest.stop`, Aufbewahrung 45 Tage via `prune`).
+- `api/server.py` — `load_deep_tape` vereinigt Live-Band + Speicherfenster;
+  `TRADE_STORE_RECORD=1` lässt den API-Prozess seine ohnehin geholten Seiten eintragen
+  (Standard aus). Die Regelleiter bleibt unverändert und berichtet ehrlich weiter.
+- Tests: `tests/test_trade_store.py`; volle Suite grün (2.337 Tests).
+
+**Betriebsbefund:** Auf dem Heimrechner blockt der Provider (Salt) `*.polymarket.com`
+per DNS (NXDOMAIN vom Router; 1.1.1.1/8.8.8.8 lösen normal auf — Schweizer
+Geldspiel-Blockliste). Der lokale Ingest-Runner braucht daher einen anderen Resolver,
+ODER man lässt den Store auf Railway wachsen: `TRADE_STORE_RECORD=1` +
+`TRADE_STORE_PATH=/data/trade_store.sqlite` (Volume!) + `RISK_LOG_INTERVAL_MIN>0`,
+dann füttert der Flag-Sampler den Store im Vorbeigehen. ~1–2 MB/Tag bei $1k-Floor,
+45 Tage ≈ unter 100 MB — passt ins 500-MB-Volume.
+
 ## Offene Punkte
 
-- Freigabe für Phase 1 (Detailplanung: Schema, Ingest-Kadenz, Speicherbudget) steht aus.
-- Entscheidung Ingest-Host: lokaler Rechner (geplante Task) vs. separater Worker.
+- Betriebsentscheidung: Ingest via Railway (Env-Variablen setzen + `railway up`) oder
+  lokal mit öffentlichem DNS. Railway ist der Weg des geringsten Widerstands.
+- Nach ~2 Wochen Bestand: prüfen, ob die strengen Leiter-Sprossen jetzt tragen; dann
+  Phase 2 (Funding-Graph & Entity-Auflösung, `entities`/`wallet_entity`/`edges`).
+- Beobachten: `_tape_categories` schlägt bei breiterem Tape mehr Märkte nach
+  (gebatcht + fail-soft, aber Kaltstart von /api/risk wird träger).
 - Optional: Arkham-API-Labels als Anreicherung (Buy), Bubblemaps-iFrame als Sanity-Check.
