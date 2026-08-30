@@ -229,6 +229,7 @@ class EntityRouteTests(unittest.TestCase):
 
         from api import server
 
+        server._CACHE.clear()
         with tempfile.TemporaryDirectory() as tmp:
             pfad = Path(tmp) / "graph.sqlite"
             conn = eg.connect(pfad)
@@ -249,6 +250,51 @@ class EntityRouteTests(unittest.TestCase):
                 fehlt = server.wallet_entity(W_B)
             self.assertFalse(fehlt["available"])
             self.assertFalse(fehlt["scanned"])
+
+    def test_the_route_carries_tier3_behavior_when_the_store_holds_tape(self) -> None:
+        import os
+        import time as time_mod
+        from unittest import mock
+
+        from api import server
+        from src import trade_store as trs
+
+        server._CACHE.clear()
+        with tempfile.TemporaryDirectory() as tmp:
+            graph = Path(tmp) / "graph.sqlite"
+            conn = eg.connect(graph)
+            try:
+                eg.record_scan(conn, W_A, _flows([]))
+                eg.assign_entities(conn)
+            finally:
+                conn.close()
+            # Acht Prints in 28 Sekunden auf derselben Marktseite: der
+            # Splitting-Fingerprint aus dem gespeicherten Band.
+            jetzt = int(time_mod.time())
+            tape = pd.DataFrame([
+                {
+                    "transaction_hash": f"0xt{i}", "wallet": W_A, "asset": f"as{i}",
+                    "timestamp": jetzt - i * 4, "side": "BUY", "outcome": "YES",
+                    "title": "Burst market", "price": 0.5, "size": 200.0,
+                    "notional": 100.0, "market_key": "m1", "slug": "s", "trader": "",
+                }
+                for i in range(8)
+            ])
+            store = Path(tmp) / "store.sqlite"
+            sconn = trs.connect(store)
+            try:
+                trs.record_tape(sconn, tape)
+            finally:
+                sconn.close()
+            umgebung = {"ENTITY_GRAPH_PATH": str(graph), "TRADE_STORE_PATH": str(store)}
+            with mock.patch.dict(os.environ, umgebung):
+                payload = server.wallet_entity(W_A)
+        verhalten = payload["behavior"]
+        self.assertTrue(verhalten["available"])
+        [fingerprint] = verhalten["fingerprints"]
+        self.assertEqual(fingerprint["wallet"], W_A)
+        self.assertEqual(int(fingerprint["burst_prints"]), 8)
+        self.assertIn("never used to merge", verhalten["note"])
 
 
 if __name__ == "__main__":
