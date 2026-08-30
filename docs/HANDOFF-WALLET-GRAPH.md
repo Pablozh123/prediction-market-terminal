@@ -213,6 +213,34 @@ Der Verhaltens-Layer ist gebaut (Stufe 3: wird angezeigt, fuehrt nie zusammen):
   Bot-Muster). Die Signalklassen trennen also wirklich.
 - Tests: `tests/test_behavior.py`, `tests/test_cluster_probe.py`, Route-Test.
 
+**Iran-Test, erster Durchlauf (2026-08-30):** Die Adressliste des Feb-28-Clusters
+wurde aus oeffentlichen Quellen rekonstruiert (Bubblemaps-Thread, The Block,
+Forbes, Decrypt; zwei Adressen woertlich publiziert, sieben ueber die
+Polymarket-Namenssuche aufgeloest, Verwechslungsrisiko durch Renames bleibt und
+ist je Adresse vermerkt). Probe ueber die 9 Wallets:
+
+- Band: alle 9 mit kurzer Historie (1 bis 373 Prints), passend zum
+  "fresh wallets"-Befund der Berichterstattung.
+- Co-Trading: 6 von 9 verbunden (5 Kanten unter der lockersten Regel), 1 Paar
+  selbst unter der strengsten Sprosse (3+ Maerkte in 5 min, $10k gepaart).
+- On-Chain Stufe 1: whopperlover und Skoobidoobnj teilen eine
+  Finanzierungsquelle (`0xc536633f...`, 22 Transfers) und werden eine Entity.
+- Stufe 2: eine Gegenpartei (`0xc2884805...`) verbindet 7 der 9, eine weitere
+  (`0xf7cd89be...`) 6 der 9, jeweils Kandidat, nie Merge. Die
+  Relay-Infrastruktur (`0xf70da978...`, `0x4cd00e38...`) verbindet alle 9 und
+  wird von der Whole-Set-Regel korrekt als Infrastruktur-Kandidat einsortiert.
+- Fingerprints und Wash-Paare: keine. Dieser Ring hat gross und einmal
+  gewettet, nicht gestueckelt; das Splitting-Muster gehoert zum Theo-Fall.
+
+Verdict der Verknuepfungs-Haelfte: als Menge zeigt das System den Ring klar als
+Rechercheanlass (Co-Trading-Kanten, geteilte Funding-Kandidaten ueber den
+Grossteil der Menge, eine harte Kante). Es verschmilzt die 9 bewusst NICHT zu
+einer Entity, weil CEX-artige Gegenparteien nie mergen; genau dort ist
+Bubblemaps' Methode mutiger als unsere Sprachregel erlaubt. Offen bleibt die
+Findungs-Haelfte: ob der Risk-Screen die Wallets ohne Vorwissen nach oben
+gespuelt haette (Fresh-Wallet- und Konzentrations-Flags existieren; der
+Rueckblick-Test braucht historisches Band aus der Ereigniswoche).
+
 ## Offene Punkte
 
 - Betriebsentscheidung Ingest-Host: dieser Rechner kann lokal sammeln (geplante Task
@@ -227,9 +255,14 @@ Der Verhaltens-Layer ist gebaut (Stufe 3: wird angezeigt, fuehrt nie zusammen):
 - Goldsky-Subgraphs (`pnl`, `activity`) als zweite Ingest-Quelle: noch offen.
 - Beobachten: `_tape_categories` schlaegt bei breiterem Tape mehr Maerkte nach
   (gebatcht + fail-soft, aber Kaltstart von /api/risk wird traeger).
-- Iran-Test konkret fahren: dafuer fehlt die veroeffentlichte Adressliste des
-  Rings (Recherche laeuft); sobald sie da ist, ist es ein Aufruf von
-  `run_cluster_probe.py --file ring.txt --onchain`.
+- Iran-Test, Findungs-Haelfte: Rueckblick ueber das Band der Ereigniswoche
+  (Feb 2026), ob Fresh-Wallet- und Konzentrations-Flags den Ring ohne
+  Vorwissen markiert haetten. Die Verknuepfungs-Haelfte ist gelaufen, siehe
+  "Stand Phase 3".
+- Kuratierte Infra-Liste fuer die Kandidaten-Ableitung: Relay/Relayer-Adressen
+  (`0xf70da978...`, `0x4cd00e38...`) verbinden JEDEN und dominieren sonst jede
+  Kandidatenliste; die Whole-Set-Regel faengt sie heute nur ab, solange sie
+  das ganze Scan-Set beruehren.
 - Bewusst offen im Verhaltens-Layer: Timing-Korrelation als eigener Detektor
   (das Co-Trading-Fenster deckt die Haelfte ab) und echte Wash-ZYKLEN nach
   Columbia (brauchen Maker-Taker-Zuordnung je Fill, die das oeffentliche Band
