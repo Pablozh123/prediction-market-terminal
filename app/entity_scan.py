@@ -43,6 +43,10 @@ DEFAULT_MIN_SCORE = 55.0
 DEFAULT_PAGES = 6
 DEFAULT_PAUSE = 0.25
 DEFAULT_RESCAN_DAYS = 7.0
+#: So viele Fan-out-Lookups darf ein Durchgang machen (je Adresse einmalig,
+#: danach gecacht). Der Deckel haelt die Etherscan-Last planbar; was diesmal
+#: nicht drankommt, kommt im naechsten Durchgang dran.
+DEFAULT_FANOUT_LOOKUPS = 25
 
 
 def top_store_wallets(n: int) -> list[str]:
@@ -111,6 +115,43 @@ def scan_wallet(conn, wallet: str, api_key: str, pages: int, pause: float) -> st
             f"{ergebnis['position_transfers']} direct position transfers{kappe}")
 
 
+def enrich_fanouts(
+    conn,
+    api_key: str,
+    *,
+    degree_cap: int = eg.DEFAULT_MAX_SHARED_WALLETS,
+    max_lookups: int = DEFAULT_FANOUT_LOOKUPS,
+    pause: float = DEFAULT_PAUSE,
+    fanout=None,
+) -> int:
+    """Globalen Fan-out der potenziell harten geteilten Gegenparteien nachschlagen.
+
+    Der lokale Grad einer geteilten Finanzierungsquelle hat eine Luecke: ein
+    Router, der on-chain tausende Konten bedient, aber zufaellig nur zwei der
+    gescannten, sieht lokal wie eine private Operator-Quelle aus. Fuer jede
+    Adresse, die eine harte Kante ERZEUGEN wuerde, wird deshalb einmalig
+    nachgeschlagen, wie viele verschiedene Partner sie ueberhaupt hat; das
+    Ergebnis landet gecacht im Graphen, und ``rebuild_edges`` stuft busy
+    Adressen auf Kandidat zurueck. ``fanout`` ist der Abruf und existiert,
+    damit die Runde netzfrei pruefbar bleibt.
+    """
+
+    hole = fanout or ff.counterparty_fanout
+    offen = eg.pending_fanout_counterparties(conn, degree_cap)
+    for gegen in offen[:max(0, int(max_lookups))]:
+        try:
+            info = hole(gegen, api_key, pause=pause)
+        except Exception as exc:  # noqa: BLE001 - ein Lookup darf den Lauf nicht kippen
+            print(f"[warn] fanout {gegen}: {exc}", file=sys.stderr, flush=True)
+            continue
+        eg.record_fanout(conn, gegen, info)
+        grenze = "+" if not info.get("complete") else ""
+        print(f"[fanout] {gegen}: {info.get('partners', 0)}{grenze} partners on-chain", flush=True)
+    if len(offen) > int(max_lookups):
+        print(f"[fanout] {len(offen) - int(max_lookups)} counterparties deferred to the next pass", flush=True)
+    return min(len(offen), int(max_lookups))
+
+
 def scan_pass(
     db_path: Path | str,
     api_key: str,
@@ -175,6 +216,11 @@ def scan_pass(
                 print(f"[warn] scan {wallet}: {exc}", file=sys.stderr, flush=True)
             time.sleep(max(0.0, float(pause)))
 
+        try:
+            ergebnis["fanout_lookups"] = enrich_fanouts(
+                conn, api_key, degree_cap=int(degree_cap), pause=float(pause))
+        except Exception as exc:  # noqa: BLE001 - der Rebuild laeuft auch ohne den Blick
+            print(f"[warn] fanout enrichment: {exc}", file=sys.stderr, flush=True)
         kanten = eg.rebuild_edges(conn, degree_cap=int(degree_cap))
         entities = eg.assign_entities(conn)
         stand = eg.graph_stats(conn)

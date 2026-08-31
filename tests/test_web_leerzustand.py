@@ -183,6 +183,17 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("LINKED ENTITIES", text)
         self.assertIn("same external funding source", text)
         self.assertIn("shown, never merged", text)
+        # "Links", nicht "edges": die Wallet-Seite daneben zeigt REALIZED
+        # EDGE im Trading-Sinn, derselbe Begriff laese sich als Alpha.
+        self.assertIn("ON-CHAIN LINKS", text)
+        self.assertNotIn("HARD EDGES", text)
+        # Der globale Blick auf die geteilte Quelle steht am Beleg.
+        self.assertIn("serves 3 addresses on-chain", text)
+        # Gegenseiten-Paare heissen nach dem, was sie messen; Wash ist eine
+        # von mehreren Erklaerungen und steht als solche im Begleittext.
+        self.assertIn("OPPOSITE-SIDE PAIRS", text)
+        self.assertNotIn("WASH SUSPICION", text)
+        self.assertIn("market making, arbitrage or plain disagreement", text)
 
     def test_mit_daten_echte_werte(self) -> None:
         text = _sichtbarer_text(self.ausgabe["live"]["overview"])

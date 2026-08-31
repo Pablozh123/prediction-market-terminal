@@ -43,11 +43,18 @@ const EDGE_LABEL = {
   shared_withdrawal: 'same external withdrawal target'
 };
 
+// The global reach of a shared counterparty decides how the link reads:
+// checked-and-private is the strong case, unchecked says so out loud.
+function reachNote(p) {
+  if (p.global_partners == null) return ' <span style="color:var(--ink-4)">(global reach not checked yet)</span>';
+  return ' <span style="color:var(--ink-4)">(serves ' + num(p.global_partners) + (p.global_complete === false ? '+' : '') + ' addresses on-chain)</span>';
+}
+
 function edgeEvidence(edge) {
   const parts = Array.isArray(edge.evidenz && edge.evidenz.shared_counterparties)
     ? edge.evidenz.shared_counterparties : null;
   if (parts && parts.length) {
-    return parts.map((p) => (p.direction === 'in' ? 'funder ' : 'target ') + polygonscan(p.counterparty)).join(' · ');
+    return parts.map((p) => (p.direction === 'in' ? 'funder ' : 'target ') + polygonscan(p.counterparty) + reachNote(p)).join(' · ');
   }
   const tx = edge.evidenz && Array.isArray(edge.evidenz.tx_sample) ? edge.evidenz.tx_sample : [];
   const n = edge.evidenz && edge.evidenz.transfers != null ? edge.evidenz.transfers : tx.length;
@@ -71,11 +78,11 @@ function renderEntities(T, d) {
       + '<span style="' + NOTIZ + '">' + edgeEvidence(edge) + '</span></div>').join('');
     return '<div style="border:1px solid var(--line-1); border-radius:var(--r-panel); padding:var(--sp-4); margin-bottom:var(--sp-4)">'
       + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:var(--sp-4); flex-wrap:wrap; margin-bottom:var(--sp-3)">'
-      + '<div style="' + M + '; font-size:var(--t-small); color:var(--ink-1)">' + wallets.length + ' wallets · ' + edges.length + ' hard edge' + (edges.length === 1 ? '' : 's') + '</div></div>'
+      + '<div style="' + M + '; font-size:var(--t-small); color:var(--ink-1)">' + wallets.length + ' wallets · ' + edges.length + ' on-chain link' + (edges.length === 1 ? '' : 's') + '</div></div>'
       + '<div style="display:flex; flex-wrap:wrap; gap:var(--sp-2); margin-bottom:var(--sp-3)">' + chips + '</div>'
       + rows + '</div>';
   }).join('');
-  const sub = 'joined by direct transfers, shared funders or shared withdrawal targets — union-find over tier-1 evidence'
+  const sub = 'accounts joined by verifiable money or position movements; every link lists its evidence'
     + (d.entities_capped ? ' · more not shown' : '');
   return card('LINKED ENTITIES', body, sub);
 }
@@ -118,9 +125,10 @@ function renderBehavior(T, d) {
     + '<span style="' + M + '; font-size:var(--t-small)">' + scan(T, p.wallet_a) + ' <span style="color:var(--ink-4)">vs</span> ' + scan(T, p.wallet_b) + '</span>'
     + '<span style="' + NOTIZ + '"><b style="color:var(--ink-1)">' + num(p.events) + '</b> opposite-side events in ' + num(p.markets) + ' markets</span></div>').join('')
     : '<div style="' + NOTIZ + '">No pairs repeatedly on opposite sides of the same book.</div>';
+  const pairNote = '<div style="' + NOTIZ + '; margin-bottom:var(--sp-2)">Two accounts repeatedly on opposite sides of the same book within minutes. Most often that is market making, arbitrage or plain disagreement; it reads as wash trading only when the pair also shares funding — check the entity and candidate blocks above.</div>';
   return card('BEHAVIOUR · TIER 3',
     '<div style="' + LABEL + '; margin-bottom:var(--sp-2)">ORDER-SPLITTING FINGERPRINTS</div>' + fpBody
-    + '<div style="' + LABEL + '; margin:var(--sp-4) 0 var(--sp-2)">COMPLEMENTARY BOOKS · WASH SUSPICION</div>' + pairBody,
+    + '<div style="' + LABEL + '; margin:var(--sp-4) 0 var(--sp-2)">OPPOSITE-SIDE PAIRS</div>' + pairNote + pairBody,
     'patterns in the stored tape — shown next to the graph, never used to merge accounts');
 }
 
@@ -128,7 +136,10 @@ function intro(d) {
   const s = d.stats || {};
   const tiles = [
     kpi({ label: 'WALLETS SCANNED', wert: num(s.scans || 0) }),
-    kpi({ label: 'HARD EDGES', wert: num(s.hard_edges || 0) }),
+    // "On-chain links", nicht "edges": eine Wallet-Seite daneben zeigt
+    // REALIZED EDGE im Trading-Sinn, und derselbe Begriff fuer eine
+    // Graphkante wuerde als Alpha gelesen.
+    kpi({ label: 'ON-CHAIN LINKS', wert: num(s.hard_edges || 0), sub: 'verifiable transfers between scanned accounts' }),
     kpi({ label: 'LINKED ENTITIES', wert: num(s.multi_wallet_entities || 0) }),
     kpi({ label: 'CANDIDATES', wert: num(s.candidate_edges || 0) })
   ].join('');

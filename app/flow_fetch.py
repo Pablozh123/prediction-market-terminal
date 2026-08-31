@@ -183,6 +183,77 @@ def to_transfer_frame(rows: Iterable[Mapping[str, Any]]) -> pd.DataFrame:
     return out.drop_duplicates(subset=["tx", "sender", "recipient", "amount"]).reset_index(drop=True)
 
 
+def counterparty_fanout(
+    address: str,
+    api_key: str,
+    *,
+    contracts: Iterable[str] = ocf.COLLATERAL_CONTRACTS,
+    page_size: int = PAGE_SIZE,
+    pause: float = 0.2,
+    retries: int = 3,
+    get: Callable[[Mapping[str, Any]], Any] | None = None,
+) -> dict[str, Any]:
+    """Wie viele verschiedene Adressen hat diese Gegenpartei je beruehrt?
+
+    Die Frage entscheidet, ob eine geteilte Finanzierungsquelle Beleg oder
+    Infrastruktur ist: eine private Quelle kennt eine Handvoll Adressen, ein
+    Deposit-Router oder eine Boersen-Hotwallet kennt tausende. Der lokale
+    Grad im Scan-Set kann das nicht sehen - ein Router, der global tausende
+    Konten bedient, aber zufaellig nur zwei der gescannten, sieht lokal wie
+    eine Privatquelle aus.
+
+    Gelesen wird je Collateral-Kontrakt eine Seite der JUENGSTEN Transfers
+    (sort=desc): eine ruhige Privatadresse ist damit vollstaendig erfasst,
+    und eine busy Infrastruktur verraet sich sofort. ``complete`` False
+    heisst: die Seite war voll, ``partners`` ist eine Untergrenze - fuer die
+    Infrastruktur-Frage reicht das, denn eine Untergrenze ueber der Schwelle
+    ist bereits die Antwort.
+    """
+
+    ziel = str(address or "").strip().lower()
+    fetch = get or _default_get
+    partner: set[str] = set()
+    transfers = 0
+    complete = True
+    for contract in contracts:
+        params = {
+            "chainid": POLYGON_CHAIN_ID, "module": "account", "action": "tokentx",
+            "address": ziel, "contractaddress": contract, "startblock": 0,
+            "endblock": 99_999_999, "page": 1, "offset": int(page_size), "sort": "desc",
+            "apikey": api_key,
+        }
+        result = None
+        for attempt in range(max(1, int(retries))):
+            try:
+                payload = fetch(params)
+            except Exception:  # noqa: BLE001 - network errors are the retry case
+                time.sleep(pause * (attempt + 1))
+                continue
+            candidate = payload.get("result") if isinstance(payload, Mapping) else None
+            if isinstance(candidate, list):
+                result = candidate
+                break
+            message = str((payload or {}).get("message", "") if isinstance(payload, Mapping) else "")
+            if "No transactions found" in message or "No records found" in str(candidate):
+                result = []
+                break
+            time.sleep(pause * (attempt + 1))
+        if result is None:
+            complete = False
+            continue
+        transfers += len(result)
+        for row in result:
+            von = str(row.get("from", "")).lower()
+            zu = str(row.get("to", "")).lower()
+            partner.add(zu if von == ziel else von)
+        if len(result) >= int(page_size):
+            complete = False
+        if pause:
+            time.sleep(pause)
+    partner.discard(ziel)
+    return {"partners": len(partner), "transfers": int(transfers), "complete": bool(complete)}
+
+
 def to_position_frame(rows: Iterable[Mapping[str, Any]]) -> pd.DataFrame:
     """ERC-1155-Zeilen (token1155tx) -> Frame mit Anteilen und Zeitstempeln.
 

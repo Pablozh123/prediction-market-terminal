@@ -125,6 +125,69 @@ class ScanPassTests(unittest.TestCase):
         self.assertEqual(ergebnis["scanned"], 1)
 
 
+class FanoutEnrichmentTests(unittest.TestCase):
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.conn = eg.connect(Path(tmp.name) / "graph.sqlite")
+        self.addCleanup(self.conn.close)
+
+    def _shared_funder(self, funder: str) -> None:
+        for wallet in (W_A, W_B):
+            eg.record_scan(self.conn, wallet, pd.DataFrame([{
+                "tx": "0xt" + wallet[-1], "counterparty": funder, "direction": "in",
+                "amount": 100.0, "classification": "external",
+                "timestamp": pd.Timestamp("2026-08-01T12:00:00Z"),
+            }]))
+
+    def test_enrichment_looks_up_and_caches_each_counterparty_once(self) -> None:
+        funder = "0x" + "f" * 40
+        self._shared_funder(funder)
+        aufrufe: list[str] = []
+
+        def fake(gegen, api_key, pause=0.0):
+            aufrufe.append(gegen)
+            return {"partners": 500, "transfers": 10000, "complete": False}
+
+        self.assertEqual(es.enrich_fanouts(self.conn, "key", fanout=fake), 1)
+        self.assertEqual(aufrufe, [funder])
+        # Zweiter Durchgang: gecacht, kein weiterer Abruf.
+        self.assertEqual(es.enrich_fanouts(self.conn, "key", fanout=fake), 0)
+        self.assertEqual(len(aufrufe), 1)
+        # Und der Rebuild nutzt den Cache: Kandidat statt harter Kante.
+        eg.rebuild_edges(self.conn)
+        eg.assign_entities(self.conn)
+        self.assertEqual(eg.entity_view(self.conn, W_A)["linked_wallets"], [])
+
+    def test_the_lookup_budget_defers_the_rest_to_the_next_pass(self) -> None:
+        funders = ["0x" + f"{i + 100:040x}" for i in range(3)]
+        for wallet in (W_A, W_B):
+            eg.record_scan(self.conn, wallet, pd.DataFrame([{
+                "tx": f"0xt{wallet[-1]}{i}", "counterparty": funder, "direction": "in",
+                "amount": 100.0, "classification": "external",
+                "timestamp": pd.Timestamp("2026-08-01T12:00:00Z"),
+            } for i, funder in enumerate(funders)]))
+
+        def fake(gegen, api_key, pause=0.0):
+            return {"partners": 1, "transfers": 2, "complete": True}
+
+        erste = es.enrich_fanouts(self.conn, "key", max_lookups=2, fanout=fake)
+        zweite = es.enrich_fanouts(self.conn, "key", max_lookups=2, fanout=fake)
+        self.assertEqual(erste, 2)
+        self.assertEqual(zweite, 1)
+
+    def test_a_failing_lookup_does_not_kill_the_enrichment(self) -> None:
+        funder = "0x" + "f" * 40
+        self._shared_funder(funder)
+
+        def kaputt(gegen, api_key, pause=0.0):
+            raise RuntimeError("etherscan down")
+
+        es.enrich_fanouts(self.conn, "key", fanout=kaputt)
+        # Nicht gecacht: der naechste Durchgang darf es erneut versuchen.
+        self.assertEqual(eg.pending_fanout_counterparties(self.conn), [funder])
+
+
 class WorkerGateTests(unittest.TestCase):
     def test_the_worker_stays_off_without_the_env_switch(self) -> None:
         # ENTITY_SCAN_INTERVAL_H wird beim Import gelesen; ohne die Variable
