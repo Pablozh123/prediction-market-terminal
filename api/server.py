@@ -1023,8 +1023,9 @@ CROSS_GATE_NOTE = (
     "Only pairs with title similarity >= {sim:.2f} and volume on both venues are shown. "
     "Matched by title similarity — pairs are not verified to resolve identically "
     "(studies 08 and 11 in the microstructure report show two matched pairs that were different questions). "
-    "A pair whose two sides ask in opposite directions, name different thresholds or resolve on "
-    "different dates carries no numbers at all and is counted under 'suppressed' instead."
+    "A pair whose two sides ask in opposite directions, name different thresholds or competitions, "
+    "mix an election with its nomination, or resolve on different dates carries no numbers at all "
+    "and is counted under 'suppressed' instead."
 )
 
 #: Wie viele Zeilen je Aufruf gegen die Buecher neu quotiert werden. Zwei
@@ -1069,7 +1070,13 @@ def cross(
         return zusammen
 
     def _ks() -> pd.DataFrame:
-        return md.get_kalshi_markets(limit=1000)
+        # /markets?limit=1000 war EINE Seite in API-Reihenfolge und bestand
+        # fast nur aus quotelosen Parlays (20 von 1000 Zeilen mit Preis,
+        # Messung 2026-08-31); die Seite meldete dann monatelang "NO PAIR
+        # CLEARS THE GATE" als waere das eine Eigenschaft des Marktes.
+        # /events mit verschachtelten Maerkten blaettert das echte Universum
+        # durch, wie src/kalshi_recorder.py es vormacht.
+        return md.get_kalshi_markets_deep(pages=12, page_size=200)
 
     try:
         pm = cached("cross_pm", _pm, ttl=300.0)
@@ -1082,35 +1089,37 @@ def cross(
     if pm.empty or ks.empty:
         return leer
     try:
-        # Mit den verworfenen Paaren: was der Paar-Check aussortiert, wird
-        # gezaehlt und benannt statt stillschweigend weggelassen.
+        # EIN Matcher-Lauf fuer alles: an der lockeren Zaehl-Schranke und mit
+        # den verworfenen Paaren. Die strengere Gate-Sicht ist eine reine
+        # Teilmenge davon — die beste Entsprechung je Markt haengt nicht von
+        # der Schranke ab, die Schranke filtert nur —, also waere ein zweiter
+        # Lauf dieselben ~25 s Titelvergleich noch einmal. Seit das
+        # Kalshi-Universum echt ist (20k Maerkte statt einer Parlay-Seite),
+        # entscheiden diese Sekunden, ob der kalte Aufruf unter dem
+        # Frontend-Timeout bleibt. Cap 1000 je Klasse heisst praktisch
+        # "ungekappt"; gekappt wird je Sicht weiter unten.
         alle = cached(
-            f"cross_cand_{min_similarity}_{max_pairs}",
-            cross_pairs.deep_cross_candidates,
-            pm,
-            ks,
-            min_similarity,
-            max_pairs,
-            True,
-            ttl=300.0,
-        )
-        if alle is None or alle.empty or "pair_verdict" not in alle.columns:
-            candidates, verworfen = (alle if alle is not None else pd.DataFrame()), pd.DataFrame()
-        else:
-            geprueft = alle["pair_verdict"].astype(str).eq(cross_pairs.PAIR_UNVERIFIED)
-            candidates, verworfen = alle[geprueft], alle[~geprueft]
-        # Wie viele Paare der Matcher unterhalb der Schranke ueberhaupt
-        # findet — damit die Seite "N of M candidates clear the gate" sagen
-        # kann statt nur "nothing". Gleicher Matcher, lockere Schranke.
-        vor_schranke = cached(
-            f"cross_cand_{CROSS_CANDIDATE_FLOOR}_150",
+            f"cross_cand_{CROSS_CANDIDATE_FLOOR}_full",
             cross_pairs.deep_cross_candidates,
             pm,
             ks,
             CROSS_CANDIDATE_FLOOR,
-            150,
+            1000,
+            True,
             ttl=300.0,
         )
+        vor_schranke_n = 0
+        if alle is None or alle.empty or "pair_verdict" not in alle.columns:
+            candidates, verworfen = (alle if alle is not None else pd.DataFrame()), pd.DataFrame()
+        else:
+            geprueft = alle["pair_verdict"].astype(str).eq(cross_pairs.PAIR_UNVERIFIED)
+            sim = pd.to_numeric(alle["similarity"], errors="coerce").fillna(0.0)
+            # Wie viele Paare der Matcher unterhalb der Schranke ueberhaupt
+            # findet — damit die Seite "N of M candidates clear the gate"
+            # sagen kann statt nur "nothing".
+            vor_schranke_n = int(geprueft.sum())
+            candidates = alle[geprueft & (sim >= min_similarity)].head(max_pairs)
+            verworfen = alle[~geprueft & (sim >= min_similarity)].head(max_pairs)
         if query.strip():
             def _treffer(frame: pd.DataFrame) -> pd.DataFrame:
                 if frame is None or frame.empty:
@@ -1154,7 +1163,7 @@ def cross(
     return {
         "rows": rows,
         "total": len(rows),
-        "candidates_before_gate": int(len(vor_schranke)) if vor_schranke is not None else int(len(candidates)),
+        "candidates_before_gate": vor_schranke_n,
         "suppressed": apv.cross_suppressed(verworfen),
         "depth_rows": CROSS_DEPTH_ROWS,
         "gate": gate,

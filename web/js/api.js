@@ -53,9 +53,12 @@ const TIMEOUT_MS = 45000;
 // failed and the second one hit the warm cache; the screen looked flaky when
 // it was only slow. Only these routes get the longer leash. /api/backtest
 // gehoert dazu, seit der Fetch das ganze Fenster in Zeitscheiben abdeckt:
-// bei hyperaktiven Wallets sind das Dutzende Upstream-Seiten.
+// bei hyperaktiven Wallets sind das Dutzende Upstream-Seiten. /api/cross
+// auch, seit das Kalshi-Universum echt ist: der kalte Aufruf blaettert 12
+// Event-Seiten, vergleicht 500 gegen ~17k Titel und schlaegt zwei Dutzend
+// Buecher nach — gemessen ~60-90 s.
 const TIMEOUT_LANG_MS = 150000;
-const LANGSAME_PFADE = ['/api/risk', '/api/backtest'];
+const LANGSAME_PFADE = ['/api/risk', '/api/backtest', '/api/cross'];
 
 export function timeoutFuer(url) {
   const pfad = String(url || '').split('?')[0];

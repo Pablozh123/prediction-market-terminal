@@ -927,6 +927,19 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("See studies 08 and 11: the two 79¢/64¢ 'edges' were mismatched questions.", leer)
         self.assertIn("#research/microstructure", leer)
         self.assertNotIn("Example question", leer)
+        # Auch mit leerem Gate listet die Seite die verworfenen Fast-Paare:
+        # beide Titel, jede Seite mit ihrem eigenen Kurs, der Grund — aber
+        # keine Luecke und kein Netto, denn zwischen zwei verschiedenen
+        # Fragen ist auch die Luecke keine Aussage.
+        self.assertIn("MATCHED BUT NOT PRICED · 4", leer)
+        self.assertIn("Will Gavin Newsom win the 2028 US Presidential Election?", leer)
+        self.assertIn("Will Gavin Newsom be the Democratic Presidential nominee in 2028?", leer)
+        self.assertIn("8¢", leer)
+        self.assertIn("14¢", leer)
+        self.assertIn("different scope (election vs nomination)", leer)
+        self.assertIn("+ 3 more suppressed pairs not listed", leer)
+        self.assertNotIn("NET OF FEES", leer)
+        self.assertNotIn("GAP", leer)
         live = _sichtbarer_text(self.ausgabe["live"]["cross"])
         self.assertIn("1 of 9 candidate pairs clear the gate (similarity ≥ 0.5, volume on both venues)", live)
         self.assertIn("similarity 0.71", live)
@@ -1082,11 +1095,12 @@ class WebLeerzustandTest(unittest.TestCase):
         app_js = (WURZEL / "web" / "js" / "app.js").read_text(encoding="utf-8")
         self.assertNotIn("setTimeout(async () =>", app_js)
         self.assertIn("err.status === 429", app_js)
-        # Der lange Timeout gilt nur fuer die beiden teuren Pfade: /api/risk
-        # (Tagesausschnitt des Tapes) und /api/backtest (Zeitscheiben ueber
-        # das ganze Fenster, bei aktiven Wallets Dutzende Upstream-Seiten).
+        # Der lange Timeout gilt nur fuer die drei teuren Pfade: /api/risk
+        # (Tagesausschnitt des Tapes), /api/backtest (Zeitscheiben ueber das
+        # ganze Fenster) und /api/cross (12 Kalshi-Event-Seiten plus ~17k
+        # Titelvergleiche plus Buchabfragen, kalt gemessen ~60-90 s).
         api_js = (WURZEL / "web" / "js" / "api.js").read_text(encoding="utf-8")
-        self.assertIn("LANGSAME_PFADE = ['/api/risk', '/api/backtest']", api_js)
+        self.assertIn("LANGSAME_PFADE = ['/api/risk', '/api/backtest', '/api/cross']", api_js)
         self.assertIn("TIMEOUT_LANG_MS = 150000", api_js)
         self.assertIn("TIMEOUT_MS = 45000", api_js)
         risk = _sichtbarer_text(self.ausgabe["live"]["risk_loading"])

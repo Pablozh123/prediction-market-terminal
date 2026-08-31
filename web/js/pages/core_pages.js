@@ -909,32 +909,51 @@ export function crossSizeLabel(c) {
   return c.net == null ? '' : 'size not checked';
 }
 
-// Die Paare, die der Paar-Check aussortiert hat: gezaehlt, benannt, ohne
-// jede Zahl. Sie einfach wegzulassen waere dieselbe Unehrlichkeit von der
-// anderen Seite.
+// Die Paare, die der Paar-Check aussortiert hat: gezaehlt, benannt, und
+// seit dem Universum-Fix auch gelistet — wochenlang bestand die Seite nur
+// aus dem leeren Gate, und die Fast-Paare sind das, was es zu sehen gibt.
+// Jede Seite traegt ihren eigenen Kurs (eine Tatsache ueber ihren Markt);
+// was bewusst fehlt, sind Luecke, Spanne und Netto: zwischen zwei
+// verschiedenen Fragen ist auch die Luecke keine Aussage.
 function crossSuppressedBlock(sup) {
   if (!sup || !sup.total) return '';
   const nach = sup.by_verdict || {};
   const gruende = Object.keys(nach)
     .map((k) => num(nach[k]) + ' ' + (CROSS_VERDICT_TEXT[k] || k))
     .join(', ');
-  const beispiele = (sup.examples || []).slice(0, 3);
+  const beispiele = sup.examples || [];
+  const cent = (v) => (v == null ? '—' : v + '¢');
+  const rest = sup.total - beispiele.length;
   return '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); padding:var(--sp-5)">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--warn)">MATCHED BUT NOT PRICED · ' + num(sup.total) + '</div>'
     + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-prose)">'
     + esc(gruende) + '. Two titles can share every word and still be two questions: “above $120,000” against “below $120,000” scores 0.78 on the matcher. '
-    + 'A basket across a pair like that pays 2.00 in one state and 0.00 in the other, so its spread is a sign error, not an opportunity. These pairs carry no price, no gap and no spread here.</div>'
+    + 'A basket across a pair like that pays 2.00 in one state and 0.00 in the other, so its spread is a sign error, not an opportunity. '
+    + 'Each side shows its own price; the pair carries no gap and no spread, because between two different questions the gap says nothing.</div>'
     + (beispiele.length
-      ? '<div style="margin-top:var(--sp-3)">' + beispiele.map((b) =>
-        '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-2); line-height:var(--lh-snug)">'
-        + esc(String(b.event || '').slice(0, 64)) + ' ↔ ' + esc(String(b.other || '').slice(0, 64))
-        + '<br>' + esc(b.why || '') + '</div>').join('') + '</div>'
+      ? '<div style="margin-top:var(--sp-4)">' + beispiele.map((b) =>
+        '<div style="border-top:1px solid var(--line-3); padding:var(--sp-3) 0">'
+        + '<div style="display:flex; align-items:baseline; gap:var(--sp-4)">'
+        + '<div style="flex:1; min-width:0">'
+        + '<div style="font-size:var(--t-small); line-height:var(--lh-snug)"><span style="' + M + '; color:var(--accent)">' + cent(b.pm) + '</span> <span style="' + M + '; font-size:var(--t-micro); color:var(--ink-4)">PM</span> ' + esc(String(b.event || '').slice(0, 96)) + '</div>'
+        + '<div style="font-size:var(--t-small); line-height:var(--lh-snug); margin-top:var(--sp-1)"><span style="' + M + '; color:var(--info)">' + cent(b.ks) + '</span> <span style="' + M + '; font-size:var(--t-micro); color:var(--ink-4)">KS</span> ' + esc(String(b.other || '').slice(0, 96)) + '</div>'
+        + '</div>'
+        + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); text-align:right; flex:none">' + esc(CROSS_VERDICT_TEXT[b.verdict] || b.verdict || '') + (b.sim ? '<br>similarity ' + Number(b.sim).toFixed(2) : '') + '</div>'
+        + '</div>'
+        + (b.why ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-2); line-height:var(--lh-snug)">' + esc(b.why) + '</div>' : '')
+        + '</div>').join('')
+      + (rest > 0 ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-2)">+ ' + num(rest) + ' more suppressed pairs not listed</div>' : '')
+      + '</div>'
       : '')
     + '</div>';
 }
 
 function crossGateBlock(T) {
   const microIdx = T.studies.findIndex((st) => st.tab === 'Microstructure');
+  // Auch mit leerem Gate hat die Antwort meist etwas zu zeigen: die
+  // Fast-Paare, die der Paar-Check verworfen hat. Ohne sie sieht die Seite
+  // wochenlang gleich aus und niemand kann pruefen, ob das Gate recht hat.
+  const sup = (T.liveData.cross || {}).suppressed;
   return '<div style="padding:var(--sp-6)">'
     + '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-6); max-width:760px">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--warn)">NO PAIR CLEARS THE GATE</div>'
@@ -943,7 +962,9 @@ function crossGateBlock(T) {
     + (microIdx >= 0 && T.goStudy
       ? '<div ' + T.act(() => T.goStudy(microIdx)) + ' class="hv-accent" style="' + M + '; font-size:var(--t-micro); color:var(--info); margin-top:var(--sp-4); cursor:pointer">Open the microstructure report (#research/microstructure) →</div>'
       : '<a href="#research/microstructure" style="' + M + '; font-size:var(--t-micro); display:inline-block; margin-top:var(--sp-4)">Open the microstructure report →</a>')
-    + '</div></div>';
+    + '</div>'
+    + '<div style="max-width:760px">' + crossSuppressedBlock(sup) + '</div>'
+    + '</div>';
 }
 
 export function renderCross(T) {
@@ -961,7 +982,7 @@ export function renderCross(T) {
         + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--warn)">MATCHING PAIRS ACROSS VENUES…</div></div>'
         // Ohne Dauer liest sich der pulsierende Punkt wie eine kaputte Seite.
         // Er ist keine: der erste Aufruf blaettert beide Boersen durch.
-        + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-3); line-height:var(--lh-prose)">This is a live scan, not a stored file: /api/cross pages both venues and scores every title pair, which takes up to a minute on a cold cache. The gate then keeps only ' + CROSS_GATE_TEXT + '. If it fails you will see the error and a retry here, not this spinner.</div>'
+        + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-3); line-height:var(--lh-prose)">This is a live scan, not a stored file: /api/cross pages both venues (12 event pages on the Kalshi side alone), scores every title pair and re-quotes the best rows against both books — one to two minutes on a cold cache, seconds on a warm one. The gate then keeps only ' + CROSS_GATE_TEXT + '. If it fails you will see the error and a retry here, not this spinner.</div>'
         + '</div></div>';
     } else if (hk.quelle === 'fehler') {
       body = leerBlock('NO PAIRS', herkunftSatz(hk, '/api/cross'))

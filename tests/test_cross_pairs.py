@@ -160,6 +160,70 @@ class PairVerdictTests(unittest.TestCase):
         self.assertEqual(row["kalshi_ticker"], "KXBTC-ABOVE")
         self.assertEqual(row["pair_verdict"], cross_pairs.PAIR_UNVERIFIED)
 
+    def test_the_election_and_the_nomination_are_two_questions(self) -> None:
+        # Nach dem Kalshi-Universum-Fix (2026-08-31) waren drei der sechs
+        # ersten Gate-Paare "win the 2028 US Presidential Election" gegen
+        # "be the Democratic Presidential nominee" — mit gedruckter
+        # Netto-Spanne. Die Wahl setzt die Nominierung voraus und preist
+        # zusaetzlich den November; der Korb darueber ist nicht abgesichert.
+        urteil = cross_pairs.pair_verdict(
+            {"title": "Will Gavin Newsom win the 2028 US Presidential Election?"},
+            {"title": "Will Gavin Newsom be the Democratic Presidential nominee in 2028?"})
+        self.assertEqual(urteil["verdict"], cross_pairs.PAIR_DIFFERENT)
+        self.assertTrue(any("different scope" in reason for reason in urteil["reasons"]))
+
+    def test_the_nomination_on_both_sides_stays_one_question(self) -> None:
+        # "win the nomination" gegen "be the nominee" ist dieselbe Frage in
+        # zwei Wortformen; der Scope-Check darf sie nicht kosten.
+        self.assertEqual(
+            cross_pairs.pair_verdict(
+                {"title": "Will Gavin Newsom win the 2028 Democratic presidential nomination?"},
+                {"title": "Will Gavin Newsom be the Democratic Presidential nominee in 2028?"}
+                )["verdict"],
+            cross_pairs.PAIR_UNVERIFIED)
+
+    def test_a_side_that_names_both_scopes_decides_nothing(self) -> None:
+        self.assertEqual(
+            cross_pairs.pair_verdict(
+                {"title": "Will the Democratic nominee win the 2028 election?"},
+                {"title": "Who wins the 2028 US Presidential Election?"})["verdict"],
+            cross_pairs.PAIR_UNVERIFIED)
+
+    def test_two_named_competitions_are_two_questions(self) -> None:
+        # Champions League gegen FA Cup: gleicher Verein, gleiche Saison,
+        # gleiches "win", und die Endspiele liegen nah genug beieinander,
+        # dass der Termin-Check schweigt. Das erste Gate-Paar nach dem
+        # Universum-Fix (2026-08-31) war genau dieses, mit +9.5 Cent netto.
+        urteil = cross_pairs.pair_verdict(
+            {"title": "Will Manchester United win the 2026-27 UEFA Champions League Championship?"},
+            {"title": "Will Manchester United win the 2026-27 FA Cup?"})
+        self.assertEqual(urteil["verdict"], cross_pairs.PAIR_DIFFERENT)
+        self.assertTrue(any("different competitions" in reason for reason in urteil["reasons"]))
+
+    def test_the_same_competition_on_both_sides_stays_one_question(self) -> None:
+        self.assertEqual(
+            cross_pairs.pair_verdict(
+                {"title": "Will Manchester United win the 2026-27 UEFA Champions League Championship?"},
+                {"title": "Will Manchester United win the Champions League?"})["verdict"],
+            cross_pairs.PAIR_UNVERIFIED)
+
+    def test_a_side_without_a_named_competition_decides_nothing(self) -> None:
+        # "win on 2026-08-31" nennt keinen Wettbewerb; das entscheidet der
+        # Termin-Check, nicht dieser.
+        self.assertEqual(cross_pairs.question_reasons(
+            "Will Arsenal FC win on 2026-08-31?",
+            "Will Arsenal win the 2026-27 FA Cup?"), [])
+
+    def test_the_club_world_cup_is_not_the_world_cup(self) -> None:
+        self.assertEqual(cross_pairs.competitions("Will Brazil win the World Cup?"),
+                         {"world cup"})
+        self.assertEqual(cross_pairs.competitions("Will Chelsea win the Club World Cup?"),
+                         {"club world cup"})
+        urteil = cross_pairs.pair_verdict(
+            {"title": "Will Brazil win the 2026 World Cup?"},
+            {"title": "Will Chelsea win the Club World Cup?"})
+        self.assertEqual(urteil["verdict"], cross_pairs.PAIR_DIFFERENT)
+
     def test_a_negation_on_one_side_only_is_an_inversion(self) -> None:
         self.assertEqual(
             cross_pairs.pair_verdict({"title": "Will the government shut down in October?"},

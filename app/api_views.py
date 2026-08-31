@@ -1657,28 +1657,43 @@ def cross_gate_mask(
     return maske
 
 
-def cross_suppressed(rejected: pd.DataFrame, limit: int = 6) -> dict[str, Any]:
-    """Was der Paar-Check aussortiert hat, mit Grund und ohne jede Zahl.
+def cross_suppressed(rejected: pd.DataFrame, limit: int = 12) -> dict[str, Any]:
+    """Was der Paar-Check aussortiert hat, mit Grund und je Seite ihrem Kurs.
 
     Ein weggelassenes Paar stillschweigend verschwinden zu lassen waere
     dieselbe Unehrlichkeit von der anderen Seite: die Seite soll sagen
-    koennen, wie viele Kandidaten warum nicht gerechnet wurden. Preise
-    stehen hier bewusst nicht, denn zwischen zwei verschiedenen Fragen ist
-    auch die Luecke keine Aussage.
+    koennen, wie viele Kandidaten warum nicht gerechnet wurden — und sie
+    zeigen, denn wochenlang bestand die ganze Seite nur aus dem leeren
+    Gate. ``pm``/``ks`` sind die YES-Mittelkurse in Cent, jeder eine
+    Tatsache ueber seinen eigenen Markt. Was bewusst fehlt, sind Luecke,
+    Spanne und Netto: zwischen zwei verschiedenen Fragen ist auch die
+    Luecke keine Aussage. Sortiert nach Aehnlichkeit, denn die knappsten
+    Fast-Paare sind die, die jemand nachpruefen wuerde.
     """
 
     leer: dict[str, Any] = {"total": 0, "by_verdict": {}, "examples": []}
     if rejected is None or rejected.empty or "pair_verdict" not in rejected.columns:
         return leer
     verdicts = rejected["pair_verdict"].astype(str)
+    geordnet = rejected
+    if "similarity" in rejected.columns:
+        geordnet = rejected.sort_values("similarity", ascending=False)
+
+    def _cents(value: Any) -> int | None:
+        preis = _num(value)
+        return None if preis is None else round(preis * 100)
+
     beispiele = [
         {
             "event": _text(row.get("polymarket_title")),
             "other": _text(row.get("kalshi_title")),
             "verdict": _text(row.get("pair_verdict")),
             "why": _text(row.get("pair_reasons")),
+            "pm": _cents(row.get("polymarket_yes")),
+            "ks": _cents(row.get("kalshi_yes")),
+            "sim": round(_num(row.get("similarity"), 0.0) or 0.0, 2),
         }
-        for _, row in rejected.head(limit).iterrows()
+        for _, row in geordnet.head(limit).iterrows()
     ]
     return {
         "total": int(len(rejected)),

@@ -3035,6 +3035,14 @@ def get_kalshi_markets(
     data = _get_json(f"{KALSHI_API}/markets", params=params)
     rows = data.get("markets", []) if isinstance(data, dict) else []
     require_fields(rows, KALSHI_MARKET_FIELDS, feed="Kalshi /markets")
+    return _normalize_kalshi_markets(rows)
+
+
+def _normalize_kalshi_markets(rows: list[dict[str, Any]]) -> pd.DataFrame:
+    """Rohe Kalshi-Marktzeilen (aus /markets oder /events verschachtelt) in
+    den normalisierten Markt-Frame. Eine Normalisierung fuer beide Quellen:
+    zwei Kopien waeren zwei Einheiten-Definitionen."""
+
     normalized: list[dict[str, Any]] = []
     for market in rows:
         yes_bid = kalshi_price(market.get("yes_bid_dollars"), market.get("yes_bid"))
@@ -3111,6 +3119,54 @@ def get_kalshi_markets(
         # Summe darueber zaehlte ihn dann doppelt.
         df = _dedupe_markets(df)
     return df
+
+
+def get_kalshi_markets_deep(
+    pages: int = 12, page_size: int = 200, status: str = "open"
+) -> pd.DataFrame:
+    """Das Kalshi-Universum ueber ``/events`` mit verschachtelten Maerkten.
+
+    ``/markets?limit=1000`` liefert EINE Seite von zigtausenden offenen
+    Maerkten, in API-Reihenfolge statt nach Handel — gemessen am 2026-08-31
+    bestand sie fast vollstaendig aus quotelosen Multi-Leg-Parlays: 20 von
+    1000 Zeilen trugen einen Preis, keine einzige beidseitige Quotes. Ein
+    Cross-Venue-Vergleich gegen diese Seite findet nichts und meldet das
+    dann als Eigenschaft des Marktes.
+
+    ``/events`` ist um Groessenordnungen kleiner (ein Event buendelt viele
+    Maerkte), traegt die Kategorie, die den Marktzeilen fehlt, und laesst
+    sich per Cursor durchblaettern — dasselbe Muster wie
+    ``src/kalshi_recorder.py``. Parlays (KXMVE…) fliegen vor der
+    Normalisierung raus: ihre Buecher sind fast immer leer, und ein Parlay
+    ist keine Frage, die auf Polymarket eine Entsprechung haette.
+    """
+
+    rows: list[dict[str, Any]] = []
+    cursor = ""
+    for _ in range(max(1, int(pages))):
+        params: dict[str, Any] = {"limit": int(page_size), "status": status,
+                                  "with_nested_markets": "true"}
+        if cursor:
+            params["cursor"] = cursor
+        data = _get_json(f"{KALSHI_API}/events", params=params)
+        events = data.get("events", []) if isinstance(data, dict) else []
+        for event in events:
+            for market in event.get("markets") or []:
+                ticker = str(market.get("ticker") or "")
+                if not ticker or ticker.upper().startswith("KXMVE"):
+                    continue
+                # Kategorie und (fehlender) Titel wohnen am Event; ohne sie
+                # hiesse jeder Markt "Uncategorized" bzw. nur sein Strike.
+                if not market.get("category"):
+                    market = {**market, "category": event.get("category", "")}
+                if not market.get("title"):
+                    market = {**market, "title": event.get("title", "")}
+                rows.append(market)
+        cursor = str(data.get("cursor") or "") if isinstance(data, dict) else ""
+        if not cursor or not events:
+            break
+    require_fields(rows, KALSHI_MARKET_FIELDS, feed="Kalshi /events (nested markets)")
+    return _normalize_kalshi_markets(rows)
 
 
 def _candlestick_price(row: dict[str, Any], field: str) -> float | None:

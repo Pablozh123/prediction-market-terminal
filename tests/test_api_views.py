@@ -1549,19 +1549,28 @@ class CrossGateTests(unittest.TestCase):
             {"polymarket_title": "Bitcoin above $120,000", "kalshi_title": "Bitcoin below $120,000",
              "pair_verdict": cross_pairs.PAIR_OPPOSED,
              "pair_reasons": "opposite direction (threshold): above against below",
-             "polymarket_yes": 0.62, "kalshi_yes": 0.37, "net_edge_cents": 19.68},
+             "polymarket_yes": 0.62, "kalshi_yes": 0.37, "similarity": 0.78,
+             "net_edge_cents": 19.68},
             {"polymarket_title": "Fed cuts in September", "kalshi_title": "Fed cuts in December",
              "pair_verdict": cross_pairs.PAIR_DIFFERENT,
              "pair_reasons": "resolution dates 84 days apart",
-             "polymarket_yes": 0.62, "kalshi_yes": 0.37, "net_edge_cents": 19.68},
+             "polymarket_yes": 0.55, "kalshi_yes": 0.31, "similarity": 0.91,
+             "net_edge_cents": 19.68},
         ])
         block = apv.cross_suppressed(verworfen)
         self.assertEqual(block["total"], 2)
         self.assertEqual(block["by_verdict"][cross_pairs.PAIR_OPPOSED], 1)
-        self.assertIn("above against below", block["examples"][0]["why"])
-        # Kein Preis, keine Spanne: zwischen zwei verschiedenen Fragen ist
-        # auch die Luecke keine Aussage.
+        # Sortiert nach Aehnlichkeit: das knappste Fast-Paar zuerst.
+        self.assertIn("84 days apart", block["examples"][0]["why"])
+        self.assertIn("above against below", block["examples"][1]["why"])
+        # Jede Seite traegt ihren eigenen Kurs in Cent — eine Tatsache ueber
+        # ihren Markt. Keine Luecke, keine Spanne: zwischen zwei
+        # verschiedenen Fragen ist auch die Luecke keine Aussage.
+        self.assertEqual(block["examples"][0]["pm"], 55)
+        self.assertEqual(block["examples"][0]["ks"], 31)
+        self.assertEqual(block["examples"][0]["sim"], 0.91)
         self.assertNotIn("net", block["examples"][0])
+        self.assertNotIn("gap", block["examples"][0])
         self.assertEqual(apv.cross_suppressed(pd.DataFrame())["total"], 0)
 
     def test_the_gate_mask_is_the_same_gate_the_mapper_applies(self) -> None:

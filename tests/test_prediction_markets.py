@@ -2266,6 +2266,45 @@ class MarketDedupeTests(unittest.TestCase):
             frame = md.get_kalshi_markets()
         self.assertEqual(len(frame), 1)
 
+    def test_deep_kalshi_universe_pages_events_and_drops_parlays(self) -> None:
+        # /markets?limit=1000 lieferte EINE Seite in API-Reihenfolge, fast
+        # nur quotelose Parlays (Messung 2026-08-31: 20 von 1000 Zeilen mit
+        # Preis). Der tiefe Lader blaettert /events per Cursor, wirft KXMVE
+        # vor der Normalisierung weg und erbt Kategorie und Titel vom Event.
+        def _event(ticker, category, title, markets):
+            return {"event_ticker": ticker, "category": category,
+                    "title": title, "markets": markets}
+        seite1 = {"events": [
+            _event("KXFED", "Economics", "Fed decision in September?", [
+                {"ticker": "KXFED-26SEP", "yes_bid_dollars": "0.61",
+                 "yes_ask_dollars": "0.63", "volume_24h_fp": "120.0",
+                 "volume_fp": "500.0", "liquidity_dollars": "100.0",
+                 "close_time": "2026-09-17T18:00:00Z"},
+            ]),
+            _event("KXMVECROSSCATEGORY", "Cross Category", "Parlay", [
+                {"ticker": "KXMVECROSSCATEGORY-1", "title": "yes A,yes B",
+                 "yes_bid_dollars": "0.50", "yes_ask_dollars": "0.52"},
+            ]),
+        ], "cursor": "weiter"}
+        seite2 = {"events": [
+            _event("KXBTC", "Crypto", "Bitcoin above $85,000?", [
+                {"ticker": "KXBTC-26DEC", "yes_bid_dollars": "0.36",
+                 "yes_ask_dollars": "0.38", "volume_24h_fp": "40.0",
+                 "volume_fp": "80.0", "liquidity_dollars": "50.0",
+                 "close_time": "2026-12-11T18:00:00Z"},
+            ]),
+        ], "cursor": ""}
+        with patch("src.prediction_markets._get_json", side_effect=[seite1, seite2]) as fetch:
+            frame = md.get_kalshi_markets_deep(pages=5, page_size=200)
+        # Der leere Cursor beendet die Schleife nach der zweiten Seite.
+        self.assertEqual(fetch.call_count, 2)
+        self.assertEqual(sorted(frame["ticker"]), ["KXBTC-26DEC", "KXFED-26SEP"])
+        fed = frame[frame["ticker"] == "KXFED-26SEP"].iloc[0]
+        self.assertEqual(fed["category"], "Economics")
+        self.assertEqual(fed["title"], "Fed decision in September?")
+        self.assertAlmostEqual(float(fed["best_bid"]), 0.61)
+        self.assertAlmostEqual(float(fed["volume_24h"]), 120.0)
+
 
 class KalshiCentUnitTests(unittest.TestCase):
     """Kalshi liefert Cents; die Groesse allein verraet die Einheit nicht."""
