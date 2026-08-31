@@ -369,7 +369,10 @@ def pair_verdict(pm_row: Any, ks_row: Any,
         pm_row.get("end", pm_row.get("end_time")),
         ks_row.get("end", ks_row.get("end_time")))
     if abstand is not None and abstand > float(max_resolution_gap_days):
-        andere.append(f"resolution dates {abstand:g} days apart")
+        # Ganze Tage: die Schranke liegt bei 7, jede Begruendung hier ist
+        # also zweistellig oder mehr, und "396.583 days apart" behauptet
+        # eine Praezision, die fuer das Urteil nichts traegt.
+        andere.append(f"resolution dates {abstand:.0f} days apart")
 
     if gegensatz:
         verdict = PAIR_OPPOSED
