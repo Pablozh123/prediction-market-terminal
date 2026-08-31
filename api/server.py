@@ -1023,8 +1023,9 @@ CROSS_GATE_NOTE = (
     "Only pairs with title similarity >= {sim:.2f} and volume on both venues are shown. "
     "Matched by title similarity — pairs are not verified to resolve identically "
     "(studies 08 and 11 in the microstructure report show two matched pairs that were different questions). "
-    "A pair whose two sides ask in opposite directions, name different thresholds or resolve on "
-    "different dates carries no numbers at all and is counted under 'suppressed' instead."
+    "A pair whose two sides ask in opposite directions, name different thresholds or competitions, "
+    "mix an election with its nomination, or resolve on different dates carries no numbers at all "
+    "and is counted under 'suppressed' instead."
 )
 
 #: Wie viele Zeilen je Aufruf gegen die Buecher neu quotiert werden. Zwei
@@ -1069,7 +1070,13 @@ def cross(
         return zusammen
 
     def _ks() -> pd.DataFrame:
-        return md.get_kalshi_markets(limit=1000)
+        # /markets?limit=1000 war EINE Seite in API-Reihenfolge und bestand
+        # fast nur aus quotelosen Parlays (20 von 1000 Zeilen mit Preis,
+        # Messung 2026-08-31); die Seite meldete dann monatelang "NO PAIR
+        # CLEARS THE GATE" als waere das eine Eigenschaft des Marktes.
+        # /events mit verschachtelten Maerkten blaettert das echte Universum
+        # durch, wie src/kalshi_recorder.py es vormacht.
+        return md.get_kalshi_markets_deep(pages=12, page_size=200)
 
     try:
         pm = cached("cross_pm", _pm, ttl=300.0)

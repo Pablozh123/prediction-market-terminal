@@ -67,7 +67,7 @@ class CrossEndpointTests(unittest.TestCase):
         pm_book = pm_book or (lambda token: _book(0.61, 500.0, 0.63, 500.0))
         ks_book = ks_book or (lambda ticker: _book(0.67, 500.0, 0.69, 500.0))
         with mock.patch.object(server.md, "get_polymarket_markets", side_effect=_pm_markets), \
-             mock.patch.object(server.md, "get_kalshi_markets", return_value=_kalshi()), \
+             mock.patch.object(server.md, "get_kalshi_markets_deep", return_value=_kalshi()), \
              mock.patch.object(server.md, "get_polymarket_orderbook", side_effect=pm_book), \
              mock.patch.object(server.md, "get_kalshi_orderbook", side_effect=ks_book):
             # Direkt aufgerufen, ohne FastAPI: die Query-Vorgaben sind hier

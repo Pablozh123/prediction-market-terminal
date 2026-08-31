@@ -138,6 +138,52 @@ INTENT_WORDS: dict[str, frozenset[str]] = {
     "exit": frozenset({"concede", "withdraw", "resign", "drop", "suspend", "quit"}),
 }
 
+#: Wortpaare, die dieselbe Person in zwei verschiedenen Wettbewerben fragen.
+#: Gleiche Kontrast-Logik wie DIRECTION_GROUPS (eine Seite traegt die eine
+#: Gruppe, die andere die andere, keine beides), aber kein Gegensatz der
+#: Richtung, sondern der Reichweite: die Nominierung zu gewinnen und die
+#: Wahl zu gewinnen sind zwei Fragen — die zweite setzt die erste voraus und
+#: preist zusaetzlich den November. Die INTENT_WORDS fangen das nicht, weil
+#: "win" und "nominee" beide in der Gruppe "outcome" stehen. Beleg: nach dem
+#: Kalshi-Universum-Fix (2026-08-31) waren drei der sechs ersten Gate-Paare
+#: "win the 2028 US Presidential Election" gegen "be the Democratic
+#: Presidential nominee" — mit gedruckter Netto-Spanne.
+SCOPE_GROUPS: tuple[tuple[str, frozenset[str], frozenset[str]], ...] = (
+    ("election vs nomination",
+     frozenset({"election", "elections", "elected", "presidency"}),
+     frozenset({"nomination", "nominee", "nominated", "primary", "caucus", "caucuses"})),
+)
+
+#: Benannte Wettbewerbe. Nennen beide Titel einen und keinen gemeinsamen,
+#: fragen sie zwei verschiedene Turniere — "Manchester United gewinnt die
+#: Champions League" gegen "Manchester United gewinnt den FA Cup" teilt
+#: Verein, Saison und das Wort "win", und beide Endspiele liegen nah genug
+#: beieinander, dass der Termin-Check schweigt. Beleg: das erste Gate-Paar
+#: nach dem Universum-Fix (2026-08-31) war genau dieses, mit +9.5 Cent
+#: "netto". Nur Wendungen, keine Einzelwoerter: "league" allein entscheidet
+#: nichts. Eine Seite ohne benannten Wettbewerb bleibt unentschieden.
+COMPETITION_PHRASES: tuple[str, ...] = (
+    "champions league", "europa league", "conference league",
+    "premier league", "fa cup", "efl cup", "carabao cup", "community shield",
+    "la liga", "copa del rey", "serie a", "coppa italia",
+    "bundesliga", "dfb pokal", "ligue 1", "coupe de france",
+    "taca de portugal", "eredivisie", "club world cup", "world cup",
+    "mls cup", "super bowl", "stanley cup", "world series", "nba finals",
+)
+
+
+def competitions(title: str) -> set[str]:
+    """Welche benannten Wettbewerbe ein Titel nennt."""
+
+    text = str(title or "").lower()
+    found = {phrase for phrase in COMPETITION_PHRASES if phrase in text}
+    # "club world cup" enthaelt "world cup"; die laengere Wendung gewinnt,
+    # sonst waeren Klub-WM und WM ein gemeinsamer Wettbewerb.
+    if "club world cup" in found:
+        found.discard("world cup")
+    return found
+
+
 #: Spannen-Muster ("6-9%") verraten einen Margen-Markt auch ohne das Wort.
 RANGE_PATTERN = re.compile(r"\d+\s*[-–]\s*\d+\s*%")
 
@@ -246,6 +292,25 @@ def question_reasons(left: str, right: str) -> list[str]:
         reasons.append(
             "different question types: " + ", ".join(sorted(links) or ["none"])
             + " against " + ", ".join(sorted(rechts) or ["none"]))
+    links_w, rechts_w = _words(left), _words(right)
+    for name, eine_gruppe, andere_gruppe in SCOPE_GROUPS:
+        a_eine, a_andere = links_w & eine_gruppe, links_w & andere_gruppe
+        b_eine, b_andere = rechts_w & eine_gruppe, rechts_w & andere_gruppe
+        # Eine Seite, die beide Reichweiten nennt ("nominee wins the
+        # election"), entscheidet nichts — wie bei DIRECTION_GROUPS.
+        if (a_eine and a_andere) or (b_eine and b_andere):
+            continue
+        for eine, andere in ((a_eine, b_andere), (a_andere, b_eine)):
+            if eine and andere:
+                reasons.append(
+                    f"different scope ({name}): "
+                    f"{', '.join(sorted(eine))} against {', '.join(sorted(andere))}")
+                break
+    links_comp, rechts_comp = competitions(left), competitions(right)
+    if links_comp and rechts_comp and not (links_comp & rechts_comp):
+        reasons.append(
+            "different competitions: " + ", ".join(sorted(links_comp))
+            + " against " + ", ".join(sorted(rechts_comp)))
     links_strikes, rechts_strikes = strikes(left), strikes(right)
     if links_strikes and rechts_strikes and links_strikes != rechts_strikes:
         def _label(werte: set[tuple[str, float]]) -> str:

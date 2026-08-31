@@ -8606,7 +8606,8 @@ def page_cross_venue() -> None:
         st.markdown(
             f"<div class='field-hint'>{len(verworfene_paare):,} matched pair"
             f"{'' if len(verworfene_paare) == 1 else 's'} carry no numbers at all: the two sides "
-            "ask in opposite directions, name different thresholds or resolve on different dates. "
+            "ask in opposite directions, name different thresholds or competitions, mix an "
+            "election with its nomination, or resolve on different dates. "
             f"{html.escape(gruende)}</div>",
             unsafe_allow_html=True,
         )
