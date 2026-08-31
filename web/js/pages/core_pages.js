@@ -923,7 +923,17 @@ function crossSuppressedBlock(sup) {
     .join(', ');
   const beispiele = sup.examples || [];
   const cent = (v) => (v == null ? '—' : v + '¢');
+  const kurz = (t, n) => { const s = String(t || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
   const rest = sup.total - beispiele.length;
+  // Ein Kurs-Register fuer den ganzen Block: Venue-Kuerzel links, Preis
+  // rechtsbuendig, beide auf einer festen Spalte, damit die Quotes wie in
+  // einem Orderbuch untereinander stehen und die Titel eine Fluchtlinie
+  // teilen. Preiszelle als space-between, sonst wandert das Kuerzel mit
+  // der Ziffernbreite.
+  const preisZelle = (tag, wert, farbe) =>
+    '<div style="' + M + '; font-size:var(--t-small); line-height:var(--lh-snug); display:flex; justify-content:space-between; align-items:baseline; gap:var(--sp-2)">'
+    + '<span style="font-size:var(--t-micro); color:var(--ink-4)">' + tag + '</span>'
+    + '<span style="color:' + farbe + '; font-variant-numeric:tabular-nums">' + cent(wert) + '</span></div>';
   return '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); padding:var(--sp-5)">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--warn)">MATCHED BUT NOT PRICED · ' + num(sup.total) + '</div>'
     + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-prose)">'
@@ -931,18 +941,21 @@ function crossSuppressedBlock(sup) {
     + 'A basket across a pair like that pays 2.00 in one state and 0.00 in the other, so its spread is a sign error, not an opportunity. '
     + 'Each side shows its own price; the pair carries no gap and no spread, because between two different questions the gap says nothing.</div>'
     + (beispiele.length
-      ? '<div style="margin-top:var(--sp-4)">' + beispiele.map((b) =>
-        '<div style="border-top:1px solid var(--line-3); padding:var(--sp-3) 0">'
-        + '<div style="display:flex; align-items:baseline; gap:var(--sp-4)">'
-        + '<div style="flex:1; min-width:0">'
-        + '<div style="font-size:var(--t-small); line-height:var(--lh-snug)"><span style="' + M + '; color:var(--accent)">' + cent(b.pm) + '</span> <span style="' + M + '; font-size:var(--t-micro); color:var(--ink-4)">PM</span> ' + esc(String(b.event || '').slice(0, 96)) + '</div>'
-        + '<div style="font-size:var(--t-small); line-height:var(--lh-snug); margin-top:var(--sp-1)"><span style="' + M + '; color:var(--info)">' + cent(b.ks) + '</span> <span style="' + M + '; font-size:var(--t-micro); color:var(--ink-4)">KS</span> ' + esc(String(b.other || '').slice(0, 96)) + '</div>'
-        + '</div>'
-        + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); text-align:right; flex:none">' + esc(CROSS_VERDICT_TEXT[b.verdict] || b.verdict || '') + (b.sim ? '<br>similarity ' + Number(b.sim).toFixed(2) : '') + '</div>'
-        + '</div>'
-        + (b.why ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-2); line-height:var(--lh-snug)">' + esc(b.why) + '</div>' : '')
-        + '</div>').join('')
-      + (rest > 0 ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-2)">+ ' + num(rest) + ' more suppressed pairs not listed</div>' : '')
+      ? '<div style="margin-top:var(--sp-4)">' + beispiele.map((b) => {
+        const opposed = b.verdict === 'opposed';
+        return '<div style="border-top:1px solid var(--line-3); padding:var(--sp-3) 0; display:grid; grid-template-columns:68px minmax(0,1fr) auto; column-gap:var(--sp-4); row-gap:var(--sp-1)">'
+          + '<div style="grid-column:1; grid-row:1">' + preisZelle('PM', b.pm, 'var(--accent)') + '</div>'
+          + '<div style="grid-column:2; grid-row:1; font-size:var(--t-small); line-height:var(--lh-snug)">' + esc(kurz(b.event, 120)) + '</div>'
+          + '<div style="grid-column:3; grid-row:1 / span 2; text-align:right; align-self:start">'
+          + '<div style="' + M + '; font-size:var(--t-micro); line-height:var(--lh-snug); color:' + (opposed ? 'var(--warn)' : 'var(--ink-3)') + '">' + esc(CROSS_VERDICT_TEXT[b.verdict] || b.verdict || '') + '</div>'
+          + (b.sim ? '<div style="' + M + '; font-size:var(--t-micro); line-height:var(--lh-snug); color:var(--ink-4); margin-top:var(--sp-1)">similarity ' + Number(b.sim).toFixed(2) + '</div>' : '')
+          + '</div>'
+          + '<div style="grid-column:1; grid-row:2">' + preisZelle('KS', b.ks, 'var(--info)') + '</div>'
+          + '<div style="grid-column:2; grid-row:2; font-size:var(--t-small); line-height:var(--lh-snug)">' + esc(kurz(b.other, 120)) + '</div>'
+          + (b.why ? '<div style="grid-column:2 / span 2; grid-row:3; ' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-1); line-height:var(--lh-snug)">' + esc(b.why) + '</div>' : '')
+          + '</div>';
+      }).join('')
+      + (rest > 0 ? '<div style="border-top:1px solid var(--line-3); ' + M + '; font-size:var(--t-micro); color:var(--ink-4); padding-top:var(--sp-3)">+ ' + num(rest) + ' more suppressed pairs not listed</div>' : '')
       + '</div>'
       : '')
     + '</div>';

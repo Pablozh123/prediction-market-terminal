@@ -2993,6 +2993,10 @@ def kalshi_display_title(market: Mapping[str, Any], ticker: str = "") -> str:
     # Kalshi writes markdown emphasis into some titles ("**gas prices**").
     title = str(_first_nonempty(market.get("title"), "") or "").replace("**", "").strip()
     strike = str(_first_nonempty(market.get("subtitle"), market.get("yes_sub_title"), "") or "").strip()
+    # Manche Untertitel tragen ein fuehrendes "::" ("::Republican" bei den
+    # franzoesischen Wahlmaerkten); angehaengt hinter "·" las sich das als
+    # ":: Republican". Fuehrende Doppelpunkte sind Feed-Syntax, kein Inhalt.
+    strike = strike.lstrip(":").strip()
     # Multi-leg parlays (mve_collection_ticker set, KXMVE… tickers): the
     # title is the comma-joined leg list "yes Barcelona,yes Atletico,…".
     # Name it as what it is and list the legs readably.
