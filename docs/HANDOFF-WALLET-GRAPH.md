@@ -284,14 +284,35 @@ behoben wurde, weil eine Seite auf Blob-Daten wertlos waere:
 - Tests: `app/entity_graph`-Modellschranken (`test_entity_graph.py`), Web-Render
   (`test_web_leerzustand.py` deckt die neue Seite und den Tab mit ab).
 
-**WICHTIGE offene Grenze (aus diesem Lauf):** Die 7-Wallet-Entity haengt daran,
-dass ein geteilter Funder genau ZWEI der gescannten Wallets bedient. Gemessen
-wird aber nur der Grad IM Scan-Set, nicht der globale Grad der Gegenpartei on-
-chain. Ein kleiner Router, der global tausende Konten bedient, aber zufaellig
-nur zwei der zwoelf geflaggten, sieht dann aus wie eine private Operator-Quelle.
-Der saubere Fix ist ein zusaetzlicher Etherscan-Call je Kandidaten-Funder (wie
-viele verschiedene Adressen hat er je bedient); bis dahin ist eine Entity aus
-2-Wallet-Shared-Funder-Ketten ein starker Rechercheanlass, aber kein Beweis.
+**Globaler Fan-out (2026-08-31, die Grenze ist geschlossen):** Je geteilter
+Gegenpartei, die eine harte Kante erzeugen wuerde, schlaegt der Scan jetzt
+einmalig nach, wie viele verschiedene Adressen sie on-chain ueberhaupt bedient
+(`flow_fetch.counterparty_fanout`, eine Seite juengster Transfers je
+Collateral-Kontrakt, gecacht in `counterparty_fanout`;
+`entity_scan.enrich_fanouts` mit 25 Lookups je Durchgang). Mehr als
+`DEFAULT_GLOBAL_FANOUT_CAP` (20) Partner heisst Infrastruktur und stuft auf
+Kandidat zurueck; ohne Lookup bleibt die Kante hart, der Beleg sagt aber
+ausdruecklich "global reach not checked yet". Ergebnis der Live-Pruefung:
+
+- Lokaler Graph: 13 von 14 geteilten Quellen der 7-Wallet-Entity waren global
+  Infrastruktur (30 bis 1955 Partner). Die Entity loest sich auf; uebrig
+  bleibt EINE echte 2-Wallet-Entity (`0xc2de93c7`/`0xe4270c3a`) ueber ein
+  Auszahlungsziel mit nur 10 Partnern weltweit. Harte Kanten 9 -> 1.
+- Iran-Probe: auch der whopperlover/Skoobidoobnj-Funder (`0xc536633f...`) hat
+  1995 Partner (Dust-Verteiler, passend zu den ~$0.48) und wird Kandidat.
+  Die Ring-Verknuepfung ruht damit ehrlich auf Co-Trading (feuert weiter,
+  auch unter der strengsten Sprosse) plus den Kandidaten-Mustern
+  (`0xc2884805...`, 1955 Partner, beruehrt 7 der 9) - genau der Stelle, an
+  der Bubblemaps merged und unsere Sprachregel nur zeigt.
+
+Sprachliche Nachbesserungen auf der Flaeche (gleicher Stand): "Hard edges"
+heisst ueberall "On-chain links" (Verwechslungsgefahr mit dem Trading-Edge
+der Wallet-Seite), und "Complementary books · wash suspicion" heisst
+"Opposite-side pairs" mit dem Begleitsatz, dass Market-Making, Arbitrage und
+schlichte Gegenmeinung die haeufigeren Erklaerungen sind und ein Wash-Verdacht
+erst mit zusaetzlich geteiltem Funding traegt. Jeder Beleg an geteilten
+Quellen zeigt den globalen Fan-out mit ("serves N addresses on-chain" bzw.
+"not checked yet").
 
 ## Wallet-Graph auf der oeffentlichen Seite (2026-08-30, "Weg 1")
 
@@ -330,10 +351,9 @@ wenige MB, passt ins 500-MB-Volume.
 
 ## Offene Punkte
 
-- **Globaler Gegenpartei-Grad** (siehe oben): der wichtigste naechste Schritt
-  fuer die Entity-Qualitaet. Ein Funder/Withdrawal-Ziel, das global viele
-  Adressen bedient, ist Infrastruktur, auch wenn es im Scan-Set nur zwei
-  beruehrt; bis dahin die 2-Wallet-Shared-Funder-Ketten mit Vorsicht lesen.
+- Fan-out-Schwelle beobachten: `DEFAULT_GLOBAL_FANOUT_CAP=20` ist gesetzt,
+  nicht validiert. Der erste Live-Blick zeigte eine klare Luecke (10 vs. 30+),
+  aber mehr Faelle sollen die Schwelle bestaetigen.
 - Betriebsentscheidung Ingest-Host: dieser Rechner kann lokal sammeln (Tasks
   `MarketIntelTradeIngest` und `MarketIntelEntityScan` laufen); auf dem
   Heimrechner nur mit anderem Resolver, sonst Railway. Ein Sammler reicht.

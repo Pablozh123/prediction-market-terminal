@@ -958,11 +958,16 @@ function linkChip(T, addr) {
   return '<span ' + T.act(() => { if (T.openWalletTab) T.openWalletTab(a, 'linked'); }) + ' class="hv-edge-strong" style="' + M + '; font-size:var(--t-small); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3); color:var(--ink-1); cursor:pointer" title="' + esc(a) + '">' + esc(shortAddr(a)) + '</span>';
 }
 
+function reachNote(p) {
+  if (p.global_partners == null) return ' <span style="color:var(--ink-4)">(global reach not checked yet)</span>';
+  return ' <span style="color:var(--ink-4)">(serves ' + num(p.global_partners) + (p.global_complete === false ? '+' : '') + ' addresses on-chain)</span>';
+}
+
 function edgeLine(edge) {
   const parts = edge.evidenz && Array.isArray(edge.evidenz.shared_counterparties) ? edge.evidenz.shared_counterparties : null;
   let ev;
   if (parts && parts.length) {
-    ev = parts.map((p) => (p.direction === 'in' ? 'funder ' : 'target ') + '<a href="https://polygonscan.com/address/' + esc(p.counterparty) + '" target="_blank" rel="noopener" style="color:var(--ink-3); text-decoration:underline dotted" title="' + esc(p.counterparty) + '">' + esc(shortAddr(p.counterparty)) + ' ↗</a>').join(' · ');
+    ev = parts.map((p) => (p.direction === 'in' ? 'funder ' : 'target ') + '<a href="https://polygonscan.com/address/' + esc(p.counterparty) + '" target="_blank" rel="noopener" style="color:var(--ink-3); text-decoration:underline dotted" title="' + esc(p.counterparty) + '">' + esc(shortAddr(p.counterparty)) + ' ↗</a>' + reachNote(p)).join(' · ');
   } else {
     const tx = edge.evidenz && Array.isArray(edge.evidenz.tx_sample) ? edge.evidenz.tx_sample : [];
     const n = edge.evidenz && edge.evidenz.transfers != null ? edge.evidenz.transfers : tx.length;
@@ -1021,10 +1026,11 @@ function renderLinkedTab(T, d) {
     const fps = Array.isArray(b.fingerprints) ? b.fingerprints : [];
     const pairs = Array.isArray(b.complementary_pairs) ? b.complementary_pairs : [];
     const fpb = fps.length ? fps.map((f) => '<div style="' + NOTIZ + '; padding:var(--sp-2) 0; border-top:1px solid var(--line-3)">' + linkChip(T, f.wallet) + ' — <b style="color:var(--ink-1)">' + num(f.burst_prints) + '</b> prints in ' + num(Math.round(f.burst_seconds)) + 's on ' + esc(String(f.burst_market || '').slice(0, 44)) + '</div>').join('') : '<div style="' + NOTIZ + '">No order-splitting bursts.</div>';
-    const prb = pairs.length ? pairs.map((p) => '<div style="' + NOTIZ + '; padding:var(--sp-2) 0; border-top:1px solid var(--line-3)">' + linkChip(T, p.wallet_a) + ' vs ' + linkChip(T, p.wallet_b) + ' — <b style="color:var(--ink-1)">' + num(p.events) + '</b> opposite-side events</div>').join('') : '<div style="' + NOTIZ + '">No complementary-book pairs.</div>';
+    const prb = pairs.length ? pairs.map((p) => '<div style="' + NOTIZ + '; padding:var(--sp-2) 0; border-top:1px solid var(--line-3)">' + linkChip(T, p.wallet_a) + ' vs ' + linkChip(T, p.wallet_b) + ' — <b style="color:var(--ink-1)">' + num(p.events) + '</b> opposite-side events</div>').join('') : '<div style="' + NOTIZ + '">No opposite-side pairs.</div>';
     behaviorCard = card('BEHAVIOUR · TIER 3',
       '<div style="' + LABEL + '; margin-bottom:var(--sp-2)">ORDER-SPLITTING</div>' + fpb
-      + '<div style="' + LABEL + '; margin:var(--sp-4) 0 var(--sp-2)">COMPLEMENTARY BOOKS</div>' + prb,
+      + '<div style="' + LABEL + '; margin:var(--sp-4) 0 var(--sp-2)">OPPOSITE-SIDE PAIRS</div>'
+      + '<div style="' + NOTIZ + '; margin-bottom:var(--sp-2)">Most often market making, arbitrage or plain disagreement; a wash reading needs shared funding on top.</div>' + prb,
       'shown next to the entity, never used to merge accounts');
   }
   return intro + entityCard + candCard + behaviorCard

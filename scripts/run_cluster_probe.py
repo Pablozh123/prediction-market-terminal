@@ -33,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app import behavior as bhv  # noqa: E402
 from app import entity_graph as eg  # noqa: E402
+from app import entity_scan as es  # noqa: E402
 from app import flow_fetch as ff  # noqa: E402
 from app import suspicion as susp  # noqa: E402
 from src import prediction_markets as md  # noqa: E402
@@ -167,6 +168,7 @@ def main() -> int:
                     fluesse, complete, _ = ff.fetch_classified_flows(wallet, api_key, page_budget=args.probe_pages)
                     positionen, pos_complete = ff.fetch_position_transfers(wallet, api_key, page_budget=args.probe_pages)
                     eg.record_scan(conn, wallet, fluesse, positionen, complete=bool(complete and pos_complete))
+                es.enrich_fanouts(conn, api_key, degree_cap=args.degree_cap, pause=0.25)
                 eg.rebuild_edges(conn, degree_cap=args.degree_cap)
                 eg.assign_entities(conn)
                 stand = eg.graph_stats(conn)

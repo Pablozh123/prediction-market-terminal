@@ -193,6 +193,56 @@ class EntityGraphTests(unittest.TestCase):
         gegenparteien = {b["counterparty"] for b in kante["evidenz"]["shared_counterparties"]}
         self.assertEqual(gegenparteien, {FUNDER, zweiter_funder})
 
+    def test_a_globally_busy_funder_is_a_candidate_despite_local_degree_two(self) -> None:
+        # Die bekannte Luecke des lokalen Grads: ein Router bedient on-chain
+        # tausende Konten, im Scan-Set aber zufaellig nur zwei - ohne den
+        # globalen Blick saehe er wie eine private Operator-Quelle aus.
+        eg.record_scan(self.conn, W_A, _flows([{"counterparty": FUNDER}]))
+        eg.record_scan(self.conn, W_B, _flows([{"counterparty": FUNDER}]))
+        eg.record_fanout(self.conn, FUNDER, {"partners": 500, "transfers": 10000, "complete": False})
+        self._rebuild()
+        ansicht = eg.entity_view(self.conn, W_A)
+        self.assertEqual(ansicht["entity_wallets"], [W_A])
+        self.assertEqual(ansicht["linked_wallets"], [])
+        [kandidat] = ansicht["candidates"]
+        self.assertEqual(kandidat["typ"], eg.TYP_SHARED_HUB)
+        [beleg] = kandidat["evidenz"]["shared_counterparties"]
+        self.assertEqual(beleg["global_partners"], 500)
+        self.assertFalse(beleg["global_complete"])
+
+    def test_a_checked_private_funder_still_links_and_says_so(self) -> None:
+        eg.record_scan(self.conn, W_A, _flows([{"counterparty": FUNDER}]))
+        eg.record_scan(self.conn, W_B, _flows([{"counterparty": FUNDER}]))
+        eg.record_fanout(self.conn, FUNDER, {"partners": 4, "transfers": 30, "complete": True})
+        self._rebuild()
+        [kante] = eg.entity_view(self.conn, W_A)["linked_wallets"]
+        [beleg] = kante["evidenz"]["shared_counterparties"]
+        self.assertEqual(beleg["global_partners"], 4)
+        self.assertTrue(beleg["global_complete"])
+
+    def test_an_unchecked_funder_links_but_marks_the_missing_look(self) -> None:
+        # Ohne Lookup bleibt die Kante hart (der Scan holt den Blick im
+        # naechsten Durchgang nach), aber der Beleg sagt das ausdruecklich:
+        # "nicht geprueft" ist eine andere Aussage als "geprueft und privat".
+        eg.record_scan(self.conn, W_A, _flows([{"counterparty": FUNDER}]))
+        eg.record_scan(self.conn, W_B, _flows([{"counterparty": FUNDER}]))
+        self._rebuild()
+        [kante] = eg.entity_view(self.conn, W_A)["linked_wallets"]
+        [beleg] = kante["evidenz"]["shared_counterparties"]
+        self.assertIsNone(beleg["global_partners"])
+        self.assertIsNone(beleg["global_complete"])
+
+    def test_pending_fanout_lists_only_potential_hard_counterparties(self) -> None:
+        drei = "0x" + "3" * 40
+        for wallet in (W_A, W_B):
+            eg.record_scan(self.conn, wallet, _flows([
+                {"counterparty": FUNDER}, {"counterparty": drei}]))
+        eg.record_scan(self.conn, W_C, _flows([{"counterparty": drei}]))
+        eg.record_fanout(self.conn, FUNDER, {"partners": 2, "transfers": 4, "complete": True})
+        # FUNDER ist schon nachgeschlagen; "drei" bedient drei Wallets und
+        # wird ohnehin Kandidat - niemand braucht dafuer einen Lookup.
+        self.assertEqual(eg.pending_fanout_counterparties(self.conn), [])
+
     def test_transitive_hard_evidence_builds_one_entity(self) -> None:
         eg.record_scan(self.conn, W_A, _flows([{"counterparty": W_B, "direction": "out"}]))
         eg.record_scan(self.conn, W_B, _flows([{"counterparty": FUNDER}]))

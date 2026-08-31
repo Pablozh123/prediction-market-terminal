@@ -76,6 +76,15 @@ STUFE_KANDIDAT = 2
 DEFAULT_MAX_SHARED_WALLETS = 2
 #: Rueckwaerts-kompatibler Name; einige Aufrufer reichen ihn als Argument.
 DEFAULT_DEGREE_CAP = DEFAULT_MAX_SHARED_WALLETS
+
+#: Globale Schwelle je Gegenpartei: hat eine geteilte Finanzierungsquelle
+#: on-chain mehr als so viele verschiedene Partner-Adressen, ist sie
+#: Infrastruktur, egal wie wenige der gescannten Wallets sie beruehrt. Der
+#: lokale Grad allein hat die bekannte Luecke, dass ein global grosser
+#: Router mit zufaellig zwei lokalen Kunden wie eine Privatquelle aussieht.
+#: Zwanzig ist grosszuegig fuer eine private EOA (die auch mal Boersen,
+#: Bridges und eigene Wallets anfasst) und weit unter jedem Router.
+DEFAULT_GLOBAL_FANOUT_CAP = 20
 #: Kandidaten, deren Finanzierungen naeher als dieses Fenster beieinander
 #: liegen, bekommen mehr Konfidenz: "gleiche Hotwallet in engem Zeitfenster".
 NARROW_WINDOW_HOURS = 48.0
@@ -147,6 +156,13 @@ CREATE TABLE IF NOT EXISTS edges (
 CREATE TABLE IF NOT EXISTS wallet_entity (
     wallet    TEXT PRIMARY KEY,
     entity_id TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS counterparty_fanout (
+    counterparty TEXT PRIMARY KEY,
+    partners     INTEGER NOT NULL,
+    transfers    INTEGER NOT NULL DEFAULT 0,
+    complete     INTEGER NOT NULL DEFAULT 0,
+    checked_at   TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_wallet_entity_entity ON wallet_entity (entity_id);
 """
@@ -282,6 +298,41 @@ def record_scan(
     return {"external_transfers": n_flows, "position_transfers": n_positions}
 
 
+def record_fanout(conn: sqlite3.Connection, counterparty: str, info: Mapping[str, Any]) -> None:
+    """Den globalen Fan-out einer Gegenpartei festhalten (einmal je Adresse)."""
+
+    conn.execute(
+        "INSERT INTO counterparty_fanout (counterparty, partners, transfers, complete, checked_at)"
+        " VALUES (?, ?, ?, ?, ?)"
+        " ON CONFLICT(counterparty) DO UPDATE SET partners = excluded.partners,"
+        " transfers = excluded.transfers, complete = excluded.complete, checked_at = excluded.checked_at",
+        (str(counterparty).lower(), int(info.get("partners") or 0), int(info.get("transfers") or 0),
+         1 if info.get("complete") else 0, _now_iso()),
+    )
+    conn.commit()
+
+
+def pending_fanout_counterparties(
+    conn: sqlite3.Connection, degree_cap: int = DEFAULT_MAX_SHARED_WALLETS
+) -> list[str]:
+    """Geteilte Gegenparteien, deren globaler Fan-out noch nicht bekannt ist.
+
+    Nur die, die eine harte Kante ERZEUGEN wuerden (2 bis ``degree_cap``
+    bediente Wallets im Scan-Set): fuer alles darueber ist die Antwort
+    ohnehin Kandidat, und ein Lookup je Adresse kostet Etherscan-Abrufe.
+    """
+
+    rows = conn.execute(
+        "SELECT counterparty FROM funding_links"
+        " WHERE counterparty NOT IN (SELECT wallet FROM scans)"
+        " AND counterparty NOT IN (SELECT counterparty FROM counterparty_fanout)"
+        " GROUP BY counterparty"
+        " HAVING COUNT(DISTINCT wallet) BETWEEN 2 AND ?",
+        (int(degree_cap),),
+    ).fetchall()
+    return [row[0] for row in rows]
+
+
 def _merge_json(sample_a: str, sample_b: str) -> str:
     try:
         a = json.loads(sample_a or "[]")
@@ -300,6 +351,7 @@ def rebuild_edges(
     conn: sqlite3.Connection,
     degree_cap: int = DEFAULT_MAX_SHARED_WALLETS,
     narrow_window_hours: float = NARROW_WINDOW_HOURS,
+    global_fanout_cap: int = DEFAULT_GLOBAL_FANOUT_CAP,
 ) -> dict[str, int]:
     """Alle Kanten aus den Link-Tabellen neu ableiten. Idempotent.
 
@@ -355,20 +407,29 @@ def rebuild_edges(
                 "tx_sample": json.loads(tx or "[]"),
             }, _min_iso(first_ts, last_ts))
 
-    # Gemeinsame externe Gegenparteien, je Richtung. Zwei Entscheidungen,
-    # beide in den Belegen nachlesbar:
+    # Gemeinsame externe Gegenparteien, je Richtung. Drei Entscheidungen,
+    # alle in den Belegen nachlesbar:
     #
-    # 1. Die Zahl der bedienten Wallets trennt Stufe 1 von Stufe 2. Bis
-    #    ``degree_cap`` (Standard 2) fuehrt der geteilte Fund hart zusammen -
-    #    das ist der Operator-Fall, eine private Quelle speist genau zwei
-    #    Konten. Darueber ist es auf Polygon fast immer ein Deposit-Router
-    #    oder eine Boersen-Hotwallet und wird Kandidat. Der fruehere absolute
-    #    Cap von 4 liess hunderte Router (je vier Wallets) knapp darunter
-    #    durch, die sich transitiv zu einer 47-Wallet-"Entity" verbanden.
+    # 1. Die Zahl der bedienten Wallets IM SCAN-SET trennt Stufe 1 von
+    #    Stufe 2. Bis ``degree_cap`` (Standard 2) fuehrt der geteilte Fund
+    #    hart zusammen - der Operator-Fall, eine private Quelle speist genau
+    #    zwei Konten. Darueber ist es auf Polygon fast immer ein
+    #    Deposit-Router oder eine Boersen-Hotwallet und wird Kandidat.
     #
-    # 2. Ein Paar kann mehrere Gegenparteien teilen; die Belege werden je
+    # 2. Der GLOBALE Fan-out (counterparty_fanout, nachgeschlagen vom Scan)
+    #    schliesst die Luecke des lokalen Grads: eine Quelle mit mehr als
+    #    ``global_fanout_cap`` Partner-Adressen on-chain ist Infrastruktur,
+    #    auch wenn sie lokal nur zwei Wallets beruehrt. Ohne Lookup bleibt
+    #    die Kante hart, aber der Beleg sagt ausdruecklich, dass der globale
+    #    Blick fehlt (``global_partners: null``).
+    #
+    # 3. Ein Paar kann mehrere Gegenparteien teilen; die Belege werden je
     #    Paar GESAMMELT statt ueberschrieben. Drei geteilte Ziele sind ein
     #    staerkerer Befund als eines, und vorher ueberlebte nur das letzte.
+    fanout = {
+        str(zeile[0]): {"partners": int(zeile[1]), "complete": bool(zeile[2])}
+        for zeile in conn.execute("SELECT counterparty, partners, complete FROM counterparty_fanout")
+    }
     paare: dict[tuple[str, str, str], dict[str, Any]] = {}
     for richtung, typ in (("in", TYP_SHARED_FUNDER), ("out", TYP_SHARED_WITHDRAWAL)):
         gruppen: dict[str, list[tuple[str, int, float, str, str, str]]] = {}
@@ -382,7 +443,10 @@ def rebuild_edges(
         for gegen, mitglieder in gruppen.items():
             if len(mitglieder) < 2:
                 continue
-            hub = len(mitglieder) > int(degree_cap)
+            global_info = fanout.get(gegen)
+            global_partners = global_info["partners"] if global_info else None
+            hub = (len(mitglieder) > int(degree_cap)
+                   or (global_partners is not None and global_partners > int(global_fanout_cap)))
             for i in range(len(mitglieder)):
                 for j in range(i + 1, len(mitglieder)):
                     a, b = mitglieder[i], mitglieder[j]
@@ -403,6 +467,11 @@ def rebuild_edges(
                     slot["shared_counterparties"].append({
                         "counterparty": gegen, "direction": richtung,
                         "counterparty_wallets": len(mitglieder),
+                        # None heisst: der globale Blick fehlt noch. Das ist
+                        # eine andere Aussage als "gecheckt und privat", und
+                        # die Flaeche soll beide unterscheiden koennen.
+                        "global_partners": global_partners,
+                        "global_complete": (global_info["complete"] if global_info else None),
                         "narrow_window": bool(eng),
                         "transfers": int(a[1]) + int(b[1]),
                         "amount": float(a[2]) + float(b[2]),

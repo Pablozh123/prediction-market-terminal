@@ -164,6 +164,35 @@ class PositionTransferTests(unittest.TestCase):
         self.assertEqual(len(frame), 2)
 
 
+class FanoutTests(unittest.TestCase):
+    """Der globale Fan-out einer Gegenpartei: privat oder Infrastruktur?"""
+
+    def test_partners_are_distinct_addresses_on_the_other_side(self) -> None:
+        def get(params):
+            return {"result": [
+                {"hash": "0x1", "from": WALLET, "to": EXTERN, "blockNumber": "10", "value": "1"},
+                {"hash": "0x2", "from": WALLET, "to": EXTERN, "blockNumber": "11", "value": "1"},
+                {"hash": "0x3", "from": "0x" + "9" * 40, "to": WALLET, "blockNumber": "12", "value": "1"},
+            ]}
+
+        info = ff.counterparty_fanout(WALLET, "key", contracts=[USDC_E], pause=0.0, get=get)
+        # EXTERN zweimal und einmal 0x999...: zwei verschiedene Partner.
+        self.assertEqual(info["partners"], 2)
+        self.assertEqual(info["transfers"], 3)
+        self.assertTrue(info["complete"])
+
+    def test_a_full_page_makes_partners_a_lower_bound(self) -> None:
+        def get(params):
+            return {"result": [
+                {"hash": f"0x{i}", "from": WALLET, "to": "0x" + f"{i:040x}", "blockNumber": str(i), "value": "1"}
+                for i in range(3)
+            ]}
+
+        info = ff.counterparty_fanout(WALLET, "key", contracts=[USDC_E], page_size=3, pause=0.0, get=get)
+        self.assertEqual(info["partners"], 3)
+        self.assertFalse(info["complete"])
+
+
 class ApiKeyTests(unittest.TestCase):
     def test_the_dotenv_fallback_reads_the_key_without_logging_it(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

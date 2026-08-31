@@ -1419,7 +1419,7 @@ function rendern(T) {
         stats: { scans: 12, hard_edges: 1, candidate_edges: 3, multi_wallet_entities: 1 },
         entities: [{ entity_id: 'entity:' + wa, wallets: [wa, wb], edges: [
           { wallet_a: wa, wallet_b: wb, typ: 'shared_funder', konfidenz: 0.8, first_seen: '2026-07-01T00:00:00Z',
-            evidenz: { shared_counterparties: [{ counterparty: funder, direction: 'in', counterparty_wallets: 2, transfers: 22, amount: 0.48, tx_sample: ['0xabc123abc123abc'] }] } }
+            evidenz: { shared_counterparties: [{ counterparty: funder, direction: 'in', counterparty_wallets: 2, global_partners: 3, global_complete: true, transfers: 22, amount: 0.48, tx_sample: ['0xabc123abc123abc'] }] } }
         ] }],
         entities_capped: false,
         candidates: [{ counterparty: router, direction: 'out', wallets: [wa, wb], wallet_count: 6, narrow_pairs: 1 }],
