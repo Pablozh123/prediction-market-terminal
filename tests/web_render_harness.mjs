@@ -400,11 +400,12 @@ function mitDaten(T) {
     _quelle: 'live', rows: T.crossPairs, candidates_before_gate: 9,
     gate: { min_similarity: 0.5, require_volume_both: true }, as_of: '2026-08-17 10:00 UTC',
     depth_rows: 12,
-    // Ein Paar, das der Paar-Check aussortiert hat: gezaehlt und benannt,
-    // aber ohne jede Zahl.
+    // Ein Paar, das der Paar-Check aussortiert hat: gezaehlt, benannt und
+    // gelistet — jede Seite mit ihrem eigenen Kurs, aber ohne Luecke,
+    // Spanne oder Netto.
     suppressed: {
       total: 1, by_verdict: { opposed: 1 },
-      examples: [{ event: 'Bitcoin above $120,000', other: 'Bitcoin below $120,000', verdict: 'opposed', why: 'opposite direction (threshold): above against below' }]
+      examples: [{ event: 'Bitcoin above $120,000', other: 'Bitcoin below $120,000', verdict: 'opposed', why: 'opposite direction (threshold): above against below', pm: 62, ks: 37, sim: 0.78 }]
     }
   };
   T.liveData.resolved = {
@@ -1167,7 +1168,22 @@ function rendern(T) {
     ['cross_gate_empty', 'cross', {}, null, (T) => {
       const alt = { pairs: T.crossPairs, hk: T.herkunft.cross, live: T.liveData.cross };
       T.crossPairs = []; T.herkunft.cross = { quelle: 'leer' };
-      T.liveData.cross = { _quelle: 'live', rows: [], candidates_before_gate: 7, gate: { min_similarity: 0.5, require_volume_both: true } };
+      // Leeres Gate, aber nicht leere Antwort: die verworfenen Fast-Paare
+      // stehen unter dem Gate-Block, jede Seite mit ihrem eigenen Kurs.
+      T.liveData.cross = {
+        _quelle: 'live', rows: [], candidates_before_gate: 7,
+        gate: { min_similarity: 0.5, require_volume_both: true },
+        suppressed: {
+          total: 4, by_verdict: { different_question: 4 },
+          examples: [{
+            event: 'Will Gavin Newsom win the 2028 US Presidential Election?',
+            other: 'Will Gavin Newsom be the Democratic Presidential nominee in 2028?',
+            verdict: 'different_question',
+            why: 'different scope (election vs nomination): election against nominee',
+            pm: 8, ks: 14, sim: 0.59
+          }]
+        }
+      };
       return () => { T.crossPairs = alt.pairs; T.herkunft.cross = alt.hk; T.liveData.cross = alt.live; };
     }],
     // Backtester run states without a result: running, rate-limited, error.
