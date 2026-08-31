@@ -1414,7 +1414,7 @@ function rendern(T) {
       const funder = '0x' + 'f'.repeat(40);
       const router = '0x' + '4'.repeat(40);
       T.liveData.graph = {
-        available: true, as_of: '2026-08-30 12:00 UTC',
+        _quelle: 'live', available: true, as_of: '2026-08-30 12:00 UTC',
         caveat: 'A best-effort behavioural screen on public trade data: research leads, not legal findings.',
         stats: { scans: 12, hard_edges: 1, candidate_edges: 3, multi_wallet_entities: 1 },
         entities: [{ entity_id: 'entity:' + wa, wallets: [wa, wb], edges: [
@@ -1432,7 +1432,14 @@ function rendern(T) {
       return () => { T.liveData.graph = null; };
     }],
     ['graph_unavailable', 'graph', {}, null, (T) => {
-      T.liveData.graph = { available: false, note: 'no entity graph on this host; run scripts/run_entity_scan.py', as_of: '2026-08-30 12:00 UTC' };
+      // _quelle 'live' wie in app.js::fetchGraph: eine ehrliche
+      // no-graph-Antwort ist ein Befund und darf nie wie Laden aussehen.
+      T.liveData.graph = { _quelle: 'live', available: false,
+        note: 'no entity graph on this host; run scripts/run_entity_scan.py',
+        behavior: { available: true, note: 'Tier 3 behaviour patterns from the stored tape: shown next to the entities, never used to merge accounts.',
+          fingerprints: [{ wallet: '0x' + 'a'.repeat(40), burst_prints: 28, burst_seconds: 33, burst_market: 'Harness burst market' }],
+          complementary_pairs: [] },
+        as_of: '2026-08-30 12:00 UTC' };
       return () => { T.liveData.graph = null; };
     }],
     ['wallet_tab_linked', 'wallet', { walletTab: 'linked' }, null, (T) => {

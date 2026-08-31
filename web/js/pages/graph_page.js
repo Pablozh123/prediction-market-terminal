@@ -142,7 +142,7 @@ export function renderGraph(T) {
   if (typeof T.fetchGraph === 'function') T.fetchGraph();
   const entry = T.liveData ? T.liveData.graph : null;
   const head = '<div style="padding:var(--sp-5) var(--sp-6) var(--sp-7)">';
-  if (!entry || entry._quelle === 'loading' || (!entry._quelle && !entry.available)) {
+  if (!entry || entry._quelle === 'loading') {
     return head + '<div style="' + KARTE + '; padding:var(--sp-6); ' + NOTIZ + '">Reading the local entity graph…</div></div>';
   }
   if (entry._quelle === 'fehler') {
@@ -150,9 +150,14 @@ export function renderGraph(T) {
   }
   const d = entry;
   if (!d.available) {
+    // Kein Graph ist ein Befund, kein Ladezustand - und das Verhalten aus
+    // dem Tape-Store gibt es auch ohne Graphen, sobald der Host einen
+    // Store traegt (auf dem Deploy-Host laeuft der Aufbau zuerst).
     return head + intro({ stats: {} })
-      + card('NO GRAPH ON THIS HOST',
-        '<div style="' + NOTIZ + '">' + esc(d.note || 'No entity graph here.') + ' The graph is built by a local scan (scripts/run_entity_scan.py) into a database this host does not carry; the public site shows it where the scan runs.</div>')
+      + card('NO GRAPH ON THIS HOST YET',
+        '<div style="' + NOTIZ + '">' + esc(d.note || 'No entity graph here.') + ' The graph is built by the entity scan into a local database; until it exists there is nothing to link by, which is a state, not an error.</div>')
+      + renderBehavior(T, d)
+      + (d.as_of ? '<div style="' + NOTIZ + '; margin-top:var(--sp-4)">as of ' + esc(d.as_of) + '</div>' : '')
       + '</div>';
   }
   return head + intro(d)

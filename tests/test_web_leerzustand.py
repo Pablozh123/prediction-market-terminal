@@ -167,6 +167,23 @@ class WebLeerzustandTest(unittest.TestCase):
                 self.assertNotRegex(html, r'<polyline points="\s*\d')
                 self.assertNotRegex(html, r'<path d="M\s*\d')
 
+    def test_graph_ohne_bestand_ist_ein_befund_kein_ladezustand(self) -> None:
+        # Der Deploy-Host antwortete ehrlich available:false, und die Seite
+        # las das als "Reading the local entity graph" - fuer immer, weil die
+        # Antwort keine _quelle-Marke trug und die Ladebedingung sie deshalb
+        # fing. Der Zustand muss den Befund nennen UND das Verhalten aus dem
+        # Store zeigen, das es auch ohne Graphen gibt.
+        text = _sichtbarer_text(self.ausgabe["live"]["graph_unavailable"])
+        self.assertIn("NO GRAPH ON THIS HOST YET", text)
+        self.assertNotIn("Reading the local entity graph", text)
+        self.assertIn("Harness burst market", text)
+
+    def test_graph_mit_bestand_zeigt_entities_und_kandidaten(self) -> None:
+        text = _sichtbarer_text(self.ausgabe["live"]["graph_data"])
+        self.assertIn("LINKED ENTITIES", text)
+        self.assertIn("same external funding source", text)
+        self.assertIn("shown, never merged", text)
+
     def test_mit_daten_echte_werte(self) -> None:
         text = _sichtbarer_text(self.ausgabe["live"]["overview"])
         self.assertIn("$125k", text)

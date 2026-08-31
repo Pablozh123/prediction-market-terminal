@@ -1013,7 +1013,14 @@ class Terminal {
     if (this.liveData.graph && !force) return;
     this.liveData.graph = { _quelle: 'loading' };
     apiGet('/api/graph')
-      .then((antwort) => { this.liveData.graph = antwort && typeof antwort === 'object' ? antwort : { available: false, note: 'empty answer' }; })
+      .then((antwort) => {
+        // Die Marke unterscheidet "Antwort ohne Graphen" (available:false,
+        // ein Befund) vom Laden. Ohne sie las die Seite jede ehrliche
+        // no-graph-Antwort fuer immer als "Reading the local entity graph".
+        const daten = antwort && typeof antwort === 'object' ? antwort : { available: false, note: 'empty answer' };
+        daten._quelle = 'live';
+        this.liveData.graph = daten;
+      })
       .catch((err) => { this.liveData.graph = { _quelle: 'fehler', _fehler: String(err && err.message ? err.message : err) }; })
       .then(() => this.render());
   }
