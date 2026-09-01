@@ -58,9 +58,11 @@ def event_slugs_from_copy_db(db_path: Path, wallet: str, limit: int,
     urls = []
     for blob in rows["source_json"]:
         try:
-            urls.append(json.loads(blob).get("url", ""))
+            parsed = json.loads(blob)
         except (TypeError, ValueError):
             continue
+        if isinstance(parsed, dict):
+            urls.append(parsed.get("url", ""))
     slugs = brs.event_slugs_from_urls(urls)
     if sample == "first" or len(slugs) <= limit:
         return slugs[:limit]

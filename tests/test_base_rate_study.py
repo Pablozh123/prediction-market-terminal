@@ -1,10 +1,16 @@
+import importlib.util
 import json
 import random
+import sqlite3
+import tempfile
 import unittest
+from pathlib import Path
 
 import pandas as pd
 
 from app import base_rate_study as brs
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def market(question: str, no_won: bool, *, closed: bool = True,
@@ -284,6 +290,58 @@ class SelectionComparisonTests(unittest.TestCase):
 
     def test_empty_inputs_are_handled(self) -> None:
         self.assertTrue(brs.compare_to_wallet(pd.DataFrame(), pd.DataFrame()).empty)
+
+
+def load_run_script():
+    script = REPO_ROOT / "scripts" / "run_base_rate_study.py"
+    spec = importlib.util.spec_from_file_location("run_base_rate_study_under_test", script)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class EventSlugsFromCopyDbTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.mod = load_run_script()
+
+    @staticmethod
+    def _seed_db(db_path: Path, blobs: list) -> None:
+        conn = sqlite3.connect(db_path)
+        try:
+            conn.execute(
+                """CREATE TABLE paper_orders (
+                    source_wallet TEXT, title TEXT, source_json TEXT
+                )"""
+            )
+            for blob in blobs:
+                conn.execute(
+                    "INSERT INTO paper_orders VALUES (?, 'Exact Score: A 0 - 0 B', ?)",
+                    ("0xwallet", blob),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def test_a_row_whose_json_is_not_an_object_is_skipped_not_fatal(self) -> None:
+        # "[]" is valid JSON but has no .get(), unlike a malformed string.
+        blobs = [
+            "[]",
+            json.dumps({"url": "https://polymarket.com/event/match-exact-score"}),
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "copy.sqlite"
+            self._seed_db(db_path, blobs)
+            slugs = self.mod.event_slugs_from_copy_db(db_path, "0xwallet", limit=10)
+        self.assertEqual(slugs, ["match-exact-score"])
+
+    def test_malformed_json_string_is_still_skipped(self) -> None:
+        blobs = ["not json", json.dumps({"url": "https://polymarket.com/event/still-fine"})]
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "copy.sqlite"
+            self._seed_db(db_path, blobs)
+            slugs = self.mod.event_slugs_from_copy_db(db_path, "0xwallet", limit=10)
+        self.assertEqual(slugs, ["still-fine"])
 
 
 if __name__ == "__main__":
