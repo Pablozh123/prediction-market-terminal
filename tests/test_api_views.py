@@ -36,6 +36,14 @@ class LeaderboardRowsTests(unittest.TestCase):
     def test_empty_frame(self) -> None:
         self.assertEqual(apv.leaderboard_rows(pd.DataFrame()), [])
 
+    def test_missing_pnl_and_volume_stay_null(self) -> None:
+        # Ohne Zahl kein Rang: 0.0 als Rueckfall liess ein Wallet ohne
+        # Volumen unter "Profit / volume" mit pnl/1 ganz oben stehen.
+        lb = pd.DataFrame([{"trader": "x", "wallet": "0xCCC3333333333333333333", "pnl": None, "volume": float("nan")}])
+        row = apv.leaderboard_rows(lb, None)[0]
+        self.assertIsNone(row["pnl"])
+        self.assertIsNone(row["vol"])
+
 
 class WalletDetailTests(unittest.TestCase):
     def test_passes_caveats_through(self) -> None:
@@ -244,6 +252,10 @@ class WalletPageBlocksTests(unittest.TestCase):
         self.assertEqual(closed["worthless_not_redeemed"], 1)
         self.assertFalse(closed["capped"])
         self.assertEqual(closed["rows"][0]["result"], "lost")             # |-50| sorts before |+40|
+        # total_bought zaehlt Shares; der Dollar-Einsatz ist Shares mal
+        # Einstiegspreis (100 x 0.50 = $50) und steht als eigene Zahl dabei.
+        self.assertAlmostEqual(closed["rows"][0]["cost_usd"], 50.0)
+        self.assertAlmostEqual(closed["rows"][0]["total_bought"], 100.0)
         self.assertIn("50 rows per tail", closed["source"])
 
         act = payload["activity"]

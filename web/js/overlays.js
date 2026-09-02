@@ -2,9 +2,10 @@
 // Wallet details show scorecard fields (n, CI, verdict, snapshot) when the API
 // answered for that wallet; scores never render without their sample size.
 
-import { esc, money, num, stempel, volume as volumeLabel } from './util.js';
+import { esc, money, num, stempel, volume as volumeLabel, seriesDomain, seriesGrid, gradeLabel } from './util.js';
 import { scorePartsOf } from './pages/trader_pages.js';
-import { isFullAddress } from './pages/wallet_page.js';
+import { isFullAddress, pnlShown } from './pages/wallet_page.js';
+import { kurzGeld } from './charts.js';
 import { MONO as M } from './ui.js';
 
 const STAT_VAL = M + '; font-size:var(--t-head); margin-top:var(--sp-2)';
@@ -19,7 +20,10 @@ export function renderDetail(T) {
     const hist = T.liveData.marketHistory && T.liveData.marketHistory[d.id];
     // Ohne Historie kein Diagramm. Hier lief ein Zufallspfad aus dem Preis
     // als Startwert unter der Ueberschrift YES PRICE · 24H.
-    const c = { pts: hist ? T.seriesPoints(hist, 340, 150) : '' };
+    // Preise leben in 0..100 Cent; die Kurve bekommt diese Spanne, sonst
+    // fuellte ein Zucken von 49 auf 51 Cent die ganze Hoehe.
+    const histDom = hist && hist.length > 1 ? { min: 0, max: 100 } : null;
+    const c = { pts: hist ? T.seriesPoints(hist, 340, 150, histDom) : '', grid: seriesGrid(histDom, 340, 150, (v) => v + '¢') };
     v = {
       kicker: 'MARKET',
       accent: m.chg >= 0 ? 'var(--pos)' : 'var(--neg)',
@@ -27,6 +31,7 @@ export function renderDetail(T) {
       meta: m.venue + ' · ' + m.cat + ' · resolves ' + m.ends,
       chartLabel: 'YES PRICE · 24H',
       chartPoints: c.pts,
+      chartGrid: c.grid,
       chartEmpty: 'No price history loaded for this market — /api/market/<id>/history did not answer.',
       axisStart: '24h ago',
       listEmpty: 'No print of this market in the current tape window.',
@@ -80,7 +85,17 @@ export function renderDetail(T) {
     // Rueckfall zeichnete einen Zufallspfad mit Drift +0.9 unter der
     // Ueberschrift PROFIT CURVE · 90 DAYS, neben dem echten Namen einer
     // echten Wallet.
-    const chartPoints = wd && wd.pnl_curve && wd.pnl_curve.length > 1 ? T.seriesPoints(wd.pnl_curve, 340, 150) : '';
+    // Dieselbe Kurve wie die Wallet-Seite: die Profilkurve, ausser sie ist
+    // flach — dann die abgerechnete Kurve aus den geschlossenen Zeilen. Der
+    // Kasten zeichnete bisher immer pnl_curve und damit fuer solche Wallets
+    // eine waagerechte Linie unter der Ueberschrift PROFIT CURVE.
+    const shown = wd ? pnlShown(wd) : null;
+    const curveVals = shown && shown.curve && Array.isArray(shown.curve.points)
+      ? shown.curve.points.map((pt) => Number(pt.pnl))
+      : (wd && wd.pnl_curve ? wd.pnl_curve : []);
+    const curveDom = seriesDomain(curveVals);
+    const chartPoints = curveVals.length > 1 ? T.seriesPoints(curveVals, 340, 150, curveDom) : '';
+    const chartGrid = seriesGrid(curveDom, 340, 150, (v) => kurzGeld(v));
     const track = wd && wd.track ? wd.track : null;
     const edge = wd && wd.realized_edge ? wd.realized_edge : null;
     const sample = wd && wd.sample ? wd.sample : null;
@@ -91,7 +106,7 @@ export function renderDetail(T) {
     // settled figures of /api/wallet — never a placeholder.
     const profit = t ? t.pnl : (rec && rec.settled_pnl != null ? rec.settled_pnl : null);
     const volume = t ? t.vol : (rec && rec.volume != null ? rec.volume : null);
-    const grade = (t && t.grade) || (rec && rec.grade) || '';
+    const grade = gradeLabel((t && t.grade) || (rec && rec.grade) || '');
     let note = '';
     if (wd) {
       const parts = [];
@@ -152,12 +167,13 @@ export function renderDetail(T) {
       accent: 'var(--accent)',
       title: t ? t.name : (wd && wd.identity && wd.identity.pseudonym) || d.id || shortAddr,
       meta: (t ? t.wallet : (addr || 'address not public')) + (grade ? ' · grade ' + grade : ''),
-      chartLabel: 'PROFIT CURVE' + (curveWindow ? ' · ' + curveWindow : ''),
+      chartLabel: (shown && shown.kind === 'settled' ? 'SETTLED PNL CURVE · CLOSED ROWS' : 'PROFIT CURVE') + (curveWindow ? ' · ' + curveWindow : ''),
       chartPoints,
+      chartGrid,
       chartEmpty: addr
         ? 'No profit curve for this wallet — /api/wallet did not answer with one.'
         : 'No profit curve — no address is known for this wallet, so /api/wallet was not asked.',
-      axisStart: wd && wd.pnl && wd.pnl.points && wd.pnl.points.length ? String(wd.pnl.points[0].t || '').slice(0, 10) : 'start',
+      axisStart: shown && shown.curve && shown.curve.points && shown.curve.points.length ? String(shown.curve.points[0].t || '').slice(0, 10) : 'start',
       listEmpty: nurTape
         ? 'No print of this wallet in the current tape window.'
         : 'No trades for this wallet — /api/wallet did not answer with any.',
@@ -206,11 +222,8 @@ export function renderDetail(T) {
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3); margin-bottom:var(--sp-4)">' + v.chartLabel + '</div>'
     + (v.chartPoints
       ? '<svg width="100%" height="150" viewBox="0 0 340 150" preserveAspectRatio="none" role="img" aria-label="' + esc(v.chartLabel || 'chart') + '">'
-        + '<line x1="0" y1="25" x2="340" y2="25" style="stroke:rgba(var(--ink),.07)" />'
-        + '<line x1="0" y1="70" x2="340" y2="70" style="stroke:rgba(var(--ink),.07)" />'
-        + '<line x1="0" y1="115" x2="340" y2="115" style="stroke:rgba(var(--ink),.07)" />'
-        + '<line x1="0" y1="145" x2="340" y2="145" style="stroke:rgba(var(--ink),.14)" />'
-        + '<polyline points="' + v.chartPoints + '" fill="none" style="stroke:' + v.accent + '" stroke-width="2" /></svg>'
+        + (v.chartGrid || '<line x1="0" y1="145" x2="340" y2="145" style="stroke:rgba(var(--ink),.14)" />')
+        + '<polyline points="' + v.chartPoints + '" fill="none" style="stroke:' + v.accent + '" stroke-width="2" vector-effect="non-scaling-stroke" /></svg>'
         + '<div style="display:flex; justify-content:space-between; ' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-3)">'
         + '<span>' + v.axisStart + '</span><span>now</span></div>'
       : '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); line-height:var(--lh-prose)">' + esc(v.chartEmpty) + '</div>')

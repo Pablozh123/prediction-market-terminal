@@ -14,12 +14,24 @@ const BALKEN_FARBE = { gewinn: 'var(--pos)', kosten: 'var(--neg)', summe: 'var(-
 // Diagrammgeometrie des Balken- und Intervalldiagramms. Labelspalte links,
 // Balken rechts.
 const BREITE = 640;
-const LABEL_X = 196;
-const PLOT_L = LABEL_X + 12;
 // Rechts genug Platz fuer ein Intervall-Label wie "55.2 … 55.5" — mit 58px
 // wurde es am SVG-Rand abgeschnitten.
-const PLOT_R = BREITE - 96;
+const PLOT_R = BREITE - 112;
 const ZEILE = 30;
+// Die Labelspalte waechst mit dem laengsten Label, bis zu 44 Zeichen
+// (dann bleibt dem Balken noch die halbe Breite); darueber kuerzt
+// labelText mit Ellipse. Eine feste Spalte von 196 Einheiten schnitt die
+// Begruendungen der Pipeline ("YES ask (incl. fee) above the run cap")
+// links ab oder haette sie unlesbar gekuerzt.
+const LABEL_MIN = 196;
+const LABEL_MAX = 44;
+const ZEICHEN = 6.9;
+function geometrie(dia) {
+  const laengste = Math.max(0, ...(dia.punkte || []).map((p) => String(p.label || '').length));
+  const zeichen = Math.min(LABEL_MAX, laengste);
+  const labelX = Math.max(LABEL_MIN, Math.ceil(zeichen * ZEICHEN) + 8);
+  return { labelX, plotL: labelX + 12, plotR: PLOT_R, zeichen: Math.max(Math.floor((labelX - 8) / ZEICHEN), 1) };
+}
 
 export function fmtZahl(wert) {
   if (wert === null || wert === undefined) return '—';
@@ -45,30 +57,52 @@ function werteVon(dia) {
   return raus;
 }
 
-function skalaVon(dia) {
+function skalaVon(dia, geo) {
+  const PLOT_L = geo.plotL, PLOT_R = geo.plotR;
   const werte = werteVon(dia);
   let min = Math.min(0, ...werte);
   let max = Math.max(0, ...werte);
   // Liegt alles weit ueber null — etwa Trefferquoten um 55 mit Referenz 50 —
   // wuerde die Nullverankerung jede Differenz auf Strichbreite stauchen.
   // Dann zaehlt der Referenzwert als Anker statt der Null.
+  let verankert = false;
   if (typeof dia.referenz === 'number' && Math.min(...werte) > 0 && dia.referenz > 0) {
     min = Math.min(...werte, dia.referenz);
     max = Math.max(...werte, dia.referenz);
+    verankert = true;
   }
   if (min === max) { max = min + 1; }
   const luft = (max - min) * 0.08;
   min -= luft; max += luft;
   const spanne = max - min;
+  // Gruen und Rot sind Vorzeichenfarben: sie gelten nur, wenn das Diagramm
+  // ein Vorzeichen hat (negative Werte oder eine Referenz, gegen die
+  // gemessen wird). Reine Zaehlungen bleiben neutral.
+  const vorzeichen = werte.some((w) => w < 0) || typeof dia.referenz === 'number';
   return {
-    min, max,
+    min, max, verankert, vorzeichen,
+    // Die Datenspanne ohne Luft: was an den Achsenenden beschriftet wird.
+    datenMin: min + luft, datenMax: max - luft,
     x: (w) => PLOT_L + ((w - min) / spanne) * (PLOT_R - PLOT_L)
   };
 }
 
-function achse(sk, dia, hoehe) {
+function achse(sk, dia, hoehe, geo) {
+  const PLOT_L = geo.plotL, PLOT_R = geo.plotR;
   let out = '';
   const nullX = sk.x(0);
+  // Eine referenzverankerte Skala beginnt nicht bei null. Ohne Beschriftung
+  // laese sich ein Balken von 98.6 gegen 100 wie ein voller Balken; darum
+  // stehen die Enden der Datenspanne an der Grundlinie, mit einem
+  // Achsenbruch links, der sagt: hier fehlt der Weg zur Null.
+  if (sk.verankert) {
+    const ty = hoehe - 8;
+    out += '<text x="' + PLOT_L + '" y="' + ty + '" style="fill:var(--ink-3)" font-size="10.5" '
+      + 'font-family="IBM Plex Mono, monospace" text-anchor="start">' + esc(fmtZahl(sk.datenMin)) + '</text>'
+      + '<text x="' + PLOT_R + '" y="' + ty + '" style="fill:var(--ink-3)" font-size="10.5" '
+      + 'font-family="IBM Plex Mono, monospace" text-anchor="end">' + esc(fmtZahl(sk.datenMax)) + '</text>'
+      + '<path d="M ' + (PLOT_L - 9) + ' ' + (hoehe - 25) + ' l 3 -4 l 3 8 l 3 -4" fill="none" style="stroke:rgba(var(--ink),.45)" stroke-width="1" />';
+  }
   if (sk.min < 0 && sk.max > 0) {
     out += '<line x1="' + nullX + '" y1="6" x2="' + nullX + '" y2="' + (hoehe - 22)
       + '" style="stroke:rgba(var(--ink),.28)" stroke-width="1" />';
@@ -86,14 +120,29 @@ function achse(sk, dia, hoehe) {
   return out;
 }
 
-function labelText(text, y) {
-  return '<text x="' + LABEL_X + '" y="' + (y + 4) + '" style="fill:var(--ink-2)" font-size="11.5" '
-    + 'font-family="IBM Plex Mono, monospace" text-anchor="end">' + esc(text) + '</text>';
+// Ein Zeichen in 11.5px IBM Plex Mono misst rund 6.9 Einheiten der
+// 640er-Zeichenflaeche. Die Labelspalte fasst damit 27 Zeichen, die
+// Wertspalte rechts 15 ("$89.66  +20.32"). Was laenger ist, wird mit Ellipse gekuerzt und
+// steht vollstaendig im <title>; vorher fiel der Anfang eines langen
+// Labels links aus dem SVG und ein langer Wert rechts.
+const WERT_ZEICHEN = 15;
+function kuerzen(text, n) {
+  const t = String(text == null ? '' : text);
+  return t.length > n ? t.slice(0, Math.max(1, n - 1)) + '…' : t;
+}
+
+function labelText(text, y, geo) {
+  const voll = String(text == null ? '' : text);
+  const kurz = kuerzen(voll, geo.zeichen);
+  return '<text x="' + geo.labelX + '" y="' + (y + 4) + '" style="fill:var(--ink-2)" font-size="11.5" '
+    + 'font-family="IBM Plex Mono, monospace" text-anchor="end">' + (kurz !== voll ? '<title>' + esc(voll) + '</title>' : '') + esc(kurz) + '</text>';
 }
 
 function wertText(text, x, y, farbe) {
+  const voll = String(text == null ? '' : text);
+  const kurz = kuerzen(voll, WERT_ZEICHEN);
   return '<text x="' + x + '" y="' + (y + 4) + '" style="fill:' + farbe + '" font-size="11.5" '
-    + 'font-family="IBM Plex Mono, monospace">' + esc(text) + '</text>';
+    + 'font-family="IBM Plex Mono, monospace">' + (kurz !== voll ? '<title>' + esc(voll) + '</title>' : '') + esc(kurz) + '</text>';
 }
 
 /** Balken- und Intervalldiagramm. Eine Zeile je Punkt, Nulllinie wenn noetig. */
@@ -102,7 +151,9 @@ export function diagramm(dia) {
   const gruppen = Array.isArray(dia.gruppen) ? dia.gruppen : null;
   const zeilen = gruppen ? dia.punkte.length * gruppen.length : dia.punkte.length;
   const hoehe = zeilen * ZEILE + 40;
-  const sk = skalaVon(dia);
+  const geo = geometrie(dia);
+  const PLOT_R = geo.plotR, PLOT_L = geo.plotL;
+  const sk = skalaVon(dia, geo);
   let y = 18;
   let koerper = '';
 
@@ -112,7 +163,7 @@ export function diagramm(dia) {
         const farbe = BALKEN_FARBE[p.art] || 'var(--info)';
         const x0 = sk.x(0);
         const x1 = sk.x(w);
-        koerper += labelText(gruppen[i] + ' · ' + p.label, y);
+        koerper += labelText(gruppen[i] + ' · ' + p.label, y, geo);
         koerper += '<rect x="' + Math.min(x0, x1) + '" y="' + (y - 8) + '" width="' + Math.abs(x1 - x0)
           + '" height="16" rx="3" style="fill:' + farbe + '" fill-opacity="' + (i === 0 ? '.45' : '.95') + '" />';
         koerper += wertText(fmtZahl(w), PLOT_R + 8, y, 'var(--ink-2)');
@@ -121,7 +172,7 @@ export function diagramm(dia) {
       return;
     }
 
-    koerper += labelText(p.label, y);
+    koerper += labelText(p.label, y, geo);
     if (typeof p.von === 'number' && typeof p.bis === 'number') {
       const xa = sk.x(p.von);
       const xb = sk.x(p.bis);
@@ -131,7 +182,11 @@ export function diagramm(dia) {
       // Hantel (zwei Lesarten derselben Zahl) faerbt nach dem Endwert und
       // beschriftet ihn, nicht die Spanne. Ohne beide bleibt es das alte
       // Intervall mit Referenzfaerbung.
-      const farbe = p.farbe || (beruehrt ? 'var(--warn)' : 'var(--info)');
+      // Ein Intervall, das die Referenz nicht beruehrt, liegt auf einer
+      // Seite von ihr, und die Seite ist die Aussage: ueber der Referenz
+      // gruen, darunter rot. Blau fuer beide hiess nur "signifikant" und
+      // liess einen signifikant negativen Edge wie einen positiven aussehen.
+      const farbe = p.farbe || (beruehrt ? 'var(--warn)' : (p.wert < (dia.referenz || 0) ? 'var(--neg)' : 'var(--pos)'));
       koerper += '<line x1="' + xa + '" y1="' + y + '" x2="' + xb + '" y2="' + y
         + '" style="stroke:' + farbe + '" stroke-width="3" stroke-linecap="round" stroke-opacity="' + (p.farbe ? '.45' : '1') + '" />';
       koerper += '<line x1="' + xa + '" y1="' + (y - 6) + '" x2="' + xa + '" y2="' + (y + 6)
@@ -144,11 +199,14 @@ export function diagramm(dia) {
       // p.farbe schlaegt das Vorzeichen: ein Balken, dessen Laenge einen
       // Einsatz misst und dessen Farbe ein Ergebnis traegt, kann seine Farbe
       // nicht aus der eigenen Laenge holen.
-      const farbe = p.farbe || BALKEN_FARBE[p.art] || (p.wert < 0 ? 'var(--neg)' : 'var(--pos)');
       // Auf einer referenzverankerten Skala liegt die Null links ausserhalb;
       // der Balken beginnt dann an der Referenz, denn die Abweichung von ihr
       // ist die Aussage.
-      const anker = sk.min > 0 && typeof dia.referenz === 'number' ? dia.referenz : 0;
+      const anker = sk.verankert ? dia.referenz : 0;
+      // Vorzeichenfarbe nur, wenn es ein Vorzeichen gibt (sk.vorzeichen):
+      // "8 pairs" stand sonst im selben Gruen wie "+148 cents".
+      const farbe = p.farbe || BALKEN_FARBE[p.art]
+        || (sk.vorzeichen ? (p.wert < anker ? 'var(--neg)' : 'var(--pos)') : 'var(--info)');
       const x0 = sk.x(anker);
       const x1 = sk.x(p.wert);
       koerper += '<rect x="' + Math.min(x0, x1) + '" y="' + (y - 9) + '" width="' + Math.abs(x1 - x0)
@@ -167,7 +225,7 @@ export function diagramm(dia) {
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3); margin-bottom:var(--sp-2)">'
     + esc(dia.titel || '') + (dia.einheit ? ' · ' + esc(dia.einheit) : '') + '</div>'
     + '<svg width="100%" viewBox="0 0 ' + BREITE + ' ' + hoehe + '" role="img" aria-label="' + esc(dia.titel || 'chart') + '" style="display:block; max-width:660px">'
-    + achse(sk, dia, hoehe) + koerper
+    + achse(sk, dia, hoehe, geo) + koerper
     // Achsenbeschriftung nur, wenn die Referenzmarke den Platz nicht schon
     // hat: zwei zentrierte Beschriftungen auf derselben Grundlinie waeren
     // uebereinander gedruckt.
@@ -212,6 +270,11 @@ export function serienFarbe(i) {
  */
 export function linien(k) {
   if (!k || !Array.isArray(k.x) || k.x.length < 2 || !Array.isArray(k.serien)) return '';
+  // k.xWerte: optionale Zahlen zu den Kategorien (Sekunden, Tage). Dann
+  // liegt x auf dem Wert, nicht auf dem Index — +0, +30, +900 s stehen
+  // dort, wo sie sind, statt gleich weit auseinander.
+  const xWerte = Array.isArray(k.xWerte) && k.xWerte.length === k.x.length && k.xWerte.every((v) => typeof v === 'number' && v === v)
+    ? k.xWerte : null;
   const alleSerien = k.serien.filter((s) => s && Array.isArray(s.werte) && s.werte.some((w) => typeof w === 'number'));
   // Keine zyklische Farbvergabe: ab Serie 6 gaebe es keine eigene Farbe
   // mehr. Was nicht in die Plaetze passt, wird nicht heimlich in einer
@@ -230,20 +293,31 @@ export function linien(k) {
   const luft = (max - min) * 0.08;
   max += luft;
   const y = (w) => BOT - ((w - min) / (max - min)) * (BOT - TOP);
-  const x = (i) => L + (i * (R - L)) / (k.x.length - 1);
+  const xMin = xWerte ? Math.min(...xWerte) : 0;
+  const xMax = xWerte ? Math.max(...xWerte) : k.x.length - 1;
+  const xSpanne = xMax > xMin ? xMax - xMin : 1;
+  const x = (i) => L + (((xWerte ? xWerte[i] : i) - xMin) / xSpanne) * (R - L);
 
+  // Schoene Ticks statt min/mitte/max: 0, 250, 500 liest sich, 0, 294.6,
+  // 589.2 nicht. Die Nulllinie bleibt dunkler als die Gitterlinien.
   let raster = '';
-  [0, 0.5, 1].forEach((f) => {
-    const w = min + (max - min) * f;
-    raster += '<line x1="' + L + '" y1="' + y(w).toFixed(1) + '" x2="' + R + '" y2="' + y(w).toFixed(1)
-      + '" style="stroke:rgba(var(--ink),' + (f === 0 ? '.18' : '.07') + ')" stroke-width="1" />'
-      + '<text x="' + (L - 6) + '" y="' + (y(w) + 4).toFixed(1) + '" style="fill:var(--ink-3)" font-size="11" '
-      + 'font-family="IBM Plex Mono, monospace" text-anchor="end">' + esc(fmtZahl(Math.round(w * 1000) / 1000)) + '</text>';
+  schoeneSchritte(min, max, 4).forEach((w) => {
+    const yy = y(w);
+    if (yy < TOP - 1 || yy > BOT + 1) return;
+    raster += '<line x1="' + L + '" y1="' + yy.toFixed(1) + '" x2="' + R + '" y2="' + yy.toFixed(1)
+      + '" style="stroke:rgba(var(--ink),' + (w === 0 ? '.18' : '.07') + ')" stroke-width="1" />'
+      + '<text x="' + (L - 6) + '" y="' + (yy + 4).toFixed(1) + '" style="fill:var(--ink-3)" font-size="11" '
+      + 'font-family="IBM Plex Mono, monospace" text-anchor="end">' + esc(fmtZahl(w)) + '</text>';
   });
+  // Hoechstens etwa sechs Beschriftungen, die aeusseren an den Rand
+  // verankert, damit die letzte nicht zur Haelfte aus dem SVG haengt.
   let xLabels = '';
+  const schritt = Math.max(1, Math.ceil(k.x.length / 6));
   k.x.forEach((label, i) => {
+    if (i % schritt !== 0 && i !== k.x.length - 1) return;
+    const anker = i === 0 ? 'start' : i === k.x.length - 1 ? 'end' : 'middle';
     xLabels += '<text x="' + x(i).toFixed(1) + '" y="' + (H - 10) + '" style="fill:var(--ink-3)" font-size="11" '
-      + 'font-family="IBM Plex Mono, monospace" text-anchor="middle">' + esc(String(label)) + '</text>';
+      + 'font-family="IBM Plex Mono, monospace" text-anchor="' + anker + '">' + esc(String(label)) + '</text>';
   });
   let pfade = '';
   let legende = '';
@@ -299,7 +373,11 @@ export function kalibrierung(k) {
   let linie = '';
   punkte.slice().sort((a, b) => a.vorhergesagt - b.vorhergesagt).forEach((p, i) => {
     const cx = pos(p.vorhergesagt), cy = S - pos(p.realisiert);
-    const ci = Array.isArray(p.ci) && p.ci.length === 2 ? p.ci : null;
+    // Ohne mitgeliefertes Intervall wird es aus n und der realisierten
+    // Quote gerechnet (Wilson, 95%): ein Bin mit zwei Wetten darf nicht
+    // dieselbe Sicherheit ausstrahlen wie einer mit zwoelf.
+    const ci = Array.isArray(p.ci) && p.ci.length === 2 ? p.ci
+      : (+p.n > 0 ? wilson(p.realisiert, +p.n) : null);
     const daneben = ci && (ci[0] > p.vorhergesagt || ci[1] < p.vorhergesagt);
     const farbe = daneben ? 'var(--warn)' : 'var(--info)';
     const r = 2.5 + 4.5 * Math.sqrt((+p.n || 0) / nMax);
@@ -324,7 +402,8 @@ export function kalibrierung(k) {
     + '<svg width="100%" viewBox="0 0 ' + S + ' ' + S + '" role="img" aria-label="' + esc(k.titel || 'calibration') + '" style="max-width:240px; display:block; margin:var(--sp-3) auto 0">'
     + '<rect x="' + PAD + '" y="' + PAD + '" width="' + (S - 2 * PAD) + '" height="' + (S - 2 * PAD) + '" fill="none" style="stroke:rgba(var(--ink),.1)" />'
     + '<line x1="' + PAD + '" y1="' + (S - PAD) + '" x2="' + (S - PAD) + '" y2="' + PAD + '" style="stroke:rgba(var(--ink),.3)" stroke-dasharray="3 3" />'
-    + '<path d="' + linie + '" fill="none" style="stroke:rgba(var(--ink),.25)" stroke-width="1" />'
+    // Die Verbindungslinie ist Opt-in: unabhaengige Bins sind keine Kurve.
+    + (k.linie ? '<path d="' + linie + '" fill="none" style="stroke:rgba(var(--ink),.25)" stroke-width="1" />' : '')
     + marken
     // x-axis: 0 (left end), predicted (centre), 1 (right end)
     + '<text x="' + PAD + '" y="' + (S - 6) + '" ' + achse + ' text-anchor="start">0</text>'
@@ -335,6 +414,18 @@ export function kalibrierung(k) {
     + '<text x="10" y="' + yMitte + '" ' + achse + ' text-anchor="middle" transform="rotate(-90 10 ' + yMitte + ')">realised</text>'
     + '<text x="6" y="' + (S - PAD) + '" ' + achse + '>0</text>'
     + '</svg></div>';
+}
+
+/** Wilson-Intervall (95%) einer Quote p bei n Versuchen, als [lo, hi]. */
+export function wilson(p, n) {
+  const z = 1.959964;
+  const q = Math.max(0, Math.min(1, +p || 0));
+  const m = +n;
+  if (!(m > 0)) return null;
+  const z2 = (z * z) / m;
+  const mitte = (q + z2 / 2) / (1 + z2);
+  const halb = (z * Math.sqrt((q * (1 - q)) / m + z2 / (4 * m))) / (1 + z2);
+  return [Math.max(0, mitte - halb), Math.min(1, mitte + halb)];
 }
 
 /** Kompaktes Geld fuer Achsen und Kopfzahlen: -$210.2K, $1.4M, +$22.1M. */
@@ -370,6 +461,8 @@ function schoeneSchritte(min, max, n) {
  *  k: { punkte: [{ t (ISO), wert }], farbe?, hoehe?, marken? }. Unter zwei
  *  Punkten mit Zeit gibt es keine Kurve.
  */
+let gradZaehler = 0;
+
 export function pnlZeitkurve(k) {
   const pts = (k && Array.isArray(k.punkte) ? k.punkte : [])
     .map((p) => ({ ms: Date.parse(String(p.t || '')), wert: +p.wert }))
@@ -390,12 +483,20 @@ export function pnlZeitkurve(k) {
   const y = (w) => BOT - ((w - min) / (max - min)) * (BOT - TOP);
   const letzte = werte[werte.length - 1];
   const farbe = k.farbe || (letzte >= 0 ? 'var(--pos)' : 'var(--neg)');
-  const gid = 'pnlgrad' + Math.abs(Math.round(letzte * 100) + pts.length).toString(36);
+  // Eine eigene id je Aufruf: zwei Kurven mit gleichem Endwert und gleicher
+  // Laenge auf einer Seite teilten sich sonst den Verlauf der ersten.
+  gradZaehler += 1;
+  const gid = 'pnlgrad' + gradZaehler;
 
-  // Treppe nach rechts, dann Flaeche bis zur Nulllinie (oder zum Boden).
+  // Treppe (Wert gilt bis zum naechsten Punkt) fuer realisierte Kurven;
+  // form: 'linear' fuer Mark-to-Market-Kurven, deren Wert sich zwischen
+  // zwei Tagespunkten tatsaechlich bewegt.
+  const linear = k.form === 'linear';
   let linie = 'M ' + x(pts[0].ms).toFixed(1) + ' ' + y(pts[0].wert).toFixed(1);
   for (let i = 1; i < pts.length; i += 1) {
-    linie += ' H ' + x(pts[i].ms).toFixed(1) + ' V ' + y(pts[i].wert).toFixed(1);
+    linie += linear
+      ? ' L ' + x(pts[i].ms).toFixed(1) + ' ' + y(pts[i].wert).toFixed(1)
+      : ' H ' + x(pts[i].ms).toFixed(1) + ' V ' + y(pts[i].wert).toFixed(1);
   }
   const boden = (min < 0 && max > 0) ? y(0) : BOT;
   const flaeche = linie + ' V ' + boden.toFixed(1) + ' H ' + x(pts[0].ms).toFixed(1) + ' Z';
@@ -415,8 +516,11 @@ export function pnlZeitkurve(k) {
       + '" style="stroke:rgba(var(--ink),.28)" stroke-width="1" stroke-dasharray="4 4" />';
   }
 
-  // Datum: Anfang, Ende und bis zu zwei Zwischenmarken auf der Zeit.
-  const datum = (ms) => new Date(ms).toISOString().slice(0, 10);
+  // Datum: Anfang, Ende und bis zu zwei Zwischenmarken auf der Zeit. Unter
+  // drei Tagen Spanne traegt die Marke die Uhrzeit, sonst stuende zweimal
+  // dasselbe Datum an beiden Enden.
+  const kurz = spanne <= 3 * 86400000;
+  const datum = (ms) => (kurz ? new Date(ms).toISOString().slice(5, 16).replace('T', ' ') : new Date(ms).toISOString().slice(0, 10));
   const nDatum = spanne > 3 * 86400000 ? 4 : 2;
   let xLabels = '';
   for (let i = 0; i < nDatum; i += 1) {
@@ -537,14 +641,34 @@ export function stepKurve(k) {
   if (!k || !Array.isArray(k.punkte) || k.punkte.length < 2) return '';
   const B = 900, H = 200;
   const L = 14, R = B - 76, TOP = 14, BOT = H - 26;
-  const werte = k.punkte.map((p) => +p.wert);
+  // p.t: optionale Zahl auf der x-Achse (Sekunden, Millisekunden). Dann
+  // liegt jeder Schritt dort, wo er in der Zeit passiert ist, und gleiche
+  // Zeitstempel fallen zu einem Schritt zusammen (der letzte Wert gilt).
+  // Vorher lag x auf dem Index: eine Luecke von 31 Minuten und eine von
+  // null Sekunden waren gleich breit, und vier identische Zeitstempel
+  // wurden vier Stufen.
+  const zeitlich = k.punkte.every((p) => typeof p.t === 'number' && p.t === p.t);
+  let punkte = k.punkte;
+  if (zeitlich) {
+    const sortiert = k.punkte.slice().sort((a, b) => a.t - b.t);
+    punkte = [];
+    sortiert.forEach((p) => {
+      if (punkte.length && punkte[punkte.length - 1].t === p.t) punkte[punkte.length - 1] = p;
+      else punkte.push(p);
+    });
+    if (punkte.length < 2) return '';
+  }
+  const werte = punkte.map((p) => +p.wert);
   let min = Math.min(0, ...werte);
   let max = Math.max(0, ...werte);
   if (min === max) max = min + 1;
   const luft = (max - min) * 0.08;
   min -= luft; max += luft;
   const y = (w) => BOT - ((w - min) / (max - min)) * (BOT - TOP);
-  const x = (i) => L + (i * (R - L)) / (k.punkte.length - 1);
+  const t0 = zeitlich ? punkte[0].t : 0;
+  const t1 = zeitlich ? punkte[punkte.length - 1].t : punkte.length - 1;
+  const tSpanne = t1 > t0 ? t1 - t0 : 1;
+  const x = (i) => L + (((zeitlich ? punkte[i].t : i) - t0) / tSpanne) * (R - L);
 
   const letzte = werte[werte.length - 1];
   const farbe = k.farbe || (letzte >= 0 ? 'var(--pos)' : 'var(--neg)');
@@ -556,7 +680,18 @@ export function stepKurve(k) {
   }
   let marken = '';
   werte.forEach((w, i) => {
-    marken += '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(w).toFixed(1) + '" r="2.6" style="fill:' + farbe + '" />';
+    marken += '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(w).toFixed(1) + '" r="2.6" style="fill:' + farbe + '">'
+      + '<title>' + esc(String(punkte[i].label || '') + ' · ' + fmtZahl(w)) + '</title></circle>';
+  });
+
+  // Betragsticks mit feinen Gitterlinien: ohne sie sagte nur der Endwert
+  // rechts, was die Hoehe bedeutet.
+  let gitter = '';
+  schoeneSchritte(min + luft, max - luft, 3).forEach((tv) => {
+    const yy = y(tv);
+    if (yy < TOP - 1 || yy > BOT + 1 || tv === 0) return;
+    gitter += '<line x1="' + L + '" y1="' + yy.toFixed(1) + '" x2="' + R + '" y2="' + yy.toFixed(1) + '" style="stroke:rgba(var(--ink),.07)" stroke-width="1" />'
+      + '<text x="' + (L + 2) + '" y="' + (yy - 3).toFixed(1) + '" style="fill:var(--ink-3)" font-size="10" font-family="IBM Plex Mono, monospace">' + esc(fmtZahl(tv)) + '</text>';
   });
 
   let nulllinie = '';
@@ -567,10 +702,17 @@ export function stepKurve(k) {
 
   const endLabel = '<text x="' + (R + 8) + '" y="' + (y(letzte) + 4).toFixed(1) + '" style="fill:' + farbe
     + '" font-size="12" font-family="IBM Plex Mono, monospace">' + esc(fmtZahl(letzte)) + '</text>';
+  // Auf einer Zeitachse eine Zwischenmarke in der Mitte, damit die Achse
+  // als Zeit lesbar ist und nicht nur ihre Enden nennt.
+  const mitteLabel = zeitlich && k.tText
+    ? '<text x="' + ((L + R) / 2).toFixed(1) + '" y="' + (H - 8) + '" style="fill:var(--ink-3)" font-size="11" '
+      + 'font-family="IBM Plex Mono, monospace" text-anchor="middle">' + esc(String(k.tText(t0 + tSpanne / 2))) + '</text>'
+    : '';
   const xLabels = '<text x="' + L + '" y="' + (H - 8) + '" style="fill:var(--ink-3)" font-size="11" '
-    + 'font-family="IBM Plex Mono, monospace">' + esc(String(k.punkte[0].label || '')) + '</text>'
+    + 'font-family="IBM Plex Mono, monospace">' + esc(String(punkte[0].label || '')) + '</text>'
+    + mitteLabel
     + '<text x="' + R + '" y="' + (H - 8) + '" style="fill:var(--ink-3)" font-size="11" '
-    + 'font-family="IBM Plex Mono, monospace" text-anchor="end">' + esc(String(k.punkte[k.punkte.length - 1].label || '')) + '</text>';
+    + 'font-family="IBM Plex Mono, monospace" text-anchor="end">' + esc(String(punkte[punkte.length - 1].label || '')) + '</text>';
 
   return '<div style="' + KARTE + '; padding:var(--sp-5) var(--sp-5) var(--sp-4)">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:var(--sp-5); flex-wrap:wrap; margin-bottom:var(--sp-2)">'
@@ -579,8 +721,8 @@ export function stepKurve(k) {
     + (k.hinweis ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + esc(k.hinweis) + '</div>' : '')
     + '</div>'
     + '<svg width="100%" viewBox="0 0 ' + B + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="' + esc(k.titel || 'series') + '">'
-    + nulllinie
-    + '<path d="' + pfad + '" fill="none" style="stroke:' + farbe + '" stroke-width="2" />'
+    + gitter + nulllinie
+    + '<path d="' + pfad + '" fill="none" style="stroke:' + farbe + '" stroke-width="2" vector-effect="non-scaling-stroke" />'
     + marken + endLabel + xLabels
     + '</svg></div>';
 }
@@ -732,8 +874,11 @@ export function punktwolke(k) {
     const cx = x(p.x), cy = y(p.y);
     const farbe = p.hervor ? 'var(--s1)' : 'var(--s4)';
     if (Array.isArray(p.band) && p.band.length === 2 && typeof p.band[0] === 'number' && typeof p.band[1] === 'number') {
+      // Gestrichelt und heller: die Spanne ist kein Konfidenzintervall,
+      // sondern der Bereich, in dem der Wert liegen koennte, wuerden seine
+      // Platzhalter gemessen. Ein durchgezogener Balken las sich als CI.
       marken += '<line x1="' + x(p.band[0]).toFixed(1) + '" y1="' + cy.toFixed(1) + '" x2="' + x(p.band[1]).toFixed(1)
-        + '" y2="' + cy.toFixed(1) + '" style="stroke:' + farbe + '" stroke-opacity=".38" stroke-width="2" stroke-linecap="round" />';
+        + '" y2="' + cy.toFixed(1) + '" style="stroke:' + farbe + '" stroke-opacity=".3" stroke-width="2" stroke-dasharray="3 3" stroke-linecap="round" />';
     }
     marken += '<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="4.5" style="fill:' + farbe
       + '; stroke:var(--panel)" stroke-width="2"><title>' + esc(p.tip || p.label || '') + '</title></circle>';
@@ -743,12 +888,18 @@ export function punktwolke(k) {
   // vom Punkt und klappt am rechten Rand nach links.
   let namen = '';
   const wieViele = k.labelN != null ? k.labelN : 5;
-  pts.slice().sort((a, b) => b.x - a.x).slice(0, wieViele).forEach((p) => {
-    if (!p.label) return;
-    const cx = x(p.x), cy = y(p.y);
-    const links = cx > L + (R - L) * 0.7;
-    namen += '<text x="' + (cx + (links ? -9 : 9)).toFixed(1) + '" y="' + (cy + 3.5).toFixed(1) + '" ' + INK72 + ' '
-      + TICK + ' text-anchor="' + (links ? 'end' : 'start') + '">' + esc(p.label) + '</text>';
+  // Beschriftungen, die sich ueberdruckten, werden senkrecht auseinander
+  // geschoben: sortiert nach y, mindestens 12 Einheiten Abstand.
+  const kandidaten = pts.slice().sort((a, b) => b.x - a.x).slice(0, wieViele).filter((p) => p.label)
+    .map((p) => ({ p, cx: x(p.x), cy: y(p.y), ty: y(p.y) + 3.5 }))
+    .sort((a, b) => a.ty - b.ty);
+  for (let i = 1; i < kandidaten.length; i += 1) {
+    if (kandidaten[i].ty - kandidaten[i - 1].ty < 12) kandidaten[i].ty = kandidaten[i - 1].ty + 12;
+  }
+  kandidaten.forEach((kd) => {
+    const links = kd.cx > L + (R - L) * 0.7;
+    namen += '<text x="' + (kd.cx + (links ? -9 : 9)).toFixed(1) + '" y="' + kd.ty.toFixed(1) + '" ' + INK72 + ' '
+      + TICK + ' text-anchor="' + (links ? 'end' : 'start') + '">' + esc(kd.p.label) + '</text>';
   });
 
   const rahmen = '<line x1="' + L + '" y1="' + BOT + '" x2="' + R + '" y2="' + BOT + '" style="stroke:rgba(var(--ink),.28)" stroke-width="1" />'

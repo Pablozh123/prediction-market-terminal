@@ -5,7 +5,7 @@
 // or as-of; without an answer the page says which request is missing. The
 // only thing the page invents is the layout.
 
-import { esc, money, num, signedMoney, stempel, leerBlock } from '../util.js';
+import { esc, money, num, signedMoney, stempel, leerBlock, gradeLabel } from '../util.js';
 import { caveat, caveatZeile } from '../claims.js';
 import { scoreBand } from '../risk_bands.js';
 import { diagramm, pnlZeitkurve, kurzGeld, fmtZahl } from '../charts.js';
@@ -199,7 +199,7 @@ function renderIdentity(T, d) {
     try { history.pushState(null, '', '#backtester'); } catch (e) { /* file:// */ }
   };
   const tags = [];
-  if (tr && tr.grade) tags.push('<span style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); color:' + (tr.grade === 'A' || tr.grade === 'B' ? 'var(--accent)' : tr.grade === 'F' ? 'var(--warn)' : 'var(--ink-2)') + '; border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">GRADE ' + esc(tr.grade) + (tr.score != null ? ' · ' + tr.score + '/100' : '') + '</span>');
+  if (tr && tr.grade) tags.push('<span style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); color:' + (tr.grade === 'A' || tr.grade === 'B' ? 'var(--accent)' : tr.grade === 'F' ? 'var(--warn)' : 'var(--ink-2)') + '; border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">GRADE ' + esc(gradeLabel(tr.grade)) + (tr.score != null ? ' · ' + tr.score + '/100' : '') + '</span>');
   if (tr && tr.survivorship_gate && !tr.survivorship_gate.ok) tags.push('<span style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">BELOW SAMPLE GATE</span>');
   if (tr && tr.wash_flag && tr.wash_flag.flag) tags.push('<span style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">WASH / FARMER FLAG</span>');
   if (id.days_active != null) tags.push('<span style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); color:var(--ink-3); border:1px solid var(--line-2); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">' + id.days_active + (id.activity_truncated ? '+' : '') + ' DAYS ACTIVE</span>');
@@ -249,7 +249,7 @@ function kpiTile(label, value, sub, tone) {
 // before that, or has not moved since, is one level for hundreds of points),
 // then our own settled curve summed from the closed rows. The API says which
 // in pnl.shown; older answers without it are resolved here the same way.
-function pnlShown(d) {
+export function pnlShown(d) {
   const p = d.pnl || null;
   if (!p) return { kind: 'none', p: null, curve: null, st: null };
   const settled = p.settled && Array.isArray(p.settled.points) && p.settled.points.length >= 2 ? p.settled : null;
@@ -288,7 +288,7 @@ function renderKpis(d) {
   const tiles = [
     kpiTile('SETTLED PNL', tr ? dollars(tr.settled_pnl) : '—', tr ? 'n ' + num(tr.per_market ? tr.per_market.n : 0) + ' resolved markets' + capNote : 'no track record', tr ? (tr.settled_pnl < 0 ? 'down' : 'up') : 'neutral'),
     kpiTile('CORRECTED WIN RATE', corr && corr.win_rate != null ? pct(corr.win_rate) : '—', corr && corr.n ? corr.wins + '/' + corr.n + ' events · 95% ' + ci(corr.ci95) + capNote + wertlosNote : 'no resolved events', corr && corr.win_rate != null ? (corr.win_rate >= 0.5 ? 'up' : 'down') : 'neutral'),
-    kpiTile('GRADE', tr && tr.grade ? esc(tr.grade) : '—', tr && tr.score != null ? 'score ' + tr.score + ' / 100' + (tr.survivorship_gate && !tr.survivorship_gate.ok ? ' · below sample gate' : '') : '', tr && tr.grade ? (tr.grade === 'A' || tr.grade === 'B' ? 'up' : tr.grade === 'F' ? 'warn' : 'neutral') : 'neutral'),
+    kpiTile('GRADE', tr && tr.grade ? esc(gradeLabel(tr.grade)) : '—', tr && tr.score != null ? 'score ' + tr.score + ' / 100' + (tr.survivorship_gate && !tr.survivorship_gate.ok ? ' · below sample gate' : '') : '', tr && tr.grade ? (tr.grade === 'A' || tr.grade === 'B' ? 'up' : tr.grade === 'F' ? 'warn' : 'neutral') : 'neutral'),
     kpiTile('SHARPE · DAILY $', st && st.sharpe != null ? ratio(st.sharpe) : '—', st ? (flat ? 'flat curve · no daily change' : 'n ' + st.n_days + ' d · ' + basis) : 'no PnL curve', st && st.sharpe != null ? (st.sharpe >= 0 ? 'up' : 'down') : 'neutral'),
     kpiTile('MAX DRAWDOWN', st ? absDollars(st.max_drawdown) : '—', st ? (flat ? 'flat curve · never moved' : pct(st.max_drawdown_pct, 1) + ' of peak · ' + basis) : 'no PnL curve', st && st.max_drawdown > 0 ? 'down' : 'neutral')
   ];
@@ -366,8 +366,8 @@ function renderAside(d) {
 function topCard(label, r, kind) {
   if (!r) return '<div style="' + KARTE + '; padding:var(--sp-5)"><div style="' + LABEL + '">' + label + '</div><div style="' + NOTIZ + '; margin-top:var(--sp-3)">nothing to show</div></div>';
   const pnl = kind === 'open' ? r.unrealized_pnl : r.realized_pnl;
-  const stake = kind === 'open' ? r.cost : r.total_bought;
-  const now = kind === 'open' ? r.value : (Number(r.total_bought) || 0) + (Number(r.realized_pnl) || 0);
+  const stake = kind === 'open' ? r.cost : closedCostUsd(r);
+  const now = kind === 'open' ? r.value : (closedCostUsd(r) || 0) + (Number(r.realized_pnl) || 0);
   const ret = stake > 0 ? pnl / stake : null;
   return '<div style="' + KARTE + '; padding:var(--sp-5); min-width:0">'
     + '<div style="display:flex; justify-content:space-between; gap:var(--sp-3); align-items:baseline"><div style="' + LABEL + '">' + label + '</div>'
@@ -378,9 +378,22 @@ function topCard(label, r, kind) {
     + '</div>';
 }
 
-// Tiles: area = $ at stake (open: value at current prices; closed: $
-// bought), colour = PnL sign, depth = |PnL| relative to the stake. Each tile
-// carries the exact figures in its title, so a hover reads them.
+// Dollars at stake of a closed row. The feed's total_bought counts SHARES
+// (app/track_record.py); the API sends cost_usd = shares x average entry.
+// Older answers without it get the same product here. Printing the share
+// count with a dollar sign overstated every stake at a 30c entry by 3.3x
+// and shrank every return by the same factor.
+function closedCostUsd(r) {
+  if (!r) return 0;
+  if (r.cost_usd != null && isFinite(Number(r.cost_usd))) return Number(r.cost_usd);
+  const shares = Number(r.total_bought), price = Number(r.avg_price);
+  return isFinite(shares) && isFinite(price) ? shares * price : 0;
+}
+
+// Tiles: area = $ at stake (open: cost basis; closed: $ bought), colour =
+// PnL sign, depth = |PnL| relative to the stake. Each tile carries the
+// exact figures in its title, so a hover reads them. Open and closed tiles
+// share one unit (dollars put in), so the areas compare across the two.
 export function treemapItems(d, mode) {
   const out = [];
   const op = d.open_positions && Array.isArray(d.open_positions.rows) ? d.open_positions.rows : [];
@@ -389,12 +402,12 @@ export function treemapItems(d, mode) {
     op.forEach((r) => {
       const value = Number(r.value) || 0;
       const stake = Number(r.cost) || 0;
-      out.push({ value: value > 0 ? value : stake, kind: 'open', title: r.title, outcome: r.outcome, url: r.url, image: r.image || '', pnl: Number(r.unrealized_pnl) || 0, stake, now: r.current_price, avg: r.avg_price, status: r.status, ends: r.end_time });
+      out.push({ value: stake > 0 ? stake : value, marktwert: value, kind: 'open', title: r.title, outcome: r.outcome, url: r.url, image: r.image || '', pnl: Number(r.unrealized_pnl) || 0, stake, now: r.current_price, avg: r.avg_price, status: r.status, ends: r.end_time });
     });
   }
   if (mode !== 'open') {
     cl.forEach((r) => {
-      const stake = Number(r.total_bought) || 0;
+      const stake = closedCostUsd(r);
       out.push({ value: stake, kind: 'closed', title: r.title, outcome: r.outcome, url: r.url, image: r.image || '', pnl: Number(r.realized_pnl) || 0, stake, result: r.result, avg: r.avg_price, settled: r.current_price, time: r.time });
     });
   }
@@ -464,7 +477,7 @@ export function positionsBalken(T, d) {
     punkte
   });
   if (!chart) return '';
-  const fuss = 'Bar length is money at stake in dollars (open positions: value at current prices, closed: dollars bought). '
+  const fuss = 'Bar length is money put in, in dollars (open positions: cost basis, closed: shares times average entry). '
     + 'Colour is the sign of the result on that position, green up and red down; the number after the dollar amount is that result. '
     + (rest.length
       ? num(rest.length) + ' smaller position(s) are not drawn, ' + kurzGeld(restSumme) + ' of ' + kurzGeld(gesamt) + ' at stake in total. '
@@ -498,7 +511,7 @@ function renderTreemap(T, d) {
   const cl = d.closed || {};
   const capped = (mode !== 'closed' && op.capped) || (mode !== 'open' && cl.capped);
   const head = '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:var(--sp-4); flex-wrap:wrap; margin-bottom:var(--sp-4)">'
-    + '<div><div style="' + LABEL + '">POSITIONS TREEMAP</div><div style="' + NOTIZ + '; margin-top:var(--sp-2)">tile area = $ at stake (open: value at current prices · closed: $ bought)</div>'
+    + '<div><div style="' + LABEL + '">POSITIONS TREEMAP</div><div style="' + NOTIZ + '; margin-top:var(--sp-2)">tile area = dollars put in (open: cost basis · closed: shares × average entry)</div>'
     + intensitaetsSchluessel() + '</div></div>';
   if (!rects.length) {
     return '<div style="' + KARTE + '; padding:var(--sp-5); margin-top:var(--sp-5)">' + head + '<div style="' + NOTIZ + '">Nothing to tile: ' + (mode === 'open' ? 'no open positions with a value' : mode === 'closed' ? 'no resolved positions with a stake' : 'no positions with a stake in either feed') + '.</div></div>';
@@ -521,7 +534,7 @@ function renderTreemap(T, d) {
     const rows = [
       ['side', String(it.outcome || '—').toUpperCase() + ' · ' + (it.kind === 'open' ? (it.status === 'worthless' ? 'resolved, not redeemed' : 'open') : 'closed' + (it.result ? ' · ' + it.result : ''))],
       [it.kind === 'open' ? 'stake (cost)' : 'stake (bought)', absDollars(it.stake)],
-      [it.kind === 'open' ? 'value now' : 'returned', absDollars(it.kind === 'open' ? it.value : (Number(it.stake) || 0) + (Number(it.pnl) || 0))],
+      [it.kind === 'open' ? 'value now' : 'returned', absDollars(it.kind === 'open' ? (it.marktwert != null ? it.marktwert : it.value) : (Number(it.stake) || 0) + (Number(it.pnl) || 0))],
       [it.kind === 'open' ? 'unrealised' : 'realised', dollars(it.pnl) + (ret != null ? ' (' + (ret >= 0 ? '+' : '') + (ret * 100).toFixed(0) + '%)' : '')]
     ];
     if (it.avg != null) rows.push(['avg entry', cents(it.avg)]);
@@ -610,7 +623,7 @@ function renderTrackRecord(d) {
   const top3 = Array.isArray(conc.top3) && conc.top3.length
     ? '<div style="' + NOTIZ + '; margin-top:var(--sp-4)">Top-3 markets by profit: ' + conc.top3.map((m) => esc(m.title) + ' (' + dollars(m.pnl) + ', ' + pct(m.share) + ')').join(' · ') + '</div>' : '';
   const parts = Array.isArray(tr.score_components) && tr.score_components.length
-    ? '<div style="margin-top:var(--sp-5)"><div style="' + LABEL + '">SCORE ' + (tr.score != null ? tr.score : '—') + ' / 100 · GRADE ' + esc(tr.grade || '—') + ' · COMPONENTS</div>'
+    ? '<div style="margin-top:var(--sp-5)"><div style="' + LABEL + '">SCORE ' + (tr.score != null ? tr.score : '—') + ' / 100 · GRADE ' + esc(gradeLabel(tr.grade) || '—') + ' · COMPONENTS</div>'
       + '<div style="display:flex; gap:var(--sp-3); flex-wrap:wrap; margin-top:var(--sp-3)">'
       + tr.score_components.map((c) => '<span style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); border:1px solid var(--line-2); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">' + esc(c.label) + ' <span style="color:var(--ink-1)">' + (typeof c.value === 'number' ? (c.value >= 0 ? '' : '') + fmtZahl(c.value) : '—') + '</span>' + (c.max ? ' / ' + c.max : '') + '</span>').join('')
       + '</div></div>' : '';
@@ -667,6 +680,10 @@ function renderPnl(d) {
 
   const kurve = pnlZeitkurve({
     titel: settled ? 'cumulative realised PnL, settled rows' : 'cumulative PnL, profile curve',
+    // Treppe nur fuer die realisierte Kurve: zwischen zwei Aufloesungen
+    // passiert nichts. Die Profilkurve ist Mark-to-Market und bewegt sich
+    // zwischen zwei Tagespunkten, darum eine gerade Linie.
+    form: settled ? 'step' : 'linear',
     punkte: c.points.map((pt) => ({ t: pt.t, wert: +pt.pnl }))
   });
 
@@ -787,13 +804,13 @@ function renderClosed(d) {
     + tile('REALISED PNL', dollars(c.realized_pnl), 'sum over the ' + num(c.n) + ' rows', pnlColor(c.realized_pnl))
     + '</div>';
   const cols = '2.2fr 60px 70px 80px 90px 100px 70px 120px';
-  const head = '<div>MARKET</div><div>SIDE</div><div style="text-align:right">ENTRY</div><div style="text-align:right">SETTLED</div><div style="text-align:right">BOUGHT</div><div style="text-align:right">REALISED</div><div>RESULT</div><div>TIME</div>';
+  const head = '<div>MARKET</div><div>SIDE</div><div style="text-align:right">ENTRY</div><div style="text-align:right">SETTLED</div><div style="text-align:right">$ BOUGHT</div><div style="text-align:right">REALISED</div><div>RESULT</div><div>TIME</div>';
   const body = (c.rows || []).map((r) => row(cols,
     cell(link(r.url, r.title), 'font-family:var(--font-ui); font-size:var(--t-small)')
     + cell(esc(r.outcome || '—'), 'color:' + (String(r.outcome).toLowerCase() === 'yes' ? 'var(--accent)' : 'var(--neg-soft)'))
     + cell(cents(r.avg_price), 'text-align:right; color:var(--ink-3)')
     + cell(cents(r.current_price), 'text-align:right; color:var(--ink-3)')
-    + cell(absDollars(r.total_bought), 'text-align:right')
+    + cell(absDollars(closedCostUsd(r)), 'text-align:right')
     + cell(dollars(r.realized_pnl), 'text-align:right; color:' + pnlColor(r.realized_pnl))
     + cell(esc(r.result || '—'), 'color:' + (r.result === 'won' ? 'var(--pos)' : r.result === 'lost' ? 'var(--neg)' : 'var(--ink-4)'))
     + cell(when(r.time), 'color:var(--ink-4)'))).join('');
@@ -839,7 +856,7 @@ function renderTrades(d) {
     + tile('BUY · SELL', num(a.buy_n) + ' · ' + num(a.sell_n), absDollars(a.buy_notional) + ' bought · ' + absDollars(a.sell_notional) + ' sold')
     + tile('AVG TRADE', a.avg_trade_size != null ? absDollars(a.avg_trade_size) : '—', 'notional per trade')
     + tile('TRADES / DAY', a.trades_per_day != null ? fmtZahl(a.trades_per_day) : '—', 'over ' + (a.span_days != null ? fmtZahl(a.span_days) : '—') + ' days in the window')
-    + tile('NET CASH FLOW', dollars(a.net_cash_flow), 'sells + redemptions − buys · open positions not in it', pnlColor(a.net_cash_flow))
+    + tile('NET CASH FLOW', dollars(a.net_cash_flow), 'sells + redemptions' + (a.n_merges ? ' (incl. ' + num(a.n_merges) + ' merges)' : '') + ' − buys · open positions not in it', pnlColor(a.net_cash_flow))
     + '</div>';
   const cols = '120px 60px 60px 70px 80px 90px 2.4fr';
   const head = '<div>TIME (UTC)</div><div>SIDE</div><div>OUTCOME</div><div style="text-align:right">PRICE</div><div style="text-align:right">SHARES</div><div style="text-align:right">NOTIONAL</div><div>MARKET</div>';

@@ -521,8 +521,12 @@ def leaderboard_rows(leaderboard: pd.DataFrame, ranked: pd.DataFrame | None = No
         rows.append({
             "name": _text(row.get("trader")) or short_wallet(wallet) or "—",
             "wallet": wallet,
-            "pnl": _num(row.get("pnl"), 0.0),
-            "vol": _num(row.get("volume"), 0.0),
+            # Fehlende Zahlen bleiben null: das Frontend sortiert sie ans
+            # Ende und zeigt einen Strich. Mit 0.0 als Rueckfall stand ein
+            # Wallet ohne bekanntes Volumen als "$0 Umsatz" in der Liste und
+            # rangierte unter "Profit / volume" mit pnl/1 ganz oben.
+            "pnl": _num(row.get("pnl")),
+            "vol": _num(row.get("volume")),
             "win": None,
             "resolved": None,
             "score": round(score, 1) if score is not None else None,
@@ -1187,6 +1191,15 @@ def _wallet_positions(positions: pd.DataFrame | None, as_of: str, requested: int
     }
 
 
+def _cost_usd(total_bought: Any, avg_price: Any) -> float | None:
+    """Dollar an Einsatz einer geschlossenen Position: Shares mal Einstiegspreis."""
+    shares = _num(total_bought)
+    price = _num(avg_price)
+    if shares is None or price is None:
+        return None
+    return round(float(shares) * float(price), 2)
+
+
 def _wallet_closed(resolved: pd.DataFrame | None, capped: bool, worthless_n: int, as_of: str,
                    coverage_note: str) -> dict[str, Any]:
     if resolved is None or resolved.empty:
@@ -1215,6 +1228,11 @@ def _wallet_closed(resolved: pd.DataFrame | None, capped: bool, worthless_n: int
             "avg_price": _num(row.get("avg_price")),
             "current_price": _num(row.get("current_price")),
             "total_bought": _num(row.get("total_bought")),
+            # totalBought der Data API zaehlt Shares, nicht Dollar (siehe
+            # track_record.stake_usd). Der Einsatz in Dollar ist Shares mal
+            # mittlerer Einstiegspreis; das Frontend liest nur diese Zahl,
+            # sobald sie da ist, statt Stueckzahlen mit Dollarzeichen zu drucken.
+            "cost_usd": _cost_usd(row.get("total_bought"), row.get("avg_price")),
             "realized_pnl": round(float(row["_pnl"]), 2),
             "time": _iso(row.get("time")),
             "market_key": _text(row.get("market_key")),
@@ -1302,7 +1320,10 @@ def _wallet_activity(activity: pd.DataFrame | None, truncated: bool, as_of: str,
         "as_of": as_of,
         "n_rows": int(len(df)),
         "n_trades": n_trades,
-        "n_redeems": int(df["_type"].eq("REDEEM").sum()),
+        # Dieselbe Menge wie redeem_notional: REDEEM und MERGE, denn beide
+        # zahlen Shares in Dollar zurueck und beide stecken in der Summe.
+        "n_redeems": int(df["_type"].isin(["REDEEM", "MERGE"]).sum()),
+        "n_merges": int(df["_type"].eq("MERGE").sum()),
         "window_truncated": bool(truncated),
         "window_state": zustand,
         "error": str(error or ""),

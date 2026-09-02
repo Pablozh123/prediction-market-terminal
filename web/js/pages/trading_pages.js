@@ -3,7 +3,7 @@
 // otherwise an honest empty state. No panel here falls back to a fixture:
 // every figure comes from the API or the cell shows that it does not.
 
-import { esc, num, leerZeile } from '../util.js';
+import { esc, num, leerZeile, seriesDomain, seriesGrid } from '../util.js';
 import { caveatZeile } from '../claims.js';
 import { histogramm, kurzGeld } from '../charts.js';
 import { trackWatchRows } from './trader_pages.js';
@@ -144,12 +144,19 @@ export function renderBacktester(T) {
   const feesPaid = st ? +st.fees_paid : null;
   const openValue = st ? +st.open_value : null;
   const ddPct = st ? Math.abs(+st.max_drawdown) * 100 : null;
+  // Equity und Benchmark auf einer Skala mit Nullpunkt: getrennt skaliert
+  // endete ein Benchmark 40 Prozent unter der Wallet auf derselben Hoehe.
+  const eqDom = st ? seriesDomain(live.equity, live.benchmark) : null;
   const equityPts = st && live.equity && live.equity.length > 1
-    ? T.seriesPoints(live.equity, 900, 270) : '';
+    ? T.seriesPoints(live.equity, 900, 270, eqDom) : '';
   const benchPts = st && live.benchmark && live.benchmark.length > 1
-    ? T.seriesPoints(live.benchmark, 900, 270) : '';
-  const ddPts = st && live.drawdown && live.drawdown.length > 1
-    ? T.seriesPoints(live.drawdown, 900, 220) : '';
+    ? T.seriesPoints(live.benchmark, 900, 270, eqDom) : '';
+  const eqGrid = seriesGrid(eqDom, 900, 270, (v) => kurzGeld(v));
+  // Drawdown ist ein Anteil vom Hoch, 0 bis -1: die Skala reicht von null
+  // bis zum tiefsten Punkt, nicht vom tiefsten bis zum hoechsten Wert.
+  const ddDom = st && live.drawdown && live.drawdown.length > 1 ? seriesDomain(live.drawdown) : null;
+  const ddPts = ddDom ? T.seriesPoints(live.drawdown, 900, 220, ddDom) : '';
+  const ddGrid = seriesGrid(ddDom, 900, 220, (v) => (v * 100).toFixed(0) + '%');
 
   const simVariants = (live && live.variants ? live.variants.map((v) => ({
     name: v.name, eq: +v.final_equity, roi: +v.roi * 100, dd: Math.abs(+v.max_drawdown) * 100,
@@ -307,11 +314,8 @@ export function renderBacktester(T) {
     tabBody = '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-4); padding:var(--sp-5)">'
       + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4); margin-bottom:var(--sp-4)">DRAWDOWN FROM THE RUNNING PEAK</div>'
       + '<svg width="100%" height="220" viewBox="0 0 900 220" preserveAspectRatio="none" role="img" aria-label="Drawdown from the running peak">'
-      + '<line x1="0" y1="10" x2="900" y2="10" style="stroke:rgba(var(--ink),.14)" />'
-      + '<line x1="0" y1="70" x2="900" y2="70" style="stroke:rgba(var(--ink),.07)" />'
-      + '<line x1="0" y1="130" x2="900" y2="130" style="stroke:rgba(var(--ink),.07)" />'
-      + '<line x1="0" y1="190" x2="900" y2="190" style="stroke:rgba(var(--ink),.07)" />'
-      + '<polyline points="' + ddPts + '" fill="none" style="stroke:var(--neg)" stroke-width="2" /></svg>'
+      + ddGrid
+      + '<polyline points="' + ddPts + '" fill="none" style="stroke:var(--neg)" stroke-width="2" vector-effect="non-scaling-stroke" /></svg>'
       + '<div style="display:flex; justify-content:space-between; ' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-3)">'
       + '<span>' + esc(curveVon) + '</span><span>worst: ' + (ddPct === null ? '—' : ddPct.toFixed(1) + '%') + '</span><span>today</span></div></div>';
   }
@@ -499,14 +503,10 @@ export function renderBacktester(T) {
     + '<span style="display:flex; align-items:center; gap:var(--sp-3); color:var(--ink-4)"><span style="width:14px; height:2px; background:var(--muted); display:inline-block"></span>Flat-bet benchmark</span>'
     + (s.sizingSimOpen && bestVariant ? '<span style="display:flex; align-items:center; gap:var(--sp-3); color:var(--warn)"><span style="width:14px; height:2px; background:var(--warn); display:inline-block"></span>Highest final equity: ' + esc(bestVariant.name) + '</span>' : '')
     + '</div></div>'
-    + '<svg width="100%" height="270" viewBox="0 0 900 270" preserveAspectRatio="none" role="img" aria-label="Equity for the replayed wallet against your own sizing">'
-    + '<line x1="0" y1="20" x2="900" y2="20" style="stroke:rgba(var(--ink),.07)" />'
-    + '<line x1="0" y1="80" x2="900" y2="80" style="stroke:rgba(var(--ink),.07)" />'
-    + '<line x1="0" y1="140" x2="900" y2="140" style="stroke:rgba(var(--ink),.07)" />'
-    + '<line x1="0" y1="200" x2="900" y2="200" style="stroke:rgba(var(--ink),.07)" />'
-    + '<line x1="0" y1="258" x2="900" y2="258" style="stroke:rgba(var(--ink),.14)" />'
-    + '<polyline points="' + benchPts + '" fill="none" style="stroke:var(--muted)" stroke-width="1.4" stroke-dasharray="6 4" />'
-        + '<polyline points="' + equityPts + '" fill="none" style="stroke:' + (ret >= 0 ? 'var(--pos)' : 'var(--neg)') + '" stroke-width="2" />'
+    + '<svg width="100%" height="270" viewBox="0 0 900 270" preserveAspectRatio="none" role="img" aria-label="Equity for the replayed wallet against the flat-bet benchmark, one dollar scale">'
+    + eqGrid
+    + '<polyline points="' + benchPts + '" fill="none" style="stroke:var(--muted)" stroke-width="1.4" stroke-dasharray="6 4" vector-effect="non-scaling-stroke" />'
+        + '<polyline points="' + equityPts + '" fill="none" style="stroke:' + (ret >= 0 ? 'var(--pos)' : 'var(--neg)') + '" stroke-width="2" vector-effect="non-scaling-stroke" />'
     + '</svg>'
     + '<div style="display:flex; justify-content:space-between; ' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-3)">'
     + '<span>' + esc(curveVon) + '</span><span>' + esc(curveMitte) + '</span><span>today</span></div></div>'
@@ -580,7 +580,9 @@ export function renderPortfolio(T) {
       'The positions here come from the same paper sub-account as the copy page. '
       + 'Without the API there is no book to show.');
   }
-  const equityPts = live && live.equity_curve && live.equity_curve.length > 1 ? T.seriesPoints(live.equity_curve, 900, 220) : '';
+  const portDom = live && live.equity_curve && live.equity_curve.length > 1 ? seriesDomain(live.equity_curve) : null;
+  const equityPts = portDom ? T.seriesPoints(live.equity_curve, 900, 220, portDom) : '';
+  const portGrid = seriesGrid(portDom, 900, 220, (v) => kurzGeld(v));
   const watch = trackWatchRows(T);
   // Live-Positionen des Copy-Traders in die Portfolio-Zeilen [Markt, Seite, Entry, Now, Profit, Quelle]
   const livePortRows = live && live.positions && live.positions.length ? live.positions.map((r) => [
@@ -600,7 +602,9 @@ export function renderPortfolio(T) {
       + '<div style="padding:var(--sp-5) var(--sp-6) 0; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:var(--sp-5)">'
       + '<div><div style="' + LABEL_BLOCK + '">SEARCH</div><input value="' + esc(s.portQuery) + '" ' + T.inp((e) => T.setState({ portQuery: e.target.value }), 'portQuery') + ' placeholder="market or wallet…" style="width:100%; box-sizing:border-box; background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text)" /></div>'
       + '<div><div style="' + LABEL_BLOCK + '">SOURCE</div><div style="display:flex; gap:var(--sp-3); flex-wrap:wrap">'
-      + [['all','All'],['research','Research'],['copy','Copy trade']].map((o) => T.opt(o[1], s.portSource === o[0], { portSource: o[0] })).join('') + '</div></div>'
+      // Nur Quellen, die es gibt: jede Zeile hier stammt aus dem Copy-Buch,
+      // ein "Research"-Filter fand nie eine Zeile.
+      + [['all','All'],['copy','Copy trade']].map((o) => T.opt(o[1], s.portSource === o[0], { portSource: o[0] })).join('') + '</div></div>'
       + '<div><div style="' + LABEL_BLOCK + '">SIDE</div><div style="display:flex; gap:var(--sp-3); flex-wrap:wrap">'
       + [['all','All'],['YES','Yes'],['NO','No']].map((o) => T.opt(o[1], s.portSide === o[0], { portSide: o[0] })).join('') + '</div></div>'
       + '<div><div style="' + LABEL_BLOCK + '">SHOW</div><div style="display:flex; gap:var(--sp-3); flex-wrap:wrap">'
@@ -629,11 +633,8 @@ export function renderPortfolio(T) {
       + '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-5); margin-top:var(--sp-5)">'
       + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4); margin-bottom:var(--sp-4)">COMBINED EQUITY</div>'
       + '<svg width="100%" height="220" viewBox="0 0 900 220" preserveAspectRatio="none" role="img" aria-label="Combined equity">'
-      + '<line x1="0" y1="20" x2="900" y2="20" style="stroke:rgba(var(--ink),.07)" />'
-      + '<line x1="0" y1="90" x2="900" y2="90" style="stroke:rgba(var(--ink),.07)" />'
-      + '<line x1="0" y1="160" x2="900" y2="160" style="stroke:rgba(var(--ink),.07)" />'
-      + '<line x1="0" y1="210" x2="900" y2="210" style="stroke:rgba(var(--ink),.14)" />'
-      + '<polyline points="' + equityPts + '" fill="none" style="stroke:var(--accent)" stroke-width="2" /></svg></div>'
+      + portGrid
+      + '<polyline points="' + equityPts + '" fill="none" style="stroke:var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke" /></svg></div>'
       + '</div>';
   } else if (s.portTab === 'exposure') {
     // Keine erfundene Aufteilung mehr: hier standen MACRO $412, POLITICS

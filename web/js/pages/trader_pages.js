@@ -1,6 +1,6 @@
 // Leaderboard, Whale flow, Risk screen, Tracked — ported from the design reference.
 
-import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, tapeFenster, fensterSatz } from '../util.js';
+import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, tapeFenster, fensterSatz, gradeLabel } from '../util.js';
 import { caveat, caveatZeile } from '../claims.js';
 import { scoreBand, bandChips, basisSatz, gemessenSatz } from '../risk_bands.js';
 import { renderClusterGraphics, clusterFarbe } from './cluster_graphics.js';
@@ -101,7 +101,7 @@ export function scoreWolkeHtml(T, rows) {
       y: +t.vol,
       label: t.name,
       band: Array.isArray(t.scoreCi) && t.scoreCi.length === 2 ? t.scoreCi : null,
-      tip: t.name + ' · score ' + t.score + (t.grade ? ' (' + t.grade + ')' : '')
+      tip: t.name + ' · score ' + t.score + (t.grade ? ' (' + gradeLabel(t.grade) + ')' : '')
         + (Array.isArray(t.scoreCi) && t.scoreCi.length === 2
           ? ' · unmeasured range ' + t.scoreCi[0] + ' to ' + t.scoreCi[1] : '')
         + ' · volume ' + kurzGeld(+t.vol)
@@ -188,7 +188,9 @@ export function renderTraders(T) {
   // Absteigend, und eine unbekannte Zahl steht am Ende statt als Null in der
   // Mitte: ein fehlender Gewinn ist kein Rang, den die Zeile verdient hat.
   const absteigend = (x, y) => (x == null && y == null ? 0 : x == null ? 1 : y == null ? -1 : y - x);
-  const roi = (t) => (t.pnl == null ? null : t.pnl / (t.vol || 1));
+  // Ohne bekanntes Volumen gibt es keine Rendite auf das Volumen: pnl/1
+  // stellte ein Wallet mit unbekanntem Umsatz an die Spitze.
+  const roi = (t) => (t.pnl == null || !(t.vol > 0) ? null : t.pnl / t.vol);
   const traderSorted = tRows.sort((a, b) => {
     if (rank === 'win') return (b.win || 0) - (a.win || 0);
     if (rank === 'score') return (b.score == null ? -1 : b.score) - (a.score == null ? -1 : a.score);
@@ -262,7 +264,7 @@ export function renderTraders(T) {
         + '<div style="display:flex; align-items:center; gap:var(--sp-4); min-width:0">'
         + '<div style="' + avatarStyle + '">' + esc(t.name.charAt(0).toUpperCase()) + '</div>'
         + '<div style="min-width:0"><div style="font-size:var(--t-body)">' + esc(t.name) + '</div>'
-        + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-1)">' + esc(t.wallet) + (t.grade ? ' · grade ' + esc(t.grade) : '') + '</div>'
+        + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-1)">' + esc(t.wallet) + (t.grade ? ' · grade ' + esc(gradeLabel(t.grade)) : '') + '</div>'
         + scorePartsHtml(t) + '</div></div>'
         + '<div style="' + M + '; font-size:var(--t-body); text-align:right; color:' + (t.pnl == null ? 'var(--ink-3)' : (t.pnl >= 0 ? 'var(--pos)' : 'var(--neg)')) + '">' + (t.pnl != null ? money(t.pnl) : '—') + '</div>'
         + (hatWin ? '<div style="' + M + '; font-size:var(--t-body); text-align:right">' + (t.win != null ? Math.round(t.win * 100) + '%' : '—') + '</div>' : '')
@@ -333,7 +335,11 @@ export function renderWhale(T) {
     const marketList = Object.values(w.markets).sort((a, b) => b.dollar - a.dollar);
     return {
       name: w.name, wallet: w.wallet, prints: w.prints, total: w.total, biggest: w.biggest,
-      buys: w.buys, sells: w.sells,
+      buys: w.buys, sells: w.sells, buyDollar: w.buyDollar, sellDollar: w.sellDollar,
+      // Die Richtung zaehlt Dollar, nicht Prints: ein Kauf ueber $40k gegen
+      // zwei Verkaeufe ueber je $1k ist Kaufen. Die Zeile darunter nennt
+      // darum beide Summen, sonst widersprach "MOSTLY BUYING" dem
+      // "1 buy · 2 sells" direkt darunter.
       lean: w.buys && w.sells ? (w.buyDollar >= w.sellDollar ? 'MOSTLY BUYING' : 'MOSTLY SELLING') : w.buys ? 'BUYING' : 'SELLING',
       cat: topCat[0], catShare: topCat[1] + '/' + w.prints,
       marketCount: marketList.length, topMarket: marketList[0],
@@ -426,7 +432,11 @@ export function renderWhale(T) {
         + '<div style="' + M + '; font-size:var(--t-body); text-align:right">' + money(w.total) + '</div>'
         + '<div style="' + M + '; font-size:var(--t-body); text-align:right; color:var(--ink-3)">' + money(w.biggest) + '</div>'
         + '<div><div style="' + leanStyle + '">' + esc(w.lean) + '</div>'
-        + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); text-align:right; margin-top:var(--sp-1)">' + w.buys + ' buy' + (w.buys === 1 ? '' : 's') + ' · ' + w.sells + ' sell' + (w.sells === 1 ? '' : 's') + '</div></div>'
+        + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); text-align:right; margin-top:var(--sp-1)">'
+        + (w.buys && w.sells
+          ? money(w.buyDollar || 0) + ' bought · ' + money(w.sellDollar || 0) + ' sold'
+          : w.buys + ' buy' + (w.buys === 1 ? '' : 's') + ' · ' + w.sells + ' sell' + (w.sells === 1 ? '' : 's'))
+        + '</div></div>'
         + '<div style="' + M + '; font-size:var(--t-body); text-align:right; color:var(--ink-3)">' + w.marketCount + '</div>'
         + '<div style="min-width:0"><div style="font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(w.topMarket.title) + '">' + esc(w.topMarket.title) + '</div>'
         + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-1)">' + money(w.topMarket.dollar) + ' · ' + topMarketShare + '% of this wallet</div></div>'
@@ -646,7 +656,7 @@ export function riskScoreBreakdown(components, score) {
   const rechnung = '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); padding-top:var(--sp-3); border-top:1px solid var(--line-2); margin-top:var(--sp-1)">'
     + summe.toFixed(1) + ' pts' + (ctx ? ' × ' + esc(String(ctx.value)) : '') + ' = <span style="color:var(--text)">' + produkt + '</span> / 100'
     + (stimmt ? '' : ' <span style="color:var(--warn)">· the card says ' + esc(String(score)) + ' — parts missing from this answer</span>')
-    + ' <span style="color:var(--ink-4)">· under 40 low · 40–54 elevated · 55–69 medium · 70+ high</span></div>';
+    + ' <span style="color:var(--ink-4)">· under 40 few patterns · 40–54 some · 55–69 many · 70+ most patterns — a points total, not a probability</span></div>';
   return '<div>' + scored.map(bar).join('') + nichts + kontext + rechnung + '</div>';
 }
 
@@ -824,7 +834,8 @@ export function renderRiskLog(T) {
       + (live.min_score != null ? String(live.min_score) : '40') + ' and up); nothing has been flagged since logging started on this host.');
   }
   const kopf = '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); padding:var(--sp-4) var(--sp-6) 0">' + rows.length + ' flag' + (rows.length === 1 ? '' : 's')
-    + (live.enriched != null ? ' · price after the flag read for ' + live.enriched + ' of the newest ' + Math.min(rows.length, live.enrich_max || 30) + ' Polymarket flags' : '')
+    + (live.enriched != null ? ' · price after the flag read for ' + live.enriched + ' of the newest '
+      + Math.min(rows.filter((f) => String(f.venue || '').toLowerCase() === 'polymarket').length, live.enrich_max || 30) + ' Polymarket flags' : '')
     + (live.as_of ? ' · as of ' + esc(String(live.as_of)) : '') + '</div>';
   return intro + kopf + flagScoreboardHtml(live.scoreboard) + '<div style="padding:var(--sp-4) var(--sp-6) var(--sp-5); display:grid; gap:var(--sp-4)">'
     + rows.map((f) => {
@@ -1196,7 +1207,9 @@ export function renderRisk(T) {
         const mitglieder = Array.isArray(n.members) ? n.members : [];
         const rest = (n.members_total || mitglieder.length) - mitglieder.length;
         const maerkte = Array.isArray(n.markets) ? n.markets : [];
-        return '<div style="background:var(--panel); border:1px solid var(--line-2); border-left:3px solid ' + farbe + '; border-radius:var(--r-panel); padding:var(--sp-5)">'
+        // Die Clusterfarbe traegt das Swatch in der Kopfzeile; ein dicker
+        // Farbbalken an der Kante sagte dasselbe ein zweites Mal.
+        return '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-5)">'
           + '<div style="display:flex; align-items:center; justify-content:space-between; gap:var(--sp-4); flex-wrap:wrap">'
           + '<div style="display:flex; align-items:center; gap:var(--sp-3)"><span style="width:9px; height:9px; border-radius:2px; flex:none; background:' + farbe + '"></span>'
           + '<span style="font-size:var(--t-lead); font-weight:600">' + esc(n.name) + '</span>'
@@ -1292,7 +1305,7 @@ export function trackWalletCards(T) {
     return live.wallets.map((w) => ({
       name: w.name || w.wallet,
       wallet: w.wallet && w.wallet.length > 12 ? w.wallet.slice(0, 6) + '…' + w.wallet.slice(-4) : w.wallet,
-      grade: w.grade || '—',
+      grade: gradeLabel(w.grade) || '—',
       pnl: w.pnl != null ? (w.pnl >= 0 ? '+' : '-') + money(Math.abs(w.pnl)) : '—',
       pnlRaw: w.pnl,
       last: '—',

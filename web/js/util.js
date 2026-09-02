@@ -22,9 +22,25 @@ export function offeneNichtDrin(aggregat) {
 export function num(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
 
 export function money(n) {
+  // Milliarden als Milliarden: "$1854.6m" stand fuer ein Leaderboard-Volumen,
+  // waehrend die Achse daneben "$1.00B" schrieb.
+  if (n >= 1000000000) return '$' + (n / 1000000000).toFixed(2) + 'B';
   if (n >= 1000000) return '$' + (n / 1000000).toFixed(n >= 10000000 ? 1 : 2) + 'm';
   if (n >= 1000) return '$' + (n / 1000).toFixed(n >= 100000 ? 0 : 1) + 'k';
   return '$' + n.toFixed(0);
+}
+
+// Die Kopiernoten aus src/copy_trading.py heissen unter 55 Punkten "Watch"
+// und "Avoid": Handlungsworte, die die Seite nicht sagen darf (die Note
+// beschreibt einen Score, sie raet nicht). Auf der Website werden sie als
+// Buchstaben gefuehrt, in derselben Reihe wie A, B, C.
+export function gradeLabel(grade) {
+  const g = String(grade == null ? '' : grade).trim();
+  if (!g) return '';
+  const low = g.toLowerCase();
+  if (low === 'watch') return 'D';
+  if (low === 'avoid') return 'E';
+  return g;
 }
 
 // Volumen ist nicht auf beiden Venues dasselbe. Polymarket meldet Dollar,
@@ -81,14 +97,64 @@ export function esc(v) {
 // zwar samt Funktion — solange er im Modul liegt, ruft ihn wieder jemand auf.
 // Ein Diagramm entsteht nur noch aus einer echten Serie, ueber seriesPoints.
 
+// Gemeinsame Skala fuer ein oder mehrere Serien in einer 900x240-Box:
+// min/max ueber alle Werte, die Null immer drin (eine Equity-Kurve, die
+// von 1000 auf 900 faellt, darf nicht die ganze Hoehe fuellen), plus
+// "schoene" Ticks. domain(values...) nimmt beliebig viele Arrays.
+export function seriesDomain() {
+  const alle = [];
+  for (let i = 0; i < arguments.length; i += 1) {
+    (arguments[i] || []).forEach((v) => { if (typeof v === 'number' && v === v) alle.push(v); });
+  }
+  if (!alle.length) return null;
+  let min = Math.min(0, ...alle);
+  let max = Math.max(0, ...alle);
+  if (min === max) max = min + 1;
+  return { min, max };
+}
+
 // Render an array of numbers as SVG polyline points inside a viewBox.
-export function seriesPoints(values, width, height) {
+// Mit domain {min, max} teilen sich mehrere Serien eine Skala; ohne domain
+// skaliert die Serie sich selbst (nur fuer Einzelkurven, nie fuer zwei
+// Linien im selben Bild: jede Kurve fuellte sonst ihre eigene Hoehe, und
+// zwei Kurven "kreuzten" sich, wo ihre privaten Skalen sich trafen).
+// null-Werte werden uebersprungen (kein Sturz auf null).
+export function seriesPoints(values, width, height, domain) {
   if (!values || values.length < 2) return '';
-  const max = Math.max(...values), min = Math.min(...values);
+  const zahlen = values.filter((v) => typeof v === 'number' && v === v);
+  if (zahlen.length < 2) return '';
+  const d = domain && typeof domain.min === 'number' && typeof domain.max === 'number' ? domain : null;
+  const max = d ? d.max : Math.max(...zahlen), min = d ? d.min : Math.min(...zahlen);
   const span = max - min || 1;
-  return values.map((v, i) =>
-    ((i * width) / (values.length - 1)).toFixed(1) + ',' + (height - 10 - ((v - min) / span) * (height - 30)).toFixed(1)
-  ).join(' ');
+  const pts = [];
+  values.forEach((v, i) => {
+    if (typeof v !== 'number' || v !== v) return;
+    pts.push(((i * width) / (values.length - 1)).toFixed(1) + ',' + (height - 10 - ((v - min) / span) * (height - 30)).toFixed(1));
+  });
+  return pts.join(' ');
+}
+
+// Gitterlinien mit Beschriftung fuer eine seriesPoints-Box: dieselbe
+// Abbildung wie seriesPoints (10 Einheiten Luft oben, 20 unten), Ticks auf
+// runden Werten, Nulllinie dunkler. fmt formatiert den Tickwert.
+export function seriesGrid(domain, width, height, fmt) {
+  if (!domain) return '';
+  const min = domain.min, max = domain.max;
+  const span = max - min || 1;
+  const y = (v) => height - 10 - ((v - min) / span) * (height - 30);
+  const roh = span / 4;
+  const zehner = Math.pow(10, Math.floor(Math.log10(roh)));
+  const schritt = [1, 2, 2.5, 5, 10].map((f) => f * zehner).find((k) => k >= roh) || zehner * 10;
+  let out = '';
+  for (let v = Math.ceil(min / schritt) * schritt; v <= max + schritt * 1e-9; v += schritt) {
+    const yy = y(v);
+    if (yy < 4 || yy > height - 4) continue;
+    out += '<line x1="0" y1="' + yy.toFixed(1) + '" x2="' + width + '" y2="' + yy.toFixed(1)
+      + '" style="stroke:rgba(var(--ink),' + (Math.abs(v) < 1e-9 ? '.2' : '.07') + ')" />'
+      + '<text x="4" y="' + (yy - 3).toFixed(1) + '" style="fill:var(--ink-3)" font-size="10" font-family="IBM Plex Mono, monospace">'
+      + esc(fmt ? fmt(v) : String(+v.toFixed(2))) + '</text>';
+  }
+  return out;
 }
 
 // Herkunft eines Datenblocks in einen Satz, den ein Leser ohne Kenntnis des
@@ -215,9 +281,12 @@ export function endsInfo(iso) {
   const d = new Date(iso);
   if (isNaN(d)) return { label: '—', days: null };
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const days = Math.max(0, Math.round((d - Date.now()) / 86400000));
+  // Das Vorzeichen bleibt: ein Enddatum in der Vergangenheit (Gamma traegt
+  // es oft fuer aktive, noch nicht aufgeloeste Maerkte) ist nicht "in 0
+  // Tagen", sondern ueberfaellig. Filter und Listen lesen days < 0 dafuer.
+  const days = Math.round((d - Date.now()) / 86400000);
   const far = d.getFullYear() > new Date().getFullYear();
-  return { label: far ? months[d.getMonth()] + ' ' + d.getFullYear() : d.getDate() + ' ' + months[d.getMonth()], days };
+  return { label: far ? months[d.getMonth()] + ' ' + d.getFullYear() : d.getDate() + ' ' + months[d.getMonth()], days, past: days < 0 };
 }
 
 // Signed dollar amount with two decimals: +$288.67 / -$12.00.
@@ -263,7 +332,9 @@ export function mapMarket(r, i) {
     // auftritt und trotzdem nicht verloren geht.
     volTotal: +r.volume || +r.activity_volume || 0,
     liq: +r.liquidity || 0,
-    ends: ends.label,
+    // Ein Enddatum in der Vergangenheit heisst so: der Markt ist ueber sein
+    // Datum hinaus und nicht aufgeloest, nicht "resolves 1 Sep".
+    ends: ends.past ? 'past end date' : ends.label,
     url: r.url || '',
     // Unknown stays null. The earlier defaults (spread 5¢, age 100 days)
     // made filters on those fields operate on constants.
@@ -344,6 +415,25 @@ export function tapeFenster(prints) {
     ...spanne(gueltig),
     jeVenue: Object.keys(venues).sort().map((v) => ({ venue: v, ...spanne(venues[v]) }))
   };
+}
+
+// Die Bot-Maerkte des Wallet-Ledgers als W/L-Zaehlung: jeder Markt mit
+// zuordnung "bot" ist eine Position, wertlos ausgelaufene zaehlen als
+// verloren. Eine Zahlenwelt fuer Overview und Live-Runs-Seite, damit die
+// Kacheln neben "24 runs · 27 bets" (Bot) nicht die 42 · 12 des ganzen
+// Wallets (Bot + Hand + Pilot) zeigen.
+export function ledgerBotPositionen(ledger) {
+  if (!ledger || !Array.isArray(ledger.events)) return null;
+  const z = { n: 0, won: 0, lost: 0, open: 0 };
+  ledger.events.forEach((e) => (Array.isArray(e.maerkte) ? e.maerkte : []).forEach((m) => {
+    if (String(m.zuordnung || '') !== 'bot') return;
+    z.n += 1;
+    const st = String(m.status || '');
+    if (st === 'won') z.won += 1;
+    else if (st === 'lost' || st === 'worthless') z.lost += 1;
+    else if (st === 'open') z.open += 1;
+  }));
+  return z.n ? z : null;
 }
 
 // Eine Minutenzahl als kurze Dauer: 0 min, 42 min, 3.5 h, 2.1 d.

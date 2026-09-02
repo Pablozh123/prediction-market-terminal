@@ -735,7 +735,10 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("BRIER AT T-7 0.042 – 0.352", text_alt)
         self.assertIn("CATEGORIES 2 T-7 samples from 12 to 26", text_alt)
         self.assertIn("RANKED ON BRIER AT T-7", text_alt)
-        self.assertIn("CATEGORY BRIER T-7 HIT RATE DECIDED MARKETS", text_alt)
+        # Die alte Nutzlast traegt keinen Anteil entschiedener Preise: dann
+        # gibt es keine DECIDED-Spalte, statt einer Spalte aus Strichen.
+        self.assertIn("CATEGORY BRIER T-7 HIT RATE MARKETS MEDIAN VOLUME", text_alt)
+        self.assertNotIn("DECIDED", text_alt)
         self.assertIn("Sport · n 26 0.042", text_alt)
         self.assertNotIn("OPEN-PRICE BRIER", text_alt)
         self.assertNotIn("THE FINDING", text_alt)
@@ -820,11 +823,14 @@ class WebLeerzustandTest(unittest.TestCase):
         # ganze Wallet als Cashflow (buys → back). Die Sichttiefe-Zelle ist
         # weg — sie brauchte den Methodenteil, um verstanden zu werden.
         text = _sichtbarer_text(self.ausgabe["live"]["overview"])
-        self.assertIn("NET PNL (WALLET · BOT) +$417.77", text)
+        self.assertIn("NET PNL (WALLET · BOT MARKETS) +$417.77", text)
         # Ohne Datumsanhang: die Frische zeigt der Ledger-Stand im Payload,
         # nicht jede Zelle einzeln.
-        self.assertIn("bot trades in the wallet ledger", text)
-        self.assertNotIn("bot trades in the wallet ledger ·", text)
+        self.assertIn("bot markets in the wallet ledger", text)
+        self.assertNotIn("bot markets in the wallet ledger · as of", text)
+        # Das ganze Wallet steht als Vergleich daneben, damit die Bot-Summe
+        # nicht als Wallet-Summe gelesen wird.
+        self.assertIn("bot markets in the wallet ledger · whole wallet +$469.25", text)
         self.assertIn("wallet buys $1,039", text)
         # ROI mit benannter Basis: der Ledger traegt die vom Betreiber
         # deklarierten Einzahlungen (on-chain nachpruefbar), also
@@ -1130,8 +1136,11 @@ class WebLeerzustandTest(unittest.TestCase):
         # nachrechenbare Quelle.
         live = self.ausgabe["live"]["runs_runs"]
         text = _sichtbarer_text(live)
-        self.assertIn("NET PNL (WALLET, AS OF 2026-08-17) +$66", text)
-        self.assertIn("cash truth from the on-chain wallet", text)
+        # Die Bot-Summe heisst so, nicht "WALLET": das ganze Wallet steht
+        # daneben als Netto-Cashflow.
+        self.assertIn("NET PNL (WALLET · BOT MARKETS, AS OF 2026-08-17) +$66", text)
+        self.assertIn("whole wallet +$59", text)
+        self.assertIn("sells + redemptions − buys of the bot markets, on-chain wallet ledger", text)
         # Statt der Stake-Summe die Rendite wie auf der Overview: Cashflow
         # des ganzen Wallets gegen die einmalige Einzahlung. Der Harness-
         # Ledger kennt keine Einzahlungen — dann greift die im Frontend
@@ -1598,7 +1607,9 @@ class WebLeerzustandTest(unittest.TestCase):
         html = self.ausgabe["live"]["risk_log"]
         text = _sichtbarer_text(html)
         self.assertIn("2 flags", text)
-        self.assertIn("price after the flag read for 1 of the newest 2 Polymarket flags", text)
+        # Der Nenner zaehlt nur Polymarket-Zeilen: der Kalshi-Flag im Log
+        # verbraucht kein Budget und gehoert nicht in "of the newest N".
+        self.assertIn("price after the flag read for 1 of the newest 1 Polymarket flags", text)
         # Newest first: the Polymarket flag (10:25) before the Kalshi flag (09:00).
         self.assertLess(text.find("17 Aug 10:25 UTC"), text.find("17 Aug 09:00 UTC"))
         self.assertIn("seen 3× since 17 Aug 10:05", text)
@@ -1771,6 +1782,8 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("BASIS · DEFINITIONS as of 2026-08-17 19:00 UTC", text)
         self.assertIn("Sortino = mean / downside RMS over all days (target 0), shown only with 3+ losing days", text)
         self.assertIn("TOP OPEN · BY UNREALISED YES Open harness market A? +38% $40.00 → $55.00 · +$15.00 unrealised", text)
+        # total_bought zaehlt Shares (100 zu 0.50 = $50 Einsatz); die Rendite
+        # rechnet gegen die Dollar, nicht gegen die Stueckzahl.
         self.assertIn("TOP CLOSED · BY REALISED YES Harness market 0? +80% $50.00 → $90.00 · +$40.00 realised", text)
         # Limits stay on every tab.
         self.assertIn("LIMITS OF THIS READ", text)
@@ -1875,7 +1888,7 @@ class WebLeerzustandTest(unittest.TestCase):
         html = self.ausgabe["live"]["wallet_treemap_alle"]
         text = _sichtbarer_text(html)
         self.assertIn("POSITIONS TREEMAP", text)
-        self.assertIn("tile area = $ at stake", text)
+        self.assertIn("tile area = dollars put in", text)
         self.assertIn("4 tiles", text)
         # The hover card's figures ride in data-tip as JSON: title, the
         # market's own image URL from the feed, and label/value rows.
