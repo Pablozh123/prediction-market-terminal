@@ -194,6 +194,13 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("OPPOSITE-SIDE PAIRS", text)
         self.assertNotIn("WASH SUSPICION", text)
         self.assertIn("market making, arbitrage or plain disagreement", text)
+        # Die Karte: ein SVG mit den drei Kantenarten und der Legende, plus
+        # die Evidenz-Leiter ueber den Bloecken.
+        html = self.ausgabe["live"]["graph_data"]
+        self.assertIn('aria-label="wallet network map', html)
+        self.assertIn("NETWORK MAP", text)
+        self.assertIn("CANDIDATE TIE", text)
+        self.assertIn("colour = linked entity", text)
 
     def test_mit_daten_echte_werte(self) -> None:
         text = _sichtbarer_text(self.ausgabe["live"]["overview"])
