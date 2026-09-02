@@ -3156,8 +3156,12 @@ def get_kalshi_markets_deep(
         events = data.get("events", []) if isinstance(data, dict) else []
         for event in events:
             for market in event.get("markets") or []:
+                # Nur Parlays fliegen hier raus. Eine Zeile OHNE ticker bleibt
+                # drin, damit require_fields unten sie als umbenanntes Feld
+                # meldet — vorher fiel sie still weg, und ein Feed, der die
+                # Spalte umbenannt hat, sah aus wie ein leeres Universum.
                 ticker = str(market.get("ticker") or "")
-                if not ticker or ticker.upper().startswith("KXMVE"):
+                if ticker.upper().startswith("KXMVE"):
                     continue
                 # Kategorie und (fehlender) Titel wohnen am Event; ohne sie
                 # hiesse jeder Markt "Uncategorized" bzw. nur sein Strike.

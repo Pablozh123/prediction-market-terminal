@@ -2582,6 +2582,18 @@ def copy_payload(
 TRADE_PNL_BINS = 16
 
 
+def _schoene_schrittweite(roh: float) -> float:
+    """Die naechste runde Schrittweite (1, 2, 2.5, 5 x 10^k) ueber ``roh``."""
+
+    if not (roh > 0):
+        return 1.0
+    zehner = 10 ** math.floor(math.log10(roh))
+    for faktor in (1.0, 2.0, 2.5, 5.0, 10.0):
+        if faktor * zehner >= roh:
+            return faktor * zehner
+    return 10.0 * zehner
+
+
 def trade_pnl_distribution(ledger: pd.DataFrame | None) -> dict[str, Any] | None:
     """Verteilung des Ergebnisses je geschlossener Kopie, plus Konzentration.
 
@@ -2608,12 +2620,21 @@ def trade_pnl_distribution(ledger: pd.DataFrame | None) -> dict[str, Any] | None
     if hoch == tief:
         # Alle gleich: ein Bin um den Wert, damit die Achse eine Breite hat.
         tief, hoch = tief - 1.0, hoch + 1.0
-    breite = (hoch - tief) / TRADE_PNL_BINS
+    # Runde Bin-Kanten (1, 2, 2.5, 5 x 10^k), an der Null ausgerichtet:
+    # Kanten wie -41.06 und -7.12 waren die Spanne durch 16 und liessen
+    # sich weder lesen noch mit der Nulllinie in Deckung bringen.
+    breite = _schoene_schrittweite((hoch - tief) / TRADE_PNL_BINS)
+    start = math.floor(tief / breite) * breite
+    ende = math.ceil(hoch / breite) * breite
+    if ende <= start:
+        ende = start + breite
+    n_bins = int(round((ende - start) / breite))
     bins: list[dict[str, Any]] = []
-    for i in range(TRADE_PNL_BINS):
-        von = tief + i * breite
-        bis = hoch if i == TRADE_PNL_BINS - 1 else tief + (i + 1) * breite
-        drin = [w for w in werte if (von <= w < bis or (i == TRADE_PNL_BINS - 1 and w == hoch))]
+    for i in range(n_bins):
+        von = start + i * breite
+        bis = start + (i + 1) * breite
+        letzter = i == n_bins - 1
+        drin = [w for w in werte if (von <= w < bis or (letzter and w == bis))]
         bins.append({"von": round(von, 4), "bis": round(bis, 4), "anzahl": len(drin)})
     gewinne = sorted((w for w in werte if w > 0), reverse=True)
     summe_gewinne = sum(gewinne)
@@ -2630,6 +2651,30 @@ def trade_pnl_distribution(ledger: pd.DataFrame | None) -> dict[str, Any] | None
         # Grundgesamtheit ist keine 0 Prozent, er ist nicht definiert.
         "top3_share": round(top3 / summe_gewinne, 4) if summe_gewinne > 0 else None,
         "winners": len(gewinne),
+    }
+
+
+#: Sichtbare Log-Zeilen (ohne "filtered") und die Stichprobe der gefilterten.
+LOG_ROWS = 80
+LOG_FILTERED_SAMPLE = 30
+
+
+def _log_zeile(row: Any) -> dict[str, Any]:
+    return {
+        "time": _text(row.get("time"))[5:16].replace("T", " "),
+        "action": _text(row.get("action")),
+        "status": _text(row.get("status")),
+        "market": _text(row.get("title")),
+        "side": _text(row.get("outcome")),
+        "trader_amt": _num(row.get("source_notional"), 0.0),
+        "stake": _num(row.get("stake"), 0.0),
+        "fill": _num(row.get("exec_price"), 0.0),
+        "fee": _num(row.get("fee"), 0.0),
+        # Zeilen, die erst am Fensterrand abgerechnet werden, fuehren keinen
+        # laufenden Kontostand; null laesst die Oberflaeche einen Strich zeichnen.
+        "equity": _num(row.get("equity_after")),
+        "realized_pnl": _num(row.get("realized_pnl")),
+        "note": _text(row.get("note")),
     }
 
 
@@ -2717,25 +2762,16 @@ def backtest_payload(result: Any) -> dict[str, Any]:
         verteilung = trade_pnl_distribution(ledger)
         if verteilung is not None:
             payload["trade_pnl"] = verteilung
-        payload["log"] = [
-            {
-                "time": _text(row.get("time"))[5:16].replace("T", " "),
-                "action": _text(row.get("action")),
-                "status": _text(row.get("status")),
-                "market": _text(row.get("title")),
-                "side": _text(row.get("outcome")),
-                "trader_amt": _num(row.get("source_notional"), 0.0),
-                "stake": _num(row.get("stake"), 0.0),
-                "fill": _num(row.get("exec_price"), 0.0),
-                "fee": _num(row.get("fee"), 0.0),
-                # Zeilen, die erst am Fensterrand abgerechnet werden, fuehren
-                # keinen laufenden Kontostand. Der Default 0.0 machte daraus
-                # ein Konto von $0.00; null laesst die Oberflaeche einen
-                # Strich zeichnen.
-                "equity": _num(row.get("equity_after")),
-            }
-            for _, row in ledger.head(40).iterrows()
-        ]
+        # Das Log zeigt, was die Engine getan hat: kopiert, uebersprungen,
+        # abgerechnet. Bewusst nicht gefolgte Zeilen ("filtered") sind bei
+        # einer hyperaktiven Wallet Zehntausende und verdraengten die 40
+        # sichtbaren Zeilen komplett — man sah nur "filtered", nie einen
+        # Trade. Sie kommen getrennt und in kleiner Stichprobe mit.
+        gefiltert = ledger["status"].astype(str).eq("filtered") if "status" in ledger else pd.Series(False, index=ledger.index)
+        payload["log_filtered_total"] = int(gefiltert.sum())
+        payload["log_filtered"] = [_log_zeile(row) for _, row in ledger[gefiltert].head(LOG_FILTERED_SAMPLE).iterrows()]
+        payload["log"] = [_log_zeile(row) for _, row in ledger[~gefiltert].head(LOG_ROWS).iterrows()]
+        payload["log_total"] = int((~gefiltert).sum())
     open_df: pd.DataFrame = result.open_positions
     if open_df is not None and not open_df.empty:
         payload["open"] = [
