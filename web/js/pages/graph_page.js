@@ -45,7 +45,7 @@ function scan(T, addr, farbe) {
   // A wallet in the graph opens on the Wallet page's Linked tab.
   const a = String(addr || '');
   return '<span ' + T.act(() => { if (T.openWalletTab) T.openWalletTab(a, 'linked'); }) + ' class="hv-edge-strong" style="' + M + '; font-size:var(--t-small); color:var(--ink-1); cursor:pointer; text-decoration:underline dotted; white-space:nowrap" title="' + esc(a) + '">'
-    + (farbe ? '<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:' + farbe + '; margin-right:5px; vertical-align:middle"></span>' : '')
+    + (farbe ? '<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:' + farbe + '; margin-right:var(--sp-2); vertical-align:middle"></span>' : '')
     + esc(shortAddr(a)) + '</span>';
 }
 
@@ -280,7 +280,7 @@ function renderCandidates(T, d) {
     const chips = wallets.slice(0, 10).map((w) => scan(T, w, farben.get(String(w).toLowerCase()))).join(' <span style="color:var(--ink-4)">·</span> ');
     const dir = c.direction === 'in' ? '→ funds' : '← is paid by';
     return '<div style="display:grid; grid-template-columns:150px 110px 170px 1fr; gap:var(--sp-4); align-items:baseline; padding:var(--sp-3) 0; border-top:1px solid var(--line-3)">'
-      + '<span style="' + M + '; font-size:var(--t-small); color:var(--ink-1)"><span style="display:inline-block; width:7px; height:7px; border:1.5px solid var(--s4); transform:rotate(45deg); margin-right:6px"></span>' + polygonscan(c.counterparty) + '</span>'
+      + '<span style="' + M + '; font-size:var(--t-small); color:var(--ink-1)"><span style="display:inline-block; width:7px; height:7px; border:1.5px solid var(--s4); transform:rotate(45deg); margin-right:var(--sp-2)"></span>' + polygonscan(c.counterparty) + '</span>'
       + '<span style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + esc(dir) + '</span>'
       + balken(+c.wallet_count || 0, scans, 'var(--s4)', num(c.wallet_count) + ' of ' + num(scans) + (c.narrow_pairs ? ' · ' + c.narrow_pairs + ' pair' + (c.narrow_pairs === 1 ? '' : 's') + ' within 48h' : ''), 70)
       + '<span style="' + NOTIZ + '; min-width:0">' + chips + (wallets.length > 10 ? ' <span style="color:var(--ink-4)">+' + (wallets.length - 10) + '</span>' : '') + '</span></div>';
