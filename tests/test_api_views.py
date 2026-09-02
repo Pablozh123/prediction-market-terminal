@@ -1831,6 +1831,13 @@ class TradePnlDistributionTests(unittest.TestCase):
 
     def test_zaehlt_nur_geschlossene_kopien(self) -> None:
         v = apv.trade_pnl_distribution(self._ledger([1.0, -2.0, 3.0]))
+        # Runde Kanten, an der Null ausgerichtet: jede Kante ist ein
+        # Vielfaches der Schrittweite, und die Null ist selbst eine Kante.
+        schritt = round(v["bins"][0]["bis"] - v["bins"][0]["von"], 6)
+        self.assertIn(schritt, (0.1, 0.2, 0.25, 0.5, 1.0))
+        self.assertTrue(all(abs(round(b["von"] / schritt) - b["von"] / schritt) < 1e-6 for b in v["bins"]))
+        self.assertTrue(any(abs(b["von"]) < 1e-9 for b in v["bins"]))
+        self.assertEqual(sum(b["anzahl"] for b in v["bins"]), 3)
         self.assertEqual(v["n"], 3)
         self.assertEqual(sum(b["anzahl"] for b in v["bins"]), 3)
         self.assertEqual(v["best"], 3.0)

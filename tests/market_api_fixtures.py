@@ -300,6 +300,26 @@ def polymarket_public_search() -> dict[str, Any]:
     }
 
 
+def kalshi_events() -> dict[str, Any]:
+    """``/events?with_nested_markets=true``: dieselben Maerkte wie
+    ``kalshi_markets``, je Event verschachtelt, mit Kategorie am Event —
+    die Quelle des Marktuniversums (``get_kalshi_markets_deep``). Ein in
+    ``kalshi_markets`` umbenanntes Feld schlaegt hier durch."""
+
+    rows = kalshi_markets()["markets"]
+    events: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        event_ticker = str(row.get("event_ticker") or str(row.get("ticker") or row.get("market_ticker") or "").rsplit("-", 1)[0])
+        event = events.setdefault(event_ticker, {
+            "event_ticker": event_ticker,
+            "title": f"Fixture Kalshi event {event_ticker}",
+            "category": "Politics",
+            "markets": [],
+        })
+        event["markets"].append(row)
+    return {"cursor": "", "events": list(events.values())}
+
+
 def kalshi_markets() -> dict[str, Any]:
     return {
         "cursor": "",
@@ -422,6 +442,8 @@ def _payload_for(url: str) -> tuple[Any, bytes | None]:
             return kalshi_trades(), None
         if path.endswith("/markets"):
             return kalshi_markets(), None
+        if path.endswith("/events"):
+            return kalshi_events(), None
         if path.endswith("/orderbook"):
             return {"orderbook": {"yes": [], "no": []}}, None
         return {}, None

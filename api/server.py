@@ -206,6 +206,16 @@ CACHE_MAX_ENTRIES = max(16, _env_int("CACHE_MAX_ENTRIES", 512))
 _CACHE: OrderedDict[str, tuple[float, Any]] = OrderedDict()
 _CACHE_LOCK = threading.Lock()
 CACHE_TTL = 30.0  # Sekunden (Standard; einzelne Endpoints setzen mehr)
+#: Trades und Aufloesungen eines Backtest-Fensters (je Wallet und Tage).
+BACKTEST_DATA_TTL = 600.0
+
+
+# Eine Sperre je Schluessel: zwei gleichzeitige Anfragen nach demselben
+# Ergebnis (Doppelklick, zwei Tabs, der Variantenlauf direkt nach dem
+# Hauptlauf) rechneten beide den vollen Weg — bei einem Backtest zweimal
+# 30.000 Activity-Zeilen. Die zweite wartet jetzt auf die erste und liest
+# dann aus dem Cache.
+_INFLIGHT: dict[str, threading.Lock] = {}
 
 
 def cached(key: str, fn, *args, ttl: float = CACHE_TTL, **kwargs):
@@ -215,13 +225,27 @@ def cached(key: str, fn, *args, ttl: float = CACHE_TTL, **kwargs):
         if hit and now - hit[0] < ttl:
             _CACHE.move_to_end(key)
             return hit[1]
-    # Der Aufruf selbst laeuft ohne Sperre: er wartet oft auf das Netz.
-    value = fn(*args, **kwargs)
-    with _CACHE_LOCK:
-        _CACHE[key] = (now, value)
-        _CACHE.move_to_end(key)
-        while len(_CACHE) > CACHE_MAX_ENTRIES:
-            _CACHE.popitem(last=False)
+        sperre = _INFLIGHT.get(key)
+        if sperre is None:
+            sperre = _INFLIGHT[key] = threading.Lock()
+    with sperre:
+        # Waehrend des Wartens kann die erste Anfrage den Wert abgelegt haben.
+        with _CACHE_LOCK:
+            hit = _CACHE.get(key)
+            if hit and time.time() - hit[0] < ttl:
+                _CACHE.move_to_end(key)
+                return hit[1]
+        # Der Aufruf selbst laeuft ohne die globale Sperre: er wartet oft auf das Netz.
+        try:
+            value = fn(*args, **kwargs)
+        finally:
+            with _CACHE_LOCK:
+                _INFLIGHT.pop(key, None)
+        with _CACHE_LOCK:
+            _CACHE[key] = (time.time(), value)
+            _CACHE.move_to_end(key)
+            while len(_CACHE) > CACHE_MAX_ENTRIES:
+                _CACHE.popitem(last=False)
     return value
 
 
@@ -330,7 +354,24 @@ def load_universe(limit: int = 250) -> pd.DataFrame:
     def _load() -> pd.DataFrame:
         frames = []
         sources: list[dict[str, Any]] = []
-        for name, fn in (("Polymarket", md.get_polymarket_markets), ("Kalshi", md.get_kalshi_markets)):
+        # Kalshi ueber /events mit verschachtelten Maerkten (get_kalshi_markets_deep):
+        # /markets?limit=N ist EINE Seite in API-Reihenfolge und bestand
+        # gemessen fast nur aus quotelosen KXMVE-Parlays mit 0 Kontrakten —
+        # die Marktseite zeigte 95 Kalshi-Zeilen, alle tot, "0 contracts".
+        # Derselbe Cache-Schluessel wie beim Cross-Venue-Scan, damit das
+        # Universum einmal je fuenf Minuten geladen wird, nicht je Endpunkt.
+        def _kalshi_universe(limit: int = limit) -> pd.DataFrame:
+            frame = cached("cross_ks", lambda: md.get_kalshi_markets_deep(pages=12, page_size=200), ttl=300.0)
+            if frame.empty:
+                return frame
+            # Nur Maerkte mit einem Preis, nach Tagesumsatz absteigend: die
+            # balanced_head unten nimmt je Gruppe die Spitze dieser Ordnung.
+            mit_preis = frame[pd.to_numeric(frame.get("yes_price"), errors="coerce").notna()]
+            if "volume_24h" in mit_preis.columns:
+                mit_preis = mit_preis.sort_values("volume_24h", ascending=False, na_position="last")
+            return mit_preis.head(max(int(limit), 250) * 4).reset_index(drop=True)
+
+        for name, fn in (("Polymarket", md.get_polymarket_markets), ("Kalshi", _kalshi_universe)):
             frame = _venue_frame(name, lambda fn=fn: fn(limit=limit), sources)
             if not frame.empty:
                 frames.append(frame.dropna(axis=1, how="all"))
@@ -344,7 +385,9 @@ def load_universe(limit: int = 250) -> pd.DataFrame:
         # zum Auswaehlen. Laeuft einmal je Cache-Fuellung, nicht je Request.
         return apv.with_venue_sources(apv.enrich_filter_categories(combined, TAPE_CLASSIFIER), sources)
 
-    return cached(f"universe_{limit}", _load)
+    # Fuenf Minuten statt der 30-Sekunden-Vorgabe: das Universum haengt am
+    # Kalshi-Events-Cursor (12 Seiten) und aendert sich nicht im Sekundentakt.
+    return cached(f"universe_{limit}", _load, ttl=300.0)
 
 
 def load_tape(limit: int = 250, min_cash: float = 0.0) -> pd.DataFrame:
@@ -2239,10 +2282,22 @@ def backtest(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
         min_follow_notional=max(0.0, float(body.get("min_notional", 0.0))),
     )
     key = "bt_" + "_".join(str(v) for v in dataclasses.astuple(config))
+    # Die Daten des Fensters (Trades in Zeitscheiben, Aufloesungen) haengen
+    # nur an Wallet und Fenster und bleiben zehn Minuten liegen: jede
+    # Einstellung danach ist ein Replay in Sekunden statt ein neuer
+    # Minutenlauf gegen die Data API.
+    daten_key = f"bt_data_{wallet.lower()}_{config.days}"
+
+    def _daten() -> btr.WindowData:
+        return btr.load_window_data(config)
 
     def _run() -> dict[str, Any]:
-        result = btr.run_backtest(config)
-        return apv.backtest_payload(result)
+        daten = cached(daten_key, _daten, ttl=BACKTEST_DATA_TTL)
+        result = btr.run_backtest(config, data=daten)
+        payload = apv.backtest_payload(result)
+        payload["data_loaded_at"] = daten.loaded_at.isoformat()[:16] + "Z"
+        payload["data_rows"] = int(len(daten.trades)) if daten.trades is not None else 0
+        return payload
 
     try:
         payload = cached(key, _run, ttl=120.0)
@@ -2250,7 +2305,8 @@ def backtest(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
         raise HTTPException(status_code=502, detail=f"backtest failed: {exc}")
     if body.get("variants"):
         def _variants() -> list[dict[str, Any]]:
-            return apv.variants_payload(btr.strategy_comparison(config))
+            daten = cached(daten_key, _daten, ttl=BACKTEST_DATA_TTL)
+            return apv.variants_payload(btr.strategy_comparison(config, data=daten))
 
         try:
             payload = dict(payload)

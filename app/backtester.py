@@ -156,6 +156,64 @@ class BacktestResult:
     benchmark_stats: dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass
+class WindowData:
+    """Alles, was ein Fenster an Netz kostet, einmal geladen.
+
+    Der teure Teil eines Backtests ist nicht das Replay, sondern der Weg
+    dahin: bis zu 30.000 Activity-Zeilen in Scheiben plus die Aufloesungen
+    aller beruehrten Token. ``run_backtest`` und ``strategy_comparison``
+    nehmen ein fertiges ``WindowData`` entgegen, damit ein Server dieselbe
+    Wallet im selben Fenster fuer jede Einstellung nur einmal laedt — vorher
+    lud jeder Klick auf RUN alles neu und lief bei aktiven Wallets in die
+    Minute.
+    """
+
+    wallet: str
+    days: int
+    window_start: pd.Timestamp
+    window_end: pd.Timestamp
+    trades: pd.DataFrame
+    window_truncated: bool
+    token_values: dict[str, dict[str, Any]]
+    loaded_at: pd.Timestamp
+
+
+def load_window_data(
+    config: BacktestConfig,
+    *,
+    fetch_activity: Callable[..., pd.DataFrame] | None = None,
+    fetch_markets_by_ids: Callable[[list[str]], list[dict[str, Any]]] | None = None,
+    fetch_markets_by_event_slugs: Callable[[list[str]], list[dict[str, Any]]] | None = None,
+    token_values: dict[str, dict[str, Any]] | None = None,
+    now: pd.Timestamp | None = None,
+) -> WindowData:
+    """Trades und Aufloesungen eines Fensters laden (siehe ``WindowData``)."""
+
+    from src import prediction_markets as md
+
+    fetch_activity = fetch_activity or md.get_polymarket_activity
+    fetch_markets_by_ids = fetch_markets_by_ids or md.get_polymarket_markets_by_condition_ids
+    fetch_markets_by_event_slugs = fetch_markets_by_event_slugs or md.get_polymarket_markets_by_event_slugs
+    window_end = now if now is not None else pd.Timestamp.now(tz="UTC")
+    window_start = window_end - pd.Timedelta(days=int(config.days))
+    trades, window_truncated = fetch_window_trades(config.wallet, window_start, fetch_activity)
+    if token_values is None:
+        token_values = _resolve_token_values(
+            trades, fetch_markets_by_ids, fetch_markets_by_event_slugs, md.polymarket_token_value_map
+        )
+    return WindowData(
+        wallet=config.wallet,
+        days=int(config.days),
+        window_start=window_start,
+        window_end=window_end,
+        trades=trades,
+        window_truncated=bool(window_truncated),
+        token_values=token_values,
+        loaded_at=pd.Timestamp.now(tz="UTC"),
+    )
+
+
 def _empty_ledger() -> pd.DataFrame:
     return pd.DataFrame(columns=LEDGER_COLUMNS)
 
@@ -1190,29 +1248,41 @@ def run_backtest(
     fetch_markets_by_event_slugs: Callable[[list[str]], list[dict[str, Any]]] | None = None,
     token_values: dict[str, dict[str, Any]] | None = None,
     now: pd.Timestamp | None = None,
+    data: WindowData | None = None,
 ) -> BacktestResult:
-    """Full backtest: fetch window trades, replay with sizing + flat benchmark, settle, score."""
+    """Full backtest: fetch window trades, replay with sizing + flat benchmark, settle, score.
 
-    if fetch_activity is None or fetch_markets_by_ids is None:
-        from src import prediction_markets as md
+    Mit ``data`` (ein fertiges ``WindowData``) entfaellt der Netzweg: das
+    Replay laeuft auf den geladenen Trades und Aufloesungen.
+    """
 
-        fetch_activity = fetch_activity or md.get_polymarket_activity
-        fetch_markets_by_ids = fetch_markets_by_ids or md.get_polymarket_markets_by_condition_ids
-        # Der Slug-Rueckweg gehoert zum Produktionspfad; injizierte Fetcher
-        # (Tests) bekommen ihn nur, wenn sie ihn selbst mitbringen.
-        fetch_markets_by_event_slugs = fetch_markets_by_event_slugs or md.get_polymarket_markets_by_event_slugs
-        token_value_builder = md.polymarket_token_value_map
+    if data is not None:
+        window_end = data.window_end
+        window_start = data.window_start
+        trades = data.trades
+        window_truncated = data.window_truncated
+        token_values = data.token_values if token_values is None else token_values
     else:
-        from src import prediction_markets as md
+        if fetch_activity is None or fetch_markets_by_ids is None:
+            from src import prediction_markets as md
 
-        token_value_builder = md.polymarket_token_value_map
+            fetch_activity = fetch_activity or md.get_polymarket_activity
+            fetch_markets_by_ids = fetch_markets_by_ids or md.get_polymarket_markets_by_condition_ids
+            # Der Slug-Rueckweg gehoert zum Produktionspfad; injizierte Fetcher
+            # (Tests) bekommen ihn nur, wenn sie ihn selbst mitbringen.
+            fetch_markets_by_event_slugs = fetch_markets_by_event_slugs or md.get_polymarket_markets_by_event_slugs
+            token_value_builder = md.polymarket_token_value_map
+        else:
+            from src import prediction_markets as md
 
-    window_end = now if now is not None else pd.Timestamp.now(tz="UTC")
-    window_start = window_end - pd.Timedelta(days=int(config.days))
-    trades, window_truncated = fetch_window_trades(config.wallet, window_start, fetch_activity)
+            token_value_builder = md.polymarket_token_value_map
 
-    if token_values is None:
-        token_values = _resolve_token_values(trades, fetch_markets_by_ids, fetch_markets_by_event_slugs, token_value_builder)
+        window_end = now if now is not None else pd.Timestamp.now(tz="UTC")
+        window_start = window_end - pd.Timedelta(days=int(config.days))
+        trades, window_truncated = fetch_window_trades(config.wallet, window_start, fetch_activity)
+
+        if token_values is None:
+            token_values = _resolve_token_values(trades, fetch_markets_by_ids, fetch_markets_by_event_slugs, token_value_builder)
 
     # Tempo der Quell-Wallet messen und, wenn verlangt, die Copy-Logik
     # daran anpassen (Folge-Schwelle oder geschrumpfter Einsatz) — statt
@@ -1305,34 +1375,40 @@ def strategy_comparison(
     fetch_markets_by_event_slugs: Callable[[list[str]], list[dict[str, Any]]] | None = None,
     token_values: dict[str, dict[str, Any]] | None = None,
     now: pd.Timestamp | None = None,
+    data: WindowData | None = None,
 ) -> pd.DataFrame:
     """Replay the same window once per sizing variant and rank the outcomes.
 
-    Fetches the wallet's trades and market resolutions a single time, then runs
-    the full replay/settle/score pipeline for every variant. Fee, slippage,
-    exposure cap, strategy (copy/fade) and trader portfolio value come from
-    ``config``; only the sizing changes per row. Sorted by final equity.
+    Fetches the wallet's trades and market resolutions a single time (or
+    takes them from ``data``), then runs the full replay/settle/score
+    pipeline for every variant. Fee, slippage, exposure cap, strategy
+    (copy/fade) and trader portfolio value come from ``config``; only the
+    sizing changes per row. Sorted by final equity.
     """
 
     from src import prediction_markets as md
 
-    if fetch_markets_by_ids is None:
-        # Produktionspfad: der Slug-Rueckweg gehoert dazu (siehe
-        # _resolve_token_values); injizierte Fetcher bringen ihn selbst mit.
-        fetch_markets_by_event_slugs = fetch_markets_by_event_slugs or md.get_polymarket_markets_by_event_slugs
-    fetch_activity = fetch_activity or md.get_polymarket_activity
-    fetch_markets_by_ids = fetch_markets_by_ids or md.get_polymarket_markets_by_condition_ids
-    window_end = now if now is not None else pd.Timestamp.now(tz="UTC")
-    window_start = window_end - pd.Timedelta(days=int(config.days))
-    trades, _truncated = fetch_window_trades(config.wallet, window_start, fetch_activity)
+    if data is not None:
+        window_end, window_start, trades = data.window_end, data.window_start, data.trades
+        resolved_token_values = data.token_values if token_values is None else token_values
+    else:
+        if fetch_markets_by_ids is None:
+            # Produktionspfad: der Slug-Rueckweg gehoert dazu (siehe
+            # _resolve_token_values); injizierte Fetcher bringen ihn selbst mit.
+            fetch_markets_by_event_slugs = fetch_markets_by_event_slugs or md.get_polymarket_markets_by_event_slugs
+        fetch_activity = fetch_activity or md.get_polymarket_activity
+        fetch_markets_by_ids = fetch_markets_by_ids or md.get_polymarket_markets_by_condition_ids
+        window_end = now if now is not None else pd.Timestamp.now(tz="UTC")
+        window_start = window_end - pd.Timedelta(days=int(config.days))
+        trades, _truncated = fetch_window_trades(config.wallet, window_start, fetch_activity)
+        resolved_token_values = token_values
+        if resolved_token_values is None:
+            resolved_token_values = _resolve_token_values(
+                trades, fetch_markets_by_ids, fetch_markets_by_event_slugs, md.polymarket_token_value_map
+            )
     if variants is None:
         variants = default_strategy_variants(config)
     rows: list[dict[str, Any]] = []
-    resolved_token_values = token_values
-    if resolved_token_values is None:
-        resolved_token_values = _resolve_token_values(
-            trades, fetch_markets_by_ids, fetch_markets_by_event_slugs, md.polymarket_token_value_map
-        )
     for label, sizing_mode, stake_value in variants:
         variant_config = BacktestConfig(
             wallet=config.wallet,

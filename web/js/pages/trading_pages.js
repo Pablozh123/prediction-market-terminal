@@ -27,8 +27,8 @@ function ohneBacktestHtml(s) {
     + '<span style="' + M + '">app/backtester.py</span>, so it needs the API. If the numbers stay empty, either the '
     + 'backend is not reachable, or the wallet has no trades inside the selected window.';
   if (running) {
-    kopf = 'running…';
-    text = 'Replaying the wallet against recorded trades. A ninety-day window on an active wallet takes a while.';
+    kopf = 'running… ' + (s.btElapsed || 0) + ' s';
+    text = 'Loading the wallet\'s trades and resolutions, then replaying them. The first run on a wallet and window pages the public activity feed (up to 30,000 rows, about a minute on a hyperactive wallet); every later run on the same wallet and window reuses that data for ten minutes and answers in seconds.';
   } else if (err === 'rate-limited') {
     kopf = 'rate-limited';
     text = 'The public API allows a few backtests per minute per address. Retry in ' + (s.btRetryIn > 0 ? s.btRetryIn + ' s' : 'a moment') + '.';
@@ -51,7 +51,7 @@ function ohneBacktestHtml(s) {
 function laufStatusHtml(s, hatErgebnis) {
   if (s.btRun === 'running') {
     return '<div style="display:flex; align-items:center; gap:var(--sp-3); margin-top:var(--sp-3); ' + M + '; font-size:var(--t-micro); color:var(--warn)">'
-      + '<span style="width:7px; height:7px; border-radius:50%; background:var(--warn); display:inline-block"></span>running…'
+      + '<span style="width:7px; height:7px; border-radius:50%; background:var(--warn); display:inline-block"></span>running… ' + (s.btElapsed || 0) + ' s'
       + (hatErgebnis ? ' <span style="color:var(--ink-3)">— the last result stays below until the new one lands</span>' : '') + '</div>';
   }
   if (s.btRun === 'error' && s.btError === 'rate-limited') {
@@ -197,7 +197,13 @@ export function renderBacktester(T) {
     + (autoFitText ? ' · ' + autoFitText : '') + ' · ' + gebuehrText + ' · slippage ' + s.btSlip + ' bps'
     + (live && live.stats && live.stats.window_truncated
       ? ' · window truncated at the engine\'s trade cap' + (live.stats.effective_start ? ' — data reaches back to ' + live.stats.effective_start : '')
-      : '');
+      : '')
+    // Woher die Zahlen kommen und wie frisch: die Trades des Fensters
+    // werden je Wallet und Fenster zehn Minuten wiederverwendet.
+    + (live && live.data_loaded_at
+      ? ' · ' + num(live.data_rows || 0) + ' trades loaded ' + String(live.data_loaded_at).replace('T', ' ').replace('Z', ' UTC') + ', reused for 10 min'
+      : '')
+    + (s.btRun === 'done' && s.btElapsed ? ' · answered in ' + s.btElapsed + ' s' : '');
 
   // Ohne Lauf keine Kacheln: jede dieser Zahlen kaeme sonst aus dem Nichts.
   const verteilungChart = st ? tradeVerteilung(live) : '';
@@ -239,8 +245,15 @@ export function renderBacktester(T) {
   // Vergleichstabelle, die die Gegenseite als Vielfaches der eigenen Zahlen
   // berechnete (Endkapital mal 0.88, PnL mal 0.72, Trefferquote fest 51).
   // Ohne Backend gibt es davon nichts zu zeigen.
-  const logRows = (live && live.log ? live.log : []).map((l) => ({
-    time: l.time, action: l.action, status: l.status, market: l.market, side: l.side,
+  // Das Log zeigt, was die Engine getan hat; bewusst nicht gefolgte
+  // Zeilen ("filtered", bei aktiven Wallets Zehntausende) kommen als
+  // Stichprobe hinter einem Schalter, sonst verdraengten sie jeden Trade.
+  const logFiltered = live && Array.isArray(live.log_filtered) ? live.log_filtered : [];
+  const logQuelle = (live && live.log ? live.log : []).concat(s.btShowFiltered ? logFiltered : [])
+    .sort((a, b) => String(b.time || '').localeCompare(String(a.time || '')));
+  const logRows = logQuelle.map((l) => ({
+    time: l.time, action: l.action, status: l.status, market: l.market, side: l.side, note: l.note || '',
+    pnl: l.realized_pnl == null ? '' : (l.realized_pnl >= 0 ? '+' : '-') + '$' + Math.abs(+l.realized_pnl).toFixed(2),
     traderAmt: '$' + num(Math.round(+l.trader_amt || 0)),
     stake: +l.stake ? '$' + (+l.stake).toFixed(2) : '—',
     fill: +l.fill ? (+l.fill).toFixed(3) : '—',
@@ -275,20 +288,29 @@ export function renderBacktester(T) {
 
   let tabBody = '';
   if (s.btTab === 'log') {
+    const logKopf = '<div style="display:flex; align-items:center; justify-content:space-between; gap:var(--sp-4); flex-wrap:wrap; padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); color:var(--ink-3)">'
+      + '<span>' + (live && live.log_total != null ? num(live.log_total) + ' engine actions, newest ' + num((live.log || []).length) + ' shown' : num(logRows.length) + ' rows')
+      + (live && live.log_filtered_total ? ' · ' + num(live.log_filtered_total) + ' filtered (not followed on purpose)' : '') + '</span>'
+      + (logFiltered.length
+        ? '<span ' + T.act(() => T.setState({ btShowFiltered: !s.btShowFiltered })) + ' style="cursor:pointer; color:var(--accent)">' + (s.btShowFiltered ? 'hide the filtered sample' : 'show a sample of ' + num(logFiltered.length) + ' filtered rows') + '</span>'
+        : '')
+      + '</div>';
     tabBody = '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-4); overflow:hidden">'
+      + logKopf
       + '<div style="display:grid; grid-template-columns:88px 74px 84px 1fr 60px 84px 78px 74px 84px 88px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
-      + '<div>TIME</div><div>ACTION</div><div>STATUS</div><div>MARKET</div><div>SIDE</div><div style="text-align:right">TRADER $</div><div style="text-align:right">STAKE</div><div style="text-align:right">FILL</div><div style="text-align:right">FEE</div><div style="text-align:right">EQUITY</div></div>'
+      + '<div>TIME</div><div>ACTION</div><div>STATUS</div><div>MARKET</div><div>SIDE</div><div style="text-align:right">TRADER $</div><div style="text-align:right">STAKE</div><div style="text-align:right">FILL</div><div style="text-align:right">RESULT</div><div style="text-align:right">EQUITY</div></div>'
+      + (logRows.length ? '' : leerZeile('No engine action in this window: nothing was copied, skipped or settled.'))
       + logRows.map((l) =>
-        '<div style="display:grid; grid-template-columns:88px 74px 84px 1fr 60px 84px 78px 74px 84px 88px; gap:var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small)">'
+        '<div style="display:grid; grid-template-columns:88px 74px 84px 1fr 60px 84px 78px 74px 84px 88px; gap:var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small)' + (l.status === 'filtered' ? '; opacity:.6' : '') + '">'
         + '<div style="color:var(--ink-4)">' + esc(l.time) + '</div>'
-        + '<div style="' + M + '; font-size:var(--t-small); color:' + (l.action === 'BUY' ? 'var(--pos)' : 'var(--neg)') + '">' + esc(l.action) + '</div>'
-        + '<div><span style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3); ' + (l.status === 'skipped' ? 'color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35)' : 'color:var(--ink-2); border:1px solid var(--line-1)') + '">' + esc(l.status) + '</span></div>'
+        + '<div style="' + M + '; font-size:var(--t-small); color:' + (l.action === 'BUY' ? 'var(--pos)' : l.action === 'RESOLVE' ? 'var(--info)' : 'var(--neg)') + '">' + esc(l.action) + '</div>'
+        + '<div><span title="' + esc(l.note) + '" style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3); ' + (l.status === 'skipped' ? 'color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35)' : 'color:var(--ink-2); border:1px solid var(--line-1)') + '">' + esc(l.status) + '</span></div>'
         + '<div style="font-family:var(--font-ui); font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(l.market) + '</div>'
         + '<div style="color:var(--ink-3)">' + esc(l.side) + '</div>'
         + '<div style="text-align:right; color:var(--ink-4)">' + esc(l.traderAmt) + '</div>'
         + '<div style="text-align:right">' + esc(l.stake) + '</div>'
         + '<div style="text-align:right; color:var(--ink-3)">' + esc(l.fill) + '</div>'
-        + '<div style="text-align:right; color:var(--ink-4)">' + esc(l.fee) + '</div>'
+        + '<div style="text-align:right; color:' + (l.pnl ? (l.pnl.charAt(0) === '+' ? 'var(--pos)' : 'var(--neg)') : 'var(--ink-4)') + '">' + esc(l.pnl || l.fee) + '</div>'
         + '<div style="text-align:right">' + esc(l.equity) + '</div></div>'
       ).join('')
       // Der Knopf "Export trade log CSV" stand hier ohne Handler. Ein Knopf,
@@ -434,7 +456,7 @@ export function renderBacktester(T) {
     // The only thing that starts a run. While one runs the button is inert
     // and says so; after a 429 it says how long to wait.
     + (s.btRun === 'running'
-      ? '<div style="font-size:var(--t-body); font-weight:600; text-align:center; color:var(--ink-4); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-4); cursor:default">running…</div>'
+      ? '<div style="font-size:var(--t-body); font-weight:600; text-align:center; color:var(--ink-4); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-4); cursor:default">running… ' + (s.btElapsed || 0) + ' s</div>'
       : s.btRun === 'error' && s.btError === 'rate-limited' && s.btRetryIn > 0
         ? '<div style="font-size:var(--t-body); font-weight:600; text-align:center; color:var(--warn); border:1px solid rgba(var(--warn-rgb),.4); border-radius:var(--r-control); padding:var(--sp-4); cursor:default">rate-limited · retry in ' + s.btRetryIn + ' s</div>'
         : '<div ' + T.act(() => { T.setState({ btTab: 'log' }); T.runBacktest(); }) + ' class="hv-accentbg" style="font-size:var(--t-body); font-weight:600; text-align:center; color:var(--on-accent); background:var(--accent); border-radius:var(--r-control); padding:var(--sp-4); cursor:pointer">RUN backtest →</div>')

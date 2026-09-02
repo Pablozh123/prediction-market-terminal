@@ -733,6 +733,62 @@ class FetchWindowTradesTests(unittest.TestCase):
         self.assertEqual(len(trades), 1000)
 
 
+class WindowDataTests(unittest.TestCase):
+    """Ein Fenster einmal laden, beliebig oft replayen (WindowData)."""
+
+    def _fetchers(self):
+        rows = [
+            trade("2026-05-01", "BUY", 0.50, 100.0, asset="tok-yes", market_key="cond-1"),
+            trade("2026-05-05", "BUY", 0.40, 50.0, asset="tok-open", market_key="cond-2"),
+        ]
+        activity = pd.DataFrame(rows)
+        zaehler = {"activity": 0, "markets": 0}
+
+        def fetch_activity(wallet, limit=500, offset=0):
+            zaehler["activity"] += 1
+            return activity if offset == 0 else pd.DataFrame()
+
+        def fetch_markets(ids):
+            zaehler["markets"] += 1
+            return [
+                {"conditionId": "cond-1", "clobTokenIds": json.dumps(["tok-yes", "tok-no"]),
+                 "outcomePrices": json.dumps(["1", "0"]), "closed": True, "endDate": "2026-05-20T00:00:00Z"},
+                {"conditionId": "cond-2", "clobTokenIds": json.dumps(["tok-open", "tok-open-no"]),
+                 "outcomePrices": json.dumps(["0.6", "0.4"]), "closed": False, "endDate": "2026-12-31T00:00:00Z"},
+            ]
+
+        return fetch_activity, fetch_markets, zaehler
+
+    def test_data_is_loaded_once_and_replayed_for_every_setting(self):
+        now = pd.Timestamp("2026-06-10", tz="UTC")
+        fetch_activity, fetch_markets, zaehler = self._fetchers()
+        daten = bt.load_window_data(config(), fetch_activity=fetch_activity, fetch_markets_by_ids=fetch_markets, now=now)
+        self.assertEqual((zaehler["activity"], zaehler["markets"]), (1, 1))
+        self.assertEqual(daten.days, 90)
+        self.assertEqual(len(daten.trades), 2)
+        self.assertIn("tok-yes", daten.token_values)
+
+        # Zwei Einstellungen auf denselben Daten: kein weiterer Netzaufruf.
+        klein = bt.run_backtest(config(stake_value=10.0), data=daten)
+        gross = bt.run_backtest(config(stake_value=50.0), data=daten)
+        self.assertEqual((zaehler["activity"], zaehler["markets"]), (1, 1))
+        self.assertEqual(klein.stats["copied_trades"], 2)
+        self.assertGreater(gross.stats["realized_pnl"], klein.stats["realized_pnl"])
+        self.assertEqual(klein.window_end, now)
+
+    def test_data_path_matches_the_direct_path(self):
+        now = pd.Timestamp("2026-06-10", tz="UTC")
+        fetch_activity, fetch_markets, _ = self._fetchers()
+        direkt = bt.run_backtest(config(), fetch_activity=fetch_activity, fetch_markets_by_ids=fetch_markets, now=now)
+        daten = bt.load_window_data(config(), fetch_activity=fetch_activity, fetch_markets_by_ids=fetch_markets, now=now)
+        ueber_daten = bt.run_backtest(config(), data=daten)
+        for key in ("copied_trades", "closed_trades", "realized_pnl", "unrealized_pnl", "final_equity"):
+            self.assertAlmostEqual(direkt.stats[key], ueber_daten.stats[key], places=9, msg=key)
+        vergleich = bt.strategy_comparison(config(), data=daten)
+        self.assertFalse(vergleich.empty)
+        self.assertIn("final_equity", vergleich.columns)
+
+
 class RunBacktestTests(unittest.TestCase):
     def test_end_to_end_with_injected_fetchers(self):
         now = pd.Timestamp("2026-06-10", tz="UTC")

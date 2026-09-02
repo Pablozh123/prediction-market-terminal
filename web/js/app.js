@@ -132,6 +132,9 @@ class Terminal {
       // 'running' | 'done' | 'error'; btError carries the message, btRetryIn
       // the seconds the server asked us to wait after a 429.
       btRun: 'idle', btError: '', btRetryIn: 0, btDirty: false,
+      // Laufzeit des laufenden Backtests in Sekunden (fuer die Anzeige) und
+      // ob das Trade-Log die bewusst nicht gefolgten Zeilen mit zeigt.
+      btElapsed: 0, btShowFiltered: false,
       advancedOpen: false,
       sizingSimOpen: false,
       researchTab: 0,
@@ -1084,7 +1087,16 @@ class Terminal {
     const s = this.state;
     if (s.btRun === 'running') return;
     clearTimeout(this._btRetryT);
-    this.setState({ btRun: 'running', btError: '', btRetryIn: 0, btDirty: false });
+    clearInterval(this._btUhr);
+    const start = Date.now();
+    this.setState({ btRun: 'running', btError: '', btRetryIn: 0, btDirty: false, btElapsed: 0 });
+    // Eine Sekundenuhr neben "running…": ein erster Lauf auf einer aktiven
+    // Wallet laedt bis zu 30.000 Zeilen und dauert eine Minute; ohne Uhr
+    // sah das aus wie ein haengender Knopf.
+    this._btUhr = setInterval(() => {
+      if (this.state.btRun !== 'running') { clearInterval(this._btUhr); return; }
+      this.setState({ btElapsed: Math.round((Date.now() - start) / 1000) });
+    }, 1000);
     const body = {
       wallet: s.btWallet.trim(),
       window_days: s.btWindow,
@@ -1106,13 +1118,15 @@ class Terminal {
       variants: !!s.sizingSimOpen
     };
     apiPost('/api/backtest', body).then((resp) => {
+      clearInterval(this._btUhr);
       if (resp && resp.stats) {
         this.liveData.backtest = resp;
-        this.setState({ btRun: 'done', btError: '' });
+        this.setState({ btRun: 'done', btError: '', btElapsed: Math.round((Date.now() - start) / 1000) });
       } else {
         this.setState({ btRun: 'error', btError: 'The backtest answered without statistics — nothing to show for this window.' });
       }
     }).catch((err) => {
+      clearInterval(this._btUhr);
       if (err && err.status === 429) {
         const warten = Math.max(1, Math.round(err.retryAfter || 10));
         this.setState({ btRun: 'error', btError: 'rate-limited', btRetryIn: warten });
