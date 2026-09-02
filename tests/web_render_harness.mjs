@@ -887,8 +887,10 @@ function walletNutzlast() {
     closed: {
       as_of: '2026-08-17 19:00 UTC', capped: false, n: 12, shown: 2, won: 9, lost: 3, flat: 0, worthless_not_redeemed: 1, realized_pnl: 210.0,
       rows: [
-        { title: 'Harness market 1?', outcome: 'Yes', avg_price: 0.5, current_price: 0.0, total_bought: 50.0, realized_pnl: -50.0, time: '2026-06-02T00:00:00Z', market_key: '0xc1', url: 'https://polymarket.com/event/event-1', result: 'lost' },
-        { title: 'Harness market 0?', outcome: 'Yes', avg_price: 0.5, current_price: 1.0, total_bought: 50.0, realized_pnl: 40.0, time: '2026-06-01T00:00:00Z', market_key: '0xc0', url: 'https://polymarket.com/event/event-0', image: 'https://polymarket-upload.s3.us-east-2.amazonaws.com/harness-event-0.jpg', result: 'won' }
+        // total_bought is the Data API's unit, SHARES: 100 shares at 0.50 are
+        // $50 at risk, so a total loss is -$50 and a win at 1.00 is +$50.
+        { title: 'Harness market 1?', outcome: 'Yes', avg_price: 0.5, current_price: 0.0, total_bought: 100.0, realized_pnl: -50.0, time: '2026-06-02T00:00:00Z', market_key: '0xc1', url: 'https://polymarket.com/event/event-1', result: 'lost' },
+        { title: 'Harness market 0?', outcome: 'Yes', avg_price: 0.5, current_price: 1.0, total_bought: 100.0, realized_pnl: 40.0, time: '2026-06-01T00:00:00Z', market_key: '0xc0', url: 'https://polymarket.com/event/event-0', image: 'https://polymarket-upload.s3.us-east-2.amazonaws.com/harness-event-0.jpg', result: 'won' }
       ],
       note: 'Complete resolved set: winners and losers unioned from the public closed-positions feed.',
       source: 'polymarket /closed-positions, both sort directions, ~50 rows per tail'

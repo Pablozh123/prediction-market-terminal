@@ -7,7 +7,8 @@
 // handed to T.act(); the Terminal methods they call (copyFollow, copySetTrader,
 // copySaveSettings, copySync, copyTopUp, copyReload) live in app.js.
 
-import { esc, num, leerZeile } from '../util.js';
+import { esc, num, leerZeile, seriesDomain, seriesGrid } from '../util.js';
+import { kurzGeld } from '../charts.js';
 import { caveatZeile } from '../claims.js';
 import { MONO as M, KARTE, LABEL_BLOCK } from '../ui.js';
 
@@ -441,11 +442,27 @@ export function renderCopy(T) {
   const cashRows = (live.cash_events || []).filter((r) => filter === 'all' || String(r[4] || '').toLowerCase() === filter);
   const filtered = traders.find((t) => t.wallet === filter) || null;
   const equityCurve = filtered ? (filtered.equity_curve || []) : (live.equity_curve || []);
-  const equityPts = equityCurve.length > 1 ? T.seriesPoints(equityCurve, 900, 240) : '';
+  const putInWert = Number(filtered ? filtered.contributions : (kp && kp.contributions));
+  // Equity und eingezahltes Kapital auf einer Skala mit Nullpunkt; die
+  // Legende versprach die Linie "Cash put in", gezeichnet wurde sie nie.
+  const eqDom = seriesDomain(equityCurve, isFinite(putInWert) ? [putInWert] : []);
+  const equityPts = equityCurve.length > 1 ? T.seriesPoints(equityCurve, 900, 240, eqDom) : '';
+  const putInPts = equityCurve.length > 1 && isFinite(putInWert) ? T.seriesPoints(equityCurve.map(() => putInWert), 900, 240, eqDom) : '';
+  const eqGrid = seriesGrid(eqDom, 900, 240, (v) => kurzGeld(v));
   const firstActive = traders.find((t) => t.active) || null;
   const showSource = live.source_curve && live.source_curve.length > 1 && (filter === 'all' || (firstActive && firstActive.wallet === filter));
-  const srcPts = showSource ? T.seriesPoints(live.source_curve, 900, 200) : '';
-  const minePts = equityCurve.length > 1 ? T.seriesPoints(equityCurve, 900, 200) : '';
+  // Zwei Serien, eine Skala: die eigene Equity und die offizielle PnL des
+  // Quell-Wallets sind beide Dollar, aber auf verschiedenem Niveau. Beide
+  // werden als Veraenderung gegen ihren Startpunkt gezeichnet, in einer
+  // gemeinsamen Spanne — vorher fuellte jede Kurve die Hoehe fuer sich und
+  // "kreuzte" die andere dort, wo die privaten Skalen sich trafen.
+  const relativ = (arr) => (arr && arr.length > 1 && typeof arr[0] === 'number' ? arr.map((v) => (typeof v === 'number' ? v - arr[0] : null)) : []);
+  const srcRel = showSource ? relativ(live.source_curve) : [];
+  const mineRel = relativ(equityCurve);
+  const cmpDom = seriesDomain(srcRel, mineRel);
+  const srcPts = srcRel.length > 1 ? T.seriesPoints(srcRel, 900, 200, cmpDom) : '';
+  const minePts = mineRel.length > 1 ? T.seriesPoints(mineRel, 900, 200, cmpDom) : '';
+  const cmpGrid = seriesGrid(cmpDom, 900, 200, (v) => kurzGeld(v, true));
   const tab = s.copyTab || 'traders';
 
   const copyTabs = COPY_TABS.map((o) => T.tab(o[1], tab === o[0], { copyTab: o[0] })).join('');
@@ -548,9 +565,10 @@ export function renderCopy(T) {
       + '<span style="display:flex; align-items:center; gap:var(--sp-3); color:var(--ink-4)"><span style="width:14px; height:2px; background:rgba(var(--ink),.35); display:inline-block"></span>Cash put in ' + esc(usd(putIn, 0)) + '</span>'
       + '</div></div>'
       + (equityPts
-        ? '<svg width="100%" height="240" viewBox="0 0 900 240" preserveAspectRatio="none" role="img" aria-label="Paper equity over time, against the benchmark">'
-          + '<line x1="0" y1="20" x2="900" y2="20" style="stroke:rgba(var(--ink),.07)" /><line x1="0" y1="80" x2="900" y2="80" style="stroke:rgba(var(--ink),.07)" /><line x1="0" y1="140" x2="900" y2="140" style="stroke:rgba(var(--ink),.07)" /><line x1="0" y1="230" x2="900" y2="230" style="stroke:rgba(var(--ink),.14)" />'
-          + '<polyline points="' + equityPts + '" fill="none" style="stroke:' + ACCENT + '" stroke-width="2" /></svg>'
+        ? '<svg width="100%" height="240" viewBox="0 0 900 240" preserveAspectRatio="none" role="img" aria-label="Paper equity over time, against the cash put in">'
+          + eqGrid
+          + (putInPts ? '<polyline points="' + putInPts + '" fill="none" style="stroke:rgba(var(--ink),.35)" stroke-width="1.4" stroke-dasharray="6 4" vector-effect="non-scaling-stroke" />' : '')
+          + '<polyline points="' + equityPts + '" fill="none" style="stroke:' + ACCENT + '" stroke-width="2" vector-effect="non-scaling-stroke" /></svg>'
         : leerZeile('No equity curve yet — the daemon (or a sync pass) records one point per minute per trader.'))
       + '</div>'
       + '<div style="' + KARTE + '; padding:var(--sp-5); margin-top:var(--sp-5)">'
@@ -559,12 +577,13 @@ export function renderCopy(T) {
       + '<div style="display:flex; gap:var(--sp-5); ' + M + '; font-size:var(--t-micro)">'
       + '<span style="display:flex; align-items:center; gap:var(--sp-3)"><span style="width:14px; height:2px; background:' + ACCENT + '; display:inline-block"></span>You</span>'
       + '<span style="display:flex; align-items:center; gap:var(--sp-3); color:' + BLUE + '"><span style="width:14px; height:2px; background:' + BLUE + '; display:inline-block"></span>' + esc(sourceName) + ' (official PnL, 1 month)</span>'
+      + '<span style="color:var(--ink-4)">both as change since their first point, USD, one scale</span>'
       + '</div></div>'
       + (srcPts || minePts
-        ? '<svg width="100%" height="200" viewBox="0 0 900 200" preserveAspectRatio="none" role="img" aria-label="Your paper equity against the trader you follow">'
-          + '<line x1="0" y1="20" x2="900" y2="20" style="stroke:rgba(var(--ink),.07)" /><line x1="0" y1="100" x2="900" y2="100" style="stroke:rgba(var(--ink),.07)" /><line x1="0" y1="190" x2="900" y2="190" style="stroke:rgba(var(--ink),.14)" />'
-          + (srcPts ? '<polyline points="' + srcPts + '" fill="none" style="stroke:' + BLUE + '" stroke-width="2" />' : '')
-          + (minePts ? '<polyline points="' + minePts + '" fill="none" style="stroke:' + ACCENT + '" stroke-width="2" />' : '') + '</svg>'
+        ? '<svg width="100%" height="200" viewBox="0 0 900 200" preserveAspectRatio="none" role="img" aria-label="Your paper equity against the trader you follow, both as change since the start">'
+          + cmpGrid
+          + (srcPts ? '<polyline points="' + srcPts + '" fill="none" style="stroke:' + BLUE + '" stroke-width="2" vector-effect="non-scaling-stroke" />' : '')
+          + (minePts ? '<polyline points="' + minePts + '" fill="none" style="stroke:' + ACCENT + '" stroke-width="2" vector-effect="non-scaling-stroke" />' : '') + '</svg>'
         : leerZeile('Neither curve has two points yet.'))
       + (showSource ? '' : '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3)">The source overlay is loaded for the first active trader only' + (firstActive ? ' (' + esc(firstActive.label || shortW(firstActive.wallet)) + ')' : '') + '.</div>')
       + '</div></div>';

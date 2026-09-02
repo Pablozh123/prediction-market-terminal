@@ -79,5 +79,10 @@ export function pnlIntensity(pnl, stake) {
   const s = Number(stake);
   if (!isFinite(p) || !(s > 0)) return 0.35;
   const ratio = Math.min(1, Math.abs(p) / s);
-  return 0.28 + ratio * 0.5;
+  return INTENSITY_FLOOR + ratio * (INTENSITY_CEIL - INTENSITY_FLOOR);
 }
+
+// Der Boden und die Decke der Farbtiefe stehen hier einmal, damit der
+// Schluessel neben der Treemap dieselben Werte zeigt wie die Kacheln.
+export const INTENSITY_FLOOR = 0.28;
+export const INTENSITY_CEIL = 0.78;

@@ -232,7 +232,7 @@ class Terminal {
   num(n) { return num(n); }
   money(n) { return money(n); }
   esc(v) { return esc(v); }
-  seriesPoints(v, w, h) { return seriesPoints(v, w, h); }
+  seriesPoints(v, w, h, domain) { return seriesPoints(v, w, h, domain); }
 
   // ---- action / input registries (rebuilt every render) ----
   // Every registered action is a control, so it renders as one: focusable and

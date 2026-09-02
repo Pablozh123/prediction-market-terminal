@@ -18,16 +18,28 @@ import { MONO as M, KARTE } from '../ui.js';
 // danach --warn und --muted als sechster und siebter Platz. Vorher standen
 // hier zwei Hex-Literale (#8FD694, #F78FB3), die dem Thema nicht folgten und
 // im hellen Thema als Neon auf Papier standen.
-const CLUSTER_COLORS = SERIEN_FARBEN.concat(['var(--warn)', 'var(--muted)']);
+// Nur die fuenf Serienplaetze, nicht zyklisch: Cluster acht in der Farbe
+// von Cluster eins ist keine Kodierung, und --warn ist ueberall sonst die
+// Markierungsfarbe (Marken, beruehrte Intervalle), kein sechster Cluster.
+// Was ueber die Plaetze hinausgeht, wird grau und als solches benannt.
+const CLUSTER_COLORS = SERIEN_FARBEN.slice();
+const CLUSTER_REST = 'rgba(var(--ink),.35)';
 
-const farbeVon = (i) => CLUSTER_COLORS[i % CLUSTER_COLORS.length];
+const farbeVon = (i) => (i >= 0 && i < CLUSTER_COLORS.length ? CLUSTER_COLORS[i] : CLUSTER_REST);
 
 /** Farbe eines Clusters (per id) — dieselbe Zuordnung wie im Graphen, damit
- *  die Karten unter dem Bild die Farbe des Bildes tragen. */
+ *  die Karten unter dem Bild die Farbe des Bildes tragen. Eine unbekannte
+ *  id bekommt das Grau der Ueberzaehligen, nicht die Farbe von Cluster 0. */
 export function clusterFarbe(graph, id) {
   const cluster = (graph && graph.cluster) || [];
   const i = cluster.findIndex((c) => c.id === id);
-  return farbeVon(i >= 0 ? i : 0);
+  return farbeVon(i);
+}
+
+/** Wie viele Cluster keine eigene Farbe mehr bekommen (fuer die Legende). */
+export function clusterOhneFarbe(graph) {
+  const n = ((graph && graph.cluster) || []).length;
+  return Math.max(0, n - CLUSTER_COLORS.length);
 }
 
 function kopfzeile(g) {
@@ -126,7 +138,7 @@ function graphSvg(g) {
     const gleich = a.cluster === b.cluster;
     // Die Kante zwischen zwei Clustern ist eine Marke, kein Text und keine
     // Kante im CSS-Sinn: sie bleibt roh wie die 46 anderen SVG-Striche.
-    const farbe = gleich ? farbeVon(clusterIndex.get(a.cluster) || 0) : 'rgba(var(--ink),.5)';
+    const farbe = gleich ? farbeVon(clusterIndex.has(a.cluster) ? clusterIndex.get(a.cluster) : -1) : 'rgba(var(--ink),.5)';
     const staerke = 1.0 + 2.4 * ((e.geteilt || 1) / maxGeteilt);
     const basis = e.lift != null
       ? ' · ' + e.lift + '× the ' + (e.erwartet != null ? e.erwartet : '?') + ' two equally busy wallets share by chance'
@@ -145,7 +157,7 @@ function graphSvg(g) {
     : new Set(knoten.map((n, i) => [n.volumen || 0, i]).sort((a, b) => b[0] - a[0]).slice(0, 5).map((p) => p[1]));
 
   const knotenSvg = knoten.map((n, i) => {
-    const farbe = farbeVon(clusterIndex.get(n.cluster) || 0);
+    const farbe = farbeVon(clusterIndex.has(n.cluster) ? clusterIndex.get(n.cluster) : -1);
     const r = 4.5 + 9 * Math.sqrt((n.volumen || 0) / maxVol);
     const cx = X(n.x), cy = Y(n.y);
     const links = cx > W / 2;
@@ -224,5 +236,8 @@ export function renderClusterGraphics(live) {
     + '<div style="margin-top:var(--sp-5)">' + graphSvg(g) + '</div>'
     + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-snug)">'
     + 'Each dot is one wallet, sized by the money it moved · a line means the two bought the same side of the same markets, thicker = more shared markets · colours are the groups detailed below · hover a line for how far above the chance rate that pair sits.'
+    + (clusterOhneFarbe(g) > 0
+      ? ' · the palette has ' + SERIEN_FARBEN.length + ' colours and does not reuse one: ' + clusterOhneFarbe(g) + ' further group(s) are drawn grey.'
+      : '')
     + '</div></div>';
 }

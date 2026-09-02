@@ -3,7 +3,7 @@
 // instance (T). Nothing here invents a number: every figure names its payload
 // or the panel says which payload is missing.
 
-import { esc, money, num, volume, contracts, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, signedMoney, stempel, EINZAHLUNGEN_USD, offeneNichtDrin, tapeFenster, fensterSatz, categorySourceLabel } from '../util.js';
+import { esc, money, num, volume, contracts, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, signedMoney, stempel, EINZAHLUNGEN_USD, offeneNichtDrin, tapeFenster, fensterSatz, categorySourceLabel, ledgerBotPositionen } from '../util.js';
 import { caveatZeile } from '../claims.js';
 import { spiegelZeit, kurzGeld, histogramm } from '../charts.js';
 import { studieAnker } from './microstructure_page.js';
@@ -111,16 +111,44 @@ export function verdictCounts(micro) {
   };
 }
 
-// The key number of a study: first entry of zahlen[] with its unit, and the
-// sample size from basis (observations, snapshots, pairs, markets — whichever
-// the study recorded). Ranges render as "a to b".
+// The key number of a study, and the sample size from basis (observations,
+// snapshots, pairs, markets — whichever the study recorded). Ranges render
+// as "a to b".
+//
+// Which entry of zahlen[] is the key: the first that measures something
+// (a percentage, cents, dollars, ticks, hours) rather than counts the
+// sample. Studies 08 to 11 led with "8 pairs matched" next to "n = 8
+// pairs" — the same number twice and no finding. A count with a unit that
+// is a share of the sample ("3 pairs" of 5) renders as "3 of 5 pairs".
+const ZAEHL_EINHEITEN = { observations: 1, segments: 1, pairs: 1, markets: 1, tokens: 1, fills: 1, snapshots: 1 };
+const BASIS_JE_EINHEIT = { pairs: 'paare', markets: 'maerkte', tokens: 'tokens', observations: 'beobachtungen', snapshots: 'snapshots' };
+function istZaehlung(z) {
+  const einheit = String(z.einheit || '').toLowerCase();
+  return !einheit || ZAEHL_EINHEITEN[einheit] === 1;
+}
 function keyNumber(study) {
-  const z = study && Array.isArray(study.zahlen) && study.zahlen.length ? study.zahlen[0] : null;
-  if (!z) return { value: '—', label: '', unit: '' };
+  const liste = study && Array.isArray(study.zahlen) ? study.zahlen.filter((z) => z && z.wert != null && z.wert !== '') : [];
+  if (!liste.length) return { value: '—', label: '', unit: '' };
+  const basis = study.basis || {};
+  const n = (z) => { const k = BASIS_JE_EINHEIT[String(z.einheit || '').toLowerCase()]; return k && basis[k] != null ? +basis[k] : null; };
+  // In payload order, the first entry that is not a bare count (no unit)
+  // and not the sample size restated; when every candidate restates n
+  // ("5 of 5 pairs"), the last one, which is where a study puts its
+  // finding. Failing all that, the first entry as before.
+  const kandidaten = liste.filter((x) => !(istZaehlung(x) && !x.einheit));
+  const z = kandidaten.find((x) => !(istZaehlung(x) && n(x) != null && +x.wert === n(x)))
+    || kandidaten[kandidaten.length - 1]
+    || liste[0];
   let value;
   if (Array.isArray(z.wert)) value = z.wert.map((v) => fmtWert(v)).join(' to ');
   else value = fmtWert(z.wert);
-  return { value, label: String(z.label || ''), unit: String(z.einheit || '') };
+  const gesamt = n(z);
+  const anteil = istZaehlung(z) && z.einheit && gesamt != null && !Array.isArray(z.wert) && +z.wert <= gesamt;
+  return {
+    value: anteil ? value + ' of ' + num(gesamt) : value,
+    label: String(z.label || ''),
+    unit: String(z.einheit || '')
+  };
 }
 
 function fmtWert(v) {
@@ -215,7 +243,7 @@ function tapeLivePanel(T) {
 // lebende Maerkte gibt es kein Band. Fuer Screenreader ist es verborgen —
 // die Maerkte stehen als richtige Tabelle einen Klick entfernt.
 function wireStrip(T) {
-  const maerkte = T.markets.slice().sort((a, b) => b.vol - a.vol).slice(0, 10);
+  const maerkte = T.markets.slice().sort((a, b) => volOrd(b) - volOrd(a)).slice(0, 10);
   if (!maerkte.length) return '';
   const vorher = T._wireVorher instanceof Map ? T._wireVorher : null;
   const items = maerkte.map((m) => {
@@ -230,6 +258,19 @@ function wireStrip(T) {
   T._wireVorher = new Map(maerkte.map((m) => [m.id, m.yes]));
   return '<div aria-hidden="true" style="border-bottom:1px solid var(--line-2); background:var(--panel); overflow:hidden; ' + M + '; font-size:var(--t-small)">'
     + '<div id="wire-row" style="display:inline-flex; white-space:nowrap; padding:var(--sp-3) 0; will-change:transform">' + items + items + '</div></div>';
+}
+
+// Die Mindestgroesse der Tape-Abfrage in app.js (min_cash=2500).
+const TAPE_MIN_USD = 2500;
+
+// Volumen zum Ordnen ueber beide Venues: Polymarket meldet Dollar, Kalshi
+// Kontrakte. Ein Kontrakt zahlt einen Dollar und handelt zu p, also ist
+// Kontrakte mal p die Dollarnaeherung — nur fuer die Reihenfolge, angezeigt
+// wird weiter die Zahl in ihrer Einheit. Vorher stand ein Kalshi-Markt mit
+// 100k Kontrakten zu 50 Cent ueber einem Polymarket-Markt mit $60k Umsatz.
+function volOrd(m) {
+  const v = +m.vol || 0;
+  return m.venue === 'Kalshi' ? v * (Math.max(1, Math.min(99, +m.yes || 50)) / 100) : v;
 }
 
 export function renderOverview(T) {
@@ -295,14 +336,16 @@ export function renderOverview(T) {
     ? +ledgerBot.einsatz_usd
     : agg && agg.wallet_kaeufe_usd != null ? +agg.wallet_kaeufe_usd : null;
   const pnlZelle = walletNetto
-    ? kpiCell('NET PNL (WALLET · BOT)', signedMoney(walletNetto.wert),
-      ledgerFrischer ? 'bot trades in the wallet ledger' : 'on-chain wallet, reconciled', true, walletNetto.wert)
+    ? kpiCell('NET PNL (WALLET · BOT MARKETS)', signedMoney(walletNetto.wert),
+      (ledgerFrischer ? 'bot markets in the wallet ledger' : 'on-chain wallet, reconciled')
+      + (ledger && ledger.aggregat && ledger.aggregat.netto_cashflow_usd != null ? ' · whole wallet ' + signedMoney(+ledger.aggregat.netto_cashflow_usd) : ''), true, walletNetto.wert)
     : kpiCell('NET PNL (FROM RUN LOGS)', agg && agg.realisierter_pnl_usd != null ? signedMoney(agg.realisierter_pnl_usd) : '—', 'no wallet reconciliation yet', true, agg && agg.realisierter_pnl_usd);
   // Die vierte Zelle: das ganze Wallet als Rendite. Bezugsgroesse ist immer
   // die einmalige Einzahlung (on-chain nachpruefbar) — aus dem Ledger, sonst
   // die deklarierte Konstante. Nie die Kaufsumme: jeder reinvestierte Dollar
   // wuerde die Basis aufblaehen und die Rendite kleinrechnen.
   const la = ledger && ledger.aggregat ? ledger.aggregat : null;
+  let botPos = null;
   const einzahlungen = la && la.einzahlungen_usd != null ? +la.einzahlungen_usd : EINZAHLUNGEN_USD;
   let flussZelle = kpiCell('ROI (WALLET · ALL ACTIVITY)', '—', 'wallet_ledger.json not loaded yet', false);
   if (la && la.netto_cashflow_usd != null && einzahlungen > 0) {
@@ -320,11 +363,23 @@ export function renderOverview(T) {
       // wertlos ausgelaufene zaehlen als verloren) — die Run-Zaehlung aus
       // runs.json sah nur die Bot-Wetten und unterschlug den Rest des
       // Wallets. Ohne Ledger bleibt die Run-Zaehlung als benannter Rueckfall.
-      + (la && la.positionen_gewonnen != null && la.positionen_verloren != null
-        ? kpiCell('WON · LOST', num(la.positionen_gewonnen) + ' · ' + num(la.positionen_verloren),
-          (la.positionen && +la.positionen.open ? num(la.positionen.open) + ' open · ' : '')
-          + 'all wallet positions, worthless counts as lost · no profitability claim', true)
-        : kpiCell('WON · LOST', num(agg.gewonnen != null ? agg.gewonnen : '—') + ' · ' + num(agg.verloren != null ? agg.verloren : '—'), (agg.offen ? num(agg.offen) + ' open' : 'none open') + ' · no profitability claim · bot runs only', true))
+      // Dieselbe Basis wie RUNS · BETS und NET PNL daneben: die Bot-Maerkte
+      // des Wallets. Die Zaehlung des ganzen Wallets (42 · 12 mit Hand- und
+      // Pilot-Positionen) stand hier neben 24 Laeufen und 27 Wetten und
+      // ergab 54 Ergebnisse fuer 27 Wetten.
+      // Rueckfallkette: ohne Marktereignisse im Ledger die Zaehlung des
+      // ganzen Wallets (so beschriftet), ohne Ledger die aus den Run-Logs.
+      + ((botPos = ledgerBotPositionen(ledger))
+        ? kpiCell('WON · LOST', num(botPos.won) + ' · ' + num(botPos.lost),
+          (botPos.open ? num(botPos.open) + ' open · ' : '')
+          + num(botPos.n) + ' bot markets in the wallet ledger, worthless counts as lost'
+          + (la && la.positionen_gewonnen != null && la.positionen_verloren != null
+            ? ' · whole wallet ' + num(la.positionen_gewonnen) + ' · ' + num(la.positionen_verloren) : ''), true)
+        : la && la.positionen_gewonnen != null && la.positionen_verloren != null
+          ? kpiCell('WON · LOST', num(la.positionen_gewonnen) + ' · ' + num(la.positionen_verloren),
+            (la.positionen && +la.positionen.open ? num(la.positionen.open) + ' open · ' : '')
+            + 'all wallet positions, worthless counts as lost · no profitability claim', true)
+          : kpiCell('WON · LOST', num(agg.gewonnen != null ? agg.gewonnen : '—') + ' · ' + num(agg.verloren != null ? agg.verloren : '—'), (agg.offen ? num(agg.offen) + ' open' : 'none open') + ' · no profitability claim · bot runs only', true))
       + pnlZelle
       + flussZelle
       + '</div>'
@@ -350,8 +405,12 @@ export function renderOverview(T) {
   const ksVolContracts = T.markets.filter((m) => m.venue === 'Kalshi').reduce((a, m) => a + m.vol, 0);
   const pmCount = T.markets.filter((m) => m.venue === 'Polymarket').length;
   const ksCount = T.markets.length - pmCount;
-  const whalePrints = T.tape.filter((t) => t.size >= s.setWhale).length;
-  const whaleWallets = new Set(T.tape.filter((t) => t.size >= s.setWhale && t.wallet !== '—').map((t) => t.wallet)).size;
+  // /api/tape wird mit min_cash=2500 geholt (app.js pollLive); die Kachel
+  // zaehlt dieselbe Schwelle. s.setWhale wurde nie an den Endpunkt gesendet:
+  // hoeher gestellt zaehlte die Kachel eine Teilmenge unter der Ueberschrift
+  // "≥ $2.5K", tiefer gestellt aenderte sich nichts.
+  const whalePrints = T.tape.filter((t) => t.size >= TAPE_MIN_USD).length;
+  const whaleWallets = new Set(T.tape.filter((t) => t.size >= TAPE_MIN_USD && t.wallet !== '—').map((t) => t.wallet)).size;
   const marktSatz = herkunftSatz(T.herkunft.markets, '/api/markets');
   const tapeSatz = herkunftSatz(T.herkunft.tape, '/api/tape');
   const hatMaerkte = T.markets.length > 0;
@@ -510,8 +569,11 @@ export function renderMarkets(T) {
   const spreads = T.markets.map((m) => mx(m).spread).filter((v) => v != null).sort((a, b) => a - b);
   const spreadMedian = spreads.length ? (spreads.length % 2 ? spreads[(spreads.length - 1) / 2] : (spreads[spreads.length / 2 - 1] + spreads[spreads.length / 2]) / 2) : null;
   const movers = T.markets.filter((m) => m.chg !== 0).sort((a, b) => Math.abs(b.chg) - Math.abs(a.chg)).slice(0, 5);
-  const baldFaellig = T.markets.filter((m) => mx(m).endsDays != null).sort((a, b) => mx(a).endsDays - mx(b).endsDays).slice(0, 5);
-  const unentschieden = T.markets.filter((m) => m.yes >= 40 && m.yes <= 60).sort((a, b) => b.vol - a.vol).slice(0, 5);
+  // Nur kuenftige Enddaten: Gamma traegt fuer aktive, nicht aufgeloeste
+  // Maerkte oft ein Datum in der Vergangenheit, und die standen mit
+  // "under 1 d" ganz oben, als loesten sie heute auf.
+  const baldFaellig = T.markets.filter((m) => mx(m).endsDays != null && mx(m).endsDays >= 0).sort((a, b) => mx(a).endsDays - mx(b).endsDays).slice(0, 5);
+  const unentschieden = T.markets.filter((m) => m.yes >= 40 && m.yes <= 60).sort((a, b) => volOrd(b) - volOrd(a)).slice(0, 5);
   const topMover = movers[0] || null;
   const kurz = (t) => (String(t).length > 44 ? String(t).slice(0, 43) + '…' : String(t));
   const zeile = (m, mitte, rechts) =>
@@ -571,7 +633,7 @@ export function renderMarkets(T) {
     const d = { '1d': 1, '7d': 7, '30d': 30 }[s.mEnds];
     mRows = s.mEnds === 'open'
       ? mRows.filter((m) => mx(m).endsDays != null && mx(m).endsDays > 180)
-      : mRows.filter((m) => mx(m).endsDays != null && mx(m).endsDays <= d);
+      : mRows.filter((m) => mx(m).endsDays != null && mx(m).endsDays >= 0 && mx(m).endsDays <= d);
     addChip('resolves ' + (s.mEnds === 'open' ? 'far out' : 'in < ' + s.mEnds), { mEnds: 'all' });
   }
   if (s.mAge !== 'all') {
@@ -580,8 +642,9 @@ export function renderMarkets(T) {
       : mRows.filter((m) => mx(m).age != null && mx(m).age <= ({ '1d': 1, '7d': 7 })[s.mAge]);
     addChip('age ' + s.mAge, { mAge: 'all' });
   }
-  if (s.mQuick === 'ending') { mRows = mRows.filter((m) => mx(m).endsDays != null && mx(m).endsDays <= 14); addChip('ending soon', { mQuick: 'trending' }); }
+  if (s.mQuick === 'ending') { mRows = mRows.filter((m) => mx(m).endsDays != null && mx(m).endsDays >= 0 && mx(m).endsDays <= 14); addChip('ending soon', { mQuick: 'trending' }); }
   if (s.mQuick === 'new') { mRows = mRows.filter((m) => mx(m).age != null && mx(m).age <= 90); addChip('new markets', { mQuick: 'trending' }); }
+  const kuenftig = (d) => (d != null && d >= 0 ? d : null);
   const nullLast = (a, b, asc) => {
     if (a == null && b == null) return 0;
     if (a == null) return 1;
@@ -591,9 +654,11 @@ export function renderMarkets(T) {
   mRows = mRows.sort((a, b) => {
     if (s.marketSort === 'change') return Math.abs(b.chg) - Math.abs(a.chg);
     if (s.marketSort === 'liquidity') return b.liq - a.liq;
-    if (s.marketSort === 'ending') return nullLast(mx(a).endsDays, mx(b).endsDays, true);
+    // Ueberfaellige Enddaten (negativ) sortieren wie unbekannte ans Ende:
+    // "resolves soonest" meint kuenftige Aufloesungen.
+    if (s.marketSort === 'ending') return nullLast(kuenftig(mx(a).endsDays), kuenftig(mx(b).endsDays), true);
     if (s.marketSort === 'newest') return nullLast(mx(a).age, mx(b).age, true);
-    return b.vol - a.vol;
+    return volOrd(b) - volOrd(a);
   });
 
   // Der Anteilsbalken vergleicht nur innerhalb einer Einheit: gegen einen
@@ -744,9 +809,12 @@ function tapePulsHtml(prints, buys, sells) {
     titel: 'FLOW PULSE',
     hinweis: 'per ' + dauerLabel(schritt) + ' · filtered prints',
     legende, bins, marken,
+    // Die Marke sitzt auf der Bin-Mitte; Bin i deckt (nBins-i)·schritt bis
+    // (nBins-1-i)·schritt Minuten zurueck, seine Mitte liegt also bei
+    // (nBins-i-0.5)·schritt. Vorher nannte die Marke die linke Kante.
     xLabels: [
-      { i: 0, text: '-' + dauerLabel(nBins * schritt), anker: 'start' },
-      { i: Math.floor((nBins - 1) / 2), text: '-' + dauerLabel(Math.ceil(nBins / 2) * schritt), anker: 'middle' },
+      { i: 0, text: '-' + dauerLabel((nBins - 0.5) * schritt), anker: 'start' },
+      { i: Math.floor((nBins - 1) / 2), text: '-' + dauerLabel((nBins - Math.floor((nBins - 1) / 2) - 0.5) * schritt), anker: 'middle' },
       { i: nBins - 1, text: 'now', anker: 'end' }
     ]
   });

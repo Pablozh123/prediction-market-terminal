@@ -212,7 +212,7 @@ function renderFieldNotes(payload, study) {
     + esc(v.toUpperCase()) + ' ' + n + '</div>').join('');
 
   const karten = notes.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).map((n) =>
-    '<div style="background:var(--panel); border:1px solid var(--line-2); border-left:2px solid var(--info); border-radius:var(--r-panel); padding:var(--sp-5)">'
+    '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-5)">'
     + '<div style="display:flex; align-items:baseline; justify-content:space-between; gap:var(--sp-5); flex-wrap:wrap">'
     + '<h3 style="font-size:var(--t-lead); font-weight:600; flex:1; min-width:220px">' + esc(n.title || '—') + '</h3>'
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--info)">' + esc(n.venue || '') + '</div></div>'
@@ -1293,12 +1293,16 @@ function renderCategoryEfficiency(T, payload, study) {
 
   // ---- Kompakte Tabelle, auf offenen Preisen sortiert. Alle Horizonte und
   // Trefferquoten stehen im Klappfeld darunter.
-  const tabSpalten = '1fr 118px 108px 96px 92px 116px';
+  // Die Spalte DECIDED (Anteil schon entschiedener Preise bei T-7) nur,
+  // wenn die Nutzlast sie traegt; kategorie_karte.json hat sie nicht, und
+  // eine Spalte aus lauter Strichen ist keine Information.
+  const hatDecided = rangfolge.some((z) => z.entschiedenT7 != null);
+  const tabSpalten = hatDecided ? '1fr 118px 108px 96px 92px 116px' : '1fr 118px 108px 92px 116px';
   const tabKopf = '<div style="display:grid; grid-template-columns:' + tabSpalten + '; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
     + '<div>CATEGORY</div>'
     + '<div style="text-align:right">' + (hatOffenT7 ? 'OPEN BRIER' : 'BRIER T-7') + '</div>'
     + '<div style="text-align:right">' + (hatOffenT7 ? 'ALL PRICES' : 'HIT RATE') + '</div>'
-    + '<div style="text-align:right">DECIDED</div><div style="text-align:right">MARKETS</div>'
+    + (hatDecided ? '<div style="text-align:right">DECIDED</div>' : '') + '<div style="text-align:right">MARKETS</div>'
     + '<div style="text-align:right">MEDIAN VOLUME</div></div>';
   const tabelle = '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); overflow:hidden">'
     + '<div style="padding:var(--sp-4) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); display:flex; align-items:baseline; justify-content:space-between; gap:var(--sp-5)">'
@@ -1319,7 +1323,7 @@ function renderCategoryEfficiency(T, payload, study) {
         + '</div>'
         + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:' + (duenn ? 'var(--ink-3)' : 'var(--ink-1)') + '">' + f3(wert) + '</div>'
         + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-3)">' + (hatOffenT7 ? f3(h.brier) : (h.treffer != null ? Math.round(h.treffer * 100) + '%' : '—')) + '</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-3)">' + (z.entschiedenT7 != null ? Math.round(z.entschiedenT7 * 100) + '%' : '—') + '</div>'
+        + (hatDecided ? '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-3)">' + (z.entschiedenT7 != null ? Math.round(z.entschiedenT7 * 100) + '%' : '—') + '</div>' : '')
         + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-3)">' + (z.maerkte != null ? num(z.maerkte) : '—') + '</div>'
         + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-3)">' + (z.medianVol != null ? '$' + num(Math.round(z.medianVol)) : '—') + '</div>'
         + '</div>';
@@ -1553,10 +1557,16 @@ function renderLiveRuns(T, payload) {
   // sie erscheint nur noch als Rueckfall, wenn es keine Wallet-Zahl gibt,
   // und sagt dann, woher sie kommt.
   const nettoKachel = agg && (() => {
+    // Bot-Maerkte des Ledgers, nicht das ganze Wallet: die Kachel hiess
+    // "WALLET" und "cash truth from the on-chain wallet", zeigte aber die
+    // Bot-Summe ($418), waehrend der Netto-Cashflow des Wallets ($430)
+    // daneben in der ROI-Kachel stand.
     if (frisch) return {
-      label: 'NET PNL (WALLET, AS OF ' + frisch.stand + ')',
+      label: 'NET PNL (WALLET · BOT MARKETS, AS OF ' + frisch.stand + ')',
       value: (frisch.netto >= 0 ? '+$' : '-$') + num(Math.abs(frisch.netto).toFixed(0)),
-      sub: 'cash truth from the on-chain wallet',
+      sub: 'sells + redemptions − buys of the bot markets, on-chain wallet ledger'
+        + (ledger && ledger.aggregat && ledger.aggregat.netto_cashflow_usd != null
+          ? ' · whole wallet ' + (+ledger.aggregat.netto_cashflow_usd >= 0 ? '+$' : '-$') + num(Math.abs(+ledger.aggregat.netto_cashflow_usd).toFixed(0)) : ''),
       color: frisch.netto >= 0 ? 'var(--pos)' : 'var(--neg)'
     };
     if (agg.wallet_netto_usd != null) return {
@@ -1714,7 +1724,8 @@ function renderLiveRuns(T, payload) {
     let summe = 0;
     return mitZeit.map((r) => {
       summe += r.pnl;
-      return { label: r.zeit.slice(5, 10), wert: Math.round(summe * 100) / 100 };
+      const ms = Date.parse(r.zeit);
+      return { label: r.zeit.slice(5, 10), wert: Math.round(summe * 100) / 100, t: ms === ms ? ms : undefined };
     });
   })();
   // Dieselbe Zahl wie die PnL-Kachel: kumulierte Wallet-PnL je Lauf, aus den
@@ -1738,18 +1749,25 @@ function renderLiveRuns(T, payload) {
     let summe = 0;
     return mitZeit.map((r) => {
       summe += r.pnl;
-      return { label: r.zeit.slice(5, 10), wert: Math.round(summe * 100) / 100 };
+      const ms = Date.parse(r.zeit);
+      return { label: r.zeit.slice(5, 10), wert: Math.round(summe * 100) / 100, t: ms === ms ? ms : undefined };
     });
   })();
+  // x liegt auf der Zeit des ersten Fills, nicht auf dem Laufindex: Laeufe
+  // liegen Tage bis Wochen auseinander, und mit Daten an beiden Enden las
+  // sich die Indexachse als Zeitachse.
+  const tagText = (ms) => new Date(ms).toISOString().slice(5, 10);
   const equityChart = walletPunkte.length > 1 ? stepKurve({
     titel: 'CUMULATIVE WALLET PNL BY RUN',
-    einheit: 'USD · wallet, bot markets',
+    einheit: 'USD · wallet, bot markets · x = date of the first fill',
     hinweis: 'last bot fill ' + walletPunkte[walletPunkte.length - 1].label
       + (ledgerStand ? ' · wallet as of ' + ledgerStand : ''),
+    tText: tagText,
     punkte: walletPunkte
   }) : equityPunkte.length > 1 ? stepKurve({
     titel: 'CUMULATIVE PNL BY RUN',
-    einheit: 'USD · from run logs',
+    einheit: 'USD · from run logs · x = date of the first fill',
+    tText: tagText,
     hinweis: agg && agg.wallet_netto_usd != null
       ? 'wallet net ' + (+agg.wallet_netto_usd >= 0 ? '+$' : '-$')
         + Math.abs(+agg.wallet_netto_usd).toFixed(0)
@@ -1763,10 +1781,15 @@ function renderLiveRuns(T, payload) {
       run: String(r.profil || '').slice(0, 10),
       market: b.frage,
       drop: r.drop_erkannt_utc ? String(r.drop_erkannt_utc).slice(11, 19) : '—',
-      fill: String(b.fill_ts_utc).slice(11, 19),
+      // Der Fill traegt sein Datum, sobald es nicht der Drop-Tag ist: eine
+      // Latenz von 25 h neben zwei Uhrzeiten desselben Tages las sich
+      // sonst wie ein Rechenfehler.
+      fill: (r.drop_erkannt_utc && String(b.fill_ts_utc).slice(0, 10) !== String(r.drop_erkannt_utc).slice(0, 10)
+        ? String(b.fill_ts_utc).slice(5, 10) + ' ' : '') + String(b.fill_ts_utc).slice(11, 19),
       lat: (() => { const s = fillLatenzS(r, b); return s == null ? null : Math.round(s * 1000); })(),
       before: b.fremde_davor != null ? String(b.fremde_davor) : '—',
-      next: b.verfolger_s != null ? '+' + (+b.verfolger_s).toFixed(1) + ' s' : '—',
+      // Dieselbe Dauerform wie LATENCY: "+27735.0 s" ist "+7.7 h".
+      next: b.verfolger_s != null ? '+' + sekundenText(+b.verfolger_s) : '—',
       // runs.json traegt den Pfad als preis_nach_fill {"0","30",…,"900"};
       // frueher wurde ein Feld preis_nach_fill_30s gelesen, das es nie gab,
       // und die Spalte blieb leer.
@@ -1879,7 +1902,7 @@ function renderLiveRuns(T, payload) {
       : null;
     const simRows = liveSims || [];
     body = '<div style="margin-top:var(--sp-5)">'
-      + '<div style="font-size:var(--t-small); color:var(--ink-4); line-height:var(--lh-snug); max-width:820px">Replays the same runs with a different stake rule each time — same entries, same fills, only the size changes. Caps and the per-run budget stay as they were on the day.' + (liveSims ? ' Only resolved bets with a valid fill price count; bankroll $100, no compounding.' : '') + ' Every figure in this tab is a simulation on log-estimated fills — not cash; the cash figure is the wallet-reconciled net in the tiles above.</div>'
+      + '<div style="font-size:var(--t-small); color:var(--ink-4); line-height:var(--lh-snug); max-width:820px">Replays the same runs with a different stake rule each time — same entries, same fills, only the size changes. Caps and the per-run budget stay as they were on the day.' + (liveSims ? ' Only resolved bets with a valid fill price count; every rule, "As executed" included, runs on a $100 bankroll without compounding, so its ROI is a return on that $100 and not the ROI of the real runs (stake $' + num(Math.round(+((agg && agg.einsatz_usd) || 0))) + ').' : '') + ' Every figure in this tab is a simulation on log-estimated fills — not cash; the cash figure is the wallet-reconciled net in the tiles above.</div>'
       + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); overflow:hidden">'
       + '<div style="display:grid; grid-template-columns:1fr 110px 96px 96px 96px 104px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
       + '<div>STAKE RULE</div><div style="text-align:right">NET</div><div style="text-align:right">ROI</div><div style="text-align:right">MAX DD</div><div style="text-align:right">HIT RATE</div><div style="text-align:right">BETS PLACED</div></div>'
@@ -1941,7 +1964,7 @@ function renderLiveRuns(T, payload) {
     const calibN = calibRows.reduce((a, c) => a + (+c.n || 0), 0);
     const calibChart = kalibrierung({
       titel: 'ENTRY PRICE VS SETTLED SHARE · ' + calibRows.length + ' BANDS',
-      hinweis: 'n ' + calibN + ' resolved bets · ' + calibRows.length + ' entry-price bands · dot size follows n',
+      hinweis: 'n ' + calibN + ' resolved bets · ' + calibRows.length + ' entry-price bands · dot size follows n · whisker = Wilson 95% of the settled share',
       punkte: calibRows.map((c) => ({ vorhergesagt: (+c.paid) / 100, realisiert: (+c.settled) / 100, n: +c.n || 0 }))
     });
     body = '<div style="margin-top:var(--sp-5)">'
@@ -2685,7 +2708,7 @@ function repricingKurvenHtml(payload) {
     const liste = Array.isArray(r.repricing) ? r.repricing : [];
     liste.forEach((e) => {
       const punkte = Array.isArray(e && e.punkte)
-        ? e.punkte.filter((p) => Array.isArray(p) && p.length === 2 && typeof p[1] === 'number').map((p) => ({ label: sekundenText(p[0]), wert: p[1] }))
+        ? e.punkte.filter((p) => Array.isArray(p) && p.length === 2 && typeof p[1] === 'number').map((p) => ({ label: sekundenText(p[0]), wert: p[1], t: +p[0] }))
         : [];
       if (punkte.length < 2) return;
       const meta = [];
@@ -2696,6 +2719,7 @@ function repricingKurvenHtml(payload) {
         einheit: String(r.profil || ''),
         hinweis: meta.join(' · ') || (punkte.length + ' points'),
         farbe: 'var(--info)',
+        tText: sekundenText,
         punkte
       }));
     });
@@ -2706,7 +2730,7 @@ function repricingKurvenHtml(payload) {
   }
   return '<div style="margin-top:var(--sp-5)">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--info); margin-bottom:var(--sp-2)">REPRICING AFTER THE DROP · ' + kurven.length + (kurven.length === 1 ? ' BET' : ' BETS') + '</div>'
-    + '<div style="font-size:var(--t-small); color:var(--ink-4); margin-bottom:var(--sp-4); line-height:var(--lh-snug)">Price of the traded side against seconds after the drop, from the public tape; the caption names when our fill landed and when the market had priced the outcome in.</div>'
+    + '<div style="font-size:var(--t-small); color:var(--ink-4); margin-bottom:var(--sp-4); line-height:var(--lh-snug)">Price of the traded side against seconds after the drop, from the public tape, on a linear time axis; the caption names when our fill landed and when the market had priced the outcome in.</div>'
     + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:var(--sp-4)">' + kurven.join('') + '</div>'
     + '</div>';
 }
@@ -2722,6 +2746,7 @@ function timingDecayLinienHtml(payload) {
     einheit: 'USD · simulation on log-estimated fills, not cash',
     hinweis: decay[0].n_bets != null ? 'n ' + decay[0].n_bets + ' bets at +0 s' : '',
     x: decay.map((t) => '+' + t.delay_s + ' s'),
+    xWerte: decay.map((t) => +t.delay_s),
     serien: [
       { name: 'simulated PnL (USD)', farbe: 'var(--accent)', werte: decay.map((t) => (typeof t.sim_pnl_usd === 'number' ? t.sim_pnl_usd : null)) }
     ]
@@ -2895,7 +2920,7 @@ function mentionsExtrasHtml(payload) {
       if (w > hi) return;
       const tx = x(w);
       svg += '<line x1="' + tx + '" y1="' + (TOP - 6) + '" x2="' + tx + '" y2="' + (hoehe - 20) + '" style="stroke:rgba(var(--ink),' + (w === 1 ? '.18' : '.08') + ')" stroke-width="1" />'
-        + '<text x="' + tx + '" y="' + (hoehe - 6) + '" style="fill:var(--ink-4)" font-size="10.5" font-family="JetBrains Mono, monospace" text-anchor="middle">' + t + '</text>';
+        + '<text x="' + tx + '" y="' + (hoehe - 6) + '" style="fill:var(--ink-4)" font-size="10.5" font-family="IBM Plex Mono, monospace" text-anchor="middle">' + t + '</text>';
     });
     if (medReaktion != null && medReaktion > 1) {
       svg += '<line x1="' + x(medReaktion) + '" y1="' + (TOP - 6) + '" x2="' + x(medReaktion) + '" y2="' + (hoehe - 20) + '" style="stroke:rgba(var(--ink),.35)" stroke-width="1" stroke-dasharray="4 4" />';
@@ -2906,11 +2931,11 @@ function mentionsExtrasHtml(payload) {
       svg += '<g><title>' + esc(p.label + ' — first reaction ' + (p.sek != null ? fmtZahl(p.sek) + ' s' : fmtZahl(p.von) + ' min')
         + (p.weg ? ' (moved away from the outcome)' : '') + ', fully priced in ' + fmtZahl(p.bis) + ' min'
         + (p.fenster != null ? ', tradeable window ' + fmtZahl(p.fenster) + ' h' : '') + ', resolved ' + p.outcome) + '</title>'
-        + '<text x="' + LX + '" y="' + (y + 4) + '" style="fill:var(--ink-2)" font-size="11" font-family="JetBrains Mono, monospace" text-anchor="end">' + esc(p.label) + '</text>'
+        + '<text x="' + LX + '" y="' + (y + 4) + '" style="fill:var(--ink-2)" font-size="11" font-family="IBM Plex Mono, monospace" text-anchor="end">' + esc(p.label) + '</text>'
         + '<line x1="' + xa + '" y1="' + y + '" x2="' + xb + '" y2="' + y + '" style="stroke:var(--info)" stroke-width="2" stroke-opacity=".5" />'
         + '<circle cx="' + xa + '" cy="' + y + '" r="4" style="fill:var(--info)" />'
         + '<line x1="' + xb + '" y1="' + (y - 5) + '" x2="' + xb + '" y2="' + (y + 5) + '" style="stroke:var(--info)" stroke-width="2" />'
-        + '<text x="' + (PR + 8) + '" y="' + (y + 4) + '" style="fill:var(--ink-2)" font-size="11" font-family="JetBrains Mono, monospace">' + esc(dauerText(p.bis) + ' · ' + p.outcome) + '</text></g>';
+        + '<text x="' + (PR + 8) + '" y="' + (y + 4) + '" style="fill:var(--ink-2)" font-size="11" font-family="IBM Plex Mono, monospace">' + esc(dauerText(p.bis) + ' · ' + p.outcome) + '</text></g>';
       y += ZH;
     });
     const medSek = medianVon(beide.map((p) => p.sek).filter((s) => s != null && !isNaN(+s)));
@@ -3027,13 +3052,20 @@ export function pilotEnglisch(text) {
 // Slippage in cents: the payload's own slippage field (execution minus signal
 // price) or, failing that, the difference of the two prices.
 function pilotSlippageCents(t) {
+  const roh = pilotSlippageRoh(t);
+  return roh == null ? null : Math.round(roh * 10) / 10;
+}
+
+// Unrounded cents, for the mean: averaging the rounded per-trade values
+// gave 1.57¢ under the chart while the tile above said 1.58¢.
+function pilotSlippageRoh(t) {
   if (!t) return null;
-  if (t.slippage != null && t.slippage !== '' && !isNaN(+t.slippage)) return Math.round(+t.slippage * 1000) / 10;
+  if (t.slippage != null && t.slippage !== '' && !isNaN(+t.slippage)) return +t.slippage * 100;
   if (t.ausfuehrungspreis === '' || t.signalpreis === '' || t.ausfuehrungspreis == null || t.signalpreis == null) return null;
   const a = +t.ausfuehrungspreis;
   const b = +t.signalpreis;
   if (isNaN(a) || isNaN(b)) return null;
-  return Math.round((a - b) * 1000) / 10;
+  return (a - b) * 100;
 }
 
 // Watcher counters of pilot.json in plain words. Unknown keys are humanised,
@@ -3087,15 +3119,16 @@ function pilotExtrasHtml(payload, ledger) {
     + '. Below instead: execution against signal price per trade, and the watcher funnel of the last run.'));
 
   // Slippage per trade, execution minus signal, in cents. Positive = paid more.
-  const punkte = trades.map((t) => ({ t, c: pilotSlippageCents(t) })).filter((x) => x.c != null)
+  const punkte = trades.map((t) => ({ t, c: pilotSlippageCents(t), roh: pilotSlippageRoh(t) })).filter((x) => x.c != null)
     .map((x) => ({
       label: kurzFrage(x.t.markt_frage).slice(0, 34) + ' · ' + String(x.t.seite || ''),
       wert: x.c,
+      roh: x.roh,
       art: x.c > 0 ? 'kosten' : 'gewinn'
     }));
   if (punkte.length) {
     const werte = punkte.map((p) => p.wert);
-    const mittel = werte.reduce((a, v) => a + v, 0) / werte.length;
+    const mittel = punkte.reduce((a, p) => a + p.roh, 0) / punkte.length;
     const teurer = werte.filter((v) => v > 0).length;
     teile.push(diagramm({
       titel: 'SLIPPAGE PER TRADE · EXECUTION MINUS SIGNAL PRICE · n ' + punkte.length,
