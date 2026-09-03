@@ -20,12 +20,31 @@ def write_books(directory: Path, day: str, rows: list[dict],
     import csv as _csv
     name = f"{'stream_books' if stream else 'books'}_{day}.csv"
     fields = ["ts_utc", "recv_ts", "token_id", "best_bid", "best_ask",
-              "spread", "mid", "imbalance_top"]
+              "spread", "mid", "imbalance_top", "bid_size_touch",
+              "ask_size_touch", "bids_json", "asks_json"]
     with open(directory / name, "w", newline="", encoding="utf-8") as handle:
         writer = _csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
         for row in rows:
             writer.writerow(row)
+
+
+def write_depth(directory: Path, day: str, rows: list[dict]) -> None:
+    import csv as _csv
+    from src.book_stream import STREAM_DEPTH_FIELDS
+    with open(directory / f"stream_depth_{day}.csv", "w", newline="",
+              encoding="utf-8") as handle:
+        writer = _csv.DictWriter(handle, fieldnames=STREAM_DEPTH_FIELDS)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(row)
+
+
+STREAM_ROW = {
+    "recv_ts": "2026-07-01T00:00:00.000Z", "token_id": "t",
+    "best_bid": 0.49, "best_ask": 0.51, "spread": 0.02, "mid": 0.5,
+    "imbalance_top": 0.6, "bid_size_touch": 120.0, "ask_size_touch": 80.0,
+}
 
 
 class ParseTsTests(unittest.TestCase):
@@ -200,6 +219,67 @@ class BuildObservationTests(unittest.TestCase):
                 "mid": 0.6, "imbalance_top": 0.9,
             }])
             self.assertEqual(ofs.load_books(directory), {})
+
+    def test_stream_rows_carry_the_touch_as_a_single_level(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            write_books(directory, "2026-07-01", [STREAM_ROW], stream=True)
+            point = ofs.load_books(directory, stream=True)["t"][0]
+            self.assertEqual(point.bid_levels, ((0.49, 120.0),))
+            self.assertEqual(point.ask_levels, ((0.51, 80.0),))
+
+    def test_a_depth_sidecar_replaces_the_touch_with_the_full_ladder(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            write_books(directory, "2026-07-01", [STREAM_ROW], stream=True)
+            write_depth(directory, "2026-07-01", [{
+                "recv_ts": STREAM_ROW["recv_ts"], "token_id": "t",
+                "event_type": "book",
+                "bid_px_1": 0.49, "bid_sz_1": 120.0,
+                "bid_px_2": 0.48, "bid_sz_2": 900.0,
+                "ask_px_1": 0.51, "ask_sz_1": 80.0,
+            }])
+            point = ofs.load_books(directory, stream=True)["t"][0]
+            self.assertEqual(point.bid_levels, ((0.49, 120.0), (0.48, 900.0)))
+            self.assertEqual(point.ask_levels, ((0.51, 80.0),))
+
+    def test_rest_rows_read_their_json_ladders_best_first(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            write_books(directory, "2026-07-01", [{
+                "ts_utc": "2026-07-01T00:00:00Z", "token_id": "t",
+                "best_bid": 0.49, "best_ask": 0.51, "spread": 0.02,
+                "mid": 0.5, "imbalance_top": 0.6,
+                "bids_json": json.dumps([[0.48, 900.0], [0.49, 120.0]]),
+                "asks_json": json.dumps([[0.52, 10.0], [0.51, 80.0]]),
+            }])
+            point = ofs.load_books(directory)["t"][0]
+            self.assertEqual(point.bid_levels, ((0.49, 120.0), (0.48, 900.0)))
+            self.assertEqual(point.ask_levels, ((0.51, 80.0), (0.52, 10.0)))
+
+    def test_rows_without_sizes_leave_the_levels_empty(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            write_books(directory, "2026-07-01", [{
+                "ts_utc": "2026-07-01T00:00:00Z", "token_id": "t",
+                "best_bid": 0.49, "best_ask": 0.51, "spread": 0.02,
+                "mid": 0.5, "imbalance_top": 0.6,
+            }])
+            point = ofs.load_books(directory)["t"][0]
+            self.assertEqual(point.bid_levels, ())
+            self.assertEqual(point.ask_levels, ())
+
+    def test_day_window_selects_files_inclusively(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            for day in ("2026-07-01", "2026-07-02", "2026-07-03"):
+                write_books(directory, day, [dict(STREAM_ROW, recv_ts=f"{day}T00:00:00.000Z")],
+                            stream=True)
+            points = ofs.load_books(directory, stream=True,
+                                    day_from="2026-07-02", day_to="2026-07-02")["t"]
+            self.assertEqual([p.day for p in points], ["2026-07-02"])
+            later = ofs.load_books(directory, stream=True, day_from="2026-07-02")["t"]
+            self.assertEqual([p.day for p in later], ["2026-07-02", "2026-07-03"])
 
     def test_resolution_zone_snapshots_are_filtered_out(self):
         with tempfile.TemporaryDirectory() as tmp:

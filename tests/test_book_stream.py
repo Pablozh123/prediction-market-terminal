@@ -147,6 +147,27 @@ class BookStateTests(unittest.TestCase):
         self.book.apply_change("0.20", "500", "BUY")
         self.assertEqual(before, self.book.touch_signature())
 
+    def test_depth_row_lists_levels_best_first_with_sizes(self):
+        row = self.book.depth_row("ts", "book")
+        self.assertEqual(row["bid_px_1"], 0.40)
+        self.assertEqual(row["bid_sz_1"], 100.0)
+        self.assertEqual(row["bid_px_2"], 0.39)
+        self.assertEqual(row["bid_sz_2"], 200.0)
+        self.assertEqual(row["ask_px_1"], 0.42)
+        self.assertEqual(row["ask_sz_1"], 50.0)
+        self.assertEqual(row["ask_px_2"], 0.43)
+
+    def test_depth_row_leaves_missing_levels_empty(self):
+        row = self.book.depth_row("ts", "book")
+        self.assertIsNone(row["bid_px_3"])
+        self.assertIsNone(row["bid_sz_3"])
+        self.assertIsNone(row["ask_px_5"])
+
+    def test_depth_row_keys_match_the_csv_schema(self):
+        row = self.book.depth_row("ts", "book")
+        row["token_id"] = "t1"
+        self.assertEqual(set(row), set(bs.STREAM_DEPTH_FIELDS))
+
 
 class StreamStateTests(unittest.TestCase):
     def setUp(self):
@@ -157,6 +178,22 @@ class StreamStateTests(unittest.TestCase):
         self.assertEqual(len(self.state.book_rows), 1)
         self.assertEqual(self.state.book_rows[0]["token_id"], "t1")
         self.assertEqual(self.state.book_rows[0]["event_type"], "book")
+
+    def test_every_book_row_has_a_depth_row_with_the_same_key(self):
+        self.state.handle(book_event(), "r1")
+        self.state.handle(change_event(price="0.41", size="9"), "r2")
+        self.assertEqual(len(self.state.depth_rows), len(self.state.book_rows))
+        for book_row, depth_row in zip(self.state.book_rows, self.state.depth_rows):
+            self.assertEqual(book_row["recv_ts"], depth_row["recv_ts"])
+            self.assertEqual(book_row["token_id"], depth_row["token_id"])
+        self.assertEqual(self.state.depth_rows[1]["bid_px_1"], 0.41)
+        self.assertEqual(self.state.depth_rows[1]["bid_sz_1"], 9.0)
+
+    def test_drain_depth_hands_over_and_resets(self):
+        self.state.handle(book_event(), "r1")
+        depth = self.state.drain_depth()
+        self.assertEqual(len(depth), 1)
+        self.assertEqual(self.state.depth_rows, [])
 
     def test_exchange_timestamp_is_carried_through(self):
         self.state.handle(book_event(ts="1785000000000"), "r1")
@@ -278,6 +315,21 @@ class StreamOnceTests(unittest.TestCase):
         written = list(self.out.glob("stream_books_*.csv"))
         self.assertEqual(len(written), 1)
         self.assertIn("token_id", written[0].read_text(encoding="utf-8"))
+
+    def test_depth_lands_in_its_own_sidecar_file(self):
+        socket = FakeSocket([json.dumps(book_event())])
+        summary = bs.stream_once(["t1"], self.out, duration_s=5,
+                                 ws_factory=lambda url: socket,
+                                 now_fn=self._clock(0.5))
+        self.assertEqual(summary["depth_rows"], 1)
+        written = list(self.out.glob("stream_depth_*.csv"))
+        self.assertEqual(len(written), 1)
+        header = written[0].read_text(encoding="utf-8").splitlines()[0]
+        self.assertEqual(header.split(","), bs.STREAM_DEPTH_FIELDS)
+        # Das Buch-Schema bleibt unangetastet: kein neuer Spaltenkopf dort.
+        books = list(self.out.glob("stream_books_*.csv"))[0]
+        self.assertEqual(books.read_text(encoding="utf-8").splitlines()[0].split(","),
+                         bs.STREAM_BOOK_FIELDS)
 
     def test_trades_land_in_their_own_file(self):
         trade = {"event_type": "last_trade_price", "asset_id": "t1",
