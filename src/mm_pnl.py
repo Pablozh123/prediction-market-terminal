@@ -25,21 +25,38 @@ On Polymarket makers pay no fee and receive a rebate, so the fee term is a
 credit rather than a cost, which is precisely why market making is the one
 strategy in this repo that is not automatically killed by the 2026 fee rollout.
 
-Two fill models run side by side, because neither is right on its own:
+Four fill models run side by side, because none is right on its own:
 
-  touch  a resting quote fills only when the opposite touch crosses it between
-         snapshots. Ignores queue fills, so it understates fills. Pessimistic.
-  tape   a resting quote fills when a public print crosses its price. Ignores
-         queue position, so it assumes we were at the front. Optimistic.
+  touch        a resting quote fills only when the opposite touch crosses it
+               between snapshots. Ignores queue fills, so it understates
+               fills. Pessimistic.
+  tape         a resting quote fills when a public print crosses its price.
+               Ignores queue position, so it assumes we were at the front.
+               Optimistic.
+  queue_front  a resting quote joins the line behind what already rests at
+               its price, moves up as prints consume that line, fills
+               partially once it reaches the front, and loses its place every
+               time it is re-priced. Cancels ahead of us are assumed to come
+               from the front of the line.
+  queue_back   the same, but cancels are assumed to come from behind us, and
+               a level whose depth the recorder never saw is assumed crowded
+               until it is observed.
 
-The honest answer lies between them, and reporting both makes the width of that
-band visible instead of hiding it in one arbitrary assumption.
+The two queue models sit between touch and tape and differ only in the one
+thing the data cannot show: where in the line a cancel happened. The gap
+between them is the honest width of what a paper simulation can say about
+queue position. A latency parameter keeps the previous quote live for that
+long after every requote decision, so being picked on a stale price is part
+of the measurement instead of an assumption.
 
 Paper-only research tooling: no order path, no credentials, no wallets.
 
 Usage:
   python -m src.mm_pnl --recorder-dir data/microstructure --tag july
   python -m src.mm_pnl --recorder-dir data/microstructure --tag stream --stream
+  python -m src.mm_pnl --recorder-dir data/microstructure --stream \
+      --fill-models queue_front,queue_back --latency 1.0 \
+      --day-from 2026-08-26 --day-to 2026-09-03 --tag queue-test
 """
 
 from __future__ import annotations
@@ -47,6 +64,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 from bisect import bisect_left
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -74,11 +92,24 @@ HALF_SPREAD_GRID = (0.005, 0.01, 0.02, 0.04, 0.08)
 SIGNAL_THRESHOLD = 0.65
 #: Quoting-Modi im Vergleich: ohne Signal, Signal zieht die Gegenseite, mild.
 QUOTE_MODES = ("symmetric", "signal", "lean")
+#: Fill-Modelle. touch und tape klammern, die Queue-Modelle liegen dazwischen
+#: und unterscheiden sich nur in der Storno-Annahme.
+FILL_MODELS = ("touch", "tape", "queue_front", "queue_back")
+QUEUE_MODELS = ("queue_front", "queue_back")
+#: Sekunden zwischen Buchbewegung und neuer Quote im Buch, fuer den Sweep.
+LATENCY_GRID = (0.0, 0.25, 1.0, 5.0)
+#: Preise sind auf 4 bis 6 Stellen gerundet; alles darunter ist derselbe Tick.
+PRICE_EPS = 5e-7
+#: Polymarket handelt je Markt auf einem dieser Raster und wechselt zur
+#: Laufzeit; das Raster wird deshalb aus den beobachteten Preisen gelesen.
+TICK_CANDIDATES = (0.01, 0.001, 0.0001)
 
 # Validierte Referenzpalette (dataviz-Skill), Light-Mode
 COLOR_POS = "#1baf7a"
 COLOR_NEG = "#d6452a"
 COLOR_NEUTRAL = "#2a78d6"
+COLOR_MODEL = {"touch": "#2a78d6", "tape": "#1baf7a",
+               "queue_front": "#d69a2a", "queue_back": "#8a5cd6"}
 COLOR_SURFACE = "#fcfcfb"
 COLOR_TEXT = "#0b0b0b"
 COLOR_TEXT_2 = "#52514e"
@@ -98,6 +129,11 @@ class MMFill:
     mid_at_fill: float
     mid_markout: float | None
     mid_final: float
+    #: Sekunden zwischen Einstellen der Order und diesem Fill; None bei den
+    #: Modellen, die keine ruhende Order kennen.
+    wait_s: float | None = None
+    #: True, wenn nach diesem Fill noch ein Rest der Order im Buch stand.
+    partial: bool = False
 
     @property
     def signed_shares(self) -> float:
@@ -143,6 +179,9 @@ class Decomposition:
     inventory_abs_mean_usd: float = 0.0
     inventory_abs_max_usd: float = 0.0
     days: int = 0
+    wait_total_s: float = 0.0
+    waited_fills: int = 0
+    partial_fills: int = 0
 
     @property
     def mark_to_mid_usd(self) -> float:
@@ -172,6 +211,10 @@ class Decomposition:
             "inventory_abs_mean_usd": round(self.inventory_abs_mean_usd, 2),
             "inventory_abs_max_usd": round(self.inventory_abs_max_usd, 2),
             "days": self.days,
+            "mean_wait_s": (round(self.wait_total_s / self.waited_fills, 2)
+                            if self.waited_fills else None),
+            "partial_fill_share": (round(self.partial_fills / self.fills, 4)
+                                   if self.fills else None),
         }
 
 
@@ -183,6 +226,10 @@ class TokenRun:
     #: (ts, mid, quoted_bid, quoted_ask) je Snapshot, fuer die Reward-Rechnung.
     quote_path: list[tuple[float, float, float | None, float | None]] = field(
         default_factory=list)
+    #: Nur die Queue-Modelle fuellen diese Zaehler.
+    requotes: int = 0        # Aktivierungen, bei denen mindestens eine Seite neu stand
+    queue_resets: int = 0    # Seiten, die wegen Preiswechsel ihren Platz verloren
+    unknown_joins: int = 0   # Einreihungen an einer Stufe ohne beobachtete Tiefe
 
     def reward_samples(self) -> list[tuple[float, float, float | None, float | None, float]]:
         """Quotes weighted by how long each one stood, for the reward score."""
@@ -270,6 +317,161 @@ def tape_fills(bid: float | None, ask: float | None,
         if len(filled) == 2:
             break
     return out
+
+
+@dataclass
+class RestingOrder:
+    """One paper order standing in the book, with what we know of its line.
+
+    ``queue_ahead`` is the number of shares that must trade or cancel before
+    a print reaches us. ``None`` means the recorder never showed our level
+    and the back variant refuses to guess. ``level_seen`` is the resting
+    size at our price the last time it was observable, so a shrink between
+    two snapshots can be split into prints (known) and cancels (assumed).
+    """
+
+    side: str
+    price: float
+    shares: float
+    quote_mid: float
+    posted_ts: float
+    queue_ahead: float | None
+    level_seen: float | None
+    printed_at_level: float = 0.0
+
+
+def level_size(levels: tuple[tuple[float, float], ...],
+               price: float) -> float | None:
+    """Resting size at exactly ``price``, or None if the ladder has no such level."""
+    for level_price, size in levels:
+        if abs(level_price - price) < PRICE_EPS:
+            return size
+    return None
+
+
+def infer_tick(*prices: float | None) -> float:
+    """Coarsest grid every observed price sits on, finest candidate as fallback."""
+    values = [p for p in prices if p is not None]
+    if not values:
+        return TICK_CANDIDATES[-1]
+    for tick in TICK_CANDIDATES:
+        if all(abs(round(v / tick) * tick - v) < 1e-9 for v in values):
+            return tick
+    return TICK_CANDIDATES[-1]
+
+
+def snap_to_grid(bid: float | None, ask: float | None,
+                 tick: float) -> tuple[float | None, float | None]:
+    """Rest a quote where an order can actually rest: bid down, ask up.
+
+    A quote at mid minus a half spread usually lands between two ticks. The
+    touch and tape models let it fill there, which is harmless for them but
+    fatal for a queue model: no print ever trades at a price nobody can
+    post, so there would never be a line to stand in. Rounding away from
+    the mid is the conservative direction, it never buys more edge than the
+    quote asked for.
+    """
+    snapped_bid = None if bid is None else round(math.floor(bid / tick + 1e-9) * tick, 6)
+    snapped_ask = None if ask is None else round(math.ceil(ask / tick - 1e-9) * tick, 6)
+    if snapped_bid is not None and snapped_bid <= 0:
+        snapped_bid = None
+    if snapped_ask is not None and snapped_ask >= 1:
+        snapped_ask = None
+    return snapped_bid, snapped_ask
+
+
+def _improves(side: str, price: float, best: float | None) -> bool:
+    if best is None:
+        return True
+    return price > best + PRICE_EPS if side == "buy" else price < best - PRICE_EPS
+
+
+def join_queue(levels: tuple[tuple[float, float], ...], best: float | None,
+               price: float, side: str, variant: str
+               ) -> tuple[float | None, float | None]:
+    """(queue_ahead, level_seen) for an order posted now at ``price``.
+
+    Improving on the touch means nobody rests at our price yet. Joining a
+    level the ladder shows means everyone there was first. A level deeper
+    than the ladder is the blind spot: the front variant assumes it empty,
+    the back variant refuses to fill there until the level has been seen.
+    """
+    if _improves(side, price, best):
+        return 0.0, 0.0
+    size = level_size(levels, price)
+    if size is not None:
+        return size, size
+    return (0.0 if variant == "front" else None), None
+
+
+def queue_fills(order: RestingOrder, prints: list[tuple[float, float, float]],
+                variant: str) -> list[tuple[float, float]]:
+    """Fills of ``order`` from prints in time order, as (ts, shares). Mutates.
+
+    A print at our price consumes the line ahead of us first and reaches us
+    with whatever is left, so fills are partial by nature. A print through
+    a worse price than ours means price priority already emptied our level:
+    that fills the whole remainder regardless of what was assumed ahead.
+    Taker buys never touch a resting bid, taker sells never a resting ask.
+    """
+    out: list[tuple[float, float]] = []
+    for ts, price, signed_usd in prints:
+        if order.shares <= 0:
+            break
+        if order.side == "buy":
+            if signed_usd >= 0 or price > order.price + PRICE_EPS:
+                continue
+            swept = price < order.price - PRICE_EPS
+        else:
+            if signed_usd <= 0 or price < order.price - PRICE_EPS:
+                continue
+            swept = price > order.price + PRICE_EPS
+        if swept:
+            filled = order.shares
+            order.queue_ahead = 0.0
+        else:
+            if order.queue_ahead is None:
+                continue
+            size = abs(signed_usd) / price if price > 0 else 0.0
+            ahead = min(order.queue_ahead, size)
+            order.queue_ahead -= ahead
+            filled = min(order.shares, size - ahead)
+            order.printed_at_level += ahead + max(filled, 0.0)
+            if filled <= 0:
+                continue
+        order.shares -= filled
+        out.append((ts, filled))
+    return out
+
+
+def refresh_queue(order: RestingOrder, levels: tuple[tuple[float, float], ...],
+                  best: float | None, variant: str) -> None:
+    """Fold a new snapshot of the ladder into what we know about our line.
+
+    Prints at our level were already subtracted as they happened. Whatever
+    else shrank since the last look is a cancel, and which end of the line it
+    left from is exactly the assumption the two variants differ in.
+    """
+    size_now = level_size(levels, order.price)
+    if size_now is None:
+        if _improves(order.side, order.price, best):
+            order.queue_ahead = 0.0
+            order.level_seen = 0.0
+        order.printed_at_level = 0.0
+        return
+    if order.level_seen is None:
+        if order.queue_ahead is None:
+            order.queue_ahead = size_now
+        else:
+            order.queue_ahead = min(order.queue_ahead, size_now)
+    else:
+        decline = order.level_seen - order.printed_at_level - size_now
+        if decline > 0 and variant == "front":
+            order.queue_ahead = max(0.0, order.queue_ahead - decline)
+        if order.queue_ahead is not None:
+            order.queue_ahead = min(order.queue_ahead, size_now)
+    order.level_seen = size_now
+    order.printed_at_level = 0.0
 
 
 def _prints_between(trades: list[ofs.TradePoint], start: float,
@@ -370,6 +572,131 @@ def run_token(token_id: str, series: list[ofs.BookPoint],
     return run
 
 
+def run_token_queue(token_id: str, series: list[ofs.BookPoint],
+                    trades: list[ofs.TradePoint], params: QuoteParams,
+                    variant: str = "front", latency_s: float = 0.0,
+                    markout_horizon_s: float = MARKOUT_HORIZON_S,
+                    quote_mode: str = "symmetric",
+                    signal_threshold: float = SIGNAL_THRESHOLD) -> TokenRun:
+    """Quote one token with resting orders that keep, and lose, their place.
+
+    Unlike :func:`run_token`, an order that keeps its price across snapshots
+    keeps its position in line and its remaining size; only a re-price
+    cancels and re-joins at the back. Quotes rest on the market's tick grid
+    (bid rounded down, ask up), because a line can only form at a price
+    someone can post at. With ``latency_s`` the decision taken
+    at a snapshot lands that many seconds later, and until it lands the old
+    order stays live and can be picked; a decision made while one is still
+    in flight is dropped, as a slow system would.
+    """
+    run = TokenRun(token_id=token_id)
+    if len(series) < 2:
+        return run
+    stamps = [p.ts for p in series]
+    mids = [p.mid for p in series]
+    mid_final = mids[-1]
+    inventory = 0.0
+    resting: dict[str, RestingOrder | None] = {"buy": None, "sell": None}
+    pending: dict | None = None
+    previous_ts = series[0].ts
+
+    def activate(pend: dict, ts: float) -> None:
+        posted = False
+        for side, price in (("buy", pend["bid"]), ("sell", pend["ask"])):
+            current = resting[side]
+            if price is None:
+                resting[side] = None
+                continue
+            if current is not None and abs(current.price - price) < PRICE_EPS:
+                continue
+            if current is not None:
+                run.queue_resets += 1
+            levels = pend["bid_levels"] if side == "buy" else pend["ask_levels"]
+            best = pend["best_bid"] if side == "buy" else pend["best_ask"]
+            ahead, seen = join_queue(levels, best, price, side, variant)
+            if ahead is None:
+                run.unknown_joins += 1
+            resting[side] = RestingOrder(
+                side=side, price=price, shares=round(params.quote_usd / price, 2),
+                quote_mid=pend["quote_mid"], posted_ts=ts,
+                queue_ahead=ahead, level_seen=seen)
+            posted = True
+        if posted:
+            run.requotes += 1
+
+    def settle(side: str, order: RestingOrder, day: str,
+               prints: list[tuple[float, float, float]]) -> None:
+        nonlocal inventory
+        for fill_ts, shares in queue_fills(order, prints, variant):
+            inventory += shares if side == "buy" else -shares
+            run.fills.append(MMFill(
+                token_id=token_id, day=day, ts=fill_ts, side=side,
+                price=order.price, shares=shares, mid_at_fill=order.quote_mid,
+                mid_markout=_mid_at(series, mids, stamps,
+                                    fill_ts + markout_horizon_s,
+                                    MARKOUT_STALENESS_S),
+                mid_final=mid_final, wait_s=fill_ts - order.posted_ts,
+                partial=order.shares > 0))
+        if order.shares <= 0:
+            resting[side] = None
+
+    for point in series:
+        best_bid = point.bid_levels[0][0] if point.bid_levels else point.mid - point.spread / 2.0
+        best_ask = point.ask_levels[0][0] if point.ask_levels else point.mid + point.spread / 2.0
+
+        for single in _prints_between(trades, previous_ts, point.ts):
+            if pending is not None and single[0] >= pending["activate_ts"]:
+                activate(pending, pending["activate_ts"])
+                pending = None
+            for side in ("buy", "sell"):
+                order = resting[side]
+                if order is not None:
+                    settle(side, order, point.day, [single])
+        if pending is not None and point.ts >= pending["activate_ts"]:
+            activate(pending, pending["activate_ts"])
+            pending = None
+
+        for side in ("buy", "sell"):
+            order = resting[side]
+            if order is not None:
+                refresh_queue(order,
+                              point.bid_levels if side == "buy" else point.ask_levels,
+                              best_bid if side == "buy" else best_ask, variant)
+
+        inventory_usd = inventory * point.mid
+        run.inventory_path.append(inventory_usd)
+        quotable = (0 < point.spread <= MAX_QUOTE_SPREAD
+                    and MID_BOUNDS[0] < point.mid < MID_BOUNDS[1])
+        if quotable:
+            bid, ask = compute_quotes(point.mid, best_bid, best_ask, inventory_usd, params)
+            tick = infer_tick(best_bid, best_ask,
+                              *(price for price, _ in point.bid_levels[:2]),
+                              *(price for price, _ in point.ask_levels[:2]))
+            bid, ask = snap_to_grid(bid, ask, tick)
+            show_bid, show_ask = quote_sides(point.imbalance, signal_threshold, quote_mode)
+            if not show_bid:
+                bid = None
+            if not show_ask:
+                ask = None
+            quote_mid: float | None = point.mid
+        else:
+            bid = ask = None
+            quote_mid = None
+        decision = {
+            "activate_ts": point.ts + latency_s, "bid": bid, "ask": ask,
+            "quote_mid": quote_mid, "bid_levels": point.bid_levels,
+            "ask_levels": point.ask_levels, "best_bid": best_bid,
+            "best_ask": best_ask,
+        }
+        if latency_s <= 0:
+            activate(decision, point.ts)
+        elif pending is None:
+            pending = decision
+        run.quote_path.append((point.ts, point.mid, bid, ask))
+        previous_ts = point.ts
+    return run
+
+
 def decompose(runs: list[TokenRun], category: str = "sports",
               rebate_share: float = vf.POLYMARKET_MAKER_REBATE_SHARE,
               venue: str = "polymarket") -> Decomposition:
@@ -387,6 +714,11 @@ def decompose(runs: list[TokenRun], category: str = "sports",
             out.markout_usd += fill.markout_usd
             out.late_drift_usd += fill.late_drift_usd
             days.add(fill.day)
+            if fill.wait_s is not None:
+                out.wait_total_s += fill.wait_s
+                out.waited_fills += 1
+            if fill.partial:
+                out.partial_fills += 1
             if venue.lower().startswith("kalshi"):
                 out.fee_usd += vf.kalshi_maker_fee(fill.shares, fill.price)
             else:
@@ -402,13 +734,53 @@ def decompose(runs: list[TokenRun], category: str = "sports",
 def run_experiment(books: dict[str, list[ofs.BookPoint]],
                    tape: dict[str, list[ofs.TradePoint]],
                    params: QuoteParams, fill_model: str = "touch",
-                   category: str = "sports", quote_mode: str = "symmetric"
+                   category: str = "sports", quote_mode: str = "symmetric",
+                   latency_s: float = 0.0
                    ) -> tuple[Decomposition, list[TokenRun]]:
-    runs = [run_token(token, series, tape.get(token, []), params, fill_model,
-                      quote_mode=quote_mode)
-            for token, series in books.items()
-            if len(series) >= MIN_SNAPSHOTS_PER_TOKEN]
+    if fill_model in QUEUE_MODELS:
+        variant = fill_model.split("_", 1)[1]
+        runs = [run_token_queue(token, series, tape.get(token, []), params,
+                                variant=variant, latency_s=latency_s,
+                                quote_mode=quote_mode)
+                for token, series in books.items()
+                if len(series) >= MIN_SNAPSHOTS_PER_TOKEN]
+    elif fill_model in ("touch", "tape"):
+        runs = [run_token(token, series, tape.get(token, []), params, fill_model,
+                          quote_mode=quote_mode)
+                for token, series in books.items()
+                if len(series) >= MIN_SNAPSHOTS_PER_TOKEN]
+    else:
+        raise ValueError(f"unbekanntes Fill-Modell: {fill_model}")
     return decompose(runs, category=category), runs
+
+
+def queue_stats(runs: list[TokenRun]) -> dict:
+    """What the queue models learned about standing in line, summed over tokens."""
+    return {
+        "requotes": sum(r.requotes for r in runs),
+        "queue_resets": sum(r.queue_resets for r in runs),
+        "unknown_joins": sum(r.unknown_joins for r in runs),
+    }
+
+
+def latency_sweep(books: dict[str, list[ofs.BookPoint]],
+                  tape: dict[str, list[ofs.TradePoint]], base: QuoteParams,
+                  fill_model: str, latencies: tuple[float, ...] = LATENCY_GRID,
+                  category: str = "sports") -> list[dict]:
+    """How much of the markout comes back when the requote lands late.
+
+    Zero latency is the seconds-data result: every book move is answered at
+    once. Each step up keeps the old quote live that much longer, which is
+    the window in which it can be picked on a stale price. The slope of
+    markout per fill over this table is the price of being slow.
+    """
+    rows = []
+    for latency in latencies:
+        decomposition, runs = run_experiment(books, tape, base, fill_model,
+                                             category, latency_s=latency)
+        rows.append({"latency_s": latency, **decomposition.as_dict(),
+                     **queue_stats(runs)})
+    return rows
 
 
 def reward_estimate(runs: list[TokenRun], quote_usd: float,
@@ -444,7 +816,8 @@ def quote_mode_comparison(books: dict[str, list[ofs.BookPoint]],
                           tape: dict[str, list[ofs.TradePoint]],
                           base: QuoteParams, fill_model: str = "touch",
                           category: str = "sports",
-                          modes: tuple[str, ...] = QUOTE_MODES) -> list[dict]:
+                          modes: tuple[str, ...] = QUOTE_MODES,
+                          latency_s: float = 0.0) -> list[dict]:
     """Does letting the signal decide which side to show reduce adverse selection?
 
     Symmetric quoting is the control. The number to watch is markout per fill,
@@ -455,7 +828,8 @@ def quote_mode_comparison(books: dict[str, list[ofs.BookPoint]],
     rows = []
     for mode in modes:
         decomposition, runs = run_experiment(books, tape, base, fill_model,
-                                             category, quote_mode=mode)
+                                             category, quote_mode=mode,
+                                             latency_s=latency_s)
         daily = per_day_totals(runs, category)
         data = decomposition.as_dict()
         rows.append({
@@ -470,14 +844,16 @@ def quote_mode_comparison(books: dict[str, list[ofs.BookPoint]],
 def gamma_sweep(books: dict[str, list[ofs.BookPoint]],
                 tape: dict[str, list[ofs.TradePoint]], base: QuoteParams,
                 gammas: tuple[float, ...] = GAMMA_GRID,
-                fill_model: str = "touch", category: str = "sports") -> list[dict]:
+                fill_model: str = "touch", category: str = "sports",
+                latency_s: float = 0.0) -> list[dict]:
     """Score each skew strength. Gamma 0 is the no-skew control."""
     rows = []
     for gamma in gammas:
         params = QuoteParams(half_spread=base.half_spread, gamma=gamma,
                              quote_usd=base.quote_usd,
                              inventory_cap_usd=base.inventory_cap_usd)
-        decomposition, _ = run_experiment(books, tape, params, fill_model, category)
+        decomposition, _ = run_experiment(books, tape, params, fill_model, category,
+                                          latency_s=latency_s)
         rows.append({"gamma": gamma, **decomposition.as_dict()})
     return rows
 
@@ -486,7 +862,8 @@ def half_spread_sweep(books: dict[str, list[ofs.BookPoint]],
                       tape: dict[str, list[ofs.TradePoint]], base: QuoteParams,
                       half_spreads: tuple[float, ...] = HALF_SPREAD_GRID,
                       fill_model: str = "touch",
-                      category: str = "sports") -> list[dict]:
+                      category: str = "sports",
+                      latency_s: float = 0.0) -> list[dict]:
     """How wide must the quote be before the spread earned beats the markout?
 
     This is the break-even question for the whole strategy. Spread capture
@@ -499,7 +876,8 @@ def half_spread_sweep(books: dict[str, list[ofs.BookPoint]],
         params = QuoteParams(half_spread=half_spread, gamma=base.gamma,
                              quote_usd=base.quote_usd,
                              inventory_cap_usd=base.inventory_cap_usd)
-        decomposition, _ = run_experiment(books, tape, params, fill_model, category)
+        decomposition, _ = run_experiment(books, tape, params, fill_model, category,
+                                          latency_s=latency_s)
         data = decomposition.as_dict()
         capture = decomposition.spread_capture_usd
         markout = decomposition.markout_usd
@@ -535,14 +913,16 @@ def walk_forward_gamma(books: dict[str, list[ofs.BookPoint]],
                        tape: dict[str, list[ofs.TradePoint]], base: QuoteParams,
                        gammas: tuple[float, ...] = GAMMA_GRID,
                        fill_model: str = "touch",
-                       category: str = "sports") -> dict:
+                       category: str = "sports",
+                       latency_s: float = 0.0) -> dict:
     """Pick gamma on the early days, then report what it did on the later ones.
 
     A skew parameter tuned and scored on the same days will always look good.
     The number that matters is the out-of-sample column.
     """
     train, test = split_books_by_day(books)
-    train_rows = gamma_sweep(train, tape, base, gammas, fill_model, category)
+    train_rows = gamma_sweep(train, tape, base, gammas, fill_model, category,
+                             latency_s=latency_s)
     scored = [row for row in train_rows if row["fills"] > 0]
     best = max(scored, key=lambda r: r["total_usd"]) if scored else None
     result = {"train": train_rows, "chosen_gamma": best["gamma"] if best else None,
@@ -555,9 +935,10 @@ def walk_forward_gamma(books: dict[str, list[ofs.BookPoint]],
     control = QuoteParams(half_spread=base.half_spread, gamma=0.0,
                           quote_usd=base.quote_usd,
                           inventory_cap_usd=base.inventory_cap_usd)
-    result["test"] = run_experiment(test, tape, chosen, fill_model, category)[0].as_dict()
+    result["test"] = run_experiment(test, tape, chosen, fill_model, category,
+                                    latency_s=latency_s)[0].as_dict()
     result["control_test"] = run_experiment(test, tape, control, fill_model,
-                                            category)[0].as_dict()
+                                            category, latency_s=latency_s)[0].as_dict()
     return result
 
 
@@ -578,10 +959,22 @@ def run_study(directory: str | Path, stream: bool = False,
               half_spread: float = 0.01, gamma: float = 0.08,
               quote_usd: float = 50.0, cap_usd: float = 250.0,
               category: str = "sports",
-              gammas: tuple[float, ...] = GAMMA_GRID) -> dict:
-    """Full decomposition study over one data directory, both fill models."""
-    books = ofs.load_books(directory, stream=stream)
-    tape = ofs.load_tape(directory, stream=stream)
+              gammas: tuple[float, ...] = GAMMA_GRID,
+              fill_models: tuple[str, ...] = ("touch", "tape"),
+              latency_s: float = 0.0,
+              latencies: tuple[float, ...] = LATENCY_GRID,
+              day_from: str | None = None,
+              day_to: str | None = None) -> dict:
+    """Full decomposition study over one data directory, chosen fill models.
+
+    ``latency_s`` is the requote delay every experiment runs with; the queue
+    models additionally sweep ``latencies`` from zero so the cost of being
+    slow is a table rather than a single assumption. ``day_from``/``day_to``
+    restrict the days loaded, which is how a parameter choice frozen on one
+    window gets scored on another.
+    """
+    books = ofs.load_books(directory, stream=stream, day_from=day_from, day_to=day_to)
+    tape = ofs.load_tape(directory, stream=stream, day_from=day_from, day_to=day_to)
     base = QuoteParams(half_spread=half_spread, gamma=gamma,
                        quote_usd=quote_usd, inventory_cap_usd=cap_usd)
     results: dict = {
@@ -590,18 +983,21 @@ def run_study(directory: str | Path, stream: bool = False,
         "snapshots": sum(len(v) for v in books.values()),
         "tape_prints": sum(len(v) for v in tape.values()),
         "days": sorted({p.day for v in books.values() for p in v}),
+        "day_window": {"from": day_from, "to": day_to},
         "params": {"half_spread": half_spread, "gamma": gamma,
-                   "quote_usd": quote_usd, "cap_usd": cap_usd},
+                   "quote_usd": quote_usd, "cap_usd": cap_usd,
+                   "latency_s": latency_s},
         "category": category,
         "fee_model_version": vf.FEE_MODEL_VERSION,
         "fill_models": {},
     }
-    for fill_model in ("touch", "tape"):
-        decomposition, runs = run_experiment(books, tape, base, fill_model, category)
+    for fill_model in fill_models:
+        decomposition, runs = run_experiment(books, tape, base, fill_model, category,
+                                             latency_s=latency_s)
         daily = per_day_totals(runs, category)
         ci = ofs.block_bootstrap_ci(list(daily.values()), list(daily.keys()))
         rewards = reward_estimate(runs, quote_usd)
-        results["fill_models"][fill_model] = {
+        entry = {
             "decomposition": decomposition.as_dict(),
             "liquidity_rewards": rewards.as_dict(),
             "total_with_rewards_usd": {
@@ -612,15 +1008,23 @@ def run_study(directory: str | Path, stream: bool = False,
             "daily_total_usd": {day: round(value, 4)
                                 for day, value in sorted(daily.items())},
             "daily_ci95_usd": ci,
-            "gamma_sweep": gamma_sweep(books, tape, base, gammas, fill_model, category),
+            "gamma_sweep": gamma_sweep(books, tape, base, gammas, fill_model, category,
+                                       latency_s=latency_s),
             "half_spread_sweep": half_spread_sweep(books, tape, base,
                                                    fill_model=fill_model,
-                                                   category=category),
+                                                   category=category,
+                                                   latency_s=latency_s),
             "quote_modes": quote_mode_comparison(books, tape, base, fill_model,
-                                                 category),
+                                                 category, latency_s=latency_s),
             "walk_forward": walk_forward_gamma(books, tape, base, gammas,
-                                               fill_model, category),
+                                               fill_model, category,
+                                               latency_s=latency_s),
         }
+        if fill_model in QUEUE_MODELS:
+            entry["queue"] = queue_stats(runs)
+            entry["latency_sweep"] = latency_sweep(books, tape, base, fill_model,
+                                                   latencies, category)
+        results["fill_models"][fill_model] = entry
     return results
 
 
@@ -646,27 +1050,28 @@ def render_png(results: dict, out_path: Path) -> None:
               "Late\ndrift", "Rebate", "Total"]
     keys = ["spread_capture_usd", "markout_usd", "late_drift_usd",
             "rebate_usd", "total_usd"]
-    width = 0.36
-    for offset, model in ((-width / 2, "touch"), (width / 2, "tape")):
+    models = list(results["fill_models"])
+    width = 0.8 / max(1, len(models))
+    for index, model in enumerate(models):
+        offset = (index - (len(models) - 1) / 2.0) * width
         data = results["fill_models"][model]["decomposition"]
         values = [data[k] for k in keys]
         colors = [COLOR_POS if v >= 0 else COLOR_NEG for v in values]
         positions = [i + offset for i in range(len(keys))]
         ax1.bar(positions, values, width=width, color=colors,
-                edgecolor=COLOR_NEUTRAL if model == "tape" else "none",
-                linewidth=1.2)
+                edgecolor=COLOR_MODEL.get(model, COLOR_NEUTRAL), linewidth=1.2)
     ax1.axhline(0, color=COLOR_TEXT_2, linewidth=1.0)
     ax1.set_xticks(range(len(labels)))
     ax1.set_xticklabels(labels, fontsize=8)
     ax1.set_ylabel("USD", color=COLOR_TEXT_2, fontsize=9)
-    ax1.set_title("PnL decomposition (left touch model, right tape model)",
+    ax1.set_title(f"PnL decomposition (left to right: {', '.join(models)})",
                   color=COLOR_TEXT, fontsize=11, loc="left")
 
-    for model, colour in (("touch", COLOR_NEUTRAL), ("tape", COLOR_POS)):
+    for model in models:
         rows = results["fill_models"][model]["gamma_sweep"]
         ax2.plot([r["gamma"] for r in rows], [r["total_usd"] for r in rows],
-                 color=colour, linewidth=2.0, marker="o", markersize=4,
-                 label=f"{model} model")
+                 color=COLOR_MODEL.get(model, COLOR_NEUTRAL), linewidth=2.0,
+                 marker="o", markersize=4, label=f"{model} model")
     ax2.axhline(0, color=COLOR_TEXT_2, linewidth=1.0)
     ax2.set_xlabel("gamma (strength of the inventory skew)", color=COLOR_TEXT_2,
                    fontsize=9)
@@ -693,6 +1098,7 @@ def _fmt(value, spec="{:+.2f}") -> str:
 def _markdown(results: dict, tag: str) -> str:
     days = results["days"]
     params = results["params"]
+    models = list(results["fill_models"])
     lines = [
         f"# Paper market-making PnL decomposition ({tag})",
         "",
@@ -703,12 +1109,13 @@ def _markdown(results: dict, tag: str) -> str:
         f"({days[0] if days else '-'} to {days[-1] if days else '-'}).",
         "",
         f"Quoting: half spread {params['half_spread']}, gamma {params['gamma']}, "
-        f"quote {params['quote_usd']} USD, inventory cap {params['cap_usd']} USD. "
-        f"Maker economics for category {results['category']}, fee schedule "
+        f"quote {params['quote_usd']} USD, inventory cap {params['cap_usd']} USD"
+        + (f", requote latency {params['latency_s']} s" if params.get("latency_s") else "")
+        + f". Maker economics for category {results['category']}, fee schedule "
         f"{results['fee_model_version']}.",
         "",
-        "| Item | Touch model (USD) | Tape model (USD) |",
-        "|---|---|---|",
+        "| Item | " + " | ".join(f"{m} model (USD)" for m in models) + " |",
+        "|---|" + "---|" * len(models),
     ]
     rows = [
         ("Fills", "fills", "{:,.0f}"),
@@ -723,13 +1130,15 @@ def _markdown(results: dict, tag: str) -> str:
         ("Result per fill (cents)", "total_cents_per_fill", "{:+.3f}"),
         ("Mean |inventory| (USD)", "inventory_abs_mean_usd", "{:.2f}"),
         ("Max |inventory| (USD)", "inventory_abs_max_usd", "{:.2f}"),
+        ("Mean wait until fill (s)", "mean_wait_s", "{:.1f}"),
+        ("Partial fills (share)", "partial_fill_share", "{:.1%}"),
     ]
     for label, key, fmt in rows:
-        touch = results["fill_models"]["touch"]["decomposition"][key]
-        tape = results["fill_models"]["tape"]["decomposition"][key]
-        lines.append(f"| {label} | {_fmt(touch, fmt)} | {_fmt(tape, fmt)} |")
+        cells = [_fmt(results["fill_models"][m]["decomposition"].get(key), fmt)
+                 for m in models]
+        lines.append(f"| {label} | " + " | ".join(cells) + " |")
 
-    for model in ("touch", "tape"):
+    for model in models:
         entry = results["fill_models"][model]
         ci = entry["daily_ci95_usd"]
         walk = entry["walk_forward"]
@@ -806,6 +1215,27 @@ def _markdown(results: dict, tag: str) -> str:
             f"(gamma 0).",
         ]
 
+        if "latency_sweep" in entry:
+            queue = entry.get("queue", {})
+            lines += [
+                "",
+                f"Standing in line: {queue.get('requotes', 0):,} requotes, "
+                f"{queue.get('queue_resets', 0):,} of them re-priced a resting "
+                f"order and sent it to the back, {queue.get('unknown_joins', 0):,} "
+                f"joins at a level whose depth the recorder never showed.",
+                "",
+                "| Requote latency (s) | Fills | Spread earned per fill (c) | "
+                "Markout per fill (c) | Mean wait (s) | Total (USD) |",
+                "|---|---|---|---|---|---|",
+            ]
+            for row in entry["latency_sweep"]:
+                lines.append(
+                    f"| {row['latency_s']:.2f} | {row['fills']:,} | "
+                    f"{_fmt(row['spread_capture_cents_per_fill'], '{:+.2f}')} | "
+                    f"{_fmt(row['markout_cents_per_fill'], '{:+.2f}')} | "
+                    f"{_fmt(row.get('mean_wait_s'), '{:.1f}')} | "
+                    f"{_fmt(row['total_usd'])} |")
+
     lines += [
         "",
         "## How to read this",
@@ -816,12 +1246,30 @@ def _markdown(results: dict, tag: str) -> str:
         "quoting made, markout is what informed counterparties took back "
         "out of it, and late drift is the price of the inventory carried.",
         "",
-        "The two fill models bracket the truth. Touch fills only when the "
-        "other side crosses our quote, so it ignores fills at the touch and "
-        "understates the fill count. Tape fills on every crossing print, so "
-        "it assumes queue priority and overstates it. Computing only one "
-        "model means choosing the result with the assumption.",
+        "The touch and tape fill models bracket the truth. Touch fills only "
+        "when the other side crosses our quote, so it ignores fills at the "
+        "touch and understates the fill count. Tape fills on every crossing "
+        "print, so it assumes queue priority and overstates it. Computing "
+        "only one model means choosing the result with the assumption.",
         "",
+    ]
+    if any(m in QUEUE_MODELS for m in models):
+        lines += [
+            "The queue models stand between those two. A resting order joins "
+            "the line behind whatever the ladder already shows at its price, "
+            "moves up as prints consume that line, fills partially once it "
+            "reaches the front, and loses its place every time it is "
+            "re-priced. What the data cannot show is which end of the line a "
+            "cancel left from: queue_front assumes the front, queue_back the "
+            "back, and queue_back also treats a level the recorder never "
+            "showed as crowded until it has been seen. The gap between the "
+            "two is the honest width of what a paper simulation can say "
+            "about queue position. The latency table keeps the previous "
+            "quote live for that long after each requote decision, so being "
+            "picked on a stale price is measured rather than assumed.",
+            "",
+        ]
+    lines += [
         "The earned/markout column in the width table is the break-even "
         "ratio: below 1, adverse selection eats more than the quoting takes "
         "in. It rises with quote width, because spread earned grows with "
@@ -849,11 +1297,16 @@ def _markdown(results: dict, tag: str) -> str:
         "",
     ]
     lines += _limits_section(results)
+    if any(m in QUEUE_MODELS for m in models):
+        closing = ("queue position only as deep as the recorder's ladder, cancels "
+                   "ahead of us assumed rather than observed, no own market impact")
+    else:
+        closing = "no queue position, no partial fills"
     lines += [
         "",
         "Further limits: mark-to-mid without resolution modelling, quotes only "
-        "where the mid is in (0.05, 0.95) and the spread at most 0.10, no "
-        "queue position, no partial fills. Paper only. Not trading advice.",
+        f"where the mid is in (0.05, 0.95) and the spread at most 0.10, {closing}. "
+        "Paper only. Not trading advice.",
     ]
     return "\n".join(lines)
 
@@ -955,12 +1408,28 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--quote-usd", type=float, default=50.0)
     parser.add_argument("--cap-usd", type=float, default=250.0)
     parser.add_argument("--category", default="sports")
+    parser.add_argument("--fill-models", default="touch,tape",
+                        help=f"comma list from {', '.join(FILL_MODELS)}")
+    parser.add_argument("--latency", type=float, default=0.0,
+                        help="seconds until a requote decision stands in the book")
+    parser.add_argument("--latencies", default=",".join(str(x) for x in LATENCY_GRID),
+                        help="comma list for the queue models' latency sweep")
+    parser.add_argument("--day-from", default=None, help="first ISO day to load")
+    parser.add_argument("--day-to", default=None, help="last ISO day to load")
     args = parser.parse_args(argv)
+
+    fill_models = tuple(m.strip() for m in args.fill_models.split(",") if m.strip())
+    unknown = [m for m in fill_models if m not in FILL_MODELS]
+    if unknown:
+        parser.error(f"unknown fill model(s): {', '.join(unknown)}")
+    latencies = tuple(float(x) for x in args.latencies.split(",") if x.strip())
 
     results = run_study(args.recorder_dir, stream=args.stream,
                         half_spread=args.half_spread, gamma=args.gamma,
                         quote_usd=args.quote_usd, cap_usd=args.cap_usd,
-                        category=args.category)
+                        category=args.category, fill_models=fill_models,
+                        latency_s=args.latency, latencies=latencies,
+                        day_from=args.day_from, day_to=args.day_to)
     paths = write_outputs(results, args.tag)
     for model, entry in results["fill_models"].items():
         print(model, entry["decomposition"])

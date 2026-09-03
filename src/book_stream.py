@@ -16,6 +16,8 @@ Outputs under ``data/microstructure/`` (gitignored), day-partitioned,
 append-only:
 
   stream_books_<day>.csv   top of book on every change, with local receive time
+  stream_depth_<day>.csv   the top levels with sizes on every such change, so a
+                           queue-position fill model knows what rests at a price
   stream_trades_<day>.csv  last_trade_price events incl. aggressor side
   stream_raw_<day>.jsonl   optional verbatim archive (--raw)
   stream_status.json       last run summary
@@ -61,6 +63,16 @@ STREAM_BOOK_FIELDS = [
 ]
 STREAM_TRADE_FIELDS = [
     "recv_ts", "exchange_ts", "token_id", "side", "price", "size", "tx_hash",
+]
+#: Sidecar mit den obersten Stufen je Seite. Eigene Datei statt neuer Spalten
+#: in stream_books, damit ein laufender Tag sein Schema behaelt und jeder
+#: bisherige Leser unveraendert weiterlaeuft. Join-Schluessel: recv_ts + token_id.
+STREAM_DEPTH_LEVELS = 5
+STREAM_DEPTH_FIELDS = ["recv_ts", "token_id", "event_type"] + [
+    f"{side}_{kind}_{level}"
+    for side in ("bid", "ask")
+    for level in range(1, STREAM_DEPTH_LEVELS + 1)
+    for kind in ("px", "sz")
 ]
 
 
@@ -150,6 +162,27 @@ class BookState:
                 self.bids.get(bid) if bid is not None else None,
                 self.asks.get(ask) if ask is not None else None)
 
+    def depth_row(self, recv_ts: str, event_type: str,
+                  levels: int = STREAM_DEPTH_LEVELS) -> dict:
+        """The top ``levels`` of each side with sizes, best first.
+
+        The books row carries only the size at the touch. A resting order one
+        tick behind the touch has no observable queue in that row, and that
+        is the case a paper market maker at mid minus a half spread is in
+        most of the time. Levels beyond what the book holds stay empty.
+        """
+        bid_prices = sorted(self.bids, reverse=True)[:levels]
+        ask_prices = sorted(self.asks)[:levels]
+        row: dict = {"recv_ts": recv_ts, "token_id": "", "event_type": event_type}
+        for index in range(1, levels + 1):
+            bid = bid_prices[index - 1] if index <= len(bid_prices) else None
+            ask = ask_prices[index - 1] if index <= len(ask_prices) else None
+            row[f"bid_px_{index}"] = bid
+            row[f"bid_sz_{index}"] = self.bids[bid] if bid is not None else None
+            row[f"ask_px_{index}"] = ask
+            row[f"ask_sz_{index}"] = self.asks[ask] if ask is not None else None
+        return row
+
     def top_row(self, recv_ts: str, event_type: str,
                 levels: int = DEPTH_LEVELS) -> dict:
         bid, ask = self.best_bid(), self.best_ask()
@@ -183,6 +216,7 @@ class StreamState:
         self.books: dict[str, BookState] = {}
         self.depth_levels = depth_levels
         self.book_rows: list[dict] = []
+        self.depth_rows: list[dict] = []
         self.trade_rows: list[dict] = []
         self.counts: dict[str, int] = {}
         self._last_touch: dict[str, tuple] = {}
@@ -200,6 +234,9 @@ class StreamState:
         row = book.top_row(recv_ts, event_type, self.depth_levels)
         row["token_id"] = token_id
         self.book_rows.append(row)
+        depth = book.depth_row(recv_ts, event_type)
+        depth["token_id"] = token_id
+        self.depth_rows.append(depth)
 
     def handle(self, event: dict, recv_ts: str) -> None:
         """Fold one venue event into the state. Unknown types are counted only."""
@@ -255,6 +292,12 @@ class StreamState:
         self.book_rows, self.trade_rows = [], []
         return books, trades
 
+    def drain_depth(self) -> list[dict]:
+        """Hand over the depth sidecar rows collected since the last drain."""
+        depth = self.depth_rows
+        self.depth_rows = []
+        return depth
+
 
 def parse_payload(raw: str) -> list[dict]:
     """Venue frames arrive as a single object, a list, or a bare PONG."""
@@ -289,9 +332,12 @@ def select_stream_tokens(get_json=rec._get_json, top_n: int = TOP_N_MARKETS) -> 
 
 
 def _flush(out_dir: Path, day: str, books: list[dict], trades: list[dict],
-           raw_lines: list[str] | None = None) -> None:
+           raw_lines: list[str] | None = None,
+           depth: list[dict] | None = None) -> None:
     rec.append_csv(out_dir / f"stream_books_{day}.csv", STREAM_BOOK_FIELDS, books)
     rec.append_csv(out_dir / f"stream_trades_{day}.csv", STREAM_TRADE_FIELDS, trades)
+    if depth:
+        rec.append_csv(out_dir / f"stream_depth_{day}.csv", STREAM_DEPTH_FIELDS, depth)
     if raw_lines:
         path = out_dir / f"stream_raw_{day}.jsonl"
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -324,7 +370,7 @@ def stream_once(token_ids: list[str], out_dir: Path, duration_s: float,
     last_message = started
     raw_buffer: list[str] = []
     errors: list[str] = []
-    written = {"book_rows": 0, "trade_rows": 0, "messages": 0}
+    written = {"book_rows": 0, "trade_rows": 0, "depth_rows": 0, "messages": 0}
 
     try:
         ws = ws_factory(url)
@@ -336,11 +382,14 @@ def stream_once(token_ids: list[str], out_dir: Path, duration_s: float,
     def flush(force: bool = False) -> None:
         nonlocal last_flush, raw_buffer
         books, trades = state.drain()
+        depth = state.drain_depth()
         if books or trades or (force and raw_buffer):
             day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-            _flush(out_dir, day, books, trades, raw_buffer if keep_raw else None)
+            _flush(out_dir, day, books, trades, raw_buffer if keep_raw else None,
+                   depth=depth)
             written["book_rows"] += len(books)
             written["trade_rows"] += len(trades)
+            written["depth_rows"] += len(depth)
             raw_buffer = []
         last_flush = now_fn()
 
@@ -391,6 +440,7 @@ def stream_once(token_ids: list[str], out_dir: Path, duration_s: float,
         "messages": written["messages"],
         "book_rows": written["book_rows"],
         "trade_rows": written["trade_rows"],
+        "depth_rows": written["depth_rows"],
         "event_counts": dict(state.counts),
         "errors": errors,
     }

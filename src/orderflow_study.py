@@ -89,6 +89,12 @@ class BookPoint:
     spread: float
     imbalance: float
     day: str
+    #: (price, size) je Stufe, beste zuerst. Aus dem Stream mindestens der
+    #: Touch, mit Tiefen-Sidecar die obersten Stufen, aus REST die bids_json.
+    #: Leer, wenn die Quelle keine Groessen kennt. Nur das Queue-Fill-Modell
+    #: liest sie; jede andere Auswertung ignoriert sie.
+    bid_levels: tuple[tuple[float, float], ...] = ()
+    ask_levels: tuple[tuple[float, float], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,19 +162,83 @@ def _float(value) -> float | None:
     return out if math.isfinite(out) else None
 
 
+def _day_in_range(day: str, day_from: str | None, day_to: str | None) -> bool:
+    """ISO days compare as strings, so a range check needs no parsing."""
+    if day_from and day < day_from:
+        return False
+    if day_to and day > day_to:
+        return False
+    return True
+
+
+def _levels_from_json(text: str | None, descending: bool
+                      ) -> tuple[tuple[float, float], ...]:
+    """REST recorder levels: ``[[price, size], ...]``, best first after sorting."""
+    try:
+        raw = json.loads(text or "")
+    except (TypeError, ValueError):
+        return ()
+    levels: list[tuple[float, float]] = []
+    for entry in raw if isinstance(raw, list) else []:
+        try:
+            price, size = float(entry[0]), float(entry[1])
+        except (TypeError, ValueError, IndexError):
+            continue
+        if size > 0:
+            levels.append((price, size))
+    levels.sort(key=lambda pair: pair[0], reverse=descending)
+    return tuple(levels)
+
+
+def _levels_from_depth_row(row: dict, side: str, max_levels: int = 5
+                           ) -> tuple[tuple[float, float], ...]:
+    levels: list[tuple[float, float]] = []
+    for index in range(1, max_levels + 1):
+        price = _float(row.get(f"{side}_px_{index}"))
+        size = _float(row.get(f"{side}_sz_{index}"))
+        if price is None or size is None:
+            break
+        levels.append((price, size))
+    return tuple(levels)
+
+
+def load_depth(path: Path) -> dict[tuple[str, str], tuple[tuple, tuple]]:
+    """Depth sidecar of one day, keyed by (recv_ts, token_id) like the book row."""
+    depth: dict[tuple[str, str], tuple[tuple, tuple]] = {}
+    if not path.exists():
+        return depth
+    with open(path, newline="", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            key = (str(row.get("recv_ts") or ""), str(row.get("token_id") or ""))
+            depth[key] = (_levels_from_depth_row(row, "bid"),
+                          _levels_from_depth_row(row, "ask"))
+    return depth
+
+
 def load_books(directory: str | Path, stream: bool = False,
-               max_spread: float = MAX_SPREAD) -> dict[str, list[BookPoint]]:
-    """Per-token book series from recorder or stream CSVs, filtered and sorted."""
+               max_spread: float = MAX_SPREAD,
+               day_from: str | None = None,
+               day_to: str | None = None) -> dict[str, list[BookPoint]]:
+    """Per-token book series from recorder or stream CSVs, filtered and sorted.
+
+    ``day_from``/``day_to`` (inclusive ISO days) select a window, so a
+    parameter choice can be frozen on early days and scored on later ones
+    without loading everything in between.
+    """
     pattern = "stream_books_*.csv" if stream else "books_*.csv"
     series: dict[str, list[BookPoint]] = {}
     for path in sorted(Path(directory).glob(pattern)):
         day = path.stem.split("_")[-1]
+        if not _day_in_range(day, day_from, day_to):
+            continue
+        depth = load_depth(path.with_name(f"stream_depth_{day}.csv")) if stream else {}
         with open(path, newline="", encoding="utf-8") as handle:
             for row in csv.DictReader(handle):
                 mid = _float(row.get("mid"))
                 spread = _float(row.get("spread"))
                 imbalance = _float(row.get("imbalance_top"))
-                ts = parse_ts(row.get("recv_ts") or row.get("ts_utc"))
+                stamp = row.get("recv_ts") or row.get("ts_utc")
+                ts = parse_ts(stamp)
                 if None in (mid, spread, imbalance, ts):
                     continue
                 if spread > max_spread or spread <= 0:
@@ -178,15 +248,32 @@ def load_books(directory: str | Path, stream: bool = False,
                 token = str(row.get("token_id") or "")
                 if not token:
                     continue
+                if stream:
+                    levels = depth.get((str(stamp), token))
+                    if levels is None:
+                        bid = _float(row.get("best_bid"))
+                        ask = _float(row.get("best_ask"))
+                        bid_size = _float(row.get("bid_size_touch"))
+                        ask_size = _float(row.get("ask_size_touch"))
+                        bid_levels = ((bid, bid_size),) if None not in (bid, bid_size) else ()
+                        ask_levels = ((ask, ask_size),) if None not in (ask, ask_size) else ()
+                    else:
+                        bid_levels, ask_levels = levels
+                else:
+                    bid_levels = _levels_from_json(row.get("bids_json"), descending=True)
+                    ask_levels = _levels_from_json(row.get("asks_json"), descending=False)
                 series.setdefault(token, []).append(
                     BookPoint(ts=ts, mid=mid, spread=spread,
-                              imbalance=imbalance, day=day))
+                              imbalance=imbalance, day=day,
+                              bid_levels=bid_levels, ask_levels=ask_levels))
     for values in series.values():
         values.sort(key=lambda p: p.ts)
     return series
 
 
-def load_tape(directory: str | Path, stream: bool = False) -> dict[str, list[TradePoint]]:
+def load_tape(directory: str | Path, stream: bool = False,
+              day_from: str | None = None,
+              day_to: str | None = None) -> dict[str, list[TradePoint]]:
     """Per-token signed taker flow.
 
     ``side`` is the taker's side, so BUY is USD lifting the offer and SELL is
@@ -196,6 +283,8 @@ def load_tape(directory: str | Path, stream: bool = False) -> dict[str, list[Tra
     pattern = "stream_trades_*.csv" if stream else "trades_*.csv"
     tape: dict[str, list[TradePoint]] = {}
     for path in sorted(Path(directory).glob(pattern)):
+        if not _day_in_range(path.stem.split("_")[-1], day_from, day_to):
+            continue
         with open(path, newline="", encoding="utf-8") as handle:
             for row in csv.DictReader(handle):
                 token = str(row.get("token_id") or "")

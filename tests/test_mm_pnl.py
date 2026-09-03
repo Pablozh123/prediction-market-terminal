@@ -17,6 +17,38 @@ def book_series(n=30, step=120.0, mid=0.50, drift=0.0, spread=0.02,
     ]
 
 
+def ladder_series(n=10, step=1.0, mid=0.50, spread=0.02, bid_size=100.0,
+                  ask_size=100.0, day="2026-07-01", start=1_000_000.0,
+                  deeper=()):
+    """Stream-style series: the touch carries a size, optionally more levels."""
+    bid = round(mid - spread / 2, 4)
+    ask = round(mid + spread / 2, 4)
+    return [
+        ofs.BookPoint(ts=start + i * step, mid=mid, spread=spread, imbalance=0.5,
+                      day=day,
+                      bid_levels=((bid, bid_size),) + tuple(deeper),
+                      ask_levels=((ask, ask_size),))
+        for i in range(n)
+    ]
+
+
+def sell_print(ts, price, shares):
+    return ofs.TradePoint(ts=ts, signed_usd=-price * shares, usd=price * shares,
+                          price=price)
+
+
+def buy_print(ts, price, shares):
+    return ofs.TradePoint(ts=ts, signed_usd=price * shares, usd=price * shares,
+                          price=price)
+
+
+def resting(side="buy", price=0.49, shares=100.0, ahead=50.0, seen=50.0,
+            posted=1_000_000.0):
+    return mm_pnl.RestingOrder(side=side, price=price, shares=shares,
+                               quote_mid=0.50, posted_ts=posted,
+                               queue_ahead=ahead, level_seen=seen)
+
+
 def fill(side="buy", price=0.49, shares=100.0, mid_at_fill=0.50,
          mid_markout=0.50, mid_final=0.50, day="2026-07-01"):
     return mm_pnl.MMFill(token_id="t", day=day, ts=0.0, side=side, price=price,
@@ -312,6 +344,282 @@ class RunTokenTests(unittest.TestCase):
         self.assertTrue(any(v != 0 for v in run.inventory_path))
 
 
+class JoinQueueTests(unittest.TestCase):
+    LADDER = ((0.49, 120.0), (0.48, 900.0))
+
+    def test_improving_on_the_touch_has_nobody_ahead(self):
+        self.assertEqual(mm_pnl.join_queue(self.LADDER, 0.49, 0.495, "buy", "back"),
+                         (0.0, 0.0))
+
+    def test_joining_the_touch_stands_behind_everyone_there(self):
+        self.assertEqual(mm_pnl.join_queue(self.LADDER, 0.49, 0.49, "buy", "front"),
+                         (120.0, 120.0))
+
+    def test_a_deeper_level_in_the_ladder_uses_its_size(self):
+        self.assertEqual(mm_pnl.join_queue(self.LADDER, 0.49, 0.48, "buy", "back"),
+                         (900.0, 900.0))
+
+    def test_a_level_below_the_ladder_is_the_blind_spot(self):
+        self.assertEqual(mm_pnl.join_queue(self.LADDER, 0.49, 0.47, "buy", "front"),
+                         (0.0, None))
+        self.assertEqual(mm_pnl.join_queue(self.LADDER, 0.49, 0.47, "buy", "back"),
+                         (None, None))
+
+    def test_an_empty_side_means_we_are_alone(self):
+        self.assertEqual(mm_pnl.join_queue((), None, 0.49, "buy", "back"), (0.0, 0.0))
+
+    def test_the_ask_side_improves_downwards(self):
+        asks = ((0.51, 80.0),)
+        self.assertEqual(mm_pnl.join_queue(asks, 0.51, 0.505, "sell", "back"), (0.0, 0.0))
+        self.assertEqual(mm_pnl.join_queue(asks, 0.51, 0.51, "sell", "back"), (80.0, 80.0))
+
+
+class QueueFillTests(unittest.TestCase):
+    def test_a_small_print_only_shortens_the_line(self):
+        order = resting(ahead=50.0)
+        fills = mm_pnl.queue_fills(order, [(1.0, 0.49, -0.49 * 30)], "front")
+        self.assertEqual(fills, [])
+        self.assertAlmostEqual(order.queue_ahead, 20.0)
+        self.assertAlmostEqual(order.shares, 100.0)
+
+    def test_a_print_past_the_line_fills_us_partially(self):
+        order = resting(ahead=50.0, shares=100.0)
+        fills = mm_pnl.queue_fills(order, [(1.0, 0.49, -0.49 * 80)], "front")
+        self.assertEqual(len(fills), 1)
+        self.assertAlmostEqual(fills[0][1], 30.0)
+        self.assertAlmostEqual(order.shares, 70.0)
+        self.assertAlmostEqual(order.queue_ahead, 0.0)
+
+    def test_prints_accumulate_until_the_order_is_gone(self):
+        order = resting(ahead=0.0, shares=100.0)
+        fills = mm_pnl.queue_fills(order, [(1.0, 0.49, -0.49 * 60),
+                                           (2.0, 0.49, -0.49 * 60)], "front")
+        self.assertEqual([round(f[1], 6) for f in fills], [60.0, 40.0])
+        self.assertAlmostEqual(order.shares, 0.0)
+
+    def test_a_print_through_a_worse_price_sweeps_the_whole_level(self):
+        order = resting(ahead=5000.0, shares=100.0)
+        fills = mm_pnl.queue_fills(order, [(1.0, 0.485, -0.485 * 10)], "back")
+        self.assertEqual(len(fills), 1)
+        self.assertAlmostEqual(fills[0][1], 100.0)
+
+    def test_an_unknown_line_is_not_filled_at_our_price_in_the_back_variant(self):
+        order = resting(ahead=None, seen=None)
+        fills = mm_pnl.queue_fills(order, [(1.0, 0.49, -0.49 * 500)], "back")
+        self.assertEqual(fills, [])
+
+    def test_a_print_above_our_bid_never_reaches_us(self):
+        order = resting(ahead=0.0)
+        self.assertEqual(mm_pnl.queue_fills(order, [(1.0, 0.495, -10.0)], "front"), [])
+
+    def test_taker_buys_cannot_fill_a_resting_bid(self):
+        order = resting(ahead=0.0)
+        self.assertEqual(mm_pnl.queue_fills(order, [(1.0, 0.49, +10.0)], "front"), [])
+
+    def test_a_resting_ask_fills_on_taker_buys_at_or_above_its_price(self):
+        order = resting(side="sell", price=0.51, ahead=0.0, shares=10.0)
+        fills = mm_pnl.queue_fills(order, [(1.0, 0.51, +0.51 * 4),
+                                           (2.0, 0.52, +0.52 * 4)], "front")
+        self.assertEqual([round(f[1], 6) for f in fills], [4.0, 6.0])
+
+
+class GridTests(unittest.TestCase):
+    def test_tick_is_read_off_the_prices(self):
+        self.assertEqual(mm_pnl.infer_tick(0.49, 0.51), 0.01)
+        self.assertEqual(mm_pnl.infer_tick(0.49, 0.512), 0.001)
+        self.assertEqual(mm_pnl.infer_tick(0.4905, 0.51), 0.0001)
+        self.assertEqual(mm_pnl.infer_tick(None, None), 0.0001)
+
+    def test_a_quote_between_ticks_rests_away_from_the_mid(self):
+        self.assertEqual(mm_pnl.snap_to_grid(0.4955, 0.5045, 0.01), (0.49, 0.51))
+        self.assertEqual(mm_pnl.snap_to_grid(0.4955, 0.5045, 0.001), (0.495, 0.505))
+
+    def test_a_quote_on_the_grid_is_left_alone(self):
+        self.assertEqual(mm_pnl.snap_to_grid(0.49, 0.51, 0.01), (0.49, 0.51))
+        self.assertEqual(mm_pnl.snap_to_grid(None, 0.51, 0.01), (None, 0.51))
+
+    def test_snapping_never_leaves_the_price_range(self):
+        self.assertEqual(mm_pnl.snap_to_grid(0.004, 0.996, 0.01), (None, None))
+
+    def test_the_queue_model_rests_on_the_grid(self):
+        # Mid 0.5005 on a 0.001 market: mid - 0.01 = 0.4905 is not a price.
+        series = [
+            ofs.BookPoint(ts=1_000_000.0 + i, mid=0.5005, spread=0.001, imbalance=0.5,
+                          day="2026-07-01", bid_levels=((0.5, 100.0),),
+                          ask_levels=((0.501, 100.0),))
+            for i in range(5)
+        ]
+        params = QuoteParams(half_spread=0.01, gamma=0.0, quote_usd=49.0,
+                             inventory_cap_usd=1000.0)
+        run = mm_pnl.run_token_queue("t", series, [], params, "front")
+        _, _, bid, ask = run.quote_path[0]
+        self.assertEqual(bid, 0.49)
+        self.assertEqual(ask, 0.511)
+
+
+class RefreshQueueTests(unittest.TestCase):
+    def test_cancels_shorten_the_line_only_in_the_front_variant(self):
+        front = resting(ahead=100.0, seen=100.0)
+        back = resting(ahead=100.0, seen=100.0)
+        mm_pnl.refresh_queue(front, ((0.49, 60.0),), 0.49, "front")
+        mm_pnl.refresh_queue(back, ((0.49, 60.0),), 0.49, "back")
+        self.assertAlmostEqual(front.queue_ahead, 60.0)
+        self.assertAlmostEqual(back.queue_ahead, 60.0)  # capped by what rests at all
+        front = resting(ahead=100.0, seen=150.0)
+        back = resting(ahead=100.0, seen=150.0)
+        mm_pnl.refresh_queue(front, ((0.49, 120.0),), 0.49, "front")
+        mm_pnl.refresh_queue(back, ((0.49, 120.0),), 0.49, "back")
+        self.assertAlmostEqual(front.queue_ahead, 70.0)
+        self.assertAlmostEqual(back.queue_ahead, 100.0)
+
+    def test_prints_already_subtracted_are_not_counted_as_cancels(self):
+        order = resting(ahead=100.0, seen=150.0)
+        order.printed_at_level = 30.0
+        mm_pnl.refresh_queue(order, ((0.49, 120.0),), 0.49, "front")
+        self.assertAlmostEqual(order.queue_ahead, 100.0)
+        self.assertEqual(order.printed_at_level, 0.0)
+
+    def test_new_joins_behind_us_change_nothing(self):
+        order = resting(ahead=100.0, seen=100.0)
+        mm_pnl.refresh_queue(order, ((0.49, 400.0),), 0.49, "front")
+        self.assertAlmostEqual(order.queue_ahead, 100.0)
+
+    def test_first_sight_of_an_unknown_level_puts_us_at_the_back(self):
+        order = resting(ahead=None, seen=None)
+        mm_pnl.refresh_queue(order, ((0.49, 75.0),), 0.49, "back")
+        self.assertAlmostEqual(order.queue_ahead, 75.0)
+
+    def test_a_level_better_than_the_touch_is_known_to_be_empty(self):
+        order = resting(ahead=None, seen=None, price=0.495)
+        mm_pnl.refresh_queue(order, ((0.49, 75.0),), 0.49, "back")
+        self.assertEqual(order.queue_ahead, 0.0)
+
+    def test_a_level_deeper_than_the_ladder_keeps_what_we_knew(self):
+        order = resting(ahead=None, seen=None, price=0.47)
+        mm_pnl.refresh_queue(order, ((0.49, 75.0),), 0.49, "back")
+        self.assertIsNone(order.queue_ahead)
+
+
+class RunTokenQueueTests(unittest.TestCase):
+    def setUp(self):
+        self.params = QuoteParams(half_spread=0.01, gamma=0.0, quote_usd=49.0,
+                                  inventory_cap_usd=1000.0)
+
+    def test_a_quiet_book_keeps_the_order_and_its_place(self):
+        series = ladder_series(n=5, bid_size=100.0)
+        run = mm_pnl.run_token_queue("t", series, [], self.params, "front")
+        self.assertEqual(run.requotes, 1)
+        self.assertEqual(run.queue_resets, 0)
+        self.assertEqual(run.fills, [])
+
+    def test_a_re_price_sends_the_order_to_the_back(self):
+        series = ladder_series(n=3) + ladder_series(n=3, mid=0.60, start=1_000_003.0)
+        run = mm_pnl.run_token_queue("t", series, [], self.params, "front")
+        self.assertEqual(run.queue_resets, 2)  # bid and ask each re-priced once
+
+    def test_the_line_ahead_must_trade_before_we_fill(self):
+        # Quote at mid - 0.01 = 0.49 joins the touch with 100 shares ahead.
+        series = ladder_series(n=6, bid_size=100.0)
+        small = [sell_print(1_000_001.5, 0.49, 40)]
+        run = mm_pnl.run_token_queue("t", series, small, self.params, "front")
+        self.assertEqual(run.fills, [])
+        big = [sell_print(1_000_001.5, 0.49, 40), sell_print(1_000_002.5, 0.49, 90)]
+        run = mm_pnl.run_token_queue("t", series, big, self.params, "front")
+        self.assertEqual(len(run.fills), 1)
+        self.assertAlmostEqual(run.fills[0].shares, 30.0)
+        self.assertTrue(run.fills[0].partial)
+        self.assertAlmostEqual(run.fills[0].wait_s, 2.5)
+
+    def test_tape_front_back_order_their_filled_shares(self):
+        series = ladder_series(n=30, bid_size=100.0)
+        trades = [sell_print(1_000_001.5, 0.49, 120), sell_print(1_000_003.5, 0.49, 120)]
+        shares = {}
+        for model in ("tape", "queue_front", "queue_back"):
+            _, runs = mm_pnl.run_experiment({"t": series}, {"t": trades}, self.params,
+                                            model)
+            shares[model] = sum(f.shares for f in runs[0].fills) if runs else 0.0
+        self.assertGreaterEqual(shares["tape"], shares["queue_front"])
+        self.assertGreaterEqual(shares["queue_front"], shares["queue_back"])
+        self.assertGreater(shares["queue_front"], 0.0)
+
+    def test_the_back_variant_waits_for_the_level_to_be_seen(self):
+        # Deeper quote than the ladder shows: back refuses, front assumes empty.
+        params = QuoteParams(half_spread=0.03, gamma=0.0, quote_usd=47.0,
+                             inventory_cap_usd=1000.0)
+        series = ladder_series(n=6, bid_size=100.0)
+        trades = [sell_print(1_000_001.5, 0.47, 200)]
+        front = mm_pnl.run_token_queue("t", series, trades, params, "front")
+        back = mm_pnl.run_token_queue("t", series, trades, params, "back")
+        self.assertTrue(front.fills)
+        self.assertEqual(back.fills, [])
+        self.assertEqual(back.unknown_joins, 2)
+
+    def test_a_sweep_below_our_price_fills_even_the_back_variant(self):
+        params = QuoteParams(half_spread=0.03, gamma=0.0, quote_usd=47.0,
+                             inventory_cap_usd=1000.0)
+        series = ladder_series(n=6, bid_size=100.0)
+        trades = [sell_print(1_000_001.5, 0.40, 5)]
+        back = mm_pnl.run_token_queue("t", series, trades, params, "back")
+        self.assertEqual(len(back.fills), 1)
+        self.assertFalse(back.fills[0].partial)
+
+    def test_latency_keeps_the_old_quote_live_to_be_picked(self):
+        # Mid jumps down at t=2; with a 1.5s lag the 0.49 bid still stands and
+        # the print at 0.45 sweeps it. Without lag the requote had moved first.
+        series = (ladder_series(n=2) +
+                  ladder_series(n=4, mid=0.40, start=1_000_002.0))
+        trades = [sell_print(1_000_002.5, 0.45, 10)]
+        quick = mm_pnl.run_token_queue("t", series, trades, self.params, "front",
+                                       latency_s=0.0)
+        slow = mm_pnl.run_token_queue("t", series, trades, self.params, "front",
+                                      latency_s=1.5)
+        self.assertEqual(quick.fills, [])
+        self.assertEqual(len(slow.fills), 1)
+        self.assertEqual(slow.fills[0].price, 0.49)
+        # Bought at 0.49 into a market that now sits at 0.40: picked.
+        self.assertLess(slow.fills[0].terminal_usd, 0.0)
+
+    def test_a_lag_longer_than_the_series_never_posts(self):
+        series = ladder_series(n=4)
+        trades = [sell_print(1_000_001.5, 0.40, 10)]
+        run = mm_pnl.run_token_queue("t", series, trades, self.params, "front",
+                                     latency_s=60.0)
+        self.assertEqual(run.fills, [])
+        self.assertEqual(run.requotes, 0)
+
+    def test_the_identity_holds_for_queue_fills_too(self):
+        series = ladder_series(n=6, bid_size=0.0) + ladder_series(
+            n=2, mid=0.45, start=1_000_006.0, bid_size=0.0)
+        trades = [sell_print(1_000_001.5, 0.49, 20), sell_print(1_000_002.5, 0.49, 20)]
+        run = mm_pnl.run_token_queue("t", series, trades, self.params, "front")
+        self.assertTrue(run.fills)
+        for item in run.fills:
+            self.assertAlmostEqual(
+                item.spread_capture_usd + item.markout_usd + item.late_drift_usd,
+                item.terminal_usd, places=9)
+
+    def test_the_decomposition_reports_wait_and_partial_share(self):
+        series = ladder_series(n=30, bid_size=100.0)
+        trades = [sell_print(1_000_001.5, 0.49, 130)]
+        _, runs = mm_pnl.run_experiment({"t": series}, {"t": trades}, self.params,
+                                        "queue_front")
+        data = mm_pnl.decompose(runs).as_dict()
+        self.assertEqual(data["fills"], 1)
+        self.assertAlmostEqual(data["mean_wait_s"], 1.5)
+        self.assertEqual(data["partial_fill_share"], 1.0)
+
+    def test_an_unknown_fill_model_is_a_programming_error(self):
+        with self.assertRaises(ValueError):
+            mm_pnl.run_experiment({}, {}, self.params, "oracle")
+
+    def test_latency_sweep_returns_one_row_per_latency(self):
+        series = ladder_series(n=6)
+        rows = mm_pnl.latency_sweep({"t": series}, {"t": []}, self.params,
+                                    "queue_front", latencies=(0.0, 1.0))
+        self.assertEqual([r["latency_s"] for r in rows], [0.0, 1.0])
+        self.assertIn("queue_resets", rows[0])
+
+
 class InventoryCapTests(unittest.TestCase):
     def test_the_cap_stops_a_one_sided_inventory_from_running_away(self):
         params = QuoteParams(half_spread=0.01, gamma=0.08, quote_usd=50.0,
@@ -530,15 +838,43 @@ class EndToEndTests(unittest.TestCase):
             self.assertEqual(results["tokens"], 1)
             self.assertIn("touch", results["fill_models"])
             self.assertIn("tape", results["fill_models"])
+            self.assertNotIn("queue_front", results["fill_models"])
 
             out = Path(tmp) / "research"
             paths = mm_pnl.write_outputs(results, "test", research_dir=out)
             self.assertTrue(paths["md"].exists())
             body = paths["md"].read_text(encoding="utf-8")
             self.assertIn("PnL decomposition", body)
+            self.assertIn("no queue position", body)
             self.assertNotIn("ß", body)
             payload = json.loads(paths["json"].read_text(encoding="utf-8"))
             self.assertIn("fill_models", payload)
+
+    def test_queue_models_get_their_latency_table_and_a_day_window(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            data = Path(tmp) / "data"
+            data.mkdir()
+            for day in ("2026-07-01", "2026-07-02", "2026-07-03"):
+                self._write(data, day, 40,
+                            lambda i: 0.50 + (0.05 if i % 2 else -0.05))
+            results = mm_pnl.run_study(
+                data, gammas=(0.0,), fill_models=("tape", "queue_front", "queue_back"),
+                latencies=(0.0, 1.0), day_from="2026-07-02")
+            self.assertEqual(results["days"], ["2026-07-02", "2026-07-03"])
+            self.assertEqual(list(results["fill_models"]),
+                             ["tape", "queue_front", "queue_back"])
+            front = results["fill_models"]["queue_front"]
+            self.assertEqual([r["latency_s"] for r in front["latency_sweep"]], [0.0, 1.0])
+            self.assertIn("queue_resets", front["queue"])
+            self.assertNotIn("latency_sweep", results["fill_models"]["tape"])
+
+            out = Path(tmp) / "research"
+            paths = mm_pnl.write_outputs(results, "queue-test", research_dir=out)
+            body = paths["md"].read_text(encoding="utf-8")
+            self.assertIn("queue_front model (USD)", body)
+            self.assertIn("Requote latency (s)", body)
+            self.assertIn("Standing in line", body)
+            self.assertNotIn("no queue position", body)
 
     def test_study_on_an_empty_directory_does_not_crash(self):
         with tempfile.TemporaryDirectory() as tmp:
