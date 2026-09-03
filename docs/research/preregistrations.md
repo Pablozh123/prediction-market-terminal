@@ -13,5 +13,6 @@ Register aller praeregistrierten Tests dieses Projekts. Eine Preregistration fri
 | AsPredicted-Nr. | Titel | Eingereicht | Status | PDF | Ergebnis |
 |---|---|---|---|---|---|
 | PENDING (noch nicht eingereicht) | Out-of-sample persistence of the corrected wallet track-record score | - | draft | - | - |
+| intern (git-Zeitstempel, nicht bei AsPredicted) | Does symmetric market making pay once queue position is modelled? | 2026-09-03 | frozen, Testfenster 2026-09-04 bis 2026-09-17 | [preregistration_mm_queue_2026-09-03.md](preregistration_mm_queue_2026-09-03.md) | offen |
 
 Der einreichfertige Entwurf (alle 9 AsPredicted-Fragen) liegt in [aspredicted_draft_track_record_validation.md](aspredicted_draft_track_record_validation.md). Nach der Einreichung: AsPredicted-Nummer und Datum hier eintragen, PDF als `docs/research/aspredicted_<nummer>.pdf` ablegen, Entwurfsdatei durch einen Verweis auf das PDF ersetzen.

@@ -100,7 +100,8 @@ line behind the depth the recorder shows, fill partially, and lose their
 place on every re-price, plus a requote-latency sweep. They are not part of
 the published reports above; the stream recorder writes the depth ladder
 they need (`stream_depth_<day>.csv`) from 2026-09-03 on. A run restricted to
-a day window, for a parameter choice frozen on earlier days:
+a day window, for a parameter choice frozen on earlier days. The choice rule, test window and success threshold are fixed in
+[preregistration_mm_queue_2026-09-03.md](preregistration_mm_queue_2026-09-03.md); the per-day driver is `python -m src.mm_queue_study`:
 
 ```bash
 python -m src.mm_pnl --recorder-dir data/microstructure --stream --fill-models tape,queue_front,queue_back --latency 0 --day-from 2026-08-26 --day-to 2026-09-03 --tag queue-test
