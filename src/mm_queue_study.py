@@ -134,15 +134,21 @@ def rows_path(tag: str, research_dir: Path = RESEARCH_DIR) -> Path:
 
 
 def load_rows(path: Path) -> list[dict]:
+    """Rows on disk, last write per (day, model, candidate) winning.
+
+    Two writers on the same tag, or a rerun after a crash mid-append, must
+    not double-count a day; the newest row for a key replaces the older.
+    """
     if not path.exists():
         return []
-    rows = []
+    latest: dict[tuple[str, str, str], dict] = {}
     with open(path, encoding="utf-8") as handle:
         for line in handle:
             line = line.strip()
             if line:
-                rows.append(json.loads(line))
-    return rows
+                row = json.loads(line)
+                latest[(row["day"], row["model"], row["candidate"])] = row
+    return list(latest.values())
 
 
 def append_rows(path: Path, rows: list[dict]) -> None:

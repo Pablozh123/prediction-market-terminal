@@ -137,6 +137,16 @@ class ResumeTests(unittest.TestCase):
             self.assertIn("## Choice", body)
             self.assertNotIn("ß", body)
 
+    def test_duplicate_rows_for_a_day_do_not_double_count(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "x.rows.jsonl"
+            row = {"day": "2026-07-01", "model": "queue_back", "candidate": "a",
+                   "total_usd": 1.0}
+            mqs.append_rows(path, [row, dict(row, total_usd=2.0)])
+            rows = mqs.load_rows(path)
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["total_usd"], 2.0)
+
     def test_the_day_window_is_honoured(self):
         with tempfile.TemporaryDirectory() as tmp:
             data = Path(tmp) / "data"
