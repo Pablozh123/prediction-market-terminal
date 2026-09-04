@@ -6,7 +6,21 @@ import { esc, num, herkunftSatz, leerZeile, EINZAHLUNGEN_USD, offeneNichtDrin, s
 import { caveat, caveatZeile, registerStand, unregistrierteTexte } from '../claims.js';
 import { stepKurve, diagramm, linien, kalibrierung, fmtZahl, serienFarbe, intervallMarke } from '../charts.js';
 import { renderMicrostructure } from './microstructure_page.js';
+import { renderThesis } from './thesis_page.js';
+import { renderReddit } from './reddit_page.js';
+import { renderPrereg } from './prereg_page.js';
+import { renderLiterature } from './literature_page.js';
 import { MONO as M, KARTE, LABEL_BLOCK, kpi } from '../ui.js';
+
+// Seiten, die am Slug haengen statt am Index: die Vorschau-Studien am Ende
+// von studies.js. Jede rendert ihren Leerzustand selbst, wenn die Nutzlast
+// fehlt oder der Abruf scheiterte.
+const SLUG_SEITEN = {
+  thesis: renderThesis,
+  'reddit-sentiment': renderReddit,
+  'pre-registrations': renderPrereg,
+  literature: renderLiterature
+};
 
 function filterGroup(label, chipsHtml) {
   return '<div><div style="' + LABEL_BLOCK + '">' + label + '</div><div style="display:flex; gap:var(--sp-3); flex-wrap:wrap">' + chipsHtml + '</div></div>';
@@ -17,7 +31,9 @@ function filterGroup(label, chipsHtml) {
 const RESEARCH_DATEI = [
   'queue.json', 'kategorie_karte.json', 'mentions_latenz.json', 'runs.json',
   'microstructure.json', 'pilot.json', 'pipeline_forward.json', 'audit.json',
-  'postmortems.json', 'field_notes.json'
+  'postmortems.json', 'field_notes.json',
+  // Die Vorschau-Studien (studies.js, preview: true), in derselben Reihenfolge.
+  'thesis_results.json', 'reddit_sentiment.json', 'preregistrations.json', 'literature.json'
 ];
 
 // Farbe je Achse, damit sich die Fehlerarten auf einen Blick trennen lassen.
@@ -603,6 +619,10 @@ export function renderResearch(T) {
   // Frage, Verdikt, Diagramm und Quelle. Nutzlast aus public/data.
   if (s.researchTab === 4) {
     return '<div>' + header + renderMicrostructure(payload, study) + '</div>';
+  }
+  const slugSeite = SLUG_SEITEN[studienSlug(study)];
+  if (slugSeite) {
+    return '<div>' + header + slugSeite(payload, study) + '</div>';
   }
   // Category efficiency: Kennzahlen, Balken je Horizont, Brier ueber den
   // Horizont, Kalibrierung je Kategorie und die Tabelle mit allen Horizonten.

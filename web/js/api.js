@@ -48,6 +48,11 @@ export const STATISCH = {
   '/api/research/wallet-ledger': 'wallet_ledger.json',
   '/api/research/meta': 'meta.json',
   '/api/research/arb-scan': 'arb_scan.json',
+  // Die Vorschau-Studien (studies.js, preview: true).
+  '/api/research/thesis': 'thesis_results.json',
+  '/api/research/reddit-sentiment': 'reddit_sentiment.json',
+  '/api/research/pre-registrations': 'preregistrations.json',
+  '/api/research/literature': 'literature.json',
 };
 
 // Kein Endpunkt darf die Seite unbegrenzt haengen lassen. /api/risk baut beim

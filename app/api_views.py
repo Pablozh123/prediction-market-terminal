@@ -48,6 +48,14 @@ RESEARCH_FILES = {
     # an alias: the file is arb_scan.json and the address gets typed from it.
     "arb-scan": "arb_scan",
     "arb_scan": "arb_scan",
+    # The research pages built from the thesis result tables, the Reddit
+    # sentiment study, the pre-registration register and the literature note
+    # (scripts/publish_research_pages.py). Listed in the sidebar only in
+    # preview mode until released; the files are served regardless.
+    "thesis": "thesis_results",
+    "reddit-sentiment": "reddit_sentiment",
+    "pre-registrations": "preregistrations",
+    "literature": "literature",
 }
 
 

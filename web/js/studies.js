@@ -77,5 +77,39 @@ export const STUDIEN = [
     title: 'Field notes — what the tape taught us',
     stamp: 'curated',
     note: 'Curated observations from watching the tape: what happened, the mechanism behind it, and what follows from it. Each note names its evidence or says it has none.'
+  },
+  // ---- In Vorbereitung (preview: true) ----------------------------------
+  // Gebaut, geprueft, noch nicht freigeschaltet: die Seitenleiste listet sie
+  // nur mit ?preview=1 (web/js/preview.js), die Suche findet sie dann, und
+  // ihre Adresse zeigt sonst die Sperrkarte. Freischalten heisst: das
+  // preview-Feld entfernen. Neue Eintraege gehoeren ans Ende der Liste,
+  // renderResearch und RESEARCH_DATEI in system_pages.js haengen am Index.
+  {
+    tab: 'Thesis',
+    title: 'The thesis: Polymarket against the polls, US 2024',
+    stamp: 'thesis 2026 · frozen',
+    note: 'Three hypotheses about one election, forecast quality, event reaction and wallet timing, plus a Swiss referendum as the case outside the US. Every number from the thesis result tables.',
+    preview: true
+  },
+  {
+    tab: 'Reddit sentiment',
+    title: 'Does Reddit mood track Polymarket prices?',
+    stamp: 'frozen 2026-05-22 · negative result',
+    note: 'Twenty-nine live markets, 725 Reddit posts, two text models. No measurable link, and an audit of the retrieved posts that says why.',
+    preview: true
+  },
+  {
+    tab: 'Pre-registrations',
+    title: 'Tests whose rules were written down first',
+    stamp: 'register · rolling',
+    note: 'The pilot, the queue-position study on market making and the track-record validation: hypothesis, success rule and where each stands. A test window still open shows training numbers only.',
+    preview: true
+  },
+  {
+    tab: 'Literature',
+    title: 'Own measurement against the published research',
+    stamp: 'as of 2026-07-31',
+    note: 'What the recorded books show, what three independent studies found on far larger samples, which anomalies are already explained, and the revenue paths the data rank.',
+    preview: true
   }
 ];
