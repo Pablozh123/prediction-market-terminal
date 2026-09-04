@@ -421,7 +421,13 @@ function mitDaten(T) {
   };
   T.liveData.resolved = {
     _quelle: 'live', as_of: '2026-08-17 09:30 UTC',
-    rows: [{ title: 'Settled question', meta: 'POLYMARKET · MACRO', yes: true, last: 91, err: 9, vol: '$1.2m', when: '2 d ago', hours: 6 }]
+    price_note: 'PRICE is the settlement price from the public closed-markets feed, not the last price before settlement. That earlier price is not in this feed; reading it would mean fetching the CLOB price history of each market at a fixed interval before close. Until that is done, no deviation between crowd and outcome is computed here.',
+    rows: [
+      { title: 'Settled question', meta: 'POLYMARKET · MACRO', yes: true, settled_price: 100, decisive: true, vol: '$1.2m', when: '2 d ago', hours: 6 },
+      // Eine Zeile, die nicht bei 0 oder 100 abgerechnet hat: die Kachel
+      // muss sie zaehlen und darf dann nicht mehr warnen.
+      { title: 'Settled between the poles', meta: 'POLYMARKET · MACRO', yes: false, settled_price: 43, decisive: false, vol: '$300k', when: '30 h ago', hours: 30 }
+    ]
   };
   T.liveData.alerts = {
     _quelle: 'live', as_of: '2026-08-07',

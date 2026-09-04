@@ -95,7 +95,7 @@ class Terminal {
       tapeQuery: '', tapePlatform: 'all', tapeSide: 'all', tapeOutcome: 'all',
       // Whale flow: Sortierung der Wallet-Zeilen — 'total' | 'biggest' | 'prints'.
       whaleSort: 'total',
-      resQuery: '', resAnswer: 'all', resWindow: 'all', resError: 'all', resSort: 'recent',
+      resQuery: '', resAnswer: 'all', resWindow: 'all', resSort: 'recent',
       setMarketSample: 250, setTradeSample: 250, setWhale: 2500, setBankroll: 1000, setFee: 20, setSlip: 15,
       alertTab: 'signals', alertQuery: '', alertPlatform: 'all', alertType: 'all', alertScope: 'all',
       thMove: 5, thSpread: 3, thWhale: 2500, thEnding: 72, thHolder: 40,

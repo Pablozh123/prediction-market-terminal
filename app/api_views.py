@@ -2879,11 +2879,38 @@ def trim_pipeline_payload(payload: Mapping[str, Any], max_entries: int = 40) -> 
     return out
 
 
+#: Was die Preisspalte der Resolved-Seite ist. Der oeffentliche
+#: Closed-Markets-Feed fuehrt fuer einen abgerechneten Markt nur noch den
+#: Abrechnungspreis; der letzte Preis davor steht in der Preishistorie des
+#: CLOB und wird hier nicht abgerufen.
+RESOLVED_PRICE_NOTE = (
+    "PRICE is the settlement price from the public closed-markets feed, not the last price "
+    "before settlement. That earlier price is not in this feed; reading it would mean fetching "
+    "the CLOB price history of each market at a fixed interval before close. Until that is done, no "
+    "deviation between crowd and outcome is computed here."
+)
+
+
 def resolved_rows(closed: pd.DataFrame, limit: int = 120) -> list[dict[str, Any]]:
     """`md.get_polymarket_closed_markets`-Frame in die Resolved-Zeilen.
 
-    Nur binaere Maerkte mit bekanntem Ausgang; ``err`` ist der letzte Preis
-    gegen die Antwort — das, was die Menge falsch hatte.
+    Nur binaere Maerkte mit bekanntem Ausgang.
+
+    ``price`` ist der Abrechnungspreis, nicht der letzte Preis davor. Die
+    Zeilen trugen frueher ein Feld ``err`` als "so weit lag die Menge daneben".
+    Das konnte nie etwas anderes als null sein: ``get_polymarket_closed_markets``
+    liest ``final_yes_price`` aus dem aktuellen Preis eines abgerechneten
+    Marktes (also 0 oder 1) und leitet ``resolved_outcome`` aus genau diesem
+    Preis ab. Die Abweichung wurde damit gegen sich selbst gerechnet. Ueber
+    fuenfzig echte Zeilen gemessen: fuenfzig Mal null, Preis 32 Mal 0 und 18
+    Mal 100.
+
+    Der Fehler ueberlebte, weil der Test eine Zeile baute, die es im Feed
+    nicht gibt (Preis 0.81 und Ausgang "Yes" nebeneinander).
+
+    Wer die echte Abweichung will, braucht die Preishistorie aus dem CLOB zu
+    einem festen Abstand vor Handelsschluss. Die steht in diesem Feed nicht,
+    also steht die Kennzahl nicht mehr auf der Seite.
     """
 
     if closed is None or closed.empty:
@@ -2908,8 +2935,8 @@ def resolved_rows(closed: pd.DataFrame, limit: int = 120) -> list[dict[str, Any]
             "title": _text(row.get("title")),
             "meta": (_text(row.get("platform")) or "Polymarket").upper() + " · " + (_text(row.get("category")) or "—").upper(),
             "yes": outcome == "Yes",
-            "last": last_cents,
-            "err": (100 - last_cents) if outcome == "Yes" else last_cents,
+            # Name sagt jetzt, was es ist: der Abrechnungspreis.
+            "settled_price": last_cents,
             "vol": money_label(volume),
             "when": when,
             "hours": round(hours, 1),

@@ -995,9 +995,40 @@ class ResolvedRowsTests(unittest.TestCase):
         ])
         rows = apv.resolved_rows(closed)
         self.assertEqual(len(rows), 1, "Multi-Outcome-Maerkte fliegen raus")
-        self.assertEqual(rows[0]["err"], 19)
+        # Der Preis heisst, was er ist. Frueher stand hier ein Feld "err" mit
+        # dem Wert 19 — die Abweichung zwischen 81 Cent und dem Ausgang "Yes".
+        # Diese Zeile gibt es im echten Feed nicht: dort leitet
+        # get_polymarket_closed_markets den Ausgang aus genau diesem Preis ab,
+        # also ist der Preis bei einem abgerechneten Markt 0 oder 100 und die
+        # Abweichung strukturell null. Der Test baute den einzigen Fall, in dem
+        # die Kennzahl etwas gezeigt haette, und hielt sie damit am Leben.
+        self.assertEqual(rows[0]["settled_price"], 81)
+        self.assertNotIn("err", rows[0])
         self.assertTrue(rows[0]["yes"])
         self.assertIn("h ago", rows[0]["when"])
+
+    def test_ein_abgerechneter_markt_traegt_seinen_abrechnungspreis(self) -> None:
+        # So sieht der Feed wirklich aus: der Ausgang folgt dem Preis.
+        closed = pd.DataFrame([
+            {"title": "Won", "platform": "Polymarket", "category": "Sports",
+             "resolved_outcome": "Yes", "final_yes_price": 1.0, "decisive_resolution": True,
+             "closed_time": pd.Timestamp.now(tz="UTC"), "volume": 1000.0},
+            {"title": "Lost", "platform": "Polymarket", "category": "Sports",
+             "resolved_outcome": "No", "final_yes_price": 0.0, "decisive_resolution": True,
+             "closed_time": pd.Timestamp.now(tz="UTC"), "volume": 1000.0},
+        ])
+        rows = apv.resolved_rows(closed)
+        self.assertEqual([r["settled_price"] for r in rows], [100, 0])
+        self.assertTrue(all(r["decisive"] for r in rows))
+        # Keine Zeile behauptet eine Abweichung.
+        self.assertTrue(all("err" not in r for r in rows))
+
+    def test_der_hinweis_sagt_was_dem_feed_fehlt_und_was_es_braeuchte(self) -> None:
+        note = apv.RESOLVED_PRICE_NOTE
+        self.assertIn("settlement price", note)
+        self.assertIn("not the last price before settlement", note)
+        self.assertIn("CLOB price history", note)
+        self.assertIn("no deviation between crowd and outcome is computed here", note)
 
 
 class TrackPayloadTests(unittest.TestCase):
