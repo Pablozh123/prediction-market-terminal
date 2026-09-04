@@ -87,5 +87,16 @@ export const STUDIEN = [
     stamp: 'curated',
     note: 'Curated observations from watching the tape: what happened, the mechanism behind it, and what follows from it. Each note names its evidence or says it has none.',
     chart: ''
+  },
+  // Slug 'arb-scan' (from the tab), payload arb_scan.json — written by the
+  // paper scanner in the prediction-alpha-bot repo, not by the daily run.
+  // "rolling" is true here as long as the health strip on the page says
+  // alive; the page shows the age of the last cycle so the reader can tell.
+  {
+    tab: 'Arb scan',
+    title: 'Cross-venue arbitrage scan',
+    stamp: 'paper scanner · rolling',
+    note: 'Price gaps between Polymarket and Kalshi and inside one venue, screened for fees, depth and staleness, then paper-traded. The resolution rules of a pair count as unverified until a human has read both.',
+    chart: ''
   }
 ];

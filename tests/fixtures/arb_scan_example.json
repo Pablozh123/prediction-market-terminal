@@ -1,0 +1,234 @@
+{
+  "schema": "arb_scan/1",
+  "generated_at": "2026-09-03T05:40:12+00:00",
+  "generator": {
+    "repo": "prediction-alpha-bot",
+    "git_sha": "3f9c2a1d7b6e4c5f8a9b0c1d2e3f4a5b6c7d8e9f",
+    "mode": "paper"
+  },
+  "disclaimer": "Paper scanner. Every figure is a quote comparison at scan time; no order was placed, no capital moved, and the resolution rules of the paired markets were not read by a human unless rule_match says reviewed.",
+  "health": {
+    "last_cycle_at": "2026-09-03T05:39:58+00:00",
+    "cycles_24h": 2870,
+    "errors_24h": 3,
+    "scan_interval_ms": 30000,
+    "alive": true
+  },
+  "summary": {
+    "raw_candidates_24h": 412,
+    "validated_24h": 9,
+    "paper_fired_24h": 4,
+    "open_paper_positions": 3,
+    "resolved_paper_trades": 6,
+    "resolved_paper_pnl_usd": 3.42,
+    "sample_note": "6 resolved paper trades: far too few for any read on the edge; the sign of the total is noise at this size."
+  },
+  "strategies": [
+    {
+      "id": "cross_venue_parity",
+      "label": "Cross-venue parity",
+      "raw_24h": 301,
+      "validated_24h": 6,
+      "paper_24h": 3,
+      "top_rejection": "net_edge_below_fees"
+    },
+    {
+      "id": "intra_market_complement",
+      "label": "YES + NO under one dollar",
+      "raw_24h": 88,
+      "validated_24h": 2,
+      "paper_24h": 1,
+      "top_rejection": "depth_below_min"
+    },
+    {
+      "id": "multi_outcome_sum",
+      "label": "Multi-outcome sum over one dollar",
+      "raw_24h": 23,
+      "validated_24h": 1,
+      "paper_24h": 0,
+      "top_rejection": "rule_mismatch_suspected"
+    }
+  ],
+  "rejections_24h": [
+    { "reason": "net_edge_below_fees", "count": 244 },
+    { "reason": "depth_below_min", "count": 96 },
+    { "reason": "stale_quote", "count": 41 },
+    { "reason": "rule_mismatch_suspected", "count": 14 },
+    { "reason": "days_to_resolution_too_long", "count": 8 }
+  ],
+  "opportunities": [
+    {
+      "id": "opp-20260903-0007",
+      "strategy": "cross_venue_parity",
+      "venues": ["Polymarket", "Kalshi"],
+      "title": "Fed cuts rates at the September 2026 meeting?",
+      "market_ref": "pm:0x8d1f…c3a2 / ks:KXFEDDECISION-26SEP-C25",
+      "legs": [
+        { "venue": "Polymarket", "side": "BUY YES", "price": 0.615, "size_usd": 180.0, "role": "long", "fee_usd": 0.0 },
+        { "venue": "Kalshi", "side": "BUY NO", "price": 0.36, "size_usd": 180.0, "role": "hedge", "fee_usd": 2.52 }
+      ],
+      "gross_edge_bps": 250,
+      "executable_net_edge_bps": 96,
+      "depth_usd": 180.0,
+      "capital_usd": 360.0,
+      "days_to_resolution": 12.3,
+      "annualized_pct": 28.5,
+      "status": "paper_fired",
+      "rejection_reason": null,
+      "rule_match": "reviewed",
+      "first_seen_at": "2026-09-03T05:12:31+00:00",
+      "last_seen_at": "2026-09-03T05:39:58+00:00",
+      "open_seconds": 1647
+    },
+    {
+      "id": "opp-20260903-0011",
+      "strategy": "intra_market_complement",
+      "venues": ["Polymarket"],
+      "title": "Will the Curtis E6 episode air before 15 September?",
+      "market_ref": "pm:0x41b0…9e77",
+      "legs": [
+        { "venue": "Polymarket", "side": "BUY YES", "price": 0.48, "size_usd": 60.0, "role": "long", "fee_usd": 0.0 },
+        { "venue": "Polymarket", "side": "BUY NO", "price": 0.505, "size_usd": 60.0, "role": "long", "fee_usd": 0.0 }
+      ],
+      "gross_edge_bps": 150,
+      "executable_net_edge_bps": 71,
+      "depth_usd": 60.0,
+      "capital_usd": 118.2,
+      "days_to_resolution": 10.8,
+      "annualized_pct": 24.0,
+      "status": "validated",
+      "rejection_reason": null,
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-03T05:38:02+00:00",
+      "last_seen_at": "2026-09-03T05:39:58+00:00",
+      "open_seconds": 116
+    },
+    {
+      "id": "opp-20260903-0003",
+      "strategy": "cross_venue_parity",
+      "venues": ["Polymarket", "Kalshi"],
+      "title": "Bitcoin above $70,000 on 30 September 2026?",
+      "market_ref": "pm:0x2c77…41aa / ks:KXBTCMAX-26SEP30-T70000",
+      "legs": [
+        { "venue": "Kalshi", "side": "BUY YES", "price": 0.41, "size_usd": 45.0, "role": "long", "fee_usd": 0.71 },
+        { "venue": "Polymarket", "side": "BUY NO", "price": 0.575, "size_usd": 45.0, "role": "hedge", "fee_usd": 0.0 }
+      ],
+      "gross_edge_bps": 150,
+      "executable_net_edge_bps": 12,
+      "depth_usd": 45.0,
+      "capital_usd": 90.0,
+      "days_to_resolution": 26.4,
+      "annualized_pct": 1.7,
+      "status": "validated",
+      "rejection_reason": null,
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-02T21:04:10+00:00",
+      "last_seen_at": "2026-09-03T05:39:58+00:00",
+      "open_seconds": 30948
+    },
+    {
+      "id": "opp-20260903-0009",
+      "strategy": "multi_outcome_sum",
+      "venues": ["Polymarket"],
+      "title": "Who wins the 2026 Bundesliga? (all outcomes)",
+      "market_ref": "pm:event 942101",
+      "legs": [
+        { "venue": "Polymarket", "side": "BUY NO", "price": 0.93, "size_usd": 25.0, "role": "long", "fee_usd": 0.0 },
+        { "venue": "Polymarket", "side": "BUY NO", "price": 0.71, "size_usd": 25.0, "role": "long", "fee_usd": 0.0 },
+        { "venue": "Polymarket", "side": "BUY NO", "price": 0.42, "size_usd": 25.0, "role": "long", "fee_usd": 0.0 }
+      ],
+      "gross_edge_bps": 410,
+      "executable_net_edge_bps": 205,
+      "depth_usd": 25.0,
+      "capital_usd": 51.5,
+      "days_to_resolution": 264.0,
+      "annualized_pct": 2.8,
+      "status": "rejected",
+      "rejection_reason": "rule_mismatch_suspected",
+      "rule_match": "mismatch",
+      "first_seen_at": "2026-09-03T04:50:00+00:00",
+      "last_seen_at": "2026-09-03T05:39:58+00:00",
+      "open_seconds": 2998
+    },
+    {
+      "id": "opp-20260903-0014",
+      "strategy": "cross_venue_parity",
+      "venues": ["Polymarket", "Kalshi"],
+      "title": "US CPI for August 2026 above 3.0% year over year?",
+      "market_ref": "pm:0x77e1…0b3c / ks:KXCPIYOY-26AUG-T3.0",
+      "legs": [
+        { "venue": "Polymarket", "side": "BUY YES", "price": 0.52, "size_usd": 12.0, "role": "long", "fee_usd": 0.0 },
+        { "venue": "Kalshi", "side": "BUY NO", "price": 0.47, "size_usd": 12.0, "role": "hedge", "fee_usd": 0.19 }
+      ],
+      "gross_edge_bps": 100,
+      "executable_net_edge_bps": -58,
+      "depth_usd": 12.0,
+      "capital_usd": 24.0,
+      "days_to_resolution": 6.0,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "net_edge_below_fees",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-03T05:39:28+00:00",
+      "last_seen_at": "2026-09-03T05:39:58+00:00",
+      "open_seconds": 30
+    }
+  ],
+  "paper_positions": [
+    {
+      "trade_id": "pt-20260903-0007",
+      "opportunity_id": "opp-20260903-0007",
+      "strategy": "cross_venue_parity",
+      "title": "Fed cuts rates at the September 2026 meeting?",
+      "opened_at": "2026-09-03T05:12:45+00:00",
+      "capital_usd": 360.0,
+      "expected_edge_bps": 96,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "pt-20260902-0021",
+      "opportunity_id": "opp-20260902-0021",
+      "strategy": "intra_market_complement",
+      "title": "Will the All-In podcast mention Nvidia this week?",
+      "opened_at": "2026-09-02T18:40:02+00:00",
+      "capital_usd": 40.0,
+      "expected_edge_bps": 88,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "pt-20260902-0016",
+      "opportunity_id": "opp-20260902-0016",
+      "strategy": "cross_venue_parity",
+      "title": "ECB holds rates in September 2026?",
+      "opened_at": "2026-09-02T09:15:44+00:00",
+      "capital_usd": 120.0,
+      "expected_edge_bps": 64,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "pt-20260901-0004",
+      "opportunity_id": "opp-20260901-0004",
+      "strategy": "cross_venue_parity",
+      "title": "Jobless claims above 230k for the week of 29 August?",
+      "opened_at": "2026-09-01T12:31:09+00:00",
+      "capital_usd": 80.0,
+      "expected_edge_bps": 110,
+      "status": "resolved",
+      "pnl_usd": 0.86
+    },
+    {
+      "trade_id": "pt-20260831-0002",
+      "opportunity_id": "opp-20260831-0002",
+      "strategy": "intra_market_complement",
+      "title": "Will it rain in New York on 3 September?",
+      "opened_at": "2026-08-31T22:02:50+00:00",
+      "capital_usd": 30.0,
+      "expected_edge_bps": 140,
+      "status": "resolved",
+      "pnl_usd": -0.41
+    }
+  ]
+}

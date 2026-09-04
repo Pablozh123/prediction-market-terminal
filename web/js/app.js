@@ -570,8 +570,11 @@ class Terminal {
 
   studienIndexAus(slug) {
     if (!slug) return -1;
+    // #research/arb_scan and #research/arb-scan are the same page: the file
+    // is arb_scan.json and the address gets typed from it.
+    const gesucht = String(slug).toLowerCase().replace(/_/g, '-');
     for (let i = 0; i < this.studies.length; i += 1) {
-      if (this.studienSlug(i) === slug) return i;
+      if (this.studienSlug(i) === gesucht) return i;
     }
     return -1;
   }
@@ -600,6 +603,11 @@ class Terminal {
       { label: 'TRACK RECORD', items: [
         this.navStudyByTab('Live runs'),
         this.navStudyByTab('Pilot')
+      ] },
+      // Rolling, not frozen: the scanner's file is rewritten every cycle and
+      // the page carries its own health strip, so it gets its own group.
+      { label: 'SCANNER · ROLLING', items: [
+        this.navStudyByTab('Arb scan', 'Arbitrage scan')
       ] },
       { label: 'STUDIES · FROZEN', items: [
         this.navStudyByTab('Microstructure'),

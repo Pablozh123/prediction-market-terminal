@@ -995,6 +995,12 @@ class ResearchFilesTests(unittest.TestCase):
         """Microstructure kommt aus public/data, nicht aus einem Sonderpfad."""
         self.assertEqual(apv.RESEARCH_FILES["microstructure"], "microstructure")
 
+    def test_arb_scan_unter_beiden_schreibweisen(self) -> None:
+        """Die Scanner-Datei heisst arb_scan.json; Bindestrich- und
+        Unterstrich-Adresse fuehren auf dieselbe Datei."""
+        self.assertEqual(apv.RESEARCH_FILES["arb-scan"], "arb_scan")
+        self.assertEqual(apv.RESEARCH_FILES["arb_scan"], "arb_scan")
+
 
 class LiveRunsExtrasTests(unittest.TestCase):
     def test_sims_calibration_and_monthly(self) -> None:

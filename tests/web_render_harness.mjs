@@ -7,6 +7,7 @@
 // document. Die Seitenmodule sind reine Funktionen ueber ein T-Objekt, also
 // wird hier ein T gebaut, das dieselben Felder und Helfer bereitstellt.
 
+import { readFileSync } from 'node:fs';
 import { esc, money, num, seriesPoints } from '../web/js/util.js';
 import { STUDIEN } from '../web/js/studies.js';
 import { renderOverview, renderMarkets, renderFlow, renderCross, renderResolved, landingSubline, verdictCounts } from '../web/js/pages/core_pages.js';
@@ -16,6 +17,13 @@ import { renderAlerts, renderResearch, renderSettings, collapseQueue, fillLatenz
 import { renderWallet } from '../web/js/pages/wallet_page.js';
 import { renderGraph } from '../web/js/pages/graph_page.js';
 import { renderDetail, renderSearch } from '../web/js/overlays.js';
+import { healthStand, verdiktSatz, teileChancen } from '../web/js/pages/arb_scan_page.js';
+
+// The arbitrage scanner's file in full (schema arb_scan/1), kept under tests/
+// so the harness never depends on what public/data happens to hold. Parsed
+// once; every use below takes its own copy.
+const ARB_FIXTURE = JSON.parse(readFileSync(new URL('./fixtures/arb_scan_example.json', import.meta.url), 'utf8'));
+const arbNutzlast = () => Object.assign({ _quelle: 'live' }, JSON.parse(JSON.stringify(ARB_FIXTURE)));
 
 const SEITEN = {
   overview: renderOverview, markets: renderMarkets, flow: renderFlow,
@@ -808,6 +816,8 @@ function mitDaten(T) {
   };
   // Postmortems: eine Referenz mit PR, Commit und Repo-Pfad — die Seite
   // macht daraus Links, der Rest bleibt Text.
+  // The arbitrage scan in the live pass carries the full fixture.
+  T.liveData.research['Arb scan'] = arbNutzlast();
   T.liveData.research['Postmortems'] = {
     _quelle: 'live', stand_utc: '2026-08-07T04:33:12+00:00', hinweis: 'Harness postmortem note.', kennzeichnung: 'curated/postmortem',
     eintraege: [{ datum: '2026-07-18', profil: 'harness_a', achse: 'Evaluation', titel: 'Harness incident',
@@ -1101,6 +1111,28 @@ function rendern(T) {
         ],
         beispiele: []
       }]],
+    // Arbitrage scan: the fixture as served, the loader's two markers (no
+    // file, failed fetch), a file whose lists are all empty, a file that
+    // carries nothing but its schema, and one whose last cycle is fresh so
+    // the health strip must not warn.
+    ['research_arb_scan', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Arb scan') }],
+    ['research_arb_scan_ohne_datei', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Arb scan') },
+      ['Arb scan', { _quelle: 'leer' }]],
+    ['research_arb_scan_fehler', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Arb scan') },
+      ['Arb scan', { _quelle: 'fehler', _fehler: 'HTTP 503' }]],
+    ['research_arb_scan_leere_listen', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Arb scan') },
+      ['Arb scan', {
+        _quelle: 'live', schema: 'arb_scan/1', generated_at: '2026-09-04T06:00:00+00:00',
+        generator: { repo: 'prediction-alpha-bot', git_sha: 'abcdef0123456789', mode: 'paper' },
+        disclaimer: 'Harness: empty scan.',
+        health: { last_cycle_at: '2026-09-04T05:00:00+00:00', cycles_24h: 0, errors_24h: 0, scan_interval_ms: 30000, alive: false },
+        summary: { raw_candidates_24h: 0, validated_24h: 0, paper_fired_24h: 0, open_paper_positions: 0, resolved_paper_trades: 0, resolved_paper_pnl_usd: null, sample_note: 'No resolved paper trades yet.' },
+        strategies: [], rejections_24h: [], opportunities: [], paper_positions: []
+      }]],
+    ['research_arb_scan_nur_schema', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Arb scan') },
+      ['Arb scan', { _quelle: 'live', schema: 'arb_scan/1' }]],
+    ['research_arb_scan_frisch', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Arb scan') },
+      ['Arb scan', (() => { const p = arbNutzlast(); p.health.last_cycle_at = new Date().toISOString(); return p; })()]],
     ['copy_fidelity', 'copy', { copyTab: 'fidelity' }],
     // The copy desk: every tab, the trader filter, the inline edit and
     // top-up rows, a read-only host (remote, no token) and one asking for a
@@ -1519,6 +1551,30 @@ function rendern(T) {
     ohne_drop_erster: fillLatenzS(ohneDrop, ohneDrop.wetten[0]),
     ohne_drop_spaeter: fillLatenzS(ohneDrop, ohneDrop.wetten[1]),
     ohne_alles: fillLatenzS({ wetten: [] }, {})
+  });
+  // Arbitrage scan, pure readings with a pinned clock: the health rule
+  // (three scan intervals), the verdict sentence, and the split of the
+  // candidates into the upper and the folded table.
+  const letzterZyklus = Date.parse(ARB_FIXTURE.health.last_cycle_at);
+  raus['_arb_health'] = JSON.stringify({
+    frisch: healthStand(ARB_FIXTURE.health, letzterZyklus + 20 * 1000),
+    an_der_grenze: healthStand(ARB_FIXTURE.health, letzterZyklus + 90 * 1000),
+    alt: healthStand(ARB_FIXTURE.health, letzterZyklus + 3 * 60 * 1000),
+    tot: healthStand({ alive: false, last_cycle_at: ARB_FIXTURE.health.last_cycle_at, scan_interval_ms: 30000, cycles_24h: 5, errors_24h: 1 }, letzterZyklus + 1000),
+    leer: healthStand(null, letzterZyklus),
+    ohne_intervall: healthStand({ alive: true, last_cycle_at: ARB_FIXTURE.health.last_cycle_at }, letzterZyklus + 10 * 3600 * 1000)
+  });
+  raus['_arb_verdikt'] = JSON.stringify({
+    voll: verdiktSatz(ARB_FIXTURE.summary),
+    ohne_resolved: verdiktSatz({ raw_candidates_24h: 1, validated_24h: 1 }),
+    leer: verdiktSatz({}),
+    nur_validated: verdiktSatz({ validated_24h: 3 }),
+    null_werte: verdiktSatz({ raw_candidates_24h: 0, validated_24h: 0, resolved_paper_trades: 0 })
+  });
+  const teilung = teileChancen(ARB_FIXTURE.opportunities);
+  raus['_arb_teilung'] = JSON.stringify({
+    oben: teilung.oben.map((o) => o.id), unten: teilung.unten.map((o) => o.id),
+    ohne_status: teileChancen([{ id: 'a', rejection_reason: 'x' }, { id: 'b' }, { id: 'c', status: 'weird' }]).unten.map((o) => o.id)
   });
   return raus;
 }

@@ -40,6 +40,7 @@ const STATISCH = {
   '/api/research/field-notes': 'field_notes.json',
   '/api/research/wallet-ledger': 'wallet_ledger.json',
   '/api/research/meta': 'meta.json',
+  '/api/research/arb-scan': 'arb_scan.json',
 };
 
 // Kein Endpunkt darf die Seite unbegrenzt haengen lassen. /api/risk baut beim
