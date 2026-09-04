@@ -2224,6 +2224,13 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("open stake does not dilute it", text)
         self.assertIn("measured against the one-time deposit", text)
 
+    def test_die_wallet_sagt_wenn_zwei_kacheln_dieselbe_zahl_zeigen(self) -> None:
+        # "PNL PER $ OF VOLUME" und die realisierte Rendite je Dollar sind
+        # algebraisch dieselbe Zahl. Zwei Kacheln mit derselben Zahl unter
+        # zwei Namen lesen sich wie zwei Belege; es ist einer.
+        text = _sichtbarer_text(self.ausgabe["live"]["wallet_tab_record"])
+        self.assertIn("the same figure as the realized edge below, without its interval", text)
+
     def test_backtester_trefferquote_zaehlt_nur_geschlossene_kopien(self) -> None:
         """Offene Kopien duerfen die Trefferquote nicht verduennen.
 

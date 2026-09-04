@@ -157,6 +157,59 @@ class TrackRecordTests(unittest.TestCase):
         self.assertTrue(any("extremes only" in f for f in r["flags"]))
 
 
+class PnlPerVolumeIsTheEdgeTests(unittest.TestCase):
+    """``pnl_per_volume`` und die realisierte Rendite je Dollar sind dieselbe
+    Zahl, und die Wallet-Seite zeigt beide.
+
+    Algebraisch: die Rendite ist ``payout / cost - 1``, und ``payout`` ist
+    ``cost + pnl``, also ``pnl / cost``. ``pnl_per_volume`` ist ``settled_pnl
+    / volume``, und ``volume`` ist dieselbe Summe ueber ``stake_usd`` wie
+    ``cost``. Die Kachel sagt das seit eben dazu; dieser Test haelt fest, dass
+    es stimmt, damit die Beschriftung nicht falsch wird, wenn eine der beiden
+    Definitionen sich aendert.
+    """
+
+    def _closed(self) -> pd.DataFrame:
+        return pd.DataFrame([
+            {"market_key": "0xa", "title": "A", "realized_pnl": 40.0,
+             "total_bought": 200.0, "avg_price": 0.5, "time": "2026-07-01T00:00:00Z"},
+            {"market_key": "0xb", "title": "B", "realized_pnl": -30.0,
+             "total_bought": 100.0, "avg_price": 0.3, "time": "2026-07-10T00:00:00Z"},
+            {"market_key": "0xc", "title": "C", "realized_pnl": 12.5,
+             "total_bought": 50.0, "avg_price": 0.8, "time": "2026-07-20T00:00:00Z"},
+        ])
+
+    def test_die_beiden_kennzahlen_sind_dieselbe_zahl(self) -> None:
+        from app import perf_metrics as perf
+
+        closed = self._closed()
+        record = tr.track_record(closed, None, None)
+
+        df = closed.copy()
+        df["cost"] = tr.stake_usd(df)
+        df["payout"] = df["cost"] + pd.to_numeric(df["realized_pnl"], errors="coerce").fillna(0.0)
+        df["group"] = df.apply(tr._event_key, axis=1)
+        edge = perf.cluster_bootstrap_edge(df, "group", cost_column="cost", payout_column="payout")
+
+        self.assertIsNotNone(edge["edge"])
+        self.assertAlmostEqual(record["pnl_per_volume"], edge["edge"], places=12)
+
+    def test_die_identitaet_haelt_auch_bei_verlust(self) -> None:
+        from app import perf_metrics as perf
+
+        closed = self._closed()
+        closed.loc[0, "realized_pnl"] = -90.0
+        record = tr.track_record(closed, None, None)
+        df = closed.copy()
+        df["cost"] = tr.stake_usd(df)
+        df["payout"] = df["cost"] + pd.to_numeric(df["realized_pnl"], errors="coerce").fillna(0.0)
+        df["group"] = df.apply(tr._event_key, axis=1)
+        edge = perf.cluster_bootstrap_edge(df, "group", cost_column="cost", payout_column="payout")
+
+        self.assertLess(record["pnl_per_volume"], 0)
+        self.assertAlmostEqual(record["pnl_per_volume"], edge["edge"], places=12)
+
+
 class ActivityReconstructionTests(unittest.TestCase):
     def _activity(self, rows):
         return pd.DataFrame(rows)
