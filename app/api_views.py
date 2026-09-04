@@ -914,6 +914,7 @@ def _wallet_track_record(
             "span_days": _num(track.get("span_days")),
             "min_markets": trec.MIN_RESOLVED_MARKETS,
             "min_span_days": trec.MIN_SPAN_DAYS,
+            "note": survivorship_gate_note(),
         },
         "concentration": {
             "top_market_share": _num(track.get("top_market_share")),
@@ -1109,6 +1110,33 @@ def _wallet_edge(
         "per_share": dict(realized) if realized else None,
         "by_category": by_category,
     }
+
+
+def survivorship_gate_note(min_markets: int = trec.MIN_RESOLVED_MARKETS,
+                           min_span_days: float = trec.MIN_SPAN_DAYS) -> str:
+    """Warum die Schwelle da liegt, wo sie liegt, mit gerechnetem Beispiel.
+
+    Neben der Kachel stand bisher nur, was die Schwelle ist. Ohne den Grund
+    liest sich eine niedrigere Zahl als laxere Pruefung, und die Schwelle
+    eines anderen Anbieters als die serioesere. Sie ist beides nicht: der
+    Deckel entscheidet, ob ueberhaupt eine Zahl gezeigt wird, nicht ob man
+    ihr glauben darf. Das entscheidet das Intervall daneben, und genau das
+    sagt der Satz -- mit dem Intervall, das an der Schwelle selbst gilt,
+    gerechnet mit derselben Funktion wie jede andere Spanne der Seite.
+    """
+
+    n = max(1, int(min_markets))
+    # Sieben von zehn: eine Quote, die auf einer Bestenliste stark aussieht.
+    wins = max(1, min(n - 1, int(round(n * 0.7))))
+    spanne = _wilson(wins, n)
+    tage = int(min_span_days) if float(min_span_days).is_integer() else min_span_days
+    satz = (f"The gate is {n} resolved markets and {tage} days of span. It decides whether a "
+            "number is shown at all, not whether it can be believed.")
+    if spanne:
+        satz += (f" At exactly {n} markets a {wins}/{n} record still carries a 95% interval of "
+                 f"{spanne[0] * 100:.0f}% to {spanne[1] * 100:.0f}%, so the interval beside "
+                 "each rate is what settles it, and a record just over the gate settles nothing.")
+    return satz
 
 
 def _wallet_positions(positions: pd.DataFrame | None, as_of: str, requested: int) -> dict[str, Any]:

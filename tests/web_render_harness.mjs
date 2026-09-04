@@ -866,7 +866,10 @@ function walletNutzlast() {
       legs_netted: 1, leg_inflation: 1.03, win_rate_reliable: true,
       settled_pnl: 210.0, volume: 600.0, pnl_per_volume: 0.35, exit_win_rate: 1.0,
       wash_flag: { flag: false, rule: 'volume >= $25,000 and |settled PnL| / volume < 0.5% over >= 5 resolved markets' },
-      survivorship_gate: { ok: false, resolved_markets: 12, span_days: 11.0, min_markets: 10, min_span_days: 14.0 },
+      // note kommt aus api_views.survivorship_gate_note: der Grund fuer die
+      // Schwelle, mit dem an der Schwelle gerechneten Intervall.
+      survivorship_gate: { ok: false, resolved_markets: 12, span_days: 11.0, min_markets: 10, min_span_days: 14.0,
+        note: 'The gate is 10 resolved markets and 14 days of span. It decides whether a number is shown at all, not whether it can be believed. At exactly 10 markets a 7/10 record still carries a 95% interval of 40% to 89%, so the interval beside each rate is what settles it, and a record just over the gate settles nothing.' },
       concentration: { top_market_share: 0.2222, top3_share: 0.6667, top3: [{ title: 'Harness market 0?', pnl: 60.0, share: 0.2222 }, { title: 'Harness market 2?', pnl: 60.0, share: 0.2222 }, { title: 'Harness market 4?', pnl: 60.0, share: 0.2222 }], one_hit_flag: false },
       risk_adjusted: 0.42, score: 27.0, grade: 'F',
       score_components: [{ label: 'insufficient sample (15 + resolved markets, capped at 30)', value: 27.0, max: 30 }],

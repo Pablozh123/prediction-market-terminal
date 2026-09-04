@@ -402,6 +402,17 @@ class WebLeerzustandTest(unittest.TestCase):
         quelltext = (WURZEL / "web" / "js" / "app.js").read_text(encoding="utf-8")
         self.assertIn("min_holder=", quelltext)
 
+    def test_die_sample_schranke_sagt_wozu_sie_da_ist(self) -> None:
+        # Neben der Kachel stand nur die Schwelle. Ohne den Grund liest sich
+        # eine niedrigere Schwelle als laxere Pruefung, und die eines anderen
+        # Anbieters als die serioesere. Der Satz kommt aus dem Endpunkt, das
+        # Intervall darin ist gerechnet.
+        text = _sichtbarer_text(self.ausgabe["live"]["wallet_tab_record"])
+        self.assertIn("The gate is 10 resolved markets and 14 days of span", text)
+        self.assertIn("whether a number is shown at all", text)
+        self.assertIn("not whether it can be believed", text)
+        self.assertIn("95% interval of 40% to 89%", text)
+
     def test_abgeschnittene_signalliste_sagt_es(self) -> None:
         live = _sichtbarer_text(self.ausgabe["live"]["alerts"])
         self.assertIn("showing the top 60 of 125 signals", live)

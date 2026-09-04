@@ -630,8 +630,15 @@ function renderTrackRecord(d) {
   const flags = Array.isArray(tr.flags) && tr.flags.length
     ? '<div style="display:flex; gap:var(--sp-3); flex-wrap:wrap; margin-top:var(--sp-4)">' + tr.flags.map((f) => '<span style="' + M + '; font-size:var(--t-micro); color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">' + esc(f) + '</span>').join('') + '</div>'
     : '<div style="' + NOTIZ + '; margin-top:var(--sp-4)">No flags: sample gate passed, no wash pattern, no one-hit concentration.</div>';
+  // Warum die Schwelle so liegt. Neben der Kachel stand nur, was sie ist;
+  // ohne den Grund liest sich eine niedrigere Zahl als laxere Pruefung. Der
+  // Satz und das Intervall darin kommen aus dem Endpunkt, gerechnet mit
+  // derselben Wilson-Funktion wie jede andere Spanne dieser Seite.
+  const gateNote = gate.note
+    ? '<div style="' + NOTIZ + '; margin-top:var(--sp-4)">' + esc(gate.note) + '</div>'
+    : '';
   const cov = '<div style="' + NOTIZ + '; margin-top:var(--sp-4)">' + esc(tr.coverage_note || '') + (tr.capped ? ' Both tails hit the ~50-row cap: the middle of the record is unreachable, and win rate, edge and PnL describe the extremes only.' : '') + '</div>';
-  return card('TRACK RECORD · NAIVE VS CORRECTED', rates + factsHtml + top3 + parts + flags + cov, 'as of ' + esc(tr.as_of || '') + ' · ' + esc(tr.source || '') + (tr.capped ? ' · CAPPED' : ''));
+  return card('TRACK RECORD · NAIVE VS CORRECTED', rates + factsHtml + top3 + parts + flags + gateNote + cov, 'as of ' + esc(tr.as_of || '') + ' · ' + esc(tr.source || '') + (tr.capped ? ' · CAPPED' : ''));
 }
 
 function renderPnl(d) {
