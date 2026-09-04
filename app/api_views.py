@@ -2095,8 +2095,17 @@ def risk_payload(
     }
 
 
-#: Wie viele Signalzeilen der Feed hoechstens ausliefert.
+#: Wie viele Signalzeilen die Tabelle auf einmal zeigt. Die Seite blaettert in
+#: Schritten dieser Groesse durch das, was der Endpunkt geliefert hat.
 ALERT_ROW_LIMIT = 60
+
+#: Wie viele Signalzeilen der Endpunkt hoechstens ausliefert. Der Schnitt lag
+#: bei 60, also endete der Feed dort, wo die erste Seite endet, und der Rest
+#: eines Scans war ueber die Oberflaeche nicht erreichbar. Eine Zeile wiegt
+#: rund 150 Byte, 400 Zeilen also rund 60 KB -- billiger als ein zweiter
+#: Aufruf je Seite, und die Filter der Seite arbeiten damit ueber den ganzen
+#: gelieferten Satz statt ueber dessen erste 60 Zeilen.
+ALERT_ROW_CAP = 400
 
 
 def alert_rule_counts(signals: pd.DataFrame) -> dict[str, int]:
@@ -2283,13 +2292,13 @@ def alert_delivery_view(aggregates: Mapping[str, Any] | None,
     return basis
 
 
-def alert_rows(signals: pd.DataFrame) -> list[dict[str, Any]]:
+def alert_rows(signals: pd.DataFrame, limit: int = ALERT_ROW_CAP) -> list[dict[str, Any]]:
     """`sig.build_monitor_signals`-Frame in die Signal-Feed-Zeilen."""
 
     if signals is None or signals.empty:
         return []
     rows: list[dict[str, Any]] = []
-    for _, row in signals.head(ALERT_ROW_LIMIT).iterrows():
+    for _, row in signals.head(max(0, int(limit))).iterrows():
         time_label = _text(row.get("time"))
         if "T" in time_label:
             time_label = time_label.split("T")[1][:5]

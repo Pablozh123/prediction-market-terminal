@@ -675,13 +675,13 @@ class AlertRowsTests(unittest.TestCase):
         self.assertTrue(rows[1]["watched"])
 
     def test_counts_cover_the_whole_scan_not_the_shown_rows(self) -> None:
-        # Der Feed schneidet nach ALERT_ROW_LIMIT ab. Wer die Treffer aus den
-        # gezeigten Zeilen zaehlt, meldet fuer die abgeschnittene Art null,
+        # Der Feed schneidet nach ALERT_ROW_CAP ab. Wer die Treffer aus den
+        # gelieferten Zeilen zaehlt, meldet fuer die abgeschnittene Art null,
         # obwohl der Scan sie gefunden hat.
         viele = [
             {"signal_type": "Ending soon", "time": "2026-07-31T14:00:00Z", "title": f"m{i}",
              "platform": "Polymarket", "value": 0.5, "reason": "ends soon"}
-            for i in range(apv.ALERT_ROW_LIMIT + 5)
+            for i in range(apv.ALERT_ROW_CAP + 5)
         ]
         viele.append({"signal_type": "Whale print", "time": "2026-07-31T13:00:00Z",
                       "title": "late whale", "platform": "Polymarket", "notional": 9000.0,
@@ -689,12 +689,33 @@ class AlertRowsTests(unittest.TestCase):
         signals = pd.DataFrame(viele)
 
         rows = apv.alert_rows(signals)
-        self.assertEqual(len(rows), apv.ALERT_ROW_LIMIT)
+        self.assertEqual(len(rows), apv.ALERT_ROW_CAP)
         self.assertNotIn("WHALE PRINT", {r["rule"] for r in rows})
 
         counts = apv.alert_rule_counts(signals)
         self.assertEqual(counts["WHALE PRINT"], 1)
-        self.assertEqual(counts["ENDING SOON"], apv.ALERT_ROW_LIMIT + 5)
+        self.assertEqual(counts["ENDING SOON"], apv.ALERT_ROW_CAP + 5)
+
+    def test_the_feed_delivers_past_one_page(self) -> None:
+        # Der Schnitt lag auf der Seitengroesse: was die erste Seite nicht
+        # zeigte, kam gar nicht erst an, und kein Blaettern haette es holen
+        # koennen. Geliefert wird jetzt bis ALERT_ROW_CAP.
+        self.assertGreater(apv.ALERT_ROW_CAP, apv.ALERT_ROW_LIMIT)
+        viele = pd.DataFrame([
+            {"signal_type": "Ending soon", "time": "2026-07-31T14:00:00Z", "title": f"m{i}",
+             "platform": "Polymarket", "value": 0.5, "reason": "ends soon"}
+            for i in range(apv.ALERT_ROW_LIMIT * 3)
+        ])
+        self.assertEqual(len(apv.alert_rows(viele)), apv.ALERT_ROW_LIMIT * 3)
+
+    def test_an_explicit_limit_wins_and_zero_yields_nothing(self) -> None:
+        viele = pd.DataFrame([
+            {"signal_type": "Ending soon", "time": "2026-07-31T14:00:00Z", "title": f"m{i}",
+             "platform": "Polymarket", "value": 0.5, "reason": "ends soon"}
+            for i in range(10)
+        ])
+        self.assertEqual(len(apv.alert_rows(viele, limit=4)), 4)
+        self.assertEqual(apv.alert_rows(viele, limit=0), [])
 
     def test_counts_on_an_empty_frame(self) -> None:
         self.assertEqual(apv.alert_rule_counts(pd.DataFrame()), {})

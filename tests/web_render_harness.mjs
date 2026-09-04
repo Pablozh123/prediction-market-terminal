@@ -27,6 +27,28 @@ const arbNutzlast = () => Object.assign({ _quelle: 'live' }, JSON.parse(JSON.str
 // Swap the scanner payload on the Cross-venue page for one variant.
 const arbMit = (p) => (T) => { const alt = T.liveData.arbScan; T.liveData.arbScan = p; return () => { T.liveData.arbScan = alt; }; };
 
+// 150 gelieferte Signalzeilen: mehr als eine Seite (60), weniger als der
+// Schnitt des Endpunkts (400). Der zweite Aufruf setzt den Seitenzaehler.
+function viele_signale(seite) {
+  return (T) => {
+    const alt = T.liveData.alerts;
+    const altSeite = T.state.alertPage;
+    const zeilen = [];
+    for (let i = 0; i < 150; i += 1) {
+      zeilen.push({
+        time: '12:00', rule: 'WHALE PRINT', market: 'Question ' + i,
+        value: '$9k', venue: 'Polymarket', watched: false
+      });
+    }
+    T.liveData.alerts = Object.assign({}, alt, {
+      signals: zeilen, page_size: 60, delivered_cap: 400,
+      rule_counts: { 'WHALE PRINT': 150 }
+    });
+    T.state.alertPage = seite;
+    return () => { T.liveData.alerts = alt; T.state.alertPage = altSeite; };
+  };
+}
+
 const SEITEN = {
   overview: renderOverview, markets: renderMarkets, flow: renderFlow,
   cross: renderCross, resolved: renderResolved,
@@ -61,7 +83,7 @@ function neuesT() {
       resQuery: '', resAnswer: 'all', resWindow: 'all', resError: 'all', resSort: 'recent',
       setMarketSample: 250, setTradeSample: 250, setWhale: 2500, setBankroll: 1000,
       setFee: 20, setSlip: 15, alertTab: 'signals', alertQuery: '', alertPlatform: 'all',
-      alertType: 'all', alertScope: 'all', thMove: 5, thSpread: 3, thWhale: 2500,
+      alertType: 'all', alertScope: 'all', alertPage: 1, thMove: 5, thSpread: 3, thWhale: 2500,
       thEnding: 72, thHolder: 40, riskFilter: 'all', riskOpen: {}, detail: null, searchOpen: false,
       searchQuery: '', btStrategy: 'copy', btWindow: 30, btWallet: '0xabc', btSizing: 'fixed',
       btStakeFixed: 25, btStakePct: 2, btStakeMult: 1, btStakeKelly: 5, btCap: 250,
@@ -1031,6 +1053,11 @@ function rendern(T) {
     ['backtester_flat_fee', 'backtester', { advancedOpen: true, btFeeModel: 'flat' }],
     ['alerts_rules', 'alerts', { alertTab: 'rules' }],
     ['alerts_deliveries', 'alerts', { alertTab: 'deliveries' }],
+    // Eine Lieferung, die laenger ist als eine Seite: der Fuss muss sagen,
+    // wie viel gerade zu sehen ist, und weiterblaettern koennen. Vorher
+    // endete die Lieferung selbst auf der Seitengroesse.
+    ['alerts_lang', 'alerts', {}, null, viele_signale(1)],
+    ['alerts_lang_seite2', 'alerts', {}, null, viele_signale(2)],
     ['risk_wallets', 'risk', { riskView: 'wallets' }],
     ['risk_fresh', 'risk', { riskView: 'fresh' }],
     ['risk_timing', 'risk', { riskView: 'timing' }],

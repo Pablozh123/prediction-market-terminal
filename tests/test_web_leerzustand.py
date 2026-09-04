@@ -404,12 +404,34 @@ class WebLeerzustandTest(unittest.TestCase):
 
     def test_abgeschnittene_signalliste_sagt_es(self) -> None:
         live = _sichtbarer_text(self.ausgabe["live"]["alerts"])
-        self.assertIn("showing the top 60 of 125 signals", live)
+        # Der Satz gilt der Lieferung, nicht der Seite: geliefert wurden drei
+        # Zeilen, gefunden hat der Scan 125.
+        self.assertIn("delivered the top 3 of 125 signals", live)
         # Eine Art, die der Schnitt komplett verschluckt, wird benannt —
         # sonst widerspricht ihre Regelkarte scheinbar der Tabelle.
         self.assertIn("none of ENDING SOON (120) made the cut", live)
         # Eine Art mit null Treffern gehoert nicht in diese Aufzaehlung.
         self.assertNotIn("FAST MOVER (0)", live)
+
+    def test_lange_signalliste_laesst_sich_blaettern(self) -> None:
+        # 150 gelieferte Zeilen, Seitengroesse 60. Die Seite sagt, wie viele
+        # davon zu sehen sind, und bietet den Rest an. Vorher endete die
+        # Lieferung selbst bei 60 und der Rest war unerreichbar.
+        seite1 = _sichtbarer_text(self.ausgabe["live"]["alerts_lang"])
+        self.assertIn("showing 60 of 150 signals matching these filters", seite1)
+        self.assertIn("show 60 more", seite1)
+        self.assertNotIn("collapse", seite1)
+
+        seite2 = _sichtbarer_text(self.ausgabe["live"]["alerts_lang_seite2"])
+        self.assertIn("showing 120 of 150 signals matching these filters", seite2)
+        # Der letzte Schritt nennt den echten Rest, nicht wieder die volle
+        # Seitengroesse.
+        self.assertIn("show 30 more", seite2)
+        self.assertIn("collapse", seite2)
+
+        # Eine Lieferung, die auf eine Seite passt, bekommt keinen Fuss.
+        kurz = _sichtbarer_text(self.ausgabe["live"]["alerts"])
+        self.assertNotIn("signals matching these filters", kurz)
 
     def test_regelschalter_blenden_aus_und_sagen_es(self) -> None:
         live = _sichtbarer_text(self.ausgabe["live"]["alerts"])

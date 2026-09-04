@@ -1994,7 +1994,13 @@ def alerts(
         "rule_counts": gebaut["rule_counts"],
         "rules_not_evaluated": gebaut["rules_not_evaluated"],
         "holder_check": holder,
+        # Zwei verschiedene Zahlen, und die Seite braucht beide: page_size ist
+        # der Seitenschritt der Tabelle, delivered_cap der Schnitt, hinter dem
+        # der Endpunkt selbst nichts mehr schickt. shown_limit bleibt als
+        # Seitenschritt stehen, damit ein aelteres Frontend weiterlaeuft.
         "shown_limit": apv.ALERT_ROW_LIMIT,
+        "page_size": apv.ALERT_ROW_LIMIT,
+        "delivered_cap": apv.ALERT_ROW_CAP,
         "deliveries": apv.alert_delivery_view(_delivery_aggregates(), scanner_state),
         "as_of": md.now_utc_label(),
     }

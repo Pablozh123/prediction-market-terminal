@@ -415,22 +415,34 @@ export function renderAlerts(T) {
   // benennt, und sonst nichts.
   const sichtbar = (a) => abgeschaltet.indexOf(a.rule) < 0;
   const ausgeblendet = feedAll.length - feedAll.filter(sichtbar).length;
-  const feed = feedAll.filter((a) =>
+  const passend = feedAll.filter((a) =>
     sichtbar(a)
     && (s.alertPlatform === 'all' || a.venue === s.alertPlatform)
     && (s.alertType === 'all' || a.rule === s.alertType)
     && (s.alertScope === 'all' || a.watched)
     && (!s.alertQuery.trim() || a.market.toLowerCase().indexOf(s.alertQuery.trim().toLowerCase()) >= 0));
 
+  // Geblaettert wird ueber das, was der Endpunkt geliefert hat. Vorher endete
+  // die Lieferung selbst bei 60 Zeilen: die Tabelle war damit nicht nur kurz,
+  // der Rest des Scans war ueber die Oberflaeche gar nicht erreichbar, und
+  // jeder Filter suchte nur in den ersten 60 Zeilen.
+  const seitenschritt = (live && (live.page_size || live.shown_limit)) || 60;
+  const gezeigt = Math.min(passend.length, seitenschritt * Math.max(1, s.alertPage || 1));
+  const feed = passend.slice(0, gezeigt);
+  const restSeite = passend.length - gezeigt;
+
   let body = '';
   if (s.alertTab === 'signals') {
     body = '<div>'
       + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); padding:var(--sp-5) var(--sp-6) 0">showing signals over ' + s.thMove + '¢ moves, prints above $' + num(s.thWhale) + ', spreads under ' + s.thSpread + '¢, resolving within ' + s.thEnding + ' h' + (live && live.as_of ? ' · snapshot ' + esc(live.as_of) : '') + '</div>'
       // Der Schnitt gehoert danebengeschrieben. Eine Tabelle, die 60 von 300
-      // Zeilen zeigt und das verschweigt, liest sich wie der ganze Scan.
-      + (zaehlung && live.shown_limit && gesamtTreffer > live.shown_limit
+      // Zeilen zeigt und das verschweigt, liest sich wie der ganze Scan. Der
+      // Satz gilt jetzt der Lieferung, nicht der Seite: was geliefert wurde,
+      // ist ueber "show more" vollstaendig erreichbar, was der Endpunkt gar
+      // nicht erst geschickt hat, bleibt unerreichbar und muss dastehen.
+      + (zaehlung && feedAll.length && gesamtTreffer > feedAll.length
         ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--warn); padding:var(--sp-3) var(--sp-6) 0">'
-          + 'showing the top ' + live.shown_limit + ' of ' + num(gesamtTreffer) + ' signals in this scan, ranked by severity'
+          + 'delivered the top ' + num(feedAll.length) + ' of ' + num(gesamtTreffer) + ' signals in this scan, ranked by severity'
           // Welche Art der Schnitt komplett verschluckt. Ohne den Zusatz
           // widerspricht die Regelkarte scheinbar der Tabelle: sie meldet
           // hundert Treffer fuer eine Art, von der keine Zeile zu sehen ist.
@@ -455,12 +467,27 @@ export function renderAlerts(T) {
         + '<div style="' + M + '; font-size:var(--t-small); text-align:right">' + esc(a.value) + '</div>'
         + '<div style="' + M + '; font-size:var(--t-small); text-align:right; color:var(--ink-3)">' + esc(a.venue) + '</div></div>'
       ).join('')
+      // Der Fuss sagt, wie viel von der Lieferung gerade auf dem Schirm ist,
+      // und blaettert weiter. Ohne ihn endete die Liste ohne Hinweis darauf,
+      // dass unter der letzten Zeile noch etwas liegt.
+      + (passend.length > seitenschritt
+        ? '<div style="display:flex; align-items:center; justify-content:space-between; gap:var(--sp-4); padding:var(--sp-4) var(--sp-5); border-top:1px solid var(--line-2)">'
+          + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">'
+          + 'showing ' + num(feed.length) + ' of ' + num(passend.length) + ' signals matching these filters</div>'
+          + '<div style="display:flex; gap:var(--sp-3)">'
+          + (restSeite > 0
+            ? T.opt('show ' + num(Math.min(restSeite, seitenschritt)) + ' more', false,
+              { alertPage: Math.max(1, s.alertPage || 1) + 1 })
+            : '')
+          + (s.alertPage > 1 ? T.opt('collapse', false, { alertPage: 1 }) : '')
+          + '</div></div>'
+        : '')
       + '</div></div>';
   } else if (s.alertTab === 'rules') {
     body = '<div style="padding:var(--sp-5) var(--sp-6); display:grid; grid-template-columns:repeat(3,1fr); gap:var(--sp-5)">'
       + rules.map((a) => {
         const on = !!s.alertsOn[a.key];
-        return '<div ' + T.act(() => T.setState({ alertsOn: Object.assign({}, s.alertsOn, { [a.key]: !on }) })) + ' style="border-radius:var(--r-panel); padding:var(--sp-5); cursor:pointer; background:var(--panel); border:1px solid ' + (on ? 'rgba(var(--accent-rgb),.35)' : 'rgba(var(--ink),.09)') + '">'
+        return '<div ' + T.act(() => T.setState({ alertsOn: Object.assign({}, s.alertsOn, { [a.key]: !on }), alertPage: 1 })) + ' style="border-radius:var(--r-panel); padding:var(--sp-5); cursor:pointer; background:var(--panel); border:1px solid ' + (on ? 'rgba(var(--accent-rgb),.35)' : 'rgba(var(--ink),.09)') + '">'
           + '<div style="display:flex; align-items:center; justify-content:space-between; gap:var(--sp-4)">'
           + '<div style="font-size:var(--t-lead); font-weight:600">' + a.name + '</div>'
           + '<div style="width:38px; height:21px; flex:none; border-radius:var(--r-panel); padding:var(--sp-1); display:flex; background:' + (on ? 'var(--accent)' : 'rgba(var(--ink),.14)') + '; justify-content:' + (on ? 'flex-end' : 'flex-start') + '">'
@@ -529,10 +556,10 @@ export function renderAlerts(T) {
     // diesen Schaltern — die entscheiden, was diese Seite zeigt.
     + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-3); max-width:700px">The thresholds below are sent to the scan. The switches decide which of its signal types this page shows; Telegram delivery is configured on the scanner, not here.</div></div>'
     + '<div style="padding:var(--sp-5) var(--sp-6) 0; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:var(--sp-5)">'
-    + '<div><div style="' + LABEL_BLOCK + '">SEARCH</div><input value="' + esc(s.alertQuery) + '" ' + T.inp((e) => T.setState({ alertQuery: e.target.value }), 'alertQuery') + ' placeholder="market, wallet, category…" style="width:100%; box-sizing:border-box; background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text)" /></div>'
-    + filterGroup('PLATFORM', [['all','All'],['Polymarket','Polymarket'],['Kalshi','Kalshi']].map((o) => T.opt(o[1], s.alertPlatform === o[0], { alertPlatform: o[0] })).join(''))
-    + filterGroup('SIGNAL TYPE', [['all','All'],['WHALE PRINT','Whale prints'],['FAST MOVER','Fast movers'],['VOLUME ANOMALY','Volume']].map((o) => T.opt(o[1], s.alertType === o[0], { alertType: o[0] })).join(''))
-    + filterGroup('SCOPE', [['all','Everything'],['watched','Watched only']].map((o) => T.opt(o[1], s.alertScope === o[0], { alertScope: o[0] })).join(''))
+    + '<div><div style="' + LABEL_BLOCK + '">SEARCH</div><input value="' + esc(s.alertQuery) + '" ' + T.inp((e) => T.setState({ alertQuery: e.target.value, alertPage: 1 }), 'alertQuery') + ' placeholder="market, wallet, category…" style="width:100%; box-sizing:border-box; background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text)" /></div>'
+    + filterGroup('PLATFORM', [['all','All'],['Polymarket','Polymarket'],['Kalshi','Kalshi']].map((o) => T.opt(o[1], s.alertPlatform === o[0], { alertPlatform: o[0], alertPage: 1 })).join(''))
+    + filterGroup('SIGNAL TYPE', [['all','All'],['WHALE PRINT','Whale prints'],['FAST MOVER','Fast movers'],['VOLUME ANOMALY','Volume']].map((o) => T.opt(o[1], s.alertType === o[0], { alertType: o[0], alertPage: 1 })).join(''))
+    + filterGroup('SCOPE', [['all','Everything'],['watched','Watched only']].map((o) => T.opt(o[1], s.alertScope === o[0], { alertScope: o[0], alertPage: 1 })).join(''))
     + '</div>'
     // Diese vier Schwellen gehen an den Endpunkt und loesen einen neuen Scan
     // aus. Frueher aenderten sie nur den Text darueber.
