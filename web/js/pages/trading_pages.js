@@ -233,6 +233,12 @@ export function renderBacktester(T) {
     + (live && live.stats && live.stats.window_truncated
       ? ' · window truncated at the engine\'s trade cap' + (live.stats.effective_start ? ' — data reaches back to ' + live.stats.effective_start : '')
       : '')
+    // "Match trader %": woran die Anteile haengen. Die Kasse kommt vom
+    // Polygon-RPC; ist sie nicht lesbar, steht das dran.
+    + (live && live.trader_portfolio
+      ? ' · trader portfolio $' + num(Math.round(+live.trader_portfolio.total))
+        + (live.trader_portfolio.cash_read ? ' (open positions + cash)' : ' (open positions only, cash not readable)')
+      : '')
     // Bewertungskurve: wie viele Positionen unterwegs zum Marktpreis
     // stehen. Ohne Verlauf laeuft eine gehaltene Position als Gerade.
     + (st && st.mark_to_market && st.mark_to_market.positions_total
@@ -274,13 +280,10 @@ export function renderBacktester(T) {
   ] : [];
 
   const stakeLabel = s.btSizing === 'pct' ? 'STAKE (% OF BANKROLL)' : s.btSizing === 'match' ? "MULTIPLIER (× TRADER'S SHARE)" : s.btSizing === 'kelly' ? 'ASSUMED EDGE (PROBABILITY POINTS)' : 'STAKE PER COPY ($)';
-  const stakeValue = s.btSizing === 'pct' ? s.btStakePct.toFixed(1) + '%' : s.btSizing === 'match' ? '×' + s.btStakeMult.toFixed(1) : s.btSizing === 'kelly' ? s.btStakeKelly.toFixed(1) + ' pts' : '$' + s.btStakeFixed;
   const stakeHint = s.btSizing === 'pct' ? 'Each copy bets ' + s.btStakePct.toFixed(1) + '% of your bankroll — about $' + (bank * s.btStakePct / 100).toFixed(0) + ' right now.'
-    : s.btSizing === 'match' ? 'If the trader puts 2% of their portfolio into a bet, you put 2% × ' + s.btStakeMult.toFixed(1) + ' of yours. Their portfolio size is read from their public profile.'
+    : s.btSizing === 'match' ? 'If the trader puts 2% of their portfolio into a bet, you put 2% × ' + s.btStakeMult.toFixed(1) + ' of yours, add for add. Their portfolio size is read at run time: open positions at market value plus USDC cash.'
     : s.btSizing === 'kelly' ? 'Assumes every entry is worth its price plus ' + s.btStakeKelly.toFixed(1) + ' points, then stakes quarter-Kelly of equity. Conservative on purpose — the edge is an assumption.'
     : 'Every followed position gets exactly $' + s.btStakeFixed + ' at entry. When the wallet adds to a position you already hold, the copy is only topped back up after a partial exit; the add is otherwise logged as filtered. Capped at $' + s.btCap + ' per position.';
-  const stakeUp = s.btSizing === 'pct' ? { btStakePct: Math.min(100, s.btStakePct + 0.5) } : s.btSizing === 'match' ? { btStakeMult: Math.min(10, s.btStakeMult + 0.5) } : s.btSizing === 'kelly' ? { btStakeKelly: Math.min(30, s.btStakeKelly + 0.5) } : { btStakeFixed: s.btStakeFixed + 5 };
-  const stakeDown = s.btSizing === 'pct' ? { btStakePct: Math.max(0.1, s.btStakePct - 0.5) } : s.btSizing === 'match' ? { btStakeMult: Math.max(0.1, s.btStakeMult - 0.5) } : s.btSizing === 'kelly' ? { btStakeKelly: Math.max(0.5, s.btStakeKelly - 0.5) } : { btStakeFixed: Math.max(1, s.btStakeFixed - 5) };
 
   // Weder erfundene Trades noch eine erfundene Vergleichs-Wallet. Hier lagen
   // acht ausgedachte Log-Zeilen, fuenf ausgedachte offene Positionen und eine
@@ -315,12 +318,33 @@ export function renderBacktester(T) {
     };
   });
 
-  const stepRow = (label, valueLabel, down, up) =>
-    '<div><div style="' + LABEL_BLOCK + '">' + label + '</div>'
-    + '<div style="display:flex; align-items:center; gap:var(--sp-3)">'
-    + '<div ' + T.act(bt(T, down)) + ' style="width:28px; height:32px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-body); color:var(--ink-2); cursor:pointer">−</div>'
-    + '<div style="flex:1; background:var(--panel); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-3); ' + M + '; font-size:var(--t-small); text-align:center">' + esc(valueLabel) + '</div>'
-    + '<div ' + T.act(bt(T, up)) + ' style="width:28px; height:32px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-body); color:var(--ink-2); cursor:pointer">+</div></div></div>';
+  // Zahlenfeld mit Minus/Plus UND freier Eingabe: die Knopfschritte
+  // (500 Dollar Bankroll, 5 Dollar Einsatz) waren die einzige Bedienung,
+  // und wer 1.250 Dollar oder 12 Dollar meinte, kam nie dorthin. Tippen
+  // setzt den Zustand ohne Neuzeichnen, der naechste RUN liest ihn.
+  const numFeld = (label, key, value, o) => {
+    const step = o.step || 1, min = o.min == null ? -Infinity : o.min, max = o.max == null ? Infinity : o.max;
+    const rund = (v) => Math.round(Math.min(max, Math.max(min, v)) * 100) / 100;
+    const patch = (v) => { const p = {}; p[key] = rund(v); return p; };
+    const knopf = (zeichen, ziel) => '<div ' + T.act(bt(T, ziel)) + ' class="hv-edge-max hv-white" role="button" aria-label="' + esc(label + ' ' + (zeichen === '+' ? 'up' : 'down')) + '" style="width:28px; height:32px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-body); color:var(--ink-2); cursor:pointer">' + zeichen + '</div>';
+    const tippen = T.inp((e) => {
+      const v = parseFloat(e.target.value);
+      if (!isFinite(v)) return;
+      T.state[key] = rund(v);
+      if (T.liveData.backtest) T.state.btDirty = true;
+    }, key);
+    return '<div><div style="' + LABEL_BLOCK + '">' + label + '</div>'
+      + '<div style="display:flex; align-items:center; gap:var(--sp-3)">'
+      + knopf('−', patch(value - step))
+      + '<div style="flex:1; min-width:0; display:flex; align-items:center; background:var(--panel); border:1px solid var(--line-1); border-radius:var(--r-control)">'
+      + (o.prefix ? '<span style="padding-left:var(--sp-3); ' + M + '; font-size:var(--t-small); color:var(--ink-3)">' + esc(o.prefix) + '</span>' : '')
+      + '<input type="number" inputmode="decimal" value="' + esc(String(value)) + '" step="' + step + '"' + (isFinite(min) ? ' min="' + min + '"' : '') + (isFinite(max) ? ' max="' + max + '"' : '')
+      + ' ' + tippen + ' aria-label="' + esc(label) + '" style="flex:1; width:100%; min-width:0; background:transparent; border:0; outline:none; padding:var(--sp-3) var(--sp-2); ' + M + '; font-size:var(--t-small); color:var(--text); text-align:center" />'
+      + (o.unit ? '<span style="padding-right:var(--sp-3); ' + M + '; font-size:var(--t-small); color:var(--ink-3)">' + esc(o.unit) + '</span>' : '')
+      + '</div>'
+      + knopf('+', patch(value + step))
+      + '</div></div>';
+  };
 
   const btTabs = [
     T.tab('Trade log', s.btTab === 'log', { btTab: 'log' }),
@@ -415,11 +439,11 @@ export function renderBacktester(T) {
       '<div ' + T.act(bt(T, { btSizing: k })) + ' style="font-size:var(--t-small); text-align:center; border-radius:var(--r-control); padding:var(--sp-3); cursor:pointer; ' + (s.btSizing === k ? 'color:var(--on-accent); background:var(--accent); font-weight:600' : 'color:var(--ink-3); border:1px solid var(--line-1)') + '">' + SIZING[k] + '</div>'
     ).join('')
     + '</div>'
-    + '<div style="margin-top:var(--sp-4)"><div style="' + LABEL_BLOCK + '">' + stakeLabel + '</div>'
-    + '<div style="display:flex; align-items:center; gap:var(--sp-3)">'
-    + '<div ' + T.act(bt(T, stakeDown)) + ' class="hv-edge-max hv-white" style="width:32px; height:34px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-lead); color:var(--ink-2); cursor:pointer">−</div>'
-    + '<div style="flex:1; background:var(--panel); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-body); text-align:center">' + esc(stakeValue) + '</div>'
-    + '<div ' + T.act(bt(T, stakeUp)) + ' class="hv-edge-max hv-white" style="width:32px; height:34px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-lead); color:var(--ink-2); cursor:pointer">+</div></div>'
+    + '<div style="margin-top:var(--sp-4)">'
+    + (s.btSizing === 'pct' ? numFeld(stakeLabel, 'btStakePct', s.btStakePct, { step: 0.5, min: 0.1, max: 100, unit: '%' })
+      : s.btSizing === 'match' ? numFeld(stakeLabel, 'btStakeMult', s.btStakeMult, { step: 0.5, min: 0.1, max: 10, prefix: '×' })
+      : s.btSizing === 'kelly' ? numFeld(stakeLabel, 'btStakeKelly', s.btStakeKelly, { step: 0.5, min: 0.5, max: 30, unit: 'pts' })
+      : numFeld(stakeLabel, 'btStakeFixed', s.btStakeFixed, { step: 5, min: 1, prefix: '$' }))
     + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-snug)">' + stakeHint + '</div></div>'
     // Auto-Fit: die Engine misst die Hoechstzahl gleichzeitig offener
     // Quell-Positionen und passt den Einsatz je Copy so an, dass Bankroll
@@ -433,19 +457,19 @@ export function renderBacktester(T) {
         + '</div>'
         + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-snug)">'
         + (s.btAutoFit
-          ? 'The engine measures the wallet\'s pace and adapts by itself: if the whole flow does not fit the bankroll at your stake, it follows only the wallet\'s largest entries (smaller ones are marked "filtered", not failed); when no threshold separates them, it shrinks the stake instead. What was applied is named in the result.'
+          ? 'The engine measures how many positions the wallet holds at once (sells and resolutions free a slot again) and sizes each copy so the bankroll is used at that peak: it raises the stake when the flow fits with room to spare, follows only the wallet\'s largest entries when it does not fit at your stake (smaller ones are marked "filtered", not failed), and shrinks the stake when no threshold separates them. What was applied is named in the result.'
           : 'The stake above is used as set. If the wallet\'s pace outruns it, the result names the skipped share and what auto-fit would do.')
         + '</div>'
         + (!s.btAutoFit
-          ? '<div style="margin-top:var(--sp-4)">' + stepRow('MIN TRADE TO COPY ($, 0 = ALL)', '$' + num(s.btMinNotional), { btMinNotional: Math.max(0, s.btMinNotional - 25) }, { btMinNotional: s.btMinNotional + 25 }) + '</div>'
+          ? '<div style="margin-top:var(--sp-4)">' + numFeld('MIN TRADE TO COPY ($, 0 = ALL)', 'btMinNotional', s.btMinNotional, { step: 25, min: 0, prefix: '$' }) + '</div>'
           : '')
         + '</div>'
       : '')
     + '<div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--sp-4); margin-top:var(--sp-5)">'
-    + stepRow('CAP PER TRADE', '$' + s.btCap, { btCap: Math.max(10, s.btCap - 50) }, { btCap: s.btCap + 50 })
-    + stepRow('MAX BANKROLL IN OPEN COPIES', s.btExposure + '%', { btExposure: Math.max(5, s.btExposure - 5) }, { btExposure: Math.min(100, s.btExposure + 5) })
+    + numFeld('CAP PER POSITION', 'btCap', s.btCap, { step: 50, min: 10, prefix: '$' })
+    + numFeld('MAX BANKROLL IN OPEN COPIES', 'btExposure', s.btExposure, { step: 5, min: 5, max: 100, unit: '%' })
     + '</div>'
-    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-snug)">New copies are skipped while open copies already tie up that share of the bankroll. Sells free the room up again.</div></div>'
+    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-snug)">New copies are skipped while open copies already tie up that share of the bankroll. Cash recycles during the window: a mirrored sell and every market that resolves (won or lost) pays out at its own time and is available for the next copy.</div></div>'
 
     + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--accent); margin-bottom:var(--sp-3)">03 · TIME WINDOW</div>'
     + '<div style="display:flex; gap:var(--sp-3)">'
@@ -463,9 +487,9 @@ export function renderBacktester(T) {
     + '<div style="font-size:var(--t-body)">Advanced settings</div><div style="' + advChevron + '">›</div></div>'
     + (s.advancedOpen ?
       '<div style="padding:var(--sp-5); display:flex; flex-direction:column; gap:var(--sp-4)">'
-      + stepRow('BANKROLL', '$' + num(s.btBankroll), { btBankroll: Math.max(100, s.btBankroll - 500) }, { btBankroll: s.btBankroll + 500 })
+      + numFeld('BANKROLL', 'btBankroll', s.btBankroll, { step: 500, min: 100, prefix: '$' })
       + '<div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--sp-4)">'
-      + stepRow('SLIPPAGE (BPS)', s.btSlip + ' bps', { btSlip: Math.max(0, s.btSlip - 5) }, { btSlip: s.btSlip + 5 })
+      + numFeld('SLIPPAGE (BPS)', 'btSlip', s.btSlip, { step: 5, min: 0, unit: 'bps' })
       + '<div><div style="' + LABEL_BLOCK + '">FEE MODEL</div>'
       + '<div style="display:flex; gap:var(--sp-3); margin-top:var(--sp-3)">'
       + T.opt('Venue curve', s.btFeeModel !== 'flat', { btFeeModel: 'curve' })
@@ -479,7 +503,7 @@ export function renderBacktester(T) {
       // billig, und zu billige Gebuehren schmeicheln jedem Ergebnis.
       + (s.btFeeModel === 'flat'
         ? '<div style="display:flex; flex-direction:column; gap:var(--sp-3)">'
-          + stepRow('FLAT FEE (BPS)', s.btFee + ' bps', { btFee: Math.max(0, s.btFee - 5) }, { btFee: s.btFee + 5 })
+          + numFeld('FLAT FEE (BPS)', 'btFee', s.btFee, { step: 5, min: 0, unit: 'bps' })
           + '<div style="font-size:var(--t-micro); color:var(--warn); line-height:var(--lh-snug)">'
           + 'A flat rate cannot match the venue: Polymarket charges about 250 bps at a price of 0.50 '
           + 'and about 50 bps at 0.90. Anything near 20 bps understates the real cost by a wide margin.'
@@ -537,7 +561,9 @@ export function renderBacktester(T) {
             : 'already sized each copy down to $' + (+autoFit.stake).toFixed(2))
             + ', but the wallet peaks at ' + num(autoFit.peak_concurrent) + ' open positions — the remaining skips are the flow beyond what $' + num(s.btBankroll) + ' can hold. Only a larger bankroll follows this wallet fully.'
           : ' The bankroll cannot follow this wallet\'s pace at this stake: with $' + num(s.btBankroll) + ' and about $' + Math.round(stake) + ' per copy, at most ' + Math.max(1, Math.floor(bank * s.btExposure / 100 / Math.max(1, stake))) + ' copies can be open at once.'
-            + (autoFit && autoFit.stake != null
+            + (s.btSizing === 'match' || s.btSizing === 'kelly'
+              ? ' This sizing scales with the wallet, add for add, so the cap and the bankroll are the only levers: raise the exposure cap, lower the ' + (s.btSizing === 'match' ? 'multiplier' : 'assumed edge') + ', or raise the bankroll.'
+              : autoFit && autoFit.stake != null
               ? ' Auto-fit would follow the wallet\'s largest entries at your stake (it measured a peak of ' + num(autoFit.peak_concurrent) + ' open positions) — switch it on next to the stake and re-run.'
               : ' Lower the stake, raise the bankroll, or raise the exposure cap to copy more of the flow.'))
         : ' The trade log below marks each one.')

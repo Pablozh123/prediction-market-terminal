@@ -1348,6 +1348,12 @@ def _auto_fit_config(
     2. **Einsatz schrumpfen** bleibt der Rueckfall, wenn keine Schwelle
        trennt (etwa lauter gleich grosse Einstiege): dann wird der Einsatz
        je Copy so verkleinert, dass die volle Gleichzeitigkeit passt.
+    3. **Einsatz anheben**, wenn der ganze Flow passt und das Budget je
+       Position mehr traegt: der Einsatz steigt auf 0.9 x Budget / Spitze,
+       damit die Bankroll an der Spitze der Wallet ausgeschoepft ist und
+       nicht das Fenster ueber brachliegt. Rueckfluesse (Verkaeufe,
+       Aufloesungen) sind in der Spitze schon beruecksichtigt: eine
+       Position, die aufgeloest ist, zaehlt nicht mehr als offen.
 
     Nichts davon passiert still: was angewendet wurde, steht in
     ``stats["auto_fit"]`` und auf der Seite.
@@ -1395,6 +1401,22 @@ def _auto_fit_config(
     capacity = max(1, int(0.9 * budget // stake_user)) if budget > 0 else 0
     info["capacity"] = capacity
     threshold = _fit_follow_threshold(intervals, capacity)
+    if threshold == 0.0 and geschrumpft > stake_user + 1e-9:
+        # Der ganze Flow passt, und das Budget traegt mehr je Position:
+        # den Einsatz anheben, bis die Spitzen-Gleichzeitigkeit die
+        # Bankroll ausschoepft. Sonst laege bei 25 Positionen und 12
+        # Dollar je Copy der Grossteil der Kasse das ganze Fenster brach.
+        info.update({
+            "applied": True,
+            "mode": "stake",
+            "stake": geschrumpft,
+            "follow_threshold": 0.0,
+            "hindsight": True,
+            "note": AUTO_FIT_HINDSIGHT_NOTE,
+        })
+        if config.sizing_mode == SIZING_PERCENT and config.bankroll > 0:
+            return replace(config, stake_value=100.0 * geschrumpft / float(config.bankroll)), info
+        return replace(config, stake_value=geschrumpft), info
     if threshold is not None:
         followed = sum(1 for _, _, notional in intervals if notional >= threshold)
         info.update({

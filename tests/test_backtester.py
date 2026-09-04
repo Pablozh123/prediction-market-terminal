@@ -1175,6 +1175,36 @@ class RunBacktestTests(unittest.TestCase):
         self.assertEqual(result.stats["skip_reasons"]["exposure_cap"], 0)
         self.assertEqual(result.stats["skip_reasons"]["out_of_cash"], 0)
 
+    def test_auto_fit_raises_a_small_stake_to_use_the_bankroll(self):
+        # Zehn gleichzeitig offene Positionen, Einsatz 12 laesst 880 Dollar
+        # brachliegen: Auto-Fit hebt auf 0.9 * 1000 / 10 = 90 je Copy an und
+        # kopiert weiterhin alle zehn.
+        result = bt.run_backtest(
+            config(stake_value=12.0, auto_fit=True),
+            fetch_activity=self._zehn_positionen(),
+            fetch_markets_by_ids=lambda ids: [],
+            now=pd.Timestamp("2026-06-10", tz="UTC"),
+        )
+        fit = result.stats["auto_fit"]
+        self.assertTrue(fit["applied"])
+        self.assertEqual(fit["mode"], "stake")
+        self.assertAlmostEqual(fit["stake"], 90.0, places=6)
+        self.assertTrue(fit["hindsight"])
+        self.assertEqual(result.stats["copied_trades"], 10)
+        self.assertAlmostEqual(result.stats["volume_copied"], 900.0, places=6)
+
+    def test_auto_fit_leaves_a_stake_at_the_cap_alone(self):
+        # Der Einsatz steht schon am Deckel je Position: nichts anzuheben.
+        result = bt.run_backtest(
+            config(stake_value=60.0, max_stake=60.0, auto_fit=True),
+            fetch_activity=self._zehn_positionen(),
+            fetch_markets_by_ids=lambda ids: [],
+            now=pd.Timestamp("2026-06-10", tz="UTC"),
+        )
+        fit = result.stats["auto_fit"]
+        self.assertEqual(fit["mode"], "threshold")
+        self.assertAlmostEqual(fit["stake"], 60.0, places=6)
+
     def test_auto_fit_off_reports_the_fitting_stake(self):
         result = bt.run_backtest(
             config(stake_value=250.0, auto_fit=False),
