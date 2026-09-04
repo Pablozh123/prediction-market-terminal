@@ -315,9 +315,11 @@ script looks for, so the two ways can be mixed without duplicates.
    `*.up.railway.app` domain, otherwise requests to it bypass Cloudflare, the
    WAF rules and the limiter's trust in `CF-Connecting-IP`.
 7. [x] **Railway deploy:** the service builds from `main` on its own (its
-   source is the GitHub repository), and `.github/workflows/smoke-api.yml`
-   verifies each such deploy with `scripts/smoke_live_api.py` once
-   `/api/health` reports the pushed commit. Ad hoc:
+   source is the GitHub repository) once the commit's checks are green, and
+   `.github/workflows/smoke-api.yml` verifies the live API every half hour
+   with `scripts/smoke_live_api.py`, red when `main` stays ahead of the API
+   for more than 20 minutes (a skipped deploy is not retried by Railway;
+   `railway up --detach` redoes it). Ad hoc:
    `python scripts/smoke_live_api.py https://api.marketintel.dev` (ten lines
    `ok` on 2026-09-04 after the register shipped).
 8. [x] **Pages → project → Settings → Builds:** production branch `main`, build
@@ -391,8 +393,9 @@ Open beyond the dashboards, in rough order of value:
   downloadable by anyone signed in). Nothing runs until the first secret is
   set.
 - **API deploys follow `main`** already (Railway builds from the GitHub
-  source); `.github/workflows/smoke-api.yml` checks each deploy against the
-  pushed commit. No token is involved.
+  source after the checks pass); `.github/workflows/smoke-api.yml` compares
+  the live commit with `main` every half hour and smokes the API. No token
+  is involved.
 - **Cold routes**: `ROUTE_WARM_MIN=4` (step 6) keeps `/api/risk` (~25 s)
   and `/api/cross` (~21 s) warm between visitors; a persisted precompute
   would make the first request after a restart fast as well.

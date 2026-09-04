@@ -191,10 +191,15 @@ Two hosts, two mechanisms — this cost a session once, so it is spelled out:
 - **api.marketintel.dev** (Railway project `victorious-strength`, service
   `attractive-truth`, Dockerfile) builds from this repository's `main` on its
   own: the service's source is the GitHub repo (`railway status --json` →
-  `source.repo`), and a merge is live about two minutes later.
-  `.github/workflows/smoke-api.yml` then waits until `/api/health` reports the
-  pushed commit (`RAILWAY_GIT_COMMIT_SHA`) and runs
-  `scripts/smoke_live_api.py` against it. `railway up --detach` from the repo
+  `source.repo`), and a merge is live a few minutes later. Railway waits for
+  the commit's GitHub checks first and **skips** the deploy for good when one
+  fails (`skippedReason: CI check suite failed` in `railway deployment list
+  --json`) — so no workflow that runs on push may depend on the deploy.
+  `.github/workflows/smoke-api.yml` therefore runs on a schedule: every half
+  hour it compares the commit `/api/health` reports (`RAILWAY_GIT_COMMIT_SHA`)
+  with the head of `main`, runs `scripts/smoke_live_api.py` when they match
+  and turns red when `main` has been ahead for more than 20 minutes. A
+  skipped deploy is redone with `railway up --detach` from the repo
   root still works for an ad-hoc deploy of the working tree; it uploads the
   tree minus `.gitignore`, so `data/` never ships except `data/claims.yaml`,
   which is excepted there because the Dockerfile copies it. Under Git Bash

@@ -1,28 +1,21 @@
 name: Smoke API
 
 # Railway builds api.marketintel.dev from this repository's main branch on
-# its own (the service's source is the GitHub repo), so nothing here deploys.
-# What was missing is the check afterwards: a container that answers /healthz
-# says nothing about the image being complete. This job waits until the API
-# reports the commit that was just pushed (/api/health carries
-# RAILWAY_GIT_COMMIT_SHA), then runs scripts/smoke_live_api.py against it.
-# A failed smoke is a red run on the push that caused it, which is exactly
-# the moment the owner is looking.
+# its own and waits for the commit's GitHub checks to pass before it deploys.
+# That is why this job must not be one of those checks: an earlier version
+# ran on push, waited for the deploy, and Railway waited for it - the deploy
+# of that commit was skipped as "CI check suite failed". On a schedule the job
+# is no commit check, so it cannot block anything.
+#
+# Every half hour it compares the commit the API reports (/api/health carries
+# RAILWAY_GIT_COMMIT_SHA) with the head of main. Same commit: run
+# scripts/smoke_live_api.py against the live API. Different commit and the
+# head is younger than the grace period: a deploy is in flight, nothing to
+# say. Older than that: the deploy did not happen or was skipped, which is a
+# red run on purpose - a stale API is exactly what nobody would notice.
 on:
-  push:
-    branches: [main]
-    paths:
-      - "api/**"
-      - "app/**"
-      - "src/**"
-      - "data/claims.yaml"
-      - "scripts/run_alert_scanner.py"
-      - "scripts/smoke_live_api.py"
-      - "requirements.txt"
-      - "Dockerfile"
-      - ".dockerignore"
-      - "railway.json"
-      - ".github/workflows/smoke-api.yml"
+  schedule:
+    - cron: "7,37 * * * *"
   workflow_dispatch:
 
 concurrency:
@@ -37,6 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       API_BASE: https://api.marketintel.dev
+      GRACE_MINUTES: "20"
     steps:
       - uses: actions/checkout@v4
 
@@ -44,28 +38,27 @@ jobs:
         with:
           python-version: "3.13"
 
-      # Railway needs a minute or two to build and swap the container; the old
-      # one keeps answering meanwhile. Poll /api/health until it names this
-      # push's commit, then give the copy daemon a moment to settle.
-      - name: Wait for Railway to serve this commit
+      - name: Compare the live commit with main
+        id: live
         run: |
-          want="${GITHUB_SHA}"
-          for i in $(seq 1 40); do
-            got=$(curl -s --max-time 15 "$API_BASE/api/health" | python3 -c 'import json,sys
-            try:
-                print(json.load(sys.stdin).get("commit") or "")
-            except Exception:
-                print("")' || true)
-            if [ "$got" = "$want" ]; then
-              echo "live: $got"
-              sleep 20
-              exit 0
-            fi
-            echo "live commit: ${got:-unknown} (waiting for $want)"
-            sleep 15
-          done
-          echo "::error::$API_BASE never reported commit $want within 10 minutes; check the Railway build"
-          exit 1
+          want=$(git rev-parse HEAD)
+          got=$(curl -s --max-time 15 "$API_BASE/api/health" | python3 -c 'import json,sys
+          try:
+              print(json.load(sys.stdin).get("commit") or "")
+          except Exception:
+              print("")' || true)
+          age=$(( ( $(date +%s) - $(git log -1 --format=%ct HEAD) ) / 60 ))
+          echo "main: $want ($age min old); live: ${got:-unknown}"
+          if [ "$got" = "$want" ]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          elif [ "$age" -lt "$GRACE_MINUTES" ]; then
+            echo "::notice::main is $age min old and not live yet; the deploy is in flight, no smoke this run"
+            echo "current=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::the API serves ${got:-an image without commit} while main has been $want for $age min; check the Railway deployments (a skipped deploy stays skipped)"
+            exit 1
+          fi
 
       - name: Smoke the live API
+        if: steps.live.outputs.current == 'true'
         run: python scripts/smoke_live_api.py "$API_BASE"
