@@ -2729,6 +2729,14 @@ def backtest_payload(result: Any) -> dict[str, Any]:
                 key: int(_num(value, 0.0) or 0)
                 for key, value in (stats.get("filter_reasons") or {}).items()
             },
+            # Bewertungskurve: wie viele der kopierten Positionen unterwegs
+            # zum Marktpreis bewertet sind (der Rest steht zum Einstand).
+            "mark_to_market": {
+                "positions_marked": int(_num((stats.get("mark_to_market") or {}).get("positions_marked"), 0.0) or 0),
+                "positions_total": int(_num((stats.get("mark_to_market") or {}).get("positions_total"), 0.0) or 0),
+                "capped": bool((stats.get("mark_to_market") or {}).get("capped", False)),
+                "interval": _text((stats.get("mark_to_market") or {}).get("interval")) or None,
+            },
             # Auto-Fit: was die Engine gemessen und ggf. angewendet hat —
             # Modus (Folge-Schwelle oder geschrumpfter Einsatz), Einsatz je
             # Copy, Schwelle, gefolgte Positionen und das rohe Tempo der

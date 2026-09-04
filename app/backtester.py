@@ -14,8 +14,11 @@ Model:
 - After the replay, remaining open positions are settled against market data:
   resolved markets pay out at the final token price (no fee on redemption),
   unresolved positions are marked-to-market at the current token price.
-- Open positions are valued at entry cost until they close, so the equity curve
-  steps on realized events; the final point includes mark-to-market.
+- The equity curve marks open positions to market along the way when a
+  price history is available for their tokens (``fetch_price_history``):
+  equity(t) = bankroll + realized(t) + sum over open copies of
+  shares x price(t) - cost. Tokens without history stay at cost until they
+  close; the final point always carries the settle-time mark-to-market.
 - A flat-stake benchmark replays the same signals with a constant stake.
 - Kelly sizing (``SIZING_KELLY``) reads ``stake_value`` as the assumed edge in
   probability points over the copied entry price and stakes
@@ -40,6 +43,7 @@ from __future__ import annotations
 
 import inspect
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from typing import Any, Callable
 
@@ -75,6 +79,14 @@ FEE_MODEL_FLAT = "flat"
 FEE_MODELS = (FEE_MODEL_CURVE, FEE_MODEL_FLAT)
 
 MIN_STAKE = 1.0
+
+#: Bewertungskurve: hoechstens so viele Token je Lauf mit Preisverlauf
+#: nachladen (offene Positionen zuerst, dann nach Einsatz). Eine
+#: Market-Maker-Wallet beruehrt tausende Token in Stunden; die Positionen
+#: darueber hinaus bleiben bis zum Schluss zum Einstand bewertet, und das
+#: steht im Ergebnis.
+MTM_TOKEN_CAP = 120
+MTM_WORKERS = 8
 
 #: Auto-Fit waehlt Schwelle und Einsatz aus dem GANZEN Fenster, also aus
 #: Zahlen, die am Tag null noch nicht feststanden. Der Satz haengt an jedem
@@ -190,6 +202,10 @@ class WindowData:
     window_truncated: bool
     token_values: dict[str, dict[str, Any]]
     loaded_at: pd.Timestamp
+    #: Preisverlauf je Token, gefuellt von ``run_backtest`` beim ersten
+    #: Lauf, der ihn braucht; jeder weitere Lauf im selben Fenster liest
+    #: ihn hier statt neu zu laden.
+    price_history: dict[str, pd.DataFrame] = field(default_factory=dict)
 
 
 def load_window_data(
@@ -651,8 +667,18 @@ def equity_curve(
     window_end: pd.Timestamp,
     bankroll: float,
     final_unrealized: float = 0.0,
+    price_history: dict[str, pd.DataFrame] | None = None,
+    fade: bool = False,
 ) -> pd.DataFrame:
-    """Equity series: bankroll + cumulative net realized; MTM lands on the last point.
+    """Equity series: bankroll + cumulative net realized + open copies marked to market.
+
+    ``price_history`` (Token -> Frame(time, price)) bewertet die offenen
+    Kopien an jeder Stuetzstelle zum letzten bekannten Preis. Ohne Verlauf
+    bleibt eine Position bis zum Schluss zum Einstand stehen; das war vorher
+    die einzige Fassung, und bei einer Wallet, die nur haelt, war die Kurve
+    dreissig Tage lang eine Gerade mit einem Sprung am Ende. Die letzte
+    Stuetzstelle traegt immer ``final_unrealized`` aus der Abrechnung, damit
+    Kurve und Kennzahlen dieselbe Zahl nennen.
 
     Die Aufloesung folgt der Spanne: bis sieben Tage stundenweise, darueber
     taeglich. Vorher war die Kurve immer taeglich ueber das ANGEFRAGTE
@@ -684,11 +710,123 @@ def equity_curve(
             curve["realized"] = verlauf.reindex(curve.index).ffill().fillna(0.0)
             curve["equity"] = float(bankroll) + curve["realized"]
             curve = curve.drop(columns=["realized"]).reset_index()
+    if price_history and ledger is not None and not ledger.empty:
+        unterwegs = _unrealized_path(ledger, pd.DatetimeIndex(curve["time"]), price_history, fade)
+        # Die letzte Stuetzstelle gehoert der Abrechnung (final_unrealized).
+        unterwegs.iloc[-1] = 0.0
+        curve["equity"] = curve["equity"] + unterwegs.to_numpy()
     if final_unrealized:
         curve.loc[curve.index[-1], "equity"] += float(final_unrealized)
     peak = curve["equity"].cummax()
     curve["drawdown"] = (curve["equity"] - peak) / peak.where(peak > 0, other=1.0)
     return curve
+
+
+def _unrealized_path(
+    ledger: pd.DataFrame,
+    index: pd.DatetimeIndex,
+    price_history: dict[str, pd.DataFrame],
+    fade: bool = False,
+) -> pd.Series:
+    """Unrealisiertes Ergebnis der offenen Kopien je Stuetzstelle.
+
+    Bestand und Einstand je Token laufen aus dem Ledger (BUY hebt, SELL und
+    RESOLVE senken), der Preis aus dem Verlauf (letzter Wert vor der
+    Stuetzstelle). Vor dem ersten Verlaufspunkt und fuer Token ohne
+    Verlauf zaehlt die Position zum Einstand, also mit null.
+    """
+
+    total = pd.Series(0.0, index=index)
+    events = ledger[ledger["status"].isin(["copied", "settled"])].copy()
+    if events.empty:
+        return total
+    events["time"] = pd.to_datetime(events["time"], utc=True, errors="coerce")
+    events = events.dropna(subset=["time"])
+    sign = events["action"].map({"BUY": 1.0, "SELL": -1.0, "RESOLVE": -1.0}).fillna(0.0)
+    events["d_shares"] = events["shares"].fillna(0.0).astype(float) * sign
+    events["d_cost"] = events["stake"].fillna(0.0).astype(float) * sign
+    events["asset"] = events["asset"].astype(str)
+    for asset, history in price_history.items():
+        if history is None or history.empty:
+            continue
+        rows = events[events["asset"] == str(asset)]
+        if rows.empty:
+            continue
+        shares = rows.groupby("time")["d_shares"].sum().sort_index().cumsum()
+        cost = rows.groupby("time")["d_cost"].sum().sort_index().cumsum()
+        shares_t = shares.reindex(index, method="ffill").fillna(0.0)
+        cost_t = cost.reindex(index, method="ffill").fillna(0.0)
+        px = pd.Series(
+            pd.to_numeric(history["price"], errors="coerce").to_numpy(),
+            index=pd.to_datetime(history["time"], utc=True, errors="coerce"),
+        ).dropna()
+        px = px[~px.index.isna()]
+        px = px[~px.index.duplicated(keep="last")].sort_index()
+        if px.empty:
+            continue
+        px_t = px.reindex(index, method="ffill")
+        if fade:
+            px_t = 1.0 - px_t
+        held = (shares_t > 1e-9) & px_t.notna()
+        unreal = (shares_t * px_t - cost_t).where(held, 0.0)
+        total = total + unreal.fillna(0.0).to_numpy()
+    return total
+
+
+def _empty_history() -> pd.DataFrame:
+    return pd.DataFrame(columns=["time", "price"])
+
+
+def mark_to_market_history(
+    ledger: pd.DataFrame,
+    open_positions: pd.DataFrame | None,
+    fetch_price_history: Callable[[str, str], pd.DataFrame],
+    cache: dict[str, pd.DataFrame],
+    interval: str,
+    max_tokens: int = MTM_TOKEN_CAP,
+) -> tuple[dict[str, pd.DataFrame], dict[str, Any]]:
+    """Preisverlauf fuer die kopierten Token laden (oder aus ``cache`` lesen).
+
+    Reihenfolge: am Fensterende noch offene Positionen zuerst (sie machen
+    die Gerade), dann nach Einsatz. Ueber ``max_tokens`` hinaus wird nichts
+    geladen; ``info`` sagt, wie viele Positionen bewertet sind und ob der
+    Deckel griff. Ein fehlgeschlagener Abruf liefert einen leeren Verlauf
+    und wird nicht wiederholt.
+    """
+
+    info: dict[str, Any] = {"positions_marked": 0, "positions_total": 0, "capped": False, "interval": interval}
+    if ledger is None or ledger.empty:
+        return {}, info
+    buys = ledger[ledger["status"].eq("copied") & ledger["action"].eq("BUY")]
+    if buys.empty:
+        return {}, info
+    cost_by_asset = buys.groupby(buys["asset"].astype(str))["stake"].sum()
+    offen: set[str] = set()
+    if open_positions is not None and not open_positions.empty and "asset" in open_positions:
+        offen = {str(a).removeprefix("fade:") for a in open_positions["asset"]}
+    ranked = [a for a in cost_by_asset.index if a]
+    ranked.sort(key=lambda a: (a not in offen, -float(cost_by_asset[a])))
+    info["positions_total"] = len(ranked)
+    info["capped"] = len(ranked) > max_tokens
+    chosen = ranked[:max_tokens]
+    missing = [a for a in chosen if a not in cache]
+
+    def laden(asset: str) -> pd.DataFrame:
+        try:
+            frame_ = fetch_price_history(asset, interval)
+        except Exception:
+            return _empty_history()
+        if frame_ is None or frame_.empty or "time" not in frame_ or "price" not in frame_:
+            return _empty_history()
+        return frame_[["time", "price"]].copy()
+
+    if missing:
+        with ThreadPoolExecutor(max_workers=MTM_WORKERS) as pool:
+            for asset, frame_ in zip(missing, pool.map(laden, missing)):
+                cache[asset] = frame_
+    history = {a: cache[a] for a in chosen if a in cache and cache[a] is not None and not cache[a].empty}
+    info["positions_marked"] = len(history)
+    return history, info
 
 
 #: Restanteile unter dieser Schwelle gelten als zu. ``replay`` raeumt eine
@@ -1291,11 +1429,18 @@ def run_backtest(
     token_values: dict[str, dict[str, Any]] | None = None,
     now: pd.Timestamp | None = None,
     data: WindowData | None = None,
+    fetch_price_history: Callable[[str, str], pd.DataFrame] | None = None,
 ) -> BacktestResult:
     """Full backtest: fetch window trades, replay with sizing + flat benchmark, settle, score.
 
     Mit ``data`` (ein fertiges ``WindowData``) entfaellt der Netzweg: das
     Replay laeuft auf den geladenen Trades und Aufloesungen.
+
+    ``fetch_price_history(token_id, interval)`` liefert den Preisverlauf
+    eines Tokens fuer die Bewertungskurve. Im Produktionspfad ohne
+    injizierte Fetcher ist das der CLOB-Verlauf; mit ``data`` reicht der
+    Aufrufer ihn mit, und die Verlaeufe bleiben in ``data.price_history``.
+    Ohne Fetcher bleiben offene Kopien bis zum Schluss zum Einstand.
     """
 
     if data is not None:
@@ -1314,6 +1459,7 @@ def run_backtest(
             # (Tests) bekommen ihn nur, wenn sie ihn selbst mitbringen.
             fetch_markets_by_event_slugs = fetch_markets_by_event_slugs or md.get_polymarket_markets_by_event_slugs
             token_value_builder = md.polymarket_token_value_map
+            fetch_price_history = fetch_price_history or md.get_polymarket_price_history_lifetime
         else:
             from src import prediction_markets as md
 
@@ -1364,13 +1510,25 @@ def run_backtest(
         oldest_trade = pd.to_datetime(trades["time"], utc=True, errors="coerce").min()
         if pd.notna(oldest_trade) and oldest_trade > curve_start:
             curve_start = oldest_trade
-    curve = equity_curve(full_ledger, curve_start, window_end, config.bankroll, unrealized)
-    flat_curve = equity_curve(flat_full, curve_start, window_end, config.bankroll, flat_unrealized)
+    # Bewertungskurve: Preisverlauf der kopierten Token, stundenweise bis
+    # zu einem Monat, darueber in Sechs-Stunden-Schritten.
+    interval = "1h" if (window_end - curve_start) <= pd.Timedelta(days=31) else "6h"
+    price_history: dict[str, pd.DataFrame] = {}
+    mtm_info: dict[str, Any] = {"positions_marked": 0, "positions_total": 0, "capped": False, "interval": None}
+    if fetch_price_history is not None:
+        cache = getattr(data, "price_history", None) if data is not None else None
+        if cache is None:
+            cache = {}
+        price_history, mtm_info = mark_to_market_history(full_ledger, open_positions, fetch_price_history, cache, interval)
+    fade = config.strategy == STRATEGY_FADE
+    curve = equity_curve(full_ledger, curve_start, window_end, config.bankroll, unrealized, price_history=price_history, fade=fade)
+    flat_curve = equity_curve(flat_full, curve_start, window_end, config.bankroll, flat_unrealized, price_history=price_history, fade=fade)
     curve["benchmark"] = flat_curve["equity"].to_numpy()
 
     stats = compute_stats(full_ledger, open_positions, curve, config.bankroll)
     flat_stats = compute_stats(flat_full, flat_open, flat_curve, config.bankroll)
     stats["window_truncated"] = bool(window_truncated)
+    stats["mark_to_market"] = mtm_info
     stats["auto_fit"] = auto_fit_info
     effective_start = trades["time"].min() if trades is not None and not trades.empty else window_start
     stats["effective_start"] = effective_start if pd.notna(effective_start) else window_start
@@ -1472,7 +1630,13 @@ def strategy_comparison(
         settlement, open_positions = settle(positions, resolved_token_values, asof=window_end)
         full_ledger = pd.concat([ledger, settlement], ignore_index=True) if not settlement.empty else ledger
         unrealized = float(open_positions["unrealized_pnl"].sum()) if not open_positions.empty else 0.0
-        curve = equity_curve(full_ledger, window_start, window_end, config.bankroll, unrealized)
+        # Verlaeufe, die der Hauptlauf schon geladen hat, bewerten auch die
+        # Varianten; nachgeladen wird hier nichts.
+        cached_history = {a: f for a, f in (data.price_history if data is not None else {}).items() if f is not None and not f.empty}
+        curve = equity_curve(
+            full_ledger, window_start, window_end, config.bankroll, unrealized,
+            price_history=cached_history, fade=config.strategy == STRATEGY_FADE,
+        )
         stats = compute_stats(full_ledger, open_positions, curve, config.bankroll)
         rows.append(
             {

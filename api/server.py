@@ -2293,7 +2293,9 @@ def backtest(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
 
     def _run() -> dict[str, Any]:
         daten = cached(daten_key, _daten, ttl=BACKTEST_DATA_TTL)
-        result = btr.run_backtest(config, data=daten)
+        # Preisverlaeufe fuer die Bewertungskurve; sie bleiben im
+        # WindowData-Cache, jeder weitere Lauf im Fenster liest sie dort.
+        result = btr.run_backtest(config, data=daten, fetch_price_history=md.get_polymarket_price_history_lifetime)
         payload = apv.backtest_payload(result)
         payload["data_loaded_at"] = daten.loaded_at.isoformat()[:16] + "Z"
         payload["data_rows"] = int(len(daten.trades)) if daten.trades is not None else 0

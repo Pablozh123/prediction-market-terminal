@@ -108,6 +108,20 @@ export function tradeVerteilung(live) {
   });
 }
 
+function equityDomain(bankroll, ...serien) {
+  const alle = [];
+  serien.forEach((serie) => (serie || []).forEach((v) => { if (typeof v === 'number' && v === v) alle.push(v); }));
+  if (!alle.length) return null;
+  const basis = typeof bankroll === 'number' && bankroll > 0 ? bankroll : alle[0];
+  const rand = basis * 0.1;
+  let min = Math.min(basis - rand, ...alle);
+  let max = Math.max(basis + rand, ...alle);
+  const luft = (max - min) * 0.05;
+  min -= luft; max += luft;
+  if (min === max) max = min + 1;
+  return { min, max };
+}
+
 export function renderBacktester(T) {
   const s = T.state;
   const bank = s.btBankroll;
@@ -146,12 +160,24 @@ export function renderBacktester(T) {
   const ddPct = st ? Math.abs(+st.max_drawdown) * 100 : null;
   // Equity und Benchmark auf einer Skala mit Nullpunkt: getrennt skaliert
   // endete ein Benchmark 40 Prozent unter der Wallet auf derselben Hoehe.
-  const eqDom = st ? seriesDomain(live.equity, live.benchmark) : null;
+  // Skala um die Bankroll herum, mindestens zehn Prozent nach beiden
+  // Seiten, weiter nur, wenn die Kurven es verlangen. Mit der Null im Bild
+  // war ein Lauf von plus fuenf Prozent eine Gerade; ohne Mindestspanne
+  // fuellte ein halbes Prozent Rauschen die ganze Hoehe. Beide Serien
+  // teilen sich die Skala, die Startlinie steht als Referenz im Bild.
+  const eqDom = st ? equityDomain(bank, live.equity, live.benchmark) : null;
   const equityPts = st && live.equity && live.equity.length > 1
     ? T.seriesPoints(live.equity, 900, 270, eqDom) : '';
   const benchPts = st && live.benchmark && live.benchmark.length > 1
     ? T.seriesPoints(live.benchmark, 900, 270, eqDom) : '';
   const eqGrid = seriesGrid(eqDom, 900, 270, (v) => kurzGeld(v));
+  // Startlinie: die Bankroll als Referenz, damit ueber und unter Wasser
+  // ablesbar ist, ohne dass die Null im Bild sein muss.
+  const startY = eqDom ? (270 - 10 - ((bank - eqDom.min) / (eqDom.max - eqDom.min || 1)) * (270 - 30)) : null;
+  const startLinie = startY !== null
+    ? '<line x1="0" y1="' + startY.toFixed(1) + '" x2="900" y2="' + startY.toFixed(1) + '" style="stroke:rgba(var(--ink),.35)" stroke-dasharray="2 4" vector-effect="non-scaling-stroke" />'
+      + '<text x="896" y="' + (startY - 4).toFixed(1) + '" text-anchor="end" style="fill:var(--ink-3)" font-size="10" font-family="IBM Plex Mono, monospace">start ' + esc(kurzGeld(bank)) + '</text>'
+    : '';
   // Drawdown ist ein Anteil vom Hoch, 0 bis -1: die Skala reicht von null
   // bis zum tiefsten Punkt, nicht vom tiefsten bis zum hoechsten Wert.
   const ddDom = st && live.drawdown && live.drawdown.length > 1 ? seriesDomain(live.drawdown) : null;
@@ -206,6 +232,13 @@ export function renderBacktester(T) {
     + (autoFitText ? ' · ' + autoFitText : '') + ' · ' + gebuehrText + ' · slippage ' + s.btSlip + ' bps'
     + (live && live.stats && live.stats.window_truncated
       ? ' · window truncated at the engine\'s trade cap' + (live.stats.effective_start ? ' — data reaches back to ' + live.stats.effective_start : '')
+      : '')
+    // Bewertungskurve: wie viele Positionen unterwegs zum Marktpreis
+    // stehen. Ohne Verlauf laeuft eine gehaltene Position als Gerade.
+    + (st && st.mark_to_market && st.mark_to_market.positions_total
+      ? ' · open copies marked to market ' + (st.mark_to_market.interval === '6h' ? 'every 6 hours' : 'hourly')
+        + ' for ' + num(st.mark_to_market.positions_marked) + ' of ' + num(st.mark_to_market.positions_total) + ' positions'
+        + (st.mark_to_market.positions_marked < st.mark_to_market.positions_total ? ' (the rest at cost until they close)' : '')
       : '')
     // Woher die Zahlen kommen und wie frisch: die Trades des Fensters
     // werden je Wallet und Fenster zehn Minuten wiederverwendet.
@@ -538,8 +571,9 @@ export function renderBacktester(T) {
     + '<span style="display:flex; align-items:center; gap:var(--sp-3); color:var(--ink-4)"><span style="width:14px; height:2px; background:var(--muted); display:inline-block"></span>Flat-bet benchmark</span>'
     + (s.sizingSimOpen && bestVariant ? '<span style="display:flex; align-items:center; gap:var(--sp-3); color:var(--warn)"><span style="width:14px; height:2px; background:var(--warn); display:inline-block"></span>Highest final equity: ' + esc(bestVariant.name) + '</span>' : '')
     + '</div></div>'
-    + '<svg width="100%" height="270" viewBox="0 0 900 270" preserveAspectRatio="none" role="img" aria-label="Equity for the replayed wallet against the flat-bet benchmark, one dollar scale">'
+    + '<svg width="100%" height="270" viewBox="0 0 900 270" preserveAspectRatio="none" role="img" aria-label="Equity for the replayed wallet against the flat-bet benchmark, one dollar scale around the starting bankroll">'
     + eqGrid
+    + startLinie
     + '<polyline points="' + benchPts + '" fill="none" style="stroke:var(--muted)" stroke-width="1.4" stroke-dasharray="6 4" vector-effect="non-scaling-stroke" />'
         + '<polyline points="' + equityPts + '" fill="none" style="stroke:' + (ret >= 0 ? 'var(--pos)' : 'var(--neg)') + '" stroke-width="2" vector-effect="non-scaling-stroke" />'
     + '</svg>'

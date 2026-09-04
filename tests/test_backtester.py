@@ -505,6 +505,105 @@ class FadeStrategyTests(unittest.TestCase):
         self.assertAlmostEqual(open_positions.iloc[0]["unrealized_pnl"], (25.0 / 0.40) * 0.3 - 25.0, places=6)
 
 
+class MarkToMarketCurveTests(unittest.TestCase):
+    """Die Kurve bewertet offene Kopien unterwegs zum Marktpreis, sobald ein
+    Preisverlauf da ist; ohne Verlauf bleibt der Einstand."""
+
+    START = pd.Timestamp("2026-04-30", tz="UTC")
+    END = pd.Timestamp("2026-05-06", tz="UTC")
+
+    def _history(self, points):
+        return pd.DataFrame({"time": [pd.Timestamp(t, tz="UTC") for t, _ in points], "price": [p for _, p in points]})
+
+    def test_open_copy_follows_the_token_price(self):
+        ledger, _ = bt.replay(frame([trade("2026-05-01", "BUY", 0.50, 100.0)]), config())
+        history = {"tok-yes": self._history([("2026-05-02", 0.60), ("2026-05-04", 0.40)])}
+        curve = bt.equity_curve(ledger, self.START, self.END, 1000.0, final_unrealized=7.0, price_history=history)
+        by_day = curve.set_index("time")["equity"]
+        # 50 Anteile fuer 25 Dollar; vor dem ersten Verlaufspunkt zum Einstand.
+        self.assertAlmostEqual(by_day[pd.Timestamp("2026-05-01", tz="UTC")], 1000.0, places=6)
+        self.assertAlmostEqual(by_day[pd.Timestamp("2026-05-02", tz="UTC")], 1000.0 + 50.0 * 0.60 - 25.0, places=6)
+        self.assertAlmostEqual(by_day[pd.Timestamp("2026-05-03", tz="UTC")], 1005.0, places=6)
+        self.assertAlmostEqual(by_day[pd.Timestamp("2026-05-04", tz="UTC")], 1000.0 + 50.0 * 0.40 - 25.0, places=6)
+        # Die letzte Stuetzstelle gehoert der Abrechnung, nicht dem Verlauf.
+        self.assertAlmostEqual(by_day.iloc[-1], 1007.0, places=6)
+        self.assertLess(curve["drawdown"].min(), 0.0)
+
+    def test_sold_copy_stops_being_marked(self):
+        trades = frame([
+            trade("2026-05-01", "BUY", 0.50, 100.0),
+            trade("2026-05-03", "SELL", 0.80, 100.0),
+        ])
+        ledger, _ = bt.replay(trades, config())
+        history = {"tok-yes": self._history([("2026-05-02", 0.60), ("2026-05-04", 0.10)])}
+        curve = bt.equity_curve(ledger, self.START, self.END, 1000.0, price_history=history)
+        by_day = curve.set_index("time")["equity"]
+        self.assertAlmostEqual(by_day[pd.Timestamp("2026-05-02", tz="UTC")], 1005.0, places=6)
+        # Nach dem Verkauf: nur das realisierte Ergebnis (+15), kein Bestand mehr.
+        self.assertAlmostEqual(by_day[pd.Timestamp("2026-05-04", tz="UTC")], 1015.0, places=6)
+
+    def test_token_without_history_stays_at_cost(self):
+        ledger, _ = bt.replay(frame([trade("2026-05-01", "BUY", 0.50, 100.0)]), config())
+        history = {"anderer-token": self._history([("2026-05-02", 0.90)])}
+        curve = bt.equity_curve(ledger, self.START, self.END, 1000.0, price_history=history)
+        self.assertTrue((curve["equity"] == 1000.0).all())
+
+    def test_fade_copy_marks_to_the_inverse_price(self):
+        ledger, _ = bt.replay(frame([trade("2026-05-01", "BUY", 0.60, 100.0)]), config(strategy=bt.STRATEGY_FADE))
+        history = {"tok-yes": self._history([("2026-05-02", 0.70)])}
+        curve = bt.equity_curve(ledger, self.START, self.END, 1000.0, price_history=history, fade=True)
+        by_day = curve.set_index("time")["equity"]
+        # 62.5 Anteile der Gegenseite zu 0.40; bei 0.70 ist die Gegenseite 0.30 wert.
+        self.assertAlmostEqual(by_day[pd.Timestamp("2026-05-02", tz="UTC")], 1000.0 + (25.0 / 0.40) * 0.30 - 25.0, places=6)
+
+    def test_run_backtest_loads_history_once_into_the_window_cache(self):
+        now = pd.Timestamp("2026-06-01", tz="UTC")
+        trades = frame([
+            trade("2026-05-01", "BUY", 0.50, 100.0, asset="tok-a", market_key="c1"),
+            trade("2026-05-02", "BUY", 0.50, 100.0, asset="tok-b", market_key="c2"),
+        ])
+        data = bt.WindowData(
+            wallet="0x" + "a" * 40, days=30, window_start=now - pd.Timedelta(days=30), window_end=now,
+            trades=trades, window_truncated=False,
+            token_values={"tok-a": {"price": 0.7, "closed": False, "end_time": None}, "tok-b": {"price": 0.5, "closed": False, "end_time": None}},
+            loaded_at=now,
+        )
+        calls = []
+
+        def fetch_history(token_id, interval):
+            calls.append((token_id, interval))
+            if token_id == "tok-b":
+                raise RuntimeError("clob down")
+            return self._history([("2026-05-10", 0.70)])
+
+        result = bt.run_backtest(config(days=30), data=data, fetch_price_history=fetch_history)
+        mtm = result.stats["mark_to_market"]
+        self.assertEqual(mtm["positions_total"], 2)
+        self.assertEqual(mtm["positions_marked"], 1)
+        self.assertEqual(mtm["interval"], "1h")
+        self.assertFalse(mtm["capped"])
+        # Ab dem 10. Mai: tok-a bei 0.70 (+10 auf 50 Anteile), tok-b zum Einstand.
+        by_time = result.equity.set_index("time")["equity"]
+        self.assertAlmostEqual(by_time[pd.Timestamp("2026-05-15", tz="UTC")], 1010.0, places=6)
+        self.assertAlmostEqual(result.equity["equity"].iloc[-1], result.stats["final_equity"], places=6)
+        # Zweiter Lauf im selben Fenster: nichts wird nachgeladen.
+        n = len(calls)
+        bt.run_backtest(config(days=30, stake_value=10.0), data=data, fetch_price_history=fetch_history)
+        self.assertEqual(len(calls), n)
+        self.assertIn("tok-b", data.price_history)
+
+    def test_without_a_fetcher_the_curve_is_unchanged(self):
+        now = pd.Timestamp("2026-06-01", tz="UTC")
+        data = bt.WindowData(
+            wallet="0x" + "a" * 40, days=30, window_start=now - pd.Timedelta(days=30), window_end=now,
+            trades=frame([trade("2026-05-01", "BUY", 0.50, 100.0)]), window_truncated=False,
+            token_values={"tok-yes": {"price": 0.7, "closed": False, "end_time": None}}, loaded_at=now,
+        )
+        result = bt.run_backtest(config(days=30), data=data)
+        self.assertEqual(result.stats["mark_to_market"]["positions_marked"], 0)
+        self.assertTrue((result.equity["equity"].iloc[:-1] == 1000.0).all())
+
+
 class SettleTests(unittest.TestCase):
     def _positions(self):
         trades = frame([trade("2026-05-01", "BUY", 0.50, 100.0)])
