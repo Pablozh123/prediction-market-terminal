@@ -94,3 +94,27 @@ class WebUtilAbbildungTests(unittest.TestCase):
         # Die anderen Zustaende bleiben, wie sie waren.
         self.assertEqual(zeile["fehler"], "API OFFLINE · LAST KNOWN STATE")
         self.assertEqual(zeile["wartet"], "WAITING FOR API")
+
+    def test_eine_studienadresse_findet_ihre_studie_auch_mit_bindestrich(self) -> None:
+        # Der Eintrag in der Seitenleiste heisst "Post-mortems", die Studie
+        # selbst "Postmortems". Wer die Beschriftung abschreibt, tippt
+        # #research/post-mortems, und das zeigte auf keine Studie. Die Seite
+        # blieb dann still auf dem Reiter stehen, der vorher offen war: die
+        # Adresse sagte das eine, die Seite zeigte das andere.
+        a = self.ausgabe["studien_adressen"]
+        self.assertIn("postmortems", a["kanonisch"])
+        self.assertEqual(a["postmortems"], a["mit_bindestrich"])
+        self.assertEqual(a["postmortems"], a["mit_unterstrich_und_gross"])
+        self.assertGreaterEqual(a["postmortems"], 0)
+        # Umgekehrt genauso: die kanonische Adresse traegt den Bindestrich,
+        # die Schreibweise ohne muss trotzdem ankommen.
+        self.assertIn("field-notes", a["kanonisch"])
+        self.assertEqual(a["feldnotizen_mit_strich"], a["feldnotizen_ohne_strich"])
+
+    def test_ein_segment_ohne_studie_bleibt_ohne_studie(self) -> None:
+        # Grosszuegig heisst nicht wahllos: was auf nichts zeigt, findet auch
+        # nichts, und die Seite rueckt dann die Adresse zurecht.
+        a = self.ausgabe["studien_adressen"]
+        self.assertEqual(a["unbekannt"], -1)
+        self.assertEqual(a["leer"], -1)
+        self.assertEqual(a["nichts"], -1)
