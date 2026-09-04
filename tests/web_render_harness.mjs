@@ -1132,6 +1132,17 @@ function rendern(T) {
     })],
     ['cross_arb_nur_schema', 'cross', {}, null, arbMit({ _quelle: 'live', schema: 'arb_scan/1' })],
     ['cross_arb_frisch', 'cross', {}, null, arbMit((() => { const p = arbNutzlast(); p.health.last_cycle_at = new Date().toISOString(); return p; })())],
+    // Die PnL-Kurve des gefolgten Wallets ist geladen: die Zeile darunter
+    // muss sagen, wessen Zahl das ist und ueber welchen Zeitraum.
+    ['copy_mit_quellkurve', 'copy', {}, null, (T) => {
+      const alt = T.liveData.copy;
+      if (!alt || !alt.kpis) return () => {};
+      T.liveData.copy = Object.assign({}, alt, {
+        kpis: Object.assign({}, alt.kpis, { source_pnl_delta: 648516.4 }),
+        source_curve: [0, 120000, 400000, 648516.4]
+      });
+      return () => { T.liveData.copy = alt; };
+    }],
     ['copy_fidelity', 'copy', { copyTab: 'fidelity' }],
     // The copy desk: every tab, the trader filter, the inline edit and
     // top-up rows, a read-only host (remote, no token) and one asking for a
