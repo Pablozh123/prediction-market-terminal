@@ -118,4 +118,3 @@ class WebUtilAbbildungTests(unittest.TestCase):
         # Die anderen Zustaende bleiben, wie sie waren.
         self.assertEqual(zeile["fehler"], "API OFFLINE · LAST KNOWN STATE")
         self.assertEqual(zeile["wartet"], "WAITING FOR API")
-
