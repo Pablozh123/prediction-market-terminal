@@ -2123,6 +2123,18 @@ class WebLeerzustandTest(unittest.TestCase):
         unentschieden = _sichtbarer_text(self.ausgabe["live"]["copy_sync_undecided"])
         self.assertIn("2 settlement(s) undecided: the resolved outcome was not read", unentschieden)
 
+    def test_cross_venue_sagt_dass_der_gebuehrensatz_strittig_ist(self) -> None:
+        # Die Spalte NET OF FEES ruht auf einem Satz, den die Venue-Doku mit
+        # fuenf Prozent angibt und mehrere Sekundaerquellen mit drei. Die
+        # Gebuehr ist linear im Satz, also verschiebt sich jede Netto-Zahl.
+        text = _sichtbarer_text(self.ausgabe["live"]["cross"])
+        self.assertIn("The general Polymarket taker rate is not settled", text)
+        # Der Hinweis traegt eine Groesse: wie viele der gezeigten Paare
+        # ueberhaupt betroffen sind.
+        self.assertIn("1 of 1 pairs shown price the Polymarket leg at that rate", text)
+        # Und die Richtung: der gezeigte Wert ist das konservative Ende.
+        self.assertIn("the conservative end", text)
+
     def test_copy_desk_filters_settings_and_rows(self) -> None:
         # Trader filter: w2 has no orders, and the table says so instead of
         # showing w1's row.
@@ -2303,18 +2315,6 @@ class WebLeerzustandTest(unittest.TestCase):
         # Und die Seite sagt, worauf der Score ruht, samt Groesse der Menge.
         self.assertIn("65% of the composite weight", text)
         self.assertIn("n = 250 wallets ranked together", text)
-
-    def test_cross_venue_sagt_dass_der_gebuehrensatz_strittig_ist(self) -> None:
-        # Die Spalte NET OF FEES ruht auf einem Satz, den die Venue-Doku mit
-        # fuenf Prozent angibt und mehrere Sekundaerquellen mit drei. Die
-        # Gebuehr ist linear im Satz, also verschiebt sich jede Netto-Zahl.
-        text = _sichtbarer_text(self.ausgabe["live"]["cross"])
-        self.assertIn("The general Polymarket taker rate is not settled", text)
-        # Der Hinweis traegt eine Groesse: wie viele der gezeigten Paare
-        # ueberhaupt betroffen sind.
-        self.assertIn("1 of 1 pairs shown price the Polymarket leg at that rate", text)
-        # Und die Richtung: der gezeigte Wert ist das konservative Ende.
-        self.assertIn("the conservative end", text)
 
     def test_studienstempel_ueberlebt_die_publish_uhr(self) -> None:
         """Der Stempel aus studies.js steht auf der Seite, nicht nur die Uhr.
