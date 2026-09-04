@@ -94,3 +94,32 @@ class WebUtilAbbildungTests(unittest.TestCase):
         # Die anderen Zustaende bleiben, wie sie waren.
         self.assertEqual(zeile["fehler"], "API OFFLINE · LAST KNOWN STATE")
         self.assertEqual(zeile["wartet"], "WAITING FOR API")
+
+    def test_der_live_poll_haengt_an_der_offenen_route(self) -> None:
+        # Der Poll holt markets (~280 KB) und tape (~180 KB) und rendert
+        # danach die ganze Seite neu. Er lief auf jeder Route im selben
+        # 30-Sekunden-Takt, auch auf Seiten ohne eine einzige dieser Zeilen
+        # im Rumpf. Ganz abstellen geht nicht: die Kopfzeile fuehrt den
+        # LIVE-Punkt und der Sidebar-Eintrag Live tape seinen Zaehler, beide
+        # auf jeder Route. Also seltener statt gar nicht.
+        takt = self.ausgabe["poll_takt"]
+        self.assertEqual(
+            takt["routen"],
+            ["overview", "markets", "flow", "whale", "track", "portfolio"])
+        self.assertEqual(takt["ruhig_ms"], 300000)
+
+        # Laute Route: jeder Weckruf holt.
+        self.assertTrue(takt["laute_route_sofort"])
+        # Ruhige Route: erst nach fuenf Minuten wieder.
+        self.assertFalse(takt["ruhige_route_gleich_danach"])
+        self.assertFalse(takt["ruhige_route_nach_zwei_minuten"])
+        self.assertTrue(takt["ruhige_route_nach_fuenf_minuten"])
+        # Der allererste Lauf wartet nie: sonst stuende die Kopfzeile auf
+        # einer ruhigen Route fuenf Minuten lang auf "waiting".
+        self.assertTrue(takt["ruhige_route_ohne_vorlauf"])
+        # Ein offenes Overlay liest die Zeilen und kann ueber jeder Route
+        # stehen, also gilt dort der kurze Takt.
+        self.assertTrue(takt["ruhige_route_mit_overlay"])
+        # Eine Route, die es nicht gibt, faellt auf den ruhigen Takt zurueck
+        # und nicht auf den lauten.
+        self.assertFalse(takt["unbekannte_route"])

@@ -1,7 +1,7 @@
 // Market Intel terminal — vanilla JS port of the design reference.
 // One controller class; each workspace renders as an HTML string from state.
 
-import { num, money, volume, esc, seriesPoints, tapeMatches, liveStatusLabel } from './util.js';
+import { num, money, volume, esc, seriesPoints, tapeMatches, liveStatusLabel, livePollFaellig, LIVE_TAKT_MS } from './util.js';
 import { STUDIEN } from './studies.js';
 import { caveatZeile, registerAktualisieren } from './claims.js';
 import { apiGet, apiGetRaw, apiPost } from './api.js';
@@ -172,6 +172,8 @@ class Terminal {
     this.traders = [];
     this.risks = [];
     this.tape = [];
+    // Wann der Live-Poll zuletzt lief; 0 heisst noch nie.
+    this._letzterPoll = 0;
     this.crossPairs = [];
     this.studies = STUDIEN;
     // Herkunft je Container: null heisst noch keine Antwort, sonst
@@ -750,6 +752,9 @@ class Terminal {
 
   // ---- data layer ----
   async pollLive() {
+    // Der Zeitstempel entscheidet auf den ruhigen Routen, ob der naechste
+    // Weckruf ueberhaupt etwas holt.
+    this._letzterPoll = Date.now();
     try {
       const [mk, tp] = await Promise.all([
         // 500 statt 250: mit dem kleinen Fenster sah die Marktseite kaum
@@ -1652,7 +1657,16 @@ class Terminal {
     // kostet aber rund 55 MB je Stunde und auf der Marktseite alle 30 s einen
     // Render von ~114 ms. Also: nur im sichtbaren Tab, und beim Zurueckkommen
     // einmal sofort nachziehen, damit der Stand nicht veraltet wirkt.
-    setInterval(() => { if (!document.hidden) this.pollLive(); }, 30000);
+    // Dazu: der Takt haengt an der offenen Route. Auf Methodology,
+    // Post-mortems, Field notes, jeder Studienseite, Backtester und Settings
+    // steht keine dieser Zeilen im Rumpf, dort reichen fuenf Minuten fuer den
+    // LIVE-Punkt der Kopfzeile und den Zaehler am Eintrag Live tape. Beide
+    // tragen ihren Stand, ein aelterer Stand behauptet also nichts Falsches.
+    setInterval(() => {
+      if (document.hidden) return;
+      if (!livePollFaellig(this.state.page, !!(this.state.detail || this.state.searchOpen), this._letzterPoll, Date.now())) return;
+      this.pollLive();
+    }, LIVE_TAKT_MS);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) this.pollLive(); });
     // The copy desk re-reads its books every 30 s while it is open (the
     // daemon writes between renders); not while an action is in flight, and
