@@ -24,6 +24,11 @@ class DockerImageTests(unittest.TestCase):
         # Die Ausnahme muss nach dem Ausschluss stehen, sonst gilt sie nicht.
         self.assertGreater(ignore.index("!data/claims.yaml"), ignore.index("data/"))
         self.assertTrue((WURZEL / "data" / "claims.yaml").is_file())
+        # railway up honours .gitignore: without the exception the upload
+        # lacks the file and the Dockerfile COPY fails (build 2026-09-04).
+        gitignore = [z.strip() for z in (WURZEL / ".gitignore").read_text(encoding="utf-8").splitlines()]
+        self.assertIn("!data/claims.yaml", gitignore)
+        self.assertGreater(gitignore.index("!data/claims.yaml"), gitignore.index("data/"))
 
 
 if __name__ == "__main__":

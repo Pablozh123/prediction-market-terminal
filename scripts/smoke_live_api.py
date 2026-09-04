@@ -4,8 +4,8 @@
 
 Requests a fixed list of routes and checks the status code, the shape of the
 JSON payload and, for one route, the security headers. One line per route, a
-summary, exit status 1 on any failure. Standard library only, so the deploy
-workflow (.github/workflows/deploy-api.yml) runs it on a bare runner without
+summary, exit status 1 on any failure. Standard library only, so the smoke
+workflow (.github/workflows/smoke-api.yml) runs it on a bare runner without
 installing requirements.txt.
 
 Three 200s on /healthz prove that a container answers; they say nothing about
