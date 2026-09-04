@@ -451,73 +451,6 @@ class WalletPageBlocksTests(unittest.TestCase):
         self.assertIsNone(unpriced["value"])
 
 
-class WalletHeadlineTests(unittest.TestCase):
-    """Der Kopf der Wallet-Seite: was er sagt, und was er bei duenner
-    Stichprobe zuerst sagt."""
-
-    def _bloecke(self, **ueber):
-        track = {
-            "survivorship_gate": {"ok": True, "resolved_markets": 45, "span_days": 59.16},
-            "corrected": {"win_rate": 0.9259, "n": 27, "ci95": [0.7663, 0.9794]},
-            "concentration": {"one_hit_flag": False},
-            "wash_flag": {"flag": False},
-        }
-        edge = {"per_dollar": {"edge": 0.3874, "ci_low": 0.1473, "ci_high": 0.668, "significant": True}}
-        attribution = {"top_event_share": 0.2875}
-        sample = {"n_resolved": 45, "quality": "adequate", "verdict_allowed": True}
-        for key, wert in ueber.items():
-            {"track": track, "edge": edge, "attribution": attribution, "sample": sample}[key].update(wert)
-        return track, edge, attribution, sample
-
-    def test_eine_ausreichende_stichprobe_wird_als_solche_benannt(self) -> None:
-        kopf = apv.wallet_headline(*self._bloecke())
-        self.assertTrue(kopf["allowed"])
-        self.assertIn("Sample: adequate, 45 resolved events", kopf["lead"])
-        self.assertNotIn("not as a finding", kopf["lead"])
-
-    def test_eine_duenne_stichprobe_sagt_das_zuerst(self) -> None:
-        # Das ist der Kern: ein Kopf, der bei n = 8 klingt wie bei n = 200,
-        # waere genau die Fehlerklasse, gegen die diese Seite gebaut ist.
-        kopf = apv.wallet_headline(*self._bloecke(
-            sample={"n_resolved": 8, "quality": "developing", "verdict_allowed": False}))
-        self.assertFalse(kopf["allowed"])
-        self.assertIn("below the threshold for a verdict", kopf["lead"])
-        self.assertIn("not as a finding", kopf["lead"])
-
-    def test_ohne_angabe_zur_stichprobe_wird_nichts_behauptet(self) -> None:
-        kopf = apv.wallet_headline({}, {}, {}, {})
-        self.assertFalse(kopf["allowed"])
-        self.assertIn("not stated by this payload", kopf["lead"])
-        self.assertEqual(kopf["clauses"], [])
-
-    def test_jede_zahl_im_kopf_traegt_ihr_n_oder_ihr_intervall(self) -> None:
-        kopf = apv.wallet_headline(*self._bloecke())
-        text = " ".join(kopf["clauses"])
-        self.assertIn("45 resolved markets over 59 days clears the sample gate", text)
-        self.assertIn("Corrected win rate 93% on 27 events", text)
-        self.assertIn("95% CI 77% to 98%", text)
-        self.assertIn("Realised edge 38.7 cents per dollar staked", text)
-        self.assertIn("95% CI 14.7 to 66.8, excluding zero", text)
-        self.assertIn("largest single event is 29% of gross profit", text)
-
-    def test_ein_intervall_ueber_null_wird_nicht_als_befund_verkauft(self) -> None:
-        kopf = apv.wallet_headline(*self._bloecke(
-            edge={"per_dollar": {"edge": 0.02, "ci_low": -0.05, "ci_high": 0.09, "significant": False}}))
-        self.assertIn("which includes zero", " ".join(kopf["clauses"]))
-
-    def test_die_flaggen_stehen_im_kopf_wenn_sie_gesetzt_sind(self) -> None:
-        kopf = apv.wallet_headline(*self._bloecke(
-            track={"concentration": {"one_hit_flag": True}, "wash_flag": {"flag": True}}))
-        text = " ".join(kopf["clauses"])
-        self.assertIn("trips the one-hit flag", text)
-        self.assertIn("Flagged as churn", text)
-
-    def test_ein_nicht_bestandenes_gate_wird_so_benannt(self) -> None:
-        kopf = apv.wallet_headline(*self._bloecke(
-            track={"survivorship_gate": {"ok": False, "resolved_markets": 6, "span_days": 3.4}}))
-        self.assertIn("6 resolved markets over 3 days does not clear the sample gate", " ".join(kopf["clauses"]))
-
-
 class RiskWalletAddressTests(unittest.TestCase):
     def test_wallet_rows_carry_the_full_address(self) -> None:
         wallets = pd.DataFrame([{
@@ -765,6 +698,73 @@ class AlertRowsTests(unittest.TestCase):
 
     def test_counts_on_an_empty_frame(self) -> None:
         self.assertEqual(apv.alert_rule_counts(pd.DataFrame()), {})
+
+
+class WalletHeadlineTests(unittest.TestCase):
+    """Der Kopf der Wallet-Seite: was er sagt, und was er bei duenner
+    Stichprobe zuerst sagt."""
+
+    def _bloecke(self, **ueber):
+        track = {
+            "survivorship_gate": {"ok": True, "resolved_markets": 45, "span_days": 59.16},
+            "corrected": {"win_rate": 0.9259, "n": 27, "ci95": [0.7663, 0.9794]},
+            "concentration": {"one_hit_flag": False},
+            "wash_flag": {"flag": False},
+        }
+        edge = {"per_dollar": {"edge": 0.3874, "ci_low": 0.1473, "ci_high": 0.668, "significant": True}}
+        attribution = {"top_event_share": 0.2875}
+        sample = {"n_resolved": 45, "quality": "adequate", "verdict_allowed": True}
+        for key, wert in ueber.items():
+            {"track": track, "edge": edge, "attribution": attribution, "sample": sample}[key].update(wert)
+        return track, edge, attribution, sample
+
+    def test_eine_ausreichende_stichprobe_wird_als_solche_benannt(self) -> None:
+        kopf = apv.wallet_headline(*self._bloecke())
+        self.assertTrue(kopf["allowed"])
+        self.assertIn("Sample: adequate, 45 resolved events", kopf["lead"])
+        self.assertNotIn("not as a finding", kopf["lead"])
+
+    def test_eine_duenne_stichprobe_sagt_das_zuerst(self) -> None:
+        # Das ist der Kern: ein Kopf, der bei n = 8 klingt wie bei n = 200,
+        # waere genau die Fehlerklasse, gegen die diese Seite gebaut ist.
+        kopf = apv.wallet_headline(*self._bloecke(
+            sample={"n_resolved": 8, "quality": "developing", "verdict_allowed": False}))
+        self.assertFalse(kopf["allowed"])
+        self.assertIn("below the threshold for a verdict", kopf["lead"])
+        self.assertIn("not as a finding", kopf["lead"])
+
+    def test_ohne_angabe_zur_stichprobe_wird_nichts_behauptet(self) -> None:
+        kopf = apv.wallet_headline({}, {}, {}, {})
+        self.assertFalse(kopf["allowed"])
+        self.assertIn("not stated by this payload", kopf["lead"])
+        self.assertEqual(kopf["clauses"], [])
+
+    def test_jede_zahl_im_kopf_traegt_ihr_n_oder_ihr_intervall(self) -> None:
+        kopf = apv.wallet_headline(*self._bloecke())
+        text = " ".join(kopf["clauses"])
+        self.assertIn("45 resolved markets over 59 days clears the sample gate", text)
+        self.assertIn("Corrected win rate 93% on 27 events", text)
+        self.assertIn("95% CI 77% to 98%", text)
+        self.assertIn("Realised edge 38.7 cents per dollar staked", text)
+        self.assertIn("95% CI 14.7 to 66.8, excluding zero", text)
+        self.assertIn("largest single event is 29% of gross profit", text)
+
+    def test_ein_intervall_ueber_null_wird_nicht_als_befund_verkauft(self) -> None:
+        kopf = apv.wallet_headline(*self._bloecke(
+            edge={"per_dollar": {"edge": 0.02, "ci_low": -0.05, "ci_high": 0.09, "significant": False}}))
+        self.assertIn("which includes zero", " ".join(kopf["clauses"]))
+
+    def test_die_flaggen_stehen_im_kopf_wenn_sie_gesetzt_sind(self) -> None:
+        kopf = apv.wallet_headline(*self._bloecke(
+            track={"concentration": {"one_hit_flag": True}, "wash_flag": {"flag": True}}))
+        text = " ".join(kopf["clauses"])
+        self.assertIn("trips the one-hit flag", text)
+        self.assertIn("Flagged as churn", text)
+
+    def test_ein_nicht_bestandenes_gate_wird_so_benannt(self) -> None:
+        kopf = apv.wallet_headline(*self._bloecke(
+            track={"survivorship_gate": {"ok": False, "resolved_markets": 6, "span_days": 3.4}}))
+        self.assertIn("6 resolved markets over 3 days does not clear the sample gate", " ".join(kopf["clauses"]))
 
 
 class CopyPayloadTests(unittest.TestCase):
