@@ -6,7 +6,6 @@ import { esc, num, herkunftSatz, leerZeile, EINZAHLUNGEN_USD, offeneNichtDrin, s
 import { caveat, caveatZeile, registerStand, unregistrierteTexte } from '../claims.js';
 import { stepKurve, diagramm, linien, kalibrierung, fmtZahl, serienFarbe, intervallMarke } from '../charts.js';
 import { renderMicrostructure } from './microstructure_page.js';
-import { renderArbScan, ARB_SCAN_DATEI } from './arb_scan_page.js';
 import { MONO as M, KARTE, LABEL_BLOCK, kpi } from '../ui.js';
 
 function filterGroup(label, chipsHtml) {
@@ -18,7 +17,7 @@ function filterGroup(label, chipsHtml) {
 const RESEARCH_DATEI = [
   'queue.json', 'kategorie_karte.json', 'mentions_latenz.json', 'runs.json',
   'microstructure.json', 'pilot.json', 'pipeline_forward.json', 'audit.json',
-  'postmortems.json', 'field_notes.json', ARB_SCAN_DATEI
+  'postmortems.json', 'field_notes.json'
 ];
 
 // Farbe je Achse, damit sich die Fehlerarten auf einen Blick trennen lassen.
@@ -598,11 +597,6 @@ export function renderResearch(T) {
   // Ende, und ein Index wuerde beim naechsten Eintrag verrutschen.
   if (studienSlug(study) === 'field-notes') {
     return '<div>' + header + renderFieldNotes(payload, study) + '</div>';
-  }
-  // Arbitrage scan: the paper scanner's file, own page, own module. Hangs on
-  // the slug like Field notes, because the list grows at the end.
-  if (studienSlug(study) === 'arb-scan') {
-    return '<div>' + header + renderArbScan(payload, study) + '</div>';
   }
 
   // Microstructure hat eine eigene Seite: zwoelf Studien, je Karte mit
