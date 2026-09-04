@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<!--
+  PLACEHOLDERS — replace every one of these before the page goes live:
+    [Full name]              the controller; same person as in imprint.html
+    [Street and number]
+    [Postal code and city]
+    [contact email]          appears under "Controller", "Wallet addresses" and "Your rights"
+  Same four placeholders are used in imprint.html; both files must be filled together.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy policy · Market Intel</title>
+<meta name="description" content="Privacy policy of marketintel.dev: what is processed when you visit, by whom, where, and what rights you have.">
+<meta name="robots" content="index,follow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="./favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png">
+<link rel="shortcut icon" href="./favicon.ico">
+<meta name="theme-color" content="#0B0B0A">
+<script>
+// Theme before first paint, so a stored light choice never flashes dark.
+// Stored choice wins; first visit follows the system preference.
+(function () {
+  var t = 'dark';
+  try { t = localStorage.getItem('mi-theme') || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'); } catch (e) { /* private mode */ }
+  document.documentElement.dataset.theme = t;
+  if (t === 'light') {
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.content = '#F4F1EA';
+  }
+}());
+</script>
+<link rel="stylesheet" href="./css/terminal.css">
+<style>
+  .legal { max-width: 720px; margin: 0 auto; padding: var(--sp-7) var(--sp-6); font-size: var(--t-body); line-height: var(--lh-prose); color: var(--ink-2); }
+  .legal .back { font-family: var(--font-mono); font-size: var(--t-small); color: var(--ink-3); text-decoration: underline dotted; }
+  .legal .back:hover { color: var(--accent); }
+  .legal .eyebrow { font-family: var(--font-mono); font-size: var(--t-micro); letter-spacing: var(--ls-caps-max); text-transform: uppercase; color: var(--ink-4); margin-top: var(--sp-7); }
+  .legal h1 { font-size: var(--t-head); font-weight: 600; color: var(--text); margin: var(--sp-2) 0 var(--sp-6); letter-spacing: -0.01em; }
+  .legal h2 { font-size: var(--t-lead); font-weight: 600; color: var(--text); margin: var(--sp-7) 0 var(--sp-3); }
+  .legal h3 { font-family: var(--font-mono); font-size: var(--t-micro); letter-spacing: var(--ls-caps-strong); text-transform: uppercase; color: var(--ink-4); margin: var(--sp-6) 0 var(--sp-3); }
+  .legal p { margin: 0 0 var(--sp-4); }
+  .legal ul { margin: 0 0 var(--sp-4); padding-left: var(--sp-6); }
+  .legal li { margin-bottom: var(--sp-2); }
+  .legal a { text-decoration: underline dotted; }
+  .legal .card { background: var(--panel); border: 1px solid var(--line-2); border-radius: var(--r-panel); padding: var(--sp-5); font-family: var(--font-mono); font-size: var(--t-small); line-height: var(--lh-prose); color: var(--ink-1); }
+  .legal .card div { margin-bottom: var(--sp-2); }
+  .legal .placeholder { color: var(--accent); }
+  .legal .summary { border-left: 2px solid var(--accent); padding: var(--sp-2) 0 var(--sp-2) var(--sp-5); color: var(--ink-1); margin-bottom: var(--sp-6); }
+  .legal .stamp { font-family: var(--font-mono); font-size: var(--t-micro); letter-spacing: var(--ls-caps); color: var(--ink-4); margin-top: var(--sp-7); padding-top: var(--sp-5); border-top: 1px solid var(--line-2); display: flex; flex-wrap: wrap; gap: var(--sp-3) var(--sp-5); }
+  .legal .stamp a { color: var(--ink-3); }
+</style>
+</head>
+<body>
+<main class="legal">
+  <a class="back" href="./">← Back to the terminal</a>
+
+  <div class="eyebrow">Market Intel · marketintel.dev</div>
+  <h1>Privacy policy</h1>
+
+  <p class="summary">Short version: this site sets no cookies, runs no analytics and no advertising, and has no accounts. What it cannot avoid is the technical trace every web request leaves — at the hosting providers, and at Google, because the fonts are loaded from Google's servers. The details follow.</p>
+
+  <p>This policy explains what happens to personal data when you use marketintel.dev and the API at api.marketintel.dev. It is written for the Swiss Federal Act on Data Protection (revDSG) as in force since September 2023. Where the site reaches readers in the EU or elsewhere, the same facts apply; nothing on this site is directed specifically at those readers.</p>
+
+  <h2>Controller</h2>
+  <div class="card">
+    <div><span class="placeholder">[Full name]</span></div>
+    <div><span class="placeholder">[Street and number]</span></div>
+    <div><span class="placeholder">[Postal code and city]</span>, Switzerland</div>
+    <div>Email: <span class="placeholder">[contact email]</span></div>
+  </div>
+  <p style="margin-top:var(--sp-4)">The controller is the person named in the <a href="./imprint.html">imprint</a>. There is no data protection officer and no representative in the EU; this is a one-person research site.</p>
+
+  <h2>What is processed, and why</h2>
+
+  <h3>a. Hosting and delivery: Cloudflare</h3>
+  <p>The site is served by Cloudflare Pages, and requests to the API pass through Cloudflare's proxy before they reach the API host. For every request Cloudflare sees your IP address, the requested URL, the time, your browser's user agent and referrer, and the protocol details of the connection. Cloudflare uses this to deliver the page, to defend against abuse and, in aggregate, for its own service analytics; its logging is governed by Cloudflare's own policies. The operator does not enable Cloudflare's web analytics and sees no visitor-level data from Cloudflare.</p>
+  <p>Cloudflare also sends the response headers <code>NEL</code> and <code>Report-To</code>. These ask your browser to report network errors (a failed or slow connection to this site) to Cloudflare's reporting endpoint. Such a report contains the URL that failed, the type of error and your IP address as seen by that endpoint; it goes to Cloudflare, not to the operator.</p>
+
+  <h3>b. The API host: Railway</h3>
+  <p>The API at api.marketintel.dev runs on Railway. Railway keeps request logs (IP address as forwarded by the proxy, URL, time, status) for the operation of the platform, under Railway's own retention rules.</p>
+  <p>The API itself applies a per-IP rate limit so a single client cannot exhaust it. This limiter keeps a short-lived counter per IP address in the memory of the running process. Nothing is written to disk, nothing is kept beyond the refill window of a few minutes, and the counters vanish when the process restarts. Application logs record request paths and status codes for debugging; the operator does not build user profiles from them.</p>
+
+  <h3>c. Fonts: Google Fonts</h3>
+  <p>The typefaces (IBM Plex Sans and IBM Plex Mono) are loaded from Google's servers, fonts.googleapis.com and fonts.gstatic.com. This means that when the page loads, your browser sends a request to Google, and Google receives your IP address, the user agent and the referring page. Google is in the USA. The operator gets no information back from that request. If you do not want this, a browser extension that blocks third-party fonts or a system-installed copy of the fonts prevents the request; the page still works with fallback fonts.</p>
+
+  <h3>d. Browser storage: no cookies, no tracking</h3>
+  <p>The site sets no cookies. It uses your browser's localStorage for one thing: the key <code>mi-theme</code>, which remembers whether you chose the dark or the light theme. This value never leaves your browser and is not sent to any server. There are no analytics, no tracking pixels, no fingerprinting, no advertising and no consent banner, because nothing needs consent.</p>
+  <p>One exception concerns the operator alone: the copy-trading desk, an internal tool of this site, keeps an admin token in localStorage of the operator's own browser and sends it as a request header. Visitors have no such token and this mechanism does not touch them.</p>
+
+  <h3>e. External links</h3>
+  <p>The site links to GitHub (source code) and Polygonscan (on-chain view of the live-run wallet). Following a link takes you to a site with its own privacy policy; the operator has no control over what those sites collect.</p>
+
+  <h3>f. Wallet addresses and leaderboard data</h3>
+  <p>Some pages show wallet addresses and their trading activity. This is public data: positions and trades on Polymarket are recorded on the Polygon blockchain, and both Polymarket and Kalshi publish leaderboards and trade histories through public APIs. The operator processes this data to study market microstructure and to measure whether trading skill can be told from luck. The legal basis is the operator's legitimate interest in research on a public market; no attempt is made to link an address to a natural person, and the site adds no identity information of its own.</p>
+  <p>If a wallet address you control appears on this site and you would rather it did not, write to <span class="placeholder">[contact email]</span> naming the address. The operator will remove the address from the displayed views and from published data files within a reasonable time. Removing it from this site does not remove it from the blockchain or from the venues' own APIs, which the operator cannot change.</p>
+
+  <h3>g. Where data goes: countries of export</h3>
+  <p>Cloudflare, Railway and Google are companies based in the USA, and requests may be processed on their servers in the USA or in other countries where they operate. Switzerland recognises the USA as offering adequate protection for companies certified under the Swiss-U.S. Data Privacy Framework; beyond that, transfers rest on the providers' standard contractual clauses and their own published commitments. The operator relies on those safeguards and has no separate agreement with any of these providers beyond their standard terms.</p>
+
+  <h2>Retention</h2>
+  <p>The operator stores nothing about visitors. Server and request logs are kept by Cloudflare and Railway for the periods their own policies define; the operator does not copy them. The in-memory rate-limit counters live for minutes. The theme preference stays in your browser until you clear it.</p>
+
+  <h2>No profiling, no automated decisions</h2>
+  <p>The site makes no decisions about you, automated or otherwise, and builds no profiles of visitors. The studies and rankings shown concern wallets and markets, not the people reading the page.</p>
+
+  <h2>Your rights</h2>
+  <p>Under the revDSG you can ask the controller</p>
+  <ul>
+    <li>whether and which personal data about you is processed, and to receive a copy (right of access);</li>
+    <li>to correct data that is wrong;</li>
+    <li>to delete data, including a wallet address shown on this site;</li>
+    <li>to object to a processing, in particular one based on legitimate interest.</li>
+  </ul>
+  <p>Write to <span class="placeholder">[contact email]</span>. Since the operator holds no visitor data, most requests will end with that answer; requests about wallet addresses are handled as described above. You can also complain to the Swiss Federal Data Protection and Information Commissioner (FDPIC).</p>
+
+  <h2>Changes to this policy</h2>
+  <p>This policy is changed when the site's setup changes, for example when a provider is replaced or the fonts are moved to the site's own server. The current version is always at this address, and the date below says when it was last changed. Earlier versions can be read in the source repository's history.</p>
+
+  <div class="stamp">
+    <span>Last updated: 2026-09-04</span>
+    <a href="./imprint.html">Imprint</a>
+    <a href="./">Terminal</a>
+  </div>
+</main>
+</body>
+</html>

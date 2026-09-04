@@ -27,7 +27,19 @@ Umgebung (alles optional, Voreinstellung = lokale Entwicklung):
     RATE_LIMIT_GLOBAL_PER_MIN  Deckel fuer alles unter /api/ je IP (120), Spitze
                                RATE_LIMIT_GLOBAL_BURST (40); 0 schaltet ab.
     RATE_LIMIT_IP_HEADER       Header mit der Besucheradresse hinter dem Proxy
-                               (X-Forwarded-For; hinter Cloudflare CF-Connecting-IP).
+                               (X-Forwarded-For). Traegt die Anfrage CF-Connecting-IP,
+                               gewinnt der: Cloudflare setzt ihn am Rand selbst und
+                               ueberschreibt, was ein Client mitschickt.
+    RATE_LIMIT_TRUST_CF        0 schaltet diesen Vorrang ab (Voreinstellung 1).
+                               Vertrauensmodell: der Vorrang ist nur richtig, wenn der
+                               Ursprung ausschliesslich ueber den Cloudflare-Proxy
+                               erreichbar ist — auf Railway heisst das: die Custom
+                               Domain ist proxied und der erzeugte *.up.railway.app-
+                               Host ist abgehaengt (docs/PRODUCTION_READINESS.md §8a).
+                               Ist der Ursprung direkt erreichbar, kann jeder Client
+                               den Header faelschen und bekommt je Anfrage einen
+                               frischen Eimer; dann 0 setzen und nur den Header lesen,
+                               den der eigene Proxy (Caddy) neu schreibt.
     CACHE_MAX_ENTRIES          Obergrenze des Prozess-Caches (512 Eintraege).
     RISK_LOG_DIR               Verzeichnis des Flag-Logs des Risk-Screens (app/risk_log.py,
                                Datei flags.jsonl); Voreinstellung data/risk_flags unter dem
@@ -255,6 +267,8 @@ def cached(key: str, fn, *args, ttl: float = CACHE_TTL, **kwargs):
 # ein weiter fuer alles unter /api/. Beide sind reine In-Process-Bremsen; die
 # eigentliche Abwehr sitzt in Cloudflare (siehe deploy/Caddyfile).
 RATE_LIMIT_IP_HEADER = os.environ.get("RATE_LIMIT_IP_HEADER", "X-Forwarded-For").strip() or "X-Forwarded-For"
+CF_CONNECTING_IP = "CF-Connecting-IP"
+RATE_LIMIT_TRUST_CF = os.environ.get("RATE_LIMIT_TRUST_CF", "1").strip().lower() not in {"0", "false", "no", "off"}
 EXPENSIVE_LIMITER = TokenBucketLimiter(
     per_minute=_env_float("RATE_LIMIT_PER_MIN", 6.0),
     burst=_env_int("RATE_LIMIT_BURST", 3),
@@ -265,9 +279,30 @@ GLOBAL_LIMITER = TokenBucketLimiter(
 )
 
 
+def _forwarded_address(request: Request) -> str | None:
+    """Besucheradresse aus dem Proxy-Header; None, wenn kein Proxy davor steht.
+
+    Reihenfolge: CF-Connecting-IP vor dem konfigurierten Header. Cloudflare
+    setzt CF-Connecting-IP am Rand selbst und ueberschreibt einen vom Client
+    mitgeschickten — vertrauenswuerdig also genau dann, wenn der Ursprung
+    nur ueber den Proxy erreichbar ist (Railway: Custom Domain proxied,
+    *.up.railway.app abgehaengt; Compose: Port 8787 nie veroeffentlicht).
+    Ohne Cloudflare davor waere der Header faelschbar, darum
+    RATE_LIMIT_TRUST_CF=0 dort, wo Caddy allein am Rand steht und
+    X-Forwarded-For fuer fremde Clients neu schreibt (api/ratelimit.py
+    client_ip beschreibt dieses Modell).
+    """
+
+    if RATE_LIMIT_TRUST_CF:
+        cf = (request.headers.get(CF_CONNECTING_IP) or "").strip()
+        if cf:
+            return cf
+    return request.headers.get(RATE_LIMIT_IP_HEADER)
+
+
 def _request_ip(request: Request) -> str:
     host = request.client.host if request.client else None
-    return client_ip(request.headers.get(RATE_LIMIT_IP_HEADER), host)
+    return client_ip(_forwarded_address(request), host)
 
 
 def _rate_limited_response(retry_after_s: int) -> JSONResponse:
@@ -457,8 +492,11 @@ def load_ranked(limit: int = 250) -> pd.DataFrame:
     return cached(f"ranked_{limit}", _load, ttl=300.0)
 
 
-@app.get("/api/health")
-@app.get("/healthz", include_in_schema=False)
+# HEAD ausdruecklich dazu: Uptime-Monitore und ``curl -I`` fragen so, und ein
+# @app.get allein antwortet darauf 404 — das sah einmal wie eine fehlende
+# Route auf dem Deploy-Host aus, waehrend GET laengst 200 lieferte.
+@app.api_route("/api/health", methods=["GET", "HEAD"])
+@app.api_route("/healthz", methods=["GET", "HEAD"], include_in_schema=False)
 def health() -> dict[str, Any]:
     return {"ok": True, "time": md.now_utc_label()}
 
@@ -1914,11 +1952,11 @@ def _copy_write_access(request: Request):
     host = request.client.host if request.client else None
     # A proxied request is never "local", whatever the socket peer says: with
     # Caddy on the same box the peer is loopback for every visitor. Any
-    # forwarding header (the configured one or the plain X-Forwarded-For)
-    # marks the request as remote — and a forged "X-Forwarded-For: 127.0.0.1"
-    # must not talk its way in either, so the forwarded address is only named,
-    # never trusted as loopback.
-    forwarded = request.headers.get(RATE_LIMIT_IP_HEADER) or request.headers.get("X-Forwarded-For")
+    # forwarding header (CF-Connecting-IP, the configured one or the plain
+    # X-Forwarded-For) marks the request as remote — and a forged
+    # "X-Forwarded-For: 127.0.0.1" must not talk its way in either, so the
+    # forwarded address is only named, never trusted as loopback.
+    forwarded = _forwarded_address(request) or request.headers.get("X-Forwarded-For")
     if forwarded:
         host = "proxied:" + client_ip(forwarded, host)
     return ca.write_access(host, request.headers.get(ca.ADMIN_TOKEN_HEADER), ca.configured_token())
@@ -2330,6 +2368,39 @@ async def kein_frontend_cache(request, call_next):
     antwort = await call_next(request)
     if not request.url.path.startswith("/api/"):
         antwort.headers["Cache-Control"] = "no-store, must-revalidate"
+    return antwort
+
+
+# Schutzheader der JSON-Antworten. Die Frontend-Dateien bekommen ihre Header
+# am Rand (web/_headers auf Pages, deploy/Caddyfile selbstgehostet) und bleiben
+# hier unberuehrt; die API ist auf api.marketintel.dev ein eigener Host, den
+# keine der beiden Dateien erreicht. JSON braucht weder Skript noch Rahmen
+# noch Referrer, also die engste Policy. Cache-Control bleibt Sache der Routen.
+API_SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
+}
+
+
+@app.middleware("http")
+async def api_schutzheader(request, call_next):
+    """Schutzheader auf alles unter /api/ und auf /healthz, sonst nichts.
+
+    Dazu: auf einem api.-Host ist das mitgelieferte Frontend eine zweite,
+    indexierbare Kopie der Seite (api.marketintel.dev/ lieferte die ganze
+    SPA). Die Dateien bleiben erreichbar — lokal und selbstgehostet ist
+    derselbe Prozess die Seite —, tragen dort aber X-Robots-Tag: noindex.
+    """
+
+    antwort = await call_next(request)
+    pfad = request.url.path
+    if pfad.startswith("/api/") or pfad == "/healthz":
+        for name, wert in API_SECURITY_HEADERS.items():
+            antwort.headers.setdefault(name, wert)
+    elif request.headers.get("host", "").lower().startswith("api."):
+        antwort.headers.setdefault("X-Robots-Tag", "noindex")
     return antwort
 
 

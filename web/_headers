@@ -20,3 +20,27 @@
 # die Revalidierung auf jedem Seitenwechsel.
 /data/*
   Cache-Control: public, max-age=300, must-revalidate
+
+# Schutzheader fuer jede Antwort (Pages selbst setzt nur nosniff und
+# Referrer-Policy). Die CSP ist die aus deploy/Caddyfile, angepasst an die
+# geteilte Auslieferung: die API ist ein eigener Origin (connect-src),
+# Schriften kommen von Google Fonts, Marktbilder sind absolute https-URLs
+# aus dem Polymarket-Feed (app/api_views.py _image_url), das Frontend setzt
+# style-Attribute per innerHTML (style-src 'unsafe-inline'), aber keine
+# Inline-Handler. Das einzige Inline-Skript ist der Theme-Bootstrap im
+# <head> von index.html, imprint.html, privacy.html und 404.html — wortgleich,
+# daher ein Hash fuer alle. Wer das Skript aendert, rechnet neu:
+#   python -c "import hashlib,base64,re;s=open('web/index.html',encoding='utf-8').read();b=re.search(r'<script>(.*?)</script>',s,re.S).group(1);print('sha256-'+base64.b64encode(hashlib.sha256(b.encode()).digest()).decode())"
+# HSTS ohne preload: preload ist eine Einbahnstrasse und bleibt eine
+# bewusste Entscheidung. Access-Control-Allow-Origin: * haengt Pages von
+# sich aus an; nichts braucht es (die Seite ruft nur ihren eigenen Origin
+# und die API), darum wird es hier abgehaengt.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-EheZHFEArKm+rUKHwaUSTSfOnyCfECaY0PC0xEn+E+k='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://api.marketintel.dev; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+  Cross-Origin-Opener-Policy: same-origin
+  ! Access-Control-Allow-Origin

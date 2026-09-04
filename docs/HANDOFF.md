@@ -87,8 +87,9 @@ Buildable now, no legal exposure:
    plus SIWE.
 6. ⬜ **Crypto payment** — only if asked for after launch. Fiat first.
 7. ✅ **Production deploy** — live as marketintel.dev (Cloudflare Pages) +
-   api.marketintel.dev (Railway), see §9.1. Imprint / privacy policy and
-   geoblocking are still open; the compose + Caddy path in
+   api.marketintel.dev (Railway), see §9.1. Imprint and privacy policy exist
+   as `/imprint.html` and `/privacy.html` (placeholders for name, address and
+   email still to fill); geoblocking is still open; the compose + Caddy path in
    PRODUCTION_READINESS.md remains the self-hosted alternative.
 
 Strategic decision, not without a lawyer:

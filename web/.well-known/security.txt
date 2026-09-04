@@ -1,0 +1,5 @@
+Contact: https://github.com/Pablozh123/prediction-market-terminal/security/advisories/new
+Expires: 2027-09-04T00:00:00.000Z
+Preferred-Languages: en, de
+Canonical: https://marketintel.dev/.well-known/security.txt
+Policy: https://github.com/Pablozh123/prediction-market-terminal/blob/main/docs/PRODUCTION_READINESS.md

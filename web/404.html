@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<!--
+  Not-found page for Cloudflare Pages. Its presence switches Pages from the
+  SPA fallback (every unknown path answered with index.html and HTTP 200) to
+  a real 404. That is safe here: the app routes purely on the URL fragment
+  (web/js/app.js reads location.hash; deep links are /#research/<slug>,
+  /#wallet/<addr>, /#risk/log), the fragment never reaches the server, and
+  no link in web/js points at a path other than ./, ./imprint.html and
+  ./privacy.html. The theme bootstrap below is byte-identical to the one in
+  index.html — the CSP in web/_headers pins it by hash.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Not found · Market Intel</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="./favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png">
+<link rel="shortcut icon" href="./favicon.ico">
+<meta name="theme-color" content="#0B0B0A">
+<script>
+// Theme before first paint, so a stored light choice never flashes dark.
+// Stored choice wins; first visit follows the system preference.
+(function () {
+  var t = 'dark';
+  try { t = localStorage.getItem('mi-theme') || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'); } catch (e) { /* private mode */ }
+  document.documentElement.dataset.theme = t;
+  if (t === 'light') {
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.content = '#F4F1EA';
+  }
+}());
+</script>
+<link rel="stylesheet" href="./css/terminal.css">
+<style>
+  .notfound { max-width: 720px; margin: 0 auto; padding: var(--sp-7) var(--sp-6); font-size: var(--t-body); line-height: var(--lh-prose); color: var(--ink-2); }
+  .notfound .eyebrow { font-family: var(--font-mono); font-size: var(--t-micro); letter-spacing: var(--ls-caps-max); text-transform: uppercase; color: var(--ink-4); margin-top: var(--sp-7); }
+  .notfound h1 { font-size: var(--t-head); font-weight: 600; color: var(--text); margin: var(--sp-2) 0 var(--sp-6); letter-spacing: -0.01em; }
+  .notfound .code { font-family: var(--font-mono); font-size: var(--t-small); color: var(--ink-3); }
+  .notfound p { margin: 0 0 var(--sp-4); }
+  .notfound a { text-decoration: underline dotted; }
+  .notfound a:hover { color: var(--accent); }
+  .notfound .back { font-family: var(--font-mono); font-size: var(--t-small); color: var(--ink-3); }
+</style>
+</head>
+<body>
+<main class="notfound">
+  <a class="back" href="./">← Back to the terminal</a>
+
+  <div class="eyebrow">Market Intel · marketintel.dev</div>
+  <h1>No such page</h1>
+
+  <p><span class="code">HTTP 404</span> — nothing is served at this path. The terminal itself lives at the site root; its sections are addressed by fragment, for example <a href="./#research">/#research</a> or <a href="./#markets">/#markets</a>.</p>
+  <p>Other documents: <a href="./imprint.html">imprint</a>, <a href="./privacy.html">privacy policy</a>.</p>
+</main>
+</body>
+</html>
