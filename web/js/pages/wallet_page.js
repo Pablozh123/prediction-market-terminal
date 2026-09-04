@@ -179,6 +179,34 @@ function initials(name, addr) {
 }
 
 // Identity strip: avatar, name, address, first/last activity, then the
+// Der Kopf, bevor irgendeine Kachel kommt. Die Seite rechnet alles aus und
+// begrub die Antwort bisher unter zwanzig Zahlen; wer sie las, musste selbst
+// zusammensetzen, was der Datensatz hergibt. Die Saetze baut der Endpunkt
+// (api_views.wallet_headline) aus Feldern, die ohnehin schon berechnet sind,
+// damit hier keine zweite Rechnung entsteht.
+//
+// Die erste Zeile ist der wichtigste Teil: sie sagt, ob die Stichprobe
+// ueberhaupt ein Urteil traegt. Ein Kopf, der bei acht Ereignissen genauso
+// klingt wie bei zweihundert, waere genau das, wogegen diese Seite gebaut ist.
+function renderHeadline(d) {
+  const h = d.headline || null;
+  if (!h || !h.lead) return '';
+  const erlaubt = h.allowed === true;
+  const saetze = Array.isArray(h.clauses) ? h.clauses : [];
+  const rahmen = erlaubt ? 'rgba(var(--ink),.14)' : 'rgba(var(--warn-rgb),.35)';
+  return '<div style="' + KARTE + '; border-color:' + rahmen + '; padding:var(--sp-5); margin-top:var(--sp-5)">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:'
+    + (erlaubt ? 'var(--ink-3)' : 'var(--warn)') + '">READ THIS FIRST</div>'
+    + '<div style="font-size:var(--t-body); font-weight:600; margin-top:var(--sp-3); line-height:var(--lh-prose)">'
+    + esc(h.lead) + '</div>'
+    + (saetze.length
+      ? '<ul style="margin:var(--sp-4) 0 0; padding-left:1.1rem; font-size:var(--t-body); color:var(--ink-2); line-height:var(--lh-prose)">'
+        + saetze.map((s) => '<li>' + esc(s) + '</li>').join('')
+        + '</ul>'
+      : '')
+    + '</div>';
+}
+
 // actions — the copy desk (follow this wallet with paper money), the
 // backtester, and the two external profiles.
 function renderIdentity(T, d) {
@@ -1135,6 +1163,7 @@ export function renderWallet(T) {
       // payload, so the aside repeats what the tabs prove.
       body = '<div style="padding:var(--sp-5) var(--sp-6) var(--sp-7)">'
         + renderIdentity(T, d)
+        + renderHeadline(d)
         + renderKpis(d)
         + '<div style="display:flex; gap:var(--sp-5); align-items:flex-start; flex-wrap:wrap; margin-top:var(--sp-5)">'
         + '<div style="flex:0 0 224px; min-width:200px; max-width:100%">' + renderAside(d) + '</div>'
