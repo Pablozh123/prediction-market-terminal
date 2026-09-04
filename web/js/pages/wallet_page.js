@@ -755,6 +755,17 @@ function renderEdge(d) {
     + (ps ? '<div><div style="' + LABEL + '">EDGE PER SHARE · ENTRY VS SETTLEMENT</div><div style="' + M + '; font-size:var(--t-body); margin-top:var(--sp-2); color:' + verdictColor + '">' + pp(ps.edge) + ' · ' + esc(String(ps.verdict || '').toUpperCase()) + '</div><div style="' + NOTIZ + '; margin-top:var(--sp-1)">' + (ps.ci_low != null ? '95% CI [' + pp(ps.ci_low) + ', ' + pp(ps.ci_high) + '] · ' : '') + 'n ' + ps.n_events + ' events / ' + ps.n_positions + ' positions</div></div>' : '')
     + '</div>'
     + (ps && ps.headline ? '<div style="' + NOTIZ + '; margin-top:var(--sp-4)">' + esc(ps.headline) + '</div>' : '')
+    // Dieselbe Luecke wie bei der Trefferquote: die Rendite rechnet ueber den
+    // closed-positions-Feed, und der laesst die nie eingeloesten Verluste
+    // weg. Ihr Einsatz ist bekannt, ihr Ruecklauf ist null.
+    + (e.per_dollar_bound
+      ? '<div style="' + NOTIZ + '; margin-top:var(--sp-4)">Lower bound with the '
+        + num(e.per_dollar_bound.unredeemed) + ' unredeemed loss'
+        + (e.per_dollar_bound.unredeemed === 1 ? '' : 'es') + ' counted ('
+        + absDollars(e.per_dollar_bound.unredeemed_cost_usd) + ' of stake, no return): '
+        + (e.per_dollar_bound.edge * 100).toFixed(1) + '¢ per $. '
+        + esc(e.per_dollar_bound.ci_note || '') + '</div>'
+      : '')
     + '<div style="' + NOTIZ + '; margin-top:var(--sp-3)">' + esc(pd.method || '') + (e.capped ? ' Capped tails: the sample holds the biggest wins and losses only, so the edge is biased either way.' : '') + '</div>';
   return card('REALIZED EDGE', dia + summary, 'as of ' + esc(e.as_of || '') + (e.capped ? ' · CAPPED' : ''));
 }

@@ -2299,6 +2299,13 @@ class WebLeerzustandTest(unittest.TestCase):
         # Und die Schranke traegt ihr eigenes Intervall, nicht das der Quote.
         self.assertIn("[39%, 86%]", record)
 
+        # Dieselbe Korrektur an der zweiten Kennzahl derselben Karte, und
+        # dort ausdruecklich ohne vorgetaeuschtes Intervall.
+        self.assertIn("Lower bound with the 1 unredeemed loss counted", record)
+        self.assertIn("$10.00 of stake, no return", record)
+        self.assertIn("32.8¢ per $", record)
+        self.assertIn("No interval: the omitted rows are not in the bootstrap sample", record)
+
     def test_leaderboard_zeigt_geschaetzte_score_teile_nicht_als_zahl(self) -> None:
         """Ein Bestandteil ohne Eingabe im Feed erscheint als "assumed", nicht als Wert.
 

@@ -514,6 +514,43 @@ class WinRateWithUnredeemedTests(unittest.TestCase):
                 self.assertLessEqual(b["win_rate"], wins / n)
 
 
+class EdgeWithUnredeemedTests(unittest.TestCase):
+    """Dieselbe Luecke an der zweiten Kennzahl derselben Karte."""
+
+    def test_der_fehlende_einsatz_landet_im_nenner(self) -> None:
+        b = apv.edge_with_unredeemed({"cost_usd": 600.0, "payout_usd": 810.0}, -10.0, 1)
+        self.assertAlmostEqual(b["cost_usd"], 610.0)
+        self.assertAlmostEqual(b["edge"], 810.0 / 610.0 - 1.0)
+        self.assertEqual(b["unredeemed"], 1)
+        self.assertAlmostEqual(b["unredeemed_cost_usd"], 10.0)
+        self.assertTrue(b["is_lower_bound"])
+
+    def test_die_schranke_liegt_unter_der_quote(self) -> None:
+        roh = 810.0 / 600.0 - 1.0
+        b = apv.edge_with_unredeemed({"cost_usd": 600.0, "payout_usd": 810.0}, -10.0, 1)
+        self.assertLess(b["edge"], roh)
+
+    def test_sie_taeuscht_kein_intervall_vor(self) -> None:
+        # Die fehlenden Zeilen liegen nicht in der Bootstrap-Stichprobe.
+        b = apv.edge_with_unredeemed({"cost_usd": 600.0, "payout_usd": 810.0}, -10.0, 1)
+        self.assertNotIn("ci_low", b)
+        self.assertNotIn("ci95", b)
+        self.assertIn("No interval", b["ci_note"])
+
+    def test_ohne_fehlende_zeilen_oder_summen_gibt_es_keine_schranke(self) -> None:
+        self.assertIsNone(apv.edge_with_unredeemed({"cost_usd": 600.0, "payout_usd": 810.0}, 0.0, 0))
+        self.assertIsNone(apv.edge_with_unredeemed({"cost_usd": 600.0, "payout_usd": 810.0}, -10.0, 0))
+        self.assertIsNone(apv.edge_with_unredeemed({}, -10.0, 1))
+        self.assertIsNone(apv.edge_with_unredeemed(None, -10.0, 1))
+
+    def test_das_vorzeichen_des_fehlenden_einsatzes_ist_egal(self) -> None:
+        # Die Nutzlast fuehrt ihn als Kosten, das Frontend zeigt ihn als
+        # Verlust. Beide Schreibweisen muessen dasselbe ergeben.
+        a = apv.edge_with_unredeemed({"cost_usd": 600.0, "payout_usd": 810.0}, -10.0, 1)
+        b = apv.edge_with_unredeemed({"cost_usd": 600.0, "payout_usd": 810.0}, 10.0, 1)
+        self.assertEqual(a["edge"], b["edge"])
+
+
 class CrossRowsTests(unittest.TestCase):
     def test_maps_candidate_frame(self) -> None:
         frame = pd.DataFrame([
