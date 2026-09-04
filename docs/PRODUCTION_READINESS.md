@@ -315,9 +315,10 @@ script looks for, so the two ways can be mixed without duplicates.
    `*.up.railway.app` domain, otherwise requests to it bypass Cloudflare, the
    WAF rules and the limiter's trust in `CF-Connecting-IP`.
 7. [ ] **Railway deploy:** `railway up --detach` from the repository root
-   (HANDOFF.md §9.1) so the API headers and the HEAD-capable `/healthz` go
-   live. Verify: `curl -sI https://api.marketintel.dev/healthz` → 200 with
-   `X-Frame-Options: DENY`.
+   (HANDOFF.md §9.1), or a push to `main` once `RAILWAY_TOKEN` is set, so the
+   image with the claims register goes live. Verify with
+   `python scripts/smoke_live_api.py https://api.marketintel.dev` (all ten
+   lines `ok`; on 2026-09-04 only `/api/claims` failed).
 8. [x] **Pages → project → Settings → Builds:** production branch `main`, build
    command `python scripts/build_static_site.py --api-base
    https://api.marketintel.dev`, output directory `dist`. Deploys follow
@@ -345,9 +346,11 @@ script looks for, so the two ways can be mixed without duplicates.
    way to gate it fully. A `_redirects` file cannot do either: Pages matches
    paths only, never hostnames (tried on 2026-09-04, both hosts kept answering
    200).
-10. [ ] **Uptime:** a monitor with GET on `https://api.marketintel.dev/healthz`
-    (Cloudflare Health Checks need a paid plan; the Better Stack or UptimeRobot
-    free tiers do it). Alert on anything but 200.
+10. [x] **Uptime:** `.github/workflows/uptime.yml` asks both hosts every
+    15 minutes and opens an issue labelled `outage` when one stops answering,
+    closed again on recovery; watching the repository (the owner does by
+    default) turns that into an e-mail. An external monitor (Better Stack,
+    UptimeRobot) stays optional for detection under a minute.
 11. [ ] After the next Pages deploy, verify the file-level part:
     `curl -sI https://marketintel.dev/` shows `Content-Security-Policy`,
     `Strict-Transport-Security` and `X-Frame-Options: DENY`;
@@ -390,12 +393,11 @@ Open beyond the dashboards, in rough order of value:
   `railway up` for pushes that touch the API image and waits for `/healthz`.
   Set the repository secret `RAILWAY_TOKEN` (project token, production
   environment); until then the job skips itself with a notice.
-- **Cold routes**: `/api/risk` (~25 s) and `/api/cross` (~21 s) need a
-  server-side warm cache; `/api/risk/log` (435 KB) a row cap.
+- **Cold routes**: `ROUTE_WARM_MIN=4` (step 6) keeps `/api/risk` (~25 s)
+  and `/api/cross` (~21 s) warm between visitors; a persisted precompute
+  would make the first request after a restart fast as well.
 - **Self-hosted IBM Plex** — removes the only third-party request the browser
   makes (Google Fonts) and the paragraph the privacy policy spends on it.
-- **Table semantics** — the market and tape grids are `div`s; `role="table"`,
-  `row`, `columnheader`, `cell` make them readable to assistive tech.
 - **Cache rule check** — once the Browser Cache TTL from step 2 is set and
   the next deploy is through, `curl -sI https://marketintel.dev/js/app.js`
   must show `max-age=0, must-revalidate` (on 2026-09-04 it still showed
