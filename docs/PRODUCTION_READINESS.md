@@ -243,13 +243,15 @@ Cloudflare proxy; it sets its own headers on `/api/*` and prefers
 2026-09-04: both hosts answer through Cloudflare (`Server: cloudflare`,
 anycast A records), `http://` is redirected with 301, `GET /healthz` on the
 API answers 200 (`HEAD` answered 404 until the route accepted it; deploy
-step 7 ships that). What is left is clicked in the two dashboards. Steps 1–5
-and 9 are written as a paste sheet — the menu path, then the exact value for
+step 7 ships that). Steps 1–6, 9 and 11 were done on 2026-09-04 and verified
+from outside (Full strict with both hosts answering, `max-age=0` on
+`/js/app.js`, 429 after 60 requests in 10 s, www → apex 301). Steps 1–5
+and 9 are kept as a paste sheet — the menu path, then the exact value for
 each field — and `scripts/cloudflare_zone_setup.py` (after step 11) sets the
 same values through the API; the rule names in the sheet are the names the
 script looks for, so the two ways can be mixed without duplicates.
 
-1. [ ] **SSL/TLS → Overview**, encryption mode (the Configure button), for
+1. [x] **SSL/TLS → Overview**, encryption mode (the Configure button), for
    the whole zone including `api.marketintel.dev`:
    ```
    Full (strict)
@@ -258,7 +260,7 @@ script looks for, so the two ways can be mixed without duplicates.
    let Cloudflare reach it over plain HTTP. Not verifiable from outside.
 2. [x] Always Use HTTPS is on (the 301 from `http://` shows it; the switch
    sits on the same page as the next field and stays on).
-   [ ] **SSL/TLS → Edge Certificates → Minimum TLS Version**
+   [x] **SSL/TLS → Edge Certificates → Minimum TLS Version**
    ```
    TLS 1.2
    ```
@@ -267,7 +269,7 @@ script looks for, so the two ways can be mixed without duplicates.
    two sources with different values only confuse. Preload is a one-way
    decision — removal from the browser lists takes months — and stays off
    until it is wanted on purpose.
-   [ ] **Caching → Configuration → Browser Cache TTL**
+   [x] **Caching → Configuration → Browser Cache TTL**
    ```
    Respect Existing Headers
    ```
@@ -285,14 +287,14 @@ script looks for, so the two ways can be mixed without duplicates.
    Action:       Block
    ```
    The script creates this rule only when called with `--geoblock-ch`.
-4. [ ] **Security → Settings → filter "Bot traffic" → Bot Fight Mode**
+4. [x] **Security → Settings → filter "Bot traffic" → Bot Fight Mode**
    ```
    On
    ```
    It covers the whole zone, `api.marketintel.dev` included, and can
    challenge clients that are not browsers (an uptime monitor, `curl`); after
    switching it on, confirm the monitor from step 10 still sees a 200.
-5. [ ] **Security → Security rules → Create rule → Rate limiting rules** (the
+5. [x] **Security → Security rules → Create rule → Rate limiting rules** (the
    Free plan includes one rule):
    ```
    Rule name:                      API rate limit (cloudflare_zone_setup.py)
@@ -307,7 +309,7 @@ script looks for, so the two ways can be mixed without duplicates.
    expressions know only "Path" and "Verified Bot"); `/api/` exists only on
    `api.marketintel.dev`, so the rule already means "the API". The in-process
    token buckets in `api/server.py` stay as the second line behind it.
-6. [ ] **Railway → service → Variables:** `RATE_LIMIT_IP_HEADER=CF-Connecting-IP`
+6. [x] **Railway → service → Variables:** `RATE_LIMIT_IP_HEADER=CF-Connecting-IP`
    (the server prefers that header on its own when present; the variable
    makes the intent explicit) and `ROUTE_WARM_MIN=4`, which keeps `/api/cross`
    and `/api/risk` warm in the background instead of making the first visitor
@@ -326,8 +328,8 @@ script looks for, so the two ways can be mixed without duplicates.
    command `python scripts/build_static_site.py --api-base
    https://api.marketintel.dev`, output directory `dist`. Deploys follow
    pushes to `main` today; confirm the three fields once when opening the page.
-9. [ ] **www.marketintel.dev** answers 200 as a second Pages domain today. The
-   canonical form is a 301 to the apex. **Rules → Overview → Create rule →
+9. [x] **www.marketintel.dev** answered 200 as a second Pages domain until
+   2026-09-04; it is a 301 to the apex now (path and query preserved). **Rules → Overview → Create rule →
    Redirect Rule**, "When incoming requests match" set to *Custom filter
    expression*:
    ```
@@ -354,7 +356,7 @@ script looks for, so the two ways can be mixed without duplicates.
     closed again on recovery; watching the repository (the owner does by
     default) turns that into an e-mail. An external monitor (Better Stack,
     UptimeRobot) stays optional for detection under a minute.
-11. [ ] After the next Pages deploy, verify the file-level part:
+11. [x] After the next Pages deploy, verify the file-level part (done 2026-09-04):
     `curl -sI https://marketintel.dev/` shows `Content-Security-Policy`,
     `Strict-Transport-Security` and `X-Frame-Options: DENY`;
     `curl -sI https://marketintel.dev/robots.txt` is `text/plain`;
