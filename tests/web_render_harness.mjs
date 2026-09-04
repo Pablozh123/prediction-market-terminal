@@ -621,7 +621,11 @@ function mitDaten(T) {
       },
       details: { titel: 'Harness rows', spalten: ['A', 'B'], zeilen: [['x', '1']] },
       basis: { beobachtungen: 7, fenster: '2026-07-18 to 2026-07-28' },
-      report: 'docs/research/README.md', modul: 'src/orderflow_study.py'
+      report: 'docs/research/README.md', modul: 'src/orderflow_study.py',
+      // daten kommt aus app/study_datasets.py und steht nur da, wo die Datei
+      // wirklich im Repo liegt. Eine Studie ohne CSV traegt nur die JSON.
+      daten: [{ format: 'CSV', path: 'docs/research/orderflow_rest-2026-07.csv' },
+        { format: 'JSON', path: 'docs/research/orderflow_rest-2026-07.json' }]
     }]
   };
   // Live runs: zwei Laeufe mit Fills und zwei ohne. Die Seite muss daraus

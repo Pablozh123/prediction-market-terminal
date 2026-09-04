@@ -402,6 +402,23 @@ class WebLeerzustandTest(unittest.TestCase):
         quelltext = (WURZEL / "web" / "js" / "app.js").read_text(encoding="utf-8")
         self.assertIn("min_holder=", quelltext)
 
+    def test_die_studienkarte_verlinkt_den_datensatz(self) -> None:
+        # Bericht und Modul sagen, wie gemessen und womit gerechnet wurde.
+        # Ohne die Zahlen selbst kann niemand nachrechnen.
+        text = _sichtbarer_text(self.ausgabe["live"]["research_microstructure"])
+        self.assertIn("FULL REPORT", text)
+        self.assertIn("SOURCE MODULE", text)
+        self.assertIn("DATA · CSV", text)
+        self.assertIn("DATA · JSON", text)
+        html = self.ausgabe["live"]["research_microstructure"]
+        self.assertIn("docs/research/orderflow_rest-2026-07.csv", html)
+
+    def test_ohne_datensatz_steht_keine_leere_beschriftung(self) -> None:
+        # Die leere Nutzlast traegt kein daten-Feld. Dann darf auch kein
+        # DATA-Knopf erscheinen, der ins Nichts fuehrt.
+        leer = _sichtbarer_text(self.ausgabe["leer"]["research_microstructure"])
+        self.assertNotIn("DATA ·", leer)
+
     def test_abgeschnittene_signalliste_sagt_es(self) -> None:
         live = _sichtbarer_text(self.ausgabe["live"]["alerts"])
         self.assertIn("showing the top 60 of 125 signals", live)
