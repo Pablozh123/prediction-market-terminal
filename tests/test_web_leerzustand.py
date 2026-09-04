@@ -928,6 +928,37 @@ class WebLeerzustandTest(unittest.TestCase):
 
     # ---- Cross-venue Ehrlichkeits-Schranke ---------------------------------
 
+    def test_cross_venue_traegt_den_eigenen_befund(self) -> None:
+        # Die Seite zeigt einen Live-Scan mit Preisluecken. Ob so eine Luecke
+        # Geld ist, hat die eingefrorene Studie beantwortet, und zwar mit
+        # nein. Der Befund stand nur unter Research, also nicht dort, wo
+        # jemand auf eine Luecke sieht. Er kommt aus der Nutzlast, nicht aus
+        # dem Code: Frage, Verdikt, Basis und Stand der Datei.
+        for name in ("cross", "cross_beide_studien"):
+            text = _sichtbarer_text(self.ausgabe["live"][name])
+            with self.subTest(name=name):
+                self.assertIn("WHAT WE MEASURED ON PAIRS LIKE THESE", text)
+                self.assertIn("Are price gaps between the two venues arbitrage?", text)
+                self.assertIn("No, carry.", text)
+                # n und Fenster stehen an der Zahl.
+                self.assertIn("900 markets · 8 pairs · 2026-07-30", text)
+                # Der Stand der Datei, damit niemand den Befund fuer live haelt.
+                self.assertIn("Frozen study, not a live number · snapshot 2026-08-16 23:32 UTC", text)
+
+        # Liegt die zweite Studie in der Nutzlast, steht sie mit dabei.
+        beide = _sichtbarer_text(self.ausgabe["live"]["cross_beide_studien"])
+        self.assertIn("How long does such a gap stay open?", beide)
+        self.assertIn("Most stayed open at every single moment observed.", beide)
+        self.assertIn("5 pairs · 2026-07-31", beide)
+
+    def test_cross_venue_erfindet_ohne_nutzlast_keinen_befund(self) -> None:
+        # Ohne microstructure.json steht der Dateiname da und keine Zahl.
+        leer = _sichtbarer_text(self.ausgabe["leer"]["cross"])
+        self.assertIn("WHAT WE MEASURED ON PAIRS LIKE THESE", leer)
+        self.assertIn("microstructure.json", leer)
+        self.assertNotIn("No, carry", leer)
+        self.assertNotIn("8 pairs", leer)
+
     def test_cross_venue_schranke_und_ladezustand(self) -> None:
         # Laufende Anfrage: Ladezeile mit Quelle. Antwort ohne Treffer: der
         # ehrliche Leerblock mit Verweis auf die Studien 08 und 11 und die

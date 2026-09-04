@@ -140,7 +140,9 @@ function landingNutzlast() {
     studien: [
       studie('h-yes', 'Does the harness board render a confirmed row?', 'ja', 'Yes. Harness hit rate above the coin flip.', 55.5, '%', 'Hit rate', { beobachtungen: 205835, fenster: '2026-07-18 to 2026-07-28' }),
       studie('h-no-1', 'Does the harness board render a refuted row?', 'nein', 'No. The edge is worth nothing after costs.', 0.0856, 'cents per firing', 'Gross edge', { beobachtungen: 205835, fenster: '2026-07-18 to 2026-07-28' }),
-      studie('h-no-2', 'Does a second refuted row render?', 'nein', 'No, carry. Gaps settle in 2027.', 8, '', 'Pairs matched', { paare: 8, maerkte: 900, fenster: '2026-07-30' }),
+      // Echte ID: die Cross-Venue-Seite liest genau sie aus der
+      // Landungs-Nutzlast, um ihren eigenen Befund danebenzustellen.
+      studie('cross-venue', 'Are price gaps between the two venues arbitrage?', 'nein', 'No, carry. Gaps settle in 2027.', 8, '', 'Pairs matched', { paare: 8, maerkte: 900, fenster: '2026-07-30' }),
       studie('h-ctrl', 'Does the control row render?', 'kontrolle', 'No drift found. 98.6% agreement.', 98.6, '%', 'Agreement with the venue', { beobachtungen: 72, tokens: 24, fenster: '2026-07-31' })
     ]
   };
@@ -1029,6 +1031,23 @@ function rendern(T) {
     }],
     ['backtester_advanced', 'backtester', { advancedOpen: true }],
     ['backtester_flat_fee', 'backtester', { advancedOpen: true, btFeeModel: 'flat' }],
+    // Beide Studien der Cross-Venue-Frage in der Landungs-Nutzlast: der
+    // Kasten auf der Seite muss beide Befunde mit ihrer Basis zeigen.
+    ['cross_beide_studien', 'cross', {}, null, (T) => {
+      const alt = T.landing;
+      // Im Leerlauf gibt es keine Nutzlast; dann bleibt alles wie es ist und
+      // die Seite zeigt ihren Leerzustand mit dem Dateinamen.
+      if (!alt || !alt.micro || !Array.isArray(alt.micro.studien)) return () => {};
+      const kopie = JSON.parse(JSON.stringify(alt.micro));
+      kopie.studien.push({
+        id: 'gap-lifetime', frage: 'How long does such a gap stay open?',
+        verdikt: 'Most stayed open at every single moment observed.', verdikt_art: 'nein',
+        zahlen: [{ label: 'Pairs watched', wert: 5, einheit: '' }],
+        basis: { paare: 5, fenster: '2026-07-31' }
+      });
+      T.landing = Object.assign({}, alt, { micro: kopie });
+      return () => { T.landing = alt; };
+    }],
     ['alerts_rules', 'alerts', { alertTab: 'rules' }],
     ['alerts_deliveries', 'alerts', { alertTab: 'deliveries' }],
     ['risk_wallets', 'risk', { riskView: 'wallets' }],
