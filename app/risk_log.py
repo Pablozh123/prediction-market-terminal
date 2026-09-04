@@ -256,6 +256,58 @@ def read_flags(limit: int = 200, since: Any = None, *, path: Path | str | None =
     return rows
 
 
+#: What the compact view keeps of every score component: the chip on the log
+#: tab prints label, value and max (web/js/pages/trader_pages.js,
+#: riskComponentsHtml). The prose columns -- measures, fact, rule, weight_note
+#: -- were two thirds of a log row's bytes, and only the event cards of
+#: /api/risk render them (riskScoreBreakdown); the log tab never does.
+COMPACT_COMPONENT_KEYS = ("key", "label", "value", "max")
+#: Row fields the log tab never reads: side_split feeds the flow bar of the
+#: event cards, flags their "Why?" line. The log card shows neither.
+COMPACT_DROP_FIELDS = ("side_split", "flags")
+#: How many top wallets a compact row carries at most (the largest by notional).
+COMPACT_MAX_WALLETS = 8
+
+
+def compact_flags(rows: Iterable[dict[str, Any]], max_wallets: int = COMPACT_MAX_WALLETS) -> list[dict[str, Any]]:
+    """The response view of log rows: the same rows minus what the log tab never renders.
+
+    The file is the record and keeps everything; this is what the route
+    returns. Per row the components lose their prose (``fact``, ``rule``,
+    ``measures``, ``weight_note``), ``side_split`` and ``flags`` go, and
+    ``top_wallets`` is cut to the ``max_wallets`` largest by notional, with
+    ``wallets_total`` saying how many the record holds. A row with at most
+    ``max_wallets`` wallets keeps its list as it is. The input rows are not
+    touched; new dicts come back.
+    """
+
+    keep = max(0, int(max_wallets))
+    out: list[dict[str, Any]] = []
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        view = {key: value for key, value in row.items() if key not in COMPACT_DROP_FIELDS}
+        components = row.get("components")
+        if isinstance(components, list):
+            view["components"] = [
+                {key: part[key] for key in COMPACT_COMPONENT_KEYS if key in part} if isinstance(part, dict) else part
+                for part in components
+            ]
+        wallets = row.get("top_wallets")
+        if isinstance(wallets, list):
+            view["wallets_total"] = len(wallets)
+            if len(wallets) > keep:
+                ranked = sorted(
+                    wallets,
+                    key=lambda wallet: -(_num(wallet.get("notional")) or 0.0) if isinstance(wallet, dict) else 0.0,
+                )
+                view["top_wallets"] = ranked[:keep]
+            else:
+                view["top_wallets"] = list(wallets)
+        out.append(view)
+    return out
+
+
 def price_after(
     history: pd.DataFrame,
     flag_time: Any,

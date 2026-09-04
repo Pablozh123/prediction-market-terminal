@@ -306,39 +306,41 @@ export function renderBacktester(T) {
       + '</div>';
     tabBody = '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-4); overflow:clip">'
       + logKopf
-      + '<div style="display:grid; grid-template-columns:88px 74px 84px 1fr 60px 84px 78px 74px 84px 88px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); position:sticky; top:0; z-index:3; border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
-      + '<div>TIME</div><div>ACTION</div><div>STATUS</div><div>MARKET</div><div>SIDE</div><div style="text-align:right">TRADER $</div><div style="text-align:right">STAKE</div><div style="text-align:right">FILL</div><div style="text-align:right">RESULT</div><div style="text-align:right">EQUITY</div></div>'
+      + '<div role="table" aria-label="Backtest trades">'
+      + '<div role="row" style="display:grid; grid-template-columns:88px 74px 84px 1fr 60px 84px 78px 74px 84px 88px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); position:sticky; top:0; z-index:3; border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
+      + '<div role="columnheader">TIME</div><div role="columnheader">ACTION</div><div role="columnheader">STATUS</div><div role="columnheader">MARKET</div><div role="columnheader">SIDE</div><div role="columnheader" style="text-align:right">TRADER $</div><div role="columnheader" style="text-align:right">STAKE</div><div role="columnheader" style="text-align:right">FILL</div><div role="columnheader" style="text-align:right">RESULT</div><div role="columnheader" style="text-align:right">EQUITY</div></div>'
       + (logRows.length ? '' : leerZeile('No engine action in this window: nothing was copied, skipped or settled.'))
       + logRows.map((l) =>
-        '<div style="display:grid; grid-template-columns:88px 74px 84px 1fr 60px 84px 78px 74px 84px 88px; gap:var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small)' + (l.status === 'filtered' ? '; opacity:.6' : '') + '">'
-        + '<div style="color:var(--ink-4)">' + esc(l.time) + '</div>'
-        + '<div style="' + M + '; font-size:var(--t-small); color:' + (l.action === 'BUY' ? 'var(--pos)' : l.action === 'RESOLVE' ? 'var(--info)' : 'var(--neg)') + '">' + esc(l.action) + '</div>'
-        + '<div><span title="' + esc(l.note) + '" style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3); ' + (l.status === 'skipped' ? 'color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35)' : 'color:var(--ink-2); border:1px solid var(--line-1)') + '">' + esc(l.status) + '</span></div>'
-        + '<div style="font-family:var(--font-ui); font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(l.market) + '</div>'
-        + '<div style="color:var(--ink-3)">' + esc(l.side) + '</div>'
-        + '<div style="text-align:right; color:var(--ink-4)">' + esc(l.traderAmt) + '</div>'
-        + '<div style="text-align:right">' + esc(l.stake) + '</div>'
-        + '<div style="text-align:right; color:var(--ink-3)">' + esc(l.fill) + '</div>'
-        + '<div style="text-align:right; color:' + (l.pnl ? (l.pnl.charAt(0) === '+' ? 'var(--pos)' : 'var(--neg)') : 'var(--ink-4)') + '">' + esc(l.pnl || l.fee) + '</div>'
-        + '<div style="text-align:right">' + esc(l.equity) + '</div></div>'
+        '<div role="row" style="display:grid; grid-template-columns:88px 74px 84px 1fr 60px 84px 78px 74px 84px 88px; gap:var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small)' + (l.status === 'filtered' ? '; opacity:.6' : '') + '">'
+        + '<div role="cell" style="color:var(--ink-4)">' + esc(l.time) + '</div>'
+        + '<div role="cell" style="' + M + '; font-size:var(--t-small); color:' + (l.action === 'BUY' ? 'var(--pos)' : l.action === 'RESOLVE' ? 'var(--info)' : 'var(--neg)') + '">' + esc(l.action) + '</div>'
+        + '<div role="cell"><span title="' + esc(l.note) + '" style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3); ' + (l.status === 'skipped' ? 'color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35)' : 'color:var(--ink-2); border:1px solid var(--line-1)') + '">' + esc(l.status) + '</span></div>'
+        + '<div role="cell" style="font-family:var(--font-ui); font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(l.market) + '</div>'
+        + '<div role="cell" style="color:var(--ink-3)">' + esc(l.side) + '</div>'
+        + '<div role="cell" style="text-align:right; color:var(--ink-4)">' + esc(l.traderAmt) + '</div>'
+        + '<div role="cell" style="text-align:right">' + esc(l.stake) + '</div>'
+        + '<div role="cell" style="text-align:right; color:var(--ink-3)">' + esc(l.fill) + '</div>'
+        + '<div role="cell" style="text-align:right; color:' + (l.pnl ? (l.pnl.charAt(0) === '+' ? 'var(--pos)' : 'var(--neg)') : 'var(--ink-4)') + '">' + esc(l.pnl || l.fee) + '</div>'
+        + '<div role="cell" style="text-align:right">' + esc(l.equity) + '</div></div>'
       ).join('')
+      + '</div>'
       // Der Knopf "Export trade log CSV" stand hier ohne Handler. Ein Knopf,
       // der nichts tut, ist eine Behauptung ueber eine Funktion.
       + '</div>';
   } else if (s.btTab === 'open') {
-    tabBody = '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-4); overflow:clip">'
-      + '<div style="display:grid; grid-template-columns:1fr 62px 78px 78px 78px 88px 88px 100px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); position:sticky; top:0; z-index:3; border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
-      + '<div>MARKET</div><div>SIDE</div><div style="text-align:right">SHARES</div><div style="text-align:right">AVG FILL</div><div style="text-align:right">MARK</div><div style="text-align:right">COST</div><div style="text-align:right">VALUE</div><div style="text-align:right">UNREALISED</div></div>'
+    tabBody = '<div role="table" aria-label="Backtest open positions" style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-4); overflow:clip">'
+      + '<div role="row" style="display:grid; grid-template-columns:1fr 62px 78px 78px 78px 88px 88px 100px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); position:sticky; top:0; z-index:3; border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
+      + '<div role="columnheader">MARKET</div><div role="columnheader">SIDE</div><div role="columnheader" style="text-align:right">SHARES</div><div role="columnheader" style="text-align:right">AVG FILL</div><div role="columnheader" style="text-align:right">MARK</div><div role="columnheader" style="text-align:right">COST</div><div role="columnheader" style="text-align:right">VALUE</div><div role="columnheader" style="text-align:right">UNREALISED</div></div>'
       + openRows.map((o) =>
-        '<div style="display:grid; grid-template-columns:1fr 62px 78px 78px 78px 88px 88px 100px; gap:var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small)">'
-        + '<div style="font-family:var(--font-ui); font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(o.market) + '</div>'
-        + '<div style="' + M + '; font-size:var(--t-small); color:' + (o.side === 'Yes' ? 'var(--accent)' : 'var(--info)') + '">' + esc(o.side) + '</div>'
-        + '<div style="text-align:right; color:var(--ink-3)">' + o.shares + '</div>'
-        + '<div style="text-align:right; color:var(--ink-3)">' + o.avg + '</div>'
-        + '<div style="text-align:right">' + o.mark + '</div>'
-        + '<div style="text-align:right; color:var(--ink-3)">' + o.cost + '</div>'
-        + '<div style="text-align:right">' + o.value + '</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:' + (o.pnlPos ? 'var(--pos)' : 'var(--neg)') + '">' + o.pnl + '</div></div>'
+        '<div role="row" style="display:grid; grid-template-columns:1fr 62px 78px 78px 78px 88px 88px 100px; gap:var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small)">'
+        + '<div role="cell" style="font-family:var(--font-ui); font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(o.market) + '</div>'
+        + '<div role="cell" style="' + M + '; font-size:var(--t-small); color:' + (o.side === 'Yes' ? 'var(--accent)' : 'var(--info)') + '">' + esc(o.side) + '</div>'
+        + '<div role="cell" style="text-align:right; color:var(--ink-3)">' + o.shares + '</div>'
+        + '<div role="cell" style="text-align:right; color:var(--ink-3)">' + o.avg + '</div>'
+        + '<div role="cell" style="text-align:right">' + o.mark + '</div>'
+        + '<div role="cell" style="text-align:right; color:var(--ink-3)">' + o.cost + '</div>'
+        + '<div role="cell" style="text-align:right">' + o.value + '</div>'
+        + '<div role="cell" style="text-align:right; ' + M + '; font-size:var(--t-small); color:' + (o.pnlPos ? 'var(--pos)' : 'var(--neg)') + '">' + o.pnl + '</div></div>'
       ).join('')
       + '</div>';
   } else if (s.btTab === 'dd') {
@@ -562,18 +564,18 @@ export function renderBacktester(T) {
         stil: 'font-size:var(--t-small); color:var(--ink-4); line-height:var(--lh-snug)'
       })
       + '<div style="font-size:var(--t-body); margin-top:var(--sp-4)">Highest final equity in this window: <strong style="color:var(--warn)">' + esc(bestVariant.name) + '</strong> → $' + bestVariant.eq.toFixed(0) + ' final equity (' + (bestVariant.roi >= 0 ? '+' : '') + bestVariant.roi.toFixed(1) + '% ROI)</div>'
-      + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); overflow:clip">'
-      + '<div style="display:grid; grid-template-columns:1fr 110px 96px 96px 96px 88px 88px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); position:sticky; top:0; z-index:3; border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
-      + '<div>SIZING RULE</div><div style="text-align:right">FINAL EQUITY</div><div style="text-align:right">ROI</div><div style="text-align:right">MAX DD</div><div style="text-align:right">WIN RATE</div><div style="text-align:right">COPIED</div><div style="text-align:right">SKIPPED</div></div>'
+      + '<div role="table" aria-label="Sizing rules compared" style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); overflow:clip">'
+      + '<div role="row" style="display:grid; grid-template-columns:1fr 110px 96px 96px 96px 88px 88px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); position:sticky; top:0; z-index:3; border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
+      + '<div role="columnheader">SIZING RULE</div><div role="columnheader" style="text-align:right">FINAL EQUITY</div><div role="columnheader" style="text-align:right">ROI</div><div role="columnheader" style="text-align:right">MAX DD</div><div role="columnheader" style="text-align:right">WIN RATE</div><div role="columnheader" style="text-align:right">COPIED</div><div role="columnheader" style="text-align:right">SKIPPED</div></div>'
       + simVariants.map((v, i) =>
-        '<div style="display:grid; grid-template-columns:1fr 110px 96px 96px 96px 88px 88px; gap:var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3); background:' + (i === 0 ? 'rgba(var(--warn-rgb),.07)' : 'transparent') + '">'
-        + '<div style="font-size:var(--t-small); color:' + (i === 0 ? 'var(--warn)' : 'var(--text)') + '">' + esc(v.name) + '</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:var(--t-small)">$' + v.eq.toFixed(0) + '</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:' + (v.roi >= 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (v.roi >= 0 ? '+' : '') + v.roi.toFixed(1) + '%</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-3)">' + v.dd.toFixed(1) + '%</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-3)">' + (v.decided ? Math.round(v.wr) + '% <span style="font-size:var(--t-micro); color:var(--ink-4)">n ' + num(v.decided) + '</span>' : '—') + '</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-3)">' + num(v.copied) + '</div>'
-        + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-3)">' + num(Math.max(0, v.skipped)) + '</div></div>'
+        '<div role="row" style="display:grid; grid-template-columns:1fr 110px 96px 96px 96px 88px 88px; gap:var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3); background:' + (i === 0 ? 'rgba(var(--warn-rgb),.07)' : 'transparent') + '">'
+        + '<div role="cell" style="font-size:var(--t-small); color:' + (i === 0 ? 'var(--warn)' : 'var(--text)') + '">' + esc(v.name) + '</div>'
+        + '<div role="cell" style="text-align:right; ' + M + '; font-size:var(--t-small)">$' + v.eq.toFixed(0) + '</div>'
+        + '<div role="cell" style="text-align:right; ' + M + '; font-size:var(--t-small); color:' + (v.roi >= 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (v.roi >= 0 ? '+' : '') + v.roi.toFixed(1) + '%</div>'
+        + '<div role="cell" style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-3)">' + v.dd.toFixed(1) + '%</div>'
+        + '<div role="cell" style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-3)">' + (v.decided ? Math.round(v.wr) + '% <span style="font-size:var(--t-micro); color:var(--ink-4)">n ' + num(v.decided) + '</span>' : '—') + '</div>'
+        + '<div role="cell" style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-3)">' + num(v.copied) + '</div>'
+        + '<div role="cell" style="text-align:right; ' + M + '; font-size:var(--t-small); color:var(--ink-3)">' + num(Math.max(0, v.skipped)) + '</div></div>'
       ).join('')
       + '</div></div>' : '')
     + '</div>'
@@ -645,15 +647,15 @@ export function renderPortfolio(T) {
       + '<div><div style="' + LABEL_BLOCK + '">SHOW</div><div style="display:flex; gap:var(--sp-3); flex-wrap:wrap">'
       + [['all','Everything'],['losers','Losing only']].map((o) => T.opt(o[1], (s.portLosers ? 'losers' : 'all') === o[0], { portLosers: o[0] === 'losers' })).join('') + '</div></div>'
       + '</div>'
-      + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin:var(--sp-5) var(--sp-6); overflow:clip">'
-      + '<div style="display:grid; grid-template-columns:1fr 76px 92px 92px 100px 100px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); position:sticky; top:0; z-index:3; border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
-      + '<div>MARKET</div><div style="text-align:right">SIDE</div><div style="text-align:right">ENTRY</div><div style="text-align:right">NOW</div><div style="text-align:right">PROFIT</div><div style="text-align:right">SOURCE</div></div>'
+      + '<div role="table" aria-label="Portfolio positions" style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin:var(--sp-5) var(--sp-6); overflow:clip">'
+      + '<div role="row" style="display:grid; grid-template-columns:1fr 76px 92px 92px 100px 100px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); position:sticky; top:0; z-index:3; border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
+      + '<div role="columnheader">MARKET</div><div role="columnheader" style="text-align:right">SIDE</div><div role="columnheader" style="text-align:right">ENTRY</div><div role="columnheader" style="text-align:right">NOW</div><div role="columnheader" style="text-align:right">PROFIT</div><div role="columnheader" style="text-align:right">SOURCE</div></div>'
       + (rows.length ? '' : leerZeile(baseRows.length ? 'No position matches these filters.' : 'No open positions in the paper book reported by /api/copy.'))
       + rows.map((r) =>
-        '<div style="display:grid; grid-template-columns:1fr 76px 92px 92px 100px 100px; gap:var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3)">'
+        '<div role="row" style="display:grid; grid-template-columns:1fr 76px 92px 92px 100px 100px; gap:var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3)">'
         + r.map((v, i) => {
           const style = i === 0 ? "font-family:var(--font-ui); font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" : M + '; font-size:var(--t-small); text-align:right; color:' + (i === 4 ? (v.charAt(0) === '+' ? 'var(--pos)' : 'var(--neg)') : i === 1 ? (v === 'YES' ? 'var(--pos)' : 'var(--info)') : 'var(--ink-2)');
-          return '<div style="' + style + '">' + esc(String(v)) + '</div>';
+          return '<div role="cell" style="' + style + '">' + esc(String(v)) + '</div>';
         }).join('')
         + '</div>'
       ).join('')
@@ -721,15 +723,15 @@ export function renderPortfolio(T) {
       + '</div></div></div>';
   } else if (s.portTab === 'history') {
     const histRows = liveHistRows || [];
-    body = '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin:var(--sp-5) var(--sp-6); overflow:clip">'
-      + '<div style="display:grid; grid-template-columns:110px 1fr 78px 92px 92px 100px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); position:sticky; top:0; z-index:3; border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
-      + '<div>DATE</div><div>MARKET</div><div style="text-align:right">SIDE</div><div style="text-align:right">ENTRY</div><div style="text-align:right">EXIT</div><div style="text-align:right">RESULT</div></div>'
+    body = '<div role="table" aria-label="Portfolio history" style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin:var(--sp-5) var(--sp-6); overflow:clip">'
+      + '<div role="row" style="display:grid; grid-template-columns:110px 1fr 78px 92px 92px 100px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); position:sticky; top:0; z-index:3; border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
+      + '<div role="columnheader">DATE</div><div role="columnheader">MARKET</div><div role="columnheader" style="text-align:right">SIDE</div><div role="columnheader" style="text-align:right">ENTRY</div><div role="columnheader" style="text-align:right">EXIT</div><div role="columnheader" style="text-align:right">RESULT</div></div>'
       + (histRows.length ? '' : leerZeile('No settled paper trades reported by /api/copy yet.'))
       + histRows.map((r) =>
-        '<div style="display:grid; grid-template-columns:110px 1fr 78px 92px 92px 100px; gap:var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3)">'
+        '<div role="row" style="display:grid; grid-template-columns:110px 1fr 78px 92px 92px 100px; gap:var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3)">'
         + r.map((v, i) => {
           const style = i === 1 ? "font-family:var(--font-ui); font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" : M + '; font-size:var(--t-small); text-align:' + (i === 0 ? 'left' : 'right') + '; color:' + (i === 5 ? (v.charAt(0) === '+' ? 'var(--pos)' : 'var(--neg)') : i === 2 ? (v === 'YES' ? 'var(--pos)' : 'var(--info)') : 'var(--ink-2)');
-          return '<div style="' + style + '">' + esc(String(v)) + '</div>';
+          return '<div role="cell" style="' + style + '">' + esc(String(v)) + '</div>';
         }).join('')
         + '</div>'
       ).join('')

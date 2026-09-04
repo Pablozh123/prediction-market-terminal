@@ -725,6 +725,29 @@ class CopyPayloadTests(unittest.TestCase):
         self.assertEqual(payload["positions"][0][0], "Brazil win")
         self.assertEqual(payload["equity_curve"][-1], 1043.18)
 
+    def test_equity_curve_is_thinned_to_the_cap_with_its_ends_kept(self) -> None:
+        # Ein Schnappschuss je Minute, bis zu 5000 in der Antwort: 96 KB fuer
+        # eine Linie von 900 Pixeln. Ausgeduennt, nicht abgeschnitten -- die
+        # Seite zeichnet die Veraenderung gegen den ersten Punkt.
+        equity = pd.DataFrame({"equity": [1000.0 + i for i in range(5000)]})
+        payload = apv.copy_payload(pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), equity,
+                                   {"cash": 1000.0, "equity": 5999.0}, 1000.0, "0x" + "a" * 40, "x", {})
+        curve = payload["equity_curve"]
+        self.assertEqual(len(curve), apv.COPY_CURVE_POINTS)
+        self.assertEqual(curve[0], 1000.0)
+        self.assertEqual(curve[-1], 5999.0)
+        self.assertEqual(curve, sorted(curve))
+        self.assertEqual(len(set(curve)), len(curve))
+        self.assertTrue(payload["equity_curve_capped"])
+        self.assertEqual(payload["equity_curve_points_total"], 5000)
+        # Under the cap nothing changes, and the marker says so.
+        short = pd.DataFrame({"equity": [1000.0, 1020.0, 1043.18]})
+        payload = apv.copy_payload(pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), short,
+                                   {"cash": 1000.0, "equity": 1043.18}, 1000.0, "0x" + "a" * 40, "x", {})
+        self.assertEqual(payload["equity_curve"], [1000.0, 1020.0, 1043.18])
+        self.assertFalse(payload["equity_curve_capped"])
+        self.assertEqual(payload["equity_curve_points_total"], 3)
+
     def test_penny_copies_show_cents_instead_of_dollar_zero(self) -> None:
         # A $1k sub-account copying a $1.2M whale fills pennies per order;
         # whole-dollar rounding rendered every one of them as "$0" and the

@@ -178,6 +178,91 @@ class RecordAndReadTests(unittest.TestCase):
                 os.chmod(ro_dir, stat.S_IRWXU)
 
 
+class CompactFlagsTests(unittest.TestCase):
+    """Die Antwort von /api/risk/log ist die Sicht, die Datei das Protokoll.
+
+    Ein Log-Eintrag trug jede Komponente mit Messsatz, Regel und Befund --
+    zwei Drittel seiner Bytes -- und die Log-Registerkarte zeigt davon nur
+    den Chip (label, value, max). 100 Zeilen waren 435 KB je Seitenaufruf.
+    """
+
+    @staticmethod
+    def _component(key: str, value: float, cap: float) -> dict:
+        return {"key": key, "label": key.replace("component_", ""), "value": value, "max": cap,
+                "measures": "what this part measures, in one sentence " * 3,
+                "fact": "what the tape showed for this market " * 3,
+                "rule": "what full marks would take " * 3, "weight_note": "weight halved", "weight": 0.5}
+
+    @staticmethod
+    def _wallets(n: int) -> list[dict]:
+        return [{"wallet": f"0x{i:040x}", "short": f"0x{i:04x}", "notional": 1000.0 * (n - i), "share": 0.05,
+                 "side": "NO buys", "fresh": i % 2 == 0, "url": f"https://polymarket.com/profile/0x{i:040x}"}
+                for i in range(n)]
+
+    def _rows(self) -> list[dict]:
+        components = [self._component(f"component_{name}", 5.0, 15.0)
+                      for name in ("notional", "largest", "long_odds", "late", "concentration", "direction",
+                                   "burst", "cluster", "fresh_wallets", "coordination")]
+        many = risk_log.flag_row(_event(top_wallets=self._wallets(12), wallets=12, components=components),
+                                 "2026-08-16T13:00:00Z")
+        few = risk_log.flag_row(_event(market_key="0xc2", top_wallets=self._wallets(3), wallets=3,
+                                       components=components), "2026-08-16T13:00:00Z")
+        return [many, few]
+
+    def test_size_drops_and_the_fields_the_log_tab_reads_survive(self) -> None:
+        rows = self._rows()
+        before = len(json.dumps(rows))
+        compact = risk_log.compact_flags(rows, max_wallets=8)
+        after = len(json.dumps(compact))
+        self.assertLess(after, before * 0.5, f"{after} of {before} bytes")
+        # web/js/pages/trader_pages.js renderRiskLog reads exactly these.
+        keys = ("flag_id", "first_seen", "last_seen", "times_seen", "venue", "category", "title", "market_key",
+                "url", "score", "sev", "side", "side_notional", "side_share", "notional", "price_at_flag",
+                "price_outcome", "price_min", "price_max", "window_start", "window_end", "window_minutes",
+                "unique_wallets", "prints", "top_wallets", "components", "token_id")
+        for key in keys:
+            self.assertIn(key, compact[0], key)
+            if key not in ("top_wallets", "components"):
+                self.assertEqual(compact[0][key], rows[0][key], key)
+        self.assertEqual(len(compact[0]["components"]), 10)
+        for part in compact[0]["components"]:
+            self.assertEqual(set(part), {"key", "label", "value", "max"})
+        for wallet in compact[0]["top_wallets"]:
+            self.assertEqual(set(wallet), {"wallet", "short", "notional", "share", "side", "fresh", "url"})
+        for key in ("side_split", "flags"):
+            self.assertNotIn(key, compact[0])
+
+    def test_keeps_the_largest_wallets_and_counts_them_all(self) -> None:
+        many, few = risk_log.compact_flags(self._rows(), max_wallets=8)
+        self.assertEqual(many["wallets_total"], 12)
+        self.assertEqual(len(many["top_wallets"]), 8)
+        self.assertEqual([w["notional"] for w in many["top_wallets"]], [12000.0 - 1000.0 * i for i in range(8)])
+        # Fewer wallets than the cap: the list is the record's, untouched.
+        self.assertEqual(few["wallets_total"], 3)
+        self.assertEqual(few["top_wallets"], self._wallets(3))
+
+    def test_largest_by_notional_not_by_position(self) -> None:
+        wallets = list(reversed(self._wallets(10)))  # smallest first in the record
+        row = risk_log.flag_row(_event(top_wallets=wallets, wallets=10), "2026-08-16T13:00:00Z")
+        compact = risk_log.compact_flags([row], max_wallets=2)[0]
+        self.assertEqual([w["notional"] for w in compact["top_wallets"]], [10000.0, 9000.0])
+        self.assertEqual(compact["wallets_total"], 10)
+
+    def test_input_rows_and_the_after_key_are_untouched(self) -> None:
+        rows = self._rows()
+        rows[0]["after"] = None
+        rows[1]["after"] = {"30m": {"price": 0.36, "move_c": 2.0}, "2h": None, "24h": None}
+        snapshot = json.dumps(rows)
+        compact = risk_log.compact_flags(rows)
+        self.assertEqual(json.dumps(rows), snapshot)
+        # The log tab tells "not enriched" from "enriched" by the key's presence.
+        self.assertIn("after", compact[0])
+        self.assertIsNone(compact[0]["after"])
+        self.assertEqual(compact[1]["after"]["30m"]["move_c"], 2.0)
+        self.assertEqual(risk_log.compact_flags([]), [])
+        self.assertEqual(risk_log.compact_flags([{"flag_id": "x"}]), [{"flag_id": "x"}])
+
+
 class PriceAfterTests(unittest.TestCase):
     def _history(self) -> pd.DataFrame:
         start = pd.Timestamp("2026-08-16T12:00:00Z")
@@ -347,6 +432,32 @@ class FlagLogRouteBeschriftungTests(unittest.TestCase):
                 os.environ.pop("RISK_LOG_DIR", None)
         self.assertEqual(payload["score_name"], susp.SCORE_NAME)
         self.assertEqual(payload["score_bands"], susp.score_band_table())
+
+    def test_route_liefert_die_kompakte_sicht_die_datei_alles(self):
+        wallets = [{"wallet": f"0x{i:040x}", "short": f"0x{i:04x}", "notional": 100.0 * (12 - i), "share": 0.05,
+                    "side": "NO buys", "fresh": False, "url": ""} for i in range(12)]
+        component = {"key": "component_notional", "label": "notional", "value": 5.8, "max": 15.0,
+                     "measures": "m", "fact": "f", "rule": "r"}
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["RISK_LOG_DIR"] = tmp
+            try:
+                risk_log.record_flags([_event(top_wallets=wallets, wallets=12, components=[component])],
+                                      "2026-08-16T13:00:00Z")
+                payload = self.server.risk_log_endpoint(limit=5)
+                record = risk_log.read_flags(path=Path(tmp) / "flags.jsonl")[0]
+            finally:
+                os.environ.pop("RISK_LOG_DIR", None)
+        row = payload["rows"][0]
+        self.assertEqual(payload["wallets_max"], risk_log.COMPACT_MAX_WALLETS)
+        self.assertEqual(row["wallets_total"], 12)
+        self.assertEqual(len(row["top_wallets"]), payload["wallets_max"])
+        self.assertNotIn("side_split", row)
+        self.assertEqual(row["components"], [{"key": "component_notional", "label": "notional", "value": 5.8, "max": 15.0}])
+        # The record keeps what the response left out.
+        self.assertEqual(len(record["top_wallets"]), 12)
+        self.assertIn("side_split", record)
+        self.assertEqual(record["components"][0]["fact"], "f")
+        self.assertNotIn("wallets_total", record)
 
 
 if __name__ == "__main__":

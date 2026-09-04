@@ -72,7 +72,8 @@ Paper-Copy-Desk unter /api/copy/*, der lokale Papierbuecher schreibt):
 
     GET  /healthz              (Alias von /api/health fuer Caddy und Compose)
     GET  /api/health
-    GET  /api/overview
+    GET  /api/overview             (nur JSON-API: das Web-Frontend unter web/ liest die
+                                    Route nicht)
     GET  /api/markets?query=&category=&limit=250
     GET  /api/search?q=&limit=12   (Volltext ueber den ganzen Polymarket-Bestand
                                     plus Profile; das Universum steuert Kalshi bei)
@@ -87,7 +88,8 @@ Paper-Copy-Desk unter /api/copy/*, der lokale Papierbuecher schreibt):
     GET  /api/risk/book?market=<conditionId>&wallets=a,b&side=YES%20buys  (was die Wallets in dem
                                              Markt jetzt halten; hedge oder neue Wette)
     GET  /api/risk/log?limit=100&enrich=1   (Flag-Log; enrich=1 haengt an die neuesten 30
-                                             Polymarket-Flags den Preis +30 min/+2 h/+24 h)
+                                             Polymarket-Flags den Preis +30 min/+2 h/+24 h;
+                                             Zeilen als kompakte Sicht, risk_log.compact_flags)
     GET  /api/alerts
     GET  /api/copy                 (Buecher, Trader-Liste, Settings, Daemon-Puls, write_access)
     POST /api/copy/traders         {wallet|handle|profile URL, label, start_cash, note}
@@ -545,6 +547,7 @@ def health() -> dict[str, Any]:
 
 @app.get("/api/overview")
 def overview(limit: int = Query(250, ge=1, le=1000)) -> dict[str, Any]:
+    """Unused by the web frontend (nothing under web/ reads it); kept for the JSON API only."""
     combined = load_universe(limit)
     quellen = apv.venue_sources(combined)
     if combined.empty:
@@ -1716,11 +1719,17 @@ def risk_log_endpoint(limit: int = Query(100, ge=1, le=500), enrich: int = 0, si
             except Exception as exc:
                 print(f"[warn] flag price after: {exc}")
                 row["after"] = None
+    # Die Datei ist das Protokoll, die Antwort die Sicht: die Prosa der
+    # Komponenten, side_split und flags liest die Log-Registerkarte nie,
+    # sie waren aber zwei Drittel der Bytes (435 KB je Seitenaufruf). Erst
+    # anreichern (price-after liest die volle Zeile), dann kuerzen.
+    rows = risk_log.compact_flags(rows)
     return {
         "rows": rows,
         "count": len(rows),
         "enriched": enriched,
         "enrich_max": RISK_LOG_ENRICH_MAX,
+        "wallets_max": risk_log.COMPACT_MAX_WALLETS,
         # Die Einzelbewegungen waren da, die Quote nie: wer den Screen
         # beurteilen wollte, musste gruene Zellen zaehlen. Sie steht jetzt
         # mit n, 95-Prozent-Intervall, Sample-Badge, Stand und den
@@ -1738,7 +1747,9 @@ def risk_log_endpoint(limit: int = Query(100, ge=1, le=500), enrich: int = 0, si
                  "moment; 'after' is the price of the flagged side +30 min / +2 h / +24 h after the last print of "
                  "the flagged flow (Polymarket only). A horizon is null while it has not passed, carries no_print "
                  "when it passed without a trade, and already_past when it had elapsed before the sampler wrote "
-                 "the flag - that move is real but no reader could have acted on it."),
+                 "the flag - that move is real but no reader could have acted on it. Rows are the compact view "
+                 "of the log: components carry key, label, value and max, top_wallets the wallets_max largest "
+                 "by notional with wallets_total counting them all."),
         "as_of": md.now_utc_label(),
     }
 

@@ -152,8 +152,8 @@ function traderRow(T, t, s, canWrite, busy) {
         + ' ' + button(T, editing ? 'Close' : 'Edit', () => T.setState({ copyEdit: editing ? null : { wallet: t.wallet, label: t.label || '', note: t.note || '' }, copyTopup: null }), BTN_GHOST, 'label and note')
         + ' ' + button(T, topping ? 'Close' : 'Top up', () => T.setState({ copyTopup: topping ? null : { wallet: t.wallet, amount: '500' }, copyEdit: null }), BTN_GHOST, 'add paper cash to this sub-account (counts as put in, not profit)');
   const grid = 'display:grid; grid-template-columns:minmax(180px,1.6fr) 74px 90px 90px 110px 96px 70px 96px 92px minmax(200px,1.4fr); gap:var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3)';
-  let html = '<div style="' + grid + '">'
-    + '<div><div style="font-size:var(--t-body); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(t.label || shortW(t.wallet)) + '</div>'
+  let html = '<div role="row" style="' + grid + '">'
+    + '<div role="cell"><div style="font-size:var(--t-body); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(t.label || shortW(t.wallet)) + '</div>'
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-1); display:flex; gap:var(--sp-3); align-items:center; flex-wrap:wrap">'
     + '<span ' + T.act(() => T.analyseWallet(t.wallet)) + ' class="hv-accent" title="open the wallet page" style="cursor:pointer; text-decoration:underline dotted">' + esc(shortW(t.wallet)) + '</span>'
     + (t.profile_url ? '<a href="' + esc(t.profile_url) + '" target="_blank" rel="noopener" style="color:' + BLUE + '">Polymarket ↗</a>' : '')
@@ -165,23 +165,23 @@ function traderRow(T, t, s, canWrite, busy) {
       ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2)">his equity ' + esc(usd(t.source_equity, 0)) + (t.neutral_ratio != null ? ' · ratio ' + esc((Number(t.neutral_ratio) * 100).toFixed(3)) + ' %' : '') + '</div>'
       : (t.active ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-2)">his equity not read yet</div>' : ''))
     + '</div>'
-    + '<div>' + state + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-small); text-align:right; color:' + DIM + '">' + usd(t.start_cash, 0) + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-small); text-align:right">' + usd(t.cash) + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-small); text-align:right">' + usd(t.equity) + '<div style="font-size:var(--t-micro); color:var(--ink-3)">' + usd(t.contributions, 0) + ' put in</div></div>'
+    + '<div role="cell">' + state + '</div>'
+    + '<div role="cell" style="' + M + '; font-size:var(--t-small); text-align:right; color:' + DIM + '">' + usd(t.start_cash, 0) + '</div>'
+    + '<div role="cell" style="' + M + '; font-size:var(--t-small); text-align:right">' + usd(t.cash) + '</div>'
+    + '<div role="cell" style="' + M + '; font-size:var(--t-small); text-align:right">' + usd(t.equity) + '<div style="font-size:var(--t-micro); color:var(--ink-3)">' + usd(t.contributions, 0) + ' put in</div></div>'
     // Gebucht und bewertet stehen nebeneinander. Eine Prozentzahl, die
     // beides addiert, laesst einen Tisch, der gebucht im Minus steht, als
     // Gewinner dastehen; beide Haelften teilen sich den Nenner (das in
     // diesen Sub-Account eingezahlte Kapital) und addieren sich deshalb.
-    + '<div style="' + M + '; font-size:var(--t-small); text-align:right; color:' + pnlColor(t.pnl) + '" title="' + esc(splitSatz(t)) + '">' + signedUsd(t.pnl)
+    + '<div role="cell" style="' + M + '; font-size:var(--t-small); text-align:right; color:' + pnlColor(t.pnl) + '" title="' + esc(splitSatz(t)) + '">' + signedUsd(t.pnl)
     + '<div style="font-size:var(--t-micro)">' + esc(pctLabel(t.pnl_pct)) + '</div>'
     + '<div style="font-size:var(--t-micro); color:var(--ink-4)">settled ' + esc(pctLabel(t.settled_pct)) + ' · marked ' + esc(pctLabel(t.open_pct)) + '</div>'
     + (t.pnl_reconciles === false ? '<div style="font-size:var(--t-micro); color:' + AMBER + '">books do not add up</div>' : '')
     + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-small); text-align:right" title="copied / skipped (observed baseline trades not counted)">' + (o.copied || 0) + ' <span style="color:' + AMBER + '">/ ' + (o.skipped || 0) + '</span></div>'
-    + '<div style="' + M + '; font-size:var(--t-small); text-align:right">' + (t.open_positions || 0) + '<div style="font-size:var(--t-micro); color:var(--ink-3)">' + (t.last_copy_at ? 'last ' + esc(ago(t.last_copy_at)) : 'no copy yet') + '</div></div>'
-    + '<div style="text-align:right">' + spark + '</div>'
-    + '<div style="display:flex; gap:var(--sp-3); justify-content:flex-end; flex-wrap:wrap">' + actions + '</div>'
+    + '<div role="cell" style="' + M + '; font-size:var(--t-small); text-align:right" title="copied / skipped (observed baseline trades not counted)">' + (o.copied || 0) + ' <span style="color:' + AMBER + '">/ ' + (o.skipped || 0) + '</span></div>'
+    + '<div role="cell" style="' + M + '; font-size:var(--t-small); text-align:right">' + (t.open_positions || 0) + '<div style="font-size:var(--t-micro); color:var(--ink-3)">' + (t.last_copy_at ? 'last ' + esc(ago(t.last_copy_at)) : 'no copy yet') + '</div></div>'
+    + '<div role="cell" style="text-align:right">' + spark + '</div>'
+    + '<div role="cell" style="display:flex; gap:var(--sp-3); justify-content:flex-end; flex-wrap:wrap">' + actions + '</div>'
     + '</div>';
   if (editing && canWrite) {
     const e = s.copyEdit;
@@ -288,9 +288,9 @@ function tradersTab(T, s, live, canWrite) {
   const head = 'display:grid; grid-template-columns:minmax(180px,1.6fr) 74px 90px 90px 110px 96px 70px 96px 92px minmax(200px,1.4fr); gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)';
   return followForm(T, s, live, canWrite)
     + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin:var(--sp-5) var(--sp-6) 0; overflow:hidden">'
-    + '<div style="overflow-x:auto"><div style="min-width:1180px">'
-    + '<div style="' + head + '">'
-    + '<div>TRADER</div><div>STATE</div><div style="text-align:right">START</div><div style="text-align:right">CASH</div><div style="text-align:right">EQUITY</div><div style="text-align:right">PAPER PNL · SETTLED / MARKED</div><div style="text-align:right">COPIED / SKIP</div><div style="text-align:right">OPEN</div><div style="text-align:right">EQUITY CURVE</div><div style="text-align:right">' + (canWrite ? 'ACTIONS' : '') + '</div></div>'
+    + '<div style="overflow-x:auto"><div role="table" aria-label="Copy desk traders" style="min-width:1180px">'
+    + '<div role="row" style="' + head + '">'
+    + '<div role="columnheader">TRADER</div><div role="columnheader">STATE</div><div role="columnheader" style="text-align:right">START</div><div role="columnheader" style="text-align:right">CASH</div><div role="columnheader" style="text-align:right">EQUITY</div><div role="columnheader" style="text-align:right">PAPER PNL · SETTLED / MARKED</div><div role="columnheader" style="text-align:right">COPIED / SKIP</div><div role="columnheader" style="text-align:right">OPEN</div><div role="columnheader" style="text-align:right">EQUITY CURVE</div><div role="columnheader" style="text-align:right">' + (canWrite ? 'ACTIONS' : '') + '</div></div>'
     + (traders.length ? traders.map((t) => traderRow(T, t, s, canWrite, busy)).join('') : leerZeile('No traders followed yet. Add the first wallet above — each one gets its own sub-account.'))
     + '</div></div></div>'
     + daemonBlock(T, live, canWrite, s);

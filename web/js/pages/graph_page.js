@@ -318,6 +318,18 @@ function renderBehavior(T, d) {
     'patterns in the stored tape' + (b.tape_rows ? ' · ' + num(b.tape_rows) + ' prints stored' : '') + ' — shown next to the graph, never used to merge accounts', TIER.behavior.farbe);
 }
 
+// The page head in the shape every other page uses: kicker, h1, lead. The
+// title was a styled div inside the first card, so #graph was the one page
+// without an h1; the lead moved up with it, and it stands in every state,
+// including the loading and error ones, which had no title at all.
+function kopf() {
+  return '<div style="padding:var(--sp-6) var(--sp-6) var(--sp-5); border-bottom:1px solid var(--line-2)">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-max); color:var(--accent)">WALLET GRAPH</div>'
+    + '<h1 style="font-size:var(--t-head); line-height:var(--lh-tight); margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:var(--ls-flat)">Wallet graph</h1>'
+    + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-4); max-width:700px; line-height:var(--lh-snug)">Accounts linked over public on-chain evidence, not single-wallet scores. Hard evidence (direct transfers, shared funders, position moves) joins wallets into an <b>entity</b>; an exchange-like counterparty is a <b>candidate</b>, shown but never merged; trading <b>behaviour</b> is shown beside both. No persons are identified — accounts are linked over documented transfers.</div>'
+    + '</div>';
+}
+
 function intro(d) {
   const s = d.stats || {};
   const tiles = [
@@ -330,20 +342,21 @@ function intro(d) {
     kpi({ label: 'CANDIDATES', wert: num(s.candidate_edges || 0), sub: 'pair ties over a shared counterparty', farbe: TIER.candidate.farbe })
   ].join('');
   return '<div style="' + KARTE + '; padding:var(--sp-5); margin-top:var(--sp-5)">'
-    + '<div style="font-size:var(--t-lead); line-height:var(--lh-solid)">Wallet graph</div>'
-    + '<div style="' + NOTIZ + '; margin-top:var(--sp-2); max-width:70ch">Accounts linked over public on-chain evidence, not single-wallet scores. Hard evidence (direct transfers, shared funders, position moves) joins wallets into an <b>entity</b>; an exchange-like counterparty is a <b>candidate</b>, shown but never merged; trading <b>behaviour</b> is shown beside both. No persons are identified — accounts are linked over documented transfers.</div>'
-    + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:var(--sp-4); margin-top:var(--sp-5)">' + tiles + '</div></div>';
+    + '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:var(--sp-4)">' + tiles + '</div></div>';
 }
 
 export function renderGraph(T) {
   if (typeof T.fetchGraph === 'function') T.fetchGraph();
   const entry = T.liveData ? T.liveData.graph : null;
-  const head = '<div style="padding:var(--sp-5) var(--sp-6) var(--sp-7)">';
+  // Head first, in every state; the body sits in its own padded block below
+  // the head's rule, like the other pages.
+  const head = '<div>' + kopf() + '<div style="padding:var(--sp-5) var(--sp-6) var(--sp-7)">';
+  const fuss = '</div></div>';
   if (!entry || entry._quelle === 'loading') {
-    return head + '<div style="' + KARTE + '; padding:var(--sp-6); ' + NOTIZ + '">Reading the local entity graph…</div></div>';
+    return head + '<div style="' + KARTE + '; padding:var(--sp-6); ' + NOTIZ + '">Reading the local entity graph…</div>' + fuss;
   }
   if (entry._quelle === 'fehler') {
-    return head + '<div style="' + KARTE + '; padding:var(--sp-6); ' + NOTIZ + '; color:var(--warn)">/api/graph did not answer: ' + esc(entry._fehler || 'unknown error') + '.</div></div>';
+    return head + '<div style="' + KARTE + '; padding:var(--sp-6); ' + NOTIZ + '; color:var(--warn)">/api/graph did not answer: ' + esc(entry._fehler || 'unknown error') + '.</div>' + fuss;
   }
   const d = entry;
   if (!d.available) {
@@ -355,7 +368,7 @@ export function renderGraph(T) {
         '<div style="' + NOTIZ + '">' + esc(d.note || 'No entity graph here.') + ' The graph is built by the entity scan into a local database; until it exists there is nothing to link by, which is a state, not an error.</div>')
       + renderBehavior(T, d)
       + (d.as_of ? '<div style="' + NOTIZ + '; margin-top:var(--sp-4)">as of ' + esc(d.as_of) + '</div>' : '')
-      + '</div>';
+      + fuss;
   }
   return head + intro(d)
     + ladder(d)
@@ -365,5 +378,5 @@ export function renderGraph(T) {
     + renderBehavior(T, d)
     + (d.caveat ? '<div style="' + NOTIZ + '; margin-top:var(--sp-5); max-width:80ch">' + esc(d.caveat) + '</div>' : '')
     + (d.as_of ? '<div style="' + NOTIZ + '; margin-top:var(--sp-4)">as of ' + esc(d.as_of) + '</div>' : '')
-    + '</div>';
+    + fuss;
 }

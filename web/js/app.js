@@ -712,7 +712,11 @@ class Terminal {
       // The chip names the theme it switches TO, like every other control
       // here names its action. Colours are CSS custom properties, so the
       // flip repaints without a re-render; only this label needs state.
-      + '<div ' + this.act(() => this.toggleTheme()) + ' aria-label="Switch to ' + (s.theme === 'light' ? 'dark' : 'light') + ' theme" class="hv-edge-strong" style="font-family:var(--font-mono); font-size:var(--t-micro); letter-spacing:var(--ls-caps); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); cursor:pointer; color:var(--ink-2); user-select:none">'
+      // data-key: the poll rebuilds this bar every 30 s, and render() puts
+      // the keyboard back only on elements with a data-key — without one
+      // the chip lost focus on every poll. It has no data-inp, so the input
+      // dispatcher never sees it.
+      + '<div ' + this.act(() => this.toggleTheme()) + ' data-key="theme-toggle" aria-label="Switch to ' + (s.theme === 'light' ? 'dark' : 'light') + ' theme" class="hv-edge-strong" style="font-family:var(--font-mono); font-size:var(--t-micro); letter-spacing:var(--ls-caps); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); cursor:pointer; color:var(--ink-2); user-select:none">'
       + (s.theme === 'light' ? 'DARK' : 'LIGHT') + '</div></div>';
   }
 
@@ -1343,6 +1347,9 @@ class Terminal {
   render() {
     this._acts = [];
     this._inps = [];
+    // Any focused element with a data-key survives the render: the text
+    // fields, and the theme chip in the topbar. selectionStart is undefined
+    // on a div; the restore below only puts a caret back where one was.
     const ae = document.activeElement;
     if (ae && ae.dataset && ae.dataset.key) {
       this._focus = { key: ae.dataset.key, start: ae.selectionStart, end: ae.selectionEnd };
@@ -1420,11 +1427,14 @@ class Terminal {
       if (overlayOffen === 'search') {
         // autofocus only fires for markup the parser inserts, and this panel
         // arrives through innerHTML — so move the caret here explicitly.
+        // A panel that just took the keyboard wins over the restore below:
+        // "/" on the focused theme chip opens the palette, and the chip
+        // must not pull the caret back out of it.
         const feld = document.querySelector('#search input');
-        if (feld) feld.focus();
+        if (feld) { feld.focus(); this._focus = null; }
       } else if (overlayOffen === 'detail') {
         const zu = document.querySelector('#detail [data-act][tabindex]');
-        if (zu) zu.focus();
+        if (zu) { zu.focus(); this._focus = null; }
       } else if (!overlayOffen && this._overlayOffen) {
         const m = document.getElementById('main');
         if (m) m.focus();
@@ -1436,7 +1446,11 @@ class Terminal {
       const el = document.querySelector('[data-key="' + this._focus.key + '"]');
       if (el) {
         el.focus();
-        try { el.setSelectionRange(this._focus.start, this._focus.end); } catch (e) { /* number inputs */ }
+        // Only a text field has a caret to put back; the theme chip is a
+        // div, and setSelectionRange does not exist on it.
+        if (typeof el.setSelectionRange === 'function' && typeof this._focus.start === 'number') {
+          try { el.setSelectionRange(this._focus.start, this._focus.end); } catch (e) { /* number inputs */ }
+        }
       }
     }
   }
