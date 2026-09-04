@@ -1,6 +1,0 @@
-# Cloudflare Pages redirects. The site is one host, marketintel.dev; the
-# www form and the project's pages.dev alias answered 200 as indexable
-# duplicates. Branch previews (<branch>.prediction-market-terminal.pages.dev)
-# keep working: they match neither pattern.
-https://www.marketintel.dev/* https://marketintel.dev/:splat 301
-https://prediction-market-terminal.pages.dev/* https://marketintel.dev/:splat 301

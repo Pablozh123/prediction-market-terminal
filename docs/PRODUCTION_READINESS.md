@@ -285,6 +285,10 @@ step 7 ships that). What is left is clicked in the two dashboards:
    equals `www.marketintel.dev` → `https://marketintel.dev${uri}`, 301.
    Verify with `curl -sI https://www.marketintel.dev/` (expect 301 and
    `Location: https://marketintel.dev/`).
+   The same rule with hostname `prediction-market-terminal.pages.dev` retires
+   the project alias, which also answers 200 and is indexable. A `_redirects`
+   file cannot do either: Pages matches paths only, never hostnames (tried on
+   2026-09-04, both hosts kept answering 200).
 10. [ ] **Uptime:** a monitor with GET on `https://api.marketintel.dev/healthz`
     (Cloudflare Health Checks need a paid plan; the Better Stack or UptimeRobot
     free tiers do it). Alert on anything but 200.
