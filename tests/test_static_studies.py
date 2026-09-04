@@ -144,6 +144,44 @@ class SeitenMengeTests(unittest.TestCase):
                 self.assertIn("Frozen study", seite)
 
 
+class CspTests(unittest.TestCase):
+    """Die Seiten muessen unter der Content-Security-Policy von web/_headers
+    unveraendert rendern.
+
+    Die Richtlinie erlaubt Skripte nur aus eigener Herkunft und einen einzigen
+    Hash (den Theme-Bootstrap der bestehenden HTML-Dateien). Ein Skript auf
+    einer Studienseite waere still blockiert; ein Inline-Handler ebenso.
+    Inline-Styles sind erlaubt (``style-src 'unsafe-inline'``), darauf ruht
+    das eingebettete Stylesheet.
+    """
+
+    def setUp(self) -> None:
+        self.html = st.study_page_html(_studie(), "2026-08-17")
+
+    def test_die_seite_bringt_kein_skript_mit(self) -> None:
+        self.assertNotIn("<script", self.html.lower())
+
+    def test_und_keinen_inline_handler(self) -> None:
+        for attr in ("onclick=", "onload=", "onerror=", "onmouseover=", "javascript:"):
+            with self.subTest(attr=attr):
+                self.assertNotIn(attr, self.html.lower())
+
+    def test_sie_laedt_nichts_von_fremden_hosts(self) -> None:
+        # default-src 'self': ein Stylesheet oder Bild von aussen waere
+        # blockiert und die Seite saehe kaputt aus, ohne dass jemand etwas
+        # sieht. Verweise auf fremde Hosts sind nur als Link erlaubt.
+        import re
+
+        for tag in re.findall(r"<(link|img|iframe|source)[^>]*>", self.html, re.I):
+            self.fail(f"unerwartetes Ladeelement: {tag}")
+
+    def test_das_stylesheet_liegt_in_der_seite(self) -> None:
+        # Kein zweiter Abruf, kein Cache-Problem, kein Pfad, der von der
+        # Verschachtelungstiefe abhaengt.
+        self.assertIn("<style>", self.html)
+        self.assertIn("prefers-color-scheme", self.html)
+
+
 class SitemapTests(unittest.TestCase):
     XML = ('<?xml version="1.0" encoding="UTF-8"?>\n<urlset>\n'
            "  <url>\n    <loc>https://marketintel.dev/</loc>\n  </url>\n</urlset>\n")
