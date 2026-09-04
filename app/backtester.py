@@ -6,6 +6,10 @@ injectable; by default it uses ``src.prediction_markets``.
 Model:
 - Replays the source wallet's BUY/SELL trades chronologically inside the window.
 - BUYs are copied with the configured stake sizing (fee + slippage priced in).
+  Fixed, percent and Kelly stakes are per POSITION: the first entry gets the
+  stake, later adds by the wallet only top the copy back up to the stake
+  (after a partial exit) and are otherwise logged as "filtered". Mirror and
+  portfolio-share sizing scale with the source notional and stay per trade.
 - SELLs are mirrored proportionally to the fraction the source sold.
 - After the replay, remaining open positions are settled against market data:
   resolved markets pay out at the final token price (no fee on redemption),
@@ -50,6 +54,15 @@ SIZING_MIRROR = "mirror"
 SIZING_PORTFOLIO = "portfolio_share"
 SIZING_KELLY = "kelly"
 SIZING_MODES = (SIZING_FIXED, SIZING_PERCENT, SIZING_MIRROR, SIZING_PORTFOLIO, SIZING_KELLY)
+#: Modi, deren Einsatz je POSITION gilt, nicht je Quell-Trade. Eine Wallet
+#: baut eine Position oft aus Dutzenden Kaeufen auf; wer jeden davon mit dem
+#: vollen Einsatz spiegelt, zahlt fuer eine Position das Vielfache dessen,
+#: was "Einsatz je Copy" verspricht, und die Kasse ist nach wenigen
+#: Positionen leer, obwohl die Wallet nur eine Handvoll offen hat. Nachkaeufe
+#: fuellen deshalb nur bis zum Einsatz auf (nach einem Teilausstieg), sonst
+#: gelten sie als "filtered". Mirror und Portfolio-Anteil skalieren mit dem
+#: Quell-Notional und bleiben je Trade.
+PER_POSITION_SIZING = (SIZING_FIXED, SIZING_PERCENT, SIZING_KELLY)
 
 STRATEGY_COPY = "copy"
 STRATEGY_FADE = "fade"
@@ -416,6 +429,23 @@ def replay(
                 continue
             base_price = (1.0 - price) if fade else price
             stake = _stake_for(config, equity_now(), float(trade.get("notional", 0.0) or 0.0), base_price)
+            held = positions.get(position_key)
+            if held is not None and float(held.get("shares", 0.0) or 0.0) > 0.0 and config.sizing_mode in PER_POSITION_SIZING:
+                # Die Wallet kauft nach. Der Einsatz gilt je Position: es
+                # wird hoechstens bis zum Einsatz aufgefuellt (etwa nach
+                # einem Teilausstieg), nie ein zweiter voller Einsatz
+                # gelegt. Was darueber liegt, ist bewusst nicht gefolgt.
+                room = stake - float(held.get("cost_basis", 0.0) or 0.0)
+                if room < MIN_STAKE:
+                    log(
+                        trade.get("time"),
+                        "BUY",
+                        "filtered",
+                        record,
+                        note=f"already following this position (${float(held.get('cost_basis', 0.0) or 0.0):,.2f} in)",
+                    )
+                    continue
+                stake = room
             exposure_room = max_open - open_cost
             if stake > exposure_room:
                 stake = max(0.0, exposure_room)
@@ -813,6 +843,9 @@ def compute_stats(ledger: pd.DataFrame, open_positions: pd.DataFrame, curve: pd.
     }
     stats["skip_reasons"] = {"out_of_cash": 0, "exposure_cap": 0, "no_position": 0, "bad_data": 0, "other": 0}
     stats["filtered_trades"] = 0
+    # Warum bewusst nicht gefolgt wurde: Folge-Schwelle, fremder Verkauf
+    # oder Nachkauf in eine Position, die schon mit vollem Einsatz laeuft.
+    stats["filter_reasons"] = {"below_threshold": 0, "sell_not_followed": 0, "already_following": 0, "other": 0}
     if ledger is not None and not ledger.empty:
         copied = ledger[ledger["status"].isin(["copied", "settled"])]
         skipped = ledger[ledger["status"].eq("skipped")]
@@ -821,6 +854,15 @@ def compute_stats(ledger: pd.DataFrame, open_positions: pd.DataFrame, curve: pd.
         # Bewusst nicht gefolgt (Schwelle, fremde Verkaeufe) — getrennt von
         # den echten Fehlschlaegen, damit "skipped" Versagen bedeutet.
         stats["filtered_trades"] = int(ledger["status"].eq("filtered").sum())
+        for note in ledger.loc[ledger["status"].eq("filtered"), "note"].fillna("").astype(str):
+            if "below the follow threshold" in note:
+                stats["filter_reasons"]["below_threshold"] += 1
+            elif "not followed" in note:
+                stats["filter_reasons"]["sell_not_followed"] += 1
+            elif "already following" in note:
+                stats["filter_reasons"]["already_following"] += 1
+            else:
+                stats["filter_reasons"]["other"] += 1
         # Gemessene Skip-Gruende statt einer Pauschalzahl: die Oberflaeche
         # soll sagen koennen, WARUM sie nicht mitging (Kasse leer und
         # Exposure-Deckel sind Bankroll-Grenzen, keine Datenluecken).

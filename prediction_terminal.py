@@ -11712,7 +11712,7 @@ def page_backtester() -> None:
                 )
             else:
                 stake_input = st.number_input("Stake per copy ($)", min_value=1.0, max_value=100_000.0, value=float(app_config["backtest_max_bet"]), step=5.0, key="bt_stake_fixed")
-                st.markdown("<div class='field-hint'>Every copied trade bets exactly this amount.</div>", unsafe_allow_html=True)
+                st.markdown("<div class='field-hint'>Every followed position gets exactly this amount at entry. When the wallet adds to a position you already hold, the copy is only topped back up to this amount after a partial exit; otherwise the add is logged as filtered.</div>", unsafe_allow_html=True)
             cap_cols = st.columns(2)
             max_bet = cap_cols[0].number_input("Cap per trade ($)", min_value=1.0, max_value=100_000.0, value=max(float(app_config["backtest_max_bet"]) * 10, 250.0), step=10.0, key="bt_max_stake", help="Hard ceiling for a single copy, whatever the sizing mode says.")
             max_exposure_pct = cap_cols[1].number_input("Max % of bankroll in open copies", min_value=5.0, max_value=100.0, value=50.0, step=5.0, key="bt_exposure", help="New copies are skipped while your open copied positions already tie up this share of the bankroll. Sells free the room up again.")

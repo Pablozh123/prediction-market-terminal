@@ -2723,6 +2723,12 @@ def backtest_payload(result: Any) -> dict[str, Any]:
             # Bewusst nicht gefolgte Trades (Folge-Schwelle, fremde
             # Verkaeufe) — getrennt von den echten Fehlschlaegen.
             "filtered_trades": int(_num(stats.get("filtered_trades"), 0.0) or 0),
+            # Warum nicht gefolgt: Schwelle, fremder Verkauf oder Nachkauf in
+            # eine Position, die schon mit vollem Einsatz laeuft.
+            "filter_reasons": {
+                key: int(_num(value, 0.0) or 0)
+                for key, value in (stats.get("filter_reasons") or {}).items()
+            },
             # Auto-Fit: was die Engine gemessen und ggf. angewendet hat —
             # Modus (Folge-Schwelle oder geschrumpfter Einsatz), Einsatz je
             # Copy, Schwelle, gefolgte Positionen und das rohe Tempo der

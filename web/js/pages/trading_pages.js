@@ -180,6 +180,15 @@ export function renderBacktester(T) {
   ].filter(Boolean).join(' · ') : '';
   const bankrollBound = reasons ? (reasons.out_of_cash + reasons.exposure_cap) : 0;
   const filteredN = st ? +st.filtered_trades || 0 : 0;
+  // Gemessene Filter-Gruende aus der Engine: Schwelle, fremder Verkauf,
+  // Nachkauf in eine Position, die schon mit vollem Einsatz laeuft.
+  const filterReasons = st && st.filter_reasons ? st.filter_reasons : null;
+  const filterText = filterReasons ? [
+    filterReasons.already_following ? num(filterReasons.already_following) + ' adds to positions already held at the full stake' : '',
+    filterReasons.below_threshold ? num(filterReasons.below_threshold) + ' entries below the follow threshold' : '',
+    filterReasons.sell_not_followed ? num(filterReasons.sell_not_followed) + ' sells of positions never followed' : '',
+    filterReasons.other ? num(filterReasons.other) + ' other' : ''
+  ].filter(Boolean).join(' · ') : '';
   // Auto-Fit-Ergebnis der Engine: entweder eine Folge-Schwelle (den
   // groessten Einstiegen der Wallet beim eingestellten Einsatz folgen)
   // oder ein geschrumpfter Einsatz (allem folgen, kleiner kopieren).
@@ -236,7 +245,7 @@ export function renderBacktester(T) {
   const stakeHint = s.btSizing === 'pct' ? 'Each copy bets ' + s.btStakePct.toFixed(1) + '% of your bankroll — about $' + (bank * s.btStakePct / 100).toFixed(0) + ' right now.'
     : s.btSizing === 'match' ? 'If the trader puts 2% of their portfolio into a bet, you put 2% × ' + s.btStakeMult.toFixed(1) + ' of yours. Their portfolio size is read from their public profile.'
     : s.btSizing === 'kelly' ? 'Assumes every entry is worth its price plus ' + s.btStakeKelly.toFixed(1) + ' points, then stakes quarter-Kelly of equity. Conservative on purpose — the edge is an assumption.'
-    : 'Every copied trade bets exactly $' + s.btStakeFixed + '. Capped at $' + s.btCap + ' per trade.';
+    : 'Every followed position gets exactly $' + s.btStakeFixed + ' at entry. When the wallet adds to a position you already hold, the copy is only topped back up after a partial exit; the add is otherwise logged as filtered. Capped at $' + s.btCap + ' per position.';
   const stakeUp = s.btSizing === 'pct' ? { btStakePct: Math.min(100, s.btStakePct + 0.5) } : s.btSizing === 'match' ? { btStakeMult: Math.min(10, s.btStakeMult + 0.5) } : s.btSizing === 'kelly' ? { btStakeKelly: Math.min(30, s.btStakeKelly + 0.5) } : { btStakeFixed: s.btStakeFixed + 5 };
   const stakeDown = s.btSizing === 'pct' ? { btStakePct: Math.max(0.1, s.btStakePct - 0.5) } : s.btSizing === 'match' ? { btStakeMult: Math.max(0.1, s.btStakeMult - 0.5) } : s.btSizing === 'kelly' ? { btStakeKelly: Math.max(0.5, s.btStakeKelly - 0.5) } : { btStakeFixed: Math.max(1, s.btStakeFixed - 5) };
 
@@ -504,10 +513,14 @@ export function renderBacktester(T) {
     // Gefilterte Trades sind eine bewusste Auswahl, kein Versagen — eine
     // neutrale Zeile statt einer Warnung.
     + (filteredN > 0 ? '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-4) var(--sp-5); margin-top:var(--sp-4); font-size:var(--t-small); color:var(--ink-3); line-height:var(--lh-snug)">'
-      + num(filteredN) + ' of the wallet\'s trades were deliberately not followed ("filtered" in the trade log): '
+      + num(filteredN) + ' of the wallet\'s trades were deliberately not followed ("filtered" in the trade log)'
+      + (filterText ? ': ' + filterText + '.' : '.')
       + (autoFit && autoFit.applied && autoFit.mode === 'threshold'
-        ? 'entries below the $' + num(Math.round(+autoFit.follow_threshold)) + ' threshold auto-fit chose so the followed flow fits the bankroll, plus sells of positions that were never followed.'
-        : 'sells of positions that were never followed' + (s.btMinNotional > 0 ? ', plus entries below your $' + num(s.btMinNotional) + ' follow threshold.' : '.'))
+        ? ' The $' + num(Math.round(+autoFit.follow_threshold)) + ' threshold is the one auto-fit chose so the followed flow fits the bankroll.'
+        : (s.btMinNotional > 0 ? ' The follow threshold is your $' + num(s.btMinNotional) + '.' : ''))
+      + (filterReasons && filterReasons.already_following
+        ? ' The stake is per position: the first entry gets it, later adds by the wallet are not topped up unless a partial exit made room.'
+        : '')
       + '</div>' : '')
 
     // Auto-Fit liest das ganze Fenster, bevor der erste Trade kopiert wird.
