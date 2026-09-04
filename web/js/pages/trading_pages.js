@@ -242,7 +242,7 @@ export function renderBacktester(T) {
     // Bewertungskurve: wie viele Positionen unterwegs zum Marktpreis
     // stehen. Ohne Verlauf laeuft eine gehaltene Position als Gerade.
     + (st && st.mark_to_market && st.mark_to_market.positions_total
-      ? ' · open copies marked to market ' + (st.mark_to_market.interval === '6h' ? 'every 6 hours' : 'hourly')
+      ? ' · open copies marked to market ' + (st.mark_to_market.interval === '1d' ? 'daily' : st.mark_to_market.interval === '6h' ? 'every 6 hours' : 'hourly')
         + ' for ' + num(st.mark_to_market.positions_marked) + ' of ' + num(st.mark_to_market.positions_total) + ' positions'
         + (st.mark_to_market.positions_marked < st.mark_to_market.positions_total ? ' (the rest at cost until they close)' : '')
       : '')
@@ -420,7 +420,7 @@ export function renderBacktester(T) {
     // beschrieb die Simulation, sagte aber nirgends, dass ihre Zahlen
     // modelliert und nicht realisiert sind.
     + caveatZeile('backtest_modeled', {
-      vorsatz: 'Every simulated fill is priced with fees and slippage, up to ninety days back.',
+      vorsatz: 'Every simulated fill is priced with fees and slippage, up to a year back. Long windows on very active wallets stop at the engine\'s cap of 30,000 trades; the run line says where the data really starts.',
       stil: 'font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-3); max-width:680px; line-height:var(--lh-snug)'
     }) + '</div>'
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--on-accent); background:var(--accent); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-4)">POLYMARKET</div>'
@@ -473,7 +473,7 @@ export function renderBacktester(T) {
 
     + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--accent); margin-bottom:var(--sp-3)">03 · TIME WINDOW</div>'
     + '<div style="display:flex; gap:var(--sp-3)">'
-    + [T.tab('7d', s.btWindow === 7, bt(T, { btWindow: 7 })), T.tab('30d', s.btWindow === 30, bt(T, { btWindow: 30 })), T.tab('90d', s.btWindow === 90, bt(T, { btWindow: 90 }))].join('')
+    + [7, 30, 90, 180, 365].map((d) => T.tab(d === 365 ? '1y' : d + 'd', s.btWindow === d, bt(T, { btWindow: d }))).join('')
     + '</div></div>'
 
     + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--accent); margin-bottom:var(--sp-3)">04 · STRATEGY</div>'

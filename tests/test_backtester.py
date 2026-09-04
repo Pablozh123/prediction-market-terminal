@@ -592,6 +592,19 @@ class MarkToMarketCurveTests(unittest.TestCase):
         self.assertEqual(len(calls), n)
         self.assertIn("tok-b", data.price_history)
 
+    def test_long_windows_read_the_daily_price_history(self):
+        now = pd.Timestamp("2026-06-01", tz="UTC")
+        data = bt.WindowData(
+            wallet="0x" + "a" * 40, days=200, window_start=now - pd.Timedelta(days=200), window_end=now,
+            trades=frame([trade("2026-01-15", "BUY", 0.50, 100.0)]), window_truncated=False,
+            token_values={"tok-yes": {"price": 0.7, "closed": False, "end_time": None}}, loaded_at=now,
+        )
+        seen = []
+        result = bt.run_backtest(config(days=200), data=data, fetch_price_history=lambda t, i: seen.append(i) or self._history([("2026-02-01", 0.6)]))
+        self.assertEqual(seen, ["1d"])
+        self.assertEqual(result.stats["mark_to_market"]["interval"], "1d")
+        self.assertEqual(len(result.equity), 201)
+
     def test_without_a_fetcher_the_curve_is_unchanged(self):
         now = pd.Timestamp("2026-06-01", tz="UTC")
         data = bt.WindowData(

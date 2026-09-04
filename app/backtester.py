@@ -1533,8 +1533,11 @@ def run_backtest(
         if pd.notna(oldest_trade) and oldest_trade > curve_start:
             curve_start = oldest_trade
     # Bewertungskurve: Preisverlauf der kopierten Token, stundenweise bis
-    # zu einem Monat, darueber in Sechs-Stunden-Schritten.
-    interval = "1h" if (window_end - curve_start) <= pd.Timedelta(days=31) else "6h"
+    # zu einem Monat, bis vier Monate in Sechs-Stunden-Schritten, darueber
+    # taeglich (die Kurve selbst ist ab acht Tagen ohnehin taeglich, und
+    # der CLOB kuerzt feine Raster bei langen Laufzeiten).
+    spanne = window_end - curve_start
+    interval = "1h" if spanne <= pd.Timedelta(days=31) else ("6h" if spanne <= pd.Timedelta(days=120) else "1d")
     price_history: dict[str, pd.DataFrame] = {}
     mtm_info: dict[str, Any] = {"positions_marked": 0, "positions_total": 0, "capped": False, "interval": None}
     if fetch_price_history is not None:

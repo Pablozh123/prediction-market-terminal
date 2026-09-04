@@ -2296,7 +2296,9 @@ def backtest(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
             )
     config = btr.BacktestConfig(
         wallet=wallet,
-        days=int(body.get("window_days", 30)),
+        # Bis zu einem Jahr; der Zeilen-Deckel der Engine (30.000 Trades)
+        # schneidet aktive Wallets frueher ab und sagt das im Ergebnis.
+        days=max(1, min(365, int(body.get("window_days", 30)))),
         bankroll=float(body.get("bankroll", 1000.0)),
         sizing_mode=sizing_mode,
         stake_value=stake_value,
