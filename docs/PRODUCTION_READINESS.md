@@ -267,7 +267,9 @@ step 7 ships that). What is left is clicked in the two dashboards:
    buckets in `api/server.py` stay as the second line behind it.
 6. [ ] **Railway → service → Variables:** `RATE_LIMIT_IP_HEADER=CF-Connecting-IP`
    (the server prefers that header on its own when present; the variable
-   makes the intent explicit). **Settings → Networking:** remove the generated
+   makes the intent explicit) and `ROUTE_WARM_MIN=4`, which keeps `/api/cross`
+   and `/api/risk` warm in the background instead of making the first visitor
+   wait 20–25 s. **Settings → Networking:** remove the generated
    `*.up.railway.app` domain, otherwise requests to it bypass Cloudflare, the
    WAF rules and the limiter's trust in `CF-Connecting-IP`.
 7. [ ] **Railway deploy:** `railway up --detach` from the repository root
@@ -294,10 +296,18 @@ step 7 ships that). What is left is clicked in the two dashboards:
 
 Open beyond the dashboards, in rough order of value:
 
-- **Backup of the Railway volume** (`/data`: copy-desk SQLite, settings) — a
-  scheduled export; nothing backs it up today.
-- **API deploys follow `main`** — a Railway GitHub trigger on `api/**`, or a
-  workflow that runs `railway up`, so the API cannot lag the frontend.
+- **Backup of the Railway volume** — `.github/workflows/backup-volume.yml`
+  pulls `GET /api/admin/backup` (a zip of the copy-desk SQLite, settings,
+  entity graph and flag log, built with the SQLite backup API) once a day and
+  keeps it as a workflow artifact for 90 days. Set the repository secrets
+  `COPY_ADMIN_TOKEN` (the desk's write token) and `BACKUP_PASSPHRASE` (the
+  artifact is encrypted with it; artifacts of a public repository are
+  downloadable by anyone signed in). Nothing runs until the first secret is
+  set.
+- **API deploys follow `main`** — `.github/workflows/deploy-api.yml` runs
+  `railway up` for pushes that touch the API image and waits for `/healthz`.
+  Set the repository secret `RAILWAY_TOKEN` (project token, production
+  environment); until then the job skips itself with a notice.
 - **Cold routes**: `/api/risk` (~25 s) and `/api/cross` (~21 s) need a
   server-side warm cache; `/api/risk/log` (435 KB) a row cap.
 - **Self-hosted IBM Plex** — removes the only third-party request the browser

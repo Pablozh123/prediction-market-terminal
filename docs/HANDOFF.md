@@ -192,6 +192,10 @@ Two hosts, two mechanisms — this cost a session once, so it is spelled out:
   `attractive-truth`, Dockerfile) does **not** follow GitHub. After the push run
   `railway up --detach` from the repo root and poll a new route until it
   answers (build ~1 min; the in-process copy daemon pauses for that minute).
+  `.github/workflows/deploy-api.yml` does the same on every push to `main`
+  that touches `api/`, `app/`, `src/`, `requirements.txt` or the `Dockerfile`,
+  once the repository secret `RAILWAY_TOKEN` (a project token for the
+  production environment) is set; without it the job skips itself and says so.
   `railway up` uploads the working tree minus `.gitignore` — `data/` never
   ships. Under Git Bash prefix `MSYS_NO_PATHCONV=1` when setting a variable
   whose value starts with `/` (`/data/...` was mangled to `C:/Program Files/Git/data/...`).

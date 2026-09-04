@@ -51,10 +51,16 @@ Umgebung (alles optional, Voreinstellung = lokale Entwicklung):
     RISK_LOG_INTERVAL_MIN      > 0 startet einen Daemon-Thread, der die Risk-Rechnung alle N
                                Minuten anstoesst und die Flags loggt, auch ohne Besucher
                                (0 = aus). Nutzt denselben 300-s-Cache wie /api/risk.
+    ROUTE_WARM_MIN             > 0 haelt die kalten Routen warm: alle N Minuten laufen
+                               /api/cross und, wenn der Flag-Sampler aus ist, die
+                               Risk-Rechnung im Hintergrund (0 = aus; 4 passt zum
+                               300-s-Cache). Der erste Besucher wartete sonst 20-25 s.
 
     COPY_ADMIN_TOKEN           Schreibzugriff auf den Paper-Copy-Desk (/api/copy/*): ohne
                                Token nur von dieser Maschine (Loopback, kein Proxy-Header);
                                mit Token nur mit Header X-Admin-Token, von ueberall.
+                               Derselbe Token oeffnet GET /api/admin/backup, das Zip
+                               des Volumes (.github/workflows/backup-volume.yml).
     COPY_DATA_DIR              Ordner der Papierbuecher (Voreinstellung data/); auf einem
                                PaaS ins gemountete Volume zeigen lassen (z. B. /data/copy_desk).
     COPY_DAEMON=1              Copy-Schleife im API-Prozess mitlaufen lassen (ein Dienst, ein
@@ -107,9 +113,12 @@ import json
 import math
 import os
 import re
+import sqlite3
 import sys
+import tempfile
 import threading
 import time
+import zipfile
 from collections import OrderedDict
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -197,6 +206,8 @@ async def _lifespan(_app: FastAPI):
     # Entity-Scan-Worker (ENTITY_SCAN_INTERVAL_H), fuer den Deploy-Host mit
     # Volume: dort gibt es keinen Taskplaner fuer den Wallet-Graphen.
     start_entity_scan_worker()
+    # Kalte Routen warm halten (ROUTE_WARM_MIN), siehe Route-Waermer.
+    start_route_warmer()
     yield
 
 
@@ -351,6 +362,37 @@ async def globale_bremse(request: Request, call_next):
     return await call_next(request)
 
 
+_URL_IN_FEHLER = re.compile(r"https?://([^/\s?#]+)[^\s]*")
+
+
+def _oeffentlich(exc: BaseException | str) -> str:
+    """Fehlertext fuer eine Antwort nach draussen: Upstream-URLs auf den Host gekuerzt.
+
+    Vorher stand in /api/search die volle Gamma-URL samt der rohen Suchanfrage
+    des Besuchers im Fehlertext und in /api/tape die Kalshi-Adresse mit allen
+    Parametern — eine Karte der Upstreams, die kein Leser braucht. Der Host
+    bleibt stehen, damit die Meldung noch sagt, welche Quelle fehlte.
+    """
+
+    return _URL_IN_FEHLER.sub(lambda m: m.group(1), str(exc))
+
+
+SUCHTEXT_MAX = 200
+
+
+def _suchtext_pruefen(text: str) -> str:
+    """Suchstrings sind Filter, keine Dokumente: ueber 200 Zeichen 422.
+
+    Als Query(max_length=...) am Parameter ginge es auch, aber die Routen
+    werden in Tests und vom Route-Waermer direkt aufgerufen, und dann ist der
+    Standardwert kein String mehr.
+    """
+
+    if len(text) > SUCHTEXT_MAX:
+        raise HTTPException(status_code=422, detail=f"query too long (max {SUCHTEXT_MAX} characters)")
+    return text
+
+
 def df_records(df: pd.DataFrame, limit: int | None = None) -> list[dict[str, Any]]:
     if df is None or df.empty:
         return []
@@ -378,7 +420,7 @@ def _venue_frame(venue: str, fetch, sources: list[dict[str, Any]]) -> pd.DataFra
         frame = fetch()
     except Exception as exc:
         print(f"[warn] {venue}: {exc}")
-        sources.append(apv.venue_source(venue, ok=False, error=f"{type(exc).__name__}: {exc}"))
+        sources.append(apv.venue_source(venue, ok=False, error=f"{type(exc).__name__}: {_oeffentlich(exc)}"))
         return pd.DataFrame()
     frame = pd.DataFrame() if frame is None else frame
     sources.append(apv.venue_source(venue, ok=True, rows=int(len(frame))))
@@ -502,7 +544,7 @@ def health() -> dict[str, Any]:
 
 
 @app.get("/api/overview")
-def overview(limit: int = Query(250, le=1000)) -> dict[str, Any]:
+def overview(limit: int = Query(250, ge=1, le=1000)) -> dict[str, Any]:
     combined = load_universe(limit)
     quellen = apv.venue_sources(combined)
     if combined.empty:
@@ -577,8 +619,9 @@ def markets(
     category: str = "",
     platform: str = "",
     sort: str = "volume_24h",
-    limit: int = Query(250, le=1000),
+    limit: int = Query(250, ge=1, le=1000),
 ) -> dict[str, Any]:
+    query = _suchtext_pruefen(query)
     combined = load_universe(max(limit, 250))
     quellen = apv.venue_sources(combined)
     if combined.empty:
@@ -617,11 +660,12 @@ def markets(
 
 
 @app.get("/api/search")
-def search(q: str = "", limit: int = Query(12, le=25)) -> dict[str, Any]:
+def search(q: str = "", limit: int = Query(12, ge=1, le=25)) -> dict[str, Any]:
     """Volltextsuche: Gamma public-search (ganzer Polymarket-Bestand, aktive
     Events, Profile) plus Titeltreffer aus dem gecachten Universum (bringt
     Kalshi mit). Die Suchleiste im Frontend filtert sonst nur die geladenen
     Top-Volumen-Maerkte — alles ausserhalb davon fand sie nie."""
+    q = _suchtext_pruefen(q)
 
     text = q.strip()
     if len(text) < 2:
@@ -656,12 +700,12 @@ def search(q: str = "", limit: int = Query(12, le=25)) -> dict[str, Any]:
     try:
         payload = cached(f"search_{text.casefold()}_{limit}", _run, ttl=60.0)
     except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"search unavailable: {exc}")
+        raise HTTPException(status_code=503, detail=f"search unavailable: {_oeffentlich(exc)}")
     return {**payload, "as_of": md.now_utc_label()}
 
 
 @app.get("/api/tape")
-def tape(limit: int = Query(250, le=1000), min_cash: float = 0.0) -> dict[str, Any]:
+def tape(limit: int = Query(250, ge=1, le=1000), min_cash: float = 0.0) -> dict[str, Any]:
     trades = load_tape(limit=limit, min_cash=min_cash)
     # Welche Venue geantwortet hat, reist mit. Eine Antwort ohne Kalshi ist
     # ein anderer Zustand als eine Antwort, in der Kalshi nichts gedruckt
@@ -700,7 +744,7 @@ def tape(limit: int = Query(250, le=1000), min_cash: float = 0.0) -> dict[str, A
 
 @app.get("/api/leaderboard")
 def leaderboard(
-    limit: int = Query(100, le=500),
+    limit: int = Query(100, ge=1, le=500),
     period: str = "ALL",
     order_by: str = "PNL",
 ) -> dict[str, Any]:
@@ -710,7 +754,7 @@ def leaderboard(
         # Keine Zeilen UND ein Grund. Ohne den Grund liest sich der Ausfall
         # der Polymarket-Bestenliste wie eine Venue ohne Trader.
         print(f"[warn] leaderboard: {exc}")
-        return {"rows": [], "total": 0, "error": f"{type(exc).__name__}: {exc}",
+        return {"rows": [], "total": 0, "error": f"{type(exc).__name__}: {_oeffentlich(exc)}",
                 "as_of": md.now_utc_label()}
     ranked = load_ranked()
     rows = apv.leaderboard_rows(lb, ranked)
@@ -1013,7 +1057,7 @@ def graph_page() -> dict[str, Any]:
     try:
         return cached("graph_overview", _build, ttl=300.0)
     except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"entity graph unavailable: {exc}")
+        raise HTTPException(status_code=503, detail=f"entity graph unavailable: {_oeffentlich(exc)}")
 
 
 @app.get("/api/wallet/{wallet}/entity", dependencies=[Depends(wallet_route_limit)])
@@ -1057,7 +1101,7 @@ def wallet_entity(wallet: str) -> dict[str, Any]:
     try:
         return cached(f"wallet_entity_{wallet}", _build, ttl=300.0)
     except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"entity graph unavailable: {exc}")
+        raise HTTPException(status_code=503, detail=f"entity graph unavailable: {_oeffentlich(exc)}")
 
 
 @app.get("/api/wallet/{wallet}/similar", dependencies=[Depends(wallet_route_limit)])
@@ -1120,8 +1164,9 @@ CROSS_DEPTH_ROWS = 12
 def cross(
     query: str = "",
     min_similarity: float = Query(apv.CROSS_MIN_SIMILARITY, ge=0.0, le=1.0),
-    max_pairs: int = Query(150, le=150),
+    max_pairs: int = Query(150, ge=1, le=150),
 ) -> dict[str, Any]:
+    query = _suchtext_pruefen(query)
     # Ehrlichkeits-Schranke: unter 0.5 Aehnlichkeit war ein Paar bisher oft
     # zwei verschiedene Fragen (Studien 08 und 11), und ohne Volumen auf
     # beiden Seiten gibt es keinen Preis, den man vergleichen koennte. Der
@@ -1166,7 +1211,7 @@ def cross(
         # Die leere Antwort traegt sonst die Notiz "nichts hat die Schranke
         # genommen", also eine Messung, wo ein Abruf gescheitert ist.
         print(f"[warn] cross venue universes: {exc}")
-        return {**leer, "error": f"{type(exc).__name__}: {exc}"}
+        return {**leer, "error": f"{type(exc).__name__}: {_oeffentlich(exc)}"}
     if pm.empty or ks.empty:
         return leer
     try:
@@ -1211,7 +1256,7 @@ def cross(
             candidates, verworfen = _treffer(candidates), _treffer(verworfen)
     except Exception as exc:
         print(f"[warn] cross venue: {exc}")
-        return {**leer, "error": f"{type(exc).__name__}: {exc}"}
+        return {**leer, "error": f"{type(exc).__name__}: {_oeffentlich(exc)}"}
     categories = {}
     if "market_key" in pm.columns and "category" in pm.columns:
         categories = {
@@ -1540,7 +1585,7 @@ def build_risk_payload() -> dict[str, Any]:
             # leeres Ergebnis sahen gleich aus; jetzt trennt sie ein Feld.
             print(f"[warn] suspicion clusters: {exc}")
             payload["cluster_sample"] = {"note": payload.get("cluster_sample", {}).get("note", ""),
-                                         "error": f"{type(exc).__name__}: {exc}"[:300]}
+                                         "error": f"{type(exc).__name__}: {_oeffentlich(exc)}"[:300]}
         return payload
 
     return cached("risk_payload", _build, ttl=300.0)
@@ -1727,6 +1772,52 @@ def start_risk_sampler() -> bool:
     thread = threading.Thread(
         target=_risk_sampler_loop, args=(RISK_LOG_INTERVAL_MIN * 60.0,), name="risk-flag-sampler", daemon=True)
     thread.start()
+    return True
+
+
+# --- Route-Waermer (kalte Routen auf dem Deploy-Host) -------------------------
+#: > 0 haelt die teuren Caches warm: alle N Minuten laufen /api/cross (zwei
+#: Venue-Universen plus Matcher, rund 20 s kalt) und, wenn der Flag-Sampler
+#: nicht laeuft, die Risk-Rechnung (rund 25 s kalt) einmal im Hintergrund.
+#: Gemessen am 2026-09-04: der erste Besucher nach einer stillen Viertel-
+#: stunde wartete genau diese Zeit. Unter dem 300-s-Cache-TTL rechnet ein
+#: Intervall von vier Minuten jede Runde neu; laenger heisst gelegentlich kalt.
+ROUTE_WARM_MIN = max(0.0, _env_float("ROUTE_WARM_MIN", 0.0))
+_WARMER_STARTED = threading.Event()
+
+
+def warm_routes_once() -> dict[str, str]:
+    """Eine Runde: jede Route fuer sich, ein Fehler stoppt die anderen nicht."""
+
+    schritte = [("cross", lambda: cross(query="", min_similarity=apv.CROSS_MIN_SIMILARITY, max_pairs=150))]
+    if not _SAMPLER_STARTED.is_set():
+        schritte.append(("risk", build_risk_payload))
+    ergebnis: dict[str, str] = {}
+    for name, fn in schritte:
+        try:
+            fn()
+            ergebnis[name] = "ok"
+        except Exception as exc:
+            ergebnis[name] = f"{type(exc).__name__}: {exc}"
+            print(f"[warm] {name}: {exc}")
+    return ergebnis
+
+
+def _route_warmer_loop(interval_s: float) -> None:
+    print(f"[warm] routes every {interval_s / 60:.1f} min")
+    while True:
+        warm_routes_once()
+        time.sleep(max(60.0, interval_s))
+
+
+def start_route_warmer() -> bool:
+    """Startet den Waermer genau einmal; False, wenn aus oder schon gestartet."""
+
+    if ROUTE_WARM_MIN <= 0 or _WARMER_STARTED.is_set():
+        return False
+    _WARMER_STARTED.set()
+    threading.Thread(
+        target=_route_warmer_loop, args=(ROUTE_WARM_MIN * 60.0,), name="route-warmer", daemon=True).start()
     return True
 
 
@@ -1980,6 +2071,87 @@ def _copy_settings_for_engine():
     return ct.load_copy_settings(COPY_SETTINGS_PATH)
 
 
+# --- Sicherung des Volumes ------------------------------------------------------
+# Auf dem Deploy-Host liegen Papierbuecher, Wallet-Graph und Flag-Log auf einem
+# Volume, das sonst niemand sichert. /api/admin/backup packt sie in ein Zip —
+# SQLite ueber die Backup-API, also konsistent, auch waehrend der Copy-Daemon
+# schreibt — und verlangt denselben Token wie die Schreibpfade des Copy-Desks.
+# .github/workflows/backup-volume.yml holt das Zip taeglich ab.
+def backup_dateien() -> list[Path]:
+    """Was gesichert wird: nur, was existiert, jede Datei einmal."""
+
+    from app import entity_graph as eg
+    from app import risk_log
+
+    kandidaten = [
+        COPY_DB_PATH, COPY_SETTINGS_PATH, COPY_STATUS_PATH,
+        Path(os.environ.get("ENTITY_GRAPH_PATH", "").strip() or eg.DEFAULT_GRAPH_PATH),
+        risk_log.log_path(),
+    ]
+    gesehen: set[Path] = set()
+    dateien: list[Path] = []
+    for pfad in kandidaten:
+        pfad = Path(pfad)
+        if pfad.is_file() and pfad.resolve() not in gesehen:
+            gesehen.add(pfad.resolve())
+            dateien.append(pfad)
+    return dateien
+
+
+def _sqlite_kopie(pfad: Path) -> bytes:
+    """Konsistente Kopie ueber die Backup-API: eine Dateikopie mitten in einer
+    Transaktion waere eine kaputte Datenbank."""
+
+    with tempfile.NamedTemporaryFile(suffix=".sqlite", delete=False) as tmp:
+        tmp_pfad = Path(tmp.name)
+    try:
+        quelle = sqlite3.connect(str(pfad))
+        kopie = sqlite3.connect(str(tmp_pfad))
+        try:
+            with kopie:
+                quelle.backup(kopie)
+        finally:
+            kopie.close()
+            quelle.close()
+        return tmp_pfad.read_bytes()
+    finally:
+        tmp_pfad.unlink(missing_ok=True)
+
+
+def backup_zip_schreiben(ziel: Path, dateien: list[Path]) -> dict[str, Any]:
+    manifest: dict[str, Any] = {"created_utc": md.now_utc_label(), "files": []}
+    namen: set[str] = set()
+    with zipfile.ZipFile(ziel, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for pfad in dateien:
+            name = pfad.name if pfad.name not in namen else f"{pfad.parent.name}__{pfad.name}"
+            namen.add(name)
+            daten = _sqlite_kopie(pfad) if pfad.suffix == ".sqlite" else pfad.read_bytes()
+            zf.writestr(name, daten)
+            manifest["files"].append({
+                "name": name, "source": str(pfad), "bytes": len(daten),
+                "sha256": hashlib.sha256(daten).hexdigest(),
+            })
+        zf.writestr("manifest.json", json.dumps(manifest, indent=2))
+    return manifest
+
+
+@app.get("/api/admin/backup", dependencies=[Depends(copy_write_guard)], include_in_schema=False)
+def admin_backup():
+    from fastapi.responses import FileResponse
+    from starlette.background import BackgroundTask
+
+    dateien = backup_dateien()
+    if not dateien:
+        raise HTTPException(status_code=404, detail="nothing to back up: no data files on this host")
+    with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
+        ziel = Path(tmp.name)
+    manifest = backup_zip_schreiben(ziel, dateien)
+    stempel = re.sub(r"[^0-9]", "", str(manifest["created_utc"]))[:12]
+    return FileResponse(
+        str(ziel), media_type="application/zip", filename=f"marketintel-volume-{stempel}.zip",
+        background=BackgroundTask(lambda: ziel.unlink(missing_ok=True)))
+
+
 @app.get("/api/copy")
 def copy_state(request: Request) -> dict[str, Any]:
     from app import copy_admin as ca
@@ -2067,7 +2239,7 @@ def copy_state(request: Request) -> dict[str, Any]:
     try:
         payload = dict(cached("copy_payload", _build, ttl=15.0))
     except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"copy state unavailable: {exc}")
+        raise HTTPException(status_code=503, detail=f"copy state unavailable: {_oeffentlich(exc)}")
     # Per request, never cached: who is asking decides whether they may write,
     # and the sync state changes underneath the cache.
     payload["write_access"] = access.as_dict()
@@ -2226,7 +2398,7 @@ def research(name: str) -> dict[str, Any]:
 
 
 @app.get("/api/resolved")
-def resolved(limit: int = Query(250, le=500)) -> dict[str, Any]:
+def resolved(limit: int = Query(250, ge=1, le=500)) -> dict[str, Any]:
     def _load() -> list[dict[str, Any]]:
         closed = md.get_polymarket_closed_markets(limit=limit)
         return apv.resolved_rows(closed)
@@ -2234,7 +2406,7 @@ def resolved(limit: int = Query(250, le=500)) -> dict[str, Any]:
     try:
         rows = cached(f"resolved_{limit}", _load, ttl=300.0)
     except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"closed markets unavailable: {exc}")
+        raise HTTPException(status_code=503, detail=f"closed markets unavailable: {_oeffentlich(exc)}")
     return {"rows": rows, "total": len(rows), "as_of": md.now_utc_label()}
 
 
@@ -2256,7 +2428,7 @@ def track() -> dict[str, Any]:
 
 
 @app.get("/api/market/{market_key}/history")
-def market_history(market_key: str, days: int = Query(1, le=90), interval: str = "5m") -> dict[str, Any]:
+def market_history(market_key: str, days: int = Query(1, ge=1, le=90), interval: str = "5m") -> dict[str, Any]:
     combined = load_universe(250)
     token_id = ""
     if not combined.empty and "market_key" in combined.columns:
@@ -2275,7 +2447,7 @@ def market_history(market_key: str, days: int = Query(1, le=90), interval: str =
     try:
         points = cached(f"hist_{token_id}_{days}_{interval}", _load, ttl=120.0)
     except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"price history unavailable: {exc}")
+        raise HTTPException(status_code=503, detail=f"price history unavailable: {_oeffentlich(exc)}")
     return {"points": points, "as_of": md.now_utc_label()}
 
 
@@ -2340,7 +2512,7 @@ def backtest(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     try:
         payload = cached(key, _run, ttl=120.0)
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"backtest failed: {exc}")
+        raise HTTPException(status_code=502, detail=f"backtest failed: {_oeffentlich(exc)}")
     if body.get("variants"):
         def _variants() -> list[dict[str, Any]]:
             daten = cached(daten_key, _daten, ttl=BACKTEST_DATA_TTL)
