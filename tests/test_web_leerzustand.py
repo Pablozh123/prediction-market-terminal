@@ -2205,6 +2205,24 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("No cash events reported by /api/copy", _sichtbarer_text(self.ausgabe["live"]["copy_cash"]))
         self.assertIn("No open paper positions reported by /api/copy", _sichtbarer_text(self.ausgabe["live"]["copy_positions"]))
 
+    def test_die_portfolio_kopfzeile_schreibt_jeden_betrag_gleich(self) -> None:
+        # In derselben Zeile standen $1,000.00 und $1000.00. Zwei
+        # Schreibweisen fuer dieselbe Zahl, nebeneinander.
+        gross = _sichtbarer_text(self.ausgabe["live"]["portfolio_gross"])
+        self.assertIn("$12,345.60", gross)
+        self.assertIn("+$2,468.90", gross)
+        self.assertIn("$9,876.50", gross)
+        self.assertNotIn("$12345.60", gross)
+        self.assertNotIn("$9876.50", gross)
+
+    def test_die_portfolio_kopfzeile_erfindet_kein_nan(self) -> None:
+        # Drei der vier Kacheln pruefen auf ein fehlendes Feld und schreiben
+        # dann einen Strich. VALUE NOW rechnete ungeprueft und schrieb "$NaN".
+        ohne = _sichtbarer_text(self.ausgabe["live"]["portfolio_ohne_zahlen"])
+        self.assertNotIn("NaN", ohne)
+        kopf = ohne[ohne.index("VALUE NOW"):ohne.index("Positions")]
+        self.assertEqual(kopf.count("—"), 4)
+
     def test_monatstabelle_rechnet_gegen_den_aufgeloesten_einsatz(self) -> None:
         """Die Spalte hiess ROI und rechnete gegen ALLE Einsaetze des Monats.
 

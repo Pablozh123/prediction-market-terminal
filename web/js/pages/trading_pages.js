@@ -754,15 +754,19 @@ export function renderPortfolio(T) {
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-max); color:var(--accent)">PORTFOLIO · PAPER</div>'
     + '<h1 style="font-size:var(--t-head); line-height:var(--lh-tight); margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:var(--ls-flat)">What you would be holding</h1></div>'
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid var(--line-2)">'
-    + '<div style="padding:var(--sp-5) var(--sp-6); border-right:1px solid var(--line-2)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">VALUE NOW</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3)">$' + num((+kp.equity).toFixed(2)) + '</div></div>'
+    + '<div style="padding:var(--sp-5) var(--sp-6); border-right:1px solid var(--line-2)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">VALUE NOW</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3)">' + (kp.equity != null ? '$' + num((+kp.equity).toFixed(2)) : '—') + '</div></div>'
     // Keine Rueckfallwerte in der Kennzahlenzeile: hier standen 14 offene
     // Positionen, +$28.60 unrealisiert und $312.40 freie Kasse, sobald das
-    // Feld in der Antwort fehlte. Ein fehlendes Feld ist jetzt ein Strich.
+    // Feld in der Antwort fehlte. Ein fehlendes Feld ist jetzt ein Strich —
+    // seit eben auch bei VALUE NOW, das als einzige der vier Kacheln
+    // ungeprueft rechnete und ohne das Feld "$NaN" schrieb.
     // Und das Vorzeichen des Unrealisierten kommt aus der Zahl, nicht aus dem
     // Template — vorher stand "+$" fest davor, in Gruen, auch bei Verlust.
+    // Alle vier Betraege gehen durch num(): $1,000.00 neben $1000.00 in
+    // derselben Zeile sind zwei Schreibweisen fuer dieselbe Zahl.
     + '<div style="padding:var(--sp-5) var(--sp-6); border-right:1px solid var(--line-2)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">OPEN POSITIONS</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3)">' + (kp.open_positions != null ? num(kp.open_positions) : '—') + '</div></div>'
-    + '<div style="padding:var(--sp-5) var(--sp-6); border-right:1px solid var(--line-2)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">UNREALISED</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3); color:' + (kp.unrealized == null ? 'var(--ink-3)' : +kp.unrealized >= 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (kp.unrealized != null ? (+kp.unrealized >= 0 ? '+' : '-') + '$' + Math.abs(+kp.unrealized).toFixed(2) : '—') + '</div></div>'
-    + '<div style="padding:var(--sp-5) var(--sp-6)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">CASH FREE</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3)">' + (kp.cash != null ? '$' + (+kp.cash).toFixed(2) : '—') + '</div></div>'
+    + '<div style="padding:var(--sp-5) var(--sp-6); border-right:1px solid var(--line-2)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">UNREALISED</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3); color:' + (kp.unrealized == null ? 'var(--ink-3)' : +kp.unrealized >= 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (kp.unrealized != null ? (+kp.unrealized >= 0 ? '+' : '-') + '$' + num(Math.abs(+kp.unrealized).toFixed(2)) : '—') + '</div></div>'
+    + '<div style="padding:var(--sp-5) var(--sp-6)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">CASH FREE</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3)">' + (kp.cash != null ? '$' + num((+kp.cash).toFixed(2)) : '—') + '</div></div>'
     + '</div>'
     + '<div style="display:flex; gap:var(--sp-3); padding:var(--sp-5) var(--sp-6) 0; flex-wrap:wrap">' + portTabs + '</div>'
     + body
