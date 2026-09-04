@@ -5,7 +5,7 @@ import { num, money, volume, esc, seriesPoints, tapeMatches, liveStatusLabel } f
 import { STUDIEN } from './studies.js';
 import { caveatZeile, registerAktualisieren } from './claims.js';
 import { apiGet, apiGetRaw, apiPost } from './api.js';
-import { renderOverview, renderMarkets, renderFlow, renderCross, renderResolved } from './pages/core_pages.js';
+import { renderOverview, renderMarkets, renderFlow, renderCross, renderResolved, landingSubline } from './pages/core_pages.js';
 import { ARB_ANKER } from './pages/arb_scan_page.js';
 import { renderTraders, renderWhale, renderRisk, renderTrack } from './pages/trader_pages.js';
 import { renderBacktester, renderCopy, renderPortfolio } from './pages/trading_pages.js';
@@ -823,7 +823,25 @@ class Terminal {
         this.landing.herkunft[key] = { quelle: 'fehler', fehler: String(err && err.message ? err.message : err) };
       }
     }));
+    this.schmaleZusammenfassung();
     this.render();
+  }
+
+  // Die eine Zahlenzeile der Schmalseiten-Fassung (index.html,
+  // #narrow-facts). Unter 768px liegt die Huelle nicht im Layout, also
+  // rendert render() dort nichts Sichtbares; diese Zeile ist das Einzige,
+  // was ein Telefon an Zahlen zu sehen bekommt. Sie kommt aus derselben
+  // Nutzlast wie die Unterzeile der Startseite. Ohne Nutzlast bleibt sie
+  // leer, statt einen Platzhalter zu behaupten.
+  schmaleZusammenfassung() {
+    const ziel = document.getElementById('narrow-facts');
+    if (!ziel) return;
+    const micro = this.landing && this.landing.micro;
+    if (!micro || !Array.isArray(micro.studien) || !micro.studien.length) {
+      ziel.textContent = '';
+      return;
+    }
+    ziel.textContent = landingSubline(this.landing);
   }
 
   // Das Caveat-Register von /api/claims. Die Oberflaeche traegt eine
@@ -1683,6 +1701,17 @@ class Terminal {
       ledgerVerwerfen();
       this.fetchPageData('research');
     }, 60000);
+    // "Show the terminal anyway": wer auf einem Telefon trotzdem die Huelle
+    // will, bekommt sie. Die Marke steht am Wurzelelement, das CSS haengt
+    // daran; nichts wird gespeichert, ein Neuladen ist wieder die lesbare
+    // Fassung.
+    const schalter = document.getElementById('narrow-override');
+    if (schalter) {
+      schalter.addEventListener('click', () => {
+        document.documentElement.setAttribute('data-narrow-override', '1');
+        this.render();
+      });
+    }
     this.ladeLanding();
     this.ladeRegister();
     this.fetchPageData(this.state.page);
