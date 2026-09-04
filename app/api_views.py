@@ -24,6 +24,7 @@ from app import quant
 from app import risk_log
 from app import suspicion as susp
 from app import track_record as trec
+from app import venue_fees as vf
 from app import venue_units as vu
 from src import prediction_markets as md
 
@@ -1795,6 +1796,15 @@ def cross_rows(
             "pmVolUsd": pm_vol,
             "ksVolContracts": ks_vol,
             "sim": round(sim, 2),
+            # Ob die Polymarket-Seite dieses Paares auf dem allgemeinen
+            # Taker-Satz liegt, und der ist nicht eindeutig belegt (0.05 laut
+            # Venue-Doku, 0.03 laut mehreren Sekundaerquellen; siehe
+            # app/venue_fees.py). Die Gebuehr ist linear im Satz, also
+            # verschiebt sich jede Netto-Zahl dieses Paares um 40 Prozent der
+            # Gebuehr, wenn der niedrigere Satz stimmt -- und zwar nach oben,
+            # denn weniger Gebuehr heisst mehr Netto. Die Spalte zeigt damit
+            # das konservative Ende, und die Seite kann das sagen.
+            "feeDisputed": bool(vf.polymarket_rate_band(categories.get(pm_key))["disputed"]),
             "gross": _num(row.get("gross_edge_cents")),
             "band": _num(row.get("fee_band_cents")),
             "net": _num(row.get("net_edge_cents")),

@@ -405,12 +405,17 @@ function mitDaten(T) {
   // einem negativen Netto da.
   // ``size``/``depthChecked``: die Spanne gilt fuer drei Stueck an der
   // Spitze, nicht fuer die hundert des Gebuehren-Clips.
-  T.crossPairs = [{ event: 'Example question', cat: 'Macro', pm: 62, ks: 58, sim: 0.71, pmVolUsd: 1200000, ksVolContracts: 300000, gross: 2.0, band: 2.7, net: -0.7, dir: 'buy Kalshi, sell Polymarket', size: 3, depthChecked: true }];
+  T.crossPairs = [{ event: 'Example question', cat: 'Macro', pm: 62, ks: 58, sim: 0.71, pmVolUsd: 1200000, ksVolContracts: 300000, gross: 2.0, band: 2.7, net: -0.7, dir: 'buy Kalshi, sell Polymarket', size: 3, depthChecked: true, feeDisputed: true }];
   T.herkunft.cross = { quelle: 'live' };
   T.liveData.cross = {
     _quelle: 'live', rows: T.crossPairs, candidates_before_gate: 9,
     gate: { min_similarity: 0.5, require_volume_both: true }, as_of: '2026-08-17 10:00 UTC',
     depth_rows: 12,
+    // Der allgemeine Polymarket-Taker-Satz ist nicht eindeutig belegt; die
+    // Netto-Spalte ruht auf ihm. Der Satz kommt aus app/venue_fees.py.
+    fee_note: 'The general Polymarket taker rate is not settled: the venue documentation says 5 percent, secondary sources from the same period say 3 percent. Both ends are carried on every cost figure that rests on it.',
+    fee_rate_documented: 0.05,
+    fee_rate_low: 0.03,
     // Ein Paar, das der Paar-Check aussortiert hat: gezaehlt, benannt und
     // gelistet — jede Seite mit ihrem eigenen Kurs, aber ohne Luecke,
     // Spanne oder Netto.
