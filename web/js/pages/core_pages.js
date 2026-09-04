@@ -3,7 +3,7 @@
 // instance (T). Nothing here invents a number: every figure names its payload
 // or the panel says which payload is missing.
 
-import { esc, money, num, volume, contracts, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, signedMoney, stempel, EINZAHLUNGEN_USD, offeneNichtDrin, tapeFenster, fensterSatz, categorySourceLabel, ledgerBotPositionen } from '../util.js';
+import { asOfLine, esc, money, num, volume, contracts, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, signedMoney, stempel, EINZAHLUNGEN_USD, offeneNichtDrin, tapeFenster, fensterSatz, categorySourceLabel, ledgerBotPositionen } from '../util.js';
 import { caveatZeile } from '../claims.js';
 import { spiegelZeit, kurzGeld, histogramm } from '../charts.js';
 import { studieAnker } from './microstructure_page.js';
@@ -23,12 +23,6 @@ function catChipRow(T, rows, key, stateKey, current) {
   return '<div style="display:flex; gap:var(--sp-3); flex-wrap:wrap">'
     + cats.map((c) => T.chip(c.toUpperCase(), current === c, { [stateKey]: c })).join('')
     + '</div>';
-}
-
-// One-line "as of" stamp for a live block; empty when the API has not
-// answered yet, so no line claims a time it does not have.
-function asOfLine(iso) {
-  return iso ? '<span style="' + M + '; font-size:var(--t-micro); color:var(--ink-4)">as of ' + esc(stempel(iso)) + '</span>' : '';
 }
 
 // Spaltenraster der Markttabelle — Kopfzeile und Zeilen teilen es.
@@ -676,7 +670,7 @@ export function renderMarkets(T) {
     + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-max); color:var(--accent)">MARKETS</div>'
     + '<h1 style="font-size:var(--t-head); line-height:var(--lh-tight); margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:var(--ls-flat)">Every market, one table</h1></div>'
     + '<div style="display:flex; align-items:center; gap:var(--sp-4)">'
-    + '<input value="' + esc(s.marketQuery) + '" ' + T.inp((e) => T.setState({ marketQuery: e.target.value }), 'marketQuery') + ' placeholder="Search markets…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); width:230px" />'
+    + '<input value="' + esc(s.marketQuery) + '" ' + T.inpEntprellt('marketQuery') + ' placeholder="Search markets…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); width:230px" />'
     + '<div ' + T.act(() => T.setState({ mPlatform: 'all', mStatus: 'active', mProb: 'all', mLiq: 'all', mVol: 'all', mEnds: 'all', mAge: 'all', mExclude: [], marketCat: 'All', marketQuery: '', mQuick: 'trending', marketSort: 'volume' })) + ' class="hv-edge-strong" style="font-size:var(--t-small); color:var(--ink-3); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); cursor:pointer">Reset filters</div>'
     + '</div></div>'
 
@@ -694,7 +688,7 @@ export function renderMarkets(T) {
     // first two had no renderer, the last two filtered on flags nothing sets.
     + '<div style="display:flex; align-items:center; gap:var(--sp-6); margin-top:var(--sp-5); flex-wrap:wrap">'
     + '<div style="display:flex; align-items:center; gap:var(--sp-3)"><span style="' + LABEL_BLOCK.replace('; margin-bottom:var(--sp-3)', '') + '">QUICK</span>'
-    + [['trending','By volume'],['ending','Ending soon'],['new','New']].map((o) => T.opt(o[1], s.mQuick === o[0], { mQuick: o[0] })).join('') + '</div>'
+    + [['trending','All'],['ending','Ending soon'],['new','New']].map((o) => T.opt(o[1], s.mQuick === o[0], { mQuick: o[0] })).join('') + '</div>'
     + asOfLine(s.liveAsOf)
     + '</div>'
 
@@ -893,7 +887,7 @@ export function renderFlow(T) {
     + '<h1 style="font-size:var(--t-head); line-height:var(--lh-tight); margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:var(--ls-flat)">Every large print as it lands</h1></div>'
     + '<div style="display:flex; align-items:center; gap:var(--sp-4)">'
     + asOfLine(s.tapeAsOf || s.liveAsOf)
-    + '<input value="' + esc(s.tapeQuery) + '" ' + T.inp((e) => T.setState({ tapeQuery: e.target.value }), 'tapeQuery') + ' placeholder="market, wallet, trader…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); width:250px" />'
+    + '<input value="' + esc(s.tapeQuery) + '" ' + T.inpEntprellt('tapeQuery') + ' placeholder="market, wallet, trader…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); width:250px" />'
     + '</div></div>'
     + '<div style="margin-top:var(--sp-5)">' + filterGroup('CATEGORY', catChipRow(T, T.tape, 'category', 'tapeCat', s.tapeCat))
     // Steht ueber der Kategorieleiste, weil sie das erste ist, was die Zeile
@@ -1121,7 +1115,7 @@ export function renderCross(T) {
     + '<h1 style="font-size:var(--t-head); line-height:var(--lh-tight); margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:var(--ls-flat)">The same question, two prices</h1></div>'
     + '<div style="display:flex; align-items:center; gap:var(--sp-4)">'
     + asOfLine(cl.as_of)
-    + '<input value="' + esc(s.crossQuery) + '" ' + T.inp((e) => T.setState({ crossQuery: e.target.value }), 'crossQuery') + ' placeholder="bitcoin, fed, election…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); width:230px" />'
+    + '<input value="' + esc(s.crossQuery) + '" ' + T.inpEntprellt('crossQuery') + ' placeholder="bitcoin, fed, election…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); width:230px" />'
     + '<div ' + T.act(() => T.setState({ crossQuery: '', crossSim: 0.5, crossMaxPairs: 50, crossMinGap: 0, crossLower: 'any', crossPmVol: 0, crossKsVol: 0, crossMinPrice: 0, crossMaxPrice: 100 })) + ' class="hv-edge-strong" style="font-size:var(--t-small); color:var(--ink-3); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); cursor:pointer">Reset filters</div>'
     + '</div></div>'
     + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-4); max-width:760px">Matched by title similarity, not by ticker. ' + esc(gateNote) + '. GAP is the distance between the two mid prices, and nobody trades a mid. NET OF FEES prices the basket that would capture it (buy the yes side at the ask, buy the other side at the other venue&#39;s ask) and subtracts both venues&#39; taker fee curves. The top ' + num(cl.depth_rows || 12) + ' rows by net are re-quoted against both order books, so their number holds for the size shown beneath it; the rest price the touch at the fee clip of 100 and say so. Settlement rules and resolution sources still differ, and two matched titles can still be two different questions (studies 08 and 11).</div>'
@@ -1222,9 +1216,10 @@ export function renderResolved(T) {
     + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:var(--sp-6)">'
     + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-max); color:var(--accent)">RESOLVED</div>'
     + '<h1 style="font-size:var(--t-head); line-height:var(--lh-tight); margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:var(--ls-flat)">How the last questions ended</h1></div>'
-    + '<input value="' + esc(s.resQuery) + '" ' + T.inp((e) => T.setState({ resQuery: e.target.value }), 'resQuery') + ' placeholder="Search resolved markets…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); width:250px" />'
+    + '<input value="' + esc(s.resQuery) + '" ' + T.inpEntprellt('resQuery') + ' placeholder="Search resolved markets…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); width:250px" />'
     + '</div>'
     + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-4); max-width:700px">The last price before settlement next to the answer. The gap between the two is what the crowd got wrong.</div>'
+    + (live.as_of ? '<div style="margin-top:var(--sp-3)">' + asOfLine(live.as_of) + '</div>' : '')
     + '<div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:var(--sp-5); margin-top:var(--sp-5)">'
     + filterGroup('ANSWER', [['all','All'],['yes','Ended Yes'],['no','Ended No']].map((o) => T.opt(o[1], s.resAnswer === o[0], { resAnswer: o[0] })).join(''))
     + filterGroup('SETTLED WITHIN', [['all','All'],['24','24 hours'],['168','7 days']].map((o) => T.opt(o[1], s.resWindow === o[0], { resWindow: o[0] })).join(''))

@@ -424,9 +424,12 @@ input { font-family: inherit; }
 .narrow-note { display: none; }
 @media (max-width: 1279px) {
   .narrow-note {
-    display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 80;
+    /* Top, not bottom: a phone lays the shell out at 1316px and zooms out,
+       and a band fixed to the bottom of that layout sat 2.8k px below the
+       first screen. At the top it is the first thing the visitor reads. */
+    display: block; position: fixed; left: 0; right: 0; top: 0; z-index: 80;
     box-sizing: border-box; background: rgba(var(--bg-rgb), .97);
-    border-top: 1px solid var(--line-1); color: var(--ink-2);
+    border-bottom: 1px solid var(--line-1); color: var(--ink-2);
     font-family: var(--font-mono); font-size: var(--t-small); line-height:var(--lh-snug);
     padding: var(--sp-4) var(--sp-5); text-align: center;
   }

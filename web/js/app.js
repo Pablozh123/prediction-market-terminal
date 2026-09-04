@@ -252,6 +252,18 @@ class Terminal {
   }
   inp(fn, key) { this._inps.push(fn); return 'data-inp="' + (this._inps.length - 1) + '" data-key="' + key + '"'; }
 
+  // A search field that re-renders the page on every keystroke costs the
+  // first key 222 ms on Markets. The value lands in state at once, so a poll
+  // render in between cannot roll the field back; the page follows once the
+  // typing pauses.
+  inpEntprellt(key, ms) {
+    return this.inp((e) => {
+      this.state[key] = e.target.value;
+      clearTimeout(this._tippTimer);
+      this._tippTimer = setTimeout(() => { this._tippTimer = null; this.render(); }, ms || 150);
+    }, key);
+  }
+
   setState(patch) {
     Object.assign(this.state, patch);
     this.render();
@@ -667,6 +679,11 @@ class Terminal {
       + (runsIdx >= 0
         ? ' · <span ' + this.act(() => this.goStudy(runsIdx)) + ' class="hv-accent" title="every bet on the Live runs page" style="color:var(--ink-4); cursor:pointer; text-decoration:underline dotted">runs</span>'
         : '')
+      + '</div>'
+      // Legal pages: static HTML next to index.html, same tab, no handler.
+      + '<div style="' + foot + '; margin-top:var(--sp-3)">'
+      + '<a href="./imprint.html" class="hv-accent" style="color:var(--ink-4); text-decoration:underline dotted">Imprint</a>'
+      + ' · <a href="./privacy.html" class="hv-accent" style="color:var(--ink-4); text-decoration:underline dotted">Privacy</a>'
       + '</div></div>';
   }
 

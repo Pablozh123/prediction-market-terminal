@@ -304,9 +304,9 @@ export function renderBacktester(T) {
         ? '<span ' + T.act(() => T.setState({ btShowFiltered: !s.btShowFiltered })) + ' style="cursor:pointer; color:var(--accent)">' + (s.btShowFiltered ? 'hide the filtered sample' : 'show a sample of ' + num(logFiltered.length) + ' filtered rows') + '</span>'
         : '')
       + '</div>';
-    tabBody = '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-4); overflow:hidden">'
+    tabBody = '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-4); overflow:clip">'
       + logKopf
-      + '<div style="display:grid; grid-template-columns:88px 74px 84px 1fr 60px 84px 78px 74px 84px 88px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
+      + '<div style="display:grid; grid-template-columns:88px 74px 84px 1fr 60px 84px 78px 74px 84px 88px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); position:sticky; top:0; z-index:3; border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
       + '<div>TIME</div><div>ACTION</div><div>STATUS</div><div>MARKET</div><div>SIDE</div><div style="text-align:right">TRADER $</div><div style="text-align:right">STAKE</div><div style="text-align:right">FILL</div><div style="text-align:right">RESULT</div><div style="text-align:right">EQUITY</div></div>'
       + (logRows.length ? '' : leerZeile('No engine action in this window: nothing was copied, skipped or settled.'))
       + logRows.map((l) =>
@@ -326,8 +326,8 @@ export function renderBacktester(T) {
       // der nichts tut, ist eine Behauptung ueber eine Funktion.
       + '</div>';
   } else if (s.btTab === 'open') {
-    tabBody = '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-4); overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:1fr 62px 78px 78px 78px 88px 88px 100px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
+    tabBody = '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-4); overflow:clip">'
+      + '<div style="display:grid; grid-template-columns:1fr 62px 78px 78px 78px 88px 88px 100px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); position:sticky; top:0; z-index:3; border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
       + '<div>MARKET</div><div>SIDE</div><div style="text-align:right">SHARES</div><div style="text-align:right">AVG FILL</div><div style="text-align:right">MARK</div><div style="text-align:right">COST</div><div style="text-align:right">VALUE</div><div style="text-align:right">UNREALISED</div></div>'
       + openRows.map((o) =>
         '<div style="display:grid; grid-template-columns:1fr 62px 78px 78px 78px 88px 88px 100px; gap:var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small)">'
@@ -549,7 +549,7 @@ export function renderBacktester(T) {
     + '<div style="display:flex; gap:var(--sp-3); margin-top:var(--sp-5)">' + btTabs + '</div>'
     + tabBody
 
-    + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); overflow:hidden">'
+    + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); overflow:clip">'
     + '<div ' + T.act(() => { T.setState({ sizingSimOpen: !s.sizingSimOpen, btDirty: !s.sizingSimOpen && !(live && live.variants) ? true : s.btDirty }); }) + ' class="hv-el" style="display:flex; align-items:center; justify-content:space-between; padding:var(--sp-4) var(--sp-5); background:var(--panel); cursor:pointer">'
     + '<div style="font-size:var(--t-body)">Which sizing would have ended this window with the most equity?</div><div style="' + simChevron + '">›</div></div>'
     + (s.sizingSimOpen && !bestVariant
@@ -562,8 +562,8 @@ export function renderBacktester(T) {
         stil: 'font-size:var(--t-small); color:var(--ink-4); line-height:var(--lh-snug)'
       })
       + '<div style="font-size:var(--t-body); margin-top:var(--sp-4)">Highest final equity in this window: <strong style="color:var(--warn)">' + esc(bestVariant.name) + '</strong> → $' + bestVariant.eq.toFixed(0) + ' final equity (' + (bestVariant.roi >= 0 ? '+' : '') + bestVariant.roi.toFixed(1) + '% ROI)</div>'
-      + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:1fr 110px 96px 96px 96px 88px 88px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
+      + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); overflow:clip">'
+      + '<div style="display:grid; grid-template-columns:1fr 110px 96px 96px 96px 88px 88px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); position:sticky; top:0; z-index:3; border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
       + '<div>SIZING RULE</div><div style="text-align:right">FINAL EQUITY</div><div style="text-align:right">ROI</div><div style="text-align:right">MAX DD</div><div style="text-align:right">WIN RATE</div><div style="text-align:right">COPIED</div><div style="text-align:right">SKIPPED</div></div>'
       + simVariants.map((v, i) =>
         '<div style="display:grid; grid-template-columns:1fr 110px 96px 96px 96px 88px 88px; gap:var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3); background:' + (i === 0 ? 'rgba(var(--warn-rgb),.07)' : 'transparent') + '">'
@@ -645,8 +645,8 @@ export function renderPortfolio(T) {
       + '<div><div style="' + LABEL_BLOCK + '">SHOW</div><div style="display:flex; gap:var(--sp-3); flex-wrap:wrap">'
       + [['all','Everything'],['losers','Losing only']].map((o) => T.opt(o[1], (s.portLosers ? 'losers' : 'all') === o[0], { portLosers: o[0] === 'losers' })).join('') + '</div></div>'
       + '</div>'
-      + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin:var(--sp-5) var(--sp-6); overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:1fr 76px 92px 92px 100px 100px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
+      + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin:var(--sp-5) var(--sp-6); overflow:clip">'
+      + '<div style="display:grid; grid-template-columns:1fr 76px 92px 92px 100px 100px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); position:sticky; top:0; z-index:3; border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
       + '<div>MARKET</div><div style="text-align:right">SIDE</div><div style="text-align:right">ENTRY</div><div style="text-align:right">NOW</div><div style="text-align:right">PROFIT</div><div style="text-align:right">SOURCE</div></div>'
       + (rows.length ? '' : leerZeile(baseRows.length ? 'No position matches these filters.' : 'No open positions in the paper book reported by /api/copy.'))
       + rows.map((r) =>
@@ -721,8 +721,8 @@ export function renderPortfolio(T) {
       + '</div></div></div>';
   } else if (s.portTab === 'history') {
     const histRows = liveHistRows || [];
-    body = '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin:var(--sp-5) var(--sp-6); overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:110px 1fr 78px 92px 92px 100px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
+    body = '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin:var(--sp-5) var(--sp-6); overflow:clip">'
+      + '<div style="display:grid; grid-template-columns:110px 1fr 78px 92px 92px 100px; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); position:sticky; top:0; z-index:3; border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
       + '<div>DATE</div><div>MARKET</div><div style="text-align:right">SIDE</div><div style="text-align:right">ENTRY</div><div style="text-align:right">EXIT</div><div style="text-align:right">RESULT</div></div>'
       + (histRows.length ? '' : leerZeile('No settled paper trades reported by /api/copy yet.'))
       + histRows.map((r) =>

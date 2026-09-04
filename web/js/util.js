@@ -297,6 +297,12 @@ export function signedMoney(n, decimals) {
 }
 
 // "2026-08-16T23:32:04.678297+00:00" -> "2026-08-16 23:32 UTC"; short ISO dates pass through.
+// One-line "as of" stamp for a live block; empty when the API has not
+// answered yet, so no line claims a time it does not have.
+export function asOfLine(iso) {
+  return iso ? '<span style="' + M + '; font-size:var(--t-micro); color:var(--ink-4)">as of ' + esc(stempel(iso)) + '</span>' : '';
+}
+
 export function stempel(iso) {
   const s = String(iso || '');
   if (!s) return '';

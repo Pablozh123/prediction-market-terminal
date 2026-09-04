@@ -3029,8 +3029,7 @@ function ausschlussText(status) {
   return KARTEI[s] || (s ? s.replace(/^ausgeschlossen_?/, 'excluded · ').replace(/_/g, ' ') : '—');
 }
 
-// ---- pilot: English field values, slippage chart, watcher funnel, and the
-// honest line where the equity chart would be.
+// ---- pilot: English field values, slippage chart and watcher funnel.
 const PILOT_WOERTER = [
   [/haelt bis zur aufloesung \(protokoll\)/i, 'held to resolution (protocol)'],
   [/haelt bis zur aufloesung/i, 'held to resolution'],
@@ -3109,14 +3108,6 @@ function pilotExtrasHtml(payload, ledger) {
         : '')
       + '</div></div>');
   }
-
-  // The promised chart has no series: say so instead of drawing one.
-  const offen = trades.filter((t) => !t.exit_zeit_utc && !t.exit_preis).length;
-  teile.push(hinweisKarte('PILOT EQUITY VS RULE ADHERENCE: no series — pilot.json carries no equity curve'
-    + (abgeschlossen
-      ? '; every position exited through resolution, the wallet outcome is in the card above'
-      : (trades.length ? ' and ' + offen + ' of ' + trades.length + ' positions exit only through resolution, so no equity path exists yet' : ''))
-    + '. Below instead: execution against signal price per trade, and the watcher funnel of the last run.'));
 
   // Slippage per trade, execution minus signal, in cents. Positive = paid more.
   const punkte = trades.map((t) => ({ t, c: pilotSlippageCents(t), roh: pilotSlippageRoh(t) })).filter((x) => x.c != null)
