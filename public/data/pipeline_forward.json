@@ -1,6 +1,6 @@
 {
- "hinweis": "Observing paper run: decision fields and best book prices only, no wallet data, no return claim. Profil: earnings_pypl_july28. Top-level fields mirror this run; all 23 runs are listed under laeufe, newest first.",
- "stand_utc": "2026-08-26T23:48:42+00:00",
+ "hinweis": "Observing paper run: decision fields and best book prices only, no wallet data, no return claim. Profil: earnings_pypl_july28. Top-level fields mirror this run; all 24 runs are listed under laeufe, newest first.",
+ "stand_utc": "2026-09-03T04:30:07+00:00",
  "kennzeichnung": "observed/paper",
  "eintraege": [
   {
@@ -1145,6 +1145,48 @@
   "will-paypal-say-bitcoin-during-earnings-call-20260724221739523": 0
  },
  "laeufe": [
+  {
+   "profil": "allin_august28",
+   "n_eintraege": 2,
+   "n_kaeufe": 0,
+   "eintraege": [
+    {
+     "action": "NONE",
+     "reason": "basisrate_veto 1.00 (n=8 Wochen)",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": null,
+     "size_usd": 0.0,
+     "verfuegbar_usd": null,
+     "extraktionsquote": null
+    },
+    {
+     "action": "NONE",
+     "reason": "kein_no_ask",
+     "limit_price": null,
+     "bestes_angebot": null,
+     "bestes_gebot": null,
+     "size_usd": 0.0,
+     "verfuegbar_usd": null,
+     "extraktionsquote": null
+    }
+   ],
+   "wortzaehler_endstaende": {
+    "will-ai-be-said-50-times-during-the-next-episode-of-the-all-in-podcast-20260818": 68,
+    "will-hundred-or-thousand-or-million-be-said-10-times-during-the-next-episode-of-the-all-in-podcast-20260818": 13,
+    "will-anthropic-be-said-5-times-during-the-next-episode-of-the-all-in-podcast-20260818": 3,
+    "will-spacex-be-said-3-times-during-the-next-episode-of-the-all-in-podcast-20260818": 0,
+    "will-ipo-be-said-during-the-next-episode-of-the-all-in-podcast-20260818": 0,
+    "will-nvidia-be-said-during-the-next-episode-of-the-all-in-podcast-20260818": 19,
+    "will-red-be-said-during-the-next-episode-of-the-all-in-podcast-20260818": 3,
+    "will-blue-be-said-during-the-next-episode-of-the-all-in-podcast-20260818": 0,
+    "will-software-be-said-during-the-next-episode-of-the-all-in-podcast-20260818": 13,
+    "will-stock-market-be-said-during-the-next-episode-of-the-all-in-podcast-20260818": 0
+   },
+   "extraktion_gekauft_usd": null,
+   "extraktion_verfuegbar_usd": null,
+   "extraktionsquote": null
+  },
   {
    "profil": "allin_august7",
    "n_eintraege": 16,
