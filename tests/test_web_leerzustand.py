@@ -2245,27 +2245,6 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("35W / 25L of 60 decided positions", text)
         self.assertIn("3 back at cost", text)
 
-    def test_das_laufband_schreibt_die_veraenderung_mit_einheit(self) -> None:
-        # Im Band stand "62¢ +3" — der Preis mit Einheit, die Veraenderung
-        # ohne, obwohl beides Cent sind und die Marktseite dieselbe Zahl
-        # "+87¢" nennt.
-        html = self.ausgabe["live"]["overview"]
-        self.assertIn("+3¢", _sichtbarer_text(html))
-        self.assertNotIn(">+3<", html)
-
-    def test_die_quellzahl_des_copy_desks_sagt_wessen_und_welcher_zeitraum(self) -> None:
-        # Sie stand als "first source +$648,516 same window" da. Das Fenster
-        # ist nicht dasselbe: die Zahl ist die Monatskurve des gefolgten
-        # Wallets, das Papierkonto laeuft seit dem Tag des Folgens.
-        text = _sichtbarer_text(self.ausgabe["live"]["copy_mit_quellkurve"])
-        self.assertIn("+$648,516 · its own official PnL, 1 month", text)
-        self.assertNotIn("same window", text)
-        # Und sie nennt das Wallet, nicht "first source".
-        self.assertNotIn("first source", text)
-        # Die Legende der Kurve nennt denselben Zeitraum.
-        perf = _sichtbarer_text(self.ausgabe["live"]["copy_perf"])
-        self.assertIn("(official PnL, 1 month)", perf)
-
     def test_tape_und_whale_nennen_die_summierte_spanne(self) -> None:
         """Jede Summe ueber das Tape sagt, ueber welche Spanne sie geht.
 
@@ -2293,6 +2272,27 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("as of 2026-08-17 09:30 UTC", resolved)
         whale = _sichtbarer_text(self.ausgabe["live"]["whale"])
         self.assertIn("as of 2026-08-17 10:00 UTC", whale)
+
+    def test_das_laufband_schreibt_die_veraenderung_mit_einheit(self) -> None:
+        # Im Band stand "62¢ +3" — der Preis mit Einheit, die Veraenderung
+        # ohne, obwohl beides Cent sind und die Marktseite dieselbe Zahl
+        # "+87¢" nennt.
+        html = self.ausgabe["live"]["overview"]
+        self.assertIn("+3¢", _sichtbarer_text(html))
+        self.assertNotIn(">+3<", html)
+
+    def test_die_quellzahl_des_copy_desks_sagt_wessen_und_welcher_zeitraum(self) -> None:
+        # Sie stand als "first source +$648,516 same window" da. Das Fenster
+        # ist nicht dasselbe: die Zahl ist die Monatskurve des gefolgten
+        # Wallets, das Papierkonto laeuft seit dem Tag des Folgens.
+        text = _sichtbarer_text(self.ausgabe["live"]["copy_mit_quellkurve"])
+        self.assertIn("+$648,516 · its own official PnL, 1 month", text)
+        self.assertNotIn("same window", text)
+        # Und sie nennt das Wallet, nicht "first source".
+        self.assertNotIn("first source", text)
+        # Die Legende der Kurve nennt denselben Zeitraum.
+        perf = _sichtbarer_text(self.ausgabe["live"]["copy_perf"])
+        self.assertIn("(official PnL, 1 month)", perf)
 
     def test_markets_schnellfilter_heisst_was_er_tut(self) -> None:
         """"By volume" filterte nichts und sortierte nichts; der Zustand heisst "All"."""
