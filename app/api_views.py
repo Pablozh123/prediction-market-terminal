@@ -43,6 +43,11 @@ RESEARCH_FILES = {
     # Data API by scripts/wallet_ledger.py. Also merged into the live-runs
     # extras so the runs page needs no second request when the API answers.
     "wallet-ledger": "wallet_ledger",
+    # The arbitrage scanner's file (schema arb_scan/1), written by the
+    # prediction-alpha-bot repo, not by the daily run. The underscore form is
+    # an alias: the file is arb_scan.json and the address gets typed from it.
+    "arb-scan": "arb_scan",
+    "arb_scan": "arb_scan",
 }
 
 
