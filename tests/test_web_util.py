@@ -74,27 +74,6 @@ class WebUtilAbbildungTests(unittest.TestCase):
         self.assertEqual(print_["price"], "15.0¢")
         self.assertEqual(print_["size"], 30)
 
-    def test_geldformat(self) -> None:
-        self.assertEqual(self.ausgabe["geld"]["null"], "$0")
-        self.assertEqual(self.ausgabe["geld"]["tausend"], "$1.5k")
-        self.assertEqual(self.ausgabe["geld"]["million"], "$4.20m")
-
-    def test_die_kopfzeile_behauptet_keine_venue_die_nicht_geantwortet_hat(self) -> None:
-        # Die Zeile stand fest auf "LIVE, POLYMARKET + KALSHI". Faengt
-        # /api/tape einen Parserfehler auf einer Venue ab, damit die andere
-        # nicht mit ausfaellt, war die halbe Antwort von einer ganzen nicht
-        # zu unterscheiden.
-        zeile = self.ausgabe["statuszeile"]
-        self.assertEqual(zeile["beide"], "LIVE · POLYMARKET + KALSHI")
-        self.assertNotIn("KALSHI", zeile["kalshi_fehlt"].split("ONLY")[0])
-        self.assertIn("POLYMARKET ONLY", zeile["kalshi_fehlt"])
-        self.assertIn("KALSHI NOT ANSWERING", zeile["kalshi_fehlt"])
-        self.assertIn("KALSHI ONLY", zeile["polymarket_fehlt"])
-        self.assertIn("NO VENUE ANSWERING", zeile["keine"])
-        # Die anderen Zustaende bleiben, wie sie waren.
-        self.assertEqual(zeile["fehler"], "API OFFLINE · LAST KNOWN STATE")
-        self.assertEqual(zeile["wartet"], "WAITING FOR API")
-
     def test_eine_studienadresse_findet_ihre_studie_auch_mit_bindestrich(self) -> None:
         # Der Eintrag in der Seitenleiste heisst "Post-mortems", die Studie
         # selbst "Postmortems". Wer die Beschriftung abschreibt, tippt
@@ -118,3 +97,25 @@ class WebUtilAbbildungTests(unittest.TestCase):
         self.assertEqual(a["unbekannt"], -1)
         self.assertEqual(a["leer"], -1)
         self.assertEqual(a["nichts"], -1)
+
+    def test_geldformat(self) -> None:
+        self.assertEqual(self.ausgabe["geld"]["null"], "$0")
+        self.assertEqual(self.ausgabe["geld"]["tausend"], "$1.5k")
+        self.assertEqual(self.ausgabe["geld"]["million"], "$4.20m")
+
+    def test_die_kopfzeile_behauptet_keine_venue_die_nicht_geantwortet_hat(self) -> None:
+        # Die Zeile stand fest auf "LIVE, POLYMARKET + KALSHI". Faengt
+        # /api/tape einen Parserfehler auf einer Venue ab, damit die andere
+        # nicht mit ausfaellt, war die halbe Antwort von einer ganzen nicht
+        # zu unterscheiden.
+        zeile = self.ausgabe["statuszeile"]
+        self.assertEqual(zeile["beide"], "LIVE · POLYMARKET + KALSHI")
+        self.assertNotIn("KALSHI", zeile["kalshi_fehlt"].split("ONLY")[0])
+        self.assertIn("POLYMARKET ONLY", zeile["kalshi_fehlt"])
+        self.assertIn("KALSHI NOT ANSWERING", zeile["kalshi_fehlt"])
+        self.assertIn("KALSHI ONLY", zeile["polymarket_fehlt"])
+        self.assertIn("NO VENUE ANSWERING", zeile["keine"])
+        # Die anderen Zustaende bleiben, wie sie waren.
+        self.assertEqual(zeile["fehler"], "API OFFLINE · LAST KNOWN STATE")
+        self.assertEqual(zeile["wartet"], "WAITING FOR API")
+
