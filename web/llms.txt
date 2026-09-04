@@ -1,0 +1,55 @@
+# Market Intel
+
+> Prediction-market microstructure, measured on Polymarket and Kalshi order
+> books this project recorded itself. Every figure on the site carries its
+> sample size, its interval where one can be computed, and the timestamp of
+> the file it came from. Results that came out negative are published as they
+> are.
+
+Research tool only: no investment advice, no order placement, no venue affiliation. Public Polymarket and Kalshi data, provided as-is.
+
+## What this site is
+
+A read-only research terminal and the studies it runs on. No order path exists
+in the codebase, and the authenticated Kalshi socket signs GET requests only.
+The interactive terminal needs a wide screen; a narrow device gets a readable
+summary instead.
+
+Nothing here forecasts a market or recommends a position. The wallet pages
+describe what a public address did in the past, counted per event over settled
+positions only, and state when the sample is too small to carry a verdict.
+
+## Where the findings are
+
+- Frozen microstructure studies (order-book imbalance, order flow net of
+  costs, market-making decomposition, cross-venue gaps, gap lifetime, reward
+  pools, resolution rules, book reconciliation): /#research/microstructure
+- How the studies are measured, and how a wallet record is counted:
+  /#research/methodology
+- Small-stake live runs and the pre-registered pilot: /#research/live-runs and
+  /#research/pilot
+- Post-mortems of incidents that cost money or data: /#research/post-mortems
+- Field notes from the tape: /#research/field-notes
+
+Every study card links its full report, the module that computed it, and the
+dataset behind it, all in the public repository.
+
+## Where the data is
+
+The research payloads are published as JSON under /data/ and are the same
+files the pages read; the site works from a plain file server without an API.
+The live market pages need the JSON API and show a named empty state without
+it.
+
+## Source
+
+Code, reports and datasets: https://github.com/Pablozh123/prediction-market-terminal
+
+Legal and contact: /imprint.html, /privacy.html,
+/.well-known/security.txt
+
+## How to cite what you find here
+
+Name the study, the payload timestamp shown beside the figure, and the sample
+size. A figure quoted without its n and its interval says less than it looks
+like it says, which is the whole point of the way this site is written.
