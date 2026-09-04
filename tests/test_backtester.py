@@ -117,6 +117,84 @@ class ReplayTests(unittest.TestCase):
         self.assertIn("gross", positions)
         self.assertNotIn("klein", positions)
 
+    def test_fixed_stake_is_per_position_not_per_source_buy(self):
+        # Die Wallet baut eine Position aus vier Kaeufen auf. Der Einsatz
+        # gilt je Position: der erste Kauf bekommt ihn, die Nachkaeufe sind
+        # "filtered", nicht ein zweiter, dritter, vierter voller Einsatz.
+        trades = frame(
+            [
+                trade("2026-05-01 10:00", "BUY", 0.50, 20.0),
+                trade("2026-05-01 10:05", "BUY", 0.50, 20.0),
+                trade("2026-05-01 10:10", "BUY", 0.51, 20.0),
+                trade("2026-05-01 10:15", "BUY", 0.52, 20.0),
+            ]
+        )
+        ledger, positions = bt.replay(trades, config(stake_value=25.0))
+        self.assertEqual(list(ledger["status"]), ["copied", "filtered", "filtered", "filtered"])
+        self.assertIn("already following", ledger.iloc[1]["note"])
+        self.assertAlmostEqual(positions["tok-yes"]["cost_basis"], 25.0, places=6)
+        # Die Quellbestaende zaehlen weiter, damit ein spaeterer Verkauf
+        # den richtigen Anteil spiegelt: 40 von 80 Anteilen = die Haelfte.
+        sell = frame([trade("2026-05-02", "SELL", 0.60, 40.0)])
+        ledger2, positions2 = bt.replay(pd.concat([trades, sell], ignore_index=True), config(stake_value=25.0))
+        self.assertIn("mirrored 50%", ledger2.iloc[-1]["note"])
+        self.assertAlmostEqual(positions2["tok-yes"]["cost_basis"], 12.5, places=6)
+
+    def test_add_after_partial_exit_tops_the_copy_back_up(self):
+        # Nach einem Teilausstieg liegt die Kopie unter dem Einsatz; der
+        # naechste Nachkauf fuellt genau die Luecke, nicht mehr.
+        trades = frame(
+            [
+                trade("2026-05-01", "BUY", 0.50, 100.0),
+                trade("2026-05-02", "SELL", 0.50, 50.0),
+                trade("2026-05-03", "BUY", 0.50, 100.0),
+            ]
+        )
+        ledger, positions = bt.replay(trades, config(stake_value=25.0))
+        self.assertEqual(list(ledger["status"]), ["copied", "copied", "copied"])
+        self.assertAlmostEqual(ledger.iloc[2]["stake"], 12.5, places=6)
+        self.assertAlmostEqual(positions["tok-yes"]["cost_basis"], 25.0, places=6)
+
+    def test_new_position_after_full_exit_gets_a_fresh_stake(self):
+        trades = frame(
+            [
+                trade("2026-05-01", "BUY", 0.50, 100.0),
+                trade("2026-05-02", "SELL", 0.50, 100.0),
+                trade("2026-05-03", "BUY", 0.50, 100.0),
+            ]
+        )
+        ledger, positions = bt.replay(trades, config(stake_value=25.0))
+        self.assertEqual(list(ledger["status"]), ["copied", "copied", "copied"])
+        self.assertAlmostEqual(ledger.iloc[2]["stake"], 25.0, places=6)
+
+    def test_mirror_sizing_still_scales_every_source_buy(self):
+        # Mirror haengt am Quell-Notional: jeder Nachkauf wird anteilig
+        # gespiegelt, der Einsatz je Position ist hier keine Groesse.
+        trades = frame(
+            [
+                trade("2026-05-01 10:00", "BUY", 0.50, 1000.0),
+                trade("2026-05-01 10:05", "BUY", 0.50, 1000.0),
+            ]
+        )
+        ledger, positions = bt.replay(trades, config(sizing_mode=bt.SIZING_MIRROR, stake_value=2.0))
+        self.assertEqual(list(ledger["status"]), ["copied", "copied"])
+        self.assertAlmostEqual(positions["tok-yes"]["cost_basis"], 20.0, places=6)
+
+    def test_per_position_stake_keeps_the_bankroll_at_the_wallets_pace(self):
+        # Zwei Positionen, jede aus 30 Kaeufen. Je Trade gestaked waere die
+        # Kasse nach 40 Kaeufen leer; je Position bleiben 950 Dollar frei.
+        rows = []
+        for i in range(30):
+            rows.append(trade(f"2026-05-01 10:{i:02d}", "BUY", 0.50, 10.0, asset="a", market_key="c1"))
+            rows.append(trade(f"2026-05-01 11:{i:02d}", "BUY", 0.50, 10.0, asset="b", market_key="c2"))
+        ledger, positions = bt.replay(frame(rows), config(stake_value=25.0))
+        self.assertEqual(int(ledger["status"].eq("copied").sum()), 2)
+        self.assertEqual(int(ledger["status"].eq("skipped").sum()), 0)
+        self.assertEqual(int(ledger["status"].eq("filtered").sum()), 58)
+        stats = bt.compute_stats(ledger, bt._empty_positions(), None, 1000.0)
+        self.assertEqual(stats["filter_reasons"]["already_following"], 58)
+        self.assertEqual(stats["skip_reasons"]["out_of_cash"], 0)
+
     def test_percent_sizing_uses_equity(self):
         trades = frame([trade("2026-05-01", "BUY", 0.50, 100.0)])
         ledger, _ = bt.replay(trades, config(sizing_mode=bt.SIZING_PERCENT, stake_value=5.0))
