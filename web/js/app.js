@@ -6,6 +6,7 @@ import { STUDIEN } from './studies.js';
 import { caveatZeile, registerAktualisieren } from './claims.js';
 import { apiGet, apiGetRaw, apiPost } from './api.js';
 import { renderOverview, renderMarkets, renderFlow, renderCross, renderResolved } from './pages/core_pages.js';
+import { ARB_ANKER } from './pages/arb_scan_page.js';
 import { renderTraders, renderWhale, renderRisk, renderTrack } from './pages/trader_pages.js';
 import { renderBacktester, renderCopy, renderPortfolio } from './pages/trading_pages.js';
 import { renderAlerts, renderResearch, renderSettings, ledgerVerwerfen } from './pages/system_pages.js';
@@ -185,7 +186,12 @@ class Terminal {
     // Zweites Adresssegment aufloesen: #research/microstructure soll die
     // Studie oeffnen, nicht die erste in der Liste.
     const segmente = (location.hash || '').replace('#', '').split('/');
-    if (segmente[0] === 'research' && segmente[1]) {
+    if (this.istArbScanAdresse(segmente)) {
+      // The former study page lives on Cross-venue now (see istArbScanAdresse).
+      this.state.page = 'cross';
+      this._pendingAnchor = ARB_ANKER;
+      try { history.replaceState(null, '', '#cross'); } catch (e) { /* file:// */ }
+    } else if (segmente[0] === 'research' && segmente[1]) {
       const treffer = this.studienIndexAus(segmente[1]);
       if (treffer >= 0) {
         this.state.page = 'research';
@@ -212,7 +218,7 @@ class Terminal {
     // when its tab is opened — null until then.
     // wallet: one entry per analysed address — { herkunft: 'loading' | 'live'
     // | 'fehler', data, fehler, status, retryAfter }.
-    this.liveData = { leaderboard: null, cross: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {}, riskBook: {}, walletSimilar: {}, walletEntity: {}, graph: null };
+    this.liveData = { leaderboard: null, cross: null, arbScan: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {}, riskBook: {}, walletSimilar: {}, walletEntity: {}, graph: null };
     // Venue-weite Suche (/api/search): die Palette filtert sonst nur die
     // geladenen Top-Volumen-Maerkte — alles ausserhalb davon fand sie nie.
     // q traegt die Anfrage, zu der die Treffer gehoeren; status ist
@@ -588,6 +594,16 @@ class Terminal {
     return -1;
   }
 
+  // #research/arb-scan (and #research/arb_scan, typed from the file name)
+  // was the arbitrage scanner's own study page; its content is the section
+  // "Paper scanner: executable edge" on the Cross-venue page now. The old
+  // address keeps working: it opens Cross-venue and scrolls to the section,
+  // and the address bar shows #cross.
+  istArbScanAdresse(segmente) {
+    return !!segmente && segmente[0] === 'research'
+      && String(segmente[1] || '').toLowerCase().replace(/_/g, '-') === 'arb-scan';
+  }
+
   go(id) {
     this.setState({ page: id, detail: null });
     // adresseSoll() carries the sub-tab (#risk/log) or, on the wallet page,
@@ -908,6 +924,10 @@ class Terminal {
       });
       this.herkunft.traders = this.herkunftAus('leaderboard', this.traders);
     } else if (page === 'cross') {
+      // The paper scanner's file rides along on this page (section "Paper
+      // scanner: executable edge"). It is one small request, asked for
+      // first so it does not wait behind the pair scan below.
+      const scanner = this.holen('arbScan', '/api/research/arb-scan');
       // While the request runs the page shows a loading line; the server
       // already applies the honesty gate (similarity >= 0.5, volume on both
       // venues), so nothing here lowers a threshold to make rows appear.
@@ -915,6 +935,7 @@ class Terminal {
         this.crossPairs = cr.rows || [];
       });
       this.herkunft.cross = this.herkunftAus('cross', this.crossPairs);
+      await scanner;
     } else if (page === 'risk') {
       // Bewusst nicht mehr von der Startseite: der erste Aufbau paged einen Tag
       // Prints und schlaegt Marktkategorien nach, das blockierte die Overview.
@@ -1581,7 +1602,12 @@ class Terminal {
     // Back/forward: re-read the hash so the visible page follows the address.
     window.addEventListener('hashchange', () => {
       const segmente = (location.hash || '#overview').replace('#', '').split('/');
-      if (segmente[0] === 'research') {
+      if (this.istArbScanAdresse(segmente)) {
+        this._pendingAnchor = ARB_ANKER;
+        this.setState({ page: 'cross', detail: null });
+        try { history.replaceState(null, '', '#cross'); } catch (e) { /* file:// */ }
+        this.fetchPageData('cross');
+      } else if (segmente[0] === 'research') {
         const i = this.studienIndexAus(segmente[1]);
         // The third segment is a card anchor (#research/microstructure/<id>)
         // unless it names a Live-runs tab (#research/live-runs/timing).
@@ -1641,6 +1667,14 @@ class Terminal {
     // ueberleben den Render, weil app.js sie ueber data-key wiederherstellt.
     const REFRESH_STUDIEN = { 'Live runs': ['Live runs', 'Pipeline forward'], 'Pilot': ['Pilot'] };
     setInterval(() => {
+      if (this.state.page === 'cross') {
+        // The scanner rewrites arb_scan.json every cycle; the section on the
+        // Cross-venue page follows it without a reload. The pair scan itself
+        // is not re-asked here — it costs the server up to two minutes.
+        this.liveData.arbScan = null;
+        this.holen('arbScan', '/api/research/arb-scan');
+        return;
+      }
       if (this.state.page !== 'research') return;
       const studie = this.studies[this.state.researchTab];
       const keys = studie && REFRESH_STUDIEN[studie.tab];

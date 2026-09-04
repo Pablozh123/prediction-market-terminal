@@ -1,6 +1,6 @@
 {
  "hinweis": "Read-only candidate scanner of the pre-registered small-stake field test. Signals are rule matches, not recommendations; all trading decisions are made manually by the author.",
- "stand_utc": "2026-08-26T23:53:12+00:00",
+ "stand_utc": "2026-09-03T04:34:37+00:00",
  "kennzeichnung": "pilot/preregistered",
  "protokoll": {
   "quelle": "docs/project/PILOT_PROTOKOLL_ECHTGELD_2026-07-11.md (Version 2)",

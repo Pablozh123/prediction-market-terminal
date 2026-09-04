@@ -45,6 +45,7 @@ ROUTES = [
     "#overview", "#research/microstructure", "#research/live-runs", "#research/pilot",
     "#research/category-efficiency", "#research/mentions-latency", "#research/pipeline-forward",
     "#research/postmortems", "#research/field-notes", "#research/methodology", "#research/review-queue",
+    "#research/arb-scan",
     "#markets", "#flow", "#whale", "#cross", "#traders", "#risk", "#alerts", "#backtester",
 ]
 SIDEBAR = {
