@@ -1,0 +1,172 @@
+name: Uptime
+
+# Nobody is told when marketintel.dev (Cloudflare Pages) or
+# api.marketintel.dev (Railway) stops answering: neither host reports to
+# anything. This job asks both every 15 minutes and turns a failure into a
+# GitHub issue labelled `outage`. The issue is the alarm: GitHub e-mails
+# everyone who watches the repository - the owner does by default - when an
+# issue is opened, commented on or closed, so no external monitoring account
+# is involved. One issue covers one outage; it is closed on recovery.
+#
+# The job exits 0 whether or not the hosts are up. A scheduled workflow that
+# fails during an outage would paint the Actions tab of a public repository
+# red for what is a monitoring signal, not broken CI.
+#
+# Timing: GitHub runs schedules on a best-effort basis and can lag by several
+# minutes, so the detection delay is the 15-minute interval plus that lag.
+# GitHub also disables schedules in a public repository after 60 days without
+# commits; any push re-enables them.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+# Two overlapping runs could open two issues for the same outage.
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      SITE_URL: https://marketintel.dev/
+      HEALTH_URL: https://api.marketintel.dev/healthz
+      MARKETS_URL: https://api.marketintel.dev/api/markets?limit=5
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      # Three checks, each retried once after 20 s so that a single dropped
+      # request or a container restart does not open an issue:
+      #   site      GET marketintel.dev/ answers 200 and the HTML carries the
+      #             page title - a 200 from the wrong content (a placeholder,
+      #             a parked-domain page) is not "up"
+      #   healthz   GET api.marketintel.dev/healthz answers 200
+      #   markets   GET /api/markets?limit=5 answers 200 within 20 s with a
+      #             JSON object that has a "rows" key - the data path behind
+      #             the frontend, not just a live process
+      - name: Check the hosts
+        id: probe
+        run: |
+          set +e   # a failing check is a result to report, not a reason to stop
+          body="$RUNNER_TEMP/body"
+          status="$RUNNER_TEMP/status.md"
+          : > "$status"
+          down=""
+
+          # Body check for the markets route: a JSON object with a "rows" key.
+          cat > "$RUNNER_TEMP/has_rows.py" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], "rb") as fh:
+              data = json.load(fh)
+          sys.exit(0 if isinstance(data, dict) and "rows" in data else 1)
+          PY
+
+          # Fetches $1 with $2 seconds for the whole request and prints the
+          # HTTP status code; 000 stands for no answer at all (DNS, TLS, timeout).
+          fetch() {
+            curl -s -o "$body" -w '%{http_code}' --max-time "$2" "$1" 2>/dev/null || true
+          }
+
+          # Body checks: silent on success, one line of reason on failure.
+          any_body() { :; }
+          title_present() {
+            grep -q '<title>Market Intel' "$body" || echo "HTTP 200 without the page title"
+          }
+          has_rows() {
+            python3 "$RUNNER_TEMP/has_rows.py" "$body" 2>/dev/null || echo "HTTP 200 without a JSON rows key"
+          }
+
+          # check <name> <url> <max-time> <body check>: two attempts, 20 s apart.
+          check() {
+            name=$1 url=$2 cap=$3 verify=$4
+            for attempt in 1 2; do
+              code=$(fetch "$url" "$cap")
+              if [ "$code" = 000 ]; then
+                reason="no HTTP answer within ${cap} s"
+              elif [ "$code" != 200 ]; then
+                reason="HTTP $code"
+              else
+                reason=$("$verify")
+              fi
+              if [ -z "$reason" ]; then
+                echo "up    $name"
+                echo "- $name: up (HTTP $code)" >> "$status"
+                return 0
+              fi
+              [ "$attempt" = 1 ] && sleep 20
+            done
+            echo "DOWN  $name: $reason"
+            echo "- $name: down - $reason, twice 20 s apart - $url" >> "$status"
+            down="${down:+$down, }$name"
+          }
+
+          check site "$SITE_URL" 15 title_present
+          check healthz "$HEALTH_URL" 15 any_body
+          check markets "$MARKETS_URL" 20 has_rows
+          echo "down=$down" >> "$GITHUB_OUTPUT"
+
+      # Issue lifecycle, driven by the open issue with the `outage` label:
+      #   down, no issue      open one (label first; --force tolerates an
+      #                       existing label)
+      #   down, issue open    comment only when the set of failing checks
+      #                       differs from the last status posted, so a long
+      #                       outage does not produce a comment - and an
+      #                       e-mail - every 15 minutes
+      #   up, issue open      comment "recovered" and close it - every open
+      #                       one, should two ever exist
+      #   up, no issue        nothing
+      # The last posted set is read back from an HTML comment at the end of
+      # the body or the latest status comment; a hand-written issue without
+      # it simply gets one status comment.
+      - name: Open, update or close the outage issue
+        env:
+          DOWN: ${{ steps.probe.outputs.down }}
+        run: |
+          now=$(date -u '+%Y-%m-%d %H:%M UTC')
+          # Open outage issues, newest first; normally one or none.
+          open=$(gh issue list --label outage --state open --limit 20 --json number --jq '.[].number')
+          number=$(echo "$open" | head -n 1)
+
+          if [ -z "$DOWN" ]; then
+            if [ -n "$open" ]; then
+              for n in $open; do
+                gh issue close "$n" --comment "Recovered at $now: all checks pass. Run: $RUN_URL"
+                echo "recovered, closed #$n"
+              done
+            else
+              echo "all checks pass"
+            fi
+            exit 0
+          fi
+
+          {
+            echo "**Down at $now:** $DOWN"
+            echo
+            cat "$RUNNER_TEMP/status.md"
+            echo
+            echo "Checked by $RUN_URL. The workflow re-checks every 15 minutes, comments here when the set of failing checks changes and closes this issue once all checks pass."
+            echo "<!-- outage: $DOWN -->"
+          } > "$RUNNER_TEMP/report.md"
+
+          if [ -z "$number" ]; then
+            gh label create outage --color B60205 --force \
+              --description "Opened by the uptime workflow while a host is down"
+            gh issue create --title "Outage: $DOWN ($now)" --label outage --body-file "$RUNNER_TEMP/report.md"
+          else
+            last=$(gh issue view "$number" --json body,comments --jq '.body, .comments[].body' \
+              | sed -n 's/.*<!-- outage: \(.*\) -->.*/\1/p' | tail -n 1)
+            if [ "$last" = "$DOWN" ]; then
+              echo "still down ($DOWN); #$number already says so"
+            else
+              gh issue comment "$number" --body-file "$RUNNER_TEMP/report.md"
+              echo "failing set changed, commented on #$number"
+            fi
+          fi

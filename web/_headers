@@ -35,6 +35,13 @@
 # bewusste Entscheidung. Access-Control-Allow-Origin: * haengt Pages von
 # sich aus an; nichts braucht es (die Seite ruft nur ihren eigenen Origin
 # und die API), darum wird es hier abgehaengt.
+# Die pages.dev-Adresse des Projekts ist eine zweite, indexierbare Kopie der
+# Seite (sie antwortete 200 mit robots index,follow). _headers matcht auch
+# Hostnamen, _redirects nicht — darum kein Redirect, sondern noindex; die
+# Custom Domain bleibt davon unberuehrt.
+https://:project.pages.dev/*
+  X-Robots-Tag: noindex
+
 /*
   Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-EheZHFEArKm+rUKHwaUSTSfOnyCfECaY0PC0xEn+E+k='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://api.marketintel.dev; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests
   Strict-Transport-Security: max-age=31536000; includeSubDomains

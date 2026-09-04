@@ -35,6 +35,11 @@ COPY .streamlit/ ./.streamlit/
 COPY api/ ./api/
 COPY web/ ./web/
 COPY public/ ./public/
+# The caveat register behind /api/claims. data/ stays out of the image (it
+# holds runtime state), this one versioned file is the exception: without
+# it the live register answered empty and the frontend fell back to its
+# compiled copy.
+COPY data/claims.yaml ./data/claims.yaml
 
 # Runtime state (settings, watchlists, copy-trading DB) lives in /app/data — mount it.
 RUN useradd --create-home --uid 10001 terminal \
