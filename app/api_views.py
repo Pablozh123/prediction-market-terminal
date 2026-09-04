@@ -791,6 +791,47 @@ def _wilson(wins: int, n: int) -> list[float] | None:
     return [round(float(lo), 4), round(float(hi), 4)]
 
 
+def win_rate_with_unredeemed(corrected: Any, worthless_n: Any) -> dict[str, Any] | None:
+    """Die korrigierte Quote mit den bekannten fehlenden Verlusten darin.
+
+    Eine Position, die gegen die Wallet aufgeloest und nie eingeloest wurde,
+    bleibt in ``/positions`` stehen und taucht im ``/closed-positions``-Feed
+    nie auf. Jede Quote aus diesem Feed laesst sie also weg, und es sind
+    ausschliesslich Verluste: die Quote ist nach oben verzerrt, und zwar um
+    einen Betrag, den man kennt.
+
+    Die Kachel nannte die Zahl der fehlenden Verluste bisher nur als Zusatz.
+    Ein Leser musste selbst rechnen, was 25 von 27 wert sind, wenn achtzehn
+    Verluste nicht im Nenner stehen. Diese Funktion rechnet es aus: dieselben
+    Treffer, der Nenner um die nicht eingeloesten Verluste erhoeht.
+
+    Bewusst konservativ. Der Nenner der korrigierten Quote zaehlt Ereignisse
+    (NegRisk-Beine sind genettet), die nicht eingeloesten Positionen zaehlen
+    Positionen. Gehoeren mehrere davon zu einem Ereignis, ist der Nenner hier
+    zu gross und die Schranke zu niedrig. Sie ist deshalb eine untere
+    Schranke, keine zweite Quote, und heisst auch so.
+
+    ``None``, wenn es nichts zu korrigieren gibt.
+    """
+
+    corr = corrected if isinstance(corrected, Mapping) else {}
+    n = int(corr.get("n") or 0)
+    wins = int(corr.get("wins") or 0)
+    fehlend = max(0, int(worthless_n or 0))
+    if not n or not fehlend:
+        return None
+    gesamt = n + fehlend
+    return {
+        "label": "per event, with the unredeemed losses counted",
+        "win_rate": wins / gesamt,
+        "wins": wins,
+        "n": gesamt,
+        "unredeemed": fehlend,
+        "ci95": _wilson(wins, gesamt),
+        "is_lower_bound": True,
+    }
+
+
 def _classify_titles(titles: list[str], classify: Callable[[Any, Any], Any] | None) -> list[str]:
     if classify is None:
         return ["Other"] * len(titles)
@@ -1625,6 +1666,14 @@ def wallet_detail(
     payload["pnl"] = _wallet_pnl(pnl_points, stamp, pnl_window, resolved, capped)
     payload["edge"] = _wallet_edge(resolved, realized, capped, classify, stamp)
     payload["open_positions"] = open_block
+    # Die Schranke braucht beide Seiten: die korrigierte Quote aus dem
+    # closed-positions-Feed und die Zahl der Positionen, die dieser Feed
+    # systematisch weglaesst. Deshalb steht sie hier und nicht in
+    # _wallet_track_record.
+    schranke = win_rate_with_unredeemed(
+        (payload["track_record"] or {}).get("corrected"), open_block.get("worthless_n"))
+    if schranke and payload["track_record"]:
+        payload["track_record"]["corrected_bound"] = schranke
     payload["closed"] = _wallet_closed(resolved, capped, open_block["worthless_n"], stamp,
                                        _text(track.get("coverage_note")) if track else "")
     payload["activity"] = _wallet_activity(activity, activity_truncated, stamp, activity_error)

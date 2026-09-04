@@ -862,6 +862,9 @@ function walletNutzlast() {
       as_of: '2026-08-17 19:00 UTC', source: 'polymarket /closed-positions, winner and loser tails unioned', capped: false,
       naive: { label: 'per position leg', win_rate: 0.75, wins: 9, n: 12, ci95: [0.468, 0.911] },
       corrected: { label: 'per event, NegRisk legs netted', win_rate: 0.7273, wins: 8, n: 11, ci95: [0.4304, 0.9051] },
+      // Die untere Schranke rechnet api_views.win_rate_with_unredeemed:
+      // dieselben Treffer, der nicht eingeloeste Verlust im Nenner.
+      corrected_bound: { label: 'per event, with the unredeemed losses counted', win_rate: 0.6667, wins: 8, n: 12, unredeemed: 1, ci95: [0.3906, 0.8619], is_lower_bound: true },
       per_market: { label: 'per market', win_rate: 0.75, wins: 9, n: 12, ci95: [0.468, 0.911] },
       legs_netted: 1, leg_inflation: 1.03, win_rate_reliable: true,
       settled_pnl: 210.0, volume: 600.0, pnl_per_volume: 0.35, exit_win_rate: 1.0,

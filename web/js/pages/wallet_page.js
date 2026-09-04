@@ -282,8 +282,13 @@ function renderKpis(d) {
   // Verluste, die Quote ist damit nach oben verzerrt. Die Kachel nannte das
   // nicht; die Zahl stand allein neben ihrem CI.
   const nichtEingeloest = d.open_positions ? (Number(d.open_positions.worthless_n) || 0) : 0;
+  // Die Zahl der fehlenden Verluste allein liess den Leser rechnen. Was 25
+  // von 27 wert sind, wenn achtzehn Verluste nicht im Nenner stehen, steht
+  // jetzt daneben: der Endpunkt rechnet die untere Schranke aus.
+  const schranke = tr && tr.corrected_bound ? tr.corrected_bound : null;
   const wertlosNote = nichtEingeloest
     ? ' · ' + num(nichtEingeloest) + ' unredeemed loss' + (nichtEingeloest === 1 ? '' : 'es') + ' not in it'
+      + (schranke && schranke.win_rate != null ? ' · ' + pct(schranke.win_rate) + ' with them' : '')
     : '';
   const tiles = [
     kpiTile('SETTLED PNL', tr ? dollars(tr.settled_pnl) : '—', tr ? 'n ' + num(tr.per_market ? tr.per_market.n : 0) + ' resolved markets' + capNote : 'no track record', tr ? (tr.settled_pnl < 0 ? 'down' : 'up') : 'neutral'),
@@ -601,7 +606,15 @@ function renderTrackRecord(d) {
     '<div>WIN RATE</div><div style="text-align:right">RATE</div><div style="text-align:right">WINS / N</div><div style="text-align:right">95% WILSON CI</div>',
     rateRow('Naive — per position leg (what a leaderboard implies)', tr.naive, false)
     + rateRow('Per market — legs of one conditionId netted', tr.per_market, false)
-    + rateRow('Corrected — per event, NegRisk legs netted', tr.corrected, true),
+    + rateRow('Corrected — per event, NegRisk legs netted', tr.corrected, true)
+    // Die vierte Zeile ist die ehrlichste: dieselben Treffer, aber die
+    // Verluste, die der closed-positions-Feed systematisch weglaesst, wieder
+    // im Nenner. Sie steht nur da, wenn es solche Verluste gibt.
+    + (tr.corrected_bound
+      ? rateRow('Lower bound — the same, with the ' + num(tr.corrected_bound.unredeemed)
+        + ' unredeemed loss' + (tr.corrected_bound.unredeemed === 1 ? '' : 'es') + ' counted',
+      tr.corrected_bound, false)
+      : ''),
     '', 560);
   const gate = tr.survivorship_gate || {};
   const conc = tr.concentration || {};
