@@ -7,6 +7,7 @@ import { esc, money, num, volume, contracts, herkunftSatz, leerBlock, leerZeile,
 import { caveatZeile } from '../claims.js';
 import { spiegelZeit, kurzGeld, histogramm } from '../charts.js';
 import { studieAnker } from './microstructure_page.js';
+import { renderArbScanAbschnitt } from './arb_scan_page.js';
 import { MONO as M, LABEL_BLOCK, LABEL, kpi } from '../ui.js';
 
 const REPO_URL = 'https://github.com/Pablozh123/prediction-market-terminal';
@@ -1071,7 +1072,10 @@ export function renderCross(T) {
     } else {
       body = crossGateBlock(T);
     }
-    return '<div>' + seitenKopf('CROSS-VENUE', 'The same question, two prices', 'var(--info)') + body + '</div>';
+    // The paper scanner's section stands under every state of the pair
+    // scan: its file is a separate, small request (liveData.arbScan) and
+    // does not wait for the slow scan or share its failure.
+    return '<div>' + seitenKopf('CROSS-VENUE', 'The same question, two prices', 'var(--info)') + body + renderArbScanAbschnitt(T.liveData.arbScan) + '</div>';
   }
   // Local filters can only tighten what the server let through.
   let cRows = T.crossPairs.filter((c) => Math.abs(c.pm - c.ks) >= s.crossMinGap && c.sim >= s.crossSim && c.pmVolUsd >= s.crossPmVol && c.ksVolContracts >= s.crossKsVol);
@@ -1182,6 +1186,9 @@ export function renderCross(T) {
         + '</div></div>';
     }).join('')
     + (cRows.length === 0 ? '<div style="padding:var(--sp-7); text-align:center; ' + M + '; font-size:var(--t-small); color:var(--ink-4)">No pair passes the local filters; loosen a stepper above.</div>' : '')
+    // Paper scanner: executable edge — the scanner's file, laid out under
+    // the pair comparison (arb_scan_page.js).
+    + renderArbScanAbschnitt(T.liveData.arbScan)
     + '</div>';
 }
 

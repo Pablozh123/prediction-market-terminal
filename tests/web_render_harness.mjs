@@ -24,6 +24,8 @@ import { healthStand, verdiktSatz, teileChancen } from '../web/js/pages/arb_scan
 // once; every use below takes its own copy.
 const ARB_FIXTURE = JSON.parse(readFileSync(new URL('./fixtures/arb_scan_example.json', import.meta.url), 'utf8'));
 const arbNutzlast = () => Object.assign({ _quelle: 'live' }, JSON.parse(JSON.stringify(ARB_FIXTURE)));
+// Swap the scanner payload on the Cross-venue page for one variant.
+const arbMit = (p) => (T) => { const alt = T.liveData.arbScan; T.liveData.arbScan = p; return () => { T.liveData.arbScan = alt; }; };
 
 const SEITEN = {
   overview: renderOverview, markets: renderMarkets, flow: renderFlow,
@@ -76,7 +78,7 @@ function neuesT() {
     herkunft: { markets: null, tape: null, traders: null, risks: null, cross: null },
     // Landing payloads (Overview): null until loaded, like in app.js.
     landing: { micro: null, runs: null, notes: null, ledger: null, herkunft: { micro: null, runs: null, notes: null, ledger: null } },
-    liveData: { leaderboard: null, cross: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {}, riskBook: {}, walletSimilar: {}, walletEntity: {}, graph: null },
+    liveData: { leaderboard: null, cross: null, arbScan: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {}, riskBook: {}, walletSimilar: {}, walletEntity: {}, graph: null },
     num, money, esc,
     seriesPoints: (v, w, h) => seriesPoints(v, w, h),
     act: () => 'data-act="0"',
@@ -816,8 +818,8 @@ function mitDaten(T) {
   };
   // Postmortems: eine Referenz mit PR, Commit und Repo-Pfad — die Seite
   // macht daraus Links, der Rest bleibt Text.
-  // The arbitrage scan in the live pass carries the full fixture.
-  T.liveData.research['Arb scan'] = arbNutzlast();
+  // The arbitrage scanner's section on Cross-venue carries the full fixture.
+  T.liveData.arbScan = arbNutzlast();
   T.liveData.research['Postmortems'] = {
     _quelle: 'live', stand_utc: '2026-08-07T04:33:12+00:00', hinweis: 'Harness postmortem note.', kennzeichnung: 'curated/postmortem',
     eintraege: [{ datum: '2026-07-18', profil: 'harness_a', achse: 'Evaluation', titel: 'Harness incident',
@@ -1111,28 +1113,24 @@ function rendern(T) {
         ],
         beispiele: []
       }]],
-    // Arbitrage scan: the fixture as served, the loader's two markers (no
-    // file, failed fetch), a file whose lists are all empty, a file that
-    // carries nothing but its schema, and one whose last cycle is fresh so
-    // the health strip must not warn.
-    ['research_arb_scan', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Arb scan') }],
-    ['research_arb_scan_ohne_datei', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Arb scan') },
-      ['Arb scan', { _quelle: 'leer' }]],
-    ['research_arb_scan_fehler', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Arb scan') },
-      ['Arb scan', { _quelle: 'fehler', _fehler: 'HTTP 503' }]],
-    ['research_arb_scan_leere_listen', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Arb scan') },
-      ['Arb scan', {
-        _quelle: 'live', schema: 'arb_scan/1', generated_at: '2026-09-04T06:00:00+00:00',
-        generator: { repo: 'prediction-alpha-bot', git_sha: 'abcdef0123456789', mode: 'paper' },
-        disclaimer: 'Harness: empty scan.',
-        health: { last_cycle_at: '2026-09-04T05:00:00+00:00', cycles_24h: 0, errors_24h: 0, scan_interval_ms: 30000, alive: false },
-        summary: { raw_candidates_24h: 0, validated_24h: 0, paper_fired_24h: 0, open_paper_positions: 0, resolved_paper_trades: 0, resolved_paper_pnl_usd: null, sample_note: 'No resolved paper trades yet.' },
-        strategies: [], rejections_24h: [], opportunities: [], paper_positions: []
-      }]],
-    ['research_arb_scan_nur_schema', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Arb scan') },
-      ['Arb scan', { _quelle: 'live', schema: 'arb_scan/1' }]],
-    ['research_arb_scan_frisch', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Arb scan') },
-      ['Arb scan', (() => { const p = arbNutzlast(); p.health.last_cycle_at = new Date().toISOString(); return p; })()]],
+    // The paper scanner's section on Cross-venue: request still running, the
+    // loader's two markers (no file, failed fetch), a file whose lists are
+    // all empty, a file that carries nothing but its schema, and one whose
+    // last cycle is fresh so the health strip must not warn. The served
+    // fixture itself renders in the plain 'cross' page of the live pass.
+    ['cross_arb_laedt', 'cross', {}, null, arbMit(null)],
+    ['cross_arb_ohne_datei', 'cross', {}, null, arbMit({ _quelle: 'leer' })],
+    ['cross_arb_fehler', 'cross', {}, null, arbMit({ _quelle: 'fehler', _fehler: 'HTTP 503' })],
+    ['cross_arb_leere_listen', 'cross', {}, null, arbMit({
+      _quelle: 'live', schema: 'arb_scan/1', generated_at: '2026-09-04T06:00:00+00:00',
+      generator: { repo: 'prediction-alpha-bot', git_sha: 'abcdef0123456789', mode: 'paper' },
+      disclaimer: 'Harness: empty scan.',
+      health: { last_cycle_at: '2026-09-04T05:00:00+00:00', cycles_24h: 0, errors_24h: 0, scan_interval_ms: 30000, alive: false },
+      summary: { raw_candidates_24h: 0, validated_24h: 0, paper_fired_24h: 0, open_paper_positions: 0, resolved_paper_trades: 0, resolved_paper_pnl_usd: null, sample_note: 'No resolved paper trades yet.' },
+      strategies: [], rejections_24h: [], opportunities: [], paper_positions: []
+    })],
+    ['cross_arb_nur_schema', 'cross', {}, null, arbMit({ _quelle: 'live', schema: 'arb_scan/1' })],
+    ['cross_arb_frisch', 'cross', {}, null, arbMit((() => { const p = arbNutzlast(); p.health.last_cycle_at = new Date().toISOString(); return p; })())],
     ['copy_fidelity', 'copy', { copyTab: 'fidelity' }],
     // The copy desk: every tab, the trader filter, the inline edit and
     // top-up rows, a read-only host (remote, no token) and one asking for a

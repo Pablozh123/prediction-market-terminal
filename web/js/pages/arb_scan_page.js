@@ -1,22 +1,36 @@
-// Arbitrage scan — the paper scanner's rolling read, on one page.
+// Arbitrage scan — the paper scanner's rolling read, as a section of the
+// Cross-venue page ("Paper scanner: executable edge").
 //
 // Feeds off public/data/arb_scan.json, which the scanner in the
-// prediction-alpha-bot repo writes (schema arb_scan/1). Every figure here
-// comes from that file; this module lays it out and derives nothing beyond
-// counts, shares and ages. The file is produced elsewhere, so every field
-// may be missing or null: a missing figure renders as a dash, never as a
-// zero, and a missing list renders as a sentence that says so.
+// prediction-alpha-bot repo writes (schema arb_scan/1), served as
+// /api/research/arb-scan. Every figure here comes from that file; this
+// module lays it out and derives nothing beyond counts, shares and ages.
+// The file is produced elsewhere, so every field may be missing or null: a
+// missing figure renders as a dash, never as a zero, and a missing list
+// renders as a sentence that says so.
 //
 // Reading order follows the review's pattern for the study pages: title,
 // one computed verdict sentence, the stamps, then the funnel (strategies,
 // rejection reasons), the candidates themselves, the paper book, and last
-// the paragraph that says what the numbers do and do not mean.
+// the paragraph that says what the numbers do and do not mean. The blocks
+// are exported one by one; renderArbScanAbschnitt puts them together for
+// core_pages.js::renderCross.
 
 import { esc, num, money, stempel, stempelBlock, dauer } from '../util.js';
 import { caveatZeile } from '../claims.js';
 import { MONO as M, KARTE, LABEL, NOTIZ, kpi } from '../ui.js';
 
 export const ARB_SCAN_DATEI = 'arb_scan.json';
+// The element id the old study route (#research/arb-scan) scrolls to on the
+// Cross-venue page. Starts with the page name: app.js drops pending anchors
+// that do not.
+export const ARB_ANKER = 'cross/paper-scanner';
+// What the section is, in the words the study registration used to carry.
+export const ARB_STUDIE = {
+  title: 'Paper scanner: executable edge',
+  stamp: 'paper scanner · rolling',
+  note: 'Price gaps between Polymarket and Kalshi and inside one venue, screened for fees, depth and staleness, then paper-traded. The resolution rules of a pair count as unverified until a human has read both.'
+};
 
 const STRICH = '—';
 const ZELLE = M + '; font-size:var(--t-small); white-space:nowrap';
@@ -152,7 +166,7 @@ function ruleChip(wert) {
 
 // Health strip: alive, age of the last cycle against its limit, cycles and
 // errors over 24 h. The whole strip borders amber when the reading warns.
-function healthHtml(stand) {
+export function healthHtml(stand) {
   if (!stand.bekannt) {
     return '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-4)">SCANNER HEALTH not in payload</div>';
   }
@@ -176,7 +190,7 @@ function healthHtml(stand) {
     + '</div>';
 }
 
-function kennzahlen(summary) {
+export function kennzahlen(summary) {
   const s = objekt(summary);
   const pnl = zahl(s.resolved_paper_pnl_usd);
   const note = text(s.sample_note).trim();
@@ -195,7 +209,7 @@ function kennzahlen(summary) {
 
 // Funnel per strategy: raw, validated, paper, and the reason that rejected
 // most. The share is validated over raw, only where raw is a number above 0.
-function trichter(strategies) {
+export function trichter(strategies) {
   const rows = liste(strategies);
   const SPALTEN = 'minmax(220px, 1.4fr) 96px 120px 96px minmax(180px, 1fr)';
   const kopf = '<div style="display:grid; grid-template-columns:' + SPALTEN + '; gap:var(--sp-4); ' + KOPF + '">'
@@ -218,7 +232,7 @@ function trichter(strategies) {
 
 // Rejection reasons as horizontal bars, longest first. Width is the count
 // against the largest count, so the bars compare reasons with each other.
-function ablehnungen(rejections) {
+export function ablehnungen(rejections) {
   const rows = liste(rejections).map((r) => ({ reason: text(r.reason).trim(), count: zahl(r.count) }))
     .filter((r) => r.reason || r.count != null);
   rows.sort((a, b) => (b.count == null ? -1 : b.count) - (a.count == null ? -1 : a.count));
@@ -319,7 +333,7 @@ function chanceZeile(o, i, abgelehnt, jetztMs) {
     + '</div></div></details>';
 }
 
-function chancen(opportunities, jetztMs) {
+export function chancen(opportunities, jetztMs) {
   const { oben, unten } = teileChancen(opportunities);
   const gesamt = oben.length + unten.length;
   const obenHtml = oben.length
@@ -336,7 +350,7 @@ function chancen(opportunities, jetztMs) {
     + '<div style="' + NOTIZ + '; margin-top:var(--sp-3)">Each row opens to its legs. GROSS is the quoted gap, NET EXEC. the gap after both legs\' fees at the quoted depth. ANN. divides the net edge by days to resolution; a small edge over many days is carry, not a mispricing.</div>';
 }
 
-function paperBuch(positions, summary) {
+export function paperBuch(positions, summary) {
   const rows = liste(positions);
   const note = text(objekt(summary).sample_note).trim();
   const SPALTEN = 'minmax(220px, 1fr) 150px 130px 84px 92px 84px 84px';
@@ -364,7 +378,7 @@ function paperBuch(positions, summary) {
     });
 }
 
-function methodik() {
+export function methodik() {
   const absatz = (t) => '<div style="font-size:var(--t-body); color:var(--ink-2); line-height:var(--lh-prose); max-width:720px; margin-top:var(--sp-3)">' + t + '</div>';
   return '<div style="' + ABSCHNITT + '">HOW TO READ THIS</div>'
     + '<div style="' + KARTE + '; padding:var(--sp-5) var(--sp-6)">'
@@ -374,29 +388,36 @@ function methodik() {
     + '</div>';
 }
 
-// The page without a usable file: which file, who writes it, why nothing is
-// shown instead of a placeholder. A failed fetch is named as such.
-function leerzustand(study, payload) {
+// The section without a usable file: which file, who writes it, why nothing
+// is shown instead of a placeholder. A failed fetch is named as such; a
+// request still running says so and names the file too.
+export function leerzustand(payload) {
   const fehler = payload && payload._quelle === 'fehler';
-  const satz = fehler
-    ? '<span style="' + M + '">public/data/' + esc(ARB_SCAN_DATEI) + '</span> did not answer: ' + esc(text(payload._fehler) || 'unknown error') + '. Nothing is shown rather than a stale or invented figure.'
-    : 'No scan file yet. This page reads <span style="' + M + '">public/data/' + esc(ARB_SCAN_DATEI) + '</span>, which the arbitrage scanner in the prediction-alpha-bot repo writes on every cycle. Until that file exists here, nothing is shown: no placeholder candidate, no placeholder figure.';
-  return '<div style="padding:var(--sp-6)">'
-    + '<div style="' + KARTE + '; padding:var(--sp-6); max-width:720px">'
-    + '<h2 style="font-size:var(--t-lead); font-weight:600">' + esc(study && study.title ? study.title : 'Arbitrage scan') + '</h2>'
+  const laedt = payload == null;
+  const satz = laedt
+    ? 'Loading <span style="' + M + '">public/data/' + esc(ARB_SCAN_DATEI) + '</span>. The section fills in when the file answers; nothing is shown before, and no figure is a placeholder.'
+    : fehler
+      ? '<span style="' + M + '">public/data/' + esc(ARB_SCAN_DATEI) + '</span> did not answer: ' + esc(text(payload._fehler) || 'unknown error') + '. Nothing is shown rather than a stale or invented figure.'
+      : 'No scan file yet. This section reads <span style="' + M + '">public/data/' + esc(ARB_SCAN_DATEI) + '</span>, which the arbitrage scanner in the prediction-alpha-bot repo writes on every cycle. Until that file exists here, nothing is shown: no placeholder candidate, no placeholder figure.';
+  return '<div style="' + KARTE + '; padding:var(--sp-6); max-width:720px; margin-top:var(--sp-4)">'
+    + '<h2 style="font-size:var(--t-lead); font-weight:600">' + esc(ARB_STUDIE.title) + '</h2>'
     + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-4); line-height:var(--lh-prose)">' + satz + '</div>'
-    + '</div></div>';
+    + '</div>';
 }
 
-// ---- page -------------------------------------------------------------------
+// ---- section ----------------------------------------------------------------
 
-/** The arbitrage-scan page. payload is the parsed arb_scan.json, or one of
- *  the loader's markers ({ _quelle: 'leer' | 'fehler' }), or null. jetztMs is
- *  injectable so the harness can pin the clock; the app passes nothing. */
-export function renderArbScan(payload, study, jetztMs) {
+/** The section on the Cross-venue page. payload is the parsed arb_scan.json,
+ *  one of the loader's markers ({ _quelle: 'leer' | 'fehler' }), or null while
+ *  the request runs. jetztMs is injectable so the harness can pin the clock;
+ *  the app passes nothing. */
+export function renderArbScanAbschnitt(payload, jetztMs) {
+  const eyebrow = '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-max); color:var(--info)">PAPER SCANNER · EXECUTABLE EDGE</div>';
+  const huelle = (inhalt) => '<div id="' + ARB_ANKER + '" style="padding:var(--sp-6); border-top:1px solid var(--line-2); scroll-margin-top:16px">' + eyebrow + inhalt + '</div>';
   const jetzt = typeof jetztMs === 'number' ? jetztMs : Date.now();
   const p = payload && typeof payload === 'object' && payload._quelle !== 'leer' && payload._quelle !== 'fehler' ? payload : null;
-  if (!p) return leerzustand(study, payload);
+  if (!p) return huelle(leerzustand(payload));
+  const study = ARB_STUDIE;
 
   const gen = objekt(p.generator);
   const health = healthStand(p.health, jetzt);
@@ -409,12 +430,12 @@ export function renderArbScan(payload, study, jetztMs) {
     .concat(text(p.schema).trim() ? ['schema ' + text(p.schema).trim()] : []);
   const KNOPF = 'font-size:var(--t-body); color:var(--text); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-4) var(--sp-5); cursor:pointer; text-decoration:none; display:inline-block';
 
-  return '<div style="padding:var(--sp-6)">'
-    + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:var(--sp-6); flex-wrap:wrap">'
+  return huelle(''
+    + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:var(--sp-6); flex-wrap:wrap; margin-top:var(--sp-3)">'
     + '<div style="max-width:720px">'
-    + '<h2 style="font-size:var(--t-head); font-weight:600">' + esc(study && study.title ? study.title : 'Arbitrage scan') + '</h2>'
+    + '<h2 style="font-size:var(--t-head); font-weight:600">' + esc(study.title) + '</h2>'
     + (verdikt ? '<div style="font-size:var(--t-lead); color:var(--text); margin-top:var(--sp-3); line-height:var(--lh-snug); font-weight:500">' + esc(verdikt) + '</div>' : '')
-    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-snug)">' + esc(study && study.note ? study.note : '') + '</div>'
+    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-snug)">' + esc(study.note) + '</div>'
     + '</div>'
     + '<div style="display:flex; gap:var(--sp-3); align-items:flex-start">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); color:var(--on-accent); background:var(--accent); white-space:nowrap">' + esc(kennung.toUpperCase()) + '</div>'
@@ -435,6 +456,5 @@ export function renderArbScan(payload, study, jetztMs) {
     + '<div style="display:flex; gap:var(--sp-5); align-items:center; flex-wrap:wrap; margin-top:var(--sp-6)">'
     + '<a href="./data/' + ARB_SCAN_DATEI + '" download="' + ARB_SCAN_DATEI + '" class="hv-edge-max" style="' + KNOPF + '">Download the data</a>'
     + '<div style="' + NOTIZ + '">' + esc(schnappschuss.join(' · ')) + '</div>'
-    + '</div>'
-    + '</div>';
+    + '</div>');
 }
