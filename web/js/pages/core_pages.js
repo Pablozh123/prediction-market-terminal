@@ -3,7 +3,7 @@
 // instance (T). Nothing here invents a number: every figure names its payload
 // or the panel says which payload is missing.
 
-import { esc, money, num, volume, contracts, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, signedMoney, stempel, EINZAHLUNGEN_USD, offeneNichtDrin, tapeFenster, fensterSatz, categorySourceLabel, ledgerBotPositionen } from '../util.js';
+import { asOfLine, esc, money, num, volume, contracts, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, signedMoney, stempel, EINZAHLUNGEN_USD, offeneNichtDrin, tapeFenster, fensterSatz, categorySourceLabel, ledgerBotPositionen } from '../util.js';
 import { caveatZeile } from '../claims.js';
 import { spiegelZeit, kurzGeld, histogramm } from '../charts.js';
 import { studieAnker } from './microstructure_page.js';
@@ -26,33 +26,43 @@ function catChipRow(T, rows, key, stateKey, current) {
     + '</div>';
 }
 
-// One-line "as of" stamp for a live block; empty when the API has not
-// answered yet, so no line claims a time it does not have.
-function asOfLine(iso) {
-  return iso ? '<span style="' + M + '; font-size:var(--t-micro); color:var(--ink-4)">as of ' + esc(stempel(iso)) + '</span>' : '';
-}
-
 // Spaltenraster der Markttabelle — Kopfzeile und Zeilen teilen es.
 const MARKT_SPALTEN = '1fr 64px 90px 76px 96px 104px 96px';
 
+// A clickable row keeps its handler and its tab stop but takes the table's
+// row role: the view helpers in app.js hand out button actions, and an
+// element cannot be both a row and a button. Without an action (a print
+// whose market is not loaded) it is a plain row.
+function zeilenAct(act) {
+  return (act ? act.replace(/ role="[^"]*"/, '') + ' ' : '') + 'role="row"';
+}
+
+// A sortable head cell of the Markets table: the click keeps its handler and
+// tab stop, the role stays the column's (a columnheader cannot also be a
+// button), and aria-sort names the column the rows currently follow.
+function sortKopf(T, key, richtung) {
+  return T.act(() => T.setState({ marketSort: key }), { role: null })
+    + ' role="columnheader" aria-sort="' + (T.state.marketSort === key ? richtung : 'none') + '"';
+}
+
 function marketRowHtml(v) {
-  return '<div ' + v.act + ' class="hv-panel" style="display:grid; grid-template-columns:' + MARKT_SPALTEN + '; align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-3); cursor:pointer">'
-    + '<div style="padding-right:var(--sp-6)">'
+  return '<div ' + zeilenAct(v.act) + ' class="hv-panel" style="display:grid; grid-template-columns:' + MARKT_SPALTEN + '; align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-3); cursor:pointer">'
+    + '<div role="cell" style="padding-right:var(--sp-6)">'
     + '<div style="font-size:var(--t-body); line-height:var(--lh-tight)">' + esc(v.title) + '</div>'
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2)">' + esc(v.meta) + '</div></div>'
-    + '<div style="' + M + '; font-size:var(--t-lead); text-align:right">' + v.priceLabel + '</div>'
-    + '<div style="' + v.changeStyle + '">' + v.changeLabel + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-small); text-align:right; color:var(--ink-4)">' + esc(v.spreadLabel || '—') + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-small); text-align:right; color:var(--ink-4)">' + esc(v.liqLabel || '—') + '</div>'
+    + '<div role="cell" style="' + M + '; font-size:var(--t-lead); text-align:right">' + v.priceLabel + '</div>'
+    + '<div role="cell" style="' + v.changeStyle + '">' + v.changeLabel + '</div>'
+    + '<div role="cell" style="' + M + '; font-size:var(--t-small); text-align:right; color:var(--ink-4)">' + esc(v.spreadLabel || '—') + '</div>'
+    + '<div role="cell" style="' + M + '; font-size:var(--t-small); text-align:right; color:var(--ink-4)">' + esc(v.liqLabel || '—') + '</div>'
     // Unter der Volumenzahl ihr Anteil am groessten Volumen der Sicht, als
     // 56px-Balken: die Standard-Sortierspalte wird so ohne Lesen scannbar.
-    + '<div style="text-align:right"><div style="' + M + '; font-size:var(--t-body)">' + v.volLabel + '</div>'
+    + '<div role="cell" style="text-align:right"><div style="' + M + '; font-size:var(--t-body)">' + v.volLabel + '</div>'
     + (v.volShare != null
       ? '<div style="margin:var(--sp-2) 0 0 auto; width:56px; height:2px; border-radius:1px; background:rgba(var(--ink),.1)">'
         + '<div style="width:' + v.volShare.toFixed(1) + '%; height:100%; border-radius:1px; background:rgba(var(--ink),.45)"></div></div>'
       : '')
     + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-small); text-align:right; color:var(--ink-4)">' + esc(v.ends) + '</div></div>';
+    + '<div role="cell" style="' + M + '; font-size:var(--t-small); text-align:right; color:var(--ink-4)">' + esc(v.ends) + '</div></div>';
 }
 
 // One compact insight panel on the Markets page: a heading, up to five
@@ -677,7 +687,7 @@ export function renderMarkets(T) {
     + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-max); color:var(--accent)">MARKETS</div>'
     + '<h1 style="font-size:var(--t-head); line-height:var(--lh-tight); margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:var(--ls-flat)">Every market, one table</h1></div>'
     + '<div style="display:flex; align-items:center; gap:var(--sp-4)">'
-    + '<input value="' + esc(s.marketQuery) + '" ' + T.inp((e) => T.setState({ marketQuery: e.target.value }), 'marketQuery') + ' placeholder="Search markets…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); width:230px" />'
+    + '<input value="' + esc(s.marketQuery) + '" ' + T.inpEntprellt('marketQuery') + ' placeholder="Search markets…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); width:230px" />'
     + '<div ' + T.act(() => T.setState({ mPlatform: 'all', mStatus: 'active', mProb: 'all', mLiq: 'all', mVol: 'all', mEnds: 'all', mAge: 'all', mExclude: [], marketCat: 'All', marketQuery: '', mQuick: 'trending', marketSort: 'volume' })) + ' class="hv-edge-strong" style="font-size:var(--t-small); color:var(--ink-3); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); cursor:pointer">Reset filters</div>'
     + '</div></div>'
 
@@ -695,7 +705,7 @@ export function renderMarkets(T) {
     // first two had no renderer, the last two filtered on flags nothing sets.
     + '<div style="display:flex; align-items:center; gap:var(--sp-6); margin-top:var(--sp-5); flex-wrap:wrap">'
     + '<div style="display:flex; align-items:center; gap:var(--sp-3)"><span style="' + LABEL_BLOCK.replace('; margin-bottom:var(--sp-3)', '') + '">QUICK</span>'
-    + [['trending','By volume'],['ending','Ending soon'],['new','New']].map((o) => T.opt(o[1], s.mQuick === o[0], { mQuick: o[0] })).join('') + '</div>'
+    + [['trending','All'],['ending','Ending soon'],['new','New']].map((o) => T.opt(o[1], s.mQuick === o[0], { mQuick: o[0] })).join('') + '</div>'
     + asOfLine(s.liveAsOf)
     + '</div>'
 
@@ -738,21 +748,26 @@ export function renderMarkets(T) {
     // No TREND column: the API carries a one-day change, not an intraday
     // path, and a two-point line under "TREND 24H" read as a curve. SPREAD
     // und LIQUIDITY kommen aus denselben API-Zeilen (unbekannt bleibt —).
-    + '<div style="display:grid; grid-template-columns:' + MARKT_SPALTEN + '; align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + LABEL + '">'
-    + '<div>MARKET</div>'
-    + '<div style="text-align:right">YES</div>'
-    + '<div ' + T.act(() => T.setState({ marketSort: 'change' })) + ' aria-pressed="' + (s.marketSort === 'change' ? 'true' : 'false') + '"' + ' style="text-align:right; cursor:pointer; padding:var(--sp-2) 0; color:' + (s.marketSort === 'change' ? 'var(--accent)' : 'var(--ink-3)') + '">CHANGE 1D</div>'
-    + '<div style="text-align:right">SPREAD</div>'
-    + '<div ' + T.act(() => T.setState({ marketSort: 'liquidity' })) + ' aria-pressed="' + (s.marketSort === 'liquidity' ? 'true' : 'false') + '"' + ' style="text-align:right; cursor:pointer; padding:var(--sp-2) 0; color:' + (s.marketSort === 'liquidity' ? 'var(--accent)' : 'var(--ink-3)') + '">LIQUIDITY</div>'
-    + '<div ' + T.act(() => T.setState({ marketSort: 'volume' })) + ' aria-pressed="' + (s.marketSort === 'volume' ? 'true' : 'false') + '"' + ' style="text-align:right; cursor:pointer; padding:var(--sp-2) 0; color:' + (s.marketSort === 'volume' ? 'var(--accent)' : 'var(--ink-3)') + '">VOLUME 24H</div>'
-    + '<div ' + T.act(() => T.setState({ marketSort: 'ending' })) + ' aria-pressed="' + (s.marketSort === 'ending' ? 'true' : 'false') + '"' + ' style="text-align:right; cursor:pointer; padding:var(--sp-2) 0; color:' + (s.marketSort === 'ending' ? 'var(--accent)' : 'var(--ink-3)') + '">RESOLVES</div></div>'
+    // The sortable heads used to say aria-pressed; that is a button's state
+    // and a columnheader cannot carry it. aria-sort names the sorted column
+    // instead: the descending ones sort biggest first, RESOLVES soonest first.
+    + '<div role="table" aria-label="Markets">'
+    + '<div role="row" style="display:grid; grid-template-columns:' + MARKT_SPALTEN + '; align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + LABEL + '">'
+    + '<div role="columnheader">MARKET</div>'
+    + '<div role="columnheader" style="text-align:right">YES</div>'
+    + '<div ' + sortKopf(T, 'change', 'descending') + ' style="text-align:right; cursor:pointer; padding:var(--sp-2) 0; color:' + (s.marketSort === 'change' ? 'var(--accent)' : 'var(--ink-3)') + '">CHANGE 1D</div>'
+    + '<div role="columnheader" style="text-align:right">SPREAD</div>'
+    + '<div ' + sortKopf(T, 'liquidity', 'descending') + ' style="text-align:right; cursor:pointer; padding:var(--sp-2) 0; color:' + (s.marketSort === 'liquidity' ? 'var(--accent)' : 'var(--ink-3)') + '">LIQUIDITY</div>'
+    + '<div ' + sortKopf(T, 'volume', 'descending') + ' style="text-align:right; cursor:pointer; padding:var(--sp-2) 0; color:' + (s.marketSort === 'volume' ? 'var(--accent)' : 'var(--ink-3)') + '">VOLUME 24H</div>'
+    + '<div ' + sortKopf(T, 'ending', 'ascending') + ' style="text-align:right; cursor:pointer; padding:var(--sp-2) 0; color:' + (s.marketSort === 'ending' ? 'var(--accent)' : 'var(--ink-3)') + '">RESOLVES</div></div>'
     + mRows.map((m) => marketRowHtml(Object.assign(T.marketView(m), {
       spreadLabel: mx(m).spread != null ? mx(m).spread + '¢' : '—',
       liqLabel: m.liq ? money(m.liq) : '—',
       volShare: (maxVolJeVenue[m.venue] || 0) > 0 && m.vol > 0
         ? Math.max(2, (100 * m.vol) / maxVolJeVenue[m.venue]) : null
     }))).join('')
-    + (mRows.length === 0 ? '<div style="padding:var(--sp-7); text-align:center; ' + M + '; font-size:var(--t-small); color:var(--ink-4)">No market matches that filter.</div>' : '')
+    + '</div>'
+    + (mRows.length === 0 ?'<div style="padding:var(--sp-7); text-align:center; ' + M + '; font-size:var(--t-small); color:var(--ink-4)">No market matches that filter.</div>' : '')
     + '</div>';
 }
 
@@ -894,7 +909,7 @@ export function renderFlow(T) {
     + '<h1 style="font-size:var(--t-head); line-height:var(--lh-tight); margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:var(--ls-flat)">Every large print as it lands</h1></div>'
     + '<div style="display:flex; align-items:center; gap:var(--sp-4)">'
     + asOfLine(s.tapeAsOf || s.liveAsOf)
-    + '<input value="' + esc(s.tapeQuery) + '" ' + T.inp((e) => T.setState({ tapeQuery: e.target.value }), 'tapeQuery') + ' placeholder="market, wallet, trader…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); width:250px" />'
+    + '<input value="' + esc(s.tapeQuery) + '" ' + T.inpEntprellt('tapeQuery') + ' placeholder="market, wallet, trader…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); width:250px" />'
     + '</div></div>'
     + '<div style="margin-top:var(--sp-5)">' + filterGroup('CATEGORY', catChipRow(T, T.tape, 'category', 'tapeCat', s.tapeCat))
     // Steht ueber der Kategorieleiste, weil sie das erste ist, was die Zeile
@@ -934,8 +949,9 @@ export function renderFlow(T) {
 
     + grafiken
 
-    + '<div style="display:grid; grid-template-columns:96px 160px 1fr 110px 84px 90px 110px 96px; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + LABEL + '">'
-    + '<div>TIME</div><div>WALLET</div><div>MARKET</div><div>CATEGORY</div><div>SIDE</div><div style="text-align:right">PRICE</div><div style="text-align:right">SIZE</div><div style="text-align:right">VENUE</div></div>'
+    + '<div role="table" aria-label="Live tape">'
+    + '<div role="row" style="display:grid; grid-template-columns:96px 160px 1fr 110px 84px 90px 110px 96px; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + LABEL + '">'
+    + '<div role="columnheader">TIME</div><div role="columnheader">WALLET</div><div role="columnheader">MARKET</div><div role="columnheader">CATEGORY</div><div role="columnheader">SIDE</div><div role="columnheader" style="text-align:right">PRICE</div><div role="columnheader" style="text-align:right">SIZE</div><div role="columnheader" style="text-align:right">VENUE</div></div>'
     + (tapeFiltered.length ? '' : leerZeile('No print in the tape window passes the current filters (size, category, side).'))
     + tapeFiltered.map((t0) => {
       const t = T.tapeRowView(t0);
@@ -943,16 +959,17 @@ export function renderFlow(T) {
       // Only a print of a loaded market opens the drawer; the other rows are
       // plain rows, not pointers that lead nowhere.
       const klickbar = t.act && t.clickable !== false;
-      return '<div ' + (klickbar ? t.act + ' ' : '') + 'class="' + (klickbar ? 'hv-panel' : '') + (neu ? ' tape-in' : '') + '" style="display:grid; grid-template-columns:96px 160px 1fr 110px 84px 90px 110px 96px; align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small); ' + (klickbar ? 'cursor:pointer; ' : '') + '">'
-        + '<div style="color:var(--ink-4)">' + esc(t.ago) + '</div>'
-        + '<div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(t.wallet) + '">' + esc(t.wallet) + '</div>'
-        + '<div style="font-family:var(--font-ui); font-size:var(--t-body); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:var(--sp-4)" title="' + esc(t.market) + '">' + esc(t.market) + '</div>'
-        + '<div style="font-size:var(--t-micro); color:var(--ink-4)">' + esc(t.category || 'Other') + '</div>'
-        + '<div style="' + t.sideStyle + '">' + esc(t.side) + '</div>'
-        + '<div style="text-align:right">' + esc(t.price) + '</div>'
-        + '<div style="text-align:right">' + t.size + '</div>'
-        + '<div style="text-align:right; color:var(--ink-3); font-size:var(--t-micro)">' + esc(t.venue) + '</div></div>';
+      return '<div ' + zeilenAct(klickbar ? t.act : '') + ' class="' + (klickbar ? 'hv-panel' : '') + (neu ? ' tape-in' : '') + '" style="display:grid; grid-template-columns:96px 160px 1fr 110px 84px 90px 110px 96px; align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small); ' + (klickbar ? 'cursor:pointer; ' : '') + '">'
+        + '<div role="cell" style="color:var(--ink-4)">' + esc(t.ago) + '</div>'
+        + '<div role="cell" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(t.wallet) + '">' + esc(t.wallet) + '</div>'
+        + '<div role="cell" style="font-family:var(--font-ui); font-size:var(--t-body); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:var(--sp-4)" title="' + esc(t.market) + '">' + esc(t.market) + '</div>'
+        + '<div role="cell" style="font-size:var(--t-micro); color:var(--ink-4)">' + esc(t.category || 'Other') + '</div>'
+        + '<div role="cell" style="' + t.sideStyle + '">' + esc(t.side) + '</div>'
+        + '<div role="cell" style="text-align:right">' + esc(t.price) + '</div>'
+        + '<div role="cell" style="text-align:right">' + t.size + '</div>'
+        + '<div role="cell" style="text-align:right; color:var(--ink-3); font-size:var(--t-micro)">' + esc(t.venue) + '</div></div>';
     }).join('')
+    + '</div>'
     + '</div>';
 }
 
@@ -1125,7 +1142,7 @@ export function renderCross(T) {
     + '<h1 style="font-size:var(--t-head); line-height:var(--lh-tight); margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:var(--ls-flat)">The same question, two prices</h1></div>'
     + '<div style="display:flex; align-items:center; gap:var(--sp-4)">'
     + asOfLine(cl.as_of)
-    + '<input value="' + esc(s.crossQuery) + '" ' + T.inp((e) => T.setState({ crossQuery: e.target.value }), 'crossQuery') + ' placeholder="bitcoin, fed, election…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); width:230px" />'
+    + '<input value="' + esc(s.crossQuery) + '" ' + T.inpEntprellt('crossQuery') + ' placeholder="bitcoin, fed, election…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); width:230px" />'
     + '<div ' + T.act(() => T.setState({ crossQuery: '', crossSim: 0.5, crossMaxPairs: 50, crossMinGap: 0, crossLower: 'any', crossPmVol: 0, crossKsVol: 0, crossMinPrice: 0, crossMaxPrice: 100 })) + ' class="hv-edge-strong" style="font-size:var(--t-small); color:var(--ink-3); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); cursor:pointer">Reset filters</div>'
     + '</div></div>'
     + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-4); max-width:760px">Matched by title similarity, not by ticker. ' + esc(gateNote) + '. GAP is the distance between the two mid prices, and nobody trades a mid. NET OF FEES prices the basket that would capture it (buy the yes side at the ask, buy the other side at the other venue&#39;s ask) and subtracts both venues&#39; taker fee curves. The top ' + num(cl.depth_rows || 12) + ' rows by net are re-quoted against both order books, so their number holds for the size shown beneath it; the rest price the touch at the fee clip of 100 and say so. Settlement rules and resolution sources still differ, and two matched titles can still be two different questions (studies 08 and 11).</div>'
@@ -1155,11 +1172,12 @@ export function renderCross(T) {
     + kpi({ form: 'band', label: 'POSITIVE NET OF FEES', farbe: netPositive ? 'var(--pos)' : 'var(--ink-3)', wert: netPositive + ' of ' + netKnown })
     + '</div>'
 
-    + '<div style="display:grid; grid-template-columns:1fr 104px 104px 84px 108px 124px 112px; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + LABEL + '">'
+    + '<div role="table" aria-label="Cross-venue pairs">'
+    + '<div role="row" style="display:grid; grid-template-columns:1fr 104px 104px 84px 108px 124px 112px; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + LABEL + '">'
     // Ein Markt, zwei Volumina, zwei Einheiten. Die Summe der beiden stand
     // hier als eine Zahl mit Dollarzeichen und war keine: Kalshis Volumen
     // zaehlt Kontrakte (app/venue_units.py).
-    + '<div>EVENT</div><div style="text-align:right">POLYMARKET</div><div style="text-align:right">KALSHI</div><div style="text-align:right">GAP</div><div style="text-align:right">PM VOL 24H</div><div style="text-align:right">KALSHI VOL 24H</div><div style="text-align:right">NET OF FEES</div></div>'
+    + '<div role="columnheader">EVENT</div><div role="columnheader" style="text-align:right">POLYMARKET</div><div role="columnheader" style="text-align:right">KALSHI</div><div role="columnheader" style="text-align:right">GAP</div><div role="columnheader" style="text-align:right">PM VOL 24H</div><div role="columnheader" style="text-align:right">KALSHI VOL 24H</div><div role="columnheader" style="text-align:right">NET OF FEES</div></div>'
     + cRows.map((c) => {
       const g = Math.abs(c.pm - c.ks);
       const gapStyle = M + '; font-size:var(--t-body); text-align:right; color:' + (g >= 5 ? 'var(--warn)' : g >= 3 ? 'var(--text)' : 'var(--ink-4)');
@@ -1169,15 +1187,15 @@ export function renderCross(T) {
       const netFarbe = c.net == null ? 'var(--ink-4)' : c.net > 0 ? 'var(--pos)' : 'var(--ink-4)';
       const netLabel = c.net == null ? '—' : (c.net > 0 ? '+' : '') + c.net.toFixed(1) + '¢';
       const sizeLabel = crossSizeLabel(c);
-      return '<div style="display:grid; grid-template-columns:1fr 104px 104px 84px 108px 124px 112px; align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-3)">'
-        + '<div style="padding-right:var(--sp-6)"><div style="font-size:var(--t-body); line-height:var(--lh-tight)">' + esc(c.event) + '</div>'
+      return '<div role="row" style="display:grid; grid-template-columns:1fr 104px 104px 84px 108px 124px 112px; align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-3)">'
+        + '<div role="cell" style="padding-right:var(--sp-6)"><div style="font-size:var(--t-body); line-height:var(--lh-tight)">' + esc(c.event) + '</div>'
         + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2)">' + esc(c.cat) + ' · similarity ' + c.sim.toFixed(2) + '</div></div>'
-        + '<div style="' + M + '; font-size:var(--t-body); text-align:right; color:var(--accent)">' + c.pm + '¢</div>'
-        + '<div style="' + M + '; font-size:var(--t-body); text-align:right; color:var(--info)">' + c.ks + '¢</div>'
-        + '<div style="' + gapStyle + '">' + g + '¢</div>'
-        + '<div style="' + M + '; font-size:var(--t-small); text-align:right; color:var(--ink-3)">' + volume(c.pmVolUsd, 'Polymarket') + '</div>'
-        + '<div style="' + M + '; font-size:var(--t-small); text-align:right; color:var(--ink-3)" title="Kalshi reports volume as a contract count; one contract settles for $1, so this is not a dollar figure">' + volume(c.ksVolContracts, 'Kalshi') + '</div>'
-        + '<div style="text-align:right" title="' + esc(c.net == null ? 'no two-sided quote on both venues' : (c.dir || '') + ' · executable ' + (c.gross == null ? '—' : c.gross.toFixed(1) + '¢') + ' minus a fee threshold of ' + (c.band == null ? '—' : c.band.toFixed(1) + '¢')) + '">'
+        + '<div role="cell" style="' + M + '; font-size:var(--t-body); text-align:right; color:var(--accent)">' + c.pm + '¢</div>'
+        + '<div role="cell" style="' + M + '; font-size:var(--t-body); text-align:right; color:var(--info)">' + c.ks + '¢</div>'
+        + '<div role="cell" style="' + gapStyle + '">' + g + '¢</div>'
+        + '<div role="cell" style="' + M + '; font-size:var(--t-small); text-align:right; color:var(--ink-3)">' + volume(c.pmVolUsd, 'Polymarket') + '</div>'
+        + '<div role="cell" style="' + M + '; font-size:var(--t-small); text-align:right; color:var(--ink-3)" title="Kalshi reports volume as a contract count; one contract settles for $1, so this is not a dollar figure">' + volume(c.ksVolContracts, 'Kalshi') + '</div>'
+        + '<div role="cell" style="text-align:right" title="' + esc(c.net == null ? 'no two-sided quote on both venues' : (c.dir || '') + ' · executable ' + (c.gross == null ? '—' : c.gross.toFixed(1) + '¢') + ' minus a fee threshold of ' + (c.band == null ? '—' : c.band.toFixed(1) + '¢')) + '">'
         + '<div style="' + M + '; font-size:var(--t-body); color:' + netFarbe + '">' + netLabel + '</div>'
         // Eine Spanne fuer drei Kontrakte ist kein Geschaeft ueber hundert.
         // Ohne diese Zeile stand die Zahl fuer eine Groesse da, die niemand
@@ -1185,6 +1203,7 @@ export function renderCross(T) {
         + (sizeLabel ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-1); line-height:var(--lh-tight)">' + esc(sizeLabel) + '</div>' : '')
         + '</div></div>';
     }).join('')
+    + '</div>'
     + (cRows.length === 0 ? '<div style="padding:var(--sp-7); text-align:center; ' + M + '; font-size:var(--t-small); color:var(--ink-4)">No pair passes the local filters; loosen a stepper above.</div>' : '')
     // Paper scanner: executable edge — the scanner's file, laid out under
     // the pair comparison (arb_scan_page.js).
@@ -1229,9 +1248,10 @@ export function renderResolved(T) {
     + '<div style="display:flex; align-items:flex-end; justify-content:space-between; gap:var(--sp-6)">'
     + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-max); color:var(--accent)">RESOLVED</div>'
     + '<h1 style="font-size:var(--t-head); line-height:var(--lh-tight); margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:var(--ls-flat)">How the last questions ended</h1></div>'
-    + '<input value="' + esc(s.resQuery) + '" ' + T.inp((e) => T.setState({ resQuery: e.target.value }), 'resQuery') + ' placeholder="Search resolved markets…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); width:250px" />'
+    + '<input value="' + esc(s.resQuery) + '" ' + T.inpEntprellt('resQuery') + ' placeholder="Search resolved markets…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); width:250px" />'
     + '</div>'
     + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-4); max-width:700px">The last price before settlement next to the answer. The gap between the two is what the crowd got wrong.</div>'
+    + (live.as_of ? '<div style="margin-top:var(--sp-3)">' + asOfLine(live.as_of) + '</div>' : '')
     + '<div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:var(--sp-5); margin-top:var(--sp-5)">'
     + filterGroup('ANSWER', [['all','All'],['yes','Ended Yes'],['no','Ended No']].map((o) => T.opt(o[1], s.resAnswer === o[0], { resAnswer: o[0] })).join(''))
     + filterGroup('SETTLED WITHIN', [['all','All'],['24','24 hours'],['168','7 days']].map((o) => T.opt(o[1], s.resWindow === o[0], { resWindow: o[0] })).join(''))
@@ -1246,19 +1266,21 @@ export function renderResolved(T) {
     })).join('')
     + '</div>'
 
-    + '<div style="display:grid; grid-template-columns:1fr 110px 118px 128px 110px 120px; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + LABEL + '">'
-    + '<div>MARKET</div><div style="text-align:right">ANSWER</div><div style="text-align:right">LAST PRICE</div><div style="text-align:right">CROWD OFF BY</div><div style="text-align:right">VOLUME</div><div style="text-align:right">SETTLED</div></div>'
+    + '<div role="table" aria-label="Resolved markets">'
+    + '<div role="row" style="display:grid; grid-template-columns:1fr 110px 118px 128px 110px 120px; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + LABEL + '">'
+    + '<div role="columnheader">MARKET</div><div role="columnheader" style="text-align:right">ANSWER</div><div role="columnheader" style="text-align:right">LAST PRICE</div><div role="columnheader" style="text-align:right">CROWD OFF BY</div><div role="columnheader" style="text-align:right">VOLUME</div><div role="columnheader" style="text-align:right">SETTLED</div></div>'
     + resRows.map((r) => {
       const answerStyle = M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-4); ' + (r.yes ? 'color:var(--on-accent); background:var(--accent)' : 'color:var(--neg-soft); border:1px solid rgba(var(--neg-rgb),.35)');
       const errStyle = M + '; font-size:var(--t-body); text-align:right; color:' + (r.err >= 50 ? 'var(--neg)' : r.err >= 25 ? 'var(--warn)' : 'var(--ink-3)');
-      return '<div style="display:grid; grid-template-columns:1fr 110px 118px 128px 110px 120px; align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-3)">'
-        + '<div style="padding-right:var(--sp-6)"><div style="font-size:var(--t-body); line-height:var(--lh-tight)">' + esc(r.title) + '</div>'
+      return '<div role="row" style="display:grid; grid-template-columns:1fr 110px 118px 128px 110px 120px; align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-3)">'
+        + '<div role="cell" style="padding-right:var(--sp-6)"><div style="font-size:var(--t-body); line-height:var(--lh-tight)">' + esc(r.title) + '</div>'
         + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2)">' + esc(r.meta) + '</div></div>'
-        + '<div style="display:flex; justify-content:flex-end"><div style="' + answerStyle + '">' + (r.yes ? 'YES' : 'NO') + '</div></div>'
-        + '<div style="' + M + '; font-size:var(--t-body); text-align:right">' + r.last + '¢</div>'
-        + '<div style="' + errStyle + '">' + r.err + '¢</div>'
-        + '<div style="' + M + '; font-size:var(--t-small); text-align:right; color:var(--ink-3)">' + esc(r.vol) + '</div>'
-        + '<div style="' + M + '; font-size:var(--t-small); text-align:right; color:var(--ink-3)">' + esc(r.when) + '</div></div>';
+        + '<div role="cell" style="display:flex; justify-content:flex-end"><div style="' + answerStyle + '">' + (r.yes ? 'YES' : 'NO') + '</div></div>'
+        + '<div role="cell" style="' + M + '; font-size:var(--t-body); text-align:right">' + r.last + '¢</div>'
+        + '<div role="cell" style="' + errStyle + '">' + r.err + '¢</div>'
+        + '<div role="cell" style="' + M + '; font-size:var(--t-small); text-align:right; color:var(--ink-3)">' + esc(r.vol) + '</div>'
+        + '<div role="cell" style="' + M + '; font-size:var(--t-small); text-align:right; color:var(--ink-3)">' + esc(r.when) + '</div></div>';
     }).join('')
+    + '</div>'
     + '</div>';
 }

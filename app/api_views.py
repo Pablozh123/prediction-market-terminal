@@ -2406,6 +2406,26 @@ def _usd_compact(value: Any) -> str:
     return f"${v:,.0f}"
 
 
+#: Hoechstens so viele Punkte traegt die Equity-Kurve des Desks in /api/copy.
+#: Der Daemon schreibt einen Schnappschuss je Minute, get_equity_snapshots
+#: liefert bis zu 5000 davon: 96 KB, fast die Haelfte der Antwort, fuer eine
+#: Linie von 900 Pixeln Breite. Die Kurve wird gleichmaessig ausgeduennt,
+#: erster und letzter Punkt bleiben -- die Seite zeichnet die Veraenderung
+#: gegen den Startpunkt, ein Abschneiden vorn haette den verschoben.
+COPY_CURVE_POINTS = 500
+
+
+def _thin_curve(values: Sequence[float], max_points: int = COPY_CURVE_POINTS) -> list[float]:
+    """Hoechstens ``max_points`` gleichmaessig verteilte Punkte, erster und letzter dabei."""
+
+    values = list(values)
+    limit = int(max_points)
+    if limit < 2 or len(values) <= limit:
+        return values
+    last = len(values) - 1
+    return [values[round(i * last / (limit - 1))] for i in range(limit)]
+
+
 def copy_payload(
     orders: pd.DataFrame,
     positions: pd.DataFrame,
@@ -2426,6 +2446,9 @@ def copy_payload(
     wandern. Die Zaehler in ``kpis`` gehen ueber alle Orders, nicht nur ueber
     die gezeigten Zeilen. Mit ``source_positions`` (Spiegel der Quell-Buecher)
     traegt jede Order-Zeile den aktuellen Bestand der Quelle in dem Markt.
+    ``equity_curve`` traegt hoechstens ``COPY_CURVE_POINTS`` Punkte;
+    ``equity_curve_capped`` sagt, ob ausgeduennt wurde, und
+    ``equity_curve_points_total``, wie viele Schnappschuesse es waren.
     """
 
     order_rows: list[dict[str, Any]] = []
@@ -2518,6 +2541,8 @@ def copy_payload(
         col = "equity" if "equity" in equity_snapshots else None
         if col:
             curve = [v for v in (_num(x) for x in equity_snapshots[col].tolist()) if v is not None]
+    curve_points_total = len(curve)
+    curve = _thin_curve(curve)
     equity = _num(portfolio.get("equity"), 0.0) or 0.0
     cash = _num(portfolio.get("cash"), 0.0) or 0.0
     contributions = _num(contributions, 0.0) or 0.0
@@ -2580,6 +2605,10 @@ def copy_payload(
         "cash_events": cash_rows,
         "history": history_rows,
         "equity_curve": curve,
+        # ``*_capped`` steht in der Antwort, nicht im Kleingedruckten (wie in
+        # entity_graph): wahr, wenn die Kurve ausgeduennt wurde.
+        "equity_curve_capped": curve_points_total > len(curve),
+        "equity_curve_points_total": curve_points_total,
     }
 
 

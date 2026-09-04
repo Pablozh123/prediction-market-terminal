@@ -83,6 +83,7 @@ function neuesT() {
     seriesPoints: (v, w, h) => seriesPoints(v, w, h),
     act: () => 'data-act="0"',
     inp: () => 'data-inp="0" data-key="k"',
+    inpEntprellt: (key) => 'data-inp="0" data-key="' + key + '"',
     setState: () => {},
     opt: (l) => '<div>' + esc(l) + '</div>',
     chip: (l) => '<div>' + esc(l) + '</div>',
@@ -419,7 +420,7 @@ function mitDaten(T) {
     }
   };
   T.liveData.resolved = {
-    _quelle: 'live',
+    _quelle: 'live', as_of: '2026-08-17 09:30 UTC',
     rows: [{ title: 'Settled question', meta: 'POLYMARKET · MACRO', yes: true, last: 91, err: 9, vol: '$1.2m', when: '2 d ago', hours: 6 }]
   };
   T.liveData.alerts = {

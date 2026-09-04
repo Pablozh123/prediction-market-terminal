@@ -1,0 +1,65 @@
+name: Backup volume
+
+# The Railway volume (paper copy desk, entity graph, flag log) is backed up
+# by nobody else. This pulls GET /api/admin/backup once a day - a zip the API
+# builds with the SQLite backup API, so it is consistent while the copy
+# daemon writes - and keeps it as a workflow artifact for 90 days.
+#
+# Secrets: COPY_ADMIN_TOKEN (the same token that unlocks the copy desk's
+# write routes) is required. BACKUP_PASSPHRASE encrypts the artifact with
+# gpg; set it, because artifacts of a public repository can be downloaded by
+# anyone who is signed in to GitHub.
+on:
+  schedule:
+    - cron: "41 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    env:
+      COPY_ADMIN_TOKEN: ${{ secrets.COPY_ADMIN_TOKEN }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+      BACKUP_URL: https://api.marketintel.dev/api/admin/backup
+    steps:
+      - name: Fetch the archive
+        run: |
+          if [ -z "$COPY_ADMIN_TOKEN" ]; then
+            echo "::error::COPY_ADMIN_TOKEN is not set, nothing was backed up"
+            exit 1
+          fi
+          code=$(curl -sS -o backup.zip -w "%{http_code}" --max-time 300 \
+            -H "X-Admin-Token: $COPY_ADMIN_TOKEN" "$BACKUP_URL")
+          if [ "$code" != "200" ]; then
+            echo "::error::backup endpoint answered $code"
+            head -c 400 backup.zip; echo
+            exit 1
+          fi
+          python3 - <<'PY'
+          import sys, zipfile
+          z = zipfile.ZipFile("backup.zip")
+          names = z.namelist()
+          print("files:", names)
+          bad = z.testzip()
+          sys.exit(1 if bad or "manifest.json" not in names else 0)
+          PY
+          stamp=$(date -u +%Y%m%d-%H%M)
+          if [ -n "$BACKUP_PASSPHRASE" ]; then
+            gpg --batch --yes --symmetric --cipher-algo AES256 \
+              --passphrase "$BACKUP_PASSPHRASE" -o "volume-$stamp.zip.gpg" backup.zip
+            rm backup.zip
+          else
+            echo "::warning::BACKUP_PASSPHRASE is not set, the artifact is stored unencrypted"
+            mv backup.zip "volume-$stamp.zip"
+          fi
+          ls -l volume-*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: volume-backup-${{ github.run_id }}
+          path: volume-*
+          retention-days: 90
+          if-no-files-found: error

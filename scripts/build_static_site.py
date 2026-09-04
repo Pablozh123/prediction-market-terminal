@@ -11,6 +11,7 @@ The result is web/ plus the published research payloads under data/:
     dist/css/…
     dist/js/…
     dist/data/*.json        <- public/data/*.json
+    dist/.well-known/…      <- security.txt (the only dot-directory copied)
 
 Hosted from any static file server (site root or a sub-path, since every
 reference in web/ is relative) the RESEARCH pages work fully: web/js/api.js
@@ -37,12 +38,15 @@ WEB_DIR = ROOT / "web"
 DATA_DIR = ROOT / "public" / "data"
 DEFAULT_OUT = ROOT / "dist"
 
-# Never copied, wherever they sit inside web/.
+# Never copied, wherever they sit inside web/. Dot-prefixed names are
+# editor and OS leftovers, with one exception: .well-known/ carries
+# security.txt and must ship.
 SKIP_NAMES = {"__pycache__", ".DS_Store", "Thumbs.db"}
+KEEP_DOTNAMES = {".well-known"}
 
 
 def _skip(directory: str, names: list[str]) -> set[str]:
-    return {n for n in names if n in SKIP_NAMES or n.startswith(".")}
+    return {n for n in names if n in SKIP_NAMES or (n.startswith(".") and n not in KEEP_DOTNAMES)}
 
 
 def referenced_payloads(api_js: Path) -> list[str]:

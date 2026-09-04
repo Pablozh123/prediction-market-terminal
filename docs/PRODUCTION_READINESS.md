@@ -1,6 +1,6 @@
 # Production readiness — running the terminal publicly
 
-Last updated 2026-08-07. Researched against the official documentation of
+Last updated 2026-09-04. Researched against the official documentation of
 Streamlit, Hetzner, Cloudflare, Polymarket, Kalshi and the Swiss data
 protection authority, with sources linked inline. The point of this document:
 everything that lives in the repository is prepared, and what remains is the
@@ -231,6 +231,98 @@ far under every limit above.
 **CHF 15–25 per month** with an 8 GB VPS and object-storage backups.
 
 ## 8. Launch checklist, in order
+
+### 8a. The live deployment (Cloudflare Pages + Railway)
+
+marketintel.dev is served by Cloudflare Pages: `scripts/build_static_site.py`
+copies `web/` to `dist/`, so `web/_headers` (CSP, HSTS, frame and permissions
+headers), `robots.txt`, `sitemap.xml` and `404.html` ship with every build.
+api.marketintel.dev is the Railway service (`api/server.py`) behind the
+Cloudflare proxy; it sets its own headers on `/api/*` and prefers
+`CF-Connecting-IP` for the per-IP limiter. Checked with `curl -sI` on
+2026-09-04: both hosts answer through Cloudflare (`Server: cloudflare`,
+anycast A records), `http://` is redirected with 301, `GET /healthz` on the
+API answers 200 (`HEAD` answered 404 until the route accepted it; deploy
+step 7 ships that). What is left is clicked in the two dashboards:
+
+1. [ ] **SSL/TLS → Overview → Full (strict)** for the marketintel.dev zone
+   (covers `api.marketintel.dev`). "Flexible" would let Cloudflare reach the
+   origin over plain HTTP. Not verifiable from outside.
+2. [x] Always Use HTTPS is on (the 301 from `http://` shows it).
+   [ ] **SSL/TLS → Edge Certificates:** set **Minimum TLS Version 1.2**. Leave
+   the HSTS switch off: `web/_headers` already sends
+   `Strict-Transport-Security` (one year, includeSubDomains, no preload), and
+   two sources with different values only confuse. Preload is a one-way
+   decision — removal from the browser lists takes months — and stays off
+   until it is wanted on purpose.
+3. [ ] **Security → WAF → Custom rules:** expression `(ip.src.country eq "CH")`,
+   action Block. This is the Swiss geoblocking from §4 and a business
+   decision, not a technical one: it makes the site unreachable from
+   Switzerland, operator included (check through a VPN or add a skip for one
+   IP). Decide consciously; the rule can be saved disabled first.
+4. [ ] **Security → Bots → Bot Fight Mode** on.
+5. [ ] **Security → WAF → Rate limiting rules** (the Free plan includes one):
+   hostname `api.marketintel.dev`, URI path starts with `/api/`, 60 requests
+   per 10 seconds per IP, action Block for 10 seconds. The in-process token
+   buckets in `api/server.py` stay as the second line behind it.
+6. [ ] **Railway → service → Variables:** `RATE_LIMIT_IP_HEADER=CF-Connecting-IP`
+   (the server prefers that header on its own when present; the variable
+   makes the intent explicit) and `ROUTE_WARM_MIN=4`, which keeps `/api/cross`
+   and `/api/risk` warm in the background instead of making the first visitor
+   wait 20–25 s. **Settings → Networking:** remove the generated
+   `*.up.railway.app` domain, otherwise requests to it bypass Cloudflare, the
+   WAF rules and the limiter's trust in `CF-Connecting-IP`.
+7. [ ] **Railway deploy:** `railway up --detach` from the repository root
+   (HANDOFF.md §9.1) so the API headers and the HEAD-capable `/healthz` go
+   live. Verify: `curl -sI https://api.marketintel.dev/healthz` → 200 with
+   `X-Frame-Options: DENY`.
+8. [x] **Pages → project → Settings → Builds:** production branch `main`, build
+   command `python scripts/build_static_site.py --api-base
+   https://api.marketintel.dev`, output directory `dist`. Deploys follow
+   pushes to `main` today; confirm the three fields once when opening the page.
+9. [ ] **www.marketintel.dev** answers 200 as a second Pages domain today. The
+   canonical form is a 301 to the apex: **Rules → Redirect Rules**, hostname
+   equals `www.marketintel.dev` → `https://marketintel.dev${uri}`, 301.
+   Verify with `curl -sI https://www.marketintel.dev/` (expect 301 and
+   `Location: https://marketintel.dev/`).
+10. [ ] **Uptime:** a monitor with GET on `https://api.marketintel.dev/healthz`
+    (Cloudflare Health Checks need a paid plan; the Better Stack or UptimeRobot
+    free tiers do it). Alert on anything but 200.
+11. [ ] After the next Pages deploy, verify the file-level part:
+    `curl -sI https://marketintel.dev/` shows `Content-Security-Policy`,
+    `Strict-Transport-Security` and `X-Frame-Options: DENY`;
+    `curl -sI https://marketintel.dev/robots.txt` is `text/plain`;
+    `curl -sI https://marketintel.dev/no-such-page` is 404.
+
+Open beyond the dashboards, in rough order of value:
+
+- **Backup of the Railway volume** — `.github/workflows/backup-volume.yml`
+  pulls `GET /api/admin/backup` (a zip of the copy-desk SQLite, settings,
+  entity graph and flag log, built with the SQLite backup API) once a day and
+  keeps it as a workflow artifact for 90 days. Set the repository secrets
+  `COPY_ADMIN_TOKEN` (the desk's write token) and `BACKUP_PASSPHRASE` (the
+  artifact is encrypted with it; artifacts of a public repository are
+  downloadable by anyone signed in). Nothing runs until the first secret is
+  set.
+- **API deploys follow `main`** — `.github/workflows/deploy-api.yml` runs
+  `railway up` for pushes that touch the API image and waits for `/healthz`.
+  Set the repository secret `RAILWAY_TOKEN` (project token, production
+  environment); until then the job skips itself with a notice.
+- **Cold routes**: `/api/risk` (~25 s) and `/api/cross` (~21 s) need a
+  server-side warm cache; `/api/risk/log` (435 KB) a row cap.
+- **Self-hosted IBM Plex** — removes the only third-party request the browser
+  makes (Google Fonts) and the paragraph the privacy policy spends on it.
+- **Table semantics** — the market and tape grids are `div`s; `role="table"`,
+  `row`, `columnheader`, `cell` make them readable to assistive tech.
+- **Cache rule check** — after a deploy, `curl -sI https://marketintel.dev/js/app.js`
+  must show `max-age=0, must-revalidate`; on 2026-09-04 it still showed
+  `max-age=14400` although `web/_headers` was on `main` (zone-level Browser
+  Cache TTL overrides `_headers` — set it to "Respect Existing Headers").
+
+### 8b. The self-hosted alternative (VPS + Caddy)
+
+The original plan, kept for the compose + Caddy path. If the site ever moves
+off Pages and Railway, steps 3 to 10 apply unchanged.
 
 1. Register the domain, point the nameservers at Cloudflare.
 2. Order the VPS, install Docker, deploy the repository

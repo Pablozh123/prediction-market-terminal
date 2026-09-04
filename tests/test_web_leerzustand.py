@@ -1435,9 +1435,11 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("HOW IT ENDED · WALLET", text)
         self.assertIn("All 20 positions have resolved: 10W · 9L · 1 flat (wallet, worthless counts as lost).", text)
         self.assertIn("Net cash of the pilot: -$11.11 on $100 deployed", text)
-        # Keine Serie: die ehrliche Zeile statt einer Kurve, dann Slippage.
-        self.assertIn("PILOT EQUITY VS RULE ADHERENCE: no series", text)
-        self.assertIn("every position exited through resolution, the wallet outcome is in the card above", text)
+        # Kein Kurventitel mehr in der Registrierung, also auch keine
+        # Entschuldigung fuer eine fehlende Kurve: die Seite verspricht die
+        # Equity-Kurve nicht und zeichnet sie nicht.
+        self.assertNotIn("PILOT EQUITY VS RULE ADHERENCE", text)
+        self.assertNotIn("no series", text)
         self.assertNotRegex(html, r'<polyline points="\s*\d')
         self.assertIn("SLIPPAGE PER TRADE · EXECUTION MINUS SIGNAL PRICE · n 20", text)
         self.assertIn("10 of 20 worse than signal · mean +0.50¢", text)
@@ -2258,6 +2260,31 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("Polymarket", flow.split("SUMMED OVER")[1][:200])
         whale = _sichtbarer_text(self.ausgabe["live"]["whale"])
         self.assertIn("SUMMED OVER Window:", whale)
+
+    def test_resolved_und_whale_tragen_einen_as_of_stempel(self) -> None:
+        """Beide Seiten zeigen abgeleitete Live-Daten und sagen, von wann.
+
+        Resolved und Whale flow waren die beiden Live-Seiten ohne "as of":
+        Resolved hat den Stempel aus /api/resolved, Whale flow den des Tapes.
+        """
+
+        resolved = _sichtbarer_text(self.ausgabe["live"]["resolved"])
+        self.assertIn("as of 2026-08-17 09:30 UTC", resolved)
+        whale = _sichtbarer_text(self.ausgabe["live"]["whale"])
+        self.assertIn("as of 2026-08-17 10:00 UTC", whale)
+
+    def test_markets_schnellfilter_heisst_was_er_tut(self) -> None:
+        """"By volume" filterte nichts und sortierte nichts; der Zustand heisst "All"."""
+
+        text = _sichtbarer_text(self.ausgabe["live"]["markets"])
+        self.assertNotIn("By volume", text)
+        self.assertIn("All Ending soon New", text)
+
+    def test_studienregister_verspricht_keine_diagramme(self) -> None:
+        """study.chart hat keinen Verbraucher mehr; ein Titel ohne Kurve waere ein Versprechen."""
+
+        quelle = (WURZEL / "web" / "js" / "studies.js").read_text(encoding="utf-8")
+        self.assertNotIn("chart:", quelle)
 
     def test_leaderboard_zeigt_geschaetzte_score_teile_nicht_als_zahl(self) -> None:
         """Ein Bestandteil ohne Eingabe im Feed erscheint als "assumed", nicht als Wert.

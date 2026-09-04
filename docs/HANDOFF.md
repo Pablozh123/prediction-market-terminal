@@ -87,8 +87,9 @@ Buildable now, no legal exposure:
    plus SIWE.
 6. ⬜ **Crypto payment** — only if asked for after launch. Fiat first.
 7. ✅ **Production deploy** — live as marketintel.dev (Cloudflare Pages) +
-   api.marketintel.dev (Railway), see §9.1. Imprint / privacy policy and
-   geoblocking are still open; the compose + Caddy path in
+   api.marketintel.dev (Railway), see §9.1. Imprint and privacy policy exist
+   as `/imprint.html` and `/privacy.html` (placeholders for name, address and
+   email still to fill); geoblocking is still open; the compose + Caddy path in
    PRODUCTION_READINESS.md remains the self-hosted alternative.
 
 Strategic decision, not without a lawyer:
@@ -191,6 +192,10 @@ Two hosts, two mechanisms — this cost a session once, so it is spelled out:
   `attractive-truth`, Dockerfile) does **not** follow GitHub. After the push run
   `railway up --detach` from the repo root and poll a new route until it
   answers (build ~1 min; the in-process copy daemon pauses for that minute).
+  `.github/workflows/deploy-api.yml` does the same on every push to `main`
+  that touches `api/`, `app/`, `src/`, `requirements.txt` or the `Dockerfile`,
+  once the repository secret `RAILWAY_TOKEN` (a project token for the
+  production environment) is set; without it the job skips itself and says so.
   `railway up` uploads the working tree minus `.gitignore` — `data/` never
   ships. Under Git Bash prefix `MSYS_NO_PATHCONV=1` when setting a variable
   whose value starts with `/` (`/data/...` was mangled to `C:/Program Files/Git/data/...`).

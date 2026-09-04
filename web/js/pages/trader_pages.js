@@ -1,6 +1,6 @@
 // Leaderboard, Whale flow, Risk screen, Tracked — ported from the design reference.
 
-import { esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, tapeFenster, fensterSatz, gradeLabel } from '../util.js';
+import { asOfLine, esc, money, num, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, tapeFenster, fensterSatz, gradeLabel } from '../util.js';
 import { caveat, caveatZeile } from '../claims.js';
 import { scoreBand, bandChips, basisSatz, gemessenSatz } from '../risk_bands.js';
 import { renderClusterGraphics, clusterFarbe } from './cluster_graphics.js';
@@ -219,7 +219,7 @@ export function renderTraders(T) {
     + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-max); color:var(--accent)">LEADERBOARD</div>'
     + '<h1 style="font-size:var(--t-head); line-height:var(--lh-tight); margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:var(--ls-flat)">Who is actually good at this</h1></div>'
     + '<div style="display:flex; align-items:center; gap:var(--sp-4)">'
-    + '<input value="' + esc(s.traderQuery) + '" ' + T.inp((e) => T.setState({ traderQuery: e.target.value }), 'traderQuery') + ' placeholder="Search name or wallet…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); width:230px" />'
+    + '<input value="' + esc(s.traderQuery) + '" ' + T.inpEntprellt('traderQuery') + ' placeholder="Search name or wallet…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); width:230px" />'
     + '<div ' + T.act(() => T.setState({ traderQuery: '', tPnl: 'all', tVol: 'all', traderRank: 'pnl' })) + ' class="hv-edge-strong" style="font-size:var(--t-small); color:var(--ink-3); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); cursor:pointer">Reset filters</div>'
     + '</div></div>'
     // Der Vorbehalt gegen rohe PnL-Raenge stand als leaderboard_caveat im
@@ -235,7 +235,9 @@ export function renderTraders(T) {
     + rankTabs + '</div></div>'
     + '</div>'
 
-    + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); overflow:hidden">'
+    // overflow:clip, not hidden: hidden makes the card the scroll container of
+    // the sticky head, and a box that never scrolls never lets it stick.
+    + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); overflow:clip">'
     + '<div ' + T.act(() => T.setState({ traderFiltersOpen: !s.traderFiltersOpen })) + ' class="hv-el" style="display:flex; align-items:center; justify-content:space-between; padding:var(--sp-4) var(--sp-5); background:var(--panel); cursor:pointer">'
     + '<div style="display:flex; align-items:center; gap:var(--sp-4)"><div style="font-size:var(--t-body)">Filters</div><div style="' + badge + '">' + tCount + '</div></div>'
     + '<div style="' + chevron + '">›</div></div>'
@@ -250,29 +252,31 @@ export function renderTraders(T) {
     + (scoreWolke ? '<div style="margin-top:var(--sp-5); max-width:700px">' + scoreWolke + '</div>' : '')
     + '</div>'
 
-    + '<div style="display:grid; grid-template-columns:' + grid + '; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-2); background:var(--panel); ' + LABEL + '">'
-    + '<div>#</div><div>WALLET · SCORE COMPONENTS</div><div style="text-align:right">PROFIT</div>'
-    + (hatWin ? '<div style="text-align:right">WIN RATE</div>' : '')
-    + (hatResolved ? '<div style="text-align:right">RESOLVED BETS</div>' : '')
-    + '<div style="text-align:right">VOLUME</div><div style="text-align:right">SCORE</div></div>'
+    + '<div role="table" aria-label="Leaderboard">'
+    + '<div role="row" style="display:grid; grid-template-columns:' + grid + '; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + LABEL + '">'
+    + '<div role="columnheader">#</div><div role="columnheader">WALLET · SCORE COMPONENTS</div><div role="columnheader" style="text-align:right">PROFIT</div>'
+    + (hatWin ? '<div role="columnheader" style="text-align:right">WIN RATE</div>' : '')
+    + (hatResolved ? '<div role="columnheader" style="text-align:right">RESOLVED BETS</div>' : '')
+    + '<div role="columnheader" style="text-align:right">VOLUME</div><div role="columnheader" style="text-align:right">SCORE</div></div>'
     + traderSorted.map((t, i) => {
       const score = t.score;
       const avatarStyle = 'width:28px; height:28px; flex:none; border-radius:var(--r-control); background:var(--panel-hover); border:1px solid var(--line-2); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-small); color:' + (score != null && score >= 80 ? 'var(--accent)' : 'var(--ink-3)');
       const scoreStyle = M + '; font-size:var(--t-small); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); ' + (score == null ? 'color:var(--ink-3); border:1px solid var(--line-2)' : score >= 80 ? 'color:var(--on-accent); background:var(--accent)' : score >= 60 ? 'color:var(--ink-1); border:1px solid var(--line-1)' : 'color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35)');
-      return '<div ' + T.act(() => T.openWallet(t.name)) + ' class="hv-panel" style="display:grid; grid-template-columns:' + grid + '; align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-3); cursor:pointer">'
-        + '<div style="' + M + '; font-size:var(--t-body); color:var(--ink-3)">' + (i + 1) + '</div>'
-        + '<div style="display:flex; align-items:center; gap:var(--sp-4); min-width:0">'
+      return '<div ' + T.act(() => T.openWallet(t.name), { role: null }) + ' role="row" class="hv-panel" style="display:grid; grid-template-columns:' + grid + '; align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-3); cursor:pointer">'
+        + '<div role="cell" style="' + M + '; font-size:var(--t-body); color:var(--ink-3)">' + (i + 1) + '</div>'
+        + '<div role="cell" style="display:flex; align-items:center; gap:var(--sp-4); min-width:0">'
         + '<div style="' + avatarStyle + '">' + esc(t.name.charAt(0).toUpperCase()) + '</div>'
         + '<div style="min-width:0"><div style="font-size:var(--t-body)">' + esc(t.name) + '</div>'
         + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-1)">' + esc(t.wallet) + (t.grade ? ' · grade ' + esc(gradeLabel(t.grade)) : '') + '</div>'
         + scorePartsHtml(t) + '</div></div>'
-        + '<div style="' + M + '; font-size:var(--t-body); text-align:right; color:' + (t.pnl == null ? 'var(--ink-3)' : (t.pnl >= 0 ? 'var(--pos)' : 'var(--neg)')) + '">' + (t.pnl != null ? money(t.pnl) : '—') + '</div>'
-        + (hatWin ? '<div style="' + M + '; font-size:var(--t-body); text-align:right">' + (t.win != null ? Math.round(t.win * 100) + '%' : '—') + '</div>' : '')
-        + (hatResolved ? '<div style="' + M + '; font-size:var(--t-small); text-align:right; color:var(--ink-4)">' + (t.resolved != null ? num(t.resolved) : '—') + '</div>' : '')
-        + '<div style="' + M + '; font-size:var(--t-body); text-align:right">' + (t.vol != null ? money(t.vol) : '—') + '</div>'
-        + '<div style="display:flex; justify-content:flex-end"><div' + scoreTitel(t) + ' style="' + scoreStyle + '">' + (score != null ? score : 'n/a') + '</div></div>'
+        + '<div role="cell" style="' + M + '; font-size:var(--t-body); text-align:right; color:' + (t.pnl == null ? 'var(--ink-3)' : (t.pnl >= 0 ? 'var(--pos)' : 'var(--neg)')) + '">' + (t.pnl != null ? money(t.pnl) : '—') + '</div>'
+        + (hatWin ? '<div role="cell" style="' + M + '; font-size:var(--t-body); text-align:right">' + (t.win != null ? Math.round(t.win * 100) + '%' : '—') + '</div>' : '')
+        + (hatResolved ? '<div role="cell" style="' + M + '; font-size:var(--t-small); text-align:right; color:var(--ink-4)">' + (t.resolved != null ? num(t.resolved) : '—') + '</div>' : '')
+        + '<div role="cell" style="' + M + '; font-size:var(--t-body); text-align:right">' + (t.vol != null ? money(t.vol) : '—') + '</div>'
+        + '<div role="cell" style="display:flex; justify-content:flex-end"><div' + scoreTitel(t) + ' style="' + scoreStyle + '">' + (score != null ? score : 'n/a') + '</div></div>'
         + '</div>';
     }).join('')
+    + '</div>'
     + '</div>';
 }
 
@@ -395,6 +399,7 @@ export function renderWhale(T) {
     + T.chip('Biggest print', sortKey === 'biggest', { whaleSort: 'biggest' })
     + T.chip('Prints', sortKey === 'prints', { whaleSort: 'prints' })
     + '<span style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-left:var(--sp-3)">' + (walletCount > SHOW ? 'top ' + SHOW + ' of ' + num(walletCount) + ' wallets' : num(walletCount) + ' wallet' + (walletCount === 1 ? '' : 's')) + ' · ' + num(grouped.length) + ' print' + (grouped.length === 1 ? '' : 's') + ' grouped</span>'
+    + (s.tapeAsOf || s.liveAsOf ? '<span style="margin-left:auto">' + asOfLine(s.tapeAsOf || s.liveAsOf) + '</span>' : '')
     + '</div></div>'
     + '<div style="display:grid; grid-template-columns:repeat(5,1fr); border-bottom:1px solid var(--line-2)">'
     + bandZelle('WALLETS PRINTING BIG', num(walletCount), '')
@@ -410,8 +415,9 @@ export function renderWhale(T) {
     + (fensterZeile ? '<div style="padding:var(--sp-3) var(--sp-6); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); color:var(--ink-4)">'
       + '<span style="letter-spacing:var(--ls-caps-strong); color:var(--ink-3); margin-right:var(--sp-3)">SUMMED OVER</span>' + esc(fensterZeile) + '</div>' : '')
     + '<div style="padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-2); font-size:var(--t-small); color:var(--ink-4)"><span style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3); margin-right:var(--sp-3)">CONCENTRATION</span>' + esc(konzentrationSatz) + '</div>'
-    + '<div style="display:grid; grid-template-columns:' + GRID + '; gap:0 var(--sp-4); padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-2); background:var(--panel); ' + LABEL + '">'
-    + '<div>WALLET · VENUE</div><div style="text-align:right">PRINTS</div><div style="text-align:right">TOTAL</div><div style="text-align:right">BIGGEST</div><div style="text-align:right">LEANING</div><div style="text-align:right">MARKETS</div><div>TOP MARKET</div><div style="text-align:right">MOSTLY IN</div><div style="text-align:right">LAST PRINT</div></div>'
+    + '<div role="table" aria-label="Whale flow">'
+    + '<div role="row" style="display:grid; grid-template-columns:' + GRID + '; gap:0 var(--sp-4); padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + LABEL + '">'
+    + '<div role="columnheader">WALLET · VENUE</div><div role="columnheader" style="text-align:right">PRINTS</div><div role="columnheader" style="text-align:right">TOTAL</div><div role="columnheader" style="text-align:right">BIGGEST</div><div role="columnheader" style="text-align:right">LEANING</div><div role="columnheader" style="text-align:right">MARKETS</div><div role="columnheader">TOP MARKET</div><div role="columnheader" style="text-align:right">MOSTLY IN</div><div role="columnheader" style="text-align:right">LAST PRINT</div></div>'
     + (rows.length ? '' : leerZeile('Every print in this window is anonymous — Kalshi publishes no wallet identity, so there is nothing to group by.'))
     + rows.map((w) => {
       // "MOSTLY" war ein Alphawert auf demselben Rot — bei 11 px landete das
@@ -425,25 +431,26 @@ export function renderWhale(T) {
       // the leaderboard, and without it the click opened nothing (w.wallet is
       // the full address when the print carried one, else the name again —
       // openWallet keeps only a full address).
-      return '<div ' + T.act(() => T.openWallet(w.name, w.wallet !== w.name ? w.wallet : '')) + ' class="hv-panel" style="display:grid; grid-template-columns:' + GRID + '; gap:0 var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-3); cursor:pointer">'
-        + '<div style="min-width:0"><div style="font-size:var(--t-body); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(w.name) + '">' + esc(w.name) + '</div>'
+      return '<div ' + T.act(() => T.openWallet(w.name, w.wallet !== w.name ? w.wallet : ''), { role: null }) + ' role="row" class="hv-panel" style="display:grid; grid-template-columns:' + GRID + '; gap:0 var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-3); cursor:pointer">'
+        + '<div role="cell" style="min-width:0"><div style="font-size:var(--t-body); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(w.name) + '">' + esc(w.name) + '</div>'
         + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(w.wallet) + '">' + esc(w.wallet) + ' · ' + esc(w.venues) + '</div></div>'
-        + '<div style="' + M + '; font-size:var(--t-body); text-align:right; color:var(--ink-3)">' + w.prints + '</div>'
-        + '<div style="' + M + '; font-size:var(--t-body); text-align:right">' + money(w.total) + '</div>'
-        + '<div style="' + M + '; font-size:var(--t-body); text-align:right; color:var(--ink-3)">' + money(w.biggest) + '</div>'
-        + '<div><div style="' + leanStyle + '">' + esc(w.lean) + '</div>'
+        + '<div role="cell" style="' + M + '; font-size:var(--t-body); text-align:right; color:var(--ink-3)">' + w.prints + '</div>'
+        + '<div role="cell" style="' + M + '; font-size:var(--t-body); text-align:right">' + money(w.total) + '</div>'
+        + '<div role="cell" style="' + M + '; font-size:var(--t-body); text-align:right; color:var(--ink-3)">' + money(w.biggest) + '</div>'
+        + '<div role="cell"><div style="' + leanStyle + '">' + esc(w.lean) + '</div>'
         + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); text-align:right; margin-top:var(--sp-1)">'
         + (w.buys && w.sells
           ? money(w.buyDollar || 0) + ' bought · ' + money(w.sellDollar || 0) + ' sold'
           : w.buys + ' buy' + (w.buys === 1 ? '' : 's') + ' · ' + w.sells + ' sell' + (w.sells === 1 ? '' : 's'))
         + '</div></div>'
-        + '<div style="' + M + '; font-size:var(--t-body); text-align:right; color:var(--ink-3)">' + w.marketCount + '</div>'
-        + '<div style="min-width:0"><div style="font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(w.topMarket.title) + '">' + esc(w.topMarket.title) + '</div>'
+        + '<div role="cell" style="' + M + '; font-size:var(--t-body); text-align:right; color:var(--ink-3)">' + w.marketCount + '</div>'
+        + '<div role="cell" style="min-width:0"><div style="font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(w.topMarket.title) + '">' + esc(w.topMarket.title) + '</div>'
         + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-1)">' + money(w.topMarket.dollar) + ' · ' + topMarketShare + '% of this wallet</div></div>'
-        + '<div style="text-align:right"><div style="' + M + '; font-size:var(--t-small); color:var(--ink-2)">' + esc(w.cat) + '</div>'
+        + '<div role="cell" style="text-align:right"><div style="' + M + '; font-size:var(--t-small); color:var(--ink-2)">' + esc(w.cat) + '</div>'
         + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-1)">' + esc(w.catShare) + ' prints</div></div>'
-        + '<div style="' + M + '; font-size:var(--t-micro); text-align:right; color:var(--ink-4)">' + esc(w.lastAgo) + '</div></div>';
+        + '<div role="cell" style="' + M + '; font-size:var(--t-micro); text-align:right; color:var(--ink-4)">' + esc(w.lastAgo) + '</div></div>';
     }).join('')
+    + '</div>'
     + '</div>';
 }
 
@@ -1096,9 +1103,9 @@ export function renderRisk(T) {
       + '(size, long odds, timing, account freshness). '
       + 'The chips under each wallet say which patterns fired; <span style="' + M + '; font-size:var(--t-small)">watch only</span> means none did — the wallet is listed for size alone.'
       + '</div>'
-      + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin:var(--sp-5) var(--sp-6); overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:' + GRID_W + '; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
-      + '<div>WALLET · WHY FLAGGED</div><div style="text-align:right">SCORE</div><div style="text-align:right">PRINTS</div><div style="text-align:right">NOTIONAL</div><div style="text-align:right">BIGGEST</div><div style="text-align:right">FIRST SEEN</div></div>'
+      + '<div role="table" aria-label="Risk wallets" style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin:var(--sp-5) var(--sp-6); overflow:clip">'
+      + '<div role="row" style="display:grid; grid-template-columns:' + GRID_W + '; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); position:sticky; top:0; z-index:3; border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
+      + '<div role="columnheader">WALLET · WHY FLAGGED</div><div role="columnheader" style="text-align:right">SCORE</div><div role="columnheader" style="text-align:right">PRINTS</div><div role="columnheader" style="text-align:right">NOTIONAL</div><div role="columnheader" style="text-align:right">BIGGEST</div><div role="columnheader" style="text-align:right">FIRST SEEN</div></div>'
       + (walletRows.length ? '' : leerZeile(antwortDa ? 'No wallet cleared the screen in this window — nothing in the flagged flow groups to a suspicious wallet.' : risikoSatz))
       + walletRows.map((w) => {
         const band = BAND(Number(w.score) || 0, T, w);
@@ -1109,17 +1116,17 @@ export function renderRisk(T) {
           return '<span style="' + M + '; font-size:var(--t-micro); white-space:nowrap; border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3); '
             + (echt ? 'color:var(--warn); border:1px solid rgba(var(--warn-rgb),.3)' : 'color:var(--ink-3); border:1px solid var(--line-2)') + '">' + esc(f) + '</span>';
         }).join('');
-        return '<div ' + T.act(() => T.openWallet(w.wallet, w.address)) + ' class="hv-panel" style="display:grid; grid-template-columns:' + GRID_W + '; gap:var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small); cursor:pointer">'
-          + '<div style="min-width:0"><div style="font-family:var(--font-ui); font-size:var(--t-body); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(w.address || w.wallet) + '">' + esc(w.wallet) + '</div>'
+        return '<div ' + T.act(() => T.openWallet(w.wallet, w.address), { role: null }) + ' role="row" class="hv-panel" style="display:grid; grid-template-columns:' + GRID_W + '; gap:var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small); cursor:pointer">'
+          + '<div role="cell" style="min-width:0"><div style="font-family:var(--font-ui); font-size:var(--t-body); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(w.address || w.wallet) + '">' + esc(w.wallet) + '</div>'
           + '<div style="font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(w.context) + '">mostly in ' + esc(w.context) + '</div>'
           + (flagChips ? '<div style="display:flex; gap:var(--sp-2); flex-wrap:wrap; margin-top:var(--sp-2)">' + flagChips + '</div>' : '')
           + '</div>'
-          + '<div style="text-align:right"><div style="display:inline-block; ' + scoreStyle + '">' + w.score + '</div>'
+          + '<div role="cell" style="text-align:right"><div style="display:inline-block; ' + scoreStyle + '">' + w.score + '</div>'
           + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); color:' + band[1] + '; margin-top:var(--sp-2)">' + band[0] + '</div></div>'
-          + '<div style="text-align:right; color:var(--ink-3)">' + w.prints + '</div>'
-          + '<div style="text-align:right">' + esc(String(w.notional)) + '</div>'
-          + '<div style="text-align:right; color:var(--ink-3)">' + esc(String(w.largest || '—')) + '</div>'
-          + '<div style="text-align:right; color:var(--ink-3)">' + esc(w.firstSeen) + '</div></div>';
+          + '<div role="cell" style="text-align:right; color:var(--ink-3)">' + w.prints + '</div>'
+          + '<div role="cell" style="text-align:right">' + esc(String(w.notional)) + '</div>'
+          + '<div role="cell" style="text-align:right; color:var(--ink-3)">' + esc(String(w.largest || '—')) + '</div>'
+          + '<div role="cell" style="text-align:right; color:var(--ink-3)">' + esc(w.firstSeen) + '</div></div>';
       }).join('')
       + '</div></div>';
   } else if (s.riskView === 'fresh') {
@@ -1168,25 +1175,25 @@ export function renderRisk(T) {
       + 'Markets where three or more wallets hit the same side within a 30-minute window — money arriving together. '
       + 'The bar shows how tight the burst was: the full track is 30 minutes, the filled part is the actual span.'
       + '</div>'
-      + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin:var(--sp-5) var(--sp-6); overflow:hidden">'
-      + '<div style="display:grid; grid-template-columns:' + GRID_T + '; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
-      + '<div>MARKET</div><div style="text-align:right">WALLETS</div><div>BURST · OF 30 MIN</div><div style="text-align:right">SIDE</div><div style="text-align:right">NOTIONAL</div></div>'
+      + '<div role="table" aria-label="Coordinated timing" style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin:var(--sp-5) var(--sp-6); overflow:clip">'
+      + '<div role="row" style="display:grid; grid-template-columns:' + GRID_T + '; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); position:sticky; top:0; z-index:3; border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
+      + '<div role="columnheader">MARKET</div><div role="columnheader" style="text-align:right">WALLETS</div><div role="columnheader">BURST · OF 30 MIN</div><div role="columnheader" style="text-align:right">SIDE</div><div role="columnheader" style="text-align:right">NOTIONAL</div></div>'
       + (timingRows.length ? '' : leerZeile(antwortDa
         ? 'No coordinated burst in this window — no market where three or more wallets hit the same side within 30 minutes of each other.'
         : risikoSatz))
       + timingRows.map((c) => {
         const span = Number(c.span_minutes);
         const anteil = isNaN(span) ? 0 : Math.max(0.02, Math.min(1, span / 30));
-        const balken = '<div style="display:flex; align-items:center; gap:var(--sp-3)">'
+        const balken = '<div role="cell" style="display:flex; align-items:center; gap:var(--sp-3)">'
           + '<div style="flex:1; height:7px; border-radius:var(--r-control); background:rgba(var(--ink),.08); overflow:hidden">'
           + '<div style="width:' + (anteil * 100).toFixed(1) + '%; height:7px; background:' + (c.same ? 'var(--warn)' : 'rgba(var(--ink),.45)') + '"></div></div>'
           + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); white-space:nowrap">' + esc(c.window) + '</div></div>';
-        return '<div style="display:grid; grid-template-columns:' + GRID_T + '; gap:var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small)">'
-          + '<div style="font-family:var(--font-ui); font-size:var(--t-body); min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(c.market) + '">' + esc(c.market) + '</div>'
-          + '<div style="text-align:right">' + c.wallets + '</div>'
+        return '<div role="row" style="display:grid; grid-template-columns:' + GRID_T + '; gap:var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small)">'
+          + '<div role="cell" style="font-family:var(--font-ui); font-size:var(--t-body); min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(c.market) + '">' + esc(c.market) + '</div>'
+          + '<div role="cell" style="text-align:right">' + c.wallets + '</div>'
           + balken
-          + '<div style="text-align:right; ' + M + '; font-size:var(--t-small); color:' + (c.same ? 'var(--warn)' : 'var(--ink-3)') + '">' + (c.same ? 'all on ' + esc(c.side || 'one side') : 'mixed') + '</div>'
-          + '<div style="text-align:right">' + esc(c.notional) + '</div></div>';
+          + '<div role="cell" style="text-align:right; ' + M + '; font-size:var(--t-small); color:' + (c.same ? 'var(--warn)' : 'var(--ink-3)') + '">' + (c.same ? 'all on ' + esc(c.side || 'one side') : 'mixed') + '</div>'
+          + '<div role="cell" style="text-align:right">' + esc(c.notional) + '</div></div>';
       }).join('')
       + '</div></div>';
   } else {

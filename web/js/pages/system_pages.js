@@ -3029,8 +3029,7 @@ function ausschlussText(status) {
   return KARTEI[s] || (s ? s.replace(/^ausgeschlossen_?/, 'excluded · ').replace(/_/g, ' ') : '—');
 }
 
-// ---- pilot: English field values, slippage chart, watcher funnel, and the
-// honest line where the equity chart would be.
+// ---- pilot: English field values, slippage chart and watcher funnel.
 const PILOT_WOERTER = [
   [/haelt bis zur aufloesung \(protokoll\)/i, 'held to resolution (protocol)'],
   [/haelt bis zur aufloesung/i, 'held to resolution'],
@@ -3109,14 +3108,6 @@ function pilotExtrasHtml(payload, ledger) {
         : '')
       + '</div></div>');
   }
-
-  // The promised chart has no series: say so instead of drawing one.
-  const offen = trades.filter((t) => !t.exit_zeit_utc && !t.exit_preis).length;
-  teile.push(hinweisKarte('PILOT EQUITY VS RULE ADHERENCE: no series — pilot.json carries no equity curve'
-    + (abgeschlossen
-      ? '; every position exited through resolution, the wallet outcome is in the card above'
-      : (trades.length ? ' and ' + offen + ' of ' + trades.length + ' positions exit only through resolution, so no equity path exists yet' : ''))
-    + '. Below instead: execution against signal price per trade, and the watcher funnel of the last run.'));
 
   // Slippage per trade, execution minus signal, in cents. Positive = paid more.
   const punkte = trades.map((t) => ({ t, c: pilotSlippageCents(t), roh: pilotSlippageRoh(t) })).filter((x) => x.c != null)
@@ -3205,6 +3196,17 @@ const KERNSATZ = {
   'AGENT LAYER GUARDRAILS': 'Read-only tools, capped rows, a skeptic that can only lower priority, mock backend by default.'
 };
 
+// public/data/meta.json, the run stamp the same daily run publishes next to
+// audit.json, carries a backend field of its own ("mock" in the published
+// file). This page never reads meta.json, so the word stood in a public
+// artifact with no explanation on the one page that talks about the
+// backend. What the field means is fixed by its writer (daily_review_run.py
+// in the thesis repo): backend_name = "llm" if use_llm else "mock", the
+// operating mode of the model behind the review-queue step — the same
+// mode audit.json counts per call above — and nothing about the market
+// data, which the collector step reads without any backend.
+const META_BACKEND_SATZ = 'The run stamp published next to these files, public/data/meta.json, carries a backend field of its own: it names the operating mode of the model behind that run\'s review-queue step — mock is the deterministic stand-in with no network access, a live model is an explicit flag — not where the market data came from.';
+
 // Die vier Grundsaetze des taeglichen Laufs. Sie reisen als Textzeilen in
 // public/data/meta.json, geschrieben vom Lauf in einem anderen Repo, und drei
 // von ihnen hatten hier keinen Leser: sie standen auf keiner Seite. Jetzt
@@ -3274,7 +3276,7 @@ function renderMethodology(T, payload, study) {
       'Pre-registered means: hypothesis, primary metric, success threshold, cohort and exclusion rules are fixed before the first look at the outcome period, and externally time-stamped. Results are published in both directions — a failure and an insufficient sample are both citable results — and every analysis outside the pre-registered primary test is marked exploratory. The pilot froze its rules before the first trade and reports its own deviation from the frozen text (stake halved) as a deviation; the track-record validation is drafted for AsPredicted and listed as pending until submitted.'),
     abschnitt('AGENT LAYER GUARDRAILS',
       'Agents read exclusively through the MCP read layer: four read-only tools, at most 50 rows per response, wallet addresses masked. The skeptic can only lower a case\'s priority (deduction between -0.3 and 0), never raise it; recommendations come from a fixed whitelist (watch, check source, escalate to a human); a redaction gate aborts a publish that contains wallet-address patterns or key-like strings; and the default backend is a deterministic mock with no network access — productive LLM mode is an explicit flag. '
-      + '<span style="color:var(--warn)">' + esc(backendSatz) + '</span>')
+      + '<span style="color:var(--warn)">' + esc(backendSatz) + '</span> ' + esc(META_BACKEND_SATZ))
   ];
 
   return '<div style="padding:var(--sp-6)">'
