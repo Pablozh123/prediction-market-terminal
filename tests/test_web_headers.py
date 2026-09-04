@@ -67,18 +67,18 @@ class PagesHeaderTest(unittest.TestCase):
         robots = (WEB / "robots.txt").read_text(encoding="utf-8")
         self.assertIn("Sitemap: https://marketintel.dev/sitemap.xml", robots)
 
-    def test_security_txt_und_redirects(self) -> None:
+    def test_security_txt(self) -> None:
         txt = (WEB / ".well-known" / "security.txt").read_text(encoding="utf-8")
         self.assertIn("Contact: https://", txt)
         self.assertIn("Expires: 2027-", txt)
         self.assertNotIn("[", txt)  # kein Platzhalter
-        redirects = (WEB / "_redirects").read_text(encoding="utf-8")
-        regeln = [z.split() for z in redirects.splitlines() if z and not z.startswith("#")]
-        self.assertEqual(len(regeln), 2)
-        for quelle, ziel, status in regeln:
-            self.assertTrue(ziel.startswith("https://marketintel.dev/"), ziel)
-            self.assertNotEqual(quelle.split("/")[2], "marketintel.dev", quelle)
-            self.assertEqual(status, "301")
+
+    def test_keine_redirects_datei(self) -> None:
+        # Pages wertet in _redirects nur Pfade aus, nie Hostnamen: die Regeln
+        # www -> apex und pages.dev -> apex standen drin und beide Hosts
+        # antworteten weiter 200 (2026-09-04). Die Umleitung ist eine
+        # Redirect Rule im Dashboard (PRODUCTION_READINESS.md 8a, Schritt 9).
+        self.assertFalse((WEB / "_redirects").exists())
 
     def test_build_liefert_well_known_mit(self) -> None:
         import shutil
@@ -91,7 +91,6 @@ class PagesHeaderTest(unittest.TestCase):
         try:
             self.assertEqual(build(out), 0)
             self.assertTrue((out / ".well-known" / "security.txt").is_file())
-            self.assertTrue((out / "_redirects").is_file())
             self.assertFalse((out / ".DS_Store").exists())
         finally:
             shutil.rmtree(out.parent, ignore_errors=True)
