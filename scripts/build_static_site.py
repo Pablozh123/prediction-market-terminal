@@ -11,6 +11,7 @@ The result is web/ plus the published research payloads under data/:
     dist/css/…
     dist/js/…
     dist/data/*.json        <- public/data/*.json
+    dist/study/<slug>/…     <- one crawlable page per frozen study
     dist/.well-known/…      <- security.txt (the only dot-directory copied)
 
 Hosted from any static file server (site root or a sub-path, since every
@@ -27,11 +28,17 @@ files removed from web/ or public/data/ disappear from dist/ as well.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import shutil
 import sys
+from datetime import date
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from app import static_studies as st  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB_DIR = ROOT / "web"
@@ -56,6 +63,40 @@ def referenced_payloads(api_js: Path) -> list[str]:
         return []
     text = api_js.read_text(encoding="utf-8")
     return sorted(set(re.findall(r"'([A-Za-z0-9_\-]+\.json)'", text)))
+
+
+def write_study_pages(out: Path, data_out: Path) -> list[str]:
+    """One crawlable document per frozen study, plus its sitemap entries.
+
+    The app is hash-routed, so every study lives at the same URL as far as a
+    crawler is concerned — web/sitemap.xml says so and lists only the real
+    documents. The findings are the content of this site, so each one gets an
+    address: dist/study/<slug>/index.html, built from the published payload,
+    with no figure that is not in that file.
+    """
+
+    quelle = data_out / "microstructure.json"
+    if not quelle.exists():
+        return []
+    try:
+        payload = json.loads(quelle.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as err:
+        print(f"  note: {quelle.name} could not be read ({err}); no study pages written")
+        return []
+    seiten = st.study_pages(payload)
+    if not seiten:
+        return []
+    for slug, html in seiten.items():
+        ziel = out / st.STUDY_DIR / slug
+        ziel.mkdir(parents=True, exist_ok=True)
+        (ziel / "index.html").write_text(html, encoding="utf-8")
+    sitemap = out / "sitemap.xml"
+    if sitemap.exists():
+        stand = str(payload.get("stand_utc") or "")[:10] or date.today().isoformat()
+        sitemap.write_text(
+            st.sitemap_mit_studien(sitemap.read_text(encoding="utf-8"), sorted(seiten), stand),
+            encoding="utf-8")
+    return sorted(seiten)
 
 
 def build(out: Path, api_base: str = "") -> int:
@@ -95,6 +136,8 @@ def build(out: Path, api_base: str = "") -> int:
         html = html.replace(marker, f'<meta name="api-base" content="{api_base}">', 1)
         index.write_text(html, encoding="utf-8")
 
+    studien = write_study_pages(out, data_out)
+
     missing = [name for name in referenced_payloads(WEB_DIR / "js" / "api.js") if not (data_out / name).exists()]
     print(f"static site written to {out}")
     print(f"  api base: {api_base or '(same origin)'}")
@@ -102,6 +145,10 @@ def build(out: Path, api_base: str = "") -> int:
     for name in ("index.html", "js", "css"):
         marker = "ok" if (out / name).exists() else "MISSING"
         print(f"  {name}: {marker}")
+    if studien:
+        print(f"  {len(studien)} study page(s) under {st.STUDY_DIR}/, listed in sitemap.xml")
+    else:
+        print("  no study pages: microstructure.json is missing or carries no study with an id")
     if missing:
         print("  note: api.js references payloads that public/data/ does not have yet: " + ", ".join(missing))
         print("        those research tabs will show their empty state until the next publish run.")
