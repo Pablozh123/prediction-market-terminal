@@ -402,41 +402,6 @@ class WebLeerzustandTest(unittest.TestCase):
         quelltext = (WURZEL / "web" / "js" / "app.js").read_text(encoding="utf-8")
         self.assertIn("min_holder=", quelltext)
 
-    def test_die_wallet_zeigt_kalibrierung_und_gewinn_herkunft(self) -> None:
-        # /api/wallet liefert calibration und attribution seit jeher, die
-        # Seite zeigte beides nie. Eine Trefferquote laesst zwei Fragen offen:
-        # ob die bezahlten Preise stimmten, und ob ein einziger Treffer die
-        # Bilanz traegt. Genau die beantworten die zwei Karten.
-        text = _sichtbarer_text(self.ausgabe["live"]["wallet_tab_record"])
-        self.assertIn("CALIBRATION · ENTRY PRICE VS OUTCOME", text)
-        # n und Intervall an der Quote, nicht nur die Quote.
-        self.assertIn("95% CI [47%, 91%] · n 12 resolved", text)
-        self.assertIn("62.0¢", text)
-        # Die Brier-Zahl steht nie allein: erst der Vergleich ist lesbar.
-        self.assertIn("0.180 vs 0.188", text)
-        self.assertIn("lower is better", text)
-        # Jeder Bucket traegt sein eigenes n und sein eigenes Intervall.
-        # Beides steht im Diagramm, also im Markup, nicht im Fliesstext.
-        html = self.ausgabe["live"]["wallet_tab_record"]
-        self.assertIn("predicted 20% · realised 67% · n 3", html)
-        self.assertIn("predicted 90% · realised 80% · n 5", html)
-
-        self.assertIn("PROFIT ATTRIBUTION", text)
-        self.assertIn("$210.00", text)
-        self.assertIn("Harness event that carried the record", text)
-        self.assertIn("6 events that made money", text)
-        # Der Satz, der die Zahlen einordnet: Anteile am Bruttogewinn, keine
-        # Nettobilanz. Ohne ihn liest sich "45% Top event" wie ein Anteil am
-        # Ergebnis.
-        self.assertIn("Shares of gross profit, with losses not netted against them", text)
-
-    def test_ohne_diese_bloecke_nennt_die_wallet_die_quelle(self) -> None:
-        # Kein Platzhalter und keine Null, sondern der fehlende Endpunkt.
-        for name in ("wallet_empty_record",):
-            text = _sichtbarer_text(self.ausgabe["live"][name])
-            with self.subTest(name=name):
-                self.assertNotIn("$0.00 gross profit", text)
-
     def test_abgeschnittene_signalliste_sagt_es(self) -> None:
         live = _sichtbarer_text(self.ausgabe["live"]["alerts"])
         self.assertIn("showing the top 60 of 125 signals", live)
@@ -2279,6 +2244,41 @@ class WebLeerzustandTest(unittest.TestCase):
         # Mit n daneben, damit die Quote ihr Gewicht nennt.
         self.assertIn("35W / 25L of 60 decided positions", text)
         self.assertIn("3 back at cost", text)
+
+    def test_die_wallet_zeigt_kalibrierung_und_gewinn_herkunft(self) -> None:
+        # /api/wallet liefert calibration und attribution seit jeher, die
+        # Seite zeigte beides nie. Eine Trefferquote laesst zwei Fragen offen:
+        # ob die bezahlten Preise stimmten, und ob ein einziger Treffer die
+        # Bilanz traegt. Genau die beantworten die zwei Karten.
+        text = _sichtbarer_text(self.ausgabe["live"]["wallet_tab_record"])
+        self.assertIn("CALIBRATION · ENTRY PRICE VS OUTCOME", text)
+        # n und Intervall an der Quote, nicht nur die Quote.
+        self.assertIn("95% CI [47%, 91%] · n 12 resolved", text)
+        self.assertIn("62.0¢", text)
+        # Die Brier-Zahl steht nie allein: erst der Vergleich ist lesbar.
+        self.assertIn("0.180 vs 0.188", text)
+        self.assertIn("lower is better", text)
+        # Jeder Bucket traegt sein eigenes n und sein eigenes Intervall.
+        # Beides steht im Diagramm, also im Markup, nicht im Fliesstext.
+        html = self.ausgabe["live"]["wallet_tab_record"]
+        self.assertIn("predicted 20% · realised 67% · n 3", html)
+        self.assertIn("predicted 90% · realised 80% · n 5", html)
+
+        self.assertIn("PROFIT ATTRIBUTION", text)
+        self.assertIn("$210.00", text)
+        self.assertIn("Harness event that carried the record", text)
+        self.assertIn("6 events that made money", text)
+        # Der Satz, der die Zahlen einordnet: Anteile am Bruttogewinn, keine
+        # Nettobilanz. Ohne ihn liest sich "45% Top event" wie ein Anteil am
+        # Ergebnis.
+        self.assertIn("Shares of gross profit, with losses not netted against them", text)
+
+    def test_ohne_diese_bloecke_nennt_die_wallet_die_quelle(self) -> None:
+        # Kein Platzhalter und keine Null, sondern der fehlende Endpunkt.
+        for name in ("wallet_empty_record",):
+            text = _sichtbarer_text(self.ausgabe["live"][name])
+            with self.subTest(name=name):
+                self.assertNotIn("$0.00 gross profit", text)
 
     def test_tape_und_whale_nennen_die_summierte_spanne(self) -> None:
         """Jede Summe ueber das Tape sagt, ueber welche Spanne sie geht.
