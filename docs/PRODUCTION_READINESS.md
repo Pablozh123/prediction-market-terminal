@@ -243,28 +243,70 @@ Cloudflare proxy; it sets its own headers on `/api/*` and prefers
 2026-09-04: both hosts answer through Cloudflare (`Server: cloudflare`,
 anycast A records), `http://` is redirected with 301, `GET /healthz` on the
 API answers 200 (`HEAD` answered 404 until the route accepted it; deploy
-step 7 ships that). What is left is clicked in the two dashboards:
+step 7 ships that). What is left is clicked in the two dashboards. Steps 1–5
+and 9 are written as a paste sheet — the menu path, then the exact value for
+each field — and `scripts/cloudflare_zone_setup.py` (after step 11) sets the
+same values through the API; the rule names in the sheet are the names the
+script looks for, so the two ways can be mixed without duplicates.
 
-1. [ ] **SSL/TLS → Overview → Full (strict)** for the marketintel.dev zone
-   (covers `api.marketintel.dev`). "Flexible" would let Cloudflare reach the
-   origin over plain HTTP. Not verifiable from outside.
-2. [x] Always Use HTTPS is on (the 301 from `http://` shows it).
-   [ ] **SSL/TLS → Edge Certificates:** set **Minimum TLS Version 1.2**. Leave
-   the HSTS switch off: `web/_headers` already sends
+1. [ ] **SSL/TLS → Overview**, encryption mode (the Configure button), for
+   the whole zone including `api.marketintel.dev`:
+   ```
+   Full (strict)
+   ```
+   "Full" alone would accept any certificate at the origin, "Flexible" would
+   let Cloudflare reach it over plain HTTP. Not verifiable from outside.
+2. [x] Always Use HTTPS is on (the 301 from `http://` shows it; the switch
+   sits on the same page as the next field and stays on).
+   [ ] **SSL/TLS → Edge Certificates → Minimum TLS Version**
+   ```
+   TLS 1.2
+   ```
+   Leave the HSTS switch off: `web/_headers` already sends
    `Strict-Transport-Security` (one year, includeSubDomains, no preload), and
    two sources with different values only confuse. Preload is a one-way
    decision — removal from the browser lists takes months — and stays off
    until it is wanted on purpose.
-3. [ ] **Security → WAF → Custom rules:** expression `(ip.src.country eq "CH")`,
-   action Block. This is the Swiss geoblocking from §4 and a business
-   decision, not a technical one: it makes the site unreachable from
-   Switzerland, operator included (check through a VPN or add a skip for one
-   IP). Decide consciously; the rule can be saved disabled first.
-4. [ ] **Security → Bots → Bot Fight Mode** on.
-5. [ ] **Security → WAF → Rate limiting rules** (the Free plan includes one):
-   hostname `api.marketintel.dev`, URI path starts with `/api/`, 60 requests
-   per 10 seconds per IP, action Block for 10 seconds. The in-process token
-   buckets in `api/server.py` stay as the second line behind it.
+   [ ] **Caching → Configuration → Browser Cache TTL**
+   ```
+   Respect Existing Headers
+   ```
+   Until this is set, the zone default of four hours wins over `web/_headers`:
+   on 2026-09-04 `/js/app.js` was served with `max-age=14400` although the
+   file asks for `max-age=0`, so a deploy could stay invisible for hours.
+3. [ ] **Optional — a business decision, off by default: the Swiss geoblock**
+   from §4. It makes the site unreachable from Switzerland, operator
+   included (check through a VPN, or add a skip rule for one IP first).
+   Decide consciously; **Save as Draft** keeps the rule visible but inactive.
+   **Security → Security rules → Create rule → Custom rules**
+   ```
+   Rule name:    Block Switzerland (cloudflare_zone_setup.py)
+   Expression:   (ip.src.country eq "CH")
+   Action:       Block
+   ```
+   The script creates this rule only when called with `--geoblock-ch`.
+4. [ ] **Security → Settings → filter "Bot traffic" → Bot Fight Mode**
+   ```
+   On
+   ```
+   It covers the whole zone, `api.marketintel.dev` included, and can
+   challenge clients that are not browsers (an uptime monitor, `curl`); after
+   switching it on, confirm the monitor from step 10 still sees a 200.
+5. [ ] **Security → Security rules → Create rule → Rate limiting rules** (the
+   Free plan includes one rule):
+   ```
+   Rule name:                      API rate limit (cloudflare_zone_setup.py)
+   If incoming requests match:     Field "URI Path" · Operator "starts with" · Value /api/
+   With the same characteristics:  IP
+   When rate exceeds:              60 requests · 10 seconds
+   Then take action:               Block
+   Duration:                       10 seconds
+   ```
+   Behind the builder that is `(starts_with(http.request.uri.path, "/api/"))`.
+   A hostname clause is not available on the Free plan (its rate limiting
+   expressions know only "Path" and "Verified Bot"); `/api/` exists only on
+   `api.marketintel.dev`, so the rule already means "the API". The in-process
+   token buckets in `api/server.py` stay as the second line behind it.
 6. [ ] **Railway → service → Variables:** `RATE_LIMIT_IP_HEADER=CF-Connecting-IP`
    (the server prefers that header on its own when present; the variable
    makes the intent explicit) and `ROUTE_WARM_MIN=4`, which keeps `/api/cross`
@@ -281,14 +323,28 @@ step 7 ships that). What is left is clicked in the two dashboards:
    https://api.marketintel.dev`, output directory `dist`. Deploys follow
    pushes to `main` today; confirm the three fields once when opening the page.
 9. [ ] **www.marketintel.dev** answers 200 as a second Pages domain today. The
-   canonical form is a 301 to the apex: **Rules → Redirect Rules**, hostname
-   equals `www.marketintel.dev` → `https://marketintel.dev${uri}`, 301.
+   canonical form is a 301 to the apex. **Rules → Overview → Create rule →
+   Redirect Rule**, "When incoming requests match" set to *Custom filter
+   expression*:
+   ```
+   Rule name:               www to apex 301 (cloudflare_zone_setup.py)
+   Expression:              (http.host eq "www.marketintel.dev")
+   URL redirect → Type:     Dynamic
+   Expression:              concat("https://marketintel.dev", http.request.uri.path)
+   Status code:             301
+   Preserve query string:   on
+   ```
    Verify with `curl -sI https://www.marketintel.dev/` (expect 301 and
    `Location: https://marketintel.dev/`).
-   The same rule with hostname `prediction-market-terminal.pages.dev` retires
-   the project alias, which also answers 200 and is indexable. A `_redirects`
-   file cannot do either: Pages matches paths only, never hostnames (tried on
-   2026-09-04, both hosts kept answering 200).
+   The project alias `prediction-market-terminal.pages.dev` also answers 200.
+   It is not part of this zone, so no redirect rule reaches it; `web/_headers`
+   sends `X-Robots-Tag: noindex` for that host, which keeps it out of search
+   results, and a Cloudflare Access policy on the Pages project (**Workers &
+   Pages → project → Settings → Enable access policy**, extended to the
+   `pages.dev` hostname as described in the Pages "known issues" page) is the
+   way to gate it fully. A `_redirects` file cannot do either: Pages matches
+   paths only, never hostnames (tried on 2026-09-04, both hosts kept answering
+   200).
 10. [ ] **Uptime:** a monitor with GET on `https://api.marketintel.dev/healthz`
     (Cloudflare Health Checks need a paid plan; the Better Stack or UptimeRobot
     free tiers do it). Alert on anything but 200.
@@ -297,6 +353,28 @@ step 7 ships that). What is left is clicked in the two dashboards:
     `Strict-Transport-Security` and `X-Frame-Options: DENY`;
     `curl -sI https://marketintel.dev/robots.txt` is `text/plain`;
     `curl -sI https://marketintel.dev/no-such-page` is 404.
+
+**Steps 1–5 and 9 in one go.** `scripts/cloudflare_zone_setup.py` (standard
+library only) sets the same values through the Cloudflare API. It reads
+before it writes, skips what is already set and recognises its rules by
+name, so it can be run again at any time:
+
+```
+$env:CLOUDFLARE_API_TOKEN = "..."                     # PowerShell; bash: export CLOUDFLARE_API_TOKEN=...
+python scripts/cloudflare_zone_setup.py --dry-run     # prints every request it would send, sends none
+python scripts/cloudflare_zone_setup.py               # steps 1, 2, 4, 5 and 9
+python scripts/cloudflare_zone_setup.py --geoblock-ch # additionally step 3
+python scripts/cloudflare_zone_setup.py --verify      # reads only, prints every current value
+```
+
+Each step prints one line, `ok`, `skip` or `FAIL`; a failed step does not
+stop the others, and the exit code is 1 if anything failed. The token comes
+from the environment only, never from an argument. Creating it: **My Profile
+→ API Tokens → Create Token → Custom token**, permissions (all in the Zone
+group) `Zone: Read`, `Zone Settings: Edit`, `Zone WAF: Edit`,
+`Bot Management: Edit`, `Single Redirect: Edit`; **Zone Resources: Include →
+Specific zone → marketintel.dev**. The token is shown once and can be
+deleted after the run.
 
 Open beyond the dashboards, in rough order of value:
 
@@ -318,10 +396,10 @@ Open beyond the dashboards, in rough order of value:
   makes (Google Fonts) and the paragraph the privacy policy spends on it.
 - **Table semantics** — the market and tape grids are `div`s; `role="table"`,
   `row`, `columnheader`, `cell` make them readable to assistive tech.
-- **Cache rule check** — after a deploy, `curl -sI https://marketintel.dev/js/app.js`
-  must show `max-age=0, must-revalidate`; on 2026-09-04 it still showed
-  `max-age=14400` although `web/_headers` was on `main` (zone-level Browser
-  Cache TTL overrides `_headers` — set it to "Respect Existing Headers").
+- **Cache rule check** — once the Browser Cache TTL from step 2 is set and
+  the next deploy is through, `curl -sI https://marketintel.dev/js/app.js`
+  must show `max-age=0, must-revalidate` (on 2026-09-04 it still showed
+  `max-age=14400`: the zone-level TTL overrides `web/_headers`).
 
 ### 8b. The self-hosted alternative (VPS + Caddy)
 

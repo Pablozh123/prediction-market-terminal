@@ -11,6 +11,7 @@ __pycache__
 # Never bake auth secrets into the image — mount them via docker-compose instead.
 .streamlit/secrets.toml
 data/
+!data/claims.yaml
 # Static export of the research pages (scripts/build_static_site.py); the image
 # serves web/ and public/data/ directly.
 dist/

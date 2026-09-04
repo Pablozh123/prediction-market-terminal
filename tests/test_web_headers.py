@@ -73,6 +73,14 @@ class PagesHeaderTest(unittest.TestCase):
         self.assertIn("Expires: 2027-", txt)
         self.assertNotIn("[", txt)  # kein Platzhalter
 
+    def test_pages_dev_alias_ist_noindex(self) -> None:
+        # Nur der pages.dev-Host bekommt das Robots-Tag; der /*-Block nicht,
+        # sonst waere die Custom Domain aus dem Index.
+        alias = self.headers.split("https://:project.pages.dev/*\n", 1)[1].split("\n\n", 1)[0]
+        self.assertIn("X-Robots-Tag: noindex", alias)
+        allgemein = self.headers.split("\n/*\n", 1)[1]
+        self.assertNotIn("X-Robots-Tag", allgemein)
+
     def test_keine_redirects_datei(self) -> None:
         # Pages wertet in _redirects nur Pfade aus, nie Hostnamen: die Regeln
         # www -> apex und pages.dev -> apex standen drin und beide Hosts

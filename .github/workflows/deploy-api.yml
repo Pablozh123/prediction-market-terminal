@@ -2,8 +2,9 @@ name: Deploy API
 
 # api.marketintel.dev runs on Railway and does not follow GitHub on its own,
 # while Cloudflare Pages redeploys the frontend on every push to main. This
-# closes that gap: a push that touches the API image runs `railway up` and
-# then waits for /healthz. It needs the repository secret RAILWAY_TOKEN (a
+# closes that gap: a push that touches the API image runs `railway up`,
+# waits for /healthz and then smokes the live routes with
+# scripts/smoke_live_api.py. It needs the repository secret RAILWAY_TOKEN (a
 # Railway project token for the production environment) and skips itself,
 # with a visible notice, while that secret is unset.
 on:
@@ -54,6 +55,11 @@ jobs:
         with:
           node-version: "22"
 
+      - uses: actions/setup-python@v5
+        if: steps.token.outputs.present == 'true'
+        with:
+          python-version: "3.13"
+
       - name: Install the Railway CLI
         if: steps.token.outputs.present == 'true'
         run: npm install -g @railway/cli
@@ -83,3 +89,12 @@ jobs:
           done
           echo "::error::$HEALTH_URL did not answer 200 three times in a row after the deploy"
           exit 1
+
+      # Three 200s prove that a container answers, not that the image is
+      # complete: a data file missing from the build or a dropped middleware
+      # ships with a healthy /healthz. The smoke requests the routes the
+      # frontend depends on and checks their status, payload shape and
+      # security headers. It is stdlib only, so nothing is installed for it.
+      - name: Smoke the live API
+        if: steps.token.outputs.present == 'true'
+        run: python scripts/smoke_live_api.py https://api.marketintel.dev
