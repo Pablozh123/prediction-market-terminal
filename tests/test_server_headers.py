@@ -50,6 +50,13 @@ class ApiHeaderTests(unittest.TestCase):
         self.assertEqual(r.headers["Referrer-Policy"], "no-referrer")
         self.assertEqual(r.headers["Content-Security-Policy"], API_CSP)
 
+    def test_health_nennt_den_gebauten_commit(self) -> None:
+        with mock.patch.dict(os.environ, {"RAILWAY_GIT_COMMIT_SHA": "abc123"}):
+            self.assertEqual(self.client.get("/api/health").json()["commit"], "abc123")
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("RAILWAY_GIT_COMMIT_SHA", None)
+            self.assertEqual(self.client.get("/api/health").json()["commit"], "")
+
     def test_healthz_alias_ebenso_und_auch_per_head(self) -> None:
         for method in ("GET", "HEAD"):
             r = self.client.request(method, "/healthz")

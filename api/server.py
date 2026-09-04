@@ -542,7 +542,10 @@ def load_ranked(limit: int = 250) -> pd.DataFrame:
 @app.api_route("/api/health", methods=["GET", "HEAD"])
 @app.api_route("/healthz", methods=["GET", "HEAD"], include_in_schema=False)
 def health() -> dict[str, Any]:
-    return {"ok": True, "time": md.now_utc_label()}
+    # commit: der Git-Stand, aus dem Railway das Image gebaut hat
+    # (RAILWAY_GIT_COMMIT_SHA, leer lokal). smoke-api.yml wartet darauf,
+    # dass hier der gerade gepushte Stand steht, bevor es prueft.
+    return {"ok": True, "time": md.now_utc_label(), "commit": os.environ.get("RAILWAY_GIT_COMMIT_SHA", "")}
 
 
 @app.get("/api/overview")

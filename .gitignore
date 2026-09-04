@@ -21,6 +21,8 @@ env/
 
 # Generierte Daten (werden zur Laufzeit erzeugt)
 data/
+# The caveat register is versioned and part of the image (Dockerfile COPY).
+!data/claims.yaml
 
 # Publizierte Analyse-JSONs des taeglichen Review-Laufs (statisches Datenfundament der Research-Seiten)
 !public/data/

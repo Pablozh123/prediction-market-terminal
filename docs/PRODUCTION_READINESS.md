@@ -314,11 +314,12 @@ script looks for, so the two ways can be mixed without duplicates.
    wait 20–25 s. **Settings → Networking:** remove the generated
    `*.up.railway.app` domain, otherwise requests to it bypass Cloudflare, the
    WAF rules and the limiter's trust in `CF-Connecting-IP`.
-7. [ ] **Railway deploy:** `railway up --detach` from the repository root
-   (HANDOFF.md §9.1), or a push to `main` once `RAILWAY_TOKEN` is set, so the
-   image with the claims register goes live. Verify with
-   `python scripts/smoke_live_api.py https://api.marketintel.dev` (all ten
-   lines `ok`; on 2026-09-04 only `/api/claims` failed).
+7. [x] **Railway deploy:** the service builds from `main` on its own (its
+   source is the GitHub repository), and `.github/workflows/smoke-api.yml`
+   verifies each such deploy with `scripts/smoke_live_api.py` once
+   `/api/health` reports the pushed commit. Ad hoc:
+   `python scripts/smoke_live_api.py https://api.marketintel.dev` (ten lines
+   `ok` on 2026-09-04 after the register shipped).
 8. [x] **Pages → project → Settings → Builds:** production branch `main`, build
    command `python scripts/build_static_site.py --api-base
    https://api.marketintel.dev`, output directory `dist`. Deploys follow
@@ -389,10 +390,9 @@ Open beyond the dashboards, in rough order of value:
   artifact is encrypted with it; artifacts of a public repository are
   downloadable by anyone signed in). Nothing runs until the first secret is
   set.
-- **API deploys follow `main`** — `.github/workflows/deploy-api.yml` runs
-  `railway up` for pushes that touch the API image and waits for `/healthz`.
-  Set the repository secret `RAILWAY_TOKEN` (project token, production
-  environment); until then the job skips itself with a notice.
+- **API deploys follow `main`** already (Railway builds from the GitHub
+  source); `.github/workflows/smoke-api.yml` checks each deploy against the
+  pushed commit. No token is involved.
 - **Cold routes**: `ROUTE_WARM_MIN=4` (step 6) keeps `/api/risk` (~25 s)
   and `/api/cross` (~21 s) warm between visitors; a persisted precompute
   would make the first request after a restart fast as well.

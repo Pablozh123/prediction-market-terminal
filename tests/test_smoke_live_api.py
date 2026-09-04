@@ -1,6 +1,6 @@
 """The live-API smoke (scripts/smoke_live_api.py), checked without a network.
 
-The script runs after every deploy (deploy-api.yml). Its request loop is
+The script runs after every deploy (smoke-api.yml). Its request loop is
 thin; what matters is that ``evaluate`` judges a response the way the deploy
 expects - it is fed fake responses here - and that the route table cannot
 drift into something the loop cannot run.

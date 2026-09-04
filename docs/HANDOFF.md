@@ -189,16 +189,17 @@ Two hosts, two mechanisms — this cost a session once, so it is spelled out:
   within a few minutes (`scripts/build_static_site.py --api-base
   https://api.marketintel.dev` writes `dist/`).
 - **api.marketintel.dev** (Railway project `victorious-strength`, service
-  `attractive-truth`, Dockerfile) does **not** follow GitHub. After the push run
-  `railway up --detach` from the repo root and poll a new route until it
-  answers (build ~1 min; the in-process copy daemon pauses for that minute).
-  `.github/workflows/deploy-api.yml` does the same on every push to `main`
-  that touches `api/`, `app/`, `src/`, `requirements.txt` or the `Dockerfile`,
-  once the repository secret `RAILWAY_TOKEN` (a project token for the
-  production environment) is set; without it the job skips itself and says so.
-  `railway up` uploads the working tree minus `.gitignore` — `data/` never
-  ships. Under Git Bash prefix `MSYS_NO_PATHCONV=1` when setting a variable
-  whose value starts with `/` (`/data/...` was mangled to `C:/Program Files/Git/data/...`).
+  `attractive-truth`, Dockerfile) builds from this repository's `main` on its
+  own: the service's source is the GitHub repo (`railway status --json` →
+  `source.repo`), and a merge is live about two minutes later.
+  `.github/workflows/smoke-api.yml` then waits until `/api/health` reports the
+  pushed commit (`RAILWAY_GIT_COMMIT_SHA`) and runs
+  `scripts/smoke_live_api.py` against it. `railway up --detach` from the repo
+  root still works for an ad-hoc deploy of the working tree; it uploads the
+  tree minus `.gitignore`, so `data/` never ships except `data/claims.yaml`,
+  which is excepted there because the Dockerfile copies it. Under Git Bash
+  prefix `MSYS_NO_PATHCONV=1` when setting a variable whose value starts with
+  `/` (`/data/...` was mangled to `C:/Program Files/Git/data/...`).
 - Railway variables (read with `railway variables`, never in the repo):
   `COPY_DATA_DIR=/data/copy_desk` (the mounted volume `attractive-truth-volume`
   at `/data`, 500 MB), `COPY_DAEMON=1`, `COPY_ADMIN_TOKEN=<secret>`,
