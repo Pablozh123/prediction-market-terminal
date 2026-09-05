@@ -2473,6 +2473,29 @@ SIZING_MAP = {
 }
 
 
+def _trader_portfolio(wallet: str) -> dict[str, Any]:
+    # Portfolio-Groesse der Quell-Wallet fuer "Match trader %": offene
+    # Positionen zum Marktwert plus USDC-Kasse. Die Kasse kommt vom
+    # Polygon-RPC; ist er nicht erreichbar, steht das im Ergebnis, statt
+    # dass die Kasse still als null gilt.
+    from src import copy_trading as ct
+
+    positions = md.get_polymarket_positions(wallet, limit=250)
+    positions_value = float(pd.to_numeric(positions["value"], errors="coerce").fillna(0.0).sum()) if positions is not None and not positions.empty and "value" in positions else 0.0
+    cash: float | None
+    try:
+        cash = float(ct.fetch_polygon_usdc_balance(wallet))
+    except Exception:
+        cash = None
+    return {
+        "positions_value": positions_value,
+        "cash": cash,
+        "cash_read": cash is not None,
+        "total": positions_value + (cash or 0.0),
+        "open_positions": int(len(positions)) if positions is not None else 0,
+    }
+
+
 @app.post("/api/backtest", dependencies=[Depends(expensive_route_limit)])
 def backtest(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     wallet = str(body.get("wallet", "")).strip()
@@ -2482,9 +2505,24 @@ def backtest(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     sizing_mode, stake_field = SIZING_MAP.get(mode_key, SIZING_MAP["fixed"])
     stake_value = float(body.get(stake_field, 25.0))
     strategy = btr.STRATEGY_FADE if str(body.get("strategy", "copy")) == "fade" else btr.STRATEGY_COPY
+    # "Match trader %" setzt die Portfolio-Groesse der Wallet voraus; ohne
+    # sie waere jeder Einsatz null und jeder Kauf "out of cash".
+    portfolio: dict[str, Any] | None = None
+    if sizing_mode == btr.SIZING_PORTFOLIO:
+        try:
+            portfolio = cached(f"bt_portfolio_{wallet.lower()}", _trader_portfolio, wallet, ttl=BACKTEST_DATA_TTL)
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"trader portfolio could not be read: {exc}")
+        if float(portfolio.get("total", 0.0) or 0.0) <= 0.0:
+            raise HTTPException(
+                status_code=400,
+                detail="this trader's portfolio size could not be read (no open positions, cash unreadable) — pick Fixed $ or % of bankroll",
+            )
     config = btr.BacktestConfig(
         wallet=wallet,
-        days=int(body.get("window_days", 30)),
+        # Bis zu einem Jahr; der Zeilen-Deckel der Engine (30.000 Trades)
+        # schneidet aktive Wallets frueher ab und sagt das im Ergebnis.
+        days=max(1, min(365, int(body.get("window_days", 30)))),
         bankroll=float(body.get("bankroll", 1000.0)),
         sizing_mode=sizing_mode,
         stake_value=stake_value,
@@ -2504,6 +2542,7 @@ def backtest(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
         # Manuelle Folge-Schwelle: nur Quell-Trades ab diesem Notional
         # kopieren. Der Auto-Fit setzt bei Bedarf seine eigene.
         min_follow_notional=max(0.0, float(body.get("min_notional", 0.0))),
+        trader_portfolio_value=float(portfolio["total"]) if portfolio else 0.0,
     )
     key = "bt_" + "_".join(str(v) for v in dataclasses.astuple(config))
     # Die Daten des Fensters (Trades in Zeitscheiben, Aufloesungen) haengen
@@ -2517,10 +2556,14 @@ def backtest(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
 
     def _run() -> dict[str, Any]:
         daten = cached(daten_key, _daten, ttl=BACKTEST_DATA_TTL)
-        result = btr.run_backtest(config, data=daten)
+        # Preisverlaeufe fuer die Bewertungskurve; sie bleiben im
+        # WindowData-Cache, jeder weitere Lauf im Fenster liest sie dort.
+        result = btr.run_backtest(config, data=daten, fetch_price_history=md.get_polymarket_price_history_lifetime)
         payload = apv.backtest_payload(result)
         payload["data_loaded_at"] = daten.loaded_at.isoformat()[:16] + "Z"
         payload["data_rows"] = int(len(daten.trades)) if daten.trades is not None else 0
+        if portfolio:
+            payload["trader_portfolio"] = portfolio
         return payload
 
     try:
