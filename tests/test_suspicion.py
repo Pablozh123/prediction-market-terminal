@@ -233,6 +233,10 @@ class CategoryContextTests(unittest.TestCase):
             ("Some niche market", "Geopolitics", susp.CONTEXT_GEOPOLITICS),
             ("Some niche market", "Economics", susp.CONTEXT_MACRO),
             ("Will Hubert Hurkacz win the 2026 Men's US Open?", "", susp.CONTEXT_SPORTS),
+            # Esports tournaments carry no league word; the live outlier check
+            # met "Will MOUZ Win the BLAST Open Porto 2026?" as General.
+            ("Will MOUZ Win the BLAST Open Porto 2026?", "", susp.CONTEXT_SPORTS),
+            ("IEM Cologne 2026: Vitality to win?", "", susp.CONTEXT_SPORTS),
             ("Some niche market", "Sports", susp.CONTEXT_SPORTS),
             ("Spread: Knicks (-1.5)", "", susp.CONTEXT_SPORTS),
             ("Lakers moneyline tonight", "", susp.CONTEXT_SPORTS),

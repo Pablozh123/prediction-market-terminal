@@ -553,5 +553,75 @@ class WalletLogTests(unittest.TestCase):
                     os.environ["RISK_LOG_DIR"] = old
 
 
+def _outlier(**overrides):
+    base = {
+        "venue": "Polymarket", "market_key": "0xfed", "title": "Fed hike?", "url": "https://polymarket.com/event/fed",
+        "category": "Macro & central banks", "wallet": "0xde0828bb8493e55928bc5f44367d70f67f127cd3", "name": "magnusmajor",
+        "total": 40740.0, "largest": 40740.0, "prints": 1, "ratio": 6.3, "yardstick": 6470.0, "baseline_n": 1000,
+        "baseline_hours": 29.0, "baseline_max": 61636.0, "elevated_wallets": 1, "wallets_in_window": 14,
+        "verdict": "single", "verdict_text": "the only wallet above the baseline in this window (13 other wallets inside it)",
+        "side": "NO buys", "price": 0.48, "share": 0.7, "window_minutes": 60.0, "window_volume_ratio": 3.1,
+        "first_print": "2026-08-30T23:49:10Z", "last_print": "2026-08-30T23:49:10Z",
+        "first_trade_days": 0.0, "first_trade_state": "measured",
+    }
+    base.update(overrides)
+    return base
+
+
+class OutlierLogTests(unittest.TestCase):
+    """Jeder Ausreisser bekommt seine Zeile: Venue, Markt, Wallet, UTC-Tag; die hoehere Ratio gewinnt."""
+
+    def test_writes_the_row_with_baseline_and_verdict(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "outliers.jsonl"
+            result = risk_log.record_outlier_flags([_outlier(), _outlier(wallet="")], "2026-08-30T23:55:00Z", path=path)
+            self.assertEqual((result["written"], result["skipped"], result["error"]), (1, 1, None))
+            rows = risk_log.read_outlier_flags(path=path)
+            self.assertEqual(len(rows), 1)
+            row = rows[0]
+            self.assertEqual(row["flag_id"], risk_log.outlier_flag_id("Polymarket", "0xfed", row["wallet"], "2026-08-30"))
+            self.assertAlmostEqual(row["ratio"], 6.3)
+            self.assertAlmostEqual(row["yardstick"], 6470.0)
+            self.assertEqual(row["baseline_n"], 1000)
+            self.assertEqual(row["verdict"], "single")
+            self.assertEqual(row["category"], "Macro & central banks")
+            self.assertEqual(row["first_trade_state"], "measured")
+            self.assertEqual(row["wallets_in_window"], 14)
+
+    def test_a_repeat_updates_and_the_higher_ratio_wins(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "outliers.jsonl"
+            risk_log.record_outlier_flags([_outlier(ratio=6.3)], "2026-08-30T20:00:00Z", path=path)
+            risk_log.record_outlier_flags([_outlier(ratio=4.0, verdict="several")], "2026-08-30T20:10:00Z", path=path)
+            result = risk_log.record_outlier_flags([_outlier(ratio=9.5, verdict="several", elevated_wallets=2)], "2026-08-30T20:20:00Z", path=path)
+            self.assertEqual((result["written"], result["updated"]), (0, 1))
+            rows = risk_log.read_outlier_flags(path=path)
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["times_seen"], 3)
+            self.assertAlmostEqual(rows[0]["ratio"], 9.5)
+            self.assertEqual(rows[0]["elevated_wallets"], 2)
+            self.assertEqual(rows[0]["last_seen"], "2026-08-30T20:20:00Z")
+
+    def test_different_market_or_day_is_a_different_row(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "outliers.jsonl"
+            risk_log.record_outlier_flags([_outlier()], "2026-08-30T20:00:00Z", path=path)
+            risk_log.record_outlier_flags([_outlier(market_key="0xother")], "2026-08-30T20:05:00Z", path=path)
+            risk_log.record_outlier_flags([_outlier()], "2026-09-02T20:05:00Z", path=path)
+            self.assertEqual(len(risk_log.read_outlier_flags(path=path)), 3)
+
+    def test_the_outlier_log_lives_next_to_the_others(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old = os.environ.get("RISK_LOG_DIR")
+            os.environ["RISK_LOG_DIR"] = tmp
+            try:
+                self.assertEqual(risk_log.outlier_log_path(), Path(tmp) / "outliers.jsonl")
+            finally:
+                if old is None:
+                    os.environ.pop("RISK_LOG_DIR", None)
+                else:
+                    os.environ["RISK_LOG_DIR"] = old
+
+
 if __name__ == "__main__":
     unittest.main()

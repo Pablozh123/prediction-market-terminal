@@ -125,7 +125,7 @@ from collections import OrderedDict
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 # Repo-Root importierbar machen, egal von wo gestartet wird.
 ROOT = Path(__file__).resolve().parent.parent
@@ -1502,6 +1502,72 @@ def risk_screen_basis() -> tuple[pd.DataFrame, pd.DataFrame, float]:
     return trades, (screened if screened is not None else pd.DataFrame()), whale_threshold
 
 
+def load_market_tape(market_key: str, limit: int = 1000) -> pd.DataFrame:
+    """Die juengsten Prints EINES Marktes in jeder Groesse, 15 min gecacht:
+    die Baseline der Ausreisser-Pruefung und der Blick in einen Markt."""
+
+    return cached(
+        f"market_tape_{market_key}_{int(limit)}",
+        lambda: md.get_polymarket_trades(limit=int(limit), market=market_key),
+        ttl=900.0,
+    )
+
+
+def size_outlier_stage(
+    base: pd.DataFrame,
+    *,
+    whale_threshold: float,
+    now: Any,
+    origins: Mapping[str, Any] | None,
+    categories_by_title: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    """Jeden Markt mit Whale-Flow gegen sein eigenes Tape messen (app/outliers.py).
+
+    Keine Punkte: eine Wallet, deren Geld der letzten Stunde das Vielfache
+    dessen erreicht, was das oberste Prozent der Wallet-Stunden dieses
+    Marktes eingesetzt hat, ist ein Ausreisser, und das Bild dazu sagt, ob
+    sie die einzige war. Fehler je Markt landen in der Antwort, nie beim
+    Aufrufer.
+    """
+
+    from app import outliers as outl
+    from app import suspicion as susp
+
+    rules = outl.outlier_rules()
+    kandidaten = outl.candidate_markets(base, whale_threshold=whale_threshold, limit=int(rules["max_markets"]))
+    tapes: dict[str, pd.DataFrame] = {}
+    meta: dict[str, dict[str, Any]] = {}
+    fehler: list[str] = []
+    kontexte = dict(categories_by_title or {})
+    for kandidat in kandidaten:
+        key = str(kandidat["market_key"])
+        try:
+            frame = load_market_tape(key, limit=int(rules["baseline_prints"]))
+        except Exception as exc:
+            fehler.append(f"{key[:10]}: {type(exc).__name__}: {_oeffentlich(exc)}"[:160])
+            continue
+        if frame is None or frame.empty:
+            continue
+        tapes[key] = frame
+        title = str(kandidat.get("title") or "")
+        meta[key] = {
+            "title": title,
+            "url": str(kandidat.get("url") or ""),
+            "category": kontexte.get(title) or susp.classify_insider_context(title)[0],
+        }
+    rows, pictures = outl.size_outliers(tapes, now=now, whale_threshold=whale_threshold, rules=rules, meta=meta)
+    if rows:
+        merged: dict[str, Any] = dict(origins or {})
+        try:
+            weitere, _meta = wo.first_trade_map([row["wallet"] for row in rows])
+            merged.update(weitere)
+        except Exception as exc:
+            print(f"[warn] outlier origins: {exc}")
+        outl.attach_first_trades(rows, pictures, merged)
+    return outl.outlier_payload(rows, pictures, rules=rules, screened=len(tapes), errors=fehler,
+                                as_of=md.now_utc_label(), whale_threshold=whale_threshold)
+
+
 def build_risk_payload() -> dict[str, Any]:
     """Der komplette Risk-Screen (Events, Wallets, Cluster, Netzwerk), 300 s gecacht.
 
@@ -1554,6 +1620,22 @@ def build_risk_payload() -> dict[str, Any]:
                      "its print is fresh; asked counts the whale-sized wallets of this window, skipped "
                      "the ones beyond the budget."),
         }
+        # Die zweite Erkennung, ohne Punkte: Groesse gegen die eigene
+        # Baseline des Marktes. Faellt sie aus, sagt es das Feld, nicht die
+        # leere Liste.
+        try:
+            kontexte: dict[str, str] = {}
+            if event_scores is not None and not event_scores.empty and {"title", "insider_context"}.issubset(event_scores.columns):
+                kontexte = dict(zip(event_scores["title"].astype(str), event_scores["insider_context"].astype(str)))
+            payload["outliers"] = size_outlier_stage(
+                base, whale_threshold=whale_threshold, now=pd.Timestamp.now(tz="UTC"),
+                origins=origins, categories_by_title=kontexte)
+            payload["kpis"]["size_outliers"] = int(payload["outliers"]["count"])
+        except Exception as exc:
+            print(f"[warn] size outliers: {exc}")
+            payload["outliers"] = {"rows": [], "markets": [], "count": 0, "screened": 0, "errors": [],
+                                   "error": f"{type(exc).__name__}: {_oeffentlich(exc)}"[:200]}
+            payload["kpis"]["size_outliers"] = None
         try:
             # Der Netzwerk-Tape geht bewusst tiefer als der Screen-Tape: das
             # letzte Tausend Prints deckt auf dieser Venue rund eine Minute ab,
@@ -1638,6 +1720,9 @@ def _record_risk_flags(payload: dict[str, Any]) -> None:
         wallets = risk_log.record_wallet_flags(payload.get("wallets") or [])
         if wallets.get("written") or wallets.get("updated"):
             print(f"[risk-log] wallets: {wallets['written']} new, {wallets['updated']} updated -> {wallets['path']}")
+        ausreisser = risk_log.record_outlier_flags((payload.get("outliers") or {}).get("rows") or [])
+        if ausreisser.get("written") or ausreisser.get("updated"):
+            print(f"[risk-log] outliers: {ausreisser['written']} new, {ausreisser['updated']} updated -> {ausreisser['path']}")
     except Exception as exc:
         print(f"[warn] risk flag log: {exc}")
 
@@ -1738,6 +1823,22 @@ def risk_log_endpoint(limit: int = Query(100, ge=1, le=500), enrich: int = 0, si
     from app import risk_log
     from app import suspicion as susp
 
+    if str(kind or "event").lower() == "outlier":
+        from app import outliers as outl
+
+        outlier_rows = risk_log.read_outlier_flags(limit=limit, since=since)
+        return {
+            "kind": "outlier",
+            "rows": outlier_rows,
+            "count": len(outlier_rows),
+            "rules": outl.outlier_rules(),
+            "dedupe_hours": risk_log.DEDUPE_HOURS,
+            "sampler_interval_min": RISK_LOG_INTERVAL_MIN,
+            "note": ("Every wallet the size-outlier check names is logged once per venue, market, wallet and UTC "
+                     "day: its money in the window, the market's yardstick and baseline, the ratio, whether it "
+                     "was the only wallet above the baseline, and the measured first trade."),
+            "as_of": md.now_utc_label(),
+        }
     if str(kind or "event").lower() == "wallet":
         # The wallet log: one row per venue, wallet and UTC day at or above
         # the flag floor, with the measured first trade and the flags.
