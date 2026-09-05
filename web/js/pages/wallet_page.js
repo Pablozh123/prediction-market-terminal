@@ -650,7 +650,14 @@ function renderTrackRecord(d) {
   const facts = [
     ['SETTLED PNL', dollars(tr.settled_pnl), 'sum of realised PnL over ' + num(gate.resolved_markets || 0) + ' resolved markets · $' + num(Math.round(tr.volume || 0)) + ' bought'],
     ['NEGRISK LEGS NETTED', num(tr.legs_netted || 0), tr.leg_inflation != null ? 'naive / corrected = ' + tr.leg_inflation.toFixed(2) : ''],
-    ['PNL PER $ OF VOLUME', tr.pnl_per_volume != null ? (tr.pnl_per_volume * 100).toFixed(1) + '¢' : '—', 'settled PnL / bought'],
+    // Dieselbe Zahl wie die realisierte Rendite je Dollar, und zwar nicht
+    // ungefaehr: settled PnL / bought ist algebraisch payout / cost - 1, weil
+    // payout = cost + pnl und "bought" derselbe Einsatz ist, ueber den die
+    // Rendite rechnet (app/track_record.py::market_records nimmt stake_usd,
+    // api_views._wallet_edge ebenso). Zwei Kacheln mit derselben Zahl unter
+    // zwei Namen lesen sich wie zwei Belege; es ist einer.
+    ['PNL PER $ OF VOLUME', tr.pnl_per_volume != null ? (tr.pnl_per_volume * 100).toFixed(1) + '¢' : '—',
+      'settled PnL / bought — the same figure as the realized edge below, without its interval'],
     ['WASH / FARMER FLAG', wash.flag ? 'FLAGGED' : 'not flagged', 'rule: ' + (wash.rule || '')],
     ['SURVIVORSHIP GATE', gate.ok ? 'passed' : 'not passed', num(gate.resolved_markets || 0) + ' markets over ' + (gate.span_days != null ? gate.span_days.toFixed(0) : '—') + ' d · needs ≥ ' + gate.min_markets + ' and ≥ ' + gate.min_span_days + ' d'],
     ['PROFIT CONCENTRATION', conc.top3_share != null ? pct(conc.top3_share) + ' in top 3' : '—', conc.top_market_share != null ? 'best market ' + pct(conc.top_market_share) + (conc.one_hit_flag ? ' · one-hit flag' : '') : ''],
